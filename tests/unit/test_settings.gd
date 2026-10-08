@@ -1,6 +1,6 @@
 extends GutTest
 ## autoload/Settings.gd + config/GraphicsPreset.gd: user settings persisted to
-## a single user://settings.cfg ConfigFile (docs/M6_PLAN.md package C1). Uses
+## a single user://settings.cfg ConfigFile (docs/archive/M6_PLAN.md package C1). Uses
 ## a fresh Settings instance pointed at a temp cfg path
 ## (set_config_path_for_test) rather than the real "Settings" autoload
 ## singleton, mirroring autoload/Sfx.gd's own set_root_dir_for_test()
@@ -357,7 +357,7 @@ func test_key_override_persists_and_reapplies_on_fresh_settings() -> void:
 ## F2 regression: a keyboard override must not erase the action's gamepad
 ## default (and vice versa) -- overrides are device-class aware. Also
 ## verifies a keyboard override and a joypad override for the same action
-## coexist through a ConfigFile persist + reload cycle (docs/M6_PLAN.md C1
+## coexist through a ConfigFile persist + reload cycle (docs/archive/M6_PLAN.md C1
 ## review finding F1).
 func test_key_override_keeps_other_device_class_and_round_trips_both() -> void:
 	var key_default: InputEventKey = InputEventKey.new()

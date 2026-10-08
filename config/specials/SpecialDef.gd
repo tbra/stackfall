@@ -7,7 +7,7 @@ extends Resource
 ## type) are P3-P5's responsibility. An empty res://config/specials/ (today,
 ## before those land) is a supported state: load_all_specials() returns an
 ## empty array and pick_weighted() returns null, so a spawn with no special
-## drawn behaves exactly like an ordinary block (see docs/M4_P2_PACKAGES.md
+## drawn behaves exactly like an ordinary block (see docs/archive/M4_P2_PACKAGES.md
 ## P2c's "safe default").
 
 ## Unique identifier, e.g. &"rocket", &"volcano".
@@ -183,14 +183,14 @@ static func load_selectable_specials() -> Array[SpecialDef]:
 ## tests/unit/test_special_def.gd can exercise the loader's actual sort order
 ## against a hand-built, in-memory array of SpecialDef instances -- no need
 ## to write or clean up real/temporary .tres resources under
-## res://config/specials/ (which docs/M4_P2_PACKAGES.md's P2a section wants
+## res://config/specials/ (which docs/archive/M4_P2_PACKAGES.md's P2a section wants
 ## to stay genuinely empty this package) or under user:// just to prove the
 ## comparator works.
 static func _sort_by_id(a: SpecialDef, b: SpecialDef) -> bool:
 	return String(a.id) < String(b.id)
 
 
-## Roulette-wheel pick over `.weight` (docs/M4_P2_PACKAGES.md P2a: "roulette
+## Roulette-wheel pick over `.weight` (docs/archive/M4_P2_PACKAGES.md P2a: "roulette
 ## pick over .weight"). Null on an empty array so a caller (P2c) can treat
 ## "nothing to draw" as a safe no-op instead of a crash.
 ##

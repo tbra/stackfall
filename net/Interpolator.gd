@@ -30,7 +30,7 @@ extends RefCounted
 ## side table keyed by ids that may never arrive (a despawned body's id can
 ## appear in a snapshot already in flight). Dropping costs at most one snapshot
 ## interval — 33 ms — before the next one carries the body again, by which
-## time the reliable spawn has certainly landed. See docs/M3a_PLAN.md.
+## time the reliable spawn has certainly landed. See docs/archive/M3a_PLAN.md.
 ##
 ## The "has this body spawned?" question belongs to SnapshotSync, which owns
 ## the BlockRegistry; it is injected as a Callable through

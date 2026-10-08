@@ -1,7 +1,7 @@
 extends GutTest
 ## Spec 2.2/2.5: the ghost is tinted in the player's colour when the spot is
 ## valid, red when outside territory/contested/off the disk, and hatched over
-## a hole. docs/M2_PLAN.md P4: "the ghost is the owner's color when
+## a hole. docs/archive/M2_PLAN.md P4: "the ghost is the owner's color when
 ## Match.preview_placement returns VALID, red for
 ## OUTSIDE_TERRITORY/CONTESTED/OFF_DISK, hatched over HOLE."
 

@@ -2,9 +2,9 @@ class_name NetDebugOverlay
 extends CanvasLayer
 ## Spec Part 4 M3's debug overlay: ping, snapshot size, interpolation delay
 ## and packet loss, plus controls for core/net/NetSim.gd's simulated
-## lag/loss (docs/M3a_PLAN.md P4).
+## lag/loss (docs/archive/M3a_PLAN.md P4).
 ##
-## "The overlay reads and never writes game state" (docs/M3a_PLAN.md "Must
+## "The overlay reads and never writes game state" (docs/archive/M3a_PLAN.md "Must
 ## NOT"): every label comes straight from Net.stats(), refreshed on
 ## Events.net_stats_updated; the only things this script writes are the
 ## simulator's own tunables, through Net.set_simulation(), which is the seam

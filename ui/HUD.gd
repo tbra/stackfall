@@ -31,7 +31,7 @@ extends CanvasLayer
 ## HUD-only test) behaves like real-time play, matching every other
 ## HUD codepath that reads Match's config the same way.
 ##
-## "Connects to Events only — no node paths out of ui/" (docs/M2_PLAN.md): it
+## "Connects to Events only — no node paths out of ui/" (docs/archive/M2_PLAN.md): it
 ## wires itself to the Events bus in _ready() and never walks the scene tree
 ## looking for collaborators. It reads the Match autoload for display data a
 ## signal payload doesn't carry (a slot's colour, name, or a shape id's
@@ -40,7 +40,7 @@ extends CanvasLayer
 ## all stay Match's job.
 ##
 ## DECISION (ui/HUD.gd): every *gameplay-feel* number (durations, colors,
-## hatch scale) already lives in GhostTuning (docs/M2_PLAN.md parks P4's HUD
+## hatch scale) already lives in GhostTuning (docs/archive/M2_PLAN.md parks P4's HUD
 ## tunables there too). Pure screen-space drawing geometry for this
 ## placeholder layout — ring line width, background alpha, the preview's
 ## cell size in pixels — stays inline: M7 replaces this whole visual with
@@ -397,7 +397,7 @@ func _process(delta: float) -> void:
 	_refresh_special_indicator()
 
 
-# --- Public API (docs/M2_PLAN.md — "implement exactly"; Bontago-mv0.9 adds
+# --- Public API (docs/archive/M2_PLAN.md — "implement exactly"; Bontago-mv0.9 adds
 # set_local_slot/set_held_shape/set_locked) -----------------------------------
 
 ## Hot-seat only: whoever's turn it is right now. Shows the "Player N's
@@ -1066,7 +1066,7 @@ func _names() -> Variant:
 	return name_provider if name_provider != null else Net
 
 
-## Bontago-1en.16 (docs/M4_P2_PACKAGES.md P2b-ii): the pending-special queue
+## Bontago-1en.16 (docs/archive/M4_P2_PACKAGES.md P2b-ii): the pending-special queue
 ## indicator, next to the next-shape preview. Reads `_active_slot` the exact
 ## same way the previews do (set_active_slot/set_local_slot both drive it, so
 ## this follows hot-seat's acting slot or the local slot outside hot-seat,

@@ -1,5 +1,5 @@
 extends GutTest
-## docs/M3a_PLAN.md P4 "Tests first": every spec 2.8 setting round-trips
+## docs/archive/M3a_PLAN.md P4 "Tests first": every spec 2.8 setting round-trips
 ## through MatchConfig.to_dict() -> Net.set_lobby_data -> Events.
 ## net_lobby_data_changed -> from_dict -> sanitize(); a client's controls are
 ## disabled while the host's are not; an out-of-range value arriving over the
@@ -546,7 +546,7 @@ func test_roster_in_lobby_data_builds_player_rows() -> void:
 	assert_eq(list.get_child_count(), 2)
 
 
-## M5 P4 (docs/M5_PLAN.md, Bontago-d5c.5): the host's own outbound
+## M5 P4 (docs/archive/M5_PLAN.md, Bontago-d5c.5): the host's own outbound
 ## LobbyPlayersPanel.build_roster() must append one synthetic row per bot seat -- slot_id
 ## running from player_count - ai_count up, matching autoload/match/
 ## MatchLifecycle.gd's _build_slots() formula for PlayerSlot.is_bot -- so the
@@ -656,7 +656,7 @@ func test_ai_count_spin_clamps_to_seats_minus_connected_humans() -> void:
 	assert_eq(int(ai_spin.value), 3, "the existing 4 bots shrink to fit the now-smaller headroom")
 
 
-# --- Invite Friends (docs/M3b_PLAN.md P3) -------------------------------------
+# --- Invite Friends (docs/archive/M3b_PLAN.md P3) -------------------------------------
 
 func test_invite_friends_button_hidden_when_not_a_steam_session() -> void:
 	var lobby: Lobby = _make_lobby(true)
@@ -724,7 +724,7 @@ func test_roster_changed_signal_updates_ready_label_without_a_lobby_data_round_t
 	assert_eq(guest_badge_label.get_parent().tooltip_text, "Ready", "the ready flag flip must reach the row's badge")
 
 
-# --- Specials checklist (M6 A4, docs/M6_PLAN.md) ------------------------------
+# --- Specials checklist (M6 A4, docs/archive/M6_PLAN.md) ------------------------------
 
 func test_every_loaded_special_def_gets_a_checkbox_checked_by_default() -> void:
 	var lobby: Lobby = _make_lobby(true)
@@ -840,7 +840,7 @@ func test_specials_checkboxes_are_disabled_for_a_client() -> void:
 
 
 func test_roster_entry_with_a_steam_persona_name_renders_unchanged() -> void:
-	# docs/M3b_PLAN.md P3: once host_online()/join_lobby() default an empty
+	# docs/archive/M3b_PLAN.md P3: once host_online()/join_lobby() default an empty
 	# player_name to the Steam persona name, the panel's roster render needs zero
 	# special-casing to display it — pin that down rather than just assert it.
 	var lobby: Lobby = _make_lobby(false)

@@ -1,5 +1,5 @@
 extends GutTest
-## docs/M2_PLAN.md owner decision 1: hot-seat is strict alternation — only the
+## docs/archive/M2_PLAN.md owner decision 1: hot-seat is strict alternation — only the
 ## active slot's controls do anything, and the turn passes on
 ## Events.turn_changed. HotSeat.tscn is a self-contained controller + ghost +
 ## HUD subtree; this drives it the way Main will once the integrator wires it

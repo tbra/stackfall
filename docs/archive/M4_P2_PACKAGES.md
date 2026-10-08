@@ -1,6 +1,6 @@
 # M4 P2 — dispatchable packages (re-cut against current code, 2026-09-23)
 
-Re-cuts `docs/M4_PLAN.md`'s P2 section against `main` @ `cde6359` (clean
+Re-cuts `docs/archive/M4_PLAN.md`'s P2 section against `main` @ `cde6359` (clean
 except `docs/SPEC.md`'s uncommitted 2026-09-22 owner-decision diff, already
 read into this plan). P0/P1 are done: `game/Field.gd`, `config/TiltTuning.gd`,
 `autoload/match/MatchGifts.gd`, `game/GiftCrate.gd` exist and pass

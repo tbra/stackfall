@@ -29,7 +29,7 @@ reported defect with a focused regression case before claiming a fix.
 
 Implement scoped changes and meaningful tests. Keep transport classes at the Net
 boundary and preserve existing deterministic rules. For Steam work, read
-docs/M3b_RESEARCH.md, verify current upstream contracts, and run the extension-load
+docs/archive/M3b_RESEARCH.md, verify current upstream contracts, and run the extension-load
 spike before depending on it. Do not publish Valve binaries or credentials.
 
 Run open-project import, named GUT tests and the local ENet harness only when the

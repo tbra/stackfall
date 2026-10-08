@@ -1,6 +1,6 @@
 extends GutTest
 ## autoload/Net.gd: session lifecycle, handshake, roster, disconnect and
-## command-line parsing (spec 3.4, docs/M3a_PLAN.md P1).
+## command-line parsing (spec 3.4, docs/archive/M3a_PLAN.md P1).
 ##
 ## Net.gd has no class_name (it must not collide with the `Net` autoload
 ## singleton), so a second, independent instance of the same script cannot be
@@ -54,7 +54,7 @@ func after_each() -> void:
 	if _host != null:
 		_host.leave()
 	# A rejected peer's own Net._reject_peer() waits a couple of frames
-	# before actually closing the connection (docs/M3a_PLAN.md: the refusal
+	# before actually closing the connection (docs/archive/M3a_PLAN.md: the refusal
 	# RPC must reach the wire first). Give it that time before add_child_
 	# autofree() frees the node out from under the still-awaiting coroutine.
 	await get_tree().process_frame
@@ -263,7 +263,7 @@ func test_server_full_refuses_the_next_peer() -> void:
 # --- Lobby-only joining (Bontago-mv0.1.8) ---------------------------------------
 #
 # Spec 3.4: joining is lobby-only in M3a. Net does not know Match's state
-# machine (docs/M3a_PLAN.md P1: Net must not name a gameplay concept), so the
+# machine (docs/archive/M3a_PLAN.md P1: Net must not name a gameplay concept), so the
 # match flow flips set_accepting_joins(); these tests flip it directly. The
 # "not accepting" window stands in for COUNTDOWN, PLAYING, SUDDEN_DEATH and
 # END alike — Net treats every non-lobby state the same way.
@@ -542,11 +542,11 @@ func test_apply_command_line_with_no_relevant_flags_returns_false() -> void:
 	assert_eq(_host.mode(), Net.Mode.OFFLINE)
 
 
-# --- Steam session (spec 3.4, docs/M3b_PLAN.md P1) --------------------------
+# --- Steam session (spec 3.4, docs/archive/M3b_PLAN.md P1) --------------------------
 #
 # Every test below drives Net through a FakeSteam, never the real Steam
 # singleton, so the suite is correct whether or not addons/godotsteam/ is
-# installed in this checkout (docs/M3b_PLAN.md's acceptance criterion).
+# installed in this checkout (docs/archive/M3b_PLAN.md's acceptance criterion).
 #
 # steam_available() requires both steam_provider.is_available() *and* a
 # successful init_result (see autoload/Net.gd's `_steam_ready`), matching
@@ -559,7 +559,7 @@ func test_apply_command_line_with_no_relevant_flags_returns_false() -> void:
 # without a prior successful steamInitEx() segfaults the process
 # (netcode-F-probe_peer_no_init.log). That means the actual HOST/CLIENT mode
 # transition after a successful lobby_created/lobby_joined is exactly the one
-# step docs/M3b_PLAN.md's "Testing without Steam" says GUT genuinely cannot
+# step docs/archive/M3b_PLAN.md's "Testing without Steam" says GUT genuinely cannot
 # exercise — every test below asserts the (deterministic, safe) OFFLINE
 # outcome for that step rather than skipping it.
 
@@ -924,7 +924,7 @@ func test_leave_between_two_host_online_attempts_clears_the_pending_state() -> v
 	# Cleared here so the assertion below distinguishes the *stale-answer*
 	# short-circuit (this fix: bails out before tagging anything) from the
 	# pre-existing, unrelated "no real SteamMultiplayerPeer is ever built for
-	# a FakeSteam provider" safety net (docs/M3b_PLAN.md's crash-safety rail),
+	# a FakeSteam provider" safety net (docs/archive/M3b_PLAN.md's crash-safety rail),
 	# which every P1 test's peer construction already falls through to and
 	# would otherwise call leave_lobby() too, masking whether this fix's own
 	# early return actually ran.
@@ -1212,7 +1212,7 @@ func test_init_steam_forwards_steamclient_status_onto_events_and_is_idempotent()
 ## run_callbacks() doc comment) — without a periodic pump, host_online()'s own
 ## async lobby_created (and every other Steam signal) never fires against a
 ## real Steam client no matter how long a caller waits. Found by this
-## worker's own windowed smoke test (docs/M3b_PLAN.md P1 acceptance), not by
+## worker's own windowed smoke test (docs/archive/M3b_PLAN.md P1 acceptance), not by
 ## a plan bullet, so it gets a test of its own.
 func test_process_pumps_steam_callbacks_once_steam_is_ready() -> void:
 	var fake: FakeSteam = FakeSteam.new()

@@ -7,7 +7,7 @@ extends GutTest
 ## file is the host-level contract punch_special_hole() adds on top: HoleMode
 ## gating, the radius-to-cells conversion, the single hole_cells_changed
 ## emit, and the home-flag-elimination trigger (Bontago-3td, owner question 2
-## -- shipped as the default per docs/M4_SPECIALS_PACKAGES.md's "Orchestrator
+## -- shipped as the default per docs/archive/M4_SPECIALS_PACKAGES.md's "Orchestrator
 ## decisions (2026-09-23, binding)", item 2).
 ##
 ## New file rather than appended to test_match_flow.gd (already ~990 lines

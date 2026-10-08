@@ -1,11 +1,11 @@
 class_name FakeSteam
 extends RefCounted
-## Test double for net/SteamClient.gd (docs/M3b_PLAN.md P1).
+## Test double for net/SteamClient.gd (docs/archive/M3b_PLAN.md P1).
 ##
 ## GUT cannot double a plain RefCounted script driven only through duck-typed
 ## `.call()`s the way the real SteamClient reaches the Engine "Steam"
 ## singleton, and every P1 test must pass with **no real Steam singleton
-## present** (docs/M3b_PLAN.md's acceptance criterion). This fake implements
+## present** (docs/archive/M3b_PLAN.md's acceptance criterion). This fake implements
 ## SteamClient's exact public method/signal surface so autoload/Net.gd's
 ## `steam_provider: Variant` seam cannot tell the difference at the call
 ## site — same role FakeNet plays for the whole Net autoload.
@@ -149,7 +149,7 @@ func activate_invite_overlay(lobby_id: int) -> void:
 	activate_invite_overlay_calls.append(lobby_id)
 
 
-## Mirrors net/SteamClient.gd's run_callbacks() (docs/M3b_PLAN.md P1 — every
+## Mirrors net/SteamClient.gd's run_callbacks() (docs/archive/M3b_PLAN.md P1 — every
 ## real method needs a fake counterpart so Net._process()'s unconditional
 ## per-frame call never errors on a FakeSteam-driven test). A no-op: this fake
 ## already fires its own signals synchronously and explicitly, so it has no

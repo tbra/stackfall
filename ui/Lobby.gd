@@ -2,7 +2,7 @@ class_name Lobby
 extends Control
 ## Every spec 2.8 match setting as a control, synced as lobby data so every
 ## client sees the host's settings (spec 3.4 "Steam lobbies store match
-## settings as lobby data"; docs/M3a_PLAN.md P4).
+## settings as lobby data"; docs/archive/M3a_PLAN.md P4).
 ##
 ## **The round trip.** The host builds a MatchConfig from its controls,
 ## serializes it with to_dict(), merges in the roster, and calls
@@ -10,7 +10,7 @@ extends Control
 ## own UI never waits on an echo that may not arrive over a stub or a lossy
 ## transport — applies the same Dictionary through _apply_data(): from_dict(),
 ## then sanitize() so a value that arrived out of its spec 2.8 range is
-## clamped rather than trusted (docs/M3a_PLAN.md P4 "Tests first"). A guard
+## clamped rather than trusted (docs/archive/M3a_PLAN.md P4 "Tests first"). A guard
 ## flag stops that inbound apply from re-triggering another outbound publish.
 ##
 ## **Host-only editing.** Net.is_host() is true on the host and offline
@@ -21,7 +21,7 @@ extends Control
 ## Connects to Events and Net only — no node paths into game/Main.gd. Start
 ## is a signal for whoever owns scene-building (the integrator's Main) to
 ## react to; this script never calls Match.start_match() itself, on the host
-## or (per docs/M3a_PLAN.md P4 "Must NOT") on a client.
+## or (per docs/archive/M3a_PLAN.md P4 "Must NOT") on a client.
 
 ## Emitted when the host presses Start with every peer ready. `config` is the
 ## sanitized MatchConfig the lobby is currently showing.
@@ -520,7 +520,7 @@ func _apply_icon(button: Button, texture: Texture2D) -> void:
 	button.add_theme_constant_override("icon_max_width", GiftIconTable.shared().lobby_icon_px)
 
 
-## M6 A4 (docs/M6_PLAN.md "A4 -- Enabled-specials checklist"): one CheckBox per
+## M6 A4 (docs/archive/M6_PLAN.md "A4 -- Enabled-specials checklist"): one CheckBox per
 ## config/specials/*.tres, in SpecialDef.load_all_specials() id order (the
 ## same sorted, deterministic order every peer's own load produces, so the
 ## checklist never shows two peers a differently-ordered list). Checked =
@@ -1202,7 +1202,7 @@ func _on_toggled(_pressed: bool) -> void:
 	_on_setting_changed()
 
 
-## The one place a host's edit turns into a publish (docs/M3a_PLAN.md P4
+## The one place a host's edit turns into a publish (docs/archive/M3a_PLAN.md P4
 ## "Tests first": "every setting round-trips through ... Net.set_lobby_data").
 func _on_setting_changed() -> void:
 	if _applying_remote_data:
@@ -1233,7 +1233,7 @@ func _config_from_controls() -> MatchConfig:
 	# forces Match's strict-alternation single-timer branch (autoload/Match.gd
 	# _tick_feed and friends). The lobby is reachable only for networked play —
 	# hot-seat stays a separate, unlisted `--hot-seat` path straight to
-	# game/HotSeat.tscn (docs/M3a_PLAN.md question 3) — so every config this
+	# game/HotSeat.tscn (docs/archive/M3a_PLAN.md question 3) — so every config this
 	# screen builds must run the real-time per-player-timer branch instead.
 	config.hot_seat = false
 	# Bontago-1pi.107: the other maps are disabled for now (data kept); the disc size is the choice.
@@ -1681,7 +1681,7 @@ func _on_start_pressed() -> void:
 	start_requested.emit(config)
 
 
-## M3b (docs/M3b_PLAN.md P3): opens the Steam overlay's invite dialog. Only
+## M3b (docs/archive/M3b_PLAN.md P3): opens the Steam overlay's invite dialog. Only
 ## `net_provider.invite_friends()` is called here — never a raw Steam call —
 ## the same discipline every other button handler in this file keeps.
 func _on_invite_friends_pressed() -> void:

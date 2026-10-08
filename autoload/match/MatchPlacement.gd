@@ -29,7 +29,7 @@ extends RefCounted
 ## radius = half the box half-extent) makes the reserved slack equal to the
 ## clamp radius itself (>= 150 m on the smallest map), comfortably above the
 ## worst-case impulse travel above, without touching _burn_block()'s impulse
-## for a legitimate near-disk burn (docs/M2_PLAN.md owner decision 2) --
+## for a legitimate near-disk burn (docs/archive/M2_PLAN.md owner decision 2) --
 ## proven by tests/unit/test_match_flow.gd's
 ## test_repro_burn_clamp_margin_lets_a_maximally_clamped_burn_escape_the_kill_plane.
 const _BURN_CLAMP_MARGIN: float = 0.5
@@ -38,7 +38,7 @@ var _match: MatchAutoload = null
 
 ## Blocks _spawn_block() has built since the match started. The acceptance
 ## harness asserts blocks_spawned() == sum(intents_accepted) + auto_drops
-## across the session (docs/M3a_PLAN.md, "Proving placements are never
+## across the session (docs/archive/M3a_PLAN.md, "Proving placements are never
 ## duplicated or lost").
 var _blocks_spawned: int = 0
 
@@ -165,7 +165,7 @@ func _intent_gate(slot_id: int, feed_seq: int, kind: IntentKind) -> StringName:
 ## caller last saw; -1 means "don't check", which is what every M2 call site
 ## passes by omitting it. A value that is not current means the intent is a
 ## replay, a double click inside one round trip, or a race with an auto-drop,
-## and is refused with REASON_NO_BLOCK — the whole of docs/M3a_PLAN.md's
+## and is refused with REASON_NO_BLOCK — the whole of docs/archive/M3a_PLAN.md's
 ## "Never duplicated, never lost" defence (1).
 ##
 ## The -1 sentinel is a courtesy for **trusted local callers only**: the M2
@@ -234,7 +234,7 @@ func request_place(
 	else:
 		disk_origin = hit as Vector2
 		result = PlacementRules.validate_point(disk_origin, _match.raster(), team_id)
-		# DECISION (autoload/match/MatchPlacement.gd, docs/M6_PLAN.md package
+		# DECISION (autoload/match/MatchPlacement.gd, docs/archive/M6_PLAN.md package
 		# B1, spec 2.7 "Sandbox: no territory limits"): only the two
 		# territory-ownership outcomes are waived here -- OFF_DISK (the
 		# hit == null branch above, which never reaches this remap), HOLE and
@@ -265,7 +265,7 @@ func request_place(
 
 	var final_disk_origin: Vector2 = relocated if outcome["use_relocation"] else disk_origin
 	if reason != PlacementRules.REASON_OK:
-		# Bontago-mv0.1.11: this is the burn path (docs/M2_PLAN.md owner
+		# Bontago-mv0.1.11: this is the burn path (docs/archive/M2_PLAN.md owner
 		# decision 2 below), now reachable only for auto_drop == true (see the
 		# early return above) -- the last cursor MatchNet stored for a remote
 		# slot is finite-but-arbitrary (spec 3.4: "The host checks every intent
@@ -316,7 +316,7 @@ func request_place(
 	var gift_id: StringName = _held_deliverable_gift(slot_id) if reason == PlacementRules.REASON_OK else &""
 	var spawned: Block = _spawn_block(shape, final_world_origin, basis, slot_id, true, gift_id)
 	if reason != PlacementRules.REASON_OK:
-		# Owner decision (docs/M2_PLAN.md, "Invalid release — burn the block"),
+		# Owner decision (docs/archive/M2_PLAN.md, "Invalid release — burn the block"),
 		# narrowed by Bontago-mv0.24 to auto-drop only (see above): a forced
 		# release that finds no valid point to relocate to still spawns the
 		# block and throws it off the map; it is still consumed either way.
@@ -378,7 +378,7 @@ func request_place(
 ## dropping it in place (spec 2.5: "Throw strength scales with drag distance,
 ## capped at throw_max_speed = 25 m/s"; spec 3.4: "request_throw(slot_id,
 ## pos, orient, velocity): the host clamps velocity to throw_max_speed").
-## Mirrors request_place() guard-for-guard (docs/M4_P2_PACKAGES.md P2c:
+## Mirrors request_place() guard-for-guard (docs/archive/M4_P2_PACKAGES.md P2c:
 ## "check-for-check identical") through the pose-well-formed gate, then
 ## diverges: a throw only ever fires a pending special (REASON_NOT_A_SPECIAL
 ## otherwise, checked before the raycast -- there is nothing to test a point
@@ -462,7 +462,7 @@ func request_throw(
 	else:
 		disk_origin = hit as Vector2
 		result = ThrowRules.validate_release_point(disk_origin, _match.raster(), team_id)
-		# DECISION (autoload/match/MatchPlacement.gd, docs/M6_PLAN.md package
+		# DECISION (autoload/match/MatchPlacement.gd, docs/archive/M6_PLAN.md package
 		# B1): the throw-path twin of request_place()'s own sandbox remap
 		# above -- same waived outcomes, same reasoning.
 		# DECISION (Bontago-sen.1): orchestrator ruling -- owner says gifts may be
@@ -470,7 +470,7 @@ func request_throw(
 		# NOT_A_SPECIAL guard above) waives territory on the throw path too.
 		result = _apply_territory_waiver(slot_id, result)
 	if result != PlacementRules.Result.VALID:
-		# docs/M4_P2_PACKAGES.md P2c: "a refused throw keeps the piece in
+		# docs/archive/M4_P2_PACKAGES.md P2c: "a refused throw keeps the piece in
 		# hand, like a refused click; never burns" -- mirrors request_place()'s
 		# manual-refusal path (Bontago-mv0.24): nothing spawns, nothing is
 		# consumed, and the caller may simply try again.
@@ -535,7 +535,7 @@ func _apply_aim_direction(block: Block, def: SpecialDef, direction: Vector3) -> 
 		PaintballEffect.set_launch_direction(block, direction)
 
 
-## M4 P4-SPAWN (docs/M4_SPECIALS_PACKAGES.md "P4-SPAWN", prerequisite for
+## M4 P4-SPAWN (docs/archive/M4_SPECIALS_PACKAGES.md "P4-SPAWN", prerequisite for
 ## Volcano): the entry point a special's own SpecialEffect uses to spawn a
 ## brand-new projectile at runtime -- e.g. Volcano's lava orbs -- rather than
 ## through a player's own placement/throw gesture. Host-only, using
@@ -724,7 +724,7 @@ func is_pose_well_formed(origin: Vector3, orientation_index: int, free_quat: Qua
 
 ## Pure decision step factored out of request_place() so it can be unit-tested
 ## against manufactured PlacementRules.Result / relocation values without a
-## working P1 territory solve (docs/M2_PLAN.md's P2 brief: "use fakes/stubs
+## working P1 territory solve (docs/archive/M2_PLAN.md's P2 brief: "use fakes/stubs
 ## for territory results — the P1 stubs exist and compile"). `initial_result`
 ## is what validate() said about the desired spot; `relocated` is what
 ## closest_valid_origin() found (or PlacementRules.NO_ORIGIN), already
@@ -734,7 +734,7 @@ func is_pose_well_formed(origin: Vector3, orientation_index: int, free_quat: Qua
 ## request_place() should return, and whether the block should land at
 ## `relocated` (true) or stay at the original spot and be thrown off the map
 ## (false, with reason != REASON_OK) — spec 2.2's "burn the block" rule
-## (docs/M2_PLAN.md owner decision 2): any release on an invalid spot burns
+## (docs/archive/M2_PLAN.md owner decision 2): any release on an invalid spot burns
 ## the block; auto-drop gets one relocation attempt first.
 func _resolve_outcome(
 	initial_result: PlacementRules.Result, auto_drop: bool, relocated: Vector2
@@ -873,7 +873,7 @@ func _spawn_block(
 	return block
 
 
-## M4 P2c (docs/M4_P2_PACKAGES.md, orchestrator amendment 1): the special
+## M4 P2c (docs/archive/M4_P2_PACKAGES.md, orchestrator amendment 1): the special
 ## TYPE was already drawn at claim time by MatchGifts' own weighted drawer
 ## (autoload/match/MatchGifts.gd's set_special_drawer()/_ensure_special_
 ## drawer_installed()) -- this only pops the head id `slot_id`'s queue was
@@ -895,7 +895,7 @@ func _spawn_block(
 ## Both call sites are host-only (request_place()/request_throw() both
 ## refuse immediately off-host), so every attach and every
 ## Events.special_triggered forward this produces happens on the host only
-## (docs/M4_P2_PACKAGES.md P2c brief).
+## (docs/archive/M4_P2_PACKAGES.md P2c brief).
 func _attach_pending_special(block: Block, slot_id: int) -> void:
 	var special_id: StringName = _match.pop_pending_special(slot_id)
 	if special_id == &"":
@@ -993,7 +993,7 @@ func _warn_unresolved_special_once(special_id: StringName, why: String) -> void:
 
 ## Blocks this instance has spawned since the match started. The M3a
 ## acceptance harness asserts this equals the sum of accepted intents plus
-## auto-drops (docs/M3a_PLAN.md).
+## auto-drops (docs/archive/M3a_PLAN.md).
 func blocks_spawned() -> int:
 	return _blocks_spawned
 

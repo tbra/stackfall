@@ -1,6 +1,6 @@
 extends Node
 ## Windowed smoke-shot of the M3a main menu and lobby (integrator
-## verification step, docs/M3a_PLAN.md integration order step 5: "a windowed
+## verification step, docs/archive/M3a_PLAN.md integration order step 5: "a windowed
 ## 2-instance pass for feel" starts here with a look at the screens
 ## themselves). Not part of the running game (CLAUDE.md: tools/).
 ##

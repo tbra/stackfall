@@ -1,5 +1,5 @@
 extends Node3D
-## docs/M3a_PLAN.md, P2 acceptance: "bench_snapshot.gd packs 300 awake bodies
+## docs/archive/M3a_PLAN.md, P2 acceptance: "bench_snapshot.gd packs 300 awake bodies
 ## and reports bytes and pack time — budget <= 2 ms per snapshot at 30 Hz and
 ## <= 4.5 KB total. Miss it and raise max_packet_bytes or lower snapshot_hz
 ## **in the resource**, never in code."
@@ -20,9 +20,9 @@ extends Node3D
 
 ## The graded configuration (spec 3.4's headline case).
 const GRADED_BODIES: int = 300
-## docs/M3a_PLAN.md: 2 ms of the 33.3 ms available at snapshot_hz = 30.
+## docs/archive/M3a_PLAN.md: 2 ms of the 33.3 ms available at snapshot_hz = 30.
 const ENCODE_BUDGET_MS: float = 2.0
-## docs/M3a_PLAN.md: "<= 4.5 KB total".
+## docs/archive/M3a_PLAN.md: "<= 4.5 KB total".
 const BYTES_BUDGET: int = 4608
 ## Extra rows for context only, not graded: a full eight-player late game and
 ## PhysicsTuning's max_active_blocks ceiling.

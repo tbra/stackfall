@@ -1,6 +1,6 @@
 extends GutTest
 ## net/SnapshotSync.gd's packet format (spec 3.4 "Snapshots",
-## docs/M3a_PLAN.md P2 and "The wire, byte for byte").
+## docs/archive/M3a_PLAN.md P2 and "The wire, byte for byte").
 ##
 ## "Split into several packets if needed to stay under ~1200 bytes each" and
 ## "tag each with a sequence number". Everything here is the static half of
@@ -337,7 +337,7 @@ func test_three_hundred_bodies_cost_about_four_kilobytes() -> void:
 	gut.p("SNAPSHOT_WIRE bodies=%d fragments=%d bytes=%d bytes_per_body=%.2f" % [
 		SPEC_BODY_COUNT, packets.size(), total, float(total) / float(SPEC_BODY_COUNT)
 	])
-	# 300 x 15 = 4500 plus four headers (24 + 3 x 12 = 60). docs/M3a_PLAN.md:
+	# 300 x 15 = 4500 plus four headers (24 + 3 x 12 = 60). docs/archive/M3a_PLAN.md:
 	# "300 awake bodies cost 4.56 KB - still spec 3.4's '≈4 KB'" and inside
 	# the P2 acceptance budget of 4.5 KB = 4608 B that bench_snapshot.gd grades.
 	assert_between(total, 4500, 4608, "a 300-body snapshot is about 4 KB")
@@ -435,7 +435,7 @@ func test_an_inbound_packet_reaches_the_interpolator() -> void:
 
 
 func test_a_sample_for_an_unspawned_body_is_dropped_and_counted() -> void:
-	# docs/M3a_PLAN.md: the reliable spawn RPC and the unreliable snapshot ride
+	# docs/archive/M3a_PLAN.md: the reliable spawn RPC and the unreliable snapshot ride
 	# different channels, so a snapshot can name a body whose spawn has not
 	# landed. It must be dropped and counted, never buffered and never an error.
 	_start_match()
@@ -454,7 +454,7 @@ func test_a_sample_for_an_unspawned_body_is_dropped_and_counted() -> void:
 
 func test_a_body_past_the_u16_boundary_is_never_aliased_onto_an_older_one() -> void:
 	# Bontago-mv0.1.7. BlockRegistry's counter is monotonic and never reused
-	# within a match (docs/M3a_PLAN.md, "net_id allocation and the
+	# within a match (docs/archive/M3a_PLAN.md, "net_id allocation and the
 	# spawn/snapshot race"), so a long match walks past 65535. With a 16-bit
 	# wire id the 65536th body packs as 0 and is dropped as unknown, and the
 	# 65537th packs as 1 and moves the first block of the match instead. This

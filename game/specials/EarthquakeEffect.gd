@@ -1,7 +1,7 @@
 class_name EarthquakeEffect
 extends SpecialEffect
 ## Earthquake special (spec 2.6): "shakes the field, tilts randomly, helps
-## level existing tilt." docs/M4_SPECIALS_PACKAGES.md P5-EARTHQUAKE, moved onto
+## level existing tilt." docs/archive/M4_SPECIALS_PACKAGES.md P5-EARTHQUAKE, moved onto
 ## DiscForce.shake by docs/GIFT_EFFECTS_PLAN.md package D (behaviour
 ## unchanged). Follows the "timed-effect pattern": physics_tick() shakes every
 ## armed tick; wants_early_trigger() flips once `disc_force.duration_s` has
@@ -54,7 +54,7 @@ func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void
 	var tilt: Vector2 = field.tilt_vector()
 	if tilt != Vector2.ZERO:
 		# DECISION: NOT `apply_tilt_impulse(-tilt.normalized(), ...)` as
-		# docs/M4_SPECIALS_PACKAGES.md's P5-EARTHQUAKE pseudocode literally
+		# docs/archive/M4_SPECIALS_PACKAGES.md's P5-EARTHQUAKE pseudocode literally
 		# reads -- verified against Field.gd's own contract and a failing
 		# regression test. apply_tilt_impulse()'s `direction` is a disk-local
 		# XZ *position* to push down on, converted into a velocity kick via

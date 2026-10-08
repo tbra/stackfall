@@ -8,7 +8,7 @@ extends Resource
 ##
 ## Every concrete subclass declares its own typed `@export` tunables (speed,
 ## radius, impulse, ...) rather than an untyped `params: Dictionary`
-## (docs/M4_PLAN.md's own DECISION, restated here since this is the base
+## (docs/archive/M4_PLAN.md's own DECISION, restated here since this is the base
 ## class those subclasses extend) -- CLAUDE.md's static-typing rule applies
 ## to those exports too.
 
@@ -27,7 +27,7 @@ func physics_tick(_block: Block, _behavior: SpecialBehavior, _delta: float) -> v
 ##
 ## FIX (game/specials/SpecialEffect.gd, Bontago-1en.22): a "timed-effect
 ## pattern" special (Propeller, Jumping Bean, Earthquake, Volcano -- see
-## docs/M4_SPECIALS_PACKAGES.md's timed-effect pattern) overrides this to
+## docs/archive/M4_SPECIALS_PACKAGES.md's timed-effect pattern) overrides this to
 ## false. Those effects already run physics_tick() every armed tick
 ## regardless of impact, and their own end is entirely time-driven
 ## (wants_early_trigger()/the fuse) -- without this veto, a block thrown or

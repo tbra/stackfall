@@ -1,6 +1,6 @@
 extends GutTest
 ## net/SteamClient.gd: encode_match_config()/decode_match_config() round trip
-## (spec 3.4, docs/M3b_PLAN.md P1).
+## (spec 3.4, docs/archive/M3b_PLAN.md P1).
 ##
 ## Static, pure functions — no Steam singleton, real or fake, is touched
 ## anywhere in this file, so it passes identically whether or not
@@ -103,7 +103,7 @@ func test_decode_rejects_random_garbage_without_erroring() -> void:
 
 func test_is_available_is_false_without_the_real_steam_class_or_true_with_it() -> void:
 	# Whatever this checkout actually has — no assumption either way, per
-	# docs/M3b_PLAN.md's acceptance ("every P1 test must pass driven entirely
+	# docs/archive/M3b_PLAN.md's acceptance ("every P1 test must pass driven entirely
 	# by FakeSteam"); this one assertion is the exception, and it only checks
 	# that is_available() agrees with ClassDB, never touches Steam itself.
 	var client: SteamClient = SteamClient.new()

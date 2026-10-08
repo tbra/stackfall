@@ -298,7 +298,7 @@ static func is_wire_id(net_id: int) -> bool:
 static func pack_net_id(out: PackedByteArray, offset: int, net_id: int) -> int:
 	# DECISION (core/net/Quantize.gd, Bontago-mv0.1.7): the wire net_id is u24,
 	# not spec 3.4's u16. game/BlockRegistry.gd allocates ids monotonically and
-	# never reuses one within a match (docs/M3a_PLAN.md, "net_id allocation and
+	# never reuses one within a match (docs/archive/M3a_PLAN.md, "net_id allocation and
 	# the spawn/snapshot race"), so a u16 field would pack the 65536th block of
 	# a match as 0 ("no body", dropped) and the 65537th as 1 — the first block
 	# of the match — and a snapshot would silently move the wrong body. 65535
@@ -311,7 +311,7 @@ static func pack_net_id(out: PackedByteArray, offset: int, net_id: int) -> int:
 	# 4.5 KB budget, and would not fit the PackedInt32Array that
 	# Interpolator.tracked_ids() returns. u24 keeps four fragments (78 bodies
 	# each) and 4560 B, a 7% cost. Spec 3.4 is a technical section, not an
-	# [ORIGINAL] rule; the deviation is recorded in docs/M3a_PLAN.md.
+	# [ORIGINAL] rule; the deviation is recorded in docs/archive/M3a_PLAN.md.
 	var wire: int = net_id if is_wire_id(net_id) else NET_ID_NONE
 	out.encode_u16(offset, wire & 0xFFFF)
 	out[offset + 2] = (wire >> 16) & 0xFF

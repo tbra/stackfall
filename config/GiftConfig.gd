@@ -3,7 +3,7 @@ extends Resource
 ## Tunables for gift-crate spawning (spec 2.6).
 ##
 ## DECISION (config/GiftConfig.gd, M4 P1a): the 2026-09-20/22 evidence audit
-## (docs/M4_PLAN.md header amendment; SPEC.md 2.6 "Gift spawning [ORIGINAL
+## (docs/archive/M4_PLAN.md header amendment; SPEC.md 2.6 "Gift spawning [ORIGINAL
 ## target]") retired the earlier reconstructed 20 -> 45 s / 100 -> 6 s spawn
 ## interval with jitter. Nothing here implements that mapping. Instead a
 ## single Bernoulli roll runs once per placement window for the whole match

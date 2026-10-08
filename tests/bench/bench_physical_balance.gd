@@ -126,7 +126,7 @@ func _physics_process(_delta: float) -> void:
 
 	var all_asleep: bool = awake == 0
 	# DECISION (tests/bench/bench_physical_balance.gd, Bontago-keo.11, orchestrator
-	# 2026-09-25): the pass bar is the plan's feasibility check (docs/M6_PLAN.md
+	# 2026-09-25): the pass bar is the plan's feasibility check (docs/archive/M6_PLAN.md
 	# B5: the off-centre tower must not lean away/collapse) plus the game's own
 	# settled notion (every block below PhysicsTuning.sleep_linear_threshold,
 	# what BlockRegistry.is_settled uses), NOT Jolt's `sleeping` flag. Measured:

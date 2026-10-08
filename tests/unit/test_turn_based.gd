@@ -1,5 +1,5 @@
 extends GutTest
-## Spec 2.7 "Turn-based [NEW]" and docs/M6_PLAN.md's B4: config.turn_based
+## Spec 2.7 "Turn-based [NEW]" and docs/archive/M6_PLAN.md's B4: config.turn_based
 ## replaces hot-seat's instant hand-off with a settle-wait -- the next
 ## player's turn starts once every placed block has settled (game/
 ## BlockRegistry.gd's all_settled(), spec 2.2's own settled rule) or after

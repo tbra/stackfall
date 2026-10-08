@@ -262,7 +262,7 @@ if `raster.team_at(cell) >= 0` (owned, uncontested — teammates never contest e
 so this is unambiguous even inside one team's merged area), the crate is claimed by that
 team id. **DECISION (autoload/Match.gd):** M4 ships with `MatchConfig.team_count() ==
 player_count` (free-for-all only — `TeamMode` is still unwired per
-`docs/M2_PLAN.md`'s own Known Limitations), so `team_id == slot_id` here and the claim
+`docs/archive/M2_PLAN.md`'s own Known Limitations), so `team_id == slot_id` here and the claim
 directly sets `_held_specials[team_id]`. This is a real simplification that will need
 revisiting once M6 wires real teams (which specific teammate's next block becomes the
 special is genuinely ambiguous then — nearest circle's `owner_slot`, round-robin, or
@@ -712,7 +712,7 @@ routing table.
 ## Known limitations (planned, M4)
 
 - **Gift claiming assumes free-for-all** (`team_id == slot_id`, since `TeamMode` is still
-  unwired per `docs/M2_PLAN.md`'s Known Limitations). Revisit which teammate's next block
+  unwired per `docs/archive/M2_PLAN.md`'s Known Limitations). Revisit which teammate's next block
   becomes the special once M6 wires real teams.
 - **Crates never move once spawned** (owner question 1's default answer) — a special's
   explosion can knock a *block* into a crate, per spec 1.3's flavor text, but the crate

@@ -1,5 +1,5 @@
 extends Node3D
-## docs/M2_PLAN.md, P1 acceptance: "bench_territory.gd reports solve+raster
+## docs/archive/M2_PLAN.md, P1 acceptance: "bench_territory.gd reports solve+raster
 ## time for 200 circles on map M, budget <= 8 ms per solve at 10 Hz". Run
 ## headless:
 ##   godot --headless --path . res://tests/bench/bench_territory.tscn
@@ -20,7 +20,7 @@ extends Node3D
 
 ## The graded configuration.
 const GRADED_CIRCLES: int = 200
-## Spec 3.3 / docs/M2_PLAN.md: 8 ms per solve, of the 50 ms available at
+## Spec 3.3 / docs/archive/M2_PLAN.md: 8 ms per solve, of the 50 ms available at
 ## solve_hz = 20.
 const BUDGET_MS: float = 8.0
 ## Extra rows for context only, not graded.

@@ -24,7 +24,7 @@ extends Resource
 ## frames").
 @export var think_phase_jitter_s: float = 0.4
 
-## Bontago-d5c (M5 P1, append-only per docs/M5_PLAN.md's "if you need a new
+## Bontago-d5c (M5 P1, append-only per docs/archive/M5_PLAN.md's "if you need a new
 ## numeric... add it as an @export on BotTuning, append-only"): a hard safety
 ## bound on how many physics frames BotController's GENERATING state may run
 ## for one think-cycle, in case territory sampling keeps missing (e.g. a
@@ -37,7 +37,7 @@ extends Resource
 ## position (see BotController._sample_territory_point()).
 @export var max_territory_sample_attempts: int = 12
 
-## Bontago-d5c.2 (review fix, append-only per docs/M5_PLAN.md's "if you need
+## Bontago-d5c.2 (review fix, append-only per docs/archive/M5_PLAN.md's "if you need
 ## a new numeric... add it as an @export on BotTuning, append-only"): seconds
 ## BotController._apply_rejection_backoff() holds a bot in IDLE after
 ## request_place()/request_throw() comes back with anything but
@@ -54,7 +54,7 @@ extends Resource
 @export var gift_use_delay_s: float = 0.25
 
 
-## P3 (Bontago-d5c.4, append-only per docs/M5_PLAN.md's "if you need a new
+## P3 (Bontago-d5c.4, append-only per docs/archive/M5_PLAN.md's "if you need a new
 ## numeric... add it as an @export on BotTuning, append-only"): core/ai/
 ## BotSpecialPlanner.gd's Bomb heuristic (a thrown special) needs its own
 ## pre-clamp launch-speed and loft tunables -- the planner is never handed a
@@ -86,7 +86,7 @@ extends Resource
 ## (BotCandidate.on_top_of_own_stack).
 @export var stability_stack_bonus: float = 1.0
 
-## Bontago-d5c.8 (M5 P3b-ii, append-only per docs/M5_PLAN.md's "if you need a
+## Bontago-d5c.8 (M5 P3b-ii, append-only per docs/archive/M5_PLAN.md's "if you need a
 ## new numeric... add it as an @export on BotTuning, append-only"): how close
 ## (meters) a game/BotController.gd._fire_stability_raycasts() corner ray's
 ## own hit height must land to that candidate's own `support_height` to count

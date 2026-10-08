@@ -1,5 +1,10 @@
 # Game roadmap build plan (owner 2026-09-29)
 
+**Status (2026-10-08): delivered.** Epic `Bontago-22y` and all its children (gifts Stackfall,
+Paintball, Glue, Cat; weather Wind, Rain, Snow; modes Capture the Flag, Elimination, Reach the Sky;
+the weather and mode frameworks; both rule decisions) are closed in Beads. The text below is the
+original design contract, kept as a record; live state is in Beads (`bd show Bontago-22y`).
+
 Source: `feedback/game_roadmap.md`. These are new remake features. The seven
 documented original specials and the current default objective remain
 available. Beads epic `Bontago-22y` tracks delivery; this file is the design

@@ -1,6 +1,6 @@
 class_name Tutorial
 extends Node
-## docs/M6_PLAN.md package B3 (spec 2.7 "Tutorial"): a single-player, offline
+## docs/archive/M6_PLAN.md package B3 (spec 2.7 "Tutorial"): a single-player, offline
 ## match built the same way game/Sandbox.gd/game/HotSeat.gd already are (one
 ## PlayerController + GhostPreview + HUD subtree, wired the same way, driving
 ## the one slot config.player_count = 1 gives it -- game/Main.gd's own
@@ -20,7 +20,7 @@ extends Node
 ## later step firing early (nothing does this today, but Events.block_placed/
 ## special_consumed/territory_share_changed are global bus signals, not
 ## scoped to "the step that is listening") can never skip or repeat a step --
-## see docs/M6_PLAN.md package B3's own test list.
+## see docs/archive/M6_PLAN.md package B3's own test list.
 
 signal finished
 
@@ -181,7 +181,7 @@ func _begin_step(index: int) -> void:
 
 ## Every completion handler below funnels here: advances exactly once per
 ## call, and step 5 completing ends the tutorial the same way ui_cancel does
-## (docs/M6_PLAN.md package B3: "step 5 completion ends the tutorial").
+## (docs/archive/M6_PLAN.md package B3: "step 5 completion ends the tutorial").
 func _advance() -> void:
 	if _step_index + 1 >= tutorial_config.steps.size():
 		_end_tutorial()

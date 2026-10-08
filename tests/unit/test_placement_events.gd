@@ -1,5 +1,5 @@
 extends GutTest
-## Step 4 (spec 2.5/3.2), updated for M2 (docs/M2_PLAN.md P4): ghost_place now
+## Step 4 (spec 2.5/3.2), updated for M2 (docs/archive/M2_PLAN.md P4): ghost_place now
 ## sends exactly one placement intent to Match.request_place() (spec 3.4,
 ## "clients send intents; the host checks every intent before acting on
 ## it") instead of building the Block itself. Match — a FakeMatch here,
@@ -81,7 +81,7 @@ func test_ghost_place_action_sends_exactly_one_intent() -> void:
 
 
 func test_a_rejected_placement_emits_the_event_and_spawns_nothing_locally() -> void:
-	# docs/M2_PLAN.md owner decision 2: every invalid release burns the block
+	# docs/archive/M2_PLAN.md owner decision 2: every invalid release burns the block
 	# — decided inside Match.request_place, which the controller never
 	# second-guesses. From PlayerController's side a rejection only means
 	# Events.placement_rejected fires and the ghost plays its reject flash

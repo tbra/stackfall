@@ -1,6 +1,6 @@
 extends GutTest
 ## net/MatchNet.gd: authority, intents and replication (spec 3.4,
-## docs/M3a_PLAN.md P3). This is where M3a's "placements are never duplicated
+## docs/archive/M3a_PLAN.md P3). This is where M3a's "placements are never duplicated
 ## or lost" is won or lost, so these tests drive the **real** Match with a
 ## faked Net rather than a fake authority: every assertion below is about what
 ## actually happens to the block feed.
@@ -501,7 +501,7 @@ func test_a_clients_registry_allocates_no_net_ids() -> void:
 	assert_eq(_registry.block_for_net_id(77), block)
 
 
-# --- Disconnects (docs/M3a_PLAN.md question 2) ------------------------------
+# --- Disconnects (docs/archive/M3a_PLAN.md question 2) ------------------------------
 
 
 func test_disconnect_grace_stops_the_feed_but_keeps_the_slot_alive() -> void:

@@ -13,7 +13,7 @@ extends Node
 ## SO_REUSEADDR, so only one process per machine can listen on 47777. Two
 ## headless clients on one PC therefore cannot both browse; the multi-instance
 ## test harness joins by direct IP (127.0.0.1) instead, which is the path spec
-## 3.4 calls "available as a fallback". Documented in docs/M3a_PLAN.md.
+## 3.4 calls "available as a fallback". Documented in docs/archive/M3a_PLAN.md.
 
 const _BROADCAST_ADDRESS: String = "255.255.255.255"
 ## Longest UTF-8 byte length accepted for any single string field of an

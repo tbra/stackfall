@@ -7,7 +7,7 @@ extends RefCounted
 ## (core/rules/PlacementRules.gd:268-283, the v2 single-raycast point check)
 ## rather than re-deriving raster.team_at()/is_contested() itself -- one
 ## source of truth for what "your own territory" means at a point
-## (docs/M4_P2_PACKAGES.md P2c re-cut, decision 2). A throw uses the exact
+## (docs/archive/M4_P2_PACKAGES.md P2c re-cut, decision 2). A throw uses the exact
 ## same raycast-then-point-test MatchPlacement.request_place() already runs;
 ## only the reason a bad point is refused with differs (see reason_for()
 ## below).

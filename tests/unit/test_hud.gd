@@ -1,5 +1,5 @@
 extends GutTest
-## docs/M2_PLAN.md P4: HUD.gd "connects to Events only" and implements its
+## docs/archive/M2_PLAN.md P4: HUD.gd "connects to Events only" and implements its
 ## API exactly. Covers both halves: calling the public API directly (text and
 ## ratios update) and driving it through the documented Events signals.
 
@@ -191,7 +191,7 @@ func test_show_winner_no_longer_shows_the_hud_banner() -> void:
 	assert_true(hud._winner_label.text.findn("wins") >= 0, "the formatted text is kept harmless, just not shown")
 
 
-# --- Driven through Events, per docs/M2_PLAN.md's acceptance check ---------
+# --- Driven through Events, per docs/archive/M2_PLAN.md's acceptance check ---------
 
 
 func test_turn_changed_event_updates_the_hud() -> void:

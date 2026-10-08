@@ -4,12 +4,12 @@ extends RefCounted
 ## a bot does with a held special (spec 2.6, 2.9) -- place it, or throw it at
 ## a target.
 ##
-## docs/M5_PLAN.md P3 (Bontago-d5c.4): per-type heuristics keyed on
+## docs/archive/M5_PLAN.md P3 (Bontago-d5c.4): per-type heuristics keyed on
 ## `held_special_id`, gated by the acting difficulty's own
 ## `uses_defensive_specials`/`uses_offensive_specials` flags
 ## (`tuning.profile_for(difficulty)`, spec 2.9 "Difficulty:... whether the bot
 ## uses defensive specials"). `plan()`'s own signature and `BotSpecialAction`'s
-## own field list are frozen from P1 (docs/M5_PLAN.md's dispatch brief); this
+## own field list are frozen from P1 (docs/archive/M5_PLAN.md's dispatch brief); this
 ## package rewrites only the function bodies below.
 ##
 ## # DECISION (core/ai/BotSpecialPlanner.gd, Bontago-d5c.9, supersedes the

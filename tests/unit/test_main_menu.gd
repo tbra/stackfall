@@ -1,5 +1,5 @@
 extends GutTest
-## docs/M3a_PLAN.md P4: ui/MainMenu.gd offers only Host / Join / Quit (owner
+## docs/archive/M3a_PLAN.md P4: ui/MainMenu.gd offers only Host / Join / Quit (owner
 ## decision: hot-seat is unlisted), a LAN game list fed by Events, and a
 ## direct-IP fallback (spec 3.4).
 
@@ -121,7 +121,7 @@ func test_bots_button_emits_player_name() -> void:
 	assert_signal_emitted(menu, "bots_requested")
 
 
-# --- Sandbox (docs/M6_PLAN.md package B1) ------------------------------------
+# --- Sandbox (docs/archive/M6_PLAN.md package B1) ------------------------------------
 
 ## game/Main.gd owns the seam this button reaches (start_sandbox_from_menu()),
 ## the same "does not know about ... game/Main.gd" split ui/Lobby.gd's own
@@ -194,7 +194,7 @@ func test_activating_a_list_entry_joins_that_game() -> void:
 	assert_eq(calls[0].get("address"), "192.168.1.20")
 
 
-# --- Steam section (docs/M3b_PLAN.md P3) --------------------------------------
+# --- Steam section (docs/archive/M3b_PLAN.md P3) --------------------------------------
 
 func test_steam_choices_follow_availability_on_host_and_join_pages() -> void:
 	var menu: MainMenu = _make_menu()

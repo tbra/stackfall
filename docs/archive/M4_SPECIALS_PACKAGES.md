@@ -1,6 +1,6 @@
 # M4 P3–P5 re-cut — Rocket/Bomb, Volcano, Earthquake/Anvil/Propeller/Jumping Bean
 
-Re-cuts `docs/M4_PLAN.md`'s P3/P4/P5 against `docs/SPEC.md` §2.6/2.7/3.5/3.6 as
+Re-cuts `docs/archive/M4_PLAN.md`'s P3/P4/P5 against `docs/SPEC.md` §2.6/2.7/3.5/3.6 as
 written today and the P2 interfaces actually landed on `main`@`d5a0ab3`. Supersedes
 those three sections; P0–P2 and "Known limitations"/model-routing are unchanged.
 Epic: Bontago-1en.

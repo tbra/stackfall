@@ -1,6 +1,6 @@
 class_name FakeNet
 extends RefCounted
-## Test double for the Net autoload (docs/M3a_PLAN.md).
+## Test double for the Net autoload (docs/archive/M3a_PLAN.md).
 ##
 ## GUT cannot double a plain autoload — addons/gut/test.gd's double_singleton
 ## only recognises Godot's own engine singletons — so autoload/Match.gd and
@@ -70,9 +70,9 @@ var request_seat_pref_calls: Array[Dictionary] = []
 var next_host_result: Error = OK
 var next_join_result: Error = OK
 
-# --- M3b: Steam session mirror (docs/M3b_PLAN.md P1) -------------------
+# --- M3b: Steam session mirror (docs/archive/M3b_PLAN.md P1) -------------------
 #
-# Field names match what docs/M3b_PLAN.md's P3 test bullets read directly
+# Field names match what docs/archive/M3b_PLAN.md's P3 test bullets read directly
 # (`net_provider.steam_available_value = false`, `is_steam_session_value`,
 # `host_online_calls`, `join_lobby_calls`, `invite_friends_calls`) so
 # ui/MainMenu.gd and ui/Lobby.gd's tests can drive this fake the same way

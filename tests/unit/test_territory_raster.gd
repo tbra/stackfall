@@ -1,6 +1,6 @@
 extends GutTest
 ## Spec 2.2's contested zones and holes, on the authoritative cell grid
-## (spec 3.3, docs/M2_PLAN.md "Raster resolution").
+## (spec 3.3, docs/archive/M2_PLAN.md "Raster resolution").
 ##
 ## "Areas where two or more territories from different teams overlap are
 ## contested. Contested cells become holes after hole_delay = 0.75 s."

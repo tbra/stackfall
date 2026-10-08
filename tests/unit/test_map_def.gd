@@ -1,5 +1,5 @@
 extends GutTest
-## The map-shape mechanism (spec 2.1, docs/M6_PLAN.md package A0):
+## The map-shape mechanism (spec 2.1, docs/archive/M6_PLAN.md package A0):
 ## MapDef.shape_contains()/shape_test() and for_variant_and_size() -- the
 ## interface stub A2a/A2b's real Oval/Ring/Twin/Cross data packages build on.
 ## This package ships the mechanism and reasonable default tunables; the
@@ -148,7 +148,7 @@ func test_every_shape_places_every_flag_on_solid_ground() -> void:
 				)
 
 
-# --- A2a/A2b: Oval/Ring/Twin/Cross MapDef resources (docs/M6_PLAN.md A2a/A2b) --
+# --- A2a/A2b: Oval/Ring/Twin/Cross MapDef resources (docs/archive/M6_PLAN.md A2a/A2b) --
 
 ## for_variant_and_size() itself (config/MapDef.gd:200-205) never reads a
 ## config/maps/<variant>_<size>.tres file by name -- for any non-ROUND variant

@@ -1,7 +1,7 @@
 extends GutTest
 ## autoload/match/MatchGifts.gd: spawn rolls, the territory-tick claim/expire
 ## sweep, the pending-special array, and the three replicated gift events
-## (spec 2.6, docs/M4_PLAN.md P1).
+## (spec 2.6, docs/archive/M4_PLAN.md P1).
 ##
 ## Same tiny-map fixture as test_match_flow.gd/test_match_net.gd, and the same
 ## Match._gifts direct-access convention Match.gd's own header documents for
@@ -290,7 +290,7 @@ func test_installing_the_real_drawer_with_an_empty_filtered_roster_keeps_the_pla
 	assert_true(Match._gifts._special_roster.is_empty())
 
 
-## M6 A4 (docs/M6_PLAN.md "A4 -- Enabled-specials checklist"): ui/Lobby.gd
+## M6 A4 (docs/archive/M6_PLAN.md "A4 -- Enabled-specials checklist"): ui/Lobby.gd
 ## publishes MatchGifts.ALL_DISABLED_SENTINEL as enabled_specials' sole entry
 ## when the host unchecks every special checkbox. Distinct from
 ## test_installing_the_real_drawer_with_an_empty_filtered_roster_keeps_the_
@@ -318,7 +318,7 @@ func test_all_disabled_sentinel_never_draws_a_real_special() -> void:
 ## _weighted_special_drawer() itself (the Callable
 ## _ensure_special_drawer_installed() would install for a non-empty roster),
 ## exercised directly against a manufactured roster/rng so this test needs no
-## real .tres under res://config/specials/ either (docs/M4_P2_PACKAGES.md
+## real .tres under res://config/specials/ either (docs/archive/M4_P2_PACKAGES.md
 ## P2c: config/specials/ stays genuinely empty until P3-P5).
 func test_weighted_special_drawer_draws_from_the_installed_roster() -> void:
 	_start_playing(_config())
@@ -590,7 +590,7 @@ func test_debug_queue_special_refused_for_an_out_of_range_slot() -> void:
 	assert_eq(Match._gifts._pending_queues.size(), before_size, "must never grow _pending_queues")
 
 
-## Bontago-keo.17 (owner decision "b" on docs/M6_PLAN.md's Owner Q1)
+## Bontago-keo.17 (owner decision "b" on docs/archive/M6_PLAN.md's Owner Q1)
 ## supersedes the old M6 A1 "shared team queue" contract below: a crate
 ## claimed in a team's territory is offered to the ONE teammate whose home
 ## circle is nearest the crate (MatchGifts._resolve_recipient_slot()), never

@@ -3,7 +3,7 @@ extends GutTest
 ## request_place's accept/reject/burn decision (spec 2.4, 2.5, 3.7).
 ##
 ## PlacementRules.validate()/closest_valid_origin() are P1-owned and still
-## stubs at the time this package was built (docs/M2_PLAN.md: packages build
+## stubs at the time this package was built (docs/archive/M2_PLAN.md: packages build
 ## in parallel off the stub commit). The accept/reject/burn *decision* is
 ## exercised directly against Match._resolve_outcome() with manufactured
 ## PlacementRules.Result values instead of a working raster — the "use
@@ -665,7 +665,7 @@ func test_resolve_outcome_deliberate_invalid_burns_with_its_reason() -> void:
 		# this package was built; what this test owns is that _resolve_outcome
 		# defers to it verbatim rather than inventing its own mapping.
 		assert_eq(outcome["reason"], PlacementRules.reason_for(result))
-		assert_false(outcome["use_relocation"], "A deliberate release never relocates (docs/M2_PLAN.md).")
+		assert_false(outcome["use_relocation"], "A deliberate release never relocates (docs/archive/M2_PLAN.md).")
 
 
 func test_resolve_outcome_auto_drop_relocates_when_a_valid_spot_was_found() -> void:

@@ -1,7 +1,7 @@
 extends GutTest
 ## game/Main.gd's match lifecycle over a real (peerless) ENet host session:
 ## first network start, a repeated start, leaving mid-match and rehosting
-## afterwards (spec 3.7 `End -> Lobby`, docs/M3a_PLAN.md "Disconnects";
+## afterwards (spec 3.7 `End -> Lobby`, docs/archive/M3a_PLAN.md "Disconnects";
 ## Beads Bontago-mv0.1.9).
 ##
 ## These drive the **real** Main scene, the real Net autoload and the real

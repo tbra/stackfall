@@ -1,10 +1,10 @@
 extends GutTest
-## SpecialDef checks (spec 2.6, docs/M4_P2_PACKAGES.md P2a): the roster
+## SpecialDef checks (spec 2.6, docs/archive/M4_P2_PACKAGES.md P2a): the roster
 ## loader and the weighted draw. config/specials/ started genuinely empty
 ## (P2a landed before P3-P5's concrete specials); as of P5-EARTHQUAKE it
 ## holds at least earthquake.tres, so the loader test below now asserts
 ## against the real roster's contents instead of assuming it is empty
-## (docs/M4_SPECIALS_PACKAGES.md orchestrator decision 4). Every other test
+## (docs/archive/M4_SPECIALS_PACKAGES.md orchestrator decision 4). Every other test
 ## here exercises pick_weighted()/the sort comparator against in-memory
 ## SpecialDef instances built by the test itself -- no disk writes needed,
 ## unaffected by what is or isn't under config/specials/.

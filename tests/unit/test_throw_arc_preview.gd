@@ -1,5 +1,5 @@
 extends GutTest
-## game/ThrowArcPreview.gd coverage (M4 P2e, docs/M4_P2_PACKAGES.md P2e, spec
+## game/ThrowArcPreview.gd coverage (M4 P2e, docs/archive/M4_P2_PACKAGES.md P2e, spec
 ## 2.5 "Throw (specials only)"): the arc preview's own pure ballistic sampler
 ## (sample_arc()) matches the closed-form projectile formula the brief
 ## specifies, and the visibility lifecycle (hidden until update_arc(), gone
@@ -61,7 +61,7 @@ func test_sample_arc_matches_the_closed_form_ballistic_formula() -> void:
 
 func test_sample_arc_is_a_pure_function_of_its_own_arguments() -> void:
 	# No scene-tree/PlayerController dependence -- the brief's own "provable
-	# without physics" bar (docs/M4_P2_PACKAGES.md P2a's wording, reused here
+	# without physics" bar (docs/archive/M4_P2_PACKAGES.md P2a's wording, reused here
 	# for this package's own pure math).
 	var arc: ThrowArcPreview = _make_arc()
 	var a: PackedVector3Array = arc.sample_arc(Vector3.ZERO, Vector3(1.0, 5.0, 0.0))
@@ -190,7 +190,7 @@ func test_clear_arc_hides_it_and_drops_its_points() -> void:
 
 
 # --- Integration: PlayerController drives the arc + ghost hint together -----
-# (docs/M4_P2_PACKAGES.md P2e: "hidden unless is_aiming_throw() is true";
+# (docs/archive/M4_P2_PACKAGES.md P2e: "hidden unless is_aiming_throw() is true";
 # owner amendment: "below the thresholds ... show no arc but keep the hint").
 
 func _make_special_controller(fake: FakeMatch) -> Dictionary:

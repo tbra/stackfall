@@ -272,7 +272,7 @@ extends Node3D
 ## sets the index back to 0, so — unlike the original — rotation can never
 ## drift (spec 1.7, 2.5).
 ##
-## M2 (spec 2.2, 2.5, docs/M2_PLAN.md P4) adds the placement-validity tint:
+## M2 (spec 2.2, 2.5, docs/archive/M2_PLAN.md P4) adds the placement-validity tint:
 ## player-colour when Match.preview_placement says VALID, red when it says
 ## OUTSIDE_TERRITORY/CONTESTED/OFF_DISK/EMPTY, and a hatched pattern over a
 ## HOLE. It also owns the visual side of a rejected placement (spec 2.2's
@@ -313,7 +313,7 @@ const STATE_VALID: StringName = &"valid"
 const STATE_INVALID: StringName = &"invalid"
 const STATE_HOLE: StringName = &"hole"
 const STATE_LOCKED: StringName = &"locked"
-## M4 P2e (docs/M4_P2_PACKAGES.md P2e): shown while game/PlayerController.gd
+## M4 P2e (docs/archive/M4_P2_PACKAGES.md P2e): shown while game/PlayerController.gd
 ## reports is_aiming_throw() true (show_throw_hint()) -- a distinct state
 ## from the placement-validity ones above since it says nothing about where
 ## the block would land, only that the current gesture is a throw in
@@ -1870,7 +1870,7 @@ func set_locked(locked: bool) -> void:
 	_refresh_materials()
 
 
-## M4 P2e (docs/M4_P2_PACKAGES.md P2e): called every frame by game/
+## M4 P2e (docs/archive/M4_P2_PACKAGES.md P2e): called every frame by game/
 ## PlayerController.gd's _drive_throw_visuals() with is_aiming_throw(), so the
 ## tint appears/disappears the same frame the drag starts/ends. Reuses
 ## _refresh_materials()'s existing dispatch (only _apply_validity_material()
@@ -2216,7 +2216,7 @@ func _apply_material_to_visual() -> void:
 # --- Reject / auto-drop animation (spec 2.2, 2.5) ---------------------------
 
 ## Spec 2.2: "released [in a contested area] ... is thrown off the map with a
-## visible reject animation" (docs/M2_PLAN.md owner decision 2: every invalid
+## visible reject animation" (docs/archive/M2_PLAN.md owner decision 2: every invalid
 ## release burns the block, decided by Match.request_place — this is just the
 ## ghost-side cue: a bright flash plus a small arc kick on _reject_offset, a
 ## world-space position offset applied on top of update_placement()'s/

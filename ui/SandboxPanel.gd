@@ -273,7 +273,7 @@ func _on_block_picker_selected(index: int) -> void:
 
 ## "off" first (mirrors sandbox_force_special's own off/each-roster-id/off
 ## cycle), then SpecialDef.load_all_specials()'s own id order -- the UI-only
-## front end docs/M6_PLAN.md's package B2 calls for over the existing F9
+## front end docs/archive/M6_PLAN.md's package B2 calls for over the existing F9
 ## cycle/force_special_by_id().
 func _populate_special_picker() -> void:
 	_special_picker.clear()

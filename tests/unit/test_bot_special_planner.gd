@@ -1,5 +1,5 @@
 extends GutTest
-## core/ai/BotSpecialPlanner.gd's per-type heuristics (docs/M5_PLAN.md P3,
+## core/ai/BotSpecialPlanner.gd's per-type heuristics (docs/archive/M5_PLAN.md P3,
 ## Bontago-d5c.4; spec 2.6, 2.9 "do not aim a Rocket as if it homes or a
 ## Propeller as if it blows sideways").
 

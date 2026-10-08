@@ -1,5 +1,5 @@
 extends GutTest
-## docs/M6_PLAN.md package B3 (spec 2.7 "Tutorial"): ui/Tutorial.gd's own
+## docs/archive/M6_PLAN.md package B3 (spec 2.7 "Tutorial"): ui/Tutorial.gd's own
 ## five-step state machine, driven the same "drive Main from the Main Menu"
 ## way tests/unit/test_sandbox_placement.gd's own Part 2 drives
 ## start_sandbox_from_menu() -- a real game/Main.tscn, a tiny MapDef so the

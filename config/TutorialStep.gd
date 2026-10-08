@@ -1,6 +1,6 @@
 class_name TutorialStep
 extends Resource
-## docs/M6_PLAN.md package B3 (spec 2.7 "Tutorial"): one step of
+## docs/archive/M6_PLAN.md package B3 (spec 2.7 "Tutorial"): one step of
 ## config/TutorialConfig.gd's own `steps` array.
 ##
 ## DECISION (config/TutorialStep.gd): the plan's own sketch nests this class
@@ -24,7 +24,7 @@ extends Resource
 ## Bontago-1pi.71: `{action}` / `{a|b}` tokens render the bound action's glyph for the
 ## active device (ui/InputPromptFlow.gd); never type key or button names here.
 ## Shown in ui/Tutorial.gd's prompt overlay while this step is
-## active. Placeholder wording (docs/M6_PLAN.md package B3: "no art
+## active. Placeholder wording (docs/archive/M6_PLAN.md package B3: "no art
 ## direction decisions -- plain placeholder styling").
 @export var prompt_text: String = ""
 ## One of ui/Tutorial.gd's own SIGNAL_* constants (block_placed,

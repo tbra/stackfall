@@ -1,5 +1,5 @@
 extends GutTest
-## `godot --headless --path . -- --headless-host --bots=<n>` (docs/M5_PLAN.md
+## `godot --headless --path . -- --headless-host --bots=<n>` (docs/archive/M5_PLAN.md
 ## P5, Bontago-d5c.6): the cmdline parsers (`_bots_arg()`/`_seconds_arg()`)
 ## and `_start_headless_bot_match_with_args()`'s own direct
 ## register_world()/start_match() build, which reuses the ordinary networked

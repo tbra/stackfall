@@ -1,5 +1,5 @@
 extends GutTest
-## EarthquakeEffect (spec 2.6, docs/M4_SPECIALS_PACKAGES.md P5-EARTHQUAKE):
+## EarthquakeEffect (spec 2.6, docs/archive/M4_SPECIALS_PACKAGES.md P5-EARTHQUAKE):
 ## the shake-every-armed-tick + leveling-nudge timed effect, driven through a
 ## real, tiny Field registered via Match.register_world() -- same fixture
 ## shape as tests/unit/test_field_tilt.gd's own _make_field(), plus the
@@ -152,7 +152,7 @@ func test_with_zero_shake_magnitude_leveling_shrinks_tilt_faster_than_natural_de
 ## arm_delay is set to the same step size used below (0.25 s, exact in binary
 ## floating point) so the tick that arms is also the tick that seeds the
 ## effect's `<key>_start_age` meta at an age exactly equal to arm_delay --
-## docs/M4_SPECIALS_PACKAGES.md's timed-effect pattern samples
+## docs/archive/M4_SPECIALS_PACKAGES.md's timed-effect pattern samples
 ## `behavior.age()` (already incremented for the current tick) on that first
 ## armed tick, so "elapsed" only reads exactly shake_duration_s once total
 ## age reaches arm_delay + shake_duration_s.
@@ -173,7 +173,7 @@ func test_wants_early_trigger_flips_at_shake_duration_s() -> void:
 
 ## Two different step sizes must trigger within about one tick's worth of
 ## simulated time of each other -- "frame-rate independent" in the sense
-## docs/M4_SPECIALS_PACKAGES.md's timed-effect pattern promises (driven by
+## docs/archive/M4_SPECIALS_PACKAGES.md's timed-effect pattern promises (driven by
 ## simulation time, not tick count), not bit-for-bit identical real time
 ## (each step size's own first-armed-tick sampling offset differs slightly).
 func test_wants_early_trigger_is_frame_rate_independent() -> void:

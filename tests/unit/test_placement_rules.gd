@@ -74,7 +74,7 @@ func test_a_cube_on_a_cell_centre_covers_exactly_that_cell() -> void:
 
 
 func test_a_cube_straddling_a_cell_corner_covers_four_cells() -> void:
-	## docs/M2_PLAN.md: "a rotated cube covers up to four cells... every cube
+	## docs/archive/M2_PLAN.md: "a rotated cube covers up to four cells... every cube
 	## contributes the cells its footprint square overlaps, not just the one
 	## under its centre."
 	var cells: PackedInt32Array = _footprint(_cell_corner())

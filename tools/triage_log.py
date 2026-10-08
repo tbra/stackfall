@@ -326,7 +326,7 @@ class KnownLimitation:
 
 def load_known_limitations(plan_path: str) -> List[KnownLimitation]:
     """Parse the "## Known limitations (...)" section of a milestone plan doc
-    (e.g. docs/M2_PLAN.md) into paragraphs, and pull out any `backticked`
+    (e.g. docs/archive/M2_PLAN.md) into paragraphs, and pull out any `backticked`
     identifiers as cheap deterministic match keywords."""
     try:
         with open(plan_path, "r", encoding="utf-8") as f:
@@ -810,7 +810,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument(
         "--limitations-doc",
         default=os.path.join("docs", "M2_PLAN.md"),
-        help="Milestone plan doc to read the 'Known limitations' section from (default: docs/M2_PLAN.md).",
+        help="Milestone plan doc to read the 'Known limitations' section from (default: docs/archive/M2_PLAN.md).",
     )
     parser.add_argument(
         "--chunk-size",

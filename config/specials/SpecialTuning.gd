@@ -7,7 +7,7 @@ extends Resource
 ##
 ## DECISION (config/specials/SpecialTuning.gd): deviates from the old M4 plan
 ## by not pre-declaring tunables nothing reads; specials add what they need
-## when they land (docs/M4_P2_PACKAGES.md P2a). The explosion clamp is per
+## when they land (docs/archive/M4_P2_PACKAGES.md P2a). The explosion clamp is per
 ## def, not here: ExplosionTuning.max_delta_v_mps (Bontago-fca.48).
 
 ## Chain reactions are capped at this depth (spec 2.6: "Cap them at

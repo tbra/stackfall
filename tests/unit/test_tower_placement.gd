@@ -6,7 +6,7 @@ extends GutTest
 ## standing and asleep. The gamepad half is covered by
 ## test_playercontroller_gamepad.gd's synthetic-input test.
 ##
-## Updated for M2 (docs/M2_PLAN.md P4): placement is intent-only now (spec
+## Updated for M2 (docs/archive/M2_PLAN.md P4): placement is intent-only now (spec
 ## 3.4) — PlayerController calls Match.request_place() and never builds a
 ## Block itself. P2's real Match hasn't landed on this branch yet, so this
 ## uses FakeMatch (tests/unit/support/FakeMatch.gd) with spawn_on_ok = true,

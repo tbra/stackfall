@@ -18,7 +18,7 @@ extends Resource
 @export var return_time_constant_s: float = 4.0
 
 ## M6 B5 (spec 2.1/2.7): PHYSICAL_BALANCE tilt's kinematic-torque
-## approximation (docs/M6_PLAN.md DECISION, owner-approved Bontago-keo.16)
+## approximation (docs/archive/M6_PLAN.md DECISION, owner-approved Bontago-keo.16)
 ## scales BlockRegistry.settled_torque_samples()'s summed mass * disk-local
 ## lever-arm (kg*m) into the same acceleration term the spring already
 ## integrates in Field._update_tilt() -- so the steady tilt under a constant
