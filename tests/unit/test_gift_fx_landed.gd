@@ -97,3 +97,44 @@ func test_tumbling_block_is_not_landed() -> void:
 		await wait_physics_frames(1)
 		probe.update(gift, TICK)
 	assert_false(probe.has_landed(), "fast-moving block does not report landed before the timeout")
+
+
+## Bontago-1pi.85.67: speed is measured relative to the supporting disc. A carrier riding a
+## disc that moves at a steady rate (faster than landed_speed_mps) lands by the speed/hold
+## rule well before the timeout. The carrier is slaved to the disc each tick (the stand-in
+## for friction carrying it).
+const DISC_SPEED_MPS: float = 2.0
+const LONG_TIMEOUT_S: float = 100.0
+
+
+func _drive_on_moving_disc(carrier_follows: bool, probe: LandedProbe, seconds: float) -> void:
+	_field.set_tilt_enabled(false)
+	var gift: Block = _block(Vector3(0.0, _field.surface_y() + 0.6, 0.0))
+	for _i: int in int(seconds / TICK):
+		_field.global_position.x += DISC_SPEED_MPS * TICK
+		PhysicsServer3D.body_set_state(_field.get_rid(), PhysicsServer3D.BODY_STATE_TRANSFORM, _field.global_transform)
+		if carrier_follows:
+			gift.global_position.x += DISC_SPEED_MPS * TICK
+			gift.linear_velocity = Vector3(DISC_SPEED_MPS, 0.0, 0.0)
+		else:
+			gift.linear_velocity = Vector3.ZERO
+		await wait_physics_frames(1)
+		probe.update(gift, TICK)
+		if probe.has_landed():
+			break
+
+
+func test_carrier_riding_a_moving_disc_lands_by_relative_speed() -> void:
+	var t: LandedTuning = _tune()
+	t.landed_timeout_s = LONG_TIMEOUT_S
+	var probe: LandedProbe = LandedProbe.new(t)
+	await _drive_on_moving_disc(true, probe, t.landed_hold_s + 1.0)
+	assert_true(probe.has_landed(), "moves with the disc, so it is at rest relative to it")
+
+
+func test_carrier_sliding_against_a_moving_disc_does_not_land_early() -> void:
+	var t: LandedTuning = _tune()
+	t.landed_timeout_s = LONG_TIMEOUT_S
+	var probe: LandedProbe = LandedProbe.new(t)
+	await _drive_on_moving_disc(false, probe, t.landed_hold_s + 1.0)
+	assert_false(probe.has_landed(), "world-still but the disc slides under it: not landed")
