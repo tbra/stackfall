@@ -47,7 +47,7 @@ static func _attach(mesh_instance: MeshInstance3D) -> void:
 	coat.material_override = _coat_material
 	coat.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mesh_instance.add_child(coat)
-	_tuning.attach_drips(coat, _drip_material)
+	coat.set_instance_shader_parameter(&"lattice_origin", mesh_instance.mesh.get_aabb().position if mesh_instance.mesh != null else Vector3.ZERO)
 
 
 static func _ensure_materials() -> void:

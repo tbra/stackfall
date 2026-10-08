@@ -27,11 +27,16 @@ uniform float drip_length = 0.12;
 uniform float drip_speed = 0.2;
 uniform float sag_base = 0.5;
 uniform float tear_narrow = 0.55;
-uniform float patch_scale = 2.2;
-uniform float patch_coverage = 0.5;
-uniform float patch_top_bias = 0.35;
+uniform float patch_scale = 2.5;
+uniform float patch_coverage = 0.85;
 uniform float patch_edge = 0.06;
-uniform vec3 patch_seed = vec3(0.0);
+uniform float tongue_chance = 0.65;
+uniform float tongue_min_len = 0.2;
+uniform float tongue_max_len = 0.6;
+uniform float tongue_width = 0.16;
+uniform float lip_depth = 0.07;
+uniform float top_swell = 0.035;
+instance uniform vec3 lattice_origin = vec3(0.0);
 
 // DECISION: hash seeds, the highlight direction and the sag root are shader math, not looks.
 const vec3 SHINE_DIR = vec3(-0.35, 0.75, 0.55);
@@ -39,11 +44,15 @@ const float TAU_VALUE = 6.2831;
 const vec3 PHASE_HASH = vec3(12.9898, 78.233, 37.719);
 const float PHASE_SCALE = 43758.5453;
 const float SAG_ROOT = 0.06;
-const float OCTAVE_GAIN = 0.5;
-const float OCTAVE_LACUNARITY = 2.07;
+const float TOP_NORMAL_Y = 0.7;
+const float TONGUE_SLOTS = 3.0;
+const float SLOT_JITTER = 0.12;
+const float LIP_WOBBLE = 0.04;
+const float WOBBLE_FREQ = 9.0;
 const float EDGE_DARKEN = 0.55;
 
 varying vec3 local_pos;
+varying vec3 local_normal;
 
 float hash31(vec3 p) {
 	return fract(sin(dot(p, PHASE_HASH)) * PHASE_SCALE);
@@ -67,6 +76,7 @@ float value_noise(vec3 p) {
 
 void vertex() {
 	local_pos = VERTEX;
+	local_normal = NORMAL;
 	if (drip_mesh) {
 		// Sphere lobe on its anchor: the lower half sags slowly into a teardrop.
 		float seed = fract(sin(dot(MODEL_MATRIX[3].xyz, PHASE_HASH)) * PHASE_SCALE);
@@ -80,8 +90,15 @@ void vertex() {
 		VERTEX.z *= taper;
 	} else {
 		// A thin constant swell keeps the glaze off the block surface (no z-fight).
-		VERTEX += NORMAL * thickness;
+		VERTEX += NORMAL * (thickness + top_swell * step(TOP_NORMAL_Y, NORMAL.y));
 	}
+}
+
+// Distance to a vertical capsule (rounded tongue) hanging from d = 0 down to d = len.
+float tongue_sdf(vec2 hd, float centre, float len, float radius) {
+	float tip = max(len - radius, 0.0);
+	vec2 q = vec2(hd.x - centre, hd.y - clamp(hd.y, 0.0, tip));
+	return length(q) - radius;
 }
 
 void fragment() {
@@ -89,17 +106,55 @@ void fragment() {
 	float ndv = clamp(dot(n, normalize(VIEW)), 0.0, 1.0);
 	float fresnel = pow(1.0 - ndv, rim_power);
 	float shine = pow(max(dot(n, normalize(SHINE_DIR)), 0.0), shine_power);
-	// Patchy blobs of opaque honey: object-space noise, biased toward upward faces.
 	float mask = 1.0;
 	float edge_band = 0.0;
 	if (!drip_mesh) {
 		vec3 world_n = normalize((INV_VIEW_MATRIX * vec4(n, 0.0)).xyz);
-		vec3 q = (local_pos + patch_seed) * patch_scale;
-		float field = value_noise(q) * (1.0 - OCTAVE_GAIN) + value_noise(q * OCTAVE_LACUNARITY) * OCTAVE_GAIN;
-		field += patch_top_bias * world_n.y;
-		float cut = 1.0 - patch_coverage;
-		mask = smoothstep(cut - patch_edge, cut + patch_edge, field);
-		edge_band = 1.0 - smoothstep(cut + patch_edge, cut + patch_edge * 4.0, field);
+		mask = 0.0;
+		if (world_n.y > TOP_NORMAL_Y) {
+			// Pool across the top: wobbly cut so it covers most of the face.
+			float field = value_noise(local_pos * patch_scale) ;
+			float cut = 1.0 - patch_coverage;
+			mask = smoothstep(cut - patch_edge, cut + patch_edge, field);
+			edge_band = 1.0 - smoothstep(cut + patch_edge, cut + patch_edge * 4.0, field);
+		} else if (world_n.y > -TOP_NORMAL_Y) {
+			// Side face: find which uv axis points up in the world, then the depth
+			// below this face's top edge (d) and the position along it (h).
+			vec2 uv = UV;
+			vec3 wp = (INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz;
+			mat2 m = transpose(mat2(dFdx(uv), dFdy(uv)));
+			vec2 rhs = vec2(dFdx(wp.y), dFdy(wp.y));
+			float det = m[0][0] * m[1][1] - m[1][0] * m[0][1];
+			vec2 g = vec2(m[1][1] * rhs.x - m[1][0] * rhs.y, -m[0][1] * rhs.x + m[0][0] * rhs.y) / (abs(det) < 1e-9 ? 1e-9 : det);
+			float d;
+			float h;
+			if (abs(g.x) > abs(g.y)) {
+				d = g.x > 0.0 ? 1.0 - uv.x : uv.x;
+				h = uv.y;
+			} else {
+				d = g.y > 0.0 ? 1.0 - uv.y : uv.y;
+				h = uv.x;
+			}
+			vec3 cell = floor((local_pos - lattice_origin) - local_normal * 0.1 + vec3(0.001));
+			vec3 axis = abs(round(local_normal));
+			float face_seed = hash31(cell + axis * 7.0 + sign(local_normal) * 3.0);
+			float lip = lip_depth + LIP_WOBBLE * (value_noise(vec3(h * WOBBLE_FREQ, face_seed * 10.0, 0.0)) - 0.5);
+			float sdf = d - lip;
+			for (int i = 0; i < 3; i++) {
+				float fi = float(i);
+				float hs = hash31(vec3(face_seed * 91.0, fi, 1.7));
+				float ls = hash31(vec3(face_seed * 53.0, fi, 4.1));
+				float ws = hash31(vec3(face_seed * 17.0, fi, 8.3));
+				float on = step(1.0 - tongue_chance, hs);
+				float centre = (fi + 0.5) / TONGUE_SLOTS + (ls - 0.5) * 2.0 * SLOT_JITTER;
+				float len = mix(tongue_min_len, tongue_max_len, ls);
+				float radius = tongue_width * (0.7 + 0.6 * ws) * 0.5;
+				float t = tongue_sdf(vec2(h, d), centre, len, radius);
+				sdf = on > 0.5 ? min(sdf, t) : sdf;
+			}
+			mask = 1.0 - smoothstep(-patch_edge * 0.25, patch_edge * 0.25, sdf);
+			edge_band = 1.0 - smoothstep(0.0, -patch_edge, sdf);
+		}
 		if (mask < 0.01) {
 			discard;
 		}

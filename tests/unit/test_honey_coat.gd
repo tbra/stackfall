@@ -24,7 +24,7 @@ func _meshes(ghost: GhostPreview) -> Array[MeshInstance3D]:
 func test_tuning_defaults_match_plan() -> void:
 	var tuning: HoneyCoatTuning = load(TUNING_PATH) as HoneyCoatTuning
 	assert_not_null(tuning)
-	assert_eq(tuning.color, Color(1.0, 0.78, 0.08, 1.0))
+	assert_eq(tuning.color, Color(1.0, 0.7, 0.04, 1.0))
 	assert_almost_eq(tuning.thickness_m, 0.02, 0.0001)
 	assert_almost_eq(tuning.ghost_alpha, 0.6, 0.0001)
 	assert_almost_eq(tuning.drip_speed, 0.2, 0.0001)

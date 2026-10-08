@@ -1328,8 +1328,8 @@ func _next_gift_id_for(count: int, head_id: StringName) -> StringName:
 const HONEY_TUNING_PATH: String = "res://config/honey_coat_tuning.tres"
 ## Blob layout in fractions of the drawn block image: [x, y, radius] of each honey
 ## cap blob, and [x, y_top, length, width] of each drip (owner mockup glue(honey).png).
-const GLUE_BLOBS: Array[Vector3] = [Vector3(0.3, 0.3, 0.2), Vector3(0.68, 0.5, 0.16), Vector3(0.45, 0.72, 0.13)]
-const GLUE_DRIPS: Array[Vector4] = [Vector4(0.2, 0.36, 0.26, 0.09), Vector4(0.38, 0.4, 0.16, 0.07), Vector4(0.74, 0.58, 0.24, 0.08), Vector4(0.5, 0.78, 0.14, 0.07)]
+const GLUE_BLOBS: Array[Vector3] = [Vector3(0.42, 0.3, 0.14), Vector3(0.62, 0.36, 0.1)]
+const GLUE_DRIPS: Array[Vector4] = [Vector4(0.3, 0.34, 0.2, 0.1), Vector4(0.7, 0.42, 0.14, 0.08)]
 const GLUE_EDGE_GROW: float = 1.18
 const GLUE_HIGHLIGHT_SHIFT: Vector2 = Vector2(-0.35, -0.4)
 const GLUE_HIGHLIGHT_SCALE: float = 0.35
