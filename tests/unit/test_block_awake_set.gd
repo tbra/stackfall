@@ -1,7 +1,7 @@
 extends GutTest
 ## Bontago-1pi.11.32: the shared awake set (Block.awake_blocks()) and its
 ## consumers: BlockRegistry's settle loop, BlockEffectsManager's trail scan and
-## Block's per-tick callback.
+## the per-tick BlockStepBatch pass (Bontago-bth.1; was Block's own callback).
 
 const TICK: float = 1.0 / 60.0
 const SLEEP_WAIT_FRAMES: int = 60
@@ -34,28 +34,26 @@ func _frozen_block(parent: Node) -> Block:
 func test_awake_set_tracks_enter_sleep_wake_freeze_and_remove() -> void:
 	var block: Block = _block()
 	assert_true(Block.is_awake_registered(block), "a block entering the tree starts awake")
-	assert_true(block.is_physics_processing())
+	# Bontago-bth.1: no per-node tick callback; BlockStepBatch visits the set.
+	assert_false(block.is_physics_processing(), "no per-node physics callback")
 
 	# Zero gravity and no velocity: Jolt puts it to sleep by itself.
 	block.sleeping = true
 	await wait_physics_frames(SLEEP_WAIT_FRAMES)
 	assert_false(Block.is_awake_registered(block), "sleeping_state_changed removes it")
-	assert_false(block.is_physics_processing(), "the per-tick callback is off while asleep")
 
 	block.wake()
 	await wait_physics_frames(3)
 	assert_true(Block.is_awake_registered(block), "waking re-adds it")
-	assert_true(block.is_physics_processing(), "and re-enables the callback")
+	assert_false(block.is_physics_processing(), "still no per-node physics callback")
 
 	await wait_physics_frames(SLEEP_WAIT_FRAMES)
 	assert_false(Block.is_awake_registered(block), "a script-woken body that falls asleep again leaves the set")
 	block.wake()
 	block.request_freeze_static(Block.FREEZE_REASON_STABLE)
 	assert_false(Block.is_awake_registered(block), "a statically frozen block leaves the set")
-	assert_false(block.is_physics_processing())
 	block.release_freeze_static(Block.FREEZE_REASON_STABLE)
 	assert_true(Block.is_awake_registered(block), "unfreezing re-adds it")
-	assert_true(block.is_physics_processing())
 
 	var id: int = block.get_instance_id()
 	block.get_parent().remove_child(block)
