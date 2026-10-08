@@ -16,6 +16,14 @@ const EXPECTED_CELL_COUNTS: Dictionary = {
 	&"square4": 4,
 	&"slab6": 6,
 	&"pillar": 3,
+	&"bar5": 5,
+	&"plus5": 5,
+	&"u5": 5,
+	&"corner4": 4,
+	&"stair6": 6,
+	&"arch5": 5,
+	&"cube8": 8,
+	&"plate9": 9,
 }
 
 

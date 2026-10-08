@@ -17,10 +17,13 @@ var _field: Field
 var _registry: BlockRegistry
 var _tiny_map: MapDef
 
+var _saved_feed_config: BlockFeedConfig = null
+
 
 func before_each() -> void:
 	Match.set_process(false)
 	Match.abort_match()
+	_pin_feed_to_convex_shape()
 	_tiny_map = (load("res://config/maps/round_medium.tres") as MapDef).duplicate(true)
 	_tiny_map.field_radius = 20.0
 	_field = autofree(Field.new())
@@ -32,8 +35,19 @@ func before_each() -> void:
 	add_child_autofree(_registry)
 	Match.register_world(_field, _registry, _blocks_root)
 
+## DECISION (Bontago-1pi.115): these tests aim at a placed block's origin or rely on the
+## held piece being solid there, which fails for concave shapes (u5, arch5, corner4, stair6)
+## now in the random feed. Pin the feed to the cube; the shape mix is not under test.
+func _pin_feed_to_convex_shape() -> void:
+	_saved_feed_config = Match._block_feed_config
+	var pinned: BlockFeedConfig = _saved_feed_config.duplicate() as BlockFeedConfig
+	pinned.shapes = [load("res://config/blocks/cube.tres") as BlockShape]
+	pinned.weight_overrides = PackedFloat32Array()
+	Match._block_feed_config = pinned
+
 
 func after_each() -> void:
+	Match._block_feed_config = _saved_feed_config
 	Match.abort_match()
 	Match.set_process(true)
 	MatchTestReset.clear_world()
@@ -230,8 +244,13 @@ func test_host_refuses_a_thrown_pose_inside_a_placed_block() -> void:
 	var special_tuning: SpecialTuning = Match._placement._special_tuning
 	var saved_back: float = special_tuning.gift_aim_back_m
 	special_tuning.gift_aim_back_m = 0.0
+	# The spawn point is also floored at gift_aim_min_height_m over the surface (1.0 m), which
+	# lifts it clear of a 1-cube block resting on the disk; pin it to 0 too.
+	var saved_min_height: float = special_tuning.gift_aim_min_height_m
+	special_tuning.gift_aim_min_height_m = 0.0
 	var reason: StringName = Match.request_throw(0, block_a.global_position, 0, Quaternion.IDENTITY, Vector3(1.0, 0.0, 0.0))
 	special_tuning.gift_aim_back_m = saved_back
+	special_tuning.gift_aim_min_height_m = saved_min_height
 	tuning.spawn_clearance_max_raise = saved
 	assert_eq(reason, PlacementRules.REASON_NO_BLOCK, "thrown pose inside a block is refused")
 	assert_eq(_blocks_root.get_child_count(), 1, "nothing spawned")

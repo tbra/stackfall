@@ -181,6 +181,14 @@ The original global-versus-per-player phase alignment is **[OPEN]**; it must not
 | square4 | 2×2 flat | stable base |
 | slab6 | 2×3 flat | rare, strong base |
 | pillar | 1×1×3 upright variant of bar3 | |
+| bar5 | 5 | 5 in a line **[NEW, owner 2026-10-08]** |
+| plus5 | 5 | 5, flat plus **[NEW, owner 2026-10-08]** |
+| u5 | 5 | 5, flat U **[NEW, owner 2026-10-08]** |
+| corner4 | 4 | 4, 3D corner (chiral) **[NEW, owner 2026-10-08]** |
+| stair6 | 6 | 6, staircase **[NEW, owner 2026-10-08]** |
+| arch5 | 5 | 5, upright arch **[NEW, owner 2026-10-08]** |
+| cube8 | 8 | 8, solid 2×2×2 **[NEW, owner 2026-10-08]** |
+| plate9 | 9 | 9, flat 3×3 **[NEW, owner 2026-10-08]** |
 
 - **Weighted random feed:** Weights are set per shape in `BlockFeedConfig`. Use a "bag" randomizer so no player goes long without getting a stabilizing shape. [NEW]
 - **Next-block preview [ORIGINAL]:** installed tutorial confirms the preview's next piece and timer plus a top-down territory minimap. Distinguish queued preview from the actual held-but-locked preparation piece. Three-piece preview is a remake option.
