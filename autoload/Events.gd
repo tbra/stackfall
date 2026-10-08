@@ -169,6 +169,17 @@ signal hole_cells_changed(opened: PackedInt32Array, closed: PackedInt32Array)
 ## ring (spec 2.3). team_id is -1 with progress 0 when a capture breaks.
 signal goal_capture_progress(team_id: int, progress: float)
 
+## Local-player-relative claim tension (Bontago-1pi.114), derived from
+## goal_capture_progress by core/audio/ClaimTensionState via Sfx; nothing new is
+## replicated. `level` is 0..1 (0 = silent), `mine` is true when a team this
+## machine's human seat belongs to is the one holding.
+signal claim_tension_changed(level: float, mine: bool)
+
+## A hold that had reached claim_interrupt_min_progress broke before the match
+## ended. `was_mine` tells my claim from a rival's; `peak` is the highest
+## progress it reached.
+signal claim_interrupted(was_mine: bool, peak: float)
+
 ## A slot's home flag was lost to a hole opening under it (spec 2.2 is silent
 ## on this; docs/M2_PLAN.md's owner decision: this eliminates the slot —
 ## PlayerSlot.home_flag_alive goes false, its circles unanchor, and it gets no
