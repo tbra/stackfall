@@ -47,6 +47,11 @@ extends Node3D
 var _mesh_instance: MeshInstance3D
 var _immediate_mesh: ImmediateMesh
 var _material: StandardMaterial3D
+## Bontago-1pi.85.63 landing-zone ring (one reused instance, see _update_end_ring()).
+var _ring_instance: MeshInstance3D
+var _ring_material: StandardMaterial3D
+var _ring_built_for: Vector2 = Vector2.ZERO
+var _ring_normal: Vector3 = Vector3.UP
 ## For tests/current_points(): the world-space centreline points the ribbon
 ## last drew, cleared to empty by clear_arc().
 var _last_points: PackedVector3Array = PackedVector3Array()
@@ -69,6 +74,16 @@ func _ready() -> void:
 	_mesh_instance.top_level = true
 	_mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_mesh_instance)
+	_ring_material = StandardMaterial3D.new()
+	_ring_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_ring_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_ring_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_ring_instance = MeshInstance3D.new()
+	_ring_instance.material_override = _ring_material
+	_ring_instance.top_level = true
+	_ring_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_ring_instance.visible = false
+	add_child(_ring_instance)
 	visible = false
 
 
@@ -149,7 +164,10 @@ func _landing_point(previous: Vector3, point: Vector3, landing_y: float) -> Vect
 ## forwarded straight to sample_arc() (Bontago-1en.25); PlayerController
 ## passes Match.field(), read-only, same as its own _on_placement_relocated().
 func update_arc(origin: Vector3, velocity: Vector3, field: Field = null, gravity_scale: float = 1.0) -> void:
-	_rebuild_mesh(sample_arc(origin, velocity, field, gravity_scale))
+	var points: PackedVector3Array = sample_arc(origin, velocity, field, gravity_scale)
+	_rebuild_mesh(points)
+	var end: Vector3 = points[points.size() - 1]
+	_update_end_ring(end, _surface_normal_at(end, field))
 	visible = true
 
 
@@ -158,6 +176,8 @@ func update_arc(origin: Vector3, velocity: Vector3, field: Field = null, gravity
 func clear_arc() -> void:
 	visible = false
 	_last_points = PackedVector3Array()
+	if _ring_instance != null:
+		_ring_instance.visible = false
 	if _immediate_mesh != null:
 		_immediate_mesh.clear_surfaces()
 
@@ -205,58 +225,68 @@ func _rebuild_mesh(points: PackedVector3Array) -> void:
 		_immediate_mesh.surface_set_color(ghost_tuning.throw_arc_color)
 		_immediate_mesh.surface_add_vertex(point - side)
 	_immediate_mesh.surface_end()
-	# Bontago-1en.25: a small camera-facing disc at the landing point, on
-	# its own tunable (throw_arc_end_marker_enabled) since a bare polyline
-	# already reads as "ends here" once it stops at the actual landing
-	# height (this package's whole point) -- the marker is only an extra
-	# legibility cue, not load-bearing for the acceptance tests below.
-	if ghost_tuning.throw_arc_end_marker_enabled:
-		_add_end_marker(points[points.size() - 1], camera)
 
 
-## Bontago-1en.25's optional landing-point marker: a small flat camera-facing
-## disc (same to-camera convention _rebuild_mesh's own ribbon side-offset
-## uses above), drawn as a second surface on the same ImmediateMesh so
-## clear_arc()'s one clear_surfaces() call still drops it along with the
-## ribbon.
-##
-## DECISION (game/ThrowArcPreview.gd, Bontago-1en.25): no shape/ray cast
-## against placed blocks along the sampled segments -- the brief's own
-## "if cheap" qualifier for stopping the arc on a tower top instead of
-## passing through it. sample_arc() is deliberately pure (no PhysicsServer
-## query, callable with zero nodes in the tree, see this file's top doc
-## comment); wiring a per-segment cast would need a live
-## PhysicsDirectSpaceState3D, only available from update_arc() once this
-## node is inside a real tree, which would make the two functions disagree
-## about where the arc ends and cost a shape cast every frame the arc is
-## visible for no gameplay effect (a thrown special's real flight path is
-## still whatever BlockFactory/physics actually resolves, spec 2.5 -- this
-## preview is advisory only). Left for a follow-up package; reported as
-## unresolved in this package's own handoff rather than guessed at here.
-func _add_end_marker(point: Vector3, camera: Camera3D) -> void:
+## Bontago-1pi.85.63: the landing-zone ring. One reused MeshInstance3D holding a flat
+## annulus ArrayMesh (rebuilt only when radius/width change); each arc update just sets its
+## transform: centred on the landing point, up axis = the landing surface normal, lifted along
+## it. No per-frame allocation.
+func _update_end_ring(point: Vector3, normal: Vector3) -> void:
 	var radius: float = ghost_tuning.throw_arc_end_marker_radius
-	if radius <= 0.0:
+	if not ghost_tuning.throw_arc_end_marker_enabled or radius <= 0.0:
+		_ring_instance.visible = false
 		return
-	var normal: Vector3 = (camera.global_position - point).normalized() if camera != null else Vector3.UP
-	var right: Vector3 = normal.cross(Vector3.UP)
-	if right.length() <= 0.0001:
-		right = normal.cross(Vector3.FORWARD)
-	right = right.normalized()
-	var up: Vector3 = right.cross(normal).normalized()
-	var segments: int = 10
-	# DECISION (game/ThrowArcPreview.gd): Godot 4's Mesh enum dropped
-	# PRIMITIVE_TRIANGLE_FAN (Godot 3 had it; this build's ClassDB does not,
-	# verified by the parse error a first attempt at this hit) -- PRIMITIVE_
-	# TRIANGLES with the fan's triangles spelled out explicitly (center, ring
-	# vertex i, ring vertex i+1) draws the identical shape.
-	_immediate_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	var width: float = clampf(ghost_tuning.throw_arc_end_marker_width, 0.001, radius)
+	if _ring_built_for != Vector2(radius, width):
+		_ring_instance.mesh = _build_ring_mesh(radius, width)
+		_ring_built_for = Vector2(radius, width)
+	_ring_material.albedo_color = ghost_tuning.throw_arc_color
+	var up: Vector3 = normal.normalized()
+	var ref: Vector3 = Vector3.FORWARD if absf(up.dot(Vector3.FORWARD)) < 0.99 else Vector3.RIGHT
+	var right: Vector3 = ref.cross(up).normalized()
+	var basis: Basis = Basis(right, up, right.cross(up).normalized())
+	_ring_instance.global_transform = Transform3D(basis, point + up * ghost_tuning.throw_arc_end_marker_lift)
+	_ring_instance.visible = true
+	_ring_normal = up
+
+
+## The landing surface normal for `point`: the disc's own up axis while over it, else world up.
+func _surface_normal_at(point: Vector3, field: Field) -> Vector3:
+	if field == null:
+		return Vector3.UP
+	if field.disk_local_from_world(point).length() <= field.map_definition().field_radius:
+		return field.global_transform.basis.y.normalized()
+	return Vector3.UP
+
+
+func _build_ring_mesh(outer: float, width: float) -> ArrayMesh:
+	var inner: float = maxf(outer - width, 0.0)
+	var verts: PackedVector3Array = PackedVector3Array()
+	var indices: PackedInt32Array = PackedInt32Array()
+	var segments: int = ghost_tuning.throw_arc_end_marker_segments
 	for i in range(segments):
-		var angle_a: float = TAU * float(i) / float(segments)
-		var angle_b: float = TAU * float(i + 1) / float(segments)
-		_immediate_mesh.surface_set_color(ghost_tuning.throw_arc_color)
-		_immediate_mesh.surface_add_vertex(point)
-		_immediate_mesh.surface_set_color(ghost_tuning.throw_arc_color)
-		_immediate_mesh.surface_add_vertex(point + (right * cos(angle_a) + up * sin(angle_a)) * radius)
-		_immediate_mesh.surface_set_color(ghost_tuning.throw_arc_color)
-		_immediate_mesh.surface_add_vertex(point + (right * cos(angle_b) + up * sin(angle_b)) * radius)
-	_immediate_mesh.surface_end()
+		var a: float = TAU * float(i) / float(segments)
+		verts.append(Vector3(cos(a) * outer, 0.0, sin(a) * outer))
+		verts.append(Vector3(cos(a) * inner, 0.0, sin(a) * inner))
+	for i in range(segments):
+		var o0: int = i * 2
+		var i0: int = o0 + 1
+		var o1: int = ((i + 1) % segments) * 2
+		var i1: int = o1 + 1
+		indices.append_array(PackedInt32Array([o0, o1, i0, i0, o1, i1]))
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh: ArrayMesh = ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
+
+
+## For tests: the landing ring node (null before _ready) and the normal it was last aligned to.
+func end_ring() -> MeshInstance3D:
+	return _ring_instance
+
+
+func end_ring_normal() -> Vector3:
+	return _ring_normal
