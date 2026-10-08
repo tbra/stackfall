@@ -16,8 +16,8 @@
 
 Historical basis: the earlier **"Owner clarifications — 2026-09-20"** record and
 `docs/bloody_mess.md` (the owner's own words). The current `docs/SPEC.md` decision record
-and Part 2 now take precedence over this plan. Also read: §2.2, §2.3, §2.5, §3.3, §3.6, §3.7, `docs/M2_PLAN.md` (how territory
-was built), `docs/M3a_PLAN.md`'s "Design notes" (raster replication). This plan is a
+and Part 2 now take precedence over this plan. Also read: §2.2, §2.3, §2.5, §3.3, §3.6, §3.7, `docs/archive/M2_PLAN.md` (how territory
+was built), `docs/archive/M3a_PLAN.md`'s "Design notes" (raster replication). This plan is a
 **rules rewrite**, not a new milestone's worth of new systems: it replaces how area of
 influence is computed and rendered, and how placement is validated, while reusing almost
 everything else — connectivity, the win check, replication, the HUD and `Field`'s

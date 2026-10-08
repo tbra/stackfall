@@ -1,6 +1,6 @@
 # M3b — Steam integration (GodotSteam): parallel build plan
 
-Spec: §3.4 (this milestone), §2.8, §3.7, Part 4 M3. Research: `docs/M3b_RESEARCH.md`
+Spec: §3.4 (this milestone), §2.8, §3.7, Part 4 M3. Research: `docs/archive/M3b_RESEARCH.md`
 (2026-09-18). Base: `main` @ `c377e9f`. **Bontago-mv0.2.1 (GodotSteam GDExtension spike) is
 closed**: the addon installs cleanly in Godot 4.7.2 following README's "Steam setup
 (development)" section, verified by `tools/check_steam_setup.ps1`. The **whole**
@@ -224,7 +224,7 @@ still pass (regression).
 |---|---|---|
 | `net_config.tres` | P1 | `steam_lobby_type` (default FriendsOnly — verify the exact `ELobbyType` ordinal or `Steam.LOBBY_TYPE_*` constant GodotSteam exposes once the addon is installed locally), `steam_lobby_data_max_bytes` 8192 (**unverified** — spec's estimate; confirm against Steamworks' `isteammatchmaking.h` or public documentation and record the real limit), `steam_lobby_list_refresh_s` (Steam's `request_lobby_list` is pull-based, unlike the LAN advert's push; pick a sane poll interval, e.g. 5 s, and record it here, not as a literal in `ui/MainMenu.gd`) |
 | existing `net_config.tres` fields, unchanged | P1 reads, does not add | `connect_timeout`, `handshake_timeout` — reused as-is for the Steam join path; no new Steam-specific timeout field, since `SteamMultiplayerPeer.create_client` needing a deadline is the same shape as ENet's |
-| script `const` | P1 | `SteamClient` (or `Net`) holds the lobby-data **key names** — `game`, `version`, `map`, `match_config` — as `const StringName`, not `NetConfig` fields: they are wire protocol, the same reasoning `docs/M3a_PLAN.md` gives for `SnapshotSync.SNAPSHOT_CHANNEL`/`Net.HOST_PEER_ID` being consts, not tunables. Likewise `Net.STEAM_APP_ID_EXPECTED := 480`, passed directly into `Steam.steamInitEx(480)` — Bontago-mv0.2.1 confirmed `steam_appid.txt` is unnecessary once the app id is passed as an argument, so this project carries no such file |
+| script `const` | P1 | `SteamClient` (or `Net`) holds the lobby-data **key names** — `game`, `version`, `map`, `match_config` — as `const StringName`, not `NetConfig` fields: they are wire protocol, the same reasoning `docs/archive/M3a_PLAN.md` gives for `SnapshotSync.SNAPSHOT_CHANNEL`/`Net.HOST_PEER_ID` being consts, not tunables. Likewise `Net.STEAM_APP_ID_EXPECTED := 480`, passed directly into `Steam.steamInitEx(480)` — Bontago-mv0.2.1 confirmed `steam_appid.txt` is unnecessary once the app id is passed as an argument, so this project carries no such file |
 
 ## Design notes — the parts that are easy to get wrong
 
@@ -350,7 +350,7 @@ Steam overlay (or PC B activates PC A's `+connect_lobby` link); confirm the lobb
 settings exactly as the ENet path does (`ui/Lobby.gd`'s existing round trip, spec §2.8);
 confirm player names show each account's Steam persona; play a full match to a win condition;
 then kill Steam on one PC mid-match and record what actually happens (research risk 3) against
-the disconnect/grace-period behaviour `docs/M3a_PLAN.md`'s question 2 already answers — this is
+the disconnect/grace-period behaviour `docs/archive/M3a_PLAN.md`'s question 2 already answers — this is
 observation, not a new decision, since `Match.on_peer_left`/`disconnect_grace` react to any
 `Events.net_peer_left` regardless of why the peer vanished.
 
@@ -371,6 +371,6 @@ observation, not a new decision, since `Match.on_peer_left`/`disconnect_grace` r
 - **Public matchmaking across strangers on app 480 is out of scope** regardless of how
   Question 1 is answered — both options here mean "people who already know each other socially
   or via a shared link," not open matchmaking.
-- **Late join / reconnect stays M8**, exactly as `docs/M3a_PLAN.md` already states; a Steam
+- **Late join / reconnect stays M8**, exactly as `docs/archive/M3a_PLAN.md` already states; a Steam
   lobby refuses a joiner the same way once the match leaves LOBBY (`Net.accepting_joins()`
   is transport-agnostic, so this needs no new code either).

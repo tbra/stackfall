@@ -5,10 +5,10 @@ extends Node
 ## with a held special (core/ai/BotSpecialPlanner.gd), and sends exactly one
 ## Match.request_place()/request_throw() per completed think-cycle -- the
 ## same authoritative entry points a human PlayerController uses, never a
-## shortcut into rules internals (docs/M5_PLAN.md, "What the existing code
+## shortcut into rules internals (docs/archive/M5_PLAN.md, "What the existing code
 ## already gives this milestone").
 ##
-## docs/M5_PLAN.md P1 (Bontago-d5c): this is the interface-stub package.
+## docs/archive/M5_PLAN.md P1 (Bontago-d5c): this is the interface-stub package.
 ## `BotPlacementScorer`/`BotSpecialPlanner` still answer trivially (first
 ## candidate, never throw) -- P2/P3 rewrite only their bodies. This file's
 ## job is the real cadence/gating/candidate-generation machinery every later
@@ -28,7 +28,7 @@ extends Node
 ## 999979) -- this file's own per-system stream off the shared
 ## Match.config.rng_seed, so a fixed match seed reproduces this bot's own
 ## jitter/aim-noise/territory-sample draws without colliding with any other
-## seeded system in the match (see docs/M5_PLAN.md's "Known risks:
+## seeded system in the match (see docs/archive/M5_PLAN.md's "Known risks:
 ## Determinism").
 const RNG_OFFSET: int = 777001
 
@@ -54,7 +54,7 @@ var _match_provider: Variant = null
 var _net_provider: Variant = null
 
 ## Seeded once at setup() off Match.config.rng_seed + RNG_OFFSET + a per-slot
-## stride, per docs/M5_PLAN.md's determinism requirement -- never
+## stride, per docs/archive/M5_PLAN.md's determinism requirement -- never
 ## randi()/randf()'s global state. Drives the reaction-delay jitter (drawn
 ## once, below), the territory-point sampling and the aim-noise offset.
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -268,7 +268,7 @@ func _shape_height_cubes(cells: Array[Vector3i], basis: Basis) -> float:
 
 
 ## Disk-local point inside this bot's own territory (uniform-in-disk
-## sampling, Match.raster()/cell_grid() -- docs/M5_PLAN.md P1), retried up to
+## sampling, Match.raster()/cell_grid() -- docs/archive/M5_PLAN.md P1), retried up to
 ## tuning.max_territory_sample_attempts times before falling back to the
 ## slot's own home position.
 ##
@@ -352,7 +352,7 @@ func _home_position() -> Vector2:
 ## The same straight-down raycast Field.raycast_down_disk_local() already
 ## uses (map_def.cell_wake_height down to tuning.kill_plane_y), except this
 ## keeps the hit's disk-local height instead of discarding it
-## (docs/M5_PLAN.md P1: "the same technique... just keeping the hit height").
+## (docs/archive/M5_PLAN.md P1: "the same technique... just keeping the hit height").
 ## Returns `{}` only when there is no Field/no physics world to query at all
 ## (a bare unit test with no Field wired); a genuine miss (nothing directly
 ## below, e.g. a hole or the rim) reports `"hit": false` alongside the same

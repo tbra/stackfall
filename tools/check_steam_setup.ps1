@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     res://addons/godotsteam/ is deliberately NOT committed to git (spike
-    Bontago-mv0.2.1, written up in docs/M3b_RESEARCH.md's "Spike results"
+    Bontago-mv0.2.1, written up in docs/archive/M3b_RESEARCH.md's "Spike results"
     section). Godot only tries to load a .gdextension file if one exists on
     disk, so a machine that has never run the local Steam setup step (see
     README.md, "Steam setup (development)") gets a completely clean
@@ -65,7 +65,7 @@ foreach ($rel in $missing) {
 }
 Write-Host ""
 Write-Host "A half-installed addon folder is the one unsupported state: Godot will print ERROR"
-Write-Host "lines from GDExtensionManager on every '--editor --quit' run (docs/M3b_RESEARCH.md,"
+Write-Host "lines from GDExtensionManager on every '--editor --quit' run (docs/archive/M3b_RESEARCH.md,"
 Write-Host "'Spike results'). Either finish the install (README.md, 'Steam setup (development)')"
 Write-Host "or delete addons/godotsteam/ entirely to go back to the clean, Steam-free state."
 exit 1

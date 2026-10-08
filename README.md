@@ -226,7 +226,7 @@ Buttons at the bottom:
 
 M3b's Steam transport (`SteamMultiplayerPeer`, via the GodotSteam GDExtension) is not part
 of a fresh clone. `res://addons/godotsteam/` is **entirely untracked, by design** — see the
-spike results in `docs/M3b_RESEARCH.md` (Bontago-mv0.2.1). Godot only tries to load a
+spike results in `docs/archive/M3b_RESEARCH.md` (Bontago-mv0.2.1). Godot only tries to load a
 `.gdextension` file if one actually exists on disk, so skipping this step gives a perfectly
 clean `godot --headless --editor --path . --quit` and full LAN/ENet/`--hot-seat` play; a
 **half**-installed addon (the `.gdextension` present without its platform library or Valve's

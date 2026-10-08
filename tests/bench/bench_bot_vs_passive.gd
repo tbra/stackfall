@@ -1,14 +1,14 @@
 extends Node3D
-## Spec 2.9 / docs/M5_PLAN.md P6's own graded acceptance scenario: a single
+## Spec 2.9 / docs/archive/M5_PLAN.md P6's own graded acceptance scenario: a single
 ## Hard-difficulty BotController (slot 0) against a "passive player" (slot 1 --
 ## no PlayerController, no BotController, nothing) in a real 2-player match.
 ## Run headless:
 ##   godot --headless --path . res://tests/bench/bench_bot_vs_passive.tscn -- --seed=1
 ## Prints one machine-readable result line, then quits. Run at least 3 times
-## with different --seed=<n> values (docs/M5_PLAN.md P6's own acceptance
+## with different --seed=<n> values (docs/archive/M5_PLAN.md P6's own acceptance
 ## line) -- a single seeded pass is not proof the Hard bot reliably wins.
 ##
-## **"Passive player", defined in docs/M5_PLAN.md P6:** a second slot that
+## **"Passive player", defined in docs/archive/M5_PLAN.md P6:** a second slot that
 ## never receives any intent at all. Its held block still auto-drops at
 ## MatchPlacement.default_ghost_origin(slot_id) every window
 ## (autoload/match/MatchPlacement.gd's own "the slot's own home flag position
@@ -104,7 +104,7 @@ extends Node3D
 ## sim-second budget, which no other slot in this bench (the passive slot's
 ## whole cadence is 100% delta-driven) suffers from. **DEFAULT_TIME_SCALE is
 ## therefore 1.0 (no acceleration) for this file's own graded acceptance
-## runs** -- back to docs/M5_PLAN.md P6's own "an accepted cost" real-time
+## runs** -- back to docs/archive/M5_PLAN.md P6's own "an accepted cost" real-time
 ## posture -- with `--time-scale=` kept available only for fast, non-graded
 ## exploration (it must never be used for an actual accept/reject verdict
 ## until BotController's own GENERATING slicing is made delta-driven too, an
@@ -163,7 +163,7 @@ extends Node3D
 ## fidelity fix, not a tuning change to the bot or a MatchFeed patch --
 ## Bontago-2lr (the suspected underlying MatchFeed latch, for a slot that
 ## really has no fallback of any kind) remains filed separately and untouched.
-## Seeds 2 and 3 (docs/M5_PLAN.md P6's own "run at least 3" acceptance line)
+## Seeds 2 and 3 (docs/archive/M5_PLAN.md P6's own "run at least 3" acceptance line)
 ## were run once this fix landed. All three seeds at the graded default
 ## (time_scale=1, no --timeout-s override) now PASS, sanity-valid, no
 ## latch_guard triggered: seed=1 bot_placements=64 (bot_own=50,
@@ -185,7 +185,7 @@ const BOT_SLOT: int = 0
 const PASSIVE_SLOT: int = 1
 const AI_DIFFICULTY: MatchConfig.AiDifficulty = MatchConfig.AiDifficulty.HARD
 const MAP_SIZE: MapDef.MapSize = MapDef.MapSize.MEDIUM
-## docs/M5_PLAN.md P6: "600 real-seconds (10 * 60 * Engine.physics_ticks_per_
+## docs/archive/M5_PLAN.md P6: "600 real-seconds (10 * 60 * Engine.physics_ticks_per_
 ## second ticks)" -- counted in physics ticks the match spends in
 ## Match.State.PLAYING, not wall-clock seconds.
 const TIMEOUT_SECONDS: float = 600.0
@@ -206,7 +206,7 @@ const DEFAULT_SEED: int = 1
 ## bench's own graded acceptance runs. Pass a higher value only for fast,
 ## explicitly non-graded exploration (e.g. confirming the bench itself still
 ## runs end to end after an unrelated change), never to decide PASS/FAIL/
-## INVALID for docs/M5_PLAN.md P6's own acceptance line.
+## INVALID for docs/archive/M5_PLAN.md P6's own acceptance line.
 const TIME_SCALE_ARG_PREFIX: String = "--time-scale="
 const DEFAULT_TIME_SCALE: float = 1.0
 ## --timeout-s=<n>; overrides TIMEOUT_SECONDS for a short diagnostic run
@@ -387,7 +387,7 @@ func _base_config() -> MatchConfig:
 	# than 1. MatchLifecycle._build_slots() sets PlayerSlot.is_bot off
 	# ai_count's own trailing-slots convention (`i >= player_count -
 	# ai_count`), which would mark slot 1 (not slot 0) as the bot -- the
-	# opposite of docs/M5_PLAN.md P6's explicit "slot 0 = bot, slot 1 =
+	# opposite of docs/archive/M5_PLAN.md P6's explicit "slot 0 = bot, slot 1 =
 	# passive" setup. is_bot is never read by any placement/feed/territory
 	# rule (grep confirms its only readers are MatchLifecycle's own
 	# assignment, game/Main.gd's bot-spawning loop and UI/test assertions --
@@ -400,7 +400,7 @@ func _base_config() -> MatchConfig:
 	config.ai_difficulty = AI_DIFFICULTY
 	config.hot_seat = false
 	config.sandbox = false
-	# DECISION (docs/M5_PLAN.md P6): gifts_enabled = false for this specific
+	# DECISION (docs/archive/M5_PLAN.md P6): gifts_enabled = false for this specific
 	# bench. A random special claim (by either side) would make the bench's
 	# own pass/fail non-deterministic even at a fixed rng_seed, since a
 	# crate's claim depends on the live territory solve, not the seed alone,
@@ -464,7 +464,7 @@ func _on_match_won(team_id: int) -> void:
 ## host -- a bot occupying any other slot in a real net-hosted match is
 ## exactly as un-local, so MatchNet's own uniform per-slot fallback is what
 ## keeps a real bot's slot alive there. This bench's own BOT_SLOT happens to
-## be 0 for an unrelated, P6-mandated reason (docs/M5_PLAN.md's own "slot 0 =
+## be 0 for an unrelated, P6-mandated reason (docs/archive/M5_PLAN.md's own "slot 0 =
 ## bot, slot 1 = passive"), so without this fix the bench was silently *more*
 ## fragile than the real net path it exists to approximate, not a faithful
 ## stand-in for it -- the seed=1 FAIL evidence in DECISION part 2 above

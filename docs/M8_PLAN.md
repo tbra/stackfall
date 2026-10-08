@@ -72,7 +72,7 @@ through the Input Map, no new addons, host is authoritative for physics.
   `queue_free|replicate_despawn` from `Field.gd`/`Match.gd`) before writing
   new removal code.
 - **Late join / reconnect: the raster keyframe path is wired, block replay is
-  not.** `docs/M3a_PLAN.md` lines 282-297 ("Known limitations") is the
+  not.** `docs/archive/M3a_PLAN.md` lines 282-297 ("Known limitations") is the
   authoritative scope statement: "the raster's full-keyframe path... [is]
   not built" for a mid-match joiner. Concretely:
   - `autoload/Net.gd`'s `_rpc_handshake()` (lines ~1155-1173) refuses any
@@ -343,7 +343,7 @@ work with no shared file overlap (late-join touches `Net.gd`/`Main.gd`/
 `MatchNet.gd`/`MatchConfig.gd`; body-cap touches only new files plus reading
 — not writing — `BlockRegistry.gd`/`PhysicsTuning.gd`), but late-join alone
 is already close to the ~30-minute/10-file budget with real protocol-design
-risk (ordering of replay vs. snapshot vs. roster, per `docs/M3a_PLAN.md`'s
+risk (ordering of replay vs. snapshot vs. roster, per `docs/archive/M3a_PLAN.md`'s
 own "chunked world-state transfer" framing) — **if the orchestrator judges
 either half alone exceeds ~30 minutes at dispatch time, split into P6a
 (late join/reconnect) and P6b (body cap/removal); they do not share files

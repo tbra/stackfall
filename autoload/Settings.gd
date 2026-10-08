@@ -4,7 +4,7 @@ extends Node
 ## Persisted to a single user://settings.cfg ConfigFile (this autoload already
 ## runs before any scene, project.godot's [autoload] section) and saved on
 ## every setter -- small, infrequent writes, no debouncing needed
-## (docs/M6_PLAN.md package C1).
+## (docs/archive/M6_PLAN.md package C1).
 ##
 ## Settings only stores the user's choices and emits signals; it never
 ## touches a Viewport/Environment or plays audio itself -- C2 (options menu)

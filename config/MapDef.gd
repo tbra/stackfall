@@ -84,7 +84,7 @@ const TERRITORY_RES_LARGE: int = 512
 
 ## Spec 3.3: the disk's collision is a square grid of BoxShape3Ds of this
 ## edge length, clipped to the disk. One cell is also one pixel of the
-## authoritative territory raster (see docs/M2_PLAN.md, "Raster resolution").
+## authoritative territory raster (see docs/archive/M2_PLAN.md, "Raster resolution").
 @export var cell_size: float = 1.0
 
 ## Spec 3.3: the size of the ImageTexture handed to territory.gdshader. The

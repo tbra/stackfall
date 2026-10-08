@@ -49,7 +49,7 @@ var _tiny_map: MapDef
 ## the old 30 m cap.
 const TARGET_HEIGHT_M: float = 40.0
 ## Same tolerance test_quantize.gd's own position round-trip assertions use
-## (docs/M3a_PLAN.md P2: "a position anywhere in the map-M AABB round-trips
+## (docs/archive/M3a_PLAN.md P2: "a position anywhere in the map-M AABB round-trips
 ## within 2.1 mm") -- not re-derived here, just reused for this one directed
 ## regression pin (this package does not own core/net/Quantize.gd or its own
 ## test file, since the wire range did not need to grow; see this file's own

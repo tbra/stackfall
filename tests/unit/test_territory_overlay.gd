@@ -1,6 +1,6 @@
 extends GutTest
 ## TerritoryOverlay turns the cell raster into the ImageTexture the disk shader
-## samples (spec 2.10, 3.3, docs/M2_PLAN.md "Raster resolution").
+## samples (spec 2.10, 3.3, docs/archive/M2_PLAN.md "Raster resolution").
 ##
 ## The raster itself is P1's; these tests drive the overlay through a stand-in
 ## that answers owner_bytes()/state_bytes() with hand-built cells, so they pin

@@ -1,5 +1,5 @@
 extends GutTest
-## docs/M6_PLAN.md package C2: ui/OptionsMenu.gd (graphics preset picker,
+## docs/archive/M6_PLAN.md package C2: ui/OptionsMenu.gd (graphics preset picker,
 ## master volume slider, temporarily disabled custom music folder, one KeyRebindRow per
 ## rebindable Input Map action) and ui/KeyRebindRow.gd (one row's own
 ## listen/capture state machine).
@@ -268,7 +268,7 @@ func test_window_mode_selection_ignores_out_of_range_index() -> void:
 
 # --- Rebindable action allow-list -------------------------------------------------
 
-## docs/M6_PLAN.md package C2: an explicit allow-list must exclude every
+## docs/archive/M6_PLAN.md package C2: an explicit allow-list must exclude every
 ## debug-only action tools/bootstrap_project.gd's own _actions() defines --
 ## scans the real InputMap (already populated by project.godot's committed
 ## [input] section) rather than a hand-copied list, so a newly added debug

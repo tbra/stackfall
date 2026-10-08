@@ -1,5 +1,5 @@
 extends Node3D
-## Spec 2.9 / docs/M5_PLAN.md P5's own graded harness: eight `BotController`s
+## Spec 2.9 / docs/archive/M5_PLAN.md P5's own graded harness: eight `BotController`s
 ## driving a real match end to end (gifts on, every landed special enabled),
 ## the milestone's "finishes without errors" acceptance line, proven by the
 ## match actually *running*, not merely not crashing in the first second.
@@ -25,7 +25,7 @@ extends Node3D
 ## 2. `_run_scenario_starved()` -- the same fixture, rebuilt fresh
 ##    (Match.abort_match() -> a new Match.start_match()), with one bot slot's
 ##    home flag marked dead (`PlayerSlot.home_flag_alive = false`) before its
-##    BotController ever starts thinking. `docs/M5_PLAN.md` P5's own wording
+##    BotController ever starts thinking. `docs/archive/M5_PLAN.md` P5's own wording
 ##    ("its slot eliminated or home overlapped") -- of the two, "eliminated"
 ##    is the one this bench can force deterministically with the public API
 ##    already available to a bench script; the milestone's actual pass/fail
@@ -245,7 +245,7 @@ func _run_scenario_starved() -> Dictionary:
 	Match.start_match(config)
 	# Starve one bot's territory before it ever takes a single think-tick:
 	# BotController._tick_idle() skips straight back to IDLE every frame a
-	# slot's home_flag_alive is false (docs/M5_PLAN.md P5's own "DECISION"
+	# slot's home_flag_alive is false (docs/archive/M5_PLAN.md P5's own "DECISION"
 	# above), so this bot spends this whole scenario doing the cheapest
 	# possible thing every frame instead of a real generate/act cycle.
 	var starved_slot: PlayerSlot = Match.slot(STARVED_SLOT)

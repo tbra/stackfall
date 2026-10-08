@@ -2,7 +2,7 @@ extends GutTest
 ## CLAUDE.md / Hard Rules: verify gamepad input paths with synthetic
 ## InputEventJoypadButton/Motion events, since there's no physical pad here.
 ##
-## Updated for M2 (docs/M2_PLAN.md P4): ghost_place is now intent-only (spec
+## Updated for M2 (docs/archive/M2_PLAN.md P4): ghost_place is now intent-only (spec
 ## 3.4), so a press should send exactly one Match.request_place() call
 ## rather than spawn a block directly — see tests/unit/support/FakeMatch.gd.
 

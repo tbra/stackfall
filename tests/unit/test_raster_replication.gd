@@ -1,6 +1,6 @@
 extends GutTest
 ## TerritoryRaster.apply_replicated_state / apply_replicated_diff — the
-## client's mirror raster (docs/M3a_PLAN.md, "The client's raster is a mirror,
+## client's mirror raster (docs/archive/M3a_PLAN.md, "The client's raster is a mirror,
 ## not a solve").
 ##
 ## The contract these tests defend: a mirror fed the host's owner_bytes() and

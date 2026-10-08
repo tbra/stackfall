@@ -835,7 +835,7 @@ func _resolve_sudden_death_tiebreak() -> void:
 
 # --- Turn-based (spec 2.7, M6 B4) --------------------------------------------
 
-## DECISION (autoload/match/MatchLifecycle.gd, M6 B4, per docs/M6_PLAN.md's B4
+## DECISION (autoload/match/MatchLifecycle.gd, M6 B4, per docs/archive/M6_PLAN.md's B4
 ## section): turn_based and hot_seat are mutually exclusive in practice -- the
 ## lobby never offers hot_seat, and the CLI --hot-seat path never sets
 ## turn_based -- so nothing here resolves "both true" (advance_turn()'s own
@@ -964,7 +964,7 @@ func _build_slots() -> void:
 		var home: Vector2 = PlayerSlot.home_position_for(i, _match.config.player_count, map_def)
 		# Bontago-d5c (M5 P1): the trailing ai_count slots become bots; every
 		# slot before that stays a human seat exactly as today. See
-		# docs/M5_PLAN.md P1's own doc for why this is a one-line append.
+		# docs/archive/M5_PLAN.md P1's own doc for why this is a one-line append.
 		var is_bot: bool = i >= _match.config.player_count - _match.config.ai_count
 		# Bontago-1pi.49: a human seat carries the name the host replicated for its
 		# peer (Net.name_for_slot, already sanitised by the host); a bot, an
@@ -1035,7 +1035,7 @@ func _on_roster_names_changed(_roster: Array[Dictionary]) -> void:
 	refresh_slot_names()
 
 
-# --- Disconnects (docs/M3a_PLAN.md question 2) ------------------------------
+# --- Disconnects (docs/archive/M3a_PLAN.md question 2) ------------------------------
 
 ## Host only. The peer holding `slot_id` vanished: stop its feed at once and
 ## start NetConfig.disconnect_grace. If it has not come back by then the slot
@@ -1097,7 +1097,7 @@ func _tick_disconnect_grace(delta: float) -> void:
 
 
 ## The one elimination path, shared by a home flag lost to a hole (spec 2.2)
-## and by a peer that never came back (docs/M3a_PLAN.md question 2), so the
+## and by a peer that never came back (docs/archive/M3a_PLAN.md question 2), so the
 ## two cannot drift apart.
 func _eliminate_slot(slot_id: int) -> void:
 	var target: PlayerSlot = _slots[slot_id]

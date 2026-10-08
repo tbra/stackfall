@@ -1,5 +1,5 @@
 extends GutTest
-## game/BotController.gd's cadence/gating state machine (docs/M5_PLAN.md P1):
+## game/BotController.gd's cadence/gating state machine (docs/archive/M5_PLAN.md P1):
 ## the reaction-delay countdown, the release-lock/held-shape gates, the host
 ## gate, and the per-bot seeded jitter that staggers multiple bots' first
 ## think-tick across different physics frames.
@@ -327,7 +327,7 @@ func test_non_host_is_a_no_op_every_frame() -> void:
 	assert_eq(match_ref.request_place_calls.size(), 0, "a non-host controller never sends anything")
 
 
-## docs/M5_PLAN.md P1: "two BotControllers with different think_phase_jitter_s
+## docs/archive/M5_PLAN.md P1: "two BotControllers with different think_phase_jitter_s
 ## draws never fire their first think-tick on the identical physics frame --
 ## deterministic with a fixed seed." Each controller has its own FakeMatch
 ## (matching its own slot_id's seeded stride) so their countdowns run
@@ -960,7 +960,7 @@ func test_active_special_positions_converts_ticking_specials_to_disk_local() -> 
 	var controller: BotController = _make_controller(field, match_ref, net_ref)
 	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
 
-	# "A Block-like Node3D" (docs/M5_PLAN.md's own item F brief) -- a plain
+	# "A Block-like Node3D" (docs/archive/M5_PLAN.md's own item F brief) -- a plain
 	# Node3D stands in for a real, physics-backed Block, since only its
 	# global_position and its being the behaviour's parent matter here.
 	var block_like: Node3D = Node3D.new()

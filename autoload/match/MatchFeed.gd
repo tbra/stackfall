@@ -33,7 +33,7 @@ var _qol_paused_before: Array[bool] = []
 ## Test seam: Callable() -> PackedInt32Array replaces the block-velocity scan.
 var _qol_moving_counts_source: Callable = Callable()
 
-## Spec 3.4 / docs/M3a_PLAN.md, "Never duplicated, never lost": one counter
+## Spec 3.4 / docs/archive/M3a_PLAN.md, "Never duplicated, never lost": one counter
 ## per slot, advanced every time the slot's held block is consumed. An intent
 ## carries the value its sender last saw; the host refuses one that is no
 ## longer current, so a replayed, doubled or raced intent is a no-op instead
@@ -215,7 +215,7 @@ func _tick_feed(delta: float) -> void:
 		# which ticked down EVERY slot's timer regardless of whose turn it
 		# was -- a non-active slot could expire and auto-drop, and
 		# net/MatchNet.gd's host-side check refuses that placement as
-		# NOT_YOUR_TURN (docs/M6_PLAN.md B4: only the active slot may act).
+		# NOT_YOUR_TURN (docs/archive/M6_PLAN.md B4: only the active slot may act).
 		# turn_based shares hot-seat's one-actor-at-a-time shape (spec 2.7 vs.
 		# spec 2.4's concurrent "[ORIGINAL target]"), so it takes the same
 		# single-slot branch, including the recovery just below.
@@ -263,7 +263,7 @@ func _tick_feed(delta: float) -> void:
 				continue
 			if _match._lifecycle._disconnect_grace_left[i] >= 0.0:
 				# The peer vanished: its feed stops the moment it does
-				# (docs/M3a_PLAN.md, "Disconnects and the in-flight held
+				# (docs/archive/M3a_PLAN.md, "Disconnects and the in-flight held
 				# block") so a player who reconnects inside the grace period
 				# has not been auto-dropped a tower's worth of blocks.
 				continue
@@ -294,7 +294,7 @@ func _tick_feed(delta: float) -> void:
 				Events.feed_timer_expired.emit(i)
 
 
-## DECISION (autoload/Match.gd): docs/M3a_PLAN.md says a client runs "no feed
+## DECISION (autoload/Match.gd): docs/archive/M3a_PLAN.md says a client runs "no feed
 ## tick", meaning it decides nothing — but with no local decrement at all the
 ## HUD's timer ring would sit frozen between the host's 1-per-block feed
 ## events, which reads as a bug. So a client counts the same timers down for
@@ -434,7 +434,7 @@ func _build_bags() -> void:
 ##
 ## DECISION (autoload/Match.gd): hot-seat is exempt -- its turn already passes
 ## to a *different* player's controls the instant a block lands
-## (docs/M2_PLAN.md owner decision 1: strict alternation), so the same slot
+## (docs/archive/M2_PLAN.md owner decision 1: strict alternation), so the same slot
 ## can never place twice in a row and there is nothing for a release lock to
 ## prevent. Spec Part 4 M2 itself calls the hot-seat build a historical test
 ## harness, not the target cadence ("A separate hot-seat/turn-based test mode
@@ -443,7 +443,7 @@ func _build_bags() -> void:
 ##
 ## stackfall-reviewer finding (Bontago-keo.10, M6 B4 turn-based review):
 ## turn_based shares the same exemption -- its turn also passes to a
-## different slot's controls once the settle-wait ends (docs/M6_PLAN.md B4),
+## different slot's controls once the settle-wait ends (docs/archive/M6_PLAN.md B4),
 ## just not the instant a block lands, so the same slot likewise never places
 ## twice in the same turn and never needs a release lock either.
 func _consume_and_refeed(slot_id: int, auto_drop: bool) -> void:
@@ -518,7 +518,7 @@ func _consume_and_refeed(slot_id: int, auto_drop: bool) -> void:
 
 ## The value an intent for `slot_id` must quote to be accepted right now. It
 ## advances on every consumed block, so exactly one intent can spend any one
-## held block (docs/M3a_PLAN.md, "Never duplicated, never lost").
+## held block (docs/archive/M3a_PLAN.md, "Never duplicated, never lost").
 func feed_seq(slot_id: int) -> int:
 	if slot_id < 0 or slot_id >= _feed_seq.size():
 		return -1
@@ -668,7 +668,7 @@ func apply_replicated_feed(
 ## DECISION (autoload/match/MatchFeed.gd): game/Sandbox.gd calls this
 ## directly as `Match._feed.debug_force_next_shape(...)` rather than through a
 ## new one-line Match wrapper (the shape debug_queue_special/set_special_
-## drawer/etc. all have on autoload/Match.gd) -- docs/M6_PLAN.md's package B2
+## drawer/etc. all have on autoload/Match.gd) -- docs/archive/M6_PLAN.md's package B2
 ## explicitly counts this file as the *only* autoload/match/ append this
 ## package owns; autoload/Match.gd itself is out of this package's file list.
 func debug_force_next_shape(slot_id: int, shape_id: StringName) -> void:

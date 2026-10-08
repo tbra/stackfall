@@ -1,6 +1,6 @@
 class_name OptionsMenu
 extends Control
-## docs/M6_PLAN.md package C2: the options menu opened from the Main Menu's
+## docs/archive/M6_PLAN.md package C2: the options menu opened from the Main Menu's
 ## %OptionsButton (ui/MainMenu.gd's own _on_options_pressed()) -- graphics
 ## preset picker, Master/Music/SFX volume sliders with mute toggles, rumble
 ## on/off + intensity, a device-aware mouse/stick move-speed slider (Controls
@@ -44,7 +44,7 @@ var settings_provider: Variant = null
 const PRESET_IDS: Array[StringName] = [&"low", &"medium", &"high"]
 const PRESET_LABELS: Array[String] = ["Low", "Medium", "High"]
 
-## DECISION (ui/OptionsMenu.gd, docs/M6_PLAN.md package C2): an explicit
+## DECISION (ui/OptionsMenu.gd, docs/archive/M6_PLAN.md package C2): an explicit
 ## allow-list, not "every InputMap action minus a deny-list" -- so a future
 ## debug hotkey (tools/bootstrap_project.gd's own _actions()) never silently
 ## becomes player-rebindable just by existing. Excludes every debug-only/
@@ -647,7 +647,7 @@ func _build_rebind_rows() -> void:
 			_rows.append(row)
 
 
-## Gamepad/keyboard navigability (docs/M6_PLAN.md package C2: "fully
+## Gamepad/keyboard navigability (docs/archive/M6_PLAN.md package C2: "fully
 ## navigable with gamepad and keyboard"): chains every focusable control top
 ## to bottom, in the same visual order the Settings tab actually lays rows
 ## out in (orchestrator review correction) -- PresetOption -> WindowModeOption

@@ -1,5 +1,10 @@
 # Handoff to the next Claude orchestrator
 
+> **Historical brief (dated 2026-09-18, last updated 2026-09-24).** Not current: branches, commit
+> hashes, worktrees and open items below are stale. Live task state is in Beads (`bd ready`,
+> `bd show <id>`); workflow is in `docs/AGENT_WORKFLOW.md`. Completed milestone plans moved to
+> `docs/archive/`.
+
 Prepared 2026-09-18 from Git, Beads, project files and the interrupted local Claude
 session. This is a restart snapshot. Refresh live state; keep task progress in Beads.
 
@@ -124,7 +129,7 @@ Play copy `M:/Bontago-worktrees/play` is still at d0a0645: owner runs
 `git -C M:/Bontago-worktrees/play checkout --detach main` + the open-editor pass.
 
 **Merged this session (all pushed):** `xtq.18` footprint noise WIP (e2567eb; xtq.18/xtq.19 stay open
-for the owner's verdict), `docs/M5_PLAN.md` (cd4b3b1), `mv0.35` height cap (132f029 — real cause:
+for the owner's verdict), `docs/archive/M5_PLAN.md` (cd4b3b1), `mv0.35` height cap (132f029 — real cause:
 a ghost embedded in a placed block froze `_cast_one_box`'s `cast_motion`; HUD "Height" is the tallest
 placed structure, not the ghost), `xtq.20` mirror glare/flicker (3c3f850, reviewed; stays open for the
 owner's live check with the real skybox), `Bontago-iry` controls (ccbd0a3: MMB tap = 90° snap,
@@ -160,7 +165,7 @@ presets, disc mirror + restored tests) verified with targeted sets + idle benche
   worker for `xtq.18`: footprint texture mipmaps + anisotropic filter (speckle was aliasing) and no
   interior walls between adjacent per-column projection shafts (likely also fixes `xtq.19`
   "divided blocks"). 51/51 ghost tests on the branch. Needs ONE confirming screenshot, then merge.
-- `wt/m5-plan` @ 49176d2 (worktree `M:/Bontago-worktrees/m5plan`) — `docs/M5_PLAN.md`, 7 packages;
+- `wt/m5-plan` @ 49176d2 (worktree `M:/Bontago-worktrees/m5plan`) — `docs/archive/M5_PLAN.md`, 7 packages;
   P0 must stop `MatchConfig.clamp_to_connected_peers()` zeroing `ai_count`; P1 BotController stub
   first. Merge the doc, create Beads children under `Bontago-d5c`, dispatch P0.
 
@@ -227,8 +232,8 @@ M4 P2a special interfaces (`config/specials/`, `game/specials/`), P2b pending-sp
 queue with claim-time drawn id replicated on the wire (`Bontago-csc`), P2b-ii HUD queue
 indicator, P2c-i host-side `request_throw` + `ThrowRules` + spawn-time `SpecialBehavior`
 attachment (burned auto-drops keep the special queued). Owner answered z4h(b) mvl(a) 4fa(a)
-59u(b); SPEC §2.5/§2.6 updated. Design contracts: `docs/M4_P2_PACKAGES.md` (+ orchestrator
-amendments), `docs/M4_SPECIALS_PACKAGES.md` (ten packages for the seven specials; Beads
+59u(b); SPEC §2.5/§2.6 updated. Design contracts: `docs/archive/M4_P2_PACKAGES.md` (+ orchestrator
+amendments), `docs/archive/M4_SPECIALS_PACKAGES.md` (ten packages for the seven specials; Beads
 1en.1-.8 + helpers 1en.18/.19/.20).
 
 **Finished after the owner stopped work (committed on their branches, NOT merged — merge order: p2cw, eq, anvil; then one full-suite gate, then push):**
@@ -240,7 +245,7 @@ amendments), `docs/M4_SPECIALS_PACKAGES.md` (ten packages for the seven specials
 - `M:/Bontago-worktrees/eq` (`wt/sp-earthquake`, committed after the stop) — `Bontago-1en.4`
   Earthquake effect + the roster-nonempty test adjustments, 128/128 targeted, open-editor
   clean; ready to merge. Must merge BEFORE the Anvil. It also corrected the tilt-leveling
-  pseudocode (decision 5 in `docs/M4_SPECIALS_PACKAGES.md`).
+  pseudocode (decision 5 in `docs/archive/M4_SPECIALS_PACKAGES.md`).
 - `M:/Bontago-worktrees/anvil` (`wt/sp-anvil`, committed 755a419) — `Bontago-1en.5` Anvil,
   done (40/40); merge after Earthquake, then run the full suite once for the batch.
 
@@ -257,7 +262,7 @@ Briefs are in the Beads descriptions; references `docs/original_single-block.png
 auto-drops and burns; default: stays queued), `Bontago-3td` (special-punched hole eliminating a
 home; default: yes, consistent).
 
-**Then:** M4 specials per `docs/M4_SPECIALS_PACKAGES.md` dispatch order (Propeller and P3-SH
+**Then:** M4 specials per `docs/archive/M4_SPECIALS_PACKAGES.md` dispatch order (Propeller and P3-SH
 next, then P4-SPAWN/P5-HOLE serialized, Rocket+Bomb, Volcano+Bean), P2d throw input (LMB
 flick, `Bontago-1en.14`, needs 1en.17), P2e arc preview (`1en.15`). Process notes learned
 today: fresh worktrees need `godot --headless --editor --path <wt> --quit` twice before GUT;
@@ -360,7 +365,7 @@ Bontago-4fa gift spawn rule (defaults shipped); Bontago-59u pending-special repl
 1. Owner manual checks in `--sandbox --players=2`: controls (MMB/RMB), ghost collision,
    refused drop, expiry relocation, F4 labels, audio, skybox; two-PC Steam test (M3b).
 2. M4 P2 (special framework, arming/trigger, chain cap) can start without the throw
-   half; throw + arc preview waits for Bontago-mvl. Then P3–P5 per `docs/M4_PLAN.md`
+   half; throw + arc preview waits for Bontago-mvl. Then P3–P5 per `docs/archive/M4_PLAN.md`
    (P5 wires tilt; Propeller replaces Fan; Jumping Bean is `Bontago-1en.8`).
 3. Backlog: `Bontago-ogd` (trimesh rebuild-cost bench), a dedicated physics layer for
    placed blocks (ghost sweep filters by `is RigidBody3D` today), `mv0.1.10`, `mv0.1.13`,
@@ -394,9 +399,9 @@ broken in Git Bash) and never `taskkill //IM` (a worker killed another agent's b
 1. Owner manual checks: `--sandbox --players=2` — controls/F4 sliders (camera follow
    distance/pitch now live), drop a cube over a single isolated hole (falls through), stack
    10+ blocks on a cell centre (no rocking). Two-PC Steam test (M3b, `Bontago-mv0.2`).
-2. **Owner decision before M4 P1 starts:** `docs/M4_PLAN.md` builds gift crates as stationary
+2. **Owner decision before M4 P1 starts:** `docs/archive/M4_PLAN.md` builds gift crates as stationary
    `Area3D` pickups; `docs/SPEC.md` §2.6 says reconcile that before implementing. Ask.
-3. M4 per `docs/M4_PLAN.md` (P0b tilt controller is next: owns `game/Field.gd`; P0a is
+3. M4 per `docs/archive/M4_PLAN.md` (P0b tilt controller is next: owns `game/Field.gd`; P0a is
    done). Route every package via `tools/route_model.py`. Epic children fixed today:
    `Bontago-1en.6` is Propeller (was Fan), `Bontago-1en.8` Jumping Bean added.
 4. Backlog: `Bontago-ogd` (trimesh rebuild-cost benchmark, Sonnet), `mv0.1.10`, `mv0.1.13`,
@@ -429,7 +434,7 @@ targeted tests only for workers, full suite once per merged batch, reviewer only
    controls feel (tune via F4), HUD, footprint, camera start; two-PC Steam test (M3b, `Bontago-mv0.2`).
 2. `Bontago-mv0.20` wire the lobby gravity setting into physics; make camera follow
    distance/pitch and disk mesh segments live for the tuning panel.
-3. M4 (`docs/M4_PLAN.md`, read its amendment header and `docs/SPEC.md` §2.6 first). Route
+3. M4 (`docs/archive/M4_PLAN.md`, read its amendment header and `docs/SPEC.md` §2.6 first). Route
    each package through `tools/route_model.py`; specials roster per the original.
 4. Backlog: `Bontago-ruw` (lone hole, needs the trimesh floor — Jev says Opus), `mv0.1.10`,
    `mv0.1.13`, `mv0.4`, `mv0.1.12`, `Bontago-2mi` (Dolt push).
@@ -470,7 +475,7 @@ and `m2_acceptance`. A background full run on `6badb77` is the first thing to st
 3. `Bontago-mv0.9` HUD "Player N's turn" banner → per-player status.
 4. Owner manual steps outstanding: two-PC Steam match (M3b acceptance, `Bontago-mv0.2`),
    real gamepad feel, `--sandbox` hotkeys by hand.
-5. Then M4 per `docs/M4_PLAN.md` (read its amendment header and SPEC §2.6 first; the
+5. Then M4 per `docs/archive/M4_PLAN.md` (read its amendment header and SPEC §2.6 first; the
    original's specials roster is DaBomb, Volcano, Earthquake, Propeller, Anvil, Rocket,
    Jumping Bean).
 
@@ -596,7 +601,7 @@ M3a_PLAN.md and SPEC.md have not all been reconciled. If the exact implementatio
 would conflict with a rule tagged ORIGINAL, follow the existing owner pause rule.
 `START_HERE.md` still describes M0 and is historical, not current progress.
 
-After M3a acceptance, M3b is `Bontago-mv0.2`. Read `docs/M3b_RESEARCH.md` and begin
+After M3a acceptance, M3b is `Bontago-mv0.2`. Read `docs/archive/M3b_RESEARCH.md` and begin
 with `Bontago-mv0.2.1`, the GodotSteam extension-load/missing-library spike. No
 M3b plan or GodotSteam addon existed at handoff. Verify live upstream details
 before downloading; research conclusions are dated. Preserve the decision to

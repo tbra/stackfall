@@ -52,7 +52,7 @@ and costs nothing. Only the resulting handful of *distinct* signatures are
 then optionally sent to [TypeSafe](https://docs.typesafe.ai) (the `jev`
 model) to judge which subsystem each belongs to, how severe it looks
 (likely-bug / benign-noise / known-limitation), and whether it looks novel.
-It also reads `docs/M2_PLAN.md`'s "Known limitations" section and scans
+It also reads `docs/archive/M2_PLAN.md`'s "Known limitations" section and scans
 `tests/` for any GUT test marked `pending()`, so already-accepted issues get
 labeled instead of re-reported as new bugs.
 

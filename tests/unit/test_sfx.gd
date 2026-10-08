@@ -251,7 +251,7 @@ func test_gift_claimed_for_the_local_slot_plays_even_as_a_connected_client() -> 
 	assert_true(_any_player_playing(), "the local slot's own claim must still play once connected as a client")
 
 
-# --- Custom music folder + master volume (docs/M6_PLAN.md package C3) --------
+# --- Custom music folder + master volume (docs/archive/M6_PLAN.md package C3) --------
 
 func test_play_music_ignores_custom_music_dir_when_set() -> void:
 	var music_dir: String = OS.get_user_data_dir().path_join("test_sfx_custom_music")

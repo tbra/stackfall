@@ -87,7 +87,7 @@ Per §2.10 bullet, what already ships and where:
 **Effects** (missing entirely):
 - No `GPUParticles3D` node anywhere in `game/` (grep confirmed). No
   explosion/lava/dust/debris particles, no camera shake, no
-  falling-block trail/fade. `docs/M6_PLAN.md`/`config/TiltTuning.gd` cover
+  falling-block trail/fade. `docs/archive/M6_PLAN.md`/`config/TiltTuning.gd` cover
   physics-side special *behavior*; nothing renders their visual punch yet.
 
 **HUD** (mostly done, missing the minimap):

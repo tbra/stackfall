@@ -397,7 +397,7 @@ func _scenario_capture_win() -> void:
 ##
 ## DECISION (tests/bench/m2_acceptance.gd, Bontago-p0a): rewritten from the
 ## old "burns the block: it is spawned, thrown off the map, and the next
-## block is fed (docs/M2_PLAN.md owner decision 2)" expectation, which
+## block is fed (docs/archive/M2_PLAN.md owner decision 2)" expectation, which
 ## Bontago-mv0.24 (owner test 2026-09-22) superseded for exactly this case --
 ## SPEC.md 2.5 "Held-block behaviour": "A drop outside the player's own
 ## territory is refused (the block stays in hand; no drop, feedback only)",
@@ -962,7 +962,7 @@ func _build_isolated_tower(
 ## (auto_drop = false) path. Bontago-mv0.24 (owner test 2026-09-22, SPEC.md
 ## 2.5 "Held-block behaviour"/"Expiry and invalid actions") changed a
 ## *manual* release on an invalid spot from "spawns, burns, and hands the
-## turn on" (the old docs/M2_PLAN.md owner decision 2 this comment used to
+## turn on" (the old docs/archive/M2_PLAN.md owner decision 2 this comment used to
 ## cite) to "refused outright: nothing spawns, nothing is consumed, feed_seq
 ## does not move" -- autoload/match/MatchPlacement.gd's request_place()
 ## returns before ever reaching _consume_and_refeed()/advance_turn() on that

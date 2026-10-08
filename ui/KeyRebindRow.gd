@@ -1,6 +1,6 @@
 class_name KeyRebindRow
 extends Button
-## docs/M6_PLAN.md package C2: one row per rebindable Input Map action, built
+## docs/archive/M6_PLAN.md package C2: one row per rebindable Input Map action, built
 ## dynamically by ui/OptionsMenu.gd's _build_rebind_rows() (one instance of
 ## this scene per OptionsMenu.REBINDABLE_ACTIONS entry). Shows the action's
 ## current binding(s) as InputGlyph icons (InputMap.action_get_events(),
@@ -214,7 +214,7 @@ func _show_listening_glyph() -> void:
 
 
 ## Captures the very next real input while listening -- InputEventKey,
-## InputEventMouseButton or InputEventJoypadButton (docs/M6_PLAN.md package
+## InputEventMouseButton or InputEventJoypadButton (docs/archive/M6_PLAN.md package
 ## C2's own list; joypad *motion*/axis is left out on purpose -- a rebind is a
 ## discrete press, not an analog drift, the same digital-vs-analog split
 ## tools/bootstrap_project.gd's own action bindings already follow).

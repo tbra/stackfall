@@ -1,7 +1,7 @@
 extends GutTest
 ## CellGrid is the one disk-local coordinate convention the solver, the raster,
 ## Field's collision cells and placement validation all share (spec 3.3,
-## docs/M2_PLAN.md "Raster coordinates"). If these break, the three disagree
+## docs/archive/M2_PLAN.md "Raster coordinates"). If these break, the three disagree
 ## about where a hole is.
 
 const MAP_RADIUS: float = 45.0
@@ -141,7 +141,7 @@ func test_in_disk_cells_are_cached_not_rebuilt() -> void:
 
 
 # --- The map-shape mechanism: an optional third p_shape_test Callable
-# (docs/M6_PLAN.md package A0, config/MapDef.gd's shape_test()) -------------
+# (docs/archive/M6_PLAN.md package A0, config/MapDef.gd's shape_test()) -------------
 
 func _always_false(_local: Vector2) -> bool:
 	return false

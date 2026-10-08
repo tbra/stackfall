@@ -1,6 +1,6 @@
 extends Node3D
 ## The game's entry point: a router, not a match (spec Part 4 M3a;
-## docs/M3a_PLAN.md integration order step 4).
+## docs/archive/M3a_PLAN.md integration order step 4).
 ##
 ## This is the one file nobody but the integrator owns (as in M2), and it
 ## stays deliberately thin: every system self-wires through the Events bus or
@@ -42,7 +42,7 @@ extends Node3D
 ## unconditionally: both no-op unless the role and running state match
 ## (net/SnapshotSync.gd), so Main never has to branch on is_host()/is_client()
 ## itself. client_tick() writes global_transform and must run from
-## _physics_process, never _process (docs/M3a_PLAN.md "Frozen bodies").
+## _physics_process, never _process (docs/archive/M3a_PLAN.md "Frozen bodies").
 ##
 ## M2's other ticks (10 Hz solve, 5 Hz overlay upload, the hole backlog and
 ## the settled rule) are unchanged and still live inside Match, TerritoryOverlay
@@ -65,7 +65,7 @@ const HOT_SEAT_SCENE_PATH: String = "res://game/HotSeat.tscn"
 const SANDBOX_SCENE_PATH: String = "res://game/Sandbox.tscn"
 const GIFT_DEMO_PRESET_PATH: String = "res://config/sandbox_gift_demo.tres"
 const TOWER_TOPPLE_PRESET_PATH: String = "res://config/sandbox_tower_topple.tres"
-## docs/M6_PLAN.md package B3 (spec 2.7 "Tutorial").
+## docs/archive/M6_PLAN.md package B3 (spec 2.7 "Tutorial").
 const TUTORIAL_SCENE_PATH: String = "res://ui/Tutorial.tscn"
 const REMOTE_CURSORS_SCENE_PATH: String = "res://game/RemoteCursors.tscn"
 const NET_DEBUG_OVERLAY_SCENE_PATH: String = "res://ui/NetDebugOverlay.tscn"
@@ -104,7 +104,7 @@ var _hot_seat: HotSeat = null
 var _sandbox: Sandbox = null
 ## Bontago-1pi.70: set only by start_gift_demo_from_menu().
 var _sandbox_preset: SandboxConfig = null
-## docs/M6_PLAN.md package B3: built/freed only by start_tutorial_from_menu()/
+## docs/archive/M6_PLAN.md package B3: built/freed only by start_tutorial_from_menu()/
 ## _on_tutorial_finished() below -- never touched by _build_match_world()/
 ## _end_match_world() (this package does not own those functions).
 var _tutorial: Tutorial = null
@@ -262,7 +262,7 @@ func _ready() -> void:
 	Events.territory_updated.connect(_on_loading_territory_updated)
 	Events.territory_replicated.connect(_on_loading_territory_replicated)
 
-	# docs/M3b_PLAN.md integration order step 4: Steam init is synchronous by
+	# docs/archive/M3b_PLAN.md integration order step 4: Steam init is synchronous by
 	# this point, so MainMenu._ready() can immediately read steam_available().
 	# Spacewar (480) is only our development Steam AppID. On Windows, its
 	# Steam Input configuration intercepts physical pad events from Godot as
@@ -499,7 +499,7 @@ func _start_sandbox_match_with_args(args: PackedStringArray) -> void:
 		_sandbox.force_special_by_id(StringName(forced))
 
 
-## The Main Menu's own entry point (docs/M6_PLAN.md package B1; ui/MainMenu.
+## The Main Menu's own entry point (docs/archive/M6_PLAN.md package B1; ui/MainMenu.
 ## gd's %SandboxButton, wired to this signal in _show_main_menu() below),
 ## unlike _start_sandbox_match()'s CLI-only one above: reachable only once
 ## the ordinary menu/lobby path in _ready() has already connected Events.
@@ -616,7 +616,7 @@ func _sandbox_force_special_arg(args: PackedStringArray) -> String:
 	return ""
 
 
-# --- Tutorial: single-player onboarding (docs/M6_PLAN.md package B3) --------
+# --- Tutorial: single-player onboarding (docs/archive/M6_PLAN.md package B3) --------
 #
 # Reachable only from the Main Menu's own %TutorialButton (ui/MainMenu.gd's
 # tutorial_requested signal, the same direct child-signal convention
@@ -703,7 +703,7 @@ func _on_tutorial_finished() -> void:
 # "wait for a human to press Start" step is skipped. This is deliberate: it
 # is what lets _build_match_world()'s own bot-controller wiring (below) serve
 # both this entry point and an ordinary mixed human+bot lobby match with one
-# piece of code (docs/M5_PLAN.md P5 item 3), rather than a second, divergent
+# piece of code (docs/archive/M5_PLAN.md P5 item 3), rather than a second, divergent
 # world-build path. host_game() can still fail (its port already bound, say)
 # and leave Net at OFFLINE despite --headless-host being present on the
 # command line; _net_is_hosting()'s guard below refuses to build a match in
@@ -743,7 +743,7 @@ func _start_headless_bot_match_with_args(args: PackedStringArray) -> void:
 
 	# `--seconds=<n>` bounds the run with a hard wall-clock quit: the
 	# acceptance command has no real win condition to end on within a CI
-	# harness's own patience (docs/M5_PLAN.md P5).
+	# harness's own patience (docs/archive/M5_PLAN.md P5).
 	var seconds: float = _seconds_arg(args)
 	if seconds > 0.0:
 		get_tree().create_timer(seconds).timeout.connect(_on_headless_bots_seconds_elapsed)
@@ -843,7 +843,7 @@ func _seconds_arg(args: PackedStringArray) -> float:
 
 ## Same "players="-reading loop as _sandbox_player_count(), with a different
 ## absent-flag default (0, so `maxi(bots, ...)` below reduces to exactly
-## `bots` with no --players given -- docs/M5_PLAN.md P5: "every seat a bot"
+## `bots` with no --players given -- docs/archive/M5_PLAN.md P5: "every seat a bot"
 ## is the literal acceptance command's own shape) -- kept separate from
 ## _sandbox_player_count() rather than reused, since that function's own
 ## absent-flag default (sandbox_config.default_player_count) is wrong here.
@@ -860,7 +860,7 @@ func _headless_bot_players_arg(args: PackedStringArray) -> int:
 
 ## Same lobby-settings-minus-a-few-overrides shape as _build_hot_seat_config()/
 ## _build_sandbox_config() above: `config.player_count` may be raised past
-## `bots` by `--players=<n2>` to leave human seats idle (docs/M5_PLAN.md P5:
+## `bots` by `--players=<n2>` to leave human seats idle (docs/archive/M5_PLAN.md P5:
 ## "matching --sandbox's own --players= precedent, but is not required for
 ## the acceptance criterion"); `config.sandbox` stays false (unlike
 ## --sandbox's own config) -- this is a real match, real timers/cadence, the
@@ -1177,7 +1177,7 @@ func _on_net_mode_changed(mode: int) -> void:
 	if mode == Net.Mode.OFFLINE:
 		# Covers both a deliberate leave and the host disconnecting a client
 		# (autoload/Net.gd's _on_server_disconnected() calls leave(), which
-		# emits this): never a half-dead match (docs/M3a_PLAN.md
+		# emits this): never a half-dead match (docs/archive/M3a_PLAN.md
 		# "Disconnects").
 		_end_match_world()
 		# DECISION (game/Main.gd): Net.leave() does not know about Match, so
@@ -1690,7 +1690,7 @@ func _build_match_world(force_staging_for_test: bool = false) -> void:
 	_world_building = false
 
 
-## docs/M5_PLAN.md P5 item 3: one BotController per bot slot, for the
+## docs/archive/M5_PLAN.md P5 item 3: one BotController per bot slot, for the
 ## headless-only-bots path above (_start_headless_bot_match_with_args()'s own
 ## Match.start_match() reaches this function too, via Events.match_state_
 ## changed -- see its own doc) and an ordinary mixed human+bot lobby match

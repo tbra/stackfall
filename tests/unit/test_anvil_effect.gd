@@ -1,5 +1,5 @@
 extends GutTest
-## AnvilEffect (spec 2.6 "a tilting anvil"; docs/M4_SPECIALS_PACKAGES.md's
+## AnvilEffect (spec 2.6 "a tilting anvil"; docs/archive/M4_SPECIALS_PACKAGES.md's
 ## P5-ANVIL package): the one-shot mass override, the settled-triggers-early
 ## rule, and detonate()'s landing-point tilt impulse. Mass/wants_early_trigger
 ## tests drive SpecialBehavior directly with a stub Block (no physics

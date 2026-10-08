@@ -1,6 +1,6 @@
 class_name NetConfig
 extends Resource
-## Every tunable number the M3a network stack uses (spec 3.4, docs/M3a_PLAN.md).
+## Every tunable number the M3a network stack uses (spec 3.4, docs/archive/M3a_PLAN.md).
 ##
 ## CLAUDE.md: "No magic numbers. Every tunable value belongs in a Resource
 ## under res://config/." Nothing in autoload/Net.gd, net/*.gd or core/net/*.gd
@@ -44,7 +44,7 @@ extends Resource
 ## Round-trip samples averaged into the reported ping.
 @export var ping_history: int = 8
 ## Seconds a slot whose peer vanished keeps its territory before Match
-## eliminates it. See docs/M3a_PLAN.md "Questions for the owner" 3.
+## eliminates it. See docs/archive/M3a_PLAN.md "Questions for the owner" 3.
 @export var disconnect_grace: float = 10.0
 ## Host: per-peer flood limit on Net.request_seat_pref (Bontago-1pi.53), a token
 ## bucket. This is its size: how many colour/team requests a seated peer may send
@@ -57,10 +57,10 @@ extends Resource
 ## Requests per second the seat-preference bucket refills (see seat_pref_burst).
 @export var seat_pref_refill_per_s: float = 3.0
 
-# --- Steam lobby (spec 3.4, docs/M3b_PLAN.md P1) ----------------------------
+# --- Steam lobby (spec 3.4, docs/archive/M3b_PLAN.md P1) ----------------------------
 
 ## Steam.LOBBY_TYPE_* ordinal passed to SteamClient.create_lobby(). Default
-## FriendsOnly (owner decision, docs/M3b_PLAN.md "Questions for the owner":
+## FriendsOnly (owner decision, docs/archive/M3b_PLAN.md "Questions for the owner":
 ## answered 2026-09-19). Verified against the installed GodotSteam 4.22.1
 ## addon on this machine (netcode-F-probe_lobby_const.log):
 ## Steam.LOBBY_TYPE_PRIVATE=0, LOBBY_TYPE_FRIENDS_ONLY=1, LOBBY_TYPE_PUBLIC=2,
@@ -81,7 +81,7 @@ const STEAM_LOBBY_TYPE_PUBLIC: int = 2
 ## ISteamMatchmaking::SetLobbyData documents a 255-char key / 8192-byte value
 ## limit; not independently re-verified against isteammatchmaking.h in this
 ## checkout (the downloaded GDExtension zip bundles no Steamworks SDK headers
-## — see docs/M3b_RESEARCH.md "Spike results", scratchpad listing). Treat as
+## — see docs/archive/M3b_RESEARCH.md "Spike results", scratchpad listing). Treat as
 ## the spec's documented estimate, not a confirmed hard limit.
 @export var steam_lobby_data_max_bytes: int = 8192
 ## Seconds between polls of Steam's pull-based request_lobby_list() while the
@@ -166,7 +166,7 @@ const STEAM_LOBBY_TYPE_PUBLIC: int = 2
 
 ## Seconds a client keeps its ghost locked after sending a place intent, if no
 ## feed_block_issued for its slot arrives. Stops a double click from spending
-## two blocks; see docs/M3a_PLAN.md "Never duplicated, never lost".
+## two blocks; see docs/archive/M3a_PLAN.md "Never duplicated, never lost".
 @export var intent_ack_timeout: float = 1.0
 ## Host: seconds a mid-match joiner may take to acknowledge its world replay
 ## before it is dropped (Bontago-8or.11).
@@ -214,7 +214,7 @@ const STEAM_LOBBY_TYPE_PUBLIC: int = 2
 ## least impact_max_per_batch so one full batch always plays.
 @export var impact_client_max_per_second: int = 64
 
-# --- Lag / loss simulation (no netem in ENetConnection; see docs/M3a_PLAN.md)
+# --- Lag / loss simulation (no netem in ENetConnection; see docs/archive/M3a_PLAN.md)
 
 ## Extra one-way delay applied to simulated traffic, in milliseconds. 0 is off.
 @export var sim_lag_ms: float = 0.0

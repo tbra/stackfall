@@ -216,7 +216,7 @@ func build_roster(config: MatchConfig) -> Array[Dictionary]:
 	return roster
 
 
-## M5 P4 (docs/M5_PLAN.md): one synthetic row per bot seat, slot_id running
+## M5 P4 (docs/archive/M5_PLAN.md): one synthetic row per bot seat, slot_id running
 ## from player_count - ai_count to player_count - 1 -- the same formula
 ## autoload/match/MatchLifecycle.gd's _build_slots() uses for
 ## PlayerSlot.is_bot, so the lobby preview and the real match slots never

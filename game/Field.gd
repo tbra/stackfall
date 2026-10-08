@@ -15,7 +15,7 @@ extends AnimatableBody3D
 ## replication machinery below carries and mirrors it unchanged.
 ##
 ## **Cells (spec 3.3).** The disk's collision is one ConcavePolygonShape3D on
-## one shape owner (Bontago-ruw, docs/M4_PLAN.md P0a): a trimesh with one
+## one shape owner (Bontago-ruw, docs/archive/M4_PLAN.md P0a): a trimesh with one
 ## `map_def.cell_size` quad per in-disk cell of the square CellGrid, plus
 ## vertical walls at the rim. One cell is one CellGrid index is one pixel of
 ## the territory raster, so the rules and the picture never disagree about
@@ -493,7 +493,7 @@ func _wake_tilt() -> void:
 
 ## Sums settled blocks' mass * disk-local lever-arm into the same 2-axis
 ## acceleration term the spring above integrates (M6 B5, spec 2.1/2.7;
-## kinematic-torque approximation, docs/M6_PLAN.md DECISION, owner-approved
+## kinematic-torque approximation, docs/archive/M6_PLAN.md DECISION, owner-approved
 ## Bontago-keo.16 -- explicitly not a real RigidBody3D/joint coupling).
 ##
 ## DECISION (game/Field.gd, M6 B5): each sample packs (disk-local x offset,
@@ -643,7 +643,7 @@ func _push_level_pose_to_physics() -> void:
 
 ## Builds (or rebuilds) the disk's cell grid, collision trimesh and shape
 ## owner from the current map_def. Callable more than once (Bontago-keo.2,
-## docs/M6_PLAN.md package A0): create_shape_owner()'s own contract is that a
+## docs/archive/M6_PLAN.md package A0): create_shape_owner()'s own contract is that a
 ## caller frees what it creates, and _ready() previously called this exactly
 ## once, so the owner it made was never freed by anything -- calling this
 ## again (rebuild_for_map() below) would otherwise leak one shape-owner RID
@@ -715,7 +715,7 @@ func _rebuild_cells() -> void:
 
 
 ## Public entry point for Bontago-keo.2: rebuilds this Field for a different
-## MapDef (docs/M6_PLAN.md package A0). game/Main.gd calls this at every site
+## MapDef (docs/archive/M6_PLAN.md package A0). game/Main.gd calls this at every site
 ## that already calls place_flags()/set_overlay_source() together, right
 ## before place_flags() (which reads map_def-derived flag positions) -- so a
 ## match that picked a size/shape other than whatever map_def Field's own
@@ -1345,7 +1345,7 @@ func _build_kill_plane() -> void:
 
 func _on_kill_plane_body_entered(body: Node3D) -> void:
 	# DECISION (M3a integration): a client's synced blocks are frozen-kinematic
-	# mirrors (docs/M3a_PLAN.md "Frozen bodies") whose transforms SnapshotSync
+	# mirrors (docs/archive/M3a_PLAN.md "Frozen bodies") whose transforms SnapshotSync
 	# writes directly, so the kill-plane Area3D still overlaps and fires this
 	# callback there too even though only the host runs physics (CLAUDE.md).
 	# Only the host may decide a block is dead; a client learns about it from

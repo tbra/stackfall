@@ -1082,7 +1082,7 @@ func _handle_place_intent(
 	if feed_seq < 0:
 		# Match.request_place() reads a negative feed_seq as "don't check" —
 		# the sentinel M2's local call sites and the host's own timer rely on.
-		# From the wire it would switch off docs/M3a_PLAN.md's "never
+		# From the wire it would switch off docs/archive/M3a_PLAN.md's "never
 		# duplicated" defence (1) for whoever sends it, so a remote intent has
 		# to quote the sequence it was actually issued.
 		_refuse_intent(sender_peer_id, sender_slot, PlacementRules.REASON_NO_BLOCK)
@@ -1267,7 +1267,7 @@ func _special_id_wire_ok(special_id: String) -> bool:
 ## load_all_specials(), built once per instance and cached (see
 ## _special_ids_by_id's own field comment). Read by _gift_special_id_wire_ok()
 ## below; not by EVENT_SPECIAL_TRIGGERED's dispatch, which only re-checks
-## _special_id_wire_ok()'s syntactic shape (docs/M4_P2_PACKAGES.md P2c-ii
+## _special_id_wire_ok()'s syntactic shape (docs/archive/M4_P2_PACKAGES.md P2c-ii
 ## brief) -- a special already bound and triggered on the host is by
 ## construction a real roster id, so nothing here needs to reject one a
 ## client's own (possibly stale) roster cache does not recognise.
@@ -2628,7 +2628,7 @@ func net_match_event(event: StringName, args: Array) -> void:
 			# DECISION (net/MatchNet.gd): offline and in hot-seat,
 			# Events.turn_changed means "it is this slot's turn". In real-time
 			# networked play there are no turns — every slot plays at once
-			# (owner decision, docs/M3a_PLAN.md question 1) — and what the
+			# (owner decision, docs/archive/M3a_PLAN.md question 1) — and what the
 			# signal actually does on a receiving instance is point the HUD
 			# and the ghost at the controls that are live here, which is
 			# always your own slot. Mirroring the host's value verbatim would

@@ -1,5 +1,5 @@
 extends GutTest
-## docs/M6_PLAN.md package B1: the territory-limit bypass MatchPlacement.gd's
+## docs/archive/M6_PLAN.md package B1: the territory-limit bypass MatchPlacement.gd's
 ## request_place()/request_throw() gain for `_match.config.sandbox` (spec
 ## 2.7 "Sandbox: no territory limits"), and game/Main.gd's Main-Menu-
 ## reachable start_sandbox_from_menu(), the CLI-only _start_sandbox_match()'s
@@ -92,7 +92,7 @@ func test_manual_placement_outside_territory_succeeds_in_sandbox() -> void:
 	var slot_id: int = 0
 
 	# Slot 1's home is outside slot 0's own territory (on-disk, non-hole,
-	# non-goal-zone -- the exact case docs/M6_PLAN.md package B1 calls out).
+	# non-goal-zone -- the exact case docs/archive/M6_PLAN.md package B1 calls out).
 	var reason: StringName = Match.request_place(
 		slot_id, _home_world_position(1), 0, Quaternion.IDENTITY, false
 	)

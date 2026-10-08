@@ -3,7 +3,7 @@ extends GutTest
 ## goal flag continuously for capture_hold (20 s since Bontago-1pi.91)."
 ##
 ## Spec 3.3 says to check it against the raster. The decisive detail
-## (docs/M2_PLAN.md, "Solver -> raster -> win check") is that every goal must
+## (docs/archive/M2_PLAN.md, "Solver -> raster -> win check") is that every goal must
 ## read back the same *group*, not merely the same team: that is what makes it
 ## one connected territory, so a team holding two goals with two separate
 ## towers correctly does not win.

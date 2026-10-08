@@ -9,7 +9,7 @@ extends MeshInstance3D
 ## intact disk would just reveal the disk underneath.
 ##
 ## **The upload.** TerritoryRaster is authoritative at *cell* resolution (see
-## docs/M2_PLAN.md, "Raster resolution"): 90x90 on map M, which is also the
+## docs/archive/M2_PLAN.md, "Raster resolution"): 90x90 on map M, which is also the
 ## collision grid and the hole granularity. Spec 3.3's territory_res texture is
 ## the *upload* size, so the cell image is upscaled with
 ## Image.resize(INTERPOLATE_BILINEAR) — one C++ call — and that is what the

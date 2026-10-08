@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# M3a local acceptance harness (docs/M3a_PLAN.md P4, "Testing without a
+# M3a local acceptance harness (docs/archive/M3a_PLAN.md P4, "Testing without a
 # second PC"). The .sh twin of run_m3a_local.ps1 for a Bash environment
 # (Git Bash / WSL / Linux CI). Launches 1 headless host + (PEERS - 1)
 # headless clients on 127.0.0.1, running tests/bench/m3a_acceptance.tscn,

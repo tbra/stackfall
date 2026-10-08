@@ -1,5 +1,5 @@
 extends GutTest
-## net/Interpolator.gd (spec 3.4 "Client interpolation", docs/M3a_PLAN.md P2).
+## net/Interpolator.gd (spec 3.4 "Client interpolation", docs/archive/M3a_PLAN.md P2).
 ##
 ## "Render 100 ms behind the host (the delay adjusts to measured jitter),
 ## interpolating between the two surrounding snapshots. If snapshots are late,
@@ -388,7 +388,7 @@ func test_an_unknown_body_reports_not_ok_rather_than_the_origin() -> void:
 # --- Unknown net_ids --------------------------------------------------------
 
 func test_an_unknown_net_id_is_counted_and_changes_nothing() -> void:
-	# docs/M3a_PLAN.md: an unreliable snapshot can overtake the reliable spawn
+	# docs/archive/M3a_PLAN.md: an unreliable snapshot can overtake the reliable spawn
 	# RPC, so a sample may name a body the client has never seen.
 	var spawned: Dictionary = {NET_ID: true}
 	_interp.set_known_id_filter(func(net_id: int) -> bool: return spawned.has(net_id))

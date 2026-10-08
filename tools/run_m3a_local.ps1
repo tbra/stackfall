@@ -1,4 +1,4 @@
-# M3a local acceptance harness (docs/M3a_PLAN.md P4, "Testing without a
+# M3a local acceptance harness (docs/archive/M3a_PLAN.md P4, "Testing without a
 # second PC"). Launches 1 headless host + (Peers - 1) headless clients, all
 # on 127.0.0.1, running tests/bench/m3a_acceptance.tscn, and aggregates their
 # exit codes. Client 1 gets -SimLag / -SimLoss, which defaults to spec Part 4
@@ -8,7 +8,7 @@
 # Must run the scene, not a -s script: commit 12d2ec2's gotcha is that
 # autoload identifiers (Net, Match) do not resolve when a .gd file is run
 # with -s as a bare SceneTree, so m3a_acceptance has to be a .tscn the way
-# m2_acceptance is (docs/M3a_PLAN.md "Testing without a second PC").
+# m2_acceptance is (docs/archive/M3a_PLAN.md "Testing without a second PC").
 #
 # Usage:
 #   tools/run_m3a_local.ps1

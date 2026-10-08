@@ -1,5 +1,5 @@
 extends Node3D
-## Spec 3.5 benchmark (docs/M4_SPECIALS_PACKAGES.md's P4-VOLCANO package):
+## Spec 3.5 benchmark (docs/archive/M4_SPECIALS_PACKAGES.md's P4-VOLCANO package):
 ## five Volcano specials placed close enough that their orb blasts overlap,
 ## covering a full eruption from each plus chain propagation up to
 ## SpecialTuning.max_chain_depth. Run headless:

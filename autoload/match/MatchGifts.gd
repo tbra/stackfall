@@ -49,7 +49,7 @@ var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _rng_ready: bool = false
 var _next_gift_id: int = 0
 
-## Orchestrator amendment 1 (docs/M4_P2_PACKAGES.md, 2026-09-23): the special
+## Orchestrator amendment 1 (docs/archive/M4_P2_PACKAGES.md, 2026-09-23): the special
 ## TYPE is drawn here, at claim time, on the host -- not at spawn time. Spec
 ## 2.6 hands a player "a special as the next piece", so the player (and
 ## later the HUD/ghost) must be able to know what they hold while aiming,
@@ -920,7 +920,7 @@ func _claim_gift(gift_id: int, team_id: int) -> void:
 	Events.gift_claimed.emit(gift_id, recipient_slot, special_id)
 
 
-## Bontago-keo.17 (owner decision "b" on docs/M6_PLAN.md's Owner Q1): picks
+## Bontago-keo.17 (owner decision "b" on docs/archive/M6_PLAN.md's Owner Q1): picks
 ## the alive (home_flag_alive) member of `team_id` whose home circle
 ## (PlayerSlot.home_position, disk-local, computed once by
 ## MatchLifecycle._build_slots()) is closest to `crate_position`. Returns -1

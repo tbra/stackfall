@@ -1,5 +1,5 @@
 extends GutTest
-## docs/M3a_PLAN.md P4: ui/NetDebugOverlay.gd shows Net.stats() verbatim,
+## docs/archive/M3a_PLAN.md P4: ui/NetDebugOverlay.gd shows Net.stats() verbatim,
 ## toggles on net_debug_toggle (F3, or gamepad Back+Y — see tools/
 ## bootstrap_project.gd's DECISION for why the chord is built from two
 ## actions rather than one InputMap event), and its preset button applies

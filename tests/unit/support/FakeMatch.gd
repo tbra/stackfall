@@ -1,6 +1,6 @@
 class_name FakeMatch
 extends RefCounted
-## Test double for the Match autoload (docs/M2_PLAN.md P4).
+## Test double for the Match autoload (docs/archive/M2_PLAN.md P4).
 ##
 ## autoload/Match.gd has since landed for real, but this fake still exists to
 ## isolate the P4 controller/HUD unit tests from it: the real Match drives
@@ -119,7 +119,7 @@ func glue_drops_left(slot_id: int) -> int:
 	return int(glue_drops_by_slot.get(slot_id, 0))
 
 
-## M3a adds the trailing feed_seq the real Match takes (docs/M3a_PLAN.md,
+## M3a adds the trailing feed_seq the real Match takes (docs/archive/M3a_PLAN.md,
 ## "Never duplicated, never lost"). It is defaulted here exactly as it is
 ## there, so every M2 call site and every M2 test still compiles unchanged;
 ## the fake records it but never enforces it, since idempotence is the real

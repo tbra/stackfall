@@ -1,5 +1,5 @@
 extends GutTest
-## M4 P4-SPAWN (docs/M4_SPECIALS_PACKAGES.md "P4-SPAWN"):
+## M4 P4-SPAWN (docs/archive/M4_SPECIALS_PACKAGES.md "P4-SPAWN"):
 ## Match.spawn_special_projectile() / MatchPlacement.spawn_special_projectile().
 ## Same tiny-map/real-Field fixture as tests/unit/test_match_throw.gd; a
 ## hand-built SpecialDef stands in for a real config/specials/ resource

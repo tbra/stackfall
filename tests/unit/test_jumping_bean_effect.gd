@@ -1,6 +1,6 @@
 extends GutTest
 ## JumpingBeanEffect (spec 2.6, installed-tutorial evidence: "Jumping Bean
-## creates a hole between random hops"; docs/M4_SPECIALS_PACKAGES.md's
+## creates a hole between random hops"; docs/archive/M4_SPECIALS_PACKAGES.md's
 ## P5-BEAN package). Two fixture shapes, matching this package's siblings:
 ##
 ## - A stub Block + real SpecialBehavior (no physics simulation) plus a

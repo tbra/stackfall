@@ -40,7 +40,7 @@ func _ready() -> void:
 	# whatever _active_slot happened to default to.
 	controller.set_sandbox_slot(0)
 
-	# docs/M4_P2_PACKAGES.md decision 1 reversed: the per-slot queue holds a
+	# docs/archive/M4_P2_PACKAGES.md decision 1 reversed: the per-slot queue holds a
 	# drawn special id -- append one directly so held_special(0) reports a
 	# throwable piece without waiting on a real gift crate spawn/claim cycle.
 	# _ensure_capacity() is the same lazy-grow MatchGifts.gd's own claim path

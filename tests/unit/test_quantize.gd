@@ -1,6 +1,6 @@
 extends GutTest
 ## core/net/Quantize.gd: the snapshot body record (spec 3.4 "Snapshots",
-## docs/M3a_PLAN.md P2).
+## docs/archive/M3a_PLAN.md P2).
 ##
 ## "Contents per body: net_id: u16, position quantized to int16 per axis over
 ## map bounds (≈1-2 mm precision), rotation as a 48-bit 'smallest three'
@@ -11,7 +11,7 @@ extends GutTest
 ## doc comment: the round trip is run over hundreds of thousands of random
 ## values and the worst case is what is asserted.
 
-## docs/M3a_PLAN.md P2: "a position anywhere in the map-M AABB round-trips
+## docs/archive/M3a_PLAN.md P2: "a position anywhere in the map-M AABB round-trips
 ## within 2.1 mm".
 const POSITION_TOLERANCE_M: float = 0.0021
 ## The plan says 0.005 deg; that is the typical error, and the measured
@@ -385,7 +385,7 @@ func test_an_unnormalized_quaternion_is_normalized_before_packing() -> void:
 # --- Whole record -----------------------------------------------------------
 
 func test_pack_body_writes_exactly_fifteen_bytes() -> void:
-	assert_eq(Quantize.BODY_RECORD_BYTES, 15, "the record is 15 bytes (docs/M3a_PLAN.md)")
+	assert_eq(Quantize.BODY_RECORD_BYTES, 15, "the record is 15 bytes (docs/archive/M3a_PLAN.md)")
 	assert_eq(Quantize.NET_ID_BYTES, 3, "the id is u24")
 	assert_eq(
 		Quantize.NET_ID_BYTES + Quantize.POSITION_BYTES + Quantize.ROTATION_BYTES,
@@ -505,7 +505,7 @@ func test_unpack_body_refuses_to_read_past_the_end() -> void:
 
 
 func test_the_same_bytes_decode_differently_under_different_bounds() -> void:
-	# docs/M3a_PLAN.md: "Both ends must derive the AABB from the same MapDef ...
+	# docs/archive/M3a_PLAN.md: "Both ends must derive the AABB from the same MapDef ...
 	# get it wrong and every body lands somewhere plausible but wrong". This is
 	# that failure, pinned down so nobody assumes the record is self-describing.
 	var large: AABB = _config.position_bounds(preload("res://config/maps/round_large.tres"))

@@ -1,7 +1,7 @@
 extends GutTest
 ## Field's SPECIALS_ONLY tilt controller (spec 2.1, 2.7, 3.5): the
 ## critically damped spring on Field._tilt, its max_tilt_deg clamp, and the
-## AnimatableBody3D conversion (docs/M4_PLAN.md P0b).
+## AnimatableBody3D conversion (docs/archive/M4_PLAN.md P0b).
 ##
 ## A deliberately tiny disk, same pattern test_field_cells.gd already uses:
 ## small enough that a real physics settle (the one test here that needs one)
@@ -359,7 +359,7 @@ func test_a_fresh_field_is_not_mirrored_and_ticks_its_own_spring() -> void:
 
 # --- PHYSICAL_BALANCE kinematic-torque approximation (M6 B5, spec 2.1/2.7) --
 #
-# docs/M6_PLAN.md DECISION, owner-approved Bontago-keo.16: a kinematic-torque
+# docs/archive/M6_PLAN.md DECISION, owner-approved Bontago-keo.16: a kinematic-torque
 # approximation, not a real RigidBody3D/joint coupling. These exercise
 # Field._physical_balance_torque_accel() end to end through a real
 # BlockRegistry, the same wiring MatchLifecycle._apply_tilt_mode() performs.

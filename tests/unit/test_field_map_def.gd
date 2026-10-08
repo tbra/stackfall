@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-keo.2 (docs/M6_PLAN.md package A0): Field must bake the *match's*
+## Bontago-keo.2 (docs/archive/M6_PLAN.md package A0): Field must bake the *match's*
 ## real MapDef, not whatever its own @export default happens to be.
 ## `game/Field.gd`'s `_build_cells()` (now `_rebuild_cells()`) used to run
 ## only once, from `_ready()`, against Field's own `@export var map_def`

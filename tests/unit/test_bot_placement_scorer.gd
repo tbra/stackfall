@@ -1,5 +1,5 @@
 extends GutTest
-## core/ai/BotPlacementScorer.gd (docs/M5_PLAN.md P2, Bontago-d5c.3): real
+## core/ai/BotPlacementScorer.gd (docs/archive/M5_PLAN.md P2, Bontago-d5c.3): real
 ## placement scoring -- height gained, goal progress, stability, risk,
 ## combined by BotTuning's four weights -- plus flattest_orientations()'s
 ## pure geometry and pick_best()'s highest-scorer selection.
@@ -82,7 +82,7 @@ func _score(
 ## -- score(): stability -------------------------------------------------------
 
 func test_a_fully_supported_flat_candidate_beats_a_corner_balanced_one() -> void:
-	## docs/M5_PLAN.md P2: "A candidate resting entirely on
+	## docs/archive/M5_PLAN.md P2: "A candidate resting entirely on
 	## on_top_of_own_stack == true with full contact scores higher than one
 	## balanced on a corner." Same footprint, same origin, same height --
 	## only the contact/stack signals differ.

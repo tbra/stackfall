@@ -3,7 +3,7 @@ extends GutTest
 ## and _spawn_block()'s special-attach extension. Same tiny-map/real-Field
 ## fixture as tests/unit/test_placement_refusal.gd; SpecialDef attach cases
 ## seed Match._placement's per-id cache directly rather than adding a real
-## .tres under res://config/specials/ (docs/M4_P2_PACKAGES.md P2c: "do not
+## .tres under res://config/specials/ (docs/archive/M4_P2_PACKAGES.md P2c: "do not
 ## add real specials under config/specials/") -- the same "reach into a
 ## private field directly" convention autoload/Match.gd's own header
 ## documents for tests.
