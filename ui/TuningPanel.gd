@@ -129,7 +129,7 @@ const SAVE_PATH: String = "user://tuning_overrides.cfg"
 static func save_path() -> String:
 	return UserPaths.resolve(SAVE_PATH)
 
-const VALUE_WIDTH: float = 74.0
+const VALUE_WIDTH: float = 110.0
 
 ## Bontago-xtq.13: the selected-tab memory shares SAVE_PATH with every tuning
 ## resource's own override section (one ConfigFile, one section per concern)
@@ -141,7 +141,7 @@ const SELECTED_TAB_KEY: String = "selected_tab"
 ## widened from the bare label's old 260px width so a whole one-sentence
 ## description can sit under the field name without wrapping to more than a
 ## couple of lines at 1080p.
-const NAME_COLUMN_WIDTH: float = 320.0
+const NAME_COLUMN_WIDTH: float = 380.0
 ## DECISION: muted relative to the panel's default text color so the sentence
 ## reads as a sub-label, not a second heading -- same idea as _class_label_for
 ## rows' own lighter blue tint just below in this file.
@@ -154,9 +154,8 @@ const DESCRIPTION_FONT_SIZE: int = 12
 ## glance ("outcome 3": visible when live differs from default).
 const MODIFIED_COLOR: Color = Color(1.0, 0.82, 0.3)
 const MODIFIED_MARKER: String = "• "
-## DECISION: matches _build_float_row's own "%.4f" precision for the live
-## value label; the default annotation trims trailing zeros afterward (see
-## _format_default()) so "-35.0000" reads as "-35" and "0.0150" as "0.015".
+## Trailing-zero trim precision for _format_default() (the type-only formatter
+## tests call); rows themselves use _decimals_for().
 const DEFAULT_FLOAT_PRECISION: int = 4
 
 ## get_property_list() usage flags an @export'd script variable carries (see
@@ -174,7 +173,7 @@ const EXPORT_USAGE_MASK: int = PROPERTY_USAGE_STORAGE | PROPERTY_USAGE_EDITOR | 
 ## FX, Beacons, Camera FX, HUD, Sky) so this one cutoff still holds; Physics/
 ## Territory/Feed (host-only: they tune the physics/territory simulation
 ## itself, not just how it looks) always come last.
-const CLIENT_HIDDEN_TAB_FIRST: int = 7
+const CLIENT_HIDDEN_TAB_FIRST: int = 6
 
 ## Bontago-xtq.17 (owner playtest 2026-09-23: "heavier and more bouncy, but a
 ## dropped block shouldn't just bounce straight up again" -- research +
@@ -220,19 +219,35 @@ const TIME_OF_DAY_DEFAULT_CUSTOM_PHASE: float = 0.25
 const TIME_OF_DAY_SLIDER_MIN_WIDTH: float = 160.0
 const TIME_OF_DAY_VALUE_FORMAT: String = "%.3f"
 
-## Bontago-1pi.112: F4 fields whose tunable no live game code reads any more
-## ("Class.property"); the reflection loop skips them. The config fields
-## themselves are left in place for a follow-up cleanup.
-const UNUSED_FIELDS: PackedStringArray = [
-	"TerritoryVisuals.flag_pole_height", "TerritoryVisuals.flag_pole_radius",
-	"TerritoryVisuals.flag_pole_color", "TerritoryVisuals.flag_emission",
-	"TerritoryVisuals.goal_flag_scale", "BlockFeedConfig.preview_count",
-	"HUDVisualTuning.panel_border_color", "HUDVisualTuning.panel_text_color",
-]
-## Fields sharing a name prefix form a sub-header group once there are this many.
-const GROUP_MIN_FIELDS: int = 3
-const GENERAL_GROUP: String = "General"
-const GROUP_HEADER_COLOR: Color = Color(1.0, 0.9, 0.6)
+## Bontago-1pi.113 (panel redo): rows sit in foldable sections (hints.sections);
+## a section is open by default only when it is the first one on its tab, and
+## the open/closed choice survives rebuild() (see _fold_open).
+const SECTION_HEADER_COLOR: Color = Color(1.0, 0.9, 0.6)
+const SECTION_OPEN_MARK: String = "▾ "
+const SECTION_CLOSED_MARK: String = "▸ "
+## Gap between the columns of a row: name | control | value | default.
+const ROW_SEPARATION: int = 12
+## Every row's control column has at least this width (it takes the spare row width, identically on every row) (slider, spinbox, toggle, swatch,
+## dropdown), so the value and default columns line up on every tab.
+const CONTROL_COLUMN_WIDTH: float = 300.0
+const CONTROL_MIN_WIDTH: float = 240.0
+const FIXED_CONTROL_WIDTH: float = 140.0
+const SWATCH_HEIGHT: float = 30.0
+const TOGGLE_WIDTH: float = 90.0
+const SPIN_WIDTH: float = 130.0
+const DEFAULT_COLUMN_WIDTH: float = 200.0
+## A float's displayed decimals come from its slider span so a 0..1 field and a
+## 0..360 field both show about this many significant digits (see _decimals_for).
+const SPAN_SIGNIFICANT_DIGITS: int = 3
+const MAX_DISPLAY_DECIMALS: int = 5
+const DEFAULT_PREFIX: String = "default "
+## Written straight after the number ("45.0°"), unlike every other unit.
+const DEGREE_UNIT: String = "°"
+const BOOL_ON_TEXT: String = "On"
+const BOOL_OFF_TEXT: String = "Off"
+const SCENE_SECTION_TITLE: String = "Sky and weather"
+const PRESET_SECTION_TITLE: String = "Presets"
+const HAND_BUILT_CLASS: String = "Panel"
 
 @export var hints: TuningPanelHints = preload("res://config/tuning_panel_hints.tres")
 
@@ -283,8 +298,12 @@ var _field: Field = null
 ## for a given resource field without walking the tree.
 var _rows: Array[Dictionary] = []
 
-## One {"resource", "title"} per sub-header built (Bontago-1pi.112).
+## One {"resource", "title"} per section built (Bontago-1pi.112/113).
 var _group_titles: Array[Dictionary] = []
+
+## Open/closed state of each foldable section ("Class/Title" -> bool), kept
+## across rebuild() and panel re-opens for the whole session.
+static var _fold_open: Dictionary = {}
 
 var _tab_container: TabContainer = null
 var _status_label: Label = null
@@ -543,20 +562,9 @@ func rebuild() -> void:
 	_group_titles.clear()
 	_bind_sky_theme_to_live_cycle()
 
-	_add_tab("Camera", [camera_tuning])
-	_add_tab("Controls", [ghost_tuning])
-	# Bontago-xtq.36: the M7 art-direction tabs -- purely visual, so (unlike
-	# Physics/Territory/Feed below) available to a client too, hence grouped
-	# here before CLIENT_HIDDEN_TAB_FIRST's cutoff (see that constant's doc).
-	_add_tab("Blocks FX", [block_visual_tuning, block_effects_config])
-	_add_tab("Beacons", [beacon_visual_tuning])
-	_add_tab("Camera FX", [camera_shake_config])
-	_add_tab("HUD", [hud_visual_tuning])
-	_add_tab("Sky", [sky_theme])
-	_add_tab("Physics", [physics_tuning])
-	_add_tab("Territory", [territory_tuning, territory_visuals])
-	_add_tab("Feed", [block_feed_config])
-	_add_tab("QoL", [qol_experiments])
+	var plan: Array[Dictionary] = _tab_plan()
+	for entry: Dictionary in plan:
+		_add_tab(String(entry["name"]), entry["resources"] as Array)
 
 	_apply_availability()
 
@@ -569,38 +577,74 @@ func rebuild() -> void:
 	_rebuilding_tabs = false
 
 
+## Bontago-1pi.113: tabs follow what a tuner thinks about, not which Resource a
+## field lives in. Client-visible (look/feel) tabs first, host-only simulation
+## tabs last (CLIENT_HIDDEN_TAB_FIRST). A resource listed on two tabs (Ghost)
+## splits by section: hints.section_tabs names the sections that move to the
+## later tab, the rest stay on the resource's first tab.
+## DECISION: TerritoryVisuals is purely visual, so it sits with the beacons on a
+## client-visible tab instead of the host-only Territory rules.
+func _tab_plan() -> Array[Dictionary]:
+	return [
+		{"name": "Camera", "resources": [camera_tuning, camera_shake_config]},
+		{"name": "Controls", "resources": [ghost_tuning]},
+		{"name": "Ghost & Blocks", "resources": [ghost_tuning, block_visual_tuning, block_effects_config]},
+		{"name": "Territory look", "resources": [territory_visuals, beacon_visual_tuning]},
+		{"name": "HUD", "resources": [hud_visual_tuning]},
+		{"name": "Sky", "resources": [sky_theme]},
+		{"name": "Physics", "resources": [physics_tuning]},
+		{"name": "Territory rules", "resources": [territory_tuning]},
+		{"name": "Block bag", "resources": [block_feed_config]},
+		{"name": "QoL", "resources": [qol_experiments]},
+	]
+
+
+## The first plan tab listing `resource`: where its sections live unless
+## hints.section_tabs moves them.
+func _default_tab_for(resource: Resource) -> String:
+	for entry: Dictionary in _tab_plan():
+		if (entry["resources"] as Array).has(resource):
+			return String(entry["name"])
+	return ""
+
+
 func _add_tab(tab_name: String, resources: Array) -> void:
 	var scroll: ScrollContainer = ScrollContainer.new()
 	scroll.name = tab_name
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 
 	var list: VBoxContainer = VBoxContainer.new()
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	list.add_theme_constant_override("separation", 2)
 
+	var first_section: bool = true
 	if tab_name == "Physics":
-		list.add_child(_build_physics_preset_row())
+		var preset_rows: Array[Control] = [_build_physics_preset_row()]
+		list.add_child(_build_section(HAND_BUILT_CLASS, PRESET_SECTION_TITLE, preset_rows, true))
+		first_section = false
 	if tab_name == "Sky":
-		# Bontago-xtq.22 (owner: disc reflectivity is "hard to judge with that
-		# texture -- add an option to F4 to change the skybox"), moved here
-		# from the Territory tab per Bontago-1pi.1 (owner playtest: "the
-		# skybox setting in territory should probably move over to sky
-		# settings") -- this row switches the loaded six-face set/procedural
-		# fallback, which is a sky concern even though its live-switch result
-		# (the disc's mirror/reflection) is judged against TerritoryVisuals'
-		# own reflection fields, still on the Territory tab.
-		list.add_child(_build_theme_row())
-		list.add_child(_build_time_of_day_row())
-		list.add_child(_build_skybox_row())
-		list.add_child(_build_weather_row())
-		list.add_child(_build_breeze_row())
+		# Bontago-xtq.22 / 1pi.1: the Skybox row switches the loaded six-face
+		# set; its live result (the disc's mirror) is judged against
+		# TerritoryVisuals' reflection fields on the Territory look tab.
+		# Bontago-1pi.113: Theme/Time/Skybox/Weather/Breeze are one ordinary
+		# foldable section in the same grid as every reflected row.
+		var scene_rows: Array[Control] = [
+			_build_theme_row(), _build_time_of_day_row(), _build_skybox_row(),
+			_build_weather_row(), _build_breeze_row(),
+		]
+		list.add_child(_build_section(HAND_BUILT_CLASS, SCENE_SECTION_TITLE, scene_rows, true))
+		first_section = false
 
 	for entry: Variant in resources:
 		var resource: Resource = entry as Resource
 		if resource == null:
 			continue
-		list.add_child(_build_resource_rows(resource))
+		var built: Control = _build_resource_rows(resource, tab_name, first_section)
+		if built.get_child_count() > 0:
+			first_section = false
+		list.add_child(built)
 
 	scroll.add_child(list)
 	_tab_container.add_child(scroll)
@@ -617,16 +661,29 @@ func _has_full_access() -> bool:
 	return bool(provider.is_host())
 
 
-func _build_resource_rows(resource: Resource) -> VBoxContainer:
+## Wraps `control` in the fixed-width control column of the row grid.
+func _in_control_column(control: Control) -> Control:
+	var holder: HBoxContainer = HBoxContainer.new()
+	holder.custom_minimum_size = Vector2(CONTROL_COLUMN_WIDTH, 0.0)
+	holder.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	holder.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	holder.add_theme_constant_override("separation", ROW_SEPARATION)
+	if not (control is HSlider):
+		control.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	holder.add_child(control)
+	return holder
+
+
+## One foldable section per hints.sections title that belongs on `tab_name`,
+## fields in declaration order (the order the config script lists them, which
+## follows its own `## -- Title --` blocks). `first_on_tab` opens the first
+## section built when no fold state was remembered yet.
+func _build_resource_rows(resource: Resource, tab_name: String, first_on_tab: bool) -> VBoxContainer:
 	var list: VBoxContainer = VBoxContainer.new()
 	list.add_theme_constant_override("separation", 2)
 	var class_label: String = _class_label_for(resource)
 	var fresh: Resource = _fresh_instance_for(resource)
-
-	var header: Label = Label.new()
-	header.text = class_label
-	header.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
-	list.add_child(header)
+	var default_tab: String = _default_tab_for(resource)
 
 	var types: Dictionary = {}
 	var names: Array[String] = []
@@ -634,42 +691,78 @@ func _build_resource_rows(resource: Resource) -> VBoxContainer:
 		if not _is_exported_field(prop):
 			continue
 		var prop_name: String = str(prop.get("name", ""))
-		if is_unused_field(class_label, prop_name):
+		var type: int = int(prop.get("type", TYPE_NIL))
+		if type != TYPE_BOOL and type != TYPE_INT and type != TYPE_FLOAT and type != TYPE_COLOR:
 			continue
-		types[prop_name] = int(prop.get("type", TYPE_NIL))
+		types[prop_name] = type
 		names.append(prop_name)
 
-	# Bontago-1pi.112: rows sit under a sub-header per name prefix, groups and
-	# fields alphabetical (DECISION), small groups folded into "General" (first).
-	var groups: Dictionary = _group_field_names(names)
-	var group_order: Array[String] = []
-	for group_title: Variant in groups.keys():
-		group_order.append(String(group_title))
-	group_order.sort_custom(func(a: String, b: String) -> bool:
-		if a == GENERAL_GROUP or b == GENERAL_GROUP:
-			return a == GENERAL_GROUP and b != GENERAL_GROUP
-		return a < b
-	)
-	for group_title: String in group_order:
-		var members: Array = groups[group_title]
+	var by_section: Dictionary = {}
+	for prop_name: String in names:
+		var title: String = _section_title(class_label, prop_name)
+		if not by_section.has(title):
+			by_section[title] = []
+		(by_section[title] as Array).append(prop_name)
+
+	var opened_one: bool = false
+	for title: String in hints.ordered_sections(class_label, names):
+		if hints.tab_for(class_label, title, default_tab) != tab_name:
+			continue
 		var built: Array[Control] = []
-		for member: Variant in members:
+		for member: Variant in (by_section[title] as Array):
 			var prop_name: String = String(member)
 			var row: Control = _build_row_control(resource, prop_name, int(types[prop_name]), class_label, fresh)
 			if row != null:
 				built.append(row)
 		if built.is_empty():
 			continue
-		var group_header: Label = Label.new()
-		group_header.name = "Group_%s" % group_title.replace(" ", "_")
-		group_header.text = group_title
-		group_header.add_theme_color_override("font_color", GROUP_HEADER_COLOR)
-		list.add_child(HSeparator.new())
-		list.add_child(group_header)
-		_group_titles.append({"resource": resource, "title": group_title})
-		for row: Control in built:
-			list.add_child(row)
+		var default_open: bool = first_on_tab and not opened_one
+		opened_one = true
+		list.add_child(_build_section(class_label, title, built, default_open))
+		_group_titles.append({"resource": resource, "title": title})
 	return list
+
+
+func _section_title(class_label: String, prop_name: String) -> String:
+	var title: String = hints.section_for(class_label, prop_name) if hints != null else ""
+	return title if not title.is_empty() else TuningPanelHints.GENERAL_SECTION
+
+
+## A foldable section: a flat header button ("v Title (N)") over a body holding
+## the rows. The open state is remembered per Class/Title in _fold_open.
+func _build_section(class_label: String, title: String, rows: Array[Control], default_open: bool) -> Control:
+	var key: String = "%s/%s" % [class_label, title]
+	var box: VBoxContainer = VBoxContainer.new()
+	box.name = "Section_%s" % title.validate_node_name().replace(" ", "_")
+	box.add_theme_constant_override("separation", 6)
+	var header: Button = Button.new()
+	header.name = "Header"
+	header.flat = true
+	header.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	header.add_theme_color_override("font_color", SECTION_HEADER_COLOR)
+	header.add_theme_color_override("font_hover_color", SECTION_HEADER_COLOR)
+	var body: VBoxContainer = VBoxContainer.new()
+	body.name = "Body"
+	body.add_theme_constant_override("separation", 8)
+	for row: Control in rows:
+		body.add_child(row)
+	var is_open: bool = bool(_fold_open.get(key, default_open))
+	body.visible = is_open
+	header.text = _section_header_text(title, rows.size(), is_open)
+	header.pressed.connect(func() -> void:
+		var now_open: bool = not body.visible
+		body.visible = now_open
+		_fold_open[key] = now_open
+		header.text = _section_header_text(title, rows.size(), now_open)
+	)
+	box.add_child(HSeparator.new())
+	box.add_child(header)
+	box.add_child(body)
+	return box
+
+
+func _section_header_text(title: String, count: int, is_open: bool) -> String:
+	return "%s%s (%d)" % [SECTION_OPEN_MARK if is_open else SECTION_CLOSED_MARK, title, count]
 
 
 ## The baseline a row's "(default X)" label and yellow modified-highlight
@@ -724,90 +817,136 @@ func _build_row_control(resource: Resource, prop_name: String, type: int, class_
 			return null
 
 
-## Outcome 2: every row's name is followed by "(default <value>)", and a
-## smaller muted sentence describing what the field controls sits beneath it
-## (a tooltip on the name label repeats the same sentence -- "a tooltip in
-## addition is fine"). Returns the built Label so the caller can register it
-## in _rows for _refresh_row_marker() to find later (outcome 3).
-func _row_name_block(prop_name: String, class_label: String, default_value: Variant, type: int) -> Dictionary:
+## One row is four aligned columns: name (human label over a muted one-sentence
+## description; a tooltip repeats it) | control | live value with its unit |
+## "default X unit". `control` is added in the control column by the caller.
+## Returns {"row": HBoxContainer, "name_label", "value_label", "default_label"}.
+func _build_row_frame(prop_name: String, class_label: String, control: Control, type: int, default_value: Variant, unit: String, decimals: int) -> Dictionary:
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", ROW_SEPARATION)
+
 	var block: VBoxContainer = VBoxContainer.new()
 	block.custom_minimum_size = Vector2(NAME_COLUMN_WIDTH, 0.0)
+	block.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	block.add_theme_constant_override("separation", 0)
-
 	var description: String = hints.description_for(class_label, prop_name) if hints != null else ""
-
 	var name_label: Label = Label.new()
-	name_label.text = "%s (default %s)" % [prop_name, _format_default(default_value, type)]
+	name_label.text = _display_name(class_label, prop_name)
 	if not description.is_empty():
 		name_label.tooltip_text = description
 	block.add_child(name_label)
-
 	var desc_label: Label = Label.new()
 	desc_label.text = description
 	desc_label.add_theme_color_override("font_color", DESCRIPTION_COLOR)
 	desc_label.add_theme_font_size_override("font_size", DESCRIPTION_FONT_SIZE)
 	desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	block.add_child(desc_label)
+	row.add_child(block)
 
-	return {"container": block, "name_label": name_label}
+	control.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(_in_control_column(control))
+
+	var value_label: Label = Label.new()
+	value_label.custom_minimum_size = Vector2(VALUE_WIDTH, 0.0)
+	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	value_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(value_label)
+
+	var default_label: Label = Label.new()
+	default_label.custom_minimum_size = Vector2(DEFAULT_COLUMN_WIDTH, 0.0)
+	default_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	default_label.add_theme_color_override("font_color", DESCRIPTION_COLOR)
+	default_label.add_theme_font_size_override("font_size", DESCRIPTION_FONT_SIZE)
+	default_label.text = DEFAULT_PREFIX + _format_shown(default_value, type, unit, decimals)
+	row.add_child(default_label)
+	return {"row": row, "name_label": name_label, "value_label": value_label, "default_label": default_label}
+
+
+func _display_name(class_label: String, prop_name: String) -> String:
+	return hints.label_for(class_label, prop_name) if hints != null else prop_name
+
+
+func _unit_of(class_label: String, prop_name: String) -> String:
+	return hints.unit_for(class_label, prop_name) if hints != null else ""
+
+
+## A float's displayed decimals: enough that the slider's span shows about
+## SPAN_SIGNIFICANT_DIGITS digits (0..1 -> 3, 0..360 -> 1, 0..0.02 -> 5).
+func _decimals_for(value_range: Vector2) -> int:
+	var span: float = absf(value_range.y - value_range.x)
+	if span <= 0.0:
+		return SPAN_SIGNIFICANT_DIGITS
+	var decimals: int = ceili(float(SPAN_SIGNIFICANT_DIGITS) - log(span) / log(10.0))
+	return clampi(decimals, 0, MAX_DISPLAY_DECIMALS)
+
+
+## "12.50 m" / "On" / "#ccd9ffd9" / "8 s": one formatter for the live value and
+## the default column, so both always read alike.
+func _format_shown(value: Variant, type: int, unit: String, decimals: int) -> String:
+	var text: String = ""
+	match type:
+		TYPE_BOOL:
+			return BOOL_ON_TEXT if bool(value) else BOOL_OFF_TEXT
+		TYPE_INT:
+			text = str(int(value))
+		TYPE_FLOAT:
+			text = String.num(float(value), decimals)
+		TYPE_COLOR:
+			return "#%s" % (value as Color).to_html(true)
+		_:
+			text = str(value)
+	if unit.is_empty():
+		return text
+	return "%s%s" % [text, unit] if unit == DEGREE_UNIT else "%s %s" % [text, unit]
 
 
 func _build_bool_row(resource: Resource, prop_name: String, class_label: String, default_value: Variant) -> Control:
-	var row: HBoxContainer = HBoxContainer.new()
-	var name_block: Dictionary = _row_name_block(prop_name, class_label, default_value, TYPE_BOOL)
-	row.add_child(name_block["container"] as Control)
-
-	var check: CheckButton = CheckButton.new()
+	# Bontago-1pi.113: a text toggle ("On"/"Off", pressed = lit) instead of a
+	# CheckButton whose off state was a nearly invisible dot.
+	var check: Button = Button.new()
+	check.toggle_mode = true
+	check.custom_minimum_size = Vector2(TOGGLE_WIDTH, 0.0)
 	check.button_pressed = bool(resource.get(prop_name))
+	check.text = _format_shown(check.button_pressed, TYPE_BOOL, "", 0)
+	var frame: Dictionary = _build_row_frame(prop_name, class_label, check, TYPE_BOOL, default_value, "", 0)
+	var value_label: Label = frame["value_label"] as Label
+	value_label.text = _format_shown(check.button_pressed, TYPE_BOOL, "", 0)
 	check.toggled.connect(func(pressed: bool) -> void:
 		resource.set(prop_name, pressed)
+		value_label.text = _format_shown(pressed, TYPE_BOOL, "", 0)
+		check.text = value_label.text
 		_on_field_changed(resource, prop_name)
 	)
-	row.add_child(check)
-
-	_rows.append({
-		"resource": resource, "property": prop_name, "control": check,
-		"name_label": name_block["name_label"], "default": default_value, "type": TYPE_BOOL,
-	})
-	_refresh_row_marker(_rows[-1])
-	return row
+	_register_row(frame, resource, prop_name, check, default_value, TYPE_BOOL, "", 0)
+	return frame["row"] as Control
 
 
 func _build_int_row(resource: Resource, prop_name: String, class_label: String, default_value: Variant) -> Control:
-	var row: HBoxContainer = HBoxContainer.new()
-	var name_block: Dictionary = _row_name_block(prop_name, class_label, default_value, TYPE_INT)
-	row.add_child(name_block["container"] as Control)
-
 	var current: float = float(int(resource.get(prop_name)))
 	var value_range: Vector2 = _range_for(class_label, prop_name, current)
+	var unit: String = _unit_of(class_label, prop_name)
 
 	var spin: SpinBox = SpinBox.new()
 	spin.min_value = value_range.x
 	spin.max_value = value_range.y
 	spin.step = 1.0
 	spin.value = current
-	spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	spin.suffix = unit
+	spin.custom_minimum_size = Vector2(SPIN_WIDTH, 0.0)
+	var frame: Dictionary = _build_row_frame(prop_name, class_label, spin, TYPE_INT, default_value, unit, 0)
 	spin.value_changed.connect(func(v: float) -> void:
 		resource.set(prop_name, int(round(v)))
 		_on_field_changed(resource, prop_name)
 	)
-	row.add_child(spin)
-
-	_rows.append({
-		"resource": resource, "property": prop_name, "control": spin,
-		"name_label": name_block["name_label"], "default": default_value, "type": TYPE_INT,
-	})
-	_refresh_row_marker(_rows[-1])
-	return row
+	_register_row(frame, resource, prop_name, spin, default_value, TYPE_INT, unit, 0)
+	return frame["row"] as Control
 
 
 func _build_float_row(resource: Resource, prop_name: String, class_label: String, default_value: Variant) -> Control:
-	var row: HBoxContainer = HBoxContainer.new()
-	var name_block: Dictionary = _row_name_block(prop_name, class_label, default_value, TYPE_FLOAT)
-	row.add_child(name_block["container"] as Control)
-
 	var current: float = float(resource.get(prop_name))
 	var value_range: Vector2 = _range_for(class_label, prop_name, current)
+	var unit: String = _unit_of(class_label, prop_name)
+	var decimals: int = _decimals_for(value_range)
 
 	var slider: HSlider = HSlider.new()
 	slider.min_value = value_range.x
@@ -821,56 +960,47 @@ func _build_float_row(resource: Resource, prop_name: String, class_label: String
 	# real mouse drag is already limited to the slider's own pixel width.
 	slider.step = 0.0
 	slider.value = current
+	slider.custom_minimum_size = Vector2(CONTROL_MIN_WIDTH, 0.0)
 	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(slider)
-
-	var value_label: Label = Label.new()
-	value_label.custom_minimum_size = Vector2(VALUE_WIDTH, 0.0)
-	value_label.text = "%.4f" % current
-	row.add_child(value_label)
-
+	var frame: Dictionary = _build_row_frame(prop_name, class_label, slider, TYPE_FLOAT, default_value, unit, decimals)
+	var value_label: Label = frame["value_label"] as Label
+	value_label.text = _format_shown(current, TYPE_FLOAT, unit, decimals)
 	slider.value_changed.connect(func(v: float) -> void:
 		resource.set(prop_name, v)
-		value_label.text = "%.4f" % v
+		value_label.text = _format_shown(v, TYPE_FLOAT, unit, decimals)
 		_on_field_changed(resource, prop_name)
 	)
-
-	_rows.append({
-		"resource": resource, "property": prop_name, "control": slider,
-		"name_label": name_block["name_label"], "default": default_value, "type": TYPE_FLOAT,
-	})
-	_refresh_row_marker(_rows[-1])
-	return row
+	_register_row(frame, resource, prop_name, slider, default_value, TYPE_FLOAT, unit, decimals)
+	return frame["row"] as Control
 
 
 func _build_color_row(resource: Resource, prop_name: String, class_label: String, default_value: Variant) -> Control:
-	var row: HBoxContainer = HBoxContainer.new()
-	var name_block: Dictionary = _row_name_block(prop_name, class_label, default_value, TYPE_COLOR)
-	row.add_child(name_block["container"] as Control)
-
 	var picker: ColorPickerButton = ColorPickerButton.new()
 	picker.color = resource.get(prop_name)
-	picker.custom_minimum_size = Vector2(90.0, 0.0)
+	picker.custom_minimum_size = Vector2(FIXED_CONTROL_WIDTH, SWATCH_HEIGHT)
+	var frame: Dictionary = _build_row_frame(prop_name, class_label, picker, TYPE_COLOR, default_value, "", 0)
+	var value_label: Label = frame["value_label"] as Label
+	value_label.text = _format_shown(picker.color, TYPE_COLOR, "", 0)
 	picker.color_changed.connect(func(c: Color) -> void:
 		resource.set(prop_name, c)
+		value_label.text = _format_shown(c, TYPE_COLOR, "", 0)
 		_on_field_changed(resource, prop_name)
 	)
-	row.add_child(picker)
+	_register_row(frame, resource, prop_name, picker, default_value, TYPE_COLOR, "", 0)
+	return frame["row"] as Control
 
+
+func _register_row(frame: Dictionary, resource: Resource, prop_name: String, control: Control, default_value: Variant, type: int, unit: String, decimals: int) -> void:
 	_rows.append({
-		"resource": resource, "property": prop_name, "control": picker,
-		"name_label": name_block["name_label"], "default": default_value, "type": TYPE_COLOR,
+		"resource": resource, "property": prop_name, "control": control,
+		"name_label": frame["name_label"], "default_label": frame["default_label"],
+		"default": default_value, "type": type, "unit": unit, "decimals": decimals,
 	})
 	_refresh_row_marker(_rows[-1])
-	return row
 
 
-## Outcome 2's default annotation, formatted per type: "true"/"false" for a
-## bool, a plain integer for an int, a trimmed-decimal number for a float
-## (String.num()'s fixed precision with trailing zeros/dot stripped, so
-## -35.0 reads as "-35" and 0.015 as "0.015" rather than "-35.0000"), and a
-## "#rrggbbaa" hex code for a Color (the same shorthand a .tres file itself
-## would accept back).
+## The type-only default formatter (no unit/decimals): "true"/"false", a plain
+## integer, a trailing-zero-trimmed float, "#rrggbbaa". Rows use _format_shown().
 func _format_default(value: Variant, type: int) -> String:
 	match type:
 		TYPE_BOOL:
@@ -920,23 +1050,21 @@ func _values_equal(current: Variant, default_value: Variant, type: int) -> bool:
 			return current == default_value
 
 
-## Re-derives one row's "(default ...)" text and modified-marker/color from
-## its resource's *current* value -- called right after a row is first built
-## (nothing is modified yet, but this keeps one code path for both cases) and
-## again from _on_field_changed() every time a control writes its resource,
-## so the marker updates live without a full rebuild().
+## Re-derives one row's modified marker/colour from its resource's *current*
+## value -- called right after a row is first built (nothing is modified yet,
+## but this keeps one code path for both cases) and again from
+## _on_field_changed() every time a control writes its resource, so the marker
+## updates live without a full rebuild(). The default column is static text.
 func _refresh_row_marker(row: Dictionary) -> void:
 	var name_label: Label = row.get("name_label") as Label
 	if name_label == null:
 		return
 	var resource: Resource = row.get("resource") as Resource
 	var prop_name: String = String(row.get("property"))
-	var default_value: Variant = row.get("default")
 	var type: int = int(row.get("type", TYPE_NIL))
-	var current: Variant = resource.get(prop_name)
-	var modified: bool = not _values_equal(current, default_value, type)
+	var modified: bool = not _values_equal(resource.get(prop_name), row.get("default"), type)
 
-	var base_text: String = "%s (default %s)" % [prop_name, _format_default(default_value, type)]
+	var base_text: String = _display_name(_class_label_for(resource), prop_name)
 	name_label.text = (MODIFIED_MARKER + base_text) if modified else base_text
 	if modified:
 		name_label.add_theme_color_override("font_color", MODIFIED_COLOR)
@@ -978,39 +1106,21 @@ func control_for(resource: Resource, prop_name: String) -> Control:
 	return null
 
 
-## True for a field this panel no longer shows (see UNUSED_FIELDS).
-func is_unused_field(class_label: String, prop_name: String) -> bool:
-	return UNUSED_FIELDS.has("%s.%s" % [class_label, prop_name])
-
-
-## Splits `names` into {group title: sorted field names}: the first underscore
-## token (capitalized) when at least GROUP_MIN_FIELDS fields share it, else General.
-func _group_field_names(names: Array[String]) -> Dictionary:
-	var prefix_counts: Dictionary = {}
-	for field_name: String in names:
-		var prefix: String = field_name.get_slice("_", 0)
-		prefix_counts[prefix] = int(prefix_counts.get(prefix, 0)) + 1
-	var groups: Dictionary = {}
-	for field_name: String in names:
-		var prefix: String = field_name.get_slice("_", 0)
-		var title: String = GENERAL_GROUP
-		if field_name.contains("_") and int(prefix_counts[prefix]) >= GROUP_MIN_FIELDS:
-			title = prefix.left(1).to_upper() + prefix.substr(1)
-		if not groups.has(title):
-			groups[title] = []
-		(groups[title] as Array).append(field_name)
-	for title: Variant in groups.keys():
-		(groups[title] as Array).sort()
-	return groups
-
-
-## Test/inspection seam: the sub-header titles built for `resource`, in order.
-func group_titles_for(resource: Resource) -> Array[String]:
+## Test/inspection seam: the section titles built for `resource`, in order.
+func section_titles_for(resource: Resource) -> Array[String]:
 	var titles: Array[String] = []
 	for entry: Dictionary in _group_titles:
 		if entry.get("resource") == resource:
 			titles.append(String(entry.get("title")))
 	return titles
+
+
+## Test/inspection seam: the _rows entry for one field ({} if none).
+func _row_for(resource: Resource, prop_name: String) -> Dictionary:
+	for row: Dictionary in _rows:
+		if row.get("resource") == resource and row.get("property") == prop_name:
+			return row
+	return {}
 
 
 ## Test/inspection seam: how many rows this panel built for `resource`.
@@ -1034,13 +1144,21 @@ func shown_fields_for(resource: Resource) -> Array[String]:
 	return names
 
 
-## Test/inspection seam: the built name Label's current text (the field name,
-## "(default ...)" annotation, and modified marker) for one field, without
-## reaching into a Control tree.
+## Test/inspection seam: one field's row as text -- the modified marker, its
+## human label and its "(default ...)" annotation -- without reaching into a
+## Control tree.
 func label_text_for(resource: Resource, prop_name: String) -> String:
 	for row: Dictionary in _rows:
 		if row.get("resource") == resource and row.get("property") == prop_name:
-			return (row.get("name_label") as Label).text
+			return "%s (%s)" % [(row.get("name_label") as Label).text, (row.get("default_label") as Label).text]
+	return ""
+
+
+## Test/inspection seam: the default column's text for one field ("default 0.18 s").
+func default_text_for(resource: Resource, prop_name: String) -> String:
+	for row: Dictionary in _rows:
+		if row.get("resource") == resource and row.get("property") == prop_name:
+			return (row.get("default_label") as Label).text
 	return ""
 
 
@@ -1089,7 +1207,7 @@ func _on_field_changed(resource: Resource, _prop_name: String) -> void:
 ## resource field, it writes every field of physics_tuning at once.
 func _build_physics_preset_row() -> Control:
 	var row: HBoxContainer = HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
+	row.add_theme_constant_override("separation", ROW_SEPARATION)
 
 	var label: Label = Label.new()
 	label.text = "Physics preset"
@@ -1116,7 +1234,7 @@ func _build_physics_preset_row() -> Control:
 	option.item_selected.connect(func(index: int) -> void:
 		apply_physics_preset(String(PHYSICS_PRESETS[index]["id"]))
 	)
-	row.add_child(option)
+	row.add_child(_in_control_column(option))
 
 	return row
 
@@ -1154,7 +1272,7 @@ func apply_physics_preset(preset_id: String) -> void:
 ## the pick lives on skybox_config.theme_name (saved by Save override).
 func _build_theme_row() -> Control:
 	var row: HBoxContainer = HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
+	row.add_theme_constant_override("separation", ROW_SEPARATION)
 
 	var label: Label = Label.new()
 	label.text = "Theme"
@@ -1178,7 +1296,7 @@ func _build_theme_row() -> Control:
 		apply_sky_theme_id(ids[index])
 		rebuild()
 	)
-	row.add_child(option)
+	row.add_child(_in_control_column(option))
 	return row
 
 
@@ -1192,7 +1310,7 @@ func _build_theme_row() -> Control:
 ## so a client would present a different strength than the host simulates.
 func _build_weather_row() -> Control:
 	var row: HBoxContainer = HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
+	row.add_theme_constant_override("separation", ROW_SEPARATION)
 
 	var label: Label = Label.new()
 	label.text = "Weather"
@@ -1221,7 +1339,7 @@ func _build_weather_row() -> Control:
 	option.item_selected.connect(func(index: int) -> void:
 		apply_weather_override(ids[index])
 	)
-	row.add_child(option)
+	row.add_child(_in_control_column(option))
 	if not host:
 		var hint: Label = Label.new()
 		hint.text = "(host only)"
@@ -1234,7 +1352,7 @@ func _build_weather_row() -> Control:
 ## replication, so the box is disabled with a hint on a client.
 func _build_breeze_row() -> Control:
 	var row: HBoxContainer = HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
+	row.add_theme_constant_override("separation", ROW_SEPARATION)
 	var label: Label = Label.new()
 	label.text = "Breeze"
 	label.custom_minimum_size = Vector2(NAME_COLUMN_WIDTH, 0.0)
@@ -1250,7 +1368,7 @@ func _build_breeze_row() -> Control:
 	box.toggled.connect(func(pressed: bool) -> void:
 		apply_breeze_enabled(pressed)
 	)
-	row.add_child(box)
+	row.add_child(_in_control_column(box))
 	if not host:
 		var hint: Label = Label.new()
 		hint.text = "(host only)"
@@ -1381,7 +1499,7 @@ func _build_time_of_day_row() -> Control:
 	_sync_time_of_day_from_live()
 	var active: bool = theme_choice() == CYCLE_THEME_ID
 	var row: HBoxContainer = HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
+	row.add_theme_constant_override("separation", ROW_SEPARATION)
 
 	var label: Label = Label.new()
 	label.text = "Time of day"
@@ -1399,7 +1517,12 @@ func _build_time_of_day_row() -> Control:
 		option.add_item(choice_label)
 	option.selected = maxi(TIME_OF_DAY_CHOICES.find(_time_of_day_choice), 0)
 	option.disabled = not active
-	row.add_child(option)
+	var holder: HBoxContainer = HBoxContainer.new()
+	holder.custom_minimum_size = Vector2(CONTROL_COLUMN_WIDTH, 0.0)
+	holder.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	holder.add_theme_constant_override("separation", ROW_SEPARATION)
+	row.add_child(holder)
+	holder.add_child(option)
 
 	var slider: HSlider = HSlider.new()
 	slider.name = "TimeOfDaySlider"
@@ -1411,13 +1534,19 @@ func _build_time_of_day_row() -> Control:
 	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	slider.custom_minimum_size = Vector2(TIME_OF_DAY_SLIDER_MIN_WIDTH, 0.0)
 	slider.tooltip_text = "Cycle phase: 0 dawn, 0.25 noon, 0.5 sunset, 0.75 midnight. Editable with Custom."
-	row.add_child(slider)
+	holder.add_child(slider)
 
 	var value_label: Label = Label.new()
 	value_label.name = "TimeOfDayValue"
 	value_label.custom_minimum_size = Vector2(VALUE_WIDTH, 0.0)
 	value_label.text = TIME_OF_DAY_VALUE_FORMAT % slider.value
+	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	row.add_child(value_label)
+	# Stand-in for the default column so the value column lines up with the
+	# reflected rows' value column.
+	var default_spacer: Control = Control.new()
+	default_spacer.custom_minimum_size = Vector2(DEFAULT_COLUMN_WIDTH, 0.0)
+	row.add_child(default_spacer)
 
 	option.item_selected.connect(func(index: int) -> void:
 		var choice: String = TIME_OF_DAY_CHOICES[index]
@@ -1533,7 +1662,7 @@ func _time_choice_for_phase(phase: float) -> String:
 ## preset row already established).
 func _build_skybox_row() -> Control:
 	var row: HBoxContainer = HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
+	row.add_theme_constant_override("separation", ROW_SEPARATION)
 
 	var label: Label = Label.new()
 	label.text = "Skybox"
@@ -1561,7 +1690,7 @@ func _build_skybox_row() -> Control:
 	option.item_selected.connect(func(index: int) -> void:
 		apply_skybox_set(ids[index])
 	)
-	row.add_child(option)
+	row.add_child(_in_control_column(option))
 
 	return row
 

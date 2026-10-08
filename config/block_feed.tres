@@ -9,4 +9,3 @@ weight_overrides = PackedFloat32Array()
 stabilizer_ids = Array[StringName]([&"square4", &"slab6", &"cube"])
 min_stabilizers_per_bag = 2
 bag_multiplier = 2.0
-preview_count = 1

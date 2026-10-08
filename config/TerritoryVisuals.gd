@@ -276,16 +276,7 @@ extends Resource
 @export var hole_rim_glow: float = 2.5
 
 ## -- Flags (spec 2.2, 2.3) --------------------------------------------------
-@export var flag_pole_height: float = 3.2
-@export var flag_pole_radius: float = 0.09
-@export var flag_pole_color: Color = Color(0.85, 0.86, 0.88)
-## Width and height of the banner at the top of the pole.
-@export var flag_banner_size: Vector2 = Vector2(1.6, 0.9)
-## How much the goal flag's banner is scaled up from a home flag's.
-@export var goal_flag_scale: float = 1.35
 @export var goal_flag_color: Color = Color(0.95, 0.93, 0.85)
-## Emission strength of a flag's banner, so owners read at a glance.
-@export var flag_emission: float = 0.6
 
 ## -- Goal capture ring (spec 2.3: "A radial progress ring appears on each
 ## goal flag while someone is capturing it") --------------------------------

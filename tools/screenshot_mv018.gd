@@ -47,7 +47,9 @@ func _ready() -> void:
 	# here -- search the subtree instead.
 	var tab_container: TabContainer = _find_tab_container(panel)
 	if tab_container != null:
-		tab_container.current_tab = 2
+		for index: int in tab_container.get_tab_count():
+			if tab_container.get_tab_title(index) == "Physics":
+				tab_container.current_tab = index
 	await _shoot("01_physics_tab_open")
 
 	var gravity_slider: HSlider = panel.control_for(panel.physics_tuning, "gravity_multiplier") as HSlider

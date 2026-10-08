@@ -19,7 +19,6 @@ const SETTLE_FRAMES: int = 5
 const SEED: int = 777
 const POSITION_TOLERANCE_M: float = 0.001
 const BASIS_TOLERANCE: float = 0.0001
-const NO_SHAKE_THRESHOLD: float = 1.0e9
 
 var _main: Node
 var _role: String = ""
@@ -40,7 +39,7 @@ func _ready() -> void:
 	add_child(_main)
 	var rig: CameraRig = _main.get("_camera_rig") as CameraRig
 	rig.shake_config = rig.shake_config.duplicate()
-	rig.shake_config.impact_speed_threshold = NO_SHAKE_THRESHOLD
+	rig.shake_config.max_offset_m = 0.0
 	await get_tree().process_frame
 	if Net.mode() == Net.Mode.HOST:
 		_role = "host"

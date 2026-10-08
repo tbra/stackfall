@@ -4,16 +4,8 @@ extends Resource
 ## Events.block_impacted. Keeps game/CameraRig.gd free of magic numbers per
 ## CLAUDE.md.
 
-## DEPRECATED (Bontago-1pi.110): block impacts no longer shake the camera;
-## see DiscShakeConfig. Kept so existing tuning/tests load.
-## Minimum impact speed (Block.gd's deceleration magnitude passed to
-## Events.block_impacted) that triggers any shake at all -- a soft landing
-## should not visibly move the camera.
-@export var impact_speed_threshold: float = 4.0
-
-## Shake offset in meters once impact speed reaches roughly double the
-## threshold (amplitude scales linearly with how far above threshold the
-## impact was, clamped to this).
+## Maximum shake offset in meters (anvil/bomb/rocket impacts; the disc
+## tilt shake scales it by DiscShakeConfig.disc_tilt_amplitude_fraction).
 @export var max_offset_m: float = 0.35
 
 ## Seconds for a single shake impulse to decay back to (approximately) zero,
