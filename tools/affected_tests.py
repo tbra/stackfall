@@ -6,8 +6,9 @@ Workers kept missing tests in other packages that asserted values they changed. 
 checkout against --base (default: `git merge-base HEAD main`, working-tree and untracked files
 included), collects changed identifiers (GDScript func/var/const/signal/enum/class_name names,
 .tres/.tscn property keys and node names, quoted ids such as &"rocket" or "bomb", and changed
-script/resource basenames), drops noise (under 4 chars, common GDScript words), and searches
-tests/**/*.gd for whole-word references. Tests that are part of the diff are listed and marked
+script/resource basenames, plus the `class_name` of every changed/added .gd script even when that
+line is unchanged), drops noise (under 4 chars, common GDScript words), and searches
+tests/**/*.gd for whole-word references (string literals such as find_children("*", "Foo") count). Tests that are part of the diff are listed and marked
 [changed]. Prints a compact list, a totals line and a ready-to-run tools/run_gut.ps1 line.
 Exit 0 unless git fails.
 """
@@ -115,7 +116,20 @@ def changed_lines(repo, base):
     return lines, {n for n in names if n}
 
 
-def collect_identifiers(lines, paths):
+CLASS_NAME = re.compile(r"^\s*class_name\s+(\w+)", re.MULTILINE)
+
+
+def file_class_name(repo, rel):
+    """class_name declared anywhere in the (current) script `rel`, or ''."""
+    try:
+        with open(os.path.join(repo, rel), encoding="utf-8", errors="replace") as fh:
+            m = CLASS_NAME.search(fh.read())
+    except OSError:
+        return ""
+    return m.group(1) if m else ""
+
+
+def collect_identifiers(lines, paths, repo=None):
     """{identifier: source description}. Test files in the diff are skipped as a source."""
     ids = {}
     for path, body in lines.items():
@@ -130,6 +144,10 @@ def collect_identifiers(lines, paths):
             stem = os.path.splitext(os.path.basename(path))[0]
             if keep(stem):
                 ids.setdefault(stem, path)
+            if repo and path.endswith(".gd"):
+                cls = file_class_name(repo, path)
+                if keep(cls):
+                    ids.setdefault(cls, path)
     return ids
 
 
@@ -177,7 +195,7 @@ def apply_fanout(results, max_fanout):
 def analyse(repo, base=None, max_fanout=DEFAULT_MAX_FANOUT):
     base = base or default_base(repo)
     lines, paths = changed_lines(repo, base)
-    ids = collect_identifiers(lines, paths)
+    ids = collect_identifiers(lines, paths, repo)
     results, broad = apply_fanout(find_tests(repo, ids, paths), max_fanout)
     return base, ids, results, broad
 
