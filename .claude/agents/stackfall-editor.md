@@ -64,6 +64,21 @@ godot-ai-pilot`) has the setup and known gotchas.
   `bd -C M:/Bontago comments add <id> --actor stackfall-editor "<one-line finding>"`.
   No status, assignee or close changes.
 
+## Token economy (owner 2026-10-09)
+Every model turn re-reads your whole context (about 20k tokens of instructions and
+tool schemas before any work), so turn count and image size drive cost.
+- Plan the sequence before the first call. Put independent calls in ONE turn
+  (e.g. editor_state + logs_read + a git rev-parse together); never spend a turn on a
+  single trivial check you could have batched.
+- Call editor_state / session_manage once at the start, not again to "re-check".
+- Screenshots go to disk at the default or a smaller max_resolution; do not view an
+  image unless the verdict depends on it, and then view only the decisive one. Never
+  capture the same state twice "to be sure".
+- Ask for bounded output: logs_read with a small line count (errors first),
+  scene_get_hierarchy limited to the depth the question needs.
+- Stop as soon as the brief's question is answered; no exploratory calls. A
+  smoke-sized task should take about 10 turns or fewer; report the turn count in checks.
+
 ## Handback
 One compact JSON object (no markdown fence; checked by tools/validate_worker_handback.py):
 bead, verdict (done|partial|blocked), candidate (pilot path@rev), files (evidence paths),
