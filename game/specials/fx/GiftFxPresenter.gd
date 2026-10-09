@@ -10,7 +10,7 @@ extends Node
 ## Replaces Match's former per-gift _on_paintball_triggered /
 ## _on_black_hole_triggered handlers; add new gift visuals with `register`.
 ##
-## Depends on: Events, SpecialDef, Block
+## Depends on: Events, MatchContext, SpecialDef, Block
 
 const PAINTBALL_ID: StringName = &"paintball"
 const BLACK_HOLE_ID: StringName = &"black_hole"
@@ -68,7 +68,7 @@ func on_special_triggered(net_id: int, def_id: StringName, position: Vector3, _c
 	if not handler.is_valid():
 		return
 	var block: Block = null
-	var registry: BlockRegistry = Match.registry()
+	var registry: BlockRegistry = MatchContext.current().registry() as BlockRegistry
 	if registry != null:
 		block = registry.block_for_net_id(net_id)
 	handler.call(block, SpecialDef.find_by_id(def_id), position)
@@ -76,19 +76,20 @@ func on_special_triggered(net_id: int, def_id: StringName, position: Vector3, _c
 
 ## Paintball: expanding colour shell tinted by the thrower's slot.
 func _build_paintball(block: Block, _def: SpecialDef, position: Vector3) -> void:
-	var parent: Node3D = Match.blocks_parent()
-	if parent == null or block == null or block.owner_slot < 0 or block.owner_slot >= Match.slot_count():
+	var ctx: MatchContext = MatchContext.current()
+	var parent: Node3D = ctx.blocks_parent()
+	if parent == null or block == null or block.owner_slot < 0 or block.owner_slot >= ctx.slot_count():
 		return
 	var splash: PaintballSplash = PaintballSplash.new()
 	splash.bind_to_match = true
 	DiscAnchor.attach(splash, position, parent)
-	splash.setup(Match.slot(block.owner_slot).color)
+	splash.setup(ctx.slot(block.owner_slot).color)
 
 
 ## Black hole (Bontago-8or.25): every peer draws the placeholder disc; the
 ## pull itself is host-only physics.
 func _build_black_hole(_block: Block, def: SpecialDef, position: Vector3) -> void:
-	var parent: Node3D = Match.blocks_parent()
+	var parent: Node3D = MatchContext.current().blocks_parent()
 	var effect: BlackHoleEffect = def.effect as BlackHoleEffect if def != null else null
 	if parent == null or effect == null:
 		return
@@ -101,7 +102,7 @@ func _build_black_hole(_block: Block, def: SpecialDef, position: Vector3) -> voi
 ## Bomb and Rocket: a blast puff (the pooled impact flipbook) sized by the blast radius.
 ## Rides the replicated special_triggered, so every peer sees it. Visual only.
 func _build_explosion(_block: Block, def: SpecialDef, position: Vector3) -> void:
-	var parent: Node3D = Match.blocks_parent()
+	var parent: Node3D = MatchContext.current().blocks_parent()
 	var blast: ExplosionTuning = null
 	if def != null:
 		var bomb: BombEffect = def.effect as BombEffect
