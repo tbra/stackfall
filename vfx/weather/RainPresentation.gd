@@ -165,7 +165,7 @@ func _exit_tree() -> void:
 
 
 func _make_puddles() -> RainPuddles:
-	var field_node: Field = Match.field() as Field
+	var field_node: FieldBody = MatchContext.current().field()
 	if field_node == null or field_node.map_definition() == null:
 		return null
 	var count_scale: float = RainPuddles.count_scale_for(Settings.current_graphics_preset(), _tuning)

@@ -289,7 +289,7 @@ func _find_block_at(position: Vector3) -> Block:
 func _color_for_owner_slot(slot_id: int, fallback: Color) -> Color:
 	if slot_id < 0:
 		return fallback
-	return Match.slot_color(slot_id, fallback)
+	return MatchContext.current().slot_color(slot_id, fallback)
 
 
 ## Bontago-1pi.11.31 burst pool. One PooledBurst = one wrapper Node3D plus its

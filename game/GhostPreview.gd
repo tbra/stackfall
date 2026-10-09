@@ -2343,15 +2343,17 @@ func _apply_glue_overlay() -> void:
 
 
 func _local_glue_charges() -> int:
-	var slot: int = Match.active_slot() if Net.is_offline() else Net.local_slot()
-	return Match.glue_drops_left(slot)
+	var ctx: MatchContext = MatchContext.current()
+	var slot: int = ctx.active_slot() if ctx.net_is_offline() else ctx.net_local_slot()
+	return ctx.glue_drops_left(slot)
 
 
 func _local_feed_time_left() -> float:
-	if _shape == null or not Match.feed_timer_enabled():
+	var ctx: MatchContext = MatchContext.current()
+	if _shape == null or not ctx.feed_timer_enabled():
 		return -1.0
-	var slot: int = Match.active_slot() if Net.is_offline() else Net.local_slot()
-	return Match.feed_time_left(slot)
+	var slot: int = ctx.active_slot() if ctx.net_is_offline() else ctx.net_local_slot()
+	return ctx.feed_time_left(slot)
 
 
 ## Feeds the block timer (seconds left before the forced drop; negative = none).

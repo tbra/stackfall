@@ -101,7 +101,7 @@ func wake_for_external_force(block: Block) -> bool:
 
 func _physics_process(delta: float) -> void:
 	apply_catchup_cap()
-	if not Net.is_host():
+	if not MatchContext.current().net_is_host():
 		return
 	check_field_motion()
 	_tick(delta)
