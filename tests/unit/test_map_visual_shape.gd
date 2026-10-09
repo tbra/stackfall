@@ -51,7 +51,13 @@ func test_collision_and_visible_mesh_match_map_def_for_every_shipped_map() -> vo
 
 			var mesh: Mesh = field.overlay().mesh
 			assert_not_null(mesh, "%s: overlay mesh" % label)
-			var box: AABB = mesh.get_aabb()
+			# Bontago-mp0.150.1: surface 0 is the playing slab; later surfaces are the rim.
+			var top_arrays: Array = (mesh as ArrayMesh).surface_get_arrays(0)
+			var box: AABB = AABB()
+			var first: bool = true
+			for vertex: Vector3 in top_arrays[Mesh.ARRAY_VERTEX]:
+				box = AABB(vertex, Vector3.ZERO) if first else box.expand(vertex)
+				first = false
 			if DiskShapeMesh.needs_cell_mesh(map_def):
 				assert_almost_eq(box.position.x, expected.position.x, AABB_SLACK, "%s visible min x" % label)
 				assert_almost_eq(box.end.z, expected.end.y, AABB_SLACK, "%s visible max z" % label)
@@ -60,7 +66,7 @@ func test_collision_and_visible_mesh_match_map_def_for_every_shipped_map() -> vo
 				var tris: int = (mesh as ArrayMesh).surface_get_arrays(0)[Mesh.ARRAY_VERTEX].size() / 3
 				assert_gte(tris, 2 * field.cell_count(), "%s visible triangles cover every cell" % label)
 			else:
-				assert_true(mesh is CylinderMesh, "%s: round/oval keep the cylinder" % label)
+				assert_almost_eq(box.size.x, 2.0 * map_def.field_radius, AABB_SLACK, "%s: round/oval keep the disc slab" % label)
 
 
 func test_ring_visible_mesh_has_no_top_face_over_the_hole() -> void:

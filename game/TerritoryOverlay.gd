@@ -158,6 +158,9 @@ var _upload_accumulator: float = 0.0
 ## outline...) must not reallocate a mesh at raster_upload_hz. -1 before
 ## configure() ever runs.
 var _baked_mesh_segments: int = -1
+## Side-surface builder of the current arena mesh and its look tunables.
+var _arena: ArenaMesh = null
+var _body_visuals: DiscBodyVisuals = null
 
 ## Bontago-cmc.5: the analytic circle list (see set_circles()'s doc). Kept
 ## the same way _owner_cell_image is — a headless test has no rendering
@@ -211,8 +214,14 @@ func _process(delta: float) -> void:
 
 ## Builds the disk mesh and its material. Called by Field before the node
 ## enters the tree.
-func configure(map_def: MapDef, visuals: TerritoryVisuals, tuning: TerritoryTuning) -> void:
+func configure(
+	map_def: MapDef,
+	visuals: TerritoryVisuals,
+	tuning: TerritoryTuning,
+	body_visuals: DiscBodyVisuals = null
+) -> void:
 	layers = DISC_LAYER_BIT
+	_body_visuals = body_visuals
 	_pushed_revision = -1
 	_map_def = map_def
 	_visuals = visuals
@@ -233,30 +242,68 @@ func configure(map_def: MapDef, visuals: TerritoryVisuals, tuning: TerritoryTuni
 	_set_blank_texture()
 	_build_bake_viewport()
 	clear_circles()
-	material_override = _material
+	_assign_surface_materials()
 
 
-## Recreates the disk's CylinderMesh with the current
-## _visuals.disk_mesh_segments, keeping the same radius/height configure()
-## built it with (Bontago-mv0.20b, F4 tuning panel live-apply). Public so
-## configure() and refresh_visual_uniforms() share one place that knows the
-## disk's actual dimensions; a no-op-safe call before configure() simply does
-## nothing (there is no _map_def/_visuals yet to build from).
+## Rebuilds THE arena mesh (Bontago-mp0.150.1): one ArrayMesh whose surface 0 is
+## the playing-surface slab (territory shader; the CylinderMesh arrays for
+## ROUND/OVAL, DiskShapeMesh's cell slab for RING/TWIN/CROSS, Bontago-1pi.60) and
+## whose further surfaces are ArenaMesh's chamfer / band / bottom (only when a
+## DiscBodyVisuals was passed to configure()). Uses the current
+## _visuals.disk_mesh_segments, keeping the same radius/height configure() built
+## it with (Bontago-mv0.20b, F4 tuning panel live-apply). Public so configure()
+## and refresh_visual_uniforms() share one place that knows the disk's actual
+## dimensions; a no-op-safe call before configure() simply does nothing.
 func rebuild_disk_mesh() -> void:
 	if _map_def == null or _visuals == null:
 		return
+	var arena: ArrayMesh = ArrayMesh.new()
+	var top_arrays: Array = _top_surface_arrays()
+	if not top_arrays.is_empty():
+		arena.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, top_arrays)
+	_arena = ArenaMesh.new()
+	if _body_visuals != null:
+		# The node sits at -disk_height / 2 (Field), so the side surfaces, authored
+		# against world y = 0 as the playing surface, shift up by half the height.
+		_arena.append_side_surfaces(
+			arena, _map_def, _body_visuals, _body_visuals.segments, _map_def.disk_height * 0.5
+		)
+	mesh = arena
+	_baked_mesh_segments = _visuals.disk_mesh_segments
+	_assign_surface_materials()
+
+
+## Surface arrays of the playing-surface slab (see rebuild_disk_mesh()).
+func _top_surface_arrays() -> Array:
 	# Bontago-1pi.60: RING/TWIN/CROSS draw their real cell shape, not the disc.
 	if DiskShapeMesh.needs_cell_mesh(_map_def):
-		mesh = DiskShapeMesh.build(_map_def, _map_def.disk_height)
-		_baked_mesh_segments = _visuals.disk_mesh_segments
-		return
+		var cells: ArrayMesh = DiskShapeMesh.build(_map_def, _map_def.disk_height)
+		if cells.get_surface_count() == 0:
+			return []
+		return cells.surface_get_arrays(0)
 	var cylinder: CylinderMesh = CylinderMesh.new()
 	cylinder.top_radius = _map_def.field_radius
 	cylinder.bottom_radius = _map_def.field_radius
 	cylinder.height = _map_def.disk_height
 	cylinder.radial_segments = _visuals.disk_mesh_segments
-	mesh = cylinder
-	_baked_mesh_segments = _visuals.disk_mesh_segments
+	return cylinder.get_mesh_arrays()
+
+
+## One material slot per surface: the territory shader on the top, ArenaMesh's own
+## materials on the side surfaces (no material_override, which would cover all).
+func _assign_surface_materials() -> void:
+	if mesh == null or _material == null or mesh.get_surface_count() == 0:
+		return
+	set_surface_override_material(0, _material)
+	if _arena == null:
+		return
+	for surface: int in _arena.materials():
+		set_surface_override_material(surface, _arena.material_for_surface(surface))
+
+
+## The generated side surfaces (chamfer/band/bottom indices and materials).
+func arena() -> ArenaMesh:
+	return _arena
 
 
 func material() -> ShaderMaterial:
