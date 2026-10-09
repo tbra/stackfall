@@ -100,7 +100,7 @@ extends Resource
 ## visible in the mockup where it interacts with the sun (top-right and
 ## bottom-center)") -- shaders/territory.gdshader's own top_grain_* uniforms,
 ## a cheap hash-noise NORMAL/ROUGHNESS perturbation on the flat top surface
-## only (this package's own game/DiscBody.gd already textures the side
+## only (this package's own game/ArenaMesh.gd already textures the side
 ## band/chamfer, a separate mesh/material). Nearly invisible in plain
 ## diffuse/ambient light by design -- it only visibly breaks up the
 ## explicit sun-facing sheen (disk_sheen_* above) and the mirror/ambient/

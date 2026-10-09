@@ -58,7 +58,7 @@ extends MeshInstance3D
 const STATE_CONTESTED: int = TerritoryRaster.STATE_CONTESTED
 const STATE_HOLE: int = TerritoryRaster.STATE_HOLE
 
-## Render layer the disc (overlay top + DiscBody rim) lives on alone, so the disc
+## Render layer the disc (overlay top + ArenaMesh side surfaces) lives on alone, so the disc
 ## ReflectionProbe (Skybox.PROBE_CULL_MASK) and the decals skip it. Moved here from
 ## the removed DiscMirror (owner 2026-10-07).
 const DISC_LAYER_BIT: int = 1 << 19
@@ -161,6 +161,7 @@ var _baked_mesh_segments: int = -1
 ## Side-surface builder of the current arena mesh and its look tunables.
 var _arena: ArenaMesh = null
 var _body_visuals: DiscBodyVisuals = null
+var _side_style: ArenaSideStyle = null
 
 ## Bontago-cmc.5: the analytic circle list (see set_circles()'s doc). Kept
 ## the same way _owner_cell_image is — a headless test has no rendering
@@ -218,10 +219,12 @@ func configure(
 	map_def: MapDef,
 	visuals: TerritoryVisuals,
 	tuning: TerritoryTuning,
-	body_visuals: DiscBodyVisuals = null
+	body_visuals: DiscBodyVisuals = null,
+	side_style: ArenaSideStyle = null
 ) -> void:
 	layers = DISC_LAYER_BIT
 	_body_visuals = body_visuals
+	_side_style = side_style
 	_pushed_revision = -1
 	_map_def = map_def
 	_visuals = visuals
@@ -266,7 +269,7 @@ func rebuild_disk_mesh() -> void:
 		# The node sits at -disk_height / 2 (Field), so the side surfaces, authored
 		# against world y = 0 as the playing surface, shift up by half the height.
 		_arena.append_side_surfaces(
-			arena, _map_def, _body_visuals, _body_visuals.segments, _map_def.disk_height * 0.5
+			arena, _map_def, _body_visuals, _body_visuals.segments, _map_def.disk_height * 0.5, _side_style
 		)
 	mesh = arena
 	_baked_mesh_segments = _visuals.disk_mesh_segments
