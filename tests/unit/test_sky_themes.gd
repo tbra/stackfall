@@ -486,7 +486,7 @@ func test_default_match_runs_the_cycle_from_the_start_phase() -> void:
 	assert_almost_eq(skybox.cycle_phase_at(0.0), start, 0.0001, "the shared clock starts at 0")
 	assert_gt(_sun_elevation(skybox), 0.5, "morning: the sun is well up")
 	assert_lt(_night_mix(skybox), 0.01, "the start phase is full day")
-	assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_INCREMENTAL, "a running cycle keeps updating the radiance")
+	assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_REALTIME, "a running cycle keeps updating the radiance")
 	skybox.update_cycle_clock(30.0)
 	assert_almost_eq(skybox.current_cycle_phase(), fposmod(start + 30.0 / 300.0, 1.0), 0.0001, "the clock carries it on")
 
@@ -518,7 +518,7 @@ func test_each_sky_mode_locks_the_right_phase() -> void:
 		for clock: float in [0.0, 41.0, 987654.0]:
 			skybox.update_cycle_clock(clock)
 			assert_almost_eq(skybox.current_cycle_phase(), expected, 0.0001, "%s: the clock is ignored at %s s" % [label, clock])
-		assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_QUALITY, "%s: a locked sky stops incremental updates" % label)
+		assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_QUALITY, "%s: a locked sky stops radiance updates" % label)
 		if entry[1] == "night":
 			assert_gt(_night_mix(skybox), 0.99, "%s: midnight" % label)
 			assert_lt(_sun_elevation(skybox), 0.0, "%s: sun below the horizon" % label)
@@ -610,7 +610,7 @@ func test_lock_and_unlock_a_running_cycle_keep_the_phase_continuous() -> void:
 	skybox.set_locked_phase(1.25)
 	assert_almost_eq(skybox.locked_phase(), 0.25, 0.0001, "a lock wraps into 0..1")
 	skybox.set_locked_phase(-1.0)
-	assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_INCREMENTAL, "running again")
+	assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_REALTIME, "running again")
 	assert_almost_eq(skybox.cycle_phase_at(60.0), 0.25, 0.0001, "no jump at the unlock")
 	skybox.update_cycle_clock(90.0)
 	assert_almost_eq(skybox.current_cycle_phase(), 0.35, 0.0001, "and it carries on at the cycle rate")
@@ -635,7 +635,7 @@ func test_start_cycle_restarts_with_the_given_lock_or_start_phase() -> void:
 	assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_QUALITY)
 	skybox.start_cycle()
 	assert_eq(skybox.locked_phase(), -1.0, "a restart without a lock runs")
-	assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_INCREMENTAL)
+	assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_REALTIME)
 
 
 func test_a_static_theme_ends_the_cycle_and_its_lock() -> void:

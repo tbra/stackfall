@@ -158,7 +158,7 @@ func test_ready_starts_the_cycle_for_theme_name_cycle() -> void:
 	assert_true(skybox.is_cycle_active(), "the persisted cycle entry runs at boot")
 	assert_eq(skybox.locked_phase(), -1.0)
 	assert_almost_eq(skybox.current_cycle_phase(), (Skybox.load_theme("sunset") as SkyThemeDef).cycle_start_phase, 0.0001)
-	assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_INCREMENTAL)
+	assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_REALTIME)
 	assert_not_null(skybox.get_cloud_sea(), "the layers the cycle drives exist")
 
 	var static_skybox: Skybox = Skybox.new()

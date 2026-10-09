@@ -209,6 +209,16 @@ var _launch_theme: SkyThemeDef = null
 var _launch_theme_name: String = ""
 var _launch_cycle: bool = false
 var _launch_process_mode: Sky.ProcessMode = Sky.PROCESS_MODE_AUTOMATIC
+
+## Bontago-1pi.11.74 (G1): see _process. SKY_TIME_GLOBAL is registered in project.godot
+## [shader_globals] (tools/bootstrap_project.gd).
+const SKY_TIME_GLOBAL: StringName = &"sky_time"
+const RADIANCE_TICK_WRAP: int = 1024
+const MIN_RADIANCE_HZ: float = 0.001
+const SECONDS_PER_MSEC: float = 0.001
+var radiance_config: SkyRadianceConfig = preload("res://config/sky_radiance_config.tres")
+var _radiance_accum_s: float = 0.0
+var _radiance_ticks: int = 0
 var _launch_set_enabled: bool = false
 var _launch_default_set: String = ""
 
@@ -346,9 +356,44 @@ func _prune_overcast_sky_bases() -> void:
 func _process(delta: float) -> void:
 	_step_probe_interval(delta)
 	_step_cloud_drift(delta)
-	if _cycle_theme == null:
+	_publish_sky_time()
+	# Bontago-1pi.11.74 (G1): the radiance octmap re-renders whenever the sky material
+	# is written (sky.cpp:1044 uniform_set_updated) or the shader reads TIME (:1033;
+	# the sky shaders read the global `sky_time` instead, which neither flag sees, so
+	# the visible sky stays smooth). Material writes (the cycle's sun/palette and
+	# `radiance_tick`) therefore happen at radiance_hz, not every frame; the cycle
+	# phase is still derived from the exact shared clock at each write, so host and
+	# client agree. A locked/static sky (QUALITY) is never ticked: re-dirtying it
+	# would run the full GGX filter (the measured +1.3 ms), so it stays static.
+	_radiance_accum_s += delta
+	var interval: float = 1.0 / maxf(radiance_config.radiance_hz, MIN_RADIANCE_HZ)
+	if _radiance_accum_s < interval:
 		return
-	update_cycle_clock(SnapshotSync.sky_cycle_seconds())
+	_radiance_accum_s = minf(_radiance_accum_s - interval, interval)
+	if _cycle_theme != null and _cycle_locked_phase < 0.0:
+		update_cycle_clock(SnapshotSync.sky_cycle_seconds())
+	elif _cycle_theme == null:
+		_tick_radiance()
+
+
+## Writes the shaders' global `sky_time` (see shaders/sunset_clouds.gdshader). A global
+## uniform lives in the shared global buffer: no material dirty, no radiance re-render.
+func _publish_sky_time() -> void:
+	RenderingServer.global_shader_parameter_set(SKY_TIME_GLOBAL,
+		fposmod(float(Time.get_ticks_msec()) * SECONDS_PER_MSEC, radiance_config.time_wrap_seconds))
+
+
+## Dirties the live sky material once (a counter write) so a sky with no cycle still
+## refreshes its radiance at radiance_hz. Skipped for QUALITY skies (textured sets,
+## which have no animation and must not re-run the full filter).
+func _tick_radiance() -> void:
+	if environment == null or environment.sky == null or environment.sky.process_mode == Sky.PROCESS_MODE_QUALITY:
+		return
+	var material: ShaderMaterial = environment.sky.sky_material as ShaderMaterial
+	if material == null:
+		return
+	_radiance_ticks += 1
+	material.set_shader_parameter(&"radiance_tick", float(_radiance_ticks % RADIANCE_TICK_WRAP))
 
 
 ## Advances the cycle to the shared clock `clock_seconds` (SnapshotSync's host
@@ -419,7 +464,7 @@ func set_locked_phase(phase: float) -> void:
 		# DECISION: the running phase continues from the held phase at the last
 		# shared clock seen, so unlocking never jumps the time of day.
 		_cycle_phase_offset = held - _cycle_clock_s / _cycle_length_s
-		_set_sky_process_mode(Sky.PROCESS_MODE_INCREMENTAL)
+		_set_sky_process_mode(Sky.PROCESS_MODE_REALTIME)
 		return
 	_cycle_locked_phase = fposmod(phase, 1.0)
 	set_cycle_phase(_cycle_locked_phase)
@@ -541,7 +586,10 @@ func _start_cycle_at(clock_seconds: float, lock_phase: float, start_phase: float
 		_set_sky_process_mode(Sky.PROCESS_MODE_QUALITY)
 		refresh_reflection_capture()
 	else:
-		_set_sky_process_mode(Sky.PROCESS_MODE_INCREMENTAL)
+		# DECISION (Bontago-1pi.11.74): REALTIME, not INCREMENTAL. The radiance now refreshes
+		# at radiance_hz; REALTIME does that as one octmap render + cheap fast filter,
+		# INCREMENTAL would spend ~7 frames of GGX layers per refresh.
+		_set_sky_process_mode(Sky.PROCESS_MODE_REALTIME)
 
 
 func _set_sky_process_mode(mode: Sky.ProcessMode) -> void:

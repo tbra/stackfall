@@ -1,6 +1,17 @@
 shader_type sky;
 #include "res://shaders/include/cloud_common.gdshaderinc"
 
+// Bontago-1pi.11.74 (G1): the sky must NOT read the built-in TIME. Any TIME use makes
+// the engine re-render the whole radiance octmap + filter every frame (sky.cpp:1033,
+// uses_time), and so does every material uniform write (sky.cpp:1044). `sky_time` is a
+// GLOBAL uniform (project.godot [shader_globals]): game/Skybox.gd writes it each frame
+// into the shared global buffer, which neither flag sees, so the visible background
+// animates smoothly while the radiance only re-renders at SkyRadianceConfig.radiance_hz
+// (a `radiance_tick` write + the cycle's palette/sun writes).
+global uniform float sky_time;
+uniform float radiance_tick = 0.0;
+
+
 uniform float exposure = 0.8;
 // Bontago-59o.18 P6a: the painted panorama is removed. sky_yaw/pitch_offset_deg are kept only
 // because game/Skybox.gd, CloudSea and the theme resources still write them (cleanup follow-up);
@@ -240,7 +251,7 @@ void sky() {
 			// Background pass only: the layered cel cloud sea (noise taps). The
 			// radiance pass keeps the flat placeholder above.
 			if (!AT_CUBEMAP_PASS) {
-				pcol = procedural_sea_color(noise_tex, eyedir, sun_dir, TIME, proc_sea_params, proc_sea_heights,
+				pcol = procedural_sea_color(noise_tex, eyedir, sun_dir, sky_time, proc_sea_params, proc_sea_heights,
 					proc_sea_wind, proc_sea_coverage, proc_sea_softness, proc_sea_band_edge, proc_sea_horizon_fade,
 					proc_sea_color_near.rgb, proc_sea_color_far.rgb, cloud_shadow_color, cloud_mid_color,
 					cloud_lit_color, cloud_rim_color, pcol);
@@ -264,10 +275,10 @@ void sky() {
 		float cmix = clamp(procedural_sea_mix, 0.0, 1.0) * clamp(proc_cards_mix, 0.0, 1.0);
 		float csun = smoothstep(sun_core_angular_radius_deg, cloud_sun_clear_deg * 0.5, angle_deg);
 		float cfade = smoothstep(proc_cards_fade_start, proc_cards_fade_height, eyedir.y) * csun * proc_cards_opacity * cmix;
-		vec4 k2 = sky_cloud_cards(cloud_cards, eyedir, sun_dir, TIME, proc_cards_layout2, 17.0, proc_cards_wind.zw,
+		vec4 k2 = sky_cloud_cards(cloud_cards, eyedir, sun_dir, sky_time, proc_cards_layout2, 17.0, proc_cards_wind.zw,
 			proc_cards_bands, cloud_cel_edge, proc_cards_light, proc_cards_contrast, cloud_shadow_color, cloud_mid_color, cloud_lit_color, cloud_rim_color);
 		COLOR = mix(COLOR, k2.rgb * exposure, k2.a * cfade);
-		vec4 k1 = sky_cloud_cards(cloud_cards, eyedir, sun_dir, TIME, proc_cards_layout, 0.0, proc_cards_wind.xy,
+		vec4 k1 = sky_cloud_cards(cloud_cards, eyedir, sun_dir, sky_time, proc_cards_layout, 0.0, proc_cards_wind.xy,
 			proc_cards_bands, cloud_cel_edge, proc_cards_light, proc_cards_contrast, cloud_shadow_color, cloud_mid_color, cloud_lit_color, cloud_rim_color);
 		COLOR = mix(COLOR, k1.rgb * exposure, k1.a * cfade);
 	}
@@ -275,12 +286,12 @@ void sky() {
 		vec2 to_sun_xz = normalize(sun_dir.xz + vec2(0.0001));
 		float sun_clear = smoothstep(sun_core_angular_radius_deg, cloud_sun_clear_deg, angle_deg);
 		float mixv = clamp(procedural_sea_mix, 0.0, 1.0);
-		vec4 u1 = procedural_upper_clouds(noise_tex, eyedir, to_sun_xz, TIME, cloud_layer_scale * proc_strata_scale * proc_upper_scale.x,
+		vec4 u1 = procedural_upper_clouds(noise_tex, eyedir, to_sun_xz, sky_time, cloud_layer_scale * proc_strata_scale * proc_upper_scale.x,
 			cloud_horizon_lift, 0.0, cloud_wind, cloud_wind_speed, cloud_coverage - proc_upper_coverage_shift, cloud_edge_softness, cloud_bands,
 			cloud_cel_edge, proc_upper_shape, cloud_shadow_color, cloud_mid_color, cloud_lit_color, cloud_rim_color);
 		COLOR = mix(COLOR, u1.rgb * exposure, u1.a * proc_strata_opacity * mixv
 			* smoothstep(cloud_fade_start, cloud_fade_height, eyedir.y) * sun_clear);
-		vec4 u2 = procedural_upper_clouds(noise_tex, eyedir, to_sun_xz, TIME, proc_strata2_scale * proc_upper_scale.y, proc_strata2_lift,
+		vec4 u2 = procedural_upper_clouds(noise_tex, eyedir, to_sun_xz, sky_time, proc_strata2_scale * proc_upper_scale.y, proc_strata2_lift,
 			proc_upper_rot2, proc_strata2_wind, cloud_wind_speed * 1.8, proc_strata2_coverage - proc_upper_coverage_shift * 0.5, cloud_edge_softness,
 			proc_strata2_bands, cloud_cel_edge, proc_upper_shape, cloud_shadow_color, cloud_mid_color, cloud_lit_color,
 			cloud_rim_color);
@@ -302,7 +313,7 @@ void sky() {
 	}
 	// Aurora over the night sky, behind the moon below and (like the stars) background pass only.
 	if (aurora_visibility > 0.0 && aurora_intensity > 0.0 && !AT_CUBEMAP_PASS && eyedir.y > 0.0) {
-		COLOR += aurora_borealis(noise_tex, eyedir, TIME, aurora_base_height, aurora_curtain_height, aurora_speed,
+		COLOR += aurora_borealis(noise_tex, eyedir, sky_time, aurora_base_height, aurora_curtain_height, aurora_speed,
 			aurora_color_low, aurora_color_mid, aurora_color_top) * aurora_intensity * aurora_visibility * exposure;
 	}
 	if (moon_visibility > 0.0 && !AT_CUBEMAP_PASS) {
@@ -337,7 +348,7 @@ void sky() {
 	float ray_angle = atan(dot(offset, bitangent), dot(offset, tangent));
 	float ray_fade = 1.0 - smoothstep(0.0, ray_length_deg, angle_deg);
 	if (ray_fade > 0.0 && sun_effect_scale > 0.0) {
-		float shimmer = 1.0 + sin(TIME * ray_shimmer_speed + ray_angle * 3.0) * ray_shimmer_amount;
+		float shimmer = 1.0 + sin(sky_time * ray_shimmer_speed + ray_angle * 3.0) * ray_shimmer_amount;
 		float rays_thin = pow(abs(cos(ray_angle * ray_count * 0.5)), ray_sharpness);
 		float rays_wide = pow(abs(cos(ray_angle * ray_wide_count * 0.5)), ray_wide_sharpness);
 		float rays = (rays_thin * 0.65 + rays_wide * 0.35) * ray_fade * ray_intensity * shimmer * (1.0 - cycle_night_mix) * sun_effect_scale;
