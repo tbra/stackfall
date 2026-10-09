@@ -800,6 +800,38 @@ func test_configure_ssr_disabled_turns_off_ssr_in_the_environment() -> void:
 	assert_false(environment.ssr_enabled)
 
 
+func test_configure_ssr_writes_ssao_fields_and_defaults_off() -> void:
+	var wired: Dictionary = _make_wired_skybox()
+	var skybox: Skybox = wired["skybox"] as Skybox
+	var environment: Environment = wired["environment"] as Environment
+	var visuals: TerritoryVisuals = TerritoryVisuals.new()
+	assert_false(visuals.ssao_enabled, "SSAO must default off so the shipped look is unchanged.")
+	skybox.visuals = visuals
+	skybox.configure_ssr()
+	assert_false(environment.ssao_enabled)
+
+	visuals.ssao_enabled = true
+	visuals.ssao_radius = 1.7
+	visuals.ssao_intensity = 3.5
+	visuals.ssao_power = 2.2
+	visuals.ssao_detail = 0.7
+	visuals.ssao_horizon = 0.1
+	visuals.ssao_sharpness = 0.9
+	visuals.ssao_light_affect = 0.3
+	visuals.ssao_ao_channel_affect = 0.4
+	skybox.refresh_from_visuals()
+
+	assert_true(environment.ssao_enabled)
+	assert_almost_eq(environment.ssao_radius, 1.7, 0.0001)
+	assert_almost_eq(environment.ssao_intensity, 3.5, 0.0001)
+	assert_almost_eq(environment.ssao_power, 2.2, 0.0001)
+	assert_almost_eq(environment.ssao_detail, 0.7, 0.0001)
+	assert_almost_eq(environment.ssao_horizon, 0.1, 0.0001)
+	assert_almost_eq(environment.ssao_sharpness, 0.9, 0.0001)
+	assert_almost_eq(environment.ssao_light_affect, 0.3, 0.0001)
+	assert_almost_eq(environment.ssao_ao_channel_affect, 0.4, 0.0001)
+
+
 func test_configure_ssr_and_refresh_are_noops_without_a_wired_environment() -> void:
 	# before_each()'s plain _skybox never wires `environment` (only the tests
 	# above build their own via _make_wired_skybox()) or a

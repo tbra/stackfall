@@ -412,3 +412,28 @@ extends Resource
 ## Depth-buffer tolerance, in meters, for a marched ray to count as hitting a
 ## surface; Environment's own engine default.
 @export var ssr_depth_tolerance: float = 0.2
+
+## -- Screen-space ambient occlusion (Bontago-1pi.11.70, experiment for decision
+## 1pi.11.68: "SSR off looked dull") -----------------------------------------
+##
+## Skybox.gd's configure_ssr() also writes these onto the wired Environment.
+## Default OFF so the shipped look is unchanged; every tunable below defaults to
+## Environment's own engine default. The SSAO quality/half-size level is a project
+## setting (rendering/environment/ssao/*) and stays at the engine default.
+@export var ssao_enabled: bool = false
+## Distance, in meters, in which occluders are searched for.
+@export_range(0.01, 16.0, 0.01, "or_greater") var ssao_radius: float = 1.0
+## Strength of the occlusion darkening.
+@export_range(0.0, 16.0, 0.01, "or_greater") var ssao_intensity: float = 2.0
+## Exponent applied to the occlusion; higher darkens the crevices more sharply.
+@export_range(0.01, 16.0, 0.01, "or_greater") var ssao_power: float = 1.5
+## Extra fine-detail occlusion on small features.
+@export_range(0.0, 1.0, 0.01) var ssao_detail: float = 0.5
+## Horizon cutoff; higher ignores surfaces nearly parallel to the view.
+@export_range(0.0, 1.0, 0.01) var ssao_horizon: float = 0.06
+## Edge sharpness; higher reduces blur across depth edges.
+@export_range(0.0, 1.0, 0.01) var ssao_sharpness: float = 0.98
+## How much SSAO also darkens direct light (0 = ambient only).
+@export_range(0.0, 1.0, 0.01) var ssao_light_affect: float = 0.0
+## How much SSAO affects the baked/material AO channel.
+@export_range(0.0, 1.0, 0.01) var ssao_ao_channel_affect: float = 0.0
