@@ -71,6 +71,8 @@ signal hole_cells_applied(opened: PackedInt32Array)
 ## Bontago-mp0.3.2: the disc's purely-visual side band + glowing rim (see
 ## game/ArenaMesh.gd's own class doc). Owned by that same package.
 @export var disc_body_visuals: DiscBodyVisuals = preload("res://config/disc_body_visuals.tres")
+## Bontago-mp0.150.2: which side/underside look the arena draws (default CURRENT).
+@export var arena_side_style: ArenaSideStyle = preload("res://config/arena_side_style.tres")
 @export var home_flag_scene: PackedScene = preload("res://game/HomeFlag.tscn")
 @export var goal_flag_scene: PackedScene = preload("res://game/GoalFlag.tscn")
 
@@ -723,7 +725,7 @@ func rebuild_for_map(new_map_def: MapDef) -> void:
 	_rebuild_cells()
 	_build_kill_plane()
 	if _overlay != null:
-		_overlay.configure(map_def, visuals, territory_tuning, disc_body_visuals)
+		_overlay.configure(map_def, visuals, territory_tuning, disc_body_visuals, arena_side_style)
 
 
 ## Every in-disk cell index in row-major order. CellGrid is the one authority
@@ -1081,7 +1083,7 @@ func clear_match_state() -> void:
 func _build_overlay() -> void:
 	_overlay = TerritoryOverlay.new()
 	_overlay.name = &"DiskMesh"
-	_overlay.configure(map_def, visuals, territory_tuning, disc_body_visuals)
+	_overlay.configure(map_def, visuals, territory_tuning, disc_body_visuals, arena_side_style)
 	_overlay.position = Vector3(0.0, -map_def.disk_height * 0.5, 0.0)
 	add_child(_overlay)
 

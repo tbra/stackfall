@@ -7,12 +7,13 @@ extends Resource
 ## MapDef.disk_height thick -- that number is load-bearing for physics
 ## (game/Field.gd's own collision walls are disk_height deep, so a block
 ## cannot tunnel into a hole) and this package's brief keeps that gameplay
-## semantic untouched. Every field below only shapes game/DiscBody.gd's
-## separate, collision-free band + chamfer mesh that hangs below the
+## semantic untouched. Every field below only shapes game/ArenaMesh.gd's
+## collision-free band + chamfer surfaces of the arena mesh that hang below the
 ## overlay's own underside, so the two read as one continuous, much thicker
 ## edge without moving a single physics number.
 ##
-## Loaded once as config/disc_body_visuals.tres.
+## Loaded once as config/disc_body_visuals.tres. The alternative side/underside
+## looks are picked by config/ArenaSideStyle.gd (CURRENT = the look below).
 
 ## -- Metal side band ---------------------------------------------------------
 ## Height of the band, as a fraction of the disc's own diameter
@@ -51,7 +52,7 @@ extends Resource
 ## proud lip" value, coincidentally already tuned against this same mockup)
 ## reads as a genuine, visible chamfer without looking like a floating gap.
 @export var band_radius_scale: float = 1.006
-## Radial segments the band/chamfer outline is walked in (game/DiscBody.gd's
+## Radial segments the band/chamfer outline is walked in (game/ArenaMesh.gd's
 ## own _outline_points()) -- independent of TerritoryVisuals.disk_mesh_segments
 ## (the top surface's own CylinderMesh) so this mesh's circular silhouette
 ## can be tuned without paying for a denser top-surface mesh too.

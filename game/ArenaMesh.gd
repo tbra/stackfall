@@ -20,7 +20,9 @@ extends RefCounted
 ## DECISION (game/ArenaMesh.gd): the side materials keep cull_mode
 ## CULL_DISABLED rather than hand-verified winding, as DiscBody did.
 
-enum Kind { TOP, CHAMFER, BAND, BOTTOM }
+## GLOW is the emissive part of the alternative looks (ArenaSideStyle); the
+## values of BAND/BOTTOM/GLOW match game/ArenaSideBuilder.gd's KIND_* constants.
+enum Kind { TOP, CHAMFER, BAND, BOTTOM, GLOW }
 
 const _CHAMFER_SHADER: Shader = preload("res://shaders/disc_rim.gdshader")
 const _BAND_OVERLAY_SHADER: Shader = preload("res://shaders/disc_band_overlay.gdshader")
@@ -72,13 +74,20 @@ func materials() -> Dictionary:
 ## old world-space-at-origin coordinates become local with +disk_height/2).
 ## Returns the number of surfaces appended (0 for TWIN/CROSS).
 func append_side_surfaces(
-	target: ArrayMesh, map_def: MapDef, body_visuals: DiscBodyVisuals, segments: int, y_shift: float
+	target: ArrayMesh,
+	map_def: MapDef,
+	body_visuals: DiscBodyVisuals,
+	segments: int,
+	y_shift: float,
+	side_style: ArenaSideStyle = null
 ) -> int:
 	_surface_of.clear()
 	_materials.clear()
 	if map_def == null or body_visuals == null:
 		return 0
 	visuals = body_visuals
+	if side_style != null and side_style.style != ArenaSideStyle.Style.CURRENT:
+		return _append_style_surfaces(target, map_def, side_style, segments, y_shift)
 	var circular_outline: bool = map_def.map_shape != MapDef.MapShape.TWIN and map_def.map_shape != MapDef.MapShape.CROSS
 	if not circular_outline:
 		return 0
@@ -108,6 +117,50 @@ func append_side_surfaces(
 		var total: int = (band_arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
 		_append(target, Kind.BOTTOM, _slice_arrays(band_arrays, band_vertex_count, total), band_material)
 	return _surface_of.size()
+
+
+## The alternative looks (ArenaSideStyle): flat-shaded vertex-coloured body surfaces
+## plus an unshaded glow surface, hanging from the slab's bottom edge.
+func _append_style_surfaces(
+	target: ArrayMesh, map_def: MapDef, side_style: ArenaSideStyle, segments: int, y_shift: float
+) -> int:
+	var builder: ArenaSideBuilder = ArenaSideBuilder.new()
+	var built: Dictionary = builder.build(map_def, side_style, segments, y_shift - map_def.disk_height)
+	var body_material: StandardMaterial3D = _style_body_material(side_style)
+	var glow_material: StandardMaterial3D = _style_glow_material(side_style)
+	for kind: Kind in [Kind.BAND, Kind.BOTTOM, Kind.GLOW]:
+		if not built.has(int(kind)):
+			continue
+		_append(target, kind, built[int(kind)], glow_material if kind == Kind.GLOW else body_material)
+	return _surface_of.size()
+
+
+## Toon-shaded opaque body colour carried entirely by the vertex colours.
+func _style_body_material(side_style: ArenaSideStyle) -> StandardMaterial3D:
+	var material: StandardMaterial3D = StandardMaterial3D.new()
+	material.vertex_color_use_as_albedo = true
+	material.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+	material.specular_mode = BaseMaterial3D.SPECULAR_TOON
+	material.metallic = 0.0
+	material.roughness = side_style.body_roughness
+	return material
+
+
+## Unshaded glow: vertex colour times a per-style energy (HDR, picked up by glow).
+func _style_glow_material(side_style: ArenaSideStyle) -> StandardMaterial3D:
+	var energy: float = 1.0
+	match side_style.style:
+		ArenaSideStyle.Style.LAYERED_PLATES:
+			energy = side_style.layered_core_energy
+		ArenaSideStyle.Style.ROCKY_ISLAND:
+			energy = side_style.rock_crystal_energy
+		ArenaSideStyle.Style.MACHINED_DISC:
+			energy = side_style.machined_light_energy
+	var material: StandardMaterial3D = StandardMaterial3D.new()
+	material.vertex_color_use_as_albedo = true
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_color = Color(energy, energy, energy, 1.0)
+	return material
 
 
 func _append(target: ArrayMesh, kind: Kind, arrays: Array, material: Material) -> void:
