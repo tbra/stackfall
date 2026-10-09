@@ -254,8 +254,7 @@ amendments), `docs/archive/M4_SPECIALS_PACKAGES.md` (ten packages for the seven 
 top); `xtq.10` surfaces inside the projection glow (emissive) and the disc footprint is
 near-white; `xtq.11` disc is an opaque mirror-like surface, not glass; `mv0.29` camera locked
 in place while MMB is held; `mv0.30` QoL: the next ghost spawns clear of the just-placed block.
-Briefs are in the Beads descriptions; references `docs/original_single-block.png`,
-`docs/original_stacked-tower.png`, `docs/original_in-game.png`. xtq.9/xtq.10 share
+Briefs are in the Beads descriptions; the original-game reference screenshots were removed (Bontago-fca.76). xtq.9/xtq.10 share
 `GhostPreview.gd` (one worker, sequential); xtq.11 and mv0.29 are independent.
 
 **Open owner questions (`bd human list`):** `Bontago-4nz` (queued special when the held piece

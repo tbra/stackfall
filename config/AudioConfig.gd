@@ -1,13 +1,11 @@
 class_name AudioConfig
 extends Resource
-## Typed event -> filename mapping for autoload/Sfx.gd's placeholder audio
-## from the original Bontago install (assets-audio package). Filenames are
-## lowercase; tools/install_original_assets.ps1 lowercases the originals
-## (which mix `Top.jpg`/`top.jpg` case) on install so this file never has to
+## Typed event -> filename mapping for autoload/Sfx.gd's sound effects
+## (assets-audio package). Filenames are lowercase so this file never has to
 ## special-case casing at runtime.
 ##
-## Loaded once as config/audio_config.tres. Original SFX live in gitignored
-## assets/original/audio/ and are referenced by filename only. Owner-created
+## Loaded once as config/audio_config.tres. SFX live in assets/effects/ and
+## are referenced by filename only; a missing file is a silent no-op. Owner-created
 ## music is imported and committed under assets/music/, referenced by the
 ## typed AudioStream playlists below, and included in exported builds.
 
@@ -22,7 +20,7 @@ extends Resource
 @export var hover_file: String = "button_hover_pcm.wav"
 @export var drop_file: String = "block_placed.wav"
 @export var bounce_file: String = "boing.wav"
-@export var music_file: String = "bontago1.mp3"
+@export var music_file: String = "music_calm.mp3"
 
 ## Legacy single-stream fallback (custom-folder overrides are disabled).
 @export var bundled_theme: AudioStream = null
@@ -88,7 +86,7 @@ func playlist_track_count(context: StringName) -> int:
 ## music_tense_progress_threshold. Defaults to the same file as music_file
 ## (still EVENT_MUSIC's own source below) so a checkout with no tense asset
 ## installed sounds identical to before this field existed.
-@export var music_stem_calm_file: String = "bontago1.mp3"
+@export var music_stem_calm_file: String = "music_calm.mp3"
 
 ## DECISION (config/AudioConfig.gd, Bontago-xtq.31): no real "tense" mix of
 ## the original score has shipped yet (docs/M7_PLAN.md P6's own asset-risk
@@ -97,7 +95,7 @@ func playlist_track_count(context: StringName) -> int:
 ## crossfade quietly does nothing until a real file lands here, the same
 ## "supported absence" this file's own header documents for the whole
 ## assets-audio package.
-@export var music_stem_tense_file: String = "bontago1_tense.mp3"
+@export var music_stem_tense_file: String = "music_tense.mp3"
 
 ## Crossfade duration (seconds) for Sfx's Tween between the calm and tense
 ## stems.

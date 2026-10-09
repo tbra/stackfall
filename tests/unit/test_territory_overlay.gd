@@ -580,7 +580,7 @@ func test_refresh_visual_uniforms_does_not_reallocate_the_mesh_when_segments_are
 # the ownership TINT over rim_soft_width (0.25 m, the rim glow's own width) --
 # edge_softness_m below is now a separate, much smaller default so the
 # boundary itself reads as crisp while the glow keeps its existing rim_*
-# tunables untouched (docs/original_hover-preview.png: "hard-edged shadows/
+# tunables untouched (a reference screenshot of the original game: "hard-edged shadows/
 # edges").
 
 func test_edge_softness_m_default_is_crisp_relative_to_the_rim_glow() -> void:

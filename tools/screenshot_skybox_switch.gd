@@ -14,9 +14,8 @@ extends Node
 ##
 ## Picks its two sets from Skybox.list_available_sets() (sorted, so the run is
 ## reproducible) rather than hard-coding names, so it still runs (with a
-## printed warning and only one set shot) on a checkout with the third-party
-## original textures not installed (tools/install_original_assets.ps1;
-## CLAUDE.md/docs/AGENT_WORKFLOW.md: never committed to this public repo).
+## printed warning and only one set shot) on a checkout with no local face
+## sets under assets/sky/face_sets (never committed to this public repo).
 ##
 ## Lives in tools/ (CLAUDE.md: manual-QA scripts, not part of the game).
 ##
@@ -72,8 +71,8 @@ func _ready() -> void:
 	print("XTQ22 discovered_sets=%s" % [available])
 	if available.size() < 2:
 		print(
-			"XTQ22 fewer than two installed sets -- run " +
-			"tools/install_original_assets.ps1 first for a real before/after " +
+			"XTQ22 fewer than two installed sets -- add " +
+			"local face sets under assets/sky/face_sets for a real before/after " +
 			"comparison. Shooting whatever is available instead."
 		)
 

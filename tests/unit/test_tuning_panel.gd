@@ -332,10 +332,9 @@ func test_apply_physics_preset_ignores_an_unknown_id() -> void:
 # (owner: disc reflectivity is "hard to judge with that texture -- add an
 # option to F4 to change the skybox"). Every assertion below reads
 # Skybox.list_available_sets() itself rather than a hardcoded set name, so
-# this stays green on a checkout with the (gitignored, third-party) original
-# textures installed AND on a bare CI checkout with none installed -- see
-# tools/install_original_assets.ps1 and game/Skybox.gd's own class doc on why
-# those assets never ship in this repo.
+# this stays green on a checkout with local face sets installed AND on a bare
+# CI checkout with none -- see game/Skybox.gd's own class doc on why those
+# assets never ship in this repo.
 #
 # Bontago-1pi.1 (owner playtest: "the skybox setting in territory should
 # probably move over to sky settings"): this row moved from the Territory tab

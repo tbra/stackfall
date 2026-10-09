@@ -3,7 +3,7 @@ extends Resource
 ## Maps gift ids and MatchConfig.WeatherMode names to their UI art (Bontago-mp0.125):
 ## the compact pictogram atlases (assets/ui/gift_pictograms_v1, weather_pictograms_v1)
 ## for the lobby toggles/picker, and the rendered model previews
-## (assets/ui/gift_model_previews) for the HUD gift cards. Loaded as
+## (assets/ui/gift_previews, assets/ui/gift_model_previews/additional_v1) for the HUD gift cards. Loaded as
 ## config/gift_icon_table.tres. Presentation only, so every peer reads the same
 ## replicated ids. Not an F4 tuning panel resource (no hints entry needed).
 

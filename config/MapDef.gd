@@ -32,9 +32,9 @@ const TERRITORY_RES_LARGE: int = 512
 
 ## Which placeholder six-face skybox set (config/SkyboxConfig.gd, game/Skybox.gd)
 ## this map loads at match start. A name with no matching
-## assets/original/textures/<set> folder installed just falls back to the
-## existing ProceduralSkyMaterial (see Skybox.load_set()), so this is safe to
-## set even where the owner hasn't installed the original textures locally.
+## assets/sky/face_sets/<set> folder just falls back to the existing
+## ProceduralSkyMaterial (see Skybox.load_set()), so this is safe to set
+## where no local face sets exist.
 @export var skybox_set: String = "beach"
 
 ## Thickness of the disk. Field builds its collision and mesh from this.

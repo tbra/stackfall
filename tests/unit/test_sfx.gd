@@ -1,10 +1,9 @@
 extends GutTest
-## autoload/Sfx.gd + config/AudioConfig.gd: placeholder audio loaded at
-## runtime from a gitignored assets/original/audio folder, never through
-## Godot's import pipeline. Uses a fresh Sfx instance pointed at a temp
-## folder (set_root_dir_for_test) rather than the real "Sfx" autoload
-## singleton, so these tests don't depend on tools/install_original_assets.ps1
-## ever having been run on this machine.
+## autoload/Sfx.gd + config/AudioConfig.gd: audio loaded at
+## runtime from a folder on disk, never through Godot's import pipeline.
+## Uses a fresh Sfx instance pointed at a temp folder (set_root_dir_for_test)
+## rather than the real "Sfx" autoload singleton, so these tests don't depend
+## on the shipped effect files.
 
 const SFX_SCRIPT: GDScript = preload("res://autoload/Sfx.gd")
 

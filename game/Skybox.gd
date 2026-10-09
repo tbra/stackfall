@@ -1,10 +1,9 @@
 class_name Skybox
 extends Node3D
-## Runtime-loaded six-face placeholder skybox from the original 2003 Bontago
-## install (spec 2.10, presentation). The faces are third-party assets and
-## never shipped in this public repo (CLAUDE.md); tools/install_original_assets.ps1
-## (owned by another package) copies them to
-## `res://assets/original/textures/<set>/<face>.jpg` for local testing, and
+## Runtime-loaded optional six-face skybox (spec 2.10, presentation). No face
+## sets ship with the game (third-party textures never enter this public
+## repo, CLAUDE.md); a developer may drop their own faces into
+## `res://assets/sky/face_sets/<set>/<face>.jpg` for local testing, and
 ## load_set() falls back to the existing ProceduralSkyMaterial untouched
 ## whenever that folder or a face inside it is missing.
 ##
@@ -1056,11 +1055,9 @@ func configure_reflection_probe() -> void:
 ## case, since both existence checks below run before any file is opened.
 ##
 ## Face lookup is exact-case (FileAccess.file_exists() against
-## config.face_names, which are lowercase): tools/install_original_assets.ps1
-## (owned by another package) already lowercases every face file it copies,
-## so this never needs to special-case the original install's mixed-case
-## source names itself (see tests/unit/test_skybox.gd's DECISION on why that
-## is not separately tested here).
+## config.face_names, which are lowercase), so face files must be lowercase
+## (see tests/unit/test_skybox.gd's DECISION on why that is not separately
+## tested here).
 func load_set(set_name: String, root_override: String = "") -> bool:
 	_face_textures.clear()
 	if not config.enabled:
@@ -1087,9 +1084,8 @@ func load_set(set_name: String, root_override: String = "") -> bool:
 			return false
 		# Load through an absolute filesystem path: Image.load_from_file on a
 		# res:// path prints an engine warning about bypassing the import
-		# pipeline (GUT counts it as an error) and the editor would import the
-		# gitignored jpgs; assets/original carries a .gdignore for the same
-		# reason (tools/install_original_assets.ps1 writes it).
+		# pipeline (GUT counts it as an error) and the editor would import any
+		# local jpgs; the face_sets folder is gitignored and carries a .gdignore.
 		var image: Image = Image.load_from_file(ProjectSettings.globalize_path(file_path))
 		if image == null:
 			fallback_active = true
@@ -1117,8 +1113,8 @@ func get_face_texture(face_name: String) -> ImageTexture:
 ## live Skybox instance), and the body never read `self` to begin with.
 static func _resolve_asset_root() -> String:
 	if OS.has_feature("editor"):
-		return "res://assets/original/textures"
-	return OS.get_executable_path().get_base_dir().path_join("assets/original/textures")
+		return "res://assets/sky/face_sets"
+	return OS.get_executable_path().get_base_dir().path_join("assets/sky/face_sets")
 
 
 ## Bontago-xtq.22 (owner: "add an option to F4 to change the skybox"): every
@@ -1126,8 +1122,7 @@ static func _resolve_asset_root() -> String:
 ## seam load_set() already has), sorted -- the F4 dropdown's own list of real
 ## sets, built by ui/TuningPanel.gd alongside its fixed "Procedural / none"
 ## entry. Returns an empty array (never an error) when the root itself does
-## not exist -- the ordinary "original assets not installed" case (CLAUDE.md/
-## docs/AGENT_WORKFLOW.md: this repo never ships the third-party textures),
+## not exist -- the ordinary "no local face sets" case (this repo ships none),
 ## so a CI machine's dropdown just shows the procedural entry alone.
 static func list_available_sets(root_override: String = "") -> PackedStringArray:
 	var root: String = root_override if root_override != "" else _resolve_asset_root()
