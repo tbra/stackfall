@@ -322,7 +322,7 @@ func _claim_color(slot_id: int) -> Color:
 	# DECISION (Bontago-1pi.86.3): D1 precedence via Match.slot_color (live slot, else the
 	# running config's palette, else the default palette, else white). The old copy read
 	# match_defaults.tres even with a live config; identical unless a match overrides colours.
-	return Match.slot_color(slot_id, Color.WHITE)
+	return MatchContext.current().slot_color(slot_id, Color.WHITE)
 
 
 ## The actual "pop": a brand-new box mesh (not a continuation of the claimed
@@ -392,7 +392,7 @@ func _is_hint_hovering() -> bool:
 	var ghost: GhostPreview = get_tree().get_first_node_in_group(GhostPreview.LOCAL_HELD_GROUP) as GhostPreview
 	if ghost == null or ghost.get_shape() == null:
 		return false
-	var field: Field = Match.field()
+	var field: FieldBody = MatchContext.current().field()
 	if field == null:
 		return false
 	var ghost_local: Vector2 = field.disk_local_from_world(ghost.global_position)
@@ -411,10 +411,11 @@ func _is_hint_hovering() -> bool:
 ## (or any node path to one), and both branches are two public, already
 ## existing calls each.
 func _local_watch_slot() -> int:
-	if Match.config != null and Match.config.hot_seat:
-		return Match.active_slot()
-	for slot_id: int in range(Match.slot_count()):
-		if Net.is_local_slot(slot_id):
+	var ctx: MatchContext = MatchContext.current()
+	if ctx.config() != null and ctx.config().hot_seat:
+		return ctx.active_slot()
+	for slot_id: int in range(ctx.slot_count()):
+		if ctx.net_is_local_slot(slot_id):
 			return slot_id
 	return -1
 
@@ -425,8 +426,9 @@ func _local_watch_slot() -> int:
 ## under TeamMode.OFF, MatchConfig.team_of_slot() is the identity, so this is
 ## a no-op there and only changes behaviour for a real TEAMS_2+ match.
 func _crate_in_local_territory(crate_local: Vector2) -> bool:
-	var raster: TerritoryRaster = Match.raster()
-	var grid: CellGrid = Match.cell_grid()
+	var ctx: MatchContext = MatchContext.current()
+	var raster: TerritoryRaster = ctx.raster()
+	var grid: CellGrid = ctx.cell_grid()
 	if raster == null or grid == null:
 		return false
 	var cell: Vector2i = grid.world_to_cell(crate_local)
@@ -436,6 +438,6 @@ func _crate_in_local_territory(crate_local: Vector2) -> bool:
 	if watch_slot < 0:
 		return false
 	var watch_team: int = watch_slot
-	if Match.config != null:
-		watch_team = Match.config.team_of_slot(watch_slot)
+	if ctx.config() != null:
+		watch_team = ctx.config().team_of_slot(watch_slot)
 	return raster.team_at(cell.x, cell.y) == watch_team

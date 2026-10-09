@@ -61,8 +61,9 @@ static func layout(seed_value: int, cfg: HorizonStormConfig) -> Array[Dictionary
 
 
 func _ready() -> void:
-	if not _seed_locked and is_inside_tree() and Match != null and Match.weather() != null:
-		_seed = Match.weather().seed_value()
+	var ctx: MatchContext = MatchContext.current()
+	if not _seed_locked and is_inside_tree() and ctx.has_weather():
+		_seed = ctx.weather_seed()
 	_build()
 
 

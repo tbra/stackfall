@@ -158,7 +158,9 @@ func _process(delta: float) -> void:
 	if _materials.is_empty():
 		return
 	if not _seed_locked and is_inside_tree():
-		_seed = WindField.event_seed(Match.weather().seed_value(), Match.weather().event_index())
+		var ctx: MatchContext = MatchContext.current()
+		if ctx.has_weather():
+			_seed = WindField.event_seed(ctx.weather_seed(), ctx.weather_event_index())
 	_elapsed += delta
 	var dir2: Vector2 = heading()
 	_push_cloud_wind(dir2)
