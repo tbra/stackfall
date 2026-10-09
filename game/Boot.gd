@@ -21,6 +21,10 @@ var quit_on_failure: bool = true
 var load_failed: bool = false
 
 var _threaded: bool = false
+## Threaded path: Main.tscn once loaded, then LateScripts paths prewarmed one request at a time.
+var _main_scene: PackedScene = null
+var _prewarm_paths: PackedStringArray = PackedStringArray()
+var _prewarm_index: int = -1
 
 
 func _ready() -> void:
@@ -32,12 +36,19 @@ func _ready() -> void:
 	if not _threaded:
 		# Deferred: the root is still adding its main scene while _ready runs, so the swap
 		# happens on the next idle step instead of inside this callback.
-		_start_main.call_deferred(load(main_scene_path) as PackedScene)
+		var scene: PackedScene = load(main_scene_path) as PackedScene
+		if scene != null:
+			for path: String in LateScripts.paths():
+				load(path)
+		_start_main.call_deferred(scene)
 		return
 	set_process(true)
 
 
 func _process(_delta: float) -> void:
+	if _prewarm_index >= 0:
+		_poll_prewarm()
+		return
 	var status: ResourceLoader.ThreadLoadStatus = ResourceLoader.load_threaded_get_status(main_scene_path)
 	if status == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
 		return
@@ -45,7 +56,38 @@ func _process(_delta: float) -> void:
 	if status != ResourceLoader.THREAD_LOAD_LOADED:
 		_fail("Could not load %s (threaded load status %d)." % [main_scene_path, status])
 		return
-	_start_main(ResourceLoader.load_threaded_get(main_scene_path) as PackedScene)
+	_main_scene = ResourceLoader.load_threaded_get(main_scene_path) as PackedScene
+	_prewarm_paths = LateScripts.paths()
+	_prewarm_index = 0
+	if not _request_prewarm():
+		_finish_threaded()
+		return
+	set_process(true)
+
+
+## Requests the current prewarm path; false when the list is exhausted.
+func _request_prewarm() -> bool:
+	while _prewarm_index < _prewarm_paths.size():
+		if ResourceLoader.load_threaded_request(_prewarm_paths[_prewarm_index]) == OK:
+			return true
+		_prewarm_index += 1  # could not queue: the facade's load() falls back to sync
+	return false
+
+
+func _poll_prewarm() -> void:
+	var status: ResourceLoader.ThreadLoadStatus = ResourceLoader.load_threaded_get_status(_prewarm_paths[_prewarm_index])
+	if status == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+		return
+	ResourceLoader.load_threaded_get(_prewarm_paths[_prewarm_index])
+	_prewarm_index += 1
+	if not _request_prewarm():
+		_finish_threaded()
+
+
+func _finish_threaded() -> void:
+	_prewarm_index = -1
+	set_process(false)
+	_start_main(_main_scene)
 
 
 func _start_main(scene: PackedScene) -> void:
@@ -58,6 +100,8 @@ func _start_main(scene: PackedScene) -> void:
 		return
 	main.name = MAIN_NODE_NAME
 	var tree: SceneTree = get_tree()
+	# S2b: facades that deferred their late state build it now, before Main exists.
+	LateScripts.activate_autoloads(tree)
 	tree.root.add_child(main)
 	tree.current_scene = main
 	queue_free()
