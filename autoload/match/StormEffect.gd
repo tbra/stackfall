@@ -31,10 +31,10 @@ var last_dir: Vector2 = Vector2.ZERO
 var last_gust: float = 1.0
 
 
-func bind(match_owner: MatchAutoload, weather_tuning: WeatherTuning) -> void:
-	super.bind(match_owner, weather_tuning)
-	if match_owner != null and match_owner.weather() != null:
-		_seed = WindField.event_seed(match_owner.weather().seed_value(), match_owner.weather().event_index())
+func bind(match_context: MatchContext, weather_tuning: WeatherTuning) -> void:
+	super.bind(match_context, weather_tuning)
+	if match_context != null and match_context.has_weather():
+		_seed = WindField.event_seed(match_context.weather_seed(), match_context.weather_event_index())
 
 
 func set_seed(seed_value: int) -> void:

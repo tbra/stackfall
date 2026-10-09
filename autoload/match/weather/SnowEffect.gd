@@ -112,8 +112,8 @@ var queries_run: int = 0
 var states_published: int = 0
 
 
-func bind(match_owner: MatchAutoload, weather_tuning: WeatherTuning) -> void:
-	super.bind(match_owner, weather_tuning)
+func bind(match_context: MatchContext, weather_tuning: WeatherTuning) -> void:
+	super.bind(match_context, weather_tuning)
 	_snow = weather_tuning as SnowTuning
 	if _snow == null:
 		_snow = SnowTuning.new()
@@ -122,8 +122,8 @@ func bind(match_owner: MatchAutoload, weather_tuning: WeatherTuning) -> void:
 	_query.shape = _query_box
 	_query.collide_with_areas = false
 	_query.collide_with_bodies = true
-	if match_owner != null and match_owner.weather() != null:
-		_seed = match_owner.weather().seed_value()
+	if match_context != null and match_context.has_weather():
+		_seed = match_context.weather_seed()
 	if not Events.block_removed.is_connected(_on_block_removed):
 		Events.block_removed.connect(_on_block_removed)
 
@@ -281,10 +281,10 @@ func state() -> Dictionary:
 # --- World ------------------------------------------------------------------------------
 
 func _resolve_world() -> void:
-	if _world_overridden or match_ref == null:
+	if _world_overridden or context == null:
 		return
 	if not is_instance_valid(_field):
-		_field = match_ref.field()
+		_field = context.field() as Field
 
 
 func _live_blocks() -> Array[Block]:
@@ -292,8 +292,8 @@ func _live_blocks() -> Array[Block]:
 		var result: Array[Block] = []
 		result.assign(_blocks_source.call())
 		return result
-	if match_ref != null and match_ref.registry() != null:
-		return match_ref.registry().all_blocks()
+	if context != null and context.registry() != null:
+		return (context.registry() as BlockRegistry).all_blocks()
 	var none: Array[Block] = []
 	return none
 

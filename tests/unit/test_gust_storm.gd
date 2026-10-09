@@ -185,7 +185,8 @@ func test_breeze_reads_the_host_weather_state_through_match() -> void:
 	_block(Vector3(0.0, HIGH_M, 0.0))
 	var effect: BreezeEffect = BreezeEffect.new()
 	effect.tuning = _tuning
-	effect.bind(Match)
+	effect.bind(MatchContext.current())
+	effect.set_weather_source(weather.active_id)
 	effect.set_test_world(func() -> Array: return _blocks, func() -> float: return 0.0)
 	effect.begin(SEED_A)
 	assert_false(effect.is_quieted_by_weather(), "clear before any weather")
