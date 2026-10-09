@@ -34,6 +34,11 @@ static var _instance: BlockStepBatch = null
 static var _install_queued: bool = false
 ## For tests and the callback-count bench: how many times the batched hook ran.
 static var hook_runs: int = 0
+## Rounding slack for the slow-block early-out in Block._batch_tick(): a block
+## whose previous speed^2 is below impact_speed_min^2 times this cannot have
+## decelerated by impact_speed_min, so the length() calls are skipped. Not a
+## gameplay tunable (it only widens a conservative exact-result shortcut).
+const SLOW_PREV_SPEED_SLACK: float = 0.99
 
 
 ## Queues install() once per process: a block can enter the tree while the
@@ -80,5 +85,21 @@ func _on_physics_frame() -> void:
 	# another instance; either way it is one engine->script call per tick.
 	var tree: SceneTree = Engine.get_main_loop() as SceneTree
 	var physics_active: bool = tree != null and not tree.paused
+	# Per-tick constants, read once instead of once per block. The tuning is
+	# re-read only when the block's PhysicsTuning differs from the last one seen
+	# (normally one shared Resource), so a live edit still applies next tick.
+	var impacts_on: bool = Block.impacts_enabled
+	var impact_min: float = Block.impact_speed_min
+	var impact_min_sq_lo: float = impact_min * impact_min * SLOW_PREV_SPEED_SLACK
+	var seen_tuning: PhysicsTuning = null
+	var damp_on: bool = false
+	var damp: float = 1.0
+	var noise_floor: float = 0.0
 	for block: Block in Block._awake.values():
-		block._batch_tick(frame, physics_active)
+		var tuning: PhysicsTuning = block.tuning
+		if tuning != seen_tuning:
+			seen_tuning = tuning
+			damp_on = tuning != null and tuning.rebound_damping != 1.0
+			damp = tuning.rebound_damping if tuning != null else 1.0
+			noise_floor = tuning.sleep_linear_threshold if tuning != null else 0.0
+		block._batch_tick(frame, physics_active, damp_on, damp, noise_floor, impacts_on, impact_min, impact_min_sq_lo)
