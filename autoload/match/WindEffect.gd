@@ -17,7 +17,7 @@ var last_woken: int = 0
 var _blocks_source: Callable = Callable()
 var _surface_source: Callable = Callable()
 var _force_host: bool = false
-## Optional host check (MatchWeather passes its own for Breeze); unset = ask match_ref.
+## Optional host check (MatchWeather passes its own for Breeze); unset = ask context.
 var _host_check: Callable = Callable()
 
 
@@ -77,7 +77,7 @@ func _is_host() -> bool:
 		return true
 	if _host_check.is_valid():
 		return bool(_host_check.call())
-	return match_ref != null and match_ref._is_host()
+	return context != null and context.has_authority()
 
 
 func _blocks() -> Array[Block]:
@@ -85,7 +85,7 @@ func _blocks() -> Array[Block]:
 		var listed: Array[Block] = []
 		listed.assign(_blocks_source.call() as Array)
 		return listed
-	var registry: BlockRegistry = match_ref.registry() if match_ref != null else null
+	var registry: BlockRegistry = context.registry() as BlockRegistry if context != null else null
 	if registry == null:
 		var none: Array[Block] = []
 		return none
@@ -95,5 +95,5 @@ func _blocks() -> Array[Block]:
 func _surface_y() -> float:
 	if _surface_source.is_valid():
 		return float(_surface_source.call())
-	var field: Field = match_ref.field() if match_ref != null else null
+	var field: Field = context.field() as Field if context != null else null
 	return field.surface_y() if field != null else 0.0

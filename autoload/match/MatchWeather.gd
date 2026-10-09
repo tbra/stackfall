@@ -92,7 +92,8 @@ var _breeze: BreezeEffect = BreezeEffect.new()
 
 func setup(match_ref: MatchAutoload) -> void:
 	_match = match_ref
-	_breeze.bind(match_ref, null, _is_host)
+	_breeze.bind(match_ref.context() if match_ref != null else null, null, _is_host)
+	_breeze.set_weather_source(active_id)
 	Events.match_state_changed.connect(_on_match_state_changed)
 
 
@@ -455,7 +456,7 @@ func _begin_event(weather_id: StringName) -> void:
 		if script != null:
 			_effect = script.new() as WeatherEffect
 	if _effect != null:
-		_effect.bind(_match, def)
+		_effect.bind(_match.context() if _match != null else null, def)
 	_left = _event_remaining()
 	Events.weather_started.emit(weather_id)
 	_announce()

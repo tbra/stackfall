@@ -55,7 +55,7 @@ var _next_id: int = 1
 var _tick_index: int = 0
 var _gusts: Array[Dictionary] = []
 ## Optional override for the active weather id (returns a StringName/String);
-## unset = ask match_ref.weather().
+## unset = no weather (MatchWeather sets it to its own active_id).
 var _weather_id_source: Callable = Callable()
 
 
@@ -65,9 +65,9 @@ func _init() -> void:
 
 ## `weather_tuning` null keeps the current (default breeze.tres) tuning.
 func bind(
-	match_owner: MatchAutoload, weather_tuning: WeatherTuning = null, host_check: Callable = Callable()
+	match_context: MatchContext, weather_tuning: WeatherTuning = null, host_check: Callable = Callable()
 ) -> void:
-	match_ref = match_owner
+	context = match_context
 	if weather_tuning != null:
 		tuning = weather_tuning
 	_host_check = host_check
@@ -248,5 +248,4 @@ func _push(delta: float) -> void:
 func _active_weather_id() -> StringName:
 	if _weather_id_source.is_valid():
 		return StringName(String(_weather_id_source.call()))
-	var weather: MatchWeather = match_ref.weather() if match_ref != null else null
-	return weather.active_id() if weather != null else &""
+	return &""

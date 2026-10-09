@@ -154,14 +154,14 @@ func _write_all(intensity: float, rain: RainTuning) -> void:
 func _blocks() -> Array:
 	if _blocks_provider.is_valid():
 		return _blocks_provider.call() as Array
-	if match_ref == null or match_ref.registry() == null:
+	if context == null or context.registry() == null:
 		return []
-	return match_ref.registry().all_blocks()
+	return (context.registry() as BlockRegistry).all_blocks()
 
 
 func _disc() -> Variant:
 	if _disc_provider.is_valid():
 		return _disc_provider.call()
-	if match_ref == null:
+	if context == null:
 		return null
-	return match_ref.field()
+	return context.field() as Field

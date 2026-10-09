@@ -16,12 +16,13 @@ extends RefCounted
 ##   host tears the session down, and it must be safe to call twice and after
 ##   the world's nodes were freed.
 
-var match_ref: MatchAutoload = null
+## Null = no match (never falls back to MatchContext.current()).
+var context: MatchContext = null
 var tuning: WeatherTuning = null
 
 
-func bind(match_owner: MatchAutoload, weather_tuning: WeatherTuning) -> void:
-	match_ref = match_owner
+func bind(match_context: MatchContext, weather_tuning: WeatherTuning) -> void:
+	context = match_context
 	tuning = weather_tuning
 
 
