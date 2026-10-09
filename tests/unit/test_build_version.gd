@@ -24,6 +24,14 @@ func test_compose_rules() -> void:
 	assert_eq(BuildVersion.compose("  ", " "), BuildVersion.FALLBACK)
 
 
+## Bontago-1pi.136: a stale baked revision must not win over live git in dev runs.
+func test_pick_revision_prefers_live_git_in_editor_builds() -> void:
+	assert_eq(BuildVersion.pick_revision(true, "21ad7df1", "f84a4f7f"), "21ad7df1")
+	assert_eq(BuildVersion.pick_revision(true, " ", "f84a4f7f"), "f84a4f7f")
+	assert_eq(BuildVersion.pick_revision(false, "21ad7df1", "f84a4f7f"), "f84a4f7f")
+	assert_eq(BuildVersion.pick_revision(false, "", ""), "")
+
+
 func test_label_shown_beside_debug_button_at_sizes() -> void:
 	DebugMode.set_override_for_test(true)
 	for window: Vector2i in SIZES:

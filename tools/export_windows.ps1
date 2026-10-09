@@ -79,9 +79,13 @@ if ($LASTEXITCODE -ne 0) {
 $mode = if ($Debug) { "--export-debug" } else { "--export-release" }
 Write-Host "Exporting ($mode) from $Path to $exe"
 & $Godot --headless --path $Path $mode "Windows Desktop" $exe
-if ($LASTEXITCODE -ne 0) {
-	Write-Error "Export failed with exit code $LASTEXITCODE"
-	exit $LASTEXITCODE
+$exportCode = $LASTEXITCODE
+# Bontago-1pi.136: the stamp is packed into the export; drop it from the
+# checkout so later dev runs never show this export's revision.
+Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $Path "build_info.cfg")
+if ($exportCode -ne 0) {
+	Write-Error "Export failed with exit code $exportCode"
+	exit $exportCode
 }
 
 # Godot 4.7 copies the GDExtension DLLs flat next to the exe, but the loader

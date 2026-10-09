@@ -4,10 +4,10 @@ extends RefCounted
 ## "<application/config/version>+<short git revision>", or just the version
 ## when no revision is known, or FALLBACK when even the version is empty.
 ##
-## Revision lookup, in order: res://build_info.cfg (written by
-## tools/stamp_build_info.gd at export time; gitignored so it never churns
-## commits), then `git rev-parse --short HEAD` in the project folder (dev and
-## editor runs), else none.
+## Revision lookup: editor-binary runs use `git rev-parse --short HEAD` in the
+## project folder, falling back to res://build_info.cfg; exported builds use
+## res://build_info.cfg (written by tools/stamp_build_info.gd at export time;
+## gitignored so it never churns commits), else none.
 ##
 ## DECISION: no generated file is committed; a per-commit baked revision would
 ## churn every commit. Exports run tools/stamp_build_info.gd first.
@@ -43,13 +43,30 @@ static func compose(version: String, revision: String) -> String:
 	return v + REVISION_SEPARATOR + r
 
 
+## Bontago-1pi.136: editor-binary runs (dev, `godot --path .`) prefer the live
+## git revision, so a build_info.cfg left behind by an earlier export cannot
+## show a stale label; exported builds have no git and use the baked file.
 static func read_revision() -> String:
+	var is_editor_build: bool = OS.has_feature("editor")
+	var live: String = git_revision() if is_editor_build else ""
+	return pick_revision(is_editor_build, live, baked_revision())
+
+
+## Pure choice rule (unit-tested): editor builds take the live revision when
+## known, everything else (and an editor without git) takes the baked one.
+static func pick_revision(is_editor_build: bool, live: String, baked: String) -> String:
+	var l: String = live.strip_edges()
+	if is_editor_build and not l.is_empty():
+		return l
+	return baked.strip_edges()
+
+
+## Revision baked by tools/stamp_build_info.gd, "" when absent.
+static func baked_revision() -> String:
 	var cfg: ConfigFile = ConfigFile.new()
-	if cfg.load(BUILD_INFO_PATH) == OK:
-		var baked: String = str(cfg.get_value(INFO_SECTION, INFO_KEY_REVISION, "")).strip_edges()
-		if not baked.is_empty():
-			return baked
-	return git_revision()
+	if cfg.load(BUILD_INFO_PATH) != OK:
+		return ""
+	return str(cfg.get_value(INFO_SECTION, INFO_KEY_REVISION, "")).strip_edges()
 
 
 ## Short HEAD revision of the project checkout, "" when git is unavailable.
