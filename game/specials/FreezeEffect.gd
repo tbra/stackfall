@@ -59,7 +59,7 @@ class FieldRider:
 func detonate(block: Block, behavior: SpecialBehavior, _chain_depth: int) -> void:
 	if block == null or not block.is_inside_tree():
 		return
-	if Net.is_client():
+	if MatchContext.current().net_is_client():
 		return
 	var owner_slot: int = block.owner_slot
 	var own_filter: Callable = func(body: RigidBody3D) -> bool:
@@ -79,7 +79,7 @@ func detonate(block: Block, behavior: SpecialBehavior, _chain_depth: int) -> voi
 
 
 ## Freezes `target` under FREEZE_REASON and (re)starts its release timer.
-## `field` is the disc the hold rides (default Match.field(); none = fixed in
+## `field` is the disc the hold rides (default MatchContext.field(); none = fixed in
 ## world space).
 func freeze_block(target: Block, field: Node3D = null) -> void:
 	# Zero the motion so the registry settles it (a STATIC body keeps no
@@ -89,7 +89,7 @@ func freeze_block(target: Block, field: Node3D = null) -> void:
 	target.request_freeze_static(FREEZE_REASON)
 	target.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
 	if field == null:
-		field = Match.field()
+		field = MatchContext.current().field()
 	if field != null and is_instance_valid(field):
 		var rider: FieldRider = target.get_node_or_null(NodePath(RIDER_NAME)) as FieldRider
 		if rider == null:

@@ -104,7 +104,7 @@ static func set_launch_direction(block: Block, direction: Vector3) -> bool:
 ## The replicable volume snapshots quantize positions into (NetConfig.position_bounds for the
 ## running map, the default map outside a match). Single source: nothing is hard-coded here.
 static func replicable_bounds() -> AABB:
-	var running: MatchConfig = Match.config if Match != null else null
+	var running: MatchConfig = MatchContext.current().config()
 	var map: MapDef = running.map_def() if running != null else MatchConfig.new().map_def()
 	return _NET_CONFIG.position_bounds(map)
 

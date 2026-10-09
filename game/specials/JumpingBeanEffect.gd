@@ -178,7 +178,7 @@ static func hop_direction(position_disk: Vector2, rng: RandomNumberGenerator,
 
 ## Vertical kick now, horizontal part owed to the next tick.
 func _kick(block: Block) -> void:
-	var field: Field = Match.field()
+	var field: FieldBody = MatchContext.current().field()
 	var position_disk: Vector2 = Vector2.ZERO
 	if field != null:
 		position_disk = field.disk_local_from_world(block.global_position)
@@ -215,9 +215,10 @@ func _apply_pending_horizontal(block: Block) -> void:
 func _is_over_open_hole(block: Block) -> bool:
 	if block.linear_velocity.y > 0.0:
 		return false
-	var field: Field = Match.field()
-	var grid: CellGrid = Match.cell_grid()
-	var raster: TerritoryRaster = Match.raster()
+	var ctx: MatchContext = MatchContext.current()
+	var field: FieldBody = ctx.field()
+	var grid: CellGrid = ctx.cell_grid()
+	var raster: TerritoryRaster = ctx.raster()
 	if field == null or grid == null or raster == null:
 		return false
 	var cell: Vector2i = grid.world_to_cell(field.disk_local_from_world(block.global_position))

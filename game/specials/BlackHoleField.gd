@@ -45,7 +45,7 @@ func _is_block(body: RigidBody3D) -> bool:
 
 
 func _match_is_live() -> bool:
-	return MatchAutoload.is_live(Match.state())
+	return MatchPhase.is_live(MatchContext.current().state())
 
 
 ## One simulation step; public so tests drive it without the physics loop.

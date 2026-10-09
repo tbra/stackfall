@@ -38,9 +38,9 @@ func effect_lifetime_s() -> float:
 func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void:
 	if not block.has_meta(START_AGE_META):
 		block.set_meta(START_AGE_META, behavior.age())
-	var field: Field = Match.field()
+	var field: FieldBody = MatchContext.current().field()
 	# No live Field registered (e.g. an isolated unit test that never called
-	# Match.register_world()): the elapsed-time bookkeeping above still runs
+	# the Match autoload registering a world): the elapsed-time bookkeeping above still runs
 	# so wants_early_trigger() below stays correct, but there is nothing to
 	# shake.
 	if field == null:
