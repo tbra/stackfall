@@ -1813,7 +1813,18 @@ def main(argv=None):
     ap.add_argument("--out", default=DEFAULT_OUT)
     ap.add_argument("--callers", help="query: callers/callees of SYMBOL (File.gd:func, Class.func or func)")
     ap.add_argument("--refs", help="query: inbound/outbound references of a file path (relative)")
+    ap.add_argument("--check", action="store_true", help="run the layer lint (tools/lint_layers.py) and exit")
+    ap.add_argument("--report", action="store_true", help="with --check: report only, exit 0")
+    ap.add_argument("--list", action="store_true", dest="list_all", help="with --check: per-edge lines")
+    ap.add_argument("--update", action="store_true", help="with --check: lower the baseline")
+    ap.add_argument("--allow-new", action="append", default=[], metavar="PATH", help="with --update")
     args = ap.parse_args(argv)
+    if args.check:
+        import lint_layers
+        code, lines = lint_layers.run(os.path.abspath(args.root), args.report, args.list_all, args.update,
+                                      args.allow_new)
+        print("\n".join(lines))
+        return code
     t0 = time.time()
     graph = build_graph(args.root)
     if args.callers:
