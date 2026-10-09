@@ -4,6 +4,7 @@ Run: python -m unittest tools.test_dep_graph   (from the repo root)
 """
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -259,6 +260,131 @@ class DepGraphTest(unittest.TestCase):
             html = fh.read()
         self.assertIn("main.gd", html)
         self.assertNotIn("http://", html.replace("http://www.w3.org", ""))
+
+
+FIXTURE_FP = {
+    "project.godot": '[application]\nrun/main_scene="res://main.gd"\n',
+    ".gutconfig.json": "{}",
+    "main.gd": (
+        "extends Node\n\n"
+        'const D := preload("res://dyn/")\n\n'
+        "func _ready() -> void:\n"
+        '\tvar tuning: SnowT = preload("res://snow.tres") as SnowT\n'
+        "\ttuning.density()\n"
+        "\tvar s: Sub = Sub.new()\n"
+        "\ts.hook()\n"
+        "\tvar d: Dictionary = {}\n"
+        "\td.count_items()\n"
+        "\tvar thing = null\n"
+        "\tthing.fetch()\n"
+        '\tif FileAccess.file_exists("res://guarded/none.png"):\n\t\tpass\n'
+        '\tload("res://__missing_scene__.tscn")\n'
+        '\tload("res://truly/gone.png")\n'
+    ),
+    "snow.tres": (
+        '[gd_resource type="Resource" script_class="SnowT" load_steps=2 format=3]\n'
+        '[ext_resource type="Script" path="res://SnowT.gd" id="1"]\n[resource]\nscript = ExtResource("1")\n'
+    ),
+    "SnowT.gd": (
+        'class_name SnowT\nextends Resource\n\nconst SELF_RES := preload("res://snow.tres")\n\n'
+        "func density() -> float:\n\treturn 1.0\n"
+    ),
+    "Base.gd": "class_name Base\nextends RefCounted\n\nfunc hook() -> void:\n\tpass\n",
+    "Sub.gd": "class_name Sub\nextends Base\n\nfunc hook() -> void:\n\tpass\n",
+    "A.gd": "class_name A\nextends RefCounted\n\nfunc count_items() -> int:\n\treturn 0\n",
+    "B.gd": "class_name B\nextends RefCounted\n\nfunc count_items() -> int:\n\treturn 1\n",
+    "Fetcher.gd": "class_name Fetcher\nextends RefCounted\n\nfunc fetch() -> int:\n\treturn 1\n",
+    "tests/FakeFetcher.gd": "extends RefCounted\n\nfunc fetch() -> int:\n\treturn 2\n",
+    "dyn/one.tres": '[gd_resource type="Resource" format=3]\n[ext_resource type="Texture2D" path="res://dyn_tex.png" id="1"]\n',
+    "dyn_tex.png": "png",
+    "source_art/x/project.godot.review": "config_version=5\n",
+    "source_art/x/tool.gd": 'extends Node\n\nfunc _ready() -> void:\n\tload("res://sheets/own_root.png")\n',
+    "ignored/skip.png": "png",
+    ".gitignore": "ignored/\n",
+}
+
+
+class FalsePositiveFixesTest(unittest.TestCase):
+    """Bontago-fca.73: one fixture assertion per fixed false-positive pattern."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.mkdtemp(prefix="depgraph_fp_")
+        for rel, body in FIXTURE_FP.items():
+            path = os.path.join(cls.tmp, rel.replace("/", os.sep))
+            if not os.path.isdir(os.path.dirname(path)):
+                os.makedirs(os.path.dirname(path))
+            with open(path, "w") as fh:
+                fh.write(body)
+        cls.g = dep_graph.build_graph(cls.tmp)
+        cls.live = dep_graph.func_liveness(cls.g)
+        cls.cy = dep_graph.analyze_cycles(cls.g, cls.live)
+        cls.an = dep_graph.analyze(cls.g)
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def cedge(self, src, dst):
+        for e in self.g["call_edges"]:
+            if e["src"] == src and e["dst"] == dst:
+                return e
+        return None
+
+    def test_typed_resource_alias_resolves_to_class(self):
+        e = self.cedge("main.gd:_ready", "SnowT.gd:density")
+        self.assertIsNotNone(e)
+        self.assertEqual(e["kind"], "typed")
+        self.assertNotIn("SnowT.gd:density", self.an["funcs"]["zero_callers"])
+
+    def test_called_override_keeps_base_stub_live(self):
+        self.assertIsNotNone(self.cedge("main.gd:_ready", "Sub.gd:hook"))
+        self.assertEqual(self.live["Base.gd:hook"], "live")
+        self.assertNotIn("Base.gd:hook", self.an["funcs"]["zero_callers"])
+
+    def test_value_typed_receiver_does_not_match_project_function(self):
+        self.assertIsNone(self.cedge("main.gd:_ready", "A.gd:count_items"))
+        self.assertIsNone(self.cedge("main.gd:_ready", "B.gd:count_items"))
+
+    def test_game_caller_ignores_test_double_candidates(self):
+        e = self.cedge("main.gd:_ready", "Fetcher.gd:fetch")
+        self.assertIsNotNone(e)
+        self.assertFalse(e["amb"])
+        self.assertIsNone(self.cedge("main.gd:_ready", "tests/FakeFetcher.gd:fetch"))
+
+    def test_intentional_missing_paths_are_not_broken(self):
+        refs = [b["ref"] for b in self.g["broken"]]
+        self.assertEqual(refs, ["res://truly/gone.png"])
+        why = dict((i["ref"], i["why"]) for i in self.g["intentional"])
+        self.assertIn("res://__missing_scene__.tscn", why)
+        self.assertIn("res://guarded/none.png", why)
+
+    def test_nested_project_refs_are_not_broken(self):
+        self.assertFalse([b for b in self.g["broken"] if b["src"].startswith("source_art/")])
+
+    def test_tool_config_is_root(self):
+        self.assertEqual(self.g["files"][".gutconfig.json"]["status"], "root")
+        self.assertNotIn(".gutconfig.json", self.an["files"]["unreachable"])
+
+    def test_script_and_own_resource_pair_is_not_a_cycle(self):
+        self.assertFalse([c for c in self.cy["file_sccs"] if "SnowT.gd" in c["members"]])
+
+    def test_dynamic_only_split_direct_vs_static(self):
+        self.assertIn("dyn/one.tres", self.an["files"]["dynamic-direct"])
+        self.assertIn("dyn_tex.png", self.an["files"]["dynamic-via-static"])
+        self.assertNotIn("dyn_tex.png", self.an["files"]["dynamic-direct"])
+
+    def test_git_checkout_skips_gitignored_files(self):
+        if subprocess.call(["git", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE) != 0:
+            self.skipTest("git unavailable")
+        self.assertIn("ignored/skip.png", self.g["files"])  # plain walk (no git repo) keeps it
+        subprocess.check_call(["git", "init", "-q", self.tmp])
+        try:
+            g = dep_graph.build_graph(self.tmp)
+        finally:
+            shutil.rmtree(os.path.join(self.tmp, ".git"), ignore_errors=True)
+        self.assertNotIn("ignored/skip.png", g["files"])
+        self.assertIn("main.gd", g["files"])
 
 
 if __name__ == "__main__":

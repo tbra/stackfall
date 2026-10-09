@@ -32,6 +32,7 @@ import io
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 
@@ -83,6 +84,26 @@ ENGINE_ROOTS = frozenset([
 ROOT_PREFIXES = ("_get_", "_set_")
 CALLISH = ("call", "callable", "connect", "rpc", "has_method", "deferred", "group",
            "tween", "invoke", "method", "handler", "callback", "bind", "timeout", "emit")
+# Missing-on-purpose res:// paths (fca.73 pattern 3): negative-test names, existence-guarded
+# literals, output dirs, and optional per-machine config files.
+NEGATIVE_NAME_RE = re.compile(r"__missing|missing_|no_such|does_not_exist|nonexistent|not_a_real", re.I)
+GUARDED_LINE_RE = re.compile(
+    r"file_exists|dir_exists|ResourceLoader\s*\.\s*exists|make_dir|save_png|\.save\s*\(|OUTPUT|remove")
+# Engine value types: a variable declared with one of these can never hold a project class, so
+# `x.name()` on it must not fall back to a same-named project function (pattern 7).
+VALUE_TYPES = frozenset([
+    "Dictionary", "Array", "String", "StringName", "NodePath", "Callable", "Signal", "Color",
+    "Vector2", "Vector2i", "Vector3", "Vector3i", "Vector4", "Vector4i", "Rect2", "Rect2i", "AABB",
+    "Plane", "Quaternion", "Basis", "Transform2D", "Transform3D", "Projection",
+    "PackedByteArray", "PackedInt32Array", "PackedInt64Array", "PackedFloat32Array",
+    "PackedFloat64Array", "PackedStringArray", "PackedVector2Array", "PackedVector3Array",
+    "PackedColorArray", "PackedVector4Array", "RID",
+])
+OPTIONAL_PATHS = frozenset(["override.cfg"])
+# Tool-config / licence files read by tooling or humans, never by the game (pattern 5).
+TOOL_CONFIG_NAMES = frozenset([".gutconfig.json", "skills-lock.json", ".gdlintrc", ".gdformatrc",
+                               ".editorconfig", ".gitattributes"])
+LICENCE_NAME_RE = re.compile(r"^(licen[cs]e|ofl|copying|notice|copyright)([._-].*)?$|licen[cs]e", re.I)
 SKIP_MEMBER_NAMES = frozenset(["emit", "connect", "disconnect", "new", "is_connected"])
 
 IDENT_RE = re.compile(r"[A-Za-z_]\w*")
@@ -276,11 +297,13 @@ class Builder(object):
         self.autoload_all = {}
         self.sidecars = []
         self.broken = []
+        self.intentional = []  # missing on purpose (see NEGATIVE_NAME_RE), not broken
         self.dynamic = []
         self.external = {}
         self.signals = {}
         self.skipped_ext = {}
         self.funcs_by_name = {}
+        self.nested = []       # dirs that are their own Godot project root
 
     # ---- helpers -------------------------------------------------------
     def abs(self, rel):
@@ -307,17 +330,52 @@ class Builder(object):
             self.ce[key] = {"src": src, "dst": dst, "kind": kind, "line": line, "amb": amb}
 
     # ---- pass 0: walk --------------------------------------------------
+    def git_files(self):
+        """Tracked + untracked-not-ignored files (None when root is not a git checkout)."""
+        try:
+            proc = subprocess.Popen(["git", "-C", self.root, "ls-files", "-z", "--cached", "--others",
+                                     "--exclude-standard"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            out, _err = proc.communicate()
+        except OSError:
+            return None
+        if proc.returncode != 0:
+            return None
+        names = [n.decode("utf-8", "replace") for n in out.split(b"\0") if n]
+        return [n for n in names if os.path.isfile(self.abs(n))]
+
+    def excluded_rel(self, rel):
+        parts = rel.split("/")
+        if len(parts) > 1 and parts[0] in EXCLUDED_TOP:
+            return True
+        return any(p in EXCLUDED_ANY for p in parts[:-1])
+
+    def nested_project_dirs(self, rels):
+        """Dirs holding their own project.godot*: res:// inside them is another root."""
+        out = set()
+        for rel in rels:
+            if "/" in rel and os.path.basename(rel).startswith("project.godot"):
+                out.add(rel.rsplit("/", 1)[0] + "/")
+        return out
+
+    # DECISION: gitignored files are not part of the project (fca.73 pattern 2); outside git
+    # (fixtures, exports) the plain directory walk is used.
     def walk(self):
-        for dirpath, dirnames, filenames in os.walk(self.root):
-            rel_dir = os.path.relpath(dirpath, self.root).replace("\\", "/")
-            top = "" if rel_dir == "." else rel_dir.split("/")[0]
-            if rel_dir == ".":
-                dirnames[:] = [d for d in dirnames if d not in EXCLUDED_TOP]
-            else:
-                dirnames[:] = [d for d in dirnames if d not in EXCLUDED_ANY]
-            for fn in filenames:
-                rel = fn if rel_dir == "." else rel_dir + "/" + fn
-                self.consider(rel)
+        listed = self.git_files()
+        if listed is not None:
+            rels = [r for r in listed if not self.excluded_rel(r)]
+        else:
+            rels = []
+            for dirpath, dirnames, filenames in os.walk(self.root):
+                rel_dir = os.path.relpath(dirpath, self.root).replace("\\", "/")
+                if rel_dir == ".":
+                    dirnames[:] = [d for d in dirnames if d not in EXCLUDED_TOP]
+                else:
+                    dirnames[:] = [d for d in dirnames if d not in EXCLUDED_ANY]
+                for fn in filenames:
+                    rels.append(fn if rel_dir == "." else rel_dir + "/" + fn)
+        self.nested = sorted(self.nested_project_dirs(rels))
+        for rel in sorted(rels):
+            self.consider(rel)
 
     def consider(self, rel):
         ext = os.path.splitext(rel)[1].lower()
@@ -329,6 +387,9 @@ class Builder(object):
             return
         name = os.path.basename(rel)
         if rel in ("project.godot", "export_presets.cfg", "override.cfg"):
+            kind = "config"
+        elif name in TOOL_CONFIG_NAMES or LICENCE_NAME_RE.search(name):
+            # DECISION: allow-listed as roots so they are not reported as unreachable game data.
             kind = "config"
         elif ext in KIND_BY_EXT:
             kind = KIND_BY_EXT[ext]
@@ -479,6 +540,14 @@ class Builder(object):
     def note_ref(self, src, ref, kind, line):
         """Resolve a literal reference and add an edge or record why not."""
         ref = ref.strip().split("::")[0]
+        nest = next((n for n in self.nested if src.startswith(n)), None)
+        if nest and ref.startswith("res://"):
+            # DECISION: inside a nested project (source_art/*/project.godot.review) res://
+            # is that folder; resolve there and never report a missing target.
+            cand = nest + ref[len("res://"):]
+            if cand in self.files:
+                self.add_fe(src, cand, kind, line)
+            return
         tgt = self.resolve_ref(ref)
         if tgt:
             self.add_fe(src, tgt, kind, line)
@@ -506,7 +575,27 @@ class Builder(object):
             else:
                 self.external[ref] = self.external.get(ref, 0) + 1
         else:
-            self.broken.append({"src": src, "ref": ref, "line": line, "why": "missing file"})
+            why = self.intentional_missing(src, rel, line)
+            if why:
+                self.intentional.append({"src": src, "ref": ref, "line": line, "why": why})
+            else:
+                self.broken.append({"src": src, "ref": ref, "line": line, "why": "missing file"})
+
+    def intentional_missing(self, src, rel, line):
+        """Reason a missing res:// path is deliberate (negative test, guarded, output dir), or None."""
+        if rel in OPTIONAL_PATHS:
+            return "optional file"
+        if NEGATIVE_NAME_RE.search(rel):
+            return "negative-test name"
+        d = self.script.get(src)
+        text_line = ""
+        if d is not None and 0 < line <= len(d["lines"]):
+            text_line = d["lines"][line - 1]
+        if text_line and GUARDED_LINE_RE.search(text_line):
+            return "existence-guarded or output path"
+        if "." not in rel.rsplit("/", 1)[-1]:
+            return "extensionless directory (output or optional)"
+        return None
 
     def adopt_external(self, rel):
         if rel in self.files:
@@ -720,9 +809,20 @@ class Builder(object):
                         found[var] = cls
         return dict((k, v) for k, v in found.items() if v)
 
+    def value_typed_vars(self, d):
+        """Names declared only ever with engine value types (Dictionary, Vector3, ...)."""
+        seen = {}
+        for m in TYPED_RE.finditer(d["stripped"]):
+            var, cls = m.group(1), m.group(2)
+            seen.setdefault(var, set()).add(cls)
+        return set(v for v, kinds in seen.items() if kinds <= VALUE_TYPES)
+
     def target_file_of_name(self, rel, d, name):
         if name in d["aliases"]:
-            return d["aliases"][name] if d["aliases"][name] in self.files else None
+            # DECISION: an alias to a .tres/.tscn (var tuning: SnowTuning = preload(x.tres)) is a
+            # typed value, not the class: let the declared type resolve it (fca.73 pattern 6).
+            tgt = d["aliases"][name]
+            return tgt if tgt in self.files and tgt.endswith(".gd") else None
         if name in self.autoloads:
             return self.autoloads[name]
         if name in self.classes:
@@ -754,7 +854,15 @@ class Builder(object):
                 ids = [i for i in self.file_funcs.get(rel, {}).get(name, [])
                        if self.funcs[i]["cls"].split(".")[-1:] == [cls]]
                 return ids, "typed", False
+        if recv in d.get("vtyped", ()) and recv not in typed:
+            return [], "none", False
         cands = self.funcs_by_name.get(name, [])
+        if category(rel) == "game" and len(cands) > 1:
+            # DECISION (pattern 7): shipped game code cannot reach test doubles or tool scripts, so
+            # drop those candidates before declaring the name ambiguous.
+            game_only = [c for c in cands if category(self.funcs[c]["file"]) == "game"]
+            if game_only:
+                cands = game_only
         # Instance calls never target static-only helper duplicates differently; keep all.
         if len(cands) == 1:
             return cands, "unique", False
@@ -767,6 +875,7 @@ class Builder(object):
         signal_names = set(self.signals)
         for rel, d in self.script.items():
             typed = self.typed_vars(rel, d)
+            d["vtyped"] = self.value_typed_vars(d)
             funcs = d["funcs"]
             owner = d["owner"]
             lines = d["lines"]
@@ -958,6 +1067,7 @@ class Builder(object):
             "uids": self.uids,
             "sidecars": self.sidecars,
             "broken": self.broken,
+            "intentional": self.intentional,
             "dynamic": self.dynamic,
             "external": self.external,
         }
@@ -1025,6 +1135,11 @@ def func_liveness(graph):
         adj_loose.setdefault(e["src"], []).append(e["dst"])
         if not e["amb"]:
             adj_strict.setdefault(e["src"], []).append(e["dst"])
+        if e["kind"] == "override":
+            # A live override means the base declaration is the dispatch target of a base-typed
+            # call (fca.73 pattern 6b): keep the base stub live as well.
+            adj_loose.setdefault(e["dst"], []).append(e["src"])
+            adj_strict.setdefault(e["dst"], []).append(e["src"])
 
     def seeds(cats, statuses=None):
         out = []
@@ -1093,6 +1208,12 @@ def analyze(graph):
             sections[st].append(p)
         if n["cat"] == "game" and n["kind"] != "config" and not inbound.get(p):
             no_inbound.append(p)
+    # Pattern 9: split dynamic-only into direct pattern/dir-scan hits and files only reached
+    # statically from such a hit (e.g. gift previews referenced by scanned specials/*.tres).
+    direct = [p for p in sections["dynamic-only"]
+              if any(e["kind"] == "dynamic" for e in inbound.get(p, []))]
+    sections["dynamic-direct"] = direct
+    sections["dynamic-via-static"] = [p for p in sections["dynamic-only"] if p not in set(direct)]
     out["files"] = sections
     out["no_inbound"] = no_inbound
     live = func_liveness(graph)
@@ -1205,9 +1326,18 @@ def render_unused_md(graph, an):
               "and tests/tools do not reference them either.")
     file_list("Files reachable only from tests/tools", an["files"]["test-tool-only"],
               "Not used by the shipped game, but a test or tool references them.")
-    file_list("Files reachable only through dynamic (string-built) paths", an["files"]["dynamic-only"],
-              "Possibly used: a res:// pattern with a format or concatenation matches them. "
-              "Verify the runtime id list before deleting.")
+    L.append("## Files reachable only through dynamic (string-built) paths: %d" % len(an["files"]["dynamic-only"]))
+    L.append("")
+    L.append("Possibly used: a res:// pattern with a format or concatenation matches them. Verify the "
+             "runtime id list before deleting. Split below: %d are direct pattern/dir-scan hits, %d are "
+             "reached by a static reference from one of those." %
+             (len(an["files"]["dynamic-direct"]), len(an["files"]["dynamic-via-static"])))
+    L.append("")
+    file_list("Dynamic-only: direct pattern or dir-scan hits", an["files"]["dynamic-direct"],
+              "A string-built path or directory scan names these; confirm the runtime id list.")
+    file_list("Dynamic-only: reached statically from a dynamic hit", an["files"]["dynamic-via-static"],
+              "Referenced by a normal ext_resource/preload from a scanned file; used whenever that "
+              "file is, so the open question is only the scanned parent.")
     L.append("## Game files with no inbound edge")
     L.append("")
     L.append("Includes entry-point scenes/scripts only a human opens. Subset of the unreachable list "
@@ -1264,6 +1394,10 @@ def render_unused_md(graph, an):
     if not an["broken"]:
         L.append("_none_")
     L.append("")
+    if graph.get("intentional"):
+        L.append("Missing on purpose (negative tests, existence-guarded literals, output dirs, optional "
+                 "config; not counted as broken): %d" % len(graph["intentional"]))
+        L.append("")
     L.append("## Orphan sidecars (.import/.uid without source)")
     L.append("")
     for s in an["orphan_sidecars"]:
@@ -1412,8 +1546,16 @@ def analyze_cycles(graph, liveness):
     funcs = graph["funcs"]
     fadj = {}
     padj = {}
+    # DECISION (fca.73 pattern 8): a .tres/.tscn and the script it attaches (script= ext_resource)
+    # form a benign pair when the script loads that resource back; drop both directions.
+    attached = set()
+    for e in graph["file_edges"]:
+        if e["kind"] == "ext_resource" and e["src"] in files and e["dst"] in files                 and files[e["src"]]["kind"] in ("resource", "scene") and files[e["dst"]]["kind"] == "script":
+            attached.add((e["src"], e["dst"]))
     for e in graph["file_edges"]:
         if e["kind"] == "dynamic" or e["src"] not in files or e["dst"] not in files:
+            continue
+        if (e["src"], e["dst"]) in attached or (e["dst"], e["src"]) in attached:
             continue
         fadj.setdefault(e["src"], set()).add(e["dst"])
         if e["kind"] == "preload" and files[e["dst"]]["kind"] in ("script", "scene"):
