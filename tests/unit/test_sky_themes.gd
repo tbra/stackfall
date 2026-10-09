@@ -91,16 +91,14 @@ func test_cloud_puffs_stay_below_the_disc_and_off_the_mirror_layer() -> void:
 		assert_eq(Skybox.PROBE_CULL_MASK & CloudSea.RENDER_LAYER_BIT, 0, "mirror camera must not see the puffs")
 
 
-func test_cloud_puffs_share_the_sky_panorama_and_grade() -> void:
+func test_cloud_puffs_share_the_sky_grade() -> void:
 	var night: SkyThemeDef = load(NIGHT_PATH) as SkyThemeDef
 	var sea: CloudSea = CloudSea.new()
 	add_child_autofree(sea)
 	sea.configure(night, 1.0, night.sky_material)
 	var material: ShaderMaterial = sea.puff_material()
 	var sky: ShaderMaterial = night.sky_material as ShaderMaterial
-	assert_eq(material.get_shader_parameter(&"panorama"), sky.get_shader_parameter(&"panorama"))
 	assert_almost_eq(float(material.get_shader_parameter(&"grade_amount")), 1.0, 0.0001)
-	assert_almost_eq(float(material.get_shader_parameter(&"sky_yaw_offset_deg")), night.sky_yaw_offset_deg, 0.0001)
 	assert_ne(material, night.cloud_puff_material, "the theme's material is duplicated, not edited")
 
 

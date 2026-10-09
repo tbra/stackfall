@@ -31,8 +31,8 @@ render_mode unshaded, world_vertex_coords, cull_back, depth_draw_always, fog_dis
 // rim; darker flat undersides.
 // Seamless far fade: with distance (and depth below the disc) the colour
 // blends into exactly the sky colour behind the puff -- the theme's
-// panorama sampled along the view ray (moonlit-graded at night) -- so
-// distant clumps melt into the painted far cloud sea with no seam or edge.
+// procedural sky/sea sampled along the view ray (moonlit-graded at night) -- so
+// distant clumps melt into the far cloud sea with no seam or edge.
 // Near fade: fragments close to the camera dissolve (ordered dither) so a
 // camera orbiting under the disc is never blocked by a puff.
 //
@@ -45,11 +45,7 @@ render_mode unshaded, world_vertex_coords, cull_back, depth_draw_always, fog_dis
 // a discarding opaque shader pays for twice.
 
 // Shared with the sky material (vfx/CloudSea.gd copies these from it).
-uniform sampler2D panorama : source_color, filter_linear_mipmap, repeat_enable;
 uniform float exposure = 0.8;
-uniform float seam_blend_width = 0.025;
-uniform float sky_yaw_offset_deg = 0.0;
-uniform float sky_pitch_offset_deg = 0.0;
 uniform float grade_amount = 0.0;
 uniform vec3 grade_dark : source_color = vec3(0.02, 0.03, 0.08);
 uniform vec3 grade_mid : source_color = vec3(0.12, 0.17, 0.33);
@@ -59,7 +55,7 @@ uniform float grade_gamma = 1.2;
 // Bontago-59o.16 (procedural sky P4): when procedural_sea_mix > 0 the far fade
 // targets the shared procedural sky/sea (cloud_common.gdshaderinc) instead of
 // the panorama. vfx/CloudSea.gd copies every uniform below from the sky
-// material; all are inert at procedural_sea_mix == 0.
+// material.
 uniform float procedural_sea_mix = 0.0;
 uniform sampler2D noise_tex : filter_linear_mipmap, repeat_enable;
 uniform vec3 sun_direction = vec3(0.963087, 0.069011, -0.260192);
@@ -465,16 +461,17 @@ void fragment() {
 	vec3 tone_floor = weather_floor * mix(mix(floor_shadow_ratio, floor_mid_ratio, to_mid), 1.0, to_lit);
 	col = max(col, tone_floor * floor_on);
 	// Same exposure as the sky, so theme colours can be picked straight from
-	// the painted panorama.
+	// the sky.
 	col *= exposure;
 
 	// Blend into the sky drawn behind: distance haze plus depth below the disc.
 	float depth = smoothstep(depth_fade_start_m, depth_fade_end_m, -surface.y) * depth_fade_amount;
 	fade = min(1.0 - (1.0 - fade) * (1.0 - depth), far_fade_cap);
 	if (fade > 0.001) {
-		vec2 sky_uv = sky_panorama_uv(view_dir, sky_yaw_offset_deg, sky_pitch_offset_deg);
-		vec3 sky = panorama_lod(panorama, sky_uv, seam_blend_width) * exposure;
-		if (procedural_sea_mix > 0.0) {
+		// DECISION (Bontago-59o.18 P6b): the panorama tap is gone; the far fade always targets the
+		// procedural sky/sea (procedural_sea_mix is now only copied, no longer a gate).
+		vec3 sky;
+		{
 			// Same composition as sunset_clouds.gdshader's procedural branch, so
 			// the puff fades into exactly the sea/gradient drawn behind it.
 			vec3 sun_dir = normalize(sun_direction);
@@ -493,7 +490,7 @@ void fragment() {
 			float glow = (1.0 - smoothstep(0.0, max(proc_horizon_glow_width, 0.001), abs(view_dir.y)))
 				* mix(0.35, 1.0, sun_side) * proc_horizon_glow_strength;
 			pcol = mix(pcol, proc_horizon_glow_color.rgb, clamp(glow, 0.0, 1.0));
-			sky = mix(sky, pcol * exposure, clamp(procedural_sea_mix, 0.0, 1.0));
+			sky = pcol * exposure;
 		}
 		sky = moonlit_grade(sky, grade_amount, grade_dark, grade_mid, grade_light, grade_gamma);
 		col = mix(col, sky, fade);

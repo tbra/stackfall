@@ -7,8 +7,8 @@ extends Node3D
 ## them from theme colours, drifts every clump slowly around the disc and
 ## billows the surfaces, all from TIME and per-instance custom data -- no
 ## per-frame script, so it animates in the game, the editor and the baked
-## demo. Distant clumps fade into the sky panorama's own lower hemisphere
-## (the far cloud sea), sampled along the view ray, so there is no seam.
+## demo. Distant clumps fade into the procedural far cloud sea
+## (sampled along the view ray in the puff shader), so there is no seam.
 ##
 ## Placement is deterministic (SkyThemeDef.cloud_seed). Every puff top stays
 ## at or below SkyThemeDef.cloud_top_max_m, far under the disc's underside
@@ -21,10 +21,9 @@ const RENDER_LAYER_BIT: int = 1 << 18
 ## Sky-material uniforms the puff shader shares so its far fade matches the
 ## sky drawn behind it exactly.
 const SHARED_SKY_PARAMETERS: Array[StringName] = [
-	&"panorama", &"exposure", &"seam_blend_width", &"grade_amount", &"grade_dark", &"grade_mid",
+	&"exposure", &"grade_amount", &"grade_dark", &"grade_mid",
 	&"grade_light", &"grade_gamma",
-	# Bontago-59o.16 P4: procedural sea/gradient the far fade targets when
-	# procedural_sea_mix > 0 (inert at 0, so the painted look is unchanged).
+	# Bontago-59o.16 P4: procedural sea/gradient the far fade targets.
 	&"procedural_sea_mix", &"noise_tex", &"sun_direction", &"proc_zenith_color", &"proc_mid_color",
 	&"proc_horizon_color", &"proc_gradient_mid_height", &"proc_gradient_power", &"proc_gradient_bands",
 	&"proc_gradient_band_edge", &"proc_horizon_glow_color", &"proc_horizon_glow_width",
@@ -33,8 +32,6 @@ const SHARED_SKY_PARAMETERS: Array[StringName] = [
 	&"proc_sea_wind", &"proc_sea_coverage", &"proc_sea_softness", &"proc_sea_band_edge",
 	&"cloud_shadow_color", &"cloud_mid_color", &"cloud_lit_color", &"cloud_rim_color",
 ]
-const YAW_PARAMETER: StringName = &"sky_yaw_offset_deg"
-const PITCH_PARAMETER: StringName = &"sky_pitch_offset_deg"
 const FLAT_BASE_PARAMETER: StringName = &"flat_base"
 ## Bontago-mp0.93 per-instance / material parameters of the upper layer (see
 ## shaders/cloud_puffs.gdshader): its own base plane height, and the camera-clearance fade.
@@ -280,7 +277,7 @@ func refresh_weather_fog() -> void:
 
 ## Rebuilds the puffs from `theme`. `density` (GraphicsPreset.cloud_puff_density,
 ## 0..1) scales the theme's clump count; 0 hides the cloud sea. `sky_material`
-## is the active sky material whose panorama/grade uniforms the puffs copy.
+## is the active sky material whose grade/procedural uniforms the puffs copy.
 ## Bontago-mp0.92: pushes the shared integrated cloud wind (CloudDriftState.offset) to the
 ## puff shader and the sun-occlusion bounds.
 func set_drift_offset(offset: Vector2) -> void:
@@ -327,11 +324,9 @@ func configure(theme: SkyThemeDef, density: float, sky_material: Material = null
 	add_to_group(WeatherFogShader.GROUP)
 	add_to_group(GROUP)
 	WeatherFogShader.apply(_material)
-	_material.set_shader_parameter(YAW_PARAMETER, theme.sky_yaw_offset_deg)
 	_material.set_shader_parameter(DRIFT_EDGE_FADE_PARAMETER, drift_config.edge_fade_m)
 	_material.set_shader_parameter(DRIFT_EXCLUSION_FADE_PARAMETER, drift_config.exclusion_fade_m)
 	_material.set_shader_parameter(DRIFT_OFFSET_PARAMETER, _drift_offset)
-	_material.set_shader_parameter(PITCH_PARAMETER, theme.sky_pitch_offset_deg)
 	_material.set_shader_parameter(FLAT_BASE_PARAMETER, theme.cloud_flat_base)
 	_material.set_shader_parameter(FAR_FADE_CAP_PARAMETER, theme.proc_far_fade_cap if theme.sky_look_procedural else 1.0)
 	# Transparent-pass draw (see the shader's DECISION): first among
