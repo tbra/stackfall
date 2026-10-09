@@ -139,7 +139,7 @@ func run_callbacks() -> void:
 	_steam.call("run_callbacks")
 
 
-## Calls Steam.steamInitEx(Net.STEAM_APP_ID_EXPECTED, false) and emits
+## Calls Steam.steamInitEx(NetIds.STEAM_APP_ID_EXPECTED, false) and emits
 ## init_result with its {status, verbal} once. Safe to call when the
 ## extension isn't installed — emits STATUS_EXTENSION_NOT_INSTALLED instead
 ## of touching a singleton that doesn't exist.
@@ -152,8 +152,8 @@ func init() -> void:
 	# Never Steam.steamInit() — docs/archive/M3b_RESEARCH.md: the bare call is
 	# reported to crash in-editor. steamInitEx() returns {"verbal", "status"};
 	# 0 ok, 1 other failure, 2 client not running, 3 client out of date.
-	var result: Dictionary = _steam.call("steamInitEx", Net.STEAM_APP_ID_EXPECTED, false)
-	log_line("steamInitEx(app_id=%d, embed_callbacks=false) -> %s" % [Net.STEAM_APP_ID_EXPECTED, str(result)])
+	var result: Dictionary = _steam.call("steamInitEx", NetIds.STEAM_APP_ID_EXPECTED, false)
+	log_line("steamInitEx(app_id=%d, embed_callbacks=false) -> %s" % [NetIds.STEAM_APP_ID_EXPECTED, str(result)])
 	init_result.emit(int(result.get("status", 1)), String(result.get("verbal", "")))
 
 

@@ -167,7 +167,7 @@ func _now() -> float:
 ## the payload's shape and its size limit without opening a port; a malformed
 ## or foreign packet must come back as an empty Dictionary rather than throw.
 static func encode_advert(info: Dictionary) -> PackedByteArray:
-	var magic: PackedByteArray = String(Net.DISCOVERY_MAGIC).to_utf8_buffer()
+	var magic: PackedByteArray = String(NetIds.DISCOVERY_MAGIC).to_utf8_buffer()
 	var version: PackedByteArray = String(info.get("version", "")).to_utf8_buffer()
 	var player_name: PackedByteArray = String(info.get("name", "")).to_utf8_buffer()
 	var map_name: PackedByteArray = String(info.get("map", "")).to_utf8_buffer()
@@ -198,7 +198,7 @@ static func decode_advert(payload: PackedByteArray) -> Dictionary:
 	# Compared as raw bytes, not decoded to a string first: random/foreign
 	# payloads are the expected case here, and running them through
 	# get_string_from_utf8() first would print a UTF-8 warning for every one.
-	if _read_bytes(buf, magic_len) != String(Net.DISCOVERY_MAGIC).to_utf8_buffer():
+	if _read_bytes(buf, magic_len) != String(NetIds.DISCOVERY_MAGIC).to_utf8_buffer():
 		return {}
 
 	if buf.get_available_bytes() < 1:

@@ -35,13 +35,14 @@ enum LeaveReason { GRACEFUL, TIMEOUT, KICKED, HOST_SHUTDOWN }
 const HOST_PEER_ID: int = 1
 
 ## Key the LAN advert carries so a stray UDP broadcast on 47777 is ignored.
-const DISCOVERY_MAGIC: StringName = &"stackfall"
+## Moved to core/net/NetIds.gd (autoload decoupling S3a); aliased here.
+const DISCOVERY_MAGIC: StringName = NetIds.DISCOVERY_MAGIC
 
 ## Steam's public test app ("Spacewar"), passed directly into
 ## Steam.steamInitEx() (docs/archive/M3b_RESEARCH.md's spike: no steam_appid.txt is
 ## needed once the app id is passed as an argument). Named here, not in
 ## net/SteamClient.gd, per docs/archive/M3b_PLAN.md's tunables table.
-const STEAM_APP_ID_EXPECTED: int = 480
+const STEAM_APP_ID_EXPECTED: int = NetIds.STEAM_APP_ID_EXPECTED
 
 ## Bontago-8or.11: size of a rejoin token (random bytes; hex doubles it) and
 ## the longest token string the handshake will even look up. Architecture,
@@ -279,6 +280,11 @@ func _ready() -> void:
 	# every other config does, so a hand-edited net_config.tres (a zero
 	# seat_pref_burst, a tiny packet cap) cannot lock clients out or break the wire.
 	config.sanitize()
+	# Autoload decoupling S3a: SnapshotSync reaches Net through this binding
+	# instead of naming the autoload (globals exist before any _ready).
+	# Only the real autoload binds: tests build extra Net instances under test nodes.
+	if get_parent() == get_tree().root:
+		SnapshotSync.bind_net(self)
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	multiplayer.connected_to_server.connect(_on_connected_to_server)
