@@ -42,56 +42,39 @@ extends Node
 ## everywhere it always has, so every existing `Match.foo()` call site outside
 ## this package is unaffected.
 
-## Spec 3.7's states.
-enum State { LOBBY, LOADING, COUNTDOWN, PLAYING, SUDDEN_DEATH, END }
+## Spec 3.7's states. The rules live in core/rules/MatchPhase.gd (Bontago-1pi.11.77.1, D4);
+## the alias and the forwarding statics below keep every existing caller unchanged.
+const State = MatchPhase.State
 
 
-## Single source for the match-state sets (Bontago-fca.36.3; tools/lint_single_source.py
-## STATE_SET bans hand-written sets elsewhere).
-## LIVE = PLAYING, SUDDEN_DEATH: the host simulates play (placement, throws, gifts,
-## special spawns, bots, win checks, the match clock). COUNTDOWN is not live: nothing
-## may be placed or won before the horn.
+## LIVE = PLAYING, SUDDEN_DEATH (see MatchPhase.is_live).
 static func is_live(state: int) -> bool:
-	return state == State.PLAYING or state == State.SUDDEN_DEATH
+	return MatchPhase.is_live(state)
 
 
-## REPLICATING = COUNTDOWN, PLAYING, SUDDEN_DEATH: a match that has started and not
-## ended. Clients accept replicated weather/world state and a mid-match joiner is
-## admitted and replayed into exactly these states (spec 3.7). Superset of is_live.
 static func is_replicating(state: int) -> bool:
-	return state == State.COUNTDOWN or state == State.PLAYING or state == State.SUDDEN_DEATH
+	return MatchPhase.is_replicating(state)
 
 
-## RESETTING = LOADING, LOBBY, END: the world is being built, is torn down, or is over,
-## so per-match effect state (weather, wind ids, snow patches) must be cleared.
-## Complement of is_replicating. Sites that clear on a narrower set (LOBBY|END cursors
-## and rain, LOBBY|LOADING impacts) are intentionally not this predicate.
 static func is_resetting(state: int) -> bool:
-	return state == State.LOADING or state == State.LOBBY or state == State.END
+	return MatchPhase.is_resetting(state)
 
 
-# DECISION (Bontago-fca.36.10): presentation sites whose sets match none of the three
-# above get narrowly named predicates here, so every site keeps its exact behaviour.
-## IN_PROGRESS = LOADING, COUNTDOWN, PLAYING, SUDDEN_DEATH: everything but LOBBY and END
-## (the pause menu's "match in progress"; spans the loading window).
 static func is_in_progress(state: int) -> bool:
-	return state != State.LOBBY and state != State.END
+	return MatchPhase.is_in_progress(state)
 
 
-## PREGAME = LOADING, COUNTDOWN: the window before play (HUD primes its widgets).
 static func is_pregame(state: int) -> bool:
-	return state == State.LOADING or state == State.COUNTDOWN
+	return MatchPhase.is_pregame(state)
 
 
-## LOBBY or END: no match on screen. Unlike is_resetting this excludes LOADING (cursors,
-## rain and the HUD survive the build of the next match's world).
 static func is_lobby_or_end(state: int) -> bool:
-	return state == State.LOBBY or state == State.END
+	return MatchPhase.is_lobby_or_end(state)
 
 
-## The LOBBY -> LOADING transition: a match (or sandbox reset) starts building its world.
 static func is_start_transition(from_state: int, to_state: int) -> bool:
-	return from_state == State.LOBBY and to_state == State.LOADING
+	return MatchPhase.is_start_transition(from_state, to_state)
+
 
 ## Spec 3.7: "Countdown(3s)". A fixed part of the state machine's shape, not a
 ## lobby setting (spec 2.8's table doesn't list it) — kept as a named constant
@@ -164,8 +147,25 @@ var _cat: CatController = null
 var _gift_fx: GiftFxPresenter = null
 var _cat_serial: int = 0
 
+## The MatchContext port world code reads (game/world/MatchContext.gd). Installed first thing in
+## _ready(); uninstalled on PREDELETE so a freed Match never leaves a dangling static.
+var _context: MatchContextLive = null
+
+
+## The live port; world setup points that already receive Match hand it on (WeatherEffect.bind).
+func context() -> MatchContext:
+	return _context
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE:
+		if _context != null and MatchContext.installed() == _context:
+			MatchContext.install(null)
+
 
 func _ready() -> void:
+	_context = MatchContextLive.new(self)
+	MatchContext.install(_context)
 	_feed = MatchFeed.new()
 	_placement = MatchPlacement.new()
 	_territory = MatchTerritory.new()

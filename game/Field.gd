@@ -1,5 +1,5 @@
 class_name Field
-extends AnimatableBody3D
+extends FieldBody
 ## The match field: a disk (spec 2.1). Plain StaticBody3D through M1/M2 (no
 ## tilt). From M4 (Bontago M4 P0b) it is an AnimatableBody3D so the
 ## SPECIALS_ONLY tilt (spec 2.1, 2.7, 3.5) can carry resting blocks along with
@@ -63,7 +63,6 @@ const TRACE_ARG_PREFIX: String = "--trace-disk="
 ## game/HoleDissolver.gd ignores it off the host.
 signal hole_cells_applied(opened: PackedInt32Array)
 
-@export var map_def: MapDef = preload("res://config/maps/round_medium.tres")
 @export var tuning: PhysicsTuning = preload("res://config/physics_tuning.tres")
 @export var tilt_tuning: TiltTuning = preload("res://config/tilt_tuning.tres")
 @export var territory_tuning: TerritoryTuning = preload("res://config/territory_tuning.tres")
@@ -213,30 +212,6 @@ func grid() -> CellGrid:
 	if _grid == null:
 		_grid = CellGrid.new(map_def.field_radius, map_def.cell_size, map_def.shape_test())
 	return _grid
-
-
-func map_definition() -> MapDef:
-	return map_def
-
-
-## World Y of the disk's top surface. 0.0 while the disk is flat and centered;
-## from M4 the tilt makes this only an approximation and callers that care use
-## world_from_disk_local() instead.
-func surface_y() -> float:
-	return global_transform.origin.y
-
-
-## World point -> disk-local (x, z), the convention CellGrid documents. This
-## and world_from_disk_local() are the only two functions that change when the
-## disk starts tilting in M4.
-func disk_local_from_world(world: Vector3) -> Vector2:
-	var local: Vector3 = to_local(world)
-	return Vector2(local.x, local.z)
-
-
-## Disk-local (x, z) plus a height above the disk surface -> world point.
-func world_from_disk_local(local: Vector2, height: float) -> Vector3:
-	return to_global(Vector3(local.x, height, local.y))
 
 
 # --- Tilt (SPECIALS_ONLY, spec 2.1, 2.7, 3.5) --------------------------------
@@ -1157,7 +1132,7 @@ func place_flags(slot_count: int, slot_colors: PackedColorArray, goal_count: int
 		flag.visuals = visuals
 		flag.position = Vector3(local.x, 0.0, local.y)
 		add_child(flag)
-		flag.set_claim_ring(Match.qol_claim_radius())  # Bontago-1pi.18.6: no-op (0.0) unless the toggle is on
+		flag.set_claim_ring(MatchContext.current().qol_claim_radius())  # Bontago-1pi.18.6: no-op (0.0) unless the toggle is on
 		_goal_flags.append(flag)
 
 
@@ -1342,7 +1317,7 @@ func _on_kill_plane_body_entered(body: Node3D) -> void:
 ## Bontago-1pi.11.41: game/HoleDissolver.gd removes a dissolved block through
 ## this same call, so a hole costs exactly what falling off the edge does.
 func remove_fallen_block(body: RigidBody3D) -> void:
-	if not Net.is_host():
+	if not MatchContext.current().net_is_host():
 		return
 	if body == null or not is_instance_valid(body) or body.is_queued_for_deletion():
 		return
