@@ -74,11 +74,14 @@ const EVENT_GIFT_LANDED: StringName = &"gift_landed"
 
 # DECISION: reliable channel order plus per-match tombstones prevents a late
 # spawn/flight from resurrecting a claimed gift. Legacy spawn can upgrade once.
+# DECISION (Bontago-1pi.11.77.11): the enum below shadows the global GiftWirePhase
+# class inside this file, so the pure numbering owner is reached through this alias.
+const _WIRE_PHASE_OWNER: GDScript = preload("res://core/gifts/GiftWirePhase.gd")
 enum GiftWirePhase {
-	FALLING = MatchGifts.FALLING,
-	LANDED = MatchGifts.LANDED,
-	LEGACY = MatchGifts.WIRE_LEGACY,
-	REMOVED = MatchGifts.WIRE_REMOVED,
+	FALLING = _WIRE_PHASE_OWNER.FALLING,
+	LANDED = _WIRE_PHASE_OWNER.LANDED,
+	LEGACY = _WIRE_PHASE_OWNER.WIRE_LEGACY,
+	REMOVED = _WIRE_PHASE_OWNER.WIRE_REMOVED,
 }
 var _gift_wire_phases: Dictionary = {}
 var _gift_spawn_notified: Dictionary = {}
@@ -327,7 +330,9 @@ var _replaying_id: int = 0
 var _replaying_since_ms: int = 0
 
 ## Bontago-22y.10: the weather RPC surface (net/WeatherNet.gd), a child node.
-var _weather_net: WeatherNet = null
+var _weather_net: Node = null
+## Bontago-1pi.11.77.11: true once late_activate() has built the WeatherNet child.
+var _late_active: bool = false
 var _cat_send_accum: float = 0.0
 var _scores_send_accum: float = 0.0
 var _cat_target_last_send: float = -1.0
@@ -368,14 +373,38 @@ func _ready() -> void:
 	Events.net_peer_left.connect(_on_net_peer_left)
 	Events.net_peer_joined.connect(_on_net_peer_joined)
 	Events.net_mode_changed.connect(_on_net_mode_changed)
+	# Bontago-1pi.11.77.11: the WeatherNet child is built by late_activate(); headless
+	# and non-Boot runs activate right here, a windowed Boot run lets Boot prewarm first.
+	if not LateScripts.boot_defers_activation(get_tree()):
+		late_activate()
+
+
+func is_late_active() -> bool:
+	return _late_active
+
+
+## Builds the WeatherNet child (RPC path /root/MatchNet/WeatherNet is unchanged).
+## Idempotent; LateScripts.activate_autoloads() calls it once Boot has prewarmed.
+func late_activate() -> void:
+	if _late_active:
+		return
+	_late_active = true
 	# Bontago-22y.10: weather replication lives in its own child node.
-	_weather_net = WeatherNet.new()
+	_weather_net = LateScripts.script(LateScripts.WEATHER_NET).new() as Node
 	_weather_net.name = "WeatherNet"
 	add_child(_weather_net)
 	_weather_net.set_providers(_net_provider, _match_provider)
 	# Bontago-8or.11: weather/snow/breeze broadcasts before net_match_start
 	# are dropped on the same gate as match events.
 	_weather_net.awaiting_world = _client_awaiting_world
+
+
+func _block_factory() -> GDScript:
+	return LateScripts.script(LateScripts.BLOCK_FACTORY)
+
+
+func _set_block_coated(block: BlockBody, coated: bool) -> void:
+	LateScripts.script(LateScripts.HONEY_COAT).call(&"set_coated", block, coated)
 
 
 func _exit_tree() -> void:
@@ -432,14 +461,14 @@ func _process(delta: float) -> void:
 		if _impact_send_accum >= 1.0 / maxf(config.impact_batch_hz, 0.001):
 			_impact_send_accum = 0.0
 			flush_impacts(Time.get_ticks_msec())
-	var cat: CatController = _authority().active_cat()
+	var cat: RigidBody3D = _authority().active_cat()
 	if cat != null and NetFanout.can_send(multiplayer, _session()):
 		_cat_send_accum += delta
 		if _cat_send_accum >= 1.0 / maxf(config.cursor_hz, 0.001):
 			_cat_send_accum = 0.0
 			_broadcast(&"net_cat_state", [cat.activation_id, cat.global_position,
 				cat.linear_velocity, cat.target, cat.time_left])
-	if MatchAutoload.is_live(_authority().state()):
+	if MatchPhase.is_live(_authority().state()):
 		_scores_send_accum += delta
 		if _scores_send_accum >= 1.0 / maxf(config.scoreboard_hz, 0.001):
 			_scores_send_accum = 0.0
@@ -652,7 +681,7 @@ func _replay_current_match() -> void:
 ## every other player's match out from under them with no confirmation,
 ## which nothing in this package's brief asks for.
 func _match_flow_state_allows() -> bool:
-	return int(_authority().state()) == int(Match.State.END)
+	return int(_authority().state()) == int(MatchPhase.State.END)
 
 
 ## Gate for a REMOTE net_request_* RPC only (see request_replay()'s own doc
@@ -724,7 +753,7 @@ func cursor_for_slot(slot_id: int) -> Dictionary:
 ## either -- sending it anyway would build a permanent phantom client copy no
 ## despawn could ever address (bind_net_id() below also refuses it, but the
 ## body would already be parented under blocks_parent by then).
-func replicate_spawn(block: Block, net_id: int) -> void:
+func replicate_spawn(block: BlockBody, net_id: int) -> void:
 	if not _session().is_host() or block == null:
 		return
 	if not Quantize.is_wire_id(net_id):
@@ -741,7 +770,7 @@ func replicate_spawn(block: Block, net_id: int) -> void:
 ## live spawn and a mid-match join replay use (Bontago-8or.11). owner_slot is
 ## the block's *current* owner, so a Paintball conversion (Bontago-22y.2)
 ## replays as the converted colour.
-func _spawn_args(block: Block, net_id: int) -> Array:
+func _spawn_args(block: BlockBody, net_id: int) -> Array:
 	var basis: Basis = block.global_transform.basis.orthonormalized()
 	return [
 		net_id,
@@ -1233,7 +1262,7 @@ func _pose_is_acceptable(origin: Vector3, orientation_index: int, free_quat: Qua
 ## to place a visual and to compute the cell it later frees for.
 ## Records a gift's wire phase; refuses an out-of-range value (returns false).
 func _set_gift_wire_phase(gift_id: int, phase: int) -> bool:
-	if gift_id < 0 or not MatchGifts.is_valid_wire_phase(phase):
+	if gift_id < 0 or not _WIRE_PHASE_OWNER.is_valid_wire_phase(phase):
 		return false
 	_gift_wire_phases[gift_id] = phase
 	return true
@@ -1292,8 +1321,10 @@ func _known_special_ids() -> Dictionary:
 			for raw_id: Variant in (_special_ids_override as Array):
 				_special_ids_by_id[String(raw_id)] = true
 		else:
-			for def: SpecialDef in SpecialDef.load_all_specials():
-				_special_ids_by_id[String(def.id)] = true
+			# The typed Array[SpecialDef] result stays in an untyped Array (D8).
+			var defs: Array = LateScripts.script(LateScripts.SPECIAL_DEF).call(&"load_all_specials")
+			for def: Resource in defs:
+				_special_ids_by_id[String(def.get(&"id"))] = true
 		_special_ids_cached = true
 	return _special_ids_by_id
 
@@ -1310,7 +1341,7 @@ func _known_special_ids() -> Dictionary:
 func _gift_special_id_wire_ok(special_id: String) -> bool:
 	if not _special_id_wire_ok(special_id):
 		return false
-	if special_id == String(MatchGifts.PENDING_SPECIAL_ID):
+	if special_id == String(SpecialIds.PENDING):
 		return true
 	return _known_special_ids().has(special_id)
 
@@ -1398,18 +1429,18 @@ func _roster() -> Array:
 func _on_match_state_changed(_from_state: int, to_state: int) -> void:
 	# DECISION (fca.36.3): impacts clear on LOBBY|LOADING only; END is excluded from
 	# is_resetting so impacts already queued still play into the results screen.
-	if MatchAutoload.is_resetting(to_state) and to_state != Match.State.END:
+	if MatchPhase.is_resetting(to_state) and to_state != MatchPhase.State.END:
 		# World teardown / rebuild: nothing still waiting may play into it.
 		_reset_impacts()
 	if not _session().is_host():
 		return
-	if to_state == Match.State.LOADING:
+	if to_state == MatchPhase.State.LOADING:
 		# The lobby may call replicate_match_start() itself; this is the
 		# belt-and-braces path, and the flag makes the pair idempotent.
 		_match_start_sent = false
 		reset_counters()
 		replicate_match_start(_authority().config)
-	elif to_state == Match.State.LOBBY:
+	elif to_state == MatchPhase.State.LOBBY:
 		_match_start_sent = false
 	# Bontago-mv0.1.13: the LOBBY/LOADING/COUNTDOWN start_match() produces
 	# internally (see MatchLifecycle._starting's own doc) is fully replayed on
@@ -1659,7 +1690,7 @@ func _on_glue_bond_changed(body_a: Node, body_b: Node, formed: bool) -> void:
 	if not _session().is_host():
 		return
 	for body: Node in [body_a, body_b]:
-		var block: Block = body as Block
+		var block: BlockBody = body as BlockBody
 		if block == null or not Quantize.is_wire_id(block.net_id):
 			continue
 		var before: int = int(_glue_bond_counts.get(block.net_id, 0))
@@ -1669,7 +1700,7 @@ func _on_glue_bond_changed(body_a: Node, body_b: Node, formed: bool) -> void:
 		else:
 			_glue_bond_counts.erase(block.net_id)
 		if (before > 0) != (after > 0):
-			HoneyCoat.set_coated(block, after > 0)
+			_set_block_coated(block, after > 0)
 			replicate_match_event(EVENT_BLOCK_GLUED, [block.net_id, after > 0])
 
 
@@ -1692,7 +1723,7 @@ func _on_goal_capture_progress(team_id: int, progress: float) -> void:
 ## replicated from here rather than from Field — which then needs no idea that
 ## multiplayer exists.
 func _on_block_removed(block: RigidBody3D, reason: String) -> void:
-	var typed: Block = block as Block
+	var typed: BlockBody = block as BlockBody
 	if typed != null:
 		_glue_bond_counts.erase(typed.net_id)
 		replicate_despawn(typed.net_id, reason)
@@ -1971,7 +2002,7 @@ func _on_net_mode_changed(mode: int) -> void:
 ## joiner is admitted into and gets a replay for (spec 3.7).
 func is_match_live() -> bool:
 	var state: int = int(_authority().state())
-	return MatchAutoload.is_replicating(state)
+	return MatchPhase.is_replicating(state)
 
 
 # --- Mid-match join and reconnect (Bontago-8or.11, spec 3.4) -----------------
@@ -2127,12 +2158,14 @@ func build_world_replay(replay_id: int = 0) -> Array[Array]:
 		start_args.append(replay_id)
 	messages.append([&"net_match_start", start_args])
 
-	var registry: BlockRegistry = authority.registry()
+	# DECISION (D8): the registry is held as a Node and called dynamically; the typed
+	# Array[Block] result is kept in an untyped Array so this file names no Block.
+	var registry: Node = authority.registry()
 	if registry != null:
-		var blocks: Array[Block] = registry.all_blocks()
-		blocks.sort_custom(func(a: Block, b: Block) -> bool: return a.net_id < b.net_id)
+		var blocks: Array = registry.all_blocks()
+		blocks.sort_custom(func(a: BlockBody, b: BlockBody) -> bool: return a.net_id < b.net_id)
 		var dissolving: Array[int] = []
-		for block: Block in blocks:
+		for block: BlockBody in blocks:
 			if not Quantize.is_wire_id(block.net_id):
 				continue
 			messages.append([&"net_block_spawned", _spawn_args(block, block.net_id)])
@@ -2155,7 +2188,7 @@ func build_world_replay(replay_id: int = 0) -> Array[Array]:
 		messages.append([&"net_territory", territory])
 
 	var state: int = int(authority.state())
-	if state == Match.State.COUNTDOWN:
+	if state == MatchPhase.State.COUNTDOWN:
 		messages.append(_event(EVENT_COUNTDOWN, [int(ceil(float(authority.countdown_remaining())))]))
 		# Bontago-1pi.42: the ready gate lives only through the countdown; sent after
 		# net_match_start (whose start_match() resets the joiner's mirror), so the
@@ -2163,13 +2196,13 @@ func build_world_replay(replay_id: int = 0) -> Array[Array]:
 		var gate_args: Array = authority._lifecycle.loading_gate_replay_args()
 		if gate_args.size() == 3:
 			messages.append(_event(EVENT_LOADING_GATE, gate_args))
-	elif MatchAutoload.is_live(state):
+	elif MatchPhase.is_live(state):
 		# A client's own start_match() leaves it in COUNTDOWN; PLAYING is
 		# replayed before SUDDEN_DEATH so its consumers see the order a
 		# seated client saw.
-		messages.append(_event(EVENT_STATE_CHANGED, [Match.State.PLAYING]))
-		if state == Match.State.SUDDEN_DEATH:
-			messages.append(_event(EVENT_STATE_CHANGED, [Match.State.SUDDEN_DEATH]))
+		messages.append(_event(EVENT_STATE_CHANGED, [MatchPhase.State.PLAYING]))
+		if state == MatchPhase.State.SUDDEN_DEATH:
+			messages.append(_event(EVENT_STATE_CHANGED, [MatchPhase.State.SUDDEN_DEATH]))
 	messages.append(_event(EVENT_MATCH_CLOCK, [float(authority.match_timer_left())]))
 
 	var mode_snapshot: Dictionary = authority.mode_state_snapshot()
@@ -2204,12 +2237,12 @@ func build_world_replay(replay_id: int = 0) -> Array[Array]:
 
 	for gift: Dictionary in authority.gift_states():
 		var gift_id: int = int(gift["id"])
-		if int(gift["phase"]) == MatchGifts.FALLING:
+		if int(gift["phase"]) == GiftWirePhase.FALLING:
 			messages.append(_event(EVENT_GIFT_FLIGHT, [gift_id, gift["origin"], gift["landing"]]))
 		else:
 			messages.append(_event(EVENT_GIFT_SPAWNED, [gift_id, gift["position"]]))
 
-	var cat: CatController = authority.active_cat()
+	var cat: RigidBody3D = authority.active_cat()
 	if cat != null:
 		messages.append(_event(EVENT_CAT_STARTED,
 			[cat.activation_id, cat.owner_slot, cat.global_position, cat.time_left]))
@@ -2336,10 +2369,11 @@ func _handle_replay_ack(sender_peer_id: int, replay_id: int) -> void:
 ## Bontago-8or.2: a rejoining peer missed the icy overlay events of an active Freeze.
 func _frozen_overlay_snapshot() -> Array[Array]:
 	var snapshot: Array[Array] = []
-	var registry: BlockRegistry = _authority().registry()
+	var registry: Node = _authority().registry()
 	if registry == null:
 		return snapshot
-	for block: Block in registry.all_blocks():
+	var all_blocks: Array = registry.all_blocks()
+	for block: BlockBody in all_blocks:
 		if block.is_frozen_visual() and block.net_id > 0:
 			snapshot.append([block.net_id, true])
 	return snapshot
@@ -2745,7 +2779,7 @@ func net_match_event(event: StringName, args: Array) -> void:
 			# outcome from it. Malformed payloads are dropped, not defaulted.
 			if args.size() < 1:
 				return
-			var mode_state: Dictionary = ModeObjective.validate_state(args[0])
+			var mode_state: Dictionary = ResultsValidation.validate_mode_state(args[0])
 			if mode_state.is_empty():
 				return
 			_authority().apply_replicated_mode_state(mode_state)
@@ -2757,14 +2791,14 @@ func net_match_event(event: StringName, args: Array) -> void:
 			# own doc comment for why this rejects rather than defaults.
 			if args.size() < 1:
 				return
-			var validated: Dictionary = MatchStats.validate_results_payload(args[0])
+			var validated: Dictionary = ResultsValidation.validate_results_payload(args[0])
 			if validated.is_empty():
 				return
 			Events.match_results_ready.emit(validated)
 		EVENT_LIVE_SCORES:
 			if _session().is_host() or args.size() < 1:
 				return
-			var live: Dictionary = MatchStats.validate_results_payload(args[0])
+			var live: Dictionary = ResultsValidation.validate_results_payload(args[0])
 			if live.is_empty():
 				return
 			_authority().stats().apply_live_snapshot(live)
@@ -2940,10 +2974,10 @@ func net_match_event(event: StringName, args: Array) -> void:
 			var dissolving_id: int = args[0]
 			if not Quantize.is_wire_id(dissolving_id):
 				return
-			var dissolve_registry: BlockRegistry = _authority().registry()
+			var dissolve_registry: Node = _authority().registry()
 			if dissolve_registry == null:
 				return
-			var dissolving: Block = dissolve_registry.block_for_net_id(dissolving_id)
+			var dissolving: BlockBody = dissolve_registry.block_for_net_id(dissolving_id)
 			if dissolving == null or not is_instance_valid(dissolving):
 				return
 			Events.block_dissolve_started.emit(dissolving, dissolving_id, _hole_dissolve_tuning.dissolve_delay_s)
@@ -2977,22 +3011,22 @@ func net_match_event(event: StringName, args: Array) -> void:
 			var glued_id: int = args[0]
 			if not Quantize.is_wire_id(glued_id):
 				return
-			var glued_registry: BlockRegistry = _authority().registry()
+			var glued_registry: Node = _authority().registry()
 			if glued_registry == null:
 				return
-			var glued_block: Block = glued_registry.block_for_net_id(glued_id)
+			var glued_block: BlockBody = glued_registry.block_for_net_id(glued_id)
 			if glued_block != null and is_instance_valid(glued_block):
-				HoneyCoat.set_coated(glued_block, args[1])
+				_set_block_coated(glued_block, args[1])
 		EVENT_BLOCK_FROZEN:
 			if _session().is_host() or args.size() != 2 or not args[0] is int or not args[1] is bool:
 				return
 			var frozen_id: int = args[0]
 			if not Quantize.is_wire_id(frozen_id):
 				return
-			var frozen_registry: BlockRegistry = _authority().registry()
+			var frozen_registry: Node = _authority().registry()
 			if frozen_registry == null:
 				return
-			var frozen_block: Block = frozen_registry.block_for_net_id(frozen_id)
+			var frozen_block: BlockBody = frozen_registry.block_for_net_id(frozen_id)
 			if frozen_block == null or not is_instance_valid(frozen_block):
 				return
 			if frozen_block.is_frozen_visual() != args[1]:
@@ -3021,7 +3055,7 @@ func net_block_spawned(
 		# address it for a despawn (Bontago-mv0.1.7).
 		return
 	_note_spawn(net_id)
-	var registry: BlockRegistry = _authority().registry()
+	var registry: Node = _authority().registry()
 	var parent: Node3D = _authority().blocks_parent()
 	if registry == null or parent == null:
 		return
@@ -3040,7 +3074,7 @@ func net_block_spawned(
 	# cells by the same shape.bottom_center() on every instance.
 	var owner_slot_ref: PlayerSlot = _authority().slot(owner_slot)
 	var color: Color = owner_slot_ref.color if owner_slot_ref != null else Color.WHITE
-	var block: Block = BlockFactory.build(shape, _physics_tuning, owner_slot, color)
+	var block: BlockBody = _block_factory().call(&"build", shape, _physics_tuning, owner_slot, color) as BlockBody
 	# Spec 3.4: "Clients set every synced RigidBody3D to freeze = true
 	# (kinematic) and move them by interpolating snapshots." Freezing before
 	# the body enters the tree means it never simulates a single step here.
@@ -3050,7 +3084,7 @@ func net_block_spawned(
 	block.global_transform = Transform3D(Basis(rotation), origin)
 	# Bontago-t8x.1: untrusted wire id; only a known roster gift swaps the look.
 	if gift_id != &"" and _gift_special_id_wire_ok(String(gift_id)):
-		BlockFactory.apply_gift_visual(block, shape, _physics_tuning, gift_id)
+		_block_factory().call(&"apply_gift_visual", block, shape, _physics_tuning, gift_id)
 
 	# block_placed is what BlockRegistry tracks bodies on; with
 	# set_host_authority(false) it allocates no id of its own, so the host's
@@ -3065,10 +3099,10 @@ func net_block_despawned(net_id: int, reason: String) -> void:
 	if _client_awaiting_world():
 		return
 	_spawned_net_ids.erase(net_id)
-	var registry: BlockRegistry = _authority().registry()
+	var registry: Node = _authority().registry()
 	if registry == null:
 		return
-	var block: Block = registry.block_for_net_id(net_id)
+	var block: BlockBody = registry.block_for_net_id(net_id)
 	if block == null or not is_instance_valid(block):
 		return
 	Events.block_removed.emit(block, reason)
