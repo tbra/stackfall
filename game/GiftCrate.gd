@@ -134,15 +134,7 @@ func _build() -> void:
 	_mesh.name = &"Mesh"
 	add_child(_mesh)
 
-	var ring: MeshInstance3D = MeshInstance3D.new()
-	ring.name = &"PickupRing"
-	var torus: TorusMesh = TorusMesh.new()
-	torus.inner_radius = 0.46
-	torus.outer_radius = 0.51
-	ring.mesh = torus
-	ring.position.y = -0.23
-	ring.material_override = _flat_material(BEACON_COLOR, true)
-	add_child(ring)
+	# Bontago-1pi.137: the small inner PickupRing was removed; the LandRing below is the one ground ring.
 
 	# The spawn halo expands once, then the small light continues to mark a
 	# landed gift against both pale and dark territory without covering blocks.
