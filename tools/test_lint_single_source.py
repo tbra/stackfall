@@ -39,6 +39,12 @@ CASES = {
                   "game/GiftCrate.gd", None),
     "STATE_SET": ("net/Foo.gd", 'if s == Match.State.PLAYING or s == Match.State.SUDDEN_DEATH:\n\tpass\n',
                   "autoload/Match.gd", None),
+    "NET_PREDICATE": ("ui/Peer.gd", 'func _is_host() -> bool:\n\treturn true\n',
+                      "autoload/Net.gd", None),
+    "SEQUENTIAL_PREDICATE": ("ui/Lobby.gd", 'var seq: bool = hot_seat or turn_based\n',
+                             "config/MatchConfig.gd", None),
+    "SEAT_WIRE_KEY": ("net/Roster.gd", 'var sid: int = entry.get("slot_id", -1)\n',
+                      "core/rules/LobbySeats.gd", "ui/Roster.gd"),
 }
 
 
@@ -86,11 +92,16 @@ class LintTest(unittest.TestCase):
             self.assertEqual([h[0] for h in hits], ["STATE_SET"], text)
             self.assertEqual(hits[0][1], 2 if text is arm else 1)
         self.assertEqual(ls.violations_in("net/Foo.gd", "var x = (\n\ta == Match.State.END\n)\n"), [])
-        # whole files are not waived: only the exact line-level entry passes
-        self.assertEqual(ls.violations_in("ui/HUD.gd", chain)[0][0], "STATE_SET")
+        # no STATE_SET allowances are checked in (d2c92388 migrated the HUD sites to Match.is_lobby_or_end),
+        # so the HUD text now fails; the line-level waiver mechanism is exercised with a temporary entry.
         waived = "if to_state == Match.State.LOBBY or to_state == Match.State.END:\n\tpass\n"
-        self.assertEqual(ls.violations_in("ui/HUD.gd", waived), [])
-        self.assertEqual(ls.violations_in("net/Foo.gd", waived)[0][0], "STATE_SET")
+        self.assertEqual(ls.violations_in("ui/HUD.gd", waived)[0][0], "STATE_SET")
+        seam = [("ui/HUD.gd", "to_state == Match.State.LOBBY or to_state == Match.State.END", "test seam")]
+        with mock.patch.dict(ls.LINE_ALLOW, {"STATE_SET": seam}):
+            self.assertEqual(ls.violations_in("ui/HUD.gd", waived), [])
+            # whole files are not waived: only the exact line-level entry passes
+            self.assertEqual(ls.violations_in("ui/HUD.gd", chain)[0][0], "STATE_SET")
+            self.assertEqual(ls.violations_in("net/Foo.gd", waived)[0][0], "STATE_SET")
         for entries in ls.LINE_ALLOW.values():
             for _file, _snippet, reason in entries:
                 self.assertTrue(reason.strip())
