@@ -60,13 +60,14 @@ static func spawn_host(effect: VolcanoEffect, world_position: Vector3, owner_slo
 ## structure already draws it) or when there is nothing to attach to. The caller
 ## (GiftFxPresenter) passes the def's effect.
 static func build_client_visual(effect: VolcanoEffect, world_position: Vector3, owner_slot: int) -> VolcanoStructure:
-	if Match._is_host():
+	if MatchContext.current().has_authority():
 		return null
 	return _spawn(effect, world_position, owner_slot, false, RID())
 
 
 static func _spawn(effect: VolcanoEffect, world_position: Vector3, owner_slot: int, physics: bool, exclude: RID) -> VolcanoStructure:
-	var field: Field = Match.field()
+	var ctx: MatchContext = MatchContext.current()
+	var field: FieldBody = ctx.field()
 	if effect == null or field == null or not world_position.is_finite() or not field.is_inside_tree():
 		return null
 	var local: Vector2 = field.disk_local_from_world(world_position)
@@ -77,7 +78,7 @@ static func _spawn(effect: VolcanoEffect, world_position: Vector3, owner_slot: i
 	if physics:
 		# Host-deterministic eruption stream: match seed, owner slot and spawn counter.
 		_spawn_seq += 1
-		var base_seed: int = int(Match.config.rng_seed) if Match.config != null else 0
+		var base_seed: int = int(ctx.config().rng_seed) if ctx.config() != null else 0
 		structure._rng.seed = base_seed ^ ((owner_slot + 1) * SLOT_SEED_MIX) ^ (_spawn_seq * SEQ_SEED_MIX)
 	structure.bind_to_match = true
 	field.add_child(structure)
@@ -168,7 +169,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _match_is_live() -> bool:
-	return MatchAutoload.is_live(Match.state())
+	return MatchPhase.is_live(MatchContext.current().state())
 
 
 ## One simulation step; public so tests drive it without the physics loop.

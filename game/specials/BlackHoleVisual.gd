@@ -118,7 +118,7 @@ func _apply_growth(grow: float) -> void:
 
 
 func _process(delta: float) -> void:
-	if bind_to_match and not MatchAutoload.is_live(Match.state()):
+	if bind_to_match and not MatchPhase.is_live(MatchContext.current().state()):
 		queue_free()
 		return
 	_remaining_s -= delta

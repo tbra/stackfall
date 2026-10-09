@@ -59,11 +59,11 @@ func wants_early_trigger(block: Block, _behavior: SpecialBehavior) -> bool:
 	return (block.get_meta(_PROBE_META) as LandedProbe).has_landed()
 
 
-## Dips the disc at the point the anvil landed, via Match.field() -- a
+## Dips the disc at the point the anvil landed, via MatchContext.field() -- a
 ## SpecialEffect has no scene-tree handle of its own. DiscForce.apply() is a
 ## no-op at the exact disc centre and while the field's tilt is disabled.
 func detonate(block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> void:
-	DiscForce.apply(Match.field(), block.global_position, 1.0, disc_force, 0.0)
+	DiscForce.apply(MatchContext.current().field(), block.global_position, 1.0, disc_force, 0.0)
 
 
 func _probe_for(block: Block) -> LandedProbe:

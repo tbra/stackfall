@@ -61,7 +61,7 @@ func detonate(block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> vo
 	# tilting/shaking disc like the volcano; BlackHoleField.tick() reads global_position
 	# every physics tick, so the pull centre follows. Falls back to the blocks container
 	# (then the carrier's parent) without a live Field.
-	var world: Node3D = Match.blocks_parent()
+	var world: Node3D = MatchContext.current().blocks_parent()
 	var fallback: Node = world if world != null else block.get_parent()
 	var field: BlackHoleField = BlackHoleField.new()
 	field.bind_to_match = world != null

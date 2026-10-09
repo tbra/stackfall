@@ -34,13 +34,13 @@ static func spawn_host(effect: PropellerEffect, world_position: Vector3) -> Prop
 
 ## Client visual: no force. Null on the host (its own stand already draws it).
 static func build_client_visual(effect: PropellerEffect, world_position: Vector3) -> PropellerStand:
-	if Match._is_host():
+	if MatchContext.current().has_authority():
 		return null
 	return _spawn(effect, world_position, false)
 
 
 static func _spawn(effect: PropellerEffect, world_position: Vector3, physics: bool) -> PropellerStand:
-	var field: Field = Match.field()
+	var field: FieldBody = MatchContext.current().field()
 	if effect == null or field == null or not world_position.is_finite() or not field.is_inside_tree():
 		return null
 	var stand: PropellerStand = PropellerStand.new()
@@ -99,7 +99,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _match_is_live() -> bool:
-	return MatchAutoload.is_live(Match.state())
+	return MatchPhase.is_live(MatchContext.current().state())
 
 
 ## One simulation step; public so tests drive it without the physics loop.
@@ -108,7 +108,7 @@ func tick(delta: float) -> void:
 		queue_free()
 		return
 	if _physics and not is_expired():
-		DiscForce.apply(Match.field(), global_position, RAISE_SIGN, _effect.disc_force, delta)
+		DiscForce.apply(MatchContext.current().field(), global_position, RAISE_SIGN, _effect.disc_force, delta)
 	_age += delta
 	if is_expired():
 		queue_free()
