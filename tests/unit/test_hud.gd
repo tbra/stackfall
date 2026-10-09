@@ -124,6 +124,25 @@ func test_set_capture_shows_the_ring_only_while_someone_is_capturing() -> void:
 	assert_false(hud._capture_ring.visible)
 
 
+func _toast_accent(label: Label) -> Color:
+	return (label.get_theme_stylebox("normal") as StyleBoxFlat).border_color
+
+
+## Bontago-mp0.145: every transient message shares one pill style; the gift
+## toast's accent is the active player's colour, the pill fades as one node.
+func test_toasts_share_one_pill_style_with_a_player_accent() -> void:
+	var hud: HUD = _make_hud()
+	for label: Label in [hud._gift_toast_label, hud._reject_label]:
+		var style: StyleBoxFlat = label.get_theme_stylebox("normal") as StyleBoxFlat
+		assert_not_null(style)
+		assert_eq(style.bg_color, hud.hud_visual_tuning.toast_fill_color)
+		assert_eq(label.get_theme_font_size("font_size"), hud.hud_visual_tuning.toast_font_size)
+	hud.show_gift_toast(&"jumping_bean")
+	var accent: Color = _toast_accent(hud._gift_toast_label)
+	assert_almost_eq(accent.r, hud._active_color.r, 0.001)
+	assert_almost_eq(hud._gift_toast_label.modulate.r, 1.0, 0.001, "accent lives on the border, not a modulate tint")
+
+
 func test_show_reject_sets_the_message() -> void:
 	var hud: HUD = _make_hud()
 	hud.show_reject(&"outside_territory")
@@ -144,7 +163,7 @@ func test_show_relocated_sets_a_distinct_message_from_show_reject() -> void:
 	assert_true(hud._reject_label.text.findn("territory") >= 0)
 	assert_almost_eq(hud._reject_label.modulate.a, 1.0, 0.001)
 	assert_almost_eq(
-		hud._reject_label.modulate.r, hud.ghost_tuning.auto_drop_flash_color.r, 0.001,
+		_toast_accent(hud._reject_label).r, hud.ghost_tuning.auto_drop_flash_color.r, 0.001,
 		"the relocated message should read distinctly from a reject (ties it to the same auto-drop flash tint)."
 	)
 
@@ -157,13 +176,13 @@ func test_show_relocated_after_show_reject_does_not_keep_the_stale_reject_tint()
 	hud.show_reject(&"outside_territory")
 	hud.show_relocated()
 	assert_true(hud._reject_label.text.findn("relocated") >= 0)
-	assert_almost_eq(hud._reject_label.modulate.r, hud.ghost_tuning.auto_drop_flash_color.r, 0.001)
+	assert_almost_eq(_toast_accent(hud._reject_label).r, hud.ghost_tuning.auto_drop_flash_color.r, 0.001)
 
 	hud.show_reject(&"outside_territory")
 	assert_true(hud._reject_label.text.findn("outside territory") >= 0)
-	assert_almost_eq(
-		hud._reject_label.modulate.r, 1.0, 0.001,
-		"a reject right after a relocated message must not keep the relocated tint either."
+	assert_eq(
+		_toast_accent(hud._reject_label), hud.hud_visual_tuning.toast_reject_accent_color,
+		"a reject right after a relocated message must not keep the relocated accent either."
 	)
 
 
