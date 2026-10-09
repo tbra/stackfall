@@ -39,3 +39,22 @@ func test_missing_main_scene_fails_instead_of_hanging() -> void:
 	assert_push_error_count(1, "Boot reports the failure exactly once (no _process re-poll)")
 	assert_engine_error_count(2, "the engine reports the failed sync load (open + condition)")
 	boot.queue_free()
+
+
+## S2b: the late scripts are prewarmed and autoloads activated before Main joins the root.
+func test_activation_hook_runs_before_main_is_added() -> void:
+	var probe: Node = Node.new()
+	probe.set_script(load("res://tests/unit/support/LateActivationProbe.gd"))
+	get_tree().root.add_child(probe)
+	var boot: Boot = Boot.new()
+	add_child(boot)
+	await get_tree().process_frame
+	assert_eq(probe.get("calls"), 1, "late_activate called once by Boot")
+	assert_false(probe.get("main_present_at_call"), "Main did not exist yet at activation")
+	var main: Node = get_tree().root.get_node_or_null(NodePath(Boot.MAIN_NODE_NAME))
+	if main != null:
+		main.queue_free()
+	probe.queue_free()
+	get_tree().current_scene = null
+	await get_tree().process_frame
+	await get_tree().process_frame
