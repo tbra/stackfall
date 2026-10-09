@@ -49,6 +49,9 @@ func _apply_settings() -> void:
 		# M8 P7 (Bontago-8or.13): the macOS export preset is universal/arm64,
 		# which Godot refuses unless ETC2/ASTC VRAM compression is imported.
 		"rendering/textures/vram_compression/import_etc2_astc": true,
+		# Bontago-1pi.11.74 (G1): the sky shaders read this global instead of TIME so the
+		# radiance is not re-rendered every frame (game/Skybox.gd writes it).
+		"shader_globals/sky_time": {"type": "float", "value": 0.0},
 
 		# Spec 3.5 - physics tuning.
 		"physics/common/physics_ticks_per_second": 60,

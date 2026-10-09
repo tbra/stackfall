@@ -835,6 +835,8 @@ ranges = {
 "CloudDriftConfig.speed_follow_rate": Vector2(0.05, 5.0),
 "CloudDriftConfig.edge_fade_m": Vector2(10.0, 400.0),
 "CloudDriftConfig.exclusion_fade_m": Vector2(5.0, 200.0),
+"SkyRadianceConfig.radiance_hz": Vector2(1.0, 60.0),
+"SkyRadianceConfig.time_wrap_seconds": Vector2(60.0, 86400.0),
 }
 descriptions = {
 "SpecialTuning.gift_aim_back_m": "How far back along the camera line a camera-aimed gift spawns from the held gift, in meters (0 = from the held gift).",
@@ -1928,6 +1930,8 @@ descriptions = {
 "CloudDriftConfig.speed_follow_rate": "How fast the cloud drift speed eases toward the wind speed, per second.",
 "CloudDriftConfig.edge_fade_m": "Width in metres of the dissolve at the edge of the cloud field where clouds wrap around.",
 "CloudDriftConfig.exclusion_fade_m": "Width in metres over which cloud sea fades out near the disc.",
+"SkyRadianceConfig.radiance_hz": "How often the sky ambient/reflection refreshes (and the day/night cycle writes its sun and palette). The visible sky animates smoothly regardless.",
+"SkyRadianceConfig.time_wrap_seconds": "Seconds after which the shared sky animation clock wraps to zero.",
 }
 sections = {
 "CameraTuning.mouse_orbit_speed": "Orbit",
@@ -2532,6 +2536,8 @@ sections = {
 "SkyThemeDef.proc_cards_density": "Procedural sky",
 "SkyThemeDef.proc_cards_scale": "Procedural sky",
 "SkyThemeDef.proc_cards_opacity": "Procedural sky",
+"SkyRadianceConfig.radiance_hz": "Sky",
+"SkyRadianceConfig.time_wrap_seconds": "Sky",
 }
 section_order = {
 "SkyThemeDef": ["Day/night cycle", "Sky", "Fog & haze", "Light & glow", "Clouds", "Birds", "Aurora", "Procedural sky"],
@@ -2593,4 +2599,6 @@ units = {
 "BeaconVisualTuning.claim_burst_size": "m",
 "BeaconVisualTuning.claim_ring_width": "m",
 "HUDVisualTuning.countdown_font_size": "px",
+"SkyRadianceConfig.radiance_hz": "Hz",
+"SkyRadianceConfig.time_wrap_seconds": "s",
 }

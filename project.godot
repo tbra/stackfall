@@ -418,3 +418,10 @@ common/physics_interpolation=true
 [rendering]
 
 textures/vram_compression/import_etc2_astc=true
+
+[shader_globals]
+
+sky_time={
+"type": "float",
+"value": 0.0
+}

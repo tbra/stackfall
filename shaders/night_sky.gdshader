@@ -1,6 +1,17 @@
 shader_type sky;
 #include "res://shaders/include/cloud_common.gdshaderinc"
 
+// Bontago-1pi.11.74 (G1): the sky must NOT read the built-in TIME. Any TIME use makes
+// the engine re-render the whole radiance octmap + filter every frame (sky.cpp:1033,
+// uses_time), and so does every material uniform write (sky.cpp:1044). `sky_time` is a
+// GLOBAL uniform (project.godot [shader_globals]): game/Skybox.gd writes it each frame
+// into the shared global buffer, which neither flag sees, so the visible background
+// animates smoothly while the radiance only re-renders at SkyRadianceConfig.radiance_hz
+// (a `radiance_tick` write + the cycle's palette/sun writes).
+global uniform float sky_time;
+uniform float radiance_tick = 0.0;
+
+
 // Bontago-adt.1: procedural night sky for config/sky_themes/night.tres --
 // deep blue gradient, twinkling stars, a shaded moon with glow, and a
 // slowly drifting cel-banded moonlit cloud layer above the horizon. Below
@@ -128,7 +139,7 @@ vec3 star_layer(vec3 dir, float cells, float size_scale) {
 	float radius = star_size * size_scale * (0.4 + h.y * 0.6);
 	float core = 1.0 - smoothstep(0.0, radius, dist);
 	float brightness = pow(h.z, 3.0) * star_brightness;
-	float twinkle = 1.0 - twinkle_amount * (0.5 + 0.5 * sin(TIME * twinkle_speed * (0.6 + h.y) + h.x * 200.0));
+	float twinkle = 1.0 - twinkle_amount * (0.5 + 0.5 * sin(sky_time * twinkle_speed * (0.6 + h.y) + h.x * 200.0));
 	vec3 tint = mix(star_tint_cool, star_tint_warm, h.y);
 	return tint * core * core * brightness * twinkle * present;
 }
@@ -160,7 +171,7 @@ void sky() {
 
 		// Aurora curtains, additive over the stars (exposure-scaled like the sea).
 		if (aurora_visibility > 0.0 && aurora_intensity > 0.0 && eyedir.y > 0.0) {
-			col += aurora_borealis(noise_tex, eyedir, TIME, aurora_base_height, aurora_curtain_height, aurora_speed,
+			col += aurora_borealis(noise_tex, eyedir, sky_time, aurora_base_height, aurora_curtain_height, aurora_speed,
 				aurora_color_low, aurora_color_mid, aurora_color_top) * aurora_intensity * aurora_visibility * exposure;
 		}
 
@@ -188,7 +199,7 @@ void sky() {
 		// Moonlit cel-banded clouds.
 		if (eyedir.y > 0.0) {
 			vec2 cp = eyedir.xz / (eyedir.y + cloud_horizon_lift) * cloud_layer_scale;
-			vec2 drift = cloud_wind * cloud_wind_speed * TIME;
+			vec2 drift = cloud_wind * cloud_wind_speed * sky_time;
 			vec2 cwarp = (vec2(
 				texture(noise_tex, cp * 0.5 + drift * 0.6 + vec2(0.3, 0.7)).r,
 				texture(noise_tex, cp * 0.5 - drift * 0.4 + vec2(0.9, 0.2)).r) - 0.5) * cloud_warp_amount;
@@ -218,7 +229,7 @@ void sky() {
 		// Flat palette in the radiance pass (no noise taps there).
 		vec3 sea_col = mix(proc_sea_color_near.rgb, proc_sea_color_far.rgb, smoothstep(0.0, 1.0, -eyedir.y));
 		if (!AT_CUBEMAP_PASS) {
-			sea_col = procedural_sea_color(noise_tex, eyedir, normalize(moon_direction), TIME, proc_sea_params,
+			sea_col = procedural_sea_color(noise_tex, eyedir, normalize(moon_direction), sky_time, proc_sea_params,
 				proc_sea_heights, proc_sea_wind, proc_sea_coverage, proc_sea_softness, proc_sea_band_edge,
 				proc_sea_horizon_fade, proc_sea_color_near.rgb, proc_sea_color_far.rgb, cloud_shadow_color,
 				cloud_mid_color, cloud_lit_color, cloud_rim_color, col / max(exposure, 0.001));
