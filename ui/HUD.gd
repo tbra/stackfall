@@ -269,8 +269,10 @@ func _ready() -> void:
 	_height_label.add_theme_color_override("font_color", hud_visual_tuning.muted_ink_color)
 	_held_label.add_theme_color_override("font_color", hud_visual_tuning.muted_ink_color)
 	_next_label.add_theme_color_override("font_color", hud_visual_tuning.muted_ink_color)
-	for outlined: Label in [_turn_label, _height_label, _special_indicator, _gift_toast_label, _held_label, _next_label]:
+	for outlined: Label in [_turn_label, _height_label, _special_indicator, _held_label, _next_label]:
 		_apply_text_outline(outlined)
+	_style_toast(_gift_toast_label)
+	_style_toast(_reject_label)
 	# Bontago-mp0.3.3 (owner review 2026-09-26: "row gap ~12 px"). The status
 	# labels above sit in %StatusPill, a VBoxContainer nested right under
 	# %SharesBox inside their shared %TopLeftCluster (ui/HUD.tscn) -- both
@@ -579,7 +581,8 @@ func show_reject(reason: StringName) -> void:
 	# below tints this same label a distinct colour, and without resetting the
 	# whole modulate here a reject message right after a relocated one would
 	# stay tinted instead of reading as its own, distinct message.
-	_reject_label.modulate = Color(1.0, 1.0, 1.0, 1.0)
+	_reject_label.modulate = Color.WHITE
+	_set_toast_accent(_reject_label, hud_visual_tuning.toast_reject_accent_color)
 	if _reject_tween != null and _reject_tween.is_valid():
 		_reject_tween.kill()
 	_reject_tween = create_tween()
@@ -607,7 +610,8 @@ func show_reject(reason: StringName) -> void:
 func show_relocated() -> void:
 	_reject_label.text = "Relocated into your territory"
 	var tint: Color = ghost_tuning.auto_drop_flash_color
-	_reject_label.modulate = Color(tint.r, tint.g, tint.b, 1.0)
+	_reject_label.modulate = Color.WHITE
+	_set_toast_accent(_reject_label, Color(tint.r, tint.g, tint.b, 1.0))
 	if _reject_tween != null and _reject_tween.is_valid():
 		_reject_tween.kill()
 	_reject_tween = create_tween()
@@ -640,7 +644,8 @@ func show_winner(team_id: int, color: Color) -> void:
 ## shouldn't be forced to share one timing.
 func show_gift_toast(special_id: StringName) -> void:
 	_gift_toast_label.text = "Special queued: %s" % _special_display_name(special_id)
-	_gift_toast_label.modulate = Color(_active_color.r, _active_color.g, _active_color.b, 1.0)
+	_gift_toast_label.modulate = Color.WHITE
+	_set_toast_accent(_gift_toast_label, Color(_active_color.r, _active_color.g, _active_color.b, 1.0))
 	if _gift_toast_tween != null and _gift_toast_tween.is_valid():
 		_gift_toast_tween.kill()
 	_gift_toast_tween = create_tween()
@@ -968,6 +973,42 @@ func _resize_top_left_backplate() -> void:
 func _apply_text_outline(label: Label) -> void:
 	label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.85))
 	label.add_theme_constant_override("outline_size", 4)
+
+
+## Bontago-mp0.145: the one shared toast look (claim toast, reject/relocated
+## message): a dark-glass pill from hud_visual_tuning's toast_* values drawn as
+## the label's own "normal" stylebox, so a single modulate fade fades pill and
+## text together. Title font from the Stackfall theme; light ink and a dark
+## outline keep text readable over any sky.
+## DECISION: the winner banner is not restyled -- it is permanently hidden
+## (Bontago-1pi.5, results screen owns it) and other tests read its modulate.
+func _style_toast(label: Label) -> void:
+	var tuning: HUDVisualTuning = hud_visual_tuning
+	var style: StyleBoxFlat = StyleBoxFlat.new()
+	style.bg_color = tuning.toast_fill_color
+	style.border_color = tuning.surface_border_color
+	style.set_border_width_all(int(tuning.toast_border_width_px))
+	style.set_corner_radius_all(int(tuning.toast_corner_radius_px))
+	style.content_margin_left = tuning.toast_padding_x_px
+	style.content_margin_right = tuning.toast_padding_x_px
+	style.content_margin_top = tuning.toast_padding_y_px
+	style.content_margin_bottom = tuning.toast_padding_y_px
+	label.add_theme_stylebox_override("normal", style)
+	var theme: Theme = preload("res://ui/theme/stackfall_theme.tres")
+	label.add_theme_font_override("font", theme.get_font(&"font", &"TitleLabel"))
+	label.add_theme_font_size_override("font_size", tuning.toast_font_size)
+	label.add_theme_color_override("font_color", tuning.ink_color)
+	label.add_theme_color_override("font_outline_color", tuning.countdown_outline_color)
+	label.add_theme_constant_override("outline_size", tuning.toast_outline_size_px)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+
+## The pill's border carries the message's accent (player colour, refusal red,
+## relocation blue); text stays ink so it never loses contrast to a tint.
+func _set_toast_accent(label: Label, accent: Color) -> void:
+	var style: StyleBoxFlat = label.get_theme_stylebox("normal") as StyleBoxFlat
+	if style != null:
+		style.border_color = accent
 
 
 ## Spec M2 owner decision 3: no dedicated Events signal exists for "home flag

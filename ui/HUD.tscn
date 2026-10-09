@@ -64,6 +64,7 @@ visible = false
 [node name="GiftToastLabel" type="Label" parent="StatusPill"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 0
 theme_override_font_sizes/font_size = 12
 text = ""
 
@@ -181,11 +182,9 @@ anchor_left = 0.5
 anchor_right = 0.5
 anchor_top = 1.0
 anchor_bottom = 1.0
-offset_left = -160.0
 offset_top = -90.0
-offset_right = 160.0
 offset_bottom = -60.0
-theme_override_font_sizes/font_size = 18
+grow_horizontal = 2
 horizontal_alignment = 1
 text = ""
 
