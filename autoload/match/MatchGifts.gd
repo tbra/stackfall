@@ -17,16 +17,17 @@ var _match: MatchAutoload = null
 var _gift_config: GiftConfig = preload("res://config/gift_config.tres")
 
 const GIFT_CRATE_SCENE: PackedScene = preload("res://game/GiftCrate.tscn")
-const FALLING: int = 0
-const LANDED: int = 1
+const FALLING: int = GiftWirePhase.FALLING
+const LANDED: int = GiftWirePhase.LANDED
 ## Client-side wire-tracking only states (net/MatchNet.gd GiftWirePhase aliases
-## these; MatchGifts is the single numbering owner). Never stored in a crate.
-const WIRE_LEGACY: int = 2
-const WIRE_REMOVED: int = 3
+## these; core/gifts/GiftWirePhase.gd is the single numbering owner and these
+## constants re-export it). Never stored in a crate.
+const WIRE_LEGACY: int = GiftWirePhase.WIRE_LEGACY
+const WIRE_REMOVED: int = GiftWirePhase.WIRE_REMOVED
 
 
 static func is_valid_wire_phase(value: int) -> bool:
-	return value >= FALLING and value <= WIRE_REMOVED
+	return GiftWirePhase.is_valid_wire_phase(value)
 
 ## The id MatchGifts.PENDING_SPECIAL_ID's default drawer hands out until P2c
 ## installs the real weighted SpecialDef pick (set_special_drawer() below).

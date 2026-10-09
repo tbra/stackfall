@@ -172,15 +172,15 @@ static func validate_mode_block(raw: Variant) -> Dictionary:
 		return {}
 	var data: Dictionary = raw
 	var mode: Variant = data.get(KEY_MODE_ID)
-	if not (mode is int or mode is float) or not ModeObjective.is_known_mode(int(mode)):
+	if not (mode is int or mode is float) or not ResultsValidation.is_known_mode(int(mode)):
 		return {}
-	var scores: Array = ModeObjective.clean_scores(data.get(KEY_SCORES))
+	var scores: Array = ResultsValidation.clean_scores(data.get(KEY_SCORES))
 	if scores.size() == 1 and scores[0] == null:
 		return {}
 	var rest: Dictionary = data.duplicate()
 	rest.erase(KEY_MODE_ID)
 	rest.erase(KEY_SCORES)
-	var cleaned: Variant = ModeObjective.clean_scalars(rest)
+	var cleaned: Variant = ResultsValidation.clean_scalars(rest)
 	if cleaned == null:
 		return {}
 	var out: Dictionary = cleaned
