@@ -133,27 +133,43 @@ func test_toggle_on_draws_one_ring_per_goal_at_the_host_capture_radius() -> void
 		assert_eq(flag.find_children(RING_NODE_NAME, "MeshInstance3D", false, false).size(), 1, "exactly one ring node")
 
 
-func test_ring_mesh_band_is_centred_on_the_claim_radius_with_the_tuned_width() -> void:
+func test_zone_mesh_is_a_disc_reaching_the_rim_outer_edge_and_the_shader_gets_the_radius() -> void:
 	var flag: GoalFlag = _place(_qol(true))[0]
 	var tuning: BeaconVisualTuning = flag.beacon_visuals
 	var radius: float = Match.qol_claim_radius()
 	var extent: Vector2 = _radial_extent(flag.claim_ring_node().mesh)
-	assert_almost_eq(extent.x, radius - tuning.claim_ring_width * 0.5, 0.001, "inner edge")
-	assert_almost_eq(extent.y, radius + tuning.claim_ring_width * 0.5, 0.001, "outer edge")
+	assert_almost_eq(extent.x, 0.0, 0.001, "filled disc: the fan starts at the centre")
+	assert_almost_eq(extent.y, radius + tuning.claim_ring_width * 0.5, 0.001, "outer edge of the rim")
+	var material: ShaderMaterial = flag.claim_ring_node().material_override as ShaderMaterial
+	assert_almost_eq(float(material.get_shader_parameter(&"zone_radius")), radius, 0.0001, "rim centre line")
 	assert_almost_eq(flag.claim_ring_node().position.y, tuning.claim_ring_lift, 0.0001, "lift from tuning")
 
 
-func test_ring_material_is_flat_translucent_and_takes_color_and_alpha_from_tuning() -> void:
+func test_zone_material_is_the_cel_shader_and_takes_tuning() -> void:
 	var flag: GoalFlag = _place(_qol(true))[0]
 	var tuning: BeaconVisualTuning = flag.beacon_visuals
-	var material: StandardMaterial3D = flag.claim_ring_node().material_override as StandardMaterial3D
+	var material: ShaderMaterial = flag.claim_ring_node().material_override as ShaderMaterial
 	assert_not_null(material)
-	assert_eq(material.shading_mode, BaseMaterial3D.SHADING_MODE_UNSHADED)
-	assert_eq(material.transparency, BaseMaterial3D.TRANSPARENCY_ALPHA)
-	assert_almost_eq(material.albedo_color.a, tuning.claim_ring_alpha, 0.0001)
-	assert_almost_eq(material.albedo_color.r, tuning.claim_ring_color.r, 0.0001)
-	assert_lt(material.albedo_color.a, 0.6, "subtle by default")
+	assert_eq(material.shader.resource_path, "res://shaders/goal_claim_zone.gdshader")
+	assert_almost_eq(float(material.get_shader_parameter(&"rim_alpha")), tuning.claim_ring_alpha, 0.0001)
+	assert_almost_eq(float(material.get_shader_parameter(&"fill_alpha")), tuning.claim_zone_fill_alpha, 0.0001)
+	assert_eq(material.get_shader_parameter(&"zone_color"), tuning.claim_ring_color, "neutral when unclaimed")
 	assert_eq(flag.claim_ring_node().cast_shadow, GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
+
+
+func test_zone_colour_follows_control_and_capture_progress_reaches_the_shader() -> void:
+	var flag: GoalFlag = _flat_flag()
+	flag.set_claim_ring(6.0)
+	var material: ShaderMaterial = flag.claim_ring_node().material_override as ShaderMaterial
+	var owner_color: Color = Color(0.2, 0.6, 1.0)
+	flag.set_control(1, owner_color, PackedColorArray())
+	assert_eq(material.get_shader_parameter(&"zone_color"), owner_color, "owner colour once claimed")
+	flag.set_control(GoalControl.NEUTRAL, Color.WHITE, PackedColorArray())
+	assert_eq(material.get_shader_parameter(&"zone_color"), flag.beacon_visuals.claim_ring_color)
+	flag.set_capture(0, 0.5, owner_color)
+	assert_almost_eq(float(material.get_shader_parameter(&"capture")), 0.5, 0.0001)
+	flag.set_capture(-1, 0.0, owner_color)
+	assert_eq(float(material.get_shader_parameter(&"capture")), 0.0)
 
 
 func test_multiplier_is_clamped_to_the_ceiling_in_the_drawn_radius() -> void:
@@ -204,6 +220,8 @@ func test_set_claim_ring_same_radius_reuses_the_mesh_and_a_new_radius_rebuilds_i
 	assert_same(flag.claim_ring_node(), node, "still one node")
 	assert_ne(flag.claim_ring_node().mesh, mesh, "a changed radius rebuilds the mesh")
 	assert_almost_eq(_radial_extent(flag.claim_ring_node().mesh).y, 8.0 + flag.beacon_visuals.claim_ring_width * 0.5, 0.001)
+	var material: ShaderMaterial = flag.claim_ring_node().material_override as ShaderMaterial
+	assert_almost_eq(float(material.get_shader_parameter(&"zone_radius")), 8.0, 0.0001)
 
 
 func test_processing_a_flag_with_a_ring_allocates_no_new_nodes() -> void:
