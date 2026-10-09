@@ -40,10 +40,20 @@ godot-ai-pilot`) has the setup and known gotchas.
 - You have no write-capable godot-ai domains (scene/script/node/input_map/etc. are
   excluded server-side, and project_manage/editor_reload_plugin are not in your tools).
   Do not ask for them.
-- Game runs: start with `project_run`, stop the game when the capture or log read is
-  done (`game_manage`), and never leave a run going. The pilot's `override.cfg`
-  keeps game windows off-screen at 320x180; say so if a capture is too small to
-  judge and suggest the off-screen `tools/sandbox_shot.gd` route instead.
+- Game runs: start with `project_run`; the runtime helper is live only after ~10-15 s
+  (poll `game_manage` debug_status instead of failing at 3 s). Never leave a run going.
+  No tool you have can stop it (`project_manage` is withheld because it can also write
+  project settings), so stop it by PID: list it with
+  `wmic process where "name like '%godot%' and commandline like '%remote-debug%' and commandline like '%godot-ai-pilot%'" get ProcessId,CommandLine`,
+  confirm the CommandLine is the pilot game run (never the editor, never a run you
+  did not start), then `taskkill //F //PID <n>` and confirm it is gone. If that fails,
+  return `blocked` asking the owner to press F8.
+- Captures (smoke test 2026-10-09): `game_manage` screenshots work at the default
+  max_resolution (a 1280x720 frame); max_resolution=0 failed with "Transport failed
+  after dispatch". `editor_screenshot` needs a 3D edited scene for the default
+  viewport (the pilot opens `Boot`, a plain Node; viewport_2d returned a blank 2x2);
+  prefer game captures. If a capture is too small to judge, say so and suggest the
+  off-screen `tools/sandbox_shot.gd` route.
 - Input: reproduce gamepad/keyboard issues only through what `game_manage` offers;
   never hand-edit input or simulate raw keycodes in project code.
 - Read code before probing; then iterate within the brief's budget (runs, captures,
