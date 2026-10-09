@@ -5,11 +5,7 @@ extends GutTest
 
 func test_map_variant_ordinals_pinned() -> void:
 	assert_eq(MatchConfig.MapVariant.ROUND, 0)
-	assert_eq(MatchConfig.MapVariant.OVAL, 1)
-	assert_eq(MatchConfig.MapVariant.RING, 2)
-	assert_eq(MatchConfig.MapVariant.TWIN, 3)
-	assert_eq(MatchConfig.MapVariant.CROSS, 4)
-	assert_eq(MatchConfig.MapVariant.keys(), ["ROUND", "OVAL", "RING", "TWIN", "CROSS"])
+	assert_eq(MatchConfig.MapVariant.keys(), ["ROUND"])
 
 
 func test_map_variant_matches_map_shape() -> void:
@@ -17,13 +13,12 @@ func test_map_variant_matches_map_shape() -> void:
 	assert_eq(MatchConfig.MapVariant.values(), MapDef.MapShape.values())
 
 
-func test_shape_ids_and_paths_pinned() -> void:
-	var ids: Array[String] = ["round", "oval", "ring", "twin", "cross"]
+func test_shape_ids_pinned() -> void:
+	var ids: Array[String] = ["round"]
 	for i: int in range(ids.size()):
 		assert_eq(MapDef.shape_id(i), ids[i])
-	assert_eq(MapDef.shape_id(5), "")
+	assert_eq(MapDef.shape_id(1), "")
 	assert_eq(MapDef.shape_id(-1), "")
-	assert_eq(MapDef.variant_resource_path(MatchConfig.MapVariant.RING, MapDef.MapSize.SMALL), "res://config/maps/ring_small.tres")
 
 
 func test_loading_backdrop_ids_follow_map_shape() -> void:

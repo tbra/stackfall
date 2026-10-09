@@ -12,10 +12,7 @@ extends RefCounted
 ## normals are unchanged) and then split into two surfaces so the side and the
 ## bottom each carry their own material slot (the next package restyles them).
 ##
-## Shape support (unchanged): ROUND and OVAL follow the analytic outline
-## (field_radius in x, field_radius * oval_aspect in z); RING keeps the round
-## outer edge; TWIN and CROSS get no side surfaces (they would float around
-## empty space; DECISION Bontago-1pi.60).
+## Shape support: the round disc only (Bontago-fca.75 removed the other shapes).
 ##
 ## DECISION (game/ArenaMesh.gd): the side materials keep cull_mode
 ## CULL_DISABLED rather than hand-verified winding, as DiscBody did.
@@ -72,7 +69,7 @@ func materials() -> Dictionary:
 ## Appends the chamfer/band/bottom surfaces for `map_def` to `target`. `y_shift`
 ## is added to every vertex y (the overlay node sits at -disk_height/2, so the
 ## old world-space-at-origin coordinates become local with +disk_height/2).
-## Returns the number of surfaces appended (0 for TWIN/CROSS).
+## Returns the number of surfaces appended.
 func append_side_surfaces(
 	target: ArrayMesh,
 	map_def: MapDef,
@@ -88,9 +85,6 @@ func append_side_surfaces(
 	visuals = body_visuals
 	if side_style != null and side_style.style != ArenaSideStyle.Style.CURRENT:
 		return _append_style_surfaces(target, map_def, side_style, segments, y_shift)
-	var circular_outline: bool = map_def.map_shape != MapDef.MapShape.TWIN and map_def.map_shape != MapDef.MapShape.CROSS
-	if not circular_outline:
-		return 0
 	var true_points: PackedVector2Array = _outline_points(map_def, maxi(segments, MIN_SEGMENTS))
 	var outer_points: PackedVector2Array = _scaled_points(true_points, visuals.band_radius_scale)
 	var diameter: float = _DIAMETER_FACTOR * map_def.field_radius
@@ -184,15 +178,14 @@ func _slice_arrays(arrays: Array, from: int, to: int) -> Array:
 
 
 ## Disk-local (x, z) points around `map_def`'s outer boundary, evenly spaced
-## by angle. See this file's own class doc for which shapes are exact.
+## by angle.
 func _outline_points(map_def: MapDef, segments: int) -> PackedVector2Array:
 	var points: PackedVector2Array = PackedVector2Array()
 	points.resize(segments)
-	var z_scale: float = map_def.oval_aspect if map_def.map_shape == MapDef.MapShape.OVAL else 1.0
 	for i: int in range(segments):
 		var angle: float = TAU * float(i) / float(segments)
 		points[i] = Vector2(
-			map_def.field_radius * cos(angle), map_def.field_radius * z_scale * sin(angle)
+			map_def.field_radius * cos(angle), map_def.field_radius * sin(angle)
 		)
 	return points
 

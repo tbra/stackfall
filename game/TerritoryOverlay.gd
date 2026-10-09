@@ -248,8 +248,7 @@ func configure(
 
 
 ## Rebuilds THE arena mesh (Bontago-mp0.150.1): one ArrayMesh whose surface 0 is
-## the playing-surface slab (territory shader; the CylinderMesh arrays for
-## ROUND/OVAL, DiskShapeMesh's cell slab for RING/TWIN/CROSS, Bontago-1pi.60) and
+## the playing-surface slab (territory shader; the CylinderMesh arrays) and
 ## whose further surfaces are ArenaMesh's chamfer / band / bottom (only when a
 ## DiscBodyVisuals was passed to configure()). Uses the current
 ## _visuals.disk_mesh_segments, keeping the same radius/height configure() built
@@ -277,12 +276,6 @@ func rebuild_disk_mesh() -> void:
 
 ## Surface arrays of the playing-surface slab (see rebuild_disk_mesh()).
 func _top_surface_arrays() -> Array:
-	# Bontago-1pi.60: RING/TWIN/CROSS draw their real cell shape, not the disc.
-	if DiskShapeMesh.needs_cell_mesh(_map_def):
-		var cells: ArrayMesh = DiskShapeMesh.build(_map_def, _map_def.disk_height)
-		if cells.get_surface_count() == 0:
-			return []
-		return cells.surface_get_arrays(0)
 	var cylinder: CylinderMesh = CylinderMesh.new()
 	cylinder.top_radius = _map_def.field_radius
 	cylinder.bottom_radius = _map_def.field_radius
@@ -722,10 +715,7 @@ func bake_valid() -> bool:
 
 
 func _bake_extent() -> Vector2:
-	var z_scale: float = 1.0
-	if _map_def.map_shape == MapDef.MapShape.OVAL:
-		z_scale = _map_def.oval_aspect
-	return Vector2(_map_def.field_radius, _map_def.field_radius * z_scale)
+	return Vector2(_map_def.field_radius, _map_def.field_radius)
 
 
 ## Re-renders the bake if the circle field it would hold changed (or the
@@ -1052,16 +1042,6 @@ func _apply_visual_uniforms() -> void:
 	_material.set_shader_parameter(&"hole_rim_width", _visuals.hole_rim_width)
 	_material.set_shader_parameter(&"hole_rim_glow", _visuals.hole_rim_glow)
 	_apply_hole_void_uniforms()
-	# Bontago-mp0.3.2: MapDef.MapShape.OVAL's true shape is an ellipse
-	# (field_radius in x, field_radius * oval_aspect in z) -- see the
-	# shader's own disc_z_scale uniform DECISION for why the vertex shader,
-	# not a node Transform, has to do this warp. Every other MapShape keeps a
-	# plain circle (1.0), same shape rebuild_disk_mesh() above already draws
-	# for them.
-	var z_scale: float = 1.0
-	if _map_def != null and _map_def.map_shape == MapDef.MapShape.OVAL:
-		z_scale = _map_def.oval_aspect
-	_material.set_shader_parameter(&"disc_z_scale", z_scale)
 	set_slot_colors(_slot_colors)
 	_apply_wet()
 

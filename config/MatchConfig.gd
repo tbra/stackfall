@@ -533,7 +533,8 @@ func clamp_to_connected_peers(peer_count: int) -> void:
 ## Clamps every field into its spec 2.8 range. The host calls this on any
 ## config that arrived over the wire before using it.
 func sanitize() -> void:
-	map_variant = clampi(map_variant, MapVariant.ROUND, MapVariant.CROSS)
+	# Bontago-fca.75: ROUND is the only map shape; a removed value clamps to it.
+	map_variant = MapVariant.ROUND
 	map_size = clampi(map_size, MapDef.MapSize.SMALL, MapDef.MapSize.LARGE) as MapDef.MapSize
 	var disc_tuning: DiscSizeTuning = DiscSizeTuning.shared()
 	if disc_tuning != null:
@@ -750,7 +751,8 @@ func to_dict() -> Dictionary:
 ## Rebuilds a config from to_dict() output. Unknown keys keep their defaults.
 static func from_dict(data: Dictionary) -> MatchConfig:
 	var config: MatchConfig = MatchConfig.new()
-	config.map_variant = int(data.get("map_variant", config.map_variant))
+	# Bontago-fca.75: a removed shape value (old save, network peer) becomes ROUND.
+	config.map_variant = MapVariant.ROUND
 	config.map_size = int(data.get("map_size", config.map_size)) as MapDef.MapSize
 	# Absent in lobby data from before Bontago-1pi.107: the default (medium, 1.0).
 	config.disc_size_step = int(data.get("disc_size_step", config.disc_size_step))

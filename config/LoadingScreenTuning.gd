@@ -107,7 +107,7 @@ extends Resource
 ## <shape>_<theme>.png, 1920x1080, drawn cover-cropped behind the loading card.
 ## Map sizes share a plate (the art illustrates the shape, not the size).
 
-## Folder holding the plates (Bontago-mp0.99, all five shapes x sunset/night/dawn).
+## Folder holding the plates (Bontago-mp0.99, the round shape x sunset/night/dawn).
 @export var backdrop_dir: String = "res://assets/ui/loading_arena_v2"
 
 ## Plate file name: %s are the shape id and the sky theme id, in that order.

@@ -283,19 +283,6 @@ uniform float rim_strength = 1.4;
 uniform float rim_pulse_depth : hint_range(0.0, 1.0) = 0.45;
 uniform float rim_speed = 1.6;
 
-// Bontago-mp0.3.2: disk_z_scale lets a non-round MapDef.MapShape.OVAL map
-// warp this mesh's plain circle into the true ellipse shape_contains() tests
-// membership against, entirely inside this shader -- see
-// game/TerritoryOverlay.gd's own DECISION beside where it pushes this
-// uniform for why VERTEX itself (not just the rendered position) has to be
-// the one that is scaled: v_local is read by both the UV math above and the
-// analytic circle_path() below, and CellGrid's own square raster/circle
-// coordinates are already true disk-local meters (field_radius in x,
-// field_radius * oval_aspect in z, not a unit circle later stretched by a
-// node transform) -- so v_local has to carry that same already-elliptical
-// meaning, not the cylinder's original uniform-radius local space.
-uniform float disc_z_scale = 1.0;
-
 // -- Top-surface brushed/plank grain (Bontago-pt.12 part 2, owner: "the dark
 // graphite top shows fine plank/brush streaks ... where it interacts with
 // the sun (top-right and bottom-centre)"). Cheap hash-based value noise in
@@ -524,10 +511,7 @@ float snow_coverage(vec2 point) {
 }
 
 void vertex() {
-	vec3 local = VERTEX;
-	local.z *= disc_z_scale;
-	VERTEX = local;
-	v_local = local;
+	v_local = VERTEX;
 }
 
 // Bontago-mp0.3.8 problem 1 (see the disk_diffuse_* uniforms' own DECISION

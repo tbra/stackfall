@@ -84,7 +84,7 @@ const QOL_SHARED: QolExperiments = preload("res://config/qol_experiments.tres")
 ## order -- variant major, size minor (index = variant * 3 + size), so
 ## _map_combo_index()/_decode_map_combo() only need arithmetic, not a lookup
 ## table, matching the hidden options' own selected-index encoding exactly.
-const MAP_VARIANT_LABELS: Array[String] = ["Round", "Oval", "Ring", "Twin", "Cross"]
+const MAP_VARIANT_LABELS: Array[String] = ["Round"]
 const MAP_SIZE_LABELS: Array[String] = ["Small", "Medium", "Large"]
 
 ## DECISION (ui/Lobby.gd): same `Variant` test seam as ui/MainMenu.gd and

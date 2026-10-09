@@ -17,21 +17,14 @@ const STYLES: Array[ArenaSideStyle.Style] = [
 	ArenaSideStyle.Style.ROCKY_ISLAND,
 	ArenaSideStyle.Style.MACHINED_DISC,
 ]
-const SHAPES: Array[MapDef.MapShape] = [
-	MapDef.MapShape.ROUND,
-	MapDef.MapShape.OVAL,
-	MapDef.MapShape.RING,
-	MapDef.MapShape.TWIN,
-	MapDef.MapShape.CROSS,
-]
+const SHAPES: Array[MapDef.MapShape] = [MapDef.MapShape.ROUND]
 
 
-func _map(shape: MapDef.MapShape) -> MapDef:
+func _map(_shape: MapDef.MapShape) -> MapDef:
 	var map_def: MapDef = MapDef.new()
 	map_def.id = &"test_arena_side"
 	map_def.field_radius = RADIUS
 	map_def.disk_height = DISK_HEIGHT
-	map_def.map_shape = shape
 	return map_def
 
 

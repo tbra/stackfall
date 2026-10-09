@@ -66,15 +66,12 @@ func test_sanitize_clamps_a_wire_step_into_range() -> void:
 	assert_eq(config.disc_size_step, 0)
 
 
-func test_other_maps_still_scale_through_the_same_path() -> void:
+func test_other_sizes_still_scale_through_the_same_path() -> void:
 	var config: MatchConfig = MatchConfig.new()
-	config.map_variant = MatchConfig.MapVariant.RING
 	config.map_size = MapDef.MapSize.LARGE
 	config.disc_size_step = 0
-	var base: MapDef = MapDef.for_variant_and_size(MatchConfig.MapVariant.RING, MapDef.MapSize.LARGE)
-	assert_eq(config.map_def().map_shape, MapDef.MapShape.RING)
+	var base: MapDef = MapDef.for_variant_and_size(MatchConfig.MapVariant.ROUND, MapDef.MapSize.LARGE)
 	assert_almost_eq(config.map_def().field_radius, base.field_radius * 0.5, 0.001)
-	assert_almost_eq(config.map_def().ring_bridge_half_width, base.ring_bridge_half_width * 0.5, 0.001)
 
 
 func test_camera_zoom_limit_grows_with_a_large_disc_but_never_shrinks() -> void:
