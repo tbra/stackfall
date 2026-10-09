@@ -106,6 +106,19 @@ var _world_replay_silent: bool = false
 var _last_music_tick_usec: int = Time.get_ticks_usec()
 ## Bontago-mp0.116: last variant index played per "<surface>_<tier>" key.
 var _last_impact_variant: Dictionary = {}
+## Bontago-bth.3: resolved impact streams per surface x tier (int key from
+## _impact_cache_key), so a hit does no string building or file-exists stat. Only
+## filled when every variation resolved; dropped when config/root/variation set change.
+const IMPACT_SURFACES: Array[StringName] = [AudioConfig.SURFACE_BLOCK, AudioConfig.SURFACE_DISC]
+const IMPACT_TIERS: Array[StringName] = [AudioConfig.TIER_SOFT, AudioConfig.TIER_MEDIUM, AudioConfig.TIER_HARD]
+var _impact_stream_cache: Dictionary = {}
+var _impact_cache_config: AudioConfig = null
+var _impact_cache_root: String = ""
+var _impact_cache_files: Dictionary = {}
+## Bontago-bth.3: reused surface-query objects (radius refreshed per call).
+var _surface_shape: SphereShape3D = SphereShape3D.new()
+var _surface_params: PhysicsShapeQueryParameters3D = _make_surface_params()
+var _surface_ids: PackedInt64Array = PackedInt64Array()
 
 ## Beacon-claim tension layer (Bontago-1pi.114); see the section near the end.
 var _claim_state: ClaimTensionState
@@ -791,7 +804,9 @@ func _on_music_finished() -> void:
 ## Host and client both reach this: Block.gd emits it on the host's own detection
 ## and MatchNet re-emits it from the replicated impact batch (Bontago-1pi.55).
 func _on_block_impacted_at(speed: float, position: Vector3) -> void:
-	if speed < config.impact_speed_min:
+	# Bontago-bth.3: with no sample root nothing can play (the picks below return
+	# null), so skip the physics surface query too.
+	if speed < config.impact_speed_min or not _available:
 		return
 	_play_impact(speed, _classify_surface(position))
 
@@ -809,22 +824,30 @@ func _on_block_impacted(speed: float) -> void:
 ## carries no surface, so it is derived from a physics query (the same approach
 ## as BlockEffectsManager._find_block_at) -- works on clients too, whose frozen
 ## replicas still collide, and needs no wire change.
+func _make_surface_params() -> PhysicsShapeQueryParameters3D:
+	var params: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
+	params.shape = _surface_shape
+	params.collide_with_bodies = true
+	params.collide_with_areas = false
+	return params
+
+
 func _classify_surface(position: Vector3) -> StringName:
 	var world: World3D = get_tree().root.world_3d if is_inside_tree() else null
 	if world == null:
 		return AudioConfig.SURFACE_DISC
-	var query_shape: SphereShape3D = SphereShape3D.new()
-	query_shape.radius = config.impact_surface_query_radius_m
-	var params: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
-	params.shape = query_shape
-	params.transform = Transform3D(Basis(), position)
-	params.collide_with_bodies = true
-	params.collide_with_areas = false
-	var seen: Dictionary = {}
-	for result: Dictionary in world.direct_space_state.intersect_shape(params, 8):
+	_surface_shape.radius = config.impact_surface_query_radius_m
+	_surface_params.transform = Transform3D(Basis(), position)
+	var min_blocks: int = config.impact_block_surface_min_blocks
+	_surface_ids.clear()
+	for result: Dictionary in world.direct_space_state.intersect_shape(_surface_params, 8):
 		if result.get("collider") is Block:
-			seen[result["collider_id"]] = true
-	if seen.size() >= config.impact_block_surface_min_blocks:
+			var id: int = int(result["collider_id"])
+			if not _surface_ids.has(id):
+				_surface_ids.append(id)
+				if _surface_ids.size() >= min_blocks:
+					return AudioConfig.SURFACE_BLOCK
+	if _surface_ids.size() >= min_blocks:
 		return AudioConfig.SURFACE_BLOCK
 	return AudioConfig.SURFACE_DISC
 
@@ -848,18 +871,52 @@ func _pick_impact_stream(speed: float, surface: StringName) -> AudioStream:
 	if not _available:
 		return null
 	var tier: StringName = config.impact_tier(speed)
-	var files: Array[String] = config.impact_variation_for(surface, tier)
-	if files.is_empty():
+	var key: int = _impact_cache_key(surface, tier)
+	var streams: Array[AudioStream] = _impact_streams(surface, tier, key)
+	if streams.is_empty():
 		return null
-	var key: String = "%s_%s" % [surface, tier]
 	var index: int = 0
-	if files.size() > 1:
+	if streams.size() > 1:
 		var last: int = int(_last_impact_variant.get(key, -1))
-		index = _rng.randi_range(0, files.size() - 2)
+		index = _rng.randi_range(0, streams.size() - 2)
 		if last >= 0 and index >= last:
 			index += 1
 		_last_impact_variant[key] = index
-	return _load_stream(files[index])
+	return streams[index]
+
+
+## Small int key for the two surfaces x three tiers, -1 for anything else (which
+## then bypasses the cache and its variant memory, as an unknown set has no files).
+func _impact_cache_key(surface: StringName, tier: StringName) -> int:
+	var s: int = IMPACT_SURFACES.find(surface)
+	var t: int = IMPACT_TIERS.find(tier)
+	if s < 0 or t < 0:
+		return -1
+	return s * IMPACT_TIERS.size() + t
+
+
+## Streams for one set, resolved through _load_stream once and then reused.
+func _impact_streams(surface: StringName, tier: StringName, key: int) -> Array[AudioStream]:
+	if key >= 0:
+		if not (is_same(_impact_cache_config, config) and _impact_cache_root == _root_dir 				and is_same(_impact_cache_files, config.impact_variation_files)):
+			_impact_stream_cache.clear()
+			_impact_cache_config = config
+			_impact_cache_root = _root_dir
+			_impact_cache_files = config.impact_variation_files
+		var cached: Variant = _impact_stream_cache.get(key)
+		if cached != null:
+			return cached as Array[AudioStream]
+	var resolved: Array[AudioStream] = []
+	var complete: bool = true
+	for file: String in config.impact_variation_for(surface, tier):
+		var stream: AudioStream = _load_stream(file)
+		complete = complete and stream != null
+		resolved.append(stream)
+	# A missing file keeps the old behaviour (null entry, retried and reported
+	# on each pick), so only a fully resolved set is cached.
+	if key >= 0 and complete:
+		_impact_stream_cache[key] = resolved
+	return resolved
 
 
 ## Plays a lobby/loading UI cue (AudioConfig.ui_cue_files). False when unknown or

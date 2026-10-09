@@ -36,6 +36,8 @@ extends Node3D
 ## a gameplay tunable (config/BlockShape.gd's own single-cube edge length is
 ## the real reference scale this only has to comfortably beat).
 const FIND_BLOCK_QUERY_RADIUS_M: float = 0.35
+## Reused by _find_block_at (Bontago-bth.3); built lazily.
+var _find_params: PhysicsShapeQueryParameters3D = null
 
 const DUST_SHADER: Shader = preload("res://vfx/dust_puff.gdshader")
 const CUBELET_SHADER: Shader = preload("res://vfx/cubelet.gdshader")
@@ -260,14 +262,16 @@ func _find_block_at(position: Vector3) -> Block:
 	var space_state: PhysicsDirectSpaceState3D = world.direct_space_state
 	if space_state == null:
 		return null
-	var query_shape: SphereShape3D = SphereShape3D.new()
-	query_shape.radius = FIND_BLOCK_QUERY_RADIUS_M
-	var params: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
-	params.shape = query_shape
-	params.transform = Transform3D(Basis(), position)
-	params.collide_with_bodies = true
-	params.collide_with_areas = false
-	var results: Array[Dictionary] = space_state.intersect_shape(params, 8)
+	# Bontago-bth.3: query objects reused across impacts (same shape/radius/flags).
+	if _find_params == null:
+		var query_shape: SphereShape3D = SphereShape3D.new()
+		query_shape.radius = FIND_BLOCK_QUERY_RADIUS_M
+		_find_params = PhysicsShapeQueryParameters3D.new()
+		_find_params.shape = query_shape
+		_find_params.collide_with_bodies = true
+		_find_params.collide_with_areas = false
+	_find_params.transform = Transform3D(Basis(), position)
+	var results: Array[Dictionary] = space_state.intersect_shape(_find_params, 8)
 	for result: Dictionary in results:
 		var collider: Object = result.get("collider")
 		if collider is Block:
