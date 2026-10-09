@@ -442,8 +442,10 @@ func test_apply_theme_writes_procedural_sky_params_to_material() -> void:
 	theme.proc_horizon_color = Color(0.1, 0.2, 0.3)
 	theme.proc_strata_scale = 2.5
 	skybox.apply_theme(theme)
-	assert_false(theme.sky_look_procedural, "fixture: the toggle defaults to off.")
-	assert_almost_eq(float(material.get_shader_parameter("procedural_sea_mix")), 0.0, 0.0001, "Toggle off keeps the painted look.")
+	assert_true(theme.sky_look_procedural, "the toggle defaults to on.")
+	theme.sky_look_procedural = false
+	skybox.apply_theme(theme)
+	assert_almost_eq(float(material.get_shader_parameter("procedural_sea_mix")), 0.75, 0.0001, "Painted panorama is gone: the flag no longer zeroes the sky mix (a 0 mix is a black sky).")
 	theme.sky_look_procedural = true
 	skybox.apply_theme(theme)
 	assert_almost_eq(float(material.get_shader_parameter("procedural_sea_mix")), 0.75, 0.0001)
