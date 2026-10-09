@@ -42,7 +42,7 @@ func _default(uniform_name: StringName) -> float:
 	return found.get_string(1).to_float()
 
 
-## The painted panorama sun is the only disc: the shader's own additive core and halo are off
+## No second disc: the shader's own additive core and halo are off
 ## by default (read through the shader's declared default, not its source text).
 func test_sun_core_and_halo_are_off_by_default() -> void:
 	assert_eq(_default(&"sun_core_intensity"), 0.0, "no second disc: core off")
@@ -54,21 +54,24 @@ func test_god_rays_stay_enabled_by_default() -> void:
 	assert_gt(_default(&"ray_intensity"), 0.0, "only the disc (core/halo) was disabled, not the god rays")
 
 
-## The painted disc's lower cap is behind clouds. Pin its full-circle centre,
-## not the visible bright pixels' centroid, against the original flare axis.
-func test_panorama_disc_center_aligns_with_original_flare_direction() -> void:
-	var theme: SkyThemeDef = load("res://config/sky_themes/sunset.tres")
-	var config: SunFlareConfig = load("res://config/sun_flare.tres")
-	var direction: Vector3 = config.sun_direction.normalized()
-	var yaw: float = theme.sky_yaw_offset_deg
-	var pitch: float = theme.sky_pitch_offset_deg
-	var sample_uv: Vector2 = Vector2(
-		fposmod(atan2(direction.x, -direction.z) / TAU + yaw / 360.0, 1.0),
-		acos(direction.y) / PI + pitch / 180.0
-	)
-	assert_almost_eq(sample_uv.x * 1774.0, 1276.0, 0.5, "Panorama sun centre must match flare longitude.")
-	assert_almost_eq(sample_uv.y * 887.0, 424.0, 0.5, "Panorama sun centre must match flare elevation.")
-	assert_true(direction.is_equal_approx(Vector3(0.963087, 0.069011, -0.260192).normalized()), "Preserve the original flare axis.")
+## Bontago-59o.18 P6a: the painted panorama is gone from the sky shader (uniform, sampler and the
+## sway/warp/sea-flow drift) and every sky theme runs the procedural branch.
+func test_panorama_is_removed_from_the_sky_shader() -> void:
+	var source: String = _shader_source_without_comments()
+	for token: String in ["panorama", "sample_panorama", "sea_flow", "float sway_amount", "float warp_amount", "seam_blend_width", "pole_blend_width"]:
+		assert_false(source.contains(token), "removed panorama code must not return: " + token)
+	var shader: Shader = load(SHADER_PATH)
+	for entry: Dictionary in shader.get_shader_uniform_list():
+		assert_ne(entry["name"], "panorama", "no panorama sampler uniform")
+
+
+func test_sunset_dawn_storm_themes_run_the_procedural_branch_without_a_panorama() -> void:
+	for id: String in ["sunset", "dawn", "storm"]:
+		var theme: SkyThemeDef = load("res://config/sky_themes/%s.tres" % id)
+		assert_true(theme.sky_look_procedural, "%s runs the procedural look" % id)
+		assert_almost_eq(theme.procedural_sea_mix, 1.0, 0.0001, "%s procedural mix is 1" % id)
+		var material: ShaderMaterial = theme.sky_material as ShaderMaterial
+		assert_null(material.get_shader_parameter(&"panorama"), "%s carries no panorama texture" % id)
 
 
 ## Bontago-59o.16 P3: the far cloud sea is a shared include function, guarded

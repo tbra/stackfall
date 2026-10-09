@@ -110,7 +110,7 @@ extends Resource
 ## declared first so it is the first row of the F4 Sky tab for the owner's
 ## painted-vs-procedural comparison. Skybox.apply_theme() writes
 ## procedural_sea_mix (0 while this is false) and the proc_* parameters.
-@export var sky_look_procedural: bool = false
+@export var sky_look_procedural: bool = true
 ## Optional authored sky shader, also used for environment reflections.
 @export var sky_material: Material = null
 ## Panorama longitude sampling offset, shared by sky background and reflections.

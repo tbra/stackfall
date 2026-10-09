@@ -65,7 +65,8 @@ func test_cloud_sea_scales_clumps_with_density() -> void:
 	add_child_autofree(sea)
 	sea.configure(sunset, 1.0, sunset.sky_material)
 	var full: int = sea.puff_count()
-	assert_eq(full, (sunset.cloud_clump_count + sunset.cloud_bank_count) * sunset.cloud_puffs_per_clump)
+	var far_clumps: int = sunset.proc_far_count if sunset.sky_look_procedural else 0  # Bontago-59o.18 P6a: sunset is procedural, so it draws the far ring
+	assert_eq(full, (sunset.cloud_clump_count + sunset.cloud_bank_count + far_clumps) * sunset.cloud_puffs_per_clump)
 	sea.configure(sunset, 0.5, sunset.sky_material)
 	assert_lt(sea.puff_count(), full)
 	assert_gt(sea.puff_count(), 0)
@@ -90,16 +91,14 @@ func test_cloud_puffs_stay_below_the_disc_and_off_the_mirror_layer() -> void:
 		assert_eq(Skybox.PROBE_CULL_MASK & CloudSea.RENDER_LAYER_BIT, 0, "mirror camera must not see the puffs")
 
 
-func test_cloud_puffs_share_the_sky_panorama_and_grade() -> void:
+func test_cloud_puffs_share_the_sky_grade() -> void:
 	var night: SkyThemeDef = load(NIGHT_PATH) as SkyThemeDef
 	var sea: CloudSea = CloudSea.new()
 	add_child_autofree(sea)
 	sea.configure(night, 1.0, night.sky_material)
 	var material: ShaderMaterial = sea.puff_material()
 	var sky: ShaderMaterial = night.sky_material as ShaderMaterial
-	assert_eq(material.get_shader_parameter(&"panorama"), sky.get_shader_parameter(&"panorama"))
 	assert_almost_eq(float(material.get_shader_parameter(&"grade_amount")), 1.0, 0.0001)
-	assert_almost_eq(float(material.get_shader_parameter(&"sky_yaw_offset_deg")), night.sky_yaw_offset_deg, 0.0001)
 	assert_ne(material, night.cloud_puff_material, "the theme's material is duplicated, not edited")
 
 

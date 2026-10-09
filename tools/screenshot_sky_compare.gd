@@ -1,9 +1,8 @@
 extends Node
-## Bontago-59o.16 P5: owner comparison of the painted sky against the procedural
-## look. Renders both from three identical camera poses (default, low orbit,
-## looking at the sun), stitches one side-by-side PNG (left painted, right
-## procedural) to docs/sky_compare_sunset.png and prints an indicative perf
-## sample (average GPU and frame ms over PERF_FRAMES, toggle off vs on).
+## Bontago-59o.16 P5, trimmed by Bontago-59o.18 P6b (the painted sky is gone): renders the
+## procedural sky from three camera poses (default, low orbit, looking at the sun), stacks them
+## into one PNG at docs/sky_compare_sunset.png and prints an indicative perf sample (average
+## GPU and frame ms over PERF_FRAMES).
 ## Off-screen run, quits after the capture:
 ##   godot --path . --windowed --position 10000,10000 res://tools/screenshot_sky_compare.tscn -- --sandbox
 
@@ -58,9 +57,7 @@ func _pose(camera: Camera3D, index: int, direction: Vector3) -> void:
 			camera.look_at(camera.global_position + direction + Vector3.UP * SUN_PITCH, Vector3.UP)
 
 
-func _set_procedural(skybox: Skybox, on: bool) -> void:
-	skybox.theme.sky_look_procedural = on
-	skybox.apply_theme(skybox.theme)
+func _settle() -> void:
 	await get_tree().create_timer(SETTLE_S).timeout
 
 
@@ -96,31 +93,23 @@ func _capture() -> void:
 	rig.set_process(false)
 	rig.set_physics_process(false)
 	var camera: Camera3D = rig.get_node("Camera3D") as Camera3D
-	var skybox: Skybox = main.get_node("Skybox") as Skybox
 	_camera = camera
 	var direction: Vector3 = flare.config.sun_direction.normalized()
 	_direction = direction
-	var painted: Array[Image] = []
 	var procedural: Array[Image] = []
 	for index: int in range(POSE_NAMES.size()):
 		_pose(camera, index, direction)
-		await _set_procedural(skybox, false)
-		painted.append(await _grab(index))
-		await _set_procedural(skybox, true)
+		await _settle()
 		procedural.append(await _grab(index))
 	# Perf sample at the default pose (indicative: windowed dev GPU, vsync may cap wall time).
 	_pose(camera, 0, direction)
-	await _set_procedural(skybox, false)
-	var off: Dictionary = await _perf()
-	await _set_procedural(skybox, true)
-	var on: Dictionary = await _perf()
-	print("PERF off gpu=%.3f cpu=%.3f wall=%.3f ms | on gpu=%.3f cpu=%.3f wall=%.3f ms | delta gpu=%.3f ms" % [
-		off["gpu"], off["cpu"], off["wall"], on["gpu"], on["cpu"], on["wall"], float(on["gpu"]) - float(off["gpu"])])
-	var panel_h: int = painted[0].get_height()
-	var sheet: Image = Image.create(PANEL_WIDTH * 2, panel_h * POSE_NAMES.size(), false, Image.FORMAT_RGB8)
+	await _settle()
+	var sample: Dictionary = await _perf()
+	print("PERF gpu=%.3f cpu=%.3f wall=%.3f ms" % [sample["gpu"], sample["cpu"], sample["wall"]])
+	var panel_h: int = procedural[0].get_height()
+	var sheet: Image = Image.create(PANEL_WIDTH, panel_h * POSE_NAMES.size(), false, Image.FORMAT_RGB8)
 	for index: int in range(POSE_NAMES.size()):
-		sheet.blit_rect(painted[index], Rect2i(0, 0, PANEL_WIDTH, panel_h), Vector2i(0, index * panel_h))
-		sheet.blit_rect(procedural[index], Rect2i(0, 0, PANEL_WIDTH, panel_h), Vector2i(PANEL_WIDTH, index * panel_h))
+		sheet.blit_rect(procedural[index], Rect2i(0, 0, PANEL_WIDTH, panel_h), Vector2i(0, index * panel_h))
 	var out: String = ProjectSettings.globalize_path(OUTPUT_PATH)
 	sheet.save_png(out)
 	print("SCREENSHOT ", out)

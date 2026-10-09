@@ -1279,8 +1279,8 @@ func _apply_storm_blend() -> void:
 	b.ambient_energy = lerpf(base.ambient_energy, storm.ambient_energy, t)
 	b.glow_intensity = lerpf(base.glow_intensity, storm.glow_intensity, t)
 	b.sun_flare_enabled = base.sun_flare_enabled and t < CEILING_TUNING.storm_flare_off_amount
-	var base_mix: float = base.procedural_sea_mix if base.sky_look_procedural else 0.0
-	var storm_mix: float = storm.procedural_sea_mix if storm.sky_look_procedural else 0.0
+	var base_mix: float = base.procedural_sea_mix
+	var storm_mix: float = storm.procedural_sea_mix
 	b.sky_look_procedural = true
 	b.procedural_sea_mix = lerpf(base_mix, storm_mix, t)
 	b.proc_zenith_color = base.proc_zenith_color.lerp(storm.proc_zenith_color, t)
@@ -1321,11 +1321,11 @@ func _apply_storm_blend() -> void:
 
 
 ## Bontago-59o.16 (procedural sky P1): writes the opt-in procedural-look uniforms
-## onto the theme's sky ShaderMaterial. The effective mix is 0 unless
-## sky_look_procedural is set, so the default look is unchanged. Shaders that
-## lack a uniform ignore the write.
+## onto the theme's sky ShaderMaterial. The mix is always the theme's procedural_sea_mix (the
+## painted panorama is gone, so 0 would be a black sky; sky_look_procedural no longer gates it).
+## Shaders that lack a uniform ignore the write.
 func _apply_procedural_params(material: ShaderMaterial, applied_theme: SkyThemeDef) -> void:
-	var mix: float = applied_theme.procedural_sea_mix if applied_theme.sky_look_procedural else 0.0
+	var mix: float = applied_theme.procedural_sea_mix
 	material.set_shader_parameter("procedural_sea_mix", mix)
 	material.set_shader_parameter("proc_zenith_color", applied_theme.proc_zenith_color)
 	material.set_shader_parameter("proc_mid_color", applied_theme.proc_mid_color)
