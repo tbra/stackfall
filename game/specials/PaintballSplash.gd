@@ -30,7 +30,7 @@ func setup(color: Color, radius_m: float = FINAL_RADIUS_M) -> void:
 
 
 func _process(delta: float) -> void:
-	if bind_to_match and not MatchAutoload.is_live(Match.state()):
+	if bind_to_match and not MatchPhase.is_live(MatchContext.current().state()):
 		queue_free()
 		return
 	_age += delta

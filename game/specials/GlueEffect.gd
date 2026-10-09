@@ -10,4 +10,4 @@ extends SpecialEffect
 func detonate(block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> void:
 	if block == null:
 		return
-	Match.grant_glue_drops(block.owner_slot, drop_charges)
+	MatchContext.current().grant_glue_drops(block.owner_slot, drop_charges)

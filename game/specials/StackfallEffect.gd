@@ -24,25 +24,26 @@ const SEQ_SEED_MIX: int = 40503
 
 ## An in-place activation (MatchGiftActivation anchor) has nothing to wait for: rain now.
 func wants_early_trigger(block: Block, _behavior: SpecialBehavior) -> bool:
-	return block != null and block.has_meta(MatchGiftActivation.IN_PLACE_META)
+	return block != null and block.has_meta(SpecialIds.IN_PLACE_META)
 
 
 func detonate(block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> void:
-	if block == null or not Match._is_host() or Match.state() != Match.State.PLAYING:
+	var ctx: MatchContext = MatchContext.current()
+	if block == null or not ctx.has_authority() or ctx.state() != MatchPhase.State.PLAYING:
 		return
-	if block.owner_slot < 0 or block.owner_slot >= Match.slot_count():
+	if block.owner_slot < 0 or block.owner_slot >= ctx.slot_count():
 		return
-	var field: Field = Match.field()
-	if field == null or Match.blocks_parent() == null or (block_shape == null and shape_weights == null):
+	var field: FieldBody = ctx.field()
+	if field == null or ctx.blocks_parent() == null or (block_shape == null and shape_weights == null):
 		return
 	var rain: StackfallRain = StackfallRain.new()
-	var seed_value: int = int(Match.config.rng_seed) ^ (block.net_id * SLOT_SEED_MIX)
+	var seed_value: int = int(ctx.config().rng_seed) ^ (block.net_id * SLOT_SEED_MIX)
 	if block.net_id < 0:
 		# In-place anchor: the id is -1 for every activation, so mix slot + counter instead.
-		seed_value = int(Match.config.rng_seed) ^ ((block.owner_slot + 1) * SLOT_SEED_MIX) 			^ (int(block.get_meta(MatchGiftActivation.SEQ_META, 0)) * SEQ_SEED_MIX)
+		seed_value = int(ctx.config().rng_seed) ^ ((block.owner_slot + 1) * SLOT_SEED_MIX) 			^ (int(block.get_meta(SpecialIds.ACTIVATION_SEQ_META, 0)) * SEQ_SEED_MIX)
 	rain.bind(
 		block.owner_slot, field.disk_local_from_world(block.global_position), seed_value,
 		block_shape, block_count, blocks_per_second, area_radius_m, spawn_height_m,
 		min_spacing_m, position_attempts, max_active_blocks, shape_weights, random_yaw
 	)
-	Match.add_child(rain)
+	ctx.add_match_child(rain)

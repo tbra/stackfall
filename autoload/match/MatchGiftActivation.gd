@@ -9,9 +9,9 @@ extends RefCounted
 ## reaches them the same way as today, through Events.special_triggered (net_id IN_PLACE_NET_ID).
 
 ## Meta set on the anchor so an effect can tell it runs in place (StackfallEffect).
-const IN_PLACE_META: StringName = &"gift_in_place"
+const IN_PLACE_META: StringName = SpecialIds.IN_PLACE_META
 ## Meta carrying a per-match activation counter (seeds Stackfall when net_id < 0).
-const SEQ_META: StringName = &"gift_in_place_seq"
+const SEQ_META: StringName = SpecialIds.ACTIVATION_SEQ_META
 ## DECISION (1pi.85.24): the wire (MatchNet EVENT_SPECIAL_TRIGGERED, not owned by this package)
 ## drops net_id < 0, so an anchor-driven special_triggered carries this sentinel instead of -1.
 ## It never exists in BlockRegistry, so GiftFxPresenter resolves a null block (it tolerates one).

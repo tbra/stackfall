@@ -35,7 +35,7 @@ func bind(
 	_shape = shape
 	_weights = weights
 	_random_yaw = random_yaw
-	_cell_size = Match._physics_tuning.cube_size
+	_cell_size = MatchContext.current().physics_tuning().cube_size
 	_count = maxi(count, 0)
 	_rate = maxf(rate, 0.1)
 	_radius = maxf(radius, 0.0)
@@ -54,7 +54,8 @@ func _physics_process(delta: float) -> void:
 
 
 func advance(delta: float) -> void:
-	if not Match._is_host() or Match.state() != Match.State.PLAYING:
+	var ctx: MatchContext = MatchContext.current()
+	if not ctx.has_authority() or ctx.state() != MatchPhase.State.PLAYING:
 		queue_free()
 		return
 	_elapsed += maxf(delta, 0.0)
@@ -67,7 +68,7 @@ func advance(delta: float) -> void:
 
 
 func _spawn_one() -> void:
-	var field: Field = Match.field()
+	var field: FieldBody = MatchContext.current().field()
 	if field == null or (_shape == null and _weights == null):
 		return
 	var shape: BlockShape = _shape
@@ -113,5 +114,5 @@ func _sample_position(map_def: MapDef, footprint: float = 0.0) -> Vector2:
 
 
 func _on_match_state_changed(_old_state: int, new_state: int) -> void:
-	if Match.is_lobby_or_end(new_state):
+	if MatchPhase.is_lobby_or_end(new_state):
 		queue_free()
