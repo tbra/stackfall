@@ -4,11 +4,10 @@ extends Resource
 ## default, the face file names it looks for under a set's folder, and the
 ## box geometry it draws them on (CLAUDE.md: no magic numbers in code).
 ##
-## The six faces come from the original 2003 Bontago install
-## (`Textures/<Set>/{back,bottom,front,left,right,top}.jpg`, see
-## tools/install_original_assets.ps1, owned by another package) and are never
-## committed to this public repo; game/Skybox.gd falls back to the existing
-## ProceduralSkyMaterial when a set or a face is missing.
+## Optional local six-face sets (`<set>/{back,bottom,front,left,right,top}.jpg`
+## under assets/sky/face_sets) are never committed to this public repo;
+## game/Skybox.gd falls back to the existing ProceduralSkyMaterial when a set
+## or a face is missing.
 
 ## Bontago-1en/assets-sky DECISION: "beach" is the calmest, most legible set
 ## (spec 2.10 presentation) and doubles as MapDef's own default for maps that
@@ -27,10 +26,9 @@ extends Resource
 ## boots with, only what the F4 panel remembers between opens.
 @export var default_set: String = "beach"
 
-## File names (without extension) inside a set's folder, matching the original
-## install's own naming exactly (Skybox.gd appends ".jpg"). Case-sensitive:
-## the install script (owned by another package) already lowercases every
-## file it copies, so Skybox.gd does not attempt a case-insensitive lookup
+## File names (without extension) inside a set's folder, (Skybox.gd appends
+## ".jpg"). Case-sensitive and lowercase, so Skybox.gd does not attempt a
+## case-insensitive lookup
 ## (see test_skybox.gd's doc comment on this).
 @export var face_names: PackedStringArray = PackedStringArray([
 	"back", "bottom", "front", "left", "right", "top",

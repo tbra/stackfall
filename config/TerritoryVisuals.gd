@@ -49,7 +49,7 @@ extends Resource
 ## DECISION (config/TerritoryVisuals.gd, Bontago-xtq.11, owner 2026-09-23:
 ## "I think the disc is a mirror-like surface and not glass, so it should be
 ## reflective but not transparent"): raised back to a high value against
-## docs/original_single-block.png and docs/original_stacked-tower.png (an
+## a reference screenshot of the original game and a reference screenshot of the original game (an
 ## opaque orange disk with a soft, slightly blurred reflection of the sky and
 ## the tower standing on it, not a sharp mirror and not a diffuse matte
 ## surface). The disk being genuinely opaque now (not blending its reflection
@@ -218,8 +218,7 @@ extends Resource
 ## ownership TINT (shaders/territory.gdshader's circle_path(), the ordinary
 ## rendering path whenever circle_count doesn't overflow
 ## max_shader_circles). Spec 2.10, updated Bontago-xtq.14 (owner: "the edge
-## of the area is a bit blurry, sharpen it", reference docs/original_hover-
-## preview.png's hard-edged look).
+## of the area is a bit blurry, sharpen it", matching the original game's hard-edged look).
 ##
 ## DECISION (config/TerritoryVisuals.gd, Bontago-xtq.14): split out of
 ## rim_soft_width below, which the tint's coverage smoothstep and the rim

@@ -1,7 +1,7 @@
 extends GutTest
 ## game/Skybox.gd (spec 2.10): load_set() against a temp fixture root, so
-## these tests never touch the real (gitignored, third-party)
-## assets/original/textures folder. Config/MapDef.gd's skybox_set field is
+## these tests never touch the real (gitignored, local-only)
+## assets/sky/face_sets folder. Config/MapDef.gd's skybox_set field is
 ## covered here too, since Skybox.load_set() is the only consumer of it.
 
 const FIXTURE_ROOT: String = "user://skybox_test_fixture"
@@ -64,8 +64,7 @@ func test_load_set_with_missing_folder_returns_false_and_sets_fallback() -> void
 ## DECISION (tests/unit/test_skybox.gd): case-insensitive face lookup is NOT
 ## tested here (and NOT implemented in Skybox.load_set(), which does one
 ## exact FileAccess.file_exists() check per config.face_names entry).
-## tools/install_original_assets.ps1 (owned by another package) already
-## lowercases every face file it copies, so ordinary use never needs it. A
+## Face files are required to be lowercase, so ordinary use never needs it. A
 ## real behavioral test would also be platform-dependent in a way that would
 ## make it flaky here: Windows' filesystem resolves a mismatched-case path
 ## anyway (with an engine warning), while a case-sensitive export target

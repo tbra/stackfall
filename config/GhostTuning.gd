@@ -251,7 +251,7 @@ extends Resource
 ## downwards to the disc, it's not just a footprint indicator where the
 ## raycast lands") -- the vertical walls connecting the held shape's own
 ## underside down to its footprint on the disc, matching the original's own
-## translucent silhouette (docs/original_in-game.png). ------------------------
+## translucent silhouette (a reference screenshot of the original game). ------------------------
 ## Alpha of the projection prism's own walls -- deliberately fainter than
 ## footprint_alpha (the flat decal it stands on): a tall, mostly-empty volume
 ## marker reads better subtle than a solid wall would.

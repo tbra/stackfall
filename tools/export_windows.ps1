@@ -10,8 +10,7 @@
 #   tools/export_windows.ps1 -SkipSmoke      # skip the exported-exe bot-match smoke gate (default: 1200 frames, -SmokeFrames N)
 #   tools/export_windows.ps1 -Path M:/some/worktree
 #   tools/export_windows.ps1 -Path M:/clean/worktree -AssetsFrom M:/Bontago
-#       # copy the gitignored addons/godotsteam and assets/original from the main checkout into the worktree first
-#   tools/export_windows.ps1 -AllowNoOriginalAssets   # export without assets/original (otherwise a missing folder is an error)
+#       # copy the gitignored addons/godotsteam from the main checkout into the worktree first
 #   tools/export_windows.ps1 -OutDir C:/scratch/out   # export somewhere other than <Path>/build/windows
 param(
 	[switch]$Debug,
@@ -20,7 +19,6 @@ param(
 	[switch]$SkipSmoke,
 	[int]$SmokeFrames = 1200,
 	[string]$AssetsFrom = "",
-	[switch]$AllowNoOriginalAssets,
 	[string]$OutDir = ""
 )
 
@@ -30,7 +28,7 @@ if ($Path -eq "") {
 }
 
 # Replace $dst with the CONTENTS of $src. Copy-Item -Recurse onto an existing
-# directory nests a second copy (build/windows/assets/original/original), so the
+# directory nests a second copy (build/windows/assets/effects/effects), so the
 # target is cleared first and the children are copied.
 function Copy-DirContents([string]$src, [string]$dst) {
 	if (Test-Path $dst) { Remove-Item -Recurse -Force $dst }
@@ -41,7 +39,7 @@ function Copy-DirContents([string]$src, [string]$dst) {
 # Gitignored per-developer folders are absent from a clean worktree; pull them
 # from the main checkout (-AssetsFrom) before anything reads them.
 if ($AssetsFrom -ne "") {
-	foreach ($rel in @("addons/godotsteam", "assets/original")) {
+	foreach ($rel in @("addons/godotsteam")) {
 		$from = Join-Path $AssetsFrom $rel
 		if (Test-Path $from) {
 			Write-Host "Copying $rel from $AssetsFrom into $Path"
@@ -50,10 +48,6 @@ if ($AssetsFrom -ne "") {
 			Write-Warning "$rel not found in $AssetsFrom; nothing copied."
 		}
 	}
-}
-if (-not $AllowNoOriginalAssets -and -not (Test-Path (Join-Path $Path "assets/original"))) {
-	[Console]::Error.WriteLine("assets/original/ is missing in $Path. Install it (tools/install_original_assets.ps1), pass -AssetsFrom <main checkout>, or pass -AllowNoOriginalAssets to export without original-asset sound.")
-	exit 4
 }
 
 $outDir = if ($OutDir -ne "") { $OutDir } else { Join-Path $Path "build/windows" }
@@ -141,15 +135,6 @@ if (Test-Path $effectAssets) {
 	Copy-DirContents $effectAssets (Join-Path $outDir "assets/effects")
 } else {
 	Write-Warning "assets/effects/ not found in $Path; the exported build will have no effects."
-}
-
-# Keep the optional original assets beside the exe for other direct-file
-# consumers. The source folder is gitignored and installed per developer.
-$originalAssets = Join-Path $Path "assets/original"
-if (Test-Path $originalAssets) {
-	Copy-DirContents $originalAssets (Join-Path $outDir "assets/original")
-} else {
-	Write-Warning "assets/original/ not installed in $Path (-AllowNoOriginalAssets); the export will run with no original-asset sound (see tools/install_original_assets.ps1)."
 }
 
 # Smoke gate (Bontago-8or.18): GUT runs from source, never from the PCK, so

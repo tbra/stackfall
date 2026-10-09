@@ -66,7 +66,7 @@ extends Node3D
 ## sibling of _rotated_bottom_offset() below), so the column always reaches
 ## from the disc up past the whole ghost, at any rotation -- the ghost sits
 ## fully inside the column exactly like the original's own silhouette
-## (docs/original_single-block.png, docs/original_stacked-tower.png), not
+## (reference screenshots of the original game), not
 ## just its lower half.
 ## DECISION (game/GhostPreview.gd, Bontago-xtq.9): _rotated_top_offset() uses
 ## the *visual* mesh's own full cube_size (matching BlockMeshBuilder.
@@ -108,8 +108,8 @@ extends Node3D
 ## blocks/S4.tres has a cell at (0, 1, 0) with nothing at (0, 0, 0) beneath it,
 ## so the old convex-hull column drew a lit shaft over that empty notch too,
 ## reaching all the way up to the *other* column's own top -- exactly "a
-## projected piece above the actual block". Correct model (docs/original_
-## hover-preview.png, original_stacked-tower.png): the shaft is per silhouette
+## projected piece above the actual block". Correct model (the original
+## game's hover preview): the shaft is per silhouette
 ## column, reaching only from the disc up to the *underside of the lowest
 ## solid cell sitting over that column* -- nothing is ever drawn beside or
 ## above a solid cell, and a column with no cell in it draws nothing at all.
@@ -149,7 +149,7 @@ extends Node3D
 ## (_update_block_projection_decal()), projects ghost_tuning.
 ## block_projection_color/_alpha straight down from the ghost's own current
 ## underside to the disc -- a real placed block sitting in that gap now reads
-## pale/whitish (docs/original_hover-preview.png), not just the disc's own
+## pale/whitish (a reference screenshot of the original game), not just the disc's own
 ## footprint quad. See _update_block_projection_decal()'s own DECISION for why
 ## cull_mask is left at its default rather than restricted to placed blocks.
 ##
@@ -510,7 +510,7 @@ var _throw_hint_active: bool = false
 ## fainter"): projects ghost_tuning.block_projection_color downward over the
 ## whole footprint hull, from the ghost's own current underside down to the
 ## disc, so a placed block sitting in that gap reads pale/whitish like the
-## disc's own footprint marker (docs/original_hover-preview.png). top_level
+## disc's own footprint marker (a reference screenshot of the original game). top_level
 ## (like _footprint_quads/_projection_mesh) so it never tilts with the ghost's
 ## own rotation. Persistent (like _projection_mesh) -- _update_block_
 ## projection_decal() rebuilds its size/position every frame rather than
@@ -570,7 +570,7 @@ func _ready() -> void:
 	# through (no adjacent-but-separate coplanar quads at cell boundaries the
 	# way BlockMeshBuilder's per-cell shell has); double-siding it just lets
 	# the far wall read faintly through the near one, exactly like the
-	# original's own translucent legs (docs/original_in-game.png).
+	# original's own translucent legs (a reference screenshot of the original game).
 	_projection_material = StandardMaterial3D.new()
 	_projection_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_projection_material.cull_mode = BaseMaterial3D.CULL_DISABLED
@@ -1262,7 +1262,7 @@ func _clear_projection_mesh() -> void:
 
 # --- Block projection decal (spec 2.5, Bontago-xtq.15) ----------------------
 
-## Bontago-xtq.15 (owner playtest 2026-09-23, docs/original_hover-preview.png:
+## Bontago-xtq.15 (owner playtest 2026-09-23, a reference screenshot of the original game:
 ## a placed block inside the light shaft reads pale/whitish): sizes and
 ## positions `_block_projection_decal` over `world_hull`'s own bounding box
 ## (world-space X/Z, same hull _update_footprint() already built the flat
@@ -2230,7 +2230,7 @@ func _footprint_color_for_state() -> Color:
 ## decal it stands on. DECISION (game/GhostPreview.gd): reuses
 ## _state_hue_color()'s own plain state colour when
 ## ghost_tuning.projection_uses_state_tint is true (the default -- the owner
-## report's own reference screenshot, docs/original_in-game.png, tints its
+## report's own reference screenshot, a reference screenshot of the original game, tints its
 ## silhouette prism the same as everything else the ghost shows), just at the
 ## prism's own alpha; false is kept as a tuning-panel escape hatch to compare
 ## a state-neutral prism (always the base tint_color) without a second

@@ -74,8 +74,8 @@ Per §2.10 bullet, what already ships and where:
 - Procedural sky + six-face placeholder box + matching `shader_type sky`
   cubemap (`game/Skybox.gd`, `shaders/cubemap_sky.gdshader`), one set per
   map (`MapDef.skybox_set`), `config/skybox_config.tres` default "beach".
-  Sets are the *original 2003 install's* placeholder textures
-  (gitignored, `tools/install_original_assets.ps1`), not curated
+  No face sets ship with the game (optional local sets go under
+  `assets/sky/face_sets`, gitignored); the sky is otherwise procedural, not curated
   dawn/sunset/stormy/night themes.
 - **Missing:** volumetric-fog cloud layer below the disk, a distant
   ocean/landscape backdrop, and a real theme set (the spec names
@@ -140,7 +140,7 @@ instead of introducing a second style.
 - **Neutral base:** disk `disk_base_color` stays a dark neutral
   (current `Color(0.68, 0.70, 0.74)` reads as light grey-blue; recommend
   darkening toward `Color(0.10, 0.10, 0.12)` so the 8 saturated owner tints
-  and the sky reflection both pop — matches `docs/original_stacked-tower.png`
+  and the sky reflection both pop — matches a reference screenshot of the original game
   which shows a dark, glossy floor, not a light one). This is a
   `TerritoryVisuals.disk_base_color` value change, owned by the block/disk
   material package (P2 below), not a new field.
@@ -336,7 +336,7 @@ start immediately).
 **Q1. Disk base color darkening.** `TerritoryVisuals.disk_base_color` is
 currently a light grey-blue (`0.68, 0.70, 0.74`). The proposal (§2) darkens
 it toward a near-black glossy neutral so owner tints and sky reflections
-read more clearly, matching `docs/original_stacked-tower.png`'s dark floor.
+read more clearly, matching a reference screenshot of the original game's dark floor.
 - (a) Darken to near-black neutral (recommended — matches the original
   reference screenshot's floor value).
 - (b) Keep the current light neutral and rely on tint/outline contrast alone.

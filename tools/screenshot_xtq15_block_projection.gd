@@ -3,7 +3,7 @@ extends Node
 ## white projection that shows up on the disk should show up on the blocks
 ## as well, just a bit fainter"): places a real block, holds a ghost cube
 ## directly above it, and shoots a screenshot plus runtime diagnostics --
-## compare against docs/original_hover-preview.png (a placed block inside the
+## compare against a reference screenshot of the original game (a placed block inside the
 ## light shaft reads pale/whitish).
 ##
 ## Run windowed (a real render is required for the screenshot):
@@ -44,7 +44,7 @@ func _ready() -> void:
 	await _wait(SETTLE_FRAMES)
 
 	# 2. Hold another cube directly above it, identity rotation (a single
-	# silhouette column, matching docs/original_hover-preview.png exactly).
+	# silhouette column, matching a reference screenshot of the original game exactly).
 	ghost.set_shape(load("res://config/blocks/S4.tres"))
 	ghost.apply_validity(PlacementRules.Result.HOLE)
 	controller._cursor = home

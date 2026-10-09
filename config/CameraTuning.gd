@@ -89,7 +89,7 @@ extends Resource
 ## the camera is lagging behind on the very next ordinary ghost move.
 @export var drop_recover_seconds: float = 0.2
 ## Camera distance and pitch while following the held block. The original
-## (docs/original_in-game.png) frames the block from a few metres away at a
+## (a reference screenshot of the original game) frames the block from a few metres away at a
 ## shallow angle so the block fills the lower half of the view and the disk
 ## edge stays visible; a field-radius-scaled distance (the free-camera default)
 ## puts the block "a billion miles away" (owner, 2026-09-21).

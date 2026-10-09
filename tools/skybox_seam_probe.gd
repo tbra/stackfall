@@ -110,7 +110,7 @@ func _assignment_from_config(config: SkyboxConfig) -> Dictionary:
 
 
 func _load_images(set_name: String) -> Dictionary:
-	var root: String = "res://assets/original/textures"
+	var root: String = "res://assets/sky/face_sets"
 	var set_dir: String = root.path_join(set_name)
 	var images: Dictionary = {}
 	for face_name: String in FACE_NAMES:

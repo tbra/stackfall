@@ -274,8 +274,7 @@ uniform int goal_count = 0;
 uniform float rim_width : hint_range(0.001, 2.0) = 0.35;
 // Bontago-xtq.14 (owner: "the edge of the area is a bit blurry, sharpen
 // it"): the ownership TINT's own smoothstep used to share rim_soft_width
-// with the glow band's coverage gate above -- crisp per docs/original_hover-
-// preview.png ("hard-edged shadows/edges"), the rim glow (rim_width/
+// with the glow band's coverage gate above -- crisp per the original game ("hard-edged shadows/edges"), the rim glow (rim_width/
 // rim_strength/rim_pulse_depth/rim_speed below, untouched) stays its own,
 // deliberately soft effect. See circle_path()'s own DECISION comment.
 uniform float edge_softness_m : hint_range(0.0, 2.0) = 0.03;

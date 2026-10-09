@@ -1,11 +1,9 @@
 extends Node
-## Placeholder audio from the original Bontago install (assets-audio
-## package). Loads streams at runtime from res://assets/original/audio (in
-## the editor) or <exe dir>/assets/original/audio (exported) -- never through
-## Godot's import pipeline, since that folder is gitignored (HARD CONSTRAINT:
-## third-party copyrighted assets never enter the public repo, see
-## tools/install_original_assets.ps1) and a fresh checkout has no .import
-## files for it. Absent folder: one info print, then every play() is a silent
+## Audio for the game's own sound effects and music (assets-audio package).
+## Loads streams at runtime from res://assets/effects (in the editor) or
+## <exe dir>/assets/effects (exported). HARD CONSTRAINT: third-party
+## copyrighted assets (including the original Bontago's) never enter this
+## repo. Absent folder: one info print, then every play() is a silent
 ## no-op -- the game runs fine with no sound, the same "supported absence"
 ## pattern tools/check_steam_setup.ps1 documents for addons/godotsteam/.
 ##
@@ -31,7 +29,6 @@ extends Node
 const LocalFeedback := preload("res://autoload/match/LocalFeedback.gd")
 
 const AUDIO_SUBDIR: String = "assets/effects"
-const ORIGINAL_AUDIO_SUBDIR: String = "assets/original/audio"
 
 ## Effectively-silent volume_db floor for whichever music stem is faded out
 ## of the adaptive crossfade (docs/M7_PLAN.md P6). Not a tunable -- it is an
@@ -144,12 +141,9 @@ func _ready() -> void:
 	Block.impact_speed_min = config.impact_speed_min
 	Block.impacts_enabled = config.impacts_enabled
 	_root_dir = _resolve_root_dir()
-	_available = DirAccess.dir_exists_absolute(_root_dir) or DirAccess.dir_exists_absolute(_resolve_original_audio_root_dir())
+	_available = DirAccess.dir_exists_absolute(_root_dir)
 	if not _available:
-		print(
-			"Sfx: no effects at %s or original audio at %s -- game runs silently."
-			% [_root_dir, _resolve_original_audio_root_dir()]
-		)
+		print("Sfx: no effects at %s -- game runs silently." % _root_dir)
 	_refresh_music_root_dir()
 	_build_player_pool()
 	_refresh_tense_stem()
@@ -179,12 +173,6 @@ func _resolve_root_dir() -> String:
 	if OS.has_feature("editor"):
 		return ProjectSettings.globalize_path("res://" + AUDIO_SUBDIR)
 	return OS.get_executable_path().get_base_dir().path_join(AUDIO_SUBDIR)
-
-
-func _resolve_original_audio_root_dir() -> String:
-	if OS.has_feature("editor"):
-		return ProjectSettings.globalize_path("res://" + ORIGINAL_AUDIO_SUBDIR)
-	return OS.get_executable_path().get_base_dir().path_join(ORIGINAL_AUDIO_SUBDIR)
 
 
 ## Legacy fallback stays on the original bundled root. Custom folders are
@@ -295,7 +283,7 @@ func _play_music_stream(stream: AudioStream) -> void:
 func _pick_stream(event: StringName) -> AudioStream:
 	var is_music: bool = event == AudioConfig.EVENT_MUSIC
 	if is_music:
-		# The legacy bundled theme is independent of optional original assets.
+		# The legacy bundled theme comes first.
 		var bundled: AudioStream = _bundled_theme()
 		if bundled != null:
 			return bundled
@@ -326,14 +314,6 @@ func _pick_stream(event: StringName) -> AudioStream:
 
 
 func _load_stream(filename: String) -> AudioStream:
-	# The replacement effects folder intentionally contains only newly chosen
-	# sounds. Keep original sounds (bomb, boing, rocket, etc.) working without
-	# copying the licensed originals into tracked assets/effects. Test-injected
-	# roots still stay isolated and never consult the developer's asset folder.
-	if _root_dir == _resolve_root_dir() and not FileAccess.file_exists(_root_dir.path_join(filename.to_lower())):
-		var original_root: String = _resolve_original_audio_root_dir()
-		if FileAccess.file_exists(original_root.path_join(filename.to_lower())):
-			return _load_stream_from_root(filename, original_root, _streams_by_filename)
 	return _load_stream_from_root(filename, _root_dir, _streams_by_filename)
 
 
@@ -368,8 +348,7 @@ func _next_sfx_player() -> AudioStreamPlayer:
 # --- Test seam ---------------------------------------------------------------
 
 ## tests/unit/test_sfx.gd points a fresh Sfx instance at a temp folder instead
-## of assets/original/audio, which is gitignored and absent on a clean
-## checkout -- the same Variant/seam pattern ui/MainMenu.gd's net_provider
+## of assets/effects, so the tests never depend on shipped files -- the same Variant/seam pattern ui/MainMenu.gd's net_provider
 ## uses for a value GUT can't otherwise inject.
 func set_root_dir_for_test(path: String) -> void:
 	_root_dir = path

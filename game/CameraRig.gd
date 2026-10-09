@@ -452,7 +452,7 @@ func begin_follow_transition() -> void:
 ## controller binds to a real slot. Points this rig's yaw so its offset (see
 ## _update_transform()) sits on the `home_position` side of `look_at_position`
 ## -- i.e. the camera looks *toward* the centre from behind the block, the
-## same framing docs/original_in-game.png shows -- and seeds both _target and
+## same framing a reference screenshot of the original game shows -- and seeds both _target and
 ## _follow_position at the home flag so there is no one-frame jump back to
 ## wherever the target used to sit before PlayerController's own
 ## set_follow_position() call this same frame takes over.
