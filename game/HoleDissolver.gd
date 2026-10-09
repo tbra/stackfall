@@ -154,7 +154,7 @@ func physics_tick(delta: float, candidates: Array[Block]) -> void:
 static func request_dissolve(block: Block) -> bool:
 	if block == null or not is_instance_valid(block):
 		return false
-	var registry: BlockRegistry = Match.registry()
+	var registry: BlockRegistry = MatchContext.current().registry() as BlockRegistry
 	if registry == null or not registry.is_host_authority():
 		return false
 	registry.hole_dissolver().start_dissolve(block)

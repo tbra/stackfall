@@ -8,7 +8,7 @@ extends RefCounted
 
 ## The node a persistent effect should hang under, or `fallback` without a live Field.
 static func parent_for(fallback: Node) -> Node:
-	var field: Field = Match.field()
+	var field: FieldBody = MatchContext.current().field()
 	if field != null and field.is_inside_tree():
 		return field
 	return fallback
