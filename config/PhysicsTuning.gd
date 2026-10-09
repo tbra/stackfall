@@ -138,3 +138,34 @@ extends Resource
 ## it fell asleep in; moving further restarts the timer. See
 ## game/StableBlockManager.gd's own DECISION.
 @export var stable_freeze_rest_epsilon_m: float = 0.005
+
+## -- Settle freeze (owner decision Bontago-e7o B, 2026-10-09; spec 3.5) ------------
+## Jolt keeps a micro-jittering pile awake forever, so the sleep-based freeze above
+## never reaches it. With this on, a block that is AWAKE but has stayed within
+## settle_freeze_move_epsilon_m / settle_freeze_rotation_epsilon of the pose its
+## still window started in for settle_freeze_window_s, with no fast-moving block
+## within settle_freeze_neighbour_radius_m, is frozen through the same path as an
+## asleep block (game/StableBlockManager.gd), so every existing release rule applies.
+@export var settle_freeze_enabled: bool = true
+## Continuous still time (s) before an awake block is frozen.
+@export var settle_freeze_window_s: float = 20.0
+## Max drift (m) from the window's start pose that still counts as still (5 mm).
+@export var settle_freeze_move_epsilon_m: float = 0.005
+## Max change of any unit basis axis (about radians) that still counts as still.
+@export var settle_freeze_rotation_epsilon: float = 0.005
+## A block faster than this (m/s) is a "fast neighbour" that blocks freezing near it.
+@export var settle_freeze_fast_speed_mps: float = 0.5
+## Distance (m, centre to centre) within which a fast block holds a neighbour back;
+## about one cube diagonal plus slack, so it only stops blocks it could be touching.
+@export var settle_freeze_neighbour_radius_m: float = 1.8
+
+## -- Physics catch-up cap (owner decision Bontago-e7o D) -------------------------
+## When a frame runs long, the engine runs extra physics steps to catch up, which
+## makes the next frame longer still (a spiral). Capping them trades a brief
+## slow-motion for a stable frame time. The project setting
+## physics/common/max_physics_steps_per_frame is set from catchup_steps_capped by
+## tools/bootstrap_project.gd; the F4 toggle switches Engine's live value between the
+## two numbers (game/StableBlockManager.gd applies it).
+@export var catchup_cap_enabled: bool = true
+@export var catchup_steps_capped: int = 2
+@export var catchup_steps_default: int = 8

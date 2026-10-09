@@ -53,6 +53,10 @@ var _frozen_by_this: Dictionary = {}
 var _scan_accumulator: float = 0.0
 ## Field pose seen on the previous physics tick (Bontago-sen.11).
 var _last_field_transform: Transform3D = Transform3D.IDENTITY
+## Awake-but-still tracking (Bontago-e7o B; see _settle_awake()).
+var _settle: SettleTracker = SettleTracker.new()
+## Catch-up cap state last pushed to Engine (the project setting starts capped).
+var _catchup_cap_applied: bool = true
 
 
 ## Called once by game/Main.gd right after it builds a match's BlockRegistry
@@ -84,16 +88,30 @@ func wake_for_external_force(block: Block) -> bool:
 	_frozen_by_this[id] = false
 	_asleep_elapsed[id] = 0.0
 	_rest_anchor.erase(id)
+	_settle.reset(id)
 	block.release_freeze_static(Block.FREEZE_REASON_STABLE)
 	block.wake()
 	return true
 
 
 func _physics_process(delta: float) -> void:
+	apply_catchup_cap()
 	if not Net.is_host():
 		return
 	check_field_motion()
 	_tick(delta)
+
+
+## Bontago-e7o D: pushes the F4 catch-up toggle to the engine when it changes
+## (every peer: it is per-process frame pacing, not game state). Applied only on a
+## change so a bench that raises Engine.max_physics_steps_per_frame itself is not
+## overridden every tick; the project setting already starts it capped.
+func apply_catchup_cap() -> void:
+	var want_capped: bool = tuning.catchup_cap_enabled
+	if want_capped == _catchup_cap_applied:
+		return
+	_catchup_cap_applied = want_capped
+	Engine.max_physics_steps_per_frame = tuning.catchup_steps_capped if want_capped else tuning.catchup_steps_default
 
 
 ## Bontago-sen.11 (owner: "gifts that cause tilting lead to settled blocks
@@ -115,6 +133,7 @@ func check_field_motion() -> void:
 		var id: int = block.get_instance_id()
 		_asleep_elapsed[id] = 0.0
 		_rest_anchor.erase(id)
+		_settle.reset(id)
 		if _frozen_by_this.get(id, false):
 			block.release_freeze_static(Block.FREEZE_REASON_STABLE)
 			block.wake()
@@ -143,10 +162,17 @@ func _scan(scan_delta: float) -> void:
 	if _registry == null:
 		return
 	var live_ids: Dictionary = {}
-	for block: Block in _registry.all_blocks():
+	var blocks: Array[Block] = _registry.all_blocks()
+	var settle_on: bool = tuning.settle_freeze_enabled
+	var fast_positions: PackedVector3Array = PackedVector3Array()
+	if settle_on:
+		_configure_settle()
+		fast_positions = _fast_positions(blocks)
+	for block: Block in blocks:
 		var id: int = block.get_instance_id()
 		live_ids[id] = true
 		if block.sleeping:
+			_settle.reset(id)
 			if not _rest_anchor.has(id):
 				_rest_anchor[id] = block.global_transform
 			var elapsed: float = float(_asleep_elapsed.get(id, 0.0)) + scan_delta
@@ -164,6 +190,10 @@ func _scan(scan_delta: float) -> void:
 			if _frozen_by_this.get(id, false):
 				block.release_freeze_static(Block.FREEZE_REASON_STABLE)
 				_frozen_by_this[id] = false
+			if settle_on:
+				_settle_awake(block, id, scan_delta, fast_positions)
+			else:
+				_settle.reset(id)
 			# DECISION (game/StableBlockManager.gd, Bontago-1pi.11.24): Jolt
 			# wakes a whole contact island when one member is touched, so in a
 			# bot match the unfrozen top layer (~65 blocks, one island) woke
@@ -190,6 +220,47 @@ func _scan(scan_delta: float) -> void:
 			_asleep_elapsed.erase(id)
 			_frozen_by_this.erase(id)
 			_rest_anchor.erase(id)
+			_settle.reset(id as int)
+
+
+func _configure_settle() -> void:
+	_settle.window_s = tuning.settle_freeze_window_s
+	_settle.move_epsilon_m = tuning.settle_freeze_move_epsilon_m
+	_settle.rotation_epsilon = tuning.settle_freeze_rotation_epsilon
+	_settle.fast_speed_mps = tuning.settle_freeze_fast_speed_mps
+	_settle.neighbour_radius_m = tuning.settle_freeze_neighbour_radius_m
+
+
+## Positions of awake blocks moving faster than the fast-neighbour speed. Reads
+## only linear_velocity the engine already holds: no physics query per block.
+func _fast_positions(blocks: Array[Block]) -> PackedVector3Array:
+	var out: PackedVector3Array = PackedVector3Array()
+	for block: Block in blocks:
+		if not block.sleeping and _settle.is_fast(block.linear_velocity.length_squared()):
+			out.append(block.global_position)
+	return out
+
+
+## Bontago-e7o B (spec 3.5): an awake block that stayed still for the whole window
+## and has no fast neighbour freezes exactly like an asleep one (request_freeze_static
+## puts it to sleep, so the sleeping branch of _scan() then owns it, and every
+## release path -- tilt, impulse, wind, glue -- applies unchanged). DECISION: the
+## fast-neighbour test is a distance check against the few fast blocks, not a per-
+## block physics query (Block runs without contact_monitor, see Block.gd).
+func _settle_awake(block: Block, id: int, scan_delta: float, fast_positions: PackedVector3Array) -> void:
+	if block.is_freeze_static():
+		_settle.reset(id)
+		return
+	_settle.observe(id, block.global_transform, scan_delta)
+	if not _settle.is_window_complete(id):
+		return
+	if _settle.is_fast(block.linear_velocity.length_squared()):
+		return
+	if _settle.has_fast_neighbour(block.global_position, fast_positions):
+		return
+	block.request_freeze_static(Block.FREEZE_REASON_STABLE)
+	_frozen_by_this[id] = true
+	_settle.reset(id)
 
 
 func _moved_from_anchor(block: Block, anchor: Transform3D) -> bool:

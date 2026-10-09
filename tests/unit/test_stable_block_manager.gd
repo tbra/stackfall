@@ -245,3 +245,135 @@ func test_real_physics_island_wakes_still_freeze_and_a_tilt_carries_the_released
 		assert_false(block.freeze, "a tilting disc released every frozen block")
 	var after_y: float = field.to_local(blocks[0].global_position).y
 	assert_almost_eq(after_y, before_y, 0.1, "the base block rode the disc, no clipping")
+
+
+# --- Settle freeze (Bontago-e7o B): awake-but-still blocks ----------------------
+
+func _awake_still_setup() -> Array:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	var manager: StableBlockManager = _make_manager(registry)
+	var block: Block = _place(field, 0)
+	block.sleeping = false
+	return [manager, block]
+
+
+func test_awake_but_still_block_freezes_after_the_window() -> void:
+	var parts: Array = _awake_still_setup()
+	var manager: StableBlockManager = parts[0]
+	var block: Block = parts[1]
+	manager._tick(_tuning.stable_freeze_scan_interval_s)
+	manager._tick(_tuning.settle_freeze_window_s - 1.0)
+	assert_false(block.is_freeze_static(), "below the window: not frozen")
+	manager._tick(2.0)
+	assert_true(block.is_freeze_static(), "still for the whole window: frozen")
+	assert_true(manager.is_stable_frozen(block))
+
+
+func test_awake_block_that_moves_restarts_the_settle_window() -> void:
+	var parts: Array = _awake_still_setup()
+	var manager: StableBlockManager = parts[0]
+	var block: Block = parts[1]
+	manager._tick(_tuning.stable_freeze_scan_interval_s)
+	manager._tick(_tuning.settle_freeze_window_s - 1.0)
+	block.global_position += Vector3(_tuning.settle_freeze_move_epsilon_m * 4.0, 0.0, 0.0)
+	manager._tick(2.0)
+	assert_false(block.is_freeze_static(), "moved past the epsilon: window restarted")
+
+
+func test_settle_freeze_off_leaves_awake_blocks_alone() -> void:
+	var parts: Array = _awake_still_setup()
+	var manager: StableBlockManager = parts[0]
+	var block: Block = parts[1]
+	var tuning: PhysicsTuning = _tuning.duplicate() as PhysicsTuning
+	tuning.settle_freeze_enabled = false
+	manager.tuning = tuning
+	manager._tick(_tuning.stable_freeze_scan_interval_s)
+	manager._tick(_tuning.settle_freeze_window_s + 5.0)
+	assert_false(block.is_freeze_static())
+
+
+func test_fast_neighbour_holds_back_a_still_block() -> void:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	var manager: StableBlockManager = _make_manager(registry)
+	var still: Block = _place(field, 0)
+	var runner: Block = _place(field, 1)
+	still.sleeping = false
+	runner.sleeping = false
+	runner.global_position = still.global_position + Vector3(1.0, 0.0, 0.0)
+	runner.linear_velocity = Vector3(0.0, 0.0, _tuning.settle_freeze_fast_speed_mps * 4.0)
+	manager._tick(_tuning.stable_freeze_scan_interval_s)
+	manager._tick(_tuning.settle_freeze_window_s + 1.0)
+	assert_false(still.is_freeze_static(), "a fast block next to it keeps it unfrozen")
+	runner.linear_velocity = Vector3.ZERO
+	manager._tick(_tuning.stable_freeze_scan_interval_s)
+	assert_true(still.is_freeze_static(), "frozen on the first scan after the neighbour slows")
+
+
+func test_settle_frozen_block_releases_on_field_motion() -> void:
+	var parts: Array = _awake_still_setup()
+	var manager: StableBlockManager = parts[0]
+	var block: Block = parts[1]
+	manager._tick(_tuning.stable_freeze_scan_interval_s)
+	manager._tick(_tuning.settle_freeze_window_s + 1.0)
+	assert_true(block.is_freeze_static())
+	assert_true(manager.wake_for_external_force(block), "the existing release path applies")
+	assert_false(block.is_freeze_static())
+
+
+func test_catchup_cap_toggle_sets_engine_steps_live() -> void:
+	var parts: Array = _awake_still_setup()
+	var manager: StableBlockManager = parts[0]
+	var tuning: PhysicsTuning = _tuning.duplicate() as PhysicsTuning
+	manager.tuning = tuning
+	var original: int = Engine.max_physics_steps_per_frame
+	tuning.catchup_cap_enabled = false
+	manager.apply_catchup_cap()
+	assert_eq(Engine.max_physics_steps_per_frame, tuning.catchup_steps_default)
+	tuning.catchup_cap_enabled = true
+	manager.apply_catchup_cap()
+	assert_eq(Engine.max_physics_steps_per_frame, tuning.catchup_steps_capped)
+	Engine.max_physics_steps_per_frame = original
+
+
+func _real_never_sleeping_pile(settle_enabled: bool) -> Array[Block]:
+	# Real Jolt frames, can_sleep = false: the engine never sleeps these awake-but-
+	# still blocks, the case only the settle freeze can reach.
+	var tuning: PhysicsTuning = _tuning.duplicate() as PhysicsTuning
+	tuning.settle_freeze_window_s = 1.5
+	tuning.settle_freeze_enabled = settle_enabled
+	tuning.stable_freeze_scan_interval_s = 0.25
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	var manager: StableBlockManager = autofree(StableBlockManager.new())
+	manager.tuning = tuning
+	add_child_autofree(manager)
+	manager.setup(registry)
+	var blocks: Array[Block] = []
+	for i: int in range(3):
+		var block: Block = _place(field, 0)
+		block.can_sleep = false
+		block.global_position = Vector3(0.5, field.surface_y() + 0.5 + 1.0 * float(i), 0.5)
+		blocks.append(block)
+	return blocks
+
+
+func test_real_physics_never_sleeping_pile_freezes_through_the_settle_path() -> void:
+	var blocks: Array[Block] = _real_never_sleeping_pile(true)
+	var frozen_all: bool = false
+	for f: int in range(60 * 10):
+		await wait_physics_frames(1)
+		frozen_all = true
+		for block: Block in blocks:
+			frozen_all = frozen_all and block.freeze
+		if frozen_all:
+			break
+	assert_true(frozen_all, "awake-but-still tower froze once its window passed")
+
+
+func test_real_physics_never_sleeping_pile_stays_awake_with_settle_off() -> void:
+	var blocks: Array[Block] = _real_never_sleeping_pile(false)
+	await wait_physics_frames(60 * 5)
+	for block: Block in blocks:
+		assert_false(block.freeze, "settle freeze off: the engine never sleeps it, so it never freezes")

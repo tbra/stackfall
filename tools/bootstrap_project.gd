@@ -53,6 +53,10 @@ func _apply_settings() -> void:
 		# Spec 3.5 - physics tuning.
 		"physics/common/physics_ticks_per_second": 60,
 		"physics/common/physics_interpolation": true,
+		# Bontago-e7o D (owner decision 2026-10-09): cap catch-up physics steps per frame
+		# (engine default 8) so a long frame cannot spiral. The number lives in
+		# PhysicsTuning.catchup_steps_capped; the F4 toggle flips Engine's live value.
+		"physics/common/max_physics_steps_per_frame": (load("res://config/physics_tuning.tres") as PhysicsTuning).catchup_steps_capped,
 		# Jolt solver iterations. Spec 3.5: "Start at 10 and 4, and tune using
 		# a benchmark scene with a 40-block tower." The position count is
 		# still the spec's 4; the velocity count had to go much higher, and
