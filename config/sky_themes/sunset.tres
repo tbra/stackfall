@@ -2,7 +2,6 @@
 
 [ext_resource type="Script" uid="uid://ddeais67gdwvk" path="res://config/SkyThemeDef.gd" id="1_theme"]
 [ext_resource type="Shader" uid="uid://l03n1dbfi36o" path="res://shaders/sunset_clouds.gdshader" id="2_clouds"]
-[ext_resource type="Texture2D" uid="uid://ca3slscpuorvc" path="res://assets/sky/sunset-clouds-v1.png" id="3_panorama"]
 [ext_resource type="Texture2D" uid="uid://rqwcqno83yfq" path="res://config/sky_themes/cloud_noise.tres" id="4_noise"]
 [ext_resource type="Shader" uid="uid://blyom2f2plyld" path="res://shaders/cloud_puffs.gdshader" id="5_puffs"]
 [ext_resource type="Shader" uid="uid://cw83snuvx3c6r" path="res://shaders/distant_birds.gdshader" id="6_birds"]
@@ -74,9 +73,6 @@ shader_parameter/near_fade_end_m = 16.0
 
 [sub_resource type="ShaderMaterial" id="SunsetClouds"]
 shader = ExtResource("2_clouds")
-shader_parameter/panorama = ExtResource("3_panorama")
-shader_parameter/seam_blend_width = 0.025
-shader_parameter/pole_blend_width = 0.06
 shader_parameter/exposure = 0.8
 shader_parameter/sky_yaw_offset_deg = 0.0
 shader_parameter/sky_pitch_offset_deg = 0.0
@@ -98,20 +94,6 @@ shader_parameter/ray_intensity = 0.35
 shader_parameter/ray_shimmer_speed = 0.15
 shader_parameter/ray_shimmer_amount = 0.08
 shader_parameter/noise_tex = ExtResource("4_noise")
-shader_parameter/sway_amount = 0.0
-shader_parameter/sway_speed = 0.05
-shader_parameter/sway_latitude_frequency = 3.0
-shader_parameter/warp_amount = 0.0
-shader_parameter/warp_speed = 0.006
-shader_parameter/warp_scale = 2.5
-shader_parameter/sun_motion_protect_deg = 6.0
-shader_parameter/sun_motion_fade_deg = 26.0
-shader_parameter/sea_flow = Vector2(-1, 0)
-shader_parameter/sea_flow_span = 0.006
-shader_parameter/sea_flow_period = 16.0
-shader_parameter/sea_flow_jitter_scale = 1.5
-shader_parameter/sea_flow_fade_start = 0.0
-shader_parameter/sea_flow_fade_end = -0.06
 shader_parameter/cloud_layer_opacity = 0.0
 shader_parameter/cloud_layer_scale = 1.1
 shader_parameter/cloud_horizon_lift = 0.5
@@ -189,6 +171,7 @@ proc_far_ring_inner_m = 150.0
 proc_far_radial_bias = 1.5
 proc_far_radius_min_m = 40.0
 ambient_life = ExtResource("ambient_life")
+sky_look_procedural = true
 proc_zenith_color = Color(0.3, 0.33, 0.52, 1)
 proc_mid_color = Color(0.72, 0.44, 0.42, 1)
 proc_horizon_color = Color(0.9, 0.66, 0.46, 1)

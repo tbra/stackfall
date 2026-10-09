@@ -1,30 +1,10 @@
 shader_type sky;
 #include "res://shaders/include/cloud_common.gdshaderinc"
 
-uniform sampler2D panorama : source_color, filter_linear_mipmap, repeat_enable;
-uniform float seam_blend_width = 0.025;
-uniform float pole_blend_width = 0.06;
 uniform float exposure = 0.8;
-// DECISION (shaders/sunset_clouds.gdshader, Bontago-1pi.1 v2, orchestrator
-// review of the v1 candidate): rotates the PANORAMA TEXTURE's own sampling
-// UV, not the world-space `sun_direction` below -- v1 fixed the two-sun bug
-// by pointing sun_direction (and DirectionalLight3D) at the panorama's own
-// painted-sun world direction, but that also spun the default CameraRig view
-// away from the sun and dropped the light to a near-horizon grazing angle
-// that blew out the goal-zone floor to flat yellow. Rotating the texture
-// instead keeps sun_direction/the light exactly as originally tuned and
-// moves the painted disc to meet them.
-//
-// Godot maps EYEDIR to U = atan(x, -z)/TAU (wrapped), V = acos(y)/PI.
-// The painted disc centre is (1276, 424) in the 1774x887 panorama; its lower
-// edge is hidden by clouds, so use the full circle centre, not the visible
-// pixels' centroid. The original flare direction maps to U = 0.208007,
-// V = 0.478016. sunset.tres therefore shifts U by 184.058612 degrees, and
-// leaves V unchanged: 424/887 already matches the flare's elevation.
-// Pitch is a latitude sampling offset, not a rigid spherical rotation;
-// clamp at the poles. Zero defaults let other panoramas opt into alignment.
-// This same sky() runs for background and radiance, so sky reflections and
-// ambient light rotate consistently; DiscMirror shares the Environment sky.
+// Bontago-59o.18 P6a: the painted panorama is removed. sky_yaw/pitch_offset_deg are kept only
+// because game/Skybox.gd, CloudSea and the theme resources still write them (cleanup follow-up);
+// this shader no longer samples with them.
 uniform float sky_yaw_offset_deg = 0.0;
 uniform float sky_pitch_offset_deg = 0.0;
 
@@ -145,54 +125,11 @@ uniform float ray_shimmer_amount = 0.08;
 uniform float sun_effect_scale : hint_range(0.0, 1.0) = 1.0;
 
 
-// Bontago-adt.1 (graphics pass, animated sky): the painted panorama is kept
-// (it carries the mockup-08 look) but now lives.
-//  1. SEAM FIX. The old thin dashed vertical line in the upper sky was a
-//     mip-selection artifact: fract() on the wrapped U coordinate makes the
-//     screen-space UV derivative spike to ~1 on the pixels straddling the
-//     wrap, so texture() picked the smallest mip level there and drew a one-
-//     pixel line of averaged colour. textureGrad() with derivatives taken from
-//     whichever of two half-shifted wraps is continuous removes it.
-//  2. DRIFT. Panorama sampling is sheared by latitude with a slow sine, plus a
-//     noise-driven UV warp, both faded to zero around the painted sun so it
-//     stays glued to sun_direction. Clouds at different heights slide past one
-//     another and billow instead of the picture being a static plate.
-//  3. CEL CLOUD LAYER. A procedural, cel-banded cloud layer (shared noise
-//     texture) scrolls with the wind above the horizon and blends over the
-//     panorama, so there is steady visible motion and the mockup's banded
-//     cel shading. It fades out near the sun disc and at the horizon.
-//  4. FAR CLOUD SEA (Bontago-adt.1 round 3). Below the horizon the painted
-//     cumulus is the distant cloud sea: it gets a two-phase flow drift
-//     (sea_flow_*) instead of the noise warp, so it slides slowly around the
-//     disc without marbling. The near/mid sea is real 3D puffs
-//     (vfx/CloudSea.gd, shaders/cloud_puffs.gdshader) that fade into this
-//     panorama by sampling it along their own view ray.
-// All animated terms are skipped in the radiance (reflection) pass, which
-// therefore stays as cheap and stable as before.
+// Bontago-59o.18 P6a: the painted panorama (and its seam fix, sway/warp drift and
+// sea-flow code) is gone; every theme runs the procedural branch below. The shared
+// noise texture drives the procedural cloud layers. All animated terms are skipped
+// in the radiance (reflection) pass.
 uniform sampler2D noise_tex : filter_linear_mipmap, repeat_enable;
-uniform float sway_amount = 0.006;
-uniform float sway_speed = 0.05;
-uniform float sway_latitude_frequency = 3.0;
-uniform float warp_amount = 0.006;
-uniform float warp_speed = 0.006;
-uniform float warp_scale = 2.5;
-// Angular radius (degrees) around sun_direction inside which the panorama is
-// left un-animated; motion fades in over sun_motion_fade_deg beyond it.
-uniform float sun_motion_protect_deg = 6.0;
-uniform float sun_motion_fade_deg = 26.0;
-
-// Far cloud sea (the panorama's lower hemisphere): two-phase flow drift so
-// the painted cumulus below the horizon slides slowly around the disc with no
-// accumulating smear (cloud_common flow_phases). Span is the UV distance one
-// phase travels; the jitter noise staggers the cross-fade across the sea.
-// sea_flow_fade_start/_end are eyedir.y values: flow is full below _end and
-// zero above _start (the horizon band and sky keep only the sway above).
-uniform vec2 sea_flow = vec2(-1.0, 0.0);
-uniform float sea_flow_span = 0.006;
-uniform float sea_flow_period = 16.0;
-uniform float sea_flow_jitter_scale = 1.5;
-uniform float sea_flow_fade_start = 0.0;
-uniform float sea_flow_fade_end = -0.06;
 
 uniform float cloud_layer_opacity = 0.8;
 uniform float cloud_layer_scale = 1.1;
@@ -216,8 +153,8 @@ uniform vec3 cloud_lit_color : source_color = vec3(1.0, 0.82, 0.52);
 uniform vec3 cloud_rim_color : source_color = vec3(1.0, 0.9, 0.66);
 
 // Bontago-59o.16 (procedural sky P1): declarations only; the branch that
-// reads them lands in P2-P4. procedural_sea_mix 0 = painted panorama.
-uniform float procedural_sea_mix = 0.0;
+// reads them lands in P2-P4.
+uniform float procedural_sea_mix = 1.0;
 uniform vec4 proc_zenith_color : source_color = vec4(0.161, 0.2, 0.333, 1.0);
 uniform vec4 proc_mid_color : source_color = vec4(0.55, 0.36, 0.5, 1.0);
 uniform vec4 proc_horizon_color : source_color = vec4(0.98, 0.64, 0.38, 1.0);
@@ -281,81 +218,18 @@ uniform float proc_cards_fade_height = 0.25;
 uniform float proc_upper_coverage_shift = 0.1;
 uniform vec2 proc_upper_scale = vec2(3.6, 2.6);
 
-// Panorama colour with the symmetric seam blend (imperfect authored
-// panorama edges made continuous).
-vec3 sample_panorama(vec2 uv, vec2 ddx_uv, vec2 ddy_uv) {
-	vec3 color = textureGrad(panorama, uv, ddx_uv, ddy_uv).rgb;
-	float seam = 1.0 - smoothstep(0.0, seam_blend_width, min(uv.x, 1.0 - uv.x));
-	vec2 mirrored_ddx = vec2(-ddx_uv.x, ddx_uv.y);
-	vec2 mirrored_ddy = vec2(-ddy_uv.x, ddy_uv.y);
-	return mix(color, textureGrad(panorama, vec2(1.0 - uv.x, uv.y), mirrored_ddx, mirrored_ddy).rgb, seam * 0.5);
-}
-
 void sky() {
 	vec3 eyedir = normalize(EYEDIR);
 	vec3 sun_dir = normalize(sun_direction);
 	float cos_angle = dot(eyedir, sun_dir);
 	float angle_deg = degrees(acos(clamp(cos_angle, -1.0, 1.0)));
 
-	vec2 uv = SKY_COORDS;
-	// Rotate the panorama sampling coordinate itself -- see sky_yaw_offset_deg/
-	// sky_pitch_offset_deg's own DECISION above. fract() wraps U around the
-	// seam regardless of sign; V is clamped rather than wrapped since it must
-	// never sample past a pole (unlike U, which repeats around the horizon).
-	float u_raw = uv.x + sky_yaw_offset_deg / 360.0;
-	uv.x = fract(u_raw);
-	uv.y = clamp(uv.y + sky_pitch_offset_deg / 180.0, 0.0, 1.0);
+	// DECISION (Bontago-59o.18 P6a): COLOR starts black; the procedural gradient below fills it
+	// whenever procedural_sea_mix > 0 (default 1, every theme sets 1).
+	COLOR = vec3(0.0);
 
-	// Seam-safe derivatives: pick the continuous one of two half-shifted wraps.
-	float u_alt = fract(u_raw + 0.5) - 0.5;
-	vec2 grad_a = vec2(dFdx(uv.x), dFdy(uv.x));
-	vec2 grad_b = vec2(dFdx(u_alt), dFdy(u_alt));
-	bool a_ok = abs(grad_a.x) + abs(grad_a.y) <= abs(grad_b.x) + abs(grad_b.y);
-	vec2 grad_u = a_ok ? grad_a : grad_b;
-	vec2 ddx_uv = vec2(grad_u.x, dFdx(uv.y));
-	vec2 ddy_uv = vec2(grad_u.y, dFdy(uv.y));
-
-	// Animated distortion (background pass only), faded out around the sun.
-	vec3 flow = vec3(0.0);
-	float sea = 0.0;
-	if (!AT_CUBEMAP_PASS) {
-		float motion = smoothstep(sun_motion_protect_deg, sun_motion_protect_deg + sun_motion_fade_deg, angle_deg);
-		vec2 np = eyedir.xz / (abs(eyedir.y) + 0.35) * warp_scale;
-		vec2 wobble = vec2(
-			texture(noise_tex, np + vec2(TIME * warp_speed, 0.0)).r,
-			texture(noise_tex, np + vec2(0.0, -TIME * warp_speed) + vec2(0.5, 0.5)).r) - 0.5;
-		float sway = sin(TIME * sway_speed + uv.y * sway_latitude_frequency * TAU + wobble.x * 4.0);
-		vec2 shift = vec2(sway * sway_amount, 0.0) + wobble * warp_amount;
-		// The far cloud sea below the horizon gets the flow drift instead of
-		// the noise warp (warping the painted cumulus there marbles it).
-		float sea_zone = smoothstep(sea_flow_fade_start, sea_flow_fade_end, eyedir.y);
-		uv += shift * motion * (1.0 - sea_zone);
-		uv.y = clamp(uv.y, 0.0, 1.0);
-		sea = sea_zone * motion;
-		if (sea > 0.0) {
-			float jitter = texture(noise_tex, np * sea_flow_jitter_scale * 0.1).r;
-			flow = flow_phases(TIME, sea_flow_period, jitter);
-		}
-	}
-
-	vec3 color;
-	if (sea <= 0.0) {
-		color = sample_panorama(uv, ddx_uv, ddy_uv);
-	} else {
-		vec2 step_a = sea_flow * sea_flow_span * flow.x * sea;
-		vec2 step_b = sea_flow * sea_flow_span * flow.y * sea;
-		vec3 color_a = sample_panorama(vec2(fract(uv.x + step_a.x), clamp(uv.y + step_a.y, 0.0, 1.0)), ddx_uv, ddy_uv);
-		vec3 color_b = sample_panorama(vec2(fract(uv.x + step_b.x), clamp(uv.y + step_b.y, 0.0, 1.0)), ddx_uv, ddy_uv);
-		color = mix(color_a, color_b, flow.z);
-	}
-	// Longitude converges to one color at each pole, avoiding a pinwheel seam.
-	float pole = 1.0 - smoothstep(0.0, pole_blend_width, min(uv.y, 1.0 - uv.y));
-	vec3 pole_color = textureLod(panorama, vec2(0.5, uv.y < 0.5 ? 0.0 : 1.0), 0.0).rgb;
-	COLOR = mix(color, pole_color, pole) * exposure;
-
-	// Procedural gradient sky (Bontago-59o.16 P2): replaces the panorama,
-	// including its painted sun (so there is no second disc), by
-	// procedural_sea_mix. No noise taps, so it is valid in the radiance pass.
+	// Procedural gradient sky (Bontago-59o.16 P2), blended by procedural_sea_mix.
+	// The radiance pass takes no noise taps here, so it is cheap and stable.
 	if (procedural_sea_mix > 0.0) {
 		vec3 pcol = sky_gradient(eyedir.y, proc_horizon_color.rgb, proc_mid_color.rgb, proc_zenith_color.rgb,
 			proc_gradient_mid_height, proc_gradient_power, proc_gradient_bands, proc_gradient_band_edge);
@@ -381,33 +255,6 @@ void sky() {
 		pcol += sun_halo_color.rgb * sd.y * proc_sun_halo_strength * proc_sun_glow_strength;
 		pcol = mix(pcol, sun_core_color.rgb, sd.x * clamp(proc_sun_glow_strength, 0.0, 1.0));
 		COLOR = mix(COLOR, pcol * exposure, clamp(procedural_sea_mix, 0.0, 1.0));
-	}
-
-	// Cel-banded procedural cloud layer over the panorama (background pass only).
-	if (!AT_CUBEMAP_PASS && eyedir.y > 0.0 && procedural_sea_mix <= 0.0) {
-		vec2 cp = eyedir.xz / (eyedir.y + cloud_horizon_lift) * cloud_layer_scale * mix(1.0, proc_strata_scale, clamp(procedural_sea_mix, 0.0, 1.0));
-		vec2 drift = cloud_wind * cloud_wind_speed * TIME;
-		vec2 cwarp = (vec2(
-			texture(noise_tex, cp * 0.5 + drift * 0.6 + vec2(0.3, 0.7)).r,
-			texture(noise_tex, cp * 0.5 - drift * 0.4 + vec2(0.9, 0.2)).r) - 0.5) * cloud_warp_amount;
-		vec2 cq = cp + drift + cwarp;
-		float d = cloud_fbm(noise_tex, cq);
-		vec2 to_sun = normalize(sun_dir.xz + vec2(0.0001));
-		float d_sun = cloud_fbm(noise_tex, cq + to_sun * cloud_light_probe);
-		float body = smoothstep(cloud_coverage, cloud_coverage + cloud_edge_softness, d);
-		float height01 = clamp((d - cloud_coverage) / max(1.0 - cloud_coverage, 0.001), 0.0, 1.0);
-		float facing = clamp(0.5 + (d - d_sun) * cloud_light_contrast, 0.0, 1.0);
-		// Clouds nearer the sun are lit more from behind: warm them up.
-		float sun_side = clamp(cos_angle * 0.5 + 0.5, 0.0, 1.0);
-		float shade = clamp(height01 * 0.5 + facing * 0.4 + sun_side * 0.25, 0.0, 1.0);
-		float qs = cel_quantize(shade, cloud_bands, cloud_cel_edge);
-		vec3 ccol = cel_ramp(cloud_shadow_color, cloud_mid_color, cloud_lit_color, qs);
-		float rim = (1.0 - smoothstep(0.0, cloud_rim_width, height01)) * smoothstep(0.55, 0.85, facing);
-		ccol = mix(ccol, cloud_rim_color, rim * 0.8);
-		float alpha = body * mix(cloud_layer_opacity, max(cloud_layer_opacity, proc_strata_opacity), clamp(procedural_sea_mix, 0.0, 1.0))
-			* smoothstep(cloud_fade_start, cloud_fade_height, eyedir.y)
-			* smoothstep(sun_core_angular_radius_deg, cloud_sun_clear_deg, angle_deg);
-		COLOR = mix(COLOR, ccol, alpha);
 	}
 
 	// Procedural upper clouds (Bontago-59o.19): two isotropic broken-cumulus

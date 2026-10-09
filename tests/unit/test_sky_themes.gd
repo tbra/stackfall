@@ -65,7 +65,8 @@ func test_cloud_sea_scales_clumps_with_density() -> void:
 	add_child_autofree(sea)
 	sea.configure(sunset, 1.0, sunset.sky_material)
 	var full: int = sea.puff_count()
-	assert_eq(full, (sunset.cloud_clump_count + sunset.cloud_bank_count) * sunset.cloud_puffs_per_clump)
+	var far_clumps: int = sunset.proc_far_count if sunset.sky_look_procedural else 0  # Bontago-59o.18 P6a: sunset is procedural, so it draws the far ring
+	assert_eq(full, (sunset.cloud_clump_count + sunset.cloud_bank_count + far_clumps) * sunset.cloud_puffs_per_clump)
 	sea.configure(sunset, 0.5, sunset.sky_material)
 	assert_lt(sea.puff_count(), full)
 	assert_gt(sea.puff_count(), 0)

@@ -412,7 +412,7 @@ func test_apply_theme_is_a_noop_with_no_environment_wired() -> void:
 	assert_true(true, "apply_theme() must no-op silently with environment == null")
 
 
-func test_apply_theme_updates_panorama_offsets_on_shared_sky_material() -> void:
+func test_apply_theme_updates_sky_yaw_pitch_offsets_on_shared_sky_material() -> void:
 	var wired: Dictionary = _make_wired_skybox()
 	var skybox: Skybox = wired["skybox"] as Skybox
 	var environment: Environment = wired["environment"] as Environment
