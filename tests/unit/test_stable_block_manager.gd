@@ -370,6 +370,10 @@ func test_real_physics_never_sleeping_pile_freezes_through_the_settle_path() -> 
 		if frozen_all:
 			break
 	assert_true(frozen_all, "awake-but-still tower froze once its window passed")
+	# Keep scanning well past the freeze: it must hold, not flap.
+	await wait_physics_frames(60 * 4)
+	for block: Block in blocks:
+		assert_true(block.freeze, "stays frozen across further scans")
 
 
 func test_real_physics_never_sleeping_pile_stays_awake_with_settle_off() -> void:
@@ -377,3 +381,15 @@ func test_real_physics_never_sleeping_pile_stays_awake_with_settle_off() -> void
 	await wait_physics_frames(60 * 5)
 	for block: Block in blocks:
 		assert_false(block.freeze, "settle freeze off: the engine never sleeps it, so it never freezes")
+
+
+func test_blocks_removed_while_awake_do_not_leak_settle_entries() -> void:
+	var parts: Array = _awake_still_setup()
+	var manager: StableBlockManager = parts[0]
+	var block: Block = parts[1]
+	manager._tick(_tuning.stable_freeze_scan_interval_s)
+	assert_eq(manager._settle.tracked_count(), 1)
+	Events.block_removed.emit(block, "test")
+	block.free()
+	manager._tick(_tuning.stable_freeze_scan_interval_s)
+	assert_eq(manager._settle.tracked_count(), 0, "pruned with the removed block")

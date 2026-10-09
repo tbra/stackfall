@@ -47,6 +47,10 @@ var _rest_anchor: Dictionary = {}
 ## Block.FREEZE_REASON_STABLE on that block (so release only ever targets a
 ## block this manager actually froze).
 var _frozen_by_this: Dictionary = {}
+## instance id -> true for blocks frozen through the awake-but-still settle path. Such
+## a block may keep reading awake (can_sleep false, or a body Jolt will not sleep), so
+## the awake-read release in _scan() must not undo it (that flapped every window).
+var _settle_frozen: Dictionary = {}
 
 ## Real-time accumulator gating how often _tick() below actually scans,
 ## consumed by _tick() itself -- see that function's own doc comment.
@@ -89,6 +93,7 @@ func wake_for_external_force(block: Block) -> bool:
 	_asleep_elapsed[id] = 0.0
 	_rest_anchor.erase(id)
 	_settle.reset(id)
+	_settle_frozen.erase(id)
 	block.release_freeze_static(Block.FREEZE_REASON_STABLE)
 	block.wake()
 	return true
@@ -134,6 +139,7 @@ func check_field_motion() -> void:
 		_asleep_elapsed[id] = 0.0
 		_rest_anchor.erase(id)
 		_settle.reset(id)
+		_settle_frozen.erase(id)
 		if _frozen_by_this.get(id, false):
 			block.release_freeze_static(Block.FREEZE_REASON_STABLE)
 			block.wake()
@@ -187,9 +193,10 @@ func _scan(scan_delta: float) -> void:
 			# scan), so releasing here on the plain wake-read covers all
 			# three cases without this class needing to know which one
 			# happened.
-			if _frozen_by_this.get(id, false):
+			if _frozen_by_this.get(id, false) and not (_settle_frozen.get(id, false) and block.freeze):
 				block.release_freeze_static(Block.FREEZE_REASON_STABLE)
 				_frozen_by_this[id] = false
+				_settle_frozen.erase(id)
 			if settle_on:
 				_settle_awake(block, id, scan_delta, fast_positions)
 			else:
@@ -221,6 +228,9 @@ func _scan(scan_delta: float) -> void:
 			_frozen_by_this.erase(id)
 			_rest_anchor.erase(id)
 			_settle.reset(id as int)
+			_settle_frozen.erase(id)
+	# Blocks removed while awake never entered _asleep_elapsed's cleanup above.
+	_settle.prune(live_ids)
 
 
 func _configure_settle() -> void:
@@ -260,6 +270,7 @@ func _settle_awake(block: Block, id: int, scan_delta: float, fast_positions: Pac
 		return
 	block.request_freeze_static(Block.FREEZE_REASON_STABLE)
 	_frozen_by_this[id] = true
+	_settle_frozen[id] = true
 	_settle.reset(id)
 
 
