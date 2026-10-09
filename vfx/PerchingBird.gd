@@ -144,10 +144,6 @@ func is_perched() -> bool:
 	return state == State.PERCHED
 
 
-func is_flying_in() -> bool:
-	return state == State.CIRCLE or state == State.GLIDE
-
-
 ## The world point the bird is heading to / standing on (perch surface point).
 func target_surface() -> Vector3:
 	return perch_surface
@@ -204,11 +200,6 @@ func begin_glide(surface: Vector3, hop_check: Callable, hop_allowed: bool) -> vo
 ## home after a chase).
 func begin_hop_flight(surface: Vector3) -> void:
 	begin_glide(surface, _hop_valid, allow_hop)
-
-
-## The angle (rad) on its arrival circle the bird is at.
-func circle_angle() -> float:
-	return _circle_angle
 
 
 ## Chase: loops `radius` around `centre` (world, surface level) from `angle`,

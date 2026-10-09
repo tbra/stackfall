@@ -187,3 +187,15 @@ func test_display_name_falls_back_to_capitalised_id() -> void:
 func test_every_shipped_special_has_a_nonempty_display_name() -> void:
 	for def: SpecialDef in SpecialDef.load_all_specials():
 		assert_ne(def.get_display_name(), "", String(def.id))
+
+
+## SpecialDef.effect is typed Resource (config/ must not name game/); every shipped def's
+## effect must still be a SpecialEffect, reachable through SpecialBehavior.effect_of().
+func test_every_shipped_def_effect_is_a_special_effect() -> void:
+	var defs: Array[SpecialDef] = SpecialDef.load_all_specials()
+	assert_gt(defs.size(), 0)
+	for def: SpecialDef in defs:
+		if def.effect != null:
+			assert_true(def.effect is SpecialEffect, "%s effect" % def.id)
+			assert_not_null(SpecialBehavior.effect_of(def), "%s effect_of" % def.id)
+	assert_null(SpecialBehavior.effect_of(null))

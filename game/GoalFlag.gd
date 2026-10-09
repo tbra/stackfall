@@ -20,8 +20,9 @@ extends HomeFlag
 ## on top of this.
 ##
 ## Bontago-1pi.18.6 (QoL experiment 4): while the bigger-claim-radius toggle is on,
-## set_claim_ring() draws one flat translucent ring on the ground at the radius the
-## host uses for capture, so players can see where claiming counts. With the
+## set_claim_ring() draws one flat translucent cel-shaded zone (shaders/goal_claim_zone.gdshader:
+## stepped fill, inward rings, dashed rim) on the ground at the radius the host uses
+## for capture, so players can see where claiming counts. With the
 ## toggle off the ring node is never created.
 ##
 ## Visual only: who is capturing and how far along they are is WinChecker's
@@ -34,6 +35,7 @@ extends HomeFlag
 const PROGRESS_EPSILON: float = 0.001
 
 const BEAM_SHADER: Shader = preload("res://shaders/goal_beam.gdshader")
+const CLAIM_ZONE_SHADER: Shader = preload("res://shaders/goal_claim_zone.gdshader")
 const BEAM_SEGMENTS: int = 16
 ## Neutral / contested sentinels, the same values GoalControl returns.
 const NEUTRAL: int = GoalControl.NEUTRAL
@@ -56,6 +58,7 @@ var _burst: CPUParticles3D = null
 
 var _claim_ring: MeshInstance3D = null
 var _claim_ring_radius: float = 0.0
+var _claim_zone_material: ShaderMaterial = null
 
 
 func _ready() -> void:
@@ -83,6 +86,7 @@ func _process(delta: float) -> void:
 	if _control == CONTESTED:
 		_color = _flicker_color()
 		_apply_color()
+		_apply_claim_zone_color()
 	super(delta)
 	if _beam_material != null and _beam.visible:
 		_beam_material.set_shader_parameter(
@@ -163,6 +167,7 @@ func _refresh_control_visuals() -> void:
 	else:
 		_color = beacon_visuals.neutral_color
 	_apply_color()
+	_apply_claim_zone_color()
 	_beam.visible = _control != NEUTRAL
 	_apply_beam_colors()
 
@@ -257,6 +262,10 @@ func _build_ring() -> void:
 func set_capture(team_id: int, progress: float, color: Color) -> void:
 	_capture_team = team_id
 	_capture_progress = clampf(progress, 0.0, 1.0)
+	if _claim_zone_material != null:
+		_claim_zone_material.set_shader_parameter(
+			&"capture", _capture_progress if _capture_team >= 0 else 0.0
+		)
 	if _ring == null:
 		return
 	if _capture_team < 0 or _capture_progress <= 0.0:
@@ -318,6 +327,7 @@ func set_claim_ring(radius: float) -> void:
 			remove_child(_claim_ring)
 			_claim_ring.queue_free()
 			_claim_ring = null
+		_claim_zone_material = null
 		_claim_ring_radius = 0.0
 		return
 	if _claim_ring == null:
@@ -346,24 +356,48 @@ func _build_claim_ring_node() -> MeshInstance3D:
 	var node: MeshInstance3D = MeshInstance3D.new()
 	node.name = &"ClaimRadiusRing"
 	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	var material: StandardMaterial3D = StandardMaterial3D.new()
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	material.albedo_color = Color(
-		beacon_visuals.claim_ring_color.r, beacon_visuals.claim_ring_color.g,
-		beacon_visuals.claim_ring_color.b, clampf(beacon_visuals.claim_ring_alpha, 0.0, 1.0)
-	)
-	node.material_override = material
-	node.position = Vector3(0.0, beacon_visuals.claim_ring_lift, 0.0)
+	_claim_zone_material = ShaderMaterial.new()
+	_claim_zone_material.shader = CLAIM_ZONE_SHADER
+	var tuning: BeaconVisualTuning = beacon_visuals
+	_claim_zone_material.set_shader_parameter(&"rim_width", tuning.claim_ring_width)
+	_claim_zone_material.set_shader_parameter(&"rim_alpha", clampf(tuning.claim_ring_alpha, 0.0, 1.0))
+	_claim_zone_material.set_shader_parameter(&"fill_alpha", tuning.claim_zone_fill_alpha)
+	_claim_zone_material.set_shader_parameter(&"cel_steps", tuning.claim_zone_cel_steps)
+	_claim_zone_material.set_shader_parameter(&"ring_count", tuning.claim_zone_ring_count)
+	_claim_zone_material.set_shader_parameter(&"ring_speed", tuning.claim_zone_ring_speed)
+	_claim_zone_material.set_shader_parameter(&"ring_width", tuning.claim_zone_ring_width)
+	_claim_zone_material.set_shader_parameter(&"dash_count", tuning.claim_zone_dash_count)
+	_claim_zone_material.set_shader_parameter(&"capture_boost", tuning.claim_zone_capture_boost)
+	_claim_zone_material.set_shader_parameter(&"rim_edge_lighten", tuning.claim_zone_rim_lighten)
+	_claim_zone_material.set_shader_parameter(&"capture", _capture_progress if _capture_team >= 0 else 0.0)
+	node.material_override = _claim_zone_material
+	node.position = Vector3(0.0, tuning.claim_ring_lift, 0.0)
+	_apply_claim_zone_color()
 	return node
 
 
-## A flat full-circle annulus in the XZ plane: a band claim_ring_width wide centred on
-## `radius`, built once (not per frame).
+## DECISION (Bontago-mp0.147): the zone is one filled disc mesh (the fan is an annulus
+## with inner radius 0) out to the rim's outer edge; the shader draws the stepped fill,
+## drifting rings and rim from the vertex's local XZ distance, so the mesh stays static
+## and the one transparent draw carries every cue. No new gameplay state: colour follows
+## set_control() (neutral tint, owner colour, or the contested flicker) and the fill
+## brightens with the capture progress set_capture() already receives.
 func _build_claim_ring_mesh(radius: float) -> ArrayMesh:
 	var segments: int = maxi(beacon_visuals.claim_ring_segments, 3)
 	var half: float = maxf(beacon_visuals.claim_ring_width, 0.001) * 0.5
-	var outer: float = radius + half
-	var inner: float = maxf(radius - half, 0.0)
-	return build_annulus_mesh(outer, inner, TAU, segments)
+	if _claim_zone_material != null:
+		_claim_zone_material.set_shader_parameter(&"zone_radius", radius)
+	return build_annulus_mesh(radius + half, 0.0, TAU, segments)
+
+
+func _claim_zone_color() -> Color:
+	if _control >= 0:
+		return _control_color
+	if _control == CONTESTED:
+		return _color
+	return beacon_visuals.claim_ring_color
+
+
+func _apply_claim_zone_color() -> void:
+	if _claim_zone_material != null:
+		_claim_zone_material.set_shader_parameter(&"zone_color", _claim_zone_color())

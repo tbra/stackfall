@@ -20,6 +20,8 @@ import os
 import statistics
 import subprocess
 import sys
+import atexit
+import signal
 import threading
 import time
 
@@ -32,6 +34,39 @@ SMI_PERIOD_MS = "250"
 RUN_TIMEOUT_S = 280
 DEFAULT_CHECKOUT = r"M:\Bontago-worktrees\gpu-audit"
 SCENE = "res://tests/bench/bench_gpu_frame.tscn"
+
+
+# Children (nvidia-smi sampler, bench) killed on any exit we can intercept; an external
+# TerminateProcess (e.g. `timeout`) cannot be caught, so cmd_run also sweeps stale samplers.
+_CHILDREN = []
+
+
+def _kill_children():
+    for child in _CHILDREN:
+        if child.poll() is None:
+            try:
+                child.kill()
+            except OSError:
+                pass
+
+
+atexit.register(_kill_children)
+for _sig in (getattr(signal, "SIGTERM", None), getattr(signal, "SIGBREAK", None)):
+    if _sig is not None:
+        signal.signal(_sig, lambda *_: sys.exit(1))
+
+
+def kill_stale_samplers():
+    """Kills nvidia-smi samplers started by this tool whose parent process is gone (2026-10-09:
+    four orphans from killed runs kept polling the GPU every 250 ms overnight)."""
+    cmd = ("Get-CimInstance Win32_Process -Filter \"Name='nvidia-smi.exe'\" | "
+           "Where-Object { $_.CommandLine -match 'utilization.gpu,clocks.gr' -and "
+           "-not (Get-Process -Id $_.ParentProcessId -ErrorAction SilentlyContinue) } | "
+           "ForEach-Object { Stop-Process -Id $_.ProcessId -Force; $_.ProcessId }")
+    out = subprocess.run(["powershell", "-NoProfile", "-Command", cmd],
+                         stdout=subprocess.PIPE, universal_newlines=True).stdout.split()
+    if out:
+        print("killed stale nvidia-smi samplers: " + " ".join(out), flush=True)
 
 
 def owner_game_running():
@@ -66,6 +101,7 @@ def run_once(preset, off, checkout, max_fps, warmup, steady, profile, log_path):
     stop = threading.Event()
     smi = subprocess.Popen(["nvidia-smi", "--query-gpu=" + SMI_QUERY, "--format=csv,noheader,nounits",
                             "-lms", SMI_PERIOD_MS], stdout=subprocess.PIPE, universal_newlines=True)
+    _CHILDREN.append(smi)
 
     def read_smi():
         for line in smi.stdout:
@@ -80,6 +116,7 @@ def run_once(preset, off, checkout, max_fps, warmup, steady, profile, log_path):
     t_smi = threading.Thread(target=read_smi, daemon=True)
     t_smi.start()
     proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+    _CHILDREN.append(proc)
     deadline = time.time() + RUN_TIMEOUT_S
 
     def read_out():
@@ -138,6 +175,7 @@ def run_once(preset, off, checkout, max_fps, warmup, steady, profile, log_path):
 
 
 def cmd_run(a):
+    kill_stale_samplers()
     for rep in range(a.repeat):
         for item in a.plan:  # interleaved: repeats cycle through the whole plan
             preset, _, feats = item.partition(":")

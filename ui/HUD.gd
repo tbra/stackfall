@@ -269,8 +269,10 @@ func _ready() -> void:
 	_height_label.add_theme_color_override("font_color", hud_visual_tuning.muted_ink_color)
 	_held_label.add_theme_color_override("font_color", hud_visual_tuning.muted_ink_color)
 	_next_label.add_theme_color_override("font_color", hud_visual_tuning.muted_ink_color)
-	for outlined: Label in [_turn_label, _height_label, _special_indicator, _gift_toast_label, _held_label, _next_label]:
+	for outlined: Label in [_turn_label, _height_label, _special_indicator, _held_label, _next_label]:
 		_apply_text_outline(outlined)
+	_style_toast(_gift_toast_label)
+	_style_toast(_reject_label)
 	# Bontago-mp0.3.3 (owner review 2026-09-26: "row gap ~12 px"). The status
 	# labels above sit in %StatusPill, a VBoxContainer nested right under
 	# %SharesBox inside their shared %TopLeftCluster (ui/HUD.tscn) -- both
@@ -579,7 +581,8 @@ func show_reject(reason: StringName) -> void:
 	# below tints this same label a distinct colour, and without resetting the
 	# whole modulate here a reject message right after a relocated one would
 	# stay tinted instead of reading as its own, distinct message.
-	_reject_label.modulate = Color(1.0, 1.0, 1.0, 1.0)
+	_reject_label.modulate = Color.WHITE
+	_set_toast_accent(_reject_label, hud_visual_tuning.toast_reject_accent_color)
 	if _reject_tween != null and _reject_tween.is_valid():
 		_reject_tween.kill()
 	_reject_tween = create_tween()
@@ -607,7 +610,8 @@ func show_reject(reason: StringName) -> void:
 func show_relocated() -> void:
 	_reject_label.text = "Relocated into your territory"
 	var tint: Color = ghost_tuning.auto_drop_flash_color
-	_reject_label.modulate = Color(tint.r, tint.g, tint.b, 1.0)
+	_reject_label.modulate = Color.WHITE
+	_set_toast_accent(_reject_label, Color(tint.r, tint.g, tint.b, 1.0))
 	if _reject_tween != null and _reject_tween.is_valid():
 		_reject_tween.kill()
 	_reject_tween = create_tween()
@@ -640,7 +644,8 @@ func show_winner(team_id: int, color: Color) -> void:
 ## shouldn't be forced to share one timing.
 func show_gift_toast(special_id: StringName) -> void:
 	_gift_toast_label.text = "Special queued: %s" % _special_display_name(special_id)
-	_gift_toast_label.modulate = Color(_active_color.r, _active_color.g, _active_color.b, 1.0)
+	_gift_toast_label.modulate = Color.WHITE
+	_set_toast_accent(_gift_toast_label, Color(_active_color.r, _active_color.g, _active_color.b, 1.0))
 	if _gift_toast_tween != null and _gift_toast_tween.is_valid():
 		_gift_toast_tween.kill()
 	_gift_toast_tween = create_tween()
@@ -968,6 +973,42 @@ func _resize_top_left_backplate() -> void:
 func _apply_text_outline(label: Label) -> void:
 	label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.85))
 	label.add_theme_constant_override("outline_size", 4)
+
+
+## Bontago-mp0.145: the one shared toast look (claim toast, reject/relocated
+## message): a dark-glass pill from hud_visual_tuning's toast_* values drawn as
+## the label's own "normal" stylebox, so a single modulate fade fades pill and
+## text together. Title font from the Stackfall theme; light ink and a dark
+## outline keep text readable over any sky.
+## DECISION: the winner banner is not restyled -- it is permanently hidden
+## (Bontago-1pi.5, results screen owns it) and other tests read its modulate.
+func _style_toast(label: Label) -> void:
+	var tuning: HUDVisualTuning = hud_visual_tuning
+	var style: StyleBoxFlat = StyleBoxFlat.new()
+	style.bg_color = tuning.toast_fill_color
+	style.border_color = tuning.surface_border_color
+	style.set_border_width_all(int(tuning.toast_border_width_px))
+	style.set_corner_radius_all(int(tuning.toast_corner_radius_px))
+	style.content_margin_left = tuning.toast_padding_x_px
+	style.content_margin_right = tuning.toast_padding_x_px
+	style.content_margin_top = tuning.toast_padding_y_px
+	style.content_margin_bottom = tuning.toast_padding_y_px
+	label.add_theme_stylebox_override("normal", style)
+	var theme: Theme = preload("res://ui/theme/stackfall_theme.tres")
+	label.add_theme_font_override("font", theme.get_font(&"font", &"TitleLabel"))
+	label.add_theme_font_size_override("font_size", tuning.toast_font_size)
+	label.add_theme_color_override("font_color", tuning.ink_color)
+	label.add_theme_color_override("font_outline_color", tuning.countdown_outline_color)
+	label.add_theme_constant_override("outline_size", tuning.toast_outline_size_px)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+
+## The pill's border carries the message's accent (player colour, refusal red,
+## relocation blue); text stays ink so it never loses contrast to a tint.
+func _set_toast_accent(label: Label, accent: Color) -> void:
+	var style: StyleBoxFlat = label.get_theme_stylebox("normal") as StyleBoxFlat
+	if style != null:
+		style.border_color = accent
 
 
 ## Spec M2 owner decision 3: no dedicated Events signal exists for "home flag
@@ -1328,12 +1369,15 @@ func _next_gift_id_for(count: int, head_id: StringName) -> StringName:
 const HONEY_TUNING_PATH: String = "res://config/honey_coat_tuning.tres"
 ## Blob layout in fractions of the drawn block image: [x, y, radius] of each honey
 ## cap blob, and [x, y_top, length, width] of each drip (owner mockup glue(honey).png).
-const GLUE_BLOBS: Array[Vector3] = [Vector3(0.42, 0.3, 0.14), Vector3(0.62, 0.36, 0.1)]
-const GLUE_DRIPS: Array[Vector4] = [Vector4(0.3, 0.34, 0.2, 0.1), Vector4(0.7, 0.42, 0.14, 0.08)]
+const GLUE_BLOBS: Array[Vector3] = [Vector3(0.4, 0.2, 0.2), Vector3(0.65, 0.3, 0.14)]
+const GLUE_DRIPS: Array[Vector4] = [Vector4(0.3, 0.25, 0.3, 0.14), Vector4(0.7, 0.35, 0.2, 0.11)]
+const GLUE_MAX_WIDTH_SHARE: float = 0.3
+const GLUE_MAX_BLOB_SHARE: float = 0.22
 const GLUE_EDGE_GROW: float = 1.18
 const GLUE_HIGHLIGHT_SHIFT: Vector2 = Vector2(-0.35, -0.4)
 const GLUE_HIGHLIGHT_SCALE: float = 0.35
 static var _honey_tuning: HoneyCoatTuning = null
+var _preview_bboxes: Dictionary[StringName, Rect2] = {}
 var _glue_active: bool = false
 
 
@@ -1378,7 +1422,27 @@ func _set_glue_active(active: bool) -> void:
 	_next_shape_preview.queue_redraw()
 
 
-## Honey blobs and drips over the drawn block image (rect = where the image sits).
+## Fraction rect (0..1 of the preview texture) holding its non-transparent pixels, cached
+## per shape. The honey overlay is laid out inside this box so it follows the silhouette
+## instead of spilling off narrow shapes (Bontago-1pi.138 part 2).
+func _preview_opaque_bbox(shape_id: StringName, texture: Texture2D) -> Rect2:
+	if _preview_bboxes.has(shape_id):
+		return _preview_bboxes[shape_id]
+	var box: Rect2 = Rect2(Vector2.ZERO, Vector2.ONE)
+	var image: Image = texture.get_image()
+	if image != null and not image.is_empty():
+		if image.is_compressed():
+			image.decompress()
+		var used: Rect2i = image.get_used_rect()
+		if used.size.x > 0 and used.size.y > 0:
+			var full: Vector2 = Vector2(image.get_size())
+			box = Rect2(Vector2(used.position) / full, Vector2(used.size) / full)
+	_preview_bboxes[shape_id] = box
+	return box
+
+
+## Honey blobs and drips inside `rect` (the silhouette box in control pixels); every
+## primitive is clamped to `rect` so nothing is cut off at any HUD scale.
 func _draw_glue_overlay(control: Control, rect: Rect2) -> void:
 	if _honey_tuning == null:
 		_honey_tuning = load(HONEY_TUNING_PATH) as HoneyCoatTuning
@@ -1387,18 +1451,24 @@ func _draw_glue_overlay(control: Control, rect: Rect2) -> void:
 	var light: Color = _honey_tuning.hud_blob_highlight
 	var unit: float = minf(rect.size.x, rect.size.y)
 	for d: Vector4 in GLUE_DRIPS:
-		var x: float = rect.position.x + rect.size.x * d.x
+		var w: float = minf(unit * d.w, rect.size.x * GLUE_MAX_WIDTH_SHARE)
+		var grow: float = w * GLUE_EDGE_GROW
+		var x: float = clampf(rect.position.x + rect.size.x * d.x, rect.position.x + grow * 0.5, rect.end.x - grow * 0.5)
 		var top: float = rect.position.y + rect.size.y * d.y
-		var w: float = unit * d.w
-		var len: float = unit * d.z
-		control.draw_circle(Vector2(x, top + len), w * 0.5 * GLUE_EDGE_GROW, edge, true)
-		control.draw_rect(Rect2(x - w * 0.5 * GLUE_EDGE_GROW, top, w * GLUE_EDGE_GROW, len), edge)
+		var len: float = minf(unit * d.z, rect.end.y - top - grow * 0.5)
+		if len <= 0.0:
+			continue
+		control.draw_circle(Vector2(x, top + len), grow * 0.5, edge, true)
+		control.draw_rect(Rect2(x - grow * 0.5, top, grow, len), edge)
 		control.draw_circle(Vector2(x, top + len), w * 0.5, base, true)
 		control.draw_rect(Rect2(x - w * 0.5, top, w, len), base)
 	for b: Vector3 in GLUE_BLOBS:
-		var c: Vector2 = rect.position + rect.size * Vector2(b.x, b.y)
-		var r: float = unit * b.z
-		control.draw_circle(c, r * GLUE_EDGE_GROW, edge, true)
+		var r: float = minf(unit * b.z, minf(rect.size.x, rect.size.y) * GLUE_MAX_BLOB_SHARE)
+		var outer: float = r * GLUE_EDGE_GROW
+		var c: Vector2 = Vector2(
+			clampf(rect.position.x + rect.size.x * b.x, rect.position.x + outer, rect.end.x - outer),
+			clampf(rect.position.y + rect.size.y * b.y, rect.position.y + outer, rect.end.y - outer))
+		control.draw_circle(c, outer, edge, true)
 		control.draw_circle(c, r, base, true)
 		control.draw_circle(c + GLUE_HIGHLIGHT_SHIFT * r, r * GLUE_HIGHLIGHT_SCALE, light, true)
 
@@ -1528,7 +1598,9 @@ func _draw_static_shape(control: Control, shape: BlockShape, color: Color) -> vo
 	var image_rect: Rect2 = Rect2((control.size - draw_size) * 0.5, draw_size)
 	control.draw_texture_rect(texture, image_rect, false, color)
 	if _glue_active and gift_id == &"":
-		_draw_glue_overlay(control, image_rect)
+		var box: Rect2 = _preview_opaque_bbox(shape.id, texture)
+		var inner: Rect2 = Rect2(image_rect.position + box.position * image_rect.size, box.size * image_rect.size)
+		_draw_glue_overlay(control, inner.intersection(Rect2(Vector2.ZERO, control.size)))
 
 
 

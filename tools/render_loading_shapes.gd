@@ -117,11 +117,24 @@ func _capture_shape_geometry(field: Field) -> void:
 		_top_triangle(top, a, outer[i], outer[j], map)
 		if not inner.is_empty():
 			_top_triangle(top, a, outer[j], b, map)
-	field.overlay().mesh = top.commit()
-	var body: DiscBody = field.disc_body()
-	var visuals: DiscBodyVisuals = body.visuals
-	var height: float = 2.0 * map.field_radius * visuals.band_height_fraction
-	var chamfer_y: float = -height * visuals.chamfer_height_fraction
+	# Bontago-mp0.150.1: the arena is one ArrayMesh (surface 0 = top, then rim
+	# surfaces). Borrow the live rim materials from a round-shaped ArenaMesh build.
+	var overlay: TerritoryOverlay = field.overlay()
+	var body_visuals: DiscBodyVisuals = field.disc_body_visuals
+	var round_map: MapDef = map.duplicate() as MapDef
+	round_map.map_shape = MapDef.MapShape.ROUND
+	var donor: ArenaMesh = ArenaMesh.new()
+	var donor_mesh: ArrayMesh = ArrayMesh.new()
+	donor.append_side_surfaces(donor_mesh, round_map, body_visuals, body_visuals.segments, 0.0)
+	var band_material: Material = donor.material_for_surface(donor.surface_index(ArenaMesh.Kind.BAND))
+	var rim_material: Material = donor.material_for_surface(donor.surface_index(ArenaMesh.Kind.CHAMFER))
+	var arena: ArrayMesh = ArrayMesh.new()
+	arena.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, (top.commit() as ArrayMesh).surface_get_arrays(0))
+	overlay.mesh = arena
+	overlay.set_surface_override_material(0, overlay.material())
+	var shift: float = map.disk_height * 0.5
+	var height: float = 2.0 * map.field_radius * body_visuals.band_height_fraction
+	var chamfer_y: float = -height * body_visuals.chamfer_height_fraction
 	var contours: Array[PackedVector2Array] = [outer]
 	if not inner.is_empty():
 		inner.reverse()
@@ -130,16 +143,13 @@ func _capture_shape_geometry(field: Field) -> void:
 		var points: PackedVector2Array = contours[index]
 		var scaled: PackedVector2Array = PackedVector2Array()
 		for point: Vector2 in points:
-			scaled.append(point * (visuals.band_radius_scale if index == 0 else 2.0 - visuals.band_radius_scale))
-		var band: MeshInstance3D = body.band_mesh_instance() if index == 0 else MeshInstance3D.new()
-		var rim: MeshInstance3D = body.chamfer_mesh_instance() if index == 0 else MeshInstance3D.new()
-		if index > 0:
-			body.add_child(band)
-			body.add_child(rim)
-			band.material_override = body.band_mesh_instance().material_override
-			rim.material_override = body.chamfer_mesh_instance().material_override
-		band.mesh = body.call("_build_ring_mesh", scaled, scaled, chamfer_y, -map.disk_height-height, false)
-		rim.mesh = body.call("_build_ring_mesh", points, scaled, 0.0, chamfer_y, false, true)
+			scaled.append(point * (body_visuals.band_radius_scale if index == 0 else 2.0 - body_visuals.band_radius_scale))
+		var band: Array = donor.call("_ring_arrays", scaled, scaled, chamfer_y + shift, -map.disk_height - height + shift, false)
+		var rim: Array = donor.call("_ring_arrays", points, scaled, shift, chamfer_y + shift, false, true)
+		arena.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, band)
+		overlay.set_surface_override_material(arena.get_surface_count() - 1, band_material)
+		arena.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, rim)
+		overlay.set_surface_override_material(arena.get_surface_count() - 1, rim_material)
 
 func _top_triangle(tool: SurfaceTool, a: Vector2, b: Vector2, c: Vector2, map: MapDef) -> void:
 	for point: Vector2 in [a,b,c]:

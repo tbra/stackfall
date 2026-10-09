@@ -400,12 +400,6 @@ func uses_blank_shell() -> bool:
 	return _shell != Shell.NONE
 
 
-## Drops the cached catalog and textures (tests that swap asset_root).
-static func clear_asset_caches() -> void:
-	_key_atlas_cache.clear()
-	_texture_cache.clear()
-
-
 func _configure_key(key_event: InputEventKey) -> void:
 	_kind = Kind.KEY
 	var code: Key = key_event.keycode if key_event.keycode != KEY_NONE else key_event.physical_keycode

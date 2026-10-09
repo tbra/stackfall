@@ -267,10 +267,6 @@ func flock_instance() -> MultiMeshInstance3D:
 	return _instance
 
 
-func flight_material() -> ShaderMaterial:
-	return _material
-
-
 func slot_count() -> int:
 	return _slots.size()
 

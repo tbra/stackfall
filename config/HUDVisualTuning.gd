@@ -129,3 +129,19 @@ extends Resource
 @export var countdown_go_text: String = "Go!"
 @export var countdown_go_hold_s: float = 0.8
 @export var countdown_outline_color: Color = Color(0.05, 0.07, 0.10, 0.85)
+
+## Bontago-mp0.145: the ONE style every transient HUD message (claim toast,
+## reject/relocated message, winner banner) shares: a dark-glass pill in the
+## HUD card family, light ink, a readable text outline, and a border that
+## carries the accent (the player's colour for a player message, the reject
+## accent below for a refusal).
+@export var toast_fill_color: Color = Color(0.05, 0.07, 0.10, 0.82)
+@export var toast_border_width_px: float = 3.0
+@export var toast_corner_radius_px: float = 18.0
+@export var toast_padding_x_px: float = 16.0
+@export var toast_padding_y_px: float = 6.0
+@export var toast_font_size: int = 16
+@export var toast_outline_size_px: int = 4
+## Border accent of a refusal ("Rejected: ...") message; distinct from the
+## relocated message's bluish auto-drop-flash accent and a player colour.
+@export var toast_reject_accent_color: Color = Color(0.95, 0.42, 0.36)

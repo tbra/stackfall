@@ -1,5 +1,5 @@
 extends GutTest
-## game/DiscBody.gd: the disc's purely-visual thickness (Bontago-mp0.3.2,
+## game/ArenaMesh.gd (formerly game/ArenaMesh.gd): the disc's purely-visual thickness (Bontago-mp0.3.2,
 ## owner feedback: "The disc is just a thin mirror currently, the mockup has
 ## a much thicker metallic disc with a soft glowing border going round the
 ## rim.") plus its Bontago-pt.12 chamfer/texture redesign (owner: "the
@@ -37,15 +37,53 @@ func _default_visuals() -> DiscBodyVisuals:
 	return visuals
 
 
-func _make_body(map_def: MapDef, visuals: DiscBodyVisuals = null) -> DiscBody:
-	var body: DiscBody = DiscBody.new()
-	add_child_autofree(body)
-	body.configure(map_def, visuals if visuals != null else _default_visuals(), SEGMENTS)
+## One side surface of the merged arena mesh re-wrapped as its own single-surface
+## mesh + material, so the per-part geometry assertions below read the same data
+## the old separate Band/Chamfer MeshInstance3D nodes exposed.
+class Part:
+	extends RefCounted
+	var mesh: ArrayMesh = null
+	var material_override: Material = null
+	var name: String = ""
+
+
+class Body:
+	extends RefCounted
+	var arena: ArenaMesh = null
+	var merged: ArrayMesh = null
+	var _parts: Dictionary = {}
+
+	func part(kind: ArenaMesh.Kind, part_name: String) -> Part:
+		if _parts.has(kind):
+			return _parts[kind]
+		var out: Part = Part.new()
+		out.name = part_name
+		var index: int = arena.surface_index(kind)
+		out.mesh = ArrayMesh.new()
+		out.mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, merged.surface_get_arrays(index))
+		out.material_override = arena.material_for_surface(index)
+		_parts[kind] = out
+		return out
+
+	func band_mesh_instance() -> Part:
+		return part(ArenaMesh.Kind.BAND, "Band")
+
+	func chamfer_mesh_instance() -> Part:
+		return part(ArenaMesh.Kind.CHAMFER, "Chamfer")
+
+
+func _make_body(map_def: MapDef, visuals: DiscBodyVisuals = null, y_shift: float = 0.0) -> Body:
+	var body: Body = Body.new()
+	body.arena = ArenaMesh.new()
+	body.merged = ArrayMesh.new()
+	body.arena.append_side_surfaces(
+		body.merged, map_def, visuals if visuals != null else _default_visuals(), SEGMENTS, y_shift
+	)
 	return body
 
 
 func test_configure_builds_a_band_and_chamfer_mesh() -> void:
-	var body: DiscBody = _make_body(_map(MapDef.MapShape.ROUND))
+	var body: Body = _make_body(_map(MapDef.MapShape.ROUND))
 	assert_not_null(body.band_mesh_instance())
 	assert_not_null(body.band_mesh_instance().mesh)
 	assert_not_null(body.chamfer_mesh_instance())
@@ -57,13 +95,13 @@ func test_band_height_matches_the_configured_fraction_of_diameter() -> void:
 	visuals.band_height_fraction = 0.05
 	visuals.chamfer_height_fraction = 0.0
 	var map_def: MapDef = _map(MapDef.MapShape.ROUND, 10.0)
-	var body: DiscBody = _make_body(map_def, visuals)
+	var body: Body = _make_body(map_def, visuals)
 
 	var aabb: AABB = body.band_mesh_instance().mesh.get_aabb()
 	# diameter 20 * 0.05 == 1.0 m of band_height_fraction, plus disk_height
 	# (0.2 m) since the band's own top now sits flush at the true playing
 	# surface (y = 0) whenever the chamfer above it is zeroed out -- see
-	# game/DiscBody.gd's own rebuild().
+	# game/ArenaMesh.gd's own rebuild().
 	assert_almost_eq(aabb.size.y, 1.2, 0.01)
 	assert_almost_eq(aabb.position.y, -1.2, 0.01)
 	assert_almost_eq(aabb.position.y + aabb.size.y, 0.0, 0.01)
@@ -74,7 +112,7 @@ func test_chamfer_eats_into_the_top_of_the_bands_own_height_budget() -> void:
 	visuals.band_height_fraction = 0.05
 	visuals.chamfer_height_fraction = 0.2
 	var map_def: MapDef = _map(MapDef.MapShape.ROUND, 10.0)
-	var body: DiscBody = _make_body(map_def, visuals)
+	var body: Body = _make_body(map_def, visuals)
 
 	var band_aabb: AABB = body.band_mesh_instance().mesh.get_aabb()
 	var chamfer_aabb: AABB = body.chamfer_mesh_instance().mesh.get_aabb()
@@ -93,7 +131,7 @@ func test_chamfer_eats_into_the_top_of_the_bands_own_height_budget() -> void:
 
 func test_round_band_footprint_is_the_field_radius_circle() -> void:
 	var map_def: MapDef = _map(MapDef.MapShape.ROUND, 12.0)
-	var body: DiscBody = _make_body(map_def)
+	var body: Body = _make_body(map_def)
 
 	var aabb: AABB = body.band_mesh_instance().mesh.get_aabb()
 	assert_almost_eq(aabb.size.x, 24.0, 0.05, "x footprint spans 2 * field_radius.")
@@ -102,7 +140,7 @@ func test_round_band_footprint_is_the_field_radius_circle() -> void:
 
 func test_oval_band_footprint_follows_the_true_ellipse() -> void:
 	var map_def: MapDef = _map(MapDef.MapShape.OVAL, 12.0, 0.5)
-	var body: DiscBody = _make_body(map_def)
+	var body: Body = _make_body(map_def)
 
 	var aabb: AABB = body.band_mesh_instance().mesh.get_aabb()
 	assert_almost_eq(aabb.size.x, 24.0, 0.05, "x footprint stays field_radius; only z narrows.")
@@ -113,7 +151,7 @@ func test_ring_shape_falls_back_to_the_round_bounding_circle() -> void:
 	# This package's own brief: shapes this hard fall back to the same round
 	# bounding circle the top-surface CylinderMesh already draws for them.
 	var map_def: MapDef = _map(MapDef.MapShape.RING, 12.0)
-	var body: DiscBody = _make_body(map_def)
+	var body: Body = _make_body(map_def)
 
 	var aabb: AABB = body.band_mesh_instance().mesh.get_aabb()
 	assert_almost_eq(aabb.size.x, 24.0, 0.05)
@@ -132,7 +170,7 @@ func test_chamfer_top_ring_is_flush_with_the_true_field_radius_edge() -> void:
 	visuals.chamfer_height_fraction = 0.5
 	visuals.band_height_fraction = 0.05
 	var map_def: MapDef = _map(MapDef.MapShape.ROUND, 10.0)
-	var body: DiscBody = _make_body(map_def, visuals)
+	var body: Body = _make_body(map_def, visuals)
 
 	var mesh: ArrayMesh = body.chamfer_mesh_instance().mesh as ArrayMesh
 	var arrays: Array = mesh.surface_get_arrays(0)
@@ -156,29 +194,44 @@ func test_chamfer_slopes_outward_to_the_bands_own_proud_radius() -> void:
 	visuals.chamfer_height_fraction = 0.5
 	visuals.band_height_fraction = 0.05
 	var map_def: MapDef = _map(MapDef.MapShape.ROUND, 10.0)
-	var body: DiscBody = _make_body(map_def, visuals)
+	var body: Body = _make_body(map_def, visuals)
 
 	var chamfer_aabb: AABB = body.chamfer_mesh_instance().mesh.get_aabb()
 	assert_almost_eq(chamfer_aabb.size.x, 22.0, 0.1, "2 * field_radius * band_radius_scale.")
 
 
-func test_reconfigure_reuses_the_same_mesh_instances() -> void:
-	var map_def: MapDef = _map(MapDef.MapShape.ROUND)
-	var body: DiscBody = _make_body(map_def)
-	var band: MeshInstance3D = body.band_mesh_instance()
-	var chamfer: MeshInstance3D = body.chamfer_mesh_instance()
+## Bontago-mp0.150.1: every side surface lives in ONE ArrayMesh with its own
+## material slot (chamfer, band, bottom), y-shifted by the overlay's half height.
+func test_side_surfaces_are_separate_surfaces_of_one_mesh() -> void:
+	var visuals: DiscBodyVisuals = _default_visuals()
+	visuals.bottom_cap_enabled = true
+	var body: Body = _make_body(_map(MapDef.MapShape.ROUND), visuals, 0.1)
+	assert_eq(body.merged.get_surface_count(), 3, "chamfer + band + bottom.")
+	var chamfer: int = body.arena.surface_index(ArenaMesh.Kind.CHAMFER)
+	var band: int = body.arena.surface_index(ArenaMesh.Kind.BAND)
+	var bottom: int = body.arena.surface_index(ArenaMesh.Kind.BOTTOM)
+	assert_true(body.arena.material_for_surface(chamfer) is ShaderMaterial)
+	assert_true(body.arena.material_for_surface(band) is StandardMaterial3D)
+	assert_same(body.arena.material_for_surface(bottom), body.arena.material_for_surface(band))
+	var top_y: float = -INF
+	for vertex: Vector3 in body.merged.surface_get_arrays(chamfer)[Mesh.ARRAY_VERTEX]:
+		top_y = maxf(top_y, vertex.y)
+	assert_almost_eq(top_y, 0.1, 0.0001, "y_shift moves the true playing-surface ring to local +disk_height/2.")
 
-	body.configure(map_def, DiscBodyVisuals.new(), SEGMENTS)
 
-	assert_same(body.band_mesh_instance(), band)
-	assert_same(body.chamfer_mesh_instance(), chamfer)
+func test_twin_and_cross_get_no_side_surfaces() -> void:
+	for shape: MapDef.MapShape in [MapDef.MapShape.TWIN, MapDef.MapShape.CROSS]:
+		var body: Body = _make_body(_map(shape))
+		assert_eq(body.merged.get_surface_count(), 0)
+		assert_eq(body.arena.surface_index(ArenaMesh.Kind.BAND), -1)
 
 
 func test_bottom_cap_disabled_still_builds_a_valid_open_band() -> void:
 	var visuals: DiscBodyVisuals = DiscBodyVisuals.new()
 	visuals.bottom_cap_enabled = false
-	var body: DiscBody = _make_body(_map(MapDef.MapShape.ROUND), visuals)
+	var body: Body = _make_body(_map(MapDef.MapShape.ROUND), visuals)
 	assert_not_null(body.band_mesh_instance().mesh)
+	assert_eq(body.arena.surface_index(ArenaMesh.Kind.BOTTOM), -1, "no cap surface when disabled.")
 	assert_true(body.band_mesh_instance().mesh.get_surface_count() > 0)
 
 
@@ -199,7 +252,7 @@ func test_chamfer_material_is_a_shader_material_wired_from_visuals() -> void:
 	visuals.chamfer_screen_min_width_factor = 0.0099
 	visuals.surface_anisotropy = 0.42
 	visuals.surface_noise_strength = 0.77
-	var body: DiscBody = _make_body(_map(MapDef.MapShape.ROUND), visuals)
+	var body: Body = _make_body(_map(MapDef.MapShape.ROUND), visuals)
 
 	var material: ShaderMaterial = body.chamfer_mesh_instance().material_override as ShaderMaterial
 	assert_not_null(material, "the chamfer's own material must be a ShaderMaterial.")
@@ -226,7 +279,7 @@ func test_chamfer_material_is_a_shader_material_wired_from_visuals() -> void:
 ## back out of the committed ArrayMesh's own vertex color array -- plain CPU
 ## mesh data, exactly like this file's other geometry assertions.
 func test_chamfer_mesh_carries_a_top_to_bottom_gradient_vertex_color() -> void:
-	var body: DiscBody = _make_body(_map(MapDef.MapShape.ROUND))
+	var body: Body = _make_body(_map(MapDef.MapShape.ROUND))
 	var mesh: ArrayMesh = body.chamfer_mesh_instance().mesh as ArrayMesh
 	var arrays: Array = mesh.surface_get_arrays(0)
 	var colors: PackedColorArray = arrays[Mesh.ARRAY_COLOR]
@@ -249,7 +302,7 @@ func test_chamfer_mesh_carries_a_top_to_bottom_gradient_vertex_color() -> void:
 ## gradient vertex colors -- this package's chamfer-only glow/gradient logic
 ## must not leak onto it.
 func test_band_material_and_mesh_are_unaffected_by_the_gradient() -> void:
-	var body: DiscBody = _make_body(_map(MapDef.MapShape.ROUND))
+	var body: Body = _make_body(_map(MapDef.MapShape.ROUND))
 	assert_true(body.band_mesh_instance().material_override is StandardMaterial3D)
 	var mesh: ArrayMesh = body.band_mesh_instance().mesh as ArrayMesh
 	var arrays: Array = mesh.surface_get_arrays(0)
@@ -263,7 +316,7 @@ func test_band_material_wires_up_the_procedural_surface_texture() -> void:
 	var visuals: DiscBodyVisuals = DiscBodyVisuals.new()
 	visuals.surface_anisotropy = 0.55
 	visuals.surface_noise_strength = 0.44
-	var body: DiscBody = _make_body(_map(MapDef.MapShape.ROUND), visuals)
+	var body: Body = _make_body(_map(MapDef.MapShape.ROUND), visuals)
 
 	var material: StandardMaterial3D = body.band_mesh_instance().material_override as StandardMaterial3D
 	assert_true(material.anisotropy_enabled)
@@ -280,7 +333,7 @@ func test_surface_texture_can_be_disabled() -> void:
 	var visuals: DiscBodyVisuals = DiscBodyVisuals.new()
 	visuals.surface_anisotropy = 0.0
 	visuals.surface_noise_strength = 0.0
-	var body: DiscBody = _make_body(_map(MapDef.MapShape.ROUND), visuals)
+	var body: Body = _make_body(_map(MapDef.MapShape.ROUND), visuals)
 
 	var material: StandardMaterial3D = body.band_mesh_instance().material_override as StandardMaterial3D
 	assert_false(material.anisotropy_enabled)
@@ -294,8 +347,8 @@ func test_surface_texture_can_be_disabled() -> void:
 ## populated (a future edit that drops _add_quad()'s set_uv() calls would
 ## otherwise pass every other test here while quietly breaking the texture).
 func test_band_and_chamfer_meshes_carry_generated_uv_data() -> void:
-	var body: DiscBody = _make_body(_map(MapDef.MapShape.ROUND))
-	for instance: MeshInstance3D in [body.band_mesh_instance(), body.chamfer_mesh_instance()]:
+	var body: Body = _make_body(_map(MapDef.MapShape.ROUND))
+	for instance: Part in [body.band_mesh_instance(), body.chamfer_mesh_instance()]:
 		var mesh: ArrayMesh = instance.mesh as ArrayMesh
 		var arrays: Array = mesh.surface_get_arrays(0)
 		var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]

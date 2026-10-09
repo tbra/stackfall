@@ -69,10 +69,6 @@ func _ready() -> void:
 	_apply_height()
 
 
-func age() -> float:
-	return _age
-
-
 func has_force() -> bool:
 	return _physics
 

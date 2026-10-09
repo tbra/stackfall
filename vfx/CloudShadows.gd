@@ -94,11 +94,6 @@ func is_enabled() -> bool:
 	return _enabled
 
 
-## Smoothed direct-sun scale this node last computed (1 = clear).
-func sun_scale() -> float:
-	return _dim_follow
-
-
 func decals() -> Array[Decal]:
 	return _decals
 

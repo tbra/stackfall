@@ -348,15 +348,25 @@ func test_field_hands_its_overlay_the_circle_list() -> void:
 func test_refresh_visual_uniforms_rebuilds_the_disk_mesh_when_segments_change() -> void:
 	var visuals: TerritoryVisuals = load("res://config/territory_visuals.tres").duplicate() as TerritoryVisuals
 	var overlay: TerritoryOverlay = _make_overlay_with_visuals(_map(), visuals)
-	var original_cylinder: CylinderMesh = overlay.mesh as CylinderMesh
-	assert_eq(original_cylinder.radial_segments, visuals.disk_mesh_segments, "fixture: configure() bakes the starting segment count.")
+	# Bontago-mp0.150.1: the arena is one ArrayMesh; surface 0 holds the cylinder arrays.
+	var original_arrays: Array = (overlay.mesh as ArrayMesh).surface_get_arrays(0)
+	var original_count: int = (original_arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+	var original_extent: float = _top_max_x(overlay)
 
-	visuals.disk_mesh_segments = original_cylinder.radial_segments + 8
+	visuals.disk_mesh_segments = visuals.disk_mesh_segments + 8
 	overlay.refresh_visual_uniforms()
 
-	var rebuilt: CylinderMesh = overlay.mesh as CylinderMesh
-	assert_eq(rebuilt.radial_segments, visuals.disk_mesh_segments, "the mesh must be rebuilt with the new segment count.")
-	assert_eq(rebuilt.top_radius, original_cylinder.top_radius, "radius must be preserved across a rebuild.")
+	var rebuilt_arrays: Array = (overlay.mesh as ArrayMesh).surface_get_arrays(0)
+	assert_gt((rebuilt_arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size(), original_count, "the mesh must be rebuilt with the new segment count.")
+	assert_almost_eq(_top_max_x(overlay), original_extent, 0.001, "radius must be preserved across a rebuild.")
+
+
+## Largest x of surface 0 (the playing-surface slab) of the overlay's arena mesh.
+func _top_max_x(overlay: TerritoryOverlay) -> float:
+	var best: float = -INF
+	for vertex: Vector3 in (overlay.mesh as ArrayMesh).surface_get_arrays(0)[Mesh.ARRAY_VERTEX]:
+		best = maxf(best, vertex.x)
+	return best
 
 
 # --- Bontago-xtq.11: mirror-like opaque disk ---------------------------------

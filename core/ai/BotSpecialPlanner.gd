@@ -83,7 +83,8 @@ static func plan(
 	difficulty: MatchConfig.AiDifficulty,
 	tuning: BotTuning,
 	block_samples: Array[BotBlockSample] = [],
-	throw_range_m: float = 0.0
+	throw_range_m: float = 0.0,
+	black_hole_pull_radius_m: float = 0.0
 ) -> BotSpecialAction:
 	var profile: BotDifficultyProfile = tuning.profile_for(difficulty)
 	var offensive: bool = profile != null and profile.uses_offensive_specials
@@ -129,7 +130,12 @@ static func plan(
 			if not offensive:
 				return BotSpecialAction.new()
 			return _plan_black_hole(
-				own_home_position, own_territory_sample_points, enemy_circle_centers, block_samples, tuning
+				own_home_position,
+				own_territory_sample_points,
+				enemy_circle_centers,
+				block_samples,
+				tuning,
+				black_hole_pull_radius_m
 			)
 		&"jumping_bean":
 			return _plan_jumping_bean(own_home_position, own_territory_sample_points, enemy_circle_centers, offensive)
@@ -243,25 +249,16 @@ static func _plan_volcano(
 ## `black_hole_own_penalty` per own block caught the same way. The best point
 ## becomes `place_target` only if its net score reaches `black_hole_min_net_
 ## score`; otherwise the special is spent like an ordinary block. When the
+## `pull_radius_m` comes from the caller (game/BotController reads the SpecialDef).
 ## caller supplies no `block_samples`, enemy circle centres stand in as
 ## ground-level enemy blocks and the bot's home as one own block.
-## Pull radius (m) read from the shipped Black hole SpecialDef so the bot's
-## scoring cannot drift from the real effect (Bontago-8or.28). 0.0 if the
-## def or its effect is missing, which makes the planner skip the special.
-static func black_hole_pull_radius_m() -> float:
-	var def: SpecialDef = SpecialDef.find_by_id(&"black_hole")
-	if def == null:
-		return 0.0
-	var effect: BlackHoleEffect = def.effect as BlackHoleEffect
-	return effect.pull_radius_m if effect != null else 0.0
-
-
 static func _plan_black_hole(
 	own_home_position: Vector2,
 	own_territory_sample_points: PackedVector2Array,
 	enemy_circle_centers: PackedVector2Array,
 	block_samples: Array[BotBlockSample],
-	tuning: BotTuning
+	tuning: BotTuning,
+	pull_radius_m: float
 ) -> BotSpecialAction:
 	var action: BotSpecialAction = BotSpecialAction.new()
 	var samples: Array[BotBlockSample] = block_samples
@@ -270,7 +267,7 @@ static func _plan_black_hole(
 		for center: Vector2 in enemy_circle_centers:
 			samples.append(BotBlockSample.make(center, 0.0, false))
 		samples.append(BotBlockSample.make(own_home_position, 0.0, true))
-	var radius: float = black_hole_pull_radius_m()
+	var radius: float = pull_radius_m
 	var radius_sq: float = radius * radius
 	var best_point: Vector2 = own_home_position
 	var best_score: float = -INF

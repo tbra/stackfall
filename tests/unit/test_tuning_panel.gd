@@ -152,7 +152,8 @@ func test_physics_tab_builds_one_control_per_exported_float_field() -> void:
 	# stable_freeze_scan_interval_s (config/PhysicsTuning.gd's own new fields).
 	# Bontago-8bc adds opt-in release tilt and minimum gap.
 	# Bontago-1pi.11.24 adds stable_freeze_rest_epsilon_m.
-	assert_eq(_panel.row_count_for(_panel.physics_tuning), 21)
+	# Bontago-e7o: +6 settle-freeze fields, +3 catch-up cap fields.
+	assert_eq(_panel.row_count_for(_panel.physics_tuning), 30)
 
 
 func test_float_field_gets_an_hslider() -> void:

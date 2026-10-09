@@ -201,14 +201,30 @@ extends Resource
 ## Tint of the ring (alpha is claim_ring_alpha); neutral so it reads as "the area
 ## where claiming counts" without implying a team.
 @export var claim_ring_color: Color = Color(1.0, 0.95, 0.8)
-## Opacity of the claim-radius ring, kept low so it stays a subtle ground cue.
-@export var claim_ring_alpha: float = 0.2
+## Opacity of the claim zone's crisp rim (the fill uses claim_zone_fill_alpha).
+@export var claim_ring_alpha: float = 0.8
 ## Width of the ring band in meters, centred on the claim radius.
-@export var claim_ring_width: float = 0.25
+@export var claim_ring_width: float = 0.5
 ## Height above the ground the ring floats at, so it never z-fights the disc.
 @export var claim_ring_lift: float = 0.05
 ## Segments in the ring's full circle (built once per match).
 @export var claim_ring_segments: int = 96
+## Claim-zone shader (Bontago-mp0.147): opacity of the stepped fill inside the rim.
+@export var claim_zone_fill_alpha: float = 0.14
+## Number of cel-shaded brightness bands in the fill.
+@export var claim_zone_cel_steps: float = 4.0
+## Number of rings drifting inward across the radius.
+@export var claim_zone_ring_count: float = 3.0
+## Inward drift speed of those rings, in ring spacings per second.
+@export var claim_zone_ring_speed: float = 0.12
+## Thickness of each drifting ring as a fraction of the ring spacing.
+@export var claim_zone_ring_width: float = 0.12
+## Dashes around the inner half of the rim (rounded to a whole number in the shader so the dashes close seamlessly).
+@export var claim_zone_dash_count: float = 64.0
+## Extra fill brightness at full capture progress (0 = no change while capturing).
+@export var claim_zone_capture_boost: float = 1.5
+## How much lighter the rim is than the fill colour (0..1).
+@export var claim_zone_rim_lighten: float = 0.45
 
 
 ## Bontago-1pi.33: height of a beacon's highest point (the crystal tip) above

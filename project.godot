@@ -408,6 +408,7 @@ lobby_confirm={
 
 [physics]
 
+common/max_physics_steps_per_frame=2
 3d/physics_engine="Jolt Physics"
 jolt_physics_3d/simulation/velocity_steps=192
 jolt_physics_3d/simulation/position_steps=4

@@ -9,9 +9,9 @@ extends Area3D
 ##
 ## Built from simple meshes, the same reason game/HomeFlag.gd is. The dark
 ## wrapped body, bright crossed ribbons and hovering beacon keep the pickup
-## legible against both pale and dark field tiles. MatchGifts owns the only two
-## calls that matter here -- instancing this scene and calling
-## set_owner_tint() -- so no rule of any kind lives on this script.
+## legible against both pale and dark field tiles. MatchGifts owns the only
+## call that matters here -- instancing this scene -- so no rule of any kind
+## lives on this script.
 ##
 ## DECISION (game/GiftCrate.gd): CRATE_SIZE/UNCLAIMED_COLOR are fixed visual
 ## constants, not gameplay tunables -- this package owns no config file
@@ -134,15 +134,7 @@ func _build() -> void:
 	_mesh.name = &"Mesh"
 	add_child(_mesh)
 
-	var ring: MeshInstance3D = MeshInstance3D.new()
-	ring.name = &"PickupRing"
-	var torus: TorusMesh = TorusMesh.new()
-	torus.inner_radius = 0.46
-	torus.outer_radius = 0.51
-	ring.mesh = torus
-	ring.position.y = -0.23
-	ring.material_override = _flat_material(BEACON_COLOR, true)
-	add_child(ring)
+	# Bontago-1pi.137: the small inner PickupRing was removed; the LandRing below is the one ground ring.
 
 	# The spawn halo expands once, then the small light continues to mark a
 	# landed gift against both pale and dark territory without covering blocks.
@@ -272,17 +264,6 @@ func _add_box(parent: Node3D, label: StringName, size: Vector3, offset: Vector3,
 	mesh_instance.material_override = material
 	parent.add_child(mesh_instance)
 	return mesh_instance
-
-
-## Tints the crate the claiming slot's color. Nothing in M4 P1 calls this yet
-## (a claimed crate is freed the same tick it is claimed -- see
-## MatchGifts._claim_gift()), but it is the documented seam a later package
-## can use if a claimed-but-not-yet-despawned state is ever wanted.
-func set_owner_tint(slot_id: int, color: Color) -> void:
-	owner_slot = slot_id
-	if _material != null:
-		_material.albedo_color = color
-		_sync_tint_overlay(1.0)
 
 
 ## Documented no-op (see class doc): a later milestone may want a thrown

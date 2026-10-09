@@ -39,10 +39,6 @@ func is_open() -> bool:
 	return _open
 
 
-func elapsed_s() -> float:
-	return _elapsed_s
-
-
 ## Records `peer_id` as ready. Returns true only when this changed something:
 ## a peer outside `required` (a spoofed id, a spectator, a bot's seat, a peer
 ## that already left) and a repeat press are both refused with false, and an
