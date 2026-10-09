@@ -450,7 +450,7 @@ func _start_real_match(mode: int) -> void:
 	config.player_count = 2
 	config.rng_seed = 31
 	config.weather_mode = mode as MatchConfig.WeatherMode
-	Match.weather().set_defs([_def(&"rain", 30.0)])
+	Match.weather().set_defs([_def(&"rain", 30.0)] as Array[WeatherTuning])
 	Match.weather().set_schedule_tuning(_schedule(1.0, 5.0, 5.0))
 	Match.weather().set_effect_factory(_probe_factory)
 	Match.start_match(config)

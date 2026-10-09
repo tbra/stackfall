@@ -14,6 +14,12 @@ func _init(match_node: MatchAutoload) -> void:
 	_match = match_node
 
 
+## DECISION (S2c): before Match.late_activate() the controllers do not exist, so every forward that
+## reaches one answers the MatchContext null-object value instead (windowed boot only).
+func _active() -> bool:
+	return _match != null and _match.is_late_active()
+
+
 func has_authority() -> bool:
 	return _match._is_host()
 
@@ -47,22 +53,32 @@ func physics_tuning() -> PhysicsTuning:
 
 
 func state() -> int:
+	if not _active():
+		return MatchPhase.State.LOBBY
 	return _match.state()
 
 
 func slot_count() -> int:
+	if not _active():
+		return 0
 	return _match.slot_count()
 
 
 func slot(slot_id: int) -> PlayerSlot:
+	if not _active():
+		return null
 	return _match.slot(slot_id)
 
 
 func slot_color(slot_id: int, fallback: Color = Color.WHITE) -> Color:
+	if not _active():
+		return fallback
 	return _match.slot_color(slot_id, fallback)
 
 
 func active_slot() -> int:
+	if not _active():
+		return -1
 	return _match.active_slot()
 
 
@@ -79,38 +95,56 @@ func blocks_parent() -> Node3D:
 
 
 func raster() -> TerritoryRaster:
+	if not _active():
+		return null
 	return _match.raster()
 
 
 func cell_grid() -> CellGrid:
+	if not _active():
+		return null
 	return _match.cell_grid()
 
 
 func qol_claim_radius() -> float:
+	if not _active():
+		return 0.0
 	return _match.qol_claim_radius()
 
 
 func glue_drops_left(slot_id: int) -> int:
+	if not _active():
+		return 0
 	return _match.glue_drops_left(slot_id)
 
 
 func feed_timer_enabled() -> bool:
+	if not _active():
+		return false
 	return _match.feed_timer_enabled()
 
 
 func feed_time_left(slot_id: int) -> float:
+	if not _active():
+		return 0.0
 	return _match.feed_time_left(slot_id)
 
 
 func has_weather() -> bool:
+	if not _active():
+		return false
 	return _match.weather() != null
 
 
 func weather_seed() -> int:
+	if not _active():
+		return 0
 	return _match.weather().seed_value()
 
 
 func weather_event_index() -> int:
+	if not _active():
+		return 0
 	return _match.weather().event_index()
 
 
@@ -119,29 +153,41 @@ func shared_clock_seconds() -> float:
 
 
 func start_cat(owner_slot: int, position: Vector3, effect: Resource) -> bool:
+	if not _active():
+		return false
 	return _match.start_cat(owner_slot, position, effect)
 
 
 func end_cat(activation_id: int) -> void:
+	if not _active():
+		return
 	_match.end_cat(activation_id)
 
 
 func grant_glue_drops(slot_id: int, count: int) -> bool:
+	if not _active():
+		return false
 	return _match.grant_glue_drops(slot_id, count)
 
 
 func convert_block_owner(block: RigidBody3D, new_slot: int) -> bool:
+	if not _active():
+		return false
 	return _match.convert_block_owner(block, new_slot)
 
 
 func spawn_special_projectile(shape: BlockShape, world_origin: Vector3, basis: Basis,
 		owner_slot: int, initial_velocity: Vector3, orb_def: SpecialDef,
 		orb_tuning: SpecialTuning) -> RigidBody3D:
+	if not _active():
+		return null
 	return _match.spawn_special_projectile(shape, world_origin, basis, owner_slot,
 			initial_velocity, orb_def, orb_tuning)
 
 
 func punch_special_hole(disk_pos: Vector2, radius_m: float, hole_open_s: float) -> void:
+	if not _active():
+		return
 	_match.punch_special_hole(disk_pos, radius_m, hole_open_s)
 
 
