@@ -30,10 +30,16 @@ func test_disk_mesh_radius_matches_map_def() -> void:
 
 	var overlay: TerritoryOverlay = field.overlay()
 	assert_not_null(overlay, "Field should build the disk's visible surface.")
-	var cylinder: CylinderMesh = overlay.mesh as CylinderMesh
-	assert_not_null(cylinder, "The disk is drawn as a cylinder.")
-	assert_almost_eq(cylinder.top_radius, field.map_def.field_radius, 0.001)
-	assert_almost_eq(cylinder.height, field.map_def.disk_height, 0.001)
+	# Bontago-mp0.150.1: one merged ArrayMesh; surface 0 is the cylinder slab.
+	var arena: ArrayMesh = overlay.mesh as ArrayMesh
+	assert_not_null(arena, "The arena is one generated mesh.")
+	var lo: Vector3 = Vector3(INF, INF, INF)
+	var hi: Vector3 = Vector3(-INF, -INF, -INF)
+	for vertex: Vector3 in arena.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]:
+		lo = lo.min(vertex)
+		hi = hi.max(vertex)
+	assert_almost_eq(hi.x, field.map_def.field_radius, 0.001)
+	assert_almost_eq(hi.y - lo.y, field.map_def.disk_height, 0.001)
 
 
 func test_disk_collision_covers_the_disk() -> void:

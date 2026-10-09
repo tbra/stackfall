@@ -69,7 +69,7 @@ signal hole_cells_applied(opened: PackedInt32Array)
 @export var territory_tuning: TerritoryTuning = preload("res://config/territory_tuning.tres")
 @export var visuals: TerritoryVisuals = preload("res://config/territory_visuals.tres")
 ## Bontago-mp0.3.2: the disc's purely-visual side band + glowing rim (see
-## game/DiscBody.gd's own class doc). Owned by that same package.
+## game/ArenaMesh.gd's own class doc). Owned by that same package.
 @export var disc_body_visuals: DiscBodyVisuals = preload("res://config/disc_body_visuals.tres")
 @export var home_flag_scene: PackedScene = preload("res://game/HomeFlag.tscn")
 @export var goal_flag_scene: PackedScene = preload("res://game/GoalFlag.tscn")
@@ -165,9 +165,6 @@ var _registry: BlockRegistry = null
 var _physical_balance_torque: Vector2 = Vector2.ZERO
 
 var _overlay: TerritoryOverlay = null
-## Bontago-mp0.3.2: purely-visual disc thickness hanging below _overlay; see
-## game/DiscBody.gd's own class doc.
-var _disc_body: DiscBody = null
 var _home_flags: Array[HomeFlag] = []
 ## slot id -> PackedInt32Array of shape owners holding that beacon's collision.
 var _flag_owner_ids: Dictionary = {}
@@ -193,7 +190,6 @@ func _ready() -> void:
 	_rebuild_cells()
 	_build_kill_plane()
 	_build_overlay()
-	_build_disc_body()
 	Events.hole_cells_changed.connect(_on_hole_cells_changed)
 	Events.player_eliminated.connect(_on_player_eliminated_for_flags)
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
@@ -727,9 +723,7 @@ func rebuild_for_map(new_map_def: MapDef) -> void:
 	_rebuild_cells()
 	_build_kill_plane()
 	if _overlay != null:
-		_overlay.configure(map_def, visuals, territory_tuning)
-	if _disc_body != null:
-		_disc_body.configure(map_def, disc_body_visuals, disc_body_visuals.segments)
+		_overlay.configure(map_def, visuals, territory_tuning, disc_body_visuals)
 
 
 ## Every in-disk cell index in row-major order. CellGrid is the one authority
@@ -1087,29 +1081,13 @@ func clear_match_state() -> void:
 func _build_overlay() -> void:
 	_overlay = TerritoryOverlay.new()
 	_overlay.name = &"DiskMesh"
-	_overlay.configure(map_def, visuals, territory_tuning)
+	_overlay.configure(map_def, visuals, territory_tuning, disc_body_visuals)
 	_overlay.position = Vector3(0.0, -map_def.disk_height * 0.5, 0.0)
 	add_child(_overlay)
 
 
 func overlay() -> TerritoryOverlay:
 	return _overlay
-
-
-## Bontago-mp0.3.2: the disc's own purely-visual thickness (see
-## game/DiscBody.gd's class doc). Built once here, then rebuilt in place by
-## rebuild_for_map() below whenever the match's map changes -- the same
-## create-once/reconfigure-after pattern _build_overlay()/_overlay.configure()
-## already use.
-func _build_disc_body() -> void:
-	_disc_body = DiscBody.new()
-	_disc_body.name = &"DiscBody"
-	add_child(_disc_body)
-	_disc_body.configure(map_def, disc_body_visuals, disc_body_visuals.segments)
-
-
-func disc_body() -> DiscBody:
-	return _disc_body
 
 
 ## Hands the overlay the live raster to draw and the per-slot colors to draw it

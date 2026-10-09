@@ -327,6 +327,8 @@ func _set_feature(feature: String, on: bool) -> void:
 			_toggle_all(feature, OmniLight3D, "visible", false, on)
 			_toggle_all(feature + "_spot", SpotLight3D, "visible", false, on)
 		"overlay":
+			# Bontago-mp0.150.1: the arena is one mesh node, so this hides the
+			# whole arena (top, chamfer, band, bottom), not just the top surface.
 			_toggle(feature, _field.overlay(), "visible", false, on)
 		"blocks":
 			_toggle(feature, Match.blocks_parent(), "visible", false, on)
