@@ -88,3 +88,37 @@ func test_every_variation_wav_loads() -> void:
 	for key: StringName in _config.impact_variation_files:
 		for file: String in _config.impact_variation_files[key]:
 			assert_not_null(_sfx._load_stream(_config.impact_variation_dir.path_join(file)), file)
+
+
+## Bontago-bth.3: the cached/pooled pick must play exactly what the original
+## per-call lookup did (stream, volume) for a recorded, seeded impact sequence.
+func _reference_pick(rng: RandomNumberGenerator, last: Dictionary, speed: float, surface: StringName) -> AudioStream:
+	var tier: StringName = _config.impact_tier(speed)
+	var files: Array[String] = _config.impact_variation_for(surface, tier)
+	var key: String = "%s_%s" % [surface, tier]
+	var index: int = 0
+	if files.size() > 1:
+		var previous: int = int(last.get(key, -1))
+		index = rng.randi_range(0, files.size() - 2)
+		if previous >= 0 and index >= previous:
+			index += 1
+		last[key] = index
+	return _sfx._load_stream(files[index])
+
+
+func test_recorded_impact_sequence_matches_reference() -> void:
+	_sfx._rng.seed = 4242
+	var ref_rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	ref_rng.seed = 4242
+	var ref_last: Dictionary = {}
+	var driver: RandomNumberGenerator = RandomNumberGenerator.new()
+	driver.seed = 7
+	for i: int in range(200):
+		var speed: float = driver.randf_range(_config.impact_speed_min, _config.impact_speed_loud * 1.5)
+		var surface: StringName = AudioConfig.SURFACE_BLOCK if driver.randf() < 0.5 else AudioConfig.SURFACE_DISC
+		var expected: AudioStream = _reference_pick(ref_rng, ref_last, speed, surface)
+		_sfx._play_impact(speed, surface)
+		assert_eq(_last_stream(), expected, "impact %d stream" % i)
+		var player: AudioStreamPlayer = _sfx._sfx_players[(_sfx._next_sfx_player_index - 1 + _sfx._sfx_players.size()) % _sfx._sfx_players.size()]
+		var expected_db: float = _config.sfx_volume_db + _config.impact_volume_db(speed) + Settings.master_volume_db() + Settings.sfx_volume_db()
+		assert_almost_eq(player.volume_db, expected_db, 0.0001, "impact %d volume" % i)
