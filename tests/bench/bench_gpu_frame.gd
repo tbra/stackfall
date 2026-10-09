@@ -40,11 +40,15 @@ const DEFAULT_MAX_FPS: int = 144
 const DEFAULT_WARMUP_SECONDS: float = 12.0
 const DEFAULT_STEADY_SECONDS: float = 12.0
 const USEC_PER_SEC: float = 1000000.0
+const SSR_STEPS_HALF: int = 32
+const SSR_STEPS_QUARTER: int = 16
+const SSR_FADE_OUT_SHORT: float = 1.0
 const FEATURES: PackedStringArray = [
 	"volumetric_fog", "ssr", "glow", "msaa", "shadows", "sky_radiance", "probe",
 	"overlay", "clouds", "outline", "birds", "sky_bg", "depth_fog", "islands",
 	"cloud_shadows", "sun_flare", "blocks", "fog_volume", "scale50", "aurora",
 	"probe_once", "ssao", "ssil", "sdfgi", "lights", "ssao_on",
+	"ssr_steps32", "ssr_steps16", "ssr_fade1",
 ]
 
 var _main: Node = null
@@ -308,6 +312,13 @@ func _set_feature(feature: String, on: bool) -> void:
 			# Meaning inverted (Bontago-1pi.11.70): listing it in the off set ENABLES SSAO;
 			# restoring (on = true) puts the saved value back (false by default).
 			_toggle(feature, _env, "ssao_enabled", true, on)
+		"ssr_steps32":
+			# Pseudo-feature (Bontago-1pi.11.71): listing it sets ssr_max_steps to 32.
+			_toggle(feature, _env, "ssr_max_steps", SSR_STEPS_HALF, on)
+		"ssr_steps16":
+			_toggle(feature, _env, "ssr_max_steps", SSR_STEPS_QUARTER, on)
+		"ssr_fade1":
+			_toggle(feature, _env, "ssr_fade_out", SSR_FADE_OUT_SHORT, on)
 		"ssil":
 			_toggle(feature, _env, "ssil_enabled", false, on)
 		"sdfgi":
