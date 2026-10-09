@@ -126,7 +126,7 @@ RULES = [
          # or/and-continued) statements are joined first. Single-state checks stay legal.
          r"\bState\.(?:LOBBY|LOADING|COUNTDOWN|PLAYING|SUDDEN_DEATH|END)\b.*"
          r"(?:\bor\b|\band\b|,).*\bState\.(?:LOBBY|LOADING|COUNTDOWN|PLAYING|SUDDEN_DEATH|END)\b",
-         None, ("autoload/Match.gd",), False, GD,
+         None, ("autoload/Match.gd", "core/rules/MatchPhase.gd"), False, GD,
          "use Match.is_live / is_replicating / is_resetting, not a hand-written state set",
          True),
     Rule("NET_PREDICATE",
