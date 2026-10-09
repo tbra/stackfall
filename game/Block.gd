@@ -1,26 +1,14 @@
 class_name Block
-extends RigidBody3D
+extends BlockBody
 ## A placed or falling block (spec 2.4, 3.6). Built by BlockFactory from a
 ## BlockShape; carries just enough identity for M1 (which shape it is and how
 ## many cubes it has). Ownership, influence, and special behavior arrive in
 ## later milestones.
 
-@export var shape_id: StringName = &""
 @export var cube_count: int = 0
 
-## M2 (spec 2.2 "height credit", 3.4): which PlayerSlot placed this block,
-## permanently — territory influence and multiplayer attribution both key off
-## this. -1 means "no owner", e.g. M1's placements before slots existed.
-@export var owner_slot: int = -1
-
-## Bontago-t8x.1: the gift this body delivers (set by BlockFactory.
-## apply_gift_visual() on the host and, from the spawn RPC, on clients), or
-## &"" for an ordinary block. Presentation only; the effect is SpecialBehavior.
-var gift_id: StringName = &""
-
-## M3's network id, assigned by game/BlockRegistry.gd when the block is
-## registered. -1 until then.
-@export var net_id: int = -1
+## shape_id, owner_slot, gift_id and net_id live on game/world/BlockBody.gd
+## (the light base class); they are inherited unchanged.
 
 ## Bontago-mv0.18 (in-game tuning panel): every Block adds itself to this
 ## group in _ready() so ui/TuningPanel.gd can push a PhysicsTuning edit onto
@@ -53,12 +41,8 @@ const SLEPT_TAIL_FRAMES: int = 2
 ## game/BlockStepBatch.gd's one batched pass) compares this tick's
 ## linear_velocity against the previous tick's, and a sudden drop in speed
 ## (hitting something) crosses AudioConfig.impact_speed_min.
-## autoload/Sfx.gd sets both statics once at startup from AudioConfig so this
-## file carries no direct dependency on the AudioConfig class.
-static var impact_speed_min: float = 1.0
-## Kill switch, set from AudioConfig.impacts_enabled; false costs nothing per
-## tick beyond the `if` check itself.
-static var impacts_enabled: bool = true
+## autoload/Sfx.gd sets impact_speed_min and impacts_enabled (statics on
+## game/world/BlockBody.gd, inherited here) once at startup from AudioConfig.
 
 ## DECISION (game/Block.gd): a fixed rate limit on how often a detected
 ## impact becomes an Events.block_impacted signal, not a gameplay tunable --

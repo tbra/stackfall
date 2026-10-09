@@ -416,7 +416,7 @@ func _winner_name(winning_team: int, ffa: bool) -> String:
 ## value to fall back to the way MatchConfig.from_dict() falls back to a
 ## field default.
 static func validate_results_payload(raw: Variant) -> Dictionary:
-	return ResultsPayload.validate(raw)
+	return ResultsValidation.validate_results_payload(raw)
 
 
 # --- Event listeners (host only) --------------------------------------------
