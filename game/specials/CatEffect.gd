@@ -11,8 +11,9 @@ extends SpecialEffect
 
 
 func detonate(block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> void:
-	if block == null or not Match._is_host() or Match.state() != Match.State.PLAYING:
+	var ctx: MatchContext = MatchContext.current()
+	if block == null or not ctx.has_authority() or ctx.state() != MatchPhase.State.PLAYING:
 		return
-	if block.owner_slot < 0 or block.owner_slot >= Match.slot_count():
+	if block.owner_slot < 0 or block.owner_slot >= ctx.slot_count():
 		return
-	Match.start_cat(block.owner_slot, block.global_position, self)
+	ctx.start_cat(block.owner_slot, block.global_position, self)

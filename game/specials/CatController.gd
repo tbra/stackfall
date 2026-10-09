@@ -127,7 +127,7 @@ func set_target(point: Vector3) -> bool:
 	if difference.length() > target_range_m:
 		difference = difference.normalized() * target_range_m
 	var desired: Vector3 = Vector3(_origin.x + difference.x, _origin.y, _origin.z + difference.y)
-	var field: Field = Match.field()
+	var field: FieldBody = MatchContext.current().field()
 	if field != null:
 		# Stop at the first missing bit of ground, including ring holes and
 		# gaps between the twin islands, instead of driving a floating cat away.
@@ -149,14 +149,15 @@ func set_target(point: Vector3) -> bool:
 func _physics_process(delta: float) -> void:
 	if not _host_body:
 		return
-	if not MatchAutoload.is_live(Match.state()):
-		Match.end_cat(activation_id)
+	var ctx: MatchContext = MatchContext.current()
+	if not MatchPhase.is_live(ctx.state()):
+		ctx.end_cat(activation_id)
 		return
 	time_left -= delta
 	if time_left <= 0.0:
-		Match.end_cat(activation_id)
+		ctx.end_cat(activation_id)
 		return
-	var field: Field = Match.field()
+	var field: FieldBody = ctx.field()
 	if field != null and not field.map_def.shape_contains(field.disk_local_from_world(global_position)):
 		global_position = _last_valid_position
 		linear_velocity = Vector3.ZERO
