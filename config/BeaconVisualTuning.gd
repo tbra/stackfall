@@ -201,7 +201,7 @@ extends Resource
 ## Tint of the ring (alpha is claim_ring_alpha); neutral so it reads as "the area
 ## where claiming counts" without implying a team.
 @export var claim_ring_color: Color = Color(1.0, 0.95, 0.8)
-## Opacity of the claim-radius ring, kept low so it stays a subtle ground cue.
+## Opacity of the claim zone's crisp rim (the fill uses claim_zone_fill_alpha).
 @export var claim_ring_alpha: float = 0.8
 ## Width of the ring band in meters, centred on the claim radius.
 @export var claim_ring_width: float = 0.5
@@ -219,7 +219,7 @@ extends Resource
 @export var claim_zone_ring_speed: float = 0.12
 ## Thickness of each drifting ring as a fraction of the ring spacing.
 @export var claim_zone_ring_width: float = 0.12
-## Dashes around the inner half of the rim.
+## Dashes around the inner half of the rim (rounded to a whole number in the shader so the dashes close seamlessly).
 @export var claim_zone_dash_count: float = 64.0
 ## Extra fill brightness at full capture progress (0 = no change while capturing).
 @export var claim_zone_capture_boost: float = 1.5

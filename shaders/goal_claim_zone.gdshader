@@ -37,7 +37,7 @@ void fragment() {
 
 	// Outer half of the rim is a solid line; the inner half is dashed.
 	float outward = d - zone_radius;
-	float dash_phase = fract(atan(local_xz.x, local_xz.y) / 6.28318 * dash_count);
+	float dash_phase = fract(atan(local_xz.x, local_xz.y) / 6.28318 * round(dash_count));
 	float dash = step(0.5, dash_phase);
 	float solid_part = smoothstep(half_w * 0.15 - aa, half_w * 0.15 + aa, outward);
 	float rim = rim_mask * mix(dash, 1.0, solid_part);
