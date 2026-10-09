@@ -325,7 +325,8 @@ func test_weighted_special_drawer_draws_from_the_installed_roster() -> void:
 	var only: SpecialDef = SpecialDef.new()
 	only.id = &"only_special"
 	only.weight = 1.0
-	Match._gifts._special_roster = [only]
+	var roster: Array[SpecialDef] = [only]
+	Match._gifts._special_roster = roster
 	Match._gifts._special_rng.seed = 1
 
 	var drawn: StringName = Match._gifts._weighted_special_drawer()

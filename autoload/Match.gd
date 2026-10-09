@@ -106,8 +106,10 @@ var _net_provider: Variant = null
 ## null means "not networked", which is exactly the M2 and single-player case.
 var _replicator: Variant = null
 
-var _field: Field = null
-var _registry: BlockRegistry = null
+# DECISION (Bontago-1pi.11.77.10, D5/D8): world nodes are held by their light bases (FieldBody, Node) so
+# this autoload does not compile the Field / BlockRegistry closure; Field-only API is called dynamically.
+var _field: FieldBody = null
+var _registry: Node = null
 var _blocks_parent: Node3D = null
 ## Sandbox may tune the cone projection or pause it for diagnostics. New
 ## matches use the owner-approved top-height cone projection by default.
@@ -127,29 +129,38 @@ var _territory_cache_enabled: bool = true
 ## Bontago-split.1: the four controllers this file forwards to. Built and
 ## wired in _ready() rather than at field-declaration time, so each one's
 ## setup(self) can hand back a fully-constructed Match reference.
-var _feed: MatchFeed = null
-var _placement: MatchPlacement = null
-var _territory: MatchTerritory = null
-var _lifecycle: MatchLifecycle = null
+## DECISION (Bontago-1pi.11.77.10, S2c): the controllers are typed RefCounted and built from
+## LateScripts paths in late_activate(), so naming them here no longer compiles their closure into
+## the autoload (calls are dynamic; UNSAFE_* warnings are ignored project-wide).
+var _feed: RefCounted = null
+var _placement: RefCounted = null
+var _territory: RefCounted = null
+var _lifecycle: RefCounted = null
 
 ## M4 P1b: gift-crate spawn/claim/expire and the per-slot pending-special
 ## array. See autoload/match/MatchGifts.gd's own header for the split.
-var _gifts: MatchGifts = null
+var _gifts: RefCounted = null
 
 ## Bontago-1pi.13: per-slot match statistics and the results-screen payload
 ## builder. See autoload/match/MatchStats.gd's own header for the split and
 ## the full results payload contract.
-var _stats: MatchStats = null
+var _stats: RefCounted = null
 
 ## Bontago-22y.10: host-scheduled weather events. See autoload/match/MatchWeather.gd.
-var _weather: MatchWeather = null
-var _cat: CatController = null
-var _gift_fx: GiftFxPresenter = null
+var _weather: RefCounted = null
+var _cat: RigidBody3D = null  # a CatController
+var _gift_fx: Node = null  # a GiftFxPresenter
 var _cat_serial: int = 0
 
 ## The MatchContext port world code reads (game/world/MatchContext.gd). Installed first thing in
 ## _ready(); uninstalled on PREDELETE so a freed Match never leaves a dangling static.
 var _context: MatchContextLive = null
+
+## True once late_activate() has built the controllers. Windowed runs defer it until Boot has
+## prewarmed the scripts (LateScripts.boot_defers_activation); headless runs activate in _ready().
+var _late_active: bool = false
+## Test seam (tests/unit/test_match_activation.gd): forces the deferred path in a headless run.
+var force_defer_activation: bool = false
 
 
 ## The live port; world setup points that already receive Match hand it on (WeatherEffect.bind).
@@ -166,13 +177,30 @@ func _notification(what: int) -> void:
 func _ready() -> void:
 	_context = MatchContextLive.new(self)
 	MatchContext.install(_context)
-	_feed = MatchFeed.new()
-	_placement = MatchPlacement.new()
-	_territory = MatchTerritory.new()
-	_lifecycle = MatchLifecycle.new()
-	_gifts = MatchGifts.new()
-	_stats = MatchStats.new()
-	_weather = MatchWeather.new()
+	if force_defer_activation or LateScripts.boot_defers_activation(get_tree()):
+		set_process(false)
+		set_physics_process(false)
+		return
+	late_activate()
+
+
+func is_late_active() -> bool:
+	return _late_active
+
+
+## Builds the controllers and the gift presenter (idempotent; Boot calls it through
+## LateScripts.activate_autoloads after prewarming). Same order as the former _ready().
+func late_activate() -> void:
+	if _late_active:
+		return
+	_late_active = true
+	_feed = LateScripts.script(LateScripts.MATCH_FEED).new()
+	_placement = LateScripts.script(LateScripts.MATCH_PLACEMENT).new()
+	_territory = LateScripts.script(LateScripts.MATCH_TERRITORY).new()
+	_lifecycle = LateScripts.script(LateScripts.MATCH_LIFECYCLE).new()
+	_gifts = LateScripts.script(LateScripts.MATCH_GIFTS).new()
+	_stats = LateScripts.script(LateScripts.MATCH_STATS).new()
+	_weather = LateScripts.script(LateScripts.MATCH_WEATHER).new()
 	_feed.setup(self)
 	_placement.setup(self)
 	_territory.setup(self)
@@ -184,17 +212,19 @@ func _ready() -> void:
 	# Bontago-1pi.85.8: one presenter owns every per-gift client visual
 	# (Paintball splash, Black hole disc, ...); it subscribes to
 	# Events.special_triggered itself.
-	_gift_fx = GiftFxPresenter.new()
+	_gift_fx = LateScripts.script(LateScripts.GIFT_FX_PRESENTER).new()
 	_gift_fx.name = "GiftFxPresenter"
 	add_child(_gift_fx)
 	Events.match_state_changed.connect(_on_cat_match_state_changed)
+	set_process(true)
+	set_physics_process(true)
 
 
-func active_cat() -> CatController:
+func active_cat() -> RigidBody3D:
 	return _cat if is_instance_valid(_cat) else null
 
 
-func start_cat(owner_slot: int, position: Vector3, effect: CatEffect) -> bool:
+func start_cat(owner_slot: int, position: Vector3, effect: Resource) -> bool:
 	if not _is_host() or state() != State.PLAYING or effect == null or field() == null:
 		return false
 	if owner_slot < 0 or owner_slot >= slot_count() or not position.is_finite():
@@ -207,7 +237,7 @@ func start_cat(owner_slot: int, position: Vector3, effect: CatEffect) -> bool:
 	if active_cat() != null:
 		end_cat(_cat.activation_id)
 	_cat_serial += 1
-	_cat = CatController.new()
+	_cat = LateScripts.script(LateScripts.CAT_CONTROLLER).new()
 	_cat.configure(_cat_serial, owner_slot,
 		field().world_from_disk_local(point, effect.body_radius_m),
 		effect.duration_s, effect.speed_mps, effect.target_range_m,
@@ -218,7 +248,7 @@ func start_cat(owner_slot: int, position: Vector3, effect: CatEffect) -> bool:
 
 
 func set_cat_target(slot_id: int, point: Vector3) -> bool:
-	var cat: CatController = active_cat()
+	var cat: RigidBody3D = active_cat()
 	if not _is_host() or cat == null or cat.owner_slot != slot_id or not is_live(state()):
 		return false
 	return cat.set_target(point)
@@ -232,8 +262,10 @@ func apply_replicated_cat_start(id: int, slot_id: int, position: Vector3, durati
 	if active_cat() != null:
 		_cat.queue_free()
 	_cat_serial = id
-	var effect: CatEffect = (load("res://config/specials/cat.tres") as SpecialDef).effect as CatEffect
-	_cat = CatController.new()
+	# DECISION: the cat's SpecialDef is read dynamically so Match does not name SpecialDef/CatEffect.
+	var cat_def: Resource = load(LateScripts.CAT_RESOURCE) as Resource
+	var effect: Resource = cat_def.get(&"effect") as Resource
+	_cat = LateScripts.script(LateScripts.CAT_CONTROLLER).new()
 	_cat.configure(id, slot_id, position, duration, effect.speed_mps,
 		effect.target_range_m, effect.body_radius_m, effect.push_impulse, false)
 	add_child(_cat)
@@ -243,13 +275,13 @@ func apply_replicated_cat_start(id: int, slot_id: int, position: Vector3, durati
 
 func apply_replicated_cat_state(id: int, position: Vector3, velocity: Vector3,
 		point: Vector3, remaining: float) -> void:
-	var cat: CatController = active_cat()
+	var cat: RigidBody3D = active_cat()
 	if not _is_host() and cat != null and cat.activation_id == id and is_finite(remaining):
 		cat.apply_snapshot(position, velocity, point, remaining)
 
 
 func end_cat(id: int) -> void:
-	var cat: CatController = active_cat()
+	var cat: RigidBody3D = active_cat()
 	if cat == null or cat.activation_id != id:
 		return
 	cat.queue_free()
@@ -259,7 +291,7 @@ func end_cat(id: int) -> void:
 
 func _on_cat_match_state_changed(_old: int, next: int) -> void:
 	if is_resetting(next):
-		var cat: CatController = active_cat()
+		var cat: RigidBody3D = active_cat()
 		if cat != null:
 			end_cat(cat.activation_id)
 
@@ -343,9 +375,9 @@ func debug_unlock_slot(slot_id: int) -> void:
 ## collaborators (CLAUDE.md). `registry` is game/BlockRegistry.gd, which
 ## tracks live blocks and their settled state; `blocks_parent` is where new
 ## blocks are added.
-func register_world(field: Field, registry: Node, blocks_parent: Node3D) -> void:
+func register_world(field: FieldBody, registry: Node, blocks_parent: Node3D) -> void:
 	_field = field
-	_registry = registry as BlockRegistry
+	_registry = registry
 	_blocks_parent = blocks_parent
 	if _registry != null:
 		# Spec 3.4: only the host simulates. A client's registry must not hand
@@ -357,11 +389,11 @@ func register_world(field: Field, registry: Node, blocks_parent: Node3D) -> void
 ## The BlockRegistry and the node new blocks are added under, for
 ## net/MatchNet.gd's replicated spawns. Nothing else should reach for these:
 ## rules go through request_place().
-func registry() -> BlockRegistry:
+func registry() -> Node:
 	return _registry if is_instance_valid(_registry) else null
 
 
-func convert_block_owner(block: Block, new_slot: int) -> bool:
+func convert_block_owner(block: BlockBody, new_slot: int) -> bool:
 	if not _is_host() or block == null or new_slot < 0 or new_slot >= slot_count() or registry() == null:
 		return false
 	return _registry.convert_owner(block, new_slot, slot(new_slot).color)
@@ -381,7 +413,7 @@ func blocks_parent() -> Node3D:
 ## between one match world's teardown and the next register_world() these
 ## accessors would otherwise hand out a freed node (seen when
 ## ui/SandboxPanel.gd and game/PlayerController.gd read them from _ready()).
-func field() -> Field:
+func field() -> FieldBody:
 	return _field if is_instance_valid(_field) else null
 
 
@@ -415,7 +447,7 @@ func _is_host() -> bool:
 
 
 func start_match(match_config: MatchConfig) -> void:
-	var previous_cat: CatController = active_cat()
+	var previous_cat: RigidBody3D = active_cat()
 	if previous_cat != null:
 		end_cat(previous_cat.activation_id)
 	_cat_serial = 0
@@ -434,7 +466,7 @@ func start_match(match_config: MatchConfig) -> void:
 
 
 func abort_match() -> void:
-	var previous_cat: CatController = active_cat()
+	var previous_cat: RigidBody3D = active_cat()
 	if previous_cat != null:
 		end_cat(previous_cat.activation_id)
 	_cat_serial = 0
@@ -803,9 +835,9 @@ func spawn_special_projectile(
 	basis: Basis,
 	owner_slot: int,
 	initial_velocity: Vector3,
-	orb_def: SpecialDef,
+	orb_def: Resource,
 	orb_tuning: SpecialTuning
-) -> Block:
+) -> BlockBody:
 	return _placement.spawn_special_projectile(shape, world_origin, basis, owner_slot, initial_velocity, orb_def, orb_tuning)
 
 
@@ -897,7 +929,7 @@ func winner_team() -> int:
 
 ## Bontago-22y.10: the weather controller (net/WeatherNet.gd, the HUD cue and
 ## tests read it; rules never do).
-func weather() -> MatchWeather:
+func weather() -> RefCounted:
 	return _weather
 
 
@@ -908,7 +940,7 @@ func weather() -> MatchWeather:
 ## results-screen UI worker (Bontago-1pi.6) reads Events.match_results_ready
 ## rather than reaching in here directly, but net/MatchNet.gd's replication
 ## and this file's own tests need the object itself.
-func stats() -> MatchStats:
+func stats() -> RefCounted:
 	return _stats
 
 
