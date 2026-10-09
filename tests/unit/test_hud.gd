@@ -420,6 +420,16 @@ func test_glue_charges_show_for_the_active_slot_and_clear_when_spent() -> void:
 	assert_false(hud._special_indicator.visible)
 
 
+func test_glue_overlay_stays_inside_the_silhouette_box() -> void:
+	var hud: HUD = _make_hud()
+	var image: Image = Image.create(100, 100, false, Image.FORMAT_RGBA8)
+	image.fill_rect(Rect2i(40, 10, 20, 60), Color.RED)
+	var texture: ImageTexture = ImageTexture.create_from_image(image)
+	var box: Rect2 = hud._preview_opaque_bbox(&"test_bar", texture)
+	assert_eq(box, Rect2(0.4, 0.1, 0.2, 0.6), "shrink-wrapped to the opaque pixels")
+	assert_eq(hud._preview_opaque_bbox(&"test_bar", texture), box, "cached per shape")
+
+
 func test_glue_preview_overlay_follows_charges() -> void:
 	var hud: HUD = _make_hud()
 	var fake_match: FakeMatch = FakeMatch.new()
