@@ -87,7 +87,9 @@ const GENERIC_PREVIEW_ICON: Texture2D = preload("res://assets/ui/icons/gift_gene
 ## on trigger (detonate). Null-safe: SpecialBehavior checks before calling,
 ## so a SpecialDef with no effect assigned still ages/arms/force-triggers,
 ## it just detonates as a no-op.
-@export var effect: SpecialEffect = null
+# DECISION: typed as Resource (hint names SpecialEffect) so config/ does not depend on
+# game/; game code reads it through SpecialBehavior.effect_of() for a SpecialEffect.
+@export_custom(PROPERTY_HINT_RESOURCE_TYPE, "SpecialEffect") var effect: Resource = null
 
 ## The player-facing name: `display_name` when authored, else the id with
 ## underscores as spaces and each word capitalised ("jumping_bean" -> "Jumping Bean").
