@@ -7,6 +7,7 @@ param(
 	[int]$TimeoutSeconds = 150
 )
 $scene = "res://tests/bench/rocket_enet.tscn"
+. (Join-Path $PSScriptRoot "enet_result.ps1")
 $procs = @()
 $timedOut = $false
 try {
@@ -41,3 +42,7 @@ foreach ($name in @("host","client")) {
 	Write-Host "ERRORLINES $name=$n"
 }
 if ($timedOut) { Write-Host "RESULT timeout" }
+# The rocket client prints no verdict of its own; only the fail scan applies to it.
+exit (Write-EnetResult -DeadlineHit $timedOut -Logs @(
+	@{ name = "host"; path = "$Out\rkt_host.log"; pass = 'RKTENET host result=PASS' },
+	@{ name = "client"; path = "$Out\rkt_client.log"; pass = $null }))

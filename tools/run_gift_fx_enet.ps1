@@ -11,6 +11,7 @@ param(
 	[switch]$WeatherOff
 )
 $scene = "res://tests/bench/gift_fx_enet.tscn"
+. (Join-Path $PSScriptRoot "enet_result.ps1")
 $procs = @()
 $extra = @(); if ($WeatherOff) { $extra = @("--weather-off") }
 function Stop-Tree([object]$p) {
@@ -43,6 +44,8 @@ try {
 	foreach ($p in $procs) { Stop-Tree $p }
 }
 $logs = @("$Out\gfx_host.log") + (1..3 | ForEach-Object { "$Out\gfx_client$_.log" })
+$logSpecs = @(@{ name = "host"; path = "$Out\gfx_host.log"; pass = 'GFXENET host result=PASS' })
+foreach ($i in 1..3) { $logSpecs += @{ name = "client$i"; path = "$Out\gfx_client$i.log"; pass = 'GFXENET client slot=\d+ result=PASS' } }
 foreach ($log in $logs) {
 	Write-Host "== $log"
 	Get-Content $log | Select-String "GFXENET"
@@ -56,3 +59,4 @@ foreach ($name in @("host","client1","client2","client3")) {
 	Write-Host "ERRORLINES $name=$n"
 }
 if ($timedOut) { Write-Host "RESULT timeout" }
+exit (Write-EnetResult -DeadlineHit $timedOut -Logs $logSpecs)

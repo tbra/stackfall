@@ -4,7 +4,9 @@
 # again so an error or Ctrl+C cannot orphan a child.
 param([string]$Path = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path, [int]$Port = 47795, [int]$Lag = 50, [string]$Out = $env:TEMP, [int]$TimeoutSeconds = 60, [switch]$Late)
 $scene = "res://tests/bench/loading_ready_enet.tscn"
+. (Join-Path $PSScriptRoot "enet_result.ps1")
 $procs = @()
+$deadlineHit = $false
 function Stop-Tree([object]$p) {
 	if ($p -and -not $p.HasExited) {
 		Write-Host "killing process tree $($p.Id)"
@@ -31,10 +33,15 @@ try {
 	}
 	$deadline = (Get-Date).AddSeconds($TimeoutSeconds)
 	while (((Get-Date) -lt $deadline) -and (-not (($procs | Where-Object { -not $_.HasExited }).Count -eq 0))) { Start-Sleep 1 }
-	if (($procs | Where-Object { -not $_.HasExited }).Count -gt 0) { Write-Warning "hard deadline ($TimeoutSeconds s) exceeded" }
+	if (($procs | Where-Object { -not $_.HasExited }).Count -gt 0) { $deadlineHit = $true; Write-Warning "hard deadline ($TimeoutSeconds s) exceeded" }
 } finally {
 	foreach ($p in $procs) { Stop-Tree $p }
 }
 Get-Content "$Out\lr_host.log" | Select-String "LRENET"
 Get-Content "$Out\lr_client.log" | Select-String "LRENET"
 if ($Late -and (Test-Path "$Out\lr_late.log")) { Get-Content "$Out\lr_late.log" | Select-String "LRENET" }
+$lrLogs = @(
+	@{ name = "host"; path = "$Out\lr_host.log"; pass = 'LRENET host result=PASS' },
+	@{ name = "client"; path = "$Out\lr_client.log"; pass = 'LRENET client result=PASS' })
+if ($Late) { $lrLogs += @{ name = "late"; path = "$Out\lr_late.log"; pass = 'LRENET late result=PASS' } }
+exit (Write-EnetResult -DeadlineHit $deadlineHit -Logs $lrLogs)

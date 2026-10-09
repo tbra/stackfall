@@ -4,7 +4,9 @@
 # again so an error or Ctrl+C cannot orphan a child.
 param([string]$Path = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path, [int]$Port = 47796, [int]$Lag = 50, [string]$Out = $env:TEMP, [int]$TimeoutSeconds = 180)
 $scene = "res://tests/bench/live_scores_enet.tscn"
+. (Join-Path $PSScriptRoot "enet_result.ps1")
 $procs = @()
+$deadlineHit = $false
 function Stop-Tree([object]$p) {
 	if ($p -and -not $p.HasExited) {
 		Write-Host "killing process tree $($p.Id)"
@@ -21,8 +23,11 @@ try {
 	$procs += $c
 	$deadline = (Get-Date).AddSeconds($TimeoutSeconds)
 	while (((Get-Date) -lt $deadline) -and (-not ($h.HasExited -and $c.HasExited))) { Start-Sleep 1 }
-	if (-not ($h.HasExited -and $c.HasExited)) { Write-Warning "hard deadline ($TimeoutSeconds s) exceeded" }
+	if (-not ($h.HasExited -and $c.HasExited)) { $deadlineHit = $true; Write-Warning "hard deadline ($TimeoutSeconds s) exceeded" }
 } finally {
 	foreach ($p in $procs) { Stop-Tree $p }
 }
-Get-Content "$Out\ls_host.log" | Select-String "LSENET"
+foreach ($role in @("host", "client")) { Get-Content "$Out\ls_$role.log" -ErrorAction SilentlyContinue | Select-String "LSENET" }
+exit (Write-EnetResult -DeadlineHit $deadlineHit -Logs @(
+	@{ name = "host"; path = "$Out\ls_host.log"; pass = $null },
+	@{ name = "client"; path = "$Out\ls_client.log"; pass = 'LSENET result=PASS' }))
