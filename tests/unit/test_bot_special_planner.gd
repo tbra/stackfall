@@ -319,6 +319,10 @@ func test_shipped_normal_throws_bomb_with_worse_aim_and_delay_than_hard() -> voi
 
 # --- Black hole (Bontago-8or.27) --------------------------------------------
 
+func _pull_radius() -> float:
+	return BotController.black_hole_pull_radius_m()
+
+
 func _bh_plan(
 	points: PackedVector2Array,
 	samples: Array[BotSpecialPlanner.BotBlockSample],
@@ -326,7 +330,7 @@ func _bh_plan(
 	tuning: BotTuning
 ) -> BotSpecialPlanner.BotSpecialAction:
 	return BotSpecialPlanner.plan(
-		&"black_hole", HOME, points, PackedVector2Array(), PackedVector2Array(), difficulty, tuning, samples
+		&"black_hole", HOME, points, PackedVector2Array(), PackedVector2Array(), difficulty, tuning, samples, 0.0, _pull_radius()
 	)
 
 
@@ -342,7 +346,7 @@ func test_black_hole_targets_near_enemy_tower_away_from_own_blocks() -> void:
 	var action: BotSpecialPlanner.BotSpecialAction = _bh_plan(points, samples, MatchConfig.AiDifficulty.HARD, tuning)
 	assert_true(action.has_place_target)
 	assert_false(action.should_throw)
-	assert_lt(action.place_target.distance_to(tower), BotSpecialPlanner.black_hole_pull_radius_m())
+	assert_lt(action.place_target.distance_to(tower), _pull_radius())
 
 
 func test_black_hole_skipped_when_own_blocks_dominate_every_spot() -> void:
@@ -364,12 +368,12 @@ func test_black_hole_radius_equals_special_def_radius() -> void:
 	var def: SpecialDef = SpecialDef.find_by_id(&"black_hole")
 	var effect: BlackHoleEffect = def.effect as BlackHoleEffect
 	assert_gt(effect.pull_radius_m, 0.0)
-	assert_eq(BotSpecialPlanner.black_hole_pull_radius_m(), effect.pull_radius_m)
+	assert_eq(BotController.black_hole_pull_radius_m(), effect.pull_radius_m)
 
 
 func test_black_hole_own_tower_in_best_enemy_spot_is_penalised() -> void:
 	var tuning: BotTuning = _real_shaped_tuning()
-	var radius: float = BotSpecialPlanner.black_hole_pull_radius_m()
+	var radius: float = _pull_radius()
 	# Spot A sits on the tall enemy mass but also on a big own tower; spot B is
 	# far from both and catches a smaller enemy group.
 	var spot_a: Vector2 = Vector2(0.0, 0.0)

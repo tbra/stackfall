@@ -32,7 +32,7 @@ static func is_valid_wire_phase(value: int) -> bool:
 ## installs the real weighted SpecialDef pick (set_special_drawer() below).
 ## Also the fallback a malformed drawer result is replaced with -- see
 ## _draw_special_id().
-const PENDING_SPECIAL_ID: StringName = &"special_pending"
+const PENDING_SPECIAL_ID: StringName = SpecialIds.PENDING
 
 ## DECISION (autoload/match/MatchGifts.gd, M6 A4): ui/Lobby.gd's specials
 ## checklist writes this exact literal into config.enabled_specials when the

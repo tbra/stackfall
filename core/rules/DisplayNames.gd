@@ -16,7 +16,7 @@ const MODE_TIPS: PackedStringArray = [
 const SKY_THEME_LABELS: PackedStringArray = ["Sunset", "Night", "Random", "Cycle", "Dawn"]
 ## Shown when an index or id has no label.
 const UNKNOWN_LABEL: String = "Unknown"
-## The placeholder gift id (MatchGifts.PENDING_SPECIAL_ID) reads as this.
+## The placeholder gift id (SpecialIds.PENDING) reads as this.
 const PENDING_SPECIAL_LABEL: String = "Special"
 
 
@@ -60,7 +60,7 @@ static func weather_id_label(weather_id: StringName) -> String:
 ## SpecialDef.display_name (fallback: capitalised id) for a known gift; the pending
 ## placeholder and an empty id are "Special" (as HUD shows them); an unknown id is its capitalised id.
 static func special(special_id: StringName) -> String:
-	if special_id == MatchGifts.PENDING_SPECIAL_ID or special_id == &"":
+	if special_id == SpecialIds.PENDING or special_id == &"":
 		return PENDING_SPECIAL_LABEL
 	var def: SpecialDef = SpecialDef.find_by_id(special_id)
 	if def != null:

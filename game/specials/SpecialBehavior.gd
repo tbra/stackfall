@@ -45,6 +45,12 @@ var despawn_when_done: bool = false
 var _completed: bool = false
 var _despawn_timer: float = -1.0
 
+## The SpecialEffect of a def (SpecialDef.effect is a Resource so config/ stays free
+## of game/); null if the def or its effect is missing or of another type.
+static func effect_of(def: SpecialDef) -> SpecialEffect:
+	return def.effect as SpecialEffect if def != null else null
+
+
 var _block: Block = null
 var _def: SpecialDef = null
 var _tuning: SpecialTuning = null
@@ -76,7 +82,7 @@ func bind(block: Block, def: SpecialDef, tuning: SpecialTuning) -> void:
 	_chain_depth = 0
 	_completed = false
 	_despawn_timer = -1.0
-	var effect_landed: LandedTuning = _def.effect.landed_tuning() if _def != null and _def.effect != null else null
+	var effect_landed: LandedTuning = effect_of(_def).landed_tuning() if _def != null and _def.effect != null else null
 	_landed_probe = LandedProbe.new(effect_landed)
 	_landed_at_age = -1.0
 	_prev_linear_velocity = block.linear_velocity if block != null else Vector3.ZERO
@@ -136,7 +142,7 @@ func advance(delta: float) -> void:
 		_prev_linear_velocity = _block.linear_velocity
 	# Bontago-1pi.85.35: an in-place activated gift has no falling carrier to wait for.
 	var needs_landing: bool = (
-		_def.effect != null and _def.effect.needs_landing() and not _def.activates_in_place
+		_def.effect != null and effect_of(_def).needs_landing() and not _def.activates_in_place
 	)
 	if needs_landing and _landed_at_age < 0.0:
 		_landed_probe.update(_block, delta)
@@ -146,8 +152,8 @@ func advance(delta: float) -> void:
 		_check_impact()
 	var effect_may_run: bool = not needs_landing or _landed_at_age >= 0.0
 	if not _has_triggered and _armed and effect_may_run and _def.effect != null:
-		_def.effect.physics_tick(_block, self, delta)
-		if not _has_triggered and _def.effect.wants_early_trigger(_block, self):
+		effect_of(_def).physics_tick(_block, self, delta)
+		if not _has_triggered and effect_of(_def).wants_early_trigger(_block, self):
 			trigger(0)
 	if not _has_triggered and _age >= _fuse_deadline():
 		trigger(0)
@@ -161,11 +167,11 @@ func _fuse_deadline() -> float:
 	var base: float = _def.arm_delay + _def.fuse_timeout_s
 	if _def.effect == null:
 		return base
-	var lifetime: float = _def.effect.effect_lifetime_s()
+	var lifetime: float = effect_of(_def).effect_lifetime_s()
 	if lifetime <= 0.0:
 		return base
 	var margin: float = _tuning.fuse_backstop_margin_s if _tuning != null else 0.0
-	if _def.effect.needs_landing() and _landed_at_age < 0.0:
+	if effect_of(_def).needs_landing() and _landed_at_age < 0.0:
 		return base + lifetime + margin
 	var start: float = _landed_at_age if _landed_at_age >= 0.0 else _def.arm_delay
 	return start + lifetime + margin
@@ -219,7 +225,7 @@ func _complete() -> void:
 ## only the impact *test* is skipped while asleep.
 ##
 ## FIX (Bontago-1en.22): a decel past `arm_impulse` now also consults
-## `_def.effect.impact_triggers()` (SpecialEffect.gd's own doc comment on
+## `effect_of(_def).impact_triggers()` (SpecialEffect.gd's own doc comment on
 ## that hook) before calling trigger() -- a timed-effect-pattern special
 ## (Propeller/Jumping Bean/Earthquake/Volcano) vetoes it so its OWN arming-
 ## tick landing impact can never short-circuit its physics_tick() window
@@ -237,7 +243,7 @@ func _check_impact() -> void:
 	if _has_triggered or decel < _def.arm_impulse:
 		return
 	if _def.effect != null:
-		if not _def.effect.triggers_on_impact() or not _def.effect.impact_triggers(_block, self):
+		if not effect_of(_def).triggers_on_impact() or not effect_of(_def).impact_triggers(_block, self):
 			return
 	trigger(0)
 
@@ -275,11 +281,11 @@ func trigger(incoming_chain_depth: int) -> void:
 	_chain_depth = incoming_chain_depth
 	var position: Vector3 = _block.global_position if _block != null else Vector3.ZERO
 	if _def != null and _def.effect != null:
-		_def.effect.detonate(_block, self, _chain_depth)
+		effect_of(_def).detonate(_block, self, _chain_depth)
 	var def_id: StringName = _def.id if _def != null else &""
 	triggered.emit(def_id, position, _chain_depth)
 	if despawn_when_done:
-		if _def != null and _def.effect != null and _def.effect.detaches():
+		if _def != null and _def.effect != null and effect_of(_def).detaches():
 			# The effect owns a standalone world node: no linger, the carrier goes now.
 			_despawn_timer = 0.0
 			_complete()
