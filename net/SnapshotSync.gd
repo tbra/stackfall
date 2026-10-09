@@ -82,13 +82,17 @@ const MAX_FRAGMENTS: int = 255
 
 # --- Shared state -----------------------------------------------------------
 
-var _registry: BlockRegistry = null
+# DECISION (S3a/D8): held as Node so this file names no game/ class; block_for_net_id is called dynamically.
+var _registry: Node = null
 var _bounds: AABB = AABB()
 var _running: bool = false
 ## Bontago-1pi.59 test seam: the session whose is_peer_disconnecting() the send
 ## path asks (a test drives a second Net instance on its own MultiplayerAPI).
 ## null keeps the real Net autoload.
 var _net_provider: Variant = null
+## Set by Net._ready via bind_net(); see _net().
+var _bound_net: Node = null
+const NET_NODE_NAME: NodePath = ^"Net"
 
 # --- Host state -------------------------------------------------------------
 
@@ -116,7 +120,7 @@ var _host_clock_ms: float = 0.0
 func sky_cycle_seconds() -> float:
 	if not _running:
 		return 0.0
-	if Net.is_client():
+	if _net().is_client():
 		return maxf(_interpolator.render_time_ms(), 0.0) / 1000.0
 	return _host_clock_ms / 1000.0
 var _last_snapshot_bytes: int = 0
@@ -189,7 +193,7 @@ var _sim: NetSim = null
 ## Called by Match when a match starts, on both host and client. `registry` is
 ## the BlockRegistry that resolves net_id -> Block; `map_def` fixes the
 ## quantization bounds, so both ends must be handed the same one.
-func begin_match(registry: BlockRegistry, map_def: MapDef) -> void:
+func begin_match(registry: Node, map_def: MapDef) -> void:
 	end_match()
 	_registry = registry
 	_bounds = config.position_bounds(map_def)
@@ -282,12 +286,12 @@ func set_disk(disk: Node3D) -> void:
 ## deliberately looser and feed territory influence; confusing the two makes
 ## towers stutter or influence flicker.
 func host_tick(delta: float) -> void:
-	if not _running or Net.is_client():
+	if not _running or _net().is_client():
 		return
 	# DECISION (Bontago-mp0.13): the snapshot clock also ticks in offline play;
 	# only packet selection and sending require a network host.
 	_host_clock_ms += delta * 1000.0
-	if not Net.is_host() or Net.is_offline():
+	if not _net().is_host() or _net().is_offline():
 		return
 	var peers: PackedInt32Array = _remote_peers()
 	var peer_count: int = peers.size()
@@ -337,7 +341,7 @@ func host_tick(delta: float) -> void:
 	for packet: PackedByteArray in packets:
 		_send_packet(packet)
 
-	Net.report_stats(&"snapshot", {
+	_net().report_stats(&"snapshot", {
 		"snapshot_last_bytes": _last_snapshot_bytes,
 		"snapshot_bodies": bodies.size(),
 		"snapshot_fragments": packets.size(),
@@ -360,7 +364,7 @@ static func keyframe_slice_for(sleeping_count: int, net_config: NetConfig) -> in
 ## Advances every synced body to the current render time. **Call from
 ## _physics_process only.** Client only.
 func client_tick(delta: float) -> void:
-	if not _running or not Net.is_client() or _interpolator == null:
+	if not _running or not _net().is_client() or _interpolator == null:
 		return
 
 	if _sim != null and not _sim.is_idle():
@@ -371,7 +375,7 @@ func client_tick(delta: float) -> void:
 	_decay_disk_error(delta * 1000.0)
 
 	for net_id: int in _interpolator.tracked_ids():
-		var block: Block = _registry.block_for_net_id(net_id) if _registry != null else null
+		var block: BlockBody = _registry.call("block_for_net_id", net_id) as BlockBody if _registry != null else null
 		if block == null or not is_instance_valid(block):
 			continue
 		freeze_body(block)
@@ -405,7 +409,7 @@ func client_tick(delta: float) -> void:
 	# one node type; the cast is guarded because a headless test that never
 	# calls set_disk() with a real Field (test_snapshot_wire.gd's pure wire
 	# tests) must not have client_tick() throw.
-	var field: Field = _disk as Field
+	var field: FieldBody = _disk as FieldBody
 	if field != null:
 		var disk_pose: Dictionary = _disk_pose_at_render_time()
 		if bool(disk_pose["ok"]):
@@ -417,7 +421,7 @@ func client_tick(delta: float) -> void:
 	var stats_interval: float = 1.0 / maxf(config.stats_hz, 0.1)
 	if _stats_accumulator >= stats_interval:
 		_stats_accumulator = 0.0
-		Net.report_stats(&"snapshot", {
+		_net().report_stats(&"snapshot", {
 			"snapshot_last_bytes": _last_snapshot_bytes,
 			"interp_delay_ms": interpolation_delay_ms(),
 			"loss_pct": measured_loss() * 100.0,
@@ -676,7 +680,7 @@ func _apply_packet(packet: PackedByteArray) -> void:
 func _is_spawned(net_id: int) -> bool:
 	if _registry == null:
 		return true
-	return _registry.block_for_net_id(net_id) != null
+	return _registry.call("block_for_net_id", net_id) != null
 
 
 ## Test seam (Bontago-1pi.59); see _net_provider. null restores the real Net.
@@ -685,7 +689,22 @@ func set_net_provider(provider: Variant) -> void:
 
 
 func _session() -> Variant:
-	return _net_provider if _net_provider != null else Net
+	return _net_provider if _net_provider != null else _net()
+
+
+## Autoload decoupling S3a: Net binds itself in its _ready (bind_net); an
+## unbound instance (a test, or a call before Net._ready) falls back to the real
+## Net autoload by path so no file edge to autoload/Net.gd exists.
+func bind_net(net: Node) -> void:
+	_bound_net = net
+
+
+func _net() -> Node:
+	if _bound_net != null and is_instance_valid(_bound_net):
+		return _bound_net
+	# Through the SceneTree root so an instance not (yet) in the tree resolves too.
+	var tree: SceneTree = Engine.get_main_loop() as SceneTree
+	return tree.root.get_node_or_null(NET_NODE_NAME) if tree != null else null
 
 
 ## The one network send (a seam so tests can count sends without a peer).
@@ -711,14 +730,14 @@ func _remote_peers() -> PackedInt32Array:
 ## {"bodies": Array, "keyframe": bool} for this tick.
 func _select_bodies() -> Dictionary:
 	var awake_or_moved: Array = []
-	var sleepers: Array[Block] = []
+	var sleepers: Array[BlockBody] = []
 
 	for key: Variant in _bodies.keys():
 		var held: Variant = _bodies[key]
 		if held == null or not is_instance_valid(held):
 			_bodies.erase(key)
 			continue
-		var block: Block = held as Block
+		var block: BlockBody = held as BlockBody
 		if block.net_id <= 0:
 			continue
 		if not block.sleeping or _moved_since_sent(block):
@@ -729,7 +748,7 @@ func _select_bodies() -> Dictionary:
 	var slice: int = mini(keyframe_slice_for(sleepers.size(), config), sleepers.size())
 	var keyframe: bool = slice > 0
 	for step: int in range(slice):
-		var block: Block = sleepers[(_keyframe_cursor + step) % sleepers.size()]
+		var block: BlockBody = sleepers[(_keyframe_cursor + step) % sleepers.size()]
 		awake_or_moved.append(_record(block))
 	if not sleepers.is_empty():
 		_keyframe_cursor = (_keyframe_cursor + slice) % sleepers.size()
@@ -737,7 +756,7 @@ func _select_bodies() -> Dictionary:
 	return {"bodies": awake_or_moved, "keyframe": keyframe}
 
 
-func _record(block: Block) -> Dictionary:
+func _record(block: BlockBody) -> Dictionary:
 	return {
 		"net_id": block.net_id,
 		"position": block.global_position,
@@ -749,7 +768,7 @@ func _record(block: Block) -> Dictionary:
 ## True when a sleeping body drifted past config.resend_position_epsilon or
 ## resend_angle_epsilon since it was last sent, so a body that only wobbled
 ## inside its own quantization bucket never costs a packet.
-func _moved_since_sent(block: Block) -> bool:
+func _moved_since_sent(block: BlockBody) -> bool:
 	var previous: Variant = _last_sent.get(block.net_id)
 	if previous == null:
 		return true
@@ -904,12 +923,12 @@ func _on_block_placed(block: RigidBody3D, _shape_id: StringName) -> void:
 
 func _on_block_replicated(block: RigidBody3D, _net_id: int) -> void:
 	_track(block)
-	if Net.is_client():
+	if _net().is_client():
 		freeze_body(block)
 
 
 func _track(block: RigidBody3D) -> void:
-	var typed: Block = block as Block
+	var typed: BlockBody = block as BlockBody
 	if typed == null:
 		return
 	_bodies[typed.get_instance_id()] = typed
@@ -917,7 +936,7 @@ func _track(block: RigidBody3D) -> void:
 
 func _on_block_removed(block: RigidBody3D, _reason: String) -> void:
 	_bodies.erase(block.get_instance_id())
-	var typed: Block = block as Block
+	var typed: BlockBody = block as BlockBody
 	if typed == null:
 		return
 	_last_sent.erase(typed.net_id)
