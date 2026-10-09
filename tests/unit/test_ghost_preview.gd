@@ -782,8 +782,8 @@ func test_projection_prism_material_uses_additive_blend_and_emission() -> void:
 # restores xtq.16's owner-verified rule on top of that: the prism is the shaft
 # *under* the shape -- every wall's top follows the shape's own underside along
 # the outline (sloped for a tilted shape, stepped where an overhang begins),
-# never the whole shape's top. projection_span_y()/projection_column_span_y()
-# stay the whole-shape bookkeeping game/PlayerController.gd reads; the tests
+# never the whole shape's top. projection_span_y() stays
+# the whole-shape bookkeeping game/PlayerController.gd reads; the tests
 # below check the built mesh itself (projection_mesh_vertices_world()).
 
 ## The same 8 corner signs _CORNER_SIGNS declares (game/GhostPreview.gd),

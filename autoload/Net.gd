@@ -812,7 +812,7 @@ func join_lobby(lobby_id: int, player_name: String = "") -> Error:
 ## Lobbies tagged with this build's {game, version} from the last
 ## refresh_lobby_list() answer. Each is
 ## {"lobby_id", "name", "players", "max", "map"} — the Steam-side equivalent
-## of discovered_games().
+## of the LAN advert list (LanDiscovery.games()).
 func discovered_lobbies() -> Array[Dictionary]:
 	return _discovered_lobbies.duplicate(true)
 
@@ -1190,12 +1190,6 @@ func start_discovery() -> void:
 
 func stop_discovery() -> void:
 	_lan.stop_listening()
-
-
-## Games seen within config.discovery_entry_ttl, newest advert first. Each is
-## {"name", "address", "port", "version", "players", "max", "map"}.
-func discovered_games() -> Array[Dictionary]:
-	return _lan.games()
 
 
 # --- Lag / loss simulation --------------------------------------------------

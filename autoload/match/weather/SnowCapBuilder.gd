@@ -114,18 +114,6 @@ func set_patch(key: String, node: Node3D, region: int, patch_key: int, xform: Tr
 		_queue.append(key)
 
 
-func has_owner(key: String) -> bool:
-	return _owners.has(key)
-
-
-func owner_level(key: String, patch_key: int) -> int:
-	var owner: CapOwner = _owners.get(key) as CapOwner
-	if owner == null:
-		return 0
-	var patch: Patch = owner.patches.get(patch_key) as Patch
-	return patch.level if patch != null else 0
-
-
 ## Removes an owner's snow at once (a despawned or tipped block).
 func drop_owner(key: String) -> void:
 	var owner: CapOwner = _owners.get(key) as CapOwner

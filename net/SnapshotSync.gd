@@ -172,9 +172,6 @@ var _disk_was_clamped: bool = false
 ## be stamped with the same time and the jitter estimate would measure the
 ## 60 Hz tick grid instead of the link.
 var _clock_base_usec: int = 0
-## Test seam: a Callable returning that same "seconds since begin_match",
-## so a unit test can script arrival times instead of waiting for them.
-var _clock_source: Callable = Callable()
 
 ## This instance's own delay/drop queue for inbound snapshots.
 ##
@@ -348,12 +345,6 @@ func host_tick(delta: float) -> void:
 	})
 
 
-## Sleeping bodies refreshed per snapshot so every sleeper is re-sent once per
-## config.keyframe_interval (spec 3.4's 2 s keyframe), round-robin.
-func keyframe_slice_size() -> int:
-	return keyframe_slice_for(_count_sleeping(), config)
-
-
 ## Sleepers per snapshot needed to refresh `sleeping_count` of them once per
 ## config.keyframe_interval. Static so the benchmark and the tests can ask
 ## without a live match.
@@ -362,16 +353,6 @@ static func keyframe_slice_for(sleeping_count: int, net_config: NetConfig) -> in
 		return 0
 	var ticks: float = maxf(net_config.keyframe_interval, 0.001) * maxf(net_config.snapshot_hz, 1.0)
 	return maxi(1, int(ceil(float(sleeping_count) / maxf(ticks, 1.0))))
-
-
-## Bytes the last snapshot cost, summed over its fragments — the debug
-## overlay's "snapshot size".
-func last_snapshot_bytes() -> int:
-	return _last_snapshot_bytes
-
-
-func last_sequence() -> int:
-	return _sequence
 
 
 # --- Client side ------------------------------------------------------------
@@ -637,17 +618,9 @@ func receive_packet(packet: PackedByteArray) -> void:
 	_apply_packet(packet)
 
 
-## Seconds since begin_match(), on the client's arrival clock. See
-## _clock_source; tests replace it with set_clock_source().
+## Seconds since begin_match(), on the client's arrival clock.
 func now() -> float:
-	if _clock_source.is_valid():
-		return float(_clock_source.call())
 	return float(Time.get_ticks_usec() - _clock_base_usec) / 1000000.0
-
-
-## Injects the arrival clock. Pass an invalid Callable to go back to real time.
-func set_clock_source(source: Callable) -> void:
-	_clock_source = source
 
 
 ## Re-tunes the inbound-snapshot simulator, in the same units as
@@ -793,18 +766,6 @@ func _remember_sent(bodies: Array) -> void:
 	for entry: Variant in bodies:
 		var body: Dictionary = entry as Dictionary
 		_last_sent[int(body["net_id"])] = [body["position"], body["rotation"]]
-
-
-func _count_sleeping() -> int:
-	var count: int = 0
-	for key: Variant in _bodies.keys():
-		var held: Variant = _bodies[key]
-		if held == null or not is_instance_valid(held):
-			continue
-		var block: Block = held as Block
-		if block != null and block.net_id > 0 and block.sleeping:
-			count += 1
-	return count
 
 
 func _disk_transform() -> Transform3D:

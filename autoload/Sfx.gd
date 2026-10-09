@@ -247,14 +247,6 @@ func play(event: StringName) -> bool:
 	return true
 
 
-## Positional variant of play(). DECISION (autoload/Sfx.gd): 3D/spatial audio
-## isn't required yet (brief: "3D not required now -- 2D/global players are
-## fine"), so this ignores `position` and behaves exactly like play(); the
-## parameter stays so callers don't need to change when spatial audio lands.
-func play_at(event: StringName, _position: Vector3) -> bool:
-	return play(event)
-
-
 func set_music_enabled(enabled: bool) -> void:
 	if enabled == _music_enabled:
 		return

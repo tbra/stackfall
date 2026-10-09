@@ -39,10 +39,6 @@ func set_providers(blocks_provider: Callable, disc_provider: Callable) -> void:
 	_disc_provider = disc_provider
 
 
-func wet_count() -> int:
-	return _wet.size()
-
-
 func apply(intensity: float) -> void:
 	var rain: RainTuning = tuning as RainTuning
 	if rain == null:

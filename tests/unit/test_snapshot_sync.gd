@@ -609,7 +609,7 @@ func test_gating_zero_peers_skips_selection_and_clears_sent_state() -> void:
 	stub._last_sent[1] = [Vector3.ZERO, Quaternion.IDENTITY]
 	_tick_for(stub, 1.0)
 	assert_eq(stub.selections, 0, "no selection with nobody to send to")
-	assert_eq(stub.last_sequence(), 0, "no snapshot built")
+	assert_eq(stub._sequence, 0, "no snapshot built")
 	assert_true(stub._last_sent.is_empty(), "sent memory forgotten")
 
 

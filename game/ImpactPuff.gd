@@ -68,10 +68,6 @@ func advance(delta: float) -> bool:
 	return true
 
 
-func current_frame() -> int:
-	return int(_elapsed_s * _fps)
-
-
 func stop() -> void:
 	active = false
 	visible = false

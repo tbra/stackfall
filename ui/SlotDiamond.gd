@@ -33,11 +33,6 @@ func set_color(value: Color) -> void:
 	queue_redraw()
 
 
-func set_size_px(value: float) -> void:
-	_size_px = value
-	_apply_size()
-
-
 ## The side length in effect.
 func diamond_size_px() -> float:
 	return _size_px if _size_px > 0.0 else tuning.hud_row_glyph_size_px

@@ -747,11 +747,6 @@ func sandbox_territory_mode() -> int:
 	return _sandbox_territory_mode
 
 
-## Compatibility with the earlier sandbox pause control.
-func set_sandbox_territory_paused(paused: bool) -> void:
-	set_sandbox_territory_mode(SANDBOX_TERRITORY_PAUSED if paused else DEFAULT_TERRITORY_MODE)
-
-
 func sandbox_territory_paused() -> bool:
 	return _sandbox_territory_mode == SANDBOX_TERRITORY_PAUSED
 

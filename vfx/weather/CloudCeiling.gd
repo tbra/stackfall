@@ -97,10 +97,6 @@ func target_overcast() -> float:
 	return best
 
 
-func brighten() -> float:
-	return _brighten
-
-
 func overcast() -> float:
 	return _overcast
 
