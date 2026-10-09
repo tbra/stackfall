@@ -133,10 +133,6 @@ func eruption_fx() -> VolcanoEruptionFx:
 	return _fx
 
 
-func age() -> float:
-	return _age
-
-
 func has_body() -> bool:
 	return _body != null
 

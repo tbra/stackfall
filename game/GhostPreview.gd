@@ -210,10 +210,7 @@ extends Node3D
 ## since every triangle of the real shell was unioned together first, there is
 ## no cell-grid seam left to double-blend, by construction, at any rotation.
 ## _group_cells_by_footprint()/_rotated_cell_footprint()/_shared_edge_exists()
-## are deleted; projection_column_count()/projection_column_span_y() (read by
-## older tests and no other owned file) now report at most one entry, equal to
-## projection_span_y() -- the whole-prism span, per this file's own new
-## _projection_columns contract below.
+## are deleted; the whole-prism span is projection_span_y().
 ## DECISION (game/GhostPreview.gd, Bontago-xtq.19 attempt 3): xtq.16's own S4
 ## fix (never wall a column above the solid cell actually sitting in it, so an
 ## empty notch shows no shaft) is deliberately *not* preserved -- there is now
@@ -264,7 +261,7 @@ extends Node3D
 ## against the built mesh. There is still no top cap polygon (there never was
 ## one in attempt 3 either); the ghost body itself closes the shaft's top.
 ## projection_span_y() (whole-shape top, game/PlayerController.gd's spawn-
-## clearance contract) and projection_column_count()/_span_y() are unchanged.
+## clearance contract) is unchanged.
 ##
 ## Rotation is stored as an integer index over the 24 axis-aligned cube
 ## orientations (core/blocks/BlockOrientations.gd) plus a separate free-
@@ -440,14 +437,6 @@ var _projection_material: StandardMaterial3D
 ## bottom) -- Vector2.ZERO (and no visible mesh) when nothing is held or the
 ## prism collapsed (top <= bottom; see _update_footprint()'s own guard).
 var _projection_span_y: Vector2 = Vector2.ZERO
-## Bontago-xtq.19 attempt 3 (this file's own header): the per-column cap this
-## used to hold (Bontago-xtq.16) is gone along with the column model itself --
-## at most one entry now, equal to _projection_span_y, present exactly when
-## the prism mesh is shown (see has_projection_mesh()). Kept as an Array (not
-## a bool) purely so projection_column_count()/projection_column_span_y()
-## (read by this package's own older tests, per this package's own brief) stay
-## source-compatible rather than requiring every caller to migrate at once.
-var _projection_columns: Array[Vector2] = []
 ## Bontago-xtq.19 attempt 3 (this file's own header): the ghost-local (not
 ## world-translated -- like _rotated_shape_hull()'s own return value) XZ
 ## outline loop(s) _shape_silhouette_loops() built the projection prism's
@@ -1160,8 +1149,6 @@ func _update_projection_mesh(landing_y: float) -> void:
 		return
 
 	_projection_span_y = Vector2(whole_top_y, landing_y)
-	_projection_columns.clear()
-	_projection_columns.append(_projection_span_y)
 	_projection_mesh.global_position = Vector3(global_position.x, 0.0, global_position.z)
 
 	var verts: PackedVector3Array = PackedVector3Array()
@@ -1195,10 +1182,8 @@ func _update_projection_mesh(landing_y: float) -> void:
 	if verts.is_empty():
 		# Bontago-xtq.19 attempt 4: the shape rests on the ground along its
 		# whole outline -- no shaft to draw. _projection_span_y is kept (spawn
-		# clearance still needs the body's own top); _projection_columns tracks
-		# the visible mesh, per its own doc comment.
+		# clearance still needs the body's own top).
 		_projection_mesh.mesh = null
-		_projection_columns.clear()
 		return
 
 	var arrays: Array = []
@@ -1271,7 +1256,6 @@ func _piece_floor_y(probe: Vector2, from_y: float, floor_y: float) -> float:
 ## _update_projection_mesh()'s own guard) without freeing the persistent node.
 func _clear_projection_mesh() -> void:
 	_projection_span_y = Vector2.ZERO
-	_projection_columns.clear()
 	if _projection_mesh != null:
 		_projection_mesh.mesh = null
 
@@ -1989,31 +1973,9 @@ func footprint_polygon_world(index: int) -> PackedVector2Array:
 ## `bottom` is the footprint's own landing height. Bontago-xtq.19 attempt 4:
 ## this is bookkeeping, not the mesh's own extent -- the walls stop at the
 ## shape's underside (projection_mesh_vertices_world() gives the real
-## geometry); projection_column_span_y() below reports this same span.
+## geometry).
 func projection_span_y() -> Vector2:
 	return _projection_span_y
-
-
-## For tests: 1 while the projection prism is shown, 0 while it is collapsed
-## or nothing is held -- the same thing has_projection_mesh() reports, kept as
-## a count (rather than removed outright) purely so this package's own older
-## tests/unit/test_ghost_preview.gd calls to this contract stay source-
-## compatible. Bontago-xtq.19 attempt 3 (this file's own header): Bontago-
-## xtq.16's per-column model (several entries, one per surviving footprint
-## patch) is gone along with the columns themselves -- the merged silhouette
-## prism has exactly one shared top/bottom span for its every wall.
-func projection_column_count() -> int:
-	return _projection_columns.size()
-
-
-## For tests: the world-space (top, bottom) Y span the projection prism
-## currently covers -- identical to projection_span_y() regardless of `index`
-## (Bontago-xtq.19 attempt 3: every wall shares one span now; see this file's
-## own header for why the old per-column cap was not preserved). `index` is
-## kept as a parameter only so this package's own older call sites/tests stay
-## source-compatible; any in-range value returns the same span.
-func projection_column_span_y(index: int) -> Vector2:
-	return _projection_columns[index]
 
 
 ## For tests (Bontago-xtq.19 attempt 3): how many separate outline loops the

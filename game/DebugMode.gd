@@ -53,12 +53,6 @@ static func clear_override_for_test() -> void:
 	PerfProbe.enabled = is_enabled()
 
 
-## Forgets the cached resolution (used after a setting changes at runtime).
-static func reload() -> void:
-	_cached = -1
-	PerfProbe.enabled = is_enabled()
-
-
 static func _resolve() -> bool:
 	return resolve_from(OS.get_cmdline_user_args(), _settings_value(), bool(ProjectSettings.get_setting(PROJECT_SETTING, false)), OS.has_feature("editor"))
 

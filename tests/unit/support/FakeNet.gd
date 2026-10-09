@@ -47,7 +47,6 @@ var local_peer_id_value: int = 1
 var all_peers_ready_value: bool = false
 
 var lobby_data_value: Dictionary = {}
-var discovered_games_value: Array[Dictionary] = []
 
 var stats_value: Dictionary = {}
 var simulation_enabled_value: bool = false
@@ -273,10 +272,6 @@ func start_discovery() -> void:
 
 func stop_discovery() -> void:
 	stop_discovery_calls += 1
-
-
-func discovered_games() -> Array[Dictionary]:
-	return discovered_games_value
 
 
 func set_simulation(lag_ms: float, jitter_ms: float, loss: float) -> void:

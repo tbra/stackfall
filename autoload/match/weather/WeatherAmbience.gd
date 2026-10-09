@@ -163,15 +163,6 @@ func fade_all_out() -> void:
 		_beds[weather_id]["target"] = 0.0
 
 
-## Immediately silence everything (session teardown).
-func stop_all_now() -> void:
-	for weather_id: StringName in _beds.keys():
-		var bed: Dictionary = _beds[weather_id]
-		bed["target"] = 0.0
-		bed["gain"] = 0.0
-		(bed["player"] as AudioStreamPlayer).stop()
-
-
 func _on_started(weather_id: StringName) -> void:
 	var bed: Dictionary = _bed_for(weather_id)
 	if bed.is_empty():

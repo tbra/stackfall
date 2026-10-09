@@ -249,11 +249,6 @@ func pending_work() -> int:
 	return (_queue.size() - _queue_head) / WORK_STRIDE
 
 
-## True while geometry is still being rebuilt.
-func is_building() -> bool:
-	return _builder != null and not _builder.is_idle()
-
-
 ## The compact replicated state (SnowGeometry wire format).
 func state() -> Dictionary:
 	var b: PackedInt32Array = PackedInt32Array()

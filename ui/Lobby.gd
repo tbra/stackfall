@@ -1076,10 +1076,6 @@ func _update_section_summaries() -> void:
 	_experiments_section.set_summary(SUMMARY_EXPERIMENTS_FORMAT % experiments_on)
 
 
-func _selected_text(option: OptionButton) -> String:
-	return option.get_item_text(option.selected) if option.selected >= 0 else ""
-
-
 func _cycle_text(selector: CycleSelector) -> String:
 	return selector.get_item_text(selector.selected)
 

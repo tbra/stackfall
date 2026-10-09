@@ -195,7 +195,6 @@ var _last_bake_msec: int = 0
 var _solve_waited_msec: int = 0
 var _bake_deadline_msec: int = 0
 var _bake_count: int = 0
-var _bake_deferred_count: int = 0
 ## Tests/bench only: treat a headless run as bake-capable so the gating counts.
 var _bake_headless_ok: bool = false
 
@@ -699,10 +698,6 @@ func bake_count() -> int:
 	return _bake_count
 
 
-func bake_deferred_count() -> int:
-	return _bake_deferred_count
-
-
 func bake_pending() -> bool:
 	return _bake_pending
 
@@ -770,7 +765,6 @@ func _request_bake(circles_ok: bool, flushing: bool = false) -> void:
 		var deadline: int = Time.get_ticks_msec() + budget_msec
 		_bake_deadline_msec = mini(_bake_deadline_msec, deadline) if _bake_pending else deadline
 		_bake_pending = true
-		_bake_deferred_count += 1
 		return
 	_bake_pending = false
 	_bake_count += 1

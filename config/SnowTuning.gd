@@ -253,13 +253,6 @@ func level_height(level: int) -> float:
 	return max_depth_m * float(clampi(level, 0, depth_levels)) / float(depth_levels)
 
 
-## Seconds between two growth passes at `current_intensity` (INF when calm).
-func level_interval(current_intensity: float) -> float:
-	if current_intensity <= 0.0:
-		return INF
-	return seconds_per_level / current_intensity
-
-
 ## Seconds a melt takes: melt_duration_s, never longer than the ramp-out (the
 ## event end clears whatever is left, so it must have melted by then).
 func melt_time_s() -> float:

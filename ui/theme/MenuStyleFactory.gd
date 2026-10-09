@@ -126,32 +126,6 @@ static func apply_flat_stepper_button(button: Button, tuning: MenuVisualTuning) 
 	button.add_theme_color_override("font_disabled_color", tuning.label_muted_color)
 
 
-## Bontago-mp0.3.5 (polish pass, problem 1): a flat summary chip -- no
-## shadow and no border-highlight (unlike _pill_box()'s button-style pills),
-## smaller content margins, so %AdvRulesBar's six chips read as light, flat
-## tokens rather than another row of raised buttons.
-static func make_flat_chip(color: Color, tuning: MenuVisualTuning) -> StyleBoxFlat:
-	var box: StyleBoxFlat = StyleBoxFlat.new()
-	box.bg_color = color
-	box.set_corner_radius_all(maxi(int(tuning.pill_corner_radius_px) - 4, 0))
-	box.content_margin_left = tuning.pill_margin_x_px * 0.5
-	box.content_margin_right = tuning.pill_margin_x_px * 0.5
-	box.content_margin_top = tuning.pill_margin_y_px * 0.4
-	box.content_margin_bottom = tuning.pill_margin_y_px * 0.4
-	return box
-
-
-## Bontago-mp0.3.5 (review r1, item 8): a small solid dark circle behind a
-## single-letter controller-button glyph ("A"/"B"), matching mockup 10's
-## bottom-right controller hint pill.
-static func apply_glyph_circle(panel: PanelContainer, label: Label, tuning: MenuVisualTuning) -> void:
-	var box: StyleBoxFlat = StyleBoxFlat.new()
-	box.bg_color = tuning.pill_dark_slate_color
-	box.set_corner_radius_all(11)
-	panel.add_theme_stylebox_override("panel", box)
-	label.add_theme_color_override("font_color", tuning.label_ink_light_color)
-
-
 ## Bontago-mp0.3.5 (review r1, item 5): a borderless white list panel for a
 ## server/lobby row list that already sits inside its own make_well() card
 ## (ui/MainMenu.tscn's %LanGamesWell) -- avoids stacking two sunken borders.

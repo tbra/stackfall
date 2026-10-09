@@ -154,9 +154,6 @@ const DESCRIPTION_FONT_SIZE: int = 12
 ## glance ("outcome 3": visible when live differs from default).
 const MODIFIED_COLOR: Color = Color(1.0, 0.82, 0.3)
 const MODIFIED_MARKER: String = "• "
-## Trailing-zero trim precision for _format_default() (the type-only formatter
-## tests call); rows themselves use _decimals_for().
-const DEFAULT_FLOAT_PRECISION: int = 4
 
 ## get_property_list() usage flags an @export'd script variable carries (see
 ## this file's own probe in the implementation notes): STORAGE so it's
@@ -997,32 +994,6 @@ func _register_row(frame: Dictionary, resource: Resource, prop_name: String, con
 		"default": default_value, "type": type, "unit": unit, "decimals": decimals,
 	})
 	_refresh_row_marker(_rows[-1])
-
-
-## The type-only default formatter (no unit/decimals): "true"/"false", a plain
-## integer, a trailing-zero-trimmed float, "#rrggbbaa". Rows use _format_shown().
-func _format_default(value: Variant, type: int) -> String:
-	match type:
-		TYPE_BOOL:
-			return "true" if bool(value) else "false"
-		TYPE_INT:
-			return str(int(value))
-		TYPE_FLOAT:
-			return _format_float_compact(float(value))
-		TYPE_COLOR:
-			var c: Color = value
-			return "#%s" % c.to_html(true)
-		_:
-			return str(value)
-
-
-func _format_float_compact(value: float) -> String:
-	var text: String = String.num(value, DEFAULT_FLOAT_PRECISION)
-	if text.contains("."):
-		text = text.rstrip("0")
-		if text.ends_with("."):
-			text = text.left(text.length() - 1)
-	return text
 
 
 ## Outcome 3: whether a row's live value has drifted from its default -- used
