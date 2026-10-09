@@ -44,7 +44,7 @@ const FEATURES: PackedStringArray = [
 	"volumetric_fog", "ssr", "glow", "msaa", "shadows", "sky_radiance", "probe",
 	"overlay", "clouds", "outline", "birds", "sky_bg", "depth_fog", "islands",
 	"cloud_shadows", "sun_flare", "blocks", "fog_volume", "scale50", "aurora",
-	"probe_once", "ssao", "ssil", "sdfgi", "lights",
+	"probe_once", "ssao", "ssil", "sdfgi", "lights", "ssao_on",
 ]
 
 var _main: Node = null
@@ -304,6 +304,10 @@ func _set_feature(feature: String, on: bool) -> void:
 			_toggle_all(feature, ReflectionProbe, "update_mode", ReflectionProbe.UPDATE_ONCE, on)
 		"ssao":
 			_toggle(feature, _env, "ssao_enabled", false, on)
+		"ssao_on":
+			# Meaning inverted (Bontago-1pi.11.70): listing it in the off set ENABLES SSAO;
+			# restoring (on = true) puts the saved value back (false by default).
+			_toggle(feature, _env, "ssao_enabled", true, on)
 		"ssil":
 			_toggle(feature, _env, "ssil_enabled", false, on)
 		"sdfgi":

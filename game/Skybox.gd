@@ -907,6 +907,15 @@ func configure_ssr() -> void:
 	environment.ssr_fade_in = visuals.ssr_fade_in
 	environment.ssr_fade_out = visuals.ssr_fade_out
 	environment.ssr_depth_tolerance = visuals.ssr_depth_tolerance
+	environment.ssao_enabled = visuals.ssao_enabled
+	environment.ssao_radius = visuals.ssao_radius
+	environment.ssao_intensity = visuals.ssao_intensity
+	environment.ssao_power = visuals.ssao_power
+	environment.ssao_detail = visuals.ssao_detail
+	environment.ssao_horizon = visuals.ssao_horizon
+	environment.ssao_sharpness = visuals.ssao_sharpness
+	environment.ssao_light_affect = visuals.ssao_light_affect
+	environment.ssao_ao_channel_affect = visuals.ssao_ao_channel_affect
 
 
 ## Bontago-1pi.11.67: the probe strategy in force: OFF when the scene-level switch is off,
