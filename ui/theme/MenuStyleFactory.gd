@@ -25,21 +25,95 @@ const BUTTON_ICON_COLOR_ITEMS: PackedStringArray = [
 ]
 
 
-## Paints [param button] as a pastel pill in [param normal_color], with
-## [param hover_color] on hover/pressed and [param font_color] as its label
-## color. The shared Theme's dark-outline focus StyleBox is left untouched
-## (gamepad focus must keep looking the same on every pill).
-##
-## Bontago-1pi.37: [param font_color] is the pill's one "ink" -- the label AND
-## the button's icon take it in every draw state (see apply_ink()), so a white
-## SVG glyph can no longer fall back to the theme's default white in the
-## focus/pressed states while the label is dark (the owner's "black icons turn
-## white on the focused button" report).
+## Paints [param button] as a Stackfall Arcade block (docs/UI_RESKIN_PLAN.md P0, Bontago-hfa.2):
+## face [param face], a lit top, a dark lip and a solid ledge, drawn by ui/theme/BlockStyleBox.gd,
+## with [param ink] as the label and icon colour in every draw state. The lip and top of the
+## design's named faces (flare, rim, mint) come from the token table instead of a derived mix.
+## [param small] selects the compact recipe (lip-sm/drop-sm, button-sm padding). Hover lightens
+## the face, pressed drops it onto the ledge, disabled is translucent without a ledge. The shared
+## Theme's 3 px cream focus outline is left untouched.
+static func apply_block(button: Button, face: Color, ink: Color, small: bool = false) -> void:
+	apply_block_states(button, face, _hover_face(face), ink, small)
+
+
+## apply_block() with an explicit hover face (apply_pill() passes the one its caller chose).
+static func apply_block_states(button: Button, face: Color, hover_face: Color, ink: Color, small: bool = false) -> void:
+	var arcade: ArcadeVisualTuning = arcade_tuning()
+	var lip: Color = lip_for(face)
+	var top: Color = top_for(face)
+	button.add_theme_stylebox_override("normal", BlockStyleBox.make(face, arcade, small, BlockStyleBox.STATE_NORMAL, lip, top))
+	button.add_theme_stylebox_override("hover", BlockStyleBox.make(hover_face, arcade, small, BlockStyleBox.STATE_NORMAL, lip, top))
+	button.add_theme_stylebox_override("pressed", BlockStyleBox.make(face, arcade, small, BlockStyleBox.STATE_PRESSED, lip, top))
+	button.add_theme_stylebox_override("hover_pressed", BlockStyleBox.make(face, arcade, small, BlockStyleBox.STATE_PRESSED, lip, top))
+	button.add_theme_stylebox_override("disabled", BlockStyleBox.make(face, arcade, small, BlockStyleBox.STATE_DISABLED, lip, top))
+	apply_ink(button, ink)
+
+
+## A panel plate in the arena-disc look: [param face] (default disc-800), radius-panel, panel
+## padding and the solid disc-950 drop. Cards, dialogs and menu columns use this.
+static func make_plate(face: Color = Color.TRANSPARENT) -> StyleBoxFlat:
+	var arcade: ArcadeVisualTuning = arcade_tuning()
+	var box: StyleBoxFlat = StyleBoxFlat.new()
+	box.bg_color = face if face.a > 0.0 else arcade.disc_800_color
+	box.set_corner_radius_all(arcade.radius_panel_px)
+	box.shadow_color = arcade.disc_950_color
+	box.shadow_size = 1
+	box.shadow_offset = Vector2(0.0, float(arcade.panel_drop_px))
+	box.set_content_margin_all(float(arcade.space_5_px))
+	return box
+
+
+## The lazily loaded shared design tokens (config/arcade_visual_tuning.tres).
+static var _arcade_tuning: ArcadeVisualTuning = null
+
+
+static func arcade_tuning() -> ArcadeVisualTuning:
+	if _arcade_tuning == null:
+		_arcade_tuning = load("res://config/arcade_visual_tuning.tres") as ArcadeVisualTuning
+	return _arcade_tuning
+
+
+## The label ink for text/icons on [param face]: the better-contrasting of ink (disc-900) and
+## cream, so bright faces (flare, rim, mint, players) get ink and disc faces get cream.
+static func ink_for_face(face: Color) -> Color:
+	var arcade: ArcadeVisualTuning = arcade_tuning()
+	if contrast_ratio(arcade.ink_color, face) >= contrast_ratio(arcade.cream_color, face):
+		return arcade.ink_color
+	return arcade.cream_color
+
+
+## The design's named lip colour for [param face] (flare-lip, rim-lip, mint-lip), or the derived
+## darkened mix for any other face.
+static func lip_for(face: Color) -> Color:
+	var arcade: ArcadeVisualTuning = arcade_tuning()
+	if face.is_equal_approx(arcade.flare_color):
+		return arcade.flare_lip_color
+	if face.is_equal_approx(arcade.rim_color):
+		return arcade.rim_lip_color
+	if face.is_equal_approx(arcade.mint_color):
+		return arcade.mint_lip_color
+	return face.lerp(Color.BLACK, arcade.block_lip_dark_mix)
+
+
+## The design's named lit-top colour for [param face] (flare-top) or the derived lightened mix.
+static func top_for(face: Color) -> Color:
+	var arcade: ArcadeVisualTuning = arcade_tuning()
+	if face.is_equal_approx(arcade.flare_color):
+		return arcade.flare_top_color
+	return face.lerp(Color.WHITE, arcade.block_top_light_mix)
+
+
+static func _hover_face(face: Color) -> Color:
+	return face.lerp(Color.WHITE, arcade_tuning().block_hover_light_mix)
+
+
+## Legacy pastel-pill entry point, routed to the Arcade block (P0 keeps every old function name
+## working so P1-P7 can migrate call sites one by one). [param normal_color] / [param hover_color]
+## are the faces; [param font_color] is ignored in favour of ink_for_face(), because the old
+## callers pass pastel-era inks that no longer match the re-pointed faces.
+## DECISION (Bontago-hfa.2): pills become the compact block recipe so existing layouts keep their size.
 static func apply_pill(button: Button, normal_color: Color, hover_color: Color, font_color: Color, tuning: MenuVisualTuning) -> void:
-	button.add_theme_stylebox_override("normal", _pill_box(normal_color, tuning))
-	button.add_theme_stylebox_override("hover", _pill_box(hover_color, tuning))
-	button.add_theme_stylebox_override("pressed", _pill_box(hover_color.darkened(tuning.pill_pressed_darken_amount), tuning))
-	apply_ink(button, font_color)
+	apply_block_states(button, normal_color, hover_color, ink_for_face(normal_color), true)
 
 
 ## Bontago-1pi.37: the single place a Button's label and icon colours are set.
@@ -131,55 +205,60 @@ static func apply_flat_stepper_button(button: Button, tuning: MenuVisualTuning) 
 ## (ui/MainMenu.tscn's %LanGamesWell) -- avoids stacking two sunken borders.
 static func make_flat_list(tuning: MenuVisualTuning) -> StyleBoxFlat:
 	var box: StyleBoxFlat = StyleBoxFlat.new()
-	box.bg_color = tuning.pill_cream_hover_color
-	box.set_corner_radius_all(int(tuning.well_corner_radius_px) - 4)
+	box.bg_color = arcade_tuning().disc_700_color
+	box.set_corner_radius_all(arcade_tuning().radius_block_px)
 	box.set_content_margin_all(tuning.well_content_margin_px)
 	return box
 
 
-## One card in the offset triple-card stack (gap item 2): a flat pastel
-## rectangle with a soft shadow, used for the two "peeking out" shadow cards
-## and (in cream) the front panel itself.
+## A card. Arcade (Bontago-hfa.2): the single disc-800 plate with the panel drop. The old offset
+## "shadow" cards (mint/apricot) are removed from the design, so they come back fully transparent
+## and the three-card stack collapses to the one plate until P1/P3/P5 drop the nodes.
 static func make_card(color: Color, tuning: MenuVisualTuning) -> StyleBoxFlat:
-	var box: StyleBoxFlat = StyleBoxFlat.new()
-	box.bg_color = color
-	box.set_corner_radius_all(int(tuning.card_corner_radius_px))
-	box.shadow_color = Color(0.0, 0.0, 0.0, tuning.card_shadow_base_alpha * tuning.card_shadow_alpha)
-	box.shadow_size = int(tuning.card_shadow_size_px)
-	box.shadow_offset = Vector2(tuning.card_offset_px * 0.5, tuning.card_offset_px)
-	box.border_color = color.lightened(0.35)
-	box.border_width_top = 2
-	box.content_margin_left = tuning.card_content_margin_px
-	box.content_margin_top = tuning.card_content_margin_px
-	box.content_margin_right = tuning.card_content_margin_px
-	box.content_margin_bottom = tuning.card_content_margin_px
+	if color.is_equal_approx(tuning.card_shadow_mint_color) or color.is_equal_approx(tuning.card_shadow_apricot_color):
+		var hidden: StyleBoxFlat = StyleBoxFlat.new()
+		hidden.bg_color = Color.TRANSPARENT
+		return hidden
+	var box: StyleBoxFlat = make_plate()
+	box.set_content_margin_all(tuning.card_content_margin_px)
 	return box
 
 
-## A static (no hover state) pill background for a badge-style Label/
-## PanelContainer, e.g. the Lobby header's "Hosting * LAN" status badge
-## (Bontago-xtq.32 redo, mockup 11's top-right badge). Same StyleBoxFlat as
-## a button pill's "normal" state, just without apply_pill()'s hover/pressed
-## variants -- a badge never receives input focus or a press.
+## A static chip for a badge-style Label/PanelContainer: [param color] face, radius-chip, a
+## lip-sm bottom edge (the block recipe without the ledge). Never focused or pressed.
 static func make_badge(color: Color, tuning: MenuVisualTuning) -> StyleBoxFlat:
-	return _pill_box(color, tuning)
+	var arcade: ArcadeVisualTuning = arcade_tuning()
+	var box: StyleBoxFlat = StyleBoxFlat.new()
+	box.bg_color = color
+	box.set_corner_radius_all(arcade.radius_chip_px)
+	box.border_color = lip_for(color)
+	box.border_width_bottom = arcade.lip_sm_px
+	box.content_margin_left = tuning.pill_margin_x_px
+	box.content_margin_right = tuning.pill_margin_x_px
+	box.content_margin_top = tuning.pill_margin_y_px
+	box.content_margin_bottom = tuning.pill_margin_y_px
+	return box
 
 
-## Paints a small toggle chip (Bontago-xtq.32 redo: compact specials/advanced-
-## rules toggles replacing the round-1 full-width red bars). [param toggle]
-## is any Button with toggle_mode = true (CheckBox and CheckButton both
-## qualify). Off state uses [param off_color]/[param off_hover_color]; the
-## checked/pressed draw states (BaseButton.DRAW_PRESSED,
-## DRAW_HOVER_PRESSED) use [param on_color]/[param on_hover_color] so a
-## checked chip reads as a distinct pastel pill rather than Button's default
-## coral. Reuses _pill_box's sizing so chips match every other pill on this
-## screen; introduces no new MenuVisualTuning tunables.
+## Paints a toggle chip (any Button with toggle_mode = true). Off uses [param off_color] (disc
+## face, cream label), on uses [param on_color] (a bright face, ink label); the label/icon ink of
+## each state is chosen per face by ink_for_face(), [param font_color] is kept for old callers.
 static func apply_toggle_chip(toggle: Button, off_color: Color, off_hover_color: Color, on_color: Color, on_hover_color: Color, font_color: Color, tuning: MenuVisualTuning) -> void:
-	toggle.add_theme_stylebox_override("normal", _pill_box(off_color, tuning))
-	toggle.add_theme_stylebox_override("hover", _pill_box(off_hover_color, tuning))
-	toggle.add_theme_stylebox_override("pressed", _pill_box(on_color, tuning))
-	toggle.add_theme_stylebox_override("hover_pressed", _pill_box(on_hover_color, tuning))
-	apply_ink(toggle, font_color)
+	var arcade: ArcadeVisualTuning = arcade_tuning()
+	toggle.add_theme_stylebox_override("normal", BlockStyleBox.make(off_color, arcade, true, BlockStyleBox.STATE_NORMAL, lip_for(off_color), top_for(off_color)))
+	toggle.add_theme_stylebox_override("hover", BlockStyleBox.make(off_hover_color, arcade, true, BlockStyleBox.STATE_NORMAL, lip_for(off_color), top_for(off_color)))
+	toggle.add_theme_stylebox_override("pressed", BlockStyleBox.make(on_color, arcade, true, BlockStyleBox.STATE_NORMAL, lip_for(on_color), top_for(on_color)))
+	toggle.add_theme_stylebox_override("hover_pressed", BlockStyleBox.make(on_hover_color, arcade, true, BlockStyleBox.STATE_NORMAL, lip_for(on_color), top_for(on_color)))
+	var off_ink: Color = ink_for_face(off_color)
+	var on_ink: Color = ink_for_face(on_color)
+	for item: String in ["font_color", "font_focus_color", "font_hover_color"]:
+		toggle.add_theme_color_override(item, off_ink)
+	for item: String in ["font_pressed_color", "font_hover_pressed_color"]:
+		toggle.add_theme_color_override(item, on_ink)
+	for item: String in ["icon_normal_color", "icon_focus_color", "icon_hover_color"]:
+		toggle.add_theme_color_override(item, off_ink)
+	for item: String in ["icon_pressed_color", "icon_hover_pressed_color"]:
+		toggle.add_theme_color_override(item, on_ink)
 
 
 ## Cached 1x1 fully-transparent texture shared by every hide_spinbox_arrows()
@@ -211,19 +290,3 @@ static func hide_spinbox_arrows(spin: SpinBox) -> void:
 		spin.add_theme_icon_override(icon_name, _blank_icon)
 	spin.add_theme_constant_override("buttons_width", 0)
 	spin.add_theme_constant_override("field_and_buttons_separation", 0)
-
-
-static func _pill_box(color: Color, tuning: MenuVisualTuning) -> StyleBoxFlat:
-	var box: StyleBoxFlat = StyleBoxFlat.new()
-	box.bg_color = color
-	box.set_corner_radius_all(int(tuning.pill_corner_radius_px))
-	box.shadow_color = color.darkened(0.24)
-	box.shadow_size = 2
-	box.shadow_offset = Vector2(0.0, 4.0)
-	box.border_color = color.lightened(0.35)
-	box.border_width_top = 2
-	box.content_margin_left = tuning.pill_margin_x_px
-	box.content_margin_right = tuning.pill_margin_x_px
-	box.content_margin_top = tuning.pill_margin_y_px
-	box.content_margin_bottom = tuning.pill_margin_y_px
-	return box

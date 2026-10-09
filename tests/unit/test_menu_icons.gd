@@ -95,7 +95,13 @@ func _texture_icon_buttons(root: Node) -> Array[Button]:
 
 ## Background colour of one stylebox as the icon sees it.
 func _box_color(box: StyleBox, label: String) -> Color:
-	assert_true(box is StyleBoxFlat, "%s must be a StyleBoxFlat to measure icon contrast" % label)
+	var block: BlockStyleBox = box as BlockStyleBox
+	if block != null:
+		# Bontago-hfa.2: the Arcade block's face is what the icon sits on (disabled composites on the panel).
+		if block.disabled:
+			return MenuStyleFactory.arcade_tuning().disc_800_color.lerp(block.face_color, block.disabled_alpha)
+		return Color(block.face_color.r, block.face_color.g, block.face_color.b, 1.0)
+	assert_true(box is StyleBoxFlat, "%s must be a StyleBoxFlat or BlockStyleBox to measure icon contrast" % label)
 	var flat: StyleBoxFlat = box as StyleBoxFlat
 	return flat.bg_color if flat != null else Color.MAGENTA
 
@@ -137,9 +143,9 @@ func test_contrast_ratio_matches_wcag_reference_values() -> void:
 
 
 func test_white_icon_on_cream_pill_is_rejected_by_the_threshold() -> void:
-	# The reported bug: a white glyph on a cream pill.
-	var ratio: float = MenuStyleFactory.contrast_ratio(Color.WHITE, TUNING.pill_cream_color)
-	assert_lt(ratio, TUNING.icon_min_contrast_ratio, "white-on-cream measured %.2f must fail" % ratio)
+	# The reported bug: a white glyph on a light face (Arcade: the rim-gold block).
+	var ratio: float = MenuStyleFactory.contrast_ratio(Color.WHITE, MenuStyleFactory.arcade_tuning().rim_color)
+	assert_lt(ratio, TUNING.icon_min_contrast_ratio, "white-on-rim measured %.2f must fail" % ratio)
 
 
 # --- shipped scenes -----------------------------------------------------------
@@ -212,21 +218,21 @@ func test_plain_theme_buttons_contrast_in_every_state() -> void:
 
 
 func test_the_old_per_node_override_pattern_fails_the_focus_contrast() -> void:
-	# Demonstrates the reported bug path: a cream pill whose dark icon was set
-	# only for normal/hover (the pre-1pi.37 MainMenu/PauseMenu pattern) keeps
-	# the theme's light icon colour while focused -- invisible on the cream pill.
+	# Demonstrates the reported bug path: a bright (rim-gold) block whose dark icon was set
+	# only for normal/hover keeps the theme's light icon colour while focused -- invisible on it.
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var face: Color = arcade.rim_color
 	var button: Button = autofree(Button.new())
 	button.theme = THEME
 	add_child_autofree(button)
-	button.add_theme_stylebox_override("normal", MenuStyleFactory.make_badge(TUNING.pill_cream_color, TUNING))
-	button.add_theme_color_override("icon_normal_color", TUNING.ink_color)
-	button.add_theme_color_override("icon_hover_color", TUNING.ink_color)
-	var normal_ratio: float = MenuStyleFactory.contrast_ratio(button.get_theme_color("icon_normal_color"), TUNING.pill_cream_color)
-	var focus_ratio: float = MenuStyleFactory.contrast_ratio(button.get_theme_color("icon_focus_color"), TUNING.pill_cream_color)
-	assert_gte(normal_ratio, TUNING.icon_min_contrast_ratio, "the dark normal icon reads on cream")
-	assert_lt(focus_ratio, TUNING.icon_min_contrast_ratio, "the un-overridden focus icon (%.2f) is invisible on cream" % focus_ratio)
-	MenuStyleFactory.apply_ink(button, TUNING.ink_color)
-	focus_ratio = MenuStyleFactory.contrast_ratio(button.get_theme_color("icon_focus_color"), TUNING.pill_cream_color)
+	button.add_theme_color_override("icon_normal_color", arcade.ink_color)
+	button.add_theme_color_override("icon_hover_color", arcade.ink_color)
+	var normal_ratio: float = MenuStyleFactory.contrast_ratio(button.get_theme_color("icon_normal_color"), face)
+	var focus_ratio: float = MenuStyleFactory.contrast_ratio(button.get_theme_color("icon_focus_color"), face)
+	assert_gte(normal_ratio, TUNING.icon_min_contrast_ratio, "the dark normal icon reads on the bright face")
+	assert_lt(focus_ratio, TUNING.icon_min_contrast_ratio, "the un-overridden focus icon (%.2f) is invisible on it" % focus_ratio)
+	MenuStyleFactory.apply_ink(button, arcade.ink_color)
+	focus_ratio = MenuStyleFactory.contrast_ratio(button.get_theme_color("icon_focus_color"), face)
 	assert_gte(focus_ratio, TUNING.icon_min_contrast_ratio, "apply_ink() fixes the focus icon (%.2f)" % focus_ratio)
 
 

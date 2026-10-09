@@ -1,3 +1,5 @@
+> **SUPERSEDED (2026-10-10, Bontago-hfa.2):** the pastel "layered" design system below is replaced by the Stackfall Arcade system. See `docs/UI_RESKIN_PLAN.md` and `docs/ui_reskin/` (tokens.json, components.md); the runtime tokens live in `config/arcade_visual_tuning.tres`. Kept for history only.
+
 # Stackfall asset design system — candidate v1
 
 This is the visual contract for **new art assets**. It records the current UI theme and gives future glyph, HUD, sound, and model assets one consistent direction. It does not change game behavior or replace the live Godot theme. See [the specimen sheet](art_mockups/stackfall_design_system_v1.svg) for the visual reference.

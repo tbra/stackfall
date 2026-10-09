@@ -1313,9 +1313,10 @@ func test_the_header_controls_are_in_the_gamepad_loop_before_the_rows() -> void:
 func test_the_header_controls_use_the_chip_and_pill_look() -> void:
 	var lobby: Lobby = _host_lobby(1)
 	var tuning: MenuVisualTuning = lobby.tuning
-	assert_eq((_teams_toggle(lobby).get_theme_stylebox("normal") as StyleBoxFlat).bg_color, tuning.pill_cream_color)
-	assert_eq((_teams_toggle(lobby).get_theme_stylebox("pressed") as StyleBoxFlat).bg_color, tuning.pill_mint_color, "on = mint")
-	assert_eq((_add_bot_button(lobby).get_theme_stylebox("normal") as StyleBoxFlat).bg_color, tuning.pill_powder_blue_color)
+	# Bontago-hfa.2: pills are Arcade blocks now (BlockStyleBox.face_color).
+	assert_eq((_teams_toggle(lobby).get_theme_stylebox("normal") as BlockStyleBox).face_color, tuning.pill_cream_color)
+	assert_eq((_teams_toggle(lobby).get_theme_stylebox("pressed") as BlockStyleBox).face_color, tuning.pill_mint_color, "on = mint")
+	assert_eq((_add_bot_button(lobby).get_theme_stylebox("normal") as BlockStyleBox).face_color, tuning.pill_powder_blue_color)
 
 
 # --- Client self-edit ---
