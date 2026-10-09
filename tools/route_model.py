@@ -25,7 +25,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
+import shutil
+import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 from typing import Any, Dict, List, Optional
@@ -63,6 +67,90 @@ VERIFICATION_TIERS = {
     "targeted": "Local behavior or UI change: run only the named affected tests, at most one retry after a fix.",
     "specialized": "Network, physics, territory or wire behavior: named targeted tests plus one relevant harness or isolated benchmark.",
 }
+
+
+MEMORY_MAX_KEYWORDS = 4
+MEMORY_MIN_WORD_LEN = 5
+MEMORY_MAX_KEYS = 5
+MEMORY_CALL_TIMEOUT_S = 5.0
+MEMORY_TOTAL_TIMEOUT_S = 15.0
+# Session-note memories that match nearly every query; never informative.
+MEMORY_EXCLUDED_KEYS = ("stackfall-handoff", "stackfall-debrief")
+MEMORY_STOPWORDS = frozenset(
+    "about after again before being could every first fixesharden other should "
+    "their there these those through under until using where which while without would "
+    "should update README tools tests there".split()
+)
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def extract_keywords(title: str, limit: int = MEMORY_MAX_KEYWORDS) -> List[str]:
+    """Salient lowercase words from a title: long, non-numeric, not stopwords, not bead ids."""
+    seen: List[str] = []
+    candidates: List[str] = []
+    for word in re.findall(r"[A-Za-z0-9][A-Za-z0-9_-]*", title):
+        candidates.append(word)
+        # DECISION: also try CamelCase parts (StartupPump -> Startup) since memories use prose.
+        candidates.extend(re.findall(r"[A-Z][a-z]+", word) if re.search(r"[a-z][A-Z]", word) else [])
+    for word in candidates:
+        w = word.lower()
+        if len(w) < MEMORY_MIN_WORD_LEN or w in MEMORY_STOPWORDS or w in seen:
+            continue
+        if w.isdigit() or re.fullmatch(r"bontago-[a-z0-9.]+", w):
+            continue
+        seen.append(w)
+    # Prefer longer (rarer) words; stable for ties so title order breaks them.
+    seen.sort(key=lambda w: -len(w))
+    return seen[:limit]
+
+
+def parse_memory_keys(output: str) -> List[str]:
+    """Keys from `bd memories` output: indented key lines followed by a deeper summary line."""
+    keys: List[str] = []
+    expect_key = True
+    for line in output.splitlines():
+        if line.startswith("Memories matching"):
+            continue
+        if not line.strip():
+            expect_key = True
+            continue
+        if expect_key:
+            key = line.strip()
+            # A key line is indented and a single token; anything else (e.g. the
+            # 'No memories matching "x"' notice) is not a key.
+            if line[:1].isspace() and not any(ch.isspace() for ch in key):
+                keys.append(key)
+            expect_key = False
+    return keys
+
+
+def _run_bd_memories(keyword: str, timeout: float) -> str:
+    exe = shutil.which("bd")  # resolves npm .cmd shims on Windows
+    if not exe:
+        return ""
+    proc = subprocess.run(
+        [exe, "memories", keyword], cwd=REPO_ROOT, capture_output=True, text=True, timeout=timeout, check=False
+    )
+    return proc.stdout if proc.returncode == 0 else ""
+
+
+def find_memories(title: str, runner: Any = None) -> List[str]:
+    """Memory keys matching the title's keywords. Never raises; failures mean no hits."""
+    run = runner or _run_bd_memories
+    keys: List[str] = []
+    deadline = time.monotonic() + MEMORY_TOTAL_TIMEOUT_S
+    for kw in extract_keywords(title):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        try:
+            out = run(kw, min(MEMORY_CALL_TIMEOUT_S, remaining))
+        except Exception:  # missing bd, timeout, OS error: advisory only
+            continue
+        for key in parse_memory_keys(out or ""):
+            if key not in MEMORY_EXCLUDED_KEYS and key not in keys:
+                keys.append(key)
+    return keys[:MEMORY_MAX_KEYS]
 
 
 def _request(payload: Dict[str, Any], api_key: str) -> Dict[str, Any]:
@@ -229,10 +317,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--kind", default="feature", help="feature|bugfix|refactor|review|gate|triage|mechanical|plan")
     ap.add_argument("--prior-attempts", type=int, default=0)
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--no-memories", action="store_true", help="skip the bd memories lookup (offline/tests)")
     args = ap.parse_args(argv)
     brief = sys.stdin.read() if not sys.stdin.isatty() else ""
     files = [f.strip() for f in args.files.split(",") if f.strip()]
     result = route(args.title, brief, files, args.kind, args.prior_attempts)
+    memories = [] if args.no_memories else find_memories(args.title)
+    result["memories"] = memories
     if args.json:
         print(json.dumps(result, indent=2))
     else:
@@ -244,6 +335,11 @@ def main(argv: Optional[List[str]] = None) -> int:
             f"verify={result['verification_tier']} visual={'yes' if result['visual_probe_recommended'] else 'no'} "
             f"source={result['source']}"
         )
+        if not args.no_memories:
+            if memories:
+                print(f"memories: {', '.join(memories)} (bd memories <key> to read)")
+            else:
+                print("memories: none")
     return 0
 
 

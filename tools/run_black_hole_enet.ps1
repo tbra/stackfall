@@ -1,7 +1,9 @@
 # Bontago-8or.25: host + one lagged client on loopback, hard 180 s deadline.
 param([string]$Path = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path, [int]$Port = 47793, [int]$Lag = 150, [string]$Out = $env:TEMP)
 $scene = "res://tests/bench/black_hole_enet.tscn"
+. (Join-Path $PSScriptRoot "enet_result.ps1")
 $h = $null; $c = $null
+$deadlineHit = $false
 try {
 	$h = Start-Process godot -ArgumentList @("--headless","--log-file","${Out}\godot_$([guid]::NewGuid().ToString('N').Substring(0,6)).log","--path",$Path,$scene,"--","--headless-host","--port=$Port","--expect-peers=2") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\bh_host.log" -RedirectStandardError "$Out\bh_host.err"
 	Start-Sleep 3
@@ -9,7 +11,11 @@ try {
 	$null = $h.Handle; $null = $c.Handle
 	$deadline = (Get-Date).AddSeconds(180)
 	while (((Get-Date) -lt $deadline) -and (-not ($h.HasExited -and $c.HasExited))) { Start-Sleep 1 }
+	if (-not ($h.HasExited -and $c.HasExited)) { $deadlineHit = $true }
 } finally {
 	foreach ($p in @($h, $c)) { if ($p -and -not $p.HasExited) { Write-Host "deadline: killing tree $($p.Id)"; taskkill /T /F /PID $p.Id | Out-Null } }
 }
 Get-Content "$Out\bh_host.log","$Out\bh_client.log" | Select-String "BHENET"
+exit (Write-EnetResult -DeadlineHit $deadlineHit -Logs @(
+	@{ name = "host"; path = "$Out\bh_host.log"; pass = 'BHENET host result=PASS' },
+	@{ name = "client"; path = "$Out\bh_client.log"; pass = 'BHENET client events=\d+ result=PASS' }))

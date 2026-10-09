@@ -9,6 +9,7 @@
 # 1 otherwise. Log lines (QOLENET ...) are echoed per peer for inspection.
 param([string]$Path = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path, [int]$Port = 0, [int]$Lag = 50, [string]$Out = $env:TEMP, [int]$TimeoutSeconds = 180)
 $scene = "res://tests/bench/qol_enet.tscn"
+. (Join-Path $PSScriptRoot "enet_result.ps1")
 $procs = @()
 $deadlineHit = $false
 function Stop-Tree([object]$p) {
@@ -47,5 +48,6 @@ $clientPass = @($clientLines | Where-Object { $_.Line -match "QOLENET client res
 $anyFail = @(($hostLines + $clientLines) | Where-Object { $_.Line -match "ok=False|result=FAIL" }).Count -gt 0
 $verdict = if ($hostPass -and $clientPass -and -not $anyFail -and -not $deadlineHit) { "PASS" } else { "FAIL" }
 Write-Host "QOLENET verdict=$verdict host_pass=$hostPass client_pass=$clientPass deadline_hit=$deadlineHit logs=$Out\qol_host.log,$Out\qol_client.log"
-if ($verdict -ne "PASS") { exit 1 }
-exit 0
+exit (Write-EnetResult -DeadlineHit $deadlineHit -Logs @(
+	@{ name = "host"; path = "$Out\qol_host.log"; pass = 'QOLENET host result=PASS'; fail = 'ok=False|result=FAIL' },
+	@{ name = "client"; path = "$Out\qol_client.log"; pass = 'QOLENET client result=PASS'; fail = 'ok=False|result=FAIL' }))

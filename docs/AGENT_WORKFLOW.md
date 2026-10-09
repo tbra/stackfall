@@ -139,6 +139,8 @@ powershell -NoProfile -File tools/run_gut.ps1 <test_script>[,<test_script>] [-Un
 godot --headless --path . res://tests/bench/bench_snapshot.tscn
 ```
 
+Every `tools/run_*_enet.ps1` harness ends with exactly one `ENET RESULT PASS` or `ENET RESULT FAIL: <reason>` line (exit 0/1, from `tools/enet_result.ps1`); quote that line and report PASS only from it, never from individual peer lines.
+
 **GPU cost (debrief 2026-10-09):** the only accepted GPU measurement is `python tools/measure_gpu_steady.py run <preset>[:<feature>...] --repeat N --out <scratch>/runs.jsonl` then `report` (drives `res://tests/bench/bench_gpu_frame.tscn --steady`, samples nvidia-smi in a steady window, clock-normalised). Do not use `viewport_get_measured_render_time_gpu` alone (it excludes probe/sky passes), a harness that leaves the main menu rendering, or single uncapped samples (GPU clock states make them bimodal). Serialize GPU runs against every windowed Godot process; headless runs do not touch the GPU.
 
 Iterate with only the targeted runner scripts and run count named in the brief. The full suite is NOT a per-package gate: the orchestrator runs it once per integrated game-code batch after the commit and before push, never concurrently with another Godot process. Tooling/documentation batches get focused checks only. Run multiplayer checks for network changes and relevant physics/territory benchmarks when those systems change, within the assigned budget. Existing pending tests are limitations, not passes. For real hardware, record explicit owner steps and what remains unverified. Do not label frame-rate acceptance verified by a headless run alone. Review the exact candidate that was tested; changes after review need proportionate revalidation.
