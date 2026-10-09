@@ -5,6 +5,7 @@
 # Exit code: 0 when both peers print "result=PASS", 1 otherwise or when the deadline was hit.
 param([string]$Path = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path, [int]$Port = 0, [int]$Lag = 50, [string]$Out = $env:TEMP, [int]$TimeoutSeconds = 150)
 $scene = "res://tests/bench/return_lobby_enet.tscn"
+. (Join-Path $PSScriptRoot "enet_result.ps1")
 $script:procs = @()
 function Stop-Tree([object]$p) {
 	if ($p -and -not $p.HasExited) {
@@ -42,5 +43,6 @@ foreach ($role in @("host", "client")) {
 }
 $verdict = if ($ok -and -not $deadlineHit) { "PASS" } else { "FAIL" }
 Write-Host "RLENET verdict=$verdict deadline_hit=$deadlineHit logs=$Out\rl_<role>.log"
-if ($verdict -eq "FAIL") { exit 1 }
-exit 0
+exit (Write-EnetResult -DeadlineHit $deadlineHit -Logs @(
+	@{ name = "host"; path = "$Out\rl_host.log"; pass = 'RLENET host result=PASS' },
+	@{ name = "client"; path = "$Out\rl_client.log"; pass = 'RLENET client result=PASS' }))

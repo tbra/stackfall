@@ -9,6 +9,7 @@
 # (only the known seat gap differs, verdict PENDING); 1 otherwise or when a deadline was hit.
 param([string]$Path = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path, [int]$Port = 0, [int]$Lag = 50, [string]$Out = $env:TEMP, [int]$TimeoutSeconds = 900)
 $scene = "res://tests/bench/reset_enet.tscn"
+. (Join-Path $PSScriptRoot "enet_result.ps1")
 $deadlineAt = (Get-Date).AddSeconds($TimeoutSeconds)
 $script:deadlineHit = $false
 $script:pending = $false
@@ -39,11 +40,15 @@ function Invoke-Pair([string]$mode, [int]$pairPort) {
 }
 foreach ($f in @("fp_host.var", "fp_client.var")) { Remove-Item -ErrorAction SilentlyContinue "$Out\$f" }
 $verdicts = @{}
+$resetLogs = @()
 try {
 	foreach ($mode in @("fresh", "dirty")) {
 		$pairPort = if ($Port -gt 0) { $Port } else { Get-FreeUdpPort }
 		Write-Host "reset_enet: mode=$mode port=$pairPort lag=${Lag}ms out=$Out"
 		Invoke-Pair $mode $pairPort
+		# PENDING (only the known seat gap differs) counts as a pass, as before.
+		$resetLogs += @{ name = "$mode/host"; path = "$Out\reset_${mode}_host.log"; pass = 'RESETENET host result=(PASS|PENDING)' }
+		$resetLogs += @{ name = "$mode/client"; path = "$Out\reset_${mode}_client.log"; pass = 'RESETENET client result=(PASS|PENDING)' }
 		foreach ($role in @("host", "client")) {
 			$lines = @(Get-Content "$Out\reset_${mode}_${role}.log" -ErrorAction SilentlyContinue | Select-String "RESETENET")
 			$lines | Where-Object { $_.Line -notmatch " fp (countdown|playing) " } | ForEach-Object { $_.Line }
@@ -60,5 +65,6 @@ $allPass = ($verdicts.Count -eq 4) -and ($failed -eq 0)
 $verdict = if ($allPass -and -not $script:deadlineHit) { if ($script:pending) { "PENDING" } else { "PASS" } } else { "FAIL" }
 $summary = ($verdicts.GetEnumerator() | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Value)" }) -join " "
 Write-Host "RESETENET verdict=$verdict $summary deadline_hit=$($script:deadlineHit) logs=$Out\reset_<mode>_<role>.log"
-if ($verdict -eq "FAIL") { exit 1 }
-exit 0
+# A pass needs both modes to have run (4 logs), not just the first one before an early break.
+if ($resetLogs.Count -ne 4) { $resetLogs += @{ name = "dirty/(not run)"; path = "$Out\reset_dirty_missing.log"; pass = $null } }
+exit (Write-EnetResult -DeadlineHit $script:deadlineHit -Logs $resetLogs)
