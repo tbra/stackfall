@@ -48,7 +48,7 @@ const SLEPT_TAIL_FRAMES: int = 2
 
 ## assets-audio package (revised: no contact_monitor -- an earlier revision's
 ## bench_rain.gd cost ~5-7 ms/step at 300 blocks, well over budget). Impacts
-## are detected from the body's own motion instead: _detect_impact() below
+## are detected from the body's own motion instead: _batch_tick()'s inlined impact test below
 ## (Bontago-bth.1: the old per-node _physics_process, now driven from
 ## game/BlockStepBatch.gd's one batched pass) compares this tick's
 ## linear_velocity against the previous tick's, and a sudden drop in speed
@@ -264,7 +264,7 @@ func _on_sleeping_state_changed() -> void:
 ## the physics server: no step, no state sync, so no rebound pass), and
 ## can_process() is the same gate Godot applied to the old _physics_process()
 ## (pause, PROCESS_MODE_DISABLED; a disabled body is also out of its space).
-func _batch_tick(frame: int, physics_active: bool) -> void:
+func _batch_tick(frame: int, physics_active: bool, damp_on: bool, damp: float, noise_floor: float, impacts_on: bool, impact_min: float, impact_min_sq_lo: float) -> void:
 	if not step_batched or not can_process():
 		return
 	if sleeping:
@@ -286,32 +286,34 @@ func _batch_tick(frame: int, physics_active: bool) -> void:
 		rebound_work_runs += 1
 		if _script_kick_pending and _kick_frame < frame:
 			_script_kick_pending = false
-		elif tuning != null and tuning.rebound_damping != 1.0 and velocity.y > tuning.sleep_linear_threshold:
-			var damped_y: float = _damp_rebound(
-				_prev_step_linear_velocity_y, velocity.y, tuning.rebound_damping, tuning.sleep_linear_threshold
-			)
+		elif damp_on and velocity.y > noise_floor and _prev_step_linear_velocity_y < -noise_floor:
+			# _damp_rebound() inlined (the static stays the tested rule).
+			var damped_y: float = velocity.y * damp
 			if damped_y != velocity.y:
 				velocity.y = damped_y
 				linear_velocity = velocity
 		_prev_step_linear_velocity_y = velocity.y
-	_detect_impact(velocity)
-
-
-## Impact detection (see the DECISION above this class's impact statics),
-## formerly _physics_process(). DECISION (game/Block.gd, Bontago-bth.1): it
-## now runs in BlockStepBatch's pass before every node's _physics_process
-## instead of at this block's own tree position; it only reads the velocity
-## and emits audio/VFX events, so physics state is unchanged, but a velocity
-## another node writes earlier in tree order the same tick is heard one tick
-## later.
-func _detect_impact(velocity: Vector3) -> void:
-	if not impacts_enabled:
-		_prev_linear_velocity = velocity
-		return
-	var decel: float = _prev_linear_velocity.length() - velocity.length()
+	# _detect_impact() inlined. decel >= impact_min needs prev speed >= impact_min,
+	# so a block clearly slower than that (impact_min_sq_lo = impact_min^2 with
+	# slack for rounding) skips both length() calls; the exact test is unchanged.
+	var prev: Vector3 = _prev_linear_velocity
 	_prev_linear_velocity = velocity
-	if decel < impact_speed_min:
+	if not impacts_on or prev.length_squared() < impact_min_sq_lo:
 		return
+	var decel: float = prev.length() - velocity.length()
+	if decel < impact_min:
+		return
+	_emit_impact(decel)
+
+
+## Impact event (the detection itself is inlined in _batch_tick(); see the
+## DECISION above this class's impact statics). DECISION (game/Block.gd,
+## Bontago-bth.1): detection runs in BlockStepBatch's pass before every node's
+## _physics_process instead of at this block's own tree position; it only reads
+## the velocity and emits audio/VFX events, so physics state is unchanged, but a
+## velocity another node writes earlier in tree order the same tick is heard one
+## tick later.
+func _emit_impact(decel: float) -> void:
 	var now_ms: int = Time.get_ticks_msec()
 	if now_ms - _last_impact_emit_ms < IMPACT_EMIT_INTERVAL_MS:
 		return
@@ -351,7 +353,7 @@ func _ready() -> void:
 
 
 ## Impact detection (assets-audio package; Bontago-bth.1 moved it into
-## _detect_impact(), driven by game/BlockStepBatch.gd once per tick):
+## _batch_tick(), driven by game/BlockStepBatch.gd once per tick):
 ## sleeping bodies (a settled pile) skip it entirely -- Jolt stops
 ## integrating them, so linear_velocity would otherwise read as a false,
 ## constant "impact" the instant they wake. DECISION: the deceleration
