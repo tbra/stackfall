@@ -15,7 +15,7 @@ func test_sky_weather_map_labels() -> void:
 	assert_eq(DisplayNames.sky_theme(MatchConfig.SkyThemeMode.DAY), "Sunset")
 	assert_eq(DisplayNames.sky_theme(-1), DisplayNames.UNKNOWN_LABEL)
 	assert_eq(DisplayNames.weather(MatchConfig.WeatherMode.STORM), "Storm")
-	assert_eq(DisplayNames.map_variant(MatchConfig.MapVariant.OVAL), "Oval")
+	assert_eq(DisplayNames.map_variant(MatchConfig.MapVariant.ROUND), "Round")
 	assert_eq(DisplayNames.map_size(MapDef.MapSize.MEDIUM), "Medium")
 	assert_eq(DisplayNames.map_size(42), DisplayNames.UNKNOWN_LABEL)
 

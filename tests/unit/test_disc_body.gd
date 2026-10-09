@@ -7,7 +7,7 @@ extends GutTest
 ## separate element ... the disc has a chamfered edge that makes up the
 ## glowing strip", "it lacks the texture ... visible where it interacts with
 ## the sun"). These tests pin the band/chamfer mesh geometry -- height,
-## footprint, the ROUND/OVAL shape-following contract, the chamfer's flush
+## footprint, the chamfer's flush
 ## no-gap seam with the true disc edge, and the shared procedural surface
 ## texture -- without needing a live Field or a renderer (ArrayMesh geometry
 ## is plain CPU data, readable headless).
@@ -15,13 +15,11 @@ extends GutTest
 const SEGMENTS: int = 24
 
 
-func _map(shape: MapDef.MapShape, radius: float = 10.0, aspect: float = 0.65) -> MapDef:
+func _map(_shape: MapDef.MapShape, radius: float = 10.0) -> MapDef:
 	var map_def: MapDef = MapDef.new()
 	map_def.id = &"test_disc_body"
 	map_def.field_radius = radius
 	map_def.disk_height = 0.2
-	map_def.map_shape = shape
-	map_def.oval_aspect = aspect
 	return map_def
 
 
@@ -138,26 +136,6 @@ func test_round_band_footprint_is_the_field_radius_circle() -> void:
 	assert_almost_eq(aabb.size.z, 24.0, 0.05, "z footprint spans 2 * field_radius (round).")
 
 
-func test_oval_band_footprint_follows_the_true_ellipse() -> void:
-	var map_def: MapDef = _map(MapDef.MapShape.OVAL, 12.0, 0.5)
-	var body: Body = _make_body(map_def)
-
-	var aabb: AABB = body.band_mesh_instance().mesh.get_aabb()
-	assert_almost_eq(aabb.size.x, 24.0, 0.05, "x footprint stays field_radius; only z narrows.")
-	assert_almost_eq(aabb.size.z, 12.0, 0.05, "z footprint is 2 * field_radius * oval_aspect.")
-
-
-func test_ring_shape_falls_back_to_the_round_bounding_circle() -> void:
-	# This package's own brief: shapes this hard fall back to the same round
-	# bounding circle the top-surface CylinderMesh already draws for them.
-	var map_def: MapDef = _map(MapDef.MapShape.RING, 12.0)
-	var body: Body = _make_body(map_def)
-
-	var aabb: AABB = body.band_mesh_instance().mesh.get_aabb()
-	assert_almost_eq(aabb.size.x, 24.0, 0.05)
-	assert_almost_eq(aabb.size.z, 24.0, 0.05)
-
-
 ## Bontago-pt.12 (owner: "the glowing strip currently sits slightly outside
 ## the disc as its own separate element ... the disc has a chamfered edge
 ## that makes up the glowing strip"). The chamfer's own TOP ring must sit
@@ -217,13 +195,6 @@ func test_side_surfaces_are_separate_surfaces_of_one_mesh() -> void:
 	for vertex: Vector3 in body.merged.surface_get_arrays(chamfer)[Mesh.ARRAY_VERTEX]:
 		top_y = maxf(top_y, vertex.y)
 	assert_almost_eq(top_y, 0.1, 0.0001, "y_shift moves the true playing-surface ring to local +disk_height/2.")
-
-
-func test_twin_and_cross_get_no_side_surfaces() -> void:
-	for shape: MapDef.MapShape in [MapDef.MapShape.TWIN, MapDef.MapShape.CROSS]:
-		var body: Body = _make_body(_map(shape))
-		assert_eq(body.merged.get_surface_count(), 0)
-		assert_eq(body.arena.surface_index(ArenaMesh.Kind.BAND), -1)
 
 
 func test_bottom_cap_disabled_still_builds_a_valid_open_band() -> void:

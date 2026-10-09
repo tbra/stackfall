@@ -6,9 +6,7 @@ extends RefCounted
 ## appends to the one arena ArrayMesh.
 ##
 ## Every look hangs from the ring at the bottom edge of the territory slab
-## (y = y_top) and follows the map's outline: the analytic circle/ellipse for
-## ROUND/OVAL/RING, and the radial support function of the cross/twin shapes
-## (the same star-shaped contour the loading-shape art tool uses). Shading is
+## (y = y_top) and follows the map's outline: the analytic circle. Shading is
 ## flat per triangle (cel look) with the colour carried per vertex; faces are
 ## wound from an explicit outward hint, so normals always point away from the
 ## solid. Triangles are routed to three surfaces: BAND (side), BOTTOM
@@ -130,25 +128,16 @@ func build(map_def: MapDef, style: ArenaSideStyle, segments: int, y_top: float) 
 	return out
 
 
-## Disk-local (x, z) outline of `map_def`, evenly spaced by angle. ROUND/OVAL/RING
-## are the analytic circle/ellipse; CROSS/TWIN use the radial extent of the shape.
+## Disk-local (x, z) outline of `map_def`, evenly spaced by angle. The
+## round disc is the analytic circle.
 static func outline_points(map_def: MapDef, segments: int) -> PackedVector2Array:
 	var points: PackedVector2Array = PackedVector2Array()
 	points.resize(segments)
-	var z_scale: float = map_def.oval_aspect if map_def.map_shape == MapDef.MapShape.OVAL else 1.0
 	for i: int in range(segments):
 		var angle: float = TAU * float(i) / float(segments)
 		var direction: Vector2 = Vector2(cos(angle), sin(angle))
 		var radius: float = map_def.field_radius
-		if map_def.map_shape == MapDef.MapShape.TWIN:
-			var offset: float = map_def.field_radius * map_def.twin_center_offset_fraction
-			var disk_radius: float = map_def.field_radius * map_def.twin_disk_radius_fraction
-			radius = absf(offset * direction.x) + sqrt(maxf(0.0, disk_radius * disk_radius - offset * offset * direction.y * direction.y))
-		elif map_def.map_shape == MapDef.MapShape.CROSS:
-			var width: float = map_def.field_radius * map_def.cross_arm_half_width_fraction
-			var axis: float = maxf(minf(absf(direction.x), absf(direction.y)), POINT_EPS)
-			radius = minf(radius, width / axis)
-		points[i] = Vector2(direction.x * radius, direction.y * radius * z_scale)
+		points[i] = Vector2(direction.x * radius, direction.y * radius)
 	return points
 
 

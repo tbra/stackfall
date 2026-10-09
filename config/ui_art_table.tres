@@ -22,11 +22,7 @@
 script = ExtResource("1_t")
 map_atlas = ExtResource("2_m")
 map_regions = {
-&"ROUND": Rect2(0, 0, 64, 64),
-&"OVAL": Rect2(64, 0, 64, 64),
-&"RING": Rect2(128, 0, 64, 64),
-&"TWIN": Rect2(192, 0, 64, 64),
-&"CROSS": Rect2(0, 64, 64, 64)
+&"ROUND": Rect2(0, 0, 64, 64)
 }
 lobby_icons = {
 &"section_game": ExtResource("i0"),

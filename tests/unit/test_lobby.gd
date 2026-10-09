@@ -230,7 +230,7 @@ func test_republish_roster_if_host_draws_the_hosts_own_row_with_no_other_peers()
 func test_every_2_8_setting_round_trips_through_to_dict_and_from_dict() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var config: MatchConfig = MatchConfig.new()
-	config.map_variant = MatchConfig.MapVariant.RING
+	config.map_variant = MatchConfig.MapVariant.ROUND
 	config.map_size = MapDef.MapSize.LARGE
 	config.player_count = 7
 	config.ai_count = 3
@@ -251,7 +251,7 @@ func test_every_2_8_setting_round_trips_through_to_dict_and_from_dict() -> void:
 	Events.net_lobby_data_changed.emit(config.to_dict())
 	assert_eq((lobby.get_node("%SkyThemeOption") as CycleSelector).selected, int(MatchConfig.SkyThemeMode.NIGHT))
 
-	assert_eq((lobby.get_node("%MapVariantOption") as OptionButton).selected, MatchConfig.MapVariant.RING)
+	assert_eq((lobby.get_node("%MapVariantOption") as OptionButton).selected, MatchConfig.MapVariant.ROUND)
 	assert_eq((lobby.get_node("%MapSizeOption") as OptionButton).selected, int(MapDef.MapSize.LARGE))
 	assert_eq(int((lobby.get_node("%PlayerCountSpin") as SpinBox).value), 7)
 	assert_eq(int((lobby.get_node("%AiCountSpin") as SpinBox).value), 3)

@@ -3,7 +3,6 @@ extends Resource
 ## One map's size, shape and layout (spec 2.1, 2.2, 3.3). M1 only needed the
 ## round field and its radius; M2 adds the cell grid the holes are cut from,
 ## the territory texture resolution, and where the home and goal flags sit.
-## Later map variants (oval, ring, twin, cross) reuse the same scale.
 
 ## Spec 2.8's "Map size S/M/L". The enum lives here rather than on
 ## MatchConfig so that MapDef never has to reference MatchConfig, which would
@@ -11,10 +10,12 @@ extends Resource
 ## resolve its map).
 enum MapSize { SMALL, MEDIUM, LARGE }
 
-## Spec 2.1's five map shapes. Single owner: MatchConfig.MapVariant is a const
-## alias of this enum (same ordinals, stored in lobby data and settings), so
-## for_variant_and_size() takes its raw int value without importing MatchConfig.
-enum MapShape { ROUND, OVAL, RING, TWIN, CROSS }
+## The one map shape that ships. Bontago-fca.75 (owner decision, fca.74 = B)
+## removed oval, ring, twin and cross. MatchConfig.MapVariant is a const alias of
+## this enum; ROUND keeps ordinal 0, the only value ever stored in lobby data,
+## settings and on the wire, so every saved or networked map_variant stays valid
+## and any other int is clamped to ROUND by MatchConfig.
+enum MapShape { ROUND }
 
 const RADIUS_SMALL: float = 30.0
 const RADIUS_MEDIUM: float = 45.0
@@ -28,36 +29,6 @@ const TERRITORY_RES_LARGE: int = 512
 
 @export var id: StringName = &"round_medium"
 @export var field_radius: float = RADIUS_MEDIUM
-
-## Spec 2.1: "Round (default), Oval, Ring ..., Twin ..., and Cross." ROUND
-## keeps shape_test() (below) empty so CellGrid's plain circle test is the
-## only membership check every existing map already relies on; the other
-## four are the map-shape mechanism this package adds, with no rule reading
-## a shape by name -- only shape_contains()/shape_test() below and the
-## flag-position overrides on this file know map_shape exists at all.
-@export var map_shape: MapShape = MapShape.ROUND
-## Oval: ellipse aspect ratio (x-radius = field_radius, z-radius = field_radius * oval_aspect).
-@export var oval_aspect: float = 0.65
-## Ring: no-disk hole in the middle, and the single goal flag sits on a bridge (spec 2.1).
-@export var ring_hole_radius_fraction: float = 0.35
-@export var ring_bridge_half_width: float = 3.0
-## Twin: two same-size disks centered on +/-x, joined by a bridge.
-## DECISION (config/MapDef.gd, orchestrator 2026-09-25, review fix for
-## Bontago-keo.2): field_radius is the universal outer bound for every shape
-## -- the cell grid, kill plane, overlay and shape_contains()'s own top guard
-## all size from it and stay unchanged; each variant's geometry lives inside
-## that circle. TWIN's two sub-disks can therefore not each be a full
-## field_radius disk (a home flag at 1.65 * field_radius would sit outside
-## the bounding circle) -- they are smaller disks inside it instead, each
-## twin_disk_radius_fraction * field_radius, centered at
-## +/-twin_center_offset_fraction * field_radius on x. Invariant this package
-## keeps: twin_center_offset_fraction + twin_disk_radius_fraction <= 1.0, so
-## neither sub-disk's own far edge crosses the outer bounding circle.
-@export var twin_disk_radius_fraction: float = 0.55
-@export var twin_center_offset_fraction: float = 0.45
-@export var twin_bridge_half_width: float = 3.0
-## Cross: four arms this wide (fraction of field_radius) cut from a square bound.
-@export var cross_arm_half_width_fraction: float = 0.4
 
 ## Which placeholder six-face skybox set (config/SkyboxConfig.gd, game/Skybox.gd)
 ## this map loads at match start. A name with no matching
@@ -120,8 +91,7 @@ const TERRITORY_RES_LARGE: int = 512
 @export var cell_overlap: float = 0.2
 
 
-## The MapDef for a MatchConfig.MapSize value. Round maps only for M2; the
-## other variants from spec 2.1 arrive in M6.
+## The MapDef for a MatchConfig.MapSize value (round maps only).
 static func for_size(size: MapSize) -> MapDef:
 	match size:
 		MapSize.SMALL:
@@ -132,95 +102,27 @@ static func for_size(size: MapSize) -> MapDef:
 			return load("res://config/maps/round_medium.tres") as MapDef
 
 
-## The map-shape mechanism (spec 2.1, interface stub for A2a/A2b's data
-## packages): true where `local` (disk-local (x, z), CellGrid's own
-## convention) is solid ground for this map's `map_shape`. Every shape first
-## rejects anything outside the field_radius bounding circle -- CellGrid's
-## own is_in_disk() already gates on that circle before ever consulting
-## shape_test() below, so this repeats it rather than relying on the caller,
-## which keeps shape_contains() itself a complete, self-contained predicate a
-## test (or a future renderer) can call directly with no CellGrid in hand.
+## True where `local` (disk-local (x, z), CellGrid's own convention) is solid
+## ground: inside the field_radius circle. Kept as a method so callers need not
+## know the disc is the only shape.
 func shape_contains(local: Vector2) -> bool:
-	if local.length_squared() > field_radius * field_radius:
-		return false
-	match map_shape:
-		MapShape.OVAL:
-			var z_radius: float = field_radius * oval_aspect
-			return (
-				(local.x * local.x) / (field_radius * field_radius)
-				+ (local.y * local.y) / (z_radius * z_radius)
-			) <= 1.0
-		MapShape.RING:
-			# DECISION (config/MapDef.gd): the hole itself is a plain
-			# annulus -- ring_bridge_half_width only shapes the goal flag's
-			# override position below (goal_flag_positions()), not a break
-			# cut through the hole here. A literal bridge deck crossing the
-			# void is a rendering/geometry detail spec 2.1 does not specify
-			# further ("[NEW], based on the planned 2.0 feature"); the
-			# simplest reading that still keeps the hole a real hole (no
-			# rule concern: nothing but the single center goal needed to
-			# move off it) is this annulus, with the flag itself relocated
-			# onto solid ground just past the hole's edge.
-			var hole_radius: float = field_radius * ring_hole_radius_fraction
-			return local.length_squared() > hole_radius * hole_radius
-		MapShape.TWIN:
-			var offset: float = twin_center_offset_fraction * field_radius
-			var disk_radius: float = twin_disk_radius_fraction * field_radius
-			if local.distance_squared_to(Vector2(-offset, 0.0)) <= disk_radius * disk_radius:
-				return true
-			if local.distance_squared_to(Vector2(offset, 0.0)) <= disk_radius * disk_radius:
-				return true
-			return absf(local.y) <= twin_bridge_half_width
-		MapShape.CROSS:
-			var half_width: float = field_radius * cross_arm_half_width_fraction
-			return absf(local.y) <= half_width or absf(local.x) <= half_width
-		_:
-			return true
+	return local.length_squared() <= field_radius * field_radius
 
 
-## Callable form of shape_contains(), consulted by CellGrid.is_in_disk()
-## (core/territory/CellGrid.gd) only when non-empty. ROUND returns an empty
-## Callable so every existing map keeps CellGrid's plain circle test as its
-## only membership check, byte-identical to before this package.
+## Callable form of shape_contains() for CellGrid's optional third argument.
+## Always empty: CellGrid's plain circle test is the only membership check.
 func shape_test() -> Callable:
-	if map_shape == MapShape.ROUND:
-		return Callable()
-	return Callable(self, "shape_contains")
+	return Callable()
 
 
-## The MapDef for a MatchConfig.MapVariant + MapSize pair. `variant` is that
-## raw int/enum-compatible value (MapDef cannot import MatchConfig -- see the
-## note above MapSize) rather than MapShape itself, but the two enums'
-## ordinals match exactly (this file's own MapShape doc comment), so `variant
-## as MapShape` below is always a valid member. ROUND returns for_size(size)
-## unchanged -- byte-identical to every caller that only ever passed a size
-## before this package existed.
-static func for_variant_and_size(variant: int, size: MapSize) -> MapDef:
-	if variant == MapShape.ROUND:
-		return for_size(size)
-	# DECISION: a shipped per-variant resource (config/maps/<shape>_<size>.tres,
-	# A2a/A2b data) wins when present; otherwise fall back to the same-size
-	# Round resource with only map_shape overridden, so a missing file degrades
-	# to this class's own shape defaults instead of failing to build a match.
-	var path: String = variant_resource_path(variant, size)
-	if ResourceLoader.exists(path):
-		var shipped: MapDef = load(path) as MapDef
-		if shipped != null:
-			return shipped
-	var result: MapDef = for_size(size).duplicate(true) as MapDef
-	result.map_shape = variant as MapShape  # MatchConfig.MapVariant is this enum
-	return result
+## The MapDef for a MatchConfig.MapVariant + MapSize pair. `variant` is ignored
+## beyond ROUND: any removed or unknown value (an old saved config, a network
+## peer) draws the round map (Bontago-fca.75).
+static func for_variant_and_size(_variant: int, size: MapSize) -> MapDef:
+	return for_size(size)
 
 
-## res://config/maps/<shape>_<size>.tres for a MapVariant/MapShape ordinal and
-## a MapSize, e.g. "res://config/maps/ring_small.tres".
-static func variant_resource_path(variant: int, size: MapSize) -> String:
-	var shape_name: String = shape_id(variant)
-	var size_name: String = (MapSize.keys()[size] as String).to_lower()
-	return "res://config/maps/%s_%s.tres" % [shape_name, size_name]
-
-
-## Lower-case shape id ("round", "ring", ...) of a MapShape/MapVariant value; "" when out of range.
+## Lower-case shape id ("round") of a MapShape/MapVariant value; "" when out of range.
 static func shape_id(variant: int) -> String:
 	var keys: Array = MapShape.keys()
 	if variant < 0 or variant >= keys.size():
@@ -230,9 +132,8 @@ static func shape_id(variant: int) -> String:
 
 ## Bontago-1pi.107: a uniformly scaled copy of this map (the lobby's disc-size
 ## slider, see config/DiscSizeTuning.gd for the DECISION on what scales). The
-## radius, the territory texture resolution and the absolute bridge widths
-## scale; every fraction-of-radius field (flags, hole, arms) follows the radius
-## by itself, and cell_size / disk_height / wake query extents stay as they are.
+## radius and the territory texture resolution scale; every
+## fraction-of-radius field (flags) follows the radius by itself, and cell_size / disk_height / wake query extents stay as they are.
 ## A factor of 1.0 returns this very resource so the default map is untouched.
 func scaled(factor: float) -> MapDef:
 	if is_equal_approx(factor, 1.0) or factor <= 0.0:
@@ -240,8 +141,6 @@ func scaled(factor: float) -> MapDef:
 	var copy: MapDef = duplicate(true) as MapDef
 	copy.field_radius = field_radius * factor
 	copy.territory_res = maxi(roundi(float(territory_res) * factor), 1)
-	copy.ring_bridge_half_width = ring_bridge_half_width * factor
-	copy.twin_bridge_half_width = twin_bridge_half_width * factor
 	return copy
 
 
@@ -261,44 +160,10 @@ func cells_per_side() -> int:
 func home_flag_position(slot_id: int, slot_count: int) -> Vector2:
 	var count: int = maxi(slot_count, 1)
 	var index: int = posmod(slot_id, count)
-	# DECISION (config/MapDef.gd): TWIN and CROSS override the shared
-	# circular-fraction formula below -- the one every other variant
-	# (ROUND/OVAL/RING) still reuses unchanged -- because a single circle at
-	# home_flag_radius_fraction * field_radius can land in TWIN's own gap
-	# between its two sub-disks (each smaller than field_radius -- see the
-	# twin_disk_radius_fraction/twin_center_offset_fraction DECISION above)
-	# or straddle CROSS's own arms rather than sit on solid ground. Spec 2.1
-	# names the five shapes but gives no interior layout for any of them
-	# ("[NEW], based on the planned 2.0 feature"), so this is the simplest
-	# symmetric reading for each, not a rule concern.
-	if map_shape == MapShape.TWIN:
-		var offset: float = twin_center_offset_fraction * field_radius
-		var disk_radius: float = twin_disk_radius_fraction * field_radius
-		var side: float = -1.0 if index % 2 == 0 else 1.0
-		var side_index: int = index / 2
-		var side_count: int = maxi((count + 1) / 2 if side < 0.0 else count / 2, 1)
-		var side_angle: float = TAU * float(side_index) / float(side_count)
-		var center: Vector2 = Vector2(side * offset, 0.0)
-		# home_flag_radius_fraction < 1.0 keeps this inside its own sub-disk
-		# (radius disk_radius), which shape_contains()'s TWIN branch tests.
-		return center + Vector2(cos(side_angle), sin(side_angle)) * disk_radius * home_flag_radius_fraction
-	if map_shape == MapShape.CROSS:
-		var arm: int = index % 4
-		var lap: int = index / 4
-		var lap_radius: float = field_radius * home_flag_radius_fraction * (1.0 - 0.15 * float(lap))
-		var arm_angle: float = TAU * float(arm) / 4.0
-		return Vector2(cos(arm_angle), sin(arm_angle)) * lap_radius
-	# DECISION (config/MapDef.gd, review fix for Bontago-keo.2): OVAL scales
-	# the shared circular-fraction formula's z component (Vector2.y here) by
-	# oval_aspect so a slot near the z-axis (e.g. (0, 0.85 * field_radius))
-	# still lands inside the ellipse instead of past its shorter axis --
-	# same pattern as the TWIN/CROSS overrides above, kept as a fall-through
-	# on the identical angle math rather than a separate branch.
 	var angle: float = TAU * float(index) / float(count)
-	var z_scale: float = oval_aspect if map_shape == MapShape.OVAL else 1.0
 	return Vector2(
 		cos(angle) * field_radius * home_flag_radius_fraction,
-		sin(angle) * field_radius * home_flag_radius_fraction * z_scale
+		sin(angle) * field_radius * home_flag_radius_fraction
 	)
 
 
@@ -314,54 +179,11 @@ func home_flag_position(slot_id: int, slot_count: int) -> Vector2:
 func goal_flag_positions(count: int) -> PackedVector2Array:
 	var wanted: int = maxi(count, 1)
 	var positions: PackedVector2Array = PackedVector2Array()
-	# DECISION (config/MapDef.gd): Ring's own MapShape.RING branch overrides
-	# only the single-goal case -- the plain center flag (below) would sit
-	# inside Ring's own hole (shape_contains() rejects it) -- putting the
-	# sole goal on the bridge instead: just past the hole's edge, on solid
-	# ground, at ring_hole_radius_fraction * field_radius plus the bridge's
-	# own half-width. A count above one falls through to the shared ring
-	# formula unchanged: goal_flag_radius_fraction (0.4 by default) already
-	# keeps every extra goal outside ring_hole_radius_fraction's smaller
-	# hole for every real map size this package ships, so those flags never
-	# need their own override. Cross reuses this same shared formula for
-	# every goal count, including one (an extra goal ring still makes sense
-	# inscribed in the cross); only its home flags move to the arm tips
-	# (home_flag_position() above).
-	if map_shape == MapShape.RING and wanted == 1:
-		var bridge_radius: float = field_radius * ring_hole_radius_fraction + ring_bridge_half_width
-		positions.append(Vector2(bridge_radius, 0.0))
-		return positions
 	if wanted == 1:
 		positions.append(Vector2.ZERO)
 		return positions
-	# DECISION (config/MapDef.gd, review fix for Bontago-keo.2): TWIN's own
-	# ring at goal_flag_radius_fraction can fall in the bridge gap between
-	# its two sub-disks (e.g. straight up the z-axis), same failure as the
-	# home flags before the fix above -- so a wanted-above-one TWIN layout
-	# distributes goals across both sub-disks with the same side-splitting
-	# math home_flag_position() uses, at goal_flag_radius_fraction of the
-	# sub-disk's own radius from its centre. wanted == 1 (handled above)
-	# stays the plain center flag: the origin sits inside both sub-disks
-	# whenever twin_center_offset_fraction <= twin_disk_radius_fraction.
-	if map_shape == MapShape.TWIN:
-		var offset: float = twin_center_offset_fraction * field_radius
-		var disk_radius: float = twin_disk_radius_fraction * field_radius
-		for i: int in range(wanted):
-			var side: float = -1.0 if i % 2 == 0 else 1.0
-			var side_index: int = i / 2
-			var side_count: int = maxi((wanted + 1) / 2 if side < 0.0 else wanted / 2, 1)
-			var side_angle: float = TAU * float(side_index) / float(side_count)
-			var center: Vector2 = Vector2(side * offset, 0.0)
-			positions.append(
-				center + Vector2(cos(side_angle), sin(side_angle)) * disk_radius * goal_flag_radius_fraction
-			)
-		return positions
 	var ring_radius: float = field_radius * goal_flag_radius_fraction
-	# OVAL scales the shared ring's z component (Vector2.y here) by
-	# oval_aspect for the same reason home_flag_position() does above --
-	# see that DECISION note.
-	var z_scale: float = oval_aspect if map_shape == MapShape.OVAL else 1.0
 	for i: int in range(wanted):
 		var angle: float = TAU * float(i) / float(wanted)
-		positions.append(Vector2(cos(angle) * ring_radius, sin(angle) * ring_radius * z_scale))
+		positions.append(Vector2(cos(angle) * ring_radius, sin(angle) * ring_radius))
 	return positions

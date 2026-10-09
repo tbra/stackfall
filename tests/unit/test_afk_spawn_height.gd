@@ -18,9 +18,8 @@ const MAPS_DIR: String = "res://config/maps/"
 ## One map per MapDef size (small / medium / large), built at its real radius so
 ## "every map size" is exercised, not a shrunk stand-in. The beacon height is a
 ## constant, but flag placement, field and territory geometry are rebuilt per map.
-## Review 1pi.40: also one map per non-round variant (homes off the round layout).
 const SIZE_MAPS: PackedStringArray = [
-	"round_small", "round_medium", "round_large", "oval_medium", "ring_medium", "cross_medium", "twin_medium"
+	"round_small", "round_medium", "round_large"
 ]
 const CUBE_PATH: String = "res://config/blocks/cube.tres"
 ## Float slack for comparing a spawned height against beacon top plus margin.

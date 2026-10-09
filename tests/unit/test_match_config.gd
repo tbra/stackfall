@@ -4,7 +4,7 @@ extends GutTest
 
 func test_to_dict_from_dict_round_trips_every_field() -> void:
 	var config: MatchConfig = MatchConfig.new()
-	config.map_variant = MatchConfig.MapVariant.RING
+	config.map_variant = MatchConfig.MapVariant.ROUND
 	config.map_size = MapDef.MapSize.LARGE
 	config.player_count = 6
 	config.ai_count = 2
@@ -230,27 +230,41 @@ func test_map_def_resolves_from_map_size() -> void:
 	assert_almost_eq(config.field_radius(), MapDef.RADIUS_LARGE, 0.001)
 
 
-## map_def() routes through map_variant (config/MapDef.gd's for_variant_and_size),
-## for every variant x size combination -- spot-checked against calling that
-## static func directly. ROUND stays byte-identical to for_size() alone.
+## map_def() routes through map_variant for every size; a removed shape value
+## (Bontago-fca.75) draws the round map of the same size.
 func test_map_def_routes_through_map_variant() -> void:
-	var variants: Array[MatchConfig.MapVariant] = [
-		MatchConfig.MapVariant.ROUND,
-		MatchConfig.MapVariant.OVAL,
-		MatchConfig.MapVariant.RING,
-		MatchConfig.MapVariant.TWIN,
-		MatchConfig.MapVariant.CROSS,
-	]
+	var variants: Array[int] = [MatchConfig.MapVariant.ROUND, 1, 4, 99, -3]
 	var sizes: Array[MapDef.MapSize] = [MapDef.MapSize.SMALL, MapDef.MapSize.MEDIUM, MapDef.MapSize.LARGE]
-	for variant: MatchConfig.MapVariant in variants:
+	for variant: int in variants:
 		for size: MapDef.MapSize in sizes:
 			var config: MatchConfig = MatchConfig.new()
-			config.map_variant = variant
+			config.map_variant = variant as MatchConfig.MapVariant
 			config.map_size = size
-			var expected: MapDef = MapDef.for_variant_and_size(int(variant), size)
-			var actual: MapDef = config.map_def()
-			assert_eq(actual.map_shape, expected.map_shape, "variant=%d size=%d map_shape" % [variant, size])
-			assert_almost_eq(actual.field_radius, expected.field_radius, 0.001, "variant=%d size=%d field_radius" % [variant, size])
+			var expected: MapDef = MapDef.for_size(size)
+			assert_almost_eq(config.map_def().field_radius, expected.field_radius, 0.001, "variant=%d size=%d" % [variant, size])
+			assert_eq(config.map_def().id, expected.id)
+
+
+## Bontago-fca.75: an old saved config, a disk dict or a network peer carrying a
+## removed map_variant (1..4) or garbage clamps to ROUND without error.
+func test_a_removed_map_variant_clamps_to_round_in_from_dict_and_sanitize() -> void:
+	for removed: int in [1, 2, 3, 4, 7, 99, -1]:
+		var restored: MatchConfig = MatchConfig.from_dict({"map_variant": removed, "map_size": MapDef.MapSize.LARGE})
+		assert_eq(restored.map_variant, MatchConfig.MapVariant.ROUND, "from_dict %d" % removed)
+		assert_eq(restored.map_size, MapDef.MapSize.LARGE, "other fields survive")
+		assert_almost_eq(restored.field_radius(), MapDef.RADIUS_LARGE, 0.001)
+		var config: MatchConfig = MatchConfig.new()
+		config.map_variant = removed as MatchConfig.MapVariant
+		config.sanitize()
+		assert_eq(config.map_variant, MatchConfig.MapVariant.ROUND, "sanitize %d" % removed)
+
+
+func test_a_removed_map_variant_survives_the_wire_round_trip() -> void:
+	var config: MatchConfig = MatchConfig.new()
+	config.map_variant = 3 as MatchConfig.MapVariant
+	var decoded: MatchConfig = MatchConfig.from_dict(bytes_to_var(var_to_bytes(config.to_dict())) as Dictionary)
+	assert_eq(decoded.map_variant, MatchConfig.MapVariant.ROUND)
+	assert_eq(decoded.map_def().id, MapDef.for_size(decoded.map_size).id)
 
 
 func test_map_def_round_is_byte_identical_to_for_size() -> void:
@@ -261,7 +275,6 @@ func test_map_def_round_is_byte_identical_to_for_size() -> void:
 		var expected: MapDef = MapDef.for_size(size)
 		var actual: MapDef = config.map_def()
 		assert_eq(actual.id, expected.id, "ROUND: map_def() resolves the same map id as for_size(size)")
-		assert_eq(actual.map_shape, expected.map_shape)
 		assert_almost_eq(actual.field_radius, expected.field_radius, 0.001)
 
 
