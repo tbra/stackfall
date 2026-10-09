@@ -13,6 +13,7 @@ Launch `claude --agent stackfall-orchestrator` from `M:/Bontago`, or tell a norm
 | `stackfall-netcode` | Implement host authority, transport, replication and hostile-input fixes | Network changes and regression cases |
 | `stackfall-integrator` | Verify the combined candidate, diagnose integration failures, run acceptance and benchmarks | Exact commands/results/log locations; scoped fixes |
 | `stackfall-reviewer` | Independently inspect source and supplied diff/test evidence | Actionable findings with file/line, trigger and consequence |
+| `stackfall-editor` | Drive the owner's open godot-ai pilot editor over MCP (run, screenshot, logs, scene tree, tests) to reproduce owner-reported UI/runtime issues; read-only (Bontago-fca.18) | Reproduction verdict, evidence paths and the traced code location |
 | `codex` | Relay a bounded task to the installed Codex CLI | Actual result, session ID and checkout state |
 
 Workers have implementation tools where needed. The reviewer has file-reading/search tools plus a Bash hook that permits only a Beads comment on its assigned issue; the orchestrator supplies diff and validation evidence or asks the integrator to produce it. Workers return to the orchestrator rather than recursively creating more workers.
