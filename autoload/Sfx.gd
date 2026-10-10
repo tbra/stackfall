@@ -138,8 +138,8 @@ var _claim_ext: ClaimProgressExtrapolator = ClaimProgressExtrapolator.new()
 
 
 func _ready() -> void:
-	Block.impact_speed_min = config.impact_speed_min
-	Block.impacts_enabled = config.impacts_enabled
+	BlockBody.impact_speed_min = config.impact_speed_min
+	BlockBody.impacts_enabled = config.impacts_enabled
 	_root_dir = _resolve_root_dir()
 	_available = DirAccess.dir_exists_absolute(_root_dir)
 	if not _available:
@@ -812,7 +812,7 @@ func _classify_surface(position: Vector3) -> StringName:
 	var min_blocks: int = config.impact_block_surface_min_blocks
 	_surface_ids.clear()
 	for result: Dictionary in world.direct_space_state.intersect_shape(_surface_params, 8):
-		if result.get("collider") is Block:
+		if result.get("collider") is BlockBody:
 			var id: int = int(result["collider_id"])
 			if not _surface_ids.has(id):
 				_surface_ids.append(id)
