@@ -713,6 +713,15 @@ func qol_claim_radius() -> float:
 	return _territory._claim_radius()
 
 
+## Bontago-mp0.152: the radius of the beacon zone every goal flag draws (GoalFlag.set_claim_ring):
+## the claim radius while the goal-radius experiment is on, else the goal no-build zone radius
+## (TerritoryTuning.goal_zone_radius), the area the beacon is claimed from. Visual only; both
+## sources are replicated config/tuning, so host and clients draw the same disc.
+func goal_zone_visual_radius() -> float:
+	var claim: float = qol_claim_radius()
+	return claim if claim > 0.0 else _territory_tuning.goal_zone_radius
+
+
 ## Bontago-1pi.18.2 (QoL gift slot): the gift `slot_id` could spend now (&"" if none), how many wait, and the host-validated use.
 func gift_slot_head(slot_id: int) -> StringName:
 	return _gifts.gift_slot_head(slot_id)

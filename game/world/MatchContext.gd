@@ -115,6 +115,11 @@ func qol_claim_radius() -> float:
 	return 0.0
 
 
+## Bontago-mp0.152: radius of the zone every goal beacon draws (null object: nothing).
+func goal_zone_visual_radius() -> float:
+	return 0.0
+
+
 func glue_drops_left(_slot_id: int) -> int:
 	return 0
 

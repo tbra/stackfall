@@ -112,6 +112,12 @@ func qol_claim_radius() -> float:
 	return _match.qol_claim_radius()
 
 
+## Bontago-mp0.152: not gated on _active(): the zone radius is static tuning, so a flag placed
+## before late activation still draws its beacon zone.
+func goal_zone_visual_radius() -> float:
+	return _match.goal_zone_visual_radius()
+
+
 func glue_drops_left(slot_id: int) -> int:
 	if not _active():
 		return 0
