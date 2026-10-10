@@ -13,6 +13,18 @@ const DEFERRED_PATHS: PackedStringArray = [
 	"res://ui/NetDebugOverlay.tscn",
 	"res://config/sandbox_gift_demo.tres",
 	"res://config/sandbox_tower_topple.tres",
+	"res://game/MainSandboxFlow.gd",
+	"res://game/MainHeadlessBotsFlow.gd",
+]
+## Bontago-1pi.11.84 (MF1): classes the sandbox flow owns; Main.gd must not name them.
+const MOVED_CLASS_PATTERNS: PackedStringArray = [
+	":\\s*Sandbox\\b",
+	"\\bas Sandbox\\b",
+	":\\s*Tutorial\\b",
+	"\\bas Tutorial\\b",
+	":\\s*MainHeadlessBotsFlow\\b",
+	"\\bas MainHeadlessBotsFlow\\b",
+	":\\s*MainSandboxFlow\\b",
 ]
 
 var _main: Variant = null
@@ -49,6 +61,28 @@ func test_main_source_has_no_preload_of_deferred_paths() -> void:
 		assert_false(source.contains("preload(\"%s\")" % path), "%s must not be preloaded" % path)
 
 
+func test_main_source_no_longer_names_the_sandbox_flow_classes() -> void:
+	var source: String = FileAccess.get_file_as_string(MAIN_SCRIPT_PATH)
+	var code_lines: PackedStringArray = PackedStringArray()
+	for line: String in source.split("
+"):
+		if not line.strip_edges().begins_with("#"):
+			code_lines.append(line)
+	var code: String = "
+".join(code_lines)
+	for pattern: String in MOVED_CLASS_PATTERNS:
+		var regex: RegEx = RegEx.create_from_string(pattern)
+		assert_null(regex.search(code), "Main.gd must not statically name '%s'" % pattern)
+
+
+func test_sandbox_flow_loads_on_first_use_through_the_queue() -> void:
+	assert_null(_main._sandbox_flow, "no flow before the first sandbox/tutorial/hot-seat use")
+	_main.start_sandbox_from_menu()
+	assert_true(_main._sandbox_flow is MainSandboxFlowPort)
+	assert_eq((_main._sandbox_flow as RefCounted).get_script().resource_path, "res://game/MainSandboxFlow.gd")
+	assert_true(_main._prewarm_queue.is_ready("res://game/MainSandboxFlow.gd"))
+
+
 func test_main_boots_to_menu_without_lobby_or_match_nodes() -> void:
 	assert_not_null(_main._main_menu)
 	assert_null(_main._lobby)
@@ -80,3 +114,11 @@ func test_tower_topple_preset_loads_on_use() -> void:
 	_main.start_tower_topple_from_menu()
 	assert_not_null(_main._sandbox)
 	assert_eq(_main._sandbox_preset.resource_path, "res://config/sandbox_tower_topple.tres")
+
+
+func test_headless_bots_flow_loads_on_first_use_through_the_queue() -> void:
+	assert_null(_main._headless_bots_flow, "no flow before the first bots use")
+	assert_eq(_main._bots_arg(PackedStringArray(["--bots=3"])), 3)
+	assert_true(_main._headless_bots_flow is MainHeadlessBotsFlowPort)
+	assert_eq((_main._headless_bots_flow as RefCounted).get_script().resource_path, "res://game/MainHeadlessBotsFlow.gd")
+	assert_true(_main._prewarm_queue.is_ready("res://game/MainHeadlessBotsFlow.gd"))

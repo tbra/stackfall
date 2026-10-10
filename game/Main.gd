@@ -1,3 +1,4 @@
+class_name Main
 extends Node3D
 ## The game's entry point: a router, not a match (spec Part 4 M3a;
 ## docs/archive/M3a_PLAN.md integration order step 4).
@@ -60,6 +61,9 @@ extends Node3D
 @export var sandbox_config: SandboxConfig = preload("res://config/sandbox.tres")
 
 const MAIN_MENU_SCENE: PackedScene = preload("res://ui/MainMenu.tscn")
+const MENU_PREWARM_CONFIG_PATH: String = "res://config/menu_prewarm.tres"
+const HEADLESS_BOTS_FLOW_SCRIPT_PATH: String = "res://game/MainHeadlessBotsFlow.gd"
+const SANDBOX_FLOW_SCRIPT_PATH: String = "res://game/MainSandboxFlow.gd"
 const LOBBY_SCENE_PATH: String = "res://ui/Lobby.tscn"
 const HOT_SEAT_SCENE_PATH: String = "res://game/HotSeat.tscn"
 const SANDBOX_SCENE_PATH: String = "res://game/Sandbox.tscn"
@@ -98,16 +102,20 @@ const LOADING_SCREEN_SCENE: PackedScene = preload("res://ui/LoadingScreen.tscn")
 ## stripped-down test fixture without this node stays a safe no-op.
 @onready var _world_environment: WorldEnvironment = $WorldEnvironment
 
+## Bontago-1pi.11.84: serial prewarm queue and the on-demand sandbox flow (typed to the light ports).
+var _prewarm_queue: MenuPrewarmQueue = null
+var _sandbox_flow: MainSandboxFlowPort = null
+var _headless_bots_flow: MainHeadlessBotsFlowPort = null
 var _main_menu: MainMenu = null
 var _lobby: Lobby = null
-var _hot_seat: HotSeat = null
-var _sandbox: Sandbox = null
+var _hot_seat: Node = null
+var _sandbox: Node = null
 ## Bontago-1pi.70: set only by start_gift_demo_from_menu().
 var _sandbox_preset: SandboxConfig = null
 ## docs/archive/M6_PLAN.md package B3: built/freed only by start_tutorial_from_menu()/
 ## _on_tutorial_finished() below -- never touched by _build_match_world()/
 ## _end_match_world() (this package does not own those functions).
-var _tutorial: Tutorial = null
+var _tutorial: Node = null
 var _remote_cursors: RemoteCursors = null
 var _debug_overlay: NetDebugOverlay = null
 ## Bontago-xtq.42: built once below, right where Events.match_state_changed/
@@ -411,24 +419,51 @@ func _apply_graphics_preset(preset: GraphicsPreset) -> void:
 		environment.volumetric_fog_enabled = preset.volumetric_fog_enabled
 
 
-# --- Hot-seat: byte-identical to M2 ------------------------------------------
+# --- Hot-seat / sandbox / tutorial: forwarders (Bontago-1pi.11.84 MF1) -------
+#
+# The bodies live in game/MainSandboxFlow.gd, loaded on demand through the prewarm queue
+# (docs/MENU_FIRST_PLAN.md 3.2). Every old member name stays here for tests and tools.
 
 func _start_hot_seat_match() -> void:
-	Sfx.set_music_context(&"gameplay")
-	_hot_seat = _load_scene(HOT_SEAT_SCENE_PATH).instantiate() as HotSeat
-	add_child(_hot_seat)
-	_hot_seat.set_camera_rig(_camera_rig)
-	_hot_seat.set_field(_field)
-	Match.register_world(_field, _registry, _blocks_container)
-	Match.start_match(_build_hot_seat_config())
+	_sandbox_flow_port().start_hot_seat_match()
 
-	var config: MatchConfig = Match.config
-	_field.rebuild_for_map(config.map_def())
-	_camera_rig.set_map_def(config.map_def())
-	_field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
-	_field.set_overlay_source(Match.raster(), config.territory_colors())
-	_apply_match_sky(config)
-	_horizon_islands.rebuild_for_map(config.map_def(), _world_environment.environment if _world_environment != null else null)
+
+func _start_sandbox_match() -> void:
+	_sandbox_flow_port().start_sandbox_match()
+
+
+func _start_sandbox_match_with_args(args: PackedStringArray) -> void:
+	_sandbox_flow_port().start_sandbox_match_with_args(args)
+
+
+func start_sandbox_from_menu() -> void:
+	_sandbox_flow_port().start_sandbox_from_menu()
+
+
+func start_gift_demo_from_menu() -> void:
+	_sandbox_flow_port().start_gift_demo_from_menu()
+
+
+func start_tower_topple_from_menu() -> void:
+	_sandbox_flow_port().start_tower_topple_from_menu()
+
+
+func start_tutorial_from_menu() -> void:
+	_sandbox_flow_port().start_tutorial_from_menu()
+
+
+func _on_tutorial_finished() -> void:
+	_sandbox_flow_port().on_tutorial_finished()
+
+
+## The sandbox flow, loaded through the serial prewarm queue on first use. DECISION: the queue
+## is built lazily here (synchronous path); MF4 owns the background start and eager flags.
+func _sandbox_flow_port() -> MainSandboxFlowPort:
+	if _sandbox_flow == null:
+		var flow_script: GDScript = _menu_prewarm_queue().ensure_script(SANDBOX_FLOW_SCRIPT_PATH)
+		_sandbox_flow = flow_script.new() as MainSandboxFlowPort
+		_sandbox_flow.bind(self)
+	return _sandbox_flow
 
 
 ## Bontago-1pi.108: every mode that builds a world (match, hot-seat, sandbox, tutorial)
@@ -438,674 +473,132 @@ func _apply_match_sky(config: MatchConfig) -> void:
 	_skybox.configure_match_sky(config)
 
 
-## The lobby settings a real lobby screen collects, for the one path that
-## skips it. Hot-seat and the player count are the only overrides; everything
-## else is whatever config/match_defaults.tres says.
-func _build_hot_seat_config() -> MatchConfig:
-	var config: MatchConfig = match_config.duplicate(true) as MatchConfig
-	config.player_count = player_count
-	config.hot_seat = true
-	return config
-
-
-# --- Sandbox: unlisted debug entry point (Bontago-mv0.8) ---------------------
+# --- Headless bot match: forwarders (Bontago-1pi.11.84 MF2) ------------------
 #
-# `godot --path . -- --sandbox [--players=N]` starts an *offline* match, same
-# shape as _start_hot_seat_match() above (register_world() -> start_match()
-# -> place_flags()/set_overlay_source()), but with every slot locally
-# controllable, no feed timer, and unlimited blocks (config/MatchConfig.gd's
-# `sandbox` flag; autoload/Match.gd's `_feed_timer_enabled`). Never reached by
-# the menu/lobby, so it changes nothing about --hot-seat or the networked
-# path above.
-
-func _start_sandbox_match() -> void:
-	_start_sandbox_match_with_args(OS.get_cmdline_user_args())
-
-
-## Split from _start_sandbox_match() so a test can drive both the --players=
-## parsing and the resulting world build with a manufactured argument list —
-## the same seam autoload/Net.gd's _apply_command_line_args() uses, since
-## there is no OS.set_cmdline_user_args() to fake the real one with.
-func _start_sandbox_match_with_args(args: PackedStringArray) -> void:
-	Sfx.set_music_context(&"gameplay")
-	_sandbox = _load_scene(SANDBOX_SCENE_PATH).instantiate() as Sandbox
-	add_child(_sandbox)
-	# DECISION (Bontago-1pi.69): no scoreboard in the sandbox; Tab stays sandbox_next_slot.
-	if _scoreboard != null:
-		_scoreboard.suppressed = true
-	_sandbox.set_camera_rig(_camera_rig)
-	_sandbox.set_field(_field)
-	Match.register_world(_field, _registry, _blocks_container)
-	Match.start_match(_build_sandbox_config(_sandbox_player_count(args)))
-
-	var config: MatchConfig = Match.config
-	_field.rebuild_for_map(config.map_def())
-	_camera_rig.set_map_def(config.map_def())
-	_field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
-	_field.set_overlay_source(Match.raster(), config.territory_colors())
-	_apply_match_sky(config)
-	_horizon_islands.rebuild_for_map(config.map_def(), _world_environment.environment if _world_environment != null else null)
-
-	# F3's overlay works offline too (Net.stats() reports Offline/0 peers,
-	# which is still useful context while sandbox-testing); it costs nothing
-	# unopened, exactly as in the networked path below.
-	_debug_overlay = _load_scene(NET_DEBUG_OVERLAY_SCENE_PATH).instantiate() as NetDebugOverlay
-	add_child(_debug_overlay)
-
-	# Bontago-1en.24: `--force-special=<id>` sets the same state F9
-	# (sandbox_force_special) toggles at runtime, so a scripted sandbox launch
-	# can start already forcing one special. _sandbox is already _ready()
-	# (add_child() above runs it synchronously -- Main is already inside the
-	# tree by the time _start_sandbox_match_with_args() runs from its own
-	# _ready()), so its roster cache exists by the time this reaches it.
-	var forced: String = _sandbox_force_special_arg(args)
-	# Bontago-470.8: --force-special is a debug tool; ignored unless debug mode.
-	if forced != "" and DebugMode.is_enabled():
-		_sandbox.force_special_by_id(StringName(forced))
-
-
-## The Main Menu's own entry point (docs/archive/M6_PLAN.md package B1; ui/MainMenu.
-## gd's %SandboxButton, wired to this signal in _show_main_menu() below),
-## unlike _start_sandbox_match()'s CLI-only one above: reachable only once
-## the ordinary menu/lobby path in _ready() has already connected Events.
-## match_state_changed, so Match.start_match()'s own (LOBBY -> LOADING) emit
-## inside _start_sandbox_match_with_args() below would otherwise also run
-## _build_match_world() -- which builds a *HotSeat*-driven world, not this
-## function's own Sandbox one, and duplicates the field rebuild/overlay/
-## debug-overlay work _start_sandbox_match_with_args() already does.
-##
-## _world_built = true here is now belt-and-braces rather than the only
-## guard: _on_match_state_changed() itself diverts every state change away
-## from _build_match_world()/_end_match_world() while _sandbox is a live
-## instance (Bontago-xtq.43 round 2 -- see that handler's own DECISION), which
-## is also what makes a later sandbox_reset_field (F5, game/Sandbox.gd's
-## _reset_field()) safe: round 1 found that this line alone only suppressed
-## the duplicate build on this *first* start, not on a later reset, because
-## nothing re-armed it once _end_match_world() ran and cleared it back to
-## false. _start_sandbox_match_with_args([]) below still runs byte-identical
-## to the CLI path: default player count, no forced special.
-func start_sandbox_from_menu() -> void:
-	_sandbox_preset = null
-	_launch_sandbox_from_menu()
-
-
-func _launch_sandbox_from_menu() -> void:
-	_clear_menu_and_lobby()
-	# Bontago-1pi.46 (G5): this path bypasses _build_match_world(), so it needs
-	# its own new-match reset -- before Sandbox.set_camera_rig() below, which
-	# re-sets CameraRig.suppress_pad_home_focus that reset_view() clears.
-	_reset_match_scope()
-	_world_built = true
-	# Bontago-xtq.42 fix round 2: _build_match_world() (which owns this same
-	# line for every other match-start path) never runs for sandbox-from-menu
-	# -- see the `_world_built = true` line right above -- so this path needs
-	# its own explicit unsuppress.
-	_pause_menu.suppressed = false
-	_start_sandbox_match_with_args(PackedStringArray())
-
-
-## Bontago-1pi.70: the Debug page's Gift demo. The ordinary sandbox launched
-## with config/sandbox_gift_demo.tres: pre-placed opponent towers, gifts on at
-## high frequency. Leaving goes through the sandbox pause menu like any sandbox.
-func start_gift_demo_from_menu() -> void:
-	if not DebugMode.is_enabled():
-		return
-	_sandbox_preset = load(GIFT_DEMO_PRESET_PATH) as SandboxConfig
-	_launch_sandbox_from_menu()
-	_sandbox.apply_preset(_sandbox_preset)
-
-
-## Bontago-1pi.102: the Debug page's Tower topple. Same sandbox path with
-## config/sandbox_tower_topple.tres: a row of settled towers (the tower tests'
-## heights, up to the 30/40-block acceptance towers) to knock down with blocks
-## and gifts.
-func start_tower_topple_from_menu() -> void:
-	if not DebugMode.is_enabled():
-		return
-	_sandbox_preset = load(TOWER_TOPPLE_PRESET_PATH) as SandboxConfig
-	_launch_sandbox_from_menu()
-	_sandbox.apply_preset(_sandbox_preset)
-
-
-## Same lobby-settings-minus-a-few-overrides shape as _build_hot_seat_config().
-## config.sandbox is what lets MatchConfig.sanitize() allow `player_count`
-## below spec 2.8's normal floor of 2, and tells Match to start with its feed
-## timer paused (autoload/Match.gd's start_match()).
-func _build_sandbox_config(requested_player_count: int) -> MatchConfig:
-	var config: MatchConfig = match_config.duplicate(true) as MatchConfig
-	config.player_count = requested_player_count
-	config.hot_seat = false
-	config.ai_count = 0
-	config.sandbox = true
-	if _sandbox_preset != null:
-		if _sandbox_preset.special_frequency_override >= 0:
-			config.gifts_enabled = true
-			config.special_frequency = _sandbox_preset.special_frequency_override
-	return config
-
-
-## `--players=<n>`, parsed with the same "-"-stripping loop
-## _has_cmdline_flag() and autoload/Net.gd's _apply_command_line_args() both
-## use. Takes the argument list explicitly rather than reading
-## OS.get_cmdline_user_args() itself (see _start_sandbox_match_with_args()),
-## so a test can drive it with a manufactured list. Out-of-range values are
-## not clamped here — MatchConfig.sanitize() (Match.start_match()) already
-## does that against this config's own `sandbox` flag.
-func _sandbox_player_count(args: PackedStringArray) -> int:
-	const PREFIX: String = "players="
-	for raw: String in args:
-		var text: String = raw
-		while text.begins_with("-"):
-			text = text.substr(1)
-		if text.begins_with(PREFIX):
-			return int(text.substr(PREFIX.length()))
-	if _sandbox_preset != null:
-		return _sandbox_preset.default_player_count
-	return sandbox_config.default_player_count
-
-
-## `--force-special=<id>`, same "-"-stripping loop and same "takes the
-## argument list explicitly" seam as _sandbox_player_count() right above (so a
-## test can drive it with a manufactured list) -- validation of `<id>` against
-## the real roster is game/Sandbox.gd's force_special_by_id()'s job, not this
-## file's; an unrecognized id there warns and leaves forcing off rather than
-## this parser guessing at the roster itself.
-func _sandbox_force_special_arg(args: PackedStringArray) -> String:
-	const PREFIX: String = "force-special="
-	for raw: String in args:
-		var text: String = raw
-		while text.begins_with("-"):
-			text = text.substr(1)
-		if text.begins_with(PREFIX):
-			return text.substr(PREFIX.length())
-	return ""
-
-
-# --- Tutorial: single-player onboarding (docs/archive/M6_PLAN.md package B3) --------
-#
-# Reachable only from the Main Menu's own %TutorialButton (ui/MainMenu.gd's
-# tutorial_requested signal, the same direct child-signal convention
-# start_sandbox_from_menu() above uses for sandbox_requested): a one-player,
-# offline match built exactly like start_sandbox_from_menu()'s own
-# register_world() -> start_match() -> place_flags()/set_overlay_source(),
-# with config.sandbox = true (so ui/Tutorial.gd's own Match.debug_queue_
-# special() call is allowed through MatchGifts.debug_queue_special()'s own
-# host/config.sandbox gate) and config.player_count = 1 (there is only ever
-# one tutorial participant). Never reached from --hot-seat/--sandbox or the
-# real lobby/net path, so it changes nothing about either.
-
-func start_tutorial_from_menu() -> void:
-	_clear_menu_and_lobby()
-	# Bontago-1pi.46 (G5): same bypass of _build_match_world() as the sandbox
-	# start above, so the same new-match reset.
-	_reset_match_scope()
-	_world_built = true
-	# Bontago-xtq.42: see ui/PauseMenu.gd's own `suppressed` doc comment --
-	# Tutorial already owns ui_cancel/Escape for its own quit gesture, and the
-	# two scenes' _unhandled_input() dispatch order relative to each other
-	# (unrelated siblings under this node) is not a documented guarantee.
-	_pause_menu.suppressed = true
-	_tutorial = _load_scene(TUTORIAL_SCENE_PATH).instantiate() as Tutorial
-	add_child(_tutorial)
-	_tutorial.set_camera_rig(_camera_rig)
-	_tutorial.finished.connect(_on_tutorial_finished)
-	Match.register_world(_field, _registry, _blocks_container)
-	Match.start_match(_build_tutorial_config())
-
-	var config: MatchConfig = Match.config
-	_field.rebuild_for_map(config.map_def())
-	_camera_rig.set_map_def(config.map_def())
-	_field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
-	_field.set_overlay_source(Match.raster(), config.territory_colors())
-	_apply_match_sky(config)
-	_horizon_islands.rebuild_for_map(config.map_def(), _world_environment.environment if _world_environment != null else null)
-
-
-## Same lobby-settings-minus-a-few-overrides shape as _build_sandbox_config()
-## above: always exactly one player, config.sandbox = true so ui/Tutorial.gd's
-## forced special (Match.debug_queue_special()) is let through.
-func _build_tutorial_config() -> MatchConfig:
-	var config: MatchConfig = match_config.duplicate(true) as MatchConfig
-	config.player_count = 1
-	config.hot_seat = false
-	config.ai_count = 0
-	config.sandbox = true
-	return config
-
-
-## ui/Tutorial.gd's own `finished` signal (step 5 completing, or ui_cancel at
-## any step -- see its own doc comment): frees the Tutorial subtree
-## start_tutorial_from_menu() above built and returns to the Main Menu.
-## ui/Tutorial.gd already called Match.abort_match() itself before emitting
-## (consuming Match's own public API, not this package's -- Events.
-## match_state_changed's own (-> LOBBY) emit has already run
-## _on_match_state_changed()'s existing _end_match_world() call by the time
-## this handler runs, the same way start_sandbox_from_menu()'s own
-## _world_built guard above does), so this only has to clean up the one node
-## this package added.
-func _on_tutorial_finished() -> void:
-	if _tutorial != null and is_instance_valid(_tutorial):
-		_tutorial.queue_free()
-	_tutorial = null
-	# Bontago-xtq.42 fix round 2: _show_main_menu() below now owns re-
-	# suppressing/force-closing this menu for every "no match world" screen,
-	# so no explicit `= false` write belongs here -- see its own doc comment.
-	_show_main_menu()
-
-
-# --- Headless bot match: `--bots=<n>` (Bontago-d5c.6, M5 P5) -----------------
-#
-# `godot --headless --path . -- --headless-host --bots=<n> [--players=<n2>]
-# [--seconds=<n3>]` starts a **real** networked match (config.sandbox = false,
-# config.hot_seat = false -- the real feed/territory/win loop, unlike
-# --sandbox above) with `n` bot-driven seats and no human required to click
-# the Lobby's Start button. Unlike --hot-seat/--sandbox this does NOT return
-# early out of _ready(): Events.match_state_changed/net_mode_changed are
-# already connected and Net.apply_command_line() has already run host_game()
-# for --headless-host by the time _ready() reaches this call, so
-# Match.start_match() below's own (LOBBY -> LOADING) emit runs the normal
-# _build_match_world() exactly as a lobby-started match would -- only the
-# "wait for a human to press Start" step is skipped. This is deliberate: it
-# is what lets _build_match_world()'s own bot-controller wiring (below) serve
-# both this entry point and an ordinary mixed human+bot lobby match with one
-# piece of code (docs/archive/M5_PLAN.md P5 item 3), rather than a second, divergent
-# world-build path. host_game() can still fail (its port already bound, say)
-# and leave Net at OFFLINE despite --headless-host being present on the
-# command line; _net_is_hosting()'s guard below refuses to build a match in
-# that case rather than silently running every bot against a session nothing
-# can ever join.
+# The bodies live in game/MainHeadlessBotsFlow.gd, loaded on demand through the prewarm queue;
+# the headless/CLI path stays synchronous. State fields (_headless_*) stay here.
 
 func _start_headless_bot_match_with_args(args: PackedStringArray) -> void:
-	var bots: int = _bots_arg(args)
-	if bots <= 0:
-		# Feature off by default: every existing `--headless-host`-only
-		# command line (no `--bots=`) falls straight through to the normal
-		# Lobby wait-for-Start path, unaffected.
-		return
-	if not _net_is_hosting():
-		# Bontago-d5c.6 review finding 1: --headless-host's own host_game()
-		# call (Net.apply_command_line(), already run by the time _ready()
-		# reaches this branch -- see this function's own doc above) can fail
-		# to bind its port and leave Net at OFFLINE. Net.is_host() cannot see
-		# that failure (autoload/Net.gd's own doc: "True on the host **and
-		# offline**" -- offline is the normal, successful state for
-		# --sandbox/--hot-seat and every existing unit test's own fixture),
-		# so _net_is_hosting() below checks Net.mode() directly instead.
-		# Building a bot match with nobody actually hosting would run every
-		# bot and the whole feed/territory/win loop against a session no
-		# client, and no acceptance harness, could ever reach.
-		push_error(
-			"--headless-host --bots=%d: Net never became the host (host_game() likely failed to bind its port) -- refusing to start a bot match with no host." % bots
-		)
-		return
-	Match.register_world(_field, _registry, _blocks_container)
-	_headless_loop_enabled = _has_loop_matches_arg(args)
-	_headless_loop_args = args
-	_headless_loop_index = 0
-	if _headless_loop_enabled:
-		Events.match_state_changed.connect(_on_headless_loop_state_changed)
-	_start_headless_loop_match(bots, args)
-
-	# `--seconds=<n>` bounds the run with a hard wall-clock quit: the
-	# acceptance command has no real win condition to end on within a CI
-	# harness's own patience (docs/archive/M5_PLAN.md P5).
-	var seconds: float = _seconds_arg(args)
-	if seconds > 0.0:
-		get_tree().create_timer(seconds).timeout.connect(_on_headless_bots_seconds_elapsed)
+	_headless_bots_flow_port().start_match_with_args(args)
 
 
-## Builds and starts one headless bot match. Without --loop-matches this is
-## exactly the previous Match.start_match + diagnostics pair; with it, each
-## match after the first gets a fresh rng_seed.
 func _start_headless_loop_match(bots: int, args: PackedStringArray) -> void:
-	var config: MatchConfig = _build_headless_bot_config(bots, args)
-	_headless_loop_index += 1
-	if _headless_loop_enabled:
-		# DECISION (Bontago-8or.21): match 1 keeps the configured seed when one is
-		# set; every later match draws a fresh positive seed so repeats differ.
-		if _headless_loop_index > 1 or config.rng_seed < 0:
-			config.rng_seed = randi_range(1, 2147483647)
-		_headless_loop_seed = config.rng_seed
-	Match.start_match(config)
-	_start_headless_bots_diagnostics()
+	_headless_bots_flow_port().call(&"_start_headless_loop_match", bots, args)
 
 
-## `--loop-matches`, same "-"-stripping convention as the other flags.
 func _has_loop_matches_arg(args: PackedStringArray) -> bool:
-	for raw: String in args:
-		var text: String = raw
-		while text.begins_with("-"):
-			text = text.substr(1)
-		if text == "loop-matches":
-			return true
-	return false
+	return _headless_bots_flow_port().call(&"_has_loop_matches_arg", args) as bool
 
 
-## Bontago-8or.21: on END print one compact `HEADLESS_MATCH` summary line and
-## restart on the next frame (deferred, so the END emit finishes first; the
-## restart goes END -> LOBBY -> LOADING, which tears the old world down).
 func _on_headless_loop_state_changed(_from_state: int, to_state: int) -> void:
-	if to_state != Match.State.END or _headless_loop_restart_pending:
-		return
-	print(_headless_match_summary_line())
-	_headless_loop_restart_pending = true
-	_restart_headless_loop_match.call_deferred()
+	_headless_bots_flow_port().call(&"_on_headless_loop_state_changed", _from_state, to_state)
 
 
 func _restart_headless_loop_match() -> void:
-	_headless_loop_restart_pending = false
-	if not _headless_loop_enabled or not _net_is_hosting() or Match.state() != Match.State.END:
-		return
-	_start_headless_loop_match(_bots_arg(_headless_loop_args), _headless_loop_args)
+	_headless_bots_flow_port().call(&"_restart_headless_loop_match")
 
 
 func _headless_match_summary_line() -> String:
-	return "HEADLESS_MATCH index=%d mode=%d seed=%d duration=%.1f winner_team=%d placements=%d homes_alive=%d" % [
-		_headless_loop_index,
-		Match.config.game_mode if Match.config != null else 0,
-		_headless_loop_seed, _headless_bots_elapsed_s(), Match.winner_team(),
-		_headless_bots_placements, _headless_bots_homes_alive(),
-	]
+	return _headless_bots_flow_port().call(&"_headless_match_summary_line") as String
 
 
-## Bontago-d5c.6 review finding 1: true only when Net actually became the
-## HOST, unlike Net.is_host() (autoload/Net.gd: "True on the host **and
-## offline**"), which cannot tell a genuine offline mode apart from
-## --headless-host's own host_game() call having failed to bind. A private
-## helper rather than inlining `Net.mode() == Net.Mode.HOST` at the one call
-## site above, so a test that needs to force either outcome has exactly one
-## seam to reach for.
 func _net_is_hosting() -> bool:
-	return Net.mode() == Net.Mode.HOST
+	return _headless_bots_flow_port().call(&"_net_is_hosting") as bool
 
 
-## `--bots=<n>`, same "-"-stripping/PREFIX convention as _sandbox_player_
-## count()/_sandbox_force_special_arg() above. 0 when absent -- see
-## _start_headless_bot_match_with_args()'s own "feature off by default" doc.
 func _bots_arg(args: PackedStringArray) -> int:
-	const PREFIX: String = "bots="
-	for raw: String in args:
-		var text: String = raw
-		while text.begins_with("-"):
-			text = text.substr(1)
-		if text.begins_with(PREFIX):
-			return int(text.substr(PREFIX.length()))
-	return 0
+	return _headless_bots_flow_port().call(&"_bots_arg", args) as int
 
 
-## `--seconds=<n>`, same convention. 0.0 (unbounded -- the match runs until a
-## real win condition or the process is killed) when absent.
 func _seconds_arg(args: PackedStringArray) -> float:
-	const PREFIX: String = "seconds="
-	for raw: String in args:
-		var text: String = raw
-		while text.begins_with("-"):
-			text = text.substr(1)
-		if text.begins_with(PREFIX):
-			return float(text.substr(PREFIX.length()))
-	return 0.0
+	return _headless_bots_flow_port().call(&"_seconds_arg", args) as float
 
 
-## Same "players="-reading loop as _sandbox_player_count(), with a different
-## absent-flag default (0, so `maxi(bots, ...)` below reduces to exactly
-## `bots` with no --players given -- docs/archive/M5_PLAN.md P5: "every seat a bot"
-## is the literal acceptance command's own shape) -- kept separate from
-## _sandbox_player_count() rather than reused, since that function's own
-## absent-flag default (sandbox_config.default_player_count) is wrong here.
 func _headless_bot_players_arg(args: PackedStringArray) -> int:
-	const PREFIX: String = "players="
-	for raw: String in args:
-		var text: String = raw
-		while text.begins_with("-"):
-			text = text.substr(1)
-		if text.begins_with(PREFIX):
-			return int(text.substr(PREFIX.length()))
-	return 0
+	return _headless_bots_flow_port().call(&"_headless_bot_players_arg", args) as int
 
 
-## Same lobby-settings-minus-a-few-overrides shape as _build_hot_seat_config()/
-## _build_sandbox_config() above: `config.player_count` may be raised past
-## `bots` by `--players=<n2>` to leave human seats idle (docs/archive/M5_PLAN.md P5:
-## "matching --sandbox's own --players= precedent, but is not required for
-## the acceptance criterion"); `config.sandbox` stays false (unlike
-## --sandbox's own config) -- this is a real match, real timers/cadence, the
-## whole point being that the real feed/territory/win loop survives N
-## concurrent bots, not sandbox's relaxed rules.
 func _build_headless_bot_config(bots: int, args: PackedStringArray) -> MatchConfig:
-	# DECISION (game/Main.gd, Bontago-3k0, deferred from Bontago-keo.19):
-	# Net.match_config_override() (set by --match-config=<path>, parsed inside
-	# Net's own host branch -- autoload/Net.gd's _apply_command_line_args())
-	# takes over `match_config`'s usual role as the duplication source here,
-	# extending this function's existing duplicate-then-override shape rather
-	# than adding a second, parallel config path. Null (no flag, or a
-	# rejected path/type) leaves this exactly as it was before the flag
-	# existed.
-	var base_config: MatchConfig = match_config
-	if Net.match_config_override() != null:
-		base_config = Net.match_config_override()
-	var config: MatchConfig = base_config.duplicate(true) as MatchConfig
-	config.ai_count = bots
-	config.player_count = maxi(bots, _headless_bot_players_arg(args))
-	config.hot_seat = false
-	config.sandbox = false
-	# DECISION (Bontago-mp0.27): headless bot matches have no human to wait for,
-	# so they skip the 3-2-1 countdown (harnesses and loops stay fast).
-	config.countdown_seconds = 0.0
-	# DECISION (Bontago-1t5.3): `--mode=<classic|ctf|elimination|sky>` (or the
-	# GameMode integer) picks the headless bot match's mode; absent keeps the
-	# config's own mode. resolve_game_mode() still falls back for unselectable ids.
-	# DECISION (Bontago-1t5.1): `--goals=<1..5>` overrides goal_flag_count for headless bot matches.
-	# Bontago-1pi.107: `--disc-size=<step>` picks the disc-size slider step (0 tiny .. 5 enormous).
-	var disc_step: int = _disc_size_arg(args)
-	if disc_step >= 0:
-		config.disc_size_step = DiscSizeTuning.shared().clamp_step(disc_step)
-
-	var goals_override: int = _goals_arg(args)
-	if goals_override > 0:
-		config.goal_flag_count = clampi(goals_override, MatchConfig.GOAL_FLAG_MIN, MatchConfig.GOAL_FLAG_MAX)
-	var mode_override: int = _mode_arg(args)
-	if mode_override >= 0:
-		config.game_mode = MatchConfig.resolve_game_mode(mode_override)
-		config.round_timer_minutes = MatchConfig.clamp_round_timer(config.round_timer_minutes, config.game_mode)
-	return config
+	return _headless_bots_flow_port().call(&"_build_headless_bot_config", bots, args) as MatchConfig
 
 
-## `--disc-size=<step>`, -1 when absent.
 func _disc_size_arg(args: PackedStringArray) -> int:
-	const PREFIX: String = "disc-size="
-	for raw: String in args:
-		var text: String = raw
-		while text.begins_with("-"):
-			text = text.substr(1)
-		if text.begins_with(PREFIX):
-			return int(text.substr(PREFIX.length()))
-	return -1
+	return _headless_bots_flow_port().call(&"_disc_size_arg", args) as int
 
 
-## `--goals=<n>`, 0 when absent.
 func _goals_arg(args: PackedStringArray) -> int:
-	const PREFIX: String = "goals="
-	for raw: String in args:
-		var text: String = raw
-		while text.begins_with("-"):
-			text = text.substr(1)
-		if text.begins_with(PREFIX):
-			return int(text.substr(PREFIX.length()))
-	return 0
+	return _headless_bots_flow_port().call(&"_goals_arg", args) as int
 
 
-## Bontago-1t5.1 diagnostics: per team, the most goals it holds in one group, "tN:k/total".
 func _headless_bots_goal_coverage() -> String:
-	var raster: TerritoryRaster = Match.raster()
-	if raster == null or Match.config == null:
-		return "n/a"
-	var goals: PackedVector2Array = PlayerSlot.goal_positions_for(Match.config.effective_goal_flag_count(), Match.config.map_def())
-	var by_group: Dictionary = {}
-	for point: Vector2 in goals:
-		var team: int = WinChecker.goal_holder(raster, point, Match._territory._claim_radius())
-		if team < 0:
-			continue
-		var key: String = "%d/%d" % [team, raster.group_at_point(point)]
-		by_group[key] = int(by_group.get(key, 0)) + 1
-	var best_per_team: Dictionary = {}
-	for key: String in by_group:
-		var team_id: int = int(key.split("/")[0])
-		best_per_team[team_id] = maxi(int(best_per_team.get(team_id, 0)), int(by_group[key]))
-	var parts: PackedStringArray = PackedStringArray()
-	for team_id: int in best_per_team:
-		parts.append("t%d:%d/%d" % [team_id, int(best_per_team[team_id]), goals.size()])
-	return "[%s]" % ",".join(parts)
+	return _headless_bots_flow_port().call(&"_headless_bots_goal_coverage") as String
 
 
-## `--mode=<name|id>`, -1 when absent or unrecognised.
 func _mode_arg(args: PackedStringArray) -> int:
-	const PREFIX: String = "mode="
-	for raw: String in args:
-		var text: String = raw
-		while text.begins_with("-"):
-			text = text.substr(1)
-		if not text.begins_with(PREFIX):
-			continue
-		var value: String = text.substr(PREFIX.length()).to_lower()
-		match value:
-			"classic":
-				return MatchConfig.GameMode.CLASSIC
-			"ctf", "capture_the_flag":
-				return MatchConfig.GameMode.CAPTURE_THE_FLAG
-			"elimination":
-				return MatchConfig.GameMode.ELIMINATION
-			"sky", "reach_the_sky":
-				return MatchConfig.GameMode.REACH_THE_SKY
-			"domination":
-				return MatchConfig.GameMode.DOMINATION
-		if value.is_valid_int():
-			var id: int = int(value)
-			if MatchConfig.resolve_game_mode(id) != id:
-				push_warning("--mode=%s is reserved or unselectable; falling back to %d" % [value, MatchConfig.resolve_game_mode(id)])
-			return id
-		push_warning("--mode=%s is not a known mode id; keeping the configured mode" % value)
-		return -1
-	return -1
+	return _headless_bots_flow_port().call(&"_mode_arg", args) as int
 
-
-# --- Headless bot match diagnostics (Bontago-d5c.6 review finding 2) ---------
-#
-# The literal acceptance command (`--headless-host --bots=8 --seconds=60`) has
-# no console to watch, so this prints one `HEADLESS_BOTS` line every
-# HEADLESS_BOTS_REPORT_INTERVAL_S and a final one right before the --seconds
-# quit, each carrying the wall-clock time since the match began, Match's own
-# state name and how many blocks have been placed so far (Events.block_placed
-# -- autoload/Events.gd: "a block became a live physics body, either placed by
-# a player or auto-dropped when its feed timer ran out", exactly what a bot's
-# own placements are). Diagnostics only: nothing here feeds a rule or a test
-# assertion about gameplay, only a human (or tools/triage_log.py) reading the
-# log. `bots_active` from the brief is omitted -- BotController's own _state
-# (game/BotController.gd) has no public accessor and this file does not own
-# that script, so reading it here is not "cheaply readable" without editing a
-# file outside this package's ownership.
 
 func _start_headless_bots_diagnostics() -> void:
-	# Idempotent (Bontago-8or.21): a --loop-matches restart must not double-connect
-	# block_placed or leak a second report Timer.
-	_stop_headless_bots_diagnostics()
-	_headless_bots_start_msec = Time.get_ticks_msec()
-	_headless_bots_placements = 0
-	Events.block_placed.connect(_on_headless_bots_block_placed)
-	_headless_bots_report_timer = Timer.new()
-	_headless_bots_report_timer.wait_time = HEADLESS_BOTS_REPORT_INTERVAL_S
-	_headless_bots_report_timer.autostart = true
-	_headless_bots_report_timer.timeout.connect(_on_headless_bots_report_tick)
-	add_child(_headless_bots_report_timer)
+	_headless_bots_flow_port().call(&"_start_headless_bots_diagnostics")
 
 
-## Torn down from _end_match_world() (idempotent: a no-op for every match
-## world that never called _start_headless_bots_diagnostics() above, since
-## _headless_bots_report_timer stays null and Events.block_placed was never
-## connected by this instance).
+## Only a loaded flow can have started diagnostics, so teardown never loads it.
 func _stop_headless_bots_diagnostics() -> void:
-	if Events.block_placed.is_connected(_on_headless_bots_block_placed):
-		Events.block_placed.disconnect(_on_headless_bots_block_placed)
-	if _headless_bots_report_timer != null and is_instance_valid(_headless_bots_report_timer):
-		_headless_bots_report_timer.queue_free()
-	_headless_bots_report_timer = null
+	if _headless_bots_flow != null:
+		_headless_bots_flow.call(&"_stop_headless_bots_diagnostics")
 
 
 func _on_headless_bots_block_placed(_block: RigidBody3D, _shape_id: StringName) -> void:
-	_headless_bots_placements += 1
+	_headless_bots_flow_port().call(&"_on_headless_bots_block_placed", _block, _shape_id)
 
 
 func _on_headless_bots_report_tick() -> void:
-	print(_headless_bots_periodic_line())
+	_headless_bots_flow_port().call(&"_on_headless_bots_report_tick")
 
 
-## _start_headless_bot_match_with_args()'s own `--seconds=<n>` quit timer,
-## above: prints one last line (with the same counters the periodic line
-## used) so the acceptance command's log always ends with a placements total,
-## even when the process quits between two HEADLESS_BOTS_REPORT_INTERVAL_S
-## ticks.
 func _on_headless_bots_seconds_elapsed() -> void:
-	print(_headless_bots_done_line())
-	await Sfx.drain_for_quit()
-	get_tree().quit(0)
+	_headless_bots_flow_port().call(&"_on_headless_bots_seconds_elapsed")
 
 
 func _headless_bots_periodic_line() -> String:
-	return "HEADLESS_BOTS t=%.1f state=%s placements=%d mode=%d homes_alive=%d frontier_gap=%.2f goals=%s" % [
-		_headless_bots_elapsed_s(), _headless_bots_state_name(), _headless_bots_placements,
-		Match.config.game_mode if Match.config != null else 0, _headless_bots_homes_alive(),
-		_headless_bots_frontier_gap(), _headless_bots_goal_coverage(),
-	]
+	return _headless_bots_flow_port().call(&"_headless_bots_periodic_line") as String
 
 
 func _headless_bots_done_line() -> String:
-	return "HEADLESS_BOTS done t=%.1f placements=%d mode=%d homes_alive=%d" % [
-		_headless_bots_elapsed_s(), _headless_bots_placements,
-		Match.config.game_mode if Match.config != null else 0, _headless_bots_homes_alive(),
-	]
+	return _headless_bots_flow_port().call(&"_headless_bots_done_line") as String
 
 
-## Bontago-1t5.4 diagnostics: smallest (distance to a living enemy home minus
-## the circle's radius) over every circle, i.e. how close any team's influence
-## frontier is to an enemy home (<= 0 means a circle covers one). -1 when n/a.
 func _headless_bots_frontier_gap() -> float:
-	var arrays: Dictionary = Match.circle_render_arrays()
-	var xs: PackedFloat32Array = arrays.get("xs", PackedFloat32Array()) as PackedFloat32Array
-	var zs: PackedFloat32Array = arrays.get("zs", PackedFloat32Array()) as PackedFloat32Array
-	var radii: PackedFloat32Array = arrays.get("radii", PackedFloat32Array()) as PackedFloat32Array
-	var teams: PackedInt32Array = arrays.get("teams", PackedInt32Array()) as PackedInt32Array
-	var best: float = INF
-	for i: int in range(mini(teams.size(), radii.size())):
-		for slot_index: int in range(Match.slot_count()):
-			var slot: PlayerSlot = Match.slot(slot_index)
-			if slot == null or not slot.home_flag_alive or Match.team_of(slot_index) == teams[i]:
-				continue
-			best = minf(best, Vector2(xs[i], zs[i]).distance_to(slot.home_position) - radii[i])
-	return best if best != INF else -1.0
+	return _headless_bots_flow_port().call(&"_headless_bots_frontier_gap") as float
 
 
-## Living home flags (diagnostics: shows whether an Elimination bot match
-## eliminated anyone).
 func _headless_bots_homes_alive() -> int:
-	var alive: int = 0
-	for i: int in range(Match.slot_count()):
-		var slot: PlayerSlot = Match.slot(i)
-		if slot != null and slot.home_flag_alive:
-			alive += 1
-	return alive
+	return _headless_bots_flow_port().call(&"_headless_bots_homes_alive") as int
 
 
 func _headless_bots_elapsed_s() -> float:
-	return float(Time.get_ticks_msec() - _headless_bots_start_msec) / 1000.0
+	return _headless_bots_flow_port().call(&"_headless_bots_elapsed_s") as float
 
 
-## Match.State's own name for Match.state() (e.g. "PLAYING"), read the same
-## way an enum-to-string helper would if Match exported one: Dictionary.
-## find_key() on the enum itself, since GDScript enums are plain Dictionaries
-## under the hood. "UNKNOWN" only if Match.state() is ever a value the enum
-## does not declare, which should not be possible.
 func _headless_bots_state_name() -> String:
-	var key: Variant = Match.State.find_key(Match.state())
-	return str(key) if key != null else "UNKNOWN"
+	return _headless_bots_flow_port().call(&"_headless_bots_state_name") as String
+
+
+## The headless bots flow, loaded through the serial prewarm queue on first use.
+func _headless_bots_flow_port() -> MainHeadlessBotsFlowPort:
+	if _headless_bots_flow == null:
+		var flow_script: GDScript = _menu_prewarm_queue().ensure_script(HEADLESS_BOTS_FLOW_SCRIPT_PATH)
+		_headless_bots_flow = flow_script.new() as MainHeadlessBotsFlowPort
+		_headless_bots_flow.bind(self)
+	return _headless_bots_flow
+
+
+func _menu_prewarm_queue() -> MenuPrewarmQueue:
+	if _prewarm_queue == null:
+		_prewarm_queue = MenuPrewarmQueue.new()
+		_prewarm_queue.config = load(MENU_PREWARM_CONFIG_PATH) as MenuPrewarmConfig
+	return _prewarm_queue
+
 
 
 # --- Menu / lobby routing -----------------------------------------------------
@@ -1550,8 +1043,8 @@ func _finish_loading_when_ready(generation: int) -> void:
 	if _hot_seat != null and _camera_rig != null:
 		_camera_rig.begin_start_framing(Net.local_slot())
 	if _hot_seat != null:
-		_hot_seat.controller().set_process(_controller_was_processing)
-		_hot_seat.controller().set_process_unhandled_input(_controller_was_handling_input)
+		(_hot_seat as HotSeat).controller().set_process(_controller_was_processing)
+		(_hot_seat as HotSeat).controller().set_process_unhandled_input(_controller_was_handling_input)
 	await _loading_screen.fade_out()
 	# Bontago-mp0.27: the screen is gone; now the 3-2-1 starts running down.
 	_release_countdown_hold(generation)
@@ -1650,11 +1143,12 @@ func _build_match_world(force_staging_for_test: bool = false) -> void:
 	# DECISION (Bontago-8or.11): it watches through the default camera rig
 	# with no HotSeat -- there is no slot for one to drive.
 	if config.ai_count < config.player_count and Net.local_slot() >= 0:
-		_hot_seat = _load_scene(HOT_SEAT_SCENE_PATH).instantiate() as HotSeat
-		add_child(_hot_seat)
-		_hot_seat.set_camera_rig(_camera_rig)
-		_hot_seat.set_field(_field)
-		_hot_seat.bind_local_slot(Net.local_slot())
+		var hot_seat: HotSeat = _load_scene(HOT_SEAT_SCENE_PATH).instantiate() as HotSeat
+		_hot_seat = hot_seat
+		add_child(hot_seat)
+		hot_seat.set_camera_rig(_camera_rig)
+		hot_seat.set_field(_field)
+		hot_seat.bind_local_slot(Net.local_slot())
 		# Bontago-mv0.26 (owner test 2026-09-22, "the original lets me keep moving
 		# once I hit the edge of the screen"): HotSeat.gd's own _ready() already
 		# calls this unconditionally (this scene is the exact same HOT_SEAT_SCENE_PATH scene
@@ -1666,12 +1160,12 @@ func _build_match_world(force_staging_for_test: bool = false) -> void:
 		# child scene's _ready() timing -- idempotent (enable_mouse_capture() just
 		# re-sets Input.mouse_mode) and a no-op headless, so it changes nothing
 		# for --headless-host or the test suite.
-		_hot_seat.controller().enable_mouse_capture()
-		_controller_was_processing = _hot_seat.controller().is_processing()
-		_controller_was_handling_input = _hot_seat.controller().is_processing_unhandled_input()
+		hot_seat.controller().enable_mouse_capture()
+		_controller_was_processing = hot_seat.controller().is_processing()
+		_controller_was_handling_input = hot_seat.controller().is_processing_unhandled_input()
 		if stage_build:
-			_hot_seat.controller().set_process(false)
-			_hot_seat.controller().set_process_unhandled_input(false)
+			hot_seat.controller().set_process(false)
+			hot_seat.controller().set_process_unhandled_input(false)
 
 	_spawn_bot_controllers(config)
 
