@@ -38,6 +38,29 @@ class SerialSplitTest(unittest.TestCase):
             wanted = [l.split("#")[0].strip() for l in fh if l.split("#")[0].strip()]
         self.assertEqual([w for w in wanted if w not in tests], [])
 
+    def test_layer_lint_wired_into_gate(self):
+        # The gate runs lint_layers on the candidate tree and any non-green exit makes it RED.
+        with open(full_gate.__file__.replace(".pyc", ".py"), encoding="utf-8") as fh:
+            src = fh.read()
+        self.assertIn('run_lint(path, "lint_layers", lint_layers)', src)
+        self.assertIn("layer_code == 0", src)
+        self.assertIn("layer_lint=%s", src)
+
+    def test_run_lint_uses_candidate_script_and_falls_back(self):
+        with tempfile.TemporaryDirectory() as root:
+            class Stub(object):
+                calls = []
+
+                @staticmethod
+                def main(argv):
+                    Stub.calls.append(argv)
+                    return 7
+            self.assertEqual(full_gate.run_lint(root, "lint_layers", Stub), 7)
+            os.makedirs(os.path.join(root, "tools"))
+            with open(os.path.join(root, "tools", "lint_layers.py"), "w") as fh:
+                fh.write("import sys; sys.exit(3)")
+            self.assertEqual(full_gate.run_lint(root, "lint_layers", Stub), 3)
+
 
 if __name__ == "__main__":
     unittest.main()

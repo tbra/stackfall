@@ -65,6 +65,16 @@ class LintLayersTest(unittest.TestCase):
         base["autoload_scc_pairs"] = []
         self.assertTrue(any("non-allow-listed" in x for x in self.check(g, base)))
 
+    def test_late_scripts_edges_excluded_from_scc(self):
+        # LateScripts names scripts by path string; those edges must not fuse autoloads into an SCC.
+        g = make_graph([("autoload/Match.gd", "autoload/LateScripts.gd", "class"),
+                        ("autoload/LateScripts.gd", "autoload/Match.gd", "path")], AUTO)
+        m = lint_layers.measure(g)
+        self.assertEqual(m["auto_sccs"], [])
+        self.assertEqual(m["largest_scc"], 0)
+        g2 = make_graph([("autoload/Match.gd", "x.gd", "class"), ("x.gd", "autoload/Match.gd", "class")], AUTO)
+        self.assertEqual(lint_layers.measure(g2)["largest_scc"], 2)
+
     def test_new_closure_file_fails(self):
         g = make_graph([("autoload/Match.gd", "game/New.gd", "class")], AUTO)
         base = {"largest_scc": 0, "closure": ["autoload/Match.gd", "autoload/Net.gd"]}
