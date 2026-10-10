@@ -15,6 +15,13 @@ const BUTTON_STATES: Array[StringName] = [STATE_NORMAL, STATE_HOVER, STATE_PRESS
 const STATE_LABELS: Dictionary = {
 	STATE_NORMAL: "NORMAL", STATE_HOVER: "HOVER", STATE_PRESSED: "PRESSED", STATE_FOCUS: "FOCUS", STATE_DISABLED: "OFF",
 }
+## The states a toggle / chip can show (no pressed look: the toggled-on block is the pressed one).
+const SWITCH_STATES: Array[StringName] = [STATE_NORMAL, STATE_HOVER, STATE_FOCUS, STATE_DISABLED]
+const SWITCH_LABELS: Dictionary = {STATE_NORMAL: "NORMAL", STATE_HOVER: "HOVER", STATE_FOCUS: "FOCUS", STATE_DISABLED: "DISABLED"}
+const STEPPER_MAX: int = 10
+const STEPPER_LOW: int = 3
+const STEPPER_MID: int = 5
+const STEPPER_FORMATTED: int = 4
 const BLOCK_LOOKS: Dictionary = {
 	"PRIMARY": UiBlockButton.Look.PRIMARY, "SECONDARY": UiBlockButton.Look.SECONDARY,
 	"MINT": UiBlockButton.Look.MINT, "RIM": UiBlockButton.Look.RIM,
@@ -29,6 +36,9 @@ const BADGES: Array[Dictionary] = [
 	{"name": "ICON-ONLY READY", "look": UiStatusBadge.Look.READY, "text": "Ready", "live": false, "icon": true},
 	{"name": "ICON-ONLY WAITING", "look": UiStatusBadge.Look.NOT_READY, "text": "Not ready", "live": false, "icon": true},
 ]
+
+## 0 = buttons + badges, 1 = toggles, chips, steppers and tabs (C1b). One page fits one capture.
+@export var page: int = 0
 
 
 func _ready() -> void:
@@ -47,8 +57,20 @@ func _ready() -> void:
 	var columns: HBoxContainer = HBoxContainer.new()
 	columns.add_theme_constant_override("separation", arcade.space_4_px)
 	margin.add_child(columns)
-	columns.add_child(_panel("BUTTONS", _button_rows()))
-	columns.add_child(_panel("BADGES AND ROW CONTRACT", _badge_rows()))
+	if page == 0:
+		columns.add_child(_panel("BUTTONS", _button_rows()))
+		columns.add_child(_panel("BADGES AND ROW CONTRACT", _badge_rows()))
+	else:
+		var left: VBoxContainer = VBoxContainer.new()
+		left.add_theme_constant_override("separation", arcade.space_4_px)
+		left.add_child(_panel("TOGGLE", _toggle_rows()))
+		left.add_child(_panel("CHIP TOGGLE", _chip_rows()))
+		columns.add_child(left)
+		var right: VBoxContainer = VBoxContainer.new()
+		right.add_theme_constant_override("separation", arcade.space_4_px)
+		right.add_child(_panel("STEPPER", _stepper_rows()))
+		right.add_child(_panel("TABS", _tab_rows()))
+		columns.add_child(right)
 
 
 func _panel(title: String, rows: Array[Control]) -> PanelContainer:
@@ -112,6 +134,86 @@ func _badge_rows() -> Array[Control]:
 	tag.variant = UiStatusBadge.Look.READY
 	contract.add_item(tag)
 	rows.append(contract)
+	return rows
+
+
+func _toggle_rows() -> Array[Control]:
+	var rows: Array[Control] = []
+	for state: StringName in SWITCH_STATES:
+		var row: UiRow = UiRow.new().setup(SWITCH_LABELS[state] as String)
+		for on: bool in [false, true]:
+			var toggle: UiToggle = UiToggle.new()
+			toggle.caption = "Sudden death"
+			row.add_item(toggle)
+			toggle.set_on_silent(on)
+			match state:
+				STATE_HOVER:
+					toggle.preview_hover = true
+				STATE_FOCUS:
+					show_state(toggle, STATE_FOCUS)
+				STATE_DISABLED:
+					toggle.disabled = true
+		rows.append(row)
+	return rows
+
+
+func _chip_rows() -> Array[Control]:
+	var rows: Array[Control] = []
+	for state: StringName in SWITCH_STATES:
+		var row: UiRow = UiRow.new().setup(SWITCH_LABELS[state] as String)
+		for on: bool in [false, true]:
+			var chip: UiChipToggle = UiChipToggle.new()
+			chip.label = "Black hole"
+			row.add_item(chip)
+			chip.set_on_silent(on)
+			match state:
+				STATE_HOVER:
+					chip.add_theme_stylebox_override("pressed" if on else "normal", chip.get_theme_stylebox("hover_pressed" if on else "hover"))
+				STATE_FOCUS:
+					show_state(chip, STATE_FOCUS)
+				STATE_DISABLED:
+					chip.set_available(false, "Switched off for this match")
+		rows.append(row)
+	return rows
+
+
+func _stepper_rows() -> Array[Control]:
+	var rows: Array[Control] = []
+	var cases: Array[Dictionary] = [
+		{"name": "NORMAL", "value": STEPPER_LOW}, {"name": "AT MIN", "value": 0}, {"name": "AT MAX", "value": STEPPER_MAX},
+		{"name": "FOCUS", "value": STEPPER_MID}, {"name": "DISABLED", "value": STEPPER_MID}, {"name": "FORMATTED", "value": STEPPER_MID},
+	]
+	for entry: Dictionary in cases:
+		var stepper: UiStepper = UiStepper.new()
+		stepper.min_value = 0
+		stepper.max_value = STEPPER_MAX
+		stepper.value = entry["value"] as int
+		match entry["name"] as String:
+			"FOCUS":
+				stepper.preview_focus = true
+			"DISABLED":
+				stepper.disabled = true
+			"FORMATTED":
+				stepper.formatter = func(v: int) -> String: return "%d:00" % v
+				stepper.value = STEPPER_FORMATTED
+		rows.append(UiRow.new().setup(entry["name"] as String, stepper))
+	return rows
+
+
+func _tab_rows() -> Array[Control]:
+	var rows: Array[Control] = []
+	var top: UiTabs = UiTabs.new()
+	for tab_name: String in ["game", "graphics", "controls", "mods"]:
+		top.add_tab(StringName(tab_name), tab_name)
+	rows.append(UiRow.new().setup("TOP TABS", top))
+	show_state(top.get_tab(&"graphics"), STATE_HOVER)
+	show_state(top.get_tab(&"controls"), STATE_FOCUS)
+	top.set_tab_disabled(&"mods", true)
+	var side: UiTabs = UiTabs.new()
+	side.orientation = UiTabs.Orientation.VERTICAL
+	for tab_name: String in ["settings", "controls"]:
+		side.add_tab(StringName(tab_name), tab_name)
+	rows.append(UiRow.new().setup("SIDE TABS", side))
 	return rows
 
 

@@ -52,8 +52,20 @@ static func style(button: Button, variant_value: Look, small_block: bool = true)
 	MenuStyleFactory.apply_block(button, face, MenuStyleFactory.ink_for_face(face), small_block)
 	var font_px: int = arcade.font_size_button_sm_px if small_block else arcade.font_size_button_px
 	button.add_theme_font_size_override("font_size", font_px)
+	if variant_value == Look.SECONDARY:
+		_show_pressed_face(button, face, small_block, arcade)
 	if small_block:
 		fit_row_height(button, arcade)
+
+
+## A pressed block's face is its lip colour (BlockStyleBox), and a disc face's lip is nearly the
+## panel colour, so a pressed SECONDARY / ICON block vanished into the plate (C1a gallery note).
+## Neutral faces stay their own colour when pressed (the block still drops onto its ledge and the
+## top / lip go shallow), so the pressed button is visibly there.
+static func _show_pressed_face(button: Button, face: Color, small_block: bool, arcade: ArcadeVisualTuning) -> void:
+	for state: String in ["pressed", "hover_pressed"]:
+		var shown: Color = face if state == "pressed" else face.lerp(Color.WHITE, arcade.block_hover_light_mix)
+		button.add_theme_stylebox_override(state, BlockStyleBox.make(shown, arcade, small_block, BlockStyleBox.STATE_PRESSED, shown, MenuStyleFactory.top_for(shown)))
 
 
 ## Removes the standard vertical padding of the five block states so top + lip + drop + label fit
