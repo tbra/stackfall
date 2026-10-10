@@ -12,25 +12,22 @@ report. Pure stdlib; `.jsonl` and `.jsonl.gz` both work.
 
 Schema v1 as implemented here (the contract; drift is reported, not guessed):
   header     {"kind":"header","schema_version":1,"seed","mode","map_id",
-              "bot_count","difficulty","weights":{weight_*: float},
-              "git_revision"}                     (first line)
-  decision   {"kind":"decision","id","t","slot","team","shape_id","feed_seq",
-              "piece_index","cands":[{"o":[x,z],"r","h","sh","ct","top",
+              "bot_count","difficulty","weights":{height,goal_progress,
+              stability,risk: float},"git_revision", + slot, horizons_s, ...}
+              (first line)
+  decision   {"kind":"decision","id":int,"t","slot","team","shape_id","feed_seq",
+              "piece_index","policy":"score"|"special","state":{own_share,...},"cands":[{"o":[x,z],"r","h","sh","ct","top",
               "terms":[height,goal,stability,risk,mode]}],"chosen",
               "placed_origin":[x,z],"reason","scored_best"}
-              optional "policy":"special" (trainers drop these) plus state
-              fields (own_share, enemy_share, ...) which are type-checked when
-              present but not required.
+              trainers drop policy "special"; state fields are type-checked
+              when present.
   outcome    {"kind":"outcome","id","d_share_10s","d_share_30s","d_share_60s",
-              "placed_block_alive_60s","home_alive_60s"}
+              "slot","own_blocks_alive_60s","home_alive_60s","complete"}
   match_end  {"kind":"match_end","slot","winner_team","final_share","won",
               "eliminated_at"}
   footer     {"kind":"footer","policy_mismatch":int,...}   (optional)
 
-The exact key names for header fields, the decision `id` (the join key the
-outcome record carries) and the state fields are inferred from plan section 1;
-the real sample (tests/fixtures/bot_record_sample.jsonl) should be validated
-against this tool as soon as it lands and any naming drift fixed here.
+Aligned with the real recorder (core/ai/BotDecisionRecord.gd) and its trimmed sample.
 """
 
 from __future__ import annotations
@@ -57,8 +54,10 @@ OUTCOME_KEYS = ("id", "d_share_10s", "d_share_30s", "d_share_60s")
 MATCH_END_KEYS = ("slot", "winner_team", "final_share", "won")
 OPTIONAL_STATE_NUMBERS = (
     "own_share", "enemy_share", "own_blocks", "own_tower_max_height",
-    "enemies_alive", "nearest_enemy_dist", "active_specials",
+    "enemies_alive", "nearest_enemy_circle_dist", "active_specials",
 )
+# BotDecisionRecord.POLICY_SCORE / POLICY_SPECIAL; trainers keep only "score".
+POLICIES = ("score", "special")
 
 
 def _is_num(v: Any) -> bool:
@@ -96,11 +95,17 @@ def validate_record(rec: Any) -> List[str]:
         if not isinstance(w, dict) or not all(_is_num(v) for v in w.values()):
             errs.append("header: weights must be an object of numbers")
     elif kind == "decision":
+        if not _is_int(rec["id"]):
+            errs.append("decision: id %r not an int (id format drift)" % (rec["id"],))
         errs.extend(_validate_decision(rec))
     elif kind == "outcome":
         for key in ("d_share_10s", "d_share_30s", "d_share_60s"):
             if not _is_num(rec[key]):
                 errs.append("outcome: %s not a number" % key)
+        if not _is_int(rec["id"]):
+            errs.append("outcome: id %r not an int (id format drift)" % (rec["id"],))
+        if "complete" in rec and not isinstance(rec["complete"], bool):
+            errs.append("outcome: complete not a bool")
     elif kind == "match_end":
         if not _is_int(rec["slot"]):
             errs.append("match_end: slot not an int")
@@ -124,11 +129,17 @@ def _validate_decision(rec: Dict[str, Any]) -> List[str]:
             errs.append("decision: %s not an int" % key)
     if not isinstance(rec["shape_id"], str):
         errs.append("decision: shape_id not a string")
-    if "policy" in rec and rec["policy"] not in ("special", "ordinary"):
+    if "policy" in rec and rec["policy"] not in POLICIES:
         errs.append("decision: policy %r unknown" % (rec["policy"],))
-    for key in OPTIONAL_STATE_NUMBERS:
-        if key in rec and not _is_num(rec[key]):
-            errs.append("decision: %s not a number" % key)
+    state = rec.get("state", {})
+    if not isinstance(state, dict):
+        errs.append("decision: state not an object")
+    else:
+        for key in OPTIONAL_STATE_NUMBERS:
+            if key in state and not _is_num(state[key]):
+                errs.append("decision: state.%s not a number" % key)
+        if "own_home_alive" in state and not isinstance(state["own_home_alive"], bool):
+            errs.append("decision: state.own_home_alive not a bool")
     if not _is_pair(rec["placed_origin"]):
         errs.append("decision: placed_origin not [x,z]")
     cands = rec["cands"]
@@ -139,9 +150,10 @@ def _validate_decision(rec: Dict[str, Any]) -> List[str]:
         if cerrs:
             errs.extend(cerrs)
             break
+    low = -1 if rec.get("policy") == "special" else 0  # recorder writes -1 when a special had no pick
     for key in ("chosen", "scored_best"):
         v = rec[key]
-        if not _is_int(v) or not 0 <= v < len(cands):
+        if not _is_int(v) or not low <= v < len(cands):
             errs.append("decision: %s %r out of range for %d cands" % (key, v, len(cands)))
     return errs
 
@@ -197,6 +209,7 @@ class DatasetFile:
     match_ends: Dict[int, Dict[str, Any]] = field(default_factory=dict)
     footer: Optional[Dict[str, Any]] = None
     errors: List[str] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
     lines: int = 0
     size_bytes: int = 0
 
@@ -243,9 +256,10 @@ def load_file(path: str) -> DatasetFile:
     ids = [d["id"] for d in df.decisions]
     if len(set(map(str, ids))) != len(ids):
         df.errors.append("%s: duplicate decision ids" % path)
-    unknown = {str(k) for k in df.outcomes} - {str(i) for i in ids}
+    # Valid-typed ids with no decision in this file: a trimmed fixture or a truncated file, not drift.
+    unknown = set(df.outcomes) - set(ids)
     if unknown:
-        df.errors.append("%s: %d outcome(s) reference unknown decision ids" % (path, len(unknown)))
+        df.warnings.append("%s: %d outcome(s) reference decision ids absent from the file" % (path, len(unknown)))
     return df
 
 
@@ -293,6 +307,7 @@ def summarise(files: List[DatasetFile]) -> Dict[str, Any]:
         "chosen_ne_scored_best": mismatches,
         "footer_policy_mismatch": footer_pm,
         "schema_errors": sum(len(f.errors) for f in files),
+        "warnings": sum(len(f.warnings) for f in files),
     }
 
 
@@ -324,6 +339,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         errs = [e for f in files for e in f.errors]
         for e in errs[: args.max_errors]:
             print(e)
+        for w in (w for f in files for w in f.warnings):
+            print("WARNING " + w)
         print("VALIDATE %s files=%d errors=%d" % ("FAIL" if errs else "OK", len(files), len(errs)))
         return 1 if errs else 0
     result = summarise(files) if args.command == "summarise" else size_report(files)

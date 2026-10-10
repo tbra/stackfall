@@ -24,12 +24,13 @@ import bot_fit_weights as fw  # noqa: E402
 import bot_h2h as h2h  # noqa: E402
 
 N_CANDS = 20
+NL = chr(10)
 SIGNS = fw.FIT_SIGNS
 
 
 def header(seed: int = 1, mode: int = 0) -> dict:
     return {"kind": "header", "schema_version": 1, "seed": seed, "mode": mode, "map_id": "m",
-            "bot_count": 8, "difficulty": "hard", "weights": {"weight_height": 1.0},
+            "bot_count": 8, "difficulty": "hard", "weights": {"height": 1.0},
             "git_revision": "abc"}
 
 
@@ -39,7 +40,7 @@ def candidate(rng: random.Random) -> dict:
 
 
 def decision(i: int, cands: list, chosen: int, slot: int = 0, t: float = 1.0) -> dict:
-    return {"kind": "decision", "id": i, "t": t, "slot": slot, "team": slot, "shape_id": "cube",
+    return {"kind": "decision", "id": i, "t": t, "slot": slot, "team": slot, "shape_id": "cube", "policy": "score",
             "feed_seq": i, "piece_index": i, "cands": cands, "chosen": chosen,
             "placed_origin": [0.0, 0.0], "reason": "ok", "scored_best": chosen}
 
@@ -105,11 +106,57 @@ class ValidatorTests(unittest.TestCase):
             joined = " | ".join(df.errors)
             self.assertIn("invalid JSON", joined)
             self.assertIn("no header", joined)
-            self.assertIn("unknown decision ids", joined)
+            self.assertTrue(any("absent from the file" in w for w in df.warnings))
             with contextlib.redirect_stdout(io.StringIO()) as out:
                 rc = ds.main(["validate", p])
             self.assertEqual(rc, 1)
             self.assertIn("VALIDATE FAIL", out.getvalue())
+
+
+def real_sample() -> str:
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    landed = os.path.join(repo, "tests", "fixtures", "bot_record_sample.jsonl")
+    return landed if os.path.exists(landed) else os.path.join(repo, "tools", "test_data", "bot_record_sample.jsonl")
+
+
+class RealSampleTests(unittest.TestCase):
+    """The recorder's own trimmed output (BotDecisionRecorder, schema v1)."""
+
+    def test_validate_summarise_join(self) -> None:
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(ds.main(["validate", real_sample()]), 0)
+        self.assertIn("VALIDATE OK", out.getvalue())
+        df = ds.load_file(real_sample())
+        summary = ds.summarise([df])
+        self.assertEqual(summary["decisions"], 8)
+        self.assertEqual(summary["decisions_with_outcome"], 8)
+        self.assertEqual(summary["chosen_ne_scored_best"], 0)
+        self.assertEqual(summary["footer_policy_mismatch"], [0])
+        self.assertTrue(all(r["match_end"] is not None for r in ds.join_outcomes(df)))
+
+    def test_dangling_outcome_warns_but_id_drift_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            lines = open(real_sample(), encoding="utf-8").read().splitlines()
+            dec = [i for i, l in enumerate(lines) if '"kind":"decision"' in l][0]
+            trimmed = os.path.join(tmp, "trim.jsonl")
+            with open(trimmed, "w", encoding="utf-8") as fh:
+                fh.write(NL.join(lines[:dec] + lines[dec + 1:]))
+            df = ds.load_file(trimmed)
+            self.assertEqual(df.errors, [])
+            self.assertEqual(len(df.warnings), 1)
+            drift = os.path.join(tmp, "drift.jsonl")
+            with open(drift, "w", encoding="utf-8") as fh:
+                fh.write(NL.join(l.replace('"kind":"decision","id":6', '"kind":"decision","id":"6"')
+                                   for l in lines))
+            self.assertTrue(ds.load_file(drift).errors)
+
+    def test_t1_fit_smoke(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                rc = fw.main([real_sample(), "--holdout", "0.25", "--write-proposal", os.path.join(tmp, "p.txt")])
+            self.assertEqual(rc, 0)
+            self.assertIn("heldout", out.getvalue())
+            self.assertIn("weight_stability", out.getvalue())
 
 
 class JoinTests(unittest.TestCase):

@@ -109,9 +109,9 @@ def build_examples(files: Sequence[ds.DatasetFile], mode: Optional[int] = None,
         if difficulty is not None and h.get("difficulty") != difficulty:
             continue
         for row in ds.join_outcomes(f):
-            if row.get("policy") == "special":
+            if row.get("policy") == "special" or row["chosen"] < 0:
                 continue
-            if use_outcomes and row["outcome"] is None:
+            if use_outcomes and (row["outcome"] is None or row["outcome"].get("complete") is False):
                 continue
             picked.append((f.path, row))
     advs = [0.0] * len(picked)
@@ -330,6 +330,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     if not examples:
         print("no usable decisions (filters / missing outcomes; try --uniform-weights)", file=sys.stderr)
         return 2
+    for f in files:
+        hw = (f.header or {}).get("weights", {})
+        diff = [n for n in FIT_NAMES if n[len("weight_"):] in hw and abs(hw[n[len("weight_"):]] - shipped[n]) > 1e-9]
+        if diff:
+            print("note: %s was recorded with weights differing from the shipped ones (%s); L2 anchors to shipped"
+                  % (os.path.basename(f.path), ", ".join(diff)))
     train, held = split_examples(examples, args.holdout)
     theta = fit(train, theta0, l2=args.l2)
     print("decisions: train=%d heldout=%d (files=%d)" % (len(train), len(held), len(files)))
