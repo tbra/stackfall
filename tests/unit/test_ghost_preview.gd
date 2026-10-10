@@ -1337,6 +1337,12 @@ func test_block_projection_decal_fade_is_clamped_when_tuning_is_zero() -> void:
 	assert_eq(ghost.block_projection_decal_cull_mask(), ghost._block_projection_decal.cull_mask)
 
 
+## Bontago-1pi.143: the downward decal must not paint vertical block faces.
+func test_block_projection_decal_fades_faces_turned_away_from_it() -> void:
+	var fresh: GhostTuning = GhostTuning.new()
+	assert_gt(fresh.block_projection_normal_fade, 0.0)
+
+
 func test_block_projection_edge_fade_default_is_positive_and_below_a_full_fade() -> void:
 	var fresh: GhostTuning = GhostTuning.new()
 	assert_gt(fresh.block_projection_edge_fade, 0.0, "never zero: a zero fade renders NaN speckle")

@@ -1298,6 +1298,7 @@ func _update_block_projection_decal(world_hull: PackedVector2Array, landing_y: f
 	)
 	_block_projection_decal.upper_fade = _decal_fade()
 	_block_projection_decal.lower_fade = _decal_fade()
+	_block_projection_decal.normal_fade = ghost_tuning.block_projection_normal_fade
 	_block_projection_decal.size = Vector3(size_x, top_y - landing_y, size_z)
 	_block_projection_decal.global_position = Vector3(center_x, (top_y + landing_y) * 0.5, center_z)
 	_block_projection_decal.modulate = Color(
