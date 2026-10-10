@@ -123,7 +123,14 @@ func build(tuning: MenuVisualTuning, layout_tuning: LobbyLayoutTuning) -> void:
 	# the row blended invisibly into %PlayersCard's own background instead of reading
 	# as a raised white pill (mockup 11). tuning.pill_white_color is a real near-white
 	# the card can never match.
-	add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(tuning.pill_white_color, tuning))
+	# Arcade (Bontago-hfa.5): a PlayerSlot row is a flat disc-700 block inside the disc-800 plate.
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var row_box: StyleBoxFlat = MenuStyleFactory.make_flat_list(tuning)
+	row_box.content_margin_left = float(arcade.space_3_px)
+	row_box.content_margin_right = float(arcade.space_3_px)
+	row_box.content_margin_top = float(arcade.space_2_px)
+	row_box.content_margin_bottom = float(arcade.space_2_px)
+	add_theme_stylebox_override("panel", row_box)
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	if layout_tuning.seat_row_min_height_px > 0:
 		custom_minimum_size = Vector2(0.0, float(layout_tuning.seat_row_min_height_px))
@@ -324,7 +331,8 @@ func _build_host_crown_badge() -> void:
 	crown.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	crown.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	crown.custom_minimum_size = Vector2.ONE * float(table.lobby_icon_px)
-	crown.modulate = _tuning.ink_color
+	# The pill face is bright yellow: ink, never the cream the menu ink token now resolves to.
+	crown.modulate = MenuStyleFactory.ink_for_face(_layout_tuning.host_crown_pill_color)
 	crown.name = "HostCrown"
 	badge.add_child(crown)
 	layout.add_child(badge)
@@ -335,13 +343,15 @@ func _build_badge() -> void:
 	if is_host:
 		_build_host_crown_badge()
 		return
-	var badge_color: Color = _tuning.pill_mint_color if is_ready else _tuning.ground_band_apricot_color
+	var badge_color: Color = _tuning.pill_mint_color if is_ready else MenuStyleFactory.arcade_tuning().disc_600_color
 	badge.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(badge_color, _tuning))
 	badge_label = Label.new()
 	# Bontago-1pi.94: the pill is its icon only; the words stay as the accessible tooltip.
 	badge_label.text = char(0x2713) if is_ready else char(0x231A)
 	badge.tooltip_text = ready_tooltip(is_ready)
-	badge_label.add_theme_color_override("font_color", _tuning.ink_color)
+	# Bontago-hfa.5: the glyph takes the better-contrasting of ink / cream for its face (cream on the
+	# mint Ready face was ~2:1; ink is >= 7:1).
+	badge_label.add_theme_color_override("font_color", MenuStyleFactory.ink_for_face(badge_color))
 	badge.add_child(badge_label)
 	layout.add_child(badge)
 

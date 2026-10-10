@@ -14,7 +14,7 @@ layout_mode = 2
 [node name="Title" type="Label" parent="TitleRow"]
 layout_mode = 2
 theme_type_variation = &"TitleLabel"
-text = "Players"
+text = "PLAYERS"
 
 [node name="PlayersTitleSpacer" type="Control" parent="TitleRow"]
 layout_mode = 2

@@ -87,7 +87,7 @@ func test_status_badge_names_the_session_kind() -> void:
 func test_advanced_is_a_flat_text_disclosure_that_toggles() -> void:
 	var section: LobbySection = (_make_lobby().get_node("%GameSection") as LobbySection)
 	var toggle: Button = section.advanced_button
-	assert_true(toggle.flat)
+	assert_true(toggle.get_theme_stylebox(&"normal") is StyleBoxFlat, "Arcade (Bontago-hfa.5): a disc-700 bar, not a block button")
 	assert_eq(toggle.text, "%s Advanced" % LobbySection.DISCLOSURE_CLOSED)
 	toggle.button_pressed = true
 	assert_true(section.is_advanced_open())

@@ -141,7 +141,7 @@ func test_the_panel_sits_in_the_players_card_between_the_card_top_and_the_footer
 	assert_eq(footer.get_parent(), players)
 	assert_eq(footer.get_index(), panel.get_index() + 1, "the Ready/Invite footer stays directly under the panel")
 	assert_eq(panel.get_child(0).name, &"TitleRow")
-	assert_eq((panel.get_child(0).get_child(0) as Label).text, "Players")
+	assert_eq((panel.get_child(0).get_child(0) as Label).text, "PLAYERS")
 
 
 func test_the_lobby_hands_the_panel_its_tunables_palette_and_net_seam() -> void:
