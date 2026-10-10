@@ -448,7 +448,7 @@ def integrate(args, ctx, say, res):
     verdict = "skipped"
     gate_output_path = None
     if args.game_code:
-        code, text, log = run_cmd(ctx, "gate", [sys.executable, os.path.join(ROOT, "tools", "full_gate.py"), "--path", wt], wt, GATE_TIMEOUT_S + 120)
+        code, text, log = run_cmd(ctx, "gate", [sys.executable, os.path.join(ROOT, "tools", "full_gate.py"), "--path", wt, "--shards", str(args.gate_shards)], wt, GATE_TIMEOUT_S + 120)
         verdict = parse_verdict(text)
         # Preserve gate output directory before worktree cleanup
         out_path = extract_out_path(text)
@@ -467,7 +467,7 @@ def integrate(args, ctx, say, res):
             raise StepFailed("gate", "verdict %s; log %s" % (verdict, log))
         changed = git_out(ctx, "gate_touched", wt, "diff", "--name-only", base, result).split()
         if touches_gate_runner(changed):
-            code2, text2, log2 = run_cmd(ctx, "gate2", [sys.executable, os.path.join(wt, "tools", "full_gate.py"), "--path", wt], wt, GATE_TIMEOUT_S + 120)
+            code2, text2, log2 = run_cmd(ctx, "gate2", [sys.executable, os.path.join(wt, "tools", "full_gate.py"), "--path", wt, "--shards", str(args.gate_shards)], wt, GATE_TIMEOUT_S + 120)
             verdict2 = parse_verdict(text2)
             say("gate2     %s candidate runner: %s" % ("ok  " if verdict2 == "GREEN" else "FAIL", verdict_line(text2)))
             if verdict2 != "GREEN":
@@ -577,6 +577,10 @@ def main(argv):
     ap.add_argument("--merge-only", action="store_true",
                     help="conflict precheck: stop after step 2, start no Godot process (safe while workers run)")
     ap.add_argument("--no-push", action="store_true")
+    # DECISION (owner 2026-10-10: the PC crashed under ~11 concurrent Godot processes on 4 cores):
+    # the gate defaults to 2 shards instead of full_gate.py's cpu-based auto count.
+    ap.add_argument("--gate-shards", type=int, default=2,
+                    help="parallel Godot shards for the full gate (default 2; 0 = full_gate.py auto)")
     ap.add_argument("--allow-probes", action="store_true",
                     help="skip the added-probe-file lint (tools/probe_lint.py) before merging")
     # DECISION (Bontago-fca.13): opt-in rather than automatic, so a bead held by a live

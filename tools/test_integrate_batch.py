@@ -49,7 +49,7 @@ class Fake:
 
 def args_for(**kw):
     ns = dict(branches=["wt/a", "wt/b"], beads=["B-1", "B-2"], repo="R", worktree_root="W",
-              log_dir="", game_code=True, dry_run=False, merge_only=False, no_push=False, force_close=False, allow_probes=False)
+              log_dir="", game_code=True, dry_run=False, merge_only=False, no_push=False, force_close=False, allow_probes=False, gate_shards=2)
     ns.update(kw)
     return type("A", (), ns)()
 
