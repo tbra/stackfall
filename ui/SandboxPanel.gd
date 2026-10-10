@@ -125,7 +125,8 @@ func _refresh_active_slot(slot_id: int) -> void:
 		_active_slot_label.modulate = slot.color
 	else:
 		_active_slot_label.text = "Active: -"
-		_active_slot_label.modulate = Color.WHITE
+		# DECISION (Bontago-hfa.9): no-slot label uses the arcade cream token, not raw white.
+		_active_slot_label.modulate = MenuStyleFactory.arcade_tuning().cream_color
 
 
 func _refresh_held_block(slot_id: int) -> void:

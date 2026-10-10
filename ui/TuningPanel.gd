@@ -142,17 +142,10 @@ const SELECTED_TAB_KEY: String = "selected_tab"
 ## description can sit under the field name without wrapping to more than a
 ## couple of lines at 1080p.
 const NAME_COLUMN_WIDTH: float = 380.0
-## DECISION: muted relative to the panel's default text color so the sentence
-## reads as a sub-label, not a second heading -- same idea as _class_label_for
-## rows' own lighter blue tint just below in this file.
-const DESCRIPTION_COLOR: Color = Color(0.72, 0.72, 0.78, 0.85)
-## DECISION: smaller than the panel's default font so the name stays the
-## visually primary line of each row.
-const DESCRIPTION_FONT_SIZE: int = 12
-## DECISION: a warm highlight -- distinct from DESCRIPTION_COLOR and from the
-## class-header blue -- so an owner-adjusted field is unmistakable at a
-## glance ("outcome 3": visible when live differs from default).
-const MODIFIED_COLOR: Color = Color(1.0, 0.82, 0.3)
+## DECISION (Bontago-hfa.9, P7 token swap): description and default-value labels use the
+## theme's CaptionLabel variation (dust ink at caption size, 13 px) instead of a private colour
+## and a smaller font, so the sentence reads as a sub-label and the name stays the primary line.
+const CAPTION_THEME_VARIATION: StringName = &"CaptionLabel"
 const MODIFIED_MARKER: String = "• "
 
 ## get_property_list() usage flags an @export'd script variable carries (see
@@ -219,7 +212,6 @@ const TIME_OF_DAY_VALUE_FORMAT: String = "%.3f"
 ## Bontago-1pi.113 (panel redo): rows sit in foldable sections (hints.sections);
 ## a section is open by default only when it is the first one on its tab, and
 ## the open/closed choice survives rebuild() (see _fold_open).
-const SECTION_HEADER_COLOR: Color = Color(1.0, 0.9, 0.6)
 const SECTION_OPEN_MARK: String = "▾ "
 const SECTION_CLOSED_MARK: String = "▸ "
 ## Gap between the columns of a row: name | control | value | default.
@@ -736,8 +728,10 @@ func _build_section(class_label: String, title: String, rows: Array[Control], de
 	header.name = "Header"
 	header.flat = true
 	header.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	header.add_theme_color_override("font_color", SECTION_HEADER_COLOR)
-	header.add_theme_color_override("font_hover_color", SECTION_HEADER_COLOR)
+	# DECISION (Bontago-hfa.9): section headers take the arcade cream token (primary text).
+	var header_ink: Color = MenuStyleFactory.arcade_tuning().cream_color
+	header.add_theme_color_override("font_color", header_ink)
+	header.add_theme_color_override("font_hover_color", header_ink)
 	var body: VBoxContainer = VBoxContainer.new()
 	body.name = "Body"
 	body.add_theme_constant_override("separation", 8)
@@ -834,8 +828,7 @@ func _build_row_frame(prop_name: String, class_label: String, control: Control, 
 	block.add_child(name_label)
 	var desc_label: Label = Label.new()
 	desc_label.text = description
-	desc_label.add_theme_color_override("font_color", DESCRIPTION_COLOR)
-	desc_label.add_theme_font_size_override("font_size", DESCRIPTION_FONT_SIZE)
+	desc_label.theme_type_variation = CAPTION_THEME_VARIATION
 	desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	block.add_child(desc_label)
 	row.add_child(block)
@@ -852,8 +845,7 @@ func _build_row_frame(prop_name: String, class_label: String, control: Control, 
 	var default_label: Label = Label.new()
 	default_label.custom_minimum_size = Vector2(DEFAULT_COLUMN_WIDTH, 0.0)
 	default_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	default_label.add_theme_color_override("font_color", DESCRIPTION_COLOR)
-	default_label.add_theme_font_size_override("font_size", DESCRIPTION_FONT_SIZE)
+	default_label.theme_type_variation = CAPTION_THEME_VARIATION
 	default_label.text = DEFAULT_PREFIX + _format_shown(default_value, type, unit, decimals)
 	row.add_child(default_label)
 	return {"row": row, "name_label": name_label, "value_label": value_label, "default_label": default_label}
@@ -1038,7 +1030,9 @@ func _refresh_row_marker(row: Dictionary) -> void:
 	var base_text: String = _display_name(_class_label_for(resource), prop_name)
 	name_label.text = (MODIFIED_MARKER + base_text) if modified else base_text
 	if modified:
-		name_label.add_theme_color_override("font_color", MODIFIED_COLOR)
+		# DECISION (Bontago-hfa.9): the owner-adjusted highlight is the arcade rim gold, so an
+		# adjusted field stays unmistakable against the cream names and dust captions.
+		name_label.add_theme_color_override("font_color", MenuStyleFactory.arcade_tuning().rim_color)
 	else:
 		name_label.remove_theme_color_override("font_color")
 
