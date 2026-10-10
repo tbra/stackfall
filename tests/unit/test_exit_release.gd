@@ -4,6 +4,7 @@ extends GutTest
 
 
 func after_each() -> void:
+	QuitFlag._quitting = false
 	ExitRelease.release_all()
 
 
@@ -38,3 +39,26 @@ func test_caches_rebuild_lazily_after_release() -> void:
 	ExitRelease.release_all()
 	assert_not_null(SpecialDef.find_by_id(SpecialDef.load_all_specials()[0].id))
 	assert_not_null(GiftIconTable.shared())
+
+
+func test_release_if_quitting_is_gated_on_quit_flag() -> void:
+	QuitFlag._quitting = false
+	GiftIconTable.shared()
+	assert_not_null(GiftIconTable._shared)
+	ExitRelease.release_if_quitting()
+	assert_not_null(GiftIconTable._shared, "no quit marked: caches stay live")
+	QuitFlag.mark()
+	assert_true(QuitFlag.is_quitting())
+	ExitRelease.release_if_quitting()
+	assert_null(GiftIconTable._shared, "quit marked: caches released")
+
+
+func test_freeing_main_does_not_release_caches_unless_quitting() -> void:
+	QuitFlag._quitting = false
+	GiftIconTable.shared()
+	var main: Node = (load("res://game/Main.tscn") as PackedScene).instantiate()
+	add_child(main)
+	main.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_not_null(GiftIconTable._shared, "freeing Main mid-process keeps caches")

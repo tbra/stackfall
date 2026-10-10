@@ -78,6 +78,7 @@
   "core/territory/TerritorySolver.gd",
   "game/AgentProbe.gd",
   "game/PerfProbe.gd",
+  "game/QuitFlag.gd",
   "game/world/BlockBody.gd",
   "game/world/FieldBody.gd",
   "game/world/MatchContext.gd",

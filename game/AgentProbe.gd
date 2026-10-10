@@ -140,6 +140,7 @@ static func _on_menu_timeout() -> void:
 static func _finish_startup(menu_ms: int, exit_code: int) -> void:
 	_startup_done = true
 	print(format_startup_line(_first_frame_ms, menu_ms))
+	QuitFlag.mark()
 	(Engine.get_main_loop() as SceneTree).quit(exit_code)
 
 

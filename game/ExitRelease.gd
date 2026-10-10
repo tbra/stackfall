@@ -7,6 +7,12 @@ extends RefCounted
 ## here changes behaviour while the game runs (a cache rebuilds lazily if used again).
 
 
+## Releases the caches only when a quit was marked (QuitFlag); Main._exit_tree calls this.
+static func release_if_quitting() -> void:
+	if QuitFlag.is_quitting():
+		release_all()
+
+
 static func release_all() -> void:
 	SpecialDef.release_cache()
 	BlockMeshBuilder.clear_cache()

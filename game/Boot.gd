@@ -61,6 +61,8 @@ func _ready() -> void:
 
 
 func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST and not quit_callable.is_valid():  # test seam: no real quit
+		QuitFlag.mark()
 	if what == NOTIFICATION_WM_CLOSE_REQUEST and _threaded:
 		_quit_requested = true
 		if _pending_path.is_empty():
@@ -88,6 +90,7 @@ func _quit_now() -> void:
 	if quit_callable.is_valid():
 		quit_callable.call()
 	else:
+		QuitFlag.mark()
 		get_tree().quit()
 
 
@@ -170,4 +173,5 @@ func _fail(message: String) -> void:
 		return
 	if DisplayServer.get_name() != "headless":
 		OS.alert(message, LOAD_FAILURE_TITLE)
+	QuitFlag.mark()
 	get_tree().quit(LOAD_FAILURE_EXIT_CODE)
