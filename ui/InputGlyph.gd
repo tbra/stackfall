@@ -223,6 +223,11 @@ const LABEL_MIN_FONT_SIZE: int = 7
 
 enum Shell { NONE, KEYCAP, PAD_BUTTON }
 
+## Kinds drawn as Stackfall Arcade caps; mouse, D-pad and stick keep their pictograms.
+const ARCADE_CAP_KINDS: Array[Kind] = [Kind.KEY, Kind.FACE, Kind.SHOULDER, Kind.TRIGGER, Kind.GENERIC]
+## Legend size on a cap (design system label/caption floor is 13 px).
+const ARCADE_LEGEND_FONT_SIZE: int = 14
+
 ## Test seam: where the glyph art is read from. Pointing it at a missing
 ## folder proves the _draw() fallback path.
 var asset_root: String = GLYPH_ASSET_ROOT
@@ -241,6 +246,15 @@ var _dpad_dir: StringName = &""
 var _face_color: Color = Color.WHITE
 var _texture: Texture2D = null
 var _shell: Shell = Shell.NONE
+## Stackfall Arcade (UI reskin P6): keys, pad face buttons, shoulders/triggers and plain text badges
+## are drawn as ink-on-block caps instead of the paper-and-ink art. False for table art (stick
+## directions, combos) and for kinds that keep their pictogram (mouse, D-pad, stick).
+var _arcade_cap: bool = false
+## True while the texture is authored table art (stick direction/click, combo) that stays as drawn.
+var _table_art: bool = false
+var _listening: bool = false
+var _face_button_index: int = -1
+var _arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 
 
 func _ready() -> void:
@@ -257,6 +271,8 @@ func _ready() -> void:
 ## rather than layering onto a previous call's state.
 func set_event(event: InputEvent) -> void:
 	_clear_texture()
+	_listening = false
+	_face_button_index = -1
 	if event is InputEventKey:
 		_configure_key(event as InputEventKey)
 	elif event is InputEventMouseButton:
@@ -269,6 +285,7 @@ func set_event(event: InputEvent) -> void:
 		_kind = Kind.GENERIC
 		_text = event.as_text()
 		custom_minimum_size = Vector2(SHAPE_WIDTH_PX, GLYPH_HEIGHT_PX)
+	_refresh_arcade_cap()
 	queue_redraw()
 
 
@@ -296,7 +313,8 @@ func set_chord(events: Array[InputEvent]) -> void:
 		part.free()
 	_text = "+".join(labels)
 	if not ids.is_empty() and _apply_table_texture(glyph_table.combo(ids)):
-		custom_minimum_size = Vector2(GLYPH_HEIGHT_PX * COMBO_ASPECT, GLYPH_HEIGHT_PX)
+			custom_minimum_size = Vector2(GLYPH_HEIGHT_PX * COMBO_ASPECT, GLYPH_HEIGHT_PX)
+	_refresh_arcade_cap()
 	queue_redraw()
 
 
@@ -366,8 +384,10 @@ static func pad_component_id(event: InputEvent) -> String:
 func set_overflow_count(count: int) -> void:
 	_clear_texture()
 	_kind = Kind.GENERIC
+	_listening = false
 	_text = "+%d" % count
 	custom_minimum_size = Vector2(SHAPE_WIDTH_PX, GLYPH_HEIGHT_PX)
+	_refresh_arcade_cap()
 	queue_redraw()
 
 
@@ -377,7 +397,9 @@ func set_listening() -> void:
 	_clear_texture()
 	_kind = Kind.GENERIC
 	_text = "…"
+	_listening = true
 	custom_minimum_size = Vector2(SHAPE_WIDTH_PX * 2.0, GLYPH_HEIGHT_PX)
+	_refresh_arcade_cap()
 	queue_redraw()
 
 
@@ -398,6 +420,16 @@ func glyph_texture() -> Texture2D:
 ## name is drawn on top as runtime text (unmapped/modified key, unnamed button).
 func uses_blank_shell() -> bool:
 	return _shell != Shell.NONE
+
+
+## Test seam: true when this glyph paints a Stackfall Arcade cap (keys, face buttons, chips).
+func is_arcade_cap() -> bool:
+	return _arcade_cap
+
+
+## Test seam: the face colour of the arcade cap this glyph paints.
+func arcade_face_color() -> Color:
+	return _arcade_cap_face()
 
 
 func _configure_key(key_event: InputEventKey) -> void:
@@ -428,6 +460,7 @@ func _configure_joypad_button(joy_event: InputEventJoypadButton) -> void:
 	if FACE_COLORS.has(index):
 		_kind = Kind.FACE
 		_face_color = FACE_COLORS[index]
+		_face_button_index = index
 		custom_minimum_size = Vector2(SHAPE_WIDTH_PX, GLYPH_HEIGHT_PX)
 	elif SHOULDER_BUTTONS.has(index):
 		_kind = Kind.SHOULDER
@@ -469,6 +502,7 @@ func _configure_joypad_motion(motion_event: InputEventJoypadMotion) -> void:
 
 
 func _clear_texture() -> void:
+	_table_art = false
 	_texture = null
 	_shell = Shell.NONE
 
@@ -524,6 +558,7 @@ func _apply_table_texture(texture: Texture2D) -> bool:
 	_texture = texture
 	_shell = Shell.NONE
 	custom_minimum_size = Vector2(GLYPH_HEIGHT_PX, GLYPH_HEIGHT_PX)
+	_table_art = true
 	return true
 
 
@@ -579,6 +614,9 @@ static func _load_texture(path: String) -> Texture2D:
 
 
 func _draw() -> void:
+	if _arcade_cap:
+		_draw_arcade_cap()
+		return
 	if _texture != null:
 		_draw_texture_glyph()
 		return
@@ -597,6 +635,75 @@ func _draw() -> void:
 			_draw_stick()
 		_:
 			_draw_generic()
+
+
+# --- Stackfall Arcade caps (UI reskin P6) -----------------------------------------
+
+
+## Decides whether this glyph is an arcade cap and, if so, sizes it to its legend. The loaded
+## texture stays resolved (glyph_texture() seam, missing-asset fallback) but is not painted.
+func _refresh_arcade_cap() -> void:
+	_arcade_cap = not _table_art and ARCADE_CAP_KINDS.has(_kind)
+	if not _arcade_cap:
+		return
+	var width: float = GLYPH_HEIGHT_PX
+	if not _is_round_cap():
+		width = maxf(GLYPH_HEIGHT_PX, _label_width(_text, ARCADE_LEGEND_FONT_SIZE) + float(_arcade.space_2_px) * 2.0)
+	custom_minimum_size = Vector2(width, GLYPH_HEIGHT_PX)
+
+
+## A single pad face button is a round cap; a chord containing one is a chip.
+func _is_round_cap() -> bool:
+	return _kind == Kind.FACE and _face_button_index >= 0 and not _text.contains("+")
+
+
+func _draw_arcade_cap() -> void:
+	var face: Color = _arcade_cap_face()
+	if _is_round_cap():
+		_draw_round_cap(face, InputGlyphTable.face_button_lip_color(_face_button_index, _arcade))
+		return
+	var lip: Color = _arcade.rim_lip_color if _listening else Color.TRANSPARENT
+	draw_style_box(BlockStyleBox.make(face, _arcade, true, BlockStyleBox.STATE_NORMAL, lip), Rect2(Vector2.ZERO, size))
+	var face_top: float = float(_arcade.top_px)
+	var face_bottom: float = size.y - float(_arcade.drop_sm_px) - float(_arcade.lip_sm_px)
+	_draw_text_at(_text, MenuStyleFactory.ink_for_face(face), ARCADE_LEGEND_FONT_SIZE,
+		Vector2(size.x * 0.5, (face_top + face_bottom) * 0.5))
+
+
+## Face colour per kind: keys cream, pad chips and chords sand, plain badges disc-600, the
+## listening placeholder rim gold, a lone face button its own token.
+func _arcade_cap_face() -> Color:
+	if _listening:
+		return _arcade.rim_color
+	match _kind:
+		Kind.KEY:
+			return _arcade.cream_color
+		Kind.FACE:
+			if _is_round_cap():
+				return InputGlyphTable.face_button_color(_face_button_index, _arcade)
+			return _arcade.sand_color
+		Kind.SHOULDER, Kind.TRIGGER:
+			return _arcade.sand_color
+	return _arcade.disc_600_color
+
+
+## Round pad cap: ledge circle, lip circle, lit top circle, face circle (the same four layers as
+## a block, stacked so the lit top and dark lip read as crescents).
+func _draw_round_cap(face: Color, lip: Color) -> void:
+	var drop: float = float(_arcade.drop_sm_px)
+	var lip_h: float = float(_arcade.lip_sm_px)
+	var top_h: float = float(_arcade.top_px)
+	var radius: float = (size.y - drop) * 0.5
+	var center: Vector2 = Vector2(size.x * 0.5, radius)
+	var lip_color: Color = lip if lip.a > 0.0 else face.lerp(Color.BLACK, _arcade.block_lip_dark_mix)
+	var top_color: Color = face.lerp(Color.WHITE, _arcade.block_top_light_mix)
+	draw_circle(center + Vector2(0.0, drop), radius, _arcade.disc_950_color)
+	draw_circle(center, radius, lip_color)
+	var upper_radius: float = radius - lip_h * 0.5
+	var upper_center: Vector2 = center - Vector2(0.0, lip_h * 0.5)
+	draw_circle(upper_center, upper_radius, top_color)
+	draw_circle(upper_center + Vector2(0.0, top_h), upper_radius - top_h * 0.5, face)
+	_draw_text_at(_text, _arcade.ink_color, ARCADE_LEGEND_FONT_SIZE, upper_center + Vector2(0.0, top_h * 0.5))
 
 
 func _draw_texture_glyph() -> void:

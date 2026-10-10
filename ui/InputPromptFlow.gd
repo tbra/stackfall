@@ -20,6 +20,8 @@ const MAX_GLYPHS_PER_TOKEN: int = 1
 const TOKEN_OPEN: String = "{"
 const TOKEN_CLOSE: String = "}"
 const GROUP_SEPARATOR: String = "|"
+## Theme type variation of the action words (13 px caption, stackfall_theme).
+const ACTION_WORD_VARIATION: StringName = &"CaptionLabel"
 const INPUT_GLYPH_SCENE: PackedScene = preload("res://ui/InputGlyph.tscn")
 
 ## Template text; set via set_template() or in the inspector.
@@ -40,6 +42,8 @@ var text_color: Color = Color(0.0, 0.0, 0.0, 0.0)
 
 
 func _ready() -> void:
+	# Stackfall Arcade: a cap and its word read as one pair; pairs sit a peer-gap apart.
+	add_theme_constant_override(&"h_separation", MenuStyleFactory.arcade_tuning().space_3_px)
 	if not Events.input_device_changed.is_connected(_on_input_device_changed):
 		Events.input_device_changed.connect(_on_input_device_changed)
 	if not visibility_changed.is_connected(_on_visibility_changed):
@@ -143,8 +147,10 @@ func _add_label(text: String) -> void:
 	label.text = text
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	if text_color.a > 0.0:
-		label.add_theme_color_override("font_color", text_color)
+	# Stackfall Arcade KeyPrompt: the action word is a sand caption-size label unless the host
+	# menu passes its own ink.
+	label.theme_type_variation = ACTION_WORD_VARIATION
+	label.add_theme_color_override("font_color", text_color if text_color.a > 0.0 else MenuStyleFactory.arcade_tuning().sand_color)
 	add_child(label)
 
 
