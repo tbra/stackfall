@@ -233,7 +233,7 @@ const READY_COUNT_FORMAT: String = "%d OF %d READY"
 ## non-host is one loop instead of fourteen repeated lines.
 var _settings_controls: Array[Control] = []
 
-## Built once by _build_specials_checklist(), in SpecialDef.load_all_specials()
+## Built once by _build_specials_checklist(), in SpecialDef.load_selectable_specials()
 ## order -- parallel arrays (the same convention the panel's rows pair with
 ## roster entries by index) so _config_from_controls()/_apply_data() can walk
 ## both together without a per-frame dictionary lookup.
@@ -556,8 +556,8 @@ func _apply_icon(button: Button, texture: Texture2D) -> void:
 
 
 ## M6 A4 (docs/archive/M6_PLAN.md "A4 -- Enabled-specials checklist"): one CheckBox per
-## config/specials/*.tres, in SpecialDef.load_all_specials() id order (the
-## same sorted, deterministic order every peer's own load produces, so the
+## config/specials/*.tres with enabled_by_default (SpecialDef.load_selectable_specials(),
+## Bontago-1pi.160), in id order (the same sorted, deterministic order every peer's own load produces, so the
 ## checklist never shows two peers a differently-ordered list). Checked =
 ## enabled, mirroring MatchConfig.enabled_specials's own "empty = all enabled"
 ## default (every box starts checked here; _apply_data() below is the only
@@ -572,7 +572,11 @@ func _build_specials_checklist() -> void:
 	_special_checkboxes.clear()
 	_special_ids.clear()
 
-	for special: SpecialDef in SpecialDef.load_all_specials():
+	# Bontago-1pi.160 (owner 2026-10-10): disabled gifts (Cat) are not listed at
+	# all -- the checklist walks the selectable roster, the same roster the match
+	# draws from (MatchGifts._ensure_special_drawer_installed). The full catalogue
+	# stays for find_by_id / icon / net id tables.
+	for special: SpecialDef in SpecialDef.load_selectable_specials():
 		var box: CheckBox = CheckBox.new()
 		# SpecialDef has no display_name (config/specials/SpecialDef.gd) -- the
 		# id itself (e.g. &"jumping_bean") is the only per-special label this

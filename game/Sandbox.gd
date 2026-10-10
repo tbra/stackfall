@@ -139,7 +139,8 @@ func _exit_tree() -> void:
 
 func _load_special_roster_ids() -> Array[StringName]:
 	var ids: Array[StringName] = []
-	for def: SpecialDef in SpecialDef.load_all_specials():
+	# Bontago-1pi.160 (owner): disabled gifts (Cat) are not offered anywhere.
+	for def: SpecialDef in SpecialDef.load_selectable_specials():
 		ids.append(def.id)
 	return ids
 

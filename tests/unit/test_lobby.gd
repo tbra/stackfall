@@ -739,9 +739,10 @@ func test_roster_changed_signal_updates_ready_label_without_a_lobby_data_round_t
 
 # --- Specials checklist (M6 A4, docs/archive/M6_PLAN.md) ------------------------------
 
-func test_every_loaded_special_def_gets_a_checkbox_checked_by_default() -> void:
+func test_every_selectable_special_def_gets_a_checkbox_checked_by_default() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var all_defs: Array[SpecialDef] = SpecialDef.load_all_specials()
+	# Bontago-1pi.160: the checklist lists the selectable roster (disabled gifts such as Cat are absent).
+	var all_defs: Array[SpecialDef] = SpecialDef.load_selectable_specials()
 	assert_eq(lobby._special_checkboxes.size(), all_defs.size())
 	assert_eq(lobby._special_ids.size(), all_defs.size())
 	for i: int in range(all_defs.size()):
@@ -749,6 +750,17 @@ func test_every_loaded_special_def_gets_a_checkbox_checked_by_default() -> void:
 		assert_true(lobby._special_checkboxes[i].button_pressed, "every box starts checked (all enabled)")
 	var checklist: GridContainer = lobby.get_node("%SpecialsChecklist")
 	assert_eq(checklist.get_child_count(), all_defs.size())
+
+
+func test_no_checklist_entry_is_a_disabled_gift() -> void:
+	# Bontago-1pi.160 (owner 2026-10-10): disabled gifts are not listed in the lobby at all.
+	var lobby: Lobby = _make_lobby(true)
+	for id: StringName in lobby._special_ids:
+		var def: SpecialDef = SpecialDef.find_by_id(id)
+		assert_not_null(def, "%s resolves in the catalogue" % id)
+		if def != null:
+			assert_true(def.enabled_by_default, "%s is listed but enabled_by_default == false" % id)
+	assert_false(lobby._special_ids.has(&"cat"), "cat is disabled by default and must not be listed")
 
 
 func test_all_boxes_checked_publishes_an_empty_enabled_specials_array() -> void:

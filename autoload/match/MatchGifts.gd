@@ -624,9 +624,7 @@ func _ensure_special_drawer_installed() -> void:
 		return
 	_roster_ready = true
 	# Bontago-1pi.85.9: the draw honours SpecialDef.enabled_by_default (Cat is off).
-	# FOLLOW-UP (not owned here): game/Sandbox.gd:143 (cycle list) and ui/Lobby.gd:529
-	# (gift checklist) still call load_all_specials() and should switch to
-	# load_selectable_specials() so a disabled gift is not offered there either.
+	# The lobby checklist and the sandbox cycle list use the same roster (Bontago-1pi.160).
 	var all_defs: Array[SpecialDef] = SpecialDef.load_selectable_specials()
 	var enabled: Array[StringName] = _match.config.enabled_specials if _match.config != null else []
 	var roster: Array[SpecialDef] = []
