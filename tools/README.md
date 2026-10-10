@@ -90,6 +90,10 @@ Useful flags: `--no-classify` (skip TypeSafe even if a key is set),
 `--max-classify N` (cap how many distinct signatures get sent, default 40),
 `--chunk-size N` (groups batched per TypeSafe request, default 6).
 
+## `lint_ui_components.py` (UI component ratchet, Bontago-1pi.159.6)
+
+Counts raw controls and per-screen styling in `ui/**` (R1 raw CheckButton/CheckBox/SpinBox/TabBar/TabContainer/HSlider/OptionButton in .gd and .tscn; R2 `add_theme_*_override`; R3 the `MenuStyleFactory` toggle/pill/stepper/badge helpers; R4 `Button.new()`) against `tools/ui_components_baseline.json` (`{rule: {file: count}}`). Exempt: `ui/components/`, `ui/theme/`, and the dev tools (NetDebugOverlay, TuningPanel, Perf*, Physics*, Sandbox*). A file may never exceed its baseline and an unlisted file must be zero; each migration lowers the baseline (`--update`; a new pair needs `--update --allow-new RULE:path`). `--list [--rule ID]` shows every violation. `full_gate.py` runs it after the layer lint and goes RED on failure (`ui_component_lint=` in its last line). Last line: `UI COMPONENT LINT GREEN|RED`. Tests: `python -I tools/test_lint_ui_components.py`. Plan: `docs/UI_COMPONENTS_PLAN.md` section 5.
+
 ## `contact_sheet.py` and `ContactSheet.gd`
 
 One small labelled grid PNG instead of several full-size screenshots.
