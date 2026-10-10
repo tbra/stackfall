@@ -334,7 +334,7 @@ func _process(delta: float) -> void:
 ## Starts a listen server on `port` (0 means config.game_port). A private
 ## local bot host uses a free loopback port, refuses remote joins, and does not
 ## advertise; ordinary hosts keep the existing LAN behavior. The host is slot 0.
-func host_game(port: int = 0, player_name: String = "", advertise: bool = true) -> Error:
+func host_game(port: int = 0, player_name: String = "", advertise: bool = true, lan_visible: bool = true) -> Error:
 	if _mode != Mode.OFFLINE:
 		leave()
 	var use_port: int = port if port > 0 else config.game_port
@@ -369,7 +369,9 @@ func host_game(port: int = 0, player_name: String = "", advertise: bool = true) 
 	_reset_rejoin_state()
 	Events.net_mode_changed.emit(_mode)
 	# Agent runs must not appear in the owner's LAN browser.
-	if advertise and not AgentProbe.is_active():
+	# Bontago-fca.88: `lan_visible=false` keeps the normal "*" bind and open joins but skips the
+	# broadcast (headless bot hosts must not show up in a Join browser).
+	if advertise and lan_visible and not AgentProbe.is_active():
 		_start_lan_advertising(host_name)
 	return OK
 
@@ -1256,7 +1258,7 @@ func report_stats(source: StringName, values: Dictionary) -> void:
 # --- Command line (spec 3.4 "Testing") --------------------------------------
 
 ## Parses --host, --join=<ip[:port]>, --port=<n>, --headless-host,
-## --host-online, --player-name=<s>, --sim-lag=<ms>, --sim-loss=<fraction>
+## --host-online, --advertise (headless hosts opt in to LAN broadcast), --player-name=<s>, --sim-lag=<ms>, --sim-loss=<fraction>
 ## from OS command-line arguments after "--" and acts on them, then separately scans
 ## the full command line for Steam's own "+connect_lobby <id>" launch
 ## convention (docs/archive/M3b_PLAN.md "Design notes": Valve's own argv convention,
@@ -1308,7 +1310,11 @@ func _apply_command_line_args(args: PackedStringArray) -> bool:
 		# have("join") guard needed.
 		if options.has("match-config"):
 			_load_match_config_override(String(options["match-config"]))
-		host_game(port, player_name if player_name != "" else "Host")
+		# DECISION (Bontago-fca.88): a --headless-host (bot training, soaks, h2h, ENet harness
+		# hosts) does not broadcast on the LAN by default, so it never appears as "Host (1/8)" in
+		# a Join browser; clients still connect by address. `--advertise` opts back in.
+		var lan_visible: bool = not flags.has("headless-host") or flags.has("advertise")
+		host_game(port, player_name if player_name != "" else "Host", true, lan_visible)
 		return true
 
 	# DECISION: --host-online is this package's own windowed single-PC Steam
@@ -2276,6 +2282,11 @@ func _apply_peer_timeout(id: int) -> void:
 	var packet_peer: Object = _peer.call("get_peer", id)
 	if packet_peer and packet_peer.has_method("set_timeout"):
 		packet_peer.call("set_timeout", config.peer_timeout_limit, config.peer_timeout_min_ms, config.peer_timeout_max_ms)
+
+
+## True while this host broadcasts its game on the LAN (Bontago-fca.88 test seam).
+func is_lan_advertising() -> bool:
+	return _lan != null and _lan.is_advertising()
 
 
 func _start_lan_advertising(player_name: String) -> void:

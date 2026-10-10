@@ -317,7 +317,8 @@ convention `OS.get_cmdline_user_args()` uses:
 |---|---|
 | `--hot-seat` | Skips the menu and lobby entirely; starts M2's two-player, one-PC build. |
 | `--host` | Hosts on `net_config.tres`'s `game_port` (or `--port=`) and opens the lobby. |
-| `--headless-host` | Same as `--host`, for a dedicated/scripted host with no window. |
+| `--headless-host` | Same as `--host`, for a dedicated/scripted host with no window. Not shown in LAN Join browsers (clients still join by address) unless `--advertise` is also passed. |
+| `--advertise` | With `--headless-host`: broadcast the session on the LAN like an ordinary host. |
 | `--join=<ip[:port]>` | Joins that address and opens the lobby. |
 | `--port=<n>` | Overrides the port for `--host`/`--headless-host`/`--join`. |
 | `--match-config=<res path>` | Loads that `MatchConfig` `.tres` as the base for the bot match `--headless-host --bots=<n>` starts (fixtures: `tests/fixtures/match_configs/`). Ignored on `--join`, and a no-op for a plain `--host`/`--headless-host` lobby, whose match still takes the lobby's settings. Falls back to the default on a bad path or wrong resource type. |
