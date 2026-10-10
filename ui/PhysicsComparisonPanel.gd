@@ -19,8 +19,8 @@ var opened: bool = false
 const HINT_HALF_WIDTH_PX: float = 260.0
 const HINT_HEIGHT_PX: float = 18.0
 const HINT_BOTTOM_MARGIN_PX: float = 6.0
-const HINT_FONT_SIZE: int = 11
 const HINT_ALPHA: float = 0.55
+const HINT_OUTLINE_PX: int = 3
 
 func _ready() -> void:
 	layer = 10
@@ -37,10 +37,13 @@ func _ready() -> void:
 	hint.offset_top = -HINT_HEIGHT_PX - HINT_BOTTOM_MARGIN_PX
 	hint.offset_bottom = -HINT_BOTTOM_MARGIN_PX
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	# DECISION (Bontago-hfa.9): the hint is caption text (theme CaptionLabel: dust ink, 13 px),
+	# outlined in the arcade disc-950 token; HINT_ALPHA keeps it dim.
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	hint.theme_type_variation = &"CaptionLabel"
 	hint.modulate = Color(1.0, 1.0, 1.0, HINT_ALPHA)
-	hint.add_theme_font_size_override("font_size", HINT_FONT_SIZE)
-	hint.add_theme_constant_override("outline_size", 3)
-	hint.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.8))
+	hint.add_theme_constant_override("outline_size", HINT_OUTLINE_PX)
+	hint.add_theme_color_override("font_outline_color", arcade.disc_950_color)
 	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(hint)
 	_panel = PanelContainer.new()

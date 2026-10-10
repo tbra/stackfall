@@ -66,8 +66,11 @@ func _build() -> void:
 	_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var style: StyleBoxFlat = StyleBoxFlat.new()
 	style.bg_color = config.overlay_background
-	style.set_content_margin_all(6.0)
-	style.set_corner_radius_all(4)
+	# DECISION (Bontago-hfa.9): padding and corner come from the arcade tokens; the background
+	# colour stays DebugConfig.overlay_background (owner-tunable debug resource).
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	style.set_content_margin_all(float(arcade.space_2_px))
+	style.set_corner_radius_all(arcade.radius_chip_px)
 	_panel.add_theme_stylebox_override(&"panel", style)
 	# Top-right corner; grows left/down from the anchor.
 	_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
@@ -158,7 +161,9 @@ class _PerfGraph:
 	func _draw() -> void:
 		if sampler == null or config == null:
 			return
-		draw_rect(Rect2(Vector2.ZERO, size), Color(0.0, 0.0, 0.0, 0.35))
+		# DECISION (Bontago-hfa.9): the graph well is the arcade disc-950 token at the soft-shadow alpha.
+		var well: Color = MenuStyleFactory.arcade_tuning().disc_950_color
+		draw_rect(Rect2(Vector2.ZERO, size), Color(well.r, well.g, well.b, MenuStyleFactory.arcade_tuning().panel_shadow_alpha))
 		var budget_y: float = size.y * (1.0 - clampf(config.graph_budget_ms / config.graph_frame_ms_max, 0.0, 1.0))
 		draw_line(Vector2(0.0, budget_y), Vector2(size.x, budget_y), config.graph_budget_color, 1.0)
 		_plot(sampler.history_blocks, config.graph_blocks_max, config.graph_blocks_color)
