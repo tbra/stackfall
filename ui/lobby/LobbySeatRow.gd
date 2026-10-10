@@ -290,7 +290,9 @@ func _build_difficulty_option() -> void:
 	difficulty_option.add_theme_constant_override("icon_max_width", UiArtTable.shared().lobby_icon_px)
 	difficulty_option.select(clampi(difficulty, 0, DIFFICULTY_LABELS.size() - 1))
 	# Bontago-1pi.95: clip so the dropdown's minimum is this tuned width, not its widest item.
-	difficulty_option.custom_minimum_size = Vector2(float(_layout_tuning.seat_difficulty_min_width_px), 0.0)
+	difficulty_option.custom_minimum_size = Vector2(
+		float(_layout_tuning.seat_difficulty_min_width_px), float(_layout_tuning.seat_control_height_px)
+	)
 	difficulty_option.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	difficulty_option.tooltip_text = "This bot's difficulty"
 	_style_pill(difficulty_option, _tuning.pill_cream_color, _tuning.pill_cream_hover_color, _tuning.ink_color)
@@ -340,6 +342,10 @@ func _build_host_crown_badge() -> void:
 
 func _build_badge() -> void:
 	badge = PanelContainer.new()
+	# Bontago-1pi.146: the badge is the same height as the team / difficulty / remove pills (not stretched
+	# to the row), and as wide as the remove button.
+	badge.custom_minimum_size = Vector2(float(_layout_tuning.seat_badge_width_px), float(_layout_tuning.seat_control_height_px))
+	badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	if is_host:
 		_build_host_crown_badge()
 		return

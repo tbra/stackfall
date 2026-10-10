@@ -257,7 +257,7 @@ func test_every_2_8_setting_round_trips_through_to_dict_and_from_dict() -> void:
 	assert_eq(int((lobby.get_node("%AiCountSpin") as SpinBox).value), 3)
 	assert_eq((lobby.get_node("%AiDifficultyOption") as OptionButton).selected, MatchConfig.AiDifficulty.HARD)
 	assert_eq((lobby.get_node("%TeamModeOption") as OptionButton).selected, MatchConfig.TeamMode.TEAMS_2)
-	assert_almost_eq((lobby.get_node("%BlockTimerSlider") as HSlider).value, 9.5, 0.01)
+	assert_almost_eq((lobby.get_node("%BlockTimerSpin") as SpinBox).value, 9.5, 0.01)
 	assert_almost_eq((lobby.get_node("%GravitySlider") as HSlider).value, 1.25, 0.01)
 	assert_eq(int((lobby.get_node("%GoalFlagSpin") as SpinBox).value), 3)
 	assert_false((lobby.get_node("%GiftsCheck") as CheckButton).button_pressed)
@@ -327,7 +327,7 @@ func test_out_of_range_value_arriving_over_the_wire_is_clamped() -> void:
 	}
 	Events.net_lobby_data_changed.emit(bad_data)
 	assert_eq(int((lobby.get_node("%PlayerCountSpin") as SpinBox).value), MatchConfig.PLAYER_COUNT_MAX)
-	assert_almost_eq((lobby.get_node("%BlockTimerSlider") as HSlider).value, MatchConfig.BLOCK_TIMER_MIN, 0.01)
+	assert_almost_eq((lobby.get_node("%BlockTimerSpin") as SpinBox).value, MatchConfig.BLOCK_TIMER_MIN, 0.01)
 	assert_eq(int((lobby.get_node("%SpecialFreqSlider") as HSlider).value), MatchConfig.SPECIAL_FREQUENCY_MAX)
 	assert_eq(int((lobby.get_node("%GoalFlagSpin") as SpinBox).value), MatchConfig.GOAL_FLAG_MIN)
 
@@ -1023,14 +1023,14 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	# blocks and the hidden Steam-only invite button are not stops either.
 	var chain_unique_names: Array[String] = [
 		"%DiscSizeSlider", "%GameModeOption", "%SkyThemeOption", "%WeatherOption",
-		"%MatchTimerSlider", "%SuddenDeathCheck", "%BlockTimerSlider",
+		"%MatchTimerSlider", "%SuddenDeathCheck",
 		"%GiftsCheck", "%SpecialFreqSlider", "%StartButton",
 	]
 	for unique_name: String in chain_unique_names:
 		var control: Control = lobby.get_node(unique_name) as Control
 		assert_ne(control.focus_neighbor_top, NodePath(""), "%s must have an up neighbor" % unique_name)
 		assert_ne(control.focus_neighbor_bottom, NodePath(""), "%s must have a down neighbor" % unique_name)
-	for stepper: Button in lobby._goal_stepper_buttons:
+	for stepper: Button in lobby._block_stepper_buttons + lobby._goal_stepper_buttons:
 		assert_ne(stepper.focus_neighbor_bottom, NodePath(""), "stepper %s must have a down neighbor" % stepper.name)
 	# Opening the GAME Advanced block puts its controls in the loop.
 	(lobby.get_node("%GameSection") as LobbySection).set_advanced_open(true)
@@ -1119,7 +1119,7 @@ func test_lobby_quick_y_toggles_the_advanced_block_of_the_focused_section() -> v
 func test_lobby_quick_y_falls_back_to_the_first_advanced_section() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var game: LobbySection = lobby.get_node("%GameSection") as LobbySection
-	(lobby.get_node("%BlockTimerSlider") as Control).grab_focus()
+	lobby._block_stepper_buttons[0].grab_focus()
 	lobby._unhandled_input(_y_event())
 	assert_true(game.is_advanced_open(), "ROUND has no Advanced block: Y toggles GAME's")
 	lobby._unhandled_input(_y_event())

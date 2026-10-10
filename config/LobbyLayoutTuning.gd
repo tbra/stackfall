@@ -26,7 +26,11 @@ extends Resource
 @export var label_column_width_px: int = 150
 
 ## Width of the value column (slider readout chip / value label) every row shares.
-@export var value_column_width_px: int = 64
+@export var value_column_width_px: int = 120
+
+## Bontago-1pi.146: one height for every control in a settings row (cycle selectors, toggles, the
+## -/value/+ stepper pill, the segmented meters), so rows align and no row type towers over another.
+@export var row_control_height_px: int = 36
 
 ## Horizontal gap between the cells of one settings row.
 @export var row_separation_px: int = 12
@@ -60,13 +64,18 @@ extends Resource
 
 ## Seat-row controls (PL1a, ui/lobby/LobbySeatRow.gd). Smallest size of the team
 ## number button (visible with teams on): width, height in px.
-@export var seat_team_button_min_size_px: Vector2 = Vector2(36.0, 28.0)
+@export var seat_team_button_min_size_px: Vector2 = Vector2(40.0, 32.0)
 
 ## Smallest width of a bot's difficulty dropdown, in px.
 @export var seat_difficulty_min_width_px: int = 130
 
 ## Smallest size of a bot row's remove ("x") button: width, height in px.
-@export var seat_remove_button_min_size_px: Vector2 = Vector2(28.0, 28.0)
+@export var seat_remove_button_min_size_px: Vector2 = Vector2(40.0, 32.0)
+
+## Bontago-1pi.146: height shared by every control on a seat row (team, difficulty, remove, ready/host badge,
+## Add bot), and the badge's width, so the three right-hand pills read as one family.
+@export var seat_control_height_px: int = 32
+@export var seat_badge_width_px: int = 40
 
 ## Width of the focus ring drawn round the colour box while it holds gamepad/keyboard
 ## focus, in px (the box is a flat colour, so the shared theme's ring would vanish

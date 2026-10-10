@@ -42,6 +42,9 @@ func build(layout_tuning: LobbyLayoutTuning, add_button: Button) -> void:
 	if add_button.get_parent() != null:
 		add_button.get_parent().remove_child(add_button)
 	layout.add_child(add_button)
+	# Bontago-1pi.146: the same control height as the filled rows' pills.
+	add_button.custom_minimum_size.y = float(layout_tuning.seat_control_height_px)
+	add_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	MenuStyleFactory.apply_block(add_button, arcade.disc_600_color, arcade.cream_color, true)
 
 

@@ -112,7 +112,7 @@ func test_every_lobby_and_options_slider_is_configured() -> void:
 	var lobby: Lobby = autofree(LOBBY_SCENE.instantiate()) as Lobby
 	add_child_autofree(lobby)
 	await _settle()
-	for slider_name: String in ["DiscSizeSlider", "BlockTimerSlider", "GravitySlider", "SpecialFreqSlider", "MatchTimerSlider", "RoundTimerSlider"]:
+	for slider_name: String in ["DiscSizeSlider", "GravitySlider", "SpecialFreqSlider", "MatchTimerSlider", "RoundTimerSlider"]:
 		assert_false((lobby.get_node("%" + slider_name) as HSlider).scrollable, "%s ignores the wheel" % slider_name)
 
 

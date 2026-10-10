@@ -164,16 +164,7 @@ theme_type_variation = &"CaptionLabel"
 text = "Disc size"
 vertical_alignment = 1
 
-[node name="MapRow" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/MapCol" groups=["lobby_row"]]
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="MapThumbnail" type="PanelContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/MapCol/MapRow"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_vertical = 4
-
-[node name="DiscSizeSlider" type="HSlider" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/MapCol/MapRow"]
+[node name="DiscSizeSlider" type="HSlider" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/MapCol"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -182,20 +173,26 @@ max_value = 5.0
 tick_count = 6
 ticks_on_borders = true
 
-[node name="DiscSizeValue" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/MapCol/MapRow" groups=["lobby_value_cell"]]
+[node name="DiscSizeValue" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/MapCol" groups=["lobby_value_cell"]]
 unique_name_in_owner = true
 layout_mode = 2
 vertical_alignment = 1
 
-[node name="MapVariantOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/MapCol/MapRow"]
+[node name="MapVariantOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/MapCol"]
 unique_name_in_owner = true
 layout_mode = 2
 visible = false
 
-[node name="MapSizeOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/MapCol/MapRow"]
+[node name="MapSizeOption" type="OptionButton" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/MapCol"]
 unique_name_in_owner = true
 layout_mode = 2
 visible = false
+
+[node name="MapThumbnail" type="PanelContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid/MapCol"]
+unique_name_in_owner = true
+layout_mode = 2
+visible = false
+size_flags_vertical = 4
 
 [node name="SkyCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameGrid" groups=["lobby_row"]]
 layout_mode = 2
@@ -401,26 +398,14 @@ theme_type_variation = &"CaptionLabel"
 text = "Block timer"
 vertical_alignment = 1
 
-[node name="BlockTimerSlider" type="HSlider" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/BlockTimerGroup"]
+[node name="BlockTimerSpin" type="SpinBox" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/BlockTimerGroup"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-size_flags_vertical = 4
 min_value = 3.0
 max_value = 12.0
 step = 0.5
 value = 6.0
-
-[node name="BlockTimerChip" type="PanelContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/BlockTimerGroup" groups=["lobby_value_cell"]]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_vertical = 4
-
-[node name="BlockTimerLabel" type="Label" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/BlockTimerGroup/BlockTimerChip"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "6.0 s"
-horizontal_alignment = 1
 
 [node name="GoalFlagCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow" groups=["lobby_row"]]
 unique_name_in_owner = true
