@@ -1570,6 +1570,20 @@ func _draw_glue_overlay(control: Control, rect: Rect2) -> void:
 		control.draw_circle(c + GLUE_HIGHLIGHT_SHIFT * r, r * GLUE_HIGHLIGHT_SCALE, light, true)
 
 
+## Glossy amber beads along the silhouette box edges; every bead is clamped inside `rect`.
+func _draw_glue_beads(control: Control, rect: Rect2) -> void:
+	var unit: float = minf(rect.size.x, rect.size.y)
+	for b: Vector3 in _honey_tuning.hud_beads:
+		var r: float = minf(unit * b.z, GLUE_MAX_BLOB_SHARE * unit)
+		var outer: float = r * GLUE_EDGE_GROW
+		var c: Vector2 = Vector2(
+			clampf(rect.position.x + rect.size.x * b.x, rect.position.x + outer, rect.end.x - outer),
+			clampf(rect.position.y + rect.size.y * b.y, rect.position.y + outer, rect.end.y - outer))
+		control.draw_circle(c, outer, _honey_tuning.hud_blob_edge_color, true)
+		control.draw_circle(c, r, _honey_tuning.hud_blob_color, true)
+		control.draw_circle(c + GLUE_HIGHLIGHT_SHIFT * r, r * GLUE_HIGHLIGHT_SCALE, _honey_tuning.hud_blob_highlight, true)
+
+
 func _set_gift_icons(held_id: StringName, next_id: StringName) -> void:
 	if held_id != _held_gift_id:
 		_held_gift_id = held_id
@@ -1696,7 +1710,16 @@ func _draw_static_shape(control: Control, shape: BlockShape, color: Color) -> vo
 	if _glue_active and gift_id == &"":
 		var box: Rect2 = _preview_opaque_bbox(shape.id, texture)
 		var inner: Rect2 = Rect2(image_rect.position + box.position * image_rect.size, box.size * image_rect.size)
-		_draw_glue_overlay(control, inner.intersection(Rect2(Vector2.ZERO, control.size)))
+		if _honey_tuning == null:
+			_honey_tuning = load(HONEY_TUNING_PATH) as HoneyCoatTuning
+		if _honey_tuning.look == HoneyCoatTuning.Look.PUDDLE:
+			_draw_glue_overlay(control, inner.intersection(Rect2(Vector2.ZERO, control.size)))
+		else:
+			# Jelly tint follows the silhouette exactly (same texture, amber modulate), beads sit inside the box.
+			if _honey_tuning.has_jelly():
+				control.draw_texture_rect(texture, image_rect, false, _honey_tuning.hud_jelly_tint)
+			if _honey_tuning.has_beads():
+				_draw_glue_beads(control, inner.intersection(Rect2(Vector2.ZERO, control.size)))
 
 
 

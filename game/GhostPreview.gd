@@ -2345,7 +2345,21 @@ func _apply_glue_overlay() -> void:
 	for child: Node in _shape_visual.get_children():
 		var mesh_instance: MeshInstance3D = child as MeshInstance3D
 		if mesh_instance != null:
+			# Bontago-lv2: jelly/beads looks draw child shells; only the PUDDLE look keeps the material overlay.
+			# Loaded by path, not by class name: HoneyCoat reaches Block, which would grow the layer-lint SCC.
+			var honey_coat: GDScript = LateScripts.script(LateScripts.HONEY_COAT)
+			if bool(honey_coat.call(&"set_ghost_coated", mesh_instance, _glue_cell_centres(), _glue_charges > 0)):
+				continue
 			mesh_instance.material_overlay = _glue_overlay if _glue_charges > 0 else null
+
+
+## Block-local cell centres of the held shape (same pivot rule as BlockFactory.build).
+func _glue_cell_centres() -> Array[Vector3]:
+	var centres: Array[Vector3] = []
+	var pivot: Vector3 = _shape.bottom_center()
+	for cell: Vector3i in _shape.cells:
+		centres.append((Vector3(cell) - pivot) * tuning.cube_size)
+	return centres
 
 
 func _local_glue_charges() -> int:
