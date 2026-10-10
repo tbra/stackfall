@@ -203,7 +203,13 @@ var _controller_was_handling_input: bool = false
 
 ## Bontago-xtq.44: the process-wide caches are released as the game scene leaves the tree.
 func _exit_tree() -> void:
-	ExitRelease.release_all()
+	ExitRelease.release_if_quitting()
+
+
+## Bontago-xtq.46: a window close once Boot has handed over is a real quit.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		QuitFlag.mark()
 
 
 func _ready() -> void:

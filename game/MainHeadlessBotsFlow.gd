@@ -410,6 +410,7 @@ func _on_headless_bots_seconds_elapsed() -> void:
 		print(_headless_match_summary_line(true))
 	_finish_bot_record(-1)
 	await Sfx.drain_for_quit()
+	QuitFlag.mark()
 	main_node.get_tree().quit(0)
 
 
