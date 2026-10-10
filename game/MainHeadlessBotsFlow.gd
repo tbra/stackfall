@@ -68,6 +68,7 @@ func start_match_with_args(args: PackedStringArray) -> void:
 		Events.match_state_changed.connect(main_node._on_headless_loop_state_changed)
 	_setup_bot_record(args)
 	_load_bot_weight_overrides(args, bots)
+	_load_bot_brains(args, bots)
 	if not main_node._headless_loop_enabled:
 		# DECISION (Bontago-1t5.13): a single (non-loop) match also prints its HEADLESS_MATCH line on
 		# END, so tools/bot_h2h.py can parse winner_team without --loop-matches.
@@ -103,6 +104,7 @@ func _start_headless_loop_match(bots: int, args: PackedStringArray) -> void:
 		main_node._headless_loop_seed = config.rng_seed
 	Match.start_match(config)
 	_apply_bot_weight_overrides()
+	_apply_bot_brains()
 	_begin_bot_record(config)
 	_start_headless_bots_diagnostics()
 
@@ -150,6 +152,8 @@ func _headless_match_summary_line(timed_out: bool = false) -> String:
 		main_node._headless_loop_seed, _headless_bots_elapsed_s(), -1 if timed_out else Match.winner_team(),
 		main_node._headless_bots_placements, _headless_bots_homes_alive(), _headless_slot_teams(),
 	]
+	# Bontago-1t5.19: appended after `teams=` so the bot_h2h.py regexes keep matching.
+	line += " brains=%s" % _headless_brains_string()
 	return line + " timeout=1" if timed_out else line
 
 
@@ -485,6 +489,7 @@ func _begin_bot_record(config: MatchConfig) -> void:
 		"difficulty": int(config.ai_difficulty),
 		"difficulties": difficulties,
 		"weight_overrides": _bot_weight_overrides_for_header(),
+		"brains": _headless_brains_string(),
 		"git_revision": BuildVersion.git_revision(),
 	}
 	_bot_record_timeline_started = false
@@ -686,3 +691,61 @@ func _bot_weight_overrides_for_header() -> Dictionary:
 	for slot_id: int in _bot_weight_overrides:
 		out[str(slot_id)] = _bot_weight_overrides[slot_id]
 	return out
+
+
+# --- Bot V2 brain selection (Bontago-1t5.19) ----------------------------------
+#
+# `--bot-brain=<legacy|v2>` picks the decision pipeline (default legacy) and
+# `--bot-brain-slots=<csv>` limits it to the named bot slots; every other bot stays legacy.
+# Without --bot-brain-slots the brain applies to every bot slot.
+
+var _bot_brain_by_slot: Dictionary = {}  # slot_id -> BotController.Brain (bot slots only)
+
+
+## `--bot-brain=`; LEGACY when absent, and an unknown value warns and means LEGACY.
+func _bot_brain_arg(args: PackedStringArray) -> BotController.Brain:
+	var value: String = _string_arg(args, "bot-brain=").to_lower()
+	match value:
+		"", "legacy":
+			return BotController.Brain.LEGACY
+		"v2":
+			return BotController.Brain.V2
+	push_warning("--bot-brain=%s is not legacy|v2; bots keep the legacy brain" % value)
+	return BotController.Brain.LEGACY
+
+
+func _load_bot_brains(args: PackedStringArray, bots: int) -> void:
+	_bot_brain_by_slot.clear()
+	var brain: BotController.Brain = _bot_brain_arg(args)
+	var first_slot: int = maxi(bots, _headless_bot_players_arg(args)) - bots
+	var slots_text: String = _string_arg(args, "bot-brain-slots=")
+	var named: PackedInt32Array = PackedInt32Array()
+	for part: String in slots_text.split(",", false):
+		if part.strip_edges().is_valid_int() and int(part) >= first_slot and int(part) < first_slot + bots:
+			named.append(int(part))
+		else:
+			push_warning("--bot-brain-slots: '%s' is not a bot slot; ignored" % part)
+	for slot_id: int in range(first_slot, first_slot + bots):
+		var selected: bool = slots_text.is_empty() or named.has(slot_id)
+		_bot_brain_by_slot[slot_id] = brain if selected else BotController.Brain.LEGACY
+
+
+## Installs each bot's brain on its controller (idempotent).
+func _apply_bot_brains() -> void:
+	for node: Node in main_node._bot_controllers:
+		var bot: BotController = node as BotController
+		if bot != null and is_instance_valid(bot) and _bot_brain_by_slot.has(bot.bound_slot()):
+			bot.set_brain(_bot_brain_by_slot[bot.bound_slot()] as BotController.Brain)
+
+
+## Per slot "legacy", "v2" or "-" (not a bot), comma-separated.
+func _headless_brains_string() -> String:
+	var parts: PackedStringArray = PackedStringArray()
+	for i: int in range(Match.slot_count()):
+		if not _bot_brain_by_slot.has(i):
+			parts.append("-")
+		elif int(_bot_brain_by_slot[i]) == BotController.Brain.V2:
+			parts.append("v2")
+		else:
+			parts.append("legacy")
+	return ",".join(parts)
