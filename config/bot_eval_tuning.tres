@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="BotEvalTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/BotEvalTuning.gd" id="1_eval"]
+
+[resource]
+script = ExtResource("1_eval")
+area_samples = 64
+area_unit_m2 = 10.0
+kill_margin_m = 0.5
+kill_home_value = 20.0
+kill_goal_value = 10.0
+exposure_allowance_m = 1.0
+exposure_cap = 4

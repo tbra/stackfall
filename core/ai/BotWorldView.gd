@@ -22,6 +22,8 @@ var territory_tuning: TerritoryTuning = SHIPPED_TERRITORY_TUNING
 var cube_size: float = SHIPPED_PHYSICS_TUNING.cube_size
 var own_home: Vector2 = Vector2.ZERO
 var has_home: bool = false
+## Living home flags of the viewing bot team (own included, teammates too): chain roots.
+var team_homes: PackedVector2Array = PackedVector2Array()
 var goals: PackedVector2Array = PackedVector2Array()
 var goal_zone_radius: float = 0.0
 var enemy_homes: PackedVector2Array = PackedVector2Array()
@@ -82,6 +84,8 @@ static func build(
 				view.enemy_home_teams.append(slot_item.team_id)
 		if slot_item.home_flag_alive:
 			living_homes.append(slot_item.home_position)
+			if slot_item.team_id == team_id_value:
+				view.team_homes.append(slot_item.home_position)
 	view._copy_block_circles(circles, living_homes)
 	return view
 
