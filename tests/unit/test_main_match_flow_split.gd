@@ -40,6 +40,9 @@ func test_main_script_property_types_name_no_match_only_class() -> void:
 
 func test_main_resource_dependencies_exclude_match_classes() -> void:
 	var deps: PackedStringArray = ResourceLoader.get_dependencies(MAIN_SCRIPT_PATH)
+	# Bontago-6cw: a script may list no dependencies (then the loop asserts nothing: GUT "Risky").
+	if deps.is_empty():
+		pass_test("Main.gd lists no resource dependencies, so none is a match class")
 	for dep: String in deps:
 		var base: String = dep.get_file().get_basename()
 		assert_false(FORBIDDEN_CLASSES.has(base), "Main.gd depends on %s" % dep)

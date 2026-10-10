@@ -65,6 +65,8 @@ var name_provider: Variant = null
 
 ## The Input Map action that readies (Enter/Numpad Enter/Space and gamepad A).
 const READY_ACTION: StringName = &"ui_accept"
+## Frames a fetched plate stays referenced so queued RenderingServer commands drain (Bontago-6cw).
+const TEXTURE_RELEASE_FRAMES: int = 3
 
 ## Bontago-1pi.63: the loading bar is gone; the stage fraction is only kept for
 ## progress() (game/Main.gd still reports it).
@@ -567,6 +569,7 @@ func _poll_backdrop(animate: bool) -> void:
 ## Drops the shown plate (and any fade), leaving only the plain background.
 func _clear_backdrop() -> void:
 	_kill_backdrop_tween()
+	release_later(_backdrop.texture)
 	_backdrop.texture = null
 	_backdrop.visible = false
 	_backdrop.modulate.a = 0.0
@@ -603,15 +606,32 @@ func _drain_backdrop_orphans() -> void:
 		if ResourceLoader.load_threaded_get_status(path) == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
 			still_loading.append(path)
 		else:
-			ResourceLoader.load_threaded_get(path)
+			release_later(ResourceLoader.load_threaded_get(path))
 	_backdrop_orphans = still_loading
 
 
 func _exit_tree() -> void:
 	_abandon_backdrop_request()
 	for path: String in _backdrop_orphans:
-		ResourceLoader.load_threaded_get(path)
+		release_later(ResourceLoader.load_threaded_get(path))
 	_backdrop_orphans = PackedStringArray()
+
+
+## Bontago-6cw. ROOT CAUSE of the flaky 'Parameter "t" is null' / 'Parameter "texture" is
+## null' engine errors: a texture finished on the loader thread has its RenderingServer
+## create/initialize commands queued for the main thread, while a free issued from the
+## main thread runs at once. Dropping a just-fetched plate (an abandoned request, a cleared
+## rect) before the next frame flushed that queue freed the RID first and the queued
+## initialize then hit a missing texture. Holding the last reference for a few frames
+## lets the queue drain first. A static coroutine: it outlives the node that called it.
+static func release_later(resource: Resource) -> void:
+	if resource == null:
+		return
+	var tree: SceneTree = Engine.get_main_loop() as SceneTree
+	if tree == null:
+		return
+	for _frame: int in TEXTURE_RELEASE_FRAMES:
+		await tree.process_frame
 
 
 ## Test seams: the plate chosen for this match ("" = none), the plate the rect shows
