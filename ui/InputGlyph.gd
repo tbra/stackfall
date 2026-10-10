@@ -648,7 +648,7 @@ func _refresh_arcade_cap() -> void:
 		return
 	var width: float = GLYPH_HEIGHT_PX
 	if not _is_round_cap():
-		width = maxf(GLYPH_HEIGHT_PX, _label_width(_text, ARCADE_LEGEND_FONT_SIZE) + float(_arcade.space_2_px) * 2.0)
+		width = maxf(GLYPH_HEIGHT_PX, _label_width(_text.to_upper(), ARCADE_LEGEND_FONT_SIZE) + float(_arcade.space_2_px) * 2.0)
 	custom_minimum_size = Vector2(width, GLYPH_HEIGHT_PX)
 
 
@@ -666,7 +666,8 @@ func _draw_arcade_cap() -> void:
 	draw_style_box(BlockStyleBox.make(face, _arcade, true, BlockStyleBox.STATE_NORMAL, lip), Rect2(Vector2.ZERO, size))
 	var face_top: float = float(_arcade.top_px)
 	var face_bottom: float = size.y - float(_arcade.drop_sm_px) - float(_arcade.lip_sm_px)
-	_draw_text_at(_text, MenuStyleFactory.ink_for_face(face), ARCADE_LEGEND_FONT_SIZE,
+	# Bontago-1pi.149: the legend is uppercase per the mock; label_text() keeps the as_text() form.
+	_draw_text_at(_text.to_upper(), MenuStyleFactory.ink_for_face(face), ARCADE_LEGEND_FONT_SIZE,
 		Vector2(size.x * 0.5, (face_top + face_bottom) * 0.5))
 
 
@@ -703,7 +704,7 @@ func _draw_round_cap(face: Color, lip: Color) -> void:
 	var upper_center: Vector2 = center - Vector2(0.0, lip_h * 0.5)
 	draw_circle(upper_center, upper_radius, top_color)
 	draw_circle(upper_center + Vector2(0.0, top_h), upper_radius - top_h * 0.5, face)
-	_draw_text_at(_text, _arcade.ink_color, ARCADE_LEGEND_FONT_SIZE, upper_center + Vector2(0.0, top_h * 0.5))
+	_draw_text_at(_text.to_upper(), _arcade.ink_color, ARCADE_LEGEND_FONT_SIZE, upper_center + Vector2(0.0, top_h * 0.5))
 
 
 func _draw_texture_glyph() -> void:

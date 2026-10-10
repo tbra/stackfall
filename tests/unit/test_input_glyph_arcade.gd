@@ -116,3 +116,19 @@ func test_glyph_never_takes_focus_and_a_synthetic_pad_press_does_not_move_it() -
 	assert_eq(glyph.mouse_filter, Control.MOUSE_FILTER_IGNORE)
 	Input.parse_input_event(_pad_button(JOY_BUTTON_DPAD_DOWN))
 	assert_true(button.has_focus(), "the cap is not a focus stop")
+
+
+## Bontago-1pi.149: the legend is drawn uppercase (mock), the cap is sized to that uppercase text
+## (so PGUP, ESC, ENTER, SPACE, CTRL still fit) and label_text() keeps the as_text() form.
+func test_key_legends_are_uppercase_and_every_long_name_fits_its_cap() -> void:
+	for code: Key in [KEY_PAGEUP, KEY_ESCAPE, KEY_ENTER, KEY_SPACE, KEY_CTRL, KEY_BACKSPACE, KEY_TAB]:
+		var event: InputEventKey = InputEventKey.new()
+		event.keycode = code
+		var glyph: InputGlyph = _glyph_for(event)
+		var legend: String = glyph.label_text().to_upper()
+		var needed: float = glyph._label_width(legend, InputGlyph.ARCADE_LEGEND_FONT_SIZE)
+		assert_gte(glyph.custom_minimum_size.x, needed + float(_arcade.space_2_px) * 2.0,
+			"%s: the cap is at least as wide as its uppercase legend plus padding" % legend)
+	var esc: InputEventKey = InputEventKey.new()
+	esc.keycode = KEY_ESCAPE
+	assert_eq(_glyph_for(esc).label_text(), "Esc", "the as_text() form is unchanged")

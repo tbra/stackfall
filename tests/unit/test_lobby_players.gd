@@ -367,10 +367,10 @@ func test_the_waiting_pill_counts_ready_seats_of_the_rows_just_drawn() -> void:
 	]
 	Events.net_roster_changed.emit(roster)
 	var label: Label = lobby.get_node("%WaitingStatusLabel") as Label
-	assert_eq(label.text, "%s Waiting for players %s 1 of 2 ready" % [char(0x25CF), char(0xB7)])
+	assert_eq(label.text, Lobby.READY_COUNT_FORMAT % [1, 2])
 	roster[1]["ready"] = true
 	Events.net_roster_changed.emit(roster)
-	assert_eq(label.text, "%s %s" % [char(0x25CF), Lobby.ALL_READY_TEXT], "everyone ready: the pill says so (1pi.122)")
+	assert_eq(label.text, Lobby.ALL_READY_TEXT, "everyone ready: the pill says so (1pi.122)")
 
 
 ## Bontago-1pi.122: the host's seat shows the crown and Start is its consent, so a host row whose
@@ -384,10 +384,10 @@ func test_the_waiting_pill_counts_the_host_as_ready() -> void:
 	]
 	Events.net_roster_changed.emit(roster)
 	var label: Label = lobby.get_node("%WaitingStatusLabel") as Label
-	assert_eq(label.text, "%s Waiting for players %s 2 of 3 ready" % [char(0x25CF), char(0xB7)])
+	assert_eq(label.text, Lobby.READY_COUNT_FORMAT % [2, 3])
 	roster.remove_at(2)
 	Events.net_roster_changed.emit(roster)
-	assert_eq(label.text, "%s %s" % [char(0x25CF), Lobby.ALL_READY_TEXT])
+	assert_eq(label.text, Lobby.ALL_READY_TEXT)
 
 
 ## Bontago-1pi.120: the host crown pill is yellow (LobbyLayoutTuning.host_crown_pill_color).
@@ -1970,3 +1970,22 @@ func test_the_open_seat_row_hides_when_the_seats_are_full() -> void:
 	assert_true(_open_seat_row(lobby).visible)
 	_add_bot_button(lobby).pressed.emit()
 	assert_false(_open_seat_row(lobby).visible, "no free seat, no open seat")
+
+
+## Bontago-1pi.149 (components.md Toggle: the ON/OFF word is required): the sudden-death, turn-based,
+## mid-join and Teams chips each have a word beside them that follows the chip (mint ON / dust OFF).
+func test_toggle_chips_carry_an_on_off_word_that_follows_the_state() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	for unique: String in ["SuddenDeathCheck", "TurnBasedCheck", "MidJoinCheck", "TeamsToggle"]:
+		var check: CheckButton = lobby.get_node("%PlayersPanel").get_node("%" + unique) as CheckButton if unique == "TeamsToggle" else lobby.get_node("%" + unique) as CheckButton
+		assert_true(check.has_meta(LobbySection.STATE_WORD_META), "%s has a state word" % unique)
+		var word: Label = check.get_meta(LobbySection.STATE_WORD_META) as Label
+		assert_eq(word.get_parent(), check.get_parent(), "%s: the word sits in the chip's row" % unique)
+		check.set_pressed_no_signal(false)
+		LobbySection.refresh_state_word(check)
+		assert_eq(word.text, LobbySection.STATE_WORD_OFF)
+		assert_eq(word.get_theme_color("font_color"), arcade.dust_color)
+		check.button_pressed = true
+		assert_eq(word.text, LobbySection.STATE_WORD_ON, "%s: toggling updates the word" % unique)
+		assert_eq(word.get_theme_color("font_color"), arcade.mint_color)

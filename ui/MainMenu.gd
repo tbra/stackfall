@@ -175,6 +175,7 @@ func _ready() -> void:
 	net_provider = Net
 	_debug_entry_enabled = DebugMode.is_enabled()
 	_home_tagline = _tagline.text
+	_add_searching_cells()
 	_build_version_label.text = BuildVersion.label()
 	_build_version_label_left = _build_version_label.offset_left
 	_host_button.pressed.connect(_on_host_pressed)
@@ -744,6 +745,26 @@ func _join(address: String, port: int) -> void:
 	var err: Error = net_provider.join_game(address, port, _player_name())
 	if err != OK:
 		_show_status("Could not join: %s" % error_string(err))
+
+
+## Bontago-1pi.149 (components.md ServerRow): three pulsing cells under the "Searching for
+## games..." line. They are a child of the label, so they show and hide with it.
+## DECISION: SEARCH_CELLS_GAP_PX below the label's centre line is a layout offset, one line of the
+## caption text, not a tunable.
+const SEARCH_CELLS_GAP_PX: float = 22.0
+## The line moves up by this much so line + cells are centred in the well.
+const SEARCH_LABEL_LIFT_PX: float = 24.0
+
+
+func _add_searching_cells() -> void:
+	var cells: SearchingCells = SearchingCells.new()
+	cells.name = "SearchingCells"
+	_empty_state_label.offset_bottom = -SEARCH_LABEL_LIFT_PX
+	_empty_state_label.add_child(cells)
+	cells.set_anchors_preset(Control.PRESET_CENTER)
+	cells.position = Vector2(-SearchingCells.row_width() * 0.5, SEARCH_CELLS_GAP_PX) + _empty_state_label.size * 0.5
+	_empty_state_label.resized.connect(func() -> void:
+		cells.position = Vector2(-SearchingCells.row_width() * 0.5, SEARCH_CELLS_GAP_PX) + _empty_state_label.size * 0.5)
 
 
 func _rebuild_game_list() -> void:
