@@ -218,7 +218,7 @@ func test_demo_buttons_do_nothing_when_debug_mode_is_off() -> void:
 func test_pad_reaches_the_debug_entry_and_it_is_not_a_dead_end() -> void:
 	var menu: MainMenu = _make_menu(true)
 	await get_tree().process_frame
-	_node(menu, "PlayLocalButton").grab_focus()
+	_node(menu, "OptionsButton").grab_focus()
 	await _pad(JOY_BUTTON_DPAD_DOWN)
 	assert_eq(_focus(), _node(menu, "DebugButton"))
 	await _pad(JOY_BUTTON_A)
@@ -234,7 +234,7 @@ func test_debug_entry_off_leaves_home_navigation_as_before() -> void:
 	var quit: Button = _node(menu, "QuitButton") as Button
 	assert_eq(quit.get_node(quit.focus_neighbor_bottom), _node(menu, "NameEdit"))
 	var name_edit: LineEdit = _node(menu, "NameEdit") as LineEdit
-	assert_eq(name_edit.get_node(name_edit.focus_neighbor_top), _node(menu, "PlayLocalButton"))
+	assert_eq(name_edit.get_node(name_edit.focus_neighbor_top), _node(menu, "OptionsButton"), "the wrap from the name field lands on the Options | Quit row")
 
 func test_play_local_has_no_name_input_and_vs_bots_first() -> void:
 	var menu: MainMenu = _make_menu()
@@ -415,8 +415,8 @@ func test_host_dialog_steam_choice_is_not_focusable_while_unavailable() -> void:
 	assert_ne(online._host_steam_choice.focus_mode, Control.FOCUS_NONE)
 
 
-func test_decorative_title_and_diorama_cannot_take_focus() -> void:
+func test_decorative_title_scrim_and_arena_cannot_take_focus() -> void:
 	var menu: MainMenu = _make_menu()
-	for node_name: String in ["Title", "TitleShadow"]:
-		assert_eq(_node(menu, node_name).focus_mode, Control.FOCUS_NONE)
-	assert_eq((menu.get_node("Diorama") as Control).focus_mode, Control.FOCUS_NONE)
+	assert_eq(_node(menu, "Title").focus_mode, Control.FOCUS_NONE)
+	assert_eq(_node(menu, "Scrim").mouse_filter, Control.MOUSE_FILTER_IGNORE)
+	assert_eq((menu.get_node("Arena") as Control).focus_mode, Control.FOCUS_NONE)
