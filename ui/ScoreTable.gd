@@ -54,13 +54,42 @@ static func columns(show_team: bool, show_mode_stat: bool = false) -> Array[int]
 	return columns
 
 
-static func build_header_row(show_team: bool, mode_header: String, tuning: MenuVisualTuning, show_mode_stat: bool = false) -> HBoxContainer:
+## Columns whose cells are numbers: right-aligned so digits line up (tabular).
+const _NUMERIC_COLUMNS: Array[int] = [
+	Column.PLACED, Column.LOST, Column.GIFTS, Column.HEIGHT, Column.MODE_STAT, Column.TERRITORY, Column.WINS,
+]
+## Columns drawn in the Bungee display face (the headline numbers of a row).
+const _DISPLAY_COLUMNS: Array[int] = [Column.TERRITORY]
+
+static var _table_tuning: ResultsTableTuning = null
+
+
+## The shared Arcade table numbers (config/results_table_tuning.tres).
+static func table_tuning() -> ResultsTableTuning:
+	if _table_tuning == null:
+		_table_tuning = load("res://config/results_table_tuning.tres") as ResultsTableTuning
+	return _table_tuning
+
+
+static func build_header_row(show_team: bool, mode_header: String, _tuning: MenuVisualTuning, show_mode_stat: bool = false) -> HBoxContainer:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var look: ResultsTableTuning = table_tuning()
 	var header: HBoxContainer = HBoxContainer.new()
 	header.name = "HeaderRow"
+	# Same side padding as a data row so header and data columns line up.
+	header.add_theme_constant_override("separation", 0)
 	for column: int in columns(show_team, show_mode_stat):
 		var header_text: String = mode_header if column == Column.MODE_STAT else String(_COLUMN_HEADERS[column])
 		var cell: Label = make_cell(header_text, float(_COLUMN_RATIOS[column]))
-		cell.add_theme_color_override("font_color", tuning.label_muted_color)
+		cell.theme_type_variation = &"CaptionLabel"
+		cell.add_theme_color_override("font_color", arcade.dust_color)
+		cell.add_theme_font_size_override("font_size", arcade.font_size_label_px)
+		if _NUMERIC_COLUMNS.has(column):
+			cell.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		var pad: StyleBoxEmpty = StyleBoxEmpty.new()
+		pad.content_margin_left = float(look.row_pad_x_px) + look.marker_size_px + float(look.marker_gap_px) if column == Column.PLAYER else float(arcade.space_4_px)
+		pad.content_margin_right = float(look.row_pad_x_px) if column == Column.WINS else 0.0
+		cell.add_theme_stylebox_override("normal", pad)
 		header.add_child(cell)
 	return header
 
@@ -69,16 +98,16 @@ static func build_data_row(
 	row: Dictionary, show_team: bool, tuning: MenuVisualTuning, team_numbers: PackedInt32Array = PackedInt32Array(), results: Dictionary = {}, match_provider: Variant = null,
 	show_mode_stat: bool = false
 ) -> PanelContainer:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var look: ResultsTableTuning = table_tuning()
 	var panel: PanelContainer = PanelContainer.new()
 	var is_winner: bool = ResultsPayload.bool_of(row, ResultsPayload.KEY_IS_WINNER)
 	panel.set_meta(&"slot_id", ResultsPayload.int_of(row, ResultsPayload.KEY_SLOT_ID, -1))
 	panel.set_meta(&"is_winner", is_winner)
-	panel.add_theme_stylebox_override(
-		"panel",
-		MenuStyleFactory.make_badge(tuning.pill_mint_color if is_winner else tuning.pill_cream_color, tuning)
-	)
+	panel.add_theme_stylebox_override("panel", row_style(is_winner))
 
 	var box: HBoxContainer = HBoxContainer.new()
+	box.add_theme_constant_override("separation", 0)
 	panel.add_child(box)
 
 	var eliminated_at: float = ResultsPayload.float_of(row, ResultsPayload.KEY_ELIMINATED_AT, ResultsPayload.NOT_ELIMINATED)
@@ -103,11 +132,40 @@ static func build_data_row(
 	}
 	for column: int in columns(show_team, show_mode_stat):
 		var cell: Label = make_cell(String(cell_text_by_column[column]), float(_COLUMN_RATIOS[column]))
-		cell.add_theme_color_override("font_color", tuning.ink_color)
+		var primary: bool = column == Column.PLAYER or column == Column.TERRITORY
+		cell.add_theme_color_override("font_color", arcade.cream_color if primary else arcade.sand_color)
+		if _NUMERIC_COLUMNS.has(column):
+			cell.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		if _DISPLAY_COLUMNS.has(column):
+			cell.theme_type_variation = &"DisplayLabel"
+			cell.add_theme_font_size_override("font_size", look.number_font_size_px)
 		if column == Column.PLAYER:
 			_mark_with_slot_colour(cell, slot_color(ResultsPayload.int_of(row, ResultsPayload.KEY_SLOT_ID, -1), match_provider), tuning)
+		else:
+			# Columns breathe: a gap before every non-name cell so a right-aligned number never touches the next column.
+			var gap: StyleBoxEmpty = StyleBoxEmpty.new()
+			gap.content_margin_left = float(arcade.space_4_px)
+			cell.add_theme_stylebox_override("normal", gap)
 		box.add_child(cell)
 	return panel
+
+
+## A table row face: a disc-700 strip (radius-block); a winner is tinted toward rim with a
+## winner_edge_px rim edge on its left.
+static func row_style(is_winner: bool) -> StyleBoxFlat:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var look: ResultsTableTuning = table_tuning()
+	var box: StyleBoxFlat = StyleBoxFlat.new()
+	box.bg_color = arcade.disc_700_color.lerp(arcade.rim_color, look.winner_tint_mix) if is_winner else arcade.disc_700_color
+	box.set_corner_radius_all(arcade.radius_block_px)
+	if is_winner:
+		box.border_width_left = look.winner_edge_px
+		box.border_color = arcade.rim_color
+	box.content_margin_left = float(look.row_pad_x_px)
+	box.content_margin_right = float(look.row_pad_x_px)
+	box.content_margin_top = float(look.row_pad_y_px)
+	box.content_margin_bottom = float(look.row_pad_y_px)
+	return box
 
 
 ## Bontago-1pi.78: the HUD's colour source (ui/HUD.gd _color_for_slot): the live
@@ -131,8 +189,8 @@ static func slot_color(slot_id: int, match_provider: Variant = null) -> Color:
 
 ## Bontago-1pi.81: the shared SlotDiamond (ui/SlotDiamond.tscn) at the left of the name
 ## cell, which stays a plain Label whose left margin leaves room for it.
-static func _mark_with_slot_colour(cell: Label, color: Color, tuning: MenuVisualTuning) -> void:
-	var diamond: SlotDiamond = SlotDiamond.create(color)
+static func _mark_with_slot_colour(cell: Label, color: Color, _tuning: MenuVisualTuning) -> void:
+	var diamond: SlotDiamond = SlotDiamond.create(color, table_tuning().marker_size_px)
 	diamond.name = "SlotDiamond"
 	var edge: float = diamond.diamond_size_px()
 	diamond.anchor_top = 0.5
@@ -143,7 +201,7 @@ static func _mark_with_slot_colour(cell: Label, color: Color, tuning: MenuVisual
 	diamond.offset_bottom = edge * 0.5
 	cell.add_child(diamond)
 	var gutter: StyleBoxEmpty = StyleBoxEmpty.new()
-	gutter.content_margin_left = edge + float(tuning.score_swatch_gap_px)
+	gutter.content_margin_left = edge + float(table_tuning().marker_gap_px)
 	cell.add_theme_stylebox_override("normal", gutter)
 	cell.set_meta(&"slot_color", color)
 

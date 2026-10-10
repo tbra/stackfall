@@ -829,9 +829,9 @@ func test_player_list_names_colours_and_bot_marks() -> void:
 	assert_eq(rows.size(), 3)
 	for slot_id: int in range(3):
 		var slot_item: PlayerSlot = Match.slot(slot_id)
-		var swatch: Panel = rows[slot_id].get_child(0) as Panel
-		var box: StyleBoxFlat = swatch.get_theme_stylebox("panel") as StyleBoxFlat
-		assert_eq(box.bg_color, slot_item.color, "swatch is the player's colour")
+		var marker: SlotDiamond = rows[slot_id].get_child(0) as SlotDiamond
+		assert_not_null(marker, "each row leads with the shared diamond marker")
+		assert_eq(marker.color, slot_item.color, "diamond is the player's colour")
 		var label: Label = rows[slot_id].get_child(1) as Label
 		assert_true(label.text.begins_with(slot_item.display_name))
 		assert_eq(label.text.ends_with(screen.tuning.bot_suffix), slot_item.is_bot)

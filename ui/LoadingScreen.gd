@@ -65,8 +65,6 @@ var name_provider: Variant = null
 
 ## The Input Map action that readies (Enter/Numpad Enter/Space and gamepad A).
 const READY_ACTION: StringName = &"ui_accept"
-## Unit-square check mark of a ready tick (relative to the mark's radius).
-const _CHECK_POINTS: PackedVector2Array = [Vector2(-0.38, 0.02), Vector2(-0.1, 0.3), Vector2(0.4, -0.3)]
 
 ## Bontago-1pi.63: the loading bar is gone; the stage fraction is only kept for
 ## progress() (game/Main.gd still reports it).
@@ -126,7 +124,7 @@ func _ready() -> void:
 	_layer.layer = tuning.overlay_canvas_layer
 	_background.color = tuning.background_color
 	_apply_backdrop_styles()
-	_card.add_theme_stylebox_override("panel", MenuStyleFactory.make_card(menu_visual_tuning.pill_cream_color, menu_visual_tuning))
+	_apply_card_style()
 	_apply_ready_styles()
 	Events.loading_ready_changed.connect(_on_loading_ready_changed)
 	Events.loading_gate_opened.connect(_on_loading_gate_opened)
@@ -185,6 +183,8 @@ func show_pending(config: MatchConfig) -> void:
 
 func set_stage(_stage: String, fraction: float) -> void:
 	_progress = clampf(fraction, 0.0, 1.0)
+	for row: Dictionary in _ready_rows:
+		(row["mark"] as Control).queue_redraw()
 
 
 func progress() -> float:
@@ -663,13 +663,24 @@ func overlay_layer_visible() -> bool:
 ## Colours come from the menu palette (the card is the same cream pill card as the
 ## rest of the menus); sizes and wording from LoadingScreenTuning.
 func _apply_ready_styles() -> void:
-	var palette: MenuVisualTuning = menu_visual_tuning
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	_player_list.add_theme_constant_override("separation", tuning.ready_list_separation_px)
 	_ready_box.add_theme_constant_override("separation", tuning.ready_box_separation_px)
 	_prompt_content.add_theme_constant_override("separation", tuning.ready_prompt_separation_px)
 	_prompt_text.text = tuning.ready_prompt_text
 	_prompt_text.add_theme_font_size_override("font_size", tuning.ready_prompt_font_size)
-	_prompt_text.add_theme_color_override("font_color", palette.ink_color)
+	_prompt_text.add_theme_color_override("font_color", arcade.cream_color)
+
+
+## Stackfall Arcade LoadingCard (docs/UI_RESKIN_PLAN.md P5, Bontago-hfa.7): the disc-800 plate, the
+## mode name in Bungee, one diamond + progress-cell row per player. No spinners.
+func _apply_card_style() -> void:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	_card.add_theme_stylebox_override("panel", MenuStyleFactory.make_plate())
+	_card.custom_minimum_size.x = float(tuning.loading_card_min_width_px)
+	_map_label.theme_type_variation = &"DisplayLabel"
+	_map_label.add_theme_font_size_override("font_size", tuning.loading_title_font_size_px)
+	_map_label.add_theme_color_override("font_color", arcade.cream_color)
 
 
 func _on_loading_ready_changed(_ready_ids: PackedInt32Array, _required_ids: PackedInt32Array) -> void:
@@ -714,44 +725,42 @@ func _rebuild_ready_rows(slots: Array[PlayerSlot]) -> void:
 		var row: HBoxContainer = HBoxContainer.new()
 		row.add_theme_constant_override("separation", tuning.ready_row_separation_px)
 		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var swatch: Panel = Panel.new()
-		swatch.custom_minimum_size = Vector2.ONE * tuning.ready_swatch_size_px
-		swatch.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		swatch.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var swatch_box: StyleBoxFlat = StyleBoxFlat.new()
-		swatch_box.bg_color = slot_item.color
-		swatch_box.set_corner_radius_all(ceili(tuning.ready_swatch_size_px * 0.5))
-		swatch.add_theme_stylebox_override("panel", swatch_box)
+		var marker: SlotDiamond = SlotDiamond.create(slot_item.color, tuning.loading_marker_size_px)
+		marker.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		var name_label: Label = Label.new()
 		name_label.text = _slot_label_text(slot_item)
 		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		name_label.add_theme_font_size_override("font_size", tuning.ready_row_font_size)
-		name_label.add_theme_color_override("font_color", menu_visual_tuning.ink_color)
+		name_label.add_theme_font_size_override("font_size", tuning.loading_name_font_size_px)
+		name_label.add_theme_color_override("font_color", MenuStyleFactory.arcade_tuning().cream_color)
 		name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var mark: Control = Control.new()
-		mark.custom_minimum_size = Vector2.ONE * tuning.ready_mark_size_px
+		mark.custom_minimum_size = Vector2(
+			float(tuning.loading_cell_count * (tuning.loading_cell_width_px + tuning.loading_cell_gap_px) - tuning.loading_cell_gap_px),
+			float(tuning.loading_cell_height_px)
+		)
 		mark.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		mark.set_meta(&"ready", false)
 		mark.draw.connect(_draw_ready_mark.bind(mark))
-		row.add_child(swatch)
+		row.add_child(marker)
 		row.add_child(name_label)
 		row.add_child(mark)
 		_player_list.add_child(row)
 		_ready_rows.append({"slot_id": slot_item.slot_id, "is_bot": slot_item.is_bot, "mark": mark, "name": name_label})
 
 
+## Four progress cells (ResultsTableTuning.loading_cell_count): a ready player's are all mint; a
+## player still loading shows the overlay's own stage progress, never the full row.
 func _draw_ready_mark(mark: Control) -> void:
-	var center: Vector2 = mark.size * 0.5
-	var radius: float = minf(mark.size.x, mark.size.y) * 0.5 - tuning.ready_mark_stroke_px * 0.5
-	if bool(mark.get_meta(&"ready", false)):
-		mark.draw_circle(center, radius, menu_visual_tuning.pill_mint_color)
-		var check: PackedVector2Array = PackedVector2Array()
-		for point: Vector2 in _CHECK_POINTS:
-			check.append(center + point * radius)
-		mark.draw_polyline(check, menu_visual_tuning.ink_color, tuning.ready_mark_stroke_px, true)
-	else:
-		mark.draw_arc(center, radius, 0.0, TAU, tuning.ready_mark_arc_points, menu_visual_tuning.label_muted_color, tuning.ready_mark_stroke_px, true)
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var ready: bool = bool(mark.get_meta(&"ready", false))
+	var filled: int = tuning.loading_cell_count if ready else mini(tuning.loading_cell_count - 1, int(_progress * float(tuning.loading_cell_count)))
+	var cell_box: StyleBoxFlat = StyleBoxFlat.new()
+	cell_box.set_corner_radius_all(arcade.radius_cell_px)
+	for index: int in range(tuning.loading_cell_count):
+		cell_box.bg_color = arcade.mint_color if index < filled else arcade.disc_700_color
+		var origin: Vector2 = Vector2(float(index * (tuning.loading_cell_width_px + tuning.loading_cell_gap_px)), 0.0)
+		mark.draw_style_box(cell_box, Rect2(origin, Vector2(float(tuning.loading_cell_width_px), float(tuning.loading_cell_height_px))))
 
 
 ## Test seam: the name shown on each player row, in order.

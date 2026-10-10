@@ -12,7 +12,7 @@ extends Resource
 ## Opaque overlay color while loading -- must fully hide the 3D disk/camera
 ## behind it (CLAUDE.md "no magic numbers": every tunable lives in a
 ## Resource).
-@export var background_color: Color = Color(0.06, 0.07, 0.09, 1.0)
+@export var background_color: Color = Color("#0e0b12")
 
 ## How long ui/LoadingScreen.gd's fade-to-transparent tween runs once it
 ## starts (see LoadingScreen.fade_out()'s own doc for why that start is
@@ -42,8 +42,7 @@ extends Resource
 ## only when every required player is ready.
 
 ## --- Bontago-1pi.32 L2: the ready prompt and player ready list (presentation) ---
-## Colours reuse config/menu_visual_tuning.tres (ink, muted, mint) so the overlay
-## stays on the menu palette; only sizes and wording live here.
+## Colours come from config/arcade_visual_tuning.tres; only sizes and wording live here.
 
 ## Bontago-1pi.63: the line above the device glyph ("Ready?" + [Enter] / [A]); the
 ## glyph is the bound ui_accept key/button of the player's active device
@@ -71,10 +70,18 @@ extends Resource
 ## and the tick/ring mark (diameters), plus the tick's stroke width.
 @export var ready_list_separation_px: int = 6
 @export var ready_row_separation_px: int = 10
-@export var ready_swatch_size_px: float = 16.0
-@export var ready_mark_size_px: float = 22.0
-@export var ready_mark_stroke_px: float = 2.5
-@export var ready_mark_arc_points: int = 24
+
+## Stackfall Arcade LoadingCard (Bontago-hfa.7): progress cells per player (no spinners), the
+## cell size and gap, the mode-name size (Bungee), the name size, the card width and the
+## diamond marker edge.
+@export var loading_cell_count: int = 4
+@export var loading_cell_width_px: int = 18
+@export var loading_cell_height_px: int = 12
+@export var loading_cell_gap_px: int = 4
+@export var loading_title_font_size_px: int = 36
+@export var loading_name_font_size_px: int = 18
+@export var loading_card_min_width_px: int = 420
+@export var loading_marker_size_px: float = 22.0
 
 ## Draw order of the overlay; above the lobby/menu controls that are still
 ## children of Main until the match world clears them.
@@ -135,12 +142,12 @@ extends Resource
 
 ## Flat darkening laid over the plate so the cream card keeps the focus. The
 ## alpha is the amount of dimming (0 = the plate untouched).
-@export var backdrop_dim_color: Color = Color(0.06, 0.07, 0.09, 0.32)
+@export var backdrop_dim_color: Color = Color("#0e0b12", 0.32)
 
 ## Radial vignette over the plate: clear until backdrop_vignette_start (0 = the
 ## screen centre, 1 = the middle of each edge), then easing to this colour at
 ## the edges. Drawn from a small generated gradient, so it costs no shader.
-@export var backdrop_vignette_color: Color = Color(0.02, 0.03, 0.05, 0.45)
+@export var backdrop_vignette_color: Color = Color("#0e0b12", 0.45)
 @export_range(0.0, 0.99, 0.01) var backdrop_vignette_start: float = 0.55
 @export var backdrop_vignette_size_px: int = 128
 
