@@ -36,6 +36,10 @@ after step 2 (no import, no gate, no Godot) and removes the temp worktree. Exit 
 Probe lint (Bontago-fca.63): before merging, each branch's ADDED files are checked with
 tools/probe_lint.py (tools/screenshot_*, capture_*, *probe*, tools/_scratch*/; allowlist
 tools/probe_allowlist.txt); any offender fails step `probes` before a merge starts. Escape: --allow-probes.
+The same check flags an added *.gd/*.gdshader/*.gdshaderinc without its sibling .uid (Bontago-fca.91).
+Main moved during the gate (Bontago-fca.90): if the delta since the gated base touches ONLY docs/** or
+*.md files and none the batch changed, it is merged into the gated result (one line names the
+absorbed commits) and the ff proceeds without re-gating; any other delta fails step ff as before.
 """
 
 import argparse
@@ -394,8 +398,39 @@ def check_probes(ctx, repo, base, branches):
         if code != 0:
             raise StepFailed("probes", "git diff failed for " + b)
         bad += ["%s: %s" % (b, f) for f in probe_lint.filter_probes(text.splitlines(), allow)]
+        bad += ["%s: %s" % (b, f) for f in probe_lint.missing_uid_files(text.splitlines())]
     if bad:
-        raise StepFailed("probes", "branch adds probe files (delete them, allowlist, or pass --allow-probes): " + "; ".join(bad[:10]))
+        raise StepFailed("probes", "branch adds probe files or a script without its .uid (delete/allowlist/add the .uid, allowlist, or pass --allow-probes): " + "; ".join(bad[:10]))
+
+
+def is_docs_path(path):
+    p = path.strip().replace("\\", "/")
+    return p.startswith("docs/") or p.endswith(".md")
+
+
+def absorb_docs_delta(ctx, repo, wt, base, cur_main, result, say):
+    """Main moved while the gate ran (Bontago-fca.90). If the delta base..cur_main is non-empty,
+    descends from base, touches ONLY docs/** or *.md files and none the batch changed, merge it
+    into the gated result in the temp worktree (docs cannot affect the gate) and return the new
+    result; otherwise raise StepFailed('ff', 'main moved during integration')."""
+    moved = StepFailed("ff", "main moved during integration")
+    if git(ctx, "moved_anc", repo, "merge-base", "--is-ancestor", base, cur_main)[0] != 0:
+        raise moved
+    delta = git_out(ctx, "moved_delta", repo, "diff", "--name-only", base, cur_main).split()
+    if not delta or not all(is_docs_path(f) for f in delta):
+        raise moved
+    batch = set(git_out(ctx, "moved_batch", repo, "diff", "--name-only", base, result).split())
+    if batch & set(delta):
+        raise moved
+    absorbed = git_out(ctx, "moved_log", repo, "log", "--format=%h", base + ".." + cur_main).split()
+    code, text, _ = git(ctx, "moved_merge", wt, "merge", "--no-ff", "-m",
+                        "Merge docs-only main delta %s" % cur_main[:9], "-m", MERGE_TRAILER, cur_main)
+    if code != 0:
+        git(ctx, "moved_abort", wt, "merge", "--abort")
+        raise moved
+    new_result = git_out(ctx, "moved_result", wt, "rev-parse", "HEAD")
+    say("ff        absorbed docs-only main commit(s) %s without re-gating" % ", ".join(absorbed))
+    return new_result
 
 
 def integrate(args, ctx, say, res):
@@ -484,8 +519,11 @@ def integrate(args, ctx, say, res):
         say("dry-run   stop before ff/push/close")
         return
     # 6 ff main
-    if git_out(ctx, "rev_main2", repo, "rev-parse", "main") != base:
-        raise StepFailed("ff", "main moved during integration")
+    cur_main = git_out(ctx, "rev_main2", repo, "rev-parse", "main")
+    if cur_main != base:
+        result = absorb_docs_delta(ctx, repo, wt, base, cur_main, result, say)
+        res["result"] = result
+        base = cur_main
     touched = set(git_out(ctx, "touched", repo, "diff", "--name-only", base, result).split())
     code, status, _ = git(ctx, "dirty", repo, "status", "--porcelain", "--untracked-files=no")
     if code != 0:

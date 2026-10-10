@@ -223,6 +223,37 @@ class Tests(unittest.TestCase):
         err, _, _ = run(fake)
         self.assertEqual(err.step, "ff")
 
+    def _moved(self, delta, batch=""):
+        class Moving(Fake):
+            def __call__(s, ctx, name, args, cwd, timeout):
+                canned = {"rev_main2": "moved000\n", "moved_delta": delta,
+                          "moved_batch": batch, "moved_log": "abc1234\n",
+                          "moved_result": "result33\n", "head": "result33\n", "remote": "result33\n"}
+                if name in canned:
+                    s.calls.append((name, args))
+                    return 0, canned[name], "/l"
+                return Fake.__call__(s, ctx, name, args, cwd, timeout)
+        return Moving()
+
+    def test_docs_only_main_delta_is_absorbed(self):
+        fake = self._moved("docs/PLAN.md\nREADME.md\n")
+        err, out, _ = run(fake)
+        self.assertIsNone(err)
+        self.assertIn("moved_merge", fake.names())
+        self.assertIn("ff", fake.names())
+        self.assertTrue([l for l in out if "absorbed" in l and "abc1234" in l])
+
+    def test_code_main_delta_still_refuses_ff(self):
+        fake = self._moved("docs/PLAN.md\ncore/x.gd\n")
+        err, _, _ = run(fake)
+        self.assertEqual(err.step, "ff")
+        self.assertNotIn("moved_merge", fake.names())
+
+    def test_docs_delta_overlapping_batch_refuses_ff(self):
+        fake = self._moved("docs/PLAN.md\n", batch="docs/PLAN.md\ncore/a.gd\n")
+        err, _, _ = run(fake)
+        self.assertEqual(err.step, "ff")
+
     def test_dry_run_and_no_game_code(self):
         fake = Fake()
         err, _, _ = run(fake, dry_run=True)
@@ -365,8 +396,16 @@ class ProbeLintTests(unittest.TestCase):
         self.assertFalse([n for n in fake.names() if n.startswith("probes_")])
         self.assertTrue(err is None or err.step != "probes")
 
+    def test_script_without_uid_aborts(self):
+        fake = Fake({"probes_wt_a": (0, "core/a.gd\nshaders/s.gdshader\nshaders/s.gdshader.uid\n")})
+        err, out, res = run(fake)
+        self.assertEqual(err.step, "probes")
+        self.assertIn("wt/a: missing uid: core/a.gd", err.detail)
+        self.assertNotIn("s.gdshader added", err.detail)
+        self.assertFalse([n for n in fake.names() if n.startswith("merge_")])
+
     def test_clean_branches_pass(self):
-        fake = Fake({"probes_wt_a": (0, "core/a.gd\n")})
+        fake = Fake({"probes_wt_a": (0, "core/a.gd\ncore/a.gd.uid\n")})
         err, out, res = run(fake)
         self.assertTrue(err is None or err.step != "probes")
 
@@ -448,6 +487,68 @@ class HintsMergeTests(unittest.TestCase):
         err, _ = self.merge(["a", "b"])
         self.assertEqual(err.step, "merge")
         self.assertFalse(os.path.exists(os.path.join(self.repo, ".git", "MERGE_HEAD")))
+
+
+class AbsorbRealGitTests(unittest.TestCase):
+    """Real temp repo: main gains commits after the gated base (Bontago-fca.90)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.repo = os.path.join(self.tmp.name, "r")
+        self.wt = os.path.join(self.tmp.name, "wt")
+        os.makedirs(self.repo)
+        git_run(self.repo, "init", "-b", "main")
+        git_run(self.repo, "config", "user.email", "t@t")
+        git_run(self.repo, "config", "user.name", "t")
+        self.commit("a.txt", "1")
+        self.base = self.head()
+        git_run(self.repo, "worktree", "add", "-b", "tmp", self.wt, "main")
+        git_run(self.wt, "config", "user.email", "t@t")
+        git_run(self.wt, "config", "user.name", "t")
+        with open(os.path.join(self.wt, "b.txt"), "w") as fh:
+            fh.write("batch")
+        git_run(self.wt, "add", "-A")
+        git_run(self.wt, "commit", "-m", "batch")
+        self.result = subprocess.run(["git", "-C", self.wt, "rev-parse", "HEAD"], capture_output=True,
+                                     text=True).stdout.strip()
+
+    def tearDown(self):
+        subprocess.run(["git", "-C", self.repo, "worktree", "remove", "--force", self.wt], capture_output=True)
+        self.tmp.cleanup()
+
+    def head(self):
+        return subprocess.run(["git", "-C", self.repo, "rev-parse", "HEAD"], capture_output=True,
+                              text=True).stdout.strip()
+
+    def commit(self, rel, text):
+        p = os.path.join(self.repo, *rel.split("/"))
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "w") as fh:
+            fh.write(text)
+        git_run(self.repo, "add", "-A")
+        git_run(self.repo, "commit", "-m", "c " + rel)
+
+    def absorb(self):
+        out = []
+        new = ib.absorb_docs_delta(ib.Ctx(self.tmp.name), self.repo, self.wt, self.base, self.head(),
+                                   self.result, out.append)
+        return new, out
+
+    def test_docs_commit_absorbed_and_ff_possible(self):
+        self.commit("docs/x.md", "d")
+        self.commit("NOTES.md", "n")
+        new, out = self.absorb()
+        self.assertEqual(len(out), 1)
+        git_run(self.repo, "merge", "--ff-only", "tmp")
+        for rel in ("b.txt", "docs/x.md", "NOTES.md"):
+            self.assertTrue(os.path.isfile(os.path.join(self.repo, *rel.split("/"))), rel)
+        self.assertEqual(self.head(), new)
+
+    def test_code_commit_not_absorbed(self):
+        self.commit("docs/x.md", "d")
+        self.commit("core/y.gd", "c")
+        with self.assertRaises(ib.StepFailed):
+            self.absorb()
 
 
 if __name__ == "__main__":
