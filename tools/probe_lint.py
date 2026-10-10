@@ -9,6 +9,10 @@ base...head`) that match tools/screenshot_*, tools/capture_*, tools/*probe* (any
 --untracked instead flags untracked (not ignored) files in the checkout matching the same
 patterns, for worker handbacks. Prints offenders; exit 1 if any, else 0.
 tools/integrate_batch.py runs this check on each branch before merging (escape: --allow-probes).
+Second rule (Bontago-fca.91): a branch that ADDS a *.gd/*.gdshader/*.gdshaderinc without also adding
+the sibling `<file>.uid` is flagged (a missing sidecar makes Godot generate a fresh uid on main).
+In --untracked mode the same rule applies to a worktree: a new (untracked or staged-added) script
+with no .uid on disk, or whose .uid is still untracked while the script is staged.
 """
 import argparse
 import fnmatch
@@ -61,14 +65,37 @@ def filter_probes(paths, allow=()):
     return out
 
 
+UID_EXTS = (".gd", ".gdshader", ".gdshaderinc")  # extensions this repo tracks .uid sidecars for
+
+
+def missing_uid_files(added):
+    """Messages for added uid-bearing files whose `<file>.uid` is not in the same added set.
+    # DECISION: reported through the same offender list and the same --allow-probes escape."""
+    names = set(p.strip().replace("\\", "/") for p in added)
+    return ["missing uid: %s added without %s.uid" % (p, p)
+            for p in sorted(names) if p.endswith(UID_EXTS) and p + ".uid" not in names]
+
+
 def new_probe_files(repo, base_ref, head_ref):
     text = _git(repo, "diff", "--diff-filter=A", "--name-only", base_ref + "..." + head_ref)
-    return filter_probes(text.splitlines(), read_allowlist(repo))
+    names = text.splitlines()
+    return filter_probes(names, read_allowlist(repo)) + missing_uid_files(names)
 
 
 def untracked_probe_files(repo):
     text = _git(repo, "ls-files", "--others", "--exclude-standard")
-    return filter_probes(text.splitlines(), read_allowlist(repo))
+    untracked = [l.strip() for l in text.splitlines() if l.strip()]
+    out = filter_probes(untracked, read_allowlist(repo))
+    staged = [l.strip() for l in _git(repo, "diff", "--cached", "--diff-filter=A", "--name-only").splitlines() if l.strip()]
+    for p in sorted(set(untracked) | set(staged)):
+        if not p.endswith(UID_EXTS):
+            continue
+        uid = p + ".uid"
+        if not os.path.isfile(os.path.join(repo, *uid.split("/"))):
+            out.append("missing uid: %s has no %s on disk" % (p, uid))
+        elif uid in untracked and p in staged:
+            out.append("missing uid: %s is staged but %s is untracked" % (p, uid))
+    return out
 
 
 def main(argv):
@@ -84,7 +111,7 @@ def main(argv):
         print(e, file=sys.stderr)
         return 2
     for f in found:
-        print("probe file: " + f)
+        print(f if f.startswith("missing uid:") else "probe file: " + f)
     if found:
         print("probe_lint: %d offender(s); delete them or add a glob to %s" % (len(found), ALLOWLIST))
         return 1
