@@ -38,6 +38,7 @@ def main():
             print(f"  ... {len(issues) - limit} more; query a specific bead if needed")
     epic_hygiene()
     parent_hygiene(limit)
+    stale_blocked(limit)
     # Owner 2026-10-01: surface new owner replies on Beads at every board scan.
     import owner_replies
     owner_replies.main([])
@@ -106,6 +107,35 @@ def parent_hygiene(limit):
     print(f"parent hygiene: {len(problems)}")
     for row_id, status, child_count in problems[:limit]:
         print(f"  {row_id} {status} all {child_count} children closed - close or file remaining work")
+
+
+def find_stale_blocked(rows):
+    """Pure classifier: status=blocked issues whose every 'blocks' dependency is
+    closed (parent-child links ignored). Issues with no blocks deps are skipped:
+    they were blocked by hand, not by a dependency."""
+    status = {row["id"]: row.get("status") for row in rows}
+    stale = []
+    for row in rows:
+        if row.get("status") != "blocked":
+            continue
+        blockers = [dep.get("depends_on_id") for dep in row.get("dependencies") or []
+                    if (dep.get("type") or dep.get("dependency_type")) == "blocks"]
+        if blockers and all(status.get(b) == "closed" for b in blockers):
+            stale.append(row)
+    return stale
+
+
+def stale_blocked(limit):
+    """One bd export call; prints a count and at most `limit` lines."""
+    import owner_replies
+    stale = find_stale_blocked(owner_replies._export())
+    if not stale:
+        return
+    print(f"stale blocked (all blockers closed): {len(stale)}")
+    for row in stale[:limit]:
+        print("  " + brief(row))
+    if len(stale) > limit:
+        print(f"  ... {len(stale) - limit} more")
 
 
 if __name__ == "__main__":
