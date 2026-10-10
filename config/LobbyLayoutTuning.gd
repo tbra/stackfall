@@ -76,3 +76,10 @@ extends Resource
 ## Bontago-1pi.120 (owner playtest: the host crown pill should be yellow): fill of the crown pill
 ## on the host's seat row. Same yellow as the game's slot-4 player colour (MatchConfig.player_colors).
 @export var host_crown_pill_color: Color = Color(0.95, 0.80, 0.25, 1.0)
+
+## Open-seat row (Bontago-hfa.11, ui/lobby/LobbyOpenSeatRow.gd): dash length, gap and line width of its
+## dashed outline, and how far the next-free-colour diamond is dimmed (alpha).
+@export var open_seat_dash_px: int = 8
+@export var open_seat_gap_px: int = 6
+@export var open_seat_border_px: int = 2
+@export_range(0.0, 1.0, 0.05) var open_seat_diamond_alpha: float = 0.45

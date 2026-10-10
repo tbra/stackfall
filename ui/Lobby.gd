@@ -298,6 +298,8 @@ var _timer_mode: int = MatchConfig.GameMode.CLASSIC
 ## Last minutes each timer slider settled on, so a step through the 1-minute gap
 ## knows which way it was moving (_on_timer_slider_changed()).
 var _timer_previous_minutes: Dictionary[HSlider, int] = {}
+## Bontago-hfa.11: one SegmentMeter overlay per lobby slider, so a client's read-only sliders can show dust cells.
+var _meters: Dictionary[HSlider, SegmentMeter] = {}
 var _last_config: MatchConfig = null
 ## Footer buttons' visibility the focus loop was last wired for (_update_host_only_state()).
 var _start_was_shown: bool = false
@@ -899,13 +901,14 @@ func _apply_visual_style() -> void:
 		_back_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning
 	)
 
-	var well_box: StyleBoxFlat = MenuStyleFactory.make_well(tuning)
-	_block_timer_slider.add_theme_stylebox_override("slider", well_box)
-	_match_timer_slider.add_theme_stylebox_override("slider", well_box)
-	_disc_size_slider.add_theme_stylebox_override("slider", well_box)
-	_round_timer_slider.add_theme_stylebox_override("slider", well_box)
-	_gravity_slider.add_theme_stylebox_override("slider", well_box)
-	_special_freq_slider.add_theme_stylebox_override("slider", well_box)
+	# Arcade (Bontago-hfa.11): every slider is a SegmentMeter overlay (voxel cells in a well); the HSlider
+	# underneath keeps SliderNav / timer stepping, drag, focus and editable exactly as before.
+	for meter_slider: HSlider in [
+		_block_timer_slider, _match_timer_slider, _disc_size_slider, _round_timer_slider,
+		_gravity_slider, _special_freq_slider,
+	]:
+		_meters[meter_slider] = SegmentMeter.attach(meter_slider)
+		_meters[meter_slider].set_dimmed(not meter_slider.editable)
 	for chip: PanelContainer in [_block_timer_chip, _gravity_chip, _special_freq_chip]:
 		# Arcade: a slider readout is plain cream text (no coral chip) so the value never competes with START.
 		chip.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
@@ -1737,6 +1740,8 @@ func _update_host_only_state() -> void:
 	for control: Control in _settings_controls:
 		if control is Range:
 			control.set("editable", is_host)
+			if control is HSlider and _meters.has(control as HSlider):
+				_meters[control as HSlider].set_dimmed(not is_host)
 		elif control is BaseButton:
 			(control as BaseButton).disabled = not is_host
 	_players_panel.set_editable(is_host)

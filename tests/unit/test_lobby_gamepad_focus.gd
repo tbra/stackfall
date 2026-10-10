@@ -53,3 +53,31 @@ func test_every_focus_stop_has_a_visible_focus_style() -> void:
 		var style: StyleBox = stop.get_theme_stylebox(&"focus")
 		assert_not_null(style, "%s has a focus style" % stop.name)
 		assert_false(style is StyleBoxEmpty, "%s focus style is drawn, not empty" % stop.name)
+
+
+func _pad_right() -> void:
+	for pressed: bool in [true, false]:
+		var event: InputEventJoypadButton = InputEventJoypadButton.new()
+		event.button_index = JOY_BUTTON_DPAD_RIGHT
+		event.pressed = pressed
+		Input.parse_input_event(event)
+	Input.flush_buffered_events()
+
+
+## Bontago-hfa.11: the six lobby sliders are SegmentMeters, and the pad still steps the focused one.
+func test_lobby_sliders_are_segment_meters_and_dpad_right_still_steps_them() -> void:
+	var lobby: Lobby = _make_lobby()
+	await wait_frames(2)
+	for path: String in ["%DiscSizeSlider", "%BlockTimerSlider", "%GravitySlider", "%SpecialFreqSlider", "%MatchTimerSlider", "%RoundTimerSlider"]:
+		var slider: HSlider = lobby.get_node(path) as HSlider
+		assert_not_null(slider.get_node_or_null("SegmentMeter"), "%s is drawn as a SegmentMeter" % path)
+	var disc: HSlider = lobby.get_node("%DiscSizeSlider") as HSlider
+	disc.value = disc.min_value
+	disc.grab_focus()
+	var meter: SegmentMeter = disc.get_node("SegmentMeter") as SegmentMeter
+	assert_not_null(meter)
+	var before: int = SegmentMeter.filled_cells(disc, 10)
+	_pad_right()
+	await wait_frames(1)
+	assert_gt(disc.value, disc.min_value, "D-pad right steps the focused slider")
+	assert_gt(SegmentMeter.filled_cells(disc, 10), before, "the meter follows the value")

@@ -108,6 +108,10 @@ var palette: PackedColorArray = PackedColorArray()
 @onready var _add_bot_button: Button = %AddBotButton
 @onready var _start_blocker_label: Label = %StartBlockerLabel
 
+## Bontago-hfa.11: the dashed open-seat row after the seat rows (host only, while a seat is free). It holds
+## %AddBotButton, so it is not one of _player_rows.
+var _open_seat_row: LobbyOpenSeatRow = null
+
 var _config: MatchConfig = null
 ## The seat table: the dict's table until a roster has been seen, afterwards always
 ## reconciled with the live humans and config (LobbySeats.reconcile).
@@ -141,6 +145,11 @@ func _ready() -> void:
 	var art: UiArtTable = UiArtTable.shared()
 	art.apply_button_icon(_teams_toggle, art.lobby_icon(UiArtTable.KEY_TEAMS))
 	art.apply_button_icon(_add_bot_button, art.lobby_icon(UiArtTable.KEY_BOT_ADD))
+	_open_seat_row = LobbyOpenSeatRow.new()
+	_open_seat_row.build(layout_tuning, _add_bot_button)
+	_player_list.add_child(_open_seat_row)
+	# remove_child() cleared the owner: restore it so %AddBotButton keeps resolving.
+	_add_bot_button.owner = self
 	_teams_toggle.toggled.connect(_on_teams_toggle_toggled)
 	_add_bot_button.pressed.connect(_on_add_bot_pressed)
 	visibility_changed.connect(_on_visibility_changed)
@@ -159,9 +168,6 @@ func apply_visual_style() -> void:
 	MenuStyleFactory.apply_toggle_chip(
 		_teams_toggle, tuning.pill_cream_color, tuning.pill_cream_hover_color,
 		tuning.pill_mint_color, tuning.pill_mint_hover_color, tuning.ink_color, tuning
-	)
-	MenuStyleFactory.apply_pill(
-		_add_bot_button, tuning.pill_powder_blue_color, tuning.pill_powder_blue_hover_color, tuning.ink_color, tuning
 	)
 	_start_blocker_label.add_theme_color_override("font_color", tuning.ink_color)
 
@@ -331,12 +337,14 @@ func is_editable() -> bool:
 ## box and team button for a client. A disabled header control is no focus stop.
 func focus_entries() -> Array[Control]:
 	var entries: Array[Control] = []
-	for header_control: Control in [_teams_toggle, _add_bot_button]:
-		if header_control.visible and header_control.focus_mode != Control.FOCUS_NONE:
-			entries.append(header_control)
+	if _teams_toggle.visible and _teams_toggle.focus_mode != Control.FOCUS_NONE:
+		entries.append(_teams_toggle)
 	for row_node: Node in _player_rows:
 		var row: LobbySeatRow = row_node as LobbySeatRow
 		entries.append_array(row.focusable_controls())
+	# The open seat's "+ Add bot" closes the list, where the row sits.
+	if _add_bot_button.visible and _add_bot_button.focus_mode != Control.FOCUS_NONE:
+		entries.append(_add_bot_button)
 	return entries
 
 
@@ -531,6 +539,8 @@ func _refresh_header() -> void:
 	if add_had_focus and not add_enabled:
 		_add_bot_button.release_focus()
 		_grab(_teams_toggle)
+	_open_seat_row.visible = _is_editable and add_enabled
+	_open_seat_row.set_next_color(_next_free_color())
 	_show_blocker()
 	var focus_state: int = int(open) + 2 * int(add_enabled)
 	if focus_state != _header_focus_state:
@@ -622,6 +632,7 @@ func _render() -> void:
 	for ordinal: int in range(bot_total):
 		ready_count += 1
 		_add_row(_build_bot_row(ordinal))
+	_player_list.move_child(_open_seat_row, -1)
 	_refresh_header()
 	_restore_focus(focus_memory)
 	roster_rendered.emit(ready_count, _player_rows.size())
@@ -691,6 +702,17 @@ func _new_row(key: int) -> LobbySeatRow:
 	row.show_team = _team_cap() > 0
 	row.team_pick = maxi(LobbySeats.team_of(_seats, key), MatchConfig.TEAM_PICK_RANDOM)
 	return row
+
+
+## The lowest palette colour no seat uses: the one a new bot would get (dimmed on the open seat).
+func _next_free_color() -> Color:
+	var used: Array[int] = []
+	for key: int in LobbySeats.seat_keys(_seats):
+		used.append(LobbySeats.color_of(_seats, key))
+	for index: int in range(maxi(palette.size(), 1)):
+		if not used.has(index):
+			return SlotColors.palette_color(index, palette, Color.GRAY)
+	return Color.GRAY
 
 
 ## The seat's colour from the palette; gray for a seat-less row or an index the
