@@ -145,6 +145,12 @@ func _build() -> void:
 	_glow_light.light_energy = gift_config.spawn_glow_start_energy
 	_glow_light.omni_range = gift_config.glow_light_range_m
 	_glow_light.shadow_enabled = false
+	# Bontago-1pi.143: the omni light has no shadow, so on the default cull mask it
+	# lit every block face it was near, through the blocks a crate falls or lands
+	# among (bright pink faces / washed-out towers). It only marks the ground, so
+	# it is restricted to the territory disc layer; blocks and the crate itself
+	# stay on layer 1 and are lit by the sun only.
+	_glow_light.light_cull_mask = TerritoryOverlay.DISC_LAYER_BIT
 	add_child(_glow_light)
 
 	_spawn_halo = MeshInstance3D.new()
