@@ -415,8 +415,8 @@ func test_host_dialog_steam_choice_is_not_focusable_while_unavailable() -> void:
 	assert_ne(online._host_steam_choice.focus_mode, Control.FOCUS_NONE)
 
 
-func test_decorative_title_scrim_and_arena_cannot_take_focus() -> void:
+func test_decorative_title_scrim_and_backdrop_cannot_take_focus() -> void:
 	var menu: MainMenu = _make_menu()
 	assert_eq(_node(menu, "Title").focus_mode, Control.FOCUS_NONE)
 	assert_eq(_node(menu, "Scrim").mouse_filter, Control.MOUSE_FILTER_IGNORE)
-	assert_eq((menu.get_node("Arena") as Control).focus_mode, Control.FOCUS_NONE)
+	assert_eq((menu.get_node("BackdropImage") as Control).focus_mode, Control.FOCUS_NONE)
