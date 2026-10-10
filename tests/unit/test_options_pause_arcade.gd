@@ -181,7 +181,7 @@ func test_options_settings_page_pad_traversal_has_visible_focus_everywhere() -> 
 	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
 	var menu: OptionsMenu = _make_options()
 	await _settle()
-	var start: Control = menu.get_node("%PresetOption") as Control
+	var start: Control = menu.get_node("%WindowModeOption") as Control
 	start.grab_focus()
 	var seen: Dictionary[Control, bool] = {}
 	var focus: Control = get_viewport().gui_get_focus_owner()

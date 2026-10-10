@@ -163,3 +163,21 @@ func test_headless_leaves_engine_cap_alone() -> void:
 	var before_fps: int = Engine.max_fps
 	Settings.set_graphics_preset(&"low")
 	assert_eq(Engine.max_fps, before_fps)
+
+
+## Bontago-1pi.11.86: the Graphics tab's frame-cap controls are overrides on the stored preset;
+## Main re-applies on graphics_preset_changed and Engine.max_fps follows FrameCapRule.
+func test_graphics_tab_frame_cap_override_sets_engine_max_fps() -> void:
+	var before_fps: int = Engine.max_fps
+	_leave_menu()
+	_stub_refresh(144.0)
+	Settings.set_graphics_preset(&"medium")
+	assert_eq(Engine.max_fps, 144)
+	Settings.set_graphics_override(&"frame_cap_mode", GraphicsPreset.FrameCap.FIXED)
+	Settings.set_graphics_override(&"fixed_fps", 90)
+	assert_true(Settings.graphics_preset_is_custom())
+	assert_eq(Engine.max_fps, 90, "Fixed cap through the Graphics tab override")
+	Settings.set_graphics_override(&"frame_cap_mode", GraphicsPreset.FrameCap.UNCAPPED)
+	assert_eq(Engine.max_fps, 0, "Uncapped through the override")
+	MenuBackdrop.clear_match_cap()
+	Engine.max_fps = before_fps
