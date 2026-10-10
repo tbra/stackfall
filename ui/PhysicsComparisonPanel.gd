@@ -16,36 +16,43 @@ var _stack: Button
 var _last_mode: String = "drop"
 var opened: bool = false
 ## Bontago-1pi.23: hint label geometry (logical px under the project stretch rule).
-const HINT_HALF_WIDTH_PX: float = 260.0
-const HINT_HEIGHT_PX: float = 18.0
 const HINT_BOTTOM_MARGIN_PX: float = 6.0
-const HINT_ALPHA: float = 0.55
-const HINT_OUTLINE_PX: int = 3
+const HINT_PLATE_ALPHA: float = 0.82
+const HINT_THEME: Theme = preload("res://ui/theme/stackfall_theme.tres")
 
 func _ready() -> void:
 	layer = 10
 	var hint: Label = Label.new()
 	hint.text = "F2 / Back+X: physics or territory comparison   F4: tuning/presets"
-	# Bontago-1pi.23: bottom-centre, dim and small, so it never overlaps the
-	# bottom-left held/next cards or the bottom-right minimap.
-	hint.anchor_left = 0.5
-	hint.anchor_right = 0.5
-	hint.anchor_top = 1.0
-	hint.anchor_bottom = 1.0
-	hint.offset_left = -HINT_HALF_WIDTH_PX
-	hint.offset_right = HINT_HALF_WIDTH_PX
-	hint.offset_top = -HINT_HEIGHT_PX - HINT_BOTTOM_MARGIN_PX
-	hint.offset_bottom = -HINT_BOTTOM_MARGIN_PX
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	# DECISION (Bontago-hfa.9): the hint is caption text (theme CaptionLabel: dust ink, 13 px),
-	# outlined in the arcade disc-950 token; HINT_ALPHA keeps it dim.
+	# Bontago-1pi.23: bottom-centre and small, so it never overlaps the bottom-left held/next
+	# cards or the bottom-right minimap.
+	# DECISION (Bontago-hfa.10): the hint sits on a disc-900 plate (arcade tokens) with sand ink
+	# and the shared stackfall theme (Rubik); a CanvasLayer child inherits no theme on its own.
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var plate: PanelContainer = PanelContainer.new()
+	plate.theme = HINT_THEME
+	plate.anchor_left = 0.5
+	plate.anchor_right = 0.5
+	plate.anchor_top = 1.0
+	plate.anchor_bottom = 1.0
+	plate.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	plate.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	plate.offset_bottom = -HINT_BOTTOM_MARGIN_PX
+	var backing: StyleBoxFlat = MenuStyleFactory.make_plate(Color(arcade.disc_900_color, HINT_PLATE_ALPHA))
+	backing.set_corner_radius_all(arcade.radius_block_px)
+	backing.shadow_size = 0
+	backing.content_margin_left = float(arcade.space_4_px)
+	backing.content_margin_right = float(arcade.space_4_px)
+	backing.content_margin_top = float(arcade.space_1_px)
+	backing.content_margin_bottom = float(arcade.space_1_px)
+	plate.add_theme_stylebox_override("panel", backing)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.theme_type_variation = &"CaptionLabel"
-	hint.modulate = Color(1.0, 1.0, 1.0, HINT_ALPHA)
-	hint.add_theme_constant_override("outline_size", HINT_OUTLINE_PX)
-	hint.add_theme_color_override("font_outline_color", arcade.disc_950_color)
+	hint.add_theme_color_override("font_color", arcade.sand_color)
 	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(hint)
+	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	plate.add_child(hint)
+	add_child(plate)
 	_panel = PanelContainer.new()
 	_panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
 	_panel.offset_left = -590.0

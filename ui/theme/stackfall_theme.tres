@@ -5,6 +5,14 @@
 [ext_resource type="FontFile" path="res://assets/ui/fonts/Bungee-Regular.ttf" id="3_hg2ys"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/slider_grabber.svg" id="4_kbj15"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/slider_grabber_hover.svg" id="5_6xx6e"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/toggle_on.svg" id="ic_toggle_on"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/toggle_off.svg" id="ic_toggle_off"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/toggle_on_disabled.svg" id="ic_toggle_on_disabled"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/toggle_off_disabled.svg" id="ic_toggle_off_disabled"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/checkbox_on.svg" id="ic_checkbox_on"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/checkbox_off.svg" id="ic_checkbox_off"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/checkbox_on_disabled.svg" id="ic_checkbox_on_disabled"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/checkbox_off_disabled.svg" id="ic_checkbox_off_disabled"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_b7f7h"]
 content_margin_left = 16.0
@@ -451,6 +459,10 @@ CheckBox/colors/font_hover_color = Color(1, 0.964706, 0.917647, 1)
 CheckBox/colors/font_hover_pressed_color = Color(1, 0.964706, 0.917647, 1)
 CheckBox/colors/font_pressed_color = Color(1, 0.964706, 0.917647, 1)
 CheckBox/constants/h_separation = 8
+CheckBox/icons/checked = ExtResource("ic_checkbox_on")
+CheckBox/icons/checked_disabled = ExtResource("ic_checkbox_on_disabled")
+CheckBox/icons/unchecked = ExtResource("ic_checkbox_off")
+CheckBox/icons/unchecked_disabled = ExtResource("ic_checkbox_off_disabled")
 CheckBox/styles/disabled = SubResource("StyleBoxFlat_x5nf8")
 CheckBox/styles/focus = SubResource("StyleBoxFlat_tiyes")
 CheckBox/styles/hover = SubResource("StyleBoxFlat_x5nf8")
@@ -464,6 +476,10 @@ CheckButton/colors/font_hover_color = Color(1, 0.964706, 0.917647, 1)
 CheckButton/colors/font_hover_pressed_color = Color(1, 0.964706, 0.917647, 1)
 CheckButton/colors/font_pressed_color = Color(1, 0.964706, 0.917647, 1)
 CheckButton/constants/h_separation = 8
+CheckButton/icons/checked = ExtResource("ic_toggle_on")
+CheckButton/icons/checked_disabled = ExtResource("ic_toggle_on_disabled")
+CheckButton/icons/unchecked = ExtResource("ic_toggle_off")
+CheckButton/icons/unchecked_disabled = ExtResource("ic_toggle_off_disabled")
 CheckButton/styles/disabled = SubResource("StyleBoxFlat_x5nf8")
 CheckButton/styles/focus = SubResource("StyleBoxFlat_tiyes")
 CheckButton/styles/hover = SubResource("StyleBoxFlat_x5nf8")

@@ -65,9 +65,9 @@ func _build() -> void:
 	_panel = PanelContainer.new()
 	_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var style: StyleBoxFlat = StyleBoxFlat.new()
-	style.bg_color = config.overlay_background
+	style.bg_color = config.overlay_background_color()
 	# DECISION (Bontago-hfa.9): padding and corner come from the arcade tokens; the background
-	# colour stays DebugConfig.overlay_background (owner-tunable debug resource).
+	# colour stays DebugConfig.overlay_background_color() (owner-tunable debug resource).
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	style.set_content_margin_all(float(arcade.space_2_px))
 	style.set_corner_radius_all(arcade.radius_chip_px)
@@ -84,7 +84,7 @@ func _build() -> void:
 	_label = Label.new()
 	_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_label.add_theme_font_size_override(&"font_size", config.overlay_font_size)
-	_label.add_theme_color_override(&"font_color", config.overlay_text_color)
+	_label.add_theme_color_override(&"font_color", config.overlay_text_color())
 	box.add_child(_label)
 	_graph = _PerfGraph.new()
 	_graph.config = config
@@ -106,7 +106,7 @@ func _on_sampled(m: Dictionary) -> void:
 		return
 	_label.text = format_metrics(m, _mode)
 	var warn: bool = float(m.get("frame_ms_max", 0.0)) >= config.warn_frame_ms
-	_label.add_theme_color_override(&"font_color", config.overlay_warn_color if warn else config.overlay_text_color)
+	_label.add_theme_color_override(&"font_color", config.overlay_warn_color() if warn else config.overlay_text_color())
 	if _mode == Mode.DETAILED:
 		_graph.queue_redraw()
 
@@ -165,10 +165,10 @@ class _PerfGraph:
 		var well: Color = MenuStyleFactory.arcade_tuning().disc_950_color
 		draw_rect(Rect2(Vector2.ZERO, size), Color(well.r, well.g, well.b, MenuStyleFactory.arcade_tuning().panel_shadow_alpha))
 		var budget_y: float = size.y * (1.0 - clampf(config.graph_budget_ms / config.graph_frame_ms_max, 0.0, 1.0))
-		draw_line(Vector2(0.0, budget_y), Vector2(size.x, budget_y), config.graph_budget_color, 1.0)
-		_plot(sampler.history_blocks, config.graph_blocks_max, config.graph_blocks_color)
-		_plot(sampler.history_physics_ms, config.graph_physics_ms_max, config.graph_physics_color)
-		_plot(sampler.history_frame_ms, config.graph_frame_ms_max, config.graph_frame_color)
+		draw_line(Vector2(0.0, budget_y), Vector2(size.x, budget_y), config.graph_budget_color(), 1.0)
+		_plot(sampler.history_blocks, config.graph_blocks_max, config.graph_blocks_color())
+		_plot(sampler.history_physics_ms, config.graph_physics_ms_max, config.graph_physics_color())
+		_plot(sampler.history_frame_ms, config.graph_frame_ms_max, config.graph_frame_color())
 
 	func _plot(values: PackedFloat32Array, ceiling: float, color: Color) -> void:
 		var count: int = values.size()

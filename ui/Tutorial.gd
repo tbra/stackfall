@@ -116,7 +116,7 @@ func _style_tip_banner() -> void:
 	plate.shadow_color = arcade.disc_950_color
 	plate.shadow_size = 1
 	plate.shadow_offset = Vector2(0.0, float(arcade.drop_sm_px))
-	plate.set_content_margin_all(float(arcade.space_3_px))
+	plate.set_content_margin_all(float(arcade.space_5_px))
 	_prompt_panel.add_theme_stylebox_override("panel", plate)
 	var block: StyleBoxFlat = StyleBoxFlat.new()
 	block.bg_color = arcade.rim_color
@@ -130,6 +130,7 @@ func _style_tip_banner() -> void:
 	_step_label.add_theme_font_size_override("font_size", arcade.font_size_button_px)
 	_step_label.add_theme_color_override("font_color", arcade.ink_color)
 	_prompt_label.set_text_color(arcade.cream_color)
+	(_prompt_label.get_parent() as BoxContainer).add_theme_constant_override("separation", arcade.space_4_px)
 	var half_width: float = hud_visual_tuning.tip_max_width_px * 0.5
 	_prompt_panel.offset_left = -half_width
 	_prompt_panel.offset_right = half_width
