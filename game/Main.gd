@@ -66,6 +66,7 @@ const HEADLESS_BOTS_FLOW_SCRIPT_PATH: String = "res://game/MainHeadlessBotsFlow.
 const SANDBOX_FLOW_SCRIPT_PATH: String = "res://game/MainSandboxFlow.gd"
 const MATCH_FLOW_SCRIPT_PATH: String = "res://game/MainMatchFlow.gd"
 const LOBBY_SCENE_PATH: String = "res://ui/Lobby.tscn"
+const LOADING_STATUS_TEXT: String = "Loading..."
 const HOT_SEAT_SCENE_PATH: String = "res://game/HotSeat.tscn"
 const SANDBOX_SCENE_PATH: String = "res://game/Sandbox.tscn"
 const GIFT_DEMO_PRESET_PATH: String = "res://config/sandbox_gift_demo.tres"
@@ -105,6 +106,18 @@ const LOADING_SCREEN_SCENE: PackedScene = preload("res://ui/LoadingScreen.tscn")
 
 ## Bontago-1pi.11.84: serial prewarm queue and the on-demand sandbox flow (typed to the light ports).
 var _prewarm_queue: MenuPrewarmQueue = null
+## Bontago-1pi.11.84 (MF4): true while the queue loads behind the menu (interactive launches only;
+## headless, agent-probe and CLI-flag runs keep the synchronous on-demand loads).
+var _prewarm_background: bool = false
+## The menu has been shown once, so _process may advance the queue (the Lobby chunk loads first).
+var _prewarm_polling: bool = false
+var _quit_requested: bool = false
+var _quit_done: bool = false
+## A Loading... click is waiting for its frame; further activations are dropped meanwhile.
+var _click_pending: bool = false
+## Test seams: force the background path under GUT; how a deferred window close quits.
+var force_background_prewarm: bool = false
+var quit_callable: Callable = Callable()
 var _sandbox_flow: MainSandboxFlowPort = null
 var _headless_bots_flow: MainHeadlessBotsFlowPort = null
 var _match_flow: MainMatchFlowPort = null
@@ -203,13 +216,113 @@ var _controller_was_handling_input: bool = false
 
 ## Bontago-xtq.44: the process-wide caches are released as the game scene leaves the tree.
 func _exit_tree() -> void:
+	# Bontago-1pi.11.80: never cancel an in-flight threaded load during exit cleanup.
+	if _prewarm_queue != null:
+		_prewarm_queue.collect_in_flight()
 	ExitRelease.release_if_quitting()
 
 
 ## Bontago-xtq.46: a window close once Boot has handed over is a real quit.
+## Bontago-1pi.11.84 (MF4, R7): while the background prewarm owns the close request, the quit
+## waits for the in-flight chunk (the message pump stays alive) and no further chunk starts.
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+	if what != NOTIFICATION_WM_CLOSE_REQUEST:
+		return
+	if not quit_callable.is_valid():  # test seam: no real quit
 		QuitFlag.mark()
+	if _prewarm_background:
+		_quit_requested = true
+		_prewarm_queue.halt()
+		if not _prewarm_queue.has_in_flight():
+			_quit_now()
+
+
+func _quit_now() -> void:
+	if _quit_done:
+		return
+	_quit_done = true
+	set_process(false)
+	if quit_callable.is_valid():
+		quit_callable.call()
+	else:
+		QuitFlag.mark()
+		get_tree().quit()
+
+
+## Drives the one serial background loader (one request in flight) once the menu is up.
+func _process(_delta: float) -> void:
+	if not _prewarm_background:
+		return
+	# A close during the splash still finishes the in-flight chunk and quits (menu never shows).
+	if not _prewarm_polling and not _quit_requested:
+		return
+	_prewarm_queue.poll()
+	if _quit_requested:
+		if not _prewarm_queue.has_in_flight():
+			_quit_now()
+	elif not _prewarm_queue.has_in_flight() and _prewarm_queue.is_drained():
+		_stop_background_prewarm()
+
+
+## True when the queue should load behind the menu: a real window, no CLI flag that implies a
+## synchronous startup. DECISION: an agent-probe run is synchronous (probes expect today's
+## startup order) except `--quit-on-menu`, the boot-timing check, which must measure this path.
+func _wants_background_prewarm() -> bool:
+	if force_background_prewarm:
+		return true
+	if DisplayServer.get_name() == "headless":
+		return false
+	if AgentProbe.is_active() and not AgentProbe.wants_quit_on_menu(OS.get_cmdline_user_args()):
+		return false
+	var cfg: MenuPrewarmConfig = _menu_prewarm_queue().config
+	if cfg == null:
+		return false
+	return not cfg.wants_eager(OS.get_cmdline_user_args())
+
+
+func _start_background_prewarm() -> void:
+	_prewarm_background = true
+	get_tree().auto_accept_quit = false  # Boot restored it at hand-over; the queue owns close now
+	_prewarm_queue.start(get_tree())  # requests the Lobby chunk (first) while the splash plays
+
+
+func _stop_background_prewarm() -> void:
+	_prewarm_background = false
+	_prewarm_polling = false
+	get_tree().auto_accept_quit = true
+	set_process(false)
+
+
+## Menu hand-off (after the splash, or at once without one): the Lobby chunk is collected first
+## so Host/Join never wait, then the menu shows and the remaining chunks prewarm behind it.
+func _show_main_menu_after_prewarm() -> void:
+	if _quit_requested:  # closed during the splash: never flash the menu up
+		_prewarm_queue.collect_in_flight()
+		_quit_now()
+		return
+	if _prewarm_background:
+		_prewarm_queue.ensure(LOBBY_SCENE_PATH)
+	_show_main_menu()
+	_prewarm_polling = true
+
+
+## A menu click whose target is still prewarming: shows "Loading...", lets one frame render it,
+## then the caller's ensure() blocks for at most the remaining chunk. No wait once loaded.
+## Returns false when this activation must be dropped (another one is already waiting).
+func _await_prewarmed(paths: PackedStringArray) -> bool:
+	if _click_pending:
+		return false
+	if not _prewarm_background:
+		return true
+	for path: String in paths:
+		if not _prewarm_queue.is_ready(path):
+			if _main_menu != null:
+				_main_menu.show_status(LOADING_STATUS_TEXT)
+			_click_pending = true
+			await get_tree().process_frame
+			_click_pending = false
+			return true
+	return true
 
 
 func _ready() -> void:
@@ -219,7 +332,7 @@ func _ready() -> void:
 	# tuning singletons before anything else in the tree reads them (nothing
 	# does yet at this point -- see ui/TuningPanel.gd's own doc comment on why
 	# that ordering doesn't matter either way).
-	TuningPanel.apply_saved_overrides()
+	TuningOverrides.apply_saved()
 
 	# Bontago-xtq.26 (M7 P1): connected before the hot-seat/sandbox early
 	# returns below so those offline entry points get the current graphics
@@ -294,12 +407,14 @@ func _ready() -> void:
 		Net.init_steam()
 	# Bontago-59o.1: interactive launches show the SlopShop splash (with its
 	# jingle) first; headless/CLI entry points go straight to the menu.
+	if _wants_background_prewarm():
+		_start_background_prewarm()
 	if SplashScreen.should_show_now():
 		var splash: SplashScreen = SplashScreen.new()
 		add_child(splash)
-		splash.finished.connect(_show_main_menu)
+		splash.finished.connect(_show_main_menu_after_prewarm)
 	else:
-		_show_main_menu()
+		_show_main_menu_after_prewarm()
 
 	# apply_command_line() calls host_game()/join_game() synchronously when
 	# --host, --headless-host or --join is present, which emits
@@ -450,18 +565,26 @@ func _start_sandbox_match_with_args(args: PackedStringArray) -> void:
 
 
 func start_sandbox_from_menu() -> void:
+	if not await _await_prewarmed(PackedStringArray([SANDBOX_FLOW_SCRIPT_PATH, SANDBOX_SCENE_PATH])):
+		return
 	_sandbox_flow_port().start_sandbox_from_menu()
 
 
 func start_gift_demo_from_menu() -> void:
+	if not await _await_prewarmed(PackedStringArray([SANDBOX_FLOW_SCRIPT_PATH, SANDBOX_SCENE_PATH])):
+		return
 	_sandbox_flow_port().start_gift_demo_from_menu()
 
 
 func start_tower_topple_from_menu() -> void:
+	if not await _await_prewarmed(PackedStringArray([SANDBOX_FLOW_SCRIPT_PATH, SANDBOX_SCENE_PATH])):
+		return
 	_sandbox_flow_port().start_tower_topple_from_menu()
 
 
 func start_tutorial_from_menu() -> void:
+	if not await _await_prewarmed(PackedStringArray([SANDBOX_FLOW_SCRIPT_PATH, TUTORIAL_SCENE_PATH])):
+		return
 	_sandbox_flow_port().start_tutorial_from_menu()
 
 
@@ -746,6 +869,8 @@ func _on_lobby_start_requested(config: MatchConfig) -> void:
 ## preloaded at parse time. No member keeps the PackedScene: the resource cache
 ## holds it while an instance is alive and releases it afterwards.
 func _load_scene(path: String) -> PackedScene:
+	if _prewarm_background and _menu_prewarm_queue().config.all_paths().has(path):
+		return _prewarm_queue.ensure(path) as PackedScene  # never load() beside an in-flight chunk
 	return load(path) as PackedScene
 
 
@@ -753,6 +878,8 @@ func _load_scene(path: String) -> PackedScene:
 ## world build's _load_scene() calls do not hitch (called while the lobby /
 ## loading screen is up).
 func _prefetch_match_scenes() -> void:
+	if _prewarm_background:
+		return  # the serial queue owns these (a second threaded request could hang, plan F1)
 	for path: String in [HOT_SEAT_SCENE_PATH, REMOTE_CURSORS_SCENE_PATH, NET_DEBUG_OVERLAY_SCENE_PATH]:
 		if ResourceLoader.load_threaded_get_status(path) == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
 			ResourceLoader.load_threaded_request(path)

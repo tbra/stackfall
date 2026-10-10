@@ -81,6 +81,26 @@ class LintLayersTest(unittest.TestCase):
         self.assertEqual([x for x in self.check(g, base) if x.startswith("L3")],
                          ["L3 game/New.gd entered the autoload closure"])
 
+    def test_l4_forbidden_file_in_main_closure_fails(self):
+        g = make_graph([("game/Main.tscn", "game/Main.gd", "ext_resource"),
+                        ("game/Main.gd", "ui/Lobby.gd", "class")], AUTO)
+        v = [x for x in self.check(g, {}) if x.startswith("L4")]
+        self.assertEqual(v, ["L4 ui/Lobby.gd is in the game/Main.tscn compile closure (load it on demand)"])
+
+    def test_l4_closure_growth_fails_and_path_edges_are_free(self):
+        g = make_graph([("game/Main.tscn", "game/Main.gd", "ext_resource"),
+                        ("game/Main.gd", "ui/New.gd", "class"),
+                        ("game/Main.gd", "ui/Lobby.tscn", "path")], AUTO)
+        base = {"main_closure": ["game/Main.tscn", "game/Main.gd"]}
+        v = [x for x in self.check(g, base) if x.startswith("L4")]
+        self.assertEqual(v, ["L4 ui/New.gd entered the game/Main.tscn closure"])
+        base["main_closure"].append("ui/New.gd")
+        self.assertEqual([x for x in self.check(g, base) if x.startswith("L4")], [])
+
+    def test_l4_without_baseline_key_only_checks_forbidden(self):
+        g = make_graph([("game/Main.tscn", "ui/New.gd", "class")], AUTO)
+        self.assertEqual([x for x in self.check(g, {}) if x.startswith("L4")], [])
+
     def test_closure_ignores_path_edges(self):
         g = make_graph([("autoload/Match.gd", "config/x.tres", "path")], AUTO)
         self.assertNotIn("config/x.tres", lint_layers.measure(g)["closure"])
