@@ -8,9 +8,12 @@ Report-only until S4b hooks it into tools/full_gate.py. Rules:
 * L2 SCC ratchet on the file graph (same edges as cycles.md): the largest SCC may not grow and an
   SCC containing an autoload may only contain baselined autoloads (allow-listed pairs).
 * L3 autoload closure: the static compile closure of the [autoload] scripts may not gain files.
+* L4 Main closure (Bontago-1pi.11.84 MF4): the compile closure of game/Main.tscn may not contain
+  the on-demand flow/scene files (MAIN_FORBIDDEN) and may not gain files over the baseline
+  "main_closure" (a baseline without that key only enforces the forbidden set).
 
 Baseline tools/layer_baseline.json (under --root):
-  {"largest_scc": int, "autoload_scc_pairs": [[autoload file, ...]], "closure": [file, ...],
+  {"main_closure": [file, ...], "largest_scc": int, "autoload_scc_pairs": [[autoload file, ...]], "closure": [file, ...],
    "l1_exceptions": ["src -> dst", ...]}
 
   python tools/lint_layers.py [--root PATH] [--report] [--list] [--update] [--allow-new PATH]
@@ -43,6 +46,11 @@ REPORT_SCC_MIN = 5
 # edge); dep_graph records them as `path` edges, which would otherwise fuse the autoloads back into
 # one SCC. They are left out of the SCC measurement (L2) only.
 LATE_SCRIPTS_FILE = "autoload/LateScripts.gd"
+MAIN_SCENE = "game/Main.tscn"
+MAIN_FORBIDDEN = frozenset([
+    "game/HotSeat.gd", "game/PlayerController.gd", "ui/HUD.gd", "game/Sandbox.gd", "ui/Tutorial.gd",
+    "ui/Lobby.gd", "game/BotController.gd", "ui/TuningPanel.gd", "game/MainSandboxFlow.gd",
+    "game/MainHeadlessBotsFlow.gd", "game/MainMatchFlow.gd"])
 
 
 def is_source(path):
@@ -94,7 +102,8 @@ def measure(graph):
     cadj = _adjacency(graph, COMPILE_KINDS)
     closure = sorted(dep_graph._bfs([a for a in autoload_files if a in files], cadj))
     scripts = [p for p in closure if files[p]["kind"] == "script"]
-    return {"l1": l1, "sccs": sccs, "largest_scc": len(sccs[0]) if sccs else 0, "auto_sccs": auto_sccs,
+    main_closure = sorted(dep_graph._bfs([MAIN_SCENE], cadj)) if MAIN_SCENE in files else []
+    return {"l1": l1, "main_closure": main_closure, "sccs": sccs, "largest_scc": len(sccs[0]) if sccs else 0, "auto_sccs": auto_sccs,
             "closure": closure, "closure_scripts": len(scripts),
             "closure_lines": sum(files[p].get("loc", 0) for p in scripts)}
 
@@ -117,6 +126,14 @@ def evaluate(cur, base):
     for p in cur["closure"]:
         if p not in known:
             out.append("L3 %s entered the autoload closure" % p)
+    for p in cur.get("main_closure", []):
+        if p in MAIN_FORBIDDEN:
+            out.append("L4 %s is in the %s compile closure (load it on demand)" % (p, MAIN_SCENE))
+    if "main_closure" in base:
+        known_main = set(base["main_closure"])
+        for p in cur.get("main_closure", []):
+            if p not in known_main and p not in MAIN_FORBIDDEN:
+                out.append("L4 %s entered the %s closure" % (p, MAIN_SCENE))
     return out
 
 
@@ -130,10 +147,13 @@ def lowered(cur, base):
         keep = sorted(set(a) & cur_autos)
         if keep and keep not in pairs:
             pairs.append(keep)
-    return {"largest_scc": min(base.get("largest_scc", cur["largest_scc"]), cur["largest_scc"]),
+    lowered_base = {"largest_scc": min(base.get("largest_scc", cur["largest_scc"]), cur["largest_scc"]),
             "autoload_scc_pairs": pairs,
             "closure": sorted(set(base.get("closure", [])) & cur_closure),
             "l1_exceptions": sorted(set(base.get("l1_exceptions", [])) & cur_exc)}
+    if "main_closure" in base:
+        lowered_base["main_closure"] = sorted(set(base["main_closure"]) & set(cur.get("main_closure", [])))
+    return lowered_base
 
 
 def apply_allow_new(new, cur, allow_new):
@@ -144,6 +164,8 @@ def apply_allow_new(new, cur, allow_new):
                 new["l1_exceptions"] = sorted(set(new["l1_exceptions"]) | set([exc_key(v["src"], v["dst"])]))
         if path in cur["closure"]:
             new["closure"] = sorted(set(new["closure"]) | set([path]))
+        if path in cur.get("main_closure", []) and "main_closure" in new:
+            new["main_closure"] = sorted(set(new["main_closure"]) | set([path]))
         for s in cur["auto_sccs"]:
             if path in s["autoloads"]:
                 new["autoload_scc_pairs"].append(list(s["autoloads"]))
@@ -155,6 +177,7 @@ def initial_baseline(cur):
     return {"largest_scc": cur["largest_scc"],
             "autoload_scc_pairs": [list(s["autoloads"]) for s in cur["auto_sccs"]],
             "closure": list(cur["closure"]),
+            "main_closure": list(cur["main_closure"]),
             "l1_exceptions": sorted(set(exc_key(v["src"], v["dst"]) for v in cur["l1"]))}
 
 
@@ -179,6 +202,10 @@ def render_report(cur, base, list_all):
         L.append("  SCC of %d contains autoloads: %s" % (s["size"], ", ".join(s["autoloads"])))
     L.append("L3 autoload closure: %d files, %d .gd, %d lines" % (
         len(cur["closure"]), cur["closure_scripts"], cur["closure_lines"]))
+    main_files = cur.get("main_closure", [])
+    L.append("L4 Main closure: %d files (baseline %s); forbidden present: %s" % (
+        len(main_files), len(base["main_closure"]) if "main_closure" in base else "none",
+        ", ".join(p for p in main_files if p in MAIN_FORBIDDEN) or "none"))
     return L
 
 

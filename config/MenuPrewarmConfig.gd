@@ -20,3 +20,14 @@ func all_paths() -> PackedStringArray:
 			if not result.has(path):
 				result.append(path)
 	return result
+
+
+## True when one of `user_args` (leading dashes ignored) is an eager flag.
+func wants_eager(user_args: PackedStringArray) -> bool:
+	for raw: String in user_args:
+		var text: String = raw
+		while text.begins_with("-"):
+			text = text.substr(1)
+		if eager_flags.has(text):
+			return true
+	return false

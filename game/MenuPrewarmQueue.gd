@@ -93,6 +93,11 @@ func is_ready(path: String) -> bool:
 	return _loaded.has(path)
 
 
+## True once start() ran and nothing is queued or in flight.
+func is_drained() -> bool:
+	return _started and _in_flight.is_empty() and _queue.is_empty()
+
+
 func has_in_flight() -> bool:
 	return not _in_flight.is_empty()
 
