@@ -296,6 +296,12 @@ func _build_difficulty_option() -> void:
 	difficulty_option.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	difficulty_option.tooltip_text = "This bot's difficulty"
 	_style_pill(difficulty_option, _tuning.pill_cream_color, _tuning.pill_cream_hover_color, _tuning.ink_color)
+	# Bontago-1pi.150: tighter side margins so "Normal" is never clipped on the narrow mockup-scale canvas.
+	for state: String in ["normal", "hover", "pressed", "disabled", "focus"]:
+		var box: StyleBox = difficulty_option.get_theme_stylebox(state)
+		if box != null:
+			box.content_margin_left = minf(box.content_margin_left, float(_layout_tuning.seat_difficulty_margin_px))
+			box.content_margin_right = minf(box.content_margin_right, float(_layout_tuning.seat_difficulty_margin_px))
 	difficulty_option.disabled = not editable
 	difficulty_option.focus_mode = Control.FOCUS_ALL if editable else Control.FOCUS_NONE
 	if editable:

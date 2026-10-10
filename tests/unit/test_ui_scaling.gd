@@ -208,10 +208,24 @@ func _build_loading(vp: SubViewport) -> Node:
 func test_ui_scale_rule_matches_project_stretch() -> void:
 	assert_eq(ProjectSettings.get_setting("display/window/stretch/mode"), "canvas_items")
 	assert_eq(ProjectSettings.get_setting("display/window/stretch/aspect"), "expand")
-	assert_almost_eq(UiScale.factor(Vector2(3440, 1440)), 2.0, 0.001)
-	assert_eq(UiScale.logical_size(Vector2(3440, 1440)), Vector2i(1720, 720))
-	assert_almost_eq(UiScale.factor(Vector2(900, 1200)), 900.0 / 1280.0, 0.001)
-	assert_eq(UiScale.logical_size(Vector2(1280, 720)), Vector2i(1280, 720))
+	assert_almost_eq(UiScale.stretch_factor(Vector2(3440, 1440)), 2.0, 0.001)
+	assert_almost_eq(UiScale.stretch_factor(Vector2(900, 1200)), 900.0 / 1280.0, 0.001)
+	# Bontago-1pi.150: the default user scale is the mockup scale (960x540 logical at 1280x720).
+	var mockup: float = UiScaleTuning.shared().mockup_scale
+	assert_almost_eq(UiScale.factor(Vector2(3440, 1440)), 2.0 * mockup, 0.001)
+	assert_eq(UiScale.logical_size(Vector2(1280, 720)), Vector2i(960, 540))
+	assert_eq(UiScale.logical_size(Vector2(1920, 1080)), Vector2i(960, 540))
+
+
+func test_user_scale_changes_the_logical_canvas() -> void:
+	var tuning: UiScaleTuning = UiScaleTuning.shared()
+	var saved: float = UiScaleTuning.current_scale
+	UiScaleTuning.current_scale = tuning.min_scale
+	assert_eq(UiScale.logical_size(Vector2(1280, 720)), Vector2i(1280, 720), "min scale = pre-1pi.150 look")
+	UiScaleTuning.current_scale = tuning.max_scale
+	var max_logical: Vector2i = UiScale.logical_size(Vector2(1280, 720))
+	assert_lt(max_logical.x, 960)
+	UiScaleTuning.current_scale = saved
 
 
 func test_no_ui_script_applies_its_own_scale() -> void:

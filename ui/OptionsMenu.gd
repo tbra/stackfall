@@ -226,6 +226,8 @@ var _preset_option: OptionButton = null
 @onready var _camera_shake_check: CheckButton = %CameraShakeCheck
 @onready var _adaptive_quality_check: CheckButton = %AdaptiveQualityCheck
 @onready var _window_mode_option: OptionButton = %WindowModeOption
+@onready var _ui_scale_slider: HSlider = %UiScaleSlider
+@onready var _ui_scale_value_label: Label = %UiScaleValueLabel
 @onready var _rumble_enabled_check: CheckButton = %RumbleEnabledCheck
 @onready var _rumble_strength_slider: HSlider = %RumbleStrengthSlider
 @onready var _rumble_strength_value_label: Label = %RumbleStrengthValueLabel
@@ -243,6 +245,9 @@ var _preset_option: OptionButton = null
 @onready var _move_speed_value_label: Label = %MoveSpeedValueLabel
 
 var _rows: Array[KeyRebindRow] = []
+## Bontago-1pi.150: a mouse drag on the UI-scale slider previews the % and applies on release
+## (rescaling the canvas under the cursor mid-drag would make the thumb run away).
+var _ui_scale_dragging: bool = false
 ## Bontago-hfa.4: one SegmentMeter overlay per slider, so mute state can dim its cells.
 var _meters: Dictionary[HSlider, SegmentMeter] = {}
 ## Bontago-hfa.4: the ON/OFF word next to each toggle (CheckButton -> Label).
@@ -256,6 +261,10 @@ func _ready() -> void:
 		slider.min_value = MIN_VOLUME_PERCENT
 		slider.max_value = MAX_VOLUME_PERCENT
 		slider.step = VOLUME_STEP_PERCENT
+	var ui_scale_tuning: UiScaleTuning = UiScaleTuning.shared()
+	_ui_scale_slider.min_value = ui_scale_tuning.min_scale
+	_ui_scale_slider.max_value = ui_scale_tuning.max_scale
+	_ui_scale_slider.step = ui_scale_tuning.step
 	_rumble_strength_slider.min_value = MIN_RUMBLE_STRENGTH
 	_rumble_strength_slider.max_value = MAX_RUMBLE_STRENGTH
 	_rumble_strength_slider.step = RUMBLE_STRENGTH_STEP
@@ -272,7 +281,7 @@ func _ready() -> void:
 	# Bontago-1pi.119 / 1pi.123: coarse keyboard/gamepad steps, and the wheel scrolls the page.
 	for nav_slider: HSlider in [
 		_master_volume_slider, _music_volume_slider, _sfx_volume_slider, _weather_volume_slider,
-		_rumble_strength_slider, _move_speed_slider,
+		_rumble_strength_slider, _move_speed_slider, _ui_scale_slider,
 	]:
 		SliderNav.apply(nav_slider)
 
@@ -308,6 +317,9 @@ func _ready() -> void:
 	_adaptive_quality_check.toggled.connect(_on_adaptive_quality_toggled)
 	_window_mode_option.item_selected.connect(_on_window_mode_selected)
 	_rumble_enabled_check.toggled.connect(_on_rumble_enabled_toggled)
+	_ui_scale_slider.value_changed.connect(_on_ui_scale_changed)
+	_ui_scale_slider.drag_started.connect(_on_ui_scale_drag_started)
+	_ui_scale_slider.drag_ended.connect(_on_ui_scale_drag_ended)
 	_rumble_strength_slider.value_changed.connect(_on_rumble_strength_changed)
 	_rumble_strength_slider.drag_ended.connect(_on_rumble_strength_drag_ended)
 	_move_speed_slider.value_changed.connect(_on_move_speed_changed)
@@ -342,7 +354,7 @@ func _apply_arcade_style() -> void:
 	_settings_page.get_child(0).add_theme_constant_override("separation", arcade.space_3_px)
 	for slider: HSlider in [
 		_master_volume_slider, _music_volume_slider, _sfx_volume_slider, _weather_volume_slider,
-		_rumble_strength_slider, _move_speed_slider,
+		_rumble_strength_slider, _move_speed_slider, _ui_scale_slider,
 	]:
 		_meters[slider] = SegmentMeter.attach(slider)
 	for graphics_slider: HSlider in _graphics_page.sliders():
@@ -357,7 +369,7 @@ func _apply_arcade_style() -> void:
 	_graphics_page.get_child(0).add_theme_constant_override("separation", arcade.space_3_px)
 	for value_label: Label in [
 		_master_volume_value_label, _music_volume_value_label, _sfx_volume_value_label,
-		_weather_volume_value_label, _rumble_strength_value_label, _move_speed_value_label,
+		_weather_volume_value_label, _rumble_strength_value_label, _move_speed_value_label, _ui_scale_value_label,
 	]:
 		_style_value_label(value_label)
 	for check: CheckButton in [_camera_shake_check, _adaptive_quality_check, _rumble_enabled_check]:
@@ -596,6 +608,8 @@ func _load_current_values() -> void:
 	var window_mode_index: int = Settings.WINDOW_MODE_IDS.find(window_mode_id)
 	_window_mode_option.select(window_mode_index if window_mode_index >= 0 else Settings.WINDOW_MODE_IDS.find(Settings.DEFAULT_WINDOW_MODE_ID))
 
+	_ui_scale_slider.set_value_no_signal(float(settings_provider.ui_scale()))
+	_ui_scale_value_label.text = _format_percent(float(settings_provider.ui_scale()))
 	_rumble_enabled_check.set_pressed_no_signal(bool(settings_provider.rumble_enabled()))
 	_rumble_strength_slider.set_value_no_signal(float(settings_provider.rumble_strength()))
 	_rumble_strength_value_label.text = _format_percent(float(settings_provider.rumble_strength()))
@@ -721,6 +735,21 @@ func _refresh_rumble_strength_enabled() -> void:
 	_rumble_strength_slider.modulate.a = 1.0 if enabled else 0.5
 
 
+func _on_ui_scale_changed(value: float) -> void:
+	_ui_scale_value_label.text = _format_percent(value)
+	if not _ui_scale_dragging:
+		settings_provider.set_ui_scale(value)
+
+
+func _on_ui_scale_drag_started() -> void:
+	_ui_scale_dragging = true
+
+
+func _on_ui_scale_drag_ended(_value_changed: bool) -> void:
+	_ui_scale_dragging = false
+	settings_provider.set_ui_scale(_ui_scale_slider.value)
+
+
 func _on_rumble_strength_changed(value: float) -> void:
 	settings_provider.set_rumble_strength(value)
 	_rumble_strength_value_label.text = _format_percent(value)
@@ -771,6 +800,7 @@ func _on_reset_pressed() -> void:
 	settings_provider.reset_audio_settings()
 	settings_provider.reset_rumble_settings()
 	settings_provider.reset_move_speed_scales()
+	settings_provider.reset_ui_scale()
 	for row: KeyRebindRow in _rows:
 		row.refresh()
 	_load_current_values()
@@ -876,7 +906,7 @@ func _build_rebind_rows() -> void:
 ## the project already relies on.
 func _wire_focus_chain() -> void:
 	var chain: Array[Control] = [
-		_window_mode_option, _camera_shake_check, _adaptive_quality_check,
+		_window_mode_option, _ui_scale_slider, _camera_shake_check, _adaptive_quality_check,
 		_master_mute_button, _master_volume_slider,
 		_music_mute_button, _music_volume_slider,
 		_sfx_mute_button, _sfx_volume_slider,

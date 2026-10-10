@@ -211,6 +211,28 @@ func test_reset_move_speed_scales_restores_defaults() -> void:
 	assert_eq(_settings.stick_move_speed_scale(), 1.0)
 
 
+func test_ui_scale_default_persists_and_sanitizes() -> void:
+	var tuning: UiScaleTuning = UiScaleTuning.shared()
+	assert_eq(_settings.ui_scale(), tuning.default_scale)
+	_settings.set_ui_scale(1.12)
+	assert_almost_eq(_settings.ui_scale(), 1.1, 0.0001, "snaps to the step")
+	assert_almost_eq(UiScaleTuning.runtime_scale(), 1.1, 0.0001, "published for UiScale")
+	assert_almost_eq(_fresh_settings_at_same_path().ui_scale(), 1.1, 0.0001)
+	_settings.set_ui_scale(99.0)
+	assert_eq(_settings.ui_scale(), tuning.max_scale)
+	_settings.set_ui_scale(-3.0)
+	assert_eq(_settings.ui_scale(), tuning.min_scale)
+	_settings.set_ui_scale(NAN)
+	assert_eq(_settings.ui_scale(), tuning.default_scale)
+	var cfg: ConfigFile = ConfigFile.new()
+	cfg.set_value("graphics", "ui_scale", 50.0)
+	cfg.save(_cfg_path)
+	assert_eq(_fresh_settings_at_same_path().ui_scale(), tuning.max_scale, "hand-edited value clamped on load")
+	_settings.reset_ui_scale()
+	assert_eq(_settings.ui_scale(), tuning.default_scale)
+	UiScaleTuning.current_scale = -1.0
+
+
 func test_camera_shake_enabled_round_trips_and_persists() -> void:
 	_settings.set_camera_shake_enabled(false)
 	assert_false(_settings.camera_shake_enabled())

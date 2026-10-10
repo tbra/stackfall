@@ -19,17 +19,33 @@ static func base_size() -> Vector2:
 		float(ProjectSettings.get_setting("display/window/size/viewport_height", 720)))
 
 
-## The multiplier the stretch applies for a window of `window_size` pixels.
-static func factor(window_size: Vector2) -> float:
+## Bontago-1pi.150: the player's UI scale (autoload/Settings.gd, applied by Settings to the root
+## window) multiplies this stretch. Its effective factor (mockup scale x the stored
+## relative value) is what the engine adds on top of the stretch; AgentProbe viewports and layout
+## tests use it too, so they lay out exactly like the real window.
+static func user_factor() -> float:
+	var tuning: UiScaleTuning = UiScaleTuning.shared()
+	return tuning.effective_factor(UiScaleTuning.runtime_scale())
+
+
+## The multiplier the project stretch alone applies for a window of `window_size` pixels.
+static func stretch_factor(window_size: Vector2) -> float:
 	var base: Vector2 = base_size()
 	if window_size.x <= 0.0 or window_size.y <= 0.0 or base.x <= 0.0 or base.y <= 0.0:
 		return 1.0
 	return minf(window_size.x / base.x, window_size.y / base.y)
 
 
+## Stretch times the user scale: the total multiplier from logical to window pixels.
+static func factor(window_size: Vector2) -> float:
+	return stretch_factor(window_size) * user_factor()
+
+
 ## The logical canvas (what Viewport.get_visible_rect() reports) for the window.
 static func logical_size(window_size: Vector2) -> Vector2i:
 	var scale_factor: float = factor(window_size)
+	if scale_factor <= 0.0:
+		return Vector2i(window_size)
 	return Vector2i(roundi(window_size.x / scale_factor), roundi(window_size.y / scale_factor))
 
 

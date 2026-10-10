@@ -15,8 +15,8 @@ const _COLUMN_HEADERS: Dictionary = {
 }
 ## _make_cell()'s size_flags_stretch_ratio per column.
 const _COLUMN_RATIOS: Dictionary = {
-	Column.PLAYER: 3.0, Column.TEAM: 1.4, Column.PLACED: 1.0, Column.LOST: 1.0,
-	Column.GIFTS: 1.0, Column.HEIGHT: 1.1, Column.MODE_STAT: 1.2, Column.TERRITORY: 1.2, Column.STATUS: 1.6,
+	Column.PLAYER: 2.6, Column.TEAM: 1.4, Column.PLACED: 1.0, Column.LOST: 1.0,
+	Column.GIFTS: 1.0, Column.HEIGHT: 1.1, Column.MODE_STAT: 1.2, Column.TERRITORY: 1.6, Column.STATUS: 1.6,
 	Column.WINS: 0.9,
 }
 

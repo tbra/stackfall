@@ -76,10 +76,8 @@ const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/OptionsMenu.tscn")
 @onready var _debug_button: Button = %DebugButton
 @onready var _gift_demo_button: Button = %GiftDemoButton
 @onready var _tower_topple_button: Button = %TowerToppleButton
-## Bontago-1pi.74: build label (BuildVersion.label()) beside the Debug corner pill.
+## Bontago-1pi.74: build label (BuildVersion.label()) in the top-right corner beside the Debug pill (Bontago-1pi.150: moved off the bottom edge, which collided with the button column on short canvases).
 @onready var _build_version_label: Label = %BuildVersionLabel
-## Left inset of the label when the Debug pill is hidden (matches the pill's own).
-const BUILD_LABEL_LEFT_INSET: float = 24.0
 @onready var _host_row: VBoxContainer = $Center/Panel/Layout/HostRow
 @onready var _small_row: HBoxContainer = %SmallRow
 @onready var _section_gap: Control = %SectionGap
@@ -168,7 +166,6 @@ var _host_steam_choice: Button = null
 ## place, the same "one owner frees what it opened" convention
 ## _on_quit_pressed() implicitly follows via get_tree().quit().
 var _options_menu: OptionsMenu = null
-var _build_version_label_left: float = 0.0
 
 
 func _ready() -> void:
@@ -177,7 +174,6 @@ func _ready() -> void:
 	_home_tagline = _tagline.text
 	_add_searching_cells()
 	_build_version_label.text = BuildVersion.label()
-	_build_version_label_left = _build_version_label.offset_left
 	_host_button.pressed.connect(_on_host_pressed)
 	_join_button.pressed.connect(_on_join_pressed)
 	_join_lan_tab_button.pressed.connect(_on_join_lan_tab_pressed)
@@ -494,7 +490,6 @@ func _set_page(page: int, focus_target: Control = null) -> void:
 	_back_button.visible = page != PAGE_HOME
 	_debug_button.visible = _debug_entry_enabled and page == PAGE_HOME
 	_build_version_label.visible = page == PAGE_HOME
-	_build_version_label.offset_left = _build_version_label_left if _debug_button.visible else BUILD_LABEL_LEFT_INSET
 	_wire_focus()
 	var target: Control = focus_target if focus_target != null else _default_focus(page)
 	if target.focus_mode != Control.FOCUS_NONE:

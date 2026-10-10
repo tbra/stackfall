@@ -169,6 +169,7 @@ func _walk_settings_page(pad: bool) -> void:
 	var chain: Array[Control] = [
 		menu.get_node("%PresetOption") as Control,
 		menu.get_node("%WindowModeOption") as Control,
+		menu.get_node("%UiScaleSlider") as Control,
 		menu.get_node("%CameraShakeCheck") as Control,
 		menu.get_node("%AdaptiveQualityCheck") as Control,
 		menu.get_node("%MasterMuteButton") as Control,
