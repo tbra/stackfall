@@ -425,6 +425,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2
 script = ExtResource("99_hints")
+label_style = true
 template = "{ui_accept} Select   {ui_cancel} Back"
 
 [node name="ResetButton" type="Button" parent="Frame/Panel/Layout/Footer"]

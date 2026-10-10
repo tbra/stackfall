@@ -39,7 +39,7 @@ layout_mode = 2
 focus_mode = 0
 tooltip_text = "Teams: seats with the same number play as one team; ? is filled in at match start"
 disabled = true
-text = "Teams"
+text = "TEAMS"
 
 [node name="ActionRowSpacer" type="Control" parent="ActionRow"]
 layout_mode = 2
@@ -52,7 +52,7 @@ layout_mode = 2
 focus_mode = 0
 tooltip_text = "Add a bot to the next free seat"
 disabled = true
-text = "+ Add bot"
+text = "+ ADD BOT"
 
 [node name="PlayerScroll" type="ScrollContainer" parent="."]
 unique_name_in_owner = true

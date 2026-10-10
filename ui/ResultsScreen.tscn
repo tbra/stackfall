@@ -86,9 +86,9 @@ theme_override_constants/separation = 12
 [node name="ReplayButton" type="Button" parent="Center/Card/Layout/ButtonsRow"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Play again"
+text = "PLAY AGAIN"
 
 [node name="LobbyButton" type="Button" parent="Center/Card/Layout/ButtonsRow"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Back to lobby"
+text = "BACK TO LOBBY"

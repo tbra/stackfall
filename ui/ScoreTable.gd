@@ -80,8 +80,9 @@ static func build_header_row(show_team: bool, mode_header: String, _tuning: Menu
 	header.add_theme_constant_override("separation", 0)
 	for column: int in columns(show_team, show_mode_stat):
 		var header_text: String = mode_header if column == Column.MODE_STAT else String(_COLUMN_HEADERS[column])
-		var cell: Label = make_cell(header_text, float(_COLUMN_RATIOS[column]))
-		cell.theme_type_variation = &"CaptionLabel"
+		# Bontago-1pi.145: table headers are `dust` labels (components.md ResultsTable): 13/800, uppercase, tracked.
+		var cell: Label = make_cell(header_text.to_upper(), float(_COLUMN_RATIOS[column]))
+		cell.theme_type_variation = &"FieldLabel"
 		cell.add_theme_color_override("font_color", arcade.dust_color)
 		cell.add_theme_font_size_override("font_size", arcade.font_size_label_px)
 		if _NUMERIC_COLUMNS.has(column):

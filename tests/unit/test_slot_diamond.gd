@@ -81,17 +81,17 @@ func test_status_badge_names_the_session_kind() -> void:
 	var lobby: Lobby = _make_lobby()
 	(lobby.net_provider as FakeNet).is_private_session_value = true
 	lobby._update_status_badge()
-	assert_eq((lobby.get_node("%StatusBadgeLabel") as Label).text, "Vs bots")
+	assert_eq((lobby.get_node("%StatusBadgeLabel") as Label).text, "VS BOTS")
 
 
 func test_advanced_is_a_flat_text_disclosure_that_toggles() -> void:
 	var section: LobbySection = (_make_lobby().get_node("%GameSection") as LobbySection)
 	var toggle: Button = section.advanced_button
 	assert_true(toggle.get_theme_stylebox(&"normal") is StyleBoxFlat, "Arcade (Bontago-hfa.5): a disc-700 bar, not a block button")
-	assert_eq(toggle.text, "%s Advanced" % LobbySection.DISCLOSURE_CLOSED)
+	assert_eq(toggle.text, "%s ADVANCED" % LobbySection.DISCLOSURE_CLOSED)
 	toggle.button_pressed = true
 	assert_true(section.is_advanced_open())
-	assert_eq(toggle.text, "%s Advanced" % LobbySection.DISCLOSURE_OPEN)
+	assert_eq(toggle.text, "%s ADVANCED" % LobbySection.DISCLOSURE_OPEN)
 	assert_eq(toggle.focus_mode, Control.FOCUS_ALL, "reachable by pad and keyboard")
 
 

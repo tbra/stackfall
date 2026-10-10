@@ -280,7 +280,7 @@ func test_the_colour_box_uses_the_slot_colour_and_the_layout_tuning_size() -> vo
 func test_the_header_and_row_styling_is_the_lobbys_menu_look() -> void:
 	var lobby: Lobby = _make_lobby(false)
 	Events.net_lobby_data_changed.emit(_two_humans_data(true))
-	assert_eq(_header_of(lobby).get_theme_color("font_color"), lobby.tuning.ink_color, "header ink colour is applied by the Lobby's visual style")
+	assert_eq(_header_of(lobby).get_theme_color("font_color"), MenuStyleFactory.arcade_tuning().dust_color, "the roster count is a dust caption (components.md PlayerSlot header)")
 	var row: PanelContainer = _panel_of(lobby)._player_rows[0] as PanelContainer
 	var pill: StyleBoxFlat = row.get_theme_stylebox("panel") as StyleBoxFlat
 	assert_eq(pill.bg_color, lobby.tuning.pill_white_color, "rows stay the raised white pill")
@@ -1199,10 +1199,10 @@ func test_the_host_header_has_a_live_teams_toggle_and_add_bot_button() -> void:
 	assert_true(_teams_toggle(lobby).visible)
 	assert_false(_teams_toggle(lobby).disabled)
 	assert_false(_teams_toggle(lobby).button_pressed, "teams start off")
-	assert_eq(_teams_toggle(lobby).text, "Teams")
+	assert_eq(_teams_toggle(lobby).text, "TEAMS")
 	assert_true(_add_bot_button(lobby).visible)
 	assert_false(_add_bot_button(lobby).disabled)
-	assert_eq(_add_bot_button(lobby).text, "+ Add bot")
+	assert_eq(_add_bot_button(lobby).text, "+ ADD BOT")
 
 
 func test_a_client_sees_the_teams_state_read_only_and_no_add_bot_button() -> void:
