@@ -19,12 +19,17 @@ const TUNING: SliderNavTuning = preload("res://config/slider_nav_tuning.tres")
 ## Meta set by SegmentMeter.attach: how many cells the slider is drawn as; one press moves one cell.
 const META_SEGMENT_COUNT: StringName = &"slider_nav_segment_count"
 const NODE_NAME: StringName = &"SliderNavRepeater"
+## Meta set by apply(own_step = true): ui_left / ui_right move exactly slider.step (the lobby's
+## one-minute timers and disc size), whatever the slider's range.
+const META_OWN_STEP: StringName = &"slider_nav_own_step"
 
 
 ## Configures `slider` once its min/max/step are final. `handle_keys` is false for a slider whose
 ## owner already steps it itself on ui_left / ui_right (ui/Lobby.gd's one-minute timer sliders).
-static func apply(slider: HSlider, handle_keys: bool = true) -> void:
+static func apply(slider: HSlider, handle_keys: bool = true, own_step: bool = false) -> void:
 	slider.scrollable = false
+	if own_step:
+		slider.set_meta(META_OWN_STEP, true)
 	if handle_keys and slider.get_node_or_null(NodePath(NODE_NAME)) == null:
 		slider.add_child(Repeater.new(slider))
 
@@ -90,26 +95,33 @@ class Repeater extends Node:
 			if event.is_action_released(action) and _direction == direction and _stick_axis < 0:
 				release()
 
+	## Stick friction (Bontago-1pi.152). The press uses stick_press_threshold (not the ui action
+	## deadzone, which sits below the release threshold and re-pressed on every event of a slow
+	## push). A push stays "held" until it falls below the release threshold or flips sign, so one
+	## push = one step; it only auto-repeats near full deflection (see advance).
 	func _on_stick(motion: InputEventJoypadMotion) -> void:
+		var tuning: SliderNavTuning = SliderNav.TUNING
 		if _stick_axis == motion.axis:
-			var released: bool = absf(motion.axis_value) < SliderNav.TUNING.stick_release_threshold
+			var released: bool = absf(motion.axis_value) < tuning.stick_release_threshold
 			if released or signf(motion.axis_value) != _direction:
 				release()
 			else:
 				_slider.accept_event()
 				return
+		var value: float = motion.axis_value
 		for action: StringName in [&"ui_left", &"ui_right"]:
 			if motion.is_action(action, true) and motion.is_action_pressed(action, true):
-				_slider.accept_event()
-				_stick_device = motion.device
-				_start(-1.0 if action == &"ui_left" else 1.0, motion.axis)
+				_slider.accept_event()  # the Slider's own one-native-step handling never runs
+				if absf(value) >= tuning.stick_press_threshold and _stick_axis < 0:
+					_stick_device = motion.device
+					_start(-1.0 if action == &"ui_left" else 1.0, motion.axis)
 				return
 
 	func _start(direction: float, stick_axis: int) -> void:
 		_direction = direction
 		_stick_axis = stick_axis
 		_held_for = 0.0
-		_next_due = SliderNav.TUNING.repeat_delay_sec
+		_next_due = SliderNav.TUNING.repeat_delay_sec if stick_axis < 0 else SliderNav.TUNING.stick_repeat_delay_sec
 		_step()
 		set_process(true)
 
@@ -128,9 +140,18 @@ class Repeater extends Node:
 		if not _still_held():
 			release()
 			return
+		var interval: float = SliderNav.TUNING.repeat_interval_sec
+		if _stick_axis >= 0:
+			# A partial push never repeats: the hold timer only runs near full deflection.
+			interval = SliderNav.TUNING.stick_repeat_interval_sec
+			var value: float = absf(float(axis_reader.call(_stick_device, _stick_axis)))
+			if value < SliderNav.TUNING.stick_repeat_threshold:
+				_held_for = 0.0
+				_next_due = SliderNav.TUNING.stick_repeat_delay_sec
+				return
 		_held_for += delta
 		if _held_for >= _next_due:
-			_next_due += SliderNav.TUNING.repeat_interval_sec
+			_next_due += interval
 			_step()
 
 	func _process(delta: float) -> void:
@@ -140,6 +161,8 @@ class Repeater extends Node:
 ## The step for ui_left / ui_right on `slider`: one SegmentMeter cell when it wears a meter,
 ## else range / steps_per_range; -1.0 when the slider's own step is already that coarse.
 static func step_for(slider: HSlider) -> float:
+	if bool(slider.get_meta(META_OWN_STEP, false)):
+		return slider.step if slider.step > 0.0 else -1.0
 	var divisions: int = int(slider.get_meta(META_SEGMENT_COUNT, TUNING.steps_per_range))
 	return coarse_step(slider.min_value, slider.max_value, slider.step, divisions)
 

@@ -8,3 +8,7 @@ steps_per_range = 20
 repeat_delay_sec = 0.45
 repeat_interval_sec = 0.15
 stick_release_threshold = 0.25
+stick_press_threshold = 0.5
+stick_repeat_threshold = 0.9
+stick_repeat_delay_sec = 0.6
+stick_repeat_interval_sec = 0.2
