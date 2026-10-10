@@ -147,6 +147,14 @@ var _own_ping_ms: float = 0.0
 var _lobby_data: Dictionary = {}
 var _lan: LanDiscovery
 
+## Bontago-1pi.164: router port opening (UPnP) for non-Steam internet hosting. The real backend is
+## built only for the real autoload on a windowed, non-agent run; tests set `upnp_backend_factory`
+## to a Callable returning a fake UpnpBackend and never touch a router.
+signal upnp_state_changed(state: int)
+var upnp_config: UpnpConfig = preload("res://config/upnp_config.tres")
+var upnp_backend_factory: Callable = Callable()
+var _upnp: UpnpRunner = UpnpRunner.new()
+
 ## `--match-config=<res path>` (Bontago-3k0, deferred from Bontago-keo.19):
 ## host-only override for the MatchConfig a `--headless-host` match starts
 ## from. Null (the ordinary case) means "no override" -- game/Main.gd's own
@@ -303,6 +311,8 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if _upnp.poll():
+		upnp_state_changed.emit(int(_upnp.state))
 	# Steamworks is a manual-dispatch API: every async Steam signal (lobby
 	# creation, the lobby list, joins, invite-accepts) is queued internally
 	# and never fires without this (see net/SteamClient.gd's run_callbacks()
@@ -373,6 +383,8 @@ func host_game(port: int = 0, player_name: String = "", advertise: bool = true, 
 	# broadcast (headless bot hosts must not show up in a Join browser).
 	if advertise and lan_visible and not AgentProbe.is_active():
 		_start_lan_advertising(host_name)
+	if advertise and lan_visible:
+		_start_upnp(use_port)
 	return OK
 
 
@@ -433,6 +445,7 @@ func leave(forget_rejoin: bool = true) -> void:
 
 	_lan.stop_advertising()
 	_lan.stop_listening()
+	_stop_upnp()
 	if multiplayer.multiplayer_peer:
 		multiplayer.multiplayer_peer.close()
 	multiplayer.multiplayer_peer = null
@@ -2287,6 +2300,60 @@ func _apply_peer_timeout(id: int) -> void:
 ## True while this host broadcasts its game on the LAN (Bontago-fca.88 test seam).
 func is_lan_advertising() -> bool:
 	return _lan != null and _lan.is_advertising()
+
+
+## Bontago-1pi.164: Net.upnp_state() etc. are what the lobby reads. IDLE = not tried.
+func upnp_state() -> int:
+	return int(_upnp.state)
+
+
+## "XXXXX-XXXXX" once the router opened the port, else "".
+func upnp_join_code() -> String:
+	if _upnp.state != UpnpRunner.State.OPENED:
+		return ""
+	return JoinCode.encode(_upnp.external_address, _host_port)
+
+
+func upnp_failure_reason() -> String:
+	return _upnp.reason
+
+
+## The UDP port a manual router forward must target (the fallback hint).
+func host_port() -> int:
+	return _host_port
+
+
+## DECISION (Bontago-1pi.164): the real backend needs a windowed, non-agent autoload; headless hosts
+## (bot matches, GUT) never reach a router. Callers pass advertise and lan_visible, so bot hosts
+## (lan_visible false) and private sessions (advertise false) are excluded before this runs.
+func _upnp_backend() -> UpnpBackend:
+	if upnp_backend_factory.is_valid():
+		return upnp_backend_factory.call() as UpnpBackend
+	if get_parent() != get_tree().root or AgentProbe.is_active() or DisplayServer.get_name() == "headless":
+		return null
+	return UpnpBackendReal.new()
+
+
+func _start_upnp(port: int) -> void:
+	if not upnp_config.enabled:
+		return
+	var backend: UpnpBackend = _upnp_backend()
+	if backend == null:
+		return
+	_upnp.start(backend, port, upnp_config)
+	upnp_state_changed.emit(int(_upnp.state))
+
+
+func _stop_upnp() -> void:
+	var was_active: bool = _upnp.state != UpnpRunner.State.IDLE
+	_upnp.stop()
+	if was_active:
+		upnp_state_changed.emit(int(_upnp.state))
+
+
+## Quit: the mapping must not outlive the process (blocking, bounded by one router round trip).
+func _exit_tree() -> void:
+	_upnp.shutdown()
 
 
 func _start_lan_advertising(player_name: String) -> void:
