@@ -12,6 +12,13 @@ const RENDER_SIZE_PREFIX: String = "--render-size="
 const TOOLS_SCENE_PREFIX: String = "res://tools/"
 ## Benchmarks under tests/bench are agent runs too (session debrief 2026-10-01).
 const BENCH_SCENE_PREFIX: String = "res://tests/bench/"
+const QUIT_ON_MENU_FLAG: String = "--quit-on-menu"
+const STARTUP_LINE_FORMAT: String = "AGENT_PROBE startup first_frame_ms=%d menu_ready_ms=%d"
+const MENU_MISSING_MS: int = -1
+const MENU_TIMEOUT_EXIT_CODE: int = 1
+## DECISION: the "menu never appeared" timeout reuses the loading screen's
+## ready timeout instead of a new tunable.
+const LOADING_TUNING: LoadingScreenTuning = preload("res://config/loading_screen_tuning.tres")
 const PORT_ARG_PREFIX: String = "--port="
 ## DECISION: random free UDP port range for agent-run hosts, kept clear of the
 ## default game port so benches never block tools/run_m3a_local.ps1.
@@ -24,6 +31,8 @@ const WINDOW_SIZE: Vector2i = Vector2i(320, 180)
 
 static var _forced: int = -1  # test seam: -1 = detect, 0 = off, 1 = on
 static var _cached: int = -1
+static var _first_frame_ms: int = MENU_MISSING_MS
+static var _startup_done: bool = false
 
 
 ## Pure detection: user args containing the flag, or any arg naming a scene
@@ -73,6 +82,55 @@ static func apply() -> void:
 	if master >= 0:
 		AudioServer.set_bus_mute(master, true)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	if wants_quit_on_menu(OS.get_cmdline_user_args()):
+		_install_startup_watch()
+
+
+## True when the user args ask for the boot check (`--quit-on-menu`).
+static func wants_quit_on_menu(user_args: PackedStringArray) -> bool:
+	return user_args.has(QUIT_ON_MENU_FLAG)
+
+
+## The one-line report for the boot check; menu_ms < 0 means it never appeared.
+static func format_startup_line(first_frame_ms: int, menu_ms: int) -> String:
+	return STARTUP_LINE_FORMAT % [first_frame_ms, menu_ms]
+
+
+static func _install_startup_watch() -> void:
+	var tree: SceneTree = Engine.get_main_loop() as SceneTree
+	if tree == null:
+		return
+	tree.process_frame.connect(_on_first_frame, CONNECT_ONE_SHOT)
+	tree.node_added.connect(_on_node_added)
+	tree.create_timer(LOADING_TUNING.ready_timeout_s, true, false, true).timeout.connect(_on_menu_timeout)
+
+
+static func _on_first_frame() -> void:
+	_first_frame_ms = Time.get_ticks_msec()
+
+
+static func _on_node_added(node: Node) -> void:
+	if _startup_done or not node is MainMenu:
+		return
+	# Ready once the menu is in the tree and has processed a frame.
+	node.get_tree().process_frame.connect(_on_menu_frame, CONNECT_ONE_SHOT)
+
+
+static func _on_menu_frame() -> void:
+	if _startup_done:
+		return
+	_finish_startup(Time.get_ticks_msec(), 0)
+
+
+static func _on_menu_timeout() -> void:
+	if not _startup_done:
+		_finish_startup(MENU_MISSING_MS, MENU_TIMEOUT_EXIT_CODE)
+
+
+static func _finish_startup(menu_ms: int, exit_code: int) -> void:
+	_startup_done = true
+	print(format_startup_line(_first_frame_ms, menu_ms))
+	(Engine.get_main_loop() as SceneTree).quit(exit_code)
 
 
 ## Mouse-capture gate: sets the mode unless probe mode forbids capture.
