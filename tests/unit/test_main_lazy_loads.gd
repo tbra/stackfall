@@ -14,6 +14,7 @@ const DEFERRED_PATHS: PackedStringArray = [
 	"res://config/sandbox_gift_demo.tres",
 	"res://config/sandbox_tower_topple.tres",
 	"res://game/MainSandboxFlow.gd",
+	"res://game/MainHeadlessBotsFlow.gd",
 ]
 ## Bontago-1pi.11.84 (MF1): classes the sandbox flow owns; Main.gd must not name them.
 const MOVED_CLASS_PATTERNS: PackedStringArray = [
@@ -21,6 +22,9 @@ const MOVED_CLASS_PATTERNS: PackedStringArray = [
 	"\\bas Sandbox\\b",
 	":\\s*Tutorial\\b",
 	"\\bas Tutorial\\b",
+	":\\s*MainHeadlessBotsFlow\\b",
+	"\\bas MainHeadlessBotsFlow\\b",
+	":\\s*MainSandboxFlow\\b",
 ]
 
 var _main: Variant = null
@@ -110,3 +114,11 @@ func test_tower_topple_preset_loads_on_use() -> void:
 	_main.start_tower_topple_from_menu()
 	assert_not_null(_main._sandbox)
 	assert_eq(_main._sandbox_preset.resource_path, "res://config/sandbox_tower_topple.tres")
+
+
+func test_headless_bots_flow_loads_on_first_use_through_the_queue() -> void:
+	assert_null(_main._headless_bots_flow, "no flow before the first bots use")
+	assert_eq(_main._bots_arg(PackedStringArray(["--bots=3"])), 3)
+	assert_true(_main._headless_bots_flow is MainHeadlessBotsFlowPort)
+	assert_eq((_main._headless_bots_flow as RefCounted).get_script().resource_path, "res://game/MainHeadlessBotsFlow.gd")
+	assert_true(_main._prewarm_queue.is_ready("res://game/MainHeadlessBotsFlow.gd"))
