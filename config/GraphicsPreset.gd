@@ -99,3 +99,48 @@ enum FrameCap { DISPLAY_REFRESH, FIXED, UNCAPPED }
 ## Bontago-1pi.11.67 (fix 2a): Viewport.Scaling3DMode used while render_scale_3d < 1 (0 bilinear,
 ## 1 FSR 1.0, 2 FSR 2.2). Ignored at native resolution.
 @export_range(0, 2) var render_scale_3d_mode: int = 0
+
+
+## Bontago-1pi.11.86: the one table of what each user-editable field may be set to. The Options
+## Graphics tab builds its option lists / slider ranges from LIMITS and Settings sanitizes every
+## override (live edit and load from a hand-edited settings.cfg) against it. Bools: no entry.
+const MSAA_3D: Dictionary = {"values": [0, 1, 2]}
+const RENDER_SCALE_3D: Dictionary = {"min": 0.5, "max": 1.0, "step": 0.05}
+const RENDER_SCALE_3D_MODE: Dictionary = {"values": [0, 1, 2]}
+const SHADOW_ATLAS_SIZE: Dictionary = {"values": [1024, 2048, 4096, 8192]}
+const SUN_SHADOW_MODE: Dictionary = {"values": [0, 1, 2]}
+const SUN_SHADOW_MAX_DISTANCE: Dictionary = {"min": 30.0, "max": 150.0, "step": 10.0}
+const REFLECTION_PROBE_MODE: Dictionary = {"values": [0, 1, 2, 3]}
+const CLOUD_PUFF_DENSITY: Dictionary = {"min": 0.0, "max": 1.0, "step": 0.05}
+const FRAME_CAP_MODE: Dictionary = {"values": [0, 1, 2]}
+const FIXED_FPS: Dictionary = {"min": 30.0, "max": 360.0, "step": 10.0}
+
+const LIMITS: Dictionary = {
+	&"msaa_3d": MSAA_3D,
+	&"render_scale_3d": RENDER_SCALE_3D,
+	&"render_scale_3d_mode": RENDER_SCALE_3D_MODE,
+	&"shadow_atlas_size": SHADOW_ATLAS_SIZE,
+	&"sun_shadow_mode": SUN_SHADOW_MODE,
+	&"sun_shadow_max_distance": SUN_SHADOW_MAX_DISTANCE,
+	&"reflection_probe_mode": REFLECTION_PROBE_MODE,
+	&"cloud_puff_density": CLOUD_PUFF_DENSITY,
+	&"frame_cap_mode": FRAME_CAP_MODE,
+	&"fixed_fps": FIXED_FPS,
+}
+
+
+static func limits_for(field: StringName) -> Dictionary:
+	return LIMITS.get(field, {}) as Dictionary
+
+
+## `value` (already coerced to the field's type) made valid for `field`: an enum value outside the
+## option set returns null (drop it); a number is clamped to [min, max] and, for an int field,
+## stays an int. Unlimited fields return `value` unchanged.
+static func sanitize(field: StringName, value: Variant) -> Variant:
+	var limits: Dictionary = limits_for(field)
+	if limits.has("values"):
+		return value if (limits["values"] as Array).has(value) else null
+	if limits.has("min"):
+		var clamped: float = clampf(float(value), float(limits["min"]), float(limits["max"]))
+		return roundi(clamped) if typeof(value) == TYPE_INT else clamped
+	return value

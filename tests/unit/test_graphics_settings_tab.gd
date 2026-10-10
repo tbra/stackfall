@@ -185,3 +185,28 @@ func test_gamepad_dpad_down_visits_every_graphics_control() -> void:
 		await _pad_tap(JOY_BUTTON_DPAD_DOWN)
 	for control: Control in expected:
 		assert_true(seen.has(control), "d-pad down reaches %s" % control.name)
+
+
+func test_out_of_range_and_bogus_saved_overrides_are_clamped_or_dropped() -> void:
+	var cfg: ConfigFile = ConfigFile.new()
+	cfg.set_value("graphics", "preset", "medium")
+	cfg.set_value("graphics", "overrides", {
+		"fixed_fps": 100000, "render_scale_3d": 0.01, "sun_shadow_max_distance": -5.0,
+		"shadow_atlas_size": 3000, "msaa_3d": 99, "frame_cap_mode": 7, "reflection_probe_mode": -1,
+		"cloud_puff_density": 9.0,
+	})
+	cfg.save(_cfg_path)
+	var loaded: Node = _fresh_at_same_path()
+	var effective: GraphicsPreset = loaded.current_graphics_preset()
+	var medium: GraphicsPreset = load("res://config/graphics_presets/medium.tres") as GraphicsPreset
+	assert_eq(effective.fixed_fps, int(GraphicsPreset.FIXED_FPS["max"]), "clamped to the tab's max")
+	assert_almost_eq(effective.render_scale_3d, float(GraphicsPreset.RENDER_SCALE_3D["min"]), 0.0001)
+	assert_almost_eq(effective.sun_shadow_max_distance, float(GraphicsPreset.SUN_SHADOW_MAX_DISTANCE["min"]), 0.0001)
+	assert_almost_eq(effective.cloud_puff_density, 1.0, 0.0001)
+	assert_eq(effective.shadow_atlas_size, medium.shadow_atlas_size, "bogus enum dropped")
+	assert_eq(effective.msaa_3d, medium.msaa_3d)
+	assert_eq(effective.frame_cap_mode, medium.frame_cap_mode)
+	assert_eq(effective.reflection_probe_mode, medium.reflection_probe_mode)
+	# The same table guards live edits.
+	loaded.set_graphics_override(&"msaa_3d", 42)
+	assert_eq(loaded.current_graphics_preset().msaa_3d, medium.msaa_3d)

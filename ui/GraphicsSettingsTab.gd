@@ -37,17 +37,17 @@ const SECTION_FRAME_RATE: String = "Frame rate"
 ## Display order top to bottom. kind TOGGLE | CYCLE (values + labels) | SLIDER (min, max, step,
 ## fmt: "percent" | "meters" | "fps").
 const ROW_SECTION_QUALITY: Dictionary = {"section": SECTION_QUALITY}
-const ROW_MSAA_3D: Dictionary = {"field": &"msaa_3d", "label": "Anti-aliasing", "kind": Kind.CYCLE, "values": [0, 1, 2], "labels": ["Off", "MSAA 2x", "MSAA 4x"]}
-const ROW_RENDER_SCALE_3D: Dictionary = {"field": &"render_scale_3d", "label": "Render scale", "kind": Kind.SLIDER, "min": 0.5, "max": 1.0, "step": 0.05, "fmt": "percent"}
-const ROW_RENDER_SCALE_3D_MODE: Dictionary = {"field": &"render_scale_3d_mode", "label": "Upscaler", "kind": Kind.CYCLE, "values": [0, 1, 2], "labels": ["Bilinear", "FSR 1.0", "FSR 2.2"]}
-const ROW_SHADOW_ATLAS_SIZE: Dictionary = {"field": &"shadow_atlas_size", "label": "Shadow detail", "kind": Kind.CYCLE, "values": [1024, 2048, 4096, 8192], "labels": ["1K", "2K", "4K", "8K"]}
-const ROW_SUN_SHADOW_MODE: Dictionary = {"field": &"sun_shadow_mode", "label": "Shadow cascades", "kind": Kind.CYCLE, "values": [0, 1, 2], "labels": ["1 split", "2 splits", "4 splits"]}
-const ROW_SUN_SHADOW_MAX_DISTANCE: Dictionary = {"field": &"sun_shadow_max_distance", "label": "Shadow range", "kind": Kind.SLIDER, "min": 30.0, "max": 150.0, "step": 10.0, "fmt": "meters"}
-const ROW_REFLECTION_PROBE_MODE: Dictionary = {"field": &"reflection_probe_mode", "label": "Reflections", "kind": Kind.CYCLE, "values": [0, 1, 2, 3], "labels": ["Off", "Once", "Interval", "Always"]}
+const ROW_MSAA_3D: Dictionary = {"field": &"msaa_3d", "label": "Anti-aliasing", "kind": Kind.CYCLE, "labels": ["Off", "MSAA 2x", "MSAA 4x"]}
+const ROW_RENDER_SCALE_3D: Dictionary = {"field": &"render_scale_3d", "label": "Render scale", "kind": Kind.SLIDER, "fmt": "percent"}
+const ROW_RENDER_SCALE_3D_MODE: Dictionary = {"field": &"render_scale_3d_mode", "label": "Upscaler", "kind": Kind.CYCLE, "labels": ["Bilinear", "FSR 1.0", "FSR 2.2"]}
+const ROW_SHADOW_ATLAS_SIZE: Dictionary = {"field": &"shadow_atlas_size", "label": "Shadow detail", "kind": Kind.CYCLE, "labels": ["1K", "2K", "4K", "8K"]}
+const ROW_SUN_SHADOW_MODE: Dictionary = {"field": &"sun_shadow_mode", "label": "Shadow cascades", "kind": Kind.CYCLE, "labels": ["1 split", "2 splits", "4 splits"]}
+const ROW_SUN_SHADOW_MAX_DISTANCE: Dictionary = {"field": &"sun_shadow_max_distance", "label": "Shadow range", "kind": Kind.SLIDER, "fmt": "meters"}
+const ROW_REFLECTION_PROBE_MODE: Dictionary = {"field": &"reflection_probe_mode", "label": "Reflections", "kind": Kind.CYCLE, "labels": ["Off", "Once", "Interval", "Always"]}
 const ROW_SSR_ENABLED: Dictionary = {"field": &"ssr_enabled", "label": "Screen reflections", "kind": Kind.TOGGLE}
 const ROW_GLOW_ENABLED: Dictionary = {"field": &"glow_enabled", "label": "Glow", "kind": Kind.TOGGLE}
 const ROW_VOLUMETRIC_FOG_ENABLED: Dictionary = {"field": &"volumetric_fog_enabled", "label": "Volumetric fog", "kind": Kind.TOGGLE}
-const ROW_CLOUD_PUFF_DENSITY: Dictionary = {"field": &"cloud_puff_density", "label": "Cloud density", "kind": Kind.SLIDER, "min": 0.0, "max": 1.0, "step": 0.05, "fmt": "percent"}
+const ROW_CLOUD_PUFF_DENSITY: Dictionary = {"field": &"cloud_puff_density", "label": "Cloud density", "kind": Kind.SLIDER, "fmt": "percent"}
 const ROW_SECTION_EFFECTS: Dictionary = {"section": SECTION_EFFECTS}
 const ROW_CLOUD_SHADOWS_ENABLED: Dictionary = {"field": &"cloud_shadows_enabled", "label": "Cloud shadows", "kind": Kind.TOGGLE}
 const ROW_AURORA_ENABLED: Dictionary = {"field": &"aurora_enabled", "label": "Aurora", "kind": Kind.TOGGLE}
@@ -59,8 +59,8 @@ const ROW_DISC_FINE_DETAIL_ENABLED: Dictionary = {"field": &"disc_fine_detail_en
 const ROW_HOLE_VOID_ANIMATED: Dictionary = {"field": &"hole_void_animated", "label": "Animated void", "kind": Kind.TOGGLE}
 const ROW_GIFT_IDLE_GLOW_ENABLED: Dictionary = {"field": &"gift_idle_glow_enabled", "label": "Crate glow", "kind": Kind.TOGGLE}
 const ROW_SECTION_FRAME_RATE: Dictionary = {"section": SECTION_FRAME_RATE}
-const ROW_FRAME_CAP_MODE: Dictionary = {"field": &"frame_cap_mode", "label": "Frame cap", "kind": Kind.CYCLE, "values": [0, 1, 2], "labels": ["Display refresh", "Fixed", "Uncapped"]}
-const ROW_FIXED_FPS: Dictionary = {"field": &"fixed_fps", "label": "Fixed fps", "kind": Kind.SLIDER, "min": 30.0, "max": 360.0, "step": 10.0, "fmt": "fps"}
+const ROW_FRAME_CAP_MODE: Dictionary = {"field": &"frame_cap_mode", "label": "Frame cap", "kind": Kind.CYCLE, "labels": ["Display refresh", "Fixed", "Uncapped"]}
+const ROW_FIXED_FPS: Dictionary = {"field": &"fixed_fps", "label": "Fixed fps", "kind": Kind.SLIDER, "fmt": "fps"}
 
 const ROWS: Array[Dictionary] = [
 	ROW_SECTION_QUALITY,
@@ -175,7 +175,7 @@ func refresh_from_settings() -> void:
 			Kind.TOGGLE:
 				(entry["control"] as CheckButton).set_pressed_no_signal(bool(value))
 			Kind.CYCLE:
-				(entry["control"] as CycleSelector).select((row["values"] as Array).find(int(value)))
+				(entry["control"] as CycleSelector).select((GraphicsPreset.limits_for(field)["values"] as Array).find(int(value)))
 			Kind.SLIDER:
 				var slider: HSlider = entry["control"] as HSlider
 				slider.set_value_no_signal(float(value))
@@ -245,9 +245,10 @@ func _build_cycle_row(row: Dictionary) -> void:
 func _build_slider_row(row: Dictionary) -> void:
 	var box: HBoxContainer = _make_row(row["label"] as String)
 	var slider: HSlider = HSlider.new()
-	slider.min_value = float(row["min"])
-	slider.max_value = float(row["max"])
-	slider.step = float(row["step"])
+	var limits: Dictionary = GraphicsPreset.limits_for(row["field"] as StringName)
+	slider.min_value = float(limits["min"])
+	slider.max_value = float(limits["max"])
+	slider.step = float(limits["step"])
 	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_child(slider)
 	SliderNav.apply(slider)
@@ -279,7 +280,7 @@ func _on_toggle(pressed: bool, field: StringName) -> void:
 
 
 func _on_cycle_selected(index: int, field: StringName) -> void:
-	var values: Array = _by_field[field]["row"]["values"]
+	var values: Array = GraphicsPreset.limits_for(field)["values"]
 	if index >= 0 and index < values.size():
 		_edit(field, values[index])
 

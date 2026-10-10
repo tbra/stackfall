@@ -336,6 +336,9 @@ func set_graphics_override(field: StringName, value: Variant) -> void:
 	var coerced: Variant = _coerce_graphics_value(value, base_value)
 	if coerced == null:
 		return
+	coerced = GraphicsPreset.sanitize(field, coerced)
+	if coerced == null:
+		return
 	if is_equal_approx_variant(coerced, base_value):
 		if not _graphics_overrides.has(field):
 			return
@@ -1025,7 +1028,7 @@ func _save() -> void:
 		push_warning("Settings: failed to save %s (error %d)" % [effective_path(), err])
 
 
-## Old files have no overrides key (load unchanged); unknown fields and mistyped values are dropped.
+## Old files have no overrides key (load unchanged); unknown fields, mistyped values and invalid enum values are dropped; numbers are clamped.
 func _load_graphics_overrides(cfg: ConfigFile) -> void:
 	var raw: Variant = cfg.get_value(SECTION_GRAPHICS, KEY_GRAPHICS_OVERRIDES, {})
 	var base: GraphicsPreset = _load_preset_resource(_current_preset_id)
@@ -1037,6 +1040,8 @@ func _load_graphics_overrides(cfg: ConfigFile) -> void:
 			continue
 		var base_value: Variant = base.get(field)
 		var coerced: Variant = _coerce_graphics_value((raw as Dictionary)[key], base_value)
+		if coerced != null:
+			coerced = GraphicsPreset.sanitize(field, coerced)  # drop bogus enums, clamp ranges
 		if coerced != null and not is_equal_approx_variant(coerced, base_value):
 			_graphics_overrides[field] = coerced
 
