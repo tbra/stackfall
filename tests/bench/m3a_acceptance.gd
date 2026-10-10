@@ -202,6 +202,9 @@ var _reconnect_pass: bool = false
 ## Host: events recorded by Events.net_peer_left / net_peer_joined for the slot.
 var _rc_left: Dictionary = {}
 var _rc_joined: Dictionary = {}
+## Bontago-1pi.139: blocks the host world legitimately removed (kill plane: tumbling
+## auto-drops fall off the field) between the drop and the rejoin. Not a reconnect loss.
+var _rc_removed_during_drop: int = 0
 ## Host: the client report (from _rpc_reconnect_done), empty until it arrives.
 var _rc_client_done: Dictionary = {}
 ## Client: the host expectations (from _rpc_reconnect_expect).
@@ -299,6 +302,7 @@ func _ready() -> void:
 	_reconnect_pass = _flag_given("--reconnect-pass")
 	if _reconnect_pass:
 		Events.net_peer_left.connect(_on_rc_peer_left)
+		Events.block_removed.connect(_on_rc_block_removed)
 		Events.net_peer_joined.connect(_on_rc_peer_joined)
 
 	Events.block_placed.connect(_on_block_placed)
@@ -1085,6 +1089,11 @@ func _orphans() -> int:
 	return int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT))
 
 
+func _on_rc_block_removed(_block: RigidBody3D, _reason: String) -> void:
+	if not _rc_left.is_empty() and _rc_joined.is_empty():
+		_rc_removed_during_drop += 1
+
+
 func _on_rc_peer_left(peer_id: int, slot_id: int, _reason: int) -> void:
 	if slot_id != RECONNECT_SLOT_ID or not _rc_left.is_empty():
 		return
@@ -1147,8 +1156,11 @@ func _run_host_reconnect_phase(initial_player_count: int) -> void:
 	_check("reconnect_new_connection", int(_rc_joined["peer"]) != old_peer and int(_rc_joined["slot_peer"]) == int(_rc_joined["peer"]),
 		"old_peer=%d joined=%s" % [old_peer, _rc_joined])
 	_check("reconnect_grace_cleared", is_equal_approx(float(_rc_joined["grace"]), -1.0), "grace_left=%.2f" % float(_rc_joined["grace"]))
-	_check("reconnect_no_block_lost_during_drop", int(_rc_joined["blocks"]) >= int(_rc_left["blocks"]),
-		"blocks at drop=%d at rejoin=%d" % [int(_rc_left["blocks"]), int(_rc_joined["blocks"])])
+	# Bontago-1pi.139: a removal the host itself announced (block_removed) is not a loss.
+	_check("reconnect_no_block_lost_during_drop",
+		int(_rc_joined["blocks"]) + _rc_removed_during_drop >= int(_rc_left["blocks"]),
+		"blocks at drop=%d at rejoin=%d host_removals_during_drop=%d" % [
+			int(_rc_left["blocks"]), int(_rc_joined["blocks"]), _rc_removed_during_drop])
 	var replayed: bool = await _wait_for_condition(
 		func() -> bool: return int(_match_net.get(&"replays_acknowledged")) > int(_rc_joined["acked_before"]),
 		LATE_JOIN_ACK_TIMEOUT_SECONDS)
@@ -1157,7 +1169,11 @@ func _run_host_reconnect_phase(initial_player_count: int) -> void:
 	_check("reconnect_match_continues", Match.state() == Match.State.PLAYING, "state=%d" % Match.state())
 	var peer_now: int = int(_rc_joined["peer"])
 	if Net.peer_ids().has(peer_now):
-		_rpc_reconnect_expect.rpc_id(peer_now, int(_rc_joined["blocks"]), _live_blocks().size(), _owner_hash())
+		# Bontago-1pi.139: the host count only falls while it settles (kill-plane
+		# removals), so the client's replay snapshot lies between the two samples.
+		var now_blocks: int = _live_blocks().size()
+		_rpc_reconnect_expect.rpc_id(peer_now, mini(int(_rc_joined["blocks"]), now_blocks),
+			maxi(int(_rc_joined["blocks"]), now_blocks), _owner_hash())
 	if not await _wait_for_condition(func() -> bool: return not _rc_client_done.is_empty(), RECONNECT_EVENT_TIMEOUT_SECONDS):
 		_check("reconnect_client_reported", false, "client never sent its verdict")
 		return
