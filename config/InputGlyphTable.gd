@@ -39,3 +39,31 @@ func combo(component_ids: PackedStringArray) -> Texture2D:
 	var sorted: Array = Array(component_ids)
 	sorted.sort()
 	return combos.get("+".join(PackedStringArray(sorted))) as Texture2D
+
+
+## Stackfall Arcade pad face-button caps (docs/ui_reskin/components.md KeyPrompt): A mint, B flare,
+## X player-2 blue, Y rim gold, all read from ArcadeVisualTuning (single source of the colours).
+## Returns the face colour, or TRANSPARENT for a button that is not a face button.
+static func face_button_color(button: int, arcade: ArcadeVisualTuning) -> Color:
+	match button:
+		JOY_BUTTON_A:
+			return arcade.mint_color
+		JOY_BUTTON_B:
+			return arcade.flare_color
+		JOY_BUTTON_X:
+			return arcade.player_2_color
+		JOY_BUTTON_Y:
+			return arcade.rim_color
+	return Color.TRANSPARENT
+
+
+## The dark lower lip of a face-button cap; Color.TRANSPARENT lets the block recipe derive it.
+static func face_button_lip_color(button: int, arcade: ArcadeVisualTuning) -> Color:
+	match button:
+		JOY_BUTTON_A:
+			return arcade.mint_lip_color
+		JOY_BUTTON_B:
+			return arcade.flare_lip_color
+		JOY_BUTTON_Y:
+			return arcade.rim_lip_color
+	return Color.TRANSPARENT
