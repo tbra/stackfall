@@ -346,7 +346,7 @@ func test_lobby_settings_all_visible_or_reachable_at_every_size() -> void:
 		await _settle()
 		# Lobby rework (Bontago-1pi.53): advanced options live in collapsible blocks;
 		# open every section and Advanced block so they are checked for reachability too.
-		for section: LobbySection in lobby._sections():
+		for section: UiSection in lobby._sections():
 			if section.has_advanced():
 				section.set_advanced_open(true)
 		await _settle()
@@ -354,7 +354,7 @@ func test_lobby_settings_all_visible_or_reachable_at_every_size() -> void:
 		assert_true(scroll.follow_focus, "settings scroll follows focus at %s" % window)
 		var controls: Array[Control] = _focusable_settings_controls(scroll)
 		assert_gt(controls.size(), 8, "settings controls found at %s" % window)
-		for name: String in ["%GravitySlider", "%SpecialFreqSlider", "%GiftsCheck"]:
+		for name: String in ["%GravityMeter", "%SpecialFreqMeter", "%GiftsCheck"]:
 			assert_true(controls.has(lobby.get_node(name)), "%s focusable at %s" % [name, window])
 		for control: Control in controls:
 			# The column rebalance keeps content within the visible rect where it fits;
@@ -365,8 +365,8 @@ func test_lobby_settings_all_visible_or_reachable_at_every_size() -> void:
 			var view: Rect2 = scroll.get_global_rect().grow(EDGE_EPS)
 			assert_true(view.encloses(control.get_global_rect()),
 				"%s %s not visible after focus at %s (view %s)" % [control.name, control.get_global_rect(), window, view])
-		# SpinBox focus lives on its internal LineEdit, so scroll to the box explicitly.
-		var goal_spin: Control = lobby.get_node("%GoalFlagSpin") as Control
+		# The goal-flag stepper takes focus itself; scroll to it explicitly too.
+		var goal_spin: Control = lobby.get_node("%GoalFlagStepper") as Control
 		scroll.ensure_control_visible(goal_spin)
 		await get_tree().process_frame
 		if goal_spin.is_visible_in_tree():

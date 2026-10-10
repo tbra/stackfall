@@ -2,7 +2,8 @@ class_name LobbyOpenSeatRow
 extends PanelContainer
 ## The Players column's open seat (Stackfall Arcade, docs/ui_reskin/components.md "PlayerSlot"): a dashed
 ## outline holding a dimmed diamond in the next free colour, the words "Open seat" and the host's
-## "+ Add bot" button. Look only: the button is the panel's own %AddBotButton, reparented here.
+## "+ Add bot" button. Look only: the button is the panel's own %AddBotButton (a UiBlockButton, so
+## it is a row item as tall as the filled rows' controls), reparented here.
 
 const OPEN_SEAT_TEXT: String = "Open seat"
 
@@ -24,7 +25,7 @@ func build(layout_tuning: LobbyLayoutTuning, add_button: Button) -> void:
 	inset.content_margin_bottom = float(arcade.space_2_px)
 	add_theme_stylebox_override("panel", inset)
 	var layout: HBoxContainer = HBoxContainer.new()
-	layout.add_theme_constant_override("separation", layout_tuning.seat_row_separation_px)
+	layout.add_theme_constant_override("separation", arcade.space_2_px)
 	add_child(layout)
 	var box: CenterContainer = CenterContainer.new()
 	box.custom_minimum_size = _layout_tuning.color_box_size_px
@@ -42,10 +43,6 @@ func build(layout_tuning: LobbyLayoutTuning, add_button: Button) -> void:
 	if add_button.get_parent() != null:
 		add_button.get_parent().remove_child(add_button)
 	layout.add_child(add_button)
-	# Bontago-1pi.146: the same control height as the filled rows' pills.
-	add_button.custom_minimum_size.y = float(layout_tuning.seat_control_height_px)
-	add_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	MenuStyleFactory.apply_block(add_button, arcade.disc_600_color, arcade.cream_color, true)
 
 
 ## Paints the diamond in [param color], dimmed to the tuning's open-seat alpha.

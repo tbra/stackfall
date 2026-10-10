@@ -11,7 +11,7 @@ extends Resource
 ## Width of the label column of a UiRow.
 @export var row_label_width_px: int = 180
 ## Minimum width of a UiRow's optional value cell (the readout right of the control).
-@export var row_value_cell_width_px: int = 56
+@export var row_value_cell_width_px: int = 72
 
 ## Minimum width of a text status badge.
 @export var badge_min_width_px: int = 56

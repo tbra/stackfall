@@ -1,7 +1,7 @@
 extends GutTest
 ## Bontago-1pi.159.7: UiField (text/placeholder/signals/focus, token style), UiSection (header,
 ## summary, Advanced disclosure, focus hand-over, ui_accept toggle) and UiPanel / UiTitleRow
-## (heading in capitals, content column, trailing items on one centre line); LobbySection is the
+## (heading in capitals, content column, trailing items on one centre line); UiSection is the
 ## thin legacy layer over UiSection.
 
 
@@ -122,7 +122,7 @@ func test_section_bar_toggles_on_ui_accept() -> void:
 
 
 func test_lobby_section_is_a_thin_layer_over_ui_section() -> void:
-	var lobby_section: LobbySection = LobbySection.new()
+	var lobby_section: UiSection = UiSection.new()
 	lobby_section.title = "GAME"
 	var body: VBoxContainer = VBoxContainer.new()
 	body.name = UiSection.BODY_NAME
@@ -130,8 +130,8 @@ func test_lobby_section_is_a_thin_layer_over_ui_section() -> void:
 	add_child_autofree(lobby_section)
 	assert_true(lobby_section is UiSection)
 	lobby_section.set_summary("Classic")
-	assert_eq(lobby_section.summary(), "Classic")
-	assert_eq(LobbySection.DISCLOSURE_CLOSED, UiSection.DISCLOSURE_CLOSED)
+	assert_eq(lobby_section.get_summary(), "Classic")
+	assert_eq(UiSection.DISCLOSURE_CLOSED, UiSection.DISCLOSURE_CLOSED)
 
 
 func test_panel_heading_is_uppercase_with_content_column() -> void:

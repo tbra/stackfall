@@ -397,7 +397,7 @@ func _make_lobby(is_host: bool) -> Lobby:
 
 func test_lobby_weather_row_has_every_mode_in_enum_order_and_defaults_changing() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var option: CycleSelector = lobby.get_node("%WeatherOption")
+	var option: UiDropdown = lobby.get_node("%WeatherOption")
 	assert_eq(option.item_count, MatchConfig.WeatherMode.size())
 	assert_eq(option.get_item_text(MatchConfig.WeatherMode.RANDOM), "Random")
 	assert_eq(option.get_item_text(MatchConfig.WeatherMode.CHANGING), "Changing")
@@ -407,7 +407,7 @@ func test_lobby_weather_row_has_every_mode_in_enum_order_and_defaults_changing()
 
 func test_host_choosing_weather_publishes_it() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var option: CycleSelector = lobby.get_node("%WeatherOption")
+	var option: UiDropdown = lobby.get_node("%WeatherOption")
 	option.select(MatchConfig.WeatherMode.SNOW)
 	option.item_selected.emit(MatchConfig.WeatherMode.SNOW)
 	var calls: Array[Dictionary] = (lobby.net_provider as FakeNet).set_lobby_data_calls
@@ -417,7 +417,7 @@ func test_host_choosing_weather_publishes_it() -> void:
 
 func test_client_row_is_disabled_and_mirrors_the_hosts_choice() -> void:
 	var lobby: Lobby = _make_lobby(false)
-	var option: CycleSelector = lobby.get_node("%WeatherOption")
+	var option: UiDropdown = lobby.get_node("%WeatherOption")
 	assert_true(option.disabled, "clients cannot edit match settings")
 	var config: MatchConfig = MatchConfig.new()
 	config.weather_mode = MatchConfig.WeatherMode.CHANGING
@@ -429,7 +429,7 @@ func test_client_row_is_disabled_and_mirrors_the_hosts_choice() -> void:
 
 func test_host_row_is_enabled_and_reachable_from_the_popup_focus_chain() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var option: CycleSelector = lobby.get_node("%WeatherOption")
+	var option: UiDropdown = lobby.get_node("%WeatherOption")
 	assert_false(option.disabled)
 	assert_eq(option.focus_mode, Control.FOCUS_ALL)
 	assert_false(option.focus_neighbor_top.is_empty(), "gamepad d-pad can reach it")
@@ -439,7 +439,7 @@ func test_host_row_is_enabled_and_reachable_from_the_popup_focus_chain() -> void
 func test_a_hostile_weather_mode_over_the_wire_is_clamped() -> void:
 	var lobby: Lobby = _make_lobby(false)
 	lobby._apply_data({"weather_mode": 250})
-	var option: CycleSelector = lobby.get_node("%WeatherOption")
+	var option: UiDropdown = lobby.get_node("%WeatherOption")
 	assert_eq(option.selected, MatchConfig.WeatherMode.CHANGING)
 
 

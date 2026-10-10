@@ -236,7 +236,7 @@ func _section_bots_match() -> void:
 	await _shot("lobby", "default")
 	# Sections are enumerated from the Lobby; only their Advanced block collapses.
 	var sections: Array = lobby.call("_sections")
-	for section: LobbySection in sections:
+	for section: UiSection in sections:
 		section.set_advanced_open(true)
 	await _settle(SETTLE_FRAMES)
 	await _shot("lobby", "advanced_open")
@@ -245,7 +245,7 @@ func _section_bots_match() -> void:
 		scroll.scroll_vertical = int(scroll.get_v_scroll_bar().max_value)
 		await _settle(SETTLE_FRAMES)
 		await _shot("lobby", "advanced_open_scrolled_bottom")
-	for section: LobbySection in sections:
+	for section: UiSection in sections:
 		section.set_advanced_open(false)
 	if scroll != null:
 		scroll.scroll_vertical = 0

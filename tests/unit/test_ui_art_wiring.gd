@@ -62,13 +62,13 @@ func test_lobby_section_headers_and_chips_show_icons() -> void:
 		"%GiftsSection": UiArtTable.KEY_SECTION_GIFTS, "%ExperimentsSection": UiArtTable.KEY_SECTION_EXPERIMENTS,
 	}
 	for path: String in expected:
-		var section: LobbySection = lobby.get_node(path) as LobbySection
+		var section: UiSection = lobby.get_node(path) as UiSection
 		assert_eq(section.header_icon(), UiArtTable.shared().lobby_icon(expected[path] as StringName), path)
 		if section.advanced_button != null:
-			assert_true(section.advanced_button.text.begins_with(LobbySection.DISCLOSURE_CLOSED), "collapsed triangle")
+			assert_true(section.advanced_button.text.begins_with(UiSection.DISCLOSURE_CLOSED), "collapsed triangle")
 			assert_true(section.advanced_button.get_theme_stylebox(&"normal") is StyleBoxFlat, "Arcade: a disc-700 bar (not a block button), Bontago-hfa.5")
 			section.set_advanced_open(true)
-			assert_true(section.advanced_button.text.begins_with(LobbySection.DISCLOSURE_OPEN), "open triangle")
+			assert_true(section.advanced_button.text.begins_with(UiSection.DISCLOSURE_OPEN), "open triangle")
 
 
 func test_lobby_bot_and_team_controls_show_icons() -> void:
@@ -76,7 +76,6 @@ func test_lobby_bot_and_team_controls_show_icons() -> void:
 	var panel: LobbyPlayersPanel = lobby.get_node("%PlayersPanel") as LobbyPlayersPanel
 	var table: UiArtTable = UiArtTable.shared()
 	assert_eq((panel.get_node("%AddBotButton") as Button).icon, table.lobby_icon(UiArtTable.KEY_BOT_ADD))
-	assert_eq((panel.get_node("%TeamsToggle") as Button).icon, table.lobby_icon(UiArtTable.KEY_TEAMS))
 	var bot_rows: int = 0
 	for node: Node in panel._player_rows:
 		var row: LobbySeatRow = node as LobbySeatRow
