@@ -64,7 +64,7 @@ func test_coarse_step_is_a_twentieth_of_the_range_for_fine_sliders_only() -> voi
 func test_gamepad_dpad_and_keyboard_move_a_volume_slider_by_the_configured_step() -> void:
 	var menu: OptionsMenu = await _menu()
 	var slider: HSlider = menu.get_node("%MasterVolumeSlider") as HSlider
-	var coarse: float = SliderNav.coarse_step(slider.min_value, slider.max_value, slider.step)
+	var coarse: float = SliderNav.step_for(slider)
 	assert_gt(coarse, slider.step, "a coarser keyboard/gamepad step is configured")
 	slider.set_value_no_signal(0.5)
 	slider.grab_focus()
@@ -92,7 +92,7 @@ func _stick(axis_value: float) -> InputEventJoypadMotion:
 func test_gamepad_stick_motion_steps_a_slider_once_per_push() -> void:
 	var menu: OptionsMenu = await _menu()
 	var slider: HSlider = menu.get_node("%MoveSpeedSlider") as HSlider
-	var coarse: float = SliderNav.coarse_step(slider.min_value, slider.max_value, slider.step)
+	var coarse: float = SliderNav.step_for(slider)
 	slider.set_value_no_signal(1.0)
 	slider.gui_input.emit(_stick(1.0))
 	slider.gui_input.emit(_stick(1.0))
@@ -108,7 +108,7 @@ func test_every_lobby_and_options_slider_is_configured() -> void:
 	for slider_name: String in ["MasterVolumeSlider", "MusicVolumeSlider", "SfxVolumeSlider", "WeatherVolumeSlider", "RumbleStrengthSlider", "MoveSpeedSlider"]:
 		var slider: HSlider = menu.get_node("%" + slider_name) as HSlider
 		assert_false(slider.scrollable, "%s ignores the wheel" % slider_name)
-		assert_gt(SliderNav.coarse_step(slider.min_value, slider.max_value, slider.step), slider.step, "%s steps coarsely" % slider_name)
+		assert_gt(SliderNav.step_for(slider), slider.step, "%s steps coarsely" % slider_name)
 	var lobby: Lobby = autofree(LOBBY_SCENE.instantiate()) as Lobby
 	add_child_autofree(lobby)
 	await _settle()

@@ -23,6 +23,7 @@ static func attach(slider: HSlider) -> SegmentMeter:
 	slider.add_theme_icon_override("grabber", blank)
 	slider.add_theme_icon_override("grabber_highlight", blank)
 	slider.add_theme_icon_override("grabber_disabled", blank)
+	slider.set_meta(SliderNav.META_SEGMENT_COUNT, OPTIONS_TUNING.segment_count)
 	slider.custom_minimum_size.y = float(OPTIONS_TUNING.meter_height_px)
 	var meter: SegmentMeter = SegmentMeter.new()
 	meter.name = "SegmentMeter"
