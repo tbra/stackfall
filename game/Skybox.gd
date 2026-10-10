@@ -370,7 +370,7 @@ func _process(delta: float) -> void:
 		return
 	_radiance_accum_s = minf(_radiance_accum_s - interval, interval)
 	if _cycle_theme != null and _cycle_locked_phase < 0.0:
-		update_cycle_clock(SnapshotSync.sky_cycle_seconds())
+		update_cycle_clock(MatchContext.current().shared_clock_seconds())
 	elif _cycle_theme == null:
 		_tick_radiance()
 
@@ -445,7 +445,7 @@ func cycle_length_seconds() -> float:
 ## running cycle shows at the shared clock now (SkyThemeDef.cycle_start_phase
 ## when < 0); it is ignored while locked.
 func start_cycle(lock_phase: float = -1.0, start_phase: float = -1.0) -> void:
-	_start_cycle_at(SnapshotSync.sky_cycle_seconds(), lock_phase, start_phase)
+	_start_cycle_at(MatchContext.current().shared_clock_seconds(), lock_phase, start_phase)
 
 
 ## Locks the active cycle at `phase` (0..1) or, when `phase` < 0, unlocks it
