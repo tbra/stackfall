@@ -112,6 +112,9 @@ var _prewarm_background: bool = false
 ## The menu has been shown once, so _process may advance the queue (the Lobby chunk loads first).
 var _prewarm_polling: bool = false
 var _quit_requested: bool = false
+var _quit_done: bool = false
+## A Loading... click is waiting for its frame; further activations are dropped meanwhile.
+var _click_pending: bool = false
 ## Test seams: force the background path under GUT; how a deferred window close quits.
 var force_background_prewarm: bool = false
 var quit_callable: Callable = Callable()
@@ -235,6 +238,9 @@ func _notification(what: int) -> void:
 
 
 func _quit_now() -> void:
+	if _quit_done:
+		return
+	_quit_done = true
 	set_process(false)
 	if quit_callable.is_valid():
 		quit_callable.call()
@@ -245,7 +251,10 @@ func _quit_now() -> void:
 
 ## Drives the one serial background loader (one request in flight) once the menu is up.
 func _process(_delta: float) -> void:
-	if not _prewarm_background or not _prewarm_polling:
+	if not _prewarm_background:
+		return
+	# A close during the splash still finishes the in-flight chunk and quits (menu never shows).
+	if not _prewarm_polling and not _quit_requested:
 		return
 	_prewarm_queue.poll()
 	if _quit_requested:
@@ -287,6 +296,10 @@ func _stop_background_prewarm() -> void:
 ## Menu hand-off (after the splash, or at once without one): the Lobby chunk is collected first
 ## so Host/Join never wait, then the menu shows and the remaining chunks prewarm behind it.
 func _show_main_menu_after_prewarm() -> void:
+	if _quit_requested:  # closed during the splash: never flash the menu up
+		_prewarm_queue.collect_in_flight()
+		_quit_now()
+		return
 	if _prewarm_background:
 		_prewarm_queue.ensure(LOBBY_SCENE_PATH)
 	_show_main_menu()
@@ -295,15 +308,21 @@ func _show_main_menu_after_prewarm() -> void:
 
 ## A menu click whose target is still prewarming: shows "Loading...", lets one frame render it,
 ## then the caller's ensure() blocks for at most the remaining chunk. No wait once loaded.
-func _await_prewarmed(paths: PackedStringArray) -> void:
+## Returns false when this activation must be dropped (another one is already waiting).
+func _await_prewarmed(paths: PackedStringArray) -> bool:
+	if _click_pending:
+		return false
 	if not _prewarm_background:
-		return
+		return true
 	for path: String in paths:
 		if not _prewarm_queue.is_ready(path):
 			if _main_menu != null:
 				_main_menu.show_status(LOADING_STATUS_TEXT)
+			_click_pending = true
 			await get_tree().process_frame
-			return
+			_click_pending = false
+			return true
+	return true
 
 
 func _ready() -> void:
@@ -546,22 +565,26 @@ func _start_sandbox_match_with_args(args: PackedStringArray) -> void:
 
 
 func start_sandbox_from_menu() -> void:
-	await _await_prewarmed(PackedStringArray([SANDBOX_FLOW_SCRIPT_PATH, SANDBOX_SCENE_PATH]))
+	if not await _await_prewarmed(PackedStringArray([SANDBOX_FLOW_SCRIPT_PATH, SANDBOX_SCENE_PATH])):
+		return
 	_sandbox_flow_port().start_sandbox_from_menu()
 
 
 func start_gift_demo_from_menu() -> void:
-	await _await_prewarmed(PackedStringArray([SANDBOX_FLOW_SCRIPT_PATH, SANDBOX_SCENE_PATH]))
+	if not await _await_prewarmed(PackedStringArray([SANDBOX_FLOW_SCRIPT_PATH, SANDBOX_SCENE_PATH])):
+		return
 	_sandbox_flow_port().start_gift_demo_from_menu()
 
 
 func start_tower_topple_from_menu() -> void:
-	await _await_prewarmed(PackedStringArray([SANDBOX_FLOW_SCRIPT_PATH, SANDBOX_SCENE_PATH]))
+	if not await _await_prewarmed(PackedStringArray([SANDBOX_FLOW_SCRIPT_PATH, SANDBOX_SCENE_PATH])):
+		return
 	_sandbox_flow_port().start_tower_topple_from_menu()
 
 
 func start_tutorial_from_menu() -> void:
-	await _await_prewarmed(PackedStringArray([SANDBOX_FLOW_SCRIPT_PATH, TUTORIAL_SCENE_PATH]))
+	if not await _await_prewarmed(PackedStringArray([SANDBOX_FLOW_SCRIPT_PATH, TUTORIAL_SCENE_PATH])):
+		return
 	_sandbox_flow_port().start_tutorial_from_menu()
 
 

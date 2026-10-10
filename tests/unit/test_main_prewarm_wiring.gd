@@ -201,3 +201,40 @@ func test_close_with_nothing_in_flight_quits_at_once() -> void:
 	assert_false(queue.has_in_flight())
 	_main.notification(Node.NOTIFICATION_WM_CLOSE_REQUEST)
 	assert_eq(_quit_calls, 1)
+
+
+func test_close_during_splash_shows_no_menu_and_quits_once() -> void:
+	var queue: MenuPrewarmQueue = _fake_queue([[LOBBY], [SANDBOX_FLOW]])
+	_main = _make_main(queue)
+	add_child_autofree(_main)
+	# Simulate the splash window: menu not shown yet, polling off, a chunk in flight.
+	_main._clear_menu_and_lobby()
+	_main._prewarm_polling = false
+	queue.poll()
+	assert_true(queue.has_in_flight())
+	_main.notification(Node.NOTIFICATION_WM_CLOSE_REQUEST)
+	assert_eq(_quit_calls, 0, "waits for the in-flight chunk")
+	_loader.released = true
+	var frames: int = 0
+	while _quit_calls == 0 and frames < FRAME_LIMIT:
+		await get_tree().process_frame
+		frames += 1
+	assert_eq(_quit_calls, 1, "quits during the splash once the chunk is collected")
+	_main._show_main_menu_after_prewarm()  # the splash ending afterwards
+	assert_null(_main._main_menu, "no menu is shown after a close request")
+	assert_eq(_quit_calls, 1, "quit is called exactly once")
+
+
+func test_double_activation_in_loading_frame_runs_the_flow_once() -> void:
+	var queue: MenuPrewarmQueue = _fake_queue([[LOBBY], [SANDBOX_FLOW, SANDBOX_SCENE]])
+	_main = _make_main(queue)
+	add_child_autofree(_main)
+	_main.start_sandbox_from_menu()
+	_main.start_sandbox_from_menu()  # mouse plus gamepad in the same Loading... frame
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var sandboxes: int = 0
+	for child: Node in _main.get_children():
+		if child is Sandbox:
+			sandboxes += 1
+	assert_eq(sandboxes, 1, "the sandbox is built once")
