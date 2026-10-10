@@ -56,19 +56,17 @@ const SHARE_BAR_MAX_WIDTH: float = 200.0
 const SHARE_BAR_HEIGHT: float = 14.0
 ## Bontago-mp0.3.3 (owner review 2026-09-26: "thicker ring (~8 px)").
 const RING_LINE_WIDTH: float = 8.0
-const RING_BACKGROUND_COLOR: Color = Color(1.0, 1.0, 1.0, 0.15)
+## Stackfall Arcade (Bontago-hfa.6): the ring's empty track is disc-500 (ArcadeVisualTuning).
 ## Bontago-mp0.3.3: the bold numeral drawn in the middle of the timer ring
 ## (mockup 08's "6"), pure screen-space geometry like every other constant in
 ## this section (this file's own pre-M7 DECISION above). Owner review
 ## 2026-09-26 grew the ring itself to ~84-96px; the numeral grows with it.
-const TIMER_NUMERAL_FONT_SIZE: int = 34
+## (The size now comes from ArcadeVisualTuning.font_size_timer_px.)
 ## Bontago-mp0.3.3 (owner review 2026-09-26: "subtle drop shadow"), shared by
 ## the timer ring's disc.
 const DROP_SHADOW_OFFSET: Vector2 = Vector2(2.0, 3.0)
 const DROP_SHADOW_COLOR: Color = Color(0.0, 0.0, 0.0, 0.35)
 const ELIMINATED_COLOR: Color = Color(0.4, 0.4, 0.4, 0.5)
-## Locked but still playing must remain distinct from eliminated.
-const LOCKED_COLOR: Color = Color(0.75, 0.75, 0.75, 0.9)
 @export var ghost_tuning: GhostTuning = preload("res://config/ghost_tuning.tres")
 ## Bontago-d04: durations for the "Special queued: <name>" claim toast below
 ## (see config/GiftConfig.gd's own "-- Claim feedback --" section for why
@@ -125,7 +123,7 @@ var name_provider: Variant = null
 ## The M7 P5 status/shares boxy backing panels (StatusPanel/SharesPanel) are
 ## gone -- feedback/graphics_feedback.md + Bontago-mp0.2 ("top-left HUD
 ## unreadable"): mockup 08 has no panel behind the top-left readouts at all,
-## just outlined text and slim bars (see _apply_text_outline() below).
+## just outlined text and slim bars (Stackfall Arcade now puts them on one plate).
 @onready var _next_shape_card: Panel = %NextShapeCard
 ## Bontago-mp0.3.3 (owner review 2026-09-27): the held-shape icon's own
 ## labeled card, styled the same as _next_shape_card -- previously an
@@ -155,6 +153,13 @@ var _preview_textures: Dictionary[StringName, Texture2D] = {}
 ## doc comment above.
 var _active_slot: int = -1
 var _active_color: Color = Color.WHITE
+## Stackfall Arcade (Bontago-hfa.6): the shared design tokens, the stackfall theme (fonts for the
+## code-built labels) and its display (Bungee) font for numerals, percentages and the countdown.
+var _arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+var _ui_theme: Theme = preload("res://ui/theme/stackfall_theme.tres")
+var _display_font: Font = null
+## The two label columns whose cards fade to locked_card_alpha while the release lock holds.
+var _lock_fade_nodes: Array[Control] = []
 ## Timer numeral shown while a QoL experiment has the block timer paused.
 const QOL_PAUSED_TEXT: String = "||"
 var _feed_progress: float = 1.0
@@ -189,6 +194,8 @@ var _mode_state: Dictionary = {}
 ## player's share bar (mockup 08), parallel to _share_rows/_share_bars/
 ## _share_labels above.
 var _share_glyphs: Array = []
+## Stackfall Arcade: the "· YOU" marker label of each row, shown on the local player's row only.
+var _share_you_labels: Array = []
 ## Seconds left on the active slot's block timer, drawn as the bold numeral
 ## inside the timer ring (mockup 08's "6"). -1 until the first _process()
 ## poll (or a test's direct set_feed_seconds() call) has a real value, so a
@@ -244,17 +251,20 @@ func _ready() -> void:
 	_capture_ring.visible = false
 	_special_indicator.visible = false
 
-	# Bontago-mp0.3.3 (mockup 08 restyle): no boxy panel behind the top-left
-	# readouts (feedback/graphics_feedback.md, Bontago-mp0.2) -- every label
-	# there gets a soft outline instead, so it stays legible directly over a
-	# bright sky. The next-shape and held-shape cards are the readouts that
-	# do keep a backing panel (see _style_panel()'s own doc).
-	# DECISION: persistent readouts share one cream/ink card family;
-	# team color is reserved for the share fill, glyph and countdown arc.
+	# Stackfall Arcade (Bontago-hfa.6): every HUD group sits on a disc-900 plate (hud-plate opacity)
+	# so the same HUD reads over the day, night, storm and snow skies; cards inside a plate are
+	# disc-700 blocks. The CanvasLayer is not a Control, so each root group gets the stackfall theme
+	# explicitly (Rubik text, cream ink); numerals use Bungee through _display_font.
+	_display_font = _ui_theme.get_font(&"font", &"DisplayLabel")
+	for themed: Control in [
+		_top_left_cluster, _status_pill, _held_next_panel, _special_indicator, _reject_label,
+	]:
+		themed.theme = _ui_theme
 	_style_panel(_top_left_backplate)
 	_style_panel(_held_next_panel)
 	_style_panel(_next_shape_card, true)
 	_style_panel(_held_shape_card, true)
+	_lock_fade_nodes = [_held_shape_card, _next_shape_card]
 	_build_gift_slot_column()
 	# Bontago-1pi.68 (owner playtest 2026-10-04): the status pill keeps only the
 	# locked/special/toast rows; the name header, tower/block line and
@@ -267,19 +277,18 @@ func _ready() -> void:
 	]:
 		label.add_theme_color_override("font_color", hud_visual_tuning.ink_color)
 	_height_label.add_theme_color_override("font_color", hud_visual_tuning.muted_ink_color)
-	_held_label.add_theme_color_override("font_color", hud_visual_tuning.muted_ink_color)
-	_next_label.add_theme_color_override("font_color", hud_visual_tuning.muted_ink_color)
-	for outlined: Label in [_turn_label, _height_label, _special_indicator, _held_label, _next_label]:
-		_apply_text_outline(outlined)
-	_style_toast(_gift_toast_label)
-	_style_toast(_reject_label)
-	# Bontago-mp0.3.3 (owner review 2026-09-26: "row gap ~12 px"). The status
-	# labels above sit in %StatusPill, a VBoxContainer nested right under
-	# %SharesBox inside their shared %TopLeftCluster (ui/HUD.tscn) -- both
-	# stack directly under however many player rows currently exist, so
-	# nothing here floats independent of row count (the earlier "orphaned
-	# mid-left text" bug).
-	_shares_box.add_theme_constant_override("separation", 12)
+	for caption: Label in [_held_label, _next_label]:
+		_style_card_caption(caption)
+	for plated: Label in [_turn_label, _height_label]:
+		_style_status_plate(plated, hud_visual_tuning.ink_color)
+	# DECISION (Bontago-hfa.6): the queued-special chip is a small plate under the scoreboard with its
+	# label in rim gold (components.md TipBanner "Special queued"); the claim toast is the rim Callout.
+	_style_status_plate(_special_indicator, _arcade.rim_color)
+	_style_callout(_gift_toast_label, HudCallout.Glyph.STAR)
+	_style_callout(_reject_label, HudCallout.Glyph.CROSS)
+	_reject_icon.visible = false
+	# Row gap of the scoreboard (docs/ui_reskin: rows are tight, the plate carries the grouping).
+	_shares_box.add_theme_constant_override("separation", int(hud_visual_tuning.hud_row_gap_px))
 	_top_left_cluster.resized.connect(_resize_top_left_backplate)
 	_resize_top_left_backplate()
 
@@ -314,10 +323,13 @@ func _build_countdown_label() -> void:
 	_countdown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_countdown_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_countdown_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Bungee 128 px in cream on a disc-950 drop (design "countdown" style); GO switches to rim gold.
+	_countdown_label.add_theme_font_override("font", _display_font)
 	_countdown_label.add_theme_font_size_override("font_size", hud_visual_tuning.countdown_font_size)
-	_countdown_label.add_theme_color_override("font_color", Color.WHITE)
-	_countdown_label.add_theme_color_override("font_outline_color", hud_visual_tuning.countdown_outline_color)
-	_countdown_label.add_theme_constant_override("outline_size", hud_visual_tuning.countdown_font_size / maxi(hud_visual_tuning.countdown_outline_divisor, 1))
+	_countdown_label.add_theme_color_override("font_color", _arcade.cream_color)
+	_countdown_label.add_theme_color_override("font_shadow_color", _arcade.disc_950_color)
+	_countdown_label.add_theme_constant_override("shadow_offset_x", 0)
+	_countdown_label.add_theme_constant_override("shadow_offset_y", _arcade.countdown_drop_px)
 	_countdown_label.visible = false
 	add_child(_countdown_label)
 
@@ -336,6 +348,7 @@ func _update_countdown_label(delta: float) -> void:
 		_countdown_was_active = true
 		_go_left_s = 0.0
 		_countdown_label.text = str(left)
+		_countdown_label.add_theme_color_override("font_color", _arcade.cream_color)
 		_countdown_label.visible = true
 		return
 	if _countdown_was_active:
@@ -346,6 +359,7 @@ func _update_countdown_label(delta: float) -> void:
 			return
 		_go_left_s = hud_visual_tuning.countdown_go_hold_s
 		_countdown_label.text = hud_visual_tuning.countdown_go_text
+		_countdown_label.add_theme_color_override("font_color", _arcade.rim_color)
 		_countdown_label.visible = true
 		return
 	if _go_left_s > 0.0:
@@ -404,6 +418,11 @@ func _process(delta: float) -> void:
 	_refresh_special_indicator()
 
 
+## Bottom edge of the timer ring in HUD pixels: the Tutorial's tip banner sits just under it.
+func timer_ring_bottom_px() -> float:
+	return _timer_ring.offset_bottom
+
+
 # --- Public API (docs/archive/M2_PLAN.md — "implement exactly"; Bontago-mv0.9 adds
 # set_local_slot/set_held_shape/set_locked) -----------------------------------
 
@@ -413,6 +432,8 @@ func _process(delta: float) -> void:
 func set_active_slot(slot_id: int, color: Color) -> void:
 	_active_slot = slot_id
 	_active_color = color
+	_minimap.set_local_slot(slot_id)
+	_refresh_you_markers()
 	var eliminated: bool = _is_slot_eliminated(slot_id)
 	var display_name: String = _name_for_slot(slot_id)
 	_turn_label.text = (
@@ -437,6 +458,8 @@ func set_active_slot(slot_id: int, color: Color) -> void:
 func set_local_slot(slot_id: int) -> void:
 	_active_slot = slot_id
 	_active_color = _color_for_slot(slot_id)
+	_minimap.set_local_slot(slot_id)
+	_refresh_you_markers()
 	var eliminated: bool = _is_slot_eliminated(slot_id)
 	var display_name: String = _name_for_slot(slot_id)
 	_turn_label.text = "%s — eliminated" % display_name if eliminated else display_name
@@ -489,6 +512,8 @@ func set_locked(locked: bool) -> void:
 	if _locked == locked:
 		return
 	_locked = locked
+	for card: Control in _lock_fade_nodes:
+		card.modulate.a = hud_visual_tuning.locked_card_alpha if locked else 1.0
 	_timer_ring.queue_redraw()
 
 
@@ -575,14 +600,14 @@ func set_capture(team_id: int, progress: float, color: Color) -> void:
 
 
 func show_reject(reason: StringName) -> void:
-	_reject_label.text = "Rejected: %s" % String(reason).replace("_", " ")
+	_reject_label.text = ("Rejected: %s" % String(reason).replace("_", " ")).to_upper()
 	# DECISION (ui/HUD.gd, Bontago-xtq.23): explicit full-white modulate, not
 	# just the alpha channel show_reject() alone used to touch -- show_relocated()
 	# below tints this same label a distinct colour, and without resetting the
 	# whole modulate here a reject message right after a relocated one would
 	# stay tinted instead of reading as its own, distinct message.
 	_reject_label.modulate = Color.WHITE
-	_set_toast_accent(_reject_label, hud_visual_tuning.toast_reject_accent_color)
+	_set_callout(_reject_label, _arcade.alert_color, HudCallout.Glyph.CROSS)
 	if _reject_tween != null and _reject_tween.is_valid():
 		_reject_tween.kill()
 	_reject_tween = create_tween()
@@ -608,10 +633,11 @@ func show_reject(reason: StringName) -> void:
 ## hud_relocated_fade_duration), so tuning the reject message never silently
 ## detunes this one.
 func show_relocated() -> void:
-	_reject_label.text = "Relocated into your territory"
-	var tint: Color = ghost_tuning.auto_drop_flash_color
+	_reject_label.text = "RELOCATED INTO YOUR TERRITORY"
 	_reject_label.modulate = Color.WHITE
-	_set_toast_accent(_reject_label, Color(tint.r, tint.g, tint.b, 1.0))
+	# DECISION (Bontago-hfa.6): the forced auto-drop is a neutral correction, not a refusal, so it
+	# takes the mint Callout face with a check; a refusal stays alert + cross.
+	_set_callout(_reject_label, _arcade.mint_color, HudCallout.Glyph.CHECK)
 	if _reject_tween != null and _reject_tween.is_valid():
 		_reject_tween.kill()
 	_reject_tween = create_tween()
@@ -643,9 +669,9 @@ func show_winner(team_id: int, color: Color) -> void:
 ## since a claim toast and a rejection message read very differently and
 ## shouldn't be forced to share one timing.
 func show_gift_toast(special_id: StringName) -> void:
-	_gift_toast_label.text = "Special queued: %s" % _special_display_name(special_id)
+	_gift_toast_label.text = ("Special queued: %s" % _special_display_name(special_id)).to_upper()
 	_gift_toast_label.modulate = Color.WHITE
-	_set_toast_accent(_gift_toast_label, Color(_active_color.r, _active_color.g, _active_color.b, 1.0))
+	_set_callout(_gift_toast_label, _arcade.rim_color, HudCallout.Glyph.STAR)
 	if _gift_toast_tween != null and _gift_toast_tween.is_valid():
 		_gift_toast_tween.kill()
 	_gift_toast_tween = create_tween()
@@ -790,8 +816,7 @@ func _on_mode_state_changed(state: Dictionary) -> void:
 		if text.is_empty():
 			return
 		_mode_score_label = Label.new()
-		_mode_score_label.add_theme_font_size_override("font_size", 14)
-		_mode_score_label.add_theme_color_override("font_color", hud_visual_tuning.ink_color)
+		_style_status_plate(_mode_score_label, hud_visual_tuning.ink_color)
 		_height_label.get_parent().add_child(_mode_score_label)
 	_mode_score_label.text = text
 	_mode_score_label.visible = not text.is_empty()
@@ -939,19 +964,51 @@ func _update_minimap() -> void:
 	_update_gift_markers()
 
 
-## M7 P5 / Bontago-mp0.3.3: the one StyleBoxFlat a reskinned HUD panel uses,
-## built from hud_visual_tuning so ui/HUD.tscn itself holds no colour
-## literals (mirrors ui/Minimap.gd's own panel styling for the minimap's
-## frame/backdrop). Only the next-shape and held-shape cards use this now --
-## mockup 08's top-left readouts are plain outlined text
-## (_apply_text_outline() below), not a panel.
+## Stackfall Arcade (Bontago-hfa.6): the plate every HUD group sits on (disc-900 at hud-plate opacity,
+## radius-panel, a solid disc-950 drop under it), or with `inner` a disc-700 card with a compact lip
+## (radius-block). Colours and radii come from hud_visual_tuning / ArcadeVisualTuning so the HUD
+## scene holds no literals.
 func _style_panel(panel: Panel, inner: bool = false) -> void:
 	var style: StyleBoxFlat = StyleBoxFlat.new()
-	style.bg_color = hud_visual_tuning.inner_surface_color if inner else hud_visual_tuning.surface_color
+	if inner:
+		style.bg_color = _arcade.disc_700_color
+		style.border_color = MenuStyleFactory.lip_for(_arcade.disc_700_color)
+		style.border_width_bottom = _arcade.lip_sm_px
+		style.set_corner_radius_all(_arcade.radius_block_px)
+	else:
+		style.bg_color = hud_visual_tuning.surface_color
+		style.border_color = hud_visual_tuning.surface_border_color
+		style.set_border_width_all(int(hud_visual_tuning.panel_border_width_px))
+		style.set_corner_radius_all(int(hud_visual_tuning.panel_corner_radius_px))
+		style.shadow_color = _arcade.disc_950_color
+		style.shadow_size = 1
+		style.shadow_offset = Vector2(0.0, float(_arcade.drop_sm_px))
+	panel.add_theme_stylebox_override("panel", style)
+
+
+## HELD / NEXT card captions: the design's `label` text style (Rubik 800, 13 px, dust).
+func _style_card_caption(caption: Label) -> void:
+	caption.theme_type_variation = &"FieldLabel"
+	caption.add_theme_color_override("font_color", _arcade.dust_color)
+
+
+## A small status plate under the scoreboard (queued special, round clock, hot-seat turn): the
+## label on a hud-plate with `ink` text.
+func _style_status_plate(label: Label, ink: Color) -> void:
+	var style: StyleBoxFlat = StyleBoxFlat.new()
+	style.bg_color = hud_visual_tuning.surface_color
 	style.border_color = hud_visual_tuning.surface_border_color
 	style.set_border_width_all(int(hud_visual_tuning.panel_border_width_px))
-	style.set_corner_radius_all(int(hud_visual_tuning.panel_corner_radius_px))
-	panel.add_theme_stylebox_override("panel", style)
+	style.set_corner_radius_all(_arcade.radius_block_px)
+	style.content_margin_left = float(_arcade.space_3_px)
+	style.content_margin_right = float(_arcade.space_3_px)
+	style.content_margin_top = float(_arcade.space_1_px)
+	style.content_margin_bottom = float(_arcade.space_1_px)
+	label.add_theme_stylebox_override("normal", style)
+	label.add_theme_color_override("font_color", ink)
+	label.add_theme_font_size_override("font_size", _arcade.font_size_label_px)
+	label.theme_type_variation = &"FieldLabel"
+	label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 
 
 func _resize_top_left_backplate() -> void:
@@ -963,52 +1020,55 @@ func _resize_top_left_backplate() -> void:
 	# Bontago-1pi.80: the status rows (locked/special/toast/mode score) live
 	# outside the stats box, stacked just below it.
 	_status_pill.position = Vector2(
-		_top_left_cluster.position.x, _top_left_backplate.position.y + _top_left_backplate.size.y + padding
+		_top_left_backplate.position.x, _top_left_backplate.position.y + _top_left_backplate.size.y + padding
 	)
 
 
-## Bontago-mp0.3.3 (mockup 08 restyle; Bontago-mp0.2 "top-left HUD
-## unreadable"): a soft dark outline behind a label's text instead of a
-## backing panel, so it stays legible directly over a bright sunset sky.
-func _apply_text_outline(label: Label) -> void:
-	label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.85))
-	label.add_theme_constant_override("outline_size", 4)
-
-
-## Bontago-mp0.145: the one shared toast look (claim toast, reject/relocated
-## message): a dark-glass pill from hud_visual_tuning's toast_* values drawn as
-## the label's own "normal" stylebox, so a single modulate fade fades pill and
-## text together. Title font from the Stackfall theme; light ink and a dark
-## outline keep text readable over any sky.
-## DECISION: the winner banner is not restyled -- it is permanently hidden
-## (Bontago-1pi.5, results screen owns it) and other tests read its modulate.
-func _style_toast(label: Label) -> void:
+## Bontago-mp0.145 / Stackfall Arcade (Bontago-hfa.6): the one Callout look every transient HUD
+## message shares (claim toast, refusal, relocation): a block face (alert / mint / rim) with a
+## dark lip, an ink icon tile on its left (HudCallout) and uppercase ink text. The face is the
+## label's own "normal" stylebox, so a single modulate fade fades face, tile and text together.
+func _style_callout(label: Label, glyph: HudCallout.Glyph) -> void:
 	var tuning: HUDVisualTuning = hud_visual_tuning
 	var style: StyleBoxFlat = StyleBoxFlat.new()
-	style.bg_color = tuning.toast_fill_color
-	style.border_color = tuning.surface_border_color
-	style.set_border_width_all(int(tuning.toast_border_width_px))
 	style.set_corner_radius_all(int(tuning.toast_corner_radius_px))
-	style.content_margin_left = tuning.toast_padding_x_px
+	style.border_width_bottom = int(tuning.toast_border_width_px)
+	style.shadow_color = _arcade.disc_950_color
+	style.shadow_size = 1
+	style.shadow_offset = Vector2(0.0, float(_arcade.drop_sm_px))
+	style.content_margin_left = tuning.toast_padding_x_px * 2.0 + tuning.callout_icon_px
 	style.content_margin_right = tuning.toast_padding_x_px
 	style.content_margin_top = tuning.toast_padding_y_px
 	style.content_margin_bottom = tuning.toast_padding_y_px
 	label.add_theme_stylebox_override("normal", style)
-	var theme: Theme = preload("res://ui/theme/stackfall_theme.tres")
-	label.add_theme_font_override("font", theme.get_font(&"font", &"TitleLabel"))
+	label.add_theme_font_override("font", _ui_theme.get_font(&"font", &"FieldLabel"))
 	label.add_theme_font_size_override("font_size", tuning.toast_font_size)
-	label.add_theme_color_override("font_color", tuning.ink_color)
-	label.add_theme_color_override("font_outline_color", tuning.countdown_outline_color)
-	label.add_theme_constant_override("outline_size", tuning.toast_outline_size_px)
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_color_override("font_color", _arcade.ink_color)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var tile: HudCallout = HudCallout.new()
+	tile.name = "CalloutIcon"
+	tile.configure(tuning, _arcade)
+	tile.glyph = glyph
+	tile.anchor_top = 0.5
+	tile.anchor_bottom = 0.5
+	tile.offset_left = tuning.toast_padding_x_px
+	tile.offset_right = tuning.toast_padding_x_px + tuning.callout_icon_px
+	tile.offset_top = -tuning.callout_icon_px * 0.5
+	tile.offset_bottom = tuning.callout_icon_px * 0.5
+	label.add_child(tile)
+	_set_callout(label, _arcade.rim_color, glyph)
 
 
-## The pill's border carries the message's accent (player colour, refusal red,
-## relocation blue); text stays ink so it never loses contrast to a tint.
-func _set_toast_accent(label: Label, accent: Color) -> void:
+## Paints `label`'s Callout with `face` (its lip is the face's design lip) and `glyph`.
+func _set_callout(label: Label, face: Color, glyph: HudCallout.Glyph) -> void:
 	var style: StyleBoxFlat = label.get_theme_stylebox("normal") as StyleBoxFlat
 	if style != null:
-		style.border_color = accent
+		style.bg_color = face
+		style.border_color = MenuStyleFactory.lip_for(face)
+	var tile: HudCallout = label.get_node_or_null("CalloutIcon") as HudCallout
+	if tile != null:
+		tile.glyph = glyph
 
 
 ## Spec M2 owner decision 3: no dedicated Events signal exists for "home flag
@@ -1144,6 +1204,7 @@ func _refresh_special_indicator() -> void:
 		_set_gift_icons(&"", &"")
 		_held_label.text = "HELD"
 		_next_label.text = "NEXT"
+		_next_label.add_theme_color_override("font_color", _arcade.dust_color)
 		return
 	var count: int = int(match_provider.pending_special_count(_active_slot))
 	var head_id: StringName = match_provider.held_special(_active_slot)
@@ -1159,7 +1220,9 @@ func _refresh_special_indicator() -> void:
 	_set_gift_icons(head_id, next_id)
 	_set_glue_active(glue_charges > 0)
 	_held_label.text = "HELD: %s" % _special_display_name(head_id) if head_id != &"" else "HELD"
-	_next_label.text = "NEXT GIFT" if count > (1 if head_id != &"" else 0) else "NEXT"
+	var next_is_gift: bool = count > (1 if head_id != &"" else 0)
+	_next_label.text = "NEXT · GIFT" if next_is_gift else "NEXT"
+	_next_label.add_theme_color_override("font_color", _arcade.rim_color if next_is_gift else _arcade.dust_color)
 	if _qol_backlog > 0:
 		_next_label.text += " +%d" % _qol_backlog
 	if count <= 0 and glue_charges <= 0:
@@ -1168,7 +1231,6 @@ func _refresh_special_indicator() -> void:
 	var pending_text: String = _special_display_text(head_id, count) if count > 0 else ""
 	var glue_text: String = "Glue ×%d" % glue_charges if glue_charges > 0 else ""
 	_special_indicator.text = "%s · %s" % [pending_text, glue_text] if count > 0 and glue_charges > 0 else pending_text + glue_text
-	_special_indicator.modulate = _active_color
 	_special_indicator.visible = true
 
 
@@ -1201,30 +1263,48 @@ func _special_display_name(head_id: StringName) -> String:
 func _ensure_share_row_count(count: int) -> void:
 	while _share_rows.size() < count:
 		var row: HBoxContainer = HBoxContainer.new()
-		row.add_theme_constant_override("separation", 6)
+		row.add_theme_constant_override("separation", _arcade.space_2_px)
 
 		var glyph: SlotDiamond = SlotDiamond.create(Color.WHITE)
 
-		var bar: ShareBar = ShareBar.new()
-		bar.configure(hud_visual_tuning)
-
+		# Name column: the player's name (ellipsized) and, on the local row only, "· YOU" in rim gold.
+		var name_box: HBoxContainer = HBoxContainer.new()
+		name_box.add_theme_constant_override("separation", 0)
+		name_box.custom_minimum_size = Vector2(hud_visual_tuning.hud_row_name_width_px, 0.0)
+		name_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var name_label: Label = Label.new()
-		name_label.add_theme_font_size_override("font_size", 12)
+		name_label.theme_type_variation = &"FieldLabel"
+		name_label.add_theme_font_size_override("font_size", _arcade.font_size_button_sm_px)
 		name_label.add_theme_color_override("font_color", hud_visual_tuning.ink_color)
-		_apply_text_outline(name_label)
-		name_label.custom_minimum_size = Vector2(hud_visual_tuning.hud_row_name_width_px, 0.0)
 		name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		name_label.clip_text = true
 		name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var you_label: Label = Label.new()
+		you_label.theme_type_variation = &"FieldLabel"
+		you_label.add_theme_font_size_override("font_size", _arcade.font_size_label_px)
+		you_label.add_theme_color_override("font_color", _arcade.rim_color)
+		you_label.text = hud_visual_tuning.hud_you_text
+		you_label.visible = false
+		you_label.size_flags_horizontal = Control.SIZE_SHRINK_END
+		you_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		name_box.add_child(name_label)
+		name_box.add_child(you_label)
+
+		var bar: ShareBar = ShareBar.new()
+		bar.configure(hud_visual_tuning)
+		bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 
 		var label: Label = Label.new()
-		# Bontago-mp0.3.3 (owner review 2026-09-26: "percent label optional/
-		# small ... with a text shadow").
-		label.add_theme_font_size_override("font_size", 12)
-		label.add_theme_color_override("font_color", hud_visual_tuning.ink_color)
+		# The score/percentage in Bungee, right-aligned in a fixed column.
+		label.add_theme_font_override("font", _display_font)
+		label.add_theme_font_size_override("font_size", _arcade.font_size_button_sm_px)
+		label.add_theme_color_override("font_color", _arcade.cream_color)
+		label.custom_minimum_size = Vector2(hud_visual_tuning.hud_row_value_width_px, 0.0)
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 
 		row.add_child(glyph)
-		row.add_child(name_label)
+		row.add_child(name_box)
 		row.add_child(bar)
 		row.add_child(label)
 		_shares_box.add_child(row)
@@ -1233,6 +1313,7 @@ func _ensure_share_row_count(count: int) -> void:
 		_share_labels.append(label)
 		_share_name_labels.append(name_label)
 		_share_glyphs.append(glyph)
+		_share_you_labels.append(you_label)
 	while _share_rows.size() > count:
 		var last: int = _share_rows.size() - 1
 		(_share_rows[last] as Node).queue_free()
@@ -1241,6 +1322,13 @@ func _ensure_share_row_count(count: int) -> void:
 		_share_labels.remove_at(last)
 		_share_name_labels.remove_at(last)
 		_share_glyphs.remove_at(last)
+		_share_you_labels.remove_at(last)
+
+
+## Shows the "· YOU" marker on the row of the active slot's team only.
+func _refresh_you_markers() -> void:
+	for i: int in range(_share_you_labels.size()):
+		(_share_you_labels[i] as Label).visible = _active_slot >= 0 and _team_of_slot(_active_slot) == i
 
 
 func _update_share_row(i: int, share: float) -> void:
@@ -1256,6 +1344,7 @@ func _update_share_row(i: int, share: float) -> void:
 	name_label.tooltip_text = name_label.text
 	var glyph: SlotDiamond = _share_glyphs[i]
 	glyph.set_color(color)
+	(_share_you_labels[i] as Label).visible = _active_slot >= 0 and _team_of_slot(_active_slot) == i
 
 
 ## Events.feed_block_issued names the next shape by id; the preview needs the
@@ -1275,48 +1364,42 @@ func _on_timer_ring_draw() -> void:
 	var radius: float = minf(size.x, size.y) * 0.5 - RING_LINE_WIDTH
 	var center: Vector2 = size * 0.5
 	# Bontago-mp0.3.3 (owner review 2026-09-26: "subtle drop shadow"): a soft
-	# offset dark disc behind everything else, then the dark disc itself
-	# (mockup 08) instead of a bare transparent circle, so the countdown
-	# numeral below always has contrast against a bright sky.
+	# offset dark disc behind everything else, then the round hud-plate itself
+	# so the numeral always has contrast against a bright sky.
 	_timer_ring.draw_circle(center + DROP_SHADOW_OFFSET, radius - RING_LINE_WIDTH * 0.5, DROP_SHADOW_COLOR)
 	_timer_ring.draw_circle(center, radius - RING_LINE_WIDTH * 0.5, hud_visual_tuning.panel_background_color)
-	_timer_ring.draw_arc(center, radius, 0.0, TAU, 48, RING_BACKGROUND_COLOR, RING_LINE_WIDTH)
-	if _feed_progress > 0.0:
-		# Bontago-mv0.9: greys out while release-locked (spec 2.4/2.5) instead
-		# of the active player's colour, so "the interval hasn't come around
-		# again yet" reads distinctly from "counting down normally".
-		#
-		# DECISION (ui/HUD.gd, owner review 2026-09-26: "mockup shows a
-		# red/blue two-tone ring -- use player colours as you see fit"):
-		# mockup 08's two-tone ring reads as a *shared spectator* HUD showing
-		# both players' timers on one ring; this HUD is per-viewer (its own
-		# class doc: "shows the local player's own status", one _active_slot
-		# at a time), so there is only ever one player's colour to draw here.
-		# The remaining-time arc stays that one active player's own colour
-		# over the dark RING_BACKGROUND_COLOR track -- the direct one-player
-		# equivalent of the mockup's two-tone idea.
-		var ring_color: Color = LOCKED_COLOR if (_locked or _qol_paused) else _active_color
-		_timer_ring.draw_arc(
-			center, radius, -PI * 0.5, -PI * 0.5 + TAU * _feed_progress, 48, ring_color, RING_LINE_WIDTH
-		)
+	var locked: bool = _locked or _qol_paused
+	# Stackfall Arcade (Bontago-hfa.6, FeedTimer): the active player's colour counts down around a
+	# disc-500 track; the last `timer_hurry_seconds` turn ring and number rim gold; a release lock
+	# draws one full `locked` circle (disc-500), with no text.
+	var hurry: bool = _feed_seconds_left >= 0.0 and _feed_seconds_left <= hud_visual_tuning.timer_hurry_seconds
+	if locked:
+		_timer_ring.draw_arc(center, radius, 0.0, TAU, 48, _arcade.locked_color, RING_LINE_WIDTH)
+	else:
+		_timer_ring.draw_arc(center, radius, 0.0, TAU, 48, _arcade.disc_500_color, RING_LINE_WIDTH)
+		if _feed_progress > 0.0:
+			# DECISION (ui/HUD.gd, owner review 2026-09-26): this HUD is per-viewer, so there is only
+			# ever one player's colour to draw here.
+			var ring_color: Color = _arcade.rim_color if hurry else _active_color
+			_timer_ring.draw_arc(
+				center, radius, -PI * 0.5, -PI * 0.5 + TAU * _feed_progress, 48, ring_color, RING_LINE_WIDTH
+			)
 	if _feed_seconds_left >= 0.0:
-		_draw_timer_numeral(center)
+		_draw_timer_numeral(center, hurry and not locked)
 
 
-## Bontago-mp0.3.3: the bold numeral inside the timer ring (mockup 08's "6"),
-## ceil()'d the same way a countdown reads to a player (still shows "1" for
-## the last fraction of a second, not "0").
-func _draw_timer_numeral(center: Vector2) -> void:
-	var text: String = QOL_PAUSED_TEXT if _qol_paused else str(int(ceil(_feed_seconds_left)))
-	var font: Font = _timer_ring.get_theme_default_font()
-	var text_width: float = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, TIMER_NUMERAL_FONT_SIZE).x
-	var baseline: Vector2 = center + Vector2(-text_width * 0.5, TIMER_NUMERAL_FONT_SIZE * 0.35)
-	_timer_ring.draw_string_outline(
-		font, baseline, text, HORIZONTAL_ALIGNMENT_LEFT, -1, TIMER_NUMERAL_FONT_SIZE, 3, Color.BLACK
-	)
-	_timer_ring.draw_string(
-		font, baseline, text, HORIZONTAL_ALIGNMENT_LEFT, -1, TIMER_NUMERAL_FONT_SIZE, Color.WHITE
-	)
+## Bontago-mp0.3.3: the bold numeral inside the timer ring, ceil()'d the same way a countdown
+## reads to a player (still shows "1" for the last fraction of a second, not "0"). Stackfall
+## Arcade: Bungee in cream (rim in the hurry window). The lock shows only as the full `locked`
+## ring, never as text (owner 2026-10-06, Bontago-1pi.92).
+func _draw_timer_numeral(center: Vector2, hurry: bool) -> void:
+	var font: Font = _display_font if _display_font != null else _timer_ring.get_theme_default_font()
+	var font_size: int = _arcade.font_size_timer_px
+	var color: Color = _arcade.rim_color if hurry else _arcade.cream_color
+	var text: String = QOL_PAUSED_TEXT if _qol_paused else str(int(ceil(maxf(_feed_seconds_left, 0.0))))
+	var text_width: float = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	var baseline: Vector2 = center + Vector2(-text_width * 0.5, font_size * 0.35)
+	_timer_ring.draw_string(font, baseline, text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
 
 
 func _on_shape_preview_draw() -> void:
@@ -1489,8 +1572,7 @@ func _build_gift_slot_column() -> void:
 	_gift_slot_label = Label.new()
 	_gift_slot_label.text = "GIFT"
 	_gift_slot_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_gift_slot_label.add_theme_font_size_override("font_size", _held_label.get_theme_font_size("font_size"))
-	_gift_slot_label.add_theme_color_override("font_color", hud_visual_tuning.muted_ink_color)
+	_style_card_caption(_gift_slot_label)
 	var card: Panel = Panel.new()
 	card.custom_minimum_size = _held_shape_card.custom_minimum_size
 	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1609,7 +1691,7 @@ func _on_capture_ring_draw() -> void:
 	var size: Vector2 = _capture_ring.size
 	var radius: float = minf(size.x, size.y) * 0.5 - RING_LINE_WIDTH
 	var center: Vector2 = size * 0.5
-	_capture_ring.draw_arc(center, radius, 0.0, TAU, 48, RING_BACKGROUND_COLOR, RING_LINE_WIDTH)
+	_capture_ring.draw_arc(center, radius, 0.0, TAU, 48, _arcade.disc_500_color, RING_LINE_WIDTH)
 	if _capture_progress > 0.0:
 		_capture_ring.draw_arc(
 			center, radius, -PI * 0.5, -PI * 0.5 + TAU * _capture_progress, 48, _capture_color, RING_LINE_WIDTH

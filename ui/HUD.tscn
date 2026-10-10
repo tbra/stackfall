@@ -15,11 +15,11 @@ offset_bottom = 220.0
 mouse_filter = 2
 
 [node name="TopLeftCluster" type="VBoxContainer" parent="."]
-offset_left = 40.0
-offset_top = 40.0
+offset_left = 36.0
+offset_top = 36.0
 offset_right = 384.0
-offset_bottom = 40.0
-theme_override_constants/separation = 12
+offset_bottom = 36.0
+theme_override_constants/separation = 4
 
 [node name="SharesBox" type="VBoxContainer" parent="TopLeftCluster"]
 unique_name_in_owner = true
@@ -27,7 +27,7 @@ layout_mode = 2
 
 [node name="StatusPill" type="VBoxContainer" parent="."]
 unique_name_in_owner = true
-offset_left = 40.0
+offset_left = 24.0
 offset_top = 240.0
 offset_right = 384.0
 offset_bottom = 240.0
@@ -211,8 +211,8 @@ anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -176.0
-offset_top = -176.0
-offset_right = -16.0
-offset_bottom = -16.0
+offset_left = -192.0
+offset_top = -192.0
+offset_right = -24.0
+offset_bottom = -24.0
 mouse_filter = 2

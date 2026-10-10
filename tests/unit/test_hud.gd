@@ -125,7 +125,8 @@ func test_set_capture_shows_the_ring_only_while_someone_is_capturing() -> void:
 
 
 func _toast_accent(label: Label) -> Color:
-	return (label.get_theme_stylebox("normal") as StyleBoxFlat).border_color
+	# Stackfall Arcade Callout: the message face (alert / mint / rim) is the accent.
+	return (label.get_theme_stylebox("normal") as StyleBoxFlat).bg_color
 
 
 ## Bontago-mp0.145: every transient message shares one pill style; the gift
@@ -135,12 +136,11 @@ func test_toasts_share_one_pill_style_with_a_player_accent() -> void:
 	for label: Label in [hud._gift_toast_label, hud._reject_label]:
 		var style: StyleBoxFlat = label.get_theme_stylebox("normal") as StyleBoxFlat
 		assert_not_null(style)
-		assert_eq(style.bg_color, hud.hud_visual_tuning.toast_fill_color)
 		assert_eq(label.get_theme_font_size("font_size"), hud.hud_visual_tuning.toast_font_size)
+		assert_not_null(label.get_node_or_null("CalloutIcon"), "every Callout carries its ink icon tile")
 	hud.show_gift_toast(&"jumping_bean")
-	var accent: Color = _toast_accent(hud._gift_toast_label)
-	assert_almost_eq(accent.r, hud._active_color.r, 0.001)
-	assert_almost_eq(hud._gift_toast_label.modulate.r, 1.0, 0.001, "accent lives on the border, not a modulate tint")
+	assert_eq(_toast_accent(hud._gift_toast_label), hud._arcade.rim_color, "a claimed special is a rim reward Callout")
+	assert_almost_eq(hud._gift_toast_label.modulate.r, 1.0, 0.001, "the face carries the accent, not a modulate tint")
 
 
 func test_show_reject_sets_the_message() -> void:
@@ -162,9 +162,9 @@ func test_show_relocated_sets_a_distinct_message_from_show_reject() -> void:
 	assert_true(hud._reject_label.text.findn("relocated") >= 0)
 	assert_true(hud._reject_label.text.findn("territory") >= 0)
 	assert_almost_eq(hud._reject_label.modulate.a, 1.0, 0.001)
-	assert_almost_eq(
-		_toast_accent(hud._reject_label).r, hud.ghost_tuning.auto_drop_flash_color.r, 0.001,
-		"the relocated message should read distinctly from a reject (ties it to the same auto-drop flash tint)."
+	assert_eq(
+		_toast_accent(hud._reject_label), hud._arcade.mint_color,
+		"the relocated message should read distinctly from a reject (mint check, not the alert face)."
 	)
 
 
@@ -176,12 +176,12 @@ func test_show_relocated_after_show_reject_does_not_keep_the_stale_reject_tint()
 	hud.show_reject(&"outside_territory")
 	hud.show_relocated()
 	assert_true(hud._reject_label.text.findn("relocated") >= 0)
-	assert_almost_eq(_toast_accent(hud._reject_label).r, hud.ghost_tuning.auto_drop_flash_color.r, 0.001)
+	assert_eq(_toast_accent(hud._reject_label), hud._arcade.mint_color)
 
 	hud.show_reject(&"outside_territory")
 	assert_true(hud._reject_label.text.findn("outside territory") >= 0)
 	assert_eq(
-		_toast_accent(hud._reject_label), hud.hud_visual_tuning.toast_reject_accent_color,
+		_toast_accent(hud._reject_label), hud._arcade.alert_color,
 		"a reject right after a relocated message must not keep the relocated accent either."
 	)
 
@@ -249,7 +249,7 @@ func test_gift_claim_refreshes_only_recipient_next_preview_immediately() -> void
 	assert_eq(hud._next_label.text, "NEXT")
 	fake_match.pending_special_count_by_slot[0] = 1
 	hud._refresh_special_indicator()
-	assert_eq(hud._next_label.text, "NEXT GIFT")
+	assert_eq(hud._next_label.text, "NEXT · GIFT")
 	fake_match.held_special_by_slot[0] = &"jumping_bean"
 	hud._refresh_special_indicator()
 	assert_eq(hud._held_label.text, "HELD: Jumping Bean")
@@ -537,7 +537,7 @@ func test_gift_claimed_for_the_local_slot_shows_the_toast_with_the_special_name(
 	(Match._gifts._pending_queues[0] as Array).append(&"jumping_bean")
 	Events.gift_claimed.emit(0, 0, &"jumping_bean")
 
-	assert_eq(hud._gift_toast_label.text, "Special queued: Jumping Bean")
+	assert_eq(hud._gift_toast_label.text, "SPECIAL QUEUED: JUMPING BEAN")
 	assert_almost_eq(hud._gift_toast_label.modulate.a, 1.0, 0.0001)
 
 
@@ -602,11 +602,11 @@ func test_gift_claimed_toast_reaches_both_teammates_under_teams_2() -> void:
 	Events.gift_claimed.emit(0, 0, &"jumping_bean")
 
 	assert_eq(
-		hud_slot0._gift_toast_label.text, "Special queued: Jumping Bean",
+		hud_slot0._gift_toast_label.text, "SPECIAL QUEUED: JUMPING BEAN",
 		"team 0's claim must show on slot 0's own HUD"
 	)
 	assert_eq(
-		hud_slot2._gift_toast_label.text, "Special queued: Jumping Bean",
+		hud_slot2._gift_toast_label.text, "SPECIAL QUEUED: JUMPING BEAN",
 		"team 0's claim must also show on its teammate slot 2's HUD"
 	)
 
@@ -1116,3 +1116,47 @@ func test_client_capture_ring_stops_on_break_and_win() -> void:
 	Events.match_won.emit(1)
 	hud.extrapolate_capture(5.0, 20.0)
 	assert_almost_eq(hud._capture_progress, 0.4, 0.0001, "no rise after a win")
+
+
+# --- Stackfall Arcade HUD reskin (Bontago-hfa.6) -------------------------------
+
+func test_scoreboard_marks_only_the_local_row_with_you() -> void:
+	var hud: HUD = _make_hud()
+	hud.set_territory_shares(PackedFloat32Array([0.5, 0.5]))
+	hud.set_local_slot(1)
+	assert_false((hud._share_you_labels[0] as Label).visible)
+	assert_true((hud._share_you_labels[1] as Label).visible)
+	assert_eq((hud._share_you_labels[1] as Label).get_theme_color("font_color"), hud._arcade.rim_color)
+
+
+func test_share_bar_cuts_every_tenth() -> void:
+	var hud: HUD = _make_hud()
+	hud.set_territory_shares(PackedFloat32Array([0.5]))
+	var bar: ShareBar = hud._share_bars[0]
+	var ticks: PackedFloat32Array = bar.tick_positions()
+	assert_eq(ticks.size(), hud.hud_visual_tuning.share_tick_count - 1)
+	assert_almost_eq(ticks[0], bar.size.x / float(hud.hud_visual_tuning.share_tick_count), 0.001)
+
+
+func test_locked_fades_the_held_and_next_cards() -> void:
+	var hud: HUD = _make_hud()
+	hud.set_locked(true)
+	assert_almost_eq(hud._held_shape_card.modulate.a, hud.hud_visual_tuning.locked_card_alpha, 0.001)
+	assert_almost_eq(hud._next_shape_card.modulate.a, hud.hud_visual_tuning.locked_card_alpha, 0.001)
+	hud.set_locked(false)
+	assert_almost_eq(hud._held_shape_card.modulate.a, 1.0, 0.001)
+
+
+func test_reject_callout_is_an_alert_face_with_a_cross_and_uppercase_text() -> void:
+	var hud: HUD = _make_hud()
+	hud.show_reject(&"outside_territory")
+	assert_eq(hud._reject_label.text, "REJECTED: OUTSIDE TERRITORY")
+	assert_eq(_toast_accent(hud._reject_label), hud._arcade.alert_color)
+	var tile: HudCallout = hud._reject_label.get_node("CalloutIcon") as HudCallout
+	assert_eq(tile.glyph, HudCallout.Glyph.CROSS)
+	assert_eq(hud._reject_label.get_theme_color("font_color"), hud._arcade.ink_color)
+
+
+func test_timer_ring_bottom_sits_above_the_tutorial_banner_gap() -> void:
+	var hud: HUD = _make_hud()
+	assert_gt(hud.timer_ring_bottom_px(), 0.0)
