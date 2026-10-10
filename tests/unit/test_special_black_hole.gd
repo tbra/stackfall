@@ -197,7 +197,12 @@ func test_real_disc_8kg_block_from_6m_reaches_the_core_within_lifetime() -> void
 	assert_false(heavy.has_meta(RadialPull.CAPTURED_META), "refused dissolve leaves no capture flag")
 
 
-const CUBE_COLUMN_COUNT: int = 12
+# DECISION (Bontago-fca.83): 8 cubes, not 12. The gate's parallel shard still hit "Jolt Physics job
+# system exceeded the maximum number of jobs" in the pile test (an engine warning GUT counts as a
+# failure) when worker threads were starved: the pull funnels every cube into the 0.8 m core, so
+# the contact count per step is what exhausts the job pool. Two full layers of four still prove
+# "removed layer by layer" with a third fewer contacts. Never reproduced locally, even 16x parallel.
+const CUBE_COLUMN_COUNT: int = 8
 const OLD_ORIGIN_CORE_M: float = 0.8
 const CUBE_COLUMN_SPACING_M: float = 1.2
 const CUBE_COLUMN_START_M: float = 0.8
