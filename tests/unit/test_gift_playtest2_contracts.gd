@@ -8,9 +8,12 @@ var _blocks_root: Node3D
 var _field: Field
 var _registry: BlockRegistry
 var _tiny_map: MapDef
+## Bontago-fca.79: the real activation, put back after a test swaps in an ActivationDouble.
+var _real_activation: MatchGiftActivation
 
 
 func before_each() -> void:
+	_real_activation = Match._placement._activation
 	Match.set_process(false)
 	Match.abort_match()
 	_tiny_map = (load("res://config/maps/round_medium.tres") as MapDef).duplicate(true)
@@ -26,6 +29,9 @@ func before_each() -> void:
 
 
 func after_each() -> void:
+	# Bontago-fca.79: the shared Match autoload outlives this script; a leaked double made
+	# test_gift_in_place (same shard) activate nothing.
+	Match._placement._activation = _real_activation
 	Match.set_net_provider(null)
 	Match.abort_match()
 	for child: Node in _blocks_root.get_children():

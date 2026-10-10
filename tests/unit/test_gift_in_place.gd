@@ -13,6 +13,11 @@ var _tiny_map: MapDef
 func before_each() -> void:
 	Match.set_process(false)
 	Match.abort_match()
+	# Bontago-fca.79: an earlier script in the shard may have left a test double in place of
+	# the real activation; this script needs the real one.
+	if Match._placement._activation.get_script() != MatchGiftActivation:
+		Match._placement._activation = MatchGiftActivation.new()
+		Match._placement._activation.setup(Match)
 	# Bontago-fca.61: the shared Match autoload may still hold rain/anchors from an
 	# earlier script in the same shard; start from none so _rain()/anchor lookups and
 	# the live-anchor count only see this test's effects.

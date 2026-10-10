@@ -13,6 +13,9 @@ var _bodies: Array[Node3D] = []
 
 
 func after_each() -> void:
+	# Bontago-fca.80: many tests here pause the shared Match autoload's _process and only one
+	# put it back; a paused Match left test_start_camera_flow stuck in LOADING (same batch).
+	Match.set_process(true)
 	for body: Node3D in _bodies:
 		if is_instance_valid(body):
 			body.free()
