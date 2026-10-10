@@ -262,6 +262,15 @@ class H2HTests(unittest.TestCase):
         self.assertEqual(h2h.parse_winner(text), -1)
         self.assertIsNone(h2h.parse_winner("nothing"))
 
+    def test_timeout_match_is_draw_not_failed(self) -> None:
+        line = "HEADLESS_MATCH index=1 mode=0 seed=1 duration=300.0 winner_team=-1 placements=9 homes_alive=8 teams=0 timeout=1"
+        self.assertTrue(h2h.timed_out(line))
+        self.assertFalse(h2h.timed_out(line.replace(" timeout=1", "")))
+        jobs = [h2h.MatchJob(1, False, []), h2h.MatchJob(1, True, []), h2h.MatchJob(2, False, [])]
+        t = h2h.tally(jobs, [line, "HEADLESS_BOTS done t=1.0", line.replace(" timeout=1", "").replace("-1", "0")],
+                      [0], [1])
+        self.assertEqual((t["draws"], t["timeouts"], t["failed"], t["wins"]), (1, 1, 1, 1))
+
     def test_refuses_without_seam_and_dry_run(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             cand = os.path.join(tmp, "c.txt")

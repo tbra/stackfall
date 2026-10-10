@@ -121,3 +121,8 @@ weight diff, and never edits `config/` (`--write-proposal` refuses paths there).
 gate (>= 75 % win share over >= 100 matches). It needs the per-slot weight override
 and match seed seam (plan BT5 `--bot-weights`), supplied through `--godot-args`;
 until then use `--dry-run`.
+Headless bot log clock (Bontago-1t5.16): `HEADLESS_BOTS t=`/`done t=` and `HEADLESS_MATCH duration=`
+are game time (physics ticks, the clock `--seconds` uses; `wall=` is the wall-clock extra field), so
+under `--fixed-fps 60` `done t=` equals the cap. A run that hits `--seconds` while still PLAYING prints
+`HEADLESS_MATCH ... winner_team=-1 ... timeout=1`; `bot_h2h.py` counts it as a draw and shows it as
+`draws=N (timeouts=M)`, separate from `failed` (no HEADLESS_MATCH line at all).

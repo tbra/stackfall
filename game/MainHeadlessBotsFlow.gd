@@ -11,6 +11,9 @@ var main_node: Main:
 	get:
 		return main as Main
 
+## Physics frame at which the current bot match's diagnostics started (game-time origin).
+var _headless_bots_start_physics_frame: int = 0
+
 
 # --- Headless bot match: `--bots=<n>` (Bontago-d5c.6, M5 P5) -----------------
 #
@@ -138,13 +141,16 @@ func _restart_headless_loop_match() -> void:
 	_start_headless_loop_match(_bots_arg(main_node._headless_loop_args), main_node._headless_loop_args)
 
 
-func _headless_match_summary_line() -> String:
-	return "HEADLESS_MATCH index=%d mode=%d seed=%d duration=%.1f winner_team=%d placements=%d homes_alive=%d teams=%s" % [
+## `timed_out` (Bontago-1t5.16): the --seconds cap hit with the match still PLAYING; the line then
+## carries winner_team=-1 and a trailing `timeout=1` (tools/bot_h2h.py counts it as a draw).
+func _headless_match_summary_line(timed_out: bool = false) -> String:
+	var line: String = "HEADLESS_MATCH index=%d mode=%d seed=%d duration=%.1f winner_team=%d placements=%d homes_alive=%d teams=%s" % [
 		main_node._headless_loop_index,
 		Match.config.game_mode if Match.config != null else 0,
-		main_node._headless_loop_seed, _headless_bots_elapsed_s(), Match.winner_team(),
+		main_node._headless_loop_seed, _headless_bots_elapsed_s(), -1 if timed_out else Match.winner_team(),
 		main_node._headless_bots_placements, _headless_bots_homes_alive(), _headless_slot_teams(),
 	]
+	return line + " timeout=1" if timed_out else line
 
 
 ## Team id per slot, comma-separated ("0,1,2,..."), so a harness can map candidate seats to teams.
@@ -363,6 +369,7 @@ func _start_headless_bots_diagnostics() -> void:
 	# block_placed or leak a second report Timer.
 	_stop_headless_bots_diagnostics()
 	main_node._headless_bots_start_msec = Time.get_ticks_msec()
+	_headless_bots_start_physics_frame = Engine.get_physics_frames()
 	main_node._headless_bots_placements = 0
 	Events.block_placed.connect(main_node._on_headless_bots_block_placed)
 	main_node._headless_bots_report_timer = Timer.new()
@@ -399,22 +406,24 @@ func _on_headless_bots_report_tick() -> void:
 ## ticks.
 func _on_headless_bots_seconds_elapsed() -> void:
 	print(_headless_bots_done_line())
+	if Match.state() == Match.State.PLAYING:
+		print(_headless_match_summary_line(true))
 	_finish_bot_record(-1)
 	await Sfx.drain_for_quit()
 	main_node.get_tree().quit(0)
 
 
 func _headless_bots_periodic_line() -> String:
-	return "HEADLESS_BOTS t=%.1f state=%s placements=%d mode=%d homes_alive=%d frontier_gap=%.2f goals=%s" % [
-		_headless_bots_elapsed_s(), _headless_bots_state_name(), main_node._headless_bots_placements,
+	return "HEADLESS_BOTS t=%.1f wall=%.1f state=%s placements=%d mode=%d homes_alive=%d frontier_gap=%.2f goals=%s" % [
+		_headless_bots_elapsed_s(), _headless_bots_wall_s(), _headless_bots_state_name(), main_node._headless_bots_placements,
 		Match.config.game_mode if Match.config != null else 0, _headless_bots_homes_alive(),
 		_headless_bots_frontier_gap(), _headless_bots_goal_coverage(),
 	]
 
 
 func _headless_bots_done_line() -> String:
-	return "HEADLESS_BOTS done t=%.1f placements=%d mode=%d homes_alive=%d" % [
-		_headless_bots_elapsed_s(), main_node._headless_bots_placements,
+	return "HEADLESS_BOTS done t=%.1f wall=%.1f placements=%d mode=%d homes_alive=%d" % [
+		_headless_bots_elapsed_s(), _headless_bots_wall_s(), main_node._headless_bots_placements,
 		Match.config.game_mode if Match.config != null else 0, _headless_bots_homes_alive(),
 	]
 
@@ -533,7 +542,14 @@ func _headless_bots_homes_alive() -> int:
 	return alive
 
 
+## DECISION (Bontago-1t5.16): the `t=` / `duration=` fields are GAME time (physics ticks), the same
+## clock the --seconds SceneTree timer uses, so `done t=` matches the cap even under an unpaced
+## `--fixed-fps 60` run; wall-clock seconds are printed as an extra `wall=` field.
 func _headless_bots_elapsed_s() -> float:
+	return float(Engine.get_physics_frames() - _headless_bots_start_physics_frame) / float(Engine.physics_ticks_per_second)
+
+
+func _headless_bots_wall_s() -> float:
 	return float(Time.get_ticks_msec() - main_node._headless_bots_start_msec) / 1000.0
 
 
