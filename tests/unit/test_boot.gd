@@ -58,3 +58,70 @@ func test_activation_hook_runs_before_main_is_added() -> void:
 	get_tree().current_scene = null
 	await get_tree().process_frame
 	await get_tree().process_frame
+
+
+const FIXTURE_SCENE: String = "res://tests/unit/support/BootFixture.tscn"
+const FIXTURE_LATE: String = "res://tests/unit/support/BootFixtureLate.gd"
+## Frames the quit-deferral test waits for the worker before giving up.
+const WAIT_FRAME_LIMIT: int = 600
+
+var _quit_calls: int = 0
+
+
+func _count_quit() -> void:
+	_quit_calls += 1
+
+
+func _threaded_boot(path: String) -> Boot:
+	var boot: Boot = Boot.new()
+	boot.main_scene_path = path
+	boot.quit_on_failure = false
+	boot.force_threaded = true
+	return boot
+
+
+## Bontago-1pi.11.80: exit cleanup cancels an in-flight threaded load (and logs "Could not
+## preload" for the whole script graph), so Boot collects it in _exit_tree.
+func test_exit_collects_inflight_main_load() -> void:
+	var boot: Boot = _threaded_boot(FIXTURE_SCENE)
+	add_child(boot)
+	remove_child(boot)  # same frame: the request is still pending; exit must collect it
+	assert_eq(ResourceLoader.load_threaded_get_status(FIXTURE_SCENE), ResourceLoader.THREAD_LOAD_INVALID_RESOURCE,
+			"the request was collected (no pending task left for cleanup to cancel)")
+	assert_not_null(boot.collected_resource, "the load completed rather than being cancelled")
+	assert_false(boot.load_failed)
+	boot.free()
+	get_tree().auto_accept_quit = true
+
+
+func test_exit_collects_inflight_prewarm_request() -> void:
+	var boot: Boot = _threaded_boot(FIXTURE_SCENE)
+	add_child(boot)
+	boot._collect_pending()  # finish the Main phase, then queue a prewarm request
+	boot.collected_resource = null
+	boot._prewarm_paths = PackedStringArray([FIXTURE_LATE])
+	boot._prewarm_index = 0
+	assert_true(boot._request_prewarm(), "prewarm request queued")
+	remove_child(boot)
+	assert_eq(ResourceLoader.load_threaded_get_status(FIXTURE_LATE), ResourceLoader.THREAD_LOAD_INVALID_RESOURCE)
+	assert_not_null(boot.collected_resource, "the prewarm load completed")
+	boot.free()
+	get_tree().auto_accept_quit = true
+
+
+func test_close_request_is_deferred_until_load_collected() -> void:
+	_quit_calls = 0
+	var boot: Boot = _threaded_boot("res://game/Main.tscn")
+	boot.quit_callable = _count_quit
+	add_child(boot)
+	assert_false(get_tree().auto_accept_quit, "threaded boot owns the close request")
+	boot.notification(Node.NOTIFICATION_WM_CLOSE_REQUEST)
+	assert_eq(_quit_calls, 0, "no quit while the load is in flight")
+	var frames: int = 0
+	while _quit_calls == 0 and frames < WAIT_FRAME_LIMIT:
+		await get_tree().process_frame
+		frames += 1
+	assert_eq(_quit_calls, 1, "quits once the in-flight request is collected")
+	assert_null(get_tree().root.get_node_or_null(NodePath(Boot.MAIN_NODE_NAME)), "Main is not started after a close request")
+	boot.free()
+	get_tree().auto_accept_quit = true

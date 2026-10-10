@@ -7,6 +7,9 @@ extends Node
 ## (LateScripts deferral, threaded load and prewarm all run unchanged). This node is a child of
 ## that Boot, moves itself under the root so it survives Boot's queue_free, then logs the
 ## first-frame time (comparable to Boot._ready in the game) and when Main replaces Boot.
+## CAVEAT (Bontago-1pi.11.80): the "Could not preload resource file" SCRIPT ERROR cascade seen
+## when this probe quits mid-load is exit-time cancellation of Boot's in-flight threaded load, not a
+## game race; Boot now collects that request in _exit_tree, and the probe's fixed timer does not matter.
 const BOOT_FIRST_FRAME_LINE: String = "first_frame t=%d ms (Boot is current_scene; Main loads on a worker)"
 const BOOT_SWAP_LINE: String = "main_is_current_scene t=%d ms (%d ms after first frame)"
 const MAIN_NODE_NAME: String = "Main"
