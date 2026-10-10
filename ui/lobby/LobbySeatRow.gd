@@ -12,6 +12,11 @@ extends PanelContainer
 ## - a bot row has a difficulty dropdown (Easy / Normal / Hard) and, for the host, a
 ##   remove button.
 ##
+## Every control is a ui/components row item (Bontago-1pi.159.2.2): the team and difficulty
+## selectors are UiDropdowns (click-to-cycle, owner decision 1pi.94), the remove X a UiIconButton
+## (DANGER), the Ready / host badge a UiStatusBadge, so they all share one height
+## (ComponentMetrics.row_height_px). Only the colour diamond keeps its own flat, borderless button.
+##
 ## The row is a view: it never touches the seat table. It reports what the player
 ## asked for through the four request signals and the LobbyPlayersPanel (which owns
 ## the table) applies it and redraws -- or, for a client's own row, sends it to the host. A row is immutable once built(); a change of
@@ -65,6 +70,12 @@ var is_host: bool = false
 ## team; PL1b -- the panel turns its clicks into Net.request_seat_pref). Anyone else's row
 ## is the same row, read-only.
 var editable: bool = false
+## Some row of the list is a bot's: a human row keeps the empty room of the bot's difficulty and
+## remove columns so every row's team selector and badge line up.
+var align_bot_columns: bool = false
+## The list's bot rows carry a remove button (the host's view): human rows reserve its room too. A
+## client's own (editable) row must not decide this from its own `editable`.
+var align_remove_column: bool = false
 
 # --- Built by build() ------------------------------------------------------------------
 var layout: HBoxContainer = null
@@ -74,12 +85,12 @@ var color_diamond: SlotDiamond = null
 var name_label: Label = null
 var subtitle_label: Label = null
 ## null unless `show_team` and the row has a seat.
-var team_button: CycleSelector = null
+var team_button: UiDropdown = null
 ## null for a human.
-var difficulty_option: CycleSelector = null
+var difficulty_option: UiDropdown = null
 ## null unless the row is a bot's and `editable`.
-var remove_button: Button = null
-var badge: PanelContainer = null
+var remove_button: UiIconButton = null
+var badge: UiStatusBadge = null
 var badge_label: Label = null
 
 var _tuning: MenuVisualTuning = null
@@ -118,11 +129,6 @@ func _ready() -> void:
 func build(tuning: MenuVisualTuning, layout_tuning: LobbyLayoutTuning) -> void:
 	_tuning = tuning
 	_layout_tuning = layout_tuning
-	# Bontago-mp0.3.5 (review r3, problem 5): make_flat_list() draws
-	# pill_cream_hover_color, which is the *exact same* Color as card_cream_color --
-	# the row blended invisibly into %PlayersCard's own background instead of reading
-	# as a raised white pill (mockup 11). tuning.pill_white_color is a real near-white
-	# the card can never match.
 	# Arcade (Bontago-hfa.5): a PlayerSlot row is a flat disc-700 block inside the disc-800 plate.
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	var row_box: StyleBoxFlat = MenuStyleFactory.make_flat_list(tuning)
@@ -135,7 +141,7 @@ func build(tuning: MenuVisualTuning, layout_tuning: LobbyLayoutTuning) -> void:
 	if layout_tuning.seat_row_min_height_px > 0:
 		custom_minimum_size = Vector2(0.0, float(layout_tuning.seat_row_min_height_px))
 	layout = HBoxContainer.new()
-	layout.add_theme_constant_override("separation", layout_tuning.seat_row_separation_px)
+	layout.add_theme_constant_override("separation", arcade.space_2_px)
 	add_child(layout)
 
 	_build_color_button()
@@ -146,6 +152,8 @@ func build(tuning: MenuVisualTuning, layout_tuning: LobbyLayoutTuning) -> void:
 		_build_difficulty_option()
 		if editable:
 			_build_remove_button()
+	elif align_bot_columns and show_team and seat_key != LobbySeats.KEY_NONE:
+		_build_bot_column_spacers()
 	_build_badge()
 	_wire_horizontal_focus()
 
@@ -207,14 +215,14 @@ func _build_color_button() -> void:
 	color_button.focus_mode = Control.FOCUS_ALL if editable and seat_key != LobbySeats.KEY_NONE else Control.FOCUS_NONE
 	var radius: int = _layout_tuning.color_box_corner_radius_px
 	var normal: StyleBoxFlat = _color_box(Color.TRANSPARENT, radius, 0, Color.TRANSPARENT)
-	var hover: StyleBoxFlat = _color_box(_tuning.pill_cream_hover_color, radius, 0, Color.TRANSPARENT)
+	var hover: StyleBoxFlat = _color_box(MenuStyleFactory.arcade_tuning().disc_600_color, radius, 0, Color.TRANSPARENT)
 	var focus: StyleBoxFlat = _color_box(Color.TRANSPARENT, radius, _layout_tuning.seat_color_focus_border_px, _tuning.focus_outline_color)
-	color_button.add_theme_stylebox_override("normal", normal)
-	color_button.add_theme_stylebox_override("hover", hover if editable else normal)
-	color_button.add_theme_stylebox_override("pressed", normal)
-	color_button.add_theme_stylebox_override("hover_pressed", normal)
-	color_button.add_theme_stylebox_override("disabled", normal)
-	color_button.add_theme_stylebox_override("focus", focus)
+	var faces: Dictionary = {
+		"normal": normal, "hover": hover if editable else normal, "pressed": normal,
+		"hover_pressed": normal, "disabled": normal, "focus": focus,
+	}
+	for state: String in faces:
+		color_button.add_theme_stylebox_override(state, faces[state] as StyleBox)
 	# Bontago-1pi.81: the seat colour is the shared SlotDiamond, centred in the button.
 	color_diamond = SlotDiamond.create(seat_color)
 	color_diamond.name = "SlotDiamond"
@@ -258,50 +266,42 @@ func _build_text_column() -> void:
 	layout.add_child(text_column)
 
 
-## The team number pill: "1".."4" or "?" (Random), a cream-blue pill like the other
-## small pills on the screen.
+## The team selector: a compact UiDropdown showing "?" (Random) or "1".."4". Items run
+## Random, 1..TEAM_PICK_MAX so the shown item is the pick itself; the pick lives in the panel's
+## seat table, so the dropdown only reports the click (auto_advance off) and the row is rebuilt.
 func _build_team_button() -> void:
-	team_button = CycleSelector.new()
-	# The pick lives in the panel's seat table: the pill only reports the click and the row is rebuilt.
+	team_button = UiDropdown.new()
+	team_button.mode = UiDropdown.Mode.CYCLE
 	team_button.auto_advance = false
+	team_button.show_chevron = false
 	team_button.name = "TeamButton"
-	team_button.text = team_text(team_pick)
-	team_button.custom_minimum_size = _layout_tuning.seat_team_button_min_size_px
-	team_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	for pick: int in range(MatchConfig.TEAM_PICK_RANDOM, MatchConfig.TEAM_PICK_MAX + 1):
+		team_button.add_item(team_text(pick))
+	team_button.select(clampi(team_pick, MatchConfig.TEAM_PICK_RANDOM, MatchConfig.TEAM_PICK_MAX))
+	_compact(team_button, _layout_tuning.seat_team_button_min_size_px.x, false)
 	team_button.tooltip_text = PlayerNames.team_label(team_pick) if team_pick > MatchConfig.TEAM_PICK_RANDOM else "Random team"
-	_style_pill(team_button, _tuning.pill_powder_blue_color, _tuning.pill_powder_blue_hover_color, _tuning.ink_color)
 	team_button.disabled = not editable
 	team_button.focus_mode = Control.FOCUS_ALL if editable else Control.FOCUS_NONE
 	if editable:
 		team_button.tooltip_text += " (click to change, right click: previous)"
-		team_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		team_button.cycled.connect(_on_team_cycled)
 	layout.add_child(team_button)
 
 
-## A bot's own difficulty. Read-only (disabled) for a client; the host's pill cycles on
-## click / ui_accept (right click: previous), like every CycleSelector.
+## A bot's own difficulty: a UiDropdown that cycles on click / ui_accept (right click: previous),
+## read-only (disabled) for a client.
 func _build_difficulty_option() -> void:
-	difficulty_option = CycleSelector.new()
+	difficulty_option = UiDropdown.new()
+	difficulty_option.mode = UiDropdown.Mode.CYCLE
 	difficulty_option.name = "DifficultyOption"
+	var art: UiArtTable = UiArtTable.shared()
 	for label_index: int in range(DIFFICULTY_LABELS.size()):
 		difficulty_option.add_item(DIFFICULTY_LABELS[label_index])
-		difficulty_option.set_item_icon(label_index, UiArtTable.shared().difficulty_icon(label_index))
-	difficulty_option.add_theme_constant_override("icon_max_width", UiArtTable.shared().lobby_icon_px)
+		difficulty_option.set_item_icon(label_index, art.difficulty_icon(label_index))
+	difficulty_option.add_theme_constant_override("icon_max_width", art.lobby_icon_px)
 	difficulty_option.select(clampi(difficulty, 0, DIFFICULTY_LABELS.size() - 1))
-	# Bontago-1pi.95: clip so the dropdown's minimum is this tuned width, not its widest item.
-	difficulty_option.custom_minimum_size = Vector2(
-		float(_layout_tuning.seat_difficulty_min_width_px), float(_layout_tuning.seat_control_height_px)
-	)
-	difficulty_option.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_compact(difficulty_option, _difficulty_width(), true)
 	difficulty_option.tooltip_text = "This bot's difficulty"
-	_style_pill(difficulty_option, _tuning.pill_cream_color, _tuning.pill_cream_hover_color, _tuning.ink_color)
-	# Bontago-1pi.150: tighter side margins so "Normal" is never clipped on the narrow mockup-scale canvas.
-	for state: String in ["normal", "hover", "pressed", "disabled", "focus"]:
-		var box: StyleBox = difficulty_option.get_theme_stylebox(state)
-		if box != null:
-			box.content_margin_left = minf(box.content_margin_left, float(_layout_tuning.seat_difficulty_margin_px))
-			box.content_margin_right = minf(box.content_margin_right, float(_layout_tuning.seat_difficulty_margin_px))
 	difficulty_option.disabled = not editable
 	difficulty_option.focus_mode = Control.FOCUS_ALL if editable else Control.FOCUS_NONE
 	if editable:
@@ -309,66 +309,91 @@ func _build_difficulty_option() -> void:
 	layout.add_child(difficulty_option)
 
 
+## The width the difficulty selector needs: its icon, the longest label and the margins (the tuned
+## width when that is larger). Computed from the theme font so "Normal" is never clipped.
+func _difficulty_width() -> float:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var font: Font = get_theme_font(&"font", &"Button")
+	var font_size: int = arcade.font_size_body_px
+	var widest: float = 0.0
+	for label_text: String in DIFFICULTY_LABELS:
+		widest = maxf(widest, ceilf(font.get_string_size(label_text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size).x))
+	var icon_px: float = float(UiArtTable.shared().lobby_icon_px)
+	var margins: float = float(arcade.space_2_px * 2 + arcade.space_4_px + arcade.space_2_px)
+	return maxf(float(_layout_tuning.seat_difficulty_min_width_px), icon_px + widest + margins)
+
+
+## Fits a dropdown to a seat row: the tuned width (never below its row-item minimum height) and
+## the token side margins (`space_2`; the chevron's side keeps room for it).
+func _compact(dropdown: UiDropdown, width_px: float, keeps_chevron: bool) -> void:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	dropdown.custom_minimum_size.x = width_px
+	var right: float = float(arcade.space_2_px + (arcade.space_4_px if keeps_chevron else 0))
+	for state: String in UiDropdown.STATES:
+		var box: StyleBox = dropdown.get_theme_stylebox(state)
+		box.content_margin_left = float(arcade.space_2_px)
+		box.content_margin_right = right
+
+
 func _build_remove_button() -> void:
-	remove_button = Button.new()
+	remove_button = UiIconButton.new()
 	remove_button.name = "RemoveButton"
-	remove_button.text = ""
-	UiArtTable.shared().apply_button_icon(remove_button, UiArtTable.shared().lobby_icon(UiArtTable.KEY_BOT_REMOVE))
-	remove_button.custom_minimum_size = _layout_tuning.seat_remove_button_min_size_px
-	remove_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	remove_button.tone = UiIconButton.Tone.DANGER
+	var art: UiArtTable = UiArtTable.shared()
+	remove_button.set_icon_texture(art.lobby_icon(UiArtTable.KEY_BOT_REMOVE))
 	remove_button.tooltip_text = "Remove this bot"
-	_style_pill(remove_button, _tuning.pill_coral_color, _tuning.pill_coral_hover_color, _tuning.label_ink_light_color)
-	# The pill's text margins would eat the whole icon-only circle: zero them so the x gets the full box.
-	for state: String in ["normal", "hover", "pressed", "disabled"]:
-		var box: StyleBox = remove_button.get_theme_stylebox(state)
-		box.content_margin_left = 0.0
-		box.content_margin_right = 0.0
-	remove_button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	remove_button.pressed.connect(_on_remove_pressed)
 	layout.add_child(remove_button)
 
 
-## The host's crown pill: a yellow pill (Bontago-1pi.120, LobbyLayoutTuning.host_crown_pill_color)
-## holding the crown icon (UiArtTable).
-func _build_host_crown_badge() -> void:
-	badge.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(_layout_tuning.host_crown_pill_color, _tuning))
-	badge.tooltip_text = HOST_TOOLTIP
-	var crown: TextureRect = TextureRect.new()
-	var table: UiArtTable = UiArtTable.shared()
-	crown.texture = table.lobby_icon(UiArtTable.KEY_HOST_CROWN)
-	crown.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	crown.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	crown.custom_minimum_size = Vector2.ONE * float(table.lobby_icon_px)
-	# The pill face is bright yellow: ink, never the cream the menu ink token now resolves to.
-	crown.modulate = MenuStyleFactory.ink_for_face(_layout_tuning.host_crown_pill_color)
-	crown.name = "HostCrown"
-	badge.add_child(crown)
-	layout.add_child(badge)
+## Empty room where a bot row has its difficulty / remove controls, so the team selectors and the
+## badges of every row stay in their columns.
+func _build_bot_column_spacers() -> void:
+	var widths: Array[float] = [_difficulty_width()]
+	if align_remove_column:
+		widths.append(float(UiRowItem.metrics().row_height_px))
+	for width: float in widths:
+		var spacer: Control = Control.new()
+		spacer.name = "ColumnSpacer"
+		spacer.custom_minimum_size = Vector2(width, 0.0)
+		spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		layout.add_child(spacer)
 
 
+## The badge slot: the host's crown (UiStatusBadge HOST) or the Ready / Not ready tile (ReadyPill,
+## the same UiStatusBadge). Both are row items: the same height as every other control of the row.
 func _build_badge() -> void:
-	# Bontago-1pi.146: the badge is the same height as the team / difficulty / remove pills (not stretched
-	# to the row), and as wide as the remove button.
-	var badge_size: Vector2 = Vector2(float(_layout_tuning.seat_badge_width_px), float(_layout_tuning.seat_control_height_px))
+	var metrics: ComponentMetrics = UiRowItem.metrics()
+	# One width for the crown and the Ready tile (the crown's icon plus the badge's side padding), so
+	# every row's badge column lines up.
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var badge_width: float = maxf(float(metrics.badge_icon_only_min_width_px), float(UiArtTable.shared().lobby_icon_px + 2 * arcade.space_3_px))
+	var badge_size: Vector2 = Vector2(badge_width, float(metrics.row_height_px))
 	if is_host:
-		badge = PanelContainer.new()
+		badge = UiStatusBadge.new()
+		badge.icon_only = true
+		badge.variant = UiStatusBadge.Look.HOST
+		badge.text = HOST_TOOLTIP
+		badge.label.visible = false
+		var crown: TextureRect = TextureRect.new()
+		var table: UiArtTable = UiArtTable.shared()
+		crown.texture = table.lobby_icon(UiArtTable.KEY_HOST_CROWN)
+		crown.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		crown.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		crown.custom_minimum_size = Vector2.ONE * float(table.lobby_icon_px)
+		# The badge face is bright (rim): ink, never the cream the menu ink token now resolves to.
+		crown.modulate = MenuStyleFactory.ink_for_face(UiStatusBadge.face_for(UiStatusBadge.Look.HOST))
+		crown.name = "HostCrown"
 		badge.custom_minimum_size = badge_size
-		badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		_build_host_crown_badge()
+		crown.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		badge.add_child(crown)
+		layout.add_child(badge)
 		return
 	# Bontago-1pi.158: the Ready / Not ready pill is the shared ui/ReadyPill.gd component.
 	var pill: ReadyPill = ReadyPill.create(is_ready, badge_size)
 	badge = pill
 	badge_label = pill.label
 	layout.add_child(badge)
-
-
-## A pill look that stays the same when the control is disabled (a client's read-only
-## row), so only the host sees live controls but both see the same row.
-func _style_pill(button: Button, color: Color, hover_color: Color, ink: Color) -> void:
-	MenuStyleFactory.apply_pill(button, color, hover_color, ink, _tuning)
-	button.add_theme_stylebox_override("disabled", MenuStyleFactory.make_badge(color, _tuning))
-	button.add_theme_color_override("font_disabled_color", ink)
 
 
 static func _color_box(color: Color, radius: int, border_px: int, border_color: Color) -> StyleBoxFlat:
@@ -381,15 +406,15 @@ static func _color_box(color: Color, radius: int, border_px: int, border_color: 
 	return box
 
 
-## Every control of the row gets its neighbours as explicit left / right focus targets.
+## Every control of the row gets its neighbours as explicit left / right focus targets; the ends
+## point at themselves, so sideways navigation never leaves the row (a UiToggle or UiStepper
+## elsewhere on the screen would otherwise catch the focus and read the next ui_right as its own).
 func _wire_horizontal_focus() -> void:
 	var controls: Array[Control] = focusable_controls()
 	for index: int in range(controls.size()):
 		var control: Control = controls[index]
-		if index > 0:
-			control.focus_neighbor_left = control.get_path_to(controls[index - 1])
-		if index < controls.size() - 1:
-			control.focus_neighbor_right = control.get_path_to(controls[index + 1])
+		control.focus_neighbor_left = control.get_path_to(controls[maxi(index - 1, 0)])
+		control.focus_neighbor_right = control.get_path_to(controls[mini(index + 1, controls.size() - 1)])
 
 
 # --- Input -------------------------------------------------------------------------------

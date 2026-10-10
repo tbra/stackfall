@@ -82,8 +82,8 @@ func _make_row() -> KeyRebindRow:
 
 func test_adaptive_quality_check_defaults_off_and_toggles_the_setting() -> void:
 	var menu: OptionsMenu = _make_menu()
-	var check: CheckButton = menu.get_node("%AdaptiveQualityCheck") as CheckButton
-	assert_false(check.button_pressed, "Adaptive quality defaults to OFF")
+	var check: UiToggle = menu.get_node("%AdaptiveQualityCheck") as UiToggle
+	assert_false(check.is_on(), "Adaptive quality defaults to OFF")
 	menu._on_adaptive_quality_toggled(true)
 	assert_true(_settings_of(menu).adaptive_quality_enabled())
 
@@ -125,20 +125,17 @@ func test_sfx_volume_slider_calls_set_sfx_volume_percent_only() -> void:
 
 func test_master_mute_button_toggles_mute_and_round_trips() -> void:
 	var menu: OptionsMenu = _make_menu()
-	(menu.get_node("%MasterMuteButton") as Button).pressed.emit()
+	(menu.get_node("%MasterMuteButton") as UiIconButton).pressed.emit()
 	assert_true(_settings_of(menu).master_muted())
 	assert_eq(_mute_icon(menu, "%MasterMuteButton"), OptionsMenu.SPEAKER_MUTED_ICON)
 
-	(menu.get_node("%MasterMuteButton") as Button).pressed.emit()
+	(menu.get_node("%MasterMuteButton") as UiIconButton).pressed.emit()
 	assert_false(_settings_of(menu).master_muted())
 
 
-## DECISION (ui/OptionsMenu.gd): the icon lives on a child TextureRect
-## (see that file's own DECISION on _style_mute_button_icon()), not the
-## Button's own `icon` property.
+## The mute block is a UiIconButton: its icon is the Button's own `icon`.
 func _mute_icon(menu: OptionsMenu, unique_name: String) -> Texture2D:
-	var button: Button = menu.get_node(unique_name) as Button
-	return (button.get_node("Icon") as TextureRect).texture
+	return (menu.get_node(unique_name) as UiIconButton).icon
 
 
 func test_volume_icon_reflects_percent_tier() -> void:
@@ -175,9 +172,9 @@ func test_rumble_toggle_calls_set_rumble_enabled() -> void:
 func test_rumble_strength_slider_disabled_when_rumble_is_off() -> void:
 	var menu: OptionsMenu = _make_menu()
 	menu._on_rumble_enabled_toggled(false)
-	assert_false((menu.get_node("%RumbleStrengthSlider") as HSlider).editable)
+	assert_false((menu.get_node("%RumbleStrengthSlider") as UiSegmentMeter).editable)
 	menu._on_rumble_enabled_toggled(true)
-	assert_true((menu.get_node("%RumbleStrengthSlider") as HSlider).editable)
+	assert_true((menu.get_node("%RumbleStrengthSlider") as UiSegmentMeter).editable)
 
 
 func test_rumble_strength_slider_calls_set_rumble_strength() -> void:
@@ -188,53 +185,60 @@ func test_rumble_strength_slider_calls_set_rumble_strength() -> void:
 
 # --- UI scale (Bontago-1pi.150) ------------------------------------------------
 
-func test_ui_scale_slider_range_value_and_live_set() -> void:
+func test_ui_scale_meter_range_value_and_live_set() -> void:
 	var menu: OptionsMenu = _make_menu()
 	var tuning: UiScaleTuning = UiScaleTuning.shared()
-	var slider: HSlider = menu.get_node("%UiScaleSlider") as HSlider
-	assert_eq(slider.min_value, tuning.min_scale)
-	assert_eq(slider.max_value, tuning.max_scale)
-	assert_eq(slider.value, tuning.default_scale)
-	assert_eq((menu.get_node("%UiScaleValueLabel") as Label).text, "100%")
+	var meter: UiSegmentMeter = menu.get_node("%UiScaleSlider") as UiSegmentMeter
+	assert_eq(meter.step_count, OptionsMenu.ui_scale_cell_count(), "one cell per UI-scale step")
+	assert_eq(meter.value, roundi((tuning.default_scale - tuning.min_scale) / tuning.step), "100% sits on a cell")
+	assert_eq(meter.display_text(), "100%")
 	menu._on_ui_scale_changed(1.1)
 	assert_almost_eq(_settings_of(menu).ui_scale(), 1.1, 0.0001)
-	assert_eq((menu.get_node("%UiScaleValueLabel") as Label).text, "110%")
 	menu._on_reset_pressed()
 	assert_eq(_settings_of(menu).ui_scale(), tuning.default_scale)
-	assert_eq(slider.value, tuning.default_scale)
+	assert_eq(meter.display_text(), "100%")
 	UiScaleTuning.current_scale = -1.0
 
 
-func test_ui_scale_slider_drag_applies_on_release_only() -> void:
+func test_ui_scale_meter_drag_applies_on_release_only() -> void:
 	var menu: OptionsMenu = _make_menu()
-	var slider: HSlider = menu.get_node("%UiScaleSlider") as HSlider
-	menu._on_ui_scale_drag_started()
-	slider.value = 0.9
-	assert_eq(_settings_of(menu).ui_scale(), UiScaleTuning.shared().default_scale, "no rescale mid-drag")
-	assert_eq((menu.get_node("%UiScaleValueLabel") as Label).text, "90%")
-	menu._on_ui_scale_drag_ended(true)
+	var meter: UiSegmentMeter = menu.get_node("%UiScaleSlider") as UiSegmentMeter
+	var tuning: UiScaleTuning = UiScaleTuning.shared()
+	var target_cells: int = roundi((0.9 - tuning.min_scale) / tuning.step)
+	meter.gui_input.emit(_left_click(true))
+	meter.value = target_cells
+	assert_eq(_settings_of(menu).ui_scale(), tuning.default_scale, "no rescale mid-drag")
+	assert_eq(meter.display_text(), "90%")
+	meter.gui_input.emit(_left_click(false))
 	assert_almost_eq(_settings_of(menu).ui_scale(), 0.9, 0.0001)
 	UiScaleTuning.current_scale = -1.0
 
 
-func test_ui_scale_slider_steps_with_a_synthetic_gamepad_dpad() -> void:
+func _left_click(pressed: bool) -> InputEventMouseButton:
+	var click: InputEventMouseButton = InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = pressed
+	return click
+
+
+func test_ui_scale_meter_steps_with_a_synthetic_gamepad_dpad() -> void:
 	var menu: OptionsMenu = _make_menu()
-	var slider: HSlider = menu.get_node("%UiScaleSlider") as HSlider
-	slider.grab_focus()
-	var before: float = slider.value
+	var meter: UiSegmentMeter = menu.get_node("%UiScaleSlider") as UiSegmentMeter
+	meter.grab_focus()
+	var before: int = meter.value
 	var event: InputEventJoypadButton = InputEventJoypadButton.new()
 	event.button_index = JOY_BUTTON_DPAD_LEFT
 	event.pressed = true
 	Input.parse_input_event(event)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	assert_lt(slider.value, before, "d-pad left lowers the UI scale")
+	assert_eq(meter.value, before - 1, "one d-pad press lowers the UI scale by one cell")
 	event.pressed = false
 	Input.parse_input_event(event)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
-	assert_almost_eq(_settings_of(menu).ui_scale(), slider.value, 0.0001)
+	assert_almost_eq(_settings_of(menu).ui_scale(), UiScaleTuning.shared().default_scale - UiScaleTuning.shared().step, 0.0001)
 	UiScaleTuning.current_scale = -1.0
 
 
@@ -271,11 +275,10 @@ func test_move_speed_slider_keeps_focus_across_a_device_switch() -> void:
 
 # --- Custom music folder ----------------------------------------------------------
 
-func test_custom_music_override_is_hidden_and_disabled() -> void:
+func test_custom_music_override_has_no_options_row() -> void:
 	var menu: OptionsMenu = _make_menu()
-	menu._on_music_dir_submitted("C:/my music")
+	assert_null(menu.get_node_or_null("%MusicDirEdit"), "the disabled music-folder row is gone (the saved path stays in Settings)")
 	assert_eq(_settings_of(menu).custom_music_dir(), "")
-	assert_false(menu.get_node("%MusicDirEdit").get_parent().visible)
 
 
 # --- Camera shake (Bontago-xtq.29, M7 P4) ------------------------------------------
@@ -284,7 +287,7 @@ func test_camera_shake_check_reflects_the_current_settings_value() -> void:
 	var menu: OptionsMenu = _make_menu()
 	_settings_of(menu).set_camera_shake_enabled(false)
 	menu._load_current_values()
-	assert_false((menu.get_node("%CameraShakeCheck") as CheckButton).button_pressed)
+	assert_false((menu.get_node("%CameraShakeCheck") as UiToggle).is_on())
 
 
 func test_toggling_camera_shake_check_calls_set_camera_shake_enabled() -> void:
@@ -300,7 +303,7 @@ func test_toggling_camera_shake_check_calls_set_camera_shake_enabled() -> void:
 func test_window_mode_option_lists_every_id_with_borderless_fullscreen_selected_by_default() -> void:
 	var menu: OptionsMenu = _make_menu()
 	menu._load_current_values()
-	var option: OptionButton = menu.get_node("%WindowModeOption") as OptionButton
+	var option: UiDropdown = menu.get_node("%WindowModeOption") as UiDropdown
 	assert_eq(option.item_count, Settings.WINDOW_MODE_IDS.size())
 	for i: int in range(Settings.WINDOW_MODE_IDS.size()):
 		assert_eq(option.get_item_text(i), Settings.window_mode_label(Settings.WINDOW_MODE_IDS[i]))
@@ -443,7 +446,7 @@ func test_reset_button_also_resets_audio_rumble_and_move_speed() -> void:
 	assert_eq(fresh.rumble_strength(), 1.0)
 	assert_eq(fresh.mouse_move_speed_scale(), 1.0)
 	assert_eq(fresh.stick_move_speed_scale(), 1.0)
-	assert_eq((menu.get_node("%MasterVolumeSlider") as HSlider).value, 1.0, "the UI must reload after a reset, not just the underlying Settings")
+	assert_eq((menu.get_node("%MasterVolumeSlider") as UiSegmentMeter).value, OptionsMenu.PERCENT_METER_CELLS, "the UI must reload after a reset, not just the underlying Settings")
 
 
 # --- Settings/Controls tabs (Bontago-1pi.10) ----------------------------------------
@@ -860,7 +863,139 @@ func test_weather_volume_slider_calls_set_weather_volume_percent_only() -> void:
 	menu._on_weather_volume_changed(0.35)
 	assert_almost_eq(_settings_of(menu).weather_volume_percent(), 0.35, 0.0001)
 	assert_eq(_settings_of(menu).sfx_volume_percent(), 1.0, "the SFX channel must be untouched")
-	var slider: HSlider = menu.get_node("%WeatherVolumeSlider") as HSlider
-	var sfx: HSlider = menu.get_node("%SfxVolumeSlider") as HSlider
+	var slider: Control = menu.get_node("%WeatherVolumeSlider") as Control
+	var sfx: Control = menu.get_node("%SfxVolumeSlider") as Control
 	assert_eq(sfx.get_node(sfx.focus_neighbor_bottom).name, &"WeatherMuteButton", "gamepad focus reaches Weather after SFX")
 	assert_eq(slider.get_node(slider.focus_neighbor_top).name, &"WeatherMuteButton")
+
+
+# --- Bontago-1pi.159.3: horizontal UiTabs, Game rename, rows on components -----------
+
+func test_categories_are_a_horizontal_ui_tabs_bar_labelled_game_graphics_controls() -> void:
+	var menu: OptionsMenu = _make_menu()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var tabs: UiTabs = menu.get_node("%Tabs") as UiTabs
+	assert_eq(tabs.orientation, UiTabs.Orientation.HORIZONTAL)
+	assert_eq(tabs.tab_ids(), [OptionsMenu.TAB_GAME, OptionsMenu.TAB_GRAPHICS, OptionsMenu.TAB_CONTROLS])
+	assert_eq((menu.get_node("%SettingsTabButton") as Button).text, "GAME")
+	assert_eq((menu.get_node("%GraphicsTabButton") as Button).text, "GRAPHICS")
+	assert_eq((menu.get_node("%ControlsTabButton") as Button).text, "CONTROLS")
+	var game: Rect2 = (menu.get_node("%SettingsTabButton") as Control).get_global_rect()
+	var graphics: Rect2 = (menu.get_node("%GraphicsTabButton") as Control).get_global_rect()
+	assert_almost_eq(game.position.y, graphics.position.y, 1.0, "tabs sit side by side on one row")
+	assert_lt(game.position.x, graphics.position.x)
+
+
+func test_clicking_a_tab_switches_the_page_and_a_tab_change_signal_fires() -> void:
+	var menu: OptionsMenu = _make_menu()
+	var tabs: UiTabs = menu.get_node("%Tabs") as UiTabs
+	watch_signals(tabs)
+	var click: InputEventMouseButton = InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	var graphics_tab: UiTab = tabs.get_tab(OptionsMenu.TAB_GRAPHICS)
+	graphics_tab.pressed.emit()
+	assert_signal_emitted_with_parameters(tabs, "tab_changed", [OptionsMenu.TAB_GRAPHICS])
+	assert_true((menu.get_node("%GraphicsPage") as Control).visible)
+	assert_false((menu.get_node("%SettingsPage") as Control).visible)
+
+
+func test_tab_left_right_steps_between_tabs_with_focus() -> void:
+	var menu: OptionsMenu = _make_menu()
+	var game_tab: UiTab = (menu.get_node("%Tabs") as UiTabs).get_tab(OptionsMenu.TAB_GAME)
+	game_tab.grab_focus()
+	var right: InputEventAction = InputEventAction.new()
+	right.action = &"ui_right"
+	right.pressed = true
+	game_tab._gui_input(right)
+	assert_eq((menu.get_node("%Tabs") as UiTabs).current, OptionsMenu.TAB_GRAPHICS)
+	assert_true((menu.get_node("%GraphicsTabButton") as Control).has_focus(), "the stepped-to tab keeps focus")
+
+
+func test_game_page_rows_are_all_components() -> void:
+	var menu: OptionsMenu = _make_menu()
+	for name: String in ["%CameraShakeCheck", "%AdaptiveQualityCheck", "%RumbleEnabledCheck"]:
+		assert_true(menu.get_node(name) is UiToggle, "%s is a UiToggle" % name)
+	assert_true(menu.get_node("%WindowModeOption") is UiDropdown)
+	for name: String in ["%MasterMuteButton", "%MusicMuteButton", "%SfxMuteButton", "%WeatherMuteButton"]:
+		assert_true(menu.get_node(name) is UiIconButton, "%s is a UiIconButton" % name)
+	var rows: Array[Node] = menu.get_node("%SettingsFields").find_children("*", "UiRow", true, false)
+	assert_eq(rows.size(), 10, "Window, UI scale, Camera shake, Adaptive quality, 4 volumes, Rumble, Rumble intensity")
+	for row: Node in rows:
+		for item: Control in (row as UiRow).items():
+			assert_almost_eq(item.custom_minimum_size.y, float(UiRowItem.metrics().row_height_px), 0.01, "%s shares one row height" % item.name)
+	assert_eq(menu.get_node("%SettingsFields").find_children("*", "UiSection", false, false).size(), 3, "Display, Audio and Rumble sections")
+
+
+func test_volume_meter_reads_the_stored_percent_and_dims_while_muted() -> void:
+	var menu: OptionsMenu = _make_menu()
+	_settings_of(menu).set_master_volume_percent(0.73)
+	menu._load_current_values()
+	var meter: UiSegmentMeter = menu.get_node("%MasterVolumeSlider") as UiSegmentMeter
+	assert_eq(meter.display_text(), "73%", "the readout is the stored value, not the nearest cell")
+	assert_true(meter.editable)
+	(menu.get_node("%MasterMuteButton") as UiIconButton).pressed.emit()
+	assert_false(meter.editable, "a muted channel shows dust cells")
+	(menu.get_node("%MasterMuteButton") as UiIconButton).pressed.emit()
+	assert_true(meter.editable)
+
+
+func test_meter_cell_step_changes_the_setting_through_the_row() -> void:
+	var menu: OptionsMenu = _make_menu()
+	var meter: UiSegmentMeter = menu.get_node("%MusicVolumeSlider") as UiSegmentMeter
+	assert_true(meter.nudge(-1))
+	assert_almost_eq(_settings_of(menu).music_volume_percent(), 1.0 - 1.0 / float(OptionsMenu.PERCENT_METER_CELLS), 0.0001)
+	assert_eq(_settings_of(menu).master_volume_percent(), 1.0, "other channels untouched")
+
+
+func test_toggles_write_their_settings_and_ui_left_right_set_them() -> void:
+	var menu: OptionsMenu = _make_menu()
+	var toggle: UiToggle = menu.get_node("%CameraShakeCheck") as UiToggle
+	var left: InputEventAction = InputEventAction.new()
+	left.action = &"ui_left"
+	left.pressed = true
+	toggle._gui_input(left)
+	assert_false(_settings_of(menu).camera_shake_enabled())
+	var right: InputEventAction = InputEventAction.new()
+	right.action = &"ui_right"
+	right.pressed = true
+	toggle._gui_input(right)
+	assert_true(_settings_of(menu).camera_shake_enabled())
+
+
+func test_window_mode_dropdown_click_cycles_and_persists_the_id() -> void:
+	var menu: OptionsMenu = _make_menu()
+	var dropdown: UiDropdown = menu.get_node("%WindowModeOption") as UiDropdown
+	var before: int = dropdown.selected
+	dropdown.pressed.emit()
+	assert_eq(dropdown.selected, (before + 1) % Settings.WINDOW_MODE_IDS.size())
+	assert_eq(_settings_of(menu).window_mode(), Settings.WINDOW_MODE_IDS[dropdown.selected])
+
+
+func test_focus_moves_between_the_tab_strip_and_the_page() -> void:
+	var menu: OptionsMenu = _make_menu()
+	var window_option: Control = menu.get_node("%WindowModeOption") as Control
+	var game_tab: Control = menu.get_node("%SettingsTabButton") as Control
+	assert_eq(window_option.get_node(window_option.focus_neighbor_top), game_tab, "up from the first control reaches the active tab")
+	assert_eq(game_tab.get_node(game_tab.focus_neighbor_bottom), window_option, "down from a tab reaches the page")
+	(menu.get_node("%ControlsTabButton") as Button).button_pressed = true
+	var move_speed: Control = menu.get_node("%MoveSpeedSlider") as Control
+	var controls_tab: Control = menu.get_node("%ControlsTabButton") as Control
+	assert_eq(move_speed.get_node(move_speed.focus_neighbor_top), controls_tab)
+	assert_eq(controls_tab.get_node(controls_tab.focus_neighbor_bottom), move_speed)
+
+
+func test_game_page_edits_persist_and_reload_into_the_components() -> void:
+	var menu: OptionsMenu = _make_menu()
+	var settings: Node = _settings_of(menu)
+	menu._on_adaptive_quality_toggled(true)
+	menu._on_master_volume_changed(0.5)
+	var reloaded: Node = autofree(SETTINGS_SCRIPT.new())
+	add_child_autofree(reloaded)
+	reloaded.set_config_path_for_test(settings.effective_path())
+	assert_true(reloaded.adaptive_quality_enabled(), "the same stored keys are read back")
+	assert_almost_eq(reloaded.master_volume_percent(), 0.5, 0.0001)
+	menu.settings_provider = reloaded
+	menu._load_current_values()
+	assert_true((menu.get_node("%AdaptiveQualityCheck") as UiToggle).is_on())
+	assert_eq((menu.get_node("%MasterVolumeSlider") as UiSegmentMeter).display_text(), "50%")

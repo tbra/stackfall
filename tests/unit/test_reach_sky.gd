@@ -237,8 +237,8 @@ func _make_lobby(is_host: bool) -> Lobby:
 
 func test_lobby_toggle_is_visible_only_for_reach_the_sky_and_round_trips() -> void:
 	var host: Lobby = _make_lobby(true)
-	var mode: CycleSelector = host.get_node("%GameModeOption")
-	var toggle: CheckButton = host.get_node("%SkyTeamSumCheck")
+	var mode: UiDropdown = host.get_node("%GameModeOption")
+	var toggle: UiToggle = host.get_node("%SkyTeamSumCheck")
 	var column: Control = host.get_node("%SkyTeamCol")
 	assert_false(column.visible, "hidden for classic")
 	mode.select(MatchConfig.GameMode.CAPTURE_THE_FLAG)
@@ -255,9 +255,9 @@ func test_lobby_toggle_is_visible_only_for_reach_the_sky_and_round_trips() -> vo
 	assert_true(published["sky_team_sum"])
 	var client: Lobby = _make_lobby(false)
 	client._apply_data(published)
-	assert_true((client.get_node("%SkyTeamSumCheck") as CheckButton).button_pressed)
+	assert_true((client.get_node("%SkyTeamSumCheck") as UiToggle).button_pressed)
 	assert_true((client.get_node("%SkyTeamCol") as Control).visible)
-	assert_true((client.get_node("%SkyTeamSumCheck") as CheckButton).disabled, "a client cannot edit it")
+	assert_true((client.get_node("%SkyTeamSumCheck") as UiToggle).disabled, "a client cannot edit it")
 	assert_eq((client.net_provider as FakeNet).set_lobby_data_calls.size(), 0)
 
 

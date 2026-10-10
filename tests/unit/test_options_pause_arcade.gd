@@ -1,6 +1,6 @@
 extends GutTest
 ## Bontago-hfa.4 (UI reskin P2): the Stackfall Arcade look of Options, Pause and the rebinding rows
-## (docs/UI_RESKIN_PLAN.md P2). Look-only checks: side-tab rim notch, SegmentMeter cells, ON/OFF
+## (docs/UI_RESKIN_PLAN.md P2). Look-only checks: tab rim notch, SegmentMeter cells, ON/OFF
 ## words, BindingRow listening state and a synthetic gamepad focus traversal of both screens, each
 ## focus owner carrying a visible focus stylebox.
 
@@ -10,7 +10,6 @@ const SETTINGS_SCRIPT: GDScript = preload("res://autoload/Settings.gd")
 const OPTIONS_TUNING: OptionsVisualTuning = preload("res://config/options_visual_tuning.tres")
 const SETTLE_FRAMES: int = 3
 const PAD_DEVICE: int = 0
-const MIN_SEGMENTS: int = 5
 ## Bold text on a bright face / on a disc face must clear the design system's documented ratios.
 const MIN_TEXT_RATIO: float = 4.5
 const MIN_LARGE_TEXT_RATIO: float = 3.0
@@ -52,33 +51,35 @@ func _pad_tap(button: JoyButton) -> void:
 	await _settle()
 
 
+## Buttons carry the theme's focus outline; a UiSegmentMeter draws that same Button focus box itself.
 func _has_visible_focus(control: Control) -> bool:
-	var box: StyleBox = control.get_theme_stylebox("focus")
+	var box: StyleBox = control.get_theme_stylebox("focus", "Button")
 	return box != null and not (box is StyleBoxEmpty)
 
 
 # --- Options: tabs, meters, toggles -------------------------------------------
 
-func test_active_tab_has_a_rim_notch_and_the_idle_tab_has_none() -> void:
+func test_active_tab_has_a_top_rim_notch_and_the_idle_tab_has_none() -> void:
 	var menu: OptionsMenu = _make_options()
 	await _settle()
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	var tab: Button = menu.get_node("%SettingsTabButton") as Button
+	assert_eq(tab.text, "GAME", "the Settings category is called Game")
 	var active: StyleBoxFlat = tab.get_theme_stylebox("pressed") as StyleBoxFlat
 	var idle: StyleBoxFlat = tab.get_theme_stylebox("normal") as StyleBoxFlat
-	assert_eq(active.border_width_left, OPTIONS_TUNING.tab_notch_px)
+	assert_eq(active.border_width_top, UiRowItem.metrics().tab_notch_px, "horizontal tabs notch on top")
 	assert_eq(active.border_color, arcade.rim_color)
 	assert_eq(active.bg_color, arcade.disc_600_color)
-	assert_eq(idle.border_width_left, 0)
+	assert_eq(idle.border_width_top, 0)
 
 
 func test_every_slider_is_a_segment_meter_with_enough_cells() -> void:
 	var menu: OptionsMenu = _make_options()
 	await _settle()
-	assert_gte(OPTIONS_TUNING.segment_count, MIN_SEGMENTS, "never fewer than 5 cells")
-	for name: String in ["%MasterVolumeSlider", "%MusicVolumeSlider", "%SfxVolumeSlider", "%WeatherVolumeSlider", "%RumbleStrengthSlider", "%MoveSpeedSlider"]:
-		var slider: HSlider = menu.get_node(name) as HSlider
-		assert_not_null(slider.get_node_or_null("SegmentMeter"), "%s draws as a SegmentMeter" % name)
+	for name: String in ["%MasterVolumeSlider", "%MusicVolumeSlider", "%SfxVolumeSlider", "%WeatherVolumeSlider", "%RumbleStrengthSlider", "%MoveSpeedSlider", "%UiScaleSlider"]:
+		var meter: UiSegmentMeter = menu.get_node(name) as UiSegmentMeter
+		assert_not_null(meter, "%s is a UiSegmentMeter" % name)
+		assert_gte(meter.step_count, UiSegmentMeter.MIN_STEP_COUNT, "never fewer than 5 cells")
 
 
 func test_filled_cell_count_follows_the_slider_value() -> void:
@@ -97,13 +98,12 @@ func test_filled_cell_count_follows_the_slider_value() -> void:
 func test_toggle_words_read_on_and_off() -> void:
 	var menu: OptionsMenu = _make_options()
 	await _settle()
-	var check: CheckButton = menu.get_node("%AdaptiveQualityCheck") as CheckButton
-	var word: Label = check.get_parent().get_node("StateWord") as Label
-	check.button_pressed = false
-	assert_eq(word.text, OptionsMenu.OFF_WORD)
-	check.button_pressed = true
-	assert_eq(word.text, OptionsMenu.ON_WORD)
-	assert_eq(word.get_theme_color("font_color"), MenuStyleFactory.arcade_tuning().mint_color, "ON is mint")
+	var toggle: UiToggle = menu.get_node("%AdaptiveQualityCheck") as UiToggle
+	toggle.set_on(false)
+	assert_eq(toggle.text, OptionsMenu.OFF_WORD)
+	toggle.set_on(true)
+	assert_eq(toggle.text, OptionsMenu.ON_WORD)
+	assert_eq(toggle.get_theme_color("font_pressed_color"), MenuStyleFactory.arcade_tuning().mint_color, "ON is mint")
 
 
 # --- BindingRow ------------------------------------------------------------------
@@ -194,6 +194,7 @@ func test_options_settings_page_pad_traversal_has_visible_focus_everywhere() -> 
 		focus = get_viewport().gui_get_focus_owner()
 		steps += 1
 	assert_true(seen.has(menu.get_node("%MasterVolumeSlider")), "the traversal reaches the volume meters")
+	assert_true(seen.has(menu.get_node("%WeatherMuteButton")), "the traversal reaches every mute block")
 	assert_true(seen.has(menu.get_node("%RumbleEnabledCheck")), "the traversal reaches the rumble toggle")
 	assert_true(seen.has(menu.get_node("%BackButton")), "the traversal reaches Back")
 	assert_gt(seen.size(), 10, "every settings control is a stop")

@@ -42,13 +42,12 @@ signal back_requested
 ## numbers").
 @export var tuning: MenuVisualTuning = preload("res://config/menu_visual_tuning.tres")
 
-## Scene groups of the settings grid (see _apply_row_layout()).
-const ROW_GROUP: StringName = &"lobby_row"
-const ROWS_GROUP: StringName = &"lobby_rows"
-const CHECKLIST_GROUP: StringName = &"lobby_checklist"
-const LABEL_CELL_GROUP: StringName = &"lobby_label_cell"
-const VALUE_CELL_GROUP: StringName = &"lobby_value_cell"
-const VALUE_SPACER_NAME: String = "ValueSpacer"
+## Bontago-1pi.159.2.1: the settings column is composed of ui/components (UiSection, UiRow, UiToggle,
+## UiStepper, UiSegmentMeter, UiDropdown, UiChipToggle). Each UiRow node in Lobby.tscn carries its label
+## text as this metadata key (read once by _prepare_rows()); every VBox of rows is in STACK_GROUP and
+## gets the design-system row gap.
+const ROW_LABEL_META: StringName = &"row_label"
+const STACK_GROUP: StringName = &"lobby_stack"
 
 ## Bontago-1pi.53 (E1): sizes and spacings new to the lobby rework (section
 ## spacing, seat colour box, row height, advanced indent); also handed to the
@@ -98,20 +97,17 @@ var net_provider: Variant = null:
 		if _players_panel != null:
 			_players_panel.net_provider = value
 
-## Bontago-mp0.3.5 (review r2, item 1): %MapVariantOption/%MapSizeOption stay
-## the hidden source of truth (same pattern as the hidden %TeamModeOption and
-## seat spins) -- %MapComboOption is the single visible "Round · Medium"
-## style dropdown listing every variant*size combo, decoded/encoded by
-## _map_combo_index(), with %MapThumbnail (a small disc icon) beside it.
+## Bontago-mp0.3.5 (review r2, item 1): %MapVariantOption/%MapSizeOption stay the hidden source
+## of truth for the map (pinned to Round/Medium, Bontago-1pi.107); %MapThumbnail is their (hidden)
+## pictogram. All three live under %HiddenSources now.
 @onready var _map_variant_option: OptionButton = %MapVariantOption
 @onready var _map_size_option: OptionButton = %MapSizeOption
-## Bontago-1pi.107 (owner 2026-10-07): the map pickers are gone from the card (the hidden
-## variant/size options above stay pinned to Round/Medium); %DiscSizeSlider is the one
-## visible map control, six steps into config/disc_size_tuning.tres (tiny 50% .. enormous 175%).
-@onready var _disc_size_slider: HSlider = %DiscSizeSlider
+## Bontago-1pi.107 (owner 2026-10-07): the disc size is the one visible map control, six steps into
+## config/disc_size_tuning.tres (tiny 50% .. enormous 175%). Bontago-1pi.159.2.1: a UiSegmentMeter whose
+## value is the step + 1 (cells lit), never 0 (see _disc_size_step()).
+@onready var _disc_size_meter: UiSegmentMeter = %DiscSizeMeter
 ## Bontago-1pi.121: the settings column; _scroll_settings_to_top() resets it when the lobby opens.
 @onready var _settings_scroll: ScrollContainer = %SettingsScroll
-@onready var _disc_size_value: Label = %DiscSizeValue
 @onready var _map_thumbnail: PanelContainer = %MapThumbnail
 var _map_thumbnail_icon: TextureRect = null
 ## Bontago-1pi.53 (S1b): the Players/AI steppers, the default-difficulty dropdown and the
@@ -131,76 +127,68 @@ var _map_thumbnail_icon: TextureRect = null
 @onready var _ai_count_spin: SpinBox = %AiCountSpin
 @onready var _ai_difficulty_option: OptionButton = %AiDifficultyOption
 @onready var _team_mode_option: OptionButton = %TeamModeOption
-## Bontago-1pi.147: the block timer is a -/value/+ stepper (the goal-flag component) over this hidden SpinBox.
-@onready var _block_timer_spin: SpinBox = %BlockTimerSpin
-@onready var _gravity_slider: HSlider = %GravitySlider
-@onready var _gravity_label: Label = %GravityLabel
-## Bontago-mp0.3.5 (review r1, item 10): "uppercase label + value chip on one
-## row, full-width slider below" for BLOCK TIMER/GRAVITY/SPECIAL FREQUENCY --
-## these three PanelContainers wrap the existing %BlockTimerLabel etc. Labels
-## as a coral value badge instead of a plain trailing number.
-@onready var _gravity_chip: PanelContainer = %GravityChip
-@onready var _special_freq_chip: PanelContainer = %SpecialFreqChip
-@onready var _goal_flag_spin: SpinBox = %GoalFlagSpin
-@onready var _gifts_check: CheckButton = %GiftsCheck
-@onready var _special_freq_slider: HSlider = %SpecialFreqSlider
-@onready var _special_freq_label: Label = %SpecialFreqLabel
-@onready var _tilt_mode_option: CycleSelector = %TiltModeOption
-@onready var _hole_mode_option: CycleSelector = %HoleModeOption
-@onready var _match_timer_slider: HSlider = %MatchTimerSlider
-@onready var _weather_option: CycleSelector = %WeatherOption
-@onready var _game_mode_option: CycleSelector = %GameModeOption
-@onready var _round_timer_slider: HSlider = %RoundTimerSlider
+## Bontago-1pi.159.2.1: the block timer (3.0 .. 12.0 s) and the goal flags are UiSteppers; the block
+## timer counts BLOCK_TIMER_STEP_S per stepper step.
+@onready var _block_timer_stepper: UiStepper = %BlockTimerStepper
+@onready var _goal_flag_stepper: UiStepper = %GoalFlagStepper
+## Gravity and gift frequency are UiSegmentMeters (cells). The exact stored values live here, so a
+## value that arrives from the wire (e.g. 1.0) is kept as is and read back unchanged; only a
+## player's own nudge snaps to the next cell (_on_gravity_cells_changed()).
+@onready var _gravity_meter: UiSegmentMeter = %GravityMeter
+@onready var _special_freq_meter: UiSegmentMeter = %SpecialFreqMeter
+var _gravity_value: float = 1.0
+var _special_frequency_value: int = 0
+@onready var _gifts_check: UiToggle = %GiftsCheck
+@onready var _tilt_mode_option: UiDropdown = %TiltModeOption
+@onready var _hole_mode_option: UiDropdown = %HoleModeOption
+@onready var _weather_option: UiDropdown = %WeatherOption
+@onready var _game_mode_option: UiDropdown = %GameModeOption
 ## Bontago-6fc.1: ONE timer control is shown. Classic shows the match-timer
-## column (+ sudden death); every other mode shows the round-length column.
-## Bontago-1pi.30: both are HSliders (step 1 min, value label under them); each
+## row (+ sudden death); every other mode shows the round-length row.
+## Bontago-1pi.159.2.1: both are UiSteppers in whole minutes (Off at 0 for the match timer); each
 ## keeps mapping its own MatchConfig field.
+@onready var _match_timer_stepper: UiStepper = %MatchTimerStepper
+@onready var _round_timer_stepper: UiStepper = %RoundTimerStepper
 @onready var _match_timer_col: Control = %MatchTimerCol
 @onready var _round_timer_col: Control = %RoundTimerCol
 @onready var _sudden_death_col: Control = %SuddenDeathCol
-@onready var _match_timer_value: Label = %MatchTimerValue
-@onready var _round_timer_value: Label = %RoundTimerValue
+## The readout right of the round-length stepper: "required" in Domination, empty otherwise.
+var _round_timer_value: Label = null
 ## Reach the Sky only (Bontago-22y.9): shown while that mode is selected.
 @onready var _sky_team_col: Control = %SkyTeamCol
-@onready var _sky_team_sum_check: CheckButton = %SkyTeamSumCheck
+@onready var _sky_team_sum_check: UiToggle = %SkyTeamSumCheck
 ## Bontago-470.4: the "Map" time-of-day dropdown (MatchConfig.SkyThemeMode).
-@onready var _sky_theme_option: CycleSelector = %SkyThemeOption
-@onready var _sudden_death_check: CheckButton = %SuddenDeathCheck
-@onready var _turn_based_check: CheckButton = %TurnBasedCheck
+@onready var _sky_theme_option: UiDropdown = %SkyThemeOption
+@onready var _sudden_death_check: UiToggle = %SuddenDeathCheck
+@onready var _turn_based_check: UiToggle = %TurnBasedCheck
 ## Bontago-8or.20: host-only toggle for MatchConfig.allow_mid_match_join.
-@onready var _mid_join_check: CheckButton = %MidJoinCheck
-## Bontago-xtq.32 redo #3: a compact wrap grid of small toggle chips
-## (mockup 11), not the round-1 full-width red bars -- HFlowContainer (a
-## Container sibling of VBoxContainer, not a subclass) wraps children onto as
-## many rows as the card's width needs instead of stacking one per row.
-## Bontago-1pi.53 (S1b): the per-gift checklist is the GIFTS section's Advanced block.
+@onready var _mid_join_check: UiToggle = %MidJoinCheck
+## Bontago-1pi.53 (S1b): the per-gift checklist is the GIFTS section's Advanced block, a grid of
+## UiChipToggles built by _build_specials_checklist().
 @onready var _specials_checklist: GridContainer = %SpecialsChecklist
-@onready var _specials_label: Label = %SpecialsLabel
-## Bontago-1pi.18.5: the Experiments checkboxes, in QolExperiments.with_toggles()
+@onready var _experiments_checklist: GridContainer = %ExperimentsChecklist
+## Bontago-1pi.18.5: the Experiments chips, in QolExperiments.with_toggles()
 ## argument order (timer pause, backlog, goal radius, gift slot). Bontago-1pi.53 (S1b):
 ## they are the EXPERIMENTS section's Advanced block (plan D2). Host-editable,
 ## read-only for a client (_settings_controls).
-@onready var _experiments_label: Label = %ExperimentsLabel
-@onready var _qol_timer_pause_check: CheckBox = %QolTimerPauseCheck
-@onready var _qol_backlog_check: CheckBox = %QolBacklogCheck
-@onready var _qol_goal_radius_check: CheckBox = %QolGoalRadiusCheck
-@onready var _qol_gift_slot_check: CheckBox = %QolGiftSlotCheck
-@onready var _qol_checks: Array[CheckBox] = [
+@onready var _qol_timer_pause_check: UiChipToggle = %QolTimerPauseCheck
+@onready var _qol_backlog_check: UiChipToggle = %QolBacklogCheck
+@onready var _qol_goal_radius_check: UiChipToggle = %QolGoalRadiusCheck
+@onready var _qol_gift_slot_check: UiChipToggle = %QolGiftSlotCheck
+@onready var _qol_checks: Array[UiChipToggle] = [
 	_qol_timer_pause_check, _qol_backlog_check, _qol_goal_radius_check, _qol_gift_slot_check,
 ]
 
-## Bontago-1pi.53 (S1a/S1b): the settings column is a stack of collapsible LobbySections
-## (ui/lobby/LobbySection.gd): GAME (mode, map, time of day, weather; Advanced:
-## gravity, tilt, holes, turn-based, mid-match join), ROUND (round length / match
-## timer, sudden death, block timer, goal flags, Reach the Sky team height), GIFTS
+## Bontago-1pi.53 (S1a/S1b): the settings column is a stack of UiSections: GAME (mode, disc size,
+## time of day, weather; Advanced: gravity, tilt, holes, turn-based, mid-match join), ROUND (round
+## length / match timer, sudden death, block timer, goal flags, Reach the Sky team height), GIFTS
 ## (on/off, frequency; Advanced: the per-gift checklist) and EXPERIMENTS (the opt-in
-## experiment checks, behind its header). %Settings is their column (its separation
-## comes from LobbyLayoutTuning.section_spacing_px).
+## experiment chips, behind its header). %Settings is their column.
 @onready var _settings_column: VBoxContainer = %Settings
-@onready var _game_section: LobbySection = %GameSection
-@onready var _round_section: LobbySection = %RoundSection
-@onready var _gifts_section: LobbySection = %GiftsSection
-@onready var _experiments_section: LobbySection = %ExperimentsSection
+@onready var _game_section: UiSection = %GameSection
+@onready var _round_section: UiSection = %RoundSection
+@onready var _gifts_section: UiSection = %GiftsSection
+@onready var _experiments_section: UiSection = %ExperimentsSection
 ## Goal flags apply only to the modes MatchConfig.mode_uses_goal_flags() names.
 @onready var _goal_flag_col: Control = %GoalFlagCol
 
@@ -216,18 +204,18 @@ var _map_thumbnail_icon: TextureRect = null
 
 @onready var _settings_card: PanelContainer = %SettingsCard
 @onready var _players_card: PanelContainer = %PlayersCard
-@onready var _status_badge: PanelContainer = %StatusBadge
-@onready var _status_badge_label: Label = %StatusBadgeLabel
-@onready var _header_title: Label = %HeaderTitle
+## Bontago-1pi.159.2.1: the title row is a UiTitleRow (eyebrow, LOBBY, status badge left; Back right,
+## all centred on one line, left edge on the card padding); the badge is a UiStatusBadge.
+@onready var _header_row: UiTitleRow = %Header
+@onready var _status_badge: UiStatusBadge = %StatusBadge
 @onready var _header_eyebrow: Label = %Eyebrow
-@onready var _back_button: Button = %BackButton
+@onready var _back_button: UiBlockButton = %BackButton
 ## Bontago-1pi.149 (components.md footer chip): an uppercase label chip, "3 OF 4 READY".
 const ALL_READY_TEXT: String = "ALL READY"
 const READY_COUNT_FORMAT: String = "%d OF %d READY"
 ## Bontago-mp0.3.5 (review r1, item 13): mockup 11's bottom-left "Waiting for
 ## players * X of Y ready" pill, updated every time the players panel rebuilds its rows (_on_roster_rendered()).
-@onready var _waiting_status_pill: PanelContainer = %WaitingStatusPill
-@onready var _waiting_status_label: Label = %WaitingStatusLabel
+@onready var _waiting_status_pill: UiStatusBadge = %WaitingStatusPill
 
 ## Every control the round trip governs, so enabling/disabling them for a
 ## non-host is one loop instead of fourteen repeated lines.
@@ -237,17 +225,8 @@ var _settings_controls: Array[Control] = []
 ## order -- parallel arrays (the same convention the panel's rows pair with
 ## roster entries by index) so _config_from_controls()/_apply_data() can walk
 ## both together without a per-frame dictionary lookup.
-var _special_checkboxes: Array[CheckBox] = []
+var _special_checkboxes: Array[UiChipToggle] = []
 var _special_ids: Array[StringName] = []
-
-## Bontago-mp0.3.5 (review r2, item 2): the round "-"/"+" buttons
-## _add_stepper_buttons() builds around the goal-flag SpinBox (minus, plus) -- read by
-## _wire_focus_chain() so they're gamepad-focusable, same as every other settings
-## control. Bontago-1pi.53 (S1a): they sit inside the ROUND section (focus order =
-## visual order).
-var _goal_stepper_buttons: Array[Button] = []
-## Bontago-1pi.147: the block timer stepper's "-" and "+" (same component as the goal flags').
-var _block_stepper_buttons: Array[Button] = []
 
 ## True while _apply_data() is writing sanitized values back into the
 ## controls, so the value-changed signals that causes fire without
@@ -285,9 +264,19 @@ const TIMER_TIP_DOMINATION: String = "How long the round lasts; when it ends the
 const TIMER_OFF_TEXT: String = "Off"
 const TIMER_VALUE_FORMAT: String = "%d min"
 const TIMER_REQUIRED_FORMAT: String = "%d min (required)"
-## One minute per slider step (keyboard/gamepad left/right and the mouse drag).
-const TIMER_SLIDER_STEP_MINUTES: float = 1.0
-## Bontago-1pi.53 (S1a): the one-line section summaries shown on each LobbySection header.
+## The readout beside the round-length stepper while the mode requires a timer (Domination).
+const TIMER_REQUIRED_TEXT: String = "required"
+## Bontago-1pi.159.2.1: one stepper step is half a second of block timer; gravity and gift
+## frequency meters have GRAVITY_CELLS / FREQUENCY_CELLS lit steps between their MatchConfig bounds.
+const BLOCK_TIMER_STEP_S: float = 0.5
+const GRAVITY_CELLS: int = 10
+const FREQUENCY_CELLS: int = 10
+const GRAVITY_READOUT_FORMAT: String = "%.2fx"
+const FREQUENCY_READOUT_FORMAT: String = "%d"
+## The step a player-picked gravity snaps to.
+const GRAVITY_SNAP: float = 0.05
+const DISC_SIZE_READOUT_FORMAT: String = "%d%%"
+## Bontago-1pi.53 (S1a): the one-line section summaries shown on each UiSection header.
 const SUMMARY_SEPARATOR: String = " · "
 const SUMMARY_BLOCK_TIMER_FORMAT: String = "Block %.1f s"
 const BLOCK_TIMER_VALUE_FORMAT: String = "%.1f s"
@@ -300,11 +289,9 @@ const SUMMARY_GIFT_COUNT_FORMAT: String = "%d/%d gifts"
 const SUMMARY_GIFTS_OFF: String = "Off"
 const SUMMARY_EXPERIMENTS_FORMAT: String = "%d on"
 var _timer_mode: int = MatchConfig.GameMode.CLASSIC
-## Last minutes each timer slider settled on, so a step through the 1-minute gap
-## knows which way it was moving (_on_timer_slider_changed()).
-var _timer_previous_minutes: Dictionary[HSlider, int] = {}
-## Bontago-hfa.11: one SegmentMeter overlay per lobby slider, so a client's read-only sliders can show dust cells.
-var _meters: Dictionary[HSlider, SegmentMeter] = {}
+## Last minutes each timer stepper settled on, so a step through the 1-minute gap
+## knows which way it was moving (_on_timer_stepper_changed()).
+var _timer_previous_minutes: Dictionary[UiStepper, int] = {}
 var _last_config: MatchConfig = null
 ## Footer buttons' visibility the focus loop was last wired for (_update_host_only_state()).
 var _start_was_shown: bool = false
@@ -320,23 +307,25 @@ func _ready() -> void:
 	if net_provider == null:
 		net_provider = Net
 	_configure_players_panel()
+	_arrange_header()
+	_prepare_rows()
 	_populate_options()
 	_settings_controls = [
-		_disc_size_slider, _player_count_spin, _ai_count_spin,
-		_ai_difficulty_option, _team_mode_option, _block_timer_spin, _gravity_slider,
-		_goal_flag_spin, _gifts_check, _special_freq_slider, _tilt_mode_option,
-		_hole_mode_option, _match_timer_slider, _sudden_death_check, _turn_based_check,
+		_disc_size_meter, _player_count_spin, _ai_count_spin,
+		_ai_difficulty_option, _team_mode_option, _block_timer_stepper, _gravity_meter,
+		_goal_flag_stepper, _gifts_check, _special_freq_meter, _tilt_mode_option,
+		_hole_mode_option, _match_timer_stepper, _sudden_death_check, _turn_based_check,
 		_mid_join_check,
 	]
 	_settings_controls.append(_weather_option)
 	_settings_controls.append(_sky_theme_option)
 	_settings_controls.append(_game_mode_option)
-	_settings_controls.append(_round_timer_slider)
+	_settings_controls.append(_round_timer_stepper)
 	_settings_controls.append(_sky_team_sum_check)
 	_settings_controls.append_array(_special_checkboxes)
 	_settings_controls.append_array(_qol_checks)
 	_connect_control_signals()
-	for section: LobbySection in _sections():
+	for section: UiSection in _sections():
 		section.advanced_changed.connect(_on_section_toggled)
 	# Bontago-mp0.124: each section header carries its UiArtTable symbol.
 	var art: UiArtTable = UiArtTable.shared()
@@ -373,20 +362,11 @@ func _ready() -> void:
 	# guard is already false) draws the host's own row on the very first frame
 	# instead of leaving the Players card at "0 / N" until someone else connects.
 	_republish_roster_if_host()
-	# Bontago-mp0.3.5 (review r2, item 2): _apply_visual_style() now also
-	# builds the stepper "-"/"+" buttons (_add_stepper_buttons()), so it must
-	# run before _wire_focus_chain() -- the same "every dynamic row already
-	# exists before the chain is built" ordering _build_specials_checklist()
-	# already depends on (this file's own _wire_focus_chain() docstring).
+	# Every dynamic row already exists before the chain is built (_build_specials_checklist()).
 	_apply_visual_style()
 	_update_host_only_state()
 	_wire_focus_chain()
-	# Bontago-mp0.3.5 (review r2, item 1): %MapVariantOption is hidden now
-	# (%MapComboOption is its visible front end) -- grabbing focus on a
-	# hidden control left ScrollContainer's own "scroll the focused control
-	# into view" behavior scrolling to that control's stale/zero rect,
-	# shifting the whole card sideways in every capture.
-	_disc_size_slider.grab_focus()
+	_disc_size_meter.grab_focus()
 	# Bontago-1pi.121: the first focus above may have scrolled the column; open at the top.
 	_scroll_settings_to_top()
 	visibility_changed.connect(_on_lobby_visibility_changed)
@@ -436,44 +416,101 @@ func _configure_players_panel() -> void:
 
 # --- Building settings controls ----------------------------------------------
 
-## Bontago-1pi.30: range and step of both timer sliders come from MatchConfig, so
+## Bontago-1pi.30: range and step of both timer steppers come from MatchConfig, so
 ## the .tscn's authored numbers can never drift from the clamp the host applies.
-## The match slider runs Off (0) to the maximum; the round slider's minimum is
+## The match stepper runs Off (0) to the maximum; the round stepper's minimum is
 ## retargeted per mode by _refresh_timer_control().
-func _configure_timer_sliders() -> void:
-	for slider: HSlider in [_match_timer_slider, _round_timer_slider]:
-		slider.step = TIMER_SLIDER_STEP_MINUTES
-		slider.max_value = MatchConfig.ROUND_TIMER_MAX_MINUTES
-	_match_timer_slider.min_value = MatchConfig.ROUND_TIMER_OFF_MINUTES
-	_round_timer_slider.min_value = MatchConfig.ROUND_TIMER_MIN_MINUTES
-	_match_timer_slider.value = MatchConfig.ROUND_TIMER_OFF_MINUTES
-	_round_timer_slider.value = MatchConfig.ROUND_TIMER_DEFAULT_MINUTES
-	# An unchanged value emits no signal, so seed what _on_timer_slider_changed() compares against.
-	_timer_previous_minutes[_match_timer_slider] = int(_match_timer_slider.value)
-	_timer_previous_minutes[_round_timer_slider] = int(_round_timer_slider.value)
+func _configure_timer_steppers() -> void:
+	for stepper: UiStepper in [_match_timer_stepper, _round_timer_stepper]:
+		stepper.max_value = MatchConfig.ROUND_TIMER_MAX_MINUTES
+	_match_timer_stepper.min_value = MatchConfig.ROUND_TIMER_OFF_MINUTES
+	_round_timer_stepper.min_value = MatchConfig.ROUND_TIMER_MIN_MINUTES
+	_match_timer_stepper.formatter = func(minutes: int) -> String: return _timer_value_text(minutes, false)
+	_round_timer_stepper.formatter = func(minutes: int) -> String: return _timer_value_text(minutes, false)
+	_match_timer_stepper.set_value_silent(MatchConfig.ROUND_TIMER_OFF_MINUTES)
+	_round_timer_stepper.set_value_silent(MatchConfig.ROUND_TIMER_DEFAULT_MINUTES)
+	# An unchanged value emits no signal, so seed what _on_timer_stepper_changed() compares against.
+	_timer_previous_minutes[_match_timer_stepper] = _match_timer_stepper.value
+	_timer_previous_minutes[_round_timer_stepper] = _round_timer_stepper.value
+
+
+## Bontago-1pi.159.2.1: block timer (half-second steps between MatchConfig's bounds), goal flags,
+## disc size, gravity and gift-frequency meters: ranges and readouts come from MatchConfig and
+## DiscSizeTuning, never from the scene's authored numbers.
+func _configure_value_controls() -> void:
+	_block_timer_stepper.min_value = roundi(MatchConfig.BLOCK_TIMER_MIN / BLOCK_TIMER_STEP_S)
+	_block_timer_stepper.max_value = roundi(MatchConfig.BLOCK_TIMER_MAX / BLOCK_TIMER_STEP_S)
+	_block_timer_stepper.formatter = func(steps: int) -> String: return BLOCK_TIMER_VALUE_FORMAT % _block_timer_seconds_for(steps)
+	_block_timer_stepper.set_value_silent(_block_timer_stepper.min_value)
+	_goal_flag_stepper.min_value = MatchConfig.GOAL_FLAG_MIN
+	_goal_flag_stepper.max_value = MatchConfig.GOAL_FLAG_MAX
+	_goal_flag_stepper.set_value_silent(MatchConfig.GOAL_FLAG_MIN)
+	var disc: DiscSizeTuning = DiscSizeTuning.shared()
+	_disc_size_meter.step_count = disc.step_count()
+	_disc_size_meter.formatter = func(cells: int) -> String: return DISC_SIZE_READOUT_FORMAT % roundi(disc.factor_for(cells - 1) * 100.0)
+	_disc_size_meter.set_value_silent(MatchConfig.DISC_SIZE_STEP_DEFAULT + 1)
+	_gravity_meter.step_count = GRAVITY_CELLS
+	_gravity_meter.formatter = func(_cells: int) -> String: return GRAVITY_READOUT_FORMAT % _gravity_value
+	_special_freq_meter.step_count = FREQUENCY_CELLS
+	_special_freq_meter.formatter = func(_cells: int) -> String: return FREQUENCY_READOUT_FORMAT % _special_frequency_value
+
+
+## Every UiRow gets its label from the scene's `row_label` metadata (Lobby.tscn authors the text next
+## to the control it names); a long caption wraps inside the fixed label column instead of widening it.
+## The round-length row also gets the readout cell (_round_timer_value), and every stack of rows the
+## design-system row gap.
+func _prepare_rows() -> void:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	for node: Node in _settings_column.find_children("*", "HBoxContainer", true, false):
+		var row: UiRow = node as UiRow
+		if row == null:
+			continue
+		row.label.text = str(row.get_meta(ROW_LABEL_META, ""))
+		row.label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_round_timer_value = (_round_timer_col as UiRow).with_value()
+	_expose(_round_timer_value, "RoundTimerValue")
+	for node: Node in _settings_column.find_children("*", "", true, false):
+		if node.is_in_group(STACK_GROUP):
+			node.add_theme_constant_override("separation", arcade.space_3_px)
+	for grid: GridContainer in [_specials_checklist, _experiments_checklist]:
+		grid.add_theme_constant_override("h_separation", arcade.space_2_px)
+		grid.add_theme_constant_override("v_separation", arcade.space_2_px)
+
+
+## The title row: STACKFALL eyebrow, LOBBY and the status badge on the left, Back on the right, all
+## centred on one line (UiTitleRow.add_trailing's rule), so the wordmark sits on the card's left edge
+## and no item floats above or below the others (owner 2026-10-10: "Stackfall not aligned top-left").
+func _arrange_header() -> void:
+	_header_row.move_child(_header_eyebrow, 0)
+	_header_row.move_child(_status_badge, _header_row.label.get_index() + 1)
+	_header_row.move_child(_back_button, -1)
+	for item: Control in [_header_eyebrow, _status_badge, _back_button]:
+		item.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_header_eyebrow.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_expose(_header_row.label, "HeaderTitle")
+	_expose(_status_badge.label, "StatusBadgeLabel")
+	_expose(_waiting_status_pill.label, "WaitingStatusLabel")
+	_status_badge.live = true
+
+
+## Makes a runtime-built [param node] reachable as `%unique_name` from this screen (what the scene
+## would have done had the component been authored with its children).
+func _expose(node: Node, unique_name: String) -> void:
+	node.name = unique_name
+	node.owner = self
+	node.unique_name_in_owner = true
 
 
 ## DECISION (Bontago-1pi.94): game mode, time of day, weather, tilt and hole mode (and each bot's
-## difficulty and team in LobbySeatRow) are CycleSelectors: click / ui_accept = next, right click
-## = previous, focus navigation never changes the value. %MapComboOption stays a dropdown: it is
-## 15 entries (5 variants x 3 sizes), where stepping through is clearly worse than picking.
+## difficulty and team in LobbySeatRow) are click-to-cycle selectors (UiDropdown in its CYCLE mode, <= 6
+## items): click / ui_accept = next, right click = previous, focus navigation never changes the value.
 ## %MapVariantOption / %MapSizeOption / %AiDifficultyOption / %TeamModeOption are hidden sources
 ## of truth that nobody clicks, so they stay plain OptionButtons.
 func _populate_options() -> void:
-	_configure_timer_sliders()
+	_configure_timer_steppers()
+	_configure_value_controls()
 	_fill_option(_map_variant_option, MAP_VARIANT_LABELS)
 	_fill_option(_map_size_option, MAP_SIZE_LABELS)
-	_configure_disc_size_slider()
-	# Bontago-1pi.119 / 1pi.123: coarse keyboard/gamepad steps for fine sliders, and the wheel
-	# over any slider scrolls the settings column instead of changing it.
-	for nav_slider: HSlider in [
-		_gravity_slider, _special_freq_slider,
-	]:
-		SliderNav.apply(nav_slider)
-	# The disc-size and minute timer sliders move one slider.step per press through the same
-	# SliderNav Repeater (stick press/release hysteresis + friction; Bontago-1pi.152).
-	for stepped_slider: HSlider in [_disc_size_slider, _match_timer_slider, _round_timer_slider]:
-		SliderNav.apply(stepped_slider, true, true)
 	_decorate_map_picker()
 	_fill_option(_ai_difficulty_option, ["Easy", "Normal", "Hard"])
 	_fill_option(_team_mode_option, ["Off", "2 teams", "3 teams", "4 teams"])
@@ -494,7 +531,6 @@ func _populate_options() -> void:
 	_fill_cycle(_weather_option, MatchWeather.mode_labels())
 	for weather_index: int in _weather_option.item_count:
 		_weather_option.set_item_icon(weather_index, GiftIconTable.shared().weather_pictogram(weather_index))
-	_weather_option.add_theme_constant_override("icon_max_width", GiftIconTable.shared().lobby_icon_px)
 	# Bontago-470.4: order must match MatchConfig.SkyThemeMode.
 	# Bontago-59o.18 (U1): the DAY entry is the cycle locked at sunset, so it
 	# reads "Sunset"; Cycle is the default through MatchConfig.sky_theme_mode.
@@ -544,18 +580,11 @@ func _fill_option(option: OptionButton, labels: Array) -> void:
 		option.add_item(label)
 
 
-## The click-to-cycle twin of _fill_option() (Bontago-1pi.94): same index order, same stored ints.
-func _fill_cycle(selector: CycleSelector, labels: Array) -> void:
+## The UiDropdown twin of _fill_option() (Bontago-1pi.94): same index order, same stored ints.
+func _fill_cycle(selector: UiDropdown, labels: Array) -> void:
 	selector.clear()
 	for label: String in labels:
 		selector.add_item(label)
-
-
-## Bontago-mp0.125: shows a pictogram on a toggle at the table's lobby icon size.
-func _apply_icon(button: Button, texture: Texture2D) -> void:
-	button.icon = texture
-	button.expand_icon = true
-	button.add_theme_constant_override("icon_max_width", GiftIconTable.shared().lobby_icon_px)
 
 
 ## M6 A4 (docs/archive/M6_PLAN.md "A4 -- Enabled-specials checklist"): one CheckBox per
@@ -580,19 +609,16 @@ func _build_specials_checklist() -> void:
 	# draws from (MatchGifts._ensure_special_drawer_installed). The full catalogue
 	# stays for find_by_id / icon / net id tables.
 	for special: SpecialDef in SpecialDef.load_selectable_specials():
-		var box: CheckBox = CheckBox.new()
-		# SpecialDef has no display_name (config/specials/SpecialDef.gd) -- the
-		# id itself (e.g. &"jumping_bean") is the only per-special label this
-		# package has to show; capitalize() turns "jumping_bean" into
-		# "Jumping Bean" the way String.capitalize() already title-cases an
-		# underscore-joined identifier.
-		box.text = DisplayNames.special(special.id)
-		_apply_icon(box, GiftIconTable.shared().gift_pictogram(special.id))
-		box.button_pressed = true
-		box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		box.toggled.connect(_on_toggled)
-		_specials_checklist.add_child(box)
-		_special_checkboxes.append(box)
+		var chip: UiChipToggle = UiChipToggle.new()
+		# SpecialDef has no display_name (config/specials/SpecialDef.gd) -- DisplayNames turns the id
+		# (e.g. &"jumping_bean") into the label.
+		chip.label = DisplayNames.special(special.id)
+		chip.chip_icon = GiftIconTable.shared().gift_pictogram(special.id)
+		chip.set_on_silent(true)
+		chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		chip.toggled.connect(_on_toggled)
+		_specials_checklist.add_child(chip)
+		_special_checkboxes.append(chip)
 		_special_ids.append(special.id)
 
 
@@ -606,7 +632,7 @@ func _build_specials_checklist() -> void:
 ## (rebuilt by the players panel on every roster change) enter the chain through
 ## the panel's focus_entries().
 ##
-## Bontago-1pi.53 (S1a/S1b): ONE closed loop in visual order. Each LobbySection
+## Bontago-1pi.53 (S1a/S1b): ONE closed loop in visual order. Each UiSection
 ## contributes its main controls, its Advanced chip and (when open) its
 ## Advanced controls -- GAME, ROUND, GIFTS (Advanced: the per-gift checklist), EXPERIMENTS
 ## (chip opens its checks) -- then the players panel's entries and the footer. The
@@ -615,17 +641,17 @@ func _build_specials_checklist() -> void:
 ## section toggle and mode change rewires.
 func _wire_focus_chain() -> void:
 	var chain: Array[Control] = []
-	var game_main: Array[Control] = [_game_mode_option, _disc_size_slider, _sky_theme_option, _weather_option]
+	var game_main: Array[Control] = [_game_mode_option, _disc_size_meter, _sky_theme_option, _weather_option]
 	var game_advanced: Array[Control] = [
-		_gravity_slider, _tilt_mode_option, _hole_mode_option, _turn_based_check, _mid_join_check,
+		_gravity_meter, _tilt_mode_option, _hole_mode_option, _turn_based_check, _mid_join_check,
 	]
 	chain.append_array(_section_chain(_game_section, game_main, game_advanced))
-	var round_main: Array[Control] = [_round_timer_slider, _match_timer_slider, _sudden_death_check]
-	round_main.append_array(_block_stepper_buttons)
-	round_main.append_array(_goal_stepper_buttons)
-	round_main.append(_sky_team_sum_check)
+	var round_main: Array[Control] = [
+		_round_timer_stepper, _match_timer_stepper, _sudden_death_check, _block_timer_stepper, _goal_flag_stepper,
+		_sky_team_sum_check,
+	]
 	chain.append_array(_section_chain(_round_section, round_main, []))
-	var gifts_main: Array[Control] = [_gifts_check, _special_freq_slider]
+	var gifts_main: Array[Control] = [_gifts_check, _special_freq_meter]
 	var gifts_advanced: Array[Control] = []
 	gifts_advanced.append_array(_special_checkboxes)
 	chain.append_array(_section_chain(_gifts_section, gifts_main, gifts_advanced))
@@ -646,7 +672,7 @@ func _wire_focus_chain() -> void:
 
 ## One section's focus stops in visual order: main controls, Advanced chip, Advanced
 ## controls (the header is static and not a stop; Bontago-1pi.61).
-func _section_chain(section: LobbySection, main_controls: Array[Control], advanced_controls: Array[Control]) -> Array[Control]:
+func _section_chain(section: UiSection, main_controls: Array[Control], advanced_controls: Array[Control]) -> Array[Control]:
 	var out: Array[Control] = []
 	out.append_array(main_controls)
 	if section.advanced_button != null:
@@ -655,7 +681,7 @@ func _section_chain(section: LobbySection, main_controls: Array[Control], advanc
 	return out
 
 
-func _sections() -> Array[LobbySection]:
+func _sections() -> Array[UiSection]:
 	return [_game_section, _round_section, _gifts_section, _experiments_section]
 
 
@@ -667,79 +693,6 @@ func _rewire_focus() -> void:
 	if _main_chain.is_empty():
 		return
 	_wire_loop(_visible_chain(_main_chain))
-
-
-## Bontago-1pi.61: one shared column grid for every settings row. Each row (group
-## `lobby_row`) is label cell | control (expands) | optional value cell, so the label and
-## value columns share one x/width in every section; widths and gaps come from
-## [member layout_tuning] (scaled by the one project UI scale), not per-node pixels.
-func _apply_row_layout() -> void:
-	for node: Node in _settings_column.find_children("*", "", true, false):
-		if node.is_in_group(ROW_GROUP):
-			node.add_theme_constant_override("separation", layout_tuning.row_separation_px)
-		elif node.is_in_group(ROWS_GROUP):
-			node.add_theme_constant_override("separation", layout_tuning.row_spacing_px)
-		elif node.is_in_group(CHECKLIST_GROUP):
-			node.add_theme_constant_override("h_separation", layout_tuning.row_separation_px)
-			node.add_theme_constant_override("v_separation", layout_tuning.row_spacing_px)
-		elif node.is_in_group(LABEL_CELL_GROUP):
-			# Bontago-1pi.146: an Advanced block is indented, so its label cells give that indent back and the
-			# control column starts at the same x in every block.
-			var indent: int = 0
-			for section: LobbySection in _sections():
-				if section.advanced != null and section.advanced.is_ancestor_of(node):
-					indent = layout_tuning.advanced_indent_px
-			(node as Control).custom_minimum_size.x = layout_tuning.label_column_width_px - indent
-			if node is Label:
-				(node as Label).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		elif node.is_in_group(VALUE_CELL_GROUP):
-			(node as Control).custom_minimum_size.x = layout_tuning.value_column_width_px
-		# Bontago-1pi.150: a long toggle caption wraps instead of widening the whole settings
-		# column past the (UI-scaled) canvas.
-		if node is CheckBox or node is CheckButton:
-			(node as Button).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-
-
-## Bontago-1pi.146: one control column and one value column for every settings row. Each row of a
-## selector / toggle / stepper gets an empty value-cell spacer so its right edge lines up with the meters'
-## (whose readout sits in that column); every control is [member LobbyLayoutTuning.row_control_height_px]
-## tall, and every readout (meters' labels and chips alike) is one left-aligned label style.
-func _align_row_controls(selectors: Array[CycleSelector], toggles: Array[Button]) -> void:
-	var height: float = float(layout_tuning.row_control_height_px)
-	for node: Node in _settings_column.find_children("*", "HBoxContainer", true, false):
-		var row: HBoxContainer = node as HBoxContainer
-		if not row.is_in_group(ROW_GROUP) or row.has_node(VALUE_SPACER_NAME):
-			continue
-		var has_value_cell: bool = false
-		var has_checklist: bool = false
-		for child: Node in row.get_children():
-			has_value_cell = has_value_cell or child.is_in_group(VALUE_CELL_GROUP)
-			has_checklist = has_checklist or child.is_in_group(CHECKLIST_GROUP)
-		if has_value_cell or has_checklist:
-			continue
-		var spacer: Control = Control.new()
-		spacer.name = VALUE_SPACER_NAME
-		spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		spacer.custom_minimum_size.x = float(layout_tuning.value_column_width_px)
-		spacer.add_to_group(VALUE_CELL_GROUP)
-		row.add_child(spacer)
-	for selector: CycleSelector in selectors:
-		selector.custom_minimum_size.y = height
-	for toggle: Button in toggles:
-		if toggle != _ready_check:
-			toggle.custom_minimum_size.y = height
-	for meter_slider: HSlider in _meters:
-		meter_slider.custom_minimum_size.y = height
-	for cell: Node in _settings_column.find_children("*", "", true, false):
-		if not cell.is_in_group(VALUE_CELL_GROUP):
-			continue
-		var readout: Label = cell as Label
-		if readout == null and cell.get_child_count() > 0:
-			readout = cell.get_child(0) as Label
-		if readout != null:
-			readout.theme_type_variation = &""
-			readout.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-			readout.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 
 
 func _on_section_toggled(state: bool) -> void:
@@ -798,7 +751,7 @@ func _connect_control_signals() -> void:
 	# Bontago-6fc.1: retarget the timer control before the publish below reads it.
 	_game_mode_option.item_selected.connect(_on_game_mode_picked)
 	_game_mode_option.item_selected.connect(_on_option_changed)
-	_round_timer_slider.value_changed.connect(_on_timer_slider_changed.bind(_round_timer_slider))
+	_round_timer_stepper.value_changed.connect(_on_timer_stepper_changed.bind(_round_timer_stepper))
 	_sky_team_sum_check.toggled.connect(_on_toggled)
 	_game_mode_option.item_selected.connect(_refresh_sky_controls)
 	_sky_theme_option.item_selected.connect(_on_option_changed)
@@ -809,81 +762,18 @@ func _connect_control_signals() -> void:
 	# joined/left"; this covers "the host changed the seat count").
 	_player_count_spin.value_changed.connect(func(_v: float) -> void: _clamp_ai_count_to_seats())
 	_ai_count_spin.value_changed.connect(_on_value_changed)
-	_block_timer_spin.value_changed.connect(_on_value_changed)
-	_gravity_slider.value_changed.connect(_on_value_changed)
-	_goal_flag_spin.value_changed.connect(_on_value_changed)
-	_special_freq_slider.value_changed.connect(_on_value_changed)
-	_match_timer_slider.value_changed.connect(_on_timer_slider_changed.bind(_match_timer_slider))
-	_disc_size_slider.value_changed.connect(_on_disc_size_changed)
+	_block_timer_stepper.value_changed.connect(_on_stepper_changed)
+	_goal_flag_stepper.value_changed.connect(_on_stepper_changed)
+	_gravity_meter.value_changed.connect(_on_gravity_cells_changed)
+	_special_freq_meter.value_changed.connect(_on_frequency_cells_changed)
+	_match_timer_stepper.value_changed.connect(_on_timer_stepper_changed.bind(_match_timer_stepper))
+	_disc_size_meter.value_changed.connect(_on_disc_size_changed)
 	_gifts_check.toggled.connect(_on_toggled)
 	_sudden_death_check.toggled.connect(_on_toggled)
 	_turn_based_check.toggled.connect(_on_toggled)
 	_mid_join_check.toggled.connect(_on_toggled)
-	for qol_check: CheckBox in _qol_checks:
+	for qol_check: UiChipToggle in _qol_checks:
 		qol_check.toggled.connect(_on_toggled)
-
-
-## Bontago-mp0.3.5 (review r2, item 2): inserts a round "-" button before
-## [param spin] and a round "+" button after it, in [param spin]'s own
-## parent -- both just nudge [param spin].value by one step() and let SpinBox's own
-## existing value_changed -> _on_value_changed() wiring do the rest, so this never
-## duplicates the round-trip/clamp logic. Appends both to [param target] (read by
-## _wire_focus_chain()) and to _settings_controls, so _update_host_only_state() gates
-## them exactly like every other host-only control.
-##
-## Bontago-mp0.3.5 (review r3, problem 3 / polish pass, problem 2): mockup 11 draws a
-## stepper as ONE sunken pill -- "(-) value (+)". [param spin] keeps its min/max/step/
-## value/value_changed exactly as before (every get_node("%...").value read/write in this
-## file and in the tests is untouched) but is hidden (`visible = false`, so a Container
-## skips it entirely -- no reparent); a plain borderless Label shows its value, kept in
-## sync by [param spin]'s own value_changed (which Range emits for a programmatic
-## `.value = x` too, so a remote _apply_data() update reaches it exactly like a button
-## press does). Bontago-1pi.53 (S1b): only the goal-flag count still uses it -- the
-## Players/AI steppers left the card.
-func _add_stepper_buttons(spin: SpinBox, target: Array[Button], value_text: Callable) -> void:
-	MenuStyleFactory.hide_spinbox_arrows(spin)
-	spin.visible = false
-
-	var parent: Node = spin.get_parent()
-	var index: int = spin.get_index()
-	var scene_owner: Node = spin.owner
-	var pill: PanelContainer = PanelContainer.new()
-	pill.size_flags_horizontal = spin.size_flags_horizontal
-	pill.add_theme_stylebox_override("panel", MenuStyleFactory.make_well_pill(tuning))
-	pill.custom_minimum_size.y = float(layout_tuning.row_control_height_px)
-	pill.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	parent.add_child(pill)
-	parent.move_child(pill, index)
-	pill.owner = scene_owner
-
-	var content: HBoxContainer = HBoxContainer.new()
-	content.add_theme_constant_override("separation", 6)
-	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	pill.add_child(content)
-
-	var minus: Button = Button.new()
-	minus.text = "−"
-	minus.pressed.connect(func() -> void: spin.value = maxf(spin.min_value, spin.value - spin.step))
-	var value_label: Label = Label.new()
-	# Bontago-1pi.146: "-" at the left edge, "+" at the right edge, the value centred between them.
-	value_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	value_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	value_label.text = str(value_text.call(spin.value))
-	spin.value_changed.connect(func(_v: float) -> void: value_label.text = str(value_text.call(spin.value)))
-	var plus: Button = Button.new()
-	plus.text = "+"
-	plus.pressed.connect(func() -> void: spin.value = minf(spin.max_value, spin.value + spin.step))
-	content.add_child(minus)
-	content.add_child(value_label)
-	content.add_child(plus)
-	MenuStyleFactory.apply_flat_stepper_button(minus, tuning)
-	MenuStyleFactory.apply_flat_stepper_button(plus, tuning)
-	value_label.add_theme_color_override("font_color", tuning.ink_color)
-	target.append(minus)
-	target.append(plus)
-	_settings_controls.append(minus)
-	_settings_controls.append(plus)
 
 
 ## assets-audio package: UI button press/hover has no Events signal of its
@@ -936,152 +826,30 @@ func _apply_visual_style() -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	_settings_card.add_theme_stylebox_override("panel", MenuStyleFactory.make_card(tuning.card_cream_color, tuning))
 	_players_card.add_theme_stylebox_override("panel", MenuStyleFactory.make_card(tuning.card_cream_color, tuning))
-	_settings_column.add_theme_constant_override("separation", layout_tuning.section_spacing_px)
-	_apply_row_layout()
-	for section: LobbySection in _sections():
-		section.apply_style(tuning, layout_tuning)
-	LobbySection.style_heading(_settings_column.get_node("Title") as Label)
-	for caption_cell: Node in _settings_column.find_children("*", "Label", true, false):
-		if caption_cell.is_in_group(LABEL_CELL_GROUP):
-			(caption_cell as Label).theme_type_variation = &"FieldLabel"
-			(caption_cell as Label).text = (caption_cell as Label).text.to_upper()
-
-	# Bontago-mp0.3.5 (review r2, item 2): a round "-"/"+" stepper pill around the
-	# goal-flag SpinBox (mockup 11) -- the SpinBox itself stays exactly as it was
-	# (same min/max/step, same value_changed wiring), this just gives it a second,
-	# gamepad-focusable way to nudge the value by one step, and (review r3, problem 3)
-	# hides the native up/down spinner entirely.
-	_add_stepper_buttons(_goal_flag_spin, _goal_stepper_buttons, func(v: float) -> String: return str(int(v)))
-	# Bontago-1pi.147: the block timer is the same stepper (3.0 s .. 12.0 s in 0.5 s steps, as the slider was).
-	_add_stepper_buttons(_block_timer_spin, _block_stepper_buttons, func(v: float) -> String: return BLOCK_TIMER_VALUE_FORMAT % v)
-	# Bontago-1pi.30: the two timer controls are sliders now (no stepper pills);
-	# gamepad left/right is the Slider's own ui_left/ui_right handling, up/down
-	# moves focus along _wire_focus_chain().
-
-	# Bontago-mp0.3.5 (review r2, item 1): a small round disc icon (dark
-	# slate fill, light rim) beside %MapComboOption -- the same two-tone
-	# read as ui/MenuDiorama.gd's own island, just flattened into a 2D chip.
-	var thumb_box: StyleBoxFlat = StyleBoxFlat.new()
-	thumb_box.bg_color = tuning.pill_dark_slate_color
-	thumb_box.border_color = tuning.island_rim_color
-	thumb_box.set_border_width_all(2)
-	thumb_box.set_corner_radius_all(14)
-	_map_thumbnail.add_theme_stylebox_override("panel", thumb_box)
-
-	# Arcade: START MATCH is the screen's one primary action, a full-size flare block with ink label.
-	MenuStyleFactory.apply_block(_start_button, arcade.flare_color, arcade.ink_color)
-	MenuStyleFactory.apply_pill(
-		_invite_friends_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning
+	# Hierarchy (UI_COMPONENTS_PLAN section 4): the card heading, then sections one space-5 apart,
+	# then rows one space-3 apart (_prepare_rows); everything else is the component's own look.
+	_settings_column.add_theme_constant_override("separation", arcade.space_5_px)
+	# Bontago-mp0.124: each section header carries its UiArtTable symbol.
+	var art: UiArtTable = UiArtTable.shared()
+	_game_section.set_header_icon(art.lobby_icon(UiArtTable.KEY_SECTION_GAME))
+	_round_section.set_header_icon(art.lobby_icon(UiArtTable.KEY_SECTION_ROUND))
+	_gifts_section.set_header_icon(art.lobby_icon(UiArtTable.KEY_SECTION_GIFTS))
+	_experiments_section.set_header_icon(art.lobby_icon(UiArtTable.KEY_SECTION_EXPERIMENTS))
+	# The Ready toggle (a client's footer control) keeps its chip look until the footer migrates.
+	MenuStyleFactory.apply_toggle_chip(
+		_ready_check, tuning.pill_cream_color, tuning.pill_cream_hover_color,
+		tuning.pill_mint_color, tuning.pill_mint_hover_color, tuning.ink_color, tuning
 	)
-	MenuStyleFactory.apply_pill(
-		_back_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning
-	)
-
-	# Arcade (Bontago-hfa.11): every slider is a SegmentMeter overlay (voxel cells in a well); the HSlider
-	# underneath keeps SliderNav / timer stepping, drag, focus and editable exactly as before.
-	for meter_slider: HSlider in [
-		_match_timer_slider, _disc_size_slider, _round_timer_slider,
-		_gravity_slider, _special_freq_slider,
-	]:
-		_meters[meter_slider] = SegmentMeter.attach(meter_slider)
-		_meters[meter_slider].set_dimmed(not meter_slider.editable)
-	for chip: PanelContainer in [_gravity_chip, _special_freq_chip]:
-		# Arcade: a slider readout is plain cream text (no coral chip) so the value never competes with START.
-		chip.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
-		var chip_label: Label = chip.get_child(0) as Label
-		chip_label.add_theme_color_override("font_color", arcade.cream_color)
-
-	# Bontago-xtq.32 redo #3: compact toggle chips (specials grid + the
-	# Advanced Rules strip's two CheckButtons) replace round-1's full-width
-	# red CheckBox bars -- off = cream pill, on = mint pill, reusing the same
-	# tunables apply_pill() above already draws from (no new MenuVisualTuning
-	# exports). _gifts_check keeps its own %GoalFlagRow placement in the
-	# tscn but is visually the same chip family.
-	for box: CheckBox in _special_checkboxes:
-		MenuStyleFactory.apply_toggle_chip(
-			box, tuning.pill_cream_color, tuning.pill_cream_hover_color,
-			tuning.pill_mint_color, tuning.pill_mint_hover_color, tuning.ink_color, tuning
-		)
-	# Bontago-1pi.18.5: the Experiments checkboxes are the same chip family as the
-	# specials grid above (no new colours, no new tunables).
-	for qol_check: CheckBox in _qol_checks:
-		MenuStyleFactory.apply_toggle_chip(
-			qol_check, tuning.pill_cream_color, tuning.pill_cream_hover_color,
-			tuning.pill_mint_color, tuning.pill_mint_hover_color, tuning.ink_color, tuning
-		)
-	var chips: Array[Button] = [
-		_gifts_check, _sudden_death_check, _turn_based_check, _mid_join_check, _sky_team_sum_check, _ready_check,
-	]
-	for chip: Button in chips:
-		MenuStyleFactory.apply_toggle_chip(
-			chip, tuning.pill_cream_color, tuning.pill_cream_hover_color,
-			tuning.pill_mint_color, tuning.pill_mint_hover_color, tuning.ink_color, tuning
-		)
-
-	# Bontago-1pi.149: the spec'd toggles (sudden death, turn-based, mid-match join) carry the
-	# required ON/OFF word beside the chip (Teams does the same in the players panel).
-	for toggle: CheckButton in [_sudden_death_check, _turn_based_check, _mid_join_check]:
-		var word: Label = LobbySection.attach_state_word(toggle, layout_tuning.value_column_width_px)
-		word.add_to_group(VALUE_CELL_GROUP)
-
-	# Bontago-1pi.94: the click-to-cycle selectors are cream pills; a client's read-only copy
-	# keeps the same look (disabled box = the normal pill) so only the host sees a live control.
-	var selectors: Array[CycleSelector] = [
-		_game_mode_option, _sky_theme_option, _weather_option, _tilt_mode_option, _hole_mode_option,
-	]
-	for selector: CycleSelector in selectors:
-		MenuStyleFactory.apply_pill(selector, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
-		selector.add_theme_stylebox_override("disabled", MenuStyleFactory.make_badge(tuning.pill_cream_color, tuning))
-		selector.add_theme_color_override("font_disabled_color", tuning.ink_color)
-		selector.add_theme_constant_override("icon_max_width", GiftIconTable.shared().lobby_icon_px)
-
-	_align_row_controls(selectors, chips)
-	for toggle: CheckButton in [_sudden_death_check, _turn_based_check, _mid_join_check]:
-		(toggle.get_meta(LobbySection.STATE_WORD_META) as Label).theme_type_variation = &"DisplayLabel"
-
-	var captions: Array[Label] = [_specials_label, _experiments_label]
-	for caption: Label in captions:
-		caption.add_theme_color_override("font_color", tuning.label_muted_color)
-
+	# A full-size UiBlockButton fills its cell; START MATCH keeps its own height in the bar.
+	_start_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	# Arcade (Bontago-1pi.145): the lobby sits on the same arena image as the main menu under a
 	# full-screen disc-900 scrim (components.md Screens: "over the scrimmed arena"), so the title
 	# row is plain cream text and the StatusBadge a flat disc-700 label with a live mint dot.
 	(%Scrim as ColorRect).color = Color(arcade.disc_900_color, arcade.scrim_alpha)
-	_status_badge.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(arcade.disc_700_color, tuning))
-	_waiting_status_pill.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(arcade.disc_700_color, tuning))
-	_waiting_status_label.theme_type_variation = &"FieldLabel"
-	_waiting_status_label.add_theme_color_override("font_color", arcade.cream_color)
-	_status_badge_label.theme_type_variation = &"FieldLabel"
-	_status_badge_label.add_theme_color_override("font_color", arcade.cream_color)
-	_add_status_dot(arcade)
-	for header_label: Label in [_header_eyebrow, _header_title]:
-		header_label.add_theme_color_override("font_color", arcade.cream_color)
+	_header_eyebrow.add_theme_color_override("font_color", arcade.cream_color)
+	_header_eyebrow.add_theme_font_size_override("font_size", arcade.font_size_button_px)
 	_players_panel.apply_visual_style()
 	_update_status_badge()
-
-
-## The live mint dot at the left of the StatusBadge label (components.md StatusBadge). The label
-## moves into a row with the dot; node names and unique names are unchanged.
-func _add_status_dot(arcade: ArcadeVisualTuning) -> void:
-	if _status_badge_label.get_parent() != _status_badge:
-		return
-	var row: HBoxContainer = HBoxContainer.new()
-	row.add_theme_constant_override("separation", arcade.space_2_px)
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	var dot: Panel = Panel.new()
-	dot.name = "StatusDot"
-	dot.custom_minimum_size = Vector2.ONE * float(arcade.space_2_px)
-	dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	var dot_box: StyleBoxFlat = StyleBoxFlat.new()
-	dot_box.bg_color = arcade.mint_color
-	dot_box.set_corner_radius_all(arcade.radius_cell_px)
-	dot.add_theme_stylebox_override("panel", dot_box)
-	_status_badge.add_child(row)
-	_status_badge.remove_child(_status_badge_label)
-	row.add_child(dot)
-	row.add_child(_status_badge_label)
-	# Re-parenting clears the owner, which %StatusBadgeLabel (unique name) needs to resolve.
-	_status_badge_label.owner = self
 
 
 ## Gamepad/keyboard shortcuts and back-out (Bontago-1pi.53, S1b; the Advanced rules popup is
@@ -1120,6 +888,11 @@ func _input(event: InputEvent) -> void:
 	for option: OptionButton in [_map_variant_option, _map_size_option, _ai_difficulty_option, _team_mode_option]:
 		if option.get_popup().visible:
 			return
+	for dropdown: UiDropdown in [
+		_game_mode_option, _sky_theme_option, _weather_option, _tilt_mode_option, _hole_mode_option,
+	]:
+		if dropdown.is_open():
+			return
 	_run_start_shortcut()
 	get_viewport().set_input_as_handled()
 
@@ -1136,15 +909,15 @@ func _run_start_shortcut() -> void:
 
 ## Y on the pad: toggles the Advanced block of the section that holds focus, falling back to
 ## the first section that has one (GAME). Collapsing a block that holds focus hands focus
-## to its chip, so the loop never loses its place (LobbySection.set_advanced_open()).
+## to its chip, so the loop never loses its place (UiSection.set_advanced_open()).
 func toggle_focused_advanced() -> void:
-	var target: LobbySection = null
-	for section: LobbySection in _sections():
+	var target: UiSection = null
+	for section: UiSection in _sections():
 		if section.has_advanced() and section.has_focus_inside():
 			target = section
 			break
 	if target == null:
-		for section: LobbySection in _sections():
+		for section: UiSection in _sections():
 			if section.has_advanced():
 				target = section
 				break
@@ -1162,19 +935,19 @@ func _update_section_summaries() -> void:
 		_cycle_text(_game_mode_option), _disc_size_text(),
 		_cycle_text(_sky_theme_option), _cycle_text(_weather_option),
 	]))
-	var timer_slider: HSlider = _timer_slider_for(_timer_mode)
+	var timer_stepper: UiStepper = _timer_stepper_for(_timer_mode)
 	var round_parts: Array[String] = [
-		_timer_value_text(int(timer_slider.value), _timer_mode == MatchConfig.GameMode.DOMINATION),
-		SUMMARY_BLOCK_TIMER_FORMAT % _block_timer_spin.value,
+		_timer_value_text(timer_stepper.value, _timer_mode == MatchConfig.GameMode.DOMINATION),
+		SUMMARY_BLOCK_TIMER_FORMAT % _block_timer_seconds(),
 	]
 	if _goal_flag_col.visible:
-		var flags: int = int(_goal_flag_spin.value)
+		var flags: int = _goal_flag_stepper.value
 		round_parts.append((SUMMARY_GOAL_FLAG_FORMAT if flags == 1 else SUMMARY_GOAL_FLAGS_FORMAT) % flags)
 	_round_section.set_summary(SUMMARY_SEPARATOR.join(round_parts))
 	if _gifts_check.button_pressed:
-		var gifts_summary: String = SUMMARY_GIFTS_ON_FORMAT % [SUMMARY_SEPARATOR, int(_special_freq_slider.value)]
+		var gifts_summary: String = SUMMARY_GIFTS_ON_FORMAT % [SUMMARY_SEPARATOR, _special_frequency_value]
 		var enabled_gifts: int = 0
-		for box: CheckBox in _special_checkboxes:
+		for box: UiChipToggle in _special_checkboxes:
 			if box.button_pressed:
 				enabled_gifts += 1
 		if enabled_gifts != _special_checkboxes.size():
@@ -1183,13 +956,13 @@ func _update_section_summaries() -> void:
 	else:
 		_gifts_section.set_summary(SUMMARY_GIFTS_OFF)
 	var experiments_on: int = 0
-	for qol_check: CheckBox in _qol_checks:
+	for qol_check: UiChipToggle in _qol_checks:
 		if qol_check.button_pressed:
 			experiments_on += 1
 	_experiments_section.set_summary(SUMMARY_EXPERIMENTS_FORMAT % experiments_on)
 
 
-func _cycle_text(selector: CycleSelector) -> String:
+func _cycle_text(selector: UiDropdown) -> String:
 	return selector.get_item_text(selector.selected)
 
 
@@ -1199,7 +972,7 @@ func _cycle_text(selector: CycleSelector) -> String:
 ## seam keeps its name and now opens every section's Advanced block -- the lobby's
 ## equivalent of "show the advanced rules" -- instead of breaking that tool.
 func debug_open_advanced_rules_popup() -> void:
-	for section: LobbySection in _sections():
+	for section: UiSection in _sections():
 		section.set_advanced_open(true)
 
 
@@ -1211,29 +984,61 @@ func _on_option_changed(_index: int) -> void:
 	_on_setting_changed()
 
 
-## Bontago-1pi.107: the disc-size slider moved; refresh its text and republish like any host edit.
-func _on_disc_size_changed(_value: float) -> void:
-	_update_disc_size_value()
+## Bontago-1pi.107: the disc-size meter moved; republish like any host edit.
+## DECISION (Bontago-1pi.159.2.1): the meter lights step + 1 cells (Tiny = one cell), so an empty meter
+## is not a size: a click on its far left edge (0 cells) settles on the smallest size.
+func _on_disc_size_changed(cells: int) -> void:
+	if cells < 1:
+		_disc_size_meter.set_value_silent(1)
 	_on_setting_changed()
 
 
-func _configure_disc_size_slider() -> void:
-	var tuning: DiscSizeTuning = DiscSizeTuning.shared()
-	_disc_size_slider.min_value = 0.0
-	_disc_size_slider.max_value = float(maxi(tuning.step_count() - 1, 0))
-	_disc_size_slider.step = 1.0
-	_disc_size_slider.tick_count = tuning.step_count()
-	_disc_size_slider.set_value_no_signal(float(MatchConfig.DISC_SIZE_STEP_DEFAULT))
-	_update_disc_size_value()
+## The disc-size step (0 .. DiscSizeTuning.step_count() - 1) the meter shows.
+func _disc_size_step() -> int:
+	return maxi(_disc_size_meter.value, 1) - 1
 
 
-func _update_disc_size_value() -> void:
-	_disc_size_value.text = _disc_size_text()
-
-
-## "Medium - 100%" for the current slider step; also the Game section's summary entry.
+## "Medium - 100%" for the current disc size; the Game section's summary entry.
 func _disc_size_text() -> String:
-	return DiscSizeTuning.shared().value_text(int(_disc_size_slider.value))
+	return DiscSizeTuning.shared().value_text(_disc_size_step())
+
+
+## The block timer in seconds for [param steps] stepper steps.
+static func _block_timer_seconds_for(steps: int) -> float:
+	return float(steps) * BLOCK_TIMER_STEP_S
+
+
+func _block_timer_seconds() -> float:
+	return _block_timer_seconds_for(_block_timer_stepper.value)
+
+
+func _on_stepper_changed(_value: int) -> void:
+	_on_setting_changed()
+
+
+## A player moved the gravity meter: the new multiplier is the cell's value on the MatchConfig range,
+## snapped to GRAVITY_SNAP (the old slider's 0.05 step), so a mid-range cell lands on 1.0 exactly.
+func _on_gravity_cells_changed(cells: int) -> void:
+	var span: float = MatchConfig.GRAVITY_MAX - MatchConfig.GRAVITY_MIN
+	_gravity_value = snappedf(MatchConfig.GRAVITY_MIN + span * float(cells) / float(GRAVITY_CELLS), GRAVITY_SNAP)
+	_on_setting_changed()
+
+
+func _on_frequency_cells_changed(cells: int) -> void:
+	var span: int = MatchConfig.SPECIAL_FREQUENCY_MAX - MatchConfig.SPECIAL_FREQUENCY_MIN
+	_special_frequency_value = MatchConfig.SPECIAL_FREQUENCY_MIN + roundi(float(span) * float(cells) / float(FREQUENCY_CELLS))
+	_on_setting_changed()
+
+
+## The cell a gravity multiplier / gift frequency lights (nearest), for values applied from lobby data.
+static func _gravity_cells_for(gravity: float) -> int:
+	var span: float = MatchConfig.GRAVITY_MAX - MatchConfig.GRAVITY_MIN
+	return clampi(roundi((gravity - MatchConfig.GRAVITY_MIN) / span * float(GRAVITY_CELLS)), 0, GRAVITY_CELLS)
+
+
+static func _frequency_cells_for(frequency: int) -> int:
+	var span: int = MatchConfig.SPECIAL_FREQUENCY_MAX - MatchConfig.SPECIAL_FREQUENCY_MIN
+	return clampi(roundi(float(frequency - MatchConfig.SPECIAL_FREQUENCY_MIN) / float(span) * float(FREQUENCY_CELLS)), 0, FREQUENCY_CELLS)
 
 
 func _on_value_changed(_value: float) -> void:
@@ -1249,12 +1054,12 @@ func _on_game_mode_picked(index: int) -> void:
 	var new_mode: int = MatchConfig.resolve_game_mode(index)
 	_refresh_timer_control(new_mode)
 	if not MatchConfig.same_timer_family(old_mode, new_mode):
-		_timer_slider_for(new_mode).value = MatchConfig.timer_default_minutes(new_mode)
+		_timer_stepper_for(new_mode).value = MatchConfig.timer_default_minutes(new_mode)
 	_update_timer_values()
 
 
-func _timer_slider_for(mode: int) -> HSlider:
-	return _match_timer_slider if MatchConfig.timer_is_match_timer(mode) else _round_timer_slider
+func _timer_stepper_for(mode: int) -> UiStepper:
+	return _match_timer_stepper if MatchConfig.timer_is_match_timer(mode) else _round_timer_stepper
 
 
 ## Shows the one timer control `mode` uses, with its label and minimum, and
@@ -1268,7 +1073,9 @@ func _refresh_timer_control(mode: int) -> void:
 	_goal_flag_col.visible = MatchConfig.mode_uses_goal_flags(mode)
 	var was_applying: bool = _applying_remote_data
 	_applying_remote_data = true
-	_round_timer_slider.min_value = MatchConfig.timer_min_minutes(mode) if not classic else MatchConfig.ROUND_TIMER_MIN_MINUTES
+	_round_timer_stepper.min_value = MatchConfig.timer_min_minutes(mode) if not classic else MatchConfig.ROUND_TIMER_MIN_MINUTES
+	# A stepper does not re-clamp its value when its minimum moves (a Range did).
+	_round_timer_stepper.value = maxi(_round_timer_stepper.value, _round_timer_stepper.min_value)
 	_applying_remote_data = was_applying
 	_match_timer_col.tooltip_text = TIMER_TIP_MATCH
 	_round_timer_col.tooltip_text = TIMER_TIP_DOMINATION if mode == MatchConfig.GameMode.DOMINATION else TIMER_TIP_ROUND
@@ -1277,12 +1084,9 @@ func _refresh_timer_control(mode: int) -> void:
 	_rewire_focus()
 
 
-## The value label under each timer slider ("5 min", or "Off" at its leftmost stop).
+## The readout beside the round-length stepper ("required" while the mode always has a timer).
 func _update_timer_values() -> void:
-	_match_timer_value.text = _timer_value_text(int(_match_timer_slider.value), false)
-	_round_timer_value.text = _timer_value_text(
-		int(_round_timer_slider.value), _timer_mode == MatchConfig.GameMode.DOMINATION
-	)
+	_round_timer_value.text = TIMER_REQUIRED_TEXT if _timer_mode == MatchConfig.GameMode.DOMINATION else ""
 
 
 static func _timer_value_text(minutes: int, required: bool) -> String:
@@ -1291,18 +1095,18 @@ static func _timer_value_text(minutes: int, required: bool) -> String:
 	return (TIMER_REQUIRED_FORMAT if required else TIMER_VALUE_FORMAT) % minutes
 
 
-## Either timer slider moved (host drag, gamepad left/right, or a programmatic
+## Either timer stepper moved (host click or hold, gamepad left/right, or a programmatic
 ## write). Host edits skip the 1-minute gap so the stops read Off, 2, 3 ... 30:
 ## stepping up from Off lands on 2 and stepping down from 2 lands on Off. A value
 ## applied from lobby data is shown as-is (the host's sanitize() already decided).
-func _on_timer_slider_changed(value: float, slider: HSlider) -> void:
-	var minutes: int = int(value)
-	var previous: int = int(_timer_previous_minutes.get(slider, minutes))
+func _on_timer_stepper_changed(value: int, stepper: UiStepper) -> void:
+	var minutes: int = value
+	var previous: int = _timer_previous_minutes.get(stepper, minutes)
 	var in_gap: bool = minutes > MatchConfig.ROUND_TIMER_OFF_MINUTES and minutes < MatchConfig.ROUND_TIMER_MIN_MINUTES
 	if in_gap and not _applying_remote_data:
 		minutes = MatchConfig.ROUND_TIMER_MIN_MINUTES if minutes > previous else MatchConfig.ROUND_TIMER_OFF_MINUTES
-		slider.set_value_no_signal(minutes)
-	_timer_previous_minutes[slider] = minutes
+		stepper.set_value_silent(minutes)
+	_timer_previous_minutes[stepper] = minutes
 	_update_timer_values()
 	_on_setting_changed()
 
@@ -1354,23 +1158,23 @@ func _config_from_controls() -> MatchConfig:
 	# Bontago-1pi.107: the other maps are disabled for now (data kept); the disc size is the choice.
 	config.map_variant = MatchConfig.MapVariant.ROUND
 	config.map_size = MapDef.MapSize.MEDIUM
-	config.disc_size_step = int(_disc_size_slider.value)
+	config.disc_size_step = _disc_size_step()
 	config.player_count = int(_player_count_spin.value)
 	config.ai_count = int(_ai_count_spin.value)
 	config.ai_difficulty = _ai_difficulty_option.selected
 	config.team_mode = _team_mode_option.selected
-	config.block_timer = _block_timer_spin.value
-	config.gravity_multiplier = _gravity_slider.value
-	config.goal_flag_count = int(_goal_flag_spin.value)
+	config.block_timer = _block_timer_seconds()
+	config.gravity_multiplier = _gravity_value
+	config.goal_flag_count = _goal_flag_stepper.value
 	config.gifts_enabled = _gifts_check.button_pressed
-	config.special_frequency = int(_special_freq_slider.value)
+	config.special_frequency = _special_frequency_value
 	config.tilt_mode = _tilt_mode_option.selected
 	config.hole_mode = _hole_mode_option.selected
 	config.weather_mode = _weather_option.selected as MatchConfig.WeatherMode
 	config.sky_theme_mode = _sky_theme_option.selected as MatchConfig.SkyThemeMode
-	config.match_timer_minutes = int(_match_timer_slider.value)
+	config.match_timer_minutes = _match_timer_stepper.value
 	config.game_mode = MatchConfig.resolve_game_mode(_game_mode_option.selected)
-	config.round_timer_minutes = int(_round_timer_slider.value)
+	config.round_timer_minutes = _round_timer_stepper.value
 	config.sky_team_sum = _sky_team_sum_check.button_pressed
 	config.sudden_death = _sudden_death_check.button_pressed
 	config.turn_based = _turn_based_check.button_pressed
@@ -1467,21 +1271,22 @@ func _apply_data(data: Dictionary) -> void:
 	_applying_remote_data = true
 	_map_variant_option.selected = config.map_variant
 	_map_size_option.selected = config.map_size
-	_disc_size_slider.value = config.disc_size_step
-	_update_disc_size_value()
+	_disc_size_meter.set_value_silent(config.disc_size_step + 1)
 	_map_variant_option.selected = int(config.map_variant)
 	_refresh_map_thumbnail()
 	_player_count_spin.value = config.player_count
 	_ai_count_spin.value = config.ai_count
 	_ai_difficulty_option.selected = config.ai_difficulty
 	_team_mode_option.selected = config.team_mode
-	_block_timer_spin.value = config.block_timer
-	_gravity_slider.value = config.gravity_multiplier
-	_gravity_label.text = "%.2fx" % config.gravity_multiplier
-	_goal_flag_spin.value = config.goal_flag_count
-	_gifts_check.button_pressed = config.gifts_enabled
-	_special_freq_slider.value = config.special_frequency
-	_special_freq_label.text = str(config.special_frequency)
+	_block_timer_stepper.set_value_silent(roundi(config.block_timer / BLOCK_TIMER_STEP_S))
+	_gravity_value = config.gravity_multiplier
+	_gravity_meter.set_value_silent(_gravity_cells_for(_gravity_value))
+	_gravity_meter.queue_redraw()
+	_goal_flag_stepper.set_value_silent(config.goal_flag_count)
+	_gifts_check.set_on_silent(config.gifts_enabled)
+	_special_frequency_value = config.special_frequency
+	_special_freq_meter.set_value_silent(_frequency_cells_for(_special_frequency_value))
+	_special_freq_meter.queue_redraw()
 	_tilt_mode_option.selected = config.tilt_mode
 	_hole_mode_option.selected = config.hole_mode
 	_weather_option.selected = config.weather_mode
@@ -1490,22 +1295,22 @@ func _apply_data(data: Dictionary) -> void:
 	# retargeted before either value is written (Elimination may hold 0).
 	_game_mode_option.selected = config.game_mode
 	_refresh_timer_control(config.game_mode)
-	_match_timer_slider.value = config.match_timer_minutes
-	_round_timer_slider.value = config.round_timer_minutes
-	_sky_team_sum_check.button_pressed = config.sky_team_sum
+	_match_timer_stepper.value = config.match_timer_minutes
+	_round_timer_stepper.value = config.round_timer_minutes
+	_sky_team_sum_check.set_on_silent(config.sky_team_sum)
 	_refresh_sky_controls()
-	_sudden_death_check.button_pressed = config.sudden_death
-	_turn_based_check.button_pressed = config.turn_based
-	_mid_join_check.button_pressed = config.allow_mid_match_join
+	_sudden_death_check.set_on_silent(config.sudden_death)
+	_turn_based_check.set_on_silent(config.turn_based)
+	_mid_join_check.set_on_silent(config.allow_mid_match_join)
 	_apply_enabled_specials_to_checkboxes(config.enabled_specials)
 	# Bontago-1pi.18.5: a null qol (an older host, or config/match_defaults.tres)
 	# reads as every experiment off. Inside the guard, so a client mirrors the
 	# host without re-publishing.
 	var qol: QolExperiments = config.qol
-	_qol_timer_pause_check.button_pressed = qol != null and qol.timer_pause_enabled
-	_qol_backlog_check.button_pressed = qol != null and qol.backlog_enabled
-	_qol_goal_radius_check.button_pressed = qol != null and qol.goal_radius_enabled
-	_qol_gift_slot_check.button_pressed = qol != null and qol.gift_slot_enabled
+	_qol_timer_pause_check.set_on_silent(qol != null and qol.timer_pause_enabled)
+	_qol_backlog_check.set_on_silent(qol != null and qol.backlog_enabled)
+	_qol_goal_radius_check.set_on_silent(qol != null and qol.goal_radius_enabled)
+	_qol_gift_slot_check.set_on_silent(qol != null and qol.gift_slot_enabled)
 	_applying_remote_data = false
 	_update_section_summaries()
 	# Bontago-1pi.9b: re-bound %AiCountSpin's max after every value assignment
@@ -1533,11 +1338,11 @@ func _apply_enabled_specials_to_checkboxes(enabled: Array[StringName]) -> void:
 	var all_disabled: bool = enabled.has(ALL_DISABLED_SENTINEL)
 	for i: int in range(_special_checkboxes.size()):
 		if all_enabled:
-			_special_checkboxes[i].button_pressed = true
+			_special_checkboxes[i].set_on_silent(true)
 		elif all_disabled:
-			_special_checkboxes[i].button_pressed = false
+			_special_checkboxes[i].set_on_silent(false)
 		else:
-			_special_checkboxes[i].button_pressed = enabled.has(_special_ids[i])
+			_special_checkboxes[i].set_on_silent(enabled.has(_special_ids[i]))
 
 
 func _on_lobby_data_changed(data: Dictionary) -> void:
@@ -1610,9 +1415,9 @@ func _on_roster_rendered(ready_count: int, row_count: int) -> void:
 	# DECISION (Bontago-1pi.122): the host counts as ready (see LobbyPlayersPanel._render), and once
 	# every seat is ready the pill says so instead of "Waiting for players * 2 of 2 ready".
 	if row_count > 0 and ready_count >= row_count:
-		_waiting_status_label.text = ALL_READY_TEXT
+		_waiting_status_pill.text = ALL_READY_TEXT
 		return
-	_waiting_status_label.text = READY_COUNT_FORMAT % [ready_count, row_count]
+	_waiting_status_pill.text = READY_COUNT_FORMAT % [ready_count, row_count]
 
 
 ## The panel's focusable controls changed: rewire the loop (only once the first
@@ -1821,12 +1626,7 @@ func _build_join_code_row() -> void:
 func _update_host_only_state() -> void:
 	var is_host: bool = net_provider != null and bool(net_provider.is_host())
 	for control: Control in _settings_controls:
-		if control is Range:
-			control.set("editable", is_host)
-			if control is HSlider and _meters.has(control as HSlider):
-				_meters[control as HSlider].set_dimmed(not is_host)
-		elif control is BaseButton:
-			(control as BaseButton).disabled = not is_host
+		_set_control_editable(control, is_host)
 	_players_panel.set_editable(is_host)
 	# Bontago-1pi.53 (E1, P1 review F4): a start blocker (e.g. teams on and every
 	# seat on one team) disables Start and is explained in its tooltip; "" when
@@ -1861,6 +1661,23 @@ func _update_host_only_state() -> void:
 const BADGE_VS_BOTS: String = "Vs bots"
 
 
+## Host edits, client reads: each component family has its own switch (only written when it changes,
+## because _process() calls this every frame and a stepper / meter repaints on every write).
+func _set_control_editable(control: Control, editable: bool) -> void:
+	if control is UiStepper:
+		var stepper: UiStepper = control as UiStepper
+		if stepper.disabled == editable:
+			stepper.disabled = not editable
+	elif control is UiSegmentMeter:
+		var meter: UiSegmentMeter = control as UiSegmentMeter
+		if meter.editable != editable:
+			meter.editable = editable
+	elif control is Range:
+		control.set("editable", editable)
+	elif control is BaseButton:
+		(control as BaseButton).disabled = not editable
+
+
 ## Header badge (Bontago-xtq.32 redo, mockup 11's top-right "Hosting * LAN"
 ## pill): reads the same net_provider calls _update_host_only_state() above
 ## already gates on, so it never assumes a transport (CLAUDE.md
@@ -1873,7 +1690,7 @@ func _update_status_badge() -> void:
 	var is_host: bool = bool(net_provider.is_host())
 	var is_steam: bool = bool(net_provider.is_steam_session())
 	var is_private: bool = net_provider.has_method(&"is_private_session") and bool(net_provider.is_private_session())
-	_status_badge_label.text = status_badge_text(is_host, is_steam, is_private).to_upper()
+	_status_badge.text = status_badge_text(is_host, is_steam, is_private).to_upper()
 
 
 ## The header badge text: "Vs bots" for a private local session, else "Hosting/Joined * Steam/LAN".

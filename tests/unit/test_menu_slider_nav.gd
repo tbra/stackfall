@@ -25,6 +25,11 @@ func _settle() -> void:
 func _menu() -> OptionsMenu:
 	var menu: OptionsMenu = autofree(OPTIONS_MENU_SCENE.instantiate()) as OptionsMenu
 	add_child_autofree(menu)
+	# Meters write their setting on every step: keep that off the real Settings autoload.
+	var fresh: Node = autofree((load("res://autoload/Settings.gd") as GDScript).new())
+	add_child_autofree(fresh)
+	fresh.set_config_path_for_test(OS.get_user_data_dir().path_join("test_menu_slider_nav_tmp.cfg"))
+	menu.settings_provider = fresh
 	await _settle()
 	return menu
 
@@ -61,23 +66,21 @@ func test_coarse_step_is_a_twentieth_of_the_range_for_fine_sliders_only() -> voi
 	assert_eq(SliderNav.coarse_step(0.0, 10.0, 1.0), -1.0, "10 native steps")
 
 
-func test_gamepad_dpad_and_keyboard_move_a_volume_slider_by_the_configured_step() -> void:
+func test_gamepad_dpad_and_keyboard_move_a_volume_meter_by_one_cell() -> void:
 	var menu: OptionsMenu = await _menu()
-	var slider: HSlider = menu.get_node("%MasterVolumeSlider") as HSlider
-	var coarse: float = SliderNav.step_for(slider)
-	assert_gt(coarse, slider.step, "a coarser keyboard/gamepad step is configured")
-	slider.set_value_no_signal(0.5)
-	slider.grab_focus()
+	var meter: UiSegmentMeter = menu.get_node("%MasterVolumeSlider") as UiSegmentMeter
+	meter.set_value_silent(OptionsMenu.PERCENT_METER_CELLS / 2)
+	var start: int = meter.value
+	meter.grab_focus()
 	await _settle()
 	Input.parse_input_event(_pad_right(true))
 	Input.parse_input_event(_pad_right(false))
 	await _settle()
-	assert_almost_eq(slider.value, 0.5 + coarse, FLOAT_EPS, "one d-pad press = one coarse step")
-	var after_pad: float = slider.value
+	assert_eq(meter.value, start + 1, "one d-pad press = one cell")
 	Input.parse_input_event(_key(KEY_RIGHT, true))
 	Input.parse_input_event(_key(KEY_RIGHT, false))
 	await _settle()
-	assert_almost_eq(slider.value, after_pad + coarse, FLOAT_EPS, "arrow key = the same step")
+	assert_eq(meter.value, start + 2, "arrow key = the same step")
 
 
 func _stick(axis_value: float) -> InputEventJoypadMotion:
@@ -89,31 +92,27 @@ func _stick(axis_value: float) -> InputEventJoypadMotion:
 
 
 ## A held stick re-sends motion every frame; it must step once per push, not once per event.
-func test_gamepad_stick_motion_steps_a_slider_once_per_push() -> void:
+func test_gamepad_stick_motion_steps_a_meter_once_per_push() -> void:
 	var menu: OptionsMenu = await _menu()
-	var slider: HSlider = menu.get_node("%MoveSpeedSlider") as HSlider
-	var coarse: float = SliderNav.step_for(slider)
-	slider.set_value_no_signal(1.0)
-	slider.gui_input.emit(_stick(1.0))
-	slider.gui_input.emit(_stick(1.0))
-	slider.gui_input.emit(_stick(0.9))
-	assert_almost_eq(slider.value, 1.0 + coarse, FLOAT_EPS, "three motion events of one push = one step")
-	slider.gui_input.emit(_stick(0.0))
-	slider.gui_input.emit(_stick(-1.0))
-	assert_almost_eq(slider.value, 1.0, FLOAT_EPS, "released, then pushed left = one step back")
+	var meter: UiSegmentMeter = menu.get_node("%MoveSpeedSlider") as UiSegmentMeter
+	meter.set_value_silent(OptionsMenu.MOVE_SPEED_CELLS / 2)
+	var start: int = meter.value
+	meter._gui_input(_stick(1.0))
+	meter._gui_input(_stick(1.0))
+	meter._gui_input(_stick(0.9))
+	assert_eq(meter.value, start + 1, "three motion events of one push = one step")
+	meter._gui_input(_stick(0.0))
+	meter._gui_input(_stick(-1.0))
+	assert_eq(meter.value, start, "released, then pushed left = one step back")
 
 
 func test_every_lobby_and_options_slider_is_configured() -> void:
 	var menu: OptionsMenu = await _menu()
-	for slider_name: String in ["MasterVolumeSlider", "MusicVolumeSlider", "SfxVolumeSlider", "WeatherVolumeSlider", "RumbleStrengthSlider", "MoveSpeedSlider"]:
-		var slider: HSlider = menu.get_node("%" + slider_name) as HSlider
-		assert_false(slider.scrollable, "%s ignores the wheel" % slider_name)
-		assert_gt(SliderNav.step_for(slider), slider.step, "%s steps coarsely" % slider_name)
-	var lobby: Lobby = autofree(LOBBY_SCENE.instantiate()) as Lobby
-	add_child_autofree(lobby)
-	await _settle()
-	for slider_name: String in ["DiscSizeSlider", "GravitySlider", "SpecialFreqSlider", "MatchTimerSlider", "RoundTimerSlider"]:
-		assert_false((lobby.get_node("%" + slider_name) as HSlider).scrollable, "%s ignores the wheel" % slider_name)
+	for slider_name: String in ["MasterVolumeSlider", "MusicVolumeSlider", "SfxVolumeSlider", "WeatherVolumeSlider", "RumbleStrengthSlider", "MoveSpeedSlider", "UiScaleSlider"]:
+		var meter: UiSegmentMeter = menu.get_node("%" + slider_name) as UiSegmentMeter
+		assert_not_null(meter, "%s is a UiSegmentMeter (one cell per press)" % slider_name)
+	# Bontago-1pi.159.2.1: the lobby's value controls are UiSegmentMeters / UiSteppers, which never
+	# accept a wheel event, so it bubbles to the settings ScrollContainer.
 
 
 # --- 123 ---------------------------------------------------------------------
@@ -122,19 +121,19 @@ func test_every_lobby_and_options_slider_is_configured() -> void:
 ## Input.parse_input_event nor Viewport.push_input reaches the GUI without a pointer), so the
 ## contract is asserted at its cause: a Slider with `scrollable == false` leaves a wheel event
 ## unaccepted (engine Slider::gui_input), so it propagates to the enclosing ScrollContainer.
-func test_mouse_wheel_over_a_slider_leaves_it_and_is_left_for_the_scroll_container() -> void:
+func test_mouse_wheel_over_a_meter_leaves_it_and_is_left_for_the_scroll_container() -> void:
 	var menu: OptionsMenu = await _menu()
-	var slider: HSlider = menu.get_node("%MasterVolumeSlider") as HSlider
-	slider.set_value_no_signal(0.5)
-	assert_false(slider.scrollable, "the slider is not wheel-scrollable, so the wheel bubbles up")
-	slider.gui_input.emit(_wheel_event(MOUSE_BUTTON_WHEEL_UP))
-	slider.gui_input.emit(_wheel_event(MOUSE_BUTTON_WHEEL_DOWN))
+	var meter: UiSegmentMeter = menu.get_node("%MasterVolumeSlider") as UiSegmentMeter
+	meter.set_value_silent(OptionsMenu.PERCENT_METER_CELLS / 2)
+	var start: int = meter.value
+	meter._gui_input(_wheel_event(MOUSE_BUTTON_WHEEL_UP))
+	meter._gui_input(_wheel_event(MOUSE_BUTTON_WHEEL_DOWN))
 	await _settle()
-	assert_eq(slider.value, 0.5, "the wheel never changes a slider")
-	var ancestor: Node = slider.get_parent()
+	assert_eq(meter.value, start, "the wheel never changes a meter")
+	var ancestor: Node = meter.get_parent()
 	while ancestor != null and not (ancestor is ScrollContainer):
 		ancestor = ancestor.get_parent()
-	assert_not_null(ancestor, "the slider sits inside a ScrollContainer that receives the bubbled wheel")
+	assert_not_null(ancestor, "the meter sits inside a ScrollContainer that receives the bubbled wheel")
 
 
 # --- 121 ---------------------------------------------------------------------

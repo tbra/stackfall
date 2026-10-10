@@ -39,7 +39,7 @@ func _count_label(lobby: Lobby) -> Label:
 
 func test_cycle_option_round_trips_through_lobby_data() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var option: CycleSelector = lobby.get_node("%SkyThemeOption") as CycleSelector
+	var option: UiDropdown = lobby.get_node("%SkyThemeOption") as UiDropdown
 	assert_eq(option.item_count, MatchConfig.SkyThemeMode.size())
 	assert_eq(option.get_item_text(MatchConfig.SkyThemeMode.CYCLE), "Cycle")
 	option.select(MatchConfig.SkyThemeMode.CYCLE)
@@ -55,7 +55,7 @@ func test_cycle_option_round_trips_through_lobby_data() -> void:
 ## unchanged) and Cycle is preselected through MatchConfig's new default.
 func test_sky_options_are_relabelled_and_cycle_is_the_default() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var option: CycleSelector = lobby.get_node("%SkyThemeOption") as CycleSelector
+	var option: UiDropdown = lobby.get_node("%SkyThemeOption") as UiDropdown
 	assert_eq(option.item_count, MatchConfig.SkyThemeMode.size())
 	assert_eq(option.get_item_text(MatchConfig.SkyThemeMode.DAY), "Sunset")
 	assert_eq(option.get_item_text(MatchConfig.SkyThemeMode.NIGHT), "Night")
@@ -71,7 +71,7 @@ func test_sky_options_are_relabelled_and_cycle_is_the_default() -> void:
 
 func test_sky_option_tooltips_explain_locked_time_versus_running_cycle() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var option: CycleSelector = lobby.get_node("%SkyThemeOption") as CycleSelector
+	var option: UiDropdown = lobby.get_node("%SkyThemeOption") as UiDropdown
 	assert_true(option.tooltip_text.contains("fixed time"), "the dropdown says the non-cycle options hold one time")
 	assert_true(option.tooltip_text.contains("Cycle runs"))
 	for mode: int in [MatchConfig.SkyThemeMode.DAY, MatchConfig.SkyThemeMode.NIGHT, MatchConfig.SkyThemeMode.DAWN, MatchConfig.SkyThemeMode.RANDOM]:
@@ -81,7 +81,7 @@ func test_sky_option_tooltips_explain_locked_time_versus_running_cycle() -> void
 
 func test_sunset_option_keeps_the_day_enum_value_through_lobby_data() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var option: CycleSelector = lobby.get_node("%SkyThemeOption") as CycleSelector
+	var option: UiDropdown = lobby.get_node("%SkyThemeOption") as UiDropdown
 	option.select(MatchConfig.SkyThemeMode.DAY)
 	lobby._on_option_changed(MatchConfig.SkyThemeMode.DAY)
 	var published: MatchConfig = MatchConfig.from_dict(_fake_of(lobby).lobby_data_value)
@@ -93,7 +93,7 @@ func test_sunset_option_keeps_the_day_enum_value_through_lobby_data() -> void:
 
 func test_dawn_option_round_trips_through_lobby_data() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var option: CycleSelector = lobby.get_node("%SkyThemeOption") as CycleSelector
+	var option: UiDropdown = lobby.get_node("%SkyThemeOption") as UiDropdown
 	assert_eq(option.item_count, MatchConfig.SkyThemeMode.size())
 	assert_eq(option.get_item_text(MatchConfig.SkyThemeMode.DAWN), "Dawn")
 	option.select(MatchConfig.SkyThemeMode.DAWN)
@@ -157,65 +157,79 @@ func test_a_client_teams_toggle_is_ignored() -> void:
 	assert_eq((lobby.get_node("%TeamModeOption") as OptionButton).selected, MatchConfig.TeamMode.OFF)
 
 
-## Bontago-1pi.107: the disc-size slider defaults to medium (step 2, 100%), publishes the chosen
+## Bontago-1pi.107: the disc-size meter defaults to medium (step 2, 100%), publishes the chosen
 ## step and pins the map to Round/Medium; the other map pickers are gone from the card.
-func test_disc_size_slider_defaults_to_medium_and_publishes_the_step() -> void:
+## Bontago-1pi.159.2.1: a UiSegmentMeter that lights step + 1 cells.
+func test_disc_size_meter_defaults_to_medium_and_publishes_the_step() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var slider: HSlider = lobby.get_node("%DiscSizeSlider") as HSlider
-	assert_eq(int(slider.value), MatchConfig.DISC_SIZE_STEP_DEFAULT)
-	assert_eq(int(slider.max_value), DiscSizeTuning.shared().step_count() - 1)
-	assert_eq((lobby.get_node("%DiscSizeValue") as Label).text, "Medium - 100%")
-	slider.value = 0.0
+	var meter: UiSegmentMeter = lobby.get_node("%DiscSizeMeter") as UiSegmentMeter
+	assert_eq(meter.value, MatchConfig.DISC_SIZE_STEP_DEFAULT + 1)
+	assert_eq(meter.step_count, DiscSizeTuning.shared().step_count())
+	assert_eq(meter.display_text(), "100%")
+	assert_eq(lobby._disc_size_text(), "Medium - 100%")
+	meter.value = 1
 	var calls: Array[Dictionary] = _fake_of(lobby).set_lobby_data_calls
 	assert_eq(calls.size(), 1)
 	assert_eq(int(calls[0].get("disc_size_step")), 0)
 	assert_eq(int(calls[0].get("map_variant")), MatchConfig.MapVariant.ROUND)
 	assert_eq(int(calls[0].get("map_size")), int(MapDef.MapSize.MEDIUM))
-	assert_eq((lobby.get_node("%DiscSizeValue") as Label).text, "Tiny - 50%")
+	assert_eq(meter.display_text(), "50%")
+	assert_eq(lobby._disc_size_text(), "Tiny - 50%")
 
 
-## Keyboard / gamepad left-right on the focused slider steps it one stop; a client's is inert.
-func test_disc_size_slider_steps_with_ui_left_and_right() -> void:
+## An empty meter is not a size: 0 cells settles on the smallest size (one lit cell).
+func test_disc_size_meter_never_rests_on_zero_cells() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var slider: HSlider = lobby.get_node("%DiscSizeSlider") as HSlider
+	var meter: UiSegmentMeter = lobby.get_node("%DiscSizeMeter") as UiSegmentMeter
+	meter.value = 0
+	assert_eq(meter.value, 1)
+	assert_eq(int(_fake_of(lobby).set_lobby_data_calls.back().get("disc_size_step")), 0)
+
+
+## Keyboard / gamepad left-right on the focused meter steps it one cell; a client's is inert.
+func test_disc_size_meter_steps_with_ui_left_and_right() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var meter: UiSegmentMeter = lobby.get_node("%DiscSizeMeter") as UiSegmentMeter
 	var right: InputEventAction = InputEventAction.new()
 	right.action = &"ui_right"
 	right.pressed = true
-	slider.gui_input.emit(right)
-	assert_eq(int(slider.value), MatchConfig.DISC_SIZE_STEP_DEFAULT + 1)
+	meter._gui_input(right)
+	assert_eq(meter.value, MatchConfig.DISC_SIZE_STEP_DEFAULT + 2)
 	var left: InputEventAction = InputEventAction.new()
 	left.action = &"ui_left"
 	left.pressed = true
-	slider.gui_input.emit(left)
-	slider.gui_input.emit(left)
-	assert_eq(int(slider.value), MatchConfig.DISC_SIZE_STEP_DEFAULT - 1)
+	meter._gui_input(left)
+	meter._gui_input(left)
+	assert_eq(meter.value, MatchConfig.DISC_SIZE_STEP_DEFAULT)
 	var client: Lobby = _make_lobby(false)
-	var client_slider: HSlider = client.get_node("%DiscSizeSlider") as HSlider
-	assert_false(client_slider.editable)
-	client_slider.gui_input.emit(right)
-	assert_eq(int(client_slider.value), MatchConfig.DISC_SIZE_STEP_DEFAULT)
+	var client_meter: UiSegmentMeter = client.get_node("%DiscSizeMeter") as UiSegmentMeter
+	assert_false(client_meter.editable)
+	client_meter._gui_input(right)
+	assert_eq(client_meter.value, MatchConfig.DISC_SIZE_STEP_DEFAULT + 1)
 
 
-## Bontago-1pi.152: a slow stick ramp on the match-timer slider is one minute, not a 0 -> max run.
-func test_match_timer_slider_slow_stick_ramp_is_one_step() -> void:
+## Bontago-1pi.152 / 159.2.1: one ui_right press on the match-timer stepper is one minute step (the
+## 1-minute gap is skipped, so Off -> 2), however long the stick ramps afterwards.
+func test_match_timer_stepper_one_press_is_one_step() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var slider: HSlider = lobby.get_node("%MatchTimerSlider") as HSlider
-	var before: float = slider.value
-	for i: int in 101:
-		var motion: InputEventJoypadMotion = InputEventJoypadMotion.new()
-		motion.axis = JOY_AXIS_LEFT_X
-		motion.axis_value = float(i) * 0.01
-		slider.gui_input.emit(motion)
-	# One press = one step; the 1-minute gap is skipped by _on_timer_slider_changed, so at most +2.
-	assert_between(slider.value, before + slider.step, before + 2.0 * slider.step)
+	var stepper: UiStepper = lobby.get_node("%MatchTimerStepper") as UiStepper
+	var before: int = stepper.value
+	var press: InputEventAction = InputEventAction.new()
+	press.action = &"ui_right"
+	press.pressed = true
+	stepper.grab_focus()
+	stepper._gui_input(press)
+	# One press = one step; the 1-minute gap is skipped by _on_timer_stepper_changed, so at most +2.
+	assert_between(stepper.value, before + stepper.step, before + 2 * stepper.step)
 
-func test_remote_lobby_data_moves_the_disc_size_slider() -> void:
+
+func test_remote_lobby_data_moves_the_disc_size_meter() -> void:
 	var lobby: Lobby = _make_lobby(false)
 	var config: MatchConfig = MatchConfig.new()
 	config.disc_size_step = 5
 	lobby._apply_data(config.to_dict())
-	assert_eq(int((lobby.get_node("%DiscSizeSlider") as HSlider).value), 5)
-	assert_eq((lobby.get_node("%DiscSizeValue") as Label).text, "Enormous - 175%")
+	assert_eq((lobby.get_node("%DiscSizeMeter") as UiSegmentMeter).value, 6)
+	assert_eq(lobby._disc_size_text(), "Enormous - 175%")
 
 
 ## Bontago-mp0.3.5 (review r1, item 12): Net.host_game() populates its own
@@ -262,7 +276,7 @@ func test_every_2_8_setting_round_trips_through_to_dict_and_from_dict() -> void:
 	config.sky_theme_mode = MatchConfig.SkyThemeMode.NIGHT
 
 	Events.net_lobby_data_changed.emit(config.to_dict())
-	assert_eq((lobby.get_node("%SkyThemeOption") as CycleSelector).selected, int(MatchConfig.SkyThemeMode.NIGHT))
+	assert_eq((lobby.get_node("%SkyThemeOption") as UiDropdown).selected, int(MatchConfig.SkyThemeMode.NIGHT))
 
 	assert_eq((lobby.get_node("%MapVariantOption") as OptionButton).selected, MatchConfig.MapVariant.ROUND)
 	assert_eq((lobby.get_node("%MapSizeOption") as OptionButton).selected, int(MapDef.MapSize.LARGE))
@@ -270,21 +284,23 @@ func test_every_2_8_setting_round_trips_through_to_dict_and_from_dict() -> void:
 	assert_eq(int((lobby.get_node("%AiCountSpin") as SpinBox).value), 3)
 	assert_eq((lobby.get_node("%AiDifficultyOption") as OptionButton).selected, MatchConfig.AiDifficulty.HARD)
 	assert_eq((lobby.get_node("%TeamModeOption") as OptionButton).selected, MatchConfig.TeamMode.TEAMS_2)
-	assert_almost_eq((lobby.get_node("%BlockTimerSpin") as SpinBox).value, 9.5, 0.01)
-	assert_almost_eq((lobby.get_node("%GravitySlider") as HSlider).value, 1.25, 0.01)
-	assert_eq(int((lobby.get_node("%GoalFlagSpin") as SpinBox).value), 3)
-	assert_false((lobby.get_node("%GiftsCheck") as CheckButton).button_pressed)
-	assert_eq(int((lobby.get_node("%SpecialFreqSlider") as HSlider).value), 80)
-	assert_eq((lobby.get_node("%TiltModeOption") as CycleSelector).selected, MatchConfig.TiltMode.PHYSICAL_BALANCE)
-	assert_eq((lobby.get_node("%HoleModeOption") as CycleSelector).selected, MatchConfig.HoleMode.PERMANENT)
-	assert_eq(int((lobby.get_node("%MatchTimerSlider") as HSlider).value), 20)
-	assert_true((lobby.get_node("%SuddenDeathCheck") as CheckButton).button_pressed)
-	assert_true((lobby.get_node("%TurnBasedCheck") as CheckButton).button_pressed)
+	assert_almost_eq(lobby._block_timer_seconds(), 9.5, 0.01)
+	assert_almost_eq(lobby._gravity_value, 1.25, 0.01)
+	assert_eq((lobby.get_node("%GravityMeter") as UiSegmentMeter).value, Lobby._gravity_cells_for(1.25))
+	assert_eq((lobby.get_node("%GoalFlagStepper") as UiStepper).value, 3)
+	assert_false((lobby.get_node("%GiftsCheck") as UiToggle).button_pressed)
+	assert_eq(lobby._special_frequency_value, 80)
+	assert_eq((lobby.get_node("%SpecialFreqMeter") as UiSegmentMeter).value, 8)
+	assert_eq((lobby.get_node("%TiltModeOption") as UiDropdown).selected, MatchConfig.TiltMode.PHYSICAL_BALANCE)
+	assert_eq((lobby.get_node("%HoleModeOption") as UiDropdown).selected, MatchConfig.HoleMode.PERMANENT)
+	assert_eq((lobby.get_node("%MatchTimerStepper") as UiStepper).value, 20)
+	assert_true((lobby.get_node("%SuddenDeathCheck") as UiToggle).button_pressed)
+	assert_true((lobby.get_node("%TurnBasedCheck") as UiToggle).button_pressed)
 
 
 func test_toggling_turn_based_check_publishes_config_turn_based_true() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var check: CheckButton = lobby.get_node("%TurnBasedCheck") as CheckButton
+	var check: UiToggle = lobby.get_node("%TurnBasedCheck") as UiToggle
 	check.button_pressed = true
 	var calls: Array[Dictionary] = _fake_of(lobby).set_lobby_data_calls
 	assert_eq(calls.size(), 1)
@@ -298,18 +314,18 @@ func test_apply_data_with_turn_based_true_checks_the_box() -> void:
 
 	Events.net_lobby_data_changed.emit(data)
 
-	assert_true((lobby.get_node("%TurnBasedCheck") as CheckButton).button_pressed)
+	assert_true((lobby.get_node("%TurnBasedCheck") as UiToggle).button_pressed)
 
 
 func test_mid_join_toggle_defaults_to_the_config_default() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var check: CheckButton = lobby.get_node("%MidJoinCheck") as CheckButton
+	var check: UiToggle = lobby.get_node("%MidJoinCheck") as UiToggle
 	assert_eq(check.button_pressed, MatchConfig.new().allow_mid_match_join)
 
 
 func test_toggling_mid_join_check_writes_and_publishes_the_config_field() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var check: CheckButton = lobby.get_node("%MidJoinCheck") as CheckButton
+	var check: UiToggle = lobby.get_node("%MidJoinCheck") as UiToggle
 	assert_false(check.disabled, "the host can change it")
 	check.button_pressed = true
 	assert_true(lobby._config_from_controls().allow_mid_match_join)
@@ -323,7 +339,7 @@ func test_client_sees_the_hosts_mid_join_value_read_only() -> void:
 	var data: Dictionary = MatchConfig.new().to_dict()
 	data["allow_mid_match_join"] = true
 	Events.net_lobby_data_changed.emit(data)
-	var check: CheckButton = lobby.get_node("%MidJoinCheck") as CheckButton
+	var check: UiToggle = lobby.get_node("%MidJoinCheck") as UiToggle
 	assert_true(check.button_pressed)
 	assert_true(check.disabled, "a client cannot change it")
 	check.button_pressed = false
@@ -340,9 +356,10 @@ func test_out_of_range_value_arriving_over_the_wire_is_clamped() -> void:
 	}
 	Events.net_lobby_data_changed.emit(bad_data)
 	assert_eq(int((lobby.get_node("%PlayerCountSpin") as SpinBox).value), MatchConfig.PLAYER_COUNT_MAX)
-	assert_almost_eq((lobby.get_node("%BlockTimerSpin") as SpinBox).value, MatchConfig.BLOCK_TIMER_MIN, 0.01)
-	assert_eq(int((lobby.get_node("%SpecialFreqSlider") as HSlider).value), MatchConfig.SPECIAL_FREQUENCY_MAX)
-	assert_eq(int((lobby.get_node("%GoalFlagSpin") as SpinBox).value), MatchConfig.GOAL_FLAG_MIN)
+	assert_almost_eq(lobby._block_timer_seconds(), MatchConfig.BLOCK_TIMER_MIN, 0.01)
+	assert_eq(lobby._special_frequency_value, MatchConfig.SPECIAL_FREQUENCY_MAX)
+	assert_eq((lobby.get_node("%SpecialFreqMeter") as UiSegmentMeter).value, Lobby.FREQUENCY_CELLS)
+	assert_eq((lobby.get_node("%GoalFlagStepper") as UiStepper).value, MatchConfig.GOAL_FLAG_MIN)
 
 
 ## Bontago-mv0.7 (root cause): config/match_defaults.tres ships hot_seat =
@@ -376,7 +393,7 @@ func test_a_config_that_arrives_with_hot_seat_true_is_forced_false() -> void:
 ## would be silently ignored and the control would stick on index 0.
 func test_hole_mode_option_has_an_off_item_and_defaults_to_temporary() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var option: CycleSelector = lobby.get_node("%HoleModeOption") as CycleSelector
+	var option: UiDropdown = lobby.get_node("%HoleModeOption") as UiDropdown
 	assert_eq(option.item_count, 3, "Temporary/Permanent/Off")
 	assert_eq(option.get_item_text(MatchConfig.HoleMode.OFF), "Off")
 	assert_eq(option.selected, MatchConfig.HoleMode.TEMPORARY,
@@ -411,8 +428,8 @@ func test_client_controls_are_disabled_while_hosts_are_not() -> void:
 	var client_lobby: Lobby = _make_lobby(false)
 	assert_true((host_lobby.get_node("%PlayerCountSpin") as SpinBox).editable)
 	assert_false((client_lobby.get_node("%PlayerCountSpin") as SpinBox).editable)
-	assert_true((client_lobby.get_node("%GiftsCheck") as CheckButton).disabled)
-	assert_false((host_lobby.get_node("%GiftsCheck") as CheckButton).disabled)
+	assert_true((client_lobby.get_node("%GiftsCheck") as UiToggle).disabled)
+	assert_false((host_lobby.get_node("%GiftsCheck") as UiToggle).disabled)
 
 
 func test_client_setting_change_does_not_publish() -> void:
@@ -801,7 +818,7 @@ func test_unchecking_every_special_publishes_the_sentinel_not_an_empty_array() -
 	if lobby._special_checkboxes.is_empty():
 		pass_test("no SpecialDef .tres on disk in this checkout; nothing to uncheck")
 		return
-	for box: CheckBox in lobby._special_checkboxes:
+	for box: UiChipToggle in lobby._special_checkboxes:
 		box.button_pressed = false
 
 	var calls: Array[Dictionary] = _fake_of(lobby).set_lobby_data_calls
@@ -836,7 +853,7 @@ func test_apply_data_with_the_sentinel_unchecks_every_box() -> void:
 
 	Events.net_lobby_data_changed.emit(data)
 
-	for box: CheckBox in lobby._special_checkboxes:
+	for box: UiChipToggle in lobby._special_checkboxes:
 		assert_false(box.button_pressed)
 
 
@@ -845,14 +862,14 @@ func test_apply_data_with_an_empty_list_checks_every_box() -> void:
 	if lobby._special_checkboxes.is_empty():
 		pass_test("no SpecialDef .tres on disk in this checkout; nothing to check")
 		return
-	for box: CheckBox in lobby._special_checkboxes:
+	for box: UiChipToggle in lobby._special_checkboxes:
 		box.button_pressed = false
 	var data: Dictionary = MatchConfig.new().to_dict()
 	data["enabled_specials"] = []
 
 	Events.net_lobby_data_changed.emit(data)
 
-	for box: CheckBox in lobby._special_checkboxes:
+	for box: UiChipToggle in lobby._special_checkboxes:
 		assert_true(box.button_pressed, "empty means every special enabled by default")
 
 
@@ -938,7 +955,7 @@ func test_ui_cancel_backs_out_of_the_lobby() -> void:
 func test_opening_grabs_focus_somewhere() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	assert_not_null(get_viewport().gui_get_focus_owner(), "the lobby must land focus somewhere as soon as it opens.")
-	assert_true((lobby.get_node("%DiscSizeSlider") as Control).has_focus())
+	assert_true((lobby.get_node("%DiscSizeMeter") as Control).has_focus())
 
 
 ## Bontago-1pi.15.1 fix: pressing B on the lobby screen used to do nothing at all unless a
@@ -958,8 +975,8 @@ func test_gamepad_b_on_the_main_screen_emits_back_requested() -> void:
 ## modal to close first).
 func test_gamepad_b_backs_out_even_with_an_advanced_block_open() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	(lobby.get_node("%GameSection") as LobbySection).set_advanced_open(true)
-	(lobby.get_node("%GiftsSection") as LobbySection).set_advanced_open(true)
+	(lobby.get_node("%GameSection") as UiSection).set_advanced_open(true)
+	(lobby.get_node("%GiftsSection") as UiSection).set_advanced_open(true)
 	watch_signals(lobby)
 
 	lobby._unhandled_input(_pad_press_release_action_event(JOY_BUTTON_B))
@@ -982,12 +999,12 @@ func _pad_press_release_action_event(button: JoyButton) -> InputEventJoypadButto
 ## Advanced block needing to be open, and the moved controls must still publish.
 func test_section_summaries_reflect_current_settings() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	(lobby.get_node("%TiltModeOption") as CycleSelector).selected = MatchConfig.TiltMode.PHYSICAL_BALANCE
-	(lobby.get_node("%HoleModeOption") as CycleSelector).select(MatchConfig.HoleMode.OFF)
-	(lobby.get_node("%HoleModeOption") as CycleSelector).item_selected.emit(MatchConfig.HoleMode.OFF)
-	(lobby.get_node("%MatchTimerSlider") as HSlider).value = 15
-	(lobby.get_node("%SuddenDeathCheck") as CheckButton).button_pressed = true
-	(lobby.get_node("%TurnBasedCheck") as CheckButton).button_pressed = true
+	(lobby.get_node("%TiltModeOption") as UiDropdown).selected = MatchConfig.TiltMode.PHYSICAL_BALANCE
+	(lobby.get_node("%HoleModeOption") as UiDropdown).select(MatchConfig.HoleMode.OFF)
+	(lobby.get_node("%HoleModeOption") as UiDropdown).item_selected.emit(MatchConfig.HoleMode.OFF)
+	(lobby.get_node("%MatchTimerStepper") as UiStepper).value = 15
+	(lobby.get_node("%SuddenDeathCheck") as UiToggle).button_pressed = true
+	(lobby.get_node("%TurnBasedCheck") as UiToggle).button_pressed = true
 	if not lobby._special_checkboxes.is_empty():
 		lobby._special_checkboxes[0].button_pressed = false
 	lobby._update_section_summaries()
@@ -996,11 +1013,11 @@ func test_section_summaries_reflect_current_settings() -> void:
 	assert_eq(published.hole_mode, MatchConfig.HoleMode.OFF)
 	assert_true(published.sudden_death)
 	assert_true(published.turn_based)
-	assert_true((lobby.get_node("%GameSection") as LobbySection).summary().begins_with("Classic"), "GAME summary leads with the mode")
-	assert_true((lobby.get_node("%RoundSection") as LobbySection).summary().begins_with("15 min"), "ROUND summary leads with the timer")
+	assert_true((lobby.get_node("%GameSection") as UiSection).get_summary().begins_with("Classic"), "GAME summary leads with the mode")
+	assert_true((lobby.get_node("%RoundSection") as UiSection).get_summary().begins_with("15 min"), "ROUND summary leads with the timer")
 	if not lobby._special_checkboxes.is_empty():
 		var expected: String = Lobby.SUMMARY_GIFT_COUNT_FORMAT % [lobby._special_checkboxes.size() - 1, lobby._special_checkboxes.size()]
-		assert_true((lobby.get_node("%GiftsSection") as LobbySection).summary().ends_with(expected), "GIFTS counts the enabled gifts (%s)" % expected)
+		assert_true((lobby.get_node("%GiftsSection") as UiSection).get_summary().ends_with(expected), "GIFTS counts the enabled gifts (%s)" % expected)
 
 
 ## Bontago-1pi.53 (S1b): the per-gift checklist is the GIFTS section's Advanced block; its
@@ -1010,14 +1027,14 @@ func test_gift_checkboxes_join_the_main_loop_only_while_the_gifts_advanced_block
 	if lobby._special_checkboxes.is_empty():
 		pass_test("no SpecialDef .tres on disk in this checkout; nothing to focus")
 		return
-	var gifts: LobbySection = lobby.get_node("%GiftsSection") as LobbySection
+	var gifts: UiSection = lobby.get_node("%GiftsSection") as UiSection
 	assert_true(gifts.advanced.is_ancestor_of(lobby.get_node("%SpecialsChecklist")), "the checklist is GIFTS Advanced")
-	for box: CheckBox in lobby._special_checkboxes:
+	for box: UiChipToggle in lobby._special_checkboxes:
 		assert_false(lobby._visible_chain(lobby._main_chain).has(box), "closed: a gift checkbox is not a stop")
 	gifts.advanced_button.button_pressed = true
 	var shown: Array[Control] = lobby._visible_chain(lobby._main_chain)
 	var previous: Control = gifts.advanced_button
-	for box: CheckBox in lobby._special_checkboxes:
+	for box: UiChipToggle in lobby._special_checkboxes:
 		assert_true(shown.has(box), "open: a gift checkbox is a stop")
 		assert_eq(previous.get_node(previous.focus_neighbor_bottom), box, "gift checkboxes follow the chip in order")
 		previous = box
@@ -1039,7 +1056,7 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 
 	var top_neighbor: Node = first_stop.get_node(first_stop.focus_neighbor_top)
 	assert_eq(top_neighbor, start_button, "the game mode's up neighbor must close the loop back to StartButton")
-	var second_option: Control = lobby.get_node("%DiscSizeSlider") as Control
+	var second_option: Control = lobby.get_node("%DiscSizeMeter") as Control
 	assert_eq(first_stop.get_node(first_stop.focus_neighbor_bottom), second_option, "the map picker follows the mode picker")
 
 	# Bontago-1pi.53 (S1b): the hidden sources of truth (%TeamModeOption, the seat spins and
@@ -1047,19 +1064,19 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	# map dropdown) are never stops a Tab press could not visibly land on. Collapsed Advanced
 	# blocks and the hidden Steam-only invite button are not stops either.
 	var chain_unique_names: Array[String] = [
-		"%DiscSizeSlider", "%GameModeOption", "%SkyThemeOption", "%WeatherOption",
-		"%MatchTimerSlider", "%SuddenDeathCheck",
-		"%GiftsCheck", "%SpecialFreqSlider", "%StartButton",
+		"%DiscSizeMeter", "%GameModeOption", "%SkyThemeOption", "%WeatherOption",
+		"%MatchTimerStepper", "%SuddenDeathCheck",
+		"%GiftsCheck", "%SpecialFreqMeter", "%StartButton",
 	]
 	for unique_name: String in chain_unique_names:
 		var control: Control = lobby.get_node(unique_name) as Control
 		assert_ne(control.focus_neighbor_top, NodePath(""), "%s must have an up neighbor" % unique_name)
 		assert_ne(control.focus_neighbor_bottom, NodePath(""), "%s must have a down neighbor" % unique_name)
-	for stepper: Button in lobby._block_stepper_buttons + lobby._goal_stepper_buttons:
+	for stepper: Control in [lobby._block_timer_stepper, lobby._goal_flag_stepper]:
 		assert_ne(stepper.focus_neighbor_bottom, NodePath(""), "stepper %s must have a down neighbor" % stepper.name)
 	# Opening the GAME Advanced block puts its controls in the loop.
-	(lobby.get_node("%GameSection") as LobbySection).set_advanced_open(true)
-	for unique_name: String in ["%GravitySlider", "%TiltModeOption", "%HoleModeOption", "%TurnBasedCheck", "%MidJoinCheck"]:
+	(lobby.get_node("%GameSection") as UiSection).set_advanced_open(true)
+	for unique_name: String in ["%GravityMeter", "%TiltModeOption", "%HoleModeOption", "%TurnBasedCheck", "%MidJoinCheck"]:
 		var control: Control = lobby.get_node(unique_name) as Control
 		assert_ne(control.focus_neighbor_top, NodePath(""), "%s must have an up neighbor once opened" % unique_name)
 		assert_ne(control.focus_neighbor_bottom, NodePath(""), "%s must have a down neighbor once opened" % unique_name)
@@ -1069,8 +1086,8 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	assert_false((lobby.get_node("%MapSizeOption") as Control).visible, "MapSizeOption stays hidden behind the combined dropdown")
 
 	# ... and so do the GIFTS Advanced (per-gift) and EXPERIMENTS blocks once opened.
-	(lobby.get_node("%GiftsSection") as LobbySection).set_advanced_open(true)
-	(lobby.get_node("%ExperimentsSection") as LobbySection).set_advanced_open(true)
+	(lobby.get_node("%GiftsSection") as UiSection).set_advanced_open(true)
+	(lobby.get_node("%ExperimentsSection") as UiSection).set_advanced_open(true)
 	var opened: Array[Control] = []
 	opened.append_array(lobby._special_checkboxes)
 	opened.append_array(lobby._qol_checks)
@@ -1096,20 +1113,20 @@ func test_invite_button_joins_the_loop_when_a_steam_session_shows_it() -> void:
 func test_round_mode_and_timer_are_primary_settings() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	# Bontago-1pi.53 (S1a): the mode picker moved to GAME; the timer is ROUND's first control.
-	var game_section: LobbySection = lobby.get_node("%GameSection") as LobbySection
-	var round_section: LobbySection = lobby.get_node("%RoundSection") as LobbySection
+	var game_section: UiSection = lobby.get_node("%GameSection") as UiSection
+	var round_section: UiSection = lobby.get_node("%RoundSection") as UiSection
 	assert_true(game_section.is_ancestor_of(lobby.get_node("%GameModeOption")), "game mode is in GAME")
-	assert_true(round_section.is_ancestor_of(lobby.get_node("%MatchTimerSlider")), "the timer is in ROUND")
+	assert_true(round_section.is_ancestor_of(lobby.get_node("%MatchTimerStepper")), "the timer is in ROUND")
 	assert_eq(round_section.name, "RoundSection")
 	assert_true((lobby.get_node("%MatchTimerCol") as Control).visible)
 	assert_false((lobby.get_node("%RoundTimerCol") as Control).visible)
 	# Bontago-1pi.61: headers are not stops; ROUND's first stop follows GAME's Advanced chip.
-	var timer_control: Control = lobby.get_node("%MatchTimerSlider") as Control
+	var timer_control: Control = lobby.get_node("%MatchTimerStepper") as Control
 	assert_eq(timer_control.get_node(timer_control.focus_neighbor_top), game_section.advanced_button)
 	lobby._refresh_timer_control(MatchConfig.GameMode.ELIMINATION)
 	assert_false((lobby.get_node("%MatchTimerCol") as Control).visible)
 	assert_true((lobby.get_node("%RoundTimerCol") as Control).visible)
-	var round_control: Control = lobby.get_node("%RoundTimerSlider") as Control
+	var round_control: Control = lobby.get_node("%RoundTimerStepper") as Control
 	assert_eq(round_control.get_node(round_control.focus_neighbor_top), game_section.advanced_button)
 
 
@@ -1123,9 +1140,9 @@ func _y_event() -> InputEventAction:
 ## Bontago-1pi.53 (S1b): Y toggles the Advanced block of the section holding focus.
 func test_lobby_quick_y_toggles_the_advanced_block_of_the_focused_section() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var game: LobbySection = lobby.get_node("%GameSection") as LobbySection
-	var gifts: LobbySection = lobby.get_node("%GiftsSection") as LobbySection
-	assert_true((lobby.get_node("%DiscSizeSlider") as Control).has_focus(), "fixture: focus starts in GAME")
+	var game: UiSection = lobby.get_node("%GameSection") as UiSection
+	var gifts: UiSection = lobby.get_node("%GiftsSection") as UiSection
+	assert_true((lobby.get_node("%DiscSizeMeter") as Control).has_focus(), "fixture: focus starts in GAME")
 	lobby._unhandled_input(_y_event())
 	assert_true(game.is_advanced_open(), "Y opens the focused section's Advanced block")
 	assert_false(gifts.is_advanced_open())
@@ -1143,8 +1160,8 @@ func test_lobby_quick_y_toggles_the_advanced_block_of_the_focused_section() -> v
 ## back to the first section that has one, GAME.
 func test_lobby_quick_y_falls_back_to_the_first_advanced_section() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var game: LobbySection = lobby.get_node("%GameSection") as LobbySection
-	lobby._block_stepper_buttons[0].grab_focus()
+	var game: UiSection = lobby.get_node("%GameSection") as UiSection
+	lobby._block_timer_stepper.grab_focus()
 	lobby._unhandled_input(_y_event())
 	assert_true(game.is_advanced_open(), "ROUND has no Advanced block: Y toggles GAME's")
 	lobby._unhandled_input(_y_event())
@@ -1157,10 +1174,10 @@ func test_lobby_quick_y_falls_back_to_the_first_advanced_section() -> void:
 ## section's chip) instead of dropping it with the hidden control.
 func test_lobby_quick_y_closing_a_block_keeps_focus_on_its_chip() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var game: LobbySection = lobby.get_node("%GameSection") as LobbySection
+	var game: UiSection = lobby.get_node("%GameSection") as UiSection
 	game.set_advanced_open(true)
-	(lobby.get_node("%GravitySlider") as Control).grab_focus()
-	assert_true((lobby.get_node("%GravitySlider") as Control).has_focus(), "fixture: focus is inside the block")
+	(lobby.get_node("%GravityMeter") as Control).grab_focus()
+	assert_true((lobby.get_node("%GravityMeter") as Control).has_focus(), "fixture: focus is inside the block")
 	lobby._unhandled_input(_y_event())
 	assert_false(game.is_advanced_open())
 	assert_true(game.advanced_button.has_focus(), "focus moved to the Advanced chip, not lost")
@@ -1189,7 +1206,7 @@ func test_real_gamepad_x_y_trigger_lobby_shortcuts() -> void:
 	fake.all_peers_ready_value = true
 	lobby._update_host_only_state()
 	watch_signals(lobby)
-	var game: LobbySection = lobby.get_node("%GameSection") as LobbySection
+	var game: UiSection = lobby.get_node("%GameSection") as UiSection
 	var y_event: InputEventJoypadButton = _pad_press_release_action_event(JOY_BUTTON_Y)
 	assert_true(y_event.is_action_pressed(&"lobby_quick_advanced"))
 	lobby._unhandled_input(y_event)
@@ -1206,7 +1223,7 @@ func test_real_gamepad_x_y_trigger_lobby_shortcuts() -> void:
 ## dropdown pick sent), a right click the previous, and a client's copy is inert.
 func test_host_clicking_the_weather_selector_cycles_and_publishes() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var option: CycleSelector = lobby.get_node("%WeatherOption") as CycleSelector
+	var option: UiDropdown = lobby.get_node("%WeatherOption") as UiDropdown
 	var start: int = option.selected
 	option.pressed.emit()
 	var calls: Array[Dictionary] = (lobby.net_provider as FakeNet).set_lobby_data_calls
@@ -1221,7 +1238,7 @@ func test_host_clicking_the_weather_selector_cycles_and_publishes() -> void:
 
 func test_a_client_cannot_cycle_the_hole_mode_selector() -> void:
 	var lobby: Lobby = _make_lobby(false)
-	var option: CycleSelector = lobby.get_node("%HoleModeOption") as CycleSelector
+	var option: UiDropdown = lobby.get_node("%HoleModeOption") as UiDropdown
 	assert_true(option.disabled)
 	option.pressed.emit()
 	assert_eq(option.selected, MatchConfig.HoleMode.TEMPORARY)

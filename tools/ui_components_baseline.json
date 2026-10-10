@@ -1,14 +1,11 @@
 {
  "R1": {
   "ui/GraphicsSettingsTab.gd": 11,
-  "ui/Lobby.gd": 49,
-  "ui/Lobby.tscn": 23,
-  "ui/OptionsMenu.gd": 24,
-  "ui/OptionsMenu.tscn": 11,
+  "ui/Lobby.gd": 9,
+  "ui/Lobby.tscn": 7,
+  "ui/OptionsMenu.gd": 8,
   "ui/SegmentMeter.gd": 3,
-  "ui/SliderNav.gd": 4,
-  "ui/lobby/LobbyPlayersPanel.gd": 1,
-  "ui/lobby/LobbyPlayersPanel.tscn": 1
+  "ui/SliderNav.gd": 4
  },
  "R2": {
   "ui/GraphicsSettingsTab.gd": 1,
@@ -16,10 +13,10 @@
   "ui/InputPromptFlow.gd": 3,
   "ui/KeyRebindRow.gd": 8,
   "ui/LoadingScreen.gd": 11,
-  "ui/Lobby.gd": 26,
+  "ui/Lobby.gd": 8,
   "ui/MainMenu.gd": 17,
   "ui/Minimap.gd": 1,
-  "ui/OptionsMenu.gd": 17,
+  "ui/OptionsMenu.gd": 11,
   "ui/PauseMenu.gd": 3,
   "ui/ResultsScreen.gd": 12,
   "ui/ScoreTable.gd": 10,
@@ -28,16 +25,13 @@
   "ui/Tutorial.gd": 6,
   "ui/lobby/LobbyOpenSeatRow.gd": 4,
   "ui/lobby/LobbyPlayersPanel.gd": 3,
-  "ui/lobby/LobbySeatRow.gd": 14,
+  "ui/lobby/LobbySeatRow.gd": 6,
   "ui/lobby/LobbySection.gd": 3
  },
  "R3": {
-  "ui/Lobby.gd": 12,
-  "ui/lobby/LobbyPlayersPanel.gd": 1,
-  "ui/lobby/LobbySeatRow.gd": 3
+  "ui/Lobby.gd": 1
  },
  "R4": {
-  "ui/Lobby.gd": 2,
-  "ui/lobby/LobbySeatRow.gd": 2
+  "ui/lobby/LobbySeatRow.gd": 1
  }
 }

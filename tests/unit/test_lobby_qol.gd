@@ -46,8 +46,8 @@ func _fake_of(lobby: Lobby) -> FakeNet:
 	return lobby.net_provider as FakeNet
 
 
-func _check(lobby: Lobby, unique_name: String) -> CheckBox:
-	return lobby.get_node(unique_name) as CheckBox
+func _check(lobby: Lobby, unique_name: String) -> UiChipToggle:
+	return lobby.get_node(unique_name) as UiChipToggle
 
 
 ## The four flags in with_toggles() order, as the controls currently show them.
@@ -60,7 +60,7 @@ func _flags(lobby: Lobby) -> Array:
 
 ## The EXPERIMENTS section header's one-line summary ("n on").
 func _experiments_summary(lobby: Lobby) -> String:
-	return (lobby.get_node("%ExperimentsSection") as LobbySection).summary()
+	return (lobby.get_node("%ExperimentsSection") as UiSection).get_summary()
 
 
 func _qol_flags(qol: QolExperiments) -> Array:
@@ -78,7 +78,7 @@ func _last_published_qol(lobby: Lobby) -> Dictionary:
 func test_every_experiment_checkbox_exists_and_defaults_off() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	for unique_name: String in CHECK_NAMES:
-		var check: CheckBox = _check(lobby, unique_name)
+		var check: UiChipToggle = _check(lobby, unique_name)
 		assert_not_null(check, "%s must exist" % unique_name)
 		assert_false(check.button_pressed, "%s defaults off" % unique_name)
 		assert_ne(check.tooltip_text, "", "%s explains itself" % unique_name)
@@ -99,7 +99,7 @@ func test_each_toggle_publishes_exactly_its_own_flag() -> void:
 	var expected_keys: Array[String] = ["timer_pause_enabled", "backlog_enabled", "goal_radius_enabled", "gift_slot_enabled"]
 	for i: int in range(CHECK_NAMES.size()):
 		var lobby: Lobby = _make_lobby(true)
-		var check: CheckBox = _check(lobby, CHECK_NAMES[i])
+		var check: UiChipToggle = _check(lobby, CHECK_NAMES[i])
 		assert_false(check.disabled, "the host can change %s" % CHECK_NAMES[i])
 		check.button_pressed = true
 		assert_eq(_fake_of(lobby).set_lobby_data_calls.size(), 1, "one edit is one publish")
@@ -282,11 +282,11 @@ func test_start_picks_up_an_f4_numeric_edit_made_while_the_lobby_was_open() -> v
 
 func test_experiment_checkboxes_join_the_main_loop_once_the_section_opens() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var section: LobbySection = lobby.get_node("%ExperimentsSection") as LobbySection
+	var section: UiSection = lobby.get_node("%ExperimentsSection") as UiSection
 	section.advanced_button.button_pressed = true
 	assert_true(section.is_advanced_open(), "the chip of the Experiments section opens its checks")
 	for unique_name: String in CHECK_NAMES:
-		var check: CheckBox = _check(lobby, unique_name)
+		var check: UiChipToggle = _check(lobby, unique_name)
 		assert_true(check.is_visible_in_tree(), "%s is visible once the section is open" % unique_name)
 		assert_eq(check.focus_mode, Control.FOCUS_ALL, "%s is focusable" % unique_name)
 		assert_ne(check.focus_neighbor_top, NodePath(""), "%s must have an up neighbor" % unique_name)
@@ -299,7 +299,7 @@ func test_experiment_checkboxes_join_the_main_loop_once_the_section_opens() -> v
 	var after: Control = current.get_node(current.focus_neighbor_bottom) as Control
 	assert_false(CHECK_NAMES.has("%" + String(after.name)), "the loop leaves the experiments after the last one")
 	# Backward order mirrors it.
-	var first: CheckBox = _check(lobby, CHECK_NAMES[0])
+	var first: UiChipToggle = _check(lobby, CHECK_NAMES[0])
 	assert_eq(first.get_node(first.focus_neighbor_top), section.advanced_button)
 	assert_eq(after.get_node(after.focus_neighbor_top), _check(lobby, CHECK_NAMES[3]))
 
@@ -307,7 +307,7 @@ func test_experiment_checkboxes_join_the_main_loop_once_the_section_opens() -> v
 func test_experiment_checkboxes_are_not_focus_stops_while_the_section_is_collapsed() -> void:
 	# A collapsed block must never leave an invisible stop on the loop (no invisible focus).
 	var lobby: Lobby = _make_lobby(true)
-	var section: LobbySection = lobby.get_node("%ExperimentsSection") as LobbySection
+	var section: UiSection = lobby.get_node("%ExperimentsSection") as UiSection
 	assert_false(section.is_advanced_open(), "the experiments start collapsed")
 	var shown: Array[Control] = lobby._visible_chain(lobby._main_chain)
 	assert_true(shown.has(section.advanced_button), "the chip is a stop")
@@ -319,7 +319,7 @@ func test_experiment_checkboxes_are_not_focus_stops_while_the_section_is_collaps
 
 func test_loop_stays_closed_with_the_experiments_open() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	(lobby.get_node("%ExperimentsSection") as LobbySection).set_advanced_open(true)
+	(lobby.get_node("%ExperimentsSection") as UiSection).set_advanced_open(true)
 	var start: Control = _check(lobby, CHECK_NAMES[0])
 	var current: Control = start
 	var steps: int = 0
