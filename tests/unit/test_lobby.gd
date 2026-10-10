@@ -196,6 +196,19 @@ func test_disc_size_slider_steps_with_ui_left_and_right() -> void:
 	assert_eq(int(client_slider.value), MatchConfig.DISC_SIZE_STEP_DEFAULT)
 
 
+## Bontago-1pi.152: a slow stick ramp on the match-timer slider is one minute, not a 0 -> max run.
+func test_match_timer_slider_slow_stick_ramp_is_one_step() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var slider: HSlider = lobby.get_node("%MatchTimerSlider") as HSlider
+	var before: float = slider.value
+	for i: int in 101:
+		var motion: InputEventJoypadMotion = InputEventJoypadMotion.new()
+		motion.axis = JOY_AXIS_LEFT_X
+		motion.axis_value = float(i) * 0.01
+		slider.gui_input.emit(motion)
+	# One press = one step; the 1-minute gap is skipped by _on_timer_slider_changed, so at most +2.
+	assert_between(slider.value, before + slider.step, before + 2.0 * slider.step)
+
 func test_remote_lobby_data_moves_the_disc_size_slider() -> void:
 	var lobby: Lobby = _make_lobby(false)
 	var config: MatchConfig = MatchConfig.new()
