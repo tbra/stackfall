@@ -239,6 +239,12 @@ static var _key_atlas_cache: Dictionary[String, Dictionary] = {}
 # is probed once, not on every set_event().
 static var _texture_cache: Dictionary[String, Texture2D] = {}
 
+
+## Bontago-xtq.44: drops the static texture/material cache on exit (freed before the renderer shuts down).
+static func release_statics() -> void:
+	_key_atlas_cache.clear()
+	_texture_cache.clear()
+
 var _kind: Kind = Kind.GENERIC
 var _text: String = "?"
 var _mouse_button: int = -1

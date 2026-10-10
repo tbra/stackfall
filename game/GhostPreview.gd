@@ -1852,6 +1852,11 @@ var mask_rebuild_count: int = 0
 static var _white_texture: ImageTexture = null
 
 
+## Bontago-xtq.44: drops the static texture/material cache on exit (freed before the renderer shuts down).
+static func release_statics() -> void:
+	_white_texture = null
+
+
 func _apply_decal_footprint_mask(origin: Vector2, extent: Vector2) -> void:
 	if _mask_shape == _shape and _mask_basis.is_equal_approx(basis) \
 			and _mask_origin.is_equal_approx(origin) and _mask_extent.is_equal_approx(extent):

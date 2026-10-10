@@ -31,6 +31,11 @@ static func shared() -> DiscSizeTuning:
 	return _shared
 
 
+## Bontago-xtq.44: drops the shared instance on exit so its textures are freed with the tree.
+static func release_shared() -> void:
+	_shared = null
+
+
 func step_count() -> int:
 	return step_factors.size()
 

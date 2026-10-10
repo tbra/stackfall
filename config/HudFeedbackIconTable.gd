@@ -27,6 +27,11 @@ static func shared() -> HudFeedbackIconTable:
 	return _shared
 
 
+## Bontago-xtq.44: drops the shared instance on exit so its textures are freed with the tree.
+static func release_shared() -> void:
+	_shared = null
+
+
 ## Pictogram for a Feedback value, or null when unknown.
 func icon_for(feedback: Feedback) -> Texture2D:
 	match feedback:

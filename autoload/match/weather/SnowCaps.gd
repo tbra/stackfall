@@ -36,6 +36,14 @@ static var _disc_material: ShaderMaterial = null
 static var _disc_material_tuning: SnowTuning = null
 
 
+## Bontago-xtq.44: drops the static texture/material cache on exit (freed before the renderer shuts down).
+static func release_statics() -> void:
+	_material = null
+	_material_tuning = null
+	_disc_material = null
+	_disc_material_tuning = null
+
+
 ## Disc drift domes: same look, but the dome fades in over its lowest
 ## disc_drift_rim_fade_m so it blends into the disc snow layer instead of
 ## showing a circle outline (the collider is unchanged).

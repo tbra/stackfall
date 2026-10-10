@@ -108,6 +108,11 @@ static func name_from_id(special_id: StringName) -> String:
 static var _by_id_cache: Dictionary = {}
 
 
+## Bontago-xtq.44: drops the id cache on exit (it pins every def and its held-gift scene).
+static func release_cache() -> void:
+	_by_id_cache.clear()
+
+
 static func find_by_id(special_id: StringName) -> SpecialDef:
 	if special_id == &"":
 		return null

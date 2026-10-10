@@ -201,6 +201,11 @@ var _controller_was_processing: bool = false
 var _controller_was_handling_input: bool = false
 
 
+## Bontago-xtq.44: the process-wide caches are released as the game scene leaves the tree.
+func _exit_tree() -> void:
+	ExitRelease.release_all()
+
+
 func _ready() -> void:
 	print(_boot_line())
 

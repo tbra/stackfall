@@ -266,6 +266,11 @@ static func apply_toggle_chip(toggle: Button, off_color: Color, off_hover_color:
 static var _blank_icon: ImageTexture = null
 
 
+## Bontago-xtq.44: drops the static texture/material cache on exit (freed before the renderer shuts down).
+static func release_statics() -> void:
+	_blank_icon = null
+
+
 ## Bontago-mp0.3.5 (review r3, problem 3): SpinBox's own "buttons_width" theme
 ## constant only changes the *reserved layout width* for its native up/down
 ## spinner, not whether the chevron icons themselves still draw (confirmed
