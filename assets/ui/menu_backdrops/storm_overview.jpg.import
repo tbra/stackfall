@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dvapeeo8kj40"
-path="res://.godot/imported/menu_backdrop.png-d8a3c0e55981f9d856282e4265059568.ctex"
+uid="uid://l0lhvvwuu1le"
+path="res://.godot/imported/storm_overview.jpg-fc989e6ad2a1abb4fec3bddff904323f.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/ui/menu_backdrop.png"
-dest_files=["res://.godot/imported/menu_backdrop.png-d8a3c0e55981f9d856282e4265059568.ctex"]
+source_file="res://assets/ui/menu_backdrops/storm_overview.jpg"
+dest_files=["res://.godot/imported/storm_overview.jpg-fc989e6ad2a1abb4fec3bddff904323f.ctex"]
 
 [params]
 
@@ -23,7 +23,7 @@ compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
 compress/normal_map=0
 compress/channel_pack=0
-mipmaps/generate=true
+mipmaps/generate=false
 mipmaps/limit=-1
 roughness/mode=0
 roughness/src_normal=""

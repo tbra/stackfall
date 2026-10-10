@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://ui/MainMenu.gd" id="1_menu"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/back.svg" id="glyph_back"]
@@ -11,7 +11,6 @@
 [ext_resource type="Texture2D" path="res://assets/ui/icons/refresh.svg" id="glyph_refresh"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/settings.svg" id="glyph_settings"]
 [ext_resource type="Theme" path="res://ui/theme/stackfall_theme.tres" id="2_theme"]
-[ext_resource type="Texture2D" path="res://assets/ui/menu_backdrop.png" id="3_backdrop_image"]
 [ext_resource type="Texture2D" path="res://assets/ui/stackfall-lockup.svg" id="6_lockup"]
 [ext_resource type="Script" path="res://ui/MenuBackdrop.gd" id="4_backdrop"]
 [ext_resource type="Script" path="res://ui/InputPromptFlow.gd" id="5_hints"]
@@ -46,7 +45,6 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 texture_filter = 4
-texture = ExtResource("3_backdrop_image")
 expand_mode = 1
 stretch_mode = 6
 
