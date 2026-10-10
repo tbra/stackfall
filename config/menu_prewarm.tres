@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="MenuPrewarmConfig" format=3]
+
+[ext_resource type="Script" path="res://config/MenuPrewarmConfig.gd" id="1_menu_prewarm"]
+
+[resource]
+script = ExtResource("1_menu_prewarm")
+chunks = Array[PackedStringArray]([PackedStringArray("res://ui/Lobby.tscn"), PackedStringArray("res://game/MainSandboxFlow.gd", "res://game/HotSeat.tscn"), PackedStringArray("res://game/MainMatchFlow.gd", "res://game/RemoteCursors.tscn", "res://ui/NetDebugOverlay.tscn"), PackedStringArray("res://game/Sandbox.tscn", "res://ui/Tutorial.tscn"), PackedStringArray("res://game/MainHeadlessBotsFlow.gd", "res://ui/TuningPanel.gd")])
+eager_flags = PackedStringArray("hot-seat", "sandbox", "headless-host", "host", "join", "host-online")
