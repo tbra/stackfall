@@ -11,7 +11,8 @@ const TEXT_COPY: String = "Copy"
 const TEXT_COPIED: String = "Copied"
 
 var _label: Label = Label.new()
-var _copy_button: Button = Button.new()
+# Bontago-1pi.159.6 lint: shared component, not a raw Button.
+var _copy_button: UiBlockButton = UiBlockButton.new()
 var _code: String = ""
 
 
