@@ -106,7 +106,7 @@ const BUILD_LABEL_LEFT_INSET: float = 24.0
 @onready var _direct_join_button: Button = %DirectJoinButton
 @onready var _status_label: Label = %StatusLabel
 
-## The transparent column plate: the buttons sit directly on the arena scrim.
+## The transparent column plate: the buttons sit directly on the backdrop scrim.
 @onready var _front_card: PanelContainer = %Panel
 @onready var _title: TextureRect = %Title
 @onready var _name_label: Label = %NameLabel
@@ -338,7 +338,7 @@ func _apply_visual_style() -> void:
 
 
 ## The scrim behind the column: disc-900 at the scrim opacity, solid for the first
-## scrim_solid_fraction of the width, then fading to nothing over the arena.
+## scrim_solid_fraction of the width, then fading to nothing over the backdrop image.
 func _build_scrim_texture(arcade: ArcadeVisualTuning) -> GradientTexture2D:
 	var solid: Color = Color(arcade.disc_900_color, arcade.scrim_alpha)
 	var gradient: Gradient = Gradient.new()
@@ -636,7 +636,7 @@ func _wire_home_grid_focus() -> void:
 	_wire_grid(rows)
 
 
-## The column is pinned to the left edge at every aspect ratio (the arena fills the rest): the
+## The column is pinned to the left edge at every aspect ratio (the backdrop image fills the rest): the
 ## CenterContainer spans the column plus its margins and centres the card vertically. A card whose
 ## minimum width exceeds the column (icon buttons on the Join page) widens the container instead of
 ## being pushed off the left edge.

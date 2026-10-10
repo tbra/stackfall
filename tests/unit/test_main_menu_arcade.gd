@@ -76,46 +76,23 @@ func _on_each_page(menu: MainMenu, check: Callable) -> void:
 	check.call()
 
 
-# --- the live arena backdrop -------------------------------------------------------------
+# --- the static image backdrop -----------------------------------------------------------
 
-func test_arena_reuses_the_real_arena_surface_and_beacons() -> void:
+func test_backdrop_is_a_cover_fit_image_and_no_3d_arena_is_built() -> void:
 	var menu: MainMenu = _make_menu()
-	var arena: MenuArena = menu.get_node("Arena") as MenuArena
-	assert_not_null(arena.overlay(), "the real TerritoryOverlay draws the disc")
-	assert_gt(arena.overlay().arena().materials().size(), 0, "with the real rim/band/bottom side surfaces")
-	var homes: int = 0
-	for flag: Node in arena.viewport().find_children("*", "HomeFlag", true, false):
-		if not flag is GoalFlag:
-			homes += 1
-	assert_eq(homes, arena.tuning.arena_slot_count, "one real HomeFlag beacon per shown slot")
-	assert_eq(arena.viewport().find_children("*", "GoalFlag", true, false).size(), 1)
+	var image: TextureRect = menu.get_node("BackdropImage") as TextureRect
+	assert_not_null(image, "the static backdrop image node")
+	assert_not_null(image.texture, "with its texture set in the scene")
+	assert_eq(image.stretch_mode, TextureRect.STRETCH_KEEP_ASPECT_COVERED, "cover-fit: keeps aspect, crops edges")
+	assert_eq(image.expand_mode, TextureRect.EXPAND_IGNORE_SIZE, "its size follows the screen, not the texture")
+	assert_eq(image.mouse_filter, Control.MOUSE_FILTER_IGNORE)
+	assert_eq(menu.find_children("*", "SubViewport", true, false).size(), 0, "no live 3D viewport")
+	assert_eq(menu.find_children("*", "Node3D", true, false).size(), 0, "no 3D arena nodes in the menu tree")
 
 
-func test_arena_runs_no_physics_and_no_match_state() -> void:
+func test_menu_still_holds_the_render_budget() -> void:
 	var menu: MainMenu = _make_menu()
-	var arena: MenuArena = menu.get_node("Arena") as MenuArena
-	assert_eq(arena.viewport().find_children("*", "CollisionObject3D", true, false).size(), 0, "no bodies, areas or collision")
-	assert_eq(arena.viewport().find_children("*", "CollisionShape3D", true, false).size(), 0)
-	assert_true(arena.viewport().own_world_3d, "its own World3D, never the match world")
-
-
-func test_arena_orbits_and_stops_when_hidden() -> void:
-	var menu: MainMenu = _make_menu()
-	var arena: MenuArena = menu.get_node("Arena") as MenuArena
-	var before: Vector3 = arena.camera().position
-	arena._process(1.0)
-	assert_ne(arena.camera().position, before, "the camera moves")
-	assert_almost_eq(arena.camera().position.y, arena.tuning.camera_height_m, 0.001, "on a level orbit")
-	menu.hide()
-	assert_eq(arena.viewport().render_target_update_mode, SubViewport.UPDATE_DISABLED)
-	menu.show()
-	assert_eq(arena.viewport().render_target_update_mode, SubViewport.UPDATE_ALWAYS)
-
-
-func test_arena_is_cheap_by_construction() -> void:
-	var menu: MainMenu = _make_menu()
-	var viewport: SubViewport = (menu.get_node("Arena") as MenuArena).viewport()
-	assert_eq(viewport.msaa_3d, Viewport.MSAA_DISABLED)
+	assert_not_null(menu)
 	assert_gte(MenuBackdrop.budget_holders(), 1, "the menu render budget (fps cap) is still held")
 	assert_eq(Engine.max_fps, (load("res://config/menu_visual_tuning.tres") as MenuVisualTuning).menu_max_fps)
 

@@ -1,16 +1,6 @@
-[gd_resource type="Resource" script_class="MainMenuTuning" load_steps=10 format=3]
+[gd_resource type="Resource" script_class="MainMenuTuning" load_steps=2 format=3]
 
 [ext_resource type="Script" path="res://config/MainMenuTuning.gd" id="1_menutuning"]
-[ext_resource type="Resource" path="res://config/maps/round_small.tres" id="2_map"]
-[ext_resource type="Resource" path="res://config/blocks/L4.tres" id="3_l4"]
-[ext_resource type="Resource" path="res://config/blocks/T4.tres" id="4_t4"]
-[ext_resource type="Resource" path="res://config/blocks/S4.tres" id="5_s4"]
-[ext_resource type="Resource" path="res://config/blocks/square4.tres" id="6_sq4"]
-[ext_resource type="Resource" path="res://config/blocks/cube.tres" id="7_cube"]
-[ext_resource type="Resource" path="res://config/blocks/bar3.tres" id="8_bar3"]
-[ext_resource type="Script" path="res://config/blocks/BlockShape.gd" id="9_shape"]
 
 [resource]
 script = ExtResource("1_menutuning")
-arena_map = ExtResource("2_map")
-block_shapes = Array[ExtResource("9_shape")]([ExtResource("3_l4"), ExtResource("4_t4"), ExtResource("5_s4"), ExtResource("6_sq4"), ExtResource("7_cube"), ExtResource("8_bar3")])

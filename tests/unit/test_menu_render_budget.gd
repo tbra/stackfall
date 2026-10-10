@@ -2,7 +2,6 @@ extends GutTest
 ## Bontago-1pi.11.48: menu/lobby screens cap the frame rate, skip the hidden
 ## match world's 3D pass, and no hidden SubViewport keeps rendering.
 
-const MAIN_MENU_SCENE: PackedScene = preload("res://ui/MainMenu.tscn")
 const TUNING: MenuVisualTuning = preload("res://config/menu_visual_tuning.tres")
 
 
@@ -30,18 +29,6 @@ func test_overlapping_menu_and_lobby_keep_budget_until_last_exit() -> void:
 	assert_true(get_viewport().disable_3d)
 	b.free()
 	assert_eq(Engine.max_fps, before_fps)
-
-
-func test_hidden_arena_does_not_render() -> void:
-	var menu: MainMenu = MAIN_MENU_SCENE.instantiate() as MainMenu
-	add_child_autofree(menu)
-	await get_tree().process_frame
-	var arena: MenuArena = menu.find_child("Arena", true, false) as MenuArena
-	assert_not_null(arena)
-	var vp: SubViewport = arena.get_node("ArenaViewport") as SubViewport
-	assert_eq(vp.render_target_update_mode, SubViewport.UPDATE_ALWAYS)
-	menu.hide()
-	assert_eq(vp.render_target_update_mode, SubViewport.UPDATE_DISABLED)
 
 
 func test_match_cap_set_while_menu_open_applies_on_last_exit() -> void:
