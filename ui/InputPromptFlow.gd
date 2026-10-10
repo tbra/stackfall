@@ -43,7 +43,13 @@ var text_color: Color = Color(0.0, 0.0, 0.0, 0.0)
 
 func _ready() -> void:
 	# Stackfall Arcade: a cap and its word read as one pair; pairs sit a peer-gap apart.
-	add_theme_constant_override(&"h_separation", MenuStyleFactory.arcade_tuning().space_3_px)
+	# DECISION (Bontago-hfa.10): words sit a space_2 gap apart (reads as ragged-right body text, not
+	# justified), wrapped lines a space_1 apart, always start-aligned.
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	add_theme_constant_override(&"h_separation", arcade.space_2_px)
+	add_theme_constant_override(&"v_separation", arcade.space_1_px)
+	alignment = FlowContainer.ALIGNMENT_BEGIN
+	last_wrap_alignment = FlowContainer.LAST_WRAP_ALIGNMENT_BEGIN
 	if not Events.input_device_changed.is_connected(_on_input_device_changed):
 		Events.input_device_changed.connect(_on_input_device_changed)
 	if not visibility_changed.is_connected(_on_visibility_changed):
