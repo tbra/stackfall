@@ -15,6 +15,7 @@ import sys
 import os
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import godot_exe  # noqa: E402
 import godot_slots  # noqa: E402
 
 DEFAULT_RUNS = 3
@@ -52,7 +53,7 @@ def main():
     ap.add_argument("--runs", type=int, default=DEFAULT_RUNS)
     ap.add_argument("--godot", default="godot")
     a = ap.parse_args()
-    a.godot = shutil.which(a.godot) or a.godot
+    a.godot = godot_exe.resolve(a.godot)  # real .exe behind PATH shims (Bontago-fca.93)
     firsts, menus, errs, failed = [], [], 0, False
     for i in range(a.runs):
         first, menu, e, fail = one_run(a.godot, a.path)

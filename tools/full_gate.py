@@ -26,6 +26,7 @@ import time
 import xml.etree.ElementTree as ET
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import godot_exe as godot_exe_mod  # noqa: E402
 import godot_slots  # noqa: E402
 import lint_magic_numbers  # noqa: E402
 import lint_single_source  # noqa: E402
@@ -57,7 +58,7 @@ def run_lint(path, name, fallback_module):
 
 
 def godot_exe():
-    return shutil.which("godot") or shutil.which("godot.exe") or "godot"
+    return godot_exe_mod.resolve()  # real .exe behind PATH shims (Bontago-fca.93)
 
 
 def collect(path):
