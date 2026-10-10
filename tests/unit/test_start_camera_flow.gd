@@ -28,6 +28,9 @@ var _trace: Array[Dictionary] = []
 
 
 func before_each() -> void:
+	# Bontago-fca.80: this test needs Match's real _process (countdown, loading hand-off); an
+	# earlier script in the batch may have left it paused.
+	Match.set_process(true)
 	Match.abort_match()
 	SnapshotSync.end_match()
 	_trace.clear()

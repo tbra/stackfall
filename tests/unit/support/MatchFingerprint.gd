@@ -45,9 +45,15 @@ static func capture(main: Node) -> Dictionary:
 ## Keys that move with wall-clock cadence or per-peer traffic, so two networked runs cannot
 ## match on them: dropped by without_volatile() for the ENet bench. The in-process unit test
 ## drives time by hand and compares every key.
+## Bontago-fca.81: the loading overlay (its fade state and the backdrop SubViewport nodes it
+## frees when the fade ends) is a transient: under machine load the fade can still be running
+## at COUNTDOWN + 0.5 s on one peer and not on the other, so it is excluded too.
+# DECISION: exclude the transient rather than wait for it, since a loaded peer's fade can
+# outlast the whole countdown and a wait would then never capture.
 const VOLATILE_PREFIXES: PackedStringArray = [
 	"rules.countdown_left", "rules.timer_left", "rules.slot_timers", "rules.stats", "camera.shake",
 	"net.cursors", "net.intents", "net.snapshot_bodies", "ui.hud_texts",
+	"ui.loading_", "wiring.node.LoadingScreen",
 ]
 
 
