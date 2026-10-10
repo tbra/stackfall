@@ -72,3 +72,25 @@ static func broadcast(node: Node, session: Variant, method: StringName, args: Ar
 		return
 	for peer_id: int in addressed:
 		node.callv(&"rpc_id", [peer_id, method] + args)
+
+
+## True when `peer_id` may be addressed by a per-peer send right now: a live
+## transport (can_send), the peer still listed in get_peers(), and `session` not
+## reporting it as disconnecting (a kick in flight, or ENet already showing its
+## link as not connected, which logs "Unable to send packet on channel 0, max
+## channels: 0" on every packet; Bontago-1pi.140).
+static func can_send_to(api: MultiplayerAPI, session: Variant, peer_id: int) -> bool:
+	if not can_send(api, session) or not api.get_peers().has(peer_id):
+		return false
+	var can_ask: bool = session != null and session.has_method(&"is_peer_disconnecting")
+	return not (can_ask and bool(session.is_peer_disconnecting(peer_id)))
+
+
+## The one per-peer send: rpc_id(peer_id, method, args) on `node` only when
+## can_send_to() allows it. Returns whether a packet was queued. For a connected
+## peer it is exactly the rpc_id() it replaces.
+static func send_to(node: Node, session: Variant, peer_id: int, method: StringName, args: Array = []) -> bool:
+	if not can_send_to(node.multiplayer, session, peer_id):
+		return false
+	node.callv(&"rpc_id", [peer_id, method] + args)
+	return true

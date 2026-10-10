@@ -114,8 +114,7 @@ func _on_net_peer_joined(peer_id: int, _slot_id: int, _player_name: String) -> v
 	if SnowRelay.is_empty_state(state):
 		return
 	states_sent += 1
-	if NetFanout.can_send(multiplayer, _session()):
-		rpc_id(peer_id, &"net_snow_state", state)
+	NetFanout.send_to(self, _session(), peer_id, &"net_snow_state", [state])
 
 
 @rpc("authority", "call_remote", "reliable")

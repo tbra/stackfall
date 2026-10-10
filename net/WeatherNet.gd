@@ -100,8 +100,7 @@ func _on_net_peer_joined(peer_id: int, _slot_id: int, _player_name: String) -> v
 		return
 	states_sent += 1
 	last_sent_state = weather.state_dict()
-	if NetFanout.can_send(multiplayer, _session()):
-		rpc_id(peer_id, &"net_weather_state", last_sent_state)
+	NetFanout.send_to(self, _session(), peer_id, &"net_weather_state", [last_sent_state])
 
 
 @rpc("authority", "call_remote", "reliable")

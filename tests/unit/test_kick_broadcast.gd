@@ -122,6 +122,15 @@ func _fire_match_net(rig: Rig) -> void:
 	rig.match_net.submit_cursor(0, Vector3.ZERO, 0, Quaternion.IDENTITY)
 
 
+## Bontago-1pi.140: the per-peer (rpc_id) senders, aimed at every listed peer.
+func _fire_per_peer(rig: Rig) -> void:
+	for peer_id: int in _peers_of(rig):
+		rig.match_net._reject_to_peer(peer_id, 0, &"test")
+		rig.match_net._send_replay(peer_id, &"net_replay_end", [1])
+		rig.snow._on_net_peer_joined(peer_id, 0, "x")
+		rig.weather._on_net_peer_joined(peer_id, 0, "x")
+
+
 func _fire_snapshot(rig: Rig) -> void:
 	rig.snapshot._send_packet(PackedByteArray([1, 2, 3, 4]))
 
@@ -136,6 +145,7 @@ func _fire_every_broadcast(rig: Rig) -> void:
 	_fire_match_net(rig)
 	_fire_snapshot(rig)
 	_fire_relays(rig)
+	_fire_per_peer(rig)
 
 
 ## Kicks the first client, fires `fire` while ENet still lists it (the window the
@@ -165,6 +175,24 @@ func test_every_host_broadcast_skips_a_peer_that_is_being_kicked() -> void:
 
 func test_match_net_broadcasts_skip_a_peer_that_is_being_kicked() -> void:
 	await _kick_then_fire(_fire_match_net)
+
+
+func test_per_peer_sends_skip_a_peer_that_is_being_kicked() -> void:
+	await _kick_then_fire(_fire_per_peer)
+
+
+## The guard itself: allowed for a settled peer, refused while kicked, and
+## send_to() reports whether it queued anything.
+func test_net_fanout_can_send_to_guards_a_disconnecting_peer() -> void:
+	var clients: Array[Rig] = await _connect(1)
+	var peer_id: int = clients[0].net.local_peer_id()
+	var api: MultiplayerAPI = (_host.net as Node).multiplayer
+	assert_true(NetFanout.can_send_to(api, _host.net, peer_id), "a settled peer is addressable")
+	assert_false(NetFanout.can_send_to(api, _host.net, 9999), "an unlisted peer is not")
+	_host.net.kick_peer(peer_id)
+	assert_false(NetFanout.can_send_to(api, _host.net, peer_id), "a kicked peer is not")
+	assert_false(NetFanout.send_to(_host.match_net, _host.net, peer_id, &"net_replay_end", [1]), "and nothing is queued")
+	await _wait_until(func() -> bool: return _peers_of(_host).is_empty(), 120)
 
 
 func test_snapshot_sync_skips_a_peer_that_is_being_kicked() -> void:

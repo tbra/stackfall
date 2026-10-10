@@ -1358,9 +1358,7 @@ func _refuse_intent(sender_peer_id: int, sender_slot: int, reason: StringName) -
 func _reject_to_peer(peer_id: int, slot_id: int, reason: StringName) -> void:
 	reject_replies_by_peer[peer_id] = int(reject_replies_by_peer.get(peer_id, 0)) + 1
 	last_reject_reply = [peer_id, slot_id, reason]
-	if not NetFanout.can_send(multiplayer, _session()) or not multiplayer.get_peers().has(peer_id):
-		return
-	rpc_id(peer_id, &"net_match_event", EVENT_PLACEMENT_REJECTED, [slot_id, reason])
+	NetFanout.send_to(self, _session(), peer_id, &"net_match_event", [EVENT_PLACEMENT_REJECTED, [slot_id, reason]])
 
 
 ## _reject_to_peer() unless _on_placement_rejected() already sent this slot's
@@ -1597,9 +1595,7 @@ func _on_placement_relocated(slot_id: int, point: Vector2) -> void:
 		return
 	relocate_replies_by_peer[owner_peer] = int(relocate_replies_by_peer.get(owner_peer, 0)) + 1
 	last_relocate_reply = [owner_peer, slot_id, point]
-	if not NetFanout.can_send(multiplayer, _session()) or not multiplayer.get_peers().has(owner_peer):
-		return
-	rpc_id(owner_peer, &"net_match_event", EVENT_PLACEMENT_RELOCATED, [slot_id, point])
+	NetFanout.send_to(self, _session(), owner_peer, &"net_match_event", [EVENT_PLACEMENT_RELOCATED, [slot_id, point]])
 
 
 func _on_player_eliminated(slot_id: int, team_id: int) -> void:
@@ -1833,8 +1829,8 @@ func flush_impacts(now_ms: int) -> PackedByteArray:
 		for peer_id: int in multiplayer.get_peers():
 			# A mid-match joiner still loading its world replay hears nothing
 			# yet; impacts are never part of that replay either.
-			if not _replay_pending.has(peer_id) and not _peer_is_disconnecting(peer_id):
-				rpc_id(peer_id, &"net_block_impacts", packet)
+			if not _replay_pending.has(peer_id):
+				NetFanout.send_to(self, _session(), peer_id, &"net_block_impacts", [packet])
 	return packet
 
 
@@ -2075,14 +2071,6 @@ func replay_pending_for(peer_id: int) -> bool:
 	return _replay_pending.has(peer_id)
 
 
-## Bontago-1pi.57: a peer the host is kicking stays in get_peers() until its
-## disconnect completes, and a send to it logs an engine error (see
-## Net._disconnecting_peers). A test session without the query never has one.
-func _peer_is_disconnecting(peer_id: int) -> bool:
-	var session: Variant = _session()
-	return session.has_method(&"is_peer_disconnecting") and bool(session.is_peer_disconnecting(peer_id))
-
-
 ## Host only. Spec 3.4 "Late join / reconnect: Send the full world state in
 ## chunks: all bodies, the territory raster, and match state." Every message
 ## is a reliable rpc_id() on the default channel, so the joiner receives them
@@ -2135,9 +2123,7 @@ func _send_replay(peer_id: int, method: StringName, args: Array) -> void:
 	if capture_replay:
 		replay_capture.append([peer_id, method, args])
 		return
-	if not NetFanout.can_send(multiplayer, _session()) or not multiplayer.get_peers().has(peer_id) or _peer_is_disconnecting(peer_id):
-		return
-	callv(&"rpc_id", [peer_id, method] + args)
+	NetFanout.send_to(self, _session(), peer_id, method, args)
 
 
 ## The ordered replay body (steps 1-4 of _replay_world_to()), as
