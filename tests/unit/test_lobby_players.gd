@@ -141,7 +141,7 @@ func test_the_panel_sits_in_the_players_card_between_the_card_top_and_the_footer
 	assert_eq(footer.get_parent(), players)
 	assert_eq(footer.get_index(), panel.get_index() + 1, "the Ready/Invite footer stays directly under the panel")
 	assert_eq(panel.get_child(0).name, &"TitleRow")
-	assert_eq((panel.get_child(0).get_child(0) as Label).text, "PLAYERS")
+	assert_eq(panel.get_child(0).get_child(1).text, "PLAYERS", "the UiTitleRow heading (child 0 is its flare bullet)")
 
 
 func test_the_lobby_hands_the_panel_its_tunables_palette_and_net_seam() -> void:
@@ -198,7 +198,7 @@ func test_human_rows_name_subtitle_and_ready_badge() -> void:
 func _assert_host_crown(row: Node) -> void:
 	var layout: HBoxContainer = _row_layout(row)
 	var badge: PanelContainer = layout.get_child(layout.get_child_count() - 1) as PanelContainer
-	var crown: TextureRect = badge.get_child(0) as TextureRect
+	var crown: TextureRect = badge.get_node_or_null("HostCrown") as TextureRect
 	assert_not_null(crown, "the host row shows a crown, not the Ready pill")
 	assert_eq(crown.texture, UiArtTable.shared().lobby_icon(UiArtTable.KEY_HOST_CROWN))
 	assert_eq(badge.tooltip_text, "Host")
@@ -285,7 +285,7 @@ func test_the_header_and_row_styling_is_the_lobbys_menu_look() -> void:
 	var pill: StyleBoxFlat = row.get_theme_stylebox("panel") as StyleBoxFlat
 	assert_eq(pill.bg_color, lobby.tuning.pill_white_color, "rows stay the raised white pill")
 	var badge: PanelContainer = (row as LobbySeatRow).badge
-	assert_eq((badge.get_theme_stylebox("panel") as StyleBoxFlat).bg_color, lobby.layout_tuning.host_crown_pill_color, "host crown = yellow (1pi.120)")
+	assert_eq((badge.get_theme_stylebox("panel") as StyleBoxFlat).bg_color, MenuStyleFactory.arcade_tuning().rim_color, "host crown = the rim token (UiStatusBadge HOST)")
 	var guest_ready_badge: PanelContainer = _rows_of(lobby)[1].badge
 	assert_eq((guest_ready_badge.get_theme_stylebox("panel") as StyleBoxFlat).bg_color, lobby.tuning.pill_mint_color, "ready = mint")
 	Events.net_lobby_data_changed.emit(_two_humans_data(false))
@@ -314,7 +314,6 @@ func test_row_layout_values_come_from_the_layout_tuning() -> void:
 	var lobby: Lobby = _make_lobby(false)
 	var custom: LobbyLayoutTuning = LobbyLayoutTuning.new()
 	custom.seat_row_min_height_px = 52
-	custom.seat_row_separation_px = 14
 	custom.seat_text_separation_px = 3
 	custom.seat_name_font_size = 19
 	custom.color_box_size_px = Vector2(30.0, 31.0)
@@ -323,7 +322,7 @@ func test_row_layout_values_come_from_the_layout_tuning() -> void:
 	var row: PanelContainer = _panel_of(lobby)._player_rows[0] as PanelContainer
 	assert_eq(row.custom_minimum_size.y, 52.0)
 	var layout: HBoxContainer = _row_layout(row)
-	assert_eq(layout.get_theme_constant("separation"), 14)
+	assert_eq(layout.get_theme_constant("separation"), MenuStyleFactory.arcade_tuning().space_2_px, "the gap between a row's items is the space-2 token (UiRow rule)")
 	var text_column: VBoxContainer = layout.get_child(1) as VBoxContainer
 	assert_eq(text_column.get_theme_constant("separation"), 3)
 	assert_eq((text_column.get_child(0) as Label).get_theme_font_size("font_size"), 19)
@@ -390,13 +389,13 @@ func test_the_waiting_pill_counts_the_host_as_ready() -> void:
 	assert_eq(label.text, Lobby.ALL_READY_TEXT)
 
 
-## Bontago-1pi.120: the host crown pill is yellow (LobbyLayoutTuning.host_crown_pill_color).
+## Bontago-1pi.120: the host crown pill is yellow (since 1pi.159.2.2 the rim token of UiStatusBadge HOST).
 func test_the_host_crown_pill_is_yellow() -> void:
 	var lobby: Lobby = _make_lobby(false)
 	Events.net_lobby_data_changed.emit(_two_humans_data(false))
 	var host_badge: PanelContainer = _rows_of(lobby)[0].badge
 	var fill: Color = (host_badge.get_theme_stylebox("panel") as StyleBoxFlat).bg_color
-	assert_eq(fill, lobby.layout_tuning.host_crown_pill_color)
+	assert_eq(fill, UiStatusBadge.face_for(UiStatusBadge.Look.HOST))
 	assert_gt(fill.r, fill.b + 0.4, "yellow: red and green high, blue low")
 	assert_gt(fill.g, fill.b + 0.4)
 
@@ -1103,9 +1102,10 @@ func test_seat_row_sizes_come_from_the_layout_tuning() -> void:
 	_panel_of(lobby).set_editable(false)
 	_panel_of(lobby).set_editable(true)
 	var bot: LobbySeatRow = _rows_of(lobby)[1]
-	assert_eq(bot.team_button.custom_minimum_size, Vector2(40.0, 33.0))
-	assert_eq(bot.difficulty_option.custom_minimum_size.x, 111.0)
-	assert_eq(bot.remove_button.custom_minimum_size, Vector2(26.0, 27.0))
+	var row_height: float = float(UiRowItem.metrics().row_height_px)
+	assert_eq(bot.team_button.custom_minimum_size, Vector2(40.0, row_height), "tuned width, the one row-item height")
+	assert_gte(bot.difficulty_option.custom_minimum_size.x, 111.0, "the tuned width, grown only when the labels need more")
+	assert_eq(bot.remove_button.custom_minimum_size, Vector2(row_height, row_height), "the kick X is a square row item")
 	assert_eq((bot.color_button.get_theme_stylebox("focus") as StyleBoxFlat).border_width_left, 5)
 	var fresh: LobbyLayoutTuning = LobbyLayoutTuning.new()
 	var shipped: LobbyLayoutTuning = load("res://config/lobby_layout_tuning.tres") as LobbyLayoutTuning
@@ -1125,8 +1125,8 @@ class RunningMatchNet extends FakeNet:
 		return in_progress
 
 
-func _teams_toggle(lobby: Lobby) -> CheckButton:
-	return _panel_of(lobby).get_node("%TeamsToggle") as CheckButton
+func _teams_toggle(lobby: Lobby) -> UiToggle:
+	return _panel_of(lobby).get_node("%TeamsToggle") as UiToggle
 
 
 func _add_bot_button(lobby: Lobby) -> Button:
@@ -1199,7 +1199,7 @@ func test_the_host_header_has_a_live_teams_toggle_and_add_bot_button() -> void:
 	assert_true(_teams_toggle(lobby).visible)
 	assert_false(_teams_toggle(lobby).disabled)
 	assert_false(_teams_toggle(lobby).button_pressed, "teams start off")
-	assert_eq(_teams_toggle(lobby).text, "TEAMS")
+	assert_eq((_teams_toggle(lobby).get_parent() as UiRow).label.text, "TEAMS")
 	assert_true(_add_bot_button(lobby).visible)
 	assert_false(_add_bot_button(lobby).disabled)
 	assert_eq(_add_bot_button(lobby).text, "+ ADD BOT")
@@ -1312,13 +1312,16 @@ func test_the_teams_toggle_leads_and_the_open_seat_add_bot_closes_the_gamepad_lo
 	_assert_main_loop_is_closed(lobby)
 
 
-func test_the_header_controls_use_the_chip_and_pill_look() -> void:
+func test_the_header_controls_are_design_system_components() -> void:
 	var lobby: Lobby = _host_lobby(1)
-	var tuning: MenuVisualTuning = lobby.tuning
-	# Bontago-hfa.2: pills are Arcade blocks now (BlockStyleBox.face_color).
-	assert_eq((_teams_toggle(lobby).get_theme_stylebox("normal") as BlockStyleBox).face_color, tuning.pill_cream_color)
-	assert_eq((_teams_toggle(lobby).get_theme_stylebox("pressed") as BlockStyleBox).face_color, tuning.pill_mint_color, "on = mint")
-	assert_eq((_add_bot_button(lobby).get_theme_stylebox("normal") as BlockStyleBox).face_color, tuning.pill_powder_blue_color)
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	# Bontago-1pi.159.2.2: Teams is a UiToggle (mint knob when on), + Add bot a small secondary UiBlockButton.
+	assert_true(_teams_toggle(lobby) is UiToggle)
+	assert_eq(UiToggle.knob_face_for(true, arcade), arcade.mint_color, "on = mint")
+	var add: UiBlockButton = _add_bot_button(lobby) as UiBlockButton
+	assert_not_null(add, "+ Add bot is a UiBlockButton")
+	assert_eq(add.variant, UiBlockButton.Look.SECONDARY)
+	assert_eq((add.get_theme_stylebox("normal") as BlockStyleBox).face_color, UiBlockButton.face_for(UiBlockButton.Look.SECONDARY, arcade))
 
 
 # --- Client self-edit ---
@@ -1973,12 +1976,13 @@ func test_the_open_seat_row_hides_when_the_seats_are_full() -> void:
 
 
 ## Bontago-1pi.149 (components.md Toggle: the ON/OFF word is required): the sudden-death, turn-based,
-## mid-join and Teams chips each have a word beside them that follows the chip (mint ON / dust OFF).
+## and mid-join chips each have a word beside them that follows the chip (mint ON / dust OFF). The Teams toggle is
+## a UiToggle since Bontago-1pi.159.2.2 (its own test below).
 func test_toggle_chips_carry_an_on_off_word_that_follows_the_state() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	for unique: String in ["SuddenDeathCheck", "TurnBasedCheck", "MidJoinCheck", "TeamsToggle"]:
-		var check: CheckButton = lobby.get_node("%PlayersPanel").get_node("%" + unique) as CheckButton if unique == "TeamsToggle" else lobby.get_node("%" + unique) as CheckButton
+	for unique: String in ["SuddenDeathCheck", "TurnBasedCheck", "MidJoinCheck"]:
+		var check: CheckButton = lobby.get_node("%" + unique) as CheckButton
 		assert_true(check.has_meta(LobbySection.STATE_WORD_META), "%s has a state word" % unique)
 		var word: Label = check.get_meta(LobbySection.STATE_WORD_META) as Label
 		assert_eq(word.get_parent(), check.get_parent(), "%s: the word sits in the chip's row" % unique)
@@ -1989,3 +1993,39 @@ func test_toggle_chips_carry_an_on_off_word_that_follows_the_state() -> void:
 		check.button_pressed = true
 		assert_eq(word.text, LobbySection.STATE_WORD_ON, "%s: toggling updates the word" % unique)
 		assert_eq(word.get_theme_color("font_color"), arcade.mint_color)
+
+
+## Bontago-1pi.159.2.2: the Teams switch is the design-system UiToggle (one toggle look everywhere):
+## its ON / OFF word is its own text, it sits in a UiRow with the TEAMS label and follows the state.
+func test_the_teams_toggle_is_a_ui_toggle_in_a_row_with_its_label_and_word() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var toggle: UiToggle = _teams_toggle(lobby)
+	var row: UiRow = toggle.get_parent() as UiRow
+	assert_not_null(row, "the toggle sits in a UiRow")
+	assert_eq(row.label.text, LobbyPlayersPanel.TEAMS_LABEL)
+	assert_true(toggle.is_in_group(UiRowItem.GROUP), "a row item")
+	toggle.set_on_silent(false)
+	assert_eq(toggle.text, UiToggle.WORD_OFF)
+	toggle.button_pressed = true
+	assert_eq(toggle.text, UiToggle.WORD_ON, "toggling updates the word")
+
+
+## Bontago-1pi.159.2.2 (owner: the kick X was much smaller than the other row items and the status
+## did not match): every control of a bot's row is a UiRowItem, so they all lay out at one height,
+## the kick X included, and the badge is the shared UiStatusBadge.
+func test_every_item_of_a_bot_row_is_a_row_item_of_one_height() -> void:
+	var lobby: Lobby = _host_lobby(1, 1, true)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var bot: LobbySeatRow = _rows_of(lobby)[1]
+	var items: Array[Control] = [bot.team_button, bot.difficulty_option, bot.remove_button, bot.badge]
+	var row_height: float = float(UiRowItem.metrics().row_height_px)
+	for item: Control in items:
+		assert_true(item.is_in_group(UiRowItem.GROUP), "%s is a row item" % item.name)
+		assert_eq(item.size.y, row_height, "%s is exactly one row height tall" % item.name)
+	assert_true(bot.badge is UiStatusBadge, "the status is the shared UiStatusBadge")
+	assert_true(bot.remove_button is UiIconButton and bot.remove_button.tone == UiIconButton.Tone.DANGER)
+	assert_true(bot.team_button is UiDropdown and bot.difficulty_option is UiDropdown, "selectors are UiDropdowns")
+	var human: LobbySeatRow = _rows_of(lobby)[0]
+	assert_eq(human.badge.size.x, bot.badge.size.x, "the host crown and the ready tile share a width")
+	assert_eq(human.team_button.global_position.x, bot.team_button.global_position.x, "team column lines up over human and bot rows")

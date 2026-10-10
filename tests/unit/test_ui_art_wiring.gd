@@ -76,7 +76,6 @@ func test_lobby_bot_and_team_controls_show_icons() -> void:
 	var panel: LobbyPlayersPanel = lobby.get_node("%PlayersPanel") as LobbyPlayersPanel
 	var table: UiArtTable = UiArtTable.shared()
 	assert_eq((panel.get_node("%AddBotButton") as Button).icon, table.lobby_icon(UiArtTable.KEY_BOT_ADD))
-	assert_eq((panel.get_node("%TeamsToggle") as Button).icon, table.lobby_icon(UiArtTable.KEY_TEAMS))
 	var bot_rows: int = 0
 	for node: Node in panel._player_rows:
 		var row: LobbySeatRow = node as LobbySeatRow
