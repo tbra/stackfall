@@ -19,11 +19,11 @@ extends HomeFlag
 ## a striped beam. The shared-hold capture ring below is unchanged and reads
 ## on top of this.
 ##
-## Bontago-1pi.18.6 (QoL experiment 4): while the bigger-claim-radius toggle is on,
-## set_claim_ring() draws one flat translucent cel-shaded zone (shaders/goal_claim_zone.gdshader:
-## stepped fill, inward rings, dashed rim) on the ground at the radius the host uses
-## for capture, so players can see where claiming counts. With the
-## toggle off the ring node is never created.
+## Bontago-1pi.18.6 / mp0.152: set_claim_ring() draws one flat translucent cel-shaded zone
+## (shaders/goal_claim_zone.gdshader: stepped fill, inward rings, dashed rim) on the ground.
+## Field always passes Match.goal_zone_visual_radius(): the claim radius while the bigger-claim-radius
+## experiment is on, else the goal no-build zone radius, so players always see the claimed area.
+## The node is only absent for a radius <= 0 (null match context).
 ##
 ## Visual only: who is capturing and how far along they are is WinChecker's
 ## answer, arriving through Events.goal_capture_progress and
@@ -311,10 +311,10 @@ func _build_arc(progress: float) -> ArrayMesh:
 
 
 ## Bontago-1pi.18.6: shows (radius > 0) or removes (radius <= 0 or non-finite) the
-## ground ring marking the goal claim radius. Field passes Match.qol_claim_radius(),
-## the exact value capture uses, once when the flags are placed. Builds one
+## ground ring marking the goal claim area. Field passes Match.goal_zone_visual_radius()
+## (the capture radius with the experiment on, else goal_zone_radius) once when the flags are placed. Builds one
 ## MeshInstance3D + one mesh + one material on first use, rebuilds the mesh only if
-## the radius changes, and does nothing at all while the toggle is off.
+## the radius changes, and does nothing at all for a radius <= 0.
 ##
 ## DECISION: the band is centred on the claim radius (a cell votes when its centre is
 ## within that radius) rather than hanging outside it, so the drawn line is the rule's

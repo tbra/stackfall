@@ -1,8 +1,8 @@
 extends GutTest
 ## Bontago-1pi.18.6 (QoL experiment 4): the ground ring a goal beacon shows at the
-## effective claim radius while the bigger-claim-radius toggle is on, and nothing at
-## all while it is off. The radius must be the value the host uses for capture
-## (Match.qol_claim_radius() -> MatchTerritory._claim_radius()).
+## effective claim radius while the bigger-claim-radius toggle is on, and (Bontago-mp0.152)
+## at goal_zone_radius while it is off. With the toggle on the radius must be the value the
+## host uses for capture (Match.qol_claim_radius() -> MatchTerritory._claim_radius()).
 
 const MAP_RADIUS: float = 20.0
 const RING_NODE_NAME: StringName = &"ClaimRadiusRing"
@@ -89,23 +89,28 @@ func _radial_extent(mesh: Mesh) -> Vector2:
 	return Vector2(low, high)
 
 
-# --- toggle off: nothing is created -----------------------------------------------
+# --- toggle off: the zone still draws, at the no-build radius (Bontago-mp0.152) ----
 
-func test_toggle_off_creates_no_ring_and_claim_radius_is_zero() -> void:
-	var flags: Array[GoalFlag] = _place(_qol(false))
-	assert_eq(flags.size(), 1)
-	assert_eq(Match.qol_claim_radius(), 0.0)
-	var flag: GoalFlag = flags[0]
-	assert_null(flag.claim_ring_node(), "no node is built while the toggle is off")
-	assert_null(flag.find_child(RING_NODE_NAME, false, false))
-	assert_false(flag.claim_ring_visible())
-	assert_eq(flag.claim_ring_radius(), 0.0)
+func test_toggle_off_draws_the_zone_at_goal_zone_radius_while_claim_radius_stays_zero() -> void:
+	var flags: Array[GoalFlag] = _place(_qol(false), 2)
+	assert_eq(flags.size(), 2)
+	assert_eq(Match.qol_claim_radius(), 0.0, "the capture rule is unchanged")
+	assert_almost_eq(Match.goal_zone_visual_radius(), _base_radius(), 0.0001)
+	for flag: GoalFlag in flags:
+		assert_not_null(flag.claim_ring_node(), "the zone is built with the experiment off")
+		assert_eq(flag.find_children(RING_NODE_NAME, "MeshInstance3D", false, false).size(), 1)
+		assert_true(flag.claim_ring_visible())
+		assert_almost_eq(flag.claim_ring_radius(), _base_radius(), 0.0001)
+		var material: ShaderMaterial = flag.claim_ring_node().material_override as ShaderMaterial
+		assert_almost_eq(float(material.get_shader_parameter(&"zone_radius")), _base_radius(), 0.0001)
 
 
-func test_toggle_off_leaves_the_beacon_children_identical_to_a_bare_flag() -> void:
-	var bare: GoalFlag = _flat_flag()
-	var flags: Array[GoalFlag] = _place(_qol(false))
-	assert_eq(flags[0].get_child_count(), bare.get_child_count(), "same node count, nothing new")
+func test_zone_radius_comes_from_replicated_state_only() -> void:
+	# A client rebuilds the same config from the wire; tuning is a shared resource.
+	var wire: Dictionary = _config(_qol(false)).to_dict()
+	Match.start_match(_config(MatchConfig.from_dict(wire).qol))
+	_field.place_flags(2, Match.config.player_colors, 1)
+	assert_almost_eq(_field.goal_flags()[0].claim_ring_radius(), _base_radius(), 0.0001)
 
 
 func test_no_qol_snapshot_and_no_match_config_both_read_zero() -> void:
