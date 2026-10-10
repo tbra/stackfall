@@ -14,6 +14,9 @@ const SEED: int = 4242
 ## Generous: only proves a long budget finishes in one step.
 const BIG_BUDGET_US: int = 60000000
 const STEP_GUARD: int = 500
+const HARD_SITE_COUNT: int = 110
+## Generous ceiling for one unsliceable chunk on a loaded machine (a frame is 16700 us).
+const CHUNK_LIMIT_US: int = 40000
 const SURFACE_HEIGHT: float = 0.0
 
 var _territory_tuning: TerritoryTuning = preload("res://config/territory_tuning.tres")
@@ -140,7 +143,7 @@ func test_circle_near_but_not_at_a_home_is_kept() -> void:
 	assert_eq(view.circle_count(), 1)
 
 
-# --- BotThink ------------------------------------------------------------------
+# --- BotThink (Bontago-1t5.23: the assembled V2 pipeline) -----------------------
 
 func test_unlimited_budget_finishes_in_one_step_with_a_valid_place_decision() -> void:
 	var think: BotThink = BotThink.new(_view(), _profile(), _rng())
@@ -148,20 +151,29 @@ func test_unlimited_budget_finishes_in_one_step_with_a_valid_place_decision() ->
 	assert_true(think.is_done())
 	var decision: BotThink.Decision = think.decision()
 	assert_eq(decision.kind, BotThink.DecisionKind.PLACE)
-	assert_eq(think.candidates().size(), CANDIDATE_COUNT)
+	assert_gt(think.candidates().size(), 0)
+	assert_lte(think.candidates().size(), CANDIDATE_COUNT)
 	assert_not_null(think.best_candidate())
 	assert_eq(decision.origin, think.best_candidate().origin)
 	assert_eq(PlacementRules.validate_point(decision.origin, _raster, 0), PlacementRules.Result.VALID)
+	assert_eq(decision.terms.size(), BotIntent.Term.size())
+	assert_eq(decision.intent, int(think.intent().kind))
+
+
+func test_goal_gap_inside_finish_range_plans_a_finish() -> void:
+	var think: BotThink = BotThink.new(_view(), _profile(), _rng())
+	think.step(BIG_BUDGET_US, _probe)
+	assert_eq(think.intent().kind, BotIntent.Kind.FINISH)
+	assert_eq(think.intent().target, Vector2.ZERO)
 
 
 func test_zero_budget_still_progresses_and_returns_false_while_unfinished() -> void:
 	var think: BotThink = BotThink.new(_view(), _profile(), _rng())
 	assert_false(think.step(0, _probe), "a spent budget returns false")
-	assert_eq(think.candidates().size(), 1, "exactly one candidate of progress")
 	assert_false(think.is_done())
 	var steps: int = _run_to_done(think, 0)
 	assert_lt(steps, STEP_GUARD)
-	assert_eq(think.candidates().size(), CANDIDATE_COUNT)
+	assert_gt(steps, 3, "plan, sites, per-site probes, rank, measure and pick are separate units")
 	assert_true(think.is_done())
 	assert_true(think.step(0, _probe), "done stays done")
 
@@ -173,7 +185,8 @@ func test_seeded_runs_are_deterministic_whatever_the_budget_slicing() -> void:
 	_run_to_done(sliced, 0)
 	assert_eq(sliced.decision().origin, whole.decision().origin)
 	assert_eq(sliced.decision().orientation_index, whole.decision().orientation_index)
-	for i: int in range(CANDIDATE_COUNT):
+	assert_eq(sliced.candidates().size(), whole.candidates().size())
+	for i: int in range(whole.candidates().size()):
 		assert_eq(sliced.candidates()[i].origin, whole.candidates()[i].origin, "candidate %d" % i)
 
 
@@ -181,21 +194,129 @@ func test_candidates_carry_v2_fields_and_probe_results() -> void:
 	var think: BotThink = BotThink.new(_view(_pillar), _profile(), _rng())
 	think.step(BIG_BUDGET_US, _probe)
 	var candidate: BotCandidate = think.candidates()[0]
-	assert_eq(candidate.site_kind, BotThink.SITE_LEGACY)
+	assert_ne(candidate.site_kind, BotThink.SITE_LEGACY, "targeted sites, not the retired sampler")
 	assert_almost_eq(candidate.top_height, candidate.support_height + candidate.shape_height, 0.0001)
 	assert_gt(candidate.shape_height, 0.0)
-	assert_gt(_probe_calls, CANDIDATE_COUNT, "support plus footprint probes")
+	assert_gt(_probe_calls, think.candidates().size(), "support plus footprint probes")
 	assert_eq(candidate.cell_support.size(), mini(3, candidate.footprint_cells.size()))
 	assert_gte(candidate.corner_support_hits, 0)
+	assert_between(candidate.tip_risk, 0.0, 1.0)
 
 
-func test_finish_early_decides_from_candidates_gathered_so_far() -> void:
+func test_finish_early_decides_from_what_was_gathered() -> void:
 	var think: BotThink = BotThink.new(_view(), _profile(), _rng())
 	think.step(0, _probe)
 	think.finish_early()
 	assert_true(think.is_done())
 	assert_eq(think.decision().kind, BotThink.DecisionKind.PLACE)
-	assert_eq(think.candidates().size(), 1)
+	assert_gt(think.candidates().size(), 0)
+
+
+func test_finish_early_before_any_step_still_plans_and_decides() -> void:
+	var think: BotThink = BotThink.new(_view(), _profile(), _rng())
+	think.finish_early()
+	assert_eq(think.decision().kind, BotThink.DecisionKind.PLACE)
+
+
+func test_decision_terms_are_measured_for_the_top_k_and_proxy_when_k_is_zero() -> void:
+	var measured_profile: BotDifficultyProfile = _profile()
+	measured_profile.eval_top_k = 4
+	var measured: BotThink = BotThink.new(_view(), measured_profile, _rng())
+	measured.step(BIG_BUDGET_US, _probe)
+	var view: BotWorldView = _view()
+	var expected: PackedFloat32Array = BotEvaluator.measure(
+		measured.best_candidate(), view, BotChains.build(view), measured.intent()
+	)
+	assert_eq(measured.decision().terms, expected, "top-k winner carries its measured terms")
+	var proxy_profile: BotDifficultyProfile = _profile()
+	proxy_profile.eval_top_k = 0
+	var proxied: BotThink = BotThink.new(_view(), proxy_profile, _rng())
+	proxied.step(BIG_BUDGET_US, _probe)
+	assert_eq(
+		proxied.decision().terms,
+		BotEvaluator.proxy_terms(proxied.best_candidate(), view, proxied.intent()),
+		"no measured stage: the proxy terms"
+	)
+
+
+func test_argmax_tier_is_stable_and_pool_tier_varies_with_the_seed() -> void:
+	var hard_origins: Dictionary = {}
+	var easy_origins: Dictionary = {}
+	for seed_value: int in range(12):
+		var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+		rng.seed = SEED + seed_value
+		var hard: BotDifficultyProfile = _profile()
+		hard.eval_top_k = 0
+		var easy: BotDifficultyProfile = _profile()
+		easy.eval_top_k = 0
+		easy.pick_pool = 5
+		easy.pick_temperature = 4.0
+		var hard_think: BotThink = BotThink.new(_view(), hard, rng)
+		hard_think.step(BIG_BUDGET_US, _probe)
+		hard_origins[hard_think.decision().origin] = true
+		var easy_rng: RandomNumberGenerator = RandomNumberGenerator.new()
+		easy_rng.seed = SEED + seed_value
+		var easy_think: BotThink = BotThink.new(_view(), easy, easy_rng)
+		easy_think.step(BIG_BUDGET_US, _probe)
+		easy_origins[easy_think.decision().origin] = true
+	assert_lt(hard_origins.size(), 3, "argmax barely depends on the rng (site generation only)")
+	assert_gt(easy_origins.size(), 1, "a pool pick varies")
+
+
+func test_unsliceable_chunks_stay_far_below_a_frame() -> void:
+	# PLAN (chains + strategy) and SITES (110 targeted sites) are single chunks; step() only
+	# checks the budget between chunks, so each must stay cheap (a frame is 16.7 ms).
+	var profile: BotDifficultyProfile = _profile()
+	profile.candidate_count = HARD_SITE_COUNT
+	var think: BotThink = BotThink.new(_view(), profile, _rng())
+	var worst_us: int = 0
+	for _chunk: int in range(2):
+		var before: int = Time.get_ticks_usec()
+		think.step(0, _probe)
+		worst_us = maxi(worst_us, Time.get_ticks_usec() - before)
+	assert_lt(worst_us, CHUNK_LIMIT_US, "plan and sites chunks (us)")
+	assert_gt(think.candidates().size(), 0)
+
+
+func test_finish_early_mid_probe_ranks_only_probed_sites() -> void:
+	var think: BotThink = BotThink.new(_view(), _profile(), _rng())
+	while think._phase != BotThink.Phase.PROBE:
+		think.step(0, _probe)
+	for _i: int in range(3):
+		think.step(0, _probe)
+	var probed: int = think._probe_index
+	assert_gt(probed, 0)
+	assert_lt(probed, think.candidates().size(), "precondition: still probing")
+	think.finish_early()
+	for position: int in think._ranked:
+		assert_lt(position, probed, "an unprobed site never outranks a probed one")
+
+
+func test_revalidate_falls_back_when_the_choice_became_invalid_after_the_think() -> void:
+	var think: BotThink = BotThink.new(_view(), _profile(), _rng())
+	think.step(BIG_BUDGET_US, _probe)
+	var first: BotCandidate = think.best_candidate()
+	var cell: Vector2i = _grid.world_to_cell(first.origin)
+	_raster.force_hole_cell(cell.x, cell.y, 1.0, true)
+	var second: BotCandidate = think.revalidate()
+	assert_not_null(second)
+	assert_ne(second.origin, first.origin)
+	assert_eq(think.decision().origin, second.origin)
+	assert_eq(PlacementRules.validate_point(second.origin, _raster, 0), PlacementRules.Result.VALID)
+
+
+func test_decision_origin_is_revalidated_against_the_live_raster() -> void:
+	var think: BotThink = BotThink.new(_view(), _profile(), _rng())
+	# Drive to the PICK stage, then poison the best-ranked site's cell as a hole.
+	while not think.is_done() and think._phase != BotThink.Phase.PICK:
+		think.step(0, _probe)
+	var first: BotCandidate = think.candidates()[think._ranked[0]]
+	var cell: Vector2i = _grid.world_to_cell(first.origin)
+	_raster.force_hole_cell(cell.x, cell.y, 1.0, true)
+	assert_ne(PlacementRules.validate_point(first.origin, _raster, 0), PlacementRules.Result.VALID, "the poison took")
+	think.step(BIG_BUDGET_US, _probe)
+	assert_ne(think.decision().origin, first.origin, "the poisoned best site is skipped")
+	assert_eq(PlacementRules.validate_point(think.decision().origin, _raster, 0), PlacementRules.Result.VALID)
 
 
 func test_no_held_shape_waits() -> void:
