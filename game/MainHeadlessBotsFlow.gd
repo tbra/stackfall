@@ -64,6 +64,11 @@ func start_match_with_args(args: PackedStringArray) -> void:
 	if main_node._headless_loop_enabled:
 		Events.match_state_changed.connect(main_node._on_headless_loop_state_changed)
 	_setup_bot_record(args)
+	_load_bot_weight_overrides(args, bots)
+	if not main_node._headless_loop_enabled:
+		# DECISION (Bontago-1t5.13): a single (non-loop) match also prints its HEADLESS_MATCH line on
+		# END, so tools/bot_h2h.py can parse winner_team without --loop-matches.
+		Events.match_state_changed.connect(_on_headless_single_state_changed)
 	_start_headless_loop_match(bots, args)
 
 	# `--seconds=<n>` bounds the run with a hard wall-clock quit: the
@@ -80,13 +85,21 @@ func start_match_with_args(args: PackedStringArray) -> void:
 func _start_headless_loop_match(bots: int, args: PackedStringArray) -> void:
 	var config: MatchConfig = _build_headless_bot_config(bots, args)
 	main_node._headless_loop_index += 1
+	var has_match_seed: bool = _has_match_seed_arg(args)
 	if main_node._headless_loop_enabled:
 		# DECISION (Bontago-8or.21): match 1 keeps the configured seed when one is
 		# set; every later match draws a fresh positive seed so repeats differ.
-		if main_node._headless_loop_index > 1 or config.rng_seed < 0:
+		if has_match_seed:
+			# DECISION (Bontago-1t5.13): with --match-seed the later loop matches derive their
+			# seeds deterministically from it instead of drawing fresh random ones.
+			config.rng_seed = _derived_loop_seed(_match_seed_arg(args), main_node._headless_loop_index)
+		elif main_node._headless_loop_index > 1 or config.rng_seed < 0:
 			config.rng_seed = randi_range(1, 2147483647)
 		main_node._headless_loop_seed = config.rng_seed
+	else:
+		main_node._headless_loop_seed = config.rng_seed
 	Match.start_match(config)
+	_apply_bot_weight_overrides()
 	_begin_bot_record(config)
 	_start_headless_bots_diagnostics()
 
@@ -113,6 +126,11 @@ func _on_headless_loop_state_changed(_from_state: int, to_state: int) -> void:
 	main_node._restart_headless_loop_match.call_deferred()
 
 
+func _on_headless_single_state_changed(_from_state: int, to_state: int) -> void:
+	if to_state == Match.State.END:
+		print(_headless_match_summary_line())
+
+
 func _restart_headless_loop_match() -> void:
 	main_node._headless_loop_restart_pending = false
 	if not main_node._headless_loop_enabled or not _net_is_hosting() or Match.state() != Match.State.END:
@@ -121,12 +139,20 @@ func _restart_headless_loop_match() -> void:
 
 
 func _headless_match_summary_line() -> String:
-	return "HEADLESS_MATCH index=%d mode=%d seed=%d duration=%.1f winner_team=%d placements=%d homes_alive=%d" % [
+	return "HEADLESS_MATCH index=%d mode=%d seed=%d duration=%.1f winner_team=%d placements=%d homes_alive=%d teams=%s" % [
 		main_node._headless_loop_index,
 		Match.config.game_mode if Match.config != null else 0,
 		main_node._headless_loop_seed, _headless_bots_elapsed_s(), Match.winner_team(),
-		main_node._headless_bots_placements, _headless_bots_homes_alive(),
+		main_node._headless_bots_placements, _headless_bots_homes_alive(), _headless_slot_teams(),
 	]
+
+
+## Team id per slot, comma-separated ("0,1,2,..."), so a harness can map candidate seats to teams.
+func _headless_slot_teams() -> String:
+	var parts: PackedStringArray = PackedStringArray()
+	for i: int in range(Match.slot_count()):
+		parts.append(str(Match.team_of(i)))
+	return ",".join(parts)
 
 
 ## Bontago-d5c.6 review finding 1: true only when Net actually became the
@@ -220,6 +246,13 @@ func _build_headless_bot_config(bots: int, args: PackedStringArray) -> MatchConf
 	var disc_step: int = _disc_size_arg(args)
 	if disc_step >= 0:
 		config.disc_size_step = DiscSizeTuning.shared().clamp_step(disc_step)
+
+	var difficulty_override: int = _bot_difficulty_arg(args)
+	if difficulty_override >= 0:
+		config.ai_difficulty = difficulty_override as MatchConfig.AiDifficulty
+		config.slot_ai_difficulties = PackedInt32Array()  # the flag covers every bot slot
+	if _has_match_seed_arg(args):
+		config.rng_seed = _match_seed_arg(args)
 
 	var goals_override: int = _goals_arg(args)
 	if goals_override > 0:
@@ -431,6 +464,8 @@ func _begin_bot_record(config: MatchConfig) -> void:
 	for slot_id: int in range(config.player_count - config.ai_count, config.player_count):
 		slots.append(slot_id)
 		difficulties.append(int(config.ai_difficulty_for_slot(slot_id)))
+	for override_slot: int in _bot_weight_tunings:
+		_bot_recorder.set_slot_tuning(override_slot, _bot_weight_tunings[override_slot] as BotTuning)
 	var map_def: MapDef = config.map_def()
 	var header: Dictionary = {
 		"seed": config.rng_seed,
@@ -439,6 +474,7 @@ func _begin_bot_record(config: MatchConfig) -> void:
 		"bot_count": config.ai_count,
 		"difficulty": int(config.ai_difficulty),
 		"difficulties": difficulties,
+		"weight_overrides": _bot_weight_overrides_for_header(),
 		"git_revision": BuildVersion.git_revision(),
 	}
 	_bot_record_timeline_started = false
@@ -509,3 +545,127 @@ func _headless_bots_elapsed_s() -> float:
 func _headless_bots_state_name() -> String:
 	var key: Variant = Match.State.find_key(Match.state())
 	return str(key) if key != null else "UNKNOWN"
+
+
+# --- Training overrides (Bontago-1t5.13, BT5) ---------------------------------
+#
+# `--bot-difficulty=<easy|normal|hard|0..2>` sets every bot slot; `--match-seed=<int>` is the first
+# match's rng_seed; `--bot-weights=<json file>` [+ `--bot-weights-slots=<csv>`] overrides BotTuning
+# weight_* fields for the named bot slots only. DECISION: the weights file is either ONE flat object
+# {"weight_x": v, ...} applied to --bot-weights-slots (default: every bot slot; this is what
+# tools/bot_h2h.py writes) or a slot map {"3": {"weight_x": v}, ...}. Bad JSON / unknown keys warn
+# and the bots keep the shipped weights.
+
+const LOOP_SEED_STRIDE: int = 7919
+const LOOP_SEED_MAX: int = 2147483647
+
+var _bot_weight_overrides: Dictionary = {}  # slot_id -> weights Dictionary (raw, for the header)
+var _bot_weight_tunings: Dictionary = {}  # slot_id -> BotTuning copy
+
+
+func _string_arg(args: PackedStringArray, prefix: String) -> String:
+	for raw: String in args:
+		var text: String = raw
+		while text.begins_with("-"):
+			text = text.substr(1)
+		if text.begins_with(prefix):
+			return text.substr(prefix.length())
+	return ""
+
+
+func _has_match_seed_arg(args: PackedStringArray) -> bool:
+	return _string_arg(args, "match-seed=").is_valid_int()
+
+
+## `--match-seed=<int>`, clamped to >= 0 (negative means "random" elsewhere); -1 when absent.
+func _match_seed_arg(args: PackedStringArray) -> int:
+	var text: String = _string_arg(args, "match-seed=")
+	return maxi(int(text), 0) if text.is_valid_int() else -1
+
+
+## Seed of loop match `index` (1-based) from a base seed: index 1 is the base itself.
+func _derived_loop_seed(base_seed: int, index: int) -> int:
+	if index <= 1:
+		return base_seed
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = base_seed + index * LOOP_SEED_STRIDE
+	return rng.randi_range(1, LOOP_SEED_MAX)
+
+
+## `--bot-difficulty=`, -1 when absent/unknown (unknown values warn).
+func _bot_difficulty_arg(args: PackedStringArray) -> int:
+	var value: String = _string_arg(args, "bot-difficulty=").to_lower()
+	if value.is_empty():
+		return -1
+	match value:
+		"easy", "0":
+			return MatchConfig.AiDifficulty.EASY
+		"normal", "1":
+			return MatchConfig.AiDifficulty.NORMAL
+		"hard", "2":
+			return MatchConfig.AiDifficulty.HARD
+	push_warning("--bot-difficulty=%s is not easy|normal|hard; keeping the configured difficulty" % value)
+	return -1
+
+
+## Parses --bot-weights[/-slots] into _bot_weight_overrides / _bot_weight_tunings. Never fatal.
+func _load_bot_weight_overrides(args: PackedStringArray, bots: int) -> void:
+	_bot_weight_overrides.clear()
+	_bot_weight_tunings.clear()
+	var path: String = _string_arg(args, "bot-weights=")
+	if path.is_empty():
+		return
+	var first_slot: int = maxi(bots, _headless_bot_players_arg(args)) - bots
+	var bot_slots: PackedInt32Array = PackedInt32Array()
+	for slot_id: int in range(first_slot, first_slot + bots):
+		bot_slots.append(slot_id)
+	var text: String = FileAccess.get_file_as_string(path)
+	var parser: JSON = JSON.new()  # not parse_string: that logs an engine error on bad input
+	var data: Variant = parser.data if not text.is_empty() and parser.parse(text) == OK else null
+	if typeof(data) != TYPE_DICTIONARY:
+		push_warning("--bot-weights=%s is missing or not a JSON object; bots keep the shipped weights" % path)
+		return
+	var table: Dictionary = data as Dictionary
+	var by_slot: bool = not table.is_empty()
+	for key: Variant in table:
+		if typeof(table[key]) != TYPE_DICTIONARY or not String(key).is_valid_int():
+			by_slot = false
+	if by_slot:
+		for key: Variant in table:
+			var keyed_slot: int = int(String(key))
+			if bot_slots.has(keyed_slot):
+				_bot_weight_overrides[keyed_slot] = table[key]
+			else:
+				push_warning("--bot-weights: slot %d is not a bot slot; ignored" % keyed_slot)
+	else:
+		var slots_text: String = _string_arg(args, "bot-weights-slots=")
+		var targets: PackedInt32Array = bot_slots
+		if not slots_text.is_empty():
+			targets = PackedInt32Array()
+			for part: String in slots_text.split(",", false):
+				if part.strip_edges().is_valid_int() and bot_slots.has(int(part)):
+					targets.append(int(part))
+				else:
+					push_warning("--bot-weights-slots: '%s' is not a bot slot; ignored" % part)
+		for target_slot: int in targets:
+			_bot_weight_overrides[target_slot] = table
+	var shipped: BotTuning = load("res://config/bot_tuning.tres") as BotTuning
+	for override_slot: int in _bot_weight_overrides:
+		_bot_weight_tunings[override_slot] = BotController.tuning_with_weights(shipped, _bot_weight_overrides[override_slot] as Dictionary)
+
+
+## Installs each named slot's tuning copy on its controller (idempotent; other slots untouched).
+func _apply_bot_weight_overrides() -> void:
+	if _bot_weight_tunings.is_empty():
+		return
+	for node: Node in main_node._bot_controllers:
+		var bot: BotController = node as BotController
+		if bot != null and is_instance_valid(bot) and _bot_weight_tunings.has(bot.bound_slot()):
+			bot.set_tuning_override(_bot_weight_tunings[bot.bound_slot()] as BotTuning)
+
+
+func _bot_weight_overrides_for_header() -> Dictionary:
+	var out: Dictionary = {}
+	for slot_id: int in _bot_weight_overrides:
+		out[str(slot_id)] = _bot_weight_overrides[slot_id]
+	return out

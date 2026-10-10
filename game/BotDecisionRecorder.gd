@@ -32,6 +32,8 @@ var _pending: Array[Dictionary] = []
 var _eliminated_at: Dictionary = {}
 var _tuning: BotTuning = preload("res://config/bot_tuning.tres")
 var _match_active: bool = false
+## Bontago-1t5.13: per-slot BotTuning overrides (training runs); other slots use `_tuning`.
+var _slot_tunings: Dictionary = {}
 
 
 func set_match_provider(provider: Variant) -> void:
@@ -106,7 +108,7 @@ func begin_match(header: Dictionary, bot_slots: PackedInt32Array, match_index: i
 		record["match_index"] = match_index
 		record["slot"] = slot_id
 		record["horizons_s"] = Array(config.horizons_s)
-		record["weights"] = BotDecisionRecord.weights_snapshot(_tuning)
+		record["weights"] = BotDecisionRecord.weights_snapshot(tuning_for_slot(slot_id))
 		_write(slot_id, record)
 
 
@@ -126,6 +128,18 @@ func capture(
 	}
 
 
+## Records that `slot_id` plays with `override` (header weights + policy-mismatch scoring); null clears.
+func set_slot_tuning(slot_id: int, override: BotTuning) -> void:
+	if override == null:
+		_slot_tunings.erase(slot_id)
+	else:
+		_slot_tunings[slot_id] = override
+
+
+func tuning_for_slot(slot_id: int) -> BotTuning:
+	return _slot_tunings.get(slot_id, _tuning) as BotTuning
+
+
 ## Post-request half: writes the decision line and queues its outcome horizons.
 func on_decision(context: Dictionary, feed_seq: int, placed_origin: Vector2, reason: StringName) -> void:
 	if not _enabled or context.is_empty():
@@ -139,7 +153,7 @@ func on_decision(context: Dictionary, feed_seq: int, placed_origin: Vector2, rea
 	var candidates: Array[BotCandidate] = []
 	candidates.assign(context["candidates"])
 	var chosen: int = int(context["chosen"])
-	var scored_best: int = BotDecisionRecord.scored_best_index(terms, _tuning)
+	var scored_best: int = BotDecisionRecord.scored_best_index(terms, tuning_for_slot(slot_id))
 	var is_special: bool = bool(context["special"])
 	var id: int = _next_id
 	_next_id += 1
