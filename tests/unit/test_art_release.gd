@@ -84,3 +84,16 @@ func test_weather_bed_is_released_after_fade_and_reloads() -> void:
 	# alive for a few mix cycles; the bed and player no longer reference it.
 	Events.weather_started.emit(&"snow")
 	assert_not_null(amb.bed_player(&"snow"), "bed rebuilt on demand")
+
+
+## Bontago-6cw: a plate fetched from the loader thread is released a few frames later, so the
+## RenderingServer commands queued by the worker (create/initialize) run before the free.
+func test_release_later_holds_the_texture_until_frames_pass() -> void:
+	var texture: ImageTexture = ImageTexture.create_from_image(Image.create(2, 2, false, Image.FORMAT_RGBA8))
+	var ref: WeakRef = weakref(texture)
+	LoadingScreen.release_later(texture)
+	texture = null
+	assert_not_null(ref.get_ref(), "still held right after the release request")
+	await wait_process_frames(LoadingScreen.TEXTURE_RELEASE_FRAMES + 2)
+	assert_null(ref.get_ref(), "freed once the hold frames passed")
+	LoadingScreen.release_later(null)
