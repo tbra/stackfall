@@ -57,6 +57,9 @@ import sys
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import godot_slots  # noqa: E402
+
 GATE_WIN_SHARE = 0.75
 GATE_MIN_MATCHES = 100
 Z95 = 1.959964
@@ -170,8 +173,9 @@ def plan_jobs(pairs: int, base_seed: int, slots_a: str, slots_b: str, swap: bool
 def run_process(cmd: Sequence[str], timeout_s: float) -> str:
     """Run one match; return its combined output ('' on timeout or launch failure)."""
     try:
-        proc = subprocess.run(list(cmd), capture_output=True, text=True, timeout=timeout_s)
-    except (subprocess.TimeoutExpired, OSError):
+        with godot_slots.godot_slot("bot_h2h"):  # machine-wide Godot cap (Bontago-fca.89)
+            proc = subprocess.run(list(cmd), capture_output=True, text=True, timeout=timeout_s)
+    except (subprocess.TimeoutExpired, OSError, TimeoutError):
         return ""
     return (proc.stdout or "") + (proc.stderr or "")
 

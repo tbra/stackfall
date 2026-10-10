@@ -22,6 +22,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import agent_worktree_setup  # noqa: E402
+import godot_slots  # noqa: E402
 
 GIT_TIMEOUT_S = 300
 DEFAULT_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -82,10 +83,11 @@ def godot_exe():
 def import_project(path):
     """Headless import so .godot exists. Returns 'ok', 'failed(<code>)' or 'timeout'."""
     try:
-        p = subprocess.run([godot_exe(), "--headless", "--editor", "--path", path, "--quit"],
-                           capture_output=True, text=True, encoding="utf-8", errors="replace",
-                           timeout=IMPORT_TIMEOUT_S)
-    except subprocess.TimeoutExpired:
+        with godot_slots.godot_slot("new_worktree import"):  # machine-wide Godot cap (Bontago-fca.89)
+            p = subprocess.run([godot_exe(), "--headless", "--editor", "--path", path, "--quit"],
+                               capture_output=True, text=True, encoding="utf-8", errors="replace",
+                               timeout=IMPORT_TIMEOUT_S)
+    except (subprocess.TimeoutExpired, TimeoutError):
         return "timeout"
     except OSError as e:
         return "failed(%s)" % type(e).__name__

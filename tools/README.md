@@ -105,6 +105,26 @@ writes `<scene>_sheet.png` next to the captures (unlabelled cells, row-major
 capture order, names printed). Retrofitted: screenshot_fog, screenshot_rain,
 screenshot_pt7_pause.
 
+## `godot_slots.py`, `cpumon.ps1` (machine-wide Godot cap, Bontago-fca.89)
+
+Too many concurrent Godot processes crashed the owner's PC, so launches queue on a
+cross-process counting semaphore (lock file per slot, owner PID, stale PIDs reclaimed;
+state in `M:/Bontago-tools/locks/godot_slots/`, override `STACKFALL_GODOT_SLOTS_DIR`).
+Cap `STACKFALL_GODOT_SLOTS` (default 3); max wait `STACKFALL_GODOT_SLOTS_WAIT` (3600 s,
+exit 75 on timeout). `run_gut.ps1`, `full_gate.py` (per shard), `bot_h2h.py` (per match),
+`measure_startup.py` and `new_worktree.py` take a slot automatically.
+
+```
+python tools/godot_slots.py status
+python tools/godot_slots.py run --label probe -- godot --headless --path . --quit   # exit code propagated
+python tools/godot_slots.py acquire | release <n>                                   # for scripts that cannot wrap
+python -I tools/test_godot_slots.py
+powershell -NoProfile -File tools/cpumon.ps1 [-MaxGodot 3 -CpuHighPct 90 -MaxMinutes 120 -Log <file>]
+```
+
+`cpumon.ps1` samples every 10 s (log line includes `slots=`), exits 2/3/4 with an ALERT
+line on too many Godot processes / sustained CPU / low RAM, and 0 after MaxMinutes.
+
 ## `bot_dataset.py`, `bot_fit_weights.py`, `bot_h2h.py` (bot training, Bontago-1t5.12; P1b options 1t5.20)
 
 Python-only (stdlib) tooling for the recorder output described in

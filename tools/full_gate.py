@@ -26,6 +26,7 @@ import time
 import xml.etree.ElementTree as ET
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import godot_slots  # noqa: E402
 import lint_magic_numbers  # noqa: E402
 import lint_single_source  # noqa: E402
 import lint_layers  # noqa: E402
@@ -163,19 +164,37 @@ def suite_times(out_dir, name):
 
 
 def run_batch(path, out_dir, batches, timeout_s):
-    started = time.time()
-    procs = {name: start(path, out_dir, name, tests) for name, tests in batches}
+    # Each shard takes a machine-wide Godot slot (tools/godot_slots.py); shards beyond the free
+    # slots wait here and their timeout clock starts when they launch.
+    pending = list(batches)
+    procs = {}
+    slots = {}
+    t_start = {}
     finished = {}
-    while len(finished) < len(procs):
+    announced = False
+    total = len(batches)
+    while len(finished) < total:
+        while pending:
+            slot = godot_slots.try_acquire("full_gate:" + pending[0][0])
+            if slot is None:
+                if not announced:
+                    print("waiting for Godot slot (%d/%d busy)" % (godot_slots.busy_count(), godot_slots.cap()), flush=True)
+                    announced = True
+                break
+            name, tests = pending.pop(0)
+            procs[name] = start(path, out_dir, name, tests)
+            slots[name] = slot
+            t_start[name] = time.time()
         for name, (proc, log, log_path) in procs.items():
             if name in finished:
                 continue
             code = proc.poll()
-            if code is None and time.time() - started > timeout_s:
+            if code is None and time.time() - t_start[name] > timeout_s:
                 proc.kill()
                 code = "timeout"
             if code is not None:
-                finished[name] = (code, round(time.time() - started, 1))
+                finished[name] = (code, round(time.time() - t_start[name], 1))
+                godot_slots.release(slots[name])
         time.sleep(0.5)
     results = {}
     for name, (proc, log, log_path) in procs.items():
