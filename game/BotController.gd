@@ -80,6 +80,8 @@ var _countdown: float = 0.0
 
 var _state: State = State.IDLE
 var _brain: Brain = Brain.LEGACY
+## Bot V2: the snapshot the current think-cycle started from (read by the special planner).
+var _special_view: BotWorldView = null
 var _think: BotThink = null
 var _think_frames_used: int = 0
 ## Physics frame this bot last ran a THINKING tick, and whether the shared cap blocked it
@@ -292,10 +294,41 @@ func _begin_thinking(match_ref: Variant) -> void:
 		_goal_positions(), raster.tuning().goal_zone_radius,
 		shape, next_shape, _mode_goal(match_ref), _active_special_positions(), _landed_gift_positions(match_ref)
 	)
+	_special_view = view
 	_think = BotThink.new(view, _profile, _rng)
 	_think.tuning = tuning
 	_think_frames_used = 0
 	_state = State.THINKING
+
+
+## Bot V2 (Bontago-1t5.24): the held special planned against this piece's world snapshot and
+## its chain graph (built here, only when a special is actually held).
+func _plan_special_v2(held_special_id: StringName) -> BotSpecialPlanner.BotSpecialAction:
+	return BotSpecialPlanner.plan_v2(
+		held_special_id,
+		_special_view,
+		BotChains.build(_special_view),
+		_profile,
+		tuning,
+		_territory_sample_points(),
+		_throw_range_m(),
+		black_hole_pull_radius_m(),
+		_special_effect_radius_m(held_special_id)
+	)
+
+
+## Effect radius (m) of a placed special, read from its shipped SpecialDef effect (area/base/hole/
+## splash radius, or the explosion blast radius); 0.0 when unknown (planner then does not cap).
+func _special_effect_radius_m(special_id: StringName) -> float:
+	var def: SpecialDef = SpecialDef.find_by_id(special_id)
+	if def == null or def.effect == null:
+		return 0.0
+	for property: String in ["base_radius_m", "hole_radius_m", "splash_radius_m", "radius_m"]:
+		var value: Variant = def.effect.get(property)
+		if value is float and float(value) > 0.0:
+			return float(value)
+	var blast: ExplosionTuning = def.effect.get("blast") as ExplosionTuning
+	return blast.radius_m if blast != null else 0.0
 
 
 func _tick_thinking() -> void:
@@ -592,18 +625,23 @@ func _tick_acting() -> void:
 	var match_ref: Variant = _match()
 	var held_special_id: StringName = StringName(match_ref.held_special(_slot_id))
 	if held_special_id != &"":
-		var action: BotSpecialPlanner.BotSpecialAction = BotSpecialPlanner.plan(
-			held_special_id,
-			_home_position(),
-			_territory_sample_points(),
-			_enemy_circle_centers(),
-			_active_special_positions(),
-			_difficulty,
-			tuning,
-			[],
-			_throw_range_m(),
-			black_hole_pull_radius_m()
-		)
+		var action: BotSpecialPlanner.BotSpecialAction = null
+		if _brain == Brain.V2 and _special_view != null:
+			# Bot V2 (Bontago-1t5.24): chain-aware targeting; the LEGACY call below is unchanged.
+			action = _plan_special_v2(held_special_id)
+		else:
+			action = BotSpecialPlanner.plan(
+				held_special_id,
+				_home_position(),
+				_territory_sample_points(),
+				_enemy_circle_centers(),
+				_active_special_positions(),
+				_difficulty,
+				tuning,
+				[],
+				_throw_range_m(),
+				black_hole_pull_radius_m()
+			)
 		if action.should_throw:
 			_apply_rejection_backoff(_send_throw(action))
 			return

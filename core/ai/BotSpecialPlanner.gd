@@ -146,6 +146,234 @@ static func plan(
 			return BotSpecialAction.new()
 
 
+## Bot V2 (docs/BOT_AI_REDESIGN.md 2.3 step 7, Bontago-1t5.24): the same per-type effect
+## contract as plan() (spec 2.6: Rocket does not home, Propeller does not blow sideways,
+## Bomb is the only thrown one), but targets read the chain graph instead of enemy circle
+## centres. Offensive area specials aim at the enemy circle whose removal costs its team the
+## most (BotChains.downstream: a joint or tower base); Paintball at the tallest enemy
+## stack; Freeze/Glue at the own goal-covering or most threatened tower; Stackfall at the
+## own tip; tilt specials keep plan()'s heuristic. A tier with both special flags false
+## (Easy) never uses one; offensive types also need uses_offensive_specials. `own_points`
+## are the disk-local own-territory sites a placement can really land on (V2 candidates);
+## `place_target` snaps to the nearest one, like plan(). No target in range -> a default
+## action (spend it like an ordinary block).
+static func plan_v2(
+	special_id: StringName,
+	view: BotWorldView,
+	chains: BotChains,
+	profile: BotDifficultyProfile,
+	tuning: BotTuning,
+	own_points: PackedVector2Array = PackedVector2Array(),
+	throw_range_m: float = 0.0,
+	black_hole_pull_radius_m: float = 0.0,
+	effect_radius_m: float = 0.0
+) -> BotSpecialAction:
+	var offensive: bool = profile != null and profile.uses_offensive_specials
+	var defensive: bool = profile != null and profile.uses_defensive_specials
+	if view == null or chains == null or tuning == null or (not offensive and not defensive):
+		return BotSpecialAction.new()
+	match special_id:
+		&"bomb":
+			if not offensive:
+				return BotSpecialAction.new()
+			return _v2_bomb(view, chains, tuning, own_points, throw_range_m)
+		&"rocket", &"volcano", &"jumping_bean":
+			if not offensive:
+				return BotSpecialAction.new()
+			var joint: int = _v2_best_joint(view, chains, tuning, tuning.special_v2_reach_m, -1.0)
+			return _v2_place_at(view, joint, own_points, _v2_max_offset(tuning, effect_radius_m))
+		&"black_hole":
+			if not offensive or black_hole_pull_radius_m <= 0.0:
+				return BotSpecialAction.new()
+			var hole_joint: int = _v2_best_joint(
+				view, chains, tuning, tuning.special_v2_reach_m, black_hole_pull_radius_m
+			)
+			return _v2_place_at(view, hole_joint, own_points, _v2_max_offset(tuning, black_hole_pull_radius_m))
+		&"paintball":
+			if not offensive:
+				return BotSpecialAction.new()
+			return _v2_place_at(
+				view, _v2_tallest_enemy(view, chains, tuning), own_points, _v2_max_offset(tuning, effect_radius_m)
+			)
+		&"freeze", &"glue":
+			if not defensive:
+				return BotSpecialAction.new()
+			return _v2_place_at(view, _v2_defended_tower(view, chains, tuning), own_points)
+		&"stackfall":
+			return _v2_place_at(view, _v2_own_tip(view, chains), own_points)
+		&"earthquake", &"anvil", &"propeller":
+			return _plan_tilt(view.own_home, own_points)
+		_:
+			return BotSpecialAction.new()
+
+
+## Bomb: thrown at the best enemy joint; default action when none qualifies or no own
+## release point lands within `special_v2_throw_tolerance_m` of the host's fixed throw range.
+static func _v2_bomb(
+	view: BotWorldView, chains: BotChains, tuning: BotTuning, own_points: PackedVector2Array, throw_range_m: float
+) -> BotSpecialAction:
+	var action: BotSpecialAction = BotSpecialAction.new()
+	var ranged: bool = throw_range_m > 0.0 and not own_points.is_empty()
+	var reach: float = INF if ranged else tuning.special_v2_reach_m
+	var joint: int = _v2_best_joint(view, chains, tuning, reach, -1.0)
+	if joint < 0:
+		return action
+	var target: Vector2 = Vector2(view.cx[joint], view.cz[joint])
+	var origin: Vector2 = _nearest(own_points, target, view.own_home)
+	if ranged:
+		var best_error: float = INF
+		for point: Vector2 in own_points:
+			var error: float = absf(point.distance_to(target) - throw_range_m)
+			if error < best_error:
+				best_error = error
+				origin = point
+		if best_error > tuning.special_v2_throw_tolerance_m:
+			return action
+	var velocity: Vector3 = _ballistic_velocity(origin, target, tuning)
+	if velocity == Vector3.ZERO or not velocity.is_finite():
+		return action
+	action.should_throw = true
+	action.throw_origin = origin
+	action.throw_velocity = velocity
+	action.should_place_ordinarily = false
+	return action
+
+
+## Placement action aimed at circle `index` (default action when index < 0).
+static func _v2_place_at(
+	view: BotWorldView, index: int, own_points: PackedVector2Array, max_offset_m: float = INF
+) -> BotSpecialAction:
+	var action: BotSpecialAction = BotSpecialAction.new()
+	if index < 0 or index >= view.circle_count():
+		return action
+	var target: Vector2 = Vector2(view.cx[index], view.cz[index])
+	var snapped: Vector2 = _nearest(own_points, target, target)
+	if snapped.distance_to(target) > max_offset_m:
+		return action
+	action.place_target = snapped
+	action.has_place_target = true
+	action.should_place_ordinarily = true
+	return action
+
+
+## Farthest a placed special may land from its target: its effect radius plus
+## `special_v2_effect_margin_m` (INF = uncapped when the caller supplies no radius).
+static func _v2_max_offset(tuning: BotTuning, effect_radius_m: float) -> float:
+	if effect_radius_m <= 0.0:
+		return INF
+	return effect_radius_m + tuning.special_v2_effect_margin_m
+
+
+## The in-reach enemy circle with the highest BotChains.downstream (plus a small height
+## tiebreak); -1 when none reaches `special_v2_min_downstream`. With `pull_radius_m` > 0 the
+## score also loses `black_hole_own_penalty` per own circle that radius would drag in and
+## must stay at or above `black_hole_min_net_score`.
+static func _v2_best_joint(
+	view: BotWorldView, chains: BotChains, tuning: BotTuning, reach_m: float, pull_radius_m: float
+) -> int:
+	var best: int = -1
+	var best_score: float = -INF
+	for i: int in range(view.circle_count()):
+		if view.cteam[i] == view.team_id or not chains.connected(i):
+			continue
+		var centre: Vector2 = Vector2(view.cx[i], view.cz[i])
+		if chains.gap_to(view.team_id, centre) > reach_m:
+			continue
+		var downstream: int = chains.downstream(i)
+		if downstream < tuning.special_v2_min_downstream:
+			continue
+		var score: float = float(downstream)
+		if pull_radius_m > 0.0:
+			score -= tuning.black_hole_own_penalty * float(_v2_own_within(view, centre, pull_radius_m))
+			if score < tuning.black_hole_min_net_score:
+				continue
+		score += tuning.special_v2_height_tiebreak * view.top_height(i)
+		if score > best_score:
+			best_score = score
+			best = i
+	return best
+
+
+## The in-reach enemy circle with the tallest top (Paintball converts a stack); -1 below
+## `special_v2_paintball_min_height_m`.
+static func _v2_tallest_enemy(view: BotWorldView, chains: BotChains, tuning: BotTuning) -> int:
+	var best: int = -1
+	var best_height: float = tuning.special_v2_paintball_min_height_m
+	for i: int in range(view.circle_count()):
+		if view.cteam[i] == view.team_id or not chains.connected(i):
+			continue
+		if chains.gap_to(view.team_id, Vector2(view.cx[i], view.cz[i])) > tuning.special_v2_reach_m:
+			continue
+		var height: float = view.top_height(i)
+		if height >= best_height:
+			best_height = height
+			best = i
+	return best
+
+
+## The own tower Freeze/Glue should protect: the tallest own circle covering a goal; else the
+## own circle with the highest downstream that has an enemy circle within
+## `special_v2_threat_gap_m` (edge to edge); -1 when neither exists.
+static func _v2_defended_tower(view: BotWorldView, chains: BotChains, tuning: BotTuning) -> int:
+	var covering: int = -1
+	var covering_height: float = -1.0
+	var threatened: int = -1
+	var threatened_score: float = -INF
+	for i: int in range(view.circle_count()):
+		if view.cteam[i] != view.team_id or not chains.connected(i):
+			continue
+		var centre: Vector2 = Vector2(view.cx[i], view.cz[i])
+		for goal: Vector2 in view.goals:
+			if goal.distance_to(centre) <= view.cr[i] and view.top_height(i) > covering_height:
+				covering_height = view.top_height(i)
+				covering = i
+		if _v2_enemy_edge_gap(view, centre, view.cr[i]) <= tuning.special_v2_threat_gap_m:
+			var score: float = float(chains.downstream(i)) + tuning.special_v2_height_tiebreak * view.top_height(i)
+			if score > threatened_score:
+				threatened_score = score
+				threatened = i
+	return covering if covering >= 0 else threatened
+
+
+## The own connected circle closest to a goal (farthest from home when the map has none): the
+## tip Stackfall rains around; -1 when the team has no block circle.
+static func _v2_own_tip(view: BotWorldView, chains: BotChains) -> int:
+	var best: int = -1
+	var best_key: float = INF
+	for i: int in range(view.circle_count()):
+		if view.cteam[i] != view.team_id or not chains.connected(i):
+			continue
+		var centre: Vector2 = Vector2(view.cx[i], view.cz[i])
+		var key: float = -centre.distance_to(view.own_home)
+		if not view.goals.is_empty():
+			key = INF
+			for goal: Vector2 in view.goals:
+				key = minf(key, goal.distance_to(centre))
+		if key < best_key:
+			best_key = key
+			best = i
+	return best
+
+
+static func _v2_own_within(view: BotWorldView, centre: Vector2, radius_m: float) -> int:
+	var count: int = 0
+	for i: int in range(view.circle_count()):
+		if view.cteam[i] == view.team_id and centre.distance_to(Vector2(view.cx[i], view.cz[i])) <= radius_m:
+			count += 1
+	return count
+
+
+## Smallest edge-to-edge distance from a circle (centre, radius) to any enemy circle or home.
+static func _v2_enemy_edge_gap(view: BotWorldView, centre: Vector2, radius_m: float) -> float:
+	var best: float = INF
+	for i: int in range(view.circle_count()):
+		if view.cteam[i] != view.team_id:
+			best = minf(best, centre.distance_to(Vector2(view.cx[i], view.cz[i])) - radius_m - view.cr[i])
+	for home: Vector2 in view.enemy_homes:
+		best = minf(best, centre.distance_to(home) - radius_m - view.territory_tuning.home_radius)
+	return best
+
+
 ## Rocket (spec 2.6: launches upward on activation, no homing, explodes on
 ## fuel-out): a thrown/aimed launch would imply a homing target it doesn't
 ## have -- placed instead, near the densest enemy cluster, `should_throw`
