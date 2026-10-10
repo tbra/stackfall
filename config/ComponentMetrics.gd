@@ -31,3 +31,20 @@ extends Resource
 ## Font size of the glyph (the default X) inside an icon button; the block's top, lip and ledge
 ## plus this line must still fit row_height_px.
 @export var icon_glyph_font_px: int = 16
+
+## Toggle (Bontago-1pi.159.5): the sunken well the knob slides in (width x height), the gap
+## between well edge and knob.
+@export var toggle_well_width_px: int = 52
+@export var toggle_well_height_px: int = 26
+@export var toggle_knob_inset_px: int = 3
+
+## ChipToggle: edge of the check box drawn left of the label and the stroke of its tick.
+@export var chip_box_px: int = 18
+@export var chip_check_stroke_px: int = 3
+
+## Stepper: font size of the Bungee value between the - and + blocks.
+@export var stepper_value_font_px: int = 16
+
+## Tabs: height of one tab (the active tab's rim notch sits inside it) and the notch thickness.
+@export var tab_height_px: int = 40
+@export var tab_notch_px: int = 4
