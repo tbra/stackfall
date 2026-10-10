@@ -857,12 +857,18 @@ func _on_sound_button_hovered() -> void:
 ## into game/Main.gd directly -- keeping this file's own "no node paths into
 ## game/Main.gd" rule intact while giving Main.gd something to connect to.
 func _apply_visual_style() -> void:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	_settings_card.add_theme_stylebox_override("panel", MenuStyleFactory.make_card(tuning.card_cream_color, tuning))
 	_players_card.add_theme_stylebox_override("panel", MenuStyleFactory.make_card(tuning.card_cream_color, tuning))
 	_settings_column.add_theme_constant_override("separation", layout_tuning.section_spacing_px)
 	_apply_row_layout()
 	for section: LobbySection in _sections():
 		section.apply_style(tuning, layout_tuning)
+	LobbySection.style_heading(_settings_column.get_node("Title") as Label)
+	for caption_cell: Node in _settings_column.find_children("*", "Label", true, false):
+		if caption_cell.is_in_group(LABEL_CELL_GROUP):
+			(caption_cell as Label).theme_type_variation = &"FieldLabel"
+			(caption_cell as Label).text = (caption_cell as Label).text.to_upper()
 
 	# Bontago-mp0.3.5 (review r2, item 2): a round "-"/"+" stepper pill around the
 	# goal-flag SpinBox (mockup 11) -- the SpinBox itself stays exactly as it was
@@ -884,9 +890,8 @@ func _apply_visual_style() -> void:
 	thumb_box.set_corner_radius_all(14)
 	_map_thumbnail.add_theme_stylebox_override("panel", thumb_box)
 
-	MenuStyleFactory.apply_pill(
-		_start_button, tuning.pill_coral_color, tuning.pill_coral_hover_color, tuning.label_ink_light_color, tuning
-	)
+	# Arcade: START MATCH is the screen's one primary action, a full-size flare block with ink label.
+	MenuStyleFactory.apply_block(_start_button, arcade.flare_color, arcade.ink_color)
 	MenuStyleFactory.apply_pill(
 		_invite_friends_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning
 	)
@@ -902,9 +907,10 @@ func _apply_visual_style() -> void:
 	_gravity_slider.add_theme_stylebox_override("slider", well_box)
 	_special_freq_slider.add_theme_stylebox_override("slider", well_box)
 	for chip: PanelContainer in [_block_timer_chip, _gravity_chip, _special_freq_chip]:
-		chip.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(tuning.pill_coral_color, tuning))
+		# Arcade: a slider readout is plain cream text (no coral chip) so the value never competes with START.
+		chip.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 		var chip_label: Label = chip.get_child(0) as Label
-		chip_label.add_theme_color_override("font_color", tuning.label_ink_light_color)
+		chip_label.add_theme_color_override("font_color", arcade.cream_color)
 
 	# Bontago-xtq.32 redo #3: compact toggle chips (specials grid + the
 	# Advanced Rules strip's two CheckButtons) replace round-1's full-width
@@ -948,18 +954,14 @@ func _apply_visual_style() -> void:
 	for caption: Label in captions:
 		caption.add_theme_color_override("font_color", tuning.label_muted_color)
 
-	_status_badge.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(tuning.pill_cream_color, tuning))
-	_waiting_status_pill.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(tuning.pill_cream_color, tuning))
+	_status_badge.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(arcade.disc_700_color, tuning))
+	_waiting_status_pill.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(arcade.disc_700_color, tuning))
 	_waiting_status_label.add_theme_color_override("font_color", tuning.ink_color)
 	_status_badge_label.add_theme_color_override("font_color", tuning.ink_color)
 	_header_title.add_theme_color_override("font_color", tuning.ink_color)
-	# Bontago-mp0.3.5 (review r1, item 2): same soft offset shadow treatment as
-	# ui/MainMenu.gd's %TitleShadow, using Label's own shadow theme overrides
-	# instead of a second node (a plain Label, unlike %Title's two-tone
-	# RichTextLabel, can draw its own shadow without a duplicate copy).
-	_header_title.add_theme_color_override("font_shadow_color", tuning.title_shadow_color)
-	_header_title.add_theme_constant_override("shadow_offset_x", int(tuning.title_shadow_offset_px.x))
-	_header_title.add_theme_constant_override("shadow_offset_y", int(tuning.title_shadow_offset_px.y))
+	# Arcade: the lobby backdrop is a bright sky, so the wordmark and title sit on disc plates.
+	for header_label: Label in [_header_eyebrow, _header_title]:
+		header_label.add_theme_stylebox_override("normal", _header_plate(arcade))
 	# Bontago-mp0.3.5 (review r3, problem 6): mockup 11's small "Stackfall"
 	# wordmark reads bold and dark, not the tiny letter-spaced grey caption
 	# treatment every other eyebrow label on this screen uses -- %Eyebrow's
@@ -969,6 +971,18 @@ func _apply_visual_style() -> void:
 	_header_eyebrow.add_theme_color_override("font_color", tuning.ink_color)
 	_players_panel.apply_visual_style()
 	_update_status_badge()
+
+
+## The disc-900 plate behind a header label (Bontago-hfa.5): hud_plate_alpha, block radius, chip padding.
+func _header_plate(arcade: ArcadeVisualTuning) -> StyleBoxFlat:
+	var plate: StyleBoxFlat = StyleBoxFlat.new()
+	plate.bg_color = Color(arcade.disc_900_color, arcade.hud_plate_alpha)
+	plate.set_corner_radius_all(arcade.radius_block_px)
+	plate.content_margin_left = float(arcade.space_3_px)
+	plate.content_margin_right = float(arcade.space_3_px)
+	plate.content_margin_top = float(arcade.space_1_px)
+	plate.content_margin_bottom = float(arcade.space_1_px)
+	return plate
 
 
 ## Gamepad/keyboard shortcuts and back-out (Bontago-1pi.53, S1b; the Advanced rules popup is

@@ -152,6 +152,7 @@ func _ready() -> void:
 
 ## Styling that used to live in the Lobby's _apply_visual_style().
 func apply_visual_style() -> void:
+	LobbySection.style_heading(get_node("TitleRow/Title") as Label)
 	_player_count_label.add_theme_color_override("font_color", tuning.ink_color)
 	# PL1b: the header controls are the same chip / pill family as the rest of the screen
 	# (cream off, mint on; powder blue like the team numbers); no new colours.

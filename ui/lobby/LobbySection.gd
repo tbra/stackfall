@@ -82,21 +82,44 @@ func apply_style(tuning: MenuVisualTuning, layout: LobbyLayoutTuning) -> void:
 		_style_disclosure(tuning)
 
 
-## Bontago-1pi.83: Advanced is a plain text disclosure (triangle + word), not a pill: no
-## background in any state, muted ink that darkens on hover/press; the default focus
+## Arcade look (Bontago-hfa.5): Advanced is a full-width disc-700 bar (triangle + word, the value
+## summary stays in the header above it) that lightens on hover; the shared theme's cream focus
 ## outline stays so keyboard and gamepad users see where they are.
-func _style_disclosure(tuning: MenuVisualTuning) -> void:
-	for state: String in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
-		var gutter: StyleBoxEmpty = StyleBoxEmpty.new()
-		gutter.content_margin_left = float(layout_tuning.advanced_toggle_padding_px)
-		gutter.content_margin_right = float(layout_tuning.advanced_toggle_padding_px)
-		advanced_button.add_theme_stylebox_override(state, gutter)
-	advanced_button.add_theme_color_override("font_color", tuning.label_muted_color)
-	advanced_button.add_theme_color_override("font_pressed_color", tuning.label_muted_color)
-	advanced_button.add_theme_color_override("font_disabled_color", tuning.label_muted_color)
-	advanced_button.add_theme_color_override("font_hover_color", tuning.ink_color)
-	advanced_button.add_theme_color_override("font_hover_pressed_color", tuning.ink_color)
-	advanced_button.add_theme_color_override("font_focus_color", tuning.ink_color)
+func _style_disclosure(_tuning: MenuVisualTuning) -> void:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var faces: Dictionary = {
+		"normal": arcade.disc_700_color, "pressed": arcade.disc_700_color,
+		"disabled": arcade.disc_700_color, "hover": arcade.disc_600_color, "hover_pressed": arcade.disc_600_color,
+	}
+	for state: String in faces:
+		var bar: StyleBoxFlat = StyleBoxFlat.new()
+		bar.bg_color = faces[state]
+		bar.set_corner_radius_all(arcade.radius_block_px)
+		bar.content_margin_left = float(layout_tuning.advanced_toggle_padding_px)
+		bar.content_margin_right = float(layout_tuning.advanced_toggle_padding_px)
+		bar.content_margin_top = float(arcade.space_2_px)
+		bar.content_margin_bottom = float(arcade.space_2_px)
+		advanced_button.add_theme_stylebox_override(state, bar)
+	advanced_button.flat = false
+	advanced_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for item: String in ["font_color", "font_pressed_color", "font_disabled_color"]:
+		advanced_button.add_theme_color_override(item, arcade.sand_color)
+	for item: String in ["font_hover_color", "font_hover_pressed_color", "font_focus_color"]:
+		advanced_button.add_theme_color_override(item, arcade.cream_color)
+
+
+## Panel heading (Bontago-hfa.5): the label's text in capitals with the flare notch on its left,
+## shared by the lobby's two panels ("MATCH SETTINGS", "PLAYERS").
+static func style_heading(label: Label) -> void:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var notch: StyleBoxFlat = StyleBoxFlat.new()
+	notch.bg_color = Color.TRANSPARENT
+	notch.border_color = arcade.flare_color
+	notch.border_width_left = arcade.space_2_px
+	notch.set_corner_radius_all(arcade.radius_cell_px)
+	notch.content_margin_left = float(arcade.space_4_px)
+	label.text = label.text.to_upper()
+	label.add_theme_stylebox_override("normal", notch)
 
 
 ## The one-line summary on the header's right ("Classic · Round · Medium · Cycle").
