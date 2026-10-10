@@ -122,3 +122,16 @@ func test_player_facing_files_name_no_key_or_button_literals() -> void:
 	for path: String in PLAYER_FACING_FILES:
 		var text: String = FileAccess.get_file_as_string(path)
 		assert_null(pattern.search(text), "%s still types a key/button name" % path)
+
+
+func test_words_use_font_spacing_and_last_two_words_are_glued() -> void:
+	var row: InputPromptFlow = autofree(InputPromptFlow.new())
+	row.template = "Aim then place it."
+	add_child_autofree(row)
+	assert_eq(row.get_theme_constant(&"h_separation"), 0, "no container gap between words")
+	var texts: PackedStringArray = PackedStringArray()
+	for child: Node in row.get_children():
+		if child is Label:
+			texts.append((child as Label).text)
+	assert_eq(texts, PackedStringArray(["Aim ", "then ", "place it."]))
+	assert_eq(row.plain_text(), "Aim then place it.")

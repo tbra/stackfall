@@ -22,6 +22,8 @@ const TOKEN_CLOSE: String = "}"
 const GROUP_SEPARATOR: String = "|"
 ## Theme type variation of the action words (13 px caption, stackfall_theme).
 const ACTION_WORD_VARIATION: StringName = &"CaptionLabel"
+## Fewer words than this in the final run are left unglued.
+const MIN_WORDS_TO_GLUE: int = 2
 const INPUT_GLYPH_SCENE: PackedScene = preload("res://ui/InputGlyph.tscn")
 
 ## Template text; set via set_template() or in the inspector.
@@ -39,14 +41,17 @@ const INPUT_GLYPH_SCENE: PackedScene = preload("res://ui/InputGlyph.tscn")
 ## Ink for the word labels (menus pass their palette ink; a transparent default
 ## leaves the theme colour alone).
 var text_color: Color = Color(0.0, 0.0, 0.0, 0.0)
+## True right after a token: the next word run is preceded by a glyph gap.
+var _gap_pending: bool = false
 
 
 func _ready() -> void:
 	# Stackfall Arcade: a cap and its word read as one pair; pairs sit a peer-gap apart.
-	# DECISION (Bontago-hfa.10): words sit a space_2 gap apart (reads as ragged-right body text, not
-	# justified), wrapped lines a space_1 apart, always start-aligned.
+	# DECISION (Bontago-hfa.12): word Labels carry their own trailing space (h_separation 0) so words
+	# sit a normal font space apart; only keycap glyphs get a space_2 gap (_add_gap). Wrapped lines a
+	# space_1 apart, always start-aligned.
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	add_theme_constant_override(&"h_separation", arcade.space_2_px)
+	add_theme_constant_override(&"h_separation", 0)
 	add_theme_constant_override(&"v_separation", arcade.space_1_px)
 	alignment = FlowContainer.ALIGNMENT_BEGIN
 	last_wrap_alignment = FlowContainer.LAST_WRAP_ALIGNMENT_BEGIN
@@ -79,14 +84,15 @@ func refresh() -> void:
 	for child: Node in get_children():
 		remove_child(child)
 		child.queue_free()
+	_gap_pending = false
 	var rest: String = template
 	while not rest.is_empty():
 		var open: int = rest.find(TOKEN_OPEN)
 		var close: int = rest.find(TOKEN_CLOSE, open + 1) if open >= 0 else -1
 		if open < 0 or close < 0:
-			_add_words(rest)
+			_add_words(rest, true)
 			break
-		_add_words(rest.substr(0, open))
+		_add_words(rest.substr(0, open), false)
 		_add_token(rest.substr(open + 1, close - open - 1))
 		rest = rest.substr(close + 1)
 	if single_row:
@@ -143,9 +149,28 @@ func _on_visibility_changed() -> void:
 		refresh()
 
 
-func _add_words(text: String) -> void:
-	for word: String in text.split(" ", false):
-		_add_label(word)
+## Adds the words of one plain-text run. Each Label ends in a space except the run's last word
+## (the space is the font's own advance, not a container gap). In the template's final run the last
+## two words share one Label so a wrap can never leave a single short word alone on the last line.
+func _add_words(text: String, is_final_run: bool) -> void:
+	var words: PackedStringArray = text.split(" ", false)
+	if is_final_run and words.size() >= MIN_WORDS_TO_GLUE:
+		var glued: String = words[words.size() - 2] + " " + words[words.size() - 1]
+		words = words.slice(0, words.size() - 2)
+		words.append(glued)
+	if _gap_pending and not words.is_empty():
+		_add_gap()
+		_gap_pending = false
+	for index: int in words.size():
+		var is_last: bool = index == words.size() - 1
+		_add_label(words[index] if is_last else words[index] + " ")
+
+
+func _add_gap() -> void:
+	var gap: Control = Control.new()
+	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gap.custom_minimum_size = Vector2(float(MenuStyleFactory.arcade_tuning().space_2_px), 0.0)
+	add_child(gap)
 
 
 func _add_label(text: String) -> void:
@@ -161,6 +186,9 @@ func _add_label(text: String) -> void:
 
 
 func _add_token(token: String) -> void:
+	if get_child_count() > 0:
+		_add_gap()
+	_gap_pending = true
 	var shown_texts: PackedStringArray = PackedStringArray()
 	var unbound: Array[String] = []
 	for action_name: String in token.split(GROUP_SEPARATOR, false):
