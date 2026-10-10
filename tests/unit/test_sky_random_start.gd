@@ -72,11 +72,5 @@ func test_fixed_presets_ignore_the_random_start() -> void:
 	assert_almost_eq(_opening_phase(config), _def.cycle_locked_phase_night, PHASE_EPSILON)
 
 
-func test_loading_backdrop_follows_the_chosen_phase() -> void:
-	var screen: LoadingScreen = load("res://ui/LoadingScreen.tscn").instantiate() as LoadingScreen
-	add_child_autofree(screen)
-	var config: MatchConfig = MatchConfig.new()
-	config.sky_start_phase = _def.cycle_locked_phase_sunset
-	assert_eq(screen._backdrop_theme_id(config), "sunset")
-	config.sky_start_phase = _def.cycle_locked_phase_dawn
-	assert_eq(screen._backdrop_theme_id(config), "dawn")
+# test_loading_backdrop_follows_the_chosen_phase was removed (Bontago-1pi.157): the loading backdrop is
+# now a random main-menu image, no longer derived from the sky phase.

@@ -16,6 +16,8 @@ func before_each() -> void:
 	_screen.tuning = LoadingScreenTuning.new()
 	_screen.tuning.warmup_frames = 2
 	_screen.tuning.fade_out_duration_s = 0.05
+	# The runner fast-forwards frames, so the game-time stall timeout would fire before a real-time image load.
+	_screen.tuning.ready_timeout_s = STALL_TIMEOUT_S
 
 
 func _config(variant: int = MatchConfig.MapVariant.ROUND, size: int = MapDef.MapSize.MEDIUM) -> MatchConfig:
@@ -235,6 +237,8 @@ func test_fade_runs_on_the_layer_content_and_the_next_show_is_opaque_again() -> 
 # Game-time budget; wait_until returns as soon as the image loads. The runners use
 # --fixed-fps (frames outrun the worker-thread load), so allow generous frames.
 const LOAD_WAIT_S: float = 60.0
+const REAL_LOAD_WAIT_MS: int = 60000
+const STALL_TIMEOUT_S: float = 3600.0
 const COVER_SIZES: Array[Vector2i] = [Vector2i(1280, 720), Vector2i(3440, 1440)]
 const MENU_TUNING_PATH: String = "res://config/main_menu_tuning.tres"
 
@@ -245,6 +249,14 @@ func _menu_paths() -> PackedStringArray:
 
 func _plate_loaded() -> bool:
 	return _screen.backdrop_texture() != null
+
+
+## The 4K image decodes on a worker thread in real time while the runner fast-forwards frames, so
+## a game-time budget is not enough on a busy machine: wait on the wall clock instead.
+func _wait_real(condition: Callable) -> void:
+	var start_ms: int = Time.get_ticks_msec()
+	while not condition.call() and Time.get_ticks_msec() - start_ms < REAL_LOAD_WAIT_MS:
+		await get_tree().process_frame
 
 
 func test_the_backdrop_is_one_of_the_main_menus_images() -> void:
@@ -271,13 +283,13 @@ func test_a_pending_overlay_without_a_config_has_no_backdrop_until_the_match_arr
 	assert_false((_screen.get_node("%Backdrop") as Control).visible)
 	_screen.show_for_match(_config(), _slots(2))
 	assert_true(_menu_paths().has(_screen.backdrop_path()))
-	await wait_until(_plate_loaded, LOAD_WAIT_S, "the image loads on a worker thread")
+	await _wait_real(_plate_loaded)
 	assert_eq(_screen.backdrop_shown_path(), _screen.backdrop_path())
 
 
 func test_the_backdrop_loads_threaded_and_is_shown_cover_cropped_behind_the_card() -> void:
 	_screen.show_for_match(_config(), _slots(2))
-	await wait_until(_plate_loaded, LOAD_WAIT_S, "the image loads on a worker thread")
+	await _wait_real(_plate_loaded)
 	var backdrop: TextureRect = _screen.get_node("%Backdrop") as TextureRect
 	assert_true(backdrop.visible)
 	assert_eq(backdrop.texture.resource_path, _screen.backdrop_path())
@@ -316,7 +328,7 @@ func test_the_backdrop_fills_the_screen_at_1280x720_and_3440x1440_and_the_card_s
 
 func test_the_backdrop_fades_with_the_overlay() -> void:
 	_screen.show_for_match(_config(), _slots(2))
-	await wait_until(_plate_loaded, LOAD_WAIT_S, "the plate loads")
+	await _wait_real(_plate_loaded)
 	assert_eq((_screen.get_node("%Backdrop") as Node).get_parent(), _screen.get_node("%Content"), "the plate lives in the faded Content, so fade_out takes it too.")
 	_screen.fade_out()
 	# The 4K image's first upload can hitch frames, so wait for the fade rather than a fixed time.
