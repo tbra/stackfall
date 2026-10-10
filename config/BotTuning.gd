@@ -183,6 +183,21 @@ extends Resource
 @export var black_hole_own_penalty: float = 1.5
 @export var black_hole_min_net_score: float = 1.0
 
+## Bot V2 specials (Bontago-1t5.24, BotSpecialPlanner.plan_v2). Reach: how far (m) beyond own
+## land an offensive target may sit. Min downstream: fewest circles a joint must cut off to be
+## worth an area special. Height tiebreak: score per metre of tower height. Throw tolerance: how
+## far (m) the nearest own release point may be from the host's fixed throw range. Paintball min
+## height: shortest enemy stack worth converting. Threat gap: edge distance (m) under which an
+## own tower counts as threatened for Freeze/Glue.
+@export var special_v2_reach_m: float = 6.0
+@export var special_v2_min_downstream: int = 2
+@export var special_v2_height_tiebreak: float = 0.1
+@export var special_v2_throw_tolerance_m: float = 3.0
+@export var special_v2_paintball_min_height_m: float = 1.0
+@export var special_v2_threat_gap_m: float = 6.0
+## Slack (m) added to a placed special's effect radius when snapping it to own land.
+@export var special_v2_effect_margin_m: float = 1.0
+
 ## Returns the profile for `difficulty`; NORMAL (and any out-of-range value)
 ## falls back to `normal` rather than failing, so a stale/corrupt wire value
 ## never leaves a bot with a null profile.
