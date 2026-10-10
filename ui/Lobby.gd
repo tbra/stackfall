@@ -310,6 +310,8 @@ var _last_config: MatchConfig = null
 var _start_was_shown: bool = false
 var _ready_was_shown: bool = true
 var _invite_was_shown: bool = false
+## Bontago-1pi.164: the non-Steam internet join-code row (isolated in ui/JoinCodeRow.gd).
+var _join_code_row: JoinCodeRow = null
 
 
 func _ready() -> void:
@@ -346,6 +348,7 @@ func _ready() -> void:
 	_ready_check.toggled.connect(_on_ready_toggled)
 	_invite_friends_button.pressed.connect(_on_invite_friends_pressed)
 	_back_button.pressed.connect(_on_back_pressed)
+	_build_join_code_row()
 	_connect_click_and_hover_sounds()
 	Events.net_lobby_data_changed.connect(_on_lobby_data_changed)
 	Events.net_peer_joined.connect(_on_peer_joined)
@@ -633,7 +636,10 @@ func _wire_focus_chain() -> void:
 	# settings and the footer, in visual order; the panel asks for a rewire through
 	# focus_entries_changed.
 	chain.append_array(_players_panel.focus_entries())
-	chain.append_array([_back_button, _invite_friends_button, _ready_check, _start_button])
+	chain.append_array([_back_button, _invite_friends_button])
+	if _join_code_row != null:
+		chain.append(_join_code_row.copy_button())
+	chain.append_array([_ready_check, _start_button])
 	_main_chain = chain
 	_rewire_focus()
 
@@ -1800,6 +1806,16 @@ func _on_invite_friends_pressed() -> void:
 		net_provider.invite_friends()
 
 
+## Bontago-1pi.164: appends the join-code row under the footer buttons (the footer stays directly under the panel).
+func _build_join_code_row() -> void:
+	var footer: Node = _invite_friends_button.get_parent()
+	var column: Node = footer.get_parent()
+	_join_code_row = JoinCodeRow.new()
+	_join_code_row.name = "JoinCodeRow"
+	column.add_child(_join_code_row)
+	_join_code_row.visibility_changed_for_focus.connect(_rewire_focus)
+
+
 # --- Host/client control gating ----------------------------------------------
 
 func _update_host_only_state() -> void:
@@ -1826,6 +1842,8 @@ func _update_host_only_state() -> void:
 	)
 	_start_button.tooltip_text = start_blocker
 	_invite_friends_button.visible = is_host and net_provider != null and bool(net_provider.is_steam_session())
+	if _join_code_row != null:
+		_join_code_row.refresh(net_provider, is_host)
 	# Bontago-1pi.53 (S1a): Start and Invite Friends are focus stops only while shown, so
 	# the loop is rewired when their visibility flips (a role or transport change), not
 	# every frame.

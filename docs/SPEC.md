@@ -457,6 +457,7 @@ Do not invent a replacement formula in the name of accuracy. These are review fi
 - **Steam startup:** If Steam isn't running, the game still works with LAN and direct IP. Hide the online menu entries and show a notice.
 - **Channels:** Use a separate channel for snapshots only if the chosen Steam peer supports channels. Otherwise send snapshots as unreliable packets and tag each with a sequence number.
 - **Version check:** Refuse connections when the game build version doesn't match. Compare the version when joining a lobby and during the ENet handshake.
+- **Internet play without Steam (owner decision 2026-10-10):** a non-Steam ENet host opens its UDP game port with Godot's built-in UPnP (worker thread; mapping removed when hosting stops and at quit) and the lobby shows a join code (IPv4 + port, `XXXXX-XXXXX`); the Join page's address field accepts an IP[:port] or a join code. If the router refuses, the lobby says so and suggests Steam or a manual UDP port forward. IPv4 only; no relay or outside service.
 - **Anti-cheat:** Out of scope beyond the host checking every intent (friends-only game).
 
 **Model:** Host-authoritative listen server. The host is also a player. It uses the high-level multiplayer API on top of whichever transport is selected. **Only the host simulates physics.** Clients set every synced RigidBody3D to `freeze = true` (kinematic) and move them by interpolating snapshots. [NEW]

@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="UpnpConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/UpnpConfig.gd" id="1_upnp"]
+
+[resource]
+script = ExtResource("1_upnp")
+discover_timeout_ms = 2000
+discover_ttl = 2
+mapping_description = "Stackfall"
+lease_seconds = 3600
+enabled = true

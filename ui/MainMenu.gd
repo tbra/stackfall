@@ -678,9 +678,9 @@ func _on_refresh_pressed() -> void:
 
 
 func _on_direct_join_pressed() -> void:
-	var parsed: Dictionary = parse_address(_direct_ip_edit.text)
+	var parsed: Dictionary = resolve_join_text(_direct_ip_edit.text)
 	if not bool(parsed.get("valid", false)):
-		_show_status("Enter an address like 1.2.3.4 or 1.2.3.4:47999")
+		_show_status(str(parsed.get("reason", "Enter an address like 1.2.3.4 or 1.2.3.4:47999")))
 		return
 	_join(str(parsed.get("address", "")), int(parsed.get("port", 0)))
 
@@ -883,6 +883,14 @@ func show_status(text: String) -> void:
 
 func _show_status(text: String) -> void:
 	_status_label.text = text
+
+
+## Bontago-1pi.164: the direct-join field takes an IP[:port] or a join code (core/net/JoinCode.gd).
+## Returns parse_address()'s shape, plus a "reason" for a bad code.
+static func resolve_join_text(text: String) -> Dictionary:
+	if JoinCode.looks_like_code(text):
+		return JoinCode.decode(text)
+	return parse_address(text)
 
 
 ## Split out from the button handler so it can be unit-tested without a
