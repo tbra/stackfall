@@ -103,6 +103,40 @@ func setup(slot_id: int, difficulty: MatchConfig.AiDifficulty, field: Field, reg
 	_generation_frames_used = 0
 
 
+## Bontago-1t5.13 (BT5): per-bot BotTuning override. `tuning_with_weights()` builds the copy, this
+## installs it (the shipped, shared resource is never touched). Null restores the shipped tuning.
+func set_tuning_override(override: BotTuning) -> void:
+	tuning = override if override != null else (load("res://config/bot_tuning.tres") as BotTuning)
+	_profile = tuning.profile_for(_difficulty)
+
+
+## Largest absolute value a trained weight override may take (anything beyond is clamped).
+const WEIGHT_OVERRIDE_LIMIT: float = 100.0
+
+
+## Duplicates `base` and applies only the known `weight_*` float fields of `weights` (name -> value).
+## Unknown keys, non-numeric and non-finite values are skipped with ONE combined warning; the rest are
+## clamped to +-WEIGHT_OVERRIDE_LIMIT. `base` is never modified.
+static func tuning_with_weights(base: BotTuning, weights: Dictionary) -> BotTuning:
+	var copy: BotTuning = base.duplicate() as BotTuning
+	var known: Dictionary = {}
+	for info: Dictionary in base.get_property_list():
+		var prop_name: String = String(info["name"])
+		if prop_name.begins_with("weight_") and int(info["type"]) == TYPE_FLOAT:
+			known[prop_name] = true
+	var rejected: PackedStringArray = PackedStringArray()
+	for key: Variant in weights:
+		var value: Variant = weights[key]
+		var is_number: bool = typeof(value) == TYPE_FLOAT or typeof(value) == TYPE_INT
+		if not known.has(String(key)) or not is_number or is_nan(float(value)) or is_inf(float(value)):
+			rejected.append(String(key))
+			continue
+		copy.set(String(key), clampf(float(value), -WEIGHT_OVERRIDE_LIMIT, WEIGHT_OVERRIDE_LIMIT))
+	if not rejected.is_empty():
+		push_warning("BotController: ignored unknown/invalid weight override key(s): %s" % ", ".join(rejected))
+	return copy
+
+
 ## Test seam for the Match autoload; null restores the real one.
 func set_match_provider(provider: Variant) -> void:
 	_match_provider = provider
@@ -812,3 +846,8 @@ func _territory_sample_points() -> PackedVector2Array:
 	if points.is_empty():
 		points.append(_home_position())
 	return points
+
+
+## Bot slot this controller drives (-1 before setup()).
+func bound_slot() -> int:
+	return _slot_id
