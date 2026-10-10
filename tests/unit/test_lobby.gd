@@ -220,7 +220,7 @@ func test_republish_roster_if_host_draws_the_hosts_own_row_with_no_other_peers()
 	fake.names_by_peer = {1: "Mira"}
 	lobby._republish_roster_if_host()
 	var list: VBoxContainer = _player_list(lobby)
-	assert_eq(list.get_child_count(), 1, "the host's own row must appear without waiting for a second peer")
+	assert_eq(_panel_of(lobby)._player_rows.size(), 1, "the host's own row must appear without waiting for a second peer")
 	var count_label: Label = _count_label(lobby)
 	# Bontago-1pi.9b: the roster header's new "N players * H/S seats" format
 	# (LobbyPlayersPanel.format_roster_header()) replaces the old bare "N / S".
@@ -543,7 +543,7 @@ func test_roster_in_lobby_data_builds_player_rows() -> void:
 	]
 	Events.net_lobby_data_changed.emit(data)
 	var list: VBoxContainer = _player_list(lobby)
-	assert_eq(list.get_child_count(), 2)
+	assert_eq(list.get_child_count(), 3, "two seat rows plus the host's dashed open-seat row (Bontago-hfa.11)")
 
 
 ## M5 P4 (docs/archive/M5_PLAN.md, Bontago-d5c.5): the host's own outbound
@@ -700,7 +700,7 @@ func test_roster_changed_signal_updates_ready_label_without_a_lobby_data_round_t
 	]
 	Events.net_roster_changed.emit(roster)
 	var list: VBoxContainer = _player_list(lobby)
-	assert_eq(list.get_child_count(), 2)
+	assert_eq(list.get_child_count(), 3, "two seat rows plus the host's dashed open-seat row (Bontago-hfa.11)")
 	# the panel's _player_rows rather than list.get_child(): the render
 	# queue_free()s the old rows, which stay in the tree (just pending
 	# deletion) until the next idle frame, so querying the container
@@ -850,7 +850,7 @@ func test_roster_entry_with_a_steam_persona_name_renders_unchanged() -> void:
 	]
 	Events.net_lobby_data_changed.emit(data)
 	var list: VBoxContainer = _player_list(lobby)
-	assert_eq(list.get_child_count(), 1)
+	assert_eq(list.get_child_count(), 2, "one seat row plus the dashed open-seat row (Bontago-hfa.11)")
 	# Bontago-mp0.3.5 (review r2, item 4): row is now the PanelContainer pill
 	# ui/lobby/LobbyPlayersPanel.gd's _build_player_row() builds -- layout child 0, name Label
 	# is text_column (layout child 1)'s own child 0.

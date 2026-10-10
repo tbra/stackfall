@@ -1003,9 +1003,10 @@ func test_the_host_focus_entries_run_colour_team_difficulty_remove_row_by_row() 
 	var rows: Array[LobbySeatRow] = _rows_of(lobby)
 	var entries: Array[Control] = _panel_of(lobby).focus_entries()
 	assert_eq(entries, [
-		_panel_of(lobby).get_node("%TeamsToggle"), _panel_of(lobby).get_node("%AddBotButton"),
+		_panel_of(lobby).get_node("%TeamsToggle"),
 		rows[0].color_button, rows[0].team_button,
 		rows[1].color_button, rows[1].team_button, rows[1].difficulty_option, rows[1].remove_button,
+		_panel_of(lobby).get_node("%AddBotButton"),
 	] as Array[Control])
 	var bot: LobbySeatRow = rows[1]
 	assert_eq(bot.difficulty_option.get_node(bot.difficulty_option.focus_neighbor_right), bot.remove_button)
@@ -1299,14 +1300,15 @@ func test_focus_leaves_add_bot_when_it_fills_the_last_seat() -> void:
 	_assert_main_loop_is_closed(lobby)
 
 
-func test_the_header_controls_are_in_the_gamepad_loop_before_the_rows() -> void:
+func test_the_teams_toggle_leads_and_the_open_seat_add_bot_closes_the_gamepad_loop() -> void:
+	# Bontago-hfa.11: "+ Add bot" lives in the dashed open-seat row, after the seat rows.
 	var lobby: Lobby = _host_lobby(1, 1)
 	var entries: Array[Control] = _panel_of(lobby).focus_entries()
 	assert_eq(entries[0], _teams_toggle(lobby))
-	assert_eq(entries[1], _add_bot_button(lobby))
-	assert_eq(entries[2], _rows_of(lobby)[0].color_button)
+	assert_eq(entries[1], _rows_of(lobby)[0].color_button)
+	assert_eq(entries[entries.size() - 1], _add_bot_button(lobby))
 	assert_eq(entries[0].get_node(entries[0].focus_neighbor_bottom), entries[1])
-	assert_eq(entries[1].get_node(entries[1].focus_neighbor_bottom), entries[2])
+	assert_eq(entries[entries.size() - 1].get_parent().get_parent().name, &"OpenSeatRow")
 	_assert_main_loop_is_closed(lobby)
 
 
@@ -1945,3 +1947,26 @@ func test_real_net_host_gate_ignores_the_hosts_own_ready_flag() -> void:
 	assert_false(bool(Net.peer_info(Net.local_peer_id()).get("ready", true)), "the host flag stays false")
 	assert_true(Net.all_peers_ready(), "host consent is Start itself")
 	Net.leave()
+
+
+# --- Bontago-hfa.11: the dashed open-seat row ------------------------------------------
+
+func _open_seat_row(lobby: Lobby) -> LobbyOpenSeatRow:
+	return _list_of(lobby).get_node("OpenSeatRow") as LobbyOpenSeatRow
+
+
+func test_the_host_sees_a_dashed_open_seat_row_after_the_seat_rows() -> void:
+	var lobby: Lobby = _host_lobby(1, 1)
+	var open_row: LobbyOpenSeatRow = _open_seat_row(lobby)
+	assert_true(open_row.visible)
+	assert_eq(open_row.label.text, "Open seat")
+	assert_eq(_list_of(lobby).get_child(_list_of(lobby).get_child_count() - 1), open_row, "the open seat closes the list")
+	assert_false(_panel_of(lobby)._player_rows.has(open_row), "it is not a seat row")
+	assert_eq(_add_bot_button(lobby).get_parent().get_parent(), open_row)
+
+
+func test_the_open_seat_row_hides_when_the_seats_are_full() -> void:
+	var lobby: Lobby = _host_lobby(4, 3)
+	assert_true(_open_seat_row(lobby).visible)
+	_add_bot_button(lobby).pressed.emit()
+	assert_false(_open_seat_row(lobby).visible, "no free seat, no open seat")
