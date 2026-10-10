@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Tests for bot_dataset.py, bot_fit_weights.py and bot_h2h.py (Bontago-1t5.12).
+"""Tests for bot_dataset.py and bot_fit_weights.py (Bontago-1t5.12). bot_h2h tests: test_bot_h2h.py.
 
 Fixtures are generated here (schema v1 per docs/BOT_TRAINING_SOAK_PLAN.md
 section 1); no Godot needed. Run with:
@@ -244,63 +244,6 @@ class FitTests(unittest.TestCase):
             with self.assertRaises(SystemExit) as cm:
                 fw.main(["--help"])
         self.assertEqual(cm.exception.code, 0)
-
-
-class H2HTests(unittest.TestCase):
-    def test_wilson_and_verdict(self) -> None:
-        lo, hi = h2h.wilson(80, 100)
-        self.assertLess(lo, 0.8)
-        self.assertGreater(hi, 0.8)
-        self.assertEqual(h2h.verdict(90, 10, 100), "PASS")
-        self.assertEqual(h2h.verdict(50, 50, 100), "FAIL")
-        self.assertEqual(h2h.verdict(76, 24, 100), "INCONCLUSIVE")
-        self.assertEqual(h2h.verdict(9, 1, 10), "INSUFFICIENT")
-
-    def test_parse_winner_takes_last_line(self) -> None:
-        text = "HEADLESS_MATCH index=0 mode=0 seed=1 duration=5.0 winner_team=3 placements=9 homes_alive=2\n" \
-               "HEADLESS_MATCH index=1 mode=0 seed=2 duration=5.0 winner_team=-1 placements=9 homes_alive=2\n"
-        self.assertEqual(h2h.parse_winner(text), -1)
-        self.assertIsNone(h2h.parse_winner("nothing"))
-
-    def test_timeout_match_is_draw_not_failed(self) -> None:
-        line = "HEADLESS_MATCH index=1 mode=0 seed=1 duration=300.0 winner_team=-1 placements=9 homes_alive=8 teams=0 timeout=1"
-        self.assertTrue(h2h.timed_out(line))
-        self.assertFalse(h2h.timed_out(line.replace(" timeout=1", "")))
-        jobs = [h2h.MatchJob(1, False, []), h2h.MatchJob(1, True, []), h2h.MatchJob(2, False, [])]
-        t = h2h.tally(jobs, [line, "HEADLESS_BOTS done t=1.0", line.replace(" timeout=1", "").replace("-1", "0")],
-                      [0], [1])
-        self.assertEqual((t["draws"], t["timeouts"], t["failed"], t["wins"]), (1, 1, 1, 1))
-
-    def test_refuses_without_seam_and_dry_run(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            cand = os.path.join(tmp, "c.txt")
-            with open(cand, "w", encoding="utf-8") as fh:
-                fh.write("weight_height = 1.2\n")
-            with contextlib.redirect_stderr(io.StringIO()):
-                self.assertEqual(h2h.main(["--candidate", cand, "--out-dir", tmp]), 2)
-            with contextlib.redirect_stdout(io.StringIO()) as out:
-                self.assertEqual(h2h.main(["--candidate", cand, "--out-dir", tmp, "--pairs", "2",
-                                           "--dry-run"]), 0)
-            self.assertIn("H2H DRY-RUN matches=4", out.getvalue())
-
-    def test_paired_run_with_fake_runner(self) -> None:
-        # Candidate (teams 0,2,4,6 in match A, 1,3,5,7 in B) wins every match.
-        def runner(cmd, timeout):
-            swapped = any("slots=1,3,5,7" in c for c in cmd)
-            winner = 1 if swapped else 0
-            return "HEADLESS_MATCH index=0 mode=0 seed=1 duration=1.0 winner_team=%d placements=1 homes_alive=1" % winner
-
-        with tempfile.TemporaryDirectory() as tmp:
-            cand = os.path.join(tmp, "c.txt")
-            with open(cand, "w", encoding="utf-8") as fh:
-                fh.write("weight_height = 1.2\n")
-            with contextlib.redirect_stdout(io.StringIO()) as out:
-                rc = h2h.main(["--candidate", cand, "--out-dir", tmp, "--pairs", "50", "--parallel", "4",
-                               "--godot-args", "--match-seed={seed} --bot-weights-slots={cand_slots}"],
-                              runner=runner)
-            self.assertEqual(rc, 0)
-            self.assertIn("H2H RESULT PASS", out.getvalue())
-            self.assertIn("matches=100 wins=100", out.getvalue())
 
 
 if __name__ == "__main__":
