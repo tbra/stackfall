@@ -21,12 +21,6 @@ func test_shape_ids_pinned() -> void:
 	assert_eq(MapDef.shape_id(-1), "")
 
 
-func test_loading_backdrop_ids_follow_map_shape() -> void:
-	var tuning: LoadingScreenTuning = LoadingScreenTuning.new()
-	for i: int in range(MapDef.MapShape.size()):
-		assert_true(tuning.backdrop_path(i, "sunset").contains("/%s_sunset" % MapDef.shape_id(i)))
-
-
 func test_sky_theme_ids_pinned() -> void:
 	assert_eq(MatchConfig.SKY_THEME_IDS, PackedStringArray(["sunset", "night", "dawn"]))
 	assert_eq(MatchConfig.SkyThemeMode.DAY, 0)

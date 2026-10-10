@@ -3,6 +3,7 @@ extends GutTest
 ## resident after their screen/effect ends, and must load again when needed.
 
 const LOAD_WAIT_S: float = 10.0
+const REAL_LOAD_WAIT_MS: int = 60000
 const SETTLE_FRAMES: int = 4
 
 
@@ -42,16 +43,25 @@ func test_splash_art_is_released_after_finish() -> void:
 	assert_true(load(SplashScreen.IMAGE_PATH) is Texture2D, "loads again on demand")
 
 
+## The 4K backdrop decodes on a worker thread in real time (the runner fast-forwards frames), so wait
+## on the wall clock, not game time.
+func _wait_real(condition: Callable) -> void:
+	var start_ms: int = Time.get_ticks_msec()
+	while not condition.call() and Time.get_ticks_msec() - start_ms < REAL_LOAD_WAIT_MS:
+		await get_tree().process_frame
+
+
 func test_loading_backdrop_is_released_after_fade_and_reloads() -> void:
 	var screen: LoadingScreen = load("res://ui/LoadingScreen.tscn").instantiate() as LoadingScreen
 	add_child_autofree(screen)
 	screen.tuning = LoadingScreenTuning.new()
 	screen.tuning.warmup_frames = 1
 	screen.tuning.fade_out_duration_s = 0.02
+	screen.tuning.ready_timeout_s = 3600.0  # frames are fast-forwarded; the image loads in real time
 	var config: MatchConfig = MatchConfig.new()
 	var was_held: bool = ResourceLoader.has_cached(screen.backdrop_path_for(config))
 	screen.show_for_match(config, _slots())
-	await wait_until(func() -> bool: return screen.backdrop_texture() != null, LOAD_WAIT_S, "plate loads")
+	await _wait_real(func() -> bool: return screen.backdrop_texture() != null)
 	var path: String = screen.backdrop_shown_path()
 	var ref: WeakRef = weakref(screen.backdrop_texture())
 	assert_false(path.is_empty())
@@ -64,8 +74,8 @@ func test_loading_backdrop_is_released_after_fade_and_reloads() -> void:
 		assert_null(ref.get_ref(), "plate freed")
 		assert_false(ResourceLoader.has_cached(path), "plate not cached")
 	screen.show_for_match(config, _slots())
-	await wait_until(func() -> bool: return screen.backdrop_texture() != null, LOAD_WAIT_S, "plate loads again")
-	assert_eq(screen.backdrop_shown_path(), path)
+	await _wait_real(func() -> bool: return screen.backdrop_texture() != null)
+	assert_false(screen.backdrop_shown_path().is_empty(), "the next loading screen shows an image again (a fresh random pick)")
 
 
 func test_weather_bed_is_released_after_fade_and_reloads() -> void:

@@ -91,7 +91,7 @@ const HOST_TOOLTIP: String = "Host"
 
 ## The accessible text of a Ready / Not ready pill (the pill itself shows only its icon).
 static func ready_tooltip(ready: bool) -> String:
-	return "Ready" if ready else "Not ready"
+	return ReadyPill.tooltip_for(ready)
 
 
 ## Text of the team button for a pick: "?" for Random, else the number.
@@ -347,24 +347,19 @@ func _build_host_crown_badge() -> void:
 
 
 func _build_badge() -> void:
-	badge = PanelContainer.new()
 	# Bontago-1pi.146: the badge is the same height as the team / difficulty / remove pills (not stretched
 	# to the row), and as wide as the remove button.
-	badge.custom_minimum_size = Vector2(float(_layout_tuning.seat_badge_width_px), float(_layout_tuning.seat_control_height_px))
-	badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var badge_size: Vector2 = Vector2(float(_layout_tuning.seat_badge_width_px), float(_layout_tuning.seat_control_height_px))
 	if is_host:
+		badge = PanelContainer.new()
+		badge.custom_minimum_size = badge_size
+		badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		_build_host_crown_badge()
 		return
-	var badge_color: Color = _tuning.pill_mint_color if is_ready else MenuStyleFactory.arcade_tuning().disc_600_color
-	badge.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(badge_color, _tuning))
-	badge_label = Label.new()
-	# Bontago-1pi.94: the pill is its icon only; the words stay as the accessible tooltip.
-	badge_label.text = char(0x2713) if is_ready else char(0x231A)
-	badge.tooltip_text = ready_tooltip(is_ready)
-	# Bontago-hfa.5: the glyph takes the better-contrasting of ink / cream for its face (cream on the
-	# mint Ready face was ~2:1; ink is >= 7:1).
-	badge_label.add_theme_color_override("font_color", MenuStyleFactory.ink_for_face(badge_color))
-	badge.add_child(badge_label)
+	# Bontago-1pi.158: the Ready / Not ready pill is the shared ui/ReadyPill.gd component.
+	var pill: ReadyPill = ReadyPill.create(is_ready, badge_size, _tuning)
+	badge = pill
+	badge_label = pill.label
 	layout.add_child(badge)
 
 
