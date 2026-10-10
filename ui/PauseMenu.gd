@@ -36,6 +36,7 @@ extends CanvasLayer
 ## through `context_provider`, so this menu still never names Net or Match.
 
 const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/OptionsMenu.tscn")
+const OPTIONS_TUNING: OptionsVisualTuning = preload("res://config/options_visual_tuning.tres")
 
 ## M7 P7 look (Bontago-1pi.7): every pastel pill/well/card color this menu's
 ## restyle draws from, so none of the styling in _apply_visual_style() below
@@ -139,30 +140,26 @@ func _ready() -> void:
 	_wire_focus_chain()
 
 
-## Paints this menu with the same cream-card/pastel-pill language
-## ui/MainMenu.gd's own _apply_visual_style() and ui/Lobby.gd's own
-## _apply_visual_style() already established -- a single flat cream card (no
-## offset shadow-card stack; this overlay is a small, transient popup, not
-## one of those two screens' own front-and-center layout) plus pastel pills:
-## Resume in coral (the primary action, matching Host/Start's own coral),
-## Options in cream (secondary, matching every other Options button in this
-## project), Leave match in dark slate (the one remaining destructive
-## action, so it reads with more weight than the two non-destructive
-## buttons above it -- the same color Direct Join uses to stand out on
-## ui/MainMenu.gd).
+## Bontago-hfa.4 (UI reskin P2): the Stackfall Arcade Dialog -- a centred 340 px disc-800 plate on a
+## disc-900 scrim, a centred uppercase heading, stacked full-width blocks. Resume is the one primary
+## (flare face, ink label); Options and Return to lobby are secondary disc-600 blocks; Leave match is
+## a secondary block with a flare label (destructive, always followed by a confirm). Look only.
 func _apply_visual_style() -> void:
-	_panel.add_theme_stylebox_override("panel", MenuStyleFactory.make_card(tuning.card_cream_color, tuning))
-	_title_label.add_theme_color_override("font_color", tuning.ink_color)
-	MenuStyleFactory.apply_pill(_resume_button, tuning.pill_coral_color, tuning.pill_coral_hover_color, tuning.label_ink_light_color, tuning)
-	MenuStyleFactory.apply_pill(_options_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
-	# Bontago-1pi.50: Return to lobby is a second cream pill (an exit, but not the
-	# destructive slate of Leave match, which stays the heaviest button).
-	MenuStyleFactory.apply_pill(_return_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
-	MenuStyleFactory.apply_pill(_leave_button, tuning.pill_dark_slate_color, tuning.pill_dark_slate_hover_color, tuning.label_ink_light_color, tuning)
-	# DECISION (Bontago-1pi.37): every pill's icon follows its label ink in all
-	# draw states via MenuStyleFactory.apply_pill() -- the cream Options pill's
-	# dark glyph, the coral/slate pills' light glyphs -- so no per-node icon
-	# overrides here.
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var scrim: Color = arcade.disc_900_color
+	scrim.a = arcade.scrim_alpha
+	($Root/Background as ColorRect).color = scrim
+	_panel.custom_minimum_size.x = float(OPTIONS_TUNING.dialog_width_px)
+	_panel.add_theme_stylebox_override("panel", MenuStyleFactory.make_plate())
+	_title_label.theme_type_variation = &"TitleLabel"
+	_title_label.add_theme_font_size_override("font_size", arcade.font_size_heading_px)
+	_title_label.add_theme_color_override("font_color", arcade.cream_color)
+	MenuStyleFactory.apply_block(_resume_button, arcade.flare_color, arcade.ink_color)
+	MenuStyleFactory.apply_block(_options_button, arcade.disc_600_color, arcade.cream_color)
+	MenuStyleFactory.apply_block(_return_button, arcade.disc_600_color, arcade.cream_color)
+	MenuStyleFactory.apply_block(_leave_button, arcade.disc_600_color, arcade.alert_color)
+	# DECISION (Bontago-1pi.37): every block's icon follows its label ink in all draw states via
+	# MenuStyleFactory.apply_block(), so no per-node icon overrides here.
 
 
 ## pause_menu (Esc/gamepad Start, tools/bootstrap_project.gd) toggles this
