@@ -90,6 +90,21 @@ func test_backdrop_is_a_cover_fit_image_and_no_3d_arena_is_built() -> void:
 	assert_eq(menu.find_children("*", "Node3D", true, false).size(), 0, "no 3D arena nodes in the menu tree")
 
 
+func test_backdrop_pick_is_a_configured_image_and_only_that_one_is_loaded() -> void:
+	var tuning: MainMenuTuning = load("res://config/main_menu_tuning.tres") as MainMenuTuning
+	assert_gte(tuning.backdrop_paths.size(), 5, "5-6 HUD-free shots are configured")
+	for path: String in tuning.backdrop_paths:
+		assert_true(ResourceLoader.exists(path), "%s ships" % path)
+	assert_eq(MenuBackdrop.pick_path(tuning.backdrop_paths, 0.0), tuning.backdrop_paths[0])
+	assert_eq(MenuBackdrop.pick_path(tuning.backdrop_paths, 0.9999), tuning.backdrop_paths[tuning.backdrop_paths.size() - 1])
+	assert_eq(MenuBackdrop.pick_path(PackedStringArray(), 0.5), "", "an empty list picks nothing")
+	MenuBackdrop.set_chosen_path_for_test(tuning.backdrop_paths[1])
+	var menu: MainMenu = _make_menu()
+	var image: TextureRect = menu.get_node("BackdropImage") as TextureRect
+	assert_eq(image.texture.resource_path, tuning.backdrop_paths[1], "the menu shows the picked image")
+	MenuBackdrop.set_chosen_path_for_test("")
+
+
 func test_menu_still_holds_the_render_budget() -> void:
 	var menu: MainMenu = _make_menu()
 	assert_not_null(menu)

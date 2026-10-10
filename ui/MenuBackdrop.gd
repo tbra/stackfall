@@ -40,6 +40,31 @@ static var _menu_cap: int = 0
 
 var _holds_budget: bool = false
 
+const IMAGE_NODE_NAME: String = "BackdropImage"
+const MENU_TUNING_PATH: String = "res://config/main_menu_tuning.tres"
+## The image picked this launch (empty until the first menu/lobby asks); shared so the lobby
+## keeps the menu's backdrop. Only the chosen file is ever loaded.
+static var _chosen_path: String = ""
+
+
+## Pure pick: the entry of `paths` at `roll` (0..1, exclusive of 1); "" for an empty list.
+static func pick_path(paths: PackedStringArray, roll: float) -> String:
+	if paths.is_empty():
+		return ""
+	return paths[clampi(int(roll * float(paths.size())), 0, paths.size() - 1)]
+
+
+static func chosen_path() -> String:
+	if _chosen_path.is_empty():
+		var menu_tuning: MainMenuTuning = load(MENU_TUNING_PATH) as MainMenuTuning
+		if menu_tuning != null:
+			_chosen_path = pick_path(menu_tuning.backdrop_paths, randf())
+	return _chosen_path
+
+
+static func set_chosen_path_for_test(path: String) -> void:
+	_chosen_path = path
+
 
 func _enter_tree() -> void:
 	if _holds_budget:
@@ -105,6 +130,18 @@ func _apply_budget() -> void:
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	resized.connect(queue_redraw)
+	_apply_image()
+
+
+## Sets the random launch backdrop on the sibling BackdropImage node (menu and lobby scenes).
+func _apply_image() -> void:
+	var parent: Node = get_parent()
+	var image: TextureRect = parent.get_node_or_null(IMAGE_NODE_NAME) as TextureRect if parent != null else null
+	if image == null:
+		return
+	var path: String = chosen_path()
+	if not path.is_empty():
+		image.texture = load(path) as Texture2D
 
 
 func _draw() -> void:

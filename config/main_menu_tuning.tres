@@ -4,3 +4,4 @@
 
 [resource]
 script = ExtResource("1_menutuning")
+backdrop_paths = PackedStringArray("res://assets/ui/menu_backdrops/night_aurora.jpg", "res://assets/ui/menu_backdrops/sunset_overview.jpg", "res://assets/ui/menu_backdrops/dusk_low.jpg", "res://assets/ui/menu_backdrops/night_overview.jpg", "res://assets/ui/menu_backdrops/storm_overview.jpg", "res://assets/ui/menu_backdrops/sunset_low.jpg")
