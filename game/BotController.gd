@@ -705,7 +705,7 @@ func _send_best_placement(place_target_override: Variant = null) -> StringName:
 	if place_target_override != null:
 		best = _pick_candidate_nearest_to(place_target_override as Vector2)
 	elif _brain == Brain.V2 and _think != null:
-		best = _think.best_candidate()
+		best = _think.revalidate()
 	else:
 		best = BotPlacementScorer.pick_best(
 			_candidates,

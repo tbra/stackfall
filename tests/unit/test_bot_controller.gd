@@ -1074,9 +1074,14 @@ func test_two_v2_bots_ticked_in_one_engine_frame_both_progress() -> void:
 	var field_b: Field = _make_field()
 	var match_a: BotControllerFakeMatch = _make_ready_match(0)
 	var match_b: BotControllerFakeMatch = _make_ready_match(1)
+	var territory: TerritoryTuning = preload("res://config/territory_tuning.tres")
 	for fake: BotControllerFakeMatch in [match_a, match_b]:
-		fake.raster_value = TerritoryRaster.new(CellGrid.new(20.0, 1.0), preload("res://config/territory_tuning.tres"))
+		fake.raster_value = TerritoryRaster.new(CellGrid.new(20.0, 1.0), territory)
 		fake.cell_grid_value = fake.raster_value.grid()
+		# V2 only generates sites inside its own territory: stamp the seat's home circle.
+		var seat: int = 0 if fake == match_a else 1
+		var home: Array[InfluenceCircle] = [InfluenceCircle.for_home(Vector2(1.0, 0.0), seat, seat, territory)]
+		fake.raster_value.update(home, TerritorySolver.new(territory).solve(home), 0.1, false, false)
 	var net_ref: BotControllerFakeNet = BotControllerFakeNet.new()
 	var bot_a: BotController = _make_controller(field_a, match_a, net_ref)
 	var bot_b: BotController = _make_controller(field_b, match_b, net_ref)

@@ -45,8 +45,13 @@ static func sites(
 		BotIntent.Kind.AREA:
 			tip_share = t.area_tip_share
 			stack_share = t.area_stack_share
-	var tip_quota: int = roundi(tip_share * float(total))
-	var stack_quota: int = roundi(stack_share * float(total))
+	var targeted_scale: float = 1.0
+	if profile.fill_share > 0.0 and tip_share + stack_share > 0.0:
+		# DECISION (Bontago-1t5.23): a tier with a FILL share (Easy) scales the targeted
+		# quotas so the uniform FILL sites fill exactly that share of the budget.
+		targeted_scale = (1.0 - clampf(profile.fill_share, 0.0, 1.0)) / (tip_share + stack_share)
+	var tip_quota: int = roundi(tip_share * targeted_scale * float(total))
+	var stack_quota: int = roundi(stack_share * targeted_scale * float(total))
 	var threat_kind: bool = (
 		intent.kind == BotIntent.Kind.STRIKE
 		or intent.kind == BotIntent.Kind.DEFEND

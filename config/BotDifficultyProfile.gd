@@ -42,3 +42,12 @@ extends Resource
 @export var pick_temperature: float = 0.5
 ## Bot V2: bit set of BotIntent.Kind values this tier may use (bit = enum value).
 @export_flags("Race", "Anchor", "Finish", "Hold", "Defend", "Strike", "Siege", "Area") var intent_mask: int = 255
+## Bot V2 (Bontago-1t5.23): the pick samples from this many of the best measured sites
+## (1 = argmax; Easy 5, Normal 3, Hard 1).
+@export var pick_pool: int = 1
+## Bot V2: share (0..1) of the site budget that is uniform FILL; 0 keeps BotGenTuning's
+## default mix (Easy plays half its sites at random).
+@export var fill_share: float = 0.0
+## Bot V2: extra metres added to BotStrategyTuning.threat_allowance_m, so a tier that
+## looks ahead defends / strikes before an enemy circle actually reaches a base (Hard only).
+@export var threat_lookahead_m: float = 0.0

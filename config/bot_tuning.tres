@@ -10,9 +10,13 @@ stability_raycast_count = 2
 aim_noise_m = 0.6
 reaction_delay_s = 1.2
 think_budget_us = 500
-eval_top_k = 4
+eval_top_k = 0
 pick_temperature = 1.0
-intent_mask = 13
+; DECISION (Bontago-1t5.23): Easy = RACE|ANCHOR|FINISH plus the SIEGE and AREA mode adapters
+; (bits 0,1,2,6,7), so it still plays Elimination and Domination.
+intent_mask = 199
+pick_pool = 5
+fill_share = 0.5
 
 [sub_resource type="Resource" id="Resource_hard"]
 script = ExtResource("2_bot_profile")
@@ -26,6 +30,8 @@ think_budget_us = 800
 eval_top_k = 12
 pick_temperature = 0.05
 intent_mask = 255
+pick_pool = 1
+threat_lookahead_m = 3.0
 
 [sub_resource type="Resource" id="Resource_normal"]
 script = ExtResource("2_bot_profile")
@@ -37,9 +43,10 @@ uses_defensive_specials = true
 ; (0.6 s vs Hard 0.2 s) already make it slower and less accurate than Hard.
 uses_offensive_specials = true
 think_budget_us = 700
-eval_top_k = 8
+eval_top_k = 6
 pick_temperature = 0.4
 intent_mask = 223
+pick_pool = 3
 
 [resource]
 script = ExtResource("1_bot_tuning")

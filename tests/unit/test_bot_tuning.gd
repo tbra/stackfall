@@ -42,6 +42,9 @@ func test_profile_for_hard_returns_the_hard_profile() -> void:
 	assert_same(tuning.profile_for(MatchConfig.AiDifficulty.HARD), tuning.hard)
 
 
+const ZERO_ALLOWED_FIELDS: Array[String] = ["eval_top_k", "fill_share", "threat_lookahead_m"]
+
+
 # --- The shipped config/bot_tuning.tres --------------------------------------
 
 func test_shipped_bot_tuning_has_three_non_null_profiles() -> void:
@@ -62,6 +65,11 @@ func test_shipped_bot_tuning_profiles_have_positive_numeric_fields() -> void:
 				continue
 			checked_any = true
 			var prop_name: String = str(prop.get("name", ""))
+			# Bontago-1t5.23: these tier knobs are legitimately 0 on some tiers (Easy never
+			# measures, only Easy fills, only Hard looks ahead, only Easy/Normal pool-pick).
+			if prop_name in ZERO_ALLOWED_FIELDS:
+				assert_gte(float(profile.get(prop_name)), 0.0, "%s.%s must not be negative." % [profile_name, prop_name])
+				continue
 			assert_gt(
 				float(profile.get(prop_name)), 0.0,
 				"%s.%s must be positive." % [profile_name, prop_name]
