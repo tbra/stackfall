@@ -12,9 +12,10 @@ extends Control
 ## `closed` to hide it again, rather than routing through Main.
 ##
 ## Bontago-1pi.10 (owner: "too big and crammed ... the controls section where
-## you have to scroll both horizontally and vertically"): a left-side
-## Settings/Controls tab column replaces the single ever-growing scrolling
-## panel, and the Controls page shows only the active input device's
+## you have to scroll both horizontally and vertically"): category tabs replace
+## the single ever-growing scrolling panel (Bontago-1pi.159.3: now a horizontal
+## UiTabs strip, Game / Graphics / Controls, and the pages are built from the
+## ui/components rows), and the Controls page shows only the active input device's
 ## bindings (ui/KeyRebindRow.gd's own glyph row, autoload/Settings.gd's
 ## active_input_device()) so a row never needs more than one short glyph
 ## strip's worth of horizontal space.
@@ -125,6 +126,32 @@ const SECTIONS: Array[Dictionary] = [
 	},
 ]
 
+## Bontago-1pi.159.3: the category tabs. Owner 2026-10-10: the first one reads "Game" (it was
+## "Settings"); ids, node names and every stored settings key are unchanged.
+const TAB_GAME: StringName = &"game"
+const TAB_GRAPHICS: StringName = &"graphics"
+const TAB_CONTROLS: StringName = &"controls"
+## [id, label, unique node name] per tab, left to right.
+const TAB_ENTRIES: Array[Array] = [
+	[TAB_GAME, "Game", "SettingsTabButton"],
+	[TAB_GRAPHICS, "Graphics", "GraphicsTabButton"],
+	[TAB_CONTROLS, "Controls", "ControlsTabButton"],
+]
+const SECTION_DISPLAY: String = "Display"
+const SECTION_AUDIO: String = "Audio"
+const SECTION_RUMBLE: String = "Rumble"
+const ROW_WINDOW: String = "Window"
+const ROW_UI_SCALE: String = "UI scale"
+const ROW_CAMERA_SHAKE: String = "Camera shake"
+const ROW_ADAPTIVE_QUALITY: String = "Adaptive quality"
+const ROW_MASTER_VOLUME: String = "Master volume"
+const ROW_MUSIC_VOLUME: String = "Music volume"
+const ROW_SFX_VOLUME: String = "SFX volume"
+const ROW_WEATHER_VOLUME: String = "Weather volume"
+const ROW_RUMBLE: String = "Rumble"
+const ROW_RUMBLE_INTENSITY: String = "Rumble intensity"
+const ADAPTIVE_QUALITY_TOOLTIP: String = "Temporarily lowers effects when the frame rate drops. Never changes your saved preset."
+
 const KEY_REBIND_ROW_SCENE: PackedScene = preload("res://ui/KeyRebindRow.tscn")
 
 ## Bontago-hfa.4 (UI reskin P2): sizes specific to the Options/Pause/rebinding screens; every
@@ -134,7 +161,6 @@ const ON_WORD: String = "ON"
 const OFF_WORD: String = "OFF"
 const STATE_WORD_NAME: String = "StateWord"
 const THEME_VARIATION_DISPLAY: StringName = &"DisplayLabel"
-const THEME_VARIATION_TITLE: StringName = &"TitleLabel"
 const THEME_VARIATION_CAPTION: StringName = &"CaptionLabel"
 const THEME_VARIATION_FIELD: StringName = &"FieldLabel"
 
@@ -176,15 +202,18 @@ const CONTROLS_LABEL_GAMEPAD: String = "Showing gamepad bindings"
 ## clamps it to a generic safety floor -- see Settings.set_mouse_move_speed_
 ## scale()'s own DECISION). Owner request: 0-100% for every volume/rumble
 ## slider, 50%-200% for the move-speed sliders (default 100%).
+## Bontago-1pi.159.3: the Game / Controls meters are UiSegmentMeters (cells, not a continuous slider).
+## DECISION: volume and rumble use 20 cells (5% per cell), the move-speed scale 15 cells (0.1x per cell,
+## so 100% sits exactly on a cell); the UI-scale meter has one cell per UiScaleTuning step. The readout
+## of volume / rumble shows the stored value, so a saved 73% still reads 73% until it is edited.
+const PERCENT_METER_CELLS: int = 20
+const MOVE_SPEED_CELLS: int = 15
 const MIN_VOLUME_PERCENT: float = 0.0
 const MAX_VOLUME_PERCENT: float = 1.0
-const VOLUME_STEP_PERCENT: float = 0.01
 const MIN_RUMBLE_STRENGTH: float = 0.0
 const MAX_RUMBLE_STRENGTH: float = 1.0
-const RUMBLE_STRENGTH_STEP: float = 0.01
 const MIN_MOVE_SPEED_SCALE: float = 0.5
 const MAX_MOVE_SPEED_SCALE: float = 2.0
-const MOVE_SPEED_SCALE_STEP: float = 0.01
 
 ## DECISION (ui/OptionsMenu.gd): which speaker icon a mute button shows for a
 ## given (unmuted, > 0%) volume -- a UI-feel threshold, not a design tunable,
@@ -206,157 +235,264 @@ const MOVE_SPEED_LABEL_STICK: String = "Stick speed"
 
 ## Bontago-1pi.11.86: the Graphics page (preset picker + per-setting controls), built in code.
 @onready var _graphics_page: GraphicsSettingsTab = %GraphicsPage
-@onready var _graphics_tab_button: Button = %GraphicsTabButton
 var _preset_option: OptionButton = null
-@onready var _master_mute_button: Button = %MasterMuteButton
-@onready var _master_volume_slider: HSlider = %MasterVolumeSlider
-@onready var _master_volume_value_label: Label = %MasterVolumeValueLabel
-@onready var _music_mute_button: Button = %MusicMuteButton
-@onready var _music_volume_slider: HSlider = %MusicVolumeSlider
-@onready var _music_volume_value_label: Label = %MusicVolumeValueLabel
-@onready var _sfx_mute_button: Button = %SfxMuteButton
-@onready var _sfx_volume_slider: HSlider = %SfxVolumeSlider
-@onready var _sfx_volume_value_label: Label = %SfxVolumeValueLabel
-@onready var _weather_mute_button: Button = %WeatherMuteButton
-@onready var _weather_volume_slider: HSlider = %WeatherVolumeSlider
-@onready var _weather_volume_value_label: Label = %WeatherVolumeValueLabel
-@onready var _music_dir_edit: LineEdit = %MusicDirEdit
-@onready var _browse_button: Button = %BrowseButton
-@onready var _music_dir_dialog: FileDialog = %MusicDirDialog
-@onready var _camera_shake_check: CheckButton = %CameraShakeCheck
-@onready var _adaptive_quality_check: CheckButton = %AdaptiveQualityCheck
-@onready var _window_mode_option: OptionButton = %WindowModeOption
-@onready var _ui_scale_slider: HSlider = %UiScaleSlider
-@onready var _ui_scale_value_label: Label = %UiScaleValueLabel
-@onready var _rumble_enabled_check: CheckButton = %RumbleEnabledCheck
-@onready var _rumble_strength_slider: HSlider = %RumbleStrengthSlider
-@onready var _rumble_strength_value_label: Label = %RumbleStrengthValueLabel
 @onready var _rebind_list: VBoxContainer = %RebindList
 @onready var _back_button: Button = %BackButton
 @onready var _reset_button: Button = %ResetButton
-@onready var _settings_tab_button: Button = %SettingsTabButton
-@onready var _controls_tab_button: Button = %ControlsTabButton
+@onready var _tabs: UiTabs = %Tabs
 @onready var _settings_page: ScrollContainer = %SettingsPage
+@onready var _settings_fields: VBoxContainer = %SettingsFields
 @onready var _controls_page: VBoxContainer = %ControlsPage
 @onready var _controls_device_label: Label = %ControlsDeviceLabel
 @onready var _footer_hint_label: InputPromptFlow = %FooterHintLabel
-@onready var _move_speed_label: Label = %MoveSpeedLabel
-@onready var _move_speed_slider: HSlider = %MoveSpeedSlider
-@onready var _move_speed_value_label: Label = %MoveSpeedValueLabel
+
+## Bontago-1pi.159.3: the Game and Controls pages are built from design-system components
+## (UiRow / UiSection / UiToggle / UiDropdown / UiSegmentMeter / UiIconButton), so their controls are
+## plain members assigned by _build_game_page() / _build_move_speed_row(), each registered under its
+## old %UniqueName (probes, tests and the focus chain keep resolving the same names).
+var _master_mute_button: UiIconButton = null
+var _master_volume_slider: UiSegmentMeter = null
+var _music_mute_button: UiIconButton = null
+var _music_volume_slider: UiSegmentMeter = null
+var _sfx_mute_button: UiIconButton = null
+var _sfx_volume_slider: UiSegmentMeter = null
+var _weather_mute_button: UiIconButton = null
+var _weather_volume_slider: UiSegmentMeter = null
+var _camera_shake_check: UiToggle = null
+var _adaptive_quality_check: UiToggle = null
+var _window_mode_option: UiDropdown = null
+var _ui_scale_slider: UiSegmentMeter = null
+var _rumble_enabled_check: UiToggle = null
+var _rumble_strength_slider: UiSegmentMeter = null
+var _move_speed_label: Label = null
+var _move_speed_slider: UiSegmentMeter = null
 
 var _rows: Array[KeyRebindRow] = []
-## Bontago-1pi.150: a mouse drag on the UI-scale slider previews the % and applies on release
-## (rescaling the canvas under the cursor mid-drag would make the thumb run away).
+## Bontago-1pi.150: a mouse drag on the UI-scale meter previews the % and applies on release
+## (rescaling the canvas under the cursor mid-drag would make the pointer run away).
 var _ui_scale_dragging: bool = false
-## Bontago-hfa.4: one SegmentMeter overlay per slider, so mute state can dim its cells.
+## Each component meter's value range, so its cell count maps to the setting's own unit.
+var _meter_ranges: Dictionary[UiSegmentMeter, Vector2] = {}
+## Bontago-hfa.4: one SegmentMeter overlay per Graphics-page slider (that tab keeps its raw
+## sliders until Bontago-1pi.153 rebuilds it on components).
 var _meters: Dictionary[HSlider, SegmentMeter] = {}
-## Bontago-hfa.4: the ON/OFF word next to each toggle (CheckButton -> Label).
+## Bontago-hfa.4: the ON/OFF word next to each Graphics-page toggle (CheckButton -> Label).
 var _state_words: Dictionary[CheckButton, Label] = {}
 
 
 func _ready() -> void:
 	if settings_provider == null:
 		settings_provider = Settings
-	for slider: HSlider in [_master_volume_slider, _music_volume_slider, _sfx_volume_slider, _weather_volume_slider]:
-		slider.min_value = MIN_VOLUME_PERCENT
-		slider.max_value = MAX_VOLUME_PERCENT
-		slider.step = VOLUME_STEP_PERCENT
-	var ui_scale_tuning: UiScaleTuning = UiScaleTuning.shared()
-	_ui_scale_slider.min_value = ui_scale_tuning.min_scale
-	_ui_scale_slider.max_value = ui_scale_tuning.max_scale
-	_ui_scale_slider.step = ui_scale_tuning.step
-	_rumble_strength_slider.min_value = MIN_RUMBLE_STRENGTH
-	_rumble_strength_slider.max_value = MAX_RUMBLE_STRENGTH
-	_rumble_strength_slider.step = RUMBLE_STRENGTH_STEP
+	_adopt_panel_layout()
+	_build_game_page()
+	_build_move_speed_row()
+	_build_tabs()
 	_graphics_page.build(func() -> Variant: return settings_provider, self)
 	_preset_option = _graphics_page.preset_option
-	_style_section_header(%DisplaySectionHeader)
-	_style_section_header(%AudioSectionHeader)
-	_style_section_header(%RumbleSectionHeader)
-	for mute_button: Button in [_master_mute_button, _music_mute_button, _sfx_mute_button, _weather_mute_button]:
-		_style_mute_button_icon(mute_button)
-	_move_speed_slider.min_value = MIN_MOVE_SPEED_SCALE
-	_move_speed_slider.max_value = MAX_MOVE_SPEED_SCALE
-	_move_speed_slider.step = MOVE_SPEED_SCALE_STEP
-	# Bontago-1pi.119 / 1pi.123: coarse keyboard/gamepad steps, and the wheel scrolls the page.
-	for nav_slider: HSlider in [
-		_master_volume_slider, _music_volume_slider, _sfx_volume_slider, _weather_volume_slider,
-		_rumble_strength_slider, _move_speed_slider, _ui_scale_slider,
-	]:
-		SliderNav.apply(nav_slider)
-
-	_apply_arcade_style()
+	UiBlockButton.style(_reset_button, UiBlockButton.Look.SECONDARY, true)
+	UiBlockButton.style(_back_button, UiBlockButton.Look.SECONDARY, true)
+	_apply_graphics_style()
+	_controls_device_label.theme_type_variation = THEME_VARIATION_CAPTION
+	_controls_page.add_theme_constant_override("separation", MenuStyleFactory.arcade_tuning().space_3_px)
 
 	_build_window_mode_items()
 	_load_current_values()
-	# Owner-disabled temporarily; retain saved paths for a future re-enable.
-	_music_dir_edit.get_parent().hide()
 	_build_rebind_rows()
 	_refresh_layout()
 	get_viewport().size_changed.connect(_refresh_layout)
 	_wire_focus_chain()
 	_refresh_device_dependent_ui()
-	_camera_shake_check.toggled.connect(_on_state_word_source_toggled)
-	_adaptive_quality_check.toggled.connect(_on_state_word_source_toggled)
-	_rumble_enabled_check.toggled.connect(_on_state_word_source_toggled)
 
 	_graphics_page.refreshed.connect(_on_graphics_refreshed)
-	_master_volume_slider.value_changed.connect(_on_master_volume_changed)
+	_master_volume_slider.value_changed.connect(_on_meter_changed.bind(_master_volume_slider))
 	_master_mute_button.pressed.connect(_on_master_mute_pressed)
-	_music_volume_slider.value_changed.connect(_on_music_volume_changed)
+	_music_volume_slider.value_changed.connect(_on_meter_changed.bind(_music_volume_slider))
 	_music_mute_button.pressed.connect(_on_music_mute_pressed)
-	_sfx_volume_slider.value_changed.connect(_on_sfx_volume_changed)
+	_sfx_volume_slider.value_changed.connect(_on_meter_changed.bind(_sfx_volume_slider))
 	_sfx_mute_button.pressed.connect(_on_sfx_mute_pressed)
-	_weather_volume_slider.value_changed.connect(_on_weather_volume_changed)
+	_weather_volume_slider.value_changed.connect(_on_meter_changed.bind(_weather_volume_slider))
 	_weather_mute_button.pressed.connect(_on_weather_mute_pressed)
-	_music_dir_edit.text_submitted.connect(_on_music_dir_submitted)
-	_music_dir_edit.focus_exited.connect(_on_music_dir_focus_exited)
-	_browse_button.pressed.connect(_on_browse_pressed)
-	_music_dir_dialog.dir_selected.connect(_on_music_dir_selected)
 	_camera_shake_check.toggled.connect(_on_camera_shake_toggled)
 	_adaptive_quality_check.toggled.connect(_on_adaptive_quality_toggled)
 	_window_mode_option.item_selected.connect(_on_window_mode_selected)
 	_rumble_enabled_check.toggled.connect(_on_rumble_enabled_toggled)
-	_ui_scale_slider.value_changed.connect(_on_ui_scale_changed)
-	_ui_scale_slider.drag_started.connect(_on_ui_scale_drag_started)
-	_ui_scale_slider.drag_ended.connect(_on_ui_scale_drag_ended)
-	_rumble_strength_slider.value_changed.connect(_on_rumble_strength_changed)
-	_rumble_strength_slider.drag_ended.connect(_on_rumble_strength_drag_ended)
-	_move_speed_slider.value_changed.connect(_on_move_speed_changed)
+	_ui_scale_slider.value_changed.connect(_on_meter_changed.bind(_ui_scale_slider))
+	_ui_scale_slider.gui_input.connect(_on_ui_scale_gui_input)
+	_rumble_strength_slider.value_changed.connect(_on_meter_changed.bind(_rumble_strength_slider))
+	_rumble_strength_slider.gui_input.connect(_on_rumble_strength_gui_input)
+	_move_speed_slider.value_changed.connect(_on_meter_changed.bind(_move_speed_slider))
 	_back_button.pressed.connect(_on_back_pressed)
 	_reset_button.pressed.connect(_on_reset_pressed)
-	_settings_tab_button.toggled.connect(_on_settings_tab_toggled)
-	_controls_tab_button.toggled.connect(_on_controls_tab_toggled)
-	_graphics_tab_button.toggled.connect(_on_graphics_tab_toggled)
 	Events.input_device_changed.connect(_on_input_device_changed)
 
 	_window_mode_option.grab_focus()
 
 
-## Bontago-hfa.4 (UI reskin P2): the Stackfall Arcade look of this screen -- a disc-900 scrim, one
-## disc-800 plate with a flare-bullet heading, side tabs with a rim notch on the active one,
-## SegmentMeters instead of slider tracks, Bungee values, ON/OFF words on toggles and small block
-## footer buttons. Look only: no node, signal or setting changes.
-func _apply_arcade_style() -> void:
+## The design-system panel (UiPanel: plate, heading with flare bullet, content column) adopts the
+## authored page layout, so the screen owns no plate / heading / spacing code of its own.
+func _adopt_panel_layout() -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	var scrim: Color = arcade.disc_900_color
 	scrim.a = arcade.scrim_alpha
 	($Background as ColorRect).color = scrim
-	($Frame/Panel as PanelContainer).add_theme_stylebox_override("panel", MenuStyleFactory.make_plate())
-	_build_heading(arcade)
-	_style_tab(_settings_tab_button, arcade)
-	_style_tab(_graphics_tab_button, arcade)
-	_style_tab(_controls_tab_button, arcade)
-	($Frame/Panel/Layout/Body/TabColumn as Control).custom_minimum_size.x = float(OPTIONS_TUNING.tab_column_width_px)
-	MenuStyleFactory.apply_block(_reset_button, arcade.disc_600_color, arcade.cream_color, true)
-	MenuStyleFactory.apply_block(_back_button, arcade.disc_600_color, arcade.cream_color, true)
-	_controls_device_label.theme_type_variation = THEME_VARIATION_CAPTION
-	_settings_page.get_child(0).add_theme_constant_override("separation", arcade.space_3_px)
-	for slider: HSlider in [
-		_master_volume_slider, _music_volume_slider, _sfx_volume_slider, _weather_volume_slider,
-		_rumble_strength_slider, _move_speed_slider, _ui_scale_slider,
-	]:
-		_meters[slider] = SegmentMeter.attach(slider)
+	var panel: UiPanel = $Frame/Panel as UiPanel
+	var layout: Control = panel.get_node("Layout") as Control
+	panel.content.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	for child: Node in layout.get_children():
+		child.reparent(panel.content, false)
+		child.owner = self
+	panel.remove_child(layout)
+	layout.free()
+
+
+## Registers [param node] under [param unique_name] (`%Name` lookups) once it is in the tree.
+func _register(node: Node, unique_name: String) -> void:
+	node.name = unique_name
+	node.owner = self
+	node.unique_name_in_owner = true
+
+
+## Game page: Display / Audio / Rumble sections of UiRows (toggles, dropdown, meters).
+func _build_game_page() -> void:
+	_settings_fields.add_theme_constant_override("separation", MenuStyleFactory.arcade_tuning().space_4_px)
+	var display: VBoxContainer = _add_section(SECTION_DISPLAY)
+	_window_mode_option = UiDropdown.new()
+	_window_mode_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_add_row(display, ROW_WINDOW, _window_mode_option, "WindowModeOption")
+	_ui_scale_slider = _make_meter(UiScaleTuning.shared().min_scale, UiScaleTuning.shared().max_scale, ui_scale_cell_count())
+	_add_row(display, ROW_UI_SCALE, _ui_scale_slider, "UiScaleSlider")
+	_ui_scale_slider.formatter = func(cells: int) -> String: return _format_percent(_meter_value(_ui_scale_slider, cells))
+	_camera_shake_check = UiToggle.new()
+	_add_row(display, ROW_CAMERA_SHAKE, _camera_shake_check, "CameraShakeCheck")
+	_adaptive_quality_check = UiToggle.new()
+	_adaptive_quality_check.tooltip_text = ADAPTIVE_QUALITY_TOOLTIP
+	_add_row(display, ROW_ADAPTIVE_QUALITY, _adaptive_quality_check, "AdaptiveQualityCheck")
+
+	var audio: VBoxContainer = _add_section(SECTION_AUDIO)
+	_master_volume_slider = _make_percent_meter()
+	_master_mute_button = _add_channel_row(audio, ROW_MASTER_VOLUME, _master_volume_slider, "Master")
+	_master_volume_slider.formatter = func(_cells: int) -> String: return _format_percent(float(settings_provider.master_volume_percent()))
+	_music_volume_slider = _make_percent_meter()
+	_music_mute_button = _add_channel_row(audio, ROW_MUSIC_VOLUME, _music_volume_slider, "Music")
+	_music_volume_slider.formatter = func(_cells: int) -> String: return _format_percent(float(settings_provider.music_volume_percent()))
+	_sfx_volume_slider = _make_percent_meter()
+	_sfx_mute_button = _add_channel_row(audio, ROW_SFX_VOLUME, _sfx_volume_slider, "Sfx")
+	_sfx_volume_slider.formatter = func(_cells: int) -> String: return _format_percent(float(settings_provider.sfx_volume_percent()))
+	_weather_volume_slider = _make_percent_meter()
+	_weather_mute_button = _add_channel_row(audio, ROW_WEATHER_VOLUME, _weather_volume_slider, "Weather")
+	_weather_volume_slider.formatter = func(_cells: int) -> String: return _format_percent(float(settings_provider.weather_volume_percent()))
+
+	var rumble: VBoxContainer = _add_section(SECTION_RUMBLE)
+	_rumble_enabled_check = UiToggle.new()
+	_add_row(rumble, ROW_RUMBLE, _rumble_enabled_check, "RumbleEnabledCheck")
+	_rumble_strength_slider = _make_percent_meter()
+	_add_row(rumble, ROW_RUMBLE_INTENSITY, _rumble_strength_slider, "RumbleStrengthSlider")
+	_rumble_strength_slider.formatter = func(_cells: int) -> String: return _format_percent(float(settings_provider.rumble_strength()))
+	for first: Control in [_window_mode_option, _master_mute_button, _rumble_enabled_check]:
+		_reveal_section_on_focus(first, first.get_parent().get_parent().get_parent() as UiSection)
+
+
+## Controls page: the device-aware Mouse / Stick speed row between the caption and the rebind list.
+func _build_move_speed_row() -> void:
+	var row: UiRow = UiRow.new().setup(MOVE_SPEED_LABEL_MOUSE)
+	_move_speed_label = row.label
+	_move_speed_slider = _make_meter(MIN_MOVE_SPEED_SCALE, MAX_MOVE_SPEED_SCALE, MOVE_SPEED_CELLS)
+	row.add_item(_move_speed_slider)
+	_controls_page.add_child(row)
+	_controls_page.move_child(row, _controls_device_label.get_index() + 1)
+	_register(_move_speed_slider, "MoveSpeedSlider")
+	_register(_move_speed_label, "MoveSpeedLabel")
+	_move_speed_slider.formatter = func(_cells: int) -> String: return _format_percent(_active_move_speed())
+
+
+## One UiSection (caption header + Body column) on the Game page; returns its Body.
+func _add_section(title: String) -> VBoxContainer:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var section: UiSection = UiSection.new()
+	section.title = title
+	section.add_theme_constant_override("separation", arcade.space_2_px)
+	var body: VBoxContainer = VBoxContainer.new()
+	body.name = UiSection.BODY_NAME
+	body.add_theme_constant_override("separation", arcade.space_3_px)
+	section.add_child(body)
+	_settings_fields.add_child(section)
+	return body
+
+
+func _add_row(parent: Control, label_text: String, control: Control, unique_name: String) -> UiRow:
+	var row: UiRow = UiRow.new().setup(label_text, control)
+	parent.add_child(row)
+	_register(control, unique_name)
+	return row
+
+
+## A volume row: mute block, then the meter (its readout is the meter's own value cell).
+func _add_channel_row(parent: Control, label_text: String, meter: UiSegmentMeter, channel: String) -> UiIconButton:
+	var mute: UiIconButton = UiIconButton.new()
+	mute.set_icon_texture(SPEAKER_HIGH_ICON)
+	var row: UiRow = UiRow.new().setup(label_text, mute)
+	row.add_item(meter)
+	parent.add_child(row)
+	_register(mute, channel + "MuteButton")
+	_register(meter, channel + "VolumeSlider")
+	return mute
+
+
+## A UiSegmentMeter with [param cells] cells mapped onto [param low]..[param high].
+func _make_meter(low: float, high: float, cells: int) -> UiSegmentMeter:
+	var meter: UiSegmentMeter = UiSegmentMeter.new()
+	meter.step_count = cells
+	_meter_ranges[meter] = Vector2(low, high)
+	return meter
+
+
+func _make_percent_meter() -> UiSegmentMeter:
+	return _make_meter(MIN_VOLUME_PERCENT, MAX_VOLUME_PERCENT, PERCENT_METER_CELLS)
+
+
+## The setting value [param cells] filled cells of [param meter] stand for.
+func _meter_value(meter: UiSegmentMeter, cells: int) -> float:
+	var span: Vector2 = _meter_ranges[meter]
+	return span.x + (span.y - span.x) * float(cells) / float(meter.step_count)
+
+
+## The filled-cell count showing [param value] on [param meter] (nearest cell).
+func _meter_cells(meter: UiSegmentMeter, value: float) -> int:
+	var span: Vector2 = _meter_ranges[meter]
+	return roundi((value - span.x) / (span.y - span.x) * float(meter.step_count))
+
+
+## Sets [param meter] to show [param value] without emitting.
+func _show_meter_value(meter: UiSegmentMeter, value: float) -> void:
+	meter.set_value_silent(_meter_cells(meter, value))
+	meter.queue_redraw()
+
+
+## One cell per UI-scale step (so 100% sits exactly on a cell).
+static func ui_scale_cell_count() -> int:
+	var tuning: UiScaleTuning = UiScaleTuning.shared()
+	return roundi((tuning.max_scale - tuning.min_scale) / tuning.step)
+
+
+## The three category tabs (UiTabs, LB / RB cycle them). The node names stay the same
+## `%SettingsTabButton` / `%GraphicsTabButton` / `%ControlsTabButton` ids that tests and probes
+## use; the first tab's label is "Game" (owner 2026-10-10), its stored settings keys are unchanged.
+func _build_tabs() -> void:
+	# Shoulder handling stays here: it must not fire while a binding row is listening.
+	_tabs.handle_shoulders = false
+	for entry: Array in TAB_ENTRIES:
+		var id: StringName = entry[0] as StringName
+		_tabs.add_tab(id, entry[1] as String)
+		var tab: UiTab = _tabs.get_tab(id)
+		_register(tab, entry[2] as String)
+		tab.toggled.connect(_on_tab_toggled.bind(id))
+	_tabs.tab_changed.connect(_on_tab_changed)
+
+
+## Graphics-page-only look: its raw sliders / toggles / headers are restyled here until
+## Bontago-1pi.153 rebuilds that tab on components (then this whole block goes).
+func _apply_graphics_style() -> void:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	for graphics_slider: HSlider in _graphics_page.sliders():
 		_meters[graphics_slider] = SegmentMeter.attach(graphics_slider)
 	for graphics_label: Label in _graphics_page.value_labels():
@@ -367,76 +503,9 @@ func _apply_arcade_style() -> void:
 		_add_state_word(graphics_check)
 		graphics_check.toggled.connect(_on_state_word_source_toggled)
 	_graphics_page.get_child(0).add_theme_constant_override("separation", arcade.space_3_px)
-	for value_label: Label in [
-		_master_volume_value_label, _music_volume_value_label, _sfx_volume_value_label,
-		_weather_volume_value_label, _rumble_strength_value_label, _move_speed_value_label, _ui_scale_value_label,
-	]:
-		_style_value_label(value_label)
-	for check: CheckButton in [_camera_shake_check, _adaptive_quality_check, _rumble_enabled_check]:
-		_add_state_word(check)
-	for row_parent: Node in [_settings_page.get_child(0), _controls_page]:
-		for row: Node in row_parent.get_children():
-			if row is HBoxContainer:
-				for cell: Node in row.get_children():
-					var label: Label = cell as Label
-					if label != null and label.theme_type_variation == &"":
-						label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 
 
-## The panel heading: a flare voxel bullet, then the uppercase heading, left aligned.
-func _build_heading(arcade: ArcadeVisualTuning) -> void:
-	var title: Label = $Frame/Panel/Layout/Title as Label
-	var layout: Control = title.get_parent() as Control
-	var header: HBoxContainer = HBoxContainer.new()
-	header.add_theme_constant_override("separation", arcade.space_3_px)
-	layout.add_child(header)
-	layout.move_child(header, title.get_index())
-	title.reparent(header, false)
-	title.theme_type_variation = THEME_VARIATION_TITLE
-	title.add_theme_font_size_override("font_size", arcade.font_size_heading_px)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	var bullet: ColorRect = ColorRect.new()
-	bullet.color = arcade.flare_color
-	bullet.custom_minimum_size = Vector2.ONE * float(OPTIONS_TUNING.heading_bullet_px)
-	bullet.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	bullet.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	header.add_child(bullet)
-	header.move_child(bullet, 0)
-
-
-## A side tab: sand label on the panel, disc-700 on hover, disc-600 with a 4 px rim notch on its
-## left edge when active (docs/ui_reskin/components.md "Tabs"). The theme's cream focus outline stays.
-func _style_tab(tab: Button, arcade: ArcadeVisualTuning) -> void:
-	var idle: StyleBoxFlat = _tab_box(Color.TRANSPARENT, false, arcade)
-	var hover: StyleBoxFlat = _tab_box(arcade.disc_700_color, false, arcade)
-	var active: StyleBoxFlat = _tab_box(arcade.disc_600_color, true, arcade)
-	tab.add_theme_stylebox_override("normal", idle)
-	tab.add_theme_stylebox_override("hover", hover)
-	tab.add_theme_stylebox_override("pressed", active)
-	tab.add_theme_stylebox_override("hover_pressed", active)
-	for item: String in ["font_color", "font_hover_color", "font_focus_color"]:
-		tab.add_theme_color_override(item, arcade.sand_color)
-	for item: String in ["font_pressed_color", "font_hover_pressed_color"]:
-		tab.add_theme_color_override(item, arcade.cream_color)
-	tab.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	tab.custom_minimum_size.y = float(OPTIONS_TUNING.tab_min_height_px)
-
-
-func _tab_box(face: Color, notch: bool, arcade: ArcadeVisualTuning) -> StyleBoxFlat:
-	var box: StyleBoxFlat = StyleBoxFlat.new()
-	box.bg_color = face
-	box.set_corner_radius_all(arcade.radius_chip_px)
-	box.content_margin_left = float(arcade.space_4_px)
-	box.content_margin_right = float(arcade.space_4_px)
-	box.content_margin_top = float(arcade.button_pad_y_px)
-	box.content_margin_bottom = float(arcade.button_pad_y_px)
-	if notch:
-		box.border_color = arcade.rim_color
-		box.border_width_left = OPTIONS_TUNING.tab_notch_px
-	return box
-
-
-## A Bungee value to the right of a meter ("100%").
+## A Bungee value to the right of a Graphics-page meter ("100%").
 func _style_value_label(label: Label) -> void:
 	label.theme_type_variation = THEME_VARIATION_DISPLAY
 	label.add_theme_font_size_override("font_size", OPTIONS_TUNING.value_font_size_px)
@@ -444,7 +513,7 @@ func _style_value_label(label: Label) -> void:
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 
 
-## The required ON/OFF word beside a toggle (components.md "Toggle"): mint when on, dust when off.
+## The ON/OFF word beside a Graphics-page toggle: mint when on, dust when off.
 func _add_state_word(check: CheckButton) -> void:
 	var word: Label = Label.new()
 	word.name = STATE_WORD_NAME
@@ -480,21 +549,19 @@ func _refresh_layout() -> void:
 	panel.custom_minimum_size = Vector2(minf(available.x, tuning.menu_max_width_px), available.y)
 
 
-## Owner: "switch to only gamepad options on gamepad input and switch back on
-## mouse/keyboard input" -- both tab buttons share one ButtonGroup
-## (ui/OptionsMenu.tscn), so pressing one always un-presses the other and
-## fires both toggled signals; each handler only ever needs to show/hide its
-## own page.
-func _on_settings_tab_toggled(pressed: bool) -> void:
-	_settings_page.visible = pressed
+## A category tab became active (click, LB / RB, or code): show only its page. Owner: "switch to
+## only gamepad options on gamepad input and switch back on mouse/keyboard input".
+func _on_tab_changed(id: StringName) -> void:
+	_settings_page.visible = id == TAB_GAME
+	_graphics_page.visible = id == TAB_GRAPHICS
+	_controls_page.visible = id == TAB_CONTROLS
+	_wire_tab_focus()
 
 
-func _on_controls_tab_toggled(pressed: bool) -> void:
-	_controls_page.visible = pressed
-
-
-func _on_graphics_tab_toggled(pressed: bool) -> void:
-	_graphics_page.visible = pressed
+## A tab's `button_pressed` was set from code (tests, probes): route it through the bar.
+func _on_tab_toggled(pressed: bool, id: StringName) -> void:
+	if pressed:
+		_tabs.select(id)
 
 
 ## The Graphics controls were re-read (preset pick or an edit): redraw their meters and ON/OFF words.
@@ -547,9 +614,14 @@ func _refresh_row_bands() -> void:
 func _refresh_move_speed_row() -> void:
 	var gamepad: bool = Settings.active_input_device() == Settings.DEVICE_GAMEPAD
 	_move_speed_label.text = MOVE_SPEED_LABEL_STICK if gamepad else MOVE_SPEED_LABEL_MOUSE
-	var scale: float = settings_provider.stick_move_speed_scale() if gamepad else settings_provider.mouse_move_speed_scale()
-	_move_speed_slider.set_value_no_signal(scale)
-	_move_speed_value_label.text = _format_percent(scale)
+	_show_meter_value(_move_speed_slider, _active_move_speed())
+
+
+## The stored move-speed scale of the active input device.
+func _active_move_speed() -> float:
+	if Settings.active_input_device() == Settings.DEVICE_GAMEPAD:
+		return float(settings_provider.stick_move_speed_scale())
+	return float(settings_provider.mouse_move_speed_scale())
 
 
 ## ui_cancel (Escape / gamepad B, spec 2.10) backs out -- the same
@@ -564,15 +636,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		if row.is_listening():
 			return
 	if event.is_action_pressed(&"menu_tab_next") or event.is_action_pressed(&"menu_tab_previous"):
-		var tabs: Array[Button] = [_settings_tab_button, _graphics_tab_button, _controls_tab_button]
-		var current: int = 0
-		for i: int in range(tabs.size()):
-			if tabs[i].button_pressed:
-				current = i
+		var ids: Array[StringName] = _tabs.tab_ids()
 		var step: int = 1 if event.is_action_pressed(&"menu_tab_next") else -1
-		var target: Button = tabs[posmod(current + step, tabs.size())]
-		target.button_pressed = true
-		target.grab_focus()
+		_tabs.select(ids[UiTabs.next_index(ids.find(_tabs.current), step, ids.size())], true)
 		get_viewport().set_input_as_handled()
 		return
 	if event.is_action_pressed(&"ui_cancel"):
@@ -593,38 +659,33 @@ func _build_window_mode_items() -> void:
 func _load_current_values() -> void:
 	_graphics_page.refresh_from_settings()
 
-	_load_channel_row(_master_mute_button, _master_volume_slider, _master_volume_value_label, settings_provider.master_muted(), settings_provider.master_volume_percent())
-	_load_channel_row(_music_mute_button, _music_volume_slider, _music_volume_value_label, settings_provider.music_muted(), settings_provider.music_volume_percent())
-	_load_channel_row(_sfx_mute_button, _sfx_volume_slider, _sfx_volume_value_label, settings_provider.sfx_muted(), settings_provider.sfx_volume_percent())
+	_load_channel_row(_master_mute_button, _master_volume_slider, settings_provider.master_muted(), settings_provider.master_volume_percent())
+	_load_channel_row(_music_mute_button, _music_volume_slider, settings_provider.music_muted(), settings_provider.music_volume_percent())
+	_load_channel_row(_sfx_mute_button, _sfx_volume_slider, settings_provider.sfx_muted(), settings_provider.sfx_volume_percent())
+	_load_channel_row(_weather_mute_button, _weather_volume_slider, settings_provider.weather_muted(), settings_provider.weather_volume_percent())
 
-	_load_channel_row(_weather_mute_button, _weather_volume_slider, _weather_volume_value_label, settings_provider.weather_muted(), settings_provider.weather_volume_percent())
-
-	_music_dir_edit.text = String(settings_provider.custom_music_dir())
-
-	_camera_shake_check.set_pressed_no_signal(bool(settings_provider.camera_shake_enabled()))
-	_adaptive_quality_check.set_pressed_no_signal(bool(settings_provider.adaptive_quality_enabled()))
+	_camera_shake_check.set_on_silent(bool(settings_provider.camera_shake_enabled()))
+	_adaptive_quality_check.set_on_silent(bool(settings_provider.adaptive_quality_enabled()))
 
 	var window_mode_id: StringName = settings_provider.window_mode()
 	var window_mode_index: int = Settings.WINDOW_MODE_IDS.find(window_mode_id)
 	_window_mode_option.select(window_mode_index if window_mode_index >= 0 else Settings.WINDOW_MODE_IDS.find(Settings.DEFAULT_WINDOW_MODE_ID))
 
-	_ui_scale_slider.set_value_no_signal(float(settings_provider.ui_scale()))
-	_ui_scale_value_label.text = _format_percent(float(settings_provider.ui_scale()))
-	_rumble_enabled_check.set_pressed_no_signal(bool(settings_provider.rumble_enabled()))
-	_rumble_strength_slider.set_value_no_signal(float(settings_provider.rumble_strength()))
-	_rumble_strength_value_label.text = _format_percent(float(settings_provider.rumble_strength()))
+	_show_meter_value(_ui_scale_slider, float(settings_provider.ui_scale()))
+	_rumble_enabled_check.set_on_silent(bool(settings_provider.rumble_enabled()))
+	_show_meter_value(_rumble_strength_slider, float(settings_provider.rumble_strength()))
 	_refresh_rumble_strength_enabled()
 
 	_refresh_move_speed_row()
 	_refresh_state_words()
 
 
-func _load_channel_row(mute_button: Button, slider: HSlider, value_label: Label, muted: bool, percent: float) -> void:
-	slider.set_value_no_signal(percent)
-	value_label.text = _format_percent(percent)
-	(mute_button.get_node("Icon") as TextureRect).texture = _icon_for_channel(muted, percent)
-	if _meters.has(slider):
-		_meters[slider].set_dimmed(muted)
+## Shows one volume row: the meter at [param percent] (dust cells and no input while muted, so a
+## muted channel reads as off) and the speaker icon for its state.
+func _load_channel_row(mute_button: UiIconButton, slider: UiSegmentMeter, muted: bool, percent: float) -> void:
+	_show_meter_value(slider, percent)
+	mute_button.set_icon_texture(_icon_for_channel(muted, percent))
+	slider.editable = not muted
 
 
 func _on_preset_selected(index: int) -> void:
@@ -633,34 +694,55 @@ func _on_preset_selected(index: int) -> void:
 
 # --- Audio channels (Master/Music/SFX) ----------------------------------------
 
+## A component meter moved by the user: converts its cells to the setting's unit and hands them to the
+## per-setting handler below (the UI-scale and rumble-intensity meters also see mouse drags, see
+## _on_ui_scale_gui_input()).
+func _on_meter_changed(cells: int, meter: UiSegmentMeter) -> void:
+	var value: float = _meter_value(meter, cells)
+	if meter == _master_volume_slider:
+		_on_master_volume_changed(value)
+	elif meter == _music_volume_slider:
+		_on_music_volume_changed(value)
+	elif meter == _sfx_volume_slider:
+		_on_sfx_volume_changed(value)
+	elif meter == _weather_volume_slider:
+		_on_weather_volume_changed(value)
+	elif meter == _ui_scale_slider:
+		_on_ui_scale_changed(value)
+	elif meter == _rumble_strength_slider:
+		_on_rumble_strength_changed(value)
+	elif meter == _move_speed_slider:
+		_on_move_speed_changed(value)
+
+
 func _on_master_volume_changed(value: float) -> void:
 	settings_provider.set_master_volume_percent(value)
-	_load_channel_row(_master_mute_button, _master_volume_slider, _master_volume_value_label, settings_provider.master_muted(), settings_provider.master_volume_percent())
+	_load_channel_row(_master_mute_button, _master_volume_slider, settings_provider.master_muted(), settings_provider.master_volume_percent())
 
 
 func _on_master_mute_pressed() -> void:
 	settings_provider.toggle_master_mute()
-	_load_channel_row(_master_mute_button, _master_volume_slider, _master_volume_value_label, settings_provider.master_muted(), settings_provider.master_volume_percent())
+	_load_channel_row(_master_mute_button, _master_volume_slider, settings_provider.master_muted(), settings_provider.master_volume_percent())
 
 
 func _on_music_volume_changed(value: float) -> void:
 	settings_provider.set_music_volume_percent(value)
-	_load_channel_row(_music_mute_button, _music_volume_slider, _music_volume_value_label, settings_provider.music_muted(), settings_provider.music_volume_percent())
+	_load_channel_row(_music_mute_button, _music_volume_slider, settings_provider.music_muted(), settings_provider.music_volume_percent())
 
 
 func _on_music_mute_pressed() -> void:
 	settings_provider.toggle_music_mute()
-	_load_channel_row(_music_mute_button, _music_volume_slider, _music_volume_value_label, settings_provider.music_muted(), settings_provider.music_volume_percent())
+	_load_channel_row(_music_mute_button, _music_volume_slider, settings_provider.music_muted(), settings_provider.music_volume_percent())
 
 
 func _on_sfx_volume_changed(value: float) -> void:
 	settings_provider.set_sfx_volume_percent(value)
-	_load_channel_row(_sfx_mute_button, _sfx_volume_slider, _sfx_volume_value_label, settings_provider.sfx_muted(), settings_provider.sfx_volume_percent())
+	_load_channel_row(_sfx_mute_button, _sfx_volume_slider, settings_provider.sfx_muted(), settings_provider.sfx_volume_percent())
 
 
 func _on_sfx_mute_pressed() -> void:
 	settings_provider.toggle_sfx_mute()
-	_load_channel_row(_sfx_mute_button, _sfx_volume_slider, _sfx_volume_value_label, settings_provider.sfx_muted(), settings_provider.sfx_volume_percent())
+	_load_channel_row(_sfx_mute_button, _sfx_volume_slider, settings_provider.sfx_muted(), settings_provider.sfx_volume_percent())
 
 
 ## Muted (or at 0%): the "X" icon. Otherwise picks the 1/2/3-wave icon by
@@ -681,28 +763,12 @@ func _format_percent(value: float) -> String:
 
 func _on_weather_volume_changed(value: float) -> void:
 	settings_provider.set_weather_volume_percent(value)
-	_load_channel_row(_weather_mute_button, _weather_volume_slider, _weather_volume_value_label, settings_provider.weather_muted(), settings_provider.weather_volume_percent())
+	_load_channel_row(_weather_mute_button, _weather_volume_slider, settings_provider.weather_muted(), settings_provider.weather_volume_percent())
 
 
 func _on_weather_mute_pressed() -> void:
 	settings_provider.toggle_weather_mute()
-	_load_channel_row(_weather_mute_button, _weather_volume_slider, _weather_volume_value_label, settings_provider.weather_muted(), settings_provider.weather_volume_percent())
-
-
-func _on_music_dir_submitted(_text: String) -> void:
-	pass # Custom music override temporarily disabled.
-
-
-func _on_music_dir_focus_exited() -> void:
-	pass
-
-
-func _on_browse_pressed() -> void:
-	pass
-
-
-func _on_music_dir_selected(_dir: String) -> void:
-	pass
+	_load_channel_row(_weather_mute_button, _weather_volume_slider, settings_provider.weather_muted(), settings_provider.weather_volume_percent())
 
 
 ## Bontago-1pi.11.37: opt-in governor; the stored preset is never touched.
@@ -730,36 +796,37 @@ func _on_rumble_enabled_toggled(enabled: bool) -> void:
 
 
 func _refresh_rumble_strength_enabled() -> void:
-	var enabled: bool = bool(settings_provider.rumble_enabled())
-	_rumble_strength_slider.editable = enabled
-	_rumble_strength_slider.modulate.a = 1.0 if enabled else 0.5
+	_rumble_strength_slider.editable = bool(settings_provider.rumble_enabled())
 
 
 func _on_ui_scale_changed(value: float) -> void:
-	_ui_scale_value_label.text = _format_percent(value)
 	if not _ui_scale_dragging:
 		settings_provider.set_ui_scale(value)
 
 
-func _on_ui_scale_drag_started() -> void:
-	_ui_scale_dragging = true
-
-
-func _on_ui_scale_drag_ended(_value_changed: bool) -> void:
-	_ui_scale_dragging = false
-	settings_provider.set_ui_scale(_ui_scale_slider.value)
+## A mouse drag on the UI-scale meter previews and applies on release (Bontago-1pi.150): the press
+## starts the drag before the meter's own handler sets the value, the release applies it.
+func _on_ui_scale_gui_input(event: InputEvent) -> void:
+	var click: InputEventMouseButton = event as InputEventMouseButton
+	if click == null or click.button_index != MOUSE_BUTTON_LEFT:
+		return
+	if click.pressed:
+		_ui_scale_dragging = true
+	elif _ui_scale_dragging:
+		_ui_scale_dragging = false
+		settings_provider.set_ui_scale(_meter_value(_ui_scale_slider, _ui_scale_slider.value))
 
 
 func _on_rumble_strength_changed(value: float) -> void:
 	settings_provider.set_rumble_strength(value)
-	_rumble_strength_value_label.text = _format_percent(value)
 
 
-## Owner: "Nudge a short test rumble when the slider is released". HSlider's
-## own drag_ended(value_changed) fires once per drag gesture regardless of how
-## many intermediate value_changed signals fired during it.
-func _on_rumble_strength_drag_ended(_value_changed: bool) -> void:
-	Rumble.trigger_test_pulse()
+## Owner: "Nudge a short test rumble when the slider is released" (mouse release only, like the
+## HSlider's drag_ended it replaces).
+func _on_rumble_strength_gui_input(event: InputEvent) -> void:
+	var click: InputEventMouseButton = event as InputEventMouseButton
+	if click != null and click.button_index == MOUSE_BUTTON_LEFT and not click.pressed:
+		Rumble.trigger_test_pulse()
 
 
 # --- Block movement speed (Controls tab, device-aware) ------------------------
@@ -769,7 +836,6 @@ func _on_move_speed_changed(value: float) -> void:
 		settings_provider.set_stick_move_speed_scale(value)
 	else:
 		settings_provider.set_mouse_move_speed_scale(value)
-	_move_speed_value_label.text = _format_percent(value)
 
 
 ## Bontago-xtq.45 (M7 P4): unlike every other setter this menu calls,
@@ -846,25 +912,6 @@ func _style_section_header(header: Label) -> void:
 	header.add_child(rule)
 
 
-## The speaker icons (assets/ui/icons/speaker_*.svg) are plain white fills
-## "so they can be modulated to the theme text colour" (brief) -- against
-## this menu's cream panel a flat white icon has almost no contrast, so this
-## tints the icon to tuning.ink_color, the same dark ink colour
-## MenuStyleFactory.apply_toggle_chip() already uses for this menu's tab
-## button labels above.
-##
-## DECISION (ui/OptionsMenu.gd): the icon lives on a child TextureRect
-## (%.../MuteButton/Icon), not the Button's own built-in `icon` property --
-## a Button icon assigned this deep in this scene's container chain rendered
-## with correct properties (icon/rect/visible/modulate all reported normal)
-## but was never actually drawn, reproducible in isolation and gone the
-## moment the same node was reparented to a shallower tree; a plain
-## TextureRect child (the same node type every other icon in the project
-## already uses) sidesteps whatever that Button-specific issue is.
-func _style_mute_button_icon(button: Button) -> void:
-	(button.get_node("Icon") as TextureRect).modulate = MenuStyleFactory.arcade_tuning().cream_color
-
-
 func _build_rebind_rows() -> void:
 	for child: Node in _rebind_list.get_children():
 		_rebind_list.remove_child(child)
@@ -896,14 +943,9 @@ func _build_rebind_rows() -> void:
 ## the rebind rows are built dynamically and don't exist yet when the scene
 ## file is authored.
 ##
-## DECISION (Bontago-1pi.10): the two tab buttons are deliberately left out of
-## this explicit vertical chain -- they sit in their own column to the left,
-## and Godot's own automatic focus-neighbor resolution (used whenever
-## focus_neighbor_left/right is left as an empty NodePath, which this method
-## never sets) already finds them via ui_left/ui_right from whatever control
-## in ContentColumn currently has focus, the ordinary "arrow keys move to the
-## nearest Control in that screen direction" behavior every other Control in
-## the project already relies on.
+## DECISION (Bontago-1pi.159.3): the tab strip is horizontal above the pages, so the tabs are not in
+## this chain; _wire_tab_focus() links the visible page's first control and the tabs both ways.
+## (Before this the tabs were a left column reached by the engine's automatic ui_left resolution.)
 func _wire_focus_chain() -> void:
 	var chain: Array[Control] = [
 		_window_mode_option, _ui_scale_slider, _camera_shake_check, _adaptive_quality_check,
@@ -930,3 +972,39 @@ func _wire_focus_chain() -> void:
 		current.focus_neighbor_top = current.get_path_to(prev)
 		current.focus_neighbor_bottom = current.get_path_to(next)
 		current.focus_mode = Control.FOCUS_ALL
+	_wire_tab_focus()
+
+
+## Bontago-1pi.159.3: the tab strip sits above the pages. ui_up from the visible page's first control
+## reaches the active tab, ui_down from any tab reaches that first control (ui_left / ui_right on a
+## tab step to its neighbour tab inside UiTabs), and ui_up from a tab wraps to Back.
+func _wire_tab_focus() -> void:
+	var first: Control = _first_focus_of_page(_tabs.current)
+	var active: Control = _tabs.get_tab(_tabs.current)
+	if first == null or active == null:
+		return
+	first.focus_neighbor_top = first.get_path_to(active)
+	for id: StringName in _tabs.tab_ids():
+		var tab: UiTab = _tabs.get_tab(id)
+		tab.focus_neighbor_bottom = tab.get_path_to(first)
+		tab.focus_neighbor_top = tab.get_path_to(_back_button)
+
+
+## FocusScrollContainer only reveals caption Labels that are siblings of the focused control; a
+## UiSection's caption sits in its own header row, so a section's first control reveals the header
+## itself when it takes focus (walking up never leaves the caption clipped).
+func _reveal_section_on_focus(control: Control, section: UiSection) -> void:
+	control.focus_entered.connect(_reveal_section.bind(section))
+
+
+func _reveal_section(section: UiSection) -> void:
+	_settings_page.ensure_control_visible.call_deferred(section.get_child(0) as Control)
+
+
+func _first_focus_of_page(id: StringName) -> Control:
+	if id == TAB_GRAPHICS:
+		var graphics: Array[Control] = _graphics_page.focus_controls()
+		return graphics[0] if not graphics.is_empty() else null
+	if id == TAB_CONTROLS:
+		return _move_speed_slider
+	return _window_mode_option

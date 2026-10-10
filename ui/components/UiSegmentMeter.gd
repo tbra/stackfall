@@ -65,12 +65,20 @@ var _next_due: float = 0.0
 func _init() -> void:
 	focus_mode = Control.FOCUS_ALL
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	# Owns the focus outline _draw paints (the theme's Button one), so a generic
+	# `get_theme_stylebox("focus")` audit finds it; a plain Control has none.
+	add_theme_stylebox_override("normal", StyleBoxEmpty.new())
 	UiRowItem.apply(self, UiRowItem.Kind.METER, true)
 	custom_minimum_size.x += float(UiRowItem.metrics().row_value_cell_width_px)
 	set_process(false)
 	focus_entered.connect(queue_redraw)
 	focus_exited.connect(_on_focus_exited)
 	visibility_changed.connect(_release)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_ENTER_TREE:
+		add_theme_stylebox_override("focus", get_theme_stylebox("focus", "Button"))
 
 
 ## Sets the value without emitting `value_changed` (remote sync, read-only clients).

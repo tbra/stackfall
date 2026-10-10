@@ -166,28 +166,12 @@ func test_pause_menu_icons_contrast_in_every_state() -> void:
 
 func test_options_menu_mute_icons_contrast_on_their_panel_in_every_state() -> void:
 	var menu: OptionsMenu = _make_options_menu()
-	var buttons: Array[Button] = _texture_icon_buttons(menu)
-	assert_eq(buttons.size(), OPTIONS_MENU_MUTE_BUTTONS, "mute buttons found in OptionsMenu.tscn")
-	var minimum: float = TUNING.icon_min_contrast_ratio
+	var mutes: Array[Node] = menu.find_children("*MuteButton", "UiIconButton", true, false)
+	assert_eq(mutes.size(), OPTIONS_MENU_MUTE_BUTTONS, "mute buttons found in OptionsMenu.tscn")
+	# Bontago-1pi.159.3: the mute blocks are UiIconButtons (a Button icon on a block face), so the
+	# generic Button.icon walk below covers them in every state.
 	for icon_button: Button in _icon_buttons(menu):
 		_assert_button_contrast(icon_button, "OptionsMenu")
-	for button: Button in buttons:
-		var icon_color: Color = (button.get_node("Icon") as TextureRect).modulate
-		# The mute button is flat: whichever of its own styleboxes the engine
-		# draws (none while flat, otherwise normal/hover/pressed), the glyph
-		# must read on it and on the panel behind it.
-		var backdrops: Dictionary = {"panel": _panel_color_behind(button)}
-		for state: Array in STATES:
-			var box_name: String = state[1]
-			backdrops[box_name] = _box_color(button.get_theme_stylebox(box_name), "OptionsMenu/%s [%s]" % [button.name, state[0]])
-		for backdrop: String in backdrops:
-			if backdrop == "disabled":
-				continue
-			var bg: Color = backdrops[backdrop]
-			var ratio: float = MenuStyleFactory.contrast_ratio(_drawn(icon_color, bg), bg)
-			assert_gte(ratio, minimum, "OptionsMenu/%s icon contrast %.2f on %s %s is below %.2f" % [
-				button.name, ratio, backdrop, bg, minimum,
-			])
 
 
 func _panel_color_behind(node: Control) -> Color:
