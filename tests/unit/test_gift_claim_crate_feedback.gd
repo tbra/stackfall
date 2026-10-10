@@ -141,6 +141,17 @@ func test_pickup_has_a_readable_wrapped_silhouette() -> void:
 	assert_not_null(crate.get_node_or_null("GiftBeacon/BeaconDiamond"))
 
 
+## Bontago-1pi.143: the unshadowed glow light must not light block faces (layer 1);
+## it is limited to the territory disc layer.
+func test_glow_light_is_limited_to_the_disc_layer_so_it_cannot_light_blocks() -> void:
+	var parent: Node3D = autofree(Node3D.new())
+	add_child_autofree(parent)
+	var crate: GiftCrate = _make_crate(6, Vector2.ZERO, parent)
+	var glow: OmniLight3D = crate.get_node("GiftGlow") as OmniLight3D
+	assert_eq(glow.light_cull_mask, TerritoryOverlay.DISC_LAYER_BIT)
+	assert_eq(glow.light_cull_mask & 1, 0, "layer 1 (blocks, crate) is not lit by the glow")
+
+
 func test_spawn_glow_flashes_then_settles_without_hiding_the_crate() -> void:
 	var parent: Node3D = autofree(Node3D.new())
 	add_child_autofree(parent)
