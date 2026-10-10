@@ -155,3 +155,31 @@ func test_steam_public_lobby_flag_sets_public_lobby_type_on_a_copy() -> void:
 func test_no_public_lobby_flag_keeps_friends_only_default() -> void:
 	_node._apply_command_line_args(PackedStringArray())
 	assert_eq(_node.config.steam_lobby_type, 1)
+
+
+# --- LAN advertising (Bontago-fca.88) ---------------------------------------------------
+
+func _hosted_advertising(extra: PackedStringArray) -> bool:
+	# AgentProbe runs never advertise at all; force the normal-run state for this check.
+	AgentProbe.set_forced_for_test(0)
+	var args: PackedStringArray = PackedStringArray(["--port=%d" % _take_port()])
+	args.append_array(extra)
+	var started: bool = _node._apply_command_line_args(args)
+	AgentProbe.set_forced_for_test(-1)
+	assert_true(started)
+	assert_eq(_node.mode(), Net.Mode.HOST)
+	return bool(_node.is_lan_advertising())
+
+
+func test_headless_host_does_not_advertise_on_the_lan_by_default() -> void:
+	assert_false(_hosted_advertising(PackedStringArray(["--headless-host", "--bots=8"])), "bot hosts stay out of the Join browser")
+	assert_true(_node.accepting_joins(), "but still accept joins by address")
+	assert_false(_node.is_private_session(), "and are not loopback-only")
+
+
+func test_headless_host_advertises_with_the_advertise_flag() -> void:
+	assert_true(_hosted_advertising(PackedStringArray(["--headless-host", "--advertise"])))
+
+
+func test_plain_host_flag_still_advertises() -> void:
+	assert_true(_hosted_advertising(PackedStringArray(["--host"])))

@@ -39,7 +39,22 @@ func before_each() -> void:
 	Events.breeze_gust_started.connect(_on_gust)
 
 
+## Bontago-fca.87: Jolt prints this warning when its worker threads are starved of CPU
+## (parallel gate shards, background bot matches) and the step queued more jobs than it can
+## recycle; it then waits for jobs, so physics stays correct. GUT counts every engine
+## warning as a failure, which made the wind-clamp test flaky only under load. Mark exactly
+## this message handled (the clamp assertions still decide the verdict); anything else still fails.
+const JOLT_JOB_OVERFLOW_TEXT: String = "Jolt Physics job system exceeded the maximum number of jobs"
+
+
+func _tolerate_jolt_job_overflow() -> void:
+	for err: GutTrackedError in get_errors():
+		if err.is_engine_error() and err.contains_text(JOLT_JOB_OVERFLOW_TEXT):
+			err.handled = true
+
+
 func after_each() -> void:
+	_tolerate_jolt_job_overflow()
 	Events.breeze_gust_started.disconnect(_on_gust)
 	for block: Block in _blocks:
 		if is_instance_valid(block):
@@ -401,6 +416,8 @@ func test_wind_speed_and_dv_stay_within_the_clamps_for_breeze_storm_and_both() -
 	assert_gt(int(both["both_ticks"]), 5, "both layers act on the same block (Breeze then hits its own speed cap)")
 	assert_lte(float(both["widest"]), (storm_tuning.max_dv_per_tick + _tuning.max_dv_per_tick) * 3.0, "summed dv is bounded by the two clamps")
 	assert_lte(float(both["speed"]), storm_tuning.max_speed_ms + _tuning.max_speed_ms + 0.6, "summed speed is bounded")
+	# GUT judges tracked errors right after the test body, before after_each().
+	_tolerate_jolt_job_overflow()
 
 
 # --- Lifecycle through MatchWeather ------------------------------------------------------
