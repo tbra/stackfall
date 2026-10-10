@@ -83,7 +83,6 @@ func _ready() -> void:
 
 	_replay_button.pressed.connect(_on_replay_pressed)
 	_lobby_button.pressed.connect(_on_lobby_pressed)
-	_mode_title.add_theme_font_size_override("font_size", tuning.score_card_title_font_size)
 	_apply_visual_style()
 	_wire_focus_chain()
 
@@ -144,7 +143,7 @@ func _claim_input() -> void:
 ## mouse.
 func show_results(results: Dictionary) -> void:
 	last_results = results
-	_mode_title.text = mode_title(results)
+	_mode_title.text = mode_title(results).to_upper()
 	_headline.text = _headline_text(results)
 	var outcome: String = mode_outcome_text(results, _resolved_team_numbers()).strip_edges()
 	_mode_outcome.text = outcome
@@ -392,21 +391,31 @@ func _current_config() -> MatchConfig:
 
 # --- Visual style + focus chain -------------------------------------------------
 
-## Same StyleBoxFlat-from-MenuVisualTuning technique ui/Lobby.gd's own
-## _apply_visual_style() doc comment describes: no image assets, everything
-## drawn from ui/theme/MenuStyleFactory.gd on top of the shared
-## ui/theme/stackfall_theme.tres Theme this scene's root sets.
+## Stackfall Arcade (docs/UI_RESKIN_PLAN.md P5, Bontago-hfa.7): a disc-800 plate on a disc-950
+## scrim, the mode as a rim kicker, the outcome in Bungee, PLAY AGAIN as the one flare block.
 func _apply_visual_style() -> void:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var look: ResultsTableTuning = ScoreTable.table_tuning()
+	var scrim: ColorRect = $Background as ColorRect
+	scrim.color = Color(arcade.disc_950_color, arcade.scrim_alpha)
 	var card: PanelContainer = %Card
-	card.add_theme_stylebox_override("panel", MenuStyleFactory.make_card(tuning.card_cream_color, tuning))
+	card.add_theme_stylebox_override("panel", MenuStyleFactory.make_plate())
+	%Layout.add_theme_constant_override("separation", look.card_gap_px)
+	_rows_list.add_theme_constant_override("separation", look.row_gap_px)
 
-	MenuStyleFactory.apply_pill(
-		_replay_button, tuning.pill_coral_color, tuning.pill_coral_hover_color, tuning.label_ink_light_color, tuning
-	)
-	MenuStyleFactory.apply_pill(
-		_lobby_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning
-	)
-	_waiting_hint.add_theme_color_override("font_color", tuning.label_muted_color)
+	_mode_title.add_theme_color_override("font_color", arcade.rim_color)
+	_mode_title.add_theme_font_size_override("font_size", look.kicker_font_size_px)
+	_mode_title.add_theme_constant_override("outline_size", 0)
+	_headline.theme_type_variation = &"DisplayLabel"
+	_headline.add_theme_font_size_override("font_size", look.banner_font_size_px)
+	_headline.add_theme_color_override("font_color", arcade.cream_color)
+	_headline.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_mode_outcome.add_theme_font_size_override("font_size", look.outcome_font_size_px)
+	_mode_outcome.add_theme_color_override("font_color", arcade.sand_color)
+
+	MenuStyleFactory.apply_block(_replay_button, arcade.flare_color, arcade.ink_color)
+	MenuStyleFactory.apply_block(_lobby_button, arcade.disc_600_color, arcade.cream_color)
+	_waiting_hint.add_theme_color_override("font_color", arcade.dust_color)
 
 
 ## Gamepad/keyboard navigability -- same runtime get_path_to() chaining

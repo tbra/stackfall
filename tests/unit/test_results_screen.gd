@@ -375,7 +375,7 @@ func test_header_is_the_mode_name_and_peak_column_is_gone() -> void:
 	var results: Dictionary = _ffa_results()
 	results["mode"] = {"mode_id": MatchConfig.GameMode.ELIMINATION, "scores": [1.0, 0.0, 0.0], "winners": "0", "order": "2,1"}
 	_screen.show_results(results)
-	assert_eq((_screen.get_node("%ModeTitle") as Label).text, "Elimination")
+	assert_eq((_screen.get_node("%ModeTitle") as Label).text, "ELIMINATION", "the mode kicker is uppercase")
 	assert_false(_header_texts().has("Peak %"))
 	assert_eq(ResultsScreen.mode_outcome_text(results), "", "no alive text or out-order caption")
 	results["mode"] = {"mode_id": MatchConfig.GameMode.CAPTURE_THE_FLAG, "scores": [3.0, 0.0, 0.0], "winners": "0"}
@@ -386,3 +386,35 @@ func test_header_is_the_mode_name_and_peak_column_is_gone() -> void:
 func test_fallback_label_and_slot_colour_come_from_the_core_owners() -> void:
 	assert_eq(ResultsScreen.player_label({}, 2), "Player 3", "no row: PlayerNames fallback")
 	assert_eq(ScoreTable.slot_color(1, null), MatchConfig.default_player_colors()[1], "palette via SlotColors")
+
+
+# --- Stackfall Arcade table (Bontago-hfa.7) ----------------------------------
+
+func test_winner_row_is_tinted_toward_rim_with_a_rim_edge() -> void:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var look: ResultsTableTuning = ScoreTable.table_tuning()
+	_screen.show_results(_ffa_results())
+	var winner_box: StyleBoxFlat = (_screen._rows_list.get_child(1) as PanelContainer).get_theme_stylebox("panel") as StyleBoxFlat
+	var other_box: StyleBoxFlat = (_screen._rows_list.get_child(2) as PanelContainer).get_theme_stylebox("panel") as StyleBoxFlat
+	assert_eq(other_box.bg_color, arcade.disc_700_color, "non-winner rows are plain disc-700")
+	assert_eq(other_box.border_width_left, 0)
+	assert_eq(winner_box.border_width_left, look.winner_edge_px, "winner row carries the rim edge")
+	assert_eq(winner_box.border_color, arcade.rim_color)
+	assert_ne(winner_box.bg_color, arcade.disc_700_color, "winner face is tinted")
+
+
+func test_a_draw_tints_no_row() -> void:
+	var draw: Dictionary = _ffa_results()
+	draw["winner_id"] = -1
+	draw["winner_name"] = ""
+	_screen.show_results(draw)
+	for index: int in range(1, _screen._rows_list.get_child_count()):
+		var box: StyleBoxFlat = (_screen._rows_list.get_child(index) as PanelContainer).get_theme_stylebox("panel") as StyleBoxFlat
+		assert_eq(box.border_width_left, 0, "row %d has no winner edge in a draw" % index)
+
+
+func test_play_again_is_the_one_flare_block_with_ink_label() -> void:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var box: BlockStyleBox = _screen._replay_button.get_theme_stylebox("normal") as BlockStyleBox
+	assert_eq(box.face_color, arcade.flare_color)
+	assert_eq(_screen._replay_button.get_theme_color("font_color"), arcade.ink_color)
