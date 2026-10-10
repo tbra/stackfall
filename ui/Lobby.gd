@@ -467,9 +467,10 @@ func _populate_options() -> void:
 		_gravity_slider, _special_freq_slider,
 	]:
 		SliderNav.apply(nav_slider)
-	# The disc-size and minute timer sliders are stepped by _on_timer_slider_gui_input (one step per press).
+	# The disc-size and minute timer sliders move one slider.step per press through the same
+	# SliderNav Repeater (stick press/release hysteresis + friction; Bontago-1pi.152).
 	for stepped_slider: HSlider in [_disc_size_slider, _match_timer_slider, _round_timer_slider]:
-		SliderNav.apply(stepped_slider, false)
+		SliderNav.apply(stepped_slider, true, true)
 	_decorate_map_picker()
 	_fill_option(_ai_difficulty_option, ["Easy", "Normal", "Hard"])
 	_fill_option(_team_mode_option, ["Off", "2 teams", "3 teams", "4 teams"])
@@ -788,7 +789,6 @@ func _connect_control_signals() -> void:
 	_game_mode_option.item_selected.connect(_on_game_mode_picked)
 	_game_mode_option.item_selected.connect(_on_option_changed)
 	_round_timer_slider.value_changed.connect(_on_timer_slider_changed.bind(_round_timer_slider))
-	_round_timer_slider.gui_input.connect(_on_timer_slider_gui_input.bind(_round_timer_slider))
 	_sky_team_sum_check.toggled.connect(_on_toggled)
 	_game_mode_option.item_selected.connect(_refresh_sky_controls)
 	_sky_theme_option.item_selected.connect(_on_option_changed)
@@ -804,9 +804,7 @@ func _connect_control_signals() -> void:
 	_goal_flag_spin.value_changed.connect(_on_value_changed)
 	_special_freq_slider.value_changed.connect(_on_value_changed)
 	_match_timer_slider.value_changed.connect(_on_timer_slider_changed.bind(_match_timer_slider))
-	_match_timer_slider.gui_input.connect(_on_timer_slider_gui_input.bind(_match_timer_slider))
 	_disc_size_slider.value_changed.connect(_on_disc_size_changed)
-	_disc_size_slider.gui_input.connect(_on_timer_slider_gui_input.bind(_disc_size_slider))
 	_gifts_check.toggled.connect(_on_toggled)
 	_sudden_death_check.toggled.connect(_on_toggled)
 	_turn_based_check.toggled.connect(_on_toggled)
@@ -1297,26 +1295,6 @@ func _on_timer_slider_changed(value: float, slider: HSlider) -> void:
 	_timer_previous_minutes[slider] = minutes
 	_update_timer_values()
 	_on_setting_changed()
-
-
-## Gamepad / keyboard left-right on a focused timer slider steps it one minute (ui_up
-## and ui_down stay with the focus chain). DECISION: the lobby steps the slider itself
-## and accepts the event instead of leaving it to Slider's built-in ui_left/ui_right
-## handling, so this rule is exercised by a plain `gui_input` emit in tests (GUT cannot
-## route key/pad events to a focused control) and a read-only (client) slider is skipped
-## explicitly. The 1-minute gap is skipped by _on_timer_slider_changed().
-func _on_timer_slider_gui_input(event: InputEvent, slider: HSlider) -> void:
-	if not slider.editable:
-		return
-	var direction: int = 0
-	if event.is_action_pressed(&"ui_left", true):
-		direction = -1
-	elif event.is_action_pressed(&"ui_right", true):
-		direction = 1
-	if direction == 0:
-		return
-	slider.accept_event()
-	slider.value += direction * slider.step
 
 
 func _refresh_sky_controls(_index: int = 0) -> void:

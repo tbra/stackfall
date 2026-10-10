@@ -101,7 +101,7 @@ writes `<scene>_sheet.png` next to the captures (unlabelled cells, row-major
 capture order, names printed). Retrofitted: screenshot_fog, screenshot_rain,
 screenshot_pt7_pause.
 
-## `bot_dataset.py`, `bot_fit_weights.py`, `bot_h2h.py` (bot training, Bontago-1t5.12)
+## `bot_dataset.py`, `bot_fit_weights.py`, `bot_h2h.py` (bot training, Bontago-1t5.12; P1b options 1t5.20)
 
 Python-only (stdlib) tooling for the recorder output described in
 `docs/BOT_TRAINING_SOAK_PLAN.md` section 1 (schema v1).
@@ -109,8 +109,10 @@ Python-only (stdlib) tooling for the recorder output described in
 ```
 python -I tools/bot_dataset.py validate|summarise|size <dir|files>   # strict schema v1; exit 1 on errors
 python -I tools/bot_fit_weights.py <dir|files> [--mode N] [--write-proposal out.txt]
-python -I tools/bot_h2h.py --candidate out.txt --pairs 50 --parallel 4 --godot-args "..."
+python -I tools/bot_h2h.py --candidate out.txt --pairs 50 --godot-args "..."   # --parallel defaults to 1
+python -I tools/bot_h2h.py --dry-run --battery E1|E2|E3|E4|E5|all               # section 2.5 command lines
 python tools/test_bot_dataset.py
+python tools/test_bot_h2h.py
 ```
 
 `bot_fit_weights.py` is the T1 offline refit: listwise softmax over the recorded
@@ -121,6 +123,12 @@ weight diff, and never edits `config/` (`--write-proposal` refuses paths there).
 gate (>= 75 % win share over >= 100 matches). It needs the per-slot weight override
 and match seed seam (plan BT5 `--bot-weights`), supplied through `--godot-args`;
 until then use `--dry-run`.
+Bontago-1t5.20 options: `--candidate` is optional when the template has no `{weights_file}`/`{weights_json}`
+(for example a passive or legacy baseline); `--players N` adds `--players=N`; `--mode M` adds `--mode=M`;
+`--no-swap` runs only the A-seat half and prints one `H2H seed=` line per match (the gate verdict stays
+INSUFFICIENT under 100 matches); the summary adds `candidate_win_time_s median= max=` in game seconds.
+`--battery E1..E5|all` (dry-run only) prints the section 2.5 command lines; their `<v2>`-style placeholders
+must be filled in by hand, and a real launch refuses a template that still has one.
 Headless bot log clock (Bontago-1t5.16): `HEADLESS_BOTS t=`/`done t=` and `HEADLESS_MATCH duration=`
 are game time (physics ticks, the clock `--seconds` uses; `wall=` is the wall-clock extra field), so
 under `--fixed-fps 60` `done t=` equals the cap. A run that hits `--seconds` while still PLAYING prints

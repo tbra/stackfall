@@ -1,5 +1,5 @@
 extends GutTest
-## Spec 2.2's influence rule: "r = influence_base + h * tan(45 deg) ... capped
+## Spec 2.2's influence rule: "r = influence_base + h * tan(40 deg) ... capped
 ## at influence_max = 0.6 * field_radius", and spec 3.3's "two circles are
 ## connected if they overlap".
 

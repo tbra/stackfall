@@ -14,7 +14,7 @@ extends Resource
 ## Loaded once as config/territory_tuning.tres.
 
 ## -- Influence circles (spec 2.2) -------------------------------------------
-## r = min(influence_base + h * tan(45 deg), influence_max_fraction * field_radius),
+## r = min(influence_base + h * tan(40 deg), influence_max_fraction * field_radius),
 ## where h is the height of the block's highest point above the disk surface
 ## along the disk normal (InfluenceCircle.CONE_HALF_ANGLE_DEGREES). The earlier
 ## linear per-block radius model was removed (owner decision 2026-10-08, Bontago-1pi.111).

@@ -166,7 +166,8 @@ func _ready() -> void:
 	Events.match_scope_reset.connect(reset_match_audio)
 	Events.match_scope_reset.connect(reset_claim_tension)
 	Settings.audio_settings_changed.connect(_on_audio_settings_changed)
-	play_music()
+	# Bontago-1pi.156: music is NOT started here; Main._show_main_menu() calls
+	# play_music() once the splash intro is over (or at once when there is none).
 
 
 func _resolve_root_dir() -> String:

@@ -1,20 +1,20 @@
 class_name UiScaleTuning
 extends Resource
 ## Bontago-1pi.150: the player-facing UI scale (Options > Settings > Display). The stored setting is
-## RELATIVE: 1.0 is the design-mockup scale (docs/ui_reskin/screens drawn at 960x540), which is
-## mockup_scale times the project stretch (1280x720 base). Applied by autoload/Settings.gd as
+## RELATIVE: 1.0 (100%) is base_scale times the project stretch (1280x720 base). Applied by autoload/Settings.gd as
 ## Window.content_scale_factor on the root window; the pure rules (sanitize, effective factor)
 ## are statics here so Settings (autoload) and ui/UiScale.gd share them without a ui/ dependency.
 ## Not one of the F4 tuning panel's resource classes, so no config/tuning_panel_hints.tres entry.
 
-## Mockup scale relative to the 1280x720 stretch base (1280 / 960).
-@export var mockup_scale: float = 1.3333333
-## The stored value a fresh install gets: exactly the mockup scale.
+## content_scale_factor at 100%. 2026-10-10 owner (Bontago-1pi.151): half the old mockup scale
+## (1280 / 960 = 1.3333), i.e. 0.6666667.
+@export var base_scale: float = 0.6666667
+## The stored value a fresh install gets: 100%.
 @export var default_scale: float = 1.0
-## Smallest stored value: 0.75 x mockup = 1.0 effective, i.e. the pre-1pi.150 look.
+## Smallest stored value: 0.75 x base = 0.5 effective factor.
 @export var min_scale: float = 0.75
-## Largest stored value (logical canvas ~873x491 on a 1280x720 window; DECISION: capped there because the lobby and main menu need ~900x500 of layout).
-@export var max_scale: float = 1.1
+## Largest stored value. DECISION: 2.2 x base = ~1.467 effective, the old 110% maximum (logical canvas ~873x491 at 1280x720), so every previously reachable size stays reachable.
+@export var max_scale: float = 2.2
 ## Slider step; stored values are snapped to it on set and load.
 @export var step: float = 0.05
 
@@ -59,4 +59,4 @@ static func runtime_scale() -> float:
 
 ## Multiplier on top of the project stretch for a stored value.
 func effective_factor(stored: float) -> float:
-	return mockup_scale * sanitize(stored)
+	return base_scale * sanitize(stored)

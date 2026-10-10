@@ -220,6 +220,7 @@ func test_ui_scale_default_persists_and_sanitizes() -> void:
 	assert_almost_eq(_settings.ui_scale(), 1.1, 0.0001, "snaps to the step")
 	assert_almost_eq(UiScaleTuning.runtime_scale(), 1.1, 0.0001, "published for UiScale")
 	assert_almost_eq(_fresh_settings_at_same_path().ui_scale(), 1.1, 0.0001)
+	assert_almost_eq(tuning.max_scale, 2.2, 0.0001)
 	_settings.set_ui_scale(99.0)
 	assert_eq(_settings.ui_scale(), tuning.max_scale)
 	_settings.set_ui_scale(-3.0)

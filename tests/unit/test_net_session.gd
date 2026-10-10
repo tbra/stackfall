@@ -30,6 +30,9 @@ static var _next_port: int = 47800
 
 ## Minimum wall-clock budget of every _wait_until before it reports failure.
 const _WAIT_FLOOR_MSEC: int = 8000
+## Wall-clock budget of one host+join attempt, and how many attempts to make.
+const _PAIR_ATTEMPT_MSEC: int = 4000
+const _PAIR_ATTEMPTS: int = 3
 
 
 func _make_side(node_name: String, tuned: NetConfig = null) -> Variant:
@@ -83,20 +86,54 @@ func _wait_until(condition: Callable, frames: int = 200) -> bool:
 	return condition.call()
 
 
-func _connect_host_and_client(port: int, max_peers: int = -1) -> void:
+## Hosts and joins on `port`, waits for the seated handshake, and returns the
+## port that worked. Bontago-3as: one gate run saw a loopback join never land in
+## a sharded run (no log evidence of a collision; passes alone), so a pair that
+## has not seated within `_PAIR_ATTEMPT_MSEC` is torn down and retried on a fresh
+## OS-chosen port, up to `_PAIR_ATTEMPTS` times. The last attempt's state is left
+## in place for the test's own assertions and the first failure is printed with
+## its port and modes so a recurrence is attributable.
+func _connect_host_and_client(port: int, max_peers: int = -1) -> int:
 	if max_peers > 0:
 		var host_config: NetConfig = load("res://config/net_config.tres").duplicate() as NetConfig
 		host_config.max_peers = max_peers
 		_host.config = host_config
-	assert_eq(_host.host_game(port, "Hostie"), OK)
-	assert_eq(_client.join_game("127.0.0.1", port, "Clienty"), OK)
+	var use_port: int = port
+	for attempt: int in _PAIR_ATTEMPTS:
+		if attempt > 0:
+			_client.leave()
+			_host.leave()
+			await get_tree().process_frame
+			await get_tree().process_frame
+			use_port = _take_port()
+		assert_eq(_host.host_game(use_port, "Hostie"), OK)
+		assert_eq(_client.join_game("127.0.0.1", use_port, "Clienty"), OK)
+		var seated: bool = await _wait_until_msec(func() -> bool:
+			return _host.peer_ids().size() == 2 and _client.local_slot() == 1,
+			_PAIR_ATTEMPT_MSEC
+		)
+		if seated:
+			return use_port
+		print("net-flake: pair attempt %d on port %d did not seat (host mode %d peers %d, client mode %d slot %d)" % [
+			attempt, use_port, _host.mode(), _host.peer_ids().size(), _client.mode(), _client.local_slot()])
+	return use_port
+
+
+## Polls `condition` every frame until true or `msec` of wall clock has passed.
+func _wait_until_msec(condition: Callable, msec: int) -> bool:
+	var deadline_msec: int = Time.get_ticks_msec() + msec
+	while Time.get_ticks_msec() < deadline_msec:
+		if condition.call():
+			return true
+		await get_tree().process_frame
+	return condition.call()
 
 
 # --- Connect, handshake, roster ---------------------------------------------
 
 func test_host_and_client_appear_in_each_others_roster() -> void:
 	var port: int = _take_port()
-	_connect_host_and_client(port)
+	port = await _connect_host_and_client(port)
 
 	var ok: bool = await _wait_until(func() -> bool:
 		return _host.peer_ids().size() == 2 and _client.peer_ids().size() == 2
@@ -119,7 +156,7 @@ func test_host_and_client_appear_in_each_others_roster() -> void:
 ## nothing used to publish the latter).
 func test_ready_flag_change_emits_roster_changed_on_host_and_client() -> void:
 	var port: int = _take_port()
-	_connect_host_and_client(port)
+	port = await _connect_host_and_client(port)
 	var joined: bool = await _wait_until(func() -> bool:
 		return _host.peer_ids().size() == 2 and _client.peer_ids().size() == 2
 	)
@@ -161,7 +198,7 @@ func _ready_in_roster(roster: Array, peer_id: int) -> bool:
 ## Bontago-1pi.73: a lobby (re)entry resets every ready flag, seen on host and client.
 func test_reset_ready_flags_clears_host_and_client_views() -> void:
 	var port: int = _take_port()
-	_connect_host_and_client(port)
+	port = await _connect_host_and_client(port)
 	var seated: bool = await _wait_until(func() -> bool: return _host.peer_ids().size() == 2 and _client.peer_ids().size() == 2 and _client.mode() == Net.Mode.CLIENT)
 	assert_true(seated, "both views settle on a 2-peer roster before any ready RPC")
 	var client_id: int = _client.local_peer_id()
@@ -186,7 +223,7 @@ func test_reset_ready_flags_clears_host_and_client_views() -> void:
 ## client); the Start gate ignores the host's own flag and waits for the others.
 func test_host_seeded_not_ready_and_start_gate_ignores_the_host_flag() -> void:
 	var port: int = _take_port()
-	_connect_host_and_client(port)
+	port = await _connect_host_and_client(port)
 	await _wait_until(func() -> bool: return _host.peer_ids().size() == 2)
 	assert_false(bool(_host.peer_info(Net.HOST_PEER_ID).get("ready", true)), "host starts not ready")
 	assert_false(_host.all_peers_ready(), "the client is not ready")
@@ -196,7 +233,7 @@ func test_host_seeded_not_ready_and_start_gate_ignores_the_host_flag() -> void:
 
 func test_ping_exchange_reports_low_round_trip() -> void:
 	var port: int = _take_port()
-	_connect_host_and_client(port)
+	port = await _connect_host_and_client(port)
 	await _wait_until(func() -> bool: return _host.peer_ids().size() == 2)
 
 	# Ping is periodic at config.ping_hz; give it a couple of seconds of
@@ -243,7 +280,7 @@ func test_mismatched_build_version_is_refused_and_disconnected() -> void:
 
 func test_server_full_refuses_the_next_peer() -> void:
 	var port: int = _take_port()
-	_connect_host_and_client(port, 2)
+	port = await _connect_host_and_client(port, 2)
 	var joined: bool = await _wait_until(func() -> bool: return _host.peer_ids().size() == 2)
 	assert_true(joined)
 
@@ -283,7 +320,7 @@ func test_a_fresh_host_accepts_joins_until_told_otherwise() -> void:
 
 func test_a_join_after_the_match_starts_is_refused_and_disturbs_nobody() -> void:
 	var port: int = _take_port()
-	_connect_host_and_client(port)
+	port = await _connect_host_and_client(port)
 	var joined: bool = await _wait_until(func() -> bool:
 		return _host.peer_ids().size() == 2 and _client.local_slot() == 1
 	)
@@ -353,7 +390,7 @@ func test_joins_resume_once_the_match_returns_to_the_lobby() -> void:
 
 func test_peer_disconnect_fires_net_peer_left_with_the_right_slot() -> void:
 	var port: int = _take_port()
-	_connect_host_and_client(port)
+	port = await _connect_host_and_client(port)
 	await _wait_until(func() -> bool: return _host.peer_ids().size() == 2)
 	var client_slot: int = _host.slot_of_peer(_client.local_peer_id())
 	var client_id: int = _client.local_peer_id()
@@ -386,7 +423,7 @@ func test_peer_disconnect_fires_net_peer_left_with_the_right_slot() -> void:
 ## printing — no extra assertion needed to catch it.
 func test_broadcast_roster_after_transport_closed_does_not_rpc() -> void:
 	var port: int = _take_port()
-	_connect_host_and_client(port)
+	port = await _connect_host_and_client(port)
 	await _wait_until(func() -> bool: return _host.peer_ids().size() == 2)
 	var client_id: int = _client.local_peer_id()
 
@@ -437,7 +474,7 @@ func test_roster_broadcast_skips_a_peer_whose_enet_link_is_closing() -> void:
 
 func test_tick_ping_after_transport_closed_does_not_rpc() -> void:
 	var port: int = _take_port()
-	_connect_host_and_client(port)
+	port = await _connect_host_and_client(port)
 	await _wait_until(func() -> bool: return _host.peer_ids().size() == 2)
 
 	# Simulate the transport already closing while _mode is still HOST.
@@ -457,7 +494,7 @@ func test_tick_ping_after_transport_closed_does_not_rpc() -> void:
 ## null/closed peer.
 func test_can_send_is_false_once_the_last_peer_leaves() -> void:
 	var port: int = _take_port()
-	_connect_host_and_client(port)
+	port = await _connect_host_and_client(port)
 	await _wait_until(func() -> bool: return _host.peer_ids().size() == 2)
 	assert_true(_host._can_send(), "still one connected client to broadcast to")
 
@@ -469,7 +506,7 @@ func test_can_send_is_false_once_the_last_peer_leaves() -> void:
 
 func test_host_leaving_returns_client_to_offline() -> void:
 	var port: int = _take_port()
-	_connect_host_and_client(port)
+	port = await _connect_host_and_client(port)
 	await _wait_until(func() -> bool: return _client.mode() == Net.Mode.CLIENT and _host.peer_ids().size() == 2)
 
 	_host.leave()
@@ -481,7 +518,7 @@ func test_host_leaving_returns_client_to_offline() -> void:
 
 func test_leave_from_either_side_returns_both_to_offline_and_is_idempotent() -> void:
 	var port: int = _take_port()
-	_connect_host_and_client(port)
+	port = await _connect_host_and_client(port)
 	await _wait_until(func() -> bool: return _host.peer_ids().size() == 2)
 
 	_client.leave()
@@ -1290,7 +1327,7 @@ func test_seat_pref_from_a_peer_without_a_seat_is_refused() -> void:
 func test_seat_pref_from_a_client_instance_is_ignored() -> void:
 	# A hostile peer can aim the RPC at another client: only the host acts on it.
 	var port: int = _take_port()
-	_connect_host_and_client(port)
+	port = await _connect_host_and_client(port)
 	watch_signals(Events)
 	assert_false(_client._handle_seat_pref(Net.HOST_PEER_ID, 1, 1, true))
 	assert_false(_client._handle_seat_pref(Net.HOST_PEER_ID, 1, 1, false))
@@ -1438,7 +1475,7 @@ func test_seat_pref_before_the_client_is_connected_sends_nothing() -> void:
 
 func test_seat_pref_over_enet_reaches_the_host_under_the_senders_transport_id() -> void:
 	var port: int = _take_port()
-	_connect_host_and_client(port)
+	port = await _connect_host_and_client(port)
 	var joined: bool = await _wait_until(func() -> bool:
 		return _host.peer_ids().size() == 2 and _client.local_slot() == 1
 	)
@@ -1473,7 +1510,7 @@ func test_seat_pref_from_a_client_still_in_the_handshake_is_refused() -> void:
 	# The connection exists (peer_connected fired) but no roster entry yet: the host
 	# must not act on it. Model it by dropping the client's roster entry.
 	var port: int = _take_port()
-	_connect_host_and_client(port)
+	port = await _connect_host_and_client(port)
 	var joined: bool = await _wait_until(func() -> bool:
 		return _host.peer_ids().size() == 2 and _client.local_slot() == 1
 	)
@@ -1526,7 +1563,7 @@ func test_spectators_returning_to_the_lobby_take_the_lowest_free_slots() -> void
 ## of the table, not in a hole; the end-to-end version over real ENet is below.
 func test_a_joiner_takes_the_next_slot_after_a_departed_lobby_peer_was_compacted() -> void:
 	var port: int = _take_port()
-	_connect_host_and_client(port)
+	port = await _connect_host_and_client(port)
 	var second: Variant = _make_side("SecondNet")
 	assert_eq(second.join_game("127.0.0.1", port, "Seconds"), OK)
 	var seated: bool = await _wait_until(func() -> bool:
@@ -1679,7 +1716,7 @@ func test_a_lobby_kick_compacts_too() -> void:
 
 func test_a_lobby_leave_over_enet_moves_the_remaining_client_down_on_every_peer() -> void:
 	var port: int = _take_port()
-	_connect_host_and_client(port)
+	port = await _connect_host_and_client(port)
 	var second: Variant = _make_side("SecondNet")
 	assert_eq(second.join_game("127.0.0.1", port, "Seconds"), OK)
 	var seated: bool = await _wait_until(func() -> bool:
@@ -1838,7 +1875,7 @@ func test_a_lobby_kick_compacts_before_net_peer_left_is_emitted() -> void:
 ## unexpected engine error.
 func test_kicking_a_connected_peer_over_enet_raises_no_engine_error() -> void:
 	var port: int = _take_port()
-	_connect_host_and_client(port)
+	port = await _connect_host_and_client(port)
 	var joined: bool = await _wait_until(func() -> bool:
 		return _host.peer_ids().size() == 2 and _client.peer_ids().size() == 2
 	)
