@@ -39,6 +39,10 @@ SOURCE_FILES = frozenset("game/%s.gd" % n for n in (
 FORBIDDEN_FILES = frozenset(["autoload/Match.gd", "autoload/Net.gd"])
 FORBIDDEN_PREFIXES = ("net/", "autoload/match/")
 REPORT_SCC_MIN = 5
+# autoload/LateScripts.gd names late-built scripts by path STRING (runtime load(), never a compile
+# edge); dep_graph records them as `path` edges, which would otherwise fuse the autoloads back into
+# one SCC. They are left out of the SCC measurement (L2) only.
+LATE_SCRIPTS_FILE = "autoload/LateScripts.gd"
 
 
 def is_source(path):
@@ -53,11 +57,11 @@ def exc_key(src, dst):
     return "%s -> %s" % (src, dst)
 
 
-def _adjacency(graph, kinds):
+def _adjacency(graph, kinds, skip_src=()):
     files = graph["files"]
     adj = {}
     for e in graph["file_edges"]:
-        if e["src"] not in files or e["dst"] not in files:
+        if e["src"] not in files or e["dst"] not in files or e["src"] in skip_src:
             continue
         if kinds is None:
             if e["kind"] == "dynamic":
@@ -80,7 +84,7 @@ def measure(graph):
             l1.append({"src": e["src"], "dst": e["dst"], "kind": e["kind"], "line": e["line"]})
     l1.sort(key=lambda v: (v["src"], v["dst"], v["kind"]))
     autoload_files = sorted(set(graph["autoloads"].values()))
-    sccs = [c for c in dep_graph.tarjan_scc(_adjacency(graph, None)) if len(c) >= 2]
+    sccs = [c for c in dep_graph.tarjan_scc(_adjacency(graph, None, (LATE_SCRIPTS_FILE,))) if len(c) >= 2]
     sccs.sort(key=lambda c: (-len(c), c[0]))
     auto_sccs = []
     for c in sccs:
