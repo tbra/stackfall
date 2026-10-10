@@ -15,6 +15,7 @@ const MATCH_WEATHER: String = "res://autoload/match/MatchWeather.gd"
 const GIFT_FX_PRESENTER: String = "res://game/specials/fx/GiftFxPresenter.gd"
 const CAT_CONTROLLER: String = "res://game/specials/CatController.gd"
 const WEATHER_NET: String = "res://net/WeatherNet.gd"
+const MATCH_EVENT_APPLIER: String = "res://net/MatchEventApplier.gd"
 const BLOCK_FACTORY: String = "res://game/BlockFactory.gd"
 const SPECIAL_DEF: String = "res://config/specials/SpecialDef.gd"
 const HONEY_COAT: String = "res://game/specials/fx/HoneyCoat.gd"
@@ -31,6 +32,7 @@ static func paths() -> PackedStringArray:
 	return PackedStringArray([
 		MATCH_FEED, MATCH_PLACEMENT, MATCH_TERRITORY, MATCH_LIFECYCLE, MATCH_GIFTS,
 		MATCH_STATS, MATCH_WEATHER, GIFT_FX_PRESENTER, CAT_CONTROLLER, WEATHER_NET,
+		MATCH_EVENT_APPLIER,
 		BLOCK_FACTORY, SPECIAL_DEF, HONEY_COAT, CAT_RESOURCE,
 	])
 
