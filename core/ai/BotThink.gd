@@ -209,12 +209,43 @@ func _rank(limit: int) -> void:
 	for i: int in range(limit):
 		var terms: PackedFloat32Array = BotEvaluator.proxy_terms(_candidates[i], _view, _intent)
 		_terms[i] = terms
-		_scores[i] = BotEvaluator.score(terms, _intent)
+		_scores[i] = _site_score(_candidates[i], terms)
 		order.append(i)
 	order.sort_custom(_better)
 	_ranked = PackedInt32Array(order)
 	_measure_pos = 0
 	_phase = Phase.MEASURE if _profile.eval_top_k > 0 and not _ranked.is_empty() else Phase.PICK
+
+
+## Intent score plus the gift-claim bonus (Bontago-1t5.25). DECISION: the bonus is added
+## outside the intent weight vectors (it is not a BotIntent.Term) so the weights stay 6-wide.
+func _site_score(candidate: BotCandidate, terms: PackedFloat32Array) -> float:
+	return BotEvaluator.score(terms, _intent) + _gift_bonus(candidate)
+
+
+## Value of the landed gifts this site's new circle would take: each gift not already inside
+## own territory (those claim by themselves) and within the future radius counts once.
+## DECISION: every gift is worth the same (its special is only rolled on claim); the tier's
+## BotDifficultyProfile.gift_claim_scale scales it (Easy low, 0 = ignores gifts).
+func _gift_bonus(candidate: BotCandidate) -> float:
+	if _view.gifts.is_empty() or _profile.gift_claim_scale <= 0.0:
+		return 0.0
+	var tuning_res: BotStrategyTuning = strategy_tuning if strategy_tuning != null else BotStrategy.SHIPPED_TUNING
+	var radius: float = BotEvaluator.future_radius(candidate, _view) - tuning_res.gift_claim_margin_m
+	var count: int = 0
+	for gift: Vector2 in _view.gifts:
+		if candidate.origin.distance_to(gift) <= radius and not _gift_is_ours(gift):
+			count += 1
+	return float(count) * tuning_res.gift_claim_value * _profile.gift_claim_scale
+
+
+func _gift_is_ours(point: Vector2) -> bool:
+	if _view.raster == null or _view.grid == null:
+		return false
+	var cell: Vector2i = _view.grid.world_to_cell(point)
+	if not _view.grid.in_bounds(cell.x, cell.y):
+		return false
+	return _view.raster.team_at(cell.x, cell.y) == _view.team_id
 
 
 func _better(a: int, b: int) -> bool:
@@ -229,7 +260,7 @@ func _measure_one() -> void:
 	var index: int = _ranked[_measure_pos]
 	var terms: PackedFloat32Array = BotEvaluator.measure(_candidates[index], _view, _chains, _intent)
 	_terms[index] = terms
-	_scores[index] = BotEvaluator.score(terms, _intent)
+	_scores[index] = _site_score(_candidates[index], terms)
 	_measure_pos += 1
 	if _measure_pos < top_k:
 		return

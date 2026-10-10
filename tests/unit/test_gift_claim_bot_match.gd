@@ -232,3 +232,40 @@ func test_bot_spends_a_held_defensive_special() -> void:
 		assert_eq(consumed[0][0], BOT_SLOT)
 		assert_eq(consumed[0][1], &"anvil")
 	bot.queue_free()
+
+
+## Bontago-1t5.25: the Bot V2 brain takes a landed gift just outside its territory through the
+## BotThink gift term, holds the granted special, then spends it via BotSpecialPlanner.plan_v2.
+func test_v2_bot_claims_a_landed_gift_then_spends_the_special_via_plan_v2() -> void:
+	var config: MatchConfig = _bot_match_config(2, 2)
+	config.block_timer = 6.0
+	config.enabled_specials = [&"anvil"]
+	_start_playing(config)
+	var bot: BotController = _make_bot()
+	bot.set_brain(BotController.Brain.V2)
+	var gift_id: int = _crate_toward_center(BOT_SLOT, CRATE_DISTANCE_M)
+	var claimed: Array = []
+	var consumed: Array = []
+	var on_claim: Callable = func(id: int, slot_id: int, _sp: StringName) -> void:
+		claimed.append([id, slot_id])
+	var on_used: Callable = func(slot_id: int, special_id: StringName) -> void:
+		consumed.append([slot_id, special_id])
+	Events.gift_claimed.connect(on_claim)
+	Events.special_consumed.connect(on_used)
+	var claim_done: bool = await _run_sim(CLAIM_BOUND_S, func() -> bool: return not claimed.is_empty())
+	var claim_s: float = _sim_s
+	var use_done: bool = false
+	if claim_done:
+		use_done = await _run_sim(USE_BOUND_S, func() -> bool: return not consumed.is_empty())
+	Events.gift_claimed.disconnect(on_claim)
+	Events.special_consumed.disconnect(on_used)
+	gut.p("v2 gift claim %.2f sim s, special use %.2f sim s" % [claim_s, _sim_s])
+	assert_true(claim_done, "V2 bot must claim the landed gift within %s sim s" % CLAIM_BOUND_S)
+	if claim_done:
+		assert_eq(claimed[0][0], gift_id)
+		assert_eq(Match.team_of(int(claimed[0][1])), Match.team_of(BOT_SLOT))
+	assert_true(use_done, "V2 bot must spend the held special within %s sim s" % USE_BOUND_S)
+	if use_done:
+		assert_eq(consumed[0][0], BOT_SLOT)
+		assert_eq(consumed[0][1], &"anvil")
+	bot.queue_free()

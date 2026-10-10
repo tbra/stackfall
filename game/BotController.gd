@@ -666,7 +666,9 @@ func _tick_acting() -> void:
 			_apply_rejection_backoff(_send_best_placement(action.place_target))
 			return
 	# Bontago-1t5.2: claim a landed, unclaimed gift by growing territory over it.
-	var gift_target: Variant = _gift_claim_target()
+	# Bot V2 (Bontago-1t5.25): gifts are a BotThink score term; the legacy nearest-candidate
+	# override below applies to the LEGACY brain only.
+	var gift_target: Variant = _gift_claim_target() if _brain != Brain.V2 else null
 	if gift_target != null:
 		_apply_rejection_backoff(_send_best_placement(gift_target))
 		return

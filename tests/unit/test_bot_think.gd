@@ -334,3 +334,78 @@ func test_intent_mask_bits_follow_the_kind_enum() -> void:
 	assert_true(BotIntent.is_enabled(mask, BotIntent.Kind.FINISH))
 	assert_false(BotIntent.is_enabled(mask, BotIntent.Kind.STRIKE))
 	assert_eq(BotIntent.new().weights.size(), BotIntent.Term.size())
+
+
+# --- Gift claim term (Bontago-1t5.25) ------------------------------------------
+
+const GIFT_TEST_VALUE: float = 100.0
+const GIFT_PROBE_STEP_M: float = 0.5
+
+
+func _gift_view(gifts: PackedVector2Array) -> BotWorldView:
+	return BotWorldView.build(
+		0, 0, _render_arrays(), _slots, _raster, PackedVector2Array([Vector2.ZERO]),
+		_territory_tuning.goal_zone_radius, _cube, _pillar, null, PackedVector2Array(), gifts
+	)
+
+
+func _gift_think(gifts: PackedVector2Array, scale: float) -> BotThink:
+	var profile: BotDifficultyProfile = _profile()
+	profile.gift_claim_scale = scale
+	var think: BotThink = BotThink.new(_gift_view(gifts), profile, _rng())
+	var strategy: BotStrategyTuning = BotStrategyTuning.new()
+	strategy.gift_claim_value = GIFT_TEST_VALUE
+	think.strategy_tuning = strategy
+	return think
+
+
+## A point beyond the frontier (not own territory) that `c`'s new circle covers but the
+## baseline pick's circle does not.
+func _gift_point_for(c: BotCandidate, baseline: BotCandidate, view: BotWorldView) -> Variant:
+	var radius: float = BotEvaluator.future_radius(c, view)
+	var reach: float = GIFT_PROBE_STEP_M
+	while reach < radius - 1.0:
+		for dir: Vector2 in [Vector2.RIGHT, Vector2.LEFT, Vector2.UP, Vector2.DOWN]:
+			var p: Vector2 = c.origin + dir * reach
+			var cell: Vector2i = _grid.world_to_cell(p)
+			if not _grid.in_bounds(cell.x, cell.y) or _raster.team_at(cell.x, cell.y) == 0:
+				continue
+			if baseline.origin.distance_to(p) > BotEvaluator.future_radius(baseline, view):
+				return p
+		reach += GIFT_PROBE_STEP_M
+	return null
+
+
+func test_v2_targets_a_reachable_unclaimed_gift_over_a_plain_placement() -> void:
+	var base: BotThink = _gift_think(PackedVector2Array(), 1.0)
+	base.step(BIG_BUDGET_US, _probe)
+	var baseline: BotCandidate = base.best_candidate()
+	assert_not_null(baseline)
+	var view: BotWorldView = _gift_view(PackedVector2Array())
+	var gift: Variant = null
+	for c: BotCandidate in base.candidates():
+		if c != baseline:
+			gift = _gift_point_for(c, baseline, view)
+			if gift != null:
+				break
+	assert_not_null(gift, "fixture: a candidate must reach a non-own cell the baseline does not")
+	if gift == null:
+		return
+	var with_gift: BotThink = _gift_think(PackedVector2Array([gift as Vector2]), 1.0)
+	with_gift.step(BIG_BUDGET_US, _probe)
+	var chosen: BotCandidate = with_gift.best_candidate()
+	assert_not_null(chosen)
+	assert_lte(
+		chosen.origin.distance_to(gift as Vector2), BotEvaluator.future_radius(chosen, view),
+		"the pick's new circle must cover the gift"
+	)
+	# Scale 0 (a tier that ignores gifts) keeps the plain pick.
+	var ignoring: BotThink = _gift_think(PackedVector2Array([gift as Vector2]), 0.0)
+	ignoring.step(BIG_BUDGET_US, _probe)
+	assert_eq(ignoring.best_candidate().origin, baseline.origin)
+
+
+func test_shipped_easy_weighs_gifts_below_normal_and_hard() -> void:
+	var tuning: BotTuning = load("res://config/bot_tuning.tres")
+	assert_lt(tuning.easy.gift_claim_scale, tuning.normal.gift_claim_scale)
+	assert_lt(tuning.easy.gift_claim_scale, tuning.hard.gift_claim_scale)
