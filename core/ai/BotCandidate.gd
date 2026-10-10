@@ -47,3 +47,15 @@ var corner_support_hits: int = -1
 ## circle's radius formula is driven by the block's own highest point above
 ## the disk, not merely where its pivot rests.
 var shape_height: float = 0.0
+
+## Bot V2 (Bontago-1t5.19, append-only): which generator produced the site
+## (BotThink.SITE_LEGACY = 0 until BotCandidateGen, P2, adds the targeted kinds).
+var site_kind: int = 0
+## Height above the disk of the highest point of the placed piece
+## (support_height + shape_height); the influence-circle radius is driven by it.
+var top_height: float = 0.0
+## Support height under each probed footprint cell (-1 = hole or no hit), in
+## footprint order; empty until the footprint was probed.
+var cell_support: PackedFloat32Array = PackedFloat32Array()
+## Analytic tip-over risk 0..1 (BotStatics, P2); 0 until computed.
+var tip_risk: float = 0.0

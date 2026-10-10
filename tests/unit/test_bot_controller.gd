@@ -1065,3 +1065,48 @@ func test_held_special_is_spent_after_the_short_gift_use_delay() -> void:
 	# gift_use_delay_s 0.25 s = 15 frames + <= 9 generating + 1 acting.
 	_tick(controller, 30)
 	assert_eq(match_ref.request_place_calls.size(), 1, "a held special is placed after the short use delay, not the full reaction delay")
+
+
+## Bontago-1t5.19 review Low1: V2 bots ticked manually (several _physics_process calls in one
+## engine frame) must neither inherit the static frame budget nor starve one another.
+func test_two_v2_bots_ticked_in_one_engine_frame_both_progress() -> void:
+	var field_a: Field = _make_field()
+	var field_b: Field = _make_field()
+	var match_a: BotControllerFakeMatch = _make_ready_match(0)
+	var match_b: BotControllerFakeMatch = _make_ready_match(1)
+	for fake: BotControllerFakeMatch in [match_a, match_b]:
+		fake.raster_value = TerritoryRaster.new(CellGrid.new(20.0, 1.0), preload("res://config/territory_tuning.tres"))
+		fake.cell_grid_value = fake.raster_value.grid()
+	var net_ref: BotControllerFakeNet = BotControllerFakeNet.new()
+	var bot_a: BotController = _make_controller(field_a, match_a, net_ref)
+	var bot_b: BotController = _make_controller(field_b, match_b, net_ref)
+	bot_a.setup(0, MatchConfig.AiDifficulty.NORMAL, field_a, null)
+	bot_b.setup(1, MatchConfig.AiDifficulty.NORMAL, field_b, null)
+	for bot: BotController in [bot_a, bot_b]:
+		bot.set_brain(BotController.Brain.V2)
+		bot._profile = bot._profile.duplicate() as BotDifficultyProfile
+		bot._profile.think_budget_us = 1
+		bot._profile.think_frame_cap_us = 1
+	# A stale, exhausted counter from an earlier run must not leak in (setup() resets it).
+	BotController._think_frame = Engine.get_physics_frames()
+	BotController._think_frame_used_us = 1000000
+	bot_a.setup(0, MatchConfig.AiDifficulty.NORMAL, field_a, null)
+	bot_b.setup(1, MatchConfig.AiDifficulty.NORMAL, field_b, null)
+	for bot: BotController in [bot_a, bot_b]:
+		bot.set_brain(BotController.Brain.V2)
+		bot._profile = bot._profile.duplicate() as BotDifficultyProfile
+		bot._profile.think_budget_us = 1
+		bot._profile.think_frame_cap_us = 1
+	Events.feed_block_issued.emit(0, &"cube", &"")
+	Events.feed_block_issued.emit(1, &"cube", &"")
+	var progressed_a: bool = false
+	var progressed_b: bool = false
+	for _i: int in range(400):
+		bot_a._physics_process(1.0 / 60.0)
+		bot_b._physics_process(1.0 / 60.0)
+		progressed_a = progressed_a or (bot_a._think != null and bot_a._think.candidates().size() > 0)
+		progressed_b = progressed_b or (bot_b._think != null and bot_b._think.candidates().size() > 0)
+		if progressed_a and progressed_b:
+			break
+	assert_true(progressed_a, "bot A thinks despite the exhausted shared cap")
+	assert_true(progressed_b, "bot B is not starved by bot A")

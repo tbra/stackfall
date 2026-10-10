@@ -27,3 +27,18 @@ extends Resource
 ## Whether this difficulty ever throws a special offensively (targeting an
 ## opponent's territory).
 @export var uses_offensive_specials: bool = false
+
+## Bot V2 (Bontago-1t5.19): microseconds of one think-cycle a single physics frame
+## may spend (BotThink.step budget).
+@export var think_budget_us: int = 800
+## Bot V2: static cap on the microseconds ALL bots together may spend thinking in one
+## physics frame; bots over the cap wait for the next frame.
+@export var think_frame_cap_us: int = 2500
+## Bot V2: how many top proxy-scored sites get the measured (territory gain) evaluation
+## (P3/P4; unused by the legacy-equivalent pipeline).
+@export var eval_top_k: int = 8
+## Bot V2: softmax temperature when picking among the top sites; small = argmax
+## (P4; unused by the legacy-equivalent pipeline).
+@export var pick_temperature: float = 0.5
+## Bot V2: bit set of BotIntent.Kind values this tier may use (bit = enum value).
+@export_flags("Race", "Anchor", "Finish", "Hold", "Defend", "Strike", "Siege", "Area") var intent_mask: int = 255

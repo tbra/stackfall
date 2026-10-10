@@ -32,7 +32,17 @@ extends Node
 ## Determinism").
 const RNG_OFFSET: int = 777001
 
-enum State { IDLE, GENERATING, ACTING }
+enum State { IDLE, GENERATING, ACTING, THINKING }
+
+## Bontago-1t5.19 (Bot V2 P1): which decision pipeline drives this seat. LEGACY is the
+## shipped sampler + scorer below, unchanged; V2 runs core/ai/BotThink (a legacy-equivalent
+## port today) in a budgeted THINKING state. The default stays LEGACY.
+enum Brain { LEGACY, V2 }
+
+## Static per-physics-frame accounting of microseconds ALL V2 bots spent thinking, so eight
+## bots cannot stack their budgets into one long frame (profile.think_frame_cap_us).
+static var _think_frame: int = -1
+static var _think_frame_used_us: int = 0
 
 @export var tuning: BotTuning = preload("res://config/bot_tuning.tres")
 var _special_tuning: SpecialTuning = preload("res://config/special_tuning.tres")
@@ -69,6 +79,13 @@ var _think_delay_s: float = 0.0
 var _countdown: float = 0.0
 
 var _state: State = State.IDLE
+var _brain: Brain = Brain.LEGACY
+var _think: BotThink = null
+var _think_frames_used: int = 0
+## Physics frame this bot last ran a THINKING tick, and whether the shared cap blocked it
+## then (a blocked bot is served first next frame, so none starves).
+var _think_last_frame: int = -1
+var _think_was_blocked: bool = false
 var _candidates: Array[BotCandidate] = []
 var _generation_frames_used: int = 0
 
@@ -101,6 +118,25 @@ func setup(slot_id: int, difficulty: MatchConfig.AiDifficulty, field: Field, reg
 	_state = State.IDLE
 	_candidates.clear()
 	_generation_frames_used = 0
+	_think = null
+	_think_last_frame = -1
+	_think_was_blocked = false
+	# A new bot (match or test) never inherits a previous run's frame accounting.
+	_think_frame = -1
+	_think_frame_used_us = 0
+
+
+## Bot V2 P1: selects the decision pipeline. Safe at any time; an in-flight think is dropped.
+func set_brain(brain: Brain) -> void:
+	_brain = brain
+	_think = null
+	if _state == State.THINKING or _state == State.GENERATING:
+		_state = State.IDLE
+		_candidates.clear()
+
+
+func brain() -> Brain:
+	return _brain
 
 
 ## Bontago-1t5.13 (BT5): per-bot BotTuning override. `tuning_with_weights()` builds the copy, this
@@ -181,6 +217,8 @@ func _physics_process(delta: float) -> void:
 			_tick_generating()
 		State.ACTING:
 			_tick_acting()
+		State.THINKING:
+			_tick_thinking()
 
 
 func _on_feed_block_issued(slot_id: int, _shape_id: StringName, _next_shape_id: StringName) -> void:
@@ -190,6 +228,7 @@ func _on_feed_block_issued(slot_id: int, _shape_id: StringName, _next_shape_id: 
 	# an unrelated auto-drop) -- any candidates already gathered were scored
 	# against the old shape and must not carry over.
 	_countdown = _think_delay_s
+	_think = null
 	# DECISION (Bontago-1t5.2): a freshly fed gift piece is spent after the
 	# short gift_use_delay_s, not the full reaction delay -- a queued gift may
 	# be released before the next ordinary boundary (spec 2.4 gift exception).
@@ -226,7 +265,91 @@ func _tick_idle(delta: float) -> void:
 			return
 	_candidates.clear()
 	_generation_frames_used = 0
+	if _brain == Brain.V2:
+		_begin_thinking(match_ref)
+		return
 	_state = State.GENERATING
+
+
+# --- THINKING (Bot V2): BotThink.step() under a per-bot and a per-frame budget ---
+
+## Builds the pure world snapshot for this piece and starts a BotThink on it.
+func _begin_thinking(match_ref: Variant) -> void:
+	var shape: BlockShape = match_ref.held_shape(_slot_id)
+	var raster: TerritoryRaster = match_ref.raster()
+	if shape == null or raster == null:
+		return
+	var slots: Array[PlayerSlot] = []
+	for i: int in range(int(match_ref.slot_count())):
+		var slot_item: PlayerSlot = match_ref.slot(i)
+		if slot_item != null:
+			slots.append(slot_item)
+	var next_shape: BlockShape = null
+	if match_ref.has_method("next_shape"):
+		next_shape = match_ref.next_shape(_slot_id) as BlockShape
+	var view: BotWorldView = BotWorldView.build(
+		_slot_id, int(match_ref.team_of(_slot_id)), match_ref.circle_render_arrays(), slots, raster,
+		_goal_positions(), raster.tuning().goal_zone_radius,
+		shape, next_shape, _mode_goal(match_ref), _active_special_positions(), _landed_gift_positions(match_ref)
+	)
+	_think = BotThink.new(view, _profile, _rng)
+	_think.tuning = tuning
+	_think_frames_used = 0
+	_state = State.THINKING
+
+
+func _tick_thinking() -> void:
+	var match_ref: Variant = _match()
+	if _think == null or match_ref.held_shape(_slot_id) == null:
+		_state = State.IDLE
+		_think = null
+		_candidates.clear()
+		return
+	var frame: int = Engine.get_physics_frames()
+	# The same bot ticking twice in one engine frame means the caller ticks manually (tests,
+	# benches); treat that as a new frame so the accounting cannot stall for good.
+	if frame != _think_frame or _think_last_frame == frame:
+		_think_frame = frame
+		_think_frame_used_us = 0
+	_think_last_frame = frame
+	var remaining_us: int = _profile.think_frame_cap_us - _think_frame_used_us
+	if remaining_us <= 0:
+		if not _think_was_blocked:
+			_think_was_blocked = true
+			return
+		remaining_us = _profile.think_budget_us
+	_think_was_blocked = false
+	var start_us: int = Time.get_ticks_usec()
+	var finished: bool = _think.step(mini(_profile.think_budget_us, remaining_us), _probe)
+	_think_frame_used_us += Time.get_ticks_usec() - start_us
+	_think_frames_used += 1
+	if not finished and _think_frames_used >= tuning.max_generation_frames:
+		_think.finish_early()
+		finished = true
+	if finished:
+		_candidates = _think.candidates()
+		_state = State.ACTING
+
+
+## BotThink's physics probe: {hit, height, own} straight down at a disk-local point.
+func _probe(xz: Vector2) -> Dictionary:
+	var hit: Dictionary = _raycast_support_height(xz)
+	return {
+		"hit": bool(hit.get("hit", false)),
+		"height": float(hit.get("height", 0.0)),
+		"own": _is_own_block(hit.get("collider"), int(_match().team_of(_slot_id))),
+	}
+
+
+## Disk-local positions of every landed (unclaimed-by-territory) gift, for the world view.
+func _landed_gift_positions(match_ref: Variant) -> PackedVector2Array:
+	var positions: PackedVector2Array = PackedVector2Array()
+	if not match_ref.has_method("gift_states"):
+		return positions
+	for state: Dictionary in match_ref.gift_states():
+		if int(state.get("phase", -1)) == MatchGifts.LANDED:
+			positions.append(state.get("position", Vector2.ZERO))
+	return positions
 
 
 # --- GENERATING: up to profile.candidates_per_frame candidates per frame ---
@@ -581,6 +704,8 @@ func _send_best_placement(place_target_override: Variant = null) -> StringName:
 	var best: BotCandidate = null
 	if place_target_override != null:
 		best = _pick_candidate_nearest_to(place_target_override as Vector2)
+	elif _brain == Brain.V2 and _think != null:
+		best = _think.best_candidate()
 	else:
 		best = BotPlacementScorer.pick_best(
 			_candidates,
