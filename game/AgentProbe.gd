@@ -18,7 +18,10 @@ const MENU_MISSING_MS: int = -1
 const MENU_TIMEOUT_EXIT_CODE: int = 1
 ## DECISION: the "menu never appeared" timeout reuses the loading screen's
 ## ready timeout instead of a new tunable.
-const LOADING_TUNING: LoadingScreenTuning = preload("res://config/loading_screen_tuning.tres")
+## Loaded lazily (load(), only under --quit-on-menu) and matched by script path
+## so this autoload-reachable file never pulls the menu or tuning graph in.
+const LOADING_TUNING_PATH: String = "res://config/loading_screen_tuning.tres"
+const MAIN_MENU_SCRIPT_FILE: String = "MainMenu.gd"
 const PORT_ARG_PREFIX: String = "--port="
 ## DECISION: random free UDP port range for agent-run hosts, kept clear of the
 ## default game port so benches never block tools/run_m3a_local.ps1.
@@ -102,7 +105,9 @@ static func _install_startup_watch() -> void:
 		return
 	tree.process_frame.connect(_on_first_frame, CONNECT_ONE_SHOT)
 	tree.node_added.connect(_on_node_added)
-	tree.create_timer(LOADING_TUNING.ready_timeout_s, true, false, true).timeout.connect(_on_menu_timeout)
+	var tuning: Resource = load(LOADING_TUNING_PATH)
+	var timeout_s: float = float(tuning.get(&"ready_timeout_s"))
+	tree.create_timer(timeout_s, true, false, true).timeout.connect(_on_menu_timeout)
 
 
 static func _on_first_frame() -> void:
@@ -110,10 +115,15 @@ static func _on_first_frame() -> void:
 
 
 static func _on_node_added(node: Node) -> void:
-	if _startup_done or not node is MainMenu:
+	if _startup_done or not _is_main_menu(node):
 		return
 	# Ready once the menu is in the tree and has processed a frame.
 	node.get_tree().process_frame.connect(_on_menu_frame, CONNECT_ONE_SHOT)
+
+
+static func _is_main_menu(node: Node) -> bool:
+	var script: Script = node.get_script() as Script
+	return script != null and script.resource_path.get_file() == MAIN_MENU_SCRIPT_FILE
 
 
 static func _on_menu_frame() -> void:
