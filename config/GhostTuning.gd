@@ -530,6 +530,13 @@ extends Resource
 ## makes any surface lying exactly on the decal box's top or bottom plane
 ## render as NaN (black speckle; feedback/owner-noise-footprint.png).
 @export var block_projection_edge_fade: float = 0.001
+## Bontago-1pi.143: Decal.normal_fade of the block-projection decal. The decal
+## projects straight down, so on a placed block beside or inside the ghost's
+## column it also painted the block's VERTICAL faces (a flat white/bright
+## rectangle across the tower, stepped where its box ended: the owner's "weird
+## lighting"). Faces turned away from the projection are faded out; 0 restores
+## the old behaviour, higher fades more steeply.
+@export var block_projection_normal_fade: float = 0.5
 
 ## -- Ghost glow (Bontago-sen.6, owner: "soft glow shader effect to the ghost
 ## blocks, then 1s before it force drops it should start glowing rapidly").
