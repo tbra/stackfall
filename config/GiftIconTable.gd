@@ -33,6 +33,11 @@ static func shared() -> GiftIconTable:
 	return _shared
 
 
+## Bontago-xtq.44: drops the shared instance on exit so its textures are freed with the tree.
+static func release_shared() -> void:
+	_shared = null
+
+
 ## Pictogram for a gift id, or null when unknown.
 func gift_pictogram(special_id: StringName) -> Texture2D:
 	return _region_texture(&"gift", gift_atlas, gift_regions, special_id)

@@ -35,6 +35,11 @@ static func shared() -> UiScaleTuning:
 	return _shared
 
 
+## Bontago-xtq.44: drops the shared instance on exit so its textures are freed with the tree.
+static func release_shared() -> void:
+	_shared = null
+
+
 ## Clamps to [min_scale, max_scale] and snaps to step (non-finite falls back to the default).
 func sanitize(value: float) -> float:
 	if is_nan(value) or is_inf(value):

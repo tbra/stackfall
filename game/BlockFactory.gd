@@ -369,6 +369,12 @@ static func set_outline_enabled(enabled: bool) -> void:
 		material.next_pass = _outline_material_for_color(color as Color) if enabled else null
 
 
+## Bontago-xtq.44: drops the shared materials on exit so the renderer frees them with the tree.
+static func release_caches() -> void:
+	_materials_by_color.clear()
+	_outline_materials_by_color.clear()
+
+
 static func _hook_graphics_preset() -> void:
 	if _preset_hooked:
 		return

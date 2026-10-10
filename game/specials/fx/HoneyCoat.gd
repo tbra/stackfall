@@ -13,6 +13,12 @@ static var _tuning: HoneyCoatTuning = null
 static var _coat_material: ShaderMaterial = null
 
 
+## Bontago-xtq.44: drops the static texture/material cache on exit (freed before the renderer shuts down).
+static func release_statics() -> void:
+	_coat_material = null
+	_tuning = null
+
+
 ## Adds or removes the coat on every shape mesh of `block`. Idempotent.
 static func set_coated(block: Block, coated: bool) -> void:
 	if block == null or not is_instance_valid(block):

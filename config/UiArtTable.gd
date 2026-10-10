@@ -51,6 +51,11 @@ static func shared() -> UiArtTable:
 	return _shared
 
 
+## Bontago-xtq.44: drops the shared instance on exit so its textures are freed with the tree.
+static func release_shared() -> void:
+	_shared = null
+
+
 ## Pictogram for a MatchConfig.MapVariant value, or null when unknown.
 func map_pictogram(variant: int) -> Texture2D:
 	var keys: Array = MatchConfig.MapVariant.keys()
