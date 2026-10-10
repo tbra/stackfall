@@ -17,6 +17,31 @@ func test_bundled_owner_theme_plays_without_original_assets_and_loops() -> void:
 	assert_true((_sfx._music_player.stream as AudioStreamMP3).loop)
 	_sfx._music_player.stop()
 
+## Bontago-1pi.156: music starts only when Main asks (after the splash), never in _ready().
+func test_music_is_silent_after_init_and_play_music_starts_it_once() -> void:
+	_config.bundled_theme = load("res://assets/music/stacking-blocks.mp3")
+	_sfx.set_root_dir_for_test(_empty_dir)
+	assert_false(_sfx._music_player.playing, "no music at autoload init")
+	assert_eq(_sfx._music_state, _sfx.MusicState.STOPPED)
+	_sfx.play_music()
+	assert_true(_sfx._music_player.playing)
+	var stream: AudioStream = _sfx._music_player.stream
+	_sfx.play_music()
+	assert_same(_sfx._music_player.stream, stream)
+	_sfx._music_player.stop()
+
+
+func test_contextual_music_stays_stopped_until_started() -> void:
+	_config.contextual_music_enabled = true
+	var fresh: Node = autofree(SFX_SCRIPT.new())
+	fresh.config = _config
+	add_child_autofree(fresh)
+	assert_eq(fresh._music_state, fresh.MusicState.STOPPED)
+	assert_false(fresh._music_player.playing)
+	fresh.play_music()
+	assert_eq(fresh._music_state, fresh.MusicState.WAITING)
+
+
 func test_release_audio_stops_players_and_drops_stream_refs() -> void:
 	_sfx.set_root_dir_for_test(_tmp_dir)
 	assert_true(_sfx.play(AudioConfig.EVENT_CLICK))
