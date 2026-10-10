@@ -223,6 +223,8 @@ var _special_ids_override: Variant = null
 ## build uses; tests inject doubles with set_providers().
 var _net_provider: Variant = null
 var _match_provider: Variant = null
+## Test seam (tests/unit/test_match_activation.gd): forces the deferred path in a headless run.
+var force_defer_activation: bool = false
 
 ## slot_id -> {"origin": Vector3, "orientation_index": int,
 ## "free_quat": Quaternion, "time": float}. On the host this is what spec
@@ -378,7 +380,11 @@ func _ready() -> void:
 	Events.net_mode_changed.connect(_on_net_mode_changed)
 	# Bontago-1pi.11.77.11: the WeatherNet child is built by late_activate(); headless
 	# and non-Boot runs activate right here, a windowed Boot run lets Boot prewarm first.
-	if not LateScripts.boot_defers_activation(get_tree()):
+	if LateScripts.boot_defers_activation(get_tree()) or force_defer_activation:
+		# Bontago-1pi.11.77.18: _process reads Match state, which does not exist until
+		# Match.late_activate(); stay idle until our own late_activate() re-enables it.
+		set_process(false)
+	else:
 		late_activate()
 
 
@@ -392,6 +398,7 @@ func late_activate() -> void:
 	if _late_active:
 		return
 	_late_active = true
+	set_process(true)
 	# Bontago-22y.10: weather replication lives in its own child node.
 	_weather_net = LateScripts.script(LateScripts.WEATHER_NET).new() as Node
 	_weather_net.name = "WeatherNet"

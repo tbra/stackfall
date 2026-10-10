@@ -74,3 +74,19 @@ func test_headless_ready_activates_immediately() -> void:
 	add_child_autofree(node)
 	assert_true(node.is_late_active())
 	assert_not_null(node._lifecycle)
+
+
+## Bontago-1pi.11.77.18: MatchNet._process reads the authority's state, so a deferred
+## (pre-Boot-prewarm) MatchNet must stay idle until its own late_activate().
+func test_deferred_match_net_is_idle_until_activated() -> void:
+	var match_node: MatchAutoload = _deferred_match()
+	var net: Node = load("res://net/MatchNet.gd").new() as Node
+	net.set("force_defer_activation", true)
+	add_child_autofree(net)
+	net.call(&"set_providers", null, match_node)
+	assert_false(net.call(&"is_late_active"))
+	assert_false(net.is_processing())
+	for _frame: int in 5:
+		await get_tree().process_frame
+	net.call(&"late_activate")
+	assert_true(net.is_processing())
