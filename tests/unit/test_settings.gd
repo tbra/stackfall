@@ -26,6 +26,8 @@ func before_each() -> void:
 
 func after_each() -> void:
 	_delete_if_exists(_cfg_path)
+	# Bontago-1pi.150 review: the published UI scale is static; never leak it into later tests.
+	UiScaleTuning.current_scale = -1.0
 	if InputMap.has_action(_test_action):
 		InputMap.erase_action(_test_action)
 

@@ -39,6 +39,8 @@ func before_each() -> void:
 ## trusting every test body to restore it, and other files in the same batch
 ## (test_main_menu, test_settings) never read the real Settings singleton.
 func after_each() -> void:
+	# Bontago-1pi.150 review: the published UI scale is static; never leak it into later tests.
+	UiScaleTuning.current_scale = -1.0
 	if InputMap.has_action(_test_action):
 		InputMap.erase_action(_test_action)
 	Settings.set_config_path_for_test(DEFAULT_SETTINGS_CFG_PATH)
