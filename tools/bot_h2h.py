@@ -9,6 +9,11 @@ A seats, then on the B seats), as N parallel
 processes, parses each `HEADLESS_MATCH ... winner_team=` line, and reports the
 candidate's win share with a Wilson 95 % interval against the gate.
 
+A match stopped by the --seconds cap while still PLAYING prints a HEADLESS_MATCH line with
+winner_team=-1 timeout=1 (game time; `HEADLESS_BOTS done t=` is game time too, `wall=` is wall
+clock): it counts as a draw and shows in the `timeouts=` part of the summary, separate from
+`failed` (no HEADLESS_MATCH line: launch failure, crash, kill).
+
 SEAM DEPENDENCY (plan BT5): the game has no per-slot weight override or match
 seed flag yet. This tool therefore needs `--godot-args`, a template appended
 after `--` on the Godot command line, with the placeholders
@@ -41,6 +46,7 @@ GATE_WIN_SHARE = 0.75
 GATE_MIN_MATCHES = 100
 Z95 = 1.959964
 _MATCH_RE = re.compile(r"HEADLESS_MATCH\b.*?\bwinner_team=(-?\d+)")
+_TIMEOUT_RE = re.compile(r"HEADLESS_MATCH\b.*\btimeout=1\b")
 _WEIGHT_LINE = re.compile(r"^\s*(weight_\w+)\s*=\s*(-?[0-9.eE+-]+)\s*$")
 
 
@@ -65,6 +71,12 @@ def parse_winner(output: str) -> Optional[int]:
     """winner_team of the LAST HEADLESS_MATCH line (loop runs print several), else None."""
     found = _MATCH_RE.findall(output)
     return int(found[-1]) if found else None
+
+
+def timed_out(output: str) -> bool:
+    """True when the LAST HEADLESS_MATCH line carries timeout=1 (--seconds cap hit while PLAYING)."""
+    lines = [ln for ln in output.splitlines() if "HEADLESS_MATCH" in ln]
+    return bool(lines) and _TIMEOUT_RE.search(lines[-1]) is not None
 
 
 def wilson(wins: int, n: int, z: float = Z95) -> Tuple[float, float]:
@@ -133,8 +145,11 @@ def run_process(cmd: Sequence[str], timeout_s: float) -> str:
 
 def tally(jobs: Sequence[MatchJob], outputs: Sequence[str], teams_a: Sequence[int],
           teams_b: Sequence[int]) -> Dict[str, int]:
-    """Candidate wins / losses / draws (winner -1 or a team nobody holds) / failed matches."""
-    r = {"wins": 0, "losses": 0, "draws": 0, "failed": 0}
+    """Candidate wins / losses / draws (winner -1 or a team nobody holds) / failed matches.
+
+    `timeouts` counts the draws that were --seconds-cap stops (timeout=1); failed means no
+    HEADLESS_MATCH line at all (launch failure, crash, kill)."""
+    r = {"wins": 0, "losses": 0, "draws": 0, "failed": 0, "timeouts": 0}
     for job, out in zip(jobs, outputs):
         winner = parse_winner(out)
         if winner is None:
@@ -145,6 +160,8 @@ def tally(jobs: Sequence[MatchJob], outputs: Sequence[str], teams_a: Sequence[in
             r["wins"] += 1
         elif winner < 0:
             r["draws"] += 1
+            if timed_out(out):
+                r["timeouts"] += 1
         else:
             r["losses"] += 1
     return r
@@ -204,8 +221,8 @@ def main(argv: Optional[List[str]] = None, runner: Callable[[Sequence[str], floa
     lo, hi = wilson(t["wins"], decided)
     v = verdict(t["wins"], t["losses"], len(jobs))
     share = (t["wins"] / decided) if decided else float("nan")
-    print("H2H matches=%d wins=%d losses=%d draws=%d failed=%d" % (
-        len(jobs), t["wins"], t["losses"], t["draws"], t["failed"]))
+    print("H2H matches=%d wins=%d losses=%d draws=%d (timeouts=%d) failed=%d" % (
+        len(jobs), t["wins"], t["losses"], t["draws"], t["timeouts"], t["failed"]))
     print("H2H win_share=%.3f ci95=[%.3f, %.3f] gate>=%.2f over>=%d matches (match-level Wilson)" % (
         share, lo, hi, GATE_WIN_SHARE, GATE_MIN_MATCHES))
     print("H2H RESULT %s" % v)
