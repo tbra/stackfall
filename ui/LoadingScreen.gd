@@ -65,7 +65,6 @@ var name_provider: Variant = null
 
 ## The Input Map action that readies (Enter/Numpad Enter/Space and gamepad A).
 const READY_ACTION: StringName = &"ui_accept"
-const MENU_VISUAL_TUNING_PATH: String = "res://config/menu_visual_tuning.tres"
 ## Bontago-1pi.157: the loading backdrop is one of the main menu's images (MainMenuTuning.backdrop_paths).
 const MENU_TUNING_PATH: String = "res://config/main_menu_tuning.tres"
 ## Frames a fetched plate stays referenced so queued RenderingServer commands drain (Bontago-6cw).
@@ -740,7 +739,7 @@ func _rebuild_ready_rows(slots: Array[PlayerSlot]) -> void:
 		name_label.add_theme_color_override("font_color", MenuStyleFactory.arcade_tuning().cream_color)
 		name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		# Bontago-1pi.158 (owner: the four-cell bar "makes no sense"): the lobby's Ready / Not ready pill.
-		var mark: ReadyPill = ReadyPill.create(slot_item.is_bot, _pill_size(), _pill_tuning(), float(tuning.loading_pill_margin_y_px))
+		var mark: ReadyPill = ReadyPill.create(slot_item.is_bot, _pill_size(), float(tuning.loading_pill_margin_y_px))
 		mark.visible = _ready_gate_armed
 		row.add_child(marker)
 		row.add_child(name_label)
@@ -752,10 +751,6 @@ func _rebuild_ready_rows(slots: Array[PlayerSlot]) -> void:
 ## The pill's size (LoadingScreenTuning): the lobby's pill, a little smaller so eight rows fit.
 func _pill_size() -> Vector2:
 	return Vector2(float(tuning.loading_pill_width_px), float(tuning.loading_pill_height_px))
-
-
-func _pill_tuning() -> MenuVisualTuning:
-	return load(MENU_VISUAL_TUNING_PATH) as MenuVisualTuning
 
 
 ## Test seam: the name shown on each player row, in order.
