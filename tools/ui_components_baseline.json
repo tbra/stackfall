@@ -29,7 +29,7 @@
   "ui/lobby/LobbyOpenSeatRow.gd": 4,
   "ui/lobby/LobbyPlayersPanel.gd": 3,
   "ui/lobby/LobbySeatRow.gd": 14,
-  "ui/lobby/LobbySection.gd": 8
+  "ui/lobby/LobbySection.gd": 3
  },
  "R3": {
   "ui/Lobby.gd": 12,
@@ -38,7 +38,6 @@
  },
  "R4": {
   "ui/Lobby.gd": 2,
-  "ui/lobby/LobbySeatRow.gd": 2,
-  "ui/lobby/LobbySection.gd": 1
+  "ui/lobby/LobbySeatRow.gd": 2
  }
 }
