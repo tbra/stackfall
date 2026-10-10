@@ -5,6 +5,9 @@ extends Control
 ## (mouse drag and click, ui_left/ui_right through ui/SliderNav.gd, focus outline, editable); this
 ## node only paints the track. Filled cells are flare blocks, the current cell has a cream outline,
 ## and a muted or disabled meter shows dust cells instead.
+## Bontago-1pi.159.7: now a thin compatibility layer. The painting lives in UiSegmentMeter.draw_cells
+## (the design-system component); this overlay stays until the Lobby / Options migrations
+## (1pi.159.2 / 1pi.159.3) replace each HSlider + overlay with a UiSegmentMeter.
 
 const OPTIONS_TUNING: OptionsVisualTuning = preload("res://config/options_visual_tuning.tres")
 
@@ -59,46 +62,6 @@ static func filled_cells(slider: HSlider, count: int) -> int:
 func _draw() -> void:
 	if _slider == null:
 		return
-	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	var well: StyleBoxFlat = StyleBoxFlat.new()
-	well.bg_color = arcade.disc_900_color
-	well.border_color = arcade.disc_400_color
-	well.set_border_width_all(arcade.well_border_px)
-	well.set_corner_radius_all(arcade.radius_block_px)
-	draw_style_box(well, Rect2(Vector2.ZERO, size))
 	var count: int = maxi(OPTIONS_TUNING.segment_count, 1)
-	var inset: float = float(arcade.well_border_px + arcade.space_1_px)
-	var area: Rect2 = Rect2(Vector2(inset, inset), size - Vector2(inset, inset) * 2.0)
-	if area.size.x <= 0.0 or area.size.y <= 0.0:
-		return
-	var gap: float = float(arcade.space_1_px)
-	var cell_w: float = (area.size.x - gap * float(count - 1)) / float(count)
-	var filled: int = filled_cells(_slider, count)
 	var live: bool = _slider.editable and not _dimmed
-	for i: int in range(count):
-		var rect: Rect2 = Rect2(area.position + Vector2(float(i) * (cell_w + gap), 0.0), Vector2(cell_w, area.size.y))
-		var on: bool = i < filled
-		var face: Color = arcade.disc_700_color
-		var lip: Color = arcade.disc_600_color
-		if on:
-			face = arcade.flare_color if live else arcade.dust_color
-			lip = arcade.flare_lip_color if live else arcade.disc_400_color
-		draw_style_box(_cell_box(face, lip, arcade), rect)
-	var current: int = clampi(filled - 1, 0, count - 1)
-	var outline: Rect2 = Rect2(area.position + Vector2(float(current) * (cell_w + gap), 0.0), Vector2(cell_w, area.size.y))
-	var outline_box: StyleBoxFlat = StyleBoxFlat.new()
-	outline_box.draw_center = false
-	outline_box.border_color = arcade.cream_color
-	outline_box.set_border_width_all(arcade.well_border_px)
-	outline_box.set_corner_radius_all(arcade.radius_cell_px)
-	if filled > 0 and live:
-		draw_style_box(outline_box, outline)
-
-
-func _cell_box(face: Color, lip: Color, arcade: ArcadeVisualTuning) -> StyleBoxFlat:
-	var box: StyleBoxFlat = StyleBoxFlat.new()
-	box.bg_color = face
-	box.border_color = lip
-	box.border_width_bottom = arcade.pressed_lip_px
-	box.set_corner_radius_all(arcade.radius_cell_px)
-	return box
+	UiSegmentMeter.draw_cells(self, Rect2(Vector2.ZERO, size), filled_cells(_slider, count), count, live)

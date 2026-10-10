@@ -18,6 +18,14 @@ const STATE_LABELS: Dictionary = {
 ## The states a toggle / chip can show (no pressed look: the toggled-on block is the pressed one).
 const SWITCH_STATES: Array[StringName] = [STATE_NORMAL, STATE_HOVER, STATE_FOCUS, STATE_DISABLED]
 const SWITCH_LABELS: Dictionary = {STATE_NORMAL: "NORMAL", STATE_HOVER: "HOVER", STATE_FOCUS: "FOCUS", STATE_DISABLED: "DISABLED"}
+const PAGE_INPUTS: int = 2
+const PAGE_STRUCTURE: int = 3
+const DROPDOWN_CYCLE_ITEMS: PackedStringArray = ["Classic", "Sprint", "Marathon", "Chaos"]
+const DROPDOWN_LIST_ITEMS: PackedStringArray = ["Dawn", "Noon", "Dusk", "Night", "Storm", "Aurora", "Fog"]
+const DROPDOWN_OPEN_SELECTED: int = 2
+const METER_STEPS: int = 10
+const METER_MID: int = 6
+const METER_PERCENT_PER_CELL: int = 10
 const STEPPER_MAX: int = 10
 const STEPPER_LOW: int = 3
 const STEPPER_MID: int = 5
@@ -37,7 +45,8 @@ const BADGES: Array[Dictionary] = [
 	{"name": "ICON-ONLY WAITING", "look": UiStatusBadge.Look.NOT_READY, "text": "Not ready", "live": false, "icon": true},
 ]
 
-## 0 = buttons + badges, 1 = toggles, chips, steppers and tabs (C1b). One page fits one capture.
+## 0 = buttons + badges, 1 = toggles, chips, steppers and tabs (C1b), 2 = dropdown, field and
+## segment meter, 3 = section, panel and title row (C2). One page fits one capture.
 @export var page: int = 0
 
 
@@ -60,6 +69,22 @@ func _ready() -> void:
 	if page == 0:
 		columns.add_child(_panel("BUTTONS", _button_rows()))
 		columns.add_child(_panel("BADGES AND ROW CONTRACT", _badge_rows()))
+	elif page == PAGE_INPUTS:
+		var inputs_left: VBoxContainer = VBoxContainer.new()
+		inputs_left.add_child(_panel("DROPDOWN", _dropdown_rows()))
+		columns.add_child(inputs_left)
+		var inputs_right: VBoxContainer = VBoxContainer.new()
+		inputs_right.add_theme_constant_override("separation", arcade.space_4_px)
+		inputs_right.add_child(_panel("FIELD", _field_rows()))
+		inputs_right.add_child(_panel("SEGMENT METER", _meter_rows()))
+		columns.add_child(inputs_right)
+	elif page == PAGE_STRUCTURE:
+		var structure_left: VBoxContainer = VBoxContainer.new()
+		structure_left.add_theme_constant_override("separation", arcade.space_4_px)
+		structure_left.add_child(_panel("SECTION", _section_rows()))
+		structure_left.add_child(_panel("TITLE ROW", _title_row_rows()))
+		columns.add_child(structure_left)
+		columns.add_child(_sample_panel())
 	else:
 		var left: VBoxContainer = VBoxContainer.new()
 		left.add_theme_constant_override("separation", arcade.space_4_px)
@@ -73,21 +98,12 @@ func _ready() -> void:
 		columns.add_child(right)
 
 
-func _panel(title: String, rows: Array[Control]) -> PanelContainer:
-	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	var panel: PanelContainer = PanelContainer.new()
+func _panel(title: String, rows: Array[Control]) -> UiPanel:
+	var panel: UiPanel = UiPanel.new()
 	panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	panel.add_theme_stylebox_override("panel", MenuStyleFactory.make_plate())
-	var column: VBoxContainer = VBoxContainer.new()
-	column.add_theme_constant_override("separation", arcade.space_3_px)
-	var heading: Label = Label.new()
-	heading.text = title
-	heading.add_theme_font_size_override("font_size", arcade.font_size_heading_px)
-	heading.add_theme_color_override("font_color", arcade.cream_color)
-	column.add_child(heading)
+	panel.heading = title
 	for row: Control in rows:
-		column.add_child(row)
-	panel.add_child(column)
+		panel.content.add_child(row)
 	return panel
 
 
@@ -215,6 +231,155 @@ func _tab_rows() -> Array[Control]:
 		side.add_tab(StringName(tab_name), tab_name)
 	rows.append(UiRow.new().setup("SIDE TABS", side))
 	return rows
+
+
+func _dropdown_rows() -> Array[Control]:
+	var rows: Array[Control] = []
+	for state: StringName in BUTTON_STATES:
+		var dropdown: UiDropdown = _sample_dropdown(UiDropdown.Mode.CYCLE, DROPDOWN_CYCLE_ITEMS)
+		rows.append(UiRow.new().setup(STATE_LABELS[state] as String, dropdown))
+		show_state(dropdown, state)
+	var long_list: UiDropdown = _sample_dropdown(UiDropdown.Mode.AUTO, DROPDOWN_LIST_ITEMS)
+	rows.append(UiRow.new().setup("LONG LIST (AUTO)", long_list))
+	var open_list: UiDropdown = _sample_dropdown(UiDropdown.Mode.POPUP, DROPDOWN_LIST_ITEMS)
+	open_list.select(DROPDOWN_OPEN_SELECTED)
+	rows.append(UiRow.new().setup("OPEN", open_list))
+	open_list.open.call_deferred(false)
+	return rows
+
+
+func _sample_dropdown(mode: UiDropdown.Mode, items: PackedStringArray) -> UiDropdown:
+	var dropdown: UiDropdown = UiDropdown.new()
+	dropdown.mode = mode
+	for item: String in items:
+		dropdown.add_item(item)
+	return dropdown
+
+
+func _field_rows() -> Array[Control]:
+	var rows: Array[Control] = []
+	var empty: UiField = UiField.new()
+	empty.placeholder = "Your name"
+	rows.append(UiRow.new().setup("PLACEHOLDER", empty))
+	var filled: UiField = UiField.new()
+	filled.text = "Tester"
+	rows.append(UiRow.new().setup("FILLED", filled))
+	var focused: UiField = UiField.new()
+	focused.text = "192.168.0.7"
+	rows.append(UiRow.new().setup("FOCUS", focused))
+	show_field_focus(focused)
+	var locked: UiField = UiField.new()
+	locked.text = "ABCD-1234"
+	locked.editable = false
+	rows.append(UiRow.new().setup("READ-ONLY", locked))
+	var captioned: UiField = UiField.new()
+	captioned.label_text = "DIRECT IP"
+	captioned.placeholder = "0.0.0.0:7777"
+	rows.append(UiRow.new().setup("WITH LABEL", captioned))
+	return rows
+
+
+func _meter_rows() -> Array[Control]:
+	var rows: Array[Control] = []
+	var cases: Array[Dictionary] = [
+		{"name": "EMPTY", "value": 0}, {"name": "MID", "value": METER_MID}, {"name": "FULL", "value": METER_STEPS},
+		{"name": "FOCUS", "value": METER_MID}, {"name": "MUTED", "value": METER_MID},
+	]
+	for entry: Dictionary in cases:
+		var meter: UiSegmentMeter = _sample_meter(entry["value"] as int)
+		match entry["name"] as String:
+			"FOCUS":
+				meter.preview_focus = true
+			"MUTED":
+				meter.editable = false
+		rows.append(UiRow.new().setup(entry["name"] as String, meter))
+	return rows
+
+
+func _sample_meter(cells: int) -> UiSegmentMeter:
+	var meter: UiSegmentMeter = UiSegmentMeter.new()
+	meter.step_count = METER_STEPS
+	meter.value = cells
+	meter.formatter = func(v: int) -> String: return "%d%%" % (v * METER_PERCENT_PER_CELL)
+	return meter
+
+
+func _section_rows() -> Array[Control]:
+	var rows: Array[Control] = []
+	rows.append(_sample_section("GAME", "Classic - Round - Medium", false))
+	rows.append(_sample_section("ROUND", "15 min - Sudden death off", true))
+	return rows
+
+
+func _sample_section(title: String, summary: String, open: bool) -> UiSection:
+	var section: UiSection = UiSection.new()
+	section.title = title
+	var body: VBoxContainer = VBoxContainer.new()
+	body.name = UiSection.BODY_NAME
+	body.add_child(UiRow.new().setup("MODE", _sample_dropdown(UiDropdown.Mode.CYCLE, DROPDOWN_CYCLE_ITEMS)))
+	section.add_child(body)
+	var advanced: MarginContainer = MarginContainer.new()
+	advanced.name = UiSection.ADVANCED_NAME
+	var chips: HBoxContainer = HBoxContainer.new()
+	chips.add_theme_constant_override("separation", MenuStyleFactory.arcade_tuning().space_2_px)
+	for chip_name: String in ["Black hole", "Gust"]:
+		var chip: UiChipToggle = UiChipToggle.new()
+		chip.label = chip_name
+		chips.add_child(chip)
+		chip.set_on_silent(chip_name == "Gust")
+	advanced.add_child(chips)
+	section.add_child(advanced)
+	section.set_summary.call_deferred(summary)
+	section.set_advanced_open.call_deferred(open)
+	return section
+
+
+func _title_row_rows() -> Array[Control]:
+	var rows: Array[Control] = []
+	var title_row: UiTitleRow = UiTitleRow.new()
+	title_row.title = "Lobby"
+	var badge: UiStatusBadge = UiStatusBadge.new()
+	badge.text = "HOSTING - LAN"
+	badge.live = true
+	title_row.add_trailing(badge)
+	var back: UiBlockButton = UiBlockButton.new()
+	back.text = "BACK"
+	title_row.add_trailing(back)
+	rows.append(title_row)
+	return rows
+
+
+## A whole panel as a screen builds it: heading + trailing badge, rows of row items.
+func _sample_panel() -> UiPanel:
+	var panel: UiPanel = UiPanel.new()
+	panel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	panel.heading = "Match settings"
+	var badge: UiStatusBadge = UiStatusBadge.new()
+	badge.text = "VS BOTS"
+	panel.header.add_trailing(badge)
+	var toggle: UiToggle = UiToggle.new()
+	toggle.caption = "Sudden death"
+	panel.content.add_child(UiRow.new().setup("SUDDEN DEATH", toggle))
+	var stepper: UiStepper = UiStepper.new()
+	stepper.min_value = 0
+	stepper.max_value = STEPPER_MAX
+	stepper.value = STEPPER_MID
+	panel.content.add_child(UiRow.new().setup("BOTS", stepper))
+	panel.content.add_child(UiRow.new().setup("VOLUME", _sample_meter(METER_MID)))
+	panel.content.add_child(UiRow.new().setup("SKY", _sample_dropdown(UiDropdown.Mode.CYCLE, DROPDOWN_CYCLE_ITEMS)))
+	var name_field: UiField = UiField.new()
+	name_field.text = "Tester"
+	panel.content.add_child(UiRow.new().setup("NAME", name_field))
+	return panel
+
+
+## Previews the focus look on [param field] (a captured control cannot hold real focus).
+static func show_field_focus(field: UiField) -> void:
+	var outline: Panel = Panel.new()
+	outline.set_anchors_preset(Control.PRESET_FULL_RECT)
+	outline.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	outline.add_theme_stylebox_override("panel", field.edit.get_theme_stylebox("focus", "LineEdit"))
+	field.edit.add_child(outline)
 
 
 ## Previews [param state] on [param button] (which must already be in a tree-bound row): hover and
