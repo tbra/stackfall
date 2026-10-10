@@ -20,7 +20,7 @@ static func base_size() -> Vector2:
 
 
 ## Bontago-1pi.150: the player's UI scale (autoload/Settings.gd, applied by Settings to the root
-## window) multiplies this stretch. Its effective factor (mockup scale x the stored
+## window) multiplies this stretch. Its effective factor (base scale x the stored
 ## relative value) is what the engine adds on top of the stretch; AgentProbe viewports and layout
 ## tests use it too, so they lay out exactly like the real window.
 static func user_factor() -> float:
