@@ -1,0 +1,6 @@
+[gd_resource type="Resource" script_class="BotRecordingConfig" format=3]
+
+[ext_resource type="Script" path="res://config/BotRecordingConfig.gd" id="1_rec"]
+
+[resource]
+script = ExtResource("1_rec")

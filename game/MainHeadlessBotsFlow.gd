@@ -63,6 +63,7 @@ func start_match_with_args(args: PackedStringArray) -> void:
 	main_node._headless_loop_index = 0
 	if main_node._headless_loop_enabled:
 		Events.match_state_changed.connect(main_node._on_headless_loop_state_changed)
+	_setup_bot_record(args)
 	_start_headless_loop_match(bots, args)
 
 	# `--seconds=<n>` bounds the run with a hard wall-clock quit: the
@@ -86,6 +87,7 @@ func _start_headless_loop_match(bots: int, args: PackedStringArray) -> void:
 			config.rng_seed = randi_range(1, 2147483647)
 		main_node._headless_loop_seed = config.rng_seed
 	Match.start_match(config)
+	_begin_bot_record(config)
 	_start_headless_bots_diagnostics()
 
 
@@ -364,6 +366,7 @@ func _on_headless_bots_report_tick() -> void:
 ## ticks.
 func _on_headless_bots_seconds_elapsed() -> void:
 	print(_headless_bots_done_line())
+	_finish_bot_record(-1)
 	await Sfx.drain_for_quit()
 	main_node.get_tree().quit(0)
 
@@ -381,6 +384,87 @@ func _headless_bots_done_line() -> String:
 		_headless_bots_elapsed_s(), main_node._headless_bots_placements,
 		Match.config.game_mode if Match.config != null else 0, _headless_bots_homes_alive(),
 	]
+
+
+# --- Bot decision recording: `--bot-record=<dir>` (Bontago-1t5.11, BT3) -------
+#
+# docs/BOT_TRAINING_SOAK_PLAN.md: OFF unless the flag is given. One JSONL file per bot per
+# match (game/BotDecisionRecorder.gd), rotated per --loop-matches match; the recorder is a
+# passive observer attached to every BotController. DECISION: the recorder and its state
+# live on this flow object (Main.gd is not part of this package), and END/--seconds close
+# the files so footers and truncated outcomes are always written.
+
+var _bot_record_dir: String = ""
+var _bot_recorder: BotDecisionRecorder = null
+var _bot_record_timeline_started: bool = false
+
+
+## `--bot-record=<dir>`, "" when absent.
+func _bot_record_arg(args: PackedStringArray) -> String:
+	const PREFIX: String = "bot-record="
+	for raw: String in args:
+		var text: String = raw
+		while text.begins_with("-"):
+			text = text.substr(1)
+		if text.begins_with(PREFIX):
+			return text.substr(PREFIX.length())
+	return ""
+
+
+func _setup_bot_record(args: PackedStringArray) -> void:
+	_bot_record_dir = _bot_record_arg(args)
+	if _bot_record_dir.is_empty() or _bot_recorder != null:
+		return
+	_bot_recorder = BotDecisionRecorder.new()
+	main_node.add_child(_bot_recorder)
+	if not _bot_recorder.configure(_bot_record_dir):
+		# The recorder already printed BOT_RECORD_ERROR; the match runs unrecorded.
+		return
+	Events.match_state_changed.connect(_on_bot_record_state_changed)
+
+
+func _begin_bot_record(config: MatchConfig) -> void:
+	if _bot_recorder == null or not _bot_recorder.is_enabled():
+		return
+	var slots: PackedInt32Array = PackedInt32Array()
+	var difficulties: Array = []
+	for slot_id: int in range(config.player_count - config.ai_count, config.player_count):
+		slots.append(slot_id)
+		difficulties.append(int(config.ai_difficulty_for_slot(slot_id)))
+	var map_def: MapDef = config.map_def()
+	var header: Dictionary = {
+		"seed": config.rng_seed,
+		"mode": int(config.game_mode),
+		"map_id": String(map_def.id) if map_def != null else "",
+		"bot_count": config.ai_count,
+		"difficulty": int(config.ai_difficulty),
+		"difficulties": difficulties,
+		"git_revision": BuildVersion.git_revision(),
+	}
+	_bot_record_timeline_started = false
+	_bot_recorder.begin_match(header, slots, main_node._headless_loop_index)
+
+
+func _on_bot_record_state_changed(_from_state: int, to_state: int) -> void:
+	if _bot_recorder == null or not is_instance_valid(_bot_recorder):
+		return
+	# Controllers are spawned while the world builds; attach (idempotent) on every transition.
+	for node: Node in main_node._bot_controllers:
+		var bot: BotController = node as BotController
+		if bot != null and is_instance_valid(bot):
+			bot.set_recorder(_bot_recorder)
+	if to_state == Match.State.PLAYING and not _bot_record_timeline_started:
+		_bot_record_timeline_started = true
+		_bot_recorder.on_tick(0.0)
+	elif to_state == Match.State.END:
+		_finish_bot_record(Match.winner_team())
+
+
+func _finish_bot_record(winner_team: int) -> void:
+	if _bot_recorder == null:
+		return
+	_bot_recorder.end_match(winner_team)
+	print("BOT_RECORD match=%d %s" % [main_node._headless_loop_index, JSON.stringify(_bot_recorder.stats())])
 
 
 ## Bontago-1t5.4 diagnostics: smallest (distance to a living enemy home minus
