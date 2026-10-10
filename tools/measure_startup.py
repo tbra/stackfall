@@ -12,6 +12,10 @@ import shutil
 import statistics
 import subprocess
 import sys
+import os
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import godot_slots  # noqa: E402
 
 DEFAULT_RUNS = 3
 RUN_TIMEOUT_S = 90
@@ -22,9 +26,10 @@ ARGS = ["--windowed", "--position", "10000,10000", "--resolution", "320x180",
 
 def one_run(godot, path):
     try:
-        p = subprocess.run([godot, "--path", path] + ARGS, capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", timeout=RUN_TIMEOUT_S)
-    except subprocess.TimeoutExpired:
+        with godot_slots.godot_slot("measure_startup"):  # machine-wide Godot cap (Bontago-fca.89)
+            p = subprocess.run([godot, "--path", path] + ARGS, capture_output=True, text=True,
+                               encoding="utf-8", errors="replace", timeout=RUN_TIMEOUT_S)
+    except (subprocess.TimeoutExpired, TimeoutError):
         return None, None, 0, "timeout"
     out = p.stdout + p.stderr
     errors = out.count("SCRIPT ERROR")

@@ -103,7 +103,9 @@ $outLog = Join-Path $configDir ("out_" + [guid]::NewGuid().ToString("N").Substri
 # call so stderr lines flow through and get captured like any other output.
 $prevEap = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
-& $Godot --headless --log-file ($outLog + ".godot.log") --fixed-fps 60 --path $Path -s addons/gut/gut_cmdln.gd "-gconfig=$configRes" -gexit 2>&1 | Tee-Object -FilePath $outLog
+# Takes a machine-wide Godot slot (tools/godot_slots.py, Bontago-fca.89); exit code is the child's.
+$slotTool = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "godot_slots.py"
+& python $slotTool run --label gut -- $Godot --headless --log-file ($outLog + ".godot.log") --fixed-fps 60 --path $Path -s addons/gut/gut_cmdln.gd "-gconfig=$configRes" -gexit 2>&1 | Tee-Object -FilePath $outLog
 $code = $LASTEXITCODE
 $ErrorActionPreference = $prevEap
 
