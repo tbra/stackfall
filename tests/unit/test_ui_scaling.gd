@@ -339,7 +339,7 @@ func test_lobby_settings_all_visible_or_reachable_at_every_size() -> void:
 		assert_true(scroll.follow_focus, "settings scroll follows focus at %s" % window)
 		var controls: Array[Control] = _focusable_settings_controls(scroll)
 		assert_gt(controls.size(), 8, "settings controls found at %s" % window)
-		for name: String in ["%BlockTimerSlider", "%GravitySlider", "%SpecialFreqSlider", "%GiftsCheck"]:
+		for name: String in ["%GravitySlider", "%SpecialFreqSlider", "%GiftsCheck"]:
 			assert_true(controls.has(lobby.get_node(name)), "%s focusable at %s" % [name, window])
 		for control: Control in controls:
 			# The column rebalance keeps content within the visible rect where it fits;

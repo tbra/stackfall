@@ -116,7 +116,7 @@ func test_controls_live_in_their_plan_sections() -> void:
 		assert_true(game.body.is_ancestor_of(lobby.get_node(unique_name)), "%s is GAME main" % unique_name)
 	for unique_name: String in ["%GravitySlider", "%TurnBasedCheck", "%HoleModeOption", "%TiltModeOption", "%MidJoinCheck"]:
 		assert_true(game.advanced.is_ancestor_of(lobby.get_node(unique_name)), "%s is GAME advanced" % unique_name)
-	for unique_name: String in ["%RoundTimerSlider", "%MatchTimerSlider", "%SuddenDeathCheck", "%BlockTimerSlider", "%GoalFlagSpin", "%SkyTeamSumCheck"]:
+	for unique_name: String in ["%RoundTimerSlider", "%MatchTimerSlider", "%SuddenDeathCheck", "%BlockTimerSpin", "%GoalFlagSpin", "%SkyTeamSumCheck"]:
 		assert_true(round_section.body.is_ancestor_of(lobby.get_node(unique_name)), "%s is ROUND main" % unique_name)
 	assert_false(round_section.has_advanced(), "ROUND has no Advanced block (plan D1)")
 	for unique_name: String in ["%GiftsCheck", "%SpecialFreqSlider"]:
@@ -305,6 +305,75 @@ func test_goal_flags_show_only_in_modes_that_use_them() -> void:
 		assert_eq(lobby._visible_chain(lobby._main_chain).has(stepper), expected, "goal stepper is a stop only when shown (mode %d)" % mode)
 
 
+## Bontago-1pi.147: the block timer is the goal-flag stepper component (-/value/+), not a slider.
+func test_block_timer_is_a_stepper_with_the_old_range_and_step() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var spin: SpinBox = lobby.get_node("%BlockTimerSpin") as SpinBox
+	assert_eq(spin.min_value, MatchConfig.BLOCK_TIMER_MIN)
+	assert_eq(spin.max_value, MatchConfig.BLOCK_TIMER_MAX)
+	assert_eq(spin.step, 0.5)
+	assert_eq(lobby._block_stepper_buttons.size(), 2, "a minus and a plus")
+	assert_null(lobby.get_node_or_null("%BlockTimerSlider"), "no slider remains")
+	var minus: Button = lobby._block_stepper_buttons[0]
+	var plus: Button = lobby._block_stepper_buttons[1]
+	var value_label: Label = minus.get_parent().get_child(1) as Label
+	spin.value = 6.0
+	plus.pressed.emit()
+	assert_almost_eq(spin.value, 6.5, 0.001)
+	assert_eq(value_label.text, "6.5 s")
+	assert_almost_eq(_published(lobby).block_timer, 6.5, 0.001, "host edits publish")
+	minus.pressed.emit()
+	minus.pressed.emit()
+	assert_almost_eq(spin.value, 5.5, 0.001)
+	spin.value = spin.min_value
+	minus.pressed.emit()
+	assert_almost_eq(spin.value, MatchConfig.BLOCK_TIMER_MIN, 0.001, "clamped at the minimum")
+	spin.value = spin.max_value
+	plus.pressed.emit()
+	assert_almost_eq(spin.value, MatchConfig.BLOCK_TIMER_MAX, 0.001, "clamped at the maximum")
+
+
+func test_block_timer_stepper_is_keyboard_and_gamepad_activatable_in_focus_order() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var chain: Array[Control] = lobby._visible_chain(lobby._main_chain)
+	var sudden: Control = lobby.get_node("%SuddenDeathCheck") as Control
+	var minus: Button = lobby._block_stepper_buttons[0]
+	var plus: Button = lobby._block_stepper_buttons[1]
+	var at: int = chain.find(sudden)
+	assert_eq(chain[at + 1], minus, "the block stepper follows sudden death")
+	assert_eq(chain[at + 2], plus)
+	assert_eq(chain[at + 3], lobby._goal_stepper_buttons[0], "then the goal flags' stepper")
+	assert_eq(minus.focus_mode, Control.FOCUS_ALL)
+	var spin: SpinBox = lobby.get_node("%BlockTimerSpin") as SpinBox
+	spin.value = 6.0
+	plus.grab_focus()
+	# Gamepad A (ui_accept) presses the focused stepper button: one step. (Keyboard Enter/Space is the
+	# engine's own ui_accept on the same Button, as for the goal flags; the mouse path is pressed above.)
+	for pressed_event: InputEvent in [_accept_pad(true), _accept_pad(false)]:
+		plus.get_viewport().push_input(pressed_event)
+	assert_almost_eq(spin.value, 6.5, 0.001, "pad A steps the block timer once")
+
+
+func test_a_client_sees_the_block_timer_but_its_stepper_is_inert() -> void:
+	var lobby: Lobby = _make_lobby(false)
+	for button: Button in lobby._block_stepper_buttons:
+		assert_true(button.disabled, "%s is host-only" % button.name)
+	assert_false((lobby.get_node("%BlockTimerSpin") as SpinBox).editable)
+	var config: MatchConfig = MatchConfig.new()
+	config.block_timer = 10.5
+	Events.net_lobby_data_changed.emit(config.to_dict())
+	assert_almost_eq((lobby.get_node("%BlockTimerSpin") as SpinBox).value, 10.5, 0.001, "replicated value arrives")
+	var value_label: Label = lobby._block_stepper_buttons[0].get_parent().get_child(1) as Label
+	assert_eq(value_label.text, "10.5 s")
+
+
+func _accept_pad(pressed: bool) -> InputEventJoypadButton:
+	var pad: InputEventJoypadButton = InputEventJoypadButton.new()
+	pad.button_index = JOY_BUTTON_A
+	pad.pressed = pressed
+	return pad
+
+
 func test_team_height_shows_only_for_reach_the_sky_and_sudden_death_only_for_classic() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var team_col: Control = lobby.get_node("%SkyTeamCol") as Control
@@ -329,7 +398,7 @@ func test_headers_summarise_their_section() -> void:
 	assert_true(game_summary.contains("Cycle"), "GAME names the time of day")
 	assert_true(game_summary.contains(" · "), "the parts are separated")
 	var round_summary: String = _section(lobby, "%RoundSection").summary()
-	var block_text: String = Lobby.SUMMARY_BLOCK_TIMER_FORMAT % (lobby.get_node("%BlockTimerSlider") as HSlider).value
+	var block_text: String = Lobby.SUMMARY_BLOCK_TIMER_FORMAT % (lobby.get_node("%BlockTimerSpin") as SpinBox).value
 	assert_true(round_summary.contains(block_text), "ROUND names the block timer (%s in %s)" % [block_text, round_summary])
 	assert_true(round_summary.contains("goal flag"), "Classic shows its goal flags")
 	_pick_mode(lobby, MatchConfig.GameMode.ELIMINATION)
@@ -386,7 +455,7 @@ func test_host_edits_every_round_setting_from_the_round_section() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	(lobby.get_node("%MatchTimerSlider") as HSlider).value = 12
 	(lobby.get_node("%SuddenDeathCheck") as CheckButton).button_pressed = true
-	(lobby.get_node("%BlockTimerSlider") as HSlider).value = 8.5
+	(lobby.get_node("%BlockTimerSpin") as SpinBox).value = 8.5
 	(lobby.get_node("%GoalFlagSpin") as SpinBox).value = 3
 	var config: MatchConfig = _published(lobby)
 	assert_eq(config.match_timer_minutes, 12)
@@ -429,7 +498,7 @@ func test_client_reads_the_sections_but_cannot_edit_them() -> void:
 	var disabled_names: Array[String] = [
 		"%GameModeOption", "%DiscSizeSlider", "%SkyThemeOption", "%WeatherOption", "%GravitySlider",
 		"%TurnBasedCheck", "%HoleModeOption", "%TiltModeOption", "%MidJoinCheck", "%MatchTimerSlider",
-		"%SuddenDeathCheck", "%BlockTimerSlider", "%GiftsCheck", "%SpecialFreqSlider",
+		"%SuddenDeathCheck", "%BlockTimerSpin", "%GiftsCheck", "%SpecialFreqSlider",
 	]
 	disabled_names.append_array(QOL_NAMES)
 	for box: CheckBox in lobby._special_checkboxes:
@@ -484,7 +553,12 @@ func test_label_and_value_columns_share_one_x_and_width_across_sections() -> voi
 		var cell: Control = node as Control
 		if _is_row_cell(cell, Lobby.LABEL_CELL_GROUP):
 			label_count += 1
-			assert_almost_eq(cell.size.x, expected_width, 0.51, "%s label cell width" % cell.name)
+			# An Advanced block's label cells give the block's indent back (1pi.146: one control column x).
+			var in_advanced: bool = false
+			for section: LobbySection in lobby._sections():
+				in_advanced = in_advanced or (section.advanced != null and section.advanced.is_ancestor_of(cell))
+			var width: float = expected_width - (lobby.layout_tuning.advanced_indent_px if in_advanced else 0)
+			assert_almost_eq(cell.size.x, width, 0.51, "%s label cell width" % cell.name)
 		elif _is_row_cell(cell, Lobby.VALUE_CELL_GROUP):
 			if is_nan(value_edge):
 				value_edge = cell.global_position.x + cell.size.x
@@ -510,6 +584,36 @@ func _assert_cells_aligned(lobby: Lobby, advanced_block: bool) -> void:
 				seen += 1
 				assert_almost_eq(cell.global_position.x, x_ref, 0.51, "%s (%s) label x" % [cell.name, section.name])
 	assert_gt(seen, 2, "label cells found in the %s blocks" % ("Advanced" if advanced_block else "main"))
+
+
+func test_control_columns_share_one_x_and_right_edge_in_every_block() -> void:
+	var lobby: Lobby = await _laid_out_lobby(Vector2(1920, 1080))
+	for section: LobbySection in lobby._sections():
+		if section.has_advanced():
+			section.set_advanced_open(true)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var control_x: float = NAN
+	var control_right: float = NAN
+	var seen: int = 0
+	for section: LobbySection in lobby._sections():
+		for block: Control in [section.body, section.advanced]:
+			if block == null:
+				continue
+			for node: Node in block.find_children("*", "HBoxContainer", true, false):
+				var rowc: Control = node as Control
+				if not (rowc.is_in_group(Lobby.ROW_GROUP) and rowc.is_visible_in_tree() and rowc.get_child_count() > 1):
+					continue
+				var first_control: Control = rowc.get_child(1) as Control
+				if not rowc.get_child(0).is_in_group(Lobby.LABEL_CELL_GROUP) or first_control.is_in_group(Lobby.CHECKLIST_GROUP):
+					continue
+				if is_nan(control_x):
+					control_x = first_control.global_position.x
+					control_right = control_x + first_control.size.x
+				seen += 1
+				assert_almost_eq(first_control.global_position.x, control_x, 0.51, "%s control column x" % rowc.name)
+				assert_almost_eq(first_control.global_position.x + first_control.size.x, control_right, 0.51, "%s control right edge" % rowc.name)
+	assert_gt(seen, 10, "rows found")
 
 
 func test_main_block_control_columns_share_one_x() -> void:

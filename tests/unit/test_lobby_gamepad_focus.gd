@@ -64,11 +64,11 @@ func _pad_right() -> void:
 	Input.flush_buffered_events()
 
 
-## Bontago-hfa.11: the six lobby sliders are SegmentMeters, and the pad still steps the focused one.
+## Bontago-hfa.11: the five lobby sliders are SegmentMeters, and the pad still steps the focused one.
 func test_lobby_sliders_are_segment_meters_and_dpad_right_still_steps_them() -> void:
 	var lobby: Lobby = _make_lobby()
 	await wait_frames(2)
-	for path: String in ["%DiscSizeSlider", "%BlockTimerSlider", "%GravitySlider", "%SpecialFreqSlider", "%MatchTimerSlider", "%RoundTimerSlider"]:
+	for path: String in ["%DiscSizeSlider", "%GravitySlider", "%SpecialFreqSlider", "%MatchTimerSlider", "%RoundTimerSlider"]:
 		var slider: HSlider = lobby.get_node(path) as HSlider
 		assert_not_null(slider.get_node_or_null("SegmentMeter"), "%s is drawn as a SegmentMeter" % path)
 	var disc: HSlider = lobby.get_node("%DiscSizeSlider") as HSlider

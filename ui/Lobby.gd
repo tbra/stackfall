@@ -48,6 +48,7 @@ const ROWS_GROUP: StringName = &"lobby_rows"
 const CHECKLIST_GROUP: StringName = &"lobby_checklist"
 const LABEL_CELL_GROUP: StringName = &"lobby_label_cell"
 const VALUE_CELL_GROUP: StringName = &"lobby_value_cell"
+const VALUE_SPACER_NAME: String = "ValueSpacer"
 
 ## Bontago-1pi.53 (E1): sizes and spacings new to the lobby rework (section
 ## spacing, seat colour box, row height, advanced indent); also handed to the
@@ -130,15 +131,14 @@ var _map_thumbnail_icon: TextureRect = null
 @onready var _ai_count_spin: SpinBox = %AiCountSpin
 @onready var _ai_difficulty_option: OptionButton = %AiDifficultyOption
 @onready var _team_mode_option: OptionButton = %TeamModeOption
-@onready var _block_timer_slider: HSlider = %BlockTimerSlider
-@onready var _block_timer_label: Label = %BlockTimerLabel
+## Bontago-1pi.147: the block timer is a -/value/+ stepper (the goal-flag component) over this hidden SpinBox.
+@onready var _block_timer_spin: SpinBox = %BlockTimerSpin
 @onready var _gravity_slider: HSlider = %GravitySlider
 @onready var _gravity_label: Label = %GravityLabel
 ## Bontago-mp0.3.5 (review r1, item 10): "uppercase label + value chip on one
 ## row, full-width slider below" for BLOCK TIMER/GRAVITY/SPECIAL FREQUENCY --
 ## these three PanelContainers wrap the existing %BlockTimerLabel etc. Labels
 ## as a coral value badge instead of a plain trailing number.
-@onready var _block_timer_chip: PanelContainer = %BlockTimerChip
 @onready var _gravity_chip: PanelContainer = %GravityChip
 @onready var _special_freq_chip: PanelContainer = %SpecialFreqChip
 @onready var _goal_flag_spin: SpinBox = %GoalFlagSpin
@@ -244,6 +244,8 @@ var _special_ids: Array[StringName] = []
 ## control. Bontago-1pi.53 (S1a): they sit inside the ROUND section (focus order =
 ## visual order).
 var _goal_stepper_buttons: Array[Button] = []
+## Bontago-1pi.147: the block timer stepper's "-" and "+" (same component as the goal flags').
+var _block_stepper_buttons: Array[Button] = []
 
 ## True while _apply_data() is writing sanitized values back into the
 ## controls, so the value-changed signals that causes fire without
@@ -286,6 +288,7 @@ const TIMER_SLIDER_STEP_MINUTES: float = 1.0
 ## Bontago-1pi.53 (S1a): the one-line section summaries shown on each LobbySection header.
 const SUMMARY_SEPARATOR: String = " · "
 const SUMMARY_BLOCK_TIMER_FORMAT: String = "Block %.1f s"
+const BLOCK_TIMER_VALUE_FORMAT: String = "%.1f s"
 const SUMMARY_GOAL_FLAGS_FORMAT: String = "%d goal flags"
 const SUMMARY_GOAL_FLAG_FORMAT: String = "%d goal flag"
 const SUMMARY_GIFTS_ON_FORMAT: String = "On%sfrequency %d"
@@ -316,7 +319,7 @@ func _ready() -> void:
 	_populate_options()
 	_settings_controls = [
 		_disc_size_slider, _player_count_spin, _ai_count_spin,
-		_ai_difficulty_option, _team_mode_option, _block_timer_slider, _gravity_slider,
+		_ai_difficulty_option, _team_mode_option, _block_timer_spin, _gravity_slider,
 		_goal_flag_spin, _gifts_check, _special_freq_slider, _tilt_mode_option,
 		_hole_mode_option, _match_timer_slider, _sudden_death_check, _turn_based_check,
 		_mid_join_check,
@@ -458,7 +461,7 @@ func _populate_options() -> void:
 	# Bontago-1pi.119 / 1pi.123: coarse keyboard/gamepad steps for fine sliders, and the wheel
 	# over any slider scrolls the settings column instead of changing it.
 	for nav_slider: HSlider in [
-		_block_timer_slider, _gravity_slider, _special_freq_slider,
+		_gravity_slider, _special_freq_slider,
 	]:
 		SliderNav.apply(nav_slider)
 	# The disc-size and minute timer sliders are stepped by _on_timer_slider_gui_input (one step per press).
@@ -606,7 +609,8 @@ func _wire_focus_chain() -> void:
 		_gravity_slider, _tilt_mode_option, _hole_mode_option, _turn_based_check, _mid_join_check,
 	]
 	chain.append_array(_section_chain(_game_section, game_main, game_advanced))
-	var round_main: Array[Control] = [_round_timer_slider, _match_timer_slider, _sudden_death_check, _block_timer_slider]
+	var round_main: Array[Control] = [_round_timer_slider, _match_timer_slider, _sudden_death_check]
+	round_main.append_array(_block_stepper_buttons)
 	round_main.append_array(_goal_stepper_buttons)
 	round_main.append(_sky_team_sum_check)
 	chain.append_array(_section_chain(_round_section, round_main, []))
@@ -665,9 +669,57 @@ func _apply_row_layout() -> void:
 			node.add_theme_constant_override("h_separation", layout_tuning.row_separation_px)
 			node.add_theme_constant_override("v_separation", layout_tuning.row_spacing_px)
 		elif node.is_in_group(LABEL_CELL_GROUP):
-			(node as Control).custom_minimum_size.x = layout_tuning.label_column_width_px
+			# Bontago-1pi.146: an Advanced block is indented, so its label cells give that indent back and the
+			# control column starts at the same x in every block.
+			var indent: int = 0
+			for section: LobbySection in _sections():
+				if section.advanced != null and section.advanced.is_ancestor_of(node):
+					indent = layout_tuning.advanced_indent_px
+			(node as Control).custom_minimum_size.x = layout_tuning.label_column_width_px - indent
 		elif node.is_in_group(VALUE_CELL_GROUP):
 			(node as Control).custom_minimum_size.x = layout_tuning.value_column_width_px
+
+
+## Bontago-1pi.146: one control column and one value column for every settings row. Each row of a
+## selector / toggle / stepper gets an empty value-cell spacer so its right edge lines up with the meters'
+## (whose readout sits in that column); every control is [member LobbyLayoutTuning.row_control_height_px]
+## tall, and every readout (meters' labels and chips alike) is one left-aligned label style.
+func _align_row_controls(selectors: Array[CycleSelector], toggles: Array[Button]) -> void:
+	var height: float = float(layout_tuning.row_control_height_px)
+	for node: Node in _settings_column.find_children("*", "HBoxContainer", true, false):
+		var row: HBoxContainer = node as HBoxContainer
+		if not row.is_in_group(ROW_GROUP) or row.has_node(VALUE_SPACER_NAME):
+			continue
+		var has_value_cell: bool = false
+		var has_checklist: bool = false
+		for child: Node in row.get_children():
+			has_value_cell = has_value_cell or child.is_in_group(VALUE_CELL_GROUP)
+			has_checklist = has_checklist or child.is_in_group(CHECKLIST_GROUP)
+		if has_value_cell or has_checklist:
+			continue
+		var spacer: Control = Control.new()
+		spacer.name = VALUE_SPACER_NAME
+		spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		spacer.custom_minimum_size.x = float(layout_tuning.value_column_width_px)
+		spacer.add_to_group(VALUE_CELL_GROUP)
+		row.add_child(spacer)
+	for selector: CycleSelector in selectors:
+		selector.custom_minimum_size.y = height
+	for toggle: Button in toggles:
+		if toggle != _ready_check:
+			toggle.custom_minimum_size.y = height
+	for meter_slider: HSlider in _meters:
+		meter_slider.custom_minimum_size.y = height
+	for cell: Node in _settings_column.find_children("*", "", true, false):
+		if not cell.is_in_group(VALUE_CELL_GROUP):
+			continue
+		var readout: Label = cell as Label
+		if readout == null and cell.get_child_count() > 0:
+			readout = cell.get_child(0) as Label
+		if readout != null:
+			readout.theme_type_variation = &""
+			readout.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+			readout.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 
 
 func _on_section_toggled(state: bool) -> void:
@@ -738,7 +790,7 @@ func _connect_control_signals() -> void:
 	# joined/left"; this covers "the host changed the seat count").
 	_player_count_spin.value_changed.connect(func(_v: float) -> void: _clamp_ai_count_to_seats())
 	_ai_count_spin.value_changed.connect(_on_value_changed)
-	_block_timer_slider.value_changed.connect(_on_value_changed)
+	_block_timer_spin.value_changed.connect(_on_value_changed)
 	_gravity_slider.value_changed.connect(_on_value_changed)
 	_goal_flag_spin.value_changed.connect(_on_value_changed)
 	_special_freq_slider.value_changed.connect(_on_value_changed)
@@ -771,7 +823,7 @@ func _connect_control_signals() -> void:
 ## `.value = x` too, so a remote _apply_data() update reaches it exactly like a button
 ## press does). Bontago-1pi.53 (S1b): only the goal-flag count still uses it -- the
 ## Players/AI steppers left the card.
-func _add_stepper_buttons(spin: SpinBox, target: Array[Button]) -> void:
+func _add_stepper_buttons(spin: SpinBox, target: Array[Button], value_text: Callable) -> void:
 	MenuStyleFactory.hide_spinbox_arrows(spin)
 	spin.visible = false
 
@@ -781,22 +833,27 @@ func _add_stepper_buttons(spin: SpinBox, target: Array[Button]) -> void:
 	var pill: PanelContainer = PanelContainer.new()
 	pill.size_flags_horizontal = spin.size_flags_horizontal
 	pill.add_theme_stylebox_override("panel", MenuStyleFactory.make_well_pill(tuning))
+	pill.custom_minimum_size.y = float(layout_tuning.row_control_height_px)
+	pill.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	parent.add_child(pill)
 	parent.move_child(pill, index)
 	pill.owner = scene_owner
 
 	var content: HBoxContainer = HBoxContainer.new()
 	content.add_theme_constant_override("separation", 6)
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	pill.add_child(content)
 
 	var minus: Button = Button.new()
 	minus.text = "−"
 	minus.pressed.connect(func() -> void: spin.value = maxf(spin.min_value, spin.value - spin.step))
 	var value_label: Label = Label.new()
-	value_label.custom_minimum_size = Vector2(20.0, 0)
+	# Bontago-1pi.146: "-" at the left edge, "+" at the right edge, the value centred between them.
+	value_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	value_label.text = str(int(spin.value))
-	spin.value_changed.connect(func(_v: float) -> void: value_label.text = str(int(spin.value)))
+	value_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	value_label.text = str(value_text.call(spin.value))
+	spin.value_changed.connect(func(_v: float) -> void: value_label.text = str(value_text.call(spin.value)))
 	var plus: Button = Button.new()
 	plus.text = "+"
 	plus.pressed.connect(func() -> void: spin.value = minf(spin.max_value, spin.value + spin.step))
@@ -877,7 +934,9 @@ func _apply_visual_style() -> void:
 	# (same min/max/step, same value_changed wiring), this just gives it a second,
 	# gamepad-focusable way to nudge the value by one step, and (review r3, problem 3)
 	# hides the native up/down spinner entirely.
-	_add_stepper_buttons(_goal_flag_spin, _goal_stepper_buttons)
+	_add_stepper_buttons(_goal_flag_spin, _goal_stepper_buttons, func(v: float) -> String: return str(int(v)))
+	# Bontago-1pi.147: the block timer is the same stepper (3.0 s .. 12.0 s in 0.5 s steps, as the slider was).
+	_add_stepper_buttons(_block_timer_spin, _block_stepper_buttons, func(v: float) -> String: return BLOCK_TIMER_VALUE_FORMAT % v)
 	# Bontago-1pi.30: the two timer controls are sliders now (no stepper pills);
 	# gamepad left/right is the Slider's own ui_left/ui_right handling, up/down
 	# moves focus along _wire_focus_chain().
@@ -904,12 +963,12 @@ func _apply_visual_style() -> void:
 	# Arcade (Bontago-hfa.11): every slider is a SegmentMeter overlay (voxel cells in a well); the HSlider
 	# underneath keeps SliderNav / timer stepping, drag, focus and editable exactly as before.
 	for meter_slider: HSlider in [
-		_block_timer_slider, _match_timer_slider, _disc_size_slider, _round_timer_slider,
+		_match_timer_slider, _disc_size_slider, _round_timer_slider,
 		_gravity_slider, _special_freq_slider,
 	]:
 		_meters[meter_slider] = SegmentMeter.attach(meter_slider)
 		_meters[meter_slider].set_dimmed(not meter_slider.editable)
-	for chip: PanelContainer in [_block_timer_chip, _gravity_chip, _special_freq_chip]:
+	for chip: PanelContainer in [_gravity_chip, _special_freq_chip]:
 		# Arcade: a slider readout is plain cream text (no coral chip) so the value never competes with START.
 		chip.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 		var chip_label: Label = chip.get_child(0) as Label
@@ -952,6 +1011,8 @@ func _apply_visual_style() -> void:
 		selector.add_theme_stylebox_override("disabled", MenuStyleFactory.make_badge(tuning.pill_cream_color, tuning))
 		selector.add_theme_color_override("font_disabled_color", tuning.ink_color)
 		selector.add_theme_constant_override("icon_max_width", GiftIconTable.shared().lobby_icon_px)
+
+	_align_row_controls(selectors, chips)
 
 	var captions: Array[Label] = [_specials_label, _experiments_label]
 	for caption: Label in captions:
@@ -1069,7 +1130,7 @@ func _update_section_summaries() -> void:
 	var timer_slider: HSlider = _timer_slider_for(_timer_mode)
 	var round_parts: Array[String] = [
 		_timer_value_text(int(timer_slider.value), _timer_mode == MatchConfig.GameMode.DOMINATION),
-		SUMMARY_BLOCK_TIMER_FORMAT % _block_timer_slider.value,
+		SUMMARY_BLOCK_TIMER_FORMAT % _block_timer_spin.value,
 	]
 	if _goal_flag_col.visible:
 		var flags: int = int(_goal_flag_spin.value)
@@ -1283,7 +1344,7 @@ func _config_from_controls() -> MatchConfig:
 	config.ai_count = int(_ai_count_spin.value)
 	config.ai_difficulty = _ai_difficulty_option.selected
 	config.team_mode = _team_mode_option.selected
-	config.block_timer = _block_timer_slider.value
+	config.block_timer = _block_timer_spin.value
 	config.gravity_multiplier = _gravity_slider.value
 	config.goal_flag_count = int(_goal_flag_spin.value)
 	config.gifts_enabled = _gifts_check.button_pressed
@@ -1399,8 +1460,7 @@ func _apply_data(data: Dictionary) -> void:
 	_ai_count_spin.value = config.ai_count
 	_ai_difficulty_option.selected = config.ai_difficulty
 	_team_mode_option.selected = config.team_mode
-	_block_timer_slider.value = config.block_timer
-	_block_timer_label.text = "%.1f s" % config.block_timer
+	_block_timer_spin.value = config.block_timer
 	_gravity_slider.value = config.gravity_multiplier
 	_gravity_label.text = "%.2fx" % config.gravity_multiplier
 	_goal_flag_spin.value = config.goal_flag_count
