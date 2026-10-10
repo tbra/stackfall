@@ -100,3 +100,24 @@ images. `ContactSheet.save_capture(image, path)` (GDScript) replaces
 writes `<scene>_sheet.png` next to the captures (unlabelled cells, row-major
 capture order, names printed). Retrofitted: screenshot_fog, screenshot_rain,
 screenshot_pt7_pause.
+
+## `bot_dataset.py`, `bot_fit_weights.py`, `bot_h2h.py` (bot training, Bontago-1t5.12)
+
+Python-only (stdlib) tooling for the recorder output described in
+`docs/BOT_TRAINING_SOAK_PLAN.md` section 1 (schema v1).
+
+```
+python -I tools/bot_dataset.py validate|summarise|size <dir|files>   # strict schema v1; exit 1 on errors
+python -I tools/bot_fit_weights.py <dir|files> [--mode N] [--write-proposal out.txt]
+python -I tools/bot_h2h.py --candidate out.txt --pairs 50 --parallel 4 --godot-args "..."
+python tools/test_bot_dataset.py
+```
+
+`bot_fit_weights.py` is the T1 offline refit: listwise softmax over the recorded
+candidate terms, outcome-weighted (`d_share_30s` advantage), L2 toward the shipped
+weights read from `config/`. It prints held-out top-1 agreement and regret plus a
+weight diff, and never edits `config/` (`--write-proposal` refuses paths there).
+`bot_h2h.py` runs paired same-seed, swapped-seat matches against the owner's ship
+gate (>= 75 % win share over >= 100 matches). It needs the per-slot weight override
+and match seed seam (plan BT5 `--bot-weights`), supplied through `--godot-args`;
+until then use `--dry-run`.
