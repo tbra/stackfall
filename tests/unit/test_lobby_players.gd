@@ -696,7 +696,7 @@ func test_the_default_main_loop_is_closed_and_skips_the_roster() -> void:
 ## The last settings stop before the players panel's entries (Bontago-1pi.53 S1b: the
 ## EXPERIMENTS Advanced chip, while its block is collapsed; Bontago-1pi.61: headers are not stops).
 func _last_settings_stop(lobby: Lobby) -> Control:
-	return (lobby.get_node("%ExperimentsSection") as LobbySection).advanced_button
+	return (lobby.get_node("%ExperimentsSection") as UiSection).advanced_button
 
 
 ## Walks focus_neighbor_bottom from the first control of the main chain and checks it
@@ -1981,18 +1981,15 @@ func test_the_open_seat_row_hides_when_the_seats_are_full() -> void:
 func test_toggle_chips_carry_an_on_off_word_that_follows_the_state() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	# Bontago-1pi.159.2.1: the lobby's three toggles are UiToggles that draw their own ON/OFF word.
 	for unique: String in ["SuddenDeathCheck", "TurnBasedCheck", "MidJoinCheck"]:
-		var check: CheckButton = lobby.get_node("%" + unique) as CheckButton
-		assert_true(check.has_meta(LobbySection.STATE_WORD_META), "%s has a state word" % unique)
-		var word: Label = check.get_meta(LobbySection.STATE_WORD_META) as Label
-		assert_eq(word.get_parent(), check.get_parent(), "%s: the word sits in the chip's row" % unique)
-		check.set_pressed_no_signal(false)
-		LobbySection.refresh_state_word(check)
-		assert_eq(word.text, LobbySection.STATE_WORD_OFF)
-		assert_eq(word.get_theme_color("font_color"), arcade.dust_color)
-		check.button_pressed = true
-		assert_eq(word.text, LobbySection.STATE_WORD_ON, "%s: toggling updates the word" % unique)
-		assert_eq(word.get_theme_color("font_color"), arcade.mint_color)
+		var toggle: UiToggle = lobby.get_node("%" + unique) as UiToggle
+		toggle.set_on_silent(false)
+		assert_eq(toggle.text, UiToggle.WORD_OFF, "%s shows OFF" % unique)
+		assert_eq(toggle.get_theme_color("font_color"), arcade.dust_color)
+		toggle.button_pressed = true
+		assert_eq(toggle.text, UiToggle.WORD_ON, "%s: toggling updates the word" % unique)
+		assert_eq(toggle.get_theme_color("font_pressed_color"), arcade.mint_color)
 
 
 ## Bontago-1pi.159.2.2: the Teams switch is the design-system UiToggle (one toggle look everywhere):

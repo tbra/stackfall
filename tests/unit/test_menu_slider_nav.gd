@@ -109,11 +109,8 @@ func test_every_lobby_and_options_slider_is_configured() -> void:
 		var slider: HSlider = menu.get_node("%" + slider_name) as HSlider
 		assert_false(slider.scrollable, "%s ignores the wheel" % slider_name)
 		assert_gt(SliderNav.step_for(slider), slider.step, "%s steps coarsely" % slider_name)
-	var lobby: Lobby = autofree(LOBBY_SCENE.instantiate()) as Lobby
-	add_child_autofree(lobby)
-	await _settle()
-	for slider_name: String in ["DiscSizeSlider", "GravitySlider", "SpecialFreqSlider", "MatchTimerSlider", "RoundTimerSlider"]:
-		assert_false((lobby.get_node("%" + slider_name) as HSlider).scrollable, "%s ignores the wheel" % slider_name)
+	# Bontago-1pi.159.2.1: the lobby's value controls are UiSegmentMeters / UiSteppers, which never
+	# accept a wheel event, so it bubbles to the settings ScrollContainer.
 
 
 # --- 123 ---------------------------------------------------------------------

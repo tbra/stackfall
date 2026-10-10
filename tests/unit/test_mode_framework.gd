@@ -301,7 +301,7 @@ func _make_lobby(is_host: bool) -> Lobby:
 
 func test_lobby_lists_all_modes_but_only_implemented_ones_are_selectable() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var option: CycleSelector = lobby.get_node("%GameModeOption")
+	var option: UiDropdown = lobby.get_node("%GameModeOption")
 	assert_eq(option.item_count, MatchConfig.GAME_MODE_LABELS.size())
 	assert_eq(option.selected, MatchConfig.GameMode.CLASSIC)
 	for i: int in range(option.item_count):
@@ -311,7 +311,7 @@ func test_lobby_lists_all_modes_but_only_implemented_ones_are_selectable() -> vo
 
 func test_lobby_timer_round_trips_through_published_lobby_data_to_a_client() -> void:
 	var host: Lobby = _make_lobby(true)
-	(host.get_node("%RoundTimerSlider") as HSlider).value = 15
+	(host.get_node("%RoundTimerStepper") as UiStepper).value = 15
 	var calls: Array[Dictionary] = (host.net_provider as FakeNet).set_lobby_data_calls
 	assert_gt(calls.size(), 0)
 	var published: Dictionary = calls[-1]
@@ -321,8 +321,8 @@ func test_lobby_timer_round_trips_through_published_lobby_data_to_a_client() -> 
 	published["game_mode"] = 99
 	var client: Lobby = _make_lobby(false)
 	client._apply_data(published)
-	assert_eq((client.get_node("%RoundTimerSlider") as HSlider).value, 15.0)
-	assert_eq((client.get_node("%GameModeOption") as CycleSelector).selected, MatchConfig.GameMode.CLASSIC)
+	assert_eq((client.get_node("%RoundTimerStepper") as UiStepper).value, 15)
+	assert_eq((client.get_node("%GameModeOption") as UiDropdown).selected, MatchConfig.GameMode.CLASSIC)
 	var calls_after: Array[Dictionary] = (client.net_provider as FakeNet).set_lobby_data_calls
 	assert_eq(calls_after.size(), 0, "a client never republishes")
 
@@ -330,15 +330,15 @@ func test_lobby_timer_round_trips_through_published_lobby_data_to_a_client() -> 
 func test_lobby_mode_controls_are_in_the_popup_focus_loop_and_host_gated() -> void:
 	var host: Lobby = _make_lobby(true)
 	var client: Lobby = _make_lobby(false)
-	var mode: CycleSelector = host.get_node("%GameModeOption")
+	var mode: UiDropdown = host.get_node("%GameModeOption")
 	# Bontago-6fc.1: only the selected mode's timer control is in the focus loop.
-	var timer: HSlider = host.get_node("%MatchTimerSlider")
+	var timer: UiStepper = host.get_node("%MatchTimerStepper")
 	assert_false(mode.disabled)
-	assert_true(timer.editable)
+	assert_false(timer.disabled)
 	assert_ne(mode.focus_neighbor_bottom, NodePath(), "gamepad/keyboard focus reaches the mode option")
 	assert_ne(timer.focus_neighbor_top, NodePath())
-	assert_true((client.get_node("%GameModeOption") as CycleSelector).disabled)
-	assert_false((client.get_node("%RoundTimerSlider") as HSlider).editable)
+	assert_true((client.get_node("%GameModeOption") as UiDropdown).disabled)
+	assert_true((client.get_node("%RoundTimerStepper") as UiStepper).disabled)
 
 
 # --- Review fixes ------------------------------------------------------------------

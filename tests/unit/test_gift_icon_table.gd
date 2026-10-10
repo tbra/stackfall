@@ -25,9 +25,9 @@ func test_lobby_widgets_use_pictograms() -> void:
 	var checklist: GridContainer = lobby.get_node("%SpecialsChecklist") as GridContainer
 	assert_gt(checklist.get_child_count(), 0)
 	for box: Node in checklist.get_children():
-		var check: CheckBox = box as CheckBox
-		var id: StringName = StringName(check.text.to_lower().replace(" ", "_"))
-		assert_eq(check.icon, table.gift_pictogram(id), "checkbox %s" % id)
-	var weather: CycleSelector = lobby.get_node("%WeatherOption") as CycleSelector
+		var check: UiChipToggle = box as UiChipToggle
+		var id: StringName = StringName(check.label.to_lower().replace(" ", "_"))
+		assert_eq(check.chip_icon, table.gift_pictogram(id), "checkbox %s" % id)
+	var weather: UiDropdown = lobby.get_node("%WeatherOption") as UiDropdown
 	for i: int in weather.item_count:
 		assert_eq(weather.get_item_icon(i), table.weather_pictogram(i), "weather item %d" % i)

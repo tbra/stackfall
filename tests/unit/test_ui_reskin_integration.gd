@@ -136,6 +136,9 @@ func _focusables(root: Node) -> Array[Control]:
 
 ## A focus style counts only when it is drawn and visibly differs from the normal style.
 func _has_drawn_focus(control: Control) -> bool:
+	if control is UiStepper or control is UiSegmentMeter:
+		# These draw the shared Button focus outline themselves (their own _draw).
+		return not (control.get_theme_stylebox(&"focus", &"Button") is StyleBoxEmpty)
 	var box: StyleBox = control.get_theme_stylebox(&"focus")
 	if box == null or box is StyleBoxEmpty:
 		return false
