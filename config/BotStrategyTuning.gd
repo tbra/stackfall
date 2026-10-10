@@ -33,6 +33,13 @@ extends Resource
 ## to the clockwise neighbour so a ring of bots does not pile on one home.
 @export var elim_tie_epsilon_m: float = 0.5
 
+@export_group("Gifts")
+## Gift claim (Bontago-1t5.25): score bonus per landed, unclaimed gift a site's new circle
+## would cover. Added on top of the intent score (REACH is metres, so 4 = "worth a 4 m detour").
+@export var gift_claim_value: float = 4.0
+## A gift counts as covered only when it lies this far inside the new circle's radius.
+@export var gift_claim_margin_m: float = 0.5
+
 @export_group("Intent weights")
 ## Per-intent weight vectors, indexed by BotIntent.Term:
 ## REACH, AREA, KILL, EXPOSURE, TIP, WASTE (the last three are penalties).

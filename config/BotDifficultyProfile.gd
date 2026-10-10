@@ -51,3 +51,5 @@ extends Resource
 ## Bot V2: extra metres added to BotStrategyTuning.threat_allowance_m, so a tier that
 ## looks ahead defends / strikes before an enemy circle actually reaches a base (Hard only).
 @export var threat_lookahead_m: float = 0.0
+## Bot V2 (Bontago-1t5.25): multiplier on BotStrategyTuning.gift_claim_value (0 = ignores gifts).
+@export var gift_claim_scale: float = 1.0
