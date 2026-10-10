@@ -26,6 +26,13 @@ const MAX_GLYPHS: int = 2
 
 const INPUT_GLYPH_SCENE: PackedScene = preload("res://ui/InputGlyph.tscn")
 
+## Bontago-hfa.4 (UI reskin P2): the BindingRow listening prompt, shown in rim in place of the
+## glyphs (docs/ui_reskin/components.md "BindingRow"). The gamepad page asks for a button.
+const LISTENING_TEXT_KEYBOARD: String = "PRESS A KEY\u2026"
+const LISTENING_TEXT_GAMEPAD: String = "PRESS A BUTTON\u2026"
+const LISTENING_LABEL_NAME: String = "ListeningLabel"
+const OPTIONS_TUNING: OptionsVisualTuning = preload("res://config/options_visual_tuning.tres")
+
 ## Friendly, player-facing action names (owner: "Friendly action names and
 ## grouping ... human labels"). Deliberately only covers
 ## OptionsMenu.REBINDABLE_ACTIONS -- anything missing here falls back to
@@ -110,6 +117,7 @@ const PAD_NOT_APPLICABLE: Array[StringName] = [&"lock_vertical"]
 
 var _action: StringName = &""
 var _listening: bool = false
+var _banded: bool = false
 
 
 ## Bontago-1pi.10 (owner: "default to only showing mouse/keyboard, switch to
@@ -126,26 +134,48 @@ func _ready() -> void:
 
 func _sync_content_minimum_size() -> void:
 	var needed: Vector2 = %Content.get_combined_minimum_size() + Vector2(28.0, 16.0)
-	custom_minimum_size = Vector2(needed.x, maxf(52.0, needed.y))
+	custom_minimum_size = Vector2(needed.x, maxf(float(OPTIONS_TUNING.binding_row_min_height_px), needed.y))
 
 
+## Bontago-hfa.4: BindingRow look. Alternate rows are lightly banded (disc-700), the hovered row is
+## disc-700, the focused row is disc-600 inside the theme's 3 px cream outline, and a listening row
+## swaps all of that for a rim edge (docs/ui_reskin/components.md "BindingRow").
 func _apply_row_style() -> void:
-	var empty: StyleBoxEmpty = StyleBoxEmpty.new()
-	add_theme_stylebox_override("normal", empty)
-	add_theme_stylebox_override("disabled", empty)
-
-	var hover: StyleBoxFlat = StyleBoxFlat.new()
-	hover.bg_color = tuning.pill_cream_hover_color
-	hover.bg_color.a = 0.35
-	hover.set_corner_radius_all(int(tuning.well_corner_radius_px))
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var normal: StyleBox = StyleBoxEmpty.new()
+	if _banded:
+		var band: Color = arcade.disc_700_color
+		band.a = OPTIONS_TUNING.binding_band_alpha
+		normal = _row_box(band, arcade)
+	var hover: StyleBoxFlat = _row_box(arcade.disc_700_color, arcade)
+	if _listening:
+		var listening: StyleBoxFlat = _row_box(arcade.disc_700_color, arcade)
+		listening.border_color = arcade.rim_color
+		listening.set_border_width_all(arcade.well_border_px)
+		normal = listening
+		hover = listening
+	add_theme_stylebox_override("normal", normal)
+	add_theme_stylebox_override("disabled", normal)
 	add_theme_stylebox_override("hover", hover)
+	add_theme_stylebox_override("pressed", hover)
+	add_theme_stylebox_override("hover_pressed", hover)
+	var focus_box: StyleBoxFlat = _row_box(arcade.disc_600_color, arcade)
+	focus_box.border_color = arcade.cream_color
+	focus_box.set_border_width_all(arcade.focus_px)
+	add_theme_stylebox_override("focus", focus_box)
 
-	var pressed_box: StyleBoxFlat = StyleBoxFlat.new()
-	pressed_box.bg_color = tuning.pill_coral_color
-	pressed_box.bg_color.a = 0.30
-	pressed_box.set_corner_radius_all(int(tuning.well_corner_radius_px))
-	add_theme_stylebox_override("pressed", pressed_box)
-	add_theme_stylebox_override("hover_pressed", pressed_box)
+
+func _row_box(face: Color, arcade: ArcadeVisualTuning) -> StyleBoxFlat:
+	var box: StyleBoxFlat = StyleBoxFlat.new()
+	box.bg_color = face
+	box.set_corner_radius_all(arcade.radius_block_px)
+	return box
+
+
+## Whether this row is an alternate (banded) row; set by ui/OptionsMenu.gd.
+func set_banded(banded: bool) -> void:
+	_banded = banded
+	_apply_row_style()
 
 
 func _on_input_device_changed(_device: StringName) -> void:
@@ -199,6 +229,7 @@ func refresh() -> void:
 func _on_pressed() -> void:
 	_listening = true
 	release_focus()
+	_apply_row_style()
 	_show_listening_glyph()
 
 
@@ -208,9 +239,15 @@ func _on_pressed() -> void:
 ## exactly the same visual slot the real bindings occupy.
 func _show_listening_glyph() -> void:
 	_clear_glyphs()
-	var glyph: InputGlyph = INPUT_GLYPH_SCENE.instantiate() as InputGlyph
-	_glyph_row.add_child(glyph)
-	glyph.set_listening()
+	var prompt: Label = Label.new()
+	prompt.name = LISTENING_LABEL_NAME
+	prompt.text = LISTENING_TEXT_GAMEPAD if Settings.active_input_device() == Settings.DEVICE_GAMEPAD else LISTENING_TEXT_KEYBOARD
+	prompt.theme_type_variation = &"FieldLabel"
+	prompt.add_theme_font_size_override("font_size", MenuStyleFactory.arcade_tuning().font_size_button_sm_px)
+	prompt.add_theme_color_override("font_color", MenuStyleFactory.arcade_tuning().rim_color)
+	prompt.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	prompt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_glyph_row.add_child(prompt)
 
 
 ## Captures the very next real input while listening -- InputEventKey,
@@ -257,6 +294,7 @@ func _input(event: InputEvent) -> void:
 
 func _capture(event: InputEvent) -> void:
 	_listening = false
+	_apply_row_style()
 	Settings.set_key_override(_action, event)
 	_refresh_glyphs()
 	_restore_focus()
@@ -265,6 +303,7 @@ func _capture(event: InputEvent) -> void:
 
 func _cancel_listening() -> void:
 	_listening = false
+	_apply_row_style()
 	_refresh_glyphs()
 	_restore_focus()
 

@@ -150,7 +150,7 @@ func test_host_sees_the_entry_enabled_between_options_and_leave() -> void:
 
 	assert_true(_menu._return_button.visible)
 	assert_false(_menu._return_button.disabled)
-	assert_eq(_menu._return_button.text, "Return to lobby")
+	assert_eq(_menu._return_button.text, "RETURN TO LOBBY")
 	assert_eq(_menu._return_button.tooltip_text, "")
 	var order: Array[Node] = _menu._return_button.get_parent().get_children()
 	assert_eq(order.find(_menu._return_button), order.find(_menu._options_button) + 1, "after Options")

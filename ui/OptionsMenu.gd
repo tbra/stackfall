@@ -127,6 +127,17 @@ const SECTIONS: Array[Dictionary] = [
 
 const KEY_REBIND_ROW_SCENE: PackedScene = preload("res://ui/KeyRebindRow.tscn")
 
+## Bontago-hfa.4 (UI reskin P2): sizes specific to the Options/Pause/rebinding screens; every
+## colour and radius comes from ArcadeVisualTuning through MenuStyleFactory.arcade_tuning().
+const OPTIONS_TUNING: OptionsVisualTuning = preload("res://config/options_visual_tuning.tres")
+const ON_WORD: String = "ON"
+const OFF_WORD: String = "OFF"
+const STATE_WORD_NAME: String = "StateWord"
+const THEME_VARIATION_DISPLAY: StringName = &"DisplayLabel"
+const THEME_VARIATION_TITLE: StringName = &"TitleLabel"
+const THEME_VARIATION_CAPTION: StringName = &"CaptionLabel"
+const THEME_VARIATION_FIELD: StringName = &"FieldLabel"
+
 ## DECISION (Bontago-1pi.10 polish pass, time-budgeted worker package): the
 ## owner's brief also asks to "combine paired actions on one row where
 ## natural (e.g. 'Raise / lower block — Wheel')". Deferred for this package
@@ -229,6 +240,10 @@ const MOVE_SPEED_LABEL_STICK: String = "Stick speed"
 @onready var _move_speed_value_label: Label = %MoveSpeedValueLabel
 
 var _rows: Array[KeyRebindRow] = []
+## Bontago-hfa.4: one SegmentMeter overlay per slider, so mute state can dim its cells.
+var _meters: Dictionary[HSlider, SegmentMeter] = {}
+## Bontago-hfa.4: the ON/OFF word next to each toggle (CheckButton -> Label).
+var _state_words: Dictionary[CheckButton, Label] = {}
 
 
 func _ready() -> void:
@@ -256,8 +271,7 @@ func _ready() -> void:
 	]:
 		SliderNav.apply(nav_slider)
 
-	MenuStyleFactory.apply_toggle_chip(_settings_tab_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.pill_coral_color, tuning.pill_coral_hover_color, tuning.ink_color, tuning)
-	MenuStyleFactory.apply_toggle_chip(_controls_tab_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.pill_coral_color, tuning.pill_coral_hover_color, tuning.ink_color, tuning)
+	_apply_arcade_style()
 
 	_build_preset_items()
 	_build_window_mode_items()
@@ -269,6 +283,9 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_refresh_layout)
 	_wire_focus_chain()
 	_refresh_device_dependent_ui()
+	_camera_shake_check.toggled.connect(_on_state_word_source_toggled)
+	_adaptive_quality_check.toggled.connect(_on_state_word_source_toggled)
+	_rumble_enabled_check.toggled.connect(_on_state_word_source_toggled)
 
 	_preset_option.item_selected.connect(_on_preset_selected)
 	_master_volume_slider.value_changed.connect(_on_master_volume_changed)
@@ -297,6 +314,134 @@ func _ready() -> void:
 	Events.input_device_changed.connect(_on_input_device_changed)
 
 	_preset_option.grab_focus()
+
+
+## Bontago-hfa.4 (UI reskin P2): the Stackfall Arcade look of this screen -- a disc-900 scrim, one
+## disc-800 plate with a flare-bullet heading, side tabs with a rim notch on the active one,
+## SegmentMeters instead of slider tracks, Bungee values, ON/OFF words on toggles and small block
+## footer buttons. Look only: no node, signal or setting changes.
+func _apply_arcade_style() -> void:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var scrim: Color = arcade.disc_900_color
+	scrim.a = arcade.scrim_alpha
+	($Background as ColorRect).color = scrim
+	($Frame/Panel as PanelContainer).add_theme_stylebox_override("panel", MenuStyleFactory.make_plate())
+	_build_heading(arcade)
+	_style_tab(_settings_tab_button, arcade)
+	_style_tab(_controls_tab_button, arcade)
+	($Frame/Panel/Layout/Body/TabColumn as Control).custom_minimum_size.x = float(OPTIONS_TUNING.tab_column_width_px)
+	MenuStyleFactory.apply_block(_reset_button, arcade.disc_600_color, arcade.cream_color, true)
+	MenuStyleFactory.apply_block(_back_button, arcade.disc_600_color, arcade.cream_color, true)
+	_controls_device_label.theme_type_variation = THEME_VARIATION_CAPTION
+	_settings_page.get_child(0).add_theme_constant_override("separation", arcade.space_3_px)
+	for slider: HSlider in [
+		_master_volume_slider, _music_volume_slider, _sfx_volume_slider, _weather_volume_slider,
+		_rumble_strength_slider, _move_speed_slider,
+	]:
+		_meters[slider] = SegmentMeter.attach(slider)
+	for value_label: Label in [
+		_master_volume_value_label, _music_volume_value_label, _sfx_volume_value_label,
+		_weather_volume_value_label, _rumble_strength_value_label, _move_speed_value_label,
+	]:
+		_style_value_label(value_label)
+	for check: CheckButton in [_camera_shake_check, _adaptive_quality_check, _rumble_enabled_check]:
+		_add_state_word(check)
+	for row_parent: Node in [_settings_page.get_child(0), _controls_page]:
+		for row: Node in row_parent.get_children():
+			if row is HBoxContainer:
+				for cell: Node in row.get_children():
+					var label: Label = cell as Label
+					if label != null and label.theme_type_variation == &"":
+						label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+
+
+## The panel heading: a flare voxel bullet, then the uppercase heading, left aligned.
+func _build_heading(arcade: ArcadeVisualTuning) -> void:
+	var title: Label = $Frame/Panel/Layout/Title as Label
+	var layout: Control = title.get_parent() as Control
+	var header: HBoxContainer = HBoxContainer.new()
+	header.add_theme_constant_override("separation", arcade.space_3_px)
+	layout.add_child(header)
+	layout.move_child(header, title.get_index())
+	title.reparent(header, false)
+	title.theme_type_variation = THEME_VARIATION_TITLE
+	title.add_theme_font_size_override("font_size", arcade.font_size_heading_px)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	var bullet: ColorRect = ColorRect.new()
+	bullet.color = arcade.flare_color
+	bullet.custom_minimum_size = Vector2.ONE * float(OPTIONS_TUNING.heading_bullet_px)
+	bullet.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	bullet.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header.add_child(bullet)
+	header.move_child(bullet, 0)
+
+
+## A side tab: sand label on the panel, disc-700 on hover, disc-600 with a 4 px rim notch on its
+## left edge when active (docs/ui_reskin/components.md "Tabs"). The theme's cream focus outline stays.
+func _style_tab(tab: Button, arcade: ArcadeVisualTuning) -> void:
+	var idle: StyleBoxFlat = _tab_box(Color.TRANSPARENT, false, arcade)
+	var hover: StyleBoxFlat = _tab_box(arcade.disc_700_color, false, arcade)
+	var active: StyleBoxFlat = _tab_box(arcade.disc_600_color, true, arcade)
+	tab.add_theme_stylebox_override("normal", idle)
+	tab.add_theme_stylebox_override("hover", hover)
+	tab.add_theme_stylebox_override("pressed", active)
+	tab.add_theme_stylebox_override("hover_pressed", active)
+	for item: String in ["font_color", "font_hover_color", "font_focus_color"]:
+		tab.add_theme_color_override(item, arcade.sand_color)
+	for item: String in ["font_pressed_color", "font_hover_pressed_color"]:
+		tab.add_theme_color_override(item, arcade.cream_color)
+	tab.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	tab.custom_minimum_size.y = float(OPTIONS_TUNING.tab_min_height_px)
+
+
+func _tab_box(face: Color, notch: bool, arcade: ArcadeVisualTuning) -> StyleBoxFlat:
+	var box: StyleBoxFlat = StyleBoxFlat.new()
+	box.bg_color = face
+	box.set_corner_radius_all(arcade.radius_chip_px)
+	box.content_margin_left = float(arcade.space_4_px)
+	box.content_margin_right = float(arcade.space_4_px)
+	box.content_margin_top = float(arcade.button_pad_y_px)
+	box.content_margin_bottom = float(arcade.button_pad_y_px)
+	if notch:
+		box.border_color = arcade.rim_color
+		box.border_width_left = OPTIONS_TUNING.tab_notch_px
+	return box
+
+
+## A Bungee value to the right of a meter ("100%").
+func _style_value_label(label: Label) -> void:
+	label.theme_type_variation = THEME_VARIATION_DISPLAY
+	label.add_theme_font_size_override("font_size", OPTIONS_TUNING.value_font_size_px)
+	label.custom_minimum_size.x = float(OPTIONS_TUNING.value_min_width_px)
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+
+
+## The required ON/OFF word beside a toggle (components.md "Toggle"): mint when on, dust when off.
+func _add_state_word(check: CheckButton) -> void:
+	var word: Label = Label.new()
+	word.name = STATE_WORD_NAME
+	word.theme_type_variation = THEME_VARIATION_DISPLAY
+	word.add_theme_font_size_override("font_size", OPTIONS_TUNING.value_font_size_px)
+	word.custom_minimum_size.x = float(OPTIONS_TUNING.state_word_min_width_px)
+	word.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	word.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var parent: Node = check.get_parent()
+	parent.add_child(word)
+	parent.move_child(word, check.get_index() + 1)
+	_state_words[check] = word
+	_refresh_state_words()
+
+
+func _on_state_word_source_toggled(_pressed: bool) -> void:
+	_refresh_state_words()
+
+
+func _refresh_state_words() -> void:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	for check: CheckButton in _state_words:
+		var word: Label = _state_words[check]
+		word.text = ON_WORD if check.button_pressed else OFF_WORD
+		word.add_theme_color_override("font_color", arcade.mint_color if check.button_pressed else arcade.dust_color)
 
 
 ## DECISION (Bontago-mp0.11): the panel follows the usable viewport instead
@@ -337,6 +482,18 @@ func _refresh_device_dependent_ui() -> void:
 	# Bontago-1pi.41: which rows exist on the page depends on the device (rows
 	# with no gamepad function hide), so the focus chain follows it.
 	_wire_focus_chain()
+	_refresh_row_bands()
+
+
+## Bontago-hfa.4: alternate (lightly banded) binding rows, counted over the rows the active
+## device page actually shows so a hidden row never breaks the rhythm.
+func _refresh_row_bands() -> void:
+	var shown: int = 0
+	for row: KeyRebindRow in _rows:
+		if not row.is_available_on_active_device():
+			continue
+		row.set_banded(shown % 2 == 1)
+		shown += 1
 
 
 ## Owner correction (options package, mid-review): one device-aware row on
@@ -419,12 +576,15 @@ func _load_current_values() -> void:
 	_refresh_rumble_strength_enabled()
 
 	_refresh_move_speed_row()
+	_refresh_state_words()
 
 
 func _load_channel_row(mute_button: Button, slider: HSlider, value_label: Label, muted: bool, percent: float) -> void:
 	slider.set_value_no_signal(percent)
 	value_label.text = _format_percent(percent)
 	(mute_button.get_node("Icon") as TextureRect).texture = _icon_for_channel(muted, percent)
+	if _meters.has(slider):
+		_meters[slider].set_dimmed(muted)
 
 
 func _on_preset_selected(index: int) -> void:
@@ -614,8 +774,22 @@ func _build_section_header(name: String) -> Label:
 ## the exact same muted small-caption look to an existing node instead of
 ## building a fresh one.
 func _style_section_header(header: Label) -> void:
-	header.add_theme_font_size_override("font_size", 15)
-	header.add_theme_color_override("font_color", tuning.label_muted_color)
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	header.text = header.text.to_upper()
+	header.theme_type_variation = THEME_VARIATION_FIELD
+	header.add_theme_font_size_override("font_size", arcade.font_size_label_px)
+	header.add_theme_color_override("font_color", arcade.sand_color)
+	# Bontago-hfa.4: a .sa-group rule header -- the label sits above a disc-600 rule.
+	var spacing: StyleBoxEmpty = StyleBoxEmpty.new()
+	spacing.content_margin_bottom = float(arcade.space_2_px + OPTIONS_TUNING.group_rule_px)
+	header.add_theme_stylebox_override("normal", spacing)
+	var rule: ColorRect = ColorRect.new()
+	rule.color = arcade.disc_600_color
+	rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rule.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	rule.offset_top = -float(OPTIONS_TUNING.group_rule_px)
+	rule.offset_bottom = 0.0
+	header.add_child(rule)
 
 
 ## The speaker icons (assets/ui/icons/speaker_*.svg) are plain white fills
@@ -634,7 +808,7 @@ func _style_section_header(header: Label) -> void:
 ## TextureRect child (the same node type every other icon in the project
 ## already uses) sidesteps whatever that Button-specific issue is.
 func _style_mute_button_icon(button: Button) -> void:
-	(button.get_node("Icon") as TextureRect).modulate = tuning.ink_color
+	(button.get_node("Icon") as TextureRect).modulate = MenuStyleFactory.arcade_tuning().cream_color
 
 
 func _build_rebind_rows() -> void:
@@ -651,6 +825,7 @@ func _build_rebind_rows() -> void:
 			row.setup(action)
 			row.rebind_captured.connect(_on_row_rebind_captured)
 			_rows.append(row)
+	_refresh_row_bands()
 
 
 ## Gamepad/keyboard navigability (docs/archive/M6_PLAN.md package C2: "fully

@@ -41,7 +41,7 @@ grow_vertical = 2
 [node name="Panel" type="PanelContainer" parent="Root/Center"]
 unique_name_in_owner = true
 layout_mode = 2
-custom_minimum_size = Vector2(360, 0)
+custom_minimum_size = Vector2(340, 0)
 
 [node name="Layout" type="VBoxContainer" parent="Root/Center/Panel"]
 layout_mode = 2
@@ -52,21 +52,21 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 26
 horizontal_alignment = 1
-text = "Paused"
+text = "PAUSED"
 
 [node name="ResumeButton" type="Button" parent="Root/Center/Panel/Layout"]
 icon = ExtResource("glyph_play")
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(0, 41)
-text = "Resume"
+text = "RESUME"
 
 [node name="OptionsButton" type="Button" parent="Root/Center/Panel/Layout"]
 icon = ExtResource("glyph_settings")
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(0, 41)
-text = "Options"
+text = "OPTIONS"
 
 [node name="ReturnLobbyButton" type="Button" parent="Root/Center/Panel/Layout"]
 icon = ExtResource("glyph_back")
@@ -74,14 +74,14 @@ unique_name_in_owner = true
 visible = false
 layout_mode = 2
 custom_minimum_size = Vector2(0, 41)
-text = "Return to lobby"
+text = "RETURN TO LOBBY"
 
 [node name="LeaveButton" type="Button" parent="Root/Center/Panel/Layout"]
 icon = ExtResource("glyph_leave")
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(0, 41)
-text = "Leave match"
+text = "LEAVE MATCH"
 
 [node name="ConfirmDialog" type="ConfirmationDialog" parent="."]
 unique_name_in_owner = true
