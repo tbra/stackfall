@@ -16,6 +16,10 @@ extends Control
 ## companion .tscn children" convention.
 
 @export var tuning: MenuVisualTuning = preload("res://config/menu_visual_tuning.tres")
+## Bontago-hfa.3 (UI reskin P1): false keeps only the render-budget holding below and draws
+## nothing, for screens whose backdrop is a live 3D scene (ui/MenuArena.gd on the main menu).
+## The lobby keeps the paper-cut art until its own package.
+@export var draw_art: bool = true
 
 
 ## Bontago-1pi.11.48 (owner: "main menu uses 95% of my gpu"). Root cause: the
@@ -104,6 +108,8 @@ func _ready() -> void:
 
 
 func _draw() -> void:
+	if not draw_art:
+		return
 	var size: Vector2 = get_rect().size
 	if size.x <= 0.0 or size.y <= 0.0:
 		return

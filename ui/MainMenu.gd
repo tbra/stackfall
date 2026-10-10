@@ -57,10 +57,11 @@ const DEBUG_TAGLINE: String = "DEBUG · GIFT DEMO"
 ## below are both handlers and emitter in one file.
 const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/OptionsMenu.tscn")
 
-## M7 P7 (Bontago-xtq.32 redo): every pastel pill/well/card color and the
-## offset-shadow-card geometry the layered-pastel mockups call for, so none of
-## the styling below is a magic number (CLAUDE.md "No magic numbers").
+## Well/list/compact-page sizes and the menu render budget (config/menu_visual_tuning.tres);
+## colours and block recipes come from ArcadeVisualTuning through MenuStyleFactory.
 @export var tuning: MenuVisualTuning = preload("res://config/menu_visual_tuning.tres")
+## Bontago-hfa.3 (UI reskin P1): left column, scrim and lockup geometry.
+@export var layout: MainMenuTuning = preload("res://config/main_menu_tuning.tres")
 
 @onready var _name_row: HBoxContainer = $Center/Panel/Layout/NameRow
 @onready var _name_edit: LineEdit = %NameEdit
@@ -78,8 +79,11 @@ const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/OptionsMenu.tscn")
 ## Bontago-1pi.74: build label (BuildVersion.label()) beside the Debug corner pill.
 @onready var _build_version_label: Label = %BuildVersionLabel
 ## Left inset of the label when the Debug pill is hidden (matches the pill's own).
-const BUILD_LABEL_LEFT_INSET: float = 16.0
-@onready var _host_row: HBoxContainer = $Center/Panel/Layout/HostRow
+const BUILD_LABEL_LEFT_INSET: float = 24.0
+@onready var _host_row: VBoxContainer = $Center/Panel/Layout/HostRow
+@onready var _small_row: HBoxContainer = %SmallRow
+@onready var _section_gap: Control = %SectionGap
+@onready var _scrim: TextureRect = %Scrim
 @onready var _join_tab_row: HBoxContainer = %JoinTabRow
 @onready var _join_lan_tab_button: Button = %JoinLanTabButton
 @onready var _join_steam_tab_button: Button = %JoinSteamTabButton
@@ -102,19 +106,9 @@ const BUILD_LABEL_LEFT_INSET: float = 16.0
 @onready var _direct_join_button: Button = %DirectJoinButton
 @onready var _status_label: Label = %StatusLabel
 
-## M7 P7 (Bontago-xtq.32 redo, gap item 2): the offset triple-card stack --
-## %ShadowApricot/%ShadowMint sit behind %Panel (the front card) in the same
-## CenterContainer, so all three share one center point and %Panel's own size
-## decides how far the shadow cards' larger custom_minimum_size peeks out.
+## The transparent column plate: the buttons sit directly on the arena scrim.
 @onready var _front_card: PanelContainer = %Panel
-@onready var _shadow_apricot: Panel = %ShadowApricot
-@onready var _shadow_mint: Panel = %ShadowMint
-@onready var _title: RichTextLabel = %Title
-## Bontago-mp0.3.5 (review r1, item 2): a solid-color offset copy behind
-## %Title, giving "Stackfall" the mockup's soft drop-shadow instead of flat
-## two-tone text. Positioned in _apply_visual_style() from tuning.title_shadow_offset_px.
-@onready var _title_shadow: RichTextLabel = %TitleShadow
-@onready var _title_accent: ColorRect = %TitleAccent
+@onready var _title: TextureRect = %Title
 @onready var _name_label: Label = %NameLabel
 @onready var _join_label: Label = %JoinLabel
 ## Bontago-mp0.3.5: mockup 10's bottom-right controller hint is a pill, not a
@@ -164,8 +158,6 @@ var _page: int = PAGE_HOME
 ## exported build never shows the entry. Read once per menu instance.
 var _debug_entry_enabled: bool = false
 var _home_tagline: String = ""
-var _regular_card_style: StyleBoxFlat
-var _join_card_style: StyleBoxFlat
 var _join_steam_tab: bool = false
 var _host_dialog: ConfirmationDialog = null
 var _host_steam_choice: Button = null
@@ -184,7 +176,6 @@ func _ready() -> void:
 	_debug_entry_enabled = DebugMode.is_enabled()
 	_home_tagline = _tagline.text
 	_build_version_label.text = BuildVersion.label()
-	_build_version_label.add_theme_color_override("font_color", tuning.label_ink_light_color)
 	_build_version_label_left = _build_version_label.offset_left
 	_host_button.pressed.connect(_on_host_pressed)
 	_join_button.pressed.connect(_on_join_pressed)
@@ -273,113 +264,93 @@ func _on_sound_button_hovered() -> void:
 	Sfx.play(AudioConfig.EVENT_HOVER)
 
 
-# --- Visual style (Bontago-xtq.32 redo: layered-pastel look) -----------------
+# --- Visual style (Bontago-hfa.3, Stackfall Arcade) -------------------------------------------
 
-## Wires every pill/well/card StyleBoxFlat from ui/theme/MenuStyleFactory.gd
-## and config/MenuVisualTuning.gd onto this scene's existing nodes. Runs once
-## from _ready() -- none of it changes at runtime except the shadow-card sizes
-## (_sync_shadow_card_sizes(), hooked to %Panel's own `resized` signal since
-## %SteamSection toggling visibility changes the front card's height).
+## Dresses the scene's nodes in the Arcade look: a transparent left column over a disc-dark scrim,
+## the lockup, one flare primary per page and disc-600 secondary blocks. Every colour is an
+## ArcadeVisualTuning token (through MenuStyleFactory) and every size a MainMenuTuning /
+## MenuVisualTuning export. Runs once from _ready().
 func _apply_visual_style() -> void:
-	# DECISION (ui/MainMenu.gd, Bontago-mp0.3.5 review r2, item b): mockup 10's
-	# wordmark is a single dark colour ("Stackfall" all one tone) with only
-	# the offset shadow copy carrying the peach accent -- the earlier two-tone
-	# coral "fall" (Bontago-xtq.32 redo's own simplification of a bespoke
-	# block-cube wordmark) is dropped in favor of matching that single-colour
-	# read exactly.
-	_title.text = "[img=40x48]res://assets/ui/stackfall_mark.svg[/img] [font_size=44][b][color=#%s]Stackfall[/color][/b][/font_size]" % [
-		tuning.ink_color.to_html(false),
-	]
-	# Bontago-mp0.3.5 (review r1, item 2): a solid peach/coral silhouette copy
-	# of the same text, offset by tuning.title_shadow_offset_px and drawn
-	# first (it's TitleWrap's first child), reading as a soft drop shadow
-	# behind the real two-tone title.
-	_title_shadow.text = "[img=40x48]res://assets/ui/stackfall_mark.svg[/img] [font_size=44][b][color=#%s]Stackfall[/color][/b][/font_size]" % [
-		tuning.title_shadow_color.to_html(false),
-	]
-	_title_shadow.position = tuning.title_shadow_offset_px
-	_title_shadow.modulate.a = 0.9
-	_title_wrap.custom_minimum_size.y = tuning.menu_title_height_px
-	_title_accent.color = tuning.pill_coral_color
-	_title_accent.hide()
-	_name_label.add_theme_color_override("font_color", tuning.label_muted_color)
-	_join_label.add_theme_color_override("font_color", tuning.label_muted_color)
-
-	_regular_card_style = MenuStyleFactory.make_card(tuning.card_cream_color, tuning)
-	_join_card_style = _regular_card_style.duplicate() as StyleBoxFlat
-	_join_card_style.set_content_margin_all(tuning.menu_compact_card_margin_px)
-	_front_card.add_theme_stylebox_override("panel", _regular_card_style)
-	_front_card.custom_minimum_size.x = tuning.menu_card_width_px
-	$Center/Panel/Layout.add_theme_constant_override("separation", tuning.menu_separation_px)
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	_title_wrap.custom_minimum_size.y = layout.lockup_height_px
+	_section_gap.custom_minimum_size.y = layout.section_gap_px
+	_tagline.add_theme_color_override("font_color", arcade.sand_color)
+	_name_label.add_theme_color_override("font_color", arcade.dust_color)
+	_join_label.add_theme_color_override("font_color", arcade.dust_color)
+	_status_label.add_theme_color_override("font_color", arcade.alert_color)
+	_build_version_label.add_theme_color_override("font_color", arcade.dust_color)
+	_scrim.texture = _build_scrim_texture(arcade)
+	_scrim.offset_right = layout.scrim_width_px
+	_front_card.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	_front_card.custom_minimum_size.x = layout.column_width_px
+	$Center/Panel/Layout.add_theme_constant_override("separation", layout.block_gap_px)
+	_host_row.add_theme_constant_override("separation", layout.block_gap_px)
+	$Center/Panel/Layout/BottomRow.add_theme_constant_override("separation", layout.block_gap_px)
+	_small_row.add_theme_constant_override("separation", layout.block_gap_px)
 	_game_list_stack.custom_minimum_size.y = tuning.menu_lan_list_height_px
 	_steam_list_stack.custom_minimum_size.y = tuning.menu_steam_list_height_px
-	_shadow_apricot.add_theme_stylebox_override("panel", MenuStyleFactory.make_card(tuning.card_shadow_apricot_color, tuning))
-	_shadow_mint.add_theme_stylebox_override("panel", MenuStyleFactory.make_card(tuning.card_shadow_mint_color, tuning))
-	_front_card.resized.connect(_sync_shadow_card_sizes)
-	call_deferred("_sync_shadow_card_sizes")
 
 	_lan_games_well.add_theme_stylebox_override("panel", MenuStyleFactory.make_well(tuning))
 	_game_list.add_theme_stylebox_override("panel", MenuStyleFactory.make_flat_list(tuning))
-	# Bontago-mp0.3.7: %SteamGamesWell is the sunken card (like %LanGamesWell);
-	# %SteamLobbyList itself is the flat white list inside it (like %GameList),
-	# not a second sunken box.
 	_steam_games_well.add_theme_stylebox_override("panel", MenuStyleFactory.make_well(tuning))
 	_steam_lobby_list.add_theme_stylebox_override("panel", MenuStyleFactory.make_flat_list(tuning))
-	_name_edit.add_theme_stylebox_override("normal", MenuStyleFactory.make_well(tuning))
-	_name_edit.add_theme_stylebox_override("focus", MenuStyleFactory.make_well(tuning))
+	# The Name field keeps the shared theme's well (disc-900) and its 3 px cream focus outline; only
+	# the Direct IP field, which sits inside a well already, takes the lighter disc-700 face. Neither
+	# overrides "focus", so gamepad focus stays visible.
 	_direct_ip_edit.add_theme_stylebox_override("normal", MenuStyleFactory.make_flat_list(tuning))
-	_direct_ip_edit.add_theme_stylebox_override("focus", MenuStyleFactory.make_flat_list(tuning))
 
-	MenuStyleFactory.apply_pill(_host_button, tuning.pill_coral_color, tuning.pill_coral_hover_color, tuning.label_ink_light_color, tuning)
-	MenuStyleFactory.apply_pill(_join_button, tuning.pill_powder_blue_color, tuning.pill_powder_blue_hover_color, tuning.ink_color, tuning)
-	MenuStyleFactory.apply_pill(_join_lan_tab_button, tuning.pill_mint_color, tuning.pill_mint_hover_color, tuning.ink_color, tuning)
-	MenuStyleFactory.apply_pill(_join_steam_tab_button, tuning.pill_powder_blue_color, tuning.pill_powder_blue_hover_color, tuning.ink_color, tuning)
-	MenuStyleFactory.apply_pill(_play_local_button, tuning.pill_mint_color, tuning.pill_mint_hover_color, tuning.ink_color, tuning)
-	MenuStyleFactory.apply_pill(_bots_button, tuning.pill_coral_color, tuning.pill_coral_hover_color, tuning.label_ink_light_color, tuning)
-	MenuStyleFactory.apply_pill(_back_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
-	MenuStyleFactory.apply_pill(_host_online_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
-	MenuStyleFactory.apply_pill(_refresh_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
-	MenuStyleFactory.apply_pill(_refresh_steam_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
-	MenuStyleFactory.apply_pill(_direct_join_button, tuning.pill_dark_slate_color, tuning.pill_dark_slate_hover_color, tuning.label_ink_light_color, tuning)
-	MenuStyleFactory.apply_pill(_sandbox_button, tuning.pill_mint_color, tuning.pill_mint_hover_color, tuning.ink_color, tuning)
-	MenuStyleFactory.apply_pill(_tutorial_button, tuning.pill_powder_blue_color, tuning.pill_powder_blue_hover_color, tuning.ink_color, tuning)
-	MenuStyleFactory.apply_pill(_options_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
-	MenuStyleFactory.apply_pill(_quit_button, tuning.pill_cream_color, tuning.pill_cream_hover_color, tuning.ink_color, tuning)
-	# Bontago-1pi.34: dev-only pills reuse the existing palette (dark slate for
-	# the corner entry so it reads as a tool, not a game mode); no icons, so
-	# they stay clear of the shared icon-colour overrides below.
-	MenuStyleFactory.apply_pill(_debug_button, tuning.pill_dark_slate_color, tuning.pill_dark_slate_hover_color, tuning.label_ink_light_color, tuning)
-	MenuStyleFactory.apply_pill(_gift_demo_button, tuning.pill_powder_blue_color, tuning.pill_powder_blue_hover_color, tuning.ink_color, tuning)
-	MenuStyleFactory.apply_pill(_tower_topple_button, tuning.pill_powder_blue_color, tuning.pill_powder_blue_hover_color, tuning.ink_color, tuning)
-	# SVG icons import at a large intrinsic size. Let Join controls scale the
-	# icon into a tuned row height so the full page fits the visible canvas.
+	var secondary: Color = arcade.disc_600_color
+	var cream: Color = arcade.cream_color
+	var ink: Color = arcade.ink_color
+	# Full-width blocks: Host (primary), Join, Play offline; then Vs bots (the local page's primary),
+	# Sandbox, Tutorial and the two debug demos.
+	MenuStyleFactory.apply_block(_host_button, arcade.flare_color, ink)
+	MenuStyleFactory.apply_block(_join_button, secondary, cream)
+	MenuStyleFactory.apply_block(_play_local_button, secondary, cream)
+	MenuStyleFactory.apply_block(_bots_button, arcade.flare_color, ink)
+	MenuStyleFactory.apply_block(_sandbox_button, secondary, cream)
+	MenuStyleFactory.apply_block(_tutorial_button, secondary, cream)
+	MenuStyleFactory.apply_block(_gift_demo_button, secondary, cream)
+	MenuStyleFactory.apply_block(_tower_topple_button, secondary, cream)
+	for large: Button in [_host_button, _join_button, _play_local_button, _bots_button, _sandbox_button,
+			_tutorial_button, _gift_demo_button, _tower_topple_button]:
+		large.custom_minimum_size.y = layout.block_height_px
+	# Small secondary blocks: Options / Quit, Back, Refresh, the join tabs and the debug entry.
+	# Join IP is the join flow's one primary.
+	for small: Button in [_options_button, _quit_button, _back_button, _refresh_button, _refresh_steam_button,
+			_join_lan_tab_button, _join_steam_tab_button, _host_online_button, _debug_button]:
+		MenuStyleFactory.apply_block(small, secondary, cream, true)
+		small.custom_minimum_size.y = layout.block_small_height_px
+	MenuStyleFactory.apply_block(_direct_join_button, arcade.flare_color, ink, true)
+	_direct_join_button.custom_minimum_size.y = layout.block_small_height_px
+	# SVG icons import at a large intrinsic size; let the controls scale them into the row height.
 	for button: Button in [_join_lan_tab_button, _join_steam_tab_button,
 			_refresh_button, _refresh_steam_button, _direct_join_button, _back_button]:
 		button.expand_icon = true
-		button.custom_minimum_size.y = tuning.menu_compact_button_height_px
-	# DECISION (Bontago-1pi.37): icons are white-source SVGs and every pill's
-	# icon, like its label, takes the one ink MenuStyleFactory.apply_pill() sets
-	# for all draw states (normal/focus/hover/pressed) -- no per-node icon or
-	# focus-colour overrides here, so a focused button can never flip its icon
-	# to the theme's default white.
-	_gamepad_hint_pill.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(tuning.pill_cream_color, tuning))
-	_hint_row.set_text_color(tuning.ink_color)
+	# DECISION (Bontago-1pi.37): icons are white-source SVGs and every block's icon, like its label,
+	# takes the one ink MenuStyleFactory.apply_ink() sets for all draw states.
+	var plate: StyleBoxFlat = MenuStyleFactory.make_plate(Color(arcade.disc_900_color, arcade.hud_plate_alpha))
+	plate.set_content_margin_all(float(arcade.space_3_px))
+	plate.shadow_size = 0
+	plate.set_corner_radius_all(arcade.radius_block_px)
+	_gamepad_hint_pill.add_theme_stylebox_override("panel", plate)
+	_hint_row.set_text_color(arcade.cream_color)
 
 
-## Shift the painted back cards diagonally while retaining container layout.
-## StyleBox expansion changes drawing only, avoiding a resize/sort feedback loop.
-func _sync_shadow_card_sizes() -> void:
-	var base: Vector2 = _front_card.size
-	var offset: Vector2 = Vector2.ONE * tuning.card_offset_px
-	_shadow_apricot.custom_minimum_size = base
-	_shadow_mint.custom_minimum_size = base
-	for layer: Panel in [_shadow_apricot, _shadow_mint]:
-		var distance: float = offset.x * (2.0 if layer == _shadow_mint else 1.0)
-		var style: StyleBoxFlat = layer.get_theme_stylebox("panel") as StyleBoxFlat
-		style.expand_margin_left = distance
-		style.expand_margin_top = distance
-		style.expand_margin_right = -distance
-		style.expand_margin_bottom = -distance
+## The scrim behind the column: disc-900 at the scrim opacity, solid for the first
+## scrim_solid_fraction of the width, then fading to nothing over the arena.
+func _build_scrim_texture(arcade: ArcadeVisualTuning) -> GradientTexture2D:
+	var solid: Color = Color(arcade.disc_900_color, arcade.scrim_alpha)
+	var gradient: Gradient = Gradient.new()
+	gradient.offsets = PackedFloat32Array([0.0, layout.scrim_solid_fraction, 1.0])
+	gradient.colors = PackedColorArray([solid, solid, Color(solid, 0.0)])
+	var texture: GradientTexture2D = GradientTexture2D.new()
+	texture.gradient = gradient
+	texture.width = layout.scrim_texture_width_px
+	texture.height = 1
+	texture.fill_from = Vector2.ZERO
+	texture.fill_to = Vector2.RIGHT
+	return texture
 
 
 ## DECISION: the front page has one Host entry. Its modal keeps local and
@@ -494,12 +465,12 @@ func set_debug_entry_enabled(enabled: bool) -> void:
 func _set_page(page: int, focus_target: Control = null) -> void:
 	_page = page
 	var join_page: bool = page == PAGE_JOIN
-	_front_card.add_theme_stylebox_override("panel", _join_card_style if join_page else _regular_card_style)
-	$Center/Panel/Layout.add_theme_constant_override("separation", tuning.menu_compact_separation_px if join_page else tuning.menu_separation_px)
+	$Center/Panel/Layout.add_theme_constant_override("separation", tuning.menu_compact_separation_px if join_page else layout.block_gap_px)
 	_game_list_stack.custom_minimum_size.y = tuning.menu_compact_list_height_px if join_page else tuning.menu_lan_list_height_px
 	_steam_list_stack.custom_minimum_size.y = tuning.menu_compact_list_height_px if join_page else tuning.menu_steam_list_height_px
 	_title_wrap.visible = not join_page
 	_tagline.visible = not join_page
+	_section_gap.visible = not join_page
 	_tagline.text = DEBUG_TAGLINE if page == PAGE_DEBUG else _home_tagline
 	_name_row.visible = page == PAGE_HOME or join_page
 	_name_edit.visible = page == PAGE_HOME or join_page
@@ -511,6 +482,7 @@ func _set_page(page: int, focus_target: Control = null) -> void:
 	_lan_games_well.visible = page == PAGE_JOIN and not _join_steam_tab
 	_refresh_layout()
 	_play_local_button.visible = page == PAGE_HOME
+	_small_row.visible = page == PAGE_HOME
 	_options_button.visible = page == PAGE_HOME
 	_quit_button.visible = page == PAGE_HOME
 	_bots_button.visible = page == PAGE_LOCAL
@@ -653,59 +625,26 @@ func _wire_join_focus() -> void:
 	_wire_grid(rows)
 
 
-## Bontago-1pi.23: the home page is a 2-column grid (Host | Join over Play
-## local | Options | Quit), so up/down/left/right follow what is drawn instead
-## of stepping sideways through a single linear chain. With the debug entry on,
-## its corner pill sits between the bottom row and the name field in the
-## up/down wrap (it is drawn at the bottom-left of the screen).
+## The home page is one column read top to bottom: Name, Host, Join, Play offline, then the
+## Options | Quit row. Up/down wrap round the page (through the debug entry when it is on) and
+## left/right only move inside the Options | Quit row, clamping elsewhere so a stray press never
+## leaves the column.
 func _wire_home_grid_focus() -> void:
-	var top_row: Array[Control] = [_host_button, _join_button]
-	var bottom_row: Array[Control] = [_play_local_button, _options_button, _quit_button]
-	var below_bottom_row: Control = _debug_button if _debug_entry_enabled else _name_edit
-	var above_name: Control = _debug_button if _debug_entry_enabled else _play_local_button
-	for control: Control in top_row:
-		_link(control, SIDE_TOP, _name_edit)
-	for index: int in range(bottom_row.size()):
-		var control: Control = bottom_row[index]
-		var above: Control = top_row[mini(index * top_row.size() / bottom_row.size(), top_row.size() - 1)]
-		_link(control, SIDE_TOP, above)
-		_link(control, SIDE_BOTTOM, below_bottom_row)
-		_link(control, SIDE_LEFT, bottom_row[maxi(index - 1, 0)])
-		_link(control, SIDE_RIGHT, bottom_row[mini(index + 1, bottom_row.size() - 1)])
-	_link(_host_button, SIDE_BOTTOM, _play_local_button)
-	_link(_join_button, SIDE_BOTTOM, _options_button)
-	_link(_host_button, SIDE_LEFT, _host_button)
-	_link(_host_button, SIDE_RIGHT, _join_button)
-	_link(_join_button, SIDE_LEFT, _host_button)
-	_link(_join_button, SIDE_RIGHT, _join_button)
-	_link(_name_edit, SIDE_TOP, above_name)
-	_link(_name_edit, SIDE_BOTTOM, _host_button)
-	_link(_name_edit, SIDE_LEFT, _name_edit)
-	_link(_name_edit, SIDE_RIGHT, _name_edit)
+	var rows: Array[Array] = [[_name_edit], [_host_button], [_join_button], [_play_local_button], [_options_button, _quit_button]]
 	if _debug_entry_enabled:
-		_link(_debug_button, SIDE_TOP, _play_local_button)
-		_link(_debug_button, SIDE_BOTTOM, _name_edit)
-		_link(_debug_button, SIDE_LEFT, _debug_button)
-		_link(_debug_button, SIDE_RIGHT, _debug_button)
+		rows.append([_debug_button])
+	_wire_grid(rows)
 
 
-## Compact Join keeps its controls on screen at a small window size without
-## shrinking fonts. Home and Play local keep the wordmark at every size.
+## The column is pinned to the left edge at every aspect ratio (the arena fills the rest): the
+## CenterContainer spans the column plus its margins and centres the card vertically. A card whose
+## minimum width exceeds the column (icon buttons on the Join page) widens the container instead of
+## being pushed off the left edge.
 func _refresh_layout() -> void:
-	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
-	# DECISION (Bontago-mp0.11): ultrawide composition centers the card;
-	# regular aspect ratios leave space for the diorama on the right.
-	var wide: bool = viewport_size.x / viewport_size.y > 2.0
-	_center.anchor_left = tuning.menu_wide_anchor_left if wide else 0.0
-	_center.anchor_right = tuning.menu_wide_anchor_right if wide else 0.51
-	# DECISION (Bontago-mp0.18): the card's minimum width (icon buttons) can
-	# exceed the anchored column, and a CenterContainer then pushes it off the
-	# left edge. Keep a tunable left margin and widen the column to fit.
-	var margin: float = tuning.menu_card_left_margin_px
-	var card_width: float = _front_card.get_combined_minimum_size().x
-	var column_right: float = _center.anchor_right * viewport_size.x
+	var margin: float = layout.column_left_margin_px
+	var card_width: float = maxf(_front_card.get_combined_minimum_size().x, layout.column_width_px)
 	_center.offset_left = margin
-	_center.offset_right = maxf(0.0, margin + card_width - column_right)
+	_center.offset_right = margin + card_width
 
 
 func _on_sandbox_pressed() -> void:

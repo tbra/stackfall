@@ -1,4 +1,4 @@
-[gd_scene load_steps=15 format=3]
+[gd_scene load_steps=16 format=3]
 
 [ext_resource type="Script" path="res://ui/MainMenu.gd" id="1_menu"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/back.svg" id="glyph_back"]
@@ -11,7 +11,8 @@
 [ext_resource type="Texture2D" path="res://assets/ui/icons/refresh.svg" id="glyph_refresh"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/settings.svg" id="glyph_settings"]
 [ext_resource type="Theme" path="res://ui/theme/stackfall_theme.tres" id="2_theme"]
-[ext_resource type="Script" path="res://ui/MenuDiorama.gd" id="3_diorama"]
+[ext_resource type="Script" path="res://ui/MenuArena.gd" id="3_arena"]
+[ext_resource type="Texture2D" path="res://assets/ui/stackfall-lockup.svg" id="6_lockup"]
 [ext_resource type="Script" path="res://ui/MenuBackdrop.gd" id="4_backdrop"]
 [ext_resource type="Script" path="res://ui/InputPromptFlow.gd" id="5_hints"]
 
@@ -34,8 +35,9 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("4_backdrop")
+draw_art = false
 
-[node name="Diorama" type="SubViewportContainer" parent="."]
+[node name="Arena" type="SubViewportContainer" parent="."]
 layout_mode = 1
 focus_mode = 0
 anchors_preset = 15
@@ -44,74 +46,61 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-script = ExtResource("3_diorama")
+script = ExtResource("3_arena")
+
+[node name="Scrim" type="TextureRect" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 9
+anchor_bottom = 1.0
+offset_right = 700.0
+grow_vertical = 2
+mouse_filter = 2
+expand_mode = 1
 
 [node name="Center" type="CenterContainer" parent="."]
 unique_name_in_owner = true
 layout_mode = 1
-anchors_preset = 15
-anchor_right = 0.51
+anchors_preset = 9
 anchor_bottom = 1.0
-grow_horizontal = 2
+offset_right = 464.0
 grow_vertical = 2
-
-[node name="ShadowApricot" type="Panel" parent="Center"]
-unique_name_in_owner = true
-layout_mode = 2
-
-[node name="ShadowMint" type="Panel" parent="Center"]
-unique_name_in_owner = true
-layout_mode = 2
 
 [node name="Panel" type="PanelContainer" parent="Center"]
 unique_name_in_owner = true
 layout_mode = 2
-custom_minimum_size = Vector2(420, 0)
+custom_minimum_size = Vector2(368, 0)
 
 [node name="Layout" type="VBoxContainer" parent="Center/Panel"]
 layout_mode = 2
-theme_override_constants/separation = 13
+theme_override_constants/separation = 12
 
 [node name="TitleWrap" type="Control" parent="Center/Panel/Layout"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 37)
+custom_minimum_size = Vector2(0, 52)
 
-
-[node name="TitleShadow" type="RichTextLabel" parent="Center/Panel/Layout/TitleWrap"]
+[node name="Title" type="TextureRect" parent="Center/Panel/Layout/TitleWrap"]
 unique_name_in_owner = true
-layout_mode = 0
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 focus_mode = 0
-offset_right = 240.0
-offset_bottom = 40.0
 mouse_filter = 2
-bbcode_enabled = true
-fit_content = true
-scroll_active = false
-text = "Stackfall"
-theme_override_font_sizes/normal_font_size = 26
-
-[node name="Title" type="RichTextLabel" parent="Center/Panel/Layout/TitleWrap"]
-unique_name_in_owner = true
-layout_mode = 0
-focus_mode = 0
-offset_right = 240.0
-offset_bottom = 40.0
-mouse_filter = 2
-bbcode_enabled = true
-fit_content = true
-scroll_active = false
-text = "Stackfall"
-theme_override_font_sizes/normal_font_size = 26
+texture = ExtResource("6_lockup")
+expand_mode = 1
+stretch_mode = 4
 
 [node name="Tagline" type="Label" parent="Center/Panel/Layout"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 11
+theme_type_variation = &"FieldLabel"
 text = "BUILD · BALANCE · DOMINATE"
 
-[node name="TitleAccent" type="ColorRect" parent="Center/Panel/Layout"]
+[node name="SectionGap" type="Control" parent="Center/Panel/Layout"]
 unique_name_in_owner = true
 layout_mode = 2
-custom_minimum_size = Vector2(0, 4)
 
 [node name="NameRow" type="HBoxContainer" parent="Center/Panel/Layout"]
 layout_mode = 2
@@ -125,41 +114,62 @@ text = "NAME"
 [node name="NameEdit" type="LineEdit" parent="Center/Panel/Layout"]
 unique_name_in_owner = true
 layout_mode = 2
-custom_minimum_size = Vector2(0, 37)
-
 size_flags_horizontal = 3
 placeholder_text = "Player"
 tooltip_text = "Used when Steam is not running; with Steam your Steam name is used."
 
-[node name="HostRow" type="HBoxContainer" parent="Center/Panel/Layout"]
+[node name="HostRow" type="VBoxContainer" parent="Center/Panel/Layout"]
 layout_mode = 2
-theme_override_constants/separation = 10
 
 [node name="HostButton" type="Button" parent="Center/Panel/Layout/HostRow"]
-icon = ExtResource("glyph_host")
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 41)
-
-text = "Host"
+theme_type_variation = &"BlockButtonLarge"
+icon = ExtResource("glyph_host")
+alignment = 0
+text = "HOST"
 
 [node name="JoinButton" type="Button" parent="Center/Panel/Layout/HostRow"]
-icon = ExtResource("glyph_join")
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 41)
-text = "Join"
+theme_type_variation = &"BlockButtonLarge"
+icon = ExtResource("glyph_join")
+alignment = 0
+text = "JOIN"
+
+[node name="PlayLocalButton" type="Button" parent="Center/Panel/Layout/HostRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"BlockButtonLarge"
+icon = ExtResource("glyph_play")
+alignment = 0
+text = "PLAY OFFLINE"
 
 [node name="HostOnlineButton" type="Button" parent="Center/Panel/Layout/HostRow"]
+unique_name_in_owner = true
+layout_mode = 2
 icon = ExtResource("glyph_host")
+text = "HOST ONLINE (STEAM)"
+
+[node name="SmallRow" type="HBoxContainer" parent="Center/Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="OptionsButton" type="Button" parent="Center/Panel/Layout/SmallRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 41)
+icon = ExtResource("glyph_settings")
+alignment = 0
+text = "OPTIONS"
 
-text = "Host online (Steam)"
+[node name="QuitButton" type="Button" parent="Center/Panel/Layout/SmallRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+icon = ExtResource("glyph_quit")
+alignment = 0
+text = "QUIT"
 
 [node name="JoinTabRow" type="HBoxContainer" parent="Center/Panel/Layout"]
 unique_name_in_owner = true
@@ -178,7 +188,7 @@ icon = ExtResource("glyph_join")
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Steam"
+text = "STEAM"
 
 [node name="SteamSection" type="VBoxContainer" parent="Center/Panel/Layout"]
 unique_name_in_owner = true
@@ -210,7 +220,7 @@ size_flags_horizontal = 3
 icon = ExtResource("glyph_refresh")
 unique_name_in_owner = true
 layout_mode = 2
-text = "Refresh"
+text = "REFRESH"
 
 [node name="SteamListStack" type="Control" parent="Center/Panel/Layout/SteamSection/SteamGamesWell/SteamGamesLayout"]
 layout_mode = 2
@@ -267,7 +277,7 @@ size_flags_horizontal = 3
 icon = ExtResource("glyph_refresh")
 unique_name_in_owner = true
 layout_mode = 2
-text = "Refresh"
+text = "REFRESH"
 
 [node name="GameListStack" type="Control" parent="Center/Panel/Layout/LanGamesWell/LanGamesLayout"]
 layout_mode = 2
@@ -312,78 +322,60 @@ placeholder_text = "1.2.3.4:47999"
 icon = ExtResource("glyph_join")
 unique_name_in_owner = true
 layout_mode = 2
-text = "Join IP"
+text = "JOIN IP"
 
-[node name="BottomRow" type="HBoxContainer" parent="Center/Panel/Layout"]
+[node name="BottomRow" type="VBoxContainer" parent="Center/Panel/Layout"]
 layout_mode = 2
-theme_override_constants/separation = 10
-
-[node name="PlayLocalButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
-icon = ExtResource("glyph_play")
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-text = "Play Offline"
 
 [node name="BotsButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
-icon = ExtResource("glyph_blocks")
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 3
-text = "Vs bots"
+theme_type_variation = &"BlockButtonLarge"
+icon = ExtResource("glyph_blocks")
+alignment = 0
+text = "VS BOTS"
 
 [node name="SandboxButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
-icon = ExtResource("glyph_blocks")
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 3
-text = "Sandbox"
+theme_type_variation = &"BlockButtonLarge"
+icon = ExtResource("glyph_blocks")
+alignment = 0
+text = "SANDBOX"
 
 [node name="TutorialButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"BlockButtonLarge"
 icon = ExtResource("glyph_guide")
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-text = "Tutorial"
-
-[node name="OptionsButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
-icon = ExtResource("glyph_settings")
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-text = "Options"
-
-[node name="QuitButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
-icon = ExtResource("glyph_quit")
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-text = "Quit"
+alignment = 0
+text = "TUTORIAL"
 
 [node name="GiftDemoButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 3
-text = "Gift demo"
+theme_type_variation = &"BlockButtonLarge"
+alignment = 0
+text = "GIFT DEMO"
 
 [node name="TowerToppleButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 3
-text = "Tower topple"
+theme_type_variation = &"BlockButtonLarge"
+alignment = 0
+text = "TOWER TOPPLE"
 
 [node name="BackButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
-icon = ExtResource("glyph_back")
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 3
-text = "Back"
+size_flags_horizontal = 0
+icon = ExtResource("glyph_back")
+text = "BACK"
 
 [node name="StatusLabel" type="Label" parent="Center/Panel/Layout"]
 unique_name_in_owner = true
 layout_mode = 2
 autowrap_mode = 2
-modulate = Color(1, 0.6, 0.6, 1)
 text = ""
 
 [node name="DebugButton" type="Button" parent="."]
@@ -393,13 +385,13 @@ layout_mode = 1
 anchors_preset = 2
 anchor_top = 1.0
 anchor_bottom = 1.0
-offset_left = 16.0
-offset_top = -52.0
-offset_right = 104.0
-offset_bottom = -16.0
+offset_left = 24.0
+offset_top = -64.0
+offset_right = 112.0
+offset_bottom = -24.0
 grow_vertical = 0
 tooltip_text = "Developer tools: demo scenes (debug mode only)"
-text = "Debug"
+text = "DEBUG"
 
 [node name="BuildVersionLabel" type="Label" parent="."]
 unique_name_in_owner = true
@@ -407,10 +399,10 @@ layout_mode = 1
 anchors_preset = 2
 anchor_top = 1.0
 anchor_bottom = 1.0
-offset_left = 112.0
-offset_top = -52.0
-offset_right = 360.0
-offset_bottom = -16.0
+offset_left = 120.0
+offset_top = -64.0
+offset_right = 368.0
+offset_bottom = -24.0
 grow_vertical = 0
 mouse_filter = 2
 vertical_alignment = 1
@@ -424,9 +416,9 @@ anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = -360.0
-offset_top = -48.0
-offset_right = -16.0
-offset_bottom = -16.0
+offset_top = -64.0
+offset_right = -24.0
+offset_bottom = -24.0
 grow_horizontal = 0
 grow_vertical = 0
 mouse_filter = 2

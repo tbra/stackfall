@@ -254,7 +254,7 @@ func test_icon_keeps_its_caption_ink_in_every_enabled_state() -> void:
 func test_focused_light_pill_icon_is_dark_and_focused_dark_pill_icon_is_light() -> void:
 	var menu: MainMenu = _make_main_menu()
 	var cream_pill: Button = menu.get_node("%OptionsButton") as Button
-	var slate_pill: Button = menu.get_node("%DirectJoinButton") as Button
+	var slate_pill: Button = menu.get_node("%BackButton") as Button
 	assert_eq(cream_pill.get_theme_color("icon_focus_color"), TUNING.ink_color, "focused cream pill: dark icon")
 	assert_eq(cream_pill.get_theme_color("icon_hover_color"), TUNING.ink_color, "hovered cream pill: dark icon")
 	assert_eq(slate_pill.get_theme_color("icon_focus_color"), TUNING.label_ink_light_color, "focused dark pill: light icon")
