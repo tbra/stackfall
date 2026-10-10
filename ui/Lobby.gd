@@ -1018,35 +1018,44 @@ func _apply_visual_style() -> void:
 	for caption: Label in captions:
 		caption.add_theme_color_override("font_color", tuning.label_muted_color)
 
+	# Arcade (Bontago-1pi.145): the lobby sits on the same arena image as the main menu under a
+	# full-screen disc-900 scrim (components.md Screens: "over the scrimmed arena"), so the title
+	# row is plain cream text and the StatusBadge a flat disc-700 label with a live mint dot.
+	(%Scrim as ColorRect).color = Color(arcade.disc_900_color, arcade.scrim_alpha)
 	_status_badge.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(arcade.disc_700_color, tuning))
 	_waiting_status_pill.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(arcade.disc_700_color, tuning))
-	_waiting_status_label.add_theme_color_override("font_color", tuning.ink_color)
-	_status_badge_label.add_theme_color_override("font_color", tuning.ink_color)
-	_header_title.add_theme_color_override("font_color", tuning.ink_color)
-	# Arcade: the lobby backdrop is a bright sky, so the wordmark and title sit on disc plates.
+	_waiting_status_label.add_theme_color_override("font_color", arcade.cream_color)
+	_status_badge_label.theme_type_variation = &"FieldLabel"
+	_status_badge_label.add_theme_color_override("font_color", arcade.cream_color)
+	_add_status_dot(arcade)
 	for header_label: Label in [_header_eyebrow, _header_title]:
-		header_label.add_theme_stylebox_override("normal", _header_plate(arcade))
-	# Bontago-mp0.3.5 (review r3, problem 6): mockup 11's small "Stackfall"
-	# wordmark reads bold and dark, not the tiny letter-spaced grey caption
-	# treatment every other eyebrow label on this screen uses -- %Eyebrow's
-	# own theme_type_variation is TitleLabel (ui/Lobby.tscn), same bold font
-	# as %HeaderTitle, just a smaller font_size (set in the tscn); only the
-	# color needs to flip from muted grey to the shared ink color here.
-	_header_eyebrow.add_theme_color_override("font_color", tuning.ink_color)
+		header_label.add_theme_color_override("font_color", arcade.cream_color)
 	_players_panel.apply_visual_style()
 	_update_status_badge()
 
 
-## The disc-900 plate behind a header label (Bontago-hfa.5): hud_plate_alpha, block radius, chip padding.
-func _header_plate(arcade: ArcadeVisualTuning) -> StyleBoxFlat:
-	var plate: StyleBoxFlat = StyleBoxFlat.new()
-	plate.bg_color = Color(arcade.disc_900_color, arcade.hud_plate_alpha)
-	plate.set_corner_radius_all(arcade.radius_block_px)
-	plate.content_margin_left = float(arcade.space_3_px)
-	plate.content_margin_right = float(arcade.space_3_px)
-	plate.content_margin_top = float(arcade.space_1_px)
-	plate.content_margin_bottom = float(arcade.space_1_px)
-	return plate
+## The live mint dot at the left of the StatusBadge label (components.md StatusBadge). The label
+## moves into a row with the dot; node names and unique names are unchanged.
+func _add_status_dot(arcade: ArcadeVisualTuning) -> void:
+	if _status_badge_label.get_parent() != _status_badge:
+		return
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", arcade.space_2_px)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	var dot: Panel = Panel.new()
+	dot.name = "StatusDot"
+	dot.custom_minimum_size = Vector2.ONE * float(arcade.space_2_px)
+	dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var dot_box: StyleBoxFlat = StyleBoxFlat.new()
+	dot_box.bg_color = arcade.mint_color
+	dot_box.set_corner_radius_all(arcade.radius_cell_px)
+	dot.add_theme_stylebox_override("panel", dot_box)
+	_status_badge.add_child(row)
+	_status_badge.remove_child(_status_badge_label)
+	row.add_child(dot)
+	row.add_child(_status_badge_label)
+	# Re-parenting clears the owner, which %StatusBadgeLabel (unique name) needs to resolve.
+	_status_badge_label.owner = self
 
 
 ## Gamepad/keyboard shortcuts and back-out (Bontago-1pi.53, S1b; the Advanced rules popup is
@@ -1848,7 +1857,7 @@ func _update_status_badge() -> void:
 	var is_host: bool = bool(net_provider.is_host())
 	var is_steam: bool = bool(net_provider.is_steam_session())
 	var is_private: bool = net_provider.has_method(&"is_private_session") and bool(net_provider.is_private_session())
-	_status_badge_label.text = status_badge_text(is_host, is_steam, is_private)
+	_status_badge_label.text = status_badge_text(is_host, is_steam, is_private).to_upper()
 
 
 ## The header badge text: "Vs bots" for a private local session, else "Hosting/Joined * Steam/LAN".

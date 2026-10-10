@@ -162,7 +162,10 @@ func _ready() -> void:
 ## Styling that used to live in the Lobby's _apply_visual_style().
 func apply_visual_style() -> void:
 	LobbySection.style_heading(get_node("TitleRow/Title") as Label)
-	_player_count_label.add_theme_color_override("font_color", tuning.ink_color)
+	# Bontago-1pi.145: the roster count is a `dust` caption (components.md PlayerSlot header), not a title.
+	_player_count_label.theme_type_variation = &"CaptionLabel"
+	_player_count_label.add_theme_font_size_override("font_size", MenuStyleFactory.arcade_tuning().font_size_caption_px)
+	_player_count_label.add_theme_color_override("font_color", MenuStyleFactory.arcade_tuning().dust_color)
 	# PL1b: the header controls are the same chip / pill family as the rest of the screen
 	# (cream off, mint on; powder blue like the team numbers); no new colours.
 	MenuStyleFactory.apply_toggle_chip(

@@ -415,6 +415,9 @@ func _apply_visual_style() -> void:
 
 	MenuStyleFactory.apply_block(_replay_button, arcade.flare_color, arcade.ink_color)
 	MenuStyleFactory.apply_block(_lobby_button, arcade.disc_600_color, arcade.cream_color)
+	# Bontago-1pi.145: the end-of-match actions are full `button` blocks (20 px), not the 15 px compact ones.
+	for action_button: Button in [_replay_button, _lobby_button]:
+		action_button.add_theme_font_size_override("font_size", arcade.font_size_button_px)
 	_waiting_hint.add_theme_color_override("font_color", arcade.dust_color)
 
 

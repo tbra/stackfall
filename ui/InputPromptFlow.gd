@@ -22,6 +22,8 @@ const TOKEN_CLOSE: String = "}"
 const GROUP_SEPARATOR: String = "|"
 ## Theme type variation of the action words (13 px caption, stackfall_theme).
 const ACTION_WORD_VARIATION: StringName = &"CaptionLabel"
+## Theme type variation of the action words in the KeyPrompt `label` style (13/800, tracked).
+const LABEL_WORD_VARIATION: StringName = &"FieldLabel"
 ## Fewer words than this in the final run are left unglued.
 const MIN_WORDS_TO_GLUE: int = 2
 const INPUT_GLYPH_SCENE: PackedScene = preload("res://ui/InputGlyph.tscn")
@@ -37,6 +39,10 @@ const INPUT_GLYPH_SCENE: PackedScene = preload("res://ui/InputGlyph.tscn")
 ## child as minimum width, so inside a shrink-wrapped pill it wraps; with this on, the
 ## summed child width is pinned as the minimum after each rebuild.
 @export var single_row: bool = false
+
+## Bontago-1pi.145: the KeyPrompt footer style (components.md KeyPrompt: action words are `sand`,
+## uppercase, in the `label` style). Off for sentences such as the tutorial tip.
+@export var label_style: bool = false
 
 ## Ink for the word labels (menus pass their palette ink; a transparent default
 ## leaves the theme colour alone).
@@ -175,12 +181,12 @@ func _add_gap() -> void:
 
 func _add_label(text: String) -> void:
 	var label: Label = Label.new()
-	label.text = text
+	label.text = text.to_upper() if label_style else text
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	# Stackfall Arcade KeyPrompt: the action word is a sand caption-size label unless the host
 	# menu passes its own ink.
-	label.theme_type_variation = ACTION_WORD_VARIATION
+	label.theme_type_variation = LABEL_WORD_VARIATION if label_style else ACTION_WORD_VARIATION
 	label.add_theme_color_override("font_color", text_color if text_color.a > 0.0 else MenuStyleFactory.arcade_tuning().sand_color)
 	add_child(label)
 

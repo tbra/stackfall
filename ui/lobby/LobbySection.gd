@@ -28,7 +28,7 @@ extends VBoxContainer
 signal advanced_changed(open: bool)
 
 ## Text of the Advanced toggle chip.
-const ADVANCED_CHIP_TEXT: String = "Advanced"
+const ADVANCED_CHIP_TEXT: String = "ADVANCED"
 ## Bontago-1pi.83: the disclosure triangle drawn before the text (right = collapsed, down = open).
 const DISCLOSURE_CLOSED: String = "►"
 const DISCLOSURE_OPEN: String = "▼"

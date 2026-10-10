@@ -334,7 +334,7 @@ func _apply_visual_style() -> void:
 	plate.shadow_size = 0
 	plate.set_corner_radius_all(arcade.radius_block_px)
 	_gamepad_hint_pill.add_theme_stylebox_override("panel", plate)
-	_hint_row.set_text_color(arcade.cream_color)
+	_hint_row.set_text_color(arcade.sand_color)
 
 
 ## The scrim behind the column: disc-900 at the scrim opacity, solid for the first
