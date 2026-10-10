@@ -619,6 +619,10 @@ func _menu_prewarm_queue() -> MenuPrewarmQueue:
 func _show_main_menu() -> void:
 	Match.stats().reset_session_wins()  # Bontago-1pi.72.3: a fresh local session
 	Sfx.set_music_context(&"menu")
+	# DECISION (Bontago-1pi.156): Main owns the splash -> menu hand-off, so it starts the
+	# menu music here (after the splash `finished`, or immediately with no splash).
+	# play_music() is idempotent: a later return to the menu keeps the running music.
+	Sfx.play_music()
 	_clear_menu_and_lobby()
 	# Bontago-xtq.42 fix round 2 (orchestrator review): the main menu is a
 	# "no match world" screen -- force_close() handles the case where the

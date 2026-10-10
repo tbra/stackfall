@@ -39,6 +39,7 @@ func before_each() -> void:
 	_sfx.config = _config
 	add_child_autofree(_sfx)
 	_sfx.set_process(false) # Drive scheduling deterministically, no real waits.
+	_sfx.play_music() # Bontago-1pi.156: Sfx no longer self-starts; Main starts it after the splash.
 
 
 func after_each() -> void:
@@ -185,6 +186,7 @@ func _lazy_sfx() -> Node:
 	sfx.config = shipped
 	add_child_autofree(sfx)
 	sfx.set_process(false)
+	sfx.play_music() # Bontago-1pi.156: started by Main after the splash, not by _ready().
 	return sfx
 
 

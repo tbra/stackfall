@@ -39,6 +39,13 @@ func before_each() -> void:
 	assert_not_null(_main._main_menu, "fixture: Main boots to the main menu with no command-line flags")
 
 
+## Bontago-1pi.156: the menu hand-off (after the splash, or at once without one) starts the music.
+func test_showing_the_main_menu_starts_menu_music() -> void:
+	Sfx._music_state = Sfx.MusicState.STOPPED
+	_main._show_main_menu()
+	assert_ne(Sfx._music_state, Sfx.MusicState.STOPPED, "menu music scheduled at the menu")
+
+
 func after_each() -> void:
 	Net.leave()
 	Match.abort_match()
