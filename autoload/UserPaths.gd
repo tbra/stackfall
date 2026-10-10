@@ -20,6 +20,16 @@ static func is_gut_run() -> bool:
 	return false
 
 
+## Bontago-1pi.11.86: GUT runs and agent probe runs (AgentProbe.is_active()) both get per-PID
+## config files, so a probe reads defaults and never writes the player's real files.
+static func is_isolated_run() -> bool:
+	return isolated_for(is_gut_run(), AgentProbe.is_active())
+
+
+static func isolated_for(gut_run: bool, probe_run: bool) -> bool:
+	return gut_run or probe_run
+
+
 ## Bontago-1pi.22: true when a run may write user:// config. GUT runs always
 ## may (they use per-PID files); any other headless run (editor import, smoke,
 ## --headless-host bots) must never touch the owner's real files.

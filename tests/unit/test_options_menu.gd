@@ -442,10 +442,10 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	var rows: Array[KeyRebindRow] = menu.rebind_rows()
 	assert_gt(rows.size(), 0, "expected at least one rebind row")
 
-	var preset_option: Control = menu.get_node("%PresetOption") as Control
+	var window_mode_option: Control = menu.get_node("%WindowModeOption") as Control
 	var back_button: Control = menu.get_node("%BackButton") as Control
 	var back_bottom: Node = back_button.get_node(back_button.focus_neighbor_bottom)
-	assert_eq(back_bottom, preset_option, "the chain must wrap from BackButton back to PresetOption")
+	assert_eq(back_bottom, window_mode_option, "the chain must wrap from BackButton back to WindowModeOption")
 
 	var camera_shake_check: Control = menu.get_node("%CameraShakeCheck") as Control
 	assert_ne(camera_shake_check.focus_neighbor_top, NodePath(""), "CameraShakeCheck must have an up neighbor")
@@ -460,8 +460,6 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	# ui_down, which Godot's own Control focus-neighbor resolution consumes
 	# via these NodePaths -- there is no separate synthetic-input path to
 	# drive here).
-	var window_mode_option: Control = menu.get_node("%WindowModeOption") as Control
-	assert_eq(preset_option.get_node(preset_option.focus_neighbor_bottom), window_mode_option, "PresetOption must move focus down to WindowModeOption")
 	assert_eq(window_mode_option.get_node(window_mode_option.focus_neighbor_bottom), camera_shake_check, "WindowModeOption must move focus down to CameraShakeCheck")
 	assert_eq(camera_shake_check.get_node(camera_shake_check.focus_neighbor_top), window_mode_option, "CameraShakeCheck must move focus up to WindowModeOption")
 
@@ -492,7 +490,7 @@ func test_focus_chain_skips_rows_hidden_on_the_gamepad_page() -> void:
 		if row.action_name() == &"lock_vertical":
 			lock_button = row.rebind_button()
 	assert_not_null(lock_button, "lock_vertical must have a row")
-	var preset: Control = menu.get_node("%PresetOption") as Control
+	var preset: Control = menu.get_node("%WindowModeOption") as Control
 	var chain_before: Array[Control] = _chain_from(preset)
 	assert_true(chain_before.has(lock_button), "keyboard/mouse chain includes Lock height")
 
@@ -549,10 +547,10 @@ func test_ui_cancel_emits_closed_when_no_row_is_listening() -> void:
 # tools/bootstrap_project.gd's ui_accept/ui_cancel gamepad bindings actually
 # reach this screen.
 
-func test_opening_grabs_focus_on_the_preset_option() -> void:
+func test_opening_grabs_focus_on_the_first_settings_control() -> void:
 	var menu: OptionsMenu = _make_menu()
 	assert_not_null(get_viewport().gui_get_focus_owner(), "OptionsMenu must land focus somewhere as soon as it opens.")
-	assert_true((menu.get_node("%PresetOption") as Control).has_focus())
+	assert_true((menu.get_node("%WindowModeOption") as Control).has_focus())
 
 
 func test_gamepad_b_emits_closed_via_real_binding() -> void:
@@ -756,11 +754,15 @@ func test_shoulder_actions_cycle_options_tabs() -> void:
 	next_tab.action = "menu_tab_next"
 	next_tab.pressed = true
 	menu._unhandled_input(next_tab)
+	assert_true((menu.get_node("%GraphicsTabButton") as Button).button_pressed)
+	assert_true((menu.get_node("%GraphicsTabButton") as Button).has_focus())
+	menu._unhandled_input(next_tab)
 	assert_true((menu.get_node("%ControlsTabButton") as Button).button_pressed)
-	assert_true((menu.get_node("%ControlsTabButton") as Button).has_focus())
 	var previous_tab: InputEventAction = InputEventAction.new()
 	previous_tab.action = "menu_tab_previous"
 	previous_tab.pressed = true
+	menu._unhandled_input(previous_tab)
+	assert_true((menu.get_node("%GraphicsTabButton") as Button).button_pressed)
 	menu._unhandled_input(previous_tab)
 	assert_true((menu.get_node("%SettingsTabButton") as Button).button_pressed)
 
@@ -784,12 +786,14 @@ func test_real_gamepad_shoulders_switch_options_tabs() -> void:
 	right.pressed = true
 	assert_true(right.is_action_pressed(&"menu_tab_next"))
 	menu._unhandled_input(right)
+	menu._unhandled_input(right)
 	assert_true((menu.get_node("%ControlsTabButton") as Button).button_pressed)
 	var left: InputEventJoypadButton = InputEventJoypadButton.new()
 	left.device = -1
 	left.button_index = JOY_BUTTON_LEFT_SHOULDER
 	left.pressed = true
 	assert_true(left.is_action_pressed(&"menu_tab_previous"))
+	menu._unhandled_input(left)
 	menu._unhandled_input(left)
 	assert_true((menu.get_node("%SettingsTabButton") as Button).button_pressed)
 

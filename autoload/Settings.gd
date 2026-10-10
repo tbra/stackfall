@@ -65,6 +65,18 @@ const KEY_DEBUG_ENABLED: String = "enabled"
 
 const KEY_PRESET: String = "preset"
 const KEY_ADAPTIVE_QUALITY: String = "adaptive_quality"
+## Bontago-1pi.11.86: the player's per-field edits layered over the base preset (field -> value).
+const KEY_GRAPHICS_OVERRIDES: String = "overrides"
+## The GraphicsPreset fields the Options Graphics tab may override; anything else in a saved
+## file is dropped on load.
+const GRAPHICS_OVERRIDE_FIELDS: Array[StringName] = [
+	&"ssr_enabled", &"msaa_3d", &"shadow_atlas_size", &"volumetric_fog_enabled",
+	&"cloud_puff_density", &"birds_enabled", &"ambient_life_enabled", &"sun_shadow_mode",
+	&"sun_shadow_max_distance", &"reflection_probe_mode", &"glow_enabled",
+	&"hole_void_animated", &"disc_fine_detail_enabled", &"block_outline_enabled",
+	&"block_dissolve_effect_enabled", &"gift_idle_glow_enabled", &"cloud_shadows_enabled",
+	&"aurora_enabled", &"frame_cap_mode", &"fixed_fps", &"render_scale_3d", &"render_scale_3d_mode",
+]
 ## Legacy pre-options-package key: a single dB value (-40..6). Only ever read
 ## now, as a one-time migration source for KEY_MASTER_VOLUME_PERCENT below
 ## (see _load()'s own DECISION) -- never written again.
@@ -168,6 +180,9 @@ const REAL_CONFIG_PATH: String = "user://settings.cfg"
 var _config_path: String = REAL_CONFIG_PATH
 var _gut_run: bool = false
 var _current_preset_id: StringName = DEFAULT_PRESET_ID
+## Bontago-1pi.11.86: field name -> value, only for fields that differ from the base preset.
+## Non-empty means the player's graphics are "Custom".
+var _graphics_overrides: Dictionary = {}
 ## Bontago-1pi.11.37: opt-in adaptive quality. Default OFF (owner decides). The level is
 ## runtime-only (never saved) and only ever layered over the stored preset.
 const DEFAULT_ADAPTIVE_QUALITY: bool = false
@@ -221,7 +236,8 @@ func _ready() -> void:
 	AgentProbe.apply()
 	# Sharded GUT gates run several Godot processes at once; they must not share
 	# (or clobber) the player's user://settings.cfg (Bontago-1pi.20).
-	_gut_run = UserPaths.is_gut_run()
+	# Bontago-1pi.11.86: agent probe runs are isolated the same way (per-PID file, never the player's).
+	_gut_run = UserPaths.is_isolated_run()
 	if _gut_run:
 		_config_path = UserPaths.gut_path(REAL_CONFIG_PATH)
 		UserPaths.sweep_stale()
@@ -283,8 +299,80 @@ func current_graphics_preset() -> GraphicsPreset:
 
 
 ## The user's chosen preset exactly as stored (never carries governor overrides).
+## Bontago-1pi.11.86: the base preset duplicated with the player's overrides applied (the base
+## itself when there are none). DECISION: `id` stays the base preset's id so consumers that
+## branch on it (e.g. the Low snow look) keep working; graphics_preset_is_custom() says Custom.
 func stored_graphics_preset() -> GraphicsPreset:
-	return _load_preset_resource(_current_preset_id)
+	var base: GraphicsPreset = _load_preset_resource(_current_preset_id)
+	if base == null or _graphics_overrides.is_empty():
+		return base
+	var effective: GraphicsPreset = base.duplicate() as GraphicsPreset
+	for field: StringName in _graphics_overrides:
+		effective.set(field, _graphics_overrides[field])
+	return effective
+
+
+## True once the player has edited any graphics control away from the chosen base preset.
+func graphics_preset_is_custom() -> bool:
+	return not _graphics_overrides.is_empty()
+
+
+## The named preset the effective graphics derive from (Low/Medium/High).
+func graphics_base_preset_id() -> StringName:
+	return _current_preset_id
+
+
+## Sets one graphics field (see GRAPHICS_OVERRIDE_FIELDS). A value equal to the base preset's own
+## drops the override again; DECISION: a set of edits that happens to equal another named preset
+## stays "Custom" (only picking a preset by hand returns to a named one).
+func set_graphics_override(field: StringName, value: Variant) -> void:
+	if not GRAPHICS_OVERRIDE_FIELDS.has(field):
+		push_warning("Settings: graphics field %s is not overridable" % field)
+		return
+	var base: GraphicsPreset = _load_preset_resource(_current_preset_id)
+	if base == null:
+		return
+	var base_value: Variant = base.get(field)
+	var coerced: Variant = _coerce_graphics_value(value, base_value)
+	if coerced == null:
+		return
+	coerced = GraphicsPreset.sanitize(field, coerced)
+	if coerced == null:
+		return
+	if is_equal_approx_variant(coerced, base_value):
+		if not _graphics_overrides.has(field):
+			return
+		_graphics_overrides.erase(field)
+	else:
+		if _graphics_overrides.has(field) and is_equal_approx_variant(_graphics_overrides[field], coerced):
+			return
+		_graphics_overrides[field] = coerced
+	_save()
+	graphics_preset_changed.emit(current_graphics_preset())
+
+
+## Value of a graphics field in the effective (stored) preset.
+func graphics_field_value(field: StringName) -> Variant:
+	var preset: GraphicsPreset = stored_graphics_preset()
+	return preset.get(field) if preset != null else null
+
+
+static func is_equal_approx_variant(a: Variant, b: Variant) -> bool:
+	if typeof(a) == TYPE_FLOAT and typeof(b) == TYPE_FLOAT:
+		return is_equal_approx(float(a), float(b))
+	return a == b
+
+
+## Returns `value` converted to the type of `like` (int/float/bool only), or null if it cannot be.
+static func _coerce_graphics_value(value: Variant, like: Variant) -> Variant:
+	match typeof(like):
+		TYPE_BOOL:
+			return bool(value) if typeof(value) == TYPE_BOOL else null
+		TYPE_INT:
+			return int(value) if typeof(value) in [TYPE_INT, TYPE_FLOAT] else null
+		TYPE_FLOAT:
+			return float(value) if typeof(value) in [TYPE_INT, TYPE_FLOAT] else null
+	return null
 
 
 func adaptive_quality_enabled() -> bool:
@@ -322,6 +410,7 @@ func set_graphics_preset(id: StringName) -> void:
 		push_warning("Settings: unknown graphics preset id %s" % id)
 		return
 	_current_preset_id = id
+	_graphics_overrides.clear()  # Bontago-1pi.11.86: picking a preset resets every control to it.
 	_save()
 	graphics_preset_changed.emit(current_graphics_preset())
 
@@ -809,6 +898,7 @@ func set_debug_setting(value: int) -> void:
 func _load() -> void:
 	_debug_setting = -1
 	_current_preset_id = DEFAULT_PRESET_ID
+	_graphics_overrides.clear()
 	_adaptive_quality = DEFAULT_ADAPTIVE_QUALITY
 	_governor_level = 0
 	_channel_volume_percent = {
@@ -840,6 +930,7 @@ func _load() -> void:
 
 	_current_preset_id = StringName(cfg.get_value(SECTION_GRAPHICS, KEY_PRESET, DEFAULT_PRESET_ID))
 	_adaptive_quality = bool(cfg.get_value(SECTION_GRAPHICS, KEY_ADAPTIVE_QUALITY, DEFAULT_ADAPTIVE_QUALITY))
+	_load_graphics_overrides(cfg)
 
 	if cfg.has_section_key(SECTION_AUDIO, KEY_MASTER_VOLUME_PERCENT):
 		_channel_volume_percent[AudioChannel.MASTER] = clampf(
@@ -906,6 +997,8 @@ func _load() -> void:
 func _save() -> void:
 	var cfg: ConfigFile = ConfigFile.new()
 	cfg.set_value(SECTION_GRAPHICS, KEY_PRESET, String(_current_preset_id))
+	if not _graphics_overrides.is_empty():
+		cfg.set_value(SECTION_GRAPHICS, KEY_GRAPHICS_OVERRIDES, _graphics_overrides)
 	cfg.set_value(SECTION_GRAPHICS, KEY_ADAPTIVE_QUALITY, _adaptive_quality)
 	cfg.set_value(SECTION_GRAPHICS, KEY_CAMERA_SHAKE_ENABLED, _camera_shake_enabled)
 	cfg.set_value(SECTION_GRAPHICS, KEY_WINDOW_MODE, String(_window_mode_id))
@@ -933,6 +1026,24 @@ func _save() -> void:
 	var err: Error = cfg.save(effective_path())
 	if err != OK:
 		push_warning("Settings: failed to save %s (error %d)" % [effective_path(), err])
+
+
+## Old files have no overrides key (load unchanged); unknown fields, mistyped values and invalid enum values are dropped; numbers are clamped.
+func _load_graphics_overrides(cfg: ConfigFile) -> void:
+	var raw: Variant = cfg.get_value(SECTION_GRAPHICS, KEY_GRAPHICS_OVERRIDES, {})
+	var base: GraphicsPreset = _load_preset_resource(_current_preset_id)
+	if not raw is Dictionary or base == null:
+		return
+	for key: Variant in (raw as Dictionary):
+		var field: StringName = StringName(String(key))
+		if not GRAPHICS_OVERRIDE_FIELDS.has(field):
+			continue
+		var base_value: Variant = base.get(field)
+		var coerced: Variant = _coerce_graphics_value((raw as Dictionary)[key], base_value)
+		if coerced != null:
+			coerced = GraphicsPreset.sanitize(field, coerced)  # drop bogus enums, clamp ranges
+		if coerced != null and not is_equal_approx_variant(coerced, base_value):
+			_graphics_overrides[field] = coerced
 
 
 func _load_preset_resource(id: StringName) -> GraphicsPreset:

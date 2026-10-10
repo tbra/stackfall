@@ -461,3 +461,14 @@ func test_weather_volume_and_mute_persist_independently() -> void:
 	assert_almost_eq(reloaded.weather_volume_percent(), 0.4, 0.0001)
 	assert_true(reloaded.weather_muted())
 	assert_eq(reloaded.weather_volume_db(), Settings.SILENT_VOLUME_DB)
+
+
+## Bontago-1pi.11.86: an agent probe run must never touch the player's real settings.cfg.
+func test_agent_probe_runs_are_isolated_like_gut_runs() -> void:
+	assert_true(UserPaths.isolated_for(false, true), "probe-only run is isolated")
+	assert_true(UserPaths.isolated_for(true, false), "GUT run stays isolated")
+	assert_false(UserPaths.isolated_for(false, false), "a normal run uses the real file")
+	AgentProbe.set_forced_for_test(1)
+	var isolated: bool = UserPaths.is_isolated_run()
+	AgentProbe.set_forced_for_test(-1)
+	assert_true(isolated)

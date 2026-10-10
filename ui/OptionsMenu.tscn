@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://ui/OptionsMenu.gd" id="1_options"]
 [ext_resource type="Theme" path="res://ui/theme/stackfall_theme.tres" id="2_theme"]
@@ -7,6 +7,7 @@
 [ext_resource type="Texture2D" path="res://assets/ui/icons/speaker_mid.svg" id="5_speaker_mid"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/speaker_high.svg" id="6_speaker_high"]
 [ext_resource type="Script" path="res://ui/FocusScrollContainer.gd" id="7_focus_scroll"]
+[ext_resource type="Script" path="res://ui/GraphicsSettingsTab.gd" id="8_graphics_tab"]
 [ext_resource type="Script" path="res://ui/InputPromptFlow.gd" id="99_hints"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_tabs"]
@@ -69,6 +70,13 @@ button_pressed = true
 button_group = SubResource("ButtonGroup_tabs")
 text = "SETTINGS"
 
+[node name="GraphicsTabButton" type="Button" parent="Frame/Panel/Layout/Body/TabColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+toggle_mode = true
+button_group = SubResource("ButtonGroup_tabs")
+text = "GRAPHICS"
+
 [node name="ControlsTabButton" type="Button" parent="Frame/Panel/Layout/Body/TabColumn"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -98,19 +106,6 @@ script = ExtResource("7_focus_scroll")
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 16
-
-[node name="PresetRow" type="HBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields"]
-layout_mode = 2
-
-[node name="PresetLabel" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/PresetRow"]
-layout_mode = 2
-custom_minimum_size = Vector2(180, 0)
-text = "Graphics preset"
-
-[node name="PresetOption" type="OptionButton" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields/PresetRow"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
 
 [node name="DisplaySectionHeader" type="Label" parent="Frame/Panel/Layout/Body/ContentColumn/SettingsPage/SettingsFields"]
 unique_name_in_owner = true
@@ -359,6 +354,16 @@ layout_mode = 2
 custom_minimum_size = Vector2(50, 0)
 horizontal_alignment = 2
 text = "100%"
+
+[node name="GraphicsPage" type="ScrollContainer" parent="Frame/Panel/Layout/Body/ContentColumn"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+follow_focus = true
+script = ExtResource("8_graphics_tab")
 
 [node name="ControlsPage" type="VBoxContainer" parent="Frame/Panel/Layout/Body/ContentColumn"]
 unique_name_in_owner = true

@@ -41,8 +41,8 @@ var settings_provider: Variant = null
 ## presets/*.tres: high, low, medium) would scramble the intended quality
 ## ladder, so this is a literal list, the same way Settings.DEFAULT_PRESET_ID
 ## is a literal "medium" rather than a directory scan.
-const PRESET_IDS: Array[StringName] = [&"low", &"medium", &"high"]
-const PRESET_LABELS: Array[String] = ["Low", "Medium", "High"]
+const PRESET_IDS: Array[StringName] = GraphicsSettingsTab.PRESET_IDS
+const PRESET_LABELS: Array[String] = GraphicsSettingsTab.PRESET_LABELS
 
 ## DECISION (ui/OptionsMenu.gd, docs/archive/M6_PLAN.md package C2): an explicit
 ## allow-list, not "every InputMap action minus a deny-list" -- so a future
@@ -204,7 +204,10 @@ const SPEAKER_HIGH_ICON: Texture2D = preload("res://assets/ui/icons/speaker_high
 const MOVE_SPEED_LABEL_MOUSE: String = "Mouse speed"
 const MOVE_SPEED_LABEL_STICK: String = "Stick speed"
 
-@onready var _preset_option: OptionButton = %PresetOption
+## Bontago-1pi.11.86: the Graphics page (preset picker + per-setting controls), built in code.
+@onready var _graphics_page: GraphicsSettingsTab = %GraphicsPage
+@onready var _graphics_tab_button: Button = %GraphicsTabButton
+var _preset_option: OptionButton = null
 @onready var _master_mute_button: Button = %MasterMuteButton
 @onready var _master_volume_slider: HSlider = %MasterVolumeSlider
 @onready var _master_volume_value_label: Label = %MasterVolumeValueLabel
@@ -256,6 +259,8 @@ func _ready() -> void:
 	_rumble_strength_slider.min_value = MIN_RUMBLE_STRENGTH
 	_rumble_strength_slider.max_value = MAX_RUMBLE_STRENGTH
 	_rumble_strength_slider.step = RUMBLE_STRENGTH_STEP
+	_graphics_page.build(func() -> Variant: return settings_provider, self)
+	_preset_option = _graphics_page.preset_option
 	_style_section_header(%DisplaySectionHeader)
 	_style_section_header(%AudioSectionHeader)
 	_style_section_header(%RumbleSectionHeader)
@@ -273,7 +278,6 @@ func _ready() -> void:
 
 	_apply_arcade_style()
 
-	_build_preset_items()
 	_build_window_mode_items()
 	_load_current_values()
 	# Owner-disabled temporarily; retain saved paths for a future re-enable.
@@ -287,7 +291,7 @@ func _ready() -> void:
 	_adaptive_quality_check.toggled.connect(_on_state_word_source_toggled)
 	_rumble_enabled_check.toggled.connect(_on_state_word_source_toggled)
 
-	_preset_option.item_selected.connect(_on_preset_selected)
+	_graphics_page.refreshed.connect(_on_graphics_refreshed)
 	_master_volume_slider.value_changed.connect(_on_master_volume_changed)
 	_master_mute_button.pressed.connect(_on_master_mute_pressed)
 	_music_volume_slider.value_changed.connect(_on_music_volume_changed)
@@ -311,9 +315,10 @@ func _ready() -> void:
 	_reset_button.pressed.connect(_on_reset_pressed)
 	_settings_tab_button.toggled.connect(_on_settings_tab_toggled)
 	_controls_tab_button.toggled.connect(_on_controls_tab_toggled)
+	_graphics_tab_button.toggled.connect(_on_graphics_tab_toggled)
 	Events.input_device_changed.connect(_on_input_device_changed)
 
-	_preset_option.grab_focus()
+	_window_mode_option.grab_focus()
 
 
 ## Bontago-hfa.4 (UI reskin P2): the Stackfall Arcade look of this screen -- a disc-900 scrim, one
@@ -328,6 +333,7 @@ func _apply_arcade_style() -> void:
 	($Frame/Panel as PanelContainer).add_theme_stylebox_override("panel", MenuStyleFactory.make_plate())
 	_build_heading(arcade)
 	_style_tab(_settings_tab_button, arcade)
+	_style_tab(_graphics_tab_button, arcade)
 	_style_tab(_controls_tab_button, arcade)
 	($Frame/Panel/Layout/Body/TabColumn as Control).custom_minimum_size.x = float(OPTIONS_TUNING.tab_column_width_px)
 	MenuStyleFactory.apply_block(_reset_button, arcade.disc_600_color, arcade.cream_color, true)
@@ -339,6 +345,16 @@ func _apply_arcade_style() -> void:
 		_rumble_strength_slider, _move_speed_slider,
 	]:
 		_meters[slider] = SegmentMeter.attach(slider)
+	for graphics_slider: HSlider in _graphics_page.sliders():
+		_meters[graphics_slider] = SegmentMeter.attach(graphics_slider)
+	for graphics_label: Label in _graphics_page.value_labels():
+		_style_value_label(graphics_label)
+	for graphics_header: Label in _graphics_page.headers():
+		_style_section_header(graphics_header)
+	for graphics_check: CheckButton in _graphics_page.checks():
+		_add_state_word(graphics_check)
+		graphics_check.toggled.connect(_on_state_word_source_toggled)
+	_graphics_page.get_child(0).add_theme_constant_override("separation", arcade.space_3_px)
 	for value_label: Label in [
 		_master_volume_value_label, _music_volume_value_label, _sfx_volume_value_label,
 		_weather_volume_value_label, _rumble_strength_value_label, _move_speed_value_label,
@@ -465,6 +481,18 @@ func _on_controls_tab_toggled(pressed: bool) -> void:
 	_controls_page.visible = pressed
 
 
+func _on_graphics_tab_toggled(pressed: bool) -> void:
+	_graphics_page.visible = pressed
+
+
+## The Graphics controls were re-read (preset pick or an edit): redraw their meters and ON/OFF words.
+func _on_graphics_refreshed() -> void:
+	for slider: HSlider in _graphics_page.sliders():
+		if _meters.has(slider):
+			_meters[slider].queue_redraw()
+	_refresh_state_words()
+
+
 ## Bontago-1pi.71: a rebind of ui_accept/ui_cancel/menu_tab_* must show in the footer glyphs.
 func _on_row_rebind_captured(_action: StringName, _event: InputEvent) -> void:
 	_footer_hint_label.refresh()
@@ -524,7 +552,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		if row.is_listening():
 			return
 	if event.is_action_pressed(&"menu_tab_next") or event.is_action_pressed(&"menu_tab_previous"):
-		var target: Button = _controls_tab_button if _settings_tab_button.button_pressed else _settings_tab_button
+		var tabs: Array[Button] = [_settings_tab_button, _graphics_tab_button, _controls_tab_button]
+		var current: int = 0
+		for i: int in range(tabs.size()):
+			if tabs[i].button_pressed:
+				current = i
+		var step: int = 1 if event.is_action_pressed(&"menu_tab_next") else -1
+		var target: Button = tabs[posmod(current + step, tabs.size())]
 		target.button_pressed = true
 		target.grab_focus()
 		get_viewport().set_input_as_handled()
@@ -532,12 +566,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed(&"ui_cancel"):
 		_on_back_pressed()
 		get_viewport().set_input_as_handled()
-
-
-func _build_preset_items() -> void:
-	_preset_option.clear()
-	for label: String in PRESET_LABELS:
-		_preset_option.add_item(label)
 
 
 ## Bontago-xtq.45 (M7 P4): reads Settings.WINDOW_MODE_IDS/window_mode_label()
@@ -551,9 +579,7 @@ func _build_window_mode_items() -> void:
 
 
 func _load_current_values() -> void:
-	var preset: GraphicsPreset = settings_provider.current_graphics_preset()
-	var preset_index: int = PRESET_IDS.find(preset.id) if preset != null else -1
-	_preset_option.select(preset_index if preset_index >= 0 else PRESET_IDS.find(Settings.DEFAULT_PRESET_ID))
+	_graphics_page.refresh_from_settings()
 
 	_load_channel_row(_master_mute_button, _master_volume_slider, _master_volume_value_label, settings_provider.master_muted(), settings_provider.master_volume_percent())
 	_load_channel_row(_music_mute_button, _music_volume_slider, _music_volume_value_label, settings_provider.music_muted(), settings_provider.music_volume_percent())
@@ -588,9 +614,7 @@ func _load_channel_row(mute_button: Button, slider: HSlider, value_label: Label,
 
 
 func _on_preset_selected(index: int) -> void:
-	if index < 0 or index >= PRESET_IDS.size():
-		return
-	settings_provider.set_graphics_preset(PRESET_IDS[index])
+	_graphics_page.pick_preset(index)
 
 
 # --- Audio channels (Master/Music/SFX) ----------------------------------------
@@ -852,7 +876,6 @@ func _build_rebind_rows() -> void:
 ## the project already relies on.
 func _wire_focus_chain() -> void:
 	var chain: Array[Control] = [
-		_preset_option,
 		_window_mode_option, _camera_shake_check, _adaptive_quality_check,
 		_master_mute_button, _master_volume_slider,
 		_music_mute_button, _music_volume_slider,
@@ -866,6 +889,7 @@ func _wire_focus_chain() -> void:
 		# KeyRebindRow.PAD_NOT_APPLICABLE) must not be a focus-chain stop.
 		if row.is_available_on_active_device():
 			chain.append(row.rebind_button())
+	chain.append_array(_graphics_page.focus_controls())
 	chain.append(_reset_button)
 	chain.append(_back_button)
 
