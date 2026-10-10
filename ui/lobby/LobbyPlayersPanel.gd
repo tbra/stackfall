@@ -86,6 +86,7 @@ signal roster_rendered(ready_count: int, row_count: int)
 ## Difficulty labels for the synthetic bot roster entries [method bot_roster_entries]
 ## builds, in MatchConfig.AiDifficulty enum order (EASY, NORMAL, HARD) -- the same order
 ## the Lobby fills %AiDifficultyOption with (P4, Bontago-d5c.5).
+const TEAMS_LABEL: String = "TEAMS"
 const _AI_DIFFICULTY_LABELS: Array[String] = LobbySeatRow.DIFFICULTY_LABELS
 
 ## The same layered-pastel tunables the Lobby draws from; the Lobby overwrites this
@@ -104,8 +105,8 @@ var palette: PackedColorArray = PackedColorArray()
 
 @onready var _player_list: VBoxContainer = %PlayerList
 @onready var _player_count_label: Label = %PlayerCountLabel
-@onready var _teams_toggle: CheckButton = %TeamsToggle
-@onready var _add_bot_button: Button = %AddBotButton
+@onready var _teams_toggle: UiToggle = %TeamsToggle
+@onready var _add_bot_button: UiBlockButton = %AddBotButton
 @onready var _start_blocker_label: Label = %StartBlockerLabel
 
 ## Bontago-hfa.11: the dashed open-seat row after the seat rows (host only, while a seat is free). It holds
@@ -117,6 +118,8 @@ var _config: MatchConfig = null
 ## reconciled with the live humans and config (LobbySeats.reconcile).
 var _seats: Dictionary = {}
 var _is_editable: bool = false
+## Set by _render(): some row is a bot's, so human rows keep the room of its bot-only columns.
+var _align_bot_columns: bool = false
 ## Built by _render(): LobbySeatRows, seated humans (slot order), then seat-less humans
 ## (spectators), then bots by ordinal.
 var _player_rows: Array[Node] = []
@@ -143,7 +146,9 @@ var _header_focus_state: int = -1
 
 func _ready() -> void:
 	var art: UiArtTable = UiArtTable.shared()
-	art.apply_button_icon(_teams_toggle, art.lobby_icon(UiArtTable.KEY_TEAMS))
+	var teams_row: UiRow = _teams_toggle.get_parent() as UiRow
+	teams_row.setup(TEAMS_LABEL)
+	teams_row.label.custom_minimum_size.x = 0.0
 	art.apply_button_icon(_add_bot_button, art.lobby_icon(UiArtTable.KEY_BOT_ADD))
 	_open_seat_row = LobbyOpenSeatRow.new()
 	_open_seat_row.build(layout_tuning, _add_bot_button)
@@ -161,20 +166,12 @@ func _ready() -> void:
 
 ## Styling that used to live in the Lobby's _apply_visual_style().
 func apply_visual_style() -> void:
-	LobbySection.style_heading(get_node("TitleRow/Title") as Label)
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	# Bontago-1pi.145: the roster count is a `dust` caption (components.md PlayerSlot header), not a title.
 	_player_count_label.theme_type_variation = &"CaptionLabel"
-	_player_count_label.add_theme_font_size_override("font_size", MenuStyleFactory.arcade_tuning().font_size_caption_px)
-	_player_count_label.add_theme_color_override("font_color", MenuStyleFactory.arcade_tuning().dust_color)
-	# PL1b: the header controls are the same chip / pill family as the rest of the screen
-	# (cream off, mint on; powder blue like the team numbers); no new colours.
-	MenuStyleFactory.apply_toggle_chip(
-		_teams_toggle, tuning.pill_cream_color, tuning.pill_cream_hover_color,
-		tuning.pill_mint_color, tuning.pill_mint_hover_color, tuning.ink_color, tuning
-	)
+	_player_count_label.add_theme_font_size_override("font_size", arcade.font_size_caption_px)
+	_player_count_label.add_theme_color_override("font_color", arcade.dust_color)
 	_start_blocker_label.add_theme_color_override("font_color", tuning.ink_color)
-	# Bontago-1pi.149: the required ON/OFF word beside the Teams toggle.
-	LobbySection.attach_state_word(_teams_toggle)
 
 
 ## One lobby-data apply (Lobby._apply_data(), after the controls were written).
@@ -533,8 +530,7 @@ func _on_visibility_changed() -> void:
 ## the Teams toggle.
 func _refresh_header() -> void:
 	var open: bool = _lobby_open()
-	_teams_toggle.set_pressed_no_signal(_team_cap() > 0)
-	LobbySection.refresh_state_word(_teams_toggle)
+	_teams_toggle.set_on_silent(_team_cap() > 0)
 	_teams_toggle.disabled = not open
 	_teams_toggle.focus_mode = Control.FOCUS_ALL if open else Control.FOCUS_NONE
 	_add_bot_button.visible = _is_editable
@@ -626,6 +622,7 @@ func _render() -> void:
 	_player_rows.clear()
 
 	var ready_count: int = 0
+	_align_bot_columns = bot_total > 0
 	for entry: Dictionary in _humans:
 		var human_row: LobbySeatRow = _build_human_row(entry)
 		# DECISION (Bontago-1pi.122): the pill read "1 of 2 ready" with the host plus one ready
@@ -706,6 +703,8 @@ func _new_row(key: int) -> LobbySeatRow:
 	# The host works every seat; a client only its own (colour and team).
 	row.editable = key != LobbySeats.KEY_NONE and (_is_editable or _is_own_seat(key))
 	row.show_team = _team_cap() > 0
+	row.align_bot_columns = _align_bot_columns
+	row.align_remove_column = _is_editable
 	row.team_pick = maxi(LobbySeats.team_of(_seats, key), MatchConfig.TEAM_PICK_RANDOM)
 	return row
 

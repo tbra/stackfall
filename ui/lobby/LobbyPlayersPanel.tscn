@@ -1,58 +1,53 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://ui/lobby/LobbyPlayersPanel.gd" id="1_panel"]
 [ext_resource type="Script" path="res://ui/FocusScrollContainer.gd" id="2_scroll"]
+[ext_resource type="Script" path="res://ui/components/UiTitleRow.gd" id="3_title"]
+[ext_resource type="Script" path="res://ui/components/UiRow.gd" id="4_row"]
+[ext_resource type="Script" path="res://ui/components/UiToggle.gd" id="5_toggle"]
+[ext_resource type="Script" path="res://ui/components/UiBlockButton.gd" id="6_block"]
 
 [node name="LobbyPlayersPanel" type="VBoxContainer"]
 size_flags_vertical = 3
-theme_override_constants/separation = 8
+theme_override_constants/separation = 12
 script = ExtResource("1_panel")
 
 [node name="TitleRow" type="HBoxContainer" parent="."]
 layout_mode = 2
-
-[node name="Title" type="Label" parent="TitleRow"]
-layout_mode = 2
-theme_type_variation = &"TitleLabel"
-text = "PLAYERS"
-
-[node name="PlayersTitleSpacer" type="Control" parent="TitleRow"]
-layout_mode = 2
+script = ExtResource("3_title")
+title = "Players"
 
 [node name="PlayerCountLabel" type="Label" parent="TitleRow"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 3
+size_flags_horizontal = 8
 horizontal_alignment = 2
-text_overrun_behavior = 3
-clip_text = true
 mouse_filter = 0
-theme_override_font_sizes/font_size = 20
 text = "0 / 8"
 
 [node name="ActionRow" type="HBoxContainer" parent="."]
 layout_mode = 2
+script = ExtResource("4_row")
 
-[node name="TeamsToggle" type="CheckButton" parent="ActionRow"]
+[node name="TeamsToggle" type="Button" parent="ActionRow"]
 unique_name_in_owner = true
 layout_mode = 2
-focus_mode = 0
 tooltip_text = "Teams: seats with the same number play as one team; ? is filled in at match start"
+focus_mode = 0
 disabled = true
-text = "TEAMS"
+toggle_mode = true
+script = ExtResource("5_toggle")
+caption = "Teams"
 
-[node name="ActionRowSpacer" type="Control" parent="ActionRow"]
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="AddBotButton" type="Button" parent="ActionRow"]
+[node name="AddBotButton" type="Button" parent="."]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
-focus_mode = 0
 tooltip_text = "Add a bot to the next free seat"
+focus_mode = 0
 disabled = true
 text = "+ ADD BOT"
+script = ExtResource("6_block")
 
 [node name="PlayerScroll" type="ScrollContainer" parent="."]
 unique_name_in_owner = true
@@ -66,7 +61,7 @@ script = ExtResource("2_scroll")
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 10
+theme_override_constants/separation = 8
 
 [node name="StartBlockerLabel" type="Label" parent="."]
 unique_name_in_owner = true

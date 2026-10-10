@@ -6,9 +6,7 @@
   "ui/OptionsMenu.gd": 24,
   "ui/OptionsMenu.tscn": 11,
   "ui/SegmentMeter.gd": 3,
-  "ui/SliderNav.gd": 4,
-  "ui/lobby/LobbyPlayersPanel.gd": 1,
-  "ui/lobby/LobbyPlayersPanel.tscn": 1
+  "ui/SliderNav.gd": 4
  },
  "R2": {
   "ui/GraphicsSettingsTab.gd": 1,
@@ -28,16 +26,14 @@
   "ui/Tutorial.gd": 6,
   "ui/lobby/LobbyOpenSeatRow.gd": 4,
   "ui/lobby/LobbyPlayersPanel.gd": 3,
-  "ui/lobby/LobbySeatRow.gd": 14,
+  "ui/lobby/LobbySeatRow.gd": 6,
   "ui/lobby/LobbySection.gd": 3
  },
  "R3": {
-  "ui/Lobby.gd": 12,
-  "ui/lobby/LobbyPlayersPanel.gd": 1,
-  "ui/lobby/LobbySeatRow.gd": 3
+  "ui/Lobby.gd": 12
  },
  "R4": {
   "ui/Lobby.gd": 2,
-  "ui/lobby/LobbySeatRow.gd": 2
+  "ui/lobby/LobbySeatRow.gd": 1
  }
 }
