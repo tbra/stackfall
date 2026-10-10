@@ -111,7 +111,8 @@ def build_examples(files: Sequence[ds.DatasetFile], mode: Optional[int] = None,
         for row in ds.join_outcomes(f):
             if row.get("policy") == "special" or row["chosen"] < 0:
                 continue
-            if use_outcomes and (row["outcome"] is None or row["outcome"].get("complete") is False):
+            if use_outcomes and (row["outcome"] is None or row["outcome"].get("complete") is False
+                                      or "d_share_30s" not in row["outcome"]):
                 continue
             picked.append((f.path, row))
     advs = [0.0] * len(picked)

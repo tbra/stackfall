@@ -50,7 +50,7 @@ DECISION_KEYS = (
 )
 HEADER_KEYS = ("schema_version", "seed", "mode", "map_id", "bot_count",
                "difficulty", "weights", "git_revision")
-OUTCOME_KEYS = ("id", "d_share_10s", "d_share_30s", "d_share_60s")
+OUTCOME_KEYS = ("id",)  # d_share_* horizons are optional (omitted when truncated at match end)
 MATCH_END_KEYS = ("slot", "winner_team", "final_share", "won")
 OPTIONAL_STATE_NUMBERS = (
     "own_share", "enemy_share", "own_blocks", "own_tower_max_height",
@@ -100,7 +100,8 @@ def validate_record(rec: Any) -> List[str]:
         errs.extend(_validate_decision(rec))
     elif kind == "outcome":
         for key in ("d_share_10s", "d_share_30s", "d_share_60s"):
-            if not _is_num(rec[key]):
+            # Truncated at match end: horizons that never matured are omitted by the recorder.
+            if key in rec and not _is_num(rec[key]):
                 errs.append("outcome: %s not a number" % key)
         if not _is_int(rec["id"]):
             errs.append("outcome: id %r not an int (id format drift)" % (rec["id"],))

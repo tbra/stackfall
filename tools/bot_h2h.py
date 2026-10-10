@@ -97,12 +97,18 @@ class MatchJob:
     cmd: List[str]
 
 
+H2H_PORT_BASE = 47200  # per-job host port = base + job index % H2H_PORT_SPAN (parallel hosts must not collide)
+H2H_PORT_SPAN = 256
+
+
 def build_cmd(godot: str, project: str, seconds: float, bots: int, godot_args: str,
-              seed: int, weights_file: str, weights_json: str, cand_slots: str) -> List[str]:
+              seed: int, weights_file: str, weights_json: str, cand_slots: str, port: int = H2H_PORT_BASE) -> List[str]:
+    weights_file = weights_file.replace("\\", "/")  # shlex.split would eat Windows backslashes
     tail = godot_args.format(seed=seed, weights_file=weights_file, weights_json=weights_json,
                              cand_slots=cand_slots)
     return ([godot, "--headless", "--fixed-fps", "60", "--path", project, "--",
-             "--headless-host", "--bots=%d" % bots, "--seconds=%s" % seconds]
+             "--headless-host", "--bots=%d" % bots, "--seconds=%s" % seconds,
+             "--port=%d" % port]
             + shlex.split(tail))
 
 
@@ -111,7 +117,8 @@ def plan_jobs(pairs: int, base_seed: int, slots_a: str, slots_b: str, **kw) -> L
     for i in range(pairs):
         seed = base_seed + i
         for swapped, slots in ((False, slots_a), (True, slots_b)):
-            jobs.append(MatchJob(seed, swapped, build_cmd(seed=seed, cand_slots=slots, **kw)))
+            port = H2H_PORT_BASE + len(jobs) % H2H_PORT_SPAN
+            jobs.append(MatchJob(seed, swapped, build_cmd(seed=seed, cand_slots=slots, port=port, **kw)))
     return jobs
 
 
@@ -184,7 +191,13 @@ def main(argv: Optional[List[str]] = None, runner: Callable[[Sequence[str], floa
         print("H2H DRY-RUN matches=%d" % len(jobs))
         return 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, args.parallel)) as pool:
-        outputs = list(pool.map(lambda j: runner(j.cmd, args.timeout_s), jobs))
+        def _run(ij: Tuple[int, MatchJob]) -> str:
+            out = runner(ij[1].cmd, args.timeout_s)
+            with open(os.path.join(args.out_dir, "h2h_seed%d_%s.log" % (ij[1].seed, "b" if ij[1].swapped else "a")),
+                      "w", encoding="utf-8") as fh:  # per-match log so failed matches can be triaged
+                fh.write(out)
+            return out
+        outputs = list(pool.map(_run, enumerate(jobs)))
     # Team ids equal slot ids here (every bot is its own team in the 8-bot FFA matches).
     t = tally(jobs, outputs, _csv_ints(args.cand_slots_a), _csv_ints(args.cand_slots_b))
     decided = t["wins"] + t["losses"]
