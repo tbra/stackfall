@@ -357,7 +357,7 @@ func _build_badge() -> void:
 		_build_host_crown_badge()
 		return
 	# Bontago-1pi.158: the Ready / Not ready pill is the shared ui/ReadyPill.gd component.
-	var pill: ReadyPill = ReadyPill.create(is_ready, badge_size, _tuning)
+	var pill: ReadyPill = ReadyPill.create(is_ready, badge_size)
 	badge = pill
 	badge_label = pill.label
 	layout.add_child(badge)
