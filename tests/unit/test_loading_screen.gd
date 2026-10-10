@@ -16,6 +16,8 @@ func before_each() -> void:
 	_screen.tuning = LoadingScreenTuning.new()
 	_screen.tuning.warmup_frames = 2
 	_screen.tuning.fade_out_duration_s = 0.05
+	# The runner fast-forwards frames, so the game-time stall timeout would fire before a real-time image load.
+	_screen.tuning.ready_timeout_s = STALL_TIMEOUT_S
 
 
 func _config(variant: int = MatchConfig.MapVariant.ROUND, size: int = MapDef.MapSize.MEDIUM) -> MatchConfig:
@@ -230,109 +232,67 @@ func test_fade_runs_on_the_layer_content_and_the_next_show_is_opaque_again() -> 
 	_screen.cancel()
 
 
-# --- Bontago-mp0.96: the prerendered arena backdrop ----------------------------
+# --- Bontago-mp0.96 / 1pi.157: the backdrop (one of the main menu's images) ------
 
-const PLATE_DIR: String = "res://assets/ui/loading_arena_v2"
-const VARIANT_SHAPES: Array[String] = ["round"]
-# Game-time budget; wait_until returns as soon as the plate loads. The runners use
+# Game-time budget; wait_until returns as soon as the image loads. The runners use
 # --fixed-fps (frames outrun the worker-thread load), so allow generous frames.
 const LOAD_WAIT_S: float = 60.0
+const REAL_LOAD_WAIT_MS: int = 60000
+const STALL_TIMEOUT_S: float = 3600.0
 const COVER_SIZES: Array[Vector2i] = [Vector2i(1280, 720), Vector2i(3440, 1440)]
+const MENU_TUNING_PATH: String = "res://config/main_menu_tuning.tres"
 
 
-func _sky_config(variant: int, mode: int, resolved: String = "") -> MatchConfig:
-	var config: MatchConfig = _config(variant)
-	config.sky_theme_mode = mode as MatchConfig.SkyThemeMode
-	config.sky_theme_resolved = resolved
-	return config
-
-
-func _plate(shape: String, sky_id: String) -> String:
-	return "%s/%s_%s.png" % [PLATE_DIR, shape, sky_id]
+func _menu_paths() -> PackedStringArray:
+	return (load(MENU_TUNING_PATH) as MainMenuTuning).backdrop_paths
 
 
 func _plate_loaded() -> bool:
 	return _screen.backdrop_texture() != null
 
 
-func test_every_map_variant_selects_its_own_plate() -> void:
-	assert_eq(VARIANT_SHAPES.size(), MatchConfig.MapVariant.size(), "fixture: one shape per variant.")
-	for variant: int in MatchConfig.MapVariant.values():
-		var config: MatchConfig = _sky_config(variant, MatchConfig.SkyThemeMode.NIGHT)
-		_screen.show_for_match(config, _slots(2))
-		assert_eq(_screen.backdrop_path(), _plate(VARIANT_SHAPES[variant], "night"), "variant %d" % variant)
-		assert_true(ResourceLoader.exists(_screen.backdrop_path()), "the chosen plate is on disk.")
+## The 4K image decodes on a worker thread in real time while the runner fast-forwards frames, so
+## a game-time budget is not enough on a busy machine: wait on the wall clock instead.
+func _wait_real(condition: Callable) -> void:
+	var start_ms: int = Time.get_ticks_msec()
+	while not condition.call() and Time.get_ticks_msec() - start_ms < REAL_LOAD_WAIT_MS:
+		await get_tree().process_frame
 
 
-func test_each_sky_theme_selects_its_plate() -> void:
-	var expected: Dictionary = {
-		MatchConfig.SkyThemeMode.DAY: "sunset", MatchConfig.SkyThemeMode.NIGHT: "night", MatchConfig.SkyThemeMode.DAWN: "dawn",
-	}
-	for mode: int in expected:
-		var config: MatchConfig = _sky_config(MatchConfig.MapVariant.ROUND, mode)
-		assert_eq(_screen.backdrop_path_for(config), _plate("round", expected[mode] as String), "sky mode %d" % mode)
+func test_the_backdrop_is_one_of_the_main_menus_images() -> void:
+	var paths: PackedStringArray = _menu_paths()
+	assert_gte(paths.size(), 5, "fixture: the menu list is the single source.")
+	_screen.show_for_match(_config(), _slots(2))
+	assert_true(paths.has(_screen.backdrop_path()), "the pick comes from MainMenuTuning.backdrop_paths.")
+	assert_true(ResourceLoader.exists(_screen.backdrop_path()), "and is on disk.")
 
 
-func test_random_sky_uses_the_hosts_resolved_theme_and_waits_until_it_is_rolled() -> void:
-	var unrolled: MatchConfig = _sky_config(MatchConfig.MapVariant.ROUND, MatchConfig.SkyThemeMode.RANDOM)
-	assert_eq(_screen.backdrop_path_for(unrolled), "", "no plate for a sky that is not rolled yet (no wrong one to flash).")
-	var rolled: MatchConfig = _sky_config(MatchConfig.MapVariant.ROUND, MatchConfig.SkyThemeMode.RANDOM, "dawn")
-	assert_eq(_screen.backdrop_path_for(rolled), _plate("round", "dawn"))
+func test_the_pick_is_kept_across_shows_and_rerolled_after_the_overlay_hides() -> void:
+	_screen.show_for_match(_config(), _slots(2))
+	var first: String = _screen.backdrop_path()
+	_screen.show_for_match(_config(), _slots(2))
+	assert_eq(_screen.backdrop_path(), first, "the pending overlay then the match call keep one image.")
+	_screen.cancel()
+	_screen.show_for_match(_config(), _slots(2))
+	assert_true(_menu_paths().has(_screen.backdrop_path()), "a new loading screen picks again from the list.")
 
 
-func test_a_running_cycle_uses_the_plate_nearest_its_opening_phase() -> void:
-	var sky_theme: SkyThemeDef = load(_screen.tuning.backdrop_cycle_theme_path) as SkyThemeDef
-	assert_not_null(sky_theme)
-	var config: MatchConfig = _sky_config(MatchConfig.MapVariant.ROUND, MatchConfig.SkyThemeMode.CYCLE)
-	var expected: String = _screen.tuning.backdrop_theme_for_phase(sky_theme.cycle_start_phase, sky_theme)
-	assert_true(MatchConfig.SKY_THEME_IDS.has(expected), "fixture: the opening phase maps to a real theme: '%s'." % expected)
-	assert_eq(_screen.backdrop_path_for(config), _plate("round", expected))
-	assert_eq(_screen.tuning.backdrop_theme_for_phase(sky_theme.cycle_locked_phase_sunset, sky_theme), "sunset")
-	assert_eq(_screen.tuning.backdrop_theme_for_phase(sky_theme.cycle_locked_phase_night, sky_theme), "night")
-	assert_eq(_screen.tuning.backdrop_theme_for_phase(sky_theme.cycle_locked_phase_dawn, sky_theme), "dawn")
-	assert_eq(_screen.tuning.backdrop_theme_for_phase(0.99, sky_theme), "dawn", "the ring wraps: just before phase 1 is nearer dawn than night.")
-	assert_eq(_screen.tuning.backdrop_theme_for_phase(0.5, null), "", "no theme resource, no answer.")
-
-
-func test_unknown_variant_and_theme_fall_back() -> void:
-	var tuning: LoadingScreenTuning = _screen.tuning
-	assert_eq(tuning.backdrop_path(99, "night"), _plate("round", "night"), "an unknown variant draws the round plate.")
-	assert_eq(tuning.backdrop_path(-1, "dawn"), _plate("round", "dawn"))
-	assert_eq(tuning.backdrop_path(MatchConfig.MapVariant.ROUND, "eclipse"), _plate("round", "sunset"), "an unknown theme draws sunset.")
-	assert_eq(tuning.backdrop_fallback_path(), _plate("round", "sunset"))
-	var config: MatchConfig = _sky_config(MatchConfig.MapVariant.ROUND, MatchConfig.SkyThemeMode.NIGHT)
-	config.map_variant = 99 as MatchConfig.MapVariant
-	assert_eq(_screen.backdrop_path_for(config), _plate("round", "night"))
-
-
-func test_a_missing_plate_falls_back_to_the_default_and_then_to_the_plain_background() -> void:
-	_screen.tuning.backdrop_shape_ids = PackedStringArray(["round", "no_such_shape"])
-	var config: MatchConfig = _sky_config(1, MatchConfig.SkyThemeMode.NIGHT)
-	assert_eq(_screen.backdrop_path_for(config), _plate("round", "sunset"), "no art on disk: the default plate.")
-	_screen.tuning.backdrop_dir = "res://assets/ui/no_such_plate_dir"
-	assert_eq(_screen.backdrop_path_for(config), "", "not even a default plate: plain background, no error.")
-	_screen.show_for_match(config, _slots(2))
-	assert_null(_screen.backdrop_texture())
-	assert_false((_screen.get_node("%Backdrop") as Control).visible)
-	assert_true(_screen.visible, "the loading screen still shows.")
-
-
-func test_a_pending_overlay_without_a_config_has_no_plate_until_the_match_arrives() -> void:
+func test_a_pending_overlay_without_a_config_has_no_backdrop_until_the_match_arrives() -> void:
 	_screen.show_pending(null)
 	assert_eq(_screen.backdrop_path(), "")
 	assert_false((_screen.get_node("%Backdrop") as Control).visible)
-	_screen.show_for_match(_sky_config(MatchConfig.MapVariant.ROUND, MatchConfig.SkyThemeMode.DAY), _slots(2))
-	assert_eq(_screen.backdrop_path(), _plate("round", "sunset"))
-	await wait_until(_plate_loaded, LOAD_WAIT_S, "the plate loads on a worker thread")
-	assert_eq(_screen.backdrop_shown_path(), _plate("round", "sunset"))
+	_screen.show_for_match(_config(), _slots(2))
+	assert_true(_menu_paths().has(_screen.backdrop_path()))
+	await _wait_real(_plate_loaded)
+	assert_eq(_screen.backdrop_shown_path(), _screen.backdrop_path())
 
 
-func test_the_plate_loads_threaded_and_is_shown_cover_cropped_behind_the_card() -> void:
-	_screen.show_for_match(_sky_config(MatchConfig.MapVariant.ROUND, MatchConfig.SkyThemeMode.DAY), _slots(2))
-	await wait_until(_plate_loaded, LOAD_WAIT_S, "the plate loads on a worker thread")
+func test_the_backdrop_loads_threaded_and_is_shown_cover_cropped_behind_the_card() -> void:
+	_screen.show_for_match(_config(), _slots(2))
+	await _wait_real(_plate_loaded)
 	var backdrop: TextureRect = _screen.get_node("%Backdrop") as TextureRect
 	assert_true(backdrop.visible)
-	assert_eq(backdrop.texture.resource_path, _plate("round", "sunset"))
+	assert_eq(backdrop.texture.resource_path, _screen.backdrop_path())
 	assert_eq(backdrop.expand_mode, TextureRect.EXPAND_IGNORE_SIZE)
 	assert_eq(backdrop.stretch_mode, TextureRect.STRETCH_KEEP_ASPECT_COVERED, "fills the screen, cropping rather than letterboxing.")
 	assert_eq(backdrop.mouse_filter, Control.MOUSE_FILTER_IGNORE)
@@ -352,12 +312,12 @@ func test_the_backdrop_fills_the_screen_at_1280x720_and_3440x1440_and_the_card_s
 		add_child_autofree(host)
 		var screen: LoadingScreen = load("res://ui/LoadingScreen.tscn").instantiate() as LoadingScreen
 		host.add_child(screen)
-		screen.show_for_match(_sky_config(MatchConfig.MapVariant.ROUND, MatchConfig.SkyThemeMode.NIGHT), _slots(4))
+		screen.show_for_match(_config(), _slots(4))
 		for _i: int in range(4):
 			await get_tree().process_frame
 		var backdrop: Control = screen.get_node("%Backdrop") as Control
 		var logical: Vector2 = Vector2(UiScale.logical_size(Vector2(window)))
-		assert_eq(backdrop.get_global_rect(), Rect2(Vector2.ZERO, logical), "the plate's rect is the whole screen at %s." % window)
+		assert_eq(backdrop.get_global_rect(), Rect2(Vector2.ZERO, logical), "the image's rect is the whole screen at %s." % window)
 		for overlay_name: String in ["%Dim", "%Vignette"]:
 			assert_eq((screen.get_node(overlay_name) as Control).get_global_rect(), Rect2(Vector2.ZERO, logical), "%s covers it too." % overlay_name)
 		var card_rect: Rect2 = (screen.get_node("%Card") as Control).get_global_rect()
@@ -366,40 +326,13 @@ func test_the_backdrop_fills_the_screen_at_1280x720_and_3440x1440_and_the_card_s
 		screen.cancel()
 
 
-func test_the_same_plate_is_kept_across_shows_and_a_different_one_never_flashes_the_old() -> void:
-	var first: MatchConfig = _sky_config(MatchConfig.MapVariant.ROUND, MatchConfig.SkyThemeMode.NIGHT)
-	_screen.show_for_match(first, _slots(2))
-	await wait_until(_plate_loaded, LOAD_WAIT_S, "the night plate loads")
-	var kept: Texture2D = _screen.backdrop_texture()
-	_screen.show_for_match(first, _slots(2))
-	assert_same(_screen.backdrop_texture(), kept, "the same plate stays (the pending overlay then the match call).")
-	_screen.cancel()
-	_screen.show_for_match(first, _slots(2))
-	assert_same(_screen.backdrop_texture(), kept, "a rematch on the same plate has it at once, nothing to wait for.")
-	assert_almost_eq((_screen.get_node("%Backdrop") as Control).modulate.a, 1.0, 0.001)
-	_screen.show_for_match(_sky_config(MatchConfig.MapVariant.ROUND, MatchConfig.SkyThemeMode.DAWN), _slots(2))
-	assert_ne(_screen.backdrop_texture(), kept, "the night art is dropped as soon as the dawn match is chosen.")
-	assert_eq(_screen.backdrop_path(), _plate("round", "dawn"))
-	await wait_until(_plate_loaded, LOAD_WAIT_S, "the dawn plate loads")
-	assert_eq(_screen.backdrop_shown_path(), _plate("round", "dawn"))
-
-
-func test_a_load_superseded_in_flight_never_shows_the_stale_plate() -> void:
-	_screen.show_for_match(_sky_config(MatchConfig.MapVariant.ROUND, MatchConfig.SkyThemeMode.NIGHT), _slots(2))
-	_screen.show_for_match(_sky_config(MatchConfig.MapVariant.ROUND, MatchConfig.SkyThemeMode.DAWN), _slots(2))
-	await wait_until(_plate_loaded, LOAD_WAIT_S, "the final plate loads")
-	await wait_process_frames(3)
-	assert_eq(_screen.backdrop_shown_path(), _plate("round", "dawn"))
-	assert_eq((_screen.get_node("%Backdrop") as TextureRect).texture.resource_path, _plate("round", "dawn"))
-
-
 func test_the_backdrop_fades_with_the_overlay() -> void:
-	_screen.show_for_match(_sky_config(MatchConfig.MapVariant.ROUND, MatchConfig.SkyThemeMode.DAY), _slots(2))
-	await wait_until(_plate_loaded, LOAD_WAIT_S, "the plate loads")
+	_screen.show_for_match(_config(), _slots(2))
+	await _wait_real(_plate_loaded)
 	assert_eq((_screen.get_node("%Backdrop") as Node).get_parent(), _screen.get_node("%Content"), "the plate lives in the faded Content, so fade_out takes it too.")
 	_screen.fade_out()
-	await wait_seconds(0.3, "warmup frames + fade duration")
-	assert_false(_screen.visible)
+	# The 4K image's first upload can hitch frames, so wait for the fade rather than a fixed time.
+	await wait_until(func() -> bool: return not _screen.visible, LOAD_WAIT_S, "warmup frames + fade duration")
 	assert_almost_eq(_screen.overlay_opacity(), 0.0, 0.01)
 
 

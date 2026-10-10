@@ -71,13 +71,16 @@ extends Resource
 @export var ready_list_separation_px: int = 6
 @export var ready_row_separation_px: int = 10
 
-## Stackfall Arcade LoadingCard (Bontago-hfa.7): progress cells per player (no spinners), the
-## cell size and gap, the mode-name size (Bungee), the name size, the card width and the
+## Stackfall Arcade LoadingCard (Bontago-hfa.7): the searching-cells size and gap (ui/SearchingCells.gd), the, the mode-name size (Bungee), the name size, the card width and the
 ## diamond marker edge.
-@export var loading_cell_count: int = 4
 @export var loading_cell_width_px: int = 18
 @export var loading_cell_height_px: int = 12
 @export var loading_cell_gap_px: int = 4
+## Bontago-1pi.158: the Ready / Not ready pill on each player row (smaller than the lobby seat's badge so
+## eight rows still fit the card at 1280x720).
+@export var loading_pill_width_px: int = 32
+@export var loading_pill_height_px: int = 24
+@export var loading_pill_margin_y_px: int = 0
 @export var loading_title_font_size_px: int = 36
 @export var loading_name_font_size_px: int = 18
 @export var loading_card_min_width_px: int = 420
@@ -108,33 +111,9 @@ extends Resource
 @export var warm_camera_distance: float = 8.0
 @export var warm_mesh_offset: float = 1.5
 
-## --- Bontago-mp0.96: prerendered arena backdrop (owner playtest 2026-10-03:
-## "the next step would be to have a prerendered background of the arena") ---
-## One plate per arena shape and sky theme: assets/ui/loading_arena_v2/
-## <shape>_<theme>.png, 1920x1080, drawn cover-cropped behind the loading card.
-## Map sizes share a plate (the art illustrates the shape, not the size).
-
-## Folder holding the plates (Bontago-mp0.99, the round shape x sunset/night/dawn).
-@export var backdrop_dir: String = "res://assets/ui/loading_arena_v2"
-
-## Plate file name: %s are the shape id and the sky theme id, in that order.
-@export var backdrop_file_format: String = "%s_%s.png"
-
-## Optional shape id override per MatchConfig.MapVariant (index = enum value).
-## Empty (default) derives the ids from MapDef.shape_id(); with an override, a
-## variant outside the list uses backdrop_fallback_shape.
-@export var backdrop_shape_ids: PackedStringArray = []
-
-## Used when the match's variant or sky theme has no plate (unknown id, or the
-## file is missing). A missing fallback plate too leaves the plain background.
-@export var backdrop_fallback_shape: String = "round"
-@export var backdrop_fallback_theme: String = "sunset"
-
-## A running day/night cycle has no theme id of its own: the plate nearest (on
-## the cycle ring) to this theme's cycle_start_phase is shown. The theme is
-## where SkyThemeDef.cycle_start_phase / locked_phase_for() live (Skybox's
-## DEFAULT_THEME_ID).
-@export var backdrop_cycle_theme_path: String = "res://config/sky_themes/sunset.tres"
+## --- Bontago-mp0.96 / 1pi.157: the loading backdrop. The image is one of the main menu's
+## (MainMenuTuning.backdrop_paths, the single list), picked at random per loading screen and
+## drawn cover-cropped behind the loading card.
 
 ## Seconds the plate takes to fade in when it was not already cached (it is
 ## loaded on a worker thread so showing the overlay never stalls). 0 = no fade.
@@ -151,40 +130,3 @@ extends Resource
 @export_range(0.0, 0.99, 0.01) var backdrop_vignette_start: float = 0.55
 @export var backdrop_vignette_size_px: int = 128
 
-
-## The plate path for a map variant and sky theme id, with no filesystem check
-## (the screen verifies it exists). An unknown variant or theme maps to the
-## fallback shape / theme.
-func backdrop_path(variant: int, theme_id: String) -> String:
-	var shape_id: String = backdrop_fallback_shape
-	if backdrop_shape_ids.is_empty():
-		if not MapDef.shape_id(variant).is_empty():
-			shape_id = MapDef.shape_id(variant)
-	elif variant >= 0 and variant < backdrop_shape_ids.size():
-		shape_id = backdrop_shape_ids[variant]
-	var theme: String = theme_id if MatchConfig.SKY_THEME_IDS.has(theme_id) else backdrop_fallback_theme
-	return "%s/%s" % [backdrop_dir, backdrop_file_format % [shape_id, theme]]
-
-
-## The default plate (fallback shape, fallback theme).
-func backdrop_fallback_path() -> String:
-	return "%s/%s" % [backdrop_dir, backdrop_file_format % [backdrop_fallback_shape, backdrop_fallback_theme]]
-
-
-## The concrete sky theme id whose locked phase is closest, around the cycle
-## ring, to `phase` (a running cycle's opening phase). "" if the theme is null.
-func backdrop_theme_for_phase(phase: float, sky_theme: SkyThemeDef) -> String:
-	if sky_theme == null:
-		return ""
-	var best_id: String = ""
-	var best_distance: float = INF
-	for theme_id: String in MatchConfig.SKY_THEME_IDS:
-		var locked: float = sky_theme.locked_phase_for(theme_id)
-		if locked < 0.0:
-			continue
-		var gap: float = absf(fposmod(phase - locked, 1.0))
-		var distance: float = minf(gap, 1.0 - gap)
-		if distance < best_distance:
-			best_distance = distance
-			best_id = theme_id
-	return best_id
