@@ -121,13 +121,13 @@ extends CanvasLayer
 ## (CLAUDE.md: "only the host runs physics"; a client's bodies are frozen and
 ## moved by net/SnapshotSync.gd), not just hidden for tidiness.
 
-const SAVE_PATH: String = "user://tuning_overrides.cfg"
+const SAVE_PATH: String = TuningOverrides.SAVE_PATH
 
 
 ## The file actually read/written: SAVE_PATH, or a per-PID file in a GUT run so
 ## tests never touch the owner's real F4 overrides (Bontago-1pi.21).
 static func save_path() -> String:
-	return UserPaths.resolve(SAVE_PATH)
+	return TuningOverrides.save_path()
 
 const VALUE_WIDTH: float = 110.0
 
@@ -1879,31 +1879,7 @@ func _write_overrides(config: ConfigFile, section: String, resource: Resource) -
 ## Static and free of any node/scene-tree dependence, so it runs before a
 ## TuningPanel -- or even a Field/CameraRig/PlayerController -- exists.
 static func apply_saved_overrides() -> void:
-	var config: ConfigFile = ConfigFile.new()
-	if config.load(save_path()) != OK:
-		return
-	_apply_saved_section(config, "CameraTuning", load("res://config/camera_tuning.tres"))
-	_apply_saved_section(config, "GhostTuning", load("res://config/ghost_tuning.tres"))
-	_apply_saved_section(config, "PhysicsTuning", load("res://config/physics_tuning.tres"))
-	_apply_saved_section(config, "TerritoryTuning", load("res://config/territory_tuning.tres"))
-	_apply_saved_section(config, "TerritoryVisuals", load("res://config/territory_visuals.tres"))
-	_apply_saved_section(config, "BlockFeedConfig", load("res://config/block_feed.tres"))
-	_apply_saved_section(config, "SkyboxConfig", load("res://config/skybox_config.tres"))
-
-
-static func _apply_saved_section(config: ConfigFile, section: String, resource: Resource) -> void:
-	if resource == null or not config.has_section(section):
-		return
-	# A stale key from an older build (a renamed/removed field) must not
-	# reach Object.set() -- collect the resource's own current field names
-	# first rather than trusting whatever the file on disk happens to say.
-	var valid_props: Dictionary = {}
-	for prop: Dictionary in resource.get_property_list():
-		valid_props[str(prop.get("name", ""))] = true
-	for key: String in config.get_section_keys(section):
-		if not valid_props.has(key):
-			continue
-		resource.set(key, config.get_value(section, key))
+	TuningOverrides.apply_saved()  # Bontago-1pi.11.84: lives in game/TuningOverrides.gd
 
 
 func _on_copy_pressed() -> void:
