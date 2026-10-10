@@ -59,3 +59,9 @@ func test_free_udp_port_is_in_range_and_bindable() -> void:
 	var probe: PacketPeerUDP = PacketPeerUDP.new()
 	assert_eq(probe.bind(port), OK, "the returned port should still be free")
 	probe.close()
+
+
+func test_quit_on_menu_flag_and_line() -> void:
+	assert_true(AgentProbe.wants_quit_on_menu(PackedStringArray(["--agent-probe", "--quit-on-menu"])))
+	assert_false(AgentProbe.wants_quit_on_menu(PackedStringArray(["--agent-probe"])))
+	assert_eq(AgentProbe.format_startup_line(120, -1), "AGENT_PROBE startup first_frame_ms=120 menu_ready_ms=-1")
