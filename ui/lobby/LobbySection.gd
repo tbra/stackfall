@@ -122,6 +122,51 @@ static func style_heading(label: Label) -> void:
 	label.add_theme_stylebox_override("normal", notch)
 
 
+## Bontago-1pi.149 (components.md "Toggle": the ON/OFF word is required): a toggle chip gets a
+## word beside it, mint ON / dust OFF, in the same row (a sibling after the chip, so the chip
+## keeps its text, focus, signals and tests). The word follows `toggled`, the chip's
+## visibility, and [method refresh_state_word] for a programmatic set_pressed_no_signal().
+const STATE_WORD_META: StringName = &"state_word"
+const STATE_WORD_NAME: String = "StateWord"
+const STATE_WORD_ON: String = "ON"
+const STATE_WORD_OFF: String = "OFF"
+const OPTIONS_TUNING: OptionsVisualTuning = preload("res://config/options_visual_tuning.tres")
+
+
+## [param value_column_width_px] > 0: the word is at least that wide (a settings row's value
+## column; the Lobby also puts it in its value-cell group), so the chip keeps the row's shared
+## control right edge.
+static func attach_state_word(check: BaseButton, value_column_width_px: int = 0) -> Label:
+	if check.has_meta(STATE_WORD_META):
+		return check.get_meta(STATE_WORD_META) as Label
+	var word: Label = Label.new()
+	word.name = "%s%s" % [check.name, STATE_WORD_NAME]
+	word.theme_type_variation = &"DisplayLabel"
+	word.add_theme_font_size_override("font_size", OPTIONS_TUNING.value_font_size_px)
+	word.custom_minimum_size.x = float(maxi(OPTIONS_TUNING.state_word_min_width_px, value_column_width_px))
+	word.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	word.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var parent: Node = check.get_parent()
+	parent.add_child(word)
+	parent.move_child(word, check.get_index() + 1)
+	check.set_meta(STATE_WORD_META, word)
+	check.toggled.connect(func(_pressed: bool) -> void: refresh_state_word(check))
+	check.visibility_changed.connect(func() -> void: refresh_state_word(check))
+	refresh_state_word(check)
+	return word
+
+
+## Redraws the word beside `check` (no-op when none was attached).
+static func refresh_state_word(check: BaseButton) -> void:
+	if not check.has_meta(STATE_WORD_META):
+		return
+	var word: Label = check.get_meta(STATE_WORD_META) as Label
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	word.text = STATE_WORD_ON if check.button_pressed else STATE_WORD_OFF
+	word.add_theme_color_override("font_color", arcade.mint_color if check.button_pressed else arcade.dust_color)
+	word.visible = check.visible
+
+
 ## The one-line summary on the header's right ("Classic · Round · Medium · Cycle").
 func set_summary(text: String) -> void:
 	_summary = text

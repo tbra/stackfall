@@ -221,7 +221,9 @@ var _map_thumbnail_icon: TextureRect = null
 @onready var _header_title: Label = %HeaderTitle
 @onready var _header_eyebrow: Label = %Eyebrow
 @onready var _back_button: Button = %BackButton
-const ALL_READY_TEXT: String = "All players ready"
+## Bontago-1pi.149 (components.md footer chip): an uppercase label chip, "3 OF 4 READY".
+const ALL_READY_TEXT: String = "ALL READY"
+const READY_COUNT_FORMAT: String = "%d OF %d READY"
 ## Bontago-mp0.3.5 (review r1, item 13): mockup 11's bottom-left "Waiting for
 ## players * X of Y ready" pill, updated every time the players panel rebuilds its rows (_on_roster_rendered()).
 @onready var _waiting_status_pill: PanelContainer = %WaitingStatusPill
@@ -1001,6 +1003,12 @@ func _apply_visual_style() -> void:
 			tuning.pill_mint_color, tuning.pill_mint_hover_color, tuning.ink_color, tuning
 		)
 
+	# Bontago-1pi.149: the spec'd toggles (sudden death, turn-based, mid-match join) carry the
+	# required ON/OFF word beside the chip (Teams does the same in the players panel).
+	for toggle: CheckButton in [_sudden_death_check, _turn_based_check, _mid_join_check]:
+		var word: Label = LobbySection.attach_state_word(toggle, layout_tuning.value_column_width_px)
+		word.add_to_group(VALUE_CELL_GROUP)
+
 	# Bontago-1pi.94: the click-to-cycle selectors are cream pills; a client's read-only copy
 	# keeps the same look (disabled box = the normal pill) so only the host sees a live control.
 	var selectors: Array[CycleSelector] = [
@@ -1013,6 +1021,8 @@ func _apply_visual_style() -> void:
 		selector.add_theme_constant_override("icon_max_width", GiftIconTable.shared().lobby_icon_px)
 
 	_align_row_controls(selectors, chips)
+	for toggle: CheckButton in [_sudden_death_check, _turn_based_check, _mid_join_check]:
+		(toggle.get_meta(LobbySection.STATE_WORD_META) as Label).theme_type_variation = &"DisplayLabel"
 
 	var captions: Array[Label] = [_specials_label, _experiments_label]
 	for caption: Label in captions:
@@ -1024,6 +1034,7 @@ func _apply_visual_style() -> void:
 	(%Scrim as ColorRect).color = Color(arcade.disc_900_color, arcade.scrim_alpha)
 	_status_badge.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(arcade.disc_700_color, tuning))
 	_waiting_status_pill.add_theme_stylebox_override("panel", MenuStyleFactory.make_badge(arcade.disc_700_color, tuning))
+	_waiting_status_label.theme_type_variation = &"FieldLabel"
 	_waiting_status_label.add_theme_color_override("font_color", arcade.cream_color)
 	_status_badge_label.theme_type_variation = &"FieldLabel"
 	_status_badge_label.add_theme_color_override("font_color", arcade.cream_color)
@@ -1604,11 +1615,9 @@ func _on_roster_rendered(ready_count: int, row_count: int) -> void:
 	# DECISION (Bontago-1pi.122): the host counts as ready (see LobbyPlayersPanel._render), and once
 	# every seat is ready the pill says so instead of "Waiting for players * 2 of 2 ready".
 	if row_count > 0 and ready_count >= row_count:
-		_waiting_status_label.text = "%s %s" % [char(0x25CF), ALL_READY_TEXT]
+		_waiting_status_label.text = ALL_READY_TEXT
 		return
-	_waiting_status_label.text = "%s Waiting for players %s %d of %d ready" % [
-		char(0x25CF), char(0xB7), ready_count, row_count,
-	]
+	_waiting_status_label.text = READY_COUNT_FORMAT % [ready_count, row_count]
 
 
 ## The panel's focusable controls changed: rewire the loop (only once the first

@@ -173,6 +173,8 @@ func apply_visual_style() -> void:
 		tuning.pill_mint_color, tuning.pill_mint_hover_color, tuning.ink_color, tuning
 	)
 	_start_blocker_label.add_theme_color_override("font_color", tuning.ink_color)
+	# Bontago-1pi.149: the required ON/OFF word beside the Teams toggle.
+	LobbySection.attach_state_word(_teams_toggle)
 
 
 ## One lobby-data apply (Lobby._apply_data(), after the controls were written).
@@ -532,6 +534,7 @@ func _on_visibility_changed() -> void:
 func _refresh_header() -> void:
 	var open: bool = _lobby_open()
 	_teams_toggle.set_pressed_no_signal(_team_cap() > 0)
+	LobbySection.refresh_state_word(_teams_toggle)
 	_teams_toggle.disabled = not open
 	_teams_toggle.focus_mode = Control.FOCUS_ALL if open else Control.FOCUS_NONE
 	_add_bot_button.visible = _is_editable
