@@ -65,6 +65,9 @@ var name_provider: Variant = null
 
 ## The Input Map action that readies (Enter/Numpad Enter/Space and gamepad A).
 const READY_ACTION: StringName = &"ui_accept"
+const MENU_VISUAL_TUNING_PATH: String = "res://config/menu_visual_tuning.tres"
+## Bontago-1pi.157: the loading backdrop is one of the main menu's images (MainMenuTuning.backdrop_paths).
+const MENU_TUNING_PATH: String = "res://config/main_menu_tuning.tres"
 ## Frames a fetched plate stays referenced so queued RenderingServer commands drain (Bontago-6cw).
 const TEXTURE_RELEASE_FRAMES: int = 3
 
@@ -103,6 +106,8 @@ var _ready_rows: Array[Dictionary] = []
 ## _backdrop_path is in flight. _backdrop_orphans: superseded requests, still to be
 ## collected so the loader does not keep them.
 var _backdrop_path: String = ""
+## The image picked for this loading screen; forgotten when the overlay hides so the next one re-rolls.
+var _backdrop_session_path: String = ""
 var _backdrop_shown_path: String = ""
 var _backdrop_requested: bool = false
 var _backdrop_orphans: PackedStringArray = PackedStringArray()
@@ -185,8 +190,7 @@ func show_pending(config: MatchConfig) -> void:
 
 func set_stage(_stage: String, fraction: float) -> void:
 	_progress = clampf(fraction, 0.0, 1.0)
-	for row: Dictionary in _ready_rows:
-		(row["mark"] as Control).queue_redraw()
+	# Bontago-1pi.158: the rows show a Ready / Not ready pill, not stage progress.
 
 
 func progress() -> float:
@@ -350,6 +354,7 @@ func fade_out() -> void:
 	# texture so the 1920x1080 art leaves memory once the match is visible. The next
 	# show_for_match() re-requests it (threaded) because the shown path is cleared.
 	_clear_backdrop()
+	_backdrop_session_path = ""
 	if _warm_viewport != null:
 		_warm_viewport.queue_free()
 		_warm_viewport = null
@@ -401,6 +406,7 @@ func cancel() -> void:
 	_abandon_backdrop_request()
 	_finish_backdrop_fade()
 	_drain_backdrop_orphans()
+	_backdrop_session_path = ""
 	if _warm_viewport != null:
 		_warm_viewport.queue_free()
 		_warm_viewport = null
@@ -479,37 +485,17 @@ func _apply_backdrop_styles() -> void:
 	_vignette.texture = vignette
 
 
-## The plate for this match: arena shape (map variant) x sky theme, a fallback for an
-## unknown shape or theme, and "" when there is no config yet (a client's pending
-## overlay), the theme is not known yet (an unresolved RANDOM sky: the host rolls it at
-## match start, and show_for_match() runs again then) or no plate exists on disk.
+## The backdrop for this match: one of the main menu's images (MainMenuTuning.backdrop_paths,
+## the single list), chosen at random once per loading screen. "" when there is no config yet
+## (a client's pending overlay: show_for_match() runs again with it) or no image is listed.
+## DECISION (Bontago-1pi.157): the pick may differ from the main menu's.
 func backdrop_path_for(config: MatchConfig) -> String:
 	if config == null:
 		return ""
-	var theme_id: String = _backdrop_theme_id(config)
-	if theme_id.is_empty():
-		return ""
-	var path: String = tuning.backdrop_path(config.map_variant, theme_id)
-	if ResourceLoader.exists(path):
-		return path
-	var fallback: String = tuning.backdrop_fallback_path()
-	return fallback if ResourceLoader.exists(fallback) else ""
-
-
-## The concrete sky theme id the match opens with. A running cycle opens at the theme's
-## cycle_start_phase, so it shows the plate nearest that phase. "" while an unresolved
-## RANDOM sky has not been rolled.
-func _backdrop_theme_id(config: MatchConfig) -> String:
-	if config.is_sky_cycle_running():
-		var sky_theme: SkyThemeDef = load(tuning.backdrop_cycle_theme_path) as SkyThemeDef
-		var cycle_id: String = ""
-		if sky_theme != null:
-			cycle_id = tuning.backdrop_theme_for_phase(
-				config.sky_start_phase if config.sky_start_phase >= 0.0 else sky_theme.cycle_start_phase, sky_theme)
-		return cycle_id if not cycle_id.is_empty() else tuning.backdrop_fallback_theme
-	if config.sky_theme_mode == MatchConfig.SkyThemeMode.RANDOM and config.sky_theme_resolved.is_empty():
-		return ""
-	return config.effective_sky_theme()
+	if _backdrop_session_path.is_empty():
+		var menu_tuning: MainMenuTuning = load(MENU_TUNING_PATH) as MainMenuTuning
+		_backdrop_session_path = MenuBackdrop.pick_path(menu_tuning.backdrop_paths, randf())
+	return _backdrop_session_path if ResourceLoader.exists(_backdrop_session_path) else ""
 
 
 ## Chooses the plate and starts loading it on a worker thread, so showing the overlay
@@ -735,7 +721,7 @@ func prompt_glyph_texts() -> PackedStringArray:
 	return texts
 
 
-## One row per slot: colour swatch, name, and a tick (ready) or ring (pending).
+## One row per slot: colour swatch, name and the Ready / Not ready pill.
 func _rebuild_ready_rows(slots: Array[PlayerSlot]) -> void:
 	for child: Node in _player_list.get_children():
 		_player_list.remove_child(child)
@@ -753,15 +739,9 @@ func _rebuild_ready_rows(slots: Array[PlayerSlot]) -> void:
 		name_label.add_theme_font_size_override("font_size", tuning.loading_name_font_size_px)
 		name_label.add_theme_color_override("font_color", MenuStyleFactory.arcade_tuning().cream_color)
 		name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var mark: Control = Control.new()
-		mark.custom_minimum_size = Vector2(
-			float(tuning.loading_cell_count * (tuning.loading_cell_width_px + tuning.loading_cell_gap_px) - tuning.loading_cell_gap_px),
-			float(tuning.loading_cell_height_px)
-		)
-		mark.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		mark.set_meta(&"ready", false)
-		mark.draw.connect(_draw_ready_mark.bind(mark))
+		# Bontago-1pi.158 (owner: the four-cell bar "makes no sense"): the lobby's Ready / Not ready pill.
+		var mark: ReadyPill = ReadyPill.create(slot_item.is_bot, _pill_size(), _pill_tuning(), float(tuning.loading_pill_margin_y_px))
+		mark.visible = _ready_gate_armed
 		row.add_child(marker)
 		row.add_child(name_label)
 		row.add_child(mark)
@@ -769,18 +749,13 @@ func _rebuild_ready_rows(slots: Array[PlayerSlot]) -> void:
 		_ready_rows.append({"slot_id": slot_item.slot_id, "is_bot": slot_item.is_bot, "mark": mark, "name": name_label})
 
 
-## Four progress cells (ResultsTableTuning.loading_cell_count): a ready player's are all mint; a
-## player still loading shows the overlay's own stage progress, never the full row.
-func _draw_ready_mark(mark: Control) -> void:
-	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	var ready: bool = bool(mark.get_meta(&"ready", false))
-	var filled: int = tuning.loading_cell_count if ready else mini(tuning.loading_cell_count - 1, int(_progress * float(tuning.loading_cell_count)))
-	var cell_box: StyleBoxFlat = StyleBoxFlat.new()
-	cell_box.set_corner_radius_all(arcade.radius_cell_px)
-	for index: int in range(tuning.loading_cell_count):
-		cell_box.bg_color = arcade.mint_color if index < filled else arcade.disc_700_color
-		var origin: Vector2 = Vector2(float(index * (tuning.loading_cell_width_px + tuning.loading_cell_gap_px)), 0.0)
-		mark.draw_style_box(cell_box, Rect2(origin, Vector2(float(tuning.loading_cell_width_px), float(tuning.loading_cell_height_px))))
+## The pill's size (LoadingScreenTuning): the lobby's pill, a little smaller so eight rows fit.
+func _pill_size() -> Vector2:
+	return Vector2(float(tuning.loading_pill_width_px), float(tuning.loading_pill_height_px))
+
+
+func _pill_tuning() -> MenuVisualTuning:
+	return load(MENU_VISUAL_TUNING_PATH) as MenuVisualTuning
 
 
 ## Test seam: the name shown on each player row, in order.
@@ -805,7 +780,7 @@ func ready_prompt_text() -> String:
 func player_row_ready(slot_id: int) -> bool:
 	for row: Dictionary in _ready_rows:
 		if int(row["slot_id"]) == slot_id:
-			return bool((row["mark"] as Control).get_meta(&"ready", false))
+			return (row["mark"] as ReadyPill).is_ready
 	return false
 
 
@@ -822,10 +797,10 @@ func _refresh_ready_ui() -> void:
 	var ready_ids: PackedInt32Array = Match._lifecycle.loading_ready_peers()
 	for row: Dictionary in _ready_rows:
 		var slot_ready: bool = bool(row["is_bot"]) or Match._lifecycle.loading_slot_ready(int(row["slot_id"]))
-		var mark: Control = row["mark"] as Control
-		if bool(mark.get_meta(&"ready", false)) != slot_ready:
-			mark.set_meta(&"ready", slot_ready)
-			mark.queue_redraw()
+		var mark: ReadyPill = row["mark"] as ReadyPill
+		mark.visible = true
+		if mark.is_ready != slot_ready:
+			mark.set_ready(slot_ready)
 	var pressed: bool = _local_pressed or ready_ids.has(Net.local_peer_id())
 	# The prompt: this instance finished loading, the gate is still closed, and the
 	# host waits for this peer (spectators, late joiners, clients of an ungated host

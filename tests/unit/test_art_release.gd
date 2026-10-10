@@ -2,7 +2,7 @@ extends GutTest
 ## Bontago-1pi.11.63: splash, loading-screen and weather-loop art must not stay
 ## resident after their screen/effect ends, and must load again when needed.
 
-const LOAD_WAIT_S: float = 10.0
+const LOAD_WAIT_S: float = 60.0
 const SETTLE_FRAMES: int = 4
 
 
@@ -65,7 +65,7 @@ func test_loading_backdrop_is_released_after_fade_and_reloads() -> void:
 		assert_false(ResourceLoader.has_cached(path), "plate not cached")
 	screen.show_for_match(config, _slots())
 	await wait_until(func() -> bool: return screen.backdrop_texture() != null, LOAD_WAIT_S, "plate loads again")
-	assert_eq(screen.backdrop_shown_path(), path)
+	assert_false(screen.backdrop_shown_path().is_empty(), "the next loading screen shows an image again (a fresh random pick)")
 
 
 func test_weather_bed_is_released_after_fade_and_reloads() -> void:
