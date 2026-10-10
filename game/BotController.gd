@@ -571,9 +571,50 @@ func _send_best_placement(place_target_override: Variant = null) -> StringName:
 	# pre-noise sample.
 	var hit: Dictionary = _raycast_support_height(noisy_origin)
 	var world_origin: Vector3 = _field.world_from_disk_local(noisy_origin, float(hit.get("height", 0.0)))
-	return StringName(match_ref.request_place(
+	var recording: Dictionary = _record_capture(best, place_target_override != null)
+	var reason: StringName = StringName(match_ref.request_place(
 		_slot_id, world_origin, best.orientation_index, Quaternion.IDENTITY, false, int(match_ref.feed_seq(_slot_id))
 	))
+	if _recorder != null:
+		_recorder.on_decision(recording, int(match_ref.feed_seq(_slot_id)), noisy_origin, reason)
+	return reason
+
+
+## Bontago-1t5.11 (BT2): optional passive observer (game/BotDecisionRecorder.gd). Null (the
+## default) means recording is off and nothing below runs.
+var _recorder: BotDecisionRecorder = null
+
+
+func set_recorder(recorder: BotDecisionRecorder) -> void:
+	_recorder = recorder
+
+
+## Read-only snapshot for the recorder, taken after the choice and before the request so the
+## re-scored terms see the same inputs pick_best() did. Draws no rng, mutates nothing.
+func _record_capture(best: BotCandidate, override_used: bool) -> Dictionary:
+	if _recorder == null or not _recorder.is_enabled():
+		return {}
+	var match_ref: Variant = _match()
+	var team_id: int = int(match_ref.team_of(_slot_id))
+	var goals: PackedVector2Array = _goal_positions()
+	var enemies: PackedVector2Array = _enemy_circle_centers()
+	var specials: PackedVector2Array = _active_special_positions()
+	var mode_goal: BotModeGoal = _mode_goal(match_ref)
+	var terms: Array[BotScoreTerms] = []
+	for candidate: BotCandidate in _candidates:
+		terms.append(BotPlacementScorer.score_terms(
+			candidate, match_ref.raster(), match_ref.cell_grid(), team_id, goals, enemies, specials,
+			tuning, _field_radius(), mode_goal
+		))
+	var held_special: bool = StringName(match_ref.held_special(_slot_id)) != &""
+	var shape: BlockShape = match_ref.held_shape(_slot_id)
+	var state: Dictionary = BotDecisionRecorder.build_state(
+		match_ref, _slot_id, team_id, enemies, specials.size(), mode_goal, tuning, _recorder.config.round_step
+	)
+	return _recorder.capture(
+		_slot_id, team_id, shape.id if shape != null else &"", _candidates, terms,
+		_candidates.find(best), override_used or held_special, state
+	)
 
 
 ## Bontago-d5c.8 (M5 P3b-ii): the already-generated candidate whose `origin`

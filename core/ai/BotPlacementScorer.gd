@@ -449,6 +449,37 @@ static func score(
 	return base + _mode_term(candidate, raster, grid, mode_goal, enemy_circle_centers, territory_tuning, tuning, field_radius)
 
 
+## Bontago-1t5.11 (BT1): the same decomposition score() sums, returned unweighted
+## for the offline bot-training recorder. Additive only: score() is untouched, and
+## BotScoreTerms.weighted() == score() (unit-tested across every mode).
+static func score_terms(
+	candidate: BotCandidate,
+	raster: TerritoryRaster,
+	grid: CellGrid,
+	_team_id: int,
+	goal_positions: PackedVector2Array,
+	enemy_circle_centers: PackedVector2Array,
+	active_special_positions: PackedVector2Array,
+	tuning: BotTuning,
+	field_radius: float,
+	mode_goal: BotModeGoal = null
+) -> BotScoreTerms:
+	var territory_tuning: TerritoryTuning = raster.tuning() if raster != null else null
+	var own_goal_term: bool = mode_goal != null and mode_goal.mode == MatchConfig.GameMode.CAPTURE_THE_FLAG
+	var multi_goal: bool = mode_goal != null and mode_goal.is_multi_goal()
+	var terms: BotScoreTerms = BotScoreTerms.new()
+	terms.height = candidate.support_height
+	if not own_goal_term and not multi_goal:
+		terms.goal = _goal_progress_metric(candidate, goal_positions, territory_tuning, field_radius)
+	terms.stability = _stability_term(candidate, grid, tuning)
+	terms.risk = _risk_term(candidate, enemy_circle_centers, active_special_positions, tuning)
+	if multi_goal:
+		terms.mode = _multi_goal_term(candidate, raster, mode_goal, territory_tuning, tuning, field_radius)
+	elif mode_goal != null and not mode_goal.is_neutral():
+		terms.mode = _mode_term(candidate, raster, grid, mode_goal, enemy_circle_centers, territory_tuning, tuning, field_radius)
+	return terms
+
+
 ## How many of `cells` (rotated by `basis`) sit at the lowest transformed
 ## height -- the flat-footprint coverage of resting this shape down on that
 ## face. Pure geometry: `basis` is always one of BlockOrientations' 24
