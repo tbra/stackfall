@@ -131,7 +131,8 @@ func test_clean_skips_send_nothing_then_a_real_solve_reaches_the_mirror() -> voi
 	_field.add_child(block)
 	block.freeze = true
 	var home: Vector2 = Match.slot(0).home_position
-	var spot: Vector2 = home - home.normalized() * 9.0  # toward the centre, outside the home circle
+	# DECISION: 8 m (was 9) so the cube circle still overlaps the home circle at the 40-degree cone (6 + 1.5 + h*tan(40) > 8).
+	var spot: Vector2 = home - home.normalized() * 8.0  # toward the centre, outside the home circle
 	block.global_position = _field.to_global(Vector3(spot.x, 0.5, spot.y))
 	Events.block_placed.emit(block, shape.id)
 	_registry._entries[block.get_instance_id()].is_settled = true
