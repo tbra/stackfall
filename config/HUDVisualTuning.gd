@@ -23,7 +23,7 @@ extends Resource
 ## on) -----------------------------------------------------------------------
 ## Square pixel size of the minimap's rendered image/Control in the HUD
 ## corner.
-@export var minimap_size_px: int = 160
+@export var minimap_size_px: int = 168
 ## Extra meters of half-extent beyond MapDef.field_radius the minimap frames,
 ## so the disk's own rim (and anything just past it, e.g. a home flag) is
 ## never clipped at the minimap's edge.
@@ -39,8 +39,8 @@ extends Resource
 @export var minimap_beacon_radius_px: float = 4.0
 ## Goal beacon glyph (filled circle, distinct from the home diamonds).
 @export var minimap_goal_radius_px: float = 5.0
-@export var minimap_goal_neutral_color: Color = Color(0.85, 0.85, 0.85)
-@export var minimap_goal_contested_color: Color = Color(1.0, 0.55, 0.15)
+@export var minimap_goal_neutral_color: Color = Color("#d9cbbd")
+@export var minimap_goal_contested_color: Color = Color("#ffc65a")
 @export var minimap_goal_capture_width_px: float = 2.0
 @export var minimap_gift_radius_px: float = 5.0
 @export var minimap_gift_falling_color: Color = Color(1.0, 0.91, 0.35)
@@ -49,7 +49,13 @@ extends Resource
 ## Border stroke width, in pixels, of the minimap's own frame ring --
 ## a thin rim (owner review 2026-09-26: "thin light-grey rim (~2px)", not a
 ## thick gold ring).
-@export var minimap_frame_border_width_px: float = 2.0
+@export var minimap_frame_border_width_px: float = 3.0
+## Stackfall Arcade (Bontago-hfa.6): the minimap's soft rim glow, the one place the HUD glows. Blur
+## size in pixels and opacity of the glow cast by the gold rim ring.
+@export var minimap_glow_size_px: float = 10.0
+@export var minimap_glow_alpha: float = 0.35
+## The local player's own beacon is drawn this many times the other beacons' size (their diamond marker).
+@export var minimap_local_beacon_scale: float = 1.7
 
 ## -- HUD panel palette (docs/art_mockups/10-main-menu-layered-pastel.png,
 ## docs/art_mockups/08-cel-shaded-home-beacons.png) -------------------------
@@ -89,12 +95,15 @@ extends Resource
 @export var hud_row_glyph_size_px: float = 20.0
 ## Bontago-1pi.81 (ui/SlotDiamond.gd, the one colour diamond used by the HUD, lobby seats and
 ## round score table): how much lighter the lit (left) half is than the slot colour,
-@export var hud_diamond_lit_amount: float = 0.25
+@export var hud_diamond_lit_amount: float = 0.35
 ## how much darker the shaded (right) half is,
-@export var hud_diamond_shade_amount: float = 0.25
-## and the stroke around the diamond.
-@export var hud_diamond_outline_color: Color = Color(0.0, 0.0, 0.0, 0.55)
-@export var hud_diamond_outline_width_px: float = 1.5
+@export var hud_diamond_shade_amount: float = 0.3
+## and the ink (disc-900) frame around the faceted beacon marker (Stackfall Arcade, Bontago-hfa.6:
+## docs/ui_reskin/markers/), whose thickness is the width below.
+@export var hud_diamond_outline_color: Color = Color("#16121c")
+@export var hud_diamond_outline_width_px: float = 2.0
+## Opacity of the top facet drawn in the slot colour over the two lit/shaded halves.
+@export var hud_diamond_top_facet_alpha: float = 0.85
 ## Dark translucent track color behind each player's territory-share bar
 ## (the team-colored fill is drawn on top of this, per slot).
 @export var hud_share_bar_track_color: Color = Color(0.05, 0.06, 0.09, 0.55)
@@ -112,36 +121,51 @@ extends Resource
 @export var surface_border_color: Color = Color(1.0, 1.0, 1.0, 0.12)
 @export var ink_color: Color = Color(0.96, 0.95, 0.90)
 @export var muted_ink_color: Color = Color(0.80, 0.82, 0.84, 0.90)
-@export var inner_surface_color: Color = Color(1.0, 1.0, 1.0, 0.05)
-@export var card_padding_px: float = 16.0
-@export var share_bar_width_px: float = 200.0
+@export var card_padding_px: float = 12.0
+@export var share_bar_width_px: float = 120.0
 ## Width in pixels of the player-name column beside each share bar; longer
 ## names are ellipsized (Bontago-1pi.68).
-@export var hud_row_name_width_px: float = 110.0
-@export var share_bar_height_px: float = 14.0
+@export var hud_row_name_width_px: float = 156.0
+@export var share_bar_height_px: float = 12.0
 ## Fraction of a share bar's height covered by the lighter highlight band on its fill.
 @export var share_bar_highlight_ratio: float = 0.35
 
 ## Bontago-mp0.27: pre-match 3-2-1 label. "Go" stays this long after PLAYING starts.
-@export var countdown_font_size: int = 120
-## Countdown label outline width = countdown_font_size / this.
-@export var countdown_outline_divisor: int = 6
-@export var countdown_go_text: String = "Go!"
+@export var countdown_font_size: int = 128
+@export var countdown_go_text: String = "GO"
 @export var countdown_go_hold_s: float = 0.8
-@export var countdown_outline_color: Color = Color(0.05, 0.07, 0.10, 0.85)
 
 ## Bontago-mp0.145: the ONE style every transient HUD message (claim toast,
 ## reject/relocated message, winner banner) shares: a dark-glass pill in the
 ## HUD card family, light ink, a readable text outline, and a border that
 ## carries the accent (the player's colour for a player message, the reject
 ## accent below for a refusal).
+## Stackfall Arcade (Bontago-hfa.6): the Callout's ink icon tile fill (the message face itself comes
+## from the ArcadeVisualTuning alert/mint/rim tokens).
 @export var toast_fill_color: Color = Color(0.05, 0.07, 0.10, 0.82)
-@export var toast_border_width_px: float = 3.0
-@export var toast_corner_radius_px: float = 18.0
-@export var toast_padding_x_px: float = 16.0
-@export var toast_padding_y_px: float = 6.0
+@export var toast_border_width_px: float = 4.0
+@export var toast_corner_radius_px: float = 8.0
+@export var toast_padding_x_px: float = 12.0
+@export var toast_padding_y_px: float = 8.0
 @export var toast_font_size: int = 16
-@export var toast_outline_size_px: int = 4
-## Border accent of a refusal ("Rejected: ...") message; distinct from the
-## relocated message's bluish auto-drop-flash accent and a player colour.
-@export var toast_reject_accent_color: Color = Color(0.95, 0.42, 0.36)
+## Edge length of the Callout's ink icon tile (the check / cross / star glyph) and the glyph's stroke width.
+@export var callout_icon_px: float = 24.0
+@export var callout_glyph_stroke_px: float = 3.0
+
+## -- Stackfall Arcade HUD (Bontago-hfa.6, docs/UI_RESKIN_PLAN.md P4) --
+## Seconds left on the block timer at or under which the ring and its number turn rim gold.
+@export var timer_hurry_seconds: float = 2.0
+## Opacity of the held/next cards while the fixed-interval release lock holds.
+@export var locked_card_alpha: float = 0.6
+## Gap between scoreboard rows, in pixels.
+@export var hud_row_gap_px: float = 4.0
+## Cuts drawn across each scoreboard bar track (10 = one per 10 % of share) and their width in pixels.
+@export var share_tick_count: int = 10
+@export var share_tick_width_px: float = 2.0
+## Width of the percentage / score column at the right of a scoreboard row.
+@export var hud_row_value_width_px: float = 56.0
+## Longest tutorial tip banner, in pixels, and the gap between the timer ring and the banner under it.
+@export var tip_max_width_px: float = 640.0
+@export var tip_ring_gap_px: float = 12.0
+## Local player's marker appended to their own scoreboard name.
+@export var hud_you_text: String = " · YOU"

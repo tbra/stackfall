@@ -60,9 +60,14 @@ func _apply_size() -> void:
 
 
 func _draw() -> void:
-	var corners: PackedVector2Array = points(size * 0.5, diamond_size_px() * 0.5)
-	draw_colored_polygon(PackedVector2Array([corners[CORNER_TOP], corners[CORNER_LEFT], corners[CORNER_BOTTOM]]), color.lightened(tuning.hud_diamond_lit_amount))
-	draw_colored_polygon(PackedVector2Array([corners[CORNER_TOP], corners[CORNER_RIGHT], corners[CORNER_BOTTOM]]), color.darkened(tuning.hud_diamond_shade_amount))
-	var outline: PackedVector2Array = corners.duplicate()
-	outline.append(corners[CORNER_TOP])
-	draw_polyline(outline, tuning.hud_diamond_outline_color, tuning.hud_diamond_outline_width_px, true)
+	# Stackfall Arcade (Bontago-hfa.6) beacon marker (docs/ui_reskin/markers/): an ink diamond frame,
+	# the inner diamond split into a lit left and shaded right half, and the slot colour over its top facet.
+	var center: Vector2 = size * 0.5
+	var half: float = diamond_size_px() * 0.5
+	var frame: PackedVector2Array = points(center, half)
+	draw_colored_polygon(frame, tuning.hud_diamond_outline_color)
+	var inner: PackedVector2Array = points(center, maxf(half - tuning.hud_diamond_outline_width_px, 0.0))
+	draw_colored_polygon(PackedVector2Array([inner[CORNER_TOP], inner[CORNER_LEFT], inner[CORNER_BOTTOM]]), color.lightened(tuning.hud_diamond_lit_amount))
+	draw_colored_polygon(PackedVector2Array([inner[CORNER_TOP], inner[CORNER_RIGHT], inner[CORNER_BOTTOM]]), color.darkened(tuning.hud_diamond_shade_amount))
+	var facet: Color = Color(color.r, color.g, color.b, tuning.hud_diamond_top_facet_alpha)
+	draw_colored_polygon(PackedVector2Array([inner[CORNER_TOP], inner[CORNER_RIGHT], inner[CORNER_LEFT]]), facet)

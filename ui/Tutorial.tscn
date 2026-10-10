@@ -31,15 +31,27 @@ anchor_left = 0.5
 anchor_top = 0.0
 anchor_right = 0.5
 anchor_bottom = 0.0
-offset_left = -260.0
-offset_top = 16.0
-offset_right = 260.0
-offset_bottom = 64.0
+offset_left = -320.0
+offset_top = 126.0
+offset_right = 320.0
+offset_bottom = 174.0
 grow_horizontal = 2
+mouse_filter = 2
 
-[node name="PromptLabel" type="HFlowContainer" parent="PromptLayer/PromptPanel"]
-unique_name_in_owner = true
+[node name="Row" type="HBoxContainer" parent="PromptLayer/PromptPanel"]
 layout_mode = 2
 mouse_filter = 2
-alignment = 1
+
+[node name="StepLabel" type="Label" parent="PromptLayer/PromptPanel/Row"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+text = "1/5"
+horizontal_alignment = 1
+
+[node name="PromptLabel" type="HFlowContainer" parent="PromptLayer/PromptPanel/Row"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
 script = ExtResource("7_hints")

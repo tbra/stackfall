@@ -30,6 +30,10 @@ signal finished
 @onready var _ghost: GhostPreview = $GhostPreview
 @onready var _hud: HUD = $HUDLayer
 @onready var _prompt_label: InputPromptFlow = %PromptLabel
+@onready var _prompt_panel: PanelContainer = %PromptLabel.get_parent().get_parent() as PanelContainer
+@onready var _step_label: Label = %StepLabel
+## Stackfall Arcade (Bontago-hfa.6): the tip banner's look comes from these tokens.
+@export var hud_visual_tuning: HUDVisualTuning = preload("res://config/hud_visual_tuning.tres")
 
 ## -1 before the first _begin_step() call (never observed once _ready() has
 ## run); otherwise an index into tutorial_config.steps.
@@ -87,6 +91,7 @@ func _ready() -> void:
 	# _ready() -- a silent no-op headless, so every test that builds this
 	# scene without a display keeps working.
 	_controller.enable_mouse_capture()
+	_style_tip_banner()
 	_begin_step(0)
 
 
@@ -94,6 +99,43 @@ func _ready() -> void:
 ## Sandbox.set_camera_rig() -- CameraRig lives outside this subtree.
 func set_camera_rig(rig: CameraRig) -> void:
 	_controller.set_camera_rig(rig)
+
+
+## Stackfall Arcade TipBanner (docs/ui_reskin/components.md): a HUD plate with a rim step block
+## ("1/5") and the sentence in cream, centred directly under the timer ring and never over it,
+## at most tip_max_width_px wide.
+func _style_tip_banner() -> void:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var theme: Theme = preload("res://ui/theme/stackfall_theme.tres")
+	_prompt_panel.theme = theme
+	var plate: StyleBoxFlat = StyleBoxFlat.new()
+	plate.bg_color = hud_visual_tuning.surface_color
+	plate.border_color = hud_visual_tuning.surface_border_color
+	plate.set_border_width_all(int(hud_visual_tuning.panel_border_width_px))
+	plate.set_corner_radius_all(arcade.radius_block_px)
+	plate.shadow_color = arcade.disc_950_color
+	plate.shadow_size = 1
+	plate.shadow_offset = Vector2(0.0, float(arcade.drop_sm_px))
+	plate.set_content_margin_all(float(arcade.space_3_px))
+	_prompt_panel.add_theme_stylebox_override("panel", plate)
+	var block: StyleBoxFlat = StyleBoxFlat.new()
+	block.bg_color = arcade.rim_color
+	block.border_color = arcade.rim_lip_color
+	block.border_width_bottom = arcade.lip_sm_px
+	block.set_corner_radius_all(arcade.radius_chip_px)
+	block.content_margin_left = float(arcade.space_2_px)
+	block.content_margin_right = float(arcade.space_2_px)
+	_step_label.add_theme_stylebox_override("normal", block)
+	_step_label.add_theme_font_override("font", theme.get_font(&"font", &"DisplayLabel"))
+	_step_label.add_theme_font_size_override("font_size", arcade.font_size_button_px)
+	_step_label.add_theme_color_override("font_color", arcade.ink_color)
+	_prompt_label.set_text_color(arcade.cream_color)
+	var half_width: float = hud_visual_tuning.tip_max_width_px * 0.5
+	_prompt_panel.offset_left = -half_width
+	_prompt_panel.offset_right = half_width
+	var top: float = _hud.timer_ring_bottom_px() + hud_visual_tuning.tip_ring_gap_px
+	_prompt_panel.offset_bottom = top + (_prompt_panel.offset_bottom - _prompt_panel.offset_top)
+	_prompt_panel.offset_top = top
 
 
 func controller() -> PlayerController:
@@ -168,6 +210,7 @@ func _begin_step(index: int) -> void:
 	_step_index = index
 	var step: TutorialStep = tutorial_config.steps[index]
 	_prompt_label.set_template(step.prompt_text)
+	_step_label.text = "%d/%d" % [index + 1, tutorial_config.steps.size()]
 	if step.completion_signal == SIGNAL_ORIENTATION_CHANGED:
 		_rotation_baseline = _ghost.orientation_index
 	elif step.completion_signal == SIGNAL_CAMERA_MOVED:

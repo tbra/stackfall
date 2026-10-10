@@ -127,6 +127,10 @@ func _ready() -> void:
 	# the drawn image fully transparent, so this circular backdrop is what
 	# shows through in the corners.
 	style.set_corner_radius_all(int(tuning.minimap_size_px * 0.5))
+	# Stackfall Arcade (Bontago-hfa.6): the disc-900 frame's 3 px rim ring casts a soft rim glow,
+	# echoing the arena's own glowing gold edge; it is the one place the HUD glows.
+	style.shadow_color = Color(tuning.minimap_frame_color, tuning.minimap_glow_alpha)
+	style.shadow_size = int(tuning.minimap_glow_size_px)
 	add_theme_stylebox_override("panel", style)
 
 	_territory_layer = Control.new()
@@ -155,6 +159,18 @@ func _ready() -> void:
 	add_child(_refresh_timer)
 
 	visible = false
+
+
+## The slot whose home beacon is drawn as the larger "you" marker (-1 = none).
+var _local_slot: int = -1
+
+
+func set_local_slot(slot_id: int) -> void:
+	if slot_id == _local_slot:
+		return
+	_local_slot = slot_id
+	if _canvas != null:
+		_canvas.queue_redraw()
 
 
 ## Frames the minimap from `map_def`'s own radius plus tuning.
@@ -566,15 +582,19 @@ func _draw_beacons() -> void:
 	if size_px <= 0.0:
 		return
 	var px_per_m: float = size_px / (_half_extent * 2.0)
-	var half: float = tuning.minimap_beacon_radius_px
 	for i: int in range(_home_positions.size()):
 		var point: Vector2 = _world_to_px(_home_positions[i], px_per_m)
 		var color: Color = _beacon_color(i)
+		# The local player's beacon is their larger diamond marker; the others are small diamonds.
+		var is_local: bool = i == _local_slot
+		var half: float = tuning.minimap_beacon_radius_px * (tuning.minimap_local_beacon_scale if is_local else 1.0)
 		var corners: PackedVector2Array = SlotDiamond.points(point, half)
 		_canvas.draw_colored_polygon(corners, color)
 		var outline: PackedVector2Array = corners.duplicate()
 		outline.append(corners[SlotDiamond.CORNER_TOP])
-		_canvas.draw_polyline(outline, Color(0.0, 0.0, 0.0, 0.6), 1.0, true)
+		var frame_color: Color = tuning.hud_diamond_outline_color
+		var frame_width: float = tuning.hud_diamond_outline_width_px if is_local else 1.0
+		_canvas.draw_polyline(outline, frame_color, frame_width, true)
 
 
 ## Test seam (tests/unit/test_hud.gd, test_minimap.gd): a slow CPU reference
