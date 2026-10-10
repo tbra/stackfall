@@ -50,7 +50,8 @@ func test_every_focus_stop_has_a_visible_focus_style() -> void:
 	await wait_frames(2)
 	for stop: Control in lobby._visible_chain(lobby._main_chain):
 		assert_ne(stop.focus_mode, Control.FOCUS_NONE, "%s is focusable" % stop.name)
-		var style: StyleBox = stop.get_theme_stylebox(&"focus")
+		# The container-based components (UiStepper) draw the Button focus look themselves.
+		var style: StyleBox = stop.get_theme_stylebox(&"focus", &"Button")
 		assert_not_null(style, "%s has a focus style" % stop.name)
 		assert_false(style is StyleBoxEmpty, "%s focus style is drawn, not empty" % stop.name)
 
@@ -64,20 +65,24 @@ func _pad_right() -> void:
 	Input.flush_buffered_events()
 
 
-## Bontago-hfa.11: the five lobby sliders are SegmentMeters, and the pad still steps the focused one.
-func test_lobby_sliders_are_segment_meters_and_dpad_right_still_steps_them() -> void:
+## Bontago-hfa.11 / 1pi.159.2.1: the lobby's value controls are UiSegmentMeters and UiSteppers, and the
+## pad's D-pad right still steps the focused one.
+func test_lobby_value_controls_are_components_and_dpad_right_steps_them() -> void:
 	var lobby: Lobby = _make_lobby()
 	await wait_frames(2)
-	for path: String in ["%DiscSizeSlider", "%GravitySlider", "%SpecialFreqSlider", "%MatchTimerSlider", "%RoundTimerSlider"]:
-		var slider: HSlider = lobby.get_node(path) as HSlider
-		assert_not_null(slider.get_node_or_null("SegmentMeter"), "%s is drawn as a SegmentMeter" % path)
-	var disc: HSlider = lobby.get_node("%DiscSizeSlider") as HSlider
-	disc.value = disc.min_value
+	for path: String in ["%DiscSizeMeter", "%GravityMeter", "%SpecialFreqMeter"]:
+		assert_true(lobby.get_node(path) is UiSegmentMeter, "%s is a UiSegmentMeter" % path)
+	for path: String in ["%MatchTimerStepper", "%RoundTimerStepper", "%BlockTimerStepper", "%GoalFlagStepper"]:
+		assert_true(lobby.get_node(path) is UiStepper, "%s is a UiStepper" % path)
+	var disc: UiSegmentMeter = lobby.get_node("%DiscSizeMeter") as UiSegmentMeter
+	disc.value = 1
 	disc.grab_focus()
-	var meter: SegmentMeter = disc.get_node("SegmentMeter") as SegmentMeter
-	assert_not_null(meter)
-	var before: int = SegmentMeter.filled_cells(disc, 10)
 	_pad_right()
 	await wait_frames(1)
-	assert_gt(disc.value, disc.min_value, "D-pad right steps the focused slider")
-	assert_gt(SegmentMeter.filled_cells(disc, 10), before, "the meter follows the value")
+	assert_gt(disc.value, 1, "D-pad right steps the focused meter")
+	var block: UiStepper = lobby.get_node("%BlockTimerStepper") as UiStepper
+	var before: int = block.value
+	block.grab_focus()
+	_pad_right()
+	await wait_frames(1)
+	assert_eq(block.value, before + 1, "D-pad right steps the focused stepper")

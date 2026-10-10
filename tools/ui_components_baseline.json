@@ -1,8 +1,8 @@
 {
  "R1": {
   "ui/GraphicsSettingsTab.gd": 11,
-  "ui/Lobby.gd": 49,
-  "ui/Lobby.tscn": 23,
+  "ui/Lobby.gd": 9,
+  "ui/Lobby.tscn": 7,
   "ui/OptionsMenu.gd": 24,
   "ui/OptionsMenu.tscn": 11,
   "ui/SegmentMeter.gd": 3,
@@ -16,7 +16,7 @@
   "ui/InputPromptFlow.gd": 3,
   "ui/KeyRebindRow.gd": 8,
   "ui/LoadingScreen.gd": 11,
-  "ui/Lobby.gd": 26,
+  "ui/Lobby.gd": 8,
   "ui/MainMenu.gd": 17,
   "ui/Minimap.gd": 1,
   "ui/OptionsMenu.gd": 17,
@@ -32,12 +32,11 @@
   "ui/lobby/LobbySection.gd": 3
  },
  "R3": {
-  "ui/Lobby.gd": 12,
+  "ui/Lobby.gd": 1,
   "ui/lobby/LobbyPlayersPanel.gd": 1,
   "ui/lobby/LobbySeatRow.gd": 3
  },
  "R4": {
-  "ui/Lobby.gd": 2,
   "ui/lobby/LobbySeatRow.gd": 2
  }
 }
