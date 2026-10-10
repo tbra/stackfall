@@ -384,29 +384,30 @@ text = ""
 unique_name_in_owner = true
 visible = false
 layout_mode = 1
-anchors_preset = 2
-anchor_top = 1.0
-anchor_bottom = 1.0
-offset_left = 24.0
-offset_top = -64.0
-offset_right = 112.0
-offset_bottom = -24.0
-grow_vertical = 0
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -368.0
+offset_top = 24.0
+offset_right = -280.0
+offset_bottom = 64.0
+grow_horizontal = 0
 tooltip_text = "Developer tools: demo scenes (debug mode only)"
 text = "DEBUG"
 
 [node name="BuildVersionLabel" type="Label" parent="."]
 unique_name_in_owner = true
 layout_mode = 1
-anchors_preset = 2
-anchor_top = 1.0
-anchor_bottom = 1.0
-offset_left = 120.0
-offset_top = -64.0
-offset_right = 368.0
-offset_bottom = -24.0
-grow_vertical = 0
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -272.0
+offset_top = 24.0
+offset_right = -24.0
+offset_bottom = 64.0
+grow_horizontal = 0
 mouse_filter = 2
+horizontal_alignment = 2
 vertical_alignment = 1
 
 [node name="GamepadHintPill" type="PanelContainer" parent="."]

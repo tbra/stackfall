@@ -23,7 +23,7 @@ extends Resource
 @export var advanced_toggle_padding_px: int = 8
 
 ## Width of the label column every settings row shares (Bontago-1pi.61), in px.
-@export var label_column_width_px: int = 150
+@export var label_column_width_px: int = 98
 
 ## Width of the value column (slider readout chip / value label) every row shares.
 @export var value_column_width_px: int = 120
@@ -38,6 +38,11 @@ extends Resource
 ## Vertical gap between settings rows (and between checklist rows).
 @export var row_spacing_px: int = 8
 
+## Bontago-1pi.150: smallest width of the Players card, so a full seat row (colour box, name,
+## difficulty, remove, badge) never clips on the 960x540 mockup-scale canvas; the settings column
+## takes what is left.
+@export var players_card_min_width_px: int = 384
+
 ## Edge of a seat row's colour box, in px (width, height). Replaces the 24 x 24
 ## clay-cube icon the roster rows drew before the rework.
 @export var color_box_size_px: Vector2 = Vector2(24.0, 24.0)
@@ -50,7 +55,7 @@ extends Resource
 @export var seat_row_min_height_px: int = 0
 
 ## Gap between the controls of one seat row (colour box, name column, badge).
-@export var seat_row_separation_px: int = 10
+@export var seat_row_separation_px: int = 6
 
 ## Gap between a seat's name and its subtitle line.
 @export var seat_text_separation_px: int = 0
@@ -67,15 +72,17 @@ extends Resource
 @export var seat_team_button_min_size_px: Vector2 = Vector2(40.0, 32.0)
 
 ## Smallest width of a bot's difficulty dropdown, in px.
-@export var seat_difficulty_min_width_px: int = 130
+@export var seat_difficulty_min_width_px: int = 108
+## Bontago-1pi.150: largest side margin of the difficulty pill's text, in px.
+@export var seat_difficulty_margin_px: int = 8
 
 ## Smallest size of a bot row's remove ("x") button: width, height in px.
-@export var seat_remove_button_min_size_px: Vector2 = Vector2(40.0, 32.0)
+@export var seat_remove_button_min_size_px: Vector2 = Vector2(34.0, 32.0)
 
 ## Bontago-1pi.146: height shared by every control on a seat row (team, difficulty, remove, ready/host badge,
 ## Add bot), and the badge's width, so the three right-hand pills read as one family.
 @export var seat_control_height_px: int = 32
-@export var seat_badge_width_px: int = 40
+@export var seat_badge_width_px: int = 36
 
 ## Width of the focus ring drawn round the colour box while it holds gamepad/keyboard
 ## focus, in px (the box is a flat colour, so the shared theme's ring would vanish

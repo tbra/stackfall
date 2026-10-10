@@ -122,10 +122,10 @@ extends Resource
 @export var ink_color: Color = Color(0.96, 0.95, 0.90)
 @export var muted_ink_color: Color = Color(0.80, 0.82, 0.84, 0.90)
 @export var card_padding_px: float = 12.0
-@export var share_bar_width_px: float = 120.0
+@export var share_bar_width_px: float = 88.0
 ## Width in pixels of the player-name column beside each share bar; longer
 ## names are ellipsized (Bontago-1pi.68).
-@export var hud_row_name_width_px: float = 156.0
+@export var hud_row_name_width_px: float = 132.0
 @export var share_bar_height_px: float = 12.0
 ## Fraction of a share bar's height covered by the lighter highlight band on its fill.
 @export var share_bar_highlight_ratio: float = 0.35
@@ -163,7 +163,7 @@ extends Resource
 @export var share_tick_count: int = 10
 @export var share_tick_width_px: float = 2.0
 ## Width of the percentage / score column at the right of a scoreboard row.
-@export var hud_row_value_width_px: float = 56.0
+@export var hud_row_value_width_px: float = 48.0
 ## Longest tutorial tip banner, in pixels, and the gap between the timer ring and the banner under it.
 @export var tip_max_width_px: float = 640.0
 @export var tip_ring_gap_px: float = 12.0

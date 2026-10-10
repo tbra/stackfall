@@ -418,6 +418,7 @@ func _process(_delta: float) -> void:
 ## ui/lobby/LobbyPlayersPanel.gd. Runs before the first _apply_data() so even the
 ## first rows are built from the Lobby's own resources.
 func _configure_players_panel() -> void:
+	_players_card.custom_minimum_size.x = float(layout_tuning.players_card_min_width_px)
 	_players_panel.net_provider = net_provider
 	_players_panel.tuning = tuning
 	_players_panel.layout_tuning = layout_tuning
@@ -678,8 +679,14 @@ func _apply_row_layout() -> void:
 				if section.advanced != null and section.advanced.is_ancestor_of(node):
 					indent = layout_tuning.advanced_indent_px
 			(node as Control).custom_minimum_size.x = layout_tuning.label_column_width_px - indent
+			if node is Label:
+				(node as Label).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		elif node.is_in_group(VALUE_CELL_GROUP):
 			(node as Control).custom_minimum_size.x = layout_tuning.value_column_width_px
+		# Bontago-1pi.150: a long toggle caption wraps instead of widening the whole settings
+		# column past the (UI-scaled) canvas.
+		if node is CheckBox or node is CheckButton:
+			(node as Button).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 
 ## Bontago-1pi.146: one control column and one value column for every settings row. Each row of a

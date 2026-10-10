@@ -143,6 +143,7 @@ var name_provider: Variant = null
 @onready var _minimap: Minimap = %Minimap
 @onready var _top_left_backplate: Panel = %TopLeftBackplate
 @onready var _top_left_cluster: VBoxContainer = $TopLeftCluster
+var _top_left_cluster_base_right: float = 0.0
 
 var _shapes_by_id: Dictionary = {}
 ## Placeholder id for a queued gift whose def id is unknown (icon falls back).
@@ -289,6 +290,9 @@ func _ready() -> void:
 	_reject_icon.visible = false
 	# Row gap of the scoreboard (docs/ui_reskin: rows are tight, the plate carries the grouping).
 	_shares_box.add_theme_constant_override("separation", int(hud_visual_tuning.hud_row_gap_px))
+	_top_left_cluster_base_right = _top_left_cluster.offset_right
+	get_viewport().size_changed.connect(_fit_top_left_cluster)
+	_fit_top_left_cluster()
 	_top_left_cluster.resized.connect(_resize_top_left_backplate)
 	_resize_top_left_backplate()
 
@@ -1009,6 +1013,16 @@ func _style_status_plate(label: Label, ink: Color) -> void:
 	label.add_theme_font_size_override("font_size", _arcade.font_size_label_px)
 	label.theme_type_variation = &"FieldLabel"
 	label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+
+
+## Bontago-1pi.150: on a narrow (UI-scaled) canvas the scoreboard would run under the centred timer
+## ring; its right edge is clamped to keep UiScaleTuning.hud_timer_clearance_px clear of it.
+func _fit_top_left_cluster() -> void:
+	var canvas_w: float = get_viewport().get_visible_rect().size.x
+	var ring_left: float = canvas_w * _timer_ring.anchor_left + _timer_ring.offset_left
+	var limit: float = ring_left - float(UiScaleTuning.shared().hud_timer_clearance_px) - hud_visual_tuning.card_padding_px
+	_top_left_cluster.offset_right = minf(_top_left_cluster_base_right, maxf(limit, _top_left_cluster.offset_left))
+	_resize_top_left_backplate()
 
 
 func _resize_top_left_backplate() -> void:

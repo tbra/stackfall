@@ -39,6 +39,8 @@ func before_each() -> void:
 ## trusting every test body to restore it, and other files in the same batch
 ## (test_main_menu, test_settings) never read the real Settings singleton.
 func after_each() -> void:
+	# Bontago-1pi.150 review: the published UI scale is static; never leak it into later tests.
+	UiScaleTuning.current_scale = -1.0
 	if InputMap.has_action(_test_action):
 		InputMap.erase_action(_test_action)
 	Settings.set_config_path_for_test(DEFAULT_SETTINGS_CFG_PATH)
@@ -182,6 +184,58 @@ func test_rumble_strength_slider_calls_set_rumble_strength() -> void:
 	var menu: OptionsMenu = _make_menu()
 	menu._on_rumble_strength_changed(0.4)
 	assert_almost_eq(_settings_of(menu).rumble_strength(), 0.4, 0.0001)
+
+
+# --- UI scale (Bontago-1pi.150) ------------------------------------------------
+
+func test_ui_scale_slider_range_value_and_live_set() -> void:
+	var menu: OptionsMenu = _make_menu()
+	var tuning: UiScaleTuning = UiScaleTuning.shared()
+	var slider: HSlider = menu.get_node("%UiScaleSlider") as HSlider
+	assert_eq(slider.min_value, tuning.min_scale)
+	assert_eq(slider.max_value, tuning.max_scale)
+	assert_eq(slider.value, tuning.default_scale)
+	assert_eq((menu.get_node("%UiScaleValueLabel") as Label).text, "100%")
+	menu._on_ui_scale_changed(1.1)
+	assert_almost_eq(_settings_of(menu).ui_scale(), 1.1, 0.0001)
+	assert_eq((menu.get_node("%UiScaleValueLabel") as Label).text, "110%")
+	menu._on_reset_pressed()
+	assert_eq(_settings_of(menu).ui_scale(), tuning.default_scale)
+	assert_eq(slider.value, tuning.default_scale)
+	UiScaleTuning.current_scale = -1.0
+
+
+func test_ui_scale_slider_drag_applies_on_release_only() -> void:
+	var menu: OptionsMenu = _make_menu()
+	var slider: HSlider = menu.get_node("%UiScaleSlider") as HSlider
+	menu._on_ui_scale_drag_started()
+	slider.value = 0.9
+	assert_eq(_settings_of(menu).ui_scale(), UiScaleTuning.shared().default_scale, "no rescale mid-drag")
+	assert_eq((menu.get_node("%UiScaleValueLabel") as Label).text, "90%")
+	menu._on_ui_scale_drag_ended(true)
+	assert_almost_eq(_settings_of(menu).ui_scale(), 0.9, 0.0001)
+	UiScaleTuning.current_scale = -1.0
+
+
+func test_ui_scale_slider_steps_with_a_synthetic_gamepad_dpad() -> void:
+	var menu: OptionsMenu = _make_menu()
+	var slider: HSlider = menu.get_node("%UiScaleSlider") as HSlider
+	slider.grab_focus()
+	var before: float = slider.value
+	var event: InputEventJoypadButton = InputEventJoypadButton.new()
+	event.button_index = JOY_BUTTON_DPAD_LEFT
+	event.pressed = true
+	Input.parse_input_event(event)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_lt(slider.value, before, "d-pad left lowers the UI scale")
+	event.pressed = false
+	Input.parse_input_event(event)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+	assert_almost_eq(_settings_of(menu).ui_scale(), slider.value, 0.0001)
+	UiScaleTuning.current_scale = -1.0
 
 
 # --- Block move speed (Controls tab, device-aware) -----------------------------
@@ -460,8 +514,11 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	# ui_down, which Godot's own Control focus-neighbor resolution consumes
 	# via these NodePaths -- there is no separate synthetic-input path to
 	# drive here).
-	assert_eq(window_mode_option.get_node(window_mode_option.focus_neighbor_bottom), camera_shake_check, "WindowModeOption must move focus down to CameraShakeCheck")
-	assert_eq(camera_shake_check.get_node(camera_shake_check.focus_neighbor_top), window_mode_option, "CameraShakeCheck must move focus up to WindowModeOption")
+	# Bontago-1pi.150: UiScaleSlider sits between WindowModeOption and CameraShakeCheck.
+	var ui_scale_slider: Control = menu.get_node("%UiScaleSlider") as Control
+	assert_eq(window_mode_option.get_node(window_mode_option.focus_neighbor_bottom), ui_scale_slider, "WindowModeOption must move focus down to UiScaleSlider")
+	assert_eq(ui_scale_slider.get_node(ui_scale_slider.focus_neighbor_bottom), camera_shake_check, "UiScaleSlider must move focus down to CameraShakeCheck")
+	assert_eq(camera_shake_check.get_node(camera_shake_check.focus_neighbor_top), ui_scale_slider, "CameraShakeCheck must move focus up to UiScaleSlider")
 
 	var master_mute: Control = menu.get_node("%MasterMuteButton") as Control
 	var rumble_check: Control = menu.get_node("%RumbleEnabledCheck") as Control
