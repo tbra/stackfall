@@ -105,6 +105,15 @@ writes `<scene>_sheet.png` next to the captures (unlabelled cells, row-major
 capture order, names printed). Retrofitted: screenshot_fog, screenshot_rain,
 screenshot_pt7_pause.
 
+## `godot_exe.py` (one Godot resolver, Bontago-fca.93)
+
+`godot_exe.resolve(name="godot")` returns the real Godot `.exe` for the Python launchers: env `GODOT` if it exists, else `shutil.which`, and for a `.cmd`/`.bat` PATH shim the first quoted `.exe` it names (`%VAR%` expanded). `bot_h2h.py`, `full_gate.py`, `measure_startup.py` and `godot_slots.py run` use it so no cmd.exe sits between the launcher and Godot.
+
+```
+python -I tools/test_godot_exe.py
+python -c "import sys; sys.path.insert(0,'tools'); import godot_exe; print(godot_exe.resolve())"
+```
+
 ## `godot_slots.py`, `cpumon.ps1` (machine-wide Godot cap, Bontago-fca.89)
 
 Too many concurrent Godot processes crashed the owner's PC, so launches queue on a

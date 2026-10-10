@@ -58,6 +58,7 @@ from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import godot_exe  # noqa: E402
 import godot_slots  # noqa: E402
 
 GATE_WIN_SHARE = 0.75
@@ -326,6 +327,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Optional[List[str]] = None, runner: Callable[[Sequence[str], float], str] = run_process) -> int:
     args = build_parser().parse_args(argv)
+    args.godot = godot_exe.resolve(args.godot)  # real .exe behind PATH shims (Bontago-fca.93)
 
     if args.battery:
         if not args.dry_run:

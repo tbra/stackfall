@@ -30,6 +30,8 @@ import sys
 import tempfile
 import time
 
+import godot_exe  # Bontago-fca.93: real Godot .exe behind PATH shims
+
 DEFAULT_CAP = 3
 DEFAULT_MAX_WAIT_S = 3600.0
 POLL_S = 0.5
@@ -235,7 +237,8 @@ def main(argv=None):
         return TIMEOUT_EXIT
     try:
         print("godot slot %d/%d taken (%s)" % (i + 1, cap(), a.label), file=sys.stderr, flush=True)
-        child[0] = shutil.which(child[0]) or child[0]  # resolves PATH shims (godot.cmd) like a shell
+        if os.path.basename(child[0]).lower().startswith("godot"):
+            child[0] = godot_exe.resolve(child[0])  # real .exe, not the godot.cmd shim (Bontago-fca.93)
         return subprocess.call(child)
     except OSError as e:
         print("godot_slots: cannot launch %s: %s" % (child[0], e), file=sys.stderr)
