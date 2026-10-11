@@ -167,3 +167,17 @@ are game time (physics ticks, the clock `--seconds` uses; `wall=` is the wall-cl
 under `--fixed-fps 60` `done t=` equals the cap. A run that hits `--seconds` while still PLAYING prints
 `HEADLESS_MATCH ... winner_team=-1 ... timeout=1`; `bot_h2h.py` counts it as a draw and shows it as
 `draws=N (timeouts=M)`, separate from `failed` (no HEADLESS_MATCH line at all).
+
+## `bot_match_sheet.tscn` and `bench_headless_bots.gd --bot-brain` (bot eval harness B, Bontago-1t5.29)
+`tools/bot_match_sheet.tscn` renders a local loopback bot match off-screen and saves one frame per match time
+plus one big contact sheet (`bot_match_p1.png`, <=2600x3000) into `--out=<dir>` (E7 of docs/BOT_AI_REDESIGN.md 2.5).
+Match time runs in real time (default frames at 60/120/180/300 s = about 5 minutes):
+
+    python tools/godot_slots.py run --label bench -- godot --windowed --position 10000,10000 --resolution 320x180 \
+      --audio-driver Dummy --path . res://tools/bot_match_sheet.tscn -- --agent-probe --render-size=1280x720 \
+      --out=<abs dir> --bots=4 --difficulty=hard --brain=v2 [--players=4 (bots=1: Hard vs 3 passive)] \
+      [--seed=N] [--times=60,120,180,300] [--cam=yaw,pitch,dist[,tx,ty,tz]]
+
+`tests/bench/bench_headless_bots.tscn -- --bot-brain=v2|legacy [--bot-brain-slots=csv] [--bot-difficulty=easy|normal|hard]
+[--run-seconds=N]` adds the E6 report: per-bot think ms/frame (mean/p99/max), IDLE->THINKING and ACTING tick cost,
+all-bots max frame ms and decision latency (thinking start -> ACTING), with `e6_bars=PASS|FAIL` (never gates `result=`).
