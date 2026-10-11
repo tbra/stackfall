@@ -785,7 +785,10 @@ func _ensure_overlays() -> void:
 
 
 func _show_main_menu() -> void:
-	Match.stats().reset_session_wins()  # Bontago-1pi.72.3: a fresh local session
+	# Bontago-1pi.11.85.1: stats() is null until late_activate(); a fresh session has no wins to reset.
+	var session_stats: RefCounted = Match.stats()
+	if session_stats != null:
+		session_stats.reset_session_wins()  # Bontago-1pi.72.3: a fresh local session
 	Sfx.set_music_context(&"menu")
 	# DECISION (Bontago-1pi.156): Main owns the splash -> menu hand-off, so it starts the
 	# menu music here (after the splash `finished`, or immediately with no splash).
