@@ -53,6 +53,7 @@ func _make_rig() -> CameraRig:
 	# config/camera_tuning.tres singleton every other test/scene reads, and
 	# lets these tests shrink the tap/peek/glide durations so they run fast.
 	rig.tuning = rig.tuning.duplicate() as CameraTuning
+	rig.tuning.snap_enabled = true  # snap ships disabled (Bontago-1pi.159.22); these tests cover the gesture itself.
 	rig.tuning.focus_hold_threshold_s = 0.05
 	rig.tuning.focus_turn_duration_s = 0.05
 	rig.tuning.focus_peek_transition_s = 0.05
@@ -97,6 +98,33 @@ func _finish_tweens(seconds: float) -> void:
 	for tween: Tween in get_tree().get_processed_tweens():
 		if tween.is_valid() and tween.is_running():
 			tween.custom_step(seconds)
+
+
+# --- snap disabled (Bontago-1pi.159.22) ----------------------------------------
+
+
+func test_snap_actions_do_nothing_while_snap_is_disabled_and_work_when_re_enabled() -> void:
+	var rig: CameraRig = _make_rig()
+	rig.set_local_slot(0)
+	rig.set_follow_position(Vector3(3.0, 0.0, -4.0))
+	rig._process(1.0 / 60.0)
+	var yaw_before: float = rig.get_yaw()
+	assert_true(load("res://config/camera_tuning.tres").get("snap_enabled") == false, "snap ships disabled")
+
+	rig.tuning.snap_enabled = false
+	_press_and_hold(rig, &"camera_snap_home", 30)
+	assert_false(rig.is_peeking(), "disabled snap must not PEEK")
+	_release_and_settle(rig, &"camera_snap_home", 30)
+	_press_and_hold(rig, &"camera_snap_goal", 30)
+	assert_false(rig.is_peeking())
+	_release_and_settle(rig, &"camera_snap_goal", 30)
+	_finish_tweens(rig.tuning.focus_turn_duration_s + 0.05)
+	assert_almost_eq(rig.get_yaw(), yaw_before, 0.0001, "disabled snap must not turn the camera")
+
+	rig.tuning.snap_enabled = true
+	_press_and_hold(rig, &"camera_snap_home", 30)
+	assert_true(rig.is_peeking(), "re-enabled snap works again")
+	_release_and_settle(rig, &"camera_snap_home", 30)
 
 
 # --- TAP: TURN ---------------------------------------------------------------

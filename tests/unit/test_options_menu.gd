@@ -535,6 +535,8 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	assert_eq(move_speed_slider.get_node(move_speed_slider.focus_neighbor_bottom), rows[0].rebind_button(), "MoveSpeedSlider must move focus down to the first rebind row")
 
 	for row: KeyRebindRow in rows:
+		if not row.is_available_on_active_device():
+			continue  # hidden rows (snap while disabled) are not focus stops.
 		var button: Control = row.rebind_button()
 		assert_ne(button.focus_neighbor_top, NodePath(""), "%s's rebind button must have an up neighbor" % row.action_name())
 		assert_ne(button.focus_neighbor_bottom, NodePath(""), "%s's rebind button must have a down neighbor" % row.action_name())
@@ -546,9 +548,12 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 func test_focus_chain_skips_rows_hidden_on_the_gamepad_page() -> void:
 	var menu: OptionsMenu = _make_menu()
 	var lock_button: Control = null
+	var pad_hidden: Array[Control] = []
 	for row: KeyRebindRow in menu.rebind_rows():
 		if row.action_name() == &"lock_vertical":
 			lock_button = row.rebind_button()
+		if KeyRebindRow.PAD_NOT_APPLICABLE.has(row.action_name()) and row.is_available_on_active_device():
+			pad_hidden.append(row.rebind_button())
 	assert_not_null(lock_button, "lock_vertical must have a row")
 	var preset: Control = menu.get_node("%WindowModeOption") as Control
 	var chain_before: Array[Control] = _chain_from(preset)
@@ -558,7 +563,9 @@ func test_focus_chain_skips_rows_hidden_on_the_gamepad_page() -> void:
 	assert_false(lock_button.visible, "Lock height row is hidden on the gamepad page")
 	var chain_pad: Array[Control] = _chain_from(preset)
 	assert_false(chain_pad.has(lock_button), "no focus-chain stop may point at the hidden row")
-	assert_eq(chain_pad.size(), chain_before.size() - 1, "only the hidden row drops out of the chain")
+	for hidden_button: Control in pad_hidden:
+		assert_false(chain_pad.has(hidden_button), "no focus-chain stop may point at a pad-hidden row")
+	assert_eq(chain_pad.size(), chain_before.size() - pad_hidden.size(), "only the hidden rows drop out of the chain")
 
 	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
 	assert_true(lock_button.visible)

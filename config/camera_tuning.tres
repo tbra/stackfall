@@ -20,6 +20,7 @@ follow_lag_seconds = 0.0
 drop_recover_seconds = 0.2
 follow_distance = 9.0
 follow_pitch_deg = -35.0
+snap_enabled = false
 snap_pitch_deg = -35.0
 snap_distance = 30.0
 snap_duration = 0.35

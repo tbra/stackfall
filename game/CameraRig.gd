@@ -306,7 +306,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_zoom(-1.0)
 	elif event.is_action_pressed(&"camera_zoom_out"):
 		_zoom(1.0)
-	elif event.is_action_pressed(&"camera_snap_home"):
+	# Owner 2026-10-11: snap is off while tuning.snap_enabled is false (Bontago-1pi.170).
+	elif tuning.snap_enabled and event.is_action_pressed(&"camera_snap_home"):
 		# Bontago-b7r: camera_snap_goal no longer shares B with rotate_snap
 		# (tools/bootstrap_project.gd), so camera_snap_home's own press/release
 		# needs no block_held gate either -- see _on_focus_pressed()'s own
@@ -315,7 +316,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			_on_focus_pressed(&"camera_snap_home")
 	elif event.is_action_released(&"camera_snap_home") and _focus_action == &"camera_snap_home":
 		_on_focus_released()
-	elif event.is_action_pressed(&"camera_snap_goal"):
+	elif tuning.snap_enabled and event.is_action_pressed(&"camera_snap_goal"):
 		_on_focus_pressed(&"camera_snap_goal")
 	elif event.is_action_released(&"camera_snap_goal") and _focus_action == &"camera_snap_goal":
 		_on_focus_released()

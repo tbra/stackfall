@@ -402,6 +402,8 @@ func test_a_lobby_match_after_a_menu_sandbox_has_gamepad_home_focus_again() -> v
 	pad_back.button_index = JOY_BUTTON_BACK
 	pad_back.pressed = true
 	assert_true(pad_back.is_action_pressed(&"camera_snap_home"), "fixture: Back is camera_snap_home")
+	rig.tuning = rig.tuning.duplicate() as CameraTuning
+	rig.tuning.snap_enabled = true  # snap ships disabled (Bontago-1pi.159.22); this covers the suppress flag.
 	rig._unhandled_input(pad_back)
 	assert_eq(rig._focus_action, &"camera_snap_home", "pad Back focuses home in the lobby match")
 
