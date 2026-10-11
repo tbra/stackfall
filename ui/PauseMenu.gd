@@ -113,6 +113,8 @@ var context_provider: Callable = Callable()
 var _options_menu: OptionsMenu = null
 var _pending_action: PendingAction = PendingAction.NONE
 var _confirm_origin: Button = null
+## Restores the focus modes UiFocusTrap.suspend_outside() cleared while Options is open.
+var _restore_focus: Callable = Callable()
 
 @onready var _root: Control = %Root
 @onready var _center: CenterContainer = %Center
@@ -242,6 +244,7 @@ func _on_options_pressed() -> void:
 	_options_menu = OPTIONS_MENU_SCENE.instantiate() as OptionsMenu
 	_center.visible = false
 	_root.add_child(_options_menu)
+	_restore_focus = UiFocusTrap.suspend_outside(_options_menu, get_tree().root)
 	_options_menu.closed.connect(_on_options_closed)
 
 
@@ -249,6 +252,9 @@ func _on_options_closed() -> void:
 	if _options_menu != null:
 		_options_menu.queue_free()
 		_options_menu = null
+	if _restore_focus.is_valid():
+		_restore_focus.call()
+		_restore_focus = Callable()
 	_center.visible = true
 	_options_button.grab_focus()
 
@@ -337,3 +343,5 @@ func _wire_focus_chain() -> void:
 		current.focus_mode = Control.FOCUS_ALL
 	if not chain.has(_return_button):
 		_return_button.focus_mode = Control.FOCUS_NONE
+	# Bontago-1pi.159.15: left / right (no neighbour set) must not leave the pause panel.
+	UiFocusTrap.trap(_resume_button.get_parent() as Control)

@@ -484,6 +484,7 @@
   "ui/UiScale.gd",
   "ui/components/UiBlockButton.gd",
   "ui/components/UiDropdown.gd",
+  "ui/components/UiFocusTrap.gd",
   "ui/components/UiHoldRepeat.gd",
   "ui/components/UiIconButton.gd",
   "ui/components/UiPanel.gd",
