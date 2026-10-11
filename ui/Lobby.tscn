@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3]
+[gd_scene load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://ui/Lobby.gd" id="1_lobby"]
 [ext_resource type="Theme" path="res://ui/theme/stackfall_theme.tres" id="2_theme"]
@@ -14,6 +14,7 @@
 [ext_resource type="Script" path="res://ui/components/UiTitleRow.gd" id="13_titlerow"]
 [ext_resource type="Script" path="res://ui/components/UiStatusBadge.gd" id="14_badge"]
 [ext_resource type="Script" path="res://ui/components/UiBlockButton.gd" id="15_block"]
+[ext_resource type="Script" path="res://ui/components/UiPanel.gd" id="16_panel"]
 
 [node name="Lobby" type="Control"]
 layout_mode = 3
@@ -105,10 +106,10 @@ theme_override_constants/separation = 16
 
 [node name="SettingsCard" type="PanelContainer" parent="Margin/Layout/Columns"]
 unique_name_in_owner = true
+script = ExtResource("16_panel")
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_stretch_ratio = 1.5
-clip_contents = true
 
 [node name="SettingsCardLayout" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard"]
 layout_mode = 2
@@ -259,7 +260,7 @@ layout_mode = 2
 unique_name_in_owner = true
 script = ExtResource("8_row")
 layout_mode = 2
-metadata/row_label = "Round length"
+metadata/row_label = "Round length (min)"
 
 [node name="RoundTimerStepper" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/RoundTimerCol"]
 unique_name_in_owner = true
@@ -273,7 +274,7 @@ step = 1
 unique_name_in_owner = true
 script = ExtResource("8_row")
 layout_mode = 2
-metadata/row_label = "Match timer"
+metadata/row_label = "Match timer (min)"
 
 [node name="MatchTimerStepper" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/MatchTimerCol"]
 unique_name_in_owner = true
@@ -298,7 +299,7 @@ caption = "Sudden death"
 [node name="BlockTimerGroup" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow"]
 script = ExtResource("8_row")
 layout_mode = 2
-metadata/row_label = "Block timer"
+metadata/row_label = "Block timer (s)"
 
 [node name="BlockTimerStepper" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/BlockTimerGroup"]
 unique_name_in_owner = true
@@ -395,7 +396,7 @@ layout_mode = 2
 [node name="ExperimentsGroup" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced"]
 script = ExtResource("8_row")
 layout_mode = 2
-metadata/row_label = "Off by default"
+metadata/row_label = "Trials"
 
 [node name="ExperimentsChecklist" type="GridContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced/ExperimentsGroup"]
 unique_name_in_owner = true
@@ -445,9 +446,9 @@ tooltip_text = "Trial (on by default): a claimed gift becomes the block after ne
 
 [node name="PlayersCard" type="PanelContainer" parent="Margin/Layout/Columns"]
 unique_name_in_owner = true
+script = ExtResource("16_panel")
 layout_mode = 2
 size_flags_horizontal = 3
-clip_contents = true
 
 [node name="Players" type="VBoxContainer" parent="Margin/Layout/Columns/PlayersCard"]
 layout_mode = 2
