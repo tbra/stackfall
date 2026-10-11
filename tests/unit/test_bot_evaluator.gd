@@ -1,7 +1,8 @@
 extends GutTest
 ## core/ai/BotEvaluator.gd (Bontago-1t5.22, Bot V2 P3): proxy and measured terms on a
 ## synthetic two-team map: kill on an enemy snake joint, reach of a tall tip stack,
-## waste inside own land, exposure inside enemy reach, no kill under HoleMode.OFF.
+## waste inside own land, exposure inside enemy reach, no kill under HoleMode.OFF, and the
+## Bontago-1t5.32 HAZARD term (doomed footprint, one-placement look-ahead, none under OFF).
 ## Pure: a real CellGrid/TerritoryRaster, no scene tree.
 
 const MAP_RADIUS: float = 45.0
@@ -24,6 +25,11 @@ const OPEN_FIELD: Vector2 = Vector2(0.0, 30.0)
 const DEEP_OWN: Vector2 = Vector2(-28.0, 1.0)
 const RISKY: float = 0.5
 const TOLERANCE: float = 0.001
+## A site this far inside the enemy tip circle (its origin cell is enemy-held).
+const INSIDE_ENEMY_M: float = 0.5
+## Look-ahead fractions for the graded HAZARD sites.
+const HALF: float = 0.5
+const BEYOND_LOOKAHEAD: float = 1.25
 
 var _tuning: TerritoryTuning = preload("res://config/territory_tuning.tres")
 var _view: BotWorldView = null
@@ -172,3 +178,53 @@ func test_off_mode_has_no_kill_term() -> void:
 	assert_almost_eq(_measured(on_joint, intent, BotIntent.Term.KILL), 0.0, TOLERANCE, "no kill under HoleMode.OFF")
 	assert_almost_eq(_proxied(on_joint, intent, BotIntent.Term.KILL), 0.0, TOLERANCE, "no proxy kill either")
 	assert_gt(_measured(on_joint, intent, BotIntent.Term.AREA), 0.0, "a taller kernel still wins cells")
+
+
+## Point on the x axis `gap` metres outside the enemy tip circle's edge, towards the target.
+func _outside_enemy_tip(gap: float) -> Vector2:
+	var tip_radius: float = InfluenceCircle.radius_for_height(BLOCK_TOP_M, _tuning, MAP_RADIUS)
+	return Vector2(ENEMY_X[TIP_INDEX] - tip_radius - gap, 0.0)
+
+
+func test_hazard_dooms_a_footprint_in_enemy_land() -> void:
+	_build(false)
+	var intent: BotIntent = _intent({BotIntent.Term.HAZARD: 1.0})
+	var inside: BotCandidate = _site(Vector2(ENEMY_X[TIP_INDEX] - INSIDE_ENEMY_M, 0.0), BLOCK_TOP_M)
+	assert_almost_eq(_measured(inside, intent, BotIntent.Term.HAZARD), 1.0, TOLERANCE, "enemy-held footprint dissolves")
+	assert_almost_eq(_proxied(inside, intent, BotIntent.Term.HAZARD), 1.0, TOLERANCE, "the proxy reads the same cells")
+
+
+func test_hazard_looks_ahead_one_enemy_placement() -> void:
+	_build(false)
+	var intent: BotIntent = _intent({BotIntent.Term.HAZARD: 1.0})
+	var lookahead: float = BotEvaluator.hazard_lookahead(_view)
+	assert_gt(lookahead, InfluenceCircle.radius_for_height(0.0, _tuning, MAP_RADIUS), "a fresh piece reaches past the base radius")
+	var half: BotCandidate = _site(_outside_enemy_tip(lookahead * HALF), BLOCK_TOP_M)
+	var beyond: BotCandidate = _site(_outside_enemy_tip(lookahead * BEYOND_LOOKAHEAD), BLOCK_TOP_M)
+	assert_almost_eq(_measured(half, intent, BotIntent.Term.HAZARD), HALF, TOLERANCE, "graded by the gap to the enemy edge")
+	assert_almost_eq(_proxied(half, intent, BotIntent.Term.HAZARD), HALF, TOLERANCE, "proxy agrees")
+	assert_almost_eq(_measured(beyond, intent, BotIntent.Term.HAZARD), 0.0, TOLERANCE, "safe beyond the look-ahead")
+	var far: BotCandidate = _site(FAR_FROM_ENEMY, BLOCK_TOP_M)
+	assert_almost_eq(_measured(far, intent, BotIntent.Term.HAZARD), 0.0, TOLERANCE, "own side is safe")
+	assert_lt(BotEvaluator.proxy(half, _view, intent), BotEvaluator.proxy(beyond, _view, intent), "hazard lowers the score")
+
+
+func test_off_mode_has_no_hazard() -> void:
+	_build(true)
+	var intent: BotIntent = _intent({BotIntent.Term.HAZARD: 1.0})
+	var inside: BotCandidate = _site(Vector2(ENEMY_X[TIP_INDEX] - INSIDE_ENEMY_M, 0.0), BLOCK_TOP_M)
+	assert_almost_eq(_measured(inside, intent, BotIntent.Term.HAZARD), 0.0, TOLERANCE, "nothing dissolves under HoleMode.OFF")
+	assert_almost_eq(_proxied(inside, intent, BotIntent.Term.HAZARD), 0.0, TOLERANCE, "no proxy hazard either")
+
+
+func test_hazard_skips_an_enemy_circle_the_site_strikes_first() -> void:
+	_build(false)
+	var intent: BotIntent = _intent({BotIntent.Term.HAZARD: 1.0})
+	var point: Vector2 = _outside_enemy_tip(BotEvaluator.hazard_lookahead(_view) * HALF)
+	var low: BotCandidate = _site(point, BLOCK_TOP_M)
+	var tall: BotCandidate = _site(point, HUGE_TOP_M)
+	assert_gt(BotEvaluator.future_radius(tall, _view), point.distance_to(Vector2(ENEMY_X[TIP_INDEX], 0.0)), "precondition: covers the tip")
+	assert_almost_eq(_measured(low, intent, BotIntent.Term.HAZARD), HALF, TOLERANCE, "a low piece loses the race")
+	assert_almost_eq(_measured(tall, intent, BotIntent.Term.HAZARD), 0.0, TOLERANCE, "the tall piece dissolves the tip first")
+	assert_almost_eq(_proxied(tall, intent, BotIntent.Term.HAZARD), 0.0, TOLERANCE, "proxy agrees")
+

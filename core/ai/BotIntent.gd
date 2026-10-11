@@ -6,8 +6,9 @@ extends RefCounted
 ## BotDifficultyProfile.intent_mask.
 
 enum Kind { RACE, ANCHOR, FINISH, HOLD, DEFEND, STRIKE, SIEGE, AREA }
-## Evaluation terms an intent weights (BotEvaluator, P3).
-enum Term { REACH, AREA, KILL, EXPOSURE, TIP, WASTE }
+## Evaluation terms an intent weights (BotEvaluator, P3). HAZARD (Bontago-1t5.32) is the
+## site's dissolve risk under the overlap-hole rule (BotEvaluator.hazard).
+enum Term { REACH, AREA, KILL, EXPOSURE, TIP, WASTE, HAZARD }
 
 var kind: Kind = Kind.RACE
 var target: Vector2 = Vector2.ZERO

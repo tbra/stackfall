@@ -11,3 +11,4 @@ kill_home_value = 20.0
 kill_goal_value = 10.0
 exposure_allowance_m = 1.0
 exposure_cap = 4
+hazard_lookahead_height_m = 6.0

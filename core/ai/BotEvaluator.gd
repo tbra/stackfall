@@ -7,8 +7,9 @@ extends RefCounted
 ##
 ## Term units (raw magnitudes, higher = more of that thing; penalties are applied
 ## by score()): REACH metres, AREA in BotEvalTuning.area_unit_m2 units, KILL circles
-## lost by the enemy, EXPOSURE threatening-circle count, TIP risk 0..1, WASTE 0..1.
-## score() adds REACH/AREA/KILL and subtracts EXPOSURE/TIP/WASTE, each times the
+## lost by the enemy, EXPOSURE threatening-circle count, TIP risk 0..1, WASTE 0..1,
+## HAZARD dissolve risk 0..1 (Bontago-1t5.32, see hazard()).
+## score() adds REACH/AREA/KILL and subtracts EXPOSURE/TIP/WASTE/HAZARD, each times the
 ## intent weight.
 ##
 ## The future circle is centred on the candidate origin with radius
@@ -39,6 +40,7 @@ static func proxy_terms(c: BotCandidate, view: BotWorldView, intent: BotIntent) 
 	var covered: int = 0
 	var threats: int = 0
 	var margin: float = tuning.kill_margin_m
+	var nearest_gap: float = INF
 	for j: int in range(view.circle_count()):
 		if view.cteam[j] == view.team_id:
 			continue
@@ -47,8 +49,11 @@ static func proxy_terms(c: BotCandidate, view: BotWorldView, intent: BotIntent) 
 			covered += 1
 		if d <= view.cr[j] + tuning.exposure_allowance_m:
 			threats += 1
+		if not _strikes_first(d, radius, view.cr[j]):
+			nearest_gap = minf(nearest_gap, d - view.cr[j])
 	if not _kill_disabled(view):
 		terms[BotIntent.Term.KILL] = float(covered)
+		terms[BotIntent.Term.HAZARD] = _hazard_from_gap(c, view, nearest_gap)
 	terms[BotIntent.Term.EXPOSURE] = float(mini(threats + _home_threats(c.origin, view), tuning.exposure_cap))
 	terms[BotIntent.Term.TIP] = c.tip_risk
 	terms[BotIntent.Term.WASTE] = 1.0 if inside >= 1.0 else 0.0
@@ -70,6 +75,7 @@ static func measure(
 	terms[BotIntent.Term.KILL] = _kill(c, view, chains, radius)
 	terms[BotIntent.Term.EXPOSURE] = float(_exposure(c, view, chains))
 	terms[BotIntent.Term.TIP] = c.tip_risk
+	terms[BotIntent.Term.HAZARD] = hazard(c, view, chains)
 	return terms
 
 
@@ -78,7 +84,10 @@ static func score(terms: PackedFloat32Array, intent: BotIntent) -> float:
 	var total: float = 0.0
 	for t: int in range(mini(terms.size(), intent.weights.size())):
 		var signed: float = terms[t]
-		if t == BotIntent.Term.EXPOSURE or t == BotIntent.Term.TIP or t == BotIntent.Term.WASTE:
+		if (
+			t == BotIntent.Term.EXPOSURE or t == BotIntent.Term.TIP or t == BotIntent.Term.WASTE
+			or t == BotIntent.Term.HAZARD
+		):
 			signed = -signed
 		total += signed * intent.weights[t]
 	return total
@@ -88,6 +97,86 @@ static func score(terms: PackedFloat32Array, intent: BotIntent) -> float:
 static func future_radius(c: BotCandidate, view: BotWorldView) -> float:
 	var top: float = maxf(c.top_height, c.support_height + c.shape_height)
 	return InfluenceCircle.radius_for_height(top, view.territory_tuning, view.field_radius)
+
+
+## Bontago-1t5.32: dissolve risk (0 safe .. 1 doomed) of the site's base under the overlap-hole
+## rule; 0 under HoleMode.OFF, where nothing dissolves. The legacy fill turns every cell that
+## home-connected circles of two teams cover CONTESTED, opens a hole there after
+## TerritoryTuning.hole_delay, and game/HoleDissolver.gd dissolves a disc-level block touching
+## the hole together with everything stacked on it. A block's own circle always covers its
+## footprint, so the piece is lost as soon as an enemy circle covers any footprint cell:
+##   1     a footprint cell is already enemy-held, contested or a hole (a raster read);
+##   else  the look-ahead: an enemy block circle whose edge lies within hazard_lookahead() of
+##         the base can grow over it with one placement (bots place on a shared cadence, so the
+##         enemy's next piece can land before this one's circle keeps it out), graded linearly
+##         from 1 at the circle's edge to 0 at the look-ahead distance.
+## `chains` null (the proxy) counts every enemy circle, otherwise home-connected ones only.
+## DECISION (Bontago-1t5.32): one placement of look-ahead, graded linearly, nearest enemy edge
+## only (not a per-circle sum): the 4-bot measurements showed the nearest circle decides. An
+## enemy circle whose base the new circle covers from outside it is struck first (it dissolves
+## before its next placement can grow it) and is skipped. Home
+## circles never grow, so they add no look-ahead (a base inside one is doomed by the footprint
+## read; Elimination SIEGE still has to build next to the target home).
+static func hazard(c: BotCandidate, view: BotWorldView, chains: BotChains) -> float:
+	if _kill_disabled(view):
+		return 0.0
+	var radius: float = future_radius(c, view)
+	var nearest_gap: float = INF
+	for j: int in range(view.circle_count()):
+		if view.cteam[j] == view.team_id or (chains != null and not chains.connected(j)):
+			continue
+		var d: float = c.origin.distance_to(Vector2(view.cx[j], view.cz[j]))
+		if not _strikes_first(d, radius, view.cr[j]):
+			nearest_gap = minf(nearest_gap, d - view.cr[j])
+	return _hazard_from_gap(c, view, nearest_gap)
+
+
+## True when the new circle (`radius`) covers an enemy base `d` metres away (within
+## kill_margin_m, as KILL counts it) while the base lies outside that enemy circle (`enemy_r`):
+## the enemy block dissolves before it can grow over the site, so it adds no look-ahead.
+static func _strikes_first(d: float, radius: float, enemy_r: float) -> bool:
+	return d <= radius + tuning.kill_margin_m and d > enemy_r
+
+
+## How far beyond its edge one enemy placement can push an enemy circle: the radius of a
+## fresh piece of BotEvalTuning.hazard_lookahead_height_m (the future_radius model).
+static func hazard_lookahead(view: BotWorldView) -> float:
+	return InfluenceCircle.radius_for_height(
+		tuning.hazard_lookahead_height_m, view.territory_tuning, view.field_radius
+	)
+
+
+## hazard() given the smallest (distance - radius) over the enemy block circles; the footprint
+## read is added here.
+static func _hazard_from_gap(c: BotCandidate, view: BotWorldView, nearest_gap: float) -> float:
+	if _footprint_doomed(c, view):
+		return 1.0
+	var lookahead: float = hazard_lookahead(view)
+	if lookahead <= 0.0 or is_inf(nearest_gap):
+		return 0.0
+	return clampf(1.0 - nearest_gap / lookahead, 0.0, 1.0)
+
+
+## True when a footprint cell (the origin cell when none were computed) is held by another
+## team, contested or a hole: the new circle makes it contested and the piece dissolves.
+static func _footprint_doomed(c: BotCandidate, view: BotWorldView) -> bool:
+	if view.raster == null or view.grid == null:
+		return false
+	var grid: CellGrid = view.grid
+	var cells: PackedInt32Array = c.footprint_cells
+	if cells.is_empty():
+		var origin_cell: Vector2i = grid.world_to_cell(c.origin)
+		if not grid.in_bounds(origin_cell.x, origin_cell.y):
+			return false
+		cells = PackedInt32Array([grid.cell_index(origin_cell.x, origin_cell.y)])
+	for index: int in cells:
+		var xy: Vector2i = grid.cell_coords(index)
+		var team: int = view.raster.team_at(xy.x, xy.y)
+		if team == view.team_id:
+			continue
+		if team >= 0 or view.raster.is_hole_index(index) or view.raster.is_contested(xy.x, xy.y):
+			return true
+	return false
 
 
 ## Under HoleMode.OFF circles never destroy each other (only a larger kernel takes a

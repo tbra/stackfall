@@ -83,7 +83,7 @@ func indices_of_team(team: int) -> PackedInt32Array
 
 class_name BotIntent extends RefCounted       # core/ai/BotIntent.gd, data only
 enum Kind { RACE, ANCHOR, FINISH, HOLD, DEFEND, STRIKE, SIEGE, AREA }
-enum Term { REACH, AREA, KILL, EXPOSURE, TIP, WASTE }
+enum Term { REACH, AREA, KILL, EXPOSURE, TIP, WASTE, HAZARD }  # HAZARD (1t5.32): placement footprint under current + look-ahead enemy circles (dissolve risk)
 var kind: Kind = Kind.RACE; var target: Vector2 = Vector2.ZERO; var focus_circle: int = -1
 var weights: PackedFloat32Array               # indexed by Term
 
