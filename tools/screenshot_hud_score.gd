@@ -48,8 +48,7 @@ func _ready() -> void:
 	hud.set_territory_shares(PackedFloat32Array([0.58, 0.31, 0.08, 0.02]))
 	hud.set_height(3.0)
 	hud.set_locked(true)
-	hud._gift_toast_label.text = "Special queued: Jumping Bean"
-	hud._gift_toast_label.modulate.a = 1.0
+	hud.show_gift_toast(&"jumping_bean")
 	await _shot("hud")
 	var overlay: ScoreboardOverlay = (load("res://ui/ScoreboardOverlay.tscn") as PackedScene).instantiate()
 	_vp.add_child(overlay)
