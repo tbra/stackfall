@@ -18,6 +18,7 @@ enum Orientation { HORIZONTAL, VERTICAL }
 		vertical = value == UiTabs.Orientation.VERTICAL
 		for tab: UiTab in _tabs:
 			tab.vertical = vertical
+		_sync_hold_actions()
 @export var handle_shoulders: bool = true
 ## The active tab id; assigning selects it (and emits tab_changed when it changed).
 var current: StringName:
@@ -29,9 +30,13 @@ var current: StringName:
 var _tabs: Array[UiTab] = []
 var _group: ButtonGroup = ButtonGroup.new()
 var _current: StringName = &""
+## One stick push = one tab (UiHoldRepeat hysteresis, the slider fix); auto-repeat only at full
+## deflection. Keys / d-pad keep the plain one-step-per-press path in UiTab.
+var _hold: UiHoldRepeat = UiHoldRepeat.new(_move_focused)
 
 
 func _init() -> void:
+	set_process(false)
 	add_theme_constant_override("separation", MenuStyleFactory.arcade_tuning().space_1_px)
 	size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	size_flags_vertical = Control.SIZE_SHRINK_BEGIN
@@ -41,6 +46,7 @@ func _init() -> void:
 func add_tab(id: StringName, label: String) -> void:
 	var tab: UiTab = UiTab.new().setup(id, label, orientation == UiTabs.Orientation.VERTICAL)
 	tab.button_group = _group
+	tab.stick_hold = _hold
 	tab.pressed.connect(_on_tab_pressed.bind(id))
 	tab.step_requested.connect(_on_step_requested.bind(id))
 	add_child(tab)
@@ -120,6 +126,24 @@ func _move(direction: int, focus_it: bool = false) -> void:
 		if candidate.visible and not candidate.disabled:
 			select(candidate.id, focus_it)
 			return
+
+
+func _sync_hold_actions() -> void:
+	_hold.back_action = &"ui_up" if vertical else &"ui_left"
+	_hold.forward_action = &"ui_down" if vertical else &"ui_right"
+
+
+func _move_focused(direction: int) -> void:
+	_move(direction, true)
+	set_process(true)
+
+
+func _process(delta: float) -> void:
+	var focused: bool = false
+	for tab: UiTab in _tabs:
+		focused = focused or tab.has_focus()
+	if not _hold.advance(delta, is_visible_in_tree() and focused):
+		set_process(false)
 
 
 func _on_tab_pressed(id: StringName) -> void:
