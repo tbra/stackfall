@@ -54,6 +54,10 @@ var _release_locked: Array[bool] = []
 ## These dictionaries are cleared when a new bag is built or a match resets.
 var _next_gift_shapes: Dictionary = {}
 var _held_is_gift: Dictionary = {}
+## Bontago-1pi.85.69 (gift_queue_after_next trial): slot -> carrier BlockShape of a
+## claimed gift that is the block AFTER next. It becomes _next_gift_shapes[slot] as
+## soon as the ordinary next piece is issued. Empty with the trial off.
+var _staged_gift_shapes: Dictionary = {}
 var _suppress_gift_roll: bool = false
 
 ## Lazily built id -> BlockShape index, used only by the client read model.
@@ -177,6 +181,7 @@ func _issue_next_block(slot_id: int, from_backlog: bool = true) -> void:
 		shape = bag.next()
 		is_gift = _next_gift_shapes.has(slot_id)
 		_next_gift_shapes.erase(slot_id)
+		_promote_staged_gift(slot_id)
 	_held_is_gift[slot_id] = is_gift
 	# Bontago-1pi.134 review: an aim noted for the previous piece never carries over to this one.
 	_match._placement.forget_aim(slot_id)
@@ -409,6 +414,7 @@ func _build_bags() -> void:
 	if _match.config.qol != null and _match.config.qol.timer_pause_enabled:
 		_timer_pause = TimerPause.new(_match.config.qol, _match.slot_count())
 	_next_gift_shapes.clear()
+	_staged_gift_shapes.clear()
 	_held_is_gift.clear()
 	for i: int in range(_match.slot_count()):
 		# DECISION (autoload/Match.gd): MatchConfig has one rng_seed for the
@@ -547,6 +553,69 @@ func is_held_gift(slot_id: int) -> bool:
 	return bool(_held_is_gift.get(slot_id, false))
 
 
+## Whether a claimed gift joins as the block after next (QolExperiments trial,
+## replicated in MatchConfig.qol so host and clients agree).
+func gift_after_next_active() -> bool:
+	var qol: QolExperiments = _match.config.qol if _match.config != null else null
+	return qol != null and qol.gift_after_next_in_force()
+
+
+func has_staged_gift(slot_id: int) -> bool:
+	return _staged_gift_shapes.has(slot_id)
+
+
+## Carrier shape of the staged (after-next) gift, or &"" for none.
+func staged_gift_shape_id(slot_id: int) -> StringName:
+	var shape: BlockShape = _staged_gift_shapes.get(slot_id) as BlockShape
+	return shape.id if shape != null else &""
+
+
+## The carrier shape id a claim event tells clients about: the staged carrier
+## in the after-next trial, otherwise the HUD's next shape (the replaced next).
+func claim_carrier_shape_id(slot_id: int) -> StringName:
+	if _staged_gift_shapes.has(slot_id):
+		return staged_gift_shape_id(slot_id)
+	var shape: BlockShape = next_shape(slot_id)
+	return shape.id if shape != null else &""
+
+
+## Host: a claim in the after-next trial. The ordinary next draw stays; the draw
+## after it (peek 2) is the gift carrier, so nothing is discarded and the bag's
+## sequence is exactly what it would be with no claim. A later claim replaces an
+## earlier staged gift (it re-picks the same carrier). Returns its id, or &""
+## when the bag cannot supply two draws.
+func stage_gift_after_next(slot_id: int) -> StringName:
+	if slot_id < 0 or slot_id >= _bags.size():
+		return &""
+	var preview: Array[BlockShape] = _bags[slot_id].peek(2)
+	if preview.size() < 2:
+		return &""
+	_staged_gift_shapes[slot_id] = preview[1]
+	return preview[1].id
+
+
+## Client mirror of stage_gift_after_next().
+func apply_replicated_staged_gift(slot_id: int, shape_id: StringName) -> void:
+	var shape: BlockShape = _shape_by_id(shape_id)
+	if shape != null:
+		_staged_gift_shapes[slot_id] = shape
+
+
+## The ordinary block was just issued (a draw): a staged gift is now the next
+## piece. Its carrier is the bag's next draw (== the staged shape, by the peek
+## contract); clients carry the staged shape itself.
+func _promote_staged_gift(slot_id: int) -> void:
+	if not _staged_gift_shapes.has(slot_id):
+		return
+	var carrier: BlockShape = _staged_gift_shapes[slot_id] as BlockShape
+	if slot_id < _bags.size() and _match._is_host():
+		var preview: Array[BlockShape] = _bags[slot_id].peek(1)
+		if not preview.is_empty():
+			carrier = preview[0]
+	_staged_gift_shapes.erase(slot_id)
+	_next_gift_shapes[slot_id] = carrier
+
+
 ## A claim replaces the bag's next draw. The next draw after the discarded
 ## one supplies the gift carrier shape; a later claim discards that carrier.
 func replace_next_with_gift(slot_id: int) -> StringName:
@@ -637,6 +706,7 @@ func apply_replicated_feed(
 		return
 	var is_gift: bool = _next_gift_shapes.has(slot_id)
 	_next_gift_shapes.erase(slot_id)
+	_promote_staged_gift(slot_id)
 	_held_is_gift[slot_id] = is_gift
 	if is_gift:
 		_match._gifts.activate_next_special(slot_id)

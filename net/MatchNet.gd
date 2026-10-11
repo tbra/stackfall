@@ -112,6 +112,12 @@ const EVENT_BLOCK_DISSOLVE_STARTED: StringName = &"block_dissolve_started"
 ## release_locked, held_special_id, next_special_id]. See
 ## _apply_slot_replay().
 const EVENT_SLOT_REPLAY: StringName = &"slot_replay"
+## EVENT_SLOT_REPLAY arity: 8 args before Bontago-1pi.85.69; the current payload adds the
+## after-next gift id and its carrier shape id. Indices of the id-typed args for each.
+const SLOT_REPLAY_ARGS_LEGACY: int = 8
+const SLOT_REPLAY_ARGS: int = SLOT_REPLAY_ARGS_LEGACY + 2
+const SLOT_REPLAY_ID_ARGS_LEGACY: Array[int] = [1, 2, 6, 7]
+const SLOT_REPLAY_ID_ARGS: Array[int] = [1, 2, 6, 7, 8, 9]
 ## Bontago-8or.11 (mid-match join replay only): [match_timer_left].
 const EVENT_MATCH_CLOCK: StringName = &"match_clock"
 ## Bontago-1pi.42 (mid-match join replay only, COUNTDOWN): the loading-screen ready
@@ -1666,8 +1672,8 @@ func _on_gift_spawned(gift_id: int, position: Vector2) -> void:
 
 func _on_gift_claimed(gift_id: int, slot_id: int, special_id: StringName) -> void:
 	if _session().is_host():
-		var next_shape: BlockShape = _authority().next_shape(slot_id)
-		replicate_match_event(EVENT_GIFT_CLAIMED, [gift_id, slot_id, special_id, next_shape.id if next_shape != null else &""])
+		# Bontago-1pi.85.69: in the after-next trial the carrier is the staged shape, not the next piece.
+		replicate_match_event(EVENT_GIFT_CLAIMED, [gift_id, slot_id, special_id, _authority()._feed.claim_carrier_shape_id(slot_id)])
 
 
 func _on_gift_expired(gift_id: int) -> void:
@@ -2306,6 +2312,8 @@ func _slot_replay_args(slot_id: int) -> Array:
 		bool(authority.is_release_locked(slot_id)),
 		StringName(authority.held_special(slot_id)),
 		StringName(authority.next_special(slot_id)),
+		StringName(authority.after_next_special(slot_id)),
+		authority._feed.staged_gift_shape_id(slot_id),
 	]
 
 
@@ -2318,9 +2326,11 @@ func _slot_replay_args(slot_id: int) -> Array:
 ## and marked as the next carrier, the feed event activates it, then the
 ## queued next gift is queued behind it.
 func _apply_slot_replay(args: Array) -> void:
-	if args.size() != 8 or not args[0] is int or not args[3] is int or not args[5] is bool:
+	# 8 args before Bontago-1pi.85.69; 10 adds the after-next gift and its carrier.
+	var has_after: bool = args.size() == SLOT_REPLAY_ARGS
+	if (args.size() != SLOT_REPLAY_ARGS_LEGACY and not has_after) or not args[0] is int or not args[3] is int or not args[5] is bool:
 		return
-	for index: int in [1, 2, 6, 7]:
+	for index: int in (SLOT_REPLAY_ID_ARGS_LEGACY if not has_after else SLOT_REPLAY_ID_ARGS):
 		if not (args[index] is StringName or args[index] is String):
 			return
 	if not (args[4] is float or args[4] is int):
@@ -2333,6 +2343,8 @@ func _apply_slot_replay(args: Array) -> void:
 	var locked: bool = args[5]
 	var held_special: StringName = StringName(args[6])
 	var next_special: StringName = StringName(args[7])
+	var after_special: StringName = StringName(args[SLOT_REPLAY_ARGS_LEGACY]) if has_after else &""
+	var after_carrier: StringName = StringName(args[SLOT_REPLAY_ARGS_LEGACY + 1]) if has_after else &""
 	var authority: Variant = _authority()
 	var running: MatchConfig = authority.config
 	if running == null or slot_id < 0 or slot_id >= int(authority.slot_count()):
@@ -2347,6 +2359,8 @@ func _apply_slot_replay(args: Array) -> void:
 		return
 	if next_special != &"" and (next_id == &"" or not _gift_special_id_wire_ok(String(next_special))):
 		return
+	if after_special != &"" and (not _gift_special_id_wire_ok(String(after_special)) or authority._feed._shape_by_id(after_carrier) == null):
+		return
 	if held_special != &"":
 		authority.apply_replicated_gift_claimed(-1, slot_id, held_special)
 		authority._feed.apply_replicated_next_gift(slot_id, held_id)
@@ -2354,6 +2368,9 @@ func _apply_slot_replay(args: Array) -> void:
 	if next_special != &"":
 		authority.apply_replicated_gift_claimed(-1, slot_id, next_special)
 		authority._feed.apply_replicated_next_gift(slot_id, next_id)
+	if after_special != &"":
+		authority.apply_replicated_gift_claimed(-1, slot_id, after_special)
+		authority._feed.apply_replicated_staged_gift(slot_id, after_carrier)
 	Events.feed_block_issued.emit(slot_id, held_id, next_id)
 
 

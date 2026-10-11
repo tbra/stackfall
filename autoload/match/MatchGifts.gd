@@ -15,6 +15,8 @@ extends RefCounted
 
 var _match: MatchAutoload = null
 var _gift_config: GiftConfig = preload("res://config/gift_config.tres")
+## Host seconds of live play this match (physics ticks), for GiftConfig.first_gift_delay_s.
+var _play_time_s: float = 0.0
 
 const GIFT_CRATE_SCENE: PackedScene = preload("res://game/GiftCrate.tscn")
 const FALLING: int = GiftWirePhase.FALLING
@@ -217,7 +219,9 @@ const GLUE_SPECIAL_ID: StringName = &"glue"
 const GLUE_DEF: SpecialDef = preload("res://config/specials/glue.tres")
 
 
-func _queue_claimed_special(slot_id: int, special_id: StringName) -> void:
+## `immediate` skips the after-next trial: the sandbox's forced special (debug_queue_special) is
+## documented as the NEXT gift and the sandbox is host-local, so no client mirror is involved.
+func _queue_claimed_special(slot_id: int, special_id: StringName, immediate: bool = false) -> void:
 	if special_id == GLUE_SPECIAL_ID:
 		var effect: GlueEffect = GLUE_DEF.effect as GlueEffect
 		if effect != null:
@@ -227,10 +231,33 @@ func _queue_claimed_special(slot_id: int, special_id: StringName) -> void:
 		_store_in_gift_slot(slot_id, special_id)
 		return
 	_ensure_capacity(slot_id)
+	if not immediate and _match._feed.gift_after_next_active():
+		var had_staged: bool = _match._feed.has_staged_gift(slot_id)
+		if _match._feed.stage_gift_after_next(slot_id) != &"":
+			_enqueue_after_next(slot_id, special_id, had_staged)
+			return
 	var queue: Array = _pending_queues[slot_id]
 	queue.clear()
 	queue.append(special_id)
 	_match._feed.replace_next_with_gift(slot_id)
+
+
+## Bontago-1pi.85.69: queue order is [gift that is next (if any), staged gift].
+## A later claim replaces an earlier staged gift (latest wins, as in the old rule);
+## a gift already next is never displaced.
+func _enqueue_after_next(slot_id: int, special_id: StringName, had_staged: bool) -> void:
+	var queue: Array = _pending_queues[slot_id]
+	if had_staged and not queue.is_empty():
+		queue.pop_back()
+	queue.append(special_id)
+
+
+## The claimed gift staged as the block after next, or &"" for none.
+func after_next_special(slot_id: int) -> StringName:
+	if slot_id < 0 or slot_id >= _pending_queues.size() or not _match._feed.has_staged_gift(slot_id):
+		return &""
+	var queue: Array = _pending_queues[slot_id]
+	return StringName(queue.back()) if not queue.is_empty() else &""
 
 
 ## Bontago-1pi.18.2 (QoL gift slot): per-slot gifts waiting to be spent with
@@ -381,7 +408,8 @@ func activate_next_special(slot_id: int) -> void:
 	if queue.is_empty():
 		return
 	_held_specials[slot_id] = StringName(queue[0])
-	queue.clear()
+	# Bontago-1pi.85.69: pop only the activated gift; a staged one stays queued.
+	queue.pop_front()
 
 
 ## Presentation getter (Bontago-59o.13): the queued gift that will be the
@@ -390,7 +418,12 @@ func next_special(slot_id: int) -> StringName:
 	if slot_id < 0 or slot_id >= _pending_queues.size():
 		return &""
 	var queue: Array = _pending_queues[slot_id]
-	return StringName(queue[0]) if not queue.is_empty() else &""
+	if queue.is_empty():
+		return &""
+	# Bontago-1pi.85.69: a lone staged gift is not next yet (after_next_special()).
+	if queue.size() == 1 and _match._feed.has_staged_gift(slot_id):
+		return &""
+	return StringName(queue[0])
 
 
 func clear_held_special(slot_id: int) -> void:
@@ -473,7 +506,7 @@ func debug_queue_special(slot_id: int, special_id: StringName) -> bool:
 	if slot_id < 0 or slot_id >= _match.slot_count():
 		return false
 	_ensure_capacity(slot_id)
-	_queue_claimed_special(slot_id, special_id)
+	_queue_claimed_special(slot_id, special_id, true)
 	# slot_id, not a team id -- matches _claim_gift()'s own gift_claimed emit
 	# below, whose second parameter is the resolved recipient slot
 	# (Events.gd's gift_claimed signal -- Bontago-keo.17).
@@ -520,6 +553,10 @@ func on_feed_block_issued(slot_id: int) -> void:
 	if not _match._is_host():
 		return
 	if _match._feed._suppress_gift_roll:
+		return
+	# Bontago-1pi.85.68: start grace; the roll is skipped outright, not queued.
+	# DECISION: sandbox / gift-demo matches skip the grace (testing aid; the owner's request is about real matches).
+	if _play_time_s < _gift_config.first_gift_delay_s and not (_match.config != null and _match.config.sandbox):
 		return
 	if not _should_roll_for_window(slot_id):
 		return
@@ -732,6 +769,8 @@ func gift_states() -> Array[Dictionary]:
 func tick_host(delta: float) -> void:
 	if not _match._is_host():
 		return
+	if delta > 0.0:
+		_play_time_s += delta
 	if delta <= 0.0 or _crates.is_empty():
 		return
 	var ids: Array[int] = []
@@ -1183,6 +1222,10 @@ func apply_replicated_claim(gift_id: int, slot_id: int, special_id: StringName) 
 	if special_id == GLUE_SPECIAL_ID:
 		return # charges arrive through apply_replicated_glue_charges()
 	_ensure_capacity(slot_id)
+	if _match._feed.gift_after_next_active():
+		# Mirrors the host's _queue_claimed_special(); the applier stages the carrier right after.
+		_enqueue_after_next(slot_id, special_id, _match._feed.has_staged_gift(slot_id))
+		return
 	var queue: Array = _pending_queues[slot_id]
 	queue.clear()
 	queue.append(special_id)
@@ -1236,6 +1279,7 @@ func reset() -> void:
 	_glue_revisions.clear()
 	# MatchLifecycle clears the feed arrays before calling this reset.
 	_match._feed._next_gift_shapes.clear()
+	_match._feed._staged_gift_shapes.clear()
 	_match._feed._held_is_gift.clear()
 	for gift_id: int in _crates.keys():
 		var entry: Dictionary = _crates[gift_id]
@@ -1245,6 +1289,7 @@ func reset() -> void:
 	_crates.clear()
 	_pending_queues.clear()
 	_next_gift_id = 0
+	_play_time_s = 0.0
 	_rng_ready = false
 	_roster_ready = false
 	_special_roster = []

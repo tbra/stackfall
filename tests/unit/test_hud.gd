@@ -1160,3 +1160,35 @@ func test_reject_callout_is_an_alert_face_with_a_cross_and_uppercase_text() -> v
 func test_timer_ring_bottom_sits_above_the_tutorial_banner_gap() -> void:
 	var hud: HUD = _make_hud()
 	assert_gt(hud.timer_ring_bottom_px(), 0.0)
+
+
+## Bontago-1pi.85.69: a gift staged as the block AFTER next marks the NEXT label and leaves the
+## next preview an ordinary block.
+class StagedGiftFakeMatch:
+	extends FakeMatch
+
+	var staged_id: StringName = &""
+
+	func after_next_special(_slot_id: int) -> StringName:
+		return staged_id
+
+
+func test_staged_after_next_gift_is_marked_but_the_next_preview_stays_ordinary() -> void:
+	var hud: HUD = _make_hud()
+	var fake_match: StagedGiftFakeMatch = StagedGiftFakeMatch.new()
+	hud.match_provider = fake_match
+	hud.set_local_slot(0)
+	fake_match.pending_special_count_by_slot[0] = 1
+	fake_match.staged_id = &"anvil"
+	hud._refresh_special_indicator()
+	assert_eq(hud._next_label.text, "NEXT · +1 GIFT")
+	assert_null(hud.next_gift_icon(), "the staged gift is not drawn as the next piece")
+	fake_match.pending_special_count_by_slot[0] = 2
+	fake_match.staged_id = &"anvil"
+	hud._refresh_special_indicator()
+	assert_eq(hud._next_label.text, "NEXT · GIFT +1", "a gift next and one staged behind it")
+	fake_match.pending_special_count_by_slot[0] = 1
+	fake_match.staged_id = &""
+	hud._refresh_special_indicator()
+	assert_eq(hud._next_label.text, "NEXT · GIFT", "once promoted it is the next piece")
+

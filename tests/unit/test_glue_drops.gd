@@ -29,6 +29,9 @@ func before_each() -> void:
 	config.sandbox = true
 	config.gifts_enabled = false
 	config.rng_seed = 5251
+	# Old gift rule (a claim replaces the next piece); the after-next trial is in test_gift_queue_after_next.gd.
+	config.qol = QolExperiments.new()
+	config.qol.gift_queue_after_next = false
 	Match.start_match(config)
 	for i: int in range(int(ceil(Match.COUNTDOWN_SECONDS * 60.0)) + 2):
 		Match._process(1.0 / 60.0)

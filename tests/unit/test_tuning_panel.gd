@@ -1421,6 +1421,7 @@ const READ_VIA_ACCESSOR: Dictionary = {
 	"QolExperiments.backlog_max": "effective_backlog_max",
 	"QolExperiments.goal_radius_multiplier": "effective_goal_radius",
 	"QolExperiments.gift_slot_min_window_s": "effective_gift_min_window_s",
+	"QolExperiments.gift_queue_after_next": "gift_after_next_in_force",
 	"SkyThemeDef.aurora_start_night_mix": "aurora_night_strength",
 	"SkyThemeDef.aurora_full_night_mix": "aurora_night_strength",
 	"SkyThemeDef.cycle_locked_phase_sunset": "locked_phase_for",
