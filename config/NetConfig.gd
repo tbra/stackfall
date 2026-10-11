@@ -125,11 +125,24 @@ const STEAM_LOBBY_TYPE_PUBLIC: int = 2
 ## 1.5 x 45 m gives +-67.5 m, so an int16 axis step is 135/65536 = 2.1 mm —
 ## inside spec 3.4's "≈1-2 mm precision". Raising this coarsens every axis.
 @export var pos_xz_margin: float = 1.5
-## Absolute Y bounds of the quantized volume, in meters. Must bracket
-## PhysicsTuning.kill_plane_y (-40) below and the tallest reachable tower
-## above; 120 m over an int16 is a 1.8 mm step.
+## Absolute lower Y bound of the quantized volume, in meters. Must bracket
+## PhysicsTuning.kill_plane_y (-40) below.
 @export var pos_min_y: float = -48.0
-@export var pos_max_y: float = 72.0
+## Bontago-1pi.165: the tallest tower height the match must support (disc top
+## is world y 0), in meters. Reach the Sky's target height feeds this (set it
+## >= that target); the band top is derived from it, never hard-coded.
+@export var build_height_target_m: float = 100.0
+## Meters of headroom above build_height_target_m: the held ghost hovers above
+## the tower, and a released block rises a little before it settles.
+@export var build_height_margin_m: float = 50.0
+## World y of the disc surface (spec 3.4: y 0 is the disc top).
+@export var disc_surface_y: float = 0.0
+## Top of the quantized volume (derived, read-only): disc + target + margin =
+## 150 m by default. Over pos_min_y..this (198 m) an int16 axis is a ~3.0 mm
+## step (spec 3.4).
+var pos_max_y: float:
+	get:
+		return disc_surface_y + build_height_target_m + build_height_margin_m
 ## Spec 3.4: "Every 2 s, send a full keyframe for sleeping bodies at a low
 ## rate." Sleepers are sent round-robin so each one is refreshed this often.
 @export var keyframe_interval: float = 2.0

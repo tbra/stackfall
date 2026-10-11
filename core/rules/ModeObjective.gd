@@ -36,7 +36,8 @@ static func create(
 	slot_teams: PackedInt32Array = PackedInt32Array(),
 	sky_sum_members: bool = false,
 	sky_replicate_interval: float = 0.5,
-	domination_replicate_interval: float = 1.0
+	domination_replicate_interval: float = 1.0,
+	sky_target_height: float = 0.0
 ) -> ModeObjective:
 	# DECISION: every id resolves to CLASSIC until a mode package (22y.7/.8/.9)
 	# adds its `match` branch here and its id to SELECTABLE_GAME_MODES.
@@ -47,7 +48,7 @@ static func create(
 		MatchConfig.GameMode.ELIMINATION:
 			objective = EliminationObjective.new(slot_teams)
 		MatchConfig.GameMode.REACH_THE_SKY:
-			objective = ReachSkyObjective.new(slot_teams, sky_sum_members, sky_replicate_interval)
+			objective = ReachSkyObjective.new(slot_teams, sky_sum_members, sky_replicate_interval, sky_target_height)
 		MatchConfig.GameMode.DOMINATION:
 			objective = DominationObjective.new(domination_replicate_interval)
 		_:

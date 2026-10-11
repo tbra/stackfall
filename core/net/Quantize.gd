@@ -22,8 +22,9 @@ extends RefCounted
 ## **Position precision.** Each axis maps its NetConfig.position_bounds()
 ## span linearly onto 0..65535. On map M (field_radius 45) with
 ## pos_xz_margin 1.5 the X/Z span is 135 m, so one step is 135/65535 =
-## **2.06 mm**; the Y span of 120 m gives **1.83 mm**. Spec 3.4 asks for
-## "≈1-2 mm precision", which those bracket. Map L (radius 60) widens X/Z to
+## **2.06 mm**; the Y span (pos_min_y .. disc + Reach the Sky target +
+## margin = -48 .. 150 m, Bontago-1pi.165) of 198 m gives **3.02 mm**. Spec 3.4
+## accepts ~2-3 mm for that taller Y axis. Map L (radius 60) widens X/Z to
 ## 180 m and 2.75 mm — acceptable, and the way to tighten it is
 ## NetConfig.pos_xz_margin, never a literal here. Values outside the AABB are
 ## clamped to the nearest face, which only happens to a block already falling

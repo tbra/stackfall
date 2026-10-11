@@ -8,7 +8,17 @@ extends ModeObjective
 ## lower it. The highest team record at the round timer wins; a team's value is
 ## its best member's or the sum of its members' (sum_members). Ties go to the
 ## team that reached its final value first. Classic all-goal victory is not
-## used: update() never declares a winner.
+## used. Bontago-1pi.166: the first team whose settled block reaches
+## `target_height` wins at once (record_height() latches the winner, which the
+## existing mode-objective winner path in MatchTerritory turns into the match
+## end); if the timer ends first the highest record wins as above.
+##
+## DECISION (Bontago-1pi.166, single source of truth): the target is owned by
+## NetConfig.build_height_target_m (the same number the network position band is
+## derived from, so the band top is always >= target + margin). This pure class
+## takes it as a constructor argument; MatchTerritory passes the NetConfig value,
+## and the HUD reads the same resource, so host and clients agree. A member's
+## own record (not the summed team value) is what must reach the target.
 ##
 ## Host-only logic; clients mirror the replicated scores and records
 ## (replicates_state()). Pure: the registry feeds record_height().
@@ -18,6 +28,8 @@ extends ModeObjective
 const TIE_EPSILON: float = 0.001
 
 var _sum_members: bool = false
+## Settled height (m) that wins at once; <= 0 disables the early win.
+var _target_height: float = 0.0
 ## Team of each slot (index = slot id); slots past the end belong to nobody.
 var _slot_teams: PackedInt32Array = PackedInt32Array()
 ## Best settled height per slot.
@@ -34,7 +46,8 @@ var _since_publish: float = 0.0
 var _publish_pending: bool = false
 
 
-func _init(slot_teams: PackedInt32Array = PackedInt32Array(), sum_members: bool = false, replicate_interval: float = 0.5) -> void:
+func _init(slot_teams: PackedInt32Array = PackedInt32Array(), sum_members: bool = false, replicate_interval: float = 0.5, target_height: float = 0.0) -> void:
+	_target_height = target_height
 	_slot_teams = slot_teams
 	_sum_members = sum_members
 	_replicate_interval = maxf(replicate_interval, 0.0)
@@ -86,6 +99,8 @@ func record_height(slot: int, height: float) -> void:
 	var team: int = _slot_teams[slot]
 	if team < 0 or team >= _scores.size():
 		return
+	if _target_height > 0.0 and height >= _target_height:
+		_declare_winner(team)
 	var value: float = _team_value(team)
 	if value > _scores[team]:
 		_scores[team] = value
@@ -100,6 +115,10 @@ func record_height(slot: int, height: float) -> void:
 
 func record_of_slot(slot: int) -> float:
 	return _records[slot] if slot >= 0 and slot < _records.size() else 0.0
+
+
+func target_height() -> float:
+	return _target_height
 
 
 func sums_members() -> bool:
@@ -130,6 +149,8 @@ func apply_extra_state(data: Dictionary) -> void:
 ## "winners" lists the winning team id(s) (0-based, comma-separated).
 func results_fields() -> Dictionary:
 	var ids: PackedStringArray = PackedStringArray()
+	if _winner != NO_TEAM:
+		return {"winners": str(_winner)}
 	for team: int in _top_teams():
 		ids.append(str(team))
 	return {"winners": ",".join(ids)}

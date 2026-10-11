@@ -145,7 +145,8 @@ func _build_territory() -> void:
 		_match._territory_tuning.ctf_score_per_beacon_second,
 		_match._territory_tuning.ctf_replicate_interval_s,
 		_sky_slot_teams(), _match.config.sky_team_sum, _match._territory_tuning.sky_replicate_interval_s,
-		_match._territory_tuning.domination_replicate_interval_s
+		_match._territory_tuning.domination_replicate_interval_s,
+		SKY_NET_CONFIG.build_height_target_m
 	)
 	_objective.set_claim_radius(_claim_radius())
 	_connect_sky_records()
@@ -419,6 +420,9 @@ func bot_mode_goal(slot_id: int) -> BotModeGoal:
 	return goal
 
 
+## Bontago-1pi.166: Reach the Sky's target height is NetConfig.build_height_target_m
+## (single source with the network position band).
+const SKY_NET_CONFIG: NetConfig = preload("res://config/net_config.tres")
 ## Shipped bot tuning, read for the Domination leader sample cap only.
 const BOT_TUNING: BotTuning = preload("res://config/bot_tuning.tres")
 

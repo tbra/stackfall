@@ -201,7 +201,7 @@ extends Resource
 ## Skybox._spawn_fog_volume()'s FogVolume box (the "cloud deck" the disk
 ## floats above): world-space size and the y-height of its centre. World y ==
 ## 0 is the floating disk's top surface (see game/Skybox.gd's
-## PROBE_GROUND_CLEARANCE_M doc); NetConfig.pos_max_y == 72.0 is the highest a
+## PROBE_GROUND_CLEARANCE_M doc); NetConfig.pos_max_y (150.0, derived: target height + margin) is the highest a
 ## stacked block may legally sit. Bontago-xtq.28's rejected candidate centred
 ## this box at y 40 (spanning y 10..70), which swallowed the entire play
 ## volume and the gameplay camera in fog. Centring it well below the disk

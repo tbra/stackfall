@@ -80,6 +80,16 @@ func test_set_height_formats_meters() -> void:
 	assert_eq(hud._height_label.text, "Height: 3.14 m")
 
 
+func test_reach_the_sky_height_line_shows_the_target() -> void:
+	var hud: HUD = _make_hud()
+	hud._mode_state = {"mode_id": MatchConfig.GameMode.REACH_THE_SKY}
+	hud.set_height(3.14159)
+	assert_eq(hud._height_label.text, "Height: 3.14 m / 100 m")
+	hud.set_tower_and_block_height(3.0, 12.0)
+	assert_eq(hud._height_label.text, "Tower: 3.00 m / 100 m   Block: 12.0 m")
+	assert_eq(HUD.sky_target_suffix({"mode_id": MatchConfig.GameMode.CLASSIC}), "")
+
+
 func test_set_territory_shares_builds_one_row_per_player_with_matching_width() -> void:
 	var hud: HUD = _make_hud()
 	hud.set_territory_shares(PackedFloat32Array([0.25, 0.75]))

@@ -54,6 +54,7 @@ extends CanvasLayer
 ## and every other fixed HUD offset in this file already assume.
 const SHARE_BAR_MAX_WIDTH: float = 200.0
 const SHARE_BAR_HEIGHT: float = 14.0
+const SKY_NET_CONFIG: NetConfig = preload("res://config/net_config.tres")
 ## Bontago-mp0.3.3 (owner review 2026-09-26: "thicker ring (~8 px)").
 const RING_LINE_WIDTH: float = 8.0
 ## Stackfall Arcade (Bontago-hfa.6): the ring's empty track is disc-500 (ArcadeVisualTuning).
@@ -568,7 +569,15 @@ func _play_reject_icon(feedback: HudFeedbackIconTable.Feedback, fade_s: float) -
 
 
 func set_height(meters: float) -> void:
-	_set_height_text("Height: %.2f m" % meters)
+	_set_height_text("Height: %.2f m%s" % [meters, sky_target_suffix(_mode_state)])
+
+
+## Bontago-1pi.166: " / 100 m" on the height line in Reach the Sky (the race
+## target, NetConfig.build_height_target_m, the same value the host wins on), else "".
+static func sky_target_suffix(state: Dictionary) -> String:
+	if int(state.get("mode_id", -1)) != MatchConfig.GameMode.REACH_THE_SKY:
+		return ""
+	return " / %.0f m" % SKY_NET_CONFIG.build_height_target_m
 
 
 ## Bontago-mv0.35 (owner: "there is still a maximum height the block cannot
@@ -578,7 +587,7 @@ func set_height(meters: float) -> void:
 ## ghost fixed at screen centre -- so raising looked capped. While a local
 ## block is held the label names both numbers explicitly.
 func set_tower_and_block_height(tower_meters: float, block_meters: float) -> void:
-	_set_height_text("Tower: %.2f m   Block: %.1f m" % [tower_meters, block_meters])
+	_set_height_text("Tower: %.2f m%s   Block: %.1f m" % [tower_meters, sky_target_suffix(_mode_state), block_meters])
 
 
 ## Bontago-1pi.11.6: only touches the Label (which re-lays out text) on change.

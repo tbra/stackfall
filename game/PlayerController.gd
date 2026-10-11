@@ -799,7 +799,7 @@ func _refresh_ghost_pose() -> void:
 ## GhostTuning.hover_ceiling_margin, the band core/net/Quantize.gd can
 ## replicate and net/MatchNet.gd's _pose_is_acceptable() accepts from a
 ## client -- with GhostTuning.hover_manual_max only an optional extra cap on
-## top (its default sits above anything the band allows). Previously the
+## top (its default, 200 m, sits above anything the band allows). Previously the
 ## ceiling was hover_manual_max alone (60 m above the disk surface),
 ## independent of where that surface is, so it neither reached the band nor
 ## guaranteed staying inside it.

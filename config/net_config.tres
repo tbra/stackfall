@@ -29,7 +29,6 @@ scoreboard_hz = 2.0
 max_packet_bytes = 1200
 pos_xz_margin = 1.5
 pos_min_y = -48.0
-pos_max_y = 72.0
 keyframe_interval = 2.0
 resend_position_epsilon = 0.005
 resend_angle_epsilon = 0.5

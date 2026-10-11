@@ -209,6 +209,42 @@ func test_factory_builds_reach_the_sky_and_it_is_selectable() -> void:
 	assert_true((objective as ReachSkyObjective).sums_members())
 
 
+# --- First to the target (Bontago-1pi.166) ---------------------------------------------
+
+func _target_m() -> float:
+	return (load("res://config/net_config.tres") as NetConfig).build_height_target_m
+
+
+func test_first_team_to_settle_at_the_target_wins_at_once() -> void:
+	var objective: ReachSkyObjective = ReachSkyObjective.new(PackedInt32Array([0, 1]), false, 0.0, _target_m())
+	objective.reset(2)
+	objective.record_height(1, _target_m() - 0.5)
+	assert_eq(objective.winner(), ModeObjective.NO_TEAM, "just under the target does not win")
+	objective.record_height(0, _target_m() + 0.2)
+	assert_eq(objective.winner(), 0)
+	objective.record_height(1, _target_m() + 5.0)
+	assert_eq(objective.winner(), 0, "the latched winner stays the first team")
+	assert_eq(objective.results_fields()["winners"], "0")
+
+
+func test_factory_passes_the_target_and_none_means_timer_only() -> void:
+	var with_target: ModeObjective = ModeObjective.create(
+		MatchConfig.GameMode.REACH_THE_SKY, PackedVector2Array(), 3.0, 2, 1.0, 1.0, PackedInt32Array([0, 1]), false, 0.5, 1.0, _target_m()
+	)
+	assert_almost_eq((with_target as ReachSkyObjective).target_height(), _target_m(), 0.0001)
+	var no_target: ReachSkyObjective = _objective([0, 1] as Array[int], 2)
+	no_target.record_height(0, 500.0)
+	assert_eq(no_target.winner(), ModeObjective.NO_TEAM, "no target: the timer decides")
+	assert_eq(no_target.on_round_timer_end(), 0)
+
+
+func test_target_has_one_owner_and_the_band_clears_it() -> void:
+	var cfg: NetConfig = load("res://config/net_config.tres")
+	var ghost: GhostTuning = load("res://config/ghost_tuning.tres")
+	assert_gte(cfg.pos_max_y - ghost.hover_ceiling_margin, cfg.build_height_target_m + cfg.build_height_margin_m - ghost.hover_ceiling_margin, "band top >= target + ghost hover ceiling margin")
+	assert_gt(cfg.pos_max_y - ghost.hover_ceiling_margin, cfg.build_height_target_m, "the ghost can hover above the target")
+
+
 # --- Config and Lobby ------------------------------------------------------------------
 
 func test_team_aggregation_round_trips_through_the_config() -> void:
