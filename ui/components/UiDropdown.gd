@@ -32,6 +32,12 @@ var list_tooltip: String = "":
 	set(text_value):
 		list_tooltip = text_value
 		_refresh()
+## Extra floor for the width, so dropdowns of one section can share a column width (a screen sets
+## it to the widest [method content_width] of the section). Never expands to fill the row.
+var min_width: float = 0.0:
+	set(width):
+		min_width = width
+		_sync_width()
 ## Paints the chevron over the button face (a child draws after the Button's own styles).
 var _chevron: Control = null
 
@@ -40,6 +46,8 @@ var _icons: Array[Texture2D] = []
 var _disabled_items: Array[bool] = []
 var _tooltips: Array[String] = []
 var _selected: int = -1
+## The width last applied by _sync_width (any other custom_minimum_size.x is the caller's own).
+var _hug_width: float = 0.0
 var _list: DropdownList = null
 
 ## Index of the shown item, -1 when empty. Assigning an out-of-range index is ignored
@@ -59,6 +67,7 @@ func _init() -> void:
 	alignment = HORIZONTAL_ALIGNMENT_CENTER
 	expand_icon = true
 	clip_text = true
+	add_theme_constant_override("icon_max_width", UiRowItem.metrics().dropdown_icon_px)
 	focus_mode = Control.FOCUS_ALL
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	show_chevron = _initial_chevron()
@@ -78,7 +87,7 @@ func _initial_chevron() -> bool:
 ## The row-item contract (one row height, DROPDOWN minimum width). Subclasses may override it
 ## when their callers size the control themselves.
 func _apply_row_contract() -> void:
-	UiRowItem.apply(self, UiRowItem.Kind.DROPDOWN)
+	UiRowItem.apply(self, UiRowItem.Kind.DROPDOWN)  # row height, hugs its widest item: never fills
 
 
 ## The look of the five block states from tokens. Subclasses may override it to a no-op.
@@ -234,7 +243,38 @@ func _on_visibility_changed() -> void:
 		close()
 
 
+## The width this dropdown needs: the widest item (icon, gap, text) plus the block's own side
+## margins (which leave room for the chevron). Stable while the selection changes.
+func content_width() -> float:
+	var font: Font = get_theme_font(&"font")
+	var font_size: int = get_theme_font_size(&"font_size")
+	var gap: float = float(get_theme_constant(&"h_separation"))
+	var icon_width: float = float(get_theme_constant(&"icon_max_width"))
+	var widest: float = 0.0
+	for index: int in range(_labels.size()):
+		var item_width: float = ceilf(font.get_string_size(_labels[index], HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size).x)
+		if _icons[index] != null:
+			item_width += icon_width + gap
+		widest = maxf(widest, item_width)
+	return widest + get_theme_stylebox(&"normal").get_minimum_size().x
+
+
+## Button's native minimum size cannot be overridden from script, so the hug width is applied
+## through custom_minimum_size.x (a caller that sets its own width afterwards still wins).
+func _sync_width() -> void:
+	if not is_equal_approx(custom_minimum_size.x, _hug_width):
+		return  # the caller set its own width (e.g. the lobby's compact seat pills)
+	_hug_width = maxf(content_width(), min_width)
+	custom_minimum_size.x = _hug_width
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_THEME_CHANGED:
+		_sync_width()
+
+
 func _refresh() -> void:
+	_sync_width()
 	if _selected < 0 or _selected >= _labels.size():
 		return
 	text = _labels[_selected]

@@ -84,7 +84,22 @@ func build(provider_getter: Callable, menu_owner: Node) -> void:
 		var body: VBoxContainer = _add_section(section["title"] as String)
 		for row: Dictionary in (section["items"] as Array):
 			_build_row(body, row)
+		_align_dropdowns(body)
 	refresh_from_settings()
+
+
+## DECISION (Bontago-1pi.159.32): the dropdowns of one section share the width of the widest one
+## (a tidy column, like the lobby cyclers); none expands to the row.
+func _align_dropdowns(body: VBoxContainer) -> void:
+	var dropdowns: Array[UiDropdown] = []
+	var widest: float = 0.0
+	for row: Node in body.get_children():
+		for item: Node in row.get_children():
+			if item is UiDropdown:
+				dropdowns.append(item as UiDropdown)
+				widest = maxf(widest, (item as UiDropdown).content_width())
+	for dropdown: UiDropdown in dropdowns:
+		dropdown.min_width = widest
 
 
 func _provider() -> Variant:
@@ -167,7 +182,6 @@ func _build_preset_section(menu_owner: Node) -> void:
 	var body: VBoxContainer = _add_section(SECTION_PRESET)
 	preset_option = UiDropdown.new()
 	preset_option.name = NODE_PRESET_OPTION
-	preset_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	for label: String in PRESET_LABELS:
 		preset_option.add_item(label)
 	preset_option.add_item(CUSTOM_LABEL)
@@ -214,7 +228,6 @@ func _build_row(body: VBoxContainer, row: Dictionary) -> void:
 
 func _make_dropdown(labels: Array) -> UiDropdown:
 	var dropdown: UiDropdown = UiDropdown.new()
-	dropdown.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	for text: String in labels:
 		dropdown.add_item(text)
 	return dropdown

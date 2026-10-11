@@ -348,7 +348,6 @@ func _build_game_page() -> void:
 	_settings_fields.add_theme_constant_override("separation", MenuStyleFactory.arcade_tuning().space_4_px)
 	var display: VBoxContainer = _add_section(SECTION_DISPLAY)
 	_window_mode_option = UiDropdown.new()
-	_window_mode_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_add_row(display, ROW_WINDOW, _window_mode_option, "WindowModeOption")
 	_ui_scale_slider = _make_meter(UiScaleTuning.shared().min_scale, UiScaleTuning.shared().max_scale, ui_scale_cell_count())
 	_add_row(display, ROW_UI_SCALE, _ui_scale_slider, "UiScaleSlider")
