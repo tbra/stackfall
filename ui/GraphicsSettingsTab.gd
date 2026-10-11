@@ -1,106 +1,70 @@
 class_name GraphicsSettingsTab
 extends FocusScrollContainer
-## Bontago-1pi.11.86 (owner 2026-10-10): the Options "Graphics" page. A preset picker at the top
-## (Low / Medium / High set every control below to that preset's values) and one control per
-## GPU-relevant GraphicsPreset field. Editing any control stores a per-field override through
-## Settings.set_graphics_override(), after which the picker shows "Custom"; Settings re-emits
-## graphics_preset_changed with the effective preset so live consumers re-apply.
+## Bontago-1pi.11.86 / 1pi.153: the Options "Graphics" page, built from design-system components
+## (UiSection / UiRow / UiDropdown / UiToggle / UiSegmentMeter).
 ##
-## Built in code from ROWS so a new field is one table entry. ui/OptionsMenu.gd owns the Arcade
-## styling: it reads headers()/sliders()/value_labels()/checks() after build() and applies its
-## existing section-header, SegmentMeter, value-label and ON/OFF-word styling to them.
+## DECISION (owner 2026-10-10 "limit it to the options games usually include", research delegated to
+## the orchestrator): the page shows the common PC-game set only -- Graphics preset, Anti-aliasing,
+## Render scale, Upscaler, Shadows, Reflections, Bloom, Volumetric fog, Environment detail, Block
+## outlines, Frame cap (+ Fixed fps while the cap is Fixed). Shadows, Reflections and Environment
+## detail are COMBINED rows: one tier writes several GraphicsPreset fields at once (tables in
+## GraphicsPreset). The preset fields, settings keys and preset .tres files are unchanged, so saved
+## per-field overrides still load; a combined row shows the tier whose values all match, else "Custom".
+## There is no Ultra tier because no Ultra preset exists (Low / Medium / High only).
+##
+## Editing any control stores per-field overrides through Settings.set_graphics_override(), after
+## which the preset picker shows "Custom"; Settings re-emits graphics_preset_changed with the
+## effective preset so live consumers re-apply.
 
-## The state of the controls changed (preset pick or an edit): the menu refreshes its ON/OFF words.
-signal refreshed
-
-enum Kind { TOGGLE, CYCLE, SLIDER }
+enum Kind { TOGGLE, DROPDOWN, METER, COMBO }
 
 const PRESET_IDS: Array[StringName] = [&"low", &"medium", &"high"]
 const PRESET_LABELS: Array[String] = ["Low", "Medium", "High"]
 const CUSTOM_LABEL: String = "Custom"
-const LABEL_MIN_WIDTH_PX: float = 180.0
-const VALUE_LABEL_MIN_WIDTH_PX: float = 70.0
-const ROW_SEPARATION_PX: int = 16
-const DISABLED_ALPHA: float = 0.5
 const PERCENT_SCALE: float = 100.0
 const NODE_PRESET_OPTION: String = "PresetOption"
 const FIXED_FPS_FIELD: StringName = &"fixed_fps"
 const FRAME_CAP_FIELD: StringName = &"frame_cap_mode"
+const TIER_LABELS: Array[String] = ["Low", "Medium", "High"]
+const REFLECTION_LABELS: Array[String] = ["Off", "Low", "High"]
 
-## DECISION (ui/GraphicsSettingsTab.gd): slider bounds/steps are widget configuration, not game
-## tuning (the same reasoning as ui/OptionsMenu.gd's volume slider consts).
 const SECTION_PRESET: String = "Preset"
 const SECTION_QUALITY: String = "Quality"
 const SECTION_EFFECTS: String = "Effects"
 const SECTION_FRAME_RATE: String = "Frame rate"
 
-## Display order top to bottom. kind TOGGLE | CYCLE (values + labels) | SLIDER (min, max, step,
-## fmt: "percent" | "meters" | "fps").
-const ROW_SECTION_QUALITY: Dictionary = {"section": SECTION_QUALITY}
-const ROW_MSAA_3D: Dictionary = {"field": &"msaa_3d", "label": "Anti-aliasing", "kind": Kind.CYCLE, "labels": ["Off", "MSAA 2x", "MSAA 4x"]}
-const ROW_RENDER_SCALE_3D: Dictionary = {"field": &"render_scale_3d", "label": "Render scale", "kind": Kind.SLIDER, "fmt": "percent"}
-const ROW_RENDER_SCALE_3D_MODE: Dictionary = {"field": &"render_scale_3d_mode", "label": "Upscaler", "kind": Kind.CYCLE, "labels": ["Bilinear", "FSR 1.0", "FSR 2.2"]}
-const ROW_SHADOW_ATLAS_SIZE: Dictionary = {"field": &"shadow_atlas_size", "label": "Shadow detail", "kind": Kind.CYCLE, "labels": ["1K", "2K", "4K", "8K"]}
-const ROW_SUN_SHADOW_MODE: Dictionary = {"field": &"sun_shadow_mode", "label": "Shadow cascades", "kind": Kind.CYCLE, "labels": ["1 split", "2 splits", "4 splits"]}
-const ROW_SUN_SHADOW_MAX_DISTANCE: Dictionary = {"field": &"sun_shadow_max_distance", "label": "Shadow range", "kind": Kind.SLIDER, "fmt": "meters"}
-const ROW_REFLECTION_PROBE_MODE: Dictionary = {"field": &"reflection_probe_mode", "label": "Reflections", "kind": Kind.CYCLE, "labels": ["Off", "Once", "Interval", "Always"]}
-const ROW_SSR_ENABLED: Dictionary = {"field": &"ssr_enabled", "label": "Screen reflections", "kind": Kind.TOGGLE}
-const ROW_GLOW_ENABLED: Dictionary = {"field": &"glow_enabled", "label": "Glow", "kind": Kind.TOGGLE}
-const ROW_VOLUMETRIC_FOG_ENABLED: Dictionary = {"field": &"volumetric_fog_enabled", "label": "Volumetric fog", "kind": Kind.TOGGLE}
-const ROW_CLOUD_PUFF_DENSITY: Dictionary = {"field": &"cloud_puff_density", "label": "Cloud density", "kind": Kind.SLIDER, "fmt": "percent"}
-const ROW_SECTION_EFFECTS: Dictionary = {"section": SECTION_EFFECTS}
-const ROW_CLOUD_SHADOWS_ENABLED: Dictionary = {"field": &"cloud_shadows_enabled", "label": "Cloud shadows", "kind": Kind.TOGGLE}
-const ROW_AURORA_ENABLED: Dictionary = {"field": &"aurora_enabled", "label": "Aurora", "kind": Kind.TOGGLE}
-const ROW_BIRDS_ENABLED: Dictionary = {"field": &"birds_enabled", "label": "Distant birds", "kind": Kind.TOGGLE}
-const ROW_AMBIENT_LIFE_ENABLED: Dictionary = {"field": &"ambient_life_enabled", "label": "Ambient life", "kind": Kind.TOGGLE}
-const ROW_BLOCK_OUTLINE_ENABLED: Dictionary = {"field": &"block_outline_enabled", "label": "Block outlines", "kind": Kind.TOGGLE}
-const ROW_BLOCK_DISSOLVE_EFFECT_ENABLED: Dictionary = {"field": &"block_dissolve_effect_enabled", "label": "Dissolve effect", "kind": Kind.TOGGLE}
-const ROW_DISC_FINE_DETAIL_ENABLED: Dictionary = {"field": &"disc_fine_detail_enabled", "label": "Disc detail", "kind": Kind.TOGGLE}
-const ROW_HOLE_VOID_ANIMATED: Dictionary = {"field": &"hole_void_animated", "label": "Animated void", "kind": Kind.TOGGLE}
-const ROW_GIFT_IDLE_GLOW_ENABLED: Dictionary = {"field": &"gift_idle_glow_enabled", "label": "Crate glow", "kind": Kind.TOGGLE}
-const ROW_SECTION_FRAME_RATE: Dictionary = {"section": SECTION_FRAME_RATE}
-const ROW_FRAME_CAP_MODE: Dictionary = {"field": &"frame_cap_mode", "label": "Frame cap", "kind": Kind.CYCLE, "labels": ["Display refresh", "Fixed", "Uncapped"]}
-const ROW_FIXED_FPS: Dictionary = {"field": &"fixed_fps", "label": "Fixed fps", "kind": Kind.SLIDER, "fmt": "fps"}
+## Combined-row ids (control_for() keys; they are not GraphicsPreset fields).
+const COMBO_SHADOWS: StringName = &"shadows"
+const COMBO_REFLECTIONS: StringName = &"reflections"
+const COMBO_ENVIRONMENT: StringName = &"environment_detail"
 
-const ROWS: Array[Dictionary] = [
-	ROW_SECTION_QUALITY,
-	ROW_MSAA_3D,
-	ROW_RENDER_SCALE_3D,
-	ROW_RENDER_SCALE_3D_MODE,
-	ROW_SHADOW_ATLAS_SIZE,
-	ROW_SUN_SHADOW_MODE,
-	ROW_SUN_SHADOW_MAX_DISTANCE,
-	ROW_REFLECTION_PROBE_MODE,
-	ROW_SSR_ENABLED,
-	ROW_GLOW_ENABLED,
-	ROW_VOLUMETRIC_FOG_ENABLED,
-	ROW_CLOUD_PUFF_DENSITY,
-	ROW_SECTION_EFFECTS,
-	ROW_CLOUD_SHADOWS_ENABLED,
-	ROW_AURORA_ENABLED,
-	ROW_BIRDS_ENABLED,
-	ROW_AMBIENT_LIFE_ENABLED,
-	ROW_BLOCK_OUTLINE_ENABLED,
-	ROW_BLOCK_DISSOLVE_EFFECT_ENABLED,
-	ROW_DISC_FINE_DETAIL_ENABLED,
-	ROW_HOLE_VOID_ANIMATED,
-	ROW_GIFT_IDLE_GLOW_ENABLED,
-	ROW_SECTION_FRAME_RATE,
-	ROW_FRAME_CAP_MODE,
-	ROW_FIXED_FPS,
+## Display order top to bottom; "section" entries start a UiSection. kind TOGGLE | DROPDOWN (field
+## values + labels) | METER (field, fmt: "percent" | "fps") | COMBO (id + tiers + labels).
+const ROW_MSAA_3D: Dictionary = {"field": &"msaa_3d", "label": "Anti-aliasing", "kind": Kind.DROPDOWN, "labels": ["Off", "MSAA 2x", "MSAA 4x"]}
+const ROW_RENDER_SCALE_3D: Dictionary = {"field": &"render_scale_3d", "label": "Render scale", "kind": Kind.METER, "fmt": "percent"}
+const ROW_RENDER_SCALE_3D_MODE: Dictionary = {"field": &"render_scale_3d_mode", "label": "Upscaler", "kind": Kind.DROPDOWN, "labels": ["Bilinear", "FSR 1.0", "FSR 2.2"]}
+const ROW_SHADOWS: Dictionary = {"field": COMBO_SHADOWS, "label": "Shadows", "kind": Kind.COMBO, "labels": TIER_LABELS}
+const ROW_REFLECTIONS: Dictionary = {"field": COMBO_REFLECTIONS, "label": "Reflections", "kind": Kind.COMBO, "labels": REFLECTION_LABELS}
+const ROW_GLOW_ENABLED: Dictionary = {"field": &"glow_enabled", "label": "Bloom", "kind": Kind.TOGGLE}
+const ROW_VOLUMETRIC_FOG_ENABLED: Dictionary = {"field": &"volumetric_fog_enabled", "label": "Volumetric fog", "kind": Kind.TOGGLE}
+const ROW_ENVIRONMENT: Dictionary = {"field": COMBO_ENVIRONMENT, "label": "Environment detail", "kind": Kind.COMBO, "labels": TIER_LABELS}
+const ROW_BLOCK_OUTLINE_ENABLED: Dictionary = {"field": &"block_outline_enabled", "label": "Block outlines", "kind": Kind.TOGGLE}
+const ROW_FRAME_CAP_MODE: Dictionary = {"field": &"frame_cap_mode", "label": "Frame cap", "kind": Kind.DROPDOWN, "labels": ["Display refresh", "Fixed", "Uncapped"]}
+const ROW_FIXED_FPS: Dictionary = {"field": &"fixed_fps", "label": "Fixed fps", "kind": Kind.METER, "fmt": "fps"}
+
+const SECTIONS: Array[Dictionary] = [
+	{"title": SECTION_QUALITY, "items": [ROW_MSAA_3D, ROW_RENDER_SCALE_3D, ROW_RENDER_SCALE_3D_MODE, ROW_SHADOWS, ROW_REFLECTIONS]},
+	{"title": SECTION_EFFECTS, "items": [ROW_GLOW_ENABLED, ROW_VOLUMETRIC_FOG_ENABLED, ROW_ENVIRONMENT, ROW_BLOCK_OUTLINE_ENABLED]},
+	{"title": SECTION_FRAME_RATE, "items": [ROW_FRAME_CAP_MODE, ROW_FIXED_FPS]},
 ]
 
 ## Returns the Settings provider (the real autoload, or a test's own Settings.new() assigned to
 ## OptionsMenu.settings_provider after the menu entered the tree, hence a getter, not a value).
 var _provider_getter: Callable = Callable()
-var preset_option: OptionButton = null
+var preset_option: UiDropdown = null
 var _fields: VBoxContainer = null
-var _headers: Array[Label] = []
-var _sliders: Array[HSlider] = []
-var _value_labels: Array[Label] = []
-var _checks: Array[CheckButton] = []
 var _controls: Array[Control] = []
-## field -> {"kind", "control", "row"(dict), "value_label"}
+## field / combo id -> {"kind", "control", "row"(dict), "tiers"(combo only)}
 var _by_field: Dictionary = {}
 var _refreshing: bool = false
 
@@ -109,23 +73,17 @@ var _refreshing: bool = false
 func build(provider_getter: Callable, menu_owner: Node) -> void:
 	_provider_getter = provider_getter
 	horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	_fields = VBoxContainer.new()
 	_fields.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_fields.add_theme_constant_override("separation", ROW_SEPARATION_PX)
+	_fields.add_theme_constant_override("separation", arcade.space_4_px)
+	_fields.theme = _spacing_theme(arcade)
 	add_child(_fields)
-	_add_header(SECTION_PRESET)
-	_build_preset_row(menu_owner)
-	for row: Dictionary in ROWS:
-		if row.has("section"):
-			_add_header(row["section"] as String)
-			continue
-		match row["kind"]:
-			Kind.TOGGLE:
-				_build_toggle_row(row)
-			Kind.CYCLE:
-				_build_cycle_row(row)
-			Kind.SLIDER:
-				_build_slider_row(row)
+	_build_preset_section(menu_owner)
+	for section: Dictionary in SECTIONS:
+		var body: VBoxContainer = _add_section(section["title"] as String)
+		for row: Dictionary in (section["items"] as Array):
+			_build_row(body, row)
 	refresh_from_settings()
 
 
@@ -133,28 +91,13 @@ func _provider() -> Variant:
 	return _provider_getter.call()
 
 
-func headers() -> Array[Label]:
-	return _headers
-
-
-func sliders() -> Array[HSlider]:
-	return _sliders
-
-
-func value_labels() -> Array[Label]:
-	return _value_labels
-
-
-func checks() -> Array[CheckButton]:
-	return _checks
-
-
 ## Every focusable control top to bottom, preset picker first.
 func focus_controls() -> Array[Control]:
 	return _controls
 
 
-## The control that edits `field` (test/inspection seam), or null.
+## The control that edits `field` (a GraphicsPreset field or a combined-row id; test/inspection
+## seam), or null.
 func control_for(field: StringName) -> Control:
 	return (_by_field[field]["control"] as Control) if _by_field.has(field) else null
 
@@ -169,42 +112,60 @@ func refresh_from_settings() -> void:
 		preset_option.select(index if index >= 0 else PRESET_IDS.find(Settings.DEFAULT_PRESET_ID))
 	for field: StringName in _by_field:
 		var entry: Dictionary = _by_field[field]
-		var value: Variant = _provider().graphics_field_value(field)
 		var row: Dictionary = entry["row"]
 		match row["kind"]:
 			Kind.TOGGLE:
-				(entry["control"] as CheckButton).set_pressed_no_signal(bool(value))
-			Kind.CYCLE:
-				(entry["control"] as CycleSelector).select((GraphicsPreset.limits_for(field)["values"] as Array).find(int(value)))
-			Kind.SLIDER:
-				var slider: HSlider = entry["control"] as HSlider
-				slider.set_value_no_signal(float(value))
-				(entry["value_label"] as Label).text = _format_value(float(value), row["fmt"] as String)
+				(entry["control"] as UiToggle).set_on_silent(bool(_provider().graphics_field_value(field)))
+			Kind.DROPDOWN:
+				var values: Array = GraphicsPreset.limits_for(field)["values"]
+				(entry["control"] as UiDropdown).select(values.find(int(_provider().graphics_field_value(field))))
+			Kind.METER:
+				var meter: UiSegmentMeter = entry["control"] as UiSegmentMeter
+				meter.set_value_silent(_cells_for(field, float(_provider().graphics_field_value(field)), meter))
+				meter.queue_redraw()
+			Kind.COMBO:
+				var tiers: Array[Dictionary] = entry["tiers"] as Array[Dictionary]
+				var tier: int = GraphicsPreset.matching_tier(tiers, func(f: StringName) -> Variant: return _provider().graphics_field_value(f))
+				(entry["control"] as UiDropdown).select(tier if tier >= 0 else tiers.size())
 	_refresh_fixed_fps_enabled()
 	_refreshing = false
-	refreshed.emit()
 
 
-func _add_header(text: String) -> void:
-	var header: Label = Label.new()
-	header.text = text
-	_fields.add_child(header)
-	_headers.append(header)
+## The page's own Theme: every column inside (a section's caption/body, a body's rows) is spaced
+## `space-3` apart; only the gap between sections is wider (the page column's own separation).
+static func _spacing_theme(arcade: ArcadeVisualTuning) -> Theme:
+	var page_theme: Theme = Theme.new()
+	page_theme.set_constant("separation", "VBoxContainer", arcade.space_3_px)
+	return page_theme
 
 
-func _make_row(label_text: String) -> HBoxContainer:
-	var box: HBoxContainer = HBoxContainer.new()
-	var label: Label = Label.new()
-	label.text = label_text
-	label.custom_minimum_size.x = LABEL_MIN_WIDTH_PX
-	box.add_child(label)
-	_fields.add_child(box)
-	return box
+## One UiSection (caption header + Body column); returns its Body.
+func _add_section(title: String) -> VBoxContainer:
+	var section: UiSection = UiSection.new()
+	section.title = title
+	var body: VBoxContainer = VBoxContainer.new()
+	body.name = UiSection.BODY_NAME
+	section.add_child(body)
+	_fields.add_child(section)
+	return body
 
 
-func _build_preset_row(menu_owner: Node) -> void:
-	var box: HBoxContainer = _make_row("Graphics preset")
-	preset_option = OptionButton.new()
+func _add_row(body: VBoxContainer, label_text: String, control: Control) -> void:
+	body.add_child(UiRow.new().setup(label_text, control))
+	_controls.append(control)
+	# FocusScrollContainer only reveals caption Labels that are siblings of the focused control; a
+	# UiSection's caption is in its own header row, so a section's first control reveals it.
+	if body.get_child_count() == 1:
+		control.focus_entered.connect(_reveal_section.bind(body.get_parent() as UiSection))
+
+
+func _reveal_section(section: UiSection) -> void:
+	ensure_control_visible.call_deferred(section.get_child(0) as Control)
+
+
+func _build_preset_section(menu_owner: Node) -> void:
+	var body: VBoxContainer = _add_section(SECTION_PRESET)
+	preset_option = UiDropdown.new()
 	preset_option.name = NODE_PRESET_OPTION
 	preset_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	for label: String in PRESET_LABELS:
@@ -212,55 +173,61 @@ func _build_preset_row(menu_owner: Node) -> void:
 	preset_option.add_item(CUSTOM_LABEL)
 	# Custom is only ever a state (set by editing a control), never something to pick.
 	preset_option.set_item_disabled(PRESET_IDS.size(), true)
-	box.add_child(preset_option)
+	_add_row(body, "Graphics preset", preset_option)
 	# Keep the %PresetOption lookup the menu and its tests use.
 	preset_option.unique_name_in_owner = true
 	preset_option.owner = menu_owner
 	preset_option.item_selected.connect(pick_preset)
-	_controls.append(preset_option)
 
 
-func _build_toggle_row(row: Dictionary) -> void:
-	var box: HBoxContainer = _make_row(row["label"] as String)
-	var check: CheckButton = CheckButton.new()
-	box.add_child(check)
-	check.toggled.connect(_on_toggle.bind(row["field"] as StringName))
-	_checks.append(check)
-	_controls.append(check)
-	_by_field[row["field"]] = {"kind": Kind.TOGGLE, "control": check, "row": row}
+func _build_row(body: VBoxContainer, row: Dictionary) -> void:
+	var field: StringName = row["field"] as StringName
+	match row["kind"]:
+		Kind.TOGGLE:
+			var toggle: UiToggle = UiToggle.new()
+			toggle.toggled.connect(_on_toggle.bind(field))
+			_add_row(body, row["label"] as String, toggle)
+			_by_field[field] = {"kind": Kind.TOGGLE, "control": toggle, "row": row}
+		Kind.DROPDOWN:
+			var dropdown: UiDropdown = _make_dropdown(row["labels"] as Array)
+			dropdown.item_selected.connect(_on_dropdown_selected.bind(field))
+			_add_row(body, row["label"] as String, dropdown)
+			_by_field[field] = {"kind": Kind.DROPDOWN, "control": dropdown, "row": row}
+		Kind.METER:
+			var meter: UiSegmentMeter = UiSegmentMeter.new()
+			var limits: Dictionary = GraphicsPreset.limits_for(field)
+			meter.step_count = roundi((float(limits["max"]) - float(limits["min"])) / float(limits["step"]))
+			meter.formatter = func(cells: int) -> String: return _format_value(_value_for_cells(field, cells), row["fmt"] as String)
+			meter.value_changed.connect(_on_meter_changed.bind(field))
+			_add_row(body, row["label"] as String, meter)
+			_by_field[field] = {"kind": Kind.METER, "control": meter, "row": row}
+		Kind.COMBO:
+			var tiers: Array[Dictionary] = _tiers_for(field)
+			var combo: UiDropdown = _make_dropdown(row["labels"] as Array)
+			combo.add_item(CUSTOM_LABEL)
+			# Custom is only ever a state (no tier matches), never something to pick.
+			combo.set_item_disabled(tiers.size(), true)
+			combo.item_selected.connect(_on_combo_selected.bind(field))
+			_add_row(body, row["label"] as String, combo)
+			_by_field[field] = {"kind": Kind.COMBO, "control": combo, "row": row, "tiers": tiers}
 
 
-func _build_cycle_row(row: Dictionary) -> void:
-	var box: HBoxContainer = _make_row(row["label"] as String)
-	var cycle: CycleSelector = CycleSelector.new()
-	cycle.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	for text: String in (row["labels"] as Array):
-		cycle.add_item(text)
-	box.add_child(cycle)
-	cycle.item_selected.connect(_on_cycle_selected.bind(row["field"] as StringName))
-	_controls.append(cycle)
-	_by_field[row["field"]] = {"kind": Kind.CYCLE, "control": cycle, "row": row}
+func _make_dropdown(labels: Array) -> UiDropdown:
+	var dropdown: UiDropdown = UiDropdown.new()
+	dropdown.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for text: String in labels:
+		dropdown.add_item(text)
+	return dropdown
 
 
-func _build_slider_row(row: Dictionary) -> void:
-	var box: HBoxContainer = _make_row(row["label"] as String)
-	var slider: HSlider = HSlider.new()
-	var limits: Dictionary = GraphicsPreset.limits_for(row["field"] as StringName)
-	slider.min_value = float(limits["min"])
-	slider.max_value = float(limits["max"])
-	slider.step = float(limits["step"])
-	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box.add_child(slider)
-	SliderNav.apply(slider)
-	var value_label: Label = Label.new()
-	value_label.custom_minimum_size.x = VALUE_LABEL_MIN_WIDTH_PX
-	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	box.add_child(value_label)
-	slider.value_changed.connect(_on_slider_changed.bind(row["field"] as StringName))
-	_sliders.append(slider)
-	_value_labels.append(value_label)
-	_controls.append(slider)
-	_by_field[row["field"]] = {"kind": Kind.SLIDER, "control": slider, "row": row, "value_label": value_label}
+func _tiers_for(combo: StringName) -> Array[Dictionary]:
+	match combo:
+		COMBO_SHADOWS:
+			return GraphicsPreset.preset_tiers(GraphicsPreset.SHADOW_FIELDS)
+		COMBO_ENVIRONMENT:
+			return GraphicsPreset.preset_tiers(GraphicsPreset.ENVIRONMENT_FIELDS)
+		_:
+			return GraphicsPreset.REFLECTION_TIERS
 
 
 ## The user picked preset `index` (Low/Medium/High): every control takes that preset's values.
@@ -279,14 +246,26 @@ func _on_toggle(pressed: bool, field: StringName) -> void:
 	_edit(field, pressed)
 
 
-func _on_cycle_selected(index: int, field: StringName) -> void:
+func _on_dropdown_selected(index: int, field: StringName) -> void:
 	var values: Array = GraphicsPreset.limits_for(field)["values"]
 	if index >= 0 and index < values.size():
 		_edit(field, values[index])
 
 
-func _on_slider_changed(value: float, field: StringName) -> void:
-	_edit(field, value)
+## A combined row picked tier `index`: every field of that tier is written, then one refresh.
+func _on_combo_selected(index: int, combo: StringName) -> void:
+	if _refreshing:
+		return
+	var tiers: Array[Dictionary] = _by_field[combo]["tiers"] as Array[Dictionary]
+	if index >= 0 and index < tiers.size():
+		var tier: Dictionary = tiers[index]
+		for field: StringName in tier:
+			_provider().set_graphics_override(field, tier[field])
+	refresh_from_settings()
+
+
+func _on_meter_changed(cells: int, field: StringName) -> void:
+	_edit(field, _value_for_cells(field, cells))
 
 
 func _edit(field: StringName, value: Variant) -> void:
@@ -296,20 +275,27 @@ func _edit(field: StringName, value: Variant) -> void:
 	refresh_from_settings()
 
 
-## The fixed-fps slider only matters while the frame cap is "Fixed".
+## The meter's value for `cells` filled cells of `field`'s min..max range.
+static func _value_for_cells(field: StringName, cells: int) -> float:
+	var limits: Dictionary = GraphicsPreset.limits_for(field)
+	return float(limits["min"]) + float(cells) * float(limits["step"])
+
+
+static func _cells_for(field: StringName, value: float, meter: UiSegmentMeter) -> int:
+	var limits: Dictionary = GraphicsPreset.limits_for(field)
+	return clampi(roundi((value - float(limits["min"])) / float(limits["step"])), 0, meter.step_count)
+
+
+## The fixed-fps meter only matters while the frame cap is "Fixed".
 func _refresh_fixed_fps_enabled() -> void:
 	if not _by_field.has(FIXED_FPS_FIELD) or not _by_field.has(FRAME_CAP_FIELD):
 		return
 	var fixed: bool = int(_provider().graphics_field_value(FRAME_CAP_FIELD)) == GraphicsPreset.FrameCap.FIXED
-	var slider: HSlider = _by_field[FIXED_FPS_FIELD]["control"] as HSlider
-	slider.editable = fixed
-	slider.modulate.a = 1.0 if fixed else DISABLED_ALPHA
+	(_by_field[FIXED_FPS_FIELD]["control"] as UiSegmentMeter).editable = fixed
 
 
 static func _format_value(value: float, fmt: String) -> String:
 	match fmt:
-		"meters":
-			return "%d m" % roundi(value)
 		"fps":
 			return "%d" % roundi(value)
 		_:
