@@ -23,9 +23,12 @@ const EXTRA_GAMEPLAY_ACTIONS: Array[StringName] = [
 
 ## Each entry is one physical pad event deliberately bound to several gameplay
 ## actions, names sorted and joined with ",".
+## - X: use_gift_slot vs camera_snap_goal (Bontago-1pi.18.12); snap is inert while
+##   CameraTuning.snap_enabled is false, so X is free in a match.
 ## - Left stick axes: ghost_move_* vs camera_pan_* (camera_modifier held pans
 ##   instead of moving; PlayerController zeroes the stick while it is held).
 const INTENTIONAL_SHARES: Array = [
+	"camera_snap_goal,use_gift_slot",
 	"camera_pan_left,ghost_move_left",
 	"camera_pan_right,ghost_move_right",
 	"camera_pan_forward,ghost_move_forward",

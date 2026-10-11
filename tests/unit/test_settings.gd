@@ -497,3 +497,21 @@ func test_agent_probe_runs_are_isolated_like_gut_runs() -> void:
 	var isolated: bool = UserPaths.is_isolated_run()
 	AgentProbe.set_forced_for_test(-1)
 	assert_true(isolated)
+
+
+## Bontago-1pi.159.20: a trigger / stick-direction override (axis + sign) round-trips.
+func test_motion_override_round_trips_through_the_config_file() -> void:
+	var motion: InputEventJoypadMotion = InputEventJoypadMotion.new()
+	motion.axis = JOY_AXIS_TRIGGER_LEFT
+	motion.axis_value = 1.0
+	_settings.set_key_override(_test_action, motion)
+	InputMap.action_erase_events(_test_action)
+	var reloaded: Node = _fresh_settings_at_same_path()
+	var overrides: Array[InputEvent] = reloaded.key_override_events(_test_action)
+	assert_eq(overrides.size(), 1)
+	var loaded: InputEventJoypadMotion = overrides[0] as InputEventJoypadMotion
+	assert_not_null(loaded)
+	assert_eq(int(loaded.axis), int(JOY_AXIS_TRIGGER_LEFT))
+	assert_eq(loaded.axis_value, 1.0)
+	var applied: Array[InputEvent] = InputMap.action_get_events(_test_action)
+	assert_eq(applied.size(), 1, "the motion override must be re-applied to the InputMap")

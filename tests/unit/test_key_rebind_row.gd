@@ -262,3 +262,106 @@ func test_key_press_is_not_consumed_when_not_listening() -> void:
 
 	assert_false(_sub_viewport.is_input_handled(), "a key press must not be swallowed when no row is listening")
 	assert_eq(InputMap.action_get_events(_test_action).size(), 0)
+
+
+# --- Bontago-1pi.159.20: gamepad page accepts B, triggers and stick directions ------------
+
+func _listen_on_pad_page() -> void:
+	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
+	_row.refresh()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_row.rebind_button().pressed.emit()
+	await get_tree().process_frame
+	assert_true(_row.is_listening())
+
+
+func _push_motion(axis: JoyAxis, value: float) -> void:
+	var motion: InputEventJoypadMotion = InputEventJoypadMotion.new()
+	motion.axis = axis
+	motion.axis_value = value
+	_sub_viewport.push_input(motion, true)
+
+
+func _pad_events_of_test_action() -> Array[InputEvent]:
+	var found: Array[InputEvent] = []
+	for event: InputEvent in InputMap.action_get_events(_test_action):
+		if event is InputEventJoypadButton or event is InputEventJoypadMotion:
+			found.append(event)
+	return found
+
+
+func test_pad_page_b_button_binds_instead_of_cancelling() -> void:
+	await _listen_on_pad_page()
+	var press: InputEventJoypadButton = InputEventJoypadButton.new()
+	press.button_index = JOY_BUTTON_B
+	press.pressed = true
+	_sub_viewport.push_input(press, true)
+	assert_false(_row.is_listening())
+	var events: Array[InputEvent] = _pad_events_of_test_action()
+	assert_eq(events.size(), 1)
+	assert_eq((events[0] as InputEventJoypadButton).button_index, JOY_BUTTON_B)
+
+
+func test_pad_page_binds_triggers_and_stick_directions_with_sign() -> void:
+	var cases: Array[Array] = [
+		[JOY_AXIS_TRIGGER_LEFT, 0.9, 1.0],
+		[JOY_AXIS_TRIGGER_RIGHT, 1.0, 1.0],
+		[JOY_AXIS_LEFT_Y, -0.8, -1.0],
+		[JOY_AXIS_RIGHT_X, -0.95, -1.0],
+	]
+	for case: Array in cases:
+		await _listen_on_pad_page()
+		_push_motion(case[0] as JoyAxis, float(case[1]))
+		assert_false(_row.is_listening(), "axis %d should bind" % int(case[0]))
+		var events: Array[InputEvent] = _pad_events_of_test_action()
+		assert_eq(events.size(), 1)
+		var bound: InputEventJoypadMotion = events[0] as InputEventJoypadMotion
+		assert_not_null(bound)
+		assert_eq(int(bound.axis), int(case[0]))
+		assert_eq(bound.axis_value, float(case[2]))
+
+
+func test_small_stick_motion_does_not_bind() -> void:
+	await _listen_on_pad_page()
+	_push_motion(JOY_AXIS_LEFT_X, 0.2)
+	assert_true(_row.is_listening())
+	assert_eq(_pad_events_of_test_action().size(), 0)
+
+
+func test_bound_trigger_fires_its_action() -> void:
+	await _listen_on_pad_page()
+	_push_motion(JOY_AXIS_TRIGGER_RIGHT, 1.0)
+	var probe: InputEventJoypadMotion = InputEventJoypadMotion.new()
+	probe.axis = JOY_AXIS_TRIGGER_RIGHT
+	probe.axis_value = 1.0
+	Input.parse_input_event(probe)
+	Input.flush_buffered_events()
+	assert_true(Input.is_action_pressed(_test_action), "a full RT pull must fire the rebound action")
+	var release: InputEventJoypadMotion = InputEventJoypadMotion.new()
+	release.axis = JOY_AXIS_TRIGGER_RIGHT
+	release.axis_value = 0.0
+	Input.parse_input_event(release)
+	Input.flush_buffered_events()
+	assert_false(Input.is_action_pressed(_test_action))
+
+
+func test_pad_page_escape_cancels_without_binding() -> void:
+	await _listen_on_pad_page()
+	_press_key(KEY_ESCAPE)
+	assert_false(_row.is_listening())
+	assert_eq(_pad_events_of_test_action().size(), 0)
+
+
+func test_pad_page_mouse_click_elsewhere_cancels() -> void:
+	await _listen_on_pad_page()
+	_click_at(Vector2(VIEWPORT_SIZE) - Vector2(5.0, 5.0))
+	assert_false(_row.is_listening())
+	assert_eq(InputMap.action_get_events(_test_action).size(), 0)
+
+
+func test_pad_page_idle_timeout_cancels() -> void:
+	await _listen_on_pad_page()
+	_row._process(OptionsVisualTuning.new().rebind_idle_timeout_s + 0.1)
+	assert_false(_row.is_listening())
+	assert_eq(_pad_events_of_test_action().size(), 0)

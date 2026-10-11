@@ -14,3 +14,9 @@ extends Resource
 @export var binding_band_alpha: float = 0.55
 ## Width of the pause dialog.
 @export var dialog_width_px: int = 340
+## Bontago-1pi.159.20: how far a trigger or stick must travel (0..1) before a listening
+## gamepad rebind row binds it. Higher than detection noise, below a full push.
+@export var rebind_axis_threshold: float = 0.6
+## Bontago-1pi.159.20: seconds a listening rebind row waits with no input before it cancels
+## itself (B is now bindable, so a pad player has no cancel button).
+@export var rebind_idle_timeout_s: float = 6.0
