@@ -101,6 +101,11 @@ func _assert_focus_in_view(scroll: ScrollContainer, expected: Control, label: St
 func _walk_controls_list(pad: bool) -> void:
 	var menu: OptionsMenu = await _make_menu(pad)
 	var scroll: ScrollContainer = await _show_controls_tab(menu)
+	# The pad page lists fewer rows now (Bontago-1pi.159.22 hides fixed camera rows), so
+	# shorten the view like the settings page does to keep the list overflowing.
+	scroll.size_flags_vertical = Control.SIZE_FILL
+	scroll.custom_minimum_size = Vector2(0.0, SHORT_SETTINGS_VIEW_PX)
+	await _settle()
 	var rows: Array[KeyRebindRow] = _available_rows(menu)
 	var family: String = "pad" if pad else "key"
 	assert_gt(rows.size(), 8, "%s: the controls list has enough rows to scroll" % family)

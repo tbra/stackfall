@@ -103,7 +103,26 @@ const PAD_STAND_INS: Dictionary[StringName, Array] = {
 ## 2.5 "Lock to vertical" gamepad cell is "(stick and height are already
 ## separate)" -- left stick moves X/Z, LB/RB move height, so there is nothing to
 ## lock. They stay listed (and rebindable) on the keyboard/mouse page.
-const PAD_NOT_APPLICABLE: Array[StringName] = [&"lock_vertical"]
+##
+## DECISION (Bontago-1pi.159.22, owner 2026-10-11: most camera controls make no
+## sense to remap on a pad): the gamepad page also hides the camera rows that
+## are fixed gestures rather than choices -- camera mode, the four pans (only
+## live in the unused free camera, left stick + modifier), the pan modifier,
+## and zoom in/out (the pad zooms with LT + left stick). "Orbit camera" (right
+## stick) stays as the one camera row a pad player may want to read.
+const PAD_NOT_APPLICABLE: Array[StringName] = [
+	&"lock_vertical",
+	&"camera_mode", &"camera_modifier",
+	&"camera_pan_left", &"camera_pan_right", &"camera_pan_forward", &"camera_pan_back",
+	&"camera_zoom_in", &"camera_zoom_out",
+]
+
+## Rows hidden on both pages while CameraTuning.snap_enabled is false
+## (owner 2026-10-11; follow-up Bontago-1pi.170).
+const SNAP_ACTIONS: Array[StringName] = [&"camera_snap_home", &"camera_snap_goal"]
+
+## Read for snap_enabled only (a const Resource would be a private copy in GDScript).
+@export var camera_tuning: CameraTuning = preload("res://config/camera_tuning.tres")
 
 ## Reused only for the row's own subtle hover/pressed highlight -- a calm
 ## list row, not another coral pill button (ui/theme/MenuStyleFactory.gd's
@@ -349,10 +368,13 @@ func _refresh_glyphs() -> void:
 
 
 ## Whether this row belongs on the page of the player's active device family:
-## false only for a PAD_NOT_APPLICABLE action while the gamepad page shows.
+## false for a PAD_NOT_APPLICABLE action while the gamepad page shows, and for
+## the snap rows while snapping is disabled in CameraTuning.
 ## Computed from Settings (not from `visible`) so ui/OptionsMenu.gd can ask it
 ## when rebuilding the focus chain without depending on signal order.
 func is_available_on_active_device() -> bool:
+	if SNAP_ACTIONS.has(_action) and not camera_tuning.snap_enabled:
+		return false
 	if Settings.active_input_device() != Settings.DEVICE_GAMEPAD:
 		return true
 	return not PAD_NOT_APPLICABLE.has(_action)

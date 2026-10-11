@@ -67,6 +67,37 @@ func test_lock_vertical_has_no_pad_function_and_is_hidden_not_blank() -> void:
 	assert_true(row.visible, "switching back to keyboard/mouse restores the row")
 
 
+## Bontago-1pi.159.22 (owner 2026-10-11): camera rows that make no sense to remap
+## are absent on the pad page, still listed on the keyboard page; snap rows are
+## hidden on both pages while CameraTuning.snap_enabled is false.
+func test_pad_page_hides_fixed_camera_rows_and_snap_rows_are_hidden_everywhere() -> void:
+	var hidden_on_pad: Array[StringName] = [
+		&"camera_mode", &"camera_modifier", &"camera_pan_left", &"camera_pan_right",
+		&"camera_pan_forward", &"camera_pan_back", &"camera_zoom_in", &"camera_zoom_out",
+	]
+	for action: StringName in hidden_on_pad:
+		var row: KeyRebindRow = _make_row(action)
+		assert_true(row.is_available_on_active_device(), "%s stays on the keyboard page" % action)
+		Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
+		assert_false(row.is_available_on_active_device(), "%s hidden on the pad page" % action)
+		assert_false(row.visible)
+		Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
+	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
+	assert_true(_make_row(&"camera_orbit").is_available_on_active_device(), "Orbit camera stays on the pad page")
+
+	for action: StringName in KeyRebindRow.SNAP_ACTIONS:
+		var row: KeyRebindRow = _make_row(action)
+		var tuning: CameraTuning = row.camera_tuning.duplicate() as CameraTuning
+		row.camera_tuning = tuning
+		tuning.snap_enabled = false
+		assert_false(row.is_available_on_active_device(), "%s hidden on the pad page" % action)
+		Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
+		assert_false(row.is_available_on_active_device(), "%s hidden on the keyboard page" % action)
+		tuning.snap_enabled = true
+		assert_true(row.is_available_on_active_device(), "%s returns when snap is re-enabled" % action)
+		Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
+
+
 ## A player who rebinds Rotate right on the pad page adds a real pad event to
 ## rotate_yaw_cw itself (KeyRebindRow's capture path is unchanged); the row must
 ## then show that binding, not the stand-in. The event is removed again so the
@@ -109,7 +140,7 @@ func test_every_rebindable_action_shows_a_pad_glyph_or_is_hidden_on_the_pad_page
 			assert_gt(glyph_row.get_child_count(), 0, "%s shows a blank row on the gamepad page" % action)
 			assert_gt(KeyRebindRow.gamepad_events_for(action).size(), 0, "%s has no pad control to show" % action)
 		else:
-			assert_true(KeyRebindRow.PAD_NOT_APPLICABLE.has(action), "%s is hidden on the gamepad page without being declared PAD_NOT_APPLICABLE" % action)
+			assert_true(KeyRebindRow.PAD_NOT_APPLICABLE.has(action) or KeyRebindRow.SNAP_ACTIONS.has(action), "%s is hidden on the gamepad page without being declared PAD_NOT_APPLICABLE" % action)
 
 
 func test_rows_render_the_stand_in_glyphs() -> void:

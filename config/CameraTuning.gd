@@ -100,6 +100,10 @@ extends Resource
 @export var follow_pitch_deg: float = -35.0
 
 ## -- Snap (spec 2.5 "Snap camera to home / goal") ----------------------------
+## Owner 2026-10-11: snap to home/goal is switched off (and its Options rows hidden)
+## until it is reworked (Bontago-1pi.170). CameraRig ignores camera_snap_home/goal
+## while this is false; the actions and their bindings stay in the Input Map.
+@export var snap_enabled: bool = false
 @export var snap_pitch_deg: float = -35.0
 @export var snap_distance: float = 30.0
 @export var snap_duration: float = 0.35
