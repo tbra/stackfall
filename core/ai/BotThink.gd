@@ -13,6 +13,11 @@ extends RefCounted
 ## The PLAN and SITES chunks are not sliceable (they are pure rule code, a few ms at 110
 ## sites); step() checks the budget between chunks. Pure: physics is reached only through
 ## the `probe` callable the caller supplies.
+## Deadline support (Bontago-1t5.37): every unit of work is timed per phase; finished thinks
+## feed a process-wide per-unit cost average, from which remaining_work_us() estimates what is
+## left (the caller spreads it over the ticks left before its deadline) and step() declines to
+## start a unit predicted to overrun its slice. Timing never reaches a decision: how the work is
+## sliced does not change what is chosen.
 
 const SHIPPED_TUNING: BotTuning = preload("res://config/bot_tuning.tres")
 ## BotCandidate.site_kind of a candidate from the retired legacy sampler (kept as the 0 default).
@@ -23,6 +28,11 @@ const NO_SUPPORT: float = -1.0
 ## Floor for the softmax temperature (a 0 would divide by zero).
 const MIN_TEMPERATURE: float = 0.001
 const INTENT_LOG_ARG: String = "--bot-intent-log"
+## Bontago-1t5.37: weight of the newest finished think in the unit-cost and share averages.
+## DECISION: a const, not a tuning field: it only shapes the slice schedule, never a decision.
+const COST_AVERAGE_WEIGHT: float = 0.25
+## Marks an average with no sample yet.
+const NO_SAMPLE: float = -1.0
 
 enum DecisionKind { PLACE, WAIT }
 enum Phase { PLAN, SITES, FILL, PROBE, RANK, MEASURE, PICK, DONE }
@@ -30,6 +40,15 @@ enum Phase { PLAN, SITES, FILL, PROBE, RANK, MEASURE, PICK, DONE }
 static var _intent_log: int = -1
 ## Per-seat BotStrategy stickiness memory (slot id -> Dictionary), kept between pieces.
 static var _strategy_memory: Dictionary = {}
+## Bontago-1t5.37: microseconds per work unit of each phase (index = Phase; units: PLAN, PICK
+## one per think, SITES one per candidate_count, FILL one per draw, PROBE / RANK / MEASURE one
+## per site), averaged over the phases finished by every V2 bot in the process: unit costs follow
+## the machine and the board, not the seat. NO_SAMPLE until a think has finished that phase.
+static var _unit_cost_us: PackedFloat64Array = PackedFloat64Array()
+## Bontago-1t5.37: averaged FILL draws and generated sites per candidate_count, for the estimate
+## made before SITES / FILL have produced the exact counts.
+static var _fill_draw_share: float = NO_SAMPLE
+static var _site_share: float = NO_SAMPLE
 
 
 class Decision:
@@ -72,24 +91,84 @@ var _best: BotCandidate = null
 ## Ranked positions in pick order (the chosen one first), for revalidate().
 var _pick_order: Array[int] = []
 var _decision: Decision = Decision.new()
+## Bontago-1t5.37: this think's microseconds and work units per phase (index = Phase).
+var _phase_us: PackedInt64Array = PackedInt64Array()
+var _phase_units: PackedInt64Array = PackedInt64Array()
+## FILL draws made and sites they added in this think.
+var _fill_draws: int = 0
+var _fill_added: int = 0
+## Orientation index -> BotStatics.OrientationInfo of the held piece (built on first use).
+var _orientation_infos: Dictionary = {}
 
 
 func _init(view: BotWorldView, profile: BotDifficultyProfile, rng: RandomNumberGenerator) -> void:
 	_view = view
 	_profile = profile
 	_rng = rng
+	_phase_us.resize(Phase.DONE)
+	_phase_units.resize(Phase.DONE)
 
 
 ## Advances the think by at most about `budget_usec` microseconds (always at least one unit
 ## of work, so a zero budget still progresses). `probe(xz: Vector2)` returns
 ## {hit: bool, height: float, own: bool}. True once the decision is ready.
+## Bontago-1t5.37: after the first unit, a unit whose averaged cost would carry the slice past
+## `budget_usec` is left for the next step.
 func step(budget_usec: int, probe: Callable) -> bool:
 	var start_usec: int = Time.get_ticks_usec()
+	var progressed: bool = false
 	while _phase != Phase.DONE:
-		_advance(probe)
-		if _phase != Phase.DONE and Time.get_ticks_usec() - start_usec >= budget_usec:
-			return false
+		if progressed:
+			var elapsed: int = Time.get_ticks_usec() - start_usec
+			if elapsed >= budget_usec or float(elapsed) + _next_unit_us() > float(budget_usec):
+				return false
+		_advance_timed(probe)
+		progressed = true
 	return true
+
+
+## Bontago-1t5.37: runs every remaining stage now (the caller's deadline tick). The decision is
+## the one any slicing of step() reaches; unlike finish_early() nothing is skipped.
+func complete(probe: Callable) -> void:
+	while _phase != Phase.DONE:
+		_advance_timed(probe)
+
+
+## Bontago-1t5.37: true once thinks in this process have finished every costly phase this one
+## will run (PROBE, RANK and, with eval_top_k, MEASURE), so remaining_work_us() covers the whole
+## think (before that it only knows the phases measured so far and is a lower bound).
+func has_cost_estimate() -> bool:
+	if _unit_cost_us.size() != Phase.DONE:
+		return false
+	if _unit_cost_us[Phase.PROBE] < 0.0 or _unit_cost_us[Phase.RANK] < 0.0:
+		return false
+	return _profile.eval_top_k <= 0 or _unit_cost_us[Phase.MEASURE] >= 0.0
+
+
+## Bontago-1t5.37: estimated microseconds of work left, from the exact counts known so far (FILL
+## draws left, sites left to probe / rank / measure) times the averaged unit costs; counts not
+## known yet (before SITES / FILL) come from the averaged shares. 0 when done; a phase with no
+## cost sample yet (the process's first thinks) counts as free.
+func remaining_work_us() -> int:
+	if _phase == Phase.DONE:
+		return 0
+	var total: float = float(maxi(_profile.candidate_count, 0))
+	var sites: float = _expected_sites(total)
+	var work: float = _unit_us(Phase.PICK)
+	if _phase <= Phase.PLAN:
+		work += _unit_us(Phase.PLAN)
+	if _phase <= Phase.SITES:
+		work += _unit_us(Phase.SITES) * total
+	if _phase <= Phase.FILL:
+		work += _unit_us(Phase.FILL) * _fill_draws_left(total)
+	if _phase <= Phase.PROBE:
+		work += _unit_us(Phase.PROBE) * maxf(sites - float(_probe_index), 0.0)
+	if _phase <= Phase.RANK:
+		work += _unit_us(Phase.RANK) * maxf(sites - float(_rank_pos), 0.0)
+	if _phase <= Phase.MEASURE:
+		var top_k: float = minf(float(maxi(_profile.eval_top_k, 0)), sites)
+		work += _unit_us(Phase.MEASURE) * maxf(top_k - float(_measure_pos), 0.0)
+	return int(work)
 
 
 ## Ends the think now with what is gathered so far (the caller's frame cap): the sites probed
@@ -137,29 +216,116 @@ func intent() -> BotIntent:
 	return _intent
 
 
-func _advance(probe: Callable) -> void:
+## One unit of work, timed into this think's per-phase totals; a phase that just ended is
+## folded into the process-wide averages at once (so the first thinks of a process, which
+## overlap, learn from each other before any of them is done).
+func _advance_timed(probe: Callable) -> void:
+	var phase: int = _phase
+	var start_usec: int = Time.get_ticks_usec()
+	var units: int = _advance(probe)
+	_phase_us[phase] += Time.get_ticks_usec() - start_usec
+	_phase_units[phase] += units
+	if _phase != phase:
+		_record_phase(phase)
+
+
+## Runs one unit of the current phase; returns the work units it covered (see _unit_cost_us).
+func _advance(probe: Callable) -> int:
 	match _phase:
 		Phase.PLAN:
 			if _view.held == null:
 				_phase = Phase.DONE
 				_wait()
-				return
+				return 1
 			_plan()
 			_phase = Phase.SITES
+			return 1
 		Phase.SITES:
 			_make_sites()
+			return maxi(_profile.candidate_count, 1)
 		Phase.FILL:
-			_fill_sites(_gen().fill_chunk_attempts)
+			return _fill_sites(_gen().fill_chunk_attempts)
 		Phase.PROBE:
 			_probe_one(probe)
+			return 1
 		Phase.RANK:
-			_rank_slice(_gen().rank_chunk_sites)
+			return _rank_slice(_gen().rank_chunk_sites)
 		Phase.MEASURE:
 			_measure_one()
+			return 1
 		Phase.PICK:
 			_pick()
+			return 1
+	return 0
+
+
+## Microseconds per unit of `phase`: the larger of the process-wide average and this think's
+## own measurement so far (a costlier-than-usual board shows up at once, so the deadline tick
+## is not left with the difference), 0 with neither.
+func _unit_us(phase: int) -> float:
+	var cost: float = 0.0
+	if _unit_cost_us.size() == Phase.DONE:
+		cost = maxf(cost, _unit_cost_us[phase])
+	if _phase_units[phase] > 0:
+		cost = maxf(cost, float(_phase_us[phase]) / float(_phase_units[phase]))
+	return cost
+
+
+## Predicted microseconds of the next _advance() call.
+func _next_unit_us() -> float:
+	match _phase:
+		Phase.SITES:
+			return _unit_us(Phase.SITES) * float(maxi(_profile.candidate_count, 1))
+		Phase.FILL:
+			return _unit_us(Phase.FILL) * float(mini(maxi(_gen().fill_chunk_attempts, 1), _site_job.attempts_left()))
+		Phase.RANK:
+			return _unit_us(Phase.RANK) * float(mini(maxi(_gen().rank_chunk_sites, 1), _candidates.size() - _rank_pos))
 		Phase.DONE:
-			pass
+			return 0.0
+	return _unit_us(_phase)
+
+
+## Sites the think will end up with: exact once FILL is over, else the sites so far plus the
+## draws left at this think's FILL yield, else the averaged share of candidate_count.
+func _expected_sites(total: float) -> float:
+	if _phase > Phase.FILL:
+		return float(_candidates.size())
+	if _phase == Phase.FILL and _site_job != null and _fill_draws > 0:
+		var yield_rate: float = float(_fill_added) / float(_fill_draws)
+		return minf(total, float(_candidates.size()) + yield_rate * float(_site_job.attempts_left()))
+	var share: float = _site_share if _site_share >= 0.0 else 1.0
+	return clampf(share * total, float(_candidates.size()), total)
+
+
+## FILL draws still to make: exact during FILL (an upper bound: the fill stops once full), the
+## averaged share of candidate_count before it, the generator's ceiling with no sample.
+func _fill_draws_left(total: float) -> float:
+	if _phase > Phase.FILL:
+		return 0.0
+	if _phase == Phase.FILL:
+		return float(_site_job.attempts_left()) if _site_job != null else 0.0
+	if _fill_draw_share >= 0.0:
+		return _fill_draw_share * total
+	return float(maxi(_gen().fill_attempts_per_site, 1)) * total
+
+
+## Folds this think's per-unit cost of the finished `phase` into the process-wide averages;
+## the end of FILL also folds the FILL-draw and site shares.
+func _record_phase(phase: int) -> void:
+	if _unit_cost_us.size() != Phase.DONE:
+		_unit_cost_us.resize(Phase.DONE)
+		_unit_cost_us.fill(NO_SAMPLE)
+	if _phase_units[phase] > 0:
+		_unit_cost_us[phase] = _averaged(_unit_cost_us[phase], float(_phase_us[phase]) / float(_phase_units[phase]))
+	var total: int = _profile.candidate_count
+	if phase != Phase.FILL or total <= 0:
+		return
+	_fill_draw_share = _averaged(_fill_draw_share, float(_fill_draws) / float(total))
+	_site_share = _averaged(_site_share, float(_candidates.size()) / float(total))
+
+
+static func _averaged(average: float, sample: float) -> float:
+	return sample if average < 0.0 else lerpf(average, sample, COST_AVERAGE_WEIGHT)
 
 
 func _plan() -> void:
@@ -183,10 +349,19 @@ func _make_sites() -> void:
 	_phase = Phase.FILL
 
 
-func _fill_sites(max_attempts: int) -> void:
-	if _site_job.fill_step(max_attempts):
+## Runs up to `max_attempts` FILL draws; returns the draws made.
+func _fill_sites(max_attempts: int) -> int:
+	var job: BotCandidateGen.SiteJob = _site_job
+	var draws_before: int = job.attempts_left()
+	var sites_before: int = _candidates.size()
+	var finished: bool = job.fill_step(max_attempts)
+	var draws: int = draws_before - job.attempts_left()
+	_fill_draws += draws
+	_fill_added += _candidates.size() - sites_before
+	if finished:
 		_site_job = null
 		_phase = Phase.PROBE if not _candidates.is_empty() else Phase.PICK
+	return draws
 
 
 func _probe_one(probe: Callable) -> void:
@@ -197,9 +372,22 @@ func _probe_one(probe: Callable) -> void:
 	candidate.on_top_of_own_stack = bool(hit.get("own", false))
 	candidate.top_height = candidate.support_height + candidate.shape_height
 	_fire_cell_probes(candidate, probe)
-	candidate.tip_risk = BotStatics.tip_risk(candidate, _view.held, _view.grid, gen_tuning, _view.cube_size)
+	candidate.tip_risk = _tip_risk(candidate)
 	if _probe_index >= _candidates.size():
 		_phase = Phase.RANK
+
+
+## BotStatics.tip_risk of a probed site, each orientation of the held piece described once per
+## think (Bontago-1t5.37; same values as BotStatics.tip_risk).
+func _tip_risk(candidate: BotCandidate) -> float:
+	var shape: BlockShape = _view.held
+	if shape == null or shape.cells.is_empty():
+		return 0.0
+	var info: BotStatics.OrientationInfo = _orientation_infos.get(candidate.orientation_index) as BotStatics.OrientationInfo
+	if info == null:
+		info = BotStatics.orientation_info(shape, candidate.orientation_index, _gen())
+		_orientation_infos[candidate.orientation_index] = info
+	return BotStatics.tip_risk_of(candidate, info, _view.grid, _gen(), _view.cube_size)
 
 
 ## Per-footprint-cell support heights (NO_SUPPORT for a hole or a miss), capped at the tier's
@@ -225,16 +413,19 @@ func _fire_cell_probes(candidate: BotCandidate, probe: Callable) -> void:
 	candidate.corner_support_hits = hits
 
 
-## Proxy-scores the next `count` sites; ranks them best first after the last one.
-func _rank_slice(count: int) -> void:
+## Proxy-scores the next `count` sites; ranks them best first after the last one. Returns the
+## sites scored.
+func _rank_slice(count: int) -> int:
 	_scores.resize(_candidates.size())
 	_terms.resize(_candidates.size())
+	var first: int = _rank_pos
 	var stop: int = mini(_rank_pos + maxi(count, 1), _candidates.size())
 	while _rank_pos < stop:
 		_score_proxy(_rank_pos)
 		_rank_pos += 1
 	if _rank_pos >= _candidates.size():
 		_finish_rank(_candidates.size())
+	return _rank_pos - first
 
 
 ## Proxy-scores sites [0, limit) and ranks them best first (ties keep generation order).

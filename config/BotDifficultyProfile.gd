@@ -32,8 +32,15 @@ extends Resource
 ## may spend (BotThink.step budget).
 @export var think_budget_us: int = 800
 ## Bot V2: static cap on the microseconds ALL bots together may spend thinking in one
-## physics frame; bots over the cap wait for the next frame.
+## physics frame; a bot over the cap still does its share of the work left before its
+## decision deadline, but no work ahead of it (Bontago-1t5.37).
 @export var think_frame_cap_us: int = 2500
+## Bot V2 (Bontago-1t5.37): a think is decided by the legacy brain's window for the same
+## difficulty (generation_ticks of that tier's legacy profile); the work left is spread over
+## the ticks left and the deadline tick finishes it. The schedule plans to be done this many
+## ticks before the deadline; they stay in reserve for a think costlier than estimated (a
+## smaller worst tick, at the price of a higher mean per tick). 0 = spread up to the deadline.
+@export var think_reserve_frames: int = 1
 ## Bot V2: how many top proxy-scored sites get the measured (territory gain) evaluation
 ## (P3/P4; unused by the legacy-equivalent pipeline).
 @export var eval_top_k: int = 8
@@ -53,3 +60,13 @@ extends Resource
 @export var threat_lookahead_m: float = 0.0
 ## Bot V2 (Bontago-1t5.25): multiplier on BotStrategyTuning.gift_claim_value (0 = ignores gifts).
 @export var gift_claim_scale: float = 1.0
+
+
+## Physics ticks the legacy brain's GENERATING state takes for this profile (BotController.
+## _tick_generating adds candidates_per_frame candidates per tick until candidate_count, at most
+## `max_ticks` = BotTuning.max_generation_frames): its decision-ready latency after the release
+## boundary. Bontago-1t5.37: the V2 decision deadline.
+func generation_ticks(max_ticks: int) -> int:
+	var per_tick: int = maxi(candidates_per_frame, 1)
+	var ticks: int = ceili(float(maxi(candidate_count, 0)) / float(per_tick))
+	return clampi(ticks, 1, maxi(max_ticks, 1))

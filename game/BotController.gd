@@ -41,6 +41,7 @@ enum Brain { LEGACY, V2 }
 
 ## Static per-physics-frame accounting of microseconds ALL V2 bots spent thinking, so eight
 ## bots cannot stack their budgets into one long frame (profile.think_frame_cap_us).
+## Bontago-1t5.37: the cap only limits work ahead of a bot's deadline schedule, never its share.
 static var _think_frame: int = -1
 static var _think_frame_used_us: int = 0
 
@@ -84,10 +85,15 @@ var _brain: Brain = Brain.LEGACY
 var _special_view: BotWorldView = null
 var _think: BotThink = null
 var _think_frames_used: int = 0
-## Physics frame this bot last ran a THINKING tick, and whether the shared cap blocked it
-## then (a blocked bot is served first next frame, so none starves).
+## Physics frame this bot last ran a THINKING tick (same-frame re-ticks reset the shared count).
 var _think_last_frame: int = -1
-var _think_was_blocked: bool = false
+## Bontago-1t5.37: THINKING ticks by which the current think must be decided, and ticks so far.
+var _think_deadline_ticks: int = 0
+var _think_ticks: int = 0
+## Bontago-1t5.37: the V2 probes' reused column-ray query (built on first use) and the physics
+## space of the current THINKING tick (null outside one).
+var _column_query: PhysicsRayQueryParameters3D = null
+var _probe_space: PhysicsDirectSpaceState3D = null
 var _candidates: Array[BotCandidate] = []
 var _generation_frames_used: int = 0
 
@@ -122,7 +128,6 @@ func setup(slot_id: int, difficulty: MatchConfig.AiDifficulty, field: Field, reg
 	_generation_frames_used = 0
 	_think = null
 	_think_last_frame = -1
-	_think_was_blocked = false
 	# A new bot (match or test) never inherits a previous run's frame accounting.
 	_think_frame = -1
 	_think_frame_used_us = 0
@@ -280,7 +285,7 @@ func _tick_idle(delta: float) -> void:
 	_state = State.GENERATING
 
 
-# --- THINKING (Bot V2): BotThink.step() under a per-bot and a per-frame budget ---
+# --- THINKING (Bot V2): BotThink.step() slices spread over the ticks before the decision deadline ---
 
 ## Builds the pure world snapshot for this piece and starts a BotThink on it.
 func _begin_thinking(match_ref: Variant) -> void:
@@ -306,7 +311,16 @@ func _begin_thinking(match_ref: Variant) -> void:
 	_think.tuning = tuning
 	_think.cell_probe = _probe_cell
 	_think_frames_used = 0
+	_think_ticks = 0
+	_think_deadline_ticks = think_deadline_ticks()
 	_state = State.THINKING
+
+
+## Bontago-1t5.37: THINKING ticks after the release boundary by which a V2 think is decided: the
+## legacy brain's window for the same difficulty (its GENERATING ticks, BotDifficultyProfile.
+## generation_ticks), so V2 never decides later than legacy (docs/BOT_AI_REDESIGN.md 2.5 E6).
+func think_deadline_ticks() -> int:
+	return tuning.profile_for(_difficulty).generation_ticks(tuning.max_generation_frames)
 
 
 ## Bot V2 (Bontago-1t5.24): the held special planned against this piece's world snapshot and
@@ -353,15 +367,17 @@ func _tick_thinking() -> void:
 		_think_frame = frame
 		_think_frame_used_us = 0
 	_think_last_frame = frame
-	var remaining_us: int = _profile.think_frame_cap_us - _think_frame_used_us
-	if remaining_us <= 0:
-		if not _think_was_blocked:
-			_think_was_blocked = true
-			return
-		remaining_us = _profile.think_budget_us
-	_think_was_blocked = false
+	_think_ticks += 1
+	var ticks_left: int = _think_deadline_ticks - _think_ticks + 1
 	var start_us: int = Time.get_ticks_usec()
-	var finished: bool = _think.step(mini(_profile.think_budget_us, remaining_us), _probe)
+	_probe_space = _field.direct_space() if _field != null else null
+	var finished: bool = true
+	if ticks_left <= 1:
+		# The deadline tick: whatever is left runs now (the schedule keeps it about one slice).
+		_think.complete(_probe)
+	else:
+		finished = _think.step(_think_slice_us(ticks_left), _probe)
+	_probe_space = null
 	_think_frame_used_us += Time.get_ticks_usec() - start_us
 	_think_frames_used += 1
 	if not finished and _think_frames_used >= tuning.max_generation_frames:
@@ -372,20 +388,61 @@ func _tick_thinking() -> void:
 		_state = State.ACTING
 
 
+## Bontago-1t5.37: this tick's think slice. The deadline share (BotThink's remaining-work
+## estimate over the ticks left, this one included, less the tier's think_reserve_frames) always
+## runs; while the shared per-frame cap (think_frame_cap_us, all V2 bots together) has room the
+## bot may work ahead up to its think_budget_us. The cap no longer skips a bot's tick: that only
+## pushed decisions late. Until this process has measured every costly stage
+## (BotThink.has_cost_estimate) the share is the tier's think_budget_us.
+func _think_slice_us(ticks_left: int) -> int:
+	var deadline_share_us: int = _profile.think_budget_us
+	if _think.has_cost_estimate():
+		var planned_ticks: int = maxi(ticks_left - maxi(_profile.think_reserve_frames, 0), 1)
+		deadline_share_us = ceili(float(_think.remaining_work_us()) / float(planned_ticks))
+	var room_us: int = mini(_profile.think_budget_us, _profile.think_frame_cap_us - _think_frame_used_us)
+	return maxi(deadline_share_us, room_us)
+
+
 ## BotThink's physics probe: {hit, height, own} straight down at a disk-local point.
 func _probe(xz: Vector2) -> Dictionary:
-	var hit: Dictionary = _raycast_support_height(xz)
+	var hit: Dictionary = _column_hit(xz)
+	if hit.is_empty():
+		return {"hit": false, "height": 0.0, "own": false}
 	return {
-		"hit": bool(hit.get("hit", false)),
-		"height": float(hit.get("height", 0.0)),
+		"hit": true,
+		"height": _field.to_local(hit["position"] as Vector3).y,
 		"own": _is_own_block(hit.get("collider"), int(_match().team_of(_slot_id))),
 	}
 
 
 ## The per-footprint-cell probe: like `_probe` without the own-block lookup (unused there).
 func _probe_cell(xz: Vector2) -> Dictionary:
-	var hit: Dictionary = _raycast_support_height(xz)
-	return {"hit": bool(hit.get("hit", false)), "height": float(hit.get("height", 0.0))}
+	var hit: Dictionary = _column_hit(xz)
+	if hit.is_empty():
+		return {"hit": false, "height": 0.0}
+	return {"hit": true, "height": _field.to_local(hit["position"] as Vector3).y}
+
+
+## Bontago-1t5.37: Field.raycast_disk_column's exact ray (map_def.cell_wake_height down to
+## tuning.kill_plane_y, bodies only, PLACEMENT_QUERY_MASK, nothing excluded) through one reused
+## query object: the V2 probes fire up to seven rays per site. The end points are
+## world_from_disk_local's own transform (Node3D.to_global is global_transform * point), and the
+## physics space is looked up once per THINKING tick. {} on a miss or with no physics.
+func _column_hit(xz: Vector2) -> Dictionary:
+	if _field == null:
+		return {}
+	var space: PhysicsDirectSpaceState3D = _probe_space if _probe_space != null else _field.direct_space()
+	if space == null:
+		return {}
+	if _column_query == null:
+		_column_query = PhysicsRayQueryParameters3D.new()
+		_column_query.collide_with_bodies = true
+		_column_query.collide_with_areas = false
+		_column_query.collision_mask = Field.PLACEMENT_QUERY_MASK
+	var xform: Transform3D = _field.global_transform
+	_column_query.from = xform * Vector3(xz.x, _field.map_def.cell_wake_height, xz.y)
+	_column_query.to = xform * Vector3(xz.x, _field.tuning.kill_plane_y, xz.y)
+	return space.intersect_ray(_column_query)
 
 
 ## Disk-local positions of every landed (unclaimed-by-territory) gift, for the world view.

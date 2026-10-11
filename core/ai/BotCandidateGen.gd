@@ -342,7 +342,12 @@ class _Gen:
 		var orientation: BotStatics.OrientationInfo = allowed[rng.randi() % allowed.size()]
 		# Cheap reject first (Bontago-1t5.30): a draw outside the team's own territory can never
 		# be VALID, and most draws are, so the full validate_point chain runs only for the rest.
-		var cell: Vector2i = view.grid.world_to_cell(point)
+		# Inlined CellGrid.world_to_cell (identical arithmetic; Bontago-1t5.37: ~1000 draws a think).
+		var grid: CellGrid = view.grid
+		var cell: Vector2i = Vector2i(
+			floori((point.x + grid.half_extent) / grid.cell_size),
+			floori((point.y + grid.half_extent) / grid.cell_size)
+		)
 		if view.raster.team_at(cell.x, cell.y) != view.team_id:
 			return
 		_try_add(point, orientation, SITE_FILL, false, 0.0)

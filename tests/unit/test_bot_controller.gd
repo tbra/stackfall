@@ -1115,3 +1115,63 @@ func test_two_v2_bots_ticked_in_one_engine_frame_both_progress() -> void:
 			break
 	assert_true(progressed_a, "bot A thinks despite the exhausted shared cap")
 	assert_true(progressed_b, "bot B is not starved by bot A")
+
+
+## Bontago-1t5.37: a V2 fixture that has territory (sites are generated inside it).
+func _make_v2_bot(difficulty: MatchConfig.AiDifficulty) -> BotController:
+	var field: Field = _make_field()
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	var territory: TerritoryTuning = preload("res://config/territory_tuning.tres")
+	match_ref.raster_value = TerritoryRaster.new(CellGrid.new(20.0, 1.0), territory)
+	match_ref.cell_grid_value = match_ref.raster_value.grid()
+	var home: Array[InfluenceCircle] = [InfluenceCircle.for_home(Vector2(1.0, 0.0), 0, 0, territory)]
+	match_ref.raster_value.update(home, TerritorySolver.new(territory).solve(home), 0.1, false, false)
+	var bot: BotController = _make_controller(field, match_ref, BotControllerFakeNet.new())
+	bot.setup(0, difficulty, field, null)
+	bot.set_brain(BotController.Brain.V2)
+	return bot
+
+
+## Ticks a bot out of IDLE (its countdown cleared) and returns how many further ticks it spends
+## in `state` before leaving it (the decision latency the E6 bench measures).
+func _ticks_in_state(bot: BotController, state: BotController.State) -> int:
+	bot._countdown = 0.0
+	bot._physics_process(1.0 / 60.0)
+	assert_eq(bot._state, state, "precondition: the begin tick entered the state")
+	var ticks: int = 0
+	while bot._state == state and ticks < 100:
+		bot._physics_process(1.0 / 60.0)
+		ticks += 1
+	return ticks
+
+
+## Bontago-1t5.37: the V2 decision deadline is the legacy brain's own window, measured by
+## driving a LEGACY bot of each difficulty through GENERATING.
+func test_v2_deadline_is_the_legacy_generating_window() -> void:
+	var tuning: BotTuning = load("res://config/bot_tuning.tres")
+	for difficulty: MatchConfig.AiDifficulty in [
+		MatchConfig.AiDifficulty.EASY, MatchConfig.AiDifficulty.NORMAL, MatchConfig.AiDifficulty.HARD
+	]:
+		var field: Field = _make_field()
+		var legacy: BotController = _make_controller(field, _make_ready_match(0), BotControllerFakeNet.new())
+		legacy.setup(0, difficulty, field, null)
+		var legacy_ticks: int = _ticks_in_state(legacy, BotController.State.GENERATING)
+		assert_eq(legacy_ticks, tuning.profile_for(difficulty).generation_ticks(tuning.max_generation_frames))
+		var v2: BotController = _make_v2_bot(difficulty)
+		assert_eq(v2.think_deadline_ticks(), legacy_ticks, "difficulty %d" % difficulty)
+	assert_eq(tuning.normal.generation_ticks(tuning.max_generation_frames), 9, "ceil(70 / 8)")
+
+
+## Bontago-1t5.37: with no per-tick budget and an exhausted shared cap, the think still ends on
+## its deadline tick (the deadline share always runs, the last tick completes it).
+func test_v2_think_is_decided_by_its_deadline_tick() -> void:
+	var bot: BotController = _make_v2_bot(MatchConfig.AiDifficulty.EASY)
+	bot._profile = bot._profile.duplicate() as BotDifficultyProfile
+	bot._profile.think_budget_us = 0
+	bot._profile.think_frame_cap_us = 0
+	var deadline: int = bot.think_deadline_ticks()
+	var ticks: int = _ticks_in_state(bot, BotController.State.THINKING)
+	assert_lte(ticks, deadline, "decided by the deadline tick")
+	assert_eq(bot._state, BotController.State.ACTING)
+	assert_true(bot._think.is_done())
+	assert_eq(bot._think.decision().kind, BotThink.DecisionKind.PLACE)
