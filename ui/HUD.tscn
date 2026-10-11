@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://ui/HUD.gd" id="1_hud"]
 [ext_resource type="Script" path="res://ui/Minimap.gd" id="2_minimap"]
+[ext_resource type="Script" path="res://ui/ToastStack.gd" id="3_toast"]
 
 [node name="HUD" type="CanvasLayer"]
 script = ExtResource("1_hud")
@@ -60,13 +61,6 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 12
 text = "Special"
 visible = false
-
-[node name="GiftToastLabel" type="Label" parent="StatusPill"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 0
-theme_override_font_sizes/font_size = 12
-text = ""
 
 [node name="TimerRing" type="Control" parent="."]
 unique_name_in_owner = true
@@ -176,17 +170,21 @@ mouse_filter = 2
 expand_mode = 1
 stretch_mode = 5
 
-[node name="RejectLabel" type="Label" parent="."]
+[node name="ToastStack" type="VBoxContainer" parent="."]
 unique_name_in_owner = true
+script = ExtResource("3_toast")
 anchor_left = 0.5
 anchor_right = 0.5
 anchor_top = 1.0
 anchor_bottom = 1.0
-offset_top = -90.0
-offset_bottom = -60.0
+offset_left = -190.0
+offset_right = 190.0
+offset_top = -200.0
+offset_bottom = -184.0
 grow_horizontal = 2
-horizontal_alignment = 1
-text = ""
+grow_vertical = 0
+mouse_filter = 2
+alignment = 2
 
 [node name="WinnerLabel" type="Label" parent="."]
 unique_name_in_owner = true

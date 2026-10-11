@@ -110,14 +110,13 @@ var name_provider: Variant = null
 @onready var _shares_box: VBoxContainer = %SharesBox
 @onready var _status_pill: VBoxContainer = %StatusPill
 @onready var _capture_ring: Control = %CaptureRing
-@onready var _reject_label: Label = %RejectLabel
+@onready var _toasts: ToastStack = %ToastStack
 ## Bontago-mp0.124: feedback pictograms (config/hud_feedback_icon_table.tres)
 ## beside held height, the capture ring and the reject/relocated message.
 @onready var _capture_icon: TextureRect = %CaptureIcon
 @onready var _reject_icon: TextureRect = %RejectIcon
 @export var feedback_icons: HudFeedbackIconTable = preload("res://config/hud_feedback_icon_table.tres")
 @onready var _winner_label: Label = %WinnerLabel
-@onready var _gift_toast_label: Label = %GiftToastLabel
 ## Bontago-mp0.3.3 (mockup 08 restyle): the next-shape card's own backing
 ## panel, and the live minimap. Added as new HUD.tscn nodes; every
 ## pre-existing %UniqueName above keeps the exact same path it always had.
@@ -180,8 +179,6 @@ var _capture_color: Color = Color.WHITE
 var _capture_progress: float = 0.0
 ## Client-only smoothing between sparse goal_capture_progress updates (1pi.117).
 var _capture_ext: ClaimProgressExtrapolator = ClaimProgressExtrapolator.new()
-var _reject_tween: Tween
-var _gift_toast_tween: Tween
 
 var _share_rows: Array = []
 var _share_bars: Array = []
@@ -217,6 +214,7 @@ var _mode_score_label: Label = null
 ## Bontago-mp0.27: big centred 3-2-1 label, built in code (no scene edit).
 ## Driven by the host's replicated countdown (Match.countdown_remaining()),
 ## never by a local timer, so clients stay in step with the host.
+var _reject_icon_tween: Tween
 var _countdown_label: Label = null
 var _countdown_was_active: bool = false
 var _go_left_s: float = 0.0
@@ -246,9 +244,7 @@ func _ready() -> void:
 	_shape_preview.draw.connect(_on_shape_preview_draw)
 	_next_shape_preview.draw.connect(_on_next_shape_preview_draw)
 	_capture_ring.draw.connect(_on_capture_ring_draw)
-	_reject_label.modulate.a = 0.0
 	_setup_feedback_icons()
-	_gift_toast_label.modulate.a = 0.0
 	_winner_label.visible = false
 	_capture_ring.visible = false
 	_special_indicator.visible = false
@@ -259,7 +255,7 @@ func _ready() -> void:
 	# explicitly (Rubik text, cream ink); numerals use Bungee through _display_font.
 	_display_font = _ui_theme.get_font(&"font", &"DisplayLabel")
 	for themed: Control in [
-		_top_left_cluster, _status_pill, _held_next_panel, _special_indicator, _reject_label,
+		_top_left_cluster, _status_pill, _held_next_panel, _special_indicator, _toasts,
 	]:
 		themed.theme = _ui_theme
 	_style_panel(_top_left_backplate)
@@ -275,7 +271,6 @@ func _ready() -> void:
 	_height_label.visible = false
 	for label: Label in [
 		_turn_label, _height_label, _special_indicator,
-		_gift_toast_label, _reject_label,
 	]:
 		label.add_theme_color_override("font_color", hud_visual_tuning.ink_color)
 	_height_label.add_theme_color_override("font_color", hud_visual_tuning.muted_ink_color)
@@ -286,8 +281,7 @@ func _ready() -> void:
 	# DECISION (Bontago-hfa.6): the queued-special chip is a small plate under the scoreboard with its
 	# label in rim gold (components.md TipBanner "Special queued"); the claim toast is the rim Callout.
 	_style_status_plate(_special_indicator, _arcade.rim_color)
-	_style_callout(_gift_toast_label, HudCallout.Glyph.STAR)
-	_style_callout(_reject_label, HudCallout.Glyph.CROSS)
+	_setup_toast_stack()
 	_reject_icon.visible = false
 	# Row gap of the scoreboard (docs/ui_reskin: rows are tight, the plate carries the grouping).
 	_shares_box.add_theme_constant_override("separation", int(hud_visual_tuning.hud_row_gap_px))
@@ -556,8 +550,8 @@ func _setup_feedback_icons() -> void:
 	_capture_icon.offset_bottom = px * 0.5
 	_reject_icon.offset_left = -px * 0.5
 	_reject_icon.offset_right = px * 0.5
-	_reject_icon.offset_bottom = _reject_label.offset_top
-	_reject_icon.offset_top = _reject_label.offset_top - px
+	_reject_icon.offset_bottom = _toasts.offset_top
+	_reject_icon.offset_top = _toasts.offset_top - px
 	_reject_icon.modulate.a = 0.0
 
 
@@ -565,7 +559,10 @@ func _setup_feedback_icons() -> void:
 func _play_reject_icon(feedback: HudFeedbackIconTable.Feedback, fade_s: float) -> void:
 	_reject_icon.texture = feedback_icons.icon_for(feedback)
 	_reject_icon.modulate = Color(1.0, 1.0, 1.0, 1.0)
-	_reject_tween.parallel().tween_property(_reject_icon, ^"modulate:a", 0.0, fade_s)
+	if _reject_icon_tween != null and _reject_icon_tween.is_valid():
+		_reject_icon_tween.kill()
+	_reject_icon_tween = create_tween()
+	_reject_icon_tween.tween_property(_reject_icon, ^"modulate:a", 0.0, fade_s)
 
 
 func set_height(meters: float) -> void:
@@ -613,19 +610,11 @@ func set_capture(team_id: int, progress: float, color: Color) -> void:
 
 
 func show_reject(reason: StringName) -> void:
-	_reject_label.text = ("Rejected: %s" % String(reason).replace("_", " ")).to_upper()
-	# DECISION (ui/HUD.gd, Bontago-xtq.23): explicit full-white modulate, not
-	# just the alpha channel show_reject() alone used to touch -- show_relocated()
-	# below tints this same label a distinct colour, and without resetting the
-	# whole modulate here a reject message right after a relocated one would
-	# stay tinted instead of reading as its own, distinct message.
-	_reject_label.modulate = Color.WHITE
-	_set_callout(_reject_label, _arcade.alert_color, HudCallout.Glyph.CROSS)
-	if _reject_tween != null and _reject_tween.is_valid():
-		_reject_tween.kill()
-	_reject_tween = create_tween()
-	_reject_tween.tween_interval(ghost_tuning.hud_reject_message_duration)
-	_reject_tween.tween_property(_reject_label, ^"modulate:a", 0.0, ghost_tuning.hud_reject_fade_duration)
+	_toasts.push(
+		("Rejected: %s" % String(reason).replace("_", " ")).to_upper(),
+		_arcade.alert_color, HudCallout.Glyph.CROSS,
+		ghost_tuning.hud_reject_message_duration, ghost_tuning.hud_reject_fade_duration
+	)
 	_play_reject_icon(HudFeedbackIconTable.Feedback.REJECTED, ghost_tuning.hud_reject_fade_duration)
 
 
@@ -646,16 +635,12 @@ func show_reject(reason: StringName) -> void:
 ## hud_relocated_fade_duration), so tuning the reject message never silently
 ## detunes this one.
 func show_relocated() -> void:
-	_reject_label.text = "RELOCATED INTO YOUR TERRITORY"
-	_reject_label.modulate = Color.WHITE
 	# DECISION (Bontago-hfa.6): the forced auto-drop is a neutral correction, not a refusal, so it
 	# takes the mint Callout face with a check; a refusal stays alert + cross.
-	_set_callout(_reject_label, _arcade.mint_color, HudCallout.Glyph.CHECK)
-	if _reject_tween != null and _reject_tween.is_valid():
-		_reject_tween.kill()
-	_reject_tween = create_tween()
-	_reject_tween.tween_interval(ghost_tuning.hud_relocated_message_duration)
-	_reject_tween.tween_property(_reject_label, ^"modulate:a", 0.0, ghost_tuning.hud_relocated_fade_duration)
+	_toasts.push(
+		"RELOCATED INTO YOUR TERRITORY", _arcade.mint_color, HudCallout.Glyph.CHECK,
+		ghost_tuning.hud_relocated_message_duration, ghost_tuning.hud_relocated_fade_duration
+	)
 	_play_reject_icon(HudFeedbackIconTable.Feedback.RELOCATED, ghost_tuning.hud_relocated_fade_duration)
 
 
@@ -682,14 +667,11 @@ func show_winner(team_id: int, color: Color) -> void:
 ## since a claim toast and a rejection message read very differently and
 ## shouldn't be forced to share one timing.
 func show_gift_toast(special_id: StringName) -> void:
-	_gift_toast_label.text = ("Special queued: %s" % _special_display_name(special_id)).to_upper()
-	_gift_toast_label.modulate = Color.WHITE
-	_set_callout(_gift_toast_label, _arcade.rim_color, HudCallout.Glyph.STAR)
-	if _gift_toast_tween != null and _gift_toast_tween.is_valid():
-		_gift_toast_tween.kill()
-	_gift_toast_tween = create_tween()
-	_gift_toast_tween.tween_interval(gift_config.claim_toast_visible_duration_s)
-	_gift_toast_tween.tween_property(_gift_toast_label, ^"modulate:a", 0.0, gift_config.claim_toast_fade_duration_s)
+	_toasts.push(
+		("Special queued: %s" % _special_display_name(special_id)).to_upper(),
+		_arcade.rim_color, HudCallout.Glyph.STAR,
+		gift_config.claim_toast_visible_duration_s, gift_config.claim_toast_fade_duration_s
+	)
 
 
 # --- Events reactions --------------------------------------------------------
@@ -1045,6 +1027,28 @@ func _resize_top_left_backplate() -> void:
 	_status_pill.position = Vector2(
 		_top_left_backplate.position.x, _top_left_backplate.position.y + _top_left_backplate.size.y + padding
 	)
+
+
+## Bontago-1pi.159.12 (H1): every transient HUD message (reject, relocated, gift claimed) goes through
+## the one bottom-centre ToastStack, which sits above the HELD/NEXT card row so it never covers the
+## cards, the gift card's key prompt or the minimap. Audit: the 3-2-1/GO numeral is a persistent
+## state display (stays centred); the winner banner is hidden (the results screen owns it); the
+## special-queued chip and pending-gift line are status rows (stay in the status pill), not toasts.
+func _setup_toast_stack() -> void:
+	_toasts.styler = _style_toast
+	_toasts.max_visible = hud_visual_tuning.toast_max_visible
+	_toasts.add_theme_constant_override("separation", int(hud_visual_tuning.toast_row_gap_px))
+	var half: float = hud_visual_tuning.toast_max_width_px * 0.5
+	_toasts.offset_left = -half
+	_toasts.offset_right = half
+	_toasts.offset_bottom = _held_next_panel.offset_top - hud_visual_tuning.toast_gap_above_cards_px
+	_toasts.offset_top = _toasts.offset_bottom
+
+
+func _style_toast(label: Label, face: Color, glyph: HudCallout.Glyph) -> void:
+	if label.get_node_or_null("CalloutIcon") == null:
+		_style_callout(label, glyph)
+	_set_callout(label, face, glyph)
 
 
 ## Bontago-mp0.145 / Stackfall Arcade (Bontago-hfa.6): the one Callout look every transient HUD

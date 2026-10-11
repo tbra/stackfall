@@ -148,6 +148,14 @@ extends Resource
 @export var toast_padding_x_px: float = 12.0
 @export var toast_padding_y_px: float = 8.0
 @export var toast_font_size: int = 16
+## Bontago-1pi.159.12: the single bottom-centre ToastStack every transient message shares. It sits
+## `toast_gap_above_cards_px` above the HELD/NEXT card row (so it never overlaps the cards, the gift
+## card's key prompt or the minimap, at any UI scale), shows at most `toast_max_visible` at once
+## (the rest queue) with `toast_row_gap_px` between them, and its width is capped at `toast_max_width_px`.
+@export var toast_gap_above_cards_px: float = 12.0
+@export var toast_max_visible: int = 3
+@export var toast_row_gap_px: float = 6.0
+@export var toast_max_width_px: float = 380.0
 ## Edge length of the Callout's ink icon tile (the check / cross / star glyph) and the glyph's stroke width.
 @export var callout_icon_px: float = 24.0
 @export var callout_glyph_stroke_px: float = 3.0
