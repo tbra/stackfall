@@ -13,6 +13,9 @@ extends Node
 ## as a direct test seam against `break_force`. The Generic6DOF joint is this
 ## node's own child, so freeing this node frees the joint with it.
 
+## Group every live bond joins, so a body can find bonds stored under its partner.
+const GROUP: StringName = &"glue_joints"
+
 var _joint: Generic6DOFJoint3D = null
 var _body_a: PhysicsBody3D = null
 var _body_b: PhysicsBody3D = null
@@ -63,8 +66,26 @@ func bind(
 	_prev_velocity_b = _velocity(body_b)
 	_rest_relative = body_a.global_transform.affine_inverse() * body_b.global_transform
 	_bound = true
+	add_to_group(GROUP)
 	Events.glue_bond_changed.emit(body_a, body_b, true)
 	_announced = true
+
+
+## Bontago-1pi.85.70: ends every live bond that touches `body` (stored under it or
+## under its partner). Freeing a bond emits glue_bond_changed(false) from _exit_tree,
+## so clients' glue coat state follows. Returns the number released.
+static func release_bonds_for(body: Node, tree: SceneTree) -> int:
+	var released: int = 0
+	for node: Node in tree.get_nodes_in_group(GROUP):
+		var bond: GlueJoint = node as GlueJoint
+		if bond != null and bond.touches(body) and not bond.is_queued_for_deletion():
+			bond._break()
+			released += 1
+	return released
+
+
+func touches(body: Node) -> bool:
+	return _body_a == body or _body_b == body
 
 
 func bodies_match(a: PhysicsBody3D, b: PhysicsBody3D) -> bool:

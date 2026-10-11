@@ -365,3 +365,52 @@ func test_glued_pair_survives_a_sustained_wind_gust() -> void:
 			block.apply_central_force(Vector3(0.0, 0.0, GUST_ACCEL_MPS2 * GUST_FIELD_MARGIN * block.mass))
 		await get_tree().physics_frame
 	assert_true(is_instance_valid(bond), "wind gust accel must not break a bond")
+
+
+func _bean_def() -> SpecialDef:
+	return load("res://config/specials/jumping_bean.tres") as SpecialDef
+
+
+func test_bean_bonded_to_disc_hops_after_release() -> void:
+	# Bontago-1pi.85.70: a bonded bean could not hop (the joint held it above the impulse).
+	var bean: Block = _bare_block(0, _field.to_global(Vector3(0.0, 0.2, 0.0)))
+	bean.gravity_scale = 1.0
+	var glue: GlueDrops = GlueDrops.new()
+	bean.add_child(glue)
+	glue.bind(bean, _tuning)
+	assert_true(glue.try_bond(_field))
+	var ended: Array[bool] = []
+	var on_bond: Callable = func(_a: Node, _b: Node, formed: bool) -> void:
+		ended.append(formed)
+	Events.glue_bond_changed.connect(on_bond)
+	var effect: JumpingBeanEffect = (_bean_def().effect as JumpingBeanEffect)
+	effect._kick(bean)
+	await get_tree().process_frame
+	Events.glue_bond_changed.disconnect(on_bond)
+	assert_eq(_bonds(bean).size(), 0, "hop frees the bean's bond")
+	assert_eq(ended, [false], "bond-end event fires so clients drop the glue coat")
+	assert_gt(bean.linear_velocity.y, 1.0, "the bean actually leaves the ground")
+
+
+func test_bean_with_bond_stored_under_partner_is_freed() -> void:
+	var bean: Block = _bare_block(1, Vector3(0.0, 5.0, 0.0))
+	var charged: Block = _bare_block(0, Vector3(1.0, 5.0, 0.0))
+	var glue: GlueDrops = GlueDrops.new()
+	charged.add_child(glue)
+	glue.bind(charged, _tuning)
+	assert_true(glue.try_bond(bean))
+	assert_eq(GlueJoint.release_bonds_for(bean, get_tree()), 1)
+	await get_tree().process_frame
+	assert_eq(_bonds(charged).size(), 0)
+
+
+func test_jumping_bean_drop_keeps_the_glue_charge() -> void:
+	assert_true(Match.grant_glue_drops(0, 3))
+	assert_true(Match.debug_queue_special(0, &"jumping_bean"))
+	Match._gifts.activate_next_special(0)
+	assert_eq(Match.held_special(0), &"jumping_bean")
+	assert_eq(_place(), PlacementRules.REASON_OK)
+	assert_eq(Match.glue_drops_left(0), 3, "a bean takes no glue charge")
+	var placed: Block = _blocks_root.get_child(_blocks_root.get_child_count() - 1) as Block
+	for child: Node in placed.get_children():
+		assert_false(child is GlueDrops, "the bean is never glue-bonded")
