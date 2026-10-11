@@ -45,9 +45,9 @@ func test_contextual_music_stays_stopped_until_started() -> void:
 func test_release_audio_stops_players_and_drops_stream_refs() -> void:
 	_sfx.set_root_dir_for_test(_tmp_dir)
 	assert_true(_sfx.play(AudioConfig.EVENT_CLICK))
-	assert_true(_sfx._sfx_players[0].playing)
+	assert_not_null(_first_playing_sfx_player())
 	_sfx.release_audio()
-	for player: AudioStreamPlayer in _sfx._sfx_players:
+	for player: AudioStreamPlayer in _sfx._sfx_players + _sfx._ui_players:
 		assert_false(player.playing)
 		assert_null(player.stream)
 	assert_true(_sfx._streams_by_filename.is_empty())
@@ -375,14 +375,14 @@ func test_music_volume_db_offsets_music_playback_independently_of_sfx() -> void:
 
 
 func _first_playing_sfx_player() -> AudioStreamPlayer:
-	for player: AudioStreamPlayer in _sfx._sfx_players:
+	for player: AudioStreamPlayer in _sfx._sfx_players + _sfx._ui_players:
 		if player.playing:
 			return player
 	return null
 
 
 func _stop_all_sfx_players() -> void:
-	for player: AudioStreamPlayer in _sfx._sfx_players:
+	for player: AudioStreamPlayer in _sfx._sfx_players + _sfx._ui_players:
 		player.stop()
 
 

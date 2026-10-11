@@ -118,6 +118,8 @@ func _ready() -> void:
 	# true. ui/SandboxPanel.gd sets the same flag on itself for the same
 	# reason.
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	Events.pause_menu_opened.connect(_on_pause_menu_opened)
+	Events.pause_menu_closed.connect(_on_pause_menu_closed)
 
 
 ## Engine.time_scale and get_tree().paused are both process-global, not
@@ -126,6 +128,9 @@ func _ready() -> void:
 ## still active would leak into whatever match runs next in the same process
 ## (the shipped game, or the next test file's fixture).
 func _exit_tree() -> void:
+	if Events.pause_menu_opened.is_connected(_on_pause_menu_opened):
+		Events.pause_menu_opened.disconnect(_on_pause_menu_opened)
+		Events.pause_menu_closed.disconnect(_on_pause_menu_closed)
 	_set_block_physics_frozen(false)
 	Match._sandbox_territory_profile_enabled = false
 	Match._territory_cache_enabled = true
@@ -293,10 +298,25 @@ func _toggle_slow_motion() -> void:
 	Engine.time_scale = sandbox_config.slow_motion_scale if _slow_motion_active else 1.0
 
 
+var _pause_menu_open: bool = false
+
+
+func _on_pause_menu_opened() -> void:
+	_pause_menu_open = true
+
+
+func _on_pause_menu_closed() -> void:
+	_pause_menu_open = false
+
+
 ## sandbox_pause_physics (F11 / gamepad PADDLE2+TOUCHPAD): get_tree().paused,
 ## the standard Godot mechanism -- see this node's own _ready() for why the
 ## sandbox subtree stays responsive (PROCESS_MODE_ALWAYS) while this is true.
 func _toggle_physics_paused() -> void:
+	# Bontago-1pi.167: the pause menu owns the tree pause while it is open; F11 must not unfreeze
+	# the world behind it (the menu releases only a freeze it claimed itself).
+	if _pause_menu_open:
+		return
 	_physics_paused = not _physics_paused
 	get_tree().paused = _physics_paused
 

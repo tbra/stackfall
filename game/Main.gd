@@ -1124,7 +1124,8 @@ func _pause_menu_context() -> Dictionary:
 			entry = PauseMenu.ReturnEntry.DISABLED
 	var state: int = int(Match.state())
 	var in_progress: bool = Match.is_in_progress(state)
-	return {"return_entry": entry, "match_in_progress": in_progress}
+	# Bontago-1pi.167: PauseMenu freezes the tree only when no remote human is connected.
+	return {"return_entry": entry, "match_in_progress": in_progress, "freeze_tree": Net.is_solo_session()}
 
 
 ## ui/PauseMenu.gd's return_to_lobby_requested (Return to lobby, confirmed).

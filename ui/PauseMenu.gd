@@ -110,6 +110,7 @@ const LEAVE_CONFIRM_OK_TEXT: String = "OK"
 ## decoupled from both (see the header).
 var context_provider: Callable = Callable()
 
+var _froze_tree: bool = false
 var _options_menu: OptionsMenu = null
 var _pending_action: PendingAction = PendingAction.NONE
 var _confirm_origin: UiBlockButton = null
@@ -128,6 +129,10 @@ var _restore_focus: Callable = Callable()
 
 
 func _ready() -> void:
+	# Bontago-1pi.167: this menu (and Options/confirm dialog beneath it) must keep running while
+	# it has paused the tree.
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	Events.net_peer_joined.connect(_on_peer_joined_while_open)
 	# The scene authors the dialog column under the UiPanel; its own content column is where it lives.
 	var column: Node = %Layout
 	column.reparent(_panel.content, false)
@@ -193,8 +198,36 @@ func _toggle_menu() -> void:
 func _open() -> void:
 	visible = true
 	refresh_return_entry()
+	_apply_freeze()
 	Events.pause_menu_opened.emit()
 	_resume_button.grab_focus()
+
+
+func _exit_tree() -> void:
+	_release_freeze()
+
+
+## Bontago-1pi.167: freezes the whole tree while open iff the session context says no remote
+## human is connected (context key "freeze_tree"; absent = never, so a bare menu is inert).
+func _apply_freeze() -> void:
+	# Only claim a freeze nobody else holds (Sandbox F11 may already have paused the tree), so
+	# closing never releases somebody else's pause.
+	if bool(_context().get("freeze_tree", false)) and not get_tree().paused:
+		get_tree().paused = true
+		_froze_tree = true
+
+
+func _release_freeze() -> void:
+	if _froze_tree:
+		_froze_tree = false
+		get_tree().paused = false
+
+
+## DECISION (Bontago-1pi.167): a human joining while the menu is open unfreezes the world at once
+## (the menu stays open, input still gated); the simplest safe rule, no join blocking needed.
+func _on_peer_joined_while_open(_peer_id: int, _slot_id: int, _player_name: String) -> void:
+	if _froze_tree and not bool(_context().get("freeze_tree", false)):
+		_release_freeze()
 
 
 func _close() -> void:
@@ -203,6 +236,7 @@ func _close() -> void:
 	_pending_action = PendingAction.NONE
 	_confirm_dialog.hide()
 	visible = false
+	_release_freeze()
 	Events.pause_menu_closed.emit()
 
 

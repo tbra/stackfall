@@ -15,14 +15,14 @@ func _autoload() -> Node:
 
 
 func _played_stream(sfx: Node, before: int) -> AudioStream:
-	assert_ne(sfx._next_sfx_player_index, before, "a cue should have started a player")
-	var index: int = (sfx._next_sfx_player_index - 1 + sfx._sfx_players.size()) % sfx._sfx_players.size()
-	return (sfx._sfx_players[index] as AudioStreamPlayer).stream
+	assert_ne(sfx._next_ui_player_index, before, "a cue should have started a player")
+	var index: int = (sfx._next_ui_player_index - 1 + sfx._ui_players.size()) % sfx._ui_players.size()
+	return (sfx._ui_players[index] as AudioStreamPlayer).stream
 
 
 func _expect_cue(cue: StringName, emit: Callable) -> void:
 	var sfx: Node = _autoload()
-	var before: int = sfx._next_sfx_player_index
+	var before: int = sfx._next_ui_player_index
 	emit.call()
 	var stream: AudioStream = _played_stream(sfx, before)
 	assert_same(stream, sfx._load_stream(_config.ui_cue_file(cue)), "cue %s" % cue)
@@ -51,6 +51,6 @@ func test_peer_join_leave_and_gate_cues() -> void:
 
 func test_own_departure_is_silent() -> void:
 	var sfx: Node = _autoload()
-	var before: int = sfx._next_sfx_player_index
+	var before: int = sfx._next_ui_player_index
 	Events.net_peer_left.emit(Net.local_peer_id(), 0, 0)
-	assert_eq(sfx._next_sfx_player_index, before)
+	assert_eq(sfx._next_ui_player_index, before)

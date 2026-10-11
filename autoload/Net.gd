@@ -288,6 +288,9 @@ func _ready() -> void:
 	# every other config does, so a hand-edited net_config.tres (a zero
 	# seat_pref_burst, a tiny packet cap) cannot lock clients out or break the wire.
 	config.sanitize()
+	# Bontago-1pi.167: keep transport/Steam/UPnP/handshake/ping polling alive while the offline
+	# pause menu has paused the tree, so a peer joining during a solo pause still gets through.
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	# Autoload decoupling S3a: SnapshotSync reaches Net through this binding
 	# instead of naming the autoload (globals exist before any _ready).
 	# Only the real autoload binds: tests build extra Net instances under test nodes.
@@ -494,6 +497,26 @@ func is_client() -> bool:
 
 func is_offline() -> bool:
 	return _mode == Mode.OFFLINE
+
+
+## Bontago-1pi.167 (owner: "Pausing in an offline mode should freeze everything"): true when
+## no remote human shares this session, so ui/PauseMenu.gd may pause the whole tree.
+func is_solo_session() -> bool:
+	return solo_session_rule(is_offline(), is_client(), peer_ids(), local_peer_id())
+
+
+## Pure rule behind is_solo_session(). Offline (sandbox/hot-seat/tutorial) is solo; a client
+## never is (host authority); a host is solo only when its roster holds nobody but itself, which
+## is how Vs bots starts. `peer_ids` includes the host's own id.
+static func solo_session_rule(offline: bool, client: bool, peers: PackedInt32Array, local_id: int) -> bool:
+	if client:
+		return false
+	if offline:
+		return true
+	for id: int in peers:
+		if id != local_id:
+			return false
+	return true
 
 
 ## This instance's multiplayer peer id, or HOST_PEER_ID when offline.

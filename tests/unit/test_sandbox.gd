@@ -966,6 +966,37 @@ func test_sandbox_pause_physics_hotkey_pauses_the_tree_and_toggles_back() -> voi
 	assert_false(sandbox.is_physics_paused())
 
 
+## Bontago-1pi.167: the pause menu's own freeze and Sandbox F11 never release each other.
+func test_f11_cannot_unfreeze_the_world_behind_an_open_pause_menu() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+	var menu: PauseMenu = _main._pause_menu as PauseMenu
+	menu.suppressed = false
+	menu._open()
+	assert_true(get_tree().paused, "offline: the open pause menu freezes the world")
+	sandbox._unhandled_input(_key_press(KEY_F11))
+	assert_true(get_tree().paused, "F11 is ignored while the pause menu is open")
+	assert_false(sandbox.is_physics_paused())
+	menu.force_close()
+	assert_false(get_tree().paused)
+
+
+func test_pause_menu_does_not_release_a_sandbox_f11_pause() -> void:
+	_start_sandbox(2)
+	_run_countdown()
+	var sandbox: Sandbox = _main._sandbox
+	sandbox._unhandled_input(_key_press(KEY_F11))
+	assert_true(get_tree().paused)
+	var menu: PauseMenu = _main._pause_menu as PauseMenu
+	menu.suppressed = false
+	menu._open()
+	menu.force_close()
+	assert_true(get_tree().paused, "closing the menu leaves the sandbox's own pause in place")
+	sandbox._unhandled_input(_key_press(KEY_F11))
+	assert_false(get_tree().paused)
+
+
 func test_sandbox_pause_physics_leaves_the_panel_processing_while_paused() -> void:
 	_start_sandbox(2)
 	_run_countdown()
