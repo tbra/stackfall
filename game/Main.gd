@@ -871,8 +871,9 @@ func _show_main_menu() -> void:
 
 
 ## DECISION: Play local → Vs bots starts from the normal lobby with one human
-## and one bot selected. The lobby remains editable before Start, while LAN
-## discovery stays off for this local entry point.
+## and no bot preloaded (ai_count 0, one open seat). The owner asked for no
+## default bot (playtest 2026-10-11). The lobby remains editable before Start,
+## while LAN discovery stays off for this local entry point.
 func start_bots_from_menu(player_name: String) -> void:
 	if not await _await_prewarmed(PackedStringArray()):
 		return
@@ -883,7 +884,7 @@ func start_bots_from_menu(player_name: String) -> void:
 		return
 	var config: MatchConfig = match_config.duplicate(true) as MatchConfig
 	config.player_count = 2
-	config.ai_count = 1
+	config.ai_count = 0
 	Net.set_lobby_data(config.to_dict())
 
 
