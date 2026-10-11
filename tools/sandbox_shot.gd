@@ -84,7 +84,7 @@ func _ready() -> void:
 		_fail("could not save %s" % out)
 		return
 	print("SHOT_SAVED ", out, " ", image.get_size())
-	get_tree().quit()
+	Sfx.quit_tree(0)
 
 
 func _apply_cam() -> void:
@@ -121,4 +121,4 @@ func _arg(args: PackedStringArray, prefix: String) -> String:
 
 func _fail(message: String) -> void:
 	printerr("SHOT_FAILED ", message)
-	get_tree().quit(FAIL_EXIT_CODE)
+	Sfx.quit_tree(FAIL_EXIT_CODE)
