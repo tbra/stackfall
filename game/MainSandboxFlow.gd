@@ -67,8 +67,8 @@ func start_sandbox_match_with_args(args: PackedStringArray) -> void:
 	main_node._sandbox = sandbox
 	main_node.add_child(sandbox)
 	# DECISION (Bontago-1pi.69): no scoreboard in the sandbox; Tab stays sandbox_next_slot.
-	if main_node._scoreboard != null:
-		main_node._scoreboard.suppressed = true
+	if main_node._scoreboard_node != null:
+		main_node._scoreboard_node.suppressed = true
 	sandbox.set_camera_rig(main_node._camera_rig)
 	sandbox.set_field(main_node._field)
 	Match.register_world(main_node._field, main_node._registry, main_node._blocks_container)

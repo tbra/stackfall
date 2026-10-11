@@ -122,6 +122,7 @@ func test_overlay_still_prewarming_is_collected_on_demand() -> void:
 	assert_not_null(pause, "ensure() resolves the in-flight chunk instead of loading beside it")
 	assert_true(queue.is_ready(PAUSE_PATH))
 	_main._prewarm_background = false
+	_main._prewarm_queue = null  # Main builds its default queue lazily (after_each aborts via the match flow)
 
 
 func test_overlays_are_queued_behind_the_menu_in_the_prewarm_config() -> void:

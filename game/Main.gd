@@ -762,6 +762,8 @@ func _ensure_scoreboard() -> ScoreboardOverlay:
 	if _scoreboard_node == null:
 		_scoreboard_node = _load_scene(SCOREBOARD_SCENE_PATH).instantiate() as ScoreboardOverlay
 		add_child(_scoreboard_node)
+		# Created while a sandbox is live (MainSandboxFlow only suppresses an existing one).
+		_scoreboard_node.suppressed = _sandbox != null and is_instance_valid(_sandbox)
 	return _scoreboard_node
 
 
