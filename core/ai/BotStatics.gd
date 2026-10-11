@@ -59,7 +59,17 @@ static func tip_risk(
 	if c == null or shape == null or shape.cells.is_empty():
 		return 0.0
 	var t: BotGenTuning = tuning if tuning != null else SHIPPED_TUNING
-	var info: OrientationInfo = orientation_info(shape, c.orientation_index, t)
+	return tip_risk_of(c, orientation_info(shape, c.orientation_index, t), grid, t, cube_size)
+
+
+## tip_risk with the orientation's OrientationInfo supplied: callers probing many sites of one
+## shape describe each orientation once (Bontago-1t5.37: orientation_info builds string
+## signatures, a large share of a probe step). `info` must be orientation_info(shape,
+## c.orientation_index, tuning) for the same tuning.
+static func tip_risk_of(
+	c: BotCandidate, info: OrientationInfo, grid: CellGrid = null, tuning: BotGenTuning = null, cube_size: float = NO_CUBE_SIZE
+) -> float:
+	var t: BotGenTuning = tuning if tuning != null else SHIPPED_TUNING
 	if c.cell_support.is_empty() or c.footprint_cells.is_empty():
 		return info.flat_risk
 	if grid != null:

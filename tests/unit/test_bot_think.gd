@@ -292,6 +292,47 @@ func test_finish_early_mid_probe_ranks_only_probed_sites() -> void:
 		assert_lt(position, probed, "an unprobed site never outranks a probed one")
 
 
+## Bontago-1t5.37: the frame cap hits between two FILL slices; finish_early completes the fill
+## with the same draws a full think makes, then ranks the (unprobed) sites by proxy and decides.
+func test_finish_early_mid_fill_completes_the_fill_and_decides() -> void:
+	var whole: BotThink = BotThink.new(_view(), _profile(), _rng())
+	whole.step(BIG_BUDGET_US, _probe)
+	_probe_calls = 0
+	var think: BotThink = BotThink.new(_view(), _profile(), _rng())
+	while think._phase != BotThink.Phase.FILL:
+		think.step(0, _probe)
+	var draws_at_start: int = think._site_job.attempts_left()
+	think.step(0, _probe)
+	assert_eq(think._phase, BotThink.Phase.FILL, "precondition: still filling")
+	assert_lt(think._site_job.attempts_left(), draws_at_start, "precondition: one FILL slice ran")
+	assert_eq(_probe_calls, 0, "precondition: nothing probed yet")
+	think.finish_early()
+	assert_true(think.is_done())
+	assert_eq(think.candidates().size(), whole.candidates().size(), "the fill was completed")
+	for i: int in range(whole.candidates().size()):
+		assert_eq(think.candidates()[i].origin, whole.candidates()[i].origin, "same draws, site %d" % i)
+	assert_eq(think._ranked.size(), think.candidates().size(), "every site ranked by proxy")
+	assert_eq(think.decision().kind, BotThink.DecisionKind.PLACE)
+	assert_eq(PlacementRules.validate_point(think.decision().origin, _raster, 0), PlacementRules.Result.VALID)
+
+
+## Bontago-1t5.37: complete() (the deadline tick) runs every remaining stage: the decision is the
+## one-shot decision, and remaining_work_us() falls to 0.
+func test_complete_mid_think_reaches_the_one_shot_decision() -> void:
+	var whole: BotThink = BotThink.new(_view(), _profile(), _rng())
+	whole.step(BIG_BUDGET_US, _probe)
+	var think: BotThink = BotThink.new(_view(), _profile(), _rng())
+	assert_true(think.has_cost_estimate(), "a finished think seeds the cost averages")
+	assert_gt(think.remaining_work_us(), 0, "work is estimated before the first step")
+	for _i: int in range(3):
+		think.step(0, _probe)
+	think.complete(_probe)
+	assert_true(think.is_done())
+	assert_eq(think.remaining_work_us(), 0)
+	assert_eq(think.decision().origin, whole.decision().origin)
+	assert_eq(think.decision().orientation_index, whole.decision().orientation_index)
+
+
 func test_revalidate_falls_back_when_the_choice_became_invalid_after_the_think() -> void:
 	var think: BotThink = BotThink.new(_view(), _profile(), _rng())
 	think.step(BIG_BUDGET_US, _probe)
