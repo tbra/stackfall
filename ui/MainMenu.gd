@@ -166,6 +166,8 @@ var _host_steam_choice: Button = null
 ## place, the same "one owner frees what it opened" convention
 ## _on_quit_pressed() implicitly follows via get_tree().quit().
 var _options_menu: OptionsMenu = null
+## Restores the focus modes UiFocusTrap.suspend_outside() cleared while Options is open.
+var _restore_focus: Callable = Callable()
 
 
 func _ready() -> void:
@@ -661,6 +663,8 @@ func _on_options_pressed() -> void:
 	_options_menu = OPTIONS_MENU_SCENE.instantiate() as OptionsMenu
 	_center.visible = false
 	add_child(_options_menu)
+	# Bontago-1pi.159.15: nothing behind Options may take pad / arrow focus while it is open.
+	_restore_focus = UiFocusTrap.suspend_outside(_options_menu, self)
 	_options_menu.closed.connect(_on_options_closed)
 
 
@@ -668,6 +672,9 @@ func _on_options_closed() -> void:
 	if _options_menu != null:
 		_options_menu.queue_free()
 		_options_menu = null
+	if _restore_focus.is_valid():
+		_restore_focus.call()
+		_restore_focus = Callable()
 	_center.visible = true
 	_options_button.grab_focus()
 

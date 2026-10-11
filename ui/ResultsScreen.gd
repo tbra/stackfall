@@ -432,3 +432,5 @@ func _wire_focus_chain() -> void:
 		current.focus_neighbor_top = current.get_path_to(prev)
 		current.focus_neighbor_bottom = current.get_path_to(next)
 		current.focus_mode = Control.FOCUS_ALL
+	# Bontago-1pi.159.15: left / right (no neighbour set) must not leave this screen.
+	UiFocusTrap.trap(self)
