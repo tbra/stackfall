@@ -212,6 +212,9 @@ var _launch_process_mode: Sky.ProcessMode = Sky.PROCESS_MODE_AUTOMATIC
 ## Bontago-1pi.11.74 (G1): see _process. SKY_TIME_GLOBAL is registered in project.godot
 ## [shader_globals] (tools/bootstrap_project.gd).
 const SKY_TIME_GLOBAL: StringName = &"sky_time"
+## Bontago-1pi.167: the sky's own clock, advanced by _process delta (not the wall clock) so a
+## paused tree (offline pause menu) freezes cloud animation. Seeded from the wall clock once.
+var _sky_clock_s: float = float(Time.get_ticks_msec()) * SECONDS_PER_MSEC
 const RADIANCE_TICK_WRAP: int = 1024
 const MIN_RADIANCE_HZ: float = 0.001
 const SECONDS_PER_MSEC: float = 0.001
@@ -355,6 +358,7 @@ func _prune_overcast_sky_bases() -> void:
 func _process(delta: float) -> void:
 	_step_probe_interval(delta)
 	_step_cloud_drift(delta)
+	_sky_clock_s += delta
 	_publish_sky_time()
 	# Bontago-1pi.11.74 (G1): the radiance octmap re-renders whenever the sky material
 	# is written (sky.cpp:1044 uniform_set_updated) or the shader reads TIME (:1033;
@@ -379,7 +383,7 @@ func _process(delta: float) -> void:
 ## uniform lives in the shared global buffer: no material dirty, no radiance re-render.
 func _publish_sky_time() -> void:
 	RenderingServer.global_shader_parameter_set(SKY_TIME_GLOBAL,
-		fposmod(float(Time.get_ticks_msec()) * SECONDS_PER_MSEC, radiance_config.time_wrap_seconds))
+		fposmod(_sky_clock_s, radiance_config.time_wrap_seconds))
 
 
 ## Dirties the live sky material once (a counter write) so a sky with no cycle still

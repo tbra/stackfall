@@ -57,6 +57,10 @@ var _music_root_dir: String = ""
 var _music_available: bool = false
 var _music_streams_by_filename: Dictionary = {}
 var _sfx_players: Array[AudioStreamPlayer] = []
+## Bontago-1pi.167: pause-proof pool for menu cues (see _build_player_pool).
+const UI_PLAYER_COUNT: int = 4
+var _ui_players: Array[AudioStreamPlayer] = []
+var _next_ui_player_index: int = 0
 var _next_sfx_player_index: int = 0
 var _music_player: AudioStreamPlayer
 var _music_enabled: bool = true
@@ -207,6 +211,14 @@ func _build_player_pool() -> void:
 		var player: AudioStreamPlayer = AudioStreamPlayer.new()
 		add_child(player)
 		_sfx_players.append(player)
+	# DECISION (Bontago-1pi.167): menu cues (click, hover, start, lobby UI cues) use their own
+	# small pool that keeps playing while the offline pause menu has paused the tree; match SFX,
+	# ambience and music stay on the pausable pool above and freeze with the world.
+	for _i: int in range(UI_PLAYER_COUNT):
+		var ui_player: AudioStreamPlayer = AudioStreamPlayer.new()
+		ui_player.process_mode = Node.PROCESS_MODE_ALWAYS
+		add_child(ui_player)
+		_ui_players.append(ui_player)
 	_music_player = AudioStreamPlayer.new()
 	add_child(_music_player)
 	_music_player.finished.connect(_on_music_finished)
@@ -229,7 +241,7 @@ func play(event: StringName) -> bool:
 	if event == AudioConfig.EVENT_MUSIC:
 		_play_music_stream(stream)
 		return true
-	var player: AudioStreamPlayer = _next_sfx_player()
+	var player: AudioStreamPlayer = _next_ui_player() if _is_menu_event(event) else _next_sfx_player()
 	player.stream = stream
 	player.volume_db = config.sfx_volume_db + Settings.master_volume_db() + Settings.sfx_volume_db()
 	player.play()
@@ -338,6 +350,18 @@ func _load_stream_from_root(filename: String, root_dir: String, cache: Dictionar
 	if stream != null:
 		cache[key] = stream
 	return stream
+
+
+func _is_menu_event(event: StringName) -> bool:
+	return event == AudioConfig.EVENT_CLICK or event == AudioConfig.EVENT_HOVER or event == AudioConfig.EVENT_START_GAME
+
+
+func _next_ui_player() -> AudioStreamPlayer:
+	if _ui_players.is_empty():
+		return _next_sfx_player()
+	var player: AudioStreamPlayer = _ui_players[_next_ui_player_index]
+	_next_ui_player_index = (_next_ui_player_index + 1) % _ui_players.size()
+	return player
 
 
 func _next_sfx_player() -> AudioStreamPlayer:
@@ -596,6 +620,7 @@ func release_audio() -> void:
 	_music_crossfade_tween = null
 	_music_state = MusicState.STOPPED
 	var players: Array[AudioStreamPlayer] = _sfx_players.duplicate()
+	players.append_array(_ui_players)
 	players.append(_music_player)
 	players.append(_tense_music_player)
 	players.append(_claim_player)
@@ -921,7 +946,7 @@ func play_ui_cue(cue: StringName) -> bool:
 	var stream: AudioStream = _load_stream(filename)
 	if stream == null:
 		return false
-	var player: AudioStreamPlayer = _next_sfx_player()
+	var player: AudioStreamPlayer = _next_ui_player()
 	player.stream = stream
 	player.volume_db = config.sfx_volume_db + config.ui_cue_volume_db + Settings.master_volume_db() + Settings.sfx_volume_db()
 	player.play()
