@@ -61,6 +61,9 @@ const _NUMERIC_COLUMNS: Array[int] = [
 ## Columns drawn in the Bungee display face (the headline numbers of a row).
 const _DISPLAY_COLUMNS: Array[int] = [Column.TERRITORY]
 
+## Indexed by MatchConfig.AiDifficulty (same words as the lobby's difficulty picker).
+const _DIFFICULTY_LABELS: PackedStringArray = ["Easy", "Normal", "Hard"]
+
 static var _table_tuning: ResultsTableTuning = null
 
 
@@ -117,10 +120,11 @@ static func build_data_row(
 	var status_text: String = alive_text if eliminated_at < 0.0 else "Out @ %ds" % int(round(eliminated_at))
 	var territory_text: String = "%d%%" % int(round(ResultsPayload.float_of(row, ResultsPayload.KEY_TERRITORY_SHARE) * 100.0))
 
+	var tier_text: String = bot_difficulty_label(row, match_provider)
 	# DECISION (Bontago-1pi.72.1, orchestrator): one "Gifts" column showing gifts
 	# USED (specials_used); gifts_claimed stays in the stats payload untouched.
 	var cell_text_by_column: Dictionary = {
-		Column.PLAYER: ResultsScreen.row_name_text(row),
+		Column.PLAYER: ResultsScreen.row_name_text(row) if tier_text.is_empty() else ResultsPayload.string_of(row, ResultsPayload.KEY_NAME),
 		Column.TEAM: PlayerNames.team_label(ResultsScreen.team_number_in(team_numbers, ResultsPayload.int_of(row, ResultsPayload.KEY_TEAM_ID))),
 		Column.PLACED: str(ResultsPayload.int_of(row, ResultsPayload.KEY_BLOCKS_PLACED)),
 		Column.LOST: str(ResultsPayload.int_of(row, ResultsPayload.KEY_BLOCKS_LOST)),
@@ -142,6 +146,8 @@ static func build_data_row(
 			cell.add_theme_font_size_override("font_size", look.number_font_size_px)
 		if column == Column.PLAYER:
 			_mark_with_slot_colour(cell, slot_color(ResultsPayload.int_of(row, ResultsPayload.KEY_SLOT_ID, -1), match_provider), tuning)
+			if not tier_text.is_empty():
+				_add_bot_tag(cell, "(Bot, %s)" % tier_text)
 		else:
 			# Columns breathe: a gap before every non-name cell so a right-aligned number never touches the next column.
 			var gap: StyleBoxEmpty = StyleBoxEmpty.new()
@@ -149,6 +155,28 @@ static func build_data_row(
 			cell.add_theme_stylebox_override("normal", gap)
 		box.add_child(cell)
 	return panel
+
+
+## Bontago-1t5.45: "Easy" / "Normal" / "Hard" for a bot row, "" for a human row or when no
+## config is reachable. Read from the (replicated) MatchConfig, never host-only state, so a
+## client shows the same tier. `match_provider` is the test seam; null = the Match autoload.
+# DECISION: the tier rides in the name cell's existing "(Bot)" suffix, "(Bot, Hard)", so
+# column widths are unchanged and a long name ellipsizes the tag away first.
+static func bot_difficulty_label(row: Dictionary, match_provider: Variant = null) -> String:
+	if not ResultsPayload.bool_of(row, ResultsPayload.KEY_IS_BOT):
+		return ""
+	var provider: Variant = match_provider
+	if provider == null:
+		var loop: MainLoop = Engine.get_main_loop()
+		if loop is SceneTree:
+			provider = (loop as SceneTree).root.get_node_or_null("Match")
+	if provider == null:
+		return ""
+	var config: MatchConfig = provider.config as MatchConfig
+	if config == null:
+		return ""
+	var level: int = config.ai_difficulty_for_slot(ResultsPayload.int_of(row, ResultsPayload.KEY_SLOT_ID, -1))
+	return _DIFFICULTY_LABELS[level] if level >= 0 and level < _DIFFICULTY_LABELS.size() else ""
 
 
 ## A table row face: a disc-700 strip (radius-block); a winner is tinted toward rim with a
@@ -205,6 +233,30 @@ static func _mark_with_slot_colour(cell: Label, color: Color, _tuning: MenuVisua
 	gutter.content_margin_left = edge + float(table_tuning().marker_gap_px)
 	cell.add_theme_stylebox_override("normal", gutter)
 	cell.set_meta(&"slot_color", color)
+
+
+## Bontago-1t5.45: the "(Bot, Hard)" tag is its own label pinned to the right edge of the
+## name cell at its natural width; the cell's right margin tracks the tag, so the NAME
+## ellipsizes and the tier always stays visible. Column widths are unchanged.
+static func _add_bot_tag(cell: Label, tag_text: String) -> void:
+	var tag: Label = Label.new()
+	tag.name = "BotTag"
+	tag.text = tag_text
+	tag.modulate = MenuStyleFactory.arcade_tuning().sand_color  # muted like the other cells; no theme override (lint R2)
+	tag.anchor_left = 1.0
+	tag.anchor_right = 1.0
+	tag.anchor_top = 0.0
+	tag.anchor_bottom = 1.0
+	tag.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	cell.add_child(tag)
+	cell.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	var gutter: StyleBoxEmpty = cell.get_theme_stylebox("normal") as StyleBoxEmpty
+	var sync_margin: Callable = func() -> void:
+		gutter.content_margin_right = tag.get_minimum_size().x + float(table_tuning().marker_gap_px)
+		cell.queue_redraw()
+		cell.update_minimum_size()
+	tag.minimum_size_changed.connect(sync_margin)
+	sync_margin.call()
 
 
 static func make_cell(text: String, ratio: float) -> Label:
