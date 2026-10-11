@@ -241,6 +241,16 @@ func test_headless_bots_diagnostics_counts_placements_and_formats_lines() -> voi
 	assert_true(done.contains(" placements=2 mode="), "done line: %s" % done)
 
 
+func test_stats_string_carries_peak_and_peak180() -> void:
+	_host()
+	_main._start_headless_bot_match_with_args(PackedStringArray(["--bots=2"]))
+	await _settle()
+	var stats: String = _main._headless_bots_flow_port().call(&"_headless_stats_string") as String
+	var fields: PackedStringArray = stats.split(",")[0].split(":")[1].split("/")
+	assert_eq(fields.size(), 4, "placed/lost/peak/peak180: %s" % stats)
+	assert_eq(float(fields[2]), float(fields[3]), "before 180 s the peak180 field reads the live peak")
+
+
 func test_end_match_world_stops_headless_bots_diagnostics() -> void:
 	_host()
 	_main._start_headless_bot_match_with_args(PackedStringArray(["--bots=4"]))

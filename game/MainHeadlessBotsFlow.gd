@@ -161,13 +161,29 @@ func _headless_match_summary_line(timed_out: bool = false) -> String:
 ## Bontago-1t5.31: per-slot `slot:placed/lost/peak_height_m` (comma-separated), read from the live
 ## MatchStats, so bot_h2h-style logs can show blocks lost per placement and tower height.
 ## Appended after brains= so the existing regexes keep matching.
+## Bontago-1t5.35: a 4th field, peak180 = peak height reached by 180 s of match time (the E7 height
+## gate). DECISION: sampled on the 5 s report tick (so <=5 s late, peak is monotone); a match that
+## ends before 180 s reports its final peak.
+const PEAK_SNAPSHOT_S: float = 180.0
+var _peak180: Dictionary = {}
+
+
+func _snapshot_peak180() -> void:
+	var stats: Variant = Match.stats()
+	if stats == null or not _peak180.is_empty() or _headless_bots_elapsed_s() < PEAK_SNAPSHOT_S:
+		return
+	for i: int in range(Match.slot_count()):
+		_peak180[i] = stats.height_reached(i)
+
+
 func _headless_stats_string() -> String:
 	var stats: Variant = Match.stats()
 	if stats == null:
 		return ""
 	var parts: PackedStringArray = PackedStringArray()
 	for i: int in range(Match.slot_count()):
-		parts.append("%d:%d/%d/%.1f" % [i, stats.blocks_placed(i), stats.blocks_lost(i), stats.height_reached(i)])
+		var p180: float = float(_peak180.get(i, stats.height_reached(i)))
+		parts.append("%d:%d/%d/%.1f/%.1f" % [i, stats.blocks_placed(i), stats.blocks_lost(i), stats.height_reached(i), p180])
 	return ",".join(parts)
 
 
@@ -431,6 +447,7 @@ func _start_headless_bots_diagnostics() -> void:
 	main_node._headless_bots_start_msec = Time.get_ticks_msec()
 	_headless_bots_start_physics_frame = Engine.get_physics_frames()
 	main_node._headless_bots_placements = 0
+	_peak180.clear()
 	Events.block_placed.connect(main_node._on_headless_bots_block_placed)
 	main_node._headless_bots_report_timer = Timer.new()
 	main_node._headless_bots_report_timer.wait_time = Main.HEADLESS_BOTS_REPORT_INTERVAL_S
@@ -456,6 +473,7 @@ func _on_headless_bots_block_placed(_block: RigidBody3D, _shape_id: StringName) 
 
 
 func _on_headless_bots_report_tick() -> void:
+	_snapshot_peak180()
 	print(_headless_bots_periodic_line())
 
 
