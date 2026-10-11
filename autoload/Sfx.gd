@@ -569,13 +569,25 @@ func drain_for_quit() -> void:
 	await get_tree().create_timer(QUIT_DRAIN_S, true, false, true).timeout
 
 
+## Set once quit_tree() has begun; later requests return at once.
+var _quit_started: bool = false
+## Test seam: replaces get_tree().quit(exit_code) so a test never ends the runner.
+var quit_override: Callable = Callable()
+
+
 ## The one quit helper (Bontago-xtq.47): marks the quit, drains audio, then quits the tree.
 ## Every real quit path (Main close, Boot close, AgentProbe --quit-on-menu) goes through it so
 ## none skips drain_for_quit. Safe to call without awaiting.
 func quit_tree(exit_code: int = 0) -> void:
+	if _quit_started:  # a second request during the drain is a no-op (Bontago-6a4); first exit code wins
+		return
+	_quit_started = true
 	QuitFlag.mark()
 	await drain_for_quit()
-	get_tree().quit(exit_code)
+	if quit_override.is_valid():
+		quit_override.call(exit_code)
+	else:
+		get_tree().quit(exit_code)
 
 
 func release_audio() -> void:

@@ -133,3 +133,17 @@ func test_close_request_is_deferred_until_load_collected() -> void:
 	assert_null(get_tree().root.get_node_or_null(NodePath(Boot.MAIN_NODE_NAME)), "Main is not started after a close request")
 	boot.free()
 	get_tree().auto_accept_quit = true
+
+
+## Bontago-6a4: a second close request after the first quit is a no-op.
+func test_second_close_request_quits_once() -> void:
+	_quit_calls = 0
+	var boot: Boot = _threaded_boot("res://game/Main.tscn")
+	boot.quit_callable = _count_quit
+	add_child(boot)
+	boot._pending_path = ""
+	boot.notification(Node.NOTIFICATION_WM_CLOSE_REQUEST)
+	boot.notification(Node.NOTIFICATION_WM_CLOSE_REQUEST)
+	assert_eq(_quit_calls, 1, "one quit for two close requests")
+	boot.free()
+	get_tree().auto_accept_quit = true
