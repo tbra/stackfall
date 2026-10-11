@@ -350,6 +350,11 @@ func focus_entries() -> Array[Control]:
 	return entries
 
 
+## The open seat's "+ Add bot" button (a focus stop at the foot of the list while it is usable).
+func add_bot_button() -> UiBlockButton:
+	return _add_bot_button
+
+
 # --- Seat table ------------------------------------------------------------------
 
 ## The human entries of a roster payload (bot rows inside it, if any, are dropped and

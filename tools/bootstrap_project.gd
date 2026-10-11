@@ -498,7 +498,8 @@ func _actions() -> Dictionary:
 	a["menu_tab_previous"] = [_key(KEY_BRACKETLEFT), _pad(JOY_BUTTON_LEFT_SHOULDER)]
 	a["menu_tab_next"] = [_key(KEY_BRACKETRIGHT), _pad(JOY_BUTTON_RIGHT_SHOULDER)]
 	# Lobby face-button shortcuts; only the lobby consumes these actions.
-	a["lobby_quick_start"] = [_key(KEY_X), _pad(JOY_BUTTON_X)]
+	# Bontago-1pi.159.27: X adds a bot (host); Start/Enter (below) starts. DECISION: keyboard X too.
+	a["lobby_add_bot"] = [_key(KEY_X), _pad(JOY_BUTTON_X)]
 	# Bontago-1pi.98: Enter/KP Enter/pad Start start the match (host) or toggle Ready
 	# (client) from any control; ui/Lobby.gd intercepts it in _input, ahead of GUI focus.
 	a["lobby_confirm"] = [_key(KEY_ENTER), _key(KEY_KP_ENTER), _pad(JOY_BUTTON_START)]
