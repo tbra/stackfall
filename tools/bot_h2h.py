@@ -21,6 +21,16 @@ P1b options (Bontago-1t5.20; evaluation plan docs/BOT_AI_REDESIGN.md section 2.5
                    match. The gate verdict then reads INSUFFICIENT (under 100 matches) by design;
                    read the win/time lines instead.
   --mode M         adds --mode=M (classic|ctf|elimination|sky).
+  --round-timer N  adds --round-timer=N (minutes, 0 = no round timer, Elimination only). Default:
+                   0 for --mode elimination (otherwise every headless Elimination match ends as a 300 s
+                   draw), nothing for other modes.
+  --difficulty-a L / --difficulty-b L   per-side bot difficulty (easy|normal|hard|0..2). A = the candidate's
+                   seats, B = the opposing bot seats; both follow the seats when they are swapped. Passed
+                   as --bot-difficulty-slots=<slot:level,...> (absolute slot ids).
+  Seat numbers     --cand-slots-a/-b are RELATIVE to the bot seats. With --players N the bots occupy the
+                   LAST `bots` of the N slots (game: first bot slot = N - bots), so the tool adds that
+                   offset to the slots it passes to the game and to the winner-team check (every bot is its
+                   own team, team id = slot id). Without --players the offset is 0.
   Summary          adds the candidate win time median and max in game seconds (the
                    HEADLESS_MATCH duration= field, Bontago-1t5.16). Draws and timeouts stay separate.
   --battery E1..E5|all   only with --dry-run: prints the section 2.5 command lines. Their templates
@@ -143,7 +153,9 @@ H2H_PORT_SPAN = 256
 
 def build_cmd(godot: str, project: str, seconds: float, bots: int, godot_args: str,
               seed: int, weights_file: str, weights_json: str, cand_slots: str, port: int = H2H_PORT_BASE,
-              players: Optional[int] = None, mode: Optional[str] = None) -> List[str]:
+              players: Optional[int] = None, mode: Optional[str] = None,
+              round_timer: Optional[int] = None, difficulty_a: Optional[str] = None,
+              difficulty_b: Optional[str] = None) -> List[str]:
     weights_file = weights_file.replace("\\", "/")  # shlex.split would eat Windows backslashes
     tail = godot_args.format(seed=seed, weights_file=weights_file, weights_json=weights_json,
                              cand_slots=cand_slots)
@@ -155,7 +167,49 @@ def build_cmd(godot: str, project: str, seconds: float, bots: int, godot_args: s
     cmd += shlex.split(tail)
     if mode:
         cmd.append("--mode=%s" % mode)
+    timer = effective_round_timer(mode, round_timer)
+    if timer is not None:
+        cmd.append("--round-timer=%d" % timer)
+    diff = difficulty_slots_arg(bots, players, cand_slots, difficulty_a, difficulty_b)
+    if diff:
+        cmd.append("--bot-difficulty-slots=" + diff)
     return cmd
+
+
+# DECISION (Bontago-1t5.28): the default --round-timer is 0 (no timer) for --mode elimination, because the
+# game's 5-minute default round timer turns every headless Elimination match into a 300 s draw; other modes
+# pass nothing (their timers are part of what a mode run measures). An explicit --round-timer always wins.
+def effective_round_timer(mode: Optional[str], round_timer: Optional[int]) -> Optional[int]:
+    if round_timer is not None:
+        return round_timer
+    return 0 if mode and mode.lower() == "elimination" else None
+
+
+def seat_offset(bots: int, players: Optional[int]) -> int:
+    """Slot id of the first bot: the game puts the bots in the LAST `bots` of the `players` slots."""
+    return max(bots, players or 0) - bots
+
+
+def absolute_slots(slots: str, bots: int, players: Optional[int]) -> str:
+    """Bot-relative seat csv -> absolute slot ids (adds the passive-seat offset)."""
+    off = seat_offset(bots, players)
+    return ",".join(str(int(x) + off) for x in slots.split(",") if x.strip())
+
+
+def difficulty_slots_arg(bots: int, players: Optional[int], cand_slots_abs: str,
+                         difficulty_a: Optional[str], difficulty_b: Optional[str]) -> str:
+    """`slot:level,...` for --bot-difficulty-slots: side A (the candidate seats) and side B (the other
+    bot seats). '' when neither side has a difficulty."""
+    if difficulty_a is None and difficulty_b is None:
+        return ""
+    off = seat_offset(bots, players)
+    cand = set(_csv_ints(cand_slots_abs))
+    parts: List[str] = []
+    for slot in range(off, off + bots):
+        level = difficulty_a if slot in cand else difficulty_b
+        if level is not None:
+            parts.append("%d:%s" % (slot, level))
+    return ",".join(parts)
 
 
 def plan_jobs(pairs: int, base_seed: int, slots_a: str, slots_b: str, swap: bool = True,
@@ -167,7 +221,8 @@ def plan_jobs(pairs: int, base_seed: int, slots_a: str, slots_b: str, swap: bool
         seed = base_seed + i
         for swapped, slots in halves:
             port = H2H_PORT_BASE + len(jobs) % H2H_PORT_SPAN
-            jobs.append(MatchJob(seed, swapped, build_cmd(seed=seed, cand_slots=slots, port=port, **kw)))
+            abs_slots = absolute_slots(slots, int(kw["bots"]), kw.get("players"))  # type: ignore[arg-type]
+            jobs.append(MatchJob(seed, swapped, build_cmd(seed=seed, cand_slots=abs_slots, port=port, **kw)))
     return jobs
 
 
@@ -258,11 +313,14 @@ class Preset:
     players: Optional[int] = None
     mode: Optional[str] = None
     swap: bool = True
+    difficulty_a: Optional[str] = None
+    difficulty_b: Optional[str] = None
 
 
 # Section 2.5 battery (E1-E5). The <...> placeholders are filled in by hand before a real launch.
 # DECISION (Bontago-1t5.20): section 2.5 gives no seconds for E2 and E5; they use 600 like E1.
-# E5 needs a per-side difficulty flag the game may not have yet, so its lines are dry-run only.
+# E5 uses --bot-difficulty-slots (Bontago-1t5.28) via the Preset difficulty_a/_b fields (A = candidate seats);
+# only the <v2> brain placeholder stays to be filled in by hand. Preset slots are bot-relative.
 _HARD_V2 = "--match-seed={seed} --bot-difficulty=hard --bot-brain=<v2> --bot-brain-slots={cand_slots}"
 BATTERY: Tuple[Preset, ...] = (
     Preset("E1", "classic 8 seats, v2 Hard x4 vs legacy Hard x4, seats swapped", _HARD_V2,
@@ -276,17 +334,17 @@ BATTERY: Tuple[Preset, ...] = (
     Preset("E4-passive", "elimination vs passive, 5 seats, no swap", _HARD_V2,
            bots=1, pairs=10, slots_a="0", slots_b="0", seconds=600.0, players=5, mode="elimination", swap=False),
     Preset("E5a", "tier ladder: v2 Hard vs v2 Normal, 1v1",
-           "--match-seed={seed} --bot-brain=<v2> --bot-difficulty=<hard|normal> --bot-brain-slots={cand_slots}",
-           bots=2, pairs=20, slots_a="0", slots_b="1", seconds=600.0),
+           "--match-seed={seed} --bot-brain=<v2> --bot-brain-slots={cand_slots}",
+           bots=2, pairs=20, slots_a="0", slots_b="1", seconds=600.0, difficulty_a="hard", difficulty_b="normal"),
     Preset("E5b", "tier ladder: v2 Normal vs v2 Easy, 1v1",
-           "--match-seed={seed} --bot-brain=<v2> --bot-difficulty=<normal|easy> --bot-brain-slots={cand_slots}",
-           bots=2, pairs=20, slots_a="0", slots_b="1", seconds=600.0),
+           "--match-seed={seed} --bot-brain=<v2> --bot-brain-slots={cand_slots}",
+           bots=2, pairs=20, slots_a="0", slots_b="1", seconds=600.0, difficulty_a="normal", difficulty_b="easy"),
     Preset("E5c", "tier ladder: v2 Normal vs legacy Hard, 1v1",
-           "--match-seed={seed} --bot-brain=<v2> --bot-difficulty=<normal|hard> --bot-brain-slots={cand_slots}",
-           bots=2, pairs=20, slots_a="0", slots_b="1", seconds=600.0),
+           "--match-seed={seed} --bot-brain=<v2> --bot-brain-slots={cand_slots}",
+           bots=2, pairs=20, slots_a="0", slots_b="1", seconds=600.0, difficulty_a="normal", difficulty_b="hard"),
     Preset("E5d", "v2 Easy vs passive, 1v1, no swap (10/10 within 600 s)",
-           "--match-seed={seed} --bot-brain=<v2> --bot-difficulty=easy --bot-brain-slots={cand_slots}",
-           bots=1, pairs=10, slots_a="0", slots_b="0", seconds=600.0, players=2, swap=False),
+           "--match-seed={seed} --bot-brain=<v2> --bot-brain-slots={cand_slots}",
+           bots=1, pairs=10, slots_a="0", slots_b="0", seconds=600.0, players=2, swap=False, difficulty_a="easy"),
 )
 
 
@@ -311,13 +369,17 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--bots", type=int, default=8)
     ap.add_argument("--players", type=int, default=None, help="--players=N passive/human seats (E3/E4)")
     ap.add_argument("--mode", default=None, help="--mode=M match mode (classic|ctf|elimination|sky)")
+    ap.add_argument("--round-timer", type=int, default=None,
+                    help="--round-timer=N minutes (0 = off, Elimination only); default 0 for --mode elimination")
+    ap.add_argument("--difficulty-a", default=None, help="bot difficulty of side A (candidate seats)")
+    ap.add_argument("--difficulty-b", default=None, help="bot difficulty of side B (the other bot seats)")
     ap.add_argument("--no-swap", action="store_true",
                     help="run only the A-seat half of each seed; print one H2H seed= line per match")
     ap.add_argument("--battery", default=None, choices=["E1", "E2", "E3", "E4", "E5", "all"],
                     help="section 2.5 presets; only with --dry-run (prints their command lines)")
     ap.add_argument("--godot", default="godot")
     ap.add_argument("--path", default=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    ap.add_argument("--cand-slots-a", default="0,2,4,6", help="candidate seats in the first match")
+    ap.add_argument("--cand-slots-a", default="0,2,4,6", help="candidate seats in the first match (bot-relative; offset by --players)")
     ap.add_argument("--cand-slots-b", default="1,3,5,7", help="candidate seats in the swapped match")
     ap.add_argument("--godot-args", default="", help="seam template appended after `--` (see docstring)")
     ap.add_argument("--out-dir", default=".", help="where the candidate weights JSON is written")
@@ -339,7 +401,8 @@ def main(argv: Optional[List[str]] = None, runner: Callable[[Sequence[str], floa
             jobs = plan_jobs(preset.pairs, args.base_seed, preset.slots_a, preset.slots_b, swap=preset.swap,
                              godot=args.godot, project=args.path, seconds=preset.seconds, bots=preset.bots,
                              godot_args=preset.template, weights_file="", weights_json="{}",
-                             players=preset.players, mode=preset.mode)
+                             players=preset.players, mode=preset.mode,
+                             difficulty_a=preset.difficulty_a, difficulty_b=preset.difficulty_b)
             print("# %s %s" % (preset.label, preset.note))
             for j in jobs:
                 print(" ".join(shlex.quote(c) for c in j.cmd))
@@ -375,7 +438,9 @@ def main(argv: Optional[List[str]] = None, runner: Callable[[Sequence[str], floa
     jobs = plan_jobs(args.pairs, args.base_seed, args.cand_slots_a, args.cand_slots_b,
                      swap=not args.no_swap, godot=args.godot, project=args.path, seconds=args.seconds,
                      bots=args.bots, godot_args=template, weights_file=weights_file,
-                     weights_json=weights_json, players=args.players, mode=args.mode)
+                     weights_json=weights_json, players=args.players, mode=args.mode,
+                     round_timer=args.round_timer, difficulty_a=args.difficulty_a,
+                     difficulty_b=args.difficulty_b)
     if args.dry_run:
         for j in jobs:
             print(" ".join(shlex.quote(c) for c in j.cmd))
@@ -390,8 +455,8 @@ def main(argv: Optional[List[str]] = None, runner: Callable[[Sequence[str], floa
             return out
         outputs = list(pool.map(_run, enumerate(jobs)))
     # Team ids equal slot ids here (every bot is its own team in the 8-bot FFA matches).
-    teams_a = _csv_ints(args.cand_slots_a)
-    teams_b = _csv_ints(args.cand_slots_b)
+    teams_a = _csv_ints(absolute_slots(args.cand_slots_a, args.bots, args.players))
+    teams_b = _csv_ints(absolute_slots(args.cand_slots_b, args.bots, args.players))
     t = tally(jobs, outputs, teams_a, teams_b)
     decided = t["wins"] + t["losses"]
     lo, hi = wilson(t["wins"], decided)

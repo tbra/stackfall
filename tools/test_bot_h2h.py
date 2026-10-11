@@ -171,5 +171,57 @@ class P1bOptionTests(unittest.TestCase):
             self.assertEqual(rc, 2)
 
 
+class HarnessAOptionTests(unittest.TestCase):
+    """Bontago-1t5.28: round timer default, per-side difficulty, passive-seat slot mapping."""
+
+    def _lines(self, argv: list) -> list:
+        rc, text = _run(["--dry-run"] + argv)
+        self.assertEqual(rc, 0)
+        return [ln for ln in text.splitlines() if "--headless-host" in ln]
+
+    def test_round_timer_default_by_mode(self) -> None:
+        self.assertIn("--round-timer=0", self._lines(["--pairs", "1", "--no-swap", "--mode", "elimination"])[0])
+        self.assertNotIn("--round-timer", self._lines(["--pairs", "1", "--no-swap", "--mode", "classic"])[0])
+        self.assertNotIn("--round-timer", self._lines(["--pairs", "1", "--no-swap"])[0])
+        line = self._lines(["--pairs", "1", "--no-swap", "--mode", "elimination", "--round-timer", "9"])[0]
+        self.assertIn("--round-timer=9", line)
+        self.assertNotIn("--round-timer=0", line)
+
+    def test_per_side_difficulty_follows_swapped_seats(self) -> None:
+        a, b = self._lines(["--pairs", "1", "--bots", "2", "--cand-slots-a", "0", "--cand-slots-b", "1",
+                            "--difficulty-a", "hard", "--difficulty-b", "normal"])
+        self.assertIn("--bot-difficulty-slots=0:hard,1:normal", a)
+        self.assertIn("--bot-difficulty-slots=0:normal,1:hard", b)
+
+    def test_no_difficulty_flags_add_nothing(self) -> None:
+        self.assertNotIn("--bot-difficulty-slots", self._lines(["--pairs", "1", "--no-swap"])[0])
+
+    def test_passive_seats_map_cand_slots_to_bot_slots(self) -> None:
+        line = self._lines(["--pairs", "1", "--no-swap", "--bots", "1", "--players", "5", "--cand-slots-a", "0",
+                            "--difficulty-a", "easy", "--godot-args=--bot-brain-slots={cand_slots}"])[0]
+        self.assertIn("--bot-brain-slots=4", line)
+        self.assertIn("--bot-difficulty-slots=4:easy", line)
+        self.assertEqual(h2h.seat_offset(8, None), 0)
+        self.assertEqual(h2h.seat_offset(1, 5), 4)
+        self.assertEqual(h2h.absolute_slots("0,2", 2, 6), "4,6")
+
+    def test_passive_run_counts_win_on_the_bot_team(self) -> None:
+        def runner(cmd, timeout):  # the bot (slot 4) wins every match
+            return LINE_TMPL % ("10.0", 4)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, text = _run(["--no-swap", "--pairs", "2", "--bots", "1", "--players", "5", "--cand-slots-a", "0",
+                             "--out-dir", tmp, "--godot-args=--match-seed={seed}"], runner=runner)
+            self.assertIn("H2H matches=2 wins=2", text)
+
+    def test_battery_e4_and_e5_use_new_flags(self) -> None:
+        rc, text = _run(["--dry-run", "--battery", "E4"])
+        self.assertIn("--round-timer=0", text)
+        self.assertIn("--bot-brain-slots=4", text)
+        rc, text = _run(["--dry-run", "--battery", "E5"])
+        self.assertIn("--bot-difficulty-slots=0:hard,1:normal", text)
+        self.assertIn("--bot-difficulty-slots=1:easy", text)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
