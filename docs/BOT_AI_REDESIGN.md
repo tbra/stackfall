@@ -142,6 +142,8 @@ Easy stays a beatable learner bot that still visibly builds and finishes; Normal
 
 Bontago-1t5.34 retune (V2 profiles easy_v2/normal_v2/hard_v2 only; legacy profiles unchanged): search depth (candidate_count, eval_top_k, pick_pool of Hard vs a mildly degraded Normal) barely moves 1v1 strength; the ladder separates only through aim_noise_m and fill_share (random sites), so Normal/Easy sit on that cliff (Hard vs Normal 15W 4L 1D; Normal vs Easy 19W 0L; Normal vs legacy Hard 10/10; Easy vs passive 5/5, slowest win 415 s).
 
+Bontago-1t5.40 retune (normal_v2 only: aim_noise_m 1.5 -> 3.0, fill_share 0.6 -> 0.9; Hard/Easy/legacy unchanged): Hard vs Normal was 0.60-0.69 before; acceptance (1v1, 600 s): E5a Hard vs Normal 36W 4L of 40 (0.90, Wilson LB 0.769); E5b Normal vs Easy 20-0; E5c Normal vs legacy Hard 17W 3L (0.85). A first set (2.5/0.8) gave E5a 0.744.
+
 ### 2.7 Departures from docs/SPEC.md §2.9 (owner approval needed; §2.9 is [ORIGINAL feature, NEW implementation], so no [ORIGINAL] rule changes)
 1. Candidate spots: from "samples 40-120 candidate spots" in its territory to 40-120 **targeted** sites (frontier tip toward the current target, own stack tops, strike/defend points) plus a few random ones.
 2. Orientation: from "the orientation that gives the flattest base" to the orientation with the most reach that passes an analytic stability check (upright at the tip, flat as a tower base).
