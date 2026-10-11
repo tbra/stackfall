@@ -102,7 +102,7 @@ const HOST_TOOLTIP: String = "Host"
 
 ## The accessible text of a Ready / Not ready pill (the pill itself shows only its icon).
 static func ready_tooltip(ready: bool) -> String:
-	return ReadyPill.tooltip_for(ready)
+	return "Ready" if ready else "Not ready"
 
 
 ## Text of the team button for a pick: "?" for Random, else the number.
@@ -360,8 +360,8 @@ func _build_bot_column_spacers() -> void:
 		layout.add_child(spacer)
 
 
-## The badge slot: the host's crown (UiStatusBadge HOST) or the Ready / Not ready tile (ReadyPill,
-## the same UiStatusBadge). Both are row items: the same height as every other control of the row.
+## The badge slot: the host's crown (UiStatusBadge HOST) or the Ready / Not ready tile (an icon-only
+## UiStatusBadge READY / NOT_READY). Both are row items: the same height as every other control of the row.
 func _build_badge() -> void:
 	var metrics: ComponentMetrics = UiRowItem.metrics()
 	# One width for the crown and the Ready tile (the crown's icon plus the badge's side padding), so
@@ -389,8 +389,12 @@ func _build_badge() -> void:
 		badge.add_child(crown)
 		layout.add_child(badge)
 		return
-	# Bontago-1pi.158: the Ready / Not ready pill is the shared ui/ReadyPill.gd component.
-	var pill: ReadyPill = ReadyPill.create(is_ready, badge_size)
+	# Bontago-1pi.158: the Ready / Not ready tile is an icon-only UiStatusBadge (tick / hourglass).
+	var pill: UiStatusBadge = UiStatusBadge.new()
+	pill.icon_only = true
+	pill.custom_minimum_size = badge_size
+	pill.variant = UiStatusBadge.Look.READY if is_ready else UiStatusBadge.Look.NOT_READY
+	pill.text = ready_tooltip(is_ready)
 	badge = pill
 	badge_label = pill.label
 	layout.add_child(badge)
@@ -438,7 +442,7 @@ func _on_difficulty_selected(index: int) -> void:
 ## Right click = previous colour. The matching event is consumed BEFORE the request goes
 ## out: handling it redraws the rows, and this control then leaves the tree. Connected to the
 ## control's `gui_input` signal (not _gui_input) so tests can drive it with a plain emit, like
-## the timer sliders in ui/Lobby.gd. (The team pill is a CycleSelector and does the same itself.)
+## the timer sliders in ui/Lobby.gd. 
 func _on_cycle_gui_input(event: InputEvent, _kind: StringName) -> void:
 	if not (event is InputEventMouseButton):
 		# Bontago-1pi.93: ui_left / ui_right (held, echoed or pad) only move focus; a click /

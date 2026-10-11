@@ -2,7 +2,6 @@
  "R1": {
   "ui/Lobby.gd": 9,
   "ui/Lobby.tscn": 7,
-  "ui/SegmentMeter.gd": 3,
   "ui/SliderNav.gd": 4
  },
  "R2": {
@@ -19,12 +18,10 @@
   "ui/ResultsScreen.gd": 12,
   "ui/ScoreTable.gd": 10,
   "ui/ScoreboardOverlay.gd": 7,
-  "ui/SegmentMeter.gd": 3,
   "ui/Tutorial.gd": 6,
   "ui/lobby/LobbyOpenSeatRow.gd": 4,
   "ui/lobby/LobbyPlayersPanel.gd": 3,
-  "ui/lobby/LobbySeatRow.gd": 6,
-  "ui/lobby/LobbySection.gd": 3
+  "ui/lobby/LobbySeatRow.gd": 6
  },
  "R3": {
   "ui/Lobby.gd": 1

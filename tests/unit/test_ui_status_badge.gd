@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.4: UiStatusBadge + the ReadyPill wrapper: token faces per look, never
+## Bontago-1pi.159.4: UiStatusBadge (incl. the icon-only Ready / Not ready tile): token faces per look, never
 ## focusable / clickable, icon-only glyphs and tooltip, live dot, row height.
 
 
@@ -65,17 +65,20 @@ func test_badge_is_one_row_height() -> void:
 	assert_true(badge.is_in_group(UiRowItem.GROUP))
 
 
-func test_ready_pill_wrapper_keeps_its_api() -> void:
+func test_icon_only_ready_tile_compact_size_and_faces() -> void:
 	var size: Vector2 = Vector2(32.0, 24.0)
-	var pill: ReadyPill = ReadyPill.create(false, size, 0.0)
+	var pill: UiStatusBadge = UiStatusBadge.new()
+	pill.icon_only = true
+	pill.pad_y_override_px = 0.0
+	pill.custom_minimum_size = size
+	pill.variant = UiStatusBadge.Look.NOT_READY
+	pill.text = "Not ready"
 	add_child_autofree(pill)
 	await wait_frames(2)
-	assert_false(pill.is_ready)
 	assert_eq(pill.label.text, char(UiStatusBadge.HOURGLASS))
-	assert_eq(pill.tooltip_text, ReadyPill.tooltip_for(false))
+	assert_eq(pill.tooltip_text, "Not ready")
 	assert_eq(pill.custom_minimum_size, size, "the caller's compact size wins over the row height")
 	assert_eq((pill.get_theme_stylebox("panel") as StyleBoxFlat).content_margin_top, 0.0)
-	pill.set_ready(true)
-	assert_true(pill.is_ready)
+	pill.variant = UiStatusBadge.Look.READY
 	assert_eq(pill.label.text, char(UiStatusBadge.TICK))
 	assert_eq(_face(pill), MenuStyleFactory.arcade_tuning().mint_color)

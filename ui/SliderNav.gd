@@ -16,8 +16,6 @@ const FLOAT_SLACK: float = 0.0001  # DECISION: guards ceil against 0.1 / 0.01 = 
 const TUNING: SliderNavTuning = preload("res://config/slider_nav_tuning.tres")
 
 
-## Meta set by SegmentMeter.attach: how many cells the slider is drawn as; one press moves one cell.
-const META_SEGMENT_COUNT: StringName = &"slider_nav_segment_count"
 const NODE_NAME: StringName = &"SliderNavRepeater"
 ## Meta set by apply(own_step = true): ui_left / ui_right move exactly slider.step (the lobby's
 ## one-minute timers and disc size), whatever the slider's range.
@@ -158,13 +156,11 @@ class Repeater extends Node:
 		advance(delta)
 
 
-## The step for ui_left / ui_right on `slider`: one SegmentMeter cell when it wears a meter,
-## else range / steps_per_range; -1.0 when the slider's own step is already that coarse.
+## The step for ui_left / ui_right on `slider`: range / steps_per_range; -1.0 when the slider's own step is already that coarse.
 static func step_for(slider: HSlider) -> float:
 	if bool(slider.get_meta(META_OWN_STEP, false)):
 		return slider.step if slider.step > 0.0 else -1.0
-	var divisions: int = int(slider.get_meta(META_SEGMENT_COUNT, TUNING.steps_per_range))
-	return coarse_step(slider.min_value, slider.max_value, slider.step, divisions)
+	return coarse_step(slider.min_value, slider.max_value, slider.step)
 
 
 ## The keyboard/gamepad step for a slider with these bounds, or -1.0 (the engine default,
