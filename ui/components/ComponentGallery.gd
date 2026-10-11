@@ -94,6 +94,7 @@ func _ready() -> void:
 		var right: VBoxContainer = VBoxContainer.new()
 		right.add_theme_constant_override("separation", arcade.space_4_px)
 		right.add_child(_panel("STEPPER", _stepper_rows()))
+		right.add_child(_panel("CYCLER", _cycler_rows()))
 		right.add_child(_panel("TABS", _tab_rows()))
 		columns.add_child(right)
 
@@ -213,6 +214,25 @@ func _stepper_rows() -> Array[Control]:
 				stepper.formatter = func(v: int) -> String: return "%d:00" % v
 				stepper.value = STEPPER_FORMATTED
 		rows.append(UiRow.new().setup(entry["name"] as String, stepper))
+	return rows
+
+
+func _cycler_rows() -> Array[Control]:
+	var rows: Array[Control] = []
+	for state: String in ["NORMAL", "WRAP", "FOCUS", "DISABLED", "SKIPS DISABLED"]:
+		var cycler: UiCycler = UiCycler.new()
+		for item: String in DROPDOWN_CYCLE_ITEMS:
+			cycler.add_item(item)
+		match state:
+			"WRAP":
+				cycler.select(DROPDOWN_CYCLE_ITEMS.size() - 1)
+			"FOCUS":
+				cycler.preview_focus = true
+			"DISABLED":
+				cycler.disabled = true
+			"SKIPS DISABLED":
+				cycler.set_item_disabled(1, true)
+		rows.append(UiRow.new().setup(state, cycler))
 	return rows
 
 
