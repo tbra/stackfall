@@ -4,16 +4,7 @@
 
 [resource]
 script = ExtResource("1_opts")
-segment_count = 10
-meter_height_px = 28
-value_min_width_px = 84
-value_font_size_px = 20
-tab_column_width_px = 200
-tab_min_height_px = 48
-tab_notch_px = 4
 group_rule_px = 2
-heading_bullet_px = 14
 binding_row_min_height_px = 52
 binding_band_alpha = 0.55
 dialog_width_px = 340
-state_word_min_width_px = 40

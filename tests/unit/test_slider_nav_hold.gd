@@ -1,12 +1,11 @@
 extends GutTest
-## Bontago-1pi.142: one pad press / stick flick = one visible step (one SegmentMeter cell), holding
+## Bontago-1pi.142: one pad press / stick flick = one step, holding
 ## repeats at the tuned rate after the initial delay, stick drift near the threshold never retriggers.
 
 const FRAME: float = 1.0 / 60.0
 const HOLD_SECONDS: float = 1.0
 const PAD_DEVICE: int = 0
 const FLOAT_EPS: float = 0.0001
-const SEGMENTS: int = 10
 const PUSH: float = 1.0
 const DRIFT_HIGH: float = 0.55
 const DRIFT_LOW: float = 0.4
@@ -27,10 +26,6 @@ func before_each() -> void:
 	_slider.value = START_VALUE
 	add_child_autofree(_slider)
 	_slider.grab_focus()
-
-
-func _meter() -> SegmentMeter:
-	return SegmentMeter.attach(_slider)
 
 
 func _wire() -> void:
@@ -72,17 +67,7 @@ func _hold(seconds: float) -> void:
 		_repeater.advance(FRAME)
 
 
-func test_meter_slider_steps_exactly_one_cell() -> void:
-	_meter()
-	_wire()
-	assert_almost_eq(SliderNav.step_for(_slider), FIELD_MAX / float(SEGMENTS), FLOAT_EPS)
-	var before: int = SegmentMeter.filled_cells(_slider, SEGMENTS)
-	_slider.gui_input.emit(_dpad(true))
-	assert_eq(SegmentMeter.filled_cells(_slider, SEGMENTS), before + 1, "one press = one cell")
-
-
 func test_dpad_press_hold_repeat_timing() -> void:
-	_meter()
 	_wire()
 	var step: float = SliderNav.step_for(_slider)
 	_slider.gui_input.emit(_dpad(true))
@@ -101,7 +86,6 @@ func test_dpad_press_hold_repeat_timing() -> void:
 
 
 func test_tap_never_repeats() -> void:
-	_meter()
 	_wire()
 	_slider.gui_input.emit(_dpad(true))
 	_slider.gui_input.emit(_dpad(false))
@@ -111,7 +95,6 @@ func test_tap_never_repeats() -> void:
 
 
 func test_stick_drift_around_the_threshold_does_not_retrigger() -> void:
-	_meter()
 	_wire()
 	var step: float = SliderNav.step_for(_slider)
 	_slider.gui_input.emit(_stick(PUSH))
@@ -126,7 +109,6 @@ func test_stick_drift_around_the_threshold_does_not_retrigger() -> void:
 
 
 func test_stick_hold_repeats_after_the_delay_only() -> void:
-	_meter()
 	_wire()
 	var step: float = SliderNav.step_for(_slider)
 	_slider.gui_input.emit(_stick(PUSH))
@@ -139,7 +121,6 @@ func test_stick_hold_repeats_after_the_delay_only() -> void:
 
 
 func test_key_echo_events_do_not_add_steps() -> void:
-	_meter()
 	_wire()
 	var step: float = SliderNav.step_for(_slider)
 	var key: InputEventKey = InputEventKey.new()
@@ -155,7 +136,6 @@ func test_key_echo_events_do_not_add_steps() -> void:
 
 
 func test_missed_release_stops_the_repeat() -> void:
-	_meter()
 	_wire()
 	_slider.gui_input.emit(_dpad(true))
 	_hold(SliderNav.TUNING.repeat_delay_sec + SliderNav.TUNING.repeat_interval_sec)

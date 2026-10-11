@@ -3,7 +3,7 @@ extends PanelContainer
 ## The design system's StatusBadge (docs/ui_reskin/components.md): a small flat label with an
 ## optional live mint dot, never focusable and never clickable. It is a UiRowItem (BADGE) and the
 ## single implementation of the lobby title badge, the Ready / Not ready tile (icon-only, the
-## owner's 1pi.94 S3 decision; ui/ReadyPill.gd is a thin wrapper) and the all-ready rim form.
+## owner's 1pi.94 S3 decision) and the all-ready rim form.
 ## Faces and sizes come from ArcadeVisualTuning and ComponentMetrics.
 
 enum Look { NEUTRAL, READY, ALL_READY, NOT_READY, HOST }

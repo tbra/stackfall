@@ -1,7 +1,7 @@
 extends GutTest
 ## Bontago-1pi.159.7: UiDropdown: click-to-cycle for short lists (decision 1pi.94), a popup list for
 ## long ones, OptionButton-parity API, ui_accept open / ui_down move / ui_accept pick / ui_cancel
-## close through the Input Map, outside click closes, row-item contract, legacy CycleSelector layer.
+## close through the Input Map, outside click closes, row-item contract.
 
 var _picked: Array[int] = []
 
@@ -191,14 +191,3 @@ func test_hiding_the_dropdown_closes_the_list() -> void:
 	dropdown.open(false)
 	dropdown.hide()
 	assert_false(dropdown.is_open())
-
-
-func test_legacy_cycle_selector_is_a_thin_layer_with_no_chevron_or_contract() -> void:
-	var selector: CycleSelector = autofree(CycleSelector.new()) as CycleSelector
-	for index: int in range(UiDropdown.CYCLE_MAX_ITEMS + 2):
-		selector.add_item("L%d" % index)
-	add_child(selector)
-	assert_true(selector is UiDropdown)
-	assert_false(selector.uses_popup(), "always cycles, whatever the length")
-	assert_false(selector.is_in_group(UiRowItem.GROUP), "callers still size it")
-	assert_eq(selector.get_child_count(), 0, "no chevron child")

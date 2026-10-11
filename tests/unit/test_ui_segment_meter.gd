@@ -168,11 +168,3 @@ func test_row_item_contract_expands_one_row_height() -> void:
 	assert_eq(meter.custom_minimum_size.y, float(UiRowItem.metrics().row_height_px))
 	assert_eq(meter.size_flags_horizontal, Control.SIZE_EXPAND_FILL, "a meter fills its column")
 	assert_gte(meter.custom_minimum_size.x, float(UiRowItem.metrics().meter_min_width_px))
-
-
-func test_legacy_overlay_still_counts_cells_like_the_component() -> void:
-	var slider: HSlider = autofree(HSlider.new()) as HSlider
-	slider.min_value = 0.0
-	slider.max_value = 100.0
-	slider.value = 50.0
-	assert_eq(SegmentMeter.filled_cells(slider, 10), 5)

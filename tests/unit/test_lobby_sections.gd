@@ -1,6 +1,6 @@
 extends GutTest
 ## Bontago-1pi.53 (S1a/S1b, docs/LOBBY_REWORK_PLAN.md sections 2 and 4): the settings column
-## is a stack of LobbySections (GAME, ROUND, GIFTS, EXPERIMENTS) with static headers (Bontago-1pi.61:
+## is a stack of UiSections (GAME, ROUND, GIFTS, EXPERIMENTS) with static headers (Bontago-1pi.61:
 ## never collapsible), an optional collapsible Advanced block, a one-line summary each, and a focus
 ## loop that follows them.
 ## Host edits every setting from its section; a client reads them read-only; no

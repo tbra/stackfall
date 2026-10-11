@@ -10,7 +10,6 @@ extends Control
 ## deflection, like SliderNav). A muted or non-editable meter shows dust cells.
 ## DECISION (1pi.159.7): the hold timer is a compact copy of UiStepper's rules against the same
 ## SliderNav.TUNING numbers (SliderNav.Repeater drives an HSlider and cannot attach to a Control).
-## The old overlay ui/SegmentMeter.gd keeps its HSlider and paints through [method draw_cells].
 
 signal value_changed(value: int)
 
@@ -137,7 +136,7 @@ func well_width() -> float:
 
 ## Paints the well and [param count] cells ([param filled] of them lit) into [param rect] of
 ## [param canvas]. Live cells are flare, dust when not [param live]; the current cell gets the cream
-## outline. Shared with the legacy HSlider overlay (ui/SegmentMeter.gd).
+## outline.
 static func draw_cells(canvas: CanvasItem, rect: Rect2, filled: int, count: int, live: bool) -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	var well: StyleBoxFlat = StyleBoxFlat.new()

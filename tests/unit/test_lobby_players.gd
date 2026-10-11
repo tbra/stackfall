@@ -1096,7 +1096,6 @@ func test_seat_row_sizes_come_from_the_layout_tuning() -> void:
 	var custom: LobbyLayoutTuning = LobbyLayoutTuning.new()
 	custom.seat_team_button_min_size_px = Vector2(40.0, 33.0)
 	custom.seat_difficulty_min_width_px = 111
-	custom.seat_remove_button_min_size_px = Vector2(26.0, 27.0)
 	custom.seat_color_focus_border_px = 5
 	_panel_of(lobby).layout_tuning = custom
 	_panel_of(lobby).set_editable(false)
@@ -1111,7 +1110,6 @@ func test_seat_row_sizes_come_from_the_layout_tuning() -> void:
 	var shipped: LobbyLayoutTuning = load("res://config/lobby_layout_tuning.tres") as LobbyLayoutTuning
 	assert_eq(shipped.seat_team_button_min_size_px, fresh.seat_team_button_min_size_px, ".tres and .gd defaults agree")
 	assert_eq(shipped.seat_difficulty_min_width_px, fresh.seat_difficulty_min_width_px)
-	assert_eq(shipped.seat_remove_button_min_size_px, fresh.seat_remove_button_min_size_px)
 	assert_eq(shipped.seat_color_focus_border_px, fresh.seat_color_focus_border_px)
 
 

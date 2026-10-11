@@ -36,7 +36,7 @@ const STATES: PackedStringArray = ["normal", "hover", "pressed", "hover_pressed"
 @export var mode: Mode = Mode.AUTO
 ## When false, a cycle activation only emits [signal cycled] and leaves the value to the owner.
 @export var auto_advance: bool = true
-## Draws the sand chevron right of the value (the legacy CycleSelector layer turns it off).
+## Draws the sand chevron right of the value (a compact cycle pill, e.g. the lobby team button, turns it off).
 var show_chevron: bool = true:
 	set(show):
 		show_chevron = show
@@ -85,24 +85,23 @@ func _init() -> void:
 	visibility_changed.connect(_on_visibility_changed)
 
 
-## The mode a new dropdown starts in (the legacy CycleSelector layer forces CYCLE).
+## The mode a new dropdown starts in (subclasses may force a mode).
 func _initial_mode() -> Mode:
 	return Mode.AUTO
 
 
-## Whether a new dropdown draws the chevron (the legacy layer does not).
+## Whether a new dropdown draws the chevron (subclasses may not).
 func _initial_chevron() -> bool:
 	return true
 
 
-## The row-item contract (one row height, DROPDOWN minimum width). Overridden to a no-op by the
-## legacy CycleSelector, whose callers size it themselves.
+## The row-item contract (one row height, DROPDOWN minimum width). Subclasses may override it
+## when their callers size the control themselves.
 func _apply_row_contract() -> void:
 	UiRowItem.apply(self, UiRowItem.Kind.DROPDOWN)
 
 
-## The look of the five block states from tokens. Overridden to a no-op by the legacy CycleSelector
-## (the theme and the callers' pill styling stay in charge there).
+## The look of the five block states from tokens. Subclasses may override it to a no-op.
 func _restyle() -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	var faces: Dictionary = {

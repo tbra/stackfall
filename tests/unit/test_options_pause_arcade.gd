@@ -1,6 +1,6 @@
 extends GutTest
 ## Bontago-hfa.4 (UI reskin P2): the Stackfall Arcade look of Options, Pause and the rebinding rows
-## (docs/UI_RESKIN_PLAN.md P2). Look-only checks: tab rim notch, SegmentMeter cells, ON/OFF
+## (docs/UI_RESKIN_PLAN.md P2). Look-only checks: tab rim notch, UiSegmentMeter cells, ON/OFF
 ## words, BindingRow listening state and a synthetic gamepad focus traversal of both screens, each
 ## focus owner carrying a visible focus stylebox.
 
@@ -13,8 +13,6 @@ const PAD_DEVICE: int = 0
 ## Bold text on a bright face / on a disc face must clear the design system's documented ratios.
 const MIN_TEXT_RATIO: float = 4.5
 const MIN_LARGE_TEXT_RATIO: float = 3.0
-const HALF_FILLED_CELLS: int = 5
-const FULL_FILLED_CELLS: int = 10
 
 var _cfg_counter: int = 0
 
@@ -80,19 +78,6 @@ func test_every_slider_is_a_segment_meter_with_enough_cells() -> void:
 		var meter: UiSegmentMeter = menu.get_node(name) as UiSegmentMeter
 		assert_not_null(meter, "%s is a UiSegmentMeter" % name)
 		assert_gte(meter.step_count, UiSegmentMeter.MIN_STEP_COUNT, "never fewer than 5 cells")
-
-
-func test_filled_cell_count_follows_the_slider_value() -> void:
-	var slider: HSlider = autofree(HSlider.new()) as HSlider
-	slider.min_value = 0.0
-	slider.max_value = 1.0
-	slider.step = 0.01
-	slider.value = 0.0
-	assert_eq(SegmentMeter.filled_cells(slider, FULL_FILLED_CELLS), 0)
-	slider.value = 0.5
-	assert_eq(SegmentMeter.filled_cells(slider, FULL_FILLED_CELLS), HALF_FILLED_CELLS)
-	slider.value = 1.0
-	assert_eq(SegmentMeter.filled_cells(slider, FULL_FILLED_CELLS), FULL_FILLED_CELLS)
 
 
 func test_toggle_words_read_on_and_off() -> void:

@@ -85,7 +85,7 @@ func test_the_tab_is_trimmed_to_the_common_set() -> void:
 	var controls: Array[Control] = _tab().focus_controls()
 	assert_lte(controls.size(), 12, "preset + 10 rows + the fixed-fps meter")
 	for control: Control in controls:
-		assert_false(control is OptionButton or control is HSlider or control is CheckButton or control is CycleSelector)
+		assert_false(control is OptionButton or control is HSlider or control is CheckButton)
 
 
 func test_combined_rows_write_every_field_of_their_tier_and_mark_custom() -> void:

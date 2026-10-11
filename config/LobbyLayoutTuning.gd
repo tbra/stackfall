@@ -14,7 +14,7 @@ extends Resource
 ## literal it replaced, so moving the roster rows into LobbyPlayersPanel changes
 ## no pixel. The section/advanced fields are consumed by the S1 packages.
 
-## Vertical gap between two LobbySection blocks in the settings column (S1a).
+## Vertical gap between two UiSection blocks in the settings column (S1a).
 @export var section_spacing_px: int = 10
 
 ## Left indent of an Advanced block under its section header (S1b).
@@ -54,9 +54,6 @@ extends Resource
 ## look); the seat-row package raises it once rows carry buttons.
 @export var seat_row_min_height_px: int = 0
 
-## Gap between the controls of one seat row (colour box, name column, badge).
-@export var seat_row_separation_px: int = 6
-
 ## Gap between a seat's name and its subtitle line.
 @export var seat_text_separation_px: int = 0
 
@@ -76,22 +73,10 @@ extends Resource
 ## Bontago-1pi.150: largest side margin of the difficulty pill's text, in px.
 @export var seat_difficulty_margin_px: int = 8
 
-## Smallest size of a bot row's remove ("x") button: width, height in px.
-@export var seat_remove_button_min_size_px: Vector2 = Vector2(34.0, 32.0)
-
-## Bontago-1pi.146: height shared by every control on a seat row (team, difficulty, remove, ready/host badge,
-## Add bot), and the badge's width, so the three right-hand pills read as one family.
-@export var seat_control_height_px: int = 32
-@export var seat_badge_width_px: int = 36
-
 ## Width of the focus ring drawn round the colour box while it holds gamepad/keyboard
 ## focus, in px (the box is a flat colour, so the shared theme's ring would vanish
 ## into it).
 @export var seat_color_focus_border_px: int = 3
-
-## Bontago-1pi.120 (owner playtest: the host crown pill should be yellow): fill of the crown pill
-## on the host's seat row. Same yellow as the game's slot-4 player colour (MatchConfig.player_colors).
-@export var host_crown_pill_color: Color = Color(0.95, 0.80, 0.25, 1.0)
 
 ## Open-seat row (Bontago-hfa.11, ui/lobby/LobbyOpenSeatRow.gd): dash length, gap and line width of its
 ## dashed outline, and how far the next-free-colour diamond is dimmed (alpha).

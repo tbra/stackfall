@@ -65,6 +65,9 @@ var name_provider: Variant = null
 
 ## The Input Map action that readies (Enter/Numpad Enter/Space and gamepad A).
 const READY_ACTION: StringName = &"ui_accept"
+## Accessible tooltips of a player row's ready mark (the mark itself shows only its icon).
+const READY_TEXT: String = "Ready"
+const NOT_READY_TEXT: String = "Not ready"
 ## Bontago-1pi.157: the loading backdrop is one of the main menu's images (MainMenuTuning.backdrop_paths).
 const MENU_TUNING_PATH: String = "res://config/main_menu_tuning.tres"
 ## Frames a fetched plate stays referenced so queued RenderingServer commands drain (Bontago-6cw).
@@ -739,13 +742,30 @@ func _rebuild_ready_rows(slots: Array[PlayerSlot]) -> void:
 		name_label.add_theme_color_override("font_color", MenuStyleFactory.arcade_tuning().cream_color)
 		name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		# Bontago-1pi.158 (owner: the four-cell bar "makes no sense"): the lobby's Ready / Not ready pill.
-		var mark: ReadyPill = ReadyPill.create(slot_item.is_bot, _pill_size(), float(tuning.loading_pill_margin_y_px))
+		var mark: UiStatusBadge = _make_ready_mark(slot_item.is_bot)
 		mark.visible = _ready_gate_armed
 		row.add_child(marker)
 		row.add_child(name_label)
 		row.add_child(mark)
 		_player_list.add_child(row)
 		_ready_rows.append({"slot_id": slot_item.slot_id, "is_bot": slot_item.is_bot, "mark": mark, "name": name_label})
+
+
+## The Ready / Not ready tile of a player row: an icon-only UiStatusBadge (tick / hourglass faces),
+## the words kept as the accessible tooltip. Compact vertical margin and size from LoadingScreenTuning.
+func _make_ready_mark(slot_ready: bool) -> UiStatusBadge:
+	var mark: UiStatusBadge = UiStatusBadge.new()
+	mark.icon_only = true
+	mark.pad_y_override_px = float(tuning.loading_pill_margin_y_px)
+	mark.custom_minimum_size = _pill_size()
+	_set_ready_mark(mark, slot_ready)
+	return mark
+
+
+## Restyles a ready mark for the new state (cheap).
+static func _set_ready_mark(mark: UiStatusBadge, slot_ready: bool) -> void:
+	mark.variant = UiStatusBadge.Look.READY if slot_ready else UiStatusBadge.Look.NOT_READY
+	mark.text = READY_TEXT if slot_ready else NOT_READY_TEXT
 
 
 ## The pill's size (LoadingScreenTuning): the lobby's pill, a little smaller so eight rows fit.
@@ -775,7 +795,7 @@ func ready_prompt_text() -> String:
 func player_row_ready(slot_id: int) -> bool:
 	for row: Dictionary in _ready_rows:
 		if int(row["slot_id"]) == slot_id:
-			return (row["mark"] as ReadyPill).is_ready
+			return (row["mark"] as UiStatusBadge).variant == UiStatusBadge.Look.READY
 	return false
 
 
@@ -792,10 +812,10 @@ func _refresh_ready_ui() -> void:
 	var ready_ids: PackedInt32Array = Match._lifecycle.loading_ready_peers()
 	for row: Dictionary in _ready_rows:
 		var slot_ready: bool = bool(row["is_bot"]) or Match._lifecycle.loading_slot_ready(int(row["slot_id"]))
-		var mark: ReadyPill = row["mark"] as ReadyPill
+		var mark: UiStatusBadge = row["mark"] as UiStatusBadge
 		mark.visible = true
-		if mark.is_ready != slot_ready:
-			mark.set_ready(slot_ready)
+		if (mark.variant == UiStatusBadge.Look.READY) != slot_ready:
+			_set_ready_mark(mark, slot_ready)
 	var pressed: bool = _local_pressed or ready_ids.has(Net.local_peer_id())
 	# The prompt: this instance finished loading, the gate is still closed, and the
 	# host waits for this peer (spectators, late joiners, clients of an ungated host
