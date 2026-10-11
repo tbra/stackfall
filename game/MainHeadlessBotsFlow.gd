@@ -789,7 +789,20 @@ var _bot_brain_by_slot: Dictionary = {}  # slot_id -> BotController.Brain (bot s
 
 ## `--bot-brain=`; LEGACY when absent, and an unknown value warns and means LEGACY.
 func _bot_brain_arg(args: PackedStringArray) -> BotController.Brain:
-	var value: String = _string_arg(args, "bot-brain=").to_lower()
+	return brain_from_args(args)
+
+
+## Static so an ordinary lobby match (MainMatchFlow.spawn_bot_controllers) shares the one parser
+## (Bontago-1t5.39).
+static func brain_from_args(args: PackedStringArray) -> BotController.Brain:
+	var value: String = ""
+	for raw: String in args:
+		var text: String = raw
+		while text.begins_with("-"):
+			text = text.substr(1)
+		if text.begins_with("bot-brain="):
+			value = text.substr("bot-brain=".length()).to_lower()
+			break
 	match value:
 		"", "legacy":
 			return BotController.Brain.LEGACY
