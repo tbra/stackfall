@@ -1002,10 +1002,6 @@ ranges = {
 "HoneyCoatTuning.jelly_bulge_freq": Vector2(0.5, 12.0),
 "HoneyCoatTuning.jelly_wobble_speed": Vector2(0.0, 4.0),
 "HoneyCoatTuning.jelly_sag_m": Vector2(0.0, 0.5),
-"HoneyCoatTuning.bead_count_per_cell": Vector2(0.0, 12.0),
-"HoneyCoatTuning.bead_min_radius_m": Vector2(0.02, 0.2),
-"HoneyCoatTuning.bead_max_radius_m": Vector2(0.02, 0.3),
-"HoneyCoatTuning.bead_flatten": Vector2(0.3, 1.0),
 }
 descriptions = {
 "SpecialTuning.gift_aim_back_m": "How far back along the camera line a camera-aimed gift spawns from the held gift, in meters (0 = from the held gift).",
@@ -2308,10 +2304,6 @@ descriptions = {
 "HoneyCoatTuning.jelly_bulge_freq": "Size of the jelly bulges (higher = smaller).",
 "HoneyCoatTuning.jelly_wobble_speed": "How fast the jelly bulges move.",
 "HoneyCoatTuning.jelly_sag_m": "How far (m) the lower rim of the jelly sags into drip lobes.",
-"HoneyCoatTuning.bead_count_per_cell": "Glue beads per block cell along its edges.",
-"HoneyCoatTuning.bead_min_radius_m": "Smallest glue bead radius (m).",
-"HoneyCoatTuning.bead_max_radius_m": "Largest glue bead radius (m).",
-"HoneyCoatTuning.bead_flatten": "How flat glue beads sit (1 = round ball).",
 "HoneyCoatTuning.hud_jelly_tint": "Amber tint (with opacity) laid over the held/next preview of a glued block.",
 }
 sections = {

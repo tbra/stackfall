@@ -1,6 +1,6 @@
-// Shared cel-glossy honey shading for the blob looks (Bontago-lv2): banded diffuse,
+// Shared cel-glossy honey shading for the jelly (Bontago-lv2): banded diffuse,
 // a hard specular highlight, deep-amber toward grazing angles and a rim glow standing in
-// for light passing through the blob. Included by honey_jelly/honey_beads.
+// for light passing through the blob. Included by honey_jelly.
 uniform vec4 honey_color : source_color = vec4(1.0, 0.7, 0.04, 1.0);
 uniform vec3 deep_amber : source_color = vec3(0.85, 0.42, 0.0);
 uniform float rim_power = 3.5;
