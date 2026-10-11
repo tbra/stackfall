@@ -188,6 +188,18 @@ func is_late_active() -> bool:
 	return _late_active
 
 
+## Bontago-1pi.11.85.1: facade contract before late_activate(). Read-only getters answer an
+## idle LOBBY-equivalent default (state LOBBY, slot_count 0, team_of -1, null world objects, ...);
+## no-op commands (abort_match, set_countdown_held, request_place, ...) do nothing. Mutators that
+## must build state (start_match and every apply_replicated_*, a replicated packet needs the
+## controllers) call this and activate synchronously.
+## DECISION: lazy activation is the safety net; callers that know a match is coming (Host, Join,
+## Play, Sandbox, ...) should activate explicitly first so the cost is not paid mid-flow.
+func _ensure_active() -> void:
+	if not _late_active:
+		late_activate()
+
+
 ## Builds the controllers and the gift presenter (idempotent; Boot calls it through
 ## LateScripts.activate_autoloads after prewarming). Same order as the former _ready().
 func late_activate() -> void:
@@ -309,15 +321,19 @@ func _on_cat_match_state_changed(_old: int, next: int) -> void:
 
 var _held_shapes: Array[BlockShape]:
 	get:
+		if not _late_active:
+			var none: Array[BlockShape] = []
+			return none
 		return _feed._held_shapes
 	set(value):
+		_ensure_active()
 		_feed._held_shapes = value
 
 var _raster: TerritoryRaster:
-	get: return _territory._raster
+	get: return _territory._raster if _late_active else null
 
 var _solver: TerritorySolver:
-	get: return _territory._solver
+	get: return _territory._solver if _late_active else null
 
 
 func _resolve_outcome(initial_result: PlacementRules.Result, auto_drop: bool, relocated: Vector2) -> Dictionary:
@@ -352,6 +368,8 @@ func _run_territory_step(delta: float) -> void:
 
 ## Gift flight and landed expiry use physics time, independent of territory solve cadence.
 func _physics_process(delta: float) -> void:
+	if not _late_active:
+		return
 	var probe_gifts: int = PerfProbe.start()
 	if _is_host() and _lifecycle != null and is_live(state()):
 		_gifts.tick_host(delta)
@@ -365,6 +383,8 @@ func _physics_process(delta: float) -> void:
 
 
 func debug_unlock_slot(slot_id: int) -> void:
+	if not _late_active:
+		return
 	_feed.debug_unlock_slot(slot_id)
 
 
@@ -447,6 +467,7 @@ func _is_host() -> bool:
 
 
 func start_match(match_config: MatchConfig) -> void:
+	_ensure_active()
 	var previous_cat: RigidBody3D = active_cat()
 	if previous_cat != null:
 		end_cat(previous_cat.activation_id)
@@ -466,6 +487,8 @@ func start_match(match_config: MatchConfig) -> void:
 
 
 func abort_match() -> void:
+	if not _late_active:
+		return
 	var previous_cat: RigidBody3D = active_cat()
 	if previous_cat != null:
 		end_cat(previous_cat.activation_id)
@@ -474,26 +497,36 @@ func abort_match() -> void:
 
 
 func state() -> State:
+	if not _late_active:
+		return State.LOBBY
 	return _lifecycle.state()
 
 
 ## Seconds left in the countdown, or 0.0 outside State.COUNTDOWN.
 func countdown_remaining() -> float:
+	if not _late_active:
+		return 0.0
 	return _lifecycle.countdown_remaining()
 
 
 ## Bontago-mp0.27: pause/resume the countdown's run-down (loading hand-off).
 func set_countdown_held(held: bool) -> void:
+	if not _late_active:
+		return
 	_lifecycle.set_countdown_held(held)
 
 
 ## Seconds left on the match timer (spec 2.8), 0.0 when off or run out.
 func match_timer_left() -> float:
+	if not _late_active:
+		return 0.0
 	return _lifecycle.match_timer_left()
 
 
 ## True only in State.SUDDEN_DEATH (spec 2.8).
 func sudden_death_active() -> bool:
+	if not _late_active:
+		return false
 	return _lifecycle.sudden_death_active()
 
 
@@ -505,6 +538,8 @@ func sudden_death_active() -> bool:
 ## and its ghost's territory tint are right, and it is driven entirely by
 ## net/MatchNet.gd's replicated events.
 func _process(delta: float) -> void:
+	if not _late_active:
+		return
 	if not _is_host():
 		_feed._tick_client_display(delta)
 		return
@@ -555,10 +590,14 @@ func _process(delta: float) -> void:
 # --- Slots and teams --------------------------------------------------------
 
 func slot_count() -> int:
+	if not _late_active:
+		return 0
 	return _lifecycle.slot_count()
 
 
 func slot(slot_id: int) -> PlayerSlot:
+	if not _late_active:
+		return null
 	return _lifecycle.slot(slot_id)
 
 
@@ -571,18 +610,24 @@ func slot_color(slot_id: int, fallback: Color = Color.WHITE) -> Color:
 
 
 func team_of(slot_id: int) -> int:
+	if not _late_active:
+		return -1
 	return _lifecycle.team_of(slot_id)
 
 
 ## Hot-seat: the slot whose turn it is. Outside hot-seat this is the local
 ## player's slot, and every slot acts at once.
 func active_slot() -> int:
+	if not _late_active:
+		return -1
 	return _lifecycle.active_slot()
 
 
 ## Hot-seat: hands the turn to the next slot. Called after a placement
 ## resolves, not by input.
 func advance_turn() -> void:
+	if not _late_active:
+		return
 	_lifecycle.advance_turn()
 
 
@@ -590,11 +635,15 @@ func advance_turn() -> void:
 
 ## The shape `slot_id` is holding right now, or null between blocks.
 func held_shape(slot_id: int) -> BlockShape:
+	if not _late_active:
+		return null
 	return _feed.held_shape(slot_id)
 
 
 ## What the HUD's next-block preview shows for `slot_id`.
 func next_shape(slot_id: int) -> BlockShape:
+	if not _late_active:
+		return null
 	return _feed.next_shape(slot_id)
 
 
@@ -606,18 +655,24 @@ func next_shape(slot_id: int) -> BlockShape:
 ## autoload/match/MatchGifts.gd for the placeholder id the default drawer
 ## hands out.
 func held_special(slot_id: int) -> StringName:
+	if not _late_active:
+		return &""
 	return _gifts.held_special(slot_id)
 
 
 ## Presentation peek (Bontago-59o.13): the gift queued as `slot_id`'s next
 ## piece, or &"" for none. See MatchGifts.next_special().
 func next_special(slot_id: int) -> StringName:
+	if not _late_active:
+		return &""
 	return _gifts.next_special(slot_id)
 
 
 ## M4 P2b (Bontago-csc): dequeues and returns `slot_id`'s oldest pending
 ## special, or &"" if its queue is empty. See MatchGifts.pop_pending_special().
 func pop_pending_special(slot_id: int) -> StringName:
+	if not _late_active:
+		return &""
 	return _gifts.pop_pending_special(slot_id)
 
 
@@ -625,28 +680,39 @@ func pop_pending_special(slot_id: int) -> StringName:
 ## GiftConfig.max_pending_specials). ui/HUD.gd's queued-count indicator
 ## (Bontago-1en.16, not this package) is the only consumer today.
 func pending_special_count(slot_id: int) -> int:
+	if not _late_active:
+		return 0
 	return _gifts.pending_special_count(slot_id)
 
 
 ## Glue's activation grants future successful drops; MatchPlacement will
 ## consume a charge once each later drop is accepted.
 func grant_glue_drops(slot_id: int, count: int) -> bool:
+	if not _late_active:
+		return false
 	return _gifts.grant_glue_drops(slot_id, count)
 
 
 func glue_drops_left(slot_id: int) -> int:
+	if not _late_active:
+		return 0
 	return _gifts.glue_drops_left(slot_id)
 
 
 func glue_revision(slot_id: int) -> int:
+	if not _late_active:
+		return 0
 	return _gifts.glue_revision(slot_id)
 
 
 func apply_replicated_glue_charges(slot_id: int, count: int, revision: int) -> bool:
+	_ensure_active()
 	return _gifts.apply_replicated_glue_charges(slot_id, count, revision)
 
 
 func consume_glue_drop(slot_id: int) -> bool:
+	if not _late_active:
+		return false
 	return _gifts.consume_glue_drop(slot_id)
 
 
@@ -655,6 +721,7 @@ func consume_glue_drop(slot_id: int) -> bool:
 ## always returns MatchGifts.PENDING_SPECIAL_ID. See
 ## MatchGifts.set_special_drawer().
 func set_special_drawer(drawer: Callable) -> void:
+	_ensure_active()
 	_gifts.set_special_drawer(drawer)
 
 
@@ -663,6 +730,7 @@ func set_special_drawer(drawer: Callable) -> void:
 ## pick, or the shipped placeholder). See MatchGifts.restore_default_special_
 ## drawer().
 func restore_default_special_drawer() -> void:
+	_ensure_active()
 	_gifts.restore_default_special_drawer()
 
 
@@ -672,6 +740,8 @@ func restore_default_special_drawer() -> void:
 ## MatchGifts.debug_queue_special() for the full contract (the cap, the
 ## DEBUG_GIFT_ID sentinel on Events.gift_claimed).
 func debug_queue_special(slot_id: int, special_id: StringName) -> bool:
+	if not _late_active:
+		return false
 	return _gifts.debug_queue_special(slot_id, special_id)
 
 
@@ -685,21 +755,29 @@ func _on_feed_block_issued(slot_id: int, _shape_id: StringName, _next_shape_id: 
 
 ## Seconds left on the slot's block timer (spec 2.8: 3-12 s, default 6).
 func feed_time_left(slot_id: int) -> float:
+	if not _late_active:
+		return 0.0
 	return _feed.feed_time_left(slot_id)
 
 
 ## feed_time_left / config.block_timer, 1 -> 0, for the HUD's timer ring.
 func feed_progress(slot_id: int) -> float:
+	if not _late_active:
+		return 0.0
 	return _feed.feed_progress(slot_id)
 
 
 ## Bontago-1pi.18.1 (QoL experiments): blocks queued for `slot_id` (0 when the
 ## backlog toggle is off), and whether its block timer is paused by the pause toggle.
 func qol_backlog_count(slot_id: int) -> int:
+	if not _late_active:
+		return 0
 	return _feed.backlog_count(slot_id)
 
 
 func qol_timer_paused(slot_id: int) -> bool:
+	if not _late_active:
+		return false
 	return _feed.timer_paused(slot_id)
 
 
@@ -724,31 +802,43 @@ func goal_zone_visual_radius() -> float:
 
 ## Bontago-1pi.18.2 (QoL gift slot): the gift `slot_id` could spend now (&"" if none), how many wait, and the host-validated use.
 func gift_slot_head(slot_id: int) -> StringName:
+	if not _late_active:
+		return &""
 	return _gifts.gift_slot_head(slot_id)
 
 
 func gift_slot_count(slot_id: int) -> int:
+	if not _late_active:
+		return 0
 	return _gifts.gift_slot_count(slot_id)
 
 
 func gift_slot_contents(slot_id: int) -> Array[StringName]:
+	if not _late_active:
+		return []
 	return _gifts.gift_slot_contents(slot_id)
 
 
 func gift_slot_enabled() -> bool:
+	if not _late_active:
+		return false
 	return _gifts.gift_slot_capacity() > 0
 
 
 func request_use_gift_slot(slot_id: int) -> bool:
+	if not _late_active:
+		return false
 	return _gifts.request_use_gift_slot(slot_id)
 
 
 func apply_replicated_gift_slot(slot_id: int, contents: Array, activated: StringName, carrier_id: StringName) -> void:
+	_ensure_active()
 	_gifts.apply_replicated_gift_slot(slot_id, contents, activated, carrier_id)
 
 
 ## Client side of Events.qol_feed_changed (net/MatchNet.gd).
 func apply_replicated_qol(slot_id: int, backlog: int, paused: bool) -> void:
+	_ensure_active()
 	_feed.apply_replicated_qol(slot_id, backlog, paused)
 
 
@@ -756,6 +846,8 @@ func apply_replicated_qol(slot_id: int, backlog: int, paused: bool) -> void:
 ## true for every real match). ui/SandboxPanel.gd shows this as the timer's
 ## "running"/"paused" state.
 func feed_timer_enabled() -> bool:
+	if not _late_active:
+		return false
 	return _feed.feed_timer_enabled()
 
 
@@ -765,6 +857,8 @@ func feed_timer_enabled() -> bool:
 ## — this file does not gate it on config.sandbox, the same way
 ## set_process(false) in the test harness is trusted rather than re-checked.
 func set_feed_timer_enabled(enabled: bool) -> void:
+	if not _late_active:
+		return
 	_feed.set_feed_timer_enabled(enabled)
 
 
@@ -806,6 +900,8 @@ func request_place(
 	auto_drop: bool,
 	feed_seq: int = -1
 ) -> StringName:
+	if not _late_active:
+		return PlacementRules.REASON_NO_BLOCK  # a refusal, never REASON_OK (&"")
 	return _placement.request_place(slot_id, origin, orientation_index, free_quat, auto_drop, feed_seq)
 
 
@@ -821,16 +917,22 @@ func request_throw(
 	velocity: Vector3,
 	feed_seq: int = -1
 ) -> StringName:
+	if not _late_active:
+		return PlacementRules.REASON_NO_BLOCK  # a refusal, never REASON_OK (&"")
 	return _placement.request_throw(slot_id, origin, orientation_index, free_quat, velocity, feed_seq)
 
 
 ## Bontago-1pi.134: host-side last aim (unit camera forward) of a slot; the forced release at
 ## timer expiry throws a held throwable gift along it. See MatchPlacement.note_aim().
 func note_aim(slot_id: int, forward: Vector3) -> void:
+	if not _late_active:
+		return
 	_placement.note_aim(slot_id, forward)
 
 
 func noted_aim(slot_id: int) -> Vector3:
+	if not _late_active:
+		return Vector3.ZERO
 	return _placement.noted_aim(slot_id)
 
 
@@ -847,11 +949,14 @@ func spawn_special_projectile(
 	orb_def: Resource,
 	orb_tuning: SpecialTuning
 ) -> BlockBody:
+	_ensure_active()
 	return _placement.spawn_special_projectile(shape, world_origin, basis, owner_slot, initial_velocity, orb_def, orb_tuning)
 
 
 ## Whether a pose can be evaluated at all. See MatchPlacement.is_pose_well_formed().
 func is_pose_well_formed(origin: Vector3, orientation_index: int, free_quat: Quaternion) -> bool:
+	if not _late_active:
+		return false
 	return _placement.is_pose_well_formed(origin, orientation_index, free_quat)
 
 
@@ -860,6 +965,8 @@ func is_pose_well_formed(origin: Vector3, orientation_index: int, free_quat: Qua
 func preview_placement(
 	slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion
 ) -> PlacementRules.Result:
+	if not _late_active:
+		return PlacementRules.Result.EMPTY
 	return _placement.preview_placement(slot_id, origin, orientation_index, free_quat)
 
 
@@ -867,6 +974,8 @@ func preview_placement(
 ## acceptance harness asserts this equals the sum of accepted intents plus
 ## auto-drops (docs/archive/M3a_PLAN.md).
 func blocks_spawned() -> int:
+	if not _late_active:
+		return 0
 	return _placement.blocks_spawned()
 
 
@@ -874,34 +983,46 @@ func blocks_spawned() -> int:
 ## advances on every consumed block, so exactly one intent can spend any one
 ## held block (docs/archive/M3a_PLAN.md, "Never duplicated, never lost").
 func feed_seq(slot_id: int) -> int:
+	if not _late_active:
+		return 0
 	return _feed.feed_seq(slot_id)
 
 
 ## Bontago-mv0.10 (spec 2.4 "[ORIGINAL target]" cadence): whether `slot_id`'s
 ## currently held piece may be released right now. See MatchFeed.is_release_locked().
 func is_release_locked(slot_id: int) -> bool:
+	if not _late_active:
+		return false
 	return _feed.is_release_locked(slot_id)
 
 
 ## Where a slot's block goes when its timer expires and the host has never
 ## heard a cursor from it. See MatchPlacement.default_ghost_origin().
 func default_ghost_origin(slot_id: int) -> Vector3:
+	if not _late_active:
+		return Vector3.ZERO
 	return _placement.default_ghost_origin(slot_id)
 
 
 # --- Disconnects (docs/archive/M3a_PLAN.md question 2) ------------------------------
 
 func on_peer_left(slot_id: int) -> void:
+	if not _late_active:
+		return
 	_lifecycle.on_peer_left(slot_id)
 
 
 func on_peer_rejoined(slot_id: int) -> void:
+	if not _late_active:
+		return
 	_lifecycle.on_peer_rejoined(slot_id)
 
 
 ## Seconds left before `slot_id` is eliminated for being gone, or -1 when its
 ## peer is connected. The lobby and the HUD read this; nothing else.
 func disconnect_grace_left(slot_id: int) -> float:
+	if not _late_active:
+		return 0.0
 	return _lifecycle.disconnect_grace_left(slot_id)
 
 
@@ -909,30 +1030,42 @@ func disconnect_grace_left(slot_id: int) -> float:
 
 ## The live raster. Never mutate it from outside Match.
 func raster() -> TerritoryRaster:
+	if not _late_active:
+		return null
 	return _territory.raster()
 
 
 ## The groups from the last solve, parallel to the raster.
 func groups() -> TerritoryGroups:
+	if not _late_active:
+		return null
 	return _territory.groups()
 
 
 ## Bontago-1t5.3: mode goal context for a bot slot (see MatchTerritory.bot_mode_goal()).
 func bot_mode_goal(slot_id: int) -> BotModeGoal:
+	if not _late_active:
+		return null
 	return _territory.bot_mode_goal(slot_id)
 
 
 func cell_grid() -> CellGrid:
+	if not _late_active:
+		return null
 	return _territory.cell_grid()
 
 
 ## Fraction of the disk a team owns, 0..1.
 func territory_share(team_id: int) -> float:
+	if not _late_active:
+		return 0.0
 	return _territory.territory_share(team_id)
 
 
 ## The winning team, or -1.
 func winner_team() -> int:
+	if not _late_active:
+		return -1
 	return _territory.winner_team()
 
 
@@ -963,6 +1096,8 @@ func max_height_for_slot(slot_id: int) -> float:
 ## cached so net/MatchNet.gd's replicate_territory() can ship the identical
 ## list to clients. See MatchTerritory.circle_render_arrays().
 func circle_render_arrays() -> Dictionary:
+	if not _late_active:
+		return {}
 	return _territory.circle_render_arrays()
 
 
@@ -972,10 +1107,14 @@ func circle_render_arrays() -> Dictionary:
 ## is the one place both read them from — the same MatchConfig/NetConfig/
 ## TerritoryTuning resources a version-matched build already shares.
 func circle_wire_xz_bound() -> float:
+	if config == null:
+		return 0.0
 	return _net_config.position_bounds(config.map_def()).size.x * 0.5
 
 
 func circle_wire_radius_max() -> float:
+	if config == null:
+		return 0.0
 	return _territory_tuning.influence_max_fraction * config.map_def().field_radius
 
 
@@ -983,6 +1122,8 @@ func circle_wire_radius_max() -> float:
 ## MatchTerritory.punch_special_hole() for the full contract (host-only,
 ## no-op under HoleMode.OFF, disk-local world_pos, home-flag elimination).
 func punch_special_hole(world_pos: Vector2, radius_m: float, hole_open_s: float) -> void:
+	if not _late_active:
+		return
 	_territory.punch_special_hole(world_pos, radius_m, hole_open_s)
 
 
@@ -998,10 +1139,12 @@ func punch_special_hole(world_pos: Vector2, radius_m: float, hole_open_s: float)
 ## real change, so a client that already moved itself (the countdown it ran
 ## locally, say) does not emit twice.
 func apply_replicated_state_change(new_state: int) -> void:
+	_ensure_active()
 	_lifecycle.apply_replicated_state_change(new_state)
 
 
 func apply_replicated_countdown(seconds_left: int) -> void:
+	_ensure_active()
 	_lifecycle.apply_replicated_countdown(seconds_left)
 
 
@@ -1015,24 +1158,30 @@ func apply_replicated_feed(
 	host_feed_time_left: float = -1.0,
 	host_is_locked: bool = false
 ) -> void:
+	_ensure_active()
 	_feed.apply_replicated_feed(slot_id, shape_id, next_shape_id, host_feed_seq, host_feed_time_left, host_is_locked)
 
 
 func apply_replicated_turn(slot_id: int) -> void:
+	_ensure_active()
 	_lifecycle.apply_replicated_turn(slot_id)
 
 
 func apply_replicated_elimination(slot_id: int) -> void:
+	_ensure_active()
 	_lifecycle.apply_replicated_elimination(slot_id)
 
 
 ## Bontago-22y.11: client mirror of the host's mode-objective state, and the
 ## host's snapshot of it for a reconnecting peer ({} when there is none).
 func apply_replicated_mode_state(state: Dictionary) -> void:
+	_ensure_active()
 	_lifecycle.apply_replicated_mode_state(state)
 
 
 func mode_state_snapshot() -> Dictionary:
+	if not _late_active:
+		return {}
 	return _lifecycle.mode_state_snapshot()
 
 
@@ -1042,22 +1191,29 @@ func mode_state_snapshot() -> Dictionary:
 ## claims or expires anything itself. See autoload/match/MatchGifts.gd's own
 ## client-read-model section.
 func apply_replicated_gift_spawned(gift_id: int, position: Vector2) -> void:
+	_ensure_active()
 	_gifts.apply_replicated_spawn(gift_id, position)
 
 
 func gift_state(gift_id: int) -> Dictionary:
+	if not _late_active:
+		return {}
 	return _gifts.gift_state(gift_id)
 
 
 func gift_states() -> Array[Dictionary]:
+	if not _late_active:
+		return []
 	return _gifts.gift_states()
 
 
 func apply_replicated_gift_flight(gift_id: int, origin: Vector3, landing: Vector3) -> void:
+	_ensure_active()
 	_gifts.apply_replicated_flight(gift_id, origin, landing)
 
 
 func apply_replicated_gift_landed(gift_id: int, landing: Vector3) -> void:
+	_ensure_active()
 	_gifts.apply_replicated_landing(gift_id, landing)
 
 
@@ -1065,10 +1221,12 @@ func apply_replicated_gift_landed(gift_id: int, landing: Vector3) -> void:
 ## amendment 1) -- net/MatchNet.gd's wire check has already rejected a
 ## malformed one before this is ever called.
 func apply_replicated_gift_claimed(gift_id: int, slot_id: int, special_id: StringName) -> void:
+	_ensure_active()
 	_gifts.apply_replicated_claim(gift_id, slot_id, special_id)
 
 
 func apply_replicated_gift_expired(gift_id: int) -> void:
+	_ensure_active()
 	_gifts.apply_replicated_expire(gift_id)
 
 
@@ -1087,6 +1245,7 @@ func apply_replicated_gift_expired(gift_id: int) -> void:
 ## additive, same-shape stub with no risk of colliding with another
 ## package's edits to this file.
 func apply_replicated_special_consumed(slot_id: int, special_id: StringName) -> void:
+	_ensure_active()
 	_gifts.apply_replicated_special_consumed(slot_id, special_id)
 
 
@@ -1106,6 +1265,7 @@ func apply_replicated_territory(
 	goal_radii: PackedFloat32Array = PackedFloat32Array(),
 	argmax_mode: bool = false
 ) -> void:
+	_ensure_active()
 	_territory.apply_replicated_territory(
 		cells, owners, states, full,
 		circle_xs, circle_zs, circle_radii, circle_teams,
