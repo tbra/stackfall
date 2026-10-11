@@ -113,7 +113,7 @@ func test_hold_repeats_after_the_delay_then_every_interval() -> void:
 	var stepper: UiStepper = _make(0, 100, 50)
 	await wait_frames(1)
 	stepper.grab_focus()
-	var tuning: SliderNavTuning = SliderNav.TUNING
+	var tuning: SliderNavTuning = UiHoldRepeat.TUNING
 	Input.action_press(&"ui_right")
 	stepper._gui_input(_action(&"ui_right"))
 	assert_eq(stepper.value, 51)
@@ -132,7 +132,7 @@ func test_stick_friction_one_push_one_step_and_repeat_only_near_full() -> void:
 	var stepper: UiStepper = _make(0, 100, 50)
 	await wait_frames(1)
 	stepper.grab_focus()
-	var tuning: SliderNavTuning = SliderNav.TUNING
+	var tuning: SliderNavTuning = UiHoldRepeat.TUNING
 	var axis: Array[float] = [tuning.stick_press_threshold + 0.05]
 	stepper.axis_reader = func(_device: int, _a: int) -> float: return axis[0]
 	var push: InputEventJoypadMotion = InputEventJoypadMotion.new()

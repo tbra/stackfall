@@ -32,7 +32,7 @@ Principles:
   toggles, steppers or pills already exist in ui/, ui/lobby/, ui/OptionsMenu); the
   component replaces all of them, and the old ones are deleted, not left beside it.
 - Keyboard, mouse and gamepad parity for every interactive component (focus look,
-  ui_accept/ui_left/ui_right through SliderNav/Input Map, synthetic-event tests).
+  ui_accept/ui_left/ui_right through UiHoldRepeat/Input Map, synthetic-event tests).
 - Respect owner decisions recorded in Beads (e.g. 1pi.94: S2 click-to-cycle
   selectors, S3 icon-only ready tiles) and the UI scale setting.
 - Keep a component gallery scene (ui/components/ComponentGallery.tscn) showing every

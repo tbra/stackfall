@@ -1,6 +1,5 @@
 extends GutTest
-## Bontago-1pi.119 / 1pi.121 / 1pi.123 (playtest 2026-10-08): coarse keyboard/gamepad slider steps
-## (ui/SliderNav.gd), menus opening scrolled to the top, and the mouse wheel over a slider scrolling
+## Bontago-1pi.119 / 1pi.121 / 1pi.123 (playtest 2026-10-08): one-cell keyboard/gamepad meter steps, menus opening scrolled to the top, and the mouse wheel over a slider scrolling
 ## the menu instead of changing the slider.
 
 const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/OptionsMenu.tscn")
@@ -8,7 +7,6 @@ const LOBBY_SCENE: PackedScene = preload("res://ui/Lobby.tscn")
 const SETTLE_FRAMES: int = 4
 const PAD_DEVICE: int = 0
 const SHORT_VIEW_PX: float = 200.0
-const FLOAT_EPS: float = 0.0001
 
 
 func after_each() -> void:
@@ -58,13 +56,6 @@ func _wheel_event(button_index: MouseButton) -> InputEventMouseButton:
 
 
 # --- 119 ---------------------------------------------------------------------
-
-func test_coarse_step_is_a_twentieth_of_the_range_for_fine_sliders_only() -> void:
-	assert_almost_eq(SliderNav.coarse_step(0.0, 1.0, 0.01), 0.05, FLOAT_EPS)
-	assert_almost_eq(SliderNav.coarse_step(0.5, 2.0, 0.01), 0.08, FLOAT_EPS, "1.5 / 20 rounded up to a step multiple")
-	assert_eq(SliderNav.coarse_step(3.0, 12.0, 0.5), -1.0, "already coarse: 18 native steps")
-	assert_eq(SliderNav.coarse_step(0.0, 10.0, 1.0), -1.0, "10 native steps")
-
 
 func test_gamepad_dpad_and_keyboard_move_a_volume_meter_by_one_cell() -> void:
 	var menu: OptionsMenu = await _menu()

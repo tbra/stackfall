@@ -7,9 +7,8 @@ extends Control
 ## range and give [member formatter] to turn it into the readout ("100%", "5.0 s", "Medium").
 ## Mouse: click or drag sets the cell under the pointer. Keyboard / pad: ui_left / ui_right step one
 ## cell (held: repeats after SliderNavTuning.repeat_delay_sec, a stick only auto-repeats near full
-## deflection, like SliderNav). A muted or non-editable meter shows dust cells.
-## DECISION (1pi.159.7): the hold timer is a compact copy of UiStepper's rules against the same
-## SliderNav.TUNING numbers (SliderNav.Repeater drives an HSlider and cannot attach to a Control).
+## deflection, like UiStepper). A muted or non-editable meter shows dust cells.
+## The hold timer is the shared UiHoldRepeat (Bontago-1pi.159.10).
 
 signal value_changed(value: int)
 
@@ -50,15 +49,14 @@ var preview_focus: bool = false:
 		preview_focus = preview
 		queue_redraw()
 ## Reads a stick axis; tests replace it (headless Input has no real pad state).
-var axis_reader: Callable = Input.get_joy_axis
+var axis_reader: Callable = Input.get_joy_axis:
+	set(reader):
+		axis_reader = reader
+		_hold.axis_reader = reader
 
 var _silent: bool = false
 var _dragging: bool = false
-var _direction: int = 0
-var _stick_axis: int = -1
-var _stick_device: int = 0
-var _held_for: float = 0.0
-var _next_due: float = 0.0
+var _hold: UiHoldRepeat = UiHoldRepeat.new(nudge)
 
 
 func _init() -> void:
@@ -126,7 +124,7 @@ func nudge(direction: int) -> bool:
 
 
 func is_holding() -> bool:
-	return _direction != 0
+	return _hold.is_holding()
 
 
 ## The width left for the well once the readout column is taken.
@@ -206,50 +204,18 @@ func _gui_input(event: InputEvent) -> void:
 		value = value_from_x((event as InputEventMouseMotion).position.x, well_width(), step_count)
 		accept_event()
 		return
+	var consumed: bool = false
 	if event is InputEventJoypadMotion:
-		_on_stick(event as InputEventJoypadMotion)
-		return
-	for action: StringName in [&"ui_left", &"ui_right"]:
-		var direction: int = -1 if action == &"ui_left" else 1
-		if event.is_action_pressed(action, true):
-			accept_event()
-			if not (event is InputEventKey and (event as InputEventKey).echo):
-				_start(direction, -1)
-			return
-		if event.is_action_released(action) and _direction == direction and _stick_axis < 0:
-			_release()
-
-
-func _on_stick(motion: InputEventJoypadMotion) -> void:
-	var tuning: SliderNavTuning = SliderNav.TUNING
-	if _stick_axis == motion.axis and _direction != 0:
-		if absf(motion.axis_value) < tuning.stick_release_threshold or signf(motion.axis_value) != float(_direction):
-			_release()
-		else:
-			accept_event()
-			return
-	for action: StringName in [&"ui_left", &"ui_right"]:
-		if motion.is_action(action, true) and motion.is_action_pressed(action, true):
-			accept_event()
-			if absf(motion.axis_value) >= tuning.stick_press_threshold and _direction == 0:
-				_stick_device = motion.device
-				_start(-1 if action == &"ui_left" else 1, motion.axis)
-			return
-
-
-func _start(direction: int, stick_axis: int) -> void:
-	_direction = direction
-	_stick_axis = stick_axis
-	_held_for = 0.0
-	var tuning: SliderNavTuning = SliderNav.TUNING
-	_next_due = tuning.stick_repeat_delay_sec if stick_axis >= 0 else tuning.repeat_delay_sec
-	nudge(direction)
-	set_process(true)
+		consumed = _hold.handle_stick(event as InputEventJoypadMotion)
+	else:
+		consumed = _hold.handle_action_event(event)
+	if consumed:
+		accept_event()
+	set_process(_hold.is_holding())
 
 
 func _release() -> void:
-	_direction = 0
-	_stick_axis = -1
+	_hold.release()
 	_dragging = false
 	set_process(false)
 
@@ -260,30 +226,11 @@ func _process(delta: float) -> void:
 
 ## Advances the hold timer; at most one repeat step per call.
 func advance(delta: float) -> void:
-	if _direction == 0:
+	if not _hold.is_holding():
 		return
-	if not is_visible_in_tree() or not editable or not has_focus() or not _still_held():
+	var alive: bool = is_visible_in_tree() and editable and has_focus()
+	if not _hold.advance(delta, alive):
 		_release()
-		return
-	var tuning: SliderNavTuning = SliderNav.TUNING
-	var interval: float = tuning.repeat_interval_sec
-	if _stick_axis >= 0:
-		interval = tuning.stick_repeat_interval_sec
-		if absf(float(axis_reader.call(_stick_device, _stick_axis))) < tuning.stick_repeat_threshold:
-			_held_for = 0.0
-			_next_due = tuning.stick_repeat_delay_sec
-			return
-	_held_for += delta
-	if _held_for >= _next_due:
-		_next_due += interval
-		nudge(_direction)
-
-
-func _still_held() -> bool:
-	if _stick_axis >= 0:
-		var deflection: float = float(axis_reader.call(_stick_device, _stick_axis))
-		return absf(deflection) >= SliderNav.TUNING.stick_release_threshold and signf(deflection) == float(_direction)
-	return Input.is_action_pressed(&"ui_left" if _direction < 0 else &"ui_right")
 
 
 func _on_focus_exited() -> void:
