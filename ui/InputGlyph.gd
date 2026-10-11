@@ -5,43 +5,54 @@ extends Control
 ## of these per bound event of the active device family (autoload/Settings.gd's
 ## own active_input_device()); set_event() is the single seam every consumer uses.
 ##
-## Texture path (preferred): keyboard keys resolve through
-## assets/ui/input_glyphs/key_atlas/catalog.json (Godot keycode -> keycap PNG);
-## mouse buttons/wheel resolve to mouse_*.svg; gamepad buttons and trigger/stick
-## axes resolve to the base gamepad_*.svg files. A key the catalog does not
-## cover (or one bound with modifiers) draws the label-free blank keycap with
-## the real key name as a runtime text label; an unnamed gamepad button does the
-## same on gamepad_button_blank.svg. The source art is paper-and-ink coloured
-## (not meant for theme tinting), so it stays readable on light and dark buttons.
+## Every glyph is code-drawn in the Stackfall Arcade design system (docs/ui_reskin/components.md
+## KeyPrompt; Bontago-1pi.159.17), so it shares the block recipe (lit top, lip, ledge) and the tokens
+## of ArcadeVisualTuning and recolours with them: keys are cream caps with an ink legend, shoulders,
+## triggers and chords sand chips, pad face buttons round caps (A mint, B flare, X player-2, Y rim;
+## the PlayStation set draws cross/circle/square/triangle on the same caps), the stick is a sand
+## round cap with an L/R legend (a rim arrow when it is a direction, L3/R3 for the click), and the
+## mouse and D-pad are block pictograms with the bound button lit in rim gold.
 ##
-## Fallback path (kept): when the texture for an event cannot be loaded, the
-## original in-repo _draw() primitives render it exactly as before -- Control
-## primitives only (draw_style_box/draw_circle/draw_rect/draw_polygon/
-## draw_string): a "key cap" rounded rect with the key's short label, a mouse
-## silhouette with the pressed button/wheel highlighted, colored circles for the
-## four Xbox-style face buttons, rounded "tabs" for shoulders/triggers, a cross
-## with the pressed arm filled for the D-pad, and a plain circle for a stick
-## click.
+## The paper-and-ink art in assets/ui/input_glyphs/ is still resolved (glyph_texture(),
+## uses_blank_shell() test seams, missing-folder probe) but no longer painted.
 
-@export var tuning: MenuVisualTuning = preload("res://config/menu_visual_tuning.tres")
 ## Stick direction / click / chord art (Bontago-mp0.124), keyed in config.
 @export var glyph_table: InputGlyphTable = preload("res://config/input_glyph_table.tres")
+## Pad family for legends and face symbols (AUTO follows the connected pad, Xbox when none).
+@export var pad_style: PadStyle = PadStyle.AUTO
 
 ## Owner: "Glyph height consistent (~32 px at 1080p)".
 const GLYPH_HEIGHT_PX: float = 32.0
 const SHAPE_WIDTH_PX: float = 32.0
 const MOUSE_WIDTH_PX: float = 22.0
 const SHOULDER_WIDTH_PX: float = 40.0
-const KEY_MIN_WIDTH_PX: float = 30.0
-const KEY_PADDING_PX: float = 10.0
 
 enum Kind { KEY, MOUSE, FACE, SHOULDER, TRIGGER, DPAD, STICK, GENERIC }
 
-const FACE_COLORS: Dictionary[int, Color] = {
-	JOY_BUTTON_A: Color(0.36, 0.72, 0.38, 1.0),
-	JOY_BUTTON_B: Color(0.82, 0.30, 0.28, 1.0),
-	JOY_BUTTON_X: Color(0.30, 0.53, 0.83, 1.0),
-	JOY_BUTTON_Y: Color(0.87, 0.74, 0.24, 1.0),
+## Pad face buttons (round caps); their colours live in InputGlyphTable.face_button_color().
+const FACE_BUTTONS: Array[int] = [JOY_BUTTON_A, JOY_BUTTON_B, JOY_BUTTON_X, JOY_BUTTON_Y]
+
+## Which pad family the legends and face symbols follow. AUTO reads the first connected pad's name.
+enum PadStyle { AUTO, XBOX, PLAYSTATION }
+
+## Substrings (lower case) of Input.get_joy_name() that identify a PlayStation-family pad.
+const PLAYSTATION_JOY_NAME_MARKERS: Array[String] = ["playstation", "ps3", "ps4", "ps5", "dualshock", "dualsense", "sony"]
+
+## PlayStation legends for the buttons that differ from the Xbox set (JOYPAD_BUTTON_LABELS).
+const PLAYSTATION_BUTTON_LABELS: Dictionary[int, String] = {
+	JOY_BUTTON_A: "Cross",
+	JOY_BUTTON_B: "Circle",
+	JOY_BUTTON_X: "Square",
+	JOY_BUTTON_Y: "Triangle",
+	JOY_BUTTON_LEFT_SHOULDER: "L1",
+	JOY_BUTTON_RIGHT_SHOULDER: "R1",
+	JOY_BUTTON_START: "Options",
+	JOY_BUTTON_BACK: "Share",
+	JOY_BUTTON_GUIDE: "PS",
+}
+const PLAYSTATION_AXIS_LABELS: Dictionary[int, String] = {
+	JOY_AXIS_TRIGGER_LEFT: "L2",
+	JOY_AXIS_TRIGGER_RIGHT: "R2",
 }
 
 const DPAD_DIRECTIONS: Dictionary[int, StringName] = {
@@ -79,9 +90,6 @@ const STICK_AXIS_SIDES: Dictionary[int, StringName] = {
 	JOY_AXIS_RIGHT_Y: &"right",
 }
 const STICK_HORIZONTAL_AXES: Array[int] = [JOY_AXIS_LEFT_X, JOY_AXIS_RIGHT_X]
-## Combo art is authored 160x64 against the 64x64 single glyphs.
-const COMBO_ASPECT: float = 2.5
-
 ## tools/bootstrap_project.gd's own bootstrap bindings set physical_keycode
 ## (layout-independent) rather than keycode -- as_text_physical_keycode()
 ## already gives a readable name for every one of those, but a few read long
@@ -207,26 +215,32 @@ const KEY_OWN_MODIFIER_MASKS: Dictionary[int, int] = {
 	KEY_META: KEY_MASK_META,
 }
 
-## keycap_blank.svg is 128 source px square; its rounded corner plus stroke
-## occupy the outer 40 px (0.3125) on each side, so a wider keycap stretches
-## only the centre slice and keeps both caps undistorted.
-const KEYCAP_CAP_FRACTION: float = 0.3125
-## The keycap face spans y 9..100 of 128 (above the lower lip); the label sits
-## on the middle of that band.
-const KEYCAP_FACE_CENTER_Y_FRACTION: float = 0.43
-const KEYCAP_LABEL_FONT_SIZE: int = 13
-## gamepad_button_blank.svg's face spans y 15..42 of 64 and x 6..58 (the pill).
-const PAD_BUTTON_FACE_CENTER_Y_FRACTION: float = 0.445
-const PAD_BUTTON_FACE_WIDTH_FRACTION: float = 0.7
-const PAD_BUTTON_LABEL_FONT_SIZE: int = 12
-const LABEL_MIN_FONT_SIZE: int = 7
-
 enum Shell { NONE, KEYCAP, PAD_BUTTON }
 
-## Kinds drawn as Stackfall Arcade caps; mouse, D-pad and stick keep their pictograms.
+## Kinds drawn as Stackfall Arcade caps; mouse, D-pad and stick are block pictograms.
 const ARCADE_CAP_KINDS: Array[Kind] = [Kind.KEY, Kind.FACE, Kind.SHOULDER, Kind.TRIGGER, Kind.GENERIC]
 ## Legend size on a cap (design system label/caption floor is 13 px).
 const ARCADE_LEGEND_FONT_SIZE: int = 14
+## Mouse pictogram geometry (22x32 block): inset of the button rules from the face edge, the share
+## of the face the button row takes, rule width, wheel chevron half-size, side-button digit size.
+const MOUSE_OUTLINE_PX: float = 2.0
+const MOUSE_WHEEL_HEIGHT_FRACTION: float = 0.7
+const MOUSE_SIDE_MARK_PX: Vector2 = Vector2(4.0, 8.0)
+const MOUSE_BUTTON_ROW_FRACTION: float = 0.46
+const MOUSE_LINE_PX: float = 1.0
+const MOUSE_CHEVRON_PX: float = 3.0
+const MOUSE_WHEEL_WIDTH_PX: float = 6.0
+const MOUSE_SIDE_FONT_SIZE: int = 13
+## PlayStation symbol geometry on the 32 px round cap, D-pad arm width (share of the cross) and
+## chevron, stick direction arrow (size, and how far toward the cap edge it sits).
+const PS_SYMBOL_HALF_PX: float = 6.0
+const PS_SYMBOL_LINE_PX: float = 2.5
+const PS_CIRCLE_SEGMENTS: int = 24
+const PS_TRIANGLE_BASE: float = 0.8
+const DPAD_ARM_FRACTION: float = 0.36
+const DPAD_CHEVRON_PX: float = 3.0
+const STICK_ARROW_PX: float = 3.0
+const STICK_ARROW_REACH_FRACTION: float = 0.68
 
 ## Test seam: where the glyph art is read from. Pointing it at a missing
 ## folder proves the _draw() fallback path.
@@ -249,15 +263,17 @@ var _kind: Kind = Kind.GENERIC
 var _text: String = "?"
 var _mouse_button: int = -1
 var _dpad_dir: StringName = &""
-var _face_color: Color = Color.WHITE
+var _pad_style: PadStyle = PadStyle.XBOX
+var _stick_side: StringName = &""
+var _stick_direction: StringName = &""
+var _stick_click: bool = false
+## True for a chord prompt (several events held together): drawn as one sand chip.
+var _chord: bool = false
 var _texture: Texture2D = null
 var _shell: Shell = Shell.NONE
-## Stackfall Arcade (UI reskin P6): keys, pad face buttons, shoulders/triggers and plain text badges
-## are drawn as ink-on-block caps instead of the paper-and-ink art. False for table art (stick
-## directions, combos) and for kinds that keep their pictogram (mouse, D-pad, stick).
+## Keys, pad face buttons, shoulders/triggers, chords and plain text badges are ink-on-block caps;
+## false for the mouse, D-pad and stick pictograms.
 var _arcade_cap: bool = false
-## True while the texture is authored table art (stick direction/click, combo) that stays as drawn.
-var _table_art: bool = false
 var _listening: bool = false
 var _face_button_index: int = -1
 var _arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
@@ -279,6 +295,11 @@ func set_event(event: InputEvent) -> void:
 	_clear_texture()
 	_listening = false
 	_face_button_index = -1
+	_chord = false
+	_stick_side = &""
+	_stick_direction = &""
+	_stick_click = false
+	_pad_style = _resolve_pad_style()
 	if event is InputEventKey:
 		_configure_key(event as InputEventKey)
 	elif event is InputEventMouseButton:
@@ -318,8 +339,9 @@ func set_chord(events: Array[InputEvent]) -> void:
 		labels.append(part.label_text())
 		part.free()
 	_text = "+".join(labels)
-	if not ids.is_empty() and _apply_table_texture(glyph_table.combo(ids)):
-			custom_minimum_size = Vector2(GLYPH_HEIGHT_PX * COMBO_ASPECT, GLYPH_HEIGHT_PX)
+	_chord = true
+	if not ids.is_empty():
+		_apply_table_texture(glyph_table.combo(ids))
 	_refresh_arcade_cap()
 	queue_redraw()
 
@@ -391,6 +413,7 @@ func set_overflow_count(count: int) -> void:
 	_clear_texture()
 	_kind = Kind.GENERIC
 	_listening = false
+	_chord = false
 	_text = "+%d" % count
 	custom_minimum_size = Vector2(SHAPE_WIDTH_PX, GLYPH_HEIGHT_PX)
 	_refresh_arcade_cap()
@@ -403,6 +426,7 @@ func set_listening() -> void:
 	_clear_texture()
 	_kind = Kind.GENERIC
 	_text = "…"
+	_chord = false
 	_listening = true
 	custom_minimum_size = Vector2(SHAPE_WIDTH_PX * 2.0, GLYPH_HEIGHT_PX)
 	_refresh_arcade_cap()
@@ -447,7 +471,6 @@ func _configure_key(key_event: InputEventKey) -> void:
 		_text = key_event.as_text_keycode() if key_event.keycode != KEY_NONE else key_event.as_text_physical_keycode()
 		if _text.is_empty():
 			_text = "Key"
-	custom_minimum_size = Vector2(maxf(KEY_MIN_WIDTH_PX, _text.length() * 11.0 + KEY_PADDING_PX), GLYPH_HEIGHT_PX)
 	_apply_key_texture(key_event, code)
 
 
@@ -455,32 +478,27 @@ func _configure_mouse(mouse_event: InputEventMouseButton) -> void:
 	_kind = Kind.MOUSE
 	_mouse_button = mouse_event.button_index
 	_text = MOUSE_BUTTON_LABELS.get(_mouse_button, "MB%d" % _mouse_button)
-	custom_minimum_size = Vector2(MOUSE_WIDTH_PX, GLYPH_HEIGHT_PX)
 	if MOUSE_GLYPH_FILES.has(_mouse_button):
 		_apply_square_texture(asset_root + MOUSE_GLYPH_FILES[_mouse_button])
 
 
 func _configure_joypad_button(joy_event: InputEventJoypadButton) -> void:
 	var index: int = joy_event.button_index
-	_text = JOYPAD_BUTTON_LABELS.get(index, "Btn%d" % index)
-	if FACE_COLORS.has(index):
+	_text = _pad_button_label(index)
+	if FACE_BUTTONS.has(index):
 		_kind = Kind.FACE
-		_face_color = FACE_COLORS[index]
 		_face_button_index = index
-		custom_minimum_size = Vector2(SHAPE_WIDTH_PX, GLYPH_HEIGHT_PX)
 	elif SHOULDER_BUTTONS.has(index):
 		_kind = Kind.SHOULDER
-		custom_minimum_size = Vector2(SHOULDER_WIDTH_PX, GLYPH_HEIGHT_PX)
 	elif DPAD_DIRECTIONS.has(index):
 		_kind = Kind.DPAD
 		_dpad_dir = DPAD_DIRECTIONS[index]
-		custom_minimum_size = Vector2(SHAPE_WIDTH_PX, GLYPH_HEIGHT_PX)
 	elif STICK_BUTTONS.has(index):
 		_kind = Kind.STICK
-		custom_minimum_size = Vector2(SHAPE_WIDTH_PX, GLYPH_HEIGHT_PX)
+		_stick_side = STICK_CLICK_SIDES[index]
+		_stick_click = true
 	else:
 		_kind = Kind.GENERIC
-		custom_minimum_size = Vector2(SHAPE_WIDTH_PX, GLYPH_HEIGHT_PX)
 	if STICK_CLICK_SIDES.has(index) and _apply_table_texture(glyph_table.stick_click(STICK_CLICK_SIDES[index])):
 		return
 	_apply_pad_texture(JOYPAD_BUTTON_GLYPH_FILES.get(index, ""))
@@ -488,27 +506,61 @@ func _configure_joypad_button(joy_event: InputEventJoypadButton) -> void:
 
 func _configure_joypad_motion(motion_event: InputEventJoypadMotion) -> void:
 	var axis: int = motion_event.axis
-	_text = JOYPAD_AXIS_LABELS.get(axis, "Axis%d" % axis)
+	_text = _pad_axis_label(axis)
 	if TRIGGER_AXES.has(axis):
 		_kind = Kind.TRIGGER
-		custom_minimum_size = Vector2(SHOULDER_WIDTH_PX, GLYPH_HEIGHT_PX)
 	else:
 		_kind = Kind.STICK
-		custom_minimum_size = Vector2(SHAPE_WIDTH_PX, GLYPH_HEIGHT_PX)
+		_stick_side = STICK_AXIS_SIDES.get(axis, &"left")
 		# A stick axis bound with a sign (axis_value) is a directed prompt.
 		if STICK_AXIS_SIDES.has(axis) and not is_zero_approx(motion_event.axis_value):
-			var direction: StringName = _axis_direction(axis, motion_event.axis_value)
-			if _apply_table_texture(glyph_table.stick_direction(STICK_AXIS_SIDES[axis], direction)):
-				_text = "%s %s" % [_text, direction]
+			_stick_direction = _axis_direction(axis, motion_event.axis_value)
+			if _apply_table_texture(glyph_table.stick_direction(_stick_side, _stick_direction)):
+				_text = "%s %s" % [_text, _stick_direction]
 				return
 	_apply_pad_texture(JOYPAD_AXIS_GLYPH_FILES.get(axis, ""))
+
+
+## The pad family this glyph follows: the forced `pad_style`, else the first connected pad's name.
+func _resolve_pad_style() -> PadStyle:
+	if pad_style != PadStyle.AUTO:
+		return pad_style
+	var pads: Array[int] = Input.get_connected_joypads()
+	if pads.is_empty():
+		return PadStyle.XBOX
+	return style_for_joy_name(Input.get_joy_name(pads[0]))
+
+
+## PlayStation for a Sony-family joypad name, else Xbox (also the Steam Input / generic default).
+static func style_for_joy_name(joy_name: String) -> PadStyle:
+	var lowered: String = joy_name.to_lower()
+	for marker: String in PLAYSTATION_JOY_NAME_MARKERS:
+		if lowered.contains(marker):
+			return PadStyle.PLAYSTATION
+	return PadStyle.XBOX
+
+
+func _pad_button_label(index: int) -> String:
+	if _pad_style == PadStyle.PLAYSTATION and PLAYSTATION_BUTTON_LABELS.has(index):
+		return PLAYSTATION_BUTTON_LABELS[index]
+	return JOYPAD_BUTTON_LABELS.get(index, "Btn%d" % index)
+
+
+func _pad_axis_label(axis: int) -> String:
+	if _pad_style == PadStyle.PLAYSTATION and PLAYSTATION_AXIS_LABELS.has(axis):
+		return PLAYSTATION_AXIS_LABELS[axis]
+	return JOYPAD_AXIS_LABELS.get(axis, "Axis%d" % axis)
+
+
+## Test seam: the pad family this glyph resolved for its current event.
+func resolved_pad_style() -> PadStyle:
+	return _pad_style
 
 
 # --- Texture resolution ----------------------------------------------------------
 
 
 func _clear_texture() -> void:
-	_table_art = false
 	_texture = null
 	_shell = Shell.NONE
 
@@ -527,8 +579,6 @@ func _apply_key_texture(key_event: InputEventKey, code: Key) -> void:
 		return
 	_texture = shell
 	_shell = Shell.KEYCAP
-	var label_width: float = _label_width(_text, KEYCAP_LABEL_FONT_SIZE)
-	custom_minimum_size = Vector2(maxf(GLYPH_HEIGHT_PX, label_width + KEY_PADDING_PX), GLYPH_HEIGHT_PX)
 
 
 ## Gamepad: the named SVG, else the blank button shell with the runtime label
@@ -541,7 +591,6 @@ func _apply_pad_texture(file: String) -> void:
 		return
 	_texture = shell
 	_shell = Shell.PAD_BUTTON
-	custom_minimum_size = Vector2(GLYPH_HEIGHT_PX, GLYPH_HEIGHT_PX)
 
 
 ## Square art drawn at the ~32 px glyph height; false when the asset is missing
@@ -552,19 +601,15 @@ func _apply_square_texture(path: String) -> bool:
 		return false
 	_texture = texture
 	_shell = Shell.NONE
-	custom_minimum_size = Vector2(GLYPH_HEIGHT_PX, GLYPH_HEIGHT_PX)
 	return true
 
 
-## Table art (stick direction/click, combos): only with the shipped asset root
-## so the missing-folder fallback seam still reaches _draw().
+## Table art (stick direction/click, combos), resolved as a seam only with the shipped asset root.
 func _apply_table_texture(texture: Texture2D) -> bool:
 	if texture == null or asset_root != GLYPH_ASSET_ROOT:
 		return false
 	_texture = texture
 	_shell = Shell.NONE
-	custom_minimum_size = Vector2(GLYPH_HEIGHT_PX, GLYPH_HEIGHT_PX)
-	_table_art = true
 	return true
 
 
@@ -623,58 +668,49 @@ func _draw() -> void:
 	if _arcade_cap:
 		_draw_arcade_cap()
 		return
-	if _texture != null:
-		_draw_texture_glyph()
-		return
 	match _kind:
-		Kind.KEY:
-			_draw_key_cap()
 		Kind.MOUSE:
 			_draw_mouse()
-		Kind.FACE:
-			_draw_face_button()
-		Kind.SHOULDER, Kind.TRIGGER:
-			_draw_tab()
 		Kind.DPAD:
 			_draw_dpad()
 		Kind.STICK:
 			_draw_stick()
-		_:
-			_draw_generic()
 
 
-# --- Stackfall Arcade caps (UI reskin P6) -----------------------------------------
+# --- Stackfall Arcade caps and pictograms ------------------------------------------
 
 
-## Decides whether this glyph is an arcade cap and, if so, sizes it to its legend. The loaded
-## texture stays resolved (glyph_texture() seam, missing-asset fallback) but is not painted.
+## Decides whether this glyph is a cap or a pictogram and sizes it: caps to their legend, round
+## caps and pictograms to the square glyph box.
 func _refresh_arcade_cap() -> void:
-	_arcade_cap = not _table_art and ARCADE_CAP_KINDS.has(_kind)
-	if not _arcade_cap:
-		return
+	_arcade_cap = _chord or ARCADE_CAP_KINDS.has(_kind)
 	var width: float = GLYPH_HEIGHT_PX
-	if not _is_round_cap():
-		width = maxf(GLYPH_HEIGHT_PX, _label_width(_text.to_upper(), ARCADE_LEGEND_FONT_SIZE) + float(_arcade.space_2_px) * 2.0)
+	if _arcade_cap and not _is_round_cap():
+		var legend: float = _label_width(_text.to_upper(), ARCADE_LEGEND_FONT_SIZE)
+		var minimum: float = SHOULDER_WIDTH_PX if _kind == Kind.SHOULDER or _kind == Kind.TRIGGER else GLYPH_HEIGHT_PX
+		width = maxf(minimum, legend + float(_arcade.space_2_px) * 2.0)
 	custom_minimum_size = Vector2(width, GLYPH_HEIGHT_PX)
 
 
 ## A single pad face button is a round cap; a chord containing one is a chip.
 func _is_round_cap() -> bool:
-	return _kind == Kind.FACE and _face_button_index >= 0 and not _text.contains("+")
+	return not _chord and _kind == Kind.FACE and _face_button_index >= 0
 
 
 func _draw_arcade_cap() -> void:
 	var face: Color = _arcade_cap_face()
 	if _is_round_cap():
-		_draw_round_cap(face, InputGlyphTable.face_button_lip_color(_face_button_index, _arcade))
+		var center: Vector2 = _draw_round_base(face, InputGlyphTable.face_button_lip_color(_face_button_index, _arcade))
+		if _pad_style == PadStyle.PLAYSTATION:
+			_draw_playstation_symbol(center, _face_button_index)
+		else:
+			_draw_text_at(_text.to_upper(), _arcade.ink_color, ARCADE_LEGEND_FONT_SIZE, center)
 		return
 	var lip: Color = _arcade.rim_lip_color if _listening else Color.TRANSPARENT
 	draw_style_box(BlockStyleBox.make(face, _arcade, true, BlockStyleBox.STATE_NORMAL, lip), Rect2(Vector2.ZERO, size))
-	var face_top: float = float(_arcade.top_px)
-	var face_bottom: float = size.y - float(_arcade.drop_sm_px) - float(_arcade.lip_sm_px)
+	var face_rect: Rect2 = _cap_face_rect(Rect2(Vector2.ZERO, size))
 	# Bontago-1pi.149: the legend is uppercase per the mock; label_text() keeps the as_text() form.
-	_draw_text_at(_text.to_upper(), MenuStyleFactory.ink_for_face(face), ARCADE_LEGEND_FONT_SIZE,
-		Vector2(size.x * 0.5, (face_top + face_bottom) * 0.5))
+	_draw_text_at(_text.to_upper(), MenuStyleFactory.ink_for_face(face), ARCADE_LEGEND_FONT_SIZE, face_rect.get_center())
 
 
 ## Face colour per kind: keys cream, pad chips and chords sand, plain badges disc-600, the
@@ -682,25 +718,25 @@ func _draw_arcade_cap() -> void:
 func _arcade_cap_face() -> Color:
 	if _listening:
 		return _arcade.rim_color
+	if _chord:
+		return _arcade.sand_color
 	match _kind:
 		Kind.KEY:
 			return _arcade.cream_color
 		Kind.FACE:
-			if _is_round_cap():
-				return InputGlyphTable.face_button_color(_face_button_index, _arcade)
-			return _arcade.sand_color
+			return InputGlyphTable.face_button_color(_face_button_index, _arcade)
 		Kind.SHOULDER, Kind.TRIGGER:
 			return _arcade.sand_color
 	return _arcade.disc_600_color
 
 
-## Round pad cap: ledge circle, lip circle, lit top circle, face circle (the same four layers as
-## a block, stacked so the lit top and dark lip read as crescents).
-func _draw_round_cap(face: Color, lip: Color) -> void:
+## Round cap: ledge circle, lip circle, lit top circle, face circle (the same four layers as a
+## block, stacked so the lit top and dark lip read as crescents). Returns the legend centre.
+func _draw_round_base(face: Color, lip: Color) -> Vector2:
 	var drop: float = float(_arcade.drop_sm_px)
 	var lip_h: float = float(_arcade.lip_sm_px)
 	var top_h: float = float(_arcade.top_px)
-	var radius: float = (size.y - drop) * 0.5
+	var radius: float = (minf(size.x, size.y) - drop) * 0.5
 	var center: Vector2 = Vector2(size.x * 0.5, radius)
 	var lip_color: Color = lip if lip.a > 0.0 else face.lerp(Color.BLACK, _arcade.block_lip_dark_mix)
 	var top_color: Color = face.lerp(Color.WHITE, _arcade.block_top_light_mix)
@@ -710,61 +746,26 @@ func _draw_round_cap(face: Color, lip: Color) -> void:
 	var upper_center: Vector2 = center - Vector2(0.0, lip_h * 0.5)
 	draw_circle(upper_center, upper_radius, top_color)
 	draw_circle(upper_center + Vector2(0.0, top_h), upper_radius - top_h * 0.5, face)
-	_draw_text_at(_text.to_upper(), _arcade.ink_color, ARCADE_LEGEND_FONT_SIZE, upper_center + Vector2(0.0, top_h * 0.5))
+	return upper_center + Vector2(0.0, top_h * 0.5)
 
 
-func _draw_texture_glyph() -> void:
-	match _shell:
-		Shell.KEYCAP:
-			_draw_keycap_shell()
-		Shell.PAD_BUTTON:
-			var rect: Rect2 = _fitted_rect()
-			draw_texture_rect(_texture, rect, false)
-			var face_center: Vector2 = rect.position + Vector2(
-				rect.size.x * 0.5, rect.size.y * PAD_BUTTON_FACE_CENTER_Y_FRACTION)
-			var face_width: float = rect.size.x * PAD_BUTTON_FACE_WIDTH_FRACTION
-			var font_size: int = _fit_font_size(_text, PAD_BUTTON_LABEL_FONT_SIZE, face_width)
-			_draw_text_at(_text, tuning.ink_color, font_size, face_center)
-		_:
-			draw_texture_rect(_texture, _fitted_rect(), false)
-
-
-## The blank keycap, widened to the label: both rounded caps keep their shape
-## and only the centre slice stretches; narrower than two caps it is drawn whole.
-func _draw_keycap_shell() -> void:
-	var source: Vector2 = _texture.get_size()
-	var cap_scale: float = size.y / source.y
-	var cap_source_width: float = source.x * KEYCAP_CAP_FRACTION
-	var cap_width: float = cap_source_width * cap_scale
-	if size.x <= cap_width * 2.0:
-		draw_texture_rect(_texture, Rect2(Vector2.ZERO, size), false)
-	else:
-		draw_texture_rect_region(_texture, Rect2(0.0, 0.0, cap_width, size.y),
-			Rect2(0.0, 0.0, cap_source_width, source.y))
-		draw_texture_rect_region(_texture, Rect2(cap_width, 0.0, size.x - cap_width * 2.0, size.y),
-			Rect2(cap_source_width, 0.0, source.x - cap_source_width * 2.0, source.y))
-		draw_texture_rect_region(_texture, Rect2(size.x - cap_width, 0.0, cap_width, size.y),
-			Rect2(source.x - cap_source_width, 0.0, cap_source_width, source.y))
-	var face_center: Vector2 = Vector2(size.x * 0.5, size.y * KEYCAP_FACE_CENTER_Y_FRACTION)
-	var font_size: int = _fit_font_size(_text, KEYCAP_LABEL_FONT_SIZE, size.x - KEY_PADDING_PX)
-	_draw_text_at(_text, tuning.ink_color, font_size, face_center)
-
-
-## Aspect-preserving, centred fit of the texture inside this control.
-func _fitted_rect() -> Rect2:
-	var source: Vector2 = _texture.get_size()
-	var fit: float = minf(size.x / source.x, size.y / source.y)
-	var fitted: Vector2 = source * fit
-	return Rect2((size - fitted) * 0.5, fitted)
-
-
-## Largest font size <= `base` whose `text` fits `max_width`, never below
-## LABEL_MIN_FONT_SIZE.
-func _fit_font_size(text: String, base: int, max_width: float) -> int:
-	var font_size: int = base
-	while font_size > LABEL_MIN_FONT_SIZE and _label_width(text, font_size) > max_width:
-		font_size -= 1
-	return font_size
+## PlayStation face symbol in ink on the cap: cross, circle, square, triangle.
+func _draw_playstation_symbol(center: Vector2, button: int) -> void:
+	var half: float = PS_SYMBOL_HALF_PX
+	var ink: Color = _arcade.ink_color
+	match button:
+		JOY_BUTTON_A:
+			draw_line(center + Vector2(-half, -half), center + Vector2(half, half), ink, PS_SYMBOL_LINE_PX, true)
+			draw_line(center + Vector2(-half, half), center + Vector2(half, -half), ink, PS_SYMBOL_LINE_PX, true)
+		JOY_BUTTON_B:
+			draw_arc(center, half, 0.0, TAU, PS_CIRCLE_SEGMENTS, ink, PS_SYMBOL_LINE_PX, true)
+		JOY_BUTTON_X:
+			draw_rect(Rect2(center - Vector2(half, half), Vector2(half, half) * 2.0), ink, false, PS_SYMBOL_LINE_PX)
+		JOY_BUTTON_Y:
+			var apex: Vector2 = center + Vector2(0.0, -half)
+			var left: Vector2 = center + Vector2(-half, half * PS_TRIANGLE_BASE)
+			var right: Vector2 = center + Vector2(half, half * PS_TRIANGLE_BASE)
+			draw_polyline(PackedVector2Array([apex, right, left, apex]), ink, PS_SYMBOL_LINE_PX, true)
 
 
 func _draw_text_at(text: String, color: Color, font_size: int, center: Vector2) -> void:
@@ -775,110 +776,182 @@ func _draw_text_at(text: String, color: Color, font_size: int, center: Vector2) 
 	draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size, color)
 
 
-func _key_box(color: Color) -> StyleBoxFlat:
+## Mouse pictogram (docs/ui_reskin/components.md KeyPrompt): a cream mouse body (rounded top and
+## bottom, ink outline, disc-950 ledge like the caps), the button row split down the middle with a
+## wheel pill in the split; the bound button fills rim gold, wheel directions light the pill and
+## show an ink arrow below, the side buttons show a rim mark on the left edge and their number.
+func _draw_mouse() -> void:
+	var drop: float = float(_arcade.drop_sm_px)
+	var outline: float = MOUSE_OUTLINE_PX
+	var body_width: float = minf(MOUSE_WIDTH_PX, size.x)
+	var body: Rect2 = Rect2(Vector2((size.x - body_width) * 0.5, 0.0), Vector2(body_width, size.y - drop))
+	var top_radius: int = int(body_width * 0.5)
+	var bottom_radius: int = _arcade.radius_block_px
+	var ledge: StyleBoxFlat = _mouse_body_box(_arcade.disc_950_color, top_radius, bottom_radius, false)
+	draw_style_box(ledge, Rect2(body.position + Vector2(0.0, drop), body.size))
+	draw_style_box(_mouse_body_box(_arcade.cream_color, top_radius, bottom_radius, true), body)
+	var inner: Rect2 = body.grow(-outline)
+	var row_h: float = inner.size.y * MOUSE_BUTTON_ROW_FRACTION
+	var half: float = inner.size.x * 0.5
+	var corner: int = maxi(top_radius - int(outline), 0)
+	var left_zone: Rect2 = Rect2(inner.position, Vector2(half, row_h))
+	var right_zone: Rect2 = Rect2(inner.position + Vector2(half, 0.0), Vector2(half, row_h))
+	var lower: Rect2 = Rect2(inner.position + Vector2(0.0, row_h), Vector2(inner.size.x, inner.size.y - row_h))
+	var ink: Color = _arcade.ink_color
+	var wheel_lit: bool = false
+	match _mouse_button:
+		MOUSE_BUTTON_LEFT:
+			draw_style_box(_mouse_fill_box(_arcade.rim_color, corner, true), left_zone)
+		MOUSE_BUTTON_RIGHT:
+			draw_style_box(_mouse_fill_box(_arcade.rim_color, corner, false), right_zone)
+		MOUSE_BUTTON_XBUTTON1, MOUSE_BUTTON_XBUTTON2:
+			var mark: Rect2 = Rect2(Vector2(body.position.x - MOUSE_SIDE_MARK_PX.x * 0.5, lower.position.y + 1.0), MOUSE_SIDE_MARK_PX)
+			draw_style_box(_ink_cell_box(), mark.grow(MOUSE_LINE_PX * 0.5))
+			draw_style_box(_rim_cell_box(), mark)
+		_:
+			wheel_lit = true
+	var center_x: float = inner.position.x + half
+	draw_line(Vector2(center_x, inner.position.y), Vector2(center_x, inner.position.y + row_h), ink, MOUSE_LINE_PX)
+	draw_line(Vector2(inner.position.x, inner.position.y + row_h), Vector2(inner.end.x, inner.position.y + row_h), ink, MOUSE_LINE_PX)
+	var wheel: Rect2 = Rect2(Vector2(center_x - MOUSE_WHEEL_WIDTH_PX * 0.5, inner.position.y + MOUSE_LINE_PX),
+		Vector2(MOUSE_WHEEL_WIDTH_PX, row_h * MOUSE_WHEEL_HEIGHT_FRACTION))
+	draw_style_box(_cell_box(_arcade.dust_color), wheel)
+	draw_rect(wheel, ink, false, MOUSE_LINE_PX)
+	if wheel_lit:
+		draw_style_box(_rim_cell_box(), wheel.grow(-MOUSE_LINE_PX))
+	var arrow_at: Vector2 = lower.get_center()
+	match _mouse_button:
+		MOUSE_BUTTON_WHEEL_UP:
+			_draw_chevron(arrow_at, Vector2.UP, MOUSE_CHEVRON_PX, ink)
+		MOUSE_BUTTON_WHEEL_DOWN:
+			_draw_chevron(arrow_at, Vector2.DOWN, MOUSE_CHEVRON_PX, ink)
+		MOUSE_BUTTON_WHEEL_LEFT:
+			_draw_chevron(arrow_at, Vector2.LEFT, MOUSE_CHEVRON_PX, ink)
+		MOUSE_BUTTON_WHEEL_RIGHT:
+			_draw_chevron(arrow_at, Vector2.RIGHT, MOUSE_CHEVRON_PX, ink)
+		MOUSE_BUTTON_XBUTTON1:
+			_draw_text_at("4", ink, MOUSE_SIDE_FONT_SIZE, arrow_at)
+		MOUSE_BUTTON_XBUTTON2:
+			_draw_text_at("5", ink, MOUSE_SIDE_FONT_SIZE, arrow_at)
+
+
+## The mouse body: a rounded top (half the width) and bottom, with an ink outline when `outlined`.
+func _mouse_body_box(color: Color, top_radius: int, bottom_radius: int, outlined: bool) -> StyleBoxFlat:
 	var box: StyleBoxFlat = StyleBoxFlat.new()
 	box.bg_color = color
-	box.border_color = color.lightened(0.35)
-	box.set_border_width_all(1)
-	box.set_corner_radius_all(6)
+	box.corner_radius_top_left = top_radius
+	box.corner_radius_top_right = top_radius
+	box.corner_radius_bottom_left = bottom_radius
+	box.corner_radius_bottom_right = bottom_radius
+	if outlined:
+		box.border_color = _arcade.ink_color
+		box.set_border_width_all(int(MOUSE_OUTLINE_PX))
 	return box
 
 
-func _draw_key_cap() -> void:
-	draw_style_box(_key_box(tuning.pill_dark_slate_color), Rect2(Vector2.ZERO, size))
-	_draw_centered_text(_text, tuning.label_ink_light_color, 13)
+## A lit button fill that follows the body's rounded top corner on its outer side only.
+func _mouse_fill_box(color: Color, corner: int, left: bool) -> StyleBoxFlat:
+	var box: StyleBoxFlat = StyleBoxFlat.new()
+	box.bg_color = color
+	if left:
+		box.corner_radius_top_left = corner
+	else:
+		box.corner_radius_top_right = corner
+	return box
 
 
-func _draw_generic() -> void:
-	draw_style_box(_key_box(tuning.pill_dark_slate_color), Rect2(Vector2.ZERO, size))
-	_draw_centered_text(_text, tuning.label_ink_light_color, 13)
+func _ink_cell_box() -> StyleBoxFlat:
+	return _cell_box(_arcade.ink_color)
 
 
-## A mouse silhouette (rounded body + a button-split line + a small wheel
-## slot) with the pressed button or wheel direction highlighted -- owner:
-## "mouse glyph = mouse outline with the relevant button/wheel highlighted".
-func _draw_mouse() -> void:
-	var body: Rect2 = Rect2(Vector2(1.0, 1.0), size - Vector2(2.0, 2.0))
-	var outline: StyleBoxFlat = StyleBoxFlat.new()
-	outline.bg_color = tuning.pill_dark_slate_color
-	outline.border_color = tuning.pill_dark_slate_hover_color
-	outline.set_border_width_all(1)
-	outline.corner_radius_top_left = int(body.size.x * 0.5)
-	outline.corner_radius_top_right = int(body.size.x * 0.5)
-	outline.corner_radius_bottom_left = int(body.size.x * 0.35)
-	outline.corner_radius_bottom_right = int(body.size.x * 0.35)
-	draw_style_box(outline, body)
-
-	var top_h: float = body.size.y * 0.42
-	var third: float = body.size.x / 3.0
-	var highlight: Color = tuning.pill_coral_color
-
-	# Divider lines between the two top buttons and the top/bottom halves.
-	draw_line(body.position + Vector2(third, 0.0), body.position + Vector2(third, top_h), tuning.pill_dark_slate_hover_color, 1.0)
-	draw_line(body.position + Vector2(third * 2.0, 0.0), body.position + Vector2(third * 2.0, top_h), tuning.pill_dark_slate_hover_color, 1.0)
-	draw_line(body.position + Vector2(0.0, top_h), body.position + Vector2(body.size.x, top_h), tuning.pill_dark_slate_hover_color, 1.0)
-
-	match _mouse_button:
-		MOUSE_BUTTON_LEFT:
-			draw_rect(Rect2(body.position, Vector2(third, top_h)), highlight)
-		MOUSE_BUTTON_RIGHT:
-			draw_rect(Rect2(body.position + Vector2(third * 2.0, 0.0), Vector2(third, top_h)), highlight)
-		MOUSE_BUTTON_MIDDLE:
-			draw_rect(Rect2(body.position + Vector2(third, 0.0), Vector2(third, top_h)), highlight)
-		MOUSE_BUTTON_WHEEL_UP:
-			draw_rect(Rect2(body.position + Vector2(third, 0.0), Vector2(third, top_h * 0.5)), highlight)
-		MOUSE_BUTTON_WHEEL_DOWN:
-			draw_rect(Rect2(body.position + Vector2(third, top_h * 0.5), Vector2(third, top_h * 0.5)), highlight)
-		_:
-			draw_rect(Rect2(body.position + Vector2(third, 0.0), Vector2(third, top_h)), highlight)
+## The rim-gold lit cell of a pictogram (small radius so it follows the block corners).
+func _rim_cell_box() -> StyleBoxFlat:
+	return _cell_box(_arcade.rim_color)
 
 
-func _draw_face_button() -> void:
-	var center: Vector2 = size * 0.5
-	var radius: float = minf(size.x, size.y) * 0.5 - 1.0
-	draw_circle(center, radius, _face_color)
-	_draw_centered_text(_text, Color(0.06, 0.06, 0.08, 1.0), 15)
+## The face area of a block-style cap: below the lit top edge, above the lip and the ledge.
+func _cap_face_rect(cap: Rect2) -> Rect2:
+	var top: float = float(_arcade.top_px)
+	var bottom: float = cap.size.y - float(_arcade.drop_sm_px) - float(_arcade.lip_sm_px)
+	return Rect2(cap.position + Vector2(0.0, top), Vector2(cap.size.x, bottom - top))
 
 
-func _draw_tab() -> void:
-	var box: StyleBoxFlat = _key_box(tuning.pill_dark_slate_color)
-	box.set_corner_radius_all(int(size.y * 0.5))
-	draw_style_box(box, Rect2(Vector2.ZERO, size))
-	_draw_centered_text(_text, tuning.label_ink_light_color, 12)
+## A filled triangle of half-size `half` centred on `center` whose tip points along `direction`.
+func _draw_chevron(center: Vector2, direction: Vector2, half: float, color: Color) -> void:
+	var side: Vector2 = Vector2(-direction.y, direction.x)
+	var points: PackedVector2Array = PackedVector2Array([
+		center + direction * half,
+		center - direction * half + side * half,
+		center - direction * half - side * half,
+	])
+	draw_colored_polygon(points, color)
 
 
+## D-pad pictogram: a sand cross on a disc-950 ledge with the bound arm lit in rim gold and an
+## ink chevron pointing the way.
 func _draw_dpad() -> void:
-	var center: Vector2 = size * 0.5
-	var arm: float = minf(size.x, size.y) * 0.25
-	var thickness: float = arm * 0.9
-	var dim: Color = tuning.pill_dark_slate_color
-	var lit: Color = tuning.pill_coral_color
+	var drop: float = float(_arcade.drop_sm_px)
+	var side: float = minf(size.x, size.y - drop)
+	var arm: float = side * DPAD_ARM_FRACTION
+	var origin: Vector2 = Vector2((size.x - side) * 0.5, 0.0)
+	var mid: Vector2 = origin + Vector2(side, side) * 0.5
+	var horizontal: Rect2 = Rect2(Vector2(origin.x, mid.y - arm * 0.5), Vector2(side, arm))
+	var vertical: Rect2 = Rect2(Vector2(mid.x - arm * 0.5, origin.y), Vector2(arm, side))
+	var ledge: StyleBoxFlat = _cell_box(_arcade.disc_950_color)
+	draw_style_box(ledge, Rect2(horizontal.position + Vector2(0.0, drop), horizontal.size))
+	draw_style_box(ledge, Rect2(vertical.position + Vector2(0.0, drop), vertical.size))
+	var cross: StyleBoxFlat = _cell_box(_arcade.sand_color)
+	draw_style_box(cross, horizontal)
+	draw_style_box(cross, vertical)
+	var reach: float = (side - arm) * 0.5
+	var direction: Vector2 = Vector2.ZERO
+	var lit: Rect2 = Rect2()
+	match _dpad_dir:
+		&"up":
+			direction = Vector2.UP
+			lit = Rect2(vertical.position, Vector2(arm, reach + arm * 0.5))
+		&"down":
+			direction = Vector2.DOWN
+			lit = Rect2(Vector2(vertical.position.x, mid.y - arm * 0.5), Vector2(arm, reach + arm * 0.5))
+		&"left":
+			direction = Vector2.LEFT
+			lit = Rect2(horizontal.position, Vector2(reach + arm * 0.5, arm))
+		&"right":
+			direction = Vector2.RIGHT
+			lit = Rect2(Vector2(mid.x - arm * 0.5, horizontal.position.y), Vector2(reach + arm * 0.5, arm))
+	if direction == Vector2.ZERO:
+		return
+	draw_style_box(_rim_cell_box(), lit)
+	_draw_chevron(mid + direction * (arm * 0.5 + reach * 0.5), direction, DPAD_CHEVRON_PX, _arcade.ink_color)
 
-	var up_rect: Rect2 = Rect2(center + Vector2(-thickness * 0.5, -arm * 2.0), Vector2(thickness, arm))
-	var down_rect: Rect2 = Rect2(center + Vector2(-thickness * 0.5, arm), Vector2(thickness, arm))
-	var left_rect: Rect2 = Rect2(center + Vector2(-arm * 2.0, -thickness * 0.5), Vector2(arm, thickness))
-	var right_rect: Rect2 = Rect2(center + Vector2(arm, -thickness * 0.5), Vector2(arm, thickness))
-	var center_rect: Rect2 = Rect2(center - Vector2(thickness, thickness) * 0.5, Vector2(thickness, thickness))
 
-	draw_rect(up_rect, lit if _dpad_dir == &"up" else dim)
-	draw_rect(down_rect, lit if _dpad_dir == &"down" else dim)
-	draw_rect(left_rect, lit if _dpad_dir == &"left" else dim)
-	draw_rect(right_rect, lit if _dpad_dir == &"right" else dim)
-	draw_rect(center_rect, dim)
-
-
+## Stick pictogram: a sand round cap with the side letter, L3/R3 for the click, and a flare arrow
+## on the cap edge for a stick direction.
 func _draw_stick() -> void:
-	var center: Vector2 = size * 0.5
-	var radius: float = minf(size.x, size.y) * 0.5 - 1.0
-	draw_circle(center, radius, tuning.pill_dark_slate_color)
-	draw_arc(center, radius, 0.0, TAU, 24, tuning.pill_dark_slate_hover_color, 1.5)
-	var stick_label: String = "L" if _text.begins_with("L") else "R"
-	_draw_centered_text(stick_label, tuning.label_ink_light_color, 11)
+	var center: Vector2 = _draw_round_base(_arcade.sand_color, Color.TRANSPARENT)
+	var ink: Color = _arcade.ink_color
+	var side_letter: String = "L" if _stick_side == &"left" else "R"
+	if _stick_click:
+		_draw_text_at("%s3" % side_letter, ink, ARCADE_LEGEND_FONT_SIZE, center)
+		return
+	_draw_text_at(side_letter, ink, ARCADE_LEGEND_FONT_SIZE, center)
+	var radius: float = (minf(size.x, size.y) - float(_arcade.drop_sm_px)) * 0.5
+	var direction: Vector2 = Vector2.ZERO
+	match _stick_direction:
+		&"up":
+			direction = Vector2.UP
+		&"down":
+			direction = Vector2.DOWN
+		&"left":
+			direction = Vector2.LEFT
+		&"right":
+			direction = Vector2.RIGHT
+	if direction != Vector2.ZERO:
+		_draw_chevron(center + direction * radius * STICK_ARROW_REACH_FRACTION, direction, STICK_ARROW_PX, _arcade.flare_color)
 
 
-func _draw_centered_text(text: String, color: Color, font_size: int) -> void:
-	var font: Font = get_theme_default_font()
-	var text_size: Vector2 = font.get_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, -1.0, font_size)
-	var pos: Vector2 = (size - text_size) * 0.5
-	pos.y += font.get_ascent(font_size)
-	draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size, color)
+func _cell_box(color: Color) -> StyleBoxFlat:
+	var box: StyleBoxFlat = StyleBoxFlat.new()
+	box.bg_color = color
+	box.set_corner_radius_all(_arcade.radius_cell_px)
+	return box
