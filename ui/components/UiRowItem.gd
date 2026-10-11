@@ -4,7 +4,7 @@ extends RefCounted
 ## 2026-10-10: "every one of those items should use the same base component"). Godot cannot
 ## multi-inherit Button and Container, so the base is a contract every component applies to itself
 ## in _init: one row height (ComponentMetrics.row_height_px), centred vertically, sized to its
-## content horizontally unless it is marked `fill`, and tagged with the group [constant GROUP].
+## content horizontally (every kind hugs by default; only an explicit `fill` expands), and tagged with the group [constant GROUP].
 
 enum Kind { BUTTON_SM, ICON, TOGGLE, STEPPER, DROPDOWN, BADGE, METER }
 
@@ -17,7 +17,7 @@ static func metrics() -> ComponentMetrics:
 
 
 ## Applies the row-item contract to [param control]. [param fill] lets a meter / field / dropdown
-## expand to the column; everything else never does.
+## expand to the column; no kind does by default (owner 2026-10-11).
 static func apply(control: Control, kind: Kind, fill: bool = false) -> void:
 	var m: ComponentMetrics = metrics()
 	var min_size: Vector2 = control.custom_minimum_size
@@ -27,6 +27,12 @@ static func apply(control: Control, kind: Kind, fill: bool = false) -> void:
 	control.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	control.size_flags_horizontal = Control.SIZE_EXPAND_FILL if fill else Control.SIZE_SHRINK_BEGIN
 	control.add_to_group(GROUP)
+
+
+## The width of the visible block of a square row-item button: the row height less the ledge.
+static func square_face_px(m: ComponentMetrics = null) -> float:
+	var metric: ComponentMetrics = m if m != null else metrics()
+	return float(metric.row_height_px - MenuStyleFactory.arcade_tuning().drop_sm_px)
 
 
 ## The minimum width of a row item of [param kind] (0 = size to content).

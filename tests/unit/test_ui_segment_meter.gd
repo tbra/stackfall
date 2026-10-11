@@ -161,10 +161,26 @@ func test_muted_meter_ignores_input() -> void:
 	assert_false(meter.nudge(1))
 
 
-func test_row_item_contract_expands_one_row_height() -> void:
+func test_row_item_contract_hugs_one_row_height() -> void:
 	var meter: UiSegmentMeter = _make()
 	await wait_frames(2)
 	assert_true(meter.is_in_group(UiRowItem.GROUP))
 	assert_eq(meter.custom_minimum_size.y, float(UiRowItem.metrics().row_height_px))
-	assert_eq(meter.size_flags_horizontal, Control.SIZE_EXPAND_FILL, "a meter fills its column")
-	assert_gte(meter.custom_minimum_size.x, float(UiRowItem.metrics().meter_min_width_px))
+	assert_eq(meter.size_flags_horizontal, Control.SIZE_SHRINK_BEGIN, "a meter hugs its content")
+	assert_eq(meter.custom_minimum_size.x, meter.content_width())
+
+
+func test_cells_have_a_fixed_width_that_follows_the_count_only() -> void:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var cell: float = float(UiRowItem.metrics().meter_cell_width_px)
+	var gap: float = float(arcade.space_1_px)
+	assert_eq(UiSegmentMeter.well_width_for(10), 10.0 * cell + 9.0 * gap + 2.0 * gap)
+	var meter: UiSegmentMeter = _make(10, 3)
+	var before: float = meter.well_width()
+	meter.size = Vector2(900.0, float(UiRowItem.metrics().row_height_px))
+	assert_eq(meter.well_width(), before, "the layout size never stretches the cells")
+	meter.step_count = 20
+	assert_eq(meter.well_width(), UiSegmentMeter.well_width_for(20))
+	assert_eq(meter.custom_minimum_size.x, meter.content_width(), "min width follows the cell count")
+	meter.show_value = false
+	assert_eq(meter.custom_minimum_size.x, meter.well_width())
