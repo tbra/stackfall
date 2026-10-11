@@ -80,8 +80,8 @@ uses_defensive_specials = true
 ; (0.6 s vs Hard 0.2 s) already make it slower and less accurate than Hard.
 uses_offensive_specials = true
 think_budget_us = 700
-aim_noise_m = 1.5
-fill_share = 0.6
+aim_noise_m = 3.0
+fill_share = 0.9
 eval_top_k = 3
 pick_temperature = 1.0
 intent_mask = 223
