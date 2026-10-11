@@ -99,11 +99,11 @@ func test_round_slider_minimum_and_defaults_follow_the_mode() -> void:
 	assert_eq(slider.max_value, 30)
 	assert_eq(slider.value, 5, "owner playtest 2026-10-03: the default round is 5 minutes")
 	assert_eq(slider.value, MatchConfig.ROUND_TIMER_DEFAULT_MINUTES)
-	assert_eq((lobby.get_node("%RoundTimerStepper") as UiStepper).display_text(), "5 min")
+	assert_eq((lobby.get_node("%RoundTimerStepper") as UiStepper).display_text(), "5")
 	slider.value = 15
 	_pick_mode(lobby, MatchConfig.GameMode.REACH_THE_SKY)
 	assert_eq(slider.value, 15, "CTF and Sky share a timer meaning, so the length is kept")
-	assert_eq((lobby.get_node("%RoundTimerStepper") as UiStepper).display_text(), "15 min")
+	assert_eq((lobby.get_node("%RoundTimerStepper") as UiStepper).display_text(), "15")
 
 
 func test_timer_control_writes_the_matching_config_field() -> void:
@@ -311,7 +311,7 @@ func test_lobby_timer_sliders_mirror_the_declared_timer_range_and_default() -> v
 	assert_eq(match_slider.value, 0)
 	assert_eq((lobby.get_node("%MatchTimerStepper") as UiStepper).display_text(), "Off")
 	assert_eq(round_slider.value, MatchConfig.ROUND_TIMER_DEFAULT_MINUTES, "the lobby's default round length")
-	assert_eq((lobby.get_node("%RoundTimerStepper") as UiStepper).display_text(), "%d min" % MatchConfig.ROUND_TIMER_DEFAULT_MINUTES)
+	assert_eq((lobby.get_node("%RoundTimerStepper") as UiStepper).display_text(), "%d" % MatchConfig.ROUND_TIMER_DEFAULT_MINUTES)
 	var config: MatchConfig = lobby._config_from_controls()
 	assert_eq([config.match_timer_minutes, config.round_timer_minutes], [0, MatchConfig.ROUND_TIMER_DEFAULT_MINUTES])
 
@@ -329,7 +329,7 @@ func test_round_slider_round_trips_through_config_serialize_and_a_client() -> vo
 		var client: Lobby = _make_lobby(false)
 		client._apply_data(published)
 		assert_eq((client.get_node("%RoundTimerStepper") as UiStepper).value, minutes)
-		assert_eq((client.get_node("%RoundTimerStepper") as UiStepper).display_text(), "%d min" % minutes)
+		assert_eq((client.get_node("%RoundTimerStepper") as UiStepper).display_text(), "%d" % minutes)
 	slider.value = 99
 	assert_eq(slider.value, 30, "the slider cannot pass the maximum")
 	slider.value = 0
@@ -342,7 +342,7 @@ func test_match_timer_slider_runs_off_to_thirty_and_skips_one_minute() -> void:
 	var fake: FakeNet = lobby.net_provider as FakeNet
 	slider.value = 30
 	assert_eq(fake.set_lobby_data_calls[-1]["match_timer_minutes"], 30)
-	assert_eq((lobby.get_node("%MatchTimerStepper") as UiStepper).display_text(), "30 min")
+	assert_eq((lobby.get_node("%MatchTimerStepper") as UiStepper).display_text(), "30")
 	slider.value = 0
 	assert_eq(fake.set_lobby_data_calls[-1]["match_timer_minutes"], 0)
 	assert_eq((lobby.get_node("%MatchTimerStepper") as UiStepper).display_text(), "Off")
