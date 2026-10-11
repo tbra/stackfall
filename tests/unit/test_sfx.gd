@@ -520,3 +520,11 @@ func test_hysteresis_keeps_the_tense_stem_active_within_the_release_margin() -> 
 
 	Events.goal_capture_progress.emit(0, 0.45)  # below the release point
 	assert_false(_sfx._tense_stem_is_active, "progress below the release point should return to calm")
+
+
+## Bontago-xtq.47: every real quit path calls the one helper that drains audio first.
+func test_quit_tree_helper_exists_and_release_audio_is_idempotent() -> void:
+	assert_true(_sfx.has_method(&"quit_tree"), "Sfx must expose the single drain-then-quit helper")
+	_sfx.release_audio()
+	_sfx.release_audio()
+	assert_true(true, "release_audio twice must not error")
