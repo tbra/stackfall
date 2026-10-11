@@ -52,6 +52,7 @@ func test_label_shown_beside_debug_button_at_sizes() -> void:
 		var dr: Rect2 = debug_button.get_global_rect()
 		assert_true(logical.grow(EDGE_EPS).encloses(lr), "label on screen at %s" % window)
 		assert_false(lr.intersects(dr), "label does not overlap Debug at %s" % window)
-		assert_gte(lr.position.x, dr.end.x - EDGE_EPS, "label right of Debug at %s" % window)
+		# Bontago-1pi.171 (owner 2026-10-11): the version text sits left of the Debug pill.
+		assert_lte(lr.end.x, dr.position.x + EDGE_EPS, "label left of Debug at %s" % window)
 		vp.queue_free()
 		await get_tree().process_frame
