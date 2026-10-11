@@ -36,7 +36,7 @@ func _published(lobby: Lobby) -> MatchConfig:
 
 
 func _pick_mode(lobby: Lobby, mode: int) -> void:
-	var option: UiDropdown = lobby.get_node("%GameModeOption") as UiDropdown
+	var option: UiCycler = lobby.get_node("%GameModeOption") as UiCycler
 	option.select(mode)
 	option.item_selected.emit(mode)
 
@@ -423,18 +423,18 @@ func test_host_edits_every_game_setting_from_the_game_section() -> void:
 	_section(lobby, "%GameSection").set_advanced_open(true)
 	_pick_mode(lobby, MatchConfig.GameMode.ELIMINATION)
 	(lobby.get_node("%DiscSizeMeter") as UiSegmentMeter).value = 6
-	var sky: UiDropdown = lobby.get_node("%SkyThemeOption") as UiDropdown
+	var sky: UiCycler = lobby.get_node("%SkyThemeOption") as UiCycler
 	sky.select(MatchConfig.SkyThemeMode.NIGHT)
 	sky.item_selected.emit(MatchConfig.SkyThemeMode.NIGHT)
-	var weather: UiDropdown = lobby.get_node("%WeatherOption") as UiDropdown
+	var weather: UiCycler = lobby.get_node("%WeatherOption") as UiCycler
 	weather.select(MatchConfig.WeatherMode.SNOW)
 	weather.item_selected.emit(MatchConfig.WeatherMode.SNOW)
 	(lobby.get_node("%GravityMeter") as UiSegmentMeter).value = Lobby._gravity_cells_for(0.5)
 	(lobby.get_node("%TurnBasedCheck") as UiToggle).button_pressed = true
-	var hole: UiDropdown = lobby.get_node("%HoleModeOption") as UiDropdown
+	var hole: UiCycler = lobby.get_node("%HoleModeOption") as UiCycler
 	hole.select(MatchConfig.HoleMode.PERMANENT)
 	hole.item_selected.emit(MatchConfig.HoleMode.PERMANENT)
-	var tilt: UiDropdown = lobby.get_node("%TiltModeOption") as UiDropdown
+	var tilt: UiCycler = lobby.get_node("%TiltModeOption") as UiCycler
 	tilt.select(MatchConfig.TiltMode.PHYSICAL_BALANCE)
 	tilt.item_selected.emit(MatchConfig.TiltMode.PHYSICAL_BALANCE)
 	(lobby.get_node("%MidJoinCheck") as UiToggle).button_pressed = false
@@ -506,6 +506,8 @@ func test_client_reads_the_sections_but_cannot_edit_them() -> void:
 		var control: Control = lobby.get_node(unique_name) as Control
 		if control is UiStepper:
 			assert_true((control as UiStepper).disabled, "%s is read-only for a client" % unique_name)
+		elif control is UiCycler:
+			assert_true((control as UiCycler).disabled, "%s is read-only for a client" % unique_name)
 		elif control is UiSegmentMeter:
 			assert_false((control as UiSegmentMeter).editable, "%s is read-only for a client" % unique_name)
 		else:

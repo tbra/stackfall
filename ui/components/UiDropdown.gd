@@ -2,41 +2,27 @@ class_name UiDropdown
 extends Button
 ## The design system's Dropdown (docs/ui_reskin/components.md "Dropdown"): a raised disc-700 block
 ## with a disc-400 edge, the value in cream and a sand chevron. It replaces every OptionButton and
-## absorbs the click-to-cycle selector (owner decision Bontago-1pi.94). A UiRowItem (DROPDOWN).
-##
-## [enum Mode.CYCLE]: a click or ui_accept advances to the next enabled item, a right click steps
-## back, both wrap; the control never opens a list. [enum Mode.POPUP]: a click or ui_accept opens a
-## disc-800 list of rows, the current row disc-600 with a check; ui_up / ui_down move, ui_accept
-## picks, ui_cancel (B) or a click outside closes it and hands focus back. [enum Mode.AUTO] (the
-## default) cycles lists of up to [constant CYCLE_MAX_ITEMS] items and opens a list for longer ones.
-## Focus navigation (ui_left / ui_right / ui_up / ui_down, held, echoed or from a pad) is never
-## consumed while closed and never changes the value: only an activation does.
+## always behaves like a normal dropdown (owner 2026-10-11, reversing the click-to-cycle of
+## Bontago-1pi.94; options that cycle use UiCycler): a click or ui_accept opens a disc-800 list of
+## rows, the current row disc-600 with a check; ui_up / ui_down move, ui_accept picks, ui_cancel (B)
+## or a click outside closes it and hands focus back. Focus navigation (ui_left / ui_right /
+## ui_up / ui_down, held, echoed or from a pad) is never consumed while closed and never changes
+## the value: only picking a row does.
 ##
 ## It mirrors the slice of OptionButton's API the screens use (add_item, set_item_icon,
 ## set_item_disabled, set_item_tooltip, select, `selected`, `item_count`, `item_selected`), so every
 ## caller keeps the same stored int: [signal item_selected] carries the index, and setting
 ## [member selected] from code (a replicated config) does NOT emit, like OptionButton.
-## With [member auto_advance] off a cycle activation only emits [signal cycled] and the owner
-## redraws the control (a seat row's team pill, whose value lives in the panel's seat table).
 
 ## The user picked `index` (activation, right click or list row); not emitted by select().
 signal item_selected(index: int)
-## A cycle activation happened; `backwards` is true for a right click.
-signal cycled(backwards: bool)
 ## The popup list opened or closed.
 signal popup_toggled(open: bool)
 
-enum Mode { AUTO, CYCLE, POPUP }
-
-## Owner decision 1pi.94: short option lists cycle, longer ones open a list.
-const CYCLE_MAX_ITEMS: int = 6
 const LIST_NAME: StringName = &"DropdownList"
 const STATES: PackedStringArray = ["normal", "hover", "pressed", "hover_pressed", "disabled"]
 
-@export var mode: Mode = Mode.AUTO
-## When false, a cycle activation only emits [signal cycled] and leaves the value to the owner.
-@export var auto_advance: bool = true
-## Draws the sand chevron right of the value (a compact cycle pill, e.g. the lobby team button, turns it off).
+## Draws the sand chevron right of the value (a compact pill, e.g. the lobby team button, may turn it off).
 var show_chevron: bool = true:
 	set(show):
 		show_chevron = show
@@ -75,7 +61,6 @@ func _init() -> void:
 	clip_text = true
 	focus_mode = Control.FOCUS_ALL
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	mode = _initial_mode()
 	show_chevron = _initial_chevron()
 	_apply_row_contract()
 	_restyle()
@@ -83,11 +68,6 @@ func _init() -> void:
 	pressed.connect(_on_pressed)
 	_sync_chevron()
 	visibility_changed.connect(_on_visibility_changed)
-
-
-## The mode a new dropdown starts in (subclasses may force a mode).
-func _initial_mode() -> Mode:
-	return Mode.AUTO
 
 
 ## Whether a new dropdown draws the chevron (subclasses may not).
@@ -190,44 +170,6 @@ func select(index: int) -> void:
 	_refresh()
 
 
-## True when an activation opens the list rather than cycling.
-func uses_popup() -> bool:
-	match mode:
-		Mode.POPUP:
-			return true
-		Mode.CYCLE:
-			return false
-	return _labels.size() > CYCLE_MAX_ITEMS
-
-
-## Steps to the next (or previous) enabled item, wrapping; stays put when no other item is
-## enabled. Returns the new index, or -1 when nothing changed.
-func next_index(backwards: bool) -> int:
-	var count: int = _labels.size()
-	if count == 0:
-		return -1
-	var step: int = -1 if backwards else 1
-	var candidate: int = _selected
-	for _i: int in range(count):
-		candidate = posmod(candidate + step, count)
-		if not _disabled_items[candidate]:
-			return candidate if candidate != _selected else -1
-	return -1
-
-
-## The user's cycle activation, forwards or backwards.
-func cycle(backwards: bool) -> void:
-	if disabled:
-		return
-	if auto_advance:
-		var target: int = next_index(backwards)
-		if target >= 0:
-			_selected = target
-			_refresh()
-			item_selected.emit(target)
-	cycled.emit(backwards)
-
-
 func is_open() -> bool:
 	return _list != null
 
@@ -273,25 +215,17 @@ func pick(index: int) -> void:
 
 
 func _on_pressed() -> void:
-	if uses_popup():
-		if is_open():
-			close()
-		else:
-			open()
+	if is_open():
+		close()
 	else:
-		cycle(false)
+		open()
 
 
-## Right click = previous in cycle mode. Connected to `gui_input` (not _gui_input) so a test can
-## drive it with a plain emit. A held ui_accept (echo) is swallowed so it cannot spin the value;
-## every other event, navigation included, is left alone.
+## Connected to `gui_input` (not _gui_input) so a test can drive it with a plain emit. A held
+## ui_accept (echo) is swallowed so it cannot re-toggle the list; every other event, navigation
+## included, is left alone.
 func _on_gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton:
-		var click: InputEventMouseButton = event as InputEventMouseButton
-		if click.pressed and click.button_index == MOUSE_BUTTON_RIGHT and not uses_popup():
-			accept_event()
-			cycle(true)
-	elif event.is_echo() and event.is_action(&"ui_accept"):
+	if event.is_echo() and event.is_action(&"ui_accept"):
 		accept_event()
 
 

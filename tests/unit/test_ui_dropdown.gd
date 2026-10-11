@@ -1,14 +1,13 @@
 extends GutTest
-## Bontago-1pi.159.7: UiDropdown: click-to-cycle for short lists (decision 1pi.94), a popup list for
-## long ones, OptionButton-parity API, ui_accept open / ui_down move / ui_accept pick / ui_cancel
-## close through the Input Map, outside click closes, row-item contract.
+## Bontago-1pi.159.7 / 159.14: UiDropdown is a normal popup list (the click-to-cycle of decision
+## 1pi.94 is gone; cycling options use UiCycler), OptionButton-parity API, ui_accept open / ui_down
+## move / ui_accept pick / ui_cancel close through the Input Map, outside click closes, row-item contract.
 
 var _picked: Array[int] = []
 
 
-func _make(mode: UiDropdown.Mode, count: int) -> UiDropdown:
+func _make(count: int) -> UiDropdown:
 	var dropdown: UiDropdown = UiDropdown.new()
-	dropdown.mode = mode
 	for index: int in range(count):
 		dropdown.add_item("Item %d" % index)
 	dropdown.item_selected.connect(func(index: int) -> void: _picked.append(index))
@@ -34,27 +33,40 @@ func _right_click() -> InputEventMouseButton:
 	return click
 
 
-func test_auto_mode_cycles_short_lists_and_pops_up_long_ones() -> void:
-	assert_false(_make(UiDropdown.Mode.AUTO, UiDropdown.CYCLE_MAX_ITEMS).uses_popup())
-	assert_true(_make(UiDropdown.Mode.AUTO, UiDropdown.CYCLE_MAX_ITEMS + 1).uses_popup())
-	assert_true(_make(UiDropdown.Mode.POPUP, 2).uses_popup())
-	assert_false(_make(UiDropdown.Mode.CYCLE, UiDropdown.CYCLE_MAX_ITEMS + 3).uses_popup())
-
-
-func test_click_cycles_forward_wraps_and_right_click_goes_back() -> void:
-	var dropdown: UiDropdown = _make(UiDropdown.Mode.CYCLE, 3)
+func test_click_opens_a_list_and_never_cycles() -> void:
+	var dropdown: UiDropdown = _make(3)
 	dropdown.pressed.emit()
-	dropdown.pressed.emit()
-	dropdown.pressed.emit()
-	assert_eq(dropdown.selected, 0, "wraps forward")
+	assert_true(dropdown.is_open(), "a press opens the list")
+	assert_eq(dropdown.selected, 0, "and does not change the value")
 	dropdown.gui_input.emit(_right_click())
-	assert_eq(dropdown.selected, 2, "right click steps back and wraps")
-	assert_eq(_picked, [1, 2, 0, 2])
-	assert_false(dropdown.is_open(), "cycle mode never opens a list")
+	assert_eq(dropdown.selected, 0, "right click does nothing")
+	assert_eq(_picked.size(), 0)
+	dropdown.pressed.emit()
+	assert_false(dropdown.is_open(), "a second press closes it")
+
+
+func test_ui_left_right_do_not_change_the_value() -> void:
+	var dropdown: UiDropdown = _make(3)
+	dropdown.grab_focus()
+	await wait_frames(2)
+	dropdown.gui_input.emit(_action(&"ui_right"))
+	dropdown.gui_input.emit(_action(&"ui_left"))
+	assert_eq(dropdown.selected, 0)
+	assert_false(dropdown.is_open())
+	assert_eq(_picked.size(), 0)
+
+
+func test_the_api_no_longer_has_cycle_mode() -> void:
+	var dropdown: UiDropdown = _make(1)
+	var names: Array[String] = []
+	for entry: Dictionary in dropdown.get_property_list():
+		names.append(String(entry["name"]))
+	assert_false(names.has("mode") or names.has("auto_advance"), "mode / auto_advance are gone")
+	assert_false(dropdown.has_signal(&"cycled"), "no cycled signal")
 
 
 func test_select_and_selected_never_emit() -> void:
-	var dropdown: UiDropdown = _make(UiDropdown.Mode.CYCLE, 3)
+	var dropdown: UiDropdown = _make(3)
 	dropdown.select(2)
 	dropdown.selected = 1
 	dropdown.selected = 9
@@ -63,15 +75,8 @@ func test_select_and_selected_never_emit() -> void:
 	assert_eq(_picked.size(), 0)
 
 
-func test_cycle_skips_disabled_items() -> void:
-	var dropdown: UiDropdown = _make(UiDropdown.Mode.CYCLE, 3)
-	dropdown.set_item_disabled(1, true)
-	dropdown.pressed.emit()
-	assert_eq(dropdown.selected, 2)
-
-
 func test_row_item_contract() -> void:
-	var dropdown: UiDropdown = _make(UiDropdown.Mode.CYCLE, 3)
+	var dropdown: UiDropdown = _make(3)
 	await wait_frames(2)
 	assert_true(dropdown.is_in_group(UiRowItem.GROUP))
 	assert_eq(dropdown.size.y, float(UiRowItem.metrics().row_height_px))
@@ -80,7 +85,7 @@ func test_row_item_contract() -> void:
 
 
 func test_pad_a_opens_the_list_and_focus_lands_on_the_current_row() -> void:
-	var dropdown: UiDropdown = _make(UiDropdown.Mode.POPUP, 5)
+	var dropdown: UiDropdown = _make(5)
 	dropdown.select(2)
 	dropdown.grab_focus()
 	await wait_frames(2)
@@ -96,7 +101,7 @@ func test_pad_a_opens_the_list_and_focus_lands_on_the_current_row() -> void:
 
 
 func test_down_moves_a_picks_and_the_signal_carries_the_index() -> void:
-	var dropdown: UiDropdown = _make(UiDropdown.Mode.POPUP, 5)
+	var dropdown: UiDropdown = _make(5)
 	dropdown.grab_focus()
 	await wait_frames(2)
 	dropdown.open()
@@ -119,7 +124,7 @@ func test_down_moves_a_picks_and_the_signal_carries_the_index() -> void:
 
 
 func test_b_cancels_without_changing_the_value() -> void:
-	var dropdown: UiDropdown = _make(UiDropdown.Mode.POPUP, 5)
+	var dropdown: UiDropdown = _make(5)
 	dropdown.select(3)
 	dropdown.grab_focus()
 	await wait_frames(2)
@@ -136,7 +141,7 @@ func test_b_cancels_without_changing_the_value() -> void:
 
 
 func test_list_marks_the_current_row_and_disables_unavailable_items() -> void:
-	var dropdown: UiDropdown = _make(UiDropdown.Mode.POPUP, 4)
+	var dropdown: UiDropdown = _make(4)
 	dropdown.set_item_disabled(2, true)
 	dropdown.select(1)
 	dropdown.open(false)
@@ -150,7 +155,7 @@ func test_list_marks_the_current_row_and_disables_unavailable_items() -> void:
 
 
 func test_picking_the_current_row_closes_without_emitting() -> void:
-	var dropdown: UiDropdown = _make(UiDropdown.Mode.POPUP, 3)
+	var dropdown: UiDropdown = _make(3)
 	dropdown.open(false)
 	dropdown.pick(0)
 	assert_false(dropdown.is_open())
@@ -158,7 +163,7 @@ func test_picking_the_current_row_closes_without_emitting() -> void:
 
 
 func test_outside_click_closes_and_clicking_the_dropdown_toggles() -> void:
-	var dropdown: UiDropdown = _make(UiDropdown.Mode.POPUP, 3)
+	var dropdown: UiDropdown = _make(3)
 	await wait_frames(2)
 	dropdown.pressed.emit()
 	assert_true(dropdown.is_open())
@@ -175,19 +180,15 @@ func test_outside_click_closes_and_clicking_the_dropdown_toggles() -> void:
 	assert_false(dropdown.is_open(), "a press outside closes the list")
 
 
-func test_disabled_dropdown_does_not_open_or_cycle() -> void:
-	var dropdown: UiDropdown = _make(UiDropdown.Mode.POPUP, 3)
+func test_disabled_dropdown_does_not_open() -> void:
+	var dropdown: UiDropdown = _make(3)
 	dropdown.disabled = true
 	dropdown.open()
 	assert_false(dropdown.is_open())
-	var cycler: UiDropdown = _make(UiDropdown.Mode.CYCLE, 3)
-	cycler.disabled = true
-	cycler.cycle(false)
-	assert_eq(cycler.selected, 0)
 
 
 func test_hiding_the_dropdown_closes_the_list() -> void:
-	var dropdown: UiDropdown = _make(UiDropdown.Mode.POPUP, 3)
+	var dropdown: UiDropdown = _make(3)
 	dropdown.open(false)
 	dropdown.hide()
 	assert_false(dropdown.is_open())

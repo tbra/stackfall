@@ -227,6 +227,39 @@ func test_wire_garbage_in_qol_is_ignored_safely() -> void:
 	assert_eq(_flags(lobby), [false, false, false, true], "wrong-typed flags keep the OFF default")
 
 
+# --- Gift-after-next trial chip (Bontago-1pi.159.29) --------------------------
+
+const AFTER_NEXT_CHIP: String = "%QolGiftAfterNextCheck"
+
+
+func test_the_gift_after_next_chip_defaults_on_and_is_not_counted_as_an_experiment() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var chip: UiChipToggle = _check(lobby, AFTER_NEXT_CHIP)
+	assert_not_null(chip)
+	assert_true(chip.button_pressed, "the trial is on by default, like QolExperiments.gift_queue_after_next")
+	assert_ne(chip.tooltip_text, "")
+	assert_eq(_experiments_summary(lobby), "0 on", "a rule trial is not an experiment")
+	assert_true(lobby._config_from_controls().qol.gift_queue_after_next)
+	assert_true(lobby._qol_checks.has(chip), "it joins the chip group (focus loop, host gating)")
+
+
+func test_the_host_publishes_the_gift_after_next_chip_and_a_client_mirrors_it() -> void:
+	var host_lobby: Lobby = _make_lobby(true)
+	_check(host_lobby, AFTER_NEXT_CHIP).button_pressed = false
+	var calls: Array[Dictionary] = _fake_of(host_lobby).set_lobby_data_calls
+	assert_eq(calls.size(), 1)
+	var data: Dictionary = calls[0]
+	assert_false(bool((data["qol"] as Dictionary)["gift_queue_after_next"]))
+	assert_false(MatchConfig.from_dict(data).qol.gift_after_next_in_force())
+	var client_lobby: Lobby = _make_lobby(false)
+	assert_true(_check(client_lobby, AFTER_NEXT_CHIP).disabled, "read-only for a client")
+	Events.net_lobby_data_changed.emit(data)
+	assert_false(_check(client_lobby, AFTER_NEXT_CHIP).button_pressed, "the client shows the host's choice")
+	assert_eq(_fake_of(client_lobby).set_lobby_data_calls.size(), 0, "mirroring never re-publishes")
+	_check(host_lobby, AFTER_NEXT_CHIP).button_pressed = true
+	assert_true(bool((calls[1]["qol"] as Dictionary)["gift_queue_after_next"]))
+
+
 # --- Start carries the toggles ------------------------------------------------
 
 func test_start_requested_config_carries_the_toggles() -> void:

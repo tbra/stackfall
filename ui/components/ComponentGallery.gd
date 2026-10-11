@@ -256,21 +256,20 @@ func _tab_rows() -> Array[Control]:
 func _dropdown_rows() -> Array[Control]:
 	var rows: Array[Control] = []
 	for state: StringName in BUTTON_STATES:
-		var dropdown: UiDropdown = _sample_dropdown(UiDropdown.Mode.CYCLE, DROPDOWN_CYCLE_ITEMS)
+		var dropdown: UiDropdown = _sample_dropdown(DROPDOWN_CYCLE_ITEMS)
 		rows.append(UiRow.new().setup(STATE_LABELS[state] as String, dropdown))
 		show_state(dropdown, state)
-	var long_list: UiDropdown = _sample_dropdown(UiDropdown.Mode.AUTO, DROPDOWN_LIST_ITEMS)
-	rows.append(UiRow.new().setup("LONG LIST (AUTO)", long_list))
-	var open_list: UiDropdown = _sample_dropdown(UiDropdown.Mode.POPUP, DROPDOWN_LIST_ITEMS)
+	var long_list: UiDropdown = _sample_dropdown(DROPDOWN_LIST_ITEMS)
+	rows.append(UiRow.new().setup("LONG LIST", long_list))
+	var open_list: UiDropdown = _sample_dropdown(DROPDOWN_LIST_ITEMS)
 	open_list.select(DROPDOWN_OPEN_SELECTED)
 	rows.append(UiRow.new().setup("OPEN", open_list))
 	open_list.open.call_deferred(false)
 	return rows
 
 
-func _sample_dropdown(mode: UiDropdown.Mode, items: PackedStringArray) -> UiDropdown:
+func _sample_dropdown(items: PackedStringArray) -> UiDropdown:
 	var dropdown: UiDropdown = UiDropdown.new()
-	dropdown.mode = mode
 	for item: String in items:
 		dropdown.add_item(item)
 	return dropdown
@@ -336,7 +335,7 @@ func _sample_section(title: String, summary: String, open: bool) -> UiSection:
 	section.title = title
 	var body: VBoxContainer = VBoxContainer.new()
 	body.name = UiSection.BODY_NAME
-	body.add_child(UiRow.new().setup("MODE", _sample_dropdown(UiDropdown.Mode.CYCLE, DROPDOWN_CYCLE_ITEMS)))
+	body.add_child(UiRow.new().setup("MODE", _sample_dropdown(DROPDOWN_CYCLE_ITEMS)))
 	section.add_child(body)
 	var advanced: MarginContainer = MarginContainer.new()
 	advanced.name = UiSection.ADVANCED_NAME
@@ -386,7 +385,7 @@ func _sample_panel() -> UiPanel:
 	stepper.value = STEPPER_MID
 	panel.content.add_child(UiRow.new().setup("BOTS", stepper))
 	panel.content.add_child(UiRow.new().setup("VOLUME", _sample_meter(METER_MID)))
-	panel.content.add_child(UiRow.new().setup("SKY", _sample_dropdown(UiDropdown.Mode.CYCLE, DROPDOWN_CYCLE_ITEMS)))
+	panel.content.add_child(UiRow.new().setup("SKY", _sample_dropdown(DROPDOWN_CYCLE_ITEMS)))
 	var name_field: UiField = UiField.new()
 	name_field.text = "Tester"
 	panel.content.add_child(UiRow.new().setup("NAME", name_field))

@@ -970,11 +970,14 @@ func test_toggles_write_their_settings_and_ui_left_right_set_them() -> void:
 	assert_true(_settings_of(menu).camera_shake_enabled())
 
 
-func test_window_mode_dropdown_click_cycles_and_persists_the_id() -> void:
+func test_window_mode_dropdown_pick_persists_the_id() -> void:
 	var menu: OptionsMenu = _make_menu()
 	var dropdown: UiDropdown = menu.get_node("%WindowModeOption") as UiDropdown
 	var before: int = dropdown.selected
 	dropdown.pressed.emit()
+	assert_true(dropdown.is_open(), "a click opens the list (Bontago-1pi.159.14)")
+	assert_eq(dropdown.selected, before)
+	dropdown.pick((before + 1) % Settings.WINDOW_MODE_IDS.size())
 	assert_eq(dropdown.selected, (before + 1) % Settings.WINDOW_MODE_IDS.size())
 	assert_eq(_settings_of(menu).window_mode(), Settings.WINDOW_MODE_IDS[dropdown.selected])
 
