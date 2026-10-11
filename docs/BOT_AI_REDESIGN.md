@@ -133,12 +133,14 @@ CPU cap: every run is sequential (`--parallel 1`) unless the orchestrator raises
 | | Easy | Normal | Hard |
 |---|---|---|---|
 | Intents | RACE, ANCHOR (fixed rhythm), FINISH | + HOLD, DEFEND (reactive only) | + STRIKE, threat look-ahead, Elimination target spread |
-| Sites / measured top-k | 40 (half FILL) / 0 | 70 / 6 | 110 / 12 |
-| Pick | sample from top 5 (high temperature) | sample from top 3 (low) | argmax |
-| Aim noise / reaction | 0.6 m / 1.2 s | 0.3 m / 0.6 s | 0.05 m / 0.2 s |
+| Sites / measured top-k | 30 (fill_share 1.0, all FILL) / 0 | 50 (fill_share 0.6) / 3 | 110 / 12 |
+| Pick | sample from top 8 (temperature 2.0) | sample from top 5 (temperature 1.0) | argmax |
+| Aim noise / reaction | 3.5 m / 1.2 s | 1.5 m / 0.6 s | 0.05 m / 0.2 s |
 | Specials | spent without targeting (today's Easy) | defensive + simple offensive | full v2 targeting |
 
 Easy stays a beatable learner bot that still visibly builds and finishes; Normal should be about as strong as today's Hard; Hard is the strongest the frame budget allows.
+
+Bontago-1t5.34 retune (V2 profiles easy_v2/normal_v2/hard_v2 only; legacy profiles unchanged): search depth (candidate_count, eval_top_k, pick_pool of Hard vs a mildly degraded Normal) barely moves 1v1 strength; the ladder separates only through aim_noise_m and fill_share (random sites), so Normal/Easy sit on that cliff (Hard vs Normal 15W 4L 1D; Normal vs Easy 19W 0L; Normal vs legacy Hard 10/10; Easy vs passive 5/5, slowest win 415 s).
 
 ### 2.7 Departures from docs/SPEC.md §2.9 (owner approval needed; §2.9 is [ORIGINAL feature, NEW implementation], so no [ORIGINAL] rule changes)
 1. Candidate spots: from "samples 40-120 candidate spots" in its territory to 40-120 **targeted** sites (frontier tip toward the current target, own stack tops, strike/defend points) plus a few random ones.

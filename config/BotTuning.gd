@@ -7,6 +7,11 @@ extends Resource
 @export var easy: BotDifficultyProfile
 @export var normal: BotDifficultyProfile
 @export var hard: BotDifficultyProfile
+## Bontago-1t5.34: the Bot V2 brain's own tier profiles (the legacy brain keeps easy/normal/hard).
+## A null entry falls back to the legacy profile.
+@export var easy_v2: BotDifficultyProfile
+@export var normal_v2: BotDifficultyProfile
+@export var hard_v2: BotDifficultyProfile
 
 ## Placement-candidate scoring weights (spec 2.9's candidate score formula;
 ## core/ai/BotPlacementScorer.gd applies these).
@@ -209,3 +214,19 @@ func profile_for(difficulty: MatchConfig.AiDifficulty) -> BotDifficultyProfile:
 			return hard
 		_:
 			return normal
+
+
+## Bontago-1t5.34: like profile_for(), but `v2` selects the Bot V2 tier profile (falls back to
+## the legacy profile when that tier has no V2 entry).
+func profile_for_brain(difficulty: MatchConfig.AiDifficulty, v2: bool) -> BotDifficultyProfile:
+	if not v2:
+		return profile_for(difficulty)
+	var picked: BotDifficultyProfile = null
+	match difficulty:
+		MatchConfig.AiDifficulty.EASY:
+			picked = easy_v2
+		MatchConfig.AiDifficulty.HARD:
+			picked = hard_v2
+		_:
+			picked = normal_v2
+	return picked if picked != null else profile_for(difficulty)

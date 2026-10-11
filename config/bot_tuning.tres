@@ -50,8 +50,65 @@ pick_temperature = 0.4
 intent_mask = 223
 pick_pool = 3
 
+; DECISION (Bontago-1t5.34): the V2 brain has its own tier profiles so the shipped legacy brain
+; keeps today's Easy/Normal/Hard feel. hard_v2 equals Hard (Bontago-1t5.30 budget kept).
+[sub_resource type="Resource" id="Resource_easy_v2"]
+script = ExtResource("2_bot_profile")
+candidate_count = 30
+stability_raycast_count = 2
+aim_noise_m = 3.5
+reaction_delay_s = 1.2
+think_budget_us = 500
+eval_top_k = 0
+pick_temperature = 2.0
+; DECISION (Bontago-1t5.23): Easy = RACE|ANCHOR|FINISH plus the SIEGE and AREA mode adapters
+; (bits 0,1,2,6,7), so it still plays Elimination and Domination.
+intent_mask = 199
+pick_pool = 8
+fill_share = 1.0
+; DECISION (Bontago-1t5.25): Easy weighs gifts low.
+gift_claim_scale = 0.25
+
+
+[sub_resource type="Resource" id="Resource_normal_v2"]
+script = ExtResource("2_bot_profile")
+candidate_count = 50
+uses_defensive_specials = true
+; DECISION (Bontago-1t5.7, owner 1t5.5 = B): NORMAL now uses offensive specials
+; (Rocket/Bomb). No new fields: the existing per-tier aim_noise_m (0.3 m vs
+; Hard 0.05 m, applied to throws by BotController) and reaction_delay_s
+; (0.6 s vs Hard 0.2 s) already make it slower and less accurate than Hard.
+uses_offensive_specials = true
+think_budget_us = 700
+aim_noise_m = 1.5
+fill_share = 0.6
+eval_top_k = 3
+pick_temperature = 1.0
+intent_mask = 223
+pick_pool = 5
+
+
+[sub_resource type="Resource" id="Resource_hard_v2"]
+script = ExtResource("2_bot_profile")
+candidate_count = 110
+stability_raycast_count = 6
+aim_noise_m = 0.05
+reaction_delay_s = 0.2
+uses_defensive_specials = true
+uses_offensive_specials = true
+think_budget_us = 1600
+eval_top_k = 12
+pick_temperature = 0.05
+intent_mask = 255
+pick_pool = 1
+threat_lookahead_m = 3.0
+
+
 [resource]
 script = ExtResource("1_bot_tuning")
 easy = SubResource("Resource_easy")
 normal = SubResource("Resource_normal")
 hard = SubResource("Resource_hard")
+easy_v2 = SubResource("Resource_easy_v2")
+normal_v2 = SubResource("Resource_normal_v2")
+hard_v2 = SubResource("Resource_hard_v2")
