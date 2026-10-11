@@ -40,6 +40,7 @@ const OPTIONS_TUNING: OptionsVisualTuning = preload("res://config/options_visual
 ## goes unlabeled just because nobody updated this dictionary yet.
 const DISPLAY_NAMES: Dictionary[StringName, String] = {
 	&"ghost_place": "Place block",
+	&"use_gift_slot": "Use gift",
 	&"rotate_yaw_ccw": "Rotate left",
 	&"rotate_yaw_cw": "Rotate right",
 	&"rotate_pitch_fwd": "Tilt forward",
@@ -137,6 +138,9 @@ const SNAP_ACTIONS: Array[StringName] = [&"camera_snap_home", &"camera_snap_goal
 var _action: StringName = &""
 var _listening: bool = false
 var _banded: bool = false
+var _idle_s: float = 0.0
+## Axes (joypad axis index -> true) already past the bind threshold when listening started.
+var _blocked_axes: Dictionary[int, bool] = {}
 
 
 ## Bontago-1pi.10 (owner: "default to only showing mouse/keyboard, switch to
@@ -247,9 +251,19 @@ func refresh() -> void:
 ## this row ever sees them.
 func _on_pressed() -> void:
 	_listening = true
+	_idle_s = 0.0
+	_collect_blocked_axes()
 	release_focus()
 	_apply_row_style()
 	_show_listening_glyph()
+
+
+func _collect_blocked_axes() -> void:
+	_blocked_axes.clear()
+	for device: int in Input.get_connected_joypads():
+		for axis: int in range(JOY_AXIS_MAX):
+			if absf(Input.get_joy_axis(device, axis as JoyAxis)) >= OPTIONS_TUNING.rebind_axis_threshold:
+				_blocked_axes[axis] = true
 
 
 ## Owner: "activating it enters 'press a key/button…' state shown in the
@@ -271,9 +285,9 @@ func _show_listening_glyph() -> void:
 
 ## Captures the very next real input while listening -- InputEventKey,
 ## InputEventMouseButton or InputEventJoypadButton (docs/archive/M6_PLAN.md package
-## C2's own list; joypad *motion*/axis is left out on purpose -- a rebind is a
-## discrete press, not an analog drift, the same digital-vs-analog split
-## tools/bootstrap_project.gd's own action bindings already follow).
+## C2's own list) or, since Bontago-1pi.159.20, an InputEventJoypadMotion past
+## OptionsVisualTuning.rebind_axis_threshold (triggers and stick directions, stored as axis +
+## sign; _handle_motion). Pad B binds instead of cancelling.
 ##
 ## Captured in Node._input() rather than Node._unhandled_input() (Bontago-
 ## 8or.19, owner playtest feedback/playtest.md: "no option to actually remap
@@ -300,15 +314,61 @@ func _show_listening_glyph() -> void:
 func _input(event: InputEvent) -> void:
 	if not _listening:
 		return
+	# The idle timer is NOT reset here: stick drift or mouse motion must not postpone the cancel
+	# (review note); every event that matters ends listening by capturing or cancelling.
+	if event is InputEventJoypadButton:
+		# Bontago-1pi.159.20: B (ui_cancel's pad button) is a valid binding while listening;
+		# the pad player cancels with the idle timeout, Esc or a mouse click.
+		if event.is_pressed():
+			_capture(event)
+			get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed(&"ui_cancel"):
 		_cancel_listening()
 		get_viewport().set_input_as_handled()
 		return
-	if event is InputEventKey or event is InputEventMouseButton or event is InputEventJoypadButton:
+	if event is InputEventJoypadMotion:
+		_handle_motion(event as InputEventJoypadMotion)
+		return
+	if event is InputEventKey or event is InputEventMouseButton:
 		if not event.is_pressed() or event.is_echo():
+			return
+		if event is InputEventMouseButton and Settings.active_input_device() == Settings.DEVICE_GAMEPAD:
+			# DECISION (Bontago-1pi.159.20): a pad page has nothing to bind a mouse click to,
+			# so a click cancels instead of leaving the row armed.
+			_cancel_listening()
+			get_viewport().set_input_as_handled()
 			return
 		_capture(event)
 		get_viewport().set_input_as_handled()
+
+
+## Idle timeout for a listening row (Bontago-1pi.159.20), so a pad player who armed a row
+## by accident is not stuck now that B binds rather than cancels.
+func _process(delta: float) -> void:
+	if not _listening:
+		return
+	_idle_s += delta
+	if _idle_s >= OPTIONS_TUNING.rebind_idle_timeout_s:
+		_cancel_listening()
+
+
+## Binds a trigger or stick direction (axis + sign) once it passes the config threshold. An
+## axis that was already past it when listening began (a stick still held from menu
+## navigation) is ignored until it has returned below the threshold.
+func _handle_motion(motion: InputEventJoypadMotion) -> void:
+	var magnitude: float = absf(motion.axis_value)
+	var threshold: float = OPTIONS_TUNING.rebind_axis_threshold
+	if magnitude < threshold:
+		_blocked_axes.erase(motion.axis)
+		return
+	if _blocked_axes.has(motion.axis):
+		return
+	var bound: InputEventJoypadMotion = InputEventJoypadMotion.new()
+	bound.axis = motion.axis
+	bound.axis_value = signf(motion.axis_value)
+	_capture(bound)
+	get_viewport().set_input_as_handled()
 
 
 func _capture(event: InputEvent) -> void:

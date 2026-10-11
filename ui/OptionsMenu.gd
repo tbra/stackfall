@@ -77,7 +77,7 @@ const PRESET_LABELS: Array[String] = GraphicsSettingsTab.PRESET_LABELS
 ## gamepad page's "Rotate right" row shows rotate_snap's B instead
 ## (ui/KeyRebindRow.gd PAD_STAND_INS, Bontago-1pi.41).
 const REBINDABLE_ACTIONS: Array[StringName] = [
-	&"ghost_place",
+	&"ghost_place", &"use_gift_slot",
 	&"rotate_yaw_ccw", &"rotate_yaw_cw", &"rotate_pitch_fwd", &"rotate_pitch_back",
 	&"rotate_roll_left", &"rotate_roll_right", &"rotation_mode", &"rotate_reset",
 	&"rotate_drag",
@@ -101,7 +101,7 @@ const REBINDABLE_ACTIONS: Array[StringName] = [
 const SECTIONS: Array[Dictionary] = [
 	{
 		"name": "Placement",
-		"actions": [&"ghost_place", &"hover_raise", &"hover_lower", &"lock_vertical"],
+		"actions": [&"ghost_place", &"use_gift_slot", &"hover_raise", &"hover_lower", &"lock_vertical"],
 	},
 	{
 		"name": "Rotation",

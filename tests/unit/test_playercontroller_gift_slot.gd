@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.18.2: the use_gift_slot action (keyboard G, gamepad touchpad)
+## Bontago-1pi.18.2: the use_gift_slot action (keyboard G, gamepad X since Bontago-1pi.18.12)
 ## asks Match to spend the slotted gift, and only when one is waiting.
 
 
@@ -24,13 +24,13 @@ func _controller(fake: GiftFakeMatch) -> PlayerController:
 	return controller
 
 
-func test_gamepad_touchpad_uses_the_slot() -> void:
+func test_gamepad_x_uses_the_slot() -> void:
 	var fake: GiftFakeMatch = GiftFakeMatch.new()
 	fake.head = &"anvil"
 	var controller: PlayerController = _controller(fake)
 	var event: InputEventJoypadButton = InputEventJoypadButton.new()
 	event.device = -1
-	event.button_index = JOY_BUTTON_TOUCHPAD
+	event.button_index = JOY_BUTTON_X
 	event.pressed = true
 	assert_true(event.is_action_pressed(&"use_gift_slot"))
 	controller._unhandled_input(event)

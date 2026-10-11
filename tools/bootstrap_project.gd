@@ -262,7 +262,11 @@ func _actions() -> Dictionary:
 	# block rotation and every other standard button is bound; Xbox-layout pads
 	# have no touchpad, so there the experimental (off by default) slot is
 	# keyboard/rebind only.
-	a["use_gift_slot"] = [_key(KEY_G), _pad(JOY_BUTTON_TOUCHPAD)]
+	# DECISION (Bontago-1pi.18.12, owner 2026-10-11: the touchpad button does not exist on his
+	# pad): the pad half is now X, free in a match since camera snap is disabled
+	# (CameraTuning.snap_enabled = false keeps camera_snap_goal's X inert). The row is
+	# rebindable in Options > Controls.
+	a["use_gift_slot"] = [_key(KEY_G), _pad(JOY_BUTTON_X)]
 
 	# Bontago-1pi.69 (owner playtest: a hold-to-show score tracker). DECISION: Tab
 	# is shared with the sandbox-only sandbox_next_slot; ui/ScoreboardOverlay.gd is
