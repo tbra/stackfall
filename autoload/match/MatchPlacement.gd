@@ -356,12 +356,15 @@ func request_place(
 		# spot, or (see below) relocated -- so this is the one path allowed
 		# to consume the pending special.
 		var is_glue_activation: bool = _match.held_special(slot_id) == &"glue"
+		# DECISION (Bontago-1pi.85.70): a Jumping Bean never takes a glue charge (it would
+		# be bonded and unable to hop); the charge stays for the next ordinary drop.
+		var is_bean: bool = _match.held_special(slot_id) == &"jumping_bean"
 		_attach_pending_special(spawned, slot_id)
 		# A Glue impact grants charges for FUTURE successful drops. Exclude its
 		# own activation block even if an earlier Glue buff is still active.
 		# This path is never reached by a rejected click, burn, throw or
 		# spawn_special_projectile(), so those cannot spend a charge.
-		if not is_glue_activation and _match.consume_glue_drop(slot_id):
+		if not is_glue_activation and not is_bean and _match.consume_glue_drop(slot_id):
 			var bonding: GlueDrops = GlueDrops.new()
 			spawned.add_child(bonding)
 			bonding.bind(spawned, _glue_drop_tuning)

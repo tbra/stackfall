@@ -189,6 +189,10 @@ func _kick(block: Block) -> void:
 		horizontal.y = 0.0
 		horizontal = horizontal.normalized()
 	horizontal *= hop_horizontal_speed
+	# DECISION (Bontago-1pi.85.70): a glue bond (the bean itself bonded, or another
+	# charged block dropped onto it) holds it above the hop impulse, so the bean ends
+	# every bond first; the bond-end event keeps clients' glue coat in step.
+	GlueJoint.release_bonds_for(block, block.get_tree())
 	block.wake_for_impulse()
 	if block.is_freeze_static():
 		return
