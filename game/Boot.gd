@@ -83,7 +83,13 @@ func _collect_pending() -> Object:
 	return resource
 
 
+var _quit_done: bool = false
+
+
 func _quit_now() -> void:
+	if _quit_done:  # a second close request must not quit twice (Bontago-6a4)
+		return
+	_quit_done = true
 	set_process(false)  # review nit: never poll again once quitting
 	if quit_callable.is_valid():
 		quit_callable.call()

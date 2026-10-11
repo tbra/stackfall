@@ -528,3 +528,27 @@ func test_quit_tree_helper_exists_and_release_audio_is_idempotent() -> void:
 	_sfx.release_audio()
 	_sfx.release_audio()
 	assert_true(true, "release_audio twice must not error")
+
+
+var _quit_codes: Array[int] = []
+
+
+func _record_quit(exit_code: int) -> void:
+	_quit_codes.append(exit_code)
+
+
+## Bontago-6a4: quit_tree marks once, drains, quits once; a second request during the drain
+## is a no-op and the first exit code is kept.
+func test_quit_tree_second_request_during_drain_is_a_noop() -> void:
+	_quit_codes.clear()
+	_sfx.quit_override = _record_quit
+	QuitFlag._quitting = false
+	_sfx.quit_tree(7)
+	assert_true(QuitFlag.is_quitting(), "first request marks the quit")
+	assert_true(_quit_codes.is_empty(), "still draining: no quit yet")
+	QuitFlag._quitting = false  # a second request that did anything would mark again
+	_sfx.quit_tree(3)
+	assert_false(QuitFlag.is_quitting(), "second request must not mark again")
+	await get_tree().create_timer(_sfx.QUIT_DRAIN_S + 0.3, true, false, true).timeout
+	assert_eq(_quit_codes, [7] as Array[int], "exactly one quit, first exit code kept")
+	QuitFlag._quitting = false
