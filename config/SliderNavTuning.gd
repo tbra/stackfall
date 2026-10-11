@@ -27,3 +27,9 @@ extends Resource
 ## (slower than the d-pad / key repeat).
 @export var stick_repeat_delay_sec: float = 0.6
 @export var stick_repeat_interval_sec: float = 0.2
+
+## Bontago-1pi.159.19 scrolling menus. # DECISION: values chosen by the implementer.
+## The right stick scrolls a FocusScrollContainer when |axis| passes this deadzone ...
+@export_range(0.0, 1.0, 0.01) var scroll_stick_deadzone: float = 0.25
+## ... at up to this many pixels per second at full deflection (scaled by the axis past the deadzone).
+@export var scroll_speed_px_per_sec: float = 900.0
