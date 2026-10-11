@@ -1481,19 +1481,9 @@ func _next_gift_id_for(count: int, head_id: StringName) -> StringName:
 
 
 ## Bontago-sen.3: while Glue charges remain, the held/next previews wear a
-## glue overlay (tint plus drips) drawn over the block image.
+## jelly tint (HoneyCoatTuning.hud_jelly_tint) drawn over the block silhouette.
 const HONEY_TUNING_PATH: String = "res://config/honey_coat_tuning.tres"
-## Blob layout in fractions of the drawn block image: [x, y, radius] of each honey
-## cap blob, and [x, y_top, length, width] of each drip (owner mockup glue(honey).png).
-const GLUE_BLOBS: Array[Vector3] = [Vector3(0.4, 0.2, 0.2), Vector3(0.65, 0.3, 0.14)]
-const GLUE_DRIPS: Array[Vector4] = [Vector4(0.3, 0.25, 0.3, 0.14), Vector4(0.7, 0.35, 0.2, 0.11)]
-const GLUE_MAX_WIDTH_SHARE: float = 0.3
-const GLUE_MAX_BLOB_SHARE: float = 0.22
-const GLUE_EDGE_GROW: float = 1.18
-const GLUE_HIGHLIGHT_SHIFT: Vector2 = Vector2(-0.35, -0.4)
-const GLUE_HIGHLIGHT_SCALE: float = 0.35
 static var _honey_tuning: HoneyCoatTuning = null
-var _preview_bboxes: Dictionary[StringName, Rect2] = {}
 var _glue_active: bool = false
 
 
@@ -1536,71 +1526,6 @@ func _set_glue_active(active: bool) -> void:
 	_glue_active = active
 	_shape_preview.queue_redraw()
 	_next_shape_preview.queue_redraw()
-
-
-## Fraction rect (0..1 of the preview texture) holding its non-transparent pixels, cached
-## per shape. The honey overlay is laid out inside this box so it follows the silhouette
-## instead of spilling off narrow shapes (Bontago-1pi.138 part 2).
-func _preview_opaque_bbox(shape_id: StringName, texture: Texture2D) -> Rect2:
-	if _preview_bboxes.has(shape_id):
-		return _preview_bboxes[shape_id]
-	var box: Rect2 = Rect2(Vector2.ZERO, Vector2.ONE)
-	var image: Image = texture.get_image()
-	if image != null and not image.is_empty():
-		if image.is_compressed():
-			image.decompress()
-		var used: Rect2i = image.get_used_rect()
-		if used.size.x > 0 and used.size.y > 0:
-			var full: Vector2 = Vector2(image.get_size())
-			box = Rect2(Vector2(used.position) / full, Vector2(used.size) / full)
-	_preview_bboxes[shape_id] = box
-	return box
-
-
-## Honey blobs and drips inside `rect` (the silhouette box in control pixels); every
-## primitive is clamped to `rect` so nothing is cut off at any HUD scale.
-func _draw_glue_overlay(control: Control, rect: Rect2) -> void:
-	if _honey_tuning == null:
-		_honey_tuning = load(HONEY_TUNING_PATH) as HoneyCoatTuning
-	var base: Color = _honey_tuning.hud_blob_color
-	var edge: Color = _honey_tuning.hud_blob_edge_color
-	var light: Color = _honey_tuning.hud_blob_highlight
-	var unit: float = minf(rect.size.x, rect.size.y)
-	for d: Vector4 in GLUE_DRIPS:
-		var w: float = minf(unit * d.w, rect.size.x * GLUE_MAX_WIDTH_SHARE)
-		var grow: float = w * GLUE_EDGE_GROW
-		var x: float = clampf(rect.position.x + rect.size.x * d.x, rect.position.x + grow * 0.5, rect.end.x - grow * 0.5)
-		var top: float = rect.position.y + rect.size.y * d.y
-		var len: float = minf(unit * d.z, rect.end.y - top - grow * 0.5)
-		if len <= 0.0:
-			continue
-		control.draw_circle(Vector2(x, top + len), grow * 0.5, edge, true)
-		control.draw_rect(Rect2(x - grow * 0.5, top, grow, len), edge)
-		control.draw_circle(Vector2(x, top + len), w * 0.5, base, true)
-		control.draw_rect(Rect2(x - w * 0.5, top, w, len), base)
-	for b: Vector3 in GLUE_BLOBS:
-		var r: float = minf(unit * b.z, minf(rect.size.x, rect.size.y) * GLUE_MAX_BLOB_SHARE)
-		var outer: float = r * GLUE_EDGE_GROW
-		var c: Vector2 = Vector2(
-			clampf(rect.position.x + rect.size.x * b.x, rect.position.x + outer, rect.end.x - outer),
-			clampf(rect.position.y + rect.size.y * b.y, rect.position.y + outer, rect.end.y - outer))
-		control.draw_circle(c, outer, edge, true)
-		control.draw_circle(c, r, base, true)
-		control.draw_circle(c + GLUE_HIGHLIGHT_SHIFT * r, r * GLUE_HIGHLIGHT_SCALE, light, true)
-
-
-## Glossy amber beads along the silhouette box edges; every bead is clamped inside `rect`.
-func _draw_glue_beads(control: Control, rect: Rect2) -> void:
-	var unit: float = minf(rect.size.x, rect.size.y)
-	for b: Vector3 in _honey_tuning.hud_beads:
-		var r: float = minf(unit * b.z, GLUE_MAX_BLOB_SHARE * unit)
-		var outer: float = r * GLUE_EDGE_GROW
-		var c: Vector2 = Vector2(
-			clampf(rect.position.x + rect.size.x * b.x, rect.position.x + outer, rect.end.x - outer),
-			clampf(rect.position.y + rect.size.y * b.y, rect.position.y + outer, rect.end.y - outer))
-		control.draw_circle(c, outer, _honey_tuning.hud_blob_edge_color, true)
-		control.draw_circle(c, r, _honey_tuning.hud_blob_color, true)
-		control.draw_circle(c + GLUE_HIGHLIGHT_SHIFT * r, r * GLUE_HIGHLIGHT_SCALE, _honey_tuning.hud_blob_highlight, true)
 
 
 func _set_gift_icons(held_id: StringName, next_id: StringName) -> void:
@@ -1727,20 +1652,10 @@ func _draw_static_shape(control: Control, shape: BlockShape, color: Color) -> vo
 	var image_rect: Rect2 = Rect2((control.size - draw_size) * 0.5, draw_size)
 	control.draw_texture_rect(texture, image_rect, false, color)
 	if _glue_active and gift_id == &"":
-		var box: Rect2 = _preview_opaque_bbox(shape.id, texture)
-		var inner: Rect2 = Rect2(image_rect.position + box.position * image_rect.size, box.size * image_rect.size)
 		if _honey_tuning == null:
 			_honey_tuning = load(HONEY_TUNING_PATH) as HoneyCoatTuning
-		if _honey_tuning.look == HoneyCoatTuning.Look.PUDDLE:
-			_draw_glue_overlay(control, inner.intersection(Rect2(Vector2.ZERO, control.size)))
-		else:
-			# Jelly tint follows the silhouette exactly (same texture, amber modulate), beads sit inside the box.
-			if _honey_tuning.has_jelly():
-				control.draw_texture_rect(texture, image_rect, false, _honey_tuning.hud_jelly_tint)
-			if _honey_tuning.has_beads():
-				_draw_glue_beads(control, inner.intersection(Rect2(Vector2.ZERO, control.size)))
-
-
+		# Jelly tint follows the silhouette exactly (same texture, amber modulate).
+		control.draw_texture_rect(texture, image_rect, false, _honey_tuning.hud_jelly_tint)
 
 
 func _on_capture_ring_draw() -> void:

@@ -2311,14 +2311,11 @@ func _process(delta: float) -> void:
 
 
 ## Bontago-sen.3: Glue is a charge modifier, not a held piece. While the
-## local slot has charges the ghost's shape meshes get a glossy glue overlay.
+## local slot has charges the ghost's shape meshes get the translucent jelly shell.
 ## DECISION: look constants live here (GhostTuning is owned elsewhere this
 ## batch); remote ghosts can call set_glue_charges() once RemoteCursors
 ## mirrors Match.glue_drops_left().
-const HONEY_COAT_TUNING_PATH: String = "res://config/honey_coat_tuning.tres"
 var _glue_charges: int = 0
-var _glue_overlay: ShaderMaterial = null
-var _honey_tuning: HoneyCoatTuning = null
 
 
 func set_glue_charges(charges: int) -> void:
@@ -2339,18 +2336,12 @@ func is_glue_overlay_active() -> bool:
 func _apply_glue_overlay() -> void:
 	if _shape_visual == null:
 		return
-	if _glue_overlay == null and _glue_charges > 0:
-		_honey_tuning = load(HONEY_COAT_TUNING_PATH) as HoneyCoatTuning
-		_glue_overlay = _honey_tuning.build_ghost_material()
 	for child: Node in _shape_visual.get_children():
 		var mesh_instance: MeshInstance3D = child as MeshInstance3D
 		if mesh_instance != null:
-			# Bontago-lv2: jelly/beads looks draw child shells; only the PUDDLE look keeps the material overlay.
 			# Loaded by path, not by class name: HoneyCoat reaches Block, which would grow the layer-lint SCC.
 			var honey_coat: GDScript = LateScripts.script(LateScripts.HONEY_COAT)
-			if bool(honey_coat.call(&"set_ghost_coated", mesh_instance, _glue_cell_centres(), _glue_charges > 0)):
-				continue
-			mesh_instance.material_overlay = _glue_overlay if _glue_charges > 0 else null
+			honey_coat.call(&"set_ghost_coated", mesh_instance, _glue_cell_centres(), _glue_charges > 0)
 
 
 ## Block-local cell centres of the held shape (same pivot rule as BlockFactory.build).

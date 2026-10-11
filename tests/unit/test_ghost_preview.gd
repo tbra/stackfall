@@ -11,10 +11,6 @@ func _make_ghost() -> GhostPreview:
 
 
 func test_glue_overlay_toggles_with_charges() -> void:
-	# Legacy PUDDLE look uses the material overlay (the jelly default draws child shells, see test_honey_coat).
-	var tuning: HoneyCoatTuning = load("res://config/honey_coat_tuning.tres") as HoneyCoatTuning
-	tuning.look = HoneyCoatTuning.Look.PUDDLE
-	HoneyCoat.release_statics()
 	var ghost: GhostPreview = _make_ghost()
 	assert_false(ghost.is_glue_overlay_active())
 	ghost.set_glue_charges(5)
@@ -25,11 +21,10 @@ func test_glue_overlay_toggles_with_charges() -> void:
 		if mesh != null:
 			break
 	assert_not_null(mesh)
-	assert_not_null(mesh.material_overlay)
-	ghost.set_glue_charges(0)
+	assert_not_null(mesh.get_node_or_null(HoneyCoat.COAT_NODE_NAME), "jelly shell child")
 	assert_null(mesh.material_overlay)
-	tuning.look = HoneyCoatTuning.Look.JELLY_BEADS
-	HoneyCoat.release_statics()
+	ghost.set_glue_charges(0)
+	assert_null(mesh.get_node_or_null(HoneyCoat.COAT_NODE_NAME))
 
 
 func test_default_orientation_is_identity() -> void:
