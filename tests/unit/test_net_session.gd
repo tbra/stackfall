@@ -357,16 +357,35 @@ func test_a_join_after_the_match_starts_is_refused_and_disturbs_nobody() -> void
 
 
 func test_joins_resume_once_the_match_returns_to_the_lobby() -> void:
+	# Bontago-5pk: under a loaded gate shard the loopback connect sometimes never
+	# landed within the wait (no refusal ever came, so the assert and the
+	# parameters read failed). Same remedy as _connect_host_and_client: bound
+	# each attempt, retry on a fresh port, and print the attempt on a miss.
 	var port: int = _take_port()
-	assert_eq(_host.host_game(port, "Hostie"), OK)
-	_host.set_accepting_joins(false)
-
+	var refused: bool = false
 	watch_signals(Events)
-	assert_eq(_client.join_game("127.0.0.1", port, "Clienty"), OK)
-	var refused: bool = await _wait_until(func() -> bool:
-		return get_signal_emit_count(Events, "net_join_failed") > 0
-	)
+	for attempt: int in _PAIR_ATTEMPTS:
+		if attempt > 0:
+			_client.leave()
+			_host.leave()
+			await get_tree().process_frame
+			await get_tree().process_frame
+			port = _take_port()
+			watch_signals(Events)
+		assert_eq(_host.host_game(port, "Hostie"), OK)
+		_host.set_accepting_joins(false)
+		assert_eq(_client.join_game("127.0.0.1", port, "Clienty"), OK)
+		refused = await _wait_until_msec(func() -> bool:
+			return get_signal_emit_count(Events, "net_join_failed") > 0,
+			_PAIR_ATTEMPT_MSEC
+		)
+		if refused:
+			break
+		print("net-flake: refusal attempt %d on port %d never arrived (host mode %d, client mode %d)" % [
+			attempt, port, _host.mode(), _client.mode()])
 	assert_true(refused, "refused while the match runs")
+	if not refused:
+		return
 	assert_eq(get_signal_parameters(Events, "net_join_failed")[0], Net.JoinError.MATCH_IN_PROGRESS)
 	assert_eq(_host.peer_ids().size(), 1, "the host is still alone")
 	assert_eq(_client.mode(), Net.Mode.OFFLINE)
