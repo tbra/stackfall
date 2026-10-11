@@ -158,6 +158,9 @@ var _beacon_visuals: BeaconVisualTuning = preload("res://config/beacon_visual_tu
 var replicated_dissolve_starts: Array[int] = []
 ## Host: live glue bond count per block net_id (only blocks with a bond are present).
 var _glue_bond_counts: Dictionary = {}
+## Bontago-1pi.85.72: net ids of charged glue drops coated at spawn (cleared when their
+## last bond ends, as that is when the coat is removed).
+var _glue_charged_ids: Dictionary = {}
 ## Test-only (Bontago-1pi.52): how many times each event name reached
 ## replicate_match_event() on the host, counted before its NetFanout.can_send() gate
 ## (false in a unit test). Proves a refusal was never broadcast to every peer.
@@ -373,6 +376,7 @@ func _ready() -> void:
 	Events.special_consumed.connect(_on_special_consumed)
 	Events.glue_charges_changed.connect(_on_glue_charges_changed)
 	Events.glue_bond_changed.connect(_on_glue_bond_changed)
+	Events.glue_drop_charged.connect(_on_glue_drop_charged)
 	Events.block_owner_changed.connect(_on_block_owner_changed)
 	Events.block_frozen_changed.connect(_on_block_frozen_changed)
 	Events.cat_started.connect(_on_cat_started)
@@ -1015,6 +1019,7 @@ func reset_counters() -> void:
 	match_starts_replicated = 0
 	replicated_dissolve_starts.clear()
 	_glue_bond_counts.clear()
+	_glue_charged_ids.clear()
 
 
 # --- Host-side intent handling ----------------------------------------------
@@ -1723,9 +1728,23 @@ func _on_glue_bond_changed(body_a: Node, body_b: Node, formed: bool) -> void:
 			_glue_bond_counts[block.net_id] = after
 		else:
 			_glue_bond_counts.erase(block.net_id)
+		if after == 0:
+			_glue_charged_ids.erase(block.net_id)
 		if (before > 0) != (after > 0):
 			_set_block_coated(block, after > 0)
 			replicate_match_event(EVENT_BLOCK_GLUED, [block.net_id, after > 0])
+
+
+## Host: a charged glue drop is coated (and the coat replicated) at spawn, so it
+## wears the jelly while falling. DECISION: a never-bonded charged block stays coated;
+## the existing 1 -> 0 bond transition already only fires for blocks that bonded.
+func _on_glue_drop_charged(body: Node) -> void:
+	var block: BlockBody = body as BlockBody
+	if not _session().is_host() or block == null or not Quantize.is_wire_id(block.net_id):
+		return
+	_glue_charged_ids[block.net_id] = true
+	_set_block_coated(block, true)
+	replicate_match_event(EVENT_BLOCK_GLUED, [block.net_id, true])
 
 
 func _on_block_owner_changed(net_id: int, owner_slot: int) -> void:
@@ -1750,6 +1769,7 @@ func _on_block_removed(block: RigidBody3D, reason: String) -> void:
 	var typed: BlockBody = block as BlockBody
 	if typed != null:
 		_glue_bond_counts.erase(typed.net_id)
+		_glue_charged_ids.erase(typed.net_id)
 		replicate_despawn(typed.net_id, reason)
 
 
@@ -2193,6 +2213,9 @@ func build_world_replay(replay_id: int = 0) -> Array[Array]:
 			messages.append(_event(EVENT_BLOCK_FROZEN, frozen_payload))
 		# Bontago-1pi.85.52: honey coat of currently glued blocks.
 		var glued_ids: Array = _glue_bond_counts.keys()
+		for charged_id: int in _glue_charged_ids:
+			if not glued_ids.has(charged_id):
+				glued_ids.append(charged_id)
 		glued_ids.sort()
 		for glued_id: int in glued_ids:
 			messages.append(_event(EVENT_BLOCK_GLUED, [glued_id, true]))

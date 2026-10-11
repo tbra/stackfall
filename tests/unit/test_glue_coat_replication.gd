@@ -167,3 +167,27 @@ func test_set_coated_is_idempotent_and_does_not_add_nodes_per_call() -> void:
 	var count: int = a.get_node("BlockMesh").get_child_count()
 	HoneyCoat.set_coated(a, true)
 	assert_eq(a.get_node("BlockMesh").get_child_count(), count)
+
+
+## Bontago-1pi.85.72: a charged drop is coated at spawn (before any bond), replicated,
+## and replayed to late joiners; it uncoats only once a bond it formed ends.
+func test_charged_drop_is_coated_at_spawn_and_replayed_to_late_joiners() -> void:
+	var host: MatchNetScript = _make_net(false)
+	_start_playing()
+	var a: Block = _block(251)
+	var drops: GlueDrops = GlueDrops.new()
+	a.add_child(drops)
+	drops.bind(a, _tuning)
+	Events.glue_drop_charged.emit(a)
+	assert_true(HoneyCoat.is_coated(a), "coated while still falling, no bond yet")
+	assert_eq(int(host.replicated_event_counts.get(MatchNetScript.EVENT_BLOCK_GLUED, 0)), 1)
+	assert_eq(_glued_events(host.build_world_replay()), [[251, true]])
+	var b: Block = _block(252)
+	assert_true(drops.try_bond(b))
+	assert_true(HoneyCoat.is_coated(a))
+	for child: Node in a.get_children():
+		if child is GlueJoint:
+			(child as GlueJoint).apply_stress_sample(INF)
+	await get_tree().process_frame
+	assert_false(HoneyCoat.is_coated(a), "bond ended -> coat removed")
+	assert_eq(_glued_events(host.build_world_replay()), [])
