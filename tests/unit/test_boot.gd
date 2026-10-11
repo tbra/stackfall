@@ -41,7 +41,7 @@ func test_missing_main_scene_fails_instead_of_hanging() -> void:
 	boot.queue_free()
 
 
-## S2b: the late scripts are prewarmed and autoloads activated before Main joins the root.
+## S2b: (synchronous path) the late scripts are loaded and autoloads activated before Main joins the root.
 func test_activation_hook_runs_before_main_is_added() -> void:
 	var probe: Node = Node.new()
 	probe.set_script(load("res://tests/unit/support/LateActivationProbe.gd"))
@@ -61,7 +61,6 @@ func test_activation_hook_runs_before_main_is_added() -> void:
 
 
 const FIXTURE_SCENE: String = "res://tests/unit/support/BootFixture.tscn"
-const FIXTURE_LATE: String = "res://tests/unit/support/BootFixtureLate.gd"
 ## Frames the quit-deferral test waits for the worker before giving up.
 const WAIT_FRAME_LIMIT: int = 600
 
@@ -94,19 +93,28 @@ func test_exit_collects_inflight_main_load() -> void:
 	get_tree().auto_accept_quit = true
 
 
-func test_exit_collects_inflight_prewarm_request() -> void:
+## Bontago-1pi.11.85.2: the threaded path hands Main over right after Main.tscn is collected, with
+## no LateScripts prewarm and no autoload activation (Main does both behind the menu).
+func test_threaded_boot_starts_main_without_prewarm_or_activation() -> void:
+	var probe: Node = Node.new()
+	probe.set_script(load("res://tests/unit/support/LateActivationProbe.gd"))
+	get_tree().root.add_child(probe)
 	var boot: Boot = _threaded_boot(FIXTURE_SCENE)
 	add_child(boot)
-	boot._collect_pending()  # finish the Main phase, then queue a prewarm request
-	boot.collected_resource = null
-	boot._prewarm_paths = PackedStringArray([FIXTURE_LATE])
-	boot._prewarm_index = 0
-	assert_true(boot._request_prewarm(), "prewarm request queued")
-	remove_child(boot)
-	assert_eq(ResourceLoader.load_threaded_get_status(FIXTURE_LATE), ResourceLoader.THREAD_LOAD_INVALID_RESOURCE)
-	assert_not_null(boot.collected_resource, "the prewarm load completed")
-	boot.free()
-	get_tree().auto_accept_quit = true
+	var frames: int = 0
+	while get_tree().root.get_node_or_null(NodePath(Boot.MAIN_NODE_NAME)) == null and frames < WAIT_FRAME_LIMIT:
+		await get_tree().process_frame
+		frames += 1
+	var main: Node = get_tree().root.get_node_or_null(NodePath(Boot.MAIN_NODE_NAME))
+	assert_not_null(main, "Main started once Main.tscn was collected")
+	assert_eq(probe.get("calls"), 0, "Boot does not activate the autoloads on the threaded path")
+	assert_true(get_tree().auto_accept_quit, "the engine owns the close request again")
+	if main != null:
+		main.queue_free()
+	probe.queue_free()
+	get_tree().current_scene = null
+	await get_tree().process_frame
+	await get_tree().process_frame
 
 
 func test_close_request_is_deferred_until_load_collected() -> void:
