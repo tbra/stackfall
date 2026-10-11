@@ -240,6 +240,8 @@ func _make_ready_match(slot_id: int) -> BotControllerFakeMatch:
 func _make_controller(field: Field, match_ref: BotControllerFakeMatch, net_ref: BotControllerFakeNet) -> BotController:
 	var controller: BotController = BotController.new()
 	add_child_autofree(controller)
+	# P7 (Bontago-1t5.38): these tests exercise the legacy pipeline; V2 tests opt in via set_brain.
+	controller.set_brain(BotController.Brain.LEGACY)
 	controller.set_match_provider(match_ref)
 	controller.set_net_provider(net_ref)
 	return controller
@@ -386,6 +388,7 @@ func test_send_best_placement_resamples_support_height_at_the_noisy_origin() -> 
 	var net_ref: BotControllerFakeNet = BotControllerFakeNet.new()
 	var controller: BotControllerForcedNoise = BotControllerForcedNoise.new()
 	add_child_autofree(controller)
+	controller.set_brain(BotController.Brain.LEGACY)
 	controller.set_match_provider(match_ref)
 	controller.set_net_provider(net_ref)
 	controller.forced_origin = Vector2(0.0, 0.0)
@@ -534,6 +537,7 @@ func test_fire_stability_raycasts_counts_only_corners_within_tolerance() -> void
 	var net_ref: BotControllerFakeNet = BotControllerFakeNet.new()
 	var controller: BotControllerForcedNoise = BotControllerForcedNoise.new()
 	add_child_autofree(controller)
+	controller.set_brain(BotController.Brain.LEGACY)
 	controller.set_match_provider(match_ref)
 	controller.set_net_provider(net_ref)
 	controller.forced_origin = Vector2(0.0, 0.0)

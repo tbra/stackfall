@@ -1,6 +1,8 @@
 # Bot AI redesign (Bontago-1t5.17)
 
 Base main 75075586. Part 1 (audit) below; Part 2 (plan) is written separately from this audit.
+
+**Status (Bontago-1t5.38, P7 done):** the V2 brain is the default everywhere a bot is created without an explicit choice (BotController, lobby, headless, bench). The legacy brain stays selectable with `--bot-brain=legacy` for one release, then is removed. Gates: E4 deferred and E6 waived by the owner (2026-10-11, "the speed is fine"), E7 accepted by the owner ("huge improvement"). Tier profiles: easy_v2/normal_v2/hard_v2 via `BotTuning.profile_for_brain`. docs/SPEC.md 2.9 now describes the V2 behaviour (2.7).
 Evidence: 128 recorded 8-bot Hard matches (47k decisions, M:/Bontago-tools/scratch/t1-run/data; classic 64 matches, elimination 60), code read, and three off-screen 4-seat watch runs (analysis scripts a1/a3/a4.py and sheets in M:/Bontago-tools/scratch/bot-plan/: sheet_4bot_hard_classic.png, sheet_1bot_vs_passive.png).
 
 ## 1. Audit

@@ -780,14 +780,14 @@ func _bot_weight_overrides_for_header() -> Dictionary:
 
 # --- Bot V2 brain selection (Bontago-1t5.19) ----------------------------------
 #
-# `--bot-brain=<legacy|v2>` picks the decision pipeline (default legacy) and
-# `--bot-brain-slots=<csv>` limits it to the named bot slots; every other bot stays legacy.
+# `--bot-brain=<legacy|v2>` picks the decision pipeline (default v2; legacy stays selectable for one release) and
+# `--bot-brain-slots=<csv>` limits it to the named bot slots; every other bot gets the legacy brain (the h2h baseline).
 # Without --bot-brain-slots the brain applies to every bot slot.
 
 var _bot_brain_by_slot: Dictionary = {}  # slot_id -> BotController.Brain (bot slots only)
 
 
-## `--bot-brain=`; LEGACY when absent, and an unknown value warns and means LEGACY.
+## `--bot-brain=`; V2 when absent (Bontago-1t5.38), and an unknown value warns and means V2.
 func _bot_brain_arg(args: PackedStringArray) -> BotController.Brain:
 	return brain_from_args(args)
 
@@ -804,12 +804,12 @@ static func brain_from_args(args: PackedStringArray) -> BotController.Brain:
 			value = text.substr("bot-brain=".length()).to_lower()
 			break
 	match value:
-		"", "legacy":
+		"legacy":
 			return BotController.Brain.LEGACY
-		"v2":
+		"", "v2":
 			return BotController.Brain.V2
-	push_warning("--bot-brain=%s is not legacy|v2; bots keep the legacy brain" % value)
-	return BotController.Brain.LEGACY
+	push_warning("--bot-brain=%s is not legacy|v2; bots use the v2 brain" % value)
+	return BotController.Brain.V2
 
 
 func _load_bot_brains(args: PackedStringArray, bots: int) -> void:
