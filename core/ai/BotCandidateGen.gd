@@ -27,13 +27,29 @@ static func sites(
 	view: BotWorldView, intent: BotIntent, profile: BotDifficultyProfile,
 	rng: RandomNumberGenerator, tuning: BotGenTuning = null
 ) -> Array[BotCandidate]:
+	var job: SiteJob = begin(view, intent, profile, rng, tuning)
+	while not job.fill_step(job.attempts_left()):
+		pass
+	return job.out
+
+
+## Resumable form of `sites` (Bontago-1t5.30): the targeted TIP / STACK sites are built here;
+## the uniform FILL (the costly part: hundreds of rejected validate_point draws) is then run in
+## `SiteJob.fill_step` slices. The RNG draw order is identical to `sites`, so a fixed seed gives
+## the same sites whatever the slice size.
+static func begin(
+	view: BotWorldView, intent: BotIntent, profile: BotDifficultyProfile,
+	rng: RandomNumberGenerator, tuning: BotGenTuning = null
+) -> SiteJob:
 	var out: Array[BotCandidate] = []
+	var job: SiteJob = SiteJob.new()
+	job.out = out
 	if view == null or view.held == null or view.raster == null or view.grid == null:
-		return out
+		return job
 	var t: BotGenTuning = tuning if tuning != null else SHIPPED_TUNING
 	var infos: Array[BotStatics.OrientationInfo] = BotStatics.orientation_infos(view.held, t)
 	if infos.is_empty():
-		return out
+		return job
 	var total: int = maxi(profile.candidate_count, 0)
 	var gen: _Gen = _Gen.new(view, t, infos, out, total)
 	var tip_share: float = t.tip_share
@@ -60,8 +76,8 @@ static func sites(
 	var tip_kind: int = SITE_STRIKE if threat_kind else SITE_TIP
 	gen.add_tip_sites(_target_for(view, intent, threat_kind), tip_kind, tip_quota)
 	gen.add_stack_sites(_target_for(view, intent, threat_kind), stack_quota)
-	gen.add_fill_sites(rng, total)
-	return out
+	job.start_fill(gen, rng, total)
+	return job
 
 
 ## Where the intent wants to go: its target, or the focus enemy circle's centre when
@@ -70,6 +86,39 @@ static func _target_for(view: BotWorldView, intent: BotIntent, threat_kind: bool
 	if threat_kind and intent.focus_circle >= 0 and intent.focus_circle < view.circle_count():
 		return Vector2(view.cx[intent.focus_circle], view.cz[intent.focus_circle])
 	return intent.target
+
+
+## An in-flight site generation; `out` is complete once `fill_step` returns true.
+class SiteJob:
+	extends RefCounted
+	var out: Array[BotCandidate] = []
+	var _gen: _Gen = null
+	var _rng: RandomNumberGenerator = null
+	var _allowed: Array[BotStatics.OrientationInfo] = []
+	var _attempts: int = 0
+
+	func start_fill(gen: _Gen, rng: RandomNumberGenerator, budget: int) -> void:
+		_gen = gen
+		_rng = rng
+		var needed: int = budget - out.size()
+		if needed <= 0:
+			return
+		_allowed = gen.fill_orientations()
+		_attempts = needed * maxi(gen.t.fill_attempts_per_site, 1)
+
+	func attempts_left() -> int:
+		return _attempts
+
+	## Runs at most `max_attempts` fill draws; true once the fill is finished.
+	func fill_step(max_attempts: int) -> bool:
+		if _gen == null:
+			return true
+		var left: int = maxi(max_attempts, 1)
+		while left > 0 and _attempts > 0 and not _gen.is_full():
+			left -= 1
+			_attempts -= 1
+			_gen.fill_one(_rng, _allowed)
+		return _attempts <= 0 or _gen.is_full()
 
 
 ## Per-call generation state (keeps the static entry point short).
@@ -275,25 +324,28 @@ class _Gen:
 					var point: Vector2 = (entry["center"] as Vector2) + jitter * t.stack_jitter_m
 					_try_add(point, orientation, SITE_STACK, true, entry["top"] as float)
 
-	## Uniform samples of own territory until the budget is met or attempts run out.
-	func add_fill_sites(rng: RandomNumberGenerator, budget: int) -> void:
-		var needed: int = budget - out.size()
-		if needed <= 0:
-			return
+	## Orientations the uniform fill may use (low tip risk; the least risky when none is).
+	func fill_orientations() -> Array[BotStatics.OrientationInfo]:
 		var allowed: Array[BotStatics.OrientationInfo] = []
 		for info: BotStatics.OrientationInfo in infos:
 			if info.flat_risk <= t.fill_risk_max:
 				allowed.append(info)
 		if allowed.is_empty():
 			allowed.append(_least_risky())
-		var attempts: int = needed * maxi(t.fill_attempts_per_site, 1)
-		while not is_full() and attempts > 0:
-			attempts -= 1
-			var angle: float = rng.randf() * TAU
-			var dist: float = sqrt(rng.randf()) * view.field_radius
-			var point: Vector2 = Vector2(cos(angle), sin(angle)) * dist
-			var orientation: BotStatics.OrientationInfo = allowed[rng.randi() % allowed.size()]
-			_try_add(point, orientation, SITE_FILL, false, 0.0)
+		return allowed
+
+	## One uniform sample of the disk; a site is added when it is own, valid territory.
+	func fill_one(rng: RandomNumberGenerator, allowed: Array[BotStatics.OrientationInfo]) -> void:
+		var angle: float = rng.randf() * TAU
+		var dist: float = sqrt(rng.randf()) * view.field_radius
+		var point: Vector2 = Vector2(cos(angle), sin(angle)) * dist
+		var orientation: BotStatics.OrientationInfo = allowed[rng.randi() % allowed.size()]
+		# Cheap reject first (Bontago-1t5.30): a draw outside the team's own territory can never
+		# be VALID, and most draws are, so the full validate_point chain runs only for the rest.
+		var cell: Vector2i = view.grid.world_to_cell(point)
+		if view.raster.team_at(cell.x, cell.y) != view.team_id:
+			return
+		_try_add(point, orientation, SITE_FILL, false, 0.0)
 
 	## Adds the site when placeable and not a duplicate; true when added.
 	func _try_add(

@@ -3,9 +3,10 @@ extends RefCounted
 ## Bot V2 (docs/BOT_AI_REDESIGN.md 2.3): one resumable think-cycle for one piece. The
 ## assembled pipeline, each stage resumable under the caller's microsecond budget:
 ##   PLAN     BotChains + BotStrategy.choose -> BotIntent                (one chunk)
-##   SITES    BotCandidateGen.sites for the intent                       (one chunk)
+##   SITES    BotCandidateGen.begin: the targeted TIP / STACK sites       (one chunk)
+##   FILL     the uniform FILL draws, fill_chunk_attempts per step        (sliced)
 ##   PROBE    support ray + one ray per footprint cell, statics -> tip_risk (per site)
-##   RANK     BotEvaluator.proxy on every site, best first
+##   RANK     BotEvaluator.proxy on every site, rank_chunk_sites per step, best first
 ##   MEASURE  BotEvaluator.measure on the top `eval_top_k` (skipped when 0) (per site)
 ##   PICK     argmax, or a softmax sample from the best `pick_pool`; the origin is
 ##            re-validated against the live raster (state can move during the think)
@@ -24,7 +25,7 @@ const MIN_TEMPERATURE: float = 0.001
 const INTENT_LOG_ARG: String = "--bot-intent-log"
 
 enum DecisionKind { PLACE, WAIT }
-enum Phase { PLAN, SITES, PROBE, RANK, MEASURE, PICK, DONE }
+enum Phase { PLAN, SITES, FILL, PROBE, RANK, MEASURE, PICK, DONE }
 
 static var _intent_log: int = -1
 ## Per-seat BotStrategy stickiness memory (slot id -> Dictionary), kept between pieces.
@@ -47,6 +48,9 @@ var tuning: BotTuning = SHIPPED_TUNING
 ## Test hooks: null = the shipped resources.
 var strategy_tuning: BotStrategyTuning = null
 var gen_tuning: BotGenTuning = null
+## Optional cheaper probe for the per-footprint-cell rays (they only read `hit` and `height`,
+## never `own`); falls back to the step's `probe` when not valid. (Bontago-1t5.30)
+var cell_probe: Callable = Callable()
 
 var _view: BotWorldView
 var _profile: BotDifficultyProfile
@@ -55,6 +59,9 @@ var _phase: Phase = Phase.PLAN
 var _chains: BotChains = null
 var _intent: BotIntent = BotIntent.new()
 var _candidates: Array[BotCandidate] = []
+var _site_job: BotCandidateGen.SiteJob = null
+## Next candidate the sliced proxy RANK scores.
+var _rank_pos: int = 0
 var _probe_index: int = 0
 ## Candidate indices ranked best first (proxy, then measured on the head).
 var _ranked: PackedInt32Array = PackedInt32Array()
@@ -90,17 +97,20 @@ func step(budget_usec: int, probe: Callable) -> bool:
 func finish_early() -> void:
 	if _phase == Phase.DONE:
 		return
-	if _phase == Phase.PLAN or _phase == Phase.SITES:
+	if _phase == Phase.PLAN or _phase == Phase.SITES or _phase == Phase.FILL:
 		if _view.held == null:
 			_phase = Phase.DONE
 			_wait()
 			return
 		_plan()
-		_make_sites()
+		if _phase != Phase.FILL:
+			_make_sites()
+		while _phase == Phase.FILL:
+			_fill_sites(_site_job.attempts_left())
 	if _phase == Phase.PROBE:
-		_rank(_probe_index if _probe_index > 0 else _candidates.size())
+		_rank_all(_probe_index if _probe_index > 0 else _candidates.size())
 	elif _phase == Phase.RANK:
-		_rank(_candidates.size())
+		_rank_all(_candidates.size())
 	_pick()
 
 
@@ -138,10 +148,12 @@ func _advance(probe: Callable) -> void:
 			_phase = Phase.SITES
 		Phase.SITES:
 			_make_sites()
+		Phase.FILL:
+			_fill_sites(_gen().fill_chunk_attempts)
 		Phase.PROBE:
 			_probe_one(probe)
 		Phase.RANK:
-			_rank(_candidates.size())
+			_rank_slice(_gen().rank_chunk_sites)
 		Phase.MEASURE:
 			_measure_one()
 		Phase.PICK:
@@ -159,10 +171,22 @@ func _plan() -> void:
 	_strategy_memory[_view.slot_id] = memory
 
 
+func _gen() -> BotGenTuning:
+	return gen_tuning if gen_tuning != null else BotCandidateGen.SHIPPED_TUNING
+
+
+## Builds the targeted sites; the uniform FILL then runs in FILL slices (Bontago-1t5.30).
 func _make_sites() -> void:
-	_candidates = BotCandidateGen.sites(_view, _intent, _profile, _rng, gen_tuning)
+	_site_job = BotCandidateGen.begin(_view, _intent, _profile, _rng, gen_tuning)
+	_candidates = _site_job.out
 	_probe_index = 0
-	_phase = Phase.PROBE if not _candidates.is_empty() else Phase.PICK
+	_phase = Phase.FILL
+
+
+func _fill_sites(max_attempts: int) -> void:
+	if _site_job.fill_step(max_attempts):
+		_site_job = null
+		_phase = Phase.PROBE if not _candidates.is_empty() else Phase.PICK
 
 
 func _probe_one(probe: Callable) -> void:
@@ -184,13 +208,14 @@ func _probe_one(probe: Callable) -> void:
 func _fire_cell_probes(candidate: BotCandidate, probe: Callable) -> void:
 	var cells: PackedInt32Array = candidate.footprint_cells
 	var count: int = maxi(mini(_profile.stability_raycast_count, cells.size()), 0)
+	var cell_ray: Callable = cell_probe if cell_probe.is_valid() else probe
 	candidate.cell_support.resize(count)
 	var hits: int = 0
 	for i: int in range(count):
 		candidate.cell_support[i] = NO_SUPPORT
 		if _view.raster != null and _view.raster.is_hole_index(cells[i]):
 			continue
-		var cell_hit: Dictionary = probe.call(_view.grid.index_center(cells[i])) as Dictionary
+		var cell_hit: Dictionary = cell_ray.call(_view.grid.index_center(cells[i])) as Dictionary
 		if not bool(cell_hit.get("hit", false)):
 			continue
 		var height: float = float(cell_hit.get("height", 0.0))
@@ -200,16 +225,37 @@ func _fire_cell_probes(candidate: BotCandidate, probe: Callable) -> void:
 	candidate.corner_support_hits = hits
 
 
+## Proxy-scores the next `count` sites; ranks them best first after the last one.
+func _rank_slice(count: int) -> void:
+	_scores.resize(_candidates.size())
+	_terms.resize(_candidates.size())
+	var stop: int = mini(_rank_pos + maxi(count, 1), _candidates.size())
+	while _rank_pos < stop:
+		_score_proxy(_rank_pos)
+		_rank_pos += 1
+	if _rank_pos >= _candidates.size():
+		_finish_rank(_candidates.size())
+
+
 ## Proxy-scores sites [0, limit) and ranks them best first (ties keep generation order).
-func _rank(limit: int) -> void:
+func _rank_all(limit: int) -> void:
 	limit = mini(limit, _candidates.size())
 	_scores.resize(_candidates.size())
 	_terms.resize(_candidates.size())
+	for i: int in range(_rank_pos, limit):
+		_score_proxy(i)
+	_finish_rank(limit)
+
+
+func _score_proxy(i: int) -> void:
+	var terms: PackedFloat32Array = BotEvaluator.proxy_terms(_candidates[i], _view, _intent)
+	_terms[i] = terms
+	_scores[i] = _site_score(_candidates[i], terms)
+
+
+func _finish_rank(limit: int) -> void:
 	var order: Array[int] = []
 	for i: int in range(limit):
-		var terms: PackedFloat32Array = BotEvaluator.proxy_terms(_candidates[i], _view, _intent)
-		_terms[i] = terms
-		_scores[i] = _site_score(_candidates[i], terms)
 		order.append(i)
 	order.sort_custom(_better)
 	_ranked = PackedInt32Array(order)
