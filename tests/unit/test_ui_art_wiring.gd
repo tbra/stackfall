@@ -65,10 +65,10 @@ func test_lobby_section_headers_and_chips_show_icons() -> void:
 		var section: UiSection = lobby.get_node(path) as UiSection
 		assert_eq(section.header_icon(), UiArtTable.shared().lobby_icon(expected[path] as StringName), path)
 		if section.advanced_button != null:
-			assert_true(section.advanced_button.text.begins_with(UiSection.DISCLOSURE_CLOSED), "collapsed triangle")
+			assert_eq(section.advanced_button.text, UiSection.ADVANCED_CHIP_TEXT, "triangle is drawn, not text")
 			assert_true(section.advanced_button.get_theme_stylebox(&"normal") is StyleBoxFlat, "Arcade: a disc-700 bar (not a block button), Bontago-hfa.5")
 			section.set_advanced_open(true)
-			assert_true(section.advanced_button.text.begins_with(UiSection.DISCLOSURE_OPEN), "open triangle")
+			assert_eq(section.advanced_button.text, UiSection.ADVANCED_CHIP_TEXT)
 
 
 func test_lobby_bot_and_team_controls_show_icons() -> void:

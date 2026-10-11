@@ -80,10 +80,11 @@ func test_section_starts_collapsed_with_a_right_caret_and_toggles() -> void:
 	var opened: Array[bool] = []
 	section.advanced_changed.connect(func(open: bool) -> void: opened.append(open))
 	assert_false(section.advanced.visible)
-	assert_eq(section.advanced_button.text, "%s ADVANCED" % UiSection.DISCLOSURE_CLOSED)
+	assert_eq(section.advanced_button.text, UiSection.ADVANCED_CHIP_TEXT)
+	assert_not_null(section.advanced_button.get_node_or_null("DisclosureArrow"), "drawn triangle")
 	section.advanced_button.toggled.emit(true)
 	assert_true(section.advanced.visible)
-	assert_eq(section.advanced_button.text, "%s ADVANCED" % UiSection.DISCLOSURE_OPEN)
+	assert_eq(section.advanced_button.text, UiSection.ADVANCED_CHIP_TEXT)
 	section.toggle_advanced()
 	assert_eq(opened, [true, false])
 	section.set_advanced_open(false)
@@ -131,7 +132,6 @@ func test_lobby_section_is_a_thin_layer_over_ui_section() -> void:
 	assert_true(lobby_section is UiSection)
 	lobby_section.set_summary("Classic")
 	assert_eq(lobby_section.get_summary(), "Classic")
-	assert_eq(UiSection.DISCLOSURE_CLOSED, UiSection.DISCLOSURE_CLOSED)
 
 
 func test_panel_heading_is_uppercase_with_content_column() -> void:
@@ -170,3 +170,13 @@ func test_title_row_centres_trailing_items_on_one_line() -> void:
 	var centre_badge: float = badge.global_position.y + badge.size.y * 0.5
 	assert_almost_eq(centre_label, centre_badge, 1.0, "title and badge share a centre line")
 	assert_gt(back.global_position.x, badge.global_position.x, "trailing items are pushed right in order")
+
+
+func test_disclosure_triangle_is_one_shape_turned_ninety_degrees() -> void:
+	var closed: PackedVector2Array = UiSection.disclosure_points(false, Vector2.ZERO, 10.0)
+	var open: PackedVector2Array = UiSection.disclosure_points(true, Vector2.ZERO, 10.0)
+	assert_eq(closed.size(), 3)
+	assert_eq(open.size(), 3)
+	assert_eq(closed[1] - closed[0], Vector2(10.0, 5.0))
+	assert_eq(open[1] - open[0], Vector2(10.0, 0.0))
+	assert_eq(open[2], Vector2(5.0, 10.0), "tip points down")

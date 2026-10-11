@@ -104,7 +104,10 @@ func _row_subtitle(row: Node) -> String:
 
 func _row_badge(row: Node) -> String:
 	var layout: HBoxContainer = _row_layout(row)
-	return ((layout.get_child(layout.get_child_count() - 1) as PanelContainer).get_child(0) as Label).text
+	var badge: UiStatusBadge = layout.get_child(layout.get_child_count() - 1) as UiStatusBadge
+	if UiStatusBadge.has_mark(badge.variant):
+		return "tick" if badge.variant == UiStatusBadge.Look.READY else "hourglass"
+	return badge.label.text
 
 
 func _row_badge_tip(row: Node) -> String:
@@ -191,7 +194,7 @@ func test_human_rows_name_subtitle_and_ready_badge() -> void:
 	assert_eq(_header_of(lobby).text, "2 players · 2/%d seats" % MatchConfig.PLAYER_COUNT_MAX)
 	assert_eq(_row_name(rows[1]), "Guest")
 	assert_eq(_row_subtitle(rows[1]), "LAN · 0 ms")
-	assert_eq(_row_badge(rows[1]), char(0x231A))
+	assert_eq(_row_badge(rows[1]), "hourglass")
 	assert_eq(_row_badge_tip(rows[1]), "Not ready")
 
 
@@ -210,7 +213,7 @@ func test_host_crown_shows_for_a_client_too_and_guest_keeps_its_pill() -> void:
 	Events.net_lobby_data_changed.emit(_two_humans_data(false))
 	var rows: Array[Node] = _panel_of(lobby)._player_rows
 	_assert_host_crown(rows[0])
-	assert_eq(_row_badge(rows[1]), char(0x231A), "a guest still has the Ready pill")
+	assert_eq(_row_badge(rows[1]), "hourglass", "a guest still has the Ready pill")
 	assert_eq(_row_badge_tip(rows[1]), "Not ready")
 
 
@@ -245,7 +248,7 @@ func test_bot_rows_are_rebuilt_from_the_config_and_split_into_name_and_difficult
 	assert_eq(_row_subtitle(rows[1]), "AI", "the difficulty is the dropdown beside the name now")
 	assert_eq(_rows_of(lobby)[1].difficulty_option.selected, MatchConfig.AiDifficulty.HARD, "the old default dropdown sets every bot")
 	assert_eq(_row_name(rows[2]), bot_names[1])
-	assert_eq(_row_badge(rows[2]), char(0x2713), "bots are always ready")
+	assert_eq(_row_badge(rows[2]), "tick", "bots are always ready")
 
 
 func test_a_live_roster_without_bot_rows_still_draws_the_configured_bots() -> void:

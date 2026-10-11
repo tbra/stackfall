@@ -8,8 +8,13 @@ extends PanelContainer
 
 enum Look { NEUTRAL, READY, ALL_READY, NOT_READY, HOST }
 
-const TICK: int = 0x2713
-const HOURGLASS: int = 0x231A
+## The tick's three points as fractions of the mark box (a fixed glyph shape, not a tunable).
+const TICK_START: Vector2 = Vector2(0.0, 0.55)
+const TICK_MID: Vector2 = Vector2(0.38, 0.95)
+const TICK_END: Vector2 = Vector2(1.0, 0.05)
+
+## Icon-only READY / NOT_READY marks are drawn, not font glyphs: a tick and an hourglass outline in
+## the same square box, stroke and baseline, tinted by the face's ink.
 
 ## The label shown (and, icon-only, the accessible tooltip).
 var text: String = "":
@@ -25,7 +30,7 @@ var live: bool = false:
 	set(value):
 		live = value
 		_refresh()
-## Shows only a glyph (tick / hourglass for READY / NOT_READY); the text becomes the tooltip.
+## Shows only a drawn mark (tick / hourglass for READY / NOT_READY); the text becomes the tooltip.
 var icon_only: bool = false:
 	set(value):
 		icon_only = value
@@ -65,14 +70,19 @@ static func face_for(variant_value: Look, tuning: ArcadeVisualTuning = null) -> 
 	return arcade.disc_700_color
 
 
-## The glyph an icon-only badge of [param variant_value] shows; other variants show [param fallback].
-static func glyph_for(variant_value: Look, fallback: String) -> String:
-	match variant_value:
-		Look.READY:
-			return char(TICK)
-		Look.NOT_READY:
-			return char(HOURGLASS)
-	return fallback
+## Whether an icon-only badge of [param variant_value] draws a mark (else it shows its text).
+static func has_mark(variant_value: Look) -> bool:
+	return variant_value == Look.READY or variant_value == Look.NOT_READY
+
+
+## The mark's polyline in a box of edge [param edge] at [param origin]: a tick for READY, a closed
+## hourglass outline (top bar, crossing diagonals, bottom bar) for NOT_READY.
+static func mark_points(variant_value: Look, origin: Vector2, edge: float) -> PackedVector2Array:
+	if variant_value == Look.READY:
+		return PackedVector2Array([
+			origin + TICK_START * edge, origin + TICK_MID * edge, origin + TICK_END * edge])
+	return PackedVector2Array([
+		origin, origin + Vector2(edge, 0.0), origin + Vector2(0.0, edge), origin + Vector2(edge, edge), origin])
 
 
 ## Whether the face carries a lit lip (the neutral badge is flat).
@@ -101,7 +111,7 @@ func _refresh() -> void:
 	box.content_margin_top = pad_y
 	box.content_margin_bottom = pad_y + (float(arcade.lip_sm_px) if lipped else 0.0)
 	add_theme_stylebox_override("panel", box)
-	label.text = glyph_for(variant, text) if icon_only else text
+	label.text = "" if icon_only and has_mark(variant) else text
 	label.add_theme_font_size_override("font_size", arcade.font_size_label_px)
 	label.add_theme_color_override("font_color", MenuStyleFactory.ink_for_face(face))
 	tooltip_text = text if icon_only else ""
@@ -115,11 +125,23 @@ func _apply_width() -> void:
 
 
 func _draw() -> void:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	if icon_only and has_mark(variant):
+		_draw_mark(arcade)
+		return
 	if not live or icon_only:
 		return
-	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	var radius: float = float(UiRowItem.metrics().badge_dot_px) / 2.0
 	var ink: Color = MenuStyleFactory.ink_for_face(face_for(variant, arcade))
 	var dot: Color = arcade.mint_color if ink == arcade.cream_color else ink
 	var lip: float = float(arcade.lip_sm_px) if has_lip(variant) else 0.0
 	draw_circle(Vector2(float(arcade.space_3_px) + radius, (size.y - lip) / 2.0), radius, dot)
+
+
+func _draw_mark(arcade: ArcadeVisualTuning) -> void:
+	var m: ComponentMetrics = UiRowItem.metrics()
+	var edge: float = float(m.status_icon_px)
+	var lip: float = float(arcade.lip_sm_px) if has_lip(variant) else 0.0
+	var origin: Vector2 = Vector2((size.x - edge) / 2.0, (size.y - lip - edge) / 2.0)
+	draw_polyline(mark_points(variant, origin, edge), MenuStyleFactory.ink_for_face(face_for(variant, arcade)),
+		float(m.status_icon_stroke_px), true)
