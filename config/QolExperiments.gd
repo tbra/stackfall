@@ -58,6 +58,14 @@ extends Resource
 ## activated, so it cannot be auto-dropped the instant it appears.
 @export var gift_slot_min_window_s: float = 2.0
 
+## -- Rule trial: a claimed gift joins the queue one block later (Bontago-1pi.85.69) --
+## Owner-approved trial (playtest 2026-10-11), ON by default and NOT counted by
+## any_enabled()/active_ids() (it is a rule variant, not an opt-in experiment): a claimed gift becomes
+## the block AFTER next and the ordinary next piece stays, so a late claim leaves
+## more time to plan. Off restores the 2026-09-29 rule (the gift replaces the next piece).
+## DECISION: unsupported next to the backlog or gift-slot experiments, which keep the old rule.
+@export var gift_queue_after_next: bool = true
+
 ## Stable ids of the four opt-in toggles (HUD line, lobby chip, logs), reported by
 ## active_ids() in this declaration order.
 const ID_TIMER_PAUSE: StringName = &"timer_pause"
@@ -133,6 +141,12 @@ func effective_gift_slot_capacity() -> int:
 	return clampi(gift_slot_capacity, 1, GIFT_SLOT_CAPACITY_CEILING)
 
 
+## Whether a claimed gift joins the queue as the block after next: the trial is on and neither
+## the backlog nor the gift slot experiment (which keep the old rule) is.
+func gift_after_next_in_force() -> bool:
+	return gift_queue_after_next and not backlog_enabled and not gift_slot_enabled
+
+
 ## Minimum post-activation window in force (seconds).
 func effective_gift_min_window_s() -> float:
 	return clampf(gift_slot_min_window_s, 0.0, GIFT_MIN_WINDOW_MAX_S)
@@ -169,6 +183,7 @@ func to_dict() -> Dictionary:
 		"gift_slot_capacity": gift_slot_capacity,
 		"gift_slot_min_window_s": gift_slot_min_window_s,
 		"pause_max_s": pause_max_s,
+		"gift_queue_after_next": gift_queue_after_next,
 	}
 
 
@@ -190,6 +205,7 @@ static func from_dict(data: Dictionary) -> QolExperiments:
 	qol.gift_slot_capacity = int(_num(data, "gift_slot_capacity", float(qol.gift_slot_capacity)))
 	qol.gift_slot_min_window_s = _num(data, "gift_slot_min_window_s", qol.gift_slot_min_window_s)
 	qol.pause_max_s = _num(data, "pause_max_s", qol.pause_max_s)
+	qol.gift_queue_after_next = _bool(data, "gift_queue_after_next", qol.gift_queue_after_next)
 	qol.sanitize()
 	return qol
 

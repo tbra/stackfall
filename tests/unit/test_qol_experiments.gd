@@ -477,7 +477,9 @@ func test_gift_slot_defaults_off_and_round_trips() -> void:
 
 
 func test_gift_slot_off_queues_the_gift_as_before() -> void:
-	_start(_slot_qol(false))
+	var old_rule: QolExperiments = _slot_qol(false)
+	old_rule.gift_queue_after_next = false
+	_start(old_rule)
 	Match._gifts._queue_claimed_special(0, &"anvil")
 	assert_eq(Match.next_special(0), &"anvil")
 	assert_eq(Match.gift_slot_head(0), &"")

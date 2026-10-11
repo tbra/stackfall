@@ -23,6 +23,11 @@ extends Resource
 ## 0..this. 100 -> frequency_to_chance_max, 0 -> 0.0, monotonic in between.
 @export var frequency_to_chance_max: float = 0.5
 
+## Start grace (owner playtest 2026-10-11, Bontago-1pi.85.68): no spawn roll runs
+## until this many seconds of host play have elapsed (the roll is skipped, not
+## queued). Counted on host physics ticks while the match is live.
+@export var first_gift_delay_s: float = 10.0
+
 ## Hard ceiling on simultaneously live crates (owner playtest 2026-10-07:
 ## several gifts may be on the disc together). No new crate spawns while this
 ## many are already live and unclaimed.

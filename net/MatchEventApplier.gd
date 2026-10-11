@@ -251,7 +251,10 @@ func apply_event(event: StringName, args: Array) -> void:
 				_authority().apply_replicated_gift_expired(claimed_gift_id)
 			else:
 				_authority().apply_replicated_gift_claimed(claimed_gift_id, slot_id, special_id)
-				_authority()._feed.apply_replicated_next_gift(slot_id, gift_shape_id)
+				if _authority()._feed.gift_after_next_active():
+					_authority()._feed.apply_replicated_staged_gift(slot_id, gift_shape_id)
+				else:
+					_authority()._feed.apply_replicated_next_gift(slot_id, gift_shape_id)
 			Events.gift_claimed.emit(claimed_gift_id, slot_id, special_id)
 		MatchNet.EVENT_GIFT_EXPIRED:
 			if args.size() != 1 or not args[0] is int:

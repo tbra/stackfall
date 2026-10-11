@@ -64,6 +64,10 @@ func _config(player_count: int = 2, gifts_enabled: bool = true) -> MatchConfig:
 	config.block_timer = 6.0
 	config.rng_seed = 4242
 	config.gifts_enabled = gifts_enabled
+	# These tests cover the 2026-09-29 rule (a claim replaces the next piece); the
+	# after-next trial (Bontago-1pi.85.69, default on) is in test_gift_queue_after_next.gd.
+	config.qol = QolExperiments.new()
+	config.qol.gift_queue_after_next = false
 	return config
 
 
@@ -153,6 +157,7 @@ func test_no_spawn_when_gifts_disabled() -> void:
 	_start_playing(_config(2, false))
 	Match._gifts._gift_config = Match._gifts._gift_config.duplicate() as GiftConfig
 	Match._gifts._gift_config.frequency_to_chance_max = 1.0
+	Match._gifts._gift_config.first_gift_delay_s = 0.0
 	Match.config.special_frequency = 100
 
 	Match._gifts.on_feed_block_issued(0)
@@ -442,6 +447,7 @@ func test_only_the_lowest_alive_slot_rolls_per_window() -> void:
 	Match._gifts._next_gift_id = 0
 	Match._gifts._gift_config = Match._gifts._gift_config.duplicate() as GiftConfig
 	Match._gifts._gift_config.frequency_to_chance_max = 1.0
+	Match._gifts._gift_config.first_gift_delay_s = 0.0
 	Match._gifts._gift_config.max_live_crates = 10
 	Match.config.special_frequency = 100
 
@@ -458,6 +464,7 @@ func test_client_never_spawns_claims_or_expires() -> void:
 	Match.set_net_provider(FakeNet.client(1))
 	Match._gifts._gift_config = Match._gifts._gift_config.duplicate() as GiftConfig
 	Match._gifts._gift_config.frequency_to_chance_max = 1.0
+	Match._gifts._gift_config.first_gift_delay_s = 0.0
 	Match.config.special_frequency = 100
 	var gift_id: int = _inject_crate(0)
 
@@ -764,3 +771,34 @@ func test_start_match_restores_default_drawer_after_forced_one() -> void:
 	Match._gifts.set_special_drawer(func() -> StringName: return &"forced_id")
 	_start_playing(_config())
 	assert_ne(Match._gifts._special_drawer.call(), &"forced_id", "normal start drops the forced drawer")
+
+
+## Bontago-1pi.85.68: no spawn roll before first_gift_delay_s of host play; the
+## skipped roll is not queued, and the usual chance applies afterwards.
+func test_no_gift_spawns_before_first_gift_delay() -> void:
+	_start_playing(_config())
+	Match._gifts._crates.clear()
+	Match._gifts._gift_config = Match._gifts._gift_config.duplicate() as GiftConfig
+	Match._gifts._gift_config.frequency_to_chance_max = 1.0
+	Match._gifts._gift_config.first_gift_delay_s = 10.0
+	Match.config.special_frequency = 100
+	Match._gifts._play_time_s = 0.0
+
+	for _i: int in range(5):
+		Match._gifts.on_feed_block_issued(0)
+	assert_true(Match._gifts._crates.is_empty(), "no crate in the start grace")
+
+	Match._gifts._play_time_s = 9.99
+	Match._gifts.on_feed_block_issued(0)
+	assert_true(Match._gifts._crates.is_empty(), "still inside the grace at 9.99 s")
+
+	Match._gifts.tick_host(0.02)
+	Match._gifts.on_feed_block_issued(0)
+	assert_eq(Match._gifts._crates.size(), 1, "chance 1.0 spawns once the grace has passed")
+
+
+func test_first_gift_delay_resets_with_the_match() -> void:
+	_start_playing(_config())
+	Match._gifts._play_time_s = 50.0
+	Match._gifts.reset()
+	assert_eq(Match._gifts._play_time_s, 0.0)

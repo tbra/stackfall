@@ -660,6 +660,13 @@ func held_special(slot_id: int) -> StringName:
 	return _gifts.held_special(slot_id)
 
 
+## Bontago-1pi.85.69: the claimed gift staged as the block AFTER next, or &"".
+func after_next_special(slot_id: int) -> StringName:
+	if not _late_active:
+		return &""
+	return _gifts.after_next_special(slot_id)
+
+
 ## Presentation peek (Bontago-59o.13): the gift queued as `slot_id`'s next
 ## piece, or &"" for none. See MatchGifts.next_special().
 func next_special(slot_id: int) -> StringName:

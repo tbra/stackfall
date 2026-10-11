@@ -1235,17 +1235,23 @@ func _refresh_special_indicator() -> void:
 	if match_provider.has_method(&"glue_drops_left"):
 		glue_charges = int(match_provider.glue_drops_left(_active_slot))
 	# Bontago-1pi.11.6: nothing below depends on anything but these inputs.
-	var next_id: StringName = _next_gift_id_for(count, head_id)
-	var signature: Array = [_active_slot, _active_color, count, head_id, next_id, glue_charges, _qol_backlog]
+	# Bontago-1pi.85.69: a claimed gift staged as the block AFTER next is not the next piece;
+	# the NEXT preview keeps the ordinary block and the label marks the queued gift.
+	var staged_id: StringName = StringName(match_provider.after_next_special(_active_slot)) if match_provider.has_method(&"after_next_special") else &""
+	var staged_count: int = 1 if staged_id != &"" else 0
+	var next_id: StringName = _next_gift_id_for(count - staged_count, head_id)
+	var signature: Array = [_active_slot, _active_color, count, head_id, next_id, glue_charges, _qol_backlog, staged_id]
 	if signature == _last_special_signature:
 		return
 	_last_special_signature = signature
 	_set_gift_icons(head_id, next_id)
 	_set_glue_active(glue_charges > 0)
 	_held_label.text = "HELD: %s" % _special_display_name(head_id) if head_id != &"" else "HELD"
-	var next_is_gift: bool = count > (1 if head_id != &"" else 0)
+	var next_is_gift: bool = count - staged_count > (1 if head_id != &"" else 0)
 	_next_label.text = "NEXT · GIFT" if next_is_gift else "NEXT"
-	_next_label.add_theme_color_override("font_color", _arcade.rim_color if next_is_gift else _arcade.dust_color)
+	if staged_count > 0:
+		_next_label.text += " +1" if next_is_gift else " · +1 GIFT"
+	_next_label.add_theme_color_override("font_color", _arcade.rim_color if (next_is_gift or staged_count > 0) else _arcade.dust_color)
 	if _qol_backlog > 0:
 		_next_label.text += " +%d" % _qol_backlog
 	if count <= 0 and glue_charges <= 0:
