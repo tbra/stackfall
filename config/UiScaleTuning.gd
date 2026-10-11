@@ -13,8 +13,8 @@ extends Resource
 @export var default_scale: float = 1.0
 ## Smallest stored value: 0.75 x base = 0.5 effective factor.
 @export var min_scale: float = 0.75
-## Largest stored value. DECISION: 2.2 x base = ~1.467 effective, the old 110% maximum (logical canvas ~873x491 at 1280x720), so every previously reachable size stays reachable.
-@export var max_scale: float = 2.2
+## Largest stored value. DECISION (owner 2026-10-11, Bontago-1pi.159.16): 200% (2.0 x base = ~1.333 effective, logical canvas 960x540 at 1280x720); the old 220% went too big. Saved values above it clamp via sanitize().
+@export var max_scale: float = 2.0
 ## Slider step; stored values are snapped to it on set and load.
 @export var step: float = 0.05
 

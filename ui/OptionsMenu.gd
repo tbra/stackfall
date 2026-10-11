@@ -495,6 +495,7 @@ func _on_tab_changed(id: StringName) -> void:
 	_graphics_page.visible = id == TAB_GRAPHICS
 	_controls_page.visible = id == TAB_CONTROLS
 	_wire_tab_focus()
+	_trap_focus()
 
 
 ## A tab's `button_pressed` was set from code (tests, probes): route it through the bar.
@@ -903,6 +904,15 @@ func _wire_focus_chain() -> void:
 		current.focus_neighbor_bottom = current.get_path_to(next)
 		current.focus_mode = Control.FOCUS_ALL
 	_wire_tab_focus()
+	_trap_focus()
+
+
+## Bontago-1pi.159.15: no control inside the Options window may have a neighbour (or next /
+## previous) outside it, or a dropdown's ui_left / ui_right jumps to the screen underneath.
+## Re-run after every chain re-wire (device change) and tab switch; pages are built once in
+## _ready, so these two call sites cover lazily-changed page content.
+func _trap_focus() -> void:
+	UiFocusTrap.trap(self)
 
 
 ## Bontago-1pi.159.3: the tab strip sits above the pages. ui_up from the visible page's first control

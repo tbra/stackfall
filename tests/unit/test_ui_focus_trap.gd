@@ -144,3 +144,63 @@ func test_results_screen_focus_never_leaves_the_screen() -> void:
 	add_child_autofree(screen)
 	await get_tree().process_frame
 	assert_eq(_escapes(screen), [] as Array[String])
+
+
+# --- Options window (Bontago-1pi.159.16 / .15, O2) --------------------------------
+
+## Opens Options from the main menu (pause = false) or the pause menu and returns the window.
+func _open_options(from_pause: bool) -> OptionsMenu:
+	if from_pause:
+		var pause: PauseMenu = autofree(load("res://ui/PauseMenu.tscn").instantiate())
+		add_child_autofree(pause)
+		pause._open()
+		pause._on_options_pressed()
+		await get_tree().process_frame
+		return pause._options_menu
+	var menu: MainMenu = autofree(load("res://ui/MainMenu.tscn").instantiate())
+	add_child_autofree(menu)
+	Net.stop_discovery()
+	menu.net_provider = FakeNet.new()
+	await get_tree().process_frame
+	menu._on_options_pressed()
+	await get_tree().process_frame
+	return menu._options_menu
+
+
+func _assert_options_trapped(options: OptionsMenu, label: String) -> void:
+	for id: StringName in options._tabs.tab_ids():
+		options._tabs.select(id)
+		assert_eq(_escapes(options), [] as Array[String], "%s / tab %s: no direction leaves Options" % [label, id])
+	options._tabs.select(OptionsMenu.TAB_GAME)
+	# Owner's case: the dropdown with ui_left / ui_right pressed never leaves and never strands focus.
+	var dropdown: Control = options._window_mode_option
+	for side: Side in [SIDE_LEFT, SIDE_RIGHT]:
+		var target: Control = dropdown.find_valid_focus_neighbor(side)
+		assert_true(target == dropdown or options.is_ancestor_of(target), "%s: dropdown side %d stays in Options" % [label, side])
+	# Focus can always move back: the vertical chain from the dropdown reaches the Back button and the tabs.
+	var seen: Dictionary = {}
+	var cursor: Control = dropdown
+	while cursor != null and not seen.has(cursor):
+		seen[cursor] = true
+		cursor = cursor.find_valid_focus_neighbor(SIDE_BOTTOM)
+	assert_true(seen.has(options._back_button), "%s: Back reachable from the dropdown by ui_down" % label)
+
+
+func test_options_from_main_menu_traps_focus_on_every_tab() -> void:
+	var options: OptionsMenu = await _open_options(false)
+	assert_not_null(options)
+	_assert_options_trapped(options, "main menu")
+
+
+func test_options_from_pause_menu_traps_focus_on_every_tab() -> void:
+	var options: OptionsMenu = await _open_options(true)
+	assert_not_null(options)
+	_assert_options_trapped(options, "pause menu")
+
+
+func test_options_graphics_controls_are_trapped() -> void:
+	var options: OptionsMenu = await _open_options(false)
+	for control: Control in options._graphics_page.focus_controls():
+		for side: Side in SIDES:
+			var target: Control = control.find_valid_focus_neighbor(side)
+			assert_true(target == null or target == options or options.is_ancestor_of(target), "%s side %d" % [control.name, side])
