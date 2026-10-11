@@ -155,7 +155,7 @@ func test_the_disk_transform_round_trips_when_the_flag_is_set() -> void:
 	)
 	var decoded: Dictionary = _decode(_encode(1, 0, 1, 0, _flag_disk(), _bodies(2), disk))
 	var back: Transform3D = decoded["disk_transform"] as Transform3D
-	assert_lt((back.origin - disk.origin).length(), 0.0021, "the disk offset round trips")
+	assert_lt((back.origin - disk.origin).length(), 0.0026, "the disk offset round trips")
 	assert_lt(
 		back.basis.get_rotation_quaternion().angle_to(disk.basis.get_rotation_quaternion()),
 		deg_to_rad(0.01),
@@ -192,6 +192,25 @@ func test_without_the_flag_the_disk_is_absent_and_the_bodies_still_decode() -> v
 
 # --- Bodies -----------------------------------------------------------------
 
+## Bontago-1pi.165: bodies at and above the Reach the Sky target replicate
+## through the same fragment the ENet snapshot path ships.
+func test_bodies_at_100m_and_above_round_trip_through_a_fragment() -> void:
+	var bodies: Array = []
+	var heights: Array[float] = [100.0, 105.0, 140.0]
+	for index: int in range(heights.size()):
+		bodies.append({
+			"net_id": 1 + index,
+			"position": Vector3(2.0, heights[index], -3.0),
+			"rotation": Quaternion.IDENTITY,
+			"sleeping": false,
+		})
+	var back: Array = _decode(_encode(1, 0, 1, 0, 0, bodies))["bodies"] as Array
+	assert_eq(back.size(), heights.size())
+	for index: int in range(heights.size()):
+		var got: Vector3 = (back[index] as Dictionary)["position"] as Vector3
+		assert_lt((got - (bodies[index] as Dictionary)["position"]).length(), 0.0026, "y=%f survives" % heights[index])
+
+
 func test_bodies_round_trip_through_a_fragment() -> void:
 	var bodies: Array = _bodies(20)
 	var decoded: Dictionary = _decode(_encode(9, 0, 1, 42, _flag_disk(), bodies))
@@ -203,7 +222,7 @@ func test_bodies_round_trip_through_a_fragment() -> void:
 		assert_eq(int(got["net_id"]), int(want["net_id"]), "net_id %d" % index)
 		assert_lt(
 			((got["position"] as Vector3) - (want["position"] as Vector3)).length(),
-			0.0021,
+			0.0026,
 			"position %d" % index
 		)
 		assert_eq(bool(got["sleeping"]), bool(want["sleeping"]), "sleeping %d" % index)
@@ -534,7 +553,7 @@ func test_the_disk_state_is_read_off_the_snapshot() -> void:
 	_sync.call("receive_packet", _encode(1, 0, 1, 5000, _flag_disk(), [], disk))
 	assert_lt(
 		((_sync.call("disk_position") as Vector3) - disk.origin).length(),
-		0.0021,
+		0.0026,
 		"the disk offset arrives every snapshot (spec 3.4 'Disk state')"
 	)
 	assert_lt(

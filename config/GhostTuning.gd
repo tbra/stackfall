@@ -157,7 +157,7 @@ extends Resource
 ## keeping this package's scope to its own owned files.
 ## DECISION (config/GhostTuning.gd, Bontago-mv0.34): capped at 60 m, not the
 ## wire's own full headroom -- net/MatchNet.gd's _pose_is_acceptable() refuses
-## any placement whose Y falls outside NetConfig.pos_min_y..pos_max_y (-48..72
+## any placement whose Y falls outside NetConfig.pos_min_y..pos_max_y (-48..150
 ## m, config/net_config.tres), the same band core/net/Quantize.gd's
 ## pack_position() quantizes into. At the disk surface (y=0) a manual offset
 ## of 60 m plus PhysicsTuning.hover_height (0.3 m) tops out at 60.3 m, 11.7 m
@@ -171,10 +171,11 @@ extends Resource
 ## game/PlayerController.gd's _hover_offset_ceiling() stops the ghost's
 ## origin hover_ceiling_margin below NetConfig.pos_max_y (the band
 ## core/net/Quantize.gd can replicate and net/MatchNet.gd accepts), which
-## on a flat disk is ~69.7 m of manual offset. This stays as an optional
-## extra designer cap on top; its default is set above anything the band
-## allows so it never fires on its own.
-@export var hover_manual_max: float = 100.0
+## on a flat disk is ~147.7 m of manual offset (Bontago-1pi.165: the band top is
+## now NetConfig.build_height_target_m + margin = 150 m). This stays as an
+## optional extra designer cap on top; its default (200 m) is set above anything
+## the band allows so it never fires on its own.
+@export var hover_manual_max: float = 200.0
 ## Meters kept between the held ghost's origin and NetConfig.pos_max_y, so a
 ## pose at the very top of the raise still quantizes inside the wire band
 ## (a released block also gains a little height from physics settling).

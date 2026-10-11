@@ -477,7 +477,7 @@ The host checks territory, the timer, and that the slot matches, then spawns the
 
 **Snapshots:**
 - **Rate:** 30 Hz.
-- **Contents per body:** `net_id: u16`, position quantized to int16 per axis over map bounds (≈1–2 mm precision), rotation as a 48-bit "smallest three" quaternion, and a sleeping flag.
+- **Contents per body:** `net_id: u16`, position quantized to int16 per axis over map bounds (X/Z ≈2 mm; Y spans the kill plane up to disc + Reach the Sky target + margin, 198 m by default, ≈3 mm per step - accepted, Bontago-1pi.165), rotation as a 48-bit "smallest three" quaternion, and a sleeping flag.
 - **What to send:** Only bodies that are awake or changed since the last acknowledgement. Every 2 s, send a full "keyframe" for sleeping bodies at a low rate.
 - **Disk state:** Tilt quaternion and position offset, sent every snapshot.
 - **Size:** 300 awake bodies × ~13 bytes ≈ 4 KB per packet. Split into several packets if needed to stay under ~1200 bytes each.

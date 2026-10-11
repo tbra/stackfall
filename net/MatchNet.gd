@@ -1268,9 +1268,9 @@ func _handle_cursor_update(
 ## with, judged on the world-space origin exactly as SnapshotSync does. A
 ## block spawned outside it could not be replicated to anyone, so refusing it
 ## changes nothing a legitimate client can do: the ghost sits at most
-## PhysicsTuning.hover_height + GhostTuning.hover_manual_max (3.3 m) above the
-## disk or a tower, and pos_max_y is documented as bracketing the tallest
-## reachable tower. No new tunable; X/Z are left to territory validation,
+## hover offset (GhostTuning, capped by pos_max_y - hover_ceiling_margin) above
+## the disk or a tower, and pos_max_y (NetConfig.build_height_target_m +
+## build_height_margin_m, Bontago-1pi.165) brackets the tallest reachable tower. No new tunable; X/Z are left to territory validation,
 ## which already burns an off-disk release (spec 2.2).
 func _pose_is_acceptable(origin: Vector3, orientation_index: int, free_quat: Quaternion) -> bool:
 	if not bool(_authority().is_pose_well_formed(origin, orientation_index, free_quat)):

@@ -160,7 +160,7 @@ var _probe_registry: BlockRegistry = null
 ## Bontago-xtq.28 fix round: the cloud deck's box footprint/thickness/height
 ## are per-theme now (SkyThemeDef.cloud_deck_size_m/cloud_deck_height_m), not
 ## local constants here -- the previous candidate's centred-at-y40 box (y
-## 10..70) enclosed the entire play volume up to NetConfig.pos_max_y (72.0)
+## 10..70) enclosed the entire play volume up to NetConfig.pos_max_y (150.0 since Bontago-1pi.165)
 ## and the gameplay camera itself, which read as a uniform haze with no
 ## sunset gradient visible. See SkyThemeDef.gd's doc on those two fields for
 ## the corrected placement (well below the disk, clear of the stacking

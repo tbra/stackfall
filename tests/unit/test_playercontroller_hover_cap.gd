@@ -54,7 +54,7 @@ const TARGET_HEIGHT_M: float = 40.0
 ## regression pin (this package does not own core/net/Quantize.gd or its own
 ## test file, since the wire range did not need to grow; see this file's own
 ## header DECISION).
-const POSITION_TOLERANCE_M: float = 0.0021
+const POSITION_TOLERANCE_M: float = 0.0026
 
 
 func before_each() -> void:
@@ -179,7 +179,7 @@ func test_40m_pose_round_trips_over_the_wire_within_tolerance() -> void:
 
 	assert_lte(
 		TARGET_HEIGHT_M, net_config.pos_max_y,
-		"fixture/DECISION: this package's audit found NetConfig.pos_max_y (72 m) already brackets a 40 m pose " +
+		"fixture/DECISION: this package's audit found NetConfig.pos_max_y (150 m since 1pi.165) already brackets a 40 m pose " +
 		"(and this package's new 60 m manual cap plus hover_height, 60.3 m total) with no change needed."
 	)
 
@@ -252,7 +252,7 @@ func test_towers_below_the_ghost_do_not_trap_the_hover_raise() -> void:
 
 	# Bontago-mv0.35 second pass: the real ceiling is now the wire band
 	# (_hover_offset_ceiling(): NetConfig.pos_max_y - hover_ceiling_margin),
-	# below hover_manual_max's own 100 m default.
+	# below hover_manual_max's own 200 m default.
 	assert_almost_eq(
 		controller._ghost.manual_hover_offset, controller._hover_offset_ceiling(), 0.01,
 		"wheeling up enough notches must reach the real ceiling, not freeze partway up the tower underneath."
