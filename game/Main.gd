@@ -275,7 +275,10 @@ func _process(_delta: float) -> void:
 	if _quit_requested:
 		if not _prewarm_queue.has_in_flight():
 			_quit_now()
-	elif not _prewarm_queue.has_in_flight() and _prewarm_queue.is_drained():
+		return
+	_activate_late_if_loaded()
+	if not _prewarm_queue.has_in_flight() and _prewarm_queue.is_drained():
+		_ensure_late_active()  # drained: every LateScripts path is loaded, activation is instant
 		_stop_background_prewarm()
 
 
@@ -293,6 +296,51 @@ func _wants_background_prewarm() -> bool:
 	if cfg == null:
 		return false
 	return not cfg.wants_eager(OS.get_cmdline_user_args())
+
+
+## Bontago-1pi.11.85.2: true once both autoload facades built their late state.
+func _late_active() -> bool:
+	return Match.is_late_active() and MatchNet.is_late_active()
+
+
+## The LateScripts paths the prewarm queue is configured to load (a test queue may omit them).
+func _late_paths_in_queue() -> PackedStringArray:
+	var known: PackedStringArray = _menu_prewarm_queue().config.all_paths() if _menu_prewarm_queue().config != null else PackedStringArray()
+	var result: PackedStringArray = PackedStringArray()
+	for path: String in LateScripts.paths():
+		if known.has(path):
+			result.append(path)
+	return result
+
+
+## Background path: once the queue holds every LateScripts path, activation costs no load.
+func _activate_late_if_loaded() -> void:
+	if _late_active():
+		return
+	for path: String in _late_paths_in_queue():
+		if not _prewarm_queue.is_ready(path):
+			return
+	_ensure_late_active()
+
+
+## Bontago-1pi.11.85.2: Match + MatchNet late_activate (WeatherNet child included) must exist
+## before any session starts or a replicated packet can arrive, so every flow calls this first
+## (idempotent). Blocks only for what the background queue has not delivered yet: the in-flight
+## request is collected (never cancelled, R7/F1), the rest loads synchronously.
+func _ensure_late_active() -> void:
+	if _late_active():
+		return
+	_load_late_paths()
+	LateScripts.activate_autoloads(get_tree())
+
+
+## Collects the in-flight request, then loads every still-missing LateScripts path through the queue.
+func _load_late_paths() -> void:
+	if _prewarm_queue == null:
+		return
+	_prewarm_queue.collect_in_flight()
+	for path: String in _late_paths_in_queue():
+		_prewarm_queue.ensure(path)
 
 
 func _start_background_prewarm() -> void:
@@ -328,15 +376,19 @@ func _await_prewarmed(paths: PackedStringArray) -> bool:
 	if _click_pending:
 		return false
 	if not _prewarm_background:
+		_ensure_late_active()
 		return true
+	var waiting: bool = not _late_active()
 	for path: String in paths:
 		if not _prewarm_queue.is_ready(path):
-			if _main_menu != null:
-				_main_menu.show_status(LOADING_STATUS_TEXT)
-			_click_pending = true
-			await get_tree().process_frame
-			_click_pending = false
-			return true
+			waiting = true
+	if waiting:
+		if _main_menu != null:
+			_main_menu.show_status(LOADING_STATUS_TEXT)
+		_click_pending = true
+		await get_tree().process_frame
+		_click_pending = false
+	_ensure_late_active()
 	return true
 
 
@@ -348,6 +400,11 @@ func _ready() -> void:
 	# does yet at this point -- see ui/TuningPanel.gd's own doc comment on why
 	# that ordering doesn't matter either way).
 	TuningOverrides.apply_saved()
+
+	# Bontago-1pi.11.85.2: synchronous runs (headless, CLI flags, probes) build the autoloads' late
+	# state now; the interactive path does it behind the menu (_activate_late_if_loaded).
+	if not _wants_background_prewarm():
+		_ensure_late_active()
 
 	# Bontago-xtq.26 (M7 P1): connected before the hot-seat/sandbox early
 	# returns below so those offline entry points get the current graphics
@@ -817,6 +874,8 @@ func _show_main_menu() -> void:
 ## and one bot selected. The lobby remains editable before Start, while LAN
 ## discovery stays off for this local entry point.
 func start_bots_from_menu(player_name: String) -> void:
+	if not await _await_prewarmed(PackedStringArray()):
+		return
 	var err: Error = Net.host_game(0, player_name, false)
 	if err != OK:
 		if _main_menu != null:
@@ -883,6 +942,8 @@ func _on_net_mode_changed(mode: int) -> void:
 			Match.abort_match()
 		_show_main_menu()
 	else:
+		# Host/Join/LAN/Steam-invite/CLI all land here before any peer packet is polled.
+		_ensure_late_active()
 		_show_lobby()
 
 

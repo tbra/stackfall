@@ -27,10 +27,8 @@ var quit_callable: Callable = Callable()
 var collected_resource: Resource = null
 
 var _threaded: bool = false
-## Threaded path: Main.tscn once loaded, then LateScripts paths prewarmed one request at a time.
+## Threaded path: Main.tscn once loaded.
 var _main_scene: PackedScene = null
-var _prewarm_paths: PackedStringArray = PackedStringArray()
-var _prewarm_index: int = -1
 ## Bontago-1pi.11.80: the threaded request not yet collected. Exit cleanup cancels an in-flight
 ## load and the cancelled worker compile logs "Could not preload" for the whole script graph
 ## (and can hang), so _exit_tree collects it first.
@@ -94,9 +92,6 @@ func _quit_now() -> void:
 
 
 func _process(_delta: float) -> void:
-	if _prewarm_index >= 0:
-		_poll_prewarm()
-		return
 	var status: ResourceLoader.ThreadLoadStatus = ResourceLoader.load_threaded_get_status(main_scene_path)
 	if status == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
 		return
@@ -109,44 +104,14 @@ func _process(_delta: float) -> void:
 	if _quit_requested:
 		_quit_now()
 		return
-	_prewarm_paths = LateScripts.paths()
-	_prewarm_index = 0
-	if not _request_prewarm():
-		_finish_threaded()
-		return
-	set_process(true)
+	# Bontago-1pi.11.85.2: Main starts right away; the LateScripts prewarm and the Match/MatchNet
+	# late_activate() run behind the menu (Main's MenuPrewarmQueue, ensured on every flow).
+	_start_main(_main_scene, false)
 
 
-## Requests the current prewarm path; false when the list is exhausted.
-func _request_prewarm() -> bool:
-	while _prewarm_index < _prewarm_paths.size():
-		if ResourceLoader.load_threaded_request(_prewarm_paths[_prewarm_index]) == OK:
-			_pending_path = _prewarm_paths[_prewarm_index]
-			return true
-		_prewarm_index += 1  # could not queue: the facade's load() falls back to sync
-	return false
-
-
-func _poll_prewarm() -> void:
-	var status: ResourceLoader.ThreadLoadStatus = ResourceLoader.load_threaded_get_status(_prewarm_paths[_prewarm_index])
-	if status == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
-		return
-	_collect_pending()
-	_prewarm_index += 1
-	if _quit_requested:
-		_quit_now()  # no new prewarm requests once a close was requested
-		return
-	if not _request_prewarm():
-		_finish_threaded()
-
-
-func _finish_threaded() -> void:
-	_prewarm_index = -1
-	set_process(false)
-	_start_main(_main_scene)
-
-
-func _start_main(scene: PackedScene) -> void:
+## `activate_late`: the synchronous (headless) path activates the autoloads' late state before Main
+## exists; the threaded path leaves it to Main (Bontago-1pi.11.85.2).
+func _start_main(scene: PackedScene, activate_late: bool = true) -> void:
 	get_tree().auto_accept_quit = true
 	if scene == null:
 		_fail("Could not load %s." % main_scene_path)
@@ -158,7 +123,8 @@ func _start_main(scene: PackedScene) -> void:
 	main.name = MAIN_NODE_NAME
 	var tree: SceneTree = get_tree()
 	# S2b: facades that deferred their late state build it now, before Main exists.
-	LateScripts.activate_autoloads(tree)
+	if activate_late:
+		LateScripts.activate_autoloads(tree)
 	tree.root.add_child(main)
 	tree.current_scene = main
 	queue_free()

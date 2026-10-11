@@ -238,3 +238,37 @@ func test_double_activation_in_loading_frame_runs_the_flow_once() -> void:
 		if child is Sandbox:
 			sandboxes += 1
 	assert_eq(sandboxes, 1, "the sandbox is built once")
+
+
+## Bontago-1pi.11.85.2: the LateScripts paths are the second chunk, right behind the Lobby.
+func test_late_scripts_chunk_follows_the_lobby_chunk() -> void:
+	var cfg: MenuPrewarmConfig = load("res://config/menu_prewarm.tres") as MenuPrewarmConfig
+	assert_eq(cfg.chunks[0], PackedStringArray([LOBBY]))
+	assert_eq(cfg.chunks[1], LateScripts.paths(), "same paths, same order as LateScripts")
+
+
+## Every flow's ensure collects the in-flight request first (never cancelled, F1/R7), then loads
+## the missing LateScripts paths through the queue.
+func test_load_late_paths_collects_in_flight_then_loads_the_rest() -> void:
+	var late: Array = Array(LateScripts.paths())
+	var queue: MenuPrewarmQueue = _fake_queue([[LOBBY], late, [SANDBOX_FLOW]])
+	_main = _make_main(queue)
+	add_child_autofree(_main)
+	await get_tree().process_frame  # polling requests the first late path
+	assert_true(queue.has_in_flight())
+	var in_flight: String = _loader.in_flight[0]
+	_main._load_late_paths()
+	assert_false(queue.has_in_flight(), "nothing left in flight after the ensure")
+	assert_true(_loader.collected.has(in_flight), "the in-flight request was collected, not cancelled")
+	for path: String in LateScripts.paths():
+		assert_true(queue.is_ready(path), path)
+	assert_eq(_loader.max_in_flight, 1)
+
+
+func test_late_paths_outside_the_queue_config_are_ignored() -> void:
+	var queue: MenuPrewarmQueue = _fake_queue([[LOBBY]])
+	_main = _make_main(queue)
+	add_child_autofree(_main)
+	assert_true(_main._late_paths_in_queue().is_empty())
+	_main._load_late_paths()  # no error, nothing to load
+	assert_true(_main._late_active())

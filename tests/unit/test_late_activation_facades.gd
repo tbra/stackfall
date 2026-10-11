@@ -145,3 +145,44 @@ func test_match_net_getters_are_plain_lookups_before_activation() -> void:
 	assert_null(net.get("_weather_net"))
 	net.call(&"reset_counters")
 	assert_false(net.call(&"is_late_active"), "getters never activate MatchNet")
+
+
+func _quiet_config() -> MatchConfig:
+	var config: MatchConfig = load("res://config/match_defaults.tres").duplicate(true) as MatchConfig
+	config.weather_mode = MatchConfig.WeatherMode.OFF
+	return config
+
+
+## Bontago-1pi.11.85.2 review carry-over: the lazy path leaves the same state as the normal one.
+func test_start_match_lazy_activation_matches_the_normal_path() -> void:
+	var lazy: MatchAutoload = _deferred()
+	var eager: MatchAutoload = _deferred()
+	eager.late_activate()
+	lazy.start_match(_quiet_config())
+	eager.start_match(_quiet_config())
+	assert_true(lazy.is_late_active(), "start_match activated lazily")
+	assert_eq(lazy.state(), eager.state())
+	assert_eq(lazy.slot_count(), eager.slot_count())
+	assert_gt(lazy.slot_count(), 0)
+	assert_eq(lazy.team_of(0), eager.team_of(0))
+	assert_not_null(lazy.stats())
+	assert_not_null(lazy._lifecycle)
+	lazy.abort_match()
+	eager.abort_match()
+
+
+## A second replicated packet right after the first must not rebuild the controllers, and the
+## first payload must be the one that landed.
+func test_double_apply_replicated_activates_once_and_first_payload_lands() -> void:
+	var m: MatchAutoload = _deferred()
+	watch_signals(Events)
+	m.apply_replicated_state_change(MatchPhase.State.LOADING)
+	var lifecycle: RefCounted = m._lifecycle
+	var feed: RefCounted = m._feed
+	assert_eq(m.state(), MatchPhase.State.LOADING, "the first payload landed")
+	m.apply_replicated_countdown(3)
+	m.apply_replicated_state_change(MatchPhase.State.LOADING)
+	assert_same(m._lifecycle, lifecycle, "controllers built exactly once")
+	assert_same(m._feed, feed)
+	assert_eq(m.get_child_count(), 1, "one GiftFxPresenter, not two")
+	assert_eq(m.state(), MatchPhase.State.LOADING)
