@@ -262,10 +262,10 @@ static func player_label(results: Dictionary, slot_id: int) -> String:
 	return PlayerNames.fallback_for_slot(slot_id)
 
 
-static func row_name_text(row: Dictionary) -> String:
+static func row_name_text(row: Dictionary, difficulty_label: String = "") -> String:
 	var name_text: String = ResultsPayload.string_of(row, ResultsPayload.KEY_NAME)
 	if ResultsPayload.bool_of(row, ResultsPayload.KEY_IS_BOT):
-		name_text += " (Bot)"
+		name_text += " (Bot, %s)" % difficulty_label if difficulty_label != "" else " (Bot)"
 	return name_text
 
 
@@ -337,7 +337,7 @@ static func _row_less_than(a: Dictionary, b: Dictionary) -> bool:
 
 
 func _populate_rows(results: Dictionary) -> void:
-	ScoreTable.populate(_rows_list, results, tuning, _resolved_team_numbers())
+	ScoreTable.populate(_rows_list, results, tuning, _resolved_team_numbers(), match_provider)
 
 
 ## Bontago-1pi.72.2: the one mode column. # DECISION: Capture the Flag shows the

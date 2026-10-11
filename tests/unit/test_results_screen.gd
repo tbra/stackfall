@@ -175,6 +175,50 @@ func test_each_results_row_is_marked_with_its_slot_colour() -> void:
 		assert_eq(diamond.color, palette[slot_id])
 
 
+# Bontago-1t5.45: a bot row names its tier, a human row does not; a client's config
+# (round-tripped through to_dict/from_dict like the replicated one) shows the same tier.
+func _name_text_of_row(index: int) -> String:
+	var panel: PanelContainer = _screen._rows_list.get_child(index) as PanelContainer
+	return ((panel.get_child(0) as HBoxContainer).get_child(0) as Label).text
+
+
+func _tag_text_of_row(index: int) -> String:
+	var panel: PanelContainer = _screen._rows_list.get_child(index) as PanelContainer
+	var tag: Label = ((panel.get_child(0) as HBoxContainer).get_child(0) as Label).get_node_or_null("BotTag") as Label
+	return tag.text if tag != null else ""
+
+
+func test_bot_row_shows_its_difficulty_and_human_rows_do_not() -> void:
+	_fake_match.config.slot_ai_difficulties = PackedInt32Array([
+		MatchConfig.AiDifficulty.NORMAL, MatchConfig.AiDifficulty.NORMAL, MatchConfig.AiDifficulty.HARD,
+	])
+	_screen.show_results(_ffa_results())
+	assert_eq(_name_text_of_row(1), "Alice")
+	assert_eq(_name_text_of_row(2), "Bob")
+	assert_eq(_name_text_of_row(3), "Bot 1")
+	assert_eq(_tag_text_of_row(3), "(Bot, Hard)")
+	assert_eq(_tag_text_of_row(1), "", "a human row has no tag")
+
+
+func test_long_bot_name_keeps_its_full_tier_tag() -> void:
+	_fake_match.config.slot_ai_difficulties = PackedInt32Array([0, 0, MatchConfig.AiDifficulty.HARD])
+	var results: Dictionary = _ffa_results()
+	(results["rows"] as Array)[2]["name"] = "A Very Long Bot Name That Overflows The Cell"
+	_screen.show_results(results)
+	var cell: Label = ((_screen._rows_list.get_child(3) as PanelContainer).get_child(0) as HBoxContainer).get_child(0) as Label
+	var tag: Label = cell.get_node("BotTag") as Label
+	assert_eq(tag.text, "(Bot, Hard)", "the tier text is whole")
+	assert_eq(cell.text_overrun_behavior, TextServer.OVERRUN_TRIM_ELLIPSIS, "the name is what ellipsizes")
+
+
+func test_client_config_copy_shows_the_same_difficulty() -> void:
+	var host_config: MatchConfig = MatchConfig.new()
+	host_config.slot_ai_difficulties = PackedInt32Array([0, 0, MatchConfig.AiDifficulty.EASY])
+	_fake_match.config = MatchConfig.from_dict(host_config.to_dict())
+	_screen.show_results(_ffa_results())
+	assert_eq(_tag_text_of_row(3), "(Bot, Easy)")
+
+
 # --- Host/client gate ---------------------------------------------------------
 
 func test_host_sees_enabled_buttons_and_no_waiting_hint() -> void:

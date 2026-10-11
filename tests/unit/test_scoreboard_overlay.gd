@@ -126,6 +126,18 @@ func test_back_plus_r3_perf_chord_does_not_show_the_scoreboard() -> void:
 	assert_false(_overlay.is_showing())
 
 
+func test_scoreboard_bot_row_shows_difficulty_human_row_does_not() -> void:
+	_match.config.slot_ai_difficulties = PackedInt32Array([0, MatchConfig.AiDifficulty.HARD])
+	await _send(_key(true))
+	var rows: VBoxContainer = _overlay.get_node("%RowsList") as VBoxContainer
+	var human_name: Label = (rows.get_child(1).get_child(0) as HBoxContainer).get_child(0) as Label
+	var bot_name: Label = (rows.get_child(2).get_child(0) as HBoxContainer).get_child(0) as Label
+	assert_eq(human_name.text, "Ann")
+	assert_eq(bot_name.text, "Bo")
+	assert_eq((bot_name.get_node("BotTag") as Label).text, "(Bot, Hard)")
+	assert_null(human_name.get_node_or_null("BotTag"))
+
+
 func test_table_shows_the_live_rows_with_alive_status() -> void:
 	await _send(_key(true))
 	var rows: VBoxContainer = _overlay.get_node("%RowsList") as VBoxContainer
