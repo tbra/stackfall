@@ -235,7 +235,6 @@ const MOVE_SPEED_LABEL_STICK: String = "Stick speed"
 
 ## Bontago-1pi.11.86: the Graphics page (preset picker + per-setting controls), built in code.
 @onready var _graphics_page: GraphicsSettingsTab = %GraphicsPage
-var _preset_option: OptionButton = null
 @onready var _rebind_list: VBoxContainer = %RebindList
 @onready var _back_button: Button = %BackButton
 @onready var _reset_button: Button = %ResetButton
@@ -273,11 +272,6 @@ var _rows: Array[KeyRebindRow] = []
 var _ui_scale_dragging: bool = false
 ## Each component meter's value range, so its cell count maps to the setting's own unit.
 var _meter_ranges: Dictionary[UiSegmentMeter, Vector2] = {}
-## Bontago-hfa.4: one SegmentMeter overlay per Graphics-page slider (that tab keeps its raw
-## sliders until Bontago-1pi.153 rebuilds it on components).
-var _meters: Dictionary[HSlider, SegmentMeter] = {}
-## Bontago-hfa.4: the ON/OFF word next to each Graphics-page toggle (CheckButton -> Label).
-var _state_words: Dictionary[CheckButton, Label] = {}
 
 
 func _ready() -> void:
@@ -288,10 +282,8 @@ func _ready() -> void:
 	_build_move_speed_row()
 	_build_tabs()
 	_graphics_page.build(func() -> Variant: return settings_provider, self)
-	_preset_option = _graphics_page.preset_option
 	UiBlockButton.style(_reset_button, UiBlockButton.Look.SECONDARY, true)
 	UiBlockButton.style(_back_button, UiBlockButton.Look.SECONDARY, true)
-	_apply_graphics_style()
 	_controls_device_label.theme_type_variation = THEME_VARIATION_CAPTION
 	_controls_page.add_theme_constant_override("separation", MenuStyleFactory.arcade_tuning().space_3_px)
 
@@ -303,7 +295,6 @@ func _ready() -> void:
 	_wire_focus_chain()
 	_refresh_device_dependent_ui()
 
-	_graphics_page.refreshed.connect(_on_graphics_refreshed)
 	_master_volume_slider.value_changed.connect(_on_meter_changed.bind(_master_volume_slider))
 	_master_mute_button.pressed.connect(_on_master_mute_pressed)
 	_music_volume_slider.value_changed.connect(_on_meter_changed.bind(_music_volume_slider))
@@ -489,58 +480,6 @@ func _build_tabs() -> void:
 	_tabs.tab_changed.connect(_on_tab_changed)
 
 
-## Graphics-page-only look: its raw sliders / toggles / headers are restyled here until
-## Bontago-1pi.153 rebuilds that tab on components (then this whole block goes).
-func _apply_graphics_style() -> void:
-	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	for graphics_slider: HSlider in _graphics_page.sliders():
-		_meters[graphics_slider] = SegmentMeter.attach(graphics_slider)
-	for graphics_label: Label in _graphics_page.value_labels():
-		_style_value_label(graphics_label)
-	for graphics_header: Label in _graphics_page.headers():
-		_style_section_header(graphics_header)
-	for graphics_check: CheckButton in _graphics_page.checks():
-		_add_state_word(graphics_check)
-		graphics_check.toggled.connect(_on_state_word_source_toggled)
-	_graphics_page.get_child(0).add_theme_constant_override("separation", arcade.space_3_px)
-
-
-## A Bungee value to the right of a Graphics-page meter ("100%").
-func _style_value_label(label: Label) -> void:
-	label.theme_type_variation = THEME_VARIATION_DISPLAY
-	label.add_theme_font_size_override("font_size", OPTIONS_TUNING.value_font_size_px)
-	label.custom_minimum_size.x = float(OPTIONS_TUNING.value_min_width_px)
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-
-
-## The ON/OFF word beside a Graphics-page toggle: mint when on, dust when off.
-func _add_state_word(check: CheckButton) -> void:
-	var word: Label = Label.new()
-	word.name = STATE_WORD_NAME
-	word.theme_type_variation = THEME_VARIATION_DISPLAY
-	word.add_theme_font_size_override("font_size", OPTIONS_TUNING.value_font_size_px)
-	word.custom_minimum_size.x = float(OPTIONS_TUNING.state_word_min_width_px)
-	word.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	word.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var parent: Node = check.get_parent()
-	parent.add_child(word)
-	parent.move_child(word, check.get_index() + 1)
-	_state_words[check] = word
-	_refresh_state_words()
-
-
-func _on_state_word_source_toggled(_pressed: bool) -> void:
-	_refresh_state_words()
-
-
-func _refresh_state_words() -> void:
-	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	for check: CheckButton in _state_words:
-		var word: Label = _state_words[check]
-		word.text = ON_WORD if check.button_pressed else OFF_WORD
-		word.add_theme_color_override("font_color", arcade.mint_color if check.button_pressed else arcade.dust_color)
-
-
 ## DECISION (Bontago-mp0.11): the panel follows the usable viewport instead
 ## of demanding a desktop sized minimum; the settings page scrolls vertically.
 func _refresh_layout() -> void:
@@ -562,14 +501,6 @@ func _on_tab_changed(id: StringName) -> void:
 func _on_tab_toggled(pressed: bool, id: StringName) -> void:
 	if pressed:
 		_tabs.select(id)
-
-
-## The Graphics controls were re-read (preset pick or an edit): redraw their meters and ON/OFF words.
-func _on_graphics_refreshed() -> void:
-	for slider: HSlider in _graphics_page.sliders():
-		if _meters.has(slider):
-			_meters[slider].queue_redraw()
-	_refresh_state_words()
 
 
 ## Bontago-1pi.71: a rebind of ui_accept/ui_cancel/menu_tab_* must show in the footer glyphs.
@@ -677,7 +608,6 @@ func _load_current_values() -> void:
 	_refresh_rumble_strength_enabled()
 
 	_refresh_move_speed_row()
-	_refresh_state_words()
 
 
 ## Shows one volume row: the meter at [param percent] (dust cells and no input while muted, so a

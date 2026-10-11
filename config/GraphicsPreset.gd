@@ -144,3 +144,65 @@ static func sanitize(field: StringName, value: Variant) -> Variant:
 		var clamped: float = clampf(float(value), float(limits["min"]), float(limits["max"]))
 		return roundi(clamped) if typeof(value) == TYPE_INT else clamped
 	return value
+
+
+## Bontago-1pi.153: the Graphics tab's combined rows (Shadows, Reflections, Environment detail) write
+## several fields at once from a tier. The tier list is the shipped presets, in this order.
+const TIER_PRESET_PATHS: Array[String] = [
+	"res://config/graphics_presets/low.tres",
+	"res://config/graphics_presets/medium.tres",
+	"res://config/graphics_presets/high.tres",
+]
+## Shadows: one quality row over the atlas size, cascade count and range, taken from each preset.
+const SHADOW_FIELDS: Array[StringName] = [&"shadow_atlas_size", &"sun_shadow_mode", &"sun_shadow_max_distance"]
+## Environment detail: the cosmetic ambience fields, taken from each preset.
+const ENVIRONMENT_FIELDS: Array[StringName] = [
+	&"cloud_puff_density", &"cloud_shadows_enabled", &"aurora_enabled", &"birds_enabled",
+	&"ambient_life_enabled", &"disc_fine_detail_enabled", &"hole_void_animated",
+	&"gift_idle_glow_enabled", &"block_dissolve_effect_enabled",
+]
+## Reflections: Off / Low / High. DECISION (1pi.153): the presets cannot supply this (Medium and High
+## share one reflection setup), so the three tiers are fixed: Off = no probe and no SSR, Low = the
+## interval-refreshed probe only, High = probe plus screen-space reflections.
+const REFLECTION_TIERS: Array[Dictionary] = [
+	{&"reflection_probe_mode": ReflectionProbeMode.OFF, &"ssr_enabled": false},
+	{&"reflection_probe_mode": ReflectionProbeMode.INTERVAL, &"ssr_enabled": false},
+	{&"reflection_probe_mode": ReflectionProbeMode.INTERVAL, &"ssr_enabled": true},
+]
+
+
+## Tier `tier`'s value for each of `fields`, read from the shipped preset of that tier.
+static func tier_values(fields: Array[StringName], tier: int) -> Dictionary:
+	var values: Dictionary = {}
+	var preset: GraphicsPreset = load(TIER_PRESET_PATHS[clampi(tier, 0, TIER_PRESET_PATHS.size() - 1)]) as GraphicsPreset
+	for field: StringName in fields:
+		values[field] = preset.get(field)
+	return values
+
+
+## The tiers of a preset-derived group, one field->value Dictionary per shipped preset.
+static func preset_tiers(fields: Array[StringName]) -> Array[Dictionary]:
+	var tiers: Array[Dictionary] = []
+	for tier: int in range(TIER_PRESET_PATHS.size()):
+		tiers.append(tier_values(fields, tier))
+	return tiers
+
+
+## Index of the first tier whose every value equals `read.call(field)`, or -1 (shown as "Custom").
+static func matching_tier(tiers: Array[Dictionary], read: Callable) -> int:
+	for index: int in range(tiers.size()):
+		var tier: Dictionary = tiers[index]
+		var matches: bool = true
+		for field: StringName in tier:
+			if not _values_equal(tier[field], read.call(field)):
+				matches = false
+				break
+		if matches:
+			return index
+	return -1
+
+
+static func _values_equal(a: Variant, b: Variant) -> bool:
+	if typeof(a) == TYPE_FLOAT or typeof(b) == TYPE_FLOAT:
+		return is_equal_approx(float(a), float(b))
+	return a == b
