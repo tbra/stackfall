@@ -113,7 +113,7 @@ func setup(slot_id: int, difficulty: MatchConfig.AiDifficulty, field: Field, reg
 	_difficulty = difficulty
 	_field = field
 	_registry = registry
-	_profile = tuning.profile_for(difficulty)
+	_profile = _resolve_profile()
 	_seed_rng()
 	_think_delay_s = _profile.reaction_delay_s + _rng.randf() * tuning.think_phase_jitter_s
 	_countdown = _think_delay_s
@@ -131,10 +131,17 @@ func setup(slot_id: int, difficulty: MatchConfig.AiDifficulty, field: Field, reg
 ## Bot V2 P1: selects the decision pipeline. Safe at any time; an in-flight think is dropped.
 func set_brain(brain: Brain) -> void:
 	_brain = brain
+	# DECISION (Bontago-1t5.34): the V2 brain reads its own tier profiles; re-resolve because
+	# setup() usually runs before set_brain().
+	_profile = _resolve_profile()
 	_think = null
 	if _state == State.THINKING or _state == State.GENERATING:
 		_state = State.IDLE
 		_candidates.clear()
+
+
+func _resolve_profile() -> BotDifficultyProfile:
+	return tuning.profile_for_brain(_difficulty, _brain == Brain.V2)
 
 
 func brain() -> Brain:
@@ -145,7 +152,7 @@ func brain() -> Brain:
 ## installs it (the shipped, shared resource is never touched). Null restores the shipped tuning.
 func set_tuning_override(override: BotTuning) -> void:
 	tuning = override if override != null else (load("res://config/bot_tuning.tres") as BotTuning)
-	_profile = tuning.profile_for(_difficulty)
+	_profile = _resolve_profile()
 
 
 ## Largest absolute value a trained weight override may take (anything beyond is clamped).

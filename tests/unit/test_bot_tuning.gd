@@ -91,3 +91,53 @@ func test_shipped_bot_tuning_hard_is_stronger_than_easy() -> void:
 		var hi: float = maxf(float(tuning.easy.get(field)), float(tuning.hard.get(field)))
 		var mid: float = float(tuning.normal.get(field))
 		assert_between(mid, lo, hi, "normal.%s sits between easy and hard" % field)
+
+
+func test_shipped_bot_tuning_v2_ladder_is_monotonic() -> void:
+	# Bontago-1t5.34: the V2 strength knobs must keep Easy > Normal > Hard in sloppiness
+	# (aim noise, pick pool, temperature, fill share) and Hard > Normal > Easy in search depth.
+	var tuning: BotTuning = load("res://config/bot_tuning.tres")
+	var easy_v2: BotDifficultyProfile = tuning.easy_v2
+	var normal_v2: BotDifficultyProfile = tuning.normal_v2
+	var hard_v2: BotDifficultyProfile = tuning.hard_v2
+	for field: String in ["aim_noise_m", "pick_pool", "pick_temperature", "fill_share"]:
+		var easy_v: float = float(easy_v2.get(field))
+		var normal_v: float = float(normal_v2.get(field))
+		var hard_v: float = float(hard_v2.get(field))
+		assert_gt(easy_v, normal_v, "easy.%s above normal" % field)
+		assert_gt(normal_v, hard_v, "normal.%s above hard" % field)
+	for field: String in ["candidate_count", "eval_top_k"]:
+		assert_lt(float(easy_v2.get(field)), float(normal_v2.get(field)), "easy.%s below normal" % field)
+		assert_lt(float(normal_v2.get(field)), float(hard_v2.get(field)), "normal.%s below hard" % field)
+
+
+func test_legacy_profiles_keep_their_pre_v2_values() -> void:
+	# Bontago-1t5.34: the retune is V2-only; the shipped legacy brain keeps today's feel.
+	var tuning: BotTuning = load("res://config/bot_tuning.tres")
+	assert_eq(tuning.easy.candidate_count, 40)
+	assert_eq(tuning.easy.aim_noise_m, 0.6)
+	assert_eq(tuning.normal.candidate_count, 70)
+	assert_eq(tuning.normal.aim_noise_m, 0.3)
+	assert_eq(tuning.hard.candidate_count, 110)
+	assert_eq(tuning.hard.aim_noise_m, 0.05)
+
+
+func test_profile_for_brain_picks_v2_profile_per_difficulty() -> void:
+	var tuning: BotTuning = load("res://config/bot_tuning.tres")
+	assert_same(tuning.profile_for_brain(MatchConfig.AiDifficulty.EASY, true), tuning.easy_v2)
+	assert_same(tuning.profile_for_brain(MatchConfig.AiDifficulty.NORMAL, true), tuning.normal_v2)
+	assert_same(tuning.profile_for_brain(MatchConfig.AiDifficulty.HARD, true), tuning.hard_v2)
+	assert_same(tuning.profile_for_brain(MatchConfig.AiDifficulty.NORMAL, false), tuning.normal)
+	assert_eq(tuning.hard_v2.think_budget_us, tuning.hard.think_budget_us)
+
+
+func test_controller_resolves_profile_after_set_brain() -> void:
+	var tuning: BotTuning = load("res://config/bot_tuning.tres")
+	var controller: BotController = BotController.new()
+	add_child_autofree(controller)
+	controller.setup(0, MatchConfig.AiDifficulty.EASY, null, null)
+	assert_same(controller._profile, tuning.easy, "legacy brain keeps the legacy profile")
+	controller.set_brain(BotController.Brain.V2)
+	assert_same(controller._profile, tuning.easy_v2, "set_brain after setup picks the V2 profile")
+	controller.set_brain(BotController.Brain.LEGACY)
+	assert_same(controller._profile, tuning.easy)
