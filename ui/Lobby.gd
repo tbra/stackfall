@@ -61,6 +61,8 @@ const STACK_GROUP: StringName = &"lobby_stack"
 ## read by _apply_data, and carried across the results screen's republish
 ## (ResultsScreen.LOBBY_SEATS_KEY points here).
 const SEATS_KEY: String = "seats"
+## Height counts this many times the sideways distance when a hop picks the stop across panels.
+const SPATIAL_HEIGHT_WEIGHT: float = 4.0
 
 ## DECISION (ui/Lobby.gd, M6 A4): MatchConfig.enabled_specials already means
 ## "empty = every special enabled" (config/MatchConfig.gd's own doc comment),
@@ -394,7 +396,10 @@ func _ready() -> void:
 	# Every dynamic row already exists before the chain is built (_build_specials_checklist()).
 	_apply_visual_style()
 	_update_host_only_state()
+	LobbyButtonGlyph.attach(_start_button, &"lobby_confirm")
+	LobbyButtonGlyph.attach(_players_panel.add_bot_button(), &"lobby_add_bot")
 	_wire_focus_chain()
+	_settings_scroll.get_v_scroll_bar().value_changed.connect(func(_value: float) -> void: _schedule_spatial_rewire())
 	_disc_size_meter.grab_focus()
 	# Bontago-1pi.121: the first focus above may have scrolled the column; open at the top.
 	_scroll_settings_to_top()
@@ -702,6 +707,7 @@ func _wire_focus_chain() -> void:
 	# Bontago-1pi.53 (E1): the players panel's own focusable controls sit between the
 	# settings and the footer, in visual order; the panel asks for a rewire through
 	# focus_entries_changed.
+	_settings_stops = chain.duplicate()
 	chain.append_array(_players_panel.focus_entries())
 	chain.append_array([_back_button, _invite_friends_button])
 	if _join_code_row != null:
@@ -734,6 +740,149 @@ func _rewire_focus() -> void:
 	if _main_chain.is_empty():
 		return
 	_wire_loop(_visible_chain(_main_chain))
+	# The spatial pass needs settled rects: it runs one frame later, never in this call.
+	_schedule_spatial_rewire()
+
+
+## Bontago-1pi.159.23 (L3): the loop above is vertical list order; this pass overrides the neighbours
+## that must follow the DRAWN layout, from the real global rects: the gift / experiment chip grids
+## move in 2D, the players panel's rows move by column (down from a colour diamond = the diamond
+## below, the last row = Add bot, up reverses) and the settings column <-> players panel hops are
+## symmetric (the nearest stop by height). Layout-dependent, so it also runs one frame after every
+## rewire (_schedule_spatial_rewire) and when the settings column scrolls.
+func _wire_spatial() -> void:
+	if _main_chain.is_empty() or size.x <= 0.0 or _players_panel.size.x <= 0.0:
+		return  # not laid out yet: the deferred pass runs once the rects exist
+	var settings: Array[Control] = _visible_chain(_settings_stops)
+	var panel: Array[Control] = _visible_chain(_players_panel.focus_entries())
+	var panel_left_edge: Array[Control] = []
+	if not panel.is_empty() and _all_laid_out(panel):
+		panel_left_edge = _wire_panel_spatial(panel, settings)
+	for grid: Array in [_special_checkboxes, _qol_checks]:
+		var chips: Array[Control] = []
+		for chip: Variant in grid:
+			if _is_shown(chip as Control):
+				chips.append(chip as Control)
+		if _all_laid_out(chips):
+			_wire_chip_grid(chips, panel_left_edge)
+	# Every other settings stop hops right into the panel (the chips handled theirs above).
+	for control: Control in settings:
+		var chip: UiChipToggle = control as UiChipToggle
+		if chip != null and (chip in _special_checkboxes or chip in _qol_checks):
+			continue
+		var target: Control = _nearest_by_height(control, panel_left_edge)
+		if target != null and control.size.y > 0.0:
+			control.focus_neighbor_right = control.get_path_to(target)
+
+
+## Chips of one grid: up / down / left / right by position. A side with no chip keeps the list loop
+## (up from the top row = the Advanced chip, down from the bottom row = what follows the list), and
+## the right edge hops into the players panel.
+func _wire_chip_grid(chips: Array[Control], panel_edge: Array[Control]) -> void:
+	if chips.is_empty():
+		return
+	var up_exit: Control = chips[0].get_node_or_null(chips[0].focus_neighbor_top) as Control
+	var down_exit: Control = chips[chips.size() - 1].get_node_or_null(chips[chips.size() - 1].focus_neighbor_bottom) as Control
+	UiSpatialFocus.wire(chips, false)
+	for chip: Control in chips:
+		if _neighbor(chip, SIDE_TOP) == chip and up_exit != null:
+			chip.focus_neighbor_top = chip.get_path_to(up_exit)
+		if _neighbor(chip, SIDE_BOTTOM) == chip and down_exit != null:
+			chip.focus_neighbor_bottom = chip.get_path_to(down_exit)
+		if _neighbor(chip, SIDE_RIGHT) == chip:
+			var target: Control = _nearest_by_height(chip, panel_edge)
+			if target != null:
+				chip.focus_neighbor_right = chip.get_path_to(target)
+
+
+## The players panel: up / down by column, left / right keep the row wiring (LobbySeatRow), a row's
+## left edge hops to the settings column. Returns the panel's left-edge stops.
+func _wire_panel_spatial(panel: Array[Control], settings: Array[Control]) -> Array[Control]:
+	var saved_left: Dictionary = {}
+	var saved_right: Dictionary = {}
+	for control: Control in panel:
+		saved_left[control] = control.focus_neighbor_left
+		saved_right[control] = control.focus_neighbor_right
+	var up_exit: Control = panel[0].get_node_or_null(panel[0].focus_neighbor_top) as Control
+	var last: Control = panel[panel.size() - 1]
+	var down_exit: Control = last.get_node_or_null(last.focus_neighbor_bottom) as Control
+	UiSpatialFocus.wire(panel, false)
+	var edge: Array[Control] = []
+	for control: Control in panel:
+		control.focus_neighbor_left = saved_left[control]
+		control.focus_neighbor_right = saved_right[control]
+		if _neighbor(control, SIDE_TOP) == control and up_exit != null:
+			control.focus_neighbor_top = control.get_path_to(up_exit)
+		if _neighbor(control, SIDE_BOTTOM) == control and down_exit != null:
+			control.focus_neighbor_bottom = control.get_path_to(down_exit)
+		var left: Control = _neighbor(control, SIDE_LEFT)
+		# Idempotent: a left that an earlier pass pointed at the settings column is still an edge.
+		if left == null or left == control or not panel.has(left):
+			edge.append(control)
+	for control: Control in edge:
+		var target: Control = _nearest_by_height(control, settings)
+		if target != null:
+			control.focus_neighbor_left = control.get_path_to(target)
+	# Up from Add bot reverses the move down from the last row's first control.
+	if panel.has(_add_bot_target()):
+		var add_bot: Control = _add_bot_target()
+		for control: Control in panel:
+			if control != add_bot and _neighbor(control, SIDE_BOTTOM) == add_bot and edge.has(control):
+				add_bot.focus_neighbor_top = add_bot.get_path_to(control)
+	return edge
+
+
+## True when every control has a real size (the layout pass has run for it).
+func _all_laid_out(controls: Array[Control]) -> bool:
+	for control: Control in controls:
+		if control.size.x <= 0.0 or control.size.y <= 0.0:
+			return false
+	return true
+
+
+func _add_bot_target() -> Control:
+	return _players_panel.add_bot_button()
+
+
+func _neighbor(control: Control, side: Side) -> Control:
+	var path: NodePath = control.get_focus_neighbor(side)
+	if path.is_empty():
+		return null
+	return control.get_node_or_null(path) as Control
+
+
+## The stop in [param candidates] whose centre is nearest [param from]'s by height (ties: nearest
+## along the row).
+func _nearest_by_height(from: Control, candidates: Array[Control]) -> Control:
+	var origin: Vector2 = from.get_global_rect().get_center()
+	var best: Control = null
+	var best_score: float = INF
+	for other: Control in candidates:
+		if other == from:
+			continue
+		var delta: Vector2 = other.get_global_rect().get_center() - origin
+		var score: float = absf(delta.y) * SPATIAL_HEIGHT_WEIGHT + absf(delta.x)
+		if score < best_score:
+			best_score = score
+			best = other
+	return best
+
+
+## Layout rects settle after the frame that changed the rows / sections: rewire once more then.
+func _schedule_spatial_rewire() -> void:
+	if _spatial_pending or not is_inside_tree():
+		return
+	_spatial_pending = true
+	# A one-shot connection (not an await) so a lobby freed meanwhile just drops it.
+	get_tree().process_frame.connect(_run_spatial_rewire, CONNECT_ONE_SHOT)
+
+
+func _run_spatial_rewire() -> void:
+	_spatial_pending = false
+	if is_inside_tree() and not _main_chain.is_empty():
+		# Back to the plain loop first, so the spatial pass always starts from list order.
+		_wire_loop(_visible_chain(_main_chain))
+		_wire_spatial()
 
 
 func _on_section_toggled(state: bool) -> void:
@@ -744,6 +893,9 @@ func _on_section_toggled(state: bool) -> void:
 ## Every control the focus loop may visit, in visual order (built by _wire_focus_chain());
 ## _visible_chain() filters it to what is shown right now.
 var _main_chain: Array[Control] = []
+## The settings column's stops (the part of _main_chain before the players panel's entries).
+var _settings_stops: Array[Control] = []
+var _spatial_pending: bool = false
 
 
 ## Bontago-1pi.53 (S1a): a control is a focus stop only while it and every ancestor up to
@@ -896,7 +1048,7 @@ func _apply_visual_style() -> void:
 ## gone):
 ## - lobby_quick_advanced (Y) opens/closes the Advanced block of the section holding focus
 ##   (the first section with one when focus is elsewhere or in a section without one);
-## - lobby_quick_start (X) starts the match (host) or toggles Ready (client) when the Start button is usable;
+## - lobby_add_bot (X) adds a bot (host, a seat free); Start / Enter (lobby_confirm) starts or toggles Ready;
 ## - ui_cancel (Esc / gamepad B) backs out of the lobby, same as %BackButton. (An open
 ##   OptionButton popup consumes its own ui_cancel before this runs.)
 ## Bontago-1pi.15.1 fix: B used to do nothing here unless the popup was open, the reported
@@ -906,8 +1058,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		toggle_focused_advanced()
 		get_viewport().set_input_as_handled()
 		return
-	if event.is_action_pressed(&"lobby_quick_start"):
-		_run_start_shortcut()
+	if event.is_action_pressed(&"lobby_add_bot"):
+		# DECISION (Bontago-1pi.159.27): X / keyboard X adds a bot -- host only, only while a seat is free.
+		_run_add_bot_shortcut()
 		get_viewport().set_input_as_handled()
 		return
 	if not event.is_action_pressed(&"ui_cancel"):
@@ -930,6 +1083,15 @@ func _input(event: InputEvent) -> void:
 			return
 	_run_start_shortcut()
 	get_viewport().set_input_as_handled()
+
+
+## Host: add a bot when the open seat's button would be usable (visible, enabled), otherwise nothing.
+func _run_add_bot_shortcut() -> void:
+	if not is_visible_in_tree() or not _is_host_session():
+		return
+	var add_bot: UiBlockButton = _players_panel.add_bot_button()
+	if add_bot.visible and not add_bot.disabled:
+		_on_add_bot_requested()
 
 
 ## Host: start when usable (same gate as _on_start_pressed), otherwise nothing.

@@ -604,9 +604,9 @@ func test_a_start_blocker_disables_start_explains_it_and_gates_every_start_path(
 	assert_true(panel.finalized_player_counts.is_empty(), "a blocked Start never reaches finalize")
 
 	var x_event: InputEventAction = InputEventAction.new()
-	x_event.action = "lobby_quick_start"
+	x_event.action = "lobby_confirm"
 	x_event.pressed = true
-	lobby._unhandled_input(x_event)
+	lobby._input(x_event)
 	assert_signal_not_emitted(lobby, "start_requested")
 
 	panel.blocker = ""
@@ -704,21 +704,25 @@ func _last_settings_stop(lobby: Lobby) -> Control:
 
 ## Walks focus_neighbor_bottom from the first control of the main chain and checks it
 ## visits every wired control once and returns to the start.
+## Every shown stop has an up and a down neighbour and the whole screen is reachable from Start
+## through the four focus directions (the vertical list order is only the fallback: once laid out,
+## the settings column, the players panel and the chip grids move by position, Bontago-1pi.159.23).
 func _assert_main_loop_is_closed(lobby: Lobby) -> void:
 	var start: Control = lobby.get_node("%StartButton") as Control
-	var current: Control = start
-	var visited: Dictionary = {}
-	var steps: int = 0
-	while steps <= lobby._main_chain.size() + 1:
-		current = current.get_node(current.focus_neighbor_bottom) as Control
-		steps += 1
-		if current == start:
-			break
-		assert_false(visited.has(current), "%s visited twice before the loop closed" % current.name)
-		visited[current] = true
-	assert_eq(current, start, "walking down from Start returns to Start")
+	var seen: Dictionary = {start: true}
+	var queue: Array[Control] = [start]
+	while not queue.is_empty():
+		var current: Control = queue.pop_back()
+		for side: Side in [SIDE_TOP, SIDE_BOTTOM, SIDE_LEFT, SIDE_RIGHT]:
+			var path: NodePath = current.get_focus_neighbor(side)
+			var next: Control = current.get_node_or_null(path) as Control if not path.is_empty() else null
+			if next != null and not seen.has(next):
+				seen[next] = true
+				queue.append(next)
 	for control: Control in lobby._visible_chain(lobby._main_chain):
-		assert_true(control == start or visited.has(control), "%s is part of the loop" % control.name)
+		assert_true(seen.has(control), "%s is reachable from Start" % control.name)
+		assert_false(control.focus_neighbor_top.is_empty(), "%s has an up neighbour" % control.name)
+		assert_false(control.focus_neighbor_bottom.is_empty(), "%s has a down neighbour" % control.name)
 
 
 # --- PL1a: seat rows (colour box, team button, bot difficulty, remove) -----------------
@@ -831,9 +835,13 @@ func test_ui_left_and_ui_right_on_the_colour_box_never_change_the_colour() -> vo
 	events.append(echo)
 	for event: InputEvent in events:
 		for _repeat: int in range(5):
+			# Bontago-1pi.159.23: a left press now hops to the settings column, so focus is put back.
+			box = _rows_of(lobby)[0].color_button
+			box.grab_focus()
 			box.gui_input.emit(event.duplicate())
 			Input.parse_input_event(event.duplicate())
 			await get_tree().process_frame
+	box = _rows_of(lobby)[0].color_button
 	assert_eq(_human_color(lobby, 1), 0, "colour unchanged by navigation input")
 	assert_eq(_human_color(lobby, 2), 1)
 	assert_eq(_fake_of(lobby).set_lobby_data_calls.size(), published, "nothing published")

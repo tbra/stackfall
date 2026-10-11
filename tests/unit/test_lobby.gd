@@ -1185,21 +1185,58 @@ func test_lobby_quick_y_closing_a_block_keeps_focus_on_its_chip() -> void:
 	assert_true(game.advanced_button.has_focus(), "focus moved to the Advanced chip, not lost")
 
 
-func test_lobby_quick_x_obeys_ready_and_host_gates() -> void:
+func test_lobby_confirm_obeys_ready_and_host_gates() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var fake: FakeNet = _fake_of(lobby)
 	var event: InputEventAction = InputEventAction.new()
-	event.action = "lobby_quick_start"
+	event.action = "lobby_confirm"
 	event.pressed = true
 	watch_signals(lobby)
 	fake.all_peers_ready_value = false
 	lobby._update_host_only_state()
-	lobby._unhandled_input(event)
+	lobby._input(event)
 	assert_signal_not_emitted(lobby, "start_requested")
 	fake.all_peers_ready_value = true
 	lobby._update_host_only_state()
-	lobby._unhandled_input(event)
+	lobby._input(event)
 	assert_signal_emitted(lobby, "start_requested")
+
+
+## Bontago-1pi.159.27: X / keyboard X (lobby_add_bot) adds a bot for the host while a seat is free,
+## never starts the match, and does nothing for a client or a full lobby.
+func test_lobby_add_bot_shortcut_adds_a_bot_for_the_host_only() -> void:
+	var event: InputEventAction = InputEventAction.new()
+	event.action = "lobby_add_bot"
+	event.pressed = true
+	var host: Lobby = _make_lobby(true)
+	_fake_of(host).all_peers_ready_value = true
+	host._update_host_only_state()
+	watch_signals(host)
+	var before: int = int(host._ai_count_spin.value)
+	host._unhandled_input(event)
+	assert_eq(int(host._ai_count_spin.value), before + 1, "X adds a bot")
+	assert_signal_not_emitted(host, "start_requested", "X no longer starts the match")
+	host._set_bot_count(MatchConfig.PLAYER_COUNT_MAX)
+	var full: int = int(host._ai_count_spin.value)
+	host._players_panel._refresh_header()
+	host._unhandled_input(event)
+	assert_eq(int(host._ai_count_spin.value), full, "a full lobby ignores X")
+	var client: Lobby = _make_lobby(false)
+	var client_before: int = int(client._ai_count_spin.value)
+	client._unhandled_input(event)
+	assert_eq(int(client._ai_count_spin.value), client_before, "a client ignores X")
+
+
+func test_start_and_add_bot_buttons_carry_their_glyphs() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var start_flow: InputPromptFlow = LobbyButtonGlyph.flow_of(lobby.get_node("%StartButton") as Button)
+	assert_not_null(start_flow, "Start has a hint")
+	assert_eq(start_flow.template, "{lobby_confirm}")
+	var add_flow: InputPromptFlow = LobbyButtonGlyph.flow_of(lobby._players_panel.add_bot_button())
+	assert_not_null(add_flow, "Add bot has a hint")
+	assert_eq(add_flow.template, "{lobby_add_bot}")
+	assert_false(InputMap.action_get_events(&"lobby_add_bot").is_empty())
+	assert_false(InputMap.has_action(&"lobby_quick_start"), "X no longer starts the match")
 
 
 func test_real_gamepad_x_y_trigger_lobby_shortcuts() -> void:
@@ -1216,8 +1253,14 @@ func test_real_gamepad_x_y_trigger_lobby_shortcuts() -> void:
 	lobby._unhandled_input(y_event)
 	assert_false(game.is_advanced_open(), "a second pad Y closes it")
 	var x_event: InputEventJoypadButton = _pad_press_release_action_event(JOY_BUTTON_X)
-	assert_true(x_event.is_action_pressed(&"lobby_quick_start"))
+	assert_true(x_event.is_action_pressed(&"lobby_add_bot"))
+	var bots_before: int = int(lobby._ai_count_spin.value)
 	lobby._unhandled_input(x_event)
+	assert_eq(int(lobby._ai_count_spin.value), bots_before + 1, "pad X adds a bot")
+	assert_signal_not_emitted(lobby, "start_requested")
+	var start_event: InputEventJoypadButton = _pad_press_release_action_event(JOY_BUTTON_START)
+	assert_true(start_event.is_action_pressed(&"lobby_confirm"))
+	lobby._input(start_event)
 	assert_signal_emitted(lobby, "start_requested")
 
 
