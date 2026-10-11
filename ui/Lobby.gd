@@ -46,6 +46,8 @@ signal back_requested
 ## UiStepper, UiSegmentMeter, UiDropdown, UiChipToggle). Each UiRow node in Lobby.tscn carries its label
 ## text as this metadata key (read once by _prepare_rows()); every VBox of rows is in STACK_GROUP and
 ## gets the design-system row gap.
+const CARD_SETTINGS: String = "SettingsCard"
+const CARD_PLAYERS: String = "PlayersCard"
 const ROW_LABEL_META: StringName = &"row_label"
 const STACK_GROUP: StringName = &"lobby_stack"
 
@@ -208,8 +210,8 @@ var _round_timer_value: Label = null
 @onready var _start_button: Button = %StartButton
 @onready var _invite_friends_button: Button = %InviteFriendsButton
 
-@onready var _settings_card: PanelContainer = %SettingsCard
-@onready var _players_card: PanelContainer = %PlayersCard
+@onready var _settings_card: UiPanel = %SettingsCard
+@onready var _players_card: UiPanel = %PlayersCard
 ## Bontago-1pi.159.2.1: the title row is a UiTitleRow (eyebrow, LOBBY, status badge left; Back right,
 ## all centred on one line, left edge on the card padding); the badge is a UiStatusBadge.
 @onready var _header_row: UiTitleRow = %Header
@@ -270,6 +272,8 @@ const TIMER_TIP_DOMINATION: String = "How long the round lasts; when it ends the
 ## (Elimination used to read "No limit"); every other value reads "<n> min".
 const TIMER_OFF_TEXT: String = "Off"
 const TIMER_VALUE_FORMAT: String = "%d min"
+## Bontago-1pi.159.26: a stepper shows the bare number; the unit lives in the row label (the summary keeps its units).
+const TIMER_STEPPER_FORMAT: String = "%d"
 const TIMER_REQUIRED_FORMAT: String = "%d min (required)"
 ## The readout beside the round-length stepper while the mode requires a timer (Domination).
 const TIMER_REQUIRED_TEXT: String = "required"
@@ -286,7 +290,7 @@ const DISC_SIZE_READOUT_FORMAT: String = "%d%%"
 ## Bontago-1pi.53 (S1a): the one-line section summaries shown on each UiSection header.
 const SUMMARY_SEPARATOR: String = " · "
 const SUMMARY_BLOCK_TIMER_FORMAT: String = "Block %.1f s"
-const BLOCK_TIMER_VALUE_FORMAT: String = "%.1f s"
+const BLOCK_TIMER_VALUE_FORMAT: String = "%.1f"
 const SUMMARY_GOAL_FLAGS_FORMAT: String = "%d goal flags"
 const SUMMARY_GOAL_FLAG_FORMAT: String = "%d goal flag"
 const SUMMARY_GIFTS_ON_FORMAT: String = "On%sfrequency %d"
@@ -306,6 +310,24 @@ var _ready_was_shown: bool = true
 var _invite_was_shown: bool = false
 ## Bontago-1pi.164: the non-Steam internet join-code row (isolated in ui/JoinCodeRow.gd).
 var _join_code_row: JoinCodeRow = null
+
+
+## Bontago-1pi.159.26: the two cards are design-system [UiPanel]s (plate, lip, padding; no clip, so the
+## ledge shows like the Options window). The scene authors each card's rows as direct children; they
+## move into the panel's content column before any @onready lookup runs.
+func _enter_tree() -> void:
+	for card_name: String in [CARD_SETTINGS, CARD_PLAYERS]:
+		var card: UiPanel = find_child(card_name, true, false) as UiPanel
+		if card == null:
+			continue
+		for child: Node in card.get_children():
+			if child == card.content.get_parent():
+				continue
+			child.owner = null
+			child.reparent(card.content, false)
+			child.owner = self
+			(child as Control).size_flags_vertical = Control.SIZE_EXPAND_FILL
+		card.content.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 
 func _ready() -> void:
@@ -432,8 +454,8 @@ func _configure_timer_steppers() -> void:
 		stepper.max_value = MatchConfig.ROUND_TIMER_MAX_MINUTES
 	_match_timer_stepper.min_value = MatchConfig.ROUND_TIMER_OFF_MINUTES
 	_round_timer_stepper.min_value = MatchConfig.ROUND_TIMER_MIN_MINUTES
-	_match_timer_stepper.formatter = func(minutes: int) -> String: return _timer_value_text(minutes, false)
-	_round_timer_stepper.formatter = func(minutes: int) -> String: return _timer_value_text(minutes, false)
+	_match_timer_stepper.formatter = _timer_stepper_text
+	_round_timer_stepper.formatter = _timer_stepper_text
 	_match_timer_stepper.set_value_silent(MatchConfig.ROUND_TIMER_OFF_MINUTES)
 	_round_timer_stepper.set_value_silent(MatchConfig.ROUND_TIMER_DEFAULT_MINUTES)
 	# An unchanged value emits no signal, so seed what _on_timer_stepper_changed() compares against.
@@ -844,8 +866,6 @@ func _on_sound_button_hovered() -> void:
 ## game/Main.gd" rule intact while giving Main.gd something to connect to.
 func _apply_visual_style() -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	_settings_card.add_theme_stylebox_override("panel", MenuStyleFactory.make_card(tuning.card_cream_color, tuning))
-	_players_card.add_theme_stylebox_override("panel", MenuStyleFactory.make_card(tuning.card_cream_color, tuning))
 	# Hierarchy (UI_COMPONENTS_PLAN section 4): the card heading, then sections one space-5 apart,
 	# then rows one space-3 apart (_prepare_rows); everything else is the component's own look.
 	_settings_column.add_theme_constant_override("separation", arcade.space_5_px)
@@ -1102,6 +1122,13 @@ func _refresh_timer_control(mode: int) -> void:
 ## The readout beside the round-length stepper ("required" while the mode always has a timer).
 func _update_timer_values() -> void:
 	_round_timer_value.text = TIMER_REQUIRED_TEXT if _timer_mode == MatchConfig.GameMode.DOMINATION else ""
+
+
+## DECISION (Bontago-1pi.159.26): the timer stepper reads a bare number; the match timer's lowest stop stays the word "Off".
+static func _timer_stepper_text(minutes: int) -> String:
+	if minutes <= MatchConfig.ROUND_TIMER_OFF_MINUTES:
+		return TIMER_OFF_TEXT
+	return TIMER_STEPPER_FORMAT % minutes
 
 
 static func _timer_value_text(minutes: int, required: bool) -> String:

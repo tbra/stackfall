@@ -138,7 +138,7 @@ func test_the_panel_sits_in_the_players_card_between_the_card_top_and_the_footer
 	var panel: LobbyPlayersPanel = _panel_of(lobby)
 	assert_not_null(panel, "%PlayersPanel resolves from the Lobby")
 	var players: Node = panel.get_parent()
-	assert_eq(players.get_parent(), lobby.get_node("%PlayersCard"), "the panel is the Players column's first child")
+	assert_eq(players.get_parent(), (lobby.get_node("%PlayersCard") as UiPanel).content, "the panel is the Players column's first child")
 	assert_eq(panel.get_index(), 0)
 	var footer: Node = (lobby.get_node("%ReadyCheck") as Node).get_parent()
 	assert_eq(footer.get_parent(), players)

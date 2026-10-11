@@ -317,7 +317,7 @@ func test_block_timer_is_a_stepper_with_the_old_range_and_step() -> void:
 	stepper.plus_button.button_down.emit()
 	stepper.plus_button.button_up.emit()
 	assert_almost_eq(lobby._block_timer_seconds(), 6.5, 0.001)
-	assert_eq(stepper.value_label.text, "6.5 s")
+	assert_eq(stepper.value_label.text, "6.5")
 	assert_almost_eq(_published(lobby).block_timer, 6.5, 0.001, "host edits publish")
 	stepper.minus_button.button_down.emit()
 	stepper.minus_button.button_up.emit()
@@ -363,7 +363,7 @@ func test_a_client_sees_the_block_timer_but_its_stepper_is_inert() -> void:
 	config.block_timer = 10.5
 	Events.net_lobby_data_changed.emit(config.to_dict())
 	assert_almost_eq(lobby._block_timer_seconds(), 10.5, 0.001, "replicated value arrives")
-	assert_eq(stepper.value_label.text, "10.5 s")
+	assert_eq(stepper.value_label.text, "10.5")
 
 
 func _action(action: StringName, pressed: bool) -> InputEventAction:
