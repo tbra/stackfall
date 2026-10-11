@@ -77,19 +77,19 @@ const REMOTE_CURSORS_SCENE_PATH: String = "res://game/RemoteCursors.tscn"
 const NET_DEBUG_OVERLAY_SCENE_PATH: String = "res://ui/NetDebugOverlay.tscn"
 ## Bontago-xtq.42 (M7 P42, owner playtest: "there's no pause menu, I can't
 ## abandon a game and go back to the main menu or quit the game").
-const PAUSE_MENU_SCENE: PackedScene = preload("res://ui/PauseMenu.tscn")
+const PAUSE_MENU_SCENE_PATH: String = "res://ui/PauseMenu.tscn"
 ## Bontago-1pi.6 (owner playtest: "the win screen always says 'Team x wins!'
 ## even when not playing in teams"). Self-contained the same way
 ## ui/PauseMenu.gd is (see its own header) -- it self-wires to
 ## Events.match_results_ready/match_state_changed, so this is only an
 ## instantiate-and-hide, no further wiring in this file.
-const RESULTS_SCREEN_SCENE: PackedScene = preload("res://ui/ResultsScreen.tscn")
+const RESULTS_SCREEN_SCENE_PATH: String = "res://ui/ResultsScreen.tscn"
 ## Bontago-1pi.69: hold-to-show live scoreboard (action show_scores).
-const SCOREBOARD_SCENE: PackedScene = preload("res://ui/ScoreboardOverlay.tscn")
+const SCOREBOARD_SCENE_PATH: String = "res://ui/ScoreboardOverlay.tscn"
 ## Bontago-1pi.8 (owner playtest 2026-09-27): covers the LOBBY -> LOADING ->
 ## COUNTDOWN window instead of leaving the idle centre-beacon camera shot on
 ## screen -- see ui/LoadingScreen.gd's own header doc.
-const LOADING_SCREEN_SCENE: PackedScene = preload("res://ui/LoadingScreen.tscn")
+const LOADING_SCREEN_SCENE_PATH: String = "res://ui/LoadingScreen.tscn"
 
 @onready var _field: Field = $Field
 @onready var _blocks_container: Node3D = $BlocksContainer
@@ -145,20 +145,36 @@ var _debug_overlay: Node = null
 ## playtest finding this package answers was about the ordinary menu-driven
 ## game, which start_sandbox_from_menu()/start_tutorial_from_menu() below
 ## already cover.
-var _pause_menu: PauseMenu = null
+## Bontago-1pi.11.84.6 (MF5): the four overlays are created on first need (ensure), not in
+## _ready(). `_pause_menu` & co. are lazy accessors (the flows and tests read them and always
+## get an instance); the `*_node` fields are the raw slots, null until created, for the paths
+## that must NOT create one (main-menu entry, territory callbacks).
+var _pause_menu_node: PauseMenu = null
+var _pause_menu: PauseMenu:
+	get:
+		return _ensure_pause_menu()
 ## Bontago-1pi.6: built once alongside _pause_menu above, for the same reason
 ## (self-wired via Events, inert until it has something to show). Unlike
 ## _pause_menu it needs no `suppressed` gate: it only ever appears in
 ## response to Events.match_results_ready (never a raw key press), so there
 ## is no toggle input to suppress during Tutorial/hot-seat/sandbox.
-var _results_screen: ResultsScreen = null
-var _scoreboard: ScoreboardOverlay = null
+var _results_screen_node: ResultsScreen = null
+var _results_screen: ResultsScreen:
+	get:
+		return _ensure_results_screen()
+var _scoreboard_node: ScoreboardOverlay = null
+var _scoreboard: ScoreboardOverlay:
+	get:
+		return _ensure_scoreboard()
 ## Bontago-1pi.8: built once, right alongside _pause_menu above (same
 ## "instantiate once, self-wire" contract this file's own header describes),
 ## never for --hot-seat/the CLI-only --sandbox debug entry point (both return
 ## out of _ready() before Events.match_state_changed is even connected below,
 ## same reason _debug_overlay is skipped there too).
-var _loading_screen: LoadingScreen = null
+var _loading_screen_node: LoadingScreen = null
+var _loading_screen: LoadingScreen:
+	get:
+		return _ensure_loading_screen()
 var _start_pending: bool = false
 ## Bontago-d5c.6 (M5 P5): one instance per bot slot in the match currently
 ## built, built in _build_match_world() (or _start_headless_bot_match_with_
@@ -370,29 +386,9 @@ func _ready() -> void:
 	# a late joiner may take and whether a returning peer's slot is still its.
 	Net.set_seat_policy(MatchNet.pick_open_seat, MatchNet.seat_reclaimable)
 
-	_pause_menu = PAUSE_MENU_SCENE.instantiate() as PauseMenu
-	add_child(_pause_menu)
-	_pause_menu.leave_match_requested.connect(_on_pause_leave_requested)
-	# Bontago-1pi.50: Return to lobby (host ends the match for everyone).
-	_pause_menu.return_to_lobby_requested.connect(_on_pause_return_to_lobby_requested)
-	_pause_menu.context_provider = _pause_menu_context
-	# Bontago-xtq.42 fix round 2 (orchestrator review): inert until a match/
-	# sandbox world actually exists -- _show_main_menu() below sets this too,
-	# but set it explicitly here as well so it's never even momentarily false
-	# before that first call.
-	_pause_menu.suppressed = true
-
-	_results_screen = RESULTS_SCREEN_SCENE.instantiate() as ResultsScreen
-	add_child(_results_screen)
-	_scoreboard = SCOREBOARD_SCENE.instantiate() as ScoreboardOverlay
-	add_child(_scoreboard)
-	# Bontago-1pi.8: built before Net.init_steam()/_show_main_menu() below,
-	# same reasoning as _pause_menu just above -- it must already exist the
-	# first time _on_match_state_changed() below can possibly fire.
-	_loading_screen = LOADING_SCREEN_SCENE.instantiate() as LoadingScreen
-	add_child(_loading_screen)
+	# MF5: the overlays are built by _ensure_overlays() (lobby entry / loading announced / first
+	# use), never here; Events wiring that must exist before then stays below.
 	Events.match_loading_announced.connect(_on_match_loading_announced)
-	_loading_screen.readiness_timed_out.connect(_on_loading_readiness_timed_out)
 	Events.territory_updated.connect(_on_loading_territory_updated)
 	Events.territory_replicated.connect(_on_loading_territory_replicated)
 
@@ -739,6 +735,54 @@ func _menu_prewarm_queue() -> MenuPrewarmQueue:
 
 # --- Menu / lobby routing -----------------------------------------------------
 
+## MF5: instantiates one overlay through the prewarm queue (blocks only for the remaining chunk
+## when it is still prewarming, plain load() otherwise). Each _ensure_* creates once.
+func _ensure_pause_menu() -> PauseMenu:
+	if _pause_menu_node == null:
+		var menu: PauseMenu = _load_scene(PAUSE_MENU_SCENE_PATH).instantiate() as PauseMenu
+		add_child(menu)
+		menu.leave_match_requested.connect(_on_pause_leave_requested)
+		# Bontago-1pi.50: Return to lobby (host ends the match for everyone).
+		menu.return_to_lobby_requested.connect(_on_pause_return_to_lobby_requested)
+		menu.context_provider = _pause_menu_context
+		# Bontago-xtq.42: inert until a match/sandbox world exists (flows clear it).
+		menu.suppressed = true
+		_pause_menu_node = menu
+	return _pause_menu_node
+
+
+func _ensure_results_screen() -> ResultsScreen:
+	if _results_screen_node == null:
+		_results_screen_node = _load_scene(RESULTS_SCREEN_SCENE_PATH).instantiate() as ResultsScreen
+		add_child(_results_screen_node)
+	return _results_screen_node
+
+
+func _ensure_scoreboard() -> ScoreboardOverlay:
+	if _scoreboard_node == null:
+		_scoreboard_node = _load_scene(SCOREBOARD_SCENE_PATH).instantiate() as ScoreboardOverlay
+		add_child(_scoreboard_node)
+	return _scoreboard_node
+
+
+func _ensure_loading_screen() -> LoadingScreen:
+	if _loading_screen_node == null:
+		var screen: LoadingScreen = _load_scene(LOADING_SCREEN_SCENE_PATH).instantiate() as LoadingScreen
+		add_child(screen)
+		screen.readiness_timed_out.connect(_on_loading_readiness_timed_out)
+		_loading_screen_node = screen
+	return _loading_screen_node
+
+
+## Creates all four (lobby entry, match loading announced, world build): they must exist before
+## the first match_state_changed(LOBBY, LOADING) because they self-wire through Events.
+func _ensure_overlays() -> void:
+	_ensure_pause_menu()
+	_ensure_results_screen()
+	_ensure_scoreboard()
+	_ensure_loading_screen()
+
+
 func _show_main_menu() -> void:
 	Match.stats().reset_session_wins()  # Bontago-1pi.72.3: a fresh local session
 	Sfx.set_music_context(&"menu")
@@ -753,8 +797,9 @@ func _show_main_menu() -> void:
 	# a host disconnect on a client, reaching this via _on_net_mode_changed()
 	# below) while the overlay happened to be open; `suppressed = true` then
 	# keeps pause_menu inert here, same as start_tutorial_from_menu()'s own.
-	_pause_menu.force_close()
-	_pause_menu.suppressed = true
+	if _pause_menu_node != null:
+		_pause_menu_node.force_close()
+		_pause_menu_node.suppressed = true
 	_main_menu = MAIN_MENU_SCENE.instantiate() as MainMenu
 	add_child(_main_menu)
 	_main_menu.sandbox_requested.connect(start_sandbox_from_menu)
@@ -786,8 +831,9 @@ func _show_lobby() -> void:
 	_clear_menu_and_lobby()
 	# Bontago-xtq.42 fix round 2: see _show_main_menu()'s own comment just
 	# above -- the lobby is equally a "no match world" screen.
-	_pause_menu.force_close()
-	_pause_menu.suppressed = true
+	_ensure_overlays()
+	_pause_menu_node.force_close()
+	_pause_menu_node.suppressed = true
 	_lobby = _load_scene(LOBBY_SCENE_PATH).instantiate()
 	add_child(_lobby)
 	_lobby.connect(&"start_requested", _on_lobby_start_pressed)
@@ -848,6 +894,7 @@ func _on_lobby_start_pressed(config: MatchConfig) -> void:
 	if not Net.is_host() or _start_pending:
 		return
 	_start_pending = true
+	_ensure_overlays()
 	_loading_screen.show_pending(config)
 	MatchNet.replicate_match_loading()
 	for _i: int in range(_loading_screen.tuning.pre_start_frames):
@@ -889,17 +936,18 @@ func _on_match_loading_announced() -> void:
 	if Match.state() != Match.State.LOBBY:
 		return
 	_prefetch_match_scenes()
+	_ensure_overlays()  # a client may reach LOADING without ever having built the lobby overlays
 	_loading_screen.show_pending(null)
 
 
 func _on_loading_territory_updated(_raster: TerritoryRaster, _groups: TerritoryGroups) -> void:
 	# DECISION: an applied result can arrive while the staged world is building.
-	if Net.is_host() and _loading_screen.visible and not _loading_screen.is_pending():
+	if Net.is_host() and _loading_screen_node != null and _loading_screen_node.visible and not _loading_screen_node.is_pending():
 		_first_territory_ready = true
 
 
 func _on_loading_territory_replicated(_raster: TerritoryRaster) -> void:
-	if Net.is_client() and _loading_screen.visible and not _loading_screen.is_pending():
+	if Net.is_client() and _loading_screen_node != null and _loading_screen_node.visible and not _loading_screen_node.is_pending():
 		_first_territory_ready = true
 
 
@@ -982,8 +1030,8 @@ func _on_pause_leave_requested() -> void:
 		_sandbox.process_mode = Node.PROCESS_MODE_DISABLED
 		_sandbox.queue_free()
 		_sandbox = null
-		if _scoreboard != null:
-			_scoreboard.suppressed = false
+		if _scoreboard_node != null:
+			_scoreboard_node.suppressed = false
 	if Match.state() != Match.State.LOBBY:
 		Match.abort_match()
 	_show_main_menu()
@@ -1068,6 +1116,8 @@ func _loading_screen_slots() -> Array[PlayerSlot]:
 
 ## Bontago-1pi.11.84: the match-world rules (state routing, world build/teardown, loading hand-off).
 func _on_match_state_changed(from_state: int, to_state: int) -> void:
+	if to_state == Match.State.LOADING:
+		_ensure_overlays()  # MF5: sandbox/bots/test entries never pass the lobby
 	_match_flow_port().on_match_state_changed(from_state, to_state)
 
 

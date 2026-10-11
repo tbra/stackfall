@@ -4,5 +4,5 @@
 
 [resource]
 script = ExtResource("1_menu_prewarm")
-chunks = Array[PackedStringArray]([PackedStringArray("res://ui/Lobby.tscn"), PackedStringArray("res://game/MainSandboxFlow.gd", "res://game/HotSeat.tscn"), PackedStringArray("res://game/MainMatchFlow.gd", "res://game/RemoteCursors.tscn", "res://ui/NetDebugOverlay.tscn"), PackedStringArray("res://game/Sandbox.tscn", "res://ui/Tutorial.tscn"), PackedStringArray("res://game/MainHeadlessBotsFlow.gd", "res://ui/TuningPanel.gd")])
+chunks = Array[PackedStringArray]([PackedStringArray("res://ui/Lobby.tscn"), PackedStringArray("res://game/MainSandboxFlow.gd", "res://game/HotSeat.tscn"), PackedStringArray("res://game/MainMatchFlow.gd", "res://game/RemoteCursors.tscn", "res://ui/NetDebugOverlay.tscn"), PackedStringArray("res://game/Sandbox.tscn", "res://ui/Tutorial.tscn"), PackedStringArray("res://game/MainHeadlessBotsFlow.gd", "res://ui/TuningPanel.gd"), PackedStringArray("res://ui/LoadingScreen.tscn", "res://ui/PauseMenu.tscn"), PackedStringArray("res://ui/ResultsScreen.tscn", "res://ui/ScoreboardOverlay.tscn")])
 eager_flags = PackedStringArray("hot-seat", "sandbox", "headless-host", "host", "join", "host-online")

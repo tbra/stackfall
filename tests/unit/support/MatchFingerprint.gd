@@ -29,6 +29,10 @@ const RUMBLE_PROBE_DEVICE: int = 0
 ## Fingerprint of `main` (a game/Main.tscn instance) and the shared singletons.
 static func capture(main: Node) -> Dictionary:
 	var out: Dictionary = {}
+	# MF5 (Bontago-1pi.11.84.6): the four overlays are created lazily; build them first so a
+	# fresh launch and a session that already needed some compare like for like.
+	if main != null and main.has_method(&"_ensure_overlays"):
+		main.call(&"_ensure_overlays")
 	_capture_camera(main, out)
 	_capture_field(main, out)
 	_capture_sky(main, out)
