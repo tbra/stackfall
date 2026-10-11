@@ -20,6 +20,16 @@ const SWITCH_STATES: Array[StringName] = [STATE_NORMAL, STATE_HOVER, STATE_FOCUS
 const SWITCH_LABELS: Dictionary = {STATE_NORMAL: "NORMAL", STATE_HOVER: "HOVER", STATE_FOCUS: "FOCUS", STATE_DISABLED: "DISABLED"}
 const PAGE_INPUTS: int = 2
 const PAGE_STRUCTURE: int = 3
+const PAGE_TEXT: int = 4
+const TEXT_SAMPLES: Dictionary = {
+	UiText.Role.TITLE: "STACKFALL", UiText.Role.HEADING: "MATCH SETTINGS",
+	UiText.Role.BODY: "Drop blocks inside your territory to grow it.",
+	UiText.Role.CAPTION: "28 ms - 2/8 players", UiText.Role.VALUE: "41%",
+}
+const TEXT_ROLE_NAMES: Dictionary = {
+	UiText.Role.TITLE: "TITLE", UiText.Role.HEADING: "HEADING", UiText.Role.BODY: "BODY",
+	UiText.Role.CAPTION: "CAPTION", UiText.Role.VALUE: "VALUE",
+}
 const DROPDOWN_CYCLE_ITEMS: PackedStringArray = ["Classic", "Sprint", "Marathon", "Chaos"]
 const DROPDOWN_LIST_ITEMS: PackedStringArray = ["Dawn", "Noon", "Dusk", "Night", "Storm", "Aurora", "Fog"]
 const DROPDOWN_OPEN_SELECTED: int = 2
@@ -46,7 +56,7 @@ const BADGES: Array[Dictionary] = [
 ]
 
 ## 0 = buttons + badges, 1 = toggles, chips, steppers and tabs (C1b), 2 = dropdown, field and
-## segment meter, 3 = section, panel and title row (C2). One page fits one capture.
+## segment meter, 3 = section, panel and title row (C2), 4 = text roles and well (C4a). One page fits one capture.
 @export var page: int = 0
 
 
@@ -85,6 +95,9 @@ func _ready() -> void:
 		structure_left.add_child(_panel("TITLE ROW", _title_row_rows()))
 		columns.add_child(structure_left)
 		columns.add_child(_sample_panel())
+	elif page == PAGE_TEXT:
+		columns.add_child(_panel("TEXT ROLES", _text_rows()))
+		columns.add_child(_panel("WELL", _well_rows()))
 	else:
 		var left: VBoxContainer = VBoxContainer.new()
 		left.add_theme_constant_override("separation", arcade.space_4_px)
@@ -351,6 +364,42 @@ func _sample_section(title: String, summary: String, open: bool) -> UiSection:
 	section.set_summary.call_deferred(summary)
 	section.set_advanced_open.call_deferred(open)
 	return section
+
+
+func _text_rows() -> Array[Control]:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var rows: Array[Control] = []
+	for text_role: UiText.Role in TEXT_SAMPLES:
+		var row: UiRow = UiRow.new().setup(TEXT_ROLE_NAMES[text_role] as String)
+		row.add_item(UiText.make(text_role, TEXT_SAMPLES[text_role] as String))
+		rows.append(row)
+	var tinted: UiRow = UiRow.new().setup("BODY TINTED")
+	tinted.add_item(UiText.make(UiText.Role.BODY, "Alert (tint)", arcade.alert_color))
+	rows.append(tinted)
+	var on_face: UiRow = UiRow.new().setup("INK ON RIM")
+	var rim_label: UiText = UiText.make(UiText.Role.HEADING, "WINNER")
+	rim_label.set_face(arcade.rim_color)
+	var rim_face: PanelContainer = PanelContainer.new()
+	var rim_box: StyleBoxFlat = StyleBoxFlat.new()
+	rim_box.bg_color = arcade.rim_color
+	rim_box.set_corner_radius_all(arcade.radius_block_px)
+	rim_box.set_content_margin_all(float(arcade.space_2_px))
+	rim_face.add_theme_stylebox_override("panel", rim_box)
+	rim_face.add_child(rim_label)
+	on_face.add_item(rim_face)
+	rows.append(on_face)
+	return rows
+
+
+func _well_rows() -> Array[Control]:
+	var rows: Array[Control] = []
+	var well: UiWell = UiWell.new()
+	var column: VBoxContainer = VBoxContainer.new()
+	column.add_child(UiText.make(UiText.Role.BODY, "Host's game"))
+	column.add_child(UiText.make(UiText.Role.CAPTION, "192.168.1.20 - 2/8 players"))
+	well.add_child(column)
+	rows.append(well)
+	return rows
 
 
 func _title_row_rows() -> Array[Control]:

@@ -20,8 +20,6 @@ const MAX_GLYPHS_PER_TOKEN: int = 1
 const TOKEN_OPEN: String = "{"
 const TOKEN_CLOSE: String = "}"
 const GROUP_SEPARATOR: String = "|"
-## Theme type variation of the action words (13 px caption, stackfall_theme).
-const ACTION_WORD_VARIATION: StringName = &"CaptionLabel"
 ## Theme type variation of the action words in the KeyPrompt `label` style (13/800, tracked).
 const LABEL_WORD_VARIATION: StringName = &"FieldLabel"
 ## Fewer words than this in the final run are left unglued.
@@ -180,14 +178,20 @@ func _add_gap() -> void:
 
 
 func _add_label(text: String) -> void:
-	var label: Label = Label.new()
-	label.text = text.to_upper() if label_style else text
+	# Stackfall Arcade KeyPrompt: the action word is a sand caption-size label unless the host
+	# menu passes its own ink. Plain words are UiText CAPTION; the tracked uppercase `label` style
+	# has no UiText role yet (named gap), so it stays a Label in the theme's FieldLabel variation.
+	var ink: Color = text_color if text_color.a > 0.0 else UiText.color_for(UiText.Role.BODY)
+	var label: Label = null
+	if label_style:
+		label = Label.new()
+		label.text = text.to_upper()
+		label.theme_type_variation = LABEL_WORD_VARIATION
+		label.add_theme_color_override("font_color", ink)
+	else:
+		label = UiText.make(UiText.Role.CAPTION, text, ink)
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	# Stackfall Arcade KeyPrompt: the action word is a sand caption-size label unless the host
-	# menu passes its own ink.
-	label.theme_type_variation = LABEL_WORD_VARIATION if label_style else ACTION_WORD_VARIATION
-	label.add_theme_color_override("font_color", text_color if text_color.a > 0.0 else MenuStyleFactory.arcade_tuning().sand_color)
 	add_child(label)
 
 

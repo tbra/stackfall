@@ -61,3 +61,9 @@ extends Resource
 ## Icon-only status badge marks (tick / hourglass): the same square box and stroke for both.
 @export var status_icon_px: int = 14
 @export var status_icon_stroke_px: int = 3
+
+## UiText (Bontago-1pi.159.11 C4a): size of the VALUE role (a Bungee readout in a row or a card;
+## the other roles take their sizes from the ArcadeVisualTuning type styles) and the outline every
+## role draws (0: the design's text has no outline; this also cancels a theme outline).
+@export var text_value_font_px: int = 16
+@export var text_outline_px: int = 0

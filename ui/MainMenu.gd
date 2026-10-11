@@ -63,8 +63,8 @@ const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/OptionsMenu.tscn")
 ## Bontago-hfa.3 (UI reskin P1): left column, scrim and lockup geometry.
 @export var layout: MainMenuTuning = preload("res://config/main_menu_tuning.tres")
 
-@onready var _name_row: HBoxContainer = $Center/Panel/Layout/NameRow
-@onready var _name_edit: LineEdit = %NameEdit
+@onready var _name_row: UiField = %NameField
+@onready var _name_edit: LineEdit = _name_row.edit
 @onready var _host_button: Button = %HostButton
 @onready var _join_button: Button = %JoinButton
 @onready var _play_local_button: Button = %PlayLocalButton
@@ -77,16 +77,18 @@ const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/OptionsMenu.tscn")
 @onready var _gift_demo_button: Button = %GiftDemoButton
 @onready var _tower_topple_button: Button = %TowerToppleButton
 ## Bontago-1pi.74: build label (BuildVersion.label()) in the top-right corner beside the Debug pill (Bontago-1pi.150: moved off the bottom edge, which collided with the button column on short canvases).
-@onready var _build_version_label: Label = %BuildVersionLabel
+@onready var _build_version_label: UiText = %BuildVersionLabel
 @onready var _host_row: VBoxContainer = $Center/Panel/Layout/HostRow
 @onready var _small_row: HBoxContainer = %SmallRow
 @onready var _section_gap: Control = %SectionGap
 @onready var _scrim: TextureRect = %Scrim
-@onready var _join_tab_row: HBoxContainer = %JoinTabRow
-@onready var _join_lan_tab_button: Button = %JoinLanTabButton
-@onready var _join_steam_tab_button: Button = %JoinSteamTabButton
+@onready var _join_tab_row: UiTabs = %JoinTabRow
+## The two join tabs, added to the UiTabs bar in _ready() (still reachable as %JoinLanTabButton / %JoinSteamTabButton).
+var _join_lan_tab_button: UiTab = null
+var _join_steam_tab_button: UiTab = null
+var _syncing_tabs: bool = false
 @onready var _title_wrap: Control = $Center/Panel/Layout/TitleWrap
-@onready var _tagline: Label = $Center/Panel/Layout/Tagline
+@onready var _tagline: UiText = $Center/Panel/Layout/Tagline
 @onready var _game_list_stack: Control = $Center/Panel/Layout/LanGamesWell/LanGamesLayout/GameListStack
 @onready var _steam_list_stack: Control = $Center/Panel/Layout/SteamSection/SteamGamesWell/SteamGamesLayout/SteamListStack
 @onready var _sandbox_button: Button = %SandboxButton
@@ -99,20 +101,20 @@ const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/OptionsMenu.tscn")
 ## Bontago-mp0.3.5 (review r1, item 5): the sunken "well" card wrapping the
 ## header row + %GameList + %DirectRow -- one sunken panel instead of a
 ## standalone tall Refresh button and separator lines.
-@onready var _lan_games_well: PanelContainer = %LanGamesWell
-@onready var _direct_ip_edit: LineEdit = %DirectIpEdit
+@onready var _lan_games_well: UiWell = %LanGamesWell
+@onready var _direct_ip_field: UiField = %DirectIpField
+@onready var _direct_ip_edit: LineEdit = _direct_ip_field.edit
 @onready var _direct_join_button: Button = %DirectJoinButton
-@onready var _status_label: Label = %StatusLabel
+@onready var _status_label: UiText = %StatusLabel
 
 ## The transparent column plate: the buttons sit directly on the backdrop scrim.
-@onready var _front_card: PanelContainer = %Panel
+@onready var _front_card: MarginContainer = %Panel
 @onready var _title: TextureRect = %Title
-@onready var _name_label: Label = %NameLabel
-@onready var _join_label: Label = %JoinLabel
+@onready var _join_label: UiText = %JoinLabel
 ## Bontago-mp0.3.5: mockup 10's bottom-right controller hint is a pill, not a
 ## bare Label -- %GamepadHintPill wraps the existing %GamepadHintBar Label in
 ## a PanelContainer so it reads as a chip instead of floating text.
-@onready var _gamepad_hint_pill: PanelContainer = %GamepadHintPill
+@onready var _gamepad_hint_pill: UiWell = %GamepadHintPill
 @onready var _hint_row: InputPromptFlow = %GamepadHintRow
 
 ## M3b (docs/archive/M3b_PLAN.md P3): the Steam section vs. the "not available" notice
@@ -123,7 +125,7 @@ const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/OptionsMenu.tscn")
 ## %SteamLobbyList -- same one-sunken-panel treatment as %LanGamesWell
 ## (Bontago-mp0.3.5 review r1, item 5), replacing the old standalone tall
 ## "Refresh" button + bare sunken %SteamLobbyList.
-@onready var _steam_games_well: PanelContainer = %SteamGamesWell
+@onready var _steam_games_well: UiWell = %SteamGamesWell
 @onready var _steam_lobby_list: ItemList = %SteamLobbyList
 @onready var _refresh_steam_button: Button = %RefreshSteamButton
 @onready var _empty_state_label: Label = %EmptyStateLabel
@@ -144,6 +146,10 @@ var _steam_lobbies: Array[Dictionary] = []
 ## own extra wiring code anyway.
 var _steam_refresh_countdown_s: float = 0.0
 
+const TAB_LAN: StringName = &"lan"
+const TAB_STEAM: StringName = &"steam"
+const JOIN_LAN_TAB_TEXT: String = "LAN / IP"
+const JOIN_STEAM_TAB_TEXT: String = "STEAM"
 const PAGE_HOME: int = 0
 const PAGE_JOIN: int = 1
 const PAGE_LOCAL: int = 2
@@ -174,12 +180,13 @@ func _ready() -> void:
 	net_provider = Net
 	_debug_entry_enabled = DebugMode.is_enabled()
 	_home_tagline = _tagline.text
+	_register_component_names()
+	_build_join_tabs()
 	_add_searching_cells()
 	_build_version_label.text = BuildVersion.label()
 	_host_button.pressed.connect(_on_host_pressed)
 	_join_button.pressed.connect(_on_join_pressed)
-	_join_lan_tab_button.pressed.connect(_on_join_lan_tab_pressed)
-	_join_steam_tab_button.pressed.connect(_on_join_steam_tab_pressed)
+	_join_tab_row.tab_changed.connect(_on_join_tab_changed)
 	_play_local_button.pressed.connect(_on_play_local_pressed)
 	_bots_button.pressed.connect(_on_bots_pressed)
 	_debug_button.pressed.connect(_on_debug_pressed)
@@ -208,6 +215,40 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_refresh_layout)
 	_front_card.minimum_size_changed.connect(_refresh_layout)
 	_set_page(PAGE_HOME)
+
+
+## The inner nodes of the UiField / UiTabs components keep their old unique names, so the scene's
+## %NameEdit / %DirectIpEdit / %JoinLanTabButton / %JoinSteamTabButton lookups still resolve.
+func _register_component_names() -> void:
+	_name_edit.tooltip_text = _name_row.tooltip_text
+	_name_edit.name = &"NameEdit"
+	_direct_ip_edit.name = &"DirectIpEdit"
+	for edit: LineEdit in [_name_edit, _direct_ip_edit]:
+		edit.owner = self
+		edit.unique_name_in_owner = true
+
+
+func _build_join_tabs() -> void:
+	_join_tab_row.add_tab(TAB_LAN, JOIN_LAN_TAB_TEXT)
+	_join_tab_row.add_tab(TAB_STEAM, JOIN_STEAM_TAB_TEXT)
+	_join_lan_tab_button = _join_tab_row.get_tab(TAB_LAN)
+	_join_steam_tab_button = _join_tab_row.get_tab(TAB_STEAM)
+	_join_lan_tab_button.name = &"JoinLanTabButton"
+	_join_steam_tab_button.name = &"JoinSteamTabButton"
+	for tab: UiTab in [_join_lan_tab_button, _join_steam_tab_button]:
+		tab.owner = self
+		tab.unique_name_in_owner = true
+
+
+## A tab press (mouse, Enter, stick or d-pad step) switches the transport; _set_page() mirrors
+## page state back onto the bar without re-entering here.
+func _on_join_tab_changed(id: StringName) -> void:
+	if _syncing_tabs:
+		return
+	if id == TAB_STEAM:
+		_on_join_steam_tab_pressed()
+	else:
+		_on_join_lan_tab_pressed()
 
 
 func _process(delta: float) -> void:
@@ -273,67 +314,32 @@ func _apply_visual_style() -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	_title_wrap.custom_minimum_size.y = layout.lockup_height_px
 	_section_gap.custom_minimum_size.y = layout.section_gap_px
-	_tagline.add_theme_color_override("font_color", arcade.sand_color)
-	_name_label.add_theme_color_override("font_color", arcade.dust_color)
-	_join_label.add_theme_color_override("font_color", arcade.dust_color)
-	_status_label.add_theme_color_override("font_color", arcade.alert_color)
-	_build_version_label.add_theme_color_override("font_color", arcade.dust_color)
+	_tagline.tint = arcade.sand_color
+	_status_label.tint = arcade.alert_color
 	_scrim.texture = _build_scrim_texture(arcade)
 	_scrim.offset_right = layout.scrim_width_px
-	_front_card.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	_front_card.custom_minimum_size.x = layout.column_width_px
-	$Center/Panel/Layout.add_theme_constant_override("separation", layout.block_gap_px)
-	_host_row.add_theme_constant_override("separation", layout.block_gap_px)
-	$Center/Panel/Layout/BottomRow.add_theme_constant_override("separation", layout.block_gap_px)
-	_small_row.add_theme_constant_override("separation", layout.block_gap_px)
+	_set_column_gap(layout.block_gap_px)
 	_game_list_stack.custom_minimum_size.y = tuning.menu_lan_list_height_px
 	_steam_list_stack.custom_minimum_size.y = tuning.menu_steam_list_height_px
 
-	_lan_games_well.add_theme_stylebox_override("panel", MenuStyleFactory.make_well(tuning))
-	_game_list.add_theme_stylebox_override("panel", MenuStyleFactory.make_flat_list(tuning))
-	_steam_games_well.add_theme_stylebox_override("panel", MenuStyleFactory.make_well(tuning))
-	_steam_lobby_list.add_theme_stylebox_override("panel", MenuStyleFactory.make_flat_list(tuning))
-	# The Name field keeps the shared theme's well (disc-900) and its 3 px cream focus outline; only
-	# the Direct IP field, which sits inside a well already, takes the lighter disc-700 face. Neither
-	# overrides "focus", so gamepad focus stays visible.
-	_direct_ip_edit.add_theme_stylebox_override("normal", MenuStyleFactory.make_flat_list(tuning))
-
-	var secondary: Color = arcade.disc_600_color
-	var cream: Color = arcade.cream_color
-	var ink: Color = arcade.ink_color
-	# Full-width blocks: Host (primary), Join, Play offline; then Vs bots (the local page's primary),
-	# Sandbox, Tutorial and the two debug demos.
-	MenuStyleFactory.apply_block(_host_button, arcade.flare_color, ink)
-	MenuStyleFactory.apply_block(_join_button, secondary, cream)
-	MenuStyleFactory.apply_block(_play_local_button, secondary, cream)
-	MenuStyleFactory.apply_block(_bots_button, arcade.flare_color, ink)
-	MenuStyleFactory.apply_block(_sandbox_button, secondary, cream)
-	MenuStyleFactory.apply_block(_tutorial_button, secondary, cream)
-	MenuStyleFactory.apply_block(_gift_demo_button, secondary, cream)
-	MenuStyleFactory.apply_block(_tower_topple_button, secondary, cream)
+	# The block looks (Host / Vs bots / Join IP primary, the rest secondary) are UiBlockButton exports
+	# in the scene; only the layout heights come from MainMenuTuning.
 	for large: Button in [_host_button, _join_button, _play_local_button, _bots_button, _sandbox_button,
 			_tutorial_button, _gift_demo_button, _tower_topple_button]:
 		large.custom_minimum_size.y = layout.block_height_px
-	# Small secondary blocks: Options / Quit, Back, Refresh, the join tabs and the debug entry.
-	# Join IP is the join flow's one primary.
-	for small: Button in [_options_button, _quit_button, _back_button, _refresh_button, _refresh_steam_button,
-			_join_lan_tab_button, _join_steam_tab_button, _host_online_button, _debug_button]:
-		MenuStyleFactory.apply_block(small, secondary, cream, true)
-		small.custom_minimum_size.y = layout.block_small_height_px
-	MenuStyleFactory.apply_block(_direct_join_button, arcade.flare_color, ink, true)
-	_direct_join_button.custom_minimum_size.y = layout.block_small_height_px
+	# Options | Quit share the row (a small UiBlockButton hugs its content by default).
+	for half: Button in [_options_button, _quit_button]:
+		half.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	# SVG icons import at a large intrinsic size; let the controls scale them into the row height.
-	for button: Button in [_join_lan_tab_button, _join_steam_tab_button,
-			_refresh_button, _refresh_steam_button, _direct_join_button, _back_button]:
+	for button: Button in [_refresh_button, _refresh_steam_button, _direct_join_button, _back_button]:
 		button.expand_icon = true
-	# DECISION (Bontago-1pi.37): icons are white-source SVGs and every block's icon, like its label,
-	# takes the one ink MenuStyleFactory.apply_ink() sets for all draw states.
-	var plate: StyleBoxFlat = MenuStyleFactory.make_plate(Color(arcade.disc_900_color, arcade.hud_plate_alpha))
-	plate.set_content_margin_all(float(arcade.space_3_px))
-	plate.shadow_size = 0
-	plate.set_corner_radius_all(arcade.radius_block_px)
-	_gamepad_hint_pill.add_theme_stylebox_override("panel", plate)
 	_hint_row.set_text_color(arcade.sand_color)
+
+
+## The vertical gap between the column's blocks.
+func _set_column_gap(gap_px: int) -> void:
+	$Center/Panel/Layout.add_theme_constant_override("separation", gap_px)
 
 
 ## The scrim behind the column: disc-900 at the scrim opacity, solid for the first
@@ -464,7 +470,7 @@ func set_debug_entry_enabled(enabled: bool) -> void:
 func _set_page(page: int, focus_target: Control = null) -> void:
 	_page = page
 	var join_page: bool = page == PAGE_JOIN
-	$Center/Panel/Layout.add_theme_constant_override("separation", tuning.menu_compact_separation_px if join_page else layout.block_gap_px)
+	_set_column_gap(tuning.menu_compact_separation_px if join_page else layout.block_gap_px)
 	_game_list_stack.custom_minimum_size.y = tuning.menu_compact_list_height_px if join_page else tuning.menu_lan_list_height_px
 	_steam_list_stack.custom_minimum_size.y = tuning.menu_compact_list_height_px if join_page else tuning.menu_steam_list_height_px
 	_title_wrap.visible = not join_page
@@ -476,7 +482,7 @@ func _set_page(page: int, focus_target: Control = null) -> void:
 	_host_row.visible = page == PAGE_HOME
 	_host_online_button.hide()
 	_join_tab_row.visible = page == PAGE_JOIN
-	_join_steam_tab_button.disabled = not _steam_available()
+	_sync_join_tabs(_steam_available())
 	_steam_section.visible = page == PAGE_JOIN and _join_steam_tab and _steam_available()
 	_lan_games_well.visible = page == PAGE_JOIN and not _join_steam_tab
 	_refresh_layout()
@@ -508,6 +514,15 @@ func _default_focus(page: int) -> Control:
 		PAGE_DEBUG:
 			return _gift_demo_button
 	return _host_button
+
+
+## Mirrors the transport choice onto the tab bar (Steam disabled without Steam, the active tab
+## following _join_steam_tab) without re-entering _on_join_tab_changed().
+func _sync_join_tabs(steam_ready: bool) -> void:
+	_syncing_tabs = true
+	_join_tab_row.set_tab_disabled(TAB_STEAM, not steam_ready)
+	_join_tab_row.select(TAB_STEAM if _join_steam_tab and steam_ready else TAB_LAN)
+	_syncing_tabs = false
 
 
 func _steam_available() -> bool:
@@ -819,7 +834,7 @@ func _apply_steam_availability() -> void:
 	var available: bool = net_provider != null and bool(net_provider.steam_available())
 	if not available:
 		_join_steam_tab = false
-	_join_steam_tab_button.disabled = not available
+	_sync_join_tabs(available)
 	_steam_section.visible = available and _page == PAGE_JOIN and _join_steam_tab
 	_lan_games_well.visible = _page == PAGE_JOIN and not _join_steam_tab
 	if _host_steam_choice != null:

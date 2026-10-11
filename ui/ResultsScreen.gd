@@ -46,25 +46,28 @@ var match_net_provider: Variant = null
 ## data" habit) and so a test can inspect exactly what was rendered.
 var last_results: Dictionary = {}
 
-@onready var _mode_title: Label = %ModeTitle
-@onready var _headline: Label = %Headline
+@onready var _mode_title: UiText = %ModeTitle
+@onready var _headline: UiText = %Headline
 ## Bontago-1pi.23: mode scores sit in their own small label; they used to be
 ## appended to the 28pt headline and spilled over the table header.
-@onready var _mode_outcome: Label = %ModeOutcome
+@onready var _mode_outcome: UiText = %ModeOutcome
 @onready var _rows_list: VBoxContainer = %RowsList
-@onready var _waiting_hint: Label = %WaitingHint
-@onready var _replay_button: Button = %ReplayButton
-@onready var _lobby_button: Button = %LobbyButton
+@onready var _waiting_hint: UiText = %WaitingHint
+@onready var _replay_button: UiBlockButton = %ReplayButton
+@onready var _lobby_button: UiBlockButton = %LobbyButton
+@onready var _card: UiPanel = %Card
 
 ## DECISION (Bontago-mp0.11): keep the stats table scrollable within the
 ## viewport so eight player rows remain reachable.
 func _refresh_layout() -> void:
 	var available: Vector2 = get_viewport_rect().size - Vector2.ONE * tuning.menu_edge_margin_px * 2.0
-	$Center/Card.custom_minimum_size.x = minf(available.x, tuning.menu_max_width_px)
-	$Center/Card/Layout/TableScroll.custom_minimum_size.y = maxf(0.0, available.y * 0.4)
+	%Card.custom_minimum_size.x = minf(available.x, tuning.menu_max_width_px)
+	%TableScroll.custom_minimum_size.y = maxf(0.0, available.y * 0.4)
 
 
 func _ready() -> void:
+	# The scene authors the card's column under the UiPanel; its own content column is where it lives.
+	%Layout.reparent(_card.content, false)
 	add_to_group(SunFlare.FULLSCREEN_UI_GROUP)
 	visible = false
 	_refresh_layout()
@@ -398,27 +401,15 @@ func _apply_visual_style() -> void:
 	var look: ResultsTableTuning = ScoreTable.table_tuning()
 	var scrim: ColorRect = $Background as ColorRect
 	scrim.color = Color(arcade.disc_950_color, arcade.scrim_alpha)
-	var card: PanelContainer = %Card
-	card.add_theme_stylebox_override("panel", MenuStyleFactory.make_plate())
+	# C4c: the plate is a UiPanel, the texts UiText roles (kicker = BODY in rim, banner = TITLE,
+	# outcome = BODY, hint = BODY in dust) and the actions UiBlockButtons (PLAY AGAIN primary).
+	# Only the stack gaps stay overrides: there is no stack / gap component yet (named gap).
 	%Layout.add_theme_constant_override("separation", look.card_gap_px)
 	_rows_list.add_theme_constant_override("separation", look.row_gap_px)
 
-	_mode_title.add_theme_color_override("font_color", arcade.rim_color)
-	_mode_title.add_theme_font_size_override("font_size", look.kicker_font_size_px)
-	_mode_title.add_theme_constant_override("outline_size", 0)
-	_headline.theme_type_variation = &"DisplayLabel"
-	_headline.add_theme_font_size_override("font_size", look.banner_font_size_px)
-	_headline.add_theme_color_override("font_color", arcade.cream_color)
+	_mode_title.tint = arcade.rim_color
 	_headline.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_mode_outcome.add_theme_font_size_override("font_size", look.outcome_font_size_px)
-	_mode_outcome.add_theme_color_override("font_color", arcade.sand_color)
-
-	MenuStyleFactory.apply_block(_replay_button, arcade.flare_color, arcade.ink_color)
-	MenuStyleFactory.apply_block(_lobby_button, arcade.disc_600_color, arcade.cream_color)
-	# Bontago-1pi.145: the end-of-match actions are full `button` blocks (20 px), not the 15 px compact ones.
-	for action_button: Button in [_replay_button, _lobby_button]:
-		action_button.add_theme_font_size_override("font_size", arcade.font_size_button_px)
-	_waiting_hint.add_theme_color_override("font_color", arcade.dust_color)
+	_waiting_hint.tint = arcade.dust_color
 
 
 ## Gamepad/keyboard navigability -- same runtime get_path_to() chaining

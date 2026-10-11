@@ -160,7 +160,9 @@ func _check_focus_outline(menu: MainMenu) -> void:
 		var focus: StyleBoxFlat = control.get_theme_stylebox("focus") as StyleBoxFlat
 		assert_not_null(focus, "%s has a flat focus outline" % control.name)
 		if focus != null:
-			assert_eq(focus.border_width_left, arcade.focus_px, "%s outline width" % control.name)
+			# A UiField's input keeps the Field component's own edge width (components.md "Field").
+			var wanted_px: int = arcade.well_border_px if control.get_parent() is UiField else arcade.focus_px
+			assert_eq(focus.border_width_left, wanted_px, "%s outline width" % control.name)
 			assert_eq(focus.border_color, arcade.cream_color, "%s outline is cream" % control.name)
 
 
