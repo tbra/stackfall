@@ -224,8 +224,7 @@ func test_user_scale_changes_the_logical_canvas() -> void:
 	assert_eq(UiScale.logical_size(Vector2(1280, 720)), Vector2i(2560, 1440), "min scale = factor 0.5")
 	UiScaleTuning.current_scale = tuning.max_scale
 	var max_logical: Vector2i = UiScale.logical_size(Vector2(1280, 720))
-	assert_lt(max_logical.x, 960)
-	assert_gt(max_logical.x, 800, "max = the old 110% look")
+	assert_eq(max_logical, Vector2i(960, 540), "max = 200%: logical canvas 960x540 at 1280x720")
 	UiScaleTuning.current_scale = saved
 
 
