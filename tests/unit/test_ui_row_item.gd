@@ -56,6 +56,13 @@ func test_fill_lets_an_item_expand_and_a_wider_min_width_is_kept() -> void:
 	assert_eq(control.custom_minimum_size.x, 999.0)
 
 
+func test_every_kind_hugs_by_default() -> void:
+	for kind: int in UiRowItem.Kind.values():
+		var control: Control = autofree(Control.new()) as Control
+		UiRowItem.apply(control, kind as UiRowItem.Kind)
+		assert_eq(control.size_flags_horizontal, Control.SIZE_SHRINK_BEGIN)
+
+
 func test_icon_kind_is_square_row_height() -> void:
 	assert_eq(UiRowItem.min_width_for(UiRowItem.Kind.ICON), float(_metrics.row_height_px))
 
