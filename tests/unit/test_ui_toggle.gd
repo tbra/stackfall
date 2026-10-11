@@ -68,6 +68,14 @@ func test_knob_geometry_and_faces_come_from_tokens() -> void:
 	assert_eq(UiToggle.knob_x_for(true, 52.0, 20.0, 3.0), 29.0)
 
 
+func test_knob_is_square_and_the_well_follows_it() -> void:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var m: ComponentMetrics = UiRowItem.metrics()
+	var side: float = UiToggle.knob_side_for(m, arcade)
+	assert_eq(side + float(arcade.drop_sm_px), float(m.toggle_well_height_px - 2 * m.toggle_knob_inset_px), "the knob block fills the well height less insets")
+	assert_eq(UiToggle.well_width_for(m, arcade), 2.0 * side + 3.0 * float(m.toggle_knob_inset_px))
+
+
 func test_row_item_contract_shrink_begin_one_row_height() -> void:
 	var toggle: UiToggle = _make()
 	await wait_frames(2)

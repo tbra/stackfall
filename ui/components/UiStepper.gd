@@ -1,7 +1,7 @@
 class_name UiStepper
 extends HBoxContainer
 ## The design system's Stepper (docs/ui_reskin/components.md "Stepper"): - and + blocks around a
-## Bungee value in a sunken well, for goal flags, bots and match minutes. A UiRowItem (STEPPER):
+## Bungee value printed plainly between them (no box, border or fill), for goal flags, bots and match minutes. A UiRowItem (STEPPER):
 ## stepper_width_units row heights wide, one row height tall, never expands. At a limit the matching
 ## block is disabled (dimmed). The stepper itself takes focus: ui_left / ui_right step it, holding
 ## repeats after SliderNavTuning.repeat_delay_sec every repeat_interval_sec; a stick follows the
@@ -54,7 +54,6 @@ var axis_reader: Callable = Input.get_joy_axis:
 		axis_reader = reader
 		_hold.axis_reader = reader
 
-var _well: PanelContainer = null
 var _silent: bool = false
 var _hold: UiHoldRepeat = UiHoldRepeat.new(nudge)
 var _hold_button: UiIconButton = null
@@ -68,19 +67,9 @@ func _init() -> void:
 	UiRowItem.apply(self, UiRowItem.Kind.STEPPER)
 	set_process(false)
 	minus_button = _make_button(char(MINUS_GLYPH), -1)
-	_well = PanelContainer.new()
-	_well.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_well.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_well.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	_well.custom_minimum_size.y = float(m.row_height_px - arcade.drop_sm_px)
-	var box: StyleBoxFlat = StyleBoxFlat.new()
-	box.bg_color = arcade.disc_900_color
-	box.set_corner_radius_all(arcade.radius_block_px)
-	box.set_border_width_all(arcade.well_border_px)
-	box.border_color = arcade.disc_400_color
-	box.set_content_margin_all(0.0)
-	_well.add_theme_stylebox_override("panel", box)
 	value_label = Label.new()
+	value_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	value_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	value_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	value_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -89,8 +78,7 @@ func _init() -> void:
 	var display: Font = (load("res://ui/theme/stackfall_theme.tres") as Theme).get_font(&"font", &"DisplayLabel")
 	if display != null:
 		value_label.add_theme_font_override("font", display)
-	_well.add_child(value_label)
-	add_child(_well)
+	add_child(value_label)
 	plus_button = _make_button(PLUS_GLYPH, 1)
 	focus_entered.connect(queue_redraw)
 	focus_exited.connect(_on_focus_exited)
@@ -110,7 +98,7 @@ static func clamp_step(current: int, direction: int, lo: int = 0, hi: int = 0, s
 	return clampi(current + signi(direction) * maxi(step_size, 1), lo, maxi(lo, hi))
 
 
-## The text the value well shows: [member formatter] when set, else the integer.
+## The text the value shows: [member formatter] when set, else the integer.
 func display_text() -> String:
 	if formatter.is_valid():
 		return str(formatter.call(value))
@@ -177,6 +165,9 @@ func _make_button(glyph: String, direction: int) -> UiIconButton:
 	var button: UiIconButton = UiIconButton.new()
 	button.text = glyph
 	button.focus_mode = Control.FOCUS_NONE
+	# Square: the visible block (face + lip, without the ledge) is as wide as it is tall.
+	button.custom_minimum_size.x = UiRowItem.square_face_px()
+	button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	button.button_down.connect(_on_block_down.bind(button, direction))
 	button.button_up.connect(_on_block_up.bind(button))
 	add_child(button)

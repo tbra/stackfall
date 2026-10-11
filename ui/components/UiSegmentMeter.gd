@@ -1,8 +1,10 @@
 class_name UiSegmentMeter
 extends Control
 ## The design system's SegmentMeter (docs/ui_reskin/components.md "SegmentMeter"): a slider drawn
-## as voxel cells in a sunken well with the value always shown to the right in Bungee. A UiRowItem
-## (METER): one row height tall, expands to its column. [member value] counts filled cells
+## as voxel cells on a sunken ground (no border) with the value always shown to the right in Bungee.
+## A UiRowItem (METER): one row height tall, hugs its content: every cell is
+## ComponentMetrics.meter_cell_width_px wide, so the width follows the cell count and never the
+## layout (owner 2026-10-11). [member value] counts filled cells
 ## (0..[member step_count], never fewer than MIN_STEP_COUNT cells); consumers map it to their own
 ## range and give [member formatter] to turn it into the readout ("100%", "5.0 s", "Medium").
 ## Mouse: click or drag sets the cell under the pointer. Keyboard / pad: ui_left / ui_right step one
@@ -20,6 +22,7 @@ const DISPLAY_FONT_THEME_TYPE: StringName = &"DisplayLabel"
 	set(count):
 		step_count = maxi(count, MIN_STEP_COUNT)
 		value = value  # re-clamp
+		_fit_width()
 		queue_redraw()
 @export var value: int = 0:
 	set(new_value):
@@ -35,6 +38,7 @@ var formatter: Callable = Callable()
 @export var show_value: bool = true:
 	set(show):
 		show_value = show
+		_fit_width()
 		queue_redraw()
 ## A non-editable or muted meter shows dust cells and ignores input.
 @export var editable: bool = true:
@@ -65,8 +69,8 @@ func _init() -> void:
 	# Owns the focus outline _draw paints (the theme's Button one), so a generic
 	# `get_theme_stylebox("focus")` audit finds it; a plain Control has none.
 	add_theme_stylebox_override("normal", StyleBoxEmpty.new())
-	UiRowItem.apply(self, UiRowItem.Kind.METER, true)
-	custom_minimum_size.x += float(UiRowItem.metrics().row_value_cell_width_px)
+	UiRowItem.apply(self, UiRowItem.Kind.METER)
+	_fit_width()
 	set_process(false)
 	focus_entered.connect(queue_redraw)
 	focus_exited.connect(_on_focus_exited)
@@ -127,29 +131,47 @@ func is_holding() -> bool:
 	return _hold.is_holding()
 
 
-## The width left for the well once the readout column is taken.
+## The ground's width: [param count] fixed-width cells, the gaps between them and the inset.
+static func well_width_for(count: int) -> float:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var cells: int = maxi(count, 1)
+	var cell_w: float = float(UiRowItem.metrics().meter_cell_width_px)
+	return float(cells) * cell_w + float(cells - 1) * float(arcade.space_1_px) + 2.0 * float(arcade.space_1_px)
+
+
+## The width of the ground (independent of the control's size).
 func well_width() -> float:
-	return size.x - (float(UiRowItem.metrics().row_value_cell_width_px) if show_value else 0.0)
+	return well_width_for(step_count)
 
 
-## Paints the well and [param count] cells ([param filled] of them lit) into [param rect] of
-## [param canvas]. Live cells are flare, dust when not [param live]; the current cell gets the cream
-## outline.
+## The width the control hugs: the cells plus the readout column when shown.
+func content_width() -> float:
+	return well_width() + (float(UiRowItem.metrics().row_value_cell_width_px) if show_value else 0.0)
+
+
+# DECISION (1pi.159.25): the meter's minimum is its cell geometry, not meter_min_width_px, so a
+# 10-cell meter hugs its content like every other row item instead of padding to 200 px.
+func _fit_width() -> void:
+	custom_minimum_size.x = content_width()
+
+
+## Paints the ground and [param count] fixed-width cells ([param filled] of them lit) into
+## [param rect] of [param canvas]; [param rect] is [method well_width_for] wide. Live cells are
+## flare, dust when not [param live]; every cell has a lit top edge, and the current cell gets the
+## cream outline. The ground has a fill but no border.
 static func draw_cells(canvas: CanvasItem, rect: Rect2, filled: int, count: int, live: bool) -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	var well: StyleBoxFlat = StyleBoxFlat.new()
 	well.bg_color = arcade.disc_900_color
-	well.border_color = arcade.disc_400_color
-	well.set_border_width_all(arcade.well_border_px)
 	well.set_corner_radius_all(arcade.radius_block_px)
 	canvas.draw_style_box(well, rect)
 	var cells: int = maxi(count, 1)
-	var inset: float = float(arcade.well_border_px + arcade.space_1_px)
-	var area: Rect2 = Rect2(rect.position + Vector2(inset, inset), rect.size - Vector2(inset, inset) * 2.0)
-	if area.size.x <= 0.0 or area.size.y <= 0.0:
-		return
+	var inset: float = float(arcade.space_1_px)
 	var gap: float = float(arcade.space_1_px)
-	var cell_w: float = (area.size.x - gap * float(cells - 1)) / float(cells)
+	var cell_w: float = float(UiRowItem.metrics().meter_cell_width_px)
+	var area: Rect2 = Rect2(rect.position + Vector2(inset, inset), rect.size - Vector2(inset, inset) * 2.0)
+	if area.size.y <= 0.0:
+		return
 	for i: int in range(cells):
 		var cell: Rect2 = Rect2(area.position + Vector2(float(i) * (cell_w + gap), 0.0), Vector2(cell_w, area.size.y))
 		var face: Color = arcade.disc_700_color
@@ -163,6 +185,12 @@ static func draw_cells(canvas: CanvasItem, rect: Rect2, filled: int, count: int,
 		box.border_width_bottom = arcade.pressed_lip_px
 		box.set_corner_radius_all(arcade.radius_cell_px)
 		canvas.draw_style_box(box, cell)
+		# The lit top edge of the design's cells (the same lighter-face rule as a block's top).
+		var top: StyleBoxFlat = StyleBoxFlat.new()
+		top.bg_color = MenuStyleFactory.top_for(face)
+		top.corner_radius_top_left = arcade.radius_cell_px
+		top.corner_radius_top_right = arcade.radius_cell_px
+		canvas.draw_style_box(top, Rect2(cell.position, Vector2(cell_w, minf(float(arcade.top_px), cell.size.y))))
 	if filled > 0 and live:
 		var current: int = clampi(filled - 1, 0, cells - 1)
 		var outline: StyleBoxFlat = StyleBoxFlat.new()

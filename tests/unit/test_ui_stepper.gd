@@ -168,3 +168,14 @@ func test_disabled_blocks_input() -> void:
 	assert_true(stepper.plus_button.disabled)
 	stepper._gui_input(_action(&"ui_right"))
 	assert_eq(stepper.value, 5)
+
+
+func test_buttons_are_square_and_the_value_is_plain_text() -> void:
+	var stepper: UiStepper = _make()
+	await wait_frames(2)
+	for button: UiIconButton in [stepper.minus_button, stepper.plus_button]:
+		assert_eq(button.size.x, UiRowItem.square_face_px(), "the visible block is as wide as it is tall")
+		assert_eq(button.size.x, button.size.y - float(MenuStyleFactory.arcade_tuning().drop_sm_px))
+	assert_eq(stepper.value_label.get_parent(), stepper, "no well around the value")
+	for child: Node in stepper.get_children():
+		assert_false(child is PanelContainer, "no bordered or filled box")

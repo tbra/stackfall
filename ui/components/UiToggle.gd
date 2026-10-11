@@ -69,6 +69,16 @@ static func knob_face_for(on: bool, arcade: ArcadeVisualTuning = null) -> Color:
 	return tokens.mint_color if on else tokens.disc_500_color
 
 
+## The square knob's side: the well's height less its two insets, and the ledge.
+static func knob_side_for(m: ComponentMetrics, arcade: ArcadeVisualTuning) -> float:
+	return float(m.toggle_well_height_px - 2 * m.toggle_knob_inset_px - arcade.drop_sm_px)
+
+
+## The well's width: two square knobs and the three gaps around and between them.
+static func well_width_for(m: ComponentMetrics, arcade: ArcadeVisualTuning) -> float:
+	return 2.0 * knob_side_for(m, arcade) + KNOB_GAPS * float(m.toggle_knob_inset_px)
+
+
 ## The knob's left edge inside a well [param well_width] wide for [param on] (off = left end).
 static func knob_x_for(on: bool, well_width: float, knob_width: float, inset: float) -> float:
 	return well_width - inset - knob_width if on else inset
@@ -94,10 +104,6 @@ func _notification(what: int) -> void:
 		_refresh()
 
 
-func _knob_width(m: ComponentMetrics) -> float:
-	return (float(m.toggle_well_width_px) - KNOB_GAPS * float(m.toggle_knob_inset_px)) / 2.0
-
-
 func _refresh() -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	var m: ComponentMetrics = UiRowItem.metrics()
@@ -105,7 +111,7 @@ func _refresh() -> void:
 	if tooltip_text.is_empty() and not caption.is_empty():
 		tooltip_text = caption
 	# The word sits right of the well: one empty box per state carries the left margin.
-	var left: float = float(m.toggle_well_width_px)
+	var left: float = well_width_for(m, arcade)
 	if show_word:
 		left += float(arcade.space_2_px)
 	for state: String in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
@@ -143,11 +149,11 @@ func _draw() -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	var m: ComponentMetrics = UiRowItem.metrics()
 	var alpha: float = arcade.disabled_alpha if disabled else 1.0
-	var well_size: Vector2 = Vector2(float(m.toggle_well_width_px), float(m.toggle_well_height_px))
+	var well_size: Vector2 = Vector2(well_width_for(m, arcade), float(m.toggle_well_height_px))
 	var well_rect: Rect2 = Rect2(Vector2(0.0, (size.y - well_size.y) / 2.0), well_size)
 	var well: StyleBoxFlat = StyleBoxFlat.new()
 	well.bg_color = Color(arcade.disc_900_color, alpha)
-	well.set_corner_radius_all(arcade.radius_block_px)
+	well.set_corner_radius_all(arcade.radius_cell_px)  # a squared well, not a pill
 	well.set_border_width_all(arcade.well_border_px)
 	var edge: Color = arcade.cream_color if _hovered() else arcade.disc_400_color
 	if button_pressed and not _hovered():
@@ -156,8 +162,8 @@ func _draw() -> void:
 	well.set_content_margin_all(0.0)
 	well.draw(get_canvas_item(), well_rect)
 	var inset: float = float(m.toggle_knob_inset_px)
-	var knob_w: float = _knob_width(m)
-	var knob_h: float = well_size.y - 2.0 * inset
+	var knob_w: float = knob_side_for(m, arcade)
+	var knob_h: float = knob_w + float(arcade.drop_sm_px)
 	var knob_rect: Rect2 = Rect2(
 		Vector2(knob_x_for(button_pressed, well_size.x, knob_w, inset), well_rect.position.y + inset),
 		Vector2(knob_w, knob_h))
@@ -166,4 +172,5 @@ func _draw() -> void:
 	if disabled:
 		state = BlockStyleBox.STATE_DISABLED
 	var knob: BlockStyleBox = BlockStyleBox.make(face, arcade, true, state, MenuStyleFactory.lip_for(face), MenuStyleFactory.top_for(face))
+	knob.radius_px = arcade.radius_chip_px  # tokens: the toggle knob is a chip-radius block
 	knob.draw(get_canvas_item(), knob_rect)

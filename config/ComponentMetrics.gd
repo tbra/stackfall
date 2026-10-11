@@ -25,6 +25,8 @@ extends Resource
 @export var toggle_min_width_px: int = 96
 @export var dropdown_min_width_px: int = 160
 @export var meter_min_width_px: int = 200
+## SegmentMeter: width of one cell. The meter's width follows the cell count (never the layout).
+@export var meter_cell_width_px: int = 16
 ## Minimum width of a small block button (a label always grows it further).
 @export var button_sm_min_width_px: int = 64
 
@@ -32,9 +34,8 @@ extends Resource
 ## plus this line must still fit row_height_px.
 @export var icon_glyph_font_px: int = 16
 
-## Toggle (Bontago-1pi.159.5): the sunken well the knob slides in (width x height), the gap
-## between well edge and knob.
-@export var toggle_well_width_px: int = 52
+## Toggle (Bontago-1pi.159.5): the sunken well's height and the gap between well edge and knob. The
+## knob is a square block, so the well's width follows (2 knobs and 3 gaps; owner 2026-10-11).
 @export var toggle_well_height_px: int = 26
 @export var toggle_knob_inset_px: int = 3
 
