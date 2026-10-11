@@ -154,3 +154,82 @@ func test_tab_height_comes_from_metrics() -> void:
 	var tabs: UiTabs = _make()
 	await wait_frames(2)
 	assert_gte(tabs.get_tab(&"game").size.y, float(UiRowItem.metrics().tab_height_px))
+
+
+## Bontago-1pi.159.13: a stick hovering around the ui deadzone stepped several tabs (each step moved
+## focus to the neighbour, which saw the still-held stick as a new push).
+const PAD_DEVICE: int = 0
+const FRAME: float = 1.0 / 60.0
+const PUSH: float = 0.7
+const FULL: float = 1.0
+const DRIFT_LOW: float = 0.3
+const REST: float = 0.0
+
+var _axis_value: float = 0.0
+
+
+func _stick(value: float) -> InputEventJoypadMotion:
+	var motion: InputEventJoypadMotion = InputEventJoypadMotion.new()
+	motion.device = PAD_DEVICE
+	motion.axis = JOY_AXIS_LEFT_X
+	motion.axis_value = value
+	return motion
+
+
+func _focused(tabs: UiTabs) -> UiTab:
+	for id: StringName in tabs.tab_ids():
+		if tabs.get_tab(id).has_focus():
+			return tabs.get_tab(id)
+	return null
+
+
+## Delivers a stick value to whichever tab has focus, like the GUI does.
+func _feed(tabs: UiTabs, value: float) -> void:
+	_axis_value = value
+	var tab: UiTab = _focused(tabs)
+	if tab != null:
+		tab._gui_input(_stick(value))
+
+
+func _wire(tabs: UiTabs) -> void:
+	tabs._hold.axis_reader = func(_d: int, _a: int) -> float: return _axis_value
+	await wait_frames(1)
+	tabs.select(&"game", true)
+	_changes.clear()
+
+
+func test_stick_hovering_near_the_threshold_steps_one_tab() -> void:
+	var tabs: UiTabs = _make()
+	await _wire(tabs)
+	_feed(tabs, PUSH)
+	for _i: int in 20:
+		_feed(tabs, DRIFT_LOW)
+		_feed(tabs, PUSH)
+	assert_eq(_changes, [&"graphics"], "one push = one tab")
+	_feed(tabs, REST)
+	_feed(tabs, PUSH)
+	assert_eq(_changes, [&"graphics", &"controls"], "re-arms below the release threshold")
+
+
+func test_stick_partial_push_never_repeats_but_full_deflection_does() -> void:
+	var tabs: UiTabs = _make()
+	await _wire(tabs)
+	_feed(tabs, PUSH)
+	for _i: int in 120:
+		tabs._process(FRAME)
+	assert_eq(_changes.size(), 1, "a partial push gives exactly one step")
+	_feed(tabs, REST)
+	_changes.clear()
+	_feed(tabs, FULL)
+	for _i: int in roundi((UiHoldRepeat.TUNING.stick_repeat_delay_sec + UiHoldRepeat.TUNING.stick_repeat_interval_sec) / FRAME) + 2:
+		tabs._process(FRAME)
+	assert_gt(_changes.size(), 1, "full deflection auto-repeats slowly")
+	assert_lt(_changes.size(), 4)
+
+
+func test_stick_release_stops_the_hold() -> void:
+	var tabs: UiTabs = _make()
+	await _wire(tabs)
+	_feed(tabs, FULL)
+	_feed(tabs, REST)
+	assert_false(tabs._hold.is_holding())

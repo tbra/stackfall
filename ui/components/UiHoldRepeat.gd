@@ -20,6 +20,9 @@ const SOURCE_MOUSE: int = 2
 var axis_reader: Callable = Input.get_joy_axis
 var direction: int = DIR_NONE
 var source: int = SOURCE_KEY
+## The actions that step -1 / +1 (UiTabs VERTICAL uses ui_up / ui_down).
+var back_action: StringName = &"ui_left"
+var forward_action: StringName = &"ui_right"
 
 var _step: Callable = Callable()
 var _stick_axis: int = -1
@@ -55,8 +58,8 @@ func start(new_direction: int, new_source: int, stick_axis: int = -1, device: in
 
 ## Feeds a ui_left / ui_right key or pad-button event; returns true when the event is consumed.
 func handle_action_event(event: InputEvent) -> bool:
-	for action: StringName in [&"ui_left", &"ui_right"]:
-		var dir: int = -1 if action == &"ui_left" else 1
+	for action: StringName in [back_action, forward_action]:
+		var dir: int = -1 if action == back_action else 1
 		if event.is_action_pressed(action, true):
 			if not (event is InputEventKey and (event as InputEventKey).echo):
 				start(dir, SOURCE_KEY)
@@ -74,10 +77,10 @@ func handle_stick(motion: InputEventJoypadMotion) -> bool:
 			release()
 		else:
 			return true
-	for action: StringName in [&"ui_left", &"ui_right"]:
+	for action: StringName in [back_action, forward_action]:
 		if motion.is_action(action, true) and motion.is_action_pressed(action, true):
 			if absf(motion.axis_value) >= TUNING.stick_press_threshold and direction == DIR_NONE:
-				start(-1 if action == &"ui_left" else 1, SOURCE_STICK, motion.axis, motion.device)
+				start(-1 if action == back_action else 1, SOURCE_STICK, motion.axis, motion.device)
 			return true
 	return false
 
@@ -114,4 +117,4 @@ func _still_held(mouse_down: bool) -> bool:
 			return absf(deflection) >= TUNING.stick_release_threshold and signf(deflection) == float(direction)
 		SOURCE_MOUSE:
 			return mouse_down
-	return Input.is_action_pressed(&"ui_left" if direction < 0 else &"ui_right")
+	return Input.is_action_pressed(back_action if direction < 0 else forward_action)

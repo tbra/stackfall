@@ -10,6 +10,10 @@ extends Button
 signal step_requested(direction: int)
 
 var id: StringName = &""
+## The bar's shared stick hold (set by UiTabs). Shared because a step moves focus to the
+## neighbour tab, and a per-tab hold would let the neighbour treat the still-held stick as a
+## new push (the "super sensitive" bug, Bontago-1pi.159.13).
+var stick_hold: UiHoldRepeat = null
 var vertical: bool = false:
 	set(value):
 		vertical = value
@@ -80,6 +84,10 @@ func _box(face: Color, notch: bool, arcade: ArcadeVisualTuning, m: ComponentMetr
 
 
 func _gui_input(event: InputEvent) -> void:
+	if event is InputEventJoypadMotion and stick_hold != null:
+		if stick_hold.handle_stick(event as InputEventJoypadMotion):
+			accept_event()
+		return
 	var back: StringName = &"ui_up" if vertical else &"ui_left"
 	var forward: StringName = &"ui_down" if vertical else &"ui_right"
 	if event.is_action_pressed(back):
