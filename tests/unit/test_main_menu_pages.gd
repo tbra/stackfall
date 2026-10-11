@@ -240,7 +240,7 @@ func test_play_local_has_no_name_input_and_vs_bots_first() -> void:
 	var menu: MainMenu = _make_menu()
 	menu._on_play_local_pressed()
 	assert_false(_node(menu, "NameEdit").is_visible_in_tree())
-	assert_false((menu.get_node("Center/Panel/Layout/NameRow") as Control).is_visible_in_tree())
+	assert_false((menu.get_node("Center/Panel/Layout/NameField") as Control).is_visible_in_tree())
 	var visible_row: Array[Button] = []
 	for child: Node in (menu.get_node("Center/Panel/Layout/BottomRow") as Control).get_children():
 		var button: Button = child as Button

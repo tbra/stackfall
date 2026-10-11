@@ -1,4 +1,4 @@
-[gd_scene load_steps=15 format=3]
+[gd_scene load_steps=20 format=3]
 
 [ext_resource type="Script" path="res://ui/MainMenu.gd" id="1_menu"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/back.svg" id="glyph_back"]
@@ -14,6 +14,11 @@
 [ext_resource type="Texture2D" path="res://assets/ui/stackfall-lockup.svg" id="6_lockup"]
 [ext_resource type="Script" path="res://ui/MenuBackdrop.gd" id="4_backdrop"]
 [ext_resource type="Script" path="res://ui/InputPromptFlow.gd" id="5_hints"]
+[ext_resource type="Script" path="res://ui/components/UiBlockButton.gd" id="7_block"]
+[ext_resource type="Script" path="res://ui/components/UiText.gd" id="8_text"]
+[ext_resource type="Script" path="res://ui/components/UiWell.gd" id="9_well"]
+[ext_resource type="Script" path="res://ui/components/UiTabs.gd" id="10_tabs"]
+[ext_resource type="Script" path="res://ui/components/UiField.gd" id="11_field"]
 
 [node name="MainMenu" type="Control"]
 layout_mode = 3
@@ -66,7 +71,7 @@ anchor_bottom = 1.0
 offset_right = 464.0
 grow_vertical = 2
 
-[node name="Panel" type="PanelContainer" parent="Center"]
+[node name="Panel" type="MarginContainer" parent="Center"]
 unique_name_in_owner = true
 layout_mode = 2
 custom_minimum_size = Vector2(368, 0)
@@ -95,31 +100,25 @@ stretch_mode = 4
 
 [node name="Tagline" type="Label" parent="Center/Panel/Layout"]
 layout_mode = 2
-theme_type_variation = &"FieldLabel"
 text = "BUILD · BALANCE · DOMINATE"
+script = ExtResource("8_text")
+role = 3
 
 [node name="SectionGap" type="Control" parent="Center/Panel/Layout"]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="NameRow" type="HBoxContainer" parent="Center/Panel/Layout"]
-layout_mode = 2
-
-[node name="NameLabel" type="Label" parent="Center/Panel/Layout/NameRow"]
+[node name="NameField" type="VBoxContainer" parent="Center/Panel/Layout"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_type_variation = &"CaptionLabel"
-text = "NAME"
-
-[node name="NameEdit" type="LineEdit" parent="Center/Panel/Layout"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-placeholder_text = "Player"
+script = ExtResource("11_field")
+label_text = "NAME"
+placeholder = "Player"
 tooltip_text = "Used when Steam is not running; with Steam your Steam name is used."
 
 [node name="HostRow" type="VBoxContainer" parent="Center/Panel/Layout"]
 layout_mode = 2
+theme_override_constants/separation = 10
 
 [node name="HostButton" type="Button" parent="Center/Panel/Layout/HostRow"]
 unique_name_in_owner = true
@@ -128,6 +127,9 @@ theme_type_variation = &"BlockButtonLarge"
 icon = ExtResource("glyph_host")
 alignment = 0
 text = "HOST"
+script = ExtResource("7_block")
+variant = 0
+small = false
 
 [node name="JoinButton" type="Button" parent="Center/Panel/Layout/HostRow"]
 unique_name_in_owner = true
@@ -136,6 +138,9 @@ theme_type_variation = &"BlockButtonLarge"
 icon = ExtResource("glyph_join")
 alignment = 0
 text = "JOIN"
+script = ExtResource("7_block")
+variant = 1
+small = false
 
 [node name="PlayLocalButton" type="Button" parent="Center/Panel/Layout/HostRow"]
 unique_name_in_owner = true
@@ -144,16 +149,23 @@ theme_type_variation = &"BlockButtonLarge"
 icon = ExtResource("glyph_play")
 alignment = 0
 text = "PLAY OFFLINE"
+script = ExtResource("7_block")
+variant = 1
+small = false
 
 [node name="HostOnlineButton" type="Button" parent="Center/Panel/Layout/HostRow"]
 unique_name_in_owner = true
 layout_mode = 2
 icon = ExtResource("glyph_host")
 text = "HOST ONLINE (STEAM)"
+script = ExtResource("7_block")
+variant = 1
+small = true
 
 [node name="SmallRow" type="HBoxContainer" parent="Center/Panel/Layout"]
 unique_name_in_owner = true
 layout_mode = 2
+theme_override_constants/separation = 10
 
 [node name="OptionsButton" type="Button" parent="Center/Panel/Layout/SmallRow"]
 unique_name_in_owner = true
@@ -162,6 +174,9 @@ size_flags_horizontal = 3
 icon = ExtResource("glyph_settings")
 alignment = 0
 text = "OPTIONS"
+script = ExtResource("7_block")
+variant = 1
+small = true
 
 [node name="QuitButton" type="Button" parent="Center/Panel/Layout/SmallRow"]
 unique_name_in_owner = true
@@ -170,25 +185,15 @@ size_flags_horizontal = 3
 icon = ExtResource("glyph_quit")
 alignment = 0
 text = "QUIT"
+script = ExtResource("7_block")
+variant = 1
+small = true
 
-[node name="JoinTabRow" type="HBoxContainer" parent="Center/Panel/Layout"]
+[node name="JoinTabRow" type="BoxContainer" parent="Center/Panel/Layout"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/separation = 10
-
-[node name="JoinLanTabButton" type="Button" parent="Center/Panel/Layout/JoinTabRow"]
-icon = ExtResource("glyph_join")
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-text = "LAN / IP"
-
-[node name="JoinSteamTabButton" type="Button" parent="Center/Panel/Layout/JoinTabRow"]
-icon = ExtResource("glyph_join")
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-text = "STEAM"
+script = ExtResource("10_tabs")
+handle_shoulders = false
 
 [node name="SteamSection" type="VBoxContainer" parent="Center/Panel/Layout"]
 unique_name_in_owner = true
@@ -197,6 +202,7 @@ layout_mode = 2
 [node name="SteamGamesWell" type="PanelContainer" parent="Center/Panel/Layout/SteamSection"]
 unique_name_in_owner = true
 layout_mode = 2
+script = ExtResource("9_well")
 
 [node name="SteamGamesLayout" type="VBoxContainer" parent="Center/Panel/Layout/SteamSection/SteamGamesWell"]
 layout_mode = 2
@@ -209,8 +215,9 @@ layout_mode = 2
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 4
-theme_type_variation = &"CaptionLabel"
 text = "STEAM LOBBIES"
+script = ExtResource("8_text")
+role = 3
 
 [node name="SteamHeaderSpacer" type="Control" parent="Center/Panel/Layout/SteamSection/SteamGamesWell/SteamGamesLayout/SteamHeaderRow"]
 layout_mode = 2
@@ -221,6 +228,9 @@ icon = ExtResource("glyph_refresh")
 unique_name_in_owner = true
 layout_mode = 2
 text = "REFRESH"
+script = ExtResource("7_block")
+variant = 1
+small = true
 
 [node name="SteamListStack" type="Control" parent="Center/Panel/Layout/SteamSection/SteamGamesWell/SteamGamesLayout"]
 layout_mode = 2
@@ -248,12 +258,14 @@ grow_vertical = 2
 mouse_filter = 2
 horizontal_alignment = 1
 vertical_alignment = 1
-theme_type_variation = &"CaptionLabel"
 text = "No lobbies yet"
+script = ExtResource("8_text")
+role = 3
 
 [node name="LanGamesWell" type="PanelContainer" parent="Center/Panel/Layout"]
 unique_name_in_owner = true
 layout_mode = 2
+script = ExtResource("9_well")
 
 [node name="LanGamesLayout" type="VBoxContainer" parent="Center/Panel/Layout/LanGamesWell"]
 layout_mode = 2
@@ -266,8 +278,9 @@ layout_mode = 2
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 4
-theme_type_variation = &"CaptionLabel"
 text = "LAN GAMES"
+script = ExtResource("8_text")
+role = 3
 
 [node name="LanHeaderSpacer" type="Control" parent="Center/Panel/Layout/LanGamesWell/LanGamesLayout/LanHeaderRow"]
 layout_mode = 2
@@ -278,6 +291,9 @@ icon = ExtResource("glyph_refresh")
 unique_name_in_owner = true
 layout_mode = 2
 text = "REFRESH"
+script = ExtResource("7_block")
+variant = 1
+small = true
 
 [node name="GameListStack" type="Control" parent="Center/Panel/Layout/LanGamesWell/LanGamesLayout"]
 layout_mode = 2
@@ -305,27 +321,33 @@ grow_vertical = 2
 mouse_filter = 2
 horizontal_alignment = 1
 vertical_alignment = 1
-theme_type_variation = &"CaptionLabel"
 text = "Searching for games..."
+script = ExtResource("8_text")
+role = 3
 
 [node name="DirectRow" type="HBoxContainer" parent="Center/Panel/Layout/LanGamesWell/LanGamesLayout"]
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="DirectIpEdit" type="LineEdit" parent="Center/Panel/Layout/LanGamesWell/LanGamesLayout/DirectRow"]
+[node name="DirectIpField" type="VBoxContainer" parent="Center/Panel/Layout/LanGamesWell/LanGamesLayout/DirectRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-placeholder_text = "1.2.3.4:47999 or join code"
+script = ExtResource("11_field")
+placeholder = "1.2.3.4:47999 or join code"
 
 [node name="DirectJoinButton" type="Button" parent="Center/Panel/Layout/LanGamesWell/LanGamesLayout/DirectRow"]
 icon = ExtResource("glyph_join")
 unique_name_in_owner = true
 layout_mode = 2
 text = "JOIN IP"
+script = ExtResource("7_block")
+variant = 0
+small = true
 
 [node name="BottomRow" type="VBoxContainer" parent="Center/Panel/Layout"]
 layout_mode = 2
+theme_override_constants/separation = 10
 
 [node name="BotsButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
 unique_name_in_owner = true
@@ -334,6 +356,9 @@ theme_type_variation = &"BlockButtonLarge"
 icon = ExtResource("glyph_blocks")
 alignment = 0
 text = "VS BOTS"
+script = ExtResource("7_block")
+variant = 0
+small = false
 
 [node name="SandboxButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
 unique_name_in_owner = true
@@ -342,6 +367,9 @@ theme_type_variation = &"BlockButtonLarge"
 icon = ExtResource("glyph_blocks")
 alignment = 0
 text = "SANDBOX"
+script = ExtResource("7_block")
+variant = 1
+small = false
 
 [node name="TutorialButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
 unique_name_in_owner = true
@@ -350,6 +378,9 @@ theme_type_variation = &"BlockButtonLarge"
 icon = ExtResource("glyph_guide")
 alignment = 0
 text = "TUTORIAL"
+script = ExtResource("7_block")
+variant = 1
+small = false
 
 [node name="GiftDemoButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
 unique_name_in_owner = true
@@ -357,6 +388,9 @@ layout_mode = 2
 theme_type_variation = &"BlockButtonLarge"
 alignment = 0
 text = "GIFT DEMO"
+script = ExtResource("7_block")
+variant = 1
+small = false
 
 [node name="TowerToppleButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
 unique_name_in_owner = true
@@ -364,6 +398,9 @@ layout_mode = 2
 theme_type_variation = &"BlockButtonLarge"
 alignment = 0
 text = "TOWER TOPPLE"
+script = ExtResource("7_block")
+variant = 1
+small = false
 
 [node name="BackButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
 unique_name_in_owner = true
@@ -371,12 +408,17 @@ layout_mode = 2
 size_flags_horizontal = 0
 icon = ExtResource("glyph_back")
 text = "BACK"
+script = ExtResource("7_block")
+variant = 1
+small = true
 
 [node name="StatusLabel" type="Label" parent="Center/Panel/Layout"]
 unique_name_in_owner = true
 layout_mode = 2
 autowrap_mode = 2
 text = ""
+script = ExtResource("8_text")
+role = 3
 
 [node name="DebugButton" type="Button" parent="."]
 unique_name_in_owner = true
@@ -392,6 +434,9 @@ offset_bottom = 64.0
 grow_horizontal = 0
 tooltip_text = "Developer tools: demo scenes (debug mode only)"
 text = "DEBUG"
+script = ExtResource("7_block")
+variant = 1
+small = true
 
 [node name="BuildVersionLabel" type="Label" parent="."]
 unique_name_in_owner = true
@@ -407,6 +452,8 @@ grow_horizontal = 0
 mouse_filter = 2
 horizontal_alignment = 2
 vertical_alignment = 1
+script = ExtResource("8_text")
+role = 3
 
 [node name="GamepadHintPill" type="PanelContainer" parent="."]
 unique_name_in_owner = true
@@ -423,6 +470,7 @@ offset_bottom = -24.0
 grow_horizontal = 0
 grow_vertical = 0
 mouse_filter = 2
+script = ExtResource("9_well")
 
 [node name="GamepadHintRow" type="HFlowContainer" parent="GamepadHintPill"]
 unique_name_in_owner = true
