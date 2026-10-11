@@ -49,3 +49,10 @@ extends Resource
 ## Tabs: height of one tab (the active tab's rim notch sits inside it) and the notch thickness.
 @export var tab_height_px: int = 40
 @export var tab_notch_px: int = 4
+
+## Disclosure arrow of UiSection's Advanced bar: edge of its (square) box.
+@export var disclosure_arrow_px: int = 10
+
+## Icon-only status badge marks (tick / hourglass): the same square box and stroke for both.
+@export var status_icon_px: int = 14
+@export var status_icon_stroke_px: int = 3

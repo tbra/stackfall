@@ -26,9 +26,7 @@ signal advanced_changed(open: bool)
 
 ## Text of the Advanced disclosure bar.
 const ADVANCED_CHIP_TEXT: String = "ADVANCED"
-## The disclosure triangle drawn before the text (right = collapsed, down = open).
-const DISCLOSURE_CLOSED: String = "►"
-const DISCLOSURE_OPEN: String = "▼"
+## The disclosure triangle is drawn (not a font glyph): the same triangle turned 0 / 90 degrees.
 const BODY_NAME: StringName = &"Body"
 const ADVANCED_NAME: StringName = &"Advanced"
 
@@ -55,6 +53,8 @@ var _summary_label: Label = null
 ## The header's section icon (white source, tinted like the caption).
 var _icon_rect: TextureRect = null
 var _icon_texture: Texture2D = null
+## Draws the disclosure triangle over the bar's left padding (never takes the mouse).
+var _arrow: Control = null
 
 
 func _init() -> void:
@@ -104,6 +104,9 @@ func _style_disclosure() -> void:
 		bar.content_margin_bottom = float(arcade.space_2_px)
 		advanced_button.add_theme_stylebox_override(state, bar)
 	advanced_button.flat = false
+	var arrow_px: int = UiRowItem.metrics().disclosure_arrow_px
+	for state: String in faces:
+		(advanced_button.get_theme_stylebox(state) as StyleBoxFlat).content_margin_left = float(bar_padding_px + arrow_px + arcade.space_2_px)
 	advanced_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	for item: String in ["font_color", "font_pressed_color", "font_disabled_color"]:
 		advanced_button.add_theme_color_override(item, arcade.rim_color)
@@ -225,8 +228,16 @@ func _build_advanced_bar() -> void:
 	advanced_button.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	advanced_button.flat = true
 	advanced_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	advanced_button.text = _disclosure_text()
+	advanced_button.text = ADVANCED_CHIP_TEXT
 	advanced_button.toggled.connect(_on_advanced_bar_toggled)
+	_arrow = Control.new()
+	_arrow.name = "DisclosureArrow"
+	_arrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_arrow.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_arrow.draw.connect(_draw_arrow)
+	advanced_button.add_child(_arrow)
+	for signal_name: StringName in [&"mouse_entered", &"mouse_exited", &"focus_entered", &"focus_exited"]:
+		Signal(advanced_button, signal_name).connect(_arrow.queue_redraw)
 	add_child(advanced_button)
 	move_child(advanced_button, advanced.get_index())
 
@@ -240,8 +251,21 @@ func _apply_state() -> void:
 		advanced.visible = _advanced_open
 	if advanced_button != null:
 		advanced_button.set_pressed_no_signal(_advanced_open)
-		advanced_button.text = _disclosure_text()
+		_arrow.queue_redraw()
 
 
-func _disclosure_text() -> String:
-	return "%s %s" % [DISCLOSURE_OPEN if _advanced_open else DISCLOSURE_CLOSED, ADVANCED_CHIP_TEXT]
+## The triangle's three points in the arrow box of edge [param edge] at [param origin]: pointing right
+## when collapsed, down when open (the same shape turned 90 degrees, so size and weight match).
+static func disclosure_points(open: bool, origin: Vector2, edge: float) -> PackedVector2Array:
+	if open:
+		return PackedVector2Array([origin, origin + Vector2(edge, 0.0), origin + Vector2(edge / 2.0, edge)])
+	return PackedVector2Array([origin, origin + Vector2(edge, edge / 2.0), origin + Vector2(0.0, edge)])
+
+
+func _draw_arrow() -> void:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var edge: float = float(UiRowItem.metrics().disclosure_arrow_px)
+	var lit: bool = advanced_button.is_hovered() or advanced_button.has_focus()
+	var colour: Color = arcade.cream_color if lit else arcade.rim_color
+	var origin: Vector2 = Vector2(float(bar_padding_px), (_arrow.size.y - edge) / 2.0)
+	_arrow.draw_colored_polygon(disclosure_points(_advanced_open, origin, edge), colour)

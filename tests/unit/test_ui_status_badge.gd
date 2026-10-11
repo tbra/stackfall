@@ -41,10 +41,12 @@ func test_label_is_the_first_child_and_uses_ink_on_a_bright_face() -> void:
 func test_icon_only_shows_glyphs_and_keeps_the_words_as_tooltip() -> void:
 	var badge: UiStatusBadge = _badge(UiStatusBadge.Look.READY, "Ready")
 	badge.icon_only = true
-	assert_eq(badge.label.text, char(UiStatusBadge.TICK))
+	assert_eq(badge.label.text, "", "drawn mark, no font glyph")
+	assert_true(UiStatusBadge.has_mark(badge.variant))
 	assert_eq(badge.tooltip_text, "Ready")
 	badge.variant = UiStatusBadge.Look.NOT_READY
-	assert_eq(badge.label.text, char(UiStatusBadge.HOURGLASS))
+	assert_eq(badge.label.text, "")
+	assert_true(UiStatusBadge.has_mark(badge.variant))
 
 
 func test_live_dot_widens_the_left_margin_and_neutral_is_flat() -> void:
@@ -75,10 +77,22 @@ func test_icon_only_ready_tile_compact_size_and_faces() -> void:
 	pill.text = "Not ready"
 	add_child_autofree(pill)
 	await wait_frames(2)
-	assert_eq(pill.label.text, char(UiStatusBadge.HOURGLASS))
+	assert_eq(pill.label.text, "")
 	assert_eq(pill.tooltip_text, "Not ready")
 	assert_eq(pill.custom_minimum_size, size, "the caller's compact size wins over the row height")
 	assert_eq((pill.get_theme_stylebox("panel") as StyleBoxFlat).content_margin_top, 0.0)
 	pill.variant = UiStatusBadge.Look.READY
-	assert_eq(pill.label.text, char(UiStatusBadge.TICK))
+	assert_eq(pill.label.text, "")
 	assert_eq(_face(pill), MenuStyleFactory.arcade_tuning().mint_color)
+
+
+func test_ready_and_not_ready_marks_share_one_box_and_stroke() -> void:
+	var origin: Vector2 = Vector2(3.0, 4.0)
+	var edge: float = float(UiRowItem.metrics().status_icon_px)
+	for look: UiStatusBadge.Look in [UiStatusBadge.Look.READY, UiStatusBadge.Look.NOT_READY]:
+		var bounds: Rect2 = Rect2(origin, Vector2.ZERO)
+		for point: Vector2 in UiStatusBadge.mark_points(look, origin, edge):
+			bounds = bounds.expand(point)
+		assert_almost_eq(bounds.size.x, edge, 0.01, "%s spans the box width" % look)
+		assert_true(bounds.size.y >= edge * 0.85 and bounds.size.y <= edge + 0.01, "%s spans the box height" % look)
+		assert_true(Rect2(origin, Vector2(edge, edge)).grow(0.01).encloses(bounds), "%s stays inside the box" % look)
