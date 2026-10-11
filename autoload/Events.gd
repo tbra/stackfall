@@ -252,6 +252,10 @@ signal glue_charges_changed(slot_id: int, charges: int, revision: int)
 ## or a body left the world). A body that is already freed arrives as null.
 signal glue_bond_changed(body_a: Node, body_b: Node, formed: bool)
 
+## Host-only (Bontago-1pi.85.72): a freshly spawned block took a glue charge and is
+## coated from its first frame, before any bond forms.
+signal glue_drop_charged(block: Node)
+
 ## Paintball's host-owned block conversion. Clients emit this only after a
 ## valid, new owner change by net ID; terrain ownership uses the registry.
 signal block_owner_changed(net_id: int, owner_slot: int)

@@ -368,6 +368,7 @@ func request_place(
 			var bonding: GlueDrops = GlueDrops.new()
 			spawned.add_child(bonding)
 			bonding.bind(spawned, _glue_drop_tuning)
+			Events.glue_drop_charged.emit(spawned)
 		if outcome["use_relocation"]:
 			# Bontago-mv0.24: this auto-drop *did* find a valid point and
 			# landed there instead of at the caller's raw ghost position --
