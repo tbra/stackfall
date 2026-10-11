@@ -23,7 +23,8 @@ extends Resource
 ## Widths per kind; a stepper is `stepper_width_units` row heights wide.
 @export var stepper_width_units: int = 4
 @export var toggle_min_width_px: int = 96
-@export var dropdown_min_width_px: int = 160
+## Dropdown: no minimum width (it hugs its widest item); edge of the per-item icon in the block.
+@export var dropdown_icon_px: int = 20
 @export var meter_min_width_px: int = 200
 ## SegmentMeter: width of one cell. The meter's width follows the cell count (never the layout).
 @export var meter_cell_width_px: int = 16

@@ -48,7 +48,7 @@ static func min_width_for(kind: Kind, m: ComponentMetrics = null) -> float:
 		Kind.STEPPER:
 			return float(metric.stepper_width_units * metric.row_height_px)
 		Kind.DROPDOWN:
-			return float(metric.dropdown_min_width_px)
+			return 0.0  # hugs its widest item
 		Kind.BADGE:
 			return float(metric.badge_min_width_px)
 		Kind.METER:

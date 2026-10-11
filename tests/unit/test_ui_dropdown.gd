@@ -80,8 +80,32 @@ func test_row_item_contract() -> void:
 	await wait_frames(2)
 	assert_true(dropdown.is_in_group(UiRowItem.GROUP))
 	assert_eq(dropdown.size.y, float(UiRowItem.metrics().row_height_px))
-	assert_gte(dropdown.size.x, float(UiRowItem.metrics().dropdown_min_width_px))
 	assert_eq(dropdown.size_flags_horizontal, Control.SIZE_SHRINK_BEGIN)
+
+
+func test_width_hugs_the_widest_item_and_is_stable_across_selection() -> void:
+	var wide_parent: HBoxContainer = HBoxContainer.new()
+	wide_parent.custom_minimum_size = Vector2(1000.0, 100.0)
+	add_child_autofree(wide_parent)
+	var dropdown: UiDropdown = UiDropdown.new()
+	wide_parent.add_child(dropdown)
+	for label: String in ["Off", "A much longer item", "Mid"]:
+		dropdown.add_item(label)
+	await wait_frames(2)
+	var width: float = dropdown.size.x
+	var cap: float = dropdown.content_width()
+	assert_almost_eq(width, cap, 1.0, "width = widest item + block margins, not the parent's width")
+	assert_lt(width, 400.0, "never expands to fill")
+	for index: int in range(3):
+		dropdown.select(index)
+		await wait_frames(2)
+		assert_eq(dropdown.size.x, width, "selecting item %d keeps the width" % index)
+	var narrow: UiDropdown = _make(0)
+	narrow.add_item("Off")
+	assert_lt(narrow.content_width(), cap, "a shorter list is narrower")
+	dropdown.min_width = cap + 50.0
+	await wait_frames(2)
+	assert_almost_eq(dropdown.size.x, cap + 50.0, 1.0, "a shared min_width widens it")
 
 
 func test_pad_a_opens_the_list_and_focus_lands_on_the_current_row() -> void:
