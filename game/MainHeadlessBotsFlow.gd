@@ -154,7 +154,21 @@ func _headless_match_summary_line(timed_out: bool = false) -> String:
 	]
 	# Bontago-1t5.19: appended after `teams=` so the bot_h2h.py regexes keep matching.
 	line += " brains=%s" % _headless_brains_string()
+	line += " stats=%s" % _headless_stats_string()
 	return line + " timeout=1" if timed_out else line
+
+
+## Bontago-1t5.31: per-slot `slot:placed/lost/peak_height_m` (comma-separated), read from the live
+## MatchStats, so bot_h2h-style logs can show blocks lost per placement and tower height.
+## Appended after brains= so the existing regexes keep matching.
+func _headless_stats_string() -> String:
+	var stats: Variant = Match.stats()
+	if stats == null:
+		return ""
+	var parts: PackedStringArray = PackedStringArray()
+	for i: int in range(Match.slot_count()):
+		parts.append("%d:%d/%d/%.1f" % [i, stats.blocks_placed(i), stats.blocks_lost(i), stats.height_reached(i)])
+	return ",".join(parts)
 
 
 ## Team id per slot, comma-separated ("0,1,2,..."), so a harness can map candidate seats to teams.
