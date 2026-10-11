@@ -111,8 +111,10 @@ func test_combined_row_shows_custom_when_no_tier_matches() -> void:
 	assert_eq(_dd(&"shadows").selected, 3, "Custom item")
 	assert_eq(_dd(&"shadows").get_item_text(3), "Custom")
 	assert_true(_dd(&"shadows").is_item_disabled(3))
-	_dd(&"shadows").cycle(false)
-	assert_eq(_dd(&"shadows").selected, 0, "cycling skips the disabled Custom item")
+	_dd(&"shadows").pick(3)
+	assert_eq(_dd(&"shadows").selected, 3, "the disabled Custom item cannot be picked")
+	_dd(&"shadows").pick(0)
+	assert_eq(_dd(&"shadows").selected, 0)
 
 
 func test_old_saved_per_field_overrides_load_and_show_in_the_combined_rows() -> void:
@@ -161,7 +163,7 @@ func test_custom_item_cannot_be_picked() -> void:
 
 func test_meter_and_dropdown_edits_land_in_the_effective_preset() -> void:
 	(_tab().control_for(&"render_scale_3d") as UiSegmentMeter).value = 4
-	_dd(&"msaa_3d").cycle(false)
+	_dd(&"msaa_3d").pick(_dd(&"msaa_3d").selected + 1)
 	var effective: GraphicsPreset = _settings.current_graphics_preset()
 	assert_almost_eq(effective.render_scale_3d, 0.7, 0.001)
 	assert_eq(effective.msaa_3d, 2, "medium MSAA 2x -> next is 4x")
@@ -205,7 +207,7 @@ func test_bad_saved_overrides_are_dropped() -> void:
 func test_fixed_fps_meter_is_editable_only_in_fixed_mode() -> void:
 	var meter: UiSegmentMeter = _tab().control_for(&"fixed_fps") as UiSegmentMeter
 	assert_false(meter.editable)
-	_dd(&"frame_cap_mode").cycle(false)
+	_dd(&"frame_cap_mode").pick(_dd(&"frame_cap_mode").selected + 1)
 	assert_eq(_settings.current_graphics_preset().frame_cap_mode, GraphicsPreset.FrameCap.FIXED)
 	assert_true(meter.editable)
 	meter.value = 5
@@ -279,14 +281,17 @@ func _pad_accept() -> void:
 	await _pad_tap(JOY_BUTTON_A)
 
 
-func test_gamepad_accept_cycles_a_dropdown_and_flips_a_toggle() -> void:
+func test_gamepad_accept_opens_a_dropdown_list_and_flips_a_toggle() -> void:
 	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
 	(_menu.get_node("%GraphicsTabButton") as Button).button_pressed = true
 	await get_tree().process_frame
 	var msaa: UiDropdown = _dd(&"msaa_3d")
 	msaa.grab_focus()
 	await _pad_accept()
-	assert_eq(_settings.current_graphics_preset().msaa_3d, 2, "A cycled MSAA 2x -> 4x")
+	assert_true(msaa.is_open(), "A opens the list (Bontago-1pi.159.14)")
+	assert_eq(_settings.current_graphics_preset().msaa_3d, 1, "opening changes nothing")
+	msaa.pick(msaa.selected + 1)
+	assert_eq(_settings.current_graphics_preset().msaa_3d, 2, "picking the next row sets MSAA 4x")
 	var glow: UiToggle = _tab().control_for(&"glow_enabled") as UiToggle
 	glow.grab_focus()
 	await _pad_accept()
@@ -294,10 +299,13 @@ func test_gamepad_accept_cycles_a_dropdown_and_flips_a_toggle() -> void:
 	assert_eq(_tab().preset_option.selected, GraphicsSettingsTab.PRESET_IDS.size())
 
 
-func test_mouse_click_cycles_a_dropdown_and_flips_a_toggle() -> void:
+func test_mouse_click_opens_a_dropdown_list_and_flips_a_toggle() -> void:
 	(_menu.get_node("%GraphicsTabButton") as Button).button_pressed = true
 	await get_tree().process_frame
 	_dd(&"environment_detail").pressed.emit()
+	assert_true(_dd(&"environment_detail").is_open(), "a click opens the list")
+	assert_eq(_dd(&"environment_detail").selected, 1, "and does not change the value")
+	_dd(&"environment_detail").pick(2)
 	assert_eq(_dd(&"environment_detail").selected, 2, "Medium -> High")
 	(_tab().control_for(&"volumetric_fog_enabled") as UiToggle).set_on(false)
 	assert_false(_settings.current_graphics_preset().volumetric_fog_enabled)

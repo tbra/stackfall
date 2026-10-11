@@ -449,6 +449,22 @@ func _on_team_cycle_requested(key: int, backwards: bool) -> void:
 			net_provider.request_seat_pref(LobbySeats.UNCHANGED, TeamAssigner.next_pick(current, _team_cap(), backwards))
 
 
+## A team picked from the seat's dropdown: the host sets it, a client asks for its own.
+func _on_team_chosen(key: int, pick: int) -> void:
+	var cap: int = _team_cap()
+	if cap <= 0:
+		return
+	if _is_editable:
+		if LobbySeats.set_team(_seats, key, pick, cap):
+			Events.lobby_ui_cue.emit(&"team_change")
+			_seats_edited()
+		else:
+			_render()  # unchanged or beyond the team cap: the pill shows the table again
+	elif _is_own_seat(key) and pick >= MatchConfig.TEAM_PICK_RANDOM and pick <= cap:
+		Events.lobby_ui_cue.emit(&"team_change")
+		net_provider.request_seat_pref(LobbySeats.UNCHANGED, pick)
+
+
 func _on_difficulty_chosen(key: int, difficulty: int) -> void:
 	if _is_editable and LobbySeats.set_difficulty(_seats, key, difficulty):
 		_seats_edited()
@@ -645,6 +661,7 @@ func _render() -> void:
 func _add_row(row: LobbySeatRow) -> void:
 	row.color_cycle_requested.connect(_on_color_cycle_requested)
 	row.team_cycle_requested.connect(_on_team_cycle_requested)
+	row.team_chosen.connect(_on_team_chosen)
 	row.difficulty_chosen.connect(_on_difficulty_chosen)
 	row.remove_requested.connect(_on_remove_requested)
 	_player_list.add_child(row)

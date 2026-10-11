@@ -28,6 +28,6 @@ func test_lobby_widgets_use_pictograms() -> void:
 		var check: UiChipToggle = box as UiChipToggle
 		var id: StringName = StringName(check.label.to_lower().replace(" ", "_"))
 		assert_eq(check.chip_icon, table.gift_pictogram(id), "checkbox %s" % id)
-	var weather: UiDropdown = lobby.get_node("%WeatherOption") as UiDropdown
-	for i: int in weather.item_count:
+	var weather: UiCycler = lobby.get_node("%WeatherOption") as UiCycler
+	for i: int in weather.get_item_count():
 		assert_eq(weather.get_item_icon(i), table.weather_pictogram(i), "weather item %d" % i)

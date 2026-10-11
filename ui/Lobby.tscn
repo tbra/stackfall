@@ -5,7 +5,7 @@
 [ext_resource type="Script" path="res://ui/MenuBackdrop.gd" id="4_backdrop"]
 [ext_resource type="PackedScene" path="res://ui/lobby/LobbyPlayersPanel.tscn" id="5_playerspanel"]
 [ext_resource type="Script" path="res://ui/components/UiSection.gd" id="6_section"]
-[ext_resource type="Script" path="res://ui/components/UiDropdown.gd" id="7_dropdown"]
+[ext_resource type="Script" path="res://ui/components/UiCycler.gd" id="7_cycler"]
 [ext_resource type="Script" path="res://ui/components/UiRow.gd" id="8_row"]
 [ext_resource type="Script" path="res://ui/components/UiToggle.gd" id="9_toggle"]
 [ext_resource type="Script" path="res://ui/components/UiStepper.gd" id="10_stepper"]
@@ -148,12 +148,10 @@ script = ExtResource("8_row")
 layout_mode = 2
 metadata/row_label = "Game mode"
 
-[node name="GameModeOption" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameModeCol"]
+[node name="GameModeOption" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameModeCol"]
 unique_name_in_owner = true
-script = ExtResource("7_dropdown")
+script = ExtResource("7_cycler")
 layout_mode = 2
-size_flags_horizontal = 3
-mode = 1
 
 [node name="DiscSizeCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body"]
 script = ExtResource("8_row")
@@ -171,24 +169,20 @@ script = ExtResource("8_row")
 layout_mode = 2
 metadata/row_label = "Time of day"
 
-[node name="SkyThemeOption" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/SkyCol"]
+[node name="SkyThemeOption" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/SkyCol"]
 unique_name_in_owner = true
-script = ExtResource("7_dropdown")
+script = ExtResource("7_cycler")
 layout_mode = 2
-size_flags_horizontal = 3
-mode = 1
 
 [node name="WeatherCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body"]
 script = ExtResource("8_row")
 layout_mode = 2
 metadata/row_label = "Weather"
 
-[node name="WeatherOption" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/WeatherCol"]
+[node name="WeatherOption" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/WeatherCol"]
 unique_name_in_owner = true
-script = ExtResource("7_dropdown")
+script = ExtResource("7_cycler")
 layout_mode = 2
-size_flags_horizontal = 3
-mode = 1
 
 [node name="Advanced" type="MarginContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection"]
 layout_mode = 2
@@ -212,24 +206,20 @@ script = ExtResource("8_row")
 layout_mode = 2
 metadata/row_label = "Tilt mode"
 
-[node name="TiltModeOption" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/TiltCol"]
+[node name="TiltModeOption" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/TiltCol"]
 unique_name_in_owner = true
-script = ExtResource("7_dropdown")
+script = ExtResource("7_cycler")
 layout_mode = 2
-size_flags_horizontal = 3
-mode = 1
 
 [node name="HoleCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid"]
 script = ExtResource("8_row")
 layout_mode = 2
 metadata/row_label = "Hole mode"
 
-[node name="HoleModeOption" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/HoleCol"]
+[node name="HoleModeOption" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/HoleCol"]
 unique_name_in_owner = true
-script = ExtResource("7_dropdown")
+script = ExtResource("7_cycler")
 layout_mode = 2
-size_flags_horizontal = 3
-mode = 1
 
 [node name="TurnBasedCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid"]
 script = ExtResource("8_row")
@@ -444,6 +434,14 @@ layout_mode = 2
 size_flags_horizontal = 3
 label = "Gift slot"
 tooltip_text = "Experiment: a claimed gift waits in a slot and is spent with the use-gift action, instead of replacing your next block."
+
+[node name="QolGiftAfterNextCheck" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced/ExperimentsGroup/ExperimentsChecklist"]
+unique_name_in_owner = true
+script = ExtResource("12_chip")
+layout_mode = 2
+size_flags_horizontal = 3
+label = "Gift after next block"
+tooltip_text = "Trial (on by default): a claimed gift becomes the block after next and your ordinary next piece stays. Off: the gift replaces your next piece. Not used together with the backlog or gift slot experiments."
 
 [node name="PlayersCard" type="PanelContainer" parent="Margin/Layout/Columns"]
 unique_name_in_owner = true

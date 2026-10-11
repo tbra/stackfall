@@ -139,10 +139,10 @@ var _map_thumbnail_icon: TextureRect = null
 var _gravity_value: float = 1.0
 var _special_frequency_value: int = 0
 @onready var _gifts_check: UiToggle = %GiftsCheck
-@onready var _tilt_mode_option: UiDropdown = %TiltModeOption
-@onready var _hole_mode_option: UiDropdown = %HoleModeOption
-@onready var _weather_option: UiDropdown = %WeatherOption
-@onready var _game_mode_option: UiDropdown = %GameModeOption
+@onready var _tilt_mode_option: UiCycler = %TiltModeOption
+@onready var _hole_mode_option: UiCycler = %HoleModeOption
+@onready var _weather_option: UiCycler = %WeatherOption
+@onready var _game_mode_option: UiCycler = %GameModeOption
 ## Bontago-6fc.1: ONE timer control is shown. Classic shows the match-timer
 ## row (+ sudden death); every other mode shows the round-length row.
 ## Bontago-1pi.159.2.1: both are UiSteppers in whole minutes (Off at 0 for the match timer); each
@@ -158,7 +158,7 @@ var _round_timer_value: Label = null
 @onready var _sky_team_col: Control = %SkyTeamCol
 @onready var _sky_team_sum_check: UiToggle = %SkyTeamSumCheck
 ## Bontago-470.4: the "Map" time-of-day dropdown (MatchConfig.SkyThemeMode).
-@onready var _sky_theme_option: UiDropdown = %SkyThemeOption
+@onready var _sky_theme_option: UiCycler = %SkyThemeOption
 @onready var _sudden_death_check: UiToggle = %SuddenDeathCheck
 @onready var _turn_based_check: UiToggle = %TurnBasedCheck
 ## Bontago-8or.20: host-only toggle for MatchConfig.allow_mid_match_join.
@@ -175,8 +175,14 @@ var _round_timer_value: Label = null
 @onready var _qol_backlog_check: UiChipToggle = %QolBacklogCheck
 @onready var _qol_goal_radius_check: UiChipToggle = %QolGoalRadiusCheck
 @onready var _qol_gift_slot_check: UiChipToggle = %QolGiftSlotCheck
+## Bontago-1pi.159.29: the gift-after-next TRIAL (QolExperiments.gift_queue_after_next, on by default).
+## DECISION: it sits in the same chip group (focus loop, host-only gating, replication) but is a rule
+## variant rather than an opt-in experiment, so it is not part of the with_toggles() flags and the
+## section's "n on" count skips it (QolExperiments.any_enabled() ignores it too).
+@onready var _qol_gift_after_next_check: UiChipToggle = %QolGiftAfterNextCheck
 @onready var _qol_checks: Array[UiChipToggle] = [
 	_qol_timer_pause_check, _qol_backlog_check, _qol_goal_radius_check, _qol_gift_slot_check,
+	_qol_gift_after_next_check,
 ]
 
 ## Bontago-1pi.53 (S1a/S1b): the settings column is a stack of UiSections: GAME (mode, disc size,
@@ -250,6 +256,7 @@ const MODE_TIPS: PackedStringArray = [
 ## locked at a sunset time, not a separate painted sky.
 const SKY_THEME_LABELS: PackedStringArray = ["Sunset", "Night", "Random", "Cycle", "Dawn"]
 const SKY_THEME_TIP: String = "Time of day for the match sky. Cycle runs through dawn, day, sunset and night; the other options hold the cycle at one fixed time."
+const SKY_THEME_TIP_JOIN: String = "\n\n"
 const SKY_THEME_ITEM_TIPS: PackedStringArray = [
 	"Locked time: the sky stays at sunset for the whole match.",
 	"Locked time: the sky stays at night for the whole match.",
@@ -501,9 +508,9 @@ func _expose(node: Node, unique_name: String) -> void:
 	node.unique_name_in_owner = true
 
 
-## DECISION (Bontago-1pi.94): game mode, time of day, weather, tilt and hole mode (and each bot's
-## difficulty and team in LobbySeatRow) are click-to-cycle selectors (UiDropdown in its CYCLE mode, <= 6
-## items): click / ui_accept = next, right click = previous, focus navigation never changes the value.
+## DECISION (Bontago-1pi.159.14, reversing 1pi.94): game mode, time of day, weather, tilt and hole mode
+## are UiCyclers ("<" value ">" blocks, wrapping, ui_left / ui_right step); each bot's difficulty and
+## team in LobbySeatRow are ordinary popup UiDropdowns.
 ## %MapVariantOption / %MapSizeOption / %AiDifficultyOption / %TeamModeOption are hidden sources
 ## of truth that nobody clicks, so they stay plain OptionButtons.
 func _populate_options() -> void:
@@ -528,24 +535,36 @@ func _populate_options() -> void:
 	_fill_cycle(_hole_mode_option, ["Temporary", "Permanent", "Off"])
 	# Bontago-22y.10: order must match MatchConfig.WeatherMode.
 	# Labels come from the enum names, so a new weather type needs no edit here.
-	_fill_cycle(_weather_option, MatchWeather.mode_labels())
-	for weather_index: int in _weather_option.item_count:
-		_weather_option.set_item_icon(weather_index, GiftIconTable.shared().weather_pictogram(weather_index))
+	var weather_labels: Array = MatchWeather.mode_labels()
+	for weather_index: int in range(weather_labels.size()):
+		_weather_option.add_item(weather_labels[weather_index] as String, false, GiftIconTable.shared().weather_pictogram(weather_index))
 	# Bontago-470.4: order must match MatchConfig.SkyThemeMode.
 	# Bontago-59o.18 (U1): the DAY entry is the cycle locked at sunset, so it
 	# reads "Sunset"; Cycle is the default through MatchConfig.sky_theme_mode.
 	_fill_cycle(_sky_theme_option, Array(SKY_THEME_LABELS))
-	_sky_theme_option.list_tooltip = SKY_THEME_TIP
-	for sky_index: int in range(SKY_THEME_ITEM_TIPS.size()):
-		_sky_theme_option.set_item_tooltip(sky_index, SKY_THEME_ITEM_TIPS[sky_index])
+	_refresh_sky_tooltip()
 	# Bontago-22y.11: order must match MatchConfig.GameMode. Reserved modes are
 	# listed but disabled, so neither the mouse nor the gamepad popup can pick
 	# one; MatchConfig.resolve_game_mode() also rejects them on the wire.
 	# DECISION (Bontago-6fc.1): one timer control per mode (_refresh_timer_control).
 	_fill_cycle(_game_mode_option, Array(MatchConfig.GAME_MODE_LABELS))
-	for mode_index: int in range(_game_mode_option.item_count):
+	for mode_index: int in range(_game_mode_option.get_item_count()):
 		_game_mode_option.set_item_disabled(mode_index, not MatchConfig.is_game_mode_selectable(mode_index))
+	_align_cyclers()
 	_build_specials_checklist()
+
+
+## Every cycler of the GAME section (main rows and Advanced) shares the widest value area, so the
+## "<" / ">" blocks line up from row to row (Bontago-1pi.159.14).
+func _align_cyclers() -> void:
+	var cyclers: Array[UiCycler] = [
+		_game_mode_option, _sky_theme_option, _weather_option, _tilt_mode_option, _hole_mode_option,
+	]
+	var widest: float = 0.0
+	for cycler: UiCycler in cyclers:
+		widest = maxf(widest, cycler.content_width())
+	for cycler: UiCycler in cyclers:
+		cycler.min_value_width = widest
 
 
 ## Bontago-mp0.124: every map combo row shows its variant's pictogram (UiArtTable) and
@@ -580,8 +599,8 @@ func _fill_option(option: OptionButton, labels: Array) -> void:
 		option.add_item(label)
 
 
-## The UiDropdown twin of _fill_option() (Bontago-1pi.94): same index order, same stored ints.
-func _fill_cycle(selector: UiDropdown, labels: Array) -> void:
+## The UiCycler twin of _fill_option() (Bontago-1pi.159.14): same index order, same stored ints.
+func _fill_cycle(selector: UiCycler, labels: Array) -> void:
 	selector.clear()
 	for label: String in labels:
 		selector.add_item(label)
@@ -755,6 +774,7 @@ func _connect_control_signals() -> void:
 	_sky_team_sum_check.toggled.connect(_on_toggled)
 	_game_mode_option.item_selected.connect(_refresh_sky_controls)
 	_sky_theme_option.item_selected.connect(_on_option_changed)
+	_sky_theme_option.item_selected.connect(_refresh_sky_tooltip)
 	_player_count_spin.value_changed.connect(_on_value_changed)
 	# Bontago-1pi.9b: a seat-count edit can shrink the room left for bots, so
 	# this recomputes %AiCountSpin's own max_value on every host edit too, not
@@ -888,11 +908,6 @@ func _input(event: InputEvent) -> void:
 	for option: OptionButton in [_map_variant_option, _map_size_option, _ai_difficulty_option, _team_mode_option]:
 		if option.get_popup().visible:
 			return
-	for dropdown: UiDropdown in [
-		_game_mode_option, _sky_theme_option, _weather_option, _tilt_mode_option, _hole_mode_option,
-	]:
-		if dropdown.is_open():
-			return
 	_run_start_shortcut()
 	get_viewport().set_input_as_handled()
 
@@ -957,13 +972,13 @@ func _update_section_summaries() -> void:
 		_gifts_section.set_summary(SUMMARY_GIFTS_OFF)
 	var experiments_on: int = 0
 	for qol_check: UiChipToggle in _qol_checks:
-		if qol_check.button_pressed:
+		if qol_check.button_pressed and qol_check != _qol_gift_after_next_check:
 			experiments_on += 1
 	_experiments_section.set_summary(SUMMARY_EXPERIMENTS_FORMAT % experiments_on)
 
 
-func _cycle_text(selector: UiDropdown) -> String:
-	return selector.get_item_text(selector.selected)
+func _cycle_text(selector: UiCycler) -> String:
+	return selector.selected_text()
 
 
 ## Bontago-mp0.3.5: tools/capture_mockup08.gd's own `--lobby-advanced` frame (public wrapper
@@ -1111,9 +1126,20 @@ func _on_timer_stepper_changed(value: int, stepper: UiStepper) -> void:
 	_on_setting_changed()
 
 
+## The sky cycler's tooltip: the list explainer plus the shown item's own tip (a cycler has no
+## per-item tooltips, so the Lobby keeps this one in step with the selection).
+func _refresh_sky_tooltip(_index: int = 0) -> void:
+	var tip: String = SKY_THEME_TIP
+	var shown: int = _sky_theme_option.selected()
+	if shown >= 0 and shown < SKY_THEME_ITEM_TIPS.size():
+		tip += SKY_THEME_TIP_JOIN + SKY_THEME_ITEM_TIPS[shown]
+	_sky_theme_option.tooltip_text = tip
+
+
 func _refresh_sky_controls(_index: int = 0) -> void:
-	_refresh_timer_control(MatchConfig.resolve_game_mode(_game_mode_option.selected))
-	_sky_team_col.visible = _game_mode_option.selected == MatchConfig.GameMode.REACH_THE_SKY
+	_refresh_sky_tooltip()
+	_refresh_timer_control(MatchConfig.resolve_game_mode(_game_mode_option.selected()))
+	_sky_team_col.visible = _game_mode_option.selected() == MatchConfig.GameMode.REACH_THE_SKY
 	_rewire_focus()
 
 
@@ -1168,12 +1194,12 @@ func _config_from_controls() -> MatchConfig:
 	config.goal_flag_count = _goal_flag_stepper.value
 	config.gifts_enabled = _gifts_check.button_pressed
 	config.special_frequency = _special_frequency_value
-	config.tilt_mode = _tilt_mode_option.selected
-	config.hole_mode = _hole_mode_option.selected
-	config.weather_mode = _weather_option.selected as MatchConfig.WeatherMode
-	config.sky_theme_mode = _sky_theme_option.selected as MatchConfig.SkyThemeMode
+	config.tilt_mode = _tilt_mode_option.selected()
+	config.hole_mode = _hole_mode_option.selected()
+	config.weather_mode = _weather_option.selected() as MatchConfig.WeatherMode
+	config.sky_theme_mode = _sky_theme_option.selected() as MatchConfig.SkyThemeMode
 	config.match_timer_minutes = _match_timer_stepper.value
-	config.game_mode = MatchConfig.resolve_game_mode(_game_mode_option.selected)
+	config.game_mode = MatchConfig.resolve_game_mode(_game_mode_option.selected())
 	config.round_timer_minutes = _round_timer_stepper.value
 	config.sky_team_sum = _sky_team_sum_check.button_pressed
 	config.sudden_death = _sudden_death_check.button_pressed
@@ -1211,10 +1237,12 @@ func _reconciled_bot_names(bot_count: int) -> PackedStringArray:
 ## The four Experiments checkboxes folded onto a copy of the shared F4 resource
 ## (QolExperiments.with_toggles() never modifies QOL_SHARED).
 func _qol_from_controls() -> QolExperiments:
-	return QolExperiments.with_toggles(
+	var qol: QolExperiments = QolExperiments.with_toggles(
 		QOL_SHARED, _qol_timer_pause_check.button_pressed, _qol_backlog_check.button_pressed,
 		_qol_goal_radius_check.button_pressed, _qol_gift_slot_check.button_pressed
 	)
+	qol.gift_queue_after_next = _qol_gift_after_next_check.button_pressed
+	return qol
 
 
 ## MatchConfig.enabled_specials's own doc: "Empty means every special enabled
@@ -1287,13 +1315,13 @@ func _apply_data(data: Dictionary) -> void:
 	_special_frequency_value = config.special_frequency
 	_special_freq_meter.set_value_silent(_frequency_cells_for(_special_frequency_value))
 	_special_freq_meter.queue_redraw()
-	_tilt_mode_option.selected = config.tilt_mode
-	_hole_mode_option.selected = config.hole_mode
-	_weather_option.selected = config.weather_mode
-	_sky_theme_option.selected = config.sky_theme_mode
+	_tilt_mode_option.select(config.tilt_mode)
+	_hole_mode_option.select(config.hole_mode)
+	_weather_option.select(config.weather_mode)
+	_sky_theme_option.select(config.sky_theme_mode)
 	# Bontago-6fc.1: the timer control's minimum follows the mode, so it is
 	# retargeted before either value is written (Elimination may hold 0).
-	_game_mode_option.selected = config.game_mode
+	_game_mode_option.select(config.game_mode)
 	_refresh_timer_control(config.game_mode)
 	_match_timer_stepper.value = config.match_timer_minutes
 	_round_timer_stepper.value = config.round_timer_minutes
@@ -1311,6 +1339,8 @@ func _apply_data(data: Dictionary) -> void:
 	_qol_backlog_check.set_on_silent(qol != null and qol.backlog_enabled)
 	_qol_goal_radius_check.set_on_silent(qol != null and qol.goal_radius_enabled)
 	_qol_gift_slot_check.set_on_silent(qol != null and qol.gift_slot_enabled)
+	# A null qol (config/match_defaults.tres) leaves the trial at the shared resource's default.
+	_qol_gift_after_next_check.set_on_silent(QOL_SHARED.gift_queue_after_next if qol == null else qol.gift_queue_after_next)
 	_applying_remote_data = false
 	_update_section_summaries()
 	# Bontago-1pi.9b: re-bound %AiCountSpin's max after every value assignment
@@ -1668,6 +1698,10 @@ func _set_control_editable(control: Control, editable: bool) -> void:
 		var stepper: UiStepper = control as UiStepper
 		if stepper.disabled == editable:
 			stepper.disabled = not editable
+	elif control is UiCycler:
+		var cycler: UiCycler = control as UiCycler
+		if cycler.disabled == editable:
+			cycler.disabled = not editable
 	elif control is UiSegmentMeter:
 		var meter: UiSegmentMeter = control as UiSegmentMeter
 		if meter.editable != editable:

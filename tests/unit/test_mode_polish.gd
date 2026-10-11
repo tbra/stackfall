@@ -56,8 +56,8 @@ func _make_lobby(is_host: bool) -> Lobby:
 
 
 func _pick_mode(lobby: Lobby, mode: int) -> void:
-	var option: UiDropdown = lobby.get_node("%GameModeOption")
-	option.selected = mode
+	var option: UiCycler = lobby.get_node("%GameModeOption")
+	option.select(mode)
 	option.item_selected.emit(mode)
 
 
@@ -126,7 +126,7 @@ func test_elimination_no_limit_round_trips_to_a_client() -> void:
 	client._apply_data(published)
 	assert_eq((client.get_node("%RoundTimerStepper") as UiStepper).value, 0)
 	assert_eq((client.get_node("%RoundTimerStepper") as UiStepper).display_text(), "Off")
-	assert_eq((client.get_node("%GameModeOption") as UiDropdown).selected, MatchConfig.GameMode.ELIMINATION)
+	assert_eq((client.get_node("%GameModeOption") as UiCycler).selected(), MatchConfig.GameMode.ELIMINATION)
 	assert_true((client.get_node("%RoundTimerCol") as Control).visible)
 	var ctf: Dictionary = published.duplicate()
 	ctf["game_mode"] = MatchConfig.GameMode.CAPTURE_THE_FLAG
@@ -265,7 +265,7 @@ func test_lobby_forces_a_timer_for_domination() -> void:
 	var fake: FakeNet = lobby.net_provider as FakeNet
 	assert_gte(int(fake.set_lobby_data_calls[-1]["round_timer_minutes"]), MatchConfig.ROUND_TIMER_MIN_MINUTES)
 	assert_true((lobby.get_node("%RoundTimerValue") as Label).text.find("required") >= 0)
-	assert_false((lobby.get_node("%GameModeOption") as UiDropdown).tooltip_text.is_empty(), "mode description")
+	assert_false((lobby.get_node("%GameModeOption") as UiCycler).tooltip_text.is_empty(), "mode description")
 
 
 func test_bot_goal_is_a_territory_objective_in_domination() -> void:

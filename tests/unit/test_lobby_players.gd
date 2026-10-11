@@ -859,28 +859,29 @@ func test_a_pad_can_reach_and_activate_the_colour_box() -> void:
 	assert_true(_pad(JOY_BUTTON_DPAD_RIGHT).is_action_pressed(&"ui_right"))
 
 
-func test_the_team_button_cycles_one_to_four_then_random_then_one() -> void:
+func test_the_team_dropdown_sets_each_pick_from_its_list() -> void:
 	var lobby: Lobby = _host_lobby(2, 0, true)
 	assert_eq(_human_team(lobby, 1), 1, "teams on seed 1, 2, 1, 2...")
 	assert_eq(_human_team(lobby, 2), 2)
-	var expected: Array[int] = [2, 3, 4, MatchConfig.TEAM_PICK_RANDOM, 1]
-	for pick: int in expected:
-		_rows_of(lobby)[0].team_button.pressed.emit()
+	_rows_of(lobby)[0].team_button.pressed.emit()
+	assert_true(_rows_of(lobby)[0].team_button.is_open(), "a press opens the list")
+	_rows_of(lobby)[0].team_button.pressed.emit()
+	for pick: int in [2, 3, 4, MatchConfig.TEAM_PICK_RANDOM, 1]:
+		_rows_of(lobby)[0].team_button.pick(pick)
 		assert_eq(_human_team(lobby, 1), pick)
 		assert_eq(_rows_of(lobby)[0].team_button.text, LobbySeatRow.team_text(pick))
 	assert_eq(LobbySeatRow.team_text(MatchConfig.TEAM_PICK_RANDOM), "?", "Random shows as ?")
 	assert_eq(_human_team(lobby, 2), 2, "other seats are untouched")
 
 
-func test_the_team_button_cycles_backwards_on_right_click_and_ignores_ui_left_right() -> void:
+func test_the_team_dropdown_ignores_right_click_and_ui_left_right() -> void:
 	var lobby: Lobby = _host_lobby(2, 0, true)
-	_rows_of(lobby)[0].team_button.gui_input.emit(_right_click())
-	assert_eq(_human_team(lobby, 1), MatchConfig.TEAM_PICK_RANDOM, "1 steps back to Random")
-	_rows_of(lobby)[0].team_button.gui_input.emit(_right_click())
-	assert_eq(_human_team(lobby, 1), 4, "Random steps back to the last team")
-	_rows_of(lobby)[0].team_button.gui_input.emit(_pad(JOY_BUTTON_DPAD_LEFT))
-	_rows_of(lobby)[0].team_button.gui_input.emit(_pad(JOY_BUTTON_DPAD_RIGHT))
-	assert_eq(_human_team(lobby, 1), 4, "ui_left / ui_right only move focus (Bontago-1pi.94)")
+	var button: UiDropdown = _rows_of(lobby)[0].team_button
+	button.gui_input.emit(_right_click())
+	button.gui_input.emit(_pad(JOY_BUTTON_DPAD_LEFT))
+	button.gui_input.emit(_pad(JOY_BUTTON_DPAD_RIGHT))
+	assert_eq(_human_team(lobby, 1), 1, "only picking a list row changes the team (Bontago-1pi.159.14)")
+	assert_false(button.is_open())
 
 
 func test_the_team_cycle_follows_a_legacy_two_team_lobby_and_teams_off_has_no_button() -> void:
@@ -891,10 +892,10 @@ func test_the_team_cycle_follows_a_legacy_two_team_lobby_and_teams_off_has_no_bu
 	(lobby.get_node("%TeamModeOption") as OptionButton).select(MatchConfig.TeamMode.TEAMS_2)
 	lobby._on_option_changed(MatchConfig.TeamMode.TEAMS_2)
 	var seen: Array[int] = []
-	for _step: int in range(3):
-		_rows_of(lobby)[0].team_button.pressed.emit()
+	for pick: int in [3, 2, MatchConfig.TEAM_PICK_RANDOM, 1]:
+		_rows_of(lobby)[0].team_button.pick(pick)
 		seen.append(_human_team(lobby, 1))
-	assert_eq(seen, [2, MatchConfig.TEAM_PICK_RANDOM, 1], "cap 2: 1, 2, Random")
+	assert_eq(seen, [1, 2, MatchConfig.TEAM_PICK_RANDOM, 1], "cap 2: a pick above it is refused (stays 1), then 2, Random, 1")
 
 
 func test_a_bots_dropdown_sets_only_that_bots_difficulty() -> void:
@@ -1022,10 +1023,10 @@ func test_the_host_focus_entries_run_colour_team_difficulty_remove_row_by_row() 
 
 func test_focus_stays_on_the_same_control_after_an_edit_redraws_the_rows() -> void:
 	var lobby: Lobby = _host_lobby(2, 0, true)
-	var old_team: Button = _rows_of(lobby)[1].team_button
+	var old_team: UiDropdown = _rows_of(lobby)[1].team_button
 	old_team.grab_focus()
 	assert_true(old_team.has_focus())
-	old_team.pressed.emit()
+	old_team.pick(3)
 	var new_team: Button = _rows_of(lobby)[1].team_button
 	assert_ne(new_team, old_team, "the rows were redrawn")
 	assert_true(new_team.has_focus(), "focus follows the same seat and control")
@@ -1251,7 +1252,7 @@ func test_pressing_the_teams_toggle_turns_teams_on_seeds_the_picks_and_publishes
 
 func test_switching_teams_off_keeps_the_picks_and_hides_the_buttons() -> void:
 	var lobby: Lobby = _host_lobby(2, 0, true)
-	_rows_of(lobby)[1].team_button.pressed.emit()
+	_rows_of(lobby)[1].team_button.pick(3)
 	var pick: int = _human_team(lobby, 2)
 	_teams_toggle(lobby).button_pressed = false
 	assert_eq(int(_last_published(lobby).get("team_mode")), int(MatchConfig.TeamMode.OFF))
@@ -1374,16 +1375,16 @@ func test_a_client_colour_request_wraps_around_the_palette() -> void:
 	assert_eq(_fake_of(lobby).request_seat_pref_calls[0]["color_index"], 0)
 
 
-func test_a_clients_team_click_asks_for_the_next_number_including_random() -> void:
+func test_a_clients_team_pick_asks_for_that_number_including_random() -> void:
 	var lobby: Lobby = _client_lobby(2, 2, 0, MatchConfig.TeamMode.TEAMS_4, {
 		"humans": [_human_seat(1, 0, 1), _human_seat(2, 1, 4)],
 		"bots": [],
 	})
 	var net: FakeNet = _fake_of(lobby)
-	_rows_of(lobby)[1].team_button.pressed.emit()
+	_rows_of(lobby)[1].team_button.pick(MatchConfig.TEAM_PICK_RANDOM)
 	assert_eq(net.request_seat_pref_calls[0], {"color_index": -1, "team_pick": MatchConfig.TEAM_PICK_RANDOM}, "4 -> Random")
-	_rows_of(lobby)[1].team_button.gui_input.emit(_right_click())
-	assert_eq(net.request_seat_pref_calls[1], {"color_index": -1, "team_pick": 3}, "right click: 4 -> 3")
+	_rows_of(lobby)[1].team_button.pick(3)
+	assert_eq(net.request_seat_pref_calls[1], {"color_index": -1, "team_pick": 3}, "4 -> 3")
 
 
 func test_a_client_cannot_reach_another_seat_even_with_a_direct_call() -> void:
@@ -1543,10 +1544,10 @@ func test_the_blocker_follows_edits_and_a_client_never_sees_one() -> void:
 	var lobby: Lobby = _host_lobby(2, 0, true)
 	var panel: LobbyPlayersPanel = _panel_of(lobby)
 	assert_eq(panel.start_blocker(), "", "seeded 1, 2")
-	_rows_of(lobby)[1].team_button.gui_input.emit(_right_click())
-	assert_eq(_human_team(lobby, 2), 1, "right click: 2 -> 1, everyone is on team 1")
+	_rows_of(lobby)[1].team_button.pick(1)
+	assert_eq(_human_team(lobby, 2), 1, "picking 1: everyone is on team 1")
 	assert_eq(panel.start_blocker(), TeamAssigner.BLOCKER_ONE_TEAM)
-	_rows_of(lobby)[1].team_button.pressed.emit()
+	_rows_of(lobby)[1].team_button.pick(2)
 	assert_eq(panel.start_blocker(), "")
 	var client: Lobby = _client_lobby(2, 2, 0, MatchConfig.TeamMode.TEAMS_4, {
 		"humans": [_human_seat(1, 0, 1), _human_seat(2, 1, 1)],

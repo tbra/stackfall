@@ -29,6 +29,15 @@ var preview_focus: bool = false:
 var prev_button: UiIconButton = null
 var next_button: UiIconButton = null
 var value_label: Label = null
+## Holds the optional item icon and value_label; sized to the widest item plus padding.
+var value_box: HBoxContainer = null
+var value_icon: TextureRect = null
+## Extra floor for the value area's width, so cyclers of one section can share a column width
+## (the Lobby sets it to the widest [method content_width] of the section).
+var min_value_width: float = 0.0:
+	set(width):
+		min_value_width = width
+		_refresh()
 ## Reads a stick axis; tests replace it (headless Input has no real pad state).
 var axis_reader: Callable = Input.get_joy_axis:
 	set(reader):
@@ -36,6 +45,8 @@ var axis_reader: Callable = Input.get_joy_axis:
 		_hold.axis_reader = reader
 
 var _texts: PackedStringArray = PackedStringArray()
+var _icons: Array[Texture2D] = []
+var _tooltips: PackedStringArray = PackedStringArray()
 var _disabled_items: Array[bool] = []
 var _selected: int = NONE
 var _hold: UiHoldRepeat = UiHoldRepeat.new(nudge)
@@ -60,7 +71,20 @@ func _init() -> void:
 	var display: Font = (load("res://ui/theme/stackfall_theme.tres") as Theme).get_font(&"font", &"DisplayLabel")
 	if display != null:
 		value_label.add_theme_font_override("font", display)
-	add_child(value_label)
+	value_box = HBoxContainer.new()
+	value_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	value_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	value_box.add_theme_constant_override("separation", arcade.space_1_px)
+	value_icon = TextureRect.new()
+	value_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	value_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	value_icon.custom_minimum_size = Vector2(float(m.cycler_icon_px), float(m.cycler_icon_px))
+	value_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	value_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	value_icon.visible = false
+	value_box.add_child(value_icon)
+	value_box.add_child(value_label)
+	add_child(value_box)
 	next_button = _make_button(NEXT_GLYPH, 1)
 	focus_entered.connect(queue_redraw)
 	focus_exited.connect(_on_focus_exited)
@@ -69,8 +93,10 @@ func _init() -> void:
 
 
 ## Appends an item and returns its index; the first item becomes the selection.
-func add_item(text: String, item_disabled: bool = false) -> int:
+func add_item(text: String, item_disabled: bool = false, icon: Texture2D = null, tooltip: String = "") -> int:
 	_texts.append(text)
+	_icons.append(icon)
+	_tooltips.append(tooltip)
 	_disabled_items.append(item_disabled)
 	if _selected == NONE:
 		_selected = _texts.size() - 1
@@ -81,6 +107,8 @@ func add_item(text: String, item_disabled: bool = false) -> int:
 func clear() -> void:
 	release()
 	_texts.clear()
+	_icons.clear()
+	_tooltips.clear()
 	_disabled_items.clear()
 	_selected = NONE
 	_refresh()
@@ -102,6 +130,15 @@ func set_item_disabled(index: int, item_disabled: bool) -> void:
 
 func is_item_disabled(index: int) -> bool:
 	return index >= 0 and index < _disabled_items.size() and _disabled_items[index]
+
+
+func get_item_icon(index: int) -> Texture2D:
+	return _icons[index] if index >= 0 and index < _icons.size() else null
+
+
+## The tooltip of an item (shown as the control's tooltip while it is selected, when set).
+func get_item_tooltip(index: int) -> String:
+	return _tooltips[index] if index >= 0 and index < _tooltips.size() else ""
 
 
 ## Selects [param index] without emitting `item_selected` (remote sync, initial value).
@@ -230,16 +267,31 @@ func _enabled_count() -> int:
 	return count
 
 
+## The value area's natural width: the widest item (icon, gap, text) plus the padding on both sides.
+func content_width() -> float:
+	var m: ComponentMetrics = UiRowItem.metrics()
+	var gap: float = float(MenuStyleFactory.arcade_tuning().space_1_px)
+	var widest: float = 0.0
+	var font: Font = value_label.get_theme_font(&"font")
+	var font_size: int = value_label.get_theme_font_size(&"font_size")
+	for index: int in range(_texts.size()):
+		var item_width: float = ceilf(font.get_string_size(_texts[index], HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size).x)
+		if _icons[index] != null:
+			item_width += float(m.cycler_icon_px) + gap
+		widest = maxf(widest, item_width)
+	return widest + float(m.cycler_value_padding_px * 2)
+
+
 func _refresh() -> void:
 	if value_label == null:
 		return
 	value_label.text = selected_text()
-	var widest: float = 0.0
-	var font: Font = value_label.get_theme_font(&"font")
-	var font_size: int = value_label.get_theme_font_size(&"font_size")
-	for text: String in _texts:
-		widest = maxf(widest, font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size).x)
-	value_label.custom_minimum_size.x = ceilf(widest)
+	var shown: Texture2D = get_item_icon(_selected)
+	value_icon.texture = shown
+	value_icon.visible = shown != null
+	value_box.custom_minimum_size.x = maxf(content_width(), min_value_width)
+	if _selected >= 0 and _tooltips[_selected] != "":
+		tooltip_text = _tooltips[_selected]
 	var can_step: bool = not disabled and _enabled_count() > 1
 	prev_button.disabled = not can_step
 	next_button.disabled = not can_step

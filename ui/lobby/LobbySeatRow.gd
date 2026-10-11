@@ -13,7 +13,7 @@ extends PanelContainer
 ##   remove button.
 ##
 ## Every control is a ui/components row item (Bontago-1pi.159.2.2): the team and difficulty
-## selectors are UiDropdowns (click-to-cycle, owner decision 1pi.94), the remove X a UiIconButton
+## selectors are UiDropdowns (popup lists), the remove X a UiIconButton
 ## (DANGER), the Ready / host badge a UiStatusBadge, so they all share one height
 ## (ComponentMetrics.row_height_px). Only the colour diamond keeps its own flat, borderless button.
 ##
@@ -32,6 +32,8 @@ extends PanelContainer
 signal color_cycle_requested(key: int, backwards: bool)
 ## Cycle the seat's team pick; `backwards` = previous number.
 signal team_cycle_requested(key: int, backwards: bool)
+## The team dropdown picked `pick` (TEAM_PICK_RANDOM or 1..TEAM_PICK_MAX).
+signal team_chosen(key: int, pick: int)
 ## The dropdown picked a MatchConfig.AiDifficulty for bot seat `key`.
 signal difficulty_chosen(key: int, difficulty: int)
 ## The remove button of bot seat `key` was pressed.
@@ -266,13 +268,13 @@ func _build_text_column() -> void:
 	layout.add_child(text_column)
 
 
-## The team selector: a compact UiDropdown showing "?" (Random) or "1".."4". Items run
-## Random, 1..TEAM_PICK_MAX so the shown item is the pick itself; the pick lives in the panel's
-## seat table, so the dropdown only reports the click (auto_advance off) and the row is rebuilt.
+## The team selector: a compact UiDropdown showing "?" (Random) or "1".."4" that opens a list.
+## DECISION (Bontago-1pi.159.14): seat pills are popups, not UiCyclers (a cycler's two blocks would
+## not fit a seat row). Items run Random, 1..TEAM_PICK_MAX so the item index is the pick itself;
+## the pick lives in the panel's seat table, so the dropdown only reports the choice
+## ([signal team_chosen]) and the row is rebuilt.
 func _build_team_button() -> void:
 	team_button = UiDropdown.new()
-	team_button.mode = UiDropdown.Mode.CYCLE
-	team_button.auto_advance = false
 	team_button.show_chevron = false
 	team_button.name = "TeamButton"
 	for pick: int in range(MatchConfig.TEAM_PICK_RANDOM, MatchConfig.TEAM_PICK_MAX + 1):
@@ -283,16 +285,14 @@ func _build_team_button() -> void:
 	team_button.disabled = not editable
 	team_button.focus_mode = Control.FOCUS_ALL if editable else Control.FOCUS_NONE
 	if editable:
-		team_button.tooltip_text += " (click to change, right click: previous)"
-		team_button.cycled.connect(_on_team_cycled)
+		team_button.tooltip_text += " (click to change)"
+		team_button.item_selected.connect(_on_team_selected)
 	layout.add_child(team_button)
 
 
-## A bot's own difficulty: a UiDropdown that cycles on click / ui_accept (right click: previous),
-## read-only (disabled) for a client.
+## A bot's own difficulty: a UiDropdown list, read-only (disabled) for a client.
 func _build_difficulty_option() -> void:
 	difficulty_option = UiDropdown.new()
-	difficulty_option.mode = UiDropdown.Mode.CYCLE
 	difficulty_option.name = "DifficultyOption"
 	var art: UiArtTable = UiArtTable.shared()
 	for label_index: int in range(DIFFICULTY_LABELS.size()):
@@ -427,8 +427,8 @@ func _on_color_pressed() -> void:
 	color_cycle_requested.emit(seat_key, false)
 
 
-func _on_team_cycled(backwards: bool) -> void:
-	team_cycle_requested.emit(seat_key, backwards)
+func _on_team_selected(pick: int) -> void:
+	team_chosen.emit(seat_key, pick)
 
 
 func _on_remove_pressed() -> void:

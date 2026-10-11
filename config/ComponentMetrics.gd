@@ -46,6 +46,11 @@ extends Resource
 ## Stepper: font size of the Bungee value between the - and + blocks.
 @export var stepper_value_font_px: int = 16
 
+## Cycler: clear space between the value area and each arrow block (both sides of the widest item),
+## and the edge of the optional per-item icon drawn left of the text.
+@export var cycler_value_padding_px: int = 10
+@export var cycler_icon_px: int = 20
+
 ## Tabs: height of one tab (the active tab's rim notch sits inside it) and the notch thickness.
 @export var tab_height_px: int = 40
 @export var tab_notch_px: int = 4
