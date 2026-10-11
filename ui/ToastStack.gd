@@ -1,5 +1,5 @@
 class_name ToastStack
-extends VBoxContainer
+extends UiStack
 ## Bontago-1pi.159.12 (H1): the ONE place every transient HUD message (placement reject, relocated,
 ## gift claimed, ...) appears: bottom centre. Messages stack (oldest on top, newest at the bottom),
 ## each holds then fades, and they expire in the order they arrived. At most `max_visible` show at

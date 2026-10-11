@@ -1037,7 +1037,7 @@ func _resize_top_left_backplate() -> void:
 func _setup_toast_stack() -> void:
 	_toasts.styler = _style_toast
 	_toasts.max_visible = hud_visual_tuning.toast_max_visible
-	_toasts.add_theme_constant_override("separation", int(hud_visual_tuning.toast_row_gap_px))
+	_toasts.gap_px = int(hud_visual_tuning.toast_row_gap_px)
 	var half: float = hud_visual_tuning.toast_max_width_px * 0.5
 	_toasts.offset_left = -half
 	_toasts.offset_right = half
