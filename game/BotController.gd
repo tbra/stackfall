@@ -80,7 +80,8 @@ var _think_delay_s: float = 0.0
 var _countdown: float = 0.0
 
 var _state: State = State.IDLE
-var _brain: Brain = Brain.LEGACY
+# Bontago-1t5.38 (P7): V2 is the shipped default; Brain.LEGACY stays behind --bot-brain=legacy.
+var _brain: Brain = Brain.V2
 ## Bot V2: the snapshot the current think-cycle started from (read by the special planner).
 var _special_view: BotWorldView = null
 var _think: BotThink = null

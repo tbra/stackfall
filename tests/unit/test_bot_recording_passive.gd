@@ -63,6 +63,7 @@ func _run(record: bool) -> Dictionary:
 	var net_ref: ControllerTests.BotControllerFakeNet = ControllerTests.BotControllerFakeNet.new()
 	var controller: BotController = BotController.new()
 	add_child_autofree(controller)
+	controller.set_brain(BotController.Brain.LEGACY)  # P7: legacy-format recording
 	controller.set_match_provider(fake)
 	controller.set_net_provider(net_ref)
 	var recorder: BotDecisionRecorder = null

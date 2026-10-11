@@ -339,15 +339,14 @@ Every special is its own `SpecialDef` resource plus a script. The seven evidence
 ### 2.9 AI bots [ORIGINAL feature, NEW implementation]
 The AI runs only on the host, and for multiple bots it spreads its thinking across several frames.
 
-**Placement:** Each time a bot receives a block, it samples 40–120 candidate spots. Each spot combines a position in its territory, the orientation (out of the 24) that gives the flattest base, and whether to stack on a block or place on the disk. Each candidate gets a score:
-- **Height gained** at that spot, found by raycasting down onto whatever is below it.
-- **Progress toward the goal**, i.e. how much closer its territory edge gets to the goal flag.
-- **Stability:** The area of contact under the block, and whether its center of mass sits over that contact area. Estimate this with raycasts from the block's footprint cells.
-- **Risk:** Distance from enemy territory and from active specials.
+**Placement (V2 brain, default since Bontago-1t5.38; the earlier uniform-sampling brain stays behind `--bot-brain=legacy` for one release):** Each time a bot receives a block, a strategy layer picks an intent (race, anchor, finish, hold, defend, strike, plus per-mode siege/area). The bot then evaluates 40–120 **targeted** sites (frontier tip toward the target, own stack tops, strike/defend points) plus a few random ones. Per site it picks the orientation (out of the 24) with the most reach that passes an analytic stability check (upright at the tip, flat as a tower base). Candidates are scored by intent-weighted terms:
+- **Reach** toward the target and **measured territory gain** from raster samples.
+- **Chains/towers cut:** enemy snake joints or towers the site would cut.
+- **Exposure** to enemy reach and **tip-over risk** (stability no longer rewards ground contact); **wasted overlap** inside own land.
 
-**Specials:** replan bot targeting around §2.6's verified effect types. Do not aim a Rocket as if it homes or a Propeller as if it blows sideways. Offensive/defensive placement heuristics must account for launch-upward, leveling, tilt and Jumping Bean holes; exact scoring is **[NEW]**.
+**Specials:** replan bot targeting around §2.6's verified effect types. Do not aim a Rocket as if it homes or a Propeller as if it blows sideways. Offensive/defensive placement heuristics must account for launch-upward, leveling, tilt and Jumping Bean holes; exact scoring is **[NEW]**. V2 targets enemy chain joints/towers and its own key towers deliberately (Paintball, Freeze and Glue included).
 
-**Difficulty:** Affects how many spots are sampled, a random aiming error, reaction delay, and whether the bot uses defensive specials.
+**Difficulty:** Affects how many spots are sampled, the intent set, evaluation depth and pick temperature, a random aiming error, reaction delay, and whether the bot uses defensive specials (V2 uses the easy_v2/normal_v2/hard_v2 profiles).
 
 ### 2.10 Presentation [NEW, modernizing the original look]
 

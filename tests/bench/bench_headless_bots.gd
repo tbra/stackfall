@@ -100,7 +100,7 @@ var _bot_controllers: Array[BotController] = []
 var _placement_count: int = 0
 var _eliminated_or_won: bool = false
 var _run_seconds: float = RUN_SECONDS
-var _brain: BotController.Brain = BotController.Brain.LEGACY
+var _brain: BotController.Brain = BotController.Brain.V2
 var _brain_slots: PackedInt32Array = PackedInt32Array()
 ## E6 samples (normal scenario only): slot -> PackedInt64Array of usec per thinking frame.
 var _think_us: Dictionary = {}
@@ -150,10 +150,10 @@ func _arg(args: PackedStringArray, prefix: String) -> String:
 func _parse_args() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
 	var brain_text: String = _arg(args, ARG_BRAIN).to_lower()
-	if brain_text == "v2":
-		_brain = BotController.Brain.V2
-	elif not brain_text.is_empty() and brain_text != "legacy":
-		push_warning("--bot-brain=%s is not legacy|v2; legacy used" % brain_text)
+	if brain_text == "legacy":
+		_brain = BotController.Brain.LEGACY
+	elif not brain_text.is_empty() and brain_text != "v2":
+		push_warning("--bot-brain=%s is not legacy|v2; v2 used" % brain_text)
 	for part: String in _arg(args, ARG_BRAIN_SLOTS).split(",", false):
 		if part.strip_edges().is_valid_int():
 			_brain_slots.append(int(part))
@@ -233,8 +233,11 @@ func _spawn_bot_controllers(config: MatchConfig) -> void:
 		var bot: BotController = BotController.new()
 		add_child(bot)
 		bot.setup(slot_id, config.ai_difficulty, _field, _registry)
+		# Slots outside --bot-brain-slots stay legacy (the baseline), as in MainHeadlessBotsFlow.
 		if _brain_slots.is_empty() or _brain_slots.has(slot_id):
 			bot.set_brain(_brain)
+		else:
+			bot.set_brain(BotController.Brain.LEGACY)
 		# The bench ticks each bot itself so one timer pair brackets one bot's frame work.
 		bot.set_physics_process(false)
 		_bot_controllers.append(bot)

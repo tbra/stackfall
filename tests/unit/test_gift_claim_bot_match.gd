@@ -168,6 +168,7 @@ var _sim_s: float = 0.0
 func _make_bot() -> BotController:
 	var bot: BotController = BotController.new()
 	add_child_autofree(bot)
+	bot.set_brain(BotController.Brain.LEGACY)  # P7: legacy claim path; the V2 test opts in
 	bot.set_net_provider(HostNet.new())
 	bot.setup(BOT_SLOT, MatchConfig.AiDifficulty.NORMAL, _field, _registry)
 	return bot
