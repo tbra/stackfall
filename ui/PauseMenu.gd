@@ -112,22 +112,25 @@ var context_provider: Callable = Callable()
 
 var _options_menu: OptionsMenu = null
 var _pending_action: PendingAction = PendingAction.NONE
-var _confirm_origin: Button = null
+var _confirm_origin: UiBlockButton = null
 ## Restores the focus modes UiFocusTrap.suspend_outside() cleared while Options is open.
 var _restore_focus: Callable = Callable()
 
 @onready var _root: Control = %Root
 @onready var _center: CenterContainer = %Center
-@onready var _panel: PanelContainer = %Panel
-@onready var _title_label: Label = %Title
-@onready var _resume_button: Button = %ResumeButton
-@onready var _options_button: Button = %OptionsButton
-@onready var _return_button: Button = %ReturnLobbyButton
-@onready var _leave_button: Button = %LeaveButton
+@onready var _panel: UiPanel = %Panel
+@onready var _title_label: UiText = %Title
+@onready var _resume_button: UiBlockButton = %ResumeButton
+@onready var _options_button: UiBlockButton = %OptionsButton
+@onready var _return_button: UiBlockButton = %ReturnLobbyButton
+@onready var _leave_button: UiBlockButton = %LeaveButton
 @onready var _confirm_dialog: ConfirmationDialog = %ConfirmDialog
 
 
 func _ready() -> void:
+	# The scene authors the dialog column under the UiPanel; its own content column is where it lives.
+	var column: Node = %Layout
+	column.reparent(_panel.content, false)
 	add_to_group(SunFlare.FULLSCREEN_UI_GROUP)
 	layer = OVERLAY_LAYER
 	visible = false
@@ -152,16 +155,12 @@ func _apply_visual_style() -> void:
 	scrim.a = arcade.scrim_alpha
 	($Root/Background as ColorRect).color = scrim
 	_panel.custom_minimum_size.x = float(OPTIONS_TUNING.dialog_width_px)
-	_panel.add_theme_stylebox_override("panel", MenuStyleFactory.make_plate())
-	_title_label.theme_type_variation = &"TitleLabel"
-	_title_label.add_theme_font_size_override("font_size", arcade.font_size_heading_px)
-	_title_label.add_theme_color_override("font_color", arcade.cream_color)
-	MenuStyleFactory.apply_block(_resume_button, arcade.flare_color, arcade.ink_color)
-	MenuStyleFactory.apply_block(_options_button, arcade.disc_600_color, arcade.cream_color)
-	MenuStyleFactory.apply_block(_return_button, arcade.disc_600_color, arcade.cream_color)
-	MenuStyleFactory.apply_block(_leave_button, arcade.disc_600_color, arcade.alert_color)
-	# DECISION (Bontago-1pi.37): every block's icon follows its label ink in all draw states via
-	# MenuStyleFactory.apply_block(), so no per-node icon overrides here.
+	# C4c: the plate is a UiPanel (no heading, the centred UiText title is the heading), the blocks
+	# are UiBlockButtons (Resume primary, the rest secondary). DECISION: Leave match keeps its flare
+	# label as an ink on the secondary block until UiBlockButton grows a DANGER look (named gap).
+	MenuStyleFactory.apply_ink(_leave_button, arcade.alert_color)
+	# DECISION (Bontago-1pi.37): every block's icon follows its label ink in all draw states
+	# (apply_ink covers both), so no per-node icon overrides here.
 
 
 ## pause_menu (Esc/gamepad Start, tools/bootstrap_project.gd) toggles this
@@ -277,7 +276,7 @@ func _on_return_lobby_pressed() -> void:
 	return_to_lobby_requested.emit()
 
 
-func _ask_confirmation(action: PendingAction, text: String, ok_text: String, origin: Button) -> void:
+func _ask_confirmation(action: PendingAction, text: String, ok_text: String, origin: UiBlockButton) -> void:
 	if _confirm_dialog.visible:
 		return
 	_pending_action = action
