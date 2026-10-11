@@ -150,3 +150,56 @@ func test_seed_and_overrides_reach_the_header() -> void:
 	for file: String in DirAccess.get_files_at(dir):
 		DirAccess.remove_absolute(dir.path_join(file))
 	DirAccess.remove_absolute(dir)
+
+
+func test_round_timer_flag_per_mode() -> void:
+	var elim: MatchConfig = _flow()._build_headless_bot_config(4, PackedStringArray(["--mode=elimination", "--round-timer=0"]))
+	assert_eq(elim.round_timer_minutes, MatchConfig.ROUND_TIMER_OFF_MINUTES, "Elimination: 0 turns the round timer off")
+	var elim_n: MatchConfig = _flow()._build_headless_bot_config(4, PackedStringArray(["--mode=elimination", "--round-timer=7"]))
+	assert_eq(elim_n.round_timer_minutes, 7)
+	var order: MatchConfig = _flow()._build_headless_bot_config(4, PackedStringArray(["--round-timer=0", "--mode=elimination"]))
+	assert_eq(order.round_timer_minutes, MatchConfig.ROUND_TIMER_OFF_MINUTES, "arg order does not matter: applied after the mode")
+	var classic: MatchConfig = _flow()._build_headless_bot_config(4, PackedStringArray(["--mode=classic", "--round-timer=0"]))
+	assert_eq(classic.round_timer_minutes, MatchConfig.clamp_round_timer(0, MatchConfig.GameMode.CLASSIC), "Classic clamps 0 to its minimum")
+	assert_gt(classic.round_timer_minutes, 0)
+	var absent: MatchConfig = _flow()._build_headless_bot_config(4, PackedStringArray(["--mode=elimination"]))
+	assert_eq(absent.round_timer_minutes, MatchConfig.clamp_round_timer(_main.match_config.round_timer_minutes, MatchConfig.GameMode.ELIMINATION))
+
+
+func test_round_timer_bad_value_keeps_configured() -> void:
+	for bad: String in ["abc", "-3", ""]:
+		var config: MatchConfig = _flow()._build_headless_bot_config(2, PackedStringArray(["--round-timer=%s" % bad]))
+		assert_eq(config.round_timer_minutes, _main.match_config.round_timer_minutes, "'%s' keeps the configured timer" % bad)
+	assert_eq(_flow()._round_timer_arg(PackedStringArray(["--round-timer=12"])), 12)
+	assert_eq(_flow()._round_timer_arg(PackedStringArray()), -1)
+
+
+func test_difficulty_slots_fill_named_slots_only() -> void:
+	var args: PackedStringArray = PackedStringArray(["--bot-difficulty=normal", "--bot-difficulty-slots=0:hard,2:easy,3:2"])
+	var config: MatchConfig = _flow()._build_headless_bot_config(4, args)
+	assert_eq(config.ai_difficulty_for_slot(0), MatchConfig.AiDifficulty.HARD)
+	assert_eq(config.ai_difficulty_for_slot(1), MatchConfig.AiDifficulty.NORMAL, "unnamed slot keeps --bot-difficulty")
+	assert_eq(config.ai_difficulty_for_slot(2), MatchConfig.AiDifficulty.EASY)
+	assert_eq(config.ai_difficulty_for_slot(3), MatchConfig.AiDifficulty.HARD)
+
+
+func test_difficulty_slots_use_absolute_ids_with_passive_seats() -> void:
+	# 5 players, 1 bot: the bot is slot 4; slot 0 is a passive human seat and is ignored.
+	var config: MatchConfig = _flow()._build_headless_bot_config(1, PackedStringArray(["--players=5", "--bot-difficulty-slots=4:easy,0:hard"]))
+	assert_eq(config.ai_difficulty_for_slot(4), MatchConfig.AiDifficulty.EASY)
+	assert_ne(config.ai_difficulty_for_slot(0), MatchConfig.AiDifficulty.HARD)
+
+
+func test_difficulty_slots_bad_input_keeps_defaults() -> void:
+	var args: PackedStringArray = PackedStringArray(["--bot-difficulty-slots=9:hard,1:godlike,x,1,0:easy"])
+	var config: MatchConfig = _flow()._build_headless_bot_config(2, args)
+	assert_eq(config.ai_difficulty_for_slot(0), MatchConfig.AiDifficulty.EASY, "the valid entry still applies")
+	assert_eq(config.ai_difficulty_for_slot(1), _main.match_config.ai_difficulty_for_slot(1), "bad level leaves slot 1 alone")
+	var none: MatchConfig = _flow()._build_headless_bot_config(2, PackedStringArray(["--bot-difficulty-slots=7:hard"]))
+	assert_eq(none.ai_difficulty_for_slot(0), _main.match_config.ai_difficulty_for_slot(0))
+
+
+func test_difficulty_slots_reach_running_controllers() -> void:
+	await _start(PackedStringArray(["--bots=3", "--bot-difficulty=normal", "--bot-difficulty-slots=1:hard"]))
+	assert_eq(_bot_for(1)._difficulty, MatchConfig.AiDifficulty.HARD)
+	assert_eq(_bot_for(0)._difficulty, MatchConfig.AiDifficulty.NORMAL)

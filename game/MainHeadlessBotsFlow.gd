@@ -261,6 +261,7 @@ func _build_headless_bot_config(bots: int, args: PackedStringArray) -> MatchConf
 	if difficulty_override >= 0:
 		config.ai_difficulty = difficulty_override as MatchConfig.AiDifficulty
 		config.slot_ai_difficulties = PackedInt32Array()  # the flag covers every bot slot
+	_apply_bot_difficulty_slots(config, args, bots)
 	if _has_match_seed_arg(args):
 		config.rng_seed = _match_seed_arg(args)
 
@@ -271,7 +272,48 @@ func _build_headless_bot_config(bots: int, args: PackedStringArray) -> MatchConf
 	if mode_override >= 0:
 		config.game_mode = MatchConfig.resolve_game_mode(mode_override)
 		config.round_timer_minutes = MatchConfig.clamp_round_timer(config.round_timer_minutes, config.game_mode)
+	# Bontago-1t5.28: `--round-timer=<minutes>` after the mode override (0 = no round timer, Elimination only;
+	# other modes clamp to their minimum), so harness matches are not bound by the 5-minute default.
+	var timer_override: int = _round_timer_arg(args)
+	if timer_override >= 0:
+		config.round_timer_minutes = MatchConfig.clamp_round_timer(timer_override, config.game_mode)
 	return config
+
+
+## `--round-timer=<minutes>`, -1 when absent or not a non-negative integer (bad values warn).
+func _round_timer_arg(args: PackedStringArray) -> int:
+	var value: String = _string_arg(args, "round-timer=")
+	if value.is_empty():
+		return -1
+	if value.is_valid_int() and int(value) >= 0:
+		return int(value)
+	push_warning("--round-timer=%s is not a non-negative minute count; keeping the configured timer" % value)
+	return -1
+
+
+## Bontago-1t5.28: `--bot-difficulty-slots=<slot:level,...>` fills config.slot_ai_difficulties for the
+## named bot slots (absolute slot ids, like --bot-brain-slots); every other slot keeps its current
+## difficulty (--bot-difficulty / config default). Unknown slots or levels warn and are skipped.
+func _apply_bot_difficulty_slots(config: MatchConfig, args: PackedStringArray, bots: int) -> void:
+	var text: String = _string_arg(args, "bot-difficulty-slots=")
+	if text.is_empty():
+		return
+	var first_slot: int = maxi(bots, _headless_bot_players_arg(args)) - bots
+	var levels: PackedInt32Array = PackedInt32Array()
+	for slot_id: int in range(config.player_count):
+		levels.append(int(config.ai_difficulty_for_slot(slot_id)))
+	for part: String in text.split(",", false):
+		var pair: PackedStringArray = part.strip_edges().split(":")
+		var slot_id: int = int(pair[0]) if pair.size() == 2 and pair[0].is_valid_int() else -1
+		if slot_id < first_slot or slot_id >= first_slot + bots or slot_id >= levels.size():
+			push_warning("--bot-difficulty-slots: '%s' is not a bot slot; ignored" % part)
+			continue
+		var level: int = _difficulty_level_from_text(pair[1].to_lower())
+		if level < 0:
+			push_warning("--bot-difficulty-slots: '%s' level is not easy|normal|hard|0..2; ignored" % part)
+			continue
+		levels[slot_id] = level
+	config.slot_ai_difficulties = levels
 
 
 ## `--disc-size=<step>`, -1 when absent.
@@ -571,7 +613,10 @@ func _headless_bots_state_name() -> String:
 
 # --- Training overrides (Bontago-1t5.13, BT5) ---------------------------------
 #
-# `--bot-difficulty=<easy|normal|hard|0..2>` sets every bot slot; `--match-seed=<int>` is the first
+# `--bot-difficulty=<easy|normal|hard|0..2>` sets every bot slot; `--bot-difficulty-slots=<slot:level,...>`
+# (absolute slot ids; bots occupy the LAST `bots` of `--players` slots) overrides named bot slots only;
+# `--round-timer=<minutes>` (0 = off, Elimination only) overrides the round timer after --mode;
+# `--match-seed=<int>` is the first
 # match's rng_seed; `--bot-weights=<json file>` [+ `--bot-weights-slots=<csv>`] overrides BotTuning
 # weight_* fields for the named bot slots only. DECISION: the weights file is either ONE flat object
 # {"weight_x": v, ...} applied to --bot-weights-slots (default: every bot slot; this is what
@@ -619,6 +664,15 @@ func _bot_difficulty_arg(args: PackedStringArray) -> int:
 	var value: String = _string_arg(args, "bot-difficulty=").to_lower()
 	if value.is_empty():
 		return -1
+	var level: int = _difficulty_level_from_text(value)
+	if level >= 0:
+		return level
+	push_warning("--bot-difficulty=%s is not easy|normal|hard; keeping the configured difficulty" % value)
+	return -1
+
+
+## easy|normal|hard|0..2 (lower case) as an AiDifficulty int, -1 when unknown.
+func _difficulty_level_from_text(value: String) -> int:
 	match value:
 		"easy", "0":
 			return MatchConfig.AiDifficulty.EASY
@@ -626,7 +680,6 @@ func _bot_difficulty_arg(args: PackedStringArray) -> int:
 			return MatchConfig.AiDifficulty.NORMAL
 		"hard", "2":
 			return MatchConfig.AiDifficulty.HARD
-	push_warning("--bot-difficulty=%s is not easy|normal|hard; keeping the configured difficulty" % value)
 	return -1
 
 
