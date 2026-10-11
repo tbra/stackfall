@@ -1,8 +1,7 @@
 {
  "R1": {
   "ui/Lobby.gd": 9,
-  "ui/Lobby.tscn": 7,
-  "ui/SliderNav.gd": 4
+  "ui/Lobby.tscn": 7
  },
  "R2": {
   "ui/GraphicsSettingsTab.gd": 1,

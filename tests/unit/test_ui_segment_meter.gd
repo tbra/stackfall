@@ -110,29 +110,29 @@ func test_pad_dpad_through_the_input_map_steps_the_focused_meter() -> void:
 func test_a_stuck_press_repeats_after_the_delay_while_held() -> void:
 	var meter: UiSegmentMeter = _make()
 	meter.grab_focus()
-	meter._start(1, -1)
+	meter._hold.start(1, UiHoldRepeat.SOURCE_KEY)
 	assert_eq(meter.value, 6)
 	Input.action_press(&"ui_right")
-	meter.advance(SliderNav.TUNING.repeat_delay_sec * 0.5)
+	meter.advance(UiHoldRepeat.TUNING.repeat_delay_sec * 0.5)
 	assert_eq(meter.value, 6, "before the delay nothing repeats")
-	meter.advance(SliderNav.TUNING.repeat_delay_sec)
+	meter.advance(UiHoldRepeat.TUNING.repeat_delay_sec)
 	assert_eq(meter.value, 7, "first repeat after the delay")
 	Input.action_release(&"ui_right")
-	meter.advance(SliderNav.TUNING.repeat_interval_sec)
+	meter.advance(UiHoldRepeat.TUNING.repeat_interval_sec)
 	assert_false(meter.is_holding(), "a missed release stops the repeat")
 
 
 func test_stick_below_repeat_threshold_gives_one_step_only() -> void:
 	var meter: UiSegmentMeter = _make()
 	meter.grab_focus()
-	var partial: float = (SliderNav.TUNING.stick_press_threshold + SliderNav.TUNING.stick_repeat_threshold) * 0.5
+	var partial: float = (UiHoldRepeat.TUNING.stick_press_threshold + UiHoldRepeat.TUNING.stick_repeat_threshold) * 0.5
 	meter.axis_reader = func(_device: int, _axis: int) -> float: return partial
-	meter._start(1, JOY_AXIS_LEFT_X)
+	meter._hold.start(1, UiHoldRepeat.SOURCE_STICK, JOY_AXIS_LEFT_X)
 	assert_eq(meter.value, 6)
-	meter.advance(SliderNav.TUNING.stick_repeat_delay_sec * 3.0)
+	meter.advance(UiHoldRepeat.TUNING.stick_repeat_delay_sec * 3.0)
 	assert_eq(meter.value, 6, "a partial push never auto-repeats")
 	meter.axis_reader = func(_device: int, _axis: int) -> float: return 1.0
-	meter.advance(SliderNav.TUNING.stick_repeat_delay_sec * 2.0)
+	meter.advance(UiHoldRepeat.TUNING.stick_repeat_delay_sec * 2.0)
 	assert_gt(meter.value, 6, "full deflection repeats")
 
 
