@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tools/bot_match_sheet.gd" id="1_sheet"]
+
+[node name="BotMatchSheet" type="Node"]
+script = ExtResource("1_sheet")
