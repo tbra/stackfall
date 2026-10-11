@@ -90,8 +90,7 @@ func _quit_now() -> void:
 	if quit_callable.is_valid():
 		quit_callable.call()
 	else:
-		QuitFlag.mark()
-		get_tree().quit()
+		Sfx.quit_tree()  # marks QuitFlag, drains audio, then quits (Bontago-xtq.47)
 
 
 func _process(_delta: float) -> void:

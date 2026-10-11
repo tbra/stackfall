@@ -569,6 +569,15 @@ func drain_for_quit() -> void:
 	await get_tree().create_timer(QUIT_DRAIN_S, true, false, true).timeout
 
 
+## The one quit helper (Bontago-xtq.47): marks the quit, drains audio, then quits the tree.
+## Every real quit path (Main close, Boot close, AgentProbe --quit-on-menu) goes through it so
+## none skips drain_for_quit. Safe to call without awaiting.
+func quit_tree(exit_code: int = 0) -> void:
+	QuitFlag.mark()
+	await drain_for_quit()
+	get_tree().quit(exit_code)
+
+
 func release_audio() -> void:
 	if _music_crossfade_tween != null and _music_crossfade_tween.is_valid():
 		_music_crossfade_tween.kill()

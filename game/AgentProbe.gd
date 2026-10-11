@@ -140,8 +140,12 @@ static func _on_menu_timeout() -> void:
 static func _finish_startup(menu_ms: int, exit_code: int) -> void:
 	_startup_done = true
 	print(format_startup_line(_first_frame_ms, menu_ms))
-	QuitFlag.mark()
-	(Engine.get_main_loop() as SceneTree).quit(exit_code)
+	var sfx: Node = (Engine.get_main_loop() as SceneTree).root.get_node_or_null("Sfx")
+	if sfx != null:
+		sfx.call(&"quit_tree", exit_code)  # drains audio first (Bontago-xtq.47)
+	else:
+		QuitFlag.mark()
+		(Engine.get_main_loop() as SceneTree).quit(exit_code)
 
 
 ## Mouse-capture gate: sets the mode unless probe mode forbids capture.
