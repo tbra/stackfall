@@ -49,6 +49,10 @@ extends Resource
 @export var area_stack_share: float = 0.1
 ## Uniform-fill attempts allowed per missing site before giving up.
 @export var fill_attempts_per_site: int = 12
+## Uniform-fill draws per think step (the fill is sliced so a step stays inside the budget).
+@export var fill_chunk_attempts: int = 24
+## Sites proxy-scored per think step.
+@export var rank_chunk_sites: int = 8
 ## Fill sites prefer orientations at or below this tip risk.
 @export var fill_risk_max: float = 0.5
 

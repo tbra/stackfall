@@ -217,12 +217,18 @@ static func _sample_fractions(c: BotCandidate, view: BotWorldView, radius: float
 				rivals.append(j)
 	var gains: int = 0
 	var owned: int = 0
+	var grid: CellGrid = view.grid
+	var dirs: PackedVector2Array = _sample_dirs(samples)
+	var scales: PackedFloat64Array = _sample_scales(samples)
 	for k: int in range(samples):
-		var offset: float = radius * sqrt((float(k) + 0.5) / float(samples))
-		var angle: float = float(k) * GOLDEN_ANGLE
-		var point: Vector2 = c.origin + Vector2(cos(angle), sin(angle)) * offset
-		var cell: Vector2i = view.grid.world_to_cell(point)
-		if not view.grid.in_bounds(cell.x, cell.y) or not view.grid.is_in_disk(cell.x, cell.y):
+		var offset: float = radius * scales[k]
+		var point: Vector2 = c.origin + dirs[k] * offset
+		# Inlined CellGrid.world_to_cell (identical arithmetic; 64 calls per measured site).
+		var cell: Vector2i = Vector2i(
+			floori((point.x + grid.half_extent) / grid.cell_size),
+			floori((point.y + grid.half_extent) / grid.cell_size)
+		)
+		if not grid.in_bounds(cell.x, cell.y) or not grid.is_in_disk(cell.x, cell.y):
 			continue
 		var team: int = view.raster.team_at(cell.x, cell.y)
 		if team == view.team_id:
@@ -237,6 +243,35 @@ static func _sample_fractions(c: BotCandidate, view: BotWorldView, radius: float
 		):
 			gains += 1
 	return Vector2(float(gains) / float(samples), float(owned) / float(samples))
+
+
+## Unit directions and radial scales of the `samples`-point sunflower spiral (Bontago-1t5.30:
+## computed once per sample count; the same values the per-call cos/sin/sqrt produced).
+static var _spiral_dirs: Dictionary = {}
+static var _spiral_scales: Dictionary = {}
+
+
+static func _sample_dirs(samples: int) -> PackedVector2Array:
+	if not _spiral_dirs.has(samples):
+		_build_spiral(samples)
+	return _spiral_dirs[samples] as PackedVector2Array
+
+
+static func _sample_scales(samples: int) -> PackedFloat64Array:
+	if not _spiral_scales.has(samples):
+		_build_spiral(samples)
+	return _spiral_scales[samples] as PackedFloat64Array
+
+
+static func _build_spiral(samples: int) -> void:
+	var dirs: PackedVector2Array = PackedVector2Array()
+	var scales: PackedFloat64Array = PackedFloat64Array()
+	for k: int in range(samples):
+		var angle: float = float(k) * GOLDEN_ANGLE
+		dirs.append(Vector2(cos(angle), sin(angle)))
+		scales.append(sqrt((float(k) + 0.5) / float(samples)))
+	_spiral_dirs[samples] = dirs
+	_spiral_scales[samples] = scales
 
 
 static func _best_enemy_kernel(point: Vector2, rivals: PackedInt32Array, view: BotWorldView) -> float:

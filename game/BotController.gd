@@ -297,6 +297,7 @@ func _begin_thinking(match_ref: Variant) -> void:
 	_special_view = view
 	_think = BotThink.new(view, _profile, _rng)
 	_think.tuning = tuning
+	_think.cell_probe = _probe_cell
 	_think_frames_used = 0
 	_state = State.THINKING
 
@@ -372,6 +373,12 @@ func _probe(xz: Vector2) -> Dictionary:
 		"height": float(hit.get("height", 0.0)),
 		"own": _is_own_block(hit.get("collider"), int(_match().team_of(_slot_id))),
 	}
+
+
+## The per-footprint-cell probe: like `_probe` without the own-block lookup (unused there).
+func _probe_cell(xz: Vector2) -> Dictionary:
+	var hit: Dictionary = _raycast_support_height(xz)
+	return {"hit": bool(hit.get("hit", false)), "height": float(hit.get("height", 0.0))}
 
 
 ## Disk-local positions of every landed (unclaimed-by-territory) gift, for the world view.
