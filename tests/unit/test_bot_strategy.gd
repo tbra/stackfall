@@ -72,6 +72,16 @@ func test_far_from_everything_races_to_the_goal() -> void:
 	assert_eq(intent.weights.size(), BotIntent.Term.size())
 
 
+## Bontago-1t5.32: every intent of the defaults and of the shipped resource (its race override
+## included) penalises HAZARD, so no intent walks a base into a dissolving overlap.
+func test_every_intent_penalises_hazard() -> void:
+	for tuning: BotStrategyTuning in [_tuning, BotStrategy.SHIPPED_TUNING]:
+		for kind: int in BotIntent.Kind.values():
+			var weights: PackedFloat32Array = tuning.weights_for(kind)
+			assert_eq(weights.size(), BotIntent.Term.size(), "full vector for %s" % BotIntent.Kind.keys()[kind])
+			assert_gt(weights[BotIntent.Term.HAZARD], 0.0, "%s penalises hazard" % BotIntent.Kind.keys()[kind])
+
+
 func test_disabled_intent_falls_back_to_race() -> void:
 	var view: BotWorldView = _view([[-8.0, 0.0, MID_TOP, TEAM]])
 	assert_eq(_choose(view).kind, BotIntent.Kind.FINISH, "precondition: finish range")

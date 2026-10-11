@@ -42,15 +42,15 @@ extends Resource
 
 @export_group("Intent weights")
 ## Per-intent weight vectors, indexed by BotIntent.Term:
-## REACH, AREA, KILL, EXPOSURE, TIP, WASTE (the last three are penalties).
-@export var weights_race: PackedFloat32Array = PackedFloat32Array([1.0, 0.1, 0.2, 0.3, 2.0, 0.4])
-@export var weights_anchor: PackedFloat32Array = PackedFloat32Array([1.0, 0.2, 0.2, 0.2, 3.0, 0.0])
-@export var weights_finish: PackedFloat32Array = PackedFloat32Array([1.5, 0.05, 0.3, 0.2, 3.0, 0.0])
-@export var weights_hold: PackedFloat32Array = PackedFloat32Array([1.0, 0.05, 0.8, 0.5, 3.0, 0.0])
-@export var weights_defend: PackedFloat32Array = PackedFloat32Array([0.3, 0.1, 1.5, 1.0, 2.0, 0.2])
-@export var weights_strike: PackedFloat32Array = PackedFloat32Array([0.3, 0.1, 2.0, 0.3, 2.0, 0.2])
-@export var weights_siege: PackedFloat32Array = PackedFloat32Array([1.2, 0.1, 0.8, 0.3, 2.5, 0.3])
-@export var weights_area: PackedFloat32Array = PackedFloat32Array([0.3, 1.0, 0.5, 0.4, 2.0, 0.8])
+## REACH, AREA, KILL, EXPOSURE, TIP, WASTE, HAZARD (the last four are penalties).
+@export var weights_race: PackedFloat32Array = PackedFloat32Array([1.0, 0.1, 0.2, 0.3, 2.0, 0.4, 10.0])
+@export var weights_anchor: PackedFloat32Array = PackedFloat32Array([1.0, 0.2, 0.2, 0.2, 3.0, 0.0, 10.0])
+@export var weights_finish: PackedFloat32Array = PackedFloat32Array([1.5, 0.05, 0.3, 0.2, 3.0, 0.0, 10.0])
+@export var weights_hold: PackedFloat32Array = PackedFloat32Array([1.0, 0.05, 0.8, 0.5, 3.0, 0.0, 10.0])
+@export var weights_defend: PackedFloat32Array = PackedFloat32Array([0.3, 0.1, 1.5, 1.0, 2.0, 0.2, 10.0])
+@export var weights_strike: PackedFloat32Array = PackedFloat32Array([0.3, 0.1, 2.0, 0.3, 2.0, 0.2, 10.0])
+@export var weights_siege: PackedFloat32Array = PackedFloat32Array([1.2, 0.1, 0.8, 0.3, 2.5, 0.3, 10.0])
+@export var weights_area: PackedFloat32Array = PackedFloat32Array([0.3, 1.0, 0.5, 0.4, 2.0, 0.8, 10.0])
 
 
 ## The weight vector of `kind`.

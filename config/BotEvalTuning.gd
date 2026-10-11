@@ -21,3 +21,8 @@ extends Resource
 @export var exposure_allowance_m: float = 1.0
 ## EXPOSURE saturates at this many threatening circles.
 @export var exposure_cap: int = 4
+## HAZARD look-ahead (Bontago-1t5.32): one enemy placement can grow an enemy circle over a
+## base lying within InfluenceCircle.radius_for_height(this top height) of the circle's edge
+## (a fresh piece set at the edge of the enemy land, or a stack raised by about this much).
+## Bases closer than that are graded towards a certain dissolve.
+@export var hazard_lookahead_height_m: float = 6.0
