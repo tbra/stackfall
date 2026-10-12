@@ -15,3 +15,5 @@ extends Resource
 ## Bond formation soaks the impact: the glued block takes the partner's linear velocity and
 ## both bodies lose spin, so an off-edge landing does not topple the pair.
 @export var absorb_impact: bool = true
+## Safety cap on cubes in one fused body; 0 = unlimited.  (OQ5)
+@export_range(0, 512, 1) var max_fused_cubes: int = 0
