@@ -713,26 +713,37 @@ func _awake_island_run(hole_mode: MatchConfig.HoleMode) -> Dictionary:
 	var behavior: SpecialBehavior = SpecialBehavior.new()
 	bean.add_child(behavior)
 	behavior.bind(bean, def, SpecialTuning.new())
-	var landed_frames: int = 0
-	var landed: bool = false
-	var triggered: bool = false
-	var frames: int = 0
-	while landed_frames < int(ISLAND_RUN_SECONDS * Engine.physics_ticks_per_second) and frames < MAX_LAND_FRAMES * 4:
-		if frames % NEIGHBOUR_KICK_EVERY_FRAMES == 0:
+	# DECISION (Bontago-fca.96): everything is driven per PHYSICS TICK via the physics_frame
+	# signal. Under CPU load one engine frame can run several ticks, so a loop that awaits
+	# wait_physics_frames(1) kicked the neighbours less often per simulated second (different
+	# island dynamics, bean knocked off the disc, fewer hops) and mis-counted landed time.
+	var state: Dictionary = {"landed_ticks": 0, "ticks": 0, "landed": false, "triggered": false, "gone": false}
+	var run_ticks: int = int(ISLAND_RUN_SECONDS * Engine.physics_ticks_per_second)
+	var on_tick: Callable = func() -> void:
+		if (state["landed_ticks"] as int) >= run_ticks or (state["ticks"] as int) >= MAX_LAND_FRAMES * 4:
+			return
+		if not is_instance_valid(behavior):
+			state["gone"] = true  # the bean hopped off the disc edge and burned at the kill plane (by design)
+			return
+		var tick: int = state["ticks"] as int
+		if tick % NEIGHBOUR_KICK_EVERY_FRAMES == 0:
 			for neighbour: Block in neighbours:
 				if not is_instance_valid(neighbour):
 					continue
 				var kick: Vector3 = Vector3(rng.randf_range(-1.0, 1.0), 0.0, rng.randf_range(-1.0, 1.0))
 				neighbour.wake_for_impulse()
 				neighbour.apply_central_impulse(kick * NEIGHBOUR_KICK_SPEED_MPS * neighbour.mass)
-		await wait_physics_frames(1)
-		frames += 1
-		if not is_instance_valid(behavior):
-			break  # the bean hopped off the disc edge and burned at the kill plane (by design)
-		landed = landed or behavior.has_landed()
-		triggered = triggered or behavior.is_triggered()
+		state["ticks"] = tick + 1
+		state["landed"] = (state["landed"] as bool) or behavior.has_landed()
+		state["triggered"] = (state["triggered"] as bool) or behavior.is_triggered()
 		if behavior.has_landed():
-			landed_frames += 1
+			state["landed_ticks"] = (state["landed_ticks"] as int) + 1
+	get_tree().physics_frame.connect(on_tick)
+	while not (state["gone"] as bool) and (state["landed_ticks"] as int) < run_ticks and (state["ticks"] as int) < MAX_LAND_FRAMES * 4:
+		await get_tree().physics_frame
+	get_tree().physics_frame.disconnect(on_tick)
+	var landed: bool = state["landed"] as bool
+	var triggered: bool = state["triggered"] as bool
 	return {"hops": spy.hops, "holes": spy.holes_after_hop, "landed": landed, "triggered": triggered}
 
 
