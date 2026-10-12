@@ -740,6 +740,11 @@ func _select_bodies() -> Dictionary:
 		var block: BlockBody = held as BlockBody
 		if block.net_id <= 0:
 			continue
+		# An anchored group's followers must be posed from the disc of THIS tick before they
+		# are recorded (the carrier's own tick runs after this node).
+		var carrier: RigidBody3D = block.fused_carrier()
+		if carrier != null and carrier.has_method(&"refresh_anchor_pose"):
+			carrier.call(&"refresh_anchor_pose")
 		if not block.net_sleeping() or _moved_since_sent(block):
 			awake_or_moved.append(_record(block))
 		else:

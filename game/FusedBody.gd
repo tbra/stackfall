@@ -15,6 +15,10 @@ extends Block
 const ANCHOR_PROCESS_PRIORITY: int = 10
 ## Owner-scan sentinel: no member seen yet (distinct from -1, the real "no owner").
 const SLOT_UNSET: int = -2
+## Physics ticks an anchored carrier's disc-relative pose must stay unchanged before the group
+## reports `net_sleeping()` (so a resting anchored group stops costing snapshot bandwidth; a disc
+## tilt resets it at once). DECISION: structural constant, ~0.1 s at 60 Hz.
+const ANCHOR_REST_TICKS: int = 6
 ## Mirrors SnowCaps.LUMP_META (no class edge: it would grow the layer-lint cycle); test-pinned.
 const SNOW_LUMP_META: StringName = &"snow_lump"
 
@@ -35,6 +39,13 @@ var _last_sync_linear: Vector3 = Vector3.ZERO
 var _last_sync_angular: Vector3 = Vector3.ZERO
 var _synced_once: bool = false
 var _synced_frame: int = -1
+## Consecutive physics ticks the anchored carrier pose has not changed (see ANCHOR_REST_TICKS).
+var _anchor_still_ticks: int = 0
+var _anchor_prev_xform: Transform3D = Transform3D.IDENTITY
+## Physics frame of the last add/remove of a collision shape: contact shape indices read from
+## the physics state predate it (GlueDrops skips attribution that frame).
+var shape_change_frame: int = -1
+var _glow_sleeping: bool = false
 
 
 func _init() -> void:
@@ -138,8 +149,29 @@ func refresh_owner() -> void:
 	_refresh_mass_and_owner()
 
 
+## A disc-anchored group is "asleep" once the disc has not moved it for ANCHOR_REST_TICKS ticks;
+## a tilt (pose change) wakes it so clients keep following the disc.
 func net_sleeping() -> bool:
-	return sleeping and not is_disc_anchored()
+	if is_disc_anchored():
+		return _anchor_still_ticks >= ANCHOR_REST_TICKS
+	return sleeping
+
+
+## Host glow: followers are frozen kinematic and never fire their own sleeping_state_changed, so
+## the carrier's rest state (net_sleeping) drives their "contributing" overlay.
+func _on_sleeping_state_changed() -> void:
+	super()
+	_refresh_member_glow()
+
+
+func _refresh_member_glow() -> void:
+	var rest: bool = net_sleeping()
+	if rest == _glow_sleeping:
+		return
+	_glow_sleeping = rest
+	for member: Block in members:
+		if is_instance_valid(member):
+			member.set_contributing_visual(rest)
 
 
 # --- Membership -----------------------------------------------------------------
@@ -166,6 +198,7 @@ func adopt(block: Block) -> void:
 		if reason != FREEZE_REASON_STABLE:
 			request_freeze_static(reason)
 	FreezeEffect.transfer_hold(block, self)
+	block.set_contributing_visual(_glow_sleeping)
 	_after_membership_gain()
 
 
@@ -183,6 +216,7 @@ func absorb_group(other: FusedBody) -> void:
 		members.append(member)
 		_watch(member)
 		member.reset_physics_interpolation()
+		member.set_contributing_visual(_glow_sleeping)
 	for reason: StringName in other._freeze_reasons.keys():
 		if reason != FREEZE_REASON_STABLE:
 			request_freeze_static(reason)
@@ -272,6 +306,7 @@ func _on_member_exiting(member: Block) -> void:
 
 
 func _discard_shape(shape: CollisionShape3D) -> void:
+	shape_change_frame = Engine.get_physics_frames()
 	if is_instance_valid(shape):
 		if shape.get_parent() == self:
 			remove_child(shape)
@@ -281,6 +316,7 @@ func _discard_shape(shape: CollisionShape3D) -> void:
 func _forget(member: Block, drop_shapes: bool) -> void:
 	_unwatch(member)
 	var id: int = member.get_instance_id()
+	shape_change_frame = Engine.get_physics_frames()
 	if drop_shapes:
 		for shape: CollisionShape3D in member_shapes(member):
 			remove_child(shape)
@@ -328,6 +364,7 @@ func _after_membership_loss() -> void:
 func _collapse() -> void:
 	var survivor: Block = members[0]
 	_unwatch(survivor)
+	shape_change_frame = Engine.get_physics_frames()
 	sync_followers()
 	var body_xform: Transform3D = global_transform
 	var offset: Transform3D = member_offset(survivor)
@@ -389,6 +426,7 @@ func _take_shapes(member_id: int, shapes: Array[CollisionShape3D], shape_frame_t
 		shape.transform = local
 		moved.append(shape)
 	_shapes[member_id] = moved
+	shape_change_frame = Engine.get_physics_frames()
 
 
 ## Volume-weighted centroid of box shapes in their parent's frame.
@@ -434,14 +472,30 @@ func _batch_tick(frame: int, physics_active: bool, damp_on: bool, damp: float, n
 
 func _physics_process(_delta: float) -> void:
 	if is_disc_anchored():
-		if is_disc_anchored_field_set():
-			global_transform = anchor_field.global_transform * anchor_local
-		sync_followers()
+		refresh_anchor_pose()
+		if global_transform == _anchor_prev_xform:
+			_anchor_still_ticks += 1
+		else:
+			_anchor_still_ticks = 0
+		_anchor_prev_xform = global_transform
 	elif _synced_frame != Engine.get_physics_frames():
 		sync_followers()
+	_refresh_member_glow()
+
+
+## Re-poses an anchored carrier (and its followers) from the disc as it is right now. Idempotent;
+## SnapshotSync calls it before recording so a client sees the disc and the followers of the same
+## moment even though this node's own tick (priority 10) runs after the snapshot's.
+func refresh_anchor_pose() -> void:
+	if not is_disc_anchored():
+		return
+	if is_disc_anchored_field_set():
+		global_transform = anchor_field.global_transform * anchor_local
+	sync_followers()
 
 
 func _enter_anchor_mode() -> void:
+	_anchor_still_ticks = 0
 	freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
 	freeze = true
 	_apply_awake(false)
@@ -452,6 +506,9 @@ func _leave_anchor_mode() -> void:
 	if _freeze_reasons.is_empty():
 		freeze = false
 		wake()
+	elif get_node_or_null(NodePath(FreezeEffect.RIDER_NAME)) != null:
+		# A Freeze hold rides the disc (kinematic), see FreezeEffect.freeze_block.
+		freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
 	else:
 		freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
 
