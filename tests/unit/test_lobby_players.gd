@@ -665,7 +665,7 @@ func test_panel_focus_entries_join_the_main_loop_between_the_settings_and_the_fo
 	var back: Control = lobby.get_node("%BackButton") as Control
 	assert_eq(last_setting.get_node(last_setting.focus_neighbor_bottom), seat_button)
 	assert_eq(seat_button.get_node(seat_button.focus_neighbor_top), last_setting)
-	assert_eq(seat_button.get_node(seat_button.focus_neighbor_bottom), back)
+	assert_ne(seat_button.get_node(seat_button.focus_neighbor_bottom), back, "Bontago-1pi.182")
 	_assert_main_loop_is_closed(lobby)
 
 
@@ -679,12 +679,12 @@ func test_focus_entries_changed_rewires_the_loop() -> void:
 	panel.focus_entries_changed.emit()
 	var first: Control = panel.entries[0]
 	assert_eq(first.get_node(first.focus_neighbor_bottom), extra)
-	assert_eq(extra.get_node(extra.focus_neighbor_bottom), lobby.get_node("%BackButton"))
+	assert_ne(extra.get_node(extra.focus_neighbor_bottom), lobby.get_node("%BackButton"), "Bontago-1pi.182")
 	_assert_main_loop_is_closed(lobby)
 	panel.entries.clear()
 	panel.focus_entries_changed.emit()
 	var last_setting: Control = _last_settings_stop(lobby)
-	assert_eq(last_setting.get_node(last_setting.focus_neighbor_bottom), lobby.get_node("%BackButton"), "no panel entries: the loop is the pre-rework one")
+	assert_ne(last_setting.get_node(last_setting.focus_neighbor_bottom), lobby.get_node("%BackButton"), "no panel entries: Back is not on the loop (Bontago-1pi.182)")
 	_assert_main_loop_is_closed(lobby)
 
 
@@ -692,7 +692,7 @@ func test_the_default_main_loop_is_closed_and_skips_the_roster() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var last_setting: Control = _last_settings_stop(lobby)
 	assert_eq(last_setting.get_node(last_setting.focus_neighbor_bottom), _panel_of(lobby).get_node("%TeamsToggle"), "the host's Teams toggle follows the settings, then Add bot, then the footer")
-	assert_eq(_panel_of(lobby).get_node("%AddBotButton").get_node(_panel_of(lobby).get_node("%AddBotButton").focus_neighbor_bottom), lobby.get_node("%BackButton"), "rows carry no focusable control yet")
+	assert_ne(_panel_of(lobby).get_node("%AddBotButton").get_node(_panel_of(lobby).get_node("%AddBotButton").focus_neighbor_bottom), lobby.get_node("%BackButton"), "Add bot down never reaches Back (Bontago-1pi.182)")
 	_assert_main_loop_is_closed(lobby)
 
 
@@ -1025,7 +1025,7 @@ func test_the_host_focus_entries_run_colour_team_difficulty_remove_row_by_row() 
 	assert_eq(bot.difficulty_option.get_node(bot.difficulty_option.focus_neighbor_left), bot.team_button)
 	var back: Control = lobby.get_node("%BackButton") as Control
 	assert_eq(entries[0].get_node(entries[0].focus_neighbor_top), _last_settings_stop(lobby), "the header controls and rows follow the settings in the loop")
-	assert_eq(entries[entries.size() - 1].get_node(entries[entries.size() - 1].focus_neighbor_bottom), back, "and precede the footer")
+	assert_ne(entries[entries.size() - 1].get_node(entries[entries.size() - 1].focus_neighbor_bottom), back, "and precede the footer, not Back")
 	_assert_main_loop_is_closed(lobby)
 
 

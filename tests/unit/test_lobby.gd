@@ -1109,7 +1109,7 @@ func test_invite_button_joins_the_loop_when_a_steam_session_shows_it() -> void:
 	lobby._update_host_only_state()
 	assert_true(invite.visible)
 	assert_ne(invite.focus_neighbor_bottom, NodePath(""), "shown: wired into the loop")
-	assert_eq(invite.get_node(invite.focus_neighbor_top), lobby.get_node("%BackButton"))
+	assert_ne(invite.get_node(invite.focus_neighbor_top), lobby.get_node("%BackButton"), "Back is not a stop of the loop (Bontago-1pi.182)")
 
 
 func test_round_mode_and_timer_are_primary_settings() -> void:
