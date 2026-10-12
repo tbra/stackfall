@@ -242,6 +242,7 @@ func _ready() -> void:
 	_match = Match
 	_shapes_by_id = _load_shapes_by_id()
 	Events.turn_changed.connect(_on_turn_changed)
+	Events.player_eliminated.connect(_on_player_eliminated)
 	Events.feed_block_issued.connect(_on_feed_block_issued)
 	Events.feed_timer_expired.connect(_on_feed_timer_expired)
 	Events.placement_rejected.connect(_on_placement_rejected)
@@ -416,6 +417,7 @@ func _countdown_blocks_input() -> bool:
 
 
 func _process(delta: float) -> void:
+	_sync_ghost_elimination_visibility()
 	if not input_enabled:
 		return
 	if _countdown_blocks_input():
@@ -1157,6 +1159,31 @@ func _is_active_slot_eliminated() -> bool:
 
 
 # --- Events reactions (spec 3.7, M2 owner decision 1) -----------------------
+
+## Bontago-1pi.198 (owner playtest 2026-10-12: "still holding ghost block when
+## eliminated"): an eliminated slot holds nothing, so its ghost (and the
+## footprint, projection and decal that are its children) is hidden. Reads the
+## same replicated home_flag_alive as _is_active_slot_eliminated(), so host and
+## ENet clients agree; runs every frame (also covers a new match or slot swap)
+## and only touches `visible` on a change, so Sandbox's own toggling is kept.
+var _ghost_hidden_by_elimination: bool = false
+
+
+func _sync_ghost_elimination_visibility() -> void:
+	if _ghost == null:
+		return
+	var eliminated: bool = _is_active_slot_eliminated()
+	if eliminated and not _ghost_hidden_by_elimination:
+		_ghost_hidden_by_elimination = true
+		_ghost.visible = false
+	elif not eliminated and _ghost_hidden_by_elimination:
+		_ghost_hidden_by_elimination = false
+		_ghost.visible = true
+
+
+func _on_player_eliminated(_slot_id: int, _team_id: int) -> void:
+	_sync_ghost_elimination_visibility()
+
 
 func _on_turn_changed(slot_id: int) -> void:
 	_active_slot = slot_id
