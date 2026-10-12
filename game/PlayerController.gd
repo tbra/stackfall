@@ -205,6 +205,9 @@ var input_enabled: bool = true
 ## Bontago-1pi.65: set by Events.match_results_ready; this controller is freed
 ## with the match world, so it never needs clearing.
 var _results_open: bool = false
+## Bontago-1pi.192.5: tracked beside input_enabled so closing one blocker never re-enables input under another.
+var _pause_open: bool = false
+var _chat_open: bool = false
 
 ## Bontago-1pi.85.29: gift release is camera-aimed and automatic (no LT/drag state); the held
 ## throwable's arc preview is simply driven every frame by _drive_throw_visuals().
@@ -251,6 +254,8 @@ func _ready() -> void:
 	Events.pause_menu_opened.connect(_on_pause_menu_opened)
 	Events.pause_menu_closed.connect(_on_pause_menu_closed)
 	# Bontago-1pi.65: the results screen blocks gameplay input like the pause menu.
+	Events.chat_input_opened.connect(_on_chat_input_opened)
+	Events.chat_input_closed.connect(_on_chat_input_closed)
 	Events.match_results_ready.connect(_on_match_results_ready)
 	Events.match_scope_reset.connect(_on_match_scope_reset)
 
@@ -356,9 +361,23 @@ func enable_mouse_capture() -> void:
 ## are reachable -- physics/simulation itself is never paused (CLAUDE.md's
 ## host-authority model); this only stops the *local* player from acting.
 func _on_pause_menu_opened() -> void:
+	_pause_open = true
 	input_enabled = false
 	if _mouse_capture_enabled:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+## Bontago-1pi.192.5: the chat input line owns the keyboard, so every gameplay handler here stops
+## (the same gate pause uses); mouse capture is left alone so the ghost still follows the cursor.
+func _on_chat_input_opened() -> void:
+	_chat_open = true
+	input_enabled = false
+
+
+## Input returns only when neither pause nor the results screen still hold it.
+func _on_chat_input_closed() -> void:
+	_chat_open = false
+	input_enabled = not _pause_open and not _results_open
 
 
 func _on_match_results_ready(_results: Dictionary) -> void:
@@ -369,6 +388,7 @@ func _on_match_results_ready(_results: Dictionary) -> void:
 ## Play again / sandbox reset reuse this controller: the results screen is gone,
 ## so gameplay input comes back (review finding on Bontago-1pi.65).
 func _on_match_scope_reset() -> void:
+	_chat_open = false
 	if not _results_open:
 		return
 	_results_open = false
@@ -381,7 +401,8 @@ func _on_match_scope_reset() -> void:
 
 
 func _on_pause_menu_closed() -> void:
-	input_enabled = not _results_open
+	_pause_open = false
+	input_enabled = not _results_open and not _chat_open
 	if _mouse_capture_enabled:
 		AgentProbe.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
