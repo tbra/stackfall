@@ -118,7 +118,7 @@ func _build_circles(block_count: int) -> Array[InfluenceCircle]:
 	rng.seed = RNG_SEED
 
 	var circles: Array[InfluenceCircle] = []
-	var home_distance: float = _map.field_radius * _map.home_flag_radius_fraction
+	var home_distance: float = _map.home_flag_ring_radius()
 	for slot: int in range(SLOT_COUNT):
 		var angle: float = TAU * float(slot) / float(SLOT_COUNT)
 		circles.append(InfluenceCircle.for_home(

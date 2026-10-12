@@ -73,3 +73,21 @@ func test_scaled_copy_scales_the_radius_and_territory_resolution() -> void:
 	assert_almost_eq(half.field_radius, map_def.field_radius * 0.5, 0.001)
 	assert_eq(half.territory_res, map_def.territory_res / 2)
 	assert_eq(map_def.scaled(1.0), map_def)
+
+
+func test_home_radius_is_disc_radius_minus_the_fixed_inset_for_every_size() -> void:
+	for size: MapDef.MapSize in [MapDef.MapSize.SMALL, MapDef.MapSize.MEDIUM, MapDef.MapSize.LARGE]:
+		var map_def: MapDef = MapDef.for_size(size)
+		assert_gt(map_def.home_flag_edge_inset, 0.0, "inset is a positive tunable")
+		for count: int in [2, 5, 8]:
+			for slot_id: int in range(count):
+				var home: Vector2 = map_def.home_flag_position(slot_id, count)
+				assert_almost_eq(home.length(), map_def.field_radius - map_def.home_flag_edge_inset, 0.001)
+				assert_true(map_def.shape_contains(home))
+
+
+func test_home_inset_stays_fixed_on_a_scaled_disc() -> void:
+	var map_def: MapDef = MapDef.for_size(MapDef.MapSize.MEDIUM)
+	for factor: float in [0.5, 1.5, 2.0]:
+		var scaled: MapDef = map_def.scaled(factor)
+		assert_almost_eq(scaled.field_radius - scaled.home_flag_position(0, 4).length(), map_def.home_flag_edge_inset, 0.001)
