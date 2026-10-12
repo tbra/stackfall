@@ -214,6 +214,35 @@ func test_ui_scale_meter_drag_applies_on_release_only() -> void:
 	UiScaleTuning.current_scale = -1.0
 
 
+func test_hud_scale_drag_applies_live_and_saves_once_on_release() -> void:
+	var menu: OptionsMenu = _make_menu()
+	var meter: UiSegmentMeter = menu.get_node("%HudScaleSlider") as UiSegmentMeter
+	var tuning: UiScaleTuning = UiScaleTuning.shared()
+	var cfg_path: String = OS.get_user_data_dir().path_join("test_options_menu_hud_drag.cfg")
+	_delete_if_exists(cfg_path)
+	_settings_of(menu).set_config_path_for_test(cfg_path)
+	meter.gui_input.emit(_left_click(true))
+	for step_index: int in range(1, 4):
+		meter.value = roundi((0.8 - tuning.min_scale) / tuning.step) + step_index
+		assert_false(FileAccess.file_exists(cfg_path), "no save mid-drag (step %d)" % step_index)
+	assert_almost_eq(_settings_of(menu).hud_scale(), 0.95, 0.0001, "HUD scale previews live during the drag")
+	meter.gui_input.emit(_left_click(false))
+	assert_true(FileAccess.file_exists(cfg_path), "one save on release")
+	var cfg: ConfigFile = ConfigFile.new()
+	cfg.load(cfg_path)
+	assert_almost_eq(float(cfg.get_value("graphics", "hud_scale", -1.0)), 0.95, 0.0001)
+	_delete_if_exists(cfg_path)
+	UiScaleTuning.current_hud_scale = -1.0
+
+
+func test_minimap_labels_match_the_presets() -> void:
+	var tuning: UiScaleTuning = UiScaleTuning.shared()
+	assert_eq(tuning.minimap_size_labels.size(), tuning.minimap_size_presets_px.size(), "one label per preset")
+	var menu: OptionsMenu = _make_menu()
+	var option: UiDropdown = menu.get_node("%MinimapSizeOption") as UiDropdown
+	assert_eq(option.item_count, tuning.minimap_size_presets_px.size())
+
+
 func _left_click(pressed: bool) -> InputEventMouseButton:
 	var click: InputEventMouseButton = InputEventMouseButton.new()
 	click.button_index = MOUSE_BUTTON_LEFT

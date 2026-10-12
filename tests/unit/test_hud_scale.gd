@@ -193,3 +193,23 @@ func test_timer_ring_bottom_scales_with_hud_scale() -> void:
 	assert_gt(small, 0.0)
 	assert_almost_eq(large / small, tuning.max_scale / tuning.min_scale, 0.01, "banner offset follows the HUD scale")
 	Settings.reset_hud_scale()
+
+
+## Bontago-1pi.193: the tutorial tip banner follows the HUD scale (panel scaled around its top-centre).
+func test_tutorial_tip_banner_scales_with_the_hud() -> void:
+	var tuning: UiScaleTuning = UiScaleTuning.shared()
+	var tutorial: Node = autofree(load("res://ui/Tutorial.tscn").instantiate())
+	add_child(tutorial)
+	await wait_frames(SETTLE_FRAMES)
+	var panel: Control = tutorial.get("_prompt_panel") as Control
+	Settings.set_hud_scale(tuning.default_scale)
+	await wait_frames(SETTLE_FRAMES)
+	var base: float = panel.scale.x
+	assert_almost_eq(base, UiScaleTuning.hud_relative_factor(), 0.0001)
+	Settings.set_hud_scale(tuning.max_scale)
+	await wait_frames(SETTLE_FRAMES)
+	assert_almost_eq(panel.scale.x, UiScaleTuning.hud_relative_factor(), 0.0001)
+	assert_gt(panel.scale.x, base, "a larger HUD scale enlarges the banner")
+	var hud: HUD = tutorial.get("_hud") as HUD
+	assert_gte(panel.offset_top, hud.timer_ring_bottom_px(), "banner stays under the scaled timer ring")
+	tutorial.queue_free()
