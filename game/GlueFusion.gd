@@ -12,6 +12,8 @@ extends RefCounted
 static func fuse(charged: Block, target: PhysicsBody3D, tuning: GlueDropTuning) -> FusedBody:
 	if charged == null or not is_instance_valid(charged) or target == null or not is_instance_valid(target):
 		return null
+	if charged.is_queued_for_deletion() or target.is_queued_for_deletion():
+		return null
 	if target == charged or not (target is Block or target is Field):
 		return null
 	if not charged.is_inside_tree() or charged.gift_id != &"":

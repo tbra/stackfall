@@ -154,6 +154,54 @@ func test_charged_block_landing_on_a_base_fuses() -> void:
 	assert_true(_fused(dropped, base), "a charged drop fuses with what it lands on")
 
 
+func test_charged_block_bridging_two_blocks_fuses_all_three() -> void:
+	var charged: Block = _bare_block(0, Vector3(0.0, 5.0, 0.0))
+	var left: Block = _bare_block(1, Vector3(-0.7, 5.0, 0.0))
+	var right: Block = _bare_block(1, Vector3(0.7, 5.0, 0.0))
+	var glue: GlueDrops = GlueDrops.new()
+	charged.add_child(glue)
+	glue.bind(charged, _tuning)
+	for _i: int in range(8):
+		await get_tree().physics_frame
+	assert_not_null(charged.fused_carrier())
+	assert_true(_fused(charged, left), "left neighbour fused")
+	assert_true(_fused(charged, right), "right neighbour fused")
+	for _i: int in range(20):
+		await get_tree().physics_frame
+	assert_false(is_instance_valid(glue), "binder frees itself after the window")
+
+
+func test_contact_after_the_window_does_not_fuse() -> void:
+	var tuning: GlueDropTuning = _tuning.duplicate() as GlueDropTuning
+	tuning.fuse_window_s = 0.05
+	var charged: Block = _bare_block(0, Vector3(0.0, 5.0, 0.0))
+	var near: Block = _bare_block(1, Vector3(0.7, 5.0, 0.0))
+	var late: Block = _bare_block(1, Vector3(-5.0, 5.0, 0.0))
+	var glue: GlueDrops = GlueDrops.new()
+	charged.add_child(glue)
+	glue.bind(charged, tuning)
+	for _i: int in range(20):
+		await get_tree().physics_frame
+	assert_true(_fused(charged, near))
+	late.global_position = Vector3(-0.7, 5.0, 0.0)
+	for _i: int in range(8):
+		await get_tree().physics_frame
+	assert_false(_fused(charged, late), "a contact after fuse_window_s does not fuse")
+
+
+func test_gift_placement_does_not_spend_or_attach_the_glue_charge() -> void:
+	# MatchPlacement: a delivered gift block takes no charge (OQ1: gift blocks never fuse).
+	assert_true(Match.grant_glue_drops(0, 2))
+	assert_true(Match.debug_queue_special(0, &"bomb"))
+	Match._gifts.activate_next_special(0)
+	assert_eq(Match.held_special(0), &"bomb")
+	assert_eq(_place(), PlacementRules.REASON_OK)
+	assert_eq(Match.glue_drops_left(0), 2, "a gift placement keeps the glue charge")
+	var placed: Block = _blocks_root.get_child(_blocks_root.get_child_count() - 1) as Block
+	for child: Node in placed.get_children():
+		assert_false(child is GlueDrops, "a gift block is never glue-charged")
+
+
 func test_accepted_drop_spends_charge_but_locked_or_burned_drop_does_not() -> void:
 	assert_true(Match.grant_glue_drops(0, 3))
 	assert_eq(_place(), PlacementRules.REASON_OK)
