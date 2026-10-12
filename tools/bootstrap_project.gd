@@ -512,6 +512,9 @@ func _actions() -> Dictionary:
 	# (client) from any control; ui/Lobby.gd intercepts it in _input, ahead of GUI focus.
 	a["lobby_confirm"] = [_key(KEY_ENTER), _key(KEY_KP_ENTER), _pad(JOY_BUTTON_START)]
 	a["lobby_quick_advanced"] = [_key(KEY_Y), _pad(JOY_BUTTON_Y)]
+	# Bontago-1pi.190: opens the Options overlay from the lobby (O / pad Select-Back; Esc and Start
+	# are taken by back-out and confirm there).
+	a["lobby_options"] = [_key(KEY_O), _pad(JOY_BUTTON_BACK)]
 
 	# --- Shell --------------------------------------------------------------
 	a["pause_menu"] = [_key(KEY_ESCAPE), _pad(JOY_BUTTON_START)]
