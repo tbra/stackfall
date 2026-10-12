@@ -5,7 +5,8 @@ Run: python tools/generate_gift_cues_v2.py
 Writes deterministic 44.1 kHz mono 16-bit PCM WAVs to assets/effects. No samples.
 
 Owner feedback on round one: the new drop, Bomb, Rocket and Paintball cues were
-disliked (two candidates each here, "_a" wired by default); Earthquake and Magnet
+disliked (two candidates each here, "_a" wired by default; Bomb, Rocket and
+Paintball were rebuilt again in round three, see below); Earthquake and Magnet
 need a sound for their whole active window (seamless loops); Glue needs a sound
 when a glued block hits something; the Jumping Bean needs a sound per hop.
 
@@ -71,97 +72,153 @@ def block_drop_b() -> np.ndarray:
     return body + 0.5 * felt
 
 
+# --- Explosion / splat building blocks (round three) -------------------------------
+# Owner feedback on round two: Bomb and Rocket "should sound more like explosions",
+# Paintball "should have more of a splat sound". Round three is built the way a real
+# blast sounds rather than from tones: white noise through a low-pass whose cutoff
+# falls from bright to dull within a fraction of a second (the fireball's roar), a
+# sub-bass thump, a turbulent rolling rumble and sparse debris crackle. The splat is
+# a broadband wet slap, a low-mid thwack and a dense spray of tiny droplet grains.
+
+
+def lowpass(signal: np.ndarray, cutoff, poles: int = 2) -> np.ndarray:
+    # Cascaded one-pole low-pass; `cutoff` (Hz) may be a per-sample array.
+    cut = np.broadcast_to(np.asarray(cutoff, dtype=np.float64), signal.shape)
+    alpha = (1.0 - np.exp(-2.0 * np.pi * np.clip(cut, 5.0, RATE * 0.45) / RATE)).tolist()
+    out = signal.tolist()
+    for _ in range(poles):
+        y = 0.0
+        for i, x in enumerate(out):
+            y += alpha[i] * (x - y)
+            out[i] = y
+    return np.array(out)
+
+
+def band(signal: np.ndarray, low_hz, high_hz, poles: int = 2) -> np.ndarray:
+    return lowpass(signal, high_hz, poles) - lowpass(signal, low_hz, poles)
+
+
+def brown(rng: np.random.Generator, n: int) -> np.ndarray:
+    # Integrated white noise with its drift removed: a deep, rolling rumble source.
+    walk = np.cumsum(rng.standard_normal(n))
+    walk -= lowpass(walk, 15.0, 1)
+    return norm(walk)
+
+
+def crackle(t: np.ndarray, rng: np.random.Generator, start: float, end: float, count: int,
+            bright_hz: float, decay_s: float) -> np.ndarray:
+    # Sparse debris/fire crackle: short filtered noise grains whose density and level
+    # thin out over [start, end].
+    out = np.zeros_like(t)
+    times = start + (end - start) * rng.random(count) ** 1.8
+    grain = round(0.006 * RATE)
+    for at in times:
+        i = round(at * RATE)
+        if i + grain >= t.size:
+            continue
+        g = rng.standard_normal(grain) * np.exp(-np.arange(grain) / (grain * 0.25))
+        out[i:i + grain] += g * np.exp(-(at - start) / decay_s) * rng.uniform(0.4, 1.0)
+    return lowpass(out, bright_hz, 1)
+
+
+def explosion(t: np.ndarray, rng: np.random.Generator, bright_hz: float, roar_s: float,
+              sub_hz: float, sub_s: float, rumble_s: float, crackle_count: int) -> np.ndarray:
+    noise = rng.standard_normal(t.size)
+    attack = 1.0 - np.exp(-t / 0.0015)
+    crack = (noise - lowpass(noise, 1500.0, 1)) * np.exp(-t / 0.004)
+    cutoff = 160.0 + bright_hz * np.exp(-t / 0.05) + 900.0 * np.exp(-t / 0.35)
+    roar = lowpass(noise, cutoff, 2) * attack * (0.7 * np.exp(-t / roar_s) + 0.3 * np.exp(-t / (roar_s * 3.0)))
+    sub = np.sin(phase(sub_hz * 0.55 + sub_hz * 0.45 * np.exp(-t / 0.12))) * attack * np.exp(-t / sub_s)
+    turbulence = 1.0 + 0.6 * norm(lowpass(rng.standard_normal(t.size), 5.0, 2))
+    rumble = lowpass(brown(rng, t.size), 140.0, 2) * (1.0 - np.exp(-t / 0.08)) * np.exp(-t / rumble_s) * turbulence
+    debris = crackle(t, rng, 0.08, t[-1] * 0.8, crackle_count, 3500.0, t[-1] * 0.3)
+    # The audible weight of a blast sits around 80-600 Hz (small speakers barely
+    # reproduce the sub): a punchy broadband burst and a mid body carry it.
+    punch = lowpass(noise, 3500.0, 2) * attack * np.exp(-t / 0.045)
+    body = band(noise, 90.0, 650.0, 2) * attack * (np.exp(-t / (roar_s * 0.8)) + 0.25 * np.exp(-t / (roar_s * 3.0)))
+    mix = (0.35 * crack + 0.9 * norm(punch) + 1.0 * norm(body) + 0.6 * norm(roar)
+           + 0.3 * sub + 0.35 * norm(rumble) + 0.3 * norm(debris))
+    mix -= lowpass(mix, 30.0, 1)
+    tail = np.clip((t[-1] - t) / 0.25, 0.0, 1.0)
+    return drive(0.45 * mix * tail, 1.4)
+
+
 # --- Bomb ------------------------------------------------------------------------
 
 def bomb_boom_a() -> np.ndarray:
-    # Cartoon KA-BOOM: a bright crack, a fat saturated low drop, a rolling noise
-    # body, then a short crumble of low pops.
-    t = clock(1.45)
-    rng = np.random.default_rng(4411)
-    noise = rng.standard_normal(t.size)
-    crack = (noise - smooth(noise, 3)) * np.exp(-t * 160.0)
-    drop = np.sin(phase(38.0 + 110.0 * np.exp(-t * 7.0))) * np.exp(-t * 3.2)
-    roar = smooth(noise, 45) * np.exp(-t * 4.2) * (1.0 - np.exp(-t * 120.0))
-    crumble = ticks(t, np.sort(rng.uniform(0.35, 1.1, 9)), 0.012, smooth(noise, 20), np.linspace(0.5, 0.15, 9))
-    return drive(0.9 * crack + 1.2 * drop + 1.5 * roar, 2.2) + 0.6 * crumble
+    # A big, close explosion: bright crack, heavy roar, deep thump, rolling rumble.
+    t = clock(2.4)
+    return explosion(t, np.random.default_rng(4511), 7000.0, 0.32, 58.0, 0.5, 0.9, 40)
 
 
 def bomb_boom_b() -> np.ndarray:
-    # Deep "BWOOM": a slower, heavier swell with a hollow low ring and debris
-    # rattling down afterwards.
-    t = clock(1.7)
-    rng = np.random.default_rng(4412)
-    noise = rng.standard_normal(t.size)
-    swell = smooth(noise, 70) * (1.0 - np.exp(-t * 60.0)) * np.exp(-t * 2.6)
-    ring = np.sin(phase(52.0 + 40.0 * np.exp(-t * 4.0))) * np.exp(-t * 2.2)
-    snap = (noise - smooth(noise, 5)) * np.exp(-t * 90.0)
-    debris = np.zeros_like(t)
-    for at in np.sort(rng.uniform(0.45, 1.5, 12)):
-        local, on = since(t, at)
-        debris += 0.35 * on * resonate(noise * np.exp(-local * 90.0), rng.uniform(700.0, 1600.0), 8.0)
-    return drive(1.6 * swell + 0.9 * ring + 0.5 * snap, 1.8) + debris
+    # A deeper, longer blast that rolls away like thunder.
+    t = clock(3.0)
+    rng = np.random.default_rng(4512)
+    body = explosion(t, rng, 4500.0, 0.45, 48.0, 0.7, 1.3, 55)
+    roll = norm(lowpass(brown(rng, t.size), 90.0, 2)) * bump(t, 1.1, 0.5) * 0.6
+    return body + roll
 
 
 # --- Rocket (detonation) ----------------------------------------------------------
 
 def rocket_boom_a() -> np.ndarray:
-    # Firework-style "fwee-POP-boom": a short rising whistle, a sharp pop, a
-    # mid-weight boom and a crackling sparkle tail. Lighter than the Bomb.
-    t = clock(1.3)
-    rng = np.random.default_rng(4421)
-    noise = rng.standard_normal(t.size)
-    hit = 0.17
-    whistle = np.sin(phase(900.0 + 1700.0 * np.clip(t / hit, 0.0, 1.0) ** 2)) * np.clip(t / hit, 0.0, 1.0) * (t < hit)
-    local, on = since(t, hit)
-    pop = on * (noise - smooth(noise, 3)) * np.exp(-local * 120.0)
-    boom = on * np.sin(phase(60.0 + 160.0 * np.exp(-local * 14.0))) * np.exp(-local * 5.5)
-    body = on * smooth(noise, 35) * np.exp(-local * 6.5)
-    sparkle = ticks(t, np.sort(rng.uniform(0.3, 1.15, 26)), 0.0015, noise - smooth(noise, 2),
-                    np.linspace(0.55, 0.12, 26))
-    return 0.22 * whistle + drive(0.9 * pop + 1.1 * boom + 1.3 * body, 2.0) + sparkle
+    # A rushing whoosh straight into a sharp, bright explosion with fiery crackle;
+    # snappier and lighter than the Bomb.
+    t = clock(2.0)
+    rng = np.random.default_rng(4521)
+    hit = 0.16
+    pre, post = t[t < hit], t[t >= hit] - hit
+    rise = np.clip(pre / hit, 0.0, 1.0)
+    whoosh = band(rng.standard_normal(pre.size), 400.0 + 1500.0 * rise, 1500.0 + 5000.0 * rise, 1) * rise ** 2
+    blast = explosion(post, rng, 9000.0, 0.22, 70.0, 0.35, 0.6, 70)
+    fire = crackle(post, rng, 0.05, 1.2, 90, 6000.0, 0.4)
+    return np.concatenate([0.45 * norm(whoosh), blast + 0.25 * norm(fire)])
 
 
 def rocket_boom_b() -> np.ndarray:
-    # "Fwoosh-BANG": a hissing thrust swell that cuts into a bright metallic bang.
-    t = clock(1.2)
-    rng = np.random.default_rng(4422)
-    noise = rng.standard_normal(t.size)
-    hit = 0.22
-    rise = np.clip(t / hit, 0.0, 1.0)
-    thrust = resonate(noise, 1200.0 + 2400.0 * rise, 1.2) * rise ** 1.5 * (t < hit)
-    local, on = since(t, hit)
-    bang = on * (noise - smooth(noise, 4)) * np.exp(-local * 45.0)
-    clang = on * np.sin(phase(np.full_like(t, 410.0))) * np.sin(phase(np.full_like(t, 1130.0))) * np.exp(-local * 18.0)
-    low = on * smooth(noise, 60) * np.exp(-local * 5.0)
-    return 0.5 * thrust + drive(0.8 * bang + 0.4 * clang + 1.5 * low, 2.0)
+    # A dry, cracking BANG with a short roar and a spray of sparks (no lead-in).
+    t = clock(1.7)
+    rng = np.random.default_rng(4522)
+    blast = explosion(t, rng, 11000.0, 0.16, 80.0, 0.25, 0.45, 50)
+    sparks = crackle(t, rng, 0.03, 1.0, 120, 8000.0, 0.3)
+    return blast + 0.3 * norm(sparks)
 
 
 # --- Paintball --------------------------------------------------------------------
 
-def paintball_splat_a() -> np.ndarray:
-    # Juicy SPLORCH: a wet resonant sweep down, a fat "blop", a squishy second
-    # squelch and four drips.
-    t = clock(0.95)
-    rng = np.random.default_rng(4431)
+def splat(t: np.ndarray, rng: np.random.Generator, body_hz: float, body_s: float,
+          spray_count: int, spray_s: float) -> np.ndarray:
     noise = rng.standard_normal(t.size)
-    splat = resonate(noise, 260.0 + 1500.0 * np.exp(-t * 16.0), 3.0) * np.exp(-t * 9.0) * (1.0 - np.exp(-t * 800.0))
-    blop = np.sin(phase(140.0 + 300.0 * np.exp(-t * 45.0))) * np.exp(-t * 18.0)
-    squish = resonate(smooth(noise, 6), 500.0 + 300.0 * bump(t, 0.24, 0.05), 4.0) * bump(t, 0.24, 0.06)
-    drips = sum(0.35 * (0.8 ** i) * chirp(t, at, 900.0, 1900.0, 0.03, 60.0)
-                for i, at in enumerate((0.36, 0.5, 0.63, 0.8)))
-    return 1.4 * splat + 0.9 * blop + 1.6 * squish + drips
+    attack = 1.0 - np.exp(-t / 0.0008)
+    slap = lowpass(noise, 900.0 + 5000.0 * np.exp(-t / 0.015), 2) * attack * np.exp(-t / 0.03)
+    thwack = band(noise, body_hz * 0.5, body_hz * 1.6, 2) * attack * np.exp(-t / body_s)
+    spray = np.zeros_like(t)
+    grain = round(0.004 * RATE)
+    times = spray_s * rng.random(spray_count) ** 1.6
+    for at in times:
+        i = round((0.004 + at) * RATE)
+        if i + grain >= t.size:
+            continue
+        g = band(rng.standard_normal(grain), rng.uniform(1200.0, 2500.0), rng.uniform(3500.0, 7000.0), 1)
+        spray[i:i + grain] += g * np.hanning(grain) * np.exp(-at / (spray_s * 0.6)) * rng.uniform(0.3, 1.0)
+    return 0.9 * norm(slap) + 1.0 * norm(thwack) + 0.55 * norm(spray)
+
+
+def paintball_splat_a() -> np.ndarray:
+    # A wet SPLAT: a broadband slap, a low-mid thwack and a spray of droplets.
+    t = clock(0.6)
+    out = splat(t, np.random.default_rng(4531), 520.0, 0.06, 140, 0.22)
+    return out * np.clip((0.6 - t) / 0.1, 0.0, 1.0)
 
 
 def paintball_splat_b() -> np.ndarray:
-    # Paint balloon: a rubbery pop, a spray of wet noise sliding down, and drips.
-    t = clock(0.85)
-    rng = np.random.default_rng(4432)
-    noise = rng.standard_normal(t.size)
-    pop = np.sin(phase(900.0 + 600.0 * np.exp(-t * 200.0))) * np.exp(-t * 90.0)
-    spray = resonate(noise, 900.0 + 3200.0 * np.exp(-t * 7.0), 1.2) * np.exp(-t * 7.5) * (1.0 - np.exp(-t * 400.0))
-    slap = smooth(noise, 30) * np.exp(-t * 30.0)
-    drips = sum(0.3 * chirp(t, at, 1100.0, 2200.0, 0.025, 70.0) for at in (0.3, 0.45, 0.66))
-    return 0.6 * pop + spray + 1.5 * slap + drips
+    # A thicker, juicier SPLORCH with more body and a longer drippy spray.
+    t = clock(0.8)
+    rng = np.random.default_rng(4532)
+    out = splat(t, rng, 380.0, 0.09, 220, 0.35)
+    drips = sum(0.12 * chirp(t, at, 1300.0, 2600.0, 0.008, 90.0) for at in np.sort(rng.uniform(0.3, 0.7, 5)))
+    return (out + drips) * np.clip((0.8 - t) / 0.12, 0.0, 1.0)
 
 
 # --- Glue, Jumping Bean --------------------------------------------------------------
