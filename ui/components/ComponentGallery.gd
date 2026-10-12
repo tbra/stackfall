@@ -22,6 +22,13 @@ const PAGE_INPUTS: int = 2
 const PAGE_STRUCTURE: int = 3
 const PAGE_TEXT: int = 4
 const PAGE_CLOCK: int = 5
+const PAGE_CHAT: int = 6
+const CHAT_SAMPLE_NAMES: PackedStringArray = ["Tester", "Blue Fox", "Mint", "Goldie", "Violet", "Orange", "Teal", "Pinky"]
+const CHAT_SAMPLE_TEXTS: PackedStringArray = [
+	"anyone ready?", "[b]x[/b] stays literal [url]", "drop it on the left edge", "nice tower", "good game",
+	"one more round?", "sure", "I will win this time, watch me stack every single block",
+]
+const CHAT_FADE_SAMPLE: float = 0.5
 const TEXT_SAMPLES: Dictionary = {
 	UiText.Role.TITLE: "STACKFALL", UiText.Role.HEADING: "MATCH SETTINGS",
 	UiText.Role.BODY: "Drop blocks inside your territory to grow it.",
@@ -59,7 +66,7 @@ const BADGES: Array[Dictionary] = [
 ]
 
 ## 0 = buttons + badges, 1 = toggles, chips, steppers and tabs (C1b), 2 = dropdown, field and
-## segment meter, 3 = section, panel and title row (C2), 4 = text roles and well (C4a). One page fits one capture.
+## segment meter, 3 = section, panel and title row (C2), 4 = text roles and well (C4a), 6 = chat panel (lobby and HUD skins). One page fits one capture.
 @export var page: int = 0
 
 
@@ -101,6 +108,9 @@ func _ready() -> void:
 	elif page == PAGE_TEXT:
 		columns.add_child(_panel("TEXT ROLES", _text_rows()))
 		columns.add_child(_panel("WELL", _well_rows()))
+	elif page == PAGE_CHAT:
+		columns.add_child(_chat_lobby_panel())
+		columns.add_child(_chat_hud_column())
 	elif page == PAGE_CLOCK:
 		columns.add_child(_panel("ROUND TIMER", _round_timer_rows()))
 	else:
@@ -144,6 +154,48 @@ func _round_timer_rows() -> Array[Control]:
 			timer.call(entry["call"] as StringName, float(entry["arg"]))
 		rows.append(UiRow.new().setup(entry["name"] as String, timer))
 	return rows
+
+
+## One sample line per entry; the slot and palette index follow the entry order.
+static func _fill_chat(chat: UiChatPanel) -> void:
+	for slot: int in CHAT_SAMPLE_NAMES.size():
+		chat.append_line(ChatRules.make_line(0, 0, slot, CHAT_SAMPLE_NAMES[slot], slot, CHAT_SAMPLE_TEXTS[slot]))
+
+
+## The chat panel in its LOBBY skin with a scrolling log and the input line.
+func _chat_lobby_panel() -> UiChatPanel:
+	var chat: UiChatPanel = UiChatPanel.new()
+	chat.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	chat.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_fill_chat(chat)
+	chat.append_line(ChatRules.make_line(0, 0, -1, "", 0, "Blue Fox joined", ChatRules.KIND_SYSTEM))
+	return chat
+
+
+## The HUD skin over a stand-in arena: lines visible, mid-fade, and typing.
+func _chat_hud_column() -> VBoxContainer:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var column: VBoxContainer = VBoxContainer.new()
+	column.add_theme_constant_override("separation", arcade.space_4_px)
+	column.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	for state: String in ["VISIBLE", "FADING", "TYPING"]:
+		var stage: PanelContainer = PanelContainer.new()
+		var backdrop: StyleBoxFlat = StyleBoxFlat.new()
+		backdrop.bg_color = arcade.disc_600_color
+		backdrop.set_content_margin_all(float(arcade.space_3_px))
+		stage.add_theme_stylebox_override("panel", backdrop)
+		var chat: UiChatPanel = UiChatPanel.new()
+		chat.mode = UiChatPanel.Mode.HUD
+		_fill_chat(chat)
+		if state == "FADING":
+			chat.modulate.a = CHAT_FADE_SAMPLE
+		elif state == "TYPING":
+			chat.open_input()
+			chat.edit.text = "gg"
+		stage.add_child(chat)
+		column.add_child(UiText.make(UiText.Role.CAPTION, "HUD " + state))
+		column.add_child(stage)
+	return column
 
 
 func _button_rows() -> Array[Control]:
