@@ -61,12 +61,13 @@ func _bare_block(slot_id: int, position: Vector3) -> Block:
 	return block
 
 
-func _bonds(block: Block) -> Array[GlueJoint]:
-	var result: Array[GlueJoint] = []
-	for child: Node in block.get_children():
-		if child is GlueJoint:
-			result.append(child as GlueJoint)
-	return result
+func _fused(a: Block, b: Block) -> bool:
+	var carrier: RigidBody3D = a.fused_carrier()
+	return carrier != null and carrier == b.fused_carrier()
+
+
+func _carrier_of(block: Block) -> FusedBody:
+	return block.fused_carrier() as FusedBody
 
 
 func _home() -> Vector3:
@@ -79,7 +80,7 @@ func _place(auto_drop: bool = false, origin: Vector3 = Vector3.INF) -> StringNam
 	return Match.request_place(0, chosen, 0, Quaternion.IDENTITY, auto_drop, Match.feed_seq(0))
 
 
-func test_bonding_uses_contact_targets_and_deduplicates_both_directions() -> void:
+func test_fusing_uses_contact_targets_and_deduplicates_both_directions() -> void:
 	var a: Block = _bare_block(0, Vector3(0.0, 5.0, 0.0))
 	var b: Block = _bare_block(1, Vector3(1.0, 5.0, 0.0))
 	var glue_a: GlueDrops = GlueDrops.new()
@@ -88,88 +89,117 @@ func test_bonding_uses_contact_targets_and_deduplicates_both_directions() -> voi
 	assert_true(a.contact_monitor)
 	assert_gte(a.max_contacts_reported, _tuning.max_contacts_reported)
 	assert_true(glue_a.try_bond(b), "a contacted enemy block can be fused")
-	assert_eq(_bonds(a).size(), 1)
-	assert_false(glue_a.try_bond(b), "same contact cannot create a second joint")
+	assert_true(_fused(a, b))
+	assert_false(glue_a.try_bond(b), "same contact cannot fuse twice")
 	var glue_b: GlueDrops = GlueDrops.new()
 	b.add_child(glue_b)
 	glue_b.bind(b, _tuning)
 	assert_false(glue_b.try_bond(a), "reverse charged contact shares the existing pair")
 	assert_true(glue_a.try_bond(_field), "the disc is a valid physics-body partner")
 	assert_false(glue_a.try_bond(_field))
-	assert_eq(_bonds(a).size(), 2)
+	assert_true(_carrier_of(a).is_disc_anchored(), "fusing with the disc anchors the group")
+	assert_eq(_carrier_of(a), _carrier_of(b), "still one body")
 	var unrelated: Node3D = Node3D.new()
 	assert_false(glue_a.try_bond(unrelated), "unrelated nodes cannot bond")
 	unrelated.free()
 
 
-func test_real_physics_contact_forms_a_bond() -> void:
+func test_real_physics_contact_fuses() -> void:
 	var a: Block = _bare_block(0, Vector3(0.0, 5.0, 0.0))
-	_bare_block(1, Vector3(0.5, 5.0, 0.0))
+	var other: Block = _bare_block(1, Vector3(0.5, 5.0, 0.0))
 	var glue: GlueDrops = GlueDrops.new()
 	a.add_child(glue)
 	glue.bind(a, _tuning)
 	for _i: int in range(4):
 		await get_tree().physics_frame
-	assert_eq(_bonds(a).size(), 1, "contact monitor bonds the real collision")
+	assert_true(_fused(a, other), "contact monitor fuses the real collision")
 
 
-func test_real_disc_contact_forms_a_bond() -> void:
+func test_real_disc_contact_fuses() -> void:
 	var block: Block = _bare_block(0, _field.to_global(Vector3(0.0, 0.2, 0.0)))
 	var glue: GlueDrops = GlueDrops.new()
 	block.add_child(glue)
 	glue.bind(block, _tuning)
 	for _i: int in range(4):
 		await get_tree().physics_frame
-	var bonds: Array[GlueJoint] = _bonds(block)
-	assert_eq(bonds.size(), 1, "the disc collider must be reported as a contact")
-	if not bonds.is_empty():
-		assert_true(bonds[0].bodies_match(block, _field))
+	var carrier: FusedBody = _carrier_of(block)
+	assert_not_null(carrier, "the disc collider must be reported as a contact")
+	if carrier != null:
+		assert_true(carrier.is_disc_anchored())
 
 
-func test_joint_constrains_a_falling_partner() -> void:
-	var anchor: Block = _bare_block(0, Vector3(10.0, 10.0, 0.0))
-	anchor.freeze = true
-	var partner: Block = _bare_block(1, Vector3(10.0, 10.6, 0.0))
-	partner.gravity_scale = 1.0
-	var free_block: Block = _bare_block(1, Vector3(13.0, 10.6, 0.0))
-	free_block.gravity_scale = 1.0
-	var tuning: GlueDropTuning = _tuning.duplicate() as GlueDropTuning
-	tuning.break_force = 10000.0
+func test_gift_block_never_fuses() -> void:
+	var gift: Block = _bare_block(0, Vector3(0.0, 5.0, 0.0))
+	gift.gift_id = &"bomb"
+	var b: Block = _bare_block(1, Vector3(1.0, 5.0, 0.0))
 	var glue: GlueDrops = GlueDrops.new()
-	anchor.add_child(glue)
-	glue.bind(anchor, tuning)
-	assert_true(glue.try_bond(partner))
-	for _i: int in range(45):
+	b.add_child(glue)
+	glue.bind(b, _tuning)
+	assert_false(glue.try_bond(gift), "gift blocks never fuse")
+	assert_null(b.fused_carrier())
+	assert_null(gift.fused_carrier())
+
+
+func test_charged_block_landing_on_a_base_fuses() -> void:
+	var rest_y: float = _field.surface_y() + 0.6
+	var base: Block = _real_block("cube", 1, _field.to_global(Vector3(0.0, rest_y, 0.0)))
+	for _i: int in range(40):
 		await get_tree().physics_frame
-	assert_lt(partner.global_position.distance_to(anchor.global_position), 1.5)
-	assert_gt(anchor.global_position.y - free_block.global_position.y, 1.0)
-
-
-func test_bond_cleans_up_when_partner_despawns() -> void:
-	var a: Block = _bare_block(0, Vector3(0.0, 5.0, 0.0))
-	var b: Block = _bare_block(1, Vector3(1.0, 5.0, 0.0))
+	var dropped: Block = _real_block("cube", 0, base.global_position + Vector3(0.0, 2.0, 0.0))
 	var glue: GlueDrops = GlueDrops.new()
-	a.add_child(glue)
-	glue.bind(a, _tuning)
-	assert_true(glue.try_bond(b))
-	var joint: GlueJoint = _bonds(a)[0]
-	b.free()
-	joint.advance(0.1)
-	await get_tree().process_frame
-	assert_false(is_instance_valid(joint))
+	dropped.add_child(glue)
+	glue.bind(dropped, _tuning)
+	for _i: int in range(90):
+		await get_tree().physics_frame
+	assert_true(_fused(dropped, base), "a charged drop fuses with what it lands on")
 
 
-func test_bond_breaks_above_tuned_stress() -> void:
-	var a: Block = _bare_block(0, Vector3(0.0, 5.0, 0.0))
-	var b: Block = _bare_block(1, Vector3(1.0, 5.0, 0.0))
+func test_charged_block_bridging_two_blocks_fuses_all_three() -> void:
+	var charged: Block = _bare_block(0, Vector3(0.0, 5.0, 0.0))
+	var left: Block = _bare_block(1, Vector3(-0.7, 5.0, 0.0))
+	var right: Block = _bare_block(1, Vector3(0.7, 5.0, 0.0))
 	var glue: GlueDrops = GlueDrops.new()
-	a.add_child(glue)
-	glue.bind(a, _tuning)
-	assert_true(glue.try_bond(b))
-	var joint: GlueJoint = _bonds(a)[0]
-	joint.apply_stress_sample(_tuning.break_force + 1.0)
-	await get_tree().process_frame
-	assert_false(is_instance_valid(joint))
+	charged.add_child(glue)
+	glue.bind(charged, _tuning)
+	for _i: int in range(8):
+		await get_tree().physics_frame
+	assert_not_null(charged.fused_carrier())
+	assert_true(_fused(charged, left), "left neighbour fused")
+	assert_true(_fused(charged, right), "right neighbour fused")
+	for _i: int in range(20):
+		await get_tree().physics_frame
+	assert_false(is_instance_valid(glue), "binder frees itself after the window")
+
+
+func test_contact_after_the_window_does_not_fuse() -> void:
+	var tuning: GlueDropTuning = _tuning.duplicate() as GlueDropTuning
+	tuning.fuse_window_s = 0.05
+	var charged: Block = _bare_block(0, Vector3(0.0, 5.0, 0.0))
+	var near: Block = _bare_block(1, Vector3(0.7, 5.0, 0.0))
+	var late: Block = _bare_block(1, Vector3(-5.0, 5.0, 0.0))
+	var glue: GlueDrops = GlueDrops.new()
+	charged.add_child(glue)
+	glue.bind(charged, tuning)
+	for _i: int in range(20):
+		await get_tree().physics_frame
+	assert_true(_fused(charged, near))
+	late.global_position = Vector3(-0.7, 5.0, 0.0)
+	for _i: int in range(8):
+		await get_tree().physics_frame
+	assert_false(_fused(charged, late), "a contact after fuse_window_s does not fuse")
+
+
+func test_gift_placement_does_not_spend_or_attach_the_glue_charge() -> void:
+	# MatchPlacement: a delivered gift block takes no charge (OQ1: gift blocks never fuse).
+	assert_true(Match.grant_glue_drops(0, 2))
+	assert_true(Match.debug_queue_special(0, &"bomb"))
+	Match._gifts.activate_next_special(0)
+	assert_eq(Match.held_special(0), &"bomb")
+	assert_eq(_place(), PlacementRules.REASON_OK)
+	assert_eq(Match.glue_drops_left(0), 2, "a gift placement keeps the glue charge")
+	var placed: Block = _blocks_root.get_child(_blocks_root.get_child_count() - 1) as Block
+	for child: Node in placed.get_children():
+		assert_false(child is GlueDrops, "a gift block is never glue-charged")
 
 
 func test_accepted_drop_spends_charge_but_locked_or_burned_drop_does_not() -> void:
@@ -266,16 +296,18 @@ func _real_block(shape_id: String, slot_id: int, at: Vector3) -> Block:
 	return block
 
 
+## `b` rests on the disc, the charged `a` is stacked on top of it: only `b` touches the disc, so
+## the fused pair must stay a free body (a's own shapes never touch the Field).
 func _glued_pair(tuning: GlueDropTuning = null) -> Array[Block]:
 	var rest_y: float = _field.surface_y() + 0.6
-	var a: Block = _real_block("cube", 0, _field.to_global(Vector3(0.0, rest_y, 0.0)))
-	var b: Block = _real_block("cube", 1, _field.to_global(Vector3(1.0, rest_y, 0.0)))
+	var b: Block = _real_block("cube", 1, _field.to_global(Vector3(0.0, rest_y, 0.0)))
+	var a: Block = _real_block("cube", 0, _field.to_global(Vector3(0.0, rest_y + 1.05, 0.0)))
 	for _i: int in range(40):
 		await get_tree().physics_frame
 	var glue: GlueDrops = GlueDrops.new()
 	a.add_child(glue)
 	glue.bind(a, tuning if tuning != null else _tuning)
-	assert_true(glue.try_bond(b))
+	assert_true(glue.try_bond(b) or _fused(a, b))
 	return [a, b]
 
 
@@ -283,12 +315,11 @@ func _pair_gap(a: Block, b: Block) -> float:
 	return (b.global_position - a.global_position).length()
 
 
-func test_glued_pair_survives_tilt_cycle_and_a_drop_onto_it() -> void:
+func test_fused_pair_survives_tilt_cycle_and_a_drop_onto_it() -> void:
 	var pair: Array[Block] = await _glued_pair()
 	var a: Block = pair[0]
 	var b: Block = pair[1]
 	var rest_gap: float = _pair_gap(a, b)
-	var bond: GlueJoint = _bonds(a)[0]
 	_field.set_tilt_enabled(true)
 	var dropped: bool = false
 	var frames: int = int(TILT_CYCLE_S * 60.0)
@@ -302,59 +333,45 @@ func test_glued_pair_survives_tilt_cycle_and_a_drop_onto_it() -> void:
 			var mid: Vector3 = (a.global_position + b.global_position) * 0.5
 			_real_block("L4", 1, mid + Vector3(0.0, DROP_HEIGHT_M, 0.0))
 		await get_tree().physics_frame
-	assert_true(is_instance_valid(bond), "bond must survive a 10 s tilt cycle and a placement drop")
+	assert_true(_fused(a, b), "fusion must survive a 10 s tilt cycle and a placement drop")
 	assert_lt(absf(_pair_gap(a, b) - rest_gap), MAX_DRIFT_M, "pair must not drift apart")
 
 
-func test_glued_pair_breaks_under_a_two_metre_blast() -> void:
-	var pair: Array[Block] = await _glued_pair()
-	var a: Block = pair[0]
-	var b: Block = pair[1]
-	var bond: GlueJoint = _bonds(a)[0]
-	var center: Vector3 = a.global_position + Vector3(-BLAST_ZONE_Z, 0.0, 0.0)
-	var blast: ExplosionTuning = ExplosionTuning.new()
-	var space: PhysicsDirectSpaceState3D = a.get_world_3d().direct_space_state
-	ExplosionFx.blast(space, center, blast, [])
-	for _i: int in range(30):
-		await get_tree().physics_frame
-	assert_false(is_instance_valid(bond), "a 2 m bomb blast must break the glue bond")
-
-
-## Bontago-1pi.85.51: the owner found glue too weak. A sideways kick on one body
-# DECISION: the plan's 40 kg*m/s is 20 m/s on a 2 kg cube, far above the shock
-# limit, so the kick is 10 kg*m/s = 5 m/s: above the old 2.5 limit
-# (baseline breaks), the joint keeps it under the new 4 limit (survives); the
-# default 2 m bomb must still exceed that limit (bombs counter glue).
 const SIDE_KICK_IMPULSE: float = 10.0
+const WINDOW_SETTLE_FRAMES: int = 20
+const MOVED_MIN_M: float = 0.02
+## Gap between the base and its side neighbour (they touch); the charged block overhangs the other side.
+const NEIGHBOUR_X_M: float = 1.0
+const OVERHANG_X_M: float = -0.3
 const KICK_SETTLE_FRAMES: int = 60
 
 
-func _old_tuning() -> GlueDropTuning:
-	var old: GlueDropTuning = GlueDropTuning.new()
-	old.break_force = 600.0
-	old.break_separation_m = 0.15
-	old.break_speed_mps = 6.0
-	old.break_shock_mps = 2.5
-	return old
+func test_fused_pair_survives_a_two_metre_blast() -> void:
+	var pair: Array[Block] = await _glued_pair()
+	var center: Vector3 = pair[0].global_position + Vector3(-BLAST_ZONE_Z, 0.0, 0.0)
+	var space: PhysicsDirectSpaceState3D = pair[0].get_world_3d().direct_space_state
+	for _i: int in range(WINDOW_SETTLE_FRAMES):
+		await get_tree().physics_frame
+	assert_false(_carrier_of(pair[0]).is_disc_anchored(), "precondition: a free body, not pinned to the disc")
+	var before: Vector3 = _carrier_of(pair[0]).global_position
+	ExplosionFx.blast(space, center, ExplosionTuning.new(), [])
+	for _i: int in range(30):
+		await get_tree().physics_frame
+	assert_true(_fused(pair[0], pair[1]), "blasts do not split a fused body")
+	assert_gt(_carrier_of(pair[0]).global_position.distance_to(before), MOVED_MIN_M, "the blast moves the free body")
 
 
-func _kick_pair(tuning: GlueDropTuning) -> bool:
-	var pair: Array[Block] = await _glued_pair(tuning)
-	var bond: GlueJoint = _bonds(pair[0])[0]
-	pair[1].apply_central_impulse(Vector3(0.0, 0.0, SIDE_KICK_IMPULSE))
+func test_fused_pair_survives_a_sideways_kick() -> void:
+	var pair: Array[Block] = await _glued_pair()
+	for _i: int in range(WINDOW_SETTLE_FRAMES):
+		await get_tree().physics_frame
+	assert_false(_carrier_of(pair[0]).is_disc_anchored(), "precondition: a free body, not pinned to the disc")
+	var before: Vector3 = _carrier_of(pair[0]).global_position
+	_carrier_of(pair[0]).apply_central_impulse(Vector3(0.0, 0.0, SIDE_KICK_IMPULSE))
 	for _i: int in range(KICK_SETTLE_FRAMES):
 		await get_tree().physics_frame
-	return is_instance_valid(bond)
-
-
-func test_old_glue_tuning_broke_under_a_sideways_kick() -> void:
-	var survived: bool = await _kick_pair(_old_tuning())
-	assert_false(survived, "the pre-1pi.85.51 tuning must break under the kick (baseline)")
-
-
-func test_new_glue_tuning_survives_a_sideways_kick() -> void:
-	var survived: bool = await _kick_pair(_tuning)
-	assert_true(survived, "stronger glue must hold under a 10 kg*m/s sideways kick")
+	assert_true(_fused(pair[0], pair[1]), "a fused body is rigid")
+	assert_gt(_carrier_of(pair[0]).global_position.distance_to(before), MOVED_MIN_M, "the kick moves the free body")
 
 
 const GUST_ACCEL_MPS2: float = 5.0
@@ -362,51 +379,54 @@ const GUST_FRAMES: int = 180
 const GUST_FIELD_MARGIN: float = 1.0
 
 
-func test_glued_pair_survives_a_sustained_wind_gust() -> void:
+func test_fused_pair_survives_a_sustained_wind_gust() -> void:
 	var pair: Array[Block] = await _glued_pair()
-	var bond: GlueJoint = _bonds(pair[0])[0]
-	for _i: int in range(GUST_FRAMES):
-		for block: Block in pair:
-			block.apply_central_force(Vector3(0.0, 0.0, GUST_ACCEL_MPS2 * GUST_FIELD_MARGIN * block.mass))
+	var carrier: FusedBody = _carrier_of(pair[0])
+	for _i: int in range(WINDOW_SETTLE_FRAMES):
 		await get_tree().physics_frame
-	assert_true(is_instance_valid(bond), "wind gust accel must not break a bond")
+	assert_false(carrier.is_disc_anchored(), "precondition: a free body, not pinned to the disc")
+	for _i: int in range(GUST_FRAMES):
+		carrier.apply_central_force(Vector3(0.0, 0.0, GUST_ACCEL_MPS2 * GUST_FIELD_MARGIN * carrier.mass))
+		await get_tree().physics_frame
+	assert_true(_fused(pair[0], pair[1]), "a sustained gust cannot split a fused body")
+
+
+func test_charged_drop_on_a_disc_resting_block_is_not_disc_anchored() -> void:
+	var pair: Array[Block] = await _glued_pair()
+	for _i: int in range(WINDOW_SETTLE_FRAMES):
+		await get_tree().physics_frame
+	assert_true(_fused(pair[0], pair[1]))
+	assert_false(_carrier_of(pair[0]).is_disc_anchored(), "the partner's disc contact must not anchor the group")
+
+
+func test_charged_drop_does_not_fuse_the_base_neighbour() -> void:
+	var rest_y: float = _field.surface_y() + 0.6
+	var base: Block = _real_block("cube", 1, _field.to_global(Vector3(0.0, rest_y, 0.0)))
+	var side: Block = _real_block("cube", 1, _field.to_global(Vector3(NEIGHBOUR_X_M, rest_y, 0.0)))
+	for _i: int in range(40):
+		await get_tree().physics_frame
+	var charged: Block = _real_block("cube", 0, _field.to_global(Vector3(OVERHANG_X_M, rest_y + 1.05, 0.0)))
+	var glue: GlueDrops = GlueDrops.new()
+	charged.add_child(glue)
+	glue.bind(charged, _tuning)
+	for _i: int in range(WINDOW_SETTLE_FRAMES * 3):
+		await get_tree().physics_frame
+	assert_true(_fused(charged, base), "the block it landed on is fused")
+	assert_false(_fused(charged, side), "a neighbour of the base is not touched by the charged block")
+	assert_false(_carrier_of(charged).is_disc_anchored(), "the base's disc contact does not anchor the group")
 
 
 func _bean_def() -> SpecialDef:
 	return load("res://config/specials/jumping_bean.tres") as SpecialDef
 
 
-func test_bean_bonded_to_disc_hops_after_release() -> void:
-	# Bontago-1pi.85.70: a bonded bean could not hop (the joint held it above the impulse).
+func test_bean_hop_needs_no_joint_release() -> void:
 	var bean: Block = _bare_block(0, _field.to_global(Vector3(0.0, 0.2, 0.0)))
 	bean.gravity_scale = 1.0
-	var glue: GlueDrops = GlueDrops.new()
-	bean.add_child(glue)
-	glue.bind(bean, _tuning)
-	assert_true(glue.try_bond(_field))
-	var ended: Array[bool] = []
-	var on_bond: Callable = func(_a: Node, _b: Node, formed: bool) -> void:
-		ended.append(formed)
-	Events.glue_bond_changed.connect(on_bond)
 	var effect: JumpingBeanEffect = (_bean_def().effect as JumpingBeanEffect)
 	effect._kick(bean)
 	await get_tree().process_frame
-	Events.glue_bond_changed.disconnect(on_bond)
-	assert_eq(_bonds(bean).size(), 0, "hop frees the bean's bond")
-	assert_eq(ended, [false], "bond-end event fires so clients drop the glue coat")
 	assert_gt(bean.linear_velocity.y, 1.0, "the bean actually leaves the ground")
-
-
-func test_bean_with_bond_stored_under_partner_is_freed() -> void:
-	var bean: Block = _bare_block(1, Vector3(0.0, 5.0, 0.0))
-	var charged: Block = _bare_block(0, Vector3(1.0, 5.0, 0.0))
-	var glue: GlueDrops = GlueDrops.new()
-	charged.add_child(glue)
-	glue.bind(charged, _tuning)
-	assert_true(glue.try_bond(bean))
-	assert_eq(GlueJoint.release_bonds_for(bean, get_tree()), 1)
-	await get_tree().process_frame
-	assert_eq(_bonds(charged).size(), 0)
 
 
 func test_jumping_bean_drop_keeps_the_glue_charge() -> void:
@@ -418,4 +438,4 @@ func test_jumping_bean_drop_keeps_the_glue_charge() -> void:
 	assert_eq(Match.glue_drops_left(0), 3, "a bean takes no glue charge")
 	var placed: Block = _blocks_root.get_child(_blocks_root.get_child_count() - 1) as Block
 	for child: Node in placed.get_children():
-		assert_false(child is GlueDrops, "the bean is never glue-bonded")
+		assert_false(child is GlueDrops, "the bean is never glue-fused")

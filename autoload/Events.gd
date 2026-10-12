@@ -28,6 +28,14 @@ const REASON_GIFT_DESPAWN: StringName = &"gift_despawn"
 ## clients; presentation only (the A2 fade), never a rule input.
 signal block_dissolve_started(block: RigidBody3D, net_id: int, duration_s: float)
 
+## Host-only: `members` (Array[Block], newly fused) joined `carrier` (FusedBody).
+## Glue fusion (docs/GLUE_FUSION_PLAN.md WP0 stub; no emitter yet).
+signal blocks_fused(carrier: Node, members: Array)
+
+## Host-only: a member left its fused body (dissolved, collapsed to a single block,
+## or the body ended). Glue fusion (docs/GLUE_FUSION_PLAN.md WP0 stub; no emitter yet).
+signal fused_member_released(member: Node)
+
 # --- M2: match flow (spec 3.7) ----------------------------------------------
 
 ## The host's state machine moved. Both arguments are Match.State values.

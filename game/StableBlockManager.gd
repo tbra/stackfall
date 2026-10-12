@@ -134,7 +134,7 @@ func check_field_motion() -> void:
 	if current == _last_field_transform:
 		return
 	_last_field_transform = current
-	for block: Block in _registry.all_blocks():
+	for block: Block in _registry.physics_bodies():
 		var id: int = block.get_instance_id()
 		_asleep_elapsed[id] = 0.0
 		_rest_anchor.erase(id)
@@ -168,7 +168,7 @@ func _scan(scan_delta: float) -> void:
 	if _registry == null:
 		return
 	var live_ids: Dictionary = {}
-	var blocks: Array[Block] = _registry.all_blocks()
+	var blocks: Array[Block] = _registry.physics_bodies()
 	var settle_on: bool = tuning.settle_freeze_enabled
 	var fast_positions: PackedVector3Array = PackedVector3Array()
 	if settle_on:
@@ -177,6 +177,11 @@ func _scan(scan_delta: float) -> void:
 	for block: Block in blocks:
 		var id: int = block.get_instance_id()
 		live_ids[id] = true
+		# A disc-anchored carrier rides the Field as a kinematic body and is never
+		# freeze-static (a STATIC body would not follow a tilting disc, sen.11).
+		var fused: FusedBody = block as FusedBody
+		if fused != null and fused.is_disc_anchored():
+			continue
 		if block.sleeping:
 			_settle.reset(id)
 			if not _rest_anchor.has(id):

@@ -139,6 +139,14 @@ const FREEZE_REASON_STABLE: StringName = &"stable"
 ## about the other or race the other's release.
 var _freeze_reasons: Dictionary = {}
 
+## Glue fusion (docs/GLUE_FUSION_PLAN.md section 3): while this Block is a
+## "follower" its FusedBody carrier owns the collision shapes and the physics;
+## the Block keeps identity (net_id, owner, meshes) and is posed from the
+## carrier every tick. Null for an ordinary Block and for a carrier itself.
+var _fused_carrier: Block = null
+var _pre_fuse_layer: int = 0
+var _pre_fuse_mask: int = 0
+
 
 ## Bontago-1pi.11.32: a copy of the awake set's Blocks (safe to iterate while
 ## the set changes under a callback).
@@ -204,7 +212,7 @@ func _exit_tree() -> void:
 func _apply_awake(awake: bool) -> void:
 	# A removed-but-not-freed block must never (re)enter the set: no _exit_tree
 	# would follow to drop it again.
-	awake = awake and is_inside_tree()
+	awake = awake and is_inside_tree() and _fused_carrier == null
 	if awake:
 		if not _awake.has(get_instance_id()):
 			_prev_linear_velocity = linear_velocity
@@ -221,6 +229,10 @@ func _apply_awake(awake: bool) -> void:
 ## already caches the new value), so every script-side wake of a Block goes
 ## through here to keep the awake set and the callback switch current.
 func wake() -> void:
+	var carrier: Block = _live_carrier()
+	if carrier != null:
+		carrier.wake()
+		return
 	sleeping = false
 	_apply_awake(not is_freeze_static())
 
@@ -482,6 +494,10 @@ func _apply_release_tilt(state: PhysicsDirectBodyState3D) -> void:
 ## (a partial write like Propeller's `.y` component, or an external caller
 ## that only has this Block as a plain RigidBody3D).
 func kick(velocity: Vector3) -> void:
+	var carrier: Block = _live_carrier()
+	if carrier != null:
+		carrier.kick(velocity)
+		return
 	linear_velocity = velocity
 	mark_script_kick()
 
@@ -494,6 +510,10 @@ func kick(velocity: Vector3) -> void:
 ## special effect, whenever kick() itself doesn't fit (e.g. PropellerEffect
 ## only overwrites the Y component every tick).
 func mark_script_kick() -> void:
+	var carrier: Block = _live_carrier()
+	if carrier != null:
+		carrier.mark_script_kick()
+		return
 	_script_kick_pending = true
 	_kick_frame = Engine.get_physics_frames()
 
@@ -609,6 +629,10 @@ func _block_mesh() -> MeshInstance3D:
 ## here checks Net itself; the caller is responsible for that, the same as
 ## every other write this class exposes (kick(), apply_physics_tuning()).
 func request_freeze_static(reason: StringName) -> void:
+	var carrier: Block = _live_carrier()
+	if carrier != null:
+		carrier.request_freeze_static(reason)
+		return
 	if _freeze_reasons.has(reason):
 		return
 	_freeze_reasons[reason] = true
@@ -642,6 +666,10 @@ func request_freeze_static(reason: StringName) -> void:
 ## later froze the same body through a path other than
 ## request_freeze_static().
 func release_freeze_static(reason: StringName) -> void:
+	var carrier: Block = _live_carrier()
+	if carrier != null:
+		carrier.release_freeze_static(reason)
+		return
 	if not _freeze_reasons.has(reason):
 		return
 	_freeze_reasons.erase(reason)
@@ -658,6 +686,9 @@ func release_freeze_static(reason: StringName) -> void:
 ## for a caller that only wants to know the aggregate state (e.g. a test)
 ## without reaching into the private reason set itself.
 func is_freeze_static() -> bool:
+	var carrier: Block = _live_carrier()
+	if carrier != null:
+		return carrier.is_freeze_static()
 	return not _freeze_reasons.is_empty()
 
 
@@ -672,4 +703,72 @@ func is_freeze_static() -> bool:
 ## stub) is left exactly as it was, the same reason-keyed independence
 ## request_freeze_static()/release_freeze_static() already give every caller.
 func wake_for_impulse() -> void:
+	var carrier: Block = _live_carrier()
+	if carrier != null:
+		carrier.wake_for_impulse()
+		return
 	release_freeze_static(FREEZE_REASON_STABLE)
+
+
+# --- Glue fusion follower state (docs/GLUE_FUSION_PLAN.md WP1) -----------------
+
+## The live carrier while this Block is a follower, else null (a freed carrier
+## drops the reference instead of dangling).
+func _live_carrier() -> Block:
+	if _fused_carrier != null and not is_instance_valid(_fused_carrier):
+		_fused_carrier = null
+	return _fused_carrier
+
+
+func fused_carrier() -> RigidBody3D:
+	return _live_carrier()
+
+
+func is_fused_member() -> bool:
+	return _live_carrier() != null
+
+
+## A follower's sleep flag is its carrier's (its own frozen body never sleeps for real).
+func net_sleeping() -> bool:
+	var carrier: Block = _live_carrier()
+	if carrier != null:
+		return carrier.net_sleeping()
+	return sleeping
+
+
+## Called by FusedBody after it took this Block's collision shapes: no shapes, no
+## layers, kinematic freeze, `com` (this Block's local centre of mass, captured
+## before its shapes left) pinned so territory circles keep reading it. `mass`
+## stays (tilt-from-weight and force maths read it per member).
+func become_follower(carrier: Block, com: Vector3) -> void:
+	_pre_fuse_layer = collision_layer
+	_pre_fuse_mask = collision_mask
+	_fused_carrier = carrier
+	collision_layer = 0
+	collision_mask = 0
+	contact_monitor = false
+	center_of_mass_mode = RigidBody3D.CENTER_OF_MASS_MODE_CUSTOM
+	center_of_mass = com
+	freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+	freeze = true
+	_freeze_reasons.clear()
+	linear_velocity = Vector3.ZERO
+	angular_velocity = Vector3.ZERO
+	_apply_awake(false)
+
+
+## Merging two groups: the Block keeps its follower state, only the carrier changes.
+func retarget_follower(carrier: Block) -> void:
+	_fused_carrier = carrier
+
+
+## Undoes become_follower(): the shapes are back on this Block (FusedBody did that),
+## so the body is an ordinary dynamic Block again at its current pose.
+func release_follower() -> void:
+	_fused_carrier = null
+	collision_layer = _pre_fuse_layer
+	collision_mask = _pre_fuse_mask
+	center_of_mass_mode = RigidBody3D.CENTER_OF_MASS_MODE_AUTO
+	freeze = false
+	_release_checked = true
+	_apply_awake(true)

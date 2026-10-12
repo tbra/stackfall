@@ -69,15 +69,9 @@ func _block(net_id: int) -> Block:
 	return block
 
 
-func _glue(a: Block, b: Block) -> GlueJoint:
-	var drops: GlueDrops = GlueDrops.new()
-	a.add_child(drops)
-	drops.bind(a, _tuning)
-	assert_true(drops.try_bond(b))
-	for child: Node in a.get_children():
-		if child is GlueJoint:
-			return child as GlueJoint
-	return null
+## Fuses `a` (charged) with `b` through the real GlueFusion path.
+func _glue(a: Block, b: Block) -> FusedBody:
+	return GlueFusion.fuse(a, b, _tuning)
 
 
 func _glued_events(messages: Array[Array]) -> Array:
@@ -88,49 +82,57 @@ func _glued_events(messages: Array[Array]) -> Array:
 	return found
 
 
-func test_host_coats_glued_pair_and_removes_coat_when_bond_breaks() -> void:
+func test_host_coats_fused_pair_and_uncoats_the_survivor_when_a_member_is_removed() -> void:
 	var net: MatchNetScript = _make_net(false)
 	_start_playing()
 	var a: Block = _block(201)
 	var b: Block = _block(202)
-	var bond: GlueJoint = _glue(a, b)
+	var carrier: FusedBody = _glue(a, b)
+	assert_not_null(carrier)
 	assert_true(HoneyCoat.is_coated(a))
 	assert_true(HoneyCoat.is_coated(b))
 	assert_eq(int(net.replicated_event_counts.get(MatchNetScript.EVENT_BLOCK_GLUED, 0)), 2)
 	var coat_mesh: MeshInstance3D = a.get_node("BlockMesh").get_node(HoneyCoat.COAT_NODE_NAME) as MeshInstance3D
 	assert_not_null(coat_mesh.material_override)
-	bond.apply_stress_sample(INF)
+	carrier.remove_member(a, &"hole")
 	await get_tree().process_frame
-	assert_false(HoneyCoat.is_coated(a))
-	assert_false(HoneyCoat.is_coated(b))
-	assert_eq(int(net.replicated_event_counts.get(MatchNetScript.EVENT_BLOCK_GLUED, 0)), 4)
+	assert_false(HoneyCoat.is_coated(b), "survivor collapsed to a lone block -> coat removed")
+	assert_eq(int(net.replicated_event_counts.get(MatchNetScript.EVENT_BLOCK_GLUED, 0)), 3)
+	assert_true(net._fused_ids.is_empty())
 
 
-func test_two_bonds_keep_the_coat_until_the_last_one_ends() -> void:
-	_make_net(false)
+func test_third_block_joining_a_group_is_coated_once() -> void:
+	var net: MatchNetScript = _make_net(false)
 	_start_playing()
 	var a: Block = _block(211)
 	var b: Block = _block(212)
 	var c: Block = _block(213)
-	var first: GlueJoint = _glue(a, b)
-	_glue(a, c)
-	first.apply_stress_sample(INF)
-	await get_tree().process_frame
-	assert_true(HoneyCoat.is_coated(a), "a still holds a bond to c")
-	assert_false(HoneyCoat.is_coated(b))
+	_glue(a, b)
+	_glue(c, a)
+	assert_true(HoneyCoat.is_coated(a))
+	assert_true(HoneyCoat.is_coated(b))
 	assert_true(HoneyCoat.is_coated(c))
+	assert_eq(int(net.replicated_event_counts.get(MatchNetScript.EVENT_BLOCK_GLUED, 0)), 3, "one coat event per member")
+	assert_eq(net._fused_ids.size(), 3)
 
 
-func test_destroyed_block_uncoats_its_partner() -> void:
-	_make_net(false)
+func test_removed_member_leaves_the_fused_set_and_replicates_its_despawn() -> void:
+	var net: MatchNetScript = _make_net(false)
 	_start_playing()
 	var a: Block = _block(221)
 	var b: Block = _block(222)
+	var c: Block = _block(223)
 	_glue(a, b)
-	b.free()
-	await get_tree().physics_frame
-	await get_tree().physics_frame
-	assert_false(HoneyCoat.is_coated(a))
+	_glue(c, a)
+	var carrier: FusedBody = a.fused_carrier() as FusedBody
+	carrier.remove_member(b, &"hole")
+	assert_false(net._fused_ids.has(222))
+	assert_true(net._fused_ids.has(221), "the rest of the group stays fused and coated")
+	assert_true(HoneyCoat.is_coated(a))
+	carrier.remove_all_members(&"kill_plane")
+	assert_true(net._fused_ids.is_empty())
+	assert_true(a.is_queued_for_deletion(), "kill plane removes every remaining member")
+	assert_true(c.is_queued_for_deletion())
 
 
 func test_client_mirror_applies_event_late_join_replay_and_removal() -> void:
@@ -138,7 +140,7 @@ func test_client_mirror_applies_event_late_join_replay_and_removal() -> void:
 	_start_playing()
 	var a: Block = _block(231)
 	var b: Block = _block(232)
-	var bond: GlueJoint = _glue(a, b)
+	var bond: FusedBody = _glue(a, b)
 	var replay: Array[Array] = host.build_world_replay()
 	assert_eq(_glued_events(replay), [[231, true], [232, true]], "late joiners are told the current glued set")
 	host.set_providers(null, null)
@@ -185,9 +187,9 @@ func test_charged_drop_is_coated_at_spawn_and_replayed_to_late_joiners() -> void
 	var b: Block = _block(252)
 	assert_true(drops.try_bond(b))
 	assert_true(HoneyCoat.is_coated(a))
-	for child: Node in a.get_children():
-		if child is GlueJoint:
-			(child as GlueJoint).apply_stress_sample(INF)
+	assert_eq(_glued_events(host.build_world_replay()), [[251, true], [252, true]])
+	var carrier: FusedBody = a.fused_carrier() as FusedBody
+	carrier.remove_member(b, &"hole")
 	await get_tree().process_frame
-	assert_false(HoneyCoat.is_coated(a), "bond ended -> coat removed")
+	assert_false(HoneyCoat.is_coated(a), "group ended -> survivor coat removed")
 	assert_eq(_glued_events(host.build_world_replay()), [])
