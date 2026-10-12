@@ -159,18 +159,27 @@ static func _on_release_timeout(target: Block, timer: Timer) -> void:
 static func release_hold(target: Block) -> void:
 	if target == null or not is_instance_valid(target):
 		return
-	for node_name: StringName in [TIMER_NAME, RIDER_NAME]:
-		var node: Node = target.get_node_or_null(NodePath(node_name))
-		if node != null:
-			target.remove_child(node)
-			node.queue_free()
-	if not target.is_frozen_visual() and not target.is_freeze_static():
+	# Glue fusion: a member's hold lives on its carrier (transfer_hold), so the timer and rider
+	# are cleared there too; the carrier's freeze reason is what actually holds the group.
+	var holder: Block = target
+	var carrier: Block = target.fused_carrier() as Block
+	if carrier != null and is_instance_valid(carrier):
+		holder = carrier
+	for owner_node: Block in [target, holder]:
+		for node_name: StringName in [TIMER_NAME, RIDER_NAME]:
+			var node: Node = owner_node.get_node_or_null(NodePath(node_name))
+			if node != null:
+				owner_node.remove_child(node)
+				node.queue_free()
+	if not target.is_frozen_visual() and not holder.is_frozen_visual() and not target.is_freeze_static():
 		return
-	target.release_freeze_static(FREEZE_REASON)
+	holder.release_freeze_static(FREEZE_REASON)
 	_set_visual(target, false)
+	if holder != target:
+		_set_visual(holder, false)
 	# Glue fusion: a group's followers carry the overlay (duck-typed, no FusedBody edge).
-	if target.has_method(&"members_in_sphere"):
-		for member: Block in (target.get(&"members") as Array):
+	if holder.has_method(&"members_in_sphere"):
+		for member: Block in (holder.get(&"members") as Array):
 			if is_instance_valid(member) and member.is_frozen_visual():
 				_set_visual(member, false)
 

@@ -648,3 +648,29 @@ func test_gating_unchanged_peers_follow_normal_cadence() -> void:
 	_tick_for(stub, 1.0)
 	var per_second: int = stub.selections - before
 	assert_between(per_second, 1, int(ceil(stub.config.snapshot_hz)) + 1, "sends at snapshot_hz cadence")
+
+
+func test_fused_carrier_is_never_selected_only_its_followers() -> void:
+	var tuning: GlueDropTuning = load("res://config/glue_drop_tuning.tres")
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var physics: PhysicsTuning = load("res://config/physics_tuning.tres")
+	var root: Node3D = autofree(Node3D.new())
+	add_child_autofree(root)
+	var blocks: Array[Block] = []
+	for index: int in range(2):
+		var block: Block = BlockFactory.build(shape, physics, 0)
+		block.net_id = 500 + index
+		root.add_child(block)
+		block.global_position = _host_field.to_global(Vector3(float(index) * 1.2, 4.0, 0.0))
+		blocks.append(block)
+	var carrier: FusedBody = GlueFusion.fuse(blocks[0], blocks[1], tuning)
+	assert_not_null(carrier)
+	assert_lte(carrier.net_id, 0, "the carrier never gets a net_id")
+	for body: Block in [carrier, blocks[0], blocks[1]]:
+		_client_sync.call("_track", body)
+	var selection: Dictionary = _client_sync.call("_select_bodies")
+	var ids: Array[int] = []
+	for entry: Variant in (selection["bodies"] as Array):
+		ids.append(int((entry as Dictionary)["net_id"]))
+	assert_false(ids.has(carrier.net_id) or ids.has(-1) or ids.has(0), "carrier is not replicated as its own body")
+	assert_true(ids.has(500) and ids.has(501), "followers are")

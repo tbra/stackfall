@@ -8,3 +8,4 @@ max_contacts_reported = 16
 absorb_impact = true
 max_fused_cubes = 0
 fuse_window_s = 0.25
+anchor_rest_ticks = 6

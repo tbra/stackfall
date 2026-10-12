@@ -427,3 +427,70 @@ func test_kill_plane_style_removal_keeps_shapes_until_the_body_is_freed() -> voi
 	assert_eq(_shape_count(carrier), shapes_before, "shapes are not removed inside the (area) callback")
 	await _frames(3)
 	assert_false(is_instance_valid(carrier))
+
+
+# --- Carry fixes (Bontago-1pi.85.74.8) ---
+
+func test_resting_anchored_group_reports_sleeping_and_a_tilt_wakes_it() -> void:
+	var setup: Dictionary = _anchored_stack(2)
+	var carrier: FusedBody = setup["carrier"]
+	var blocks: Array[Block] = setup["blocks"]
+	assert_false(carrier.net_sleeping(), "just anchored: not yet at rest")
+	await _frames(_tuning.anchor_rest_ticks + 3)
+	assert_true(carrier.net_sleeping(), "a resting anchored group stops costing snapshot bandwidth")
+	assert_true(blocks[1].net_sleeping(), "followers report the carrier's rest state")
+	assert_true(blocks[1].is_contributing_visual(), "host glow follows the carrier, not the follower's own signal")
+	_field.set_tilt_enabled(true)
+	_field.apply_tilt_impulse(Vector2(1.0, 0.0), TILT_KICK)
+	await _frames(3)
+	assert_false(carrier.net_sleeping(), "disc tilt wakes the anchored group so clients follow")
+	assert_false(blocks[1].is_contributing_visual())
+
+
+func test_refresh_anchor_pose_poses_followers_from_the_disc_of_the_same_tick() -> void:
+	var setup: Dictionary = _anchored_stack(2)
+	var carrier: FusedBody = setup["carrier"]
+	var blocks: Array[Block] = setup["blocks"]
+	await _frames(2)
+	var local: Vector3 = _field.to_local(blocks[1].global_position)
+	_field.set_tilt_enabled(true)
+	_field.apply_tilt_impulse(Vector2(1.0, 0.0), TILT_KICK)
+	await _frames(5)
+	# Move the disc by hand: before the carrier's own (later) tick, refresh must catch up.
+	_field.global_transform = _field.global_transform.rotated_local(Vector3.RIGHT, 0.05)
+	carrier.refresh_anchor_pose()
+	assert_lt(_field.to_local(blocks[1].global_position).distance_to(local), ANCHOR_DRIFT_M, "no one-tick lag behind the disc")
+
+
+func test_release_hold_on_a_member_clears_the_carrier_timer_and_rider() -> void:
+	var pair: Array[Block] = _air_pair()
+	var carrier: FusedBody = _fuse(pair[0], pair[1])
+	var effect: FreezeEffect = FreezeEffect.new()
+	effect.freeze_block(carrier, _field)
+	assert_not_null(carrier.get_node_or_null(NodePath(FreezeEffect.TIMER_NAME)))
+	FreezeEffect.release_hold(pair[1])
+	assert_null(carrier.get_node_or_null(NodePath(FreezeEffect.TIMER_NAME)), "no stale timer for the rest of the duration")
+	assert_null(carrier.get_node_or_null(NodePath(FreezeEffect.RIDER_NAME)))
+	assert_false(carrier.is_freeze_static())
+	assert_false(pair[0].is_frozen_visual())
+
+
+func test_leaving_the_anchor_keeps_a_riding_freeze_hold_kinematic() -> void:
+	var setup: Dictionary = _anchored_stack(3)
+	var carrier: FusedBody = setup["carrier"]
+	var blocks: Array[Block] = setup["blocks"]
+	var effect: FreezeEffect = FreezeEffect.new()
+	effect.freeze_block(carrier, _field)
+	carrier.remove_member(blocks[0], &"hole")
+	assert_false(carrier.is_disc_anchored())
+	assert_true(carrier.freeze and carrier.freeze_mode == RigidBody3D.FREEZE_MODE_KINEMATIC, "a Freeze hold rides the disc kinematic")
+
+
+func test_shape_edits_stamp_the_frame_so_contact_attribution_can_skip_it() -> void:
+	var setup: Dictionary = _anchored_stack(3)
+	var carrier: FusedBody = setup["carrier"]
+	var blocks: Array[Block] = setup["blocks"]
+	await _frames(2)
+	assert_ne(carrier.shape_change_frame, Engine.get_physics_frames())
+	carrier.remove_member(blocks[2], &"hole")
+	assert_eq(carrier.shape_change_frame, Engine.get_physics_frames())

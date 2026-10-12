@@ -89,6 +89,10 @@ func _window_tick(delta: float) -> void:
 ## Bodies touching the charged block's own shapes (not the rest of the carrier).
 func _own_contacts(carrier: FusedBody) -> Array[Node3D]:
 	var result: Array[Node3D] = []
+	# Contact shape indices predate this frame's shape edits (a member left, a merge): skip a tick
+	# rather than attribute a contact to the wrong member's shape.
+	if carrier.shape_change_frame == Engine.get_physics_frames():
+		return result
 	var state: PhysicsDirectBodyState3D = PhysicsServer3D.body_get_direct_state(carrier.get_rid())
 	if state == null:
 		return result
