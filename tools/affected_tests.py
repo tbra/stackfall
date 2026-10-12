@@ -10,6 +10,9 @@ script/resource basenames, plus the `class_name` of every changed/added .gd scri
 line is unchanged), drops noise (under 4 chars, common GDScript words), and searches
 tests/**/*.gd for whole-word references (string literals such as find_children("*", "Foo") count). Tests that are part of the diff are listed and marked
 [changed]. Prints a compact list, a totals line and a ready-to-run tools/run_gut.ps1 line.
+Changes under ui/components/**, ui/Lobby*, ui/lobby/**, ui/MainMenu* or ui/HUD* also add the
+cross-screen UI suites (UI_CROSS_SUITES; Bontago-fca.94), whatever identifiers matched, and the
+output reminds you to run `python tools/lint_all.py` (includes lint_ui_components).
 Exit 0 unless git fails.
 """
 import argparse
@@ -38,6 +41,12 @@ Script script tree Main main current headless live Stackfall status boot test be
 after_each before_all after_all assert_eq assert_true assert_false assert_not_null
 get_tree get_node add_child queue_free emit connect
 """.split())
+
+# Bontago-fca.94: screen-spanning suites that broke gates when a worker changed shared UI.
+UI_CROSS_PREFIXES = ("ui/components/", "ui/lobby/", "ui/Lobby", "ui/MainMenu", "ui/HUD")
+UI_CROSS_SUITES = ("tests/unit/test_ui_reskin_integration.gd", "tests/unit/test_mode_polish.gd",
+                   "tests/unit/test_build_version.gd")
+UI_CROSS_NAME = "ui-cross-screen"
 
 GD_DECL = re.compile(
     r"^\s*(?:@\w+(?:\([^)]*\))?\s+)*(?:static\s+)?(?:func|var|const|signal|enum|class_name|class)\s+(\w+)")
@@ -192,11 +201,27 @@ def apply_fanout(results, max_fanout):
     return out, broad
 
 
+def add_ui_cross_suites(repo, results, paths):
+    """Append UI_CROSS_SUITES when any changed path matches UI_CROSS_PREFIXES."""
+    if not any(p.startswith(UI_CROSS_PREFIXES) for p in paths):
+        return results
+    by_file = {r["file"]: r for r in results}
+    for rel in UI_CROSS_SUITES:
+        if rel in by_file:
+            if UI_CROSS_NAME not in by_file[rel]["names"]:
+                by_file[rel]["names"].append(UI_CROSS_NAME)
+        elif os.path.exists(os.path.join(repo, rel)):
+            results.append({"file": rel, "changed": rel in paths, "names": [UI_CROSS_NAME]})
+    results.sort(key=lambda r: r["file"])
+    return results
+
+
 def analyse(repo, base=None, max_fanout=DEFAULT_MAX_FANOUT):
     base = base or default_base(repo)
     lines, paths = changed_lines(repo, base)
     ids = collect_identifiers(lines, paths, repo)
     results, broad = apply_fanout(find_tests(repo, ids, paths), max_fanout)
+    results = add_ui_cross_suites(repo, results, paths)
     return base, ids, results, broad
 
 
@@ -221,6 +246,8 @@ def format_text(base, ids, results, path_arg, broad=None):
         out.append("%s%s: %s" % (r["file"], " [changed]" if r["changed"] else "", shown))
     for n, c in sorted((broad or {}).items()):
         out.append("BROAD %s (%d tests)" % (n, c))
+    if any(UI_CROSS_NAME in r["names"] for r in results):
+        out.append("UI change: also run `python tools/lint_all.py` (lint_ui_components) before handback")
     out.append("AFFECTED base=%s identifiers=%d tests=%d" % (base[:10], len(ids), len(results)))
     run = gut_line(results, path_arg)
     if run:
