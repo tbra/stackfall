@@ -15,10 +15,8 @@ extends Block
 const ANCHOR_PROCESS_PRIORITY: int = 10
 ## Owner-scan sentinel: no member seen yet (distinct from -1, the real "no owner").
 const SLOT_UNSET: int = -2
-## Physics ticks an anchored carrier's disc-relative pose must stay unchanged before the group
-## reports `net_sleeping()` (so a resting anchored group stops costing snapshot bandwidth; a disc
-## tilt resets it at once). DECISION: structural constant, ~0.1 s at 60 Hz.
-const ANCHOR_REST_TICKS: int = 6
+## Anchored-rest tick count lives in GlueDropTuning.anchor_rest_ticks.
+const GLUE_TUNING_PATH: String = "res://config/glue_drop_tuning.tres"
 ## Mirrors SnowCaps.LUMP_META (no class edge: it would grow the layer-lint cycle); test-pinned.
 const SNOW_LUMP_META: StringName = &"snow_lump"
 
@@ -39,8 +37,10 @@ var _last_sync_linear: Vector3 = Vector3.ZERO
 var _last_sync_angular: Vector3 = Vector3.ZERO
 var _synced_once: bool = false
 var _synced_frame: int = -1
-## Consecutive physics ticks the anchored carrier pose has not changed (see ANCHOR_REST_TICKS).
+## Consecutive physics ticks the anchored carrier pose has not changed (see GlueDropTuning.anchor_rest_ticks).
 var _anchor_still_ticks: int = 0
+var _anchor_refresh_frame: int = -1
+var _rest_ticks: int = -1
 var _anchor_prev_xform: Transform3D = Transform3D.IDENTITY
 ## Physics frame of the last add/remove of a collision shape: contact shape indices read from
 ## the physics state predate it (GlueDrops skips attribution that frame).
@@ -149,11 +149,19 @@ func refresh_owner() -> void:
 	_refresh_mass_and_owner()
 
 
-## A disc-anchored group is "asleep" once the disc has not moved it for ANCHOR_REST_TICKS ticks;
+## Loaded lazily (no preload: it would pull the tuning into the Main scene closure, layer lint).
+func _anchor_rest_ticks() -> int:
+	if _rest_ticks < 0:
+		var tuning: Resource = load(GLUE_TUNING_PATH)
+		_rest_ticks = int(tuning.get(&"anchor_rest_ticks")) if tuning != null else 1
+	return _rest_ticks
+
+
+## A disc-anchored group is "asleep" once the disc has not moved it for anchor_rest_ticks ticks;
 ## a tilt (pose change) wakes it so clients keep following the disc.
 func net_sleeping() -> bool:
 	if is_disc_anchored():
-		return _anchor_still_ticks >= ANCHOR_REST_TICKS
+		return _anchor_still_ticks >= _anchor_rest_ticks()
 	return sleeping
 
 
@@ -472,7 +480,7 @@ func _batch_tick(frame: int, physics_active: bool, damp_on: bool, damp: float, n
 
 func _physics_process(_delta: float) -> void:
 	if is_disc_anchored():
-		refresh_anchor_pose()
+		_pose_from_disc()
 		if global_transform == _anchor_prev_xform:
 			_anchor_still_ticks += 1
 		else:
@@ -489,6 +497,16 @@ func _physics_process(_delta: float) -> void:
 func refresh_anchor_pose() -> void:
 	if not is_disc_anchored():
 		return
+	# Once per carrier per tick (SnapshotSync asks once per follower); the carrier's own tick
+	# (_physics_process) re-poses unconditionally via _pose_from_disc().
+	var frame: int = Engine.get_physics_frames()
+	if _anchor_refresh_frame == frame:
+		return
+	_anchor_refresh_frame = frame
+	_pose_from_disc()
+
+
+func _pose_from_disc() -> void:
 	if is_disc_anchored_field_set():
 		global_transform = anchor_field.global_transform * anchor_local
 	sync_followers()

@@ -436,7 +436,7 @@ func test_resting_anchored_group_reports_sleeping_and_a_tilt_wakes_it() -> void:
 	var carrier: FusedBody = setup["carrier"]
 	var blocks: Array[Block] = setup["blocks"]
 	assert_false(carrier.net_sleeping(), "just anchored: not yet at rest")
-	await _frames(FusedBody.ANCHOR_REST_TICKS + 3)
+	await _frames(_tuning.anchor_rest_ticks + 3)
 	assert_true(carrier.net_sleeping(), "a resting anchored group stops costing snapshot bandwidth")
 	assert_true(blocks[1].net_sleeping(), "followers report the carrier's rest state")
 	assert_true(blocks[1].is_contributing_visual(), "host glow follows the carrier, not the follower's own signal")

@@ -20,3 +20,6 @@ extends Resource
 ## After the first fuse the carrier keeps fusing what it touches for this long (s), so a block
 ## bridging two stacks sticks to both (joint-era parity); 0 = the first contact tick only.
 @export_range(0.0, 2.0, 0.05) var fuse_window_s: float = 0.25
+## A disc-anchored group reports "asleep" (no snapshot bandwidth) once the disc has not moved it
+## for this many physics ticks; a disc tilt wakes it at once.
+@export_range(1, 120, 1) var anchor_rest_ticks: int = 6
