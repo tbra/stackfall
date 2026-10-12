@@ -7,7 +7,9 @@ extends Button
 ## is exactly as tall as every other item of its row. A full-size button keeps the standard
 ## padding and is not a row item.
 
-enum Look { PRIMARY, SECONDARY, MINT, RIM }
+## DANGER is a SECONDARY block with an alert-coloured label (a destructive action that is always
+## followed by a confirm, e.g. Leave match).
+enum Look { PRIMARY, SECONDARY, MINT, RIM, DANGER }
 
 const STATES: PackedStringArray = ["normal", "hover", "pressed", "hover_pressed", "disabled"]
 
@@ -52,7 +54,9 @@ static func style(button: Button, variant_value: Look, small_block: bool = true)
 	MenuStyleFactory.apply_block(button, face, MenuStyleFactory.ink_for_face(face), small_block)
 	var font_px: int = arcade.font_size_button_sm_px if small_block else arcade.font_size_button_px
 	button.add_theme_font_size_override("font_size", font_px)
-	if variant_value == Look.SECONDARY:
+	if variant_value == Look.DANGER:
+		MenuStyleFactory.apply_ink(button, arcade.alert_color)
+	if variant_value == Look.SECONDARY or variant_value == Look.DANGER:
 		_show_pressed_face(button, face, small_block, arcade)
 	if small_block:
 		fit_row_height(button, arcade)

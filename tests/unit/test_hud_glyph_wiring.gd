@@ -1,10 +1,8 @@
 extends GutTest
 ## Bontago-mp0.124 part B: HUD feedback pictograms (HudFeedbackIconTable) and
-## InputGlyph stick/chord glyphs (InputGlyphTable) resolve and are used.
+## InputGlyph stick/chord glyphs are drawn.
 
 const INPUT_GLYPH_SCENE: PackedScene = preload("res://ui/InputGlyph.tscn")
-const STICK_SIDES: Array[StringName] = [&"left", &"right"]
-const STICK_DIRECTIONS: Array[StringName] = [&"up", &"down", &"left", &"right"]
 
 
 func _make_hud() -> HUD:
@@ -62,56 +60,47 @@ func test_hud_reject_and_relocated_use_their_own_icons() -> void:
 	assert_eq(hud._reject_icon.texture, table.relocated)
 
 
-func test_stick_direction_glyphs_resolve_and_are_used() -> void:
-	var table: InputGlyphTable = InputGlyphTable.shared()
-	for side: StringName in STICK_SIDES:
-		assert_not_null(table.stick_click(side), "click %s" % side)
-		for direction: StringName in STICK_DIRECTIONS:
-			assert_not_null(table.stick_direction(side, direction), "%s %s" % [side, direction])
+func test_stick_direction_glyphs_name_the_direction() -> void:
 	var cases: Array = [
-		[JOY_AXIS_LEFT_X, -1.0, &"left", &"left"], [JOY_AXIS_LEFT_X, 1.0, &"left", &"right"],
-		[JOY_AXIS_LEFT_Y, -1.0, &"left", &"up"], [JOY_AXIS_RIGHT_Y, 1.0, &"right", &"down"],
+		[JOY_AXIS_LEFT_X, -1.0, "left"], [JOY_AXIS_LEFT_X, 1.0, "right"],
+		[JOY_AXIS_LEFT_Y, -1.0, "up"], [JOY_AXIS_RIGHT_Y, 1.0, "down"],
 	]
 	for case: Array in cases:
 		var glyph: InputGlyph = _make_glyph()
 		glyph.set_event(_motion(case[0] as JoyAxis, case[1] as float))
-		assert_eq(glyph.glyph_texture(), table.stick_direction(case[2] as StringName, case[3] as StringName))
+		assert_true(glyph.label_text().ends_with(case[2] as String), glyph.label_text())
 
 
-func test_stick_click_uses_click_glyph_and_undirected_axis_keeps_base_stick() -> void:
-	var table: InputGlyphTable = InputGlyphTable.shared()
+func test_stick_click_and_undirected_axis_are_stick_pictograms() -> void:
 	var glyph: InputGlyph = _make_glyph()
 	glyph.set_event(_button(JOY_BUTTON_RIGHT_STICK))
-	assert_eq(glyph.glyph_texture(), table.stick_click(&"right"))
+	assert_eq(glyph.label_text(), "R3")
+	assert_false(glyph.is_arcade_cap(), "the stick is a pictogram")
 	var axis_glyph: InputGlyph = _make_glyph()
 	axis_glyph.set_event(_motion(JOY_AXIS_LEFT_X, 0.0))
-	assert_ne(axis_glyph.glyph_texture(), null)
-	assert_ne(axis_glyph.glyph_texture(), table.stick_direction(&"left", &"left"))
+	assert_eq(axis_glyph.label_text(), "L Stick")
 
 
-func test_chords_use_combo_art_in_any_order() -> void:
-	var table: InputGlyphTable = InputGlyphTable.shared()
+func test_chords_join_their_labels_in_event_order() -> void:
 	var lb_rb: Array[InputEvent] = [_button(JOY_BUTTON_RIGHT_SHOULDER), _button(JOY_BUTTON_LEFT_SHOULDER)]
 	var glyph: InputGlyph = _make_glyph()
 	glyph.set_chord(lb_rb)
-	assert_eq(glyph.glyph_texture(), table.combos["lb+rb"])
 	assert_eq(glyph.label_text(), "RB+LB")
+	assert_true(glyph.is_arcade_cap())
 	var rt_stick: Array[InputEvent] = [_motion(JOY_AXIS_TRIGGER_RIGHT, 1.0), _motion(JOY_AXIS_RIGHT_X, 0.0)]
 	var glyph2: InputGlyph = _make_glyph()
 	glyph2.set_chord(rt_stick)
-	assert_eq(glyph2.glyph_texture(), table.combos["rt+stick_right"])
 	assert_gt(glyph2.custom_minimum_size.x, InputGlyph.GLYPH_HEIGHT_PX)
 	var no_combo: Array[InputEvent] = [_button(JOY_BUTTON_A), _button(JOY_BUTTON_B)]
 	var glyph3: InputGlyph = _make_glyph()
 	glyph3.set_chord(no_combo)
-	assert_not_null(glyph3.glyph_texture(), "unauthored chord falls back to first event's art")
 	assert_eq(glyph3.label_text(), "A+B")
 
 
-func test_keyboard_events_never_use_stick_art() -> void:
+func test_keyboard_events_are_key_caps() -> void:
 	var glyph: InputGlyph = _make_glyph()
 	var key: InputEventKey = InputEventKey.new()
 	key.keycode = KEY_E
 	glyph.set_event(key)
-	for side: StringName in STICK_SIDES:
-		assert_ne(glyph.glyph_texture(), InputGlyphTable.shared().stick_click(side))
+	assert_true(glyph.is_arcade_cap())
+	assert_eq(glyph.label_text(), "E")

@@ -161,9 +161,9 @@ func _apply_visual_style() -> void:
 	($Root/Background as ColorRect).color = scrim
 	_panel.custom_minimum_size.x = float(OPTIONS_TUNING.dialog_width_px)
 	# C4c: the plate is a UiPanel (no heading, the centred UiText title is the heading), the blocks
-	# are UiBlockButtons (Resume primary, the rest secondary). DECISION: Leave match keeps its flare
-	# label as an ink on the secondary block until UiBlockButton grows a DANGER look (named gap).
-	MenuStyleFactory.apply_ink(_leave_button, arcade.alert_color)
+	# are UiBlockButtons (Resume primary, the rest secondary). Leave match is the DANGER look
+	# (a secondary block with an alert label).
+	_leave_button.variant = UiBlockButton.Look.DANGER
 	# DECISION (Bontago-1pi.37): every block's icon follows its label ink in all draw states
 	# (apply_ink covers both), so no per-node icon overrides here.
 

@@ -24,11 +24,11 @@ const PAGE_TEXT: int = 4
 const TEXT_SAMPLES: Dictionary = {
 	UiText.Role.TITLE: "STACKFALL", UiText.Role.HEADING: "MATCH SETTINGS",
 	UiText.Role.BODY: "Drop blocks inside your territory to grow it.",
-	UiText.Role.CAPTION: "28 ms - 2/8 players", UiText.Role.VALUE: "41%",
+	UiText.Role.CAPTION: "28 ms - 2/8 players", UiText.Role.VALUE: "41%", UiText.Role.LABEL: "Rotate",
 }
 const TEXT_ROLE_NAMES: Dictionary = {
 	UiText.Role.TITLE: "TITLE", UiText.Role.HEADING: "HEADING", UiText.Role.BODY: "BODY",
-	UiText.Role.CAPTION: "CAPTION", UiText.Role.VALUE: "VALUE",
+	UiText.Role.CAPTION: "CAPTION", UiText.Role.VALUE: "VALUE", UiText.Role.LABEL: "LABEL",
 }
 const DROPDOWN_CYCLE_ITEMS: PackedStringArray = ["Classic", "Sprint", "Marathon", "Chaos"]
 const DROPDOWN_LIST_ITEMS: PackedStringArray = ["Dawn", "Noon", "Dusk", "Night", "Storm", "Aurora", "Fog"]
@@ -42,7 +42,7 @@ const STEPPER_MID: int = 5
 const STEPPER_FORMATTED: int = 4
 const BLOCK_LOOKS: Dictionary = {
 	"PRIMARY": UiBlockButton.Look.PRIMARY, "SECONDARY": UiBlockButton.Look.SECONDARY,
-	"MINT": UiBlockButton.Look.MINT, "RIM": UiBlockButton.Look.RIM,
+	"MINT": UiBlockButton.Look.MINT, "RIM": UiBlockButton.Look.RIM, "DANGER": UiBlockButton.Look.DANGER,
 }
 const BADGES: Array[Dictionary] = [
 	{"name": "NEUTRAL", "look": UiStatusBadge.Look.NEUTRAL, "text": "VS BOTS", "live": false, "icon": false},

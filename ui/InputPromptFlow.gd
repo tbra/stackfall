@@ -1,5 +1,5 @@
 class_name InputPromptFlow
-extends HFlowContainer
+extends UiFlow
 ## Reusable "hint row"/prompt text control (Bontago-1pi.71): a template string where
 ## `{action}` (or `{a|b|c}` for a group that shares one slot) is replaced by the
 ## InputGlyph of the BOUND Input Map action for the player's ACTIVE device
@@ -20,8 +20,6 @@ const MAX_GLYPHS_PER_TOKEN: int = 1
 const TOKEN_OPEN: String = "{"
 const TOKEN_CLOSE: String = "}"
 const GROUP_SEPARATOR: String = "|"
-## Theme type variation of the action words in the KeyPrompt `label` style (13/800, tracked).
-const LABEL_WORD_VARIATION: StringName = &"FieldLabel"
 ## Fewer words than this in the final run are left unglued.
 const MIN_WORDS_TO_GLUE: int = 2
 const INPUT_GLYPH_SCENE: PackedScene = preload("res://ui/InputGlyph.tscn")
@@ -55,8 +53,8 @@ func _ready() -> void:
 	# sit a normal font space apart; only keycap glyphs get a space_2 gap (_add_gap). Wrapped lines a
 	# space_1 apart, always start-aligned.
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	add_theme_constant_override(&"h_separation", 0)
-	add_theme_constant_override(&"v_separation", arcade.space_1_px)
+	h_gap_px = 0
+	v_gap_px = arcade.space_1_px
 	alignment = FlowContainer.ALIGNMENT_BEGIN
 	last_wrap_alignment = FlowContainer.LAST_WRAP_ALIGNMENT_BEGIN
 	if not Events.input_device_changed.is_connected(_on_input_device_changed):
@@ -180,16 +178,10 @@ func _add_gap() -> void:
 func _add_label(text: String) -> void:
 	# Stackfall Arcade KeyPrompt: the action word is a sand caption-size label unless the host
 	# menu passes its own ink. Plain words are UiText CAPTION; the tracked uppercase `label` style
-	# has no UiText role yet (named gap), so it stays a Label in the theme's FieldLabel variation.
+	# is UiText LABEL.
 	var ink: Color = text_color if text_color.a > 0.0 else UiText.color_for(UiText.Role.BODY)
-	var label: Label = null
-	if label_style:
-		label = Label.new()
-		label.text = text.to_upper()
-		label.theme_type_variation = LABEL_WORD_VARIATION
-		label.add_theme_color_override("font_color", ink)
-	else:
-		label = UiText.make(UiText.Role.CAPTION, text, ink)
+	var role: UiText.Role = UiText.Role.LABEL if label_style else UiText.Role.CAPTION
+	var label: UiText = UiText.make(role, text, ink)
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	add_child(label)

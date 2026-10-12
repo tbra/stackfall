@@ -948,7 +948,7 @@ func test_gift_slot_card_shows_the_keyboard_binding_glyph() -> void:
 	assert_true(event is InputEventKey, "use_gift_slot has a keyboard binding")
 	var reference: InputGlyph = _reference_glyph(event)
 	assert_eq(hud._gift_slot_glyph.label_text(), reference.label_text())
-	assert_not_null(hud._gift_slot_glyph.glyph_texture(), "keycap art is drawn")
+	assert_true(hud._gift_slot_glyph.is_arcade_cap(), "keycap is drawn")
 	assert_eq(hud._gift_slot_glyph_row.get_child_count(), 1)
 	hud._process(0.0)
 	assert_eq(hud._gift_slot_glyph_row.get_child_count(), 1, "an unchanged binding is not rebuilt")
@@ -973,7 +973,7 @@ func test_gift_slot_card_glyph_follows_a_synthetic_joypad_button() -> void:
 	var reference: InputGlyph = _reference_glyph(pad_event)
 	assert_eq(hud._gift_slot_glyph.label_text(), reference.label_text())
 	assert_ne(hud._gift_slot_glyph.label_text(), key_label, "pad glyph replaces the keycap")
-	assert_not_null(hud._gift_slot_glyph.glyph_texture(), "pad art is drawn")
+	assert_true(hud._gift_slot_glyph.is_arcade_cap(), "pad cap is drawn")
 	assert_eq(hud._gift_slot_glyph_row.get_child_count(), 1)
 
 	var release: InputEventJoypadButton = InputEventJoypadButton.new()

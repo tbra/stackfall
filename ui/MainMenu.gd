@@ -339,7 +339,7 @@ func _apply_visual_style() -> void:
 
 ## The vertical gap between the column's blocks.
 func _set_column_gap(gap_px: int) -> void:
-	$Center/Panel/Layout.add_theme_constant_override("separation", gap_px)
+	($Center/Panel/Layout as UiStack).gap_px = gap_px
 
 
 ## The scrim behind the column: disc-900 at the scrim opacity, solid for the first
