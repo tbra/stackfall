@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ChatConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/ChatConfig.gd" id="1_chat"]
+
+[resource]
+script = ExtResource("1_chat")
+enabled = true
+max_chars = 140
+burst = 3
+refill_per_s = 0.5
+duplicate_window_s = 3.0
+notice_min_interval_s = 1.5
+history_lines = 30
+hud_lines = 6
+line_visible_s = 8.0
+fade_s = 1.0

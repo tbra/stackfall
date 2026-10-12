@@ -92,15 +92,11 @@ static func scan_limit(max_length: int) -> int:
 	return maxi(max_length, 1) * SCAN_FACTOR
 
 
-## `raw` with control/format characters removed, trimmed, and cut to
-## `max_length` characters (a non-positive limit means "one character", never
-## "unlimited": the limit is a wire guard). "" when nothing printable remains.
-## Only the first scan_limit(max_length) characters of `raw` are examined, so the
-## cost is bounded however long the string is. ZWNJ/ZWJ survive only between two
-## visible characters.
-static func clean(raw: String, max_length: int) -> String:
-	var limit: int = maxi(max_length, 1)
-	var window: String = raw.substr(0, scan_limit(max_length))
+## `raw` limited to its first `scan_chars` characters with the control, bidi and
+## zero-width characters removed (joiners kept only between visible characters).
+## No trimming or length cut; public so chat (ChatRules) shares the one list.
+static func strip_invisible(raw: String, scan_chars: int) -> String:
+	var window: String = raw.substr(0, maxi(scan_chars, 0))
 	var codes: PackedInt32Array = PackedInt32Array()
 	for index: int in range(window.length()):
 		var code: int = window.unicode_at(index)
@@ -112,6 +108,18 @@ static func clean(raw: String, max_length: int) -> String:
 		if _is_joiner(code) and not _joins_visible_characters(codes, index):
 			continue
 		kept += String.chr(code)
+	return kept
+
+
+## `raw` with control/format characters removed, trimmed, and cut to
+## `max_length` characters (a non-positive limit means "one character", never
+## "unlimited": the limit is a wire guard). "" when nothing printable remains.
+## Only the first scan_limit(max_length) characters of `raw` are examined, so the
+## cost is bounded however long the string is. ZWNJ/ZWJ survive only between two
+## visible characters.
+static func clean(raw: String, max_length: int) -> String:
+	var limit: int = maxi(max_length, 1)
+	var kept: String = strip_invisible(raw, scan_limit(max_length))
 	var trimmed: String = kept.strip_edges()
 	if trimmed.length() > limit:
 		# The cut can leave a joiner (or space) hanging off the end: drop it.
