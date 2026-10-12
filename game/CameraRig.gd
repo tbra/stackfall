@@ -192,6 +192,8 @@ var _start_target: Vector3 = Vector3.ZERO
 
 var _pause_open: bool = false
 var _results_open: bool = false
+## Bontago-1pi.192.5: the chat input line owns the keyboard.
+var _chat_open: bool = false
 
 
 func _ready() -> void:
@@ -199,6 +201,8 @@ func _ready() -> void:
 	Events.special_triggered.connect(_on_special_triggered)
 	Events.pause_menu_opened.connect(_on_pause_menu_opened)
 	Events.pause_menu_closed.connect(_on_pause_menu_closed)
+	Events.chat_input_opened.connect(_on_chat_input_opened)
+	Events.chat_input_closed.connect(_on_chat_input_closed)
 	Events.match_results_ready.connect(_on_match_results_ready)
 	Events.match_scope_reset.connect(_on_match_scope_reset)
 	process_priority = _PROCESS_PRIORITY_AFTER_GHOST
@@ -246,11 +250,19 @@ func _apply_default_view() -> void:
 ## Driven only by the Events bus (pause_menu_*, match_results_ready; cleared by
 ## match_scope_reset and reset_view()), so no UI node is referenced.
 func is_input_blocked() -> bool:
-	return _pause_open or _results_open
+	return _pause_open or _results_open or _chat_open
 
 
 func _on_pause_menu_opened() -> void:
 	_pause_open = true
+
+
+func _on_chat_input_opened() -> void:
+	_chat_open = true
+
+
+func _on_chat_input_closed() -> void:
+	_chat_open = false
 
 
 func _on_pause_menu_closed() -> void:
@@ -262,6 +274,7 @@ func _on_match_results_ready(_results: Dictionary) -> void:
 
 
 func _on_match_scope_reset() -> void:
+	_chat_open = false
 	_pause_open = false
 	_results_open = false
 
@@ -416,6 +429,10 @@ func _process(delta: float) -> void:
 		# mode. That's a minor, documented side effect, not a hard bug.
 		var pan_x: float = Input.get_action_strength(&"camera_pan_right") - Input.get_action_strength(&"camera_pan_left")
 		var pan_z: float = Input.get_action_strength(&"camera_pan_back") - Input.get_action_strength(&"camera_pan_forward")
+		if _chat_open:
+			# Bontago-1pi.192.5: typed W/A/S/D must not pan the legacy free camera.
+			pan_x = 0.0
+			pan_z = 0.0
 		if pan_x != 0.0 or pan_z != 0.0:
 			_target += _pan_offset(Vector2(pan_x, pan_z)) * tuning.pan_speed * delta
 
@@ -492,6 +509,7 @@ func set_home_view(home_position: Vector3, look_at_position: Vector3 = Vector3.Z
 ## sandbox start), so a lobby match after a sandbox session has gamepad Back =
 ## focus home again.
 func reset_view() -> void:
+	_chat_open = false
 	_pause_open = false
 	_results_open = false
 	suppress_pad_home_focus = false

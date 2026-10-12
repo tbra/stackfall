@@ -67,6 +67,7 @@ const DISPLAY_NAMES: Dictionary[StringName, String] = {
 	&"camera_reset": "Reset camera",
 	&"pause_menu": "Pause",
 	&"show_scores": "Show scores (hold)",
+	&"chat_open": "Chat",
 }
 
 ## Bontago-1pi.41 (owner capture of the Options gamepad Controls page: blank
@@ -117,6 +118,8 @@ const PAD_NOT_APPLICABLE: Array[StringName] = [
 	&"camera_mode", &"camera_modifier",
 	&"camera_pan_left", &"camera_pan_right", &"camera_pan_forward", &"camera_pan_back",
 	&"camera_zoom_in", &"camera_zoom_out",
+	# Bontago-1pi.192.5: chat is keyboard only (docs/CHAT_PLAN.md section 4), no pad function.
+	&"chat_open",
 ]
 
 ## Rows hidden on both pages while CameraTuning.snap_enabled is false

@@ -257,14 +257,16 @@ func _on_feed_block_issued(slot_id: int, _shape_id: StringName, _next_shape_id: 
 	# A new piece is in hand (whether following this bot's own placement or
 	# an unrelated auto-drop) -- any candidates already gathered were scored
 	# against the old shape and must not carry over.
-	_countdown = _think_delay_s
+	_countdown = clamp_reaction_s(
+		_think_delay_s, _feed_time_left(), tuning.timer_plan_margin_s, tuning.timer_min_think_s
+	)
 	_think = null
 	# DECISION (Bontago-1t5.2): a freshly fed gift piece is spent after the
 	# short gift_use_delay_s, not the full reaction delay -- a queued gift may
 	# be released before the next ordinary boundary (spec 2.4 gift exception).
 	var match_ref: Variant = _match()
 	if match_ref.has_method("held_special") and StringName(match_ref.held_special(_slot_id)) != &"":
-		_countdown = minf(_think_delay_s, tuning.gift_use_delay_s)
+		_countdown = minf(_countdown, tuning.gift_use_delay_s)
 	_state = State.IDLE
 	_candidates.clear()
 
@@ -359,7 +361,34 @@ func _apply_weather(view: BotWorldView, match_ref: Variant) -> void:
 ## legacy brain's window for the same difficulty (its GENERATING ticks, BotDifficultyProfile.
 ## generation_ticks), so V2 never decides later than legacy (docs/BOT_AI_REDESIGN.md 2.5 E6).
 func think_deadline_ticks() -> int:
-	return tuning.profile_for(_difficulty).generation_ticks(tuning.max_generation_frames)
+	var ticks: int = tuning.profile_for(_difficulty).generation_ticks(tuning.max_generation_frames)
+	return clamp_think_ticks(
+		ticks, _feed_time_left(), tuning.timer_plan_margin_s, int(Engine.physics_ticks_per_second)
+	)
+
+
+## Bontago-1t5.43: seconds left on this slot's block timer; -1.0 when the match exposes none.
+func _feed_time_left() -> float:
+	var match_ref: Variant = _match()
+	if match_ref.has_method("feed_time_left") and not bool(match_ref.has_method("timer_paused") and match_ref.timer_paused(_slot_id)):
+		return float(match_ref.feed_time_left(_slot_id))
+	return -1.0
+
+
+## Bontago-1t5.43: the reaction delay cut so the bot still has min_think_s of think time and the plan
+## lands margin_s before the auto-drop. Unchanged (and exact) while the timer is long enough or unknown
+## (time_left < 0).
+static func clamp_reaction_s(delay_s: float, time_left_s: float, margin_s: float, min_think_s: float) -> float:
+	if time_left_s < 0.0:
+		return delay_s
+	return minf(delay_s, maxf(time_left_s - margin_s - min_think_s, 0.0))
+
+
+## Bontago-1t5.43: the think deadline (physics ticks) cut to the time left before the margin; >= 1.
+static func clamp_think_ticks(ticks: int, time_left_s: float, margin_s: float, ticks_per_s: int) -> int:
+	if time_left_s < 0.0:
+		return ticks
+	return mini(ticks, maxi(floori((time_left_s - margin_s) * float(ticks_per_s)), 1))
 
 
 ## Bot V2 (Bontago-1t5.24): the held special planned against this piece's world snapshot and

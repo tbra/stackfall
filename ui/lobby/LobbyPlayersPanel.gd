@@ -108,6 +108,7 @@ var palette: PackedColorArray = PackedColorArray()
 @onready var _teams_toggle: UiToggle = %TeamsToggle
 @onready var _add_bot_button: UiBlockButton = %AddBotButton
 @onready var _start_blocker_label: Label = %StartBlockerLabel
+@onready var _chat: LobbyChat = %LobbyChat
 
 ## Bontago-hfa.11: the dashed open-seat row after the seat rows (host only, while a seat is free). It holds
 ## %AddBotButton, so it is not one of _player_rows.
@@ -337,6 +338,8 @@ func is_editable() -> bool:
 ## and Add bot button, then per row the colour box, the team button, a bot's difficulty
 ## dropdown and its remove button -- every row for the host, only its own row's colour
 ## box and team button for a client. A disabled header control is no focus stop.
+## The chat edit (and its log) are deliberately NOT listed (docs/CHAT_PLAN.md section 4): chat input is
+## keyboard/mouse only, so a pad can never be trapped in the text field.
 func focus_entries() -> Array[Control]:
 	var entries: Array[Control] = []
 	if _teams_toggle.visible and _teams_toggle.focus_mode != Control.FOCUS_NONE:
@@ -353,6 +356,11 @@ func focus_entries() -> Array[Control]:
 ## The open seat's "+ Add bot" button (a focus stop at the foot of the list while it is usable).
 func add_bot_button() -> UiBlockButton:
 	return _add_bot_button
+
+
+## The lobby chat panel at the foot of the column.
+func chat() -> LobbyChat:
+	return _chat
 
 
 # --- Seat table ------------------------------------------------------------------
