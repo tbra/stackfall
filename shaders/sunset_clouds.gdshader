@@ -9,6 +9,11 @@ shader_type sky;
 // animates smoothly while the radiance only re-renders at SkyRadianceConfig.radiance_hz
 // (a `radiance_tick` write + the cycle's palette/sun writes).
 global uniform float sky_time;
+// Bontago-mp0.153: per-frame disc directions (game/Skybox.gd); a global write does not dirty
+// the material, so the discs move smoothly while the material (light, palette) steps.
+global uniform vec3 sky_sun_dir;
+global uniform vec3 sky_moon_dir;
+uniform float use_global_dirs = 0.0;
 uniform float radiance_tick = 0.0;
 
 
@@ -231,7 +236,7 @@ uniform vec2 proc_upper_scale = vec2(3.6, 2.6);
 
 void sky() {
 	vec3 eyedir = normalize(EYEDIR);
-	vec3 sun_dir = normalize(sun_direction);
+	vec3 sun_dir = normalize(use_global_dirs > 0.5 ? sky_sun_dir : sun_direction);
 	float cos_angle = dot(eyedir, sun_dir);
 	float angle_deg = degrees(acos(clamp(cos_angle, -1.0, 1.0)));
 
@@ -317,7 +322,7 @@ void sky() {
 			aurora_color_low, aurora_color_mid, aurora_color_top) * aurora_intensity * aurora_visibility * exposure;
 	}
 	if (moon_visibility > 0.0 && !AT_CUBEMAP_PASS) {
-		vec3 moon_dir = normalize(moon_direction);
+		vec3 moon_dir = normalize(use_global_dirs > 0.5 ? sky_moon_dir : moon_direction);
 		float moon_cos = dot(eyedir, moon_dir);
 		if (moon_cos > 0.05) {
 			vec3 moon_ref = abs(moon_dir.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
