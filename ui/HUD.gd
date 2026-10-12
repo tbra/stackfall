@@ -101,6 +101,10 @@ var name_provider: Variant = null
 
 @onready var _turn_label: Label = %TurnLabel
 @onready var _timer_ring: Control = %TimerRing
+## The match clock in the top-right corner (UiRoundTimer, Bontago-1pi.159.34).
+var _round_timer: UiRoundTimer = null
+## Seconds the current unlimited match has been live (the round clock counts up from it).
+var _round_played_s: float = 0.0
 @onready var _shape_preview: Control = %ShapePreview
 @onready var _next_shape_preview: Control = %NextShapePreview
 @onready var _next_label: Label = $HeldNextPanel/HeldNextRow/NextColumn/NextLabel
@@ -243,6 +247,7 @@ func _ready() -> void:
 	match_provider = Match
 	_shapes_by_id = _load_shapes_by_id()
 	_timer_ring.draw.connect(_on_timer_ring_draw)
+	_build_round_timer()
 	_shape_preview.draw.connect(_on_shape_preview_draw)
 	_next_shape_preview.draw.connect(_on_next_shape_preview_draw)
 	_capture_ring.draw.connect(_on_capture_ring_draw)
@@ -393,6 +398,7 @@ func _process(delta: float) -> void:
 		var right: Vector3 = basis.x
 		_minimap.set_camera_basis(Vector2(right.x, right.z), Vector2(forward.x, forward.z))
 	_update_gift_markers()
+	_update_round_timer(delta)
 	if match_provider == null or _active_slot < 0:
 		return
 	set_feed_progress(match_provider.feed_progress(_active_slot))
@@ -417,6 +423,47 @@ func _process(delta: float) -> void:
 		set_height(tower_m)
 	set_locked(bool(match_provider.is_release_locked(_active_slot)))
 	_refresh_special_indicator()
+
+
+## Bontago-1pi.159.34 (owner: "Need a round timer component"): the match clock on a hud-plate.
+## Owner 2026-10-12: the round timer sits in the top-right corner, its top aligned with the
+## player-stats backplate and its right edge with the minimap (read from those nodes).
+func _build_round_timer() -> void:
+	var slot: Control = Control.new()
+	slot.name = "RoundTimerSlot"
+	slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slot.anchor_left = 1.0
+	slot.anchor_right = 1.0
+	slot.offset_left = _minimap.offset_right
+	slot.offset_right = slot.offset_left
+	slot.offset_top = _top_left_backplate.offset_top
+	slot.offset_bottom = slot.offset_top
+	slot.theme = _ui_theme
+	add_child(slot)
+	_round_timer = UiRoundTimer.new()
+	_round_timer.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE)
+	_round_timer.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_round_timer.grow_vertical = Control.GROW_DIRECTION_END
+	_round_timer.clear()
+	slot.add_child(_round_timer)
+
+
+## Feeds the round clock from the Match autoload (the host's clock on a client too). Hidden outside
+## live play and in the sandbox.
+func _update_round_timer(delta: float) -> void:
+	if _round_timer == null:
+		return
+	var live: bool = match_provider != null and match_provider.has_method(&"match_timer_left") 		and Match.is_live(Match.state())
+	# get() so a provider without a config (e.g. a countdown-only test double) reads as null.
+	var running_config: Variant = match_provider.get(&"config") if match_provider != null else null
+	if not live or running_config == null or bool(running_config.sandbox):
+		_round_played_s = 0.0
+		_round_timer.clear()
+		return
+	_round_played_s += delta
+	_round_timer.show_match(
+		UiRoundTimer.limit_minutes_for(running_config as MatchConfig),
+		float(match_provider.match_timer_left()), bool(match_provider.sudden_death_active()), _round_played_s)
 
 
 ## Bottom edge of the timer ring in HUD pixels: the Tutorial's tip banner sits just under it.
@@ -746,16 +793,12 @@ static func mode_score_text(state: Dictionary, team_numbers: PackedInt32Array = 
 			parts.append("%d: %s" % [ResultsScreen.team_number_in(team_numbers, team), ResultsScreen.survivor_text(int(scores[team]))])
 		else:
 			parts.append("%d: %s%s" % [ResultsScreen.team_number_in(team_numbers, team), String.num(float(scores[team]), 1), unit])
-	var text: String = "  ".join(parts)
-	var left: int = int(ceil(float(state.get("round_left", 0.0))))
-	if left > 0:
-		text += "   %d:%02d" % [left / 60, left % 60]
-	return text
+	return "  ".join(parts)
 
 
-## Bontago-1pi.25.1: Domination territory race, "Leading: 2 (41%)   9:32" (ties
-## list every leader). The per-team bars above already show each share, so this
-## only adds the leader and the time left. Pure.
+## Bontago-1pi.25.1: Domination territory race, "Leading: 2 (41%)" (ties list every leader). The
+## per-team bars above already show each share, so this only adds the leader; the time left is the
+## UiRoundTimer's (1pi.159.34). Pure.
 static func domination_text(state: Dictionary, team_numbers: PackedInt32Array = PackedInt32Array()) -> String:
 	var scores: Array = state.get("scores", []) as Array
 	if scores.is_empty():
@@ -768,9 +811,6 @@ static func domination_text(state: Dictionary, team_numbers: PackedInt32Array = 
 		if float(scores[team]) >= best - DominationObjective.TIE_EPSILON:
 			leaders.append(str(ResultsScreen.team_number_in(team_numbers, team)))
 	var text: String = "Leading: %s (%.0f%%)" % [" & ".join(leaders), maxf(best, 0.0) * 100.0]
-	var left: int = int(ceil(float(state.get("round_left", 0.0))))
-	if left > 0:
-		text += "   %d:%02d" % [left / 60, left % 60]
 	return text
 
 
@@ -788,21 +828,14 @@ static func row_value_text(state: Dictionary, team: int, share: float) -> String
 	return "%.0f%%" % (share * 100.0)
 
 
-## Bontago-1pi.68: the line under the rows. CTF and Reach the Sky now put their score
-## in the rows, so only the round clock ("3:29", empty when untimed) is left of it;
-## Domination and Elimination keep their existing summary line. Pure.
-## DECISION: the clock stays (a separate small line) so timed modes do not lose their
-## time left; only the per-team numbers moved into the rows.
+## Bontago-1pi.68: the line under the rows. CTF and Reach the Sky put their score in the rows, so
+## nothing is left for them; Domination and Elimination keep their existing summary line. The round
+## clock is no longer part of it: UiRoundTimer in the top-right corner owns it (1pi.159.34). Pure.
 static func mode_status_text(state: Dictionary, team_numbers: PackedInt32Array = PackedInt32Array()) -> String:
 	var mode_id: int = int(state.get("mode_id", -1))
 	if mode_id != MatchConfig.GameMode.CAPTURE_THE_FLAG and mode_id != MatchConfig.GameMode.REACH_THE_SKY:
 		return mode_score_text(state, team_numbers)
-	if (state.get("scores", []) as Array).is_empty():
-		return ""
-	var left: int = int(ceil(float(state.get("round_left", 0.0))))
-	if left <= 0:
-		return ""
-	return "%d:%02d" % [left / 60, left % 60]
+	return ""
 
 
 func _on_mode_state_changed(state: Dictionary) -> void:

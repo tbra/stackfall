@@ -866,7 +866,7 @@ func test_domination_readout_only_in_domination() -> void:
 	var dom: Dictionary = {"mode_id": MatchConfig.GameMode.DOMINATION, "scores": [0.25, 0.41], "extra": {}, "round_left": 125.0}
 	hud._on_mode_state_changed(dom)
 	assert_not_null(hud._mode_score_label)
-	assert_eq(hud._mode_score_label.text, "Leading: 2 (41%)   2:05")
+	assert_eq(hud._mode_score_label.text, "Leading: 2 (41%)")
 	var tied: Dictionary = {"mode_id": MatchConfig.GameMode.DOMINATION, "scores": [0.3, 0.3], "extra": {}, "round_left": 0.0}
 	assert_eq(HUD.mode_score_text(tied), "Leading: 1 & 2 (30%)")
 	var ctf: Dictionary = {"mode_id": MatchConfig.GameMode.CAPTURE_THE_FLAG, "scores": [1.0, 2.0], "extra": {}, "round_left": 0.0}
@@ -1104,7 +1104,7 @@ func test_ctf_rows_show_hold_time_and_no_separate_score_line() -> void:
 	hud._on_mode_state_changed(ctf)
 	assert_eq((hud._share_labels[0] as Label).text, "58.0 s")
 	assert_eq((hud._share_labels[1] as Label).text, "0.0 s")
-	assert_eq(hud._mode_score_label.text, "3:29", "only the round clock remains of the old CTF line")
+	assert_null(hud._mode_score_label, "the round clock moved to the UiRoundTimer; no CTF status line is left")
 	assert_eq(HUD.mode_status_text(ctf).find("58"), -1)
 
 

@@ -301,7 +301,7 @@ func test_client_mirrors_host_scores_for_display_only() -> void:
 	assert_eq(objective.winner(), ModeObjective.NO_TEAM, "a client never decides the outcome")
 	assert_eq(Match.state(), Match.State.PLAYING)
 	assert_eq(shown.size(), 1)
-	assert_eq(HUD.mode_score_text(shown[0]), "1: 7.5  2: 2.0   1:01")
+	assert_eq(HUD.mode_score_text(shown[0]), "1: 7.5  2: 2.0")
 
 
 ## Bontago-1t5.3: the bot goal carries every beacon, held state per own team and the rate.
