@@ -43,6 +43,7 @@ absorbed commits) and the ff proceeds without re-gating; any other delta fails s
 """
 
 import argparse
+import json
 import datetime
 import os
 import re
@@ -233,6 +234,81 @@ def try_resolve_hints(ctx, wt):
     return None
 
 
+UI_BASELINE_PATH = "tools/ui_components_baseline.json"
+UI_LINT_SCRIPT = "tools/lint_ui_components.py"
+
+
+def _parse_baseline(text):
+    """JSON text -> {rule: {file: int}} or None when the shape is unexpected."""
+    try:
+        d = json.loads(text)
+    except ValueError:
+        return None
+    if not isinstance(d, dict):
+        return None
+    for files in d.values():
+        if not isinstance(files, dict):
+            return None
+        for n in files.values():
+            if not isinstance(n, int) or isinstance(n, bool):
+                return None
+    return d
+
+
+def merge_ui_baselines(ours_text, theirs_text, base_text, file_exists=None):
+    """Per-leaf-counter minimum of two ui_components baselines. An entry one side removed
+    relative to base counts as 0 (dropped); an entry only one side has (not in base) is kept.
+    file_exists(path) -> bool drops entries for deleted files. Returns (json_text, None) or
+    (None, reason)."""
+    ours, theirs = _parse_baseline(ours_text), _parse_baseline(theirs_text)
+    if ours is None or theirs is None:
+        return None, "baseline side is not valid {rule: {file: count}} JSON"
+    base = _parse_baseline(base_text) if base_text.strip() else {}
+    if base is None:
+        return None, "base baseline is not valid {rule: {file: count}} JSON"
+    out = {}
+    for rule in sorted(set(ours) | set(theirs)):
+        o, t, b = ours.get(rule, {}), theirs.get(rule, {}), base.get(rule, {})
+        merged = {}
+        for f in sorted(set(o) | set(t)):
+            if f in o and f in t:
+                n = min(o[f], t[f])
+            else:
+                if f in b:
+                    continue  # the other side removed it (lowered to zero)
+                n = o[f] if f in o else t[f]
+            if n <= 0 or (file_exists is not None and not file_exists(f)):
+                continue
+            merged[f] = n
+        out[rule] = merged
+    return json.dumps(out, indent=1, sort_keys=True) + "\n", None
+
+
+def try_resolve_ui_baseline(ctx, wt):
+    """Resolve the conflicted ui baseline in wt, lint it and commit the merge. Returns None on
+    success, else the refusal reason (caller aborts the merge)."""
+    texts = []
+    for stage in (":2:", ":3:", ":1:"):
+        code, text, _ = git(ctx, "uib_stage", wt, "show", stage + UI_BASELINE_PATH)
+        if code != 0 and stage != ":1:":
+            return "cannot read stage %s of the baseline" % stage
+        texts.append(text.replace("\r\n", "\n") if code == 0 else "")
+    merged, reason = merge_ui_baselines(texts[0], texts[1], texts[2],
+                                        lambda f: os.path.exists(os.path.join(wt, f)))
+    if merged is None:
+        return reason
+    with open(os.path.join(wt, UI_BASELINE_PATH), "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(merged)
+    code, _, log = run_cmd(ctx, "uib_lint", [sys.executable, os.path.join(wt, UI_LINT_SCRIPT), "--path", wt],
+                           wt, GIT_TIMEOUT_S)
+    if code != 0:
+        return "ui component lint failed on the merged baseline (log %s)" % log
+    if git(ctx, "uib_add", wt, "add", "--", UI_BASELINE_PATH)[0] != 0 or \
+            git(ctx, "uib_commit", wt, "commit", "--no-edit")[0] != 0:
+        return "could not commit the resolved ui baseline"
+    return None
+
+
 def merge_branches(ctx, wt, branches, beads, say):
     """Merge each branch with --no-ff; a pure-additive hints conflict is auto-resolved, any other
     conflict aborts the merge and raises StepFailed('merge')."""
@@ -249,6 +325,12 @@ def merge_branches(ctx, wt, branches, beads, say):
                 say("  merge: auto-resolved additive %s conflict from %s" % (HINTS_PATH, b))
                 continue
             note = " (hints auto-resolve refused: %s)" % refused
+        elif files == [UI_BASELINE_PATH]:
+            refused = try_resolve_ui_baseline(ctx, wt)
+            if refused is None:
+                say("  merge: auto-resolved %s conflict (per-counter minimum) from %s" % (UI_BASELINE_PATH, b))
+                continue
+            note = " (ui baseline auto-resolve refused: %s)" % refused
         git(ctx, "merge_abort", wt, "merge", "--abort")
         raise StepFailed("merge", "conflict merging %s: %s%s" % (
             b, ", ".join(files[:15]) or text.strip()[:200], note))

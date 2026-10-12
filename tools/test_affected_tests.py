@@ -115,5 +115,27 @@ class AffectedTest(unittest.TestCase):
         self.assertEqual((ids, results), ({}, []))
 
 
+    def test_cross_rules(self):
+        for name, prefixes, suites in at.CROSS_RULES:
+            existing = suites[0]
+            self.write(existing, "func test_x():" + chr(10) + chr(9) + "pass" + chr(10))
+            missing = suites[-1] + ".nope"
+            rules = ((name, prefixes, (existing, missing)),)
+            hit = at.add_cross_suites(self.repo, [], [prefixes[0] + "X.gd"], rules)
+            self.assertEqual(hit, [{"file": existing, "changed": False, "names": [name]}])
+            self.assertEqual(at.add_cross_suites(self.repo, [], ["core/other.gd"], rules), [])
+            pre = [{"file": existing, "changed": False, "names": ["a"]}]
+            out = at.add_cross_suites(self.repo, pre, [prefixes[0] + "X.gd"], rules)
+            self.assertEqual(out[0]["names"], ["a", name])
+
+    def test_cross_rule_names_and_extra_prefixes(self):
+        by = {n: (p, s) for n, p, s in at.CROSS_RULES}
+        self.assertIn("ui/OptionsMenu", by["ui-cross-screen"][0])
+        self.assertIn("tests/unit/test_ui_scaling.gd", by["ui-cross-screen"][1])
+        self.assertIn("tests/unit/test_match_countdown.gd", by["ui-cross-screen"][1])
+        self.assertIn("physics-tuning", by)
+        self.assertIn("tests/unit/test_disc_size.gd", by["beacon-disc"][1])
+
+
 if __name__ == "__main__":
     unittest.main()

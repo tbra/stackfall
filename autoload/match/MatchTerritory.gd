@@ -337,6 +337,8 @@ func _is_clean() -> bool:
 func _advance_clean(delta: float) -> void:
 	_clean_skips += 1
 	_objective.update(_raster, delta)
+	if _objective is EliminationObjective:
+		_tick_home_claims(delta)
 	_finish_objective_step()
 
 
@@ -358,6 +360,8 @@ func _run_clean_legacy_step(delta: float) -> void:
 		for t: int in range(_match.config.team_count()):
 			shares.append(_raster.team_share(t))
 		Events.territory_share_changed.emit(shares)
+	if _objective is EliminationObjective:
+		_tick_home_claims(delta)
 	_finish_objective_step()
 
 
@@ -688,11 +692,13 @@ func _apply(job: TerritorySolveJob) -> void:
 			Events.hole_cells_changed.emit(opened, closed)
 			if opened.size() > 0:
 				_check_home_flags(opened)
+		if _objective is EliminationObjective:
+			_tick_home_claims(job.delta)
 	else:
 		# docs/TERRITORY_V2_PLAN.md, "Home-flag elimination": v2 has no
 		# hole-opened event to drive off, so every step re-reads whether an
 		# enemy area has swallowed each living home flag directly.
-		_check_home_flags_v2()
+		_check_home_flags_v2(job.delta)
 
 	var shares: PackedFloat32Array = PackedFloat32Array()
 	for t: int in range(_match.config.team_count()):
@@ -847,6 +853,9 @@ func circle_render_arrays() -> Dictionary:
 func _check_home_flags(opened: PackedInt32Array) -> void:
 	if not _match._is_host():
 		return
+	if _objective is EliminationObjective:
+		# Bontago-1pi.185: the claim timers run from _tick_home_claims().
+		return
 	var opened_set: Dictionary = {}
 	for cell: int in opened:
 		opened_set[cell] = true
@@ -873,8 +882,11 @@ func _check_home_flags(opened: PackedInt32Array) -> void:
 ## raster.team_at() at a living slot's home cell answers anyone else, that
 ## enemy area has swallowed the flag: eliminate it exactly as the legacy
 ## trigger does, through the one shared _eliminate_slot().
-func _check_home_flags_v2() -> void:
+func _check_home_flags_v2(delta: float = 0.0) -> void:
 	if not _match._is_host():
+		return
+	if _objective is EliminationObjective:
+		_tick_home_claims(delta)
 		return
 	for slot_item: PlayerSlot in _match._lifecycle._slots:
 		if not slot_item.home_flag_alive:
@@ -887,6 +899,55 @@ func _check_home_flags_v2() -> void:
 			_match._lifecycle._eliminate_slot(slot_item.slot_id)
 
 	_match._lifecycle._check_last_team_standing()
+
+
+## [OWNER decision 2026-10-12, Bontago-1pi.185] Elimination: a home flag is
+## knocked out only after the attacker controls it continuously for the claim
+## time (TerritoryTuning.capture_hold, shared with the goal beacons). Pressure is
+## the same trigger the instant knockout used: v2 (HoleMode.OFF) an enemy-owned
+## (or unowned) home cell, the overlap modes a hole at the home cell. The
+## claim progress shows through Events.goal_capture_progress (the goal ring).
+## `delta` is the time this step covers (0 = re-evaluate only).
+func _tick_home_claims(delta: float) -> void:
+	if not _match._is_host() or not _objective is EliminationObjective:
+		return
+	var elimination: EliminationObjective = _objective as EliminationObjective
+	var v2: bool = _match.config.hole_mode == MatchConfig.HoleMode.OFF
+	var pressure: Dictionary = {}
+	for slot_item: PlayerSlot in _match._lifecycle._slots:
+		if not slot_item.home_flag_alive:
+			continue
+		var coords: Vector2i = _cell_grid.world_to_cell(slot_item.home_position)
+		if not _cell_grid.in_bounds(coords.x, coords.y):
+			continue
+		if v2:
+			var owner_team: int = _raster.team_at(coords.x, coords.y)
+			if owner_team != slot_item.team_id:
+				pressure[slot_item.slot_id] = owner_team
+		elif _raster.is_hole(coords.x, coords.y):
+			pressure[slot_item.slot_id] = ModeObjective.NO_TEAM
+	var done: PackedInt32Array = elimination.step_claims(pressure, delta)
+	for slot_id: int in done:
+		_match._lifecycle._eliminate_slot(slot_id, _attacker_slot_for(slot_id, elimination.eliminator_team(slot_id)))
+	_match._lifecycle._check_last_team_standing()
+
+
+## The living slot of `team` nearest `victim`'s home flag (the player credited
+## with the knockout), or -1 when the attacker is unknown.
+func _attacker_slot_for(victim: int, team: int) -> int:
+	if team < 0:
+		return -1
+	var home: Vector2 = _match._lifecycle._slots[victim].home_position
+	var best: int = -1
+	var best_dist: float = INF
+	for slot_item: PlayerSlot in _match._lifecycle._slots:
+		if slot_item.team_id != team or slot_item.slot_id == victim or not slot_item.home_flag_alive:
+			continue
+		var dist: float = slot_item.home_position.distance_squared_to(home)
+		if dist < best_dist:
+			best_dist = dist
+			best = slot_item.slot_id
+	return best
 
 
 # --- The client's read model (spec 3.4) -------------------------------------

@@ -82,6 +82,9 @@ var _starting: bool = false
 ## still alive and its towers still hold territory. Parallel to _slots;
 ## negative means "connected".
 var _disconnect_grace_left: Array[float] = []
+## slot -> slot credited with the knockout (-1 / absent = unknown). Mirrored on
+## clients through the player_eliminated event (Bontago-1pi.186).
+var _eliminated_by: Dictionary = {}
 
 ## -- Match timer + sudden death (spec 2.8, M6 A3) ----------------------------
 
@@ -291,6 +294,7 @@ func _reset_match_state() -> void:
 	_match._feed._feed_seq.clear()
 	_match._feed._release_locked.clear()
 	_disconnect_grace_left.clear()
+	_eliminated_by.clear()
 	_match._placement._blocks_spawned = 0
 	_active_slot = -1
 	_countdown_remaining = 0.0
@@ -1099,11 +1103,14 @@ func _tick_disconnect_grace(delta: float) -> void:
 ## The one elimination path, shared by a home flag lost to a hole (spec 2.2)
 ## and by a peer that never came back (docs/archive/M3a_PLAN.md question 2), so the
 ## two cannot drift apart.
-func _eliminate_slot(slot_id: int) -> void:
+func _eliminate_slot(slot_id: int, by_slot: int = -1) -> void:
 	var target: PlayerSlot = _slots[slot_id]
 	if not target.home_flag_alive:
 		return
 	target.home_flag_alive = false
+	_eliminated_by[slot_id] = by_slot
+	# Bontago-1pi.186: an eliminated player holds nothing and cannot drop.
+	_match._feed.clear_slot_blocks(slot_id)
 	var objective: ModeObjective = _match._territory._objective
 	if objective is EliminationObjective:
 		# Elimination judges a whole batch together (simultaneous home losses),
@@ -1199,7 +1206,14 @@ func apply_replicated_turn(slot_id: int) -> void:
 	_active_slot = slot_id
 
 
-func apply_replicated_elimination(slot_id: int) -> void:
+## The slot credited with eliminating `slot_id`, or -1 when unknown.
+func eliminated_by(slot_id: int) -> int:
+	return int(_eliminated_by.get(slot_id, -1))
+
+
+func apply_replicated_elimination(slot_id: int, by_slot: int = -1) -> void:
 	var target: PlayerSlot = slot(slot_id)
 	if target != null:
 		target.home_flag_alive = false
+		_eliminated_by[slot_id] = by_slot
+		_match._feed.clear_slot_blocks(slot_id)
