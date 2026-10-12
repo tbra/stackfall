@@ -17,7 +17,7 @@ func test_deals_every_shape_under_config_blocks() -> void:
 	var seen: Dictionary = {}
 	for _i: int in range(500):
 		seen[bag.next().id] = true
-	for shape: BlockShape in BlockShape.load_all_shapes():
+	for shape: BlockShape in BlockShape.load_bag_shapes():
 		assert_true(seen.has(shape.id), "%s should show up in 500 draws." % shape.id)
 
 

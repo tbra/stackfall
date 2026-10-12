@@ -403,9 +403,8 @@ func _apply_visual_style() -> void:
 	scrim.color = Color(arcade.disc_950_color, arcade.scrim_alpha)
 	# C4c: the plate is a UiPanel, the texts UiText roles (kicker = BODY in rim, banner = TITLE,
 	# outcome = BODY, hint = BODY in dust) and the actions UiBlockButtons (PLAY AGAIN primary).
-	# Only the stack gaps stay overrides: there is no stack / gap component yet (named gap).
-	%Layout.add_theme_constant_override("separation", look.card_gap_px)
-	_rows_list.add_theme_constant_override("separation", look.row_gap_px)
+	(%Layout as UiStack).gap_px = look.card_gap_px
+	(_rows_list as UiStack).gap_px = look.row_gap_px
 
 	_mode_title.tint = arcade.rim_color
 	_headline.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

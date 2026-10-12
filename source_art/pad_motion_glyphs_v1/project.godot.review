@@ -1,4 +1,0 @@
-[application]
-config/name="Pad motion vector review"
-[rendering]
-renderer/rendering_method="gl_compatibility"

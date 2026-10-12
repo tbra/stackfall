@@ -118,7 +118,7 @@ Audit date: 2026-09-20. DigiPen, the interview, release thread, description mirr
 - **Map variants** [NEW, based on the planned 2.0 feature]: Round (default), Oval, Ring (with a hole in the middle and the goal flag on a bridge), Twin disks joined by a bridge, and Cross.
 
 ### 2.2 Players, flags, territory
-- **Start positions:** 2–8 players; each home flag sits at `0.85 * field_radius`. Evenly distributed home flags are evidenced in §1.2; the exact radius and supported remake player range are design choices.
+- **Start positions:** 2–8 players; each home flag sits at `field_radius - MapDef.home_flag_edge_inset` (6.0 m), a fixed distance from the rim on every map size **[OWNER decision 2026-10-12, Bontago-1pi.184, supersedes 0.85 * field_radius]**. Evenly distributed home flags are evidenced in §1.2; the exact radius and supported remake player range are design choices.
 - **Goal flags:** 1 central flag by default; setup allows 1–5 with extras arranged at `0.4 * field_radius`. Multiple goals are historically described; these limits/layout values are **[NEW]**, not a recovered original maximum.
 - **Home circle:** `home_radius = 6` while the home flag is alive. Initial home influence is evidenced; its exact size and lifetime model are **[NEW]**.
 - **Goal no-build zones [OWNER, original unverified]:** keep the earlier requirement for a no-placement disc around each goal; the installed tutorial does not settle these zones. Nothing found proves they cannot coexist with original overlap sinking. `goal_zone_radius = 4 m` is the v2 plan's provisional tuning, not an original value. Zones block placement, **not influence or capture**. Do not confuse them with missing floor or assume that claiming the zone's edge is enough to capture the flag base.
@@ -140,7 +140,7 @@ Audit date: 2026-09-20. DigiPen, the interview, release thread, description mirr
   - Retained prototype tuning: `hole_delay = 0.75 s`. **[OWNER decision 2026-10-01, Bontago-gdb option A]** holes are a visual void, not a physical opening: the disc collision stays solid, and a block whose footprint touches an applied hole cell at disc level dissolves (short fade, `HoleDissolveTuning`) and is removed like an edge fall; blocks stacked above then land on the void and dissolve too. A block merely above a hole, or rising away from it, is unaffected. Hole lifetime modes, home elimination (a hole opening under a home flag) and Jumping Bean holes are unchanged. This supersedes the earlier floor-removal/bridging note; the original's exact collision behavior remains unrecovered.
   - `hole_mode` values:
     - `TEMPORARY` — **provisional default** toward original overlap-hole behavior; closes 2 s after contest ends. These delays and closure semantics are **[NEW]**, not historical facts.
-    - `PERMANENT` — **[NEW]** erosion variant.
+    - `PERMANENT` — **[NEW]** erosion variant. **[OWNER decision 2026-10-12, Bontago-1pi.178]** Elimination defaults to permanent holes (the lobby selects `PERMANENT` when the host switches into Elimination and back to `TEMPORARY` when leaving it; the host can still change it). Other modes are unchanged.
     - `OFF` — earlier owner/v2 **alternative**: intact floor and locally height-weighted, mutually exclusive borders. No longer the fidelity default after the latest owner instruction. The border formula remains unverified (§3.3).
   - A visible rejection impulse is a remake choice, not established original behavior. Invalid clicks and expiry must follow distinct rules (§2.5).
 - **Teams:** allied placement is **[ORIGINAL]**, explicitly documented in the installed tutorial. Teammates do not contest each other in the remake; goals still need one continuous allied component, not disconnected patches merely sharing a team ID. Exact original team-win/home-anchor semantics remain unverified.
@@ -173,7 +173,7 @@ The original global-versus-per-player phase alignment is **[OPEN]**; it must not
 | cube | 1 | |
 | domino | 2 in a line | |
 | bar3 | 3 in a line | |
-| bar4 | 4 in a line | tall-tower maker, rare |
+| bar4 | 4 in a line | tall-tower maker, rare. **[OWNER decision 2026-10-12, Bontago-1pi.180]** Removed from the match bag (`BlockShape.in_match_bag = false`; resource kept on disk) |
 | L3 | 3, L shape | |
 | L4 | 4, L shape | |
 | T4 | 4, T shape | |
@@ -181,7 +181,7 @@ The original global-versus-per-player phase alignment is **[OPEN]**; it must not
 | square4 | 2×2 flat | stable base |
 | slab6 | 2×3 flat | rare, strong base |
 | pillar | 1×1×3 upright variant of bar3 | |
-| bar5 | 5 | 5 in a line **[NEW, owner 2026-10-08]** |
+| bar5 | 5 | 5 in a line **[NEW, owner 2026-10-08]**. **[OWNER decision 2026-10-12, Bontago-1pi.180]** Removed from the match bag like bar4 (bag, gifts, bots, preview and Sandbox picker never deal it) |
 | plus5 | 5 | 5, flat plus **[NEW, owner 2026-10-08]** |
 | u5 | 5 | 5, flat U **[NEW, owner 2026-10-08]** |
 | corner4 | 4 | 4, 3D corner (chiral) **[NEW, owner 2026-10-08]** |
@@ -296,6 +296,8 @@ Use the [installed tutorial/menu](ORIGINAL_INSTALL_EVIDENCE.md) as the primary e
 
 **[OWNER decision 2026-10-05, Bontago-1pi.85]** Gift-wide updates from the 2026-10-05 playtest: (1) gifts cannot be rotated and are never recoloured with the player's colour (the gift model is shown as authored); (2) throwing is available only for some gifts, with one fixed trajectory instead of the aimed drag throw (the throwable set and trajectory are in docs/GIFT_EFFECTS_PLAN.md); (3) shared behaviour (hole punching, explosion impulse, disc force/tilt, radial pull, block spawning) lives in shared effect modules that gifts compose, so Jumping Bean and Black hole share the hole function and Earthquake, Anvil and Propeller share the disc-force function. Working today per the owner: Earthquake, Anvil, Stackfall, Paintball, Freeze. Not working: Jumping Bean, Bomb, Rocket, Magnet. The [ORIGINAL] Bomb and Rocket rows above are overridden by the owner as marked; the evidence docs keep the original behaviour as history.
 
+**[OWNER decision 2026-10-12, Bontago-1pi.85.73]** Gifts are not destroyed by holes, and a gift may be used (placed, thrown or launched) while its aim point is above a hole or a goal zone. Uncollected gift crates are areas that no hole logic removes. A placed or held gift special is never a hole-dissolve candidate (HoleDissolver.touches_hole); it keeps its physics and falls normally over a hole. The Black hole's own capture is unchanged. Over an open hole the down-ray finds no floor, so a held gift whose flat projection is still inside the disc is accepted there. Plain blocks and the sandbox keep refusing hole and goal-zone points; off-disc stays refused for everyone. Host validation is otherwise unchanged.
+
 Every special is its own `SpecialDef` resource plus a script. The seven evidenced effects are the original-fidelity roster; Magnet, Freeze, Glue and Black hole are optional remake extras, not original discoveries. Type probabilities are original menu features; per-type enable checkboxes are the remake interface. Jumping Bean's local hole is independent of opponent overlap; **[OWNER decision 2026-09-22, Bontago-z4h]** under `HoleMode.OFF` the Jumping Bean punches no hole and keeps only its hop knockback.
 
 **[OWNER roadmap 2026-09-29, Bontago-22y.3]** Glue replaces its earlier one-shot radius effect. The Glue gift's ordinary impact/fuse trigger refreshes the owning slot to five future drop charges by default (owner 2026-09-30, Bontago-sen.3). The activation block itself does not consume a charge. Each later accepted placement, including a valid relocated auto-drop, spends one charge and fuses that block on actual contact with the disc or another block regardless of owner. Rejected actions, burned auto-drops, throws and effect-spawned projectiles do not spend charges. Bonds are breakable and cleaned up when either body leaves play.
@@ -321,7 +323,7 @@ Every special is its own `SpecialDef` resource plus a script. The seven evidence
 | Players / AI count & difficulty | 2–8 seats; bots added with the players panel's Add bot button, each bot has its own Easy/Normal/Hard dropdown (lobby rework, Bontago-1pi.53) | 4 |
 | Teams | Teams toggle in the players panel; each seat picks team 1–4 or Random (balanced fill at match start); same number = same team (Bontago-1pi.53) | Off |
 | Block timer | 3–12 s | 6 s |
-| Gravity | 0.5×–2× | 1× |
+| Gravity | 0.1×–2× **[OWNER decision 2026-10-12, Bontago-1pi.179]** | 1× (of a base gravity raised 1.25×: `lobby_gravity_baseline` 1.4 → 1.75, so effective default gravity is 1.75) |
 | Goal flags | 1–5 | 1 |
 | Gifts | On/Off | On |
 | Gift probability per window | 0–100% as remake UI; original numeric scale/trial scope unverified | tuning OPEN; earlier 35 seconds-interval mapping superseded |
@@ -499,7 +501,7 @@ The host checks territory, the timer, and that the slot matches, then spawns the
 - **Tick rate:** `physics/common/physics_ticks_per_second = 60`. Turn on physics interpolation (`physics/common/physics_interpolation = true`) so rendering stays smooth at high refresh rates.
 - **Solver:** Raise Jolt's solver velocity and position iterations from the defaults. Start at 10 and 4, and tune using a benchmark scene with a 40-block tower.
 - **Sleep:** Bodies sleep after 0.5 s below the speed thresholds. Wake them when the disk tilts, when something nearby explodes, or when the hole cell under them changes.
-- **Stable-block optimization** [NEW]: If a block has been asleep for more than 20 s and isn't touching any awake body, the host switches it to `freeze_mode = STATIC`. It goes back to normal the moment any impulse, tilt, or change in the cells under it happens. When the disk tilts, all frozen blocks within the tilted region wake up, because the disk moving must affect them. **[OWNER decision 2026-10-09, Bontago-e7o]** A block that is awake but has stayed within 5 mm (and a small rotation threshold) of the pose its still window started in for 20 continuous s, with no fast-moving block next to it (`settle_freeze_*` in `PhysicsTuning`, master toggle `settle_freeze_enabled`), is frozen the same way, so a micro-jittering pile Jolt never lets sleep still costs nothing, and every release rule above applies unchanged. The engine's catch-up physics steps per frame are capped at 2 (`catchup_*` in `PhysicsTuning`; F4 toggle restores 8) so one long frame cannot spiral.
+- **Stable-block optimization** [NEW]: If a block has been asleep for more than 20 s and isn't touching any awake body, the host switches it to `freeze_mode = STATIC`. It goes back to normal the moment any impulse, tilt, or change in the cells under it happens. When the disk tilts, all frozen blocks within the tilted region wake up, because the disk moving must affect them. **[OWNER decision 2026-10-09, Bontago-e7o]** A block that is awake but has stayed within 5 mm (and a small rotation threshold) of the pose its still window started in for 5 continuous s **[OWNER decision 2026-10-12, Bontago-1pi.176]** (lowered from 20 s: blocks that stay awake were lingering; the asleep-block delay above stays 20 s), with no fast-moving block next to it (`settle_freeze_*` in `PhysicsTuning`, master toggle `settle_freeze_enabled`), is frozen the same way, so a micro-jittering pile Jolt never lets sleep still costs nothing, and every release rule above applies unchanged. The engine's catch-up physics steps per frame are capped at 2 (`catchup_*` in `PhysicsTuning`; F4 toggle restores 8) so one long frame cannot spiral.
 - **Continuous collision:** Rockets, lava orbs, thrown specials, and any body moving faster than 15 m/s use `continuous_cd`.
 - **Body limits:**
   - `max_active_blocks = 600`. Beyond that, the lowest-influence blocks that are off the disk or fully buried are removed first, with a visible dissolve.
@@ -512,7 +514,7 @@ The host checks territory, the timer, and that the slot matches, then spawns the
 - **Tilt:**
   - In `SPECIALS_ONLY` mode, the disk is an `AnimatableBody3D` with `sync_to_physics = true`, driven by a critically damped spring on its tilt vector. Blocks resting on it are carried along correctly.
   - In `PHYSICAL_BALANCE` mode, the disk is a RigidBody3D pinned at the fulcrum with a `Generic6DOFJoint3D` or `ConeTwistJoint3D`. It has a restoring angular spring.
-- **Gravity:** Multiply the default gravity by the match setting.
+- **Gravity:** Multiply the default gravity by the match setting. **[OWNER decision 2026-10-12, Bontago-1pi.179]** The base gravity is raised 1.25× (`PhysicsTuning.gravity_multiplier` / `lobby_gravity_baseline` 1.4 → 1.75); the lobby multiplier still defaults to 1.0× with range 0.1×–2.0×.
 - **Materials:** Disk friction 0.9. Blocks as in §2.4. Specials' friction varies with type, for example the anvil is 1.0.
 - **Benchmark scenes** (in `tests/bench/`):
   - A tower of 40 blocks that must stay standing for 60 s with no jitter.

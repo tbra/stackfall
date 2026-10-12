@@ -37,6 +37,8 @@ const PROGRESS_EPSILON: float = 0.001
 const BEAM_SHADER: Shader = preload("res://shaders/goal_beam.gdshader")
 const CLAIM_ZONE_SHADER: Shader = preload("res://shaders/goal_claim_zone.gdshader")
 const BEAM_SEGMENTS: int = 16
+## Bungee, the Stackfall Arcade numeral face (docs/ui_reskin), for the timer text.
+const TIMER_FONT: Font = preload("res://assets/ui/fonts/Bungee-Regular.ttf")
 ## Neutral / contested sentinels, the same values GoalControl returns.
 const NEUTRAL: int = GoalControl.NEUTRAL
 const CONTESTED: int = GoalControl.CONTESTED
@@ -56,6 +58,17 @@ var _beam: MeshInstance3D = null
 var _beam_material: ShaderMaterial = null
 var _burst: CPUParticles3D = null
 
+## Bontago-1pi.188/189: camera-facing timer above the crystal, plus the CTF "xN" chip.
+var _timer_label: Label3D = null
+var _multiplier_label: Label3D = null
+## True in Capture the Flag (count-up hold clock), false in Classic (capture countdown).
+var _timer_counts_up: bool = false
+## CTF: seconds the current holder has held this beacon (reset when the holder changes).
+var _held_s: float = 0.0
+## Classic: the shared capture's time left as of the last progress update, ticked down locally.
+var _countdown_left_s: float = -1.0
+var _multiplier: int = 0
+
 var _claim_ring: MeshInstance3D = null
 var _claim_ring_radius: float = 0.0
 var _claim_zone_material: ShaderMaterial = null
@@ -73,6 +86,7 @@ func _ready() -> void:
 	_build_ring()
 	_build_beam()
 	_build_burst()
+	_build_timer_labels()
 	_refresh_control_visuals()
 
 
@@ -82,6 +96,7 @@ func banner_scale() -> float:
 
 func _process(delta: float) -> void:
 	_clock_s += delta
+	_tick_timer(delta)
 	_flash = maxf(_flash - delta / maxf(beacon_visuals.claim_flash_duration_s, 0.001), 0.0)
 	if _control == CONTESTED:
 		_color = _flicker_color()
@@ -115,6 +130,8 @@ func _extra_ring_scale() -> float:
 ## of claimed team triggers the flash and burst; the very first call never does.
 func set_control(control: int, owner_color: Color, contest_colors: PackedColorArray) -> void:
 	var was: int = _control
+	if control != was:
+		_held_s = 0.0
 	var claim_changed: bool = control >= 0 and (control != was or owner_color != _control_color)
 	_control = control
 	_control_color = owner_color
@@ -126,6 +143,7 @@ func set_control(control: int, owner_color: Color, contest_colors: PackedColorAr
 			_burst.restart()
 			_burst.emitting = true
 	_refresh_control_visuals()
+	_refresh_timer_text()
 
 
 func control() -> int:
@@ -401,3 +419,109 @@ func _claim_zone_color() -> Color:
 func _apply_claim_zone_color() -> void:
 	if _claim_zone_material != null:
 		_claim_zone_material.set_shader_parameter(&"zone_color", _claim_zone_color())
+
+
+# --- Timer label (Bontago-1pi.188 / 1pi.189) ---------------------------------
+
+func _build_timer_labels() -> void:
+	var tuning: BeaconVisualTuning = beacon_visuals
+	var base_y: float = tuning.beacon_top_height(banner_scale()) + tuning.timer_height
+	_timer_label = _make_timer_label(tuning, tuning.timer_text_color, 1.0)
+	_timer_label.name = &"TimerLabel"
+	_timer_label.position = Vector3(0.0, base_y, 0.0)
+	add_child(_timer_label)
+	_multiplier_label = _make_timer_label(tuning, tuning.timer_multiplier_color, tuning.timer_multiplier_scale)
+	_multiplier_label.name = &"MultiplierLabel"
+	_multiplier_label.position = Vector3(0.0, base_y + tuning.timer_multiplier_gap, 0.0)
+	add_child(_multiplier_label)
+	_refresh_timer_text()
+
+
+func _make_timer_label(tuning: BeaconVisualTuning, color: Color, size_scale: float) -> Label3D:
+	var label: Label3D = Label3D.new()
+	label.font = TIMER_FONT
+	label.font_size = roundi(float(tuning.timer_font_size) * size_scale)
+	label.outline_size = roundi(float(tuning.timer_outline_size) * size_scale)
+	label.pixel_size = tuning.timer_pixel_size
+	label.modulate = color
+	label.outline_modulate = tuning.timer_outline_color
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = tuning.timer_no_depth_test
+	label.shaded = false
+	label.double_sided = true
+	label.visible = false
+	return label
+
+
+## Switches between the Classic countdown (false) and the CTF count-up (true).
+func set_timer_counts_up(counts_up: bool) -> void:
+	_timer_counts_up = counts_up
+	_held_s = 0.0
+	_refresh_timer_text()
+
+
+func timer_counts_up() -> bool:
+	return _timer_counts_up
+
+
+## Classic: the shared capture's team and 0..1 progress with the full hold time;
+## the label counts down from what is left and is re-synced on every update.
+func set_countdown(team_id: int, progress: float, hold_seconds: float) -> void:
+	if team_id < 0 or progress <= 0.0:
+		_countdown_left_s = -1.0
+	else:
+		_countdown_left_s = BeaconTimerText.remaining_seconds(progress, hold_seconds)
+	_refresh_timer_text()
+
+
+## CTF: how many beacons this beacon's holder controls (0/1 = no chip).
+func set_multiplier(held_count: int) -> void:
+	_multiplier = held_count
+	_refresh_timer_text()
+
+
+func held_seconds() -> float:
+	return _held_s
+
+
+func timer_text() -> String:
+	if _timer_label == null:
+		return ""
+	return _timer_label.text if _timer_label.visible else ""
+
+
+func multiplier_chip_text() -> String:
+	if _multiplier_label == null:
+		return ""
+	return _multiplier_label.text if _multiplier_label.visible else ""
+
+
+func _tick_timer(delta: float) -> void:
+	if _timer_counts_up:
+		if _control >= 0:
+			_held_s += delta
+	elif _countdown_left_s > 0.0:
+		_countdown_left_s = maxf(_countdown_left_s - delta, 0.0)
+	else:
+		return
+	_refresh_timer_text()
+
+
+func _refresh_timer_text() -> void:
+	if _timer_label == null:
+		return
+	var text: String = ""
+	var chip: String = ""
+	if beacon_visuals.timer_enabled:
+		if _timer_counts_up:
+			text = BeaconTimerText.ctf_text(_control, _held_s)
+			if not text.is_empty():
+				chip = BeaconTimerText.multiplier_text(_multiplier)
+		elif _countdown_left_s >= 0.0:
+			text = BeaconTimerText.clock(int(ceil(_countdown_left_s)))
+	if _timer_label.text != text:
+		_timer_label.text = text
+	_timer_label.visible = not text.is_empty()
+	if _multiplier_label.text != chip:
+		_multiplier_label.text = chip
+	_multiplier_label.visible = not chip.is_empty()

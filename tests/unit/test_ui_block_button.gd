@@ -91,3 +91,13 @@ func test_static_style_works_on_a_plain_button() -> void:
 	var plain: Button = autofree(Button.new()) as Button
 	UiBlockButton.style(plain, UiBlockButton.Look.MINT, true)
 	assert_true(plain.get_theme_stylebox("normal") is BlockStyleBox)
+
+
+func test_danger_is_a_secondary_block_with_an_alert_label() -> void:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var button: UiBlockButton = _make(UiBlockButton.Look.DANGER)
+	assert_eq(UiBlockButton.face_for(UiBlockButton.Look.DANGER), arcade.disc_600_color)
+	for item: String in MenuStyleFactory.BUTTON_FONT_COLOR_ITEMS:
+		assert_eq(button.get_theme_color(item), arcade.alert_color, item)
+	var secondary: UiBlockButton = _make(UiBlockButton.Look.SECONDARY)
+	assert_ne(secondary.get_theme_color("font_color"), arcade.alert_color)

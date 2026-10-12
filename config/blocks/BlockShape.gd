@@ -14,6 +14,11 @@ extends Resource
 ## random pick can still use it as a relative likelihood.
 @export var weight: float = 1.0
 
+## Whether this shape is dealt in matches (bag, gifts, Sandbox picker). Off keeps the
+## resource on disk and resolvable by id but never fed to anyone.
+## [OWNER decision 2026-10-12, Bontago-1pi.180]: bar4 and bar5 are off.
+@export var in_match_bag: bool = true
+
 ## Cells (must also appear in `cells`) whose collision and mesh should be a
 ## 45-degree wedge instead of a full cube (spec 2.4's now-removed wedge shape
 ## used this; game/BlockFactory.gd's DECISION comment on the sloped branch
@@ -88,6 +93,16 @@ func _compute_bottom_center() -> Vector3:
 		min_z = minf(min_z, float(cell.z))
 		max_z = maxf(max_z, float(cell.z))
 	return Vector3((min_x + max_x) * 0.5, min_y - 0.5, (min_z + max_z) * 0.5)
+
+
+## load_all_shapes() minus the shapes switched off for matches (`in_match_bag` false).
+## Use this wherever shapes are DEALT; use load_all_shapes() only for id lookups.
+static func load_bag_shapes() -> Array[BlockShape]:
+	var shapes: Array[BlockShape] = []
+	for shape: BlockShape in load_all_shapes():
+		if shape.in_match_bag:
+			shapes.append(shape)
+	return shapes
 
 
 ## Loads every BlockShape resource in SHAPES_DIR, sorted by id so the result is

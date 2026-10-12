@@ -195,6 +195,8 @@ var _mode_state: Dictionary = {}
 var _share_glyphs: Array = []
 ## Stackfall Arcade: the "· YOU" marker label of each row, shown on the local player's row only.
 var _share_you_labels: Array = []
+## Bontago-1pi.189: per-row CTF "xN" chip (rim gold), visible while a team holds several beacons.
+var _share_mult_labels: Array = []
 ## Seconds left on the active slot's block timer, drawn as the bold numeral
 ## inside the timer ring (mockup 08's "6"). -1 until the first _process()
 ## poll (or a test's direct set_feed_seconds() call) has a real value, so a
@@ -1338,6 +1340,9 @@ func _ensure_share_row_count(count: int) -> void:
 
 		row.add_child(glyph)
 		row.add_child(name_box)
+		var mult_label: UiText = UiText.make(UiText.Role.VALUE, "", _arcade.rim_color)
+		mult_label.visible = false
+		row.add_child(mult_label)
 		row.add_child(bar)
 		row.add_child(label)
 		_shares_box.add_child(row)
@@ -1347,6 +1352,7 @@ func _ensure_share_row_count(count: int) -> void:
 		_share_name_labels.append(name_label)
 		_share_glyphs.append(glyph)
 		_share_you_labels.append(you_label)
+		_share_mult_labels.append(mult_label)
 	while _share_rows.size() > count:
 		var last: int = _share_rows.size() - 1
 		(_share_rows[last] as Node).queue_free()
@@ -1356,6 +1362,7 @@ func _ensure_share_row_count(count: int) -> void:
 		_share_name_labels.remove_at(last)
 		_share_glyphs.remove_at(last)
 		_share_you_labels.remove_at(last)
+		_share_mult_labels.remove_at(last)
 
 
 ## Shows the "· YOU" marker on the row of the active slot's team only.
@@ -1378,6 +1385,10 @@ func _update_share_row(i: int, share: float) -> void:
 	var glyph: SlotDiamond = _share_glyphs[i]
 	glyph.set_color(color)
 	(_share_you_labels[i] as Label).visible = _active_slot >= 0 and _team_of_slot(_active_slot) == i
+	var chip: String = BeaconTimerText.multiplier_text_in_state(_mode_state, i)
+	var mult_label: Label = _share_mult_labels[i]
+	mult_label.text = chip
+	mult_label.visible = not chip.is_empty()
 
 
 ## Events.feed_block_issued names the next shape by id; the preview needs the

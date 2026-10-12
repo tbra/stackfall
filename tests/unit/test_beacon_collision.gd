@@ -7,6 +7,7 @@ var _tiny_map: MapDef
 func before_each() -> void:
 	_tiny_map = (load("res://config/maps/round_medium.tres") as MapDef).duplicate(true)
 	_tiny_map.field_radius = 6.0
+	_tiny_map.home_flag_edge_inset = 0.9  # keeps the old 0.85 * 6 m ring (5.1 m) so the tilt test moves the flag
 
 
 func _field() -> Field:

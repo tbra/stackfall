@@ -69,10 +69,11 @@ extends Resource
 @export var sleep_settle_time: float = 0.5
 
 ## -- Gravity (spec 2.8 "Gravity 0.5x-2x") ------------------------------------
-@export var gravity_multiplier: float = 1.4
+## [OWNER decision 2026-10-12, Bontago-1pi.179]: base gravity raised 1.25x (1.4 -> 1.75).
+@export var gravity_multiplier: float = 1.75
 ## Bontago-59o.11: the Heavy & Bouncy factor folded out of the lobby scale.
 ## start_match() sets gravity_multiplier = this * MatchConfig.gravity_multiplier.
-@export var lobby_gravity_baseline: float = 1.4
+@export var lobby_gravity_baseline: float = 1.75
 
 ## -- Rebound damping (Bontago-xtq.17, owner playtest 2026-09-23: "heavier and
 ## more bouncy, but a dropped block shouldn't just bounce straight up
@@ -148,7 +149,7 @@ extends Resource
 ## asleep block (game/StableBlockManager.gd), so every existing release rule applies.
 @export var settle_freeze_enabled: bool = true
 ## Continuous still time (s) before an awake block is frozen.
-@export var settle_freeze_window_s: float = 20.0
+@export var settle_freeze_window_s: float = 5.0
 ## Max drift (m) from the window's start pose that still counts as still (5 mm).
 @export var settle_freeze_move_epsilon_m: float = 0.005
 ## Max change of any unit basis axis (about radians) that still counts as still.

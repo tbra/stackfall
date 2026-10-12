@@ -13,7 +13,7 @@ func test_two_players_sit_pi_apart_at_home_radius() -> void:
 	var map_def: MapDef = _map_def()
 	var a: Vector2 = PlayerSlot.home_position_for(0, 2, map_def)
 	var b: Vector2 = PlayerSlot.home_position_for(1, 2, map_def)
-	var expected_radius: float = map_def.home_flag_radius_fraction * map_def.field_radius
+	var expected_radius: float = map_def.field_radius - map_def.home_flag_edge_inset
 	assert_almost_eq(a.length(), expected_radius, EPS)
 	assert_almost_eq(b.length(), expected_radius, EPS)
 	var angle: float = a.angle_to(b)
@@ -34,7 +34,7 @@ func test_eight_players_sit_pi_over_four_apart() -> void:
 func test_slot_zero_sits_on_positive_x_axis() -> void:
 	var map_def: MapDef = _map_def()
 	var home: Vector2 = PlayerSlot.home_position_for(0, 4, map_def)
-	var expected_radius: float = map_def.home_flag_radius_fraction * map_def.field_radius
+	var expected_radius: float = map_def.field_radius - map_def.home_flag_edge_inset
 	assert_almost_eq(home.x, expected_radius, EPS)
 	assert_almost_eq(home.y, 0.0, EPS)
 

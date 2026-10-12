@@ -74,5 +74,18 @@ func test_gallery_text_page_shows_every_role_and_a_well() -> void:
 	for node: Node in gallery.find_children("*", "Label", true, false):
 		if node is UiText:
 			roles_seen[(node as UiText).role] = true
-	assert_eq(roles_seen.size(), ROLES.size(), "all five roles are on the page")
+	assert_eq(roles_seen.size(), UiText.Role.size(), "every role is on the page")
 	assert_gt(gallery.find_children("*", "PanelContainer", true, false).filter(func(n: Node) -> bool: return n is UiWell).size(), 0)
+
+
+func test_label_role_is_the_tracked_uppercase_sand_word() -> void:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var label: UiText = UiText.make(UiText.Role.LABEL, "Rotate")
+	add_child_autofree(label)
+	assert_eq(label.text, "ROTATE")
+	assert_eq(label.get_theme_font_size("font_size"), arcade.font_size_caption_px)
+	assert_eq(label.get_theme_color("font_color"), arcade.sand_color)
+	assert_eq(label.get_theme_font("font"), UiText.font_for(UiText.Role.LABEL))
+	var tinted: UiText = UiText.make(UiText.Role.LABEL, "x", arcade.rim_color)
+	add_child_autofree(tinted)
+	assert_eq(tinted.get_theme_color("font_color"), arcade.rim_color)

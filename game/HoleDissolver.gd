@@ -206,6 +206,12 @@ func _on_block_removed(block: RigidBody3D, _reason: String) -> void:
 func touches_hole(block: Block) -> bool:
 	if not _field_ready() or block == null or not is_instance_valid(block):
 		return false
+	# [OWNER decision 2026-10-12, Bontago-1pi.85.73]: territory holes never destroy a gift.
+	# DECISION: a placed/held gift special is simply not a dissolve candidate; it keeps its
+	# physics, so over a hole it falls normally like any body (only the kill plane, far below,
+	# can still remove it). The Black hole's capture sweep (request_dissolve) is unchanged.
+	if block.gift_id != &"":
+		return false
 	if _field.applied_hole_count() == 0:
 		return false
 	var field_xform: Transform3D = _field.global_transform

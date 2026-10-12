@@ -212,6 +212,15 @@ var _launch_process_mode: Sky.ProcessMode = Sky.PROCESS_MODE_AUTOMATIC
 ## Bontago-1pi.11.74 (G1): see _process. SKY_TIME_GLOBAL is registered in project.godot
 ## [shader_globals] (tools/bootstrap_project.gd).
 const SKY_TIME_GLOBAL: StringName = &"sky_time"
+## Bontago-mp0.153: global uniforms for the sun and moon disc directions (registered next to
+## sky_time). Written every frame from the exact cycle phase, so the discs move smoothly
+## while the light, palette and radiance step at radiance_hz. The cycle sky material opts in
+## with its `use_global_dirs` uniform; static themes keep their own per-material directions.
+const SKY_SUN_DIR_GLOBAL: StringName = &"sky_sun_dir"
+const SKY_MOON_DIR_GLOBAL: StringName = &"sky_moon_dir"
+## Counts disc writes and keeps the last sun direction written (tests / probes).
+var disc_publish_count: int = 0
+var last_disc_sun_direction: Vector3 = Vector3.ZERO
 ## Bontago-1pi.167: the sky's own clock, advanced by _process delta (not the wall clock) so a
 ## paused tree (offline pause menu) freezes cloud animation. Seeded from the wall clock once.
 var _sky_clock_s: float = float(Time.get_ticks_msec()) * SECONDS_PER_MSEC
@@ -360,6 +369,8 @@ func _process(delta: float) -> void:
 	_step_cloud_drift(delta)
 	_sky_clock_s += delta
 	_publish_sky_time()
+	if _cycle_theme != null:
+		_publish_disc_directions(cycle_phase_at(MatchContext.current().shared_clock_seconds()))
 	# Bontago-1pi.11.74 (G1): the radiance octmap re-renders whenever the sky material
 	# is written (sky.cpp:1044 uniform_set_updated) or the shader reads TIME (:1033;
 	# the sky shaders read the global `sky_time` instead, which neither flag sees, so
@@ -384,6 +395,30 @@ func _process(delta: float) -> void:
 func _publish_sky_time() -> void:
 	RenderingServer.global_shader_parameter_set(SKY_TIME_GLOBAL,
 		fposmod(_sky_clock_s, radiance_config.time_wrap_seconds))
+
+
+## Bontago-mp0.153: sun direction for cycle `phase`, from the day theme's sun azimuth.
+func _cycle_sun_direction(phase: float) -> Vector3:
+	var sun_base: Vector3 = (_cycle_day.sky_material as ShaderMaterial).get_shader_parameter(&"sun_direction") as Vector3
+	var horizontal: Vector3 = Vector3(sun_base.x, 0.0, sun_base.z).normalized()
+	var azimuth: float = TAU * phase
+	var elevation: float = deg_to_rad(_cycle_theme.cycle_sun_peak_degrees) * sin(azimuth)
+	var direction: Vector3 = Vector3(
+		horizontal.x * cos(azimuth) - horizontal.z * sin(azimuth), 0.0,
+		horizontal.x * sin(azimuth) + horizontal.z * cos(azimuth)) * cos(elevation)
+	direction.y = sin(elevation)
+	return direction
+
+
+## Two global uniform writes (no material dirty, no radiance re-render); the moon is
+## opposite the sun.
+func _publish_disc_directions(phase: float, count_frame: bool = true) -> void:
+	var direction: Vector3 = _cycle_sun_direction(phase)
+	RenderingServer.global_shader_parameter_set(SKY_SUN_DIR_GLOBAL, direction)
+	RenderingServer.global_shader_parameter_set(SKY_MOON_DIR_GLOBAL, -direction)
+	if count_frame:
+		disc_publish_count += 1
+	last_disc_sun_direction = direction
 
 
 ## Dirties the live sky material once (a counter write) so a sky with no cycle still
@@ -632,16 +667,11 @@ func set_cycle_phase(phase: float) -> void:
 		SkyPalette.dusk_weight(phase, _cycle_theme.cycle_dusk_weight_phases))
 	var daylight: float = smoothstep(-_cycle_theme.cycle_twilight_width, _cycle_theme.cycle_twilight_width, sin(TAU * phase))
 	var night: float = 1.0 - daylight
-	var sun_base: Vector3 = (_cycle_day.sky_material as ShaderMaterial).get_shader_parameter(&"sun_direction") as Vector3
-	var horizontal: Vector3 = Vector3(sun_base.x, 0.0, sun_base.z).normalized()
-	var azimuth: float = TAU * phase
-	var elevation: float = deg_to_rad(_cycle_theme.cycle_sun_peak_degrees) * sin(azimuth)
-	var direction: Vector3 = Vector3(
-		horizontal.x * cos(azimuth) - horizontal.z * sin(azimuth), 0.0,
-		horizontal.x * sin(azimuth) + horizontal.z * cos(azimuth)) * cos(elevation)
-	direction.y = sin(elevation)
+	var direction: Vector3 = _cycle_sun_direction(phase)
 	var material: ShaderMaterial = _cycle_theme.sky_material as ShaderMaterial
 	material.set_shader_parameter(&"sun_direction", direction)
+	material.set_shader_parameter(&"use_global_dirs", 1.0)
+	_publish_disc_directions(phase, false)
 	_apply_procedural_params(material, _cycle_theme)
 	_apply_cycle_variation(material, phase)
 	material.set_shader_parameter(&"cycle_night_mix", night)
