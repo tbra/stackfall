@@ -88,6 +88,7 @@ const REBINDABLE_ACTIONS: Array[StringName] = [
 	&"camera_snap_home", &"camera_snap_goal", &"camera_reset",
 	&"pause_menu",
 	&"show_scores",
+	&"chat_open",
 ]
 
 ## Bontago-1pi.10 polish pass (owner: "Friendly action names and grouping:
@@ -122,7 +123,7 @@ const SECTIONS: Array[Dictionary] = [
 	},
 	{
 		"name": "Menu / System",
-		"actions": [&"pause_menu", &"show_scores"],
+		"actions": [&"pause_menu", &"show_scores", &"chat_open"],
 	},
 ]
 
