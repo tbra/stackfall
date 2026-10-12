@@ -32,6 +32,9 @@ extends Node
 ## Determinism").
 const RNG_OFFSET: int = 777001
 
+## Bontago-1t5.41: the shipped Storm wind response the V2 evaluator reads (same resource StormEffect uses).
+const STORM_TUNING: StormTuning = preload("res://config/weather/storm.tres")
+
 enum State { IDLE, GENERATING, ACTING, THINKING, RELEASE_WAIT }
 
 ## Bontago-1pi.175: own seeded stream for the release-delay draw (a separate stream so the
@@ -319,6 +322,7 @@ func _begin_thinking(match_ref: Variant) -> void:
 		_goal_positions(), raster.tuning().goal_zone_radius,
 		shape, next_shape, _mode_goal(match_ref), _active_special_positions(), _landed_gift_positions(match_ref)
 	)
+	_apply_weather(view, match_ref)
 	_special_view = view
 	_think = BotThink.new(view, _profile, _rng)
 	_think.tuning = tuning
@@ -327,6 +331,19 @@ func _begin_thinking(match_ref: Variant) -> void:
 	_think_ticks = 0
 	_think_deadline_ticks = think_deadline_ticks()
 	_state = State.THINKING
+
+
+## Bontago-1t5.41: copies the live weather (host) into the view; only a Storm blows wind.
+func _apply_weather(view: BotWorldView, match_ref: Variant) -> void:
+	if not match_ref.has_method("weather"):
+		return
+	var weather: Object = match_ref.weather() as Object
+	if weather == null:
+		return
+	view.weather_id = weather.active_id()
+	view.weather_intensity = float(weather.active_intensity())
+	if view.weather_id == WeatherIds.STORM:
+		view.wind_tuning = STORM_TUNING
 
 
 ## Bontago-1t5.37: THINKING ticks after the release boundary by which a V2 think is decided: the

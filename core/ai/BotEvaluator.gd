@@ -55,7 +55,7 @@ static func proxy_terms(c: BotCandidate, view: BotWorldView, intent: BotIntent) 
 		terms[BotIntent.Term.KILL] = float(covered)
 		terms[BotIntent.Term.HAZARD] = _hazard_from_gap(c, view, nearest_gap)
 	terms[BotIntent.Term.EXPOSURE] = float(mini(threats + _home_threats(c.origin, view), tuning.exposure_cap))
-	terms[BotIntent.Term.TIP] = c.tip_risk
+	terms[BotIntent.Term.TIP] = c.tip_risk + wind_tip(c, view)
 	terms[BotIntent.Term.WASTE] = 1.0 if inside >= 1.0 else 0.0
 	return terms
 
@@ -74,7 +74,7 @@ static func measure(
 	terms[BotIntent.Term.WASTE] = fractions.y
 	terms[BotIntent.Term.KILL] = _kill(c, view, chains, radius)
 	terms[BotIntent.Term.EXPOSURE] = float(_exposure(c, view, chains))
-	terms[BotIntent.Term.TIP] = c.tip_risk
+	terms[BotIntent.Term.TIP] = c.tip_risk + wind_tip(c, view)
 	terms[BotIntent.Term.HAZARD] = hazard(c, view, chains)
 	return terms
 
@@ -91,6 +91,15 @@ static func score(terms: PackedFloat32Array, intent: BotIntent) -> float:
 			signed = -signed
 		total += signed * intent.weights[t]
 	return total
+
+
+## Bontago-1t5.41: extra TIP risk from the active wind: grows with the weather intensity and
+## the wind's height response at the piece's top; exactly 0 in calm weather or without wind.
+static func wind_tip(c: BotCandidate, view: BotWorldView) -> float:
+	if view.wind_tuning == null or view.weather_intensity <= 0.0 or tuning.wind_tip_weight <= 0.0:
+		return 0.0
+	var top: float = maxf(c.top_height, c.support_height + c.shape_height)
+	return tuning.wind_tip_weight * clampf(view.weather_intensity, 0.0, 1.0) * WindField.height_factor(top, view.wind_tuning)
 
 
 ## Radius of the influence circle the placed piece will project.
