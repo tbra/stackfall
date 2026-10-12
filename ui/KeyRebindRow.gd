@@ -64,6 +64,7 @@ const DISPLAY_NAMES: Dictionary[StringName, String] = {
 	&"camera_zoom_out": "Zoom out",
 	&"camera_snap_home": "Snap to home",
 	&"camera_snap_goal": "Snap to goal",
+	&"camera_reset": "Reset camera",
 	&"pause_menu": "Pause",
 	&"show_scores": "Show scores (hold)",
 }

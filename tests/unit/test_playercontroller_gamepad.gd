@@ -485,3 +485,42 @@ func test_gamepad_camera_zoom_modifier_never_starts_a_throw_on_a_held_special() 
 	trigger_release.axis_value = 0.0
 	Input.parse_input_event(trigger_release)
 	Input.flush_buffered_events()
+
+
+## Bontago-1pi.183 (owner: gamepad raise/lower far slower than the wheel): holding
+## RB for about a second must cover the height several wheel notches do, while a
+## short tap stays a fine nudge.
+func test_gamepad_hover_raise_one_second_hold_covers_several_wheel_notches() -> void:
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	add_child_autofree(ghost)
+	ghost.set_shape(load("res://config/blocks/cube.tres"))
+	var controller: PlayerController = autofree(PlayerController.new())
+	add_child_autofree(controller)
+	controller._ghost = ghost
+	var tuning: GhostTuning = controller.ghost_tuning
+
+	var press: InputEventJoypadButton = InputEventJoypadButton.new()
+	press.device = -1
+	press.button_index = JOY_BUTTON_RIGHT_SHOULDER
+	press.pressed = true
+	Input.parse_input_event(press)
+	Input.flush_buffered_events()
+
+	var step: float = 1.0 / 60.0
+	var tap_distance: float = 0.0
+	for i: int in range(60):
+		var before: float = ghost.manual_hover_offset
+		controller._handle_hover_adjust(step)
+		if i == 5:
+			tap_distance = ghost.manual_hover_offset
+		assert_gte(ghost.manual_hover_offset, before)
+	var one_second: float = ghost.manual_hover_offset
+
+	var release: InputEventJoypadButton = press.duplicate() as InputEventJoypadButton
+	release.pressed = false
+	Input.parse_input_event(release)
+	Input.flush_buffered_events()
+
+	var notches: float = one_second / tuning.hover_wheel_step
+	assert_gte(notches, 8.0, "a 1 s hold should cover at least ~8 wheel notches of height (got %.1f)." % notches)
+	assert_lt(tap_distance, tuning.hover_wheel_step * 2.0, "a ~0.1 s tap stays a fine adjustment (got %.2f m)." % tap_distance)

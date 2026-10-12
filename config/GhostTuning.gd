@@ -120,10 +120,10 @@ extends Resource
 ## feed timer auto-dropped it -- a de-facto cap on the PageUp/gamepad path.
 ## A held raise/lower now starts at hover_manual_adjust_speed and accelerates
 ## by this many m/s every second it stays held...
-@export var hover_hold_acceleration: float = 3.0
+@export var hover_hold_acceleration: float = 14.0
 ## ...up to this top speed (m/s). Releasing the input resets the ramp, so a
 ## short tap still moves at hover_manual_adjust_speed for fine control.
-@export var hover_hold_max_speed: float = 10.0
+@export var hover_hold_max_speed: float = 24.0
 ## Meters applied per discrete wheel notch (InputEventMouseButton wheel
 ## events are momentary -- one press+release per notch -- so they get one
 ## fixed step instead of hover_manual_adjust_speed's per-frame rate).

@@ -471,6 +471,14 @@ func _actions() -> Dictionary:
 	# ui/TuningPanel.gd's Start+X chord or game/Sandbox.gd's Back+X chord.
 	a["camera_snap_goal"] = [_key(KEY_2), _pad(JOY_BUTTON_X)]
 
+	# Bontago-1pi.187 (owner playtest 2026-10-12: "add a reset camera button,
+	# resets camera to the starting camera"). DECISION: V on keyboard (unbound,
+	# "view"); gamepad Back, deliberately shared with camera_snap_home -- snap is
+	# inert while CameraTuning.snap_enabled is false, every other standard pad
+	# button is taken in a match, and game/CameraRig.gd ignores the pad press while
+	# snap is enabled (snap_home owns Back then) or the sandbox owns Back.
+	a["camera_reset"] = [_key(KEY_V), _pad(JOY_BUTTON_BACK)]
+
 	# --- UI (menus) -----------------------------------------------------------
 	# Bontago-1pi.15.1 (owner report: "gamepad works in some menus but not all;
 	# B never goes back in any menu"). Root cause: Godot 4.7's built-in
