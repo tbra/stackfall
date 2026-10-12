@@ -12,6 +12,8 @@ const MatchNetScript := preload("res://net/MatchNet.gd")
 const SETTLE_FRAMES: int = 60
 ## Generous ceiling for one dissolve (0.35 s = 21 frames) to complete.
 const DISSOLVE_FRAMES: int = 60
+## Landing speed sqrt(2gh) matches the pre-2026-10-12 3.0 m drop at gravity 1.4 now that base gravity is 1.75 (3.0 * 1.4 / 1.75).
+const LANDING_DROP_HEIGHT_M: float = 2.4
 ## A three-high stack: three dissolves plus two ~1 m falls, well inside 5 s.
 const STACK_TIMEOUT_FRAMES: int = 300
 
@@ -230,7 +232,7 @@ func test_a_block_dropped_into_an_open_hole_dissolves_on_landing() -> void:
 	var cell: int = _middle_cell()
 	_open(PackedInt32Array([cell]))
 	await wait_physics_frames(2)
-	var block: Block = _spawn(_cube, cell, 3.0)
+	var block: Block = _spawn(_cube, cell, LANDING_DROP_HEIGHT_M)
 	var id: int = block.get_instance_id()
 	var lowest: float = INF
 	var started_at_height: float = INF
