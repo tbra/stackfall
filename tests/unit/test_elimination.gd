@@ -164,7 +164,7 @@ func test_factory_selectable_and_timer_off_is_elimination_only() -> void:
 
 func test_hud_and_results_text() -> void:
 	var state: Dictionary = {"mode_id": MatchConfig.GameMode.ELIMINATION, "scores": [2.0, 0.0, 1.0], "round_left": 65.0}
-	assert_eq(HUD.mode_score_text(state), "1: 2 alive  2: out  3: alive   1:05")
+	assert_eq(HUD.mode_score_text(state), "1: 2 alive  2: out  3: alive")
 	var results: Dictionary = {
 		"winner_id": 2, "winner_kind": MatchStats.WINNER_KIND_SLOT,
 		"mode": {"mode_id": MatchConfig.GameMode.ELIMINATION, "scores": [0.0, 0.0, 1.0], "winners": "2", "order": "1,0"},
