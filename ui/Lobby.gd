@@ -112,6 +112,7 @@ var net_provider: Variant = null:
 @onready var _disc_size_meter: UiSegmentMeter = %DiscSizeMeter
 ## Bontago-1pi.121: the settings column; _scroll_settings_to_top() resets it when the lobby opens.
 @onready var _settings_scroll: ScrollContainer = %SettingsScroll
+@onready var _help_line: UiHelpLine = %HelpLine
 @onready var _map_thumbnail: PanelContainer = %MapThumbnail
 var _map_thumbnail_icon: TextureRect = null
 ## Bontago-1pi.53 (S1b): the Players/AI steppers, the default-difficulty dropdown and the
@@ -245,33 +246,14 @@ var _special_ids: Array[StringName] = []
 ## controls, so the value-changed signals that causes fire without
 ## re-publishing what was just received (an infinite echo).
 var _applying_remote_data: bool = false
-## Game mode the timer control currently describes (Bontago-6fc.1).
-const TIMER_TIP_MATCH: String = "Optional time limit. Off: the match runs until a team holds every goal. With sudden death on, the arena shrinks when time is up."
-const TIMER_TIP_ROUND: String = "How long the round lasts; when it ends the highest score wins. Elimination can run with no limit."
-## Bontago-1pi.25.1: one-line description per mode (tooltip on the mode picker),
-## indexed by MatchConfig.GameMode.
-const MODE_TIPS: PackedStringArray = [
-	"Hold every goal flag to win.",
-	"Hold beacons to score; the highest score wins when the round ends.",
-	"Knock out every other team's home flag; the last team standing wins.",
-	"Build the tallest tower; the highest block wins when the round ends.",
-	"Control the biggest territory when the round timer ends; a timer is always on.",
-]
 ## Bontago-59o.18 (U1): the time-of-day dropdown. Index == MatchConfig.SkyThemeMode
 ## (DAY, NIGHT, RANDOM, CYCLE, DAWN), so the stored ints and the wire format are
 ## unchanged; DAY is relabelled "Sunset" because it is now the day/night cycle
 ## locked at a sunset time, not a separate painted sky.
+## Bontago-1pi.159.35: the help-line key the round-length row is explained under in Domination
+## (any other mode uses the row's own name); the sentences live in config/option_help_table.tres.
+const ROUND_HELP_KEY_DOMINATION: String = "RoundTimerDominationCol"
 const SKY_THEME_LABELS: PackedStringArray = ["Sunset", "Night", "Random", "Cycle", "Dawn"]
-const SKY_THEME_TIP: String = "Time of day for the match sky. Cycle runs through dawn, day, sunset and night; the other options hold the cycle at one fixed time."
-const SKY_THEME_TIP_JOIN: String = "\n\n"
-const SKY_THEME_ITEM_TIPS: PackedStringArray = [
-	"Locked time: the sky stays at sunset for the whole match.",
-	"Locked time: the sky stays at night for the whole match.",
-	"Locked time: the host picks sunset, night or dawn at random when the match starts.",
-	"Running cycle: the sky moves through dawn, day, sunset and night as the match goes on.",
-	"Locked time: the sky stays at dawn for the whole match.",
-]
-const TIMER_TIP_DOMINATION: String = "How long the round lasts; when it ends the largest territory share wins. Domination always has a timer."
 ## Bontago-1pi.30: the timer sliders' value text. DECISION: the leftmost stop of a
 ## slider whose mode may switch its timer off (Classic, Elimination) reads "Off"
 ## (Elimination used to read "No limit"); every other value reads "<n> min".
@@ -505,6 +487,10 @@ func _prepare_rows() -> void:
 			continue
 		row.label.text = str(row.get_meta(ROW_LABEL_META, ""))
 		row.label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		UiHelpLine.tag(row, String(row.name))
+	_help_line.bind(_settings_scroll)
+	for chip: UiChipToggle in _qol_checks:
+		UiHelpLine.tag(chip, String(chip.name))
 	for node: Node in _settings_column.find_children("*", "", true, false):
 		if node.is_in_group(STACK_GROUP):
 			node.add_theme_constant_override("separation", arcade.space_3_px)
@@ -572,7 +558,6 @@ func _populate_options() -> void:
 	# Bontago-59o.18 (U1): the DAY entry is the cycle locked at sunset, so it
 	# reads "Sunset"; Cycle is the default through MatchConfig.sky_theme_mode.
 	_fill_cycle(_sky_theme_option, Array(SKY_THEME_LABELS))
-	_refresh_sky_tooltip()
 	# Bontago-22y.11: order must match MatchConfig.GameMode. Reserved modes are
 	# listed but disabled, so neither the mouse nor the gamepad popup can pick
 	# one; MatchConfig.resolve_game_mode() also rejects them on the wire.
@@ -666,6 +651,7 @@ func _build_specials_checklist() -> void:
 		chip.set_on_silent(true)
 		chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		chip.toggled.connect(_on_toggled)
+		UiHelpLine.tag(chip, OptionHelpTable.gift_key(special.id))
 		_specials_checklist.add_child(chip)
 		_special_checkboxes.append(chip)
 		_special_ids.append(special.id)
@@ -976,7 +962,6 @@ func _connect_control_signals() -> void:
 	_sky_team_sum_check.toggled.connect(_on_toggled)
 	_game_mode_option.item_selected.connect(_refresh_sky_controls)
 	_sky_theme_option.item_selected.connect(_on_option_changed)
-	_sky_theme_option.item_selected.connect(_refresh_sky_tooltip)
 	_player_count_spin.value_changed.connect(_on_value_changed)
 	# Bontago-1pi.9b: a seat-count edit can shrink the room left for bots, so
 	# this recomputes %AiCountSpin's own max_value on every host edit too, not
@@ -1332,9 +1317,7 @@ func _refresh_timer_control(mode: int) -> void:
 	# A stepper does not re-clamp its value when its minimum moves (a Range did).
 	_round_timer_stepper.value = maxi(_round_timer_stepper.value, _round_timer_stepper.min_value)
 	_applying_remote_data = was_applying
-	_match_timer_col.tooltip_text = TIMER_TIP_MATCH
-	_round_timer_col.tooltip_text = TIMER_TIP_DOMINATION if mode == MatchConfig.GameMode.DOMINATION else TIMER_TIP_ROUND
-	_game_mode_option.tooltip_text = MODE_TIPS[mode] if mode >= 0 and mode < MODE_TIPS.size() else ""
+	UiHelpLine.tag(_round_timer_col, ROUND_HELP_KEY_DOMINATION if mode == MatchConfig.GameMode.DOMINATION else String(_round_timer_col.name))
 	_rewire_focus()
 
 
@@ -1366,18 +1349,7 @@ func _on_timer_stepper_changed(value: int, stepper: UiStepper) -> void:
 	_on_setting_changed()
 
 
-## The sky cycler's tooltip: the list explainer plus the shown item's own tip (a cycler has no
-## per-item tooltips, so the Lobby keeps this one in step with the selection).
-func _refresh_sky_tooltip(_index: int = 0) -> void:
-	var tip: String = SKY_THEME_TIP
-	var shown: int = _sky_theme_option.selected()
-	if shown >= 0 and shown < SKY_THEME_ITEM_TIPS.size():
-		tip += SKY_THEME_TIP_JOIN + SKY_THEME_ITEM_TIPS[shown]
-	_sky_theme_option.tooltip_text = tip
-
-
 func _refresh_sky_controls(_index: int = 0) -> void:
-	_refresh_sky_tooltip()
 	_refresh_timer_control(MatchConfig.resolve_game_mode(_game_mode_option.selected()))
 	_sky_team_col.visible = _game_mode_option.selected() == MatchConfig.GameMode.REACH_THE_SKY
 	_rewire_focus()

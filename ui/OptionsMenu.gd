@@ -150,7 +150,6 @@ const ROW_SFX_VOLUME: String = "SFX volume"
 const ROW_WEATHER_VOLUME: String = "Weather volume"
 const ROW_RUMBLE: String = "Rumble"
 const ROW_RUMBLE_INTENSITY: String = "Rumble intensity"
-const ADAPTIVE_QUALITY_TOOLTIP: String = "Temporarily lowers effects when the frame rate drops. Never changes your saved preset."
 
 const KEY_REBIND_ROW_SCENE: PackedScene = preload("res://ui/KeyRebindRow.tscn")
 
@@ -230,6 +229,8 @@ const SPEAKER_HIGH_ICON: Texture2D = preload("res://assets/ui/icons/speaker_high
 ## Owner correction (options package, mid-review): "Mouse speed"/"Stick
 ## speed" labels for the single device-aware MoveSpeedRow on the Controls tab
 ## (see _refresh_move_speed_row()).
+## Help-line key of the Mouse / Stick speed row (text in config/option_help_table.tres).
+const MOVE_SPEED_HELP_KEY: String = "MoveSpeedSlider"
 const MOVE_SPEED_LABEL_MOUSE: String = "Mouse speed"
 const MOVE_SPEED_LABEL_STICK: String = "Stick speed"
 
@@ -239,6 +240,7 @@ const MOVE_SPEED_LABEL_STICK: String = "Stick speed"
 @onready var _back_button: Button = %BackButton
 @onready var _reset_button: Button = %ResetButton
 @onready var _tabs: UiTabs = %Tabs
+@onready var _help_line: UiHelpLine = %HelpLine
 @onready var _settings_page: ScrollContainer = %SettingsPage
 @onready var _settings_fields: VBoxContainer = %SettingsFields
 @onready var _controls_page: VBoxContainer = %ControlsPage
@@ -281,6 +283,7 @@ func _ready() -> void:
 	_build_game_page()
 	_build_move_speed_row()
 	_build_tabs()
+	_help_line.bind(_settings_page.get_parent() as Control)
 	_graphics_page.build(func() -> Variant: return settings_provider, self)
 	UiBlockButton.style(_reset_button, UiBlockButton.Look.SECONDARY, true)
 	UiBlockButton.style(_back_button, UiBlockButton.Look.SECONDARY, true)
@@ -355,7 +358,6 @@ func _build_game_page() -> void:
 	_camera_shake_check = UiToggle.new()
 	_add_row(display, ROW_CAMERA_SHAKE, _camera_shake_check, "CameraShakeCheck")
 	_adaptive_quality_check = UiToggle.new()
-	_adaptive_quality_check.tooltip_text = ADAPTIVE_QUALITY_TOOLTIP
 	_add_row(display, ROW_ADAPTIVE_QUALITY, _adaptive_quality_check, "AdaptiveQualityCheck")
 
 	var audio: VBoxContainer = _add_section(SECTION_AUDIO)
@@ -388,6 +390,7 @@ func _build_move_speed_row() -> void:
 	_move_speed_label = row.label
 	_move_speed_slider = _make_meter(MIN_MOVE_SPEED_SCALE, MAX_MOVE_SPEED_SCALE, MOVE_SPEED_CELLS)
 	row.add_item(_move_speed_slider)
+	UiHelpLine.tag(row, MOVE_SPEED_HELP_KEY)
 	_controls_page.add_child(row)
 	_controls_page.move_child(row, _controls_device_label.get_index() + 1)
 	_register(_move_speed_slider, "MoveSpeedSlider")
@@ -412,6 +415,7 @@ func _add_section(title: String) -> VBoxContainer:
 func _add_row(parent: Control, label_text: String, control: Control, unique_name: String) -> UiRow:
 	var row: UiRow = UiRow.new().setup(label_text, control)
 	parent.add_child(row)
+	UiHelpLine.tag(row, unique_name)
 	_register(control, unique_name)
 	return row
 

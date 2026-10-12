@@ -69,16 +69,15 @@ func test_sky_options_are_relabelled_and_cycle_is_the_default() -> void:
 	assert_eq(published.sky_theme_mode, MatchConfig.SkyThemeMode.CYCLE, "the default is what the host publishes")
 
 
-func test_sky_option_tooltip_explains_locked_time_and_follows_the_selection() -> void:
+func test_sky_option_help_explains_locked_time_and_follows_the_selection() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var option: UiCycler = lobby.get_node("%SkyThemeOption") as UiCycler
-	assert_true(option.tooltip_text.contains("fixed time"), "the cycler says the non-cycle options hold one time")
-	assert_true(option.tooltip_text.contains("Cycle runs"))
-	assert_true(option.tooltip_text.contains("Running cycle"), "the shown item's own tip is appended")
-	for mode: int in [MatchConfig.SkyThemeMode.DAY, MatchConfig.SkyThemeMode.NIGHT, MatchConfig.SkyThemeMode.DAWN, MatchConfig.SkyThemeMode.RANDOM]:
+	var table: OptionHelpTable = OptionHelpTable.shared()
+	var row: Control = lobby.get_node("%SkyThemeOption").get_parent() as Control
+	assert_true(table.text_for(UiHelpLine.key_of(row)).contains("fixed time"), "the row says the non-cycle options hold one time")
+	for mode: int in [MatchConfig.SkyThemeMode.DAY, MatchConfig.SkyThemeMode.NIGHT, MatchConfig.SkyThemeMode.DAWN, MatchConfig.SkyThemeMode.RANDOM, MatchConfig.SkyThemeMode.CYCLE]:
 		option.select(mode)
-		option.item_selected.emit(mode)
-		assert_true(option.tooltip_text.contains("Locked time"), "%s is a locked time" % option.get_item_text(mode))
+		assert_ne(table.text_for(UiHelpLine.key_of(row), UiHelpLine.selected_item_of(row)), table.text_for(UiHelpLine.key_of(row)), "%s has its own sentence" % option.get_item_text(mode))
 
 
 func test_sunset_option_keeps_the_day_enum_value_through_lobby_data() -> void:
