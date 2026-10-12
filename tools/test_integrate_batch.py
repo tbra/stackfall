@@ -489,6 +489,95 @@ class HintsMergeTests(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(self.repo, ".git", "MERGE_HEAD")))
 
 
+class UiBaselineTests(unittest.TestCase):
+    BASE = '{\n "R2": {\n  "ui/a.gd": 5,\n  "ui/b.gd": 4,\n  "ui/c.gd": 3\n }\n}\n'
+
+    @staticmethod
+    def bl(r2):
+        import json
+        return json.dumps({"R2": r2}, indent=1, sort_keys=True) + "\n"
+
+    def test_min_per_key(self):
+        o = self.bl({"ui/a.gd": 2, "ui/b.gd": 4, "ui/c.gd": 3})
+        t = self.bl({"ui/a.gd": 5, "ui/b.gd": 1, "ui/c.gd": 3})
+        out, why = ib.merge_ui_baselines(o, t, self.BASE)
+        self.assertIsNone(why)
+        self.assertEqual(out, self.bl({"ui/a.gd": 2, "ui/b.gd": 1, "ui/c.gd": 3}))
+
+    def test_removed_key_and_missing_file(self):
+        o = self.bl({"ui/a.gd": 5, "ui/c.gd": 3})  # removed b
+        t = self.bl({"ui/a.gd": 5, "ui/b.gd": 4, "ui/c.gd": 3, "ui/n.gd": 2})
+        out, why = ib.merge_ui_baselines(o, t, self.BASE, lambda f: f != "ui/c.gd")
+        self.assertIsNone(why)
+        self.assertEqual(out, self.bl({"ui/a.gd": 5, "ui/n.gd": 2}))
+
+    def test_malformed(self):
+        for bad in ("{nope", "[]", '{"R2": {"ui/a.gd": "x"}}', '{"R2": 3}'):
+            out, why = ib.merge_ui_baselines(bad, self.BASE, self.BASE)
+            self.assertIsNone(out)
+            self.assertTrue(why)
+
+    @staticmethod
+    def _w(repo, text):
+        with open(os.path.join(repo, ib.UI_BASELINE_PATH), "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(text)
+
+    def _repo(self, tmp):
+        repo = os.path.join(tmp, "r").replace("\\", "/")
+        os.makedirs(os.path.join(repo, "tools"))
+        os.makedirs(os.path.join(repo, "ui"))
+        git_run(repo, "init", "-q", "-b", "main")
+        git_run(repo, "config", "user.email", "t@t")
+        git_run(repo, "config", "user.name", "t")
+        for f in ("a", "b", "c"):
+            with open(os.path.join(repo, "ui", f + ".gd"), "w") as fh:
+                fh.write("x")
+        self._w(repo, self.BASE)
+        git_run(repo, "add", "-A")
+        git_run(repo, "commit", "-qm", "base")
+        for name, r2 in (("a", {"ui/a.gd": 2, "ui/b.gd": 4, "ui/c.gd": 3}),
+                         ("b", {"ui/a.gd": 5, "ui/b.gd": 1, "ui/c.gd": 3})):
+            git_run(repo, "checkout", "-q", "-b", name, "main")
+            self._w(repo, self.bl(r2))
+            git_run(repo, "add", "-A")
+            git_run(repo, "commit", "-qm", name)
+        git_run(repo, "checkout", "-q", "main")
+        return repo
+
+    def _merge(self, lint_code):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(tmp)
+            real = ib.run_cmd
+
+            def fake(ctx, name, args, cwd, timeout):
+                if name == "uib_lint":
+                    return lint_code, "lint", "log"
+                return real(ctx, name, args, cwd, timeout)
+            out = []
+            with mock.patch.object(ib, "run_cmd", fake):
+                try:
+                    ib.merge_branches(ib.Ctx(tmp), repo, ["a", "b"], [], out.append)
+                    err = None
+                except ib.StepFailed as e:
+                    err = e
+            with open(os.path.join(repo, ib.UI_BASELINE_PATH), encoding="utf-8") as fh:
+                text = fh.read()
+            merging = os.path.exists(os.path.join(repo, ".git", "MERGE_HEAD"))
+            return err, out, text, merging
+
+    def test_real_conflict_resolved(self):
+        err, out, text, _ = self._merge(0)
+        self.assertIsNone(err, err and err.detail)
+        self.assertTrue(any("auto-resolved" in l for l in out))
+        self.assertEqual(text, self.bl({"ui/a.gd": 2, "ui/b.gd": 1, "ui/c.gd": 3}))
+
+    def test_lint_failure_aborts(self):
+        err, _, _, merging = self._merge(1)
+        self.assertEqual(err.step, "merge")
+        self.assertIn("refused", err.detail)
+        self.assertFalse(merging)
+
+
 class AbsorbRealGitTests(unittest.TestCase):
     """Real temp repo: main gains commits after the gated base (Bontago-fca.90)."""
 
