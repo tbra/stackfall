@@ -118,6 +118,10 @@ func goal_zone_visual_radius() -> float:
 	return _match.goal_zone_visual_radius()
 
 
+func capture_hold_seconds() -> float:
+	return _match._territory_tuning.capture_hold
+
+
 func glue_drops_left(slot_id: int) -> int:
 	if not _active():
 		return 0

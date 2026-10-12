@@ -1,7 +1,6 @@
 class_name InputGlyph
 extends Control
-## Icon glyph for a single InputEvent (Bontago-1pi.10 polish pass; Bontago-1pi.35
-## adopts the new art in assets/ui/input_glyphs/). ui/KeyRebindRow.gd builds one
+## Icon glyph for a single InputEvent (Bontago-1pi.10 polish pass). ui/KeyRebindRow.gd builds one
 ## of these per bound event of the active device family (autoload/Settings.gd's
 ## own active_input_device()); set_event() is the single seam every consumer uses.
 ##
@@ -13,11 +12,7 @@ extends Control
 ## round cap with an L/R legend (a rim arrow when it is a direction, L3/R3 for the click), and the
 ## mouse and D-pad are block pictograms with the bound button lit in rim gold.
 ##
-## The paper-and-ink art in assets/ui/input_glyphs/ is still resolved (glyph_texture(),
-## uses_blank_shell() test seams, missing-folder probe) but no longer painted.
 
-## Stick direction / click / chord art (Bontago-mp0.124), keyed in config.
-@export var glyph_table: InputGlyphTable = preload("res://config/input_glyph_table.tres")
 ## Pad family for legends and face symbols (AUTO follows the connected pad, Xbox when none).
 @export var pad_style: PadStyle = PadStyle.AUTO
 
@@ -152,70 +147,7 @@ const JOYPAD_AXIS_LABELS: Dictionary[int, String] = {
 	JOY_AXIS_RIGHT_Y: "R Stick",
 }
 
-# --- Texture art (Bontago-1pi.35) ------------------------------------------------
-# DECISION: the glyph art locations are pure asset paths, kept as consts here
-# (they are binary art references, not tunable values); the layout numbers
-# below are measurements of that art's own SVG geometry, documented per const.
 const GLYPH_SCENE_PATH: String = "res://ui/InputGlyph.tscn"
-const GLYPH_ASSET_ROOT: String = "res://assets/ui/input_glyphs/"
-const KEY_ATLAS_SUBDIR: String = "key_atlas/"
-const KEY_CATALOG_FILE: String = "key_atlas/catalog.json"
-const BLANK_KEYCAP_FILE: String = "key_atlas/keycap_blank.svg"
-const BLANK_GAMEPAD_BUTTON_FILE: String = "gamepad_button_blank.svg"
-
-## DECISION: the base gamepad_*.svg / mouse_*.svg files are used; the
-## *_VARIANTS.md alternatives are not wired in. Mouse buttons beyond these
-## (extra side buttons) keep the _draw() silhouette.
-const MOUSE_GLYPH_FILES: Dictionary[int, String] = {
-	MOUSE_BUTTON_LEFT: "mouse_left.svg",
-	MOUSE_BUTTON_RIGHT: "mouse_right.svg",
-	MOUSE_BUTTON_MIDDLE: "mouse_middle.svg",
-	MOUSE_BUTTON_WHEEL_UP: "mouse_wheel_up.svg",
-	MOUSE_BUTTON_WHEEL_DOWN: "mouse_wheel_down.svg",
-	MOUSE_BUTTON_WHEEL_LEFT: "mouse_wheel_left.svg",
-	MOUSE_BUTTON_WHEEL_RIGHT: "mouse_wheel_right.svg",
-	MOUSE_BUTTON_XBUTTON1: "mouse_button_4.svg",
-	MOUSE_BUTTON_XBUTTON2: "mouse_button_5.svg",
-}
-
-const JOYPAD_BUTTON_GLYPH_FILES: Dictionary[int, String] = {
-	JOY_BUTTON_A: "gamepad_a.svg",
-	JOY_BUTTON_B: "gamepad_b.svg",
-	JOY_BUTTON_X: "gamepad_x.svg",
-	JOY_BUTTON_Y: "gamepad_y.svg",
-	JOY_BUTTON_LEFT_SHOULDER: "gamepad_lb.svg",
-	JOY_BUTTON_RIGHT_SHOULDER: "gamepad_rb.svg",
-	JOY_BUTTON_LEFT_STICK: "gamepad_stick_left.svg",
-	JOY_BUTTON_RIGHT_STICK: "gamepad_stick_right.svg",
-	JOY_BUTTON_START: "gamepad_start.svg",
-	JOY_BUTTON_BACK: "gamepad_back.svg",
-	JOY_BUTTON_GUIDE: "gamepad_guide.svg",
-	JOY_BUTTON_MISC1: "gamepad_misc.svg",
-	JOY_BUTTON_DPAD_UP: "gamepad_dpad_up.svg",
-	JOY_BUTTON_DPAD_DOWN: "gamepad_dpad_down.svg",
-	JOY_BUTTON_DPAD_LEFT: "gamepad_dpad_left.svg",
-	JOY_BUTTON_DPAD_RIGHT: "gamepad_dpad_right.svg",
-}
-
-const JOYPAD_AXIS_GLYPH_FILES: Dictionary[int, String] = {
-	JOY_AXIS_TRIGGER_LEFT: "gamepad_lt.svg",
-	JOY_AXIS_TRIGGER_RIGHT: "gamepad_rt.svg",
-	JOY_AXIS_LEFT_X: "gamepad_stick_left.svg",
-	JOY_AXIS_LEFT_Y: "gamepad_stick_left.svg",
-	JOY_AXIS_RIGHT_X: "gamepad_stick_right.svg",
-	JOY_AXIS_RIGHT_Y: "gamepad_stick_right.svg",
-}
-
-## A modifier key's own event carries its own modifier bit; only an *extra*
-## modifier (Ctrl+E) makes the atlas keycap for the base key misleading.
-const KEY_OWN_MODIFIER_MASKS: Dictionary[int, int] = {
-	KEY_SHIFT: KEY_MASK_SHIFT,
-	KEY_CTRL: KEY_MASK_CTRL,
-	KEY_ALT: KEY_MASK_ALT,
-	KEY_META: KEY_MASK_META,
-}
-
-enum Shell { NONE, KEYCAP, PAD_BUTTON }
 
 ## Kinds drawn as Stackfall Arcade caps; mouse, D-pad and stick are block pictograms.
 const ARCADE_CAP_KINDS: Array[Kind] = [Kind.KEY, Kind.FACE, Kind.SHOULDER, Kind.TRIGGER, Kind.GENERIC]
@@ -242,23 +174,6 @@ const DPAD_CHEVRON_PX: float = 3.0
 const STICK_ARROW_PX: float = 3.0
 const STICK_ARROW_REACH_FRACTION: float = 0.68
 
-## Test seam: where the glyph art is read from. Pointing it at a missing
-## folder proves the _draw() fallback path.
-var asset_root: String = GLYPH_ASSET_ROOT
-
-# Parsed key_atlas/catalog.json per asset root: Dictionary[int, String] of
-# Godot keycode -> PNG file name. Loaded once, shared by every glyph.
-static var _key_atlas_cache: Dictionary[String, Dictionary] = {}
-# Imported textures by path; a missing asset is cached as null so a bad path
-# is probed once, not on every set_event().
-static var _texture_cache: Dictionary[String, Texture2D] = {}
-
-
-## Bontago-xtq.44: drops the static texture/material cache on exit (freed before the renderer shuts down).
-static func release_statics() -> void:
-	_key_atlas_cache.clear()
-	_texture_cache.clear()
-
 var _kind: Kind = Kind.GENERIC
 var _text: String = "?"
 var _mouse_button: int = -1
@@ -269,8 +184,6 @@ var _stick_direction: StringName = &""
 var _stick_click: bool = false
 ## True for a chord prompt (several events held together): drawn as one sand chip.
 var _chord: bool = false
-var _texture: Texture2D = null
-var _shell: Shell = Shell.NONE
 ## Keys, pad face buttons, shoulders/triggers, chords and plain text badges are ink-on-block caps;
 ## false for the mouse, D-pad and stick pictograms.
 var _arcade_cap: bool = false
@@ -280,9 +193,6 @@ var _arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 
 
 func _ready() -> void:
-	# The atlas art is rasterised at 4x its on-screen size with mipmaps (see the
-	# asset README); sample them so the downscale stays crisp.
-	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	if custom_minimum_size == Vector2.ZERO:
 		custom_minimum_size = Vector2(SHAPE_WIDTH_PX, GLYPH_HEIGHT_PX)
 
@@ -292,7 +202,6 @@ func _ready() -> void:
 ## changes) -- each call fully replaces this glyph's state and redraws
 ## rather than layering onto a previous call's state.
 func set_event(event: InputEvent) -> void:
-	_clear_texture()
 	_listening = false
 	_face_button_index = -1
 	_chord = false
@@ -316,23 +225,15 @@ func set_event(event: InputEvent) -> void:
 	queue_redraw()
 
 
-## Chord prompt: `events` (all gamepad) held together. Uses the authored combo
-## art when the component set has one (LB+RB, RT+right stick), else the first
-## event's own glyph; the label is always the joined component labels.
+## Chord prompt: `events` (all gamepad) held together, drawn as one chip whose label is the joined
+## component labels.
 func set_chord(events: Array[InputEvent]) -> void:
 	if events.is_empty():
 		return
 	set_event(events[0])
 	if events.size() == 1:
 		return
-	var ids: PackedStringArray = PackedStringArray()
 	var labels: PackedStringArray = PackedStringArray()
-	for event: InputEvent in events:
-		var id: String = pad_component_id(event)
-		if id.is_empty():
-			ids.clear()
-			break
-		ids.append(id)
 	for event: InputEvent in events:
 		var part: InputGlyph = InputGlyph.new()
 		part.set_event(event)
@@ -340,8 +241,6 @@ func set_chord(events: Array[InputEvent]) -> void:
 		part.free()
 	_text = "+".join(labels)
 	_chord = true
-	if not ids.is_empty():
-		_apply_table_texture(glyph_table.combo(ids))
 	_refresh_arcade_cap()
 	queue_redraw()
 
@@ -396,21 +295,9 @@ static func signature_for_action(action: StringName) -> String:
 	return "|".join(parts)
 
 
-## Stable id of a gamepad event for combo lookup ("lb", "rt", "stick_right",
-## ...), or "" for anything that is not a named pad button/axis.
-static func pad_component_id(event: InputEvent) -> String:
-	var file: String = ""
-	if event is InputEventJoypadButton:
-		file = JOYPAD_BUTTON_GLYPH_FILES.get((event as InputEventJoypadButton).button_index, "")
-	elif event is InputEventJoypadMotion:
-		file = JOYPAD_AXIS_GLYPH_FILES.get((event as InputEventJoypadMotion).axis, "")
-	return file.trim_prefix("gamepad_").trim_suffix(".svg")
-
-
 ## Renders a plain "+N" overflow badge instead of a real event -- Owner: "max
 ## two glyphs per row, extra bindings hidden behind '+1'".
 func set_overflow_count(count: int) -> void:
-	_clear_texture()
 	_kind = Kind.GENERIC
 	_listening = false
 	_chord = false
@@ -423,7 +310,6 @@ func set_overflow_count(count: int) -> void:
 ## Renders the row's own "listening" placeholder (owner: "activating it
 ## enters 'press a key/button…' state shown in the glyph slot").
 func set_listening() -> void:
-	_clear_texture()
 	_kind = Kind.GENERIC
 	_text = "…"
 	_chord = false
@@ -438,18 +324,6 @@ func set_listening() -> void:
 ## drawn label, this is still its accessible/test-facing summary).
 func label_text() -> String:
 	return _text
-
-
-## Test seam: the art this glyph draws, or null while it renders through the
-## _draw() fallback primitives (missing asset, "+N" badge, listening dots).
-func glyph_texture() -> Texture2D:
-	return _texture
-
-
-## Test seam: true when the texture is a label-free blank shell and the real
-## name is drawn on top as runtime text (unmapped/modified key, unnamed button).
-func uses_blank_shell() -> bool:
-	return _shell != Shell.NONE
 
 
 ## Test seam: true when this glyph paints a Stackfall Arcade cap (keys, face buttons, chips).
@@ -471,15 +345,12 @@ func _configure_key(key_event: InputEventKey) -> void:
 		_text = key_event.as_text_keycode() if key_event.keycode != KEY_NONE else key_event.as_text_physical_keycode()
 		if _text.is_empty():
 			_text = "Key"
-	_apply_key_texture(key_event, code)
 
 
 func _configure_mouse(mouse_event: InputEventMouseButton) -> void:
 	_kind = Kind.MOUSE
 	_mouse_button = mouse_event.button_index
 	_text = MOUSE_BUTTON_LABELS.get(_mouse_button, "MB%d" % _mouse_button)
-	if MOUSE_GLYPH_FILES.has(_mouse_button):
-		_apply_square_texture(asset_root + MOUSE_GLYPH_FILES[_mouse_button])
 
 
 func _configure_joypad_button(joy_event: InputEventJoypadButton) -> void:
@@ -499,9 +370,6 @@ func _configure_joypad_button(joy_event: InputEventJoypadButton) -> void:
 		_stick_click = true
 	else:
 		_kind = Kind.GENERIC
-	if STICK_CLICK_SIDES.has(index) and _apply_table_texture(glyph_table.stick_click(STICK_CLICK_SIDES[index])):
-		return
-	_apply_pad_texture(JOYPAD_BUTTON_GLYPH_FILES.get(index, ""))
 
 
 func _configure_joypad_motion(motion_event: InputEventJoypadMotion) -> void:
@@ -515,10 +383,7 @@ func _configure_joypad_motion(motion_event: InputEventJoypadMotion) -> void:
 		# A stick axis bound with a sign (axis_value) is a directed prompt.
 		if STICK_AXIS_SIDES.has(axis) and not is_zero_approx(motion_event.axis_value):
 			_stick_direction = _axis_direction(axis, motion_event.axis_value)
-			if _apply_table_texture(glyph_table.stick_direction(_stick_side, _stick_direction)):
-				_text = "%s %s" % [_text, _stick_direction]
-				return
-	_apply_pad_texture(JOYPAD_AXIS_GLYPH_FILES.get(axis, ""))
+			_text = "%s %s" % [_text, _stick_direction]
 
 
 ## The pad family this glyph follows: the forced `pad_style`, else the first connected pad's name.
@@ -557,111 +422,14 @@ func resolved_pad_style() -> PadStyle:
 	return _pad_style
 
 
-# --- Texture resolution ----------------------------------------------------------
-
-
-func _clear_texture() -> void:
-	_texture = null
-	_shell = Shell.NONE
-
-
-## Keyboard: the catalog's keycap for this keycode; a key the catalog does not
-## list (international/future remaps), or one bound with an extra modifier,
-## gets the blank keycap with the key name as a runtime label instead.
-func _apply_key_texture(key_event: InputEventKey, code: Key) -> void:
-	if not _has_extra_modifier(key_event, code):
-		var atlas_file: String = _key_atlas_file(code)
-		if not atlas_file.is_empty():
-			if _apply_square_texture(asset_root + KEY_ATLAS_SUBDIR + atlas_file):
-				return
-	var shell: Texture2D = _load_texture(asset_root + BLANK_KEYCAP_FILE)
-	if shell == null:
-		return
-	_texture = shell
-	_shell = Shell.KEYCAP
-
-
-## Gamepad: the named SVG, else the blank button shell with the runtime label
-## (an unnamed button such as a paddle keeps its "BtnN" text).
-func _apply_pad_texture(file: String) -> void:
-	if not file.is_empty() and _apply_square_texture(asset_root + file):
-		return
-	var shell: Texture2D = _load_texture(asset_root + BLANK_GAMEPAD_BUTTON_FILE)
-	if shell == null:
-		return
-	_texture = shell
-	_shell = Shell.PAD_BUTTON
-
-
-## Square art drawn at the ~32 px glyph height; false when the asset is missing
-## so the caller keeps the _draw() fallback.
-func _apply_square_texture(path: String) -> bool:
-	var texture: Texture2D = _load_texture(path)
-	if texture == null:
-		return false
-	_texture = texture
-	_shell = Shell.NONE
-	return true
-
-
-## Table art (stick direction/click, combos), resolved as a seam only with the shipped asset root.
-func _apply_table_texture(texture: Texture2D) -> bool:
-	if texture == null or asset_root != GLYPH_ASSET_ROOT:
-		return false
-	_texture = texture
-	_shell = Shell.NONE
-	return true
-
-
 static func _axis_direction(axis: int, value: float) -> StringName:
 	if STICK_HORIZONTAL_AXES.has(axis):
 		return &"left" if value < 0.0 else &"right"
 	return &"up" if value < 0.0 else &"down"
 
 
-func _has_extra_modifier(key_event: InputEventKey, code: Key) -> bool:
-	var mask: int = key_event.get_modifiers_mask()
-	mask &= ~int(KEY_OWN_MODIFIER_MASKS.get(code, 0))
-	return mask != 0
-
-
-func _key_atlas_file(code: Key) -> String:
-	var files: Dictionary = _key_atlas_files(asset_root)
-	return str(files.get(int(code), ""))
-
-
 func _label_width(text: String, font_size: int) -> float:
 	return get_theme_default_font().get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size).x
-
-
-## Parses key_atlas/catalog.json once per asset root (keys[].code/file).
-static func _key_atlas_files(root: String) -> Dictionary:
-	if _key_atlas_cache.has(root):
-		return _key_atlas_cache[root]
-	var files: Dictionary[int, String] = {}
-	var catalog_path: String = root + KEY_CATALOG_FILE
-	if ResourceLoader.exists(catalog_path):
-		var catalog: JSON = ResourceLoader.load(catalog_path) as JSON
-		if catalog != null and catalog.data is Dictionary:
-			var entries: Variant = (catalog.data as Dictionary).get("keys", [])
-			if entries is Array:
-				for entry: Variant in entries as Array:
-					if entry is Dictionary:
-						var record: Dictionary = entry as Dictionary
-						if record.has("code") and record.has("file"):
-							files[int(record["code"])] = str(record["file"])
-	_key_atlas_cache[root] = files
-	return files
-
-
-static func _load_texture(path: String) -> Texture2D:
-	if _texture_cache.has(path):
-		return _texture_cache[path]
-	var texture: Texture2D = null
-	if ResourceLoader.exists(path):
-		texture = ResourceLoader.load(path) as Texture2D
-	_texture_cache[path] = texture
-	return texture
 
 
 func _draw() -> void:
