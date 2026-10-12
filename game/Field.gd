@@ -1360,5 +1360,17 @@ func remove_fallen_block(body: RigidBody3D) -> void:
 		return
 	if body == null or not is_instance_valid(body) or body.is_queued_for_deletion():
 		return
+	# Glue fusion: a carrier takes every member with it, a lone follower leaves its group;
+	# FusedBody emits exactly one block_removed per member.
+	var carrier: FusedBody = body as FusedBody
+	if carrier != null:
+		carrier.remove_all_members(Events.REASON_KILL_PLANE)
+		return
+	var member: Block = body as Block
+	if member != null:
+		var member_carrier: FusedBody = member.fused_carrier() as FusedBody
+		if member_carrier != null:
+			member_carrier.remove_member(member, Events.REASON_KILL_PLANE)
+			return
 	Events.block_removed.emit(body, String(Events.REASON_KILL_PLANE))
 	body.queue_free()
