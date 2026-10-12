@@ -270,3 +270,52 @@ func test_request_dissolve_on_a_carrier_dissolves_the_whole_group_once_per_membe
 
 	for id: int in ids:
 		assert_eq(_removed_count(id), 1, "one block_removed per member")
+
+
+func _frozen_stack(count: int) -> Array[Block]:
+	var stack: Array[Block] = []
+	for i: int in range(count):
+		stack.append(_spawn(i % 2, Vector3(0.0, REST_HEIGHT_M + CUBE_SIDE_M * float(i), 0.0)))
+	await wait_physics_frames(SETTLE_FRAMES)
+	var base: Block = stack[0]
+	for i: int in range(1, count):
+		GlueFusion.fuse(stack[i], base, _glue)
+	await wait_physics_frames(FUSE_SETTLE_FRAMES)
+	var carrier: FusedBody = base.fused_carrier() as FusedBody
+	carrier.sleeping = true
+	_make_manager()._tick(_physics.stable_freeze_delay_s + SCAN_PAD_S)
+	assert_true(carrier.is_freeze_static(), "precondition: stable-frozen")
+	return stack
+
+
+func test_losing_a_member_releases_the_stable_freeze_of_the_rest() -> void:
+	var stack: Array[Block] = await _frozen_stack(3)
+	var carrier: FusedBody = stack[1].fused_carrier() as FusedBody
+	carrier.remove_member(stack[0], &"test")
+	assert_false(carrier.is_freeze_static(), "the remaining group is no longer static in mid-air")
+
+
+func test_collapse_survivor_is_not_left_stable_frozen() -> void:
+	var stack: Array[Block] = await _frozen_stack(2)
+	var carrier: FusedBody = stack[1].fused_carrier() as FusedBody
+	carrier.remove_member(stack[0], &"test")
+	assert_false(stack[1].is_fused_member())
+	assert_false(stack[1].is_freeze_static(), "survivor does not inherit the stale stable freeze")
+
+
+func test_dissolving_every_member_and_the_carrier_in_one_tick_starts_each_once() -> void:
+	var pair: Array[Block] = _pair_on_disc()
+	var carrier: FusedBody = _fuse(pair[0], pair[1])
+	var ids: Array[int] = [pair[0].get_instance_id(), pair[1].get_instance_id()]
+	var dissolver: HoleDissolver = _registry.hole_dissolver()
+	for member: Block in [pair[0], pair[1]]:
+		dissolver.start_dissolve(member)
+	dissolver.start_dissolve(carrier)
+	dissolver.start_dissolve(pair[0])
+	assert_eq(dissolver.dissolves_started, 2, "the group dissolves exactly once")
+	var none: Array[Block] = []
+	dissolver.physics_tick(_dissolve_tuning.dissolve_delay_s + 0.01, none)
+	await wait_physics_frames(3)
+	for id: int in ids:
+		assert_eq(_removed_count(id), 1, "one block_removed per member")
+	assert_eq(dissolver.pending_count(), 0)

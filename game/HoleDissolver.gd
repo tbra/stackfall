@@ -130,8 +130,14 @@ func physics_tick(delta: float, candidates: Array[Block]) -> void:
 		return
 	var due: Array[Block] = []
 	for id: Variant in _pending.keys():
-		var block: Block = _pending_blocks.get(id) as Block
-		if block == null or not is_instance_valid(block) or block.is_queued_for_deletion():
+		var raw: Variant = _pending_blocks.get(id)
+		# Validity before the cast: casting a freed instance with `as` errors.
+		if raw == null or not is_instance_valid(raw):
+			_pending.erase(id)
+			_pending_blocks.erase(id)
+			continue
+		var block: Block = raw as Block
+		if block == null or block.is_queued_for_deletion():
 			_pending.erase(id)
 			_pending_blocks.erase(id)
 			continue

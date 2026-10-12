@@ -290,6 +290,9 @@ func _after_membership_loss() -> void:
 	if members.is_empty():
 		queue_free()
 		return
+	# A lost member may have been the support: drop the stable-block freeze like the gain
+	# path does (other holds stay) so the rest falls instead of hanging static in the air.
+	release_freeze_static(FREEZE_REASON_STABLE)
 	if is_disc_anchored_field_set() and not is_disc_anchored():
 		_leave_anchor_mode()
 	# DECISION: a lone survivor that still holds the disc anchor stays in a one-member body
@@ -314,6 +317,7 @@ func _collapse() -> void:
 	var linear: Vector3 = linear_velocity
 	var angular: Vector3 = angular_velocity
 	var reasons: Array = _freeze_reasons.keys()
+	reasons.erase(FREEZE_REASON_STABLE)
 	var inverse: Transform3D = offset.affine_inverse()
 	for shape: CollisionShape3D in member_shapes(survivor):
 		var local: Transform3D = inverse * shape.transform

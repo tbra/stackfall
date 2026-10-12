@@ -286,13 +286,20 @@ func _physics_process(delta: float) -> void:
 			carrier.linear_velocity.length_squared() < lin_sq
 			and carrier.angular_velocity.length_squared() < ang_sq
 		) else 0
-		for member: Block in carrier.members.duplicate():
+		# Index walk without a copy: a handler removing a member shifts the array, so
+		# re-read the size each step and step back when the current slot changed.
+		var index: int = 0
+		while index < carrier.members.size():
+			var member: Block = carrier.members[index]
+			index += 1
 			if not is_instance_valid(member):
 				continue
 			var member_id: int = member.get_instance_id()
 			var member_entry: _Entry = _entries.get(member_id) as _Entry
 			if member_entry != null:
 				_step_entry(member_id, member_entry, delta, lin_sq, ang_sq, settle_time, collect, moving, stale, carrier_settled)
+			if index > 0 and index <= carrier.members.size() and carrier.members[index - 1] != member:
+				index -= 1
 	_sweep_ticks += 1
 	if _sweep_ticks >= STALE_SWEEP_TICKS:
 		_sweep_ticks = 0
