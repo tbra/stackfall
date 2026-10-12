@@ -107,6 +107,10 @@ var _disk_tex: ImageTexture = null
 var _disk_raster: TerritoryRaster = null
 var _tex_res: int = 0
 var _built_size_px: int = 0
+## Bontago-1pi.191: the current square size; the Options minimap-size preset changes it via set_size_px()
+## (the shared tuning Resource is never written).
+var _size_px: int = 0
+var _panel_style: StyleBoxFlat = null
 ## Bontago-1pi.11.9: inputs of the last _rebuild_image(), so the refresh timer can skip an unchanged rebuild.
 const NO_BUILD_HASH: int = -1
 var _built_raster_hash: int = NO_BUILD_HASH
@@ -115,7 +119,9 @@ var _built_colors: PackedColorArray = PackedColorArray()
 
 func _ready() -> void:
 	process_priority = _PROCESS_PRIORITY_AFTER_CAMERA
-	custom_minimum_size = Vector2(tuning.minimap_size_px, tuning.minimap_size_px)
+	if _size_px <= 0:
+		_size_px = tuning.minimap_size_px
+	custom_minimum_size = Vector2(_size_px, _size_px)
 
 	var style: StyleBoxFlat = StyleBoxFlat.new()
 	style.bg_color = tuning.minimap_backdrop_color
@@ -126,12 +132,13 @@ func _ready() -> void:
 	# clip node needed. _rebuild_image() below leaves every off-disk pixel of
 	# the drawn image fully transparent, so this circular backdrop is what
 	# shows through in the corners.
-	style.set_corner_radius_all(int(tuning.minimap_size_px * 0.5))
+	style.set_corner_radius_all(int(_size_px * 0.5))
 	# Stackfall Arcade (Bontago-hfa.6): the disc-900 frame's 3 px rim ring casts a soft rim glow,
 	# echoing the arena's own glowing gold edge; it is the one place the HUD glows.
 	style.shadow_color = Color(tuning.minimap_frame_color, tuning.minimap_glow_alpha)
 	style.shadow_size = int(tuning.minimap_glow_size_px)
 	add_theme_stylebox_override("panel", style)
+	_panel_style = style
 
 	_territory_layer = Control.new()
 	_territory_layer.name = "TerritoryLayer"
@@ -366,7 +373,7 @@ func _image_inputs_changed() -> bool:
 	return (
 		_raster.ownership_hash() != _built_raster_hash
 		or _team_colors != _built_colors
-		or _built_size_px != tuning.minimap_size_px
+		or _built_size_px != _size_px
 	)
 
 
@@ -392,7 +399,7 @@ func _rebuild_image() -> void:
 	_built_colors = _team_colors
 	_image_right = _camera_right
 	_image_forward = _camera_forward
-	_built_size_px = tuning.minimap_size_px
+	_built_size_px = _size_px
 	if _territory_material == null:
 		return
 	_territory_material.set_shader_parameter("slot_count", 0)
@@ -480,7 +487,7 @@ func goal_marker_draw_data() -> Array[Dictionary]:
 	var markers: Array[Dictionary] = []
 	if _map_def == null or _half_extent <= 0.0:
 		return markers
-	var canvas_width: float = float(tuning.minimap_size_px)
+	var canvas_width: float = float(_size_px)
 	if _canvas != null and _canvas.size.x > 0.0:
 		canvas_width = _canvas.size.x
 	var px_per_m: float = canvas_width / (_half_extent * 2.0)
@@ -533,7 +540,7 @@ func gift_marker_draw_data() -> Array[Dictionary]:
 	var markers: Array[Dictionary] = []
 	if _canvas == null or _map_def == null or _half_extent <= 0.0:
 		return markers
-	var canvas_width: float = _canvas.size.x if _canvas.size.x > 0.0 else float(tuning.minimap_size_px)
+	var canvas_width: float = _canvas.size.x if _canvas.size.x > 0.0 else float(_size_px)
 	var px_per_m: float = canvas_width / (_half_extent * 2.0)
 	for state: Dictionary in _gift_states:
 		var position: Variant = state.get("position")
@@ -601,7 +608,7 @@ func _draw_beacons() -> void:
 ## rasterization of the current state, the exact look the territory shader
 ## reproduces. Never called by the running game.
 func debug_image() -> Image:
-	var size_px: int = tuning.minimap_size_px
+	var size_px: int = _size_px
 	var image: Image = Image.create(size_px, size_px, false, Image.FORMAT_RGBA8)
 	if _raster == null or _half_extent <= 0.0:
 		return image
@@ -623,3 +630,24 @@ func debug_image() -> Image:
 				color = _territory_color(_team_colors[team])
 			image.set_pixel(px, py, color)
 	return image
+
+
+## Bontago-1pi.191: resizes the minimap to a square of `px` HUD pixels, keeping its bottom-right corner
+## fixed (the HUD anchors it there and aligns the round timer with that edge). The image rebuilds on
+## the next refresh because _image_inputs_changed() sees the new size.
+func set_size_px(px: int) -> void:
+	if px <= 0:
+		return
+	_size_px = px
+	custom_minimum_size = Vector2(px, px)
+	offset_left = offset_right - float(px)
+	offset_top = offset_bottom - float(px)
+	if _panel_style != null:
+		_panel_style.set_corner_radius_all(int(px * 0.5))
+	if is_inside_tree():
+		render_now()
+
+
+## The current square size in HUD pixels.
+func size_px() -> int:
+	return _size_px if _size_px > 0 else tuning.minimap_size_px

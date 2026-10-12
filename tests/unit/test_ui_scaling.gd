@@ -49,10 +49,13 @@ func _settle() -> void:
 
 func _rect_of(node: Node, path: String) -> Rect2:
 	var control: Control = node.get_node_or_null(path) as Control
+	if control == null and node is HUD:
+		# Bontago-1pi.191: HUD controls live under the HudScaleRoot.
+		control = node.find_child(path, true, false) as Control
 	assert_not_null(control, "missing node %s" % path)
 	if control == null:
 		return Rect2()
-	return control.get_global_rect()
+	return control.get_global_transform() * Rect2(Vector2.ZERO, control.size)
 
 
 ## screen builder -> per-size {element name: Rect2 in logical px}.
