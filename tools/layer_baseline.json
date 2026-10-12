@@ -102,6 +102,7 @@
  "l1_exceptions": [],
  "largest_scc": 30,
  "main_closure": [
+  "assets/gifts/gift_outline.tres",
   "assets/models/horizon_islands_v1/crag.glb",
   "assets/models/horizon_islands_v1/crag.tscn",
   "assets/models/horizon_islands_v1/island_cel.gdshader",
@@ -442,6 +443,8 @@
   "shaders/fireflies.gdshader",
   "shaders/ghost_cell_grid.gdshader",
   "shaders/ghost_glow_rim.gdshader",
+  "shaders/gift_outline.gdshader",
+  "shaders/gift_toon.gdshader",
   "shaders/goal_beam.gdshader",
   "shaders/goal_claim_zone.gdshader",
   "shaders/horizon_island.gdshader",
