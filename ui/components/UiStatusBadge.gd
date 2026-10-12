@@ -16,7 +16,7 @@ const TICK_END: Vector2 = Vector2(1.0, 0.05)
 ## Icon-only READY / NOT_READY marks are drawn, not font glyphs: a tick and an hourglass outline in
 ## the same square box, stroke and baseline, tinted by the face's ink.
 
-## The label shown (and, icon-only, the accessible tooltip).
+## The label shown (and, icon-only, the accessible name).
 var text: String = "":
 	set(value):
 		text = value
@@ -30,7 +30,7 @@ var live: bool = false:
 	set(value):
 		live = value
 		_refresh()
-## Shows only a drawn mark (tick / hourglass for READY / NOT_READY); the text becomes the tooltip.
+## Shows only a drawn mark (tick / hourglass for READY / NOT_READY); the text becomes the accessible name.
 var icon_only: bool = false:
 	set(value):
 		icon_only = value
@@ -114,7 +114,8 @@ func _refresh() -> void:
 	label.text = "" if icon_only and has_mark(variant) else text
 	label.add_theme_font_size_override("font_size", arcade.font_size_label_px)
 	label.add_theme_color_override("font_color", MenuStyleFactory.ink_for_face(face))
-	tooltip_text = text if icon_only else ""
+	# Icon-only badges name themselves for screen readers; no tooltip (inline help only).
+	set_accessibility_name(text if icon_only else "")
 	queue_redraw()
 
 

@@ -44,13 +44,14 @@ func test_state_api_label_and_signal() -> void:
 	assert_eq(_toggled, [true])
 
 
-func test_unavailable_chip_is_disabled_with_a_tooltip_and_keeps_its_state() -> void:
+func test_unavailable_chip_is_disabled_with_an_inline_reason_and_keeps_its_state() -> void:
 	var chip: UiChipToggle = _make("Cat")
 	chip.set_on(true)
 	chip.set_available(false, "Switched off for this match")
 	assert_true(chip.disabled)
 	assert_false(chip.is_available())
-	assert_eq(chip.tooltip_text, "Switched off for this match")
+	assert_eq(chip.unavailable_reason(), "Switched off for this match")
+	assert_eq(chip.tooltip_text, "", "no tooltip")
 	assert_true(chip.is_on())
 	assert_true((chip.get_theme_stylebox("disabled") as BlockStyleBox).disabled)
 	chip.set_available(true)

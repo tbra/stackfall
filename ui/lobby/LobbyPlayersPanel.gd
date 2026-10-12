@@ -638,9 +638,8 @@ func _render() -> void:
 	# republishes), so the two agree whenever the Lobby is shown.
 	# Bontago-1pi.106: the player/bot count controls are gone, so the denominator is always the maximum.
 	var seat_count: int = MatchConfig.PLAYER_COUNT_MAX
-	# Bontago-1pi.95: the label clips (never widens the card); the tooltip carries the full text.
+	# Bontago-1pi.95: the label clips (never widens the card); no tooltip (inline help only).
 	_player_count_label.text = format_roster_header(_humans.size(), bot_total, seat_count)
-	_player_count_label.tooltip_text = _player_count_label.text
 
 	var focus_memory: Dictionary = _remember_focus()
 	for row: Node in _player_rows:

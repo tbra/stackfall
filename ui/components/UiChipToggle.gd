@@ -4,8 +4,8 @@ extends Button
 ## the gift / special pool and the lobby's experiment flags. On = a `mint` block with an ink
 ## check box holding a tick; off = a `disc-700` block with an empty box, so the state never relies
 ## on colour alone. A UiRowItem (BUTTON_SM height). Pad / keyboard: ui_accept toggles. A chip that
-## is switched off for the match (set_available(false), e.g. the Cat gift) is shown disabled with
-## its tooltip. The label is the Button's text, the optional pictogram its icon.
+## is switched off for the match (set_available(false), e.g. the Cat gift) is shown disabled; its
+## reason is read back with unavailable_reason() for inline help. The label is the Button's text, the optional pictogram its icon.
 
 @export var label: String = "":
 	set(value):
@@ -17,7 +17,7 @@ extends Button
 		icon = value
 
 var _available: bool = true
-var _tooltip_when_unavailable: String = ""
+var _unavailable_reason: String = ""
 
 
 func _init() -> void:
@@ -45,14 +45,17 @@ func is_on() -> bool:
 	return button_pressed
 
 
-## Shows the chip disabled (e.g. a gift that is switched off) with [param why] as its tooltip.
+## Shows the chip disabled (e.g. a gift that is switched off); [param why] is its inline reason.
 func set_available(available: bool, why: String = "") -> void:
 	_available = available
-	_tooltip_when_unavailable = why
+	_unavailable_reason = why if not available else ""
 	disabled = not available
-	if not available and not why.is_empty():
-		tooltip_text = why
 	_restyle()
+
+
+## The reason a chip is switched off ("" when available); shown as inline help, never as a tooltip.
+func unavailable_reason() -> String:
+	return _unavailable_reason
 
 
 func is_available() -> bool:

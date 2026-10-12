@@ -1874,8 +1874,8 @@ func _update_host_only_state() -> void:
 		_set_control_editable(control, is_host)
 	_players_panel.set_editable(is_host)
 	# Bontago-1pi.53 (E1, P1 review F4): a start blocker (e.g. teams on and every
-	# seat on one team) disables Start and is explained in its tooltip; "" when
-	# nothing blocks, which is also the tooltip's default.
+	# seat on one team) disables Start and is shown under the rows (LobbyPlayersPanel); "" when
+	# nothing blocks.
 	var start_blocker: String = _players_panel.start_blocker() if is_host else ""
 	_start_button.visible = is_host
 	# DECISION (Bontago-1pi.95): the host's Start button is its consent -- Net.all_peers_ready()
@@ -1885,7 +1885,6 @@ func _update_host_only_state() -> void:
 	_start_button.disabled = (
 		not is_host or not (net_provider != null and bool(net_provider.all_peers_ready())) or start_blocker != ""
 	)
-	_start_button.tooltip_text = start_blocker
 	_invite_friends_button.visible = is_host and net_provider != null and bool(net_provider.is_steam_session())
 	if _join_code_row != null:
 		_join_code_row.refresh(net_provider, is_host)

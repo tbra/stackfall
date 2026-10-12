@@ -50,7 +50,7 @@ func _badges(lobby: Lobby) -> Dictionary:
 		if row == null or row.is_bot or row.badge == null:
 			continue
 		# Bontago-1pi.106: the host's badge is a crown, so its ready state is read off the row flag.
-		badges[row.display_name] = row.is_ready if row.is_host else row.badge.tooltip_text == LobbySeatRow.ready_tooltip(true)
+		badges[row.display_name] = row.is_ready if row.is_host else (row.badge as Control).get_accessibility_name() == LobbySeatRow.ready_tooltip(true)
 	return badges
 
 

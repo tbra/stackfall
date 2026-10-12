@@ -290,8 +290,6 @@ func _refresh() -> void:
 	value_icon.texture = shown
 	value_icon.visible = shown != null
 	value_box.custom_minimum_size.x = maxf(content_width(), min_value_width)
-	if _selected >= 0 and _tooltips[_selected] != "":
-		tooltip_text = _tooltips[_selected]
 	var can_step: bool = not disabled and _enabled_count() > 1
 	prev_button.disabled = not can_step
 	next_button.disabled = not can_step

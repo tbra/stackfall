@@ -94,8 +94,8 @@ enum PendingAction { NONE, LEAVE, RETURN_TO_LOBBY }
 
 ## DECISION (Bontago-1pi.50): a client sees the entry disabled rather than a
 ## "leave to the host's lobby" variant (keep it simple; a client's own way out
-## stays Leave match). The tooltip is the one place that explains why.
-const RETURN_CLIENT_TOOLTIP: String = "Only the host can return everyone to the lobby"
+## stays Leave match). The inline hint under the entry explains why (no tooltips).
+const RETURN_CLIENT_HINT: String = "Only the host can return everyone to the lobby"
 const RETURN_CONFIRM_TEXT: String = "End this match for everyone and return to the lobby?"
 const RETURN_CONFIRM_OK_TEXT: String = "End match"
 const LEAVE_CONFIRM_TEXT: String = "Leave this match and return to the main menu?"
@@ -126,6 +126,8 @@ var _restore_focus: Callable = Callable()
 @onready var _return_button: UiBlockButton = %ReturnLobbyButton
 @onready var _leave_button: UiBlockButton = %LeaveButton
 @onready var _confirm_dialog: ConfirmationDialog = %ConfirmDialog
+## Inline reason shown under the Return to lobby entry while a client sees it disabled (hidden otherwise).
+var return_hint: UiText = null
 
 
 func _ready() -> void:
@@ -143,6 +145,7 @@ func _ready() -> void:
 	_options_button.pressed.connect(_on_options_pressed)
 	_return_button.pressed.connect(_on_return_lobby_pressed)
 	_leave_button.pressed.connect(_on_leave_pressed)
+	_build_return_hint()
 	_confirm_dialog.confirmed.connect(_on_confirm_dialog_confirmed)
 	_confirm_dialog.canceled.connect(_on_confirm_dialog_canceled)
 	Events.match_results_ready.connect(_on_match_results_ready)
@@ -345,6 +348,16 @@ func _context() -> Dictionary:
 	return {}
 
 
+## The inline reason under the Return to lobby entry (a body-text label; no tooltip).
+func _build_return_hint() -> void:
+	return_hint = UiText.make(UiText.Role.BODY)
+	return_hint.name = "ReturnHint"
+	return_hint.visible = false
+	var column: Node = _return_button.get_parent()
+	column.add_child(return_hint)
+	column.move_child(return_hint, _return_button.get_index() + 1)
+
+
 ## Bontago-1pi.50: applies the session context to the Return to lobby entry and
 ## rebuilds the focus ring around the entries a player can actually reach (a
 ## hidden or disabled entry is skipped, so neither stick nor Tab lands on it).
@@ -353,7 +366,8 @@ func refresh_return_entry() -> void:
 	var entry: int = int(_context().get("return_entry", ReturnEntry.HIDDEN))
 	_return_button.visible = entry != ReturnEntry.HIDDEN
 	_return_button.disabled = entry != ReturnEntry.ENABLED
-	_return_button.tooltip_text = RETURN_CLIENT_TOOLTIP if entry == ReturnEntry.DISABLED else ""
+	return_hint.visible = entry == ReturnEntry.DISABLED
+	return_hint.text = RETURN_CLIENT_HINT if entry == ReturnEntry.DISABLED else ""
 	_wire_focus_chain()
 
 

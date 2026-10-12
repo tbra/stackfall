@@ -176,7 +176,7 @@ func test_lobby_game_mode_focus_explains_the_selected_mode() -> void:
 	mode.select(MatchConfig.GameMode.REACH_THE_SKY)
 	line.refresh()
 	assert_eq(line.label.text, table.text_for("GameModeCol", MatchConfig.GameMode.REACH_THE_SKY))
-	assert_eq(mode.tooltip_text, "", "no duplicate tooltip")
+	assert_eq(mode.tooltip_text, "", "no tooltip (inline help only)")
 
 
 func test_lobby_round_length_row_changes_text_in_domination() -> void:
@@ -238,7 +238,7 @@ func test_options_game_tab_explains_unclear_rows_only() -> void:
 	adaptive.grab_focus()
 	line.refresh()
 	assert_eq(line.label.text, OptionHelpTable.shared().text_for("AdaptiveQualityCheck"))
-	assert_ne(adaptive.tooltip_text, line.label.text, "the sentence is not duplicated as a tooltip")
+	assert_eq(adaptive.tooltip_text, "", "the sentence is shown inline, never as a tooltip")
 	var master: Control = menu.get_node("%MasterMuteButton") as Control
 	master.grab_focus()
 	line.refresh()

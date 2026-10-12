@@ -3,7 +3,7 @@ extends Button
 ## A small secondary block holding one icon (the kick / remove X, docs/UI_COMPONENTS_PLAN.md
 ## section 3.2). A square UiRowItem (ICON): exactly row_height wide and tall, so it never reads
 ## smaller than the other items of its row. DANGER paints the glyph in `alert` (flare) on a
-## disc-600 face; SECONDARY uses the ink the face asks for. The tooltip is the Button's own.
+## disc-600 face; SECONDARY uses the ink the face asks for. No tooltips: an icon-only button needs its name in the inline help.
 
 enum Tone { SECONDARY, DANGER }
 

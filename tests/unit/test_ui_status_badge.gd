@@ -38,12 +38,13 @@ func test_label_is_the_first_child_and_uses_ink_on_a_bright_face() -> void:
 	assert_eq(_badge(UiStatusBadge.Look.NEUTRAL).label.get_theme_color("font_color"), MenuStyleFactory.arcade_tuning().cream_color)
 
 
-func test_icon_only_shows_glyphs_and_keeps_the_words_as_tooltip() -> void:
+func test_icon_only_shows_glyphs_and_keeps_the_words_as_accessible_name() -> void:
 	var badge: UiStatusBadge = _badge(UiStatusBadge.Look.READY, "Ready")
 	badge.icon_only = true
 	assert_eq(badge.label.text, "", "drawn mark, no font glyph")
 	assert_true(UiStatusBadge.has_mark(badge.variant))
-	assert_eq(badge.tooltip_text, "Ready")
+	assert_eq(badge.get_accessibility_name(), "Ready")
+	assert_eq(badge.tooltip_text, "", "no tooltip")
 	badge.variant = UiStatusBadge.Look.NOT_READY
 	assert_eq(badge.label.text, "")
 	assert_true(UiStatusBadge.has_mark(badge.variant))
@@ -78,7 +79,7 @@ func test_icon_only_ready_tile_compact_size_and_faces() -> void:
 	add_child_autofree(pill)
 	await wait_frames(2)
 	assert_eq(pill.label.text, "")
-	assert_eq(pill.tooltip_text, "Not ready")
+	assert_eq(pill.tooltip_text, "", "a text badge shows its words; no tooltip")
 	assert_eq(pill.custom_minimum_size, size, "the caller's compact size wins over the row height")
 	assert_eq((pill.get_theme_stylebox("panel") as StyleBoxFlat).content_margin_top, 0.0)
 	pill.variant = UiStatusBadge.Look.READY
