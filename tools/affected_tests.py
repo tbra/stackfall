@@ -11,7 +11,7 @@ line is unchanged), drops noise (under 4 chars, common GDScript words), and sear
 tests/**/*.gd for whole-word references (string literals such as find_children("*", "Foo") count). Tests that are part of the diff are listed and marked
 [changed]. Prints a compact list, a totals line and a ready-to-run tools/run_gut.ps1 line.
 Changes under ui/components/**, ui/Lobby*, ui/lobby/**, ui/MainMenu* or ui/HUD* also add the
-cross-screen UI suites (UI_CROSS_SUITES; Bontago-fca.94), whatever identifiers matched, and the
+cross-screen UI suites (CROSS_RULES; Bontago-fca.94), whatever identifiers matched, and the
 output reminds you to run `python tools/lint_all.py` (includes lint_ui_components).
 Exit 0 unless git fails.
 """
@@ -42,11 +42,29 @@ after_each before_all after_all assert_eq assert_true assert_false assert_not_nu
 get_tree get_node add_child queue_free emit connect
 """.split())
 
-# Bontago-fca.94: screen-spanning suites that broke gates when a worker changed shared UI.
-UI_CROSS_PREFIXES = ("ui/components/", "ui/lobby/", "ui/Lobby", "ui/MainMenu", "ui/HUD")
-UI_CROSS_SUITES = ("tests/unit/test_ui_reskin_integration.gd", "tests/unit/test_mode_polish.gd",
-                   "tests/unit/test_build_version.gd")
+# Named cross-suite rules (Bontago-fca.94, fca.100): changed path prefix -> suites that assert on
+# behaviour the identifier search cannot see. Missing suite files are skipped silently.
 UI_CROSS_NAME = "ui-cross-screen"
+CROSS_RULES = (
+    (UI_CROSS_NAME,
+     ("ui/components/", "ui/lobby/", "ui/Lobby", "ui/MainMenu", "ui/HUD", "ui/OptionsMenu",
+      "ui/GraphicsSettingsTab", "ui/Minimap", "config/UiScaleTuning", "config/option_help_table"),
+     ("tests/unit/test_ui_reskin_integration.gd", "tests/unit/test_mode_polish.gd",
+      "tests/unit/test_build_version.gd", "tests/unit/test_ui_scaling.gd",
+      "tests/unit/test_match_countdown.gd")),
+    ("physics-tuning",
+     ("config/PhysicsTuning", "config/physics", "game/Block.gd", "game/BlockEffectsManager.gd",
+      "game/HoleDissolver.gd", "game/specials/Glue", "game/specials/BlackHole",
+      "game/specials/SpecialPhysics", "game/TuningOverrides"),
+     ("tests/unit/test_physics_tuning.gd", "tests/unit/test_glue_effect.gd",
+      "tests/unit/test_glue_drops.gd", "tests/unit/test_glue_sticks_overhang.gd",
+      "tests/unit/test_glue_coat_replication.gd", "tests/unit/test_hole_dissolve.gd",
+      "tests/unit/test_special_black_hole.gd", "tests/unit/test_block_rebound_physics.gd")),
+    ("beacon-disc",
+     ("config/MatchConfig", "config/match_defaults", "config/BeaconVisualTuning", "game/Beacon",
+      "game/Disc"),
+     ("tests/unit/test_disc_size.gd", "tests/unit/test_disc_body.gd")),
+)
 
 GD_DECL = re.compile(
     r"^\s*(?:@\w+(?:\([^)]*\))?\s+)*(?:static\s+)?(?:func|var|const|signal|enum|class_name|class)\s+(\w+)")
@@ -201,17 +219,19 @@ def apply_fanout(results, max_fanout):
     return out, broad
 
 
-def add_ui_cross_suites(repo, results, paths):
-    """Append UI_CROSS_SUITES when any changed path matches UI_CROSS_PREFIXES."""
-    if not any(p.startswith(UI_CROSS_PREFIXES) for p in paths):
-        return results
+def add_cross_suites(repo, results, paths, rules=None):
+    """Append each rule's suites (tagged with the rule name) when a changed path matches its prefixes."""
     by_file = {r["file"]: r for r in results}
-    for rel in UI_CROSS_SUITES:
-        if rel in by_file:
-            if UI_CROSS_NAME not in by_file[rel]["names"]:
-                by_file[rel]["names"].append(UI_CROSS_NAME)
-        elif os.path.exists(os.path.join(repo, rel)):
-            results.append({"file": rel, "changed": rel in paths, "names": [UI_CROSS_NAME]})
+    for name, prefixes, suites in (CROSS_RULES if rules is None else rules):
+        if not any(p.startswith(prefixes) for p in paths):
+            continue
+        for rel in suites:
+            if rel in by_file:
+                if name not in by_file[rel]["names"]:
+                    by_file[rel]["names"].append(name)
+            elif os.path.exists(os.path.join(repo, rel)):
+                by_file[rel] = {"file": rel, "changed": rel in paths, "names": [name]}
+                results.append(by_file[rel])
     results.sort(key=lambda r: r["file"])
     return results
 
@@ -221,7 +241,7 @@ def analyse(repo, base=None, max_fanout=DEFAULT_MAX_FANOUT):
     lines, paths = changed_lines(repo, base)
     ids = collect_identifiers(lines, paths, repo)
     results, broad = apply_fanout(find_tests(repo, ids, paths), max_fanout)
-    results = add_ui_cross_suites(repo, results, paths)
+    results = add_cross_suites(repo, results, paths)
     return base, ids, results, broad
 
 
