@@ -150,6 +150,12 @@ func _style_glow_material(side_style: ArenaSideStyle) -> StandardMaterial3D:
 			energy = side_style.rock_crystal_energy
 		ArenaSideStyle.Style.MACHINED_DISC:
 			energy = side_style.machined_light_energy
+		ArenaSideStyle.Style.MACHINED_STYLISED:
+			energy = side_style.stylised_glow_energy
+		ArenaSideStyle.Style.MACHINED_DETAILED:
+			energy = side_style.detailed_glow_energy
+		ArenaSideStyle.Style.MACHINED_HEAVY:
+			energy = side_style.heavy_glow_energy
 	var material: StandardMaterial3D = StandardMaterial3D.new()
 	material.vertex_color_use_as_albedo = true
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED

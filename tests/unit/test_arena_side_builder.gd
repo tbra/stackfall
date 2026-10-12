@@ -16,7 +16,14 @@ const STYLES: Array[ArenaSideStyle.Style] = [
 	ArenaSideStyle.Style.LAYERED_PLATES,
 	ArenaSideStyle.Style.ROCKY_ISLAND,
 	ArenaSideStyle.Style.MACHINED_DISC,
+	ArenaSideStyle.Style.MACHINED_STYLISED,
+	ArenaSideStyle.Style.MACHINED_DETAILED,
+	ArenaSideStyle.Style.MACHINED_HEAVY,
 ]
+## Round-2 machined looks stay cheap static geometry.
+## Rivet height as a fraction of the radius is the only thing allowed past the disc edge.
+const RIVET_SLACK: float = 0.006
+const MACHINED_VERTEX_BUDGET: int = 12000
 const SHAPES: Array[MapDef.MapShape] = [MapDef.MapShape.ROUND]
 
 
@@ -83,7 +90,7 @@ func test_normals_are_unit_and_agree_with_the_winding() -> void:
 ## Layered plates and the machined disc are convex enough that every face must
 ## point away from the middle of the solid on a round map.
 func test_convex_looks_point_their_faces_outward() -> void:
-	for which: ArenaSideStyle.Style in [ArenaSideStyle.Style.LAYERED_PLATES, ArenaSideStyle.Style.MACHINED_DISC]:
+	for which: ArenaSideStyle.Style in [ArenaSideStyle.Style.LAYERED_PLATES, ArenaSideStyle.Style.MACHINED_DISC, ArenaSideStyle.Style.MACHINED_STYLISED, ArenaSideStyle.Style.MACHINED_DETAILED, ArenaSideStyle.Style.MACHINED_HEAVY]:
 		var built: Dictionary = ArenaSideBuilder.new().build(_map(MapDef.MapShape.ROUND), _style(which), SEGMENTS, Y_TOP)
 		var floor_y: float = INF
 		for vertex: Vector3 in _all_vertices(built):
@@ -146,3 +153,13 @@ func test_alternative_styles_become_arena_surfaces_with_materials() -> void:
 func test_shipped_style_resource_defaults_to_the_current_look() -> void:
 	var style: ArenaSideStyle = load("res://config/arena_side_style.tres") as ArenaSideStyle
 	assert_eq(style.style, ArenaSideStyle.Style.CURRENT)
+
+
+func test_machined_refinements_stay_inside_the_disc_footprint_and_keep_surfaces_modest() -> void:
+	for which: ArenaSideStyle.Style in [ArenaSideStyle.Style.MACHINED_STYLISED, ArenaSideStyle.Style.MACHINED_DETAILED, ArenaSideStyle.Style.MACHINED_HEAVY]:
+		var built: Dictionary = ArenaSideBuilder.new().build(_map(MapDef.MapShape.ROUND), _style(which), SEGMENTS, Y_TOP)
+		assert_lte(built.size(), 3, "style %d: one surface per material (body side, body underside, glow)" % which)
+		var vertices: PackedVector3Array = _all_vertices(built)
+		assert_lt(vertices.size(), MACHINED_VERTEX_BUDGET, "style %d vertex budget" % which)
+		for vertex: Vector3 in vertices:
+			assert_true(Vector2(vertex.x, vertex.z).length() <= RADIUS * (1.0 + RIVET_SLACK) + EPS, "style %d inside the disc footprint (rivets may stand proud)" % which)

@@ -169,7 +169,7 @@ const ARENA_TAB: String = "Arena"
 const ARENA_TAB_INDEX: int = 4
 const ARENA_STYLE_PROP: String = "style"
 ## Dropdown labels, indexed by ArenaSideStyle.Style.
-const ARENA_STYLE_NAMES: PackedStringArray = ["Current", "Layered plates", "Rocky island", "Machined disc"]
+const ARENA_STYLE_NAMES: PackedStringArray = ["Current", "Layered plates", "Rocky island", "Machined disc", "Stylised machined", "Detailed machined", "Heavy machined"]
 
 ## Bontago-xtq.17 (owner playtest 2026-09-23: "heavier and more bouncy, but a
 ## dropped block shouldn't just bounce straight up again" -- research +
