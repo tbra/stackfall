@@ -21,6 +21,7 @@ const SWITCH_LABELS: Dictionary = {STATE_NORMAL: "NORMAL", STATE_HOVER: "HOVER",
 const PAGE_INPUTS: int = 2
 const PAGE_STRUCTURE: int = 3
 const PAGE_TEXT: int = 4
+const PAGE_CLOCK: int = 5
 const TEXT_SAMPLES: Dictionary = {
 	UiText.Role.TITLE: "STACKFALL", UiText.Role.HEADING: "MATCH SETTINGS",
 	UiText.Role.BODY: "Drop blocks inside your territory to grow it.",
@@ -40,6 +41,8 @@ const STEPPER_MAX: int = 10
 const STEPPER_LOW: int = 3
 const STEPPER_MID: int = 5
 const STEPPER_FORMATTED: int = 4
+const ROUND_TIMER_SAMPLE_LEFT_S: float = 272.0
+const ROUND_TIMER_SAMPLE_PLAYED_S: float = 95.0
 const BLOCK_LOOKS: Dictionary = {
 	"PRIMARY": UiBlockButton.Look.PRIMARY, "SECONDARY": UiBlockButton.Look.SECONDARY,
 	"MINT": UiBlockButton.Look.MINT, "RIM": UiBlockButton.Look.RIM,
@@ -98,6 +101,8 @@ func _ready() -> void:
 	elif page == PAGE_TEXT:
 		columns.add_child(_panel("TEXT ROLES", _text_rows()))
 		columns.add_child(_panel("WELL", _well_rows()))
+	elif page == PAGE_CLOCK:
+		columns.add_child(_panel("ROUND TIMER", _round_timer_rows()))
 	else:
 		var left: VBoxContainer = VBoxContainer.new()
 		left.add_theme_constant_override("separation", arcade.space_4_px)
@@ -119,6 +124,26 @@ func _panel(title: String, rows: Array[Control]) -> UiPanel:
 	for row: Control in rows:
 		panel.content.add_child(row)
 	return panel
+
+
+## The round timer in each phase: counting down, hurry, sudden death, counting up (no limit).
+func _round_timer_rows() -> Array[Control]:
+	var rows: Array[Control] = []
+	var hurry: float = UiRoundTimer.tuning().round_timer_hurry_seconds
+	var cases: Array[Dictionary] = [
+		{"name": "COUNTING DOWN", "call": &"show_remaining", "arg": ROUND_TIMER_SAMPLE_LEFT_S},
+		{"name": "HURRY", "call": &"show_remaining", "arg": hurry - 1.0},
+		{"name": "SUDDEN DEATH", "call": &"show_overtime", "arg": 0.0},
+		{"name": "NO LIMIT (ELAPSED)", "call": &"show_elapsed", "arg": ROUND_TIMER_SAMPLE_PLAYED_S},
+	]
+	for entry: Dictionary in cases:
+		var timer: UiRoundTimer = UiRoundTimer.new()
+		if entry["call"] == &"show_overtime":
+			timer.show_overtime()
+		else:
+			timer.call(entry["call"] as StringName, float(entry["arg"]))
+		rows.append(UiRow.new().setup(entry["name"] as String, timer))
+	return rows
 
 
 func _button_rows() -> Array[Control]:
