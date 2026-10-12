@@ -36,6 +36,9 @@ var _shares: PackedFloat32Array = PackedFloat32Array()
 var _winners: PackedInt32Array = PackedInt32Array()
 ## Claim time in seconds (<= 0 = instant knockout).
 var _claim_hold: float = 0.0
+## Seconds of claim progress lost per second while the pressure has lapsed
+## (<= 0 = the old instant reset). [OWNER decision 2026-10-12, Bontago-9s9 b]
+var _claim_decay_rate: float = 0.0
 ## slot -> seconds the current attacker has held its home flag.
 var _claim_held: Dictionary = {}
 ## slot -> attacker team id (NO_TEAM when the pressure has no single owner).
@@ -44,9 +47,10 @@ var _claim_team: Dictionary = {}
 var _eliminator_team: Dictionary = {}
 
 
-func _init(slot_teams: PackedInt32Array = PackedInt32Array(), claim_hold: float = 0.0) -> void:
+func _init(slot_teams: PackedInt32Array = PackedInt32Array(), claim_hold: float = 0.0, claim_decay_rate: float = 0.0) -> void:
 	_slot_teams = slot_teams
 	_claim_hold = maxf(claim_hold, 0.0)
+	_claim_decay_rate = maxf(claim_decay_rate, 0.0)
 
 
 func mode_id() -> int:
@@ -93,13 +97,21 @@ func update(raster: TerritoryRaster, _delta: float) -> void:
 
 ## Host: advances every home-flag claim by `delta`. `pressure` maps each slot
 ## whose home flag is currently under attack to the attacking team id
-## (NO_TEAM when unknown). A slot missing from `pressure`, or whose attacker
-## changed, loses its progress (the same reset a goal claim has). Returns the
-## slots whose claim just completed; the caller eliminates them.
+## (NO_TEAM when unknown). [OWNER decision 2026-10-12, Bontago-9s9 b] A slot
+## missing from `pressure` keeps its claim and FADES by claim_decay_rate seconds
+## per second (removed at 0) instead of resetting, so brief lapses (temporary
+## holes) do not undo it; resumed pressure from the same attacker continues from
+## the faded value. A different attacker restarts at 0. Returns the slots whose
+## claim just completed; the caller eliminates them.
 func step_claims(pressure: Dictionary, delta: float) -> PackedInt32Array:
 	var done: PackedInt32Array = PackedInt32Array()
 	for slot_key: Variant in _claim_held.keys():
-		if not pressure.has(slot_key):
+		if pressure.has(slot_key):
+			continue
+		var faded: float = float(_claim_held[slot_key]) - _claim_decay_rate * maxf(delta, 0.0)
+		if _claim_decay_rate > 0.0 and faded > 0.0 and not _out.has(int(slot_key)):
+			_claim_held[slot_key] = faded
+		else:
 			_claim_held.erase(slot_key)
 			_claim_team.erase(slot_key)
 	var slots: Array = pressure.keys()

@@ -297,6 +297,11 @@ var _force_full_raster: bool = true
 ## the HUD's numbers without a second RPC.
 var _capture_team: int = -1
 var _capture_progress: float = 0.0
+## The capture values the last territory packet carried, and whether the last
+## one was a falling value (Bontago-1pi.194).
+var _sent_capture_team: int = -1
+var _sent_capture_progress: float = 0.0
+var _capture_fading: bool = false
 
 ## True once replicate_match_start() has gone out for the running match, so a
 ## lobby that calls it explicitly and the automatic send below cannot both
@@ -834,6 +839,32 @@ func replicate_despawn(net_id: int, reason: String) -> void:
 ## list, never diffed like the raster, because it is already small (≤ 400
 ## circles, ~2.8 KB) and a circle that vanished (a tower toppled) has no
 ## "unchanged" cell to skip the way a raster byte does.
+# DECISION (Bontago-1pi.194): a decaying home claim changes no raster cell, so
+# territory packets (raster-change only) would freeze the client ring. Rather
+# than a new RPC or a replicated decay flag, the existing raster_diff_hz tick
+# sends an empty diff carrying the capture values while a previously-sent claim
+# is falling, changed team, or (once falling) moving at all -- until it clears
+# (0 / no team). That bounds extra traffic to raster_diff_hz, adds no knob, and
+# a late joiner already gets the current value in the replay's full packet.
+# Rising holds on a static board are unchanged (client extrapolates, 1pi.117).
+func _capture_update_due() -> bool:
+	if _sent_capture_progress <= 0.0:
+		return false
+	if _capture_team != _sent_capture_team:
+		return true
+	if is_equal_approx(_capture_progress, _sent_capture_progress):
+		return false
+	return _capture_progress < _sent_capture_progress or _capture_fading
+
+
+func _note_capture_sent() -> void:
+	_capture_fading = (
+		_capture_team == _sent_capture_team and _capture_progress < _sent_capture_progress
+	)
+	_sent_capture_team = _capture_team
+	_sent_capture_progress = _capture_progress
+
+
 func replicate_territory() -> void:
 	if not _session().is_host() or not NetFanout.can_send(multiplayer, _session()):
 		return
@@ -849,6 +880,7 @@ func replicate_territory() -> void:
 		and raw_owners.size() == _last_owner_bytes.size()
 		and raw_owners == _last_owner_bytes
 		and raw_states == _last_state_bytes
+		and not _capture_update_due()
 	):
 		return
 	var owners: PackedByteArray = raw_owners.duplicate()
@@ -863,7 +895,7 @@ func replicate_territory() -> void:
 		for index: int in range(count):
 			if owners[index] != _last_owner_bytes[index] or states[index] != _last_state_bytes[index]:
 				changed.append(index)
-		if changed.size() == 0:
+		if changed.size() == 0 and not _capture_update_due():
 			return
 		full = float(changed.size()) / float(count) > config.raster_full_threshold_fraction
 
@@ -873,6 +905,7 @@ func replicate_territory() -> void:
 	_last_owner_bytes = owners
 	_last_state_bytes = states
 	_force_full_raster = false
+	_note_capture_sent()
 
 	_broadcast(&"net_territory", [
 		payload,
@@ -1010,6 +1043,9 @@ func reset_counters() -> void:
 	_force_full_raster = true
 	_capture_team = -1
 	_capture_progress = 0.0
+	_sent_capture_team = -1
+	_sent_capture_progress = 0.0
+	_capture_fading = false
 	# Bontago-8or.11: a (re)start is itself a full sync for every peer (the
 	# broadcast net_match_start), so no replay is still owed an ack.
 	_replay_pending.clear()
@@ -2526,6 +2562,12 @@ static func decode_raster_payload(packet: PackedByteArray, full: bool) -> Dictio
 	return {"cells": cells, "owners": owners, "states": states}
 
 
+static func _capture_wire_ok(team_id: int, progress: float, team_count: int) -> bool:
+	if is_nan(progress) or is_inf(progress) or progress < 0.0 or progress > 1.0:
+		return false
+	return team_id >= -1 and team_id < team_count
+
+
 # --- RPCs -------------------------------------------------------------------
 # Client -> host. The host checks the caller's peer id against `slot_id`
 # (spec 3.4: "The host checks territory, the timer, and that the slot
@@ -2770,6 +2812,9 @@ func net_territory(
 	circle_payload: PackedByteArray = PackedByteArray()
 ) -> void:
 	if _client_awaiting_world():
+		return
+	# Untrusted wire values: a finite 0..1 progress and a known team (or none).
+	if not _capture_wire_ok(capture_team, capture_progress, shares.size()):
 		return
 	var decoded: Dictionary = decode_raster_payload(payload, full)
 	if decoded.is_empty():
