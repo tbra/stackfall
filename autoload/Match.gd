@@ -1174,9 +1174,16 @@ func apply_replicated_turn(slot_id: int) -> void:
 	_lifecycle.apply_replicated_turn(slot_id)
 
 
-func apply_replicated_elimination(slot_id: int) -> void:
+func apply_replicated_elimination(slot_id: int, by_slot: int = -1) -> void:
 	_ensure_active()
-	_lifecycle.apply_replicated_elimination(slot_id)
+	_lifecycle.apply_replicated_elimination(slot_id, by_slot)
+
+
+## Bontago-1pi.186: the slot credited with eliminating `slot_id`, -1 if unknown.
+func eliminated_by(slot_id: int) -> int:
+	if not _late_active:
+		return -1
+	return _lifecycle.eliminated_by(slot_id)
 
 
 ## Bontago-22y.11: client mirror of the host's mode-objective state, and the

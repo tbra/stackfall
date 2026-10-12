@@ -218,6 +218,8 @@ var _mode_score_label: Label = null
 ## never by a local timer, so clients stay in step with the host.
 var _reject_icon_tween: Tween
 var _countdown_label: Label = null
+## Bontago-1pi.186: red "Eliminated by <name>" banner for the local player.
+var _eliminated_label: Label = null
 var _countdown_was_active: bool = false
 var _go_left_s: float = 0.0
 
@@ -318,21 +320,35 @@ func _ready() -> void:
 
 
 func _build_countdown_label() -> void:
-	_countdown_label = Label.new()
-	_countdown_label.name = "CountdownLabel"
-	_countdown_label.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_countdown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_countdown_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_countdown_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	# Bungee 128 px in cream on a disc-950 drop (design "countdown" style); GO switches to rim gold.
-	_countdown_label.add_theme_font_override("font", _display_font)
-	_countdown_label.add_theme_font_size_override("font_size", hud_visual_tuning.countdown_font_size)
-	_countdown_label.add_theme_color_override("font_color", _arcade.cream_color)
-	_countdown_label.add_theme_color_override("font_shadow_color", _arcade.disc_950_color)
-	_countdown_label.add_theme_constant_override("shadow_offset_x", 0)
-	_countdown_label.add_theme_constant_override("shadow_offset_y", _arcade.countdown_drop_px)
-	_countdown_label.visible = false
-	add_child(_countdown_label)
+	_countdown_label = _make_countdown_style_label(
+		"CountdownLabel", hud_visual_tuning.countdown_font_size, _arcade.cream_color
+	)
+	# Bontago-1pi.186: the "Eliminated by <name>" banner is the same style in alert red.
+	_eliminated_label = _make_countdown_style_label(
+		"EliminatedLabel", hud_visual_tuning.eliminated_font_size, _arcade.alert_color
+	)
+	_eliminated_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+
+## The big centred countdown look (Bungee, drop shadow), shared by the 3-2-1 and
+## the elimination banner. Added hidden to the HUD.
+func _make_countdown_style_label(label_name: String, font_size: int, color: Color) -> Label:
+	var label: Label = Label.new()
+	label.name = label_name
+	label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.add_theme_font_override("font", _display_font)
+	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_color_override("font_color", color)
+	label.add_theme_color_override("font_shadow_color", _arcade.disc_950_color)
+	label.add_theme_constant_override("shadow_offset_x", 0)
+	label.add_theme_constant_override("shadow_offset_y", _arcade.countdown_drop_px)
+	label.visible = false
+	add_child(label)
+	return label
 
 
 ## Whole seconds of the host's countdown left, or 0 outside it. A provider
@@ -861,10 +877,34 @@ func _on_match_won(team_id: int) -> void:
 func _on_player_eliminated(slot_id: int, _team_id: int) -> void:
 	if slot_id != _active_slot:
 		return
+	set_held_shape(null)
+	set_next_shape(null)
+	if not _hot_seat_active():
+		show_eliminated_banner(slot_id)
 	if _hot_seat_active():
 		set_active_slot(_active_slot, _active_color)
 	else:
 		set_local_slot(_active_slot)
+
+
+## Bontago-1pi.186: the large red "Eliminated by <name>" text for `slot_id`'s own
+## screen; "Eliminated" alone when the eliminator is unknown (a disconnect, a
+## knockout with no single attacker). Stays up until the match leaves play.
+func show_eliminated_banner(slot_id: int) -> void:
+	if _eliminated_label == null:
+		return
+	var by_slot: int = -1
+	if match_provider != null and match_provider.has_method(&"eliminated_by"):
+		by_slot = int(match_provider.eliminated_by(slot_id))
+	if by_slot >= 0:
+		_eliminated_label.text = hud_visual_tuning.eliminated_by_text % _name_for_slot(by_slot)
+	else:
+		_eliminated_label.text = hud_visual_tuning.eliminated_text
+	_eliminated_label.visible = true
+
+
+func eliminated_banner_text() -> String:
+	return _eliminated_label.text if _eliminated_label != null and _eliminated_label.visible else ""
 
 
 ## Bontago-1en.16: an instant refresh for the local slot the moment it claims
@@ -1501,6 +1541,8 @@ var _glue_active: bool = false
 ## Bontago-sen.8: leaving a match (lobby/end) drops the overlay at once and
 ## forces the next refresh to re-read the charges.
 func _on_match_state_changed_glue(_from_state: int, to_state: int) -> void:
+	if _eliminated_label != null and (Match.is_lobby_or_end(to_state) or Match.is_pregame(to_state)):
+		_eliminated_label.visible = false
 	if to_state != Match.State.END:
 		visible = true
 	if Match.is_pregame(to_state):

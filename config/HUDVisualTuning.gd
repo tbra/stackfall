@@ -134,6 +134,10 @@ extends Resource
 @export var countdown_font_size: int = 128
 @export var countdown_go_text: String = "GO"
 @export var countdown_go_hold_s: float = 0.8
+## Bontago-1pi.186: the eliminated player's banner, in the countdown style.
+@export var eliminated_font_size: int = 96
+@export var eliminated_by_text: String = "Eliminated by %s"
+@export var eliminated_text: String = "Eliminated"
 
 ## Bontago-mp0.145: the ONE style every transient HUD message (claim toast,
 ## reject/relocated message, winner banner) shares: a dark-glass pill in the

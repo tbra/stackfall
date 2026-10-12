@@ -145,7 +145,11 @@ func apply_event(event: StringName, args: Array) -> void:
 				return
 			Events.placement_relocated.emit(relocated_slot, relocated_point)
 		MatchNet.EVENT_PLAYER_ELIMINATED:
-			_authority().apply_replicated_elimination(int(args[0]))
+			var eliminated_slot: int = int(args[0])
+			var by_slot: int = int(args[2]) if args.size() > 2 and args[2] is int else -1
+			if by_slot < -1 or by_slot >= _authority().slot_count():
+				by_slot = -1
+			_authority().apply_replicated_elimination(eliminated_slot, by_slot)
 			Events.player_eliminated.emit(int(args[0]), int(args[1]))
 		MatchNet.EVENT_MATCH_WON:
 			Events.match_won.emit(int(args[0]))
