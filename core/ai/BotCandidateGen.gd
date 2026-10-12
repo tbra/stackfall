@@ -296,6 +296,9 @@ class _Gen:
 		return PlacementRules.NO_ORIGIN
 
 	func _placeable(point: Vector2) -> bool:
+		# Bontago-1t5.42: a site beyond the shrunk disc would fall; drop it (no-op unshrunk).
+		if view.is_shrunk() and point.length() > view.live_radius:
+			return false
 		return PlacementRules.validate_point(point, view.raster, view.team_id) == PlacementRules.Result.VALID
 
 	## Tallest own circles first, each with the centre and jittered neighbours.
