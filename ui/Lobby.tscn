@@ -536,8 +536,9 @@ unique_name_in_owner = true
 layout_mode = 2
 max_value = 8.0
 
-[node name="AiDifficultyOption" type="OptionButton" parent="HiddenSources/Seats"]
+[node name="AiDifficultyOption" type="HBoxContainer" parent="HiddenSources/Seats"]
 unique_name_in_owner = true
+script = ExtResource("7_cycler")
 layout_mode = 2
 
 [node name="TeamModeOption" type="OptionButton" parent="HiddenSources/Seats"]
