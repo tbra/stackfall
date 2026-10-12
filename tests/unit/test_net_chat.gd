@@ -279,3 +279,13 @@ func test_state_clears_on_peer_leave_and_session_end() -> void:
 	assert_null(_host._chat_history)
 	assert_eq(_host._chat_next_seq, 0)
 	assert_eq(_c1._chat_seen_seq, -1)
+
+
+func test_client_seq_tracking_resets_on_rejoin() -> void:
+	await _connect(false)
+	assert_true(_c1._accept_chat_line(1, ChatRules.make_line(70, 1, 0, "H", 0, "a")))
+	assert_false(_c1._accept_chat_line(1, ChatRules.make_line(3, 1, 0, "H", 0, "b")), "older seq dropped in the old session")
+	_c1._reset_rejoin_state()
+	assert_eq(_c1._chat_seen_seq, -1)
+	# A new host starts counting from 0 again; its first lines must be accepted.
+	assert_true(_c1._accept_chat_line(1, ChatRules.make_line(0, 1, 0, "H", 0, "fresh")))

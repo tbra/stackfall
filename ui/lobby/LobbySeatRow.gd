@@ -45,6 +45,11 @@ const KIND_COLOR: StringName = &"color"
 const KIND_TEAM: StringName = &"team"
 const KIND_DIFFICULTY: StringName = &"difficulty"
 const KIND_REMOVE: StringName = &"remove"
+const KIND_MUTE: StringName = &"mute"
+
+## Chat mute button texts (Bontago-1pi.192.6).
+const MUTE_TEXT: String = "Mute"
+const UNMUTE_TEXT: String = "Unmute"
 
 ## Difficulty labels in MatchConfig.AiDifficulty enum order (EASY, NORMAL, HARD).
 const DIFFICULTY_LABELS: Array[String] = ["Easy", "Normal", "Hard"]
@@ -92,6 +97,10 @@ var team_button: UiDropdown = null
 var difficulty_option: UiCycler = null
 ## null unless the row is a bot's and `editable`.
 var remove_button: UiIconButton = null
+## Chat mute toggle (Bontago-1pi.192.6): only on a networked, seated human row that is not the local player's.
+var mute_button: UiBlockButton = null
+## Test seam: returns whether this row's session can chat (default: networked, not the private host).
+var mute_column_override: Callable = Callable()
 var badge: UiStatusBadge = null
 var badge_label: Label = null
 
@@ -156,6 +165,7 @@ func build(tuning: MenuVisualTuning, layout_tuning: LobbyLayoutTuning) -> void:
 			_build_remove_button()
 	elif align_bot_columns and show_team and seat_key != LobbySeats.KEY_NONE:
 		_build_bot_column_spacers()
+	_build_mute_slot()
 	_build_badge()
 	_wire_horizontal_focus()
 
@@ -164,7 +174,12 @@ func build(tuning: MenuVisualTuning, layout_tuning: LobbyLayoutTuning) -> void:
 ## focus loop. Empty for a read-only row.
 func focusable_controls() -> Array[Control]:
 	var controls: Array[Control] = []
-	if not editable or seat_key == LobbySeats.KEY_NONE:
+	if seat_key == LobbySeats.KEY_NONE:
+		return controls
+	# The mute button is a chat reader's control, not a seat edit: a read-only row offers it too.
+	if not editable:
+		if mute_button != null:
+			controls.append(mute_button)
 		return controls
 	controls.append(color_button)
 	if team_button != null:
@@ -173,6 +188,8 @@ func focusable_controls() -> Array[Control]:
 		controls.append(difficulty_option)
 	if remove_button != null:
 		controls.append(remove_button)
+	if mute_button != null:
+		controls.append(mute_button)
 	return controls
 
 
@@ -188,6 +205,8 @@ func kind_of(control: Node) -> StringName:
 		return KIND_DIFFICULTY
 	if remove_button != null and (control == remove_button or remove_button.is_ancestor_of(control)):
 		return KIND_REMOVE
+	if mute_button != null and (control == mute_button or mute_button.is_ancestor_of(control)):
+		return KIND_MUTE
 	return &""
 
 
@@ -202,6 +221,8 @@ func control_of(kind: StringName) -> Control:
 			return difficulty_option
 		KIND_REMOVE:
 			return remove_button
+		KIND_MUTE:
+			return mute_button
 	return null
 
 
@@ -337,6 +358,56 @@ func _build_remove_button() -> void:
 	remove_button.set_icon_texture(art.lobby_icon(UiArtTable.KEY_BOT_REMOVE))
 	remove_button.pressed.connect(_on_remove_pressed)
 	layout.add_child(remove_button)
+
+
+## True when this row carries (or reserves room for) the chat mute column: a networked session that
+## can chat (not offline, not the private local host).
+func _mute_column_on() -> bool:
+	if mute_column_override.is_valid():
+		return mute_column_override.call() as bool
+	return not Net.is_offline() and not Net.is_private_session()
+
+
+## The row's non-local seated human gets the mute toggle; every other row of a chat session reserves
+## the same room so the badge column stays aligned.
+func _build_mute_slot() -> void:
+	if not _mute_column_on():
+		return
+	var can_mute: bool = not is_bot and seat_key > LobbySeats.KEY_NONE and seat_key != Net.local_peer_id()
+	var probe_width: float = _mute_width()
+	if not can_mute:
+		var spacer: Control = Control.new()
+		spacer.name = "MuteSpacer"
+		spacer.custom_minimum_size = Vector2(probe_width, 0.0)
+		spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		layout.add_child(spacer)
+		return
+	mute_button = UiBlockButton.new()
+	mute_button.name = "MuteButton"
+	mute_button.custom_minimum_size.x = probe_width
+	mute_button.tooltip_text = "Hide this player's chat on your screen"
+	mute_button.toggle_mode = false
+	_refresh_mute_text()
+	mute_button.pressed.connect(_on_mute_pressed)
+	layout.add_child(mute_button)
+
+
+func _refresh_mute_text() -> void:
+	mute_button.text = UNMUTE_TEXT if ChatMute.is_muted(seat_key) else MUTE_TEXT
+
+
+## Wide enough for the longer of the two labels.
+func _mute_width() -> float:
+	var probe: UiBlockButton = UiBlockButton.new()
+	probe.text = UNMUTE_TEXT
+	var width: float = probe.get_combined_minimum_size().x
+	probe.free()
+	return width
+
+
+func _on_mute_pressed() -> void:
+	ChatMute.toggle(seat_key)
+	_refresh_mute_text()
 
 
 ## Empty room where a bot row has its difficulty / remove controls, so the team selectors and the
