@@ -2066,6 +2066,7 @@ func _reset_rejoin_state() -> void:
 	# session starts or ends: host_game, the Steam lobby host, leave).
 	_seat_pref_buckets.clear()
 	_chat_reset()
+	ChatMute.clear()
 	_disconnecting_peers.clear()
 
 

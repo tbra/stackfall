@@ -88,12 +88,14 @@ func _on_panel_input_closed() -> void:
 
 
 func _on_chat_line_received(line: Dictionary) -> void:
+	if ChatMute.hides(line):
+		return
 	panel.append_line(line)
 	_refresh_visibility()
 
 
 func _on_chat_history_received(lines: Array) -> void:
-	panel.replace_history(lines)
+	panel.replace_history(ChatMute.filter_lines(lines))
 
 
 ## Opening Pause closes chat first (pad Start is the only way: Esc is eaten by the field).

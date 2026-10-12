@@ -51,7 +51,9 @@ static func clean(text: Variant, max_chars: int) -> String:
 		kept = kept.replace(_DOUBLE_SPACE, _SPACE)
 	kept = kept.strip_edges()
 	if kept.length() > limit:
-		kept = kept.substr(0, limit).strip_edges()
+		# The cut can leave a ZWJ/ZWNJ hanging off the end: strip_invisible drops a joiner that no
+		# longer joins two visible characters.
+		kept = PlayerNames.strip_invisible(kept.substr(0, limit), limit).strip_edges()
 	return kept
 
 
@@ -93,6 +95,11 @@ static func validate_line(line: Variant, cfg: ChatConfig, max_name_len: int) -> 
 			return false
 	for key: String in _STRING_KEYS:
 		if typeof(dict[key]) != TYPE_STRING:
+			return false
+	# A clean line never holds a control/bidi/zero-width character (the host strips them).
+	for key: String in _STRING_KEYS:
+		var value: String = dict[key]
+		if PlayerNames.strip_invisible(value, value.length()) != value:
 			return false
 	var kind: int = dict[KEY_KIND]
 	if kind != KIND_TEXT and kind != KIND_SYSTEM:

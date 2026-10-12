@@ -163,3 +163,20 @@ func test_chat_open_is_keyboard_only() -> void:
 	assert_true(keys.has(KEY_ENTER))
 	assert_true(keys.has(KEY_KP_ENTER))
 	assert_true(keys.has(KEY_T))
+
+
+func test_clean_cut_strips_trailing_joiner() -> void:
+	# "ab" + ZWJ + "c" cut to 3 code points would end in the ZWJ.
+	var joined: String = "ab" + String.chr(0x200D) + "c"
+	assert_eq(ChatRules.clean(joined, 3), "ab")
+	assert_eq(ChatRules.clean(joined, 4), joined, "kept between visible characters")
+
+
+func test_validate_rejects_control_characters_in_name_and_text() -> void:
+	var cfg: ChatConfig = _cfg()
+	for bad: String in ["a" + String.chr(0x07) + "b", "a
+b", "a" + String.chr(0x202E) + "b", "a" + String.chr(0x200B)]:
+		assert_false(ChatRules.validate_line(ChatRules.make_line(1, 2, 0, "Bo", 0, bad), cfg, MAX_NAME), "text " + bad.c_escape())
+		assert_false(ChatRules.validate_line(ChatRules.make_line(1, 2, 0, bad, 0, "hi"), cfg, MAX_NAME), "name " + bad.c_escape())
+	var joined: String = "a" + String.chr(0x200D) + "b"
+	assert_true(ChatRules.validate_line(ChatRules.make_line(1, 2, 0, "Bo", 0, joined), cfg, MAX_NAME))

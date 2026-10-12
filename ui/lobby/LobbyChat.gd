@@ -23,8 +23,8 @@ func _init() -> void:
 
 func _ready() -> void:
 	submit_requested.connect(_on_submit_requested)
-	Events.chat_line_received.connect(append_line)
-	Events.chat_history_received.connect(replace_history)
+	Events.chat_line_received.connect(_on_chat_line)
+	Events.chat_history_received.connect(_on_chat_history)
 	Events.chat_notice.connect(_on_notice)
 	refresh_availability()
 
@@ -62,6 +62,16 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _on_submit_requested(text: String) -> void:
 	Events.chat_send_requested.emit(text)
+
+
+## Wire lines from a muted peer are dropped here (ChatMute); system lines always show.
+func _on_chat_line(line: Dictionary) -> void:
+	if not ChatMute.hides(line):
+		append_line(line)
+
+
+func _on_chat_history(lines: Array) -> void:
+	replace_history(ChatMute.filter_lines(lines))
 
 
 func _on_notice(code: int) -> void:

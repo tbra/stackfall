@@ -25,6 +25,15 @@ var _holding: bool = false
 var _paused: bool = false
 var _last_rows: Array = []
 var _last_mode: Variant = null
+## Chat mute strip (Bontago-1pi.192.6): one toggle per remote player, built while a chat session runs.
+var _mute_box: HFlowContainer = null
+var _mute_peers: PackedInt32Array = PackedInt32Array()
+var _mute_buttons: Dictionary = {}
+
+const MUTE_TEXT: String = "Mute %s"
+const UNMUTE_TEXT: String = "Unmute %s"
+## Names longer than this are cut in the button so the strip stays one tidy row.
+const MUTE_NAME_MAX_CHARS: int = 14
 
 @onready var _root: Control = %Root
 @onready var _card: PanelContainer = %Card
@@ -128,7 +137,13 @@ func _update_visibility() -> void:
 		_last_rows = []
 		_last_mode = null
 		_refresh_table()
+	var newly_shown: bool = show_now and not _root.visible
 	_root.visible = show_now
+	if show_now:
+		_refresh_mute_strip()
+		if newly_shown and not _mute_peers.is_empty():
+			# Pad / keyboard reach: focus the first toggle each time the table opens.
+			(_mute_buttons[_mute_peers[0]] as Button).grab_focus.call_deferred()
 
 
 ## Rebuilds the table only when the snapshot's rows or mode block changed
@@ -152,3 +167,51 @@ func _refresh_table() -> void:
 	var outcome: String = ResultsScreen.mode_outcome_text(payload, team_numbers).strip_edges()
 	_mode_outcome.text = outcome
 	_mode_outcome.visible = not outcome.is_empty()
+
+
+## The chat mute strip: a toggle per remote human, so a held scoreboard (mouse click, or pad focus
+## which is grabbed on the first button) can silence one player's chat. Hidden offline and on the
+## private local host. Rebuilt only when the set of remote peers changes.
+func _refresh_mute_strip() -> void:
+	var peers: PackedInt32Array = PackedInt32Array()
+	if not Net.is_offline() and not Net.is_private_session():
+		for peer_id: int in Net.peer_ids():
+			if peer_id != Net.local_peer_id():
+				peers.append(peer_id)
+	if _mute_box == null:
+		_mute_box = HFlowContainer.new()
+		_mute_box.name = "MuteStrip"
+		_mute_box.alignment = FlowContainer.ALIGNMENT_CENTER
+		%Layout.add_child(_mute_box)
+	if peers != _mute_peers:
+		_mute_peers = peers
+		_rebuild_mute_buttons()
+	_mute_box.visible = not peers.is_empty()
+	for peer_id: int in _mute_buttons:
+		_set_mute_text(_mute_buttons[peer_id] as Button, peer_id)
+
+
+func _rebuild_mute_buttons() -> void:
+	for child: Node in _mute_box.get_children():
+		_mute_box.remove_child(child)
+		child.queue_free()
+	_mute_buttons.clear()
+	for peer_id: int in _mute_peers:
+		var button: UiBlockButton = UiBlockButton.new()
+		button.name = "Mute%d" % peer_id
+		button.pressed.connect(_on_mute_pressed.bind(peer_id))
+		_mute_box.add_child(button)
+		_mute_buttons[peer_id] = button
+		_set_mute_text(button, peer_id)
+
+
+func _set_mute_text(button: Button, peer_id: int) -> void:
+	var shown: String = String(Net.peer_info(peer_id).get(LobbySeats.FIELD_NAME, "Player"))
+	if shown.length() > MUTE_NAME_MAX_CHARS:
+		shown = shown.substr(0, MUTE_NAME_MAX_CHARS)
+	button.text = (UNMUTE_TEXT if ChatMute.is_muted(peer_id) else MUTE_TEXT) % shown
+
+
+func _on_mute_pressed(peer_id: int) -> void:
+	ChatMute.toggle(peer_id)
+	_refresh_mute_strip()
