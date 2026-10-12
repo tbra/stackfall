@@ -111,12 +111,12 @@ func test_limit_minutes_follow_the_mode() -> void:
 	assert_eq(UiRoundTimer.limit_minutes_for(null), 0)
 
 
-func test_hud_builds_a_hidden_round_timer_beside_the_feed_ring() -> void:
+func test_hud_builds_a_hidden_round_timer_in_the_top_right_corner() -> void:
 	var hud: HUD = HUD.new() if false else (load("res://ui/HUD.tscn") as PackedScene).instantiate() as HUD
 	add_child_autofree(hud)
 	assert_not_null(hud._round_timer)
 	assert_false(hud._round_timer.visible, "hidden outside live play")
-	var ring_right: float = hud._timer_ring.offset_right
 	var slot: Control = hud._round_timer.get_parent() as Control
-	assert_gt(slot.offset_left, ring_right, "the plate is right of the ring, not over it")
-	assert_eq(slot.offset_top, hud._timer_ring.offset_top)
+	assert_eq(slot.anchor_left, 1.0, "anchored to the right edge")
+	assert_eq(slot.offset_left, hud._minimap.offset_right, "right edge aligned with the minimap")
+	assert_eq(slot.offset_top, hud._top_left_backplate.offset_top, "top aligned with the player stats")

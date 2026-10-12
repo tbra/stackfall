@@ -101,7 +101,7 @@ var name_provider: Variant = null
 
 @onready var _turn_label: Label = %TurnLabel
 @onready var _timer_ring: Control = %TimerRing
-## The match clock beside the feed timer ring (UiRoundTimer, Bontago-1pi.159.34).
+## The match clock in the top-right corner (UiRoundTimer, Bontago-1pi.159.34).
 var _round_timer: UiRoundTimer = null
 ## Seconds the current unlimited match has been live (the round clock counts up from it).
 var _round_played_s: float = 0.0
@@ -423,25 +423,25 @@ func _process(delta: float) -> void:
 	_refresh_special_indicator()
 
 
-## Bontago-1pi.159.34 (owner: "Need a round timer component"): the match clock sits on a hud-plate
-## directly right of the feed timer ring, vertically centred on it, so the two group at the top
-## centre; the TipBanner stays under the ring and the scoreboard clamp stays on the ring's left.
-## DECISION: placement right of the ring (the top-right is free; below is the TipBanner's).
+## Bontago-1pi.159.34 (owner: "Need a round timer component"): the match clock on a hud-plate.
+## Owner 2026-10-12: the round timer sits in the top-right corner, its top aligned with the
+## player-stats backplate and its right edge with the minimap (read from those nodes).
 func _build_round_timer() -> void:
 	var slot: Control = Control.new()
 	slot.name = "RoundTimerSlot"
 	slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	slot.anchor_left = _timer_ring.anchor_left
-	slot.anchor_right = _timer_ring.anchor_right
-	slot.offset_left = _timer_ring.offset_right + hud_visual_tuning.round_timer_gap_px
+	slot.anchor_left = 1.0
+	slot.anchor_right = 1.0
+	slot.offset_left = _minimap.offset_right
 	slot.offset_right = slot.offset_left
-	slot.offset_top = _timer_ring.offset_top
-	slot.offset_bottom = _timer_ring.offset_bottom
+	slot.offset_top = _top_left_backplate.offset_top
+	slot.offset_bottom = slot.offset_top
 	slot.theme = _ui_theme
 	add_child(slot)
 	_round_timer = UiRoundTimer.new()
-	_round_timer.set_anchors_and_offsets_preset(Control.PRESET_CENTER_LEFT, Control.PRESET_MODE_MINSIZE)
-	_round_timer.grow_horizontal = Control.GROW_DIRECTION_END
+	_round_timer.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE)
+	_round_timer.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_round_timer.grow_vertical = Control.GROW_DIRECTION_END
 	_round_timer.clear()
 	slot.add_child(_round_timer)
 
@@ -827,7 +827,7 @@ static func row_value_text(state: Dictionary, team: int, share: float) -> String
 
 ## Bontago-1pi.68: the line under the rows. CTF and Reach the Sky put their score in the rows, so
 ## nothing is left for them; Domination and Elimination keep their existing summary line. The round
-## clock is no longer part of it: UiRoundTimer beside the feed timer ring owns it (1pi.159.34). Pure.
+## clock is no longer part of it: UiRoundTimer in the top-right corner owns it (1pi.159.34). Pure.
 static func mode_status_text(state: Dictionary, team_numbers: PackedInt32Array = PackedInt32Array()) -> String:
 	var mode_id: int = int(state.get("mode_id", -1))
 	if mode_id != MatchConfig.GameMode.CAPTURE_THE_FLAG and mode_id != MatchConfig.GameMode.REACH_THE_SKY:
