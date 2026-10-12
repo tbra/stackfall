@@ -364,7 +364,7 @@ func request_place(
 		# own activation block even if an earlier Glue buff is still active.
 		# This path is never reached by a rejected click, burn, throw or
 		# spawn_special_projectile(), so those cannot spend a charge.
-		if not is_glue_activation and not is_bean and _match.consume_glue_drop(slot_id):
+		if not is_glue_activation and not is_bean and gift_id == &"" and _match.consume_glue_drop(slot_id):
 			var bonding: GlueDrops = GlueDrops.new()
 			spawned.add_child(bonding)
 			bonding.bind(spawned, _glue_drop_tuning)

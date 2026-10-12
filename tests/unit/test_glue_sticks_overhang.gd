@@ -52,14 +52,14 @@ func _drop_off_side(glued: bool, offset_m: float) -> Dictionary:
 	var touched_disc: bool = false
 	for _i: int in range(OBSERVE_FRAMES):
 		await get_tree().physics_frame
+		# A fused block is a shapeless follower; the carrier then holds it (checked via `attached`).
+		if not dropped.contact_monitor or dropped.fused_carrier() != null:
+			continue
 		for body: Node3D in dropped.get_colliding_bodies():
 			touched_disc = touched_disc or body == _field
-	var bonded_to_base: bool = false
-	var bonds: int = 0
-	for child: Node in dropped.get_children():
-		if child is GlueJoint:
-			bonds += 1
-			bonded_to_base = bonded_to_base or (child as GlueJoint).bodies_match(dropped, base)
+	var carrier: RigidBody3D = dropped.fused_carrier()
+	var bonded_to_base: bool = carrier != null and carrier == base.fused_carrier()
+	var bonds: int = 1 if bonded_to_base else 0
 	var attached: bool = (
 		not touched_disc
 		and dropped.global_position.y > base.global_position.y + CUBE_SIDE_M * 0.5
@@ -81,7 +81,7 @@ func test_glued_block_dropped_off_the_side_sticks_and_never_touches_the_disc() -
 	for offset_m: float in [OVERHANG_EDGE_M, OVERHANG_FAR_M]:
 		var result: Dictionary = await _drop_off_side(true, offset_m)
 		assert_false(result["touched_disc"], "glued block at %.2f m must not slide off onto the disc" % offset_m)
-		assert_true(result["bonded"], "glued block must be bonded to the block it landed on")
+		assert_true(result["bonded"], "glued block must be fused with the block it landed on")
 		assert_true(result["attached"], "glued block must still sit on the block")
 		for child: Node in _blocks_root.get_children():
 			child.free()

@@ -77,8 +77,7 @@ func test_impact_activates_charges_without_bonding_or_spending_one() -> void:
 	behavior.advance(0.01)
 	assert_true(behavior.is_triggered(), "armed impact activates Glue")
 	assert_eq(Match.glue_drops_left(0), 5, "activation block does not spend a charge")
-	for child: Node in block.get_children():
-		assert_false(child is GlueJoint, "activation no longer forms radius bonds")
+	assert_null(block.fused_carrier(), "activation fuses nothing; only charged drops fuse")
 
 
 func test_charges_are_per_slot_refresh_and_exhaust() -> void:
@@ -120,40 +119,3 @@ func test_glue_resource_grants_at_least_one_drop() -> void:
 	assert_eq(def.id, &"glue")
 	assert_true(def.effect is GlueEffect)
 	assert_gt((def.effect as GlueEffect).drop_charges, 0)
-
-
-## GlueJoint remains the contact/break helper for the later placement package.
-func _make_stress_joint() -> Array[Node]:
-	var body_a: RigidBody3D = RigidBody3D.new()
-	var body_b: RigidBody3D = RigidBody3D.new()
-	_blocks_root.add_child(body_a)
-	_blocks_root.add_child(body_b)
-	var inner: Generic6DOFJoint3D = Generic6DOFJoint3D.new()
-	var wrapper: GlueJoint = GlueJoint.new()
-	wrapper.add_child(inner)
-	_blocks_root.add_child(wrapper)
-	var tuning: GlueDropTuning = GlueDropTuning.new()
-	wrapper.bind(inner, body_a, body_b, 40.0, tuning.break_separation_m, tuning.break_speed_mps, tuning.break_shock_mps)
-	return [wrapper, inner]
-
-
-func test_glue_joint_breaks_above_threshold() -> void:
-	var nodes: Array[Node] = _make_stress_joint()
-	var wrapper: GlueJoint = nodes[0] as GlueJoint
-	var inner: Generic6DOFJoint3D = nodes[1] as Generic6DOFJoint3D
-	wrapper.apply_stress_sample(41.0)
-	await get_tree().process_frame
-	await get_tree().process_frame
-	assert_false(is_instance_valid(wrapper))
-	assert_false(is_instance_valid(inner))
-
-
-func test_glue_joint_keeps_below_threshold() -> void:
-	var nodes: Array[Node] = _make_stress_joint()
-	var wrapper: GlueJoint = nodes[0] as GlueJoint
-	var inner: Generic6DOFJoint3D = nodes[1] as Generic6DOFJoint3D
-	wrapper.apply_stress_sample(39.0)
-	await get_tree().process_frame
-	await get_tree().process_frame
-	assert_true(is_instance_valid(wrapper))
-	assert_true(is_instance_valid(inner))
