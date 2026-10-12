@@ -211,6 +211,12 @@ extends Resource
 @export var release_delay_max_s: float = 1.5
 @export var release_safety_margin_s: float = 0.5
 
+## Bontago-1t5.43: short block timers. The reaction delay and the V2 think deadline are clamped so the
+## plan is ready timer_plan_margin_s before the host's auto-drop and the bot keeps at least
+## timer_min_think_s of think time (the reaction delay never eats it). Normal timers are unaffected.
+@export var timer_plan_margin_s: float = 0.5
+@export var timer_min_think_s: float = 0.1
+
 ## Returns the profile for `difficulty`; NORMAL (and any out-of-range value)
 ## falls back to `normal` rather than failing, so a stale/corrupt wire value
 ## never leaves a bot with a null profile.
