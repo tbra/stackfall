@@ -198,7 +198,10 @@ func test_the_replay_rebuilds_the_world_without_a_single_sound() -> void:
 
 	# Positive control: the very handlers the replay triggers do sound when the
 	# silence is not on, so the silence below is not a fixture artefact.
-	_sfx._on_block_placed(null, &"cube")
+	var own_drop: BlockBody = BlockBody.new()
+	own_drop.owner_slot = 0
+	add_child_autofree(own_drop)
+	_sfx._on_block_placed(own_drop, &"cube")
 	assert_true(_any_player_playing(), "a live drop sounds")
 	_stop_all_players()
 	_sfx._on_player_eliminated(1, 1)

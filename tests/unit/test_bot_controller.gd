@@ -65,6 +65,12 @@ class BotControllerFakeMatch:
 	func held_special(slot_id: int) -> StringName:
 		return held_specials.get(slot_id, &"") as StringName
 
+	## Bontago-1pi.175: the slot's remaining block-timer seconds (large = never the limit).
+	var feed_time_left_value: float = 99.0
+
+	func feed_time_left(_slot_id: int) -> float:
+		return feed_time_left_value
+
 	func is_release_locked(slot_id: int) -> bool:
 		return bool(release_locked.get(slot_id, false))
 
@@ -242,6 +248,8 @@ func _make_controller(field: Field, match_ref: BotControllerFakeMatch, net_ref: 
 	add_child_autofree(controller)
 	# P7 (Bontago-1t5.38): these tests exercise the legacy pipeline; V2 tests opt in via set_brain.
 	controller.set_brain(BotController.Brain.LEGACY)
+	# Bontago-1pi.175: these tests assert the decision pipeline, not the release hold.
+	controller.tuning = _tuning_with_release_delay(0.0, 0.0)
 	controller.set_match_provider(match_ref)
 	controller.set_net_provider(net_ref)
 	return controller
@@ -389,6 +397,7 @@ func test_send_best_placement_resamples_support_height_at_the_noisy_origin() -> 
 	var controller: BotControllerForcedNoise = BotControllerForcedNoise.new()
 	add_child_autofree(controller)
 	controller.set_brain(BotController.Brain.LEGACY)
+	controller.tuning = _tuning_with_release_delay(0.0, 0.0)
 	controller.set_match_provider(match_ref)
 	controller.set_net_provider(net_ref)
 	controller.forced_origin = Vector2(0.0, 0.0)
@@ -1179,3 +1188,53 @@ func test_v2_think_is_decided_by_its_deadline_tick() -> void:
 	assert_eq(bot._state, BotController.State.ACTING)
 	assert_true(bot._think.is_done())
 	assert_eq(bot._think.decision().kind, BotThink.DecisionKind.PLACE)
+
+
+# --- Bontago-1pi.175: staggered release ---
+
+func _tuning_with_release_delay(lo: float, hi: float) -> BotTuning:
+	var t: BotTuning = (load("res://config/bot_tuning.tres") as BotTuning).duplicate() as BotTuning
+	t.release_delay_min_s = lo
+	t.release_delay_max_s = hi
+	return t
+
+
+## Frames from a freshly set-up bot until its request_place() is sent.
+func _frames_until_release(slot_id: int, seed_value: int, lo: float, hi: float, time_left: float = -1.0) -> int:
+	var field: Field = _make_field()
+	var match_ref: BotControllerFakeMatch = _make_ready_match(slot_id)
+	match_ref.config.rng_seed = seed_value
+	if time_left >= 0.0:
+		match_ref.feed_time_left_value = time_left
+	var net_ref: BotControllerFakeNet = BotControllerFakeNet.new()
+	var controller: BotController = _make_controller(field, match_ref, net_ref)
+	controller.tuning = _tuning_with_release_delay(lo, hi)
+	controller.setup(slot_id, MatchConfig.AiDifficulty.NORMAL, field, null)
+	var frames: int = 0
+	while match_ref.request_place_calls.is_empty() and frames < 2000:
+		controller._physics_process(1.0 / 60.0)
+		frames += 1
+	return frames
+
+
+func test_release_delay_spreads_bots_and_is_seed_deterministic() -> void:
+	var first: Array[int] = []
+	for slot: int in range(4):
+		first.append(_frames_until_release(slot, 42, 0.0, 1.5))
+	var distinct: Dictionary = {}
+	for f: int in first:
+		distinct[f] = true
+	assert_gt(distinct.size(), 1, "bots release on different ticks: %s" % str(first))
+	var second: Array[int] = []
+	for slot: int in range(4):
+		second.append(_frames_until_release(slot, 42, 0.0, 1.5))
+	assert_eq(second, first, "same match seed, same release ticks")
+	var none: int = _frames_until_release(0, 42, 0.0, 0.0)
+	assert_gt(_frames_until_release(0, 42, 1.0, 1.0), none + 50, "a fixed 1 s hold adds about 60 ticks")
+
+
+func test_release_hold_is_cut_before_the_block_timer_expires() -> void:
+	var held: int = _frames_until_release(0, 42, 3.0, 3.0, 1.0)
+	var free: int = _frames_until_release(0, 42, 0.0, 0.0, 1.0)
+	# Only (time_left - margin) = 0.5 s may be spent holding, never the full 3 s.
+	assert_lt(held - free, 40, "hold capped by the timer")
