@@ -422,6 +422,12 @@ func _wire_focus_chain() -> void:
 		var next: Control = chain[(i + 1) % chain.size()]
 		current.focus_neighbor_top = current.get_path_to(prev)
 		current.focus_neighbor_bottom = current.get_path_to(next)
+		# Bontago-1pi.181 (owner: "can't move left/right even though the buttons are laid
+		# out horizontally"): the two buttons sit side by side in ButtonsRow, so left /
+		# right walk the same wrapped chain. Without these the focus trap below pinned
+		# both sides to the button itself.
+		current.focus_neighbor_left = current.get_path_to(prev)
+		current.focus_neighbor_right = current.get_path_to(next)
 		current.focus_mode = Control.FOCUS_ALL
-	# Bontago-1pi.159.15: left / right (no neighbour set) must not leave this screen.
+	# Bontago-1pi.159.15: any side still unset must not leave this screen.
 	UiFocusTrap.trap(self)

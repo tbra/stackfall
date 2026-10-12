@@ -179,6 +179,13 @@ var _view_tweens: Array[Tween] = []
 ## set_camera_rig()). begin_start_framing() pivots on it; empty means "no
 ## controller", and the home beacon is used instead.
 var _start_anchor_source: Callable = Callable()
+## Bontago-1pi.187: the match-start pose (yaw/pitch/distance/target) recorded by
+## begin_start_framing(), which camera_reset restores. Cleared by reset_view().
+var _has_start_pose: bool = false
+var _start_yaw: float = 0.0
+var _start_pitch: float = 0.0
+var _start_distance: float = 0.0
+var _start_target: Vector3 = Vector3.ZERO
 
 @onready var _camera: Camera3D = $Camera3D
 
@@ -320,6 +327,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		_on_focus_pressed(&"camera_snap_goal")
 	elif event.is_action_released(&"camera_snap_goal") and _focus_action == &"camera_snap_goal":
 		_on_focus_released()
+	elif event.is_action_pressed(&"camera_reset"):
+		# Bontago-1pi.187: Back is shared with camera_snap_home (see
+		# tools/bootstrap_project.gd). Snap owns the pad press while enabled, and
+		# the sandbox uses Back for its own chords.
+		if not (event is InputEventJoypadButton and (tuning.snap_enabled or suppress_pad_home_focus)):
+			reset_to_start_pose()
 
 
 func _process(delta: float) -> void:
@@ -487,6 +500,7 @@ func reset_view() -> void:
 			tween.kill()
 	_view_tweens.clear()
 	_start_anchor_source = Callable()
+	_has_start_pose = false
 	_yaw = 0.0
 	_target = Vector3.ZERO
 	_follow_position = Vector3.ZERO
@@ -549,8 +563,38 @@ func begin_start_framing(slot_id: int) -> bool:
 	# player moves the camera.
 	_distance = clampf(tuning.start_distance_m, tuning.zoom_min, _zoom_max())
 	_pitch = deg_to_rad(tuning.start_pitch_deg)
+	_has_start_pose = true
+	_start_yaw = _yaw
+	_start_pitch = _pitch
+	_start_distance = _distance
+	_start_target = _target
 	_update_transform()
 	return true
+
+
+## Bontago-1pi.187 (camera_reset): puts the camera back on the match-start pose
+## recorded by begin_start_framing(). In follow mode the target keeps tracking
+## the held block (only yaw/pitch/distance are restored); the free camera also
+## gets its start target back. Before any match start (no recorded pose) it
+## falls back to the launch framing. Cancels PEEK and in-flight snap tweens.
+func reset_to_start_pose() -> void:
+	for tween: Tween in _view_tweens:
+		if tween != null and tween.is_valid():
+			tween.kill()
+	_view_tweens.clear()
+	_peek_active = false
+	_peek_returning = false
+	_focus_action = &""
+	_focus_hold_elapsed_s = 0.0
+	if not _has_start_pose:
+		_apply_default_view()
+		return
+	_yaw = _start_yaw
+	_pitch = _start_pitch
+	_distance = _start_distance
+	if not tuning.follow_block:
+		_target = _start_target
+	_update_transform()
 
 
 ## Bontago-1pi.90: registered by PlayerController.set_camera_rig(); see
