@@ -740,7 +740,7 @@ func _select_bodies() -> Dictionary:
 		var block: BlockBody = held as BlockBody
 		if block.net_id <= 0:
 			continue
-		if not block.sleeping or _moved_since_sent(block):
+		if not block.net_sleeping() or _moved_since_sent(block):
 			awake_or_moved.append(_record(block))
 		else:
 			sleepers.append(block)
@@ -761,7 +761,7 @@ func _record(block: BlockBody) -> Dictionary:
 		"net_id": block.net_id,
 		"position": block.global_position,
 		"rotation": block.global_basis.get_rotation_quaternion(),
-		"sleeping": block.sleeping,
+		"sleeping": block.net_sleeping(),
 	}
 
 
