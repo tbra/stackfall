@@ -52,6 +52,9 @@ func _apply_settings() -> void:
 		# Bontago-1pi.11.74 (G1): the sky shaders read this global instead of TIME so the
 		# radiance is not re-rendered every frame (game/Skybox.gd writes it).
 		"shader_globals/sky_time": {"type": "float", "value": 0.0},
+		# Bontago-mp0.153: per-frame sun/moon disc directions (game/Skybox.gd).
+		"shader_globals/sky_sun_dir": {"type": "vec3", "value": Vector3(1.0, 0.0, 0.0)},
+		"shader_globals/sky_moon_dir": {"type": "vec3", "value": Vector3(-1.0, 0.0, 0.0)},
 
 		# Spec 3.5 - physics tuning.
 		"physics/common/physics_ticks_per_second": 60,

@@ -426,3 +426,11 @@ sky_time={
 "type": "float",
 "value": 0.0
 }
+sky_sun_dir={
+"type": "vec3",
+"value": Vector3(1, 0, 0)
+}
+sky_moon_dir={
+"type": "vec3",
+"value": Vector3(-1, 0, 0)
+}
