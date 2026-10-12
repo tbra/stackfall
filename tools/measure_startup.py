@@ -27,7 +27,7 @@ ARGS = ["--windowed", "--position", "10000,10000", "--resolution", "320x180",
 
 def one_run(godot, path):
     try:
-        with godot_slots.godot_slot("measure_startup"):  # machine-wide Godot cap (Bontago-fca.89)
+        with godot_slots.godot_exclusive("measure_startup"):  # timing tool: runs alone (Bontago-fca.95)
             p = subprocess.run([godot, "--path", path] + ARGS, capture_output=True, text=True,
                                encoding="utf-8", errors="replace", timeout=RUN_TIMEOUT_S)
     except (subprocess.TimeoutExpired, TimeoutError):
