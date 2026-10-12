@@ -63,7 +63,7 @@ static func is_exposed(block: Block, probe_m: float) -> bool:
 	return false
 
 
-## True when the block carries a SpecialBehavior or GlueJoint child that owns
+## True when the block carries a SpecialBehavior child that owns
 ## its physics, so wind must not touch it. Glue fusion (owner OQ3): a FusedBody and every
 ## member of one ignore wind (the group is one heavy body; nudging a follower is moot).
 static func _owns_physics(block: Block) -> bool:
@@ -72,7 +72,7 @@ static func _owns_physics(block: Block) -> bool:
 	if block.has_method(&"members_in_sphere") or block.is_fused_member():
 		return true
 	for child: Node in block.get_children():
-		if child is SpecialBehavior or child is GlueJoint:
+		if child is SpecialBehavior:
 			return true
 	return false
 

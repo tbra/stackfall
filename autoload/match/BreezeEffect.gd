@@ -23,7 +23,7 @@ extends WindEffect
 ## already in flight at storm start; stopping the tick is a complete undo.
 ## DECISION (BreezeEffect): sleeping blocks are scanned on a rotating stride and
 ## woken only when the summed push reaches wake_accel, blocks that own their
-## physics (Freeze, SpecialBehavior, GlueJoint) are skipped, as in Storm.
+## physics (Freeze, SpecialBehavior) are skipped, as in Storm.
 ## DECISION (BreezeEffect): the gust list is authoritative host state; a peer
 ## joining mid-gust simply misses that gust's visual (transient, seconds).
 ## DECISION (BreezeEffect, Bontago-mp0.91): the host scheduler skips the spawn

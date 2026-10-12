@@ -397,7 +397,6 @@
   "game/specials/BlackHoleVisual.gd",
   "game/specials/BombEffect.gd",
   "game/specials/FreezeEffect.gd",
-  "game/specials/GlueJoint.gd",
   "game/specials/PaintballSplash.gd",
   "game/specials/PropellerEffect.gd",
   "game/specials/PropellerStand.gd",

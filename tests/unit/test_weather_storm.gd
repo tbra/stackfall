@@ -151,8 +151,6 @@ func test_direction_is_drawn_per_event_and_replicated() -> void:
 func test_blocks_owning_their_physics_are_skipped() -> void:
 	var special: Block = _floating_block(_tuning.cap_height_m + 2.0)
 	special.add_child(SpecialBehavior.new())
-	var glued: Block = _floating_block(_tuning.cap_height_m + 2.0)
-	glued.add_child(GlueJoint.new())
 	var effect: StormEffect = _effect()
 	effect.tick(DELTA, 1.0)
 	assert_eq(effect.last_pushed, 0)

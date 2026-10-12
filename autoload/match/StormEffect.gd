@@ -21,8 +21,8 @@ extends WindEffect
 ## replicated state. The gust phase is approximate on clients (local clock).
 ## DECISION (StormEffect): a block carrying a SpecialBehavior child (an
 ## untriggered special, e.g. rocket/propeller/jumping bean, which write its
-## velocity) or a GlueJoint child (glue owner, joints under stress) is skipped
-## so wind cannot break those rules; no other special leaves a marker.
+## velocity) is skipped so wind cannot break those rules; no other special leaves a
+## marker. Fused glue groups ignore wind through WindEffect._owns_physics.
 
 var _elapsed: float = 0.0
 var _tick_index: int = 0
