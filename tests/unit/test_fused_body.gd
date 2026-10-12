@@ -122,7 +122,8 @@ func test_centre_of_mass_is_mass_weighted() -> void:
 	await _frames(2)
 	var state: PhysicsDirectBodyState3D = PhysicsServer3D.body_get_direct_state(carrier.get_rid())
 	var engine_com: Vector3 = carrier.global_transform * state.center_of_mass_local
-	assert_lt(engine_com.distance_to(mine), COM_TOLERANCE, "the engine's AUTO centre of mass matches")
+	mine = carrier.global_transform * carrier.local_center_of_mass()
+	assert_lt(engine_com.distance_to(mine), COM_TOLERANCE, "the engine's centre of mass matches")
 	for member: Block in carrier.members:
 		assert_eq(member.center_of_mass_mode, RigidBody3D.CENTER_OF_MASS_MODE_CUSTOM)
 
@@ -275,3 +276,67 @@ func test_follower_forwards_freeze_wake_and_kick_to_the_carrier() -> void:
 	assert_eq(carrier.linear_velocity, Vector3(0.0, 0.0, 4.0))
 	assert_true(carrier._script_kick_pending)
 	assert_false(pair[0]._script_kick_pending)
+
+
+const HEAVY_MASS_FACTOR: float = 6.0
+const SPIN_EPSILON: float = 0.05
+
+
+func _world_com(members: Array[Block]) -> Vector3:
+	var sum: Vector3 = Vector3.ZERO
+	var total: float = 0.0
+	for member: Block in members:
+		sum += (member.global_transform * member.center_of_mass) * member.mass
+		total += member.mass
+	return sum / total
+
+
+func test_centre_of_mass_uses_member_mass_not_shape_volume() -> void:
+	var at: Vector3 = _field.to_global(Vector3(0.0, 6.0, 0.0))
+	var a: Block = _block("cube", 0, at)
+	var b: Block = _block("cube", 0, at + Vector3(CUBE_SIDE_M, 0.0, 0.0))
+	var c: Block = _block("cube", 0, at + Vector3(2.0 * CUBE_SIDE_M, 0.0, 0.0))
+	a.mass *= HEAVY_MASS_FACTOR
+	var carrier: FusedBody = _fuse(a, b)
+	_fuse(c, b)
+	var start_y: float = carrier.global_position.y
+	await _frames(10)
+	var state: PhysicsDirectBodyState3D = PhysicsServer3D.body_get_direct_state(carrier.get_rid())
+	assert_eq(carrier.center_of_mass_mode, RigidBody3D.CENTER_OF_MASS_MODE_CUSTOM)
+	var members: Array[Block] = [a, b, c]
+	var engine_com: Vector3 = carrier.global_transform * state.center_of_mass_local
+	assert_lt(engine_com.distance_to(_world_com(members)), COM_TOLERANCE, "physics COM follows member mass")
+	assert_lt(carrier.angular_velocity.length(), SPIN_EPSILON, "free fall does not spin the carrier")
+	assert_lt(carrier.global_position.y, start_y, "carrier falls")
+	var before: Vector3 = carrier.center_of_mass
+	carrier.remove_member(c, &"hole")
+	members = [a, b]
+	var after_com: Vector3 = carrier.global_transform * carrier.center_of_mass
+	assert_ne(carrier.center_of_mass, before, "COM updates when a member leaves")
+	assert_lt(after_com.distance_to(_world_com(members)), COM_TOLERANCE, "updated COM is mass-weighted")
+
+
+func test_externally_freed_member_is_removed_from_the_group() -> void:
+	var at: Vector3 = _field.to_global(Vector3(0.0, 6.0, 0.0))
+	var a: Block = _block("cube", 0, at)
+	var b: Block = _block("cube", 0, at + Vector3(CUBE_SIDE_M, 0.0, 0.0))
+	var c: Block = _block("cube", 0, at + Vector3(2.0 * CUBE_SIDE_M, 0.0, 0.0))
+	var carrier: FusedBody = _fuse(a, b)
+	_fuse(c, b)
+	var mass_before: float = carrier.mass
+	var b_mass: float = b.mass
+	b.queue_free()
+	await _frames(3)
+	assert_eq(carrier.members.size(), 2)
+	assert_eq(_shape_count(carrier), 2, "orphan shape dropped")
+	assert_almost_eq(carrier.mass, mass_before - b_mass, 0.0001)
+	a.queue_free()
+	await _frames(3)
+	assert_true(c.is_inside_tree() and not c.is_fused_member(), "collapse rules still apply")
+	assert_eq(_shape_count(c), 1)
+
+
+func test_carrier_is_in_the_tuning_group() -> void:
+	var pair: Array[Block] = _air_pair()
+	var carrier: FusedBody = _fuse(pair[0], pair[1])
+	assert_true(carrier.is_in_group(Block.TUNING_GROUP))

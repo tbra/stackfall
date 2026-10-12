@@ -78,7 +78,8 @@ func member_offset(member: Block) -> Transform3D:
 func total_cubes() -> int:
 	var total: int = 0
 	for member: Block in members:
-		total += member.cube_count
+		if is_instance_valid(member):
+			total += member.cube_count
 	return total
 
 
@@ -86,7 +87,7 @@ func total_cubes() -> int:
 func members_in_sphere(center: Vector3, radius: float) -> Array[Block]:
 	var result: Array[Block] = []
 	for member: Block in members:
-		if _member_distance(member, center) <= radius:
+		if is_instance_valid(member) and _member_distance(member, center) <= radius:
 			result.append(member)
 	return result
 
@@ -96,6 +97,8 @@ func owner_slot_at(world_point: Vector3) -> int:
 	var best: int = -1
 	var best_distance: float = INF
 	for member: Block in members:
+		if not is_instance_valid(member):
+			continue
 		var distance: float = _member_distance(member, world_point)
 		if distance < best_distance:
 			best_distance = distance
@@ -110,12 +113,14 @@ func _member_distance(member: Block, world_point: Vector3) -> float:
 	return best
 
 
-## Mass-weighted centre of mass of every member in this body's frame (what Jolt derives
-## for AUTO centre of mass; exposed so tests and callers need not wait for a sync).
+## Mass-weighted centre of mass of every member in this body's frame (applied as the
+## CUSTOM centre of mass; exposed so tests and callers need not wait for a sync).
 func local_center_of_mass() -> Vector3:
 	var sum: Vector3 = Vector3.ZERO
 	var total: float = 0.0
 	for member: Block in members:
+		if not is_instance_valid(member):
+			continue
 		sum += member_offset(member) * member.center_of_mass * member.mass
 		total += member.mass
 	return sum / total if total > 0.0 else Vector3.ZERO
@@ -142,6 +147,8 @@ func adopt(block: Block) -> void:
 	block.become_follower(self, com)
 	_offsets[block.get_instance_id()] = inverse * block.global_transform
 	members.append(block)
+	_watch(block)
+	block.reset_physics_interpolation()
 	for reason: StringName in stable_dropped.keys():
 		if reason != FREEZE_REASON_STABLE:
 			request_freeze_static(reason)
@@ -157,8 +164,11 @@ func absorb_group(other: FusedBody) -> void:
 		var shapes: Array[CollisionShape3D] = other.member_shapes(member)
 		_take_shapes(member.get_instance_id(), shapes, relative)
 		_offsets[member.get_instance_id()] = relative * other.member_offset(member)
+		other._unwatch(member)
 		member.retarget_follower(self)
 		members.append(member)
+		_watch(member)
+		member.reset_physics_interpolation()
 	for reason: StringName in other._freeze_reasons.keys():
 		if reason != FREEZE_REASON_STABLE:
 			request_freeze_static(reason)
@@ -207,13 +217,52 @@ func remove_member(member: Block, reason: StringName) -> void:
 ## Every member leaves (kill plane, black hole): one block_removed each, then the body ends.
 func remove_all_members(reason: StringName) -> void:
 	for member: Block in members.duplicate():
+		if not is_instance_valid(member):
+			members.erase(member)
+			continue
 		_forget(member, true)
 		Events.block_removed.emit(member, String(reason))
 		member.queue_free()
 	_after_membership_loss()
 
 
+## Routes an externally freed/removed member (kill plane, black hole, dissolve outside
+## this API) through remove_member. DECISION: shape removal is deferred because the free
+## can come from inside a physics callback; bookkeeping, mass and COM update at once.
+func _watch(member: Block) -> void:
+	var callback: Callable = _on_member_exiting.bind(member)
+	if not member.tree_exiting.is_connected(callback):
+		member.tree_exiting.connect(callback)
+
+
+func _unwatch(member: Block) -> void:
+	if not is_instance_valid(member):
+		return
+	var callback: Callable = _on_member_exiting.bind(member)
+	if member.tree_exiting.is_connected(callback):
+		member.tree_exiting.disconnect(callback)
+
+
+func _on_member_exiting(member: Block) -> void:
+	if not members.has(member) or not is_inside_tree() or is_queued_for_deletion():
+		return
+	var shapes: Array[CollisionShape3D] = member_shapes(member)
+	_forget(member, false)
+	for shape: CollisionShape3D in shapes:
+		_discard_shape.call_deferred(shape)
+	Events.block_removed.emit(member, String(&"freed"))
+	_after_membership_loss()
+
+
+func _discard_shape(shape: CollisionShape3D) -> void:
+	if is_instance_valid(shape):
+		if shape.get_parent() == self:
+			remove_child(shape)
+		shape.queue_free()
+
+
 func _forget(member: Block, drop_shapes: bool) -> void:
+	_unwatch(member)
 	var id: int = member.get_instance_id()
 	if drop_shapes:
 		for shape: CollisionShape3D in member_shapes(member):
@@ -258,6 +307,7 @@ func _after_membership_loss() -> void:
 ## One member left and no disc anchor: it gets its shapes back and is a plain dynamic Block.
 func _collapse() -> void:
 	var survivor: Block = members[0]
+	_unwatch(survivor)
 	sync_followers()
 	var body_xform: Transform3D = global_transform
 	var offset: Transform3D = member_offset(survivor)
@@ -275,6 +325,7 @@ func _collapse() -> void:
 	_offsets.clear()
 	survivor.global_transform = body_xform * offset
 	survivor.release_follower()
+	survivor.reset_physics_interpolation()
 	survivor.linear_velocity = linear
 	survivor.angular_velocity = angular
 	for reason: StringName in reasons:
@@ -289,6 +340,8 @@ func _refresh_mass_and_owner() -> void:
 	var total: float = 0.0
 	var slot: int = SLOT_UNSET
 	for member: Block in members:
+		if not is_instance_valid(member):
+			continue
 		total += member.mass
 		if slot == SLOT_UNSET:
 			slot = member.owner_slot
@@ -296,6 +349,9 @@ func _refresh_mass_and_owner() -> void:
 			slot = -1
 	if total > 0.0:
 		mass = total
+	# Jolt's AUTO centre of mass weights by shape volume; members can differ in mass.
+	center_of_mass_mode = RigidBody3D.CENTER_OF_MASS_MODE_CUSTOM
+	center_of_mass = local_center_of_mass()
 	owner_slot = maxi(slot, -1)
 
 

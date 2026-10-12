@@ -84,6 +84,7 @@ static func _new_carrier(charged: Block, partner: Block, absorb: bool) -> FusedB
 	carrier.setup_from(template)
 	parent.add_child(carrier)
 	carrier.global_transform = template.global_transform
+	carrier.reset_physics_interpolation()
 	if partner != null:
 		carrier.linear_velocity = partner.linear_velocity
 		carrier.angular_velocity = Vector3.ZERO if absorb else partner.angular_velocity
