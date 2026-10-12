@@ -15,6 +15,9 @@ var slot_id: int = -1
 var team_id: int = -1
 var mode: int = MatchConfig.GameMode.CLASSIC
 var field_radius: float = 0.0
+## Bontago-1t5.42: radius of the still-solid disc (field_radius until a sudden-death shrink).
+## field_radius stays the original so influence-circle caps are unchanged.
+var live_radius: float = 0.0
 var raster: TerritoryRaster = null
 var grid: CellGrid = null
 var territory_tuning: TerritoryTuning = SHIPPED_TERRITORY_TUNING
@@ -71,6 +74,7 @@ static func build(
 	if raster_value != null and raster_value.tuning() != null:
 		view.territory_tuning = raster_value.tuning()
 	view.field_radius = view.grid.field_radius if view.grid != null else 0.0
+	view.live_radius = view.field_radius
 	view.goals = goals_value
 	view.goal_zone_radius = goal_zone_radius_value
 	view.held = held_value
@@ -126,6 +130,29 @@ func _strip_as_home(point: Vector2, radius: float, living_homes: PackedVector2Ar
 			home_unmatched[h] = false
 			return true
 	return false
+
+
+## Bontago-1t5.42: the live playable radius, read from the raster because no Match accessor
+## exposes the sudden-death shrink radius. MatchTerritory.shrink_to_radius punches every cell
+## whose centre lies beyond the radius as a permanent hole, so the farthest non-hole in-disk
+## cell centre is the live radius (cell-quantised; a natural hole on the rim only makes it
+## smaller, i.e. conservative). Only call while sudden death is active.
+# DECISION: derived from the raster rather than adding a public MatchLifecycle accessor (not an
+# owned file); swap for the exact _last_shrink_radius if one is ever exposed.
+static func live_radius_from_raster(raster_value: TerritoryRaster, grid_value: CellGrid) -> float:
+	if raster_value == null or grid_value == null:
+		return 0.0
+	var best_sq: float = 0.0
+	for index: int in grid_value.in_disk_cells():
+		var xy: Vector2i = grid_value.cell_coords(index)
+		if raster_value.is_hole(xy.x, xy.y):
+			continue
+		best_sq = maxf(best_sq, grid_value.index_center(index).length_squared())
+	return sqrt(best_sq)
+
+
+func is_shrunk() -> bool:
+	return live_radius > 0.0 and live_radius < field_radius
 
 
 func circle_count() -> int:

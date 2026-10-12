@@ -30,3 +30,13 @@ extends Resource
 ## own tip_risk as wind_tip_weight * weather intensity * WindField.height_factor(top height).
 ## 0 disables it; calm weather is unaffected whatever the value.
 @export var wind_tip_weight: float = 1.0
+## Rim / shrink (Bontago-1t5.42): a footprint whose farthest cell lies within this many metres
+## of the live disc edge is graded 0..1 as fall-off risk (0 at this distance, 1 at the edge).
+@export var rim_margin_m: float = 3.0
+## TIP-axis weight of that rim grade.
+@export var rim_weight: float = 1.0
+## Extra TIP-axis penalty when any footprint cell lies beyond the live radius (it would fall).
+@export var rim_outside_penalty: float = 10.0
+## Once a sudden-death shrink is active: TIP-axis bias, times the shrunk fraction
+## (1 - live / original radius), towards the surviving centre (origin distance / live radius).
+@export var shrink_centre_weight: float = 0.5

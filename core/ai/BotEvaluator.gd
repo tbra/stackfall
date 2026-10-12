@@ -55,7 +55,7 @@ static func proxy_terms(c: BotCandidate, view: BotWorldView, intent: BotIntent) 
 		terms[BotIntent.Term.KILL] = float(covered)
 		terms[BotIntent.Term.HAZARD] = _hazard_from_gap(c, view, nearest_gap)
 	terms[BotIntent.Term.EXPOSURE] = float(mini(threats + _home_threats(c.origin, view), tuning.exposure_cap))
-	terms[BotIntent.Term.TIP] = c.tip_risk + wind_tip(c, view)
+	terms[BotIntent.Term.TIP] = c.tip_risk + wind_tip(c, view) + rim_risk(c, view)
 	terms[BotIntent.Term.WASTE] = 1.0 if inside >= 1.0 else 0.0
 	return terms
 
@@ -74,7 +74,7 @@ static func measure(
 	terms[BotIntent.Term.WASTE] = fractions.y
 	terms[BotIntent.Term.KILL] = _kill(c, view, chains, radius)
 	terms[BotIntent.Term.EXPOSURE] = float(_exposure(c, view, chains))
-	terms[BotIntent.Term.TIP] = c.tip_risk + wind_tip(c, view)
+	terms[BotIntent.Term.TIP] = c.tip_risk + wind_tip(c, view) + rim_risk(c, view)
 	terms[BotIntent.Term.HAZARD] = hazard(c, view, chains)
 	return terms
 
@@ -100,6 +100,28 @@ static func wind_tip(c: BotCandidate, view: BotWorldView) -> float:
 		return 0.0
 	var top: float = maxf(c.top_height, c.support_height + c.shape_height)
 	return tuning.wind_tip_weight * clampf(view.weather_intensity, 0.0, 1.0) * WindField.height_factor(top, view.wind_tuning)
+
+
+## Bontago-1t5.42: fall-off risk near the live disc edge plus the pull towards the surviving
+## centre after a shrink (TIP axis). Exactly 0 when the footprint stays rim_margin_m inside the
+## disc and no shrink is active, so central placements on a full-size disc score as before.
+static func rim_risk(c: BotCandidate, view: BotWorldView) -> float:
+	if view.live_radius <= 0.0:
+		return 0.0
+	var reach: float = c.origin.length()
+	if view.grid != null:
+		for index: int in c.footprint_cells:
+			reach = maxf(reach, view.grid.index_center(index).length())
+	var margin: float = view.live_radius - reach
+	var risk: float = 0.0
+	if margin < tuning.rim_margin_m and tuning.rim_margin_m > 0.0:
+		risk += tuning.rim_weight * clampf(1.0 - margin / tuning.rim_margin_m, 0.0, 1.0)
+	if margin < 0.0:
+		risk += tuning.rim_outside_penalty
+	if view.is_shrunk():
+		var shrunk: float = 1.0 - view.live_radius / view.field_radius
+		risk += tuning.shrink_centre_weight * shrunk * clampf(c.origin.length() / view.live_radius, 0.0, 1.0)
+	return risk
 
 
 ## Radius of the influence circle the placed piece will project.
