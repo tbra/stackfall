@@ -279,7 +279,7 @@ func _actions() -> Dictionary:
 	a["show_scores"] = [_key(KEY_TAB), _pad(JOY_BUTTON_RIGHT_STICK)]
 
 	# Bontago-1pi.192.1 (player chat). DECISION: keyboard-only (owner 2026-10-12,
-	# gamepad users read the log but never type; DEVICE_EXCEPTIONS "pad"). Enter and
+	# gamepad users read the log but never type; not in REQUIRED_ACTIONS). Enter and
 	# KP Enter are also lobby_confirm/ui_accept, which only act in menus, and the
 	# lobby skips Enter while a LineEdit has focus; T is otherwise unbound.
 	a["chat_open"] = [_key(KEY_ENTER), _key(KEY_KP_ENTER), _key(KEY_T)]
