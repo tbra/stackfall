@@ -91,3 +91,64 @@ func test_live_radius_read_from_shrunk_raster() -> void:
 			raster.force_hole_cell(xy.x, xy.y, 0.0, true)
 	var live: float = BotWorldView.live_radius_from_raster(raster, grid)
 	assert_true(live <= SHRUNK_RADIUS_M and live > SHRUNK_RADIUS_M - 2.0 * CELL_M, "live=%f" % live)
+
+
+func _raster_fixture() -> Array:
+	var tuning: TerritoryTuning = load("res://config/territory_tuning.tres") as TerritoryTuning
+	var grid: CellGrid = CellGrid.new(FULL_RADIUS_M, CELL_M)
+	return [grid, TerritoryRaster.new(grid, tuning)]
+
+
+func _shrink(grid: CellGrid, raster: TerritoryRaster, radius: float) -> void:
+	for index: int in grid.in_disk_cells():
+		var xy: Vector2i = grid.cell_coords(index)
+		if grid.index_center(index).length() > radius:
+			raster.force_hole_cell(xy.x, xy.y, 0.0, true)
+
+
+func test_natural_interior_holes_do_not_shrink() -> void:
+	var fx: Array = _raster_fixture()
+	var grid: CellGrid = fx[0] as CellGrid
+	var raster: TerritoryRaster = fx[1] as TerritoryRaster
+	raster.force_hole_cell(grid.res / 2, grid.res / 2, 0.0, false)
+	assert_eq(BotWorldView.live_radius_from_raster(raster, grid), FULL_RADIUS_M, "unshrunk reports field_radius")
+	var view: BotWorldView = _view(BotWorldView.live_radius_from_raster(raster, grid))
+	assert_false(view.is_shrunk(), "t=0 / natural holes: not shrunk")
+
+
+func test_non_circular_map_not_falsely_shrunk() -> void:
+	var grid: CellGrid = CellGrid.new(FULL_RADIUS_M, CELL_M, func(p: Vector2) -> bool: return absf(p.x) < 10.0)
+	var tuning: TerritoryTuning = load("res://config/territory_tuning.tres") as TerritoryTuning
+	var raster: TerritoryRaster = TerritoryRaster.new(grid, tuning)
+	assert_eq(BotWorldView.live_radius_from_raster(raster, grid), FULL_RADIUS_M)
+
+
+func test_live_radius_cached_and_invalidated_by_next_step() -> void:
+	var fx: Array = _raster_fixture()
+	var grid: CellGrid = fx[0] as CellGrid
+	var raster: TerritoryRaster = fx[1] as TerritoryRaster
+	_shrink(grid, raster, SHRUNK_RADIUS_M)
+	var first: float = BotWorldView.live_radius_from_raster(raster, grid)
+	var scans: int = BotWorldView.scan_count
+	assert_eq(BotWorldView.live_radius_from_raster(raster, grid), first)
+	assert_eq(BotWorldView.scan_count, scans, "second bot, same state: no rescan")
+	_shrink(grid, raster, SHRUNK_RADIUS_M - 3.0)
+	var second: float = BotWorldView.live_radius_from_raster(raster, grid)
+	assert_lt(second, first, "further shrink step is picked up")
+	assert_eq(BotWorldView.scan_count, scans + 1)
+
+
+func test_early_out_matches_full_loop() -> void:
+	var fx: Array = _raster_fixture()
+	var grid: CellGrid = fx[0] as CellGrid
+	var shape: BlockShape = BlockShape.new()
+	shape.cells = [Vector3i(0, 0, 0), Vector3i(1, 0, 0)] as Array[Vector3i]
+	var with_extent: BotWorldView = _view(FULL_RADIUS_M)
+	with_extent.grid = grid
+	with_extent.held = shape
+	var without: BotWorldView = _view(FULL_RADIUS_M)
+	without.grid = grid
+	for x: float in [0.0, 5.0, 12.0, 20.0, 26.0, 29.0]:
+		var c: BotCandidate = _site(Vector2(x, 0.0))
+		c.footprint_cells = PackedInt32Array([grid.cell_index(grid.world_to_cell(c.origin).x, grid.world_to_cell(c.origin).y)])
+		assert_eq(BotEvaluator.rim_risk(c, with_extent), BotEvaluator.rim_risk(c, without), "x=%f" % x)

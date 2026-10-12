@@ -109,7 +109,11 @@ static func rim_risk(c: BotCandidate, view: BotWorldView) -> float:
 	if view.live_radius <= 0.0:
 		return 0.0
 	var reach: float = c.origin.length()
-	if view.grid != null:
+	# Early-out: when even the farthest possible footprint cell stays rim_margin_m inside the
+	# disc (and no shrink bias applies below), the loop cannot change the result.
+	var extent: float = view.footprint_extent_m()
+	var clear: bool = extent >= 0.0 and reach + extent <= view.live_radius - tuning.rim_margin_m
+	if view.grid != null and not clear:
 		for index: int in c.footprint_cells:
 			reach = maxf(reach, view.grid.index_center(index).length())
 	var margin: float = view.live_radius - reach

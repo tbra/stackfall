@@ -17,3 +17,4 @@ rim_margin_m = 3.0
 rim_weight = 1.0
 rim_outside_penalty = 10.0
 shrink_centre_weight = 0.5
+shrink_epsilon_m = 0.01

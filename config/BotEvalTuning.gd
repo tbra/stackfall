@@ -40,3 +40,5 @@ extends Resource
 ## Once a sudden-death shrink is active: TIP-axis bias, times the shrunk fraction
 ## (1 - live / original radius), towards the surviving centre (origin distance / live radius).
 @export var shrink_centre_weight: float = 0.5
+## A shrink counts as active only when the live radius is below the original by more than this.
+@export var shrink_epsilon_m: float = 0.01

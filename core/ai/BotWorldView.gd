@@ -10,6 +10,9 @@ const SHIPPED_TERRITORY_TUNING: TerritoryTuning = preload("res://config/territor
 const SHIPPED_PHYSICS_TUNING: PhysicsTuning = preload("res://config/physics_tuning.tres")
 ## Position / radius slack when matching a render-list circle to a home flag.
 const HOME_MATCH_TOLERANCE_M: float = 0.05
+## Footprint-extent bound pads: one cube of reach and the unit-cube space diagonal.
+const CUBE_PAD_CELLS: float = 1.0
+const CUBE_DIAGONAL: float = 1.7320508
 
 var slot_id: int = -1
 var team_id: int = -1
@@ -132,16 +135,42 @@ func _strip_as_home(point: Vector2, radius: float, living_homes: PackedVector2Ar
 	return false
 
 
-## Bontago-1t5.42: the live playable radius, read from the raster because no Match accessor
-## exposes the sudden-death shrink radius. MatchTerritory.shrink_to_radius punches every cell
-## whose centre lies beyond the radius as a permanent hole, so the farthest non-hole in-disk
-## cell centre is the live radius (cell-quantised; a natural hole on the rim only makes it
-## smaller, i.e. conservative). Only call while sudden death is active.
-# DECISION: derived from the raster rather than adding a public MatchLifecycle accessor (not an
-# owned file); swap for the exact _last_shrink_radius if one is ever exposed.
+## Bontago-1t5.42: live playable radius from the raster (no Match accessor exposes the shrink
+## radius). MatchTerritory.shrink_to_radius punches every cell whose centre lies beyond the radius
+## as a permanent hole, so the farthest non-hole in-disk cell centre is the live radius
+## (cell-quantised; a natural hole on the rim only makes it smaller, i.e. conservative).
+## Returns the live radius, or the grid's original extent (farthest in-disk cell centre) when no
+## shrink is visible: DECISION: on non-circular maps (CellGrid shape test) the farthest cell of the
+## carved shape is below field_radius with nothing shrunk, so "shrunk" means live < that original
+## extent, never live < field_radius; unshrunk maps then report the full field_radius.
+## DECISION: cached per (raster, content_revision) so every bot's think in one solve step shares
+## one scan (the revision bumps on any raster change, no hole-only counter exists); the original
+## extent is cached per grid. Only call while sudden death is active.
+static var _scan_raster_id: int = 0
+static var _scan_revision: int = -1
+static var _scan_live: float = 0.0
+static var _extent_grid_id: int = 0
+static var _extent_value: float = 0.0
+static var scan_count: int = 0
+
+
 static func live_radius_from_raster(raster_value: TerritoryRaster, grid_value: CellGrid) -> float:
 	if raster_value == null or grid_value == null:
 		return 0.0
+	var raster_id: int = raster_value.get_instance_id()
+	var revision: int = raster_value.content_revision()
+	if raster_id != _scan_raster_id or revision != _scan_revision:
+		_scan_raster_id = raster_id
+		_scan_revision = revision
+		_scan_live = _scan_live_radius(raster_value, grid_value)
+	var extent: float = _original_extent(grid_value)
+	if _scan_live >= extent:
+		return grid_value.field_radius
+	return _scan_live
+
+
+static func _scan_live_radius(raster_value: TerritoryRaster, grid_value: CellGrid) -> float:
+	scan_count += 1
 	var best_sq: float = 0.0
 	for index: int in grid_value.in_disk_cells():
 		var xy: Vector2i = grid_value.cell_coords(index)
@@ -151,8 +180,43 @@ static func live_radius_from_raster(raster_value: TerritoryRaster, grid_value: C
 	return sqrt(best_sq)
 
 
+static func _original_extent(grid_value: CellGrid) -> float:
+	var grid_id: int = grid_value.get_instance_id()
+	if grid_id != _extent_grid_id:
+		_extent_grid_id = grid_id
+		var best_sq: float = 0.0
+		for index: int in grid_value.in_disk_cells():
+			best_sq = maxf(best_sq, grid_value.index_center(index).length_squared())
+		_extent_value = sqrt(best_sq)
+	return _extent_value
+
+
+## True only for an actual shrink: live radius below the original by more than
+## BotEvalTuning.shrink_epsilon_m (not at sudden-death t=0, where live == field_radius).
 func is_shrunk() -> bool:
-	return live_radius > 0.0 and live_radius < field_radius
+	return live_radius > 0.0 and live_radius < field_radius - BotEvaluator.tuning.shrink_epsilon_m
+
+
+## Upper bound (m) of how far any footprint cell centre lies from the candidate origin, whatever
+## the orientation (rotation about the pivot keeps lengths); -1 when no held shape is known.
+func footprint_extent_m() -> float:
+	if _extent_cached:
+		return _extent_m
+	_extent_cached = true
+	_extent_m = -1.0
+	if held == null or held.cells.is_empty() or grid == null:
+		return _extent_m
+	var pivot: Vector3 = held.bottom_center()
+	var far: float = 0.0
+	for cell: Vector3i in held.cells:
+		far = maxf(far, (Vector3(cell) - pivot).length())
+	# + one cube diagonal for the cell's own corners, + one grid cell for centre quantisation.
+	_extent_m = (far + CUBE_PAD_CELLS) * cube_size * CUBE_DIAGONAL + grid.cell_size
+	return _extent_m
+
+
+var _extent_cached: bool = false
+var _extent_m: float = -1.0
 
 
 func circle_count() -> int:
