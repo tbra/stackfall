@@ -91,6 +91,28 @@ func _unhandled_input(event: InputEvent) -> void:
 		_update_visibility()
 	elif event.is_action_released(&"show_scores", true):
 		release()
+	elif _root.visible and not _mute_peers.is_empty() and _is_focus_nav(event) and not _mute_has_focus():
+		# DECISION: the strip takes focus only after an explicit D-pad / arrow press while the
+		# table is held, so opening it never lets a stray accept mute someone. The press is not
+		# consumed (gameplay keeps its input).
+		(_mute_buttons[_mute_peers[0]] as Button).grab_focus()
+
+
+static func _is_focus_nav(event: InputEvent) -> bool:
+	for action: StringName in [&"ui_up", &"ui_down", &"ui_left", &"ui_right"]:
+		if event.is_action_pressed(action):
+			return true
+	return false
+
+
+func _mute_has_focus() -> bool:
+	var owner: Control = get_viewport().gui_get_focus_owner()
+	return owner != null and _mute_box != null and _mute_box.is_ancestor_of(owner)
+
+
+func _release_mute_focus() -> void:
+	if _mute_has_focus():
+		get_viewport().gui_release_focus()
 
 
 ## Drops the hold and hides (release, focus loss, pause, scope reset).
@@ -137,13 +159,11 @@ func _update_visibility() -> void:
 		_last_rows = []
 		_last_mode = null
 		_refresh_table()
-	var newly_shown: bool = show_now and not _root.visible
 	_root.visible = show_now
 	if show_now:
 		_refresh_mute_strip()
-		if newly_shown and not _mute_peers.is_empty():
-			# Pad / keyboard reach: focus the first toggle each time the table opens.
-			(_mute_buttons[_mute_peers[0]] as Button).grab_focus.call_deferred()
+	if not show_now:
+		_release_mute_focus()
 
 
 ## Rebuilds the table only when the snapshot's rows or mode block changed

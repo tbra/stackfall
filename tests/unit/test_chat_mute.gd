@@ -5,6 +5,13 @@ const PANEL_SCENE: PackedScene = preload("res://ui/lobby/LobbyPlayersPanel.tscn"
 const PEER_A: int = 5
 const PEER_B: int = 6
 
+class KeyProbe extends Node:
+	var seen: Array[InputEvent] = []
+
+	func _unhandled_input(event: InputEvent) -> void:
+		if event.is_pressed():
+			seen.append(event)
+
 
 func before_each() -> void:
 	ChatMute.clear()
@@ -119,3 +126,69 @@ func test_scoreboard_strip_hidden_offline() -> void:
 	add_child_autofree(board)
 	board._refresh_mute_strip()
 	assert_false(board._mute_box.visible, "offline: no remote players, no strip")
+
+
+func _action_event(action: StringName) -> InputEventAction:
+	var event: InputEventAction = InputEventAction.new()
+	event.action = action
+	event.pressed = true
+	return event
+
+
+func test_held_scoreboard_needs_explicit_nav_before_mute_is_reachable() -> void:
+	var saved_mode: Variant = Net._mode
+	var saved_peers: Dictionary = Net._peers.duplicate()
+	Net._mode = Net.Mode.HOST
+	Net._peers[PEER_A] = {"name": "Ann", "slot_id": 1}
+	var probe: KeyProbe = KeyProbe.new()
+	add_child_autofree(probe)
+	var board: ScoreboardOverlay = (preload("res://ui/ScoreboardOverlay.tscn") as PackedScene).instantiate() as ScoreboardOverlay
+	board.match_provider = ProbeMatch.new()
+	add_child_autofree(board)
+	move_child(probe, 0)  # earlier in the tree = later in input order: the overlay sees events first
+	Input.action_press(&"show_scores")
+	board._holding = true
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_true(board.is_showing())
+	assert_false(board._mute_peers.is_empty())
+	var button: Button = board._mute_buttons[PEER_A] as Button
+	assert_false(button.has_focus(), "opening the held table grabs no focus")
+	# Drop / accept with the table held: nothing is muted, the gameplay event is delivered.
+	for action: StringName in [&"ui_accept", &"drop_block"]:
+		if InputMap.has_action(action):
+			var event: InputEventAction = _action_event(action)
+			get_viewport().push_input(event)
+	assert_false(ChatMute.is_muted(PEER_A))
+	assert_gt(probe.seen.size(), 0, "gameplay input still reaches the game while held")
+	# An explicit D-pad press hands the strip focus; accept then toggles the mute.
+	get_viewport().push_input(_action_event(&"ui_down"))
+	assert_true(button.has_focus())
+	# A focused button's ui_accept is the engine's own BaseButton path (synthetic keys do not reach it
+	# headless here), so emit the press it produces.
+	button.pressed.emit()
+	assert_true(ChatMute.is_muted(PEER_A))
+	Input.action_release(&"show_scores")
+	board._process(0.0)
+	assert_false(board.is_showing())
+	assert_false(button.has_focus(), "releasing the hold releases focus")
+	Net._mode = saved_mode
+	Net._peers = saved_peers
+
+
+class ProbeStats:
+	extends RefCounted
+	func live_payload() -> Dictionary:
+		return {"winner_kind": MatchStats.WINNER_KIND_SLOT, "winner_id": -1, "winner_name": "", "match_duration": 1.0, "live": true, "rows": []}
+
+
+class ProbeMatch:
+	extends RefCounted
+	var config: MatchConfig = MatchConfig.new()
+	var st: ProbeStats = ProbeStats.new()
+	func slot(_i: int) -> PlayerSlot:
+		return null
+	func state() -> MatchAutoload.State:
+		return MatchAutoload.State.PLAYING
+	func stats() -> ProbeStats:
+		return st
