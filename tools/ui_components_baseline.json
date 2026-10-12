@@ -9,7 +9,7 @@
   "ui/InputPromptFlow.gd": 3,
   "ui/KeyRebindRow.gd": 8,
   "ui/LoadingScreen.gd": 11,
-  "ui/Lobby.gd": 8,
+  "ui/Lobby.gd": 6,
   "ui/MainMenu.gd": 1,
   "ui/Minimap.gd": 1,
   "ui/OptionsMenu.gd": 7,

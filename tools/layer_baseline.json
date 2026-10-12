@@ -330,6 +330,7 @@
   "core/net/WireSchema.gd",
   "core/perf/QualityGovernor.gd",
   "core/physics/SettleTracker.gd",
+  "core/rules/BeaconTimerText.gd",
   "core/rules/DisplayNames.gd",
   "core/rules/GoalControl.gd",
   "core/rules/LobbySeats.gd",

@@ -170,6 +170,10 @@ var _home_flags: Array[HomeFlag] = []
 ## slot id -> PackedInt32Array of shape owners holding that beacon's collision.
 var _flag_owner_ids: Dictionary = {}
 var _goal_flags: Array[GoalFlag] = []
+## Bontago-1pi.188/189: last capture event and CTF mode state, fed to each beacon's timer.
+var _timer_capture_team: int = -1
+var _timer_capture_progress: float = 0.0
+var _timer_mode_state: Dictionary = {}
 var _slot_colors: PackedColorArray = PackedColorArray()
 
 
@@ -196,6 +200,7 @@ func _ready() -> void:
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
 	Events.territory_updated.connect(_on_territory_updated_for_goals)
 	Events.territory_replicated.connect(refresh_goal_control)
+	Events.mode_state_changed.connect(_on_mode_state_for_timers)
 
 
 func _physics_process(delta: float) -> void:
@@ -1116,6 +1121,7 @@ func goal_flag_positions(count: int) -> PackedVector2Array:
 ## because only the match knows how many players and goals there are.
 func place_flags(slot_count: int, slot_colors: PackedColorArray, goal_count: int) -> void:
 	_slot_colors = slot_colors
+	_timer_mode_state = {}
 	_clear_flags()
 	for slot_id: int in range(maxi(slot_count, 0)):
 		var flag: HomeFlag = home_flag_scene.instantiate() as HomeFlag
@@ -1133,6 +1139,7 @@ func place_flags(slot_count: int, slot_colors: PackedColorArray, goal_count: int
 		flag.position = Vector3(local.x, 0.0, local.y)
 		add_child(flag)
 		flag.set_claim_ring(MatchContext.current().goal_zone_visual_radius())  # Bontago-mp0.152: always drawn (claim radius with the experiment on, else goal_zone_radius)
+		_configure_goal_timer(flag)
 		_goal_flags.append(flag)
 
 
@@ -1235,8 +1242,39 @@ func goal_flags() -> Array[GoalFlag]:
 ## team_id -1 with progress 0 clears the ring.
 func set_capture_progress(team_id: int, progress: float) -> void:
 	var color: Color = _color_for_index(team_id)
+	_timer_capture_team = team_id
+	_timer_capture_progress = progress
 	for flag: GoalFlag in _goal_flags:
 		flag.set_capture(team_id, progress, color)
+		_feed_countdown(flag)
+
+
+## Bontago-1pi.188: Classic beacons count down the shared capture; CTF beacons
+## count up their hold. Both read the replicated state (capture progress event,
+## raster control, mode-state held counts), so host and clients show the same.
+func _configure_goal_timer(flag: GoalFlag) -> void:
+	var config: MatchConfig = MatchContext.current().config()
+	flag.set_timer_counts_up(config != null and config.game_mode == MatchConfig.GameMode.CAPTURE_THE_FLAG)
+	_feed_countdown(flag)
+	_feed_multiplier(flag)
+
+
+func _feed_countdown(flag: GoalFlag) -> void:
+	var hold: float = MatchContext.current().capture_hold_seconds()
+	if hold <= 0.0:
+		flag.set_countdown(-1, 0.0, 0.0)
+	else:
+		flag.set_countdown(_timer_capture_team, _timer_capture_progress, hold)
+
+
+func _feed_multiplier(flag: GoalFlag) -> void:
+	flag.set_multiplier(BeaconTimerText.held_count_in_state(_timer_mode_state, flag.control()))
+
+
+func _on_mode_state_for_timers(state: Dictionary) -> void:
+	_timer_mode_state = state
+	for flag: GoalFlag in _goal_flags:
+		_feed_multiplier(flag)
 
 
 func _on_goal_capture_progress(team_id: int, progress: float) -> void:
@@ -1263,6 +1301,7 @@ func refresh_goal_control(raster: TerritoryRaster) -> void:
 			for team: int in teams:
 				contest_colors.append(_color_for_index(team))
 		flag.set_control(control, _color_for_index(control) if control >= 0 else Color.WHITE, contest_colors)
+		_feed_multiplier(flag)
 
 
 ## Slot/team colors come from MatchConfig.player_colors by way of
