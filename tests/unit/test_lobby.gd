@@ -743,7 +743,7 @@ func test_roster_changed_signal_updates_ready_label_without_a_lobby_data_round_t
 	# badge), instead of the old row.get_child(1) plain trailing-text Label.
 	var guest_row: PanelContainer = _panel_of(lobby)._player_rows[1] as PanelContainer
 	var guest_badge_label: Label = _row_badge_label(guest_row)
-	assert_eq(guest_badge_label.get_parent().tooltip_text, "Not ready")
+	assert_eq((guest_badge_label.get_parent() as Control).get_accessibility_name(), "Not ready")
 
 	roster = [
 		{"peer_id": 1, "slot_id": 0, "name": "Host", "ready": false},
@@ -752,7 +752,7 @@ func test_roster_changed_signal_updates_ready_label_without_a_lobby_data_round_t
 	Events.net_roster_changed.emit(roster)
 	guest_row = _panel_of(lobby)._player_rows[1] as PanelContainer
 	guest_badge_label = _row_badge_label(guest_row)
-	assert_eq(guest_badge_label.get_parent().tooltip_text, "Ready", "the ready flag flip must reach the row's badge")
+	assert_eq((guest_badge_label.get_parent() as Control).get_accessibility_name(), "Ready", "the ready flag flip must reach the row's badge")
 
 
 # --- Specials checklist (M6 A4, docs/archive/M6_PLAN.md) ------------------------------

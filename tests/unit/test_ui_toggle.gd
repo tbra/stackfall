@@ -138,7 +138,7 @@ func test_disabled_ignores_keys_but_keeps_showing_state() -> void:
 	assert_almost_eq(toggle.get_theme_color("font_disabled_color").a, arcade.disabled_alpha, 0.001)
 
 
-func test_caption_becomes_the_tooltip() -> void:
+func test_caption_is_not_a_tooltip() -> void:
 	var toggle: UiToggle = _make()
 	toggle.caption = "Sudden death"
-	assert_eq(toggle.tooltip_text, "Sudden death")
+	assert_eq(toggle.tooltip_text, "", "the caption is the row label's job, not a tooltip")

@@ -240,7 +240,6 @@ func _build_color_button() -> void:
 	color_button.add_child(color_diamond)
 	color_button.disabled = not editable or seat_key == LobbySeats.KEY_NONE
 	if editable and seat_key != LobbySeats.KEY_NONE:
-		color_button.tooltip_text = "Click to change colour (right click: previous)"
 		color_button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		color_button.pressed.connect(_on_color_pressed)
 		color_button.gui_input.connect(_on_cycle_gui_input.bind(KIND_COLOR))
@@ -281,11 +280,9 @@ func _build_team_button() -> void:
 		team_button.add_item(team_text(pick))
 	team_button.select(clampi(team_pick, MatchConfig.TEAM_PICK_RANDOM, MatchConfig.TEAM_PICK_MAX))
 	_compact(team_button, _layout_tuning.seat_team_button_min_size_px.x, false)
-	team_button.tooltip_text = PlayerNames.team_label(team_pick) if team_pick > MatchConfig.TEAM_PICK_RANDOM else "Random team"
 	team_button.disabled = not editable
 	team_button.focus_mode = Control.FOCUS_ALL if editable else Control.FOCUS_NONE
 	if editable:
-		team_button.tooltip_text += " (click to change)"
 		team_button.item_selected.connect(_on_team_selected)
 	layout.add_child(team_button)
 
@@ -300,7 +297,6 @@ func _build_difficulty_option() -> void:
 		difficulty_option.add_item(DIFFICULTY_LABELS[label_index], false, art.difficulty_icon(label_index))
 	difficulty_option.select(clampi(difficulty, 0, DIFFICULTY_LABELS.size() - 1))
 	difficulty_option.custom_minimum_size.x = _difficulty_width()  # the tuned floor, grown to the content
-	difficulty_option.tooltip_text = "This bot's difficulty"
 	difficulty_option.disabled = not editable
 	difficulty_option.focus_mode = Control.FOCUS_ALL if editable else Control.FOCUS_NONE
 	if editable:
@@ -339,7 +335,6 @@ func _build_remove_button() -> void:
 	remove_button.tone = UiIconButton.Tone.DANGER
 	var art: UiArtTable = UiArtTable.shared()
 	remove_button.set_icon_texture(art.lobby_icon(UiArtTable.KEY_BOT_REMOVE))
-	remove_button.tooltip_text = "Remove this bot"
 	remove_button.pressed.connect(_on_remove_pressed)
 	layout.add_child(remove_button)
 

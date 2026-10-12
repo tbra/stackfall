@@ -15,7 +15,7 @@ const WORD_OFF: String = "OFF"
 ## Inset gaps across the well: left of the knob, between the two knob positions, right of them.
 const KNOB_GAPS: float = 3.0
 
-## Accessible name; used as the tooltip when no tooltip is set.
+## Accessible name (screen readers); the row label beside the toggle is what players read.
 @export var caption: String = "":
 	set(value):
 		caption = value
@@ -108,8 +108,6 @@ func _refresh() -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	var m: ComponentMetrics = UiRowItem.metrics()
 	text = state_word_for(button_pressed) if show_word else ""
-	if tooltip_text.is_empty() and not caption.is_empty():
-		tooltip_text = caption
 	# The word sits right of the well: one empty box per state carries the left margin.
 	var left: float = well_width_for(m, arcade)
 	if show_word:

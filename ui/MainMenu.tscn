@@ -116,7 +116,6 @@ layout_mode = 2
 script = ExtResource("11_field")
 label_text = "NAME"
 placeholder = "Player"
-tooltip_text = "Used when Steam is not running; with Steam your Steam name is used."
 
 [node name="HostRow" type="VBoxContainer" parent="Center/Panel/Layout"]
 layout_mode = 2
@@ -434,7 +433,6 @@ offset_top = 24.0
 offset_right = -24.0
 offset_bottom = 64.0
 grow_horizontal = 0
-tooltip_text = "Developer tools: demo scenes (debug mode only)"
 text = "DEBUG"
 script = ExtResource("7_block")
 variant = 1

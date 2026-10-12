@@ -59,7 +59,6 @@ func refresh(net: Variant, is_host: bool) -> void:
 			UpnpRunner.State.FAILED, UpnpRunner.State.UNSUPPORTED:
 				show_row = true
 				_label.text = TEXT_FALLBACK % int(net.host_port())
-				_label.tooltip_text = str(net.upnp_failure_reason())
 	visible = show_row
 	_copy_button.visible = _code != ""
 	if _code != was_code:

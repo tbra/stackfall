@@ -47,6 +47,8 @@ signal tower_topple_requested
 
 ## Tagline shown on the Debug page in place of the wordmark's own tagline.
 const DEBUG_TAGLINE: String = "DEBUG · GIFT DEMO"
+const HOST_DIALOG_QUESTION: String = "How should friends connect?"
+const HOST_STEAM_UNAVAILABLE: String = "Steam is unavailable; host locally instead."
 
 ## docs/archive/M6_PLAN.md package C2: OptionsMenu.tscn is instanced/freed directly by
 ## this menu (ui/OptionsMenu.gd's own header: "self-contained ... MainMenu
@@ -220,7 +222,6 @@ func _ready() -> void:
 ## The inner nodes of the UiField / UiTabs components keep their old unique names, so the scene's
 ## %NameEdit / %DirectIpEdit / %JoinLanTabButton / %JoinSteamTabButton lookups still resolve.
 func _register_component_names() -> void:
-	_name_edit.tooltip_text = _name_row.tooltip_text
 	_name_edit.name = &"NameEdit"
 	_direct_ip_edit.name = &"DirectIpEdit"
 	for edit: LineEdit in [_name_edit, _direct_ip_edit]:
@@ -361,10 +362,17 @@ func _build_scrim_texture(arcade: ArcadeVisualTuning) -> GradientTexture2D:
 ## DECISION: the front page has one Host entry. Its modal keeps local and
 ## Steam transport choices in one place and leaves Join discovery off the home
 ## page. Steam is disabled in the modal when the runtime lacks it.
+## The host dialog's question, plus the Steam-unavailable reason while Steam is missing (inline, not a tooltip).
+func _refresh_host_dialog_text(steam_available: bool) -> void:
+	if _host_dialog == null:
+		return
+	_host_dialog.dialog_text = HOST_DIALOG_QUESTION if steam_available else HOST_DIALOG_QUESTION + "\n" + HOST_STEAM_UNAVAILABLE
+
+
 func _build_host_dialog() -> void:
 	_host_dialog = ConfirmationDialog.new()
 	_host_dialog.title = "Host game"
-	_host_dialog.dialog_text = "How should friends connect?"
+	_refresh_host_dialog_text(bool(net_provider.steam_available()))
 	_host_dialog.ok_button_text = "Host locally"
 	_host_dialog.confirmed.connect(_on_host_local_confirmed)
 	_host_steam_choice = _host_dialog.add_button("Host on Steam", false, "steam")
@@ -828,8 +836,8 @@ func _rebuild_steam_lobby_list() -> void:
 ##
 ## Bontago-mp0.3.5 (review r1, item 4): the old permanent "Steam not
 ## available - hidden. Host/join over LAN or direct IP below." paragraph is
-## gone -- %HostOnlineButton's own tooltip carries that explanation only when
-## it's actually disabled, instead of a standing block of card-width text.
+## gone -- the host dialog's text carries that explanation only when Steam is
+## unavailable (no tooltips), instead of a standing block of card-width text.
 func _apply_steam_availability() -> void:
 	var available: bool = net_provider != null and bool(net_provider.steam_available())
 	if not available:
@@ -839,7 +847,7 @@ func _apply_steam_availability() -> void:
 	_lan_games_well.visible = _page == PAGE_JOIN and not _join_steam_tab
 	if _host_steam_choice != null:
 		_host_steam_choice.disabled = not available
-		_host_steam_choice.tooltip_text = "" if available else "Steam is unavailable; host locally instead."
+	_refresh_host_dialog_text(available)
 	_wire_focus()
 	if available:
 		net_provider.refresh_lobby_list()
@@ -855,7 +863,6 @@ func _apply_steam_availability() -> void:
 ## "No lobbies yet" empty state.
 func debug_force_steam_ui(sample_lobby: bool = true) -> void:
 	_steam_section.visible = true
-	_host_online_button.tooltip_text = ""
 	_host_online_button.disabled = false
 	if sample_lobby:
 		_on_steam_lobbies_discovered([

@@ -110,9 +110,9 @@ func _row_badge(row: Node) -> String:
 	return badge.label.text
 
 
-func _row_badge_tip(row: Node) -> String:
+func _row_badge_name(row: Node) -> String:
 	var layout: HBoxContainer = _row_layout(row)
-	return (layout.get_child(layout.get_child_count() - 1) as PanelContainer).tooltip_text
+	return (layout.get_child(layout.get_child_count() - 1) as PanelContainer).get_accessibility_name()
 
 
 func _rows_of(lobby: Lobby) -> Array[LobbySeatRow]:
@@ -195,7 +195,7 @@ func test_human_rows_name_subtitle_and_ready_badge() -> void:
 	assert_eq(_row_name(rows[1]), "Guest")
 	assert_eq(_row_subtitle(rows[1]), "LAN · 0 ms")
 	assert_eq(_row_badge(rows[1]), "hourglass")
-	assert_eq(_row_badge_tip(rows[1]), "Not ready")
+	assert_eq(_row_badge_name(rows[1]), "Not ready")
 
 
 func _assert_host_crown(row: Node) -> void:
@@ -204,7 +204,7 @@ func _assert_host_crown(row: Node) -> void:
 	var crown: TextureRect = badge.get_node_or_null("HostCrown") as TextureRect
 	assert_not_null(crown, "the host row shows a crown, not the Ready pill")
 	assert_eq(crown.texture, UiArtTable.shared().lobby_icon(UiArtTable.KEY_HOST_CROWN))
-	assert_eq(badge.tooltip_text, "Host")
+	assert_eq(badge.get_accessibility_name(), "Host")
 
 
 func test_host_crown_shows_for_a_client_too_and_guest_keeps_its_pill() -> void:
@@ -214,7 +214,7 @@ func test_host_crown_shows_for_a_client_too_and_guest_keeps_its_pill() -> void:
 	var rows: Array[Node] = _panel_of(lobby)._player_rows
 	_assert_host_crown(rows[0])
 	assert_eq(_row_badge(rows[1]), "hourglass", "a guest still has the Ready pill")
-	assert_eq(_row_badge_tip(rows[1]), "Not ready")
+	assert_eq(_row_badge_name(rows[1]), "Not ready")
 
 
 func test_remote_subtitles_follow_the_transport_and_the_local_peer() -> void:
@@ -596,7 +596,7 @@ func test_a_start_blocker_disables_start_explains_it_and_gates_every_start_path(
 	panel.blocker = "Teams are on but every player is on the same team."
 	lobby._update_host_only_state()
 	assert_true(start.disabled)
-	assert_eq(start.tooltip_text, panel.blocker, "the reason is shown")
+	assert_eq(start.tooltip_text, "", "Start carries no tooltip")
 
 	watch_signals(lobby)
 	lobby._on_start_pressed()
@@ -1518,7 +1518,7 @@ func test_start_is_blocked_with_one_team_and_the_reason_is_shown_near_start() ->
 	assert_eq(panel.start_blocker(), TeamAssigner.BLOCKER_ONE_TEAM)
 	var start: Button = lobby.get_node("%StartButton") as Button
 	assert_true(start.disabled)
-	assert_eq(start.tooltip_text, TeamAssigner.BLOCKER_ONE_TEAM)
+	assert_eq(_blocker_label(lobby).text, TeamAssigner.BLOCKER_ONE_TEAM, "the reason is written under the rows")
 	assert_true(_blocker_label(lobby).visible, "the reason is written under the rows, not only in a tooltip")
 	assert_eq(_blocker_label(lobby).text, TeamAssigner.BLOCKER_ONE_TEAM)
 	assert_null(_press_start(lobby), "a direct Start (the X shortcut) is refused too")

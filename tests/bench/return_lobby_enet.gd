@@ -179,7 +179,7 @@ func _run_client() -> void:
 	await _wait(CLIENT_PAUSE_AFTER_S)
 	var pause: PauseMenu = _pause()
 	pause._open()
-	var tooltip_ok: bool = pause._return_button.tooltip_text == PauseMenu.RETURN_CLIENT_TOOLTIP
+	var tooltip_ok: bool = pause.return_hint.visible and pause.return_hint.text == PauseMenu.RETURN_CLIENT_HINT
 	if not pause._return_button.visible or not pause._return_button.disabled or not tooltip_ok:
 		_fail("client entry visible=%s disabled=%s tooltip_ok=%s" % [pause._return_button.visible, pause._return_button.disabled, tooltip_ok])
 		return

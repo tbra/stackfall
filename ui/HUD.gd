@@ -1496,7 +1496,6 @@ func _update_share_row(i: int, share: float) -> void:
 	label.text = "%s%s" % [row_value_text(_mode_state, i, share), "  (out)" if eliminated else ""]
 	var name_label: Label = _share_name_labels[i]
 	name_label.text = _name_for_team(i)
-	name_label.tooltip_text = name_label.text
 	var glyph: SlotDiamond = _share_glyphs[i]
 	glyph.set_color(color)
 	(_share_you_labels[i] as Label).visible = _active_slot >= 0 and _team_of_slot(_active_slot) == i

@@ -27,11 +27,6 @@ var show_chevron: bool = true:
 	set(show):
 		show_chevron = show
 		_sync_chevron()
-## Tooltip describing the whole list; the shown item's own tooltip is appended under it.
-var list_tooltip: String = "":
-	set(text_value):
-		list_tooltip = text_value
-		_refresh()
 ## Extra floor for the width, so dropdowns of one section can share a column width (a screen sets
 ## it to the widest [method content_width] of the section). Never expands to fill the row.
 var min_width: float = 0.0:
@@ -279,10 +274,6 @@ func _refresh() -> void:
 		return
 	text = _labels[_selected]
 	icon = _icons[_selected]
-	if _tooltips[_selected] != "":
-		tooltip_text = _tooltips[_selected] if list_tooltip == "" else "%s\n\n%s" % [list_tooltip, _tooltips[_selected]]
-	elif list_tooltip != "":
-		tooltip_text = list_tooltip
 
 
 ## Adds or removes the chevron child to match [member show_chevron].

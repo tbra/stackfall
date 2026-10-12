@@ -33,7 +33,6 @@ script = ExtResource("4_row")
 [node name="TeamsToggle" type="Button" parent="ActionRow"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Teams: seats with the same number play as one team; ? is filled in at match start"
 focus_mode = 0
 disabled = true
 toggle_mode = true
@@ -44,7 +43,6 @@ caption = "Teams"
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
-tooltip_text = "Add a bot to the next free seat"
 focus_mode = 0
 disabled = true
 text = "+ ADD BOT"
