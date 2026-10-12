@@ -278,6 +278,12 @@ func _actions() -> Dictionary:
 	# pad press while Back (camera_snap_home) is held.
 	a["show_scores"] = [_key(KEY_TAB), _pad(JOY_BUTTON_RIGHT_STICK)]
 
+	# Bontago-1pi.192.1 (player chat). DECISION: keyboard-only (owner 2026-10-12,
+	# gamepad users read the log but never type; DEVICE_EXCEPTIONS "pad"). Enter and
+	# KP Enter are also lobby_confirm/ui_accept, which only act in menus, and the
+	# lobby skips Enter while a LineEdit has focus; T is otherwise unbound.
+	a["chat_open"] = [_key(KEY_ENTER), _key(KEY_KP_ENTER), _key(KEY_T)]
+
 	# Yaw keeps the original game's A/S (spec 1.5, ORIGINAL). Bontago-mv0.14:
 	# the wheel used to double as yaw too; it is now block height only (see
 	# hover_raise/hover_lower below), so it comes off every other action.
