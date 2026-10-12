@@ -15,6 +15,8 @@ extends Block
 const ANCHOR_PROCESS_PRIORITY: int = 10
 ## Owner-scan sentinel: no member seen yet (distinct from -1, the real "no owner").
 const SLOT_UNSET: int = -2
+## Mirrors SnowCaps.LUMP_META (no class edge: it would grow the layer-lint cycle); test-pinned.
+const SNOW_LUMP_META: StringName = &"snow_lump"
 
 var members: Array[Block] = []
 ## instance id (int) -> true; non-empty = disc-anchored.
@@ -126,6 +128,16 @@ func local_center_of_mass() -> Vector3:
 	return sum / total if total > 0.0 else Vector3.ZERO
 
 
+## A disc-anchored carrier is kinematic and never sleeps for real: it stays out of the awake set.
+func _apply_awake(awake: bool) -> void:
+	super(awake and not is_disc_anchored())
+
+
+## Re-derives the carrier owner slot (members converted by Paintball).
+func refresh_owner() -> void:
+	_refresh_mass_and_owner()
+
+
 func net_sleeping() -> bool:
 	return sleeping and not is_disc_anchored()
 
@@ -138,7 +150,8 @@ func adopt(block: Block) -> void:
 		return
 	var shapes: Array[CollisionShape3D] = []
 	for child: Node in block.get_children():
-		if child is CollisionShape3D:
+		# Snow lump colliders stay with their block: SnowCaps melts/rebuilds them there.
+		if child is CollisionShape3D and not child.has_meta(SNOW_LUMP_META):
 			shapes.append(child as CollisionShape3D)
 	var com: Vector3 = shapes_center_of_mass(shapes)
 	var inverse: Transform3D = global_transform.affine_inverse()
@@ -152,6 +165,7 @@ func adopt(block: Block) -> void:
 	for reason: StringName in stable_dropped.keys():
 		if reason != FREEZE_REASON_STABLE:
 			request_freeze_static(reason)
+	FreezeEffect.transfer_hold(block, self)
 	_after_membership_gain()
 
 
@@ -172,6 +186,7 @@ func absorb_group(other: FusedBody) -> void:
 	for reason: StringName in other._freeze_reasons.keys():
 		if reason != FREEZE_REASON_STABLE:
 			request_freeze_static(reason)
+	FreezeEffect.transfer_hold(other, self)
 	for id: int in other.anchored_members.keys():
 		anchored_members[id] = true
 	if other.is_disc_anchored() and not is_disc_anchored_field_set():
@@ -220,7 +235,9 @@ func remove_all_members(reason: StringName) -> void:
 		if not is_instance_valid(member):
 			members.erase(member)
 			continue
-		_forget(member, true)
+		# Shapes stay: the whole body is freed below, and this can run inside an Area3D
+		# callback (kill plane) where removing shapes is not allowed.
+		_forget(member, false)
 		Events.block_removed.emit(member, String(reason))
 		member.queue_free()
 	_after_membership_loss()
@@ -334,6 +351,7 @@ func _collapse() -> void:
 	survivor.angular_velocity = angular
 	for reason: StringName in reasons:
 		survivor.request_freeze_static(reason)
+	FreezeEffect.transfer_hold(self, survivor)
 	if reasons.is_empty():
 		survivor.wake()
 	Events.fused_member_released.emit(survivor)

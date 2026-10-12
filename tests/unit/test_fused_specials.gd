@@ -173,3 +173,16 @@ func test_black_hole_capture_takes_the_whole_group() -> void:
 	await wait_physics_frames(wait_frames)
 	for member: Block in members:
 		assert_false(is_instance_valid(member) and not member.is_queued_for_deletion(), "member removed")
+
+
+func test_paintball_refreshes_the_carrier_owner_slot() -> void:
+	var carrier: FusedBody = _group()
+	var glob: Block = _block(0, Vector3(-1.0, 0.0, 0.0))
+	await wait_physics_frames(1)
+	assert_eq(carrier.owner_slot, -1, "mixed owners before the splash")
+	var effect: PaintballEffect = PaintballEffect.new()
+	effect.splash_radius_m = BLAST_RADIUS_M
+	effect.detonate(glob, null, 0)
+	for member: Block in carrier.members:
+		assert_eq(member.owner_slot, glob.owner_slot)
+	assert_eq(carrier.owner_slot, glob.owner_slot, "the carrier owner follows its converted members")

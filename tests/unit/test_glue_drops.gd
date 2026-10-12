@@ -296,16 +296,18 @@ func _real_block(shape_id: String, slot_id: int, at: Vector3) -> Block:
 	return block
 
 
+## `b` rests on the disc, the charged `a` is stacked on top of it: only `b` touches the disc, so
+## the fused pair must stay a free body (a's own shapes never touch the Field).
 func _glued_pair(tuning: GlueDropTuning = null) -> Array[Block]:
 	var rest_y: float = _field.surface_y() + 0.6
-	var a: Block = _real_block("cube", 0, _field.to_global(Vector3(0.0, rest_y, 0.0)))
-	var b: Block = _real_block("cube", 1, _field.to_global(Vector3(1.0, rest_y, 0.0)))
+	var b: Block = _real_block("cube", 1, _field.to_global(Vector3(0.0, rest_y, 0.0)))
+	var a: Block = _real_block("cube", 0, _field.to_global(Vector3(0.0, rest_y + 1.05, 0.0)))
 	for _i: int in range(40):
 		await get_tree().physics_frame
 	var glue: GlueDrops = GlueDrops.new()
 	a.add_child(glue)
 	glue.bind(a, tuning if tuning != null else _tuning)
-	assert_true(glue.try_bond(b))
+	assert_true(glue.try_bond(b) or _fused(a, b))
 	return [a, b]
 
 
@@ -336,6 +338,11 @@ func test_fused_pair_survives_tilt_cycle_and_a_drop_onto_it() -> void:
 
 
 const SIDE_KICK_IMPULSE: float = 10.0
+const WINDOW_SETTLE_FRAMES: int = 20
+const MOVED_MIN_M: float = 0.02
+## Gap between the base and its side neighbour (they touch); the charged block overhangs the other side.
+const NEIGHBOUR_X_M: float = 1.0
+const OVERHANG_X_M: float = -0.3
 const KICK_SETTLE_FRAMES: int = 60
 
 
@@ -343,18 +350,28 @@ func test_fused_pair_survives_a_two_metre_blast() -> void:
 	var pair: Array[Block] = await _glued_pair()
 	var center: Vector3 = pair[0].global_position + Vector3(-BLAST_ZONE_Z, 0.0, 0.0)
 	var space: PhysicsDirectSpaceState3D = pair[0].get_world_3d().direct_space_state
+	for _i: int in range(WINDOW_SETTLE_FRAMES):
+		await get_tree().physics_frame
+	assert_false(_carrier_of(pair[0]).is_disc_anchored(), "precondition: a free body, not pinned to the disc")
+	var before: Vector3 = _carrier_of(pair[0]).global_position
 	ExplosionFx.blast(space, center, ExplosionTuning.new(), [])
 	for _i: int in range(30):
 		await get_tree().physics_frame
 	assert_true(_fused(pair[0], pair[1]), "blasts do not split a fused body")
+	assert_gt(_carrier_of(pair[0]).global_position.distance_to(before), MOVED_MIN_M, "the blast moves the free body")
 
 
 func test_fused_pair_survives_a_sideways_kick() -> void:
 	var pair: Array[Block] = await _glued_pair()
+	for _i: int in range(WINDOW_SETTLE_FRAMES):
+		await get_tree().physics_frame
+	assert_false(_carrier_of(pair[0]).is_disc_anchored(), "precondition: a free body, not pinned to the disc")
+	var before: Vector3 = _carrier_of(pair[0]).global_position
 	_carrier_of(pair[0]).apply_central_impulse(Vector3(0.0, 0.0, SIDE_KICK_IMPULSE))
 	for _i: int in range(KICK_SETTLE_FRAMES):
 		await get_tree().physics_frame
 	assert_true(_fused(pair[0], pair[1]), "a fused body is rigid")
+	assert_gt(_carrier_of(pair[0]).global_position.distance_to(before), MOVED_MIN_M, "the kick moves the free body")
 
 
 const GUST_ACCEL_MPS2: float = 5.0
@@ -365,10 +382,38 @@ const GUST_FIELD_MARGIN: float = 1.0
 func test_fused_pair_survives_a_sustained_wind_gust() -> void:
 	var pair: Array[Block] = await _glued_pair()
 	var carrier: FusedBody = _carrier_of(pair[0])
+	for _i: int in range(WINDOW_SETTLE_FRAMES):
+		await get_tree().physics_frame
+	assert_false(carrier.is_disc_anchored(), "precondition: a free body, not pinned to the disc")
 	for _i: int in range(GUST_FRAMES):
 		carrier.apply_central_force(Vector3(0.0, 0.0, GUST_ACCEL_MPS2 * GUST_FIELD_MARGIN * carrier.mass))
 		await get_tree().physics_frame
 	assert_true(_fused(pair[0], pair[1]), "a sustained gust cannot split a fused body")
+
+
+func test_charged_drop_on_a_disc_resting_block_is_not_disc_anchored() -> void:
+	var pair: Array[Block] = await _glued_pair()
+	for _i: int in range(WINDOW_SETTLE_FRAMES):
+		await get_tree().physics_frame
+	assert_true(_fused(pair[0], pair[1]))
+	assert_false(_carrier_of(pair[0]).is_disc_anchored(), "the partner's disc contact must not anchor the group")
+
+
+func test_charged_drop_does_not_fuse_the_base_neighbour() -> void:
+	var rest_y: float = _field.surface_y() + 0.6
+	var base: Block = _real_block("cube", 1, _field.to_global(Vector3(0.0, rest_y, 0.0)))
+	var side: Block = _real_block("cube", 1, _field.to_global(Vector3(NEIGHBOUR_X_M, rest_y, 0.0)))
+	for _i: int in range(40):
+		await get_tree().physics_frame
+	var charged: Block = _real_block("cube", 0, _field.to_global(Vector3(OVERHANG_X_M, rest_y + 1.05, 0.0)))
+	var glue: GlueDrops = GlueDrops.new()
+	charged.add_child(glue)
+	glue.bind(charged, _tuning)
+	for _i: int in range(WINDOW_SETTLE_FRAMES * 3):
+		await get_tree().physics_frame
+	assert_true(_fused(charged, base), "the block it landed on is fused")
+	assert_false(_fused(charged, side), "a neighbour of the base is not touched by the charged block")
+	assert_false(_carrier_of(charged).is_disc_anchored(), "the base's disc contact does not anchor the group")
 
 
 func _bean_def() -> SpecialDef:

@@ -340,3 +340,90 @@ func test_carrier_is_in_the_tuning_group() -> void:
 	var pair: Array[Block] = _air_pair()
 	var carrier: FusedBody = _fuse(pair[0], pair[1])
 	assert_true(carrier.is_in_group(Block.TUNING_GROUP))
+
+
+# --- Composition review fixes (Bontago-1pi.85.74) ---
+
+const FREEZE_TEST_S: float = 0.25
+const FREEZE_WAIT_FRAMES: int = 40
+
+
+func _freeze_effect() -> FreezeEffect:
+	var effect: FreezeEffect = FreezeEffect.new()
+	effect.freeze_duration_s = FREEZE_TEST_S
+	return effect
+
+
+func test_frozen_group_keeps_its_freeze_timer_when_merged_into_another() -> void:
+	var at: Vector3 = _field.to_global(Vector3(0.0, 6.0, 0.0))
+	var a: Block = _block("cube", 0, at)
+	var b: Block = _block("cube", 0, at + Vector3(CUBE_SIDE_M, 0.0, 0.0))
+	var c: Block = _block("cube", 0, at + Vector3(0.0, 0.0, 4.0))
+	var d: Block = _block("cube", 0, at + Vector3(CUBE_SIDE_M, 0.0, 4.0))
+	var first: FusedBody = _fuse(a, b)
+	var second: FusedBody = _fuse(c, d)
+	_freeze_effect().freeze_block(second)
+	assert_true(second.is_freeze_static())
+	var merged: FusedBody = _fuse(a, c)
+	assert_eq(merged, first)
+	assert_eq(merged.members.size(), 4)
+	assert_true(merged.is_freeze_static(), "the Freeze hold follows the merged members")
+	await _frames(FREEZE_WAIT_FRAMES)
+	assert_false(merged.is_freeze_static(), "and releases on time instead of staying STATIC forever")
+
+
+func test_adopting_a_frozen_block_moves_the_hold_to_the_carrier() -> void:
+	var at: Vector3 = _field.to_global(Vector3(0.0, 6.0, 0.0))
+	var frozen: Block = _block("cube", 0, at)
+	var charged: Block = _block("cube", 0, at + Vector3(CUBE_SIDE_M, 0.0, 0.0))
+	_freeze_effect().freeze_block(frozen)
+	var carrier: FusedBody = _fuse(charged, frozen)
+	assert_true(carrier.is_freeze_static())
+	assert_null(frozen.get_node_or_null(NodePath(FreezeEffect.TIMER_NAME)), "the timer moved off the follower")
+	assert_not_null(carrier.get_node_or_null(NodePath(FreezeEffect.TIMER_NAME)))
+	await _frames(FREEZE_WAIT_FRAMES)
+	assert_false(carrier.is_freeze_static(), "the group releases when the Freeze ends")
+
+
+func test_collapse_keeps_the_freeze_hold_on_the_survivor() -> void:
+	var at: Vector3 = _field.to_global(Vector3(0.0, 6.0, 0.0))
+	var a: Block = _block("cube", 0, at)
+	var b: Block = _block("cube", 0, at + Vector3(CUBE_SIDE_M, 0.0, 0.0))
+	var carrier: FusedBody = _fuse(a, b)
+	_freeze_effect().freeze_block(carrier)
+	carrier.remove_member(a, &"hole")
+	assert_true(b.is_freeze_static())
+	await _frames(FREEZE_WAIT_FRAMES)
+	assert_false(b.is_freeze_static(), "the survivor is not STATIC forever")
+
+
+func test_snow_lump_colliders_stay_on_their_block() -> void:
+	var at: Vector3 = _field.to_global(Vector3(0.0, 6.0, 0.0))
+	var a: Block = _block("cube", 0, at)
+	var b: Block = _block("cube", 0, at + Vector3(CUBE_SIDE_M, 0.0, 0.0))
+	var lump: CollisionShape3D = CollisionShape3D.new()
+	lump.shape = BoxShape3D.new()
+	lump.set_meta(SnowCaps.LUMP_META, true)
+	a.add_child(lump)
+	var carrier: FusedBody = _fuse(a, b)
+	assert_eq(FusedBody.SNOW_LUMP_META, SnowCaps.LUMP_META)
+	assert_eq(lump.get_parent(), a, "lump colliders are not adopted by the carrier")
+	assert_eq(SnowCaps.lump_colliders(a).size(), 1, "SnowCaps can still melt it")
+	assert_eq(_shape_count(carrier), 2)
+
+
+func test_wake_on_a_disc_anchored_carrier_stays_out_of_the_awake_set() -> void:
+	var setup: Dictionary = _anchored_stack(2)
+	var carrier: FusedBody = setup["carrier"]
+	carrier.wake()
+	assert_false(Block.is_awake_registered(carrier), "a kinematic anchored carrier is never in the awake set")
+
+
+func test_kill_plane_style_removal_keeps_shapes_until_the_body_is_freed() -> void:
+	var pair: Array[Block] = _air_pair()
+	var carrier: FusedBody = _fuse(pair[0], pair[1])
+	var shapes_before: int = _shape_count(carrier)
+	carrier.remove_all_members(&"killed")
+	assert_eq(_shape_count(carrier), shapes_before, "shapes are not removed inside the (area) callback")
+	await _frames(3)
+	assert_false(is_instance_valid(carrier))

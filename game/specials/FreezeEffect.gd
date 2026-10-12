@@ -108,7 +108,46 @@ func freeze_block(target: Block, field: Node3D = null) -> void:
 	timer.start(freeze_duration_s)
 
 
-func _on_release_timeout(target: Block, timer: Timer) -> void:
+## Glue fusion: a Freeze hold follows its body when the body is merged (carrier absorbed
+## into another, or a held plain block adopted) or collapses back to a Block. Moves the
+## release timer (remaining time kept, the longer wins) and the disc rider from `from`
+## to `to`; a no-op when `from` carries no hold.
+static func transfer_hold(from: Block, to: Block) -> void:
+	if from == null or to == null or from == to or not is_instance_valid(from) or not is_instance_valid(to):
+		return
+	var old_timer: Timer = from.get_node_or_null(NodePath(TIMER_NAME)) as Timer
+	var old_rider: FieldRider = from.get_node_or_null(NodePath(RIDER_NAME)) as FieldRider
+	if old_timer == null and old_rider == null:
+		return
+	var left: float = 0.0 if old_timer == null else old_timer.time_left
+	var field: Node3D = null if old_rider == null else old_rider.field
+	for node: Node in [old_timer, old_rider]:
+		if node != null:
+			from.remove_child(node)
+			node.queue_free()
+	to.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+	if field != null and is_instance_valid(field):
+		var rider: FieldRider = to.get_node_or_null(NodePath(RIDER_NAME)) as FieldRider
+		if rider == null:
+			rider = FieldRider.new()
+			rider.name = RIDER_NAME
+			to.add_child(rider)
+		rider.bind(field, to)
+	if old_timer == null:
+		return
+	var timer: Timer = to.get_node_or_null(NodePath(TIMER_NAME)) as Timer
+	if timer == null:
+		timer = Timer.new()
+		timer.name = TIMER_NAME
+		timer.one_shot = true
+		to.add_child(timer)
+		timer.timeout.connect(_on_release_timeout.bind(to, timer))
+		timer.start(left if left > 0.0 else old_timer.wait_time)
+	elif timer.time_left < left:
+		timer.start(left)
+
+
+static func _on_release_timeout(target: Block, timer: Timer) -> void:
 	if is_instance_valid(target):
 		release_hold(target)
 	if is_instance_valid(timer):
@@ -129,6 +168,11 @@ static func release_hold(target: Block) -> void:
 		return
 	target.release_freeze_static(FREEZE_REASON)
 	_set_visual(target, false)
+	# Glue fusion: a group's followers carry the overlay (duck-typed, no FusedBody edge).
+	if target.has_method(&"members_in_sphere"):
+		for member: Block in (target.get(&"members") as Array):
+			if is_instance_valid(member) and member.is_frozen_visual():
+				_set_visual(member, false)
 
 
 static func _set_visual(target: Block, frozen: bool) -> void:
