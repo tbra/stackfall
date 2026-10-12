@@ -53,11 +53,11 @@ func test_multiplier_in_state_reads_ctf_held_counts() -> void:
 
 func test_classic_flag_label_follows_capture_and_ticks_down() -> void:
 	assert_eq(_flag.timer_text(), "", "neutral beacon shows nothing")
-	_flag.set_countdown(0, 0.5, HOLD_S)
+	_flag.set_countdown(0, 0.5, HOLD_S, TEAM_COLOR)
 	assert_eq(_flag.timer_text(), "0:10")
 	_flag._process(4.0)
 	assert_eq(_flag.timer_text(), "0:06")
-	_flag.set_countdown(-1, 0.0, HOLD_S)
+	_flag.set_countdown(-1, 0.0, HOLD_S, Color.WHITE)
 	assert_eq(_flag.timer_text(), "", "claim lost: hidden")
 
 
@@ -113,3 +113,35 @@ func test_field_feeds_multiplier_from_replicated_mode_state() -> void:
 func test_hud_row_chip_text_for_team() -> void:
 	var state: Dictionary = {"mode_id": CTF, "extra": {"held_0": 2}}
 	assert_eq(BeaconTimerText.multiplier_text_in_state(state, 0), "x2")
+
+
+
+func test_timer_text_takes_controlling_team_colour() -> void:
+	var label: Label3D = _flag.get_node("TimerLabel") as Label3D
+	var tuning: BeaconVisualTuning = _flag.beacon_visuals
+	var other_color: Color = Color(0.2, 0.4, 0.9)
+	_flag.set_timer_counts_up(true)
+	_claim(0)
+	_flag._process(1.0)
+	assert_eq(label.modulate, TEAM_COLOR, "controlled beacon: timer uses the controlling player's colour")
+	assert_eq(label.outline_modulate, tuning.timer_outline_color, "outline kept for readability")
+	_flag.set_control(1, other_color, PackedColorArray())
+	assert_eq(label.modulate, other_color, "colour follows a new holder")
+	_claim(GoalControl.NEUTRAL)
+	assert_eq(label.modulate, tuning.timer_text_color, "no controller: falls back to timer_text_color")
+
+
+func test_classic_countdown_uses_claimant_colour_before_control() -> void:
+	var label: Label3D = _flag.get_node("TimerLabel") as Label3D
+	var tuning: BeaconVisualTuning = _flag.beacon_visuals
+	var claimant: Color = Color(0.2, 0.7, 0.3)
+	_flag.set_countdown(1, 0.5, HOLD_S, claimant)
+	assert_eq(label.modulate, claimant, "Classic claim in progress: timer uses the claimant's colour")
+	_flag.set_countdown(-1, 0.0, HOLD_S, Color.WHITE)
+	assert_eq(label.modulate, tuning.timer_text_color, "claim lost: fallback colour")
+
+
+func test_classic_countdown_without_claimant_falls_back() -> void:
+	var label: Label3D = _flag.get_node("TimerLabel") as Label3D
+	_flag.set_countdown(-1, 0.0, HOLD_S, Color.WHITE)
+	assert_eq(label.modulate, _flag.beacon_visuals.timer_text_color, "no claimant: timer_text_color")

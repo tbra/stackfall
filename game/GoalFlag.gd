@@ -67,6 +67,8 @@ var _timer_counts_up: bool = false
 var _held_s: float = 0.0
 ## Classic: the shared capture's time left as of the last progress update, ticked down locally.
 var _countdown_left_s: float = -1.0
+## Classic: the claimant team's colour for the running countdown (set_countdown()).
+var _countdown_color: Color = Color.WHITE
 var _multiplier: int = 0
 
 var _claim_ring: MeshInstance3D = null
@@ -466,7 +468,10 @@ func timer_counts_up() -> bool:
 
 ## Classic: the shared capture's team and 0..1 progress with the full hold time;
 ## the label counts down from what is left and is re-synced on every update.
-func set_countdown(team_id: int, progress: float, hold_seconds: float) -> void:
+## claim_color is the claimant team's colour (Field passes its slot colour); it tints
+## the timer text while the countdown runs and nobody controls the beacon yet.
+func set_countdown(team_id: int, progress: float, hold_seconds: float, claim_color: Color) -> void:
+	_countdown_color = claim_color
 	if team_id < 0 or progress <= 0.0:
 		_countdown_left_s = -1.0
 	else:
@@ -507,6 +512,19 @@ func _tick_timer(delta: float) -> void:
 	_refresh_timer_text()
 
 
+## Bontago-1pi.197: the timer text wears the controlling player's colour while a
+## team holds the beacon (_control_color, which clients also receive through
+## set_control()); with nobody in control it falls back to timer_text_color.
+## Classic capture-in-progress (no controller yet) uses the claimant's colour from
+## set_countdown(); with no claimant it falls back to timer_text_color.
+func _timer_text_color() -> Color:
+	if _control >= 0:
+		return _control_color
+	if _countdown_left_s >= 0.0:
+		return _countdown_color
+	return beacon_visuals.timer_text_color
+
+
 func _refresh_timer_text() -> void:
 	if _timer_label == null:
 		return
@@ -521,6 +539,7 @@ func _refresh_timer_text() -> void:
 			text = BeaconTimerText.clock(int(ceil(_countdown_left_s)))
 	if _timer_label.text != text:
 		_timer_label.text = text
+	_timer_label.modulate = _timer_text_color()
 	_timer_label.visible = not text.is_empty()
 	if _multiplier_label.text != chip:
 		_multiplier_label.text = chip
