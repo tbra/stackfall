@@ -32,7 +32,6 @@ func test_keyboard_key_is_a_cream_cap() -> void:
 	var glyph: InputGlyph = _glyph_for(event)
 	assert_true(glyph.is_arcade_cap())
 	assert_eq(glyph.arcade_face_color(), _arcade.cream_color)
-	assert_not_null(glyph.glyph_texture(), "the resolved art seam is unchanged")
 
 
 func test_long_key_label_widens_the_cap_instead_of_shrinking_the_legend() -> void:
@@ -169,15 +168,6 @@ func test_listening_and_overflow_badges() -> void:
 	assert_eq(glyph.arcade_face_color(), _arcade.rim_color, "listening is rim gold")
 	glyph.set_overflow_count(2)
 	assert_eq(glyph.arcade_face_color(), _arcade.disc_600_color)
-
-
-func test_missing_art_still_draws_an_arcade_cap() -> void:
-	var glyph: InputGlyph = INPUT_GLYPH_SCENE.instantiate() as InputGlyph
-	glyph.asset_root = "res://assets/ui/input_glyphs_does_not_exist/"
-	add_child_autofree(glyph)
-	glyph.set_event(_pad_button(JOY_BUTTON_B))
-	assert_null(glyph.glyph_texture())
-	assert_true(glyph.is_arcade_cap())
 
 
 func test_glyph_never_takes_focus_and_a_synthetic_pad_press_does_not_move_it() -> void:

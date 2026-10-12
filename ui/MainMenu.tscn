@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=3]
+[gd_scene load_steps=21 format=3]
 
 [ext_resource type="Script" path="res://ui/MainMenu.gd" id="1_menu"]
 [ext_resource type="Texture2D" path="res://assets/ui/icons/back.svg" id="glyph_back"]
@@ -19,6 +19,7 @@
 [ext_resource type="Script" path="res://ui/components/UiWell.gd" id="9_well"]
 [ext_resource type="Script" path="res://ui/components/UiTabs.gd" id="10_tabs"]
 [ext_resource type="Script" path="res://ui/components/UiField.gd" id="11_field"]
+[ext_resource type="Script" path="res://ui/components/UiStack.gd" id="12_stack"]
 
 [node name="MainMenu" type="Control"]
 layout_mode = 3
@@ -79,6 +80,7 @@ custom_minimum_size = Vector2(368, 0)
 [node name="Layout" type="VBoxContainer" parent="Center/Panel"]
 layout_mode = 2
 theme_override_constants/separation = 12
+script = ExtResource("12_stack")
 
 [node name="TitleWrap" type="Control" parent="Center/Panel/Layout"]
 layout_mode = 2
