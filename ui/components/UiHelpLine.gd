@@ -43,7 +43,15 @@ func _init() -> void:
 func _ready() -> void:
 	if table == null:
 		table = OptionHelpTable.shared()
-	label.custom_minimum_size.y = float(table.reserved_lines) * label.get_line_height()
+	# DECISION (Bontago-1pi.159.35): reserve the height a full text of reserved_lines lines really takes
+	# (line spacing included), measured once. N * get_line_height() was a few px short, so the first
+	# hint grew the line after focus-follow had positioned the settings scroll and clipped the last row.
+	var probe: PackedStringArray = PackedStringArray()
+	for _i: int in table.reserved_lines:
+		probe.append("Ag")
+	label.text = "\n".join(probe)
+	label.custom_minimum_size.y = maxf(float(table.reserved_lines) * label.get_line_height(), label.get_combined_minimum_size().y)
+	label.text = ""
 
 
 ## Explains controls under [param root] (default: this line's parent).
