@@ -238,7 +238,7 @@ func test_bot_rows_are_rebuilt_from_the_config_and_split_into_name_and_difficult
 	_fake_of(lobby).slots_by_peer = {1: 0}
 	(lobby.get_node("%PlayerCountSpin") as SpinBox).value = 4
 	(lobby.get_node("%AiCountSpin") as SpinBox).value = 2
-	(lobby.get_node("%AiDifficultyOption") as OptionButton).select(MatchConfig.AiDifficulty.HARD)
+	(lobby.get_node("%AiDifficultyOption") as UiCycler).select(MatchConfig.AiDifficulty.HARD)
 	lobby._on_option_changed(MatchConfig.AiDifficulty.HARD)
 	var rows: Array[Node] = _panel_of(lobby)._player_rows
 	assert_eq(rows.size(), 3, "one human + two bots")
@@ -246,7 +246,7 @@ func test_bot_rows_are_rebuilt_from_the_config_and_split_into_name_and_difficult
 	assert_eq(bot_names.size(), 2, "the host named both bots when they were added")
 	assert_eq(_row_name(rows[1]), bot_names[0])
 	assert_eq(_row_subtitle(rows[1]), "AI", "the difficulty is the dropdown beside the name now")
-	assert_eq(_rows_of(lobby)[1].difficulty_option.selected, MatchConfig.AiDifficulty.HARD, "the old default dropdown sets every bot")
+	assert_eq(_rows_of(lobby)[1].difficulty_option.selected(), MatchConfig.AiDifficulty.HARD, "the old default dropdown sets every bot")
 	assert_eq(_row_name(rows[2]), bot_names[1])
 	assert_eq(_row_badge(rows[2]), "tick", "bots are always ready")
 
@@ -919,7 +919,7 @@ func test_a_bots_dropdown_sets_only_that_bots_difficulty() -> void:
 	var seats: Dictionary = _seat_table(lobby)
 	assert_eq(LobbySeats.difficulty_of(seats, LobbySeats.bot_key(0)), MatchConfig.AiDifficulty.HARD)
 	assert_eq(LobbySeats.difficulty_of(seats, LobbySeats.bot_key(1)), MatchConfig.AiDifficulty.NORMAL)
-	assert_eq(_rows_of(lobby)[1].difficulty_option.selected, MatchConfig.AiDifficulty.HARD, "the row shows it")
+	assert_eq(_rows_of(lobby)[1].difficulty_option.selected(), MatchConfig.AiDifficulty.HARD, "the row shows it")
 	var roster: Array = _last_published(lobby)["roster"] as Array
 	assert_eq(str((roster[1] as Dictionary)["name"]), "%s (Hard)" % _panel_of(lobby)._config.bot_names[0], "the published roster entry carries the bot's own difficulty")
 	assert_eq(str((roster[2] as Dictionary)["name"]), "%s (Normal)" % _panel_of(lobby)._config.bot_names[1])
@@ -927,7 +927,7 @@ func test_a_bots_dropdown_sets_only_that_bots_difficulty() -> void:
 
 func test_changing_the_lobby_default_difficulty_sets_every_bot_but_other_edits_keep_each_bot() -> void:
 	var lobby: Lobby = _host_lobby(1, 2)
-	(lobby.get_node("%AiDifficultyOption") as OptionButton).select(MatchConfig.AiDifficulty.HARD)
+	(lobby.get_node("%AiDifficultyOption") as UiCycler).select(MatchConfig.AiDifficulty.HARD)
 	lobby._on_option_changed(MatchConfig.AiDifficulty.HARD)
 	for ordinal: int in range(2):
 		assert_eq(LobbySeats.difficulty_of(_seat_table(lobby), LobbySeats.bot_key(ordinal)), MatchConfig.AiDifficulty.HARD)
@@ -974,7 +974,7 @@ func test_a_clients_rows_are_read_only() -> void:
 		assert_true(row.team_button.disabled, "...but not editable")
 		assert_null(row.remove_button, "no remove button for a client")
 	assert_true(rows[2].difficulty_option.disabled)
-	assert_eq(rows[2].difficulty_option.selected, MatchConfig.AiDifficulty.NORMAL, "a client still sees the bot's difficulty")
+	assert_eq(rows[2].difficulty_option.selected(), MatchConfig.AiDifficulty.NORMAL, "a client still sees the bot's difficulty")
 	assert_true(panel.focus_entries().is_empty(), "nothing of a client's rows joins the focus loop")
 	var before: Dictionary = panel.seats_data()
 	watch_signals(panel)
@@ -2032,7 +2032,7 @@ func test_every_item_of_a_bot_row_is_a_row_item_of_one_height() -> void:
 		assert_eq(item.size.y, row_height, "%s is exactly one row height tall" % item.name)
 	assert_true(bot.badge is UiStatusBadge, "the status is the shared UiStatusBadge")
 	assert_true(bot.remove_button is UiIconButton and bot.remove_button.tone == UiIconButton.Tone.DANGER)
-	assert_true(bot.team_button is UiDropdown and bot.difficulty_option is UiDropdown, "selectors are UiDropdowns")
+	assert_true(bot.team_button is UiDropdown and bot.difficulty_option is UiCycler, "team is a UiDropdown, difficulty a UiCycler")
 	var human: LobbySeatRow = _rows_of(lobby)[0]
 	assert_eq(human.badge.size.x, bot.badge.size.x, "the host crown and the ready tile share a width")
 	assert_eq(human.team_button.global_position.x, bot.team_button.global_position.x, "team column lines up over human and bot rows")

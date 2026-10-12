@@ -301,6 +301,9 @@ const BLOCK_TIMER_MAX: float = 12.0
 const GRAVITY_DEFAULT: float = 1.0
 const GRAVITY_MIN: float = 0.1
 const GRAVITY_MAX: float = 2.0
+## One step of the lobby gravity meter (Bontago-1pi.159.38): every lit cell is exactly this much, from 0 to
+## GRAVITY_MAX, so 1.0 is a cell and the meter has GRAVITY_MAX / GRAVITY_STEP cells.
+const GRAVITY_STEP: float = 0.1
 ## Saved/networked dicts without a "gravity_scale_version" key hold the old
 ## absolute multiplier; from_dict() divides it by this legacy baseline.
 const LEGACY_GRAVITY_BASELINE: float = 1.4

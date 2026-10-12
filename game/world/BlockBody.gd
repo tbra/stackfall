@@ -61,3 +61,19 @@ func release_freeze_static(_reason: StringName) -> void:
 
 func is_freeze_static() -> bool:
 	return false
+
+
+## Glue fusion (docs/GLUE_FUSION_PLAN.md WP0): the FusedBody this block belongs to,
+## or null. Block and FusedBody override; no behaviour yet.
+func fused_carrier() -> RigidBody3D:
+	return null
+
+
+## Glue fusion: true while this block is a member of a FusedBody.
+func is_fused_member() -> bool:
+	return false
+
+
+## Glue fusion: the replicated sleep flag (RigidBody3D.sleeping) for the wire.
+func net_sleeping() -> bool:
+	return sleeping

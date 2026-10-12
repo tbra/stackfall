@@ -53,6 +53,11 @@ var _next_net_id: int = 1
 ## settled_time (it may have gone to sleep before sleep_settle_time elapsed).
 ## A settled, sleeping or statically frozen block needs no per-tick work.
 var _unsettled: Dictionary = {}
+## Glue fusion (docs/GLUE_FUSION_PLAN.md section 4): instance id -> FusedBody whose
+## members must be settle-stepped this tick. Per-tick scratch, rebuilt in
+## _physics_process: a follower's own velocity is mirrored, so the carrier's is the
+## one the settled rule reads, and the result is written to every member entry.
+var _carriers: Dictionary = {}
 ## Settled sleepers are not visited per tick, so a freed one (no block_removed)
 ## is pruned by a periodic sweep over every entry.
 const STALE_SWEEP_TICKS: int = 60
@@ -122,6 +127,7 @@ func reset() -> void:
 	_territory_revision += 1
 	_entries.clear()
 	_unsettled.clear()
+	_carriers.clear()
 	_net_id_to_block.clear()
 	_next_net_id = 1
 	_ensure_dissolver().reset()
@@ -245,11 +251,15 @@ func _physics_process(delta: float) -> void:
 	var collect: bool = dissolver.wants_candidates()
 	var moving: Array[Block] = []
 	var visited: Dictionary = {}
+	_carriers.clear()
 	# Awake bodies first, then unsettled ones that are not awake (asleep before
 	# settling finished, or freed): the only entries the old full scan could
 	# have changed state for.
 	for awake_block: Block in Block.awake_blocks():
 		var awake_id: int = awake_block.get_instance_id()
+		if awake_block is FusedBody:
+			_carriers[awake_id] = awake_block
+			continue
 		var awake_entry: _Entry = _entries.get(awake_id) as _Entry
 		if awake_entry == null:
 			continue
@@ -262,7 +272,34 @@ func _physics_process(delta: float) -> void:
 		if entry == null:
 			_unsettled.erase(id)
 			continue
+		if is_instance_valid(entry.block) and entry.block.is_fused_member():
+			var unsettled_carrier: FusedBody = entry.block.fused_carrier() as FusedBody
+			if unsettled_carrier != null:
+				_carriers[unsettled_carrier.get_instance_id()] = unsettled_carrier
+				continue
 		_step_entry(id, entry, delta, lin_sq, ang_sq, settle_time, collect, moving, stale)
+	for carrier_id: Variant in _carriers.keys():
+		var carrier: FusedBody = _carriers[carrier_id] as FusedBody
+		if carrier == null or not is_instance_valid(carrier):
+			continue
+		var carrier_settled: int = 1 if (
+			carrier.linear_velocity.length_squared() < lin_sq
+			and carrier.angular_velocity.length_squared() < ang_sq
+		) else 0
+		# Index walk without a copy: a handler removing a member shifts the array, so
+		# re-read the size each step and step back when the current slot changed.
+		var index: int = 0
+		while index < carrier.members.size():
+			var member: Block = carrier.members[index]
+			index += 1
+			if not is_instance_valid(member):
+				continue
+			var member_id: int = member.get_instance_id()
+			var member_entry: _Entry = _entries.get(member_id) as _Entry
+			if member_entry != null:
+				_step_entry(member_id, member_entry, delta, lin_sq, ang_sq, settle_time, collect, moving, stale, carrier_settled)
+			if index > 0 and index <= carrier.members.size() and carrier.members[index - 1] != member:
+				index -= 1
 	_sweep_ticks += 1
 	if _sweep_ticks >= STALE_SWEEP_TICKS:
 		_sweep_ticks = 0
@@ -281,16 +318,19 @@ func _physics_process(delta: float) -> void:
 ## One entry's settle accounting (the former loop body, unchanged arithmetic).
 func _step_entry(
 	id: int, entry: _Entry, delta: float, lin_sq: float, ang_sq: float, settle_time: float,
-	collect: bool, moving: Array[Block], stale: Array
+	collect: bool, moving: Array[Block], stale: Array, settled_override: int = -1
 ) -> void:
 	var block: Block = entry.block
 	if not is_instance_valid(block):
 		stale.append(id)
 		return
 	# Squared compare matches `length() < t` for the non-negative thresholds.
+	# `settled_override` (0/1) is a fused member's verdict from its carrier's velocity.
 	var settled_now: bool = (
-		block.linear_velocity.length_squared() < lin_sq
-		and block.angular_velocity.length_squared() < ang_sq
+		settled_override == 1 if settled_override >= 0 else (
+			block.linear_velocity.length_squared() < lin_sq
+			and block.angular_velocity.length_squared() < ang_sq
+		)
 	)
 	if settled_now:
 		entry.settled_time += delta
@@ -506,6 +546,25 @@ func count_fast_blocks_by_owner(limit_sq: float, counts: PackedInt32Array) -> vo
 			continue
 		if block.owner_slot >= 0 and block.owner_slot < counts.size() and block.linear_velocity.length_squared() > limit_sq:
 			counts[block.owner_slot] += 1
+
+
+## The bodies that actually simulate: unfused blocks plus one FusedBody carrier per
+## group (never its followers). StableBlockManager freezes these, so a settled group
+## is frozen once as one body.
+func physics_bodies() -> Array[Block]:
+	var result: Array[Block] = []
+	var seen: Dictionary = {}
+	for id: Variant in _entries.keys():
+		var block: Block = (_entries[id] as _Entry).block
+		if not is_instance_valid(block):
+			continue
+		var carrier: Block = block.fused_carrier() as Block
+		if carrier == null:
+			result.append(block)
+		elif not seen.has(carrier.get_instance_id()):
+			seen[carrier.get_instance_id()] = true
+			result.append(carrier)
+	return result
 
 
 func all_blocks() -> Array[Block]:

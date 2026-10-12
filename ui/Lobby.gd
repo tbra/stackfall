@@ -130,7 +130,7 @@ var _map_thumbnail_icon: TextureRect = null
 ## tests/unit/test_lobby.gd's 31 references) for no player-visible change.
 @onready var _player_count_spin: SpinBox = %PlayerCountSpin
 @onready var _ai_count_spin: SpinBox = %AiCountSpin
-@onready var _ai_difficulty_option: OptionButton = %AiDifficultyOption
+@onready var _ai_difficulty_option: UiCycler = %AiDifficultyOption
 @onready var _team_mode_option: OptionButton = %TeamModeOption
 ## Bontago-1pi.159.2.1: the block timer (3.0 .. 12.0 s) and the goal flags are UiSteppers; the block
 ## timer counts BLOCK_TIMER_STEP_S per stepper step.
@@ -264,12 +264,12 @@ const TIMER_STEPPER_FORMAT: String = "%d"
 ## Bontago-1pi.159.2.1: one stepper step is half a second of block timer; gravity and gift
 ## frequency meters have GRAVITY_CELLS / FREQUENCY_CELLS lit steps between their MatchConfig bounds.
 const BLOCK_TIMER_STEP_S: float = 0.5
-const GRAVITY_CELLS: int = 10
+const GRAVITY_CELLS: int = 20  # = roundi(MatchConfig.GRAVITY_MAX / MatchConfig.GRAVITY_STEP), asserted in tests
 const FREQUENCY_CELLS: int = 10
 const GRAVITY_READOUT_FORMAT: String = "%.2fx"
 const FREQUENCY_READOUT_FORMAT: String = "%d"
 ## The step a player-picked gravity snaps to.
-const GRAVITY_SNAP: float = 0.05
+const GRAVITY_SNAP: float = MatchConfig.GRAVITY_STEP
 const DISC_SIZE_READOUT_FORMAT: String = "%d%%"
 ## Bontago-1pi.53 (S1a): the one-line section summaries shown on each UiSection header.
 const SUMMARY_SEPARATOR: String = " · "
@@ -385,6 +385,8 @@ func _ready() -> void:
 	_update_host_only_state()
 	LobbyButtonGlyph.attach(_start_button, &"lobby_confirm")
 	LobbyButtonGlyph.attach(_players_panel.add_bot_button(), &"lobby_add_bot")
+	LobbyButtonGlyph.attach(_options_button, &"lobby_options")
+	LobbyButtonGlyph.attach(_back_button, &"ui_cancel")
 	_wire_focus_chain()
 	_settings_scroll.get_v_scroll_bar().value_changed.connect(func(_value: float) -> void: _schedule_spatial_rewire())
 	_disc_size_meter.grab_focus()
@@ -525,17 +527,17 @@ func _expose(node: Node, unique_name: String) -> void:
 
 
 ## DECISION (Bontago-1pi.159.14, reversing 1pi.94): game mode, time of day, weather, tilt and hole mode
-## are UiCyclers ("<" value ">" blocks, wrapping, ui_left / ui_right step); each bot's difficulty and
-## team in LobbySeatRow are ordinary popup UiDropdowns.
-## %MapVariantOption / %MapSizeOption / %AiDifficultyOption / %TeamModeOption are hidden sources
-## of truth that nobody clicks, so they stay plain OptionButtons.
+## are UiCyclers ("<" value ">" blocks, wrapping, ui_left / ui_right step); each bot's difficulty in
+## LobbySeatRow is a UiCycler too (Bontago-1pi.159.36); only its team pill is a popup UiDropdown.
+## %MapVariantOption / %MapSizeOption / %TeamModeOption are hidden sources of truth that nobody
+## clicks, so they stay plain OptionButtons; %AiDifficultyOption (default difficulty) is a UiCycler.
 func _populate_options() -> void:
 	_configure_timer_steppers()
 	_configure_value_controls()
 	_fill_option(_map_variant_option, MAP_VARIANT_LABELS)
 	_fill_option(_map_size_option, MAP_SIZE_LABELS)
 	_decorate_map_picker()
-	_fill_option(_ai_difficulty_option, ["Easy", "Normal", "Hard"])
+	_fill_cycle(_ai_difficulty_option, ["Easy", "Normal", "Hard"])
 	_fill_option(_team_mode_option, ["Off", "2 teams", "3 teams", "4 teams"])
 	_fill_cycle(_tilt_mode_option, ["Specials only", "Physical balance"])
 	# Territory v2 (docs/TERRITORY_V2_PLAN.md) added HoleMode.OFF (= 2,
@@ -1097,7 +1099,7 @@ func _input(event: InputEvent) -> void:
 	var focus: Control = get_viewport().gui_get_focus_owner()
 	if focus is LineEdit or focus is TextEdit:
 		return
-	for option: OptionButton in [_map_variant_option, _map_size_option, _ai_difficulty_option, _team_mode_option]:
+	for option: OptionButton in [_map_variant_option, _map_size_option, _team_mode_option]:
 		if option.get_popup().visible:
 			return
 	_run_start_shortcut()
@@ -1257,11 +1259,10 @@ func _on_stepper_changed(_value: int) -> void:
 	_on_setting_changed()
 
 
-## A player moved the gravity meter: the new multiplier is the cell's value on the MatchConfig range,
-## snapped to GRAVITY_SNAP (the old slider's 0.05 step), so a mid-range cell lands on 1.0 exactly.
+## A player moved the gravity meter: each lit cell is GRAVITY_SNAP (0.1x), so cell n reads n * 0.1
+## and 1.0 is cell 10; an empty meter settles on MatchConfig.GRAVITY_MIN.
 func _on_gravity_cells_changed(cells: int) -> void:
-	var span: float = MatchConfig.GRAVITY_MAX - MatchConfig.GRAVITY_MIN
-	_gravity_value = snappedf(MatchConfig.GRAVITY_MIN + span * float(cells) / float(GRAVITY_CELLS), GRAVITY_SNAP)
+	_gravity_value = clampf(snappedf(float(cells) * GRAVITY_SNAP, GRAVITY_SNAP), MatchConfig.GRAVITY_MIN, MatchConfig.GRAVITY_MAX)
 	_on_setting_changed()
 
 
@@ -1273,8 +1274,7 @@ func _on_frequency_cells_changed(cells: int) -> void:
 
 ## The cell a gravity multiplier / gift frequency lights (nearest), for values applied from lobby data.
 static func _gravity_cells_for(gravity: float) -> int:
-	var span: float = MatchConfig.GRAVITY_MAX - MatchConfig.GRAVITY_MIN
-	return clampi(roundi((gravity - MatchConfig.GRAVITY_MIN) / span * float(GRAVITY_CELLS)), 0, GRAVITY_CELLS)
+	return clampi(roundi(gravity / GRAVITY_SNAP), 0, GRAVITY_CELLS)
 
 
 static func _frequency_cells_for(frequency: int) -> int:
@@ -1402,7 +1402,7 @@ func _config_from_controls() -> MatchConfig:
 	config.disc_size_step = _disc_size_step()
 	config.player_count = int(_player_count_spin.value)
 	config.ai_count = int(_ai_count_spin.value)
-	config.ai_difficulty = _ai_difficulty_option.selected
+	config.ai_difficulty = _ai_difficulty_option.selected()
 	config.team_mode = _team_mode_option.selected
 	config.block_timer = _block_timer_seconds()
 	config.gravity_multiplier = _gravity_value
@@ -1519,7 +1519,7 @@ func _apply_data(data: Dictionary) -> void:
 	_refresh_map_thumbnail()
 	_player_count_spin.value = config.player_count
 	_ai_count_spin.value = config.ai_count
-	_ai_difficulty_option.selected = config.ai_difficulty
+	_ai_difficulty_option.select(config.ai_difficulty)
 	_team_mode_option.selected = config.team_mode
 	_block_timer_stepper.set_value_silent(roundi(config.block_timer / BLOCK_TIMER_STEP_S))
 	_gravity_value = config.gravity_multiplier

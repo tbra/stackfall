@@ -102,6 +102,16 @@ func detonate(block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> vo
 		[block.get_rid()]
 	)
 	for body: RigidBody3D in hit_bodies:
+		if body.has_method(&"members_in_sphere"):
+			# Glue fusion: the group is one body (FusedBody, duck-typed for the layer lint), but
+			# only members inside the splash change.
+			var inside: Array[Block] = []
+			inside.assign(body.call(&"members_in_sphere", block.global_position, splash_radius_m) as Array)
+			for member: Block in inside:
+				ctx.convert_block_owner(member, block.owner_slot)
+			if body.has_method(&"refresh_owner"):
+				body.call(&"refresh_owner")  # carrier owner_slot follows its converted members
+			continue
 		var target: Block = body as Block
 		if target != null:
 			ctx.convert_block_owner(target, block.owner_slot)

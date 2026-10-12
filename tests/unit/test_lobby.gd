@@ -283,7 +283,7 @@ func test_every_2_8_setting_round_trips_through_to_dict_and_from_dict() -> void:
 	assert_eq((lobby.get_node("%MapSizeOption") as OptionButton).selected, int(MapDef.MapSize.LARGE))
 	assert_eq(int((lobby.get_node("%PlayerCountSpin") as SpinBox).value), 7)
 	assert_eq(int((lobby.get_node("%AiCountSpin") as SpinBox).value), 3)
-	assert_eq((lobby.get_node("%AiDifficultyOption") as OptionButton).selected, MatchConfig.AiDifficulty.HARD)
+	assert_eq((lobby.get_node("%AiDifficultyOption") as UiCycler).selected(), MatchConfig.AiDifficulty.HARD)
 	assert_eq((lobby.get_node("%TeamModeOption") as OptionButton).selected, MatchConfig.TeamMode.TEAMS_2)
 	assert_almost_eq(lobby._block_timer_seconds(), 9.5, 0.01)
 	assert_almost_eq(lobby._gravity_value, 1.25, 0.01)

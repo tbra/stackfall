@@ -9,11 +9,11 @@ extends PanelContainer
 ##   LobbySeats.cycle_color, which swaps on a clash);
 ## - the team button exists only with teams on and cycles 1..cap then Random ("?")
 ##   the same way (LobbySeats.cycle_team);
-## - a bot row has a difficulty dropdown (Easy / Normal / Hard) and, for the host, a
+## - a bot row has a difficulty cycler (Easy / Normal / Hard) and, for the host, a
 ##   remove button.
 ##
-## Every control is a ui/components row item (Bontago-1pi.159.2.2): the team and difficulty
-## selectors are UiDropdowns (popup lists), the remove X a UiIconButton
+## Every control is a ui/components row item (Bontago-1pi.159.2.2): the team selector is a UiDropdown (popup list), the difficulty a
+## UiCycler, the remove X a UiIconButton
 ## (DANGER), the Ready / host badge a UiStatusBadge, so they all share one height
 ## (ComponentMetrics.row_height_px). Only the colour diamond keeps its own flat, borderless button.
 ##
@@ -89,7 +89,7 @@ var subtitle_label: Label = null
 ## null unless `show_team` and the row has a seat.
 var team_button: UiDropdown = null
 ## null for a human.
-var difficulty_option: UiDropdown = null
+var difficulty_option: UiCycler = null
 ## null unless the row is a bot's and `editable`.
 var remove_button: UiIconButton = null
 var badge: UiStatusBadge = null
@@ -290,17 +290,16 @@ func _build_team_button() -> void:
 	layout.add_child(team_button)
 
 
-## A bot's own difficulty: a UiDropdown list, read-only (disabled) for a client.
+## A bot's own difficulty: a UiCycler ("<" value ">", Bontago-1pi.159.36), read-only (disabled) for
+## a client. ui_left / ui_right step it, the blocks click.
 func _build_difficulty_option() -> void:
-	difficulty_option = UiDropdown.new()
+	difficulty_option = UiCycler.new()
 	difficulty_option.name = "DifficultyOption"
 	var art: UiArtTable = UiArtTable.shared()
 	for label_index: int in range(DIFFICULTY_LABELS.size()):
-		difficulty_option.add_item(DIFFICULTY_LABELS[label_index])
-		difficulty_option.set_item_icon(label_index, art.difficulty_icon(label_index))
-	difficulty_option.add_theme_constant_override("icon_max_width", art.lobby_icon_px)
+		difficulty_option.add_item(DIFFICULTY_LABELS[label_index], false, art.difficulty_icon(label_index))
 	difficulty_option.select(clampi(difficulty, 0, DIFFICULTY_LABELS.size() - 1))
-	_compact(difficulty_option, _difficulty_width(), true)
+	difficulty_option.custom_minimum_size.x = _difficulty_width()  # the tuned floor, grown to the content
 	difficulty_option.tooltip_text = "This bot's difficulty"
 	difficulty_option.disabled = not editable
 	difficulty_option.focus_mode = Control.FOCUS_ALL if editable else Control.FOCUS_NONE
@@ -309,18 +308,17 @@ func _build_difficulty_option() -> void:
 	layout.add_child(difficulty_option)
 
 
-## The width the difficulty selector needs: its icon, the longest label and the margins (the tuned
-## width when that is larger). Computed from the theme font so "Normal" is never clipped.
+## The width the difficulty selector needs (a UiCycler's own minimum width: both blocks, the icon,
+## the longest label and its padding). Computed from a scratch cycler so the empty room of a human
+## row matches a bot row's exactly.
 func _difficulty_width() -> float:
-	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	var font: Font = get_theme_font(&"font", &"Button")
-	var font_size: int = arcade.font_size_body_px
-	var widest: float = 0.0
-	for label_text: String in DIFFICULTY_LABELS:
-		widest = maxf(widest, ceilf(font.get_string_size(label_text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size).x))
-	var icon_px: float = float(UiArtTable.shared().lobby_icon_px)
-	var margins: float = float(arcade.space_2_px * 2 + arcade.space_4_px + arcade.space_2_px)
-	return maxf(float(_layout_tuning.seat_difficulty_min_width_px), icon_px + widest + margins)
+	var probe: UiCycler = UiCycler.new()
+	var art: UiArtTable = UiArtTable.shared()
+	for label_index: int in range(DIFFICULTY_LABELS.size()):
+		probe.add_item(DIFFICULTY_LABELS[label_index], false, art.difficulty_icon(label_index))
+	var width: float = probe.get_combined_minimum_size().x
+	probe.free()
+	return maxf(float(_layout_tuning.seat_difficulty_min_width_px), width)
 
 
 ## Fits a dropdown to a seat row: the tuned width (never below its row-item minimum height) and

@@ -457,6 +457,10 @@ func _discover() -> void:
 		var block: Block = raw as Block
 		if not _block_alive(block):
 			continue
+		# Glue fusion: a fused follower owns no shapes; its collision (and snow lumps) live on
+		# the carrier, so no new snow entry or lump collider is built for it.
+		if block.is_fused_member() and not _blocks.has(block.get_instance_id()):
+			continue
 		var id: int = block.get_instance_id()
 		var entry: BlockSnow = _blocks.get(id) as BlockSnow
 		if entry != null:

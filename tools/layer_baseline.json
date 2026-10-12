@@ -100,7 +100,7 @@
   "ui/UiScale.gd"
  ],
  "l1_exceptions": [],
- "largest_scc": 29,
+ "largest_scc": 30,
  "main_closure": [
   "assets/models/horizon_islands_v1/crag.glb",
   "assets/models/horizon_islands_v1/crag.tscn",
@@ -365,6 +365,7 @@
   "game/ExitRelease.gd",
   "game/Field.gd",
   "game/Field.tscn",
+  "game/FusedBody.gd",
   "game/GhostPreview.gd",
   "game/GiftCrate.gd",
   "game/GiftParachute.gd",

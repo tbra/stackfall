@@ -125,5 +125,15 @@ static func collision_centre(body: RigidBody3D) -> Vector3:
 ## Captured blocks go through the territory holes' removal (shared entry, no
 ## duplicate removal code). DECISION: with no live registry (an isolated unit test)
 ## the block simply stays at the core.
+## Glue fusion (owner OQ6): a captured FusedBody takes the WHOLE group, each member through
+## the same removal (the carrier itself is never registered or dissolved).
 func _capture(body: RigidBody3D) -> bool:
+	if body.has_method(&"members_in_sphere"):
+		var started: bool = false
+		var group: Array[Block] = []
+		group.assign((body.get(&"members") as Array).duplicate())
+		for member: Block in group:
+			if is_instance_valid(member) and HoleDissolver.request_dissolve(member):
+				started = true
+		return started
 	return HoleDissolver.request_dissolve(body as Block)
