@@ -116,17 +116,18 @@ func test_black_hole_visual_rides_the_disc_for_every_peer() -> void:
 	await _assert_rides(visual, "black hole visual")
 
 
-func test_blast_puff_rides_the_disc() -> void:
+func test_blast_rides_the_disc() -> void:
 	var presenter: GiftFxPresenter = autofree(GiftFxPresenter.new())
 	add_child_autofree(presenter)
 	presenter.on_special_triggered(-1, BOMB_ID, DROP_POINT, 0)
-	var puff: ImpactPuff = null
+	var blast: CartoonBlast = null
 	for child: Node in _field.get_children():
-		if child is ImpactPuff:
-			puff = child as ImpactPuff
-	assert_not_null(puff, "the blast puff is a child of the Field")
-	if puff != null:
-		await _assert_rides(puff, "blast puff")
+		if child is CartoonBlast:
+			blast = child as CartoonBlast
+	assert_not_null(blast, "the cartoon blast is a child of the Field")
+	if blast != null:
+		blast.set_process(false) # hold it alive for the ride check
+		await _assert_rides(blast, "cartoon blast")
 
 
 func test_paintball_splash_rides_the_disc() -> void:

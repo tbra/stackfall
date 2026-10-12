@@ -178,6 +178,45 @@ func test_falling_trail_caps_at_max_concurrent() -> void:
 	assert_eq(manager._trails.size(), 2, "trail_max_concurrent must cap the number of simultaneously active trails.")
 
 
+## Bontago-a3z (owner: the trail was "really small and sort of weirdly centred"): the
+## ribbon is anchored at the block mesh's centre, not its pivot-cell origin, is as wide
+## as the piece (within the configured clamp) and turns to face the camera.
+func test_falling_trail_is_centred_sized_and_faces_the_camera() -> void:
+	var manager: BlockEffectsManager = _make_manager()
+	var tuning: PhysicsTuning = load("res://config/physics_tuning.tres") as PhysicsTuning
+	var block: Block = BlockFactory.build(load("res://config/blocks/bar4.tres") as BlockShape, tuning, 0)
+	add_child_autofree(block)
+	block.freeze = true
+	block.global_position = Vector3(0.0, 20.0, 0.0)
+	var camera: Camera3D = Camera3D.new()
+	add_child_autofree(camera)
+	camera.global_position = Vector3(3.0, 20.0, 12.0)
+	camera.current = true
+
+	var mesh: MeshInstance3D = block.get_node(^"BlockMesh") as MeshInstance3D
+	var centre: Vector3 = mesh.global_transform * mesh.get_aabb().get_center()
+	assert_false(centre.is_equal_approx(block.global_position), "fixture: a bar's centre is not its pivot origin")
+
+	var delta: float = 1.0 / 60.0
+	manager._update_falling_trails(delta)
+	block.global_position.y -= manager.config.trail_speed_threshold * delta * 2.0
+	centre = mesh.global_transform * mesh.get_aabb().get_center()
+	manager._update_falling_trails(delta)
+	assert_eq(manager._trails.size(), 1)
+	var wrapper: Node3D = manager._trails[block.get_instance_id()] as Node3D
+	assert_almost_eq(wrapper.global_position, centre, Vector3.ONE * 0.001, "anchored at the mesh centre")
+
+	var ribbon: MeshInstance3D = wrapper.get_child(0) as MeshInstance3D
+	assert_lte(ribbon.scale.x, manager.config.trail_max_width_m + 0.001, "within the width clamp")
+	assert_gt(ribbon.scale.x, manager.config.trail_min_width_m, "a four-cell bar gets more than the minimum width")
+
+	var basis: Basis = wrapper.global_transform.basis
+	assert_almost_eq(-basis.z.normalized(), Vector3.UP, Vector3.ONE * 0.001, "the tail runs up, opposite the fall")
+	var to_camera: Vector3 = camera.global_position - centre
+	to_camera.y = 0.0
+	assert_gt(basis.y.normalized().dot(to_camera.normalized()), 0.999, "the ribbon faces the camera")
+
+
 func test_cleanup_fallback_frees_the_effect_after_its_lifetime() -> void:
 	# GPUParticles3D.finished may not fire in this headless GUT run (no
 	# renderer driving the particle system) -- exercising the

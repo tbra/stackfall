@@ -100,36 +100,34 @@ extends Resource
 # --- Falling-block trail (continuous, not an Events burst) ------------------
 
 ## Fix round (owner: the previous particle-burst trail read as "dashed/
-## dotted... not attached to the falling piece"): the trail is now a small
-## fixed number of single, continuous stretched-quad meshes
-## (vfx/trail_streak.gdshader) re-oriented and re-scaled every frame to run
-## from the block's own top back along the direction opposite its fall --
-## a mesh has no gaps by construction, and re-reading the block's live
-## global_position every frame (not just every physics step) keeps it
-## visually attached. See BlockEffectsManager._ensure_trail()'s own doc.
+## dotted... not attached to the falling piece"): one continuous stretched
+## quad (vfx/trail_streak.gdshader) re-oriented and re-scaled every physics
+## step, so it has no gaps by construction and never detaches.
+## Bontago-a3z (owner: "really small and sort of weirdly centred"): the three
+## 7 cm flat strips anchored 0.3 m above the body origin became one ribbon
+## as wide as the block, anchored at the block mesh's own centre and turned
+## about its travel axis to face the camera (a flat strip went edge-on from
+## many views). See BlockEffectsManager._ensure_trail()'s own doc.
 
 ## Downward speed (m/s, measured from the block's own position delta each
 ## physics step -- see BlockEffectsManager._update_falling_trails()'s own
 ## doc for why not RigidBody3D.linear_velocity) above which a block gets a
 ## luminous trail.
 @export var trail_speed_threshold: float = 8.0
-## How many parallel streaks fan out across the block's width -- "2-3 thin
-## parallel streaks offset across the block's width, like the mockup's
-## falling blue piece".
+## Bright speed lines drawn inside the ribbon (the mockup's falling piece).
 @export var trail_streak_count: int = 3
-@export var trail_streak_width_m: float = 0.07
-@export var trail_lateral_offset_m: float = 0.16
-## Streak length (meters) = fall speed (m/s) * this factor, clamped to
+## Ribbon width = the block's mean horizontal mesh extent * this ratio,
+## clamped to [trail_min_width_m, trail_max_width_m].
+@export var trail_width_ratio: float = 1.0
+@export var trail_min_width_m: float = 0.8
+@export var trail_max_width_m: float = 2.4
+## Ribbon length (meters) = fall speed (m/s) * this factor, clamped to
 ## [trail_min_length_m, trail_max_length_m] -- "length proportional to
 ## speed".
-@export var trail_length_per_speed_s: float = 0.12
-@export var trail_min_length_m: float = 0.4
-@export var trail_max_length_m: float = 3.0
-## Offset above the block's own global_position the streak's head (the
-## bright end) starts from -- an approximation of "the block's top" without
-## reading its actual mesh bounds (game/Block.gd is not an owned file).
-@export var trail_top_offset_m: float = 0.3
-@export var trail_alpha_max: float = 0.8
+@export var trail_length_per_speed_s: float = 0.3
+@export var trail_min_length_m: float = 1.0
+@export var trail_max_length_m: float = 8.0
+@export var trail_alpha_max: float = 0.9
 ## Multiplies the resolved team/fallback color for vfx/trail_streak.gdshader's
 ## EMISSION -- "modest emission", well down from an earlier candidate's 2.2
 ## (which read as over-bright/blown-out) but still enough to pick up

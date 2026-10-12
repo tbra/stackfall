@@ -37,7 +37,7 @@
  "core/territory/TerritorySolver.gd": 1,
  "core/weather/SnowGeometry.gd": 6,
  "game/Block.gd": 2,
- "game/BlockEffectsManager.gd": 9,
+ "game/BlockEffectsManager.gd": 8,
  "game/BlockRegistry.gd": 2,
  "game/BotController.gd": 1,
  "game/CameraRig.gd": 8,

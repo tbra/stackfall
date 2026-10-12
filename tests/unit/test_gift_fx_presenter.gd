@@ -122,7 +122,7 @@ func test_spawn_hook_starts_blink_for_a_bomb_on_a_client_and_is_idempotent() -> 
 	Match.set_net_provider(null)
 
 
-func test_bomb_and_rocket_explosion_adds_a_puff_under_blocks_parent() -> void:
+func test_bomb_and_rocket_explosion_adds_a_cartoon_blast_under_blocks_parent() -> void:
 	var blocks: Node3D = autofree(Node3D.new())
 	add_child_autofree(blocks)
 	Match.register_world(null, null, blocks)
@@ -131,12 +131,43 @@ func test_bomb_and_rocket_explosion_adds_a_puff_under_blocks_parent() -> void:
 	for id: StringName in [GiftFxPresenter.BOMB_ID, GiftFxPresenter.ROCKET_ID]:
 		var before: int = blocks.get_child_count()
 		presenter.on_special_triggered(-1, id, Vector3(1, 2, 3), 0)
-		assert_eq(blocks.get_child_count(), before + 1, "%s puff" % id)
-	var puff: ImpactPuff = blocks.get_child(0) as ImpactPuff
-	assert_not_null(puff)
-	assert_true(puff.active)
-	assert_false((puff as Node) is CollisionObject3D, "no physics body")
+		assert_eq(blocks.get_child_count(), before + 1, "%s blast" % id)
+	var blast: CartoonBlast = blocks.get_child(0) as CartoonBlast
+	assert_not_null(blast)
+	assert_almost_eq(blast.global_position, Vector3(1, 2, 3), Vector3.ONE * 0.001)
+	assert_eq(blast.puff_count(), GiftFxPresenter.EXPLOSION_TUNING.puff_count)
+	for child: Node in blast.get_children():
+		assert_false(child is CollisionObject3D, "no physics body")
 	MatchTestReset.clear_world()
+
+
+func test_freeze_trigger_adds_a_freeze_burst_under_blocks_parent() -> void:
+	var blocks: Node3D = autofree(Node3D.new())
+	add_child_autofree(blocks)
+	Match.register_world(null, null, blocks)
+	var presenter: GiftFxPresenter = GiftFxPresenter.new()
+	add_child_autofree(presenter)
+	assert_true(presenter.has_handler(GiftFxPresenter.FREEZE_ID))
+	presenter.on_special_triggered(-1, GiftFxPresenter.FREEZE_ID, Vector3(0, 1, 0), 0)
+	assert_eq(blocks.get_child_count(), 1, "one burst")
+	var burst: FreezeBurst = blocks.get_child(0) as FreezeBurst
+	assert_not_null(burst)
+	assert_eq(burst.shard_count(), GiftFxPresenter.FREEZE_TUNING.shard_count)
+	MatchTestReset.clear_world()
+
+
+func test_spawn_hook_starts_the_hop_driver_only_on_a_jumping_bean() -> void:
+	var bean: Block = _gift_block(&"jumping_bean")
+	GiftFxPresenter.on_gift_block_spawned(bean)
+	GiftFxPresenter.on_gift_block_spawned(bean)
+	var drivers: int = 0
+	for child: Node in bean.get_children():
+		if child is BeanHopFx:
+			drivers += 1
+	assert_eq(drivers, 1, "one hop driver, idempotent")
+	var other: Block = _gift_block(&"anvil")
+	GiftFxPresenter.on_gift_block_spawned(other)
+	assert_null(other.get_node_or_null(NodePath(String(BeanHopFx.DRIVER_NAME))), "only the bean")
 
 
 func test_client_volcano_visual_has_no_collider() -> void:
