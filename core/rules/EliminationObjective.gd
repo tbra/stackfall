@@ -13,6 +13,10 @@ extends ModeObjective
 ##    the surviving teams are ranked by territory share, highest wins, equal
 ##    shares share the win.
 ## _scores holds each team's living player count (0 = out).
+## [OWNER decision 2026-10-12, Bontago-1pi.185] A home flag is only knocked out
+## after the attacker has kept the pressure on it continuously for the claim
+## time (TerritoryTuning.capture_hold, the goal-beacon claim duration). The
+## per-slot claim timers live here (pure); MatchTerritory feeds the pressure.
 ##
 ## Host-only logic; clients mirror the replicated state (replicates_state()).
 ## Pure: MatchLifecycle feeds slot_eliminated() and resolve().
@@ -30,10 +34,19 @@ var _out: Dictionary = {}
 var _shares: PackedFloat32Array = PackedFloat32Array()
 ## Every winning team once the round is decided (more than one = shared win).
 var _winners: PackedInt32Array = PackedInt32Array()
+## Claim time in seconds (<= 0 = instant knockout).
+var _claim_hold: float = 0.0
+## slot -> seconds the current attacker has held its home flag.
+var _claim_held: Dictionary = {}
+## slot -> attacker team id (NO_TEAM when the pressure has no single owner).
+var _claim_team: Dictionary = {}
+## slot -> team that completed the knockout (NO_TEAM = unknown).
+var _eliminator_team: Dictionary = {}
 
 
-func _init(slot_teams: PackedInt32Array = PackedInt32Array()) -> void:
+func _init(slot_teams: PackedInt32Array = PackedInt32Array(), claim_hold: float = 0.0) -> void:
 	_slot_teams = slot_teams
+	_claim_hold = maxf(claim_hold, 0.0)
 
 
 func mode_id() -> int:
@@ -60,6 +73,9 @@ func reset(team_count: int) -> void:
 	_pending_teams.clear()
 	_out.clear()
 	_winners.clear()
+	_claim_held.clear()
+	_claim_team.clear()
+	_eliminator_team.clear()
 	_shares.resize(_scores.size())
 	_shares.fill(0.0)
 	for slot: int in range(_slot_teams.size()):
@@ -73,6 +89,79 @@ func update(raster: TerritoryRaster, _delta: float) -> void:
 		return
 	for team: int in range(_shares.size()):
 		_shares[team] = raster.team_share(team)
+
+
+## Host: advances every home-flag claim by `delta`. `pressure` maps each slot
+## whose home flag is currently under attack to the attacking team id
+## (NO_TEAM when unknown). A slot missing from `pressure`, or whose attacker
+## changed, loses its progress (the same reset a goal claim has). Returns the
+## slots whose claim just completed; the caller eliminates them.
+func step_claims(pressure: Dictionary, delta: float) -> PackedInt32Array:
+	var done: PackedInt32Array = PackedInt32Array()
+	for slot_key: Variant in _claim_held.keys():
+		if not pressure.has(slot_key):
+			_claim_held.erase(slot_key)
+			_claim_team.erase(slot_key)
+	var slots: Array = pressure.keys()
+	slots.sort()
+	for slot_key: Variant in slots:
+		var slot: int = int(slot_key)
+		if _out.has(slot):
+			continue
+		var attacker: int = int(pressure[slot_key])
+		if not _claim_held.has(slot) or int(_claim_team.get(slot, NO_TEAM)) != attacker:
+			_claim_held[slot] = 0.0
+			_claim_team[slot] = attacker
+		_claim_held[slot] = float(_claim_held[slot]) + delta
+		if _claim_hold <= 0.0 or float(_claim_held[slot]) >= _claim_hold or is_equal_approx(float(_claim_held[slot]), _claim_hold):
+			_eliminator_team[slot] = attacker
+			_claim_held.erase(slot)
+			_claim_team.erase(slot)
+			done.append(slot)
+	return done
+
+
+## The team that knocked `slot` out, or NO_TEAM when unknown.
+func eliminator_team(slot: int) -> int:
+	return int(_eliminator_team.get(slot, NO_TEAM))
+
+
+## The slot whose claim is furthest along (-1 when none).
+func leading_claim_slot() -> int:
+	var best: int = -1
+	var best_held: float = 0.0
+	for slot_key: Variant in _claim_held:
+		var held: float = float(_claim_held[slot_key])
+		if held > best_held or (held == best_held and best >= 0 and int(slot_key) < best):
+			best = int(slot_key)
+			best_held = held
+	return best
+
+
+## HUD ring feed: the attacking team and progress of the furthest claim.
+## DECISION (Bontago-1pi.185): a pressure with no owning team (a hole under the
+## flag in the overlap modes) has no attacker colour, so the ring is drawn in the
+## victim's team colour; the knockout is then attributed to nobody ("Eliminated").
+func capturing_team() -> int:
+	var slot: int = leading_claim_slot()
+	if slot < 0:
+		return NO_TEAM
+	var attacker: int = int(_claim_team.get(slot, NO_TEAM))
+	if attacker == NO_TEAM and slot < _slot_teams.size():
+		return _slot_teams[slot]
+	return attacker
+
+
+func capture_progress() -> float:
+	var slot: int = leading_claim_slot()
+	if slot < 0 or _claim_hold <= 0.0:
+		return 0.0
+	return clampf(float(_claim_held[slot]) / _claim_hold, 0.0, 1.0)
+
+
+## Seconds `slot`'s home flag has been held by its attacker (0 = none).
+func claim_held(slot: int) -> float:
+	return float(_claim_held.get(slot, 0.0))
 
 
 ## Host: `slot`'s home flag was lost. Idempotent. The match outcome is only

@@ -57,6 +57,14 @@ var preview_placement_calls: Array[Dictionary] = []
 var request_throw_calls: Array[Dictionary] = []
 
 
+## Bontago-1pi.186: the eliminator every slot reports (-1 = unknown).
+var eliminated_by_slot: int = -1
+
+
+func eliminated_by(_slot_id: int) -> int:
+	return eliminated_by_slot
+
+
 func slot(slot_id: int) -> PlayerSlot:
 	return slots_by_id.get(slot_id) as PlayerSlot
 

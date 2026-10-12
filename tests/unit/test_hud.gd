@@ -50,6 +50,24 @@ func test_set_active_slot_shows_eliminated_slots(
 	assert_true(hud._turn_label.text.findn("eliminated") >= 0)
 
 
+## Bontago-1pi.186: the eliminated local player gets the big red banner, naming
+## the eliminator, or plain "Eliminated" when none is known.
+func test_eliminated_banner_names_the_eliminator_or_falls_back() -> void:
+	var hud: HUD = _make_hud()
+	var fake_match: FakeMatch = FakeMatch.new()
+	fake_match.slots_by_id[0] = PlayerSlot.new(0, 0, "P1", Color.RED)
+	fake_match.slots_by_id[1] = PlayerSlot.new(1, 1, "Rival", Color.BLUE)
+	hud.match_provider = fake_match
+	hud.set_local_slot(0)
+	assert_eq(hud.eliminated_banner_text(), "")
+	hud.show_eliminated_banner(0)
+	assert_eq(hud.eliminated_banner_text(), "Eliminated")
+	fake_match.eliminated_by_slot = 1
+	hud.show_eliminated_banner(0)
+	assert_true(hud.eliminated_banner_text().begins_with("Eliminated by "))
+	assert_true(hud._eliminated_label.get_theme_font_size("font_size") > 0)
+
+
 func test_set_next_shape_stores_the_shape_for_the_preview() -> void:
 	var hud: HUD = _make_hud()
 	var bar4: BlockShape = load("res://config/blocks/bar4.tres")
