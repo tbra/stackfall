@@ -2,7 +2,7 @@
  "autoload/Net.gd": 4,
  "autoload/Rumble.gd": 1,
  "autoload/Settings.gd": 8,
- "autoload/Sfx.gd": 3,
+ "autoload/Sfx.gd": 2,
  "autoload/match/BreezeEffect.gd": 1,
  "autoload/match/MatchFeed.gd": 1,
  "autoload/match/MatchGifts.gd": 11,

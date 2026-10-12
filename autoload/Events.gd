@@ -244,6 +244,11 @@ signal special_triggered(net_id: int, def_id: StringName, position: Vector3, cha
 ## gift_claimed's own grow-side replication.
 signal special_consumed(slot_id: int, special_id: StringName)
 
+## Bontago-eq0: a Jumping Bean carrier just hopped off the ground at `position`.
+## Client-derived on every peer (game/specials/fx/BeanHopFx.gd watches the carrier's
+## own motion), visual/audio only; autoload/Sfx.gd plays the hop sound.
+signal bean_hopped(position: Vector3)
+
 ## Absolute host-owned Glue charge state. revision increases per slot within
 ## one match; client mirrors re-emit only when accepting a newer update.
 signal glue_charges_changed(slot_id: int, charges: int, revision: int)
