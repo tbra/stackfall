@@ -248,6 +248,11 @@ const TILT_CYCLE_S: float = 10.0
 const TILT_FLIP_S: float = 2.0
 const TILT_KICK: float = 0.35
 const DROP_AT_S: float = 4.0
+## Drop height above the pair. The glue shock threshold (4 m/s per tick) is tuned to an L4 landing
+## speed sqrt(2 * g * h); the base gravity went 1.4 -> 1.75 (x1.25, 2026-10-12), so the former 3.0 m
+## becomes 3.0 * 1.4 / 1.75 = 2.4 m to keep the same impact speed. Real placements release from
+## hover height (0.3 m), far gentler than this stress case.
+const DROP_HEIGHT_M: float = 2.4
 const MAX_DRIFT_M: float = 0.5
 const BLAST_ZONE_Z: float = 2.0
 
@@ -295,7 +300,7 @@ func test_glued_pair_survives_tilt_cycle_and_a_drop_onto_it() -> void:
 		if not dropped and t >= DROP_AT_S:
 			dropped = true
 			var mid: Vector3 = (a.global_position + b.global_position) * 0.5
-			_real_block("L4", 1, mid + Vector3(0.0, 3.0, 0.0))
+			_real_block("L4", 1, mid + Vector3(0.0, DROP_HEIGHT_M, 0.0))
 		await get_tree().physics_frame
 	assert_true(is_instance_valid(bond), "bond must survive a 10 s tilt cycle and a placement drop")
 	assert_lt(absf(_pair_gap(a, b) - rest_gap), MAX_DRIFT_M, "pair must not drift apart")

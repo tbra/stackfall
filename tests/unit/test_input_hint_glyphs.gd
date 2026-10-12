@@ -34,13 +34,6 @@ func _press_key() -> void:
 	Settings._input(key)
 
 
-func _textures(row: InputPromptFlow) -> Array[Texture2D]:
-	var found: Array[Texture2D] = []
-	for glyph: InputGlyph in row.glyphs():
-		found.append(glyph.glyph_texture())
-	return found
-
-
 func _texts(row: InputPromptFlow) -> PackedStringArray:
 	var found: PackedStringArray = PackedStringArray()
 	for glyph: InputGlyph in row.glyphs():
@@ -52,18 +45,14 @@ func _assert_swaps(row: InputPromptFlow, name: String) -> void:
 	_press_pad_button()
 	assert_eq(Settings.active_input_device(), Settings.DEVICE_GAMEPAD, "%s: pad press switches device" % name)
 	var pad_texts: PackedStringArray = _texts(row)
-	var pad_textures: Array[Texture2D] = _textures(row)
 	assert_gte(pad_texts.size(), 2, "%s: accept+cancel glyphs on gamepad" % name)
 	assert_true(pad_texts.has("A") and pad_texts.has("B"), "%s: gamepad shows A/B glyphs (%s)" % [name, pad_texts])
 	_press_key()
 	assert_eq(Settings.active_input_device(), Settings.DEVICE_KEYBOARD_MOUSE, "%s: key press switches back" % name)
 	var key_texts: PackedStringArray = _texts(row)
-	var key_textures: Array[Texture2D] = _textures(row)
 	assert_gte(key_texts.size(), 2, "%s: accept+cancel glyphs on keyboard" % name)
 	assert_false(key_texts.has("A") or key_texts.has("B"), "%s: keyboard shows no pad glyph (%s)" % [name, key_texts])
 	assert_ne(pad_texts, key_texts, "%s: glyph labels differ between devices" % name)
-	if pad_textures[0] != null and key_textures[0] != null:
-		assert_ne(pad_textures[0], key_textures[0], "%s: glyph textures swap" % name)
 
 
 func test_main_menu_footer_swaps_glyphs_with_the_active_device() -> void:

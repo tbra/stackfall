@@ -134,6 +134,23 @@ func test_frame_cap_fixed_and_uncapped_modes() -> void:
 	assert_eq(FrameCapRule.resolve(GraphicsPreset.FrameCap.DISPLAY_REFRESH, 90, -1.0, 75), 75)
 
 
+## Bontago-mp0.154
+func test_vsync_override_calls_window_set_vsync_mode_and_keeps_the_cap() -> void:
+	var before_fps: int = Engine.max_fps
+	_leave_menu()
+	_stub_refresh(144.0)
+	var modes: Array[int] = []
+	_main.vsync_applier = func(mode: int) -> void: modes.append(mode)
+	Settings.set_graphics_preset(&"medium")
+	assert_eq(modes.back(), DisplayServer.VSYNC_ENABLED, "default on")
+	assert_eq(Engine.max_fps, 144)
+	Settings.set_graphics_override(&"vsync_enabled", false)
+	assert_eq(modes.back(), DisplayServer.VSYNC_DISABLED)
+	assert_eq(Engine.max_fps, 144, "cap unchanged by vsync")
+	MenuBackdrop.clear_match_cap()
+	Engine.max_fps = before_fps
+
+
 func test_menu_match_preset_change_menu_sequence_ends_with_right_caps() -> void:
 	var before_fps: int = Engine.max_fps
 	var menu_cap: int = load("res://config/menu_visual_tuning.tres").menu_max_fps

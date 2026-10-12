@@ -8,12 +8,12 @@ extends Label
 ## the ink that reads on a bright face instead. Sizes: ArcadeVisualTuning font_size_* and
 ## ComponentMetrics.text_*; colours: ArcadeVisualTuning; fonts: the shared Theme's variations.
 
-enum Role { TITLE, HEADING, BODY, CAPTION, VALUE }
+enum Role { TITLE, HEADING, BODY, CAPTION, VALUE, LABEL }
 
 ## Theme type variation (the font) per role; BODY uses the plain Label font.
 const FONT_VARIATIONS: Dictionary = {
 	Role.TITLE: &"DisplayLabel", Role.HEADING: &"TitleLabel", Role.BODY: &"",
-	Role.CAPTION: &"CaptionLabel", Role.VALUE: &"DisplayLabel",
+	Role.CAPTION: &"CaptionLabel", Role.VALUE: &"DisplayLabel", Role.LABEL: &"FieldLabel",
 }
 
 @export var role: Role = Role.BODY:
@@ -36,7 +36,7 @@ func _init() -> void:
 static func make(text_role: Role, content: String = "", ink: Color = Color.TRANSPARENT) -> UiText:
 	var label: UiText = UiText.new()
 	label.role = text_role
-	label.text = content
+	label.text = content.to_upper() if text_role == Role.LABEL else content
 	label.tint = ink
 	return label
 
@@ -54,7 +54,7 @@ static func size_for(text_role: Role) -> int:
 			return arcade.font_size_score_px
 		Role.HEADING:
 			return arcade.font_size_heading_px
-		Role.CAPTION:
+		Role.CAPTION, Role.LABEL:
 			return arcade.font_size_caption_px
 		Role.VALUE:
 			return UiRowItem.metrics().text_value_font_px
@@ -65,7 +65,7 @@ static func size_for(text_role: Role) -> int:
 static func color_for(text_role: Role) -> Color:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	match text_role:
-		Role.BODY:
+		Role.BODY, Role.LABEL:
 			return arcade.sand_color
 		Role.CAPTION:
 			return arcade.dust_color

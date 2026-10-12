@@ -37,9 +37,9 @@ func test_two_home_flags_sit_opposite_each_other() -> void:
 	var field: Field = _make_field()
 	var first: Vector2 = field.home_flag_position(0, 2)
 	var second: Vector2 = field.home_flag_position(1, 2)
-	var ring: float = FIELD_RADIUS * field.map_def.home_flag_radius_fraction
+	var ring: float = field.map_def.home_flag_ring_radius()
 
-	assert_almost_eq(first.length(), ring, 0.0001, "Home flags sit at 0.85 * field_radius.")
+	assert_almost_eq(first.length(), ring, 0.0001, "Home flags sit at field_radius - home_flag_edge_inset.")
 	assert_almost_eq(second.length(), ring, 0.0001)
 	assert_almost_eq(
 		absf(first.angle_to(second)), PI, 0.0001, "Two players sit pi apart."
@@ -48,7 +48,7 @@ func test_two_home_flags_sit_opposite_each_other() -> void:
 
 func test_eight_home_flags_are_spaced_evenly() -> void:
 	var field: Field = _make_field()
-	var ring: float = FIELD_RADIUS * field.map_def.home_flag_radius_fraction
+	var ring: float = field.map_def.home_flag_ring_radius()
 	for slot_id: int in range(8):
 		var here: Vector2 = field.home_flag_position(slot_id, 8)
 		var next: Vector2 = field.home_flag_position(slot_id + 1, 8)
@@ -287,3 +287,13 @@ func test_goal_beacon_uses_the_neutral_color_not_a_slot_color() -> void:
 		"The goal beacon's ring/crystal use BeaconVisualTuning's neutral color, "
 		+ "never a player's slot color (place_flags() never calls set_slot() on it)."
 	)
+
+
+func test_goal_neutral_color_is_bright_white_and_distinct_from_every_player_color() -> void:
+	var neutral: Color = load("res://config/beacon_visual_tuning.tres").neutral_color as Color
+	assert_eq(neutral, Color(1, 1, 1, 1), "Neutral goal beacons are bright white (Bontago-1pi.177).")
+	for player_color: Color in MatchConfig.default_player_colors():
+		var distance: float = Vector3(
+			neutral.r - player_color.r, neutral.g - player_color.g, neutral.b - player_color.b
+		).length()
+		assert_gt(distance, 0.4, "player colour %s stays distinguishable from goal white" % player_color)

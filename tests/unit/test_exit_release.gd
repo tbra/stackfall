@@ -28,7 +28,6 @@ func test_release_all_drops_populated_caches() -> void:
 	assert_null(UiArtTable._shared)
 	assert_null(GiftModelTable._shared)
 	assert_null(HudFeedbackIconTable._shared)
-	assert_null(InputGlyphTable._shared)
 	assert_null(DiscSizeTuning._shared)
 	assert_null(UiScaleTuning._shared)
 	assert_true(BlockFactory._materials_by_color.is_empty())

@@ -131,7 +131,7 @@ extends Resource
 ## set_slot_colors()), kept in sync for visual coherence even though the two
 ## exports are intentionally independent (this package doesn't own
 ## TerritoryVisuals.gd).
-@export var neutral_color: Color = Color(0.95, 0.93, 0.85)
+@export var neutral_color: Color = Color(1.0, 1.0, 1.0)
 
 ## Bontago-adt.2: Global multiplier on the beacon ring and crystal emission (raise/lower for night themes). Peaks stay near the 1.3 glow threshold at 1.0.
 @export var emission_scale: float = 1.0
@@ -225,6 +225,29 @@ extends Resource
 @export var claim_zone_capture_boost: float = 1.5
 ## How much lighter the rim is than the fill colour (0..1).
 @export var claim_zone_rim_lighten: float = 0.45
+
+
+## -- Timer labels (Bontago-1pi.188 / 1pi.189) ---------------------------------
+## A camera-facing Label3D above each goal beacon: Classic counts down to the
+## capture, CTF counts up the hold (with an "xN" chip when the holder controls
+## several beacons). Colours are the Stackfall Arcade tokens (cream text, disc-950
+## outline, rim gold for the multiplier); the font is Bungee like the HUD numerals.
+@export var timer_enabled: bool = true
+## Metres between the crystal tip and the bottom of the timer text.
+@export var timer_height: float = 0.7
+## Label3D.pixel_size: metres per font pixel (world size, so it shrinks with distance like the beacon).
+@export var timer_pixel_size: float = 0.012
+@export var timer_font_size: int = 72
+@export var timer_outline_size: int = 28
+## The multiplier chip's size relative to the timer text.
+@export var timer_multiplier_scale: float = 1.2
+## Metres between the timer text centre and the multiplier chip centre above it.
+@export var timer_multiplier_gap: float = 0.95
+@export var timer_text_color: Color = Color("#fff6ea")
+@export var timer_outline_color: Color = Color("#0e0b12")
+@export var timer_multiplier_color: Color = Color("#ffc65a")
+## Draw over blocks and terrain (true keeps it readable behind a tower).
+@export var timer_no_depth_test: bool = true
 
 
 ## Bontago-1pi.33: height of a beacon's highest point (the crystal tip) above

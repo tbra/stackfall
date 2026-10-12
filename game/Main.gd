@@ -497,6 +497,8 @@ func _physics_process(delta: float) -> void:
 ## Tests set frame_cap_in_headless and refresh_rate_provider.
 var frame_cap_in_headless: bool = false
 var refresh_rate_provider: Callable = Callable()
+## Test seam for DisplayServer.window_set_vsync_mode (receives the mode int).
+var vsync_applier: Callable = Callable()
 
 
 ## Bontago-1pi.11.51: the cap also follows the window: re-applied after a window-mode
@@ -526,6 +528,13 @@ func _current_refresh_hz() -> float:
 func _apply_frame_cap(preset: GraphicsPreset) -> void:
 	if _frame_cap_skipped():
 		return
+	# DECISION (Bontago-mp0.154): vsync is set explicitly either way; Engine.max_fps still applies
+	# alongside it, so the frame cap is resolved as before.
+	var vsync_mode: int = DisplayServer.VSYNC_ENABLED if preset.vsync_enabled else DisplayServer.VSYNC_DISABLED
+	if vsync_applier.is_valid():
+		vsync_applier.call(vsync_mode)
+	else:
+		DisplayServer.window_set_vsync_mode(vsync_mode as DisplayServer.VSyncMode)
 	var refresh_hz: float = _current_refresh_hz()
 	_cap_display_key = Vector2(float(_current_screen()), refresh_hz)
 	MenuBackdrop.set_match_cap(FrameCapRule.resolve_for_preset(preset, refresh_hz))

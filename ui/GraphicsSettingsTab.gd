@@ -23,6 +23,7 @@ const PRESET_LABELS: Array[String] = ["Low", "Medium", "High"]
 const CUSTOM_LABEL: String = "Custom"
 const PERCENT_SCALE: float = 100.0
 const NODE_PRESET_OPTION: String = "PresetOption"
+const VSYNC_FIELD: StringName = &"vsync_enabled"
 const FIXED_FPS_FIELD: StringName = &"fixed_fps"
 const FRAME_CAP_FIELD: StringName = &"frame_cap_mode"
 const TIER_LABELS: Array[String] = ["Low", "Medium", "High"]
@@ -49,13 +50,14 @@ const ROW_GLOW_ENABLED: Dictionary = {"field": &"glow_enabled", "label": "Bloom"
 const ROW_VOLUMETRIC_FOG_ENABLED: Dictionary = {"field": &"volumetric_fog_enabled", "label": "Volumetric fog", "kind": Kind.TOGGLE}
 const ROW_ENVIRONMENT: Dictionary = {"field": COMBO_ENVIRONMENT, "label": "Environment detail", "kind": Kind.COMBO, "labels": TIER_LABELS}
 const ROW_BLOCK_OUTLINE_ENABLED: Dictionary = {"field": &"block_outline_enabled", "label": "Block outlines", "kind": Kind.TOGGLE}
+const ROW_VSYNC_ENABLED: Dictionary = {"field": &"vsync_enabled", "label": "VSync", "kind": Kind.TOGGLE}
 const ROW_FRAME_CAP_MODE: Dictionary = {"field": &"frame_cap_mode", "label": "Frame cap", "kind": Kind.DROPDOWN, "labels": ["Display refresh", "Fixed", "Uncapped"]}
 const ROW_FIXED_FPS: Dictionary = {"field": &"fixed_fps", "label": "Fixed fps", "kind": Kind.METER, "fmt": "fps"}
 
 const SECTIONS: Array[Dictionary] = [
 	{"title": SECTION_QUALITY, "items": [ROW_MSAA_3D, ROW_RENDER_SCALE_3D, ROW_RENDER_SCALE_3D_MODE, ROW_SHADOWS, ROW_REFLECTIONS]},
 	{"title": SECTION_EFFECTS, "items": [ROW_GLOW_ENABLED, ROW_VOLUMETRIC_FOG_ENABLED, ROW_ENVIRONMENT, ROW_BLOCK_OUTLINE_ENABLED]},
-	{"title": SECTION_FRAME_RATE, "items": [ROW_FRAME_CAP_MODE, ROW_FIXED_FPS]},
+	{"title": SECTION_FRAME_RATE, "items": [ROW_VSYNC_ENABLED, ROW_FRAME_CAP_MODE, ROW_FIXED_FPS]},
 ]
 
 ## Returns the Settings provider (the real autoload, or a test's own Settings.new() assigned to

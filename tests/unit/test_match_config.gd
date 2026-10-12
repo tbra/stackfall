@@ -537,13 +537,13 @@ func test_match_start_resolves_a_fresh_sky_variation_seed_per_match_on_the_host(
 	Match.set_process(true)
 
 
-func test_default_lobby_gravity_reads_one_and_effective_gravity_is_unchanged() -> void:
+func test_default_lobby_gravity_reads_one_and_effective_gravity_is_the_raised_base() -> void:
 	var config: MatchConfig = MatchConfig.new()
 	var tuning: PhysicsTuning = load("res://config/physics_tuning.tres") as PhysicsTuning
 	assert_eq(config.gravity_multiplier, 1.0)
 	assert_eq((load("res://config/match_defaults.tres") as MatchConfig).gravity_multiplier, 1.0)
-	# Old effective default was the lobby's 1.4 written over the tuning.
-	assert_eq(tuning.lobby_gravity_baseline * config.gravity_multiplier, 1.4)
+	# Base gravity raised 1.25x (owner 2026-10-12, Bontago-1pi.179): 1.4 * 1.25.
+	assert_eq(tuning.lobby_gravity_baseline * config.gravity_multiplier, 1.75)
 	assert_eq(config.block_timer, 5.0)
 	assert_eq(config.special_frequency, 30)
 

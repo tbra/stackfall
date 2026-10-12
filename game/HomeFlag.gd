@@ -1,7 +1,7 @@
 class_name HomeFlag
 extends Node3D
 ## A player's home flag (spec 2.2): "Each player's home flag sits at
-## 0.85 * field_radius, spaced evenly around the edge."
+## field_radius minus a fixed inset, spaced evenly around the edge."
 ##
 ## Visual only. The home *circle* the flag anchors is an InfluenceCircle built
 ## by the match from the same MapDef.home_flag_position(), and whether the

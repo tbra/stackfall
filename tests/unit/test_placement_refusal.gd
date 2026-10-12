@@ -361,6 +361,31 @@ func test_held_gift_drops_outside_own_territory_but_plain_block_does_not() -> vo
 	assert_eq(Match.request_place(0, foreign, 0, Quaternion.IDENTITY, false), PlacementRules.REASON_OK)
 
 
+## [OWNER decision 2026-10-12, Bontago-1pi.85.73]: a held gift may be used above a goal zone
+## (and a hole); a plain block still may not.
+func test_held_gift_is_usable_above_a_goal_zone_but_a_plain_block_is_not() -> void:
+	Match.start_match(_config())
+	_run_countdown()
+	Match._feed.set_feed_timer_enabled(true)
+	var center_world: Vector3 = _field.to_global(Vector3(0.0, 5.0, 0.0))
+	assert_eq(Match.request_place(0, center_world, 0, Quaternion.IDENTITY, false), PlacementRules.REASON_GOAL_ZONE, "control")
+	_hold_gift(0)
+	assert_eq(Match.preview_placement(0, center_world, 0, Quaternion.IDENTITY), PlacementRules.Result.VALID)
+	assert_eq(Match.request_place(0, center_world, 0, Quaternion.IDENTITY, false), PlacementRules.REASON_OK)
+
+
+func test_territory_waiver_lifts_hole_and_goal_zone_only_for_a_held_gift() -> void:
+	Match.start_match(_config())
+	_run_countdown()
+	Match._feed.set_feed_timer_enabled(true)
+	var placement: Object = Match._placement
+	assert_eq(placement._apply_territory_waiver(0, PlacementRules.Result.HOLE), PlacementRules.Result.HOLE, "plain: refused")
+	_hold_gift(0)
+	assert_eq(placement._apply_territory_waiver(0, PlacementRules.Result.HOLE), PlacementRules.Result.VALID)
+	assert_eq(placement._apply_territory_waiver(0, PlacementRules.Result.GOAL_ZONE), PlacementRules.Result.VALID)
+	assert_eq(placement._apply_territory_waiver(0, PlacementRules.Result.OFF_DISK), PlacementRules.Result.OFF_DISK)
+
+
 func test_held_gift_throw_outside_own_territory_is_accepted_plain_throw_refused() -> void:
 	Match.start_match(_config())
 	_run_countdown()

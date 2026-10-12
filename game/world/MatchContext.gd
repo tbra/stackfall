@@ -120,6 +120,11 @@ func goal_zone_visual_radius() -> float:
 	return 0.0
 
 
+## Bontago-1pi.188: seconds a Classic capture must be held (the beacon countdown's start).
+func capture_hold_seconds() -> float:
+	return 0.0
+
+
 func glue_drops_left(_slot_id: int) -> int:
 	return 0
 
