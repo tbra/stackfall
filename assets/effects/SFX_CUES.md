@@ -13,3 +13,15 @@ Render with `python tools/generate_sfx_cues.py`. Outputs are deterministic 44.1 
 Every cue gets a 1 ms fade-in and 8 ms fade-out so no file starts or stops on a non-zero sample.
 
 Review (Claude, 2026-10-02, Bontago-mp0.39): judged from waveform/spectrogram renders against the optional originals, not by ear. `creak` was re-synthesized as discrete stick-slip slips (the first version was a wobbling tone under noise). Only `boing.wav` is wired live (gift claim); owner should listen to it in a match.
+
+# Menu and drop cue replacements (Bontago-eq0, 2026-10-12)
+
+`python tools/generate_core_cues.py` renders three original replacements, wired through `AudioConfig.click_file`, `hover_file` and `drop_file`. The old files remain in the folder for comparison.
+
+| File | Replaces | Duration | Character |
+| --- | --- | ---: | --- |
+| `ui_hover.wav` | `button_hover_pcm.wav` | 0.04 s | Quiet D6 tick; the old file started on a non-zero sample (click) |
+| `ui_select.wav` | `select.wav` | 0.16 s | Soft rising D5 -> A5 pluck, same family as the lobby cues |
+| `block_release.wav` | `block_placed.wav` | 0.16 s | Woody tock from quickly damped body modes; the old cue's sustained ~1 kHz -> 516 Hz tone read as a sharp, off-key note over the music |
+
+Not judged by ear; the owner should listen in the menu and in a match.

@@ -242,6 +242,70 @@ func test_gift_spawn_jingle_is_rate_limited() -> void:
 	assert_true(_any_player_playing(), "After the interval the jingle plays again")
 
 
+# --- Events.special_triggered (Bontago-eq0) -----------------------------------
+
+const SPECIALS_DIR: String = "res://config/specials"
+
+
+func test_every_shipped_special_has_a_cue_that_loads() -> void:
+	_sfx.set_root_dir_for_test(ProjectSettings.globalize_path("res://assets/effects"))
+	var checked: int = 0
+	for file: String in DirAccess.get_files_at(SPECIALS_DIR):
+		if not file.ends_with(".tres"):
+			continue
+		var def: SpecialDef = load(SPECIALS_DIR.path_join(file)) as SpecialDef
+		if def == null:
+			continue
+		var filename: String = _config.special_cue_files.get(def.id, "")
+		assert_false(filename.is_empty(), "special %s needs an activation cue" % def.id)
+		var stream: AudioStream = _sfx._load_stream(filename)
+		assert_not_null(stream, "special %s cue %s should load from assets/effects" % [def.id, filename])
+		checked += 1
+	assert_gt(checked, 0, "fixture: at least one SpecialDef found")
+
+
+func test_special_triggered_plays_its_cue() -> void:
+	_write_tiny_wav(_tmp_dir.path_join(_config.special_cue_files[&"bomb"]))
+	_sfx.set_root_dir_for_test(_tmp_dir)
+	_sfx._on_special_triggered(5, &"bomb", Vector3.ZERO, 0)
+	assert_true(_any_player_playing(), "a triggered special must sound")
+
+
+func test_special_triggered_with_an_unknown_id_is_silent() -> void:
+	_sfx.set_root_dir_for_test(_tmp_dir)
+	_sfx._on_special_triggered(5, &"not_a_special", Vector3.ZERO, 0)
+	assert_false(_any_player_playing())
+
+
+func test_special_triggered_is_silent_during_a_world_replay() -> void:
+	_write_tiny_wav(_tmp_dir.path_join(_config.special_cue_files[&"bomb"]))
+	_sfx.set_root_dir_for_test(_tmp_dir)
+	_sfx._on_world_replay_changed(true)
+	_sfx._on_special_triggered(5, &"bomb", Vector3.ZERO, 0)
+	assert_false(_any_player_playing(), "a late joiner's replay is state, not news")
+
+
+func test_same_special_is_rate_limited_but_others_are_not() -> void:
+	_write_tiny_wav(_tmp_dir.path_join(_config.special_cue_files[&"bomb"]))
+	_write_tiny_wav(_tmp_dir.path_join(_config.special_cue_files[&"freeze"]))
+	_sfx.set_root_dir_for_test(_tmp_dir)
+	_sfx._on_special_triggered(5, &"bomb", Vector3.ZERO, 0)
+	_stop_sfx_players()
+	_sfx._on_special_triggered(6, &"bomb", Vector3.ZERO, 1)
+	assert_false(_any_player_playing(), "a chained bomb inside the interval stays silent")
+	_sfx._on_special_triggered(7, &"freeze", Vector3.ZERO, 0)
+	assert_true(_any_player_playing(), "a different special is not held back")
+	_stop_sfx_players()
+	_sfx._last_special_cue_msec[&"bomb"] -= int(_config.special_cue_min_interval_s * 1000.0) + 1
+	_sfx._on_special_triggered(8, &"bomb", Vector3.ZERO, 0)
+	assert_true(_any_player_playing(), "after the interval the bomb sounds again")
+
+
+func _stop_sfx_players() -> void:
+	for player: AudioStreamPlayer in _sfx._sfx_players:
+		player.stop()
+
+
 # --- Events.gift_claimed (Bontago-6y2) ----------------------------------------
 
 func test_gift_claimed_for_the_local_slot_plays_the_claim_sound() -> void:

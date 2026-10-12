@@ -15,10 +15,13 @@ extends Resource
 	"thud1.wav", "thud2.wav", "thud3.wav", "thud4.wav",
 ]
 @export var rejected_file: String = "placement_rejected_pcm.wav"
-@export var click_file: String = "select.wav"
+## Menu select/hover and the local drop cue (Bontago-eq0, tools/generate_core_cues.py)
+## replace select.wav, button_hover_pcm.wav and block_placed.wav (a sustained
+## tone that read as a sharp note over the music); the old files stay for A/B.
+@export var click_file: String = "ui_select.wav"
 @export var start_game_file: String = "start_game.mp3"
-@export var hover_file: String = "button_hover_pcm.wav"
-@export var drop_file: String = "block_placed.wav"
+@export var hover_file: String = "ui_hover.wav"
+@export var drop_file: String = "block_release.wav"
 @export var bounce_file: String = "boing.wav"
 @export var music_file: String = "music_calm.mp3"
 
@@ -170,6 +173,35 @@ func playlist_track_count(context: StringName) -> int:
 @export var propeller_file: String = "propeller.wav"
 @export var breakage_file: String = "eliminated.wav"
 @export var creak_file: String = "creak.wav"
+
+## Special activation cues (spec 2.10 "Specials have distinct warning sounds",
+## Bontago-eq0): SpecialDef.id -> filename in assets/effects, played on
+## Events.special_triggered on the host and on every client. An id with no
+## entry, or a missing file, is silent. Rendered by tools/generate_special_sfx.py.
+## DECISION (Bontago-eq0): special_triggered fires on the Rocket's detonation,
+## not its launch, so the Rocket gets the blast cue; rocket.wav (a launch
+## whistle) stays registered under EVENT_ROCKET with no caller.
+@export var special_cue_files: Dictionary[StringName, String] = {
+	&"anvil": "anvil.wav",
+	&"black_hole": "black_hole.wav",
+	&"bomb": "bomb.wav",
+	&"cat": "cat.wav",
+	&"earthquake": "quake2.wav",
+	&"freeze": "freeze.wav",
+	&"glue": "glue.wav",
+	&"jumping_bean": "jumping_bean.wav",
+	&"magnet": "magnet.wav",
+	&"paintball": "paintball.wav",
+	&"propeller": "propeller.wav",
+	&"rocket": "rocket_blast.wav",
+	&"stackfall": "stackfall.wav",
+	&"volcano": "volcano.wav",
+}
+## Minimum seconds between two cues of the same special, so a chain of bombs
+## or a burst of triggers sounds once instead of stacking.
+@export var special_cue_min_interval_s: float = 0.3
+## Extra gain (dB) on top of sfx_volume_db for special cues.
+@export var special_cue_volume_db: float = 0.0
 
 ## Below this impact speed (m/s), a block landing makes no sound at all.
 @export var impact_speed_min: float = 1.0

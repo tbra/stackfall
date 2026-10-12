@@ -98,6 +98,8 @@ var _next_track_context: StringName = &""
 var _next_track_index: int = -1
 var _music_requested: Dictionary = {}
 var _last_gift_spawn_msec: int = -1
+## Bontago-eq0: last special cue time per SpecialDef id (special_cue_min_interval_s).
+var _last_special_cue_msec: Dictionary[StringName, int] = {}
 ## Bontago-1pi.56: true while a late joiner's world replay is being applied
 ## (Events.world_replay_changed). The replay re-emits block_placed per body, the
 ## elimination of every dead slot and every falling crate's flight so the world
@@ -162,6 +164,7 @@ func _ready() -> void:
 	Events.player_eliminated.connect(_on_player_eliminated)
 	Events.gift_flight_spawned.connect(_on_gift_flight_spawned)
 	Events.gift_claimed.connect(_on_gift_claimed)
+	Events.special_triggered.connect(_on_special_triggered)
 	Events.world_replay_changed.connect(_on_world_replay_changed)
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
 	Events.goal_capture_progress.connect(_on_claim_progress)
@@ -1027,6 +1030,30 @@ func _on_gift_flight_spawned(_gift_id: int, _origin: Vector3, _landing: Vector3)
 		return
 	if play(AudioConfig.EVENT_GIFT_SPAWNED):
 		_last_gift_spawn_msec = now_msec
+
+
+## Bontago-eq0 (spec 2.10 "Specials have distinct warning sounds"): a special
+## going off is a world event like an impact, so every instance hears every
+## special -- the host on its own trigger, a client on the replicated one.
+## Chained triggers of the same special inside special_cue_min_interval_s sound once.
+func _on_special_triggered(_net_id: int, def_id: StringName, _position: Vector3, _chain_depth: int) -> void:
+	if _world_replay_silent or not _available:
+		return
+	var filename: String = config.special_cue_files.get(def_id, "")
+	if filename.is_empty():
+		return
+	var now_msec: int = Time.get_ticks_msec()
+	var last_msec: int = _last_special_cue_msec.get(def_id, -1)
+	if last_msec >= 0 and float(now_msec - last_msec) < config.special_cue_min_interval_s * 1000.0:
+		return
+	var stream: AudioStream = _load_stream(filename)
+	if stream == null:
+		return
+	_last_special_cue_msec[def_id] = now_msec
+	var player: AudioStreamPlayer = _next_sfx_player()
+	player.stream = stream
+	player.volume_db = config.sfx_volume_db + config.special_cue_volume_db + Settings.master_volume_db() + Settings.sfx_volume_db()
+	player.play()
 
 
 ## DECISION (autoload/Sfx.gd, Bontago-6y2): unlike the world hooks above (a
