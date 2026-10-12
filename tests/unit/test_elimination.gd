@@ -227,11 +227,24 @@ func _home_cell(slot: int) -> int:
 	return Match.cell_grid().cell_index(coords.x, coords.y)
 
 
+## Bontago-1pi.185: in Elimination a home is knocked out only after the claim
+## time, so this opens the holes and lets the whole claim time pass in one step.
 func _lose_homes(slots: Array[int]) -> void:
 	var opened: PackedInt32Array = PackedInt32Array()
 	for slot: int in slots:
 		opened.append(_home_cell(slot))
+	if Match._territory._objective is EliminationObjective:
+		_open_holes(slots)
+		Match._territory._tick_home_claims(Match._territory_tuning.capture_hold)
+		return
 	Match._check_home_flags(opened)
+
+
+func _open_holes(slots: Array[int], permanent: bool = true) -> void:
+	var grid: CellGrid = Match.cell_grid()
+	for slot: int in slots:
+		var coords: Vector2i = grid.world_to_cell(Match.slot(slot).home_position)
+		Match._territory._raster.force_hole_cell(coords.x, coords.y, 1.0, permanent)
 
 
 func test_ffa_match_runs_on_until_one_player_is_left() -> void:
@@ -394,3 +407,78 @@ func test_bot_mode_goal_in_classic_is_neutral() -> void:
 	_start(2, MatchConfig.TeamMode.OFF, MatchConfig.GameMode.CLASSIC)
 	var goal: BotModeGoal = Match.bot_mode_goal(0)
 	assert_true(goal == null or goal.is_neutral())
+
+
+# --- Claim time (Bontago-1pi.185) --------------------------------------------------------
+
+func test_claim_progress_resets_on_loss_and_completes_at_claim_time() -> void:
+	var objective: EliminationObjective = EliminationObjective.new(PackedInt32Array([0, 1]), 10.0)
+	objective.reset(2)
+	var pressure: Dictionary = {1: 0}
+	assert_eq(objective.step_claims(pressure, 4.0).size(), 0)
+	assert_almost_eq(objective.capture_progress(), 0.4, 0.001)
+	assert_eq(objective.capturing_team(), 0)
+	assert_eq(objective.step_claims({}, 1.0).size(), 0, "control lost")
+	assert_eq(objective.capture_progress(), 0.0, "progress resets like a goal claim")
+	assert_eq(objective.capturing_team(), ModeObjective.NO_TEAM)
+	objective.step_claims(pressure, 6.0)
+	assert_eq(objective.step_claims({1: 1}, 5.0).size(), 0, "a different attacker restarts the claim")
+	assert_almost_eq(objective.capture_progress(), 0.5, 0.001)
+	var done: PackedInt32Array = objective.step_claims({1: 1}, 5.0)
+	assert_eq(done, PackedInt32Array([1]), "knocked out exactly at the claim time")
+	assert_eq(objective.eliminator_team(1), 1)
+	assert_eq(objective.capture_progress(), 0.0)
+
+
+func test_zero_claim_time_is_an_instant_knockout() -> void:
+	var objective: EliminationObjective = EliminationObjective.new(PackedInt32Array([0, 1]), 0.0)
+	objective.reset(2)
+	assert_eq(objective.step_claims({0: 1}, 0.0), PackedInt32Array([0]))
+
+
+func test_home_is_not_knocked_out_before_the_claim_time_and_resets_when_control_is_lost() -> void:
+	_start(3)
+	var hold: float = Match._territory_tuning.capture_hold
+	_open_holes([1] as Array[int], false)
+	Match._territory._tick_home_claims(hold * 0.5)
+	assert_true(Match.slot(1).home_flag_alive, "half the claim time is not enough")
+	assert_almost_eq(Match._territory._objective.capture_progress(), 0.5, 0.01)
+	# Control lost (hole closed): the claim starts over.
+	var coords: Vector2i = Match.cell_grid().world_to_cell(Match.slot(1).home_position)
+	Match._territory._raster.advance_time(30.0, false)
+	assert_false(Match._territory._raster.is_hole(coords.x, coords.y), "the hole closed")
+	Match._territory._tick_home_claims(0.1)
+	assert_eq(Match._territory._objective.capture_progress(), 0.0, "progress reset on loss")
+	_open_holes([1] as Array[int])
+	Match._territory._tick_home_claims(hold * 0.5)
+	assert_true(Match.slot(1).home_flag_alive, "progress was reset, not resumed")
+	Match._territory._tick_home_claims(hold * 0.5)
+	assert_false(Match.slot(1).home_flag_alive, "knocked out once the claim time is held")
+
+
+func test_eliminated_player_holds_nothing_and_cannot_drop() -> void:
+	_start(3)
+	assert_not_null(Match.held_shape(1))
+	assert_not_null(Match.next_shape(1))
+	_lose_homes([1])
+	assert_null(Match.held_shape(1), "held block cleared")
+	assert_null(Match.next_shape(1), "next block cleared")
+	assert_eq(Match.eliminated_by(1), -1, "no single attacker for a hole: fallback text")
+	assert_ne(Match._placement._intent_gate(1, -1, MatchPlacement.IntentKind.PLACE), &"", "cannot drop")
+
+
+func test_client_applies_elimination_with_the_eliminator() -> void:
+	_start(3)
+	_fake_net = FakeNet.client(1)
+	Match.set_net_provider(_fake_net)
+	var node: MatchNetScript = MatchNetScript.new()
+	node.set_process(false)
+	add_child_autofree(node)
+	node.set_providers(_fake_net, Match)
+	_net = node
+	node.net_match_event(MatchNetScript.EVENT_PLAYER_ELIMINATED, [1, 1, 2])
+	assert_false(Match.slot(1).home_flag_alive)
+	assert_eq(Match.eliminated_by(1), 2)
+	assert_null(Match.held_shape(1))
+	node.net_match_event(MatchNetScript.EVENT_PLAYER_ELIMINATED, [0, 0, 99])
+	assert_eq(Match.eliminated_by(0), -1, "an out-of-range eliminator is dropped")

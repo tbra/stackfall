@@ -97,6 +97,10 @@ func held_shape(slot_id: int) -> BlockShape:
 
 ## What the HUD's next-block preview shows for `slot_id`.
 func next_shape(slot_id: int) -> BlockShape:
+	if _match != null and _match._lifecycle != null:
+		var seat: PlayerSlot = _match._lifecycle.slot(slot_id)
+		if seat != null and not seat.home_flag_alive:
+			return null
 	if slot_id >= 0 and slot_id < _backlog.size() and not _backlog[slot_id].is_empty():
 		return _backlog[slot_id][0] as BlockShape
 	if _next_gift_shapes.has(slot_id):
@@ -200,6 +204,25 @@ func _issue_next_block(slot_id: int, from_backlog: bool = true) -> void:
 	_suppress_gift_roll = was_suppressed
 	if popped:
 		_emit_qol_state(slot_id)
+
+
+## Bontago-1pi.186: an eliminated slot holds nothing - the held and next block,
+## its backlog, a pending gift carrier and the held special are all dropped, and
+## held_shape()/next_shape() answer null so no intent or preview can use them.
+func clear_slot_blocks(slot_id: int) -> void:
+	if slot_id < 0 or slot_id >= _held_shapes.size():
+		return
+	_held_shapes[slot_id] = null
+	if slot_id < _backlog.size():
+		_backlog[slot_id].clear()
+	if slot_id < _backlog_mirror.size():
+		_backlog_mirror[slot_id] = 0
+	_next_gift_shapes.erase(slot_id)
+	_staged_gift_shapes.erase(slot_id)
+	_held_is_gift[slot_id] = false
+	if slot_id < _release_locked.size():
+		_release_locked[slot_id] = false
+	_match._gifts.clear_held_special(slot_id)
 
 
 func _tick_feed(delta: float) -> void:
@@ -703,6 +726,10 @@ func apply_replicated_feed(
 	if slot_id < 0 or slot_id >= _held_shapes.size():
 		return
 	if host_feed_seq >= 0 and host_feed_seq < _feed_seq[slot_id]:
+		return
+	# Bontago-1pi.186: a late feed for a slot already eliminated must not hand it a block.
+	var seat: PlayerSlot = _match._lifecycle.slot(slot_id)
+	if seat != null and not seat.home_flag_alive:
 		return
 	var is_gift: bool = _next_gift_shapes.has(slot_id)
 	_next_gift_shapes.erase(slot_id)

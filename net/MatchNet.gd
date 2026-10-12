@@ -1633,7 +1633,8 @@ func _on_placement_relocated(slot_id: int, point: Vector2) -> void:
 
 func _on_player_eliminated(slot_id: int, team_id: int) -> void:
 	if _session().is_host():
-		replicate_match_event(EVENT_PLAYER_ELIMINATED, [slot_id, team_id])
+		# Bontago-1pi.186: the third argument is the eliminator slot (-1 unknown).
+		replicate_match_event(EVENT_PLAYER_ELIMINATED, [slot_id, team_id, int(_authority().eliminated_by(slot_id))])
 
 
 ## Host only: the objective's state changed. A client's own apply re-emits the
@@ -2250,7 +2251,9 @@ func build_world_replay(replay_id: int = 0) -> Array[Array]:
 	for slot_id: int in range(slot_count):
 		var seat: PlayerSlot = authority.slot(slot_id)
 		if seat != null and not seat.home_flag_alive:
-			messages.append(_event(EVENT_PLAYER_ELIMINATED, [slot_id, seat.team_id]))
+			messages.append(
+				_event(EVENT_PLAYER_ELIMINATED, [slot_id, seat.team_id, int(authority.eliminated_by(slot_id))])
+			)
 	if int(authority.active_slot()) >= 0:
 		messages.append(_event(EVENT_TURN_CHANGED, [int(authority.active_slot())]))
 	for slot_id: int in range(slot_count):
