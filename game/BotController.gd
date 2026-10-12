@@ -441,7 +441,7 @@ func _probe(xz: Vector2) -> Dictionary:
 	return {
 		"hit": true,
 		"height": _field.to_local(hit["position"] as Vector3).y,
-		"own": _is_own_block(hit.get("collider"), int(_match().team_of(_slot_id))),
+		"own": _is_own_block(hit.get("collider"), int(_match().team_of(_slot_id)), hit["position"] as Vector3),
 	}
 
 
@@ -534,7 +534,7 @@ func _generate_one_candidate(team_id: int, shape: BlockShape, orientation_index:
 			shape.cells, basis, origin, _field.tuning.cube_size, grid
 		)
 		_fire_stability_raycasts(candidate, candidate.footprint_cells, grid)
-	candidate.on_top_of_own_stack = _is_own_block(hit.get("collider"), team_id)
+	candidate.on_top_of_own_stack = _is_own_block(hit.get("collider"), team_id, hit.get("position", Vector3.ZERO) as Vector3)
 	_candidates.append(candidate)
 
 
@@ -672,7 +672,7 @@ func _raycast_support_height(local_xz: Vector2) -> Dictionary:
 	if hit.is_empty():
 		return {"height": 0.0, "collider": null, "hit": false}
 	var local_hit: Vector3 = _field.to_local(hit["position"] as Vector3)
-	return {"height": local_hit.y, "collider": hit.get("collider"), "hit": true}
+	return {"height": local_hit.y, "collider": hit.get("collider"), "hit": true, "position": hit["position"]}
 
 
 ## Footprint-corner raycasts (spec 2.9's stability factor, P2's own scoring):
@@ -712,10 +712,14 @@ func _fire_stability_raycasts(candidate: BotCandidate, cells: PackedInt32Array, 
 	candidate.corner_support_hits = hits
 
 
-func _is_own_block(collider: Variant, team_id: int) -> bool:
+func _is_own_block(collider: Variant, team_id: int, hit_point: Vector3 = Vector3.ZERO) -> bool:
 	var block: Block = collider as Block
 	if block == null:
 		return false
+	if block.has_method(&"owner_slot_at"):
+		# Glue fusion: the ray hit a FusedBody (duck-typed, layer lint); the owner is the
+		# nearest member's.
+		return int(_match().team_of(int(block.call(&"owner_slot_at", hit_point)))) == team_id
 	return int(_match().team_of(block.owner_slot)) == team_id
 
 
