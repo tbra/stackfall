@@ -131,7 +131,7 @@ extends Resource
 ## set_slot_colors()), kept in sync for visual coherence even though the two
 ## exports are intentionally independent (this package doesn't own
 ## TerritoryVisuals.gd).
-@export var neutral_color: Color = Color(0.95, 0.93, 0.85)
+@export var neutral_color: Color = Color(1.0, 1.0, 1.0)
 
 ## Bontago-adt.2: Global multiplier on the beacon ring and crystal emission (raise/lower for night themes). Peaks stay near the 1.3 glow threshold at 1.0.
 @export var emission_scale: float = 1.0

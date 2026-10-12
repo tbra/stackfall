@@ -14,7 +14,7 @@ var _field: Field
 var _registry: BlockRegistry
 var _tiny_map: MapDef
 
-## Far from both slots' own home circles (home_flag_radius_fraction * 20 on
+## Far from both slots' own home circles (20 - home_flag_edge_inset on
 ## the +/-x axis, home_radius 6.0 -- see config/territory_tuning.tres), well
 ## inside the disk minus GiftConfig.spawn_edge_margin_m, so it neither gets
 ## claimed by anyone's territory before life_s elapses nor sits outside

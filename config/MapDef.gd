@@ -63,9 +63,19 @@ const TERRITORY_RES_LARGE: int = 512
 ## bilinear sampling and smoothstep have something smooth to work with.
 @export var territory_res: int = TERRITORY_RES_MEDIUM
 
-## Spec 2.2: home flags sit at 0.85 * field_radius, spaced evenly around the
-## edge; extra goal flags are placed symmetrically at 0.4 * field_radius.
-@export var home_flag_radius_fraction: float = 0.85
+## Spec 2.2: home flags are spaced evenly around the edge; extra goal flags
+## are placed symmetrically at 0.4 * field_radius.
+##
+## DECISION (Bontago-1pi.184, owner playtest 2026-10-12: home beacons "should
+## always be a fixed distance from the edge"): a home flag sits at
+## field_radius - home_flag_edge_inset, so the gap to the rim no longer grows
+## with the map. 6.0 m is the old 0.85 fraction's inset on the default
+## 45 m map (6.75 m) nudged outward; it equals TerritoryTuning.home_radius, so a
+## home circle just reaches the rim, and leaves the 1 m beacon socket and a
+## held-block spawn well inside the safe margin. Sudden-death shrink never moves
+## homes (it only removes outer cells), and the lobby's disc-size slider scales
+## the radius only, so the inset stays fixed there too.
+@export var home_flag_edge_inset: float = 6.0
 @export var goal_flag_radius_fraction: float = 0.4
 
 ## Spec 3.3: "Wake up any sleeping blocks above cells that change state."
@@ -132,8 +142,8 @@ static func shape_id(variant: int) -> String:
 
 ## Bontago-1pi.107: a uniformly scaled copy of this map (the lobby's disc-size
 ## slider, see config/DiscSizeTuning.gd for the DECISION on what scales). The
-## radius and the territory texture resolution scale; every
-## fraction-of-radius field (flags) follows the radius by itself, and cell_size / disk_height / wake query extents stay as they are.
+## radius and the territory texture resolution scale; the
+## goal fraction-of-radius field follows the radius by itself (home flags keep their fixed edge inset) follows the radius by itself, and cell_size / disk_height / wake query extents stay as they are.
 ## A factor of 1.0 returns this very resource so the default map is untouched.
 func scaled(factor: float) -> MapDef:
 	if is_equal_approx(factor, 1.0) or factor <= 0.0:
@@ -149,7 +159,7 @@ func cells_per_side() -> int:
 	return int(ceil(2.0 * field_radius / maxf(cell_size, 0.001)))
 
 
-## Spec 2.2: "Each player's home flag sits at 0.85 * field_radius, spaced
+## Spec 2.2: "Each player's home flag sits near the edge, spaced
 ## evenly around the edge." Slot 0 sits at angle 0 (+x) and slots advance
 ## counter-clockwise, so a 2-player match puts the two players opposite each
 ## other and an 8-player match spaces them at pi/4.
@@ -161,10 +171,14 @@ func home_flag_position(slot_id: int, slot_count: int) -> Vector2:
 	var count: int = maxi(slot_count, 1)
 	var index: int = posmod(slot_id, count)
 	var angle: float = TAU * float(index) / float(count)
-	return Vector2(
-		cos(angle) * field_radius * home_flag_radius_fraction,
-		sin(angle) * field_radius * home_flag_radius_fraction
-	)
+	var home_radius: float = home_flag_ring_radius()
+	return Vector2(cos(angle) * home_radius, sin(angle) * home_radius)
+
+
+## Distance of every home flag from the disc centre: the disc radius minus the
+## fixed edge inset (never negative on a tiny disc).
+func home_flag_ring_radius() -> float:
+	return maxf(field_radius - home_flag_edge_inset, 0.0)
 
 
 ## Spec 2.2: "1 goal flag in the center by default. Setup allows 1-5. Extra

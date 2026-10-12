@@ -97,8 +97,8 @@ func test_punch_special_hole_opens_the_expected_cells_under_temporary() -> void:
 	var center_cell: Vector2i = Match.cell_grid().world_to_cell(home0)
 	assert_true(Match.raster().is_hole(center_cell.x, center_cell.y), "The punched centre is a hole.")
 
-	## The disk's own centre: on this map's layout (home_flag_radius_fraction
-	## 0.85 of a 20 m field) that is 17 m from home0, far outside radius_m.
+	## The disk's own centre: on this map's layout (home_flag_edge_inset
+	## 6 m of a 20 m field) that is 14 m from home0, far outside radius_m.
 	var far_cell: Vector2i = Match.cell_grid().world_to_cell(Vector2.ZERO)
 	assert_false(Match.raster().is_hole(far_cell.x, far_cell.y), "Outside radius_m stays untouched.")
 

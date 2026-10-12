@@ -13,8 +13,8 @@ var slot_id: int = -1
 var team_id: int = -1
 var display_name: String = ""
 var color: Color = Color.WHITE
-## Disk-local (x, z) of the home flag, at home_flag_radius_fraction *
-## field_radius, evenly spaced around the disk (spec 2.2).
+## Disk-local (x, z) of the home flag, at field_radius - home_flag_edge_inset,
+## evenly spaced around the disk (spec 2.2).
 var home_position: Vector2 = Vector2.ZERO
 ## True for the player sitting at this PC. In hot-seat every slot is local.
 var is_local: bool = true
@@ -40,7 +40,7 @@ func _init(
 	home_position = p_home_position
 
 
-## Spec 2.2: home flags sit at home_flag_radius_fraction * field_radius,
+## Spec 2.2: home flags sit at field_radius - home_flag_edge_inset, field_radius,
 ## spaced evenly around the edge. Slot 0 sits at angle 0 (+x), and slots go
 ## counter-clockwise from there, so a 2-player match puts the two players
 ## opposite each other.
