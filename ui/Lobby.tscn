@@ -94,6 +94,12 @@ unique_name_in_owner = true
 script = ExtResource("14_badge")
 layout_mode = 2
 
+[node name="OptionsButton" type="Button" parent="Margin/Layout/Header"]
+unique_name_in_owner = true
+script = ExtResource("15_block")
+layout_mode = 2
+text = "OPTIONS"
+
 [node name="BackButton" type="Button" parent="Margin/Layout/Header"]
 unique_name_in_owner = true
 script = ExtResource("15_block")

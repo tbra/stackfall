@@ -218,7 +218,12 @@ var _special_frequency_value: int = 0
 @onready var _status_badge: UiStatusBadge = %StatusBadge
 @onready var _header_eyebrow: Label = %Eyebrow
 @onready var _back_button: UiBlockButton = %BackButton
+## Bontago-1pi.190: opens the Options overlay. DECISION: it sits in the header beside Back, outside the
+## vertical focus loop (like Back, 1pi.182) so no stray up/down lands on it; reached with left from Back
+## (left from Start/Ready, then left again) or the lobby_options shortcut (O / pad Select).
+@onready var _options_button: UiBlockButton = %OptionsButton
 ## Bontago-1pi.149 (components.md footer chip): an uppercase label chip, "3 OF 4 READY".
+const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/OptionsMenu.tscn")
 const ALL_READY_TEXT: String = "ALL READY"
 const READY_COUNT_FORMAT: String = "%d OF %d READY"
 ## Bontago-mp0.3.5 (review r1, item 13): mockup 11's bottom-left "Waiting for
@@ -301,6 +306,10 @@ var _timer_mode: int = MatchConfig.GameMode.CLASSIC
 ## knows which way it was moving (_on_timer_stepper_changed()).
 var _timer_previous_minutes: Dictionary[UiStepper, int] = {}
 var _last_config: MatchConfig = null
+## The live OptionsMenu overlay while open (Bontago-1pi.190), else null; and the callable that
+## restores the focus modes UiFocusTrap cleared for it.
+var _options_menu: OptionsMenu = null
+var _restore_focus: Callable = Callable()
 ## Footer buttons' visibility the focus loop was last wired for (_update_host_only_state()).
 var _start_was_shown: bool = false
 var _ready_was_shown: bool = true
@@ -363,6 +372,7 @@ func _ready() -> void:
 	_ready_check.toggled.connect(_on_ready_toggled)
 	_invite_friends_button.pressed.connect(_on_invite_friends_pressed)
 	_back_button.pressed.connect(_on_back_pressed)
+	_options_button.pressed.connect(open_options)
 	_build_join_code_row()
 	_connect_click_and_hover_sounds()
 	Events.net_lobby_data_changed.connect(_on_lobby_data_changed)
@@ -509,8 +519,9 @@ func _prepare_rows() -> void:
 func _arrange_header() -> void:
 	_header_row.move_child(_header_eyebrow, 0)
 	_header_row.move_child(_status_badge, _header_row.label.get_index() + 1)
+	_header_row.move_child(_options_button, -1)
 	_header_row.move_child(_back_button, -1)
-	for item: Control in [_header_eyebrow, _status_badge, _back_button]:
+	for item: Control in [_header_eyebrow, _status_badge, _options_button, _back_button]:
 		item.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_header_eyebrow.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_expose(_header_row.label, "HeaderTitle")
@@ -937,11 +948,17 @@ func _wire_back_button(chain: Array[Control]) -> void:
 	if chain.is_empty():
 		return
 	_back_button.focus_mode = Control.FOCUS_ALL
-	var entry: NodePath = _back_button.get_path_to(chain[0])
+	var entry_control: Control = chain[0]
+	var entry: NodePath = _back_button.get_path_to(entry_control)
 	_back_button.focus_neighbor_top = entry
 	_back_button.focus_neighbor_bottom = entry
-	_back_button.focus_neighbor_left = entry
+	_back_button.focus_neighbor_left = _back_button.get_path_to(_options_button)
 	_back_button.focus_neighbor_right = entry
+	_options_button.focus_mode = Control.FOCUS_ALL
+	_options_button.focus_neighbor_top = _options_button.get_path_to(entry_control)
+	_options_button.focus_neighbor_bottom = _options_button.get_path_to(entry_control)
+	_options_button.focus_neighbor_left = _options_button.get_path_to(entry_control)
+	_options_button.focus_neighbor_right = _options_button.get_path_to(_back_button)
 	var last: Control = chain[chain.size() - 1]
 	last.focus_neighbor_left = last.get_path_to(_back_button)
 
@@ -988,7 +1005,7 @@ func _connect_control_signals() -> void:
 ## slider doesn't spam hover sounds. DECISION (Bontago-mp0.117): the ready toggle
 ## is not here -- it has its own ready_on/ready_off cue (no double click).
 func _connect_click_and_hover_sounds() -> void:
-	var buttons: Array[BaseButton] = [_start_button, _invite_friends_button, _back_button]
+	var buttons: Array[BaseButton] = [_start_button, _invite_friends_button, _options_button, _back_button]
 	for button: BaseButton in buttons:
 		button.pressed.connect(_on_sound_button_pressed)
 		button.mouse_entered.connect(_on_sound_button_hovered)
@@ -1065,6 +1082,12 @@ func _apply_visual_style() -> void:
 ## Bontago-1pi.15.1 fix: B used to do nothing here unless the popup was open, the reported
 ## "B never goes back in any menu" gap.
 func _unhandled_input(event: InputEvent) -> void:
+	if _options_menu != null:
+		return
+	if event.is_action_pressed(&"lobby_options"):
+		open_options()
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed(&"lobby_quick_advanced"):
 		toggle_focused_advanced()
 		get_viewport().set_input_as_handled()
@@ -1084,7 +1107,7 @@ func _unhandled_input(event: InputEvent) -> void:
 ## taken in _input, before the focused Button's ui_accept. Left alone while a text field has
 ## focus or an OptionButton popup is open. Space still activates the focused control.
 func _input(event: InputEvent) -> void:
-	if not is_visible_in_tree() or not event.is_action_pressed(&"lobby_confirm"):
+	if _options_menu != null or not is_visible_in_tree() or not event.is_action_pressed(&"lobby_confirm"):
 		return
 	var focus: Control = get_viewport().gui_get_focus_owner()
 	if focus is LineEdit or focus is TextEdit:
@@ -1181,6 +1204,32 @@ func _cycle_text(selector: UiCycler) -> String:
 func debug_open_advanced_rules_popup() -> void:
 	for section: UiSection in _sections():
 		section.set_advanced_open(true)
+
+
+## Bontago-1pi.190: shows the Options screen over the lobby (same build/free pattern as MainMenu).
+## Lobby networking keeps running (this node keeps processing); focus outside the overlay is
+## suspended so pad / arrows never reach the lobby, and returns to the Options button on close.
+func open_options() -> void:
+	if _options_menu != null:
+		return
+	_options_menu = OPTIONS_MENU_SCENE.instantiate() as OptionsMenu
+	add_child(_options_menu)
+	_restore_focus = UiFocusTrap.suspend_outside(_options_menu, self)
+	_options_menu.closed.connect(_on_options_closed)
+
+
+func is_options_open() -> bool:
+	return _options_menu != null
+
+
+func _on_options_closed() -> void:
+	if _options_menu != null:
+		_options_menu.queue_free()
+		_options_menu = null
+	if _restore_focus.is_valid():
+		_restore_focus.call()
+		_restore_focus = Callable()
+	_options_button.grab_focus()
 
 
 func _on_back_pressed() -> void:
