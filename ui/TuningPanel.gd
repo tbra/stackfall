@@ -164,6 +164,12 @@ const EXPORT_USAGE_MASK: int = PROPERTY_USAGE_STORAGE | PROPERTY_USAGE_EDITOR | 
 ## Territory/Feed (host-only: they tune the physics/territory simulation
 ## itself, not just how it looks) always come last.
 const CLIENT_HIDDEN_TAB_FIRST: int = 6
+## Bontago-mp0.150.4: the Field-only arena look tab, inserted after Territory look.
+const ARENA_TAB: String = "Arena"
+const ARENA_TAB_INDEX: int = 4
+const ARENA_STYLE_PROP: String = "style"
+## Dropdown labels, indexed by ArenaSideStyle.Style.
+const ARENA_STYLE_NAMES: PackedStringArray = ["Current", "Layered plates", "Rocky island", "Machined disc"]
 
 ## Bontago-xtq.17 (owner playtest 2026-09-23: "heavier and more bouncy, but a
 ## dropped block shouldn't just bounce straight up again" -- research +
@@ -267,6 +273,10 @@ var beacon_visual_tuning: BeaconVisualTuning = preload("res://config/beacon_visu
 var camera_shake_config: CameraShakeConfig = preload("res://config/camera_shake.tres")
 var hud_visual_tuning: HUDVisualTuning = preload("res://config/hud_visual_tuning.tres")
 ## Bontago-1pi.18.1: opt-in QoL experiments (host snapshots them at match start).
+## Bontago-mp0.150.4: the arena side/underside look. set_field() swaps it for the
+## wired Field's own instance (the one TerritoryOverlay builds from); the Arena
+## tab only exists while a Field is wired.
+var arena_side_style: ArenaSideStyle = preload("res://config/arena_side_style.tres")
 var qol_experiments: QolExperiments = preload("res://config/qol_experiments.tres")
 var sky_theme: SkyThemeDef = preload("res://config/sky_themes/sunset.tres")
 
@@ -367,6 +377,8 @@ func set_field(field: Field) -> void:
 	if field != null:
 		territory_tuning = field.territory_tuning
 		territory_visuals = field.visuals
+		if field.arena_side_style != null:
+			arena_side_style = field.arena_side_style
 	_rebuild_if_built()
 
 
@@ -574,6 +586,14 @@ func rebuild() -> void:
 ## DECISION: TerritoryVisuals is purely visual, so it sits with the beacons on a
 ## client-visible tab instead of the host-only Territory rules.
 func _tab_plan() -> Array[Dictionary]:
+	var plan: Array[Dictionary] = _base_tab_plan()
+	if _field != null and arena_side_style != null:
+		# Bontago-mp0.150.4: client-visible look tab, right after Territory look.
+		plan.insert(ARENA_TAB_INDEX, {"name": ARENA_TAB, "resources": [arena_side_style]})
+	return plan
+
+
+func _base_tab_plan() -> Array[Dictionary]:
 	return [
 		{"name": "Camera", "resources": [camera_tuning, camera_shake_config]},
 		{"name": "Controls", "resources": [ghost_tuning]},
@@ -641,7 +661,9 @@ func _add_tab(tab_name: String, resources: Array) -> void:
 
 func _apply_availability() -> void:
 	var full_access: bool = _has_full_access()
-	for index: int in range(CLIENT_HIDDEN_TAB_FIRST, _tab_container.get_tab_count()):
+	# The Arena tab (Field wired) shifts the host-only tabs one place right.
+	var first_hidden: int = CLIENT_HIDDEN_TAB_FIRST + (1 if _field != null and arena_side_style != null else 0)
+	for index: int in range(first_hidden, _tab_container.get_tab_count()):
 		_tab_container.set_tab_hidden(index, not full_access)
 
 
@@ -795,6 +817,8 @@ func _class_label_for(resource: Resource) -> String:
 
 func _build_row_control(resource: Resource, prop_name: String, type: int, class_label: String, fresh: Resource) -> Control:
 	var default_value: Variant = fresh.get(prop_name) if fresh != null else resource.get(prop_name)
+	if resource is ArenaSideStyle and prop_name == ARENA_STYLE_PROP:
+		return _build_arena_style_row(resource, prop_name, class_label, default_value)
 	match type:
 		TYPE_BOOL:
 			return _build_bool_row(resource, prop_name, class_label, default_value)
@@ -907,6 +931,29 @@ func _build_bool_row(resource: Resource, prop_name: String, class_label: String,
 		_on_field_changed(resource, prop_name)
 	)
 	_register_row(frame, resource, prop_name, check, default_value, TYPE_BOOL, "", 0)
+	return frame["row"] as Control
+
+
+## Bontago-mp0.150.4: the arena style enum as a dropdown (CURRENT, LAYERED_PLATES,
+## ROCKY_ISLAND, MACHINED_DISC); picking one rebuilds the arena mesh live.
+func _build_arena_style_row(resource: Resource, prop_name: String, class_label: String, default_value: Variant) -> Control:
+	var option: OptionButton = OptionButton.new()
+	option.name = "ArenaStyleOption"
+	var keys: Array = ArenaSideStyle.Style.keys()
+	for index: int in keys.size():
+		option.add_item(ARENA_STYLE_NAMES[index], int(ArenaSideStyle.Style[keys[index]]))
+	option.select(option.get_item_index(int(resource.get(prop_name))))
+	var frame: Dictionary = _build_row_frame(prop_name, class_label, option, TYPE_INT, default_value, "", 0)
+	var value_label: Label = frame["value_label"] as Label
+	value_label.text = String(keys[int(resource.get(prop_name))])
+	(frame["default_label"] as Label).text = DEFAULT_PREFIX + String(keys[int(default_value)])
+	option.item_selected.connect(func(index: int) -> void:
+		var id: int = option.get_item_id(index)
+		resource.set(prop_name, id)
+		value_label.text = String(keys[id])
+		_on_field_changed(resource, prop_name)
+	)
+	_register_row(frame, resource, prop_name, option, default_value, TYPE_INT, "", 0)
 	return frame["row"] as Control
 
 
@@ -1138,6 +1185,8 @@ func _on_field_changed(resource: Resource, _prop_name: String) -> void:
 		apply_physics_live()
 	elif resource == territory_visuals:
 		refresh_territory_visuals_live()
+	elif resource == arena_side_style:
+		apply_arena_style_live()
 	elif resource == camera_tuning:
 		apply_camera_tuning_live()
 	elif resource == sky_theme:
@@ -1735,6 +1784,18 @@ func refresh_territory_visuals_live() -> void:
 			skybox.refresh_from_visuals()
 
 
+## Bontago-mp0.150.4: rebuilds the wired Field's arena mesh (top slab + side
+## surfaces) from arena_side_style. Collision is a separate Field shape and is
+## untouched; the territory material and its uniforms are kept by
+## TerritoryOverlay.rebuild_disk_mesh(). No-op without a Field.
+func apply_arena_style_live() -> void:
+	if _field == null:
+		return
+	var overlay: TerritoryOverlay = _field.overlay()
+	if overlay != null:
+		overlay.rebuild_disk_mesh()
+
+
 ## Bontago-xtq.36: pushes sky_theme onto every live Skybox's own public
 ## re-apply method (game/Skybox.gd's apply_theme(), the same seam
 ## apply_skybox_set() above already calls it through -- see that function
@@ -1789,6 +1850,7 @@ func reset_all() -> void:
 	_reset_resource(physics_tuning)
 	_reset_resource(territory_tuning)
 	_reset_resource(territory_visuals)
+	_reset_resource(arena_side_style)
 	_reset_resource(block_feed_config)
 	_reset_resource(skybox_config)
 	# Bontago-1pi.1 (owner playtest: "Sky settings in F4 doesn't reset"):
@@ -1803,6 +1865,7 @@ func reset_all() -> void:
 		_reset_resource(Skybox.load_theme(theme_id))
 	apply_physics_live()
 	refresh_territory_visuals_live()
+	apply_arena_style_live()
 	apply_skybox_set(skybox_config.default_set if skybox_config.enabled else Skybox.PROCEDURAL_SET_ID)
 	if cycle_was_active:
 		apply_sky_theme_live()
@@ -1845,6 +1908,7 @@ func save_overrides() -> Error:
 	_write_overrides(config, "PhysicsTuning", physics_tuning)
 	_write_overrides(config, "TerritoryTuning", territory_tuning)
 	_write_overrides(config, "TerritoryVisuals", territory_visuals)
+	_write_overrides(config, "ArenaSideStyle", arena_side_style)
 	_write_overrides(config, "BlockFeedConfig", block_feed_config)
 	_write_overrides(config, "SkyboxConfig", skybox_config)
 	return config.save(save_path())
@@ -1900,6 +1964,7 @@ func build_copy_text() -> String:
 	parts.append(_copy_section("PhysicsTuning", physics_tuning))
 	parts.append(_copy_section("TerritoryTuning", territory_tuning))
 	parts.append(_copy_section("TerritoryVisuals", territory_visuals))
+	parts.append(_copy_section("ArenaSideStyle", arena_side_style))
 	parts.append(_copy_section("BlockFeedConfig", block_feed_config))
 	parts.append(_copy_section("SkyboxConfig", skybox_config))
 	return "\n\n".join(parts)
