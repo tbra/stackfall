@@ -77,7 +77,7 @@ const GRAPHICS_OVERRIDE_FIELDS: Array[StringName] = [
 	&"sun_shadow_max_distance", &"reflection_probe_mode", &"glow_enabled",
 	&"hole_void_animated", &"disc_fine_detail_enabled", &"block_outline_enabled",
 	&"block_dissolve_effect_enabled", &"gift_idle_glow_enabled", &"cloud_shadows_enabled",
-	&"aurora_enabled", &"frame_cap_mode", &"fixed_fps", &"render_scale_3d", &"render_scale_3d_mode",
+	&"aurora_enabled", &"vsync_enabled", &"frame_cap_mode", &"fixed_fps", &"render_scale_3d", &"render_scale_3d_mode",
 ]
 ## Legacy pre-options-package key: a single dB value (-40..6). Only ever read
 ## now, as a one-time migration source for KEY_MASTER_VOLUME_PERCENT below
