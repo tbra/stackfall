@@ -991,10 +991,23 @@ func _on_world_replay_changed(active: bool) -> void:
 	_world_replay_silent = active
 
 
-func _on_block_placed(_block: RigidBody3D, _shape_id: StringName) -> void:
+## Bontago-1pi.174: the release cue is the dropping player's own feedback. The
+## host sees every slot's placements (bots, remote clients) and a client sees
+## every replicated spawn, so only a block owned by this machine's human seat
+## sounds it; impact sounds are separate and unaffected.
+func _on_block_placed(block: RigidBody3D, _shape_id: StringName) -> void:
 	if _world_replay_silent:
 		return
+	if not _plays_drop_cue_for(block):
+		return
 	play(AudioConfig.EVENT_DROP)
+
+
+func _plays_drop_cue_for(block: RigidBody3D) -> bool:
+	var body: BlockBody = block as BlockBody
+	if body == null:
+		return false
+	return LocalFeedback.is_own_human_slot(body.owner_slot)
 
 
 func _on_player_eliminated(_slot_id: int, _team_id: int) -> void:

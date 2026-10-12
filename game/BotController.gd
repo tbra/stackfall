@@ -32,7 +32,12 @@ extends Node
 ## Determinism").
 const RNG_OFFSET: int = 777001
 
-enum State { IDLE, GENERATING, ACTING, THINKING }
+enum State { IDLE, GENERATING, ACTING, THINKING, RELEASE_WAIT }
+
+## Bontago-1pi.175: own seeded stream for the release-delay draw (a separate stream so the
+## think/aim draws of _rng, and the decisions they make, are unchanged by the release timing).
+const RELEASE_RNG_OFFSET: int = RNG_OFFSET + 1
+const SLOT_SEED_STRIDE: int = 1000003
 
 ## Bontago-1t5.19 (Bot V2 P1): which decision pipeline drives this seat. LEGACY is the
 ## shipped sampler + scorer below, unchanged; V2 runs core/ai/BotThink (a legacy-equivalent
@@ -69,6 +74,9 @@ var _net_provider: Variant = null
 ## randi()/randf()'s global state. Drives the reaction-delay jitter (drawn
 ## once, below), the territory-point sampling and the aim-noise offset.
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
+var _release_rng: RandomNumberGenerator = RandomNumberGenerator.new()
+## Seconds left before a planned release is sent (State.RELEASE_WAIT).
+var _release_wait_s: float = 0.0
 
 ## reaction_delay_s + a per-bot jitter drawn ONCE at setup() (not re-rolled
 ## every block), so this bot's own cadence is stable but different bots land
@@ -202,8 +210,10 @@ func _seed_rng() -> void:
 	var match_ref: Variant = _match()
 	var config: MatchConfig = match_ref.config if match_ref != null else null
 	if config != null and config.rng_seed >= 0:
-		_rng.seed = config.rng_seed + RNG_OFFSET + _slot_id * 1000003
+		_rng.seed = config.rng_seed + RNG_OFFSET + _slot_id * SLOT_SEED_STRIDE
+		_release_rng.seed = config.rng_seed + RELEASE_RNG_OFFSET + _slot_id * SLOT_SEED_STRIDE
 	else:
+		_release_rng.randomize()
 		# BlockBag._init()'s identical convention for rng_seed < 0
 		# ("randomize" mode) -- explicit rather than relying on _rng's own
 		# construction-time seed (review fix, Bontago-d5c.2: RandomNumberGenerator
@@ -232,6 +242,8 @@ func _physics_process(delta: float) -> void:
 			_tick_generating()
 		State.ACTING:
 			_tick_acting()
+		State.RELEASE_WAIT:
+			_tick_release_wait(delta)
 		State.THINKING:
 			_tick_thinking()
 
@@ -386,7 +398,7 @@ func _tick_thinking() -> void:
 		finished = true
 	if finished:
 		_candidates = _think.candidates()
-		_state = State.ACTING
+		_begin_release_wait()
 
 
 ## Bontago-1t5.37: this tick's think slice. The deadline share (BotThink's remaining-work
@@ -478,7 +490,7 @@ func _tick_generating() -> void:
 		_generate_one_candidate(team_id, shape, orientation_index)
 	_generation_frames_used += 1
 	if _candidates.size() >= _profile.candidate_count or _generation_frames_used >= tuning.max_generation_frames:
-		_state = State.ACTING
+		_begin_release_wait()
 
 
 func _generate_one_candidate(team_id: int, shape: BlockShape, orientation_index: int) -> void:
@@ -691,6 +703,38 @@ func _is_own_block(collider: Variant, team_id: int) -> bool:
 
 
 # --- ACTING: one frame, exactly one request per completed think-cycle ------
+
+## Bontago-1pi.175: the plan is ready; hold the release for a seeded random delay (this bot's
+## own stream), cut so it lands release_safety_margin_s before the block timer's expiry. A
+## gift piece (gift_use_delay_s) and a zero range release at once.
+func _begin_release_wait() -> void:
+	_release_wait_s = _draw_release_delay()
+	_state = State.RELEASE_WAIT if _release_wait_s > 0.0 else State.ACTING
+
+
+func _draw_release_delay() -> float:
+	var lo: float = maxf(tuning.release_delay_min_s, 0.0)
+	var hi: float = maxf(tuning.release_delay_max_s, lo)
+	var delay: float = _release_rng.randf_range(lo, hi)
+	var match_ref: Variant = _match()
+	if match_ref.has_method("held_special") and StringName(match_ref.held_special(_slot_id)) != &"":
+		return 0.0
+	if match_ref.has_method("feed_time_left"):
+		var time_left: float = float(match_ref.feed_time_left(_slot_id))
+		delay = minf(delay, maxf(time_left - tuning.release_safety_margin_s, 0.0))
+	return delay
+
+
+func _tick_release_wait(delta: float) -> void:
+	var match_ref: Variant = _match()
+	if match_ref.held_shape(_slot_id) == null:
+		_state = State.IDLE
+		_candidates.clear()
+		return
+	_release_wait_s -= delta
+	if _release_wait_s <= 0.0:
+		_state = State.ACTING
+
 
 func _tick_acting() -> void:
 	_state = State.IDLE

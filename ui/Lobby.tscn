@@ -1,4 +1,4 @@
-[gd_scene load_steps=17 format=3]
+[gd_scene load_steps=18 format=3]
 
 [ext_resource type="Script" path="res://ui/Lobby.gd" id="1_lobby"]
 [ext_resource type="Theme" path="res://ui/theme/stackfall_theme.tres" id="2_theme"]
@@ -15,6 +15,7 @@
 [ext_resource type="Script" path="res://ui/components/UiStatusBadge.gd" id="14_badge"]
 [ext_resource type="Script" path="res://ui/components/UiBlockButton.gd" id="15_block"]
 [ext_resource type="Script" path="res://ui/components/UiPanel.gd" id="16_panel"]
+[ext_resource type="Script" path="res://ui/FocusScrollContainer.gd" id="99_focus_scroll"]
 
 [node name="Lobby" type="Control"]
 layout_mode = 3
@@ -117,6 +118,7 @@ theme_override_constants/separation = 13
 
 [node name="SettingsScroll" type="ScrollContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout"]
 unique_name_in_owner = true
+script = ExtResource("99_focus_scroll")
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3

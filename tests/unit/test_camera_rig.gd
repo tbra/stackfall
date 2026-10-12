@@ -418,3 +418,69 @@ func test_process_orbits_with_gamepad_right_stick_while_lt_zoom_modifier_is_held
 
 	Input.action_release(&"camera_zoom_modifier")
 	Input.action_release(&"camera_look_right")
+
+
+func _key_event(keycode: Key) -> InputEventKey:
+	var event: InputEventKey = InputEventKey.new()
+	event.physical_keycode = keycode
+	event.keycode = keycode
+	event.pressed = true
+	return event
+
+
+func _pad_back_event() -> InputEventJoypadButton:
+	var event: InputEventJoypadButton = InputEventJoypadButton.new()
+	event.button_index = JOY_BUTTON_BACK
+	event.pressed = true
+	return event
+
+
+func _disturb(rig: CameraRig) -> void:
+	rig._yaw += 1.0
+	rig._pitch = deg_to_rad(-70.0)
+	rig._distance = rig.tuning.zoom_min
+	rig._update_transform()
+
+
+## Bontago-1pi.187: camera_reset (V / pad Back) restores the match-start pose.
+func test_camera_reset_key_restores_the_recorded_start_pose() -> void:
+	var rig: CameraRig = _make_rig()
+	rig.tuning = rig.tuning.duplicate()
+	rig.tuning.snap_enabled = false
+	rig._has_start_pose = true
+	rig._start_yaw = 0.4
+	rig._start_pitch = deg_to_rad(-20.0)
+	rig._start_distance = 12.0
+	_disturb(rig)
+	rig._unhandled_input(_key_event(KEY_V))
+	assert_almost_eq(rig.get_yaw(), 0.4, 0.0001)
+	assert_almost_eq(rig.get_pitch(), deg_to_rad(-20.0), 0.0001)
+	assert_almost_eq(rig.get_distance(), 12.0, 0.0001)
+
+
+func test_camera_reset_pad_back_restores_pose_only_while_snap_is_disabled() -> void:
+	var rig: CameraRig = _make_rig()
+	rig.tuning = rig.tuning.duplicate()
+	rig._has_start_pose = true
+	rig._start_yaw = 0.4
+	rig._start_pitch = deg_to_rad(-20.0)
+	rig._start_distance = 12.0
+	rig.tuning.snap_enabled = false
+	_disturb(rig)
+	rig._unhandled_input(_pad_back_event())
+	assert_almost_eq(rig.get_distance(), 12.0, 0.0001, "pad Back resets the camera while snap is off.")
+	rig.tuning.snap_enabled = true
+	_disturb(rig)
+	rig._unhandled_input(_pad_back_event())
+	assert_almost_eq(rig.get_distance(), rig.tuning.zoom_min, 0.0001, "snap owns Back while enabled.")
+
+
+func test_camera_reset_is_remappable_and_bound_on_both_devices() -> void:
+	var has_key: bool = false
+	var has_pad: bool = false
+	for event: InputEvent in InputMap.action_get_events(&"camera_reset"):
+		has_key = has_key or event is InputEventKey
+		has_pad = has_pad or event is InputEventJoypadButton
+	assert_true(has_key and has_pad)
+	assert_true(OptionsMenu.REBINDABLE_ACTIONS.has(&"camera_reset"))
+	assert_false(KeyRebindRow.PAD_NOT_APPLICABLE.has(&"camera_reset"), "visible and remappable on the pad page too.")

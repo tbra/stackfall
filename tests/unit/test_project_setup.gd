@@ -43,6 +43,7 @@ const REQUIRED_ACTIONS: PackedStringArray = [
 	"camera_zoom_modifier",
 	"camera_snap_home",
 	"camera_snap_goal",
+	"camera_reset",
 	"pause_menu",
 	"net_debug_toggle",
 	"tuning_panel_toggle",

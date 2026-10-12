@@ -237,7 +237,7 @@ func request_place(
 		# contract for raycast_down_disk_local); disk_origin keeps the flat
 		# projection computed above, which is what the burn clamp below
 		# throws from.
-		result = PlacementRules.Result.OFF_DISK
+		result = _hole_column_result(slot_id, disk_origin)
 	else:
 		disk_origin = hit as Vector2
 		result = PlacementRules.validate_point(disk_origin, _match.raster(), team_id)
@@ -469,7 +469,7 @@ func request_throw(
 	var disk_origin: Vector2 = Vector2(local_origin.x, local_origin.z)
 	var hit: Variant = _match._field.raycast_down_disk_local(origin)
 	if hit == null:
-		result = PlacementRules.Result.OFF_DISK
+		result = _hole_column_result(slot_id, disk_origin)
 	else:
 		disk_origin = hit as Vector2
 		result = ThrowRules.validate_release_point(disk_origin, _match.raster(), team_id)
@@ -832,7 +832,8 @@ func preview_placement(
 	# always matches what the host would decide (docs/TERRITORY_V2_PLAN.md).
 	var hit: Variant = _match._field.raycast_down_disk_local(origin)
 	if hit == null:
-		return PlacementRules.Result.OFF_DISK
+		var local_origin: Vector3 = _match._field.to_local(origin)
+		return _hole_column_result(slot_id, Vector2(local_origin.x, local_origin.z))
 	var preview_result: PlacementRules.Result = PlacementRules.validate_point(hit as Vector2, _match.raster(), team_id)
 	# Bontago-sen.1: mirrors request_place(): a held gift ignores territory.
 	return _apply_territory_waiver(slot_id, preview_result)
@@ -843,12 +844,34 @@ func preview_placement(
 ## held gift (Bontago-sen.1) turns OUTSIDE_TERRITORY / CONTESTED into VALID;
 ## every other result (OFF_DISK, HOLE, GOAL_ZONE, ...) is unchanged.
 func _apply_territory_waiver(slot_id: int, result: PlacementRules.Result) -> PlacementRules.Result:
-	if (_match.config.sandbox or _match.held_special(slot_id) != &"") and (
+	var territory: bool = (
 		result == PlacementRules.Result.OUTSIDE_TERRITORY
 		or result == PlacementRules.Result.CONTESTED
+	)
+	if (_match.config.sandbox or _match.held_special(slot_id) != &"") and territory:
+		return PlacementRules.Result.VALID
+	# [OWNER decision 2026-10-12, Bontago-1pi.85.73]: a held gift may be used above a hole or a
+	# goal zone. DECISION: only the gift waives these (a plain block and the sandbox keep
+	# refusing them); OFF_DISK still refuses.
+	if _match.held_special(slot_id) != &"" and (
+		result == PlacementRules.Result.HOLE or result == PlacementRules.Result.GOAL_ZONE
 	):
 		return PlacementRules.Result.VALID
 	return result
+
+
+## [OWNER decision 2026-10-12, Bontago-1pi.85.73]: over an open hole cell the down-ray finds no
+## floor (null). A held gift whose flat disk projection is still inside the disk is then usable
+## there (it spawns at the sent pose and falls normally); anything else stays OFF_DISK.
+## DECISION: a hole under the gift is not a rim overhang, so it must not read as OFF_DISK.
+func _hole_column_result(slot_id: int, disk_xz: Vector2) -> PlacementRules.Result:
+	if _match.held_special(slot_id) == &"":
+		return PlacementRules.Result.OFF_DISK
+	var grid: CellGrid = _match.raster().grid()
+	var coords: Vector2i = grid.world_to_cell(disk_xz)
+	if grid.in_bounds(coords.x, coords.y) and grid.is_in_disk(coords.x, coords.y):
+		return PlacementRules.Result.VALID
+	return PlacementRules.Result.OFF_DISK
 
 
 ## Bontago-1pi.85.53: the basis a thrown/launched Rocket or Magnet carrier spawns with (nose along

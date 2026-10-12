@@ -5,8 +5,7 @@ extends ScrollContainer
 ## scroll position"). A ScrollContainer that keeps whichever descendant just
 ## took keyboard/gamepad focus visible -- the shared approach for every menu
 ## list that can outgrow its panel (ui/OptionsMenu.tscn's Settings page and
-## Controls rebind list use it; ui/Lobby.tscn's settings column gets the same
-## behaviour from the plain engine property `follow_focus = true`).
+## Controls rebind list, and ui/Lobby.tscn's settings column since Bontago-1pi.159.33, use it).
 ##
 ## DECISION (Bontago-1pi.47): the engine's own `follow_focus` (set here, and
 ## explicitly in the scene) does the actual scrolling -- its handler listens to

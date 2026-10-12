@@ -4,6 +4,7 @@ extends GutTest
 ## the lobby's focus loop, and every stop keeps a focus style from the shared theme.
 
 const MAX_STOPS: int = 40
+const TALL_SETTINGS_PX: float = 3000.0
 
 
 func _make_lobby() -> Lobby:
@@ -174,3 +175,118 @@ func test_advanced_toggle_keeps_the_wiring_consistent() -> void:
 				assert_not_null(target, "%s has a %d neighbour" % [stop.name, side])
 				if target != null:
 					assert_true(lobby._is_shown(target), "%s -> %s is a shown stop" % [stop.name, target.name])
+
+
+# --- Bontago-1pi.182: Back is never a stop of the vertical loop ---------------------------------
+
+func _key_down() -> void:
+	var event: InputEventKey = InputEventKey.new()
+	event.keycode = KEY_DOWN
+	event.physical_keycode = KEY_DOWN
+	event.pressed = true
+	Input.parse_input_event(event)
+	Input.flush_buffered_events()
+	var release: InputEventKey = event.duplicate() as InputEventKey
+	release.pressed = false
+	Input.parse_input_event(release)
+	Input.flush_buffered_events()
+
+
+func test_down_from_add_bot_reaches_start_never_back() -> void:
+	var lobby: Lobby = await _make_laid_out_lobby(2)
+	var add_bot: Control = lobby._players_panel.add_bot_button()
+	var back: Control = lobby.get_node("%BackButton") as Control
+	var start: Control = lobby.get_node("%StartButton") as Control
+	# Every stop reachable by pressing down, from Add bot round the loop: Back never appears.
+	var current: Control = add_bot
+	for _i: int in range(lobby._main_chain.size() + 2):
+		current = _target(current, SIDE_BOTTOM)
+		assert_not_null(current)
+		assert_ne(current, back, "down never lands on Back")
+		if current == add_bot:
+			break
+	var next: Control = _target(add_bot, SIDE_BOTTOM)
+	var expected: Control = start
+	if lobby._invite_friends_button.visible or lobby._ready_check.visible:
+		expected = lobby._visible_chain(lobby._main_chain)[lobby._visible_chain(lobby._main_chain).find(add_bot) + 1]
+	assert_eq(next, expected, "down from Add bot is the next footer stop, not Back")
+	for side: Side in [SIDE_TOP, SIDE_BOTTOM]:
+		for stop: Control in lobby._visible_chain(lobby._main_chain):
+			assert_ne(_target(stop, side), back, "%s %d never targets Back" % [stop.name, side])
+	assert_eq(_target(start, SIDE_LEFT), back, "Back is reached deliberately: left from Start")
+
+
+func test_arrow_key_and_dpad_down_from_add_bot_skip_back() -> void:
+	var lobby: Lobby = await _make_laid_out_lobby(2)
+	var add_bot: Control = lobby._players_panel.add_bot_button()
+	var back: Control = lobby.get_node("%BackButton") as Control
+	var expected: Control = _target(add_bot, SIDE_BOTTOM)
+	add_bot.grab_focus()
+	_key_down()
+	await wait_frames(1)
+	assert_eq(lobby.get_viewport().gui_get_focus_owner(), expected, "arrow down")
+	add_bot.grab_focus()
+	_pad_down()
+	await wait_frames(1)
+	assert_eq(lobby.get_viewport().gui_get_focus_owner(), expected, "d-pad down")
+	assert_ne(lobby.get_viewport().gui_get_focus_owner(), back)
+
+
+func test_left_stick_down_from_add_bot_skips_back() -> void:
+	var lobby: Lobby = await _make_laid_out_lobby(2)
+	var add_bot: Control = lobby._players_panel.add_bot_button()
+	var back: Control = lobby.get_node("%BackButton") as Control
+	var expected: Control = _target(add_bot, SIDE_BOTTOM)
+	add_bot.grab_focus()
+	# The stick drives the same ui_down action Godot's GUI navigation uses.
+	var event: InputEventJoypadMotion = InputEventJoypadMotion.new()
+	event.axis = JOY_AXIS_LEFT_Y
+	event.axis_value = 1.0
+	Input.parse_input_event(event)
+	Input.flush_buffered_events()
+	await wait_frames(1)
+	event = event.duplicate() as InputEventJoypadMotion
+	event.axis_value = 0.0
+	Input.parse_input_event(event)
+	Input.flush_buffered_events()
+	assert_ne(lobby.get_viewport().gui_get_focus_owner(), back)
+	assert_eq(lobby.get_viewport().gui_get_focus_owner(), expected, "left stick down")
+
+
+# --- Bontago-1pi.159.33: the settings column scrolls with the right stick ---------------------
+
+func test_settings_column_is_a_focus_scroll_container_that_scrolls_with_the_right_stick() -> void:
+	var lobby: Lobby = _make_lobby()
+	# Grow the settings content so the column always overflows its viewport.
+	(lobby.get_node("%Settings") as Control).custom_minimum_size.y = TALL_SETTINGS_PX
+	await wait_frames(3)
+	var scroll: FocusScrollContainer = lobby.get_node("%SettingsScroll") as FocusScrollContainer
+	assert_not_null(scroll, "SettingsScroll is a FocusScrollContainer")
+	var stick: float = 1.0
+	scroll.scroll_axis_reader = func() -> float: return stick
+	for _i: int in 40:
+		scroll.scroll_by_stick(1.0 / 60.0)
+	assert_gt(scroll.scroll_vertical, 0, "the right stick scrolled the settings column")
+	assert_true(scroll.stick_scrolled)
+
+
+func test_selection_jumps_into_view_after_a_stick_scroll_in_the_settings_column() -> void:
+	var lobby: Lobby = _make_lobby()
+	# Grow the settings content so the column always overflows its viewport.
+	(lobby.get_node("%Settings") as Control).custom_minimum_size.y = TALL_SETTINGS_PX
+	await wait_frames(3)
+	var scroll: FocusScrollContainer = lobby.get_node("%SettingsScroll") as FocusScrollContainer
+	var first: Control = lobby._visible_chain(lobby._settings_stops)[0]
+	first.grab_focus()
+	scroll.stick_scrolled = false
+	scroll.scroll_axis_reader = func() -> float: return 1.0
+	for _i: int in 120:
+		scroll.scroll_by_stick(1.0 / 60.0)
+	await wait_frames(2)
+	assert_false(scroll.get_global_rect().encloses(first.get_global_rect()), "the focused row scrolled out of view")
+	_pad_down()
+	await wait_frames(2)
+	var owner: Control = lobby.get_viewport().gui_get_focus_owner()
+	assert_ne(owner, first)
+	assert_true(scroll.is_ancestor_of(owner), "focus jumped to a row inside the scrolled settings column")
+	assert_true(scroll.get_global_rect().intersects(owner.get_global_rect()), "and that row is visible")

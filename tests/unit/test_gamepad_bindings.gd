@@ -29,6 +29,7 @@ const EXTRA_GAMEPLAY_ACTIONS: Array[StringName] = [
 ##   instead of moving; PlayerController zeroes the stick while it is held).
 const INTENTIONAL_SHARES: Array = [
 	"camera_snap_goal,use_gift_slot",
+	"camera_reset,camera_snap_home",
 	"camera_pan_left,ghost_move_left",
 	"camera_pan_right,ghost_move_right",
 	"camera_pan_forward,ghost_move_forward",

@@ -83,7 +83,7 @@ func test_picking_a_preset_sets_every_control() -> void:
 
 func test_the_tab_is_trimmed_to_the_common_set() -> void:
 	var controls: Array[Control] = _tab().focus_controls()
-	assert_lte(controls.size(), 12, "preset + 10 rows + the fixed-fps meter")
+	assert_lte(controls.size(), 13, "preset + 11 rows + the fixed-fps meter")
 	for control: Control in controls:
 		assert_false(control is OptionButton or control is HSlider or control is CheckButton)
 
@@ -212,6 +212,54 @@ func test_fixed_fps_meter_is_editable_only_in_fixed_mode() -> void:
 	assert_true(meter.editable)
 	meter.value = 5
 	assert_eq(_settings.current_graphics_preset().fixed_fps, 80, "30 + 5 cells of 10")
+
+
+## Bontago-mp0.154
+func test_vsync_defaults_on_persists_and_leaves_the_cap_rows_active() -> void:
+	for id: StringName in [&"low", &"medium", &"high"]:
+		assert_true((load("res://config/graphics_presets/%s.tres" % id) as GraphicsPreset).vsync_enabled)
+	var toggle: UiToggle = _tab().control_for(&"vsync_enabled") as UiToggle
+	assert_not_null(toggle)
+	assert_true(toggle.is_on())
+	var meter: UiSegmentMeter = _tab().control_for(&"fixed_fps") as UiSegmentMeter
+	_dd(&"frame_cap_mode").pick(GraphicsPreset.FrameCap.FIXED)
+	assert_true(meter.editable)
+	toggle.set_on(false)
+	assert_false(_settings.current_graphics_preset().vsync_enabled)
+	assert_true(_settings.graphics_preset_is_custom())
+	assert_false(_dd(&"frame_cap_mode").disabled, "cap rows unaffected by vsync")
+	assert_true(meter.editable)
+	var reloaded: Node = _fresh_at_same_path()
+	assert_false(reloaded.current_graphics_preset().vsync_enabled, "round-trips through settings.cfg")
+
+
+func test_vsync_toggle_responds_to_keyboard_and_gamepad_accept() -> void:
+	(_menu.get_node("%GraphicsTabButton") as Button).button_pressed = true
+	await get_tree().process_frame
+	var toggle: UiToggle = _tab().control_for(&"vsync_enabled") as UiToggle
+	toggle.grab_focus()
+	for press: InputEvent in [_accept_key(true), _accept_pad(true)]:
+		var before: bool = toggle.is_on()
+		get_viewport().push_input(press)
+		var release: InputEvent = _accept_key(false) if press is InputEventKey else _accept_pad(false)
+		get_viewport().push_input(release)
+		await get_tree().process_frame
+		assert_ne(toggle.is_on(), before, "%s flips the row" % press.as_text())
+
+
+func _accept_key(pressed: bool) -> InputEventKey:
+	var key: InputEventKey = InputEventKey.new()
+	key.keycode = KEY_ENTER
+	key.physical_keycode = KEY_ENTER
+	key.pressed = pressed
+	return key
+
+
+func _accept_pad(pressed: bool) -> InputEventJoypadButton:
+	var pad: InputEventJoypadButton = InputEventJoypadButton.new()
+	pad.button_index = JOY_BUTTON_A
+	pad.pressed = pressed
+	return pad
 
 
 func test_every_graphics_control_is_in_the_focus_chain() -> void:

@@ -203,6 +203,14 @@ extends Resource
 ## Slack (m) added to a placed special's effect radius when snapping it to own land.
 @export var special_v2_effect_margin_m: float = 1.0
 
+## Bontago-1pi.175: once a bot's plan is ready it holds the piece for a seeded random delay in
+## [release_delay_min_s, release_delay_max_s] seconds before releasing, so bots no longer all
+## drop on the same tick. The hold is always cut short so the release lands at least
+## release_safety_margin_s before the block timer expires (the host's forced auto-drop).
+@export var release_delay_min_s: float = 0.0
+@export var release_delay_max_s: float = 1.5
+@export var release_safety_margin_s: float = 0.5
+
 ## Returns the profile for `difficulty`; NORMAL (and any out-of-range value)
 ## falls back to `normal` rather than failing, so a stale/corrupt wire value
 ## never leaves a bot with a null profile.

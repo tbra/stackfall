@@ -80,6 +80,11 @@ enum ReflectionProbeMode { OFF, ONCE, INTERVAL, ALWAYS }
 ## (a 245 fps uncapped match held a 3060 at ~60% at 4K; 144 = 39%, 60 = 28%).
 enum FrameCap { DISPLAY_REFRESH, FIXED, UNCAPPED }
 @export var frame_cap_mode: FrameCap = FrameCap.DISPLAY_REFRESH
+## Bontago-mp0.154: display vsync (DisplayServer.window_set_vsync_mode).
+## DECISION (orchestrator 2026-10-12): default ON on every preset because project.godot sets no
+## vsync_mode, so Godot's default (Enabled) is what the game runs with today. Engine.max_fps
+## is honoured alongside vsync, so the frame-cap settings stay active in both states.
+@export var vsync_enabled: bool = true
 ## Used by the FIXED mode.
 @export_range(1, 360) var fixed_fps: int = 60
 ## Used by DISPLAY_REFRESH when the display reports no refresh rate (<= 0).

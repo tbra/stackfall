@@ -293,6 +293,37 @@ func test_gamepad_dpad_down_moves_focus_to_the_next_button() -> void:
 	assert_true(_screen._lobby_button.has_focus(), "a synthetic gamepad D-pad-down press must move focus along the wired chain.")
 
 
+## Bontago-1pi.181: the two buttons sit side by side, so left/right must move between them.
+func test_gamepad_dpad_left_right_move_between_the_horizontal_buttons() -> void:
+	_screen.show_results(_ffa_results())
+	_screen._replay_button.grab_focus()
+	for step: Array in [[JOY_BUTTON_DPAD_RIGHT, _screen._lobby_button], [JOY_BUTTON_DPAD_LEFT, _screen._replay_button]]:
+		var event: InputEventJoypadButton = InputEventJoypadButton.new()
+		event.device = -1
+		event.button_index = step[0]
+		event.pressed = true
+		Input.parse_input_event(event)
+		await get_tree().process_frame
+		assert_true((step[1] as Button).has_focus(), "d-pad %d must move focus along the row." % step[0])
+		var release: InputEventJoypadButton = event.duplicate() as InputEventJoypadButton
+		release.pressed = false
+		Input.parse_input_event(release)
+		await get_tree().process_frame
+
+
+func test_arrow_keys_and_left_stick_move_between_the_horizontal_buttons() -> void:
+	_screen.show_results(_ffa_results())
+	assert_eq(_screen._replay_button.get_node(_screen._replay_button.focus_neighbor_right), _screen._lobby_button)
+	assert_eq(_screen._lobby_button.get_node(_screen._lobby_button.focus_neighbor_left), _screen._replay_button)
+	for action: StringName in [&"ui_left", &"ui_right"]:
+		var has_stick: bool = false
+		var has_key: bool = false
+		for event: InputEvent in InputMap.action_get_events(action):
+			has_stick = has_stick or event is InputEventJoypadMotion
+			has_key = has_key or event is InputEventKey
+		assert_true(has_stick and has_key, "%s keeps arrow + left-stick bindings." % action)
+
+
 # --- Gamepad parity (Bontago-1pi.15.1: "gamepad works in some menus but not
 # all; B never goes back in any menu") ------------------------------------------
 

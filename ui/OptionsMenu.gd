@@ -85,7 +85,7 @@ const REBINDABLE_ACTIONS: Array[StringName] = [
 	&"camera_mode", &"camera_orbit",
 	&"camera_pan_left", &"camera_pan_right", &"camera_pan_forward", &"camera_pan_back",
 	&"camera_modifier", &"camera_zoom_in", &"camera_zoom_out",
-	&"camera_snap_home", &"camera_snap_goal",
+	&"camera_snap_home", &"camera_snap_goal", &"camera_reset",
 	&"pause_menu",
 	&"show_scores",
 ]
@@ -117,7 +117,7 @@ const SECTIONS: Array[Dictionary] = [
 			&"camera_mode", &"camera_orbit",
 			&"camera_pan_left", &"camera_pan_right", &"camera_pan_forward", &"camera_pan_back",
 			&"camera_modifier", &"camera_zoom_in", &"camera_zoom_out",
-			&"camera_snap_home", &"camera_snap_goal",
+			&"camera_snap_home", &"camera_snap_goal", &"camera_reset",
 		],
 	},
 	{

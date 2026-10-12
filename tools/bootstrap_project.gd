@@ -52,6 +52,9 @@ func _apply_settings() -> void:
 		# Bontago-1pi.11.74 (G1): the sky shaders read this global instead of TIME so the
 		# radiance is not re-rendered every frame (game/Skybox.gd writes it).
 		"shader_globals/sky_time": {"type": "float", "value": 0.0},
+		# Bontago-mp0.153: per-frame sun/moon disc directions (game/Skybox.gd).
+		"shader_globals/sky_sun_dir": {"type": "vec3", "value": Vector3(1.0, 0.0, 0.0)},
+		"shader_globals/sky_moon_dir": {"type": "vec3", "value": Vector3(-1.0, 0.0, 0.0)},
 
 		# Spec 3.5 - physics tuning.
 		"physics/common/physics_ticks_per_second": 60,
@@ -470,6 +473,14 @@ func _actions() -> Dictionary:
 	# own _goal_focus_chord_blocked() keeps this from also firing through
 	# ui/TuningPanel.gd's Start+X chord or game/Sandbox.gd's Back+X chord.
 	a["camera_snap_goal"] = [_key(KEY_2), _pad(JOY_BUTTON_X)]
+
+	# Bontago-1pi.187 (owner playtest 2026-10-12: "add a reset camera button,
+	# resets camera to the starting camera"). DECISION: V on keyboard (unbound,
+	# "view"); gamepad Back, deliberately shared with camera_snap_home -- snap is
+	# inert while CameraTuning.snap_enabled is false, every other standard pad
+	# button is taken in a match, and game/CameraRig.gd ignores the pad press while
+	# snap is enabled (snap_home owns Back then) or the sandbox owns Back.
+	a["camera_reset"] = [_key(KEY_V), _pad(JOY_BUTTON_BACK)]
 
 	# --- UI (menus) -----------------------------------------------------------
 	# Bontago-1pi.15.1 (owner report: "gamepad works in some menus but not all;
