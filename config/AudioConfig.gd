@@ -15,13 +15,15 @@ extends Resource
 	"thud1.wav", "thud2.wav", "thud3.wav", "thud4.wav",
 ]
 @export var rejected_file: String = "placement_rejected_pcm.wav"
-## Menu select/hover and the local drop cue (Bontago-eq0, tools/generate_core_cues.py)
-## replace select.wav, button_hover_pcm.wav and block_placed.wav (a sustained
-## tone that read as a sharp note over the music); the old files stay for A/B.
+## Menu select/hover (Bontago-eq0, tools/generate_core_cues.py) replace select.wav
+## and button_hover_pcm.wav. The drop cue replaced block_placed.wav (a sustained
+## tone that read as a sharp note over the music); after owner feedback the
+## round-two candidates block_drop_a/b.wav (tools/generate_gift_cues_v2.py) replace
+## block_release.wav. Unused candidates stay in assets/effects for A/B.
 @export var click_file: String = "ui_select.wav"
 @export var start_game_file: String = "start_game.mp3"
 @export var hover_file: String = "ui_hover.wav"
-@export var drop_file: String = "block_release.wav"
+@export var drop_file: String = "block_drop_a.wav"
 @export var bounce_file: String = "boing.wav"
 @export var music_file: String = "music_calm.mp3"
 
@@ -179,21 +181,23 @@ func playlist_track_count(context: StringName) -> int:
 ## Events.special_triggered on the host and on every client. An id with no
 ## entry, or a missing file, is silent. Rendered by tools/generate_special_sfx.py.
 ## DECISION (Bontago-eq0): special_triggered fires on the Rocket's detonation,
-## not its launch, so the Rocket gets the blast cue; rocket.wav (a launch
+## not its launch, so the Rocket gets a blast cue; rocket.wav (a launch
 ## whistle) stays registered under EVENT_ROCKET with no caller.
+## DECISION (Bontago-eq0, owner feedback): Earthquake, Magnet and Jumping Bean are
+## timed specials whose special_triggered marks the END of their window, so they
+## have no entry here: Earthquake and Magnet loop for the whole window
+## (special_loop_files) and the bean sounds on every hop (bean_hop_file).
+## Bomb, Rocket and Paintball use the round-two "_a" candidates.
 @export var special_cue_files: Dictionary[StringName, String] = {
 	&"anvil": "anvil.wav",
 	&"black_hole": "black_hole.wav",
-	&"bomb": "bomb.wav",
+	&"bomb": "bomb_boom_a.wav",
 	&"cat": "cat.wav",
-	&"earthquake": "quake2.wav",
 	&"freeze": "freeze.wav",
 	&"glue": "glue.wav",
-	&"jumping_bean": "jumping_bean.wav",
-	&"magnet": "magnet.wav",
-	&"paintball": "paintball.wav",
+	&"paintball": "paintball_splat_a.wav",
 	&"propeller": "propeller.wav",
-	&"rocket": "rocket_blast.wav",
+	&"rocket": "rocket_boom_a.wav",
 	&"stackfall": "stackfall.wav",
 	&"volcano": "volcano.wav",
 }
@@ -202,6 +206,26 @@ func playlist_track_count(context: StringName) -> int:
 @export var special_cue_min_interval_s: float = 0.3
 ## Extra gain (dB) on top of sfx_volume_db for special cues.
 @export var special_cue_volume_db: float = 0.0
+## Seamless loops (SpecialDef.id -> filename) that play for a timed special's whole
+## active window. Started by Events.special_consumed (the gift was used: replicated
+## to every peer, and the only start signal an in-place Earthquake has on a client),
+## run for the effect's effect_lifetime_s() and fade out at its special_triggered
+## (the window's end) or at that time, whichever comes first.
+@export var special_loop_files: Dictionary[StringName, String] = {
+	&"earthquake": "quake_rumble_loop.wav",
+	&"magnet": "magnet_hum_loop.wav",
+}
+@export var special_loop_volume_db: float = 0.0
+@export var special_loop_fade_in_s: float = 0.25
+@export var special_loop_fade_out_s: float = 0.6
+## Most loops of any kind playing at once; the oldest is dropped past this.
+@export var special_loop_max: int = 3
+## Glue (owner feedback): a squelch whenever an impact involves a glue-coated block.
+@export var glue_hit_file: String = "glue_squelch.wav"
+@export var glue_hit_min_interval_s: float = 0.12
+## Jumping Bean (owner feedback): a boing on every hop (Events.bean_hopped).
+@export var bean_hop_file: String = "bean_hop_a.wav"
+@export var bean_hop_min_interval_s: float = 0.1
 
 ## Below this impact speed (m/s), a block landing makes no sound at all.
 @export var impact_speed_min: float = 1.0

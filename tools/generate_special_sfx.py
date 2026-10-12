@@ -296,7 +296,7 @@ def rocket_blast() -> np.ndarray:
 def save(filename: str, samples: np.ndarray) -> None:
     # Match the current bundled effects' loudest 300 ms window target. Keep
     # at least 1 dB peak headroom; the cap wins for very spiky cues.
-    window = round(RATE * 0.3)
+    window = min(round(RATE * 0.3), samples.size)
     energy = np.cumsum(np.r_[0.0, samples * samples])
     loudest = np.sqrt(np.max((energy[window:] - energy[:-window]) / window))
     gain = min(10 ** (-16 / 20) / loudest, 10 ** (-1 / 20) / np.max(np.abs(samples)))

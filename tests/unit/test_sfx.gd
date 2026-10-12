@@ -256,12 +256,89 @@ func test_every_shipped_special_has_a_cue_that_loads() -> void:
 		var def: SpecialDef = load(SPECIALS_DIR.path_join(file)) as SpecialDef
 		if def == null:
 			continue
+		# A one-shot on its trigger, a loop for a timed window, or (the bean) a hop sound.
 		var filename: String = _config.special_cue_files.get(def.id, "")
-		assert_false(filename.is_empty(), "special %s needs an activation cue" % def.id)
+		if filename.is_empty():
+			filename = _config.special_loop_files.get(def.id, "")
+		if filename.is_empty() and def.id == &"jumping_bean":
+			filename = _config.bean_hop_file
+		assert_false(filename.is_empty(), "special %s needs a sound" % def.id)
 		var stream: AudioStream = _sfx._load_stream(filename)
 		assert_not_null(stream, "special %s cue %s should load from assets/effects" % [def.id, filename])
 		checked += 1
 	assert_gt(checked, 0, "fixture: at least one SpecialDef found")
+	for file: String in [_config.glue_hit_file, _config.drop_file]:
+		assert_not_null(_sfx._load_stream(file), "%s should load from assets/effects" % file)
+
+
+## Bontago-eq0 owner feedback: timed specials fire special_triggered at the END of
+## their window, so their sound must not hang off it.
+func test_timed_specials_have_no_end_of_window_one_shot() -> void:
+	for id: StringName in [&"earthquake", &"magnet", &"jumping_bean"]:
+		assert_false(_config.special_cue_files.has(id), "%s must not sound only at its end" % id)
+
+
+func test_special_consumed_loops_for_the_window_and_trigger_fades_it() -> void:
+	_write_tiny_wav(_tmp_dir.path_join(_config.special_loop_files[&"earthquake"]))
+	_sfx.set_root_dir_for_test(_tmp_dir)
+	_sfx._on_special_consumed(0, &"earthquake")
+	assert_eq(_sfx.special_loop_count(), 1, "the rumble starts when the gift is used")
+	var player: AudioStreamPlayer = _sfx._special_loops[0]["player"] as AudioStreamPlayer
+	assert_true(player.playing)
+	assert_eq((player.stream as AudioStreamWAV).loop_mode, AudioStreamWAV.LOOP_FORWARD, "it loops")
+	_sfx._on_special_triggered(-1, &"earthquake", Vector3.ZERO, 0)
+	assert_eq(_sfx.special_loop_count(), 0, "the window's end fades it out")
+
+
+func test_special_consumed_without_a_loop_or_during_replay_is_silent() -> void:
+	_write_tiny_wav(_tmp_dir.path_join(_config.special_loop_files[&"magnet"]))
+	_sfx.set_root_dir_for_test(_tmp_dir)
+	_sfx._on_special_consumed(0, &"bomb")
+	assert_eq(_sfx.special_loop_count(), 0, "a one-shot special has no loop")
+	_sfx._on_world_replay_changed(true)
+	_sfx._on_special_consumed(0, &"magnet")
+	assert_eq(_sfx.special_loop_count(), 0, "a replay is state, not news")
+
+
+func test_special_loops_are_capped_and_cleared_on_reset() -> void:
+	_write_tiny_wav(_tmp_dir.path_join(_config.special_loop_files[&"magnet"]))
+	_sfx.set_root_dir_for_test(_tmp_dir)
+	for _i: int in range(_config.special_loop_max + 2):
+		_sfx._on_special_consumed(0, &"magnet")
+	assert_eq(_sfx.special_loop_count(), _config.special_loop_max)
+	_sfx.stop_special_loops()
+	assert_eq(_sfx.special_loop_count(), 0)
+
+
+func test_bean_hop_plays_and_is_rate_limited() -> void:
+	_write_tiny_wav(_tmp_dir.path_join(_config.bean_hop_file))
+	_sfx.set_root_dir_for_test(_tmp_dir)
+	_sfx._on_bean_hopped(Vector3.ZERO)
+	assert_true(_any_player_playing(), "a hop boings")
+	_stop_sfx_players()
+	_sfx._on_bean_hopped(Vector3.ZERO)
+	assert_false(_any_player_playing(), "a second hop inside the interval stays silent")
+
+
+func test_an_impact_touching_a_glue_coated_block_squelches() -> void:
+	_write_tiny_wav(_tmp_dir.path_join(_config.glue_hit_file))
+	_sfx.set_root_dir_for_test(_tmp_dir)
+	var plain: Block = autofree(Block.new())
+	var glued: Block = autofree(Block.new())
+	var mesh: MeshInstance3D = MeshInstance3D.new()
+	glued.add_child(mesh)
+	var coat: Node3D = Node3D.new()
+	coat.name = HoneyCoat.COAT_NODE_NAME
+	mesh.add_child(coat)
+	_sfx._surface_ids = PackedInt64Array([plain.get_instance_id()])
+	assert_false(_sfx._impact_touches_glue(), "plain blocks do not squelch")
+	_sfx._surface_ids = PackedInt64Array([plain.get_instance_id(), glued.get_instance_id()])
+	assert_true(_sfx._impact_touches_glue(), "a coated block in the impact does")
+	_sfx._play_glue_hit()
+	assert_true(_any_player_playing())
+	_stop_sfx_players()
+	_sfx._play_glue_hit()
+	assert_false(_any_player_playing(), "rate-limited")
 
 
 func test_special_triggered_plays_its_cue() -> void:
