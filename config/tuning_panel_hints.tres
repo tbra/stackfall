@@ -455,7 +455,7 @@ ranges = {
 "HUDVisualTuning.callout_glyph_stroke_px": Vector2(1.0, 8.0),
 "HUDVisualTuning.timer_hurry_seconds": Vector2(0.0, 10.0),
 "HUDVisualTuning.round_timer_hurry_seconds": Vector2(0.0, 120.0),
-"HUDVisualTuning.round_timer_font_px": Vector2(12.0, 64.0),
+"HUDVisualTuning.round_timer_font_px": Vector2(12.0, 160.0),
 "HUDVisualTuning.locked_card_alpha": Vector2(0.0, 1.0),
 "HUDVisualTuning.hud_row_gap_px": Vector2(0.0, 24.0),
 "HUDVisualTuning.share_tick_count": Vector2(1.0, 20.0),
