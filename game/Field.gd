@@ -1262,9 +1262,9 @@ func _configure_goal_timer(flag: GoalFlag) -> void:
 func _feed_countdown(flag: GoalFlag) -> void:
 	var hold: float = MatchContext.current().capture_hold_seconds()
 	if hold <= 0.0:
-		flag.set_countdown(-1, 0.0, 0.0)
+		flag.set_countdown(-1, 0.0, 0.0, Color.WHITE)
 	else:
-		flag.set_countdown(_timer_capture_team, _timer_capture_progress, hold)
+		flag.set_countdown(_timer_capture_team, _timer_capture_progress, hold, _color_for_index(_timer_capture_team))
 
 
 func _feed_multiplier(flag: GoalFlag) -> void:
