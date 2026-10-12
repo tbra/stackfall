@@ -140,7 +140,7 @@ var _map_thumbnail_icon: TextureRect = null
 ## player's own nudge snaps to the next cell (_on_gravity_cells_changed()).
 @onready var _gravity_meter: UiSegmentMeter = %GravityMeter
 @onready var _special_freq_meter: UiSegmentMeter = %SpecialFreqMeter
-var _gravity_value: float = 1.0
+var _gravity_value: float = MatchConfig.GRAVITY_DEFAULT
 var _special_frequency_value: int = 0
 @onready var _gifts_check: UiToggle = %GiftsCheck
 @onready var _tilt_mode_option: UiCycler = %TiltModeOption
@@ -1250,6 +1250,9 @@ func _on_game_mode_picked(index: int) -> void:
 	var old_mode: int = _timer_mode
 	var new_mode: int = MatchConfig.resolve_game_mode(index)
 	_refresh_timer_control(new_mode)
+	if old_mode != new_mode and (old_mode == MatchConfig.GameMode.ELIMINATION or new_mode == MatchConfig.GameMode.ELIMINATION):
+		_hole_mode_option.select(MatchConfig.default_hole_mode(new_mode))
+		_on_setting_changed()
 	if not MatchConfig.same_timer_family(old_mode, new_mode):
 		_timer_stepper_for(new_mode).value = MatchConfig.timer_default_minutes(new_mode)
 	_update_timer_values()

@@ -41,7 +41,7 @@ func _init(config: BlockFeedConfig, rng_seed: int = -1) -> void:
 		_rng.seed = rng_seed
 	else:
 		_rng.randomize()
-	_shapes = config.shapes if config.shapes.size() > 0 else BlockShape.load_all_shapes()
+	_shapes = config.shapes if config.shapes.size() > 0 else BlockShape.load_bag_shapes()
 
 
 func config() -> BlockFeedConfig:
@@ -49,7 +49,7 @@ func config() -> BlockFeedConfig:
 
 
 ## The shapes this bag deals from: BlockFeedConfig.shapes, or every shape
-## under res://config/blocks/ via BlockShape.load_all_shapes() when that is
+## under res://config/blocks/ via BlockShape.load_bag_shapes() when that is
 ## empty.
 func shapes() -> Array[BlockShape]:
 	return _shapes
