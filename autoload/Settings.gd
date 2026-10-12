@@ -19,6 +19,8 @@ signal camera_shake_setting_changed(enabled: bool)
 signal window_mode_changed(id: StringName)
 ## Bontago-1pi.150: the relative UI scale changed (already sanitized and applied).
 signal ui_scale_changed(scale: float)
+signal hud_scale_changed(scale: float)
+signal minimap_size_changed(preset: int)
 
 ## autoload/Rumble.gd reads rumble_enabled()/rumble_strength() directly (the
 ## same camera_shake_enabled() precedent); this fires so a future
@@ -95,6 +97,8 @@ const KEY_CUSTOM_MUSIC_DIR: String = "custom_music_dir"
 const KEY_CAMERA_SHAKE_ENABLED: String = "camera_shake_enabled"
 const KEY_WINDOW_MODE: String = "window_mode"
 const KEY_UI_SCALE: String = "ui_scale"
+const KEY_HUD_SCALE: String = "hud_scale"
+const KEY_MINIMAP_SIZE: String = "minimap_size"
 const KEY_RUMBLE_ENABLED: String = "rumble_enabled"
 const KEY_RUMBLE_STRENGTH: String = "rumble_strength"
 const KEY_MOUSE_MOVE_SPEED_SCALE: String = "mouse_move_speed_scale"
@@ -221,6 +225,8 @@ var _camera_shake_enabled: bool = DEFAULT_CAMERA_SHAKE_ENABLED
 var _window_mode_id: StringName = DEFAULT_WINDOW_MODE_ID
 var _ui_scale_tuning: UiScaleTuning = preload("res://config/ui_scale_tuning.tres")
 var _ui_scale: float = 1.0
+var _hud_scale: float = 1.0
+var _minimap_preset: int = 1
 var _rumble_enabled: bool = true
 var _rumble_strength: float = 1.0
 var _mouse_move_speed_scale: float = DEFAULT_MOUSE_MOVE_SPEED_SCALE
@@ -698,6 +704,38 @@ func reset_ui_scale() -> void:
 	set_ui_scale(_ui_scale_tuning.default_scale)
 
 
+## Bontago-1pi.191: the in-match HUD scale (separate from the UI scale; same range and step).
+func hud_scale() -> float:
+	return _hud_scale
+
+
+func set_hud_scale(value: float) -> void:
+	_hud_scale = _ui_scale_tuning.sanitize(value)
+	UiScaleTuning.current_hud_scale = _hud_scale
+	_save()
+	hud_scale_changed.emit(_hud_scale)
+
+
+func reset_hud_scale() -> void:
+	set_hud_scale(_ui_scale_tuning.default_scale)
+
+
+## Minimap size preset index into UiScaleTuning.minimap_size_presets_px.
+func minimap_size_preset() -> int:
+	return _minimap_preset
+
+
+func set_minimap_size_preset(index: int) -> void:
+	_minimap_preset = _ui_scale_tuning.sanitize_minimap_preset(index)
+	UiScaleTuning.current_minimap_preset = _minimap_preset
+	_save()
+	minimap_size_changed.emit(_minimap_preset)
+
+
+func reset_minimap_size() -> void:
+	set_minimap_size_preset(_ui_scale_tuning.minimap_default_preset)
+
+
 ## DECISION (Bontago-1pi.150): one knob, Window.content_scale_factor of the root window, which the
 ## engine multiplies onto the project stretch (canvas_items, expand): the UI canvas shrinks/grows,
 ## 3D rendering, cameras and Label3D are untouched. Isolated runs (GUT, agent probes) never touch the
@@ -705,6 +743,8 @@ func reset_ui_scale() -> void:
 ## SubViewport emulation reads.
 func apply_ui_scale() -> void:
 	UiScaleTuning.current_scale = _ui_scale
+	UiScaleTuning.current_hud_scale = _hud_scale
+	UiScaleTuning.current_minimap_preset = _minimap_preset
 	if _gut_run:
 		return
 	var tree: SceneTree = get_tree()
@@ -956,6 +996,8 @@ func _load() -> void:
 	_camera_shake_enabled = DEFAULT_CAMERA_SHAKE_ENABLED
 	_window_mode_id = DEFAULT_WINDOW_MODE_ID
 	_ui_scale = _ui_scale_tuning.default_scale
+	_hud_scale = _ui_scale_tuning.default_scale
+	_minimap_preset = _ui_scale_tuning.minimap_default_preset
 	_rumble_enabled = _rumble_defaults.enabled_by_default
 	_rumble_strength = _rumble_defaults.global_strength_scale
 	_mouse_move_speed_scale = DEFAULT_MOUSE_MOVE_SPEED_SCALE
@@ -1008,6 +1050,13 @@ func _load() -> void:
 	_ui_scale = _ui_scale_tuning.sanitize(
 		float(cfg.get_value(SECTION_GRAPHICS, KEY_UI_SCALE, _ui_scale_tuning.default_scale))
 	)
+	# Migration (Bontago-1pi.191): a save without a HUD scale keeps the HUD at its old (UI-scaled) size.
+	_hud_scale = _ui_scale_tuning.sanitize(
+		float(cfg.get_value(SECTION_GRAPHICS, KEY_HUD_SCALE, _ui_scale))
+	)
+	_minimap_preset = _ui_scale_tuning.sanitize_minimap_preset(
+		int(cfg.get_value(SECTION_GRAPHICS, KEY_MINIMAP_SIZE, _ui_scale_tuning.minimap_default_preset))
+	)
 	_rumble_enabled = bool(cfg.get_value(SECTION_GAMEPAD, KEY_RUMBLE_ENABLED, _rumble_defaults.enabled_by_default))
 	_rumble_strength = clampf(
 		float(cfg.get_value(SECTION_GAMEPAD, KEY_RUMBLE_STRENGTH, _rumble_defaults.global_strength_scale)), 0.0, 1.0
@@ -1045,6 +1094,8 @@ func _save() -> void:
 	cfg.set_value(SECTION_GRAPHICS, KEY_CAMERA_SHAKE_ENABLED, _camera_shake_enabled)
 	cfg.set_value(SECTION_GRAPHICS, KEY_WINDOW_MODE, String(_window_mode_id))
 	cfg.set_value(SECTION_GRAPHICS, KEY_UI_SCALE, _ui_scale)
+	cfg.set_value(SECTION_GRAPHICS, KEY_HUD_SCALE, _hud_scale)
+	cfg.set_value(SECTION_GRAPHICS, KEY_MINIMAP_SIZE, _minimap_preset)
 	cfg.set_value(SECTION_GAMEPAD, KEY_RUMBLE_ENABLED, _rumble_enabled)
 	cfg.set_value(SECTION_GAMEPAD, KEY_RUMBLE_STRENGTH, _rumble_strength)
 	cfg.set_value(SECTION_AUDIO, KEY_MASTER_VOLUME_PERCENT, _channel_volume_percent[AudioChannel.MASTER])

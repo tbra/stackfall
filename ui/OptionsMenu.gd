@@ -142,6 +142,9 @@ const SECTION_AUDIO: String = "Audio"
 const SECTION_RUMBLE: String = "Rumble"
 const ROW_WINDOW: String = "Window"
 const ROW_UI_SCALE: String = "UI scale"
+const ROW_HUD_SCALE: String = "HUD scale"
+const ROW_MINIMAP_SIZE: String = "Minimap size"
+const MINIMAP_SIZE_LABELS: PackedStringArray = ["Small", "Medium", "Large"]
 const ROW_CAMERA_SHAKE: String = "Camera shake"
 const ROW_ADAPTIVE_QUALITY: String = "Adaptive quality"
 const ROW_MASTER_VOLUME: String = "Master volume"
@@ -263,6 +266,8 @@ var _camera_shake_check: UiToggle = null
 var _adaptive_quality_check: UiToggle = null
 var _window_mode_option: UiDropdown = null
 var _ui_scale_slider: UiSegmentMeter = null
+var _hud_scale_slider: UiSegmentMeter = null
+var _minimap_size_option: UiDropdown = null
 var _rumble_enabled_check: UiToggle = null
 var _rumble_strength_slider: UiSegmentMeter = null
 var _move_speed_label: Label = null
@@ -312,6 +317,8 @@ func _ready() -> void:
 	_rumble_enabled_check.toggled.connect(_on_rumble_enabled_toggled)
 	_ui_scale_slider.value_changed.connect(_on_meter_changed.bind(_ui_scale_slider))
 	_ui_scale_slider.gui_input.connect(_on_ui_scale_gui_input)
+	_hud_scale_slider.value_changed.connect(_on_meter_changed.bind(_hud_scale_slider))
+	_minimap_size_option.item_selected.connect(_on_minimap_size_selected)
 	_rumble_strength_slider.value_changed.connect(_on_meter_changed.bind(_rumble_strength_slider))
 	_rumble_strength_slider.gui_input.connect(_on_rumble_strength_gui_input)
 	_move_speed_slider.value_changed.connect(_on_meter_changed.bind(_move_speed_slider))
@@ -355,6 +362,13 @@ func _build_game_page() -> void:
 	_ui_scale_slider = _make_meter(UiScaleTuning.shared().min_scale, UiScaleTuning.shared().max_scale, ui_scale_cell_count())
 	_add_row(display, ROW_UI_SCALE, _ui_scale_slider, "UiScaleSlider")
 	_ui_scale_slider.formatter = func(cells: int) -> String: return _format_percent(_meter_value(_ui_scale_slider, cells))
+	_hud_scale_slider = _make_meter(UiScaleTuning.shared().min_scale, UiScaleTuning.shared().max_scale, ui_scale_cell_count())
+	_add_row(display, ROW_HUD_SCALE, _hud_scale_slider, "HudScaleSlider")
+	_hud_scale_slider.formatter = func(cells: int) -> String: return _format_percent(_meter_value(_hud_scale_slider, cells))
+	_minimap_size_option = UiDropdown.new()
+	_add_row(display, ROW_MINIMAP_SIZE, _minimap_size_option, "MinimapSizeOption")
+	for label: String in MINIMAP_SIZE_LABELS:
+		_minimap_size_option.add_item(label)
 	_camera_shake_check = UiToggle.new()
 	_add_row(display, ROW_CAMERA_SHAKE, _camera_shake_check, "CameraShakeCheck")
 	_adaptive_quality_check = UiToggle.new()
@@ -607,6 +621,8 @@ func _load_current_values() -> void:
 	_window_mode_option.select(window_mode_index if window_mode_index >= 0 else Settings.WINDOW_MODE_IDS.find(Settings.DEFAULT_WINDOW_MODE_ID))
 
 	_show_meter_value(_ui_scale_slider, float(settings_provider.ui_scale()))
+	_show_meter_value(_hud_scale_slider, float(settings_provider.hud_scale()))
+	_minimap_size_option.select(int(settings_provider.minimap_size_preset()))
 	_rumble_enabled_check.set_on_silent(bool(settings_provider.rumble_enabled()))
 	_show_meter_value(_rumble_strength_slider, float(settings_provider.rumble_strength()))
 	_refresh_rumble_strength_enabled()
@@ -643,6 +659,8 @@ func _on_meter_changed(cells: int, meter: UiSegmentMeter) -> void:
 		_on_weather_volume_changed(value)
 	elif meter == _ui_scale_slider:
 		_on_ui_scale_changed(value)
+	elif meter == _hud_scale_slider:
+		settings_provider.set_hud_scale(value)
 	elif meter == _rumble_strength_slider:
 		_on_rumble_strength_changed(value)
 	elif meter == _move_speed_slider:
@@ -733,6 +751,10 @@ func _refresh_rumble_strength_enabled() -> void:
 	_rumble_strength_slider.editable = bool(settings_provider.rumble_enabled())
 
 
+func _on_minimap_size_selected(index: int) -> void:
+	settings_provider.set_minimap_size_preset(index)
+
+
 func _on_ui_scale_changed(value: float) -> void:
 	if not _ui_scale_dragging:
 		settings_provider.set_ui_scale(value)
@@ -801,6 +823,8 @@ func _on_reset_pressed() -> void:
 	settings_provider.reset_rumble_settings()
 	settings_provider.reset_move_speed_scales()
 	settings_provider.reset_ui_scale()
+	settings_provider.reset_hud_scale()
+	settings_provider.reset_minimap_size()
 	for row: KeyRebindRow in _rows:
 		row.refresh()
 	_load_current_values()
@@ -882,7 +906,7 @@ func _build_rebind_rows() -> void:
 ## (Before this the tabs were a left column reached by the engine's automatic ui_left resolution.)
 func _wire_focus_chain() -> void:
 	var chain: Array[Control] = [
-		_window_mode_option, _ui_scale_slider, _camera_shake_check, _adaptive_quality_check,
+		_window_mode_option, _ui_scale_slider, _hud_scale_slider, _minimap_size_option, _camera_shake_check, _adaptive_quality_check,
 		_master_mute_button, _master_volume_slider,
 		_music_mute_button, _music_volume_slider,
 		_sfx_mute_button, _sfx_volume_slider,

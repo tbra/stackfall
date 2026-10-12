@@ -22,11 +22,22 @@ extends Resource
 ## (UI-scaled) canvas would make them touch.
 @export var hud_timer_clearance_px: int = 12
 
+## Bontago-1pi.191: the in-match HUD scale shares the UI scale's range and step (min_scale..max_scale,
+## step); its default is default_scale (100%), so a fresh install looks as before.
+## DECISION: minimap size is three presets (small / medium / large) in square HUD pixels; medium is the
+## original 168 px. Index 1 is the default.
+@export var minimap_size_presets_px: PackedInt32Array = PackedInt32Array([128, 168, 224])
+@export var minimap_default_preset: int = 1
+
 const RESOURCE_PATH: String = "res://config/ui_scale_tuning.tres"
 static var _shared: UiScaleTuning = null
 ## Runtime mirror of Settings' value (set by Settings on load/change) so ui/UiScale.gd, the
 ## AgentProbe viewport emulation and layout tests use the same factor as the real window.
 static var current_scale: float = -1.0
+## Same, for the HUD scale (Bontago-1pi.191); -1 until Settings publishes it.
+static var current_hud_scale: float = -1.0
+## Same, for the minimap preset index; -1 until Settings publishes it.
+static var current_minimap_preset: int = -1
 
 
 static func shared() -> UiScaleTuning:
@@ -60,3 +71,34 @@ static func runtime_scale() -> float:
 ## Multiplier on top of the project stretch for a stored value.
 func effective_factor(stored: float) -> float:
 	return base_scale * sanitize(stored)
+
+
+## Runtime HUD scale (stored, relative); the default until Settings publishes one.
+static func runtime_hud_scale() -> float:
+	if current_hud_scale < 0.0:
+		return shared().default_scale
+	return current_hud_scale
+
+
+## Clamps a minimap preset index into the presets array.
+func sanitize_minimap_preset(index: int) -> int:
+	return clampi(index, 0, maxi(minimap_size_presets_px.size() - 1, 0))
+
+
+## Square pixel size of a minimap preset (index is sanitized).
+func minimap_size_px_for(index: int) -> int:
+	return minimap_size_presets_px[sanitize_minimap_preset(index)]
+
+
+## Runtime minimap preset index.
+static func runtime_minimap_preset() -> int:
+	if current_minimap_preset < 0:
+		return shared().minimap_default_preset
+	return current_minimap_preset
+
+
+## Factor the HUD's root is scaled by so the HUD's total size follows the HUD scale alone instead of the
+## UI scale: HUD scale / UI scale (both stored, relative values).
+static func hud_relative_factor() -> float:
+	var ui: float = maxf(runtime_scale(), 0.01)
+	return runtime_hud_scale() / ui

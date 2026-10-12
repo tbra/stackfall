@@ -520,8 +520,13 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	# Bontago-1pi.150: UiScaleSlider sits between WindowModeOption and CameraShakeCheck.
 	var ui_scale_slider: Control = menu.get_node("%UiScaleSlider") as Control
 	assert_eq(window_mode_option.get_node(window_mode_option.focus_neighbor_bottom), ui_scale_slider, "WindowModeOption must move focus down to UiScaleSlider")
-	assert_eq(ui_scale_slider.get_node(ui_scale_slider.focus_neighbor_bottom), camera_shake_check, "UiScaleSlider must move focus down to CameraShakeCheck")
-	assert_eq(camera_shake_check.get_node(camera_shake_check.focus_neighbor_top), ui_scale_slider, "CameraShakeCheck must move focus up to UiScaleSlider")
+	# Bontago-1pi.191: HudScaleSlider and MinimapSizeOption follow the UI scale row.
+	var hud_scale_slider: Control = menu.get_node("%HudScaleSlider") as Control
+	var minimap_option: Control = menu.get_node("%MinimapSizeOption") as Control
+	assert_eq(ui_scale_slider.get_node(ui_scale_slider.focus_neighbor_bottom), hud_scale_slider, "UiScaleSlider must move focus down to HudScaleSlider")
+	assert_eq(hud_scale_slider.get_node(hud_scale_slider.focus_neighbor_bottom), minimap_option, "HudScaleSlider must move focus down to MinimapSizeOption")
+	assert_eq(minimap_option.get_node(minimap_option.focus_neighbor_bottom), camera_shake_check, "MinimapSizeOption must move focus down to CameraShakeCheck")
+	assert_eq(camera_shake_check.get_node(camera_shake_check.focus_neighbor_top), minimap_option, "CameraShakeCheck must move focus up to MinimapSizeOption")
 
 	var master_mute: Control = menu.get_node("%MasterMuteButton") as Control
 	var rumble_check: Control = menu.get_node("%RumbleEnabledCheck") as Control
@@ -927,7 +932,7 @@ func test_game_page_rows_are_all_components() -> void:
 	for name: String in ["%MasterMuteButton", "%MusicMuteButton", "%SfxMuteButton", "%WeatherMuteButton"]:
 		assert_true(menu.get_node(name) is UiIconButton, "%s is a UiIconButton" % name)
 	var rows: Array[Node] = menu.get_node("%SettingsFields").find_children("*", "UiRow", true, false)
-	assert_eq(rows.size(), 10, "Window, UI scale, Camera shake, Adaptive quality, 4 volumes, Rumble, Rumble intensity")
+	assert_eq(rows.size(), 12, "Window, UI scale, HUD scale, Minimap size, Camera shake, Adaptive quality, 4 volumes, Rumble, Rumble intensity")
 	for row: Node in rows:
 		for item: Control in (row as UiRow).items():
 			assert_almost_eq(item.custom_minimum_size.y, float(UiRowItem.metrics().row_height_px), 0.01, "%s shares one row height" % item.name)

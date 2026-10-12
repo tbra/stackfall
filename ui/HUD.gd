@@ -145,6 +145,8 @@ var _round_played_s: float = 0.0
 ## slightly nested double border in the same palette.
 @onready var _held_next_panel: Panel = %HeldNextPanel
 @onready var _minimap: Minimap = %Minimap
+## Bontago-1pi.191: parent of every HUD control (see _build_scale_root()).
+var _scale_root: Control = null
 @onready var _top_left_backplate: Panel = %TopLeftBackplate
 @onready var _top_left_cluster: VBoxContainer = $TopLeftCluster
 var _top_left_cluster_base_right: float = 0.0
@@ -244,6 +246,7 @@ var _gift_slot_glyph_signature: String = ""
 
 
 func _ready() -> void:
+	_build_scale_root()
 	match_provider = Match
 	_shapes_by_id = _load_shapes_by_id()
 	_timer_ring.draw.connect(_on_timer_ring_draw)
@@ -293,8 +296,12 @@ func _ready() -> void:
 	# Row gap of the scoreboard (docs/ui_reskin: rows are tight, the plate carries the grouping).
 	_shares_box.add_theme_constant_override("separation", int(hud_visual_tuning.hud_row_gap_px))
 	_top_left_cluster_base_right = _top_left_cluster.offset_right
-	get_viewport().size_changed.connect(_fit_top_left_cluster)
-	_fit_top_left_cluster()
+	get_viewport().size_changed.connect(_apply_hud_layout)
+	Settings.hud_scale_changed.connect(_on_hud_scale_changed)
+	Settings.ui_scale_changed.connect(_on_hud_scale_changed)
+	Settings.minimap_size_changed.connect(_on_minimap_size_changed)
+	_minimap.set_size_px(UiScaleTuning.shared().minimap_size_px_for(UiScaleTuning.runtime_minimap_preset()))
+	_apply_hud_layout()
 	_top_left_cluster.resized.connect(_resize_top_left_backplate)
 	_resize_top_left_backplate()
 
@@ -337,7 +344,7 @@ func _build_countdown_label() -> void:
 	_countdown_label.add_theme_constant_override("shadow_offset_x", 0)
 	_countdown_label.add_theme_constant_override("shadow_offset_y", _arcade.countdown_drop_px)
 	_countdown_label.visible = false
-	add_child(_countdown_label)
+	_scale_root.add_child(_countdown_label)
 
 
 ## Whole seconds of the host's countdown left, or 0 outside it. A provider
@@ -439,7 +446,7 @@ func _build_round_timer() -> void:
 	slot.offset_top = _top_left_backplate.offset_top
 	slot.offset_bottom = slot.offset_top
 	slot.theme = _ui_theme
-	add_child(slot)
+	_scale_root.add_child(slot)
 	_round_timer = UiRoundTimer.new()
 	_round_timer.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE)
 	_round_timer.grow_horizontal = Control.GROW_DIRECTION_BEGIN
@@ -468,7 +475,7 @@ func _update_round_timer(delta: float) -> void:
 
 ## Bottom edge of the timer ring in HUD pixels: the Tutorial's tip banner sits just under it.
 func timer_ring_bottom_px() -> float:
-	return _timer_ring.offset_bottom
+	return _timer_ring.offset_bottom * _scale_root.scale.y
 
 
 # --- Public API (docs/archive/M2_PLAN.md — "implement exactly"; Bontago-mv0.9 adds
@@ -1041,10 +1048,45 @@ func _style_status_plate(label: Label, ink: Color) -> void:
 	label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 
 
+## Bontago-1pi.191: every HUD control lives under this root. The window's UI scale (content scale
+## factor) scales the whole canvas, so the root is scaled by HUD scale / UI scale and sized to the logical
+## canvas divided by that factor: the HUD's on-screen size follows the HUD scale alone, and every HUD
+## anchor (corners, timer, toasts, held/next) still resolves against the visible canvas.
+## DECISION: a HUD-only root Control rather than a CanvasLayer transform, because a CanvasLayer's scale
+## does not rescale the anchors' parent rect and would push right/bottom anchored panels off screen.
+func _build_scale_root() -> void:
+	_scale_root = Control.new()
+	_scale_root.name = "HudScaleRoot"
+	_scale_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_scale_root)
+	for child: Node in get_children():
+		if child != _scale_root and child is Control:
+			child.reparent(_scale_root, false)
+
+
+## Sizes and scales the scale root for the current viewport and scale settings.
+func _apply_hud_layout() -> void:
+	if _scale_root == null:
+		return
+	var factor: float = maxf(UiScaleTuning.hud_relative_factor(), 0.01)
+	_scale_root.scale = Vector2(factor, factor)
+	_scale_root.position = Vector2.ZERO
+	_scale_root.size = get_viewport().get_visible_rect().size / factor
+	_fit_top_left_cluster()
+
+
+func _on_hud_scale_changed(_value: float) -> void:
+	_apply_hud_layout()
+
+
+func _on_minimap_size_changed(preset: int) -> void:
+	_minimap.set_size_px(UiScaleTuning.shared().minimap_size_px_for(preset))
+
+
 ## Bontago-1pi.150: on a narrow (UI-scaled) canvas the scoreboard would run under the centred timer
 ## ring; its right edge is clamped to keep UiScaleTuning.hud_timer_clearance_px clear of it.
 func _fit_top_left_cluster() -> void:
-	var canvas_w: float = get_viewport().get_visible_rect().size.x
+	var canvas_w: float = _scale_root.size.x
 	var ring_left: float = canvas_w * _timer_ring.anchor_left + _timer_ring.offset_left
 	var limit: float = ring_left - float(UiScaleTuning.shared().hud_timer_clearance_px) - hud_visual_tuning.card_padding_px
 	_top_left_cluster.offset_right = minf(_top_left_cluster_base_right, maxf(limit, _top_left_cluster.offset_left))
