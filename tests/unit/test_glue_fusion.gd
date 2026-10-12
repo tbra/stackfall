@@ -127,3 +127,15 @@ func test_disc_fusion_anchors_the_charged_member_and_pins_the_carrier() -> void:
 	assert_eq(GlueFusion.fuse(b, a, _tuning), carrier, "a block glued to the anchored one joins its body")
 	assert_true(carrier.is_disc_anchored(), "and the group stays anchored")
 	assert_eq(carrier.members.size(), 2)
+
+
+func test_fuse_ignores_blocks_queued_for_deletion() -> void:
+	var a: Block = _block("cube", 0, 0.0)
+	var b: Block = _block("cube", 1, 1.2)
+	b.queue_free()
+	assert_null(GlueFusion.fuse(a, b, _tuning), "a target queued for deletion is not fused")
+	var c: Block = _block("cube", 0, 3.6)
+	var d: Block = _block("cube", 1, 4.8)
+	c.queue_free()
+	assert_null(GlueFusion.fuse(c, d, _tuning), "a charged block queued for deletion is not fused")
+	assert_null(d.fused_carrier())

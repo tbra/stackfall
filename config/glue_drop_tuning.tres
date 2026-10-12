@@ -11,3 +11,4 @@ break_shock_mps = 4.0
 max_contacts_reported = 16
 absorb_impact = true
 max_fused_cubes = 0
+fuse_window_s = 0.25
