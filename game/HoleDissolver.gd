@@ -165,6 +165,12 @@ static func request_dissolve(block: Block) -> bool:
 func start_dissolve(block: Block) -> void:
 	if not _is_host() or block == null or not is_instance_valid(block) or block.is_queued_for_deletion():
 		return
+	var carrier: FusedBody = block as FusedBody
+	if carrier != null:
+		# OQ6 (glue fusion): a rigid group sucked into a Black hole dissolves whole.
+		for member: Block in carrier.members.duplicate():
+			start_dissolve(member)
+		return
 	var id: int = block.get_instance_id()
 	if _pending.has(id):
 		return
@@ -239,23 +245,42 @@ func touches_hole(block: Block) -> bool:
 	return false
 
 
-## Hash of every collision child's shape instance id, local transform and
+## The collision shapes that make up `block`: its own children, or for a fused
+## follower the ones its FusedBody carrier owns for it (glue fusion).
+static func _block_shapes(block: Block) -> Array[CollisionShape3D]:
+	var carrier: FusedBody = block.fused_carrier() as FusedBody
+	if carrier != null:
+		return carrier.member_shapes(block)
+	var result: Array[CollisionShape3D] = []
+	for child: Node in block.get_children():
+		var collision: CollisionShape3D = child as CollisionShape3D
+		if collision != null:
+			result.append(collision)
+	return result
+
+
+## `shape`'s transform in `block`'s own frame (a follower's shapes live in the carrier frame).
+static func _shape_in_block(block: Block, shape: CollisionShape3D) -> Transform3D:
+	var carrier: FusedBody = block.fused_carrier() as FusedBody
+	if carrier != null:
+		return carrier.member_offset(block).affine_inverse() * shape.transform
+	return shape.transform
+
+
+## Hash of every collision shape's instance id, block-local transform and
 ## disabled flag: changes whenever the shape or collision does, even with an
 ## unchanged child count.
 static func _collision_signature(block: Block) -> int:
 	var signature: int = 17
-	for child: Node in block.get_children():
-		var collision: CollisionShape3D = child as CollisionShape3D
-		if collision == null:
-			continue
+	for collision: CollisionShape3D in _block_shapes(block):
 		var shape_id: int = collision.shape.get_instance_id() if collision.shape != null else 0
-		signature = hash([signature, child.get_instance_id(), shape_id, collision.transform, collision.disabled])
+		signature = hash([signature, collision.get_instance_id(), shape_id, _shape_in_block(block, collision), collision.disabled])
 	return signature
 
 
 func _footprint(block: Block) -> _Footprint:
 	var id: int = block.get_instance_id()
-	var child_count: int = block.get_child_count()
+	var child_count: int = block.get_child_count() if not block.is_fused_member() else -1
 	var cached: _Footprint = _footprints.get(id) as _Footprint
 	var signature: int = _collision_signature(block)
 	if cached != null and cached.child_count == child_count and cached.signature == signature:
@@ -264,13 +289,13 @@ func _footprint(block: Block) -> _Footprint:
 	footprint.child_count = child_count
 	footprint.signature = signature
 	var inset: float = tuning.contact_inset_m
-	for child: Node in block.get_children():
-		var collision: CollisionShape3D = child as CollisionShape3D
-		if collision == null or collision.shape == null or collision.disabled:
+	for collision: CollisionShape3D in _block_shapes(block):
+		if collision.shape == null or collision.disabled:
 			continue
-		var center: Vector3 = collision.transform.origin
+		var shape_xform: Transform3D = _shape_in_block(block, collision)
+		var center: Vector3 = shape_xform.origin
 		for corner: Vector3 in _shape_corners(collision.shape):
-			var point: Vector3 = collision.transform * corner
+			var point: Vector3 = shape_xform * corner
 			var toward: Vector3 = center - point
 			var distance: float = toward.length()
 			if distance > 0.0:
@@ -334,6 +359,13 @@ func _on_hole_cells_applied(opened: PackedInt32Array) -> void:
 			if seen.has(id) or _pending.has(id):
 				continue
 			seen[id] = true
+			var carrier: FusedBody = block as FusedBody
+			if carrier != null:
+				# Glue fusion: only the members touching the opened cell dissolve.
+				for member: Block in carrier.members.duplicate():
+					if is_instance_valid(member) and _registry.is_tracked(member) and not _pending.has(member.get_instance_id()) and touches_hole(member):
+						start_dissolve(member)
+				continue
 			if not _registry.is_tracked(block):
 				continue
 			if touches_hole(block):
