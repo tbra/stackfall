@@ -8,7 +8,19 @@ extends Resource
 ## shaded, vertex-coloured, opaque, at most two materials (body + glow), no
 ## per-frame work. Loaded once as config/arena_side_style.tres.
 
-enum Style { CURRENT, LAYERED_PLATES, ROCKY_ISLAND, MACHINED_DISC }
+## Round 2 (owner 2026-10-13: "d, machined, was most thematically correct but I
+## didn't really like any of them") adds three refinements of the machined
+## direction: MACHINED_STYLISED (bold cel bands), MACHINED_DETAILED (rivets,
+## light strip, vents, thrusters) and MACHINED_HEAVY (bevelled rim, terraces).
+enum Style {
+	CURRENT,
+	LAYERED_PLATES,
+	ROCKY_ISLAND,
+	MACHINED_DISC,
+	MACHINED_STYLISED,
+	MACHINED_DETAILED,
+	MACHINED_HEAVY,
+}
 
 ## Which look to draw. CURRENT keeps the DiscBodyVisuals band/chamfer unchanged.
 @export var style: Style = Style.CURRENT
@@ -91,3 +103,110 @@ enum Style { CURRENT, LAYERED_PLATES, ROCKY_ISLAND, MACHINED_DISC }
 @export var machined_underside_color: Color = Color(0.14, 0.15, 0.19)
 @export var machined_light_color: Color = Color(0.45, 0.85, 1.0)
 @export var machined_light_energy: float = 1.4
+
+## -- MACHINED_STYLISED (M1): bold cel bands, few big panels, crisp seams -----
+## Total side depth as a fraction of the disc diameter.
+@export var stylised_depth_fraction: float = 0.075
+## Number of big panels around the disc.
+@export var stylised_panel_count: int = 12
+## Outline segments per panel; the last one is the recessed seam.
+@export var stylised_panel_segments: int = 6
+## Seam recess as a fraction of the disc radius.
+@export var stylised_seam_depth_fraction: float = 0.007
+## Shares of the side depth, top down: gold trim, upper panels, colour stripe,
+## then the lower panels take what is left before the closing gold trim.
+@export var stylised_trim_share: float = 0.07
+@export var stylised_upper_share: float = 0.34
+@export var stylised_stripe_share: float = 0.14
+@export var stylised_lower_trim_share: float = 0.05
+## Underside depth as a multiple of the side depth.
+@export var stylised_underside_ratio: float = 0.8
+## Where the underside narrows to (fraction of the radius) and how far the
+## glowing core hangs (fraction of the underside depth).
+@export var stylised_keel_scale: float = 0.25
+@export var stylised_core_height_fraction: float = 0.3
+## Brightness of the gold trim and core (HDR glow surface).
+@export var stylised_glow_energy: float = 0.8
+@export var stylised_gold_color: Color = Color(1.0, 0.72, 0.2)
+@export var stylised_upper_color: Color = Color(0.96, 0.9, 0.78)
+@export var stylised_stripe_color: Color = Color(0.95, 0.32, 0.22)
+@export var stylised_lower_color: Color = Color(0.12, 0.16, 0.32)
+@export var stylised_seam_color: Color = Color(0.04, 0.03, 0.07)
+@export var stylised_underside_color: Color = Color(0.14, 0.18, 0.34)
+@export var stylised_underside_alt_color: Color = Color(0.9, 0.4, 0.3)
+@export var stylised_core_color: Color = Color(1.0, 0.78, 0.4)
+
+## -- MACHINED_DETAILED (M2): panel lines, rivets, light strip, vents, thrusters
+@export var detailed_depth_fraction: float = 0.07
+@export var detailed_panel_count: int = 24
+@export var detailed_panel_segments: int = 4
+@export var detailed_seam_depth_fraction: float = 0.004
+## Shares of the side depth: gold hairline, upper panels, light strip, closing
+## lip (the lower panels take the rest).
+@export var detailed_trim_share: float = 0.04
+@export var detailed_upper_share: float = 0.3
+@export var detailed_strip_share: float = 0.12
+@export var detailed_lip_share: float = 0.05
+## How far the light strip sits behind the panels, as a fraction of the radius.
+@export var detailed_strip_recess_fraction: float = 0.006
+## Rivet half-width and height as fractions of the radius; two rows of two per panel.
+@export var detailed_rivet_size_fraction: float = 0.006
+@export var detailed_rivet_height_fraction: float = 0.006
+## Concentric underside terraces and the groove drop of each (share of the underside depth).
+@export var detailed_ring_count: int = 4
+@export var detailed_groove_share: float = 0.08
+@export var detailed_underside_ratio: float = 1.0
+@export var detailed_keel_scale: float = 0.22
+## Dark vent slots on one terrace and glowing thruster cones on another (1-based terrace).
+@export var detailed_vent_count: int = 16
+@export var detailed_vent_ring: int = 1
+@export var detailed_thruster_count: int = 6
+@export var detailed_thruster_ring: int = 3
+@export var detailed_thruster_size_fraction: float = 0.035
+@export var detailed_thruster_length_share: float = 0.22
+## Brightness of every glowing part (HDR glow surface).
+@export var detailed_glow_energy: float = 0.85
+@export var detailed_gold_color: Color = Color(1.0, 0.72, 0.2)
+@export var detailed_panel_color: Color = Color(0.34, 0.4, 0.54)
+@export var detailed_lower_color: Color = Color(0.24, 0.3, 0.44)
+@export var detailed_seam_color: Color = Color(0.04, 0.04, 0.08)
+@export var detailed_rivet_color: Color = Color(0.9, 0.85, 0.7)
+@export var detailed_lip_color: Color = Color(0.12, 0.14, 0.24)
+@export var detailed_strip_color: Color = Color(1.0, 0.45, 0.1)
+@export var detailed_underside_color: Color = Color(0.22, 0.27, 0.4)
+@export var detailed_underside_alt_color: Color = Color(0.3, 0.35, 0.5)
+@export var detailed_groove_color: Color = Color(0.06, 0.07, 0.12)
+@export var detailed_vent_color: Color = Color(0.06, 0.06, 0.1)
+@export var detailed_thruster_color: Color = Color(1.0, 0.5, 0.15)
+@export var detailed_core_color: Color = Color(1.0, 0.6, 0.25)
+
+## -- MACHINED_HEAVY (M3): thick bevelled rim band, terraces to a keel --------
+@export var heavy_depth_fraction: float = 0.11
+@export var heavy_panel_count: int = 20
+@export var heavy_panel_segments: int = 4
+@export var heavy_seam_depth_fraction: float = 0.005
+## Shares of the side depth: gold trim, thick rim band, bevel; terraces take the rest.
+@export var heavy_trim_share: float = 0.04
+@export var heavy_rim_share: float = 0.22
+@export var heavy_bevel_share: float = 0.1
+## How far the bevel and each terrace step in, as fractions of the radius.
+@export var heavy_bevel_inset_fraction: float = 0.04
+@export var heavy_step_inset_fraction: float = 0.09
+@export var heavy_step_count: int = 3
+## Gold trim on each terrace edge, as a share of the side depth.
+@export var heavy_step_trim_share: float = 0.025
+## Keel taper depth as a multiple of the side depth, where it narrows to, and
+## the radius of the glowing core on its flat cap (fractions of the radius).
+@export var heavy_keel_ratio: float = 0.7
+@export var heavy_keel_scale: float = 0.2
+@export var heavy_core_scale: float = 0.1
+@export var heavy_glow_energy: float = 0.85
+@export var heavy_gold_color: Color = Color(1.0, 0.72, 0.2)
+@export var heavy_rim_color: Color = Color(0.95, 0.88, 0.74)
+@export var heavy_bevel_color: Color = Color(0.95, 0.38, 0.25)
+@export var heavy_wall_color: Color = Color(0.18, 0.23, 0.4)
+@export var heavy_wall_alt_color: Color = Color(0.12, 0.16, 0.3)
+@export var heavy_ledge_color: Color = Color(0.06, 0.05, 0.1)
+@export var heavy_seam_color: Color = Color(0.04, 0.03, 0.07)
+@export var heavy_keel_color: Color = Color(0.12, 0.15, 0.26)
+@export var heavy_core_color: Color = Color(1.0, 0.65, 0.25)

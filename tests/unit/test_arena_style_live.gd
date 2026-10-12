@@ -26,7 +26,7 @@ func _signature() -> Array:
 	return [mesh.get_surface_count(), vertices]
 
 
-func test_arena_tab_exists_with_a_style_dropdown_of_four_named_styles() -> void:
+func test_arena_tab_exists_with_a_style_dropdown_of_all_named_styles() -> void:
 	assert_not_null(_panel._tab_container.get_node_or_null("Arena"), "Arena tab")
 	var option: OptionButton = _panel.control_for(_field.arena_side_style, "style") as OptionButton
 	assert_not_null(option, "style control is an OptionButton")
@@ -47,7 +47,7 @@ func test_picking_each_style_rebuilds_the_arena_mesh_and_keeps_territory_configu
 	var overlay: TerritoryOverlay = _field.overlay()
 	var material: ShaderMaterial = overlay.material()
 	var seen: Array = [_signature()]
-	for which: int in [ArenaSideStyle.Style.LAYERED_PLATES, ArenaSideStyle.Style.ROCKY_ISLAND, ArenaSideStyle.Style.MACHINED_DISC]:
+	for which: int in [ArenaSideStyle.Style.LAYERED_PLATES, ArenaSideStyle.Style.ROCKY_ISLAND, ArenaSideStyle.Style.MACHINED_DISC, ArenaSideStyle.Style.MACHINED_STYLISED, ArenaSideStyle.Style.MACHINED_DETAILED, ArenaSideStyle.Style.MACHINED_HEAVY]:
 		option.select(option.get_item_index(which))
 		option.item_selected.emit(option.get_item_index(which))
 		assert_eq(_field.arena_side_style.style, which)

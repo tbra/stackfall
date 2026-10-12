@@ -48,6 +48,26 @@ const TRI_VERTS: int = 3
 const DIAMETER_FACTOR: float = 2.0
 ## Every second stratum / rib run uses the alternate colour / height.
 const ALTERNATE: int = 2
+## Round 2 machined refinements (config/ArenaSideStyle.gd).
+const MIN_PANEL_SEGMENTS: int = 2
+const DIAMETER_FACTOR_INT: int = 2
+## Where the stylised underside's middle ring sits, as a share of the underside depth.
+const UNDER_MID_DEPTH: float = 0.55
+## Depth of the glowing core cone below the last detailed terrace, share of underside depth.
+const CORE_DEPTH_SHARE: float = 0.12
+## Vent slot rectangle inside its terrace cell (u along the segment, v across the terrace).
+const VENT_U0: float = 0.3
+const VENT_U1: float = 0.7
+const VENT_V0: float = 0.2
+const VENT_V1: float = 0.8
+## Vent slots sit this share of the underside depth below the terrace so they read as recesses.
+const VENT_DROP_SHARE: float = 0.004
+## Thruster cone: hexagon base, centre of mass along its length.
+const CONE_SIDES: int = 6
+const CONE_INSIDE: float = 0.3
+## Rivet pyramid base below / above the centre, in rivet half-widths.
+const RIVET_LOW: float = 0.6
+const RIVET_HIGH: float = 1.2
 
 
 ## One closed loop of per-segment edge points: segment i spans starts[i]..ends[i].
@@ -118,6 +138,15 @@ func build(map_def: MapDef, style: ArenaSideStyle, segments: int, y_top: float) 
 		ArenaSideStyle.Style.MACHINED_DISC:
 			_outline = outline_points(map_def, maxi(style.machined_panel_count, 1) * PANEL_SEGMENTS)
 			_build_machined(style, y_top)
+		ArenaSideStyle.Style.MACHINED_STYLISED:
+			_outline = outline_points(map_def, maxi(style.stylised_panel_count, 1) * maxi(style.stylised_panel_segments, MIN_PANEL_SEGMENTS))
+			_build_stylised(style, y_top)
+		ArenaSideStyle.Style.MACHINED_DETAILED:
+			_outline = outline_points(map_def, maxi(style.detailed_panel_count, 1) * maxi(style.detailed_panel_segments, MIN_PANEL_SEGMENTS))
+			_build_detailed(style, y_top)
+		ArenaSideStyle.Style.MACHINED_HEAVY:
+			_outline = outline_points(map_def, maxi(style.heavy_panel_count, 1) * maxi(style.heavy_panel_segments, MIN_PANEL_SEGMENTS))
+			_build_heavy(style, y_top)
 	var out: Dictionary = {}
 	if not _body_side.is_empty():
 		out[KIND_BAND] = _body_side.arrays()
@@ -376,3 +405,244 @@ func _build_machined(style: ArenaSideStyle, y_top: float) -> void:
 		previous = ring
 	var center: Ring = _make_ring(0.0, previous.starts[0].y)
 	_sweep(previous, center, style.machined_light_color, true)
+
+
+# --- Machined refinements (round 2): shared helpers ------------------------------
+
+## Flush wall between two heights; `off_a` / `off_b` (metres, negative = inset)
+## are the radial pushes at its top and bottom.
+func _wall(y_a: float, y_b: float, off_a: float, off_b: float, color: Color, glow: bool = false) -> void:
+	_sweep(_make_ring(1.0, y_a, off_a), _make_ring(1.0, y_b, off_b), color, glow)
+
+
+## A wall of flat panels split by crisp recessed seams (the last outline segment
+## of every `segs`), closed top and bottom by dark ledges so no gap shows.
+func _seamed_wall(
+	y_a: float, y_b: float, off: float, color: Color, seam_color: Color, seam_depth: float, segs: int
+) -> void:
+	var offsets: PackedFloat32Array = PackedFloat32Array()
+	var colors: PackedColorArray = PackedColorArray()
+	for i: int in range(_outline.size()):
+		var is_seam: bool = i % segs == segs - 1
+		offsets.append(-seam_depth if is_seam else 0.0)
+		colors.append(seam_color if is_seam else color)
+	var top: Ring = _make_ring(1.0, y_a, off, offsets)
+	var bottom: Ring = _make_ring(1.0, y_b, off, offsets)
+	_sweep(top, bottom, color, false, colors)
+	_risers(top, bottom, seam_color)
+	_sweep(_make_ring(1.0, y_a, off), top, seam_color)
+	_sweep(bottom, _make_ring(1.0, y_b, off), seam_color)
+
+
+## Triangle of a convex solid: the front faces away from the interior point `inside`.
+func _solid_tri(soup: Soup, p0: Vector3, p1: Vector3, p2: Vector3, inside: Vector3, color: Color) -> void:
+	soup.add_tri(p0, p1, p2, (p0 + p1 + p2) / float(TRI_VERTS) - inside, color)
+
+
+## Colour per outline segment, alternating by whole panels.
+func _wedge_colors(segs: int, color: Color, alt: Color) -> PackedColorArray:
+	var out: PackedColorArray = PackedColorArray()
+	for i: int in range(_outline.size()):
+		out.append(color if (i / segs) % ALTERNATE == 0 else alt)
+	return out
+
+
+## Glowing cone hanging below a flat hexagon of `radius` centred on `center`.
+func _glow_cone(center: Vector3, radius: float, length: float, color: Color) -> void:
+	var tip: Vector3 = center + Vector3.DOWN * length
+	var inside: Vector3 = center + Vector3.DOWN * length * CONE_INSIDE
+	for s: int in range(CONE_SIDES):
+		var a0: float = TAU * float(s) / float(CONE_SIDES)
+		var a1: float = TAU * float(s + 1) / float(CONE_SIDES)
+		var p0: Vector3 = center + Vector3(cos(a0), 0.0, sin(a0)) * radius
+		var p1: Vector3 = center + Vector3(cos(a1), 0.0, sin(a1)) * radius
+		_solid_tri(_glow, p0, p1, tip, inside, color)
+
+
+## Small three-sided pyramid standing out of the wall at `center`, pointing along `normal`.
+func _rivet(center: Vector3, normal: Vector3, half: float, height: float, color: Color) -> void:
+	var tangent: Vector3 = Vector3.UP.cross(normal).normalized()
+	var b0: Vector3 = center - tangent * half - Vector3.UP * half * RIVET_LOW
+	var b1: Vector3 = center + tangent * half - Vector3.UP * half * RIVET_LOW
+	var b2: Vector3 = center + Vector3.UP * half * RIVET_HIGH
+	var tip: Vector3 = center + normal * height
+	var inside: Vector3 = (b0 + b1 + b2) / float(TRI_VERTS) + normal * height * HALF * HALF
+	_solid_tri(_body_side, b0, b1, tip, inside, color)
+	_solid_tri(_body_side, b1, b2, tip, inside, color)
+	_solid_tri(_body_side, b2, b0, tip, inside, color)
+
+
+## Rivets at the first and last flat face of every panel on one row of height `y`.
+func _rivet_row(y: float, segs: int, half: float, height: float, color: Color) -> void:
+	var count: int = _outline.size()
+	for panel: int in range(count / segs):
+		for face: int in [0, segs - 2]:
+			var i: int = panel * segs + face
+			var a: Vector3 = _ring_point(i, 1.0, 0.0, PackedFloat32Array(), y)
+			var b: Vector3 = _ring_point(i + 1, 1.0, 0.0, PackedFloat32Array(), y)
+			var mid: Vector3 = (a + b) * HALF
+			_rivet(mid, Vector3(mid.x, 0.0, mid.z).normalized(), half, height, color)
+
+
+# --- MACHINED_STYLISED (M1) -------------------------------------------------------
+
+func _build_stylised(style: ArenaSideStyle, y_top: float) -> void:
+	var depth: float = DIAMETER_FACTOR * _radius * style.stylised_depth_fraction
+	var seam: float = _radius * style.stylised_seam_depth_fraction
+	var segs: int = maxi(style.stylised_panel_segments, MIN_PANEL_SEGMENTS)
+	var y: float = y_top
+	var rest: float = 1.0 - style.stylised_trim_share - style.stylised_upper_share - style.stylised_stripe_share - style.stylised_lower_trim_share
+	var h: float = depth * style.stylised_trim_share
+	_wall(y, y - h, 0.0, 0.0, style.stylised_gold_color, true)
+	y -= h
+	h = depth * style.stylised_upper_share
+	_seamed_wall(y, y - h, 0.0, style.stylised_upper_color, style.stylised_seam_color, seam, segs)
+	y -= h
+	h = depth * style.stylised_stripe_share
+	_wall(y, y - h, 0.0, 0.0, style.stylised_stripe_color)
+	y -= h
+	h = depth * maxf(rest, 0.0)
+	_seamed_wall(y, y - h, 0.0, style.stylised_lower_color, style.stylised_seam_color, seam, segs)
+	y -= h
+	h = depth * style.stylised_lower_trim_share
+	_wall(y, y - h, 0.0, 0.0, style.stylised_gold_color, true)
+	y -= h
+	# Underside: two cone steps in alternating wedge colours, then a glowing core.
+	var under: float = depth * style.stylised_underside_ratio
+	var wedge: PackedColorArray = _wedge_colors(segs, style.stylised_underside_color, style.stylised_underside_alt_color)
+	var previous: Ring = _make_ring(1.0, y)
+	var mid: Ring = _make_ring(lerpf(1.0, style.stylised_keel_scale, HALF), y - under * UNDER_MID_DEPTH)
+	_sweep(previous, mid, style.stylised_underside_color, false, wedge)
+	var keel: Ring = _make_ring(style.stylised_keel_scale, y - under)
+	_sweep(mid, keel, style.stylised_underside_color, false, wedge)
+	var core_depth: float = under * style.stylised_core_height_fraction
+	_sweep(keel, _make_ring(0.0, y - under - core_depth), style.stylised_core_color, true)
+
+
+# --- MACHINED_DETAILED (M2) -------------------------------------------------------
+
+func _build_detailed(style: ArenaSideStyle, y_top: float) -> void:
+	var depth: float = DIAMETER_FACTOR * _radius * style.detailed_depth_fraction
+	var seam: float = _radius * style.detailed_seam_depth_fraction
+	var recess: float = _radius * style.detailed_strip_recess_fraction
+	var segs: int = maxi(style.detailed_panel_segments, MIN_PANEL_SEGMENTS)
+	var rest: float = 1.0 - style.detailed_trim_share - style.detailed_upper_share - style.detailed_strip_share - style.detailed_lip_share
+	var y: float = y_top
+	var h: float = depth * style.detailed_trim_share
+	_wall(y, y - h, 0.0, 0.0, style.detailed_gold_color, true)
+	y -= h
+	h = depth * style.detailed_upper_share
+	_seamed_wall(y, y - h, 0.0, style.detailed_panel_color, style.detailed_seam_color, seam, segs)
+	var rivet_half: float = _radius * style.detailed_rivet_size_fraction
+	var rivet_height: float = _radius * style.detailed_rivet_height_fraction
+	_rivet_row(y - h * HALF, segs, rivet_half, rivet_height, style.detailed_rivet_color)
+	y -= h
+	# Recessed warm light strip between two bevels.
+	h = depth * style.detailed_strip_share
+	var strip_top: Ring = _make_ring(1.0, y, -recess)
+	var strip_bottom: Ring = _make_ring(1.0, y - h, -recess)
+	_sweep(_make_ring(1.0, y), strip_top, style.detailed_seam_color)
+	_sweep(strip_top, strip_bottom, style.detailed_strip_color, true)
+	_sweep(strip_bottom, _make_ring(1.0, y - h), style.detailed_seam_color)
+	y -= h
+	h = depth * maxf(rest, 0.0)
+	_seamed_wall(y, y - h, 0.0, style.detailed_lower_color, style.detailed_seam_color, seam, segs)
+	_rivet_row(y - h * HALF, segs, rivet_half, rivet_height, style.detailed_rivet_color)
+	y -= h
+	h = depth * style.detailed_lip_share
+	_wall(y, y - h, 0.0, 0.0, style.detailed_lip_color)
+	y -= h
+	_build_detailed_underside(style, y, depth, segs)
+
+
+## Concentric stepped terraces (annulus then dark groove riser), dark vent slots
+## on one terrace, glowing thruster cones on another, glowing core in the middle.
+func _build_detailed_underside(style: ArenaSideStyle, y_edge: float, depth: float, segs: int) -> void:
+	var under: float = depth * style.detailed_underside_ratio
+	var rings: int = maxi(style.detailed_ring_count, 1)
+	var groove: float = under * style.detailed_groove_share
+	var slope: float = under / float(rings) - groove
+	var previous: Ring = _make_ring(1.0, y_edge)
+	var y: float = y_edge
+	var wedge: PackedColorArray = _wedge_colors(segs, style.detailed_underside_color, style.detailed_underside_alt_color)
+	var annuli: Array[Ring] = []
+	var annulus_tops: Array[Ring] = []
+	for k: int in range(1, rings + 1):
+		var scale: float = lerpf(1.0, style.detailed_keel_scale, float(k) / float(rings))
+		var top: Ring = _make_ring(scale, y - slope)
+		_sweep(previous, top, style.detailed_underside_color, false, wedge)
+		annuli.append(previous)
+		annulus_tops.append(top)
+		y -= slope + groove
+		var bottom: Ring = _make_ring(scale, y)
+		_sweep(top, bottom, style.detailed_groove_color)
+		previous = bottom
+	var ring_index: int = clampi(style.detailed_vent_ring, 1, rings) - 1
+	_vents(style, annuli[ring_index], annulus_tops[ring_index], under)
+	ring_index = clampi(style.detailed_thruster_ring, 1, rings) - 1
+	_thrusters(style, annuli[ring_index], annulus_tops[ring_index], under)
+	var core: float = under * CORE_DEPTH_SHARE
+	_sweep(previous, _make_ring(0.0, y - core), style.detailed_core_color, true)
+
+
+## Dark rectangles, set slightly below one terrace, evenly spaced around it.
+func _vents(style: ArenaSideStyle, outer: Ring, inner: Ring, under: float) -> void:
+	var count: int = _outline.size()
+	var lift: Vector3 = Vector3.DOWN * under * VENT_DROP_SHARE
+	for v: int in range(style.detailed_vent_count):
+		var i: int = (v * count / maxi(style.detailed_vent_count, 1)) % count
+		var corners: Array[Vector3] = []
+		for pair: Vector2 in [Vector2(VENT_U0, VENT_V0), Vector2(VENT_U1, VENT_V0), Vector2(VENT_U1, VENT_V1), Vector2(VENT_U0, VENT_V1)]:
+			var edge_o: Vector3 = outer.starts[i].lerp(outer.ends[i], pair.x)
+			var edge_i: Vector3 = inner.starts[i].lerp(inner.ends[i], pair.x)
+			corners.append(edge_o.lerp(edge_i, pair.y) + lift)
+		_add_quad(corners[0], corners[1], corners[2], corners.back(), Vector3.DOWN, style.detailed_vent_color, false)
+
+
+## Glowing nozzles hanging from the middle of one terrace.
+func _thrusters(style: ArenaSideStyle, outer: Ring, inner: Ring, under: float) -> void:
+	var count: int = _outline.size()
+	for t: int in range(style.detailed_thruster_count):
+		var i: int = (t * count + count / DIAMETER_FACTOR_INT) / maxi(style.detailed_thruster_count, 1) % count
+		var centre: Vector3 = (outer.starts[i] + outer.ends[i] + inner.starts[i] + inner.ends[i]) * HALF * HALF
+		_glow_cone(centre, _radius * style.detailed_thruster_size_fraction, under * style.detailed_thruster_length_share, style.detailed_thruster_color)
+
+
+# --- MACHINED_HEAVY (M3) ----------------------------------------------------------
+
+func _build_heavy(style: ArenaSideStyle, y_top: float) -> void:
+	var depth: float = DIAMETER_FACTOR * _radius * style.heavy_depth_fraction
+	var seam: float = _radius * style.heavy_seam_depth_fraction
+	var segs: int = maxi(style.heavy_panel_segments, MIN_PANEL_SEGMENTS)
+	var steps: int = maxi(style.heavy_step_count, 1)
+	var y: float = y_top
+	var h: float = depth * style.heavy_trim_share
+	_wall(y, y - h, 0.0, 0.0, style.heavy_gold_color, true)
+	y -= h
+	h = depth * style.heavy_rim_share
+	_seamed_wall(y, y - h, 0.0, style.heavy_rim_color, style.heavy_seam_color, seam, segs)
+	y -= h
+	var off: float = -_radius * style.heavy_bevel_inset_fraction
+	h = depth * style.heavy_bevel_share
+	_wall(y, y - h, 0.0, off, style.heavy_bevel_color)
+	y -= h
+	var terrace_share: float = 1.0 - style.heavy_trim_share - style.heavy_rim_share - style.heavy_bevel_share
+	var trim: float = depth * style.heavy_step_trim_share
+	var wall_h: float = maxf(depth * terrace_share / float(steps) - trim, 0.0)
+	var step_in: float = _radius * style.heavy_step_inset_fraction
+	for k: int in range(steps):
+		_sweep(_make_ring(1.0, y, off), _make_ring(1.0, y, off - step_in), style.heavy_ledge_color)
+		off -= step_in
+		_wall(y, y - trim, off, off, style.heavy_gold_color, true)
+		y -= trim
+		var wall_color: Color = style.heavy_wall_color if k % ALTERNATE == 0 else style.heavy_wall_alt_color
+		_wall(y, y - wall_h, off, off, wall_color)
+		y -= wall_h
+	# Keel: taper to a flat cap with a glowing core.
+	var keel_y: float = y - depth * style.heavy_keel_ratio
+	var wall_bottom: Ring = _make_ring(1.0, y, off)
+	var keel: Ring = _make_ring(style.heavy_keel_scale, keel_y)
+	_sweep(wall_bottom, keel, style.heavy_keel_color)
+	var core: Ring = _make_ring(style.heavy_core_scale, keel_y)
+	_sweep(keel, core, style.heavy_keel_color)
+	_sweep(core, _make_ring(0.0, keel_y), style.heavy_core_color, true)
