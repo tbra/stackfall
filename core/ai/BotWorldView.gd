@@ -38,6 +38,15 @@ var next_shape: BlockShape = null
 var mode_goal: BotModeGoal = null
 var specials: PackedVector2Array = PackedVector2Array()
 var gifts: PackedVector2Array = PackedVector2Array()
+## Active weather id (&"" = calm) and its current 0..1 intensity, plain data from MatchWeather.
+var weather_id: StringName = &""
+var weather_intensity: float = 0.0
+## Height response of the active wind (WindField.height_factor); null when no wind blows
+## (calm, rain, snow, ...), which keeps every wind term at exactly 0.
+# DECISION: only the Storm wind is modelled; wind direction is not read (the height response
+# decides how tip-prone a tall stack is, and the bot cannot dodge a heading), and the
+# transient Breeze gusts are ignored.
+var wind_tuning: StormTuning = null
 
 
 static func build(

@@ -26,3 +26,7 @@ extends Resource
 ## (a fresh piece set at the edge of the enemy land, or a stack raised by about this much).
 ## Bases closer than that are graded towards a certain dissolve.
 @export var hazard_lookahead_height_m: float = 6.0
+## Weather (Bontago-1t5.41): extra TIP risk of a placement under wind, added to the candidate's
+## own tip_risk as wind_tip_weight * weather intensity * WindField.height_factor(top height).
+## 0 disables it; calm weather is unaffected whatever the value.
+@export var wind_tip_weight: float = 1.0
