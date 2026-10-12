@@ -413,7 +413,7 @@ func test_start_match_writes_the_lobbys_gravity_into_the_shared_physics_tuning()
 	_main._on_lobby_start_requested(config)
 
 	var tuning: PhysicsTuning = load("res://config/physics_tuning.tres")
-	assert_almost_eq(tuning.gravity_multiplier, 1.4 * 1.2, 0.0001)
+	assert_almost_eq(tuning.gravity_multiplier, 1.75 * 1.2, 0.0001)
 
 
 func test_start_match_re_applies_gravity_to_a_block_already_standing() -> void:
@@ -427,7 +427,7 @@ func test_start_match_re_applies_gravity_to_a_block_already_standing() -> void:
 	config.gravity_multiplier = 1.2
 	_main._on_lobby_start_requested(config)
 
-	assert_almost_eq(block.gravity_scale, 1.4 * 1.2, 0.0001)
+	assert_almost_eq(block.gravity_scale, 1.75 * 1.2, 0.0001)
 
 
 # --- (h) M5 P1: _build_slots() marks the trailing ai_count slots as bots ----

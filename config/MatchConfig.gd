@@ -166,7 +166,9 @@ const DISC_SIZE_STEP_DEFAULT: int = 2
 ## (the old 1.4 Heavy & Bouncy factor); start_match() writes
 ## baseline * this into the shared tuning's gravity_multiplier, so the
 ## effective default gravity is unchanged while the lobby reads 1.0.
-@export var gravity_multiplier: float = 1.0
+## [OWNER decision 2026-10-12, Bontago-1pi.179]: the lobby default stays 1.0x; the BASE gravity
+## (PhysicsTuning.lobby_gravity_baseline) was raised 1.25x instead.
+@export var gravity_multiplier: float = GRAVITY_DEFAULT
 ## Goal flags, 1-5.
 @export var goal_flag_count: int = 1
 @export var gifts_enabled: bool = true
@@ -295,8 +297,10 @@ const PLAYER_COUNT_MAX: int = 8
 const BLOCK_TIMER_MIN: float = 3.0
 const BLOCK_TIMER_MAX: float = 12.0
 ## Old effective range 0.5-2.0 divided by the 1.4 baseline, rounded.
-const GRAVITY_MIN: float = 0.35
-const GRAVITY_MAX: float = 1.45
+## [OWNER decision 2026-10-12, Bontago-1pi.179]: range 0.1x-2.0x.
+const GRAVITY_DEFAULT: float = 1.0
+const GRAVITY_MIN: float = 0.1
+const GRAVITY_MAX: float = 2.0
 ## Saved/networked dicts without a "gravity_scale_version" key hold the old
 ## absolute multiplier; from_dict() divides it by this legacy baseline.
 const LEGACY_GRAVITY_BASELINE: float = 1.4
@@ -330,6 +334,15 @@ static func timer_default_minutes(mode: int) -> int:
 		GameMode.DOMINATION:
 			return DOMINATION_ROUND_MINUTES_DEFAULT
 	return ROUND_TIMER_DEFAULT_MINUTES
+
+
+## Hole mode the lobby selects when the host switches INTO `mode`.
+## [OWNER decision 2026-10-12, Bontago-1pi.178]: Elimination defaults to permanent holes;
+## every other mode keeps the temporary default.
+static func default_hole_mode(mode: int) -> HoleMode:
+	if resolve_game_mode(mode) == GameMode.ELIMINATION:
+		return HoleMode.PERMANENT
+	return HoleMode.TEMPORARY
 
 
 ## True when two modes share one timer meaning (so a mode switch keeps the value).

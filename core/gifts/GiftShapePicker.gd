@@ -22,7 +22,7 @@ static func reset_cache_for_tests() -> void:
 
 static func _shapes() -> Array[BlockShape]:
 	if not _cache_loaded:
-		_cached_shapes = BlockShape.load_all_shapes()
+		_cached_shapes = BlockShape.load_bag_shapes()
 		_cache_loaded = true
 		scan_count += 1
 	return _cached_shapes
