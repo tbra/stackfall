@@ -112,7 +112,7 @@ func test_hud_label_shows_host_remaining_then_go_then_nothing() -> void:
 	hud.match_provider = provider
 	add_child_autofree(hud)
 	hud.match_provider = provider
-	var label: Label = hud.get_node("CountdownLabel") as Label
+	var label: Label = hud.find_child("CountdownLabel", true, false) as Label
 	assert_false(label.visible)
 	provider.remaining = 2.4
 	hud._process(0.016)
