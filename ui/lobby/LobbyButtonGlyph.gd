@@ -1,9 +1,11 @@
 class_name LobbyButtonGlyph
 extends RefCounted
 ## Puts the key / pad glyph of an Input Map action on a lobby button (Bontago-1pi.159.27): the
-## hint is an InputPromptFlow (so it follows the active device and rebinds) laid over the button's
-## right end, and the button's block styleboxes reserve its room so the label stays centred in the
-## rest. Look only; the shortcut itself is handled by ui/Lobby.gd.
+## hint is an InputPromptFlow (so it follows the active device and rebinds) sitting right before the
+## label (and the button's icon), the glyph + icon + label group centred in the button
+## (Bontago-1pi.159.39). The block styleboxes reserve the glyph's room on the left, so the button's
+## minimum width grows to hold the group and the label stays centred in the rest; a glyph taller than
+## the button's face is scaled down to fit. Look only; the shortcut itself is handled by ui/Lobby.gd.
 
 const NODE_NAME: String = "HintGlyph"
 const TEMPLATE_FORMAT: String = "{%s}"
@@ -21,36 +23,56 @@ static func attach(button: Button, action: StringName) -> void:
 		flow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		button.add_child(flow)
 		flow.minimum_size_changed.connect(_place.bind(button, flow))
-		button.draw.connect(_sync_alpha.bind(button, flow))
+		button.draw.connect(_sync.bind(button, flow))
+		button.resized.connect(_place.bind(button, flow))
 	flow.set_template(TEMPLATE_FORMAT % String(action))
-	_place.call_deferred(button, flow)
+	_place(button, flow)  # the button's draw / resize and the flow's size change keep it placed
 
 
 static func flow_of(button: Button) -> InputPromptFlow:
 	return button.get_node_or_null(NODE_NAME) as InputPromptFlow
 
 
-static func _sync_alpha(button: Button, flow: InputPromptFlow) -> void:
+static func _sync(button: Button, flow: InputPromptFlow) -> void:
 	flow.modulate.a = DISABLED_ALPHA if button.disabled else 1.0
+	_place(button, flow)  # cheap, and catches a changed label / re-styled boxes
 
 
 static func _place(button: Button, flow: InputPromptFlow) -> void:
 	if not is_instance_valid(button) or not is_instance_valid(flow):
 		return
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	var pad: float = float(arcade.space_2_px)
-	var glyph_size: Vector2 = flow.get_combined_minimum_size()
-	flow.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
-	flow.offset_right = -pad
-	flow.offset_left = -pad - glyph_size.x
-	flow.offset_top = -glyph_size.y * 0.5
-	flow.offset_bottom = glyph_size.y * 0.5
-	var reserve: float = glyph_size.x + pad * 2.0
+	var gap: float = float(arcade.space_2_px)
+	var natural: Vector2 = flow.get_combined_minimum_size()
+	var face_height: float = button.size.y - float(arcade.space_1_px * 2)
+	var fit: float = 1.0
+	if face_height > 0.0 and natural.y > face_height:
+		fit = face_height / natural.y
+	var glyph_width: float = natural.x * fit
+	var reserve: float = glyph_width + gap
 	for state: String in UiBlockButton.STATES:
 		var box: StyleBox = button.get_theme_stylebox(state)
 		if box != null:
-			box.content_margin_right = maxf(box.content_margin_right, 0.0) + reserve - _reserved(box)
-			box.set_meta(&"hint_reserve", reserve)
+			var delta: float = reserve - _reserved(box)
+			if absf(delta) > 0.0:
+				# The meta first: changing the margin can re-enter this function synchronously.
+				box.set_meta(&"hint_reserve", reserve)
+				box.content_margin_left = maxf(box.content_margin_left, 0.0) + delta
+	# The group is glyph, gap, [icon, gap,] label; the label (+ icon) is centred in what the margin
+	# leaves, so the group's left edge is (button width - group width) / 2.
+	var group: float = reserve + content_width(button)
+	flow.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	flow.size = natural
+	flow.pivot_offset = Vector2(0.0, natural.y * 0.5)
+	flow.scale = Vector2(fit, fit)
+	flow.position = Vector2(maxf((button.size.x - group) * 0.5, 0.0), (button.size.y - natural.y) * 0.5)
+
+
+## The width of the button's own content (icon, gap, label): its minimum width less the stylebox margins.
+static func content_width(button: Button) -> float:
+	var box: StyleBox = button.get_theme_stylebox(&"normal")
+	var margins: float = 0.0 if box == null else maxf(box.content_margin_left, 0.0) + maxf(box.content_margin_right, 0.0)
+	return maxf(button.get_minimum_size().x - margins, 0.0)
 
 
 static func _reserved(box: StyleBox) -> float:

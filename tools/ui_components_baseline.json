@@ -1,7 +1,7 @@
 {
  "R1": {
-  "ui/Lobby.gd": 9,
-  "ui/Lobby.tscn": 7
+  "ui/Lobby.gd": 8,
+  "ui/Lobby.tscn": 6
  },
  "R2": {
   "ui/GraphicsSettingsTab.gd": 1,
@@ -16,7 +16,7 @@
   "ui/Tutorial.gd": 6,
   "ui/lobby/LobbyOpenSeatRow.gd": 4,
   "ui/lobby/LobbyPlayersPanel.gd": 3,
-  "ui/lobby/LobbySeatRow.gd": 6
+  "ui/lobby/LobbySeatRow.gd": 5
  },
  "R3": {
   "ui/Lobby.gd": 1
