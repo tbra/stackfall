@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://ui/lobby/LobbyPlayersPanel.gd" id="1_panel"]
 [ext_resource type="Script" path="res://ui/FocusScrollContainer.gd" id="2_scroll"]
@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://ui/components/UiRow.gd" id="4_row"]
 [ext_resource type="Script" path="res://ui/components/UiToggle.gd" id="5_toggle"]
 [ext_resource type="Script" path="res://ui/components/UiBlockButton.gd" id="6_block"]
+[ext_resource type="Script" path="res://ui/lobby/LobbyChat.gd" id="7_chat"]
 
 [node name="LobbyPlayersPanel" type="VBoxContainer"]
 size_flags_vertical = 3
@@ -68,3 +69,8 @@ unique_name_in_owner = true
 visible = false
 layout_mode = 2
 autowrap_mode = 3
+
+[node name="LobbyChat" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+script = ExtResource("7_chat")
