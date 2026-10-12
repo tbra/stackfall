@@ -448,10 +448,11 @@ func test_home_is_not_knocked_out_before_the_claim_time_and_resets_when_control_
 	Match._territory._raster.advance_time(30.0, false)
 	assert_false(Match._territory._raster.is_hole(coords.x, coords.y), "the hole closed")
 	Match._territory._tick_home_claims(0.1)
-	assert_eq(Match._territory._objective.capture_progress(), 0.0, "progress reset on loss")
+	var faded: float = Match._territory._objective.capture_progress()
+	assert_true(faded > 0.45 and faded < 0.5, "progress fades slowly on loss (Bontago-1pi.194)")
 	_open_holes([1] as Array[int])
 	Match._territory._tick_home_claims(hold * 0.5)
-	assert_true(Match.slot(1).home_flag_alive, "progress was reset, not resumed")
+	assert_true(Match.slot(1).home_flag_alive, "resumed from the faded value, not yet complete")
 	Match._territory._tick_home_claims(hold * 0.5)
 	assert_false(Match.slot(1).home_flag_alive, "knocked out once the claim time is held")
 

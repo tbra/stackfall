@@ -323,6 +323,7 @@ func _begin_thinking(match_ref: Variant) -> void:
 		shape, next_shape, _mode_goal(match_ref), _active_special_positions(), _landed_gift_positions(match_ref)
 	)
 	_apply_weather(view, match_ref)
+	_apply_live_radius(view, match_ref)
 	_special_view = view
 	_think = BotThink.new(view, _profile, _rng)
 	_think.tuning = tuning
@@ -331,6 +332,14 @@ func _begin_thinking(match_ref: Variant) -> void:
 	_think_ticks = 0
 	_think_deadline_ticks = think_deadline_ticks()
 	_state = State.THINKING
+
+
+## Bontago-1t5.42: after the sudden-death shrink, the view's live radius is the surviving disc.
+func _apply_live_radius(view: BotWorldView, match_ref: Variant) -> void:
+	if match_ref.has_method("sudden_death_active") and bool(match_ref.sudden_death_active()):
+		var live: float = BotWorldView.live_radius_from_raster(view.raster, view.grid)
+		if live > 0.0:
+			view.live_radius = minf(live, view.field_radius)
 
 
 ## Bontago-1t5.41: copies the live weather (host) into the view; only a Storm blows wind.

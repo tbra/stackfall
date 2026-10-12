@@ -144,7 +144,6 @@ const ROW_WINDOW: String = "Window"
 const ROW_UI_SCALE: String = "UI scale"
 const ROW_HUD_SCALE: String = "HUD scale"
 const ROW_MINIMAP_SIZE: String = "Minimap size"
-const MINIMAP_SIZE_LABELS: PackedStringArray = ["Small", "Medium", "Large"]
 const ROW_CAMERA_SHAKE: String = "Camera shake"
 const ROW_ADAPTIVE_QUALITY: String = "Adaptive quality"
 const ROW_MASTER_VOLUME: String = "Master volume"
@@ -276,7 +275,7 @@ var _move_speed_slider: UiSegmentMeter = null
 var _rows: Array[KeyRebindRow] = []
 ## Bontago-1pi.150: a mouse drag on the UI-scale meter previews the % and applies on release
 ## (rescaling the canvas under the cursor mid-drag would make the pointer run away).
-var _ui_scale_dragging: bool = false
+var _dragging_meter: UiSegmentMeter = null
 ## Each component meter's value range, so its cell count maps to the setting's own unit.
 var _meter_ranges: Dictionary[UiSegmentMeter, Vector2] = {}
 
@@ -316,7 +315,8 @@ func _ready() -> void:
 	_window_mode_option.item_selected.connect(_on_window_mode_selected)
 	_rumble_enabled_check.toggled.connect(_on_rumble_enabled_toggled)
 	_ui_scale_slider.value_changed.connect(_on_meter_changed.bind(_ui_scale_slider))
-	_ui_scale_slider.gui_input.connect(_on_ui_scale_gui_input)
+	_ui_scale_slider.gui_input.connect(_on_scale_meter_gui_input.bind(_ui_scale_slider))
+	_hud_scale_slider.gui_input.connect(_on_scale_meter_gui_input.bind(_hud_scale_slider))
 	_hud_scale_slider.value_changed.connect(_on_meter_changed.bind(_hud_scale_slider))
 	_minimap_size_option.item_selected.connect(_on_minimap_size_selected)
 	_rumble_strength_slider.value_changed.connect(_on_meter_changed.bind(_rumble_strength_slider))
@@ -367,7 +367,7 @@ func _build_game_page() -> void:
 	_hud_scale_slider.formatter = func(cells: int) -> String: return _format_percent(_meter_value(_hud_scale_slider, cells))
 	_minimap_size_option = UiDropdown.new()
 	_add_row(display, ROW_MINIMAP_SIZE, _minimap_size_option, "MinimapSizeOption")
-	for label: String in MINIMAP_SIZE_LABELS:
+	for label: String in UiScaleTuning.shared().minimap_size_labels:
 		_minimap_size_option.add_item(label)
 	_camera_shake_check = UiToggle.new()
 	_add_row(display, ROW_CAMERA_SHAKE, _camera_shake_check, "CameraShakeCheck")
@@ -646,7 +646,7 @@ func _on_preset_selected(index: int) -> void:
 
 ## A component meter moved by the user: converts its cells to the setting's unit and hands them to the
 ## per-setting handler below (the UI-scale and rumble-intensity meters also see mouse drags, see
-## _on_ui_scale_gui_input()).
+## _on_scale_meter_gui_input()).
 func _on_meter_changed(cells: int, meter: UiSegmentMeter) -> void:
 	var value: float = _meter_value(meter, cells)
 	if meter == _master_volume_slider:
@@ -660,7 +660,8 @@ func _on_meter_changed(cells: int, meter: UiSegmentMeter) -> void:
 	elif meter == _ui_scale_slider:
 		_on_ui_scale_changed(value)
 	elif meter == _hud_scale_slider:
-		settings_provider.set_hud_scale(value)
+		# Previews live during a mouse drag; the release saves (see _on_scale_meter_gui_input).
+		settings_provider.set_hud_scale(value, _dragging_meter != _hud_scale_slider)
 	elif meter == _rumble_strength_slider:
 		_on_rumble_strength_changed(value)
 	elif meter == _move_speed_slider:
@@ -756,21 +757,26 @@ func _on_minimap_size_selected(index: int) -> void:
 
 
 func _on_ui_scale_changed(value: float) -> void:
-	if not _ui_scale_dragging:
+	if _dragging_meter != _ui_scale_slider:
 		settings_provider.set_ui_scale(value)
 
 
-## A mouse drag on the UI-scale meter previews and applies on release (Bontago-1pi.150): the press
-## starts the drag before the meter's own handler sets the value, the release applies it.
-func _on_ui_scale_gui_input(event: InputEvent) -> void:
+## A mouse drag on the UI-scale meter previews and applies on release (Bontago-1pi.150); on the HUD-scale
+## meter it applies live but saves once on release (Bontago-1pi.193). The press marks the dragged meter before
+## the meter's own handler sets the value, the release commits it.
+func _on_scale_meter_gui_input(event: InputEvent, meter: UiSegmentMeter) -> void:
 	var click: InputEventMouseButton = event as InputEventMouseButton
 	if click == null or click.button_index != MOUSE_BUTTON_LEFT:
 		return
 	if click.pressed:
-		_ui_scale_dragging = true
-	elif _ui_scale_dragging:
-		_ui_scale_dragging = false
-		settings_provider.set_ui_scale(_meter_value(_ui_scale_slider, _ui_scale_slider.value))
+		_dragging_meter = meter
+	elif _dragging_meter == meter:
+		_dragging_meter = null
+		var value: float = _meter_value(meter, meter.value)
+		if meter == _ui_scale_slider:
+			settings_provider.set_ui_scale(value)
+		else:
+			settings_provider.set_hud_scale(value)
 
 
 func _on_rumble_strength_changed(value: float) -> void:

@@ -432,3 +432,23 @@ signal weather_state_changed(state: Dictionary)
 ## "z" (world centre), "a" (heading, radians), "r" radius, "d" duration s, "s"
 ## strength 0..1. Presentation only.
 signal breeze_gust_started(gust: Dictionary)
+
+
+# --- Player chat (Bontago-1pi.192, docs/CHAT_PLAN.md). Net relays, UI listens. ---
+
+## A UI submitted a chat line (raw typed text; the host cleans it).
+signal chat_send_requested(text: String)
+
+## A cleaned, host-stamped line arrived (ChatRules.make_line dictionary).
+signal chat_line_received(line: Dictionary)
+
+## Late-join history replaced the local log (Array of ChatRules lines).
+signal chat_history_received(lines: Array)
+
+## The host refused a line; `code` is ChatRules.NOTICE_RATE / NOTICE_DUPLICATE.
+signal chat_notice(code: int)
+
+## The chat input field took or released keyboard focus; gameplay input blocks
+## while it is open, like pause_menu_opened.
+signal chat_input_opened
+signal chat_input_closed

@@ -149,6 +149,13 @@ extends Resource
 ## -- Win check (spec 2.3) ---------------------------------------------------
 ## One connected territory must contain every goal flag for this long.
 @export var capture_hold: float = 20.0
+## Elimination home claim [OWNER decision 2026-10-12, Bontago-9s9 b]: seconds of
+## claim progress lost per second while the attacker's control has lapsed
+## (0 = reset at once, 1 = fades as fast as it grew). Range 0..2.
+## DECISION: 0.25 -- a ~2 s temporary-hole gap costs 0.5 s of the ~20 s claim, and
+## a full pressure/lapse cycle of equal length still nets progress, so a home can
+## fall; a long lapse (>= 4x the held time) still clears it.
+@export var home_claim_decay_rate: float = 0.25
 ## Capture the Flag: score each held beacon adds per second (Bontago-22y.7).
 @export var ctf_score_per_beacon_second: float = 1.0
 ## Capture the Flag: seconds between score-progress replications (a change in

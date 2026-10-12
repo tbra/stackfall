@@ -27,6 +27,8 @@ extends Resource
 ## DECISION: minimap size is three presets (small / medium / large) in square HUD pixels; medium is the
 ## original 168 px. Index 1 is the default.
 @export var minimap_size_presets_px: PackedInt32Array = PackedInt32Array([128, 168, 224])
+## Option-list label for each preset, same order and length as minimap_size_presets_px (Bontago-1pi.193).
+@export var minimap_size_labels: PackedStringArray = PackedStringArray(["Small", "Medium", "Large"])
 @export var minimap_default_preset: int = 1
 
 const RESOURCE_PATH: String = "res://config/ui_scale_tuning.tres"

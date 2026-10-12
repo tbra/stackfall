@@ -709,10 +709,12 @@ func hud_scale() -> float:
 	return _hud_scale
 
 
-func set_hud_scale(value: float) -> void:
+## `persist` false applies live without writing the file (a slider drag); the menu saves once on release.
+func set_hud_scale(value: float, persist: bool = true) -> void:
 	_hud_scale = _ui_scale_tuning.sanitize(value)
 	UiScaleTuning.current_hud_scale = _hud_scale
-	_save()
+	if persist:
+		_save()
 	hud_scale_changed.emit(_hud_scale)
 
 

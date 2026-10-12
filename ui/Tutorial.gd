@@ -92,6 +92,8 @@ func _ready() -> void:
 	# scene without a display keeps working.
 	_controller.enable_mouse_capture()
 	_style_tip_banner()
+	Settings.hud_scale_changed.connect(_on_hud_scale_changed)
+	Settings.ui_scale_changed.connect(_on_hud_scale_changed)
 	_begin_step(0)
 
 
@@ -134,9 +136,24 @@ func _style_tip_banner() -> void:
 	var half_width: float = hud_visual_tuning.tip_max_width_px * 0.5
 	_prompt_panel.offset_left = -half_width
 	_prompt_panel.offset_right = half_width
-	var top: float = _hud.timer_ring_bottom_px() + hud_visual_tuning.tip_ring_gap_px
-	_prompt_panel.offset_bottom = top + (_prompt_panel.offset_bottom - _prompt_panel.offset_top)
+	_place_tip_banner()
+
+
+## DECISION (Bontago-1pi.193): the banner lives in its own CanvasLayer, outside the HUD's scale root, so it
+## follows the HUD scale by scaling the panel itself (same factor as the scale root) around its top-centre
+## pivot; the ring gap scales too, so the banner stays centred directly under the (scaled) timer ring.
+func _place_tip_banner() -> void:
+	var factor: float = UiScaleTuning.hud_relative_factor()
+	var height: float = _prompt_panel.offset_bottom - _prompt_panel.offset_top
+	var top: float = _hud.timer_ring_bottom_px() + hud_visual_tuning.tip_ring_gap_px * factor
 	_prompt_panel.offset_top = top
+	_prompt_panel.offset_bottom = top + height
+	_prompt_panel.pivot_offset = Vector2((_prompt_panel.offset_right - _prompt_panel.offset_left) * 0.5, 0.0)
+	_prompt_panel.scale = Vector2(factor, factor)
+
+
+func _on_hud_scale_changed(_value: float) -> void:
+	_place_tip_banner()
 
 
 func controller() -> PlayerController:

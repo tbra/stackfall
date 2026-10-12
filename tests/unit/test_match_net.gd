@@ -1094,6 +1094,85 @@ func test_a_replicated_territory_packet_drives_the_mirror_and_the_hole_signal() 
 	assert_signal_emitted_with_parameters(Events, "goal_capture_progress", [1, 0.4])
 
 
+# --- Bontago-1pi.194: a decaying home claim reaches clients on a static board ---
+
+func test_host_sends_fading_capture_until_it_clears() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_playing()
+	var net: MatchNetScript = _make_net({}, [0])
+	net._capture_team = 1
+	net._capture_progress = 0.5
+	assert_false(net._capture_update_due(), "nothing sent yet: raster path owns the first value")
+	net._note_capture_sent()
+	assert_false(net._capture_update_due(), "unchanged value is not resent")
+	net._capture_progress = 0.45
+	assert_true(net._capture_update_due(), "a falling claim is due on a static raster")
+	net._note_capture_sent()
+	net._capture_progress = 0.5
+	assert_true(net._capture_update_due(), "resumed pressure after a fade is sent too")
+	net._note_capture_sent()
+	net._capture_progress = 0.55
+	assert_false(net._capture_update_due(), "rising hold is left to client extrapolation")
+	net._capture_progress = 0.4
+	net._note_capture_sent()
+	net._capture_team = -1
+	net._capture_progress = 0.0
+	assert_true(net._capture_update_due(), "the clear is sent")
+	net._note_capture_sent()
+	assert_false(net._capture_update_due(), "nothing more once cleared")
+
+
+func test_client_ring_decays_to_zero_on_an_unchanged_raster() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_playing()
+	var host_net: MatchNetScript = _make_net({}, [0])
+	var raster: TerritoryRaster = Match.raster()
+	var empty: PackedByteArray = host_net._encode_raster_diff(
+		PackedInt32Array(), raster.owner_bytes(), raster.state_bytes()
+	)
+	var client_net: MatchNetScript = _make_net({}, [1], true)
+	var shares: PackedFloat32Array = PackedFloat32Array([0.5, 0.5])
+	var ext: ClaimProgressExtrapolator = ClaimProgressExtrapolator.new()
+	var seen: Array[float] = []
+	var on_progress: Callable = func(team_id: int, progress: float) -> void:
+		ext.snap(team_id, progress)
+		seen.append(ext.progress())
+	Events.goal_capture_progress.connect(on_progress)
+	client_net.net_territory(empty, false, shares, 1, 0.5)
+	client_net.net_territory(empty, false, shares, 1, 0.4)
+	assert_false(ext.advance(1.0, 20.0), "falling value is not extrapolated up")
+	client_net.net_territory(empty, false, shares, 1, 0.2)
+	client_net.net_territory(empty, false, shares, -1, 0.0)
+	assert_eq(seen, [0.5, 0.4, 0.2, 0.0] as Array[float], "decay and clear reach the client")
+	assert_false(ext.is_holding())
+	client_net.net_territory(empty, false, shares, 1, 0.3)
+	client_net.net_territory(empty, false, shares, 1, 0.35)
+	assert_true(ext.advance(1.0, 20.0), "resumed pressure rises again")
+	Events.goal_capture_progress.disconnect(on_progress)
+
+
+func test_malformed_capture_progress_is_rejected() -> void:
+	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	_start_playing()
+	var host_net: MatchNetScript = _make_net({}, [0])
+	var raster: TerritoryRaster = Match.raster()
+	var empty: PackedByteArray = host_net._encode_raster_diff(
+		PackedInt32Array(), raster.owner_bytes(), raster.state_bytes()
+	)
+	var client_net: MatchNetScript = _make_net({}, [1], true)
+	var shares: PackedFloat32Array = PackedFloat32Array([0.5, 0.5])
+	watch_signals(Events)
+	client_net.net_territory(empty, false, shares, 1, NAN)
+	client_net.net_territory(empty, false, shares, 1, INF)
+	client_net.net_territory(empty, false, shares, 1, 1.5)
+	client_net.net_territory(empty, false, shares, 1, -0.1)
+	client_net.net_territory(empty, false, shares, 9, 0.5)
+	client_net.net_territory(empty, false, shares, -2, 0.5)
+	assert_signal_not_emitted(Events, "goal_capture_progress")
+	client_net.net_territory(empty, false, shares, 1, 0.5)
+	assert_signal_emitted_with_parameters(Events, "goal_capture_progress", [1, 0.5])
+
+
 # --- M4 P2b: EVENT_GIFT_CLAIMED's third argument (Orchestrator amendment 1) -
 
 ## Bontago-csc: the drawn special id must reach a client's Events.gift_claimed
