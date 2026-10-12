@@ -48,6 +48,7 @@ entries = Dictionary[String, String]({
 "UiScaleSlider": "Makes the menus and HUD bigger or smaller. Raise it if text is hard to read on your screen.",
 "WindowModeOption": "Windowed, borderless or exclusive fullscreen. Borderless is the quickest to alt-tab out of.",
 "MoveSpeedSlider": "How fast the cursor or stick moves your held block. Lower is more precise.",
+"vsync_enabled": "Syncs frames to your monitor to stop screen tearing. Can add a little input delay.",
 "frame_cap_mode": "Limits how many frames per second the game draws, which saves power and heat.",
 "frame_cap_mode/0": "Display refresh: matches your monitor's refresh rate (vsync). Smooth and tear-free.",
 "frame_cap_mode/1": "Fixed: caps the game at the frame rate set below.",
