@@ -12,11 +12,20 @@ const NO_TEAM: int = -1
 
 var _team: int = NO_TEAM
 var _progress: float = 0.0
+## False once a snap for the same team came in lower (Elimination home claims
+## fade, Bontago-1pi.194): never extrapolate upward while the value is falling.
+var _rising: bool = true
 
 
 ## Snap to a received value. A zero/no-team value clears the hold.
 func snap(team_id: int, progress: float) -> void:
 	var holding: bool = team_id != NO_TEAM and progress > 0.0
+	if not holding or team_id != _team:
+		_rising = true
+	elif progress < _progress:
+		_rising = false
+	elif progress > _progress:
+		_rising = true
 	_team = team_id if holding else NO_TEAM
 	_progress = progress if holding else 0.0
 
@@ -25,6 +34,7 @@ func snap(team_id: int, progress: float) -> void:
 func clear() -> void:
 	_team = NO_TEAM
 	_progress = 0.0
+	_rising = true
 
 
 func is_holding() -> bool:
@@ -41,7 +51,7 @@ func progress() -> float:
 
 ## Advances the extrapolated value. Returns true when it changed.
 func advance(delta: float, hold_seconds: float) -> bool:
-	if _team == NO_TEAM or hold_seconds <= 0.0 or _progress >= 1.0 or delta <= 0.0:
+	if _team == NO_TEAM or not _rising or hold_seconds <= 0.0 or _progress >= 1.0 or delta <= 0.0:
 		return false
 	_progress = minf(_progress + delta / hold_seconds, 1.0)
 	return true

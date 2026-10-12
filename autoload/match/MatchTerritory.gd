@@ -146,7 +146,8 @@ func _build_territory() -> void:
 		_match._territory_tuning.ctf_replicate_interval_s,
 		_sky_slot_teams(), _match.config.sky_team_sum, _match._territory_tuning.sky_replicate_interval_s,
 		_match._territory_tuning.domination_replicate_interval_s,
-		SKY_NET_CONFIG.build_height_target_m
+		SKY_NET_CONFIG.build_height_target_m,
+		_match._territory_tuning.home_claim_decay_rate
 	)
 	_objective.set_claim_radius(_claim_radius())
 	_connect_sky_records()
@@ -907,6 +908,7 @@ func _check_home_flags_v2(delta: float = 0.0) -> void:
 ## the same trigger the instant knockout used: v2 (HoleMode.OFF) an enemy-owned
 ## (or unowned) home cell, the overlap modes a hole at the home cell. The
 ## claim progress shows through Events.goal_capture_progress (the goal ring).
+## When the pressure lapses the claim fades (home_claim_decay_rate, Bontago-1pi.194).
 ## `delta` is the time this step covers (0 = re-evaluate only).
 func _tick_home_claims(delta: float) -> void:
 	if not _match._is_host() or not _objective is EliminationObjective:
