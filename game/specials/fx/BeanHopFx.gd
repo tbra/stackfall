@@ -2,8 +2,9 @@ class_name BeanHopFx
 extends Node
 ## Bontago-a3z (owner: "the jumping beans jump" need an effect): a visual-only
 ## driver on a Jumping Bean gift carrier that marks every hop with a spring ring
-## and a dust kick where the bean left the ground, and every landing with a dust
-## puff (BeanHopFxTuning).
+## and a dust kick where the bean left the ground (and Events.bean_hopped, which
+## autoload/Sfx.gd turns into the hop sound), and every landing with a dust puff
+## (BeanHopFxTuning).
 ##
 ## Client-derived, like GiftBlink: started from GiftFxPresenter.on_gift_block_spawned
 ## on every peer and driven only by the carrier's own measured motion (position
@@ -86,6 +87,7 @@ func _spawn_takeoff() -> void:
 	if host == null:
 		return
 	var ground: Vector3 = _ground_point()
+	Events.bean_hopped.emit(ground)
 	var ring: FxRing = FxRing.new()
 	DiscAnchor.attach(ring, ground, host)
 	ring.setup(tuning.ring_color, tuning.ring_radius_m, tuning.ring_width_m, tuning.ring_s)

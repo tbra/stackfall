@@ -68,6 +68,24 @@ func test_fx_ring_plays_and_frees_itself() -> void:
 	assert_false(is_instance_valid(ring))
 
 
+var _hop_events: int = 0
+
+
+func _count_hop(_position: Vector3) -> void:
+	_hop_events += 1
+
+
+func before_each() -> void:
+	_hop_events = 0
+	if not Events.bean_hopped.is_connected(_count_hop):
+		Events.bean_hopped.connect(_count_hop)
+
+
+func after_each() -> void:
+	if Events.bean_hopped.is_connected(_count_hop):
+		Events.bean_hopped.disconnect(_count_hop)
+
+
 func _bean_driver() -> BeanHopFx:
 	var parent: Node3D = Node3D.new()
 	add_child_autofree(parent)
@@ -90,6 +108,7 @@ func test_bean_hop_after_rest_counts_and_spawns_a_ring() -> void:
 	_rest(driver, 0.0, driver.tuning.rest_ticks + 2)
 	driver.observe(driver.tuning.takeoff_speed_mps * 2.0 * STEP_S, STEP_S)
 	assert_eq(driver.hops, 1, "a take-off after resting is a hop")
+	assert_eq(_hop_events, 1, "the hop is announced on Events.bean_hopped (the hop sound)")
 	var rings: int = 0
 	for child: Node in driver.get_parent().get_parent().get_children():
 		if child is FxRing:
