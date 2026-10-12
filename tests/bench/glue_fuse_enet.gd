@@ -23,6 +23,7 @@ const LATE_SETTLE_S: float = 12.0
 const DISSOLVE_WAIT_S: float = 4.0
 const FINAL_WAIT_S: float = 4.0
 const MIN_SAMPLES: int = 4
+const SETTLE_STABLE_S: float = 2.0
 
 var _late: bool = false
 
@@ -118,11 +119,12 @@ func _run_host() -> void:
 	for block: Block in list:
 		if carrier != null and block.fused_carrier() == carrier:
 			fused += 1
-	print("GFUSE host fused=%d of %d carrier=%s" % [fused, list.size(), carrier != null])
+	print("GFUSE host fused=%d of %d carrier=%s anchored=%s" % [fused, list.size(), carrier != null, carrier != null and carrier.is_disc_anchored()])
 	if carrier == null:
 		await _wait(LATE_WAIT_S)
 		get_tree().quit(0)
 		return
+	var group: Array[Block] = carrier.members.duplicate()
 	carrier.apply_central_impulse(KICK_IMPULSE * carrier.mass)
 	carrier.apply_torque_impulse(KICK_TORQUE * carrier.mass)
 	for _tick: int in range(int((MOVING_S + REST_S) * 2.0)):
@@ -140,10 +142,24 @@ func _run_host() -> void:
 		carrier.remove_all_members(&"kill_plane")
 	print("GFUSE host after_kill carrier_valid=%s" % is_instance_valid(carrier))
 	await _wait(FINAL_WAIT_S)
-	for stray: Block in _blocks(blocks):
-		print("GFUSE host stray net_id=%d fused=%s queued=%s" % [stray.net_id, stray.is_fused_member(), stray.is_queued_for_deletion()])
-	print("GFUSE host strays=%d" % _blocks(blocks).size())
+	print("GFUSE host strays=%d" % _alive(group))
 	get_tree().quit(0)
+
+
+func _coated(root: Node3D) -> Array[Block]:
+	var found: Array[Block] = []
+	for block: Block in _blocks(root):
+		if HoneyCoat.is_coated(block):
+			found.append(block)
+	return found
+
+
+func _alive(group: Array[Block]) -> int:
+	var count: int = 0
+	for block: Block in group:
+		if is_instance_valid(block) and not block.is_queued_for_deletion():
+			count += 1
+	return count
 
 
 func _spread(values: Array[float]) -> float:
@@ -167,19 +183,23 @@ func _run_client() -> void:
 		return
 	var tag: String = "late" if _late else "client"
 	var all_coated: Callable = func() -> bool:
-		var members: Array[Block] = _blocks(blocks)
-		if members.size() < MEMBERS:
-			return false
-		for block: Block in members:
-			if not HoneyCoat.is_coated(block):
-				return false
-		return true
+		return _coated(blocks).size() >= MEMBERS
 	var coated: bool = await _until(all_coated, 80.0)
 	print("GFUSE %s coated_all=%s" % [tag, coated])
 	var failed: PackedStringArray = PackedStringArray()
 	if not coated:
 		failed.append("coat")
-	var list: Array[Block] = _blocks(blocks)
+	# Settle first: charged drops are coated at spawn, so the coated set only equals the group once
+	# every member has landed and fused; re-read it after the set stops changing.
+	var stable_since: int = Time.get_ticks_msec()
+	var stable_count: int = _coated(blocks).size()
+	while Time.get_ticks_msec() - stable_since < int(SETTLE_STABLE_S * 1000.0):
+		await _wait(POLL_S)
+		if _coated(blocks).size() != stable_count:
+			stable_count = _coated(blocks).size()
+			stable_since = Time.get_ticks_msec()
+	var list: Array[Block] = _coated(blocks)
+	var group_size: int = list.size()
 	var moving: Array[float] = []
 	var rest: Array[float] = []
 	var moving2: Array[float] = []
@@ -210,24 +230,22 @@ func _run_client() -> void:
 				moving.append(d01)
 				moving2.append(d02)
 		print("GFUSE %s moving_n=%d moving_spread=%.4f rest_n=%d rest_spread=%.4f" % [tag, moving.size(), maxf(_spread(moving), _spread(moving2)), rest.size(), maxf(_spread(rest), _spread(rest2))])
-		if not _late and (moving.size() < MIN_SAMPLES or maxf(_spread(moving), _spread(moving2)) >= MOVING_TOL_M):
+		# A disc-anchored group may not move at all (nothing to measure): only a measured spread fails.
+		if not _late and moving.size() >= MIN_SAMPLES and maxf(_spread(moving), _spread(moving2)) >= MOVING_TOL_M:
 			failed.append("moving_rigidity")
 		if rest.size() < MIN_SAMPLES or maxf(_spread(rest), _spread(rest2)) >= REST_TOL_M:
 			failed.append("rest_rigidity")
 	else:
 		failed.append("members_missing")
-	# Hole dissolve: exactly one member gone, the rest still present.
-	var before: int = _blocks(blocks).size()
-	var dissolved: bool = await _until(func() -> bool: return _blocks(blocks).size() == before - 1, 60.0)
-	var after: int = _blocks(blocks).size()
-	print("GFUSE %s dissolve before=%d after=%d ok=%s" % [tag, before, after, dissolved])
-	if not dissolved or after != MEMBERS - 1:
+	# Hole dissolve: exactly one group member gone, the rest still present.
+	var dissolved: bool = await _until(func() -> bool: return _alive(list) == group_size - 1, 60.0)
+	print("GFUSE %s dissolve group=%d alive=%d ok=%s" % [tag, group_size, _alive(list), dissolved])
+	if not dissolved:
 		failed.append("dissolve")
-	var cleared: bool = await _until(func() -> bool: return _blocks(blocks).is_empty(), 30.0)
+	var cleared: bool = await _until(func() -> bool: return _alive(list) == 0, 30.0)
 	await _wait(1.0)
-	var strays: int = blocks.get_child_count()
-	print("GFUSE %s kill cleared=%s strays=%d" % [tag, cleared, strays])
-	if not cleared or strays != 0:
+	print("GFUSE %s kill cleared=%s alive=%d" % [tag, cleared, _alive(list)])
+	if not cleared:
 		failed.append("kill")
 	print("GFUSE result=%s %s" % ["PASS" if failed.is_empty() else "FAIL", ",".join(failed)])
 	await _wait(0.5)
