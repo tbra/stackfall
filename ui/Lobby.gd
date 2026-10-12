@@ -156,8 +156,6 @@ var _special_frequency_value: int = 0
 @onready var _match_timer_col: Control = %MatchTimerCol
 @onready var _round_timer_col: Control = %RoundTimerCol
 @onready var _sudden_death_col: Control = %SuddenDeathCol
-## The readout right of the round-length stepper: "required" in Domination, empty otherwise.
-var _round_timer_value: Label = null
 ## Reach the Sky only (Bontago-22y.9): shown while that mode is selected.
 @onready var _sky_team_col: Control = %SkyTeamCol
 @onready var _sky_team_sum_check: UiToggle = %SkyTeamSumCheck
@@ -276,9 +274,6 @@ const TIMER_OFF_TEXT: String = "Off"
 const TIMER_VALUE_FORMAT: String = "%d min"
 ## Bontago-1pi.159.26: a stepper shows the bare number; the unit lives in the row label (the summary keeps its units).
 const TIMER_STEPPER_FORMAT: String = "%d"
-const TIMER_REQUIRED_FORMAT: String = "%d min (required)"
-## The readout beside the round-length stepper while the mode requires a timer (Domination).
-const TIMER_REQUIRED_TEXT: String = "required"
 ## Bontago-1pi.159.2.1: one stepper step is half a second of block timer; gravity and gift
 ## frequency meters have GRAVITY_CELLS / FREQUENCY_CELLS lit steps between their MatchConfig bounds.
 const BLOCK_TIMER_STEP_S: float = 0.5
@@ -491,8 +486,7 @@ func _configure_value_controls() -> void:
 
 ## Every UiRow gets its label from the scene's `row_label` metadata (Lobby.tscn authors the text next
 ## to the control it names); a long caption wraps inside the fixed label column instead of widening it.
-## The round-length row also gets the readout cell (_round_timer_value), and every stack of rows the
-## design-system row gap.
+## Every stack of rows gets the design-system row gap.
 func _prepare_rows() -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	for node: Node in _settings_column.find_children("*", "HBoxContainer", true, false):
@@ -501,8 +495,6 @@ func _prepare_rows() -> void:
 			continue
 		row.label.text = str(row.get_meta(ROW_LABEL_META, ""))
 		row.label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_round_timer_value = (_round_timer_col as UiRow).with_value()
-	_expose(_round_timer_value, "RoundTimerValue")
 	for node: Node in _settings_column.find_children("*", "", true, false):
 		if node.is_in_group(STACK_GROUP):
 			node.add_theme_constant_override("separation", arcade.space_3_px)
@@ -709,7 +701,7 @@ func _wire_focus_chain() -> void:
 	# focus_entries_changed.
 	_settings_stops = chain.duplicate()
 	chain.append_array(_players_panel.focus_entries())
-	chain.append_array([_back_button, _invite_friends_button])
+	chain.append(_invite_friends_button)
 	if _join_code_row != null:
 		chain.append(_join_code_row.copy_button())
 	chain.append_array([_ready_check, _start_button])
@@ -740,6 +732,7 @@ func _rewire_focus() -> void:
 	if _main_chain.is_empty():
 		return
 	_wire_loop(_visible_chain(_main_chain))
+	_wire_back_button(_visible_chain(_main_chain))
 	# The spatial pass needs settled rects: it runs one frame later, never in this call.
 	_schedule_spatial_rewire()
 
@@ -882,6 +875,7 @@ func _run_spatial_rewire() -> void:
 	if is_inside_tree() and not _main_chain.is_empty():
 		# Back to the plain loop first, so the spatial pass always starts from list order.
 		_wire_loop(_visible_chain(_main_chain))
+		_wire_back_button(_visible_chain(_main_chain))
 		_wire_spatial()
 
 
@@ -933,6 +927,23 @@ func _wire_loop(chain: Array[Control]) -> void:
 		current.focus_neighbor_top = current.get_path_to(prev)
 		current.focus_neighbor_bottom = current.get_path_to(next)
 		current.focus_mode = Control.FOCUS_ALL
+
+
+## Bontago-1pi.182 (owner playtest: down from Add bot reached Back, so players backed out of the
+## lobby by accident): Back is NOT a stop of the vertical loop. It is reached deliberately: left from
+## the loop's last stop (Start for the host, Ready for a client) or B / Esc. From Back, up / down /
+## left / right return to the top of the settings column, so nothing wraps into it.
+func _wire_back_button(chain: Array[Control]) -> void:
+	if chain.is_empty():
+		return
+	_back_button.focus_mode = Control.FOCUS_ALL
+	var entry: NodePath = _back_button.get_path_to(chain[0])
+	_back_button.focus_neighbor_top = entry
+	_back_button.focus_neighbor_bottom = entry
+	_back_button.focus_neighbor_left = entry
+	_back_button.focus_neighbor_right = entry
+	var last: Control = chain[chain.size() - 1]
+	last.focus_neighbor_left = last.get_path_to(_back_button)
 
 
 func _connect_control_signals() -> void:
@@ -1127,14 +1138,13 @@ func toggle_focused_advanced() -> void:
 ## from _apply_data(), i.e. after every lobby-data apply, so a host edit and a remote
 ## update both refresh it. Replaces the old Advanced rules bar's live chips.
 func _update_section_summaries() -> void:
-	_update_timer_values()
 	_game_section.set_summary(SUMMARY_SEPARATOR.join([
 		_cycle_text(_game_mode_option), _disc_size_text(),
 		_cycle_text(_sky_theme_option), _cycle_text(_weather_option),
 	]))
 	var timer_stepper: UiStepper = _timer_stepper_for(_timer_mode)
 	var round_parts: Array[String] = [
-		_timer_value_text(timer_stepper.value, _timer_mode == MatchConfig.GameMode.DOMINATION),
+		_timer_value_text(timer_stepper.value),
 		SUMMARY_BLOCK_TIMER_FORMAT % _block_timer_seconds(),
 	]
 	if _goal_flag_col.visible:
@@ -1252,7 +1262,6 @@ func _on_game_mode_picked(index: int) -> void:
 	_refresh_timer_control(new_mode)
 	if not MatchConfig.same_timer_family(old_mode, new_mode):
 		_timer_stepper_for(new_mode).value = MatchConfig.timer_default_minutes(new_mode)
-	_update_timer_values()
 
 
 func _timer_stepper_for(mode: int) -> UiStepper:
@@ -1277,13 +1286,7 @@ func _refresh_timer_control(mode: int) -> void:
 	_match_timer_col.tooltip_text = TIMER_TIP_MATCH
 	_round_timer_col.tooltip_text = TIMER_TIP_DOMINATION if mode == MatchConfig.GameMode.DOMINATION else TIMER_TIP_ROUND
 	_game_mode_option.tooltip_text = MODE_TIPS[mode] if mode >= 0 and mode < MODE_TIPS.size() else ""
-	_update_timer_values()
 	_rewire_focus()
-
-
-## The readout beside the round-length stepper ("required" while the mode always has a timer).
-func _update_timer_values() -> void:
-	_round_timer_value.text = TIMER_REQUIRED_TEXT if _timer_mode == MatchConfig.GameMode.DOMINATION else ""
 
 
 ## DECISION (Bontago-1pi.159.26): the timer stepper reads a bare number; the match timer's lowest stop stays the word "Off".
@@ -1293,10 +1296,10 @@ static func _timer_stepper_text(minutes: int) -> String:
 	return TIMER_STEPPER_FORMAT % minutes
 
 
-static func _timer_value_text(minutes: int, required: bool) -> String:
+static func _timer_value_text(minutes: int) -> String:
 	if minutes <= MatchConfig.ROUND_TIMER_OFF_MINUTES:
 		return TIMER_OFF_TEXT
-	return (TIMER_REQUIRED_FORMAT if required else TIMER_VALUE_FORMAT) % minutes
+	return TIMER_VALUE_FORMAT % minutes
 
 
 ## Either timer stepper moved (host click or hold, gamepad left/right, or a programmatic
@@ -1311,7 +1314,6 @@ func _on_timer_stepper_changed(value: int, stepper: UiStepper) -> void:
 		minutes = MatchConfig.ROUND_TIMER_MIN_MINUTES if minutes > previous else MatchConfig.ROUND_TIMER_OFF_MINUTES
 		stepper.set_value_silent(minutes)
 	_timer_previous_minutes[stepper] = minutes
-	_update_timer_values()
 	_on_setting_changed()
 
 

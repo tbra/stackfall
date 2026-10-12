@@ -165,7 +165,7 @@ func test_focus_loops_skip_the_hidden_timer_column() -> void:
 	var experiments_header: Control = (lobby.get_node("%ExperimentsSection") as UiSection).advanced_button
 	assert_lt(shown.find(sudden), shown.find(gifts_header))
 	assert_lt(shown.find(gifts_header), shown.find(experiments_header))
-	assert_lt(shown.find(experiments_header), shown.find(lobby.get_node("%BackButton")))
+	assert_lt(shown.find(experiments_header), shown.find(lobby.get_node("%StartButton")))
 
 
 func _assert_closed_loop(shown: Array[Control]) -> void:
@@ -246,7 +246,7 @@ func test_mid_join_toggle_sits_after_turn_based_in_the_game_advanced_focus_loop(
 	var gift_slot: int = shown.find(lobby.get_node("%QolGiftSlotCheck"))
 	assert_gt(gift_slot, shown.find(lobby.get_node("%QolTimerPauseCheck")))
 	assert_gt(shown.find(lobby.get_node("%QolTimerPauseCheck")), mid)
-	assert_lt(gift_slot, shown.find(lobby.get_node("%BackButton")))
+	assert_lt(gift_slot, shown.find(lobby.get_node("%StartButton")))
 
 
 # --- Bontago-1pi.25.1 Domination --------------------------------------------
@@ -264,7 +264,8 @@ func test_lobby_forces_a_timer_for_domination() -> void:
 	assert_gte(slider.value, MatchConfig.ROUND_TIMER_MIN_MINUTES)
 	var fake: FakeNet = lobby.net_provider as FakeNet
 	assert_gte(int(fake.set_lobby_data_calls[-1]["round_timer_minutes"]), MatchConfig.ROUND_TIMER_MIN_MINUTES)
-	assert_true((lobby.get_node("%RoundTimerValue") as Label).text.find("required") >= 0)
+	assert_null(lobby.get_node_or_null("%RoundTimerValue"), "no \"required\" readout (Bontago-1pi.173)")
+	assert_eq(((lobby.get_node("%RoundTimerCol") as UiRow).label.text), "Round length (min)")
 	assert_false((lobby.get_node("%GameModeOption") as UiCycler).tooltip_text.is_empty(), "mode description")
 
 
