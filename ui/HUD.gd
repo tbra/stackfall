@@ -454,7 +454,8 @@ func _update_round_timer(delta: float) -> void:
 	if _round_timer == null:
 		return
 	var live: bool = match_provider != null and match_provider.has_method(&"match_timer_left") 		and Match.is_live(Match.state())
-	var running_config: Variant = match_provider.config if match_provider != null else null
+	# get() so a provider without a config (e.g. a countdown-only test double) reads as null.
+	var running_config: Variant = match_provider.get(&"config") if match_provider != null else null
 	if not live or running_config == null or bool(running_config.sandbox):
 		_round_played_s = 0.0
 		_round_timer.clear()
