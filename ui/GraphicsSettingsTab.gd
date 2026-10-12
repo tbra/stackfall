@@ -23,6 +23,8 @@ const PRESET_LABELS: Array[String] = ["Low", "Medium", "High"]
 const CUSTOM_LABEL: String = "Custom"
 const PERCENT_SCALE: float = 100.0
 const NODE_PRESET_OPTION: String = "PresetOption"
+## Help-line key of the preset row (config/option_help_table.tres); every other row uses its field / combo id.
+const PRESET_HELP_KEY: String = "preset"
 const VSYNC_FIELD: StringName = &"vsync_enabled"
 const FIXED_FPS_FIELD: StringName = &"fixed_fps"
 const FRAME_CAP_FIELD: StringName = &"frame_cap_mode"
@@ -167,8 +169,10 @@ func _add_section(title: String) -> VBoxContainer:
 	return body
 
 
-func _add_row(body: VBoxContainer, label_text: String, control: Control) -> void:
-	body.add_child(UiRow.new().setup(label_text, control))
+func _add_row(body: VBoxContainer, label_text: String, control: Control, help_key: String) -> void:
+	var row: UiRow = UiRow.new().setup(label_text, control)
+	UiHelpLine.tag(row, help_key)
+	body.add_child(row)
 	_controls.append(control)
 	# FocusScrollContainer only reveals caption Labels that are siblings of the focused control; a
 	# UiSection's caption is in its own header row, so a section's first control reveals it.
@@ -189,7 +193,7 @@ func _build_preset_section(menu_owner: Node) -> void:
 	preset_option.add_item(CUSTOM_LABEL)
 	# Custom is only ever a state (set by editing a control), never something to pick.
 	preset_option.set_item_disabled(PRESET_IDS.size(), true)
-	_add_row(body, "Graphics preset", preset_option)
+	_add_row(body, "Graphics preset", preset_option, PRESET_HELP_KEY)
 	# Keep the %PresetOption lookup the menu and its tests use.
 	preset_option.unique_name_in_owner = true
 	preset_option.owner = menu_owner
@@ -202,12 +206,12 @@ func _build_row(body: VBoxContainer, row: Dictionary) -> void:
 		Kind.TOGGLE:
 			var toggle: UiToggle = UiToggle.new()
 			toggle.toggled.connect(_on_toggle.bind(field))
-			_add_row(body, row["label"] as String, toggle)
+			_add_row(body, row["label"] as String, toggle, String(field))
 			_by_field[field] = {"kind": Kind.TOGGLE, "control": toggle, "row": row}
 		Kind.DROPDOWN:
 			var dropdown: UiDropdown = _make_dropdown(row["labels"] as Array)
 			dropdown.item_selected.connect(_on_dropdown_selected.bind(field))
-			_add_row(body, row["label"] as String, dropdown)
+			_add_row(body, row["label"] as String, dropdown, String(field))
 			_by_field[field] = {"kind": Kind.DROPDOWN, "control": dropdown, "row": row}
 		Kind.METER:
 			var meter: UiSegmentMeter = UiSegmentMeter.new()
@@ -215,7 +219,7 @@ func _build_row(body: VBoxContainer, row: Dictionary) -> void:
 			meter.step_count = roundi((float(limits["max"]) - float(limits["min"])) / float(limits["step"]))
 			meter.formatter = func(cells: int) -> String: return _format_value(_value_for_cells(field, cells), row["fmt"] as String)
 			meter.value_changed.connect(_on_meter_changed.bind(field))
-			_add_row(body, row["label"] as String, meter)
+			_add_row(body, row["label"] as String, meter, String(field))
 			_by_field[field] = {"kind": Kind.METER, "control": meter, "row": row}
 		Kind.COMBO:
 			var tiers: Array[Dictionary] = _tiers_for(field)
@@ -224,7 +228,7 @@ func _build_row(body: VBoxContainer, row: Dictionary) -> void:
 			# Custom is only ever a state (no tier matches), never something to pick.
 			combo.set_item_disabled(tiers.size(), true)
 			combo.item_selected.connect(_on_combo_selected.bind(field))
-			_add_row(body, row["label"] as String, combo)
+			_add_row(body, row["label"] as String, combo, String(field))
 			_by_field[field] = {"kind": Kind.COMBO, "control": combo, "row": row, "tiers": tiers}
 
 

@@ -266,7 +266,7 @@ func test_lobby_forces_a_timer_for_domination() -> void:
 	assert_gte(int(fake.set_lobby_data_calls[-1]["round_timer_minutes"]), MatchConfig.ROUND_TIMER_MIN_MINUTES)
 	assert_null(lobby.get_node_or_null("%RoundTimerValue"), "no \"required\" readout (Bontago-1pi.173)")
 	assert_eq(((lobby.get_node("%RoundTimerCol") as UiRow).label.text), "Round length (min)")
-	assert_false((lobby.get_node("%GameModeOption") as UiCycler).tooltip_text.is_empty(), "mode description")
+	assert_false(OptionHelpTable.shared().text_for(UiHelpLine.key_of(lobby.get_node("%GameModeOption").get_parent()), 0).is_empty(), "mode description")
 
 
 func test_bot_goal_is_a_territory_objective_in_domination() -> void:

@@ -81,7 +81,7 @@ func test_every_experiment_checkbox_exists_and_defaults_off() -> void:
 		var check: UiChipToggle = _check(lobby, unique_name)
 		assert_not_null(check, "%s must exist" % unique_name)
 		assert_false(check.button_pressed, "%s defaults off" % unique_name)
-		assert_ne(check.tooltip_text, "", "%s explains itself" % unique_name)
+		assert_ne(OptionHelpTable.shared().text_for(UiHelpLine.key_of(check)), "", "%s explains itself" % unique_name)
 	assert_eq(_experiments_summary(lobby), "0 on")
 
 
@@ -237,7 +237,7 @@ func test_the_gift_after_next_chip_defaults_on_and_is_not_counted_as_an_experime
 	var chip: UiChipToggle = _check(lobby, AFTER_NEXT_CHIP)
 	assert_not_null(chip)
 	assert_true(chip.button_pressed, "the trial is on by default, like QolExperiments.gift_queue_after_next")
-	assert_ne(chip.tooltip_text, "")
+	assert_ne(OptionHelpTable.shared().text_for(UiHelpLine.key_of(chip)), "")
 	assert_eq(_experiments_summary(lobby), "0 on", "a rule trial is not an experiment")
 	assert_true(lobby._config_from_controls().qol.gift_queue_after_next)
 	assert_true(lobby._qol_checks.has(chip), "it joins the chip group (focus loop, host gating)")
