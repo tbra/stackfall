@@ -55,3 +55,18 @@ extends Resource
 @export var shrink_centre_weight: float = 0.5
 ## A shrink counts as active only when the live radius is below the original by more than this.
 @export var shrink_epsilon_m: float = 0.01
+
+## Airborne gifts and enemy specials in flight (Bontago-1t5.44). A falling gift joins the bot's gift
+## list at its landing point only when it lands within this many seconds (earlier ones are too
+## uncertain to pre-position for; the landing is fixed so this is just a planning horizon).
+@export var air_gift_horizon_s: float = 6.0
+## A special in flight counts as incoming only above this speed (m/s); slower bodies are resting.
+@export var incoming_min_speed_mps: float = 1.0
+## HAZARD-axis weight of a site inside an incoming enemy special's impact zone (1 at the impact
+## point, falling linearly to 0 at radius + incoming_margin_m). 0 disables the term.
+@export var incoming_special_weight: float = 1.0
+## Impact radius (m) assumed for an incoming special whose effect radius is unknown.
+@export var incoming_default_radius_m: float = 3.0
+## Safety margin added to an incoming special's impact radius when grading a site.
+@export var incoming_margin_m: float = 1.0
+

@@ -1357,3 +1357,18 @@ func test_apply_weather_skips_malformed_gusts() -> void:
 	var view: BotWorldView = _weather_view(match_ref, _make_field())
 	assert_true(view.gust_power_values.is_empty())
 	assert_null(view.breeze_tuning)
+
+
+func test_world_view_gifts_include_airborne_gifts_within_horizon() -> void:
+	var field: Field = _make_field()
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	var controller: BotController = _make_controller(field, match_ref, BotControllerFakeNet.new())
+	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
+	var landing: Vector3 = Vector3(2.0, 0.3, 0.0)
+	match_ref.gift_states_value = [
+		{"id": 1, "phase": MatchGifts.LANDED, "position": Vector2(5.0, 0.0)},
+		{"id": 2, "phase": MatchGifts.FALLING, "position": Vector2(2.0, 0.0), "origin": landing + Vector3.UP * 4.0, "landing": landing, "elapsed": 0.0},
+		{"id": 3, "phase": MatchGifts.FALLING, "position": Vector2(9.0, 9.0), "origin": landing + Vector3.UP * 500.0, "landing": landing, "elapsed": 0.0},
+	]
+	var positions: PackedVector2Array = controller._landed_gift_positions(match_ref)
+	assert_eq(positions, PackedVector2Array([Vector2(5.0, 0.0), Vector2(2.0, 0.0)]), "landed + near-landing airborne; the far one is beyond the horizon")

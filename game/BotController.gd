@@ -59,6 +59,7 @@ static var _think_frame_used_us: int = 0
 
 @export var tuning: BotTuning = preload("res://config/bot_tuning.tres")
 var _special_tuning: SpecialTuning = preload("res://config/special_tuning.tres")
+var _gift_config: GiftConfig = preload("res://config/gift_config.tres")
 var _physics_tuning: PhysicsTuning = preload("res://config/physics_tuning.tres")
 
 var _slot_id: int = -1
@@ -330,6 +331,7 @@ func _begin_thinking(match_ref: Variant) -> void:
 	)
 	_apply_weather(view, match_ref)
 	_apply_live_radius(view, match_ref)
+	_apply_incoming_specials(view, match_ref)
 	_special_view = view
 	_think = BotThink.new(view, _profile, _rng)
 	_think.tuning = tuning
@@ -563,15 +565,64 @@ func _column_hit(xz: Vector2) -> Dictionary:
 	return space.intersect_ray(_column_query)
 
 
-## Disk-local positions of every landed (unclaimed-by-territory) gift, for the world view.
+## Disk-local positions of every landed gift plus every airborne one (at its predicted landing
+## point) that lands within BotEvalTuning.air_gift_horizon_s, for the world view (Bontago-1t5.44).
 func _landed_gift_positions(match_ref: Variant) -> PackedVector2Array:
 	var positions: PackedVector2Array = PackedVector2Array()
 	if not match_ref.has_method("gift_states"):
 		return positions
 	for state: Dictionary in match_ref.gift_states():
-		if int(state.get("phase", -1)) == MatchGifts.LANDED:
+		var phase: int = int(state.get("phase", -1))
+		if phase == MatchGifts.LANDED:
+			positions.append(state.get("position", Vector2.ZERO))
+		elif phase == MatchGifts.FALLING and _gift_eta_s(state) <= BotEvaluator.tuning.air_gift_horizon_s:
 			positions.append(state.get("position", Vector2.ZERO))
 	return positions
+
+
+## Seconds until a falling gift lands: its remaining straight-line fall at the configured speed.
+func _gift_eta_s(state: Dictionary) -> float:
+	var origin: Vector3 = state.get("origin", Vector3.ZERO)
+	var landing: Vector3 = state.get("landing", Vector3.ZERO)
+	var speed: float = maxf(_gift_config.fall_speed_m_s, 0.001)
+	return maxf(origin.distance_to(landing) / speed - float(state.get("elapsed", 0.0)), 0.0)
+
+
+## Bontago-1t5.44: every enemy special still in flight (armed, untriggered, not landed, moving)
+## becomes a predicted impact point + radius in the view's incoming-special list. Own-team throws
+## are ignored. Nothing happens without a field.
+func _apply_incoming_specials(view: BotWorldView, match_ref: Variant) -> void:
+	if _field == null:
+		return
+	var eval_tuning: BotEvalTuning = BotEvaluator.tuning
+	var gravity_base: float = float(ProjectSettings.get_setting("physics/3d/default_gravity"))
+	for node: Node in get_tree().get_nodes_in_group(SpecialBehavior.GROUP):
+		var behavior: SpecialBehavior = node as SpecialBehavior
+		if behavior == null or behavior.is_triggered() or behavior.has_landed():
+			continue
+		var block: Block = behavior.get_parent() as Block
+		if block == null or block.owner_slot < 0 or block.freeze:
+			continue
+		if int(match_ref.team_of(block.owner_slot)) == view.team_id:
+			continue
+		if block.linear_velocity.length() < eval_tuning.incoming_min_speed_mps:
+			continue
+		var local_pos: Vector3 = _field.to_local(block.global_position)
+		var local_vel: Vector3 = _field.to_local(block.global_position + block.linear_velocity) - local_pos
+		var impact: Vector3 = BotWorldView.ballistic_impact(
+			Vector2(local_pos.x, local_pos.z), local_pos.y, Vector2(local_vel.x, local_vel.z),
+			local_vel.y, gravity_base * block.gravity_scale
+		)
+		var radius: float = _special_effect_radius_m(_behavior_special_id(behavior))
+		if radius <= 0.0:
+			radius = eval_tuning.incoming_default_radius_m
+		view.add_incoming_special(Vector2(impact.x, impact.y), radius)
+
+
+## The special id a behaviour was bound with (&"" when unknown).
+func _behavior_special_id(behavior: SpecialBehavior) -> StringName:
+	var def: SpecialDef = behavior.get(&"_def") as SpecialDef
+	return def.id if def != null else &""
 
 
 # --- GENERATING: up to profile.candidates_per_frame candidates per frame ---
