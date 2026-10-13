@@ -129,6 +129,17 @@ identity "followers"; a new `FusedBody` carrier owns the physics.**
   joint baseline from `main@81ba673b` versus fusion; target: no regression of `avg_physics_step_ms` for the
   existing 100-block / 3-charged scene, and a new 6x6-cube glued tower scene at least equal.
 
+**Measured (2026-10-14).** `tests/bench/bench_glue_fusion_compare.gd` (same scene on joints `81ba673b` and fusion `a3f4a6ce`, idle PC via `godot_slots.py run --exclusive`, headless, 3 runs each, `TIME_PHYSICS_PROCESS` = whole physics iteration incl. script, not GPU/frame rate): 6 towers x 8 charged cubes, then a bar3 bridging two 6-cube towers. Mean ms per tick (3-run range):
+
+| phase | joints | fusion |
+|---|---|---|
+| rest (4 s, towers asleep/at rest) | 2.08 (1.84-2.32) | 0.90 (0.77-1.02) |
+| topple (kicked, 3 s) | 2.34 (2.02-2.89) | 0.62 (0.49-0.77) |
+| merge towers settle (2 s) | 2.57 (2.27-2.79) | 1.41 (1.01-1.90) |
+| merge (bridge fuses 2 towers, 2 s) mean / worst tick | 2.09 / 1.75-3.89 | 1.05 / 1.22-2.25 |
+
+Counts at rest: joints 48 bodies + 48 Generic6DOF joints; fusion 54 bodies (6 carriers + 48 followers), 0 joints, equal shape count (63 after merge). Verdict: fusion about 2x to 3.8x cheaper at rest and while moving, and the large-merge one-off fuse showed no spike above the ordinary per-tick noise (worst tick 2.25 ms vs 3.89 ms for joints) - Q5 expectation met, `max_fused_cubes` cap not needed for this size. The settle phase is dominated by a startup spike (82-112 ms in both) and is not compared. Logs: `M:/Bontago-tools/scratch/glue_bench/`.
+
 ### Q6. Bots' statics / plan assumptions
 
 - `core/ai/BotStatics.gd` and `BotWorldView` read no body state: they consume `BlockRegistry.influence_circles`
