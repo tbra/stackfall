@@ -226,7 +226,7 @@ func test_pause_menu_held_blocks_camera_snap_goal_entirely() -> void:
 
 func test_camera_snap_home_held_blocks_camera_snap_goal_entirely() -> void:
 	# The same gate covers game/Sandbox.gd's own Back+X chord
-	# (sandbox_physics_comparison) without this file needing a Sandbox scene.
+	# (the sandbox debug chords) without this file needing a Sandbox scene.
 	# Proven by outcome, not by is_peeking() alone: a bare, short home tap
 	# (with a goal press attempted mid-hold) must still turn toward HOME, not
 	# toward goal and not nowhere -- if the goal press had snuck in and won,

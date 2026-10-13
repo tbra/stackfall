@@ -10,10 +10,8 @@ func test_cone_panel_controls_live_territory_without_replacing_it() -> void:
 	assert_true(Match._territory_cache_enabled, "sandbox defaults to cached unchanged territory")
 	sandbox._cone_panel._process(0.25)
 	assert_true(sandbox._cone_panel._live.text.contains("FPS"))
-	sandbox._comparison_panel.set_open(true)
-	sandbox._open_cone_comparison()
+	sandbox._cone_panel.set_open(true)
 	assert_true(sandbox._cone_panel.opened)
-	assert_false(sandbox._comparison_panel.opened)
 	assert_false(sandbox.controller().input_enabled)
 	assert_same(Match.raster(), live_raster, "panel must not replace match territory")
 	sandbox._cone_panel._cache_territory.button_pressed = false
@@ -168,43 +166,6 @@ func _has_radius(radii: PackedFloat32Array, expected: float) -> bool:
 			return true
 	return false
 
-func test_comparison_controls_cancel_and_reset_restore_manual_play() -> void:
-	_start_sandbox(2)
-	_run_countdown()
-	var sandbox: Sandbox = _main._sandbox
-	sandbox._input(_key_press(KEY_F2))
-	assert_true(sandbox._comparison_panel.opened)
-	assert_false(sandbox.controller().input_enabled)
-	Match.set_feed_timer_enabled(true)
-	sandbox.run_physics_comparison("drop", 2.0, 2.0, 0.3)
-	assert_true(sandbox._comparison.running)
-	assert_false(Match.feed_timer_enabled())
-	assert_false(sandbox.ghost().visible)
-	sandbox._comparison_panel.set_open(false)
-	sandbox._comparison_panel.set_open(true)
-	sandbox.clear_physics_comparison()
-	assert_true(Match.feed_timer_enabled())
-	assert_true(sandbox.ghost().visible)
-	sandbox._comparison_panel.set_open(false)
-	assert_true(sandbox.controller().input_enabled)
-	var pad: InputEventJoypadButton = InputEventJoypadButton.new()
-	pad.button_index = JOY_BUTTON_X
-	pad.pressed = true
-	sandbox._input(pad)
-	assert_false(sandbox._comparison_panel.opened, "plain X does not toggle comparison")
-	Input.action_press(&"sandbox_next_slot")
-	sandbox._input(pad)
-	Input.action_release(&"sandbox_next_slot")
-	assert_true(sandbox._comparison_panel.opened, "Back+X opens focused controls")
-	assert_true(sandbox._comparison_panel._drop.has_focus())
-	sandbox._input(_key_press(KEY_F4))
-	assert_false(sandbox._comparison_panel.opened, "F4 releases comparison controls for tuning")
-	sandbox.run_physics_comparison("stack", 2.0, 2.0, 0.3)
-	assert_true(sandbox._comparison.running)
-	sandbox._reset_field()
-	assert_false(sandbox._comparison.running)
-	assert_eq(sandbox._comparison.blocks.size(), 0)
-	assert_true(sandbox.controller().input_enabled)
 ## Bontago-mv0.8: the unlisted `godot --path . -- --sandbox [--players=N]`
 ## debug entry point. Flag routing and offline world build (game/Main.gd),
 ## active-slot cycling (game/PlayerController.gd's set_sandbox_slot() seam),
@@ -1077,15 +1038,13 @@ func test_height_record_is_monotone_and_resets_on_sandbox_reset_field() -> void:
 	assert_eq(panel._height_record_label.text, "Height record: 0.00 m", "F5 must reset the height record")
 
 
-## Bontago-470.8: with debug mode off the F2 comparison panel and the F5
+## Bontago-470.8: with debug mode off the F5
 ## reset hotkey do nothing, while slot switching (Tab) stays a play feature.
 func test_debug_hotkeys_ignored_when_debug_mode_off() -> void:
 	_start_sandbox(2)
 	_run_countdown()
 	var sandbox: Sandbox = _main._sandbox
 	DebugMode.set_override_for_test(false)
-	sandbox._input(_key_press(KEY_F2))
-	assert_false(sandbox._comparison_panel.opened, "F2 is debug-only")
 	sandbox._unhandled_input(_key_press(KEY_F10))
 	assert_false(sandbox._slow_motion_active, "F10 is debug-only")
 	var slot_before: int = sandbox._active_slot if "_active_slot" in sandbox else -1
@@ -1093,6 +1052,4 @@ func test_debug_hotkeys_ignored_when_debug_mode_off() -> void:
 	if slot_before >= 0:
 		assert_ne(sandbox._active_slot, slot_before, "Tab still switches slots")
 	DebugMode.set_override_for_test(true)
-	sandbox._input(_key_press(KEY_F2))
-	assert_true(sandbox._comparison_panel.opened, "F2 works in debug mode")
 	DebugMode.clear_override_for_test()

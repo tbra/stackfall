@@ -131,6 +131,15 @@ static func save_path() -> String:
 
 const VALUE_WIDTH: float = 110.0
 
+## Bontago-1pi.201: the F4 panel is a bottom dock. It takes this fraction of the logical viewport
+## height (the arena centre stays visible above it at any resolution; the project stretch rule
+## keeps the logical viewport 1280x720 or wider), inset by DOCK_MARGIN_PX, on the same plate
+## alpha and shared theme the old F2 hint plate used.
+const DOCK_HEIGHT_FRACTION: float = 0.42
+const DOCK_MARGIN_PX: float = 8.0
+const DOCK_PLATE_ALPHA: float = 0.9
+const DOCK_THEME: Theme = preload("res://ui/theme/stackfall_theme.tres")
+
 ## Bontago-xtq.13: the selected-tab memory shares SAVE_PATH with every tuning
 ## resource's own override section (one ConfigFile, one section per concern)
 ## rather than a second settings file.
@@ -476,11 +485,25 @@ func _save_selected_tab_index() -> void:
 func _build_ui() -> void:
 	var panel: PanelContainer = PanelContainer.new()
 	panel.name = "Panel"
-	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
-	panel.offset_left = 60.0
-	panel.offset_top = 60.0
-	panel.offset_right = -60.0
-	panel.offset_bottom = -60.0
+	# Bontago-1pi.201: a docked bottom plate in the old F2 panel's style (disc-900 plate, theme
+	# fonts) rather than a near-fullscreen sheet, so the arena above it stays visible while a
+	# value is dragged. The tab pages scroll inside the remaining height.
+	panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	panel.anchor_top = 1.0 - DOCK_HEIGHT_FRACTION
+	panel.offset_left = DOCK_MARGIN_PX
+	panel.offset_top = 0.0
+	panel.offset_right = -DOCK_MARGIN_PX
+	panel.offset_bottom = -DOCK_MARGIN_PX
+	panel.theme = DOCK_THEME
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var backing: StyleBoxFlat = MenuStyleFactory.make_plate(Color(arcade.disc_900_color, DOCK_PLATE_ALPHA))
+	backing.set_corner_radius_all(arcade.radius_block_px)
+	backing.shadow_size = 0
+	backing.content_margin_left = float(arcade.space_4_px)
+	backing.content_margin_right = float(arcade.space_4_px)
+	backing.content_margin_top = float(arcade.space_1_px)
+	backing.content_margin_bottom = float(arcade.space_1_px)
+	panel.add_theme_stylebox_override("panel", backing)
 	add_child(panel)
 
 	var layout: VBoxContainer = VBoxContainer.new()

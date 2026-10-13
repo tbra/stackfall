@@ -28,20 +28,12 @@ extends Node
 
 var _field: Field = null
 var _active_slot: int = 0
-var _comparison: PhysicsComparison = null
-var _comparison_panel: PhysicsComparisonPanel = null
 var _cone_panel: SandboxConePanel = null
 var _frozen_block_states: Dictionary = {}
 var _block_physics_frozen: bool = false
 var _registry_physics_was_enabled: bool = false
-var _comparison_feed_enabled: bool = false
-var _comparison_controller_enabled: bool = true
-var _comparison_mouse_mode: Input.MouseMode = Input.MOUSE_MODE_VISIBLE
-var _comparison_ghost_visible: bool = true
-var _comparison_locked: bool = false
 var _controls_input_enabled: bool = true
 var _controls_mouse_mode: Input.MouseMode = Input.MOUSE_MODE_VISIBLE
-var _comparison_camera: CameraRig = null
 
 ## Bontago-1en.24: SpecialDef.load_all_specials()'s own id order, cached once
 ## at _ready() rather than re-scanning res://config/specials/ on every F9
@@ -93,20 +85,10 @@ func _ready() -> void:
 	# Bontago-mv0.14 (spec 1.5): see HotSeat.gd's matching _ready() comment --
 	# safe headless (a silent no-op with no window to capture).
 	_controller.enable_mouse_capture()
-	_comparison = PhysicsComparison.new()
-	_comparison.tuning = _controller.tuning
-	add_child(_comparison)
-	_comparison.finished.connect(_comparison_finished)
-	_comparison_panel = PhysicsComparisonPanel.new()
-	add_child(_comparison_panel)
-	_comparison_panel.run_requested.connect(run_physics_comparison)
-	_comparison_panel.clear_requested.connect(clear_physics_comparison)
-	_comparison_panel.open_changed.connect(_comparison_controls_changed)
-	_comparison_panel.cone_requested.connect(_open_cone_comparison)
 	_cone_panel = SandboxConePanel.new()
 	add_child(_cone_panel)
 	_cone_panel.set_live_territory_mode(Match.sandbox_territory_mode())
-	_cone_panel.open_changed.connect(_comparison_controls_changed)
+	_cone_panel.open_changed.connect(_cone_controls_changed)
 	_cone_panel.live_territory_mode_changed.connect(_set_live_territory_mode)
 	_cone_panel.block_collision_freeze_changed.connect(_set_block_physics_frozen)
 	_cone_panel.territory_cache_changed.connect(_set_territory_cache_enabled)
@@ -137,7 +119,6 @@ func _exit_tree() -> void:
 	Match.set_sandbox_territory_mode(MatchAutoload.DEFAULT_TERRITORY_MODE)
 	if _cone_panel != null and _cone_panel.opened:
 		_cone_panel.set_open(false)
-	clear_physics_comparison()
 	Engine.time_scale = 1.0
 	get_tree().paused = false
 
@@ -153,7 +134,6 @@ func _load_special_roster_ids() -> Array[StringName]:
 ## Called once by game/Main.gd, the same way HotSeat.set_camera_rig() is —
 ## CameraRig lives outside this subtree.
 func set_camera_rig(rig: CameraRig) -> void:
-	_comparison_camera = rig
 	# Bontago-b7r: gamepad Back is sandbox_next_slot here, so it must not also
 	# focus home; see CameraRig.suppress_pad_home_focus.
 	rig.suppress_pad_home_focus = true
@@ -221,8 +201,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	# Bontago-470.8: every sandbox hotkey but slot switching (Tab / pad Back, a
 	# play feature, not a debug tool) is debug-only.
 	if not DebugMode.is_enabled() and not event.is_action_pressed(&"sandbox_next_slot"):
-		return
-	if _comparison_locked and not event.is_action_pressed(&"sandbox_reset_field") and not event.is_action_pressed(&"sandbox_slow_motion") and not event.is_action_pressed(&"sandbox_pause_physics"):
 		return
 	if event.is_action_pressed(&"sandbox_next_slot"):
 		_cycle_active_slot()
@@ -387,7 +365,6 @@ func _reset_field() -> void:
 		_cone_panel.set_live_territory_mode(MatchAutoload.DEFAULT_TERRITORY_MODE)
 	if _cone_panel != null and _cone_panel.opened:
 		_cone_panel.set_open(false)
-	clear_physics_comparison()
 	if Match.config == null:
 		return
 	Match.start_match(Match.config)
@@ -404,56 +381,22 @@ func _reset_field() -> void:
 	Engine.time_scale = 1.0
 	_panel.reset_height_record()
 	_preplace_preset_blocks()
-	_comparison_panel.show_status("Field reset. Choose a trial; F4 adjusts physics before the next run.")
-
-
-func _input(event: InputEvent) -> void:
-	# Bontago-470.8: F2/F4 (and their pad chords) are debug-only.
-	if not DebugMode.is_enabled():
-		return
-	# Handle the Back+X chord before PlayerController's hover-lower action.
-	var joypad: bool = event is InputEventJoypadButton
-	var comparison_requested: bool = event.is_action_pressed(&"sandbox_physics_comparison") and (not joypad or Input.is_action_pressed(&"sandbox_next_slot"))
-	var tuning_requested: bool = event.is_action_pressed(&"tuning_panel_toggle") and (not joypad or Input.is_action_pressed(&"pause_menu"))
-	if comparison_requested:
-		if _cone_panel != null and _cone_panel.opened:
-			_cone_panel.set_open(false)
-			get_viewport().set_input_as_handled()
-			return
-		if _tuning_panel.visible:
-			_tuning_panel._toggle_panel()
-		_comparison_panel.set_open(not _comparison_panel.opened)
-		get_viewport().set_input_as_handled()
-	elif _comparison_locked and tuning_requested:
-		_comparison_panel.show_status("Trial running: clear/cancel before changing F4 physics.")
-		get_viewport().set_input_as_handled()
-	elif _comparison_panel.opened and tuning_requested:
-		# Let F4 own its own input/mouse state after releasing our controls.
-		_comparison_panel.set_open(false)
 
 
 func _process(_delta: float) -> void:
-	if _comparison_locked or (_comparison_panel != null and _comparison_panel.opened) or (_cone_panel != null and _cone_panel.opened):
+	if _cone_panel != null and _cone_panel.opened:
 		_controller.input_enabled = false
-	if _comparison != null and _comparison.running:
-		_comparison_panel.show_status("Running %0.1f / 10 simulation seconds. F11 pauses, F10 slows; Clear cancels." % _comparison.elapsed_s())
 
 
-func _comparison_controls_changed(open: bool) -> void:
+func _cone_controls_changed(open: bool) -> void:
 	if open:
-		_controls_input_enabled = _comparison_controller_enabled if _comparison_locked else _controller.input_enabled
-		_controls_mouse_mode = _comparison_mouse_mode if _comparison_locked else Input.mouse_mode
+		_controls_input_enabled = _controller.input_enabled
+		_controls_mouse_mode = Input.mouse_mode
 		_controller.input_enabled = false
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	else:
-		_controller.input_enabled = false if _comparison_locked else _controls_input_enabled
+		_controller.input_enabled = _controls_input_enabled
 		Input.mouse_mode = _controls_mouse_mode
-
-
-func _open_cone_comparison() -> void:
-	clear_physics_comparison()
-	_comparison_panel.set_open(false)
-	_cone_panel.set_open(true)
 
 
 func _set_live_territory_mode(mode: int, angle_degrees: float, height_source: int, base_mode: int) -> void:
@@ -506,72 +449,6 @@ func _freeze_diagnostic_block(block: Block) -> void:
 	block.freeze = true
 	block.collision_layer = 0
 	block.collision_mask = 0
-
-
-func run_physics_comparison(mode: String, height: float, interval: float, gap: float, offset: float = 0.0) -> void:
-	clear_physics_comparison()
-	if _field == null or Match.state() != Match.State.PLAYING:
-		_comparison_panel.show_status("Wait for the sandbox countdown to finish.")
-		return
-	if _field.tilt_vector().length() > 0.001 or _field.global_basis.y.dot(Vector3.UP) < 0.999:
-		_comparison_panel.show_status("Trial needs a level field. Reset with F5 and disable tilt.")
-		return
-	# DECISION: the comparison uses a fixed near-centre area, independent of
-	# cursor position. Reject occupied space rather than deleting user builds.
-	var radius: float = _field.map_definition().field_radius
-	var origin: Vector3 = _field.world_from_disk_local(Vector2(radius * 0.25, 0.0), 0.0)
-	var shape: BoxShape3D = BoxShape3D.new()
-	shape.size = Vector3(4.0, maxf(height + 2.0, 6.0), 4.0) * _controller.tuning.cube_size
-	var query: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
-	query.shape = shape
-	query.transform = Transform3D(Basis.IDENTITY, origin + Vector3.UP * (shape.size.y * 0.5 + 0.05))
-	query.exclude = [_field.get_rid()]
-	if not _field.get_world_3d().direct_space_state.intersect_shape(query, 1).is_empty():
-		_comparison_panel.show_status("Comparison area occupied. Move nearby blocks or reset with F5.")
-		return
-	_comparison_feed_enabled = Match.feed_timer_enabled()
-	_comparison_controller_enabled = _controls_input_enabled if _comparison_panel.opened else _controller.input_enabled
-	_comparison_mouse_mode = _controls_mouse_mode if _comparison_panel.opened else Input.mouse_mode
-	_comparison_ghost_visible = _ghost.visible
-	_comparison_locked = true
-	Match.set_feed_timer_enabled(false)
-	_controller.input_enabled = false
-	_ghost.visible = false
-	if _comparison_camera != null:
-		var target: Vector3 = origin + Vector3.UP * _controller.tuning.cube_size
-		_comparison_camera.set_home_view(target, target + Vector3.FORWARD)
-	if not _comparison.start(_field, mode, height, interval, gap, origin, offset):
-		_restore_comparison_controls()
-		_comparison_panel.show_status("Invalid trial settings.")
-
-
-func clear_physics_comparison() -> void:
-	if is_instance_valid(_comparison):
-		_comparison.clear()
-	_restore_comparison_controls()
-	if is_instance_valid(_comparison_panel):
-		_comparison_panel.show_status("Trial cleared. F4 tuning/presets apply to the next run.")
-
-
-func _restore_comparison_controls() -> void:
-	if not _comparison_locked:
-		return
-	_comparison_locked = false
-	Match.set_feed_timer_enabled(_comparison_feed_enabled)
-	if not is_instance_valid(_controller) or not is_instance_valid(_ghost):
-		return
-	_controller.input_enabled = _comparison_controller_enabled
-	_ghost.visible = _comparison_ghost_visible
-	Input.mouse_mode = _comparison_mouse_mode
-	if is_instance_valid(_comparison_panel) and _comparison_panel.opened:
-		_controller.input_enabled = false
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-
-
-func _comparison_finished(result: Dictionary) -> void:
-	_restore_comparison_controls()
-	_comparison_panel.show_result(result)
-	print("PHYSICS_COMPARE result=" + JSON.stringify(result))
 
 
 ## sandbox_spawn_tower (F7): drops sandbox_config.tower_block_count blocks,

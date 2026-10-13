@@ -160,7 +160,7 @@ func _emit_live_mode() -> void:
 func _update_live_badge() -> void:
 	var mode: int = _live_mode.get_selected_id()
 	_live_badge.visible = mode != MatchAutoload.DEFAULT_TERRITORY_MODE
-	_live_badge.text = "TERRITORY SOLVE PAUSED — F2 to resume"
+	_live_badge.text = "TERRITORY SOLVE PAUSED"
 
 
 func _process(delta: float) -> void:

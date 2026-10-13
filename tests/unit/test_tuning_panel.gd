@@ -824,6 +824,17 @@ func test_f4_toggles_visibility_both_ways() -> void:
 	assert_false(_panel.visible)
 
 
+## Bontago-1pi.201: F4 is a bottom dock that leaves the arena centre visible, not a fullscreen sheet.
+func test_panel_is_a_bottom_dock_leaving_the_arena_visible() -> void:
+	_own_panel(false)
+	_panel._toggle_panel()
+	var plate: PanelContainer = _panel.get_node("Panel") as PanelContainer
+	assert_almost_eq(plate.anchor_top, 1.0 - TuningPanel.DOCK_HEIGHT_FRACTION, 0.0001)
+	assert_gt(plate.anchor_top, 0.5, "the dock must start below the viewport centre")
+	assert_eq(plate.anchor_bottom, 1.0)
+	assert_false(InputMap.has_action(&"sandbox_physics_comparison"), "F2 comparison action is gone")
+
+
 func test_toggle_suppresses_and_restores_controller_input() -> void:
 	_own_panel(false)
 	var controller: PlayerController = autofree(PlayerController.new())
