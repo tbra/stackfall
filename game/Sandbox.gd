@@ -28,12 +28,9 @@ extends Node
 
 var _field: Field = null
 var _active_slot: int = 0
-var _cone_panel: SandboxConePanel = null
 var _frozen_block_states: Dictionary = {}
 var _block_physics_frozen: bool = false
 var _registry_physics_was_enabled: bool = false
-var _controls_input_enabled: bool = true
-var _controls_mouse_mode: Input.MouseMode = Input.MOUSE_MODE_VISIBLE
 
 ## Bontago-1en.24: SpecialDef.load_all_specials()'s own id order, cached once
 ## at _ready() rather than re-scanning res://config/specials/ on every F9
@@ -85,13 +82,7 @@ func _ready() -> void:
 	# Bontago-mv0.14 (spec 1.5): see HotSeat.gd's matching _ready() comment --
 	# safe headless (a silent no-op with no window to capture).
 	_controller.enable_mouse_capture()
-	_cone_panel = SandboxConePanel.new()
-	add_child(_cone_panel)
-	_cone_panel.set_live_territory_mode(Match.sandbox_territory_mode())
-	_cone_panel.open_changed.connect(_cone_controls_changed)
-	_cone_panel.live_territory_mode_changed.connect(_set_live_territory_mode)
-	_cone_panel.block_collision_freeze_changed.connect(_set_block_physics_frozen)
-	_cone_panel.territory_cache_changed.connect(_set_territory_cache_enabled)
+	add_child(SandboxHintBar.new())
 	Events.block_placed.connect(_on_diagnostic_block_placed)
 	# M6 B2 (sandbox_pause_physics, F11): PROCESS_MODE_ALWAYS so this whole
 	# subtree -- this node's own _unhandled_input (every sandbox hotkey,
@@ -117,8 +108,6 @@ func _exit_tree() -> void:
 	Match._sandbox_territory_profile_enabled = false
 	Match._territory_cache_enabled = true
 	Match.set_sandbox_territory_mode(MatchAutoload.DEFAULT_TERRITORY_MODE)
-	if _cone_panel != null and _cone_panel.opened:
-		_cone_panel.set_open(false)
 	Engine.time_scale = 1.0
 	get_tree().paused = false
 
@@ -357,14 +346,8 @@ func _set_active_slot(slot_id: int) -> void:
 ## the fresh raster and slots that only exist once start_match() returns.
 func _reset_field() -> void:
 	_set_block_physics_frozen(false)
-	if _cone_panel != null:
-		_cone_panel.set_blocks_frozen(false)
-		_cone_panel.set_cache_enabled(true)
+	Match._territory_cache_enabled = true
 	Match.set_sandbox_territory_mode(MatchAutoload.DEFAULT_TERRITORY_MODE)
-	if _cone_panel != null:
-		_cone_panel.set_live_territory_mode(MatchAutoload.DEFAULT_TERRITORY_MODE)
-	if _cone_panel != null and _cone_panel.opened:
-		_cone_panel.set_open(false)
 	if Match.config == null:
 		return
 	Match.start_match(Match.config)
@@ -381,30 +364,6 @@ func _reset_field() -> void:
 	Engine.time_scale = 1.0
 	_panel.reset_height_record()
 	_preplace_preset_blocks()
-
-
-func _process(_delta: float) -> void:
-	if _cone_panel != null and _cone_panel.opened:
-		_controller.input_enabled = false
-
-
-func _cone_controls_changed(open: bool) -> void:
-	if open:
-		_controls_input_enabled = _controller.input_enabled
-		_controls_mouse_mode = Input.mouse_mode
-		_controller.input_enabled = false
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	else:
-		_controller.input_enabled = _controls_input_enabled
-		Input.mouse_mode = _controls_mouse_mode
-
-
-func _set_live_territory_mode(mode: int, angle_degrees: float, height_source: int, base_mode: int) -> void:
-	Match.set_sandbox_territory_mode(mode, angle_degrees, height_source, base_mode)
-
-
-func _set_territory_cache_enabled(enabled: bool) -> void:
-	Match._territory_cache_enabled = enabled
 
 
 ## A/B diagnostic only: remove contacts but keep the block transforms and

@@ -1,52 +1,5 @@
 extends GutTest
 
-func test_cone_panel_controls_live_territory_without_replacing_it() -> void:
-	_start_sandbox(2)
-	_run_countdown()
-	var sandbox: Sandbox = _main._sandbox
-	assert_eq(Match.sandbox_territory_mode(), MatchAutoload.DEFAULT_TERRITORY_MODE)
-	assert_eq(sandbox._cone_panel._live_mode.get_selected_id(), MatchAutoload.DEFAULT_TERRITORY_MODE)
-	var live_raster: TerritoryRaster = Match.raster()
-	assert_true(Match._territory_cache_enabled, "sandbox defaults to cached unchanged territory")
-	sandbox._cone_panel._process(0.25)
-	assert_true(sandbox._cone_panel._live.text.contains("FPS"))
-	sandbox._cone_panel.set_open(true)
-	assert_true(sandbox._cone_panel.opened)
-	assert_false(sandbox.controller().input_enabled)
-	assert_same(Match.raster(), live_raster, "panel must not replace match territory")
-	sandbox._cone_panel._cache_territory.button_pressed = false
-	assert_false(Match._territory_cache_enabled)
-	sandbox._cone_panel._cache_territory.button_pressed = true
-	assert_true(Match._territory_cache_enabled)
-	assert_eq(sandbox._cone_panel._height_source.get_selected_id(), SandboxConeExperiment.HEIGHT_TOP)
-	assert_eq(sandbox._cone_panel._base_mode.get_selected_id(), SandboxConeExperiment.BASE_ADDITIVE)
-	sandbox._cone_panel.set_live_territory_mode(MatchAutoload.SANDBOX_TERRITORY_CONE)
-	sandbox._cone_panel._on_live_mode_selected(MatchAutoload.SANDBOX_TERRITORY_CONE)
-	assert_eq(Match.sandbox_territory_mode(), MatchAutoload.SANDBOX_TERRITORY_CONE)
-	assert_false(sandbox._cone_panel._live_badge.visible)
-	sandbox._cone_panel.set_live_territory_mode(MatchAutoload.SANDBOX_TERRITORY_PAUSED)
-	sandbox._cone_panel._on_live_mode_selected(MatchAutoload.SANDBOX_TERRITORY_PAUSED)
-	assert_true(Match.sandbox_territory_paused())
-	assert_true(sandbox._cone_panel._live_badge.visible)
-	Match._territory._last_groups = null
-	Match._process(0.1)
-	assert_null(Match._territory._last_groups, "paused sandbox must skip live territory solving")
-	sandbox._cone_panel.set_live_territory_mode(MatchAutoload.SANDBOX_TERRITORY_CONE)
-	sandbox._cone_panel._on_live_mode_selected(MatchAutoload.SANDBOX_TERRITORY_CONE)
-	assert_false(Match.sandbox_territory_paused())
-	assert_false(sandbox._cone_panel._live_badge.visible)
-	Match._process(0.1)
-	assert_not_null(Match._territory._last_groups, "unpausing resumes normal solves")
-	sandbox._cone_panel.set_open(false)
-	assert_true(sandbox.controller().input_enabled)
-	sandbox._cone_panel.set_live_territory_mode(MatchAutoload.SANDBOX_TERRITORY_CONE)
-	sandbox._cone_panel._on_live_mode_selected(MatchAutoload.SANDBOX_TERRITORY_CONE)
-	sandbox._reset_field()
-	assert_eq(Match.sandbox_territory_mode(), MatchAutoload.DEFAULT_TERRITORY_MODE, "field reset must restore normal territory")
-	assert_eq(sandbox._cone_panel._live_mode.get_selected_id(), MatchAutoload.DEFAULT_TERRITORY_MODE)
-	assert_false(sandbox._cone_panel._live_badge.visible)
-
-
 func test_live_cone_switch_projects_a_settled_block_and_restores_the_default_angle() -> void:
 	_start_sandbox(2)
 	_run_countdown()
@@ -1053,3 +1006,12 @@ func test_debug_hotkeys_ignored_when_debug_mode_off() -> void:
 		assert_ne(sandbox._active_slot, slot_before, "Tab still switches slots")
 	DebugMode.set_override_for_test(true)
 	DebugMode.clear_override_for_test()
+
+
+## Bontago-1pi.202: the bottom hint names every live F-key from the Input Map.
+func test_bottom_hint_lists_every_debug_key_from_the_input_map() -> void:
+	var text: String = SandboxHintBar.hint_text()
+	for key_name: String in ["F1 ", "F3 ", "F4 ", "F5 ", "F6 ", "F7 ", "F8 ", "F9 ", "F10 ", "F11 ", "F12 ", "Tab "]:
+		assert_true(text.contains(key_name), "%slisted" % key_name)
+	assert_false(text.contains("F2 "), "F2 is gone")
+	assert_false(text.contains("?"), "every action resolves to a key")

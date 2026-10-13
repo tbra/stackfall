@@ -80,7 +80,6 @@
  "ui/OptionsMenu.gd": 1,
  "ui/PerfOverlay.gd": 2,
  "ui/ResultsScreen.gd": 3,
- "ui/SandboxConePanel.gd": 14,
  "ui/SandboxPanel.gd": 2,
  "ui/ScoreTable.gd": 8,
  "ui/SplashScreen.gd": 93,
