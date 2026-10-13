@@ -18,6 +18,10 @@ func _make_skybox(theme: SkyThemeDef) -> Array:
 	skybox.theme = theme
 	skybox.light_path = skybox.get_path_to(light) if skybox.is_inside_tree() else NodePath("")
 	add_child_autofree(skybox)
+	# Bontago-fca.108: a persistent CloudCeiling (the weather presenter inside MatchNet)
+	# pushes a fading storm blend into every skybox in this group; an earlier script's
+	# weather events leave it mid-fade, so this fixture opts out and stays isolated.
+	skybox.remove_from_group(Skybox.OVERCAST_GROUP)
 	skybox.light_path = skybox.get_path_to(light)
 	return [skybox, environment, light]
 

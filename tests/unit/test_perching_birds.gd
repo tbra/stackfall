@@ -78,7 +78,11 @@ func test_lands_on_the_disc_away_from_players_and_edge() -> void:
 	for home: Vector3 in _manager.home_points:
 		assert_gte(Vector2(spot.x - home.x, spot.z - home.z).length(), life.perch_min_player_distance_m - 0.01)
 	assert_gte(Vector2(spot.x, spot.z).length(), life.perch_min_goal_distance_m - 0.01)
-	assert_lte(Vector2(spot.x, spot.z).length(), 30.0 - life.perch_edge_margin_m + 0.01)
+	# Bontago-fca.107: PerchPlanner.is_on_disc probes the margin ring at EDGE_PROBES fixed
+	# angles, so a spot between two probes may sit up to margin*(1-cos(pi/probes)) closer
+	# to the rim than the nominal margin (the landing spot is random per run).
+	var probe_gap_m: float = life.perch_edge_margin_m * (1.0 - cos(PI / float(PerchPlanner.EDGE_PROBES)))
+	assert_lte(Vector2(spot.x, spot.z).length(), 30.0 - life.perch_edge_margin_m + probe_gap_m + 0.01)
 	assert_false(_manager.perched_on_tower(0))
 	assert_almost_eq(bird.global_position.y, spot.y + bird.perch_height(), 0.001, "stands on the surface")
 
