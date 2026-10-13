@@ -69,7 +69,7 @@ func test_timer_min_and_default_per_mode() -> void:
 	assert_eq(MatchConfig.timer_min_minutes(MatchConfig.GameMode.REACH_THE_SKY), 2)
 	assert_eq(MatchConfig.timer_min_minutes(MatchConfig.GameMode.ELIMINATION), 0)
 	assert_eq(MatchConfig.timer_default_minutes(MatchConfig.GameMode.CLASSIC), 0)
-	assert_eq(MatchConfig.timer_default_minutes(MatchConfig.GameMode.ELIMINATION), 0)
+	assert_eq(MatchConfig.timer_default_minutes(MatchConfig.GameMode.ELIMINATION), MatchConfig.ROUND_TIMER_DEFAULT_MINUTES)
 	assert_eq(MatchConfig.timer_default_minutes(MatchConfig.GameMode.CAPTURE_THE_FLAG), MatchConfig.ROUND_TIMER_DEFAULT_MINUTES)
 	assert_eq(MatchConfig.timer_default_minutes(MatchConfig.GameMode.REACH_THE_SKY), MatchConfig.ROUND_TIMER_DEFAULT_MINUTES)
 
@@ -92,7 +92,8 @@ func test_round_slider_minimum_and_defaults_follow_the_mode() -> void:
 	var slider: UiStepper = lobby.get_node("%RoundTimerStepper")
 	_pick_mode(lobby, MatchConfig.GameMode.ELIMINATION)
 	assert_eq(slider.min_value, 0)
-	assert_eq(slider.value, 0, "Elimination starts with its timer off")
+	assert_eq(slider.value, MatchConfig.ROUND_TIMER_DEFAULT_MINUTES, "Elimination starts with the 5-minute default round")
+	slider.value = 0
 	assert_eq((lobby.get_node("%RoundTimerStepper") as UiStepper).display_text(), "Off", "leftmost stop reads Off")
 	_pick_mode(lobby, MatchConfig.GameMode.CAPTURE_THE_FLAG)
 	assert_eq(slider.min_value, 2)
@@ -112,7 +113,7 @@ func test_timer_control_writes_the_matching_config_field() -> void:
 	(lobby.get_node("%MatchTimerStepper") as UiStepper).value = 12
 	assert_eq(fake.set_lobby_data_calls[-1]["match_timer_minutes"], 12)
 	_pick_mode(lobby, MatchConfig.GameMode.ELIMINATION)
-	assert_eq(fake.set_lobby_data_calls[-1]["round_timer_minutes"], 0)
+	assert_eq(fake.set_lobby_data_calls[-1]["round_timer_minutes"], MatchConfig.ROUND_TIMER_DEFAULT_MINUTES)
 	(lobby.get_node("%RoundTimerStepper") as UiStepper).value = 7
 	assert_eq(fake.set_lobby_data_calls[-1]["round_timer_minutes"], 7)
 	assert_eq(fake.set_lobby_data_calls[-1]["match_timer_minutes"], 12, "classic value kept")
@@ -121,6 +122,7 @@ func test_timer_control_writes_the_matching_config_field() -> void:
 func test_elimination_no_limit_round_trips_to_a_client() -> void:
 	var host: Lobby = _make_lobby(true)
 	_pick_mode(host, MatchConfig.GameMode.ELIMINATION)
+	(host.get_node("%RoundTimerStepper") as UiStepper).value = MatchConfig.ROUND_TIMER_OFF_MINUTES
 	var published: Dictionary = (host.net_provider as FakeNet).set_lobby_data_calls[-1]
 	var client: Lobby = _make_lobby(false)
 	client._apply_data(published)
@@ -255,7 +257,7 @@ func test_lobby_forces_a_timer_for_domination() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var slider: UiStepper = lobby.get_node("%RoundTimerStepper")
 	_pick_mode(lobby, MatchConfig.GameMode.ELIMINATION)
-	assert_eq(slider.value, 0)
+	assert_eq(slider.value, MatchConfig.ROUND_TIMER_DEFAULT_MINUTES)
 	_pick_mode(lobby, MatchConfig.GameMode.DOMINATION)
 	assert_true((lobby.get_node("%RoundTimerCol") as Control).visible)
 	assert_eq(slider.min_value, MatchConfig.ROUND_TIMER_MIN_MINUTES, "cannot be set to off")
