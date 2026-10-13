@@ -98,6 +98,12 @@ var _next_track_context: StringName = &""
 var _next_track_index: int = -1
 var _music_requested: Dictionary = {}
 var _last_gift_spawn_msec: int = -1
+## Bontago-eq0: last special cue time per SpecialDef id (special_cue_min_interval_s).
+var _last_special_cue_msec: Dictionary[StringName, int] = {}
+## Bontago-eq0: live timed-special loops, oldest first: {player, def_id}.
+var _special_loops: Array[Dictionary] = []
+var _last_glue_hit_msec: int = -1
+var _last_bean_hop_msec: int = -1
 ## Bontago-1pi.56: true while a late joiner's world replay is being applied
 ## (Events.world_replay_changed). The replay re-emits block_placed per body, the
 ## elimination of every dead slot and every falling crate's flight so the world
@@ -162,6 +168,10 @@ func _ready() -> void:
 	Events.player_eliminated.connect(_on_player_eliminated)
 	Events.gift_flight_spawned.connect(_on_gift_flight_spawned)
 	Events.gift_claimed.connect(_on_gift_claimed)
+	Events.special_triggered.connect(_on_special_triggered)
+	Events.special_consumed.connect(_on_special_consumed)
+	Events.bean_hopped.connect(_on_bean_hopped)
+	Events.match_scope_reset.connect(stop_special_loops)
 	Events.world_replay_changed.connect(_on_world_replay_changed)
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
 	Events.goal_capture_progress.connect(_on_claim_progress)
@@ -619,6 +629,7 @@ func release_audio() -> void:
 		_music_crossfade_tween.kill()
 	_music_crossfade_tween = null
 	_music_state = MusicState.STOPPED
+	stop_special_loops()
 	var players: Array[AudioStreamPlayer] = _sfx_players.duplicate()
 	players.append_array(_ui_players)
 	players.append(_music_player)
@@ -827,6 +838,8 @@ func _on_block_impacted_at(speed: float, position: Vector3) -> void:
 	if speed < config.impact_speed_min or not _available:
 		return
 	_play_impact(speed, _classify_surface(position))
+	if _impact_touches_glue():
+		_play_glue_hit()
 
 
 ## Speed-only entry kept for callers/tests without a position; treated as the disc.
@@ -858,13 +871,13 @@ func _classify_surface(position: Vector3) -> StringName:
 	_surface_params.transform = Transform3D(Basis(), position)
 	var min_blocks: int = config.impact_block_surface_min_blocks
 	_surface_ids.clear()
+	# Bontago-eq0: every block in the query is kept (no early return at
+	# min_blocks), so _impact_touches_glue() can look at all of them.
 	for result: Dictionary in world.direct_space_state.intersect_shape(_surface_params, 8):
 		if result.get("collider") is BlockBody:
 			var id: int = int(result["collider_id"])
 			if not _surface_ids.has(id):
 				_surface_ids.append(id)
-				if _surface_ids.size() >= min_blocks:
-					return AudioConfig.SURFACE_BLOCK
 	if _surface_ids.size() >= min_blocks:
 		return AudioConfig.SURFACE_BLOCK
 	return AudioConfig.SURFACE_DISC
@@ -1023,10 +1036,186 @@ func _on_gift_flight_spawned(_gift_id: int, _origin: Vector3, _landing: Vector3)
 	if _world_replay_silent:
 		return
 	var now_msec: int = Time.get_ticks_msec()
-	if _last_gift_spawn_msec >= 0 and float(now_msec - _last_gift_spawn_msec) < config.gift_spawn_min_interval_s * 1000.0:
+	if _within_interval(_last_gift_spawn_msec, config.gift_spawn_min_interval_s, now_msec):
 		return
 	if play(AudioConfig.EVENT_GIFT_SPAWNED):
 		_last_gift_spawn_msec = now_msec
+
+
+## Bontago-eq0 (spec 2.10 "Specials have distinct warning sounds"): a special
+## going off is a world event like an impact, so every instance hears every
+## special -- the host on its own trigger, a client on the replicated one.
+## Chained triggers of the same special inside special_cue_min_interval_s sound once.
+func _on_special_triggered(_net_id: int, def_id: StringName, _position: Vector3, _chain_depth: int) -> void:
+	# A timed special's trigger ends its window: its loop (if any) fades out.
+	_fade_out_special_loop(def_id)
+	if _world_replay_silent or not _available:
+		return
+	var filename: String = config.special_cue_files.get(def_id, "")
+	if filename.is_empty():
+		return
+	var now_msec: int = Time.get_ticks_msec()
+	var last_msec: int = _last_special_cue_msec.get(def_id, -1)
+	if _within_interval(last_msec, config.special_cue_min_interval_s, now_msec):
+		return
+	var stream: AudioStream = _load_stream(filename)
+	if stream == null:
+		return
+	_last_special_cue_msec[def_id] = now_msec
+	var player: AudioStreamPlayer = _next_sfx_player()
+	player.stream = stream
+	player.volume_db = config.sfx_volume_db + config.special_cue_volume_db + Settings.master_volume_db() + Settings.sfx_volume_db()
+	player.play()
+
+
+# --- Timed-special loops, Glue hits, Jumping Bean hops (Bontago-eq0) ----------
+
+## A timed special (Earthquake, Magnet) was used: loop its bed for the effect's
+## whole window. special_consumed is the one start signal every peer gets (an
+## in-place Earthquake has no carrier on a client).
+## DECISION (Bontago-eq0): the window length is the effect's own
+## effect_lifetime_s(), read dynamically so this autoload gains no compile edge
+## to SpecialEffect (tools/lint_layers.py L3). Magnet's pull_start_delay_s (0 by
+## default) is inside that lifetime, so a delayed pull would hum early.
+func _on_special_consumed(_slot_id: int, special_id: StringName) -> void:
+	if _world_replay_silent or not _available:
+		return
+	var filename: String = config.special_loop_files.get(special_id, "")
+	if filename.is_empty():
+		return
+	var seconds: float = _special_active_seconds(special_id)
+	var source: AudioStream = _load_stream(filename)
+	if source == null or seconds <= 0.0:
+		return
+	while _special_loops.size() >= maxi(config.special_loop_max, 1):
+		_stop_special_loop(0)
+	var player: AudioStreamPlayer = AudioStreamPlayer.new()
+	add_child(player)
+	player.stream = _looped_copy(source)
+	var target_db: float = (
+		config.sfx_volume_db + config.special_loop_volume_db + Settings.master_volume_db() + Settings.sfx_volume_db()
+	)
+	player.volume_db = MUSIC_STEM_MUTE_DB
+	player.play()
+	var fade_in: float = minf(config.special_loop_fade_in_s, seconds)
+	var fade_out: float = minf(config.special_loop_fade_out_s, maxf(seconds - fade_in, 0.0))
+	var tween: Tween = player.create_tween()
+	tween.tween_property(player, "volume_db", target_db, fade_in)
+	tween.tween_interval(maxf(seconds - fade_in - fade_out, 0.0))
+	tween.tween_property(player, "volume_db", MUSIC_STEM_MUTE_DB, fade_out)
+	tween.tween_callback(_on_special_loop_done.bind(player))
+	_special_loops.append({"player": player, "def_id": special_id})
+
+
+## Seconds `special_id`'s effect stays active (0 when unknown).
+func _special_active_seconds(special_id: StringName) -> float:
+	var def: SpecialDef = SpecialDef.find_by_id(special_id)
+	if def == null or def.effect == null or not def.effect.has_method(&"effect_lifetime_s"):
+		return 0.0
+	return float(def.effect.call(&"effect_lifetime_s"))
+
+
+## Fades out and frees the oldest live loop for `def_id` (no-op without one).
+func _fade_out_special_loop(def_id: StringName) -> void:
+	for i: int in range(_special_loops.size()):
+		if _special_loops[i]["def_id"] != def_id:
+			continue
+		var player: AudioStreamPlayer = _special_loops[i]["player"] as AudioStreamPlayer
+		_special_loops.remove_at(i)
+		if is_instance_valid(player):
+			var tween: Tween = player.create_tween()
+			tween.tween_property(player, "volume_db", MUSIC_STEM_MUTE_DB, config.special_loop_fade_out_s)
+			tween.tween_callback(player.queue_free)
+		return
+
+
+func _on_special_loop_done(player: AudioStreamPlayer) -> void:
+	for i: int in range(_special_loops.size()):
+		if _special_loops[i]["player"] == player:
+			_special_loops.remove_at(i)
+			break
+	if is_instance_valid(player):
+		player.queue_free()
+
+
+func _stop_special_loop(index: int) -> void:
+	var player: AudioStreamPlayer = _special_loops[index]["player"] as AudioStreamPlayer
+	_special_loops.remove_at(index)
+	if is_instance_valid(player):
+		player.queue_free()
+
+
+## Stops every timed-special loop at once (match reset, release_audio).
+func stop_special_loops() -> void:
+	while not _special_loops.is_empty():
+		_stop_special_loop(0)
+
+
+func special_loop_count() -> int:
+	return _special_loops.size()
+
+
+## True when a block in the last impact query wears the glue coat
+## (HoneyCoat, reached through LateScripts like net/MatchNet.gd does).
+func _impact_touches_glue() -> bool:
+	if config.glue_hit_file.is_empty():
+		return false
+	var coat: Script = LateScripts.script(LateScripts.HONEY_COAT)
+	for id: int in _surface_ids:
+		var body: Object = instance_from_id(id)
+		if body != null and bool(coat.call(&"is_coated", body)):
+			return true
+	return false
+
+
+func _play_glue_hit() -> void:
+	var now_msec: int = Time.get_ticks_msec()
+	if _within_interval(_last_glue_hit_msec, config.glue_hit_min_interval_s, now_msec):
+		return
+	if _play_cue_file(config.glue_hit_file):
+		_last_glue_hit_msec = now_msec
+
+
+func _on_bean_hopped(_position: Vector3) -> void:
+	if _world_replay_silent:
+		return
+	var now_msec: int = Time.get_ticks_msec()
+	if _within_interval(_last_bean_hop_msec, config.bean_hop_min_interval_s, now_msec):
+		return
+	if _play_cue_file(config.bean_hop_file):
+		_last_bean_hop_msec = now_msec
+
+
+## True while `now_msec` is still inside `interval_s` of `last_msec` (-1 = never played).
+func _within_interval(last_msec: int, interval_s: float, now_msec: int) -> bool:
+	return last_msec >= 0 and float(now_msec - last_msec) < interval_s * MSEC_PER_S
+
+
+## One-shot of an effects-folder file on the SFX pool; false when missing.
+func _play_cue_file(filename: String) -> bool:
+	if filename.is_empty() or not _available:
+		return false
+	var stream: AudioStream = _load_stream(filename)
+	if stream == null:
+		return false
+	var player: AudioStreamPlayer = _next_sfx_player()
+	player.stream = stream
+	player.volume_db = config.sfx_volume_db + Settings.master_volume_db() + Settings.sfx_volume_db()
+	player.play()
+	return true
+
+
+## A looping duplicate of `source` (load_from_file ignores the .import loop flags;
+## a stream that already loops is left alone).
+func _looped_copy(source: AudioStream) -> AudioStream:
+	var stream: AudioStream = source.duplicate() as AudioStream
+	if stream is AudioStreamWAV and (stream as AudioStreamWAV).loop_mode == AudioStreamWAV.LOOP_DISABLED:
+		var wav: AudioStreamWAV = stream as AudioStreamWAV
+		var bytes_per_frame: int = (2 if wav.format == AudioStreamWAV.FORMAT_16_BITS else 1) * (2 if wav.stereo else 1)
+		wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		wav.loop_begin = 0
+		wav.loop_end = wav.data.size() / bytes_per_frame
+	return stream
 
 
 ## DECISION (autoload/Sfx.gd, Bontago-6y2): unlike the world hooks above (a
@@ -1305,13 +1494,5 @@ func _start_claim_bed() -> void:
 	if source == null:
 		_claim_stream_missing = true  # silent no-op: do not retry (and log) every step
 		return
-	var stream: AudioStream = source.duplicate() as AudioStream
-	if stream is AudioStreamWAV and (stream as AudioStreamWAV).loop_mode == AudioStreamWAV.LOOP_DISABLED:
-		# load_from_file ignores the .import loop flags; a stream that already loops is left alone.
-		var wav: AudioStreamWAV = stream as AudioStreamWAV
-		var bytes_per_frame: int = (2 if wav.format == AudioStreamWAV.FORMAT_16_BITS else 1) * (2 if wav.stereo else 1)
-		wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
-		wav.loop_begin = 0
-		wav.loop_end = wav.data.size() / bytes_per_frame
-	_claim_player.stream = stream
+	_claim_player.stream = _looped_copy(source)
 	_claim_player.play()

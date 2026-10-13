@@ -627,12 +627,14 @@ func _update_block_trail(id: int, block: Block, inv_delta: float, threshold: flo
 ## Node3D per fast-falling block (built once by _build_trail_wrapper() and
 ## kept in `_trails`), re-positioned/re-oriented/re-scaled every physics
 ## step: `wrapper.global_position` is always exactly the block's own current
-## position (plus trail_top_offset_m), so it can never lag or detach the way
-## a world-space particle could. `wrapper`'s basis is re-derived every call
-## from `velocity` so the streak always points opposite the block's current
-## travel direction, and each streak's own length is re-derived from
-## `fall_speed` (trail_length_per_speed_s, clamped to [trail_min_length_m,
-## trail_max_length_m]) -- "length proportional to speed".
+## visual centre (_trail_anchor()), so it can never lag or detach the way a
+## world-space particle could, and the block itself hides the ribbon's head.
+## `wrapper`'s basis is re-derived every call: local -Z runs opposite the
+## block's travel and local +Y (the quad's normal) turns about that axis
+## toward the camera (Bontago-a3z: a fixed flat strip went edge-on from many
+## views). The ribbon's length follows `fall_speed` (trail_length_per_speed_s,
+## clamped to [trail_min_length_m, trail_max_length_m]) -- "length
+## proportional to speed"; its width is fixed per block at build time.
 func _ensure_trail(id: int, block: Block, fall_speed: float, velocity: Vector3) -> void:
 	var wrapper: Node3D = _trails.get(id) as Node3D
 	if wrapper != null and not is_instance_valid(wrapper):
@@ -641,45 +643,102 @@ func _ensure_trail(id: int, block: Block, fall_speed: float, velocity: Vector3) 
 	if wrapper == null:
 		if _trails.size() >= config.trail_max_concurrent:
 			return
-		wrapper = _build_trail_wrapper(_color_for_owner_slot(block.owner_slot, config.trail_fallback_color))
+		wrapper = _build_trail_wrapper(
+			_color_for_owner_slot(block.owner_slot, config.trail_fallback_color), _trail_width_for(block)
+		)
 		add_child(wrapper)
 		_trails[id] = wrapper
 
-	var tail_direction: Vector3 = -velocity.normalized() if velocity.length() > 0.001 else Vector3.UP
-	var up_hint: Vector3 = Vector3.UP if absf(tail_direction.dot(Vector3.UP)) < 0.99 else Vector3.RIGHT
-	wrapper.global_position = block.global_position + Vector3.UP * config.trail_top_offset_m
-	wrapper.global_transform.basis = Basis.looking_at(tail_direction, up_hint)
+	var anchor: Vector3 = _trail_anchor(block)
+	var tail: Vector3 = -velocity.normalized() if velocity.length() > 0.001 else Vector3.UP
+	wrapper.global_transform = Transform3D(_trail_basis(tail, anchor), anchor)
 
 	var length: float = clampf(
 		fall_speed * config.trail_length_per_speed_s, config.trail_min_length_m, config.trail_max_length_m
 	)
-	for child: Node in wrapper.get_children():
-		var streak: MeshInstance3D = child as MeshInstance3D
-		if streak != null:
-			streak.scale = Vector3(config.trail_streak_width_m, 1.0, length)
+	var ribbon: MeshInstance3D = wrapper.get_child(0) as MeshInstance3D
+	if ribbon != null:
+		ribbon.scale = Vector3(float(wrapper.get_meta(TRAIL_WIDTH_META, config.trail_min_width_m)), 1.0, length)
 
 
-## config.trail_streak_count parallel MeshInstance3D children, each sharing
-## one unit-length/unit-width quad mesh (_get_trail_unit_mesh(), scaled per
-## frame by _ensure_trail() instead of rebuilt) and one ShaderMaterial
-## instance tinted to `color` -- "2-3 thin parallel streaks offset across
-## the block's width".
-func _build_trail_wrapper(color: Color) -> Node3D:
+const TRAIL_WIDTH_META: StringName = &"trail_width_m"
+## Below this squared length the camera lies on the travel axis (no facing direction).
+const TRAIL_ON_AXIS_SQ: float = 0.0001
+## |dot| above which a fallback normal is too close to the travel axis to use.
+const TRAIL_PARALLEL_DOT: float = 0.99
+
+
+## The block's visual centre: a gift carrier's GiftVisual (its BlockMesh is
+## hidden, BlockFactory.apply_gift_visual), else the BlockMesh bounds centre in
+## world space (a piece's body origin sits on its pivot cell, not its middle),
+## else the body position.
+func _trail_anchor(block: Block) -> Vector3:
+	var gift: Node3D = block.get_node_or_null(NodePath(String(BlockFactory.GIFT_VISUAL_NODE))) as Node3D
+	if gift != null:
+		return gift.global_position
+	var mesh: MeshInstance3D = block.get_node_or_null(^"BlockMesh") as MeshInstance3D
+	if mesh == null or mesh.mesh == null:
+		return block.global_position
+	return mesh.global_transform * mesh.get_aabb().get_center()
+
+
+## Ribbon width from the block's mean horizontal extent (trail_width_ratio,
+## clamped to [trail_min_width_m, trail_max_width_m]): the BlockMesh bounds, or
+## for a gift carrier its single box collider.
+func _trail_width_for(block: Block) -> float:
+	var size: Vector3 = Vector3.ZERO
+	if block.get_node_or_null(NodePath(String(BlockFactory.GIFT_VISUAL_NODE))) != null:
+		for child: Node in block.get_children():
+			var collider: CollisionShape3D = child as CollisionShape3D
+			var box: BoxShape3D = collider.shape as BoxShape3D if collider != null else null
+			if box != null:
+				size = box.size
+				break
+	else:
+		var mesh: MeshInstance3D = block.get_node_or_null(^"BlockMesh") as MeshInstance3D
+		if mesh != null and mesh.mesh != null:
+			size = mesh.get_aabb().size * mesh.global_transform.basis.get_scale()
+	var extent: float = (size.x + size.z) * 0.5 * config.trail_width_ratio
+	return clampf(extent, config.trail_min_width_m, config.trail_max_width_m)
+
+
+## Local -Z along `tail`, local +Y (the quad normal) toward the active camera,
+## rotated only about the tail axis. Without a camera (headless) or when looking
+## straight down the axis, any normal perpendicular to `tail` is used.
+func _trail_basis(tail: Vector3, anchor: Vector3) -> Basis:
+	var to_camera: Vector3 = Vector3.ZERO
+	var viewport: Viewport = get_viewport()
+	var camera: Camera3D = viewport.get_camera_3d() if viewport != null else null
+	if camera != null:
+		to_camera = camera.global_position - anchor
+	var normal: Vector3 = to_camera - tail * to_camera.dot(tail)
+	if normal.length_squared() < TRAIL_ON_AXIS_SQ:
+		normal = Vector3.FORWARD if absf(tail.dot(Vector3.FORWARD)) < TRAIL_PARALLEL_DOT else Vector3.RIGHT
+		normal = normal - tail * normal.dot(tail)
+	normal = normal.normalized()
+	var z_axis: Vector3 = -tail
+	return Basis(normal.cross(z_axis), normal, z_axis)
+
+
+## One camera-facing ribbon (Bontago-a3z) on the shared unit quad
+## (_get_trail_unit_mesh(), scaled per frame by _ensure_trail() instead of
+## rebuilt), tinted to `color`; vfx/trail_streak.gdshader draws a soft glow
+## with config.trail_streak_count bright speed lines inside it.
+func _build_trail_wrapper(color: Color, width_m: float) -> Node3D:
 	var wrapper: Node3D = Node3D.new()
+	wrapper.set_meta(TRAIL_WIDTH_META, width_m)
 	var material: ShaderMaterial = ShaderMaterial.new()
 	material.shader = TRAIL_SHADER
 	material.set_shader_parameter(&"trail_color", color)
 	material.set_shader_parameter(&"emission_energy", config.trail_emission_energy)
 	material.set_shader_parameter(&"max_alpha", config.trail_alpha_max)
-	var mesh: ArrayMesh = _get_trail_unit_mesh()
-	var count: int = maxi(config.trail_streak_count, 1)
-	for i: int in range(count):
-		var streak: MeshInstance3D = MeshInstance3D.new()
-		streak.mesh = mesh
-		streak.material_override = material
-		var offset: float = (float(i) - float(count - 1) * 0.5) * config.trail_lateral_offset_m
-		streak.position = Vector3(offset, 0.0, 0.0)
-		wrapper.add_child(streak)
+	material.set_shader_parameter(&"line_count", float(maxi(config.trail_streak_count, 0)))
+	var ribbon: MeshInstance3D = MeshInstance3D.new()
+	ribbon.mesh = _get_trail_unit_mesh()
+	ribbon.material_override = material
+	ribbon.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	ribbon.extra_cull_margin = config.trail_max_length_m
+	wrapper.add_child(ribbon)
 	return wrapper
 
 

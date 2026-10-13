@@ -18,8 +18,9 @@ const BOMB_ID: StringName = &"bomb"
 const ROCKET_ID: StringName = &"rocket"
 const VOLCANO_ID: StringName = &"volcano"
 const PROPELLER_ID: StringName = &"propeller"
-const MIN_FPS: float = 0.001
+const FREEZE_ID: StringName = &"freeze"
 const EXPLOSION_TUNING: GiftExplosionFxTuning = preload("res://config/specials/fx/gift_explosion_fx_tuning.tres")
+const FREEZE_TUNING: FreezeFxTuning = preload("res://config/specials/fx/freeze_fx_tuning.tres")
 
 var _handlers: Dictionary = {}
 
@@ -31,6 +32,7 @@ func _ready() -> void:
 	register(ROCKET_ID, _build_explosion)
 	register(VOLCANO_ID, _build_volcano)
 	register(PROPELLER_ID, _build_propeller)
+	register(FREEZE_ID, _build_freeze)
 	connect_events()
 
 
@@ -40,6 +42,7 @@ func _ready() -> void:
 ## gift without such a visual.
 static func on_gift_block_spawned(block: Block) -> void:
 	GiftBlink.start_for_gift(block)
+	BeanHopFx.start_for_gift(block)
 
 
 ## Idempotent: a second call never adds a second subscription.
@@ -99,8 +102,9 @@ func _build_black_hole(_block: Block, def: SpecialDef, position: Vector3) -> voi
 	visual.setup(effect.visual_radius_m, effect.lifetime_s)
 
 
-## Bomb and Rocket: a blast puff (the pooled impact flipbook) sized by the blast radius.
-## Rides the replicated special_triggered, so every peer sees it. Visual only.
+## Bomb and Rocket: a CartoonBlast (Bontago-a3z: flash, toon fireballs, shock ring,
+## debris, dust) sized by the blast radius. Rides the replicated special_triggered, so
+## every peer sees it; hangs under the Field so it rides a tilt. Visual only, frees itself.
 func _build_explosion(_block: Block, def: SpecialDef, position: Vector3) -> void:
 	var parent: Node3D = MatchContext.current().blocks_parent()
 	var blast: ExplosionTuning = null
@@ -113,15 +117,9 @@ func _build_explosion(_block: Block, def: SpecialDef, position: Vector3) -> void
 			blast = rocket.blast
 	if parent == null or blast == null or not parent.is_inside_tree():
 		return
-	var puff: ImpactPuff = ImpactPuff.new()
-	DiscAnchor.parent_for(parent).add_child(puff)
-	var tuning: GiftExplosionFxTuning = EXPLOSION_TUNING
-	puff.play(
-		position, tuning.hard, blast.radius_m * tuning.size_per_blast_radius,
-		tuning.tint, tuning.alpha, tuning.fps, tuning.frame_count
-	)
-	var lifetime_s: float = float(tuning.frame_count) / maxf(tuning.fps, MIN_FPS)
-	parent.get_tree().create_timer(lifetime_s).timeout.connect(puff.queue_free)
+	var effect: CartoonBlast = CartoonBlast.new()
+	DiscAnchor.attach(effect, position, parent)
+	effect.setup(EXPLOSION_TUNING, blast.radius_m, hash(position))
 
 
 ## Volcano (Bontago-1pi.85.14): clients draw the same cone without a physics body; the
@@ -141,3 +139,15 @@ func _build_propeller(_block: Block, def: SpecialDef, position: Vector3) -> void
 	if effect == null:
 		return
 	PropellerStand.build_client_visual(effect, position)
+
+
+## Freeze (Bontago-a3z): an ice-shard burst with a frost ring grown to the freeze radius.
+## Every peer draws it from the replicated trigger; the freeze itself is host physics.
+func _build_freeze(_block: Block, def: SpecialDef, position: Vector3) -> void:
+	var parent: Node3D = MatchContext.current().blocks_parent()
+	var effect: FreezeEffect = def.effect as FreezeEffect if def != null else null
+	if parent == null or effect == null or not parent.is_inside_tree():
+		return
+	var burst: FreezeBurst = FreezeBurst.new()
+	DiscAnchor.attach(burst, position, parent)
+	burst.setup(FREEZE_TUNING, effect.freeze_radius_m, hash(position))
