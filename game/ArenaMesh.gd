@@ -156,6 +156,8 @@ func _style_glow_material(side_style: ArenaSideStyle) -> StandardMaterial3D:
 			energy = side_style.detailed_glow_energy
 		ArenaSideStyle.Style.MACHINED_HEAVY:
 			energy = side_style.heavy_glow_energy
+		ArenaSideStyle.Style.MONOLITH, ArenaSideStyle.Style.TAPERED_STRATA, ArenaSideStyle.Style.PLATED_DOME:
+			energy = side_style.top_lip_energy
 	var material: StandardMaterial3D = StandardMaterial3D.new()
 	material.vertex_color_use_as_albedo = true
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
