@@ -38,6 +38,22 @@ static var _saved_disable_3d: bool = false
 static var _match_cap: int = -1
 static var _menu_cap: int = 0
 
+## Bontago-1pi.11.91 (owner 2026-10-13: the menu is a picture). Measured at menu, options and
+## lobby: root disable_3d was already true (no 3D pass), but 12 world scripts (Skybox, birds,
+## Field, BlockRegistry, CameraRig, CloudShadows, HorizonIslands, ...) kept running _process behind
+## it. DECISION: while a menu holds the budget the world nodes Main registers go
+## PROCESS_MODE_DISABLED (gated by the same menu_disable_world_3d switch) and get their previous
+## mode back on the last release. Restoration happens when the menu leaves the tree, i.e. at the
+## end of the frame in which Main frees it, before the match world is next processed.
+static var _dormant_nodes: Array[Node] = []
+static var _dormant_saved: Dictionary = {}
+static var _dormant_active: bool = false
+static var _dormant_wanted: bool = false
+## Main's "a match, sandbox or tutorial world is live" predicate. DECISION: a menu backdrop can
+## outlive a world start (the CLI --sandbox path leaves the MainMenu up), so dormancy is
+## re-evaluated every frame against it and never freezes a live world.
+static var _world_live: Callable = Callable()
+
 var _holds_budget: bool = false
 
 const IMAGE_NODE_NAME: String = "BackdropImage"
@@ -89,6 +105,39 @@ func _exit_tree() -> void:
 		var viewport: Viewport = get_viewport()
 		if viewport != null:
 			viewport.disable_3d = _saved_disable_3d
+		_set_world_dormant(false)
+
+
+## Main registers the always-present world roots here (replaces any earlier list, restoring it).
+static func set_dormant_world(nodes: Array[Node], world_live: Callable = Callable()) -> void:
+	_set_world_dormant(false)
+	_dormant_nodes = nodes.duplicate()
+	_world_live = world_live
+
+
+static func _refresh_dormancy() -> void:
+	var live: bool = _world_live.is_valid() and bool(_world_live.call())
+	_set_world_dormant(_budget_holders > 0 and not live and _dormant_wanted)
+
+
+static func world_dormant() -> bool:
+	return _dormant_active
+
+
+static func _set_world_dormant(dormant: bool) -> void:
+	if dormant == _dormant_active:
+		return
+	_dormant_active = dormant
+	for node: Node in _dormant_nodes:
+		if not is_instance_valid(node):
+			continue
+		if dormant:
+			_dormant_saved[node] = node.process_mode
+			node.process_mode = Node.PROCESS_MODE_DISABLED
+		elif _dormant_saved.has(node):
+			node.process_mode = _dormant_saved[node] as Node.ProcessMode
+	if not dormant:
+		_dormant_saved.clear()
 
 
 static func budget_holders() -> int:
@@ -125,6 +174,13 @@ func _apply_budget() -> void:
 	var viewport: Viewport = get_viewport()
 	if viewport != null and tuning.menu_disable_world_3d:
 		viewport.disable_3d = true
+	# Dormancy itself starts on this backdrop's first _process frame, never inside the tree-entry
+	# call, so a world started in the same frame (CLI --sandbox, test fixtures) is already live.
+	_dormant_wanted = tuning.menu_disable_world_3d
+
+
+func _process(_delta: float) -> void:
+	_refresh_dormancy()
 
 
 func _ready() -> void:
