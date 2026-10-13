@@ -1207,7 +1207,7 @@ func _on_field_changed(resource: Resource, _prop_name: String) -> void:
 				_push_locked_phase(_phase_for_time_choice(_time_of_day_choice))
 	# Bontago-1pi.203: BlockVisualTuning (BlockFactory.refresh_visual_tuning()) and
 	# BeaconVisualTuning (apply_beacon_tuning_live()) are live now; HUDVisualTuning
-	# is still baked at HUD build (follow-up). 
+	# is still baked at HUD build (follow-up).
 	# ghost_tuning / territory_tuning / block_feed_config are already read
 	# live by whatever consumes them each frame/tick -- see this file's class
 	# doc for the live-apply hooks the other resources need. Bontago-xtq.36:
