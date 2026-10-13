@@ -48,8 +48,8 @@ func test_open_focuses_first_action_and_orders_cancel_last() -> void:
 	assert_eq(_dialog.actions().size(), 2)
 	assert_true(_dialog.actions()[0].has_focus(), "the forward action takes initial focus")
 	assert_eq(_dialog.cancel_button().get_index(), _dialog.panel.content.get_child_count() - 1)
-	assert_eq(_dialog.actions()[0].hint_action, &"ui_accept")
-	assert_eq(_dialog.cancel_button().hint_action, &"ui_cancel")
+	assert_eq(_dialog.actions()[0].hint_action, &"", "dialog blocks are text only")
+	assert_eq(_dialog.cancel_button().hint_action, &"")
 
 
 func test_pressing_an_action_hides_and_emits_its_id() -> void:

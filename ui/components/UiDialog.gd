@@ -67,7 +67,7 @@ func _init() -> void:
 	_body_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_body_label.visible = false
 	panel.content.add_child(_body_label)
-	_cancel_button = _make_block(CANCEL_ID, CANCEL_TEXT, UiBlockButton.Look.SECONDARY, &"ui_cancel")
+	_cancel_button = _make_block(CANCEL_ID, CANCEL_TEXT, UiBlockButton.Look.SECONDARY)
 	panel.content.add_child(_cancel_button)
 
 
@@ -89,12 +89,11 @@ func clear_actions() -> void:
 	_actions.clear()
 
 
-## Adds an action block above Cancel. The FIRST action is the forward one: it shows the
-## ui_accept glyph and gets initial focus. [param look]: PRIMARY / MINT for a forward action,
+## Adds an action block above Cancel. The FIRST action is the forward one: it gets
+## initial focus (text-only blocks, no glyphs). [param look]: PRIMARY / MINT for a forward action,
 ## DANGER for a destructive confirm, SECONDARY otherwise.
 func add_action(id: StringName, label: String, look: UiBlockButton.Look = UiBlockButton.Look.PRIMARY) -> UiBlockButton:
-	var hint: StringName = &"ui_accept" if _actions.is_empty() else &""
-	var button: UiBlockButton = _make_block(id, label, look, hint)
+	var button: UiBlockButton = _make_block(id, label, look)
 	panel.content.add_child(button)
 	panel.content.move_child(button, _cancel_button.get_index())
 	_actions.append(button)
@@ -142,12 +141,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-func _make_block(id: StringName, label: String, look: UiBlockButton.Look, hint: StringName) -> UiBlockButton:
+func _make_block(id: StringName, label: String, look: UiBlockButton.Look) -> UiBlockButton:
 	var button: UiBlockButton = UiBlockButton.new()
 	button.text = label.to_upper()
 	button.variant = look
 	button.small = true
-	button.hint_action = hint
 	button.size_flags_horizontal = Control.SIZE_FILL
 	button.pressed.connect(_on_block_pressed.bind(id))
 	return button
