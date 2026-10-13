@@ -70,6 +70,27 @@ func test_gift_demo_preplaces_blocks_and_gifts_spawn() -> void:
 	assert_false((Match._gifts._crates as Dictionary).is_empty(), "at least one gift crate spawned")
 
 
+var _silent_at_placement: Array[bool] = []
+
+
+func _record_silence(_block: RigidBody3D, _shape_id: StringName) -> void:
+	_silent_at_placement.append(Sfx._world_replay_silent)
+
+
+## Bontago-1pi.85.75: pre-placed scene blocks go through the ordinary placement path (their
+## block_placed would sound the local drop cue for every block at once); Sfx must be silenced
+## for exactly that build, and a real drop afterwards must not be.
+func test_preplaced_blocks_are_silent_but_later_drops_are_not() -> void:
+	Events.block_placed.connect(_record_silence)
+	_main.start_gift_demo_from_menu()
+	_run_countdown()
+	await get_tree().process_frame
+	Events.block_placed.disconnect(_record_silence)
+	assert_gt(_silent_at_placement.size(), 0, "towers were pre-placed")
+	assert_false(_silent_at_placement.has(false), "every pre-placed block was placed under Sfx silence")
+	assert_false(Sfx._world_replay_silent, "silence is released once the scene is built")
+
+
 func test_plain_sandbox_from_menu_ignores_the_preset() -> void:
 	_main.start_gift_demo_from_menu()
 	Match.abort_match()
