@@ -122,6 +122,8 @@ func on_match_state_changed(from_state: int, to_state: int) -> void:
 			# sky (the static painted-panorama sunset), so the restart sets the sandbox's sky
 			# up again like at entry.
 			main_node._apply_match_sky(Match.config)
+			# Bontago-1pi.199: a new match restarts the shared clock (day/night cycle) too.
+			SnapshotSync.begin_match(Match.registry(), Match.config.map_def())
 		return
 
 	if to_state == Match.State.LOBBY:
@@ -405,6 +407,8 @@ func end_match_world() -> void:
 	# Field (flags, rebuild, overlay), so it is cleared here too. Idempotent: a
 	# net leave reaches this twice (mode change, then the abort's -> LOBBY).
 	if not main_node._world_built:
+		# Bontago-1pi.199: a CLI --sandbox never sets _world_built but does run the shared clock.
+		SnapshotSync.end_match()
 		_field.clear_match_state()
 		_reset_match_scope()
 		return

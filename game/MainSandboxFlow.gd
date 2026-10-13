@@ -81,6 +81,13 @@ func start_sandbox_match_with_args(args: PackedStringArray) -> void:
 	main_node._field.set_overlay_source(Match.raster(), config.territory_colors())
 	main_node._apply_match_sky(config)
 	main_node._horizon_islands.rebuild_for_map(config.map_def(), main_node._world_environment.environment if main_node._world_environment != null else null)
+	# Bontago-1pi.199 (owner: the day/night cycle did not cycle in the sandbox). The Skybox cycle reads
+	# the one shared match clock (SnapshotSync.sky_cycle_seconds()), which only runs between begin_match()
+	# and end_match(). DECISION: begin the real SnapshotSync like a normal match (one clock, no second
+	# sky clock): offline host_tick() only advances the clock and returns before any selection or send,
+	# and nothing it turns on ends or times a sandbox. Teardown is the ordinary end_match_world().
+	SnapshotSync.set_disk(main_node._field)
+	SnapshotSync.begin_match(Match.registry(), config.map_def())
 
 	# F3's overlay works offline too (Net.stats() reports Offline/0 peers,
 	# which is still useful context while sandbox-testing); it costs nothing
