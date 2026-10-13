@@ -187,6 +187,19 @@ const MAX_STOP: float = 0.99
 ## the bottom of the fall (the camera) rather than at the far cloud ceiling, so
 ## the same flake count is packed close to the view.
 @export var flake_max_column_m: float = 30.0
+## Bontago-mp0.155: the box also reaches the point the camera looks at. That
+## point is where the view ray meets the plane at flake_focus_plane_y_m (the
+## arena), at most flake_focus_max_m away. The box is centred flake_focus_blend
+## of the way there and grows by that share of the distance on each side, with
+## the flake amount scaled by its area up to flake_max_area_scale (a zoomed-out
+## camera sees flakes across the arena, not a puff in front of itself). The
+## half extent changes in steps of flake_extent_step_m (a change restarts the
+## particles).
+@export var flake_focus_plane_y_m: float = 0.0
+@export var flake_focus_max_m: float = 120.0
+@export_range(0.1, 1.0, 0.01) var flake_focus_blend: float = 0.5
+@export var flake_max_area_scale: float = 4.0
+@export var flake_extent_step_m: float = 6.0
 ## Spawn box height above the camera (metres).
 @export var flake_height_above_camera_m: float = 12.0
 @export var flake_fall_speed: float = 1.8

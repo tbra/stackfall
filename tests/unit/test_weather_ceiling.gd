@@ -116,10 +116,10 @@ func test_snow_falls_from_the_ceiling_with_more_lifetime() -> void:
 	add_child_autofree(snow)
 	var base_lifetime: float = snow.tuning.flake_lifetime_s
 	var ceiling: WeatherCeilingTuning = CloudCeiling.TUNING
-	snow._apply_fall(ceiling.height_m - 30.0, ceiling.snow_fall_step_m)
+	snow._apply_fall(ceiling.height_m - 30.0, ceiling.snow_fall_step_m, snow.tuning.flake_box_half_extent.x)
 	assert_gt(snow.particles().lifetime, base_lifetime)
 	var amount: int = snow.particles().amount
-	snow._apply_fall(ceiling.height_m - 30.0, ceiling.snow_fall_step_m)
+	snow._apply_fall(ceiling.height_m - 30.0, ceiling.snow_fall_step_m, snow.tuning.flake_box_half_extent.x)
 	assert_eq(snow.particles().amount, amount, "quantised: no rewrite while unchanged")
 
 

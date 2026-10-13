@@ -34,6 +34,11 @@ var _density_scale: float = 1.0
 ## at the cloud ceiling at unchanged density.
 var _fall_m: float = 0.0
 var _fall_ratio: float = 1.0
+## Bontago-mp0.155: quantised half extent (metres) the flake box now spans and
+## the amount multiplier it brings, so the box reaches the arena the camera looks
+## at instead of a puff in front of the camera.
+var _half_m: float = 0.0
+var _area_ratio: float = 1.0
 ## True while the intensity is falling (the ramp-out): flakes then thin out
 ## faster than the intensity (SnowTuning.flake_stop_intensity).
 var _falling: bool = false
@@ -90,21 +95,44 @@ func _process(_delta: float) -> void:
 		var ceiling: WeatherCeilingTuning = CloudCeiling.TUNING
 		var camera_pos: Vector3 = camera.global_position
 		var top: float = column_top(camera_pos.y, ceiling)
-		var centre: Vector3 = box_centre(camera_pos, -camera.global_basis.z)
+		var forward: Vector3 = -camera.global_basis.z
+		var reach: float = focus_distance(camera_pos, forward)
+		var centre: Vector3 = box_centre(camera_pos, forward)
 		global_position = Vector3(centre.x, top, centre.z)
-		_apply_fall(top - (camera_pos.y - tuning.flake_below_camera_m), ceiling.snow_fall_step_m)
+		_apply_fall(top - (camera_pos.y - tuning.flake_below_camera_m), ceiling.snow_fall_step_m, box_half_m(reach))
+
+
+## Horizontal distance (metres) from the camera to what it looks at: where the
+## view ray meets the arena plane (flake_focus_plane_y_m), at most
+## flake_focus_max_m; a camera looking level or up gets flake_forward_shift_m.
+func focus_distance(camera_pos: Vector3, forward: Vector3) -> float:
+	var flat: Vector3 = Vector3(forward.x, 0.0, forward.z)
+	if flat.length_squared() <= HORIZONTAL_EPS:
+		return 0.0
+	var flat_len: float = flat.length()
+	if forward.y < -HORIZONTAL_EPS and camera_pos.y > tuning.flake_focus_plane_y_m:
+		var t: float = (camera_pos.y - tuning.flake_focus_plane_y_m) / -forward.y
+		return minf(t * flat_len, tuning.flake_focus_max_m)
+	return tuning.flake_forward_shift_m
+
+
+## Half extent (metres) of the flake box for a view `reach` metres away: it
+## spans from the camera to the focus point, plus the base margin each side.
+func box_half_m(reach: float) -> float:
+	return tuning.flake_box_half_extent.x + maxf(reach, tuning.flake_forward_shift_m) * tuning.flake_focus_blend
 
 
 ## Ground-plane centre of the flake box for a camera at `camera_pos` looking
-## along `forward`: flake_forward_shift_m ahead of the camera on the horizontal
-## look direction, so the flakes fill the view across the play area (a box on
-## the camera would leave the far part of the view empty). Straight up/down
-## gives no shift.
+## along `forward`: flake_focus_blend of the way from the camera to the point it
+## looks at, so the flakes fill the view from the camera out over the arena
+## (a box on the camera would leave the far part of the view empty). Straight
+## up/down gives no shift.
 func box_centre(camera_pos: Vector3, forward: Vector3) -> Vector3:
 	var flat: Vector3 = Vector3(forward.x, 0.0, forward.z)
 	if flat.length_squared() <= HORIZONTAL_EPS:
 		return camera_pos
-	return camera_pos + flat.normalized() * tuning.flake_forward_shift_m
+	var reach: float = maxf(focus_distance(camera_pos, forward), tuning.flake_forward_shift_m)
+	return camera_pos + flat.normalized() * reach * tuning.flake_focus_blend
 
 
 ## World height the flakes start at for a camera at `camera_y`: the cloud
@@ -120,21 +148,28 @@ func column_top(camera_y: float, ceiling: WeatherCeilingTuning) -> float:
 
 ## Resizes the flake lifetime/amount/culling box for a `fall_m` fall (rounded
 ## up to `step_m`); a no-op while the rounded value is unchanged.
-func _apply_fall(fall_m: float, step_m: float) -> void:
+func _apply_fall(fall_m: float, step_m: float, half_m: float) -> void:
 	if _particles == null:
 		return
 	var step: float = maxf(step_m, MIN_FALL_STEP_M)
 	var rounded: float = ceilf(fall_m / step) * step
-	if is_equal_approx(rounded, _fall_m):
+	var base_half: float = maxf(tuning.flake_box_half_extent.x, MIN_FALL_STEP_M)
+	var half_step: float = maxf(tuning.flake_extent_step_m, MIN_FALL_STEP_M)
+	var half_rounded: float = maxf(ceilf(half_m / half_step) * half_step, base_half)
+	if is_equal_approx(rounded, _fall_m) and is_equal_approx(half_rounded, _half_m):
 		return
 	_fall_m = rounded
+	_half_m = half_rounded
+	_area_ratio = clampf((half_rounded / base_half) * (half_rounded / base_half), 1.0, maxf(tuning.flake_max_area_scale, 1.0))
+	var process: ParticleProcessMaterial = _particles.process_material as ParticleProcessMaterial
+	process.emission_box_extents = Vector3(half_rounded, tuning.flake_box_half_extent.y, half_rounded)
 	var base_fall: float = tuning.flake_fall_speed * tuning.flake_lifetime_s
 	_fall_ratio = maxf(rounded / maxf(base_fall, 0.001), 1.0)
 	_particles.lifetime = tuning.flake_lifetime_s * _fall_ratio
 	_particles.preprocess = _prefill_s(_particles.lifetime)
-	_particles.amount = int(roundf(float(amount_for(Settings.current_graphics_preset())) * _fall_ratio))
+	_particles.amount = int(roundf(float(amount_for(Settings.current_graphics_preset())) * _fall_ratio * _area_ratio))
 	var fall: float = tuning.flake_fall_speed * (1.0 + tuning.flake_jitter) * _particles.lifetime
-	var extent: Vector3 = tuning.flake_box_half_extent
+	var extent: Vector3 = Vector3(half_rounded, tuning.flake_box_half_extent.y, half_rounded)
 	_particles.visibility_aabb = AABB(Vector3(-extent.x, -fall - extent.y, -extent.z), Vector3(extent.x * 2.0, fall + extent.y * 2.0, extent.z * 2.0))
 
 
@@ -147,7 +182,7 @@ func _prefill_s(lifetime: float) -> float:
 func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 	_density_scale = preset.weather_density_scale if preset != null else 1.0
 	if _particles != null:
-		var amount: int = int(roundf(float(amount_for(preset)) * _fall_ratio))
+		var amount: int = int(roundf(float(amount_for(preset)) * _fall_ratio * _area_ratio))
 		if _particles.amount != amount:
 			_particles.amount = amount
 		_particles.amount_ratio = density() * _density_scale
