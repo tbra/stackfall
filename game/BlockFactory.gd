@@ -53,7 +53,9 @@ extends RefCounted
 const BLOCK_SCENE: PackedScene = preload("res://game/Block.tscn")
 const CELL_GRID_SHADER: Shader = preload("res://shaders/block_cell_grid.gdshader")
 const OUTLINE_SHADER: Shader = preload("res://shaders/block_outline.gdshader")
-const VISUAL_TUNING: BlockVisualTuning = preload("res://config/block_visual_tuning.tres")
+# Bontago-1pi.203: a static var, not a const: GDScript folds `CONST.prop` reads of a const Resource
+# at compile time, which left every F4 edit of this tuning dead.
+static var VISUAL_TUNING: BlockVisualTuning = preload("res://config/block_visual_tuning.tres")
 ## Bontago-1pi.11.42: hole void colours and dissolve look (shared with the disc).
 const HOLE_VISUALS: HoleVisualTuning = preload("res://config/hole_visual_tuning.tres")
 
@@ -306,6 +308,31 @@ static func _material_for_color(color: Color) -> ShaderMaterial:
 	var material: ShaderMaterial = ShaderMaterial.new()
 	material.shader = CELL_GRID_SHADER
 	material.set_shader_parameter(&"albedo_color", color)
+	_apply_block_params(material)
+	material.next_pass = _outline_material_for_color(color) if _outline_enabled else null
+	_materials_by_color[color] = material
+	return material
+
+
+## Bontago-1pi.11.67 fix2b: whether block materials currently chain the outline pass.
+static func outline_enabled() -> bool:
+	return _outline_enabled
+
+
+## Bontago-1pi.11.67 fix2b: attaches (true) or detaches (false) the inverted-hull
+## outline next_pass on every cached block material at once, so every live block
+## follows a graphics preset change. Detaching drops the pass from the depth
+## prepass, the colour pass and every shadow cascade, not just its pixels.
+static func set_outline_enabled(enabled: bool) -> void:
+	_outline_enabled = enabled
+	for color: Variant in _materials_by_color.keys():
+		var material: ShaderMaterial = _materials_by_color[color] as ShaderMaterial
+		material.next_pass = _outline_material_for_color(color as Color) if enabled else null
+
+
+## Bontago-1pi.203: pushes every BlockVisualTuning / HoleVisualTuning-derived
+## uniform onto a block material (creation and the live F4 refresh share this).
+static func _apply_block_params(material: ShaderMaterial) -> void:
 	material.set_shader_parameter(&"toon_band_count", VISUAL_TUNING.toon_band_count)
 	material.set_shader_parameter(&"grid_line_width_px", VISUAL_TUNING.grid_line_width_px)
 	material.set_shader_parameter(&"grid_line_color", VISUAL_TUNING.grid_line_color)
@@ -348,25 +375,29 @@ static func _material_for_color(color: Color) -> ShaderMaterial:
 	material.set_shader_parameter(&"dissolve_rim_glow", HOLE_VISUALS.dissolve_rim_glow)
 	material.set_shader_parameter(&"dissolve_rim_color", HOLE_VISUALS.void_rim_color)
 	material.set_shader_parameter(&"dissolve_void_color", HOLE_VISUALS.void_deep_color)
-	material.next_pass = _outline_material_for_color(color) if _outline_enabled else null
-	_materials_by_color[color] = material
-	return material
 
 
-## Bontago-1pi.11.67 fix2b: whether block materials currently chain the outline pass.
-static func outline_enabled() -> bool:
-	return _outline_enabled
+## Bontago-1pi.203: the outline pass's counterpart of _apply_block_params().
+static func _apply_outline_params(material: ShaderMaterial) -> void:
+	material.set_shader_parameter(&"outline_width_px", VISUAL_TUNING.outline_width_px)
+	material.set_shader_parameter(&"outline_far_width_px", VISUAL_TUNING.outline_far_width_px)
+	material.set_shader_parameter(&"outline_fade_start_m", VISUAL_TUNING.outline_fade_start_m)
+	material.set_shader_parameter(&"outline_far_distance_m", VISUAL_TUNING.outline_far_distance_m)
+	material.set_shader_parameter(&"outline_color", VISUAL_TUNING.outline_color)
+	material.set_shader_parameter(&"outline_tint_amount", VISUAL_TUNING.outline_tint_amount)
+	material.set_shader_parameter(&"outline_tint_darken", VISUAL_TUNING.outline_tint_darken)
+	material.set_shader_parameter(&"dissolve_noise_scale", HOLE_VISUALS.dissolve_noise_scale)
+	material.set_shader_parameter(&"dissolve_edge_width", HOLE_VISUALS.dissolve_edge_width)
 
 
-## Bontago-1pi.11.67 fix2b: attaches (true) or detaches (false) the inverted-hull
-## outline next_pass on every cached block material at once, so every live block
-## follows a graphics preset change. Detaching drops the pass from the depth
-## prepass, the colour pass and every shadow cascade, not just its pixels.
-static func set_outline_enabled(enabled: bool) -> void:
-	_outline_enabled = enabled
-	for color: Variant in _materials_by_color.keys():
-		var material: ShaderMaterial = _materials_by_color[color] as ShaderMaterial
-		material.next_pass = _outline_material_for_color(color as Color) if enabled else null
+## Bontago-1pi.203: re-sends the tuning uniforms to every cached block and outline
+## material, so an F4 edit of BlockVisualTuning reaches blocks already standing
+## (they share these materials). tint_color/albedo_color stay as built.
+static func refresh_visual_tuning() -> void:
+	for material: Variant in _materials_by_color.values():
+		_apply_block_params(material as ShaderMaterial)
+	for material: Variant in _outline_materials_by_color.values():
+		_apply_outline_params(material as ShaderMaterial)
 
 
 ## Bontago-xtq.44: drops the shared materials on exit so the renderer frees them with the tree.
@@ -407,15 +438,7 @@ static func _outline_material_for_color(color: Color) -> ShaderMaterial:
 	var material: ShaderMaterial = ShaderMaterial.new()
 	material.shader = OUTLINE_SHADER
 	material.set_shader_parameter(&"tint_color", color)
-	material.set_shader_parameter(&"outline_width_px", VISUAL_TUNING.outline_width_px)
-	material.set_shader_parameter(&"outline_far_width_px", VISUAL_TUNING.outline_far_width_px)
-	material.set_shader_parameter(&"outline_fade_start_m", VISUAL_TUNING.outline_fade_start_m)
-	material.set_shader_parameter(&"outline_far_distance_m", VISUAL_TUNING.outline_far_distance_m)
-	material.set_shader_parameter(&"outline_color", VISUAL_TUNING.outline_color)
-	material.set_shader_parameter(&"outline_tint_amount", VISUAL_TUNING.outline_tint_amount)
-	material.set_shader_parameter(&"outline_tint_darken", VISUAL_TUNING.outline_tint_darken)
-	material.set_shader_parameter(&"dissolve_noise_scale", HOLE_VISUALS.dissolve_noise_scale)
-	material.set_shader_parameter(&"dissolve_edge_width", HOLE_VISUALS.dissolve_edge_width)
+	_apply_outline_params(material)
 	_outline_materials_by_color[color] = material
 	return material
 

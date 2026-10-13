@@ -92,6 +92,19 @@ func _ready() -> void:
 	_refresh_control_visuals()
 
 
+## Bontago-1pi.203: also rebuilds the claim beam and burst, which bake
+## BeaconVisualTuning at construction like the base beacon does.
+func rebuild_beacon() -> void:
+	super()
+	for node: Node in [_beam, _burst]:
+		if node != null:
+			remove_child(node)
+			node.queue_free()
+	_build_beam()
+	_build_burst()
+	_refresh_control_visuals()
+
+
 func banner_scale() -> float:
 	return beacon_visuals.goal_scale_factor
 

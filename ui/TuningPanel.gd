@@ -1189,6 +1189,10 @@ func _on_field_changed(resource: Resource, _prop_name: String) -> void:
 		apply_arena_style_live()
 	elif resource == camera_tuning:
 		apply_camera_tuning_live()
+	elif resource == block_visual_tuning:
+		BlockFactory.refresh_visual_tuning()
+	elif resource == beacon_visual_tuning:
+		apply_beacon_tuning_live()
 	elif resource == sky_theme:
 		# Bontago-mp0.83: the day/night cycle length is a rate, not a look; it
 		# goes through its own seam so the time of day stays put and the theme
@@ -1201,6 +1205,9 @@ func _on_field_changed(resource: Resource, _prop_name: String) -> void:
 			# sky now when that preset is the selected time of day.
 			if _prop_name.begins_with("cycle_locked_phase") and _time_of_day_choice != TIME_CUSTOM:
 				_push_locked_phase(_phase_for_time_choice(_time_of_day_choice))
+	# Bontago-1pi.203: BlockVisualTuning (BlockFactory.refresh_visual_tuning()) and
+	# BeaconVisualTuning (apply_beacon_tuning_live()) are live now; HUDVisualTuning
+	# is still baked at HUD build (follow-up). 
 	# ghost_tuning / territory_tuning / block_feed_config are already read
 	# live by whatever consumes them each frame/tick -- see this file's class
 	# doc for the live-apply hooks the other resources need. Bontago-xtq.36:
@@ -1782,6 +1789,15 @@ func refresh_territory_visuals_live() -> void:
 		var skybox: Skybox = node as Skybox
 		if skybox != null:
 			skybox.refresh_from_visuals()
+
+
+## Bontago-1pi.203: rebuilds every HomeFlag/GoalFlag beacon in the tree from the
+## edited beacon_visual_tuning (their geometry and materials are baked in _build()).
+func apply_beacon_tuning_live() -> void:
+	for node: Node in get_tree().get_nodes_in_group(HomeFlag.TUNING_GROUP):
+		var flag: HomeFlag = node as HomeFlag
+		if flag != null:
+			flag.rebuild_beacon()
 
 
 ## Bontago-mp0.150.4: rebuilds the wired Field's arena mesh (top slab + side

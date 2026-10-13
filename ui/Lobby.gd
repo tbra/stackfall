@@ -80,7 +80,9 @@ const ALL_DISABLED_SENTINEL: StringName = &"__none__"
 ## "Experiments" checkboxes; every numeric parameter (pause_event_s,
 ## backlog_max, goal_radius_multiplier, ...) is copied from here, so those stay
 ## F4-tunable. Never modified: QolExperiments.with_toggles() works on a copy.
-const QOL_SHARED: QolExperiments = preload("res://config/qol_experiments.tres")
+# Bontago-1pi.203: a static var, not a const: GDScript folds `CONST.prop` reads of a const Resource
+# at compile time, which left every F4 edit of this tuning dead.
+static var QOL_SHARED: QolExperiments = preload("res://config/qol_experiments.tres")
 
 ## Bontago-mp0.3.5 (review r2, item 1): the hidden %MapVariantOption/
 ## %MapSizeOption labels, reused to build %MapComboOption's own "Round ·

@@ -331,7 +331,9 @@ const GHOST_CELL_GRID_SHADER: Shader = preload("res://shaders/ghost_cell_grid.gd
 ## Bontago-xtq.40: same BlockVisualTuning resource game/BlockFactory.gd's own
 ## VISUAL_TUNING const reads, so a real block and its own ghost preview always
 ## draw identical grid_line_color/grid_line_width_px.
-const VISUAL_TUNING: BlockVisualTuning = preload("res://config/block_visual_tuning.tres")
+# Bontago-1pi.203: a static var, not a const: GDScript folds `CONST.prop` reads of a const Resource
+# at compile time, which left every F4 edit of this tuning dead.
+static var VISUAL_TUNING: BlockVisualTuning = preload("res://config/block_visual_tuning.tres")
 ## Bontago-sen.6: additive rim used as the held-gift overlay's next_pass (the
 ## plain block ghost computes the same rim inside GHOST_CELL_GRID_SHADER).
 const GHOST_GLOW_RIM_SHADER: Shader = preload("res://shaders/ghost_glow_rim.gdshader")

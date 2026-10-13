@@ -42,7 +42,25 @@ var _crystal: MeshInstance3D = null
 var _crystal_material: ShaderMaterial = null
 
 
+## Bontago-1pi.203: every beacon in the tree, so the F4 panel can rebuild them
+## after a BeaconVisualTuning edit (geometry/materials are baked in _build()).
+const TUNING_GROUP: StringName = &"tuning_beacons"
+
+
 func _ready() -> void:
+	add_to_group(TUNING_GROUP)
+	_build()
+	_apply_color()
+	_apply_pulse(0.0)
+
+
+## Bontago-1pi.203: drops the baked socket/ring/crystal and builds them again from
+## the current BeaconVisualTuning (the live F4 edit seam). GoalFlag extends it.
+func rebuild_beacon() -> void:
+	for node: Node in [_socket, _beacon_ring, _crystal]:
+		if node != null:
+			remove_child(node)
+			node.queue_free()
 	_build()
 	_apply_color()
 	_apply_pulse(0.0)
