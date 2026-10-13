@@ -11,6 +11,9 @@ func before_each() -> void:
 
 
 func after_each() -> void:
+	# Leave the Match autoload idle: a match left in COUNTDOWN makes every later
+	# PlayerController ignore input (Bontago-fca.101: sharded gate failures in test_playercontroller_gamepad).
+	Match.abort_match()
 	Match.set_process(true)
 	MatchTestReset.clear_world()
 

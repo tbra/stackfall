@@ -131,6 +131,12 @@ func test_button_is_not_on_the_vertical_loop_and_is_reached_left_from_back() -> 
 	Input.flush_buffered_events()
 	await wait_process_frames(1)
 	assert_eq(lobby.get_viewport().gui_get_focus_owner(), button)
+	# Release: an unreleased KEY_LEFT keeps camera_pan_left/ui_left held for every later script in
+	# this process (Bontago-fca.101: broke test_playercontroller_mouse's legacy-camera pan check).
+	var left_release: InputEventKey = left.duplicate() as InputEventKey
+	left_release.pressed = false
+	Input.parse_input_event(left_release)
+	Input.flush_buffered_events()
 	button.grab_focus()
 	button.pressed.emit()
 	assert_true(lobby.is_options_open(), "the focused button opens Options")
