@@ -84,13 +84,17 @@ func test_flake_box_is_centred_ahead_of_the_camera_across_the_play_area() -> voi
 	assert_gt(_tuning.flake_forward_shift_m, 0.0)
 	assert_almost_eq(centre.y, camera_pos.y, 0.0001, "ground-plane shift only")
 	var shift: Vector3 = Vector3(centre.x - camera_pos.x, 0.0, centre.z - camera_pos.z)
-	assert_almost_eq(shift.length(), _tuning.flake_forward_shift_m, 0.001, "moved flake_forward_shift_m")
+	var reach_to_focus: float = _snow.focus_distance(camera_pos, look)
+	assert_almost_eq(reach_to_focus, 40.0, 0.01, "the view ray meets the arena plane 40 m ahead")
+	assert_almost_eq(shift.length(), reach_to_focus * _tuning.flake_focus_blend, 0.001, "moved towards the look point")
 	assert_lt(shift.z, 0.0, "towards where the camera looks")
 	assert_almost_eq(shift.normalized().dot(Vector3(look.x, 0.0, look.z).normalized()), 1.0, 0.0001)
 	# The view across the disc is covered: the box reaches well past the camera.
-	var reach: float = _tuning.flake_forward_shift_m + _tuning.flake_box_half_extent.z
-	assert_gt(reach, 25.0, "flakes in the far part of the view")
-	assert_lt(_tuning.flake_forward_shift_m, _tuning.flake_box_half_extent.z, "the camera itself is still inside the box")
+	var reach: float = shift.length() + _snow.box_half_m(reach_to_focus)
+	assert_gte(reach, reach_to_focus + _tuning.flake_box_half_extent.z - 0.001, "flakes reach past the arena the camera looks at")
+	assert_lt(shift.length(), _snow.box_half_m(reach_to_focus), "the camera itself is still inside the box")
+	assert_almost_eq(_snow.focus_distance(Vector3(0.0, 400.0, 0.0), look), _tuning.flake_focus_max_m, 0.001, "capped")
+	assert_almost_eq(_snow.focus_distance(camera_pos, Vector3(0.0, 0.2, -1.0).normalized()), _tuning.flake_forward_shift_m, 0.001, "level view uses the fixed shift")
 	# Straight down (or up): no horizontal direction, so no shift.
 	assert_eq(_snow.box_centre(camera_pos, Vector3.DOWN), camera_pos)
 	assert_eq(_snow.box_centre(camera_pos, Vector3.UP), camera_pos)
