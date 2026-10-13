@@ -1591,3 +1591,31 @@ func test_every_row_control_sits_in_the_same_fixed_control_column() -> void:
 	var scene: Node = _panel._tab_container.get_node("Sky").find_child("Section_Sky_and_weather", true, false)
 	assert_not_null(scene, "the sky/weather rows are an ordinary section")
 	assert_not_null(_panel._tab_container.get_node("Physics").find_child("Section_Presets", true, false))
+
+
+func test_block_visual_edit_reaches_cached_materials() -> void:
+	var block: Block = BlockFactory.build(load("res://config/blocks/cube.tres"), _panel.physics_tuning, 0, Color.RED)
+	add_child_autofree(block)
+	var tuning: BlockVisualTuning = _panel.block_visual_tuning
+	var original: float = tuning.rim_strength
+	tuning.rim_strength = original + 0.37
+	_panel._on_field_changed(tuning, "rim_strength")
+	var material: ShaderMaterial = null
+	for child: Node in block.get_children():
+		if child is MeshInstance3D:
+			material = (child as MeshInstance3D).material_override as ShaderMaterial
+	tuning.rim_strength = original
+	assert_not_null(material)
+	assert_almost_eq(float(material.get_shader_parameter(&"rim_strength")), original + 0.37, 0.0001)
+
+
+func test_beacon_edit_rebuilds_live_flags() -> void:
+	var flag: HomeFlag = HomeFlag.new()
+	add_child_autofree(flag)
+	var tuning: BeaconVisualTuning = _panel.beacon_visual_tuning
+	var original: float = tuning.socket_height
+	tuning.socket_height = original + 0.5
+	_panel._on_field_changed(tuning, "socket_height")
+	tuning.socket_height = original
+	var socket: MeshInstance3D = flag.get_node("Socket") as MeshInstance3D
+	assert_almost_eq((socket.mesh as CylinderMesh).height, original + 0.5, 0.0001)
