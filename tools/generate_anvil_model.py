@@ -33,7 +33,6 @@ def material(name, color, metallic=0.0):
 iron = material("Blue ink iron", "#26323A", 0.22)
 edge = material("Pale cut edges", "#8BA7AD", 0.10)
 shadow = material("Underside iron", "#17242B", 0.12)
-brass = material("Brass maker mark", "#E8B85D", 0.13)
 floor_mat = material("Review floor", "#DCE5DF")
 
 collection = bpy.data.collections.new("Anvil export")
@@ -80,16 +79,22 @@ box("Anvil / tapered waist", (0, 0, -0.15), (0.44, 0.37, 0.33), iron, 0.055)
 box("Anvil / face slab", (-0.08, 0, 0.095), (0.79, 0.50, 0.20), iron, 0.055)
 box("Anvil / polished top", (-0.08, 0, 0.20), (0.77, 0.48, 0.035), edge, 0.012)
 
-# Wedge horn with broad planar facets, pointing toward +X.
-horn_verts = [
-    (0.24, -0.20, -0.01), (0.24, 0.20, -0.01),
-    (0.24, -0.20, 0.18), (0.24, 0.20, 0.18),
-    (0.74, -0.095, 0.055), (0.74, 0.095, 0.055),
-    (1.02, 0.0, 0.085),
-]
-horn_faces = [(0, 1, 3, 2), (0, 2, 4), (1, 5, 3), (2, 3, 5, 4), (4, 5, 6), (0, 4, 6, 5, 1)]
-mesh("Anvil / tapered horn", horn_verts, horn_faces, iron)
-box("Anvil / gold maker mark", (-0.18, -0.257, -0.155), (0.20, 0.018, 0.085), brass, 0.008)
+# Bontago-mp0.164: a short, thick horn with a blunt rounded tip, overlapping the face slab. No maker plate.
+bpy.ops.mesh.primitive_cone_add(vertices=12, radius1=0.12, radius2=0.07, depth=0.22, location=(0.40, 0, 0.095))
+horn = bpy.context.object
+horn.name = "Anvil / tapered horn"
+horn.rotation_euler.y = 1.5707963
+horn.scale.y = 1.5
+bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+horn.data.materials.append(iron)
+move_to_export(horn)
+bpy.ops.mesh.primitive_uv_sphere_add(segments=12, ring_count=6, radius=0.07, location=(0.51, 0, 0.095))
+cap = bpy.context.object
+cap.name = "Anvil / horn tip"
+cap.scale.y = 1.5
+bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+cap.data.materials.append(iron)
+move_to_export(cap)
 
 # Review scene is excluded from the GLB.
 box("Review / floor", (0, 0, -0.49), (200, 200, 0.08), floor_mat, export=False)

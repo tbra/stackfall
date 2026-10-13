@@ -37,7 +37,6 @@ def mat(name, hex_rgb, roughness=0.65, metallic=0.0):
 ink = mat("Ink edge", "#26323A")
 coral = mat("Coral enamel", "#EB6B5C", 0.45)
 silver = mat("Warm silver poles", "#D7DEE0", 0.35, 0.45)
-teal = mat("Magnetic field teal", "#75CBD1", 0.40)
 paper = mat("Review floor", "#D9E6DF")
 
 model = bpy.data.collections.new("Magnet export")
@@ -117,29 +116,7 @@ for sign, label in ((-1, "left"), (1, "right")):
         box(f"Magnet / {label} pole ink seam {side}", (x, y, 0.455), (0.225, 0.025, 0.018), ink, 0.003)
 
 
-def field_arc():
-    curve = bpy.data.curves.new("Field arc", "CURVE")
-    curve.dimensions = "3D"
-    curve.resolution_u = 1
-    curve.bevel_depth = 0.014
-    curve.bevel_resolution = 2
-    spline = curve.splines.new("POLY")
-    spline.points.add(12)
-    for i, point in enumerate(spline.points):
-        x = -0.26 + 0.52 * i / 12
-        z = 0.33 - 0.14 * (1 - (x / 0.26) ** 2)
-        point.co = (x, -0.205, z, 1.0)
-    obj = bpy.data.objects.new("Magnet / field arc", curve)
-    bpy.context.scene.collection.objects.link(obj)
-    bpy.ops.object.select_all(action="DESELECT")
-    obj.select_set(True)
-    bpy.context.view_layer.objects.active = obj
-    bpy.ops.object.convert(target="MESH")
-    obj.data.materials.append(teal)
-    move_to_model(obj)
-
-
-field_arc()
+# Bontago-mp0.159: the teal field-arc wire was removed on owner request.
 
 # Review environment only.
 box("Review / floor", (0, 0, -0.51), (200, 200, 0.09), paper, export=False)
