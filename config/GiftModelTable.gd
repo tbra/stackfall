@@ -7,6 +7,10 @@ extends Resource
 
 const TABLE_PATH: String = "res://config/gift_model_table.tres"
 const MODEL_NODE: StringName = &"GiftModel"
+## Bontago-9cv: the imported models carry plain (PBR) Blender materials; every
+## built visual swaps them for cel-shaded copies with the gift ink outline.
+const TOON_SHADER: Shader = preload("res://shaders/gift_toon.gdshader")
+const OUTLINE_MATERIAL: Material = preload("res://assets/gifts/gift_outline.tres")
 
 @export var entries: Array[GiftModelEntry] = []
 
@@ -26,7 +30,12 @@ const MODEL_NODE: StringName = &"GiftModel"
 ## Opacity of the hint/owner tint overlay painted over the crate model.
 @export var crate_tint_alpha: float = 0.5
 
+## Bontago-9cv: cel-shade every built model (gift_toon shader + ink outline).
+@export var toon_enabled: bool = true
+
 static var _shared: GiftModelTable = null
+## Source material instance id -> its cel-shaded copy, shared by every visual.
+static var _toon_cache: Dictionary = {}
 
 
 static func shared() -> GiftModelTable:
@@ -38,6 +47,7 @@ static func shared() -> GiftModelTable:
 ## Bontago-xtq.44: drops the shared instance on exit so its textures are freed with the tree.
 static func release_shared() -> void:
 	_shared = null
+	_toon_cache.clear()
 
 
 func entry_for(special_id: StringName) -> GiftModelEntry:
@@ -80,6 +90,8 @@ func _build(entry: GiftModelEntry, world: bool) -> Node3D:
 	var scale_factor: float = entry.model_scale
 	if world and entry.world_scale > 0.0:
 		scale_factor = entry.world_scale
+	if toon_enabled:
+		apply_toon(model)
 	var root: Node3D = Node3D.new()
 	root.name = MODEL_NODE
 	model.scale = Vector3.ONE * scale_factor
@@ -101,3 +113,42 @@ static func _player_of(node: Node) -> AnimationPlayer:
 	if found.is_empty():
 		return null
 	return found[0] as AnimationPlayer
+
+
+## Bontago-9cv: gives every opaque surface under `model` the cel-shaded copy of its
+## material (surface overrides, so the shared imported mesh is untouched and
+## material_overlay tints/blinks still layer on top). Transparent or non-standard
+## materials are left as they are.
+static func apply_toon(model: Node) -> void:
+	for node: Node in model.find_children("*", "MeshInstance3D", true, false):
+		var mesh_instance: MeshInstance3D = node as MeshInstance3D
+		if mesh_instance.mesh == null:
+			continue
+		for surface: int in range(mesh_instance.mesh.get_surface_count()):
+			var toon: ShaderMaterial = toon_for(mesh_instance.get_active_material(surface))
+			if toon != null:
+				mesh_instance.set_surface_override_material(surface, toon)
+
+
+## The cached cel-shaded copy of `source`, or null when it should stay as is.
+static func toon_for(source: Material) -> ShaderMaterial:
+	var standard: BaseMaterial3D = source as BaseMaterial3D
+	if standard == null or standard.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
+		return null
+	var key: int = standard.get_instance_id()
+	var cached: ShaderMaterial = _toon_cache.get(key) as ShaderMaterial
+	if cached != null:
+		return cached
+	var toon: ShaderMaterial = ShaderMaterial.new()
+	toon.shader = TOON_SHADER
+	toon.set_shader_parameter(&"albedo_color", standard.albedo_color)
+	if standard.albedo_texture != null:
+		toon.set_shader_parameter(&"albedo_texture", standard.albedo_texture)
+		toon.set_shader_parameter(&"use_albedo_texture", true)
+	toon.set_shader_parameter(&"use_vertex_color", standard.vertex_color_use_as_albedo)
+	if standard.emission_enabled:
+		toon.set_shader_parameter(&"emission_color", standard.emission)
+		toon.set_shader_parameter(&"emission_energy", standard.emission_energy_multiplier)
+	toon.next_pass = OUTLINE_MATERIAL
+	_toon_cache[key] = toon
+	return toon

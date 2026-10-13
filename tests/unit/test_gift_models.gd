@@ -128,3 +128,42 @@ func test_cat_controller_uses_the_cat_model() -> void:
 	var cat: CatController = autofree(CatController.new())
 	add_child_autofree(cat)
 	assert_not_null(cat.get_node_or_null("CatModel"))
+
+
+## Bontago-9cv: every built gift/crate visual is cel-shaded (gift_toon + ink outline),
+## and the copies are shared per source material rather than made per visual.
+func test_built_visuals_are_cel_shaded_with_the_ink_outline() -> void:
+	var table: GiftModelTable = GiftModelTable.shared()
+	var visuals: Array[Node3D] = [table.build_crate_visual()]
+	for id: StringName in SPECIAL_IDS:
+		visuals.append(table.build_gift_visual(id))
+	for visual: Node3D in visuals:
+		add_child_autofree(visual)
+		var surfaces: int = 0
+		for node: Node in visual.find_children("*", "MeshInstance3D", true, false):
+			var mesh_instance: MeshInstance3D = node as MeshInstance3D
+			for surface: int in range(mesh_instance.mesh.get_surface_count()):
+				var toon: ShaderMaterial = mesh_instance.get_surface_override_material(surface) as ShaderMaterial
+				assert_not_null(toon, "%s surface %d is cel-shaded" % [visual.name, surface])
+				if toon != null:
+					assert_eq(toon.shader, GiftModelTable.TOON_SHADER)
+					assert_eq(toon.next_pass, GiftModelTable.OUTLINE_MATERIAL, "with the ink outline")
+				surfaces += 1
+		assert_gt(surfaces, 0, "fixture: the visual has meshes")
+	var first: Node3D = add_child_autofree(table.build_gift_visual(&"bomb")) as Node3D
+	var second: Node3D = add_child_autofree(table.build_gift_visual(&"bomb")) as Node3D
+	var a: MeshInstance3D = first.find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D
+	var b: MeshInstance3D = second.find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D
+	assert_same(a.get_surface_override_material(0), b.get_surface_override_material(0), "copies are cached")
+
+
+func test_transparent_materials_are_left_alone() -> void:
+	var glass: StandardMaterial3D = StandardMaterial3D.new()
+	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	assert_null(GiftModelTable.toon_for(glass))
+	assert_null(GiftModelTable.toon_for(null))
+	var solid: StandardMaterial3D = StandardMaterial3D.new()
+	solid.albedo_color = Color(0.2, 0.4, 0.8)
+	var toon: ShaderMaterial = GiftModelTable.toon_for(solid)
+	assert_not_null(toon)
+	assert_eq(toon.get_shader_parameter(&"albedo_color"), Color(0.2, 0.4, 0.8))
