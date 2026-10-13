@@ -40,6 +40,7 @@ id = &"bomb"
 scene = ExtResource("5_m")
 model_scale = 0.888
 offset = Vector3(-0.0000, -0.0908, -0.0000)
+loop_animation = &"spark_flicker_1s"
 
 [sub_resource type="Resource" id="Entry_cat"]
 script = ExtResource("2_entry")
@@ -110,6 +111,7 @@ id = &"rocket"
 scene = ExtResource("14_m")
 model_scale = 0.702
 offset = Vector3(-0.0000, -0.0834, -0.0000)
+loop_animation = &"flame_flicker_1s"
 held_nose_axis = Vector3(0, 1, 0)
 
 [sub_resource type="Resource" id="Entry_stackfall"]

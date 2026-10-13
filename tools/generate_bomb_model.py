@@ -1,4 +1,9 @@
-"""Build a low-poly bomb gift model and neutral preview in Blender 4.5."""
+"""Build a smooth bomb gift model with a flickering fuse spark and neutral preview in Blender 4.5.
+
+Bontago-mp0.156: smoother shell (subdivision 3, smooth shading) and a looping
+`spark_flicker_1s` clip on the "Bomb / spark" empty (config/gift_model_table.tres
+loop_animation). Run: blender -b --python tools/generate_bomb_model.py
+"""
 
 from math import cos, pi, sin
 from pathlib import Path
@@ -53,10 +58,11 @@ def cylinder(name, center, r1, r2, depth, mat, vertices=10):
     return add(bpy.context.object, name, mat)
 
 
-bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=0.35, location=(0, 0, -0.10))
+bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=3, radius=0.35, location=(0, 0, -0.10))
 body = add(bpy.context.object, "Bomb / faceted dark shell", shell)
 body.scale = (1, 1, 0.95)
 bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+bpy.ops.object.shade_smooth()
 
 cylinder("Bomb / socket collar", (0, 0, 0.245), 0.132, 0.114, 0.095, socket, 12)
 cylinder("Bomb / socket cap", (0, 0, 0.304), 0.087, 0.087, 0.028, shell, 12)
@@ -81,9 +87,22 @@ fuse.select_set(True)
 bpy.ops.object.convert(target="MESH")
 fuse.select_set(False)
 
-bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1, radius=0.060,
-                                      location=(0.105, 0.002, 0.505))
-add(bpy.context.object, "Bomb / coral ember core", ember)
+SPARK_CENTER = (0.105, 0.002, 0.505)
+spark_pivot = bpy.data.objects.new("Bomb / spark", None)
+model.objects.link(spark_pivot)
+spark_pivot.location = SPARK_CENTER
+bpy.context.view_layer.update()
+
+
+def under_spark(obj):
+    obj.parent = spark_pivot
+    obj.matrix_parent_inverse = spark_pivot.matrix_world.inverted()
+    return obj
+
+
+bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=0.060, location=SPARK_CENTER)
+under_spark(add(bpy.context.object, "Bomb / coral ember core", ember))
+bpy.ops.object.shade_smooth()
 
 # Four diamond rays make the ignition unmistakable even at icon scale.
 for index, direction in enumerate(((1, 0), (-1, 0), (0, 1), (0, -1))):
@@ -92,6 +111,22 @@ for index, direction in enumerate(((1, 0), (-1, 0), (0, 1), (0, -1))):
     bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1, radius=1, location=center)
     ray = add(bpy.context.object, f"Bomb / spark ray {index}", spark)
     ray.scale = (0.047 if dx else 0.022, 0.018, 0.047 if dz else 0.022)
+    under_spark(ray)
+
+# Looping flicker: the whole spark pulses and turns a little; frame 25 == frame 1.
+CLIP = "spark_flicker_1s"
+FLICKER = [(1, 1.0, 0.0), (5, 1.22, 0.35), (9, 0.85, -0.2), (14, 1.15, 0.3), (19, 0.9, -0.3), (25, 1.0, 0.0)]
+for frame, grow, turn in FLICKER:
+    spark_pivot.scale = (grow, grow, grow)
+    spark_pivot.rotation_euler = (0, turn, 0)
+    spark_pivot.keyframe_insert("scale", frame=frame)
+    spark_pivot.keyframe_insert("rotation_euler", frame=frame)
+action = spark_pivot.animation_data.action
+track = spark_pivot.animation_data.nla_tracks.new()
+track.name = CLIP
+track.strips.new(CLIP, 1, action)
+spark_pivot.animation_data.action = None
+bpy.context.scene.frame_end = 25
 
 scene = bpy.context.scene
 scene.render.fps = 24
@@ -131,6 +166,7 @@ for obj in model.objects:
     obj.select_set(True)
 bpy.context.view_layer.objects.active = body
 bpy.ops.export_scene.gltf(filepath=str(OUT / "bomb_v1.glb"), export_format="GLB",
-                          use_selection=True, export_cameras=False, export_lights=False)
+                          use_selection=True, export_cameras=False, export_lights=False,
+                          export_animations=True, export_animation_mode="NLA_TRACKS")
 bpy.ops.render.render(write_still=True)
 print(f"Built {OUT / 'bomb_v1.glb'} and preview")
