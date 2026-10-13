@@ -101,3 +101,64 @@ func test_danger_is_a_secondary_block_with_an_alert_label() -> void:
 		assert_eq(button.get_theme_color(item), arcade.alert_color, item)
 	var secondary: UiBlockButton = _make(UiBlockButton.Look.SECONDARY)
 	assert_ne(secondary.get_theme_color("font_color"), arcade.alert_color)
+
+
+# --- Bontago-1pi.159.42: the trailing input hint ------------------------------------------------
+
+func test_hint_action_adds_one_trailing_glyph_and_clearing_removes_it() -> void:
+	var button: UiBlockButton = _make()
+	button.hint_action = &"ui_cancel"
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var flow: InputPromptFlow = UiButtonHint.flow_of(button)
+	assert_not_null(flow)
+	assert_eq(flow.template, "{ui_cancel}")
+	var reserved: float = button.get_minimum_size().x
+	button.hint_action = &""
+	assert_null(UiButtonHint.flow_of(button))
+	await get_tree().process_frame
+	assert_lt(button.get_minimum_size().x, reserved, "the glyph's room is released")
+
+
+func test_hint_survives_a_restyle_and_sits_right_of_the_label() -> void:
+	var button: UiBlockButton = _make()
+	button.hint_action = &"ui_accept"
+	button.variant = UiBlockButton.Look.PRIMARY
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var flow: InputPromptFlow = UiButtonHint.flow_of(button)
+	assert_not_null(flow)
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var glyph_left: float = flow.position.x
+	var label_right: float = (button.size.x - UiButtonHint.content_width(button) - flow.size.x * flow.scale.x - float(arcade.space_2_px)) * 0.5 + UiButtonHint.content_width(button)
+	assert_almost_eq(glyph_left, label_right + float(arcade.space_2_px), 1.5, "glyph trails the label by space_2")
+
+
+func test_hint_tint_follows_the_button_state() -> void:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	assert_eq(UiButtonHint.tint_for(BaseButton.DRAW_NORMAL, arcade), Color.WHITE)
+	assert_eq(UiButtonHint.tint_for(BaseButton.DRAW_HOVER, arcade), Color.WHITE)
+	assert_almost_eq(UiButtonHint.tint_for(BaseButton.DRAW_DISABLED, arcade).a, arcade.disabled_alpha, 0.001)
+	assert_lt(UiButtonHint.tint_for(BaseButton.DRAW_PRESSED, arcade).r, 1.0, "pressed darkens")
+	var button: UiBlockButton = _make()
+	button.hint_action = &"ui_cancel"
+	button.disabled = true
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_almost_eq(UiButtonHint.flow_of(button).modulate.a, arcade.disabled_alpha, 0.001)
+
+
+func test_hint_scales_into_a_small_button_and_centres_on_the_label_line() -> void:
+	var button: UiBlockButton = _make()
+	button.small = true
+	button.hint_action = &"ui_cancel"
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var flow: InputPromptFlow = UiButtonHint.flow_of(button)
+	var shown_height: float = flow.size.y * flow.scale.y
+	assert_lte(shown_height, button.size.y, "the glyph never overflows the small button")
+	assert_lte(flow.position.x + flow.size.x * flow.scale.x, button.size.x + 1.0, "nor its right edge")
+	var line_centre: float = (button.get_theme_stylebox("normal").content_margin_top + button.size.y - button.get_theme_stylebox("normal").content_margin_bottom) * 0.5
+	var body: float = maxf(flow.size.y - float(arcade.drop_sm_px), 1.0) * flow.scale.y
+	assert_almost_eq(flow.position.y + body * 0.5, line_centre, 1.5, "vertically centred with the label")

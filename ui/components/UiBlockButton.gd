@@ -21,9 +21,12 @@ const STATES: PackedStringArray = ["normal", "hover", "pressed", "hover_pressed"
 	set(value):
 		small = value
 		_restyle()
-## The Input Map action whose key / pad glyph trails the label. TODO(C1b+): draw the trailing
-## hint through InputGlyph; today it is only stored so consumers compile against the final API.
-var hint_action: StringName = &""
+## The Input Map action whose key / pad glyph trails the label (UiButtonHint: sized to the block,
+## centred on the label line, dimmed / darkened with the button state; follows device and rebinds).
+@export var hint_action: StringName = &"":
+	set(value):
+		hint_action = value
+		UiButtonHint.attach(self, hint_action)
 
 
 func _init() -> void:
@@ -84,6 +87,8 @@ static func fit_row_height(button: Button, arcade: ArcadeVisualTuning) -> void:
 
 func _restyle() -> void:
 	style(self, variant, small)
+	if hint_action != &"":
+		UiButtonHint.attach(self, hint_action)  # the restyle replaced the boxes that held the glyph's room
 	if small:
 		UiRowItem.apply(self, UiRowItem.Kind.BUTTON_SM)
 	else:

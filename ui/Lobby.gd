@@ -385,10 +385,10 @@ func _ready() -> void:
 	# Every dynamic row already exists before the chain is built (_build_specials_checklist()).
 	_apply_visual_style()
 	_update_host_only_state()
-	LobbyButtonGlyph.attach(_start_button, &"lobby_confirm")
-	LobbyButtonGlyph.attach(_players_panel.add_bot_button(), &"lobby_add_bot")
-	LobbyButtonGlyph.attach(_options_button, &"lobby_options")
-	LobbyButtonGlyph.attach(_back_button, &"ui_cancel")
+	(_start_button as UiBlockButton).hint_action = &"lobby_confirm"
+	_players_panel.add_bot_button().hint_action = &"lobby_add_bot"
+	_options_button.hint_action = &"lobby_options"
+	_back_button.hint_action = &"ui_cancel"
 	_wire_focus_chain()
 	_settings_scroll.get_v_scroll_bar().value_changed.connect(func(_value: float) -> void: _schedule_spatial_rewire())
 	_disc_size_meter.grab_focus()
