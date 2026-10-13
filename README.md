@@ -270,6 +270,18 @@ Run the game (main menu; see "Command-line flags" below for the other entry poin
 godot --path .
 ```
 
+Profile a running game (Bontago-1pi.11.90). Two options:
+
+1. In-game overlay: press **F1** (gamepad Back + right-stick click) to cycle hidden, basic
+   (fps, frame/physics ms, block counts) and detailed (draw calls, memory, node counts,
+   physics-step split, rolling graph).
+2. Godot's own profiler on a game run outside the editor: open the project in the editor
+   (`godot --editor --path .`), choose **Debug > Keep Debug Server Open**, open the bottom
+   **Debugger** panel, then launch the game with `powershell -File tools/run_profiled.ps1`
+   (or `godot --path . --remote-debug tcp://127.0.0.1:6007`). Pick the **Profiler** tab
+   (script functions), **Visual Profiler** (CPU/GPU frame) or **Monitors**, and press Start.
+   Debug builds only (not exported release builds).
+
 Run the unit tests (GUT, headless):
 
 ```bash
