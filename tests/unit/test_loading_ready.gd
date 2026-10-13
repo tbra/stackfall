@@ -45,6 +45,7 @@ func before_each() -> void:
 
 func after_each() -> void:
 	_stop_counting()
+	_release_accept_inputs()
 	for wire_net: MatchNetScript in _wire_nets:
 		if wire_net != null and is_instance_valid(wire_net):
 			wire_net.set_providers(null, null)
@@ -717,6 +718,19 @@ func _open_screen(net: Variant, players: int, ai: int, hot_seat: bool = false) -
 func _close(screen: LoadingScreen) -> void:
 	screen.cancel()
 	await wait_process_frames(2)
+
+
+## The synthetic Enter / pad-A presses above are never released by the tests; an unreleased
+## Enter/A keeps ui_accept, ghost_place, chat_open ... held for every later script in this
+## process (Bontago-fca.101: sharded gate failures in test_playercontroller_gamepad).
+func _release_accept_inputs() -> void:
+	var key: InputEventKey = _accept_key()
+	key.pressed = false
+	Input.parse_input_event(key)
+	var pad: InputEventJoypadButton = _accept_pad()
+	pad.pressed = false
+	Input.parse_input_event(pad)
+	Input.flush_buffered_events()
 
 
 func _accept_pad() -> InputEventJoypadButton:
