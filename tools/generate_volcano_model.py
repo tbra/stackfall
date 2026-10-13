@@ -1,155 +1,116 @@
-"""Build an original faceted volcano gift study with source, GLB, and preview."""
+"""Build the v3 Volcano gift model in Blender 4.5 (Bontago-mp0.163).
 
-from math import cos, pi, sin
+Run:  blender -b --python tools/generate_volcano_model.py
+
+Owner playtest 2026-10-13: "animated smoke, and update the big volcano that spawns to
+match the handheld model." The v2 cone/crater/lava-flow silhouette is kept; the static
+smoke balls become four puffs ("Smoke N") that rise out of the crater, swell and fade
+to nothing on the looping smoke_rise_2s clip. The same GLB is the big spawned volcano's
+model (assets/models/volcano_v3 via config/specials/volcano.tres; VolcanoStructure
+ignores "Smoke*" nodes when fitting its footprint so the gameplay size is unchanged).
+
+DECISION (mp0.163): puffs shrink to zero at both ends of their life (scale-in/out)
+instead of using alpha, so the toon/outline materials need no transparency. Four puffs
+start 2 steps (8 frames) apart, live 6 steps and are all hidden on frame 1 and the
+last frame, so the loop wraps exactly and the rest pose (frame 1) is the bare cone.
+
+Outputs: assets/models/volcano_v3/volcano_v3.glb and
+source_art/volcano_v3/volcano_v3.blend. Reuses the v2 generator's helpers.
+"""
+
+import math
+import random
+import sys
 from pathlib import Path
 
 import bpy
 from mathutils import Vector
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import generate_gift_models_v2 as g  # noqa: E402
 
-ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "assets/models/volcano_v1"
-SOURCE = ROOT / "source_art/volcano_v1"
-OUT.mkdir(parents=True, exist_ok=True)
-SOURCE.mkdir(parents=True, exist_ok=True)
-(SOURCE / ".gdignore").write_text("", encoding="utf-8")
-bpy.ops.object.select_all(action="SELECT")
-bpy.ops.object.delete(use_global=False)
-
-
-def material(name, color, roughness=0.79):
-    srgb = [int(color[i:i + 2], 16) / 255 for i in (1, 3, 5)]
-    rgb = [v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4 for v in srgb]
-    mat = bpy.data.materials.new(name)
-    mat.diffuse_color = (*rgb, 1)
-    mat.use_nodes = True
-    shader = mat.node_tree.nodes.get("Principled BSDF")
-    shader.inputs["Base Color"].default_value = (*rgb, 1)
-    shader.inputs["Roughness"].default_value = roughness
-    return mat
+CLIP = "smoke_rise_2s"
+LOOP_FRAMES = 48
+STEP_FRAMES = 4
+PUFF_RISE = 0.34
+PUFF_LIFE_STEPS = 6
+PUFFS = (  # (crater offset x, y, base z, radius, start step)
+    ((0.03, 0.0, 0.25), 0.095, 0),
+    ((-0.05, 0.03, 0.25), 0.08, 2),
+    ((0.05, -0.04, 0.25), 0.088, 4),
+    ((-0.02, -0.03, 0.25), 0.075, 6),
+)
 
 
-rock = material("Slate rock", "#4F6571")
-rock_shadow = material("Fractured ink rock", "#26323A")
-rim_highlight = material("Ash lit edge", "#81939B")
-lava = material("Coral lava", "#EB6B5C", 0.55)
-lava_light = material("Brass hot center", "#E8B85D", 0.48)
-floor_mat = material("Review floor", "#DCE5DF")
-model = bpy.data.collections.new("Volcano export")
-bpy.context.scene.collection.children.link(model)
+def export_v3(collection, model_id: str, animated: bool) -> None:
+    out = g.ROOT / f"assets/models/{model_id}_v3"
+    source = g.ROOT / f"source_art/{model_id}_v3"
+    out.mkdir(parents=True, exist_ok=True)
+    source.mkdir(parents=True, exist_ok=True)
+    (source / ".gdignore").touch()
+    bpy.ops.wm.save_as_mainfile(filepath=str(source / f"{model_id}_v3.blend"), copy=True)
+    bpy.ops.object.select_all(action="DESELECT")
+    for obj in collection.objects:
+        obj.select_set(True)
+    bpy.ops.export_scene.gltf(filepath=str(out / f"{model_id}_v3.glb"), export_format="GLB",
+                              use_selection=True, export_cameras=False, export_lights=False,
+                              export_apply=True, export_animations=animated,
+                              export_animation_mode="NLA_TRACKS")
+    print(f"Built {out / f'{model_id}_v3.glb'}")
 
 
-def add_mesh(name, vertices, faces, face_materials, materials):
-    data = bpy.data.meshes.new(name)
-    data.from_pydata(vertices, [], faces)
-    for mat in materials:
-        data.materials.append(mat)
-    data.update()
-    for polygon, index in zip(data.polygons, face_materials):
-        polygon.material_index = index
-    obj = bpy.data.objects.new(name, data)
-    model.objects.link(obj)
-    return obj
+def animate_puff(obj, base: tuple, phase: int) -> None:
+    steps = LOOP_FRAMES // STEP_FRAMES
+    for k in range(steps + 1):
+        u = (k - phase) / PUFF_LIFE_STEPS
+        alive = 0.0 < u < 1.0
+        u = min(max(u, 0.0), 1.0)
+        swell = math.sin(math.pi * u) ** 0.7
+        obj.location = (base[0] + 0.05 * u, base[1], base[2] + PUFF_RISE * u)
+        obj.scale = (0.2 + swell,) * 3 if alive else (0.001,) * 3
+        obj.keyframe_insert("location", frame=1 + k * STEP_FRAMES)
+        obj.keyframe_insert("scale", frame=1 + k * STEP_FRAMES)
+    action = obj.animation_data.action
+    for fcurve in action.fcurves:
+        for key in fcurve.keyframe_points:
+            key.interpolation = "LINEAR"
+    track = obj.animation_data.nla_tracks.new()
+    track.name = CLIP
+    track.strips.new(CLIP, 1, action)
+    obj.animation_data.action = None
+    # Rest pose (before the clip plays): a hidden speck in the crater, so the static
+    # bounds stay the cone's and the cell-fit budget holds.
+    obj.location = base
+    obj.scale = (0.001, 0.001, 0.001)
 
 
-segments = 12
-rings = [
-    (0.45, -0.37),
-    (0.38, -0.25),
-    (0.31, -0.08),
-    (0.22, 0.28),
-    (0.135, 0.31),
-    (0.105, 0.13),
-]
-vertices = []
-for ring, (radius, z) in enumerate(rings):
-    for i in range(segments):
-        angle = i * 2 * pi / segments
-        irregularity = 1 + 0.075 * sin(i * 2.7 + ring * 1.5)
-        height = z + (0.018 * sin(i * 3.1) if ring in (0, 3) else 0)
-        vertices.append((radius * irregularity * cos(angle), radius * irregularity * sin(angle), height))
-faces = []
-face_materials = []
-for ring in range(len(rings) - 1):
-    for i in range(segments):
-        next_i = (i + 1) % segments
-        faces.append((ring * segments + i, ring * segments + next_i, (ring + 1) * segments + next_i, (ring + 1) * segments + i))
-        if ring == 3:
-            face_materials.append(2)
-        elif ring == 4:
-            face_materials.append(1)
-        else:
-            face_materials.append(1 if (i + ring) % 5 == 0 else 0)
-faces.append(tuple(reversed(range(segments))))
-face_materials.append(1)
-add_mesh("Volcano / hollow faceted cone", vertices, faces, face_materials, [rock, rock_shadow, rim_highlight])
+def build() -> None:
+    col = g.reset()
+    rock_mat = g.material("Volcano rock", "#5E4438")
+    dark_rock = g.material("Volcano base", "#4A3A33")
+    lava = g.material("Lava", "#FF6A1A", emission=1.2)
+    hot = g.material("Lava hot", "#FFD34A", emission=1.5)
+    smoke = g.material("Smoke", "#EDE6F2")
+    body = g.cone(col, "Cone", rock_mat, (0, 0, -0.08), 0.46, 0.17, 0.62, vertices=10, smooth=False)
+    rng = random.Random(9)
+    for vert in body.data.vertices:
+        if vert.co.z < 0.25:
+            vert.co.x *= rng.uniform(0.92, 1.06)
+            vert.co.y *= rng.uniform(0.92, 1.06)
+    g.cone(col, "Base rocks", dark_rock, (0, 0, -0.42), 0.5, 0.44, 0.08, vertices=10, smooth=False)
+    g.cone(col, "Crater lava", lava, (0, 0, 0.215), 0.15, 0.15, 0.04, vertices=16)
+    g.sphere(col, "Lava bubble", hot, (0.04, -0.02, 0.24), 0.05, scale=(1, 1, 0.7), segments=14)
+    for i, (angle, length) in enumerate(((-1.9, 0.42), (-0.9, 0.34), (2.3, 0.3))):
+        direction = Vector((math.cos(angle), math.sin(angle), 0))
+        top = direction * 0.15 + Vector((0, 0, 0.2))
+        bottom = direction * (0.15 + length * 0.42) + Vector((0, 0, 0.2 - length))
+        g.capsule(col, f"Lava flow {i}", lava, tuple(top), tuple(bottom), 0.035)
+    for i, (base, radius, phase) in enumerate(PUFFS):
+        puff = g.sphere(col, f"Smoke {i}", smoke, base, radius, segments=16)
+        animate_puff(puff, base, phase)
+    bpy.context.scene.frame_end = LOOP_FRAMES + 1
+    export_v3(col, "volcano", True)
 
 
-def disk(name, radius, z, mat, count=12):
-    verts = [(0, 0, z)] + [(radius * cos(2 * pi * i / count), radius * sin(2 * pi * i / count), z) for i in range(count)]
-    triangles = [(0, i + 1, (i + 1) % count + 1) for i in range(count)]
-    return add_mesh(name, verts, triangles, [0] * len(triangles), [mat])
-
-
-disk("Volcano / glowing crater pool", 0.125, 0.255, lava)
-disk("Volcano / hot pool center", 0.064, 0.258, lava_light)
-
-
-def rivulet(name, angle, side, width, mat):
-    # Four broad points stay visible at held-gift size without noisy lines.
-    path = [(0.197, 0.275), (0.245, 0.175), (0.325, -0.13), (0.402, -0.31)]
-    verts = []
-    for step, (radius, z) in enumerate(path):
-        half = width * (1.0 if step < 2 else 0.62)
-        for offset in (-half, half):
-            a = angle + offset
-            r = radius + 0.014
-            verts.append((r * cos(a), r * sin(a), z))
-    faces = [(i * 2, i * 2 + 1, i * 2 + 3, i * 2 + 2) for i in range(3)]
-    return add_mesh(name, verts, faces, [0] * 3, [mat])
-
-
-for i, (angle, width) in enumerate(((0.25, 0.19), (2.45, 0.14), (4.72, 0.18))):
-    rivulet(f"Volcano / lava rivulet {i + 1}", angle, i, width, lava if i != 1 else lava_light)
-
-
-# Neutral review setup is kept outside the export collection.
-bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, -0.47))
-floor = bpy.context.object
-floor.name = "Review / floor"
-floor.dimensions = (200, 200, 0.08)
-bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-floor.data.materials.append(floor_mat)
-bpy.ops.object.camera_add(location=(1.5, -2.2, 1.25))
-camera = bpy.context.object
-camera.rotation_euler = (Vector((0, 0, 0)) - camera.location).to_track_quat("-Z", "Y").to_euler()
-camera.data.type = "ORTHO"
-camera.data.ortho_scale = 1.8
-bpy.context.scene.camera = camera
-
-for name, pos, power in (("Review / key", (1.0, -1.8, 2.1), 230), ("Review / rim", (-1.4, 1.3, 1.6), 125)):
-    data = bpy.data.lights.new(name, "AREA")
-    obj = bpy.data.objects.new(name, data)
-    bpy.context.scene.collection.objects.link(obj)
-    obj.location = pos
-    obj.rotation_euler = (Vector((0, 0, 0)) - obj.location).to_track_quat("-Z", "Y").to_euler()
-    data.energy = power
-    data.shape = "DISK"
-    data.size = 2.8
-
-scene = bpy.context.scene
-scene.render.engine = "BLENDER_EEVEE_NEXT"
-scene.render.resolution_x = 960
-scene.render.resolution_y = 720
-scene.render.image_settings.file_format = "PNG"
-scene.render.filepath = str(OUT / "volcano_v1_preview.png")
-scene.view_settings.view_transform = "Standard"
-bpy.context.preferences.filepaths.save_version = 0
-bpy.ops.wm.save_as_mainfile(filepath=str(SOURCE / "volcano_v1.blend"))
-bpy.ops.object.select_all(action="DESELECT")
-for obj in model.objects:
-    obj.select_set(True)
-bpy.context.view_layer.objects.active = next(iter(model.objects))
-bpy.ops.export_scene.gltf(filepath=str(OUT / "volcano_v1.glb"), export_format="GLB", use_selection=True, export_cameras=False, export_lights=False)
-bpy.ops.render.render(write_still=True)
-print(f"Built {OUT / 'volcano_v1.glb'} and preview")
+if __name__ == "__main__":
+    build()

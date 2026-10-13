@@ -1,160 +1,107 @@
-"""Build an original hopping bean gift model and GLB idle loop."""
+"""Build the v3 Jumping Bean gift model in Blender 4.5 (Bontago-mp0.158).
 
-from math import cos, pi, sin
+Run:  blender -b --python tools/generate_jumping_bean_model.py
+
+Owner playtest 2026-10-13: "I like the face but there is no reason it needs to be a
+bean (that is what the original called it)." The gift keeps its id and gameplay name
+(jumping_bean); the body is now a squat orange jelly blob sitting on a steel coil
+spring, with the v2 face (eyes, glints, cheeks, smile) unchanged.
+
+DECISION (mp0.158): body = squashed jelly blob on a coil spring (readable at held
+size, says "jumps" without needing the old bean silhouette). The idle_hop_1p5s clip
+keeps its name and 37-frame length: the spring compresses on contact, stretches in
+the air, and the blob rides its top.
+
+Outputs: assets/models/jumping_bean_v3/jumping_bean_v3.glb and
+source_art/jumping_bean_v3/jumping_bean_v3.blend. Reuses the v2 generator's helpers.
+"""
+
+import math
+import sys
 from pathlib import Path
 
 import bpy
-from mathutils import Vector
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import generate_gift_models_v2 as g  # noqa: E402
+
+CLIP = "idle_hop_1p5s"
+SPRING_BASE_Z = -0.40
+SPRING_HEIGHT = 0.2
+COILS = 4
 
 
-ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "assets/models/jumping_bean_v1"
-SOURCE = ROOT / "source_art/jumping_bean_v1"
-OUT.mkdir(parents=True, exist_ok=True)
-SOURCE.mkdir(parents=True, exist_ok=True)
-(SOURCE / ".gdignore").write_text("", encoding="utf-8")
-bpy.ops.object.select_all(action="SELECT")
-bpy.ops.object.delete(use_global=False)
+def key_clip(obj, frames, clip):
+    for frame, loc, scale in frames:
+        obj.location = loc
+        obj.scale = scale
+        obj.keyframe_insert("location", frame=frame)
+        obj.keyframe_insert("scale", frame=frame)
+    action = obj.animation_data.action
+    track = obj.animation_data.nla_tracks.new()
+    track.name = clip
+    track.strips.new(clip, 1, action)
+    obj.animation_data.action = None
 
 
-def material(name, color):
-    srgb = [int(color[i:i + 2], 16) / 255 for i in (1, 3, 5)]
-    rgb = [v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4 for v in srgb]
-    m = bpy.data.materials.new(name)
-    m.diffuse_color = (*rgb, 1)
-    m.use_nodes = True
-    bsdf = m.node_tree.nodes.get("Principled BSDF")
-    bsdf.inputs["Base Color"].default_value = (*rgb, 1)
-    bsdf.inputs["Roughness"].default_value = 0.73
-    return m
+def export_v3(collection, model_id: str, animated: bool) -> None:
+    out = g.ROOT / f"assets/models/{model_id}_v3"
+    source = g.ROOT / f"source_art/{model_id}_v3"
+    out.mkdir(parents=True, exist_ok=True)
+    source.mkdir(parents=True, exist_ok=True)
+    (source / ".gdignore").touch()
+    bpy.ops.wm.save_as_mainfile(filepath=str(source / f"{model_id}_v3.blend"), copy=True)
+    bpy.ops.object.select_all(action="DESELECT")
+    for obj in collection.objects:
+        obj.select_set(True)
+    bpy.ops.export_scene.gltf(filepath=str(out / f"{model_id}_v3.glb"), export_format="GLB",
+                              use_selection=True, export_cameras=False, export_lights=False,
+                              export_apply=True, export_animations=animated,
+                              export_animation_mode="NLA_TRACKS")
+    print(f"Built {out / f'{model_id}_v3.glb'}")
 
 
-mint = material("Mint shell", "#75CBD1")
-mint_shadow = material("Mint underside", "#3A9B91")
-ink = material("Ink face", "#26323A")
-coral = material("Coral cheek", "#EB6B5C")
-floor_mat = material("Review floor", "#DCE5DF")
-model = bpy.data.collections.new("Jumping bean export")
-bpy.context.scene.collection.children.link(model)
-root = bpy.data.objects.new("Bean / idle-hop root", None)
-model.objects.link(root)
+def build() -> None:
+    col = g.reset()
+    jelly = g.material("Jelly", "#E08A3A")
+    belly = g.material("Jelly belly", "#F4B26A")
+    steel = g.material("Spring steel", "#8E9AA6")
+    white = g.material("Eye white", "#FFFFFF")
+    ink = g.material("Pupil", "#1B1A2E")
+    mouth = g.material("Mouth", "#7A1E2E")
+    blush = g.material("Blush", "#FF8FA3")
+
+    root = g.empty(col, "Jumping root")
+    # Spring: a flat steel foot plus stacked coil rings, pivoting at its base.
+    spring = g.empty(col, "Spring pivot", (0, 0, SPRING_BASE_Z), parent=root)
+    g.cone(col, "Spring foot", steel, (0, 0, 0.015), 0.2, 0.2, 0.03, vertices=18, parent=spring)
+    pitch = SPRING_HEIGHT / COILS
+    for i in range(COILS):
+        g.torus(col, f"Spring coil {i}", steel, (0, 0, 0.05 + pitch * i), 0.115, 0.03, parent=spring)
+    # Blob: squat jelly dome with a lighter belly and the v2 face, riding the spring top.
+    blob = g.empty(col, "Blob pivot", (0, 0, SPRING_BASE_Z + 0.04 + SPRING_HEIGHT), parent=root)
+    g.sphere(col, "Jelly body", jelly, (0, 0, 0.2), 0.33, scale=(1.0, 0.95, 0.82), segments=28, parent=blob)
+    g.sphere(col, "Jelly belly", belly, (0, -0.1, 0.09), 0.17, scale=(1.0, 0.6, 0.55), segments=18, parent=blob)
+    for side in (-1, 1):
+        x = side * 0.095
+        g.sphere(col, f"Eye {side}", white, (x, -0.27, 0.27), 0.075, scale=(0.85, 0.45, 1.1), parent=blob)
+        g.sphere(col, f"Pupil {side}", ink, (x + 0.012, -0.305, 0.26), 0.04, scale=(0.9, 0.4, 1.1), parent=blob)
+        g.sphere(col, f"Glint {side}", white, (x + 0.025, -0.321, 0.285), 0.013, scale=(1, 0.4, 1), parent=blob)
+        g.sphere(col, f"Cheek {side}", blush, (side * 0.2, -0.25, 0.17), 0.04, scale=(1.2, 0.35, 0.7), parent=blob)
+    g.sphere(col, "Smile", mouth, (0.0, -0.285, 0.155), 0.05, scale=(1.0, 0.35, 0.55), parent=blob)
+
+    # 37 frames at 24 fps: contact squash, tall hop, contact, small hop, contact.
+    # (frame, root hop height, spring z scale, blob squash)
+    beats = [(1, 0.0, 0.55, 1.1), (8, 0.14, 1.15, 0.94), (19, 0.2, 1.0, 1.0),
+             (30, 0.0, 0.55, 1.1), (37, 0.0, 0.55, 1.1)]
+    base_top = SPRING_BASE_Z + 0.04 + SPRING_HEIGHT
+    key_clip(root, [(f, (0, 0, h), (1, 1, 1)) for f, h, _s, _q in beats], CLIP)
+    key_clip(spring, [(f, (0, 0, SPRING_BASE_Z), (1, 1, s)) for f, _h, s, _q in beats], CLIP)
+    key_clip(blob, [(f, (0, 0, base_top - (1 - s) * (0.04 + SPRING_HEIGHT)), (1 / math.sqrt(q), 1 / math.sqrt(q), q))
+                    for f, _h, s, q in beats], CLIP)
+    bpy.context.scene.frame_end = 37
+    export_v3(col, "jumping_bean", True)
 
 
-def add(obj, name, mat):
-    obj.name = name
-    obj.data.materials.append(mat)
-    for old in list(obj.users_collection):
-        old.objects.unlink(obj)
-    model.objects.link(obj)
-    obj.parent = root
-    return obj
-
-
-def sphere(name, center, scale, mat, segments=12, rings=7):
-    bpy.ops.mesh.primitive_uv_sphere_add(segments=segments, ring_count=rings, radius=1)
-    obj = bpy.context.object
-    obj.location = center
-    obj.scale = scale
-    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-    return add(obj, name, mat)
-
-
-# Curved cross-sections form a low kidney shape instead of a pointed droplet.
-rings = 11
-sides = 12
-vertices = []
-faces = []
-for i in range(rings):
-    t = i / (rings - 1)
-    x = -0.33 + 0.66 * t
-    z_center = 0.11 * (2 * t - 1) ** 2 - 0.035
-    y_radius = 0.115 + 0.10 * sin(pi * t)
-    z_radius = 0.12 + 0.075 * sin(pi * t)
-    for j in range(sides):
-        angle = j * 2 * pi / sides
-        vertices.append((x, y_radius * cos(angle), z_center + z_radius * sin(angle)))
-for i in range(rings - 1):
-    for j in range(sides):
-        next_j = (j + 1) % sides
-        faces.append((i * sides + j, i * sides + next_j, (i + 1) * sides + next_j, (i + 1) * sides + j))
-faces.extend([tuple(reversed(range(sides))), tuple((rings - 1) * sides + j for j in range(sides))])
-data = bpy.data.meshes.new("Curved bean body")
-data.from_pydata(vertices, [], faces)
-data.materials.append(mint)
-data.materials.append(mint_shadow)
-data.update()
-for polygon in data.polygons:
-    if polygon.index % 7 == 0:
-        polygon.material_index = 1
-body = bpy.data.objects.new("Bean / faceted curved body", data)
-model.objects.link(body)
-body.parent = root
-
-# Raised facial marks are broad enough to survive a tiny gift preview.
-sphere("Bean / left eye", (-0.10, -0.207, 0.035), (0.024, 0.017, 0.031), ink)
-sphere("Bean / right eye", (0.10, -0.207, 0.035), (0.024, 0.017, 0.031), ink)
-sphere("Bean / small smile", (0, -0.212, -0.066), (0.073, 0.013, 0.018), ink)
-sphere("Bean / coral cheek", (-0.205, -0.178, -0.035), (0.038, 0.014, 0.027), coral)
-
-# Contact, tall hop, contact, little follow-up, contact: 1.5-second loop.
-for frame, height, angle, squash in (
-    (1, 0, -0.07, 0.94),
-    (10, 0.24, 0.10, 1.06),
-    (19, 0, -0.05, 0.91),
-    (28, 0.09, 0.04, 1.02),
-    (37, 0, -0.07, 0.94),
-):
-    root.location = (0, 0, height)
-    root.rotation_euler = (0, angle, 0)
-    root.scale = (1 / squash, 1 / squash, squash)
-    root.keyframe_insert(data_path="location", frame=frame)
-    root.keyframe_insert(data_path="rotation_euler", frame=frame)
-    root.keyframe_insert(data_path="scale", frame=frame)
-action = root.animation_data.action
-track = root.animation_data.nla_tracks.new()
-track.name = "idle_hop_1p5s"
-track.strips.new("idle_hop_1p5s", 1, action)
-root.animation_data.action = None
-
-scene = bpy.context.scene
-scene.render.fps = 24
-scene.frame_start = 1
-scene.frame_end = 37
-bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, -0.39))
-floor = bpy.context.object
-floor.name = "Review / floor"
-floor.dimensions = (200, 200, 0.08)
-bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-floor.data.materials.append(floor_mat)
-bpy.ops.object.camera_add(location=(1.4, -2.1, 1.05))
-camera = bpy.context.object
-camera.rotation_euler = (Vector((0.05, 0, 0.015)) - camera.location).to_track_quat("-Z", "Y").to_euler()
-camera.data.type = "ORTHO"
-camera.data.ortho_scale = 1.75
-bpy.context.scene.camera = camera
-for name, pos, power in (("Review / key", (1, -2, 1.9), 240), ("Review / rim", (-1.3, 1.2, 1.6), 140)):
-    lamp = bpy.data.lights.new(name, "AREA")
-    obj = bpy.data.objects.new(name, lamp)
-    bpy.context.scene.collection.objects.link(obj)
-    obj.location = pos
-    obj.rotation_euler = (Vector((0, 0, 0)) - obj.location).to_track_quat("-Z", "Y").to_euler()
-    lamp.energy = power
-    lamp.shape = "DISK"
-    lamp.size = 2.6
-
-scene.render.engine = "BLENDER_EEVEE_NEXT"
-scene.render.resolution_x = 960
-scene.render.resolution_y = 720
-scene.render.image_settings.file_format = "PNG"
-scene.render.filepath = str(OUT / "jumping_bean_v1_preview.png")
-scene.view_settings.view_transform = "Standard"
-bpy.context.preferences.filepaths.save_version = 0
-bpy.ops.wm.save_as_mainfile(filepath=str(SOURCE / "jumping_bean_v1.blend"))
-bpy.ops.object.select_all(action="DESELECT")
-for obj in model.objects:
-    obj.select_set(True)
-bpy.context.view_layer.objects.active = root
-bpy.ops.export_scene.gltf(filepath=str(OUT / "jumping_bean_v1.glb"), export_format="GLB", use_selection=True, export_cameras=False, export_lights=False, export_animations=True, export_animation_mode="NLA_TRACKS")
-scene.frame_set(10)
-bpy.ops.render.render(write_still=True)
-print(f"Built animated {OUT / 'jumping_bean_v1.glb'} and preview")
+if __name__ == "__main__":
+    build()
