@@ -55,7 +55,7 @@ static func proxy_terms(c: BotCandidate, view: BotWorldView, intent: BotIntent) 
 		terms[BotIntent.Term.KILL] = float(covered)
 		terms[BotIntent.Term.HAZARD] = _hazard_from_gap(c, view, nearest_gap)
 	terms[BotIntent.Term.EXPOSURE] = float(mini(threats + _home_threats(c.origin, view), tuning.exposure_cap))
-	terms[BotIntent.Term.TIP] = c.tip_risk + wind_tip(c, view) + rim_risk(c, view)
+	terms[BotIntent.Term.TIP] = c.tip_risk + wind_tip(c, view) + breeze_tip(c, view) + rim_risk(c, view)
 	terms[BotIntent.Term.WASTE] = 1.0 if inside >= 1.0 else 0.0
 	return terms
 
@@ -74,7 +74,7 @@ static func measure(
 	terms[BotIntent.Term.WASTE] = fractions.y
 	terms[BotIntent.Term.KILL] = _kill(c, view, chains, radius)
 	terms[BotIntent.Term.EXPOSURE] = float(_exposure(c, view, chains))
-	terms[BotIntent.Term.TIP] = c.tip_risk + wind_tip(c, view) + rim_risk(c, view)
+	terms[BotIntent.Term.TIP] = c.tip_risk + wind_tip(c, view) + breeze_tip(c, view) + rim_risk(c, view)
 	terms[BotIntent.Term.HAZARD] = hazard(c, view, chains)
 	return terms
 
@@ -95,11 +95,62 @@ static func score(terms: PackedFloat32Array, intent: BotIntent) -> float:
 
 ## Bontago-1t5.41: extra TIP risk from the active wind: grows with the weather intensity and
 ## the wind's height response at the piece's top; exactly 0 in calm weather or without wind.
+## Bontago-1t5.46: scaled by 1 + wind_rim_gain * downwind_rim_factor along the Storm heading
+## (view.wind_dir), so a site with the rim close downwind scores worse than an upwind one; the
+## factor is 0 (the old value, bit for bit) while the heading is unknown.
 static func wind_tip(c: BotCandidate, view: BotWorldView) -> float:
 	if view.wind_tuning == null or view.weather_intensity <= 0.0 or tuning.wind_tip_weight <= 0.0:
 		return 0.0
 	var top: float = maxf(c.top_height, c.support_height + c.shape_height)
-	return tuning.wind_tip_weight * clampf(view.weather_intensity, 0.0, 1.0) * WindField.height_factor(top, view.wind_tuning)
+	var sway: float = tuning.wind_tip_weight * clampf(view.weather_intensity, 0.0, 1.0) * WindField.height_factor(top, view.wind_tuning)
+	if sway <= 0.0 or view.wind_dir == Vector2.ZERO:
+		return sway
+	return sway * (1.0 + tuning.wind_rim_gain * downwind_rim_factor(c.origin, view.wind_dir, view))
+
+
+## Bontago-1t5.46: extra TIP risk from the live Breeze gusts. Each gust adds its power times the
+## smooth falloff of the piece's distance to the gust centre (the host's BreezeField.falloff), times
+## the Breeze height response at the piece's top, times 1 + wind_rim_gain * downwind_rim_factor along
+## the gust heading. Distance is 3D: the vertical part is the gap between the gust centre height
+## and the piece's [support, top] span (0 when the centre lies inside it), and a site downwind of
+## the centre (positive offset along the heading) has that offset shrunk by 1 / (1 + breeze_lee_gain),
+## i.e. the sphere reaches further downwind than upwind. Exactly 0 with no gust, a low piece (below
+## the Breeze threshold height) or breeze_tip_weight 0; calm and upwind/sheltered sites score as before.
+static func breeze_tip(c: BotCandidate, view: BotWorldView) -> float:
+	if view.breeze_tuning == null or view.gust_power_values.is_empty() or tuning.breeze_tip_weight <= 0.0:
+		return 0.0
+	var top: float = maxf(c.top_height, c.support_height + c.shape_height)
+	var response: float = WindField.height_factor(top, view.breeze_tuning)
+	if response <= 0.0:
+		return 0.0
+	var bottom: float = minf(c.support_height, top)
+	var total: float = 0.0
+	for i: int in range(view.gust_power_values.size()):
+		var centre: Vector3 = view.gust_center[i]
+		var heading: Vector2 = view.gust_heading[i]
+		var rel: Vector2 = c.origin - Vector2(centre.x, centre.z)
+		var along: float = rel.dot(heading)
+		if along > 0.0:
+			rel -= heading * (along - along / (1.0 + maxf(tuning.breeze_lee_gain, 0.0)))
+		var dy: float = maxf(maxf(bottom - centre.y, centre.y - top), 0.0)
+		var distance: float = sqrt(rel.length_squared() + dy * dy)
+		var exposure: float = view.gust_power_values[i] * BreezeField.falloff(distance, view.gust_radius[i])
+		if exposure > 0.0:
+			total += exposure * (1.0 + tuning.wind_rim_gain * downwind_rim_factor(c.origin, heading, view))
+	return tuning.breeze_tip_weight * total * response
+
+
+## Bontago-1t5.46: 0..1 how close `origin` is to the live disc edge measured along `heading` (the way
+## the wind shoves a piece): 1 at or beyond the edge, falling linearly to 0 once BotEvalTuning.rim_margin_m
+## or more of disc lies downwind. 0 while the heading or the live radius is unknown. Origin only (the
+## footprint is not sampled), which keeps it cheap enough for the proxy stage.
+static func downwind_rim_factor(origin: Vector2, heading: Vector2, view: BotWorldView) -> float:
+	if view.live_radius <= 0.0 or heading == Vector2.ZERO or tuning.rim_margin_m <= 0.0:
+		return 0.0
+	var along: float = origin.dot(heading)
+	var disc: float = along * along - origin.length_squared() + view.live_radius * view.live_radius
+	var run: float = sqrt(maxf(disc, 0.0)) - along
+	return clampf(1.0 - run / tuning.rim_margin_m, 0.0, 1.0)
 
 
 ## Bontago-1t5.42: fall-off risk near the live disc edge plus the pull towards the surviving

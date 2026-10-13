@@ -13,6 +13,8 @@ const HOME_MATCH_TOLERANCE_M: float = 0.05
 ## Footprint-extent bound pads: one cube of reach and the unit-cube space diagonal.
 const CUBE_PAD_CELLS: float = 1.0
 const CUBE_DIAGONAL: float = 1.7320508
+## A gust's sine envelope (BreezeField.envelope) peaks at this fraction of its life.
+const GUST_PEAK_LIFE_FRACTION: float = 0.5
 
 var slot_id: int = -1
 var team_id: int = -1
@@ -49,10 +51,24 @@ var weather_id: StringName = &""
 var weather_intensity: float = 0.0
 ## Height response of the active wind (WindField.height_factor); null when no wind blows
 ## (calm, rain, snow, ...), which keeps every wind term at exactly 0.
-# DECISION: only the Storm wind is modelled; wind direction is not read (the height response
-# decides how tip-prone a tall stack is, and the bot cannot dodge a heading), and the
-# transient Breeze gusts are ignored.
+# DECISION (Bontago-1t5.46, replaces the 1t5.41 "direction and gusts ignored" note): the height
+# response still decides how tip-prone a tall stack is, and the wind HEADING now only grades the
+# fall-off-the-rim part of it (BotEvaluator.downwind_rim_factor): a piece with open disc downwind
+# of it is unchanged, one near the rim on the downwind side is graded worse. The Storm heading is
+# its seeded base heading (WindField.base_angle of the event seed): the host's live +/- veer is
+# not readable from the controller (the effect's clock is private), so it is left out.
 var wind_tuning: StormTuning = null
+## Storm heading as a unit vector in disk-local x/z; ZERO when no Storm blows or it is unknown.
+var wind_dir: Vector2 = Vector2.ZERO
+## Bontago-1t5.46: the live Breeze gusts (host list, BreezeEffect.gusts()) as plain parallel data in
+## disk-local space; empty when none blows. `gust_center` is (disk x, height above the disc
+## surface, disk z), `gust_heading` a unit vector, `gust_power` 0..1 (see gust_power()).
+## `breeze_tuning` is the height response the gust pushes with; null while no gust is listed.
+var breeze_tuning: BreezeTuning = null
+var gust_center: PackedVector3Array = PackedVector3Array()
+var gust_radius: PackedFloat32Array = PackedFloat32Array()
+var gust_heading: PackedVector2Array = PackedVector2Array()
+var gust_power_values: PackedFloat32Array = PackedFloat32Array()
 
 
 static func build(
@@ -104,6 +120,29 @@ static func build(
 				view.team_homes.append(slot_item.home_position)
 	view._copy_block_circles(circles, living_homes)
 	return view
+
+
+## Bontago-1t5.46: records one live Breeze gust (disk-local `center` = x, height above the disc
+## surface, z; `heading` a unit x/z vector). Gusts with no power are skipped.
+func add_gust(center: Vector3, radius: float, heading: Vector2, power: float) -> void:
+	if power <= 0.0 or radius <= 0.0:
+		return
+	gust_center.append(center)
+	gust_radius.append(radius)
+	gust_heading.append(heading)
+	gust_power_values.append(power)
+
+
+## Bontago-1t5.46: how hard a gust can still push a piece that lands later, 0..1. Its envelope
+## rises to a peak at half its life, so a young gust counts as its peak (it is about to blow
+## hardest) and an old one as its current, fading envelope; an expired gust counts as 0.
+static func gust_power(strength: float, age_s: float, duration_s: float) -> float:
+	if duration_s <= 0.0 or age_s >= duration_s:
+		return 0.0
+	var envelope: float = 1.0
+	if age_s > duration_s * GUST_PEAK_LIFE_FRACTION:
+		envelope = BreezeField.envelope(age_s, duration_s)
+	return clampf(strength, 0.0, 1.0) * envelope
 
 
 ## Copies the render list, dropping one home circle per living home.
