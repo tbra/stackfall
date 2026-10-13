@@ -51,7 +51,7 @@ func test_picking_each_style_rebuilds_the_arena_mesh_and_keeps_territory_configu
 	var overlay: TerritoryOverlay = _field.overlay()
 	var material: ShaderMaterial = overlay.material()
 	var seen: Array = [_signature()]
-	for which: int in [ArenaSideStyle.Style.LAYERED_PLATES, ArenaSideStyle.Style.ROCKY_ISLAND, ArenaSideStyle.Style.MACHINED_DISC, ArenaSideStyle.Style.MACHINED_STYLISED, ArenaSideStyle.Style.MACHINED_DETAILED, ArenaSideStyle.Style.MACHINED_HEAVY, ArenaSideStyle.Style.MONOLITH, ArenaSideStyle.Style.TAPERED_STRATA, ArenaSideStyle.Style.PLATED_DOME]:
+	for which: int in [ArenaSideStyle.Style.LAYERED_PLATES, ArenaSideStyle.Style.ROCKY_ISLAND, ArenaSideStyle.Style.MACHINED_DISC, ArenaSideStyle.Style.MACHINED_STYLISED, ArenaSideStyle.Style.MACHINED_DETAILED, ArenaSideStyle.Style.MACHINED_HEAVY, ArenaSideStyle.Style.MONOLITH, ArenaSideStyle.Style.TAPERED_STRATA, ArenaSideStyle.Style.PLATED_DOME, ArenaSideStyle.Style.SHADER_DOME]:
 		option.select(option.get_item_index(which))
 		option.item_selected.emit(option.get_item_index(which))
 		assert_eq(_field.arena_side_style.style, which)

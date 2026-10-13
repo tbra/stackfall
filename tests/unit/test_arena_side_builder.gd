@@ -22,12 +22,14 @@ const STYLES: Array[ArenaSideStyle.Style] = [
 	ArenaSideStyle.Style.MONOLITH,
 	ArenaSideStyle.Style.TAPERED_STRATA,
 	ArenaSideStyle.Style.PLATED_DOME,
+	ArenaSideStyle.Style.SHADER_DOME,
 ]
 ## Round 3 looks wrap a gold lip over the slab's top edge, so they reach DISK_HEIGHT above Y_TOP.
 const WRAP_STYLES: Array[ArenaSideStyle.Style] = [
 	ArenaSideStyle.Style.MONOLITH,
 	ArenaSideStyle.Style.TAPERED_STRATA,
 	ArenaSideStyle.Style.PLATED_DOME,
+	ArenaSideStyle.Style.SHADER_DOME,
 ]
 const ROUND3_VERTEX_BUDGET: int = 60000
 ## Round-2 machined looks stay cheap static geometry.
@@ -157,7 +159,11 @@ func test_alternative_styles_become_arena_surfaces_with_materials() -> void:
 		assert_eq(mesh.get_surface_count(), count)
 		assert_eq(arena.surface_index(ArenaMesh.Kind.CHAMFER), -1, "no gold chamfer in the new looks")
 		for surface: int in arena.materials():
-			assert_true(arena.material_for_surface(surface) is StandardMaterial3D)
+			var is_shell: bool = which == ArenaSideStyle.Style.SHADER_DOME and surface != arena.surface_index(ArenaMesh.Kind.GLOW)
+			if is_shell:
+				assert_true(arena.material_for_surface(surface) is ShaderMaterial, "shader dome body uses the plating shader")
+			else:
+				assert_true(arena.material_for_surface(surface) is StandardMaterial3D)
 		assert_gte(arena.surface_index(ArenaMesh.Kind.GLOW), 0, "style %d has a glow surface" % which)
 
 
@@ -185,3 +191,32 @@ func test_round3_looks_continue_the_top_and_stay_modest() -> void:
 		assert_lt(_all_vertices(built).size(), ROUND3_VERTEX_BUDGET, "style %d vertex budget" % which)
 		for vertex: Vector3 in _all_vertices(built):
 			assert_true(Vector2(vertex.x, vertex.z).length() <= RADIUS * (1.0 + RIVET_SLACK) + EPS, "style %d inside the footprint" % which)
+
+
+## SHADER_DOME is PLATED_DOME's silhouette with no modelled relief: smooth surfaces whose
+## UV.x carries the plating radius the shader reads (wall = top rings continued outwards).
+func test_shader_dome_is_smooth_and_carries_plating_radius_in_uv() -> void:
+	var map_def: MapDef = _map(MapDef.MapShape.ROUND)
+	var style: ArenaSideStyle = _style(ArenaSideStyle.Style.SHADER_DOME)
+	var built: Dictionary = ArenaSideBuilder.new().build(map_def, style, SEGMENTS, Y_TOP)
+	for vertex: Vector3 in _all_vertices(built):
+		assert_true(Vector2(vertex.x, vertex.z).length() <= RADIUS * (1.0 + style.top_lip_out_fraction) + EPS, "no rivets or relief standing past the lip")
+	var edge_y: float = Y_TOP + DISK_HEIGHT
+	for kind: int in [ArenaSideBuilder.KIND_BAND, ArenaSideBuilder.KIND_BOTTOM]:
+		var arrays: Array = built[kind]
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
+		assert_eq(uvs.size(), verts.size())
+		for i: int in range(verts.size()):
+			var radial: float = Vector2(verts[i].x, verts[i].z).length()
+			var expected: float = radial + (edge_y - verts[i].y if kind == ArenaSideBuilder.KIND_BAND else 0.0)
+			assert_almost_eq(uvs[i].x, expected, EPS)
+	assert_false((built[ArenaSideBuilder.KIND_GLOW] as Array)[Mesh.ARRAY_TEX_UV] != null, "the gold lip is not shader plated")
+
+
+func test_shader_dome_overlay_material_shares_the_territory_look() -> void:
+	var arena: ArenaMesh = ArenaMesh.new()
+	arena.append_side_surfaces(ArrayMesh.new(), _map(MapDef.MapShape.ROUND), DiscBodyVisuals.new(), SEGMENTS, DISK_HEIGHT * 0.5, _style(ArenaSideStyle.Style.SHADER_DOME))
+	var shell: ShaderMaterial = arena.shell_material()
+	assert_not_null(shell)
+	assert_almost_eq(float(shell.get_shader_parameter(&"top_local_y")), DISK_HEIGHT * 0.5, EPS)

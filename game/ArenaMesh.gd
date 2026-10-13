@@ -23,6 +23,8 @@ enum Kind { TOP, CHAMFER, BAND, BOTTOM, GLOW }
 
 const _CHAMFER_SHADER: Shader = preload("res://shaders/disc_rim.gdshader")
 const _BAND_OVERLAY_SHADER: Shader = preload("res://shaders/disc_band_overlay.gdshader")
+## SHADER_DOME's side/underside shader: the top's own plating (Bontago-mp0.150.2 r4).
+const _SHELL_SHADER: Shader = preload("res://shaders/arena_side_shell.gdshader")
 
 ## Minimum segments for a degenerate/test MapDef (a triangle is the fewest a
 ## closed band can be built from).
@@ -49,6 +51,8 @@ var visuals: DiscBodyVisuals = null
 var _surface_of: Dictionary = {}
 ## Surface index -> Material for the appended surfaces.
 var _materials: Dictionary = {}
+## SHADER_DOME's shared side/underside material (null for every other look).
+var _shell_material: ShaderMaterial = null
 
 
 ## Surface index of `kind` in the mesh last built, or -1 when it has none.
@@ -59,6 +63,12 @@ func surface_index(kind: Kind) -> int:
 ## Material of the surface at `surface`, or null.
 func material_for_surface(surface: int) -> Material:
 	return _materials.get(surface, null) as Material
+
+
+## The SHADER_DOME side/underside material, or null. game/TerritoryOverlay.gd copies
+## the territory material's uniforms onto it so both draw one look.
+func shell_material() -> ShaderMaterial:
+	return _shell_material
 
 
 ## Surface index -> Material for every appended side surface.
@@ -80,6 +90,7 @@ func append_side_surfaces(
 ) -> int:
 	_surface_of.clear()
 	_materials.clear()
+	_shell_material = null
 	if map_def == null or body_visuals == null:
 		return 0
 	visuals = body_visuals
@@ -122,10 +133,18 @@ func _append_style_surfaces(
 	var built: Dictionary = builder.build(map_def, side_style, segments, y_shift - map_def.disk_height)
 	var body_material: StandardMaterial3D = _style_body_material(side_style)
 	var glow_material: StandardMaterial3D = _style_glow_material(side_style)
+	var body: Material = body_material
+	if side_style.style == ArenaSideStyle.Style.SHADER_DOME:
+		# The authored surfaces sit against world y = 0 (the playing surface) shifted by
+		# y_shift, so the top face is at local y = y_shift.
+		_shell_material = ShaderMaterial.new()
+		_shell_material.shader = _SHELL_SHADER
+		_shell_material.set_shader_parameter(&"top_local_y", y_shift)
+		body = _shell_material
 	for kind: Kind in [Kind.BAND, Kind.BOTTOM, Kind.GLOW]:
 		if not built.has(int(kind)):
 			continue
-		_append(target, kind, built[int(kind)], glow_material if kind == Kind.GLOW else body_material)
+		_append(target, kind, built[int(kind)], glow_material if kind == Kind.GLOW else body)
 	return _surface_of.size()
 
 
@@ -156,7 +175,7 @@ func _style_glow_material(side_style: ArenaSideStyle) -> StandardMaterial3D:
 			energy = side_style.detailed_glow_energy
 		ArenaSideStyle.Style.MACHINED_HEAVY:
 			energy = side_style.heavy_glow_energy
-		ArenaSideStyle.Style.MONOLITH, ArenaSideStyle.Style.TAPERED_STRATA, ArenaSideStyle.Style.PLATED_DOME:
+		ArenaSideStyle.Style.MONOLITH, ArenaSideStyle.Style.TAPERED_STRATA, ArenaSideStyle.Style.PLATED_DOME, ArenaSideStyle.Style.SHADER_DOME:
 			energy = side_style.top_lip_energy
 	var material: StandardMaterial3D = StandardMaterial3D.new()
 	material.vertex_color_use_as_albedo = true

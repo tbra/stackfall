@@ -441,6 +441,7 @@
   "net/UpnpBackend.gd",
   "net/UpnpBackendReal.gd",
   "net/UpnpRunner.gd",
+  "shaders/arena_side_shell.gdshader",
   "shaders/beacon_crystal.gdshader",
   "shaders/black_hole_vortex.gdshader",
   "shaders/block_cell_grid.gdshader",
