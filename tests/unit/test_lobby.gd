@@ -1228,10 +1228,10 @@ func test_lobby_add_bot_shortcut_adds_a_bot_for_the_host_only() -> void:
 
 func test_start_and_add_bot_buttons_carry_their_glyphs() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var start_flow: InputPromptFlow = LobbyButtonGlyph.flow_of(lobby.get_node("%StartButton") as Button)
+	var start_flow: InputPromptFlow = UiButtonHint.flow_of(lobby.get_node("%StartButton") as Button)
 	assert_not_null(start_flow, "Start has a hint")
 	assert_eq(start_flow.template, "{lobby_confirm}")
-	var add_flow: InputPromptFlow = LobbyButtonGlyph.flow_of(lobby._players_panel.add_bot_button())
+	var add_flow: InputPromptFlow = UiButtonHint.flow_of(lobby._players_panel.add_bot_button())
 	assert_not_null(add_flow, "Add bot has a hint")
 	assert_eq(add_flow.template, "{lobby_add_bot}")
 	assert_false(InputMap.action_get_events(&"lobby_add_bot").is_empty())

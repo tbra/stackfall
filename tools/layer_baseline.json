@@ -496,6 +496,7 @@
   "ui/SplashScreen.gd",
   "ui/UiScale.gd",
   "ui/components/UiBlockButton.gd",
+  "ui/components/UiButtonHint.gd",
   "ui/components/UiCycler.gd",
   "ui/components/UiDropdown.gd",
   "ui/components/UiField.gd",
