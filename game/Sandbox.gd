@@ -619,6 +619,15 @@ func _preplace_preset_blocks() -> void:
 		await get_tree().process_frame
 	if generation != _preplace_generation or _field == null:
 		return
+	# Bontago-1pi.85.75: pre-placed scene blocks are state, not drops: the build below is
+	# synchronous, so bracket it with the same silence the late-join replay uses (Sfx
+	# ignores block_placed meanwhile). Real drops after this still sound.
+	Events.world_replay_changed.emit(true)
+	_build_preset_towers(row)
+	Events.world_replay_changed.emit(false)
+
+
+func _build_preset_towers(row: bool) -> void:
 	if row:
 		var count: int = _preset.row_tower_heights.size()
 		for i: int in range(count):
