@@ -267,6 +267,7 @@ func after_each() -> void:
 	# same process (see test_gift_claim.gd's matching after_each() cleanup).
 	Match._gifts.set_special_drawer(Match._gifts._default_special_drawer)
 	Match.abort_match()
+	SnapshotSync.end_match()
 	Match.set_process(true)
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -529,6 +530,23 @@ func test_sandbox_toggle_timer_hotkey_reenables_auto_drop() -> void:
 	# A second press pauses it again -- the hotkey is a toggle, not a one-shot.
 	sandbox._unhandled_input(event)
 	assert_false(Match.feed_timer_enabled())
+
+
+# --- Bontago-1pi.199: the shared match clock runs in the sandbox --------------
+
+func test_sandbox_runs_the_shared_match_clock_for_the_day_night_cycle() -> void:
+	_start_sandbox(2)
+	assert_true(SnapshotSync.is_running(), "the sandbox begins the one real match clock")
+	assert_eq(Match.context().shared_clock_seconds(), 0.0, "fresh clock starts at zero")
+	SnapshotSync.host_tick(2.0)
+	assert_almost_eq(Match.context().shared_clock_seconds(), 2.0, 0.001, "the Skybox cycle reads a moving clock")
+	var sandbox: Sandbox = _main._sandbox
+	sandbox._unhandled_input(_key_press(KEY_F5))
+	assert_eq(Match.context().shared_clock_seconds(), 0.0, "F5 starts a new match: the clock restarts")
+	SnapshotSync.host_tick(1.0)
+	_main._on_pause_leave_requested()
+	assert_false(SnapshotSync.is_running(), "leaving the sandbox ends the clock like leaving a match")
+	assert_eq(Match.context().shared_clock_seconds(), 0.0)
 
 
 # --- sandbox_reset_field: F5 --------------------------------------------------
