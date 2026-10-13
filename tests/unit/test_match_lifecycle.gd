@@ -446,6 +446,20 @@ func test_build_slots_marks_exactly_the_trailing_ai_count_slots_as_bots() -> voi
 	assert_true(Match.slot(5).is_bot, "the second trailing slot is a bot")
 
 
+# --- Bontago-1pi.200 / owner decision Bontago-1pi.206: solo matches ----------
+func test_solo_start_builds_one_slot_one_home_flag_and_no_second_player() -> void:
+	_host()
+	_start(1)
+
+	assert_eq(Match.slot_count(), 1, "a solo start has exactly one slot, no passive Player 2")
+	assert_eq(_home_flag_count(), 1, "one home beacon only")
+	assert_false(Match.slot(0).is_bot)
+	_run_countdown()
+	assert_eq(Match.state(), Match.State.PLAYING, "a 1-player match keeps running")
+	assert_eq(Match.feed_time_left(1), 0.0, "no feed exists for a second slot")
+	assert_gt(Match.feed_time_left(0), 0.0, "the one seat has a running feed")
+
+
 # --- (i) M6 A3 regression: match_timer_minutes == 0 (Off) never arms sudden
 # death, no matter how it is toggled -----------------------------------------
 #

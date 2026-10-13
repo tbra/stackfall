@@ -393,8 +393,7 @@ func test_sandbox_defaults_to_the_configured_player_count_with_no_players_arg() 
 
 
 func test_sandbox_allows_a_single_player() -> void:
-	# Spec 2.8's normal floor is 2 (MatchConfig.PLAYER_COUNT_MIN); sandbox is
-	# the one path that goes below it (config/MatchConfig.gd's `sandbox` flag).
+	# Spec 2.8's floor is 1 (MatchConfig.PLAYER_COUNT_MIN, owner decision Bontago-1pi.206).
 	_start_sandbox(1)
 	assert_eq(Match.slot_count(), 1)
 

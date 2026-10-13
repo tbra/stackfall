@@ -85,7 +85,9 @@ func test_default_picks_alternate_one_two() -> void:
 
 
 func test_default_picks_resolve_to_two_teams_and_never_block() -> void:
-	for seats: int in range(MatchConfig.PLAYER_COUNT_MIN, MatchConfig.PLAYER_COUNT_MAX + 1):
+	# Two or more seats; a solo seat (Bontago-1pi.206) is one team and never blocks.
+	assert_eq(TeamAssigner.blocker(TeamAssigner.default_picks(1), 4), "")
+	for seats: int in range(TeamAssigner.DEFAULT_TEAM_COUNT, MatchConfig.PLAYER_COUNT_MAX + 1):
 		var picks: PackedInt32Array = TeamAssigner.default_picks(seats)
 		assert_eq(TeamAssigner.blocker(picks, 4), "", "%d seats" % seats)
 		var result: TeamAssigner.Result = TeamAssigner.resolve(picks, 4, 1)
@@ -135,7 +137,7 @@ func test_a_pick_above_the_cap_is_clamped_to_the_cap() -> void:
 # --- resolve: Random ---------------------------------------------------------
 
 func test_all_random_is_balanced_across_two_teams() -> void:
-	for seats: int in range(MatchConfig.PLAYER_COUNT_MIN, MatchConfig.PLAYER_COUNT_MAX + 1):
+	for seats: int in range(TeamAssigner.DEFAULT_TEAM_COUNT, MatchConfig.PLAYER_COUNT_MAX + 1):
 		var picks: PackedInt32Array = PackedInt32Array()
 		picks.resize(seats)  # all 0 = Random
 		for rng_seed: int in range(SEEDS):

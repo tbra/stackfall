@@ -422,7 +422,7 @@ func test_the_default_hooks_are_safe_on_an_empty_lobby() -> void:
 	var config: MatchConfig = MatchConfig.new()
 	config.player_count = 5
 	assert_eq(panel.finalize_start_config(config), "", "no peers, no bots: nothing to refuse")
-	assert_eq(config.player_count, MatchConfig.PLAYER_COUNT_MIN, "the seats decide the count, never below the 2-seat floor")
+	assert_eq(config.player_count, MatchConfig.PLAYER_COUNT_MIN, "the seats decide the count, never below the 1-seat floor")
 	lobby._on_setting_changed()
 	var published: Dictionary = _last_published(lobby)
 	assert_true(published.has("seats"), "PL1a: the first host publish carries the (here empty) reconciled table")

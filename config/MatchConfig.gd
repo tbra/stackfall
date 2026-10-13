@@ -292,7 +292,8 @@ static func default_player_colors() -> PackedColorArray:
 	])
 
 ## Spec 2.8 ranges, so the lobby and the host's validation share one source.
-const PLAYER_COUNT_MIN: int = 2
+## [OWNER decision Bontago-1pi.206 = b]: 1-8 players (solo matches allowed).
+const PLAYER_COUNT_MIN: int = 1
 const PLAYER_COUNT_MAX: int = 8
 const BLOCK_TIMER_MIN: float = 3.0
 const BLOCK_TIMER_MAX: float = 12.0
@@ -555,10 +556,8 @@ func sanitize() -> void:
 	var disc_tuning: DiscSizeTuning = DiscSizeTuning.shared()
 	if disc_tuning != null:
 		disc_size_step = disc_tuning.clamp_step(disc_size_step)
-	# Spec 2.8's floor is 2 players; sandbox is the one path allowed below it
-	# (down to 1), for solo rules/physics testing (Bontago-mv0.8).
-	var min_player_count: int = 1 if sandbox else PLAYER_COUNT_MIN
-	player_count = clampi(player_count, min_player_count, PLAYER_COUNT_MAX)
+	# Spec 2.8 range is 1-8 players (owner decision Bontago-1pi.206).
+	player_count = clampi(player_count, PLAYER_COUNT_MIN, PLAYER_COUNT_MAX)
 	ai_count = clampi(ai_count, 0, player_count)
 	ai_difficulty = clampi(ai_difficulty, AiDifficulty.EASY, AiDifficulty.HARD)
 	team_mode = clampi(team_mode, TeamMode.OFF, TeamMode.TEAMS_4)

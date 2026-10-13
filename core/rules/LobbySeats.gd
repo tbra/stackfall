@@ -394,8 +394,8 @@ static func apply_human_pref(seats: Dictionary, peer_id: int, color_index: int, 
 ## peer missing from it, or with a negative slot, is a spectator and holds no seat);
 ## an EMPTY dictionary means "no Net": humans take slots 0.. in seat order (tests,
 ## offline). The slot count is the seated humans + bots, at least
-## MatchConfig.PLAYER_COUNT_MIN (the spec 2.8 floor): a lobby with fewer seats keeps
-## a vacant slot, exactly as the legacy lobby did. Reports an error instead of a
+## MatchConfig.PLAYER_COUNT_MIN (1, owner decision Bontago-1pi.206): a solo lobby
+## forms exactly one slot and no vacant one. Reports an error instead of a
 ## layout when there are more than 8 seats or a human's real slot is not below the
 ## trailing bot slots (two seats in one slot: Net reuses the lowest free slot for a
 ## joiner and compacts the lobby's slots after every leave/kick, plan R4, so this
