@@ -229,6 +229,7 @@ original's tutorial only names the action, not the key.
 | Camera zoom | Z / X (always; the trigger alone never zooms) | LT held + left stick up (in) / down (out), continuous; only when not aiming a throw with a held special [OWNER controller update 2026-09-28] |
 | Throw (specials only) | **[OWNER decision 2026-10-06, Bontago-1pi.85.29, supersedes the 2026-09-22 Bontago-mvl hold-and-drag throw (kept as history)]** A held throwable gift (Bomb, Magnet, Jumping Bean) is aimed with the camera automatically while held: the arc preview is always shown from the camera forward (no extra button), moving the camera adjusts it, and a plain click throws it. The host computes the launch from the camera forward only (fixed speed 22 m/s, up ratio 0.35, spawn 8 m back along the aim; all tunable in SpecialTuning); a client-sent speed is never trusted. Rocket/Paintball use the same camera aim as a straight line | Press A (ghost_place); no LT needed |
 | Focus home / goal (tap = turn, hold = peek) **[OWNER decision 2026-09-28, Bontago-aem]** | 1 (home) / 2 (goal) | Back (home) / X (goal) |
+| Use gift slot (experiment only: works when the Gift slot toggle, §2.8, is on; otherwise inert) [Bontago-1pi.18.2, 1pi.18.12] | G | X |
 | Pause / release mouse | Esc | Start |
 
 Owner controller update (feedback/controller-update.md, re-confirmed 2026-09-28): while either
@@ -265,6 +266,8 @@ instant snap to the same real targets.
 - The release point has to be inside your own territory, so show the territory edge clearly near the cursor.
 
 **Expiry and invalid actions [ORIGINAL, owner test 2026-09-22]:** forced release at interval expiry is evidenced (§1.2). An invalid manual click does **not** drop and does **not** consume the piece: the game refuses it and the block stays in hand. At expiry with the held block outside the player's zone, the block and camera jump to the nearest valid point inside the zone and the block drops there (the earlier **[NEW]** closest-valid-point fallback is confirmed as original behaviour for expiry). **[OPEN]:** when no valid point exists at expiry. A held throwable gift at expiry is thrown along the player's current aim exactly as a manual release would be (owner decision Bontago-1pi.133, 2026-10-08); other held specials follow their manual-release path. Failed clicks never advance the cadence.
+
+**[ORIGINAL] exceptions for experiments (default off):** with an experiment toggled on (§2.8), two [ORIGINAL] behaviours change: "Expiry forces release" (§1.2, this section) under the timer-pause and backlog experiments, and "Next-block preview" (§2.4) under the backlog experiment, where the backlog head shows as NEXT. With every toggle off, shipped behaviour is unchanged. Promoting any experiment to a default is a separate owner decision (Bontago-1pi.18.10). The [ORIGINAL] rule text above is not edited.
 
 **Gamepad parity [NEW, OWNER priority]:** every action/menu must be usable with mouse/keyboard and gamepad via Input Map. Camera-relative stick movement, zoom-scaled speed/dead zone, optional top/edge snap aid, throw arc/strength and device-specific prompts remain remake requirements. Multiple local gamepads/split-screen are outside v1. Blank bindings in the table and A/S versus WASD conflicts are unresolved mappings, not permission to ship inaccessible controls.
 
@@ -334,6 +337,13 @@ Every special is its own `SpecialDef` resource plus a script. The seven evidence
 | Hole mode | Temporary / Permanent / Off (v2 alternative) | Temporary, provisional approximation of original overlap holes |
 | Match timer | Off / 2–30 min slider (owner playtest 2026-10-03, Bontago-1pi.30; was 10–40); timed modes default 5 min | Off |
 | Sudden death | Off/On | On if match timer is set |
+| **Experimental toggles (default off)** [Bontago-1pi.18; owner decision Bontago-1pi.18.10: opt-in only, the owner decides after playtest whether any becomes a default] | Each is a host-editable checkbox in the lobby's Advanced rules (clients read-only) and in F4 > QoL; the host snapshots them at match start | Off |
+| Pause timer on events | On/Off. Effect: a slot's block timer freezes for 4 s after any special, or while at least 4 of its own blocks move faster than 1.5 m/s; longest continuous pause capped (10 s default) | Off |
+| Queue expired blocks | On/Off. Effect: an expired held block joins a backlog (2 by default, max 3) and the player gets a fresh block; the forced drop waits until the backlog is full | Off |
+| Bigger goal claim radius | On/Off. Effect: goal beacon radius multiplied (2.0 by default, max 4.0) | Off |
+| Gift slot | On/Off. Effect: a claimed gift waits in a per-player slot (1 by default, max 3) instead of replacing the next block; no timer runs on a slotted gift; spend it with `use_gift_slot` (§2.5) | Off |
+
+The separate "Gift after next block" trial (§2.6, owner-approved 2026-10-11) is on by default and is not part of this group.
 
 **Sudden death** [NEW]: Starts when the match timer runs out.
 - Gift probability climbs toward the maximum of the finalized spawn model (§2.6).
