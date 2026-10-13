@@ -61,6 +61,13 @@ extends Node3D
 @export var sandbox_config: SandboxConfig = preload("res://config/sandbox.tres")
 
 const MAIN_MENU_SCENE: PackedScene = preload("res://ui/MainMenu.tscn")
+## DECISION: Field, CameraRig and BlockRegistry are NOT dormant: they settle reset state (Field
+## tilt basis, camera follow/origin/target) that a results->lobby leave starts, and pausing them
+## left the next match differing from a fresh launch (test_match_reset_fingerprint). Only the
+## purely visual sky roots go dormant.
+const MENU_DORMANT_WORLD_NODES: PackedStringArray = [
+	"Skybox", "CloudShadows", "HorizonIslands",
+]
 const MENU_PREWARM_CONFIG_PATH: String = "res://config/menu_prewarm.tres"
 const HEADLESS_BOTS_FLOW_SCRIPT_PATH: String = "res://game/MainHeadlessBotsFlow.gd"
 const SANDBOX_FLOW_SCRIPT_PATH: String = "res://game/MainSandboxFlow.gd"
@@ -356,6 +363,23 @@ func _stop_background_prewarm() -> void:
 	set_process(false)
 
 
+## Bontago-1pi.11.91: the world roots that stop processing while a menu/lobby holds the render
+## budget (ui/MenuBackdrop.gd). Overlays, perf tools and net/match nodes are not among them.
+func _register_menu_dormant_world() -> void:
+	var roots: Array[Node] = []
+	for node_name: String in MENU_DORMANT_WORLD_NODES:
+		var node: Node = get_node_or_null(node_name)
+		if node != null:
+			roots.append(node)
+	MenuBackdrop.set_dormant_world(roots, _menu_world_is_live)
+
+
+## True while a match, sandbox or tutorial world is built or building: a menu backdrop still in
+## the tree (CLI --sandbox) must not freeze it.
+func _menu_world_is_live() -> bool:
+	return _world_built or _world_building or (_sandbox != null and is_instance_valid(_sandbox))
+
+
 ## Menu hand-off (after the splash, or at once without one): the Lobby chunk is collected first
 ## so Host/Join never wait, then the menu shows and the remaining chunks prewarm behind it.
 func _show_main_menu_after_prewarm() -> void:
@@ -426,6 +450,7 @@ func _ready() -> void:
 	Settings.apply_window_mode()
 
 	_build_debug_tools()
+	_register_menu_dormant_world()
 
 	if _has_cmdline_flag("hot-seat"):
 		_start_hot_seat_match()
