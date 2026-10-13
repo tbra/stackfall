@@ -190,3 +190,19 @@ func test_bomb_spark_and_rocket_flame_play_their_looping_clip() -> void:
 			assert_true(player.has_animation(clip), "%s has clip %s" % [id, clip])
 			assert_eq(player.get_animation(clip).loop_mode, Animation.LOOP_LINEAR)
 			assert_true(player.is_playing(), "%s clip is playing" % id)
+
+
+## Bontago-mp0.161 / mp0.165: the desk-fan rotor and the shaking miniature disc loop their baked clips.
+func test_fan_and_quake_disc_play_their_looping_clip() -> void:
+	var clips: Dictionary = {&"propeller": &"spin_1s", &"earthquake": &"quake_pulse_1s"}
+	for id: StringName in clips:
+		var clip: StringName = clips[id]
+		var entry: GiftModelEntry = GiftModelTable.shared().entry_for(id)
+		assert_eq(entry.loop_animation, clip, "%s table row names the clip" % id)
+		var visual: Node3D = autofree(GiftModelTable.shared().build_gift_visual(id))
+		add_child_autofree(visual)
+		var player: AnimationPlayer = GiftModelTable._player_of(visual)
+		assert_not_null(player, "%s has an AnimationPlayer" % id)
+		if player != null:
+			assert_true(player.has_animation(clip), "%s has clip %s" % [id, clip])
+			assert_true(player.is_playing(), "%s clip is playing" % id)
