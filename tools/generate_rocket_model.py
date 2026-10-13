@@ -1,6 +1,8 @@
 """Build a standalone, faceted rocket gift study in Blender 4.5.
 
 Run: blender -b --python tools/generate_rocket_model.py
+Bontago-mp0.162: a two-cone flame under the nozzle with a looping
+`flame_flicker_1s` clip (config/gift_model_table.tres loop_animation).
 The GLB contains model meshes only; camera, lights, and floor stay in .blend.
 """
 
@@ -37,6 +39,9 @@ ink = mat("Ink / nozzle", "#26323A")
 cream = mat("Warm paper fuselage", "#F5EBD6")
 coral = mat("Coral nose and fins", "#EB6B5C", 0.48)
 teal = mat("Sky teal porthole", "#75CBD1", 0.35, 0.12)
+flame_outer = mat("Flame outer", "#F46B50")
+flame_mid = mat("Flame mid", "#FFB03B")
+flame_core = mat("Flame core", "#FFF2C8")
 floor_mat = mat("Review floor", "#D9E6DF")
 
 model = bpy.data.collections.new("Rocket export")
@@ -101,6 +106,35 @@ bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
 window.data.materials.append(teal)
 move_to_model(window)
 
+# Flame: tip-down cones hanging from an empty at the nozzle lip, so the clip scales
+# them about the nozzle. Rest pose (frame 1) is the model's static bounds.
+NOZZLE_BOTTOM = -0.5575
+# Three nested tip-down cones: each inner layer is longer and thinner, so every layer
+# shows from any viewing angle (outer red, mid orange, white-hot core).
+FLAME_LAYERS = (("outer", 0.32, 0.21, flame_outer), ("mid", 0.48, 0.16, flame_mid),
+                ("core", 0.64, 0.095, flame_core))
+flame = bpy.data.objects.new("Rocket / flame", None)
+model.objects.link(flame)
+flame.location = (0, 0, NOZZLE_BOTTOM)
+bpy.context.view_layer.update()
+for layer, length, top_radius, material in FLAME_LAYERS:
+    part = cylinder(f"Rocket / flame {layer}", 0.0, length, NOZZLE_BOTTOM - length / 2, material, 8,
+                    radius_top=top_radius)
+    part.parent = flame
+    part.matrix_parent_inverse = flame.matrix_world.inverted()
+CLIP = "flame_flicker_1s"
+FLICKER = [(1, (1.0, 1.0, 1.0)), (4, (0.9, 0.9, 1.2)), (8, (1.1, 1.1, 0.82)), (12, (0.92, 0.92, 1.12)),
+           (17, (1.08, 1.08, 0.88)), (21, (0.95, 0.95, 1.15)), (25, (1.0, 1.0, 1.0))]
+for frame, value in FLICKER:
+    flame.scale = value
+    flame.keyframe_insert("scale", frame=frame)
+action = flame.animation_data.action
+track = flame.animation_data.nla_tracks.new()
+track.name = CLIP
+track.strips.new(CLIP, 1, action)
+flame.animation_data.action = None
+bpy.context.scene.frame_end = 25
+
 # Review setup stays outside the export collection.
 box("Review / floor", (0, 0, -0.60), (200, 200, 0.09), floor_mat, export=False)
 bpy.ops.object.camera_add(location=(1.75, -2.7, 1.35))
@@ -140,6 +174,7 @@ bpy.ops.object.select_all(action="DESELECT")
 for obj in model.objects:
     obj.select_set(True)
 bpy.context.view_layer.objects.active = next(iter(model.objects))
-bpy.ops.export_scene.gltf(filepath=str(OUT / "rocket_v1.glb"), export_format="GLB", use_selection=True, export_apply=True)
+bpy.ops.export_scene.gltf(filepath=str(OUT / "rocket_v1.glb"), export_format="GLB", use_selection=True, export_apply=True,
+                          export_animations=True, export_animation_mode="NLA_TRACKS")
 bpy.ops.render.render(write_still=True)
 print(f"ROCKET_MODEL_READY {OUT}")
