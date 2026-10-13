@@ -6,7 +6,7 @@
 [ext_resource type="PackedScene" path="res://assets/models/black_hole_v2/black_hole_v2.glb" id="4_m"]
 [ext_resource type="PackedScene" path="res://assets/models/bomb_v1/bomb_v1.glb" id="5_m"]
 [ext_resource type="PackedScene" path="res://assets/models/cat_v1/cat_v1.glb" id="6_m"]
-[ext_resource type="PackedScene" path="res://assets/models/earthquake_v2/earthquake_v2.glb" id="7_m"]
+[ext_resource type="PackedScene" path="res://assets/models/earthquake_v3/earthquake_v3.glb" id="7_m"]
 [ext_resource type="PackedScene" path="res://assets/models/freeze_v1/freeze_v1.glb" id="8_m"]
 [ext_resource type="PackedScene" path="res://assets/models/glue_v1/glue_v1.glb" id="9_m"]
 [ext_resource type="PackedScene" path="res://assets/models/jumping_bean_v2/jumping_bean_v2.glb" id="10_m"]
@@ -56,7 +56,7 @@ script = ExtResource("2_entry")
 id = &"earthquake"
 scene = ExtResource("7_m")
 model_scale = 1.0
-offset = Vector3(0.0050, 0.1290, 0.0100)
+offset = Vector3(0.0000, 0.0600, 0.0000)
 loop_animation = &"quake_pulse_1s"
 
 [sub_resource type="Resource" id="Entry_freeze"]
