@@ -19,6 +19,11 @@ extends Resource
 ## Looping clip to play while shown (empty: static model).
 @export var loop_animation: StringName = &""
 
+## One-shot clip played when the gift is activated (released/thrown/placed as a live gift body),
+## on every peer that builds the body's visual (BlockFactory.apply_gift_visual). The held ghost
+## never plays it. Empty: none. Bontago-mp0.160 (paintball 'fire'); reusable by any gift.
+@export var activate_animation: StringName = &""
+
 ## Playback speed of the clip.
 @export var animation_speed: float = 1.0
 

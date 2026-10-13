@@ -195,6 +195,9 @@ static func apply_gift_visual(block: Block, shape: BlockShape, tuning: PhysicsTu
 	visual.position = centre + Vector3.UP * ((scale_factor - 1.0) * tuning.cube_size * 0.5)
 	visual.scale = visual.scale * scale_factor
 	block.add_child(visual)
+	# Bontago-mp0.160: a gift with an activate clip (paintball 'fire') plays it as its body spawns,
+	# on every peer (this runs on the host and from the client spawn RPC).
+	GiftModelTable.shared().play_activate_animation(gift_id, visual)
 	# DECISION (Bontago-t8x.1): the gift body's collision is ONE cube cell
 	# (tuning.cube_size) centred where the gift visual sits, replacing the
 	# carrier tetromino's cells, so nothing rests on invisible collision and a

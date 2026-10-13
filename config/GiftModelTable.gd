@@ -108,6 +108,22 @@ func _build(entry: GiftModelEntry, world: bool) -> Node3D:
 	return root
 
 
+## Bontago-mp0.160: plays `special_id`'s one-shot activate_animation on a visual built by
+## build_gift_visual (the released gift body); returns whether a clip started. The clip is
+## forced non-looping so the final pose (e.g. the fired slingshot) holds.
+func play_activate_animation(special_id: StringName, visual: Node) -> bool:
+	var entry: GiftModelEntry = entry_for(special_id)
+	if entry == null or visual == null or entry.activate_animation == &"":
+		return false
+	var player: AnimationPlayer = _player_of(visual)
+	if player == null or not player.has_animation(entry.activate_animation):
+		return false
+	player.get_animation(entry.activate_animation).loop_mode = Animation.LOOP_NONE
+	player.speed_scale = entry.animation_speed
+	player.play(entry.activate_animation)
+	return true
+
+
 static func _player_of(node: Node) -> AnimationPlayer:
 	var found: Array[Node] = node.find_children("*", "AnimationPlayer", true, false)
 	if found.is_empty():
