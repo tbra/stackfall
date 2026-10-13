@@ -32,7 +32,6 @@ def material(name, color, roughness=0.62):
 blue = material("Glacial teal", "#75CBD1")
 shadow = material("Deep ice", "#407E99")
 ice = material("Frost edge", "#C6E5E9", 0.58)
-ink = material("Ink socket", "#26323A")
 floor_mat = material("Review storm floor", "#435765")
 model = bpy.data.collections.new("Freeze export")
 bpy.context.scene.collection.children.link(model)
@@ -88,19 +87,13 @@ def shard(name, position, height, radius, lean, mat):
     return obj
 
 
-box("Freeze / dark lower socket", (0, 0, -0.32), (0.65, 0.65, 0.12), ink, 0.035)
-box("Freeze / solid blue core", (0, 0, -0.04), (0.56, 0.56, 0.55), blue, 0.055)
-box("Freeze / upper frost facet", (0, 0, 0.235), (0.53, 0.53, 0.055), ice, 0.012)
-
-# An asymmetrical crown and three broad satellites read as ice at a glance.
-shard("Freeze / tall rear shard", (0.03, 0.12, 0.17), 0.57, 0.145, 0.045, ice)
-shard("Freeze / left shard", (-0.34, 0.05, -0.18), 0.49, 0.125, -0.20, ice)
-shard("Freeze / right shard", (0.30, 0.06, -0.20), 0.39, 0.11, 0.17, shadow)
-shard("Freeze / front chip", (0.19, -0.29, -0.21), 0.29, 0.08, 0.07, ice)
-
-# An ink snowflake cross is visible when the crystal is small or desaturated.
-box("Freeze / vertical mark", (0, -0.296, -0.055), (0.047, 0.018, 0.31), ink, 0.008)
-box("Freeze / horizontal mark", (0, -0.299, -0.055), (0.28, 0.018, 0.047), ink, 0.008)
+# Bontago-mp0.157: crystal-only cluster (no socket box, core block or snowflake plus mark).
+shard("Freeze / central crystal", (0.0, 0.02, -0.36), 0.95, 0.20, 0.03, ice)
+shard("Freeze / tall rear shard", (0.10, 0.17, -0.34), 0.72, 0.14, 0.05, blue)
+shard("Freeze / left shard", (-0.26, 0.00, -0.34), 0.60, 0.15, -0.16, blue)
+shard("Freeze / right shard", (0.27, -0.02, -0.34), 0.50, 0.13, 0.15, shadow)
+shard("Freeze / front shard", (-0.04, -0.25, -0.34), 0.40, 0.11, -0.04, ice)
+shard("Freeze / front chip", (0.19, -0.22, -0.34), 0.28, 0.08, 0.07, blue)
 
 box("Review / floor", (0, 0, -0.45), (200, 200, 0.08), floor_mat, export=False)
 bpy.ops.object.camera_add(location=(1.5, -2.4, 1.2))

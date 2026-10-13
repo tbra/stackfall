@@ -23,8 +23,8 @@
 script = ExtResource("2_entry")
 id = &"anvil"
 scene = ExtResource("3_m")
-model_scale = 0.635
-offset = Vector3(-0.1730, 0.0675, -0.0051)
+model_scale = 0.85
+offset = Vector3(-0.0150, 0.0914, 0.0000)
 
 [sub_resource type="Resource" id="Entry_black_hole"]
 script = ExtResource("2_entry")
@@ -64,8 +64,8 @@ loop_animation = &"quake_pulse_1s"
 script = ExtResource("2_entry")
 id = &"freeze"
 scene = ExtResource("8_m")
-model_scale = 0.848
-offset = Vector3(0.0290, -0.1526, -0.0145)
+model_scale = 0.78
+offset = Vector3(0.0000, -0.0900, 0.0000)
 
 [sub_resource type="Resource" id="Entry_glue"]
 script = ExtResource("2_entry")
