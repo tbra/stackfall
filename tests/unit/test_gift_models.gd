@@ -23,9 +23,14 @@ func _bounds(root: Node3D) -> AABB:
 		var mi: MeshInstance3D = node as MeshInstance3D
 		var xform: Transform3D = Transform3D.IDENTITY
 		var walker: Node = mi
+		var is_flame: bool = false
 		while walker != root and walker != null:
 			xform = (walker as Node3D).transform * xform
+			is_flame = is_flame or String(walker.name).to_lower().contains("flame")
 			walker = walker.get_parent()
+		# Bontago-mp0.162: the rocket's exhaust flame is a transient effect that may trail past the cell.
+		if is_flame:
+			continue
 		var box: AABB = xform * mi.mesh.get_aabb()
 		bounds = box if first else bounds.merge(box)
 		first = false
@@ -167,6 +172,24 @@ func test_transparent_materials_are_left_alone() -> void:
 	var toon: ShaderMaterial = GiftModelTable.toon_for(solid)
 	assert_not_null(toon)
 	assert_eq(toon.get_shader_parameter(&"albedo_color"), Color(0.2, 0.4, 0.8))
+
+
+## Bontago-mp0.156 / mp0.162: the bomb spark and the rocket flame are baked looping clips
+## played through GiftModelEntry.loop_animation (the shared held-gift animation mechanism).
+func test_bomb_spark_and_rocket_flame_play_their_looping_clip() -> void:
+	var clips: Dictionary = {&"bomb": &"spark_flicker_1s", &"rocket": &"flame_flicker_1s"}
+	for id: StringName in clips:
+		var clip: StringName = clips[id]
+		var entry: GiftModelEntry = GiftModelTable.shared().entry_for(id)
+		assert_eq(entry.loop_animation, clip, "%s table row names the clip" % id)
+		var visual: Node3D = autofree(GiftModelTable.shared().build_gift_visual(id))
+		add_child_autofree(visual)
+		var player: AnimationPlayer = GiftModelTable._player_of(visual)
+		assert_not_null(player, "%s has an AnimationPlayer" % id)
+		if player != null:
+			assert_true(player.has_animation(clip), "%s has clip %s" % [id, clip])
+			assert_eq(player.get_animation(clip).loop_mode, Animation.LOOP_LINEAR)
+			assert_true(player.is_playing(), "%s clip is playing" % id)
 
 
 ## Bontago-mp0.161 / mp0.165: the desk-fan rotor and the shaking miniature disc loop their baked clips.

@@ -124,21 +124,21 @@ func test_gravity_meter_steps_by_pad_one_tenth_at_a_time() -> void:
 # --- .39: button glyphs ---------------------------------------------------------------------
 
 func _glyph_rect(button: Button) -> Rect2:
-	var flow: InputPromptFlow = LobbyButtonGlyph.flow_of(button)
+	var flow: InputPromptFlow = UiButtonHint.flow_of(button)
 	return flow.get_global_transform() * Rect2(Vector2.ZERO, flow.size)
 
 
 func test_options_and_back_carry_their_glyphs() -> void:
 	var lobby: Lobby = _make_lobby(0)
-	var options: InputPromptFlow = LobbyButtonGlyph.flow_of(lobby.get_node("%OptionsButton") as Button)
-	var back: InputPromptFlow = LobbyButtonGlyph.flow_of(lobby.get_node("%BackButton") as Button)
+	var options: InputPromptFlow = UiButtonHint.flow_of(lobby.get_node("%OptionsButton") as Button)
+	var back: InputPromptFlow = UiButtonHint.flow_of(lobby.get_node("%BackButton") as Button)
 	assert_not_null(options)
 	assert_not_null(back)
 	assert_eq(options.template, "{lobby_options}")
 	assert_eq(back.template, "{ui_cancel}")
 
 
-func test_glyphs_sit_before_the_label_centred_and_inside_the_button() -> void:
+func test_glyphs_trail_the_label_centred_and_inside_the_button() -> void:
 	var lobby: Lobby = _make_lobby(1)
 	var buttons: Array[Button] = [
 		lobby.get_node("%StartButton") as Button, lobby.get_node("%OptionsButton") as Button,
@@ -156,8 +156,12 @@ func test_glyphs_sit_before_the_label_centred_and_inside_the_button() -> void:
 			var label: String = "%s at %s" % [button.name, window_size]
 			assert_true(rect.encloses(glyph.grow(-0.5)), "%s: glyph %s inside %s" % [label, glyph, rect])
 			var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-			var content: float = LobbyButtonGlyph.content_width(button)
-			var left_gap: float = glyph.position.x - rect.position.x
-			var right_gap: float = rect.end.x - (glyph.end.x + float(arcade.space_2_px) + content)
+			var content: float = UiButtonHint.content_width(button)
+			var right_gap: float = rect.end.x - glyph.end.x
+			var left_gap: float = glyph.position.x - float(arcade.space_2_px) - content - rect.position.x
 			assert_almost_eq(left_gap, right_gap, CENTRE_TOLERANCE_PX, "%s: glyph + label are centred" % label)
-			assert_almost_eq(glyph.get_center().y, rect.get_center().y, CENTRE_TOLERANCE_PX, "%s: glyph is vertically centred" % label)
+			var box: StyleBox = button.get_theme_stylebox(&"normal")
+			var line_centre: float = rect.position.y + (box.content_margin_top + rect.size.y - box.content_margin_bottom) * 0.5
+			var flow: InputPromptFlow = UiButtonHint.flow_of(button)
+			var cap_centre: float = glyph.position.y + (glyph.size.y - float(arcade.drop_sm_px) * flow.scale.y) * 0.5
+			assert_almost_eq(cap_centre, line_centre, CENTRE_TOLERANCE_PX, "%s: glyph cap is centred on the label line" % label)
