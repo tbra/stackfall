@@ -81,7 +81,7 @@ func test_world_roots_dormant_while_menu_holds_budget_then_restored() -> void:
 	var b: MenuBackdrop = MenuBackdrop.new()
 	add_child(a)
 	add_child(b)
-	await get_tree().process_frame
+	MenuBackdrop._refresh_dormancy()  # what the first _process frame does
 	assert_true(MenuBackdrop.world_dormant())
 	assert_eq(world.process_mode, Node.PROCESS_MODE_DISABLED)
 	assert_false(world.can_process())
@@ -100,7 +100,6 @@ func test_world_registered_while_menu_open_goes_dormant_and_replacing_restores()
 	add_child_autofree(world)
 	var backdrop: MenuBackdrop = MenuBackdrop.new()
 	add_child(backdrop)
-	await get_tree().process_frame
 	MenuBackdrop.set_dormant_world([world] as Array[Node])
 	MenuBackdrop._refresh_dormancy()
 	assert_eq(world.process_mode, Node.PROCESS_MODE_DISABLED)
@@ -112,7 +111,7 @@ func test_world_registered_while_menu_open_goes_dormant_and_replacing_restores()
 func test_main_menu_stops_world_roots_and_leaving_it_restores_them() -> void:
 	var main: Node = (load("res://game/Main.tscn") as PackedScene).instantiate()
 	add_child_autofree(main)
-	await get_tree().process_frame
+	MenuBackdrop._refresh_dormancy()
 	var menu: Node = main.get("_main_menu") as Node
 	assert_not_null(menu, "Main shows the menu on boot")
 	for node_name: String in ["Skybox", "Field", "BlockRegistry", "CameraRig", "CloudShadows", "HorizonIslands"]:
@@ -126,7 +125,7 @@ func test_main_menu_stops_world_roots_and_leaving_it_restores_them() -> void:
 func test_live_world_is_never_frozen_by_a_menu_backdrop_that_outlives_the_world_start() -> void:
 	var main: Node = (load("res://game/Main.tscn") as PackedScene).instantiate()
 	add_child_autofree(main)
-	await get_tree().process_frame
+	MenuBackdrop._refresh_dormancy()
 	var skybox: Node = main.get_node("Skybox")
 	assert_eq(skybox.process_mode, Node.PROCESS_MODE_DISABLED, "menu up, no world: dormant")
 	main.set("_world_built", true)
