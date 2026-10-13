@@ -4,8 +4,8 @@ extends GutTest
 
 const LOBBY_SCENE: PackedScene = preload("res://ui/Lobby.tscn")
 const _NET_SCRIPT: GDScript = preload("res://autoload/Net.gd")
-const WAIT_FRAMES: int = 400
-const DEADLINE_FRAMES: int = 900
+const WAIT_TIMEOUT_MSEC: int = 15000
+const SETTLE_FRAMES: int = 120
 
 var _host_net: Variant = null
 var _client_net: Variant = null
@@ -56,16 +56,16 @@ func _options_of(lobby: Lobby) -> OptionsMenu:
 
 func test_options_button_opens_and_close_restores_focus_to_it() -> void:
 	var lobby: Lobby = _make_lobby()
-	await wait_frames(2)
+	await wait_process_frames(2)
 	var button: Button = lobby.get_node("%OptionsButton") as Button
 	button.pressed.emit()
-	await wait_frames(2)
+	await wait_process_frames(2)
 	assert_true(lobby.is_options_open())
 	var menu: OptionsMenu = _options_of(lobby)
 	assert_not_null(menu)
 	assert_eq(button.focus_mode, Control.FOCUS_NONE, "lobby controls are suspended")
 	menu.closed.emit()
-	await wait_frames(2)
+	await wait_process_frames(2)
 	assert_false(lobby.is_options_open())
 	assert_null(_options_of(lobby))
 	assert_eq(button.focus_mode, Control.FOCUS_ALL)
@@ -74,7 +74,7 @@ func test_options_button_opens_and_close_restores_focus_to_it() -> void:
 
 func test_shortcut_opens_options_once() -> void:
 	var lobby: Lobby = _make_lobby()
-	await wait_frames(2)
+	await wait_process_frames(2)
 	lobby._unhandled_input(_action(&"lobby_options"))
 	assert_true(lobby.is_options_open())
 	lobby.open_options()
@@ -89,7 +89,7 @@ func test_shortcut_opens_options_once() -> void:
 
 func test_lobby_shortcuts_are_blocked_while_options_is_open() -> void:
 	var lobby: Lobby = _make_lobby()
-	await wait_frames(2)
+	await wait_process_frames(2)
 	lobby.open_options()
 	watch_signals(lobby)
 	lobby._unhandled_input(_action(&"ui_cancel"))
@@ -101,7 +101,7 @@ func test_lobby_shortcuts_are_blocked_while_options_is_open() -> void:
 
 func test_button_is_not_on_the_vertical_loop_and_is_reached_left_from_back() -> void:
 	var lobby: Lobby = _make_lobby()
-	await wait_frames(3)
+	await wait_process_frames(3)
 	var button: Control = lobby.get_node("%OptionsButton") as Control
 	var back: Control = lobby.get_node("%BackButton") as Control
 	assert_eq(back.get_node(back.focus_neighbor_left), button, "left from Back reaches Options")
@@ -122,14 +122,14 @@ func test_button_is_not_on_the_vertical_loop_and_is_reached_left_from_back() -> 
 		event.pressed = pressed
 		Input.parse_input_event(event)
 	Input.flush_buffered_events()
-	await wait_frames(1)
+	await wait_process_frames(1)
 	assert_eq(lobby.get_viewport().gui_get_focus_owner(), button)
 	# Keyboard: ui_left too.
 	back.grab_focus()
 	var left: InputEventKey = _key(KEY_LEFT)
 	Input.parse_input_event(left)
 	Input.flush_buffered_events()
-	await wait_frames(1)
+	await wait_process_frames(1)
 	assert_eq(lobby.get_viewport().gui_get_focus_owner(), button)
 	button.grab_focus()
 	button.pressed.emit()
@@ -145,12 +145,17 @@ func _make_net_side(node_name: String) -> Variant:
 	return node
 
 
-func _wait_for(condition: Callable, frames: int = WAIT_FRAMES) -> bool:
-	for _i: int in range(frames):
-		if condition.call():
-			return true
+## Polls once per frame until `condition` holds or `timeout_msec` of wall-clock time passes.
+## Loopback ENet delivery takes real time that frame counts do not measure (a loaded
+## machine runs hundreds of frames per millisecond of OS scheduling delay), so the bound
+## is a clock, not a frame budget (Bontago-fca.102).
+func _wait_for(condition: Callable, timeout_msec: int = WAIT_TIMEOUT_MSEC) -> bool:
+	var deadline: int = Time.get_ticks_msec() + timeout_msec
+	while not condition.call():
+		if Time.get_ticks_msec() >= deadline:
+			return false
 		await get_tree().process_frame
-	return condition.call()
+	return true
 
 
 func test_enet_client_stays_connected_and_host_keeps_accepting_while_options_open() -> void:
@@ -169,7 +174,7 @@ func test_enet_client_stays_connected_and_host_keeps_accepting_while_options_ope
 	var client_lobby: Lobby = LOBBY_SCENE.instantiate() as Lobby
 	client_lobby.net_provider = _client_net
 	add_child_autofree(client_lobby)
-	await wait_frames(3)
+	await wait_process_frames(3)
 	client_lobby.open_options()
 	assert_true(client_lobby.is_options_open())
 	# The host changes ready state while the client's Options is open; the client still hears it.
@@ -188,6 +193,6 @@ func test_enet_client_stays_connected_and_host_keeps_accepting_while_options_ope
 	)
 	assert_true(accepted, "host accepts ready changes while its Options is open")
 	# Settle a while longer: no drop.
-	await wait_frames(120)
+	await wait_process_frames(SETTLE_FRAMES)
 	assert_eq(_host_net.peer_ids().size(), 2)
 	assert_eq(_client_net.peer_ids().size(), 2)
