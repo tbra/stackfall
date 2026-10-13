@@ -114,11 +114,11 @@ func test_main_menu_stops_world_roots_and_leaving_it_restores_them() -> void:
 	MenuBackdrop._refresh_dormancy()
 	var menu: Node = main.get("_main_menu") as Node
 	assert_not_null(menu, "Main shows the menu on boot")
-	for node_name: String in ["Skybox", "Field", "BlockRegistry", "CameraRig", "CloudShadows", "HorizonIslands"]:
+	for node_name: String in ["Skybox", "CloudShadows", "HorizonIslands"]:
 		assert_eq(main.get_node(node_name).process_mode, Node.PROCESS_MODE_DISABLED, node_name)
 	main.remove_child(menu)
 	menu.free()
-	for node_name: String in ["Skybox", "Field", "BlockRegistry", "CameraRig", "CloudShadows", "HorizonIslands"]:
+	for node_name: String in ["Skybox", "CloudShadows", "HorizonIslands"]:
 		assert_eq(main.get_node(node_name).process_mode, Node.PROCESS_MODE_INHERIT, node_name)
 
 

@@ -61,8 +61,12 @@ extends Node3D
 @export var sandbox_config: SandboxConfig = preload("res://config/sandbox.tres")
 
 const MAIN_MENU_SCENE: PackedScene = preload("res://ui/MainMenu.tscn")
+## DECISION: Field, CameraRig and BlockRegistry are NOT dormant: they settle reset state (Field
+## tilt basis, camera follow/origin/target) that a results->lobby leave starts, and pausing them
+## left the next match differing from a fresh launch (test_match_reset_fingerprint). Only the
+## purely visual sky roots go dormant.
 const MENU_DORMANT_WORLD_NODES: PackedStringArray = [
-	"Skybox", "Field", "BlockRegistry", "CameraRig", "CloudShadows", "HorizonIslands",
+	"Skybox", "CloudShadows", "HorizonIslands",
 ]
 const MENU_PREWARM_CONFIG_PATH: String = "res://config/menu_prewarm.tres"
 const HEADLESS_BOTS_FLOW_SCRIPT_PATH: String = "res://game/MainHeadlessBotsFlow.gd"
