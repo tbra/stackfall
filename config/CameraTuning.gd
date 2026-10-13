@@ -137,6 +137,10 @@ extends Resource
 ## CameraRig._ready() and apply_follow_tuning() so the F4 panel's slider
 ## (config/tuning_panel_hints.tres, range 40..100) takes effect live.
 @export var fov_deg: float = 75.0
+## Bontago-1pi.204: the player-facing Options > Game "Field of view" slider spans this range
+## (Settings stores an optional override of fov_deg; the F4 fov_deg stays the default baseline).
+@export var fov_min_deg: float = 40.0
+@export var fov_max_deg: float = 100.0
 
 
 ## -- Match-start view (Bontago-1pi.84, owner playtest 2026-10-05,

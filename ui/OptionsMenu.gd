@@ -42,6 +42,8 @@ var settings_provider: Variant = null
 ## presets/*.tres: high, low, medium) would scramble the intended quality
 ## ladder, so this is a literal list, the same way Settings.DEFAULT_PRESET_ID
 ## is a literal "medium" rather than a directory scan.
+## Bontago-1pi.204 review: the shared camera tuning the game uses, so F4 edits and .tres changes show here.
+const _SHARED_CAMERA_TUNING: CameraTuning = preload("res://config/camera_tuning.tres")
 const PRESET_IDS: Array[StringName] = GraphicsSettingsTab.PRESET_IDS
 const PRESET_LABELS: Array[String] = GraphicsSettingsTab.PRESET_LABELS
 
@@ -147,6 +149,9 @@ const ROW_HUD_SCALE: String = "HUD scale"
 const ROW_MINIMAP_SIZE: String = "Minimap size"
 const ROW_CAMERA_SHAKE: String = "Camera shake"
 const ROW_ADAPTIVE_QUALITY: String = "Adaptive quality"
+const ROW_FOV: String = "Field of view"
+## Bontago-1pi.204: cells on the FOV meter (range from CameraTuning.fov_min_deg..fov_max_deg).
+const FOV_CELLS: int = 15
 const ROW_MASTER_VOLUME: String = "Master volume"
 const ROW_MUSIC_VOLUME: String = "Music volume"
 const ROW_SFX_VOLUME: String = "SFX volume"
@@ -264,6 +269,7 @@ var _weather_mute_button: UiIconButton = null
 var _weather_volume_slider: UiSegmentMeter = null
 var _camera_shake_check: UiToggle = null
 var _adaptive_quality_check: UiToggle = null
+var _fov_slider: UiSegmentMeter = null
 var _window_mode_option: UiDropdown = null
 var _ui_scale_slider: UiSegmentMeter = null
 var _hud_scale_slider: UiSegmentMeter = null
@@ -313,6 +319,7 @@ func _ready() -> void:
 	_weather_mute_button.pressed.connect(_on_weather_mute_pressed)
 	_camera_shake_check.toggled.connect(_on_camera_shake_toggled)
 	_adaptive_quality_check.toggled.connect(_on_adaptive_quality_toggled)
+	_fov_slider.value_changed.connect(_on_meter_changed.bind(_fov_slider))
 	_window_mode_option.item_selected.connect(_on_window_mode_selected)
 	_rumble_enabled_check.toggled.connect(_on_rumble_enabled_toggled)
 	_ui_scale_slider.value_changed.connect(_on_meter_changed.bind(_ui_scale_slider))
@@ -374,6 +381,10 @@ func _build_game_page() -> void:
 	_add_row(display, ROW_CAMERA_SHAKE, _camera_shake_check, "CameraShakeCheck")
 	_adaptive_quality_check = UiToggle.new()
 	_add_row(display, ROW_ADAPTIVE_QUALITY, _adaptive_quality_check, "AdaptiveQualityCheck")
+	var lens: CameraTuning = _SHARED_CAMERA_TUNING
+	_fov_slider = _make_meter(lens.fov_min_deg, lens.fov_max_deg, FOV_CELLS)
+	_add_row(display, ROW_FOV, _fov_slider, "FovSlider")
+	_fov_slider.formatter = func(cells: int) -> String: return "%d°" % roundi(_meter_value(_fov_slider, cells))
 
 	var audio: VBoxContainer = _add_section(SECTION_AUDIO)
 	_master_volume_slider = _make_percent_meter()
@@ -621,6 +632,7 @@ func _load_current_values() -> void:
 	var window_mode_index: int = Settings.WINDOW_MODE_IDS.find(window_mode_id)
 	_window_mode_option.select(window_mode_index if window_mode_index >= 0 else Settings.WINDOW_MODE_IDS.find(Settings.DEFAULT_WINDOW_MODE_ID))
 
+	_show_meter_value(_fov_slider, _current_fov_deg())
 	_show_meter_value(_ui_scale_slider, float(settings_provider.ui_scale()))
 	_show_meter_value(_hud_scale_slider, float(settings_provider.hud_scale()))
 	_minimap_size_option.select(int(settings_provider.minimap_size_preset()))
@@ -667,6 +679,8 @@ func _on_meter_changed(cells: int, meter: UiSegmentMeter) -> void:
 		_on_rumble_strength_changed(value)
 	elif meter == _move_speed_slider:
 		_on_move_speed_changed(value)
+	elif meter == _fov_slider:
+		settings_provider.set_fov_override_deg(value)
 
 
 func _on_master_volume_changed(value: float) -> void:
@@ -728,6 +742,12 @@ func _on_weather_mute_pressed() -> void:
 ## Bontago-1pi.11.37: opt-in governor; the stored preset is never touched.
 func _on_adaptive_quality_toggled(enabled: bool) -> void:
 	settings_provider.set_adaptive_quality_enabled(enabled)
+
+
+## The lens the slider shows: the player's saved value, else the CameraTuning baseline.
+func _current_fov_deg() -> float:
+	var chosen: float = float(settings_provider.fov_override_deg())
+	return chosen if chosen > 0.0 else _SHARED_CAMERA_TUNING.fov_deg
 
 
 func _on_camera_shake_toggled(enabled: bool) -> void:
@@ -832,6 +852,7 @@ func _on_reset_pressed() -> void:
 	settings_provider.reset_ui_scale()
 	settings_provider.reset_hud_scale()
 	settings_provider.reset_minimap_size()
+	settings_provider.reset_fov_override()
 	for row: KeyRebindRow in _rows:
 		row.refresh()
 	_load_current_values()
@@ -913,7 +934,7 @@ func _build_rebind_rows() -> void:
 ## (Before this the tabs were a left column reached by the engine's automatic ui_left resolution.)
 func _wire_focus_chain() -> void:
 	var chain: Array[Control] = [
-		_window_mode_option, _ui_scale_slider, _hud_scale_slider, _minimap_size_option, _camera_shake_check, _adaptive_quality_check,
+		_window_mode_option, _ui_scale_slider, _hud_scale_slider, _minimap_size_option, _camera_shake_check, _adaptive_quality_check, _fov_slider,
 		_master_mute_button, _master_volume_slider,
 		_music_mute_button, _music_volume_slider,
 		_sfx_mute_button, _sfx_volume_slider,
