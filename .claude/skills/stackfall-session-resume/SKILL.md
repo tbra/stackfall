@@ -5,9 +5,9 @@ description: Resume Stackfall orchestration from a compact handoff, reconciling 
 
 # Resume Stackfall
 
-Version: 1.1.3
+Version: 1.1.4
 
-Before acting, run `python tools/skill_versions.py --check stackfall-session-resume 1.1.3` and report its `Using ... (disk verified)` line to the owner. If it reports `STALE`, re-invoke the on-disk skill once; if the mismatch persists, stop using this loaded copy and request a fresh Claude session. Run `python tools/skill_versions.py` once at session start to list all three project skill versions.
+Before acting, run `python tools/skill_versions.py --check stackfall-session-resume 1.1.4` and report its `Using ... (disk verified)` line to the owner. If it reports `STALE`, re-invoke the on-disk skill once; if the mismatch persists, stop using this loaded copy and request a fresh Claude session. Run `python tools/skill_versions.py` once at session start to list all three project skill versions.
 
 Run on the main orchestrator thread when a chat starts, the owner says continue, or context is reset. Orientation should take a few targeted reads, not a full project dump.
 
@@ -20,5 +20,5 @@ Run on the main orchestrator thread when a chat starts, the owner says continue,
    - **Decline:** it is already fixed or the live state contradicts it. Give the reason.
    Report one line per item to the owner (disposition and why). A debrief item must not delay ready work beyond a short bounded fix; larger changes become a Bead under the Tooling epic. The session-close debrief carries forward items that are still open.
 4. Name one next work target and the reason. If the handoff names a blocked bead, identify its exact prerequisite and either resolve that prerequisite within scope or choose independent ready work. Pass a replacement worker only the bead, relevant spec/plan slices, existing checkpoint, exact checkout/base, owned files, verification budget and evidence paths. Do not make them rediscover settled findings.
-5. Before the first Godot launch or Godot-running dispatch, start the watchdog (`powershell -NoProfile -File tools/cpumon.ps1 -MaxGodot 3`, background, re-armed on exit) and follow the machine guard in `stackfall-auto-run` (owner PC crashed 2026-10-10 and 2026-10-13).
+5. Before the first Godot launch or Godot-running dispatch, start the watchdog (`powershell -NoProfile -File tools/cpumon.ps1 -MaxGodot 8`, background, re-armed on exit) and follow the machine guard in `stackfall-auto-run` (owner PC crashed 2026-10-10 and 2026-10-13).
 6. If the owner asked to continue, dispatch the next safe package in the same turn. If a decision or failed delivery gate blocks it, report that exact state and continue independent ready work where possible. Use `stackfall-auto-run` only when the owner has activated continued autonomous work.

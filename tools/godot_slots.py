@@ -201,8 +201,8 @@ def busy_count(d=None):
 
 def godot_process_count():
     """Live real Godot processes machine-wide (console wrappers and godot-ai
-    excluded), or 0 when they cannot be listed / STACKFALL_GODOT_SLOTS_EXTERNAL=0."""
-    if os.environ.get("STACKFALL_GODOT_SLOTS_EXTERNAL", "1") == "0" or os.name != "nt":
+    excluded); opt-in with STACKFALL_GODOT_SLOTS_EXTERNAL=1, else 0. Owner 2026-10-13: process count is not the load signal (the game spawns nested processes, many are idle); cpumon watches CPU and RAM."""
+    if os.environ.get("STACKFALL_GODOT_SLOTS_EXTERNAL", "0") != "1" or os.name != "nt":
         return 0
     try:
         out = subprocess.run(["tasklist", "/FO", "CSV", "/NH"], capture_output=True, text=True, timeout=10).stdout
