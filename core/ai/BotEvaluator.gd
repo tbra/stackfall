@@ -53,7 +53,7 @@ static func proxy_terms(c: BotCandidate, view: BotWorldView, intent: BotIntent) 
 			nearest_gap = minf(nearest_gap, d - view.cr[j])
 	if not _kill_disabled(view):
 		terms[BotIntent.Term.KILL] = float(covered)
-		terms[BotIntent.Term.HAZARD] = _hazard_from_gap(c, view, nearest_gap)
+		terms[BotIntent.Term.HAZARD] = minf(_hazard_from_gap(c, view, nearest_gap) + incoming_special_risk(c, view), 1.0)
 	terms[BotIntent.Term.EXPOSURE] = float(mini(threats + _home_threats(c.origin, view), tuning.exposure_cap))
 	terms[BotIntent.Term.TIP] = c.tip_risk + wind_tip(c, view) + breeze_tip(c, view) + rim_risk(c, view)
 	terms[BotIntent.Term.WASTE] = 1.0 if inside >= 1.0 else 0.0
@@ -75,7 +75,7 @@ static func measure(
 	terms[BotIntent.Term.KILL] = _kill(c, view, chains, radius)
 	terms[BotIntent.Term.EXPOSURE] = float(_exposure(c, view, chains))
 	terms[BotIntent.Term.TIP] = c.tip_risk + wind_tip(c, view) + breeze_tip(c, view) + rim_risk(c, view)
-	terms[BotIntent.Term.HAZARD] = hazard(c, view, chains)
+	terms[BotIntent.Term.HAZARD] = minf(hazard(c, view, chains) + incoming_special_risk(c, view), 1.0)
 	return terms
 
 
@@ -106,6 +106,21 @@ static func wind_tip(c: BotCandidate, view: BotWorldView) -> float:
 	if sway <= 0.0 or view.wind_dir == Vector2.ZERO:
 		return sway
 	return sway * (1.0 + tuning.wind_rim_gain * downwind_rim_factor(c.origin, view.wind_dir, view))
+
+
+## Bontago-1t5.44: risk 0..1 of a site lying in the impact zone of an enemy special in flight: the
+## worst zone's linear proximity (1 at the predicted impact point, 0 at radius + incoming_margin_m),
+## times incoming_special_weight. Exactly 0 with none in flight.
+static func incoming_special_risk(c: BotCandidate, view: BotWorldView) -> float:
+	if view.incoming_points.is_empty() or tuning.incoming_special_weight <= 0.0:
+		return 0.0
+	var worst: float = 0.0
+	for i: int in range(view.incoming_points.size()):
+		var reach: float = view.incoming_radii[i] + tuning.incoming_margin_m
+		if reach <= 0.0:
+			continue
+		worst = maxf(worst, 1.0 - c.origin.distance_to(view.incoming_points[i]) / reach)
+	return clampf(worst, 0.0, 1.0) * tuning.incoming_special_weight
 
 
 ## Bontago-1t5.46: extra TIP risk from the live Breeze gusts. Each gust adds its power times the

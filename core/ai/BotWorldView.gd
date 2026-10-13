@@ -46,6 +46,10 @@ var next_shape: BlockShape = null
 var mode_goal: BotModeGoal = null
 var specials: PackedVector2Array = PackedVector2Array()
 var gifts: PackedVector2Array = PackedVector2Array()
+## Bontago-1t5.44: enemy specials in flight, as predicted impact points (disk-local x/z) and their
+## effect radii (m). Landed/armed specials stay in `specials`; these are risk terms only.
+var incoming_points: PackedVector2Array = PackedVector2Array()
+var incoming_radii: PackedFloat32Array = PackedFloat32Array()
 ## Active weather id (&"" = calm) and its current 0..1 intensity, plain data from MatchWeather.
 var weather_id: StringName = &""
 var weather_intensity: float = 0.0
@@ -120,6 +124,25 @@ static func build(
 				view.team_homes.append(slot_item.home_position)
 	view._copy_block_circles(circles, living_homes)
 	return view
+
+
+## Bontago-1t5.44: records one enemy special in flight by its predicted impact point.
+func add_incoming_special(impact: Vector2, radius: float) -> void:
+	if radius <= 0.0:
+		return
+	incoming_points.append(impact)
+	incoming_radii.append(radius)
+
+
+## Bontago-1t5.44: ballistic landing of a body at disk-local `pos` / `height` above the disc
+## surface moving at `vel` (x/z) and `vy`, under `gravity` (m/s^2, > 0). Returns (x, z, seconds to
+## impact). A non-positive gravity or a body already at/below the surface returns its own point at 0.
+static func ballistic_impact(pos: Vector2, height: float, vel: Vector2, vy: float, gravity: float) -> Vector3:
+	if gravity <= 0.0 or height <= 0.0 and vy <= 0.0:
+		return Vector3(pos.x, pos.y, 0.0)
+	var t: float = (vy + sqrt(maxf(vy * vy + 2.0 * gravity * maxf(height, 0.0), 0.0))) / gravity
+	var hit: Vector2 = pos + vel * t
+	return Vector3(hit.x, hit.y, t)
 
 
 ## Bontago-1t5.46: records one live Breeze gust (disk-local `center` = x, height above the disc
