@@ -1,118 +1,126 @@
-"""Build a colorful, faceted paintball gift art candidate in Blender 4.5."""
+"""Build the paintball gift (Bontago-mp0.160) in Blender 4.5: a Y-slingshot with its band
+stretched back, cradling a blob of paint, plus a baked 'fire_500ms' clip (band snaps forward,
+blob leaves).
 
+Run:  blender -b --python tools/generate_paintball_model.py
+
+Owner playtest 2026-10-13: "a stretched slingshot loaded with a colour blob that fires the blob
+when the gift is activated". The static pose of the GLB is the loaded one; the clip is played
+once by game/BlockFactory.gd when the gift is released (GiftModelEntry.activate_animation).
+Blender Z up, front facing -Y (glTF +Z). Flat colours only (the toon shader shades them).
+
+Outputs: assets/models/paintball_v3/paintball_v3.glb and source_art/paintball_v3/paintball_v3.blend.
+"""
+
+import sys
 from pathlib import Path
 
 import bpy
 from mathutils import Vector
 
-
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "assets/models/paintball_v1"
-SOURCE = ROOT / "source_art/paintball_v1"
-OUT.mkdir(parents=True, exist_ok=True)
-SOURCE.mkdir(parents=True, exist_ok=True)
-(SOURCE / ".gdignore").write_text("", encoding="utf-8")
-bpy.ops.object.select_all(action="SELECT")
-bpy.ops.object.delete(use_global=False)
+sys.path.insert(0, str(ROOT / "tools"))
+import generate_gift_models_v2 as base  # noqa: E402  (helpers only; its main is guarded)
+
+CLIP = "fire_500ms"
+FRAME_END = 13
+FRAME_Y = -0.12          # the slingshot frame's plane (Y = front/back)
+TIP_Z = 0.30
+TIP_X = 0.20
+POUCH_REST_Y = 0.40      # loaded: pulled back
+BLOB_IN_POUCH = 0.02     # blob centre ahead of the leather, in the cradle
+
+col = base.reset()
+wood = base.material("Slingshot wood", "#B5773F")
+rubber = base.material("Band rubber", "#2E2A33")
+leather = base.material("Pouch leather", "#7A4A2A")
+paint = base.material("Paint blob", "#FF3EA5")
+drip = base.material("Paint drip", "#FFD23F")
+
+# --- Frame: handle + two fork arms (a Y) ---------------------------------------------
+base.capsule(col, "Handle", wood, (0, FRAME_Y, -0.42), (0, FRAME_Y, -0.04), 0.075)
+for side, sign in (("L", -1), ("R", 1)):
+    base.capsule(col, f"Fork {side}", wood, (sign * 0.03, FRAME_Y, -0.06), (sign * TIP_X, FRAME_Y, TIP_Z), 0.058)
+    base.sphere(col, f"Fork tip {side}", wood, (sign * TIP_X, FRAME_Y, TIP_Z + 0.015), 0.078, segments=14)
+
+# --- Animated parts ------------------------------------------------------------------
+pouch = base.empty(col, "Pouch pivot", (0, POUCH_REST_Y, TIP_Z))
+base.sphere(col, "Pouch leather", leather, (0, 0, 0), 0.15, scale=(1.0, 0.2, 1.0), segments=16, parent=pouch)
+
+blob = base.empty(col, "Blob pivot", (0, POUCH_REST_Y + BLOB_IN_POUCH, TIP_Z))
+base.sphere(col, "Blob body", paint, (0, 0, 0), 0.115, segments=18, parent=blob)
+base.sphere(col, "Blob crown", paint, (0, -0.02, 0.1), 0.06, segments=12, parent=blob)
+base.sphere(col, "Blob drip", drip, (0, 0.0, -0.12), 0.045, segments=12, parent=blob)
+
+bands = []
+for side, sign in (("L", -1), ("R", 1)):
+    pivot = base.empty(col, f"Band pivot {side}", (sign * TIP_X, FRAME_Y, TIP_Z + 0.015))
+    pivot.rotation_mode = "XYZ"
+    base.cone(col, f"Band {side}", rubber, (0, 0, 0.5), 0.036, 0.036, 1.0, vertices=8, parent=pivot)
+    bands.append((pivot, sign))
 
 
-def material(name, color):
-    srgb = [int(color[i:i + 2], 16) / 255 for i in (1, 3, 5)]
-    rgb = [v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4 for v in srgb]
-    m = bpy.data.materials.new(name)
-    m.diffuse_color = (*rgb, 1)
-    m.use_nodes = True
-    bsdf = m.node_tree.nodes.get("Principled BSDF")
-    bsdf.inputs["Base Color"].default_value = (*rgb, 1)
-    bsdf.inputs["Roughness"].default_value = 0.71
-    return m
+def pose_bands(pouch_y: float, key_frame=None) -> None:
+    """Aim each band pivot from its fork tip at the pouch edge and stretch it to meet it."""
+    for pivot, sign in bands:
+        delta = Vector((sign * 0.09, pouch_y, TIP_Z)) - pivot.location
+        pivot.rotation_euler = delta.to_track_quat("Z", "Y").to_euler()
+        pivot.scale = (1.0, 1.0, max(delta.length, 0.02))
+        if key_frame is not None:
+            pivot.keyframe_insert(data_path="rotation_euler", frame=key_frame)
+            pivot.keyframe_insert(data_path="scale", frame=key_frame)
 
 
-blue = material("Sky blue shell", "#4F91D9")
-coral = material("Coral splash", "#EB6B5C")
-brass = material("Brass splash", "#E8B85D")
-mint = material("Mint splash", "#75CBD1")
-ink = material("Ink seam", "#26323A")
-floor_mat = material("Review floor", "#DCE5DF")
-model = bpy.data.collections.new("Paintball export")
-bpy.context.scene.collection.children.link(model)
+# (frame, pouch_y, blob_y, blob_scale): released at 4, overshoots forward, settles.
+KEYS = (
+    (1, POUCH_REST_Y, POUCH_REST_Y + BLOB_IN_POUCH, 1.0),
+    (4, -0.10, -0.10, 1.0),
+    (7, 0.02, -0.75, 0.6),
+    (10, -0.06, -1.1, 0.25),
+    (FRAME_END, -0.03, -1.3, 0.01),
+)
+for frame, pouch_y, blob_y, blob_scale in KEYS:
+    pouch.location.y = pouch_y
+    pouch.keyframe_insert(data_path="location", frame=frame)
+    blob.location.y = blob_y
+    blob.scale = (blob_scale,) * 3
+    blob.keyframe_insert(data_path="location", frame=frame)
+    blob.keyframe_insert(data_path="scale", frame=frame)
+    pose_bands(pouch_y, frame)
 
+for obj in [pouch, blob] + [pivot for pivot, _sign in bands]:
+    action = obj.animation_data.action
+    for fcurve in action.fcurves:
+        for key in fcurve.keyframe_points:
+            key.interpolation = "LINEAR"
+    track = obj.animation_data.nla_tracks.new()
+    track.name = CLIP
+    track.strips.new(CLIP, 1, action)
+    obj.animation_data.action = None
 
-def add(obj, name, mat):
-    obj.name = name
-    obj.data.materials.append(mat)
-    for old in list(obj.users_collection):
-        old.objects.unlink(obj)
-    model.objects.link(obj)
-    return obj
-
-
-def sphere(name, center, scale, mat, segments=12, rings=7):
-    bpy.ops.mesh.primitive_uv_sphere_add(segments=segments, ring_count=rings, radius=1, location=center)
-    obj = bpy.context.object
-    obj.scale = scale
-    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-    return add(obj, name, mat)
-
-
-def splash(name, base, tip, radius, mat):
-    direction = Vector(tip) - Vector(base)
-    center = (Vector(tip) + Vector(base)) / 2
-    bpy.ops.mesh.primitive_cone_add(vertices=8, radius1=radius, radius2=0.0, depth=direction.length, location=center)
-    obj = bpy.context.object
-    obj.rotation_euler = direction.to_track_quat("Z", "Y").to_euler()
-    return add(obj, name, mat)
-
-
-sphere("Paintball / faceted blue body", (0, 0, 0), (0.31, 0.31, 0.31), blue)
-bpy.ops.mesh.primitive_torus_add(major_segments=16, minor_segments=4, location=(0, 0, -0.025), major_radius=0.292, minor_radius=0.018)
-add(bpy.context.object, "Paintball / dark capsule seam", ink)
-
-# Broad front patch reads as a splash at normal held-gift size.
-sphere("Paintball / coral front splash", (-0.045, -0.301, 0.045), (0.15, 0.032, 0.13), coral)
-sphere("Paintball / brass splash dot", (0.135, -0.280, -0.11), (0.082, 0.027, 0.073), brass)
-sphere("Paintball / small mint dot", (-0.17, -0.275, -0.115), (0.058, 0.023, 0.052), mint)
-
-# Three different splash tips break the sphere's outline without noisy detail.
-splash("Paintball / coral upper droplet", (-0.18, 0, 0.24), (-0.29, 0.015, 0.49), 0.077, coral)
-splash("Paintball / brass right droplet", (0.25, 0.02, 0.055), (0.48, 0.04, 0.16), 0.072, brass)
-splash("Paintball / mint left droplet", (-0.26, 0.0, -0.095), (-0.43, 0.05, -0.20), 0.067, mint)
-
-bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, -0.40))
-floor = bpy.context.object
-floor.name = "Review / floor"
-floor.dimensions = (200, 200, 0.08)
-bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-floor.data.materials.append(floor_mat)
-bpy.ops.object.camera_add(location=(1.45, -2.2, 1.05))
-camera = bpy.context.object
-camera.rotation_euler = (Vector((0, 0, 0.03)) - camera.location).to_track_quat("-Z", "Y").to_euler()
-camera.data.type = "ORTHO"
-camera.data.ortho_scale = 1.55
-bpy.context.scene.camera = camera
-for name, pos, power in (("Review / key", (1, -2, 1.9), 250), ("Review / rim", (-1.3, 1.2, 1.6), 130)):
-    data = bpy.data.lights.new(name, "AREA")
-    obj = bpy.data.objects.new(name, data)
-    bpy.context.scene.collection.objects.link(obj)
-    obj.location = pos
-    obj.rotation_euler = (Vector((0, 0, 0)) - obj.location).to_track_quat("-Z", "Y").to_euler()
-    data.energy = power
-    data.shape = "DISK"
-    data.size = 2.7
+# The exported node transforms are the static pose: the loaded slingshot (frame 1 values).
+pouch.location.y = POUCH_REST_Y
+blob.location.y = POUCH_REST_Y + BLOB_IN_POUCH
+blob.scale = (1.0, 1.0, 1.0)
+pose_bands(POUCH_REST_Y)
 
 scene = bpy.context.scene
-scene.render.engine = "BLENDER_EEVEE_NEXT"
-scene.render.resolution_x = 960
-scene.render.resolution_y = 720
-scene.render.image_settings.file_format = "PNG"
-scene.render.filepath = str(OUT / "paintball_v1_preview.png")
-scene.view_settings.view_transform = "Standard"
+scene.render.fps = base.FPS
+scene.frame_start = 1
+scene.frame_end = FRAME_END
+
+out = ROOT / "assets/models/paintball_v3"
+source = ROOT / "source_art/paintball_v3"
+out.mkdir(parents=True, exist_ok=True)
+source.mkdir(parents=True, exist_ok=True)
+(source / ".gdignore").touch()
 bpy.context.preferences.filepaths.save_version = 0
-bpy.ops.wm.save_as_mainfile(filepath=str(SOURCE / "paintball_v1.blend"))
+bpy.ops.wm.save_as_mainfile(filepath=str(source / "paintball_v3.blend"), copy=True)
 bpy.ops.object.select_all(action="DESELECT")
-for obj in model.objects:
+for obj in col.objects:
     obj.select_set(True)
-bpy.context.view_layer.objects.active = next(iter(model.objects))
-bpy.ops.export_scene.gltf(filepath=str(OUT / "paintball_v1.glb"), export_format="GLB", use_selection=True, export_cameras=False, export_lights=False)
-bpy.ops.render.render(write_still=True)
-print(f"Built {OUT / 'paintball_v1.glb'} and preview")
+bpy.ops.export_scene.gltf(filepath=str(out / "paintball_v3.glb"), export_format="GLB",
+                          use_selection=True, export_cameras=False, export_lights=False,
+                          export_apply=True, export_animations=True,
+                          export_animation_mode="NLA_TRACKS")
+print(f"Built {out / 'paintball_v3.glb'}")
