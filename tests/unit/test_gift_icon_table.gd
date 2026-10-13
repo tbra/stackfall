@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mp0.125: every gift and weather option resolves to UI art through
+## Bontago-mp0.125: every gift resolves to UI art; weather options carry no icons (mp0.166) through
 ## config/gift_icon_table.tres, and the lobby/HUD widgets show it.
 
 
@@ -11,12 +11,8 @@ func _make_lobby() -> Lobby:
 	return lobby
 
 
-func test_every_weather_mode_has_pictogram() -> void:
-	var table: GiftIconTable = GiftIconTable.shared()
-	for mode: int in MatchConfig.WeatherMode.values():
-		assert_not_null(table.weather_pictogram(mode), "weather %d" % mode)
-	assert_null(table.weather_pictogram(99))
-	assert_null(table.gift_pictogram(&"nope"))
+func test_unknown_gift_has_no_pictogram() -> void:
+	assert_null(GiftIconTable.shared().gift_pictogram(&"nope"))
 
 
 func test_lobby_widgets_use_pictograms() -> void:
@@ -30,4 +26,4 @@ func test_lobby_widgets_use_pictograms() -> void:
 		assert_eq(check.chip_icon, table.gift_pictogram(id), "checkbox %s" % id)
 	var weather: UiCycler = lobby.get_node("%WeatherOption") as UiCycler
 	for i: int in weather.get_item_count():
-		assert_eq(weather.get_item_icon(i), table.weather_pictogram(i), "weather item %d" % i)
+		assert_null(weather.get_item_icon(i), "weather item %d has no icon" % i)

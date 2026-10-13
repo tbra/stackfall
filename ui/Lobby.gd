@@ -557,7 +557,7 @@ func _populate_options() -> void:
 	# Labels come from the enum names, so a new weather type needs no edit here.
 	var weather_labels: Array = MatchWeather.mode_labels()
 	for weather_index: int in range(weather_labels.size()):
-		_weather_option.add_item(weather_labels[weather_index] as String, false, GiftIconTable.shared().weather_pictogram(weather_index))
+		_weather_option.add_item(weather_labels[weather_index] as String)
 	# Bontago-470.4: order must match MatchConfig.SkyThemeMode.
 	# Bontago-59o.18 (U1): the DAY entry is the cycle locked at sunset, so it
 	# reads "Sunset"; Cycle is the default through MatchConfig.sky_theme_mode.
