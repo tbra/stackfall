@@ -19,7 +19,7 @@ CHILDREN = 5
 class SlotsTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        self.over = {"STACKFALL_GODOT_SLOTS_DIR": self.tmp.name, "STACKFALL_GODOT_SLOTS": str(CAP), "STACKFALL_GODOT_SLOTS_EXTERNAL": "0"}
+        self.over = {"STACKFALL_GODOT_SLOTS_DIR": self.tmp.name, "STACKFALL_GODOT_SLOTS": str(CAP), "STACKFALL_GODOT_SLOTS_EXTERNAL": "0", "STACKFALL_GODOT_SLOTS_CPU": "0"}
         self.old = {k: os.environ.get(k) for k in self.over}
         os.environ.update(self.over)
         self.env = dict(os.environ)

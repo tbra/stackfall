@@ -222,6 +222,32 @@ def external_count(d=None):
     return max(0, godot_process_count() - busy_count(d))
 
 
+CPU_BUSY_PCT = 85
+CPU_SAMPLE_S = 5.0
+_cpu_cache = [0.0, -1]
+
+
+def cpu_load_pct():
+    """Machine CPU load %, sampled at most every CPU_SAMPLE_S; -1 when unknown or
+    disabled (STACKFALL_GODOT_SLOTS_CPU=0, non-Windows)."""
+    if os.environ.get("STACKFALL_GODOT_SLOTS_CPU", "1") == "0" or os.name != "nt":
+        return -1
+    now = time.time()
+    if now - _cpu_cache[0] < CPU_SAMPLE_S:
+        return _cpu_cache[1]
+    load = -1
+    try:
+        out = subprocess.run(["powershell", "-NoProfile", "-Command",
+                              "(Get-CimInstance Win32_Processor | Measure-Object LoadPercentage -Average).Average"],
+                             capture_output=True, text=True, timeout=15).stdout.strip()
+        load = int(float(out)) if out else -1
+    except (OSError, subprocess.SubprocessError, ValueError):
+        load = -1
+    _cpu_cache[0] = now
+    _cpu_cache[1] = load
+    return load
+
+
 def try_acquire(label="godot", pid=None):
     """One non-blocking, silent attempt: a slot index or None."""
     d = slots_dir()
@@ -231,6 +257,10 @@ def try_acquire(label="godot", pid=None):
     if _gate_blocks(d, pid):
         return None
     if busy_count(d) + external_count(d) >= cap():
+        return None
+    # Owner 2026-10-13: load, not process count, is the signal; a new Godot waits
+    # while the machine is busy (the watchdog alerted at >=90% for a minute).
+    if busy_count(d) > 0 and cpu_load_pct() >= CPU_BUSY_PCT:
         return None
     for i in range(cap()):
         if _try_take(d, i, pid, label):
