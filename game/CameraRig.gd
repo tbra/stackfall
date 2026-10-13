@@ -220,7 +220,9 @@ func _ready() -> void:
 	# transform with no server-side smoothing between physics ticks.
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
-	_camera.fov = tuning.fov_deg
+	_camera.fov = effective_fov_deg()
+	if not Settings.fov_override_changed.is_connected(_on_fov_override_changed):
+		Settings.fov_override_changed.connect(_on_fov_override_changed)
 	_apply_default_view()
 
 
@@ -535,7 +537,7 @@ func reset_view() -> void:
 	_shake_elapsed_s = 0.0
 	_decay_elapsed_s = 0.0
 	_has_prev_disc_tilt = false
-	_camera.fov = tuning.fov_deg
+	_camera.fov = effective_fov_deg()
 	_apply_default_view()
 
 
@@ -660,12 +662,24 @@ func is_peeking() -> bool:
 ## tuning push, not silently fought every tick. A no-op while
 ## tuning.follow_block is false: the free-orbit camera has its own fixed
 ## target/distance and these two fields mean nothing to it.
+## Bontago-1pi.204: the lens in use: the player's Options value when set, else CameraTuning.fov_deg.
+func effective_fov_deg() -> float:
+	var chosen: float = Settings.fov_override_deg()
+	if chosen > 0.0:
+		return clampf(chosen, tuning.fov_min_deg, tuning.fov_max_deg)
+	return tuning.fov_deg
+
+
+func _on_fov_override_changed(_degrees: float) -> void:
+	_camera.fov = effective_fov_deg()
+
+
 func apply_follow_tuning() -> void:
 	# DECISION (game/CameraRig.gd): fov_deg applies here unconditionally (unlike
 	# distance/pitch below) because it isn't a follow-only concept -- the panel
 	# calls this hook for any camera_tuning edit, and the free-orbit camera
 	# should get a live fov change too.
-	_camera.fov = tuning.fov_deg
+	_camera.fov = effective_fov_deg()
 	if not tuning.follow_block:
 		return
 	_distance = clampf(tuning.follow_distance, tuning.zoom_min, _zoom_max())

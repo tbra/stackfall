@@ -179,6 +179,7 @@ func _walk_settings_page(pad: bool) -> void:
 		menu.get_node("%MinimapSizeOption") as Control,
 		menu.get_node("%CameraShakeCheck") as Control,
 		menu.get_node("%AdaptiveQualityCheck") as Control,
+		menu.get_node("%FovSlider") as Control,
 		menu.get_node("%MasterMuteButton") as Control,
 		menu.get_node("%MasterVolumeSlider") as Control,
 		menu.get_node("%MusicMuteButton") as Control,

@@ -80,6 +80,17 @@ func _make_row() -> KeyRebindRow:
 
 # --- Graphics preset ----------------------------------------------------------
 
+func test_fov_slider_shows_the_tuning_default_and_persists_a_change() -> void:
+	var menu: OptionsMenu = await _make_menu()
+	var meter: UiSegmentMeter = menu.get_node("%FovSlider") as UiSegmentMeter
+	var lens: CameraTuning = CameraTuning.new()
+	assert_almost_eq(menu._meter_value(meter, meter.value), lens.fov_deg, 4.0, "an unset FOV shows the CameraTuning default")
+	meter.value_changed.emit(meter.step_count)
+	assert_almost_eq(_settings_of(menu).fov_override_deg(), lens.fov_max_deg, 0.01, "the top cell stores the max FOV")
+	menu._on_reset_pressed()
+	assert_eq(_settings_of(menu).fov_override_deg(), 0.0, "Reset clears the FOV override")
+
+
 func test_adaptive_quality_check_defaults_off_and_toggles_the_setting() -> void:
 	var menu: OptionsMenu = _make_menu()
 	var check: UiToggle = menu.get_node("%AdaptiveQualityCheck") as UiToggle
@@ -563,7 +574,9 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	var move_speed_slider: Control = menu.get_node("%MoveSpeedSlider") as Control
 	var adaptive_check: Control = menu.get_node("%AdaptiveQualityCheck") as Control
 	assert_eq(camera_shake_check.get_node(camera_shake_check.focus_neighbor_bottom), adaptive_check, "CameraShakeCheck must move focus down to AdaptiveQualityCheck")
-	assert_eq(adaptive_check.get_node(adaptive_check.focus_neighbor_bottom), master_mute, "AdaptiveQualityCheck must move focus down to MasterMuteButton")
+	var fov_slider: Control = menu.get_node("%FovSlider") as Control
+	assert_eq(adaptive_check.get_node(adaptive_check.focus_neighbor_bottom), fov_slider, "AdaptiveQualityCheck must move focus down to FovSlider")
+	assert_eq(fov_slider.get_node(fov_slider.focus_neighbor_bottom), master_mute, "FovSlider must move focus down to MasterMuteButton")
 	assert_eq(rumble_check.get_node(rumble_check.focus_neighbor_bottom), rumble_slider, "RumbleEnabledCheck must move focus down to RumbleStrengthSlider")
 	assert_eq(rumble_slider.get_node(rumble_slider.focus_neighbor_bottom), move_speed_slider, "RumbleStrengthSlider must move focus down to MoveSpeedSlider")
 	assert_eq(move_speed_slider.get_node(move_speed_slider.focus_neighbor_bottom), rows[0].rebind_button(), "MoveSpeedSlider must move focus down to the first rebind row")
@@ -961,7 +974,7 @@ func test_game_page_rows_are_all_components() -> void:
 	for name: String in ["%MasterMuteButton", "%MusicMuteButton", "%SfxMuteButton", "%WeatherMuteButton"]:
 		assert_true(menu.get_node(name) is UiIconButton, "%s is a UiIconButton" % name)
 	var rows: Array[Node] = menu.get_node("%SettingsFields").find_children("*", "UiRow", true, false)
-	assert_eq(rows.size(), 12, "Window, UI scale, HUD scale, Minimap size, Camera shake, Adaptive quality, 4 volumes, Rumble, Rumble intensity")
+	assert_eq(rows.size(), 13, "Window, UI scale, HUD scale, Minimap size, Camera shake, Adaptive quality, Field of view, 4 volumes, Rumble, Rumble intensity")
 	for row: Node in rows:
 		for item: Control in (row as UiRow).items():
 			assert_almost_eq(item.custom_minimum_size.y, float(UiRowItem.metrics().row_height_px), 0.01, "%s shares one row height" % item.name)

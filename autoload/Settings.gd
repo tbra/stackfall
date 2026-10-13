@@ -16,6 +16,8 @@ signal audio_settings_changed()
 ## Bontago-1pi.11.37: the "Adaptive quality" option flipped.
 signal adaptive_quality_setting_changed(enabled: bool)
 signal camera_shake_setting_changed(enabled: bool)
+## Bontago-1pi.204: the player-chosen field of view changed (degrees; 0.0 = cleared, use CameraTuning.fov_deg).
+signal fov_override_changed(degrees: float)
 signal window_mode_changed(id: StringName)
 ## Bontago-1pi.150: the relative UI scale changed (already sanitized and applied).
 signal ui_scale_changed(scale: float)
@@ -95,6 +97,7 @@ const KEY_WEATHER_VOLUME_PERCENT: String = "weather_volume_percent"
 const KEY_WEATHER_MUTED: String = "weather_muted"
 const KEY_CUSTOM_MUSIC_DIR: String = "custom_music_dir"
 const KEY_CAMERA_SHAKE_ENABLED: String = "camera_shake_enabled"
+const KEY_FOV_OVERRIDE_DEG: String = "fov_override_deg"
 const KEY_WINDOW_MODE: String = "window_mode"
 const KEY_UI_SCALE: String = "ui_scale"
 const KEY_HUD_SCALE: String = "hud_scale"
@@ -222,6 +225,8 @@ var _custom_music_dir: String = ""
 var _player_name: String = ""
 var _net_config: NetConfig = preload("res://config/net_config.tres")
 var _camera_shake_enabled: bool = DEFAULT_CAMERA_SHAKE_ENABLED
+## Bontago-1pi.204: 0.0 = no override (the camera uses CameraTuning.fov_deg, which F4 edits).
+var _fov_override_deg: float = 0.0
 var _window_mode_id: StringName = DEFAULT_WINDOW_MODE_ID
 var _ui_scale_tuning: UiScaleTuning = preload("res://config/ui_scale_tuning.tres")
 var _ui_scale: float = 1.0
@@ -617,6 +622,28 @@ func set_camera_shake_enabled(enabled: bool) -> void:
 	camera_shake_setting_changed.emit(enabled)
 
 
+## Bontago-1pi.204: the player's field of view in degrees, or 0.0 when never chosen.
+## DECISION (autoload/Settings.gd): an optional override rather than a second default, so the
+## F4 CameraTuning.fov_deg slider stays the baseline until a player picks a value in Options;
+## game/CameraRig.gd applies this over the tuning value.
+func fov_override_deg() -> float:
+	return _fov_override_deg
+
+
+## Applies live (game/CameraRig.gd listens and clamps to the CameraTuning range; kept out of
+## here so config/CameraTuning.gd stays out of the autoload closure, lint_layers L3).
+func set_fov_override_deg(degrees: float) -> void:
+	_fov_override_deg = maxf(degrees, 0.0)
+	_save()
+	fov_override_changed.emit(_fov_override_deg)
+
+
+func reset_fov_override() -> void:
+	_fov_override_deg = 0.0
+	_save()
+	fov_override_changed.emit(_fov_override_deg)
+
+
 ## Bontago (rumble package): read directly by autoload/Rumble.gd, the same
 ## way camera_shake_enabled() above is read directly by game/CameraRig.gd.
 func rumble_enabled() -> bool:
@@ -996,6 +1023,7 @@ func _load() -> void:
 	_custom_music_dir = ""
 	_player_name = ""
 	_camera_shake_enabled = DEFAULT_CAMERA_SHAKE_ENABLED
+	_fov_override_deg = 0.0
 	_window_mode_id = DEFAULT_WINDOW_MODE_ID
 	_ui_scale = _ui_scale_tuning.default_scale
 	_hud_scale = _ui_scale_tuning.default_scale
@@ -1046,6 +1074,7 @@ func _load() -> void:
 		String(cfg.get_value(SECTION_PLAYER, KEY_PLAYER_NAME, "")), _net_config.max_player_name_length
 	)
 	_camera_shake_enabled = bool(cfg.get_value(SECTION_GRAPHICS, KEY_CAMERA_SHAKE_ENABLED, DEFAULT_CAMERA_SHAKE_ENABLED))
+	_fov_override_deg = maxf(float(cfg.get_value(SECTION_GRAPHICS, KEY_FOV_OVERRIDE_DEG, 0.0)), 0.0)
 	var loaded_window_mode_id: StringName = StringName(cfg.get_value(SECTION_GRAPHICS, KEY_WINDOW_MODE, DEFAULT_WINDOW_MODE_ID))
 	if WINDOW_MODE_IDS.has(loaded_window_mode_id):
 		_window_mode_id = loaded_window_mode_id
@@ -1094,6 +1123,7 @@ func _save() -> void:
 		cfg.set_value(SECTION_GRAPHICS, KEY_GRAPHICS_OVERRIDES, _graphics_overrides)
 	cfg.set_value(SECTION_GRAPHICS, KEY_ADAPTIVE_QUALITY, _adaptive_quality)
 	cfg.set_value(SECTION_GRAPHICS, KEY_CAMERA_SHAKE_ENABLED, _camera_shake_enabled)
+	cfg.set_value(SECTION_GRAPHICS, KEY_FOV_OVERRIDE_DEG, _fov_override_deg)
 	cfg.set_value(SECTION_GRAPHICS, KEY_WINDOW_MODE, String(_window_mode_id))
 	cfg.set_value(SECTION_GRAPHICS, KEY_UI_SCALE, _ui_scale)
 	cfg.set_value(SECTION_GRAPHICS, KEY_HUD_SCALE, _hud_scale)
