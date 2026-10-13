@@ -72,6 +72,61 @@ def block_drop_b() -> np.ndarray:
     return body + 0.5 * felt
 
 
+# Round four (Bontago-1pi.205): owner said the airy "fwip" drop_a "sounds like a clap"
+# (band-passed noise sweep, centroid ~2 kHz, almost no tonal body). These candidates are
+# tonal "thunks": a few damped inharmonic modes (low-mid body) plus a very short,
+# low-passed noise tick as the soft transient. No broadband noise burst.
+DROP_SEED = 4405
+DROP_TICK_SMOOTH = 10          # box-filter width of the soft transient (samples)
+DROP_TICK_DECAY = 260.0        # transient decay rate (1/s)
+
+
+def thunk(seed: int, seconds: float, modes: tuple, drop_hz: float, drop_rate: float,
+          tick_gain: float, tick_smooth: int = DROP_TICK_SMOOTH) -> np.ndarray:
+    # modes: (frequency Hz, amplitude, decay 1/s); the lowest mode glides down a little.
+    t = clock(seconds)
+    rng = np.random.default_rng(seed)
+    noise = rng.standard_normal(t.size)
+    out = np.zeros(t.size)
+    for index, (hz, amp, decay) in enumerate(modes):
+        glide = hz + (drop_hz * np.exp(-t * drop_rate) if index == 0 else 0.0)
+        out += amp * np.sin(phase(glide)) * np.exp(-t * decay)
+    out *= 1.0 - np.exp(-t * 900.0)
+    return out + tick_gain * smooth(noise, tick_smooth) * np.exp(-t * DROP_TICK_DECAY)
+
+
+DROP_CANDIDATES = ("block_drop_c.wav", "block_drop_d.wav", "block_drop_e.wav")
+DROP_TRIM_DB = -4.0            # save() targets -16 dBFS window RMS; drop_a sits at -20
+
+
+def save_drop(filename: str, samples: np.ndarray) -> None:
+    # Same pipeline as save(), then trimmed so the thunks match drop_a's loudness.
+    save(filename, samples)
+    with wave.open(str(DEST / filename), "rb") as src:
+        pcm = np.frombuffer(src.readframes(src.getnframes()), "<i2")
+    pcm = np.rint(pcm * 10 ** (DROP_TRIM_DB / 20)).astype("<i2")
+    with wave.open(str(DEST / filename), "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(RATE)
+        out.writeframes(pcm.tobytes())
+
+
+def block_drop_c() -> np.ndarray:
+    # Woody thunk: low-mid body ~190 Hz with inharmonic overtones, quick decay.
+    return thunk(DROP_SEED, 0.16, ((190.0, 1.0, 30.0), (338.0, 0.45, 42.0), (612.0, 0.2, 60.0)), 60.0, 40.0, 0.35)
+
+
+def block_drop_d() -> np.ndarray:
+    # Plastic block: a touch higher and shorter, slightly brighter second mode.
+    return thunk(DROP_SEED + 1, 0.14, ((260.0, 1.0, 38.0), (470.0, 0.5, 55.0), (880.0, 0.18, 80.0)), 70.0, 45.0, 0.3, 8)
+
+
+def block_drop_e() -> np.ndarray:
+    # Heavy dull thud: lowest and roundest, the softest transient.
+    return thunk(DROP_SEED + 2, 0.2, ((140.0, 1.0, 24.0), (255.0, 0.4, 34.0), (430.0, 0.12, 50.0)), 50.0, 35.0, 0.25, 16)
+
+
 # --- Explosion / splat building blocks (round three) -------------------------------
 # Owner feedback on round two: Bomb and Rocket "should sound more like explosions",
 # Paintball "should have more of a splat sound". Round three is built the way a real
@@ -304,12 +359,13 @@ def save_loop(filename: str, samples: np.ndarray, rms_dbfs: float) -> None:
 def main() -> None:
     DEST.mkdir(parents=True, exist_ok=True)
     for name, synth in (("block_drop_a.wav", block_drop_a), ("block_drop_b.wav", block_drop_b),
+                        ("block_drop_c.wav", block_drop_c), ("block_drop_d.wav", block_drop_d), ("block_drop_e.wav", block_drop_e),
                         ("bomb_boom_a.wav", bomb_boom_a), ("bomb_boom_b.wav", bomb_boom_b),
                         ("rocket_boom_a.wav", rocket_boom_a), ("rocket_boom_b.wav", rocket_boom_b),
                         ("paintball_splat_a.wav", paintball_splat_a), ("paintball_splat_b.wav", paintball_splat_b),
                         ("glue_squelch.wav", glue_squelch),
                         ("bean_hop_a.wav", bean_hop_a), ("bean_hop_b.wav", bean_hop_b)):
-        save(name, synth())
+        (save_drop if name in DROP_CANDIDATES else save)(name, synth())
     save_loop("quake_rumble_loop.wav", quake_rumble_loop(), -18.0)
     save_loop("magnet_hum_loop.wav", magnet_hum_loop(), -19.0)
 
