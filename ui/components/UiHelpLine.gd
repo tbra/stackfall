@@ -31,6 +31,9 @@ static func key_of(node: Node) -> String:
 
 
 func _init() -> void:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	# Separation from the rows above (Bontago-1pi.159.44): a top rule plus one space-2 step of air.
+	add_theme_constant_override("margin_top", arcade.space_2_px + arcade.well_border_px)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	focus_mode = Control.FOCUS_NONE
 	label = UiText.make(UiText.Role.BODY)
@@ -52,6 +55,12 @@ func _ready() -> void:
 	label.text = "\n".join(probe)
 	label.custom_minimum_size.y = maxf(float(table.reserved_lines) * label.get_line_height(), label.get_combined_minimum_size().y)
 	label.text = ""
+
+
+## The separating rule on the top edge (disc-400, the dividers colour).
+func _draw() -> void:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	draw_rect(Rect2(0.0, 0.0, size.x, float(arcade.well_border_px)), arcade.disc_400_color)
 
 
 ## Explains controls under [param root] (default: this line's parent).

@@ -21,6 +21,8 @@ extends Resource
 ## In-game: seconds a new line stays fully visible, then the fade length.
 @export var line_visible_s: float = 8.0
 @export var fade_s: float = 1.0
+## Dark text outline that keeps the plate-less HUD chat readable over the scene (Bontago-1pi.159.45).
+@export var hud_outline_px: int = 4
 
 ## Clamp every field into a usable range (called on any loaded resource).
 func sanitize() -> void:

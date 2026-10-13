@@ -170,7 +170,7 @@ extends Resource
 ## Round timer (UiRoundTimer, owner 2026-10-12): the match clock in the top-right corner. Its last `round_timer_hurry_seconds` turn the plate edge and numerals rim gold; the
 ## numerals use Bungee at `round_timer_font_px`. HUD.gd aligns it with the stats backplate top and the minimap's right edge.
 @export var round_timer_hurry_seconds: float = 30.0
-@export var round_timer_font_px: int = 78
+@export var round_timer_font_px: int = 48
 @export var round_timer_overtime_text: String = "SUDDEN DEATH"
 ## Opacity of the held/next cards while the fixed-interval release lock holds.
 @export var locked_card_alpha: float = 0.6

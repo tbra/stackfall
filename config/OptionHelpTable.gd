@@ -19,7 +19,7 @@ static var _shared: OptionHelpTable = null
 @export var entries: Dictionary[String, String] = {}
 ## The help line always keeps this many text lines of height, so showing / clearing a hint never
 ## moves the rows around it.
-@export var reserved_lines: int = 2
+@export var reserved_lines: int = 1
 
 
 static func shared() -> OptionHelpTable:

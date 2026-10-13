@@ -25,7 +25,7 @@ entries = Dictionary[String, String]({
 "MatchTimerCol": "Optional time limit. Off: the match runs until a team holds every goal. With sudden death on, the arena shrinks when time is up.",
 "MidJoinCol": "Lets players join a match that has already started.",
 "QolBacklogCheck": "Experiment: when the block timer runs out the held piece is queued and you get a fresh one, instead of being dropped.",
-"QolGiftAfterNextCheck": "Trial (on by default): a claimed gift becomes the block after next and your ordinary next piece stays. Off: the gift replaces your next piece. Not used together with the backlog or gift slot experiments.",
+"QolGiftAfterNextCheck": "Trial: a claimed gift becomes the block after next and your next piece stays. Off: it replaces your next piece.",
 "QolGiftSlotCheck": "Experiment: a claimed gift waits in a slot and is spent with the use-gift action, instead of replacing your next block.",
 "QolGoalRadiusCheck": "Experiment: a goal can be claimed by territory around the flag, not only on the flag cell itself.",
 "QolTimerPauseCheck": "Experiment: the block timer pauses while a special is active or a tower is toppling, so a forced drop cannot land mid-chaos.",
@@ -80,4 +80,4 @@ entries = Dictionary[String, String]({
 "gift_volcano": "Volcano: a volcano rises where it is placed and erupts blocks at random for a long while.",
 "gift_stackfall": "Stackfall: rains ordinary blocks in your colour onto the map."
 })
-reserved_lines = 2
+reserved_lines = 1
