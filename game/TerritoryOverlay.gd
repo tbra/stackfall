@@ -294,6 +294,23 @@ func _assign_surface_materials() -> void:
 		return
 	for surface: int in _arena.materials():
 		set_surface_override_material(surface, _arena.material_for_surface(surface))
+	_sync_side_shell()
+
+
+## SHADER_DOME (Bontago-mp0.150.2 r4): copies every uniform the territory material
+## has set onto the side shell material wherever the shell shader declares the same
+## name, so the side is shaded by the very same plating and sheen settings as the top.
+func _sync_side_shell() -> void:
+	if _arena == null or _material == null:
+		return
+	var shell: ShaderMaterial = _arena.shell_material()
+	if shell == null:
+		return
+	for entry: Dictionary in shell.shader.get_shader_uniform_list():
+		var uniform_name: StringName = StringName(entry["name"] as String)
+		var value: Variant = _material.get_shader_parameter(uniform_name)
+		if value != null:
+			shell.set_shader_parameter(uniform_name, value)
 
 
 ## The generated side surfaces (chamfer/band/bottom indices and materials).
@@ -916,6 +933,7 @@ func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 	if _material != null:
 		_material.set_shader_parameter(&"void_animated", 1.0 if _void_animated else 0.0)
 		_material.set_shader_parameter(&"disc_fine_detail", _disc_fine_detail)
+		_sync_side_shell()
 
 
 ## Whether the disc plating draws its rivets and brushed streaks (graphics
@@ -1044,6 +1062,7 @@ func _apply_visual_uniforms() -> void:
 	_apply_hole_void_uniforms()
 	set_slot_colors(_slot_colors)
 	_apply_wet()
+	_sync_side_shell()
 
 
 ## Bontago-adt.2: pushes the DiscSurfaceDef texture set (or clears it).

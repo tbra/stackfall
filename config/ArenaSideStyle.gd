@@ -19,6 +19,10 @@ extends Resource
 ## plated underside), TAPERED_STRATA (plated wall, then an inverted frustum in
 ## three strata of the top's own browns) and PLATED_DOME (two plate courses and a
 ## shallow dome of plate rings).
+## Round 4 (owner 2026-10-13: "try the shape of c but extend the shader down the
+## side instead of the material it has now") adds SHADER_DOME: PLATED_DOME's
+## silhouette with no modelled detail, shaded by the top's own plating shader
+## (shaders/arena_side_shell.gdshader, sharing shaders/include/disc_plating.gdshaderinc).
 enum Style {
 	CURRENT,
 	LAYERED_PLATES,
@@ -30,6 +34,7 @@ enum Style {
 	MONOLITH,
 	TAPERED_STRATA,
 	PLATED_DOME,
+	SHADER_DOME,
 }
 
 ## Which look to draw. CURRENT keeps the DiscBodyVisuals band/chamfer unchanged.
@@ -291,3 +296,8 @@ enum Style {
 @export var dome_course_fraction: float = 0.025
 ## How far the dome sags at its centre (fraction of the disc diameter).
 @export var dome_depth_fraction: float = 0.06
+
+## -- SHADER_DOME: PLATED_DOME's silhouette, shaded by the top's own shader ---
+## (Geometry uses dome_* above; the lip uses top_lip_*.) Outline segments of the
+## smooth wall and dome; the plates are drawn by the shader, not by geometry.
+@export var shell_segments: int = 128

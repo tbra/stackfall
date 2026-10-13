@@ -480,7 +480,8 @@ func test_procedural_disc_surface_is_default_and_pushes_its_uniforms() -> void:
 ## renamed uniform cannot silently fall back to its shader default.
 func test_procedural_disc_uniforms_all_exist_in_the_shader() -> void:
 	var overlay: TerritoryOverlay = _make_overlay(_map())
-	var code: String = overlay.material().shader.code
+	# The plating uniforms live in the include shared with the arena side shell.
+	var code: String = overlay.material().shader.code + FileAccess.get_file_as_string("res://shaders/include/disc_plating.gdshaderinc")
 	var script_code: String = (load("res://game/TerritoryOverlay.gd") as GDScript).source_code
 	var regex: RegEx = RegEx.create_from_string("&\"(disc_proc_[a-z_]+)\"")
 	var found: int = 0
@@ -891,7 +892,7 @@ func test_disc_fine_detail_follows_the_graphics_preset() -> void:
 ## The cost cuts are exact early-outs: the shader source keeps every branch the
 ## shipped look needs, guarded by the uniforms the overlay pushes.
 func test_shader_carries_the_fix2b_guards() -> void:
-	var code: String = _shader_source_without_comments(load("res://shaders/territory.gdshader") as Shader)
+	var code: String = _shader_source_without_comments(load("res://shaders/territory.gdshader") as Shader) + FileAccess.get_file_as_string("res://shaders/include/disc_plating.gdshaderinc")
 	assert_true(code.contains("uniform bool void_present = true;"), "void skip defaults to the old behaviour.")
 	assert_true(code.contains("uniform bool disc_fine_detail = true;"), "fine detail defaults on.")
 	assert_true(code.contains("if (void_present)"))

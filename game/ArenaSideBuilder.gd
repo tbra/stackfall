@@ -93,6 +93,13 @@ class Soup:
 	var verts: PackedVector3Array = PackedVector3Array()
 	var normals: PackedVector3Array = PackedVector3Array()
 	var colors: PackedColorArray = PackedColorArray()
+	## SHADER_DOME: when `shell` is set every vertex also carries UV.x = the radius
+	## the top's plating pattern is read at (shaders/arena_side_shell.gdshader):
+	## a wall continues the top's rings outwards (radius + metres below `edge_y`),
+	## an underside face reads its own radius.
+	var shell: bool = false
+	var edge_y: float = 0.0
+	var uvs: PackedVector2Array = PackedVector2Array()
 
 	func add_tri(p0: Vector3, p1: Vector3, p2: Vector3, front: Vector3, color: Color) -> void:
 		var facing: Vector3 = (p1 - p0).cross(p2 - p0)
@@ -109,6 +116,13 @@ class Soup:
 		for _i: int in range(ArenaSideBuilder.TRI_VERTS):
 			normals.append(normal)
 			colors.append(color)
+		if shell:
+			for k: int in range(verts.size() - ArenaSideBuilder.TRI_VERTS, verts.size()):
+				var v: Vector3 = verts[k]
+				var radial: float = Vector2(v.x, v.z).length()
+				if normal.y > ArenaSideBuilder.UNDERSIDE_NORMAL_Y:
+					radial += edge_y - v.y
+				uvs.append(Vector2(radial, 0.0))
 
 	func is_empty() -> bool:
 		return verts.is_empty()
@@ -119,6 +133,8 @@ class Soup:
 		out[Mesh.ARRAY_VERTEX] = verts
 		out[Mesh.ARRAY_NORMAL] = normals
 		out[Mesh.ARRAY_COLOR] = colors
+		if shell:
+			out[Mesh.ARRAY_TEX_UV] = uvs
 		return out
 
 
@@ -168,6 +184,8 @@ func build(map_def: MapDef, style: ArenaSideStyle, segments: int, y_top: float) 
 			_build_tapered(style, y_top)
 		ArenaSideStyle.Style.PLATED_DOME:
 			_build_dome(style, y_top)
+		ArenaSideStyle.Style.SHADER_DOME:
+			_build_shader_dome(style, y_top)
 	var out: Dictionary = {}
 	if not _body_side.is_empty():
 		out[KIND_BAND] = _body_side.arrays()
@@ -774,7 +792,7 @@ func _toned(color: Color, tone: float) -> Color:
 ## out, then a short drop) and its dark ledge back to the wall. Returns the height
 ## where the wall starts. Drawn on the plain circle; the ledge reaches in past the
 ## flat plate faces so the plates tuck under it with no gap.
-func _top_lip(style: ArenaSideStyle, y_top: float) -> float:
+func _top_lip(style: ArenaSideStyle, y_top: float, smooth: bool = false) -> float:
 	_outline = _uniform
 	var y_edge: float = y_top + _disk_height
 	var y_end: float = y_top - DIAMETER_FACTOR * _radius * style.top_lip_below_fraction
@@ -782,8 +800,10 @@ func _top_lip(style: ArenaSideStyle, y_top: float) -> float:
 	var out: float = _radius * style.top_lip_out_fraction
 	_sweep(_make_ring(1.0, y_edge), _make_ring(1.0, y_bevel, out), style.top_lip_color, true)
 	_sweep(_make_ring(1.0, y_bevel, out), _make_ring(1.0, y_end, out), style.top_lip_shade_color, true)
-	var reach: float = cos(_face_angle(style) * HALF) - POINT_EPS
-	_sweep(_make_ring(1.0, y_end, out), _make_ring(reach, y_end), style.top_ledge_color)
+	# SHADER_DOME has a smooth wall (no flat plate faces), and its dark ledge goes to
+	# the unshaded surface so the shader-lit underside never shows it.
+	var reach: float = 1.0 - POINT_EPS if smooth else cos(_face_angle(style) * HALF) - POINT_EPS
+	_sweep(_make_ring(1.0, y_end, out), _make_ring(reach, y_end), style.top_ledge_color, smooth)
 	return y_end
 
 
@@ -855,3 +875,45 @@ func _ring_stack(
 		s_a = s_b
 		y_a = y_b
 	_sweep(_make_ring(s_a, y_a), _make_ring(0.0, y_a), style.top_hub_color)
+
+
+# --- Round 4: SHADER_DOME -----------------------------------------------------------
+# PLATED_DOME's silhouette (a tall wall of plate courses, then a shallow dome of
+# plate rings) with no modelled detail: smooth surfaces whose plating, seams and
+# rivets are drawn by shaders/arena_side_shell.gdshader, the top's own plating code.
+
+func _build_shader_dome(style: ArenaSideStyle, y_top: float) -> void:
+	_body_side.shell = true
+	_body_under.shell = true
+	_body_side.edge_y = y_top + _disk_height
+	_body_under.edge_y = _body_side.edge_y
+	_uniform = outline_points_for_radius(_radius, maxi(style.shell_segments, MIN_SEGMENTS))
+	_outline = _uniform
+	var diameter: float = DIAMETER_FACTOR * _radius
+	var wall_h: float = diameter * style.dome_course_fraction * float(maxi(style.dome_course_count, 1))
+	var y: float = _top_lip(style, y_top, true)
+	_wall(y, y - wall_h, 0.0, 0.0, style.top_plate_color)
+	y -= wall_h
+	var sag: float = diameter * style.dome_depth_fraction
+	var hub: float = clampf(style.top_hub_radius_m / maxf(_radius, POINT_EPS), 0.0, HALF)
+	var width: float = maxf(style.top_ring_width_m, RING_WIDTH_MIN)
+	var rings: int = maxi(roundi((_radius - style.top_hub_radius_m) / width), 1)
+	var s_a: float = 1.0
+	var y_a: float = y
+	for k: int in range(rings):
+		var s_b: float = lerpf(1.0, hub, float(k + 1) / float(rings))
+		var y_b: float = y - sag * (1.0 - s_b * s_b)
+		_sweep(_make_ring(s_a, y_a), _make_ring(s_b, y_b), style.top_under_color)
+		s_a = s_b
+		y_a = y_b
+	_sweep(_make_ring(s_a, y_a), _make_ring(0.0, y_a), style.top_hub_color)
+
+
+## The analytic circle of `radius` with `segments` evenly spaced points.
+static func outline_points_for_radius(radius: float, segments: int) -> PackedVector2Array:
+	var points: PackedVector2Array = PackedVector2Array()
+	points.resize(segments)
+	for i: int in range(segments):
+		var angle: float = TAU * float(i) / float(segments)
+		points[i] = Vector2(cos(angle), sin(angle)) * radius
+	return points
