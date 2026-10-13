@@ -199,6 +199,29 @@ def busy_count(d=None):
     return n
 
 
+def godot_process_count():
+    """Live real Godot processes machine-wide (console wrappers and godot-ai
+    excluded), or 0 when they cannot be listed / STACKFALL_GODOT_SLOTS_EXTERNAL=0."""
+    if os.environ.get("STACKFALL_GODOT_SLOTS_EXTERNAL", "1") == "0" or os.name != "nt":
+        return 0
+    try:
+        out = subprocess.run(["tasklist", "/FO", "CSV", "/NH"], capture_output=True, text=True, timeout=10).stdout
+    except (OSError, subprocess.SubprocessError):
+        return 0
+    n = 0
+    for line in out.splitlines():
+        name = line.split(",", 1)[0].strip('"').lower()
+        if name.startswith("godot") and "console" not in name and "godot-ai" not in name:
+            n += 1
+    return n
+
+
+def external_count(d=None):
+    """Godot processes not holding a slot (the owner's game/editor, unslotted
+    launches). Owner PC crash 2026-10-13: these count against the cap too."""
+    return max(0, godot_process_count() - busy_count(d))
+
+
 def try_acquire(label="godot", pid=None):
     """One non-blocking, silent attempt: a slot index or None."""
     d = slots_dir()
@@ -206,6 +229,8 @@ def try_acquire(label="godot", pid=None):
     if _nested(d):
         return REENTRANT
     if _gate_blocks(d, pid):
+        return None
+    if busy_count(d) + external_count(d) >= cap():
         return None
     for i in range(cap()):
         if _try_take(d, i, pid, label):
