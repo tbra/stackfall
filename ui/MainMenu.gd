@@ -47,6 +47,11 @@ signal tower_topple_requested
 
 ## Tagline shown on the Debug page in place of the wordmark's own tagline.
 const DEBUG_TAGLINE: String = "DEBUG · GIFT DEMO"
+const HOST_DIALOG_TITLE: String = "Host game"
+const HOST_LOCAL_ID: StringName = &"local"
+const HOST_STEAM_ID: StringName = &"steam"
+const HOST_LOCAL_TEXT: String = "Host locally"
+const HOST_STEAM_TEXT: String = "Host on Steam"
 const HOST_DIALOG_QUESTION: String = "How should friends connect?"
 const HOST_STEAM_UNAVAILABLE: String = "Steam is unavailable; host locally instead."
 
@@ -165,7 +170,7 @@ var _page: int = PAGE_HOME
 var _debug_entry_enabled: bool = false
 var _home_tagline: String = ""
 var _join_steam_tab: bool = false
-var _host_dialog: ConfirmationDialog = null
+var _host_dialog: UiDialog = null
 var _host_steam_choice: Button = null
 
 ## The live OptionsMenu.tscn instance while it's open, or null. Tracked here
@@ -370,32 +375,31 @@ func _refresh_host_dialog_text(steam_available: bool) -> void:
 
 
 func _build_host_dialog() -> void:
-	_host_dialog = ConfirmationDialog.new()
-	_host_dialog.title = "Host game"
+	_host_dialog = UiDialog.new()
+	_host_dialog.title = HOST_DIALOG_TITLE
 	_refresh_host_dialog_text(bool(net_provider.steam_available()))
-	_host_dialog.ok_button_text = "Host locally"
-	_host_dialog.confirmed.connect(_on_host_local_confirmed)
-	_host_steam_choice = _host_dialog.add_button("Host on Steam", false, "steam")
-	_host_dialog.custom_action.connect(_on_host_custom_action)
+	_host_dialog.add_action(HOST_LOCAL_ID, HOST_LOCAL_TEXT, UiBlockButton.Look.PRIMARY)
+	_host_steam_choice = _host_dialog.add_action(HOST_STEAM_ID, HOST_STEAM_TEXT, UiBlockButton.Look.SECONDARY)
+	_host_dialog.action_chosen.connect(_on_host_dialog_action)
 	add_child(_host_dialog)
 	_host_steam_choice.disabled = not bool(net_provider.steam_available())
 
 
 func _on_host_pressed() -> void:
-	_host_dialog.popup_centered()
-	_host_dialog.get_ok_button().grab_focus()
+	_host_dialog.open()
+
+
+func _on_host_dialog_action(id: StringName) -> void:
+	if id == HOST_LOCAL_ID:
+		_on_host_local_confirmed()
+	elif id == HOST_STEAM_ID:
+		_on_host_online_pressed()
 
 
 func _on_host_local_confirmed() -> void:
 	var err: Error = net_provider.host_game(0, _player_name())
 	if err != OK:
 		_show_status("Could not host: %s" % error_string(err))
-
-
-func _on_host_custom_action(action: StringName) -> void:
-	if action == &"steam":
-		_host_dialog.hide()
-		_on_host_online_pressed()
 
 
 func _on_join_pressed() -> void:

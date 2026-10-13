@@ -498,6 +498,7 @@
   "ui/components/UiBlockButton.gd",
   "ui/components/UiButtonHint.gd",
   "ui/components/UiCycler.gd",
+  "ui/components/UiDialog.gd",
   "ui/components/UiDropdown.gd",
   "ui/components/UiField.gd",
   "ui/components/UiFlow.gd",
