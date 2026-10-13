@@ -1,8 +1,7 @@
-[gd_resource type="Resource" script_class="GiftIconTable" load_steps=18 format=3]
+[gd_resource type="Resource" script_class="GiftIconTable" load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://config/GiftIconTable.gd" id="1_t"]
 [ext_resource type="Texture2D" path="res://assets/ui/gift_pictograms_v1/atlas.svg" id="2_g"]
-[ext_resource type="Texture2D" path="res://assets/ui/weather_pictograms_v1/atlas.svg" id="3_w"]
 [ext_resource type="Texture2D" path="res://assets/ui/gift_previews/anvil.png" id="p0"]
 [ext_resource type="Texture2D" path="res://assets/ui/gift_model_previews/additional_v1/black_hole.png" id="p1"]
 [ext_resource type="Texture2D" path="res://assets/ui/gift_previews/bomb.png" id="p2"]
@@ -36,16 +35,6 @@ gift_regions = {
 &"rocket": Rect2(192, 128, 64, 64),
 &"stackfall": Rect2(0, 192, 64, 64),
 &"volcano": Rect2(64, 192, 64, 64)
-}
-weather_atlas = ExtResource("3_w")
-weather_regions = {
-&"OFF": Rect2(0, 0, 64, 64),
-&"STORM": Rect2(64, 0, 64, 64),
-&"RAIN": Rect2(128, 0, 64, 64),
-&"SNOW": Rect2(192, 0, 64, 64),
-&"FOG": Rect2(0, 64, 64, 64),
-&"RANDOM": Rect2(64, 64, 64, 64),
-&"CHANGING": Rect2(128, 64, 64, 64)
 }
 model_previews = {
 &"anvil": ExtResource("p0"),
