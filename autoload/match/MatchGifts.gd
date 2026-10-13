@@ -137,10 +137,32 @@ var _glue_revisions: Dictionary = {}
 var _container: Node3D = null
 
 
+## Bontago-1pi.11.87: true once the crate model table, GLB and toon materials were built once.
+var _crate_prewarmed: bool = false
+
+
 func setup(match_ref: MatchAutoload) -> void:
 	_match = match_ref
+	prewarm_crate_assets()
 	if not Events.player_eliminated.is_connected(_on_player_eliminated_clear_glue):
 		Events.player_eliminated.connect(_on_player_eliminated_clear_glue)
+
+
+## DECISION (Bontago-1pi.11.87): the first GiftCrate of a process cost 42-70 ms inside a bot's
+## placement frame (GiftModelTable load + crate GLB instantiate + toon materials), the worst frame
+## of the E6 bot bench; one throwaway build_crate_visual() at setup (host and client both run
+## setup) moves that cost out of the match. Idempotent; nothing is added to the tree.
+func prewarm_crate_assets() -> void:
+	if _crate_prewarmed:
+		return
+	_crate_prewarmed = true
+	var visual: Node3D = GiftModelTable.shared().build_crate_visual()
+	if visual != null:
+		visual.free()
+
+
+func crate_prewarmed() -> bool:
+	return _crate_prewarmed
 
 
 ## DECISION (Bontago-sen.8): an eliminated slot can never drop again, so the
