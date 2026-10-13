@@ -441,8 +441,11 @@ def commit_import_sidecars(ctx, repo, beads):
 
 def import_check(ctx, name, path):
     cmd = [godot_exe(), "--headless", "--log-file", ctx.log_path(name + "_godotlog"), "--editor", "--path", path, "--quit"]
-    run_cmd(ctx, name + "_warm", cmd, path, STEP_TIMEOUT_S)  # first run builds .godot
-    code, text, log = run_cmd(ctx, name, cmd, path, STEP_TIMEOUT_S)
+    # Owner PC crash 2026-10-13: the import was the one unslotted Godot launch.
+    import godot_slots
+    with godot_slots.godot_slot("integrate:" + name):
+        run_cmd(ctx, name + "_warm", cmd, path, STEP_TIMEOUT_S)  # first run builds .godot
+        code, text, log = run_cmd(ctx, name, cmd, path, STEP_TIMEOUT_S)
     return code, issue_lines(text), log
 
 
@@ -460,7 +463,9 @@ def check_tools_scripts(ctx, base, wt):
         return 0, [], 0, ctx.log_path("check_tools_empty")
     cmd = [godot_exe(), "--headless", "--log-file", ctx.log_path("check_tools_godotlog"), "--path", wt, "-s", "res://tools/check_scripts.gd", "--"]
     cmd += ["res://" + f for f in files]
-    code, text, log = run_cmd(ctx, "check_tools", cmd, wt, 180)
+    import godot_slots
+    with godot_slots.godot_slot("integrate:check_tools"):
+        code, text, log = run_cmd(ctx, "check_tools", cmd, wt, 180)
     errors = []
     for line in text.split("\n"):
         if "CHECK FAIL" in line or "SCRIPT ERROR" in line or "Parse Error" in line:

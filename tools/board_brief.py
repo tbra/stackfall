@@ -54,6 +54,9 @@ def main():
     children = child_map(owner_replies._export())
     for label, command in (("ready", ("ready",)), ("in progress", ("list", "--status=in_progress"))):
         issues = read_issues(*command)
+        if label == "ready":
+            # Owner 2026-10-13: deferred/backlog work is not auto-run work.
+            issues = [i for i in issues if "deferred" not in (i.get("labels") or []) and i.get("priority") != 4]
         print(f"{label}: {len(issues)}")
         for issue in issues[:limit]:
             print("  " + brief(issue) + tracker_note(issue["id"], children))
