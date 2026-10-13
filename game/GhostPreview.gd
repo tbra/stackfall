@@ -2412,7 +2412,9 @@ func _apply_glow() -> void:
 		_material.set_shader_parameter(&"glow_strength", level)
 		_material.set_shader_parameter(&"glow_rim_power", ghost_tuning.glow_rim_power)
 	if _gift_glow_material != null:
-		var tint: Color = current_tint_color()
+		# Bontago-1pi.85.76: no player colour on gifts; the rim is neutral white in the plain valid
+		# state and only follows the ghost's state colour (locked / invalid / throw hint).
+		var tint: Color = Color.WHITE if _gift_uses_owner_colour() else current_tint_color()
 		_gift_glow_material.set_shader_parameter(&"glow_color", Color(tint.r, tint.g, tint.b, 1.0))
 		_gift_glow_material.set_shader_parameter(&"glow_strength", level)
 		_gift_glow_material.set_shader_parameter(&"glow_rim_power", ghost_tuning.glow_rim_power)

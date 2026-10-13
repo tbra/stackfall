@@ -1756,6 +1756,7 @@ func _on_input_device_changed(_device: StringName) -> void:
 		_refresh_gift_slot_glyph()
 
 
+## Bontago-1pi.85.76: the gift icon is never tinted with the player colour.
 func _on_gift_slot_preview_draw() -> void:
 	if _gift_slot_id == &"":
 		return
@@ -1765,7 +1766,7 @@ func _on_gift_slot_preview_draw() -> void:
 	var texture_size: Vector2 = texture.get_size()
 	var fit: float = minf(_gift_slot_preview.size.x / texture_size.x, _gift_slot_preview.size.y / texture_size.y)
 	var draw_size: Vector2 = texture_size * fit
-	_gift_slot_preview.draw_texture_rect(texture, Rect2((_gift_slot_preview.size - draw_size) * 0.5, draw_size), false, _active_color)
+	_gift_slot_preview.draw_texture_rect(texture, Rect2((_gift_slot_preview.size - draw_size) * 0.5, draw_size), false, Color.WHITE)
 
 
 func _draw_static_shape(control: Control, shape: BlockShape, color: Color) -> void:
