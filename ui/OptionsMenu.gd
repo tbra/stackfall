@@ -42,6 +42,8 @@ var settings_provider: Variant = null
 ## presets/*.tres: high, low, medium) would scramble the intended quality
 ## ladder, so this is a literal list, the same way Settings.DEFAULT_PRESET_ID
 ## is a literal "medium" rather than a directory scan.
+## Bontago-1pi.204 review: the shared camera tuning the game uses, so F4 edits and .tres changes show here.
+const _SHARED_CAMERA_TUNING: CameraTuning = preload("res://config/camera_tuning.tres")
 const PRESET_IDS: Array[StringName] = GraphicsSettingsTab.PRESET_IDS
 const PRESET_LABELS: Array[String] = GraphicsSettingsTab.PRESET_LABELS
 
@@ -379,7 +381,7 @@ func _build_game_page() -> void:
 	_add_row(display, ROW_CAMERA_SHAKE, _camera_shake_check, "CameraShakeCheck")
 	_adaptive_quality_check = UiToggle.new()
 	_add_row(display, ROW_ADAPTIVE_QUALITY, _adaptive_quality_check, "AdaptiveQualityCheck")
-	var lens: CameraTuning = CameraTuning.new()
+	var lens: CameraTuning = _SHARED_CAMERA_TUNING
 	_fov_slider = _make_meter(lens.fov_min_deg, lens.fov_max_deg, FOV_CELLS)
 	_add_row(display, ROW_FOV, _fov_slider, "FovSlider")
 	_fov_slider.formatter = func(cells: int) -> String: return "%d°" % roundi(_meter_value(_fov_slider, cells))
@@ -745,7 +747,7 @@ func _on_adaptive_quality_toggled(enabled: bool) -> void:
 ## The lens the slider shows: the player's saved value, else the CameraTuning baseline.
 func _current_fov_deg() -> float:
 	var chosen: float = float(settings_provider.fov_override_deg())
-	return chosen if chosen > 0.0 else CameraTuning.new().fov_deg
+	return chosen if chosen > 0.0 else _SHARED_CAMERA_TUNING.fov_deg
 
 
 func _on_camera_shake_toggled(enabled: bool) -> void:

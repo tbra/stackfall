@@ -653,15 +653,6 @@ func is_peeking() -> bool:
 	return _peek_active
 
 
-## Bontago-mv0.20b (F4 tuning panel live-apply): re-snapshots _distance/_pitch
-## from tuning.follow_distance/follow_pitch_deg, clamped exactly as _ready()
-## does. Called once by _ready() and again by ui/TuningPanel.gd's
-## apply_camera_tuning_live() whenever camera_tuning changes on the F4 panel
-## -- never every frame, so a manual orbit/zoom the player already did (see
-## _unhandled_input()/_process() above) is only overwritten by an explicit
-## tuning push, not silently fought every tick. A no-op while
-## tuning.follow_block is false: the free-orbit camera has its own fixed
-## target/distance and these two fields mean nothing to it.
 ## Bontago-1pi.204: the lens in use: the player's Options value when set, else CameraTuning.fov_deg.
 func effective_fov_deg() -> float:
 	var chosen: float = Settings.fov_override_deg()
@@ -674,6 +665,15 @@ func _on_fov_override_changed(_degrees: float) -> void:
 	_camera.fov = effective_fov_deg()
 
 
+## Bontago-mv0.20b (F4 tuning panel live-apply): re-snapshots _distance/_pitch
+## from tuning.follow_distance/follow_pitch_deg, clamped exactly as _ready()
+## does. Called once by _ready() and again by ui/TuningPanel.gd's
+## apply_camera_tuning_live() whenever camera_tuning changes on the F4 panel
+## -- never every frame, so a manual orbit/zoom the player already did (see
+## _unhandled_input()/_process() above) is only overwritten by an explicit
+## tuning push, not silently fought every tick. A no-op while
+## tuning.follow_block is false: the free-orbit camera has its own fixed
+## target/distance and these two fields mean nothing to it.
 func apply_follow_tuning() -> void:
 	# DECISION (game/CameraRig.gd): fov_deg applies here unconditionally (unlike
 	# distance/pitch below) because it isn't a follow-only concept -- the panel
