@@ -150,10 +150,10 @@ func _section_main_menu() -> void:
 	# Host dialog: opened exactly like the Host button; closed again without confirming.
 	menu.call("_on_host_pressed")
 	await _settle(LONG_SETTLE_FRAMES)
-	var dialog: ConfirmationDialog = menu.get("_host_dialog") as ConfirmationDialog
-	# The popup never renders into the SubViewport capture (verified: the shot shows the bare menu).
-	_skip("main_menu", "host_dialog", "ConfirmationDialog popup is not rendered into the SubViewport capture")
-	dialog.hide()
+	var dialog: UiDialog = menu.get("_host_dialog") as UiDialog
+	# UiDialog is an in-tree overlay, so it renders into the capture.
+	await _shot("main_menu", "host_dialog")
+	dialog.close()
 	await _section_options(menu)
 	if is_instance_valid(menu):
 		menu.call("_set_page", MainMenu.PAGE_HOME)

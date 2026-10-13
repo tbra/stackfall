@@ -23,6 +23,7 @@ const PAGE_STRUCTURE: int = 3
 const PAGE_TEXT: int = 4
 const PAGE_CLOCK: int = 5
 const PAGE_CHAT: int = 6
+const PAGE_DIALOG: int = 7
 const CHAT_SAMPLE_NAMES: PackedStringArray = ["Tester", "Blue Fox", "Mint", "Goldie", "Violet", "Orange", "Teal", "Pinky"]
 const CHAT_SAMPLE_TEXTS: PackedStringArray = [
 	"anyone ready?", "[b]x[/b] stays literal [url]", "drop it on the left edge", "nice tower", "good game",
@@ -66,7 +67,7 @@ const BADGES: Array[Dictionary] = [
 ]
 
 ## 0 = buttons + badges, 1 = toggles, chips, steppers and tabs (C1b), 2 = dropdown, field and
-## segment meter, 3 = section, panel and title row (C2), 4 = text roles and well (C4a), 6 = chat panel (lobby and HUD skins). One page fits one capture.
+## segment meter, 3 = section, panel and title row (C2), 4 = text roles and well (C4a), 6 = chat panel (lobby and HUD skins), 7 = dialog plates. One page fits one capture.
 @export var page: int = 0
 
 
@@ -108,6 +109,11 @@ func _ready() -> void:
 	elif page == PAGE_TEXT:
 		columns.add_child(_panel("TEXT ROLES", _text_rows()))
 		columns.add_child(_panel("WELL", _well_rows()))
+	elif page == PAGE_DIALOG:
+		columns.add_theme_constant_override("separation", arcade.space_5_px)
+		columns.add_child(_dialog_plate("Leave match?", "Leave this match and return to the main menu?", UiBlockButton.Look.DANGER, "Leave match", "", false))
+		columns.add_child(_dialog_plate("Host game", "How should friends connect?", UiBlockButton.Look.PRIMARY, "Host locally", "Host on Steam", false))
+		columns.add_child(_dialog_plate("Host game", "How should friends connect?", UiBlockButton.Look.PRIMARY, "Host locally", "Host on Steam", true))
 	elif page == PAGE_CHAT:
 		columns.add_child(_chat_lobby_panel())
 		columns.add_child(_chat_hud_column())
@@ -196,6 +202,24 @@ func _chat_hud_column() -> VBoxContainer:
 		column.add_child(UiText.make(UiText.Role.CAPTION, "HUD " + state))
 		column.add_child(stage)
 	return column
+
+
+## One dialog's plate (UiDialog in the gallery: the plate only, no scrim; [param focused] previews
+## the first action's focus look).
+func _dialog_plate(title: String, body: String, look: UiBlockButton.Look, first: String, second: String, focused: bool) -> Control:
+	var dialog: UiDialog = UiDialog.new()
+	dialog.title = title
+	dialog.dialog_text = body
+	var primary: UiBlockButton = dialog.add_action(&"first", first, look)
+	if second != "":
+		dialog.add_action(&"second", second, UiBlockButton.Look.SECONDARY)
+	var plate: UiPanel = dialog.panel
+	plate.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	plate.get_parent().remove_child(plate)
+	dialog.free()
+	if focused:
+		primary.ready.connect(show_state.bind(primary, STATE_FOCUS))
+	return plate
 
 
 func _button_rows() -> Array[Control]:

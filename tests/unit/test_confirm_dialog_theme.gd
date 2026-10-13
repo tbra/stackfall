@@ -34,6 +34,6 @@ func test_accept_dialog_contrast() -> void:
 func test_pause_menu_dialog_uses_shared_theme() -> void:
 	var scene: PackedScene = load("res://ui/PauseMenu.tscn") as PackedScene
 	var menu: Node = scene.instantiate()
-	var dialog: ConfirmationDialog = menu.get_node("ConfirmDialog") as ConfirmationDialog
+	var dialog: UiDialog = menu.get_node("ConfirmDialog") as UiDialog
 	assert_eq(dialog.theme.resource_path, THEME_PATH)
 	menu.free()

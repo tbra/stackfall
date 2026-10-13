@@ -98,8 +98,11 @@ enum PendingAction { NONE, LEAVE, RETURN_TO_LOBBY }
 const RETURN_CLIENT_HINT: String = "Only the host can return everyone to the lobby"
 const RETURN_CONFIRM_TEXT: String = "End this match for everyone and return to the lobby?"
 const RETURN_CONFIRM_OK_TEXT: String = "End match"
+const RETURN_CONFIRM_TITLE: String = "Return to lobby?"
+const LEAVE_CONFIRM_TITLE: String = "Leave match?"
+const CONFIRM_ACTION_ID: StringName = &"confirm"
 const LEAVE_CONFIRM_TEXT: String = "Leave this match and return to the main menu?"
-const LEAVE_CONFIRM_OK_TEXT: String = "OK"
+const LEAVE_CONFIRM_OK_TEXT: String = "Leave match"
 
 ## Bontago-1pi.50: () -> Dictionary, read each time the menu opens (and by the
 ## confirm step). {"return_entry": ReturnEntry, "match_in_progress": bool}.
@@ -125,7 +128,7 @@ var _restore_focus: Callable = Callable()
 @onready var _options_button: UiBlockButton = %OptionsButton
 @onready var _return_button: UiBlockButton = %ReturnLobbyButton
 @onready var _leave_button: UiBlockButton = %LeaveButton
-@onready var _confirm_dialog: ConfirmationDialog = %ConfirmDialog
+@onready var _confirm_dialog: UiDialog = %ConfirmDialog
 ## Inline reason shown under the Return to lobby entry while a client sees it disabled (hidden otherwise).
 var return_hint: UiText = null
 
@@ -146,7 +149,7 @@ func _ready() -> void:
 	_return_button.pressed.connect(_on_return_lobby_pressed)
 	_leave_button.pressed.connect(_on_leave_pressed)
 	_build_return_hint()
-	_confirm_dialog.confirmed.connect(_on_confirm_dialog_confirmed)
+	_confirm_dialog.action_chosen.connect(_on_confirm_action_chosen)
 	_confirm_dialog.canceled.connect(_on_confirm_dialog_canceled)
 	Events.match_results_ready.connect(_on_match_results_ready)
 	_apply_visual_style()
@@ -238,6 +241,7 @@ func _close() -> void:
 	# some other way while it was asked) must not outlive it.
 	_pending_action = PendingAction.NONE
 	_confirm_dialog.hide()
+	_center.visible = true
 	visible = false
 	_release_freeze()
 	Events.pause_menu_closed.emit()
@@ -296,7 +300,7 @@ func _on_options_closed() -> void:
 
 
 func _on_leave_pressed() -> void:
-	_ask_confirmation(PendingAction.LEAVE, LEAVE_CONFIRM_TEXT, LEAVE_CONFIRM_OK_TEXT, _leave_button)
+	_ask_confirmation(PendingAction.LEAVE, LEAVE_CONFIRM_TITLE, LEAVE_CONFIRM_TEXT, LEAVE_CONFIRM_OK_TEXT, _leave_button)
 
 
 ## Bontago-1pi.50. A match in progress asks first (it ends for everyone); with
@@ -307,20 +311,27 @@ func _on_return_lobby_pressed() -> void:
 	if _return_button.disabled or not _return_button.visible:
 		return
 	if bool(_context().get("match_in_progress", false)):
-		_ask_confirmation(PendingAction.RETURN_TO_LOBBY, RETURN_CONFIRM_TEXT, RETURN_CONFIRM_OK_TEXT, _return_button)
+		_ask_confirmation(PendingAction.RETURN_TO_LOBBY, RETURN_CONFIRM_TITLE, RETURN_CONFIRM_TEXT, RETURN_CONFIRM_OK_TEXT, _return_button)
 		return
 	_close()
 	return_to_lobby_requested.emit()
 
 
-func _ask_confirmation(action: PendingAction, text: String, ok_text: String, origin: UiBlockButton) -> void:
+func _ask_confirmation(action: PendingAction, title: String, text: String, ok_text: String, origin: UiBlockButton) -> void:
 	if _confirm_dialog.visible:
 		return
 	_pending_action = action
 	_confirm_origin = origin
+	_confirm_dialog.title = title
 	_confirm_dialog.dialog_text = text
-	_confirm_dialog.ok_button_text = ok_text
-	_confirm_dialog.popup_centered()
+	_confirm_dialog.clear_actions()
+	_confirm_dialog.add_action(CONFIRM_ACTION_ID, ok_text, UiBlockButton.Look.DANGER)
+	_center.visible = false  # the plate behind a modal would ghost through the scrim
+	_confirm_dialog.open()
+
+
+func _on_confirm_action_chosen(_id: StringName) -> void:
+	_on_confirm_dialog_confirmed()
 
 
 func _on_confirm_dialog_confirmed() -> void:
@@ -338,6 +349,7 @@ func _on_confirm_dialog_confirmed() -> void:
 func _on_confirm_dialog_canceled() -> void:
 	_pending_action = PendingAction.NONE
 	_confirm_dialog.hide()
+	_center.visible = true
 	if _confirm_origin != null and is_instance_valid(_confirm_origin) and visible:
 		_confirm_origin.grab_focus()
 
