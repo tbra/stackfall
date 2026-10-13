@@ -69,4 +69,3 @@ extends Resource
 @export var incoming_default_radius_m: float = 3.0
 ## Safety margin added to an incoming special's impact radius when grading a site.
 @export var incoming_margin_m: float = 1.0
-

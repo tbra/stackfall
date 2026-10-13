@@ -1372,3 +1372,51 @@ func test_world_view_gifts_include_airborne_gifts_within_horizon() -> void:
 	]
 	var positions: PackedVector2Array = controller._landed_gift_positions(match_ref)
 	assert_eq(positions, PackedVector2Array([Vector2(5.0, 0.0), Vector2(2.0, 0.0)]), "landed + near-landing airborne; the far one is beyond the horizon")
+
+
+# --- Bontago-1t5.47: _apply_incoming_specials scene path ---------------------
+
+## Builds an enemy (slot 1, team 1) Block carrying a SpecialBehavior at `at` with `velocity`.
+func _make_thrown_block(at: Vector3, velocity: Vector3) -> Block:
+	var block: Block = Block.new()
+	block.owner_slot = 1
+	block.freeze = false
+	add_child_autofree(block)
+	block.global_position = at
+	block.linear_velocity = velocity
+	var behavior: SpecialBehavior = SpecialBehavior.new()
+	block.add_child(behavior)
+	behavior.add_to_group(SpecialBehavior.GROUP)
+	return block
+
+
+func _incoming_controller(field: Field) -> BotController:
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	match_ref.team_by_slot[1] = 1
+	var controller: BotController = _make_controller(field, match_ref, BotControllerFakeNet.new())
+	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
+	controller.set_meta(&"fake_match", match_ref)
+	return controller
+
+
+func test_apply_incoming_specials_adds_airborne_enemy_throw() -> void:
+	var field: Field = _make_field()
+	var controller: BotController = _incoming_controller(field)
+	_make_thrown_block(Vector3(0.0, 10.0, 0.0), Vector3(4.0, 3.0, 0.0))
+	var view: BotWorldView = BotWorldView.new()
+	view.team_id = 0
+	controller._apply_incoming_specials(view, controller.get_meta(&"fake_match"))
+	assert_eq(view.incoming_points.size(), 1, "an airborne enemy special is incoming")
+	assert_true(view.incoming_points[0].x > 0.0, "predicted impact lies downrange of the throw")
+
+
+func test_apply_incoming_specials_skips_sliding_and_own_team() -> void:
+	var field: Field = _make_field()
+	var controller: BotController = _incoming_controller(field)
+	_make_thrown_block(Vector3(0.0, 1.0, 0.0), Vector3(5.0, 0.0, 0.0))
+	var own: Block = _make_thrown_block(Vector3(0.0, 10.0, 0.0), Vector3(0.0, -5.0, 0.0))
+	own.owner_slot = 0
+	var view: BotWorldView = BotWorldView.new()
+	view.team_id = 0
+	controller._apply_incoming_specials(view, controller.get_meta(&"fake_match"))
+	assert_eq(view.incoming_points.size(), 0, "a sliding enemy special and an own-team throw are ignored")

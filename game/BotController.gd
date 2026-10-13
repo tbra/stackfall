@@ -596,6 +596,9 @@ func _apply_incoming_specials(view: BotWorldView, match_ref: Variant) -> void:
 		return
 	var eval_tuning: BotEvalTuning = BotEvaluator.tuning
 	var gravity_base: float = float(ProjectSettings.get_setting("physics/3d/default_gravity"))
+	# Bontago-1t5.47: gravity expressed in the Field's local frame, so a tilted disc predicts right.
+	var local_gravity: Vector3 = _field.global_transform.basis.orthonormalized().inverse() * (Vector3.DOWN * gravity_base)
+	var gravity_down_local: float = -local_gravity.y
 	for node: Node in get_tree().get_nodes_in_group(SpecialBehavior.GROUP):
 		var behavior: SpecialBehavior = node as SpecialBehavior
 		if behavior == null or behavior.is_triggered() or behavior.has_landed():
@@ -605,13 +608,17 @@ func _apply_incoming_specials(view: BotWorldView, match_ref: Variant) -> void:
 			continue
 		if int(match_ref.team_of(block.owner_slot)) == view.team_id:
 			continue
-		if block.linear_velocity.length() < eval_tuning.incoming_min_speed_mps:
-			continue
 		var local_pos: Vector3 = _field.to_local(block.global_position)
 		var local_vel: Vector3 = _field.to_local(block.global_position + block.linear_velocity) - local_pos
+		# DECISION (Bontago-1t5.47): "airborne" = moving along the Field's local vertical above the
+		# resting threshold. A special sliding on the disc has ~0 vertical speed, so it is not
+		# incoming (has_landed() is never set for needs_landing=false effects). Cost: a throw's
+		# apex frame (|vy| below the threshold) is missed for a moment.
+		if absf(local_vel.y) < eval_tuning.incoming_min_speed_mps:
+			continue
 		var impact: Vector3 = BotWorldView.ballistic_impact(
 			Vector2(local_pos.x, local_pos.z), local_pos.y, Vector2(local_vel.x, local_vel.z),
-			local_vel.y, gravity_base * block.gravity_scale
+			local_vel.y, gravity_down_local * block.gravity_scale
 		)
 		var radius: float = _special_effect_radius_m(_behavior_special_id(behavior))
 		if radius <= 0.0:
