@@ -1,6 +1,6 @@
 # Stackfall
 
-A physics-based, competitive block-stacking territory game for 2–8 players, online over
+A physics-based, competitive block-stacking territory game for 1–8 players, online over
 Steam and on LAN. It is a remake of **Bontãgo** (Circular Logic, 2003); "Stackfall" is a
 placeholder name, because the original name and assets belong to DigiPen and Circular Logic.
 

@@ -527,7 +527,7 @@ layout_mode = 0
 [node name="PlayerCountSpin" type="SpinBox" parent="HiddenSources/Seats"]
 unique_name_in_owner = true
 layout_mode = 2
-min_value = 2.0
+min_value = 1.0
 max_value = 8.0
 value = 4.0
 

@@ -550,12 +550,13 @@ func test_layout_without_net_slots_numbers_humans_in_seat_order() -> void:
 	assert_eq(plan.slot_keys, _ints([_human(7), _human(3), _bot(0)]))
 
 
-func test_layout_keeps_a_vacant_slot_below_the_player_minimum() -> void:
+func test_layout_solo_host_forms_exactly_one_slot() -> void:
 	var plan: LobbySeats.Layout = LobbySeats.layout(_seats([1], 0), _slots([Vector2i(1, 0)]))
 	assert_true(plan.is_valid())
 	assert_eq(plan.player_count, MatchConfig.PLAYER_COUNT_MIN)
 	assert_eq(plan.ai_count, 0)
-	assert_eq(plan.slot_keys, _ints([_human(1), LobbySeats.KEY_NONE]))
+	assert_eq(plan.player_count, 1, "owner decision Bontago-1pi.206: no vacant second slot")
+	assert_eq(plan.slot_keys, _ints([_human(1)]))
 
 
 func test_layout_ignores_spectators() -> void:
@@ -598,7 +599,7 @@ func test_team_picks_by_slot_follow_the_layout() -> void:
 	var swapped: PackedInt32Array = LobbySeats.team_picks_by_slot(seats, _slots([Vector2i(20, 0), Vector2i(10, 1)]))
 	assert_eq(swapped, PackedInt32Array([4, 1, 0, 2]), "the real Net slots decide the order")
 	var vacant: PackedInt32Array = LobbySeats.team_picks_by_slot(_seats([1], 0), _slots([Vector2i(1, 0)]))
-	assert_eq(vacant, PackedInt32Array([1, MatchConfig.TEAM_PICK_RANDOM]), "a vacant slot is a Random pick")
+	assert_eq(vacant, PackedInt32Array([1]), "a lone host forms one slot, no vacant Random pick")
 	var broken: PackedInt32Array = LobbySeats.team_picks_by_slot(_seats([1, 2], 0), _slots([Vector2i(1, 0), Vector2i(2, 0)]))
 	assert_true(broken.is_empty(), "no picks for a layout that cannot be built")
 
@@ -758,15 +759,15 @@ func test_flatten_player_count_follows_the_seats_not_the_stale_config() -> void:
 	assert_eq(config.slot_team_ids.size(), 3)
 
 
-func test_flatten_gives_a_lone_host_a_vacant_random_slot() -> void:
+func test_flatten_gives_a_lone_host_exactly_one_slot() -> void:
 	var seats: Dictionary = _seats([1], 0)
 	var config: MatchConfig = _team_config()
 	assert_eq(LobbySeats.flatten_to_config(seats, _slots([Vector2i(1, 0)]), config, SEED), "")
-	assert_eq(config.player_count, MatchConfig.PLAYER_COUNT_MIN)
+	assert_eq(config.player_count, 1)
 	assert_eq(config.ai_count, 0)
 	assert_true(config.slot_ai_difficulties.is_empty(), "no bots, no per-slot difficulties")
-	assert_eq(config.slot_team_ids.size(), 2)
-	assert_eq(config.team_numbers.size(), 2, "the vacant slot is Random and lands on the empty team")
+	assert_eq(config.slot_team_ids.size(), 1)
+	assert_eq(config.team_numbers.size(), 1, "one seat forms one team")
 	config.sanitize()
 	assert_true(config.teams_resolved())
 

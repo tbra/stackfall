@@ -118,7 +118,7 @@ Audit date: 2026-09-20. DigiPen, the interview, release thread, description mirr
 - **Map variants** [NEW, based on the planned 2.0 feature]: Round (default), Oval, Ring (with a hole in the middle and the goal flag on a bridge), Twin disks joined by a bridge, and Cross.
 
 ### 2.2 Players, flags, territory
-- **Start positions:** 2–8 players; each home flag sits at `field_radius - MapDef.home_flag_edge_inset` (6.0 m), a fixed distance from the rim on every map size **[OWNER decision 2026-10-12, Bontago-1pi.184, supersedes 0.85 * field_radius]**. Evenly distributed home flags are evidenced in §1.2; the exact radius and supported remake player range are design choices.
+- **Start positions:** 1–8 players [OWNER decision 2026-10-13, Bontago-1pi.206: solo matches allowed]; each home flag sits at `field_radius - MapDef.home_flag_edge_inset` (6.0 m), a fixed distance from the rim on every map size **[OWNER decision 2026-10-12, Bontago-1pi.184, supersedes 0.85 * field_radius]**. Evenly distributed home flags are evidenced in §1.2; the exact radius and supported remake player range are design choices.
 - **Goal flags:** 1 central flag by default; setup allows 1–5 with extras arranged at `0.4 * field_radius`. Multiple goals are historically described; these limits/layout values are **[NEW]**, not a recovered original maximum.
 - **Home circle:** `home_radius = 6` while the home flag is alive. Initial home influence is evidenced; its exact size and lifetime model are **[NEW]**.
 - **Goal no-build zones [OWNER, original unverified]:** keep the earlier requirement for a no-placement disc around each goal; the installed tutorial does not settle these zones. Nothing found proves they cannot coexist with original overlap sinking. `goal_zone_radius = 4 m` is the v2 plan's provisional tuning, not an original value. Zones block placement, **not influence or capture**. Do not confuse them with missing floor or assume that claiming the zone's edge is enough to capture the flag base.
@@ -311,7 +311,7 @@ Every special is its own `SpecialDef` resource plus a script. The seven evidence
 **[OWNER roadmap 2026-09-29, Bontago-22y.13]** Cat activation replaces any prior cat and creates one host-simulated physical body outside the block registry, so it cannot contribute territory or enter the block feed. The activating player's existing mouse/gamepad cursor steers a visible red laser target. The host checks peer ownership, limits target range and chase duration, and replicates cat start/end reliably plus moving poses during the chase. Client cats have no active collision body. A match reset removes the cat and its pointer.
 
 ### 2.7 Modes
-- **Free-for-all:** 2–8 players, humans and AI.
+- **Free-for-all:** 1–8 players (owner decision Bontago-1pi.206), humans and AI.
 - **Teams:** 2–4 teams.
 - **Sandbox:** No timer and no territory limits. Throwing ordinary blocks is allowed, and there's a block picker. Specials can be spawned from a menu. It also has slow-motion, pause-physics, and height-record tools. [ORIGINAL + NEW tools]
 - **Tutorial:** 5 short interactive steps: placing, rotating, territory, specials and throwing, and camera.
@@ -322,7 +322,7 @@ Every special is its own `SpecialDef` resource plus a script. The seven evidence
 |---|---|---|
 | Map | Round / Oval / Ring / Twin / Cross | Round |
 | Map size | S/M/L | M |
-| Players / AI count & difficulty | 2–8 seats; bots added with the players panel's Add bot button, each bot has its own Easy/Normal/Hard dropdown (lobby rework, Bontago-1pi.53) | 4 |
+| Players / AI count & difficulty | 1–8 seats (owner decision Bontago-1pi.206); bots added with the players panel's Add bot button, each bot has its own Easy/Normal/Hard dropdown (lobby rework, Bontago-1pi.53) | 4 |
 | Teams | Teams toggle in the players panel; each seat picks team 1–4 or Random (balanced fill at match start); same number = same team (Bontago-1pi.53) | Off |
 | Block timer | 3–12 s | 6 s |
 | Gravity | 0.1×–2× **[OWNER decision 2026-10-12, Bontago-1pi.179]** | 1× (of a base gravity raised 1.25×: `lobby_gravity_baseline` 1.4 → 1.75, so effective default gravity is 1.75) |

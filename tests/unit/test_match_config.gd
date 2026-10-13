@@ -144,6 +144,16 @@ func test_clamp_to_connected_peers_humans_outrank_bots_for_scarce_seats() -> voi
 	assert_eq(config.ai_count, 0, "no room left for bots once 8 peers are connected")
 
 
+func test_sanitize_rejects_out_of_range_player_counts_zero_and_nine() -> void:
+	var config: MatchConfig = MatchConfig.new()
+	config.player_count = 0
+	config.sanitize()
+	assert_eq(config.player_count, 1, "0 players clamps up to the 1-player floor")
+	config.player_count = 9
+	config.sanitize()
+	assert_eq(config.player_count, 8, "9 players clamps down to 8")
+
+
 func test_clamp_to_connected_peers_respects_the_spec_28_range() -> void:
 	var config: MatchConfig = MatchConfig.new()
 

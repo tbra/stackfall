@@ -8,9 +8,8 @@ extends Resource
 ## Loaded once as config/sandbox.tres, exactly like every other config/*.tres.
 
 ## `--sandbox` with no `--players=` starts with this many slots.
-## MatchConfig.PLAYER_COUNT_MIN is 2 (spec 2.8); sandbox is the one place a
-## config below that floor is allowed (MatchConfig.sandbox), so this can sit
-## under it on purpose for solo rules testing.
+## MatchConfig.PLAYER_COUNT_MIN is 1 (spec 2.8, owner decision Bontago-1pi.206),
+## so solo rules testing is an ordinary 1-player config.
 @export var default_player_count: int = 2
 
 ## sandbox_spawn_tower (F7) calls Match.request_place() this many times in a
