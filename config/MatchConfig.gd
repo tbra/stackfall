@@ -329,10 +329,10 @@ static func timer_min_minutes(mode: int) -> int:
 
 
 ## Value the timer control takes when the mode changes family: classic off,
-## Elimination no limit, CTF/Sky the shipped round length.
+## Elimination, CTF and Sky the shipped 5-minute round (owner decision Bontago-1t5.6: Elimination is timed, most territory wins; Off stays selectable).
 static func timer_default_minutes(mode: int) -> int:
 	match resolve_game_mode(mode):
-		GameMode.CLASSIC, GameMode.ELIMINATION:
+		GameMode.CLASSIC:
 			return 0
 		GameMode.DOMINATION:
 			return DOMINATION_ROUND_MINUTES_DEFAULT

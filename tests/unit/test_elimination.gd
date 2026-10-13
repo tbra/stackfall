@@ -162,6 +162,17 @@ func test_factory_selectable_and_timer_off_is_elimination_only() -> void:
 			MatchConfig.ROUND_TIMER_MIN_MINUTES, "other modes still need a timer to end")
 
 
+func test_elimination_defaults_to_a_timed_round_and_off_stays_selectable() -> void:
+	assert_eq(MatchConfig.timer_default_minutes(MatchConfig.GameMode.ELIMINATION), MatchConfig.ROUND_TIMER_DEFAULT_MINUTES)
+	assert_eq(MatchConfig.new().round_timer_minutes, MatchConfig.ROUND_TIMER_DEFAULT_MINUTES)
+	assert_eq(MatchConfig.clamp_round_timer(0, MatchConfig.GameMode.ELIMINATION), MatchConfig.ROUND_TIMER_OFF_MINUTES)
+	var objective: EliminationObjective = _objective([0, 1, 2], 3)
+	assert_true(objective.is_timed(), "the lifecycle timer ends the round through on_round_timer_end")
+	objective.slot_eliminated(2)
+	objective.resolve(_shares([0.2, 0.5, 0.0]))
+	assert_eq(objective.on_round_timer_end(), 1, "most territory wins at expiry")
+
+
 func test_hud_and_results_text() -> void:
 	var state: Dictionary = {"mode_id": MatchConfig.GameMode.ELIMINATION, "scores": [2.0, 0.0, 1.0], "round_left": 65.0}
 	assert_eq(HUD.mode_score_text(state), "1: 2 alive  2: out  3: alive")
