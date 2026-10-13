@@ -1238,3 +1238,122 @@ func test_release_hold_is_cut_before_the_block_timer_expires() -> void:
 	var free: int = _frames_until_release(0, 42, 0.0, 0.0, 1.0)
 	# Only (time_left - margin) = 0.5 s may be spent holding, never the full 3 s.
 	assert_lt(held - free, 40, "hold capped by the timer")
+
+
+# --- Bontago-1t5.46: BotController._apply_weather (host live weather -> view) ---
+
+class BotControllerFakeBreeze:
+	var gust_list: Array[Dictionary] = []
+
+	func gusts() -> Array[Dictionary]:
+		return gust_list
+
+
+class BotControllerFakeWeather:
+	var id: StringName = &""
+	var intensity: float = 0.0
+	var seed_number: int = 4242
+	var event_number: int = 1
+	var breeze_ref: BotControllerFakeBreeze = BotControllerFakeBreeze.new()
+
+	func active_id() -> StringName:
+		return id
+
+	func active_intensity() -> float:
+		return intensity
+
+	func seed_value() -> int:
+		return seed_number
+
+	func event_index() -> int:
+		return event_number
+
+	func breeze() -> BotControllerFakeBreeze:
+		return breeze_ref
+
+
+class BotControllerWeatherMatch:
+	extends BotControllerFakeMatch
+	var weather_ref: BotControllerFakeWeather = BotControllerFakeWeather.new()
+
+	func weather() -> BotControllerFakeWeather:
+		return weather_ref
+
+
+func _weather_view(match_ref: Variant, field: Field) -> BotWorldView:
+	var bot: BotController = _make_controller(field, match_ref, BotControllerFakeNet.new())
+	bot.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
+	var view: BotWorldView = BotWorldView.new()
+	bot._apply_weather(view, match_ref)
+	return view
+
+
+func test_apply_weather_calm_leaves_view_untouched() -> void:
+	var match_ref: BotControllerWeatherMatch = BotControllerWeatherMatch.new()
+	var view: BotWorldView = _weather_view(match_ref, _make_field())
+	assert_eq(view.weather_id, &"")
+	assert_eq(view.weather_intensity, 0.0)
+	assert_null(view.wind_tuning)
+	assert_eq(view.wind_dir, Vector2.ZERO)
+	assert_null(view.breeze_tuning)
+	assert_true(view.gust_power_values.is_empty())
+
+
+func test_apply_weather_without_weather_accessor_is_a_noop() -> void:
+	var view: BotWorldView = _weather_view(_make_ready_match(0), _make_field())
+	assert_null(view.wind_tuning)
+	assert_null(view.breeze_tuning)
+
+
+func test_apply_weather_storm_copies_intensity_and_heading() -> void:
+	var match_ref: BotControllerWeatherMatch = BotControllerWeatherMatch.new()
+	match_ref.weather_ref.id = WeatherIds.STORM
+	match_ref.weather_ref.intensity = 0.6
+	var view: BotWorldView = _weather_view(match_ref, _make_field())
+	assert_eq(view.weather_id, WeatherIds.STORM)
+	assert_almost_eq(view.weather_intensity, 0.6, 0.0001)
+	assert_eq(view.wind_tuning, BotController.STORM_TUNING)
+	var angle: float = WindField.base_angle(WindField.event_seed(4242, 1))
+	assert_almost_eq(view.wind_dir.x, cos(angle), 0.0001, "an untransformed field keeps the world heading")
+	assert_almost_eq(view.wind_dir.y, sin(angle), 0.0001)
+
+
+func test_apply_weather_rain_has_no_wind() -> void:
+	var match_ref: BotControllerWeatherMatch = BotControllerWeatherMatch.new()
+	match_ref.weather_ref.id = &"rain"
+	match_ref.weather_ref.intensity = 1.0
+	var view: BotWorldView = _weather_view(match_ref, _make_field())
+	assert_eq(view.weather_intensity, 1.0)
+	assert_null(view.wind_tuning)
+	assert_eq(view.wind_dir, Vector2.ZERO)
+
+
+func test_apply_weather_copies_live_gusts_into_disk_local_space() -> void:
+	var match_ref: BotControllerWeatherMatch = BotControllerWeatherMatch.new()
+	match_ref.weather_ref.breeze_ref.gust_list.append({
+		"id": 1, "x": 2.0, "y": 5.0, "z": -3.0, "a": 0.0, "r": 4.0, "d": 2.0, "s": 0.8, "age": 0.0,
+	})
+	match_ref.weather_ref.breeze_ref.gust_list.append({
+		"id": 2, "x": 0.0, "y": 5.0, "z": 0.0, "a": 0.0, "r": 4.0, "d": 2.0, "s": 1.0, "age": 2.5,
+	})
+	var field: Field = _make_field()
+	var view: BotWorldView = _weather_view(match_ref, field)
+	assert_eq(view.gust_power_values.size(), 1, "the expired gust is dropped")
+	assert_eq(view.breeze_tuning, BotController.BREEZE_TUNING)
+	assert_eq(view.gust_center[0], field.to_local(Vector3(2.0, 5.0, -3.0)))
+	assert_almost_eq(view.gust_power_values[0], 0.8, 0.0001)
+	assert_almost_eq(view.gust_radius[0], 4.0, 0.0001)
+	assert_almost_eq(view.gust_heading[0].x, 1.0, 0.0001)
+	assert_almost_eq(view.gust_heading[0].y, 0.0, 0.0001)
+	var tall: BotCandidate = BotCandidate.new()
+	tall.origin = Vector2(2.0, -3.0)
+	tall.top_height = 9.0
+	assert_gt(BotEvaluator.breeze_tip(tall, view), 0.0, "the controller data drives the evaluator")
+
+
+func test_apply_weather_skips_malformed_gusts() -> void:
+	var match_ref: BotControllerWeatherMatch = BotControllerWeatherMatch.new()
+	match_ref.weather_ref.breeze_ref.gust_list.append({"id": 1, "x": 0.0})
+	var view: BotWorldView = _weather_view(match_ref, _make_field())
+	assert_true(view.gust_power_values.is_empty())
+	assert_null(view.breeze_tuning)

@@ -30,6 +30,19 @@ extends Resource
 ## own tip_risk as wind_tip_weight * weather intensity * WindField.height_factor(top height).
 ## 0 disables it; calm weather is unaffected whatever the value.
 @export var wind_tip_weight: float = 1.0
+## Weather (Bontago-1t5.46): extra TIP risk of a placement in an active Breeze gust, added as
+## breeze_tip_weight * gust power * BreezeField.falloff(distance to the gust centre) *
+## WindField.height_factor(top height). A gust is local and brief next to a Storm, so below
+## wind_tip_weight. 0 disables the gust term; no live gust adds exactly 0.
+@export var breeze_tip_weight: float = 0.5
+## A gust sphere is stretched downwind of its centre by this fraction (0 = the host's symmetric
+## sphere): the push carries loose pieces and the wake along the heading, so a site downwind of the
+## centre is graded as closer to the gust than an upwind site at the same distance.
+@export var breeze_lee_gain: float = 0.5
+## Wind direction (Storm base heading, gust heading): the wind term grows by up to this fraction
+## when the piece sits within rim_margin_m of the live disc edge measured along the wind (a shove
+## downwind then takes it over the rim); an upwind or central placement is not changed. 0 disables.
+@export var wind_rim_gain: float = 1.0
 ## Rim / shrink (Bontago-1t5.42): a footprint whose farthest cell lies within this many metres
 ## of the live disc edge is graded 0..1 as fall-off risk (0 at this distance, 1 at the edge).
 @export var rim_margin_m: float = 3.0

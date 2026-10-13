@@ -34,6 +34,10 @@ const RNG_OFFSET: int = 777001
 
 ## Bontago-1t5.41: the shipped Storm wind response the V2 evaluator reads (same resource StormEffect uses).
 const STORM_TUNING: StormTuning = preload("res://config/weather/storm.tres")
+## Bontago-1t5.46: the wire fields (Events.breeze_gust_started) a listed gust must carry to be read.
+const GUST_KEYS: Array[String] = ["x", "y", "z", "a", "r", "d", "s"]
+## Bontago-1t5.46: the shipped Breeze response the V2 evaluator reads for live gusts (same resource BreezeEffect uses).
+const BREEZE_TUNING: BreezeTuning = preload("res://config/breeze.tres")
 
 enum State { IDLE, GENERATING, ACTING, THINKING, RELEASE_WAIT }
 
@@ -345,6 +349,7 @@ func _apply_live_radius(view: BotWorldView, match_ref: Variant) -> void:
 
 
 ## Bontago-1t5.41: copies the live weather (host) into the view; only a Storm blows wind.
+## Bontago-1t5.46: also the Storm heading (seeded base heading, disk-local) and the live Breeze gusts.
 func _apply_weather(view: BotWorldView, match_ref: Variant) -> void:
 	if not match_ref.has_method("weather"):
 		return
@@ -355,6 +360,51 @@ func _apply_weather(view: BotWorldView, match_ref: Variant) -> void:
 	view.weather_intensity = float(weather.active_intensity())
 	if view.weather_id == WeatherIds.STORM:
 		view.wind_tuning = STORM_TUNING
+		view.wind_dir = _storm_heading(weather)
+	_apply_gusts(view, weather)
+
+
+## Bontago-1t5.46: the active Storm's base heading (WindField.base_angle of the event seed, the value
+## StormEffect and the presentation also derive; the slow +/- veer is not readable here) as a disk-local
+## unit vector; ZERO when the weather object exposes no seed.
+func _storm_heading(weather: Object) -> Vector2:
+	if not weather.has_method("seed_value") or not weather.has_method("event_index"):
+		return Vector2.ZERO
+	var angle: float = WindField.base_angle(WindField.event_seed(int(weather.seed_value()), int(weather.event_index())))
+	return _disk_heading(Vector2(cos(angle), sin(angle)))
+
+
+## Bontago-1t5.46: copies the host's live Breeze gusts (BreezeEffect.gusts(): wire fields plus "age")
+## into the view in disk-local space; the view's gust power is BotWorldView.gust_power().
+func _apply_gusts(view: BotWorldView, weather: Object) -> void:
+	if not weather.has_method("breeze"):
+		return
+	var breeze: Object = weather.breeze() as Object
+	if breeze == null or not breeze.has_method("gusts"):
+		return
+	var gusts: Array = breeze.gusts() as Array
+	for entry: Variant in gusts:
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		var gust: Dictionary = entry
+		if not gust.has_all(GUST_KEYS):
+			continue
+		var power: float = BotWorldView.gust_power(float(gust["s"]), float(gust.get("age", 0.0)), float(gust["d"]))
+		var world_centre: Vector3 = Vector3(float(gust["x"]), float(gust["y"]), float(gust["z"]))
+		var local_centre: Vector3 = _field.to_local(world_centre) if _field != null else world_centre
+		var heading: Vector2 = _disk_heading(BreezeField.heading(float(gust["a"])))
+		view.add_gust(local_centre, float(gust["r"]), heading, power)
+	if not view.gust_power_values.is_empty():
+		view.breeze_tuning = BREEZE_TUNING
+
+
+## Bontago-1t5.46: a world x/z direction as a unit vector in disk-local x/z (the field's own
+## rotation undone, like Field.disk_local_from_world does for points).
+func _disk_heading(world_dir: Vector2) -> Vector2:
+	if _field == null:
+		return world_dir
+	var local: Vector3 = _field.global_transform.basis.inverse() * Vector3(world_dir.x, 0.0, world_dir.y)
+	return Vector2(local.x, local.z).normalized()
 
 
 ## Bontago-1t5.37: THINKING ticks after the release boundary by which a V2 think is decided: the
