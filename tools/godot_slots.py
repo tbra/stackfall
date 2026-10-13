@@ -8,7 +8,7 @@ file (slot_<n>.json: owner pid, command label, start time) created atomically
 owner PID is dead is reclaimed. Waiting polls and prints one
 'waiting for Godot slot (n/cap busy)' line.
 
-Env: STACKFALL_GODOT_SLOTS (cap, default 3), STACKFALL_GODOT_SLOTS_DIR (state dir,
+Env: STACKFALL_GODOT_SLOTS (cap, default 2), STACKFALL_GODOT_SLOTS_DIR (state dir,
 default M:/Bontago-tools/locks/godot_slots, else %TEMP%/stackfall_godot_slots),
 STACKFALL_GODOT_SLOTS_WAIT (max wait seconds, default 3600).
 
@@ -44,7 +44,7 @@ import time
 
 import godot_exe  # Bontago-fca.93: real Godot .exe behind PATH shims
 
-DEFAULT_CAP = 3
+DEFAULT_CAP = 2  # owner PC crashed 2026-10-10 and 2026-10-13: at most 2 Godot processes
 DEFAULT_MAX_WAIT_S = 3600.0
 POLL_S = 0.5
 FRESH_FILE_S = 5.0

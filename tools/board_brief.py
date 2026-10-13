@@ -24,16 +24,39 @@ def brief(issue):
     return f"{issue['id']} P{issue.get('priority', '?')} {title} [{assignee}]"
 
 
+def child_map(rows):
+    """parent id -> [(child id, status)] from parent-child dependencies."""
+    children = {}
+    for row in rows:
+        for dep in row.get("dependencies") or []:
+            if (dep.get("type") or dep.get("dependency_type")) == "parent-child":
+                children.setdefault(dep.get("depends_on_id"), []).append((row["id"], row.get("status")))
+    return children
+
+
+def tracker_note(issue_id, children):
+    """Debrief 2026-10-13: a ready parent is a tracker; name its open children
+    so a worker is not dispatched on a parent whose steps are already closed."""
+    kids = children.get(issue_id) or []
+    if not kids:
+        return ""
+    open_ids = [cid for cid, status in kids if status != "closed"]
+    shown = ",".join(open_ids[:3]) + (",..." if len(open_ids) > 3 else "")
+    return f" (tracker {len(open_ids)}/{len(kids)} open: {shown or 'none'})"
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--limit", type=int, default=5, help="items per section (max 10)")
     args = parser.parse_args()
     limit = max(1, min(args.limit, 10))
+    import owner_replies
+    children = child_map(owner_replies._export())
     for label, command in (("ready", ("ready",)), ("in progress", ("list", "--status=in_progress"))):
         issues = read_issues(*command)
         print(f"{label}: {len(issues)}")
         for issue in issues[:limit]:
-            print("  " + brief(issue))
+            print("  " + brief(issue) + tracker_note(issue["id"], children))
         if len(issues) > limit:
             print(f"  ... {len(issues) - limit} more; query a specific bead if needed")
     epic_hygiene()
