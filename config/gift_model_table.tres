@@ -9,13 +9,13 @@
 [ext_resource type="PackedScene" path="res://assets/models/earthquake_v2/earthquake_v2.glb" id="7_m"]
 [ext_resource type="PackedScene" path="res://assets/models/freeze_v1/freeze_v1.glb" id="8_m"]
 [ext_resource type="PackedScene" path="res://assets/models/glue_v1/glue_v1.glb" id="9_m"]
-[ext_resource type="PackedScene" path="res://assets/models/jumping_bean_v2/jumping_bean_v2.glb" id="10_m"]
+[ext_resource type="PackedScene" path="res://assets/models/jumping_bean_v3/jumping_bean_v3.glb" id="10_m"]
 [ext_resource type="PackedScene" path="res://assets/models/magnet_v1/magnet_v1.glb" id="11_m"]
 [ext_resource type="PackedScene" path="res://assets/models/paintball_v2/paintball_v2.glb" id="12_m"]
 [ext_resource type="PackedScene" path="res://assets/models/propeller_v1/propeller_v1.glb" id="13_m"]
 [ext_resource type="PackedScene" path="res://assets/models/rocket_v1/rocket_v1.glb" id="14_m"]
 [ext_resource type="PackedScene" path="res://assets/models/stackfall_v1/stackfall_v1.glb" id="15_m"]
-[ext_resource type="PackedScene" path="res://assets/models/volcano_v2/volcano_v2.glb" id="16_m"]
+[ext_resource type="PackedScene" path="res://assets/models/volcano_v3/volcano_v3.glb" id="16_m"]
 [ext_resource type="PackedScene" path="res://assets/models/gift_crate_v2/gift_crate_v2.glb" id="17_m"]
 [ext_resource type="PackedScene" path="res://assets/models/gift_crate_reveal_v2/gift_crate_reveal_v2.glb" id="18_m"]
 
@@ -128,6 +128,7 @@ id = &"volcano"
 scene = ExtResource("16_m")
 model_scale = 1.0
 offset = Vector3(-0.0080, 0.0336, 0.0289)
+loop_animation = &"smoke_rise_2s"
 
 [sub_resource type="Resource" id="Entry_gift_crate"]
 script = ExtResource("2_entry")

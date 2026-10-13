@@ -30,6 +30,12 @@ const SEQ_SEED_MIX: int = 40503
 const MIN_RING_SEGMENTS: int = 3
 const HEIGHT_EPSILON: float = 0.0001
 
+## Bontago-mp0.163: the model's animated smoke puffs ("Smoke N") rise out of the crater
+## and must not count towards the footprint/height fit, so the cone keeps its size.
+const SMOKE_NODE_PREFIX: String = "Smoke"
+## Looping smoke clip baked into the volcano GLB (same clip as the held gift).
+const SMOKE_LOOP_ANIMATION: StringName = &"smoke_rise_2s"
+
 var _effect: VolcanoEffect = null
 var _owner_slot: int = -1
 var _physics: bool = false
@@ -259,7 +265,12 @@ func _build_model_visual() -> bool:
 	var base_centre: Vector3 = bounds.position + Vector3(bounds.size.x * 0.5, 0.0, bounds.size.z * 0.5)
 	model.scale = model_scale
 	model.position = -base_centre * model_scale
+	GiftModelTable.apply_toon(model)
 	_visual.add_child(model)
+	var player: AnimationPlayer = GiftModelTable._player_of(model)
+	if player != null and player.has_animation(SMOKE_LOOP_ANIMATION):
+		player.get_animation(SMOKE_LOOP_ANIMATION).loop_mode = Animation.LOOP_LINEAR
+		player.play(SMOKE_LOOP_ANIMATION)
 	return true
 
 
@@ -268,6 +279,8 @@ static func _model_bounds(node: Node, to_root: Transform3D) -> AABB:
 	var result: AABB = AABB()
 	var found: bool = false
 	var node_3d: Node3D = node as Node3D
+	if node != null and String(node.name).begins_with(SMOKE_NODE_PREFIX):
+		return AABB()
 	var current: Transform3D = to_root * node_3d.transform if node_3d != null else to_root
 	var mesh_instance: MeshInstance3D = node as MeshInstance3D
 	if mesh_instance != null and mesh_instance.mesh != null:
