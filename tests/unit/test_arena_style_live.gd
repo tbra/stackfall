@@ -21,9 +21,13 @@ func _signature() -> Array:
 	var overlay: TerritoryOverlay = _field.overlay()
 	var mesh: ArrayMesh = overlay.mesh as ArrayMesh
 	var vertices: int = 0
+	var extent: float = 0.0
 	for surface: int in mesh.get_surface_count():
-		vertices += (mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
-	return [mesh.get_surface_count(), vertices]
+		var surface_vertices: PackedVector3Array = mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX] as PackedVector3Array
+		vertices += surface_vertices.size()
+		for vertex: Vector3 in surface_vertices:
+			extent += vertex.y
+	return [mesh.get_surface_count(), vertices, snappedf(extent, 0.01)]
 
 
 func test_arena_tab_exists_with_a_style_dropdown_of_all_named_styles() -> void:
@@ -47,7 +51,7 @@ func test_picking_each_style_rebuilds_the_arena_mesh_and_keeps_territory_configu
 	var overlay: TerritoryOverlay = _field.overlay()
 	var material: ShaderMaterial = overlay.material()
 	var seen: Array = [_signature()]
-	for which: int in [ArenaSideStyle.Style.LAYERED_PLATES, ArenaSideStyle.Style.ROCKY_ISLAND, ArenaSideStyle.Style.MACHINED_DISC, ArenaSideStyle.Style.MACHINED_STYLISED, ArenaSideStyle.Style.MACHINED_DETAILED, ArenaSideStyle.Style.MACHINED_HEAVY]:
+	for which: int in [ArenaSideStyle.Style.LAYERED_PLATES, ArenaSideStyle.Style.ROCKY_ISLAND, ArenaSideStyle.Style.MACHINED_DISC, ArenaSideStyle.Style.MACHINED_STYLISED, ArenaSideStyle.Style.MACHINED_DETAILED, ArenaSideStyle.Style.MACHINED_HEAVY, ArenaSideStyle.Style.MONOLITH, ArenaSideStyle.Style.TAPERED_STRATA, ArenaSideStyle.Style.PLATED_DOME]:
 		option.select(option.get_item_index(which))
 		option.item_selected.emit(option.get_item_index(which))
 		assert_eq(_field.arena_side_style.style, which)

@@ -68,6 +68,15 @@ const CONE_INSIDE: float = 0.3
 ## Rivet pyramid base below / above the centre, in rivet half-widths.
 const RIVET_LOW: float = 0.6
 const RIVET_HIGH: float = 1.2
+## Round 3 (sides that continue the top): outline segments per plate (a flat face
+## then a narrow seam), the fewest plates around the rim, and the shortest plate.
+const PLATE_SEGMENTS: int = 2
+const PLATE_COUNT_MIN: int = 3
+const PLATE_LENGTH_MIN: float = 0.1
+## Narrowest ring of plates, in metres.
+const RING_WIDTH_MIN: float = 0.1
+## The slope of a tapered stratum never shrinks below this share of the radius.
+const STRATUM_SPAN_MIN: float = 0.05
 
 
 ## One closed loop of per-segment edge points: segment i spans starts[i]..ends[i].
@@ -118,6 +127,10 @@ var _radius: float = 0.0
 var _body_side: Soup = null
 var _body_under: Soup = null
 var _glow: Soup = null
+## Round 3: the slab's height (the gold lip wraps over its edge) and the plain
+## evenly spaced circle the lip and its ledge are drawn on.
+var _disk_height: float = 0.0
+var _uniform: PackedVector2Array = PackedVector2Array()
 
 
 ## Per-surface arrays for `style` hanging from y = `y_top`: kind -> mesh arrays
@@ -128,6 +141,8 @@ func build(map_def: MapDef, style: ArenaSideStyle, segments: int, y_top: float) 
 	_body_under = Soup.new()
 	_glow = Soup.new()
 	_radius = map_def.field_radius
+	_disk_height = map_def.disk_height
+	_uniform = outline_points(map_def, maxi(segments, MIN_SEGMENTS))
 	match style.style:
 		ArenaSideStyle.Style.LAYERED_PLATES:
 			_outline = outline_points(map_def, maxi(segments, MIN_SEGMENTS))
@@ -147,6 +162,12 @@ func build(map_def: MapDef, style: ArenaSideStyle, segments: int, y_top: float) 
 		ArenaSideStyle.Style.MACHINED_HEAVY:
 			_outline = outline_points(map_def, maxi(style.heavy_panel_count, 1) * maxi(style.heavy_panel_segments, MIN_PANEL_SEGMENTS))
 			_build_heavy(style, y_top)
+		ArenaSideStyle.Style.MONOLITH:
+			_build_monolith(style, y_top)
+		ArenaSideStyle.Style.TAPERED_STRATA:
+			_build_tapered(style, y_top)
+		ArenaSideStyle.Style.PLATED_DOME:
+			_build_dome(style, y_top)
 	var out: Dictionary = {}
 	if not _body_side.is_empty():
 		out[KIND_BAND] = _body_side.arrays()
@@ -646,3 +667,191 @@ func _build_heavy(style: ArenaSideStyle, y_top: float) -> void:
 	var core: Ring = _make_ring(style.heavy_core_scale, keel_y)
 	_sweep(keel, core, style.heavy_keel_color)
 	_sweep(core, _make_ring(0.0, keel_y), style.heavy_core_color, true)
+
+
+# --- Round 3: sides that continue the top -----------------------------------------
+# The top is dark navy plating (hub, rings of ~5 m plates, hairline seams, small
+# rivets) under a gold edge. These looks wrap that over the edge and carry it down
+# and underneath: the same plates, seams, rivets and gold, one shade darker below.
+
+func _build_monolith(style: ArenaSideStyle, y_top: float) -> void:
+	var rng: RandomNumberGenerator = _top_rng(style)
+	var depth: float = DIAMETER_FACTOR * _radius * style.monolith_depth_fraction
+	var bevel_h: float = depth * style.monolith_bevel_share
+	var wall_h: float = depth - bevel_h
+	var plates: PackedVector2Array = _plate_outline(style)
+	var y: float = _top_lip(style, y_top)
+	_outline = plates
+	_band(style, rng, y, 1.0, y - wall_h, 1.0, style.top_plate_color, true, 0.0)
+	_plate_rivets(style, y, y - wall_h)
+	y -= wall_h
+	var s_in: float = 1.0 - style.monolith_bevel_inset_fraction
+	_band(style, rng, y, 1.0, y - bevel_h, s_in, style.top_plate_color, false, 0.0)
+	y -= bevel_h
+	_ring_stack(style, rng, y, 0.0, s_in, false)
+
+
+func _build_tapered(style: ArenaSideStyle, y_top: float) -> void:
+	var rng: RandomNumberGenerator = _top_rng(style)
+	var diameter: float = DIAMETER_FACTOR * _radius
+	var wall_h: float = diameter * style.tapered_wall_fraction
+	var y: float = _top_lip(style, y_top)
+	_outline = _plate_outline(style)
+	_band(style, rng, y, 1.0, y - wall_h, 1.0, style.top_plate_color, true, style.top_seam_width_m)
+	_plate_rivets(style, y, y - wall_h)
+	y -= wall_h
+	var strata: int = maxi(style.tapered_strata_count, 1)
+	var inset: float = style.tapered_step_inset_fraction
+	var slope_total: float = maxf(1.0 - style.tapered_bowl_scale - inset * float(strata - 1), STRATUM_SPAN_MIN)
+	var span: float = slope_total / float(strata)
+	var stratum_h: float = diameter * style.tapered_bowl_fraction / float(strata)
+	var scale: float = 1.0
+	for k: int in range(strata):
+		if k > 0:
+			_sweep(_make_ring(scale, y), _make_ring(scale - inset, y), style.top_ledge_color)
+			scale -= inset
+		var color: Color = _cycle_color(style.tapered_strata_colors, k)
+		_band(style, rng, y, scale, y - stratum_h, scale - span, color, true, style.top_seam_width_m)
+		scale -= span
+		y -= stratum_h
+	_sweep(_make_ring(scale, y), _make_ring(0.0, y), style.top_hub_color)
+
+
+func _build_dome(style: ArenaSideStyle, y_top: float) -> void:
+	var rng: RandomNumberGenerator = _top_rng(style)
+	var diameter: float = DIAMETER_FACTOR * _radius
+	var course_h: float = diameter * style.dome_course_fraction
+	var y: float = _top_lip(style, y_top)
+	_outline = _plate_outline(style)
+	for _course: int in range(maxi(style.dome_course_count, 1)):
+		_band(style, rng, y, 1.0, y - course_h, 1.0, style.top_plate_color, true, style.top_seam_width_m)
+		_plate_rivets(style, y, y - course_h)
+		y -= course_h
+	_ring_stack(style, rng, y, diameter * style.dome_depth_fraction, 1.0, true)
+
+
+func _top_rng(style: ArenaSideStyle) -> RandomNumberGenerator:
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = style.top_seed
+	return rng
+
+
+## Plates around the rim: as many as fit at the top's own plate length.
+func _plate_count(style: ArenaSideStyle) -> int:
+	return maxi(roundi(TAU * _radius / maxf(style.top_plate_length_m, PLATE_LENGTH_MIN)), PLATE_COUNT_MIN)
+
+
+## Angular width of one plate's flat face (the plate minus its hairline seam).
+func _face_angle(style: ArenaSideStyle) -> float:
+	var step: float = TAU / float(_plate_count(style))
+	return step - minf(style.top_seam_width_m / maxf(_radius, POINT_EPS), step * HALF)
+
+
+## Outline of the plates: segment 2p is plate p's flat face, 2p + 1 its seam.
+func _plate_outline(style: ArenaSideStyle) -> PackedVector2Array:
+	var count: int = _plate_count(style)
+	var step: float = TAU / float(count)
+	var face: float = _face_angle(style)
+	var points: PackedVector2Array = PackedVector2Array()
+	for p: int in range(count):
+		var a0: float = step * float(p)
+		var a1: float = a0 + face
+		points.append(Vector2(cos(a0), sin(a0)) * _radius)
+		points.append(Vector2(cos(a1), sin(a1)) * _radius)
+	return points
+
+
+## Brightness factor of one plate (the top's proc_tone_variation).
+func _tone(style: ArenaSideStyle, rng: RandomNumberGenerator) -> float:
+	return 1.0 + style.top_tone_variation * (rng.randf() * DIAMETER_FACTOR - 1.0)
+
+
+func _toned(color: Color, tone: float) -> Color:
+	return Color(color.r * tone, color.g * tone, color.b * tone, 1.0)
+
+
+## The gold lip wrapping over the playing surface's edge (flush with it, bevelled
+## out, then a short drop) and its dark ledge back to the wall. Returns the height
+## where the wall starts. Drawn on the plain circle; the ledge reaches in past the
+## flat plate faces so the plates tuck under it with no gap.
+func _top_lip(style: ArenaSideStyle, y_top: float) -> float:
+	_outline = _uniform
+	var y_edge: float = y_top + _disk_height
+	var y_end: float = y_top - DIAMETER_FACTOR * _radius * style.top_lip_below_fraction
+	var y_bevel: float = lerpf(y_edge, y_end, style.top_lip_bevel_share)
+	var out: float = _radius * style.top_lip_out_fraction
+	_sweep(_make_ring(1.0, y_edge), _make_ring(1.0, y_bevel, out), style.top_lip_color, true)
+	_sweep(_make_ring(1.0, y_bevel, out), _make_ring(1.0, y_end, out), style.top_lip_shade_color, true)
+	var reach: float = cos(_face_angle(style) * HALF) - POINT_EPS
+	_sweep(_make_ring(1.0, y_end, out), _make_ring(reach, y_end), style.top_ledge_color)
+	return y_end
+
+
+## A band of plating on the current outline between two heights and radius scales
+## (equal scales = a vertical wall, equal heights = a flat annulus): flat plate faces
+## with hairline recessed seams, a brightness per plate, and an optional seam-coloured
+## strip along its lower edge `strip_m` metres wide.
+func _band(
+	style: ArenaSideStyle, rng: RandomNumberGenerator, y_a: float, s_a: float, y_b: float, s_b: float,
+	color: Color, seams: bool, strip_m: float
+) -> void:
+	var recess: float = _radius * style.top_seam_depth_fraction
+	var offsets: PackedFloat32Array = PackedFloat32Array()
+	var colors: PackedColorArray = PackedColorArray()
+	var tone: float = _tone(style, rng)
+	for i: int in range(_outline.size()):
+		var is_seam: bool = seams and i % PLATE_SEGMENTS == PLATE_SEGMENTS - 1
+		if seams and i % PLATE_SEGMENTS == 0:
+			tone = _tone(style, rng)
+		offsets.append(-recess if is_seam else 0.0)
+		colors.append(style.top_seam_color if is_seam else _toned(color, tone))
+	var length: float = Vector2(_radius * (s_a - s_b), y_a - y_b).length()
+	var strip: float = clampf(strip_m / maxf(length, POINT_EPS), 0.0, HALF) if strip_m > 0.0 else 0.0
+	var top: Ring = _make_ring(s_a, y_a, 0.0, offsets)
+	var bottom: Ring = _make_ring(s_b, y_b, 0.0, offsets)
+	var mid: Ring = bottom
+	if strip > 0.0:
+		mid = _make_ring(lerpf(s_a, s_b, 1.0 - strip), lerpf(y_a, y_b, 1.0 - strip), 0.0, offsets)
+	_sweep(top, mid, color, false, colors)
+	_risers(top, mid, style.top_seam_color)
+	if strip > 0.0:
+		_sweep(mid, bottom, style.top_seam_color)
+		_risers(mid, bottom, style.top_seam_color)
+	_sweep(_make_ring(s_a, y_a), top, style.top_seam_color)
+	_sweep(bottom, _make_ring(s_b, y_b), style.top_seam_color)
+
+
+## Rivets near both ends of every plate face, on two rows of a vertical wall.
+func _plate_rivets(style: ArenaSideStyle, y_a: float, y_b: float) -> void:
+	var half: float = _radius * style.top_rivet_size_fraction
+	var height: float = _radius * style.top_rivet_height_fraction
+	var inset: float = (y_a - y_b) * style.top_rivet_row_inset
+	var none: PackedFloat32Array = PackedFloat32Array()
+	for p: int in range(_outline.size() / PLATE_SEGMENTS):
+		var i: int = p * PLATE_SEGMENTS
+		var face_mid: Vector3 = (_ring_point(i, 1.0, 0.0, none, 0.0) + _ring_point(i + 1, 1.0, 0.0, none, 0.0)) * HALF
+		var normal: Vector3 = Vector3(face_mid.x, 0.0, face_mid.z).normalized()
+		for row_y: float in [y_a - inset, y_b + inset]:
+			var a: Vector3 = _ring_point(i, 1.0, 0.0, none, row_y)
+			var b: Vector3 = _ring_point(i + 1, 1.0, 0.0, none, row_y)
+			for u: float in [style.top_rivet_end_inset, 1.0 - style.top_rivet_end_inset]:
+				_rivet(a.lerp(b, u), normal, half, height, style.top_rivet_color)
+
+
+## Concentric plate rings from the rim inwards (like the top's rings), hanging
+## in a shallow dome `sag` deep at the middle (0 = flat), then the darker hub.
+func _ring_stack(
+	style: ArenaSideStyle, rng: RandomNumberGenerator, y_rim: float, sag: float, s_rim: float, seams: bool
+) -> void:
+	var hub: float = clampf(style.top_hub_radius_m / maxf(_radius, POINT_EPS), 0.0, s_rim * HALF)
+	var width: float = maxf(style.top_ring_width_m, RING_WIDTH_MIN)
+	var rings: int = maxi(roundi((_radius * s_rim - style.top_hub_radius_m) / width), 1)
+	var s_a: float = s_rim
+	var y_a: float = y_rim
+	for k: int in range(rings):
+		var s_b: float = lerpf(s_rim, hub, float(k + 1) / float(rings))
+		var y_b: float = y_rim - sag * (1.0 - pow(s_b / s_rim, DIAMETER_FACTOR))
+		_band(style, rng, y_a, s_a, y_b, s_b, style.top_under_color, seams, style.top_seam_width_m)
+		s_a = s_b
+		y_a = y_b
+	_sweep(_make_ring(s_a, y_a), _make_ring(0.0, y_a), style.top_hub_color)

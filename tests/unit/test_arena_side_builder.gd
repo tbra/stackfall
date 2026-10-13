@@ -19,7 +19,17 @@ const STYLES: Array[ArenaSideStyle.Style] = [
 	ArenaSideStyle.Style.MACHINED_STYLISED,
 	ArenaSideStyle.Style.MACHINED_DETAILED,
 	ArenaSideStyle.Style.MACHINED_HEAVY,
+	ArenaSideStyle.Style.MONOLITH,
+	ArenaSideStyle.Style.TAPERED_STRATA,
+	ArenaSideStyle.Style.PLATED_DOME,
 ]
+## Round 3 looks wrap a gold lip over the slab's top edge, so they reach DISK_HEIGHT above Y_TOP.
+const WRAP_STYLES: Array[ArenaSideStyle.Style] = [
+	ArenaSideStyle.Style.MONOLITH,
+	ArenaSideStyle.Style.TAPERED_STRATA,
+	ArenaSideStyle.Style.PLATED_DOME,
+]
+const ROUND3_VERTEX_BUDGET: int = 60000
 ## Round-2 machined looks stay cheap static geometry.
 ## Rivet height as a fraction of the radius is the only thing allowed past the disc edge.
 const RIVET_SLACK: float = 0.006
@@ -62,10 +72,11 @@ func test_geometry_hangs_from_the_slab_and_stays_inside_the_outline() -> void:
 			var map_def: MapDef = _map(shape)
 			var limit: float = RADIUS * RADIUS_SLACK
 			var top_ring_seen: bool = false
+			var attach_y: float = Y_TOP + (DISK_HEIGHT if WRAP_STYLES.has(which) else 0.0)
 			for vertex: Vector3 in _all_vertices(ArenaSideBuilder.new().build(map_def, _style(which), SEGMENTS, Y_TOP)):
-				assert_true(vertex.y <= Y_TOP + EPS, "style %d shape %d: nothing above the slab edge" % [which, shape])
+				assert_true(vertex.y <= attach_y + EPS, "style %d shape %d: nothing above the slab edge" % [which, shape])
 				assert_true(Vector2(vertex.x, vertex.z).length() <= limit, "style %d shape %d: inside the outline" % [which, shape])
-				if is_equal_approx(vertex.y, Y_TOP):
+				if is_equal_approx(vertex.y, attach_y):
 					top_ring_seen = true
 			assert_true(top_ring_seen, "style %d shape %d attaches at the slab edge" % [which, shape])
 
@@ -90,7 +101,7 @@ func test_normals_are_unit_and_agree_with_the_winding() -> void:
 ## Layered plates and the machined disc are convex enough that every face must
 ## point away from the middle of the solid on a round map.
 func test_convex_looks_point_their_faces_outward() -> void:
-	for which: ArenaSideStyle.Style in [ArenaSideStyle.Style.LAYERED_PLATES, ArenaSideStyle.Style.MACHINED_DISC, ArenaSideStyle.Style.MACHINED_STYLISED, ArenaSideStyle.Style.MACHINED_DETAILED, ArenaSideStyle.Style.MACHINED_HEAVY]:
+	for which: ArenaSideStyle.Style in [ArenaSideStyle.Style.LAYERED_PLATES, ArenaSideStyle.Style.MACHINED_DISC, ArenaSideStyle.Style.MACHINED_STYLISED, ArenaSideStyle.Style.MACHINED_DETAILED, ArenaSideStyle.Style.MACHINED_HEAVY, ArenaSideStyle.Style.MONOLITH, ArenaSideStyle.Style.TAPERED_STRATA, ArenaSideStyle.Style.PLATED_DOME]:
 		var built: Dictionary = ArenaSideBuilder.new().build(_map(MapDef.MapShape.ROUND), _style(which), SEGMENTS, Y_TOP)
 		var floor_y: float = INF
 		for vertex: Vector3 in _all_vertices(built):
@@ -163,3 +174,14 @@ func test_machined_refinements_stay_inside_the_disc_footprint_and_keep_surfaces_
 		assert_lt(vertices.size(), MACHINED_VERTEX_BUDGET, "style %d vertex budget" % which)
 		for vertex: Vector3 in vertices:
 			assert_true(Vector2(vertex.x, vertex.z).length() <= RADIUS * (1.0 + RIVET_SLACK) + EPS, "style %d inside the disc footprint (rivets may stand proud)" % which)
+
+
+func test_round3_looks_continue_the_top_and_stay_modest() -> void:
+	for which: ArenaSideStyle.Style in WRAP_STYLES:
+		var built: Dictionary = ArenaSideBuilder.new().build(_map(MapDef.MapShape.ROUND), _style(which), SEGMENTS, Y_TOP)
+		assert_lte(built.size(), 3, "style %d: one surface per material" % which)
+		assert_true(built.has(ArenaSideBuilder.KIND_GLOW), "style %d: gold lip glows" % which)
+		assert_true(built.has(ArenaSideBuilder.KIND_BOTTOM), "style %d: has an underside" % which)
+		assert_lt(_all_vertices(built).size(), ROUND3_VERTEX_BUDGET, "style %d vertex budget" % which)
+		for vertex: Vector3 in _all_vertices(built):
+			assert_true(Vector2(vertex.x, vertex.z).length() <= RADIUS * (1.0 + RIVET_SLACK) + EPS, "style %d inside the footprint" % which)
