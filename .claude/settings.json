@@ -2,38 +2,26 @@
   "hooks": {
     "SessionStart": [
       {
+        "matcher": "",
         "hooks": [
           {
-            "command": "python tools/session_brief.py",
-            "type": "command"
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/tools/session_brief.py\""
           },
           {
-            "command": "python tools/owner_replies.py",
-            "type": "command"
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/tools/owner_replies.py\""
           }
-        ],
-        "matcher": ""
+        ]
       },
       {
+        "matcher": "",
         "hooks": [
           {
-            "command": "bd prime --hook-json --no-memories",
-            "type": "command"
+            "type": "command",
+            "command": "bd prime --hook-json --no-memories"
           }
-        ],
-        "matcher": ""
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "command": "python tools/owner_replies.py",
-            "timeout": 45,
-            "type": "command"
-          }
-        ],
-        "matcher": ""
+        ]
       }
     ],
     "PreToolUse": [
@@ -48,5 +36,20 @@
         ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "bead-board@claude-mods": true,
+    "human-desk@claude-mods": true,
+    "agent-floor@claude-mods": true,
+    "token-weather@claude-mods": true,
+    "image-panel@claude-mods": true
+  },
+  "extraKnownMarketplaces": {
+    "claude-mods": {
+      "source": {
+        "source": "directory",
+        "path": "M:\\claude-mods"
+      }
+    }
   }
 }
