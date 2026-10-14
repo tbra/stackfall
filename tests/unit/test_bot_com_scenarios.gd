@@ -146,7 +146,8 @@ func _think_over(shape: BlockShape, com_targets: Array[Vector2], with_stack: boo
 			func(slot: int) -> int: return int(Match.team_of(slot))
 		)
 	var think: BotThink = bot._think
-	while think._phase < BotThink.Phase.STACK:
+	# Bontago-1t5.54: STACK now runs before PLAN, so the generated sites are swapped once FILL is over (PROBE next).
+	while think._phase < BotThink.Phase.PROBE:
 		think.step(0, bot._probe)
 	think._candidates.clear()
 	for target: Vector2 in com_targets:

@@ -37,6 +37,9 @@ const INTENT_LOG_ARG: String = "--bot-intent-log"
 const COST_AVERAGE_WEIGHT: float = 0.25
 ## Marks an average with no sample yet.
 const NO_SAMPLE: float = -1.0
+## complete() gives up on a phase that stays put this many advances in a row (a bug, not a slow think:
+## sliced phases advance their cursor every call; the biggest is the FILL draw count / candidate count).
+const MAX_STALLED_ADVANCES: int = 100000
 
 enum DecisionKind { PLACE, WAIT }
 enum Phase { STACK, PLAN, SITES, FILL, PROBE, RANK, MEASURE, PICK, DONE }
@@ -143,8 +146,15 @@ func step(budget_usec: int, probe: Callable) -> bool:
 ## Bontago-1t5.37: runs every remaining stage now (the caller's deadline tick). The decision is
 ## the one any slicing of step() reaches; unlike finish_early() nothing is skipped.
 func complete(probe: Callable) -> void:
+	var guard: int = 0
 	while _phase != Phase.DONE:
+		var before: int = _phase
 		_advance_timed(probe)
+		guard = guard + 1 if _phase == before else 0
+		assert(guard <= MAX_STALLED_ADVANCES, "BotThink phase %d makes no progress" % before)
+		if guard > MAX_STALLED_ADVANCES:
+			_phase = Phase.PICK if _phase < Phase.PICK else Phase.DONE
+			guard = 0
 
 
 ## Bontago-1t5.37: true once thinks in this process have finished every costly phase this one
@@ -256,6 +266,10 @@ func _advance(probe: Callable) -> int:
 			if _view.held == null:
 				_phase = Phase.DONE
 				_wait()
+				return 1
+			if _stack_pending():
+				# A snapshot attached after the think began: analyse it before the plan reads it.
+				_phase = Phase.STACK
 				return 1
 			_plan()
 			_phase = Phase.SITES
@@ -398,6 +412,10 @@ func _stack_pending() -> bool:
 
 ## One slice of the STACK phase: analyse the next bodies; returns the bodies covered.
 func _stack_step() -> int:
+	if not _stack_pending():
+		# The snapshot is gone (or already analysed) since the think began: nothing to analyse.
+		_phase = Phase.PLAN
+		return 1
 	var per_step: int = maxi(BotEvaluator.stack_tuning.analyse_bodies_per_step, 1)
 	var units: int = clampi(_view.stack.body_count() - _stack_pos, 1, per_step)
 	_stack_pos += units
