@@ -1,6 +1,6 @@
 # Gift effects rework: make every gift work (Bontago-1pi.85)
 
-Owner playtest 2026-10-05 (`feedback/playtest.md`, `feedback/notes.md`, local and read-only). Rules are recorded in `docs/SPEC.md` 2.6 as "OWNER decision 2026-10-05" (the [ORIGINAL] Bomb and Rocket rows are overridden, original text kept as history). Delivery (descent, claim, next-piece) is `docs/GIFT_REWORK_PLAN.md` and is NOT touched here. Base: main 7bd2705.
+Owner playtest 2026-10-05 (`feedback/playtest.md`, `feedback/notes.md`, local and read-only). Rules are recorded in `docs/SPEC.md` 2.6 as "OWNER decision 2026-10-05" (the [ORIGINAL] Bomb and Rocket rows are overridden, original text kept as history). Delivery (descent, claim, next-piece) is `docs/archive/GIFT_REWORK_PLAN.md` and is NOT touched here. Base: main 7bd2705.
 
 Working per the owner: Earthquake, Anvil, Stackfall, Paintball, Freeze. This plan changes only their shared plumbing (Earthquake/Anvil move onto the disc-force module, Stackfall onto the block spawner and higher/more tunables).
 

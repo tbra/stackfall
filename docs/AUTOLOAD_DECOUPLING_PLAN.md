@@ -1,7 +1,7 @@
 # Autoload decoupling plan: S1 MatchContext, S2 world bases + facades, S3 Net injection, S4 lint
 
 Design contract for Bontago-1pi.11.76 (owner accepted Bontago-1pi.11.56, 2026-10-10); base `main@e51df2ea`
-(S0 merged). **Supersedes docs/STARTUP_COMPILE_PLAN.md section 2 slices B0a-B4 and C1/C2** (slice A has
+(S0 merged). **Supersedes docs/archive/STARTUP_COMPILE_PLAN.md section 2 slices B0a-B4 and C1/C2** (slice A has
 landed); its section 1 measurements and B-slice notes remain background, its line numbers are stale.
 Simulations: `M:/Bontago-tools/scratch/decoupling-plan/{exp*.py,closure.py}` over dep_graph graph.json.
 Every package: static typing, no magic numbers, `# DECISION:` at each widened boundary, no behaviour

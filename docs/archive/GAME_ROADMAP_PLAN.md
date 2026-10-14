@@ -12,7 +12,7 @@ contract for interfaces, ownership, order and acceptance checks.
 
 ## Sequence and shared rules
 
-Complete `docs/GIFT_REWORK_PLAN.md` before adding Stackfall, Paintball, Glue or
+Complete `docs/archive/GIFT_REWORK_PLAN.md` before adding Stackfall, Paintball, Glue or
 Cat. The gift framework supplies claiming, next-piece behavior,
 activation and replication. Weather begins with `Bontago-22y.10`; modes begin
 with `Bontago-22y.11`. A package that edits one of the shared files below runs

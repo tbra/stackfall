@@ -3,7 +3,7 @@
 Design contract for Bontago-1pi.11.84 (planner, 2026-10-10). Base `main@24a11d49`. Measurement only; no game code
 changed. Scratch: `M:/Bontago-tools/scratch/menu-first/` (`closure.py`, `lite.py`, `menu2.py`, `timeload.gd`, `par.gd`,
 `mix.gd`, logs `timing1.log`, `timing2.log`; dep_graph output in `dg/`). Related: docs/AUTOLOAD_DECOUPLING_PLAN.md
-(autoload closure, landed), docs/STARTUP_COMPILE_PLAN.md (method), Bontago-1pi.11.85 (prewarm behind the menu).
+(autoload closure, landed), docs/archive/STARTUP_COMPILE_PLAN.md (method), Bontago-1pi.11.85 (prewarm behind the menu).
 No [ORIGINAL] rule is touched. One player-facing latency question is flagged in section 7 (no owner decision needed to start).
 
 ## 1. Where the 6.2 s goes (evidence)
