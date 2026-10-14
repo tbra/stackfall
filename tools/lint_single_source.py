@@ -2,7 +2,7 @@
 
 Cross-cutting player-facing concepts (names, slot colours, input glyphs,
 mode/map/sky/weather labels, gift names and icons) each have ONE owner; see
-docs/SINGLE_SOURCE_PLAN.md section 1. This lint finds the bypasses: code that
+this file's RULES table. This lint finds the bypasses: code that
 re-implements the concept outside its owner. It counts matching lines per
 (rule, file) and compares with tools/single_source_baseline.json
 ({rule: {file: count}}). A file may never exceed its baseline for a rule and a
@@ -373,7 +373,7 @@ def main(argv):
     for p in problems:
         print("SINGLE-SOURCE LINT FAIL " + p)
     if problems:
-        print("SINGLE-SOURCE LINT RED: %d (rule, file) pair(s); route through the owner (docs/SINGLE_SOURCE_PLAN.md)"
+        print("SINGLE-SOURCE LINT RED: %d (rule, file) pair(s); route through the owner"
               % len(problems))
         return 1
     stale = sum(1 for rid, files in baseline.items() for rel, b in files.items()

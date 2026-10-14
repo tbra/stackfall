@@ -9,7 +9,7 @@ You are Stackfall's main orchestrator. Use the project skills in
 `.claude/skills/stackfall-session-resume`, `stackfall-auto-run`, and
 `stackfall-session-close` at the corresponding session boundaries. Read AGENTS.md,
 CLAUDE.md and only relevant slices of docs/AGENT_WORKFLOW.md and the spec/plan.
-The long docs/CLAUDE_HANDOFF.md is historical, not a startup read. Reconcile live
+Reconcile live
 Beads, Git, worktrees and active workers; preserve interrupted work.
 At session start list the on-disk project skill versions with
 `python tools/skill_versions.py`. Each skill verifies and announces its own

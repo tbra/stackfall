@@ -2,7 +2,7 @@
 
 ## Project orchestration and handoff
 
-For Stackfall architecture and game rules, read `CLAUDE.md` and the relevant sections of `docs/SPEC.md`. For worker assignments, recovery and validation, read `docs/AGENT_WORKFLOW.md`. `docs/CLAUDE_HANDOFF.md` is a dated restart brief; inspect live Beads and Git state before using it.
+For Stackfall architecture and game rules, read `CLAUDE.md` and the relevant sections of `docs/SPEC.md`. For worker assignments, recovery and validation, read `docs/AGENT_WORKFLOW.md`.
 
 The active Git profile is **team-maintainer** (owner decision 2026-09-24): after a package is verified and accepted, the orchestrator commits and integrates it, runs proportionate integrated gates, pushes code, verifies the remote revision, and closes its issue. **Beads has no configured remote (owner clarification 2026-09-25): keep issue writes local and do not attempt `bd dolt push` or `bd dolt pull` unless the owner explicitly configures and requests Beads remote sync.** Workers do not commit, merge, push or sync unless an assignment explicitly grants that responsibility. Never force-push, rebase shared history, discard work or include unrelated changes. Parallel implementation uses disjoint file ownership and explicitly assigned worktrees with a verified base; serialize dependent work if shared changes are uncommitted. Run performance benchmarks without competing workloads. This project-specific profile supersedes generic conservative defaults in managed Beads blocks below.
 

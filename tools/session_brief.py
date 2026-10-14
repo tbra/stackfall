@@ -46,7 +46,6 @@ def main():
     print(
         "Stackfall: use .claude/skills/stackfall-session-resume/SKILL.md. "
         "Read the named Bead and live Git state; fetch other memories by key. "
-        "docs/CLAUDE_HANDOFF.md is historical. "
         "Skill versions on disk: " + versions + ". Verify the active skill before use."
     )
     for key in HANDOVER_KEYS:
