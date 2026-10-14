@@ -456,7 +456,6 @@
   "shaders/fireflies.gdshader",
   "shaders/fx_ring.gdshader",
   "shaders/ghost_cell_grid.gdshader",
-  "shaders/ghost_glow_rim.gdshader",
   "shaders/gift_outline.gdshader",
   "shaders/gift_toon.gdshader",
   "shaders/goal_beam.gdshader",
