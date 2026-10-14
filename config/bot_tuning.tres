@@ -91,7 +91,7 @@ pick_pool = 5
 [sub_resource type="Resource" id="Resource_hard_v2"]
 script = ExtResource("2_bot_profile")
 candidate_count = 110
-stability_raycast_count = 6
+stability_raycast_count = 9
 aim_noise_m = 0.05
 reaction_delay_s = 0.2
 uses_defensive_specials = true

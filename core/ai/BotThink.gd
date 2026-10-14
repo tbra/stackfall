@@ -67,8 +67,8 @@ var tuning: BotTuning = SHIPPED_TUNING
 ## Test hooks: null = the shipped resources.
 var strategy_tuning: BotStrategyTuning = null
 var gen_tuning: BotGenTuning = null
-## Optional cheaper probe for the per-footprint-cell rays (they only read `hit` and `height`,
-## never `own`); falls back to the step's `probe` when not valid. (Bontago-1t5.30)
+## Optional cheaper probe for the per-bottom-cube rays (they read `hit`, `height` and the optional
+## `body` collider id, never `own`); falls back to the step's `probe` when not valid. (Bontago-1t5.30)
 var cell_probe: Callable = Callable()
 
 var _view: BotWorldView
@@ -370,8 +370,8 @@ func _probe_one(probe: Callable) -> void:
 	var hit: Dictionary = probe.call(candidate.origin) as Dictionary
 	candidate.support_height = float(hit.get("height", 0.0))
 	candidate.on_top_of_own_stack = bool(hit.get("own", false))
-	candidate.top_height = candidate.support_height + candidate.shape_height
 	_fire_cell_probes(candidate, probe)
+	candidate.top_height = candidate.support_height + candidate.shape_height
 	candidate.tip_risk = _tip_risk(candidate)
 	if _probe_index >= _candidates.size():
 		_phase = Phase.RANK
@@ -380,37 +380,72 @@ func _probe_one(probe: Callable) -> void:
 ## BotStatics.tip_risk of a probed site, each orientation of the held piece described once per
 ## think (Bontago-1t5.37; same values as BotStatics.tip_risk).
 func _tip_risk(candidate: BotCandidate) -> float:
-	var shape: BlockShape = _view.held
-	if shape == null or shape.cells.is_empty():
-		return 0.0
-	var info: BotStatics.OrientationInfo = _orientation_infos.get(candidate.orientation_index) as BotStatics.OrientationInfo
+	var info: BotStatics.OrientationInfo = _orientation_info(candidate.orientation_index)
 	if info == null:
-		info = BotStatics.orientation_info(shape, candidate.orientation_index, _gen())
-		_orientation_infos[candidate.orientation_index] = info
+		return 0.0
 	return BotStatics.tip_risk_of(candidate, info, _view.grid, _gen(), _view.cube_size)
 
 
-## Per-footprint-cell support heights (NO_SUPPORT for a hole or a miss), capped at the tier's
-## stability_raycast_count. DECISION (Bontago-1t5.19): holes are read off the raster's hole
-## state; the legacy bot reads the Field's applied-hole mask, which lags the raster.
+## The held piece's orientation description (built once per think); null with no held shape.
+func _orientation_info(orientation_index: int) -> BotStatics.OrientationInfo:
+	var shape: BlockShape = _view.held
+	if shape == null or shape.cells.is_empty():
+		return null
+	var info: BotStatics.OrientationInfo = _orientation_infos.get(orientation_index) as BotStatics.OrientationInfo
+	if info == null:
+		info = BotStatics.orientation_info(shape, orientation_index, _gen())
+		_orientation_infos[orientation_index] = info
+	return info
+
+
+## Bontago-1t5.55.2: one ray under each real bottom cube (BotStatics.contact_probe_points, outermost
+## cubes first), capped at the tier's stability_raycast_count. `cell_support` / `support_bodies` are
+## parallel to `probe_points` (NO_SUPPORT / -1 for a hole or a miss). The resting plane
+## (`support_height`) becomes the highest probed hit, which is where the host lift puts the piece; a
+## cube is in contact when it is within stability_contact_tolerance_m of that plane. With no hit
+## at all the pivot ray's height stays. DECISION (Bontago-1t5.19): holes are read off the raster's
+## hole state; the legacy bot reads the Field's applied-hole mask, which lags the raster.
+## DECISION (Bontago-1t5.55.2): a cube beyond the cap is not probed and counts as supported.
 func _fire_cell_probes(candidate: BotCandidate, probe: Callable) -> void:
-	var cells: PackedInt32Array = candidate.footprint_cells
-	var count: int = maxi(mini(_profile.stability_raycast_count, cells.size()), 0)
+	var info: BotStatics.OrientationInfo = _orientation_info(candidate.orientation_index)
+	var points: PackedVector2Array = PackedVector2Array()
+	if info != null:
+		points = BotStatics.contact_probe_points(candidate, info, _view.cube_size, _profile.stability_raycast_count)
+	var count: int = points.size()
 	var cell_ray: Callable = cell_probe if cell_probe.is_valid() else probe
+	candidate.probe_points = points
 	candidate.cell_support.resize(count)
-	var hits: int = 0
+	candidate.support_bodies.resize(count)
+	var highest: float = NO_SUPPORT
+	var any_hit: bool = false
 	for i: int in range(count):
 		candidate.cell_support[i] = NO_SUPPORT
-		if _view.raster != null and _view.raster.is_hole_index(cells[i]):
+		candidate.support_bodies[i] = -1
+		if _is_hole_at(points[i]):
 			continue
-		var cell_hit: Dictionary = cell_ray.call(_view.grid.index_center(cells[i])) as Dictionary
+		var cell_hit: Dictionary = cell_ray.call(points[i]) as Dictionary
 		if not bool(cell_hit.get("hit", false)):
 			continue
 		var height: float = float(cell_hit.get("height", 0.0))
 		candidate.cell_support[i] = height
-		if absf(height - candidate.support_height) <= tuning.stability_contact_tolerance_m:
+		candidate.support_bodies[i] = int(cell_hit.get("body", -1))
+		if not any_hit or height > highest:
+			highest = height
+			any_hit = true
+	if any_hit:
+		candidate.support_height = highest
+	var hits: int = 0
+	for i: int in range(count):
+		if candidate.cell_support[i] != NO_SUPPORT and absf(candidate.cell_support[i] - candidate.support_height) <= tuning.stability_contact_tolerance_m:
 			hits += 1
 	candidate.corner_support_hits = hits
+
+
+func _is_hole_at(point: Vector2) -> bool:
+	if _view.raster == null or _view.grid == null:
+		return false
+	var cell: Vector2i = _view.grid.world_to_cell(point)
+	return _view.grid.in_bounds(cell.x, cell.y) and _view.raster.is_hole_index(_view.grid.cell_index(cell.x, cell.y))
 
 
 ## Proxy-scores the next `count` sites; ranks them best first after the last one. Returns the

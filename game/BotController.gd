@@ -535,12 +535,18 @@ func _probe(xz: Vector2) -> Dictionary:
 	}
 
 
-## The per-footprint-cell probe: like `_probe` without the own-block lookup (unused there).
+## The per-bottom-cube probe: like `_probe` without the own-block lookup (unused there), plus `body`, the
+## instance id of the block collider hit (-1 for the disc or a miss; Bontago-1t5.55.2).
 func _probe_cell(xz: Vector2) -> Dictionary:
 	var hit: Dictionary = _column_hit(xz)
 	if hit.is_empty():
-		return {"hit": false, "height": 0.0}
-	return {"hit": true, "height": _field.to_local(hit["position"] as Vector3).y}
+		return {"hit": false, "height": 0.0, "body": -1}
+	var block: Block = hit.get("collider") as Block
+	return {
+		"hit": true,
+		"height": _field.to_local(hit["position"] as Vector3).y,
+		"body": block.get_instance_id() if block != null else -1,
+	}
 
 
 ## Bontago-1t5.37: Field.raycast_disk_column's exact ray (map_def.cell_wake_height down to
@@ -1023,6 +1029,39 @@ static func spawn_pose(
 	return Vector3(pivot_xz.x, support_y + lift, pivot_xz.y)
 
 
+## Bontago-1t5.55.2: the support height the piece rests on when its pivot is at `pivot_xz`: the highest ray
+## hit under its real bottom cubes (spawn frame, outermost first, at most stability_raycast_count rays,
+## once per decision), which is where the host lift puts it; `fallback_y` (the pivot ray) when no cube ray
+## hits. DECISION: the cap is the tier's own ray count (Hard 9), so no new tunable.
+func _highest_cube_support(shape: BlockShape, orientation_index: int, pivot_xz: Vector2, fallback_y: float) -> float:
+	return highest_cube_support(
+		shape, orientation_index, pivot_xz, fallback_y, _physics_tuning.cube_size, _profile.stability_raycast_count,
+		_raycast_support_height
+	)
+
+
+## Pure seam of _highest_cube_support: `ray(xz) -> {hit, height}` is the support ray (Field raycast in the game).
+static func highest_cube_support(
+	shape: BlockShape, orientation_index: int, pivot_xz: Vector2, fallback_y: float, cube_size: float,
+	max_rays: int, ray: Callable
+) -> float:
+	var info: BotStatics.OrientationInfo = BotStatics.orientation_info(shape, orientation_index)
+	var at: BotCandidate = BotCandidate.new()
+	at.origin = pivot_xz
+	var points: PackedVector2Array = BotStatics.contact_probe_points(at, info, cube_size, max_rays)
+	var highest: float = fallback_y
+	var any_hit: bool = false
+	for point: Vector2 in points:
+		var cube_hit: Dictionary = ray.call(point) as Dictionary
+		if not bool(cube_hit.get("hit", false)):
+			continue
+		var height: float = float(cube_hit.get("height", 0.0))
+		if not any_hit or height > highest:
+			highest = height
+			any_hit = true
+	return highest
+
+
 ## `place_target_override` is null for an ordinary think-cycle (score every
 ## generated candidate with BotPlacementScorer.pick_best(), spec 2.9's normal
 ## height/goal-progress/stability/risk formula); a Vector2 when a placed-
@@ -1066,16 +1105,17 @@ func _send_best_placement(place_target_override: Variant = null) -> StringName:
 	# candidate was scored against, so the height must be resampled at the
 	# actual noisy point the request is about to use, never the stale
 	# pre-noise sample.
+	var held: BlockShape = match_ref.held_shape(_slot_id)
 	var hit: Dictionary = _raycast_support_height(noisy_origin)
+	var support_y: float = float(hit.get("height", 0.0))
+	if held != null:
+		support_y = _highest_cube_support(held, best.orientation_index, noisy_origin, support_y)
 	# Bontago-1t5.51: `request_place` takes the bottom-centre PIVOT of the unrotated shape (as the
 	# human ghost sends it), so raise it until the ROTATED shape's lowest corner sits on the support;
 	# without this a lying piece spawns inside the disc and falls through it.
-	var held: BlockShape = match_ref.held_shape(_slot_id)
-	var world_origin: Vector3 = _field.world_from_disk_local(noisy_origin, float(hit.get("height", 0.0)))
+	var world_origin: Vector3 = _field.world_from_disk_local(noisy_origin, support_y)
 	if held != null:
-		var pose: Vector3 = spawn_pose(
-			held, best.orientation_index, noisy_origin, float(hit.get("height", 0.0)), _physics_tuning
-		)
+		var pose: Vector3 = spawn_pose(held, best.orientation_index, noisy_origin, support_y, _physics_tuning)
 		world_origin = _field.world_from_disk_local(Vector2(pose.x, pose.z), pose.y)
 	var recording: Dictionary = _record_capture(best, place_target_override != null)
 	var reason: StringName = StringName(match_ref.request_place(

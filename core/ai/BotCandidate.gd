@@ -59,3 +59,12 @@ var top_height: float = 0.0
 var cell_support: PackedFloat32Array = PackedFloat32Array()
 ## Analytic tip-over risk 0..1 (BotStatics, P2); 0 until computed.
 var tip_risk: float = 0.0
+
+## Bontago-1t5.55.2 (append-only; stub for 1t5.53b): disk-local XZ of each probed bottom cube
+## (BotStatics.contact_probe_points); `cell_support` is parallel to it once probed. Empty = the
+## grid-cell probing of older candidates.
+var probe_points: PackedVector2Array = PackedVector2Array()
+## Parallel to `probe_points`: instance id of the block collider the ray hit, -1 = disc / miss.
+var support_bodies: PackedInt64Array = PackedInt64Array()
+## 1t5.53b fills it (headroom of the tower under this site); INF = no block support / no snapshot.
+var load_margin: float = INF
