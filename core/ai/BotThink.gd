@@ -8,8 +8,8 @@ extends RefCounted
 ##   PLAN     BotChains + BotStrategy.choose -> BotIntent                (one chunk)
 ##   SITES    BotCandidateGen.begin: the targeted TIP / STACK sites       (one chunk)
 ##   FILL     the uniform FILL draws, fill_chunk_attempts per step        (sliced)
-##   PROBE    support ray + one ray per footprint cell, statics -> tip_risk, and the tower's centre
-##            of mass margin under the site (`load_margin`, block-supported sites only)
+##   PROBE    support ray + one ray per footprint cell, then BotStability: the placement's centre-of-mass
+##            slack over the piece and every tower level below it (`stability_slack`)
 ##   RANK     BotEvaluator.proxy on every site, rank_chunk_sites per step, best first
 ##   MEASURE  BotEvaluator.measure on the top `eval_top_k` (skipped when 0) (per site)
 ##   PICK     argmax, or a softmax sample from the best `pick_pool`; the origin is
@@ -494,17 +494,14 @@ func _probe_one(probe: Callable) -> void:
 	candidate.on_top_of_own_stack = bool(hit.get("own", false))
 	_fire_cell_probes(candidate, probe)
 	candidate.top_height = candidate.support_height + candidate.shape_height
-	candidate.tip_risk = _tip_risk(candidate)
-	candidate.load_margin = _load_margin(candidate)
 	_judge_stability(candidate)
 	if _probe_index >= _candidates.size():
 		_phase = Phase.RANK
 
 
-## Bontago-1t5.72.4: BotStability.evaluate of a probed site fills `stability_slack` / `stability_binding`.
-## Nothing reads them yet (the evaluator switches in the next package), so decisions are unchanged.
-## DECISION: the model's resting plane goes to `stability_plane_y` only; support_height / top_height stay as probed
-## because the scorer reads them (the evaluator package switches them over).
+## Bontago-1t5.72.4: BotStability.evaluate of a probed site fills `stability_slack` / `stability_binding`;
+## the evaluator's TIP term reads the slack (BotEvaluator.stability_risk).
+## DECISION: the model's resting plane goes to `stability_plane_y` only; support_height / top_height stay as probed.
 func _judge_stability(candidate: BotCandidate) -> void:
 	var info: BotStatics.OrientationInfo = _orientation_info(candidate.orientation_index)
 	if info == null:
@@ -517,42 +514,6 @@ func _judge_stability(candidate: BotCandidate) -> void:
 	candidate.stability_slack = result.slack
 	candidate.stability_binding = result.binding
 	candidate.stability_plane_y = result.plane_y
-
-
-## BotStatics.tip_risk of a probed site, each orientation of the held piece described once per
-## think (Bontago-1t5.37; same values as BotStatics.tip_risk).
-func _tip_risk(candidate: BotCandidate) -> float:
-	var info: BotStatics.OrientationInfo = _orientation_info(candidate.orientation_index)
-	if info == null:
-		return 0.0
-	var scale: float = _gen().rts_slender_scale if _view.mode == MatchConfig.GameMode.REACH_THE_SKY else 1.0
-	return BotStatics.tip_risk_of(candidate, info, _view.grid, _gen(), _view.cube_size, scale)
-
-
-## Bontago-1t5.53b: the tower's centre-of-mass headroom under a probed site (BotStack.load_margin), INF
-## with no snapshot or no block support. The supports are the blocks under the cubes that rest on the
-## highest plane (the one the piece sits on); the piece's centre is its spawn-frame cube mean.
-## DECISION: the piece's mass is its cube count times the shipped cube mass (the blocks' own rule).
-func _load_margin(candidate: BotCandidate) -> float:
-	var stack: BotStack = _view.stack
-	if stack == null or not stack.is_analysed():
-		return INF
-	var info: BotStatics.OrientationInfo = _orientation_info(candidate.orientation_index)
-	if info == null:
-		return INF
-	var supports: PackedInt64Array = PackedInt64Array()
-	for i: int in range(candidate.support_bodies.size()):
-		var id: int = candidate.support_bodies[i]
-		if id < 0 or absf(candidate.cell_support[i] - candidate.support_height) > tuning.stability_contact_tolerance_m:
-			continue
-		if not supports.has(id):
-			supports.append(id)
-	if supports.is_empty():
-		return INF
-	var com_xz: Vector2 = candidate.origin + info.com * _view.cube_size
-	var com: Vector3 = Vector3(com_xz.x, candidate.support_height + candidate.shape_height * 0.5, com_xz.y)
-	var mass: float = BotWorldView.SHIPPED_PHYSICS_TUNING.cube_mass * float(_view.held.cells.size())
-	return stack.load_margin(supports, com, mass)
 
 
 ## The held piece's orientation description (built once per think); null with no held shape.
@@ -797,8 +758,8 @@ func _log_decision(candidate: BotCandidate, score: float) -> void:
 	if candidate == null:
 		print("BOTV2 slot=%d intent=%s WAIT sites=%d" % [_view.slot_id, intent_name, _candidates.size()])
 		return
-	print("BOTV2 slot=%d intent=%s target=(%.1f,%.1f) focus=%d site=%d at=(%.1f,%.1f) top=%.1f risk=%.2f score=%.2f own=%d" % [
+	print("BOTV2 slot=%d intent=%s target=(%.1f,%.1f) focus=%d site=%d at=(%.1f,%.1f) top=%.1f slack=%.2f score=%.2f own=%d" % [
 		_view.slot_id, intent_name, _intent.target.x, _intent.target.y, _intent.focus_circle,
 		candidate.site_kind, candidate.origin.x, candidate.origin.y, candidate.top_height,
-		candidate.tip_risk, score, _view.indices_of_team(_view.team_id).size()
+		candidate.stability_slack, score, _view.indices_of_team(_view.team_id).size()
 	])

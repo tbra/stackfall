@@ -1,8 +1,8 @@
 extends GutTest
 ## Bontago-1t5.53b: BotStack wired into the bot think (docs/BOT_TOWER_PLAN.md C "1t5.53b"). The centre of
 ## mass of the tower under a site decides how the site ranks: a sliced STACK phase analyses the snapshot,
-## PROBE fills BotCandidate.load_margin for block-supported sites, BotEvaluator.stack_risk adds it to the
-## TIP term. Pure tests use hand-built BotStack snapshots; the physics tests use a real Field with settled
+## PROBE fills BotCandidate.stability_slack (BotStability), BotEvaluator.stability_risk adds the topple penalty to
+## the TIP term. Pure tests use hand-built BotStack snapshots; the physics tests use a real Field with settled
 ## blocks and the real column ray (no match, no controller).
 
 const MAP_RADIUS: float = 20.0
@@ -123,23 +123,18 @@ func _think(view: BotWorldView, held: BlockShape) -> BotThink:
 
 # --- evaluator -----------------------------------------------------------------------------------
 
-func test_stack_risk_is_zero_without_a_margin_and_grows_as_headroom_shrinks() -> void:
+func test_stability_risk_is_the_topple_penalty_only_when_the_slack_is_not_positive() -> void:
 	var c: BotCandidate = BotCandidate.new()
-	assert_eq(BotEvaluator.stack_risk(c), 0.0, "INF margin = no block support / no snapshot")
-	var safe: float = BotEvaluator.stack_tuning.safe_margin_m
-	c.load_margin = safe
-	assert_almost_eq(BotEvaluator.stack_risk(c), 0.0, TOL)
-	c.load_margin = safe * 0.5
-	assert_almost_eq(BotEvaluator.stack_risk(c), BotEvaluator.tuning.stack_risk_weight * 0.5, TOL)
-	c.load_margin = 0.0
-	assert_almost_eq(BotEvaluator.stack_risk(c), BotEvaluator.tuning.stack_risk_weight, TOL)
-	c.load_margin = -0.1
-	assert_almost_eq(
-		BotEvaluator.stack_risk(c), BotEvaluator.tuning.stack_risk_weight + BotEvaluator.tuning.topple_penalty, TOL
-	)
+	assert_eq(BotEvaluator.stability_risk(c), 0.0, "INF slack = an unevaluated site")
+	c.stability_slack = 0.3
+	assert_eq(BotEvaluator.stability_risk(c), 0.0)
+	c.stability_slack = 0.0
+	assert_almost_eq(BotEvaluator.stability_risk(c), BotEvaluator.tuning.topple_penalty, TOL)
+	c.stability_slack = -0.1
+	assert_almost_eq(BotEvaluator.stability_risk(c), BotEvaluator.tuning.topple_penalty, TOL)
 
 
-func test_a_site_with_a_negative_margin_ranks_below_an_identical_safe_one() -> void:
+func test_a_site_with_a_negative_slack_ranks_below_an_identical_safe_one() -> void:
 	var view: BotWorldView = _view(_cube)
 	var intent: BotIntent = BotIntent.new()
 	intent.kind = BotIntent.Kind.ANCHOR
@@ -148,11 +143,11 @@ func test_a_site_with_a_negative_margin_ranks_below_an_identical_safe_one() -> v
 	var safe_site: BotCandidate = BotCandidate.new()
 	safe_site.origin = TOWER
 	safe_site.top_height = 4.0
-	safe_site.load_margin = BotEvaluator.stack_tuning.safe_margin_m + 0.3
+	safe_site.stability_slack = 0.3
 	var risky: BotCandidate = BotCandidate.new()
 	risky.origin = TOWER
 	risky.top_height = 4.0
-	risky.load_margin = -0.05
+	risky.stability_slack = -0.05
 	var safe_score: float = BotEvaluator.proxy(safe_site, view, intent)
 	var risky_score: float = BotEvaluator.proxy(risky, view, intent)
 	assert_lt(risky_score, safe_score, "proxy")
@@ -163,7 +158,7 @@ func test_a_site_with_a_negative_margin_ranks_below_an_identical_safe_one() -> v
 
 # --- think wiring ---------------------------------------------------------------------------------
 
-func test_the_stack_phase_is_sliced_and_fills_the_margin_of_block_supported_sites() -> void:
+func test_the_stack_phase_is_sliced_and_fills_the_slack_of_block_supported_sites() -> void:
 	var view: BotWorldView = _view(_bar3)
 	view.stack = _synthetic_stack()
 	var think: BotThink = _think(view, _bar3)
@@ -177,9 +172,9 @@ func test_the_stack_phase_is_sliced_and_fills_the_margin_of_block_supported_site
 	assert_true(view.stack.is_analysed(), "the snapshot was analysed inside the think")
 	var finite: int = 0
 	for c: BotCandidate in think.candidates():
-		if not is_inf(c.load_margin):
+		if c.support_bodies.has(PLATFORM_ID):
 			finite += 1
-			assert_true(c.support_bodies.has(PLATFORM_ID), "a finite margin needs a block under the site")
+			assert_false(is_inf(c.stability_slack), "a block-supported site is judged by the statics model")
 	assert_gt(finite, 0, "some site rests on the platform")
 	assert_true(saw_stack or finite > 0)
 
@@ -198,15 +193,16 @@ func test_sliced_and_single_step_thinks_agree_with_a_snapshot() -> void:
 	assert_eq(a.decision().orientation_index, b.decision().orientation_index)
 
 
-func test_no_snapshot_leaves_every_margin_infinite_and_the_decision_unchanged() -> void:
+func test_an_empty_snapshot_judges_like_no_snapshot_and_the_decision_is_unchanged() -> void:
 	var plain: BotThink = _think(_view(_bar3), _bar3)
 	_run(plain, _synthetic_probe, BIG_BUDGET_US)
 	var empty_view: BotWorldView = _view(_bar3)
 	empty_view.stack = BotStack.new()
 	var with_empty: BotThink = _think(empty_view, _bar3)
 	_run(with_empty, _synthetic_probe, BIG_BUDGET_US)
-	for c: BotCandidate in plain.candidates():
-		assert_true(is_inf(c.load_margin))
+	assert_eq(plain.candidates().size(), with_empty.candidates().size())
+	for i: int in range(plain.candidates().size()):
+		assert_eq(plain.candidates()[i].stability_slack, with_empty.candidates()[i].stability_slack)
 	assert_eq(plain.decision().origin, with_empty.decision().origin, "an empty snapshot is the old think")
 	assert_eq(plain.decision().orientation_index, with_empty.decision().orientation_index)
 
@@ -334,11 +330,11 @@ func test_a_real_probe_think_never_picks_a_toppling_site_when_a_safe_one_exists(
 	var safe_exists: bool = false
 	var negative: int = 0
 	for c: BotCandidate in think.candidates():
-		if is_inf(c.load_margin) or c.load_margin >= 0.0:
+		if c.stability_slack > 0.0:
 			safe_exists = true
 		else:
 			negative += 1
 	gut.p("sites=%d negative=%d top block=%s" % [think.candidates().size(), negative, blocks[3].name])
 	assert_true(safe_exists)
 	if think.best_candidate() != null:
-		assert_gte(think.best_candidate().load_margin, 0.0, "the pick keeps the tower's centre of mass inside its supports")
+		assert_gt(think.best_candidate().stability_slack, 0.0, "the pick keeps the tower's centre of mass inside its supports")

@@ -1,6 +1,6 @@
 extends GutTest
 ## Bontago-1t5.72.4 (P2a): BotThink's PROBE phase fills BotCandidate.stability_slack / stability_binding with
-## BotStability.evaluate, raises the resting plane to the model's, and leaves the old tip_risk / load_margin alone.
+## BotStability.evaluate.
 
 const CUBE: float = 1.0
 const MASS: float = 2.0
@@ -76,7 +76,7 @@ func test_cube_dropped_off_a_block_edge_is_unstable() -> void:
 	assert_lt(c.stability_slack, 0.0, "0.3 m off a 1x1 top with 0.3 m of aim error")
 
 
-func test_judging_leaves_scoring_inputs_alone_on_an_edge_overlap_site() -> void:
+func test_judging_leaves_height_inputs_alone_on_an_edge_overlap_site() -> void:
 	var think: BotThink = _think(true)
 	var c: BotCandidate = _candidate(EDGE_ORIGIN_X, 0.0, -1)
 	var view: BotWorldView = think._view
@@ -86,7 +86,11 @@ func test_judging_leaves_scoring_inputs_alone_on_an_edge_overlap_site() -> void:
 	assert_almost_eq(c.support_height, 0.0, EPS, "the probed support height is untouched")
 	assert_almost_eq(c.top_height, CUBE, EPS)
 	assert_almost_eq(c.stability_plane_y, CUBE, EPS, "the model's plane (the host lift) is kept apart")
-	assert_eq(BotEvaluator.proxy_terms(c, view, intent), before, "score terms are identical with the judge on")
+	var after: PackedFloat32Array = BotEvaluator.proxy_terms(c, view, intent)
+	var tip: int = BotIntent.Term.TIP
+	assert_almost_eq(after[tip], before[tip] + BotEvaluator.stability_risk(c), EPS, "only the TIP term reads the judge")
+	after[tip] = before[tip]
+	assert_eq(after, before, "every other score term is identical with the judge on")
 
 
 func test_no_snapshot_uses_the_probe_only_fallback() -> void:
