@@ -1,9 +1,11 @@
 class_name UiChipToggle
 extends Button
 ## The design system's ChipToggle (docs/ui_reskin/components.md "ChipToggle"): a compact block for
-## the gift / special pool and the lobby's experiment flags. On = a `mint` block with an ink
-## check box holding a tick; off = a `disc-700` block with an empty box, so the state never relies
-## on colour alone. A UiRowItem (BUTTON_SM height). Pad / keyboard: ui_accept toggles. A chip that
+## the gift / special pool and the lobby's experiment flags. On = a `mint` block with ink text and
+## icon; off = a `disc-700` block with cream text and icon. DECISION (owner playtest 2026-10-14,
+## Bontago-1pi.159.55): the check box is gone, the block colour carries the state (mint vs disc-700
+## differ strongly in luminance and in ink/cream label colour). The pictogram is always drawn as a
+## flat silhouette (Bontago-1pi.159.54). A UiRowItem (BUTTON_SM height). Pad / keyboard: ui_accept toggles. A chip that
 ## is switched off for the match (set_available(false), e.g. the Cat gift) is shown disabled; its
 ## reason is read back with unavailable_reason() for inline help. The label is the Button's text, the optional pictogram its icon.
 
@@ -14,7 +16,7 @@ extends Button
 @export var chip_icon: Texture2D = null:
 	set(value):
 		chip_icon = value
-		icon = value
+		icon = silhouette_of(value)
 
 var _available: bool = true
 var _unavailable_reason: String = ""
@@ -108,6 +110,9 @@ func _restyle() -> void:
 		_shown_pressed = button_pressed
 		var boxes_now: Dictionary = look["boxes"] as Dictionary
 		add_theme_stylebox_override("disabled", boxes_now["disabled_on" if button_pressed else "disabled_off"] as StyleBox)
+		var dim: Color = look["on_dim" if button_pressed else "off_dim"] as Color
+		add_theme_color_override("font_disabled_color", dim)
+		add_theme_color_override("icon_disabled_color", dim)
 	queue_redraw()
 
 
@@ -129,6 +134,8 @@ static func _shared_look() -> Dictionary:
 	var on_face: Color = face_for(true, arcade)
 	var off_hover: Color = off_face.lerp(Color.WHITE, arcade.block_hover_light_mix)
 	var on_hover: Color = on_face.lerp(Color.WHITE, arcade.block_hover_light_mix)
+	var off_ink: Color = MenuStyleFactory.ink_for_face(off_face)
+	var on_ink: Color = MenuStyleFactory.ink_for_face(on_face)
 	var lip_off: Color = MenuStyleFactory.lip_for(off_face)
 	var lip_on: Color = MenuStyleFactory.lip_for(on_face)
 	var top_off: Color = MenuStyleFactory.top_for(off_face)
@@ -144,7 +151,7 @@ static func _shared_look() -> Dictionary:
 		"disabled_off": BlockStyleBox.make(off_face, arcade, true, disabled_state, MenuStyleFactory.lip_for(off_face), MenuStyleFactory.top_for(off_face)),
 		"disabled_on": BlockStyleBox.make(on_face, arcade, true, disabled_state, MenuStyleFactory.lip_for(on_face), MenuStyleFactory.top_for(on_face)),
 	}
-	var lead: float = float(arcade.space_3_px + m.chip_box_px + arcade.space_2_px)
+	var lead: float = float(arcade.space_3_px)
 	var pad: float = float(arcade.button_sm_pad_y_px)
 	for key: String in boxes:
 		var box: BlockStyleBox = boxes[key] as BlockStyleBox
@@ -154,8 +161,10 @@ static func _shared_look() -> Dictionary:
 		box.content_margin_bottom = maxf(box.content_margin_bottom - pad, 0.0)
 	_look = {
 		"boxes": boxes,
-		"off_ink": MenuStyleFactory.ink_for_face(off_face),
-		"on_ink": MenuStyleFactory.ink_for_face(on_face),
+		"off_ink": off_ink,
+		"on_ink": on_ink,
+		"off_dim": Color(off_ink, arcade.disabled_alpha),
+		"on_dim": Color(on_ink, arcade.disabled_alpha),
 		"font_size": arcade.font_size_button_sm_px,
 		"icon_max_width": arcade.icon_max_width_px,
 	}
@@ -167,34 +176,29 @@ static func _shared_look() -> Dictionary:
 	return _look
 
 
-func _draw() -> void:
-	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	var m: ComponentMetrics = UiRowItem.metrics()
-	var box: StyleBox = get_theme_stylebox("normal")
-	var centre_y: float = (box.content_margin_top + size.y - box.content_margin_bottom) / 2.0
-	var edge: float = float(m.chip_box_px)
-	var rect: Rect2 = Rect2(Vector2(float(arcade.space_3_px), centre_y - edge / 2.0), Vector2(edge, edge))
-	var alpha: float = arcade.disabled_alpha if disabled else 1.0
-	var frame: StyleBoxFlat = StyleBoxFlat.new()
-	frame.set_corner_radius_all(arcade.radius_cell_px)
-	if button_pressed:
-		frame.bg_color = Color(arcade.ink_color, alpha)
-	else:
-		frame.bg_color = Color(arcade.disc_900_color, alpha)
-		frame.set_border_width_all(arcade.well_border_px)
-		frame.border_color = Color(arcade.disc_400_color, alpha)
-	frame.draw(get_canvas_item(), rect)
-	if button_pressed:
-		var tick: Color = Color(arcade.mint_color, alpha)
-		var points: PackedVector2Array = PackedVector2Array([
-			rect.position + rect.size * Vector2(TICK_START.x, TICK_START.y),
-			rect.position + rect.size * Vector2(TICK_MID.x, TICK_MID.y),
-			rect.position + rect.size * Vector2(TICK_END.x, TICK_END.y),
-		])
-		draw_polyline(points, tick, float(m.chip_check_stroke_px), true)
+## The pictogram as a flat silhouette: every pixel white at the source's alpha, so the Button's
+## icon colours (ink on mint, cream on disc-700, dimmed when disabled) paint it in one colour.
+## Cached per source texture; a texture with no readable image (placeholder) is returned as is.
+static func silhouette_of(source: Texture2D) -> Texture2D:
+	if source == null:
+		return null
+	if _silhouettes.has(source):
+		return _silhouettes[source] as Texture2D
+	var image: Image = source.get_image()
+	if image == null or image.is_empty():
+		return source
+	image.convert(Image.FORMAT_RGBA8)
+	var data: PackedByteArray = image.get_data()
+	for offset: int in range(0, data.size(), RGBA_STRIDE):
+		data[offset] = BYTE_MAX
+		data[offset + 1] = BYTE_MAX
+		data[offset + 2] = BYTE_MAX
+	image.set_data(image.get_width(), image.get_height(), false, Image.FORMAT_RGBA8, data)
+	var silhouette: ImageTexture = ImageTexture.create_from_image(image)
+	_silhouettes[source] = silhouette
+	return silhouette
 
 
-## The tick's three points as fractions of the check box (a fixed glyph shape, not a tunable).
-const TICK_START: Vector2 = Vector2(0.22, 0.52)
-const TICK_MID: Vector2 = Vector2(0.42, 0.72)
-const TICK_END: Vector2 = Vector2(0.78, 0.28)
+const RGBA_STRIDE: int = 4
+const BYTE_MAX: int = 255
+static var _silhouettes: Dictionary = {}

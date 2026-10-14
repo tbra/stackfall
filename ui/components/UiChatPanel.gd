@@ -3,8 +3,8 @@ extends PanelContainer
 ## The design system's chat panel (docs/CHAT_PLAN.md section 3, docs/ui_reskin/components.md): one
 ## component, two skins. LOBBY is a CHAT title row, a scrolling log and an always-visible input line; HUD shows the last
 ## [member ChatConfig.hud_lines] lines, fades out after [member ChatConfig.line_visible_s] and shows the
-## input line only while typing. Neither skin has a box, border or background (Bontago-1pi.159.45):
-## the chat sits directly in its window, the HUD log kept readable by a text outline. The log is a plain-text RichTextLabel (bbcode off; the sender name is
+## input line only while typing. The lobby log sits in a sunken UiWell (Bontago-1pi.159.57); the HUD skin has no box, border
+## or background (Bontago-1pi.159.45), its log kept readable by a text outline. The log is a plain-text RichTextLabel (bbcode off; the sender name is
 ## tinted with push_color / add_text, user text is never parsed). The panel never touches Net or Events:
 ## screens connect [signal submit_requested], [signal input_opened] / [signal input_closed] and feed
 ## [method append_line] / [method replace_history].
@@ -53,6 +53,7 @@ var _draft: String = ""
 var _idle_s: float = 0.0
 var _title_row: UiTitleRow = null
 var _column: VBoxContainer = null
+var _well: UiWell = null
 
 
 func _init() -> void:
@@ -65,6 +66,11 @@ func _init() -> void:
 	_title_row = UiTitleRow.new()
 	_title_row.title = TITLE
 	_column.add_child(_title_row)
+	# Bontago-1pi.159.57: the lobby log sits in a sunken well again (the owner wants the message
+	# window's background back); the HUD skin keeps no box (159.45) and hides the well.
+	_well = UiWell.new()
+	_well.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_column.add_child(_well)
 	log = RichTextLabel.new()
 	log.bbcode_enabled = false
 	log.selection_enabled = false
@@ -217,7 +223,8 @@ func _apply_skin() -> void:
 		log.add_theme_color_override("font_outline_color", arcade.ink_color)
 		log.add_theme_constant_override("outline_size", config.hud_outline_px)
 		_column.add_child(log)
-		_column.move_child(log, _title_row.get_index() + 1)
+		_column.move_child(log, _well.get_index())
+		_well.visible = false
 		custom_minimum_size = Vector2(float(arcade.space_7_px * WIDTH_STEPS), 0.0)
 		log.fit_content = true
 		log.scroll_active = false
@@ -232,11 +239,12 @@ func _apply_skin() -> void:
 		visible = false
 		modulate.a = 0.0
 	else:
+		# The panel itself stays unboxed; the well around the log is the lobby's message window.
 		add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 		log.remove_theme_color_override("font_outline_color")
 		log.remove_theme_constant_override("outline_size")
-		_column.add_child(log)
-		_column.move_child(log, _title_row.get_index() + 1)
+		_well.add_child(log)
+		_well.visible = true
 		custom_minimum_size = Vector2(float(arcade.space_7_px * WIDTH_STEPS), 0.0)
 		log.custom_minimum_size.y = float(UiRowItem.metrics().row_height_px * LOBBY_MIN_ROWS)
 		log.fit_content = false

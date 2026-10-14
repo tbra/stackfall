@@ -40,10 +40,6 @@ extends Resource
 @export var toggle_well_height_px: int = 26
 @export var toggle_knob_inset_px: int = 3
 
-## ChipToggle: edge of the check box drawn left of the label and the stroke of its tick.
-@export var chip_box_px: int = 18
-@export var chip_check_stroke_px: int = 3
-
 ## Stepper: font size of the Bungee value between the - and + blocks.
 @export var stepper_value_font_px: int = 16
 

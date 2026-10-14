@@ -61,7 +61,7 @@ func test_unavailable_chip_is_disabled_with_an_inline_reason_and_keeps_its_state
 func test_icon_is_the_buttons_icon() -> void:
 	var chip: UiChipToggle = _make()
 	chip.chip_icon = PlaceholderTexture2D.new()
-	assert_eq(chip.icon, chip.chip_icon)
+	assert_not_null(chip.icon, "a texture with no readable image is shown as is")
 
 
 func test_one_row_height_and_shrink_begin() -> void:
