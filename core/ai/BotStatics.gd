@@ -1,33 +1,23 @@
 class_name BotStatics
 extends RefCounted
-## Bot V2 analytic statics (docs/BOT_AI_REDESIGN.md 2.2 option B, 2.3 step 4): a cheap,
-## pure tip-over estimate for an oriented piece, no physics. Two factors, combined as
-## a probabilistic OR: (1) overhang -- how far the centre of mass lies outside the
-## rectangle spanned by the bottom cubes that actually rest on something; (2)
-## slenderness -- height over the smaller side of that rectangle.
+## Bot V2 orientation statics (docs/BOT_AI_REDESIGN.md 2.2, 2.3 step 4): pure geometry for the oriented
+## pieces. Which site is stable is decided by BotStability (the owner's two centre-of-mass rules); what is
+## left here is each orientation's own rule 1 (self_margin), eligibility by it, and the probe layout.
 ##
-## DECISION (Bontago-1t5.21): the support polygon is approximated by the bounding
-## rectangle of the supported bottom cubes (an over-approximation for concave bottoms
-## such as arch5, erring towards "stable"), and every cube has equal mass.
 ## DECISION (Bontago-1t5.55.1): cube offsets are in the SPAWN frame, B*(cell - bottom_center()),
 ## exactly where BlockFactory puts the collision cubes around the pivot the host is given
 ## (`candidate.origin` is that pivot). Before 1t5.55.1 they were B*cell, shifted by B*pivot
-## (up to 1.4 m), so probes and tip risk looked at the wrong patch. `cell_support` entries
+## (up to 1.4 m), so probes looked at the wrong patch. `cell_support` entries
 ## still line up with the cubes they were measured under (footprint_cells_of).
 
 const SHIPPED_TUNING: BotGenTuning = preload("res://config/bot_gen_tuning.tres")
 const SHIPPED_PHYSICS_TUNING: PhysicsTuning = preload("res://config/physics_tuning.tres")
+const SHIPPED_STACK_TUNING: BotStackTuning = preload("res://config/bot_stack_tuning.tres")
 ## Slack when comparing a probed cell centre with a cube centre.
 const MATCH_EPSILON_M: float = 0.001
 ## Half a cube in cube units (a supported cube's square extends this far).
 const HALF_CUBE: float = 0.5
-## Floor for tuning values used as divisors.
-const MIN_DIVISOR: float = 0.001
-## tip_risk cube_size sentinel: use the shipped PhysicsTuning cube size (callers with a
-## BotWorldView pass view.cube_size).
-const NO_CUBE_SIZE: float = -1.0
-## Per-process cache of orientation_infos (key: shape + tuning instance and the tuning
-## values it reads). Holds plain RefCounted data only; bounded by MAX_CACHE_ENTRIES.
+## Per-process cache of orientation_infos (key: shape + tuning instance and the values it reads). Holds plain RefCounted data only; bounded by MAX_CACHE_ENTRIES.
 const MAX_CACHE_ENTRIES: int = 64
 static var _info_cache: Dictionary = {}
 
@@ -50,11 +40,6 @@ class OrientationInfo:
 	var pivot_shift: Vector2 = Vector2.ZERO
 	## Rotated bounding-box centre minus the pivot, xz, cube units (0 for yaw-only orientations).
 	var center_shift: Vector2 = Vector2.ZERO
-	## Tip risk on a flat, fully supporting surface.
-	var flat_risk: float = 0.0
-	## Bontago-1t5.71: flat_risk without the slenderness term (overhang only): what a hard cap on "can this
-	## orientation be offered" should read when slenderness is a soft penalty instead.
-	var base_risk: float = 0.0
 	## Number of bottom cubes (grip area in cubes).
 	var contact_area: float = 0.0
 	## Bontago-1t5.69: number of cubes in the top layer (the landing area the next piece gets).
@@ -67,39 +52,8 @@ class OrientationInfo:
 	var com_height: float = 0.5
 
 
-## Tip risk 0..1 of candidate `c` (its orientation of `shape`). With per-cell probe
-## results (`c.cell_support`) the supported bottom cubes are found through `grid`;
-## without a grid the unsupported share of the probed cells drives an overhang term;
-## with no probes at all it is the flat-ground risk of the orientation.
-static func tip_risk(
-	c: BotCandidate, shape: BlockShape, grid: CellGrid = null, tuning: BotGenTuning = null, cube_size: float = NO_CUBE_SIZE
-) -> float:
-	if c == null or shape == null or shape.cells.is_empty():
-		return 0.0
-	var t: BotGenTuning = tuning if tuning != null else SHIPPED_TUNING
-	return tip_risk_of(c, orientation_info(shape, c.orientation_index, t), grid, t, cube_size)
-
-
-## tip_risk with the orientation's OrientationInfo supplied: callers probing many sites of one
-## shape describe each orientation once (Bontago-1t5.37: orientation_info builds string
-## signatures, a large share of a probe step). `info` must be orientation_info(shape,
-## c.orientation_index, tuning) for the same tuning.
-static func tip_risk_of(
-	c: BotCandidate, info: OrientationInfo, grid: CellGrid = null, tuning: BotGenTuning = null, cube_size: float = NO_CUBE_SIZE,
-	slender_scale: float = 1.0
-) -> float:
-	var t: BotGenTuning = tuning if tuning != null else SHIPPED_TUNING
-	if c.cell_support.is_empty() or (c.footprint_cells.is_empty() and c.probe_points.is_empty()):
-		return info.flat_risk if slender_scale == 1.0 else _risk(info, info.contact, t, slender_scale)
-	if grid != null or not c.probe_points.is_empty():
-		var supported: PackedVector2Array = _supported_contacts(c, info, grid, t, cube_size)
-		return _risk(info, supported, t, slender_scale)
-	return _combine(info.flat_risk if slender_scale == 1.0 else _risk(info, info.contact, t, slender_scale), _unsupported_overhang(c, t))
-
-
 ## Describes orientation `index` of `shape` (pure geometry, no support information).
-static func orientation_info(shape: BlockShape, index: int, tuning: BotGenTuning = null) -> OrientationInfo:
-	var t: BotGenTuning = tuning if tuning != null else SHIPPED_TUNING
+static func orientation_info(shape: BlockShape, index: int) -> OrientationInfo:
 	var info: OrientationInfo = OrientationInfo.new()
 	info.index = index
 	var basis: Basis = BlockOrientations.get_basis(index)
@@ -136,8 +90,6 @@ static func orientation_info(shape: BlockShape, index: int, tuning: BotGenTuning
 	info.self_margin = _self_margin(info)
 	info.contact_area = float(info.contact.size())
 	info.signature = _signature(info)
-	info.flat_risk = _risk(info, info.contact, t)
-	info.base_risk = _risk(info, info.contact, t, 0.0)
 	return info
 
 
@@ -190,27 +142,41 @@ static func footprint_cells_of(
 	)
 
 
-## The distinct (footprint, contact, height) orientations of `shape`, at most
-## `tuning.max_orientations_per_shape`, deterministic: distinct heights are served
+## The distinct, eligible (self_margin) (footprint, contact, height) orientations of `shape`, at most
+## `tuning.max_orientations_per_shape`; when none is eligible, the one with the largest self_margin.
+## Deterministic: distinct heights are served
 ## round-robin (largest grip first inside a height) so a cap never drops a height class.
 static func orientation_infos(shape: BlockShape, tuning: BotGenTuning = null) -> Array[OrientationInfo]:
 	var t: BotGenTuning = tuning if tuning != null else SHIPPED_TUNING
 	var kept: Array[OrientationInfo] = []
 	if shape == null or shape.cells.is_empty():
 		return kept
-	var key: String = "%d|%d|%s|%s|%s|%s" % [
+	var key: String = "%d|%d|%s|%s|%s" % [
 		shape.get_instance_id(), t.get_instance_id(), "%s%d" % [shape.id, shape.cells.size()],
-		t.max_orientations_per_shape, t.slender_safe, "%s|%s" % [t.slender_max, t.overhang_full_cubes]
+		t.max_orientations_per_shape, SHIPPED_STACK_TUNING.numeric_tolerance_m
 	]
 	if _info_cache.has(key):
 		return _info_cache[key] as Array[OrientationInfo]
 	var seen: Dictionary = {}
+	var distinct: Array[OrientationInfo] = []
 	for i: int in range(BlockOrientations.count()):
-		var info: OrientationInfo = orientation_info(shape, i, t)
+		var info: OrientationInfo = orientation_info(shape, i)
 		if seen.has(info.signature):
 			continue
 		seen[info.signature] = true
-		kept.append(info)
+		distinct.append(info)
+	# Bontago-1t5.72 (P4): an orientation is offered only when its own centre of mass is inside the hull of its
+	# bottom contact squares by more than the numeric tolerance (rule 1 on flat ground). Filtering happens
+	# before the cap, so an ineligible orientation never takes a round-robin slot.
+	var cube: float = SHIPPED_PHYSICS_TUNING.cube_size
+	var best: OrientationInfo = distinct[0]
+	for info: OrientationInfo in distinct:
+		if info.self_margin * cube > SHIPPED_STACK_TUNING.numeric_tolerance_m:
+			kept.append(info)
+		if info.self_margin > best.self_margin:
+			best = info
+	if kept.is_empty():
+		kept.append(best)
 	kept.sort_custom(func(a: OrientationInfo, b: OrientationInfo) -> bool:
 		if a.height != b.height:
 			return a.height < b.height
@@ -269,97 +235,3 @@ static func _normalised_keys(points: PackedVector2Array, min_x: float, min_z: fl
 		if unique.is_empty() or unique[unique.size() - 1] != key:
 			unique.append(key)
 	return unique
-
-
-## Risk of `info` resting only on `supported` bottom cubes (offsets in cube units).
-## `slender_scale` multiplies the slenderness term (1 = full, the hard-risk reading; Bontago-1t5.71 passes
-## BotGenTuning.rts_slender_scale for Reach the Sky, where slenderness is a soft penalty).
-static func _risk(info: OrientationInfo, supported: PackedVector2Array, t: BotGenTuning, slender_scale: float = 1.0) -> float:
-	if supported.is_empty():
-		return 1.0
-	var min_x: float = INF
-	var max_x: float = -INF
-	var min_z: float = INF
-	var max_z: float = -INF
-	for p: Vector2 in supported:
-		min_x = minf(min_x, p.x)
-		max_x = maxf(max_x, p.x)
-		min_z = minf(min_z, p.y)
-		max_z = maxf(max_z, p.y)
-	var dx: float = maxf(maxf(min_x - HALF_CUBE - info.com.x, info.com.x - (max_x + HALF_CUBE)), 0.0)
-	var dz: float = maxf(maxf(min_z - HALF_CUBE - info.com.y, info.com.y - (max_z + HALF_CUBE)), 0.0)
-	var overhang: float = clampf(Vector2(dx, dz).length() / maxf(t.overhang_full_cubes, MIN_DIVISOR), 0.0, 1.0)
-	var base: float = minf(max_x - min_x + 1.0, max_z - min_z + 1.0)
-	var slender: float = info.height / maxf(base, 1.0)
-	var slender_risk: float = clampf(
-		(slender - t.slender_safe) / maxf(t.slender_max - t.slender_safe, MIN_DIVISOR), 0.0, 1.0
-	)
-	return _combine(overhang, slender_risk * slender_scale)
-
-
-static func _combine(a: float, b: float) -> float:
-	return 1.0 - (1.0 - clampf(a, 0.0, 1.0)) * (1.0 - clampf(b, 0.0, 1.0))
-
-
-## True when probed support `height` counts as contact with the pivot's support.
-static func _is_contact(height: float, c: BotCandidate, t: BotGenTuning) -> bool:
-	return height != BotThink.NO_SUPPORT and absf(height - c.support_height) <= t.contact_tolerance_m
-
-
-## Overhang term from the unsupported share of the probed cells alone.
-static func _unsupported_overhang(c: BotCandidate, t: BotGenTuning) -> float:
-	var total: int = c.cell_support.size()
-	var unsupported: int = 0
-	for height: float in c.cell_support:
-		if not _is_contact(height, c, t):
-			unsupported += 1
-	var share: float = float(unsupported) / float(maxi(total, 1))
-	return clampf((share - t.unsupported_safe_fraction) / maxf(1.0 - t.unsupported_safe_fraction, MIN_DIVISOR), 0.0, 1.0)
-
-
-## Bontago-1t5.55.2: cube-probe matching. `c.cell_support[i]` was measured under the bottom cube centred
-## at `c.probe_points[i]`; a cube with no probe (a capped tier) is assumed supported (DECISION: lower tiers
-## stay cheap; contact_probe_points always probes the outermost cubes).
-static func _supported_by_cube_probes(
-	c: BotCandidate, info: OrientationInfo, t: BotGenTuning, cube: float
-) -> PackedVector2Array:
-	var probed: int = mini(c.cell_support.size(), c.probe_points.size())
-	var supported: PackedVector2Array = PackedVector2Array()
-	for offset: Vector2 in info.contact:
-		var world: Vector2 = c.origin + offset * cube
-		var covered: bool = true
-		for i: int in range(probed):
-			if c.probe_points[i].distance_to(world) <= MATCH_EPSILON_M:
-				covered = _is_contact(c.cell_support[i], c, t)
-				break
-		if covered:
-			supported.append(offset)
-	return supported
-
-
-## The bottom cubes whose probed cells (matched through `grid`) are mostly contact; a
-## cube with no probed cell under it is assumed supported.
-static func _supported_contacts(
-	c: BotCandidate, info: OrientationInfo, grid: CellGrid, t: BotGenTuning, cube_size: float
-) -> PackedVector2Array:
-	var cube: float = cube_size if cube_size > 0.0 else SHIPPED_PHYSICS_TUNING.cube_size
-	if not c.probe_points.is_empty():
-		return _supported_by_cube_probes(c, info, t, cube)
-	var reach: float = (cube + grid.cell_size) * 0.5 - MATCH_EPSILON_M
-	var probed: int = mini(c.cell_support.size(), c.footprint_cells.size())
-	var centers: PackedVector2Array = PackedVector2Array()
-	for i: int in range(probed):
-		centers.append(grid.index_center(c.footprint_cells[i]))
-	var supported: PackedVector2Array = PackedVector2Array()
-	for offset: Vector2 in info.contact:
-		var world: Vector2 = c.origin + offset * cube
-		var matches: int = 0
-		var contact_hits: int = 0
-		for i: int in range(probed):
-			if absf(centers[i].x - world.x) <= reach and absf(centers[i].y - world.y) <= reach:
-				matches += 1
-				if _is_contact(c.cell_support[i], c, t):
-					contact_hits += 1
-		if matches == 0 or float(contact_hits) / float(matches) >= t.supported_cell_fraction:
-			supported.append(offset)
-	return supported

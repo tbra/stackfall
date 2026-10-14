@@ -188,22 +188,18 @@ class _Gen:
 			_own_radii.append(view.cr[i])
 			_own_index.append(i)
 
-	## Tip: highest reach (InfluenceCircle radius of the piece's top) under the risk cap,
-	## then lowest risk, then largest grip. Stack: lowest risk, then lowest height.
+	## Bontago-1t5.72 (P4): `infos` already holds only orientations whose own centre of mass stands on their contact
+	## squares (BotStatics.orientation_infos); the stability model judges each site in PROBE, so generation only
+	## offers a spread. Tip: highest reach, then widest own margin, then largest grip. Stack: flattest first.
 	func _rank_orientations() -> void:
-		var tip: Array[BotStatics.OrientationInfo] = []
-		for info: BotStatics.OrientationInfo in infos:
-			if info.flat_risk <= t.tip_risk_max:
-				tip.append(info)
-		if tip.is_empty():
-			tip.append(_least_risky())
+		var tip: Array[BotStatics.OrientationInfo] = infos.duplicate()
 		tip.sort_custom(func(a: BotStatics.OrientationInfo, b: BotStatics.OrientationInfo) -> bool:
 			var ra: float = _reach(a)
 			var rb: float = _reach(b)
 			if not is_equal_approx(ra, rb):
 				return ra > rb
-			if not is_equal_approx(a.flat_risk, b.flat_risk):
-				return a.flat_risk < b.flat_risk
+			if not is_equal_approx(a.self_margin, b.self_margin):
+				return a.self_margin > b.self_margin
 			if a.contact_area != b.contact_area:
 				return a.contact_area > b.contact_area
 			return a.index < b.index
@@ -211,46 +207,39 @@ class _Gen:
 		_tip_orientations = tip.slice(0, maxi(t.tip_orientation_variants, 1))
 		var stack: Array[BotStatics.OrientationInfo] = infos.duplicate()
 		stack.sort_custom(func(a: BotStatics.OrientationInfo, b: BotStatics.OrientationInfo) -> bool:
-			if not is_equal_approx(a.flat_risk, b.flat_risk):
-				return a.flat_risk < b.flat_risk
 			if a.height != b.height:
 				return a.height < b.height
 			if a.contact_area != b.contact_area:
 				return a.contact_area > b.contact_area
+			if not is_equal_approx(a.self_margin, b.self_margin):
+				return a.self_margin > b.self_margin
 			return a.index < b.index
 		)
 		_stack_orientations = stack.slice(0, maxi(t.stack_orientation_variants, 1))
-		_add_tall_stack_orientations(stack)
+		_add_tall_stack_orientations()
 
 	## Bontago-1t5.69 (owner playtest 2026-10-14: bots always laid bars flat): Reach the Sky also offers the
-	## tallest orientations whose overhang-only risk (base_risk) stays under stack_tall_risk_max, after the
-	## flattest ones. Bontago-1t5.71: slenderness is no longer a generation cap (it is a soft score penalty).
+	## tallest orientations after the flattest ones; any eligible orientation may stand on a sound top.
 	## DECISION: Reach the Sky only; other modes keep their flat-first stack orientations (and candidate sets).
-	## TIP sites need no change: their ranking is already tallest reach first under tip_risk_max.
-	func _add_tall_stack_orientations(by_risk: Array[BotStatics.OrientationInfo]) -> void:
+	func _add_tall_stack_orientations() -> void:
 		if view.mode != MatchConfig.GameMode.REACH_THE_SKY or t.stack_tall_variants <= 0:
 			return
 		var tall: Array[BotStatics.OrientationInfo] = []
-		for info: BotStatics.OrientationInfo in by_risk:
-			if info.base_risk <= t.stack_tall_risk_max and not _stack_orientations.has(info):
+		for info: BotStatics.OrientationInfo in infos:
+			if not _stack_orientations.has(info):
 				tall.append(info)
 		tall.sort_custom(func(a: BotStatics.OrientationInfo, b: BotStatics.OrientationInfo) -> bool:
 			if a.height != b.height:
 				return a.height > b.height
-			if not is_equal_approx(a.flat_risk, b.flat_risk):
-				return a.flat_risk < b.flat_risk
+			if a.top_area != b.top_area:
+				return a.top_area > b.top_area
+			if not is_equal_approx(a.self_margin, b.self_margin):
+				return a.self_margin > b.self_margin
 			return a.index < b.index
 		)
 		for info: BotStatics.OrientationInfo in tall.slice(0, t.stack_tall_variants):
 			if info.height > _stack_orientations[0].height:
 				_stack_orientations.append(info)
-
-	func _least_risky() -> BotStatics.OrientationInfo:
-		var best: BotStatics.OrientationInfo = infos[0]
-		for info: BotStatics.OrientationInfo in infos:
-			if info.flat_risk < best.flat_risk:
-				best = info
-		return best
 
 	func _reach(info: BotStatics.OrientationInfo) -> float:
 		return InfluenceCircle.radius_for_height(info.height, view.territory_tuning, view.field_radius)
@@ -393,15 +382,15 @@ class _Gen:
 		return body < 0 or stack.is_usable_top(body)
 
 	## Bontago-1t5.54: FOUNDATION sites at the new base and around it (jitter in the eight directions),
-	## widest contact area first, then lowest risk, then lowest height.
+	## widest contact area first, then widest own margin, then lowest height.
 	func add_foundation_sites(base: Vector2, quota: int) -> void:
 		var start: int = out.size()
 		var ranked: Array[BotStatics.OrientationInfo] = infos.duplicate()
 		ranked.sort_custom(func(a: BotStatics.OrientationInfo, b: BotStatics.OrientationInfo) -> bool:
 			if a.contact_area != b.contact_area:
 				return a.contact_area > b.contact_area
-			if not is_equal_approx(a.flat_risk, b.flat_risk):
-				return a.flat_risk < b.flat_risk
+			if not is_equal_approx(a.self_margin, b.self_margin):
+				return a.self_margin > b.self_margin
 			if a.height != b.height:
 				return a.height < b.height
 			return a.index < b.index
@@ -416,15 +405,9 @@ class _Gen:
 					return
 				_try_add(base + jitter * t.foundation_jitter_m, orientation, SITE_FOUNDATION, false, 0.0)
 
-	## Orientations the uniform fill may use (low tip risk; the least risky when none is).
+	## Orientations the uniform fill may use: every eligible one.
 	func fill_orientations() -> Array[BotStatics.OrientationInfo]:
-		var allowed: Array[BotStatics.OrientationInfo] = []
-		for info: BotStatics.OrientationInfo in infos:
-			if info.flat_risk <= t.fill_risk_max:
-				allowed.append(info)
-		if allowed.is_empty():
-			allowed.append(_least_risky())
-		return allowed
+		return infos
 
 	## One uniform sample of the disk; a site is added when it is own, valid territory.
 	func fill_one(rng: RandomNumberGenerator, allowed: Array[BotStatics.OrientationInfo]) -> void:
@@ -484,7 +467,6 @@ class _Gen:
 		candidate.on_top_of_own_stack = on_stack
 		candidate.shape_height = orientation.height
 		candidate.top_height = candidate.support_height + candidate.shape_height
-		candidate.tip_risk = orientation.flat_risk
 		candidate.top_area = orientation.top_area
 		candidate.footprint_cells = BotStatics.footprint_cells_of(
 			view.held, orientation, candidate.origin, view.cube_size, view.grid

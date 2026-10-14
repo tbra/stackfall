@@ -106,11 +106,19 @@ func _flat_info(shape: BlockShape) -> BotStatics.OrientationInfo:
 	return best
 
 
+func _requirement(view: BotWorldView) -> BotStability.Requirement:
+	var bot_tuning: BotTuning = load("res://config/bot_tuning.tres") as BotTuning
+	return BotStability.requirement(
+		_profile(HARD_RAYS), view, preload("res://config/bot_stack_tuning.tres"), bot_tuning.stability_contact_tolerance_m
+	)
+
+
 func test_candidate_stub_defaults_keep_todays_behaviour() -> void:
 	var c: BotCandidate = BotCandidate.new()
 	assert_eq(c.probe_points.size(), 0)
 	assert_eq(c.support_bodies.size(), 0)
 	assert_eq(c.load_margin, INF)
+	assert_eq(c.stability_slack, INF)
 
 
 func test_shipped_hard_v2_probes_nine_cubes() -> void:
@@ -150,21 +158,28 @@ func test_a_one_sided_support_is_detected() -> void:
 	var c: BotCandidate = _candidate(ORIGIN, info.index)
 	c.probe_points = BotStatics.contact_probe_points(c, info, CUBE, HARD_RAYS)
 	c.cell_support.resize(c.probe_points.size())
+	c.support_bodies.resize(c.probe_points.size())
+	c.support_bodies.fill(-1)
 	var max_x: float = ORIGIN.x + CUBE
 	for i: int in range(c.probe_points.size()):
 		c.cell_support[i] = 0.0 if c.probe_points[i].x > max_x - TOL_M else BotThink.NO_SUPPORT
-	var risk: float = BotStatics.tip_risk_of(c, info, _grid, _gen_tuning, CUBE)
-	assert_gt(risk, _gen_tuning.tip_risk_max, "the centre of mass is over empty air")
+	var view: BotWorldView = _view(_plate)
+	var req: BotStability.Requirement = _requirement(view)
+	assert_lte(BotStability.evaluate(c, info, view, req).slack, 0.0, "the centre of mass is over empty air")
 	var flat: BotCandidate = _candidate(ORIGIN, info.index)
 	flat.probe_points = c.probe_points
 	flat.cell_support.resize(c.probe_points.size())
 	flat.cell_support.fill(0.0)
-	assert_almost_eq(BotStatics.tip_risk_of(flat, info, _grid, _gen_tuning, CUBE), info.flat_risk, 0.0001)
+	flat.support_bodies.resize(c.probe_points.size())
+	flat.support_bodies.fill(-1)
+	assert_gt(BotStability.evaluate(flat, info, view, req).slack, 0.0, "every cube on the disc stands")
 	var none: BotCandidate = _candidate(ORIGIN, info.index)
 	none.probe_points = c.probe_points
 	none.cell_support.resize(c.probe_points.size())
 	none.cell_support.fill(BotThink.NO_SUPPORT)
-	assert_almost_eq(BotStatics.tip_risk_of(none, info, _grid, _gen_tuning, CUBE), 1.0, 0.0001, "no cube supported")
+	none.support_bodies.resize(c.probe_points.size())
+	none.support_bodies.fill(-1)
+	assert_eq(BotStability.evaluate(none, info, view, req).slack, -INF, "no cube supported")
 
 
 ## Two rays on a 3-cube bar are the two ends, not the middle cube (an unprobed cube counts as supported).
@@ -200,7 +215,8 @@ func test_straddle_resting_plane_is_the_highest_probed_hit() -> void:
 			assert_almost_eq(c.cell_support[i], 0.0, TOL_M)
 	assert_eq(on_block, 3)
 	assert_eq(c.corner_support_hits, on_block, "only cubes within tolerance of the plane are in contact")
-	assert_gt(BotStatics.tip_risk_of(c, info, _grid, _gen_tuning, CUBE), _gen_tuning.tip_risk_max, "six cubes hang")
+	var view: BotWorldView = _view(_plate)
+	assert_lte(BotStability.evaluate(c, info, view, _requirement(view)).slack, 0.0, "six cubes hang over the step")
 
 
 func test_probe_without_body_defaults_to_minus_one() -> void:

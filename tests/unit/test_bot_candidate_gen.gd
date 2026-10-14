@@ -24,6 +24,8 @@ const HOLE_STEP_S: float = 1.0
 
 var _territory_tuning: TerritoryTuning = preload("res://config/territory_tuning.tres")
 var _tuning: BotGenTuning = preload("res://config/bot_gen_tuning.tres")
+var _stack_tuning: BotStackTuning = preload("res://config/bot_stack_tuning.tres")
+var _physics: PhysicsTuning = preload("res://config/physics_tuning.tres")
 var _cube: BlockShape = preload("res://config/blocks/cube.tres")
 var _pillar: BlockShape = preload("res://config/blocks/pillar.tres")
 var _slots: Array[PlayerSlot] = []
@@ -130,7 +132,17 @@ func test_pillar_stands_upright_at_the_tip() -> void:
 			break
 	assert_not_null(first_tip)
 	assert_almost_eq(first_tip.shape_height, 3.0, 0.001, "upright pillar at the best tip")
-	assert_true(first_tip.tip_risk <= _tuning.tip_risk_max)
+	var info: BotStatics.OrientationInfo = BotStatics.orientation_info(_pillar, first_tip.orientation_index)
+	assert_gt(info.self_margin * _physics.cube_size, _stack_tuning.numeric_tolerance_m, "eligible by its own margin")
+
+
+func test_only_orientations_that_stand_on_their_contact_are_offered() -> void:
+	var l4: BlockShape = preload("res://config/blocks/L4.tres")
+	var sites: Array[BotCandidate] = _sites(_view(l4, true), _intent(BotIntent.Kind.ANCHOR))
+	assert_gt(sites.size(), 0)
+	for c: BotCandidate in sites:
+		var info: BotStatics.OrientationInfo = BotStatics.orientation_info(l4, c.orientation_index)
+		assert_gt(info.self_margin * _physics.cube_size, _stack_tuning.numeric_tolerance_m, "orientation %d" % c.orientation_index)
 
 
 func test_stack_tops_get_the_flattest_orientation() -> void:

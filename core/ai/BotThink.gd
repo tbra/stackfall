@@ -523,7 +523,7 @@ func _orientation_info(orientation_index: int) -> BotStatics.OrientationInfo:
 		return null
 	var info: BotStatics.OrientationInfo = _orientation_infos.get(orientation_index) as BotStatics.OrientationInfo
 	if info == null:
-		info = BotStatics.orientation_info(shape, orientation_index, _gen())
+		info = BotStatics.orientation_info(shape, orientation_index)
 		_orientation_infos[orientation_index] = info
 	return info
 
