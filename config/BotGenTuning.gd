@@ -39,6 +39,11 @@ extends Resource
 ## flattest ones, when their flat tip risk is at or below stack_tall_risk_max. 0 = flat-first only.
 @export var stack_tall_variants: int = 2
 @export var stack_tall_risk_max: float = 0.4
+## Bontago-1t5.71 (Reach the Sky only): share of the slenderness risk that is charged as tip risk. Real Jolt
+## evidence (tests/unit/test_bot_slender_1014.gd): an upright bar3/bar4/bar5 stands equally well on a sound
+## wide top (6/6 settled, 5-6/6 after a cube or bar3 lands with 0.25 m aim error), so slenderness is a soft
+## tie-break, not a cap. 1 = the full slenderness risk of the other modes.
+@export_range(0.0, 1.0, 0.05) var rts_slender_scale: float = 0.25
 
 @export_group("Foundation sites")
 ## Bontago-1t5.54: sites offered around a new base (widest, flattest orientation first).

@@ -504,7 +504,8 @@ func _tip_risk(candidate: BotCandidate) -> float:
 	var info: BotStatics.OrientationInfo = _orientation_info(candidate.orientation_index)
 	if info == null:
 		return 0.0
-	return BotStatics.tip_risk_of(candidate, info, _view.grid, _gen(), _view.cube_size)
+	var scale: float = _gen().rts_slender_scale if _view.mode == MatchConfig.GameMode.REACH_THE_SKY else 1.0
+	return BotStatics.tip_risk_of(candidate, info, _view.grid, _gen(), _view.cube_size, scale)
 
 
 ## Bontago-1t5.53b: the tower's centre-of-mass headroom under a probed site (BotStack.load_margin), INF

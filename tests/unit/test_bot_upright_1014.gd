@@ -21,6 +21,7 @@ var _gen_tuning: BotGenTuning = preload("res://config/bot_gen_tuning.tres")
 var _strategy_tuning: BotStrategyTuning = preload("res://config/bot_strategy_tuning.tres")
 var _bar3: BlockShape = preload("res://config/blocks/bar3.tres")
 var _bar4: BlockShape = preload("res://config/blocks/bar4.tres")
+var _bar5: BlockShape = preload("res://config/blocks/bar5.tres")
 var _pillar: BlockShape = preload("res://config/blocks/pillar.tres")
 var _l4: BlockShape = preload("res://config/blocks/L4.tres")
 var _slots: Array[PlayerSlot] = []
@@ -129,11 +130,28 @@ func test_sound_column_picks_the_bar_upright() -> void:
 		assert_gt(picked.shape_height, 1.0, "%s stands up on a sound top (height %.0f)" % [shape.id, picked.shape_height])
 
 
-func test_bar4_stays_flat_because_standing_is_too_slender() -> void:
-	var view: BotWorldView = _view(_bar4, MatchConfig.GameMode.REACH_THE_SKY)
-	var sites: Array[BotCandidate] = _stack_sites(view, _gen_tuning)
-	assert_eq(_best(sites, view).shape_height, 1.0, "upright bar4 is above stack_tall_risk_max")
-	assert_false(_heights(sites).has(4.0), "the too slender orientation is not offered")
+func test_bar4_and_bar5_stand_up_on_a_sound_top() -> void:
+	# Bontago-1t5.71: slenderness is a soft penalty, not a generation cap (real physics: tests/unit/test_bot_slender_1014.gd).
+	for shape: BlockShape in [_bar4, _bar5]:
+		var view: BotWorldView = _view(shape, MatchConfig.GameMode.REACH_THE_SKY)
+		var sites: Array[BotCandidate] = _stack_sites(view, _gen_tuning)
+		var upright: float = float(shape.cells.size())
+		assert_true(_heights(sites).has(upright), "upright %s is offered" % shape.id)
+		assert_eq(_best(sites, view).shape_height, upright, "%s stands up on a sound top" % shape.id)
+
+
+func test_slenderness_is_a_scaled_tip_penalty_in_reach_the_sky_only() -> void:
+	var info: BotStatics.OrientationInfo = null
+	for candidate_info: BotStatics.OrientationInfo in BotStatics.orientation_infos(_bar5, _gen_tuning):
+		if info == null or candidate_info.height > info.height:
+			info = candidate_info
+	assert_gt(info.flat_risk, 0.9, "an upright bar5 is the full slenderness risk by the old reading")
+	assert_almost_eq(info.base_risk, 0.0, 0.001, "a centred upright bar has no overhang risk")
+	var c: BotCandidate = BotCandidate.new()
+	var full: float = BotStatics.tip_risk_of(c, info, null, _gen_tuning)
+	var soft: float = BotStatics.tip_risk_of(c, info, null, _gen_tuning, BotStatics.NO_CUBE_SIZE, _gen_tuning.rts_slender_scale)
+	assert_almost_eq(soft, full * _gen_tuning.rts_slender_scale, 0.001, "the Reach the Sky penalty is the scaled slenderness")
+	assert_lt(soft, _gen_tuning.stack_tall_risk_max, "and stays under the old offer cap")
 
 
 func test_toppling_upright_loses_to_the_flat_piece() -> void:
