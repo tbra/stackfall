@@ -14,6 +14,8 @@ func test_assets_and_settings() -> void:
 	assert_true(load(SplashScreen.PIECES_PATH) is Texture2D)
 	assert_true(load(SplashScreen.WORDMARK_PATH) is Texture2D)
 	assert_eq(ProjectSettings.get_setting("application/boot_splash/bg_color"), Color.BLACK)
+	# Bontago-1pi.209: engine default clear colour (grey) must not show before the splash draws.
+	assert_eq(ProjectSettings.get_setting("rendering/environment/defaults/default_clear_color"), Color.BLACK)
 	assert_false(ProjectSettings.get_setting("application/boot_splash/show_image") as bool)
 	assert_eq(ProjectSettings.get_setting("application/config/icon"), "res://assets/ui/stackfall_mark.svg")
 
