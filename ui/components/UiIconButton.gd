@@ -33,14 +33,9 @@ func set_icon_texture(texture: Texture2D) -> void:
 
 func _restyle() -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	UiBlockButton.style(self, UiBlockButton.Look.SECONDARY, true)
+	UiBlockButton.apply_look(self, UiBlockButton.shared_look(UiBlockButton.Look.SECONDARY, true, true))
 	if tone == Tone.DANGER:
 		MenuStyleFactory.apply_ink(self, arcade.alert_color)
-	for state: String in UiBlockButton.STATES:
-		var box: StyleBox = get_theme_stylebox(state)
-		if box != null:
-			box.content_margin_left = 0.0
-			box.content_margin_right = 0.0
 	add_theme_constant_override("icon_max_width", arcade.icon_max_width_px)
 	add_theme_font_size_override("font_size", UiRowItem.metrics().icon_glyph_font_px)
 	UiRowItem.apply(self, UiRowItem.Kind.ICON)

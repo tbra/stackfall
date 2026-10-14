@@ -162,3 +162,48 @@ func test_hint_scales_into_a_small_button_and_centres_on_the_label_line() -> voi
 	var line_centre: float = (button.get_theme_stylebox("normal").content_margin_top + button.size.y - button.get_theme_stylebox("normal").content_margin_bottom) * 0.5
 	var body: float = maxf(flow.size.y - float(arcade.drop_sm_px), 1.0) * flow.scale.y
 	assert_almost_eq(flow.position.y + body * 0.5, line_centre, 1.5, "vertically centred with the label")
+
+
+func test_buttons_of_one_look_share_never_mutated_styleboxes() -> void:
+	UiBlockButton.invalidate_style_cache()
+	var first: UiBlockButton = _make(UiBlockButton.Look.PRIMARY)
+	var second: UiBlockButton = _make(UiBlockButton.Look.PRIMARY)
+	var other: UiBlockButton = _make(UiBlockButton.Look.MINT)
+	for state: String in UiBlockButton.STATES:
+		assert_same(first.get_theme_stylebox(state), second.get_theme_stylebox(state), "same look shares %s" % state)
+		assert_ne(first.get_theme_stylebox(state), other.get_theme_stylebox(state), "another variant does not")
+	var big: UiBlockButton = _make(UiBlockButton.Look.PRIMARY, false)
+	assert_ne(big.get_theme_stylebox("normal"), first.get_theme_stylebox("normal"), "size is part of the key")
+	var icon: UiIconButton = UiIconButton.new()
+	add_child_autofree(icon)
+	var icon_box: StyleBox = icon.get_theme_stylebox("normal")
+	assert_eq(icon_box.content_margin_left, 0.0)
+	assert_ne(icon_box, _make(UiBlockButton.Look.SECONDARY).get_theme_stylebox("normal"), "icon blocks keep their own zero-margin boxes")
+	var icon_two: UiIconButton = UiIconButton.new()
+	add_child_autofree(icon_two)
+	assert_same(icon_box, icon_two.get_theme_stylebox("normal"))
+	icon_two.tone = UiIconButton.Tone.DANGER
+	assert_same(icon_box, icon_two.get_theme_stylebox("normal"), "tone only changes ink")
+
+
+func test_a_hint_reserves_room_on_a_private_copy_not_the_shared_box() -> void:
+	UiBlockButton.invalidate_style_cache()
+	var plain: UiBlockButton = _make(UiBlockButton.Look.PRIMARY)
+	var shared_right: float = plain.get_theme_stylebox("normal").content_margin_right
+	var hinted: UiBlockButton = _make(UiBlockButton.Look.PRIMARY)
+	hinted.hint_action = &"ui_cancel"
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_gt(hinted.get_theme_stylebox("normal").content_margin_right, shared_right, "the hinted button reserved room")
+	assert_ne(hinted.get_theme_stylebox("normal"), plain.get_theme_stylebox("normal"))
+	assert_eq(plain.get_theme_stylebox("normal").content_margin_right, shared_right, "the shared box is untouched")
+	assert_eq(_make(UiBlockButton.Look.PRIMARY).get_theme_stylebox("normal").content_margin_right, shared_right)
+	hinted.hint_action = &""
+	assert_almost_eq(hinted.get_theme_stylebox("normal").content_margin_right, shared_right, 0.01, "clearing the hint gives the room back")
+
+
+func test_invalidating_the_cache_rebuilds_for_the_next_button() -> void:
+	var before: UiBlockButton = _make()
+	UiBlockButton.invalidate_style_cache()
+	var after: UiBlockButton = _make()
+	assert_ne(before.get_theme_stylebox("normal"), after.get_theme_stylebox("normal"))

@@ -12,6 +12,12 @@ extends Button
 enum Look { PRIMARY, SECONDARY, MINT, RIM, DANGER }
 
 const STATES: PackedStringArray = ["normal", "hover", "pressed", "hover_pressed", "disabled"]
+const LOOK_KEY_STRIDE: int = 4
+const LOOK_SMALL_BIT: int = 1
+const LOOK_ICON_BIT: int = 2
+
+static var _looks: Dictionary = {}
+static var _looks_tuning: ArcadeVisualTuning = null
 
 @export var variant: Look = Look.SECONDARY:
 	set(value):
@@ -50,19 +56,67 @@ static func face_for(variant_value: Look, tuning: ArcadeVisualTuning = null) -> 
 
 ## Styles any [param button] as a block of [param variant_value]. Used by the node itself and,
 ## during the migration, by tscn buttons that cannot be swapped yet. Small blocks also get the
-## row-item contract's vertical fit (see [method fit_row_height]).
+## row-item contract's vertical fit (see [method fit_row_height]). The five block styleboxes come
+## from [method shared_look]: one set per (variant, size) is built per token set and shared by
+## every button, never mutated afterwards (UiButtonHint copies a box before it reserves room).
 static func style(button: Button, variant_value: Look, small_block: bool = true) -> void:
+	apply_look(button, shared_look(variant_value, small_block))
+
+
+## Puts a [method shared_look] on [param button]: the shared boxes plus per-button ink and font size.
+static func apply_look(button: Button, look: Dictionary) -> void:
+	var boxes: Dictionary = look["boxes"] as Dictionary
+	for state: String in STATES:
+		button.add_theme_stylebox_override(state, boxes[state] as StyleBox)
+	MenuStyleFactory.apply_ink(button, look["ink"] as Color)
+	button.add_theme_font_size_override("font_size", look["font_size"] as int)
+
+
+## The shared look {boxes, ink, font_size} of a block of [param variant_value]; [param icon_only]
+## zeroes the side margins (UiIconButton's square block). Rebuilt only when the token resource
+## instance changes, its `changed` fires or [method invalidate_style_cache] ran.
+static func shared_look(variant_value: Look, small_block: bool, icon_only: bool = false) -> Dictionary:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	if _looks_tuning != arcade:
+		invalidate_style_cache()
+		_looks_tuning = arcade
+		if not arcade.changed.is_connected(invalidate_style_cache):
+			arcade.changed.connect(invalidate_style_cache)
+	var key: int = int(variant_value) * LOOK_KEY_STRIDE + (LOOK_SMALL_BIT if small_block else 0) + (LOOK_ICON_BIT if icon_only else 0)
+	if _looks.has(key):
+		return _looks[key] as Dictionary
+	var look: Dictionary = _build_look(variant_value, small_block, icon_only, arcade)
+	_looks[key] = look
+	return look
+
+
+## Drops the shared blocks so the next button (re)styles from the current tokens (tests, tooling).
+static func invalidate_style_cache() -> void:
+	_looks = {}
+	_looks_tuning = null
+
+
+static func _build_look(variant_value: Look, small_block: bool, icon_only: bool, arcade: ArcadeVisualTuning) -> Dictionary:
+	var scratch: Button = Button.new()
 	var face: Color = face_for(variant_value, arcade)
-	MenuStyleFactory.apply_block(button, face, MenuStyleFactory.ink_for_face(face), small_block)
-	var font_px: int = arcade.font_size_button_sm_px if small_block else arcade.font_size_button_px
-	button.add_theme_font_size_override("font_size", font_px)
-	if variant_value == Look.DANGER:
-		MenuStyleFactory.apply_ink(button, arcade.alert_color)
+	MenuStyleFactory.apply_block(scratch, face, MenuStyleFactory.ink_for_face(face), small_block)
 	if variant_value == Look.SECONDARY or variant_value == Look.DANGER:
-		_show_pressed_face(button, face, small_block, arcade)
+		_show_pressed_face(scratch, face, small_block, arcade)
 	if small_block:
-		fit_row_height(button, arcade)
+		fit_row_height(scratch, arcade)
+	var boxes: Dictionary = {}
+	for state: String in STATES:
+		var box: StyleBox = scratch.get_theme_stylebox(state)
+		if icon_only:
+			box.content_margin_left = 0.0
+			box.content_margin_right = 0.0
+		boxes[state] = box
+	scratch.free()
+	return {
+		"boxes": boxes,
+		"ink": arcade.alert_color if variant_value == Look.DANGER else MenuStyleFactory.ink_for_face(face),
+		"font_size": arcade.font_size_button_sm_px if small_block else arcade.font_size_button_px,
+	}
 
 
 ## A pressed block's face is its lip colour (BlockStyleBox), and a disc face's lip is nearly the
