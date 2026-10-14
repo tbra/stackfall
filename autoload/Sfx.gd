@@ -1255,6 +1255,26 @@ func _play_cue_file(filename: String) -> bool:
 	return true
 
 
+## Bontago-1pi.211: the F4 SFX tab's file list: the loadable (.wav/.mp3, what _load_stream reads)
+## files directly inside the effects folder, lowercase, alphabetical. Empty with no assets.
+func effect_files() -> PackedStringArray:
+	var found: PackedStringArray = PackedStringArray()
+	if not _available:
+		return found
+	for filename: String in DirAccess.get_files_at(_root_dir):
+		var lower: String = filename.to_lower()
+		if lower.ends_with(".wav") or lower.ends_with(".mp3"):
+			found.append(lower)
+	found.sort()
+	return found
+
+
+## Bontago-1pi.211: plays one effects-folder file once on the same pool and volume a real event
+## uses (the F4 SFX tab's Play button). False when the file is missing or not loadable.
+func preview_file(filename: String) -> bool:
+	return _play_cue_file(filename)
+
+
 ## A looping duplicate of `source` (load_from_file ignores the .import loop flags;
 ## a stream that already loops is left alone).
 func _looped_copy(source: AudioStream) -> AudioStream:
