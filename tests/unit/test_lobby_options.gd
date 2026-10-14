@@ -67,9 +67,28 @@ func test_options_button_opens_and_close_restores_focus_to_it() -> void:
 	menu.closed.emit()
 	await wait_process_frames(2)
 	assert_false(lobby.is_options_open())
-	assert_null(_options_of(lobby))
+	assert_false(menu.visible, "Options is hidden, kept for reuse (Bontago-1pi.11.95)")
 	assert_eq(button.focus_mode, Control.FOCUS_ALL)
 	assert_eq(lobby.get_viewport().gui_get_focus_owner(), button, "focus returns to the Options button")
+
+
+func test_options_menu_is_built_once_and_reused() -> void:
+	var lobby: Lobby = _make_lobby()
+	await wait_process_frames(2)
+	lobby.open_options()
+	var first: OptionsMenu = _options_of(lobby)
+	first.closed.emit()
+	await wait_process_frames(2)
+	lobby.open_options()
+	await wait_process_frames(2)
+	assert_true(lobby.is_options_open())
+	assert_same(_options_of(lobby), first, "the second open reuses the built menu")
+	assert_true(first.visible)
+	var count: int = 0
+	for child: Node in lobby.get_children():
+		if child is OptionsMenu:
+			count += 1
+	assert_eq(count, 1)
 
 
 func test_shortcut_opens_options_once() -> void:

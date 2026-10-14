@@ -293,6 +293,8 @@ var _last_config: MatchConfig = null
 ## The live OptionsMenu overlay while open (Bontago-1pi.190), else null; and the callable that
 ## restores the focus modes UiFocusTrap cleared for it.
 var _options_menu: OptionsMenu = null
+## Bontago-1pi.11.95: the built-once Options window, hidden between opens (see OptionsMenu.present()).
+var _options_cache: OptionsMenu = null
 var _restore_focus: Callable = Callable()
 ## Footer buttons' visibility the focus loop was last wired for (_update_host_only_state()).
 var _start_was_shown: bool = false
@@ -1203,10 +1205,17 @@ func debug_open_advanced_rules_popup() -> void:
 func open_options() -> void:
 	if _options_menu != null:
 		return
-	_options_menu = OPTIONS_MENU_SCENE.instantiate() as OptionsMenu
-	add_child(_options_menu)
+	var first_open: bool = _options_cache == null
+	if first_open:
+		_options_cache = OPTIONS_MENU_SCENE.instantiate() as OptionsMenu
+	_options_menu = _options_cache
+	if first_open:
+		add_child(_options_menu)
+	else:
+		_options_menu.present()
 	_restore_focus = UiFocusTrap.suspend_outside(_options_menu, self)
-	_options_menu.closed.connect(_on_options_closed)
+	if not _options_menu.closed.is_connected(_on_options_closed):
+		_options_menu.closed.connect(_on_options_closed)
 
 
 func is_options_open() -> bool:
@@ -1215,7 +1224,7 @@ func is_options_open() -> bool:
 
 func _on_options_closed() -> void:
 	if _options_menu != null:
-		_options_menu.queue_free()
+		_options_menu.dismiss()
 		_options_menu = null
 	if _restore_focus.is_valid():
 		_restore_focus.call()
