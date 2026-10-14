@@ -76,6 +76,29 @@ func bottom_center() -> Vector3:
 	return _cached_bottom_center
 
 
+## Bontago-1t5.51: height (<= 0 for a tilted shape) of this shape's lowest collision corner relative to its
+## bottom_center() pivot once rotated by `basis`. The pivot must be raised by -this value for the
+## rotated shape to rest ON a surface instead of sinking into it. Shared by GhostPreview (human
+## placement) and BotController (bot placement) so both send the same pose.
+const CORNER_SIGNS: Array[Vector3] = [
+	Vector3(-1.0, -1.0, -1.0), Vector3(1.0, -1.0, -1.0), Vector3(-1.0, 1.0, -1.0), Vector3(1.0, 1.0, -1.0),
+	Vector3(-1.0, -1.0, 1.0), Vector3(1.0, -1.0, 1.0), Vector3(-1.0, 1.0, 1.0), Vector3(1.0, 1.0, 1.0),
+]
+
+
+func rotated_bottom_offset(basis: Basis, cube_size: float, cube_margin: float) -> float:
+	if cells.is_empty():
+		return 0.0
+	var half_size: float = (cube_size - cube_margin) * 0.5
+	var pivot: Vector3 = bottom_center()
+	var min_y: float = INF
+	for cell: Vector3i in cells:
+		var local: Vector3 = (Vector3(cell) - pivot) * cube_size
+		for corner_sign: Vector3 in CORNER_SIGNS:
+			min_y = minf(min_y, (basis * (local + corner_sign * half_size)).y)
+	return 0.0 if min_y == INF else min_y
+
+
 func _compute_bottom_center() -> Vector3:
 	if cells.is_empty():
 		return Vector3.ZERO
