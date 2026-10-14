@@ -36,7 +36,7 @@ var _countdown_held: bool = false
 ## online matches all are. Headless tests, bot harnesses and windowed
 ## --agent-probe tools (screenshots, benches) drive Match by hand and see no gate
 ## (set_loading_gate_forced() is the test/harness seam that arms it anyway; the
-## ready-prompt probe tools/screenshot_loading_ready.gd forces it). An unarmed
+## ready-prompt probe a script removed in Bontago-dbn.1 (see git history) forces it). An unarmed
 ## gate opens immediately, so a client of an ungated host is never left waiting.
 var _loading_tuning: LoadingScreenTuning = LOADING_TUNING
 var _ready_gate: LoadingReadyGate = LoadingReadyGate.new()

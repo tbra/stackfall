@@ -23,10 +23,10 @@ remain visible. Visual acceptance and the final HUD background belong to review.
 From this checkout, run:
 
 ```powershell
-python tools/generate_gift_pictograms.py
+# generator removed in Bontago-dbn.1 (see git history)
 $rasterOutput = Join-Path $env:TEMP 'codex_gift_pictogram_rasters'
 godot --headless --path source_art/gift_pictograms_v1 --script rasterize.gd -- "$PWD/assets/ui/gift_pictograms_v1/atlas.svg" $rasterOutput
-python tools/generate_gift_pictograms.py --review
+# generator removed in Bontago-dbn.1 (see git history)
 ```
 
 The isolated raster project is ignored by the game asset importer. The generator

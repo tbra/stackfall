@@ -1,183 +1,45 @@
 # tools/
 
-Build-time and developer scripts that are not part of the running game.
+Only tools that something executes or loads live here (Bontago-dbn.1). Asset generators, one-off screenshot, capture and bench probes were removed; see git history. Each `test_*.py` belongs to the tool of the same name; run them with `python -m unittest discover -s tools -p "test_*.py"`.
 
-## `bootstrap_project.gd`
+## Game build
+- `bootstrap_project.gd` - regenerates project settings and the Input Map (`godot --headless --path . -s tools/bootstrap_project.gd`).
+- `export_windows.ps1` - Windows export.
+- `stamp_build_info.gd` - stamps build info during export.
 
-Regenerates `project.godot`'s settings and Input Map from the values checked
-into this script. Run it after adding a new input action, instead of
-hand-editing the `[input]` section:
+## Gates and tests
+- `full_gate.py`, `full_gate_serial.txt` - sharded full GUT suite (one `FULL GATE GREEN|RED` line).
+- `run_gut.ps1` - targeted GUT runner.
+- `affected_tests.py` - lists the tests a change affects.
+- `godot_slots.py`, `godot_exe.py` - Godot process slots and executable lookup.
+- `check_scripts.gd` - script parse check used by `integrate_batch.py`.
+- `integrate_batch.py` - merge, gate, push and close a reviewed batch.
+- `probe_lint.py`, `probe_allowlist.txt` - blocks stray probe/screenshot files and missing `.uid`s.
+- `lint_all.py` - runs the four lints below.
+- `lint_magic_numbers.py`, `lint_single_source.py`, `lint_layers.py`, `lint_ui_components.py` with `magic_number_baseline.json`, `single_source_baseline.json`, `layer_baseline.json`, `ui_components_baseline.json`.
+- `dep_graph.py`, `dep_graph_viewer.html` - dependency graph used by `lint_layers.py`.
+- `normalize_eol.py` - LF normalisation before staging.
+- `triage_log.py` - ranked summary of a long headless log.
 
-```
-godot --headless --path . -s tools/bootstrap_project.gd
-```
+## Multiplayer and bots
+- `run_m3a_local.ps1` - one host plus N-1 ENet clients with simulated lag.
+- `run_*_enet.ps1`, `enet_result.ps1` - two-to-four peer ENet acceptance drivers; each prints one `ENET RESULT` line.
+- `bot_h2h.py` - bot head-to-head harness.
+- `run_bot_think_cost.ps1` - bot decision cost measurement.
+- `check_steam_setup.ps1`, `steam_probe.gd` - verify the per-developer GodotSteam install.
 
-## `route_model.py`
+## Measurement and capture
+- `measure_startup.py` - startup time.
+- `measure_gpu_steady.py` - steady-state GPU cost via `tests/bench/bench_gpu_frame.tscn`.
+- `perf_log_summary.py` - summarises PerfLogger logs (also run by `test_debug_mode`).
+- `cpumon.ps1` - CPU monitor.
+- `screenshot_main.gd/.tscn`, `sandbox_shot.gd/.tscn`, `menu_atlas.gd/.tscn` - off-screen capture tools named in `docs/AGENT_WORKFLOW.md`.
+- `ContactSheet.gd`, `contact_sheet.py` - contact sheets for captures.
 
-One bounded TypeSafe/Jev request helps dispatch a semantic package: Claude tier,
-independent review, split recommendation, verification tier and whether a visual
-probe is useful. The brief comes from stdin. The script enforces hard review and
-specialized-gate floors in code, caps targeted runs at two and windowed probes at
-two, and takes a deterministic fast path for mechanical/known-gate work. With no
-API key or after an 8-second request timeout, it returns bounded rules instead.
-The orchestrator still names the actual tests and time budget in the worker brief.
-
-```powershell
-Get-Content brief.txt | python tools/route_model.py --title "Fix lobby state" --files net/Session.gd --kind bugfix --json
-python -m unittest tools.test_route_model
-```
-
-## `rank_context.py`
-
-Ranks up to ten candidate Beads issues or memories against a task using one Jev
-Choice judgment. The caller first retrieves a shortlist with `bd search` or
-`bd memories`, then passes JSON on stdin with `query` and `candidates` (`id`,
-`text`). The result is one ID or `no_match`; this is a relevance hint, never
-evidence to close or merge issues. Without TypeSafe or after eight seconds it
-uses keyword overlap. No Beads writes occur. Run
-`python -m unittest tools.test_rank_context` for its local checks.
-
-## `triage_log.py`
-
-Turns a long headless Godot run log into a short, ranked summary, so nobody
-has to read a multi-thousand-line log by hand after the GUT suite, a
-`tests/bench/*.tscn` benchmark, the M3a multi-instance harness, or (from M5
-on) a `--headless-host --bots=N` run or an M8 soak test.
-
-It does the cheap, free part in plain Python first: pull every `ERROR:` /
-`WARNING:` / `SCRIPT ERROR:` line and its GDScript backtrace out of the log,
-normalise away timestamps/addresses/net or instance ids/coordinates, and
-group identical signatures with a count. That grouping is most of the value
-and costs nothing. Only the resulting handful of *distinct* signatures are
-then optionally sent to [TypeSafe](https://docs.typesafe.ai) (the `jev`
-model) to judge which subsystem each belongs to, how severe it looks
-(likely-bug / benign-noise / known-limitation), and whether it looks novel.
-It also reads `docs/archive/M2_PLAN.md`'s "Known limitations" section and scans
-`tests/` for any GUT test marked `pending()`, so already-accepted issues get
-labeled instead of re-reported as new bugs.
-
-### Running it
-
-```
-python tools/triage_log.py path/to/log.txt
-godot --headless --path . -s addons/gut/gut_cmdln.gd -gdir=res://tests -gexit > run.log 2>&1
-python tools/triage_log.py run.log
-
-# or pipe directly:
-godot --headless --path . res://tests/bench/bench_rain.tscn 2>&1 | python tools/triage_log.py
-
-# machine-readable output, and to gate CI on it:
-python tools/triage_log.py run.log --json
-```
-
-Exits non-zero if anything was classified `likely-bug`, so it can gate CI
-once M5's bot-match harness lands.
-
-### `TYPESAFE_API_KEY`
-
-The classification pass needs `TYPESAFE_API_KEY` in the environment (get one
-at <https://console.typesafe.ai/>). **Never commit this key** -- this repo is
-public. It is read from the environment only; the tool never writes it to a
-file or prints it.
-
-Without the key (or if the TypeSafe API call fails for any reason -- no
-network, bad key, rate limit, timeout) the tool still prints the full
-deterministic grouped-and-counted summary; it just says classification was
-skipped and falls back to a cheap keyword-based subsystem guess. It never
-crashes and never blocks the deterministic half on the network.
-
-Useful flags: `--no-classify` (skip TypeSafe even if a key is set),
-`--max-classify N` (cap how many distinct signatures get sent, default 40),
-`--chunk-size N` (groups batched per TypeSafe request, default 6).
-
-## `lint_ui_components.py` (UI component ratchet, Bontago-1pi.159.6)
-
-Counts raw controls and per-screen styling in `ui/**` (R1 raw CheckButton/CheckBox/SpinBox/TabBar/TabContainer/HSlider/OptionButton in .gd and .tscn; R2 `add_theme_*_override`; R3 the `MenuStyleFactory` toggle/pill/stepper/badge helpers; R4 `Button.new()`) against `tools/ui_components_baseline.json` (`{rule: {file: count}}`). Exempt: `ui/components/`, `ui/theme/`, and the dev tools (NetDebugOverlay, TuningPanel, Perf*, Physics*, Sandbox*). A file may never exceed its baseline and an unlisted file must be zero; each migration lowers the baseline (`--update`; a new pair needs `--update --allow-new RULE:path`). `--list [--rule ID]` shows every violation. `full_gate.py` runs it after the layer lint and goes RED on failure (`ui_component_lint=` in its last line). Last line: `UI COMPONENT LINT GREEN|RED`. Tests: `python -I tools/test_lint_ui_components.py`.
-
-## `contact_sheet.py` and `ContactSheet.gd`
-
-One small labelled grid PNG instead of several full-size screenshots.
-`python tools/contact_sheet.py a.png dir/ "shots/*.png" -o sheet.png [--max-width 1280] [--columns N]`
-prints the output path and size; `--self-test` builds a sheet from generated
-images. `ContactSheet.save_capture(image, path)` (GDScript) replaces
-`image.save_png(path)` in screenshot scripts and, in agent-probe mode, also
-writes `<scene>_sheet.png` next to the captures (unlabelled cells, row-major
-capture order, names printed). Retrofitted: screenshot_fog, screenshot_rain,
-screenshot_pt7_pause.
-
-## `godot_exe.py` (one Godot resolver, Bontago-fca.93)
-
-`godot_exe.resolve(name="godot")` returns the real Godot `.exe` for the Python launchers: env `GODOT` if it exists, else `shutil.which`, and for a `.cmd`/`.bat` PATH shim the first quoted `.exe` it names (`%VAR%` expanded). `bot_h2h.py`, `full_gate.py`, `measure_startup.py` and `godot_slots.py run` use it so no cmd.exe sits between the launcher and Godot.
-
-```
-python -I tools/test_godot_exe.py
-python -c "import sys; sys.path.insert(0,'tools'); import godot_exe; print(godot_exe.resolve())"
-```
-
-## `godot_slots.py`, `cpumon.ps1` (machine-wide Godot cap, Bontago-fca.89)
-
-Too many concurrent Godot processes crashed the owner's PC, so launches queue on a
-cross-process counting semaphore (lock file per slot, owner PID, stale PIDs reclaimed;
-state in `M:/Bontago-tools/locks/godot_slots/`, override `STACKFALL_GODOT_SLOTS_DIR`).
-Cap `STACKFALL_GODOT_SLOTS` (default 3); max wait `STACKFALL_GODOT_SLOTS_WAIT` (3600 s,
-exit 75 on timeout). `run_gut.ps1`, `full_gate.py` (per shard), `bot_h2h.py` (per match),
-`measure_startup.py` and `new_worktree.py` take a slot automatically.
-
-```
-python tools/godot_slots.py status
-python tools/godot_slots.py run --label probe -- godot --headless --path . --quit   # exit code propagated
-python tools/godot_slots.py acquire | release <n>                                   # for scripts that cannot wrap
-python -I tools/test_godot_slots.py
-powershell -NoProfile -File tools/cpumon.ps1 [-MaxGodot 3 -CpuHighPct 90 -MaxMinutes 120 -Log <file>]
-```
-
-`cpumon.ps1` samples every 10 s (log line includes `slots=`), exits 2/3/4 with an ALERT
-line on too many Godot processes / sustained CPU / low RAM, and 0 after MaxMinutes.
-
-## `bot_dataset.py`, `bot_fit_weights.py`, `bot_h2h.py` (bot training, Bontago-1t5.12; P1b options 1t5.20)
-
-Python-only (stdlib) tooling for the recorder output described in
-`docs/BOT_TRAINING_SOAK_PLAN.md` section 1 (schema v1).
-
-```
-python -I tools/bot_dataset.py validate|summarise|size <dir|files>   # strict schema v1; exit 1 on errors
-python -I tools/bot_fit_weights.py <dir|files> [--mode N] [--write-proposal out.txt]
-python -I tools/bot_h2h.py --candidate out.txt --pairs 50 --godot-args "..."   # --parallel defaults to 1
-python -I tools/bot_h2h.py --dry-run --battery E1|E2|E3|E4|E5|all               # section 2.5 command lines
-python tools/test_bot_dataset.py
-python tools/test_bot_h2h.py
-```
-
-`bot_fit_weights.py` is the T1 offline refit: listwise softmax over the recorded
-candidate terms, outcome-weighted (`d_share_30s` advantage), L2 toward the shipped
-weights read from `config/`. It prints held-out top-1 agreement and regret plus a
-weight diff, and never edits `config/` (`--write-proposal` refuses paths there).
-`bot_h2h.py` runs paired same-seed, swapped-seat matches against the owner's ship
-gate (>= 75 % win share over >= 100 matches). It needs the per-slot weight override
-and match seed seam (plan BT5 `--bot-weights`), supplied through `--godot-args`;
-until then use `--dry-run`.
-Bontago-1t5.20 options: `--candidate` is optional when the template has no `{weights_file}`/`{weights_json}`
-(for example a passive or legacy baseline); `--players N` adds `--players=N`; `--mode M` adds `--mode=M`;
-`--no-swap` runs only the A-seat half and prints one `H2H seed=` line per match (the gate verdict stays
-INSUFFICIENT under 100 matches); the summary adds `candidate_win_time_s median= max=` in game seconds.
-`--battery E1..E5|all` (dry-run only) prints the section 2.5 command lines; their `<v2>`-style placeholders
-must be filled in by hand, and a real launch refuses a template that still has one.
-Headless bot log clock (Bontago-1t5.16): `HEADLESS_BOTS t=`/`done t=` and `HEADLESS_MATCH duration=`
-are game time (physics ticks, the clock `--seconds` uses; `wall=` is the wall-clock extra field), so
-under `--fixed-fps 60` `done t=` equals the cap. A run that hits `--seconds` while still PLAYING prints
-`HEADLESS_MATCH ... winner_team=-1 ... timeout=1`; `bot_h2h.py` counts it as a draw and shows it as
-`draws=N (timeouts=M)`, separate from `failed` (no HEADLESS_MATCH line at all).
-
-## `bot_match_sheet.tscn` and `bench_headless_bots.gd --bot-brain` (bot eval harness B, Bontago-1t5.29)
-`tools/bot_match_sheet.tscn` renders a local loopback bot match off-screen and saves one frame per match time
-plus one big contact sheet (`bot_match_p1.png`, <=2600x3000) into `--out=<dir>` (E7 of docs/BOT_AI_REDESIGN.md 2.5).
-Match time runs in real time (default frames at 60/120/180/300 s = about 5 minutes):
-
-    python tools/godot_slots.py run --label bench -- godot --windowed --position 10000,10000 --resolution 320x180 \
-      --audio-driver Dummy --path . res://tools/bot_match_sheet.tscn -- --agent-probe --render-size=1280x720 \
-      --out=<abs dir> --bots=4 --difficulty=hard --brain=v2 [--players=4 (bots=1: Hard vs 3 passive)] \
-      [--seed=N] [--times=60,120,180,300] [--cam=yaw,pitch,dist[,tx,ty,tz]]
-
-`tests/bench/bench_headless_bots.tscn -- --bot-brain=v2|legacy [--bot-brain-slots=csv] [--bot-difficulty=easy|normal|hard]
-[--run-seconds=N]` adds the E6 report: per-bot think ms/frame (mean/p99/max), IDLE->THINKING and ACTING tick cost,
-all-bots max frame ms and decision latency (thinking start -> ACTING), with `e6_bars=PASS|FAIL` (never gates `result=`).
+## Agent workflow
+- `new_worktree.py`, `agent_worktree_setup.py`, `prune_worktrees.py`, `scratch.py` - worktrees and scratch space.
+- `board_brief.py`, `session_brief.py`, `owner_replies.py` - session and Beads briefs (owner replies run as a hook).
+- `skill_versions.py` - skill version check.
+- `route_model.py`, `rank_context.py` - Jev routing and relevance hints.
+- `validate_worker_handback.py`, `guard_reviewer_bash.py`, `guard_store_python.py` - hooks.
+- `stage_codex_handoffs.py` - stage Codex handoff files.

@@ -3,7 +3,7 @@
   "channels": 1,
   "pcm_bits": 16,
   "peak_target_dbfs": -3,
-  "generator": "tools/generate_impact_variations.py",
+  "generator": "a script removed in Bontago-dbn.1 (see git history)",
   "provenance": "Original damped modes and seeded filtered noise; no existing audio samples reused",
   "strength_ranges_normalized": {
     "soft": [

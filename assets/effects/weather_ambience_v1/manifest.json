@@ -2,7 +2,7 @@
   "sample_rate": 44100,
   "channels": 2,
   "pcm_bits": 16,
-  "generator": "tools/generate_weather_audio.py",
+  "generator": "a script removed in Bontago-dbn.1 (see git history)",
   "provenance": "Original periodic Fourier noise, circular droplets and finite noise sweeps; no sampled audio",
   "cues": [
     {

@@ -901,7 +901,7 @@ func _apply_steam_availability() -> void:
 		_steam_refresh_countdown_s = float(net_provider.config.steam_lobby_list_refresh_s)
 
 
-## Bontago-mp0.3.7 (capture-only): tools/capture_mockup08.gd's own
+## Bontago-mp0.3.7 (capture-only): a script removed in Bontago-dbn.1 (see git history)'s own
 ## `--force-steam-ui` flag calls this to show %SteamSection on a machine
 ## where Steam isn't actually available, mirroring ui/Lobby.gd's
 ## debug_open_advanced_rules_popup() -- a capture/test-only seam, not a

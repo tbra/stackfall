@@ -51,7 +51,7 @@ static func save_capture(image: Image, path: String) -> Error:
 	return err
 
 
-## Basename of the scene on the command line (tools/screenshot_fog.tscn -> screenshot_fog).
+## Basename of the scene on the command line (res://tools/sandbox_shot.tscn -> sandbox_shot).
 static func run_name(cmdline_args: PackedStringArray) -> String:
 	for arg: String in cmdline_args:
 		if arg.ends_with(".tscn"):

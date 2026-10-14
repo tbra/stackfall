@@ -40,7 +40,7 @@ shader_type spatial;
 // ALPHA is opaque by default and always depth-tests and depth-writes
 // normally"; the converse holds too: writing ALPHA switches the material
 // into the blended/transparent draw path). Confirmed visually via
-// tools/screenshot_xtq40_ghost.gd.
+// a script removed in Bontago-dbn.1 (see git history).
 //
 // DECISION (shaders/ghost_cell_grid.gdshader, Bontago-xtq.40): the hatch
 // overlay (HOLE/GOAL_ZONE state, spec 2.5 "hatched pattern when over a
