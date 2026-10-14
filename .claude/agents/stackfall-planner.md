@@ -29,7 +29,7 @@ Do not implement game code or create an alternative TODO ledger. Identify any
 required interface-stub package for an implementation worker before consumers.
 
 Resolve routine implementation detail from the spec, record decisions, and surface
-gameplay ambiguity or changes to ORIGINAL rules. Use existing answered owner
+gameplay ambiguity or player-facing rule changes. Use existing answered owner
 decisions. Return the actual plan, exact code anchors supporting it, risks and
 dispatch-ready briefs. Return only compact JSON pointing to the Bead comment. No commits,
 merges, pushes or Dolt sync without explicit authorization in your assignment.
