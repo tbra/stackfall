@@ -52,6 +52,9 @@ class OrientationInfo:
 	var center_shift: Vector2 = Vector2.ZERO
 	## Tip risk on a flat, fully supporting surface.
 	var flat_risk: float = 0.0
+	## Bontago-1t5.71: flat_risk without the slenderness term (overhang only): what a hard cap on "can this
+	## orientation be offered" should read when slenderness is a soft penalty instead.
+	var base_risk: float = 0.0
 	## Number of bottom cubes (grip area in cubes).
 	var contact_area: float = 0.0
 	## Bontago-1t5.69: number of cubes in the top layer (the landing area the next piece gets).
@@ -76,15 +79,16 @@ static func tip_risk(
 ## signatures, a large share of a probe step). `info` must be orientation_info(shape,
 ## c.orientation_index, tuning) for the same tuning.
 static func tip_risk_of(
-	c: BotCandidate, info: OrientationInfo, grid: CellGrid = null, tuning: BotGenTuning = null, cube_size: float = NO_CUBE_SIZE
+	c: BotCandidate, info: OrientationInfo, grid: CellGrid = null, tuning: BotGenTuning = null, cube_size: float = NO_CUBE_SIZE,
+	slender_scale: float = 1.0
 ) -> float:
 	var t: BotGenTuning = tuning if tuning != null else SHIPPED_TUNING
 	if c.cell_support.is_empty() or (c.footprint_cells.is_empty() and c.probe_points.is_empty()):
-		return info.flat_risk
+		return info.flat_risk if slender_scale == 1.0 else _risk(info, info.contact, t, slender_scale)
 	if grid != null or not c.probe_points.is_empty():
 		var supported: PackedVector2Array = _supported_contacts(c, info, grid, t, cube_size)
-		return _risk(info, supported, t)
-	return _combine(info.flat_risk, _unsupported_overhang(c, t))
+		return _risk(info, supported, t, slender_scale)
+	return _combine(info.flat_risk if slender_scale == 1.0 else _risk(info, info.contact, t, slender_scale), _unsupported_overhang(c, t))
 
 
 ## Describes orientation `index` of `shape` (pure geometry, no support information).
@@ -123,6 +127,7 @@ static func orientation_info(shape: BlockShape, index: int, tuning: BotGenTuning
 	info.contact_area = float(info.contact.size())
 	info.signature = _signature(info)
 	info.flat_risk = _risk(info, info.contact, t)
+	info.base_risk = _risk(info, info.contact, t, 0.0)
 	return info
 
 
@@ -247,7 +252,9 @@ static func _normalised_keys(points: PackedVector2Array, min_x: float, min_z: fl
 
 
 ## Risk of `info` resting only on `supported` bottom cubes (offsets in cube units).
-static func _risk(info: OrientationInfo, supported: PackedVector2Array, t: BotGenTuning) -> float:
+## `slender_scale` multiplies the slenderness term (1 = full, the hard-risk reading; Bontago-1t5.71 passes
+## BotGenTuning.rts_slender_scale for Reach the Sky, where slenderness is a soft penalty).
+static func _risk(info: OrientationInfo, supported: PackedVector2Array, t: BotGenTuning, slender_scale: float = 1.0) -> float:
 	if supported.is_empty():
 		return 1.0
 	var min_x: float = INF
@@ -267,7 +274,7 @@ static func _risk(info: OrientationInfo, supported: PackedVector2Array, t: BotGe
 	var slender_risk: float = clampf(
 		(slender - t.slender_safe) / maxf(t.slender_max - t.slender_safe, MIN_DIVISOR), 0.0, 1.0
 	)
-	return _combine(overhang, slender_risk)
+	return _combine(overhang, slender_risk * slender_scale)
 
 
 static func _combine(a: float, b: float) -> float:

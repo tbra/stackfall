@@ -223,7 +223,8 @@ class _Gen:
 		_add_tall_stack_orientations(stack)
 
 	## Bontago-1t5.69 (owner playtest 2026-10-14: bots always laid bars flat): Reach the Sky also offers the
-	## tallest orientations whose flat risk stays under stack_tall_risk_max, after the flattest ones.
+	## tallest orientations whose overhang-only risk (base_risk) stays under stack_tall_risk_max, after the
+	## flattest ones. Bontago-1t5.71: slenderness is no longer a generation cap (it is a soft score penalty).
 	## DECISION: Reach the Sky only; other modes keep their flat-first stack orientations (and candidate sets).
 	## TIP sites need no change: their ranking is already tallest reach first under tip_risk_max.
 	func _add_tall_stack_orientations(by_risk: Array[BotStatics.OrientationInfo]) -> void:
@@ -231,7 +232,7 @@ class _Gen:
 			return
 		var tall: Array[BotStatics.OrientationInfo] = []
 		for info: BotStatics.OrientationInfo in by_risk:
-			if info.flat_risk <= t.stack_tall_risk_max and not _stack_orientations.has(info):
+			if info.base_risk <= t.stack_tall_risk_max and not _stack_orientations.has(info):
 				tall.append(info)
 		tall.sort_custom(func(a: BotStatics.OrientationInfo, b: BotStatics.OrientationInfo) -> bool:
 			if a.height != b.height:
