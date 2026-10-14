@@ -73,6 +73,7 @@ func start_match_with_args(args: PackedStringArray) -> void:
 		# DECISION (Bontago-1t5.13): a single (non-loop) match also prints its HEADLESS_MATCH line on
 		# END, so tools/bot_h2h.py can parse winner_team without --loop-matches.
 		Events.match_state_changed.connect(_on_headless_single_state_changed)
+	_setup_think_cost(args, bots)
 	_start_headless_loop_match(bots, args)
 
 	# `--seconds=<n>` bounds the run with a hard wall-clock quit: the
@@ -81,6 +82,51 @@ func start_match_with_args(args: PackedStringArray) -> void:
 	var seconds: float = _seconds_arg(args)
 	if seconds > 0.0:
 		main_node.get_tree().create_timer(seconds).timeout.connect(main_node._on_headless_bots_seconds_elapsed)
+
+
+# --- Hard-bot think cost report: `--bot-think-cost=<file>` (Bontago-1t5.62) ---------------------
+# Turns on BotThinkCostCollector (unbounded window), runs the match for `--bot-think-cost-seconds=<n>` match
+# seconds (default config/bot_think_cost.tres default_duration_s), then prints the BOT_THINK_COST lines and a
+# table, writes them to <file> and quits. Combine with --mode=, --bot-difficulty=hard, --match-seed=.
+# tools/run_bot_think_cost.ps1 runs the four scenarios.
+
+const THINK_COST_FILE_ARG: String = "bot-think-cost="
+const THINK_COST_SECONDS_ARG: String = "bot-think-cost-seconds="
+
+var _think_cost_file: String = ""
+
+
+func _setup_think_cost(args: PackedStringArray, bots: int) -> void:
+	_think_cost_file = _string_arg(args, THINK_COST_FILE_ARG)
+	if _think_cost_file.is_empty():
+		return
+	var mode: int = _mode_arg(args)
+	var label: String = "mode%d_bots%d" % [mode, bots]
+	BotThinkCostCollector.enable(label, 0)
+	var seconds: String = _string_arg(args, THINK_COST_SECONDS_ARG)
+	var duration: float = float(seconds) if seconds.is_valid_float() else BotThinkCostReport.SHIPPED_TUNING.default_duration_s
+	main_node.get_tree().create_timer(duration).timeout.connect(_on_think_cost_elapsed)
+
+
+func _on_think_cost_elapsed() -> void:
+	var collector: BotThinkCostCollector = BotThinkCostCollector.current()
+	var lines: PackedStringArray = PackedStringArray()
+	if collector == null or not collector.has_data():
+		lines.append("%s no data (no think finished)" % BotThinkCostReport.TAG)
+	else:
+		lines.append_array(collector.aggregate().render_lines())
+		lines.append_array(collector.aggregate().render_table())
+	for line: String in lines:
+		print(line)
+	var file: FileAccess = FileAccess.open(_think_cost_file, FileAccess.WRITE)
+	if file == null:
+		push_error("--bot-think-cost: cannot write %s" % _think_cost_file)
+	else:
+		for line: String in lines:
+			file.store_line(line)
+		file.close()
+	QuitFlag.mark()
+	main_node.get_tree().quit(0)
 
 
 ## Builds and starts one headless bot match. Without --loop-matches this is

@@ -108,6 +108,13 @@ var _decision: Decision = Decision.new()
 ## Bontago-1t5.37: this think's microseconds and work units per phase (index = Phase).
 var _phase_us: PackedInt64Array = PackedInt64Array()
 var _phase_units: PackedInt64Array = PackedInt64Array()
+## Bontago-1t5.62: opt-in cost report. Off by default: no extra clock reads, no record. When the caller
+## sets it, step() / complete() add their wall time to `_stats_total_us` and the probe callables
+## are timed where they are called (core stays scene-tree free; only the Callable is measured).
+var collect_stats: bool = false
+var _stats_total_us: int = 0
+var _stats_probe_call_us: int = 0
+var _stats_probe_calls: int = 0
 ## FILL draws made and sites they added in this think.
 var _fill_draws: int = 0
 var _fill_added: int = 0
@@ -132,6 +139,13 @@ func _init(view: BotWorldView, profile: BotDifficultyProfile, rng: RandomNumberG
 ## `budget_usec` is left for the next step.
 func step(budget_usec: int, probe: Callable) -> bool:
 	var start_usec: int = Time.get_ticks_usec()
+	var finished: bool = _step_slice(budget_usec, probe, start_usec)
+	if collect_stats:
+		_stats_total_us += Time.get_ticks_usec() - start_usec
+	return finished
+
+
+func _step_slice(budget_usec: int, probe: Callable, start_usec: int) -> bool:
 	var progressed: bool = false
 	while _phase != Phase.DONE:
 		if progressed:
@@ -146,6 +160,13 @@ func step(budget_usec: int, probe: Callable) -> bool:
 ## Bontago-1t5.37: runs every remaining stage now (the caller's deadline tick). The decision is
 ## the one any slicing of step() reaches; unlike finish_early() nothing is skipped.
 func complete(probe: Callable) -> void:
+	var complete_start_usec: int = Time.get_ticks_usec() if collect_stats else 0
+	_complete_all(probe)
+	if collect_stats:
+		_stats_total_us += Time.get_ticks_usec() - complete_start_usec
+
+
+func _complete_all(probe: Callable) -> void:
 	var guard: int = 0
 	while _phase != Phase.DONE:
 		var before: int = _phase
@@ -201,6 +222,14 @@ func remaining_work_us() -> int:
 func finish_early() -> void:
 	if _phase == Phase.DONE:
 		return
+	# Counted in total_us only: the early finish is not attributed to a phase.
+	var early_start_usec: int = Time.get_ticks_usec() if collect_stats else 0
+	_finish_early_now()
+	if collect_stats:
+		_stats_total_us += Time.get_ticks_usec() - early_start_usec
+
+
+func _finish_early_now() -> void:
 	if _phase == Phase.STACK:
 		# The sound / debris reading must be complete before the plan uses it.
 		while not _view.stack.analyse_step(_view.stack.body_count(), BotEvaluator.stack_tuning):
@@ -221,6 +250,32 @@ func finish_early() -> void:
 	elif _phase == Phase.RANK:
 		_rank_all(_candidates.size())
 	_pick()
+
+
+## Bontago-1t5.62: this think's cost record (null unless `collect_stats`): per-phase microseconds and
+## work units (index = Phase), the step() / complete() wall total, and the time spent inside the
+## caller's probe callables (the game-side physics queries, a part of PROBE).
+func stats_record() -> Dictionary:
+	if not collect_stats:
+		return {}
+	return {
+		"phase_us": _phase_us.duplicate(),
+		"phase_units": _phase_units.duplicate(),
+		"total_us": _stats_total_us,
+		"probe_call_us": _stats_probe_call_us,
+		"probe_calls": _stats_probe_calls,
+	}
+
+
+## Calls a probe callable, timing it when the report is on.
+func _call_probe(ray: Callable, xz: Vector2) -> Dictionary:
+	if not collect_stats:
+		return ray.call(xz) as Dictionary
+	var start_usec: int = Time.get_ticks_usec()
+	var hit: Dictionary = ray.call(xz) as Dictionary
+	_stats_probe_call_us += Time.get_ticks_usec() - start_usec
+	_stats_probe_calls += 1
+	return hit
 
 
 func is_done() -> bool:
@@ -427,7 +482,7 @@ func _stack_step() -> int:
 func _probe_one(probe: Callable) -> void:
 	var candidate: BotCandidate = _candidates[_probe_index]
 	_probe_index += 1
-	var hit: Dictionary = probe.call(candidate.origin) as Dictionary
+	var hit: Dictionary = _call_probe(probe, candidate.origin)
 	candidate.support_height = float(hit.get("height", 0.0))
 	candidate.on_top_of_own_stack = bool(hit.get("own", false))
 	_fire_cell_probes(candidate, probe)
@@ -510,7 +565,7 @@ func _fire_cell_probes(candidate: BotCandidate, probe: Callable) -> void:
 		candidate.support_bodies[i] = -1
 		if _is_hole_at(points[i]):
 			continue
-		var cell_hit: Dictionary = cell_ray.call(points[i]) as Dictionary
+		var cell_hit: Dictionary = _call_probe(cell_ray, points[i])
 		if not bool(cell_hit.get("hit", false)):
 			continue
 		var height: float = float(cell_hit.get("height", 0.0))
