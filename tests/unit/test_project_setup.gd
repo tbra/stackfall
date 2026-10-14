@@ -52,7 +52,7 @@ const REQUIRED_ACTIONS: PackedStringArray = [
 	"sandbox_reset_field",
 	"sandbox_toggle_timer",
 	"sandbox_spawn_tower",
-	"sandbox_toggle_overlay",
+	"hud_toggle",
 	"sandbox_force_special",
 	"screenshot_capture",
 	# Bontago-1pi.15.1: menu accept/cancel need an explicit gamepad half too

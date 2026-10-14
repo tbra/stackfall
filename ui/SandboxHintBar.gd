@@ -19,7 +19,7 @@ const ENTRIES: Array[Dictionary] = [
 	{"action": &"sandbox_reset_field", "label": "reset"},
 	{"action": &"sandbox_toggle_timer", "label": "timer"},
 	{"action": &"sandbox_spawn_tower", "label": "tower"},
-	{"action": &"sandbox_toggle_overlay", "label": "overlay"},
+	{"action": &"hud_toggle", "label": "HUD"},
 	{"action": &"sandbox_force_special", "label": "special"},
 	{"action": &"sandbox_slow_motion", "label": "slow-mo"},
 	{"action": &"sandbox_pause_physics", "label": "pause"},

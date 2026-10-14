@@ -593,7 +593,9 @@ func _actions() -> Dictionary:
 	a["sandbox_reset_field"] = [_key(KEY_F5), _pad(JOY_BUTTON_PADDLE1)]
 	a["sandbox_toggle_timer"] = [_key(KEY_F6), _pad(JOY_BUTTON_PADDLE3)]
 	a["sandbox_spawn_tower"] = [_key(KEY_F7), _pad(JOY_BUTTON_PADDLE2)]
-	a["sandbox_toggle_overlay"] = [_key(KEY_F8), _pad(JOY_BUTTON_PADDLE4)]
+	# Bontago-1pi.213: F8 / PADDLE4 now toggles the in-match HUD (ui/HUD.gd), in
+	# every match and the sandbox; it was the sandbox territory-overlay toggle.
+	a["hud_toggle"] = [_key(KEY_F8), _pad(JOY_BUTTON_PADDLE4)]
 
 	# DECISION (tools/bootstrap_project.gd, Bontago-1en.24): sandbox_force_
 	# special (game/Sandbox.gd's F9) is the fifth sandbox-only hotkey, but
@@ -615,7 +617,7 @@ func _actions() -> Dictionary:
 	# debug_toggle's Back+Y (a different node's _unhandled_input), these reuse
 	# PADDLE1/PADDLE2 -- already sandbox_reset_field's and sandbox_spawn_
 	# tower's own buttons, checked in this same file's game/Sandbox.gd
-	# _unhandled_input -- gated on sandbox_toggle_overlay (PADDLE4) / sandbox_
+	# _unhandled_input -- gated on hud_toggle (PADDLE4) / sandbox_
 	# force_special (TOUCHPAD) being held at the same time. Keeping both
 	# halves of each chord inside one script (rather than splitting the
 	# button and its modifier across two different nodes' input handlers, as
@@ -648,6 +650,18 @@ func _actions() -> Dictionary:
 	# never act in a normal sandbox or match.
 	a["gift_demo_cycle_prev"] = [_key(KEY_LEFT), _pad(JOY_BUTTON_LEFT_SHOULDER)]
 	a["gift_demo_cycle_next"] = [_key(KEY_RIGHT), _pad(JOY_BUTTON_RIGHT_SHOULDER)]
+
+	# --- Watch bots spectator (Bontago-1pi.212) ---------------------------------
+	# Only read by game/SpectatorController.gd, which exists only in a debug Watch bots match (every seat a
+	# bot, so no ghost/rotation/placement input is in use). DECISION: plain buttons are free in that context,
+	# so no chord: next/previous follow on N/B and the shoulders, overview on H and Y, speed step on L and
+	# D-pad up, pause on P and D-pad down. Free orbit/pan/zoom reuse the camera actions (right stick orbit,
+	# arrows or left stick pan, Z/X or LT + left stick zoom).
+	a["spectate_next"] = [_key(KEY_N), _pad(JOY_BUTTON_RIGHT_SHOULDER)]
+	a["spectate_prev"] = [_key(KEY_B), _pad(JOY_BUTTON_LEFT_SHOULDER)]
+	a["spectate_overview"] = [_key(KEY_H), _pad(JOY_BUTTON_Y)]
+	a["spectate_speed"] = [_key(KEY_L), _pad(JOY_BUTTON_DPAD_UP)]
+	a["spectate_pause"] = [_key(KEY_P), _pad(JOY_BUTTON_DPAD_DOWN)]
 
 	return a
 

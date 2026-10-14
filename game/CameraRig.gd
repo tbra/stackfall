@@ -451,6 +451,20 @@ func set_follow_position(pos: Vector3) -> void:
 	_follow_position = pos
 
 
+## Bontago-1pi.212 (debug Watch bots): puts the rig on a spectator pose -- the pivot, distance and
+## pitch (clamped like the orbit/zoom input) -- without touching the yaw, so the spectator controller
+## (game/SpectatorController.gd) can frame the arena overview or a followed bot. Follow-mode rigs keep
+## easing onto set_follow_position() afterwards, which is how that controller pans and follows.
+func set_spectator_pose(pivot: Vector3, distance: float, pitch_deg: float) -> void:
+	_target = pivot
+	_follow_position = pivot
+	_distance = clampf(distance, tuning.zoom_min, _zoom_max())
+	_pitch = deg_to_rad(pitch_deg)
+	_clamp_pitch()
+	_drop_recovering = false
+	_update_transform()
+
+
 ## Bontago-pt-4 (owner playtest: "Camera always jumps up after block drops or
 ## when clicking the drop button"). ROOT CAUSE: this rig's follow-block mode
 ## hard-snaps _target to whatever set_follow_position() reports every frame

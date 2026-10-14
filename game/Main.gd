@@ -76,6 +76,7 @@ const MATCH_FLOW_SCRIPT_PATH: String = "res://game/MainMatchFlow.gd"
 const LOBBY_SCENE_PATH: String = "res://ui/Lobby.tscn"
 const LOADING_STATUS_TEXT: String = "Loading..."
 const HOT_SEAT_SCENE_PATH: String = "res://game/HotSeat.tscn"
+const WATCH_BOTS_OPTIONS_PATH: String = "res://game/WatchBotsOptions.gd"
 const SANDBOX_SCENE_PATH: String = "res://game/Sandbox.tscn"
 const GIFT_DEMO_PRESET_PATH: String = "res://config/sandbox_gift_demo.tres"
 const TOWER_TOPPLE_PRESET_PATH: String = "res://config/sandbox_tower_topple.tres"
@@ -132,6 +133,10 @@ var _match_flow: MainMatchFlowPort = null
 var _main_menu: MainMenu = null
 var _lobby: Node = null
 var _hot_seat: Node = null
+## Bontago-1pi.212 (debug Watch bots): true from start_watch_bots() until the session ends or returns to
+## the menu; the match flow then builds a SpectatorController instead of a HotSeat.
+var _watch_bots_active: bool = false
+var _spectator: Node = null
 var _sandbox: Node = null
 ## Bontago-1pi.70: set only by start_gift_demo_from_menu().
 var _sandbox_preset: SandboxConfig = null
@@ -508,6 +513,12 @@ func _ready() -> void:
 	# being present and > 0.
 	if _has_cmdline_flag("headless-host"):
 		_start_headless_bot_match_with_args(OS.get_cmdline_user_args())
+	# Bontago-1pi.212: `-- --watch-bots=<n> [--mode=<id>] [--difficulty=<level>]` starts the same debug
+	# all-bot watch match the Debug page's picker does (debug mode only).
+	# Loaded by path so the watch-bots rules stay out of Main's compile closure (tools/lint_layers.py L4).
+	var watch_options: GDScript = load(WATCH_BOTS_OPTIONS_PATH) as GDScript
+	if bool(watch_options.call(&"has_cli", OS.get_cmdline_user_args())):
+		start_watch_bots.call_deferred(watch_options.call(&"from_args", OS.get_cmdline_user_args(), watch_options.call(&"load_saved")) as RefCounted)
 
 
 func _physics_process(delta: float) -> void:
@@ -903,6 +914,7 @@ func _show_main_menu() -> void:
 	_main_menu.bots_requested.connect(start_bots_from_menu)
 	_main_menu.gift_demo_requested.connect(start_gift_demo_from_menu)
 	_main_menu.tower_topple_requested.connect(start_tower_topple_from_menu)
+	_main_menu.watch_bots_requested.connect(start_watch_bots)
 
 
 ## DECISION: Play local → Vs bots starts from the normal lobby with one human
@@ -921,6 +933,23 @@ func start_bots_from_menu(player_name: String) -> void:
 	config.player_count = 2
 	config.ai_count = 0
 	Net.set_lobby_data(config.to_dict())
+
+
+## Bontago-1pi.212: debug-only. A local host session with every seat a bot and no human seat, so the
+## match flow builds a SpectatorController (watch, follow, speed) instead of a HotSeat. Back to menu and
+## Play again on the results screen work as for any host match.
+func start_watch_bots(options: RefCounted) -> void:
+	if not DebugMode.is_enabled():
+		return
+	if not await _await_prewarmed(PackedStringArray()):
+		return
+	var err: Error = Net.host_game(0, Settings.player_name(), false)
+	if err != OK:
+		if _main_menu != null:
+			_main_menu.show_status("Could not start watch match: %s" % error_string(err))
+		return
+	_watch_bots_active = true
+	Match.start_match(options.call(&"build_config", match_config) as MatchConfig)
 
 
 func _show_lobby() -> void:
@@ -963,6 +992,7 @@ func _on_net_mode_changed(mode: int) -> void:
 		# emits this): never a half-dead match (docs/archive/M3a_PLAN.md
 		# "Disconnects").
 		_end_match_world()
+		_watch_bots_active = false
 		# DECISION (game/Main.gd): Net.leave() does not know about Match, so
 		# the match is aborted here, where the session's end is routed.
 		# Without it Match stayed PLAYING/END on the main menu -- still

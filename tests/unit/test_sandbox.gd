@@ -585,22 +585,19 @@ func test_sandbox_spawn_tower_places_the_configured_block_count_via_request_plac
 	assert_eq(Match.blocks_spawned(), sandbox.sandbox_config.tower_block_count)
 
 
-# --- sandbox_toggle_overlay: F8 -----------------------------------------------
+# --- hud_toggle: F8 no longer touches the territory overlay (Bontago-1pi.213) --
 
-func test_sandbox_toggle_overlay_flips_the_fields_territory_overlay() -> void:
+func test_f8_no_longer_flips_the_fields_territory_overlay() -> void:
 	_start_sandbox(2)
 	var sandbox: Sandbox = _main._sandbox
 	var overlay: TerritoryOverlay = _main._field.overlay()
 	var initial: bool = overlay.visible
 
 	var event: InputEventKey = _key_press(KEY_F8)
-	assert_true(event.is_action_pressed(&"sandbox_toggle_overlay"), "F8 should map to sandbox_toggle_overlay")
+	assert_true(event.is_action_pressed(&"hud_toggle"), "F8 should map to hud_toggle")
 	sandbox._unhandled_input(event)
 
-	assert_eq(overlay.visible, not initial)
-
-	sandbox._unhandled_input(event)
-	assert_eq(overlay.visible, initial, "the hotkey toggles both ways")
+	assert_eq(overlay.visible, initial, "F8 toggles the HUD now, not the territory overlay")
 
 
 # --- sandbox_force_special: F9 (Bontago-1en.24) -------------------------------
@@ -870,10 +867,10 @@ func test_sandbox_slow_motion_gamepad_chord_requires_the_overlay_button_held() -
 	assert_eq(Match.blocks_spawned(), 0, "PADDLE1 alone must still mean sandbox_reset_field")
 	assert_false(sandbox.is_slow_motion_active())
 
-	# PADDLE1 + PADDLE4 (sandbox_toggle_overlay) held means sandbox_slow_motion.
-	Input.action_press(&"sandbox_toggle_overlay")
+	# PADDLE1 + PADDLE4 (hud_toggle) held means sandbox_slow_motion.
+	Input.action_press(&"hud_toggle")
 	sandbox._unhandled_input(_pad_press(JOY_BUTTON_PADDLE1))
-	Input.action_release(&"sandbox_toggle_overlay")
+	Input.action_release(&"hud_toggle")
 
 	assert_true(sandbox.is_slow_motion_active(), "PADDLE1 chorded with PADDLE4 must mean sandbox_slow_motion")
 
