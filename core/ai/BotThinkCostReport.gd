@@ -70,6 +70,18 @@ func clear() -> void:
 	_frame_head = 0
 
 
+## Bontago-1t5.67: {thinks, count, share_pct, sites} for the zero-targeted FILL fallback in this window.
+func fill_fallback_stats() -> Dictionary:
+	var flags: PackedInt64Array = _column("fill_fallback")
+	var n: int = _sum(flags)
+	return {
+		"thinks": think_count(),
+		"count": n,
+		"share_pct": PERCENT * float(n) / float(think_count()) if think_count() > 0 else 0.0,
+		"sites": _sum(_column("fill_fallback_sites")),
+	}
+
+
 ## Column of a scalar key over the records.
 func _column(key: String) -> PackedInt64Array:
 	var out: PackedInt64Array = PackedInt64Array()
@@ -224,6 +236,8 @@ func render_lines() -> PackedStringArray:
 	])
 	var f: Dictionary = frame_stats()
 	lines.append("%s frame bot_ms_mean=%.4f bot_ms_p99=%.4f bot_ms_max=%.4f" % [tag, f["mean_ms"], f["p99_ms"], f["max_ms"]])
+	var ff: Dictionary = fill_fallback_stats()
+	lines.append("%s fill_fallback count=%d thinks=%d share_pct=%.2f sites=%d" % [tag, ff["count"], ff["thinks"], ff["share_pct"], ff["sites"]])
 	lines.append(ranking_line())
 	return lines
 

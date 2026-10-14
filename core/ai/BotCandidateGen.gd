@@ -107,6 +107,9 @@ class SiteJob:
 	var _attempts: int = 0
 	## Site count at which the fill stops (the budget).
 	var _stop_at: int = 0
+	## Bontago-1t5.67: true when this job is the zero-targeted-sites FILL fallback (a capped profile that
+	## found no targeted site), so the cost report can count how often the fallback runs.
+	var fallback_ran: bool = false
 
 	func start_fill(gen: _Gen, rng: RandomNumberGenerator, budget: int, capped: bool = false) -> void:
 		_gen = gen
@@ -122,6 +125,7 @@ class SiteJob:
 		# fill_share > 0 (Easy / legacy) is unchanged.
 		if capped and not out.is_empty():
 			return
+		fallback_ran = capped
 		_allowed = gen.fill_orientations()
 		_attempts = needed * maxi(gen.t.fill_attempts_per_site, 1)
 

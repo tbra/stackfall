@@ -188,7 +188,14 @@ static func footer_lines(report: BotThinkCostReport) -> PackedStringArray:
 		"latency %.1f ticks (p95 %.0f, max %.0f)   %.2f ms (p95 %.2f, max %.2f)" % [
 			l["ticks_mean"], l["ticks_p95"], l["ticks_max"], l["wall_ms_mean"], l["wall_ms_p95"], l["wall_ms_max"]],
 		"bot frame %.3f ms mean / %.3f ms p99" % [f["mean_ms"], f["p99_ms"]],
+		fill_fallback_line(report),
 	])
+
+
+## Pure (Bontago-1t5.67): how often the zero-targeted FILL fallback ran in the window.
+static func fill_fallback_line(report: BotThinkCostReport) -> String:
+	var ff: Dictionary = report.fill_fallback_stats()
+	return "FILL fallback: %d of %d thinks (%.1f%%, %d sites)" % [ff["count"], ff["thinks"], ff["share_pct"], ff["sites"]]
 
 
 ## The grid's cell labels in row order (header row first). For tests and the highlight.
