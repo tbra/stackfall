@@ -210,9 +210,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed(&"sandbox_toggle_timer"):
 		Match.set_feed_timer_enabled(not Match.feed_timer_enabled())
 		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed(&"sandbox_toggle_overlay"):
-		_toggle_overlay()
-		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed(&"sandbox_force_special"):
 		_cycle_forced_special()
 		get_viewport().set_input_as_handled()
@@ -223,12 +220,12 @@ func _unhandled_input(event: InputEvent) -> void:
 ## A keyboard press is unambiguous (F5 and F10 are different physical keys,
 ## so exactly one of the two is_action_pressed() checks is true); a gamepad
 ## press on the shared PADDLE1 button means sandbox_slow_motion only while
-## sandbox_toggle_overlay (PADDLE4) is also held, otherwise it is the plain
+## hud_toggle (PADDLE4) is also held, otherwise it is the plain
 ## reset -- see tools/bootstrap_project.gd's own DECISION for why these two
 ## share a button at all.
 func _dispatch_reset_or_slow_motion(event: InputEvent) -> void:
 	if event is InputEventJoypadButton:
-		if Input.is_action_pressed(&"sandbox_toggle_overlay"):
+		if Input.is_action_pressed(&"hud_toggle"):
 			_toggle_slow_motion()
 		else:
 			_reset_field()
@@ -505,18 +502,6 @@ func _spawn_tower() -> void:
 	for i: int in range(sandbox_config.tower_block_count):
 		var drop_origin: Vector3 = origin + Vector3.UP * (sandbox_config.tower_spacing * float(i))
 		Match.request_place(_active_slot, drop_origin, 0, Quaternion.IDENTITY, false)
-
-
-## sandbox_toggle_overlay (F8): Field.overlay() is a plain node reference
-## (game/Field.gd's public getter); toggling its own `visible` is a generic
-## Node property write, not new Field behavior, so this stays inside this
-## package's ownership of Sandbox-only files.
-func _toggle_overlay() -> void:
-	if _field == null:
-		return
-	var overlay: TerritoryOverlay = _field.overlay()
-	if overlay != null:
-		overlay.visible = not overlay.visible
 
 
 # --- sandbox_force_special: F9 -----------------------------------------------

@@ -593,7 +593,9 @@ func _actions() -> Dictionary:
 	a["sandbox_reset_field"] = [_key(KEY_F5), _pad(JOY_BUTTON_PADDLE1)]
 	a["sandbox_toggle_timer"] = [_key(KEY_F6), _pad(JOY_BUTTON_PADDLE3)]
 	a["sandbox_spawn_tower"] = [_key(KEY_F7), _pad(JOY_BUTTON_PADDLE2)]
-	a["sandbox_toggle_overlay"] = [_key(KEY_F8), _pad(JOY_BUTTON_PADDLE4)]
+	# Bontago-1pi.213: F8 / PADDLE4 now toggles the in-match HUD (ui/HUD.gd), in
+	# every match and the sandbox; it was the sandbox territory-overlay toggle.
+	a["hud_toggle"] = [_key(KEY_F8), _pad(JOY_BUTTON_PADDLE4)]
 
 	# DECISION (tools/bootstrap_project.gd, Bontago-1en.24): sandbox_force_
 	# special (game/Sandbox.gd's F9) is the fifth sandbox-only hotkey, but
@@ -615,7 +617,7 @@ func _actions() -> Dictionary:
 	# debug_toggle's Back+Y (a different node's _unhandled_input), these reuse
 	# PADDLE1/PADDLE2 -- already sandbox_reset_field's and sandbox_spawn_
 	# tower's own buttons, checked in this same file's game/Sandbox.gd
-	# _unhandled_input -- gated on sandbox_toggle_overlay (PADDLE4) / sandbox_
+	# _unhandled_input -- gated on hud_toggle (PADDLE4) / sandbox_
 	# force_special (TOUCHPAD) being held at the same time. Keeping both
 	# halves of each chord inside one script (rather than splitting the
 	# button and its modifier across two different nodes' input handlers, as
