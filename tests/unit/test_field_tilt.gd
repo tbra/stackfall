@@ -31,17 +31,6 @@ func _drive_during_physics(callable: Callable) -> void:
 
 
 const SETTLE_FRAMES: int = 90
-## Engine warning (WARN_PRINT_ONCE) Jolt prints under CPU oversubscription in the
-## parallel gate; GUT counts it as a failure. Mark exactly this message handled
-## (same as test_physics_comparison); any other engine error still fails.
-const JOLT_JOB_OVERFLOW_TEXT: String = "Jolt Physics job system exceeded the maximum number of jobs"
-
-
-func after_each() -> void:
-	for err: GutTrackedError in get_errors():
-		if err.is_engine_error() and err.contains_text(JOLT_JOB_OVERFLOW_TEXT):
-			err.handled = true
-
 ## One manual _update_tilt() step at a time is a real 1/60 s physics tick's
 ## worth of the spring's own math -- no engine frame needed for the tests
 ## that only care about the ODE, so many "seconds" of decay run instantly.

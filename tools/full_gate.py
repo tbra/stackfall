@@ -116,6 +116,7 @@ def make_shards(path, tests, count, timings):
 def write_config(out_dir, name, tests):
     cfg = {"dirs": [], "tests": tests, "log_level": 1, "should_exit": True,
            "should_exit_on_success": True, "prefix": "test_", "suffix": ".gd",
+           "pre_run_script": "res://tests/support/jolt_overflow_hook.gd",
            "junit_xml_file": os.path.join(out_dir, name + ".xml").replace("\\", "/")}
     cfg_path = os.path.join(out_dir, name + ".json")
     with open(cfg_path, "w", encoding="ascii") as fh:

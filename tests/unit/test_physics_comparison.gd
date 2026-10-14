@@ -2,19 +2,6 @@ extends GutTest
 var _field: Field
 var _trial: PhysicsComparison
 
-# Bontago-fca.111: under a loaded parallel gate Jolt can log "job system exceeded the maximum
-# number of jobs ... Waiting for jobs" (engine back-pressure; it waits, physics stays correct).
-# GUT counts that engine warning as a failure. Mark exactly this message handled (same as
-# test_special_black_hole / test_weather_breeze); any other engine error still fails.
-const JOLT_JOB_OVERFLOW_TEXT: String = "Jolt Physics job system exceeded the maximum number of jobs"
-
-
-func after_each() -> void:
-	for err: GutTrackedError in get_errors():
-		if err.is_engine_error() and err.contains_text(JOLT_JOB_OVERFLOW_TEXT):
-			err.handled = true
-
-
 func before_each() -> void:
 	_field = Field.new()
 	var map: MapDef = (load("res://config/maps/round_medium.tres") as MapDef).duplicate(true)

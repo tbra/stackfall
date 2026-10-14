@@ -76,6 +76,7 @@ $config = [ordered]@{
 	should_exit_on_success = $true
 	prefix = "test_"
 	suffix = ".gd"
+	pre_run_script = "res://tests/support/jolt_overflow_hook.gd"
 }
 if ($Dir -ne "") {
 	$config["dirs"] = @($Dir)
