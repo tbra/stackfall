@@ -150,8 +150,6 @@ const ROW_MINIMAP_SIZE: String = "Minimap size"
 const ROW_CAMERA_SHAKE: String = "Camera shake"
 const ROW_ADAPTIVE_QUALITY: String = "Adaptive quality"
 const ROW_FOV: String = "Field of view"
-## Bontago-1pi.204: cells on the FOV meter (range from CameraTuning.fov_min_deg..fov_max_deg).
-const FOV_CELLS: int = 15
 const ROW_MASTER_VOLUME: String = "Master volume"
 const ROW_MUSIC_VOLUME: String = "Music volume"
 const ROW_SFX_VOLUME: String = "SFX volume"
@@ -406,7 +404,7 @@ func _build_game_page() -> void:
 	_adaptive_quality_check = UiToggle.new()
 	_add_row(display, ROW_ADAPTIVE_QUALITY, _adaptive_quality_check, "AdaptiveQualityCheck")
 	var lens: CameraTuning = _SHARED_CAMERA_TUNING
-	_fov_slider = _make_meter(lens.fov_min_deg, lens.fov_max_deg, FOV_CELLS)
+	_fov_slider = _make_meter(lens.fov_min_deg, lens.fov_max_deg, _fov_cell_count(lens))
 	_add_row(display, ROW_FOV, _fov_slider, "FovSlider")
 	_fov_slider.formatter = func(cells: int) -> String: return "%d°" % roundi(_meter_value(_fov_slider, cells))
 
@@ -480,6 +478,13 @@ func _add_channel_row(parent: Control, label_text: String, meter: UiSegmentMeter
 	_register(mute, channel + "MuteButton")
 	_register(meter, channel + "VolumeSlider")
 	return mute
+
+
+## Cells on the FOV meter: one per CameraTuning.fov_step_deg (a non-positive step falls back to one cell).
+func _fov_cell_count(lens: CameraTuning) -> int:
+	if lens.fov_step_deg <= 0.0:
+		return 1
+	return maxi(1, roundi((lens.fov_max_deg - lens.fov_min_deg) / lens.fov_step_deg))
 
 
 ## A UiSegmentMeter with [param cells] cells mapped onto [param low]..[param high].
@@ -987,6 +992,11 @@ func _wire_focus_chain() -> void:
 		current.focus_neighbor_top = current.get_path_to(prev)
 		current.focus_neighbor_bottom = current.get_path_to(next)
 		current.focus_mode = Control.FOCUS_ALL
+	# Bontago-1pi.159.50/.51: the footer pair is a row, so ui_left / ui_right swap between them.
+	_reset_button.focus_neighbor_right = _reset_button.get_path_to(_back_button)
+	_back_button.focus_neighbor_left = _back_button.get_path_to(_reset_button)
+	_reset_button.focus_neighbor_left = _reset_button.get_path_to(_back_button)
+	_back_button.focus_neighbor_right = _back_button.get_path_to(_reset_button)
 	_wire_tab_focus()
 	_trap_focus()
 

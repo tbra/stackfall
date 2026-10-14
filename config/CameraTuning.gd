@@ -141,6 +141,8 @@ extends Resource
 ## (Settings stores an optional override of fov_deg; the F4 fov_deg stays the default baseline).
 @export var fov_min_deg: float = 40.0
 @export var fov_max_deg: float = 100.0
+## Bontago-1pi.159.52: degrees per cell on that slider (5 deg/step = 12 cells over 40..100).
+@export var fov_step_deg: float = 5.0
 
 
 ## -- Match-start view (Bontago-1pi.84, owner playtest 2026-10-05,
