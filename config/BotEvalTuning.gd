@@ -69,3 +69,10 @@ extends Resource
 @export var incoming_default_radius_m: float = 3.0
 ## Safety margin added to an incoming special's impact radius when grading a site.
 @export var incoming_margin_m: float = 1.0
+
+## Tower statics (Bontago-1t5.53b): TIP-axis weight of a site whose tower has less centre-of-mass headroom
+## than BotStackTuning.safe_margin_m (0 at the safe margin, the full weight at zero headroom).
+@export var stack_risk_weight: float = 1.0
+## Extra TIP-axis penalty when the piece would carry the tower's centre of mass outside a support
+## hull (a sure topple), after the rim_outside_penalty precedent.
+@export var topple_penalty: float = 10.0

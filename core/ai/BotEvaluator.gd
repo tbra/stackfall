@@ -18,6 +18,11 @@ extends RefCounted
 const SHIPPED_TUNING: BotEvalTuning = preload("res://config/bot_eval_tuning.tres")
 ## Tests (and the tuning tools) may swap this; it is read-only in play.
 static var tuning: BotEvalTuning = SHIPPED_TUNING
+## Bontago-1t5.53b: the tower-statics tunables (safe margin, analysis slice); tests may swap it.
+const SHIPPED_STACK_TUNING: BotStackTuning = preload("res://config/bot_stack_tuning.tres")
+static var stack_tuning: BotStackTuning = SHIPPED_STACK_TUNING
+## Floor for the safe margin used as a divisor.
+const MIN_SAFE_MARGIN_M: float = 0.001
 ## Sunflower spiral step, pi * (3 - sqrt(5)) radians.
 const GOLDEN_ANGLE: float = 2.39996323
 
@@ -55,7 +60,7 @@ static func proxy_terms(c: BotCandidate, view: BotWorldView, intent: BotIntent) 
 		terms[BotIntent.Term.KILL] = float(covered)
 		terms[BotIntent.Term.HAZARD] = minf(_hazard_from_gap(c, view, nearest_gap) + incoming_special_risk(c, view), 1.0)
 	terms[BotIntent.Term.EXPOSURE] = float(mini(threats + _home_threats(c.origin, view), tuning.exposure_cap))
-	terms[BotIntent.Term.TIP] = c.tip_risk + wind_tip(c, view) + breeze_tip(c, view) + rim_risk(c, view)
+	terms[BotIntent.Term.TIP] = c.tip_risk + stack_risk(c) + wind_tip(c, view) + breeze_tip(c, view) + rim_risk(c, view)
 	terms[BotIntent.Term.WASTE] = 1.0 if inside >= 1.0 else 0.0
 	return terms
 
@@ -74,7 +79,7 @@ static func measure(
 	terms[BotIntent.Term.WASTE] = fractions.y
 	terms[BotIntent.Term.KILL] = _kill(c, view, chains, radius)
 	terms[BotIntent.Term.EXPOSURE] = float(_exposure(c, view, chains))
-	terms[BotIntent.Term.TIP] = c.tip_risk + wind_tip(c, view) + breeze_tip(c, view) + rim_risk(c, view)
+	terms[BotIntent.Term.TIP] = c.tip_risk + stack_risk(c) + wind_tip(c, view) + breeze_tip(c, view) + rim_risk(c, view)
 	terms[BotIntent.Term.HAZARD] = minf(hazard(c, view, chains) + incoming_special_risk(c, view), 1.0)
 	return terms
 
@@ -91,6 +96,19 @@ static func score(terms: PackedFloat32Array, intent: BotIntent) -> float:
 			signed = -signed
 		total += signed * intent.weights[t]
 	return total
+
+
+## Bontago-1t5.53b: extra TIP risk from the tower under the site: 0 with no block support or snapshot
+## (load_margin INF), else stack_risk_weight * (1 - margin / safe_margin_m) clamped to 0..1, plus
+## topple_penalty once the combined centre of mass leaves a support hull (margin < 0).
+static func stack_risk(c: BotCandidate) -> float:
+	if is_inf(c.load_margin):
+		return 0.0
+	var safe: float = maxf(stack_tuning.safe_margin_m, MIN_SAFE_MARGIN_M)
+	var risk: float = tuning.stack_risk_weight * clampf(1.0 - c.load_margin / safe, 0.0, 1.0)
+	if c.load_margin < 0.0:
+		risk += tuning.topple_penalty
+	return risk
 
 
 ## Bontago-1t5.41: extra TIP risk from the active wind: grows with the weather intensity and

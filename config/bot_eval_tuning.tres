@@ -26,3 +26,5 @@ incoming_min_speed_mps = 1.0
 incoming_special_weight = 1.0
 incoming_default_radius_m = 3.0
 incoming_margin_m = 1.0
+stack_risk_weight = 1.0
+topple_penalty = 10.0

@@ -24,3 +24,6 @@ extends Resource
 @export var degenerate_area_m2: float = 0.0001
 ## Cells of the column hash searched around a cube (1 = the 3x3 neighbourhood).
 @export var hash_reach_cells: int = 1
+## Cube lists kept between thinks by game/BotStackProbe (sleeping blocks cost one comparison); the
+## cache is cleared when it grows past this (Bontago-1t5.53b).
+@export var probe_cache_limit: int = 512

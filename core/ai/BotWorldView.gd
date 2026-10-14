@@ -73,6 +73,9 @@ var gust_center: PackedVector3Array = PackedVector3Array()
 var gust_radius: PackedFloat32Array = PackedFloat32Array()
 var gust_heading: PackedVector2Array = PackedVector2Array()
 var gust_power_values: PackedFloat32Array = PackedFloat32Array()
+## Bontago-1t5.53b: snapshot of the cubes near the own towers (game/BotStackProbe.gd); BotThink's STACK
+## phase analyses it. null = no tower statics: every site keeps its old score.
+var stack: BotStack = null
 
 
 static func build(
