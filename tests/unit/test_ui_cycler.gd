@@ -196,3 +196,19 @@ func test_min_value_width_widens_the_value_area_and_icons_are_stored() -> void:
 	assert_eq(cycler.get_item_tooltip(0), "tip")
 	assert_true(cycler.value_icon.visible)
 	cycler.free()
+
+
+func test_content_width_tracks_the_widest_item_as_items_are_added_and_cleared() -> void:
+	var cycler: UiCycler = UiCycler.new()
+	add_child_autofree(cycler)
+	var empty_width: float = cycler.content_width()
+	cycler.add_item("a")
+	var narrow: float = cycler.content_width()
+	cycler.add_item("a much longer item")
+	var wide: float = cycler.content_width()
+	cycler.add_item("b")
+	assert_gt(narrow, empty_width - 0.01)
+	assert_gt(wide, narrow)
+	assert_eq(cycler.content_width(), wide, "a shorter item never narrows it")
+	cycler.clear()
+	assert_eq(cycler.content_width(), empty_width)

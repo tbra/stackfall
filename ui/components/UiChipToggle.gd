@@ -18,6 +18,18 @@ extends Button
 
 var _available: bool = true
 var _unavailable_reason: String = ""
+## The shared look this chip last applied, and which face its "disabled" block currently shows.
+var _applied_generation: int = -1
+var _shown_pressed: bool = false
+
+const BASE_STATES: PackedStringArray = ["normal", "hover", "pressed", "hover_pressed"]
+const OFF_INK_ITEMS: PackedStringArray = ["font_color", "font_focus_color", "font_hover_color", "icon_normal_color", "icon_focus_color", "icon_hover_color"]
+const ON_INK_ITEMS: PackedStringArray = ["font_pressed_color", "font_hover_pressed_color", "icon_pressed_color", "icon_hover_pressed_color"]
+
+static var _look: Dictionary = {}
+static var _look_tuning: ArcadeVisualTuning = null
+static var _look_metrics: ComponentMetrics = null
+static var _look_generation: int = 0
 
 
 func _init() -> void:
@@ -72,9 +84,47 @@ func _on_toggled(_on: bool) -> void:
 	_restyle()
 
 
+## Applies the shared per-theme look. The five blocks and the ink colours are identical for every
+## chip, so they are built once per token set ([method _shared_look]) and shared by every instance;
+## per chip only the "disabled" block (it shows the chip's own on/off face) is swapped when the
+## state flips. The shared boxes are never touched after they are built.
 func _restyle() -> void:
+	var look: Dictionary = _shared_look()
+	if _applied_generation != _look_generation:
+		_applied_generation = _look_generation
+		var boxes: Dictionary = look["boxes"] as Dictionary
+		for state: String in BASE_STATES:
+			add_theme_stylebox_override(state, boxes[state] as StyleBox)
+		var off_ink: Color = look["off_ink"] as Color
+		var on_ink: Color = look["on_ink"] as Color
+		for item: String in OFF_INK_ITEMS:
+			add_theme_color_override(item, off_ink)
+		for item: String in ON_INK_ITEMS:
+			add_theme_color_override(item, on_ink)
+		add_theme_font_size_override("font_size", look["font_size"] as int)
+		add_theme_constant_override("icon_max_width", look["icon_max_width"] as int)
+		_shown_pressed = not button_pressed  # force the disabled block below
+	if _shown_pressed != button_pressed:
+		_shown_pressed = button_pressed
+		var boxes_now: Dictionary = look["boxes"] as Dictionary
+		add_theme_stylebox_override("disabled", boxes_now["disabled_on" if button_pressed else "disabled_off"] as StyleBox)
+	queue_redraw()
+
+
+## Drops the shared blocks so the next chip (re)styles from the current tokens (tests, tooling).
+static func invalidate_style_cache() -> void:
+	_look = {}
+	_look_tuning = null
+	_look_metrics = null
+
+
+## The shared look of the current token set, rebuilt only when the tokens or metrics resource
+## instance changes or [method invalidate_style_cache] ran (a Resource's `changed` also drops it).
+static func _shared_look() -> Dictionary:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	var m: ComponentMetrics = UiRowItem.metrics()
+	if not _look.is_empty() and _look_tuning == arcade and _look_metrics == m:
+		return _look
 	var off_face: Color = face_for(false, arcade)
 	var on_face: Color = face_for(true, arcade)
 	var off_hover: Color = off_face.lerp(Color.WHITE, arcade.block_hover_light_mix)
@@ -83,31 +133,38 @@ func _restyle() -> void:
 	var lip_on: Color = MenuStyleFactory.lip_for(on_face)
 	var top_off: Color = MenuStyleFactory.top_for(off_face)
 	var top_on: Color = MenuStyleFactory.top_for(on_face)
-	var shown_face: Color = on_face if button_pressed else off_face
 	var normal: int = BlockStyleBox.STATE_NORMAL
+	var disabled_state: int = BlockStyleBox.STATE_DISABLED
 	# Godot's "pressed" is the toggled-on look; the block itself stays unpressed (lit, ledged).
 	var boxes: Dictionary = {
 		"normal": BlockStyleBox.make(off_face, arcade, true, normal, lip_off, top_off),
 		"hover": BlockStyleBox.make(off_hover, arcade, true, normal, lip_off, top_off),
 		"pressed": BlockStyleBox.make(on_face, arcade, true, normal, lip_on, top_on),
 		"hover_pressed": BlockStyleBox.make(on_hover, arcade, true, normal, lip_on, top_on),
-		"disabled": BlockStyleBox.make(shown_face, arcade, true, BlockStyleBox.STATE_DISABLED, MenuStyleFactory.lip_for(shown_face), MenuStyleFactory.top_for(shown_face)),
+		"disabled_off": BlockStyleBox.make(off_face, arcade, true, disabled_state, MenuStyleFactory.lip_for(off_face), MenuStyleFactory.top_for(off_face)),
+		"disabled_on": BlockStyleBox.make(on_face, arcade, true, disabled_state, MenuStyleFactory.lip_for(on_face), MenuStyleFactory.top_for(on_face)),
 	}
 	var lead: float = float(arcade.space_3_px + m.chip_box_px + arcade.space_2_px)
-	for state: String in boxes:
-		var box: BlockStyleBox = boxes[state] as BlockStyleBox
+	var pad: float = float(arcade.button_sm_pad_y_px)
+	for key: String in boxes:
+		var box: BlockStyleBox = boxes[key] as BlockStyleBox
 		box.content_margin_left = lead
-		add_theme_stylebox_override(state, box)
-	UiBlockButton.fit_row_height(self, arcade)
-	var off_ink: Color = MenuStyleFactory.ink_for_face(off_face)
-	var on_ink: Color = MenuStyleFactory.ink_for_face(on_face)
-	for item: String in ["font_color", "font_focus_color", "font_hover_color", "icon_normal_color", "icon_focus_color", "icon_hover_color"]:
-		add_theme_color_override(item, off_ink)
-	for item: String in ["font_pressed_color", "font_hover_pressed_color", "icon_pressed_color", "icon_hover_pressed_color"]:
-		add_theme_color_override(item, on_ink)
-	add_theme_font_size_override("font_size", arcade.font_size_button_sm_px)
-	add_theme_constant_override("icon_max_width", arcade.icon_max_width_px)
-	queue_redraw()
+		# The row-item vertical fit (UiBlockButton.fit_row_height) applied once, to the shared box.
+		box.content_margin_top = maxf(box.content_margin_top - pad, 0.0)
+		box.content_margin_bottom = maxf(box.content_margin_bottom - pad, 0.0)
+	_look = {
+		"boxes": boxes,
+		"off_ink": MenuStyleFactory.ink_for_face(off_face),
+		"on_ink": MenuStyleFactory.ink_for_face(on_face),
+		"font_size": arcade.font_size_button_sm_px,
+		"icon_max_width": arcade.icon_max_width_px,
+	}
+	_look_generation += 1
+	_look_tuning = arcade
+	_look_metrics = m
+	if not arcade.changed.is_connected(invalidate_style_cache):
+		arcade.changed.connect(invalidate_style_cache)
+	return _look
 
 
 func _draw() -> void:
