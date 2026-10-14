@@ -1096,6 +1096,7 @@ ranges = {
 "HoneyCoatTuning.jelly_bulge_freq": Vector2(0.5, 12.0),
 "HoneyCoatTuning.jelly_wobble_speed": Vector2(0.0, 4.0),
 "HoneyCoatTuning.jelly_sag_m": Vector2(0.0, 0.5),
+"BotStackTuning.support_face_tolerance_deg": Vector2(0.0, 45.0),
 }
 descriptions = {
 "AudioConfig.rejected_file": "Plays when a block placement is rejected.",
@@ -2445,6 +2446,7 @@ descriptions = {
 "HoneyCoatTuning.jelly_wobble_speed": "How fast the jelly bulges move.",
 "HoneyCoatTuning.jelly_sag_m": "How far (m) the lower rim of the jelly sags into drip lobes.",
 "HoneyCoatTuning.hud_jelly_tint": "Amber tint (with opacity) laid over the held/next preview of a glued block.",
+"BotStackTuning.support_face_tolerance_deg": "Bots rest a piece on a block face (fallen debris too) only when the face is within this angle (deg) of the disc plane, measured against the disc normal.",
 }
 sections = {
 "CameraTuning.mouse_orbit_speed": "Orbit",

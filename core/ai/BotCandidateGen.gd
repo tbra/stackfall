@@ -78,8 +78,9 @@ static func begin(
 	var tip_kind: int = SITE_STRIKE if threat_kind else SITE_TIP
 	if intent.new_base:
 		# Bontago-1t5.54: after a collapse the share of the stack sites goes to the new base's
-		# foundation, and no site of any kind may rest on or beside the debris of the old tower.
-		gen.avoid_debris_m = intent.debris_clearance_m
+		# foundation. Bontago-1t5.68 (owner): a site may sit beside or on the old tower's debris, but
+		# only on the disc or on faces flat against it whose pile holds the piece (no clearance).
+		gen.flat_supports_only = true
 		gen.add_foundation_sites(intent.target, mini(t.foundation_site_count, total))
 		gen.add_tip_sites(_target_for(view, intent, threat_kind), tip_kind, tip_quota)
 	else:
@@ -161,8 +162,9 @@ class _Gen:
 	var _own_index: PackedInt32Array = PackedInt32Array()
 	var _tip_orientations: Array[BotStatics.OrientationInfo] = []
 	var _stack_orientations: Array[BotStatics.OrientationInfo] = []
-	## Bontago-1t5.54: sites closer than this to a cube of an unsound block are dropped (0 = off).
-	var avoid_debris_m: float = 0.0
+	## Bontago-1t5.68 (replaces the 1t5.54 debris clearance): a site must rest on the disc or on block faces
+	## flat against it whose pile holds the piece in the analysed snapshot (_rests_flat).
+	var flat_supports_only: bool = false
 
 	func _init(
 		view_value: BotWorldView, tuning: BotGenTuning, infos_value: Array[BotStatics.OrientationInfo],
@@ -418,6 +420,21 @@ class _Gen:
 			return
 		_try_add(point, orientation, SITE_FILL, false, 0.0)
 
+	## Bontago-1t5.68: true when the piece with its pivot at `origin` rests on the disc, or on block faces flat
+	## against it whose pile keeps the centre of mass inside every support (BotStack.rest_margin >= 0); true
+	## without an analysed snapshot. DECISION: the model probes every bottom cube, not the tier's
+	## stability_raycast_count (that cap limits real rays; a snapshot lookup is cheap), and the piece's mass is
+	## BotThink._load_margin's (cube count times the shipped cube mass).
+	func _rests_flat(origin: Vector2, orientation: BotStatics.OrientationInfo) -> bool:
+		var stack: BotStack = view.stack
+		if stack == null or not stack.is_analysed():
+			return true
+		var points: PackedVector2Array = PackedVector2Array()
+		for offset: Vector2 in orientation.contact:
+			points.append(origin + offset * view.cube_size)
+		var mass: float = BotWorldView.SHIPPED_PHYSICS_TUNING.cube_mass * float(view.held.cells.size())
+		return stack.rest_margin(points, origin + orientation.com * view.cube_size, mass) >= 0.0
+
 	## Adds the site when placeable and not a duplicate; true when added.
 	func _try_add(
 		point: Vector2, orientation: BotStatics.OrientationInfo, kind: int, on_stack: bool, stack_top: float
@@ -427,7 +444,7 @@ class _Gen:
 		var origin: Vector2 = point - orientation.center_shift * view.cube_size
 		if not _placeable(origin):
 			return false
-		if avoid_debris_m > 0.0 and view.stack != null and view.stack.debris_near(point, avoid_debris_m):
+		if flat_supports_only and not _rests_flat(origin, orientation):
 			return false
 		var key: Vector3i = Vector3i(
 			roundi(origin.x / t.distinct_quantum_m), roundi(origin.y / t.distinct_quantum_m), orientation.index

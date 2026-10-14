@@ -20,6 +20,16 @@ extends RefCounted
 ## forcing -INF. DECISION: the piece-on-support hull in load_margin is the convex hull of all cube
 ## squares of the supporting bodies (the piece's own contact patch is not known here).
 ##
+## Support faces (Bontago-1t5.68): soundness describes a TOWER (every body down to the disc upright). Where a
+## piece may REST is a separate, looser rule (is_flat_support, rest_margin): the faces under the piece lie flat
+## against the disc within support_face_tolerance_deg, and the body and every carrier below it are settled with a
+## known contact hull; a carrier may lean (debris), and whether the pile holds the piece is load_margin's call
+## through every carrier down to the disc. DECISION: "flat against the disc" is measured in this snapshot's frame,
+## which is disc-local: game/BotStackProbe converts cube centres with Field.to_local and bases with the inverse
+## field basis, and Field (game/Field.gd _apply_tilt_transform) carries the tilt in its own transform, so local y
+## IS the disc normal while the field tilts; world up never enters. The bot's real cube probes are cast along the
+## same disc-local column (BotController._column_hit) and report field-local heights.
+##
 ## Usage: add_body() for each block, then call analyse_step() until it returns true (the contact
 ## pass is sliced; the load and soundness sweep runs in the last slice), then query.
 
@@ -49,6 +59,10 @@ var _above: Array[PackedInt32Array] = []  # bodies resting on this one, directly
 var _load_mass: PackedFloat32Array = PackedFloat32Array()
 var _load_com: PackedVector3Array = PackedVector3Array()
 var _sound: PackedByteArray = PackedByteArray()
+## Bontago-1t5.68: 1 when the body and every body carrying it (down to the disc) are settled with a known hull.
+var _known_chain: PackedByteArray = PackedByteArray()
+var _face_tolerance_deg: float = 0.0  # set from the tuning in _prepare
+var _contact_tolerance: float = 0.0  # set from the tuning in _prepare
 var _index: Dictionary = {}  # body id -> index
 var _cube_poly: Array[PackedVector2Array] = []
 var _cube_cells: Dictionary = {}  # Vector2i -> PackedInt32Array of cube indices
@@ -202,7 +216,8 @@ func com_xz(body: int) -> Vector2:
 	return Vector2(body_com[body].x, body_com[body].z)
 
 
-## True when any cube of an unsound body lies within `radius` of `point` (disk-local XZ).
+## True when any cube of an unsound body lies within `radius` of `point` (disk-local XZ). Bontago-1t5.68: the
+## bot's site and base rules no longer keep a clearance from debris (see rest_margin); this stays a query.
 func debris_near(point: Vector2, radius: float) -> bool:
 	if not _done:
 		return false
@@ -231,6 +246,64 @@ func load_margin(support_ids: PackedInt64Array, piece_com: Vector3, piece_mass: 
 			supports.append(i)
 	if supports.is_empty() or not _done:
 		return INF
+	return _margin_of(supports, piece_com, piece_mass)
+
+
+## Bontago-1t5.68: true when a piece may rest on `body`'s top faces: they lie within support_face_tolerance_deg
+## of the disc plane (the body's tilt against the disc normal), and the body and every body carrying it are
+## settled with a known contact hull. A carrier may lean or be unsound (fallen debris): whether the pile holds
+## the piece is the load margin's call (rest_margin). A body with an unknown hull below it (floating in the
+## snapshot, its support out of range) cannot be checked, so it is not a support.
+func is_flat_support(body: int) -> bool:
+	if not _done or body < 0 or body >= _known_chain.size():
+		return false
+	return _known_chain[body] == 1 and body_tilt_deg[body] <= _face_tolerance_deg
+
+
+## Bontago-1t5.68: index of the body whose top face is highest above disk-local `point` (the first one a probe
+## down the disc-normal column hits), -1 when the column holds only the disc.
+func surface_at(point: Vector2) -> int:
+	var ci: int = _top_cube_at(point)
+	return cube_body[ci] if ci >= 0 else -1
+
+
+## Bontago-1t5.68: how a piece would rest with its bottom cubes over the disk-local `points` (the columns the
+## bot's cube probes fire down). The highest face under them is the resting plane (the host lifts the piece onto
+## it); the bodies whose faces lie on it within rest_tolerance_m carry the piece. INF when only the disc carries
+## it (no block support, as load_margin); -INF when a carrying face is not a flat support (is_flat_support:
+## tilted against the disc, unsettled or unverifiable); else load_margin for a piece of `piece_mass` centred at
+## `piece_com_xz` on those bodies, which walks every carrier down to the disc, debris included. Negative: the
+## pile would not hold the piece.
+func rest_margin(points: PackedVector2Array, piece_com_xz: Vector2, piece_mass: float) -> float:
+	if not _done:
+		return INF
+	var hits: PackedInt32Array = PackedInt32Array()
+	var plane: float = ground_y
+	for p: Vector2 in points:
+		var ci: int = _top_cube_at(p)
+		hits.append(ci)
+		if ci >= 0:
+			plane = maxf(plane, _cube_top(ci))
+	var supports: PackedInt32Array = PackedInt32Array()
+	for ci: int in hits:
+		# DECISION: rest_tolerance_m (the stack's own contact tolerance) decides which faces touch the plane; a
+		# lower face is under an overhang, which the footprint test in the margin covers.
+		if ci < 0 or plane - _cube_top(ci) > _contact_tolerance:
+			continue
+		var b: int = cube_body[ci]
+		if not is_flat_support(b):
+			return -INF
+		if not supports.has(b):
+			supports.append(b)
+	if supports.is_empty():
+		return INF
+	# DECISION: the margin is measured in the disc plane only, so the piece's height does not enter it; its
+	# centre is put half a cube above the resting plane.
+	var com: Vector3 = Vector3(piece_com_xz.x, plane + cube_size * _HALF, piece_com_xz.y)
+	return _margin_of(supports, com, piece_mass)
+
+
+func _margin_of(supports: PackedInt32Array, piece_com: Vector3, piece_mass: float) -> float:
 	var piece_xz: Vector2 = Vector2(piece_com.x, piece_com.z)
 	var margin: float = _signed_inside(_footprint_hull(supports), piece_xz)
 	# The piece loads a lone support and the chain of lone supporters below it; with several
@@ -265,6 +338,8 @@ func _cell_of(p: Vector2) -> Vector2i:
 func _prepare(t: BotStackTuning) -> void:
 	_degenerate_area = t.degenerate_area_m2
 	_hash_reach = t.hash_reach_cells
+	_face_tolerance_deg = t.support_face_tolerance_deg
+	_contact_tolerance = t.rest_tolerance_m
 	var n: int = body_ids.size()
 	_supporters.clear()
 	_hull.clear()
@@ -276,6 +351,8 @@ func _prepare(t: BotStackTuning) -> void:
 	_on_disc.resize(n)
 	_sound = PackedByteArray()
 	_sound.resize(n)
+	_known_chain = PackedByteArray()
+	_known_chain.resize(n)
 	_load_mass = PackedFloat32Array()
 	_load_mass.resize(n)
 	_load_com = PackedVector3Array()
@@ -344,6 +421,11 @@ func _finish(t: BotStackTuning) -> void:
 		for s: int in _supporters[b]:
 			ok = ok and _sound[s] == 1
 		_sound[b] = 1 if ok else 0
+		# Bontago-1t5.68: the carrier chain a support face needs (tilt and centre of mass are not part of it).
+		var known: bool = body_settled[b] == 1 and not _hull[b].is_empty()
+		for s: int in _supporters[b]:
+			known = known and _known_chain[s] == 1
+		_known_chain[b] = 1 if known else 0
 	for b: int in n:
 		if _sound[b] == 1:
 			continue
@@ -437,6 +519,31 @@ func _down_set(supports: PackedInt32Array) -> PackedInt32Array:
 				queue.append(below)
 	_down_cache[key] = out
 	return out
+
+
+## The cube whose top face is highest over `point` (its XZ square contains the point), -1 for none; the first
+## found wins a tie (the hash walk is deterministic).
+func _top_cube_at(point: Vector2) -> int:
+	var best: int = -1
+	var best_top: float = -INF
+	var cell: Vector2i = _cell_of(point)
+	for dx: int in range(-_hash_reach, _hash_reach + 1):
+		for dz: int in range(-_hash_reach, _hash_reach + 1):
+			var list: PackedInt32Array = _cube_cells.get(cell + Vector2i(dx, dz), PackedInt32Array())
+			for ci: int in list:
+				var poly: PackedVector2Array = _cube_poly[ci]
+				if poly.size() < _MIN_HULL_POINTS or _signed_inside(poly, point) < 0.0:
+					continue
+				var top: float = _cube_top(ci)
+				if top > best_top:
+					best_top = top
+					best = ci
+	return best
+
+
+## Top face height of cube `ci` (its centre plus half a cube; approximate for a tilted body).
+func _cube_top(ci: int) -> float:
+	return cube_pos[ci].y + cube_size * _HALF
 
 
 func _footprint_hull(bodies: PackedInt32Array) -> PackedVector2Array:
