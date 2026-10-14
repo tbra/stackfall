@@ -1929,6 +1929,119 @@ def render_html(graph):
 
 
 # --------------------------------------------------------------------------
+# graph.html: the visual map (Bontago-fca.117). Template: tools/dep_graph_viewer.html
+# --------------------------------------------------------------------------
+
+VIEWER_TEMPLATE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dep_graph_viewer.html")
+VIEWER_PLACEHOLDER = "__DEPGRAPH_PAYLOAD__"
+CODE_EXTS = (".gd", ".tscn", ".tres", ".gdshader", ".gdshaderinc")
+STATUSES = ["root", "live", "dynamic-only", "test-tool-root", "test-tool-only", "unreachable"]
+# Edge kind -> viewer toggle group (indexes into EDGE_GROUPS).
+EDGE_GROUPS = ["extends", "load", "class", "autoload", "scene", "dynamic", "config"]
+EDGE_GROUP_OF = {"extends": 0, "preload": 1, "path": 1, "class": 2, "autoload": 3, "autoload_use": 3,
+                 "ext_resource": 4, "dynamic": 5}
+# Per-file flag bits copied to the payload.
+FLAG_BITS = {"cycle": 1, "preload-cycle": 2, "layer": 4, "dead": 8}
+FLAG_AUTOLOAD = 16
+# Folders collapse to at most this many path segments in the module view (source_art: 1).
+MODULE_DEPTH = 2
+MODULE_DEPTH_OVERRIDE = {"source_art": 1, "docs": 1}
+# Edge groups shown by default (dynamic path-pattern edges are numerous and noisy).
+DEFAULT_GROUPS = [1, 1, 1, 1, 1, 0, 1]
+
+
+def module_of(path):
+    """Folder bucket for the module view: at most MODULE_DEPTH folder segments; '(root)' for top-level files."""
+    parts = path.split("/")[:-1]
+    if not parts:
+        return "(root)"
+    depth = MODULE_DEPTH_OVERRIDE.get(parts[0], MODULE_DEPTH)
+    return "/".join(parts[:depth])
+
+
+def layer_of(path):
+    return path.split("/", 1)[0] if "/" in path else "(root)"
+
+
+def is_code_path(path, kind):
+    return kind == "config" or path.lower().endswith(CODE_EXTS)
+
+
+def build_viewer_payload(graph):
+    files = graph["files"]
+    paths = sorted(files)
+    pidx = dict((p, i) for i, p in enumerate(paths))
+    cyc = graph.get("cycles", {})
+    scc_of = {}
+    sccs = []
+    for c in cyc.get("file_sccs", []):
+        for m in c["members"]:
+            scc_of[m] = len(sccs)
+        sccs.append([c["size"], c["class"]])
+    autoload_name = dict((v, k) for k, v in graph.get("autoloads", {}).items())
+    mod_names = sorted(set(module_of(p) for p in paths))
+    midx = dict((m, i) for i, m in enumerate(mod_names))
+    layers = sorted(set(layer_of(p) for p in paths))
+    lidx = dict((l, i) for i, l in enumerate(layers))
+    kinds = sorted(set(n["kind"] for n in files.values()))
+    kidx = dict((k, i) for i, k in enumerate(kinds))
+    fl = []
+    mods = [[m, 0, 0, 0] for m in mod_names]
+    for p in paths:
+        n = files[p]
+        bits = 0
+        for f in n.get("flags", []):
+            bits |= FLAG_BITS.get(f, 0)
+        if p in autoload_name:
+            bits |= FLAG_AUTOLOAD
+        m = midx[module_of(p)]
+        mods[m][1] = lidx[layer_of(p)]
+        mods[m][2] += 1
+        mods[m][3] += n["loc"]
+        st = n["status"]
+        fl.append([p, m, kidx[n["kind"]], STATUSES.index(st) if st in STATUSES else 0, n["loc"],
+                   len(n.get("funcs", [])), bits, n.get("class_name") or "", n.get("extends") or "",
+                   scc_of.get(p, -1), 1 if is_code_path(p, n["kind"]) else 0,
+                   autoload_name.get(p, "")])
+    agg = {}
+    for e in graph["file_edges"]:
+        if e["src"] not in pidx or e["dst"] not in pidx:
+            continue
+        g = EDGE_GROUP_OF.get(e["kind"], 6)
+        key = (pidx[e["src"]], pidx[e["dst"]], g)
+        agg[key] = agg.get(key, 0) + 1
+    edges = [[s, d, g, c] for (s, d, g), c in sorted(agg.items())]
+    medges = module_edges(fl, edges)
+    viol = []
+    for v in cyc.get("layer_violations", []):
+        if v["src"] in pidx:
+            viol.append([pidx[v["src"]], pidx.get(v["dst"], -1), v["rule"]])
+    return {"v": 1, "generated": graph["meta"]["generated"], "layers": layers, "kinds": kinds,
+            "statuses": STATUSES, "groups": EDGE_GROUPS, "mods": mods, "files": fl, "edges": edges,
+            "medges": medges, "sccs": sccs, "viol": viol,
+            "defaults": {"tests": False, "tools": False, "addons": False, "assets": False,
+                         "groups": DEFAULT_GROUPS}}
+
+
+def module_edges(files, edges):
+    """Aggregate file edges [s,d,g,c] into folder edges [a,b,count] (a != b; count = file edges merged)."""
+    agg = {}
+    for s, d, g, c in edges:
+        a, b = files[s][1], files[d][1]
+        if a != b:
+            agg[(a, b)] = agg.get((a, b), 0) + c
+    return [[a, b, c] for (a, b), c in sorted(agg.items())]
+
+
+def render_graph_html(graph):
+    with io.open(VIEWER_TEMPLATE, "r", encoding="utf-8") as fh:
+        tpl = fh.read()
+    data = json.dumps(build_viewer_payload(graph), separators=(",", ":"), ensure_ascii=True)
+    data = data.replace("</", "<\/")
+    return tpl.replace(VIEWER_PLACEHOLDER, data)
+
+
+# --------------------------------------------------------------------------
 # CLI
 # --------------------------------------------------------------------------
 
@@ -1944,6 +2057,8 @@ def write_outputs(graph, out_dir):
         json.dump(graph, fh, separators=(",", ":"))
     with open(os.path.join(out_dir, "mindmap.html"), "w", encoding="utf-8") as fh:
         fh.write(render_html(graph))
+    with io.open(os.path.join(out_dir, "graph.html"), "w", encoding="utf-8") as fh:
+        fh.write(render_graph_html(graph))
     with open(os.path.join(out_dir, "unused.md"), "w", encoding="utf-8") as fh:
         fh.write(render_unused_md(graph, an))
     an["cycles"] = cy
@@ -1993,6 +2108,7 @@ def main(argv=None):
         len(cy["preload_sccs"]), len(cy["func_sccs"]),
         len([c for c in cy["func_sccs"] if c["class"] == "dead-island"]), len(cy["layer_violations"])))
     print("outputs: %s" % args.out)
+    print("visual map (open this): %s" % os.path.join(args.out, "graph.html"))
     return 0
 
 

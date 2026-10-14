@@ -262,6 +262,89 @@ class DepGraphTest(unittest.TestCase):
         self.assertNotIn("http://", html.replace("http://www.w3.org", ""))
 
 
+class GraphViewerPayloadTest(DepGraphTest):
+    """graph.html payload and template (Bontago-fca.117). Reuses the DepGraphTest fixture graph."""
+
+    @classmethod
+    def setUpClass(cls):
+        super(GraphViewerPayloadTest, cls).setUpClass()
+        cls.g["cycles"] = cls.cy
+        cls.pl = dep_graph.build_viewer_payload(cls.g)
+
+    def test_module_assignment_and_depth(self):
+        self.assertEqual(dep_graph.module_of("main.gd"), "(root)")
+        self.assertEqual(dep_graph.module_of("core/ai/sub/deep/X.gd"), "core/ai")
+        self.assertEqual(dep_graph.module_of("source_art/x/y/z.png"), "source_art")
+        self.assertEqual(dep_graph.module_of("autoload/Bus.gd"), "autoload")
+
+    def test_module_edges_equal_sum_of_file_edges(self):
+        pl = self.pl
+        files = pl["files"]
+        # Brute force from the raw graph: count file edges per (module a, module b).
+        want = {}
+        for e in self.g["file_edges"]:
+            a, b = dep_graph.module_of(e["src"]), dep_graph.module_of(e["dst"])
+            if a != b:
+                want[(a, b)] = want.get((a, b), 0) + 1
+        got = {}
+        for a, b, c in pl["medges"]:
+            got[(pl["mods"][a][0], pl["mods"][b][0])] = c
+        self.assertEqual(got, want)
+        self.assertTrue(want, "fixture should have cross-folder edges")
+        # Folder file counts and LOC are sums of their files.
+        for i, m in enumerate(pl["mods"]):
+            members = [f for f in files if f[1] == i]
+            self.assertEqual(m[2], len(members))
+            self.assertEqual(m[3], sum(f[4] for f in members))
+
+    def test_file_edges_merge_without_loss(self):
+        total = sum(c for _, _, _, c in self.pl["edges"])
+        self.assertEqual(total, len(self.g["file_edges"]))
+
+    def test_filter_defaults(self):
+        d = self.pl["defaults"]
+        self.assertFalse(d["tests"])
+        self.assertFalse(d["tools"])
+        self.assertFalse(d["assets"])
+        self.assertEqual(len(d["groups"]), len(dep_graph.EDGE_GROUPS))
+        self.assertEqual(d["groups"][dep_graph.EDGE_GROUPS.index("dynamic")], 0)
+        self.assertEqual(d["groups"][dep_graph.EDGE_GROUPS.index("extends")], 1)
+        by_path = dict((f[0], f) for f in self.pl["files"])
+        self.assertEqual(by_path["main.gd"][10], 1)
+        self.assertEqual(by_path["art/icon.png"][10], 0)
+
+    def test_scc_flags_copied_to_nodes(self):
+        by_path = dict((f[0], f) for f in self.pl["files"])
+        self.assertTrue(self.cy["file_sccs"], "fixture has a file cycle")
+        for sid, c in enumerate(self.cy["file_sccs"]):
+            self.assertEqual(self.pl["sccs"][sid], [c["size"], c["class"]])
+            for m in c["members"]:
+                self.assertEqual(by_path[m][9], sid)
+                self.assertTrue(by_path[m][6] & dep_graph.FLAG_BITS["cycle"], m)
+        for p, f in by_path.items():
+            if f[9] < 0:
+                self.assertFalse(f[6] & dep_graph.FLAG_BITS["cycle"], p)
+        for name, path in self.g["autoloads"].items():
+            self.assertTrue(by_path[path][6] & dep_graph.FLAG_AUTOLOAD)
+            self.assertEqual(by_path[path][11], name)
+
+    def test_template_filled_and_size_bounded(self):
+        html = dep_graph.render_graph_html(self.g)
+        self.assertNotIn(dep_graph.VIEWER_PLACEHOLDER, html)
+        self.assertIn("main.gd", html)
+        self.assertNotIn("http://", html)
+        self.assertNotIn("https://", html)
+        self.assertLess(len(html), 5 * 1024 * 1024)
+        with open(dep_graph.VIEWER_TEMPLATE) as fh:
+            self.assertIn(dep_graph.VIEWER_PLACEHOLDER, fh.read())
+
+    def test_graph_html_written(self):
+        out = os.path.join(self.tmp, "_out_viewer")
+        dep_graph.write_outputs(self.g, out)
+        self.assertTrue(os.path.getsize(os.path.join(out, "graph.html")) > 0)
+        self.assertTrue(os.path.getsize(os.path.join(out, "mindmap.html")) > 0)
+
+
 FIXTURE_FP = {
     "project.godot": '[application]\nrun/main_scene="res://main.gd"\n',
     ".gutconfig.json": "{}",

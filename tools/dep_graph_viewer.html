@@ -1,0 +1,764 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Stackfall dependency map</title>
+<!-- Template for tools/dep_graph.py (Bontago-fca.117): the payload placeholder below is replaced by JSON.
+     Self-contained: no network, no libraries. Canvas + a small force simulation (Barnes-Hut repulsion). -->
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#12151c;color:#d6dbe6;font:12px/1.4 Segoe UI,Helvetica,Arial,sans-serif;overflow:hidden}
+#top{position:absolute;left:0;right:0;top:0;height:38px;background:#1a1f2b;border-bottom:1px solid #2b3345;display:flex;align-items:center;gap:10px;padding:0 10px;z-index:5}
+#top b{font-size:13px;color:#fff}
+#crumbs{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#crumbs a{color:#7fb8ff;cursor:pointer}
+#crumbs a:hover{text-decoration:underline}
+button{background:#27304a;color:#d6dbe6;border:1px solid #3a4666;border-radius:4px;padding:3px 9px;cursor:pointer;font:inherit}
+button:hover{background:#34406a}button:disabled{opacity:.4;cursor:default}
+#search{width:250px;background:#10131a;color:#fff;border:1px solid #3a4666;border-radius:4px;padding:4px 8px;font:inherit}
+#results{position:absolute;top:34px;right:10px;width:420px;max-height:340px;overflow:auto;background:#1a1f2b;border:1px solid #3a4666;display:none;z-index:9}
+#results div{padding:3px 8px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#results div:hover,#results div.on{background:#2d3a5f}
+#left{position:absolute;left:0;top:38px;bottom:0;width:206px;background:#161a24;border-right:1px solid #2b3345;padding:8px 10px;overflow:auto;z-index:4}
+#side{position:absolute;right:0;top:38px;bottom:0;width:310px;background:#161a24;border-left:1px solid #2b3345;padding:8px 10px;overflow:auto;z-index:4}
+h4{margin:10px 0 4px;color:#8fa0c4;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+h4:first-child{margin-top:0}
+label{display:block;cursor:pointer;white-space:nowrap}
+label i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+label i.sq{border-radius:2px}label i.ln{height:3px;border-radius:0;vertical-align:3px;width:14px}
+.leg{display:flex;align-items:center;margin:1px 0;color:#aab3c8}
+.leg i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+#c{position:absolute;left:206px;top:38px;width:calc(100% - 516px);height:calc(100% - 38px);display:block;cursor:grab}
+#tip{position:absolute;pointer-events:none;background:#000c;border:1px solid #445;border-radius:3px;padding:2px 6px;display:none;z-index:8;white-space:nowrap}
+.kv{display:grid;grid-template-columns:86px 1fr;gap:1px 6px}.kv span:nth-child(odd){color:#8fa0c4}
+.nb{display:flex;justify-content:space-between;gap:6px;padding:1px 0}
+.nb a{color:#7fb8ff;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nb a:hover{text-decoration:underline}
+.nb em{font-style:normal;color:#8fa0c4}
+.tag{display:inline-block;padding:0 5px;border-radius:3px;background:#2d3a5f;margin:0 3px 3px 0}
+.tag.red{background:#7a2230}.tag.gold{background:#6b5a14}.tag.grey{background:#3a3f4b}
+small{color:#8fa0c4}
+</style></head><body>
+<div id="top"><b>Stackfall dependencies</b><div id="crumbs"></div>
+<button id="back" title="collapse the last expanded folder">Back</button><button id="fit">Fit</button>
+<input id="search" placeholder="search path or class_name" autocomplete="off"><div id="results"></div></div>
+<div id="left"></div><canvas id="c"></canvas><div id="side"></div><div id="tip"></div>
+<script>
+const DATA = __DEPGRAPH_PAYLOAD__;
+</script>
+<script>
+(function () {
+"use strict";
+const D = DATA;
+const F = {PATH: 0, MOD: 1, KIND: 2, ST: 3, LOC: 4, NF: 5, FLAGS: 6, CLS: 7, EXT: 8, SCC: 9, CODE: 10, AUTO: 11};
+const FL_CYCLE = 1, FL_PRELOAD = 2, FL_LAYER = 4, FL_DEAD = 8, FL_AUTO = 16;
+const files = D.files, mods = D.mods, edges = D.edges, nf = files.length, nm = mods.length;
+const NUM_ITERS = {big: 90, mid: 150, small: 260};
+const PAL = {game: "#ff8a5c", core: "#4fc3f7", config: "#ffd54f", autoload: "#c77dff", net: "#7bd88f", ui: "#f06292",
+  vfx: "#4dd0c4", shaders: "#9d86ff", assets: "#b08968", tests: "#6c8ba0", tools: "#a6916f", source_art: "#8a6a58",
+  docs: "#c0c0c0", "(root)": "#eeeeee", addons: "#d4a5a5"};
+function layerColor(name) {
+  if (PAL[name]) return PAL[name];
+  let h = 0; for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % 360;
+  return "hsl(" + h + ",55%,60%)";
+}
+const layerName = (m) => D.layers[mods[m][1]];
+const layerCol = D.layers.map(layerColor);
+const GROUP_COL = ["#c792ea", "#82aaff", "#7f8aa8", "#ffcb6b", "#89ddff", "#555e78", "#a0a0a0"];
+const GROUP_LABEL = ["extends", "preload / load path", "class usage", "autoload", "scene / resource", "dynamic (res:// patterns)", "project config"];
+const COL_OUT = "#ff9f43", COL_IN = "#35d0ff", COL_CYC = "#ff3b4e", COL_VIOL = "#ff2a6d", COL_AUTO = "#ffd400";
+const STATUS_NOTE = {"root": "root (project config)", "live": "live", "dynamic-only": "dynamic-only (reachable only via string-built paths)",
+  "test-tool-root": "test/tool root", "test-tool-only": "test-only (only tests/tools use it)", "unreachable": "unreachable"};
+
+const filesByMod = []; for (let m = 0; m < nm; m++) filesByMod.push([]);
+for (let i = 0; i < nf; i++) filesByMod[files[i][F.MOD]].push(i);
+const fout = [], fin = []; for (let i = 0; i < nf; i++) { fout.push([]); fin.push([]); }
+for (const e of edges) { fout[e[0]].push(e); fin[e[1]].push(e); }
+const pathIndex = new Map(); for (let i = 0; i < nf; i++) pathIndex.set(files[i][F.PATH], i);
+const modIndex = new Map(); for (let m = 0; m < nm; m++) modIndex.set(mods[m][0], m);
+const baseName = (p) => p.slice(p.lastIndexOf("/") + 1);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+
+const S = {
+  filters: {tests: D.defaults.tests, tools: D.defaults.tools, addons: D.defaults.addons, assets: D.defaults.assets},
+  groups: D.defaults.groups.slice(),
+  modes: {cycles: false, unused: false, autoload: true, viol: false},
+  expanded: [], sel: null, hover: null,
+};
+const view = {x: 0, y: 0, k: 1, tx: 0, ty: 0, tk: 1, animate: false};
+const canvas = document.getElementById("c"), ctx = canvas.getContext("2d");
+let W = 100, H = 100, DPR = 1, dirty = true;
+
+// ---------------------------------------------------------------- model state
+let units = [], unitOfFile = new Int32Array(nf), unitOfMod = new Int32Array(nm), uedges = [], uout = [], uin = [];
+let modStats = [];
+const posCache = new Map(), modPos = new Map();
+const sim = {alpha: 0, running: false};
+
+function fileVisible(i) {
+  const f = files[i], layer = layerName(f[F.MOD]);
+  if (!f[F.CODE] && !S.filters.assets) return false;
+  if (layer === "tests" && !S.filters.tests) return false;
+  if ((layer === "tools" || layer === "source_art") && !S.filters.tools) return false;
+  if (layer === "addons" && !S.filters.addons) return false;
+  return true;
+}
+function fileRadius(i) {
+  const f = files[i]; return f[F.LOC] > 0 ? Math.min(15, 3.5 + Math.sqrt(f[F.LOC]) * 0.34) : 3.2;
+}
+function modRadius(m, st) { return 9 + Math.sqrt(st.loc + 18 * st.n) * 0.95; }
+
+function sectorSpawn(m) {
+  // initial module position: an angular sector per layer, so related folders start together.
+  const li = mods[m][1], nl = D.layers.length;
+  const ang = (li / nl) * Math.PI * 2 + (m % 7) * 0.18, rad = 260 + (m * 53 % 160);
+  return {x: Math.cos(ang) * rad, y: Math.sin(ang) * rad};
+}
+
+function rebuild() {
+  // remember where things were
+  const cen = new Map();
+  for (const u of units) {
+    posCache.set(u.id, {x: u.x, y: u.y});
+    if (u.type === "m") modPos.set(u.idx, {x: u.x, y: u.y});
+    else { const c = cen.get(u.mod) || {x: 0, y: 0, n: 0}; c.x += u.x; c.y += u.y; c.n++; cen.set(u.mod, c); }
+  }
+  for (const [m, c] of cen) modPos.set(m, {x: c.x / c.n, y: c.y / c.n});
+  modStats = [];
+  for (let m = 0; m < nm; m++) modStats.push({n: 0, loc: 0, unr: 0, dyn: 0, cyc: 0, auto: 0, viol: 0});
+  const vis = new Uint8Array(nf);
+  for (let i = 0; i < nf; i++) {
+    if (!fileVisible(i)) continue;
+    vis[i] = 1;
+    const f = files[i], st = modStats[f[F.MOD]], s = D.statuses[f[F.ST]];
+    st.n++; st.loc += f[F.LOC];
+    if (s === "unreachable" || s === "test-tool-only") st.unr++; else if (s === "dynamic-only") st.dyn++;
+    if (f[F.FLAGS] & FL_CYCLE) st.cyc++;
+    if (f[F.FLAGS] & FL_AUTO) st.auto++;
+    if (f[F.FLAGS] & FL_LAYER) st.viol++;
+  }
+  units = []; unitOfFile.fill(-1); unitOfMod.fill(-1);
+  const exp = new Set(S.expanded);
+  for (let m = 0; m < nm; m++) {
+    const st = modStats[m]; if (!st.n) continue;
+    if (exp.has(m)) {
+      let k = 0;
+      for (const i of filesByMod[m]) if (vis[i]) { makeUnit("f", i, m, k++); }
+    } else makeUnit("m", m, m, 0);
+  }
+  function makeUnit(type, idx, m, k) {
+    const id = type + idx, p = posCache.get(id);
+    const u = {id, type, idx, mod: m, x: 0, y: 0, vx: 0, vy: 0, fx: null, fy: null, r: 0, col: layerCol[mods[m][1]]};
+    if (type === "m") u.r = modRadius(m, modStats[m]); else u.r = fileRadius(idx);
+    if (p) { u.x = p.x; u.y = p.y; }
+    else {
+      const mp = modPos.get(m) || sectorSpawn(m);
+      if (type === "m") { u.x = mp.x; u.y = mp.y; }
+      else { const a = k * 2.399963, rr = 12 * Math.sqrt(k + 1); u.x = mp.x + Math.cos(a) * rr; u.y = mp.y + Math.sin(a) * rr; }
+    }
+    u.n = units.length; units.push(u);
+    if (type === "m") unitOfMod[m] = u.n; else unitOfFile[idx] = u.n;
+  }
+  const uf = (i) => { const f = files[i]; if (!vis[i]) return -1; return exp.has(f[F.MOD]) ? unitOfFile[i] : unitOfMod[f[F.MOD]]; };
+  const U = units.length, emap = new Map();
+  for (const e of edges) {
+    const g = e[2]; if (!S.groups[g]) continue;
+    const a = uf(e[0]), b = uf(e[1]); if (a < 0 || b < 0 || a === b) continue;
+    const key = a * U + b; let ent = emap.get(key);
+    if (!ent) { ent = {a, b, c: 0, cyc: 0, viol: 0}; emap.set(key, ent); }
+    ent.c += e[3];
+    const fa = files[e[0]], fb = files[e[1]];
+    if (g !== 5 && fa[F.SCC] >= 0 && fa[F.SCC] === fb[F.SCC]) ent.cyc += e[3];
+  }
+  for (const v of D.viol) {
+    if (v[1] < 0) continue;
+    const a = uf(v[0]), b = uf(v[1]); const ent = emap.get(a * U + b); if (ent) ent.viol++;
+  }
+  uedges = Array.from(emap.values());
+  uout = units.map(() => []); uin = units.map(() => []);
+  uedges.forEach((e, i) => { uout[e.a].push(i); uin[e.b].push(i); });
+  if (S.sel && !unitById(S.sel)) S.sel = null;
+  dirty = true;
+}
+const unitById = (id) => { for (const u of units) if (u.id === id) return u; return null; };
+
+// ---------------------------------------------------------------- force simulation
+function warm(extra) {
+  sim.alpha = Math.max(sim.alpha, extra === undefined ? 1 : extra); sim.running = true;
+  const n = units.length, iters = n > 500 ? NUM_ITERS.big : n > 120 ? NUM_ITERS.mid : NUM_ITERS.small;
+  const t0 = performance.now();
+  for (let i = 0; i < iters && sim.running; i++) { tick(); if (performance.now() - t0 > 400) break; }
+  dirty = true;
+}
+function wake(a) { sim.alpha = Math.max(sim.alpha, a); sim.running = true; }
+
+function buildTree(pts) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const p of pts) { if (p.x < x0) x0 = p.x; if (p.y < y0) y0 = p.y; if (p.x > x1) x1 = p.x; if (p.y > y1) y1 = p.y; }
+  const s = Math.max(x1 - x0, y1 - y0, 1) + 2;
+  const root = {x: x0 - 1, y: y0 - 1, s, m: 0, cx: 0, cy: 0, k: null, p: null};
+  for (const p of pts) insert(root, p, 0);
+  return root;
+}
+function insert(nd, p, depth) {
+  const m = p.r + 3;
+  nd.cx = (nd.cx * nd.m + p.x * m) / (nd.m + m); nd.cy = (nd.cy * nd.m + p.y * m) / (nd.m + m); nd.m += m;
+  if (!nd.k && nd.p === null) { nd.p = p; return; }
+  if (!nd.k) {
+    if (depth > 24) { return; }
+    nd.k = [null, null, null, null];
+    const old = nd.p; nd.p = null; place(nd, old, depth);
+  }
+  place(nd, p, depth);
+}
+function place(nd, p, depth) {
+  const h = nd.s / 2, qx = p.x >= nd.x + h ? 1 : 0, qy = p.y >= nd.y + h ? 1 : 0, q = qy * 2 + qx;
+  let c = nd.k[q];
+  if (!c) { c = nd.k[q] = {x: nd.x + qx * h, y: nd.y + qy * h, s: h, m: 0, cx: 0, cy: 0, k: null, p: null}; }
+  // aggregate for the child is added by insert()
+  insert(c, p, depth + 1);
+}
+const CHARGE = 130, THETA = 0.85;
+function repel(nd, u) {
+  if (!nd.m) return;
+  const dx = nd.cx - u.x, dy = nd.cy - u.y; let d2 = dx * dx + dy * dy;
+  if (!nd.k) {
+    if (nd.p === u) return;
+    if (d2 < 1) { u.vx += (Math.random() - 0.5); u.vy += (Math.random() - 0.5); return; }
+  } else if (nd.s * nd.s / d2 >= THETA * THETA) {
+    for (const c of nd.k) if (c) repel(c, u);
+    return;
+  }
+  const dd = Math.max(d2, 400), f = CHARGE * (u.r + 3) * nd.m / (dd * Math.sqrt(dd)) * sim.alpha * 8;
+  u.vx -= dx * f; u.vy -= dy * f;
+}
+
+function tick() {
+  const n = units.length; if (!n) { sim.running = false; return; }
+  const a = sim.alpha;
+  const tree = buildTree(units);
+  for (const u of units) repel(tree, u);
+  // springs
+  for (const e of uedges) {
+    const A = units[e.a], B = units[e.b];
+    let dx = B.x - A.x, dy = B.y - A.y, d = Math.sqrt(dx * dx + dy * dy) || 0.01;
+    const rest = A.r + B.r + 50 + 130 / (1 + Math.log2(1 + e.c));
+    const k = 0.03 * Math.min(1, 0.25 + Math.log2(1 + e.c) * 0.18) * a * 2.5;
+    const f = (d - rest) * k / d;
+    dx *= f; dy *= f;
+    const wa = B.r / (A.r + B.r), wb = A.r / (A.r + B.r);
+    A.vx += dx * wa * 2; A.vy += dy * wa * 2; B.vx -= dx * wb * 2; B.vy -= dy * wb * 2;
+  }
+  // layer cohesion + file cohesion + centre gravity
+  const lc = new Map(), mc = new Map();
+  for (const u of units) {
+    const li = mods[u.mod][1];
+    let c = lc.get(li); if (!c) { c = {x: 0, y: 0, n: 0}; lc.set(li, c); } c.x += u.x; c.y += u.y; c.n++;
+    if (u.type === "f") { let q = mc.get(u.mod); if (!q) { q = {x: 0, y: 0, n: 0}; mc.set(u.mod, q); } q.x += u.x; q.y += u.y; q.n++; }
+  }
+  for (const u of units) {
+    const c = lc.get(mods[u.mod][1]);
+    if (c.n > 1) { u.vx += (c.x / c.n - u.x) * 0.012 * a; u.vy += (c.y / c.n - u.y) * 0.012 * a; }
+    if (u.type === "f") { const q = mc.get(u.mod); u.vx += (q.x / q.n - u.x) * 0.06 * a; u.vy += (q.y / q.n - u.y) * 0.06 * a; }
+    const gk = (uout[u.n].length + uin[u.n].length) ? 0.006 : 0.05; u.vx -= u.x * gk * a; u.vy -= u.y * gk * a;
+  }
+  // keep other nodes out of an expanded folder's outline
+  for (const m of S.expanded) {
+    const q = mc.get(m); if (!q) continue;
+    const cx = q.x / q.n, cy = q.y / q.n; let hr = 0;
+    for (const u of units) if (u.type === "f" && u.mod === m) hr = Math.max(hr, Math.hypot(u.x - cx, u.y - cy) + u.r);
+    hr += 16;
+    for (const u of units) {
+      if (u.type === "f" && u.mod === m) continue;
+      const dx = u.x - cx, dy = u.y - cy, d = Math.hypot(dx, dy) || 1, over = hr + u.r + 6 - d;
+      if (over > 0) { u.vx += dx / d * over * 0.25; u.vy += dy / d * over * 0.25; }
+    }
+  }
+  // collisions on a grid
+  collide();
+  for (const u of units) {
+    if (u.fx !== null) { u.x = u.fx; u.y = u.fy; u.vx = u.vy = 0; continue; }
+    u.vx *= 0.62; u.vy *= 0.62;
+    const sp = Math.hypot(u.vx, u.vy); if (sp > 60) { u.vx *= 60 / sp; u.vy *= 60 / sp; }
+    u.x += u.vx; u.y += u.vy;
+  }
+  sim.alpha *= 0.972;
+  if (sim.alpha < 0.012) { sim.alpha = 0; sim.running = false; }
+}
+function collide() {
+  const cell = 56, grid = new Map(), n = units.length, stamp = new Int32Array(n).fill(-1);
+  for (let i = 0; i < n; i++) {
+    const u = units[i], x0 = Math.floor((u.x - u.r) / cell), x1 = Math.floor((u.x + u.r) / cell);
+    const y0 = Math.floor((u.y - u.r) / cell), y1 = Math.floor((u.y + u.r) / cell);
+    for (let gx = x0; gx <= x1; gx++) for (let gy = y0; gy <= y1; gy++) {
+      const key = gx * 100003 + gy; let l = grid.get(key); if (!l) { l = []; grid.set(key, l); } l.push(i);
+    }
+  }
+  for (let i = 0; i < n; i++) {
+    const A = units[i], pad = A.type === "m" ? 10 : 3;
+    const x0 = Math.floor((A.x - A.r - pad) / cell), x1 = Math.floor((A.x + A.r + pad) / cell);
+    const y0 = Math.floor((A.y - A.r - pad) / cell), y1 = Math.floor((A.y + A.r + pad) / cell);
+    for (let gx = x0; gx <= x1; gx++) for (let gy = y0; gy <= y1; gy++) {
+      const l = grid.get(gx * 100003 + gy); if (!l) continue;
+      for (const j of l) {
+        if (j <= i || stamp[j] === i) continue; stamp[j] = i;
+        const B = units[j];
+        let dx = B.x - A.x, dy = B.y - A.y, d = Math.sqrt(dx * dx + dy * dy);
+        const min = A.r + B.r + pad;
+        if (d >= min) continue;
+        if (d < 0.01) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; d = Math.sqrt(dx * dx + dy * dy); }
+        const push = (min - d) / d * 0.5, wa = B.r / (A.r + B.r), wb = A.r / (A.r + B.r);
+        A.vx -= dx * push * wa; A.vy -= dy * push * wa; B.vx += dx * push * wb; B.vy += dy * push * wb;
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------- view helpers
+function resize() {
+  DPR = window.devicePixelRatio || 1;
+  const r = canvas.getBoundingClientRect(); W = Math.max(50, r.width); H = Math.max(50, r.height);
+  canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR); dirty = true;
+}
+function bbox(list) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const u of list) { x0 = Math.min(x0, u.x - u.r); y0 = Math.min(y0, u.y - u.r); x1 = Math.max(x1, u.x + u.r); y1 = Math.max(y1, u.y + u.r); }
+  return {x0, y0, x1, y1};
+}
+function fitTo(list, snap, maxK) {
+  if (!list.length) return;
+  const b = bbox(list), bw = Math.max(b.x1 - b.x0, 40) + 170, bh = Math.max(b.y1 - b.y0, 40) + 110;
+  const k = Math.min(W / bw, H / bh, maxK || 3);
+  view.tk = k; view.tx = W / 2 - (b.x0 + b.x1) / 2 * k; view.ty = H / 2 - (b.y0 + b.y1) / 2 * k;
+  if (snap) { view.k = view.tk; view.x = view.tx; view.y = view.ty; view.animate = false; } else view.animate = true;
+  dirty = true;
+}
+function centerOn(u, k) {
+  view.tk = k || Math.max(view.k, 1.2); view.tx = W / 2 - u.x * view.tk; view.ty = H / 2 - u.y * view.tk; view.animate = true; dirty = true;
+}
+const toWorld = (px, py) => ({x: (px - view.x) / view.k, y: (py - view.y) / view.k});
+function hit(px, py) {
+  const w = toWorld(px, py);
+  for (let i = units.length - 1; i >= 0; i--) {
+    const u = units[i], dx = w.x - u.x, dy = w.y - u.y, r = u.r + 2 / view.k;
+    if (dx * dx + dy * dy <= r * r) return u;
+  }
+  return null;
+}
+function hullOf(m) {
+  let sx = 0, sy = 0, n = 0;
+  for (const u of units) if (u.type === "f" && u.mod === m) { sx += u.x; sy += u.y; n++; }
+  if (!n) return null;
+  const cx = sx / n, cy = sy / n; let r = 0;
+  for (const u of units) if (u.type === "f" && u.mod === m) r = Math.max(r, Math.hypot(u.x - cx, u.y - cy) + u.r);
+  return {x: cx, y: cy, r: r + 16};
+}
+
+// ---------------------------------------------------------------- drawing
+function unitDim(u, selSet) { return selSet && !selSet.has(u.n); }
+function nodeFill(u) {
+  if (S.modes.unused) {
+    if (u.type === "f") {
+      const s = D.statuses[files[u.idx][F.ST]];
+      if (s === "unreachable" || s === "test-tool-only") return "#4a4f5c";
+      if (s === "dynamic-only") return shade(u.col, 0.55);
+    }
+  }
+  return u.col;
+}
+const shadeCache = new Map(), shadeCtx = document.createElement("canvas").getContext("2d");
+function shade(col, f) {
+  const key = col + f; if (shadeCache.has(key)) return shadeCache.get(key);
+  const out = shadeRaw(col, f); shadeCache.set(key, out); return out;
+}
+function shadeRaw(col, f) {
+  const c = shadeCtx; c.fillStyle = col; const v = c.fillStyle;
+  const m = /^#(..)(..)(..)$/.exec(v); if (!m) return col;
+  const r = parseInt(m[1], 16), g = parseInt(m[2], 16), b = parseInt(m[3], 16), gr = 80;
+  return "rgb(" + Math.round(r * f + gr * (1 - f)) + "," + Math.round(g * f + gr * (1 - f)) + "," + Math.round(b * f + gr * (1 - f)) + ")";
+}
+function drawEdge(e, color, lw, alpha) {
+  const A = units[e.a], B = units[e.b];
+  const dx = B.x - A.x, dy = B.y - A.y, len = Math.hypot(dx, dy) || 1;
+  const bend = Math.min(0.14 * len, 60), nx = -dy / len, ny = dx / len;
+  const mx = (A.x + B.x) / 2 + nx * bend, my = (A.y + B.y) / 2 + ny * bend;
+  // shorten both ends to the node borders along the curve's end tangents
+  let sx = mx - A.x, sy = my - A.y, sl = Math.hypot(sx, sy) || 1; sx /= sl; sy /= sl;
+  let tx = B.x - mx, ty = B.y - my, tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+  const x0 = A.x + sx * (A.r + 1), y0 = A.y + sy * (A.r + 1), x1 = B.x - tx * (B.r + 1.5), y1 = B.y - ty * (B.r + 1.5);
+  ctx.globalAlpha = alpha; ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = lw;
+  ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(mx, my, x1, y1); ctx.stroke();
+  const ah = Math.min(18, 4 + lw * 1.8) / Math.min(1.6, Math.max(0.5, Math.sqrt(view.k)));
+  ctx.beginPath(); ctx.moveTo(x1, y1);
+  ctx.lineTo(x1 - tx * ah + ty * ah * 0.45, y1 - ty * ah - tx * ah * 0.45);
+  ctx.lineTo(x1 - tx * ah - ty * ah * 0.45, y1 - ty * ah + tx * ah * 0.45); ctx.closePath(); ctx.fill();
+}
+const edgeW = (c) => Math.min(7, 0.7 + Math.log2(1 + c) * 0.7);
+
+function selectionSets() {
+  if (!S.sel) return null;
+  const u = unitById(S.sel); if (!u) return null;
+  const set = new Set([u.n]), outE = new Set(uout[u.n]), inE = new Set(uin[u.n]);
+  for (const i of outE) set.add(uedges[i].b);
+  for (const i of inE) set.add(uedges[i].a);
+  return {u, set, outE, inE};
+}
+
+function draw() {
+  dirty = false;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = "#12151c"; ctx.fillRect(0, 0, W, H);
+  ctx.setTransform(DPR * view.k, 0, 0, DPR * view.k, DPR * view.x, DPR * view.y);
+  const sel = selectionSets(), k = view.k;
+  // expanded folder hulls
+  for (const m of S.expanded) {
+    const h = hullOf(m); if (!h) continue;
+    ctx.globalAlpha = 0.07; ctx.fillStyle = layerCol[mods[m][1]];
+    ctx.beginPath(); ctx.arc(h.x, h.y, h.r, 0, 6.2832); ctx.fill();
+    ctx.globalAlpha = 0.5; ctx.strokeStyle = layerCol[mods[m][1]]; ctx.lineWidth = 1.2 / k; ctx.setLineDash([6 / k, 5 / k]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.globalAlpha = 0.85; ctx.fillStyle = layerCol[mods[m][1]]; ctx.font = (13 / k) + "px Segoe UI,Arial"; ctx.textAlign = "center";
+    ctx.fillText(mods[m][0] + "/  (" + modStats[m].n + " files)", h.x, h.y - h.r - 5 / k);
+  }
+  // edges: normal pass, then highlighted pass
+  const cycMode = S.modes.cycles, violMode = S.modes.viol;
+  const baseAlpha = sel ? 0.05 : (units.length > 400 ? 0.22 : 0.35);
+  for (let i = 0; i < uedges.length; i++) {
+    const e = uedges[i];
+    if (sel && (sel.outE.has(i) || sel.inE.has(i))) continue;
+    let col = "#8294b8", al = baseAlpha;
+    if (cycMode) { if (e.cyc) { col = COL_CYC; al = sel ? 0.12 : 0.7; } else al = baseAlpha * 0.5; }
+    if (violMode && e.viol) { col = COL_VIOL; al = sel ? 0.2 : 0.95; }
+    drawEdge(e, col, Math.max(edgeW(e.c), 0.6 / k) * (units.length > 400 ? 0.6 : 1), al);
+  }
+  if (sel) {
+    for (const i of sel.inE) { const e = uedges[i]; drawEdge(e, cycMode && e.cyc ? COL_CYC : COL_IN, Math.max(edgeW(e.c), 1 / k) + 0.4, 0.92); }
+    for (const i of sel.outE) { const e = uedges[i]; drawEdge(e, cycMode && e.cyc ? COL_CYC : COL_OUT, Math.max(edgeW(e.c), 1 / k) + 0.4, 0.92); }
+  }
+  // nodes
+  const showFileLabels = k > 1.3 || units.length < 70;
+  for (const u of units) {
+    const dim = unitDim(u, sel && sel.set);
+    ctx.globalAlpha = dim ? 0.22 : 1;
+    drawNode(u);
+  }
+  ctx.globalAlpha = 1;
+  // labels
+  ctx.textAlign = "center";
+  for (const u of units) {
+    const inSel = sel && sel.set.has(u.n), isMod = u.type === "m", dim = sel && !inSel;
+    const want = isMod || showFileLabels || inSel || (S.hover === u.id) || u.id === S.sel || (u.type === "f" && files[u.idx][F.AUTO] && S.modes.autoload);
+    if (!want) continue;
+    const px = isMod ? 12.5 : 10.5;
+    let text = isMod ? mods[u.idx][0] : baseName(files[u.idx][F.PATH]);
+    if (u.type === "f" && files[u.idx][F.AUTO] && S.modes.autoload) text = files[u.idx][F.AUTO] + " (" + text + ")";
+    ctx.font = (u.id === S.sel ? "bold " : "") + (px / k) + "px Segoe UI,Arial";
+    ctx.globalAlpha = dim ? 0.25 : 1;
+    ctx.lineWidth = 3 / k; ctx.strokeStyle = "#12151c"; ctx.strokeText(text, u.x, u.y + u.r + (px + 1) / k);
+    ctx.fillStyle = "#e8ecf6"; ctx.fillText(text, u.x, u.y + u.r + (px + 1) / k);
+  }
+  ctx.globalAlpha = 1;
+}
+function drawNode(u) {
+  const col = nodeFill(u), k = view.k;
+  ctx.fillStyle = col; ctx.beginPath();
+  if (u.type === "f") {
+    const kind = D.kinds[files[u.idx][F.KIND]];
+    if (kind === "scene") { const r = u.r; ctx.rect(u.x - r, u.y - r, r * 2, r * 2); }
+    else if (kind === "resource" || kind === "config") { const r = u.r * 1.3; ctx.moveTo(u.x, u.y - r); ctx.lineTo(u.x + r, u.y); ctx.lineTo(u.x, u.y + r); ctx.lineTo(u.x - r, u.y); ctx.closePath(); }
+    else ctx.arc(u.x, u.y, u.r, 0, 6.2832);
+  } else ctx.arc(u.x, u.y, u.r, 0, 6.2832);
+  ctx.fill();
+  if (u.type === "m") {
+    const st = modStats[u.idx];
+    if (S.modes.unused && st.n) {
+      const fr = st.unr / st.n; if (fr > 0) {
+        ctx.fillStyle = "#4a4f5c"; ctx.beginPath(); ctx.moveTo(u.x, u.y); ctx.arc(u.x, u.y, u.r, -1.5708, -1.5708 + fr * 6.2832); ctx.closePath(); ctx.fill();
+      }
+    }
+    ctx.globalAlpha *= 0.9; ctx.strokeStyle = "#0008"; ctx.lineWidth = 1 / k; ctx.beginPath(); ctx.arc(u.x, u.y, u.r, 0, 6.2832); ctx.stroke();
+    // file count badge
+    if (k * u.r > 14) { ctx.fillStyle = "#101319"; ctx.font = (Math.min(13, u.r * k * 0.5) / k) + "px Segoe UI,Arial"; ctx.textAlign = "center"; ctx.fillText(st.n, u.x, u.y + 4 / k); }
+  }
+  let ring = null, rw = 0;
+  if (S.modes.cycles) {
+    const hasCyc = u.type === "f" ? (files[u.idx][F.FLAGS] & FL_CYCLE) : modStats[u.idx].cyc;
+    if (hasCyc) { ring = COL_CYC; rw = u.type === "m" ? 1.5 + 4 * (modStats[u.idx].cyc / modStats[u.idx].n) : 2.5; }
+  }
+  if (S.modes.viol) {
+    const v = u.type === "f" ? (files[u.idx][F.FLAGS] & FL_LAYER) : modStats[u.idx].viol;
+    if (v) { ring = COL_VIOL; rw = 4; }
+  }
+  if (ring) { ctx.strokeStyle = ring; ctx.lineWidth = rw / k; ctx.beginPath(); ctx.arc(u.x, u.y, u.r + rw / k * 0.5 + 1 / k, 0, 6.2832); ctx.stroke(); }
+  if (S.modes.autoload) {
+    const a = u.type === "f" ? (files[u.idx][F.FLAGS] & FL_AUTO) : modStats[u.idx].auto;
+    if (a) {
+      ctx.strokeStyle = COL_AUTO; ctx.lineWidth = 2 / k; ctx.setLineDash([3 / k, 2 / k]);
+      ctx.beginPath(); ctx.arc(u.x, u.y, u.r + 4 / k + (ring ? rw / k : 0), 0, 6.2832); ctx.stroke(); ctx.setLineDash([]);
+    }
+  }
+  if (u.id === S.sel || u.id === S.hover) {
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = (u.id === S.sel ? 2.6 : 1.4) / k; ctx.beginPath(); ctx.arc(u.x, u.y, u.r + 2 / k, 0, 6.2832); ctx.stroke();
+  }
+}
+
+// ---------------------------------------------------------------- side panel
+const sideEl = document.getElementById("side");
+function neighbourList(counts, title, goto) {
+  const arr = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 12);
+  let h = "<h4>" + title + " (" + counts.size + ")</h4>";
+  if (!arr.length) return h + "<small>none with the current filters</small>";
+  for (const [k, c] of arr) h += '<div class="nb"><a data-' + goto.attr + '="' + esc(k) + '" title="' + esc(goto.name(k)) + '">' + esc(goto.name(k)) + "</a><em>" + c + "</em></div>";
+  return h;
+}
+const FILE_GOTO = {attr: "file", name: (i) => files[i][F.PATH]};
+function fileNeighbours(i, dir) {
+  const m = new Map();
+  for (const e of (dir === "out" ? fout[i] : fin[i])) {
+    if (!S.groups[e[2]]) continue; const o = dir === "out" ? e[1] : e[0]; if (o === i) continue;
+    m.set(o, (m.get(o) || 0) + e[3]);
+  }
+  return m;
+}
+function modNeighbours(m, dir) {
+  const out = new Map();
+  for (const e of D.medges) {
+    const a = dir === "out" ? e[0] : e[1], b = dir === "out" ? e[1] : e[0];
+    if (a === m && modStats[b].n) out.set(b, (out.get(b) || 0) + e[2]);
+  }
+  return out;
+}
+const MOD_GOTO = {attr: "mod", name: (m) => mods[m][0]};
+function renderSide() {
+  const u = S.sel && unitById(S.sel);
+  if (!u) { sideEl.innerHTML = "<h4>Selection</h4><small>Click a node to see its details and highlight its dependencies.<br><br>Double-click a folder to expand it into its files; Back or the breadcrumb returns. Double-click a file (or an empty spot in an expanded folder's outline) to collapse it. Drag nodes, drag background to pan, wheel to zoom.</small>" + totals(); return; }
+  let h = "";
+  if (u.type === "f") {
+    const f = files[u.idx], s = D.statuses[f[F.ST]];
+    h += "<h4>File</h4><div style='word-break:break-all;color:#fff;font-size:13px'>" + esc(f[F.PATH]) + "</div><br><div class='kv'>";
+    h += "<span>class_name</span><span>" + esc(f[F.CLS] || "-") + "</span><span>extends</span><span>" + esc(f[F.EXT] || "-") + "</span>";
+    h += "<span>kind</span><span>" + esc(D.kinds[f[F.KIND]]) + "</span><span>LOC</span><span>" + f[F.LOC] + "</span><span>functions</span><span>" + f[F.NF] + "</span>";
+    h += "<span>status</span><span>" + esc(STATUS_NOTE[s] || s) + "</span>";
+    let sc = "none";
+    if (f[F.SCC] >= 0) { const c = D.sccs[f[F.SCC]]; sc = "SCC #" + (f[F.SCC] + 1) + ", " + c[0] + " files (" + c[1] + ")"; }
+    h += "<span>cycle</span><span>" + sc + "</span></div><br>";
+    const tags = []; if (f[F.FLAGS] & FL_CYCLE) tags.push('<span class="tag red">cycle</span>'); if (f[F.FLAGS] & FL_PRELOAD) tags.push('<span class="tag red">preload-cycle</span>');
+    if (f[F.FLAGS] & FL_LAYER) tags.push('<span class="tag red">layer violation</span>'); if (f[F.FLAGS] & FL_DEAD) tags.push('<span class="tag grey">dead</span>');
+    if (f[F.FLAGS] & FL_AUTO) tags.push('<span class="tag gold">autoload ' + esc(f[F.AUTO]) + "</span>");
+    h += tags.join("") || "<small>no flags</small>";
+    h += neighbourList(fileNeighbours(u.idx, "out"), "Top outbound (this file uses)", FILE_GOTO);
+    h += neighbourList(fileNeighbours(u.idx, "in"), "Top inbound (used by)", FILE_GOTO);
+    if (!S.expanded.includes(f[F.MOD])) { }
+    h += "<br><button data-collapse='" + f[F.MOD] + "'>Collapse " + esc(mods[f[F.MOD]][0]) + "</button>";
+  } else {
+    const m = u.idx, st = modStats[m];
+    h += "<h4>Folder</h4><div style='color:#fff;font-size:13px'>" + esc(mods[m][0]) + "/</div><br><div class='kv'>";
+    h += "<span>layer</span><span>" + esc(layerName(m)) + "</span><span>files (shown)</span><span>" + st.n + " of " + mods[m][2] + "</span>";
+    h += "<span>LOC</span><span>" + st.loc + "</span><span>unreachable</span><span>" + st.unr + "</span><span>dynamic-only</span><span>" + st.dyn + "</span>";
+    h += "<span>in cycles</span><span>" + st.cyc + "</span><span>autoloads</span><span>" + st.auto + "</span></div><br>";
+    h += "<button data-expand='" + m + "'>Expand into files</button>";
+    h += neighbourList(modNeighbours(m, "out"), "Top outbound folders (all files)", MOD_GOTO);
+    h += neighbourList(modNeighbours(m, "in"), "Top inbound folders (all files)", MOD_GOTO);
+  }
+  sideEl.innerHTML = h;
+}
+function totals() {
+  let unr = 0, cyc = 0;
+  for (const f of files) { const s = D.statuses[f[F.ST]]; if (s === "unreachable") unr++; if (f[F.FLAGS] & FL_CYCLE) cyc++; }
+  return "<h4>Totals</h4><div class='kv'><span>generated</span><span>" + esc(D.generated) + "</span><span>files</span><span>" + nf + "</span><span>folders</span><span>" + nm + "</span><span>file edges</span><span>" + edges.reduce((a, e) => a + e[3], 0) + "</span><span>unreachable</span><span>" + unr + "</span><span>in file cycles</span><span>" + cyc + "</span><span>cycle groups</span><span>" + D.sccs.length + "</span><span>layer violations</span><span>" + D.viol.length + "</span></div>";
+}
+sideEl.addEventListener("click", (ev) => {
+  const t = ev.target; if (!t || !t.dataset) return;
+  if (t.dataset.file !== undefined) gotoFile(+t.dataset.file);
+  else if (t.dataset.mod !== undefined) gotoMod(+t.dataset.mod);
+  else if (t.dataset.collapse !== undefined) collapseTo(S.expanded.indexOf(+t.dataset.collapse));
+  else if (t.dataset.expand !== undefined) expand(+t.dataset.expand);
+});
+
+// ---------------------------------------------------------------- state changes
+function select(id) { S.sel = id; renderSide(); dirty = true; }
+function expand(m) {
+  if (S.expanded.includes(m)) return;
+  S.expanded.push(m); rebuild(); warm(0.7); S.sel = null; renderCrumbs(); renderSide();
+  fitTo(units.filter((u) => u.type === "f" && u.mod === m), false, 2.5);
+}
+function collapseTo(n) {
+  // keep the first n expanded folders
+  if (n < 0) n = 0; S.expanded = S.expanded.slice(0, n);
+  rebuild(); warm(0.5); renderCrumbs(); renderSide();
+  const last = S.expanded[S.expanded.length - 1];
+  if (last !== undefined) fitTo(units.filter((u) => u.type === "f" && u.mod === last), false, 2.5); else fitTo(units, false);
+}
+function ensureVisible(i) {
+  const f = files[i], layer = layerName(f[F.MOD]); let changed = false;
+  if (!f[F.CODE] && !S.filters.assets) { S.filters.assets = true; changed = true; }
+  if (layer === "tests" && !S.filters.tests) { S.filters.tests = true; changed = true; }
+  if ((layer === "tools" || layer === "source_art") && !S.filters.tools) { S.filters.tools = true; changed = true; }
+  if (layer === "addons" && !S.filters.addons) { S.filters.addons = true; changed = true; }
+  if (changed) syncFilterBoxes();
+  return changed;
+}
+function gotoFile(i, noFit) {
+  const m = files[i][F.MOD]; ensureVisible(i);
+  if (!S.expanded.includes(m)) S.expanded.push(m);
+  rebuild(); warm(0.5); renderCrumbs();
+  const u = units[unitOfFile[i]]; if (!u) return;
+  select(u.id); if (!noFit) centerOn(u, Math.max(view.k, 1.4));
+}
+function gotoMod(m) {
+  const u = units[unitOfMod[m]];
+  if (u) { select(u.id); centerOn(u, view.k); } else { const f = filesByMod[m].find((i) => unitOfFile[i] >= 0); if (f !== undefined) gotoFile(f); }
+}
+function renderCrumbs() {
+  let h = "<a data-c='0'>All folders</a>";
+  S.expanded.forEach((m, i) => { h += " &rsaquo; <a data-c='" + (i + 1) + "'>" + esc(mods[m][0]) + "</a>"; });
+  document.getElementById("crumbs").innerHTML = h;
+  document.getElementById("back").disabled = !S.expanded.length;
+}
+document.getElementById("crumbs").addEventListener("click", (e) => { if (e.target.dataset && e.target.dataset.c !== undefined) collapseTo(+e.target.dataset.c); });
+document.getElementById("back").addEventListener("click", () => collapseTo(S.expanded.length - 1));
+document.getElementById("fit").addEventListener("click", () => fitTo(units, false));
+
+// ---------------------------------------------------------------- left panel
+const leftEl = document.getElementById("left");
+function buildLeft() {
+  let h = "<h4>Show</h4>";
+  h += "<label><input type='checkbox' data-f='tests'> tests/</label><label><input type='checkbox' data-f='tools'> tools/ &amp; source_art/</label>";
+  h += "<label><input type='checkbox' data-f='addons'> addons/</label><label><input type='checkbox' data-f='assets'> assets &amp; non-code files</label>";
+  h += "<h4>Edge kinds</h4>";
+  D.groups.forEach((g, i) => { h += "<label><input type='checkbox' data-g='" + i + "'><i class='ln' style='background:" + GROUP_COL[i] + "'></i>" + GROUP_LABEL[i] + "</label>"; });
+  h += "<h4>Highlight</h4>";
+  h += "<label><input type='checkbox' data-m='cycles'><i style='background:none;border:2px solid " + COL_CYC + "'></i>cycles</label>";
+  h += "<label><input type='checkbox' data-m='unused'><i style='background:#4a4f5c'></i>unused / unreachable</label>";
+  h += "<label><input type='checkbox' data-m='autoload'><i style='background:none;border:2px dashed " + COL_AUTO + "'></i>autoloads</label>";
+  h += "<label><input type='checkbox' data-m='viol'><i style='background:none;border:2px solid " + COL_VIOL + "'></i>layer violations (" + D.viol.length + ")</label>";
+  h += "<h4>Layers (colour)</h4>";
+  const cnt = new Array(D.layers.length).fill(0); for (let m = 0; m < nm; m++) cnt[mods[m][1]] += mods[m][2];
+  D.layers.forEach((l, i) => { h += "<div class='leg'><i style='background:" + layerCol[i] + "'></i>" + esc(l) + " <small>&nbsp;" + cnt[i] + "</small></div>"; });
+  h += "<h4>Shapes / edges</h4><div class='leg'><i></i>circle: script &nbsp;&#9632; scene &nbsp;&#9670; resource</div>";
+  h += "<div class='leg'><i style='background:" + COL_OUT + "'></i>selected uses (outbound)</div><div class='leg'><i style='background:" + COL_IN + "'></i>used by (inbound)</div>";
+  h += "<div class='leg'><i style='background:#8294b8'></i>size = lines of code; edge width = edge count</div>";
+  leftEl.innerHTML = h;
+  syncFilterBoxes();
+}
+function syncFilterBoxes() {
+  for (const el of leftEl.querySelectorAll("input")) {
+    if (el.dataset.f) el.checked = S.filters[el.dataset.f]; else if (el.dataset.g) el.checked = !!S.groups[+el.dataset.g]; else if (el.dataset.m) el.checked = S.modes[el.dataset.m];
+  }
+}
+leftEl.addEventListener("change", (e) => {
+  const el = e.target;
+  if (el.dataset.f) { S.filters[el.dataset.f] = el.checked; rebuild(); warm(0.6); renderSide(); }
+  else if (el.dataset.g) { S.groups[+el.dataset.g] = el.checked ? 1 : 0; rebuild(); warm(0.4); renderSide(); }
+  else if (el.dataset.m) { S.modes[el.dataset.m] = el.checked; dirty = true; }
+});
+
+// ---------------------------------------------------------------- search
+const searchEl = document.getElementById("search"), resEl = document.getElementById("results");
+const sidx = files.map((f, i) => [i, (f[F.PATH] + " " + f[F.CLS]).toLowerCase()]);
+let hits = [], hitSel = 0;
+function runSearch() {
+  const q = searchEl.value.trim().toLowerCase();
+  if (!q) { resEl.style.display = "none"; hits = []; return; }
+  hits = [];
+  for (let m = 0; m < nm && hits.length < 40; m++) if (mods[m][0].toLowerCase().includes(q)) hits.push({mod: m, t: mods[m][0] + "/  (folder)"});
+  for (const [i, s] of sidx) { if (hits.length >= 40) break; if (s.includes(q)) hits.push({file: i, t: files[i][F.PATH] + (files[i][F.CLS] ? "  [" + files[i][F.CLS] + "]" : "")}); }
+  hitSel = 0;
+  resEl.innerHTML = hits.map((h, i) => "<div data-i='" + i + "'" + (i === 0 ? " class='on'" : "") + ">" + esc(h.t) + "</div>").join("") || "<div>no match</div>";
+  resEl.style.display = "block";
+}
+function pick(i) {
+  const h = hits[i]; if (!h) return; resEl.style.display = "none";
+  if (h.file !== undefined) gotoFile(h.file); else gotoMod(h.mod);
+}
+searchEl.addEventListener("input", runSearch);
+searchEl.addEventListener("keydown", (e) => { if (e.key === "Enter") pick(hitSel); else if (e.key === "Escape") { resEl.style.display = "none"; searchEl.blur(); } });
+resEl.addEventListener("mousedown", (e) => { const t = e.target.closest("[data-i]"); if (t) pick(+t.dataset.i); });
+
+// ---------------------------------------------------------------- mouse
+let drag = null, pan = null, moved = false;
+const tip = document.getElementById("tip");
+canvas.addEventListener("mousedown", (e) => {
+  const r = canvas.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top, u = hit(px, py);
+  moved = false;
+  if (u) { drag = {u, sx: px, sy: py}; u.fx = u.x; u.fy = u.y; wake(0.25); }
+  else { pan = {px, py, x: view.x, y: view.y}; canvas.style.cursor = "grabbing"; }
+});
+window.addEventListener("mousemove", (e) => {
+  const r = canvas.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
+  if (drag) {
+    if (Math.abs(px - drag.sx) + Math.abs(py - drag.sy) > 3) moved = true;
+    const w = toWorld(px, py); drag.u.fx = w.x; drag.u.fy = w.y; wake(0.3); dirty = true; return;
+  }
+  if (pan) { view.x = pan.x + (px - pan.px); view.y = pan.y + (py - pan.py); view.tx = view.x; view.ty = view.y; view.animate = false; moved = true; dirty = true; return; }
+  if (px < 0 || py < 0 || px > W || py > H) { tip.style.display = "none"; return; }
+  const u = hit(px, py), id = u ? u.id : null;
+  if (id !== S.hover) { S.hover = id; dirty = true; }
+  canvas.style.cursor = u ? "pointer" : "grab";
+  if (u) {
+    tip.style.display = "block"; tip.style.left = (e.clientX + 14) + "px"; tip.style.top = (e.clientY + 10) + "px";
+    tip.textContent = u.type === "m" ? mods[u.idx][0] + "/  " + modStats[u.idx].n + " files, " + modStats[u.idx].loc + " LOC" : files[u.idx][F.PATH] + "  (" + files[u.idx][F.LOC] + " LOC)";
+  } else tip.style.display = "none";
+});
+window.addEventListener("mouseup", () => {
+  if (drag) {
+    const u = drag.u; u.fx = u.fy = null;
+    if (!moved) select(u.id);
+    drag = null;
+  } else if (pan) { pan = null; canvas.style.cursor = "grab"; if (!moved) select(null); }
+});
+canvas.addEventListener("dblclick", (e) => {
+  const r = canvas.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top, u = hit(px, py);
+  if (u) { if (u.type === "m") expand(u.idx); else collapseTo(S.expanded.indexOf(u.mod)); return; }
+  const w = toWorld(px, py);
+  for (const m of S.expanded) { const h = hullOf(m); if (h && Math.hypot(w.x - h.x, w.y - h.y) < h.r) { collapseTo(S.expanded.indexOf(m)); return; } }
+});
+canvas.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const r = canvas.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
+  const f = Math.exp(-e.deltaY * 0.0015), nk = Math.max(0.04, Math.min(8, view.k * f)), w = toWorld(px, py);
+  view.k = nk; view.x = px - w.x * nk; view.y = py - w.y * nk; view.tk = view.k; view.tx = view.x; view.ty = view.y; view.animate = false; dirty = true;
+}, {passive: false});
+window.addEventListener("resize", () => { resize(); });
+
+// ---------------------------------------------------------------- loop and start
+function frame() {
+  if (sim.running) { tick(); if (sim.running) tick(); dirty = true; }
+  if (view.animate) {
+    view.k += (view.tk - view.k) * 0.2; view.x += (view.tx - view.x) * 0.2; view.y += (view.ty - view.y) * 0.2;
+    if (Math.abs(view.tk - view.k) < 0.002 && Math.abs(view.tx - view.x) < 0.5 && Math.abs(view.ty - view.y) < 0.5) { view.k = view.tk; view.x = view.tx; view.y = view.ty; view.animate = false; }
+    dirty = true;
+  }
+  if (dirty) draw();
+  requestAnimationFrame(frame);
+}
+function applyHash() {
+  const p = new URLSearchParams(location.hash.replace(/^#/, ""));
+  for (const k of ["tests", "tools", "addons", "assets"]) if (p.has(k)) S.filters[k] = p.get(k) !== "0";
+  for (const k of ["cycles", "unused", "autoload", "viol"]) if (p.has(k)) S.modes[k] = p.get(k) !== "0";
+  if (p.get("dynamic")) S.groups[5] = p.get("dynamic") === "0" ? 0 : 1;
+  return p;
+}
+function init() {
+  const p = applyHash();
+  buildLeft(); resize(); renderCrumbs();
+  rebuild(); warm(1);
+  const ex = p.get("expand");
+  if (ex) {
+    for (const name of ex.split(",")) { const m = modIndex.get(name); if (m !== undefined && !S.expanded.includes(m)) S.expanded.push(m); }
+    rebuild(); warm(0.8); renderCrumbs();
+  }
+  fitTo(units, true);
+  if (ex && S.expanded.length) {
+    const last = S.expanded[S.expanded.length - 1];
+    fitTo(units.filter((u) => u.type === "f" && u.mod === last), true, 2.5);
+  }
+  const sel = p.get("sel");
+  if (sel) {
+    if (sel.startsWith("mod:")) { const m = modIndex.get(sel.slice(4)); if (m !== undefined) { const u = units[unitOfMod[m]]; if (u) select(u.id); } }
+    else { const i = pathIndex.get(sel); if (i !== undefined) { gotoFile(i, true); } }
+    if (p.get("zoomsel") && S.sel) { const u = unitById(S.sel); if (u) { view.k = view.tk = 1.6; view.x = view.tx = W / 2 - u.x * 1.6; view.y = view.ty = H / 2 - u.y * 1.6; } }
+  }
+  renderSide(); draw();
+  window.__depgraphReady = true;
+  requestAnimationFrame(frame);
+}
+init();
+})();
+</script></body></html>
