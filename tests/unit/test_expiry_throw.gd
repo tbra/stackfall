@@ -300,7 +300,7 @@ func test_bot_bomb_release_point_lands_within_tolerance_on_small_medium_and_larg
 	for step: int in range(-69, 71):
 		points.append(Vector2(float(step), 0.0))
 	var enemies: PackedVector2Array = PackedVector2Array([cluster])
-	for radius: float in [MapDef.RADIUS_SMALL, MapDef.RADIUS_MEDIUM, MapDef.RADIUS_LARGE]:
+	for radius: float in [MapDef.RADIUS_MEDIUM * 0.75, MapDef.RADIUS_MEDIUM, MapDef.RADIUS_LARGE]:
 		var range_m: float = GiftAim.flat_range(t, GiftAim.range_scale(radius, t), GRAVITY)
 		var action: BotSpecialPlanner.BotSpecialAction = BotSpecialPlanner.plan(
 			&"bomb", Vector2.ZERO, points, enemies, PackedVector2Array(), MatchConfig.AiDifficulty.HARD,

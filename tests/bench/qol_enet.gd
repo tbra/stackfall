@@ -153,7 +153,7 @@ func _run_host() -> void:
 		get_tree().quit(2)
 		return
 	await _wait(JOIN_SETTLE_S)
-	var map_def: MapDef = MapDef.for_size(MapDef.MapSize.SMALL)
+	var map_def: MapDef = MapDef.base().scaled(0.75)
 	_field = (load("res://game/Field.tscn") as PackedScene).instantiate() as Field
 	_field.map_def = map_def
 	add_child(_field)
@@ -175,7 +175,7 @@ func _run_host() -> void:
 func _host_cell(cell: int) -> void:
 	var mask: int = CELL_MASKS[cell]
 	var config: MatchConfig = (load("res://config/match_defaults.tres") as MatchConfig).duplicate(true) as MatchConfig
-	config.map_size = MapDef.MapSize.SMALL
+	config.disc_size_step = 1
 	config.player_count = SLOTS
 	config.hot_seat = false
 	config.block_timer = BLOCK_TIMER_S

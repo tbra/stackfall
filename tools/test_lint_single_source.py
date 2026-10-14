@@ -27,7 +27,7 @@ CASES = {
                     "ui/InputGlyph.gd", None),
     "GLYPH_TEXT": ("ui/Hint.gd", 'label.text = "Press Enter to start"\n',
                    "ui/InputGlyph.gd", "core/Hint.gd"),
-    "ENUM_LABEL": ("ui/Pick.gd", 'var n: String = MapDef.MapSize.keys()[i]\n',
+    "ENUM_LABEL": ("ui/Pick.gd", 'var n: String = MatchConfig.TeamMode.keys()[i]\n',
                    "config/MapDef.gd", "core/Pick.gd"),
     "CAPITALIZE_ID": ("ui/Name.gd", 'var n: String = String(id).capitalize()\n',
                       "core/rules/DisplayNames.gd", "core/Name.gd"),

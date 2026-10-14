@@ -14,13 +14,10 @@ extends GutTest
 ## test_match_net.gd: every assertion is about the block the host actually spawned.
 
 const MatchNetScript := preload("res://net/MatchNet.gd")
-const MAPS_DIR: String = "res://config/maps/"
-## One map per MapDef size (small / medium / large), built at its real radius so
-## "every map size" is exercised, not a shrunk stand-in. The beacon height is a
-## constant, but flag placement, field and territory geometry are rebuilt per map.
-const SIZE_MAPS: PackedStringArray = [
-	"round_small", "round_medium", "round_large"
-]
+## Disc-size factors (config/disc_size_tuning.tres smallest, default and largest steps), built at their real
+## radius so "every disc size" is exercised, not a shrunk stand-in. The beacon height is a
+## constant, but flag placement, field and territory geometry are rebuilt per scale.
+const DISC_FACTORS: Array[float] = [0.75, 1.0, 1.75]
 const CUBE_PATH: String = "res://config/blocks/cube.tres"
 ## Float slack for comparing a spawned height against beacon top plus margin.
 const HEIGHT_EPSILON: float = 0.0001
@@ -103,10 +100,6 @@ func _start_host_match(map: MapDef) -> void:
 	assert_eq(Match.state(), Match.State.PLAYING, "fixture should reach PLAYING")
 
 
-func _load_map(map_name: String) -> MapDef:
-	return load(MAPS_DIR + map_name + ".tres") as MapDef
-
-
 ## World Y of the spawned block's real lowest point: its collision boxes sit
 ## cube_margin/2 inside the shape's nominal bottom, so the node origin alone
 ## under-reads it (same measure test_home_spawn_height.gd uses for the player).
@@ -128,10 +121,11 @@ func _home_world_position(slot_id: int, height: float = 0.0) -> Vector3:
 	return _field.to_global(Vector3(home.x, height, home.y))
 
 
-func test_afk_auto_drop_with_no_cursor_clears_the_home_beacon_on_every_map_size() -> void:
-	for map_name: String in SIZE_MAPS:
+func test_afk_auto_drop_with_no_cursor_clears_the_home_beacon_on_every_disc_size() -> void:
+	for factor: float in DISC_FACTORS:
+		var map_name: String = "disc x%.2f" % factor
 		_teardown_world()
-		_start_host_match(_load_map(map_name))
+		_start_host_match(MapDef.base().scaled(factor))
 		var margin: float = _ghost_tuning.home_spawn_beacon_margin
 		assert_true(_net.cursor_for_slot(REMOTE_SLOT).is_empty(), "%s: fixture: slot 1 never sent a cursor" % map_name)
 
@@ -151,7 +145,7 @@ func test_afk_auto_drop_with_no_cursor_clears_the_home_beacon_on_every_map_size(
 func test_the_fallback_lands_on_the_same_clearance_the_players_first_block_gets() -> void:
 	# Drift guard: PlayerController and MatchNet both derive their height from
 	# GhostTuning.home_spawn_clear_hover(), so the two lowest points must agree.
-	_start_host_match(_load_map("round_small"))
+	_start_host_match(MapDef.base().scaled(0.75))
 	var controller: PlayerController = autofree(PlayerController.new())
 	var ghost: GhostPreview = autofree(GhostPreview.new())
 	add_child_autofree(ghost)
@@ -173,7 +167,7 @@ func test_the_fallback_lands_on_the_same_clearance_the_players_first_block_gets(
 
 
 func test_fallback_height_tracks_the_margin_tunable() -> void:
-	_start_host_match(_load_map("round_small"))
+	_start_host_match(MapDef.base().scaled(0.75))
 	var margin: float = _ghost_tuning.home_spawn_beacon_margin
 	_ghost_tuning.home_spawn_beacon_margin = margin + 1.0
 	Events.feed_timer_expired.emit(REMOTE_SLOT)
@@ -190,7 +184,7 @@ func test_the_replicated_spawn_carries_the_raised_position_inside_the_wire_band(
 	# the same payload a mid-match join replays): the host's raised pose, inside
 	# the volume Quantize packs positions into, so no client ever sees the block
 	# inside the beacon or loses it to a wire-range refusal.
-	_start_host_match(_load_map("round_small"))
+	_start_host_match(MapDef.base().scaled(0.75))
 	Events.feed_timer_expired.emit(REMOTE_SLOT)
 
 	var block: Block = _blocks_root.get_child(0) as Block
@@ -204,7 +198,7 @@ func test_the_replicated_spawn_carries_the_raised_position_inside_the_wire_band(
 
 
 func test_a_cursor_derived_auto_drop_keeps_the_cursors_own_height() -> void:
-	_start_host_match(_load_map("round_small"))
+	_start_host_match(MapDef.base().scaled(0.75))
 	var where: Vector3 = _home_world_position(REMOTE_SLOT, 1.5)
 	_net._handle_cursor_update(REMOTE_PEER, REMOTE_SLOT, where, 0, Quaternion.IDENTITY)
 
@@ -215,7 +209,7 @@ func test_a_cursor_derived_auto_drop_keeps_the_cursors_own_height() -> void:
 
 
 func test_a_slot_whose_only_cursor_was_malformed_still_gets_the_raised_fallback() -> void:
-	_start_host_match(_load_map("round_small"))
+	_start_host_match(MapDef.base().scaled(0.75))
 	_net._handle_cursor_update(REMOTE_PEER, REMOTE_SLOT, _home_world_position(REMOTE_SLOT), BAD_ORIENTATION, Quaternion.IDENTITY)
 	assert_true(_net.cursor_for_slot(REMOTE_SLOT).is_empty(), "fixture: a malformed first cursor is not stored")
 

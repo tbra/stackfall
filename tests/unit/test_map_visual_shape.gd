@@ -4,8 +4,7 @@ extends GutTest
 ## TerritoryOverlay's visible mesh and the MapDef's cell coverage.
 
 const FIELD_SCENE: PackedScene = preload("res://game/Field.tscn")
-const SHAPES: Array[int] = [0]
-const SIZES: Array[int] = [0, 1, 2]
+const DISC_FACTORS: Array[float] = [0.75, 1.0, 1.25]
 ## Slack (m) on AABB comparisons: one cell plus float noise.
 const AABB_SLACK: float = 0.01
 
@@ -30,34 +29,33 @@ func _top_cell_aabb(map_def: MapDef) -> Rect2:
 	return rect
 
 
-func test_collision_and_visible_mesh_match_map_def_for_every_shipped_map() -> void:
-	for shape: int in SHAPES:
-		for size: int in SIZES:
-			var map_def: MapDef = MapDef.for_variant_and_size(shape, size as MapDef.MapSize)
-			var label: String = "%s/%d" % [str(map_def.id), size]
-			var field: Field = _field_for(map_def)
-			var expected: Rect2 = _top_cell_aabb(map_def)
+func test_collision_and_visible_mesh_match_map_def_for_every_disc_size() -> void:
+	for factor: float in DISC_FACTORS:
+		var map_def: MapDef = MapDef.base().scaled(factor)
+		var label: String = "%s x%.2f" % [str(map_def.id), factor]
+		var field: Field = _field_for(map_def)
+		var expected: Rect2 = _top_cell_aabb(map_def)
 
-			var faces: PackedVector3Array = field._disk_shape.get_faces()
-			assert_gt(faces.size(), 0, "%s: collider has faces" % label)
-			var lo: Vector2 = Vector2(INF, INF)
-			var hi: Vector2 = Vector2(-INF, -INF)
-			for v: Vector3 in faces:
-				lo = Vector2(minf(lo.x, v.x), minf(lo.y, v.z))
-				hi = Vector2(maxf(hi.x, v.x), maxf(hi.y, v.z))
-			assert_almost_eq(lo.x, expected.position.x, AABB_SLACK, "%s collider min x" % label)
-			assert_almost_eq(hi.y, expected.end.y, AABB_SLACK, "%s collider max z" % label)
-			assert_eq(field.cell_count(), field.grid().in_disk_cell_count(), "%s cells" % label)
+		var faces: PackedVector3Array = field._disk_shape.get_faces()
+		assert_gt(faces.size(), 0, "%s: collider has faces" % label)
+		var lo: Vector2 = Vector2(INF, INF)
+		var hi: Vector2 = Vector2(-INF, -INF)
+		for v: Vector3 in faces:
+			lo = Vector2(minf(lo.x, v.x), minf(lo.y, v.z))
+			hi = Vector2(maxf(hi.x, v.x), maxf(hi.y, v.z))
+		assert_almost_eq(lo.x, expected.position.x, AABB_SLACK, "%s collider min x" % label)
+		assert_almost_eq(hi.y, expected.end.y, AABB_SLACK, "%s collider max z" % label)
+		assert_eq(field.cell_count(), field.grid().in_disk_cell_count(), "%s cells" % label)
 
-			var mesh: Mesh = field.overlay().mesh
-			assert_not_null(mesh, "%s: overlay mesh" % label)
-			# Bontago-mp0.150.1: surface 0 is the playing slab; later surfaces are the rim.
-			var top_arrays: Array = (mesh as ArrayMesh).surface_get_arrays(0)
-			var box: AABB = AABB()
-			var first: bool = true
-			for vertex: Vector3 in top_arrays[Mesh.ARRAY_VERTEX]:
-				box = AABB(vertex, Vector3.ZERO) if first else box.expand(vertex)
-				first = false
-			assert_almost_eq(box.size.x, 2.0 * map_def.field_radius, AABB_SLACK, "%s: the disc slab" % label)
+		var mesh: Mesh = field.overlay().mesh
+		assert_not_null(mesh, "%s: overlay mesh" % label)
+		# Bontago-mp0.150.1: surface 0 is the playing slab; later surfaces are the rim.
+		var top_arrays: Array = (mesh as ArrayMesh).surface_get_arrays(0)
+		var box: AABB = AABB()
+		var first: bool = true
+		for vertex: Vector3 in top_arrays[Mesh.ARRAY_VERTEX]:
+			box = AABB(vertex, Vector3.ZERO) if first else box.expand(vertex)
+			first = false
+		assert_almost_eq(box.size.x, 2.0 * map_def.field_radius, AABB_SLACK, "%s: the disc slab" % label)
 
 

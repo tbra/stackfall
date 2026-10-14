@@ -3,14 +3,10 @@ extends GutTest
 ## start framing with the first ghost in hand and the HUD populated. Real Main
 ## scene on a host; the rig's begin_start_framing() is what Main calls when the
 ## ready gate opens (the headless run has no loading overlay, so it is driven
-## directly), compared with CameraTuning's configured values per map size.
+## directly), compared with CameraTuning's configured values per disc size.
 
 const MAIN_SCENE: PackedScene = preload("res://game/Main.tscn")
-const MAP_PATHS: Array[String] = [
-	"res://config/maps/round_small.tres",
-	"res://config/maps/round_medium.tres",
-	"res://config/maps/round_large.tres",
-]
+const DISC_FACTORS: Array[float] = [0.75, 1.0, 1.25]
 const POSITION_TOLERANCE_M: float = 0.01
 const HELD_SLOT: int = 0
 
@@ -56,9 +52,10 @@ func _home(slot: int) -> Vector3:
 	return Vector3.ZERO
 
 
-func test_camera_starts_in_the_final_follow_view_for_each_map_size() -> void:
-	for path: String in MAP_PATHS:
-		var map: MapDef = (load(path) as MapDef).duplicate(true)
+func test_camera_starts_in_the_final_follow_view_for_each_disc_size() -> void:
+	for factor: float in DISC_FACTORS:
+		var path: String = "disc x%.2f" % factor
+		var map: MapDef = MapDef.base().scaled(factor).duplicate(true)
 		await _start_match(map)
 		var rig: CameraRig = _main._camera_rig
 		var tuning: CameraTuning = rig.tuning
@@ -88,7 +85,7 @@ func test_camera_starts_in_the_final_follow_view_for_each_map_size() -> void:
 
 
 func test_first_gameplay_frame_has_ghost_hud_cards_and_rows() -> void:
-	var map: MapDef = (load(MAP_PATHS[0]) as MapDef).duplicate(true)
+	var map: MapDef = MapDef.base().scaled(DISC_FACTORS[0]).duplicate(true)
 	await _start_match(map)
 	var hud: HUD = _main._hot_seat.hud()
 	var ghost: GhostPreview = _main._hot_seat.ghost()
@@ -109,7 +106,7 @@ func test_first_gameplay_frame_has_ghost_hud_cards_and_rows() -> void:
 
 
 func test_client_mirror_populates_held_and_next_cards_during_the_countdown() -> void:
-	var map: MapDef = (load(MAP_PATHS[0]) as MapDef).duplicate(true)
+	var map: MapDef = MapDef.base().scaled(DISC_FACTORS[0]).duplicate(true)
 	await _start_match(map)
 	var hud: HUD = _main._hot_seat.hud()
 	hud.set_held_shape(null)
@@ -125,7 +122,7 @@ func test_client_mirror_populates_held_and_next_cards_during_the_countdown() -> 
 func test_late_bound_controller_pulls_the_held_block_into_its_ghost() -> void:
 	# The staged windowed build issues (host) / receives (client) the first block
 	# before the controller exists; binding afterwards must still fill the ghost.
-	var map: MapDef = (load(MAP_PATHS[0]) as MapDef).duplicate(true)
+	var map: MapDef = MapDef.base().scaled(DISC_FACTORS[0]).duplicate(true)
 	await _start_match(map)
 	var ghost: GhostPreview = _main._hot_seat.ghost()
 	ghost.set_shape(null)
@@ -136,7 +133,7 @@ func test_late_bound_controller_pulls_the_held_block_into_its_ghost() -> void:
 
 
 func test_hud_stats_and_minimap_are_populated_in_the_countdown() -> void:
-	var map: MapDef = (load(MAP_PATHS[0]) as MapDef).duplicate(true)
+	var map: MapDef = MapDef.base().scaled(DISC_FACTORS[0]).duplicate(true)
 	await _start_match(map)
 	var hud: HUD = _main._hot_seat.hud()
 	assert_eq(Match.state(), Match.State.COUNTDOWN)

@@ -701,9 +701,8 @@ func _sandbox_flow_port() -> MainSandboxFlowPort:
 
 
 ## Bontago-1pi.108: every mode that builds a world (match, hot-seat, sandbox, tutorial)
-## gets the same sky: the map's textured set plus the config's theme / cycle.
+## gets the same sky: the config's theme / cycle.
 func _apply_match_sky(config: MatchConfig) -> void:
-	_skybox.load_set(config.map_def().skybox_set)
 	_skybox.configure_match_sky(config)
 
 

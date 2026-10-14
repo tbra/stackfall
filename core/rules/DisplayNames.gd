@@ -28,14 +28,6 @@ static func mode_tip(mode_id: int) -> String:
 	return _pick(MODE_TIPS, mode_id)
 
 
-static func map_variant(variant: int) -> String:
-	return _enum_label(MatchConfig.MapVariant, variant)
-
-
-static func map_size(size: int) -> String:
-	return _enum_label(MapDef.MapSize, size)
-
-
 static func sky_theme(index: int) -> String:
 	return _pick(SKY_THEME_LABELS, index)
 

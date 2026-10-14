@@ -67,7 +67,7 @@ func _ready() -> void:
 	_total_ticks = int(round(RUN_SECONDS * Engine.physics_ticks_per_second))
 
 	_field = Field.new()
-	_field.map_def = MapDef.for_size(MapDef.MapSize.SMALL)
+	_field.map_def = MapDef.base().scaled(0.75)
 	add_child(_field)
 	_blocks_root = Node3D.new()
 	add_child(_blocks_root)
@@ -76,7 +76,7 @@ func _ready() -> void:
 	Match.register_world(_field, registry, _blocks_root)
 
 	var config: MatchConfig = (load("res://config/match_defaults.tres") as MatchConfig).duplicate(true) as MatchConfig
-	config.map_size = MapDef.MapSize.SMALL
+	config.disc_size_step = 1
 	config.player_count = 2
 	config.hot_seat = false
 	config.rng_seed = 20260923

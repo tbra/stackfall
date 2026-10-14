@@ -563,16 +563,6 @@ layout_mode = 2
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="MapVariantOption" type="OptionButton" parent="HiddenSources/Seats"]
-unique_name_in_owner = true
-layout_mode = 2
-visible = false
-
-[node name="MapSizeOption" type="OptionButton" parent="HiddenSources/Seats"]
-unique_name_in_owner = true
-layout_mode = 2
-visible = false
-
 [node name="MapThumbnail" type="PanelContainer" parent="HiddenSources/Seats"]
 unique_name_in_owner = true
 layout_mode = 2

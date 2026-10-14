@@ -4,38 +4,17 @@ extends Resource
 ## round field and its radius; M2 adds the cell grid the holes are cut from,
 ## the territory texture resolution, and where the home and goal flags sit.
 
-## Spec 2.8's "Map size S/M/L". The enum lives here rather than on
-## MatchConfig so that MapDef never has to reference MatchConfig, which would
-## make the two classes cyclic (MatchConfig already reaches the other way to
-## resolve its map).
-enum MapSize { SMALL, MEDIUM, LARGE }
-
-## The one map shape that ships. Bontago-fca.75 (owner decision, fca.74 = B)
-## removed oval, ring, twin and cross. MatchConfig.MapVariant is a const alias of
-## this enum; ROUND keeps ordinal 0, the only value ever stored in lobby data,
-## settings and on the wire, so every saved or networked map_variant stays valid
-## and any other int is clamped to ROUND by MatchConfig.
-enum MapShape { ROUND }
-
-const RADIUS_SMALL: float = 30.0
 const RADIUS_MEDIUM: float = 45.0
 const RADIUS_LARGE: float = 60.0
 
-## Spec 3.3: the territory texture is territory_res x territory_res, 256 for
-## S, 384 for M, 512 for L.
-const TERRITORY_RES_SMALL: int = 256
+## Spec 3.3: the territory texture is territory_res x territory_res (384 on the unscaled map).
 const TERRITORY_RES_MEDIUM: int = 384
-const TERRITORY_RES_LARGE: int = 512
+
+## The one round map; the lobby's disc-size step scales it (scaled()).
+const BASE_PATH: String = "res://config/maps/round_medium.tres"
 
 @export var id: StringName = &"round_medium"
 @export var field_radius: float = RADIUS_MEDIUM
-
-## Which placeholder six-face skybox set (config/SkyboxConfig.gd, game/Skybox.gd)
-## this map loads at match start. A name with no matching
-## assets/sky/face_sets/<set> folder just falls back to the existing
-## ProceduralSkyMaterial (see Skybox.load_set()), so this is safe to set
-## where no local face sets exist.
-@export var skybox_set: String = "beach"
 
 ## Thickness of the disk. Field builds its collision and mesh from this.
 ##
@@ -88,28 +67,10 @@ const TERRITORY_RES_LARGE: int = 512
 ## so even a dense tower puts only a handful of blocks over it.
 @export var cell_wake_max_bodies: int = 32
 
-## HISTORICAL (Bontago-ruw, 2026-09-22): Field no longer reads this. The disk
-## surface is now one ConcavePolygonShape3D trimesh (two triangles per solid
-## cell, an exact opening per hole cell), so there are no per-cell boxes to
-## grow and a lone hole is a full cell wide. The 0.2 m value used to be the
-## load-bearing fix for a tower that leaned 0.78 m on per-cell boxes; the real
-## cause of that lean was Jolt's body-pair contact cache reusing stale
-## contacts inside a slowly creeping column (see the
-## body_pair_contact_cache_distance_threshold DECISION in
-## tools/bootstrap_project.gd and Beads Bontago-ddz), which made the result
-## depend on body creation order. Kept only so saved .tres files still load.
-@export var cell_overlap: float = 0.2
 
-
-## The MapDef for a MatchConfig.MapSize value (round maps only).
-static func for_size(size: MapSize) -> MapDef:
-	match size:
-		MapSize.SMALL:
-			return load("res://config/maps/round_small.tres") as MapDef
-		MapSize.LARGE:
-			return load("res://config/maps/round_large.tres") as MapDef
-		_:
-			return load("res://config/maps/round_medium.tres") as MapDef
+## The one shipped map, unscaled.
+static func base() -> MapDef:
+	return load(BASE_PATH) as MapDef
 
 
 ## True where `local` (disk-local (x, z), CellGrid's own convention) is solid
@@ -123,21 +84,6 @@ func shape_contains(local: Vector2) -> bool:
 ## Always empty: CellGrid's plain circle test is the only membership check.
 func shape_test() -> Callable:
 	return Callable()
-
-
-## The MapDef for a MatchConfig.MapVariant + MapSize pair. `variant` is ignored
-## beyond ROUND: any removed or unknown value (an old saved config, a network
-## peer) draws the round map (Bontago-fca.75).
-static func for_variant_and_size(_variant: int, size: MapSize) -> MapDef:
-	return for_size(size)
-
-
-## Lower-case shape id ("round") of a MapShape/MapVariant value; "" when out of range.
-static func shape_id(variant: int) -> String:
-	var keys: Array = MapShape.keys()
-	if variant < 0 or variant >= keys.size():
-		return ""
-	return (keys[variant] as String).to_lower()
 
 
 ## Bontago-1pi.107: a uniformly scaled copy of this map (the lobby's disc-size

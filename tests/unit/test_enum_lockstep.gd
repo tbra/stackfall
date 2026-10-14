@@ -1,24 +1,5 @@
 extends GutTest
-## Single-source guard: MatchConfig.MapVariant is MapDef.MapShape, and the sky
-## theme ids are owned by MatchConfig. Stored ints/ids must never change.
-
-
-func test_map_variant_ordinals_pinned() -> void:
-	assert_eq(MatchConfig.MapVariant.ROUND, 0)
-	assert_eq(MatchConfig.MapVariant.keys(), ["ROUND"])
-
-
-func test_map_variant_matches_map_shape() -> void:
-	assert_eq(MatchConfig.MapVariant.keys(), MapDef.MapShape.keys())
-	assert_eq(MatchConfig.MapVariant.values(), MapDef.MapShape.values())
-
-
-func test_shape_ids_pinned() -> void:
-	var ids: Array[String] = ["round"]
-	for i: int in range(ids.size()):
-		assert_eq(MapDef.shape_id(i), ids[i])
-	assert_eq(MapDef.shape_id(1), "")
-	assert_eq(MapDef.shape_id(-1), "")
+## Single-source guard: the sky theme ids are owned by MatchConfig. Stored ints/ids must never change.
 
 
 func test_sky_theme_ids_pinned() -> void:

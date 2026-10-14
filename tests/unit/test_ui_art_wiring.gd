@@ -27,18 +27,10 @@ func _make_lobby(bots: int = 0) -> Lobby:
 	return lobby
 
 
-func test_every_map_variant_has_a_pictogram() -> void:
+func test_the_map_has_a_pictogram() -> void:
 	var table: UiArtTable = UiArtTable.shared()
 	assert_not_null(table)
-	var seen: Array[Rect2] = []
-	for variant: int in MatchConfig.MapVariant.values():
-		var tex: Texture2D = table.map_pictogram(variant)
-		assert_not_null(tex, "map variant %d" % variant)
-		seen.append((tex as AtlasTexture).region)
-	for i: int in range(seen.size()):
-		for j: int in range(i + 1, seen.size()):
-			assert_ne(seen[i], seen[j], "distinct regions")
-	assert_null(table.map_pictogram(99))
+	assert_not_null(table.map_pictogram())
 
 
 func test_every_lobby_icon_key_resolves() -> void:
@@ -52,7 +44,7 @@ func test_every_lobby_icon_key_resolves() -> void:
 
 func test_lobby_map_thumbnail_uses_the_round_pictogram() -> void:
 	var lobby: Lobby = _make_lobby()
-	assert_eq(lobby.map_thumbnail_texture(), UiArtTable.shared().map_pictogram(MatchConfig.MapVariant.ROUND))
+	assert_eq(lobby.map_thumbnail_texture(), UiArtTable.shared().map_pictogram())
 
 
 func test_lobby_section_headers_and_chips_show_icons() -> void:
@@ -97,10 +89,7 @@ func test_loading_screen_shows_the_map_pictogram() -> void:
 	var screen: LoadingScreen = autofree((load("res://ui/LoadingScreen.tscn") as PackedScene).instantiate())
 	add_child_autofree(screen)
 	screen.tuning = LoadingScreenTuning.new()
-	for variant: int in MatchConfig.MapVariant.values():
-		var config: MatchConfig = MatchConfig.new()
-		config.map_variant = variant
-		screen.show_pending(config)
-		assert_eq(screen.map_icon_texture(), UiArtTable.shared().map_pictogram(variant), "variant %d" % variant)
+	screen.show_pending(MatchConfig.new())
+	assert_eq(screen.map_icon_texture(), UiArtTable.shared().map_pictogram())
 	screen.show_pending(null)
 	assert_null(screen.map_icon_texture())

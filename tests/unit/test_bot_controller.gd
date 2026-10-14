@@ -224,7 +224,7 @@ func _make_config() -> MatchConfig:
 	var config: MatchConfig = MatchConfig.new()
 	config.rng_seed = 777
 	config.goal_flag_count = 1
-	config.map_size = MapDef.MapSize.SMALL
+	config.disc_size_step = 1
 	return config
 
 

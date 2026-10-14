@@ -36,11 +36,11 @@ func _until(condition: Callable, seconds: float) -> bool:
 func _run_host() -> void:
 	await _until(func() -> bool: return Net.peer_ids().size() >= HOST_AND_CLIENT_PEERS, CONNECT_TIMEOUT)
 	var config: MatchConfig = (load("res://config/match_defaults.tres") as MatchConfig).duplicate(true) as MatchConfig
-	config.map_size = MapDef.MapSize.SMALL
+	config.disc_size_step = 1
 	config.player_count = 2
 	config.hot_seat = false
 	var field: Field = (load("res://game/Field.tscn") as PackedScene).instantiate() as Field
-	field.map_def = MapDef.for_size(config.map_size)
+	field.map_def = config.map_def()
 	add_child(field)
 	var blocks: Node3D = Node3D.new()
 	add_child(blocks)

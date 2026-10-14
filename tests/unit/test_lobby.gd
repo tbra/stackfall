@@ -172,8 +172,6 @@ func test_disc_size_meter_defaults_to_medium_and_publishes_the_step() -> void:
 	var calls: Array[Dictionary] = _fake_of(lobby).set_lobby_data_calls
 	assert_eq(calls.size(), 1)
 	assert_eq(int(calls[0].get("disc_size_step")), 0)
-	assert_eq(int(calls[0].get("map_variant")), MatchConfig.MapVariant.ROUND)
-	assert_eq(int(calls[0].get("map_size")), int(MapDef.MapSize.MEDIUM))
 	assert_eq(meter.display_text(), "50%")
 	assert_eq(lobby._disc_size_text(), "Tiny - 50%")
 
@@ -258,8 +256,7 @@ func test_republish_roster_if_host_draws_the_hosts_own_row_with_no_other_peers()
 func test_every_2_8_setting_round_trips_through_to_dict_and_from_dict() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var config: MatchConfig = MatchConfig.new()
-	config.map_variant = MatchConfig.MapVariant.ROUND
-	config.map_size = MapDef.MapSize.LARGE
+	config.disc_size_step = 3
 	config.player_count = 7
 	config.ai_count = 3
 	config.ai_difficulty = MatchConfig.AiDifficulty.HARD
@@ -279,8 +276,6 @@ func test_every_2_8_setting_round_trips_through_to_dict_and_from_dict() -> void:
 	Events.net_lobby_data_changed.emit(config.to_dict())
 	assert_eq((lobby.get_node("%SkyThemeOption") as UiCycler).selected(), int(MatchConfig.SkyThemeMode.NIGHT))
 
-	assert_eq((lobby.get_node("%MapVariantOption") as OptionButton).selected, MatchConfig.MapVariant.ROUND)
-	assert_eq((lobby.get_node("%MapSizeOption") as OptionButton).selected, int(MapDef.MapSize.LARGE))
 	assert_eq(int((lobby.get_node("%PlayerCountSpin") as SpinBox).value), 7)
 	assert_eq(int((lobby.get_node("%AiCountSpin") as SpinBox).value), 3)
 	assert_eq((lobby.get_node("%AiDifficultyOption") as UiCycler).selected(), MatchConfig.AiDifficulty.HARD)
@@ -1083,8 +1078,6 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 		assert_ne(control.focus_neighbor_bottom, NodePath(""), "%s must have a down neighbor once opened" % unique_name)
 
 	assert_false((lobby.get_node("%TeamModeOption") as Control).is_visible_in_tree(), "TeamModeOption stays a hidden source of truth (teams are toggled in the players panel)")
-	assert_false((lobby.get_node("%MapVariantOption") as Control).visible, "MapVariantOption stays hidden behind the combined dropdown")
-	assert_false((lobby.get_node("%MapSizeOption") as Control).visible, "MapSizeOption stays hidden behind the combined dropdown")
 
 	# ... and so do the GIFTS Advanced (per-gift) and EXPERIMENTS blocks once opened.
 	(lobby.get_node("%GiftsSection") as UiSection).set_advanced_open(true)

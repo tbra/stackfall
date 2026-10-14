@@ -8,9 +8,6 @@ extends Resource
 ## duplicate, never the shared resource, so a match can never write back into
 ## the defaults on disk.
 
-## Single owner: MapDef.MapShape (MapDef cannot import MatchConfig, MatchConfig can
-## import MapDef). Same ordinals and names; tests/unit/test_enum_lockstep.gd pins them.
-const MapVariant = MapDef.MapShape
 ## Spec 2.8 "Teams: Off / 2 / 3 / 4".
 enum TeamMode { OFF, TEAMS_2, TEAMS_3, TEAMS_4 }
 enum AiDifficulty { EASY, NORMAL, HARD }
@@ -114,16 +111,11 @@ const TEAM_PICK_RANDOM: int = 0
 const TEAM_PICK_MAX: int = 4
 
 ## -- Spec 2.8 table, in order -----------------------------------------------
-@export var map_variant: MapVariant = MapVariant.ROUND
 ## Bontago-1pi.107 (owner 2026-10-07): the lobby's disc-size slider step, an index
 ## into config/disc_size_tuning.tres (0 = tiny 50% .. 5 = enormous 175%); the
-## default is the medium step, 100% = the unscaled default map. map_variant and
-## map_size below are no longer lobby-selectable (the lobby pins ROUND/MEDIUM)
-## but stay in the config and the wire format so the other maps keep working.
+## default is the medium step, 100% = the unscaled default map (the one map).
 const DISC_SIZE_STEP_DEFAULT: int = 2
 @export var disc_size_step: int = DISC_SIZE_STEP_DEFAULT
-## Spec 2.8's map size; the enum lives on MapDef (see the note there).
-@export var map_size: MapDef.MapSize = MapDef.MapSize.MEDIUM
 ## Total players including bots, 2-8.
 @export var player_count: int = 4
 ## How many of `player_count` are bots. M2 is hot-seat only, so 0.
@@ -391,21 +383,19 @@ func effective_goal_flag_count() -> int:
 	return 0
 
 
-## The MapDef this config's map_variant + map_size select.
-## Scaled by disc_size_step's factor; cached per (variant, size, step) so every
+## The one map scaled by disc_size_step's factor; cached per step so every
 ## caller in a match sees the same MapDef instance (HUD/Minimap compare identity).
 func map_def() -> MapDef:
-	var key: Vector3i = Vector3i(map_variant, map_size, disc_size_step)
-	if _map_def_cache == null or key != _map_def_cache_key:
+	if _map_def_cache == null or disc_size_step != _map_def_cache_step:
 		var tuning: DiscSizeTuning = DiscSizeTuning.shared()
-		var base: MapDef = MapDef.for_variant_and_size(map_variant, map_size)
+		var base: MapDef = MapDef.base()
 		_map_def_cache = base.scaled(tuning.factor_for(disc_size_step)) if tuning != null else base
-		_map_def_cache_key = key
+		_map_def_cache_step = disc_size_step
 	return _map_def_cache
 
 
 var _map_def_cache: MapDef = null
-var _map_def_cache_key: Vector3i = Vector3i.ZERO
+var _map_def_cache_step: int = 0
 
 
 func field_radius() -> float:
@@ -562,9 +552,6 @@ func apply_experiments_switch() -> void:
 
 
 func sanitize() -> void:
-	# Bontago-fca.75: ROUND is the only map shape; a removed value clamps to it.
-	map_variant = MapVariant.ROUND
-	map_size = clampi(map_size, MapDef.MapSize.SMALL, MapDef.MapSize.LARGE) as MapDef.MapSize
 	var disc_tuning: DiscSizeTuning = DiscSizeTuning.shared()
 	if disc_tuning != null:
 		disc_size_step = disc_tuning.clamp_step(disc_size_step)
@@ -728,8 +715,6 @@ func locked_sky_id() -> String:
 ## Serializes to a plain Dictionary for RPCs and Steam lobby data.
 func to_dict() -> Dictionary:
 	var data: Dictionary = {
-		"map_variant": map_variant,
-		"map_size": map_size,
 		"disc_size_step": disc_size_step,
 		"player_count": player_count,
 		"ai_count": ai_count,
@@ -779,9 +764,6 @@ func to_dict() -> Dictionary:
 ## Rebuilds a config from to_dict() output. Unknown keys keep their defaults.
 static func from_dict(data: Dictionary) -> MatchConfig:
 	var config: MatchConfig = MatchConfig.new()
-	# Bontago-fca.75: a removed shape value (old save, network peer) becomes ROUND.
-	config.map_variant = MapVariant.ROUND
-	config.map_size = int(data.get("map_size", config.map_size)) as MapDef.MapSize
 	# Absent in lobby data from before Bontago-1pi.107: the default (medium, 1.0).
 	config.disc_size_step = int(data.get("disc_size_step", config.disc_size_step))
 	config.player_count = int(data.get("player_count", config.player_count))

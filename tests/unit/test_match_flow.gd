@@ -22,8 +22,8 @@ var _registry: BlockRegistry
 ## collision fresh in every one of this script's ~40 tests' before_each cost
 ## ~11 s each (measured; none of these tests assert on absolute map scale) —
 ## the whole script ran in ~545 s for that reason alone. MatchConfig.map_def()
-## only ever resolves to one of the three real SMALL/MEDIUM/LARGE presets
-## (MapDef.for_size()), so there is no config-level knob for a smaller map;
+## only ever resolves to the one real map scaled by disc_size_step
+## (MapDef.base()), so there is no config-level knob for a tiny map;
 ## TinyMapMatchConfig (tests/unit/support/) is the test-only seam that
 ## overrides map_def() on a duplicated config instead. 20 m (~1250 in-disk
 ## cells, still ~5x fewer than medium's 45 m) rather than test_field_cells.gd's

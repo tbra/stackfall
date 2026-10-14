@@ -25,10 +25,6 @@ addons/godotsteam/**/*.dylib
 # installed per developer (README "Steam setup"); tools/check_steam_setup.ps1 verifies it.
 /addons/godotsteam/
 
-# Optional developer-local skybox face sets (game/Skybox.gd); third-party
-# textures must NEVER be committed to this public repo.
-/assets/sky/face_sets/
-
 # Mono/.NET (unused, standard build)
 .mono/
 data_*/

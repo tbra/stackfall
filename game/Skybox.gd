@@ -1,55 +1,11 @@
 class_name Skybox
 extends Node3D
-## Runtime-loaded optional six-face skybox (spec 2.10, presentation). No face
-## sets ship with the game (third-party textures never enter this public
-## repo, CLAUDE.md); a developer may drop their own faces into
-## `res://assets/sky/face_sets/<set>/<face>.jpg` for local testing, and
-## load_set() falls back to the existing ProceduralSkyMaterial untouched
-## whenever that folder or a face inside it is missing.
-##
-## DECISION (game/Skybox.gd, Bontago-1en/assets-sky): six unshaded quads on a
-## big inverted box, not a `shader_type sky` sampling a Cubemap. The box does
-## not follow the camera -- box_half_extent (400 m) is far larger than any
-## map's field_radius (60 m max) or the camera's zoom range
-## (config/camera_tuning.tres: zoom_max 100 m), so the parallax from orbiting
-## within the field is invisible in practice, at zero extra cost.
-##
-## DECISION (game/Skybox.gd, Bontago-xtq.8, owner 2026-09-23: "it reflects
-## whatever light source you've put in but not the skybox we added
-## recently"): the box alone was never enough -- the WorldEnvironment's own
-## Sky resource is a separate thing the render server samples for reflections
-## and ambient light (Main.tscn: ambient_light_source = AMBIENT_SOURCE_SKY),
-## and drawing a box in front of the camera does not change what that
-## resource shows. load_set() success now ALSO installs a `shader_type sky`
-## ShaderMaterial (shaders/cubemap_sky.gdshader) onto `environment.sky.
-## sky_material`, sampling the same six face textures with the same
-## SkyboxConfig.face_rotations/face_flip_u/face_flip_v correction the box
-## uses (shaders/cubemap_sky.gdshader's own doc has the per-face direction
-## algebra, derived by inverting Skybox._face_corners()' corner mapping and
-## checked against all four UV corners of all six faces). Reflections/ambient
-## now show the loaded set's horizon instead of the ProceduralSkyMaterial
-## gradient; a missing/failed set restores the original ProceduralSkyMaterial
-## on the Sky resource exactly as it restores the box's fallback.
-##
-## The box mesh itself is deliberately kept rather than dropped now that the
-## sky shader exists: the box is the one part of this system whose
-## correctness was verified pixel-by-pixel (a script removed in Bontago-dbn.1 (see git history)'s
-## measured seam error) and is trivially checkable by eye in a single
-## screenshot; the sky shader's face-selection math (its sky() function) was
-## checked algebraically against all six faces' corners (see
-## shaders/cubemap_sky.gdshader) and
-## against two live camera yaws (docs/sky-reflection-before.png/-after.png),
-## but a shader bug that only shows up at a grazing reflection angle this
-## package's screenshots did not happen to catch would otherwise have no
-## direct-view fallback to catch it visually during play. Once the sky
-## shader has more mileage (e.g. the seam probe or an equivalent check is
-## extended to score it the same way it scores the box), dropping the box and
-## letting the sky alone draw the background is a safe, mechanical follow-up.
+## Sky presentation (spec 2.10): owns the WorldEnvironment's sky material, the
+## theme / day-night cycle, fog, light, ambient life and the reflection probe.
+## (The optional six-face texture skybox was removed in Bontago-uwq.5.)
 ##
 ## Bontago-xtq.28 (M7 P3, docs/M7_ART_DIRECTION.md's sunset/atmosphere lines):
-## two more pieces layer on top of the above, both applied only while
-## `fallback_active` (the six-face box/shader are a separate, self-contained
-## look and are left untouched by either):
+## two pieces layer on top:
 ##   - apply_theme() writes `theme`'s (config/SkyThemeDef.gd) sky/ground
 ##     colours onto `_fallback_sky_material` *in place*, its fog colour/
 ##     density onto the wired Environment's basic depth fog, and its
@@ -57,9 +13,7 @@ extends Node3D
 ##     Environment's global ambient volumetric-fog fields (fix round 2 --
 ##     see SkyThemeDef.volumetric_fog_density's own doc for why the ambient
 ##     floor has to be set too, not just the FogVolume cloud deck below) --
-##     called once from _ready(), so a later load_set() fallback restores the
-##     themed colours automatically (see _restore_fallback_sky()) rather than
-##     the material's own untouched defaults.
+##     called once from _ready().
 ##   - a single FogVolume "cloud deck" child (_spawn_fog_volume()) is always
 ##     created, its `visible` flag alone tracking
 ##     GraphicsPreset.volumetric_fog_enabled (Settings.graphics_preset_changed,
@@ -70,9 +24,9 @@ extends Node3D
 @export var config: SkyboxConfig = preload("res://config/skybox_config.tres")
 
 ## Bontago-xtq.28 (M7 P3): the sky/ground/fog palette applied onto the
-## fallback ProceduralSkyMaterial whenever `fallback_active` is true -- see
+## sky material -- see
 ## apply_theme() below and the class doc's new paragraph on it. Optional (null
-## in a fixture that only cares about the box/fallback_active state); the game
+## in a fixture that only cares about the sky state); the game
 ## itself never overrides this from `preload`'s default, the same one-field/
 ## one-instance convention `config`/`visuals` above already use.
 @export var theme: SkyThemeDef = preload("res://config/sky_themes/sunset.tres")
@@ -80,8 +34,8 @@ extends Node3D
 ## (wired there by a plain node-property reference to the same sub-resource,
 ## not a node path -- CLAUDE.md's "no deep node paths" is about get_node()
 ## chains, not sharing one Resource two nodes both already own a reference
-## to). Optional (null in a fixture test that only cares about the box/
-## fallback_active state, e.g. most of tests/unit/test_skybox.gd): every sky-
+## to). Optional (null in a fixture test that only cares about the sky
+## state, e.g. most of tests/unit/test_skybox.gd): every sky-
 ## material write below is skipped when this or its .sky is unset.
 @export var environment: Environment = null
 ## Bontago-adt.1: the scene's DirectionalLight3D (wired in Main.tscn, same
@@ -135,7 +89,6 @@ var _fireflies: Fireflies = null
 ## game/Field.gd's own `visuals` export).
 @export var visuals: TerritoryVisuals = preload("res://config/territory_visuals.tres")
 
-const SKY_SHADER: Shader = preload("res://shaders/cubemap_sky.gdshader")
 ## Vertical position of the probe's box center, in meters above the disk
 ## surface (which sits at world y == 0 -- game/Field.gd positions its
 ## TerritoryOverlay at `-map_def.disk_height * 0.5`, negligible next to this
@@ -202,7 +155,7 @@ var _variation_seed: int = SkyVariation.DEFAULT_SEED
 ## exactly where a fresh launch starts (the next match's configure_match_sky() then
 ## sets its own mode). `_launch_theme` is the static theme _ready() applied and
 ## `_launch_cycle` says whether the launch config ("cycle" theme_name) started the
-## cycle; the set fields are SkyboxConfig's textured-set override (F4).
+## cycle.
 var _launch_captured: bool = false
 var _launch_theme: SkyThemeDef = null
 var _launch_theme_name: String = ""
@@ -230,8 +183,6 @@ const SECONDS_PER_MSEC: float = 0.001
 var radiance_config: SkyRadianceConfig = preload("res://config/sky_radiance_config.tres")
 var _radiance_accum_s: float = 0.0
 var _radiance_ticks: int = 0
-var _launch_set_enabled: bool = false
-var _launch_default_set: String = ""
 
 
 ## The host-resolved mode is included in MatchConfig's normal match-start RPC.
@@ -264,21 +215,18 @@ func configure_match_sky(match_config: MatchConfig) -> void:
 ## at every world build and teardown): returns this long-lived Skybox to what a fresh
 ## launch looks like, so a match never inherits the previous one's sky. That is the
 ## launch theme and SkyboxConfig.theme_name, the cycle only if the launch config
-## started it, no storm / overcast / weather-fog request, hidden textured faces, the
+## started it, no storm / overcast / weather-fog request, the
 ## scene's own Sky process mode and (via apply_theme) the theme's light, fog and
 ## ambient. The next match's configure_match_sky() then picks its own mode.
 ## Idempotent and cheap when the sky is already at launch (the build-time call after
 ## a teardown reset); only a dirty sky pays the cloud / ambient-life rebuild.
-## DECISION (Bontago-1pi.46): SkyboxConfig.enabled / default_set (F4's textured-set
-## override) revert to their launch values too, like the F4 Theme pick (audit D1).
 func reset_to_launch() -> void:
 	if not _launch_captured:
 		return
 	var weather_active: bool = _storm_amount > 0.0 or _overcast_amount > 0.0 \
 		or _weather_cloud_overcast > 0.0 or _snow_brighten > 0.0 or _wfog_amount > 0.0
 	var at_launch: bool = not _launch_cycle and _cycle_theme == null and theme == _launch_theme \
-		and config.theme_name == _launch_theme_name and fallback_active \
-		and config.enabled == _launch_set_enabled and config.default_set == _launch_default_set \
+		and config.theme_name == _launch_theme_name \
 		and (environment == null or environment.sky == null or environment.sky.process_mode == _launch_process_mode)
 	var stormed: SkyThemeDef = theme if _storm_amount > 0.0 else null
 	_clear_weather_state()
@@ -292,12 +240,6 @@ func reset_to_launch() -> void:
 	_clear_cycle_state()
 	theme = _launch_theme
 	config.theme_name = _launch_theme_name
-	config.enabled = _launch_set_enabled
-	config.default_set = _launch_default_set
-	if not fallback_active:
-		_face_textures.clear()
-		fallback_active = true
-		_hide_faces()
 	_set_sky_process_mode(_launch_process_mode)
 	# Re-bases sky material, fog, light, ambient, overcast / weather-fog baselines at
 	# amount 0, the cloud sea, birds, perching birds, fireflies and the sun flare.
@@ -789,15 +731,6 @@ func _fixed_uniform(material: ShaderMaterial, uniform: StringName) -> float:
 	return float(value) if value is float else NAN
 
 
-## True whenever no textured box is showing (initial state, a missing
-## set/face, or config.enabled == false) -- the existing ProceduralSkyMaterial
-## is what's visible in every one of those cases. Read by tests and by a
-## manual tester checking print() output.
-var fallback_active: bool = true
-
-var _face_textures: Dictionary = {}
-var _face_meshes: Dictionary = {}
-
 ## Bontago-xtq.28: the FogVolume _spawn_fog_volume() created, or null when
 ## `theme` was unset in _ready() (see that method's own doc).
 var _fog_volume: FogVolume = null
@@ -881,30 +814,12 @@ var _wfog_base_begin: float = 0.0
 var _wfog_base_end: float = 0.0
 var _wfog_base_curve: float = 1.0
 
-## Bontago-xtq.22: the id apply_set()/list_available_sets() use for "no
-## textured set -- keep the procedural sky", i.e. the empty string. Matches
-## config.default_set's own type (String) so ui/TuningPanel.gd's dropdown can
-## carry it as one more item alongside every real set name, with no separate
-## sentinel enum/type to keep in sync between the two files.
-const PROCEDURAL_SET_ID: String = ""
-
-
 func _ready() -> void:
 	add_to_group(TUNING_GROUP)
 	add_to_group(OVERCAST_GROUP)
 	if environment != null and environment.sky != null:
 		_fallback_sky_material = environment.sky.sky_material
 		_launch_process_mode = environment.sky.process_mode
-	for face_name: String in config.face_names:
-		var mesh_instance: MeshInstance3D = MeshInstance3D.new()
-		mesh_instance.name = face_name.capitalize()
-		mesh_instance.visible = false
-		# The box is static and much larger than the play field (see class
-		# doc), so there is nothing worth frustum-culling per frame against a
-		# camera that is always deep inside it.
-		mesh_instance.extra_cull_margin = config.box_half_extent
-		add_child(mesh_instance)
-		_face_meshes[face_name] = mesh_instance
 	configure_reflection_probe()
 	configure_ssr()
 	# Bontago-adt.1: SkyboxConfig.theme_name picks a non-default theme.
@@ -915,8 +830,6 @@ func _ready() -> void:
 	_launch_theme = theme
 	_launch_theme_name = config.theme_name
 	_launch_cycle = config.theme_name == CYCLE_THEME_ID
-	_launch_set_enabled = config.enabled
-	_launch_default_set = config.default_set
 	_launch_captured = true
 	_cloud_sea = CloudSea.new()
 	_cloud_sea.name = "CloudSea"
@@ -1080,154 +993,8 @@ func configure_reflection_probe() -> void:
 	probe.cull_mask = PROBE_CULL_MASK
 
 
-## Called once per match/scene start (game/Main.gd) with the map's chosen set
-## (config/MapDef.gd's skybox_set). `root_override` lets tests point this at a
-## temp directory instead of the real asset root. Returns true and shows the
-## textured box on success; returns false, prints one info line, and leaves
-## the box hidden (so the ProceduralSkyMaterial fallback shows through) on
-## any failure -- never a Godot error for the ordinary "assets not installed"
-## case, since both existence checks below run before any file is opened.
-##
-## Face lookup is exact-case (FileAccess.file_exists() against
-## config.face_names, which are lowercase), so face files must be lowercase
-## (see tests/unit/test_skybox.gd's DECISION on why that is not separately
-## tested here).
-func load_set(set_name: String, root_override: String = "") -> bool:
-	_face_textures.clear()
-	if not config.enabled:
-		fallback_active = true
-		_hide_faces()
-		return false
-
-	var root: String = root_override if root_override != "" else _resolve_asset_root()
-	var set_dir: String = root.path_join(set_name)
-	if not DirAccess.dir_exists_absolute(set_dir):
-		fallback_active = true
-		_hide_faces()
-		print("Skybox: set '%s' not found at %s -- using procedural sky" % [set_name, set_dir])
-		return false
-
-	for face_name: String in config.face_names:
-		var file_path: String = set_dir.path_join(face_name + ".jpg")
-		if not FileAccess.file_exists(file_path):
-			fallback_active = true
-			_hide_faces()
-			print("Skybox: face '%s' missing for set '%s' at %s -- using procedural sky" % [
-				face_name, set_name, file_path,
-			])
-			return false
-		# Load through an absolute filesystem path: Image.load_from_file on a
-		# res:// path prints an engine warning about bypassing the import
-		# pipeline (GUT counts it as an error) and the editor would import any
-		# local jpgs; the face_sets folder is gitignored and carries a .gdignore.
-		var image: Image = Image.load_from_file(ProjectSettings.globalize_path(file_path))
-		if image == null:
-			fallback_active = true
-			_hide_faces()
-			print("Skybox: face '%s' for set '%s' failed to decode -- using procedural sky" % [
-				face_name, set_name,
-			])
-			return false
-		_face_textures[face_name] = ImageTexture.create_from_image(image)
-
-	fallback_active = false
-	_build_faces()
-	return true
-
-
-## Test/inspection seam: the ImageTexture load_set() produced for one face,
-## or null if load_set() has not succeeded for that face (fallback or not yet
-## called).
-func get_face_texture(face_name: String) -> ImageTexture:
-	return _face_textures.get(face_name) as ImageTexture
-
-
-## Static (Bontago-xtq.22): list_available_sets() below calls this from a
-## static context too (building ui/TuningPanel.gd's dropdown does not need a
-## live Skybox instance), and the body never read `self` to begin with.
-static func _resolve_asset_root() -> String:
-	if OS.has_feature("editor"):
-		return "res://assets/sky/face_sets"
-	return OS.get_executable_path().get_base_dir().path_join("assets/sky/face_sets")
-
-
-## Bontago-xtq.22 (owner: "add an option to F4 to change the skybox"): every
-## subfolder of the resolved asset root (or `root_override`, the same test
-## seam load_set() already has), sorted -- the F4 dropdown's own list of real
-## sets, built by ui/TuningPanel.gd alongside its fixed "Procedural / none"
-## entry. Returns an empty array (never an error) when the root itself does
-## not exist -- the ordinary "no local face sets" case (this repo ships none),
-## so a CI machine's dropdown just shows the procedural entry alone.
-static func list_available_sets(root_override: String = "") -> PackedStringArray:
-	var root: String = root_override if root_override != "" else _resolve_asset_root()
-	var sets: PackedStringArray = PackedStringArray()
-	var dir: DirAccess = DirAccess.open(root)
-	if dir == null:
-		return sets
-	dir.list_dir_begin()
-	var entry: String = dir.get_next()
-	while entry != "":
-		if entry != "." and entry != ".." and dir.current_is_dir():
-			sets.append(entry)
-		entry = dir.get_next()
-	dir.list_dir_end()
-	sets.sort()
-	return sets
-
-
-## Bontago-xtq.22 (owner: disc reflectivity is "hard to judge with that
-## texture -- add an option to F4 to change the skybox"): the live-switch
-## entry point ui/TuningPanel.gd's new Skybox dropdown calls on every Skybox
-## in TUNING_GROUP. `set_name == PROCEDURAL_SET_ID` (the dropdown's
-## "Procedural / none" item) turns the textured box/sky off by setting
-## `config.enabled = false` -- load_set()'s own first check already falls
-## back to the existing ProceduralSkyMaterial whenever that flag is off, so
-## this needs no separate fallback path of its own. Any other name is
-## remembered onto config.default_set (see that field's own DECISION for why
-## reusing it, rather than a second field, is enough for the F4 override
-## save/load path to pick it up) and re-enables the box before delegating to
-## load_set() -- which prints its own one-line fallback notice and leaves the
-## box hidden, exactly as an owner-typed unknown name already does today, for
-## an unknown/missing set. `root_override` mirrors load_set()'s own test seam
-## so tests/unit/test_skybox.gd can drive this against a temp fixture root
-## instead of the real (gitignored) asset root.
-func apply_set(set_name: String, root_override: String = "") -> bool:
-	if set_name == PROCEDURAL_SET_ID:
-		config.enabled = false
-		return load_set(set_name, root_override)
-	config.default_set = set_name
-	config.enabled = true
-	return load_set(set_name, root_override)
-
-
-func _hide_faces() -> void:
-	for mesh_instance: MeshInstance3D in _face_meshes.values():
-		mesh_instance.visible = false
-	_restore_fallback_sky()
-
-
-func _build_faces() -> void:
-	for face_name: String in config.face_names:
-		var mesh_instance: MeshInstance3D = _face_meshes.get(face_name) as MeshInstance3D
-		if mesh_instance == null:
-			continue
-		mesh_instance.mesh = _build_face_mesh(face_name)
-		var material: StandardMaterial3D = StandardMaterial3D.new()
-		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		# CULL_DISABLED: the box's faces face inward toward the camera, and
-		# with this set the triangle winding below does not have to be
-		# reasoned about at all -- both sides render regardless.
-		material.cull_mode = BaseMaterial3D.CULL_DISABLED
-		material.albedo_texture = _face_textures.get(face_name)
-		mesh_instance.material_override = material
-		mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		mesh_instance.visible = true
-	_install_sky_material()
-
-
 ## Bontago-xtq.28: applies `applied_theme`'s sky/ground colours onto
-## `_fallback_sky_material` *in place* (so a later load_set() failure's
-## _restore_fallback_sky() restores the themed colours, not the material's own
+## `_fallback_sky_material` *in place*## _restore_fallback_sky() restores the themed colours, not the material's own
 ## untouched defaults) and its fog colour/density onto the wired Environment's
 ## basic depth fog. A no-op when `applied_theme` is unset or no
 ## `environment`/`environment.sky` was wired, matching every other
@@ -1261,8 +1028,7 @@ func _apply_theme_parameters(applied_theme: SkyThemeDef) -> void:
 			panorama.set_shader_parameter("sky_yaw_offset_deg", applied_theme.sky_yaw_offset_deg)
 			panorama.set_shader_parameter("sky_pitch_offset_deg", applied_theme.sky_pitch_offset_deg)
 			_apply_procedural_params(panorama, applied_theme)
-		if fallback_active:
-			environment.sky.sky_material = _fallback_sky_material
+		environment.sky.sky_material = _fallback_sky_material
 	var procedural: ProceduralSkyMaterial = _fallback_sky_material as ProceduralSkyMaterial
 	if procedural != null:
 		procedural.sky_top_color = applied_theme.sky_top_color
@@ -1825,153 +1591,6 @@ func _apply_fog_volume_visibility(preset: GraphicsPreset) -> void:
 ## `theme` was unset in _ready().
 func get_fog_volume() -> FogVolume:
 	return _fog_volume
-
-
-## Restores the Environment's Sky to whatever material it carried before this
-## node ever touched it (Main.tscn's ProceduralSkyMaterial) -- a no-op when no
-## `environment` was wired (most of tests/unit/test_skybox.gd) or _ready()
-## never captured one (environment.sky was null at the time).
-func _restore_fallback_sky() -> void:
-	if environment == null or environment.sky == null or _fallback_sky_material == null:
-		return
-	environment.sky.sky_material = _fallback_sky_material
-
-
-## Bontago-xtq.8: installs shaders/cubemap_sky.gdshader onto the Environment's
-## Sky, with the same six face textures and the same SkyboxConfig.
-## face_rotations/face_flip_u/face_flip_v the box's own quads use -- see the
-## class doc and the shader's doc for why the two are the same convention
-## read two different ways. A no-op when no `environment` was wired.
-func _install_sky_material() -> void:
-	if environment == null or environment.sky == null:
-		return
-	var material: ShaderMaterial = ShaderMaterial.new()
-	material.shader = SKY_SHADER
-	for index: int in range(config.face_names.size()):
-		var face_name: String = config.face_names[index]
-		var rotation: int = config.face_rotations[index] if index < config.face_rotations.size() else 0
-		var flip_u: bool = index < config.face_flip_u.size() and config.face_flip_u[index] != 0
-		var flip_v: bool = index < config.face_flip_v.size() and config.face_flip_v[index] != 0
-		material.set_shader_parameter(face_name + "_tex", _face_textures.get(face_name))
-		material.set_shader_parameter(face_name + "_rotation", rotation)
-		material.set_shader_parameter(face_name + "_flip_u", flip_u)
-		material.set_shader_parameter(face_name + "_flip_v", flip_v)
-	environment.sky.sky_material = material
-	# DECISION (game/Skybox.gd): PROCESS_MODE_QUALITY, not the default
-	# AUTOMATIC/INCREMENTAL. Reflections/ambient are read from the sky's own
-	# radiance/irradiance maps, not the background pixels directly --
-	# INCREMENTAL mode (meant for a sky that keeps changing, e.g. a day/night
-	# cycle) spreads that recompute over many frames, so a freshly-loaded set
-	# would keep showing the *previous* sky's (or the fallback gradient's)
-	# stale reflection for a visible stretch of play. QUALITY recomputes fully
-	# on the next frame instead; this skybox only ever changes at
-	# load_set() (once per match/map), so the one-frame cost is negligible.
-	environment.sky.process_mode = Sky.PROCESS_MODE_QUALITY
-
-
-## One quad per face of a box_half_extent-sided cube, in Skybox-local space
-## (this node sits at the world origin -- see class doc on why it does not
-## follow the camera). Built directly rather than from BoxMesh/QuadMesh so
-## each face's UV orientation is an explicit, checkable base mapping (see
-## _face_corners()) with a per-face correction on top of it
-## (config.face_rotations/face_flip_u/face_flip_v, applied by
-## _apply_face_transform() below) -- the base mapping alone ("front" unrotated
-## with back/left/right as the 90-degree turns around it, top/bottom attached
-## to front's edges unrotated) turned out NOT to match the original install's
-## own per-face orientation for any of the six files; every face needs its
-## correction. See a script removed in Bontago-dbn.1 (see git history), which found that correction
-## numerically, for why and the measured seam error.
-func _build_face_mesh(face_name: String) -> ArrayMesh:
-	var corners: Dictionary = _face_corners(StringName(face_name), config.box_half_extent)
-	if corners.is_empty():
-		return null
-
-	var index: int = config.face_names.find(face_name)
-	var rotation: int = config.face_rotations[index] if index >= 0 and index < config.face_rotations.size() else 0
-	var flip_u: bool = index >= 0 and index < config.face_flip_u.size() and config.face_flip_u[index] != 0
-	var flip_v: bool = index >= 0 and index < config.face_flip_v.size() and config.face_flip_v[index] != 0
-
-	var positions: PackedVector3Array = PackedVector3Array([
-		corners["p00"], corners["p10"], corners["p01"], corners["p11"],
-	])
-	var uvs: PackedVector2Array = PackedVector2Array([
-		_apply_face_transform(0.0, 0.0, flip_u, flip_v, rotation),
-		_apply_face_transform(1.0, 0.0, flip_u, flip_v, rotation),
-		_apply_face_transform(0.0, 1.0, flip_u, flip_v, rotation),
-		_apply_face_transform(1.0, 1.0, flip_u, flip_v, rotation),
-	])
-	var indices: PackedInt32Array = PackedInt32Array([0, 2, 1, 1, 2, 3])
-
-	var arrays: Array = []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = positions
-	arrays[Mesh.ARRAY_TEX_UV] = uvs
-	arrays[Mesh.ARRAY_INDEX] = indices
-
-	var mesh: ArrayMesh = ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	return mesh
-
-
-## Applies (in order) an optional horizontal flip, an optional vertical
-## flip, then `rotation` quarter turns (each turn: (u,v) -> (v, 1-u)) to a
-## face's base UV coordinate. Shared, as a static method, with
-## a script removed in Bontago-dbn.1 (see git history) so the probe's search space and Skybox's actual
-## render are provably the same transform -- the probe's printed table is
-## meaningless otherwise. rotation is taken mod 4 (any int is accepted so a
-## config value never has to be pre-clamped).
-static func _apply_face_transform(u: float, v: float, flip_u: bool, flip_v: bool, rotation: int) -> Vector2:
-	var uu: float = 1.0 - u if flip_u else u
-	var vv: float = 1.0 - v if flip_v else v
-	var turns: int = ((rotation % 4) + 4) % 4
-	for _i: int in range(turns):
-		var next_u: float = vv
-		var next_v: float = 1.0 - uu
-		uu = next_u
-		vv = next_v
-	return Vector2(uu, vv)
-
-
-## p00/p10/p01/p11 are this face's UV (0,0)/(1,0)/(0,1)/(1,1) corners in
-## world space (h = box_half_extent), before any face_rotations/flip
-## correction is applied (that happens in _build_face_mesh() above via
-## _apply_face_transform()). See the class/method doc above for the
-## convention these follow. Static (and called that way by the seam probe
-## too) since it is a pure function of face + h, with no instance state.
-static func _face_corners(face: StringName, h: float) -> Dictionary:
-	match face:
-		&"front":
-			return {
-				"p00": Vector3(-h, h, -h), "p10": Vector3(h, h, -h),
-				"p01": Vector3(-h, -h, -h), "p11": Vector3(h, -h, -h),
-			}
-		&"back":
-			return {
-				"p00": Vector3(h, h, h), "p10": Vector3(-h, h, h),
-				"p01": Vector3(h, -h, h), "p11": Vector3(-h, -h, h),
-			}
-		&"right":
-			return {
-				"p00": Vector3(h, h, -h), "p10": Vector3(h, h, h),
-				"p01": Vector3(h, -h, -h), "p11": Vector3(h, -h, h),
-			}
-		&"left":
-			return {
-				"p00": Vector3(-h, h, h), "p10": Vector3(-h, h, -h),
-				"p01": Vector3(-h, -h, h), "p11": Vector3(-h, -h, -h),
-			}
-		&"top":
-			return {
-				"p00": Vector3(-h, h, h), "p10": Vector3(h, h, h),
-				"p01": Vector3(-h, h, -h), "p11": Vector3(h, h, -h),
-			}
-		&"bottom":
-			return {
-				"p00": Vector3(-h, -h, -h), "p10": Vector3(h, -h, -h),
-				"p01": Vector3(-h, -h, h), "p11": Vector3(h, -h, h),
-			}
-		_:
-			return {}
 
 
 ## Weather overcast (Bontago-22y.5): `amount` 0..1 scales the theme's light and

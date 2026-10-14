@@ -184,7 +184,6 @@ const PLAYER_COUNT: int = 2
 const BOT_SLOT: int = 0
 const PASSIVE_SLOT: int = 1
 const AI_DIFFICULTY: MatchConfig.AiDifficulty = MatchConfig.AiDifficulty.HARD
-const MAP_SIZE: MapDef.MapSize = MapDef.MapSize.MEDIUM
 ## docs/archive/M5_PLAN.md P6: "600 real-seconds (10 * 60 * Engine.physics_ticks_per_
 ## second ticks)" -- counted in physics ticks the match spends in
 ## Match.State.PLAYING, not wall-clock seconds.
@@ -370,7 +369,7 @@ func _restore_engine_time_scale() -> void:
 
 func _build_fixture() -> void:
 	_field = Field.new()
-	_field.map_def = MapDef.for_size(MAP_SIZE)
+	_field.map_def = MapDef.base()
 	add_child(_field)
 	_blocks_root = Node3D.new()
 	add_child(_blocks_root)
@@ -381,7 +380,6 @@ func _build_fixture() -> void:
 
 func _base_config() -> MatchConfig:
 	var config: MatchConfig = (load("res://config/match_defaults.tres") as MatchConfig).duplicate(true) as MatchConfig
-	config.map_size = MAP_SIZE
 	config.player_count = PLAYER_COUNT
 	# DECISION (tests/bench/bench_bot_vs_passive.gd): ai_count stays 0 rather
 	# than 1. MatchLifecycle._build_slots() sets PlayerSlot.is_bot off

@@ -90,7 +90,7 @@ RULES = [
          ("ui/", "game/"), ("ui/InputGlyph.gd",), True, GD,
          "no hard-coded key names in prompts; use an InputGlyph"),
     Rule("ENUM_LABEL",
-         # Enum receivers start upper-case (MapDef.MapSize.keys()[i]); dictionary variables do not.
+         # Enum receivers start upper-case (MatchConfig.TeamMode.keys()[i]); dictionary variables do not.
          r"\b[A-Z]\w*\.keys\(\)\s*\[",
          ("ui/", "autoload/"), ("core/rules/DisplayNames.gd", "config/MapDef.gd"), False, GD,
          "label enums through DisplayNames, not enum.keys()[i]"),
