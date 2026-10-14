@@ -9,6 +9,8 @@ extends RefCounted
 const SHIPPED_TERRITORY_TUNING: TerritoryTuning = preload("res://config/territory_tuning.tres")
 const SHIPPED_PHYSICS_TUNING: PhysicsTuning = preload("res://config/physics_tuning.tres")
 ## Position / radius slack when matching a render-list circle to a home flag.
+## Default gravity magnitude (m/s^2) of a view nobody filled in.
+const DEFAULT_GRAVITY: float = 9.8
 const HOME_MATCH_TOLERANCE_M: float = 0.05
 ## Footprint-extent bound pads: one cube of reach and the unit-cube space diagonal.
 const CUBE_PAD_CELLS: float = 1.0
@@ -76,6 +78,10 @@ var gust_power_values: PackedFloat32Array = PackedFloat32Array()
 ## Bontago-1t5.53b: snapshot of the cubes near the own towers (game/BotStackProbe.gd); BotThink's STACK
 ## phase analyses it. null = no tower statics: every site keeps its old score.
 var stack: BotStack = null
+## Bontago-1t5.72.6: live gravity in the disc frame (magnitude = g * gravity_multiplier); DOWN = a level disc.
+var gravity_local: Vector3 = Vector3.DOWN * DEFAULT_GRAVITY
+## Bontago-1t5.72.6: gifts are on in this match (BotStability adds BotStackTuning.gift_disturbance_m).
+var gifts_enabled: bool = false
 
 
 static func build(

@@ -7,8 +7,8 @@ extends RefCounted
 ## holds the geometry (piece_cut, lower_cuts). Pure: reads a candidate, its orientation, the world view's stack
 ## snapshot and a Requirement; no scene tree.
 ##
-## DECISION: only the calm requirement is here (tolerance + aim); the weather, gift and tilted-disc fields of
-## Requirement exist for the disturbance package (Bontago-1t5.72.5) and stay 0 / null until it fills them.
+## Disturbance (STATICS_DESIGN 3.1, 2.6; Bontago-1t5.72.6): the Storm's sustained push and the gift allowance raise
+## the requirement only while weather or gifts are on; a tilted disc shifts every centre of mass exactly.
 
 const SHIPPED_PHYSICS_TUNING: PhysicsTuning = preload("res://config/physics_tuning.tres")
 ## Result.binding: no cut was evaluated.
@@ -61,20 +61,38 @@ static func requirement(
 	req.tolerance_m = t.numeric_tolerance_m
 	req.probe_contact_m = probe_contact_m
 	req.face_half_m = (view.cube_size - SHIPPED_PHYSICS_TUNING.cube_margin) * _HALF
+	if view.gifts_enabled:
+		req.gift_m = t.gift_disturbance_m
+	var g: float = view.gravity_local.length()
+	if view.wind_tuning != null and view.weather_intensity > 0.0 and g > 0.0:
+		req.wind_tuning = view.wind_tuning
+		req.wind_accel_ratio = view.wind_tuning.max_accel * clampf(view.weather_intensity, 0.0, 1.0) / g
+	# DECISION: a disc tilted past horizontal (g_local.y >= 0) has no static shift; the bot never places there.
+	if view.gravity_local.y < 0.0:
+		req.gravity_shift = Vector2(view.gravity_local.x, view.gravity_local.z) / -view.gravity_local.y
 	return req
 
 
 ## Margin the piece's own cut needs (the aim error is already in the erosion of its patches).
-static func required_piece(req: Requirement, _lever_m: float, _top_y: float) -> float:
-	return req.tolerance_m + req.gift_m
+static func required_piece(req: Requirement, lever_m: float, top_y: float) -> float:
+	return req.tolerance_m + req.gift_m + _wind_m(req, lever_m, top_y)
 
 
 ## Margin a lower cut needs: the aim error moves the combined centre of mass by only piece_mass / carried_mass of it.
 static func required_lower(
-	req: Requirement, carried_mass: float, piece_mass: float, _lever_m: float, _top_y: float
+	req: Requirement, carried_mass: float, piece_mass: float, lever_m: float, top_y: float
 ) -> float:
 	var share: float = piece_mass / carried_mass if carried_mass > 0.0 else 1.0
-	return req.tolerance_m + req.aim_m * share + req.gift_m
+	return req.tolerance_m + req.aim_m * share + req.gift_m + _wind_m(req, lever_m, top_y)
+
+
+## Storm allowance of a cut: its combined centre of mass acts lever * a/g downwind; the gust factor is taken at its
+## peak of 1 and the height response at the cut's highest point (an upper bound); direction-free (covers the veer).
+## Breeze gusts stay in breeze_tip (DECISION).
+static func _wind_m(req: Requirement, lever_m: float, top_y: float) -> float:
+	if req.wind_tuning == null:
+		return 0.0
+	return req.wind_accel_ratio * WindField.height_factor(top_y, req.wind_tuning) * maxf(lever_m, 0.0)
 
 
 ## Judges candidate `c` (orientation `info`) against the view's stack snapshot (probe-only fallback without one).
