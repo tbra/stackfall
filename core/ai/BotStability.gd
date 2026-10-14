@@ -35,6 +35,7 @@ class Requirement:
 	var aim_m: float = 0.0  # profile.aim_noise_m * aim_margin_share
 	var tolerance_m: float = 0.0  # numeric_tolerance_m
 	var probe_contact_m: float = 0.0  # BotTuning.stability_contact_tolerance_m (the one probe tolerance)
+	var cube_m: float = 0.0  # cube pitch: adjacent squares abut across the seam
 	var face_half_m: float = 0.0  # (cube_size - cube_margin) * 0.5
 	var gift_m: float = 0.0  # disturbance package
 	var wind_accel_ratio: float = 0.0  # disturbance package: storm max_accel * intensity / g
@@ -60,6 +61,7 @@ static func requirement(
 	req.aim_m = profile.aim_noise_m * t.aim_margin_share
 	req.tolerance_m = t.numeric_tolerance_m
 	req.probe_contact_m = probe_contact_m
+	req.cube_m = view.cube_size
 	req.face_half_m = (view.cube_size - SHIPPED_PHYSICS_TUNING.cube_margin) * _HALF
 	if view.gifts_enabled:
 		req.gift_m = t.gift_disturbance_m
@@ -155,17 +157,20 @@ static func _snapshot_patches(
 		disc_ok.append(1 if p < 0 or (c.support_bodies[p] < 0 and c.cell_support[p] != _NO_SUPPORT) else 0)
 	var pc: BotStack.PieceCut = stack.piece_cut(bottom, req.face_half_m, c.support_height, req.aim_m, disc_ok)
 	result.known = true
+	var unknown: PackedVector2Array = PackedVector2Array()
 	for j: int in bottom.size():
 		var p: int = probe_of[j]
 		if p < 0 or c.support_bodies[p] < 0 or stack.index_of(c.support_bodies[p]) >= 0:
 			continue
 		if absf(c.cell_support[p] - pc.plane_y) > req.probe_contact_m:
 			continue
-		# DECISION: an unknown block is assumed to cover the probed square (as BotStatics does), shrunk by the aim error.
+		unknown.append(bottom[j])
+	# DECISION: an unknown block is assumed to cover the probed square (as BotStatics does), eroded by the aim error
+	# at the exposed edges of the assumed region (adjacent assumed squares merge, like coplanar tops in BotStack).
+	for corner: Vector2 in _eroded_squares(unknown, req.face_half_m, req.aim_m, req):
 		result.known = false
-		for corner: Vector2 in _shrunk_square(bottom[j], req.face_half_m, req.aim_m):
-			pc.points.append(corner)
-			pc.owners.append(_OWNER_UNKNOWN)
+		pc.points.append(corner)
+		pc.owners.append(_OWNER_UNKNOWN)
 	return pc
 
 
@@ -175,14 +180,15 @@ static func _probe_patches(c: BotCandidate, bottom: PackedVector2Array, req: Req
 	var points: PackedVector2Array = PackedVector2Array()
 	var on_disc: bool = absf(c.support_height - _GROUND_Y) <= req.probe_contact_m
 	var probe_of: PackedInt32Array = _probe_index(c, bottom)
+	var carried: PackedVector2Array = PackedVector2Array()
 	for j: int in bottom.size():
 		var p: int = probe_of[j]
 		if p >= 0 and (
 			c.cell_support[p] == _NO_SUPPORT or absf(c.cell_support[p] - c.support_height) > req.probe_contact_m
 		):
 			continue
-		var shrink: float = 0.0 if on_disc else req.aim_m
-		points.append_array(_shrunk_square(bottom[j], req.face_half_m, shrink))
+		carried.append(bottom[j])
+	points.append_array(_eroded_squares(carried, req.face_half_m, 0.0 if on_disc else req.aim_m, req))
 	return points
 
 
@@ -200,9 +206,38 @@ static func _probe_index(c: BotCandidate, bottom: PackedVector2Array) -> PackedI
 	return out
 
 
-## The axis-aligned square around `centre` with half-width `half` shrunk by `shrink`; empty when nothing is left.
-static func _shrunk_square(centre: Vector2, half: float, shrink: float) -> PackedVector2Array:
-	var h: float = half - shrink
-	if h <= 0.0:
-		return PackedVector2Array()
-	return BotGeom2D.square(centre, Vector2(h, 0.0), Vector2(0.0, h))
+## The corners of the squares of half-width `half` around `centres`, eroded by `aim` on their exposed edges only: a
+## side abutted by another square of the set (one cube pitch away along the side's normal, in line) is interior to the
+## merged region and keeps its full extent. Squares left with no area contribute nothing.
+static func _eroded_squares(
+	centres: PackedVector2Array, half: float, aim: float, req: Requirement
+) -> PackedVector2Array:
+	var out: PackedVector2Array = PackedVector2Array()
+	for i: int in centres.size():
+		var lo: Vector2 = centres[i] - Vector2(half, half)
+		var hi: Vector2 = centres[i] + Vector2(half, half)
+		if aim > 0.0:
+			var s: Vector4 = Vector4(aim, aim, aim, aim)
+			for j: int in centres.size():
+				if j == i:
+					continue
+				var d: Vector2 = centres[j] - centres[i]
+				if absf(d.y) <= req.probe_contact_m and absf(absf(d.x) - req.cube_m) <= req.probe_contact_m:
+					if d.x > 0.0:
+						s.z = 0.0
+					else:
+						s.x = 0.0
+				elif absf(d.x) <= req.probe_contact_m and absf(absf(d.y) - req.cube_m) <= req.probe_contact_m:
+					if d.y > 0.0:
+						s.w = 0.0
+					else:
+						s.y = 0.0
+			lo += Vector2(s.x, s.y)
+			hi -= Vector2(s.z, s.w)
+		if hi.x <= lo.x or hi.y <= lo.y:
+			continue
+		out.append(lo)
+		out.append(Vector2(hi.x, lo.y))
+		out.append(hi)
+		out.append(Vector2(lo.x, hi.y))
+	return out

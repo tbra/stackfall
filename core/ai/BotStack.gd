@@ -110,13 +110,13 @@ var _sound: PackedByteArray = PackedByteArray()
 var _known_chain: PackedByteArray = PackedByteArray()
 var _face_tolerance_deg: float = 0.0  # set from the tuning in _prepare
 var _contact_tolerance: float = 0.0  # set from the tuning in _prepare
-var _min_overlap: float = 0.0  # set from the tuning in _prepare
 var _index: Dictionary = {}  # body id -> index
 var _top_poly: Array[PackedVector2Array] = []  # per cube: outline of its top face, centred on the face
 var _top_lo: PackedVector2Array = PackedVector2Array()  # per cube: bounds of the top outline
 var _top_hi: PackedVector2Array = PackedVector2Array()
 var _bot_lo: PackedVector2Array = PackedVector2Array()  # per cube: bounds of the bottom outline
 var _bot_hi: PackedVector2Array = PackedVector2Array()
+var _erode_memo: Dictionary = {}  # Vector2(cube, aim) -> eroded top Vector4; see _eroded_top
 var _axis_aligned: PackedByteArray = PackedByteArray()  # per cube: 1 when its outlines are axis-aligned rectangles
 var _bot_poly: Array[PackedVector2Array] = []  # per cube: outline of its bottom face
 var _patch_owner: Array[PackedInt32Array] = []  # per body: supporter index (or -1 disc) of each contact patch
@@ -595,8 +595,13 @@ func _piece_cut(
 					if body_tilt_deg[cube_body[k]] > _face_tolerance_deg:
 						if BotGeom2D.signed_inside_hull(_top_poly[k], centre) < 0.0:
 							continue
+					# DECISION (Bontago-1t5.72.10): ANY positive overlap sets the plane and carries the piece. The host lifts
+					# a placement onto every box it intersects (MatchPlacement._lift_pose_clear, no minimum overlap), and
+					# Jolt stands a piece on a 9 cm strip (statics Jolt case F), so dropping slivers below
+					# min_contact_overlap_m called a piece resting on a sliver "on the lower plane / on the disc". The
+					# strip joins the support hull, so the verdict is the physical one either way.
 					var overlap: PackedVector2Array = _patch_of(k, centre - reach, centre + reach, 0.0)
-					if BotGeom2D.min_extent(overlap) < _min_overlap:
+					if overlap.is_empty():
 						continue
 					pair_j.append(j)
 					pair_k.append(k)
@@ -632,13 +637,78 @@ func _piece_cut(
 	return pc
 
 
-## The overlap of the axis-aligned box lo..hi (a piece's bottom face) with cube `k`'s top face shrunk by `aim`.
+## The overlap of the axis-aligned box lo..hi (a piece's bottom face) with cube `k`'s top face eroded by `aim`.
+## DECISION (Bontago-1t5.72.10): the aim error erodes the merged support REGION once, not each cube top: an edge that
+## abuts a coplanar top across the seam is interior to the region and is not eroded (see _eroded_top).
 func _patch_of(k: int, lo: Vector2, hi: Vector2, aim: float) -> PackedVector2Array:
 	if _axis_aligned[k] == 1:
-		var shrink: Vector2 = Vector2(aim, aim)
-		return BotGeom2D.rect_overlap(lo, hi, _top_lo[k] + shrink, _top_hi[k] - shrink)
+		var r: Vector4 = _eroded_top(k, aim)
+		return BotGeom2D.rect_overlap(lo, hi, Vector2(r.x, r.y), Vector2(r.z, r.w))
 	var box: PackedVector2Array = PackedVector2Array([lo, Vector2(hi.x, lo.y), hi, Vector2(lo.x, hi.y)])
 	return BotGeom2D.clip_convex(box, BotGeom2D.erode(_top_poly[k], aim))
+
+
+## Cube `k`'s top rectangle (lo.x, lo.y, hi.x, hi.y) eroded by `aim` on its exposed edges only. An edge is shared (not
+## eroded) when the coplanar flat tops of other cubes abut it across the seam and cover its whole length; for
+## axis-aligned faces this equals eroding the rectilinear union of the coplanar tops. Memoised per (cube, aim).
+func _eroded_top(k: int, aim: float) -> Vector4:
+	var lo: Vector2 = _top_lo[k]
+	var hi: Vector2 = _top_hi[k]
+	if aim <= 0.0:
+		return Vector4(lo.x, lo.y, hi.x, hi.y)
+	var key: Vector2 = Vector2(float(k), aim)
+	if _erode_memo.has(key):
+		return _erode_memo[key]
+	var s: Vector4 = Vector4(aim, aim, aim, aim)
+	if body_tilt_deg[cube_body[k]] <= _face_tolerance_deg:
+		if _side_shared(k, 0, -1.0):
+			s.x = 0.0
+		if _side_shared(k, 1, -1.0):
+			s.y = 0.0
+		if _side_shared(k, 0, 1.0):
+			s.z = 0.0
+		if _side_shared(k, 1, 1.0):
+			s.w = 0.0
+	var out: Vector4 = Vector4(lo.x + s.x, lo.y + s.y, hi.x - s.z, hi.y - s.w)
+	_erode_memo[key] = out
+	return out
+
+
+## Whether the side of cube `k`'s top at `axis` (0 x, 1 z), direction `dir` (+1 / -1) is entirely covered by flat
+## coplanar tops of other cubes across a seam no wider than the cube pitch leaves plus rest_tolerance_m.
+func _side_shared(k: int, axis: int, dir: float) -> bool:
+	var lo: Vector2 = _top_lo[k]
+	var hi: Vector2 = _top_hi[k]
+	var other: int = 1 - axis
+	var seam: float = maxf(cube_size - (hi[axis] - lo[axis]), 0.0) + _contact_tolerance
+	var seam_other: float = maxf(cube_size - (hi[other] - lo[other]), 0.0) + _contact_tolerance
+	var edge: float = hi[axis] if dir > 0.0 else lo[axis]
+	var top_y: float = _cube_top(k)
+	var starts: Array[float] = []
+	var ends: Array[float] = []
+	var cell: Vector2i = _cell_of((lo + hi) * 0.5)
+	for dx: int in range(-_hash_reach, _hash_reach + 1):
+		for dz: int in range(-_hash_reach, _hash_reach + 1):
+			for k2: int in _cube_cells.get(cell + Vector2i(dx, dz), PackedInt32Array()):
+				if k2 == k or _axis_aligned[k2] != 1 or body_tilt_deg[cube_body[k2]] > _face_tolerance_deg:
+					continue
+				if absf(_cube_top(k2) - top_y) > _contact_tolerance:
+					continue
+				var gap: float = (_top_lo[k2][axis] - edge) if dir > 0.0 else (edge - _top_hi[k2][axis])
+				if gap < -_contact_tolerance or gap > seam:
+					continue
+				starts.append(_top_lo[k2][other])
+				ends.append(_top_hi[k2][other])
+	var cur: float = lo[other]
+	var target: float = hi[other]
+	var progressed: bool = true
+	while progressed and cur < target - _contact_tolerance:
+		progressed = false
+		for i: int in starts.size():
+			if starts[i] <= cur + seam_other and ends[i] > cur:
+				cur = ends[i]
+				progressed = true
+	return cur >= target - _contact_tolerance
 
 
 # --- analysis -----------------------------------------------------------------------------------
@@ -653,7 +723,6 @@ func _prepare(t: BotStackTuning) -> void:
 	_hash_reach = t.hash_reach_cells
 	_face_tolerance_deg = t.support_face_tolerance_deg
 	_contact_tolerance = t.rest_tolerance_m
-	_min_overlap = t.min_contact_overlap_m
 	var n: int = body_ids.size()
 	_supporters.clear()
 	_hull.clear()
@@ -668,6 +737,7 @@ func _prepare(t: BotStackTuning) -> void:
 	_patch_owner.clear()
 	_patch_pts.clear()
 	_cuts.clear()
+	_erode_memo.clear()
 	_cube_cells.clear()
 	_debris_cells.clear()
 	_on_disc = PackedByteArray()
