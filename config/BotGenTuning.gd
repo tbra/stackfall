@@ -35,6 +35,10 @@ extends Resource
 @export var stack_jitter_m: float = 0.5
 ## Flattest orientations offered per stack top.
 @export var stack_orientation_variants: int = 2
+## Bontago-1t5.69 (Reach the Sky only): tallest extra orientations offered per stack top, after the
+## flattest ones, when their flat tip risk is at or below stack_tall_risk_max. 0 = flat-first only.
+@export var stack_tall_variants: int = 2
+@export var stack_tall_risk_max: float = 0.4
 
 @export_group("Foundation sites")
 ## Bontago-1t5.54: sites offered around a new base (widest, flattest orientation first).

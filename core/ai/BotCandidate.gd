@@ -68,3 +68,6 @@ var probe_points: PackedVector2Array = PackedVector2Array()
 var support_bodies: PackedInt64Array = PackedInt64Array()
 ## 1t5.53b fills it (headroom of the tower under this site); INF = no block support / no snapshot.
 var load_margin: float = INF
+## Bontago-1t5.69 (append-only): cubes in the placed piece's top layer (BotStatics.OrientationInfo.top_area),
+## the landing area the next piece gets; 0 = unknown (older candidates).
+var top_area: float = 0.0

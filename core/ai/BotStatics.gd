@@ -54,6 +54,8 @@ class OrientationInfo:
 	var flat_risk: float = 0.0
 	## Number of bottom cubes (grip area in cubes).
 	var contact_area: float = 0.0
+	## Bontago-1t5.69: number of cubes in the top layer (the landing area the next piece gets).
+	var top_area: float = 0.0
 
 
 ## Tip risk 0..1 of candidate `c` (its orientation of `shape`). With per-cell probe
@@ -108,10 +110,14 @@ static func orientation_info(shape: BlockShape, index: int, tuning: BotGenTuning
 		info.cubes.append(Vector2(roundf(v.x), roundf(v.z)) - info.pivot_shift)
 	info.height = float(max_y - min_y + 1)
 	var sum: Vector2 = Vector2.ZERO
+	var top_cubes: int = 0
 	for i: int in range(info.cubes.size()):
 		sum += info.cubes[i]
 		if layer_y[i] == min_y:
 			info.contact.append(info.cubes[i])
+		if layer_y[i] == max_y:
+			top_cubes += 1
+	info.top_area = float(top_cubes)
 	if not info.cubes.is_empty():
 		info.com = sum / float(info.cubes.size())
 	info.contact_area = float(info.contact.size())
