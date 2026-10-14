@@ -341,7 +341,8 @@ func debris_near(point: Vector2, radius: float) -> bool   # any unsound cube wit
 - **S-gate after each of 55b, 53b and 54.** Settings: 8 seats = 1 passive seat (auto-drop pile, a free reference) + 7 Hard v2, Reach the Sky, no gifts, no weather, `--seconds=180`, 10 seeds.
   - Draft command (confirm flags with T's `--dry-run`):
 ```
-python tools/bot_h2h.py --bots 7 --players 8 --mode sky --no-swap --pairs 10 --seconds 180 --stats --godot-args "--match-seed={seed} --bot-difficulty=hard --bot-brain=v2 --gifts=0"
+python tools/bot_h2h.py --bots 7 --players 8 --mode sky --no-swap --pairs 10 --seconds 180 --stats --cand-slots-a 0,1,2,3,4,5,6 --godot-args "--match-seed={seed} --bot-difficulty=hard --bot-brain=v2 --gifts=0"
+# (1t5.56: without --cand-slots-a 0..6 side A is only 4 of the 7 bots.)
 ```
 - **Targets (provisional, to be re-pinned against S0):**
   - bot-seat median peak ≥ max(2 × S0, 25 m);
