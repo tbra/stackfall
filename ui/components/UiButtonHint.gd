@@ -6,7 +6,7 @@ extends RefCounted
 ##
 ## Layout (all values from ArcadeVisualTuning): the group [icon, label, gap(space_2), glyph] is
 ## centred horizontally in the button; the glyph is scaled down so its cap fits inside the block
-## face with a space_1 margin, and its cap is centred vertically on the label's own line (the
+## face with a space_3 total margin, and its cap is centred vertically on the label's own line (the
 ## stylebox content box of the CURRENT state, so it follows the press travel exactly like the
 ## text). State: a disabled button dims it (disabled_alpha), a pressed one darkens it
 ## (pressed_top_dark_mix). The hint is an InputPromptFlow, so it follows the active device and
@@ -81,7 +81,7 @@ static func _place(button: Button, flow: InputPromptFlow) -> void:
 		return
 	var cap_drop: float = float(arcade.drop_sm_px)
 	var body: float = maxf(natural.y - cap_drop, 1.0)
-	var face_room: float = button.size.y - float(arcade.drop_sm_px) - float(arcade.space_1_px * 2)
+	var face_room: float = button.size.y - float(arcade.drop_sm_px) - float(arcade.space_3_px)  # Bontago-1pi.159.58: space-3 total breathing room above/below the cap
 	var fit: float = 1.0
 	if face_room > 0.0 and body > face_room:
 		fit = face_room / body

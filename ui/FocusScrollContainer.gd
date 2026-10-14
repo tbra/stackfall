@@ -124,6 +124,7 @@ func _move_selection(direction: int) -> void:
 		return
 	var target: Control = focused.find_valid_focus_neighbor(SIDE_BOTTOM if direction > 0 else SIDE_TOP)
 	if target != null and target != focused:
+		Sfx.note_focus_nav()  # Bontago-1pi.159.48: a held-stick repeat has no input event this frame
 		target.grab_focus()
 
 
