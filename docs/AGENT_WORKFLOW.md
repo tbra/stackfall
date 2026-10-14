@@ -53,7 +53,7 @@ Every assignment must include:
 - Beads issue ID, objective and acceptance criteria; existing owner/claim if any.
 - Exact absolute checkout path, branch, base commit and required interface revisions. Create agent worktrees with `python tools/new_worktree.py <name>` (adds the off-screen `override.cfg`; never bare `git worktree add`).
 - Owned files/directories and exclusions; required spec sections and design plan.
-- Relevant commands, expected outcomes and where to retain logs.
+- Relevant commands, expected outcomes and where to retain logs. The log location is `python tools/scratch.py path <bead-id> [slug]`.
 - Git authority for this assignment (workers default to no commits, merges, pushes or remote sync; the orchestrator owns verified delivery). Name the shared Beads checkout for worker comments; workers may not change issue status.
 - Exact verification budget: named targeted tests, maximum runs and duration, whether a visual probe is justified, and the stop condition.
 - **Hard deadlines (owner 2026-10-02):** every harness, multiplayer, bot-match or other long command in the brief runs under an explicit wall-clock deadline (default 15 min per run unless the brief names another) that kills the process tree and reports `timeout`; a hung harness is a finding, not something to wait on. Briefs for work expected to exceed 30 min name a check-in time; the worker comments a checkpoint on its Bead at least every 30 min. If no handback or checkpoint has arrived by the check-in time, the orchestrator inspects the worker's output/processes immediately instead of waiting.
