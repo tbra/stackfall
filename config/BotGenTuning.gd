@@ -1,7 +1,7 @@
 class_name BotGenTuning
 extends Resource
-## Bot V2 site generation and analytic statics tunables (docs/BOT_AI_REDESIGN.md 2.3
-## steps 4-5). Read by core/ai/BotCandidateGen.gd and core/ai/BotStatics.gd; the
+## Bot V2 site generation tunables (docs/BOT_AI_REDESIGN.md 2.3
+## steps 4-5). Read by core/ai/BotCandidateGen.gd and core/ai/BotStatics.gd (orientation cap); the
 ## shipped values live in config/bot_gen_tuning.tres. Distances are metres unless a
 ## name says "cubes" (one cube is PhysicsTuning.cube_size).
 
@@ -35,15 +35,9 @@ extends Resource
 @export var stack_jitter_m: float = 0.5
 ## Flattest orientations offered per stack top.
 @export var stack_orientation_variants: int = 2
-## Bontago-1t5.69 (Reach the Sky only): tallest extra orientations offered per stack top, after the
-## flattest ones, when their flat tip risk is at or below stack_tall_risk_max. 0 = flat-first only.
+## Bontago-1t5.69 (Reach the Sky only): tallest extra eligible orientations offered per stack top, after the
+## flattest ones. 0 = flat-first only.
 @export var stack_tall_variants: int = 2
-@export var stack_tall_risk_max: float = 0.4
-## Bontago-1t5.71 (Reach the Sky only): share of the slenderness risk that is charged as tip risk. Real Jolt
-## evidence (tests/unit/test_bot_slender_1014.gd): an upright bar3/bar4/bar5 stands equally well on a sound
-## wide top (6/6 settled, 5-6/6 after a cube or bar3 lands with 0.25 m aim error), so slenderness is a soft
-## tie-break, not a cap. 1 = the full slenderness risk of the other modes.
-@export_range(0.0, 1.0, 0.05) var rts_slender_scale: float = 0.25
 
 @export_group("Foundation sites")
 ## Bontago-1t5.54: sites offered around a new base (widest, flattest orientation first).
@@ -68,26 +62,9 @@ extends Resource
 @export var fill_chunk_attempts: int = 24
 ## Sites proxy-scored per think step.
 @export var rank_chunk_sites: int = 8
-## Fill sites prefer orientations at or below this tip risk.
-@export var fill_risk_max: float = 0.5
 
 @export_group("Orientations")
 ## Distinct (footprint, height) orientations kept per shape.
 @export var max_orientations_per_shape: int = 6
 ## Sites closer than this with the same orientation count as duplicates.
 @export var distinct_quantum_m: float = 0.25
-
-@export_group("Statics")
-## Highest tip risk at which an orientation is still offered at a tip.
-@export var tip_risk_max: float = 0.4
-## Height over the smaller support side (slenderness) at which risk starts / hits 1.
-@export var slender_safe: float = 2.0
-@export var slender_max: float = 5.0
-## Centre of mass this many cubes outside the supported rectangle = risk 1.
-@export var overhang_full_cubes: float = 0.5
-## A bottom cube counts as supported when this share of the probed cells under it are.
-@export var supported_cell_fraction: float = 0.5
-## Probed support within this of the pivot support height counts as contact.
-@export var contact_tolerance_m: float = 0.15
-## Without a grid: unsupported share of probed cells tolerated before overhang risk grows.
-@export var unsupported_safe_fraction: float = 0.25

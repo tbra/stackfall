@@ -81,8 +81,8 @@ func test_orientation_info_self_margin_and_com_height() -> void:
 	assert_almost_eq(upright.self_margin, FACE_HALF, EPS)
 	var tipping: int = 0
 	for shape: BlockShape in BlockShape.load_all_shapes():
-		for info: BotStatics.OrientationInfo in BotStatics.orientation_infos(shape, _gen_t):
-			tipping += 1 if info.self_margin < 0.0 else 0
+		for i: int in range(BlockOrientations.count()):
+			tipping += 1 if BotStatics.orientation_info(shape, i).self_margin < 0.0 else 0
 	assert_gt(tipping, 0, "some orientations have their centre of mass outside their own contact squares")
 
 

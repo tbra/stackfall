@@ -62,7 +62,7 @@ func after_each() -> void:
 func _upright_index(shape: BlockShape) -> int:
 	var best: BotStatics.OrientationInfo = null
 	for info: BotStatics.OrientationInfo in BotStatics.orientation_infos(shape):
-		if best == null or info.height > best.height or (info.height == best.height and info.flat_risk < best.flat_risk):
+		if best == null or info.height > best.height or (info.height == best.height and info.self_margin > best.self_margin):
 			best = info
 	return best.index
 
@@ -70,7 +70,7 @@ func _upright_index(shape: BlockShape) -> int:
 func _flat_index(shape: BlockShape) -> int:
 	var best: BotStatics.OrientationInfo = null
 	for info: BotStatics.OrientationInfo in BotStatics.orientation_infos(shape):
-		if best == null or info.height < best.height or (info.height == best.height and info.flat_risk < best.flat_risk):
+		if best == null or info.height < best.height or (info.height == best.height and info.self_margin > best.self_margin):
 			best = info
 	return best.index
 

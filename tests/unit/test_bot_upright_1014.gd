@@ -140,18 +140,29 @@ func test_bar4_and_bar5_stand_up_on_a_sound_top() -> void:
 		assert_eq(_best(sites, view).shape_height, upright, "%s stands up on a sound top" % shape.id)
 
 
-func test_slenderness_is_a_scaled_tip_penalty_in_reach_the_sky_only() -> void:
+func test_upright_bar5_centred_on_a_sound_top_is_stable_and_pays_no_tip_charge() -> void:
+	# Bontago-1t5.72: height is not a risk; only the centre of mass against the contact patches decides.
+	var view: BotWorldView = _view(_bar5, MatchConfig.GameMode.REACH_THE_SKY)
 	var info: BotStatics.OrientationInfo = null
 	for candidate_info: BotStatics.OrientationInfo in BotStatics.orientation_infos(_bar5, _gen_tuning):
 		if info == null or candidate_info.height > info.height:
 			info = candidate_info
-	assert_gt(info.flat_risk, 0.9, "an upright bar5 is the full slenderness risk by the old reading")
-	assert_almost_eq(info.base_risk, 0.0, 0.001, "a centred upright bar has no overhang risk")
+	assert_eq(info.height, 5.0)
 	var c: BotCandidate = BotCandidate.new()
-	var full: float = BotStatics.tip_risk_of(c, info, null, _gen_tuning)
-	var soft: float = BotStatics.tip_risk_of(c, info, null, _gen_tuning, BotStatics.NO_CUBE_SIZE, _gen_tuning.rts_slender_scale)
-	assert_almost_eq(soft, full * _gen_tuning.rts_slender_scale, 0.001, "the Reach the Sky penalty is the scaled slenderness")
-	assert_lt(soft, _gen_tuning.stack_tall_risk_max, "and stays under the old offer cap")
+	c.origin = TOWER_POS
+	c.orientation_index = info.index
+	c.probe_points = BotStatics.contact_probe_points(c, info, view.cube_size, info.contact.size())
+	c.cell_support.resize(c.probe_points.size())
+	c.cell_support.fill(0.0)
+	c.support_bodies.resize(c.probe_points.size())
+	c.support_bodies.fill(-1)
+	var bot_tuning: BotTuning = load("res://config/bot_tuning.tres") as BotTuning
+	var req: BotStability.Requirement = BotStability.requirement(
+		bot_tuning.hard_v2, view, BotEvaluator.stack_tuning, bot_tuning.stability_contact_tolerance_m
+	)
+	c.stability_slack = BotStability.evaluate(c, info, view, req).slack
+	assert_gt(c.stability_slack, 0.0, "a centred upright bar5 stands")
+	assert_eq(BotEvaluator.stability_risk(c), 0.0, "and pays no TIP charge")
 
 
 func test_toppling_upright_loses_to_the_flat_piece() -> void:
