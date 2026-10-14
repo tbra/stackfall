@@ -2,7 +2,7 @@
   "sample_rate": 44100,
   "channels": 1,
   "pcm_bits": 16,
-  "generator": "tools/generate_lobby_ui_cues.py",
+  "generator": "a script removed in Bontago-dbn.1 (see git history)",
   "provenance": "Original damped modes and seeded filtered noise; existing sounds analyzed only, not sampled",
   "cues": [
     {

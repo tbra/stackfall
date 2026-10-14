@@ -43,14 +43,14 @@ extends Resource
 
 ## Per-face orientation correction, parallel arrays in face_names order
 ## (back, bottom, front, left, right, top). Found numerically by
-## tools/skybox_seam_probe.gd, which loads a real six-face set and picks the
+## a script removed in Bontago-dbn.1 (see git history), which loads a real six-face set and picks the
 ## rotation/flip combination that jointly minimizes the mean colour
 ## difference across all 12 touching cube edges -- not eyeballed (an earlier
 ## eyeballed guess left hard seams; see Bontago-1en/assets-sky-seams).
 ## game/Skybox._apply_face_transform() applies these as: flip_u, then
 ## flip_v, then rotate by face_rotations[i] quarter turns (matching the
 ## probe's own search space exactly, so its result is reproducible here).
-## Values found on the Beach set and confirmed (tools/skybox_seam_probe.gd
+## Values found on the Beach set and confirmed (a script removed in Bontago-dbn.1 (see git history)
 ## --verify) to also give a near-zero seam error on Mountain and Lake, which
 ## share the same exporter/convention (see the package report for the actual
 ## numbers). Order: back, bottom, front, left, right, top.

@@ -50,7 +50,7 @@ extends CanvasLayer
 
 
 ## Bontago-mp0.3.3 (owner review 2026-09-26: "bar ~22-25% of screen width"):
-## 300px is 23.4% of the 1280px reference width tools/capture_mockup08.tscn
+## 300px is 23.4% of the 1280px reference width a script removed in Bontago-dbn.1 (see git history)
 ## and every other fixed HUD offset in this file already assume.
 const SHARE_BAR_MAX_WIDTH: float = 200.0
 const SHARE_BAR_HEIGHT: float = 14.0

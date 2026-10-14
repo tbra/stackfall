@@ -2,7 +2,7 @@
 
 Fourteen original SVGs on a 24 x 24 grid, with 2-unit rounded strokes and white
 source colour. No fonts, filters, embedded images or external artwork. Reproduce
-with `python tools/generate_lobby_icons.py`. `catalog.json` lists all meanings.
+with a script removed in Bontago-dbn.1 (see git history). `catalog.json` lists all meanings.
 
 Included: GAME, ROUND, GIFTS and EXPERIMENTS section symbols; add/remove bot;
 teams; easy/normal/hard difficulty (one/two/three bars); random team (dice);
@@ -34,5 +34,5 @@ Copy `source_art/lobby_icons_v1/project.godot.review` into a temporary directory
 as `project.godot`, and copy `rasterize.gd` beside it. Run that temporary project
 headlessly with `-s rasterize.gd -- <absolute lobby_v1 directory> <TEMP folder
 named codex_lobby_icon_rasters>`. Then run
-`python tools/generate_lobby_icons.py --review`.
+a script removed in Bontago-dbn.1 (see git history).
 The .review filename avoids a nested Godot project in the game checkout.

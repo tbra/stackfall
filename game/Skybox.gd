@@ -33,7 +33,7 @@ extends Node3D
 ##
 ## The box mesh itself is deliberately kept rather than dropped now that the
 ## sky shader exists: the box is the one part of this system whose
-## correctness was verified pixel-by-pixel (tools/skybox_seam_probe.gd's
+## correctness was verified pixel-by-pixel (a script removed in Bontago-dbn.1 (see git history)'s
 ## measured seam error) and is trivially checkable by eye in a single
 ## screenshot; the sky shader's face-selection math (its sky() function) was
 ## checked algebraically against all six faces' corners (see
@@ -960,7 +960,7 @@ func _exit_tree() -> void:
 ## Public re-apply seam ui/TuningPanel.gd calls (via TUNING_GROUP above)
 ## whenever the owner edits a reflection tunable live in the F4 panel --
 ## configure_reflection_probe()/configure_ssr() otherwise only ever run once,
-## at boot. Also the one place tools/screenshot_xtq11_disk_opaque.gd's
+## at boot. Also the one place a script removed in Bontago-dbn.1 (see git history)'s
 ## `--mirror-mode=`/`--reflection-mode=` overrides re-apply their duplicated
 ## TerritoryVisuals after swapping `visuals` out from under an already-ready
 ## Skybox.
@@ -1879,7 +1879,7 @@ func _install_sky_material() -> void:
 ## with back/left/right as the 90-degree turns around it, top/bottom attached
 ## to front's edges unrotated) turned out NOT to match the original install's
 ## own per-face orientation for any of the six files; every face needs its
-## correction. See tools/skybox_seam_probe.gd, which found that correction
+## correction. See a script removed in Bontago-dbn.1 (see git history), which found that correction
 ## numerically, for why and the measured seam error.
 func _build_face_mesh(face_name: String) -> ArrayMesh:
 	var corners: Dictionary = _face_corners(StringName(face_name), config.box_half_extent)
@@ -1916,7 +1916,7 @@ func _build_face_mesh(face_name: String) -> ArrayMesh:
 ## Applies (in order) an optional horizontal flip, an optional vertical
 ## flip, then `rotation` quarter turns (each turn: (u,v) -> (v, 1-u)) to a
 ## face's base UV coordinate. Shared, as a static method, with
-## tools/skybox_seam_probe.gd so the probe's search space and Skybox's actual
+## a script removed in Bontago-dbn.1 (see git history) so the probe's search space and Skybox's actual
 ## render are provably the same transform -- the probe's printed table is
 ## meaningless otherwise. rotation is taken mod 4 (any int is accepted so a
 ## config value never has to be pre-clamped).

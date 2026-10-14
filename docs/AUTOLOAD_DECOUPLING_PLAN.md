@@ -201,7 +201,7 @@ first frame ~2.4 s (STARTUP plan B), only once S2c+S2d+S2e+S3a are all merged.
 Integration batches (full gate once per batch, orchestrator): **B1** S1a+S1b (+S2a, S2b, S4a if ready);
 **B2** S1c+S1d+S1e+S1f; **B3** S1g (after fca.75) then dep_graph confirms 31/11/4; **B4** S2c+S2d+S3a;
 **B5** S2e+S3b (after fca.76); **B6** startup re-measure (integrator, idle machine) then S4b; S3c only if
-first frame (3 windowed off-screen runs of `res://tools/probe_startup_gaps.tscn -- --agent-probe boot`,
+first frame (3 windowed off-screen runs of a script removed in Bontago-dbn.1 (see git history),
 median) is above 2.2 s. Writers of autoload/Match.gd are strictly serial: S1a -> S1b -> S2c.
 
 ## 5. Package briefs (dispatch-ready)

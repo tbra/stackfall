@@ -1,7 +1,7 @@
 # Block impact variation candidates
 
 Twelve original short mono Foley cues:soft/medium/hard xblock-on-block/block-on-disc
-xtwo variants. Reproduce with python tools/generate_impact_variations.py.
+xtwo variants. Reproduce with python a script removed in Bontago-dbn.1 (see git history).
 Source construction uses damped modal bodies,brief pitch settling and seeded
 filtered noise. No existing audio samples are copied or transformed. Existing
 thud1-4.wav were analyzed only for short-transient character:roughly0.17..0.56s,

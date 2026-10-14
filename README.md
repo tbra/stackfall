@@ -57,17 +57,13 @@ down.
 
 ### Local multiplayer without a second PC
 
-`tools/run_m3a_local.ps1` (PowerShell) and `tools/run_m3a_local.sh` (bash) launch one
+`tools/run_m3a_local.ps1` (PowerShell) launches one
 headless host and N−1 headless clients from a single command, all on `127.0.0.1`, run a
 scripted match end to end, and exit non-zero if anything failed:
 
 ```powershell
 tools/run_m3a_local.ps1 -Peers 4                       # 1 host + 3 clients
 tools/run_m3a_local.ps1 -Peers 4 -SimLag 100 -SimLoss 0.02   # client 1 gets the acceptance condition
-```
-
-```bash
-tools/run_m3a_local.sh --peers 4
 ```
 
 For a windowed feel-test instead of a scripted one, use the editor's **Debug → Customize
@@ -278,8 +274,7 @@ Profile a running game (Bontago-1pi.11.90). Two options:
    physics-step split, rolling graph).
 2. Godot's own profiler on a game run outside the editor: open the project in the editor
    (`godot --editor --path .`), choose **Debug > Keep Debug Server Open**, open the bottom
-   **Debugger** panel, then launch the game with `powershell -File tools/run_profiled.ps1`
-   (or `godot --path . --remote-debug tcp://127.0.0.1:6007`). Pick the **Profiler** tab
+   **Debugger** panel, then launch the game with `godot --path . --remote-debug tcp://127.0.0.1:6007`. Pick the **Profiler** tab
    (script functions), **Visual Profiler** (CPU/GPU frame) or **Monitors**, and press Start.
    Debug builds only (not exported release builds).
 

@@ -1,6 +1,6 @@
 # Editable horizon island source
 
-Original seeded mesh construction in `tools/generate_horizon_islands.py`.
+Original seeded mesh construction in a script removed in Bontago-dbn.1 (see git history).
 `horizon_islands_v1.blend` has separate mesa/shelf/crag collections, with full and
 two reduced meshes each. Mesh colors use the CelColor corner attribute, exported
 asCOLOR_0. BlenderZ-up becomes GodotY-up; all GLB roots stay at the cap center.

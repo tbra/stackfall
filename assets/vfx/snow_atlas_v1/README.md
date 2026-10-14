@@ -20,13 +20,13 @@ This package does not alter the weather shader or presentation code.
 
 ## Reproduce
 
-Run `python tools/generate_snow_atlas.py` for the17SVG sources and manifest.
+Run a script removed in Bontago-dbn.1 (see git history) for the17SVG sources and manifest.
 Copy `source_art/snow_atlas_v1/project.godot.review` to a temporary directory as
 `project.godot`, alongside `rasterize.gd`. Then run the tiny native helper:
 
 ```powershell
 godot --headless --path $helper --script "$helper/rasterize.gd" -- "$checkout/source_art/snow_atlas_v1" "$helper/png"
-python tools/generate_snow_atlas.py --review-native "$helper/png"
+# generator removed in Bontago-dbn.1 (see git history)
 ```
 
 Python3.8+ and Pillow are needed for review. The helper never boots the game.

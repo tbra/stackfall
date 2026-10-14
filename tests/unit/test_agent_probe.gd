@@ -11,7 +11,7 @@ func test_detects_flag_in_user_args() -> void:
 
 
 func test_detects_tools_scene_path() -> void:
-	assert_true(AgentProbe.detect(PackedStringArray(["--path", ".", "res://tools/bench_perf_attrib.tscn"]), PackedStringArray()))
+	assert_true(AgentProbe.detect(PackedStringArray(["--path", ".", "res://tools/sandbox_shot.tscn"]), PackedStringArray()))
 
 
 func test_game_scene_and_plain_launch_not_probe() -> void:

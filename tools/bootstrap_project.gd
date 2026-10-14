@@ -132,8 +132,8 @@ func _apply_settings() -> void:
 		# Bodies sleep after 0.5 s below threshold (spec 3.5, "Sleep").
 		"physics/jolt_physics_3d/simulation/sleep_time_threshold": 0.5,
 		# DECISION (Bontago-1pi.11.13, 2026-09-30): kept at Jolt's 0.03 m/s
-		# after a sweep of 0.03/0.05/0.08/0.1 (tools/bench_sleep_sweep.tscn,
-		# bench_physical_balance, bench_perf_attrib --counts=300 --collapse).
+		# after a sweep of 0.03/0.05/0.08/0.1 (bench scripts since removed in Bontago-dbn.1,
+		# see git history).
 		# The key does reach Jolt (a gravity-free block drifting at 0.07 m/s
 		# sleeps at >=0.05, not at 0.03), but a dropped block (0.92 s) and a
 		# 10-block stack (0.52 s) sleep at the same time for every value, and

@@ -1,6 +1,6 @@
 # Original special activation cue pack
 
-These four WAVs fill names already configured in `AudioConfig`: `bomb.wav`, `volcano.wav`, `quake2.wav`, and `propeller.wav`. The files were synthesized specifically for Stackfall using deterministic noise and oscillators; no recordings, samples, downloads, or original Bontago audio are used. The script at `tools/generate_special_sfx.py` is the reproducible source.
+These four WAVs fill names already configured in `AudioConfig`: `bomb.wav`, `volcano.wav`, `quake2.wav`, and `propeller.wav`. The files were synthesized specifically for Stackfall using deterministic noise and oscillators; no recordings, samples, downloads, or original Bontago audio are used. The script at a script removed in Bontago-dbn.1 (see git history) is the reproducible source.
 
 | Cue | Duration | Intended character |
 | --- | ---: | --- |
@@ -17,7 +17,7 @@ Review (Claude, 2026-10-02, Bontago-mp0.42): judged from waveform/spectrogram re
 
 ## Activation cue per special (Bontago-eq0, 2026-10-12)
 
-`tools/generate_special_sfx.py` now also renders one cue for each special that had none. Sfx plays them on `Events.special_triggered` (host and clients, silent during a late joiner's world replay, one cue per special per 0.3 s). The mapping is `AudioConfig.special_cue_files`; the four cues above are reused for Bomb, Volcano, Earthquake and Propeller and render byte-identically.
+a script removed in Bontago-dbn.1 (see git history) now also renders one cue for each special that had none. Sfx plays them on `Events.special_triggered` (host and clients, silent during a late joiner's world replay, one cue per special per 0.3 s). The mapping is `AudioConfig.special_cue_files`; the four cues above are reused for Bomb, Volcano, Earthquake and Propeller and render byte-identically.
 
 | Cue | Duration | Intended character |
 | --- | ---: | --- |
@@ -32,4 +32,4 @@ Review (Claude, 2026-10-02, Bontago-mp0.42): judged from waveform/spectrogram re
 | Stackfall | 1.70 s | Falling whistle, then a cascade of wooden block clacks |
 | Rocket (blast) | 1.10 s | Ignition whoosh into a bright crack, boom and sparks |
 
-The Rocket's trigger is its detonation, so it uses `rocket_blast.wav`; `rocket.wav` (launch whistle) keeps no caller. Review (Claude, 2026-10-12): levels checked with `tools/measure_audio.py`, not judged by ear; the owner should listen in a match.
+The Rocket's trigger is its detonation, so it uses `rocket_blast.wav`; `rocket.wav` (launch whistle) keeps no caller. Review (Claude, 2026-10-12): levels checked with a script removed in Bontago-dbn.1 (see git history), not judged by ear; the owner should listen in a match.

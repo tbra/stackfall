@@ -157,7 +157,7 @@ extends Node3D
 ## "none of the feel issues were fixed" on c50510c): the black/white speckle
 ## under the ghost was never the footprint quad, the hatch texture or the
 ## prism -- it was _block_projection_decal painting the *disc*.
-## tools/screenshot_feel8a_footprint.gd evidence: the speckle survives hiding
+## a script removed in Bontago-dbn.1 (see git history) evidence: the speckle survives hiding
 ## the footprint quad, the prism, the planar mirror, SSR, the sun's shadows and
 ## the ReflectionProbe one at a time (feel8a-before_bisect-*.png), and vanishes
 ## (241 -> 0 near-black pixels) the moment the decal stops reaching the disc
@@ -2495,7 +2495,7 @@ func _build_hatch_texture() -> ImageTexture:
 	# or oblique ground-decal viewing angle, and linear-filtering a
 	# diagonal high-frequency stripe pattern down that hard aliases into the
 	# reported speckled noise (confirmed by reproducing the exact same
-	# artefact via tools/screenshot_xtq15_block_projection.gd with the ghost
+	# artefact via a script removed in Bontago-dbn.1 (see git history) with the ghost
 	# forced into PlacementRules.Result.HOLE, and by ruling out
 	# _block_projection_decal -- its own texture is a single flat colour
 	# with no frequency content to alias, and the artefact persisted with
