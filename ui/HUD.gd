@@ -244,6 +244,16 @@ var _gift_slot_extra_width: float = 0.0
 var _gift_slot_glyph_row: HBoxContainer = null
 var _gift_slot_glyph: InputGlyph = null
 var _gift_slot_glyph_signature: String = ""
+## Bontago-1pi.213: F8 / PADDLE4 (hud_toggle) hides every HUD control at once.
+## DECISION: the HUD owns this state (every in-match HUD element hangs off its
+## HudScaleRoot; the pause menu, results, loading and F1-F4 overlays are other
+## layers, so they are untouched). It toggles the scale root, not HUD.visible,
+## which the results screen already uses. Not gated by DebugMode, and the state
+## resets on Events.match_scope_reset so each new match starts with the HUD shown.
+var _hud_hidden: bool = false
+## A PADDLE4 press waits for its release before toggling, so PADDLE4+PADDLE1
+## (the sandbox slow-motion chord) can cancel it instead of also hiding the HUD.
+var _hud_pad_pending: bool = false
 
 
 
@@ -318,6 +328,7 @@ func _ready() -> void:
 	Events.match_results_ready.connect(_on_match_results_ready)
 	Events.match_won.connect(_on_match_won)
 	Events.match_scope_reset.connect(_capture_ext.clear)
+	Events.match_scope_reset.connect(_show_hud)
 	Events.match_state_changed.connect(_on_match_state_changed_glue)
 	Events.player_eliminated.connect(_on_player_eliminated)
 	Events.gift_claimed.connect(_on_gift_claimed)
@@ -1102,6 +1113,40 @@ func _build_scale_root() -> void:
 	for child: Node in get_children():
 		if child != _scale_root and child is Control:
 			child.reparent(_scale_root, false)
+
+
+func is_hud_hidden() -> bool:
+	return _hud_hidden
+
+
+func _show_hud() -> void:
+	_hud_hidden = false
+	_hud_pad_pending = false
+	if _scale_root != null:
+		_scale_root.visible = true
+
+
+func _toggle_hud() -> void:
+	_hud_hidden = not _hud_hidden
+	if _scale_root != null:
+		_scale_root.visible = not _hud_hidden
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventJoypadButton:
+		var pad: InputEventJoypadButton = event as InputEventJoypadButton
+		if event.is_action(&"hud_toggle"):
+			if pad.pressed:
+				_hud_pad_pending = true
+			elif _hud_pad_pending:
+				_hud_pad_pending = false
+				_toggle_hud()
+			return
+		if pad.pressed:
+			_hud_pad_pending = false
+		return
+	if event.is_action_pressed(&"hud_toggle"):
+		_toggle_hud()
 
 
 ## Sizes and scales the scale root for the current viewport and scale settings.
