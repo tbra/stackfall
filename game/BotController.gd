@@ -332,6 +332,7 @@ func _begin_thinking(match_ref: Variant) -> void:
 	_apply_weather(view, match_ref)
 	_apply_live_radius(view, match_ref)
 	_apply_incoming_specials(view, match_ref)
+	_apply_stack(view, match_ref)
 	_special_view = view
 	_think = BotThink.new(view, _profile, _rng)
 	_think.tuning = tuning
@@ -340,6 +341,31 @@ func _begin_thinking(match_ref: Variant) -> void:
 	_think_ticks = 0
 	_think_deadline_ticks = think_deadline_ticks()
 	_state = State.THINKING
+
+
+## Bontago-1t5.53b: the snapshot of the cubes near the own towers (BotStackProbe); BotThink's STACK phase
+## analyses it in slices. Sources: the tallest `stack_site_count` own circles at least `stack_min_height_m`
+## high (the tower-top sites BotCandidateGen offers) and the Reach the Sky tower. Without a registry or a
+## source the view keeps `stack == null` and the think is exactly the old one.
+func _apply_stack(view: BotWorldView, match_ref: Variant) -> void:
+	if _registry == null or _field == null:
+		return
+	var gen: BotGenTuning = BotCandidateGen.SHIPPED_TUNING
+	var tops: Array[Dictionary] = []
+	for i: int in view.indices_of_team(view.team_id):
+		var top: float = view.top_height(i)
+		if top >= gen.stack_min_height_m:
+			tops.append({"point": Vector2(view.cx[i], view.cz[i]), "top": top})
+	tops.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return (a["top"] as float) > (b["top"] as float))
+	var centres: PackedVector2Array = PackedVector2Array()
+	for entry: Dictionary in tops.slice(0, maxi(gen.stack_site_count, 0)):
+		centres.append(entry["point"] as Vector2)
+	if view.mode_goal != null and view.mode_goal.has_tower:
+		centres.append(view.mode_goal.tower_origin)
+	view.stack = BotStackProbe.build(
+		_registry, _field, centres, BotEvaluator.stack_tuning, view.cube_size,
+		func(slot: int) -> int: return int(match_ref.team_of(slot))
+	)
 
 
 ## Bontago-1t5.42: after the sudden-death shrink, the view's live radius is the surviving disc.

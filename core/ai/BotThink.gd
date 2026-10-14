@@ -5,7 +5,10 @@ extends RefCounted
 ##   PLAN     BotChains + BotStrategy.choose -> BotIntent                (one chunk)
 ##   SITES    BotCandidateGen.begin: the targeted TIP / STACK sites       (one chunk)
 ##   FILL     the uniform FILL draws, fill_chunk_attempts per step        (sliced)
-##   PROBE    support ray + one ray per footprint cell, statics -> tip_risk (per site)
+##   STACK    BotStack.analyse_step over the snapshot of the towers (Bontago-1t5.53b; sliced, one unit
+##            per body; skipped with no snapshot, which keeps the think exactly as before)
+##   PROBE    support ray + one ray per footprint cell, statics -> tip_risk, and the tower's centre
+##            of mass margin under the site (`load_margin`, block-supported sites only)
 ##   RANK     BotEvaluator.proxy on every site, rank_chunk_sites per step, best first
 ##   MEASURE  BotEvaluator.measure on the top `eval_top_k` (skipped when 0) (per site)
 ##   PICK     argmax, or a softmax sample from the best `pick_pool`; the origin is
@@ -35,7 +38,7 @@ const COST_AVERAGE_WEIGHT: float = 0.25
 const NO_SAMPLE: float = -1.0
 
 enum DecisionKind { PLACE, WAIT }
-enum Phase { PLAN, SITES, FILL, PROBE, RANK, MEASURE, PICK, DONE }
+enum Phase { PLAN, SITES, FILL, STACK, PROBE, RANK, MEASURE, PICK, DONE }
 
 static var _intent_log: int = -1
 ## Per-seat BotStrategy stickiness memory (slot id -> Dictionary), kept between pieces.
@@ -82,6 +85,8 @@ var _site_job: BotCandidateGen.SiteJob = null
 ## Next candidate the sliced proxy RANK scores.
 var _rank_pos: int = 0
 var _probe_index: int = 0
+## Bontago-1t5.53b: bodies the sliced STACK phase has analysed so far.
+var _stack_pos: int = 0
 ## Candidate indices ranked best first (proxy, then measured on the head).
 var _ranked: PackedInt32Array = PackedInt32Array()
 var _scores: PackedFloat32Array = PackedFloat32Array()
@@ -161,6 +166,8 @@ func remaining_work_us() -> int:
 		work += _unit_us(Phase.SITES) * total
 	if _phase <= Phase.FILL:
 		work += _unit_us(Phase.FILL) * _fill_draws_left(total)
+	if _phase <= Phase.STACK and _stack_pending():
+		work += _unit_us(Phase.STACK) * maxf(float(_view.stack.body_count() - _stack_pos), 0.0)
 	if _phase <= Phase.PROBE:
 		work += _unit_us(Phase.PROBE) * maxf(sites - float(_probe_index), 0.0)
 	if _phase <= Phase.RANK:
@@ -186,6 +193,8 @@ func finish_early() -> void:
 			_make_sites()
 		while _phase == Phase.FILL:
 			_fill_sites(_site_job.attempts_left())
+	if _phase == Phase.STACK:
+		_phase = Phase.PROBE
 	if _phase == Phase.PROBE:
 		_rank_all(_probe_index if _probe_index > 0 else _candidates.size())
 	elif _phase == Phase.RANK:
@@ -245,6 +254,8 @@ func _advance(probe: Callable) -> int:
 			return maxi(_profile.candidate_count, 1)
 		Phase.FILL:
 			return _fill_sites(_gen().fill_chunk_attempts)
+		Phase.STACK:
+			return _stack_step()
 		Phase.PROBE:
 			_probe_one(probe)
 			return 1
@@ -278,6 +289,8 @@ func _next_unit_us() -> float:
 			return _unit_us(Phase.SITES) * float(maxi(_profile.candidate_count, 1))
 		Phase.FILL:
 			return _unit_us(Phase.FILL) * float(mini(maxi(_gen().fill_chunk_attempts, 1), _site_job.attempts_left()))
+		Phase.STACK:
+			return _unit_us(Phase.STACK) * float(maxi(BotEvaluator.stack_tuning.analyse_bodies_per_step, 1))
 		Phase.RANK:
 			return _unit_us(Phase.RANK) * float(mini(maxi(_gen().rank_chunk_sites, 1), _candidates.size() - _rank_pos))
 		Phase.DONE:
@@ -360,8 +373,26 @@ func _fill_sites(max_attempts: int) -> int:
 	_fill_added += _candidates.size() - sites_before
 	if finished:
 		_site_job = null
-		_phase = Phase.PROBE if not _candidates.is_empty() else Phase.PICK
+		if _candidates.is_empty():
+			_phase = Phase.PICK
+		else:
+			_phase = Phase.STACK if _stack_pending() else Phase.PROBE
 	return draws
+
+
+## True while the view carries a snapshot (Bontago-1t5.53b) whose analysis is not finished.
+func _stack_pending() -> bool:
+	return _view.stack != null and _view.stack.body_count() > 0 and not _view.stack.is_analysed()
+
+
+## One slice of the STACK phase: analyse the next bodies; returns the bodies covered.
+func _stack_step() -> int:
+	var per_step: int = maxi(BotEvaluator.stack_tuning.analyse_bodies_per_step, 1)
+	var units: int = clampi(_view.stack.body_count() - _stack_pos, 1, per_step)
+	_stack_pos += units
+	if _view.stack.analyse_step(per_step, BotEvaluator.stack_tuning):
+		_phase = Phase.PROBE
+	return units
 
 
 func _probe_one(probe: Callable) -> void:
@@ -373,6 +404,7 @@ func _probe_one(probe: Callable) -> void:
 	_fire_cell_probes(candidate, probe)
 	candidate.top_height = candidate.support_height + candidate.shape_height
 	candidate.tip_risk = _tip_risk(candidate)
+	candidate.load_margin = _load_margin(candidate)
 	if _probe_index >= _candidates.size():
 		_phase = Phase.RANK
 
@@ -384,6 +416,32 @@ func _tip_risk(candidate: BotCandidate) -> float:
 	if info == null:
 		return 0.0
 	return BotStatics.tip_risk_of(candidate, info, _view.grid, _gen(), _view.cube_size)
+
+
+## Bontago-1t5.53b: the tower's centre-of-mass headroom under a probed site (BotStack.load_margin), INF
+## with no snapshot or no block support. The supports are the blocks under the cubes that rest on the
+## highest plane (the one the piece sits on); the piece's centre is its spawn-frame cube mean.
+## DECISION: the piece's mass is its cube count times the shipped cube mass (the blocks' own rule).
+func _load_margin(candidate: BotCandidate) -> float:
+	var stack: BotStack = _view.stack
+	if stack == null or not stack.is_analysed():
+		return INF
+	var info: BotStatics.OrientationInfo = _orientation_info(candidate.orientation_index)
+	if info == null:
+		return INF
+	var supports: PackedInt64Array = PackedInt64Array()
+	for i: int in range(candidate.support_bodies.size()):
+		var id: int = candidate.support_bodies[i]
+		if id < 0 or absf(candidate.cell_support[i] - candidate.support_height) > tuning.stability_contact_tolerance_m:
+			continue
+		if not supports.has(id):
+			supports.append(id)
+	if supports.is_empty():
+		return INF
+	var com_xz: Vector2 = candidate.origin + info.com * _view.cube_size
+	var com: Vector3 = Vector3(com_xz.x, candidate.support_height + candidate.shape_height * 0.5, com_xz.y)
+	var mass: float = BotWorldView.SHIPPED_PHYSICS_TUNING.cube_mass * float(_view.held.cells.size())
+	return stack.load_margin(supports, com, mass)
 
 
 ## The held piece's orientation description (built once per think); null with no held shape.
