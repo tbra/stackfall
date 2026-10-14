@@ -175,6 +175,15 @@ func test_gifts_flag_disables_gifts_only_when_zero() -> void:
 	assert_eq(other.gifts_enabled, _main.match_config.gifts_enabled, "only 0 changes anything")
 
 
+func test_weather_flag_zero_off_one_on_absent_unchanged() -> void:
+	var off: MatchConfig = _flow()._build_headless_bot_config(2, PackedStringArray(["--weather=0"]))
+	assert_eq(off.weather_mode, MatchConfig.WeatherMode.OFF, "--weather=0 turns weather off")
+	var absent: MatchConfig = _flow()._build_headless_bot_config(2, PackedStringArray())
+	assert_eq(absent.weather_mode, _main.match_config.weather_mode, "absent keeps the default")
+	var on: MatchConfig = _flow()._build_headless_bot_config(2, PackedStringArray(["--weather=1"]))
+	assert_ne(on.weather_mode, MatchConfig.WeatherMode.OFF, "--weather=1 leaves weather on")
+
+
 func test_round_timer_bad_value_keeps_configured() -> void:
 	for bad: String in ["abc", "-3", ""]:
 		var config: MatchConfig = _flow()._build_headless_bot_config(2, PackedStringArray(["--round-timer=%s" % bad]))
