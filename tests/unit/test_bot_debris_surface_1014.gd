@@ -273,7 +273,9 @@ func test_new_base_sites_rest_beside_and_on_flat_debris_but_never_on_tilted_debr
 	var view: BotWorldView = _view([FLAT_XZ, LEAN_XZ])
 	var stack: BotStack = _stack()
 	var flat: int = _disc_cube(stack, FLAT_XZ)
-	var lean: int = _disc_cube(stack, LEAN_XZ, LEAN_DEG)
+	# Bontago-1t5.72 (H13): a tilted face is centred on the face, not the cube centre, so a cube leaning towards the
+	# home would overhang the foundation points; it leans away from them (the sign) and the sites beside it stay bare.
+	var lean: int = _disc_cube(stack, LEAN_XZ, -LEAN_DEG)
 	view.stack = _analysed(stack)
 	var intent: BotIntent = BotStrategy._make(_strategy_tuning, BotIntent.Kind.ANCHOR, HOME_A)
 	intent.new_base = true
