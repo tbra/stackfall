@@ -1,4 +1,4 @@
-"""Build a small animated caged desk-fan gift (kept id: propeller) with Blender source, GLB, and preview."""
+"""Build a small animated upward-facing caged fan gift (kept id: propeller) with Blender source, GLB, and preview."""
 
 from math import cos, pi, sin
 from pathlib import Path
@@ -38,12 +38,17 @@ floor_mat = material("Review storm floor", "#435765")
 model = bpy.data.collections.new("Propeller export")
 bpy.context.scene.collection.children.link(model)
 
-# Bontago-mp0.161 (owner playtest 2026-10-13: "less propeller, more fan"): a caged
-# five-blade desk fan facing -Y (Godot +Z). Foot + neck + guard cage stay still; the
-# blade/hub mesh is the "Propeller / animated rotor" and spins about the Y axis.
+# Bontago-mp0.161 (owner playtest 2026-10-13: "less propeller, more fan") made this a
+# caged five-blade desk fan. Bontago-1pi.85.78 (owner 2026-10-14: "it blows to the side but
+# lifts the platform upwards"): DECISION: the fan now stands on its foot with its face
+# UP (rotor axis = Blender Z = Godot Y), like a floor blower, so the airflow reads as lift
+# in both the held and the placed/active scene. The blade/hub mesh is the "Propeller /
+# animated rotor" and spins about that vertical axis; foot, neck, motor and cage stay still.
 HUB_Z = 0.1
 CAGE_R = 0.4
 BLADES = 5
+BACK_Z = HUB_Z - 0.1   # back (motor side) ring height
+FRONT_Z = HUB_Z + 0.11  # front (airflow side) ring and hoops, on top
 
 
 def link(obj, name, mat):
@@ -55,23 +60,23 @@ def link(obj, name, mat):
     return obj
 
 
-def ring(name, radius, minor, y, mat):
+def ring(name, radius, minor, z, mat):
     bpy.ops.mesh.primitive_torus_add(major_radius=radius, minor_radius=minor, major_segments=28,
-                                     minor_segments=6, location=(0, y, HUB_Z), rotation=(pi / 2, 0, 0))
+                                     minor_segments=6, location=(0, 0, z))
     return link(bpy.context.object, name, mat)
 
 
-def spoke(angle, y0, r0, r1, thick, mat):
-    # Flat radial wire from radius r0..r1 at depth y0, joined later into the guard.
+def spoke(angle, z, r0, r1, thick, mat):
+    # Flat radial wire from radius r0..r1 on the front plane, joined later into the guard.
     bpy.ops.mesh.primitive_cube_add(size=1)
     obj = bpy.context.object
     obj.dimensions = (r1 - r0, thick, thick)
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-    obj.location = ((r0 + r1) / 2, y0, 0)
+    obj.location = ((r0 + r1) / 2, 0, 0)
     bpy.ops.object.transform_apply(location=True, rotation=False, scale=False)
-    obj.rotation_euler = (0, -angle, 0)
+    obj.rotation_euler = (0, 0, angle)
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=False)
-    obj.location.z = HUB_Z
+    obj.location.z = z
     return obj
 
 
@@ -84,34 +89,33 @@ def join(objs, name, mat):
     return link(bpy.context.object, name, mat)
 
 
-# Still parts: dark base foot, teal neck, motor pod behind the cage.
-bpy.ops.mesh.primitive_cylinder_add(vertices=16, radius=0.27, depth=0.07, location=(0, 0.02, -0.44))
+# Still parts: dark base foot, teal neck, motor pod under the cage.
+bpy.ops.mesh.primitive_cylinder_add(vertices=16, radius=0.27, depth=0.07, location=(0, 0, -0.44))
 link(bpy.context.object, "Propeller / dark foot", ink)
-bpy.ops.mesh.primitive_cylinder_add(vertices=10, radius=0.055, depth=0.38, location=(0, 0.02, -0.28))
+bpy.ops.mesh.primitive_cylinder_add(vertices=10, radius=0.055, depth=0.36, location=(0, 0, -0.26))
 link(bpy.context.object, "Propeller / teal neck", teal)
-bpy.ops.mesh.primitive_cylinder_add(vertices=14, radius=0.12, depth=0.16, location=(0, 0.1, HUB_Z), rotation=(pi / 2, 0, 0))
+bpy.ops.mesh.primitive_cylinder_add(vertices=14, radius=0.12, depth=0.16, location=(0, 0, BACK_Z))
 link(bpy.context.object, "Propeller / dark motor", ink)
 
-# Guard cage: front and back rings plus radial wires and two inner hoops.
-ring("Propeller / cage back ring", CAGE_R, 0.022, 0.1, teal)
-ring("Propeller / cage front ring", CAGE_R, 0.022, -0.11, teal)
-wires = [spoke(k * 2 * pi / 12, -0.11, 0.07, CAGE_R, 0.025, teal) for k in range(12)]
+# Guard cage: back and front rings plus radial wires and two inner hoops (horizontal).
+ring("Propeller / cage back ring", CAGE_R, 0.022, BACK_Z, teal)
+ring("Propeller / cage front ring", CAGE_R, 0.022, FRONT_Z, teal)
+wires = [spoke(k * 2 * pi / 12, FRONT_Z, 0.07, CAGE_R, 0.025, teal) for k in range(12)]
 join(wires, "Propeller / cage wires", teal)
-ring("Propeller / cage hoop outer", CAGE_R * 0.62, 0.016, -0.11, teal)
-ring("Propeller / cage hoop inner", CAGE_R * 0.3, 0.016, -0.11, teal)
+ring("Propeller / cage hoop outer", CAGE_R * 0.62, 0.016, FRONT_Z, teal)
+ring("Propeller / cage hoop inner", CAGE_R * 0.3, 0.016, FRONT_Z, teal)
 
-# Rotor: five broad pitched paper blades + brass hub in one mesh.
+# Rotor: five broad pitched paper blades + brass hub in one mesh, lying in the XY plane.
 def fan_blade(index):
     base = index * 2 * pi / BLADES
     outline = [(0.06, -0.05), (0.2, -0.115), (0.34, -0.1), (0.35, 0.0), (0.34, 0.1), (0.2, 0.115), (0.06, 0.05)]
     pts_top, pts_bot = [], []
     for r, t in outline:
-        # Pitch: tangential offset lifts one edge toward the viewer so the blade reads as twisted.
-        for pts, dy in ((pts_top, 0.016 + 0.1 * t), (pts_bot, -0.016 + 0.1 * t)):
-            ang = base
-            x = r * cos(ang) - t * sin(ang)
-            z = r * sin(ang) + t * cos(ang)
-            pts.append((x, dy, z))
+        # Pitch: tangential offset lifts one edge so the blade reads as twisted.
+        for pts, dz in ((pts_top, 0.016 + 0.1 * t), (pts_bot, -0.016 + 0.1 * t)):
+            x = r * cos(base) - t * sin(base)
+            y = r * sin(base) + t * cos(base)
+            pts.append((x, y, dz))
     n = len(outline)
     faces = [tuple(range(n)), tuple(reversed(range(n, 2 * n)))]
     faces += [(i, (i + 1) % n, (i + 1) % n + n, i + n) for i in range(n)]
@@ -125,7 +129,7 @@ def fan_blade(index):
 
 
 blades = [fan_blade(i) for i in range(BLADES)]
-bpy.ops.mesh.primitive_cylinder_add(vertices=14, radius=0.075, depth=0.1, location=(0, -0.02, 0), rotation=(pi / 2, 0, 0))
+bpy.ops.mesh.primitive_cylinder_add(vertices=14, radius=0.075, depth=0.1, location=(0, 0, 0.02))
 hub = bpy.context.object
 hub.name = "hubmesh"
 bpy.ops.object.select_all(action="DESELECT")
@@ -140,10 +144,10 @@ hub.parent = rotor_blades
 link(hub, "Propeller / brass hub", brass)
 rotor = rotor_blades
 rotor.location = (0, 0, HUB_Z)
-hub.location = (0, -0.02, 0)
+hub.location = (0, 0, 0.02)
 
 for frame, angle in ((1, 0), (7, pi / 2), (13, pi), (19, 3 * pi / 2), (25, 2 * pi)):
-    rotor.rotation_euler = (0, angle, 0)
+    rotor.rotation_euler = (0, 0, angle)
     rotor.keyframe_insert(data_path="rotation_euler", frame=frame)
 for fcurve in rotor.animation_data.action.fcurves:
     for key in fcurve.keyframe_points:
