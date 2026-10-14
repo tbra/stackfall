@@ -123,14 +123,11 @@ func test_e_upright_bar3_with_its_com_outside_the_edge_falls() -> void:
 
 
 ## F: cube8 on cube8 offset 0.89 / 1.09.
-## The piece's overhanging column overlaps the base by less than min_contact_overlap_m (0.1 m) at 0.89, so the model
-## drops that sliver from the support region and reads -0.01 where the true margin is +0.10: conservative.
+## The piece's overhanging column overlaps the base by less than min_contact_overlap_m (0.1 m) at 0.89; the model
+## keeps that strip as a contact (Bontago-1t5.72.10, like the host's lift) and agrees with Jolt.
 func test_f_cube8_on_cube8_inside_stands() -> void:
 	assert_true(await _base())
-	_agree(
-		"F- cube8 offset %.2f" % (EDGE_M - INSIDE_M), await _scene.trial(CUBE8_SHAPE, 0, _at(EDGE_M - INSIDE_M), 0.0), true,
-		"model drops a contact strip narrower than min_contact_overlap_m (conservative: Jolt stands, model refuses)"
-	)
+	_agree("F- cube8 offset %.2f" % (EDGE_M - INSIDE_M), await _scene.trial(CUBE8_SHAPE, 0, _at(EDGE_M - INSIDE_M), 0.0), true)
 
 
 func test_f_cube8_on_cube8_well_inside_stands() -> void:
