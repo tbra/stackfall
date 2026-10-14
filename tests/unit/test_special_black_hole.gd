@@ -12,22 +12,7 @@ const SETTLE_FRAMES: int = 20
 var _bodies: Array[Node3D] = []
 
 
-# DECISION (Bontago-fca.103): the Jolt job-pool overflow is an engine warning raised when the shard
-# starves worker threads (no state leaks from earlier scripts: shard0 ran test_glue_drops and
-# test_weather_ceiling just before, neither touches Jolt job state). Jolt waits for a free job so
-# physics stays correct; mark exactly this message handled (same as test_weather_breeze) and let
-# the removal assertions decide the verdict. Any other engine error still fails.
-const JOLT_JOB_OVERFLOW_TEXT: String = "Jolt Physics job system exceeded the maximum number of jobs"
-
-
-func _tolerate_jolt_job_overflow() -> void:
-	for err: GutTrackedError in get_errors():
-		if err.is_engine_error() and err.contains_text(JOLT_JOB_OVERFLOW_TEXT):
-			err.handled = true
-
-
 func after_each() -> void:
-	_tolerate_jolt_job_overflow()
 	# Bontago-fca.80: many tests here pause the shared Match autoload's _process and only one
 	# put it back; a paused Match left test_start_camera_flow stuck in LOADING (same batch).
 	Match.set_process(true)
