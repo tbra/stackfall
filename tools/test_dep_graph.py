@@ -328,6 +328,87 @@ class GraphViewerPayloadTest(DepGraphTest):
             self.assertTrue(by_path[path][6] & dep_graph.FLAG_AUTOLOAD)
             self.assertEqual(by_path[path][11], name)
 
+    # ---- function call view payload (Bontago-fca.118) ----
+    def fv_rows(self, path):
+        pl = self.pl
+        idx = [f[0] for f in pl["files"]].index(path)
+        fv = pl["fv"]
+        return idx, [(r, fv["fn"][r]) for r in range(fv["fstart"][idx], fv["fstart"][idx + 1])]
+
+    def test_function_payload_has_every_function_with_line_ranges(self):
+        for path in ("main.gd", "core/Util.gd", "autoload/Bus.gd"):
+            _idx, rows = self.fv_rows(path)
+            want = sorted((f["name"], f["line"], f["end"]) for f in self.g["funcs"].values() if f["file"] == path)
+            self.assertTrue(want, path)
+            self.assertEqual(sorted((r[0], r[1], r[2]) for _, r in rows), want)
+        total = sum(len(self.fv_rows(f[0])[1]) for f in self.pl["files"])
+        self.assertEqual(total, len(self.g["funcs"]))
+        self.assertEqual(len(self.pl["fv"]["fstart"]), len(self.pl["files"]) + 1)
+
+    def test_function_flags_and_liveness_codes(self):
+        _i, rows = self.fv_rows("core/Util.gd")
+        by = dict((r[0], r) for _, r in rows)
+        self.assertTrue(by["helper"][3] & dep_graph.FN_STATIC)
+        self.assertEqual(by["helper"][4], dep_graph.LIVE_CODES["live"])
+        self.assertEqual(by["never_called"][4], dep_graph.LIVE_CODES["dead"])
+        self.assertEqual(by["test_only"][4], dep_graph.LIVE_CODES["test-tool-only"])
+        for fid, f in self.g["funcs"].items():
+            if f["file"] == "main.gd":
+                row = self.fv_rows("main.gd")[1]
+                got = [r for _, r in row if r[0] == f["name"]][0]
+                self.assertEqual(got[4], dep_graph.LIVE_CODES[self.live[fid]], fid)
+
+    def test_call_edges_map_to_ids_and_kinds(self):
+        fv = self.pl["fv"]
+        order = {}
+        for fi, f in enumerate(self.pl["files"]):
+            for r in range(fv["fstart"][fi], fv["fstart"][fi + 1]):
+                order[r] = f[0] + ":" + fv["fn"][r][0]
+        got = set()
+        for s, d, k, amb in fv["ce"]:
+            src = order[s] if s >= 0 else self.pl["files"][-(s + 1)][0]
+            got.add((src, order[d], fv["ckinds"][k], amb))
+        want = set((e["src"], e["dst"], e["kind"], 1 if e["amb"] else 0) for e in self.g["call_edges"])
+        self.assertEqual(got, want)
+        self.assertTrue(any(s == "main.gd:_ready" and d == "core/Util.gd:helper" for s, d, _k, _a in got))
+
+    def test_file_level_callers_use_negative_file_index(self):
+        fv = self.pl["fv"]
+        tscn = [f[0] for f in self.pl["files"]].index("main.tscn")
+        hits = [e for e in fv["ce"] if e[0] == -(tscn + 1)]
+        self.assertTrue(hits, "scene connection is a file-level caller")
+        self.assertEqual(fv["ckinds"][hits[0][2]], "scene")
+        self.assertTrue(all(e[0] >= 0 or -(e[0] + 1) < len(self.pl["files"]) for e in fv["ce"]))
+
+    def test_ambiguous_flag_kept_and_hidden_by_default(self):
+        fv = self.pl["fv"]
+        g2 = dict(self.g)
+        g2["call_edges"] = list(self.g["call_edges"]) + [
+            {"src": "main.gd:_ready", "dst": "core/Util.gd:test_only", "kind": "ambiguous", "line": 1, "amb": True}]
+        fv = dep_graph.build_viewer_payload(g2)["fv"]
+        want = sum(1 for e in g2["call_edges"] if e["amb"])
+        self.assertGreaterEqual(want, 1)
+        self.assertEqual(sum(1 for e in fv["ce"] if e[3]), want)
+        self.assertEqual(fv["ckoff"][fv["ckinds"].index("ambiguous")], 1)
+        self.assertEqual(fv["ckoff"][fv["ckinds"].index("typed")], 0)
+
+    def test_signal_roles_attached_to_functions(self):
+        fv = self.pl["fv"]
+        names = fv["sigs"]
+        self.assertIn("fired", names)
+        _i, rows = self.fv_rows("main.gd")
+        ready = [r for r, row in rows if row[0] == "_ready"][0]
+        roles = set((names[s], role) for s, role in fv["fsig"][ready])
+        self.assertIn(("fired", 0), roles)
+        self.assertIn(("fired", 1), roles)
+
+    def test_function_payload_is_compact(self):
+        import json
+        fv = self.pl["fv"]
+        size = len(json.dumps(fv, separators=(",", ":")))
+        self.assertLess(size / float(len(fv["ce"]) + len(fv["fn"])), 60.0)
+        self.assertLess(size, 1024 * 1024)
+
     def test_template_filled_and_size_bounded(self):
         html = dep_graph.render_graph_html(self.g)
         self.assertNotIn(dep_graph.VIEWER_PLACEHOLDER, html)
