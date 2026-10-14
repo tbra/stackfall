@@ -164,6 +164,13 @@ def suite_times(out_dir, name):
     return times
 
 
+def _kill_tree(proc):
+    """Kill a launched process and all of its descendants."""
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True, check=False)
+    proc.kill()
+
+
 def run_batch(path, out_dir, batches, timeout_s):
     # Each shard takes a machine-wide Godot slot (tools/godot_slots.py); shards beyond the free
     # slots wait here and their timeout clock starts when they launch.
@@ -191,7 +198,9 @@ def run_batch(path, out_dir, batches, timeout_s):
                 continue
             code = proc.poll()
             if code is None and time.time() - t_start[name] > timeout_s:
-                proc.kill()
+                # 2026-10-14: the console Godot wrapper spawns the real Godot as a child;
+                # proc.kill() only ended the wrapper and left a hung shard running.
+                _kill_tree(proc)
                 code = "timeout"
             if code is not None:
                 finished[name] = (code, round(time.time() - t_start[name], 1))

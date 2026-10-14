@@ -85,15 +85,36 @@ class Ctx:
         return os.path.join(self.log_dir, "%02d_%s.log" % (self.n, name))
 
 
+def kill_tree(pid):
+    """Kill a process and all of its descendants (Windows taskkill /T; elsewhere the process group)."""
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True, check=False)
+    else:
+        try:
+            os.killpg(os.getpgid(pid), 9)
+        except OSError:
+            pass
+
+
 def run_cmd(ctx, name, args, cwd, timeout):
     """Run an argument list (no shell); full output to a log file. Returns (code, text, log_path)."""
     path = ctx.log_path(name)
     try:
-        p = subprocess.run(args, cwd=cwd, capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", timeout=timeout)
-        code, text = p.returncode, (p.stdout or "") + (p.stderr or "")
-    except subprocess.TimeoutExpired:
-        code, text = 124, "TIMEOUT after %ds" % timeout
+        p = subprocess.Popen(args, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                             text=True, encoding="utf-8", errors="replace")
+        try:
+            out, err = p.communicate(timeout=timeout)
+            code, text = p.returncode, (out or "") + (err or "")
+        except subprocess.TimeoutExpired:
+            # 2026-10-14: subprocess.run's timeout kills only the direct child, so a hung gate
+            # left its Godot shards/retries running and holding a godot_slots slot. Kill the
+            # whole process tree, then collect what the child printed.
+            kill_tree(p.pid)
+            try:
+                out, err = p.communicate(timeout=GIT_TIMEOUT_S)
+            except subprocess.TimeoutExpired:
+                out, err = "", ""
+            code, text = 124, (out or "") + (err or "") + " TIMEOUT after %ds (process tree killed)" % timeout
     except OSError as e:
         code, text = 127, "cannot run %s: %s" % (args[0], e)
     with open(path, "w", encoding="utf-8") as fh:
