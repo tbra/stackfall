@@ -1,0 +1,45 @@
+# Manual rules for tools/reorg_move.py (see its docstring). allow = a split-prefix token that is intended; replace = exact edit of data the token rewrite cannot express.
+allow	project.godot	config/*
+allow	.gutconfig.json	tests/
+allow	export_presets.cfg	tests/*
+allow	.gitignore	tests/*
+allow	tools/run_gut.ps1	tests/.gut_targeted*
+allow	tools/full_gate.py	tests/*
+allow	tools/test_*.py	*
+allow	*/AgentProbe.gd	tests/
+allow	tools/dep_graph.py	*
+allow	tools/triage_log.py	*
+allow	tools/lint_magic_numbers.py	config/
+allow	tools/route_model.py	*
+allow	tools/stage_codex_handoffs.py	assets/
+allow	tools/godot_slots.py	game/editor
+replace	tools/affected_tests.py	"ui/Lobby", 	
+replace	tools/affected_tests.py	"ui/MainMenu"	"ui/menus/MainMenu"
+replace	tools/affected_tests.py	"ui/HUD"	"ui/hud/HUD"
+replace	tools/affected_tests.py	"ui/OptionsMenu"	"ui/menus/OptionsMenu"
+replace	tools/affected_tests.py	"ui/GraphicsSettingsTab"	"ui/menus/GraphicsSettingsTab"
+replace	tools/affected_tests.py	"ui/Minimap"	"ui/hud/Minimap"
+replace	tools/affected_tests.py	"config/UiScaleTuning"	"config/ui/UiScaleTuning"
+replace	tools/affected_tests.py	"config/option_help_table"	"config/ui/option_help_table"
+replace	tools/affected_tests.py	"config/PhysicsTuning", "config/physics",	"config/physics/",
+replace	tools/affected_tests.py	"game/TuningOverrides"	"game/main/TuningOverrides"
+replace	tools/affected_tests.py	"config/MatchConfig"	"config/match/MatchConfig"
+replace	tools/affected_tests.py	"config/match_defaults"	"config/match/match_defaults"
+replace	tools/affected_tests.py	"config/BeaconVisualTuning"	"config/territory/BeaconVisualTuning"
+replace	tools/route_model.py	"core/territory", "tests/bench/")	"core/territory", "tests/bench/", "tests/enet/")
+replace	tools/lint_single_source.py	, "vfx/"	
+replace	tools/lint_ui_components.py	"ui/NetDebugOverlay", "ui/TuningPanel",	"ui/debug/",
+replace	tools/lint_ui_components.py	"ui/Perf", "ui/Physics", "ui/Sandbox")	"ui/hud/SandboxHintBar")
+allow	tools/affected_tests.py	*
+allow	tools/lint_single_source.py	*
+allow	tools/lint_ui_components.py	ui/
+allow	tools/reorg_move.py	*
+allow	tests/unit/*test_boot.gd	game/__missing_main_for_test__.tscn
+allow	tests/unit/*test_ctf_center_drop.gd	ui/HUD.show_reject
+allow	tests/unit/*test_sunset_clouds_shader.gd	core/halo
+allow	tests/unit/*test_ui_reskin_integration.gd	assets/ui/icons/
+allow	tests/unit/*test_light_boundary_types.gd	*
+replace	tests/unit/test_light_boundary_types.gd	, "res://vfx"]	]
+replace	tests/unit/test_tuning_panel.gd	"net", "vfx", "ui"	"net", "ui"
+allow	tests/unit/*test_tuning_panel.gd	config/
+allow	tests/unit/*test_ui_scaling.gd	ui

@@ -231,13 +231,23 @@ func test_user_scale_changes_the_logical_canvas() -> void:
 	UiScaleTuning.current_scale = saved
 
 
+func _collect_ui_scripts(dir_path: String, out: PackedStringArray) -> void:
+	for sub: String in DirAccess.get_directories_at(dir_path):
+		_collect_ui_scripts("%s/%s" % [dir_path, sub], out)
+	for file: String in DirAccess.get_files_at(dir_path):
+		if file.ends_with(".gd"):
+			out.append("%s/%s" % [dir_path, file])
+
+
 func test_no_ui_script_applies_its_own_scale() -> void:
 	# The static audit behind the rule: no UI script multiplies the canvas itself.
-	var dir: DirAccess = DirAccess.open("res://ui")
-	for file: String in dir.get_files():
-		if not file.ends_with(".gd") or file == "SplashScreen.gd":
+	var scripts: PackedStringArray = PackedStringArray()
+	_collect_ui_scripts("res://ui", scripts)
+	for path: String in scripts:
+		var file: String = path.get_file()
+		if file == "SplashScreen.gd":
 			continue
-		var text: String = FileAccess.get_file_as_string("res://ui/" + file)
+		var text: String = FileAccess.get_file_as_string(path)
 		for needle: String in ["content_scale_factor", "content_scale_size", "window_get_size", "screen_get_size", "get_window().size", "control.scale ="]:
 			assert_false(text.contains(needle), "%s uses %s" % [file, needle])
 

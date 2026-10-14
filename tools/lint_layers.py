@@ -2,8 +2,7 @@
 
 Report-only until S4b hooks it into tools/full_gate.py. Rules:
 
-* L1 protected names: low-level sources (core, config, game/specials, game/world, vfx and a
-  list of game/ files) must not have a compile edge (class, autoload_use, extends, preload,
+* L1 protected names: low-level sources (the prefixes and files of tools/layer_rules.json) must not have a compile edge (class, autoload_use, extends, preload,
   ext_resource) to Match, Net, net/** or autoload/match/**. `path` edges are info only.
 * L2 SCC ratchet on the file graph (same edges as cycles.md): the largest SCC may not grow and an
   SCC containing an autoload may only contain baselined autoloads (allow-listed pairs).
@@ -35,22 +34,27 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASELINE_NAME = "layer_baseline.json"
 
 COMPILE_KINDS = frozenset(["class", "autoload_use", "extends", "preload", "ext_resource"])
-SOURCE_PREFIXES = ("core/", "config/", "game/specials/", "game/world/", "vfx/")
-SOURCE_FILES = frozenset("game/%s.gd" % n for n in (
-    "Block", "BlockFactory", "BlockRegistry", "BlockStepBatch", "Field", "GhostPreview", "GiftCrate",
-    "HoleDissolver", "StableBlockManager", "SandboxConeAdapter", "BlockEffectsManager", "Skybox"))
-FORBIDDEN_FILES = frozenset(["autoload/Match.gd", "autoload/Net.gd"])
-FORBIDDEN_PREFIXES = ("net/", "autoload/match/")
+RULES_NAME = "layer_rules.json"
+
+
+def load_rules(path=None):
+    """The path-prefix data of the layer rules (tools/layer_rules.json; tools/reorg_move.py rewrites it)."""
+    with open(path or os.path.join(os.path.dirname(os.path.abspath(__file__)), RULES_NAME), encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+_RULES = load_rules()
+SOURCE_PREFIXES = tuple(_RULES["source_prefixes"])
+SOURCE_FILES = frozenset(_RULES["source_files"])
+FORBIDDEN_FILES = frozenset(_RULES["forbidden_files"])
+FORBIDDEN_PREFIXES = tuple(_RULES["forbidden_prefixes"])
 REPORT_SCC_MIN = 5
 # autoload/LateScripts.gd names late-built scripts by path STRING (runtime load(), never a compile
 # edge); dep_graph records them as `path` edges, which would otherwise fuse the autoloads back into
 # one SCC. They are left out of the SCC measurement (L2) only.
-LATE_SCRIPTS_FILE = "autoload/LateScripts.gd"
-MAIN_SCENE = "game/Main.tscn"
-MAIN_FORBIDDEN = frozenset([
-    "game/HotSeat.gd", "game/PlayerController.gd", "ui/HUD.gd", "game/Sandbox.gd", "ui/Tutorial.gd",
-    "ui/Lobby.gd", "game/BotController.gd", "ui/TuningPanel.gd", "game/MainSandboxFlow.gd",
-    "game/MainHeadlessBotsFlow.gd", "game/MainMatchFlow.gd"])
+LATE_SCRIPTS_FILE = _RULES["late_scripts_file"]
+MAIN_SCENE = _RULES["main_scene"]
+MAIN_FORBIDDEN = frozenset(_RULES["main_forbidden"])
 
 
 def is_source(path):

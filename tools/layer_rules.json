@@ -1,0 +1,46 @@
+{
+ "source_prefixes": [
+  "config/",
+  "core/",
+  "game/specials/",
+  "game/world/",
+  "vfx/"
+ ],
+ "source_files": [
+  "game/Block.gd",
+  "game/BlockEffectsManager.gd",
+  "game/BlockFactory.gd",
+  "game/BlockRegistry.gd",
+  "game/BlockStepBatch.gd",
+  "game/Field.gd",
+  "game/GhostPreview.gd",
+  "game/GiftCrate.gd",
+  "game/HoleDissolver.gd",
+  "game/SandboxConeAdapter.gd",
+  "game/Skybox.gd",
+  "game/StableBlockManager.gd"
+ ],
+ "forbidden_prefixes": [
+  "autoload/match/",
+  "net/"
+ ],
+ "forbidden_files": [
+  "autoload/Match.gd",
+  "autoload/Net.gd"
+ ],
+ "late_scripts_file": "autoload/LateScripts.gd",
+ "main_scene": "game/Main.tscn",
+ "main_forbidden": [
+  "game/BotController.gd",
+  "game/HotSeat.gd",
+  "game/MainHeadlessBotsFlow.gd",
+  "game/MainMatchFlow.gd",
+  "game/MainSandboxFlow.gd",
+  "game/PlayerController.gd",
+  "game/Sandbox.gd",
+  "ui/HUD.gd",
+  "ui/Lobby.gd",
+  "ui/TuningPanel.gd",
+  "ui/Tutorial.gd"
+ ]
+}
