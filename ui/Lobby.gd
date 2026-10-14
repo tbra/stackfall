@@ -298,6 +298,8 @@ var _restore_focus: Callable = Callable()
 var _start_was_shown: bool = false
 var _ready_was_shown: bool = true
 var _invite_was_shown: bool = false
+## Bontago-1pi.11.93: how many lobby-data applies ran, so a publish can tell its own signal echo.
+var _apply_count: int = 0
 ## Bontago-1pi.164: the non-Steam internet join-code row (isolated in ui/JoinCodeRow.gd).
 var _join_code_row: JoinCodeRow = null
 
@@ -1384,8 +1386,13 @@ func _publish_lobby_data(config: MatchConfig) -> void:
 	var seats: Dictionary = _players_panel.seats_data()
 	if not seats.is_empty():
 		data[SEATS_KEY] = seats
+	var applies_before: int = _apply_count
 	net_provider.set_lobby_data(data)
-	_apply_data(data)
+	# DECISION (Bontago-1pi.11.93): the host's Net emits net_lobby_data_changed from set_lobby_data(),
+	# which _on_lobby_data_changed() already applied (the same dictionary); applying it a second time
+	# only rebuilt the rows again. A provider that does not emit (a test double) still gets its apply.
+	if _apply_count == applies_before:
+		_apply_data(data)
 
 
 func _config_from_controls() -> MatchConfig:
@@ -1486,6 +1493,7 @@ func _enabled_specials_from_checkboxes() -> Array[StringName]:
 ## sanitize(), so a value outside its spec 2.8 range is clamped rather than
 ## trusted, whether it came from the wire or from this instance's own publish.
 func _apply_data(data: Dictionary) -> void:
+	_apply_count += 1
 	var config: MatchConfig = MatchConfig.from_dict(data)
 	config.sanitize()
 	# DECISION (ui/Lobby.gd, Bontago-mv0.7 root cause): this screen is
@@ -1528,7 +1536,7 @@ func _apply_data(data: Dictionary) -> void:
 	_gravity_meter.set_value_silent(_gravity_cells_for(_gravity_value))
 	_gravity_meter.queue_redraw()
 	_goal_flag_stepper.set_value_silent(config.goal_flag_count)
-	_gifts_check.set_on_silent(config.gifts_enabled)
+	_toggle_silent(_gifts_check, config.gifts_enabled)
 	_special_frequency_value = config.special_frequency
 	_special_freq_meter.set_value_silent(_frequency_cells_for(_special_frequency_value))
 	_special_freq_meter.queue_redraw()
@@ -1542,22 +1550,22 @@ func _apply_data(data: Dictionary) -> void:
 	_refresh_timer_control(config.game_mode)
 	_match_timer_stepper.value = config.match_timer_minutes
 	_round_timer_stepper.value = config.round_timer_minutes
-	_sky_team_sum_check.set_on_silent(config.sky_team_sum)
+	_toggle_silent(_sky_team_sum_check, config.sky_team_sum)
 	_refresh_sky_controls()
-	_sudden_death_check.set_on_silent(config.sudden_death)
-	_turn_based_check.set_on_silent(config.turn_based)
-	_mid_join_check.set_on_silent(config.allow_mid_match_join)
+	_toggle_silent(_sudden_death_check, config.sudden_death)
+	_toggle_silent(_turn_based_check, config.turn_based)
+	_toggle_silent(_mid_join_check, config.allow_mid_match_join)
 	_apply_enabled_specials_to_checkboxes(config.enabled_specials)
 	# Bontago-1pi.18.5: a null qol (an older host, or config/match_defaults.tres)
 	# reads as every experiment off. Inside the guard, so a client mirrors the
 	# host without re-publishing.
 	var qol: QolExperiments = config.qol
-	_qol_timer_pause_check.set_on_silent(qol != null and qol.timer_pause_enabled)
-	_qol_backlog_check.set_on_silent(qol != null and qol.backlog_enabled)
-	_qol_goal_radius_check.set_on_silent(qol != null and qol.goal_radius_enabled)
-	_qol_gift_slot_check.set_on_silent(qol != null and qol.gift_slot_enabled)
+	_chip_silent(_qol_timer_pause_check, qol != null and qol.timer_pause_enabled)
+	_chip_silent(_qol_backlog_check, qol != null and qol.backlog_enabled)
+	_chip_silent(_qol_goal_radius_check, qol != null and qol.goal_radius_enabled)
+	_chip_silent(_qol_gift_slot_check, qol != null and qol.gift_slot_enabled)
 	# A null qol (config/match_defaults.tres) leaves the trial at the shared resource's default.
-	_qol_gift_after_next_check.set_on_silent(QOL_SHARED.gift_queue_after_next if qol == null else qol.gift_queue_after_next)
+	_chip_silent(_qol_gift_after_next_check, QOL_SHARED.gift_queue_after_next if qol == null else qol.gift_queue_after_next)
 	_applying_remote_data = false
 	_update_section_summaries()
 	# Bontago-1pi.9b: re-bound %AiCountSpin's max after every value assignment
@@ -1574,6 +1582,19 @@ func _apply_data(data: Dictionary) -> void:
 	_players_panel.apply(config, data["roster"] if data.has("roster") else null, seats)
 
 
+## DECISION (Bontago-1pi.11.93): a remote apply runs 3-4 times per lobby open and every
+## set_on_silent() rebuilds the chip's five block styleboxes (~1 ms each, ~20 chips), even when the
+## state is already right. Writing only a changed state keeps the view identical and skips that.
+func _chip_silent(chip: UiChipToggle, on: bool) -> void:
+	if chip.is_on() != on:
+		chip.set_on_silent(on)
+
+
+func _toggle_silent(toggle: UiToggle, on: bool) -> void:
+	if toggle.is_on() != on:
+		toggle.set_on_silent(on)
+
+
 ## _apply_data()'s round trip for the specials checklist: empty -> every box
 ## checked (MatchConfig.enabled_specials's own "empty = all enabled"
 ## convention), the ALL_DISABLED_SENTINEL alone -> every box unchecked,
@@ -1585,11 +1606,11 @@ func _apply_enabled_specials_to_checkboxes(enabled: Array[StringName]) -> void:
 	var all_disabled: bool = enabled.has(ALL_DISABLED_SENTINEL)
 	for i: int in range(_special_checkboxes.size()):
 		if all_enabled:
-			_special_checkboxes[i].set_on_silent(true)
+			_chip_silent(_special_checkboxes[i], true)
 		elif all_disabled:
-			_special_checkboxes[i].set_on_silent(false)
+			_chip_silent(_special_checkboxes[i], false)
 		else:
-			_special_checkboxes[i].set_on_silent(enabled.has(_special_ids[i]))
+			_chip_silent(_special_checkboxes[i], enabled.has(_special_ids[i]))
 
 
 func _on_lobby_data_changed(data: Dictionary) -> void:
