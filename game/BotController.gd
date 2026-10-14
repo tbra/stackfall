@@ -102,6 +102,15 @@ var _brain: Brain = Brain.V2
 var _special_view: BotWorldView = null
 var _think: BotThink = null
 var _think_frames_used: int = 0
+## Bontago-1t5.62: opt-in think cost report (BotThinkCostCollector.current(); null = off, then none of
+## these is touched). Snapshot build / apply time, this tick's BotThink time, the bot's other THINKING-tick
+## work, the think's start time and whether a finished record is waiting to be flushed at the tick's end.
+var _cost_build_us: int = 0
+var _cost_apply_us: int = 0
+var _cost_other_us: int = 0
+var _cost_begin_us: int = 0
+var _cost_tick_think_us: int = -1
+var _cost_pending: bool = false
 ## Physics frame this bot last ran a THINKING tick (same-frame re-ticks reset the shared count).
 var _think_last_frame: int = -1
 ## Bontago-1t5.37: THINKING ticks by which the current think must be decided, and ticks so far.
@@ -135,6 +144,11 @@ func setup(slot_id: int, difficulty: MatchConfig.AiDifficulty, field: Field, reg
 	_slot_id = slot_id
 	# Bontago-1t5.54: a new bot never inherits the previous match's Reach the Sky base memory.
 	BotThink.clear_strategy_memory(slot_id)
+	# DECISION (Bontago-1t5.62): setup() runs for every bot when a match world is built, so it is the match
+	# start the report sees; the opt-in collector never carries match A's thinks into match B.
+	var cost: BotThinkCostCollector = BotThinkCostCollector.current()
+	if cost != null:
+		cost.reset()
 	_difficulty = difficulty
 	_field = field
 	_registry = registry
@@ -245,6 +259,9 @@ func _physics_process(delta: float) -> void:
 	var match_ref: Variant = _match()
 	if not MatchAutoload.is_live(match_ref.state() as MatchAutoload.State):
 		return
+	var cost: BotThinkCostCollector = BotThinkCostCollector.current()
+	var tick_start_us: int = Time.get_ticks_usec() if cost != null else 0
+	_cost_tick_think_us = -1
 	match _state:
 		State.IDLE:
 			_tick_idle(delta)
@@ -256,6 +273,30 @@ func _physics_process(delta: float) -> void:
 			_tick_release_wait(delta)
 		State.THINKING:
 			_tick_thinking()
+	if cost != null:
+		_flush_cost(cost, Time.get_ticks_usec() - tick_start_us)
+
+
+## Bontago-1t5.62: books this tick's time (the whole tick is a bot frame; its share outside BotThink
+## joins the think's "other" work) and, when the think finished in it, hands the record over.
+func _flush_cost(cost: BotThinkCostCollector, tick_us: int) -> void:
+	cost.record_frame(_slot_id, tick_us)
+	if _cost_tick_think_us >= 0:
+		_cost_other_us += maxi(tick_us - _cost_tick_think_us, 0)
+	if not _cost_pending:
+		return
+	_cost_pending = false
+	if _think == null:
+		return
+	var record: Dictionary = _think.stats_record()
+	if record.is_empty():
+		return
+	record["build_us"] = _cost_build_us
+	record["apply_us"] = _cost_apply_us
+	record["other_us"] = _cost_other_us
+	record["ticks"] = _think_ticks
+	record["latency_us"] = Time.get_ticks_usec() - _cost_begin_us
+	cost.record_think(_slot_id, record)
 
 
 func _on_feed_block_issued(slot_id: int, _shape_id: StringName, _next_shape_id: StringName) -> void:
@@ -326,17 +367,28 @@ func _begin_thinking(match_ref: Variant) -> void:
 	var next_shape: BlockShape = null
 	if match_ref.has_method("next_shape"):
 		next_shape = match_ref.next_shape(_slot_id) as BlockShape
+	var cost: BotThinkCostCollector = BotThinkCostCollector.current()
+	var begin_us: int = Time.get_ticks_usec() if cost != null else 0
 	var view: BotWorldView = BotWorldView.build(
 		_slot_id, int(match_ref.team_of(_slot_id)), match_ref.circle_render_arrays(), slots, raster,
 		_goal_positions(), raster.tuning().goal_zone_radius,
 		shape, next_shape, _mode_goal(match_ref), _active_special_positions(), _landed_gift_positions(match_ref)
 	)
+	var built_us: int = Time.get_ticks_usec() if cost != null else 0
 	_apply_weather(view, match_ref)
 	_apply_live_radius(view, match_ref)
 	_apply_incoming_specials(view, match_ref)
 	_apply_stack(view, match_ref)
 	_special_view = view
 	_think = BotThink.new(view, _profile, _rng)
+	_think.collect_stats = cost != null
+	_cost_pending = false
+	if cost != null:
+		var end_us: int = Time.get_ticks_usec()
+		_cost_build_us = built_us - begin_us
+		_cost_apply_us = end_us - built_us
+		_cost_other_us = 0
+		_cost_begin_us = begin_us
 	_think.tuning = tuning
 	_think.cell_probe = _probe_cell
 	_think_frames_used = 0
@@ -554,12 +606,16 @@ func _tick_thinking() -> void:
 	else:
 		finished = _think.step(_think_slice_us(ticks_left), _probe)
 	_probe_space = null
-	_think_frame_used_us += Time.get_ticks_usec() - start_us
+	var think_us: int = Time.get_ticks_usec() - start_us
+	_think_frame_used_us += think_us
+	if _think.collect_stats:
+		_cost_tick_think_us = think_us
 	_think_frames_used += 1
 	if not finished and _think_frames_used >= tuning.max_generation_frames:
 		_think.finish_early()
 		finished = true
 	if finished:
+		_cost_pending = _think.collect_stats
 		_candidates = _think.candidates()
 		_begin_release_wait()
 
