@@ -85,7 +85,7 @@ static func begin(
 	else:
 		gen.add_tip_sites(_target_for(view, intent, threat_kind), tip_kind, tip_quota)
 		gen.add_stack_sites(_target_for(view, intent, threat_kind), stack_quota)
-	job.start_fill(gen, rng, total)
+	job.start_fill(gen, rng, total, profile.fill_share <= 0.0)
 	return job
 
 
@@ -105,12 +105,22 @@ class SiteJob:
 	var _rng: RandomNumberGenerator = null
 	var _allowed: Array[BotStatics.OrientationInfo] = []
 	var _attempts: int = 0
+	## Site count at which the fill stops (the budget).
+	var _stop_at: int = 0
 
-	func start_fill(gen: _Gen, rng: RandomNumberGenerator, budget: int) -> void:
+	func start_fill(gen: _Gen, rng: RandomNumberGenerator, budget: int, capped: bool = false) -> void:
 		_gen = gen
 		_rng = rng
 		var needed: int = budget - out.size()
 		if needed <= 0:
+			return
+		_stop_at = budget
+		# DECISION (Bontago-1t5.66, option d): a profile with no FILL share (every V2 tier) never
+		# picked a FILL site in the scripted tower scenes (24 of 24 thinks picked a TIP site), yet the
+		# top-up of every targeted shortfall (60-90 sites) cost ~15-24 % of a think in FILL plus the
+		# probe/rank of those sites. FILL is now only a fallback for ZERO targeted sites.
+		# fill_share > 0 (Easy / legacy) is unchanged.
+		if capped and not out.is_empty():
 			return
 		_allowed = gen.fill_orientations()
 		_attempts = needed * maxi(gen.t.fill_attempts_per_site, 1)
@@ -123,11 +133,11 @@ class SiteJob:
 		if _gen == null:
 			return true
 		var left: int = maxi(max_attempts, 1)
-		while left > 0 and _attempts > 0 and not _gen.is_full():
+		while left > 0 and _attempts > 0 and not _gen.is_full() and out.size() < _stop_at:
 			left -= 1
 			_attempts -= 1
 			_gen.fill_one(_rng, _allowed)
-		return _attempts <= 0 or _gen.is_full()
+		return _attempts <= 0 or _gen.is_full() or out.size() >= _stop_at
 
 
 ## Per-call generation state (keeps the static entry point short).

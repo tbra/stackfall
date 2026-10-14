@@ -296,11 +296,18 @@ func test_finish_early_mid_probe_ranks_only_probed_sites() -> void:
 
 ## Bontago-1t5.37: the frame cap hits between two FILL slices; finish_early completes the fill
 ## with the same draws a full think makes, then ranks the (unprobed) sites by proxy and decides.
+## Bontago-1t5.66: a profile with fill_share 0 no longer fills, so the mid-FILL tests ask for a FILL share.
+func _filling_profile() -> BotDifficultyProfile:
+	var profile: BotDifficultyProfile = _profile()
+	profile.fill_share = 0.5
+	return profile
+
+
 func test_finish_early_mid_fill_completes_the_fill_and_decides() -> void:
-	var whole: BotThink = BotThink.new(_view(), _profile(), _rng())
+	var whole: BotThink = BotThink.new(_view(), _filling_profile(), _rng())
 	whole.step(BIG_BUDGET_US, _probe)
 	_probe_calls = 0
-	var think: BotThink = BotThink.new(_view(), _profile(), _rng())
+	var think: BotThink = BotThink.new(_view(), _filling_profile(), _rng())
 	while think._phase != BotThink.Phase.FILL:
 		think.step(0, _probe)
 	var draws_at_start: int = think._site_job.attempts_left()

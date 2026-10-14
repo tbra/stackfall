@@ -112,7 +112,8 @@ func test_tip_sites_sit_at_the_snake_edge_nearest_the_target() -> void:
 func test_sites_are_distinct_and_valid() -> void:
 	var view: BotWorldView = _view(_pillar, true)
 	var sites: Array[BotCandidate] = _sites(view, _intent(BotIntent.Kind.RACE))
-	assert_true(sites.size() >= int(DISTINCT_SHARE * float(CANDIDATE_COUNT)), "got %d" % sites.size())
+	# Bontago-1t5.66: fill_share 0 no longer tops up to the budget; only the targeted sites remain.
+	assert_gt(sites.size(), 0, "got %d" % sites.size())
 	var keys: Dictionary = {}
 	for c: BotCandidate in sites:
 		assert_eq(PlacementRules.validate_point(c.origin, view.raster, view.team_id), PlacementRules.Result.VALID)
