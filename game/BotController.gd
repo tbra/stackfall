@@ -676,8 +676,12 @@ func _generate_one_candidate(team_id: int, shape: BlockShape, orientation_index:
 		# read off _field the same way BlockFactory/GhostPreview do (both
 		# take a PhysicsTuning and read .cube_size off it), not a duplicate
 		# local literal that could silently drift from the shipped value.
+		# Bontago-1t5.55.1: `origin` is the pivot; the cubes sit at B*(cell - pivot) around it.
+		var pivot_rotated: Vector3 = basis * shape.bottom_center()
 		candidate.footprint_cells = PlacementRules.footprint_cells(
-			shape.cells, basis, origin, _field.tuning.cube_size, grid
+			shape.cells, basis,
+			origin - Vector2(pivot_rotated.x, pivot_rotated.z) * _field.tuning.cube_size,
+			_field.tuning.cube_size, grid
 		)
 		_fire_stability_raycasts(candidate, candidate.footprint_cells, grid)
 	candidate.on_top_of_own_stack = _is_own_block(hit.get("collider"), team_id, hit.get("position", Vector3.ZERO) as Vector3)
@@ -1008,6 +1012,17 @@ func rejection_counts() -> Dictionary:
 	return _rejection_counts.duplicate()
 
 
+## Bontago-1t5.55.1: the disk-local pose `request_place` is sent for a piece whose pivot (bottom_center) is
+## at `pivot_xz` over a support at `support_y`: the pivot raised so the ROTATED shape's lowest corner rests on
+## the support (Bontago-1t5.51). Pure seam so tests use exactly the send conversion.
+static func spawn_pose(
+	shape: BlockShape, orientation_index: int, pivot_xz: Vector2, support_y: float, physics: PhysicsTuning
+) -> Vector3:
+	var basis: Basis = BlockOrientations.get_basis(orientation_index)
+	var lift: float = -shape.rotated_bottom_offset(basis, physics.cube_size, physics.cube_margin)
+	return Vector3(pivot_xz.x, support_y + lift, pivot_xz.y)
+
+
 ## `place_target_override` is null for an ordinary think-cycle (score every
 ## generated candidate with BotPlacementScorer.pick_best(), spec 2.9's normal
 ## height/goal-progress/stability/risk formula); a Vector2 when a placed-
@@ -1056,11 +1071,12 @@ func _send_best_placement(place_target_override: Variant = null) -> StringName:
 	# human ghost sends it), so raise it until the ROTATED shape's lowest corner sits on the support;
 	# without this a lying piece spawns inside the disc and falls through it.
 	var held: BlockShape = match_ref.held_shape(_slot_id)
-	var pivot_lift: float = 0.0
+	var world_origin: Vector3 = _field.world_from_disk_local(noisy_origin, float(hit.get("height", 0.0)))
 	if held != null:
-		var orient: Basis = BlockOrientations.get_basis(best.orientation_index)
-		pivot_lift = -held.rotated_bottom_offset(orient, _physics_tuning.cube_size, _physics_tuning.cube_margin)
-	var world_origin: Vector3 = _field.world_from_disk_local(noisy_origin, float(hit.get("height", 0.0)) + pivot_lift)
+		var pose: Vector3 = spawn_pose(
+			held, best.orientation_index, noisy_origin, float(hit.get("height", 0.0)), _physics_tuning
+		)
+		world_origin = _field.world_from_disk_local(Vector2(pose.x, pose.z), pose.y)
 	var recording: Dictionary = _record_capture(best, place_target_override != null)
 	var reason: StringName = StringName(match_ref.request_place(
 		_slot_id, world_origin, best.orientation_index, Quaternion.IDENTITY, false, int(match_ref.feed_seq(_slot_id))

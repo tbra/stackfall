@@ -99,6 +99,31 @@ func rotated_bottom_offset(basis: Basis, cube_size: float, cube_margin: float) -
 	return 0.0 if min_y == INF else min_y
 
 
+## Bontago-1t5.55.1: each cube's centre relative to the bottom_center() pivot once rotated by `basis`
+## (cells order; BlockFactory.build's CollisionShape3D positions, the spawned body's frame).
+func cube_offsets(basis: Basis, cube_size: float) -> PackedVector3Array:
+	var out: PackedVector3Array = PackedVector3Array()
+	var pivot: Vector3 = bottom_center()
+	for cell: Vector3i in cells:
+		out.append(basis * ((Vector3(cell) - pivot) * cube_size))
+	return out
+
+
+## Bontago-1t5.55.1: the rotated bounding-box centre of the cube centres, relative to the pivot
+## (GhostPreview.rotated_center_offset parity; xz is 0 for a yaw-only basis).
+func rotated_center_offset(basis: Basis, cube_size: float) -> Vector3:
+	if cells.is_empty():
+		return Vector3.ZERO
+	var pivot: Vector3 = bottom_center()
+	var min_local: Vector3 = Vector3(INF, INF, INF)
+	var max_local: Vector3 = Vector3(-INF, -INF, -INF)
+	for cell: Vector3i in cells:
+		var local: Vector3 = (Vector3(cell) - pivot) * cube_size
+		min_local = min_local.min(local)
+		max_local = max_local.max(local)
+	return basis * ((min_local + max_local) * 0.5)
+
+
 func _compute_bottom_center() -> Vector3:
 	if cells.is_empty():
 		return Vector3.ZERO

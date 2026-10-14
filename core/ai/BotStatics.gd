@@ -9,9 +9,11 @@ extends RefCounted
 ## DECISION (Bontago-1t5.21): the support polygon is approximated by the bounding
 ## rectangle of the supported bottom cubes (an over-approximation for concave bottoms
 ## such as arch5, erring towards "stable"), and every cube has equal mass.
-## DECISION: cube offsets are the shape's raw cell offsets rotated by the orientation,
-## the same convention as PlacementRules.footprint_cells and BotThink's probes, so
-## `cell_support` entries line up with the cubes they were measured under.
+## DECISION (Bontago-1t5.55.1): cube offsets are in the SPAWN frame, B*(cell - bottom_center()),
+## exactly where BlockFactory puts the collision cubes around the pivot the host is given
+## (`candidate.origin` is that pivot). Before 1t5.55.1 they were B*cell, shifted by B*pivot
+## (up to 1.4 m), so probes and tip risk looked at the wrong patch. `cell_support` entries
+## still line up with the cubes they were measured under (footprint_cells_of).
 
 const SHIPPED_TUNING: BotGenTuning = preload("res://config/bot_gen_tuning.tres")
 const SHIPPED_PHYSICS_TUNING: PhysicsTuning = preload("res://config/physics_tuning.tres")
@@ -38,11 +40,16 @@ class OrientationInfo:
 	var height: float = 1.0
 	## (footprint, contact, height) key; orientations sharing it are interchangeable.
 	var signature: String = ""
-	## Cube centres projected on the ground, in cube units, rotated raw cell offsets.
+	## Cube centres projected on the ground relative to the pivot (`candidate.origin`), in cube
+	## units: the spawn frame B*(cell - pivot).
 	var cubes: PackedVector2Array = PackedVector2Array()
 	## The bottom layer's cubes (the ones that can rest on the surface).
 	var contact: PackedVector2Array = PackedVector2Array()
 	var com: Vector2 = Vector2.ZERO
+	## (B*bottom_center()).xz in cube units: raw rotated cells sit this far from the pivot frame.
+	var pivot_shift: Vector2 = Vector2.ZERO
+	## Rotated bounding-box centre minus the pivot, xz, cube units (0 for yaw-only orientations).
+	var center_shift: Vector2 = Vector2.ZERO
 	## Tip risk on a flat, fully supporting surface.
 	var flat_risk: float = 0.0
 	## Number of bottom cubes (grip area in cubes).
@@ -84,6 +91,10 @@ static func orientation_info(shape: BlockShape, index: int, tuning: BotGenTuning
 	var info: OrientationInfo = OrientationInfo.new()
 	info.index = index
 	var basis: Basis = BlockOrientations.get_basis(index)
+	var pivot_rotated: Vector3 = basis * shape.bottom_center()
+	info.pivot_shift = Vector2(pivot_rotated.x, pivot_rotated.z)
+	var centre_offset: Vector3 = shape.rotated_center_offset(basis, 1.0)
+	info.center_shift = Vector2(centre_offset.x, centre_offset.z)
 	var layer_y: PackedInt32Array = PackedInt32Array()
 	var first_y: int = roundi((basis * Vector3(shape.cells[0])).y)
 	var min_y: int = first_y
@@ -94,7 +105,7 @@ static func orientation_info(shape: BlockShape, index: int, tuning: BotGenTuning
 		layer_y.append(y)
 		min_y = mini(min_y, y)
 		max_y = maxi(max_y, y)
-		info.cubes.append(Vector2(roundf(v.x), roundf(v.z)))
+		info.cubes.append(Vector2(roundf(v.x), roundf(v.z)) - info.pivot_shift)
 	info.height = float(max_y - min_y + 1)
 	var sum: Vector2 = Vector2.ZERO
 	for i: int in range(info.cubes.size()):
@@ -107,6 +118,15 @@ static func orientation_info(shape: BlockShape, index: int, tuning: BotGenTuning
 	info.signature = _signature(info)
 	info.flat_risk = _risk(info, info.contact, t)
 	return info
+
+
+## Cells covered by the piece when its pivot is at `origin` (disk xz): exact spawn-frame footprint.
+static func footprint_cells_of(
+	shape: BlockShape, info: OrientationInfo, origin: Vector2, cube_size: float, grid: CellGrid
+) -> PackedInt32Array:
+	return PlacementRules.footprint_cells(
+		shape.cells, BlockOrientations.get_basis(info.index), origin - info.pivot_shift * cube_size, cube_size, grid
+	)
 
 
 ## The distinct (footprint, contact, height) orientations of `shape`, at most
