@@ -314,10 +314,11 @@ func test_range_scale_is_radius_over_reference_clamped() -> void:
 func test_flat_ground_range_is_proportional_to_field_radius() -> void:
 	var t: SpecialTuning = SpecialTuning.new()
 	var forward: Vector3 = Vector3(0.0, 0.2, -1.0)
-	var small: float = _flat_range(GiftAim.throw_velocity(forward, t, GiftAim.range_scale(MapDef.RADIUS_SMALL, t)))
+	var small_radius: float = MapDef.RADIUS_MEDIUM * 0.75
+	var small: float = _flat_range(GiftAim.throw_velocity(forward, t, GiftAim.range_scale(small_radius, t)))
 	var medium: float = _flat_range(GiftAim.throw_velocity(forward, t, GiftAim.range_scale(MapDef.RADIUS_MEDIUM, t)))
 	var large: float = _flat_range(GiftAim.throw_velocity(forward, t, GiftAim.range_scale(MapDef.RADIUS_LARGE, t)))
-	assert_almost_eq(small / medium, MapDef.RADIUS_SMALL / MapDef.RADIUS_MEDIUM, 0.01)
+	assert_almost_eq(small / medium, small_radius / MapDef.RADIUS_MEDIUM, 0.01)
 	assert_almost_eq(large / medium, MapDef.RADIUS_LARGE / MapDef.RADIUS_MEDIUM, 0.01)
 
 

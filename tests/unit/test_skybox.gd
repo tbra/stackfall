@@ -78,12 +78,7 @@ func test_map_def_skybox_set_defaults_to_beach() -> void:
 
 
 func test_map_resources_carry_their_assigned_skybox_set() -> void:
-	var small: MapDef = load("res://config/maps/round_small.tres") as MapDef
-	var medium: MapDef = load("res://config/maps/round_medium.tres") as MapDef
-	var large: MapDef = load("res://config/maps/round_large.tres") as MapDef
-	assert_eq(small.skybox_set, "beach")
-	assert_eq(medium.skybox_set, "lake")
-	assert_eq(large.skybox_set, "mountain")
+	assert_eq(MapDef.base().skybox_set, "lake")
 
 
 # --- Bontago-xtq.8: the WorldEnvironment's Sky must match the loaded set -----

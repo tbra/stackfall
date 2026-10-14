@@ -728,9 +728,9 @@ func test_minimap_stays_disabled_with_no_match_loaded() -> void:
 
 func test_set_map_def_frames_from_the_maps_radius() -> void:
 	var hud: HUD = _make_hud()
-	var small_map: MapDef = MapDef.for_variant_and_size(MatchConfig.MapVariant.ROUND, MapDef.MapSize.SMALL)
-	var large_map: MapDef = MapDef.for_variant_and_size(MatchConfig.MapVariant.ROUND, MapDef.MapSize.LARGE)
-	assert_true(large_map.field_radius > small_map.field_radius, "fixture: LARGE must actually be bigger than SMALL")
+	var small_map: MapDef = MapDef.base().scaled(0.75)
+	var large_map: MapDef = MapDef.base().scaled(1.25)
+	assert_true(large_map.field_radius > small_map.field_radius, "fixture: the large map must actually be bigger")
 
 	hud._minimap.set_map_def(small_map)
 	var small_extent: float = hud._minimap.half_extent()
@@ -779,7 +779,7 @@ func test_territory_share_changed_event_updates_the_minimap_from_match_config() 
 	var hud: HUD = _make_hud()
 	var fake_match: FakeMatch = FakeMatch.new()
 	fake_match.config = MatchConfig.new()
-	fake_match.config.map_size = MapDef.MapSize.LARGE
+	fake_match.config.disc_size_step = 3
 	hud.match_provider = fake_match
 
 	Events.territory_share_changed.emit(PackedFloat32Array([0.5, 0.5]))

@@ -103,7 +103,7 @@ func _run_host() -> void:
 		await _wait(0.1)
 	await _wait(JOIN_SETTLE_S)
 	var config: MatchConfig = (load("res://config/match_defaults.tres") as MatchConfig).duplicate(true) as MatchConfig
-	config.map_size = MapDef.MapSize.SMALL
+	config.disc_size_step = 1
 	config.player_count = LATE_SEATS if _late_step else 2
 	config.hot_seat = false
 	if _late_step:
@@ -112,7 +112,7 @@ func _run_host() -> void:
 		Net.set_match_in_progress(true)
 		Net.set_seat_policy(Callable(_match_net, &"pick_open_seat"), Callable(_match_net, &"seat_reclaimable"))
 	var field: Field = (load("res://game/Field.tscn") as PackedScene).instantiate() as Field
-	field.map_def = MapDef.for_size(config.map_size)
+	field.map_def = config.map_def()
 	add_child(field)
 	var blocks: Node3D = Node3D.new()
 	add_child(blocks)

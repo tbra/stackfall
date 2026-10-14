@@ -33,7 +33,7 @@ const BIG_CIRCLE_FRACTION: float = 0.9
 const RIVAL_OFFSET_FRACTION: float = 0.6
 
 var _tuning: TerritoryTuning = preload("res://config/territory_tuning.tres")
-var _map: MapDef = preload("res://config/maps/round_large.tres")
+var _map: MapDef = MapDef.base().scaled(1.3333)
 var _budgets: BenchBudgets = preload("res://config/bench_budgets.tres")
 
 

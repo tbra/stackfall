@@ -119,7 +119,7 @@ func _capture() -> void:
 
 	if _wants("overview") or _wants("player"):
 		var config: MatchConfig = main.get("match_config") as MatchConfig
-		config.map_size = MapDef.MapSize.SMALL
+		config.disc_size_step = 1
 		main.call("start_sandbox_from_menu")
 		await get_tree().create_timer(SETTLE_S).timeout
 		await _populate(main)

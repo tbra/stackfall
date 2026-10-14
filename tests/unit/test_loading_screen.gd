@@ -20,10 +20,9 @@ func before_each() -> void:
 	_screen.tuning.ready_timeout_s = STALL_TIMEOUT_S
 
 
-func _config(variant: int = MatchConfig.MapVariant.ROUND, size: int = MapDef.MapSize.MEDIUM) -> MatchConfig:
+func _config(disc_step: int = MatchConfig.DISC_SIZE_STEP_DEFAULT) -> MatchConfig:
 	var config: MatchConfig = MatchConfig.new()
-	config.map_variant = variant
-	config.map_size = size
+	config.disc_size_step = disc_step
 	return config
 
 
@@ -48,7 +47,7 @@ func test_show_for_match_becomes_visible() -> void:
 
 ## Bontago-1pi.124: the title is the game mode name only (no map shape or size).
 func test_show_for_match_title_is_only_the_game_mode_name() -> void:
-	var config: MatchConfig = _config(MatchConfig.MapVariant.ROUND, MapDef.MapSize.LARGE)
+	var config: MatchConfig = _config(3)
 	_screen.show_for_match(config, _slots(2))
 	assert_eq(_screen._map_label.text, DisplayNames.mode(MatchConfig.resolve_game_mode(config.game_mode)))
 	assert_eq(_screen._map_label.text.findn("Ring"), -1, "no map shape in the title")

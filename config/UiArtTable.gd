@@ -24,7 +24,8 @@ const KEY_ADVANCED_OPEN: StringName = &"advanced_open"
 const KEY_ADVANCED_CLOSED: StringName = &"advanced_closed"
 const KEY_DIFFICULTY: Array[StringName] = [&"difficulty_easy", &"difficulty_normal", &"difficulty_hard"]
 
-## 4x2 map atlas and its regions keyed by MatchConfig.MapVariant enum name.
+## 4x2 map atlas and its regions keyed by MAP_KEY.
+const MAP_KEY: StringName = &"ROUND"
 @export var map_atlas: Texture2D = null
 @export var map_regions: Dictionary = {}
 ## Bontago-1pi.83: the atlas SVG is imported at this svg/scale (crisp at 1080p+); the regions
@@ -56,12 +57,9 @@ static func release_shared() -> void:
 	_shared = null
 
 
-## Pictogram for a MatchConfig.MapVariant value, or null when unknown.
-func map_pictogram(variant: int) -> Texture2D:
-	var keys: Array = MatchConfig.MapVariant.keys()
-	if variant < 0 or variant >= keys.size():
-		return null
-	var key: StringName = StringName(keys[variant])
+## Pictogram of the one round map, or null when the atlas has none.
+func map_pictogram() -> Texture2D:
+	var key: StringName = MAP_KEY
 	if _cache.has(key):
 		return _cache[key] as Texture2D
 	if map_atlas == null or not map_regions.has(key):

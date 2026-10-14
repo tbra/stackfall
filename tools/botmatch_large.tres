@@ -4,8 +4,7 @@
 
 [resource]
 script = ExtResource("1_match")
-map_variant = 0
-map_size = 2
+disc_size_step = 3
 player_count = 4
 ai_count = 0
 ai_difficulty = 1

@@ -59,7 +59,7 @@ func after_each() -> void:
 # --- Fixtures -----------------------------------------------------------------
 
 func _build_world() -> void:
-	var map: MapDef = load("res://config/maps/round_small.tres") as MapDef
+	var map: MapDef = MapDef.base().scaled(0.75)
 	_field = Field.new()
 	_field.map_def = map
 	add_child_autofree(_field)
@@ -82,8 +82,7 @@ func _make_net(session: FakeNet) -> MatchNetScript:
 
 func _config(player_count: int) -> MatchConfig:
 	var config: MatchConfig = load("res://config/match_defaults.tres").duplicate(true) as MatchConfig
-	config.map_variant = MatchConfig.MapVariant.ROUND
-	config.map_size = MapDef.MapSize.SMALL
+	config.disc_size_step = 1
 	config.player_count = player_count
 	config.ai_count = 0
 	config.team_mode = MatchConfig.TeamMode.OFF

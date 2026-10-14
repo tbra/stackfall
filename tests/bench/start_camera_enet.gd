@@ -48,7 +48,7 @@ func _ready() -> void:
 			await get_tree().create_timer(0.1).timeout
 		await get_tree().create_timer(SETTLE_S).timeout
 		var config: MatchConfig = (load("res://config/match_defaults.tres") as MatchConfig).duplicate(true) as MatchConfig
-		config.map_size = MapDef.MapSize.SMALL
+		config.disc_size_step = 1
 		config.player_count = 2
 		config.ai_count = 0
 		config.hot_seat = false

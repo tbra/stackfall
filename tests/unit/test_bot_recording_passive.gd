@@ -46,7 +46,7 @@ func _run(record: bool) -> Dictionary:
 	fake.config = MatchConfig.new()
 	fake.config.rng_seed = 4242
 	fake.config.goal_flag_count = 1
-	fake.config.map_size = MapDef.MapSize.SMALL
+	fake.config.disc_size_step = 1
 	fake.slot_count_value = 2
 	for slot_id: int in range(2):
 		var slot: PlayerSlot = PlayerSlot.new(slot_id, slot_id, "Bot %d" % slot_id, Color.WHITE, Vector2(1.0 if slot_id == 0 else -5.0, 0.0))

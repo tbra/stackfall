@@ -72,7 +72,7 @@ extends Node3D
 ## Spec 2.8 lobby settings this scenario needs. The small map keeps every
 ## chain short enough to lay in well under a minute of wall clock each; the
 ## rest are defaults.
-const MAP_SIZE: MapDef.MapSize = MapDef.MapSize.SMALL
+const DISC_STEP: int = 1
 const PLAYER_COUNT: int = 2
 ## One goal, at the disk centre (MapDef.goal_flag_positions(1) == [ZERO]), for
 ## every scenario. (a)-(c) and (f) route their marches around it (see the
@@ -133,7 +133,7 @@ var _failures: Array[String] = []
 
 
 func _ready() -> void:
-	print("M2_ACCEPT start map=%d players=%d" % [MAP_SIZE, PLAYER_COUNT])
+	print("M2_ACCEPT start disc_step=%d players=%d" % [DISC_STEP, PLAYER_COUNT])
 	Match.set_process(false)
 
 	await _scenario_growth_holes_cutoff_and_topple()
@@ -552,7 +552,7 @@ func _start_match(goal_count: int) -> void:
 
 func _start_match_configured(config: MatchConfig) -> void:
 	_field = (load("res://game/Field.tscn") as PackedScene).instantiate() as Field
-	_field.map_def = MapDef.for_size(MAP_SIZE)
+	_field.map_def = MapDef.base().scaled(0.75)
 	add_child(_field)
 	_blocks = Node3D.new()
 	add_child(_blocks)
@@ -579,7 +579,7 @@ func _end_match() -> void:
 
 func _build_config(goal_count: int) -> MatchConfig:
 	var config: MatchConfig = (load("res://config/match_defaults.tres") as MatchConfig).duplicate(true)
-	config.map_size = MAP_SIZE
+	config.disc_size_step = DISC_STEP
 	config.player_count = PLAYER_COUNT
 	config.hot_seat = true
 	config.goal_flag_count = goal_count
@@ -597,7 +597,7 @@ func _build_config(goal_count: int) -> MatchConfig:
 ## than its longest.
 func _build_realtime_config(goal_count: int) -> MatchConfig:
 	var config: MatchConfig = (load("res://config/match_defaults.tres") as MatchConfig).duplicate(true)
-	config.map_size = MAP_SIZE
+	config.disc_size_step = DISC_STEP
 	config.player_count = PLAYER_COUNT
 	config.hot_seat = false
 	config.goal_flag_count = goal_count
@@ -1114,9 +1114,8 @@ func _topple_tail(chain: Array[Block], count: int) -> int:
 
 
 ## Hole cells whose four neighbours are holes too, then the rest. A lone open
-## cell is only cell_size wide and its neighbours' collision boxes overhang it
-## by MapDef.cell_overlap / 2 (see the DECISION there), so a block can bridge
-## it; a block over the inside of a patch has nothing to rest on.
+## cell is only cell_size wide, so a block can bridge it; a block over the inside
+## of a patch has nothing to rest on.
 func _interior_first(holes: PackedInt32Array, grid: CellGrid) -> PackedInt32Array:
 	var is_hole: Dictionary = {}
 	for index: int in holes:

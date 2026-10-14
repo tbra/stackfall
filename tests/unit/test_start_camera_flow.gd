@@ -12,7 +12,6 @@ extends GutTest
 ## the gate opening until PLAYING_FRAMES frames into play.
 
 const MAIN_SCENE: PackedScene = preload("res://game/Main.tscn")
-const MAP_PATH: String = "res://config/maps/round_small.tres"
 const LOCAL_SLOT: int = 0
 ## A short countdown keeps the test fast; its length does not change the code path.
 const COUNTDOWN_S: float = 1.0
@@ -56,7 +55,7 @@ func _hold_countdown_like_a_windowed_build(from_state: int, to_state: int) -> vo
 
 
 func _start_vs_bots_match_from_the_lobby() -> void:
-	var map: MapDef = (load(MAP_PATH) as MapDef).duplicate(true)
+	var map: MapDef = MapDef.base().scaled(0.75).duplicate(true)
 	_main = MAIN_SCENE.instantiate()
 	(_main.get_node("Field") as Field).map_def = map
 	var config: MatchConfig = (load("res://config/match_defaults.tres") as MatchConfig).duplicate(true)

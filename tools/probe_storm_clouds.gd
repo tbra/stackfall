@@ -34,7 +34,7 @@ func _capture() -> void:
 	await get_tree().process_frame
 	await get_tree().create_timer(SETTLE_SECONDS).timeout
 	var config: MatchConfig = main.get("match_config") as MatchConfig
-	config.map_size = MapDef.MapSize.SMALL
+	config.disc_size_step = 1
 	config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
 	main.call("start_sandbox_from_menu")
 	await get_tree().create_timer(SETTLE_SECONDS).timeout

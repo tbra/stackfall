@@ -443,7 +443,7 @@ func _run_host() -> void:
 		return
 
 	var config: MatchConfig = (load("res://config/match_defaults.tres") as MatchConfig).duplicate(true) as MatchConfig
-	config.map_size = MapDef.MapSize.SMALL
+	config.disc_size_step = 1
 	# Bontago-8or.11: reduce player_count by 1 if a late joiner will connect later
 	var initial_player_count: int = expected_peers
 	if _late_join_after_seconds > 0:
@@ -464,7 +464,7 @@ func _run_host() -> void:
 	config.rng_seed = 20260918
 
 	var field: Field = (load("res://game/Field.tscn") as PackedScene).instantiate() as Field
-	field.map_def = MapDef.for_size(config.map_size)
+	field.map_def = config.map_def()
 	add_child(field)
 	var blocks: Node3D = Node3D.new()
 	add_child(blocks)

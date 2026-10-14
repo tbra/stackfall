@@ -80,8 +80,7 @@ func _make_net(session: FakeNet) -> MatchNetScript:
 
 func _config(player_count: int, mode: int) -> MatchConfig:
 	var config: MatchConfig = load("res://config/match_defaults.tres").duplicate(true) as MatchConfig
-	config.map_variant = MatchConfig.MapVariant.ROUND
-	config.map_size = MapDef.MapSize.SMALL
+	config.disc_size_step = 1
 	config.player_count = player_count
 	config.ai_count = 0
 	config.team_mode = MatchConfig.TeamMode.OFF
@@ -128,7 +127,7 @@ func _methods(capture: Array[Array]) -> Array[StringName]:
 # --- The replay: the joiner's world matches the host's ---------------------------
 
 func test_the_joiners_world_matches_the_host_after_the_replay() -> void:
-	_build_world(load("res://config/maps/round_small.tres") as MapDef)
+	_build_world(MapDef.base().scaled(0.75))
 	var host_session: FakeNet = FakeNet.host({1: 0, 2: 1}, [0])
 	var host_net: MatchNetScript = _make_net(host_session)
 	_start_playing(_config(4, MatchConfig.GameMode.ELIMINATION))
@@ -242,7 +241,7 @@ func test_the_joiners_world_matches_the_host_after_the_replay() -> void:
 
 
 func test_a_client_drops_gameplay_broadcasts_until_its_replay_starts() -> void:
-	_build_world(load("res://config/maps/round_small.tres") as MapDef)
+	_build_world(MapDef.base().scaled(0.75))
 	var host_session: FakeNet = FakeNet.host({1: 0, 2: 1}, [0])
 	_make_net(host_session)
 	_start_playing(_config(2, MatchConfig.GameMode.CLASSIC))
@@ -268,7 +267,7 @@ func _frozen_fixture_block(net_id: int) -> Block:
 
 
 func test_a_frozen_overlay_replays_after_the_blocks_and_before_the_end() -> void:
-	_build_world(load("res://config/maps/round_small.tres") as MapDef)
+	_build_world(MapDef.base().scaled(0.75))
 	var host_session: FakeNet = FakeNet.host({1: 0, 2: 1}, [0])
 	var host_net: MatchNetScript = _make_net(host_session)
 	_start_playing(_config(2, MatchConfig.GameMode.CLASSIC))
@@ -310,7 +309,7 @@ func test_a_frozen_overlay_replays_after_the_blocks_and_before_the_end() -> void
 
 
 func test_replay_size_for_three_hundred_blocks() -> void:
-	_build_world(load("res://config/maps/round_small.tres") as MapDef)
+	_build_world(MapDef.base().scaled(0.75))
 	var host_net: MatchNetScript = _make_net(FakeNet.host({1: 0, 2: 1}, [0]))
 	_start_playing(_config(2, MatchConfig.GameMode.CLASSIC))
 	for i: int in range(300):
@@ -327,7 +326,7 @@ func test_replay_size_for_three_hundred_blocks() -> void:
 
 
 func test_an_unacked_replay_times_out_and_drops_the_peer() -> void:
-	_build_world(load("res://config/maps/round_small.tres") as MapDef)
+	_build_world(MapDef.base().scaled(0.75))
 	var session: FakeNet = FakeNet.host({1: 0, 2: 1}, [0])
 	var net: MatchNetScript = _make_net(session)
 	_start_playing(_config(2, MatchConfig.GameMode.CLASSIC))
@@ -345,7 +344,7 @@ func test_an_unacked_replay_times_out_and_drops_the_peer() -> void:
 
 
 func test_an_acked_replay_does_not_time_out() -> void:
-	_build_world(load("res://config/maps/round_small.tres") as MapDef)
+	_build_world(MapDef.base().scaled(0.75))
 	var session: FakeNet = FakeNet.host({1: 0, 2: 1}, [0])
 	var net: MatchNetScript = _make_net(session)
 	_start_playing(_config(2, MatchConfig.GameMode.CLASSIC))
@@ -360,7 +359,7 @@ func test_an_acked_replay_does_not_time_out() -> void:
 
 
 func test_weather_traffic_before_the_world_is_gated() -> void:
-	_build_world(load("res://config/maps/round_small.tres") as MapDef)
+	_build_world(MapDef.base().scaled(0.75))
 	var net: MatchNetScript = _make_net(FakeNet.client(1))
 	net._on_net_mode_changed(Net.Mode.CLIENT)
 	var weather_net: WeatherNet = net._weather_net
@@ -396,7 +395,7 @@ func test_rejoin_token_is_scoped_to_its_host_and_cleared_on_leave() -> void:
 # --- The intent gate ------------------------------------------------------------
 
 func test_intents_before_the_replay_ack_are_refused() -> void:
-	_build_world(load("res://config/maps/round_small.tres") as MapDef)
+	_build_world(MapDef.base().scaled(0.75))
 	var session: FakeNet = FakeNet.host({1: 0, 2: 1, 3: 2}, [0])
 	var net: MatchNetScript = _make_net(session)
 	_start_playing(_config(3, MatchConfig.GameMode.CLASSIC))
@@ -429,7 +428,7 @@ func test_intents_before_the_replay_ack_are_refused() -> void:
 
 
 func test_a_peer_that_leaves_mid_replay_owes_no_ack() -> void:
-	_build_world(load("res://config/maps/round_small.tres") as MapDef)
+	_build_world(MapDef.base().scaled(0.75))
 	var net: MatchNetScript = _make_net(FakeNet.host({1: 0, 2: 1}, [0]))
 	_start_playing(_config(2, MatchConfig.GameMode.CLASSIC))
 	net.capture_replay = true
@@ -443,7 +442,7 @@ func test_a_peer_that_leaves_mid_replay_owes_no_ack() -> void:
 # --- Seats -------------------------------------------------------------------------
 
 func test_no_free_seat_means_spectator_and_a_reserved_seat_is_not_free() -> void:
-	_build_world(load("res://config/maps/round_small.tres") as MapDef)
+	_build_world(MapDef.base().scaled(0.75))
 	var session: FakeNet = FakeNet.host({1: 0, 2: 1}, [0])
 	var net: MatchNetScript = _make_net(session)
 	_start_playing(_config(3, MatchConfig.GameMode.CLASSIC))

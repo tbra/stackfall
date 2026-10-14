@@ -437,7 +437,7 @@ func clear_player_rows() -> void:
 
 func _refresh_map_icon(config: MatchConfig) -> void:
 	var art: UiArtTable = UiArtTable.shared()
-	_map_icon.texture = art.map_pictogram(config.map_variant) if config != null else null
+	_map_icon.texture = art.map_pictogram() if config != null else null
 	_map_icon.visible = _map_icon.texture != null
 	_map_icon.custom_minimum_size = Vector2.ONE * float(art.loading_map_icon_px)
 

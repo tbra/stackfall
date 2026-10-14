@@ -508,7 +508,7 @@ func test_the_same_bytes_decode_differently_under_different_bounds() -> void:
 	# docs/archive/M3a_PLAN.md: "Both ends must derive the AABB from the same MapDef ...
 	# get it wrong and every body lands somewhere plausible but wrong". This is
 	# that failure, pinned down so nobody assumes the record is self-describing.
-	var large: AABB = _config.position_bounds(preload("res://config/maps/round_large.tres"))
+	var large: AABB = _config.position_bounds(MapDef.base().scaled(1.75))
 	var data: PackedByteArray = _buffer(Quantize.BODY_RECORD_BYTES)
 	Quantize.pack_body(data, 0, 1, Vector3(20.0, 5.0, -8.0), Quaternion.IDENTITY, false, _bounds)
 	var wrong: Vector3 = Quantize.unpack_body(data, 0, large)["position"] as Vector3

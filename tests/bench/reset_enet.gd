@@ -116,7 +116,7 @@ func _until(condition: Callable, seconds: float) -> bool:
 
 func _config(weather_mode: int, sky_mode: int) -> MatchConfig:
 	var config: MatchConfig = (load("res://config/match_defaults.tres") as MatchConfig).duplicate(true) as MatchConfig
-	config.map_size = MapDef.MapSize.SMALL
+	config.disc_size_step = 1
 	config.player_count = 2
 	config.ai_count = 0
 	config.hot_seat = false

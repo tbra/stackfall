@@ -4,8 +4,7 @@ extends GutTest
 
 func test_to_dict_from_dict_round_trips_every_field() -> void:
 	var config: MatchConfig = MatchConfig.new()
-	config.map_variant = MatchConfig.MapVariant.ROUND
-	config.map_size = MapDef.MapSize.LARGE
+	config.disc_size_step = 4
 	config.player_count = 6
 	config.ai_count = 2
 	config.ai_difficulty = MatchConfig.AiDifficulty.HARD
@@ -28,8 +27,7 @@ func test_to_dict_from_dict_round_trips_every_field() -> void:
 	var data: Dictionary = config.to_dict()
 	var restored: MatchConfig = MatchConfig.from_dict(data)
 
-	assert_eq(restored.map_variant, config.map_variant)
-	assert_eq(restored.map_size, config.map_size)
+	assert_eq(restored.disc_size_step, config.disc_size_step)
 	assert_eq(restored.player_count, config.player_count)
 	assert_eq(restored.ai_count, config.ai_count)
 	assert_eq(restored.ai_difficulty, config.ai_difficulty)
@@ -232,60 +230,15 @@ func test_team_of_slot_interleaves_for_every_team_mode_and_player_count() -> voi
 			)
 
 
-func test_map_def_resolves_from_map_size() -> void:
+func test_map_def_is_the_one_map_scaled_by_the_disc_size_step() -> void:
 	var config: MatchConfig = MatchConfig.new()
-	config.map_size = MapDef.MapSize.SMALL
-	assert_almost_eq(config.field_radius(), MapDef.RADIUS_SMALL, 0.001)
-	config.map_size = MapDef.MapSize.LARGE
-	assert_almost_eq(config.field_radius(), MapDef.RADIUS_LARGE, 0.001)
-
-
-## map_def() routes through map_variant for every size; a removed shape value
-## (Bontago-fca.75) draws the round map of the same size.
-func test_map_def_routes_through_map_variant() -> void:
-	var variants: Array[int] = [MatchConfig.MapVariant.ROUND, 1, 4, 99, -3]
-	var sizes: Array[MapDef.MapSize] = [MapDef.MapSize.SMALL, MapDef.MapSize.MEDIUM, MapDef.MapSize.LARGE]
-	for variant: int in variants:
-		for size: MapDef.MapSize in sizes:
-			var config: MatchConfig = MatchConfig.new()
-			config.map_variant = variant as MatchConfig.MapVariant
-			config.map_size = size
-			var expected: MapDef = MapDef.for_size(size)
-			assert_almost_eq(config.map_def().field_radius, expected.field_radius, 0.001, "variant=%d size=%d" % [variant, size])
-			assert_eq(config.map_def().id, expected.id)
-
-
-## Bontago-fca.75: an old saved config, a disk dict or a network peer carrying a
-## removed map_variant (1..4) or garbage clamps to ROUND without error.
-func test_a_removed_map_variant_clamps_to_round_in_from_dict_and_sanitize() -> void:
-	for removed: int in [1, 2, 3, 4, 7, 99, -1]:
-		var restored: MatchConfig = MatchConfig.from_dict({"map_variant": removed, "map_size": MapDef.MapSize.LARGE})
-		assert_eq(restored.map_variant, MatchConfig.MapVariant.ROUND, "from_dict %d" % removed)
-		assert_eq(restored.map_size, MapDef.MapSize.LARGE, "other fields survive")
-		assert_almost_eq(restored.field_radius(), MapDef.RADIUS_LARGE, 0.001)
-		var config: MatchConfig = MatchConfig.new()
-		config.map_variant = removed as MatchConfig.MapVariant
-		config.sanitize()
-		assert_eq(config.map_variant, MatchConfig.MapVariant.ROUND, "sanitize %d" % removed)
-
-
-func test_a_removed_map_variant_survives_the_wire_round_trip() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	config.map_variant = 3 as MatchConfig.MapVariant
-	var decoded: MatchConfig = MatchConfig.from_dict(bytes_to_var(var_to_bytes(config.to_dict())) as Dictionary)
-	assert_eq(decoded.map_variant, MatchConfig.MapVariant.ROUND)
-	assert_eq(decoded.map_def().id, MapDef.for_size(decoded.map_size).id)
-
-
-func test_map_def_round_is_byte_identical_to_for_size() -> void:
-	for size: MapDef.MapSize in [MapDef.MapSize.SMALL, MapDef.MapSize.MEDIUM, MapDef.MapSize.LARGE]:
-		var config: MatchConfig = MatchConfig.new()
-		config.map_variant = MatchConfig.MapVariant.ROUND
-		config.map_size = size
-		var expected: MapDef = MapDef.for_size(size)
-		var actual: MapDef = config.map_def()
-		assert_eq(actual.id, expected.id, "ROUND: map_def() resolves the same map id as for_size(size)")
-		assert_almost_eq(actual.field_radius, expected.field_radius, 0.001)
+	assert_eq(config.map_def().id, MapDef.base().id)
+	assert_almost_eq(config.field_radius(), MapDef.RADIUS_MEDIUM, 0.001)
+	config.disc_size_step = 1
+	assert_almost_eq(config.field_radius(), MapDef.RADIUS_MEDIUM * 0.75, 0.001)
+	config.disc_size_step = 5
+	assert_almost_eq(config.field_radius(), MapDef.RADIUS_MEDIUM * 1.75, 0.001)
+	assert_same(config.map_def(), config.map_def(), "cached per step: one instance for HUD/Minimap identity checks")
 
 
 ## turn_based defaults false, and round-trips through to_dict()/from_dict()

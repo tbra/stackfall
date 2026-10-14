@@ -191,7 +191,7 @@ func _ready() -> void:
 
 func _build_fixture() -> void:
 	_field = Field.new()
-	_field.map_def = MapDef.for_size(MapDef.MapSize.MEDIUM)
+	_field.map_def = MapDef.base()
 	add_child(_field)
 	_blocks_root = Node3D.new()
 	add_child(_blocks_root)
@@ -214,7 +214,6 @@ func _teardown_fixture() -> void:
 
 func _base_config() -> MatchConfig:
 	var config: MatchConfig = (load("res://config/match_defaults.tres") as MatchConfig).duplicate(true) as MatchConfig
-	config.map_size = MapDef.MapSize.MEDIUM
 	config.player_count = BOT_COUNT
 	config.ai_count = BOT_COUNT
 	config.ai_difficulty = _difficulty

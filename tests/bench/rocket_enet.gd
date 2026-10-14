@@ -74,7 +74,7 @@ func _until(condition: Callable, seconds: float) -> bool:
 
 func _build_world() -> Field:
 	var field: Field = (load("res://game/Field.tscn") as PackedScene).instantiate() as Field
-	field.map_def = MapDef.for_size(MapDef.MapSize.SMALL)
+	field.map_def = MapDef.base().scaled(0.75)
 	add_child(field)
 	var blocks: Node3D = Node3D.new()
 	add_child(blocks)
@@ -102,7 +102,7 @@ func _run_host() -> void:
 		get_tree().quit(1)
 		return
 	var config: MatchConfig = (load("res://config/match_defaults.tres") as MatchConfig).duplicate(true) as MatchConfig
-	config.map_size = MapDef.MapSize.SMALL
+	config.disc_size_step = 1
 	config.player_count = PEERS
 	config.hot_seat = false
 	config.rng_seed = SEED

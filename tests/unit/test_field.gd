@@ -10,7 +10,7 @@ extends GutTest
 ## map's actual scale (mesh radius tracks whatever map_def says; cell_count()
 ## just has to be positive, under one trimesh owner; friction and the
 ## kill plane are size-independent) -- only a couple of tests already used
-## round_small.tres (30 m, ~2800 cells); the ones that instead built a plain
+## a scaled round_medium.tres; the ones that instead built a plain
 ## Field.new() (round_medium.tres, ~6300 cells) or explicitly loaded
 ## round_medium.tres paid its ~11 s collision build (measured) for nothing.
 ## A shared tiny duplicate replaces all of them.

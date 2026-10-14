@@ -84,15 +84,6 @@ const ALL_DISABLED_SENTINEL: StringName = &"__none__"
 # at compile time, which left every F4 edit of this tuning dead.
 static var QOL_SHARED: QolExperiments = preload("res://config/qol_experiments.tres")
 
-## Bontago-mp0.3.5 (review r2, item 1): the hidden %MapVariantOption/
-## %MapSizeOption labels, reused to build %MapComboOption's own "Round ·
-## Medium" style combined list in MatchConfig.MapVariant * MapDef.MapSize
-## order -- variant major, size minor (index = variant * 3 + size), so
-## _map_combo_index()/_decode_map_combo() only need arithmetic, not a lookup
-## table, matching the hidden options' own selected-index encoding exactly.
-const MAP_VARIANT_LABELS: Array[String] = ["Round"]
-const MAP_SIZE_LABELS: Array[String] = ["Small", "Medium", "Large"]
-
 ## DECISION (ui/Lobby.gd): same `Variant` test seam as ui/MainMenu.gd and
 ## ui/HUD.gd's match_provider. Bontago-1pi.53 (E1): the players panel reads the
 ## same seam (peer ids/info for the roster, local peer id for the "you" subtitle),
@@ -103,11 +94,7 @@ var net_provider: Variant = null:
 		if _players_panel != null:
 			_players_panel.net_provider = value
 
-## Bontago-mp0.3.5 (review r2, item 1): %MapVariantOption/%MapSizeOption stay the hidden source
-## of truth for the map (pinned to Round/Medium, Bontago-1pi.107); %MapThumbnail is their (hidden)
-## pictogram. All three live under %HiddenSources now.
-@onready var _map_variant_option: OptionButton = %MapVariantOption
-@onready var _map_size_option: OptionButton = %MapSizeOption
+## %MapThumbnail is the (hidden) pictogram of the one map; it lives under %HiddenSources.
 ## Bontago-1pi.107 (owner 2026-10-07): the disc size is the one visible map control, six steps into
 ## config/disc_size_tuning.tres (tiny 50% .. enormous 175%). Bontago-1pi.159.2.1: a UiSegmentMeter whose
 ## value is the step + 1 (cells lit), never 0 (see _disc_size_step()).
@@ -539,13 +526,11 @@ func _expose(node: Node, unique_name: String) -> void:
 ## DECISION (Bontago-1pi.159.14, reversing 1pi.94): game mode, time of day, weather, tilt and hole mode
 ## are UiCyclers ("<" value ">" blocks, wrapping, ui_left / ui_right step); each bot's difficulty in
 ## LobbySeatRow is a UiCycler too (Bontago-1pi.159.36); only its team pill is a popup UiDropdown.
-## %MapVariantOption / %MapSizeOption / %TeamModeOption are hidden sources of truth that nobody
+## %TeamModeOption is a hidden sources of truth that nobody
 ## clicks, so they stay plain OptionButtons; %AiDifficultyOption (default difficulty) is a UiCycler.
 func _populate_options() -> void:
 	_configure_timer_steppers()
 	_configure_value_controls()
-	_fill_option(_map_variant_option, MAP_VARIANT_LABELS)
-	_fill_option(_map_size_option, MAP_SIZE_LABELS)
 	_decorate_map_picker()
 	_fill_cycle(_ai_difficulty_option, ["Easy", "Normal", "Hard"])
 	_fill_option(_team_mode_option, ["Off", "2 teams", "3 teams", "4 teams"])
@@ -617,7 +602,7 @@ func map_thumbnail_texture() -> Texture2D:
 
 func _refresh_map_thumbnail() -> void:
 	if _map_thumbnail_icon != null:
-		_map_thumbnail_icon.texture = UiArtTable.shared().map_pictogram(_map_variant_option.selected)
+		_map_thumbnail_icon.texture = UiArtTable.shared().map_pictogram()
 
 
 func _fill_option(option: OptionButton, labels: Array) -> void:
@@ -1110,7 +1095,7 @@ func _input(event: InputEvent) -> void:
 	var focus: Control = get_viewport().gui_get_focus_owner()
 	if focus is LineEdit or focus is TextEdit:
 		return
-	for option: OptionButton in [_map_variant_option, _map_size_option, _team_mode_option]:
+	for option: OptionButton in [_team_mode_option]:
 		if option.get_popup().visible:
 			return
 	_run_start_shortcut()
@@ -1442,9 +1427,7 @@ func _config_from_controls() -> MatchConfig:
 	# game/HotSeat.tscn (docs/archive/M3a_PLAN.md question 3) — so every config this
 	# screen builds must run the real-time per-player-timer branch instead.
 	config.hot_seat = false
-	# Bontago-1pi.107: the other maps are disabled for now (data kept); the disc size is the choice.
-	config.map_variant = MatchConfig.MapVariant.ROUND
-	config.map_size = MapDef.MapSize.MEDIUM
+	# Bontago-1pi.107: there is one map; the disc size is the choice.
 	config.disc_size_step = _disc_size_step()
 	config.player_count = int(_player_count_spin.value)
 	config.ai_count = int(_ai_count_spin.value)
@@ -1560,10 +1543,7 @@ func _apply_data(data: Dictionary) -> void:
 	_bot_names = config.bot_names.duplicate()
 
 	_applying_remote_data = true
-	_map_variant_option.selected = config.map_variant
-	_map_size_option.selected = config.map_size
 	_disc_size_meter.set_value_silent(config.disc_size_step + 1)
-	_map_variant_option.selected = int(config.map_variant)
 	_refresh_map_thumbnail()
 	_player_count_spin.value = config.player_count
 	_ai_count_spin.value = config.ai_count

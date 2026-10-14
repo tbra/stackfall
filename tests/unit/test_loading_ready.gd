@@ -382,7 +382,7 @@ func test_client_stops_waiting_when_the_host_match_moved_on() -> void:
 # net_match_start, whose start_match() resets the gate mirror.
 
 func _wire_world() -> void:
-	var map: MapDef = load("res://config/maps/round_small.tres") as MapDef
+	var map: MapDef = MapDef.base().scaled(0.75)
 	var wire_field: Field = Field.new()
 	wire_field.map_def = map
 	add_child_autofree(wire_field)
@@ -396,8 +396,7 @@ func _wire_world() -> void:
 ## A config the wire can carry (a preset map, not TinyMapMatchConfig's seam).
 func _wire_config(players: int) -> MatchConfig:
 	var config: MatchConfig = load("res://config/match_defaults.tres").duplicate(true) as MatchConfig
-	config.map_variant = MatchConfig.MapVariant.ROUND
-	config.map_size = MapDef.MapSize.SMALL
+	config.disc_size_step = 1
 	config.player_count = players
 	config.ai_count = 0
 	config.team_mode = MatchConfig.TeamMode.OFF

@@ -25,7 +25,7 @@ func _ready() -> void:
 		if arg.begins_with(MODE_ARG):
 			_ctf = arg.trim_prefix(MODE_ARG) == "ctf"
 	_field = (load("res://game/Field.tscn") as PackedScene).instantiate() as Field
-	_field.map_def = MapDef.for_size(MapDef.MapSize.SMALL)
+	_field.map_def = MapDef.base().scaled(0.75)
 	add_child(_field)
 	var blocks: Node3D = Node3D.new()
 	add_child(blocks)
@@ -52,7 +52,7 @@ func _until(condition: Callable, seconds: float) -> bool:
 func _run_host() -> void:
 	await _until(func() -> bool: return Net.peer_ids().size() >= HOST_AND_CLIENT_PEERS, CONNECT_TIMEOUT)
 	var config: MatchConfig = (load("res://config/match_defaults.tres") as MatchConfig).duplicate(true) as MatchConfig
-	config.map_size = MapDef.MapSize.SMALL
+	config.disc_size_step = 1
 	config.player_count = 2
 	config.hot_seat = false
 	config.goal_flag_count = 2

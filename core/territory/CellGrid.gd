@@ -14,10 +14,7 @@ extends RefCounted
 ## centred exactly on the origin and every cell centre lands on a multiple of
 ## cell_size. That keeps a cell exactly one raster pixel and one quad of
 ## Field's collision trimesh (two triangles per solid cell, none per hole), so
-## a placed block, a raster pixel and a collision quad all line up. (Earlier
-## this comment tied alignment to per-cell BoxShape3D rims and
-## MapDef.cell_overlap; the trimesh removed both -- see game/Field.gd and
-## MapDef.cell_overlap's HISTORICAL note.) The half cell this adds to each
+## a placed block, a raster pixel and a collision quad all line up. The half cell this adds to each
 ## side of the square carries no collision, since is_in_disk() still measures
 ## against field_radius.
 ##

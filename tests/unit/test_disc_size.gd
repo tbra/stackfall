@@ -67,14 +67,6 @@ func test_sanitize_clamps_a_wire_step_into_range() -> void:
 	assert_eq(config.disc_size_step, 0)
 
 
-func test_other_sizes_still_scale_through_the_same_path() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	config.map_size = MapDef.MapSize.LARGE
-	config.disc_size_step = 0
-	var base: MapDef = MapDef.for_variant_and_size(MatchConfig.MapVariant.ROUND, MapDef.MapSize.LARGE)
-	assert_almost_eq(config.map_def().field_radius, base.field_radius * 0.5, 0.001)
-
-
 func test_camera_zoom_limit_grows_with_a_large_disc_but_never_shrinks() -> void:
 	var rig: CameraRig = autofree(CameraRig.new())
 	rig.tuning = load("res://config/camera_tuning.tres") as CameraTuning

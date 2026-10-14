@@ -15,7 +15,7 @@ extends GutTest
 const SEGMENTS: int = 24
 
 
-func _map(_shape: MapDef.MapShape, radius: float = 10.0) -> MapDef:
+func _map(radius: float = 10.0) -> MapDef:
 	var map_def: MapDef = MapDef.new()
 	map_def.id = &"test_disc_body"
 	map_def.field_radius = radius
@@ -81,7 +81,7 @@ func _make_body(map_def: MapDef, visuals: DiscBodyVisuals = null, y_shift: float
 
 
 func test_configure_builds_a_band_and_chamfer_mesh() -> void:
-	var body: Body = _make_body(_map(MapDef.MapShape.ROUND))
+	var body: Body = _make_body(_map())
 	assert_not_null(body.band_mesh_instance())
 	assert_not_null(body.band_mesh_instance().mesh)
 	assert_not_null(body.chamfer_mesh_instance())
@@ -92,7 +92,7 @@ func test_band_height_matches_the_configured_fraction_of_diameter() -> void:
 	var visuals: DiscBodyVisuals = DiscBodyVisuals.new()
 	visuals.band_height_fraction = 0.05
 	visuals.chamfer_height_fraction = 0.0
-	var map_def: MapDef = _map(MapDef.MapShape.ROUND, 10.0)
+	var map_def: MapDef = _map(10.0)
 	var body: Body = _make_body(map_def, visuals)
 
 	var aabb: AABB = body.band_mesh_instance().mesh.get_aabb()
@@ -109,7 +109,7 @@ func test_chamfer_eats_into_the_top_of_the_bands_own_height_budget() -> void:
 	var visuals: DiscBodyVisuals = DiscBodyVisuals.new()
 	visuals.band_height_fraction = 0.05
 	visuals.chamfer_height_fraction = 0.2
-	var map_def: MapDef = _map(MapDef.MapShape.ROUND, 10.0)
+	var map_def: MapDef = _map(10.0)
 	var body: Body = _make_body(map_def, visuals)
 
 	var band_aabb: AABB = body.band_mesh_instance().mesh.get_aabb()
@@ -128,7 +128,7 @@ func test_chamfer_eats_into_the_top_of_the_bands_own_height_budget() -> void:
 
 
 func test_round_band_footprint_is_the_field_radius_circle() -> void:
-	var map_def: MapDef = _map(MapDef.MapShape.ROUND, 12.0)
+	var map_def: MapDef = _map(12.0)
 	var body: Body = _make_body(map_def)
 
 	var aabb: AABB = body.band_mesh_instance().mesh.get_aabb()
@@ -147,7 +147,7 @@ func test_chamfer_top_ring_is_flush_with_the_true_field_radius_edge() -> void:
 	visuals.band_radius_scale = 1.1
 	visuals.chamfer_height_fraction = 0.5
 	visuals.band_height_fraction = 0.05
-	var map_def: MapDef = _map(MapDef.MapShape.ROUND, 10.0)
+	var map_def: MapDef = _map(10.0)
 	var body: Body = _make_body(map_def, visuals)
 
 	var mesh: ArrayMesh = body.chamfer_mesh_instance().mesh as ArrayMesh
@@ -171,7 +171,7 @@ func test_chamfer_slopes_outward_to_the_bands_own_proud_radius() -> void:
 	visuals.band_radius_scale = 1.1
 	visuals.chamfer_height_fraction = 0.5
 	visuals.band_height_fraction = 0.05
-	var map_def: MapDef = _map(MapDef.MapShape.ROUND, 10.0)
+	var map_def: MapDef = _map(10.0)
 	var body: Body = _make_body(map_def, visuals)
 
 	var chamfer_aabb: AABB = body.chamfer_mesh_instance().mesh.get_aabb()
@@ -183,7 +183,7 @@ func test_chamfer_slopes_outward_to_the_bands_own_proud_radius() -> void:
 func test_side_surfaces_are_separate_surfaces_of_one_mesh() -> void:
 	var visuals: DiscBodyVisuals = _default_visuals()
 	visuals.bottom_cap_enabled = true
-	var body: Body = _make_body(_map(MapDef.MapShape.ROUND), visuals, 0.1)
+	var body: Body = _make_body(_map(), visuals, 0.1)
 	assert_eq(body.merged.get_surface_count(), 3, "chamfer + band + bottom.")
 	var chamfer: int = body.arena.surface_index(ArenaMesh.Kind.CHAMFER)
 	var band: int = body.arena.surface_index(ArenaMesh.Kind.BAND)
@@ -200,7 +200,7 @@ func test_side_surfaces_are_separate_surfaces_of_one_mesh() -> void:
 func test_bottom_cap_disabled_still_builds_a_valid_open_band() -> void:
 	var visuals: DiscBodyVisuals = DiscBodyVisuals.new()
 	visuals.bottom_cap_enabled = false
-	var body: Body = _make_body(_map(MapDef.MapShape.ROUND), visuals)
+	var body: Body = _make_body(_map(), visuals)
 	assert_not_null(body.band_mesh_instance().mesh)
 	assert_eq(body.arena.surface_index(ArenaMesh.Kind.BOTTOM), -1, "no cap surface when disabled.")
 	assert_true(body.band_mesh_instance().mesh.get_surface_count() > 0)
@@ -223,7 +223,7 @@ func test_chamfer_material_is_a_shader_material_wired_from_visuals() -> void:
 	visuals.chamfer_screen_min_width_factor = 0.0099
 	visuals.surface_anisotropy = 0.42
 	visuals.surface_noise_strength = 0.77
-	var body: Body = _make_body(_map(MapDef.MapShape.ROUND), visuals)
+	var body: Body = _make_body(_map(), visuals)
 
 	var material: ShaderMaterial = body.chamfer_mesh_instance().material_override as ShaderMaterial
 	assert_not_null(material, "the chamfer's own material must be a ShaderMaterial.")
@@ -250,7 +250,7 @@ func test_chamfer_material_is_a_shader_material_wired_from_visuals() -> void:
 ## back out of the committed ArrayMesh's own vertex color array -- plain CPU
 ## mesh data, exactly like this file's other geometry assertions.
 func test_chamfer_mesh_carries_a_top_to_bottom_gradient_vertex_color() -> void:
-	var body: Body = _make_body(_map(MapDef.MapShape.ROUND))
+	var body: Body = _make_body(_map())
 	var mesh: ArrayMesh = body.chamfer_mesh_instance().mesh as ArrayMesh
 	var arrays: Array = mesh.surface_get_arrays(0)
 	var colors: PackedColorArray = arrays[Mesh.ARRAY_COLOR]
@@ -273,7 +273,7 @@ func test_chamfer_mesh_carries_a_top_to_bottom_gradient_vertex_color() -> void:
 ## gradient vertex colors -- this package's chamfer-only glow/gradient logic
 ## must not leak onto it.
 func test_band_material_and_mesh_are_unaffected_by_the_gradient() -> void:
-	var body: Body = _make_body(_map(MapDef.MapShape.ROUND))
+	var body: Body = _make_body(_map())
 	assert_true(body.band_mesh_instance().material_override is StandardMaterial3D)
 	var mesh: ArrayMesh = body.band_mesh_instance().mesh as ArrayMesh
 	var arrays: Array = mesh.surface_get_arrays(0)
@@ -287,7 +287,7 @@ func test_band_material_wires_up_the_procedural_surface_texture() -> void:
 	var visuals: DiscBodyVisuals = DiscBodyVisuals.new()
 	visuals.surface_anisotropy = 0.55
 	visuals.surface_noise_strength = 0.44
-	var body: Body = _make_body(_map(MapDef.MapShape.ROUND), visuals)
+	var body: Body = _make_body(_map(), visuals)
 
 	var material: StandardMaterial3D = body.band_mesh_instance().material_override as StandardMaterial3D
 	assert_true(material.anisotropy_enabled)
@@ -304,7 +304,7 @@ func test_surface_texture_can_be_disabled() -> void:
 	var visuals: DiscBodyVisuals = DiscBodyVisuals.new()
 	visuals.surface_anisotropy = 0.0
 	visuals.surface_noise_strength = 0.0
-	var body: Body = _make_body(_map(MapDef.MapShape.ROUND), visuals)
+	var body: Body = _make_body(_map(), visuals)
 
 	var material: StandardMaterial3D = body.band_mesh_instance().material_override as StandardMaterial3D
 	assert_false(material.anisotropy_enabled)
@@ -318,7 +318,7 @@ func test_surface_texture_can_be_disabled() -> void:
 ## populated (a future edit that drops _add_quad()'s set_uv() calls would
 ## otherwise pass every other test here while quietly breaking the texture).
 func test_band_and_chamfer_meshes_carry_generated_uv_data() -> void:
-	var body: Body = _make_body(_map(MapDef.MapShape.ROUND))
+	var body: Body = _make_body(_map())
 	for instance: Part in [body.band_mesh_instance(), body.chamfer_mesh_instance()]:
 		var mesh: ArrayMesh = instance.mesh as ArrayMesh
 		var arrays: Array = mesh.surface_get_arrays(0)

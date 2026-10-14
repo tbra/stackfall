@@ -749,8 +749,6 @@ func set_lobby_data(data: Dictionary) -> void:
 	# Bontago-mv0.1.10 review: same teardown hazard as _broadcast_roster().
 	for peer_id: int in _broadcast_targets():
 		_rpc_lobby_data.rpc_id(peer_id, _lobby_data)
-	if _lan.is_advertising():
-		_lan.update_advert({"map": str(_lobby_data.get("map_variant", 0))})
 	# docs/archive/M3b_PLAN.md "Design notes": tee the same Dictionary into Steam
 	# lobby data, under one JSON key, every time this is called — the exact
 	# call site ui/Lobby.gd already has, so it needs no change of its own.

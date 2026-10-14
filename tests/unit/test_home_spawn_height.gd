@@ -111,7 +111,7 @@ func test_first_held_block_clears_the_home_beacon_on_every_map() -> void:
 func test_unseeded_hover_is_inside_the_beacon_so_the_raise_is_load_bearing() -> void:
 	# The bug itself: without set_home_position()'s raise the ghost hovers only
 	# tuning.hover_height above the disc, far below the beacon top.
-	var map: MapDef = load("res://config/maps/round_small.tres") as MapDef
+	var map: MapDef = MapDef.base().scaled(0.75)
 	var field: Field = _make_field(map)
 	var controller: PlayerController = _make_controller()
 	controller._cursor = field.home_flags()[0].global_position
@@ -124,7 +124,7 @@ func test_unseeded_hover_is_inside_the_beacon_so_the_raise_is_load_bearing() -> 
 
 
 func test_raise_tracks_the_margin_tunable() -> void:
-	var field: Field = _make_field(load("res://config/maps/round_small.tres") as MapDef)
+	var field: Field = _make_field(MapDef.base().scaled(0.75))
 	var controller: PlayerController = _make_controller()
 	var home: Vector3 = field.home_flags()[0].global_position
 	controller.ghost_tuning.home_spawn_beacon_margin = 0.25
@@ -139,7 +139,7 @@ func test_raise_tracks_the_margin_tunable() -> void:
 
 
 func test_no_raise_when_the_hover_already_clears_the_beacon() -> void:
-	var field: Field = _make_field(load("res://config/maps/round_small.tres") as MapDef)
+	var field: Field = _make_field(MapDef.base().scaled(0.75))
 	var controller: PlayerController = _make_controller()
 	var high: float = controller.beacon_visuals.beacon_top_height() + controller.ghost_tuning.home_spawn_beacon_margin + 5.0
 	controller._ghost.manual_hover_offset = high
@@ -148,7 +148,7 @@ func test_no_raise_when_the_hover_already_clears_the_beacon() -> void:
 
 
 func test_raise_is_dropped_by_the_next_accepted_spawn_so_later_blocks_are_unchanged() -> void:
-	var field: Field = _make_field(load("res://config/maps/round_small.tres") as MapDef)
+	var field: Field = _make_field(MapDef.base().scaled(0.75))
 	var controller: PlayerController = _make_controller()
 	controller.set_home_position(field.home_flags()[0].global_position)
 	assert_gt(controller._ghost.manual_hover_offset, 0.0, "fixture: the first piece is raised")
@@ -161,7 +161,7 @@ func test_raise_is_dropped_by_the_next_accepted_spawn_so_later_blocks_are_unchan
 
 
 func test_players_own_hover_input_takes_over_the_raise() -> void:
-	var field: Field = _make_field(load("res://config/maps/round_small.tres") as MapDef)
+	var field: Field = _make_field(MapDef.base().scaled(0.75))
 	var controller: PlayerController = _make_controller()
 	controller.set_home_position(field.home_flags()[0].global_position)
 	controller._step_hover(-1.0)

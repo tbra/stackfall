@@ -36,10 +36,9 @@ const ROUND3_VERTEX_BUDGET: int = 60000
 ## Rivet height as a fraction of the radius is the only thing allowed past the disc edge.
 const RIVET_SLACK: float = 0.006
 const MACHINED_VERTEX_BUDGET: int = 12000
-const SHAPES: Array[MapDef.MapShape] = [MapDef.MapShape.ROUND]
 
 
-func _map(_shape: MapDef.MapShape) -> MapDef:
+func _map() -> MapDef:
 	var map_def: MapDef = MapDef.new()
 	map_def.id = &"test_arena_side"
 	map_def.field_radius = RADIUS
@@ -60,32 +59,30 @@ func _all_vertices(built: Dictionary) -> PackedVector3Array:
 	return out
 
 
-func test_every_style_builds_geometry_for_every_map_shape() -> void:
+func test_every_style_builds_geometry() -> void:
 	for which: ArenaSideStyle.Style in STYLES:
-		for shape: MapDef.MapShape in SHAPES:
-			var built: Dictionary = ArenaSideBuilder.new().build(_map(shape), _style(which), SEGMENTS, Y_TOP)
-			assert_false(built.is_empty(), "style %d shape %d builds surfaces" % [which, shape])
-			assert_true(_all_vertices(built).size() >= 3 * 3)
+		var built: Dictionary = ArenaSideBuilder.new().build(_map(), _style(which), SEGMENTS, Y_TOP)
+		assert_false(built.is_empty(), "style %d builds surfaces" % which)
+		assert_true(_all_vertices(built).size() >= 3 * 3)
 
 
 func test_geometry_hangs_from_the_slab_and_stays_inside_the_outline() -> void:
 	for which: ArenaSideStyle.Style in STYLES:
-		for shape: MapDef.MapShape in SHAPES:
-			var map_def: MapDef = _map(shape)
-			var limit: float = RADIUS * RADIUS_SLACK
-			var top_ring_seen: bool = false
-			var attach_y: float = Y_TOP + (DISK_HEIGHT if WRAP_STYLES.has(which) else 0.0)
-			for vertex: Vector3 in _all_vertices(ArenaSideBuilder.new().build(map_def, _style(which), SEGMENTS, Y_TOP)):
-				assert_true(vertex.y <= attach_y + EPS, "style %d shape %d: nothing above the slab edge" % [which, shape])
-				assert_true(Vector2(vertex.x, vertex.z).length() <= limit, "style %d shape %d: inside the outline" % [which, shape])
-				if is_equal_approx(vertex.y, attach_y):
-					top_ring_seen = true
-			assert_true(top_ring_seen, "style %d shape %d attaches at the slab edge" % [which, shape])
+		var map_def: MapDef = _map()
+		var limit: float = RADIUS * RADIUS_SLACK
+		var top_ring_seen: bool = false
+		var attach_y: float = Y_TOP + (DISK_HEIGHT if WRAP_STYLES.has(which) else 0.0)
+		for vertex: Vector3 in _all_vertices(ArenaSideBuilder.new().build(map_def, _style(which), SEGMENTS, Y_TOP)):
+			assert_true(vertex.y <= attach_y + EPS, "style %d: nothing above the slab edge" % which)
+			assert_true(Vector2(vertex.x, vertex.z).length() <= limit, "style %d: inside the outline" % which)
+			if is_equal_approx(vertex.y, attach_y):
+				top_ring_seen = true
+		assert_true(top_ring_seen, "style %d attaches at the slab edge" % which)
 
 
 func test_normals_are_unit_and_agree_with_the_winding() -> void:
 	for which: ArenaSideStyle.Style in STYLES:
-		var built: Dictionary = ArenaSideBuilder.new().build(_map(MapDef.MapShape.ROUND), _style(which), SEGMENTS, Y_TOP)
+		var built: Dictionary = ArenaSideBuilder.new().build(_map(), _style(which), SEGMENTS, Y_TOP)
 		for kind: int in built:
 			var arrays: Array = built[kind]
 			var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
@@ -104,7 +101,7 @@ func test_normals_are_unit_and_agree_with_the_winding() -> void:
 ## point away from the middle of the solid on a round map.
 func test_convex_looks_point_their_faces_outward() -> void:
 	for which: ArenaSideStyle.Style in [ArenaSideStyle.Style.LAYERED_PLATES, ArenaSideStyle.Style.MACHINED_DISC, ArenaSideStyle.Style.MACHINED_STYLISED, ArenaSideStyle.Style.MACHINED_DETAILED, ArenaSideStyle.Style.MACHINED_HEAVY, ArenaSideStyle.Style.MONOLITH, ArenaSideStyle.Style.TAPERED_STRATA, ArenaSideStyle.Style.PLATED_DOME]:
-		var built: Dictionary = ArenaSideBuilder.new().build(_map(MapDef.MapShape.ROUND), _style(which), SEGMENTS, Y_TOP)
+		var built: Dictionary = ArenaSideBuilder.new().build(_map(), _style(which), SEGMENTS, Y_TOP)
 		var floor_y: float = INF
 		for vertex: Vector3 in _all_vertices(built):
 			floor_y = minf(floor_y, vertex.y)
@@ -128,14 +125,14 @@ func test_convex_looks_point_their_faces_outward() -> void:
 
 func test_underside_surface_faces_down_and_side_surface_does_not() -> void:
 	for which: ArenaSideStyle.Style in STYLES:
-		var built: Dictionary = ArenaSideBuilder.new().build(_map(MapDef.MapShape.ROUND), _style(which), SEGMENTS, Y_TOP)
+		var built: Dictionary = ArenaSideBuilder.new().build(_map(), _style(which), SEGMENTS, Y_TOP)
 		if built.has(ArenaSideBuilder.KIND_BOTTOM):
 			for n: Vector3 in (built[ArenaSideBuilder.KIND_BOTTOM] as Array)[Mesh.ARRAY_NORMAL] as PackedVector3Array:
 				assert_true(n.y < 0.0, "style %d: underside faces point down" % which)
 
 
 func test_build_is_deterministic() -> void:
-	var map_def: MapDef = _map(MapDef.MapShape.ROUND)
+	var map_def: MapDef = _map()
 	var first: Dictionary = ArenaSideBuilder.new().build(map_def, _style(ArenaSideStyle.Style.ROCKY_ISLAND), SEGMENTS, Y_TOP)
 	var second: Dictionary = ArenaSideBuilder.new().build(map_def, _style(ArenaSideStyle.Style.ROCKY_ISLAND), SEGMENTS, Y_TOP)
 	assert_eq(_all_vertices(first), _all_vertices(second))
@@ -144,7 +141,7 @@ func test_build_is_deterministic() -> void:
 func test_current_style_keeps_the_band_and_chamfer() -> void:
 	var arena: ArenaMesh = ArenaMesh.new()
 	var mesh: ArrayMesh = ArrayMesh.new()
-	arena.append_side_surfaces(mesh, _map(MapDef.MapShape.ROUND), DiscBodyVisuals.new(), SEGMENTS, 0.0, _style(ArenaSideStyle.Style.CURRENT))
+	arena.append_side_surfaces(mesh, _map(), DiscBodyVisuals.new(), SEGMENTS, 0.0, _style(ArenaSideStyle.Style.CURRENT))
 	assert_gte(arena.surface_index(ArenaMesh.Kind.CHAMFER), 0)
 	assert_gte(arena.surface_index(ArenaMesh.Kind.BAND), 0)
 	assert_eq(arena.surface_index(ArenaMesh.Kind.GLOW), -1)
@@ -154,7 +151,7 @@ func test_alternative_styles_become_arena_surfaces_with_materials() -> void:
 	for which: ArenaSideStyle.Style in STYLES:
 		var arena: ArenaMesh = ArenaMesh.new()
 		var mesh: ArrayMesh = ArrayMesh.new()
-		var count: int = arena.append_side_surfaces(mesh, _map(MapDef.MapShape.ROUND), DiscBodyVisuals.new(), SEGMENTS, DISK_HEIGHT * 0.5, _style(which))
+		var count: int = arena.append_side_surfaces(mesh, _map(), DiscBodyVisuals.new(), SEGMENTS, DISK_HEIGHT * 0.5, _style(which))
 		assert_gt(count, 0)
 		assert_eq(mesh.get_surface_count(), count)
 		assert_eq(arena.surface_index(ArenaMesh.Kind.CHAMFER), -1, "no gold chamfer in the new looks")
@@ -174,7 +171,7 @@ func test_shipped_style_resource_defaults_to_the_current_look() -> void:
 
 func test_machined_refinements_stay_inside_the_disc_footprint_and_keep_surfaces_modest() -> void:
 	for which: ArenaSideStyle.Style in [ArenaSideStyle.Style.MACHINED_STYLISED, ArenaSideStyle.Style.MACHINED_DETAILED, ArenaSideStyle.Style.MACHINED_HEAVY]:
-		var built: Dictionary = ArenaSideBuilder.new().build(_map(MapDef.MapShape.ROUND), _style(which), SEGMENTS, Y_TOP)
+		var built: Dictionary = ArenaSideBuilder.new().build(_map(), _style(which), SEGMENTS, Y_TOP)
 		assert_lte(built.size(), 3, "style %d: one surface per material (body side, body underside, glow)" % which)
 		var vertices: PackedVector3Array = _all_vertices(built)
 		assert_lt(vertices.size(), MACHINED_VERTEX_BUDGET, "style %d vertex budget" % which)
@@ -184,7 +181,7 @@ func test_machined_refinements_stay_inside_the_disc_footprint_and_keep_surfaces_
 
 func test_round3_looks_continue_the_top_and_stay_modest() -> void:
 	for which: ArenaSideStyle.Style in WRAP_STYLES:
-		var built: Dictionary = ArenaSideBuilder.new().build(_map(MapDef.MapShape.ROUND), _style(which), SEGMENTS, Y_TOP)
+		var built: Dictionary = ArenaSideBuilder.new().build(_map(), _style(which), SEGMENTS, Y_TOP)
 		assert_lte(built.size(), 3, "style %d: one surface per material" % which)
 		assert_true(built.has(ArenaSideBuilder.KIND_GLOW), "style %d: gold lip glows" % which)
 		assert_true(built.has(ArenaSideBuilder.KIND_BOTTOM), "style %d: has an underside" % which)
@@ -196,7 +193,7 @@ func test_round3_looks_continue_the_top_and_stay_modest() -> void:
 ## SHADER_DOME is PLATED_DOME's silhouette with no modelled relief: smooth surfaces whose
 ## UV.x carries the plating radius the shader reads (wall = top rings continued outwards).
 func test_shader_dome_is_smooth_and_carries_plating_radius_in_uv() -> void:
-	var map_def: MapDef = _map(MapDef.MapShape.ROUND)
+	var map_def: MapDef = _map()
 	var style: ArenaSideStyle = _style(ArenaSideStyle.Style.SHADER_DOME)
 	var built: Dictionary = ArenaSideBuilder.new().build(map_def, style, SEGMENTS, Y_TOP)
 	for vertex: Vector3 in _all_vertices(built):
@@ -216,7 +213,7 @@ func test_shader_dome_is_smooth_and_carries_plating_radius_in_uv() -> void:
 
 func test_shader_dome_overlay_material_shares_the_territory_look() -> void:
 	var arena: ArenaMesh = ArenaMesh.new()
-	arena.append_side_surfaces(ArrayMesh.new(), _map(MapDef.MapShape.ROUND), DiscBodyVisuals.new(), SEGMENTS, DISK_HEIGHT * 0.5, _style(ArenaSideStyle.Style.SHADER_DOME))
+	arena.append_side_surfaces(ArrayMesh.new(), _map(), DiscBodyVisuals.new(), SEGMENTS, DISK_HEIGHT * 0.5, _style(ArenaSideStyle.Style.SHADER_DOME))
 	var shell: ShaderMaterial = arena.shell_material()
 	assert_not_null(shell)
 	assert_almost_eq(float(shell.get_shader_parameter(&"top_local_y")), DISK_HEIGHT * 0.5, EPS)
