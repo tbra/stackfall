@@ -9,6 +9,9 @@ extends MainMatchFlowPort
 ## module split in two, as MainSandboxFlow does). The loading-generation guard stays on Main
 ## (`_loading_generation`) and every coroutine here re-checks `is_instance_valid(main)` after an await (R5).
 
+const HUD_SCENE_PATH: String = "res://ui/HUD.tscn"
+const TUNING_PANEL_SCENE_PATH: String = "res://ui/TuningPanel.tscn"
+
 ## The Main node, typed (the port's `main` is the Node3D it binds).
 var main_node: Main:
 	get:
@@ -137,7 +140,12 @@ func on_match_state_changed(from_state: int, to_state: int) -> void:
 		# briefly passes through LOBBY inside start_match(); keep that transition
 		# out of the UI route so the new match builds directly.
 		if not Match._lifecycle.is_starting_match() and not Net.is_offline():
-			main_node._show_lobby()
+			if main_node._watch_bots_active:
+				# Bontago-1pi.212: a watch match has no lobby to return to; Back to menu leaves the
+				# session, which routes to the main menu (Main._on_net_mode_changed).
+				Net.leave()
+			else:
+				main_node._show_lobby()
 	elif Match.is_start_transition(from_state, to_state):
 		main_node._loading_generation += 1
 		main_node._first_territory_ready = false
@@ -290,7 +298,9 @@ func build_match_world(force_staging_for_test: bool = false) -> void:
 	# controller at all.
 	# DECISION (Bontago-8or.11): it watches through the default camera rig
 	# with no HotSeat -- there is no slot for one to drive.
-	if config.ai_count < config.player_count and Net.local_slot() >= 0:
+	if main_node._watch_bots_active and DebugMode.is_enabled():
+		build_spectator(config)
+	elif config.ai_count < config.player_count and Net.local_slot() >= 0:
 		var hot_seat: HotSeat = main_node._load_scene(Main.HOT_SEAT_SCENE_PATH).instantiate() as HotSeat
 		main_node._hot_seat = hot_seat
 		main_node.add_child(hot_seat)
@@ -341,6 +351,16 @@ func build_match_world(force_staging_for_test: bool = false) -> void:
 	main_node._apply_graphics_preset(Settings.current_graphics_preset())
 	main_node._world_built = true
 	main_node._world_building = false
+
+
+## Bontago-1pi.212 (debug Watch bots): the local player's whole presence in an all-bot match -- spectator
+## camera, follow / speed controls and the match HUD -- in place of a HotSeat.
+func build_spectator(config: MatchConfig) -> void:
+	var spectator: SpectatorController = SpectatorController.new()
+	main_node._spectator = spectator
+	main_node.add_child(spectator)
+	spectator.setup(_camera_rig, config.player_count)
+	spectator.build_presentation(main_node._load_scene(HUD_SCENE_PATH), main_node._load_scene(TUNING_PANEL_SCENE_PATH), _field)
 
 
 ## docs/archive/M5_PLAN.md P5 item 3: one BotController per bot slot, for the
@@ -428,6 +448,10 @@ func end_match_world() -> void:
 	if main_node._hot_seat != null and is_instance_valid(main_node._hot_seat):
 		main_node._hot_seat.queue_free()
 	main_node._hot_seat = null
+	if main_node._spectator != null and is_instance_valid(main_node._spectator):
+		(main_node._spectator as SpectatorController).reset_speed()
+		main_node._spectator.queue_free()
+	main_node._spectator = null
 	for bot: BotController in main_node._bot_controllers:
 		if bot != null and is_instance_valid(bot):
 			bot.queue_free()

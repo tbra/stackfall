@@ -44,9 +44,12 @@ signal bots_requested(player_name: String)
 ## on: the entry is not even visible otherwise.
 signal gift_demo_requested
 signal tower_topple_requested
+## Bontago-1pi.212: the Debug page's Watch bots picker confirmed; game/Main.gd starts the all-bot match.
+signal watch_bots_requested(options: RefCounted)
 
 ## Tagline shown on the Debug page in place of the wordmark's own tagline.
 const DEBUG_TAGLINE: String = "DEBUG · GIFT DEMO"
+const WATCH_BOTS_DIALOG_PATH: String = "res://ui/WatchBotsDialog.gd"
 const HOST_DIALOG_TITLE: String = "Host game"
 const HOST_LOCAL_ID: StringName = &"local"
 const HOST_STEAM_ID: StringName = &"steam"
@@ -83,6 +86,7 @@ const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/OptionsMenu.tscn")
 @onready var _debug_button: Button = %DebugButton
 @onready var _gift_demo_button: Button = %GiftDemoButton
 @onready var _tower_topple_button: Button = %TowerToppleButton
+@onready var _watch_bots_button: Button = %WatchBotsButton
 ## Bontago-1pi.74: build label (BuildVersion.label()) in the top-right corner beside the Debug pill (Bontago-1pi.150: moved off the bottom edge, which collided with the button column on short canvases).
 @onready var _build_version_label: UiText = %BuildVersionLabel
 @onready var _host_row: VBoxContainer = $Center/Panel/Layout/HostRow
@@ -172,6 +176,8 @@ var _home_tagline: String = ""
 var _join_steam_tab: bool = false
 var _host_dialog: UiDialog = null
 var _host_steam_choice: Button = null
+## Bontago-1pi.212: built only while debug mode is on (see _build_watch_bots_dialog()).
+var _watch_bots_dialog: UiDialog = null
 
 ## The live OptionsMenu.tscn instance while it's open, or null. Tracked here
 ## (rather than letting OptionsMenu free itself on `closed`) so
@@ -201,6 +207,7 @@ func _ready() -> void:
 	_debug_button.pressed.connect(_on_debug_pressed)
 	_gift_demo_button.pressed.connect(_on_gift_demo_pressed)
 	_tower_topple_button.pressed.connect(_on_tower_topple_pressed)
+	_watch_bots_button.pressed.connect(_on_watch_bots_pressed)
 	_back_button.pressed.connect(_on_back_pressed)
 	_init_name_field()
 	_sandbox_button.pressed.connect(_on_sandbox_pressed)
@@ -220,6 +227,7 @@ func _ready() -> void:
 	net_provider.start_discovery()
 	_apply_visual_style()
 	_build_host_dialog()
+	_build_watch_bots_dialog()
 	_apply_steam_availability()
 	get_viewport().size_changed.connect(_refresh_layout)
 	_front_card.minimum_size_changed.connect(_refresh_layout)
@@ -277,7 +285,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			_on_join_lan_tab_pressed()
 			get_viewport().set_input_as_handled()
 			return
-	if _page != PAGE_HOME and not _host_dialog.visible and event.is_action_pressed("ui_cancel"):
+	if _page != PAGE_HOME and not _host_dialog.visible and not _watch_bots_open() and event.is_action_pressed("ui_cancel"):
 		_on_back_pressed()
 		get_viewport().set_input_as_handled()
 
@@ -297,7 +305,7 @@ func _connect_click_and_hover_sounds() -> void:
 		_host_button, _join_button, _join_lan_tab_button, _join_steam_tab_button, _play_local_button, _sandbox_button, _tutorial_button,
 		_bots_button, _back_button, _options_button, _quit_button, _refresh_button,
 		_direct_join_button, _refresh_steam_button, _debug_button,
-		_gift_demo_button,
+		_gift_demo_button, _watch_bots_button,
 	]
 	for button: BaseButton in buttons:
 		button.pressed.connect(_on_sound_button_pressed)
@@ -334,7 +342,7 @@ func _apply_visual_style() -> void:
 	# The block looks (Host / Vs bots / Join IP primary, the rest secondary) are UiBlockButton exports
 	# in the scene; only the layout heights come from MainMenuTuning.
 	for large: Button in [_host_button, _join_button, _play_local_button, _bots_button, _sandbox_button,
-			_tutorial_button, _gift_demo_button, _tower_topple_button]:
+			_tutorial_button, _gift_demo_button, _tower_topple_button, _watch_bots_button]:
 		large.custom_minimum_size.y = layout.block_height_px
 	# Options | Quit share the row (a small UiBlockButton hugs its content by default).
 	for half: Button in [_options_button, _quit_button]:
@@ -442,6 +450,31 @@ func _on_tower_topple_pressed() -> void:
 		tower_topple_requested.emit()
 
 
+func _watch_bots_open() -> bool:
+	return _watch_bots_dialog != null and _watch_bots_dialog.visible
+
+
+func _on_watch_bots_pressed() -> void:
+	if _debug_entry_enabled and _watch_bots_dialog != null:
+		_watch_bots_dialog.call(&"present")
+
+
+func _build_watch_bots_dialog() -> void:
+	if not _debug_entry_enabled:
+		return
+	# DECISION (Bontago-1pi.212): loaded by path, like Main's other debug tools, so the picker and its
+	# stepper/toggle components stay out of the Main.tscn compile closure (tools/lint_layers.py L4).
+	var dialog_script: GDScript = load(WATCH_BOTS_DIALOG_PATH) as GDScript
+	_watch_bots_dialog = dialog_script.new() as UiDialog
+	_watch_bots_dialog.connect(&"confirmed", _on_watch_bots_confirmed)
+	add_child(_watch_bots_dialog)
+
+
+func _on_watch_bots_confirmed(options: RefCounted) -> void:
+	if _debug_entry_enabled:
+		watch_bots_requested.emit(options)
+
+
 ## Back (button, Esc or gamepad B) returns to the home page with focus on the
 ## button that opened the page just left, so the controller never loses its
 ## place.
@@ -509,6 +542,7 @@ func _set_page(page: int, focus_target: Control = null) -> void:
 	_tutorial_button.visible = page == PAGE_LOCAL
 	_gift_demo_button.visible = page == PAGE_DEBUG
 	_tower_topple_button.visible = page == PAGE_DEBUG
+	_watch_bots_button.visible = page == PAGE_DEBUG
 	_back_button.visible = page != PAGE_HOME
 	_debug_button.visible = _debug_entry_enabled and page == PAGE_HOME
 	_build_version_label.visible = page == PAGE_HOME
@@ -558,7 +592,7 @@ func _wired_controls() -> Array[Control]:
 	return [
 		_name_edit, _host_button, _join_button, _play_local_button, _options_button, _quit_button,
 		_debug_button, _bots_button, _sandbox_button, _tutorial_button,
-		_gift_demo_button, _tower_topple_button, _back_button, _join_lan_tab_button, _join_steam_tab_button,
+		_gift_demo_button, _tower_topple_button, _watch_bots_button, _back_button, _join_lan_tab_button, _join_steam_tab_button,
 		_refresh_button, _game_list, _direct_ip_edit, _direct_join_button, _refresh_steam_button,
 		_steam_lobby_list,
 	]
@@ -576,7 +610,7 @@ func _wire_focus() -> void:
 		PAGE_LOCAL:
 			_wire_cycle_row([_bots_button, _sandbox_button, _tutorial_button, _back_button])
 		PAGE_DEBUG:
-			_wire_cycle_row([_gift_demo_button, _tower_topple_button, _back_button])
+			_wire_cycle_row([_gift_demo_button, _tower_topple_button, _watch_bots_button, _back_button])
 		_:
 			_wire_join_focus()
 

@@ -649,6 +649,18 @@ func _actions() -> Dictionary:
 	a["gift_demo_cycle_prev"] = [_key(KEY_LEFT), _pad(JOY_BUTTON_LEFT_SHOULDER)]
 	a["gift_demo_cycle_next"] = [_key(KEY_RIGHT), _pad(JOY_BUTTON_RIGHT_SHOULDER)]
 
+	# --- Watch bots spectator (Bontago-1pi.212) ---------------------------------
+	# Only read by game/SpectatorController.gd, which exists only in a debug Watch bots match (every seat a
+	# bot, so no ghost/rotation/placement input is in use). DECISION: plain buttons are free in that context,
+	# so no chord: next/previous follow on N/B and the shoulders, overview on H and Y, speed step on L and
+	# D-pad up, pause on P and D-pad down. Free orbit/pan/zoom reuse the camera actions (right stick orbit,
+	# arrows or left stick pan, Z/X or LT + left stick zoom).
+	a["spectate_next"] = [_key(KEY_N), _pad(JOY_BUTTON_RIGHT_SHOULDER)]
+	a["spectate_prev"] = [_key(KEY_B), _pad(JOY_BUTTON_LEFT_SHOULDER)]
+	a["spectate_overview"] = [_key(KEY_H), _pad(JOY_BUTTON_Y)]
+	a["spectate_speed"] = [_key(KEY_L), _pad(JOY_BUTTON_DPAD_UP)]
+	a["spectate_pause"] = [_key(KEY_P), _pad(JOY_BUTTON_DPAD_DOWN)]
+
 	return a
 
 
