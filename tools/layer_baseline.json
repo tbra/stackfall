@@ -449,7 +449,6 @@
   "shaders/cartoon_blast_flash.gdshader",
   "shaders/cartoon_blast_puff.gdshader",
   "shaders/cloud_puffs.gdshader",
-  "shaders/cubemap_sky.gdshader",
   "shaders/disc_band_overlay.gdshader",
   "shaders/disc_rim.gdshader",
   "shaders/distant_birds.gdshader",
