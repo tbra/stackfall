@@ -9,6 +9,9 @@ extends RefCounted
 const ANTIPARALLEL_DOT: float = -0.9999
 const NEAR_X_AXIS: float = 0.9
 
+## upright_nose_basis(): |direction.y| above which the direction counts as vertical.
+const UPRIGHT_VERTICAL_DOT: float = 0.999
+
 const FACED_META: StringName = &"flight_faced"
 
 
@@ -21,6 +24,19 @@ static func nose_basis(nose: Vector3, direction: Vector3) -> Basis:
 		var side: Vector3 = Vector3.RIGHT if absf(from.x) < NEAR_X_AXIS else Vector3.UP
 		return Basis(from.cross(side).normalized(), PI)
 	return Basis(Quaternion(from, to))
+
+
+## Like nose_basis(), but the model keeps its world up (a yaw then a pitch, never a roll): the
+## unit `nose` axis (horizontal in the model) points along `direction` and the model's +Y stays
+## pointing up. For a model with a fixed "front" that must not turn upside down, e.g. the
+## slingshot (Bontago-1pi.85.79). A vertical direction falls back to the world Z as its up hint.
+static func upright_nose_basis(nose: Vector3, direction: Vector3) -> Basis:
+	var to: Vector3 = direction.normalized()
+	var up_hint: Vector3 = Vector3.UP
+	if absf(to.dot(Vector3.UP)) > UPRIGHT_VERTICAL_DOT:
+		up_hint = Vector3.BACK
+	var look: Basis = Basis.looking_at(to, up_hint)
+	return look * nose_basis(nose, Vector3.FORWARD)
 
 
 ## Faces `block` along its linear velocity; a no-op below `min_speed`. The first write resets

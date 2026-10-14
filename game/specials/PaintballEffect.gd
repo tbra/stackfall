@@ -28,6 +28,11 @@ extends SpecialEffect
 ## Extra look-ahead (m) beyond one tick of travel for the contact probe.
 @export var impact_probe_margin_m: float = 0.05
 
+## The slingshot model's firing axis in the carrier's local frame (paintball_v3.glb: pouch drawn
+## back toward -Z, so it fires along +Z). The held model and the spawned body both turn it onto the
+## aim (Bontago-1pi.85.79), the same way the Rocket does with its nose.
+@export var model_nose_axis: Vector3 = Vector3(0.0, 0.0, 1.0)
+
 ## Smallest direction length treated as a direction at all.
 const MIN_DIRECTION_LENGTH: float = 0.001
 

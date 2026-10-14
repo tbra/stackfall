@@ -38,3 +38,8 @@ extends Resource
 ## the HELD model so this axis points along the aim/launch direction instead of standing
 ## upright (Bontago-1pi.85.61). Zero: held upright, no turn.
 @export var held_nose_axis: Vector3 = Vector3.ZERO
+
+## Turn the held nose axis onto the aim as a yaw + pitch only, so the model keeps its up
+## (FlightFacing.upright_nose_basis). For models with a fixed "up" such as the slingshot
+## (Bontago-1pi.85.79); Rocket and Magnet use the shortest arc.
+@export var held_keep_upright: bool = false
