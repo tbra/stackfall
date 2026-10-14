@@ -20,6 +20,8 @@ const SITE_TIP: int = 1
 const SITE_STACK: int = 2
 const SITE_STRIKE: int = 3
 const SITE_FILL: int = 4
+## Bontago-1t5.54: a wide, flat piece on the ground at a new base after a collapse.
+const SITE_FOUNDATION: int = 5
 
 
 ## Sites for the held piece under `intent`, at most `profile.candidate_count`.
@@ -74,8 +76,15 @@ static func begin(
 		or intent.kind == BotIntent.Kind.SIEGE
 	)
 	var tip_kind: int = SITE_STRIKE if threat_kind else SITE_TIP
-	gen.add_tip_sites(_target_for(view, intent, threat_kind), tip_kind, tip_quota)
-	gen.add_stack_sites(_target_for(view, intent, threat_kind), stack_quota)
+	if intent.new_base:
+		# Bontago-1t5.54: after a collapse the share of the stack sites goes to the new base's
+		# foundation, and no site of any kind may rest on or beside the debris of the old tower.
+		gen.avoid_debris_m = intent.debris_clearance_m
+		gen.add_foundation_sites(intent.target, mini(t.foundation_site_count, total))
+		gen.add_tip_sites(_target_for(view, intent, threat_kind), tip_kind, tip_quota)
+	else:
+		gen.add_tip_sites(_target_for(view, intent, threat_kind), tip_kind, tip_quota)
+		gen.add_stack_sites(_target_for(view, intent, threat_kind), stack_quota)
 	job.start_fill(gen, rng, total)
 	return job
 
@@ -124,6 +133,7 @@ class SiteJob:
 ## Per-call generation state (keeps the static entry point short).
 class _Gen:
 	extends RefCounted
+	const _FOUNDATION_DIRECTIONS: int = 8
 	var view: BotWorldView
 	var t: BotGenTuning
 	var infos: Array[BotStatics.OrientationInfo]
@@ -137,6 +147,8 @@ class _Gen:
 	var _own_index: PackedInt32Array = PackedInt32Array()
 	var _tip_orientations: Array[BotStatics.OrientationInfo] = []
 	var _stack_orientations: Array[BotStatics.OrientationInfo] = []
+	## Bontago-1t5.54: sites closer than this to a cube of an unsound block are dropped (0 = off).
+	var avoid_debris_m: float = 0.0
 
 	func _init(
 		view_value: BotWorldView, tuning: BotGenTuning, infos_value: Array[BotStatics.OrientationInfo],
@@ -307,7 +319,7 @@ class _Gen:
 		var tops: Array[Dictionary] = []
 		for i: int in view.indices_of_team(view.team_id):
 			var top: float = view.top_height(i)
-			if top >= t.stack_min_height_m:
+			if top >= t.stack_min_height_m and _usable_top(i, top):
 				var center: Vector2 = Vector2(view.cx[i], view.cz[i])
 				tops.append({"center": center, "top": top, "gap": center.distance_to(target)})
 		tops.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
@@ -326,6 +338,43 @@ class _Gen:
 						return
 					var point: Vector2 = (entry["center"] as Vector2) + jitter * t.stack_jitter_m
 					_try_add(point, orientation, SITE_STACK, true, entry["top"] as float)
+
+	## Bontago-1t5.54: false when the snapshot knows circle `i`'s block and it is unsound (a leaning
+	## block, or one carrying such a block); an unmatched circle or no snapshot keeps the old behaviour.
+	func _usable_top(i: int, top: float) -> bool:
+		var stack: BotStack = view.stack
+		# DECISION (1t5.54 review): only Reach the Sky skips unsound tops; the other modes keep the old
+		# sites until the E3 Classic screen says otherwise.
+		if view.mode != MatchConfig.GameMode.REACH_THE_SKY or stack == null or not stack.is_analysed():
+			return true
+		var body: int = stack.body_near(
+			Vector2(view.cx[i], view.cz[i]), BotEvaluator.stack_tuning.circle_match_radius_m, top
+		)
+		return body < 0 or stack.is_usable_top(body)
+
+	## Bontago-1t5.54: FOUNDATION sites at the new base and around it (jitter in the eight directions),
+	## widest contact area first, then lowest risk, then lowest height.
+	func add_foundation_sites(base: Vector2, quota: int) -> void:
+		var start: int = out.size()
+		var ranked: Array[BotStatics.OrientationInfo] = infos.duplicate()
+		ranked.sort_custom(func(a: BotStatics.OrientationInfo, b: BotStatics.OrientationInfo) -> bool:
+			if a.contact_area != b.contact_area:
+				return a.contact_area > b.contact_area
+			if not is_equal_approx(a.flat_risk, b.flat_risk):
+				return a.flat_risk < b.flat_risk
+			if a.height != b.height:
+				return a.height < b.height
+			return a.index < b.index
+		)
+		var variants: Array[BotStatics.OrientationInfo] = ranked.slice(0, maxi(t.stack_orientation_variants, 1))
+		var jitters: Array[Vector2] = [Vector2.ZERO]
+		for step: int in range(_FOUNDATION_DIRECTIONS):
+			jitters.append(Vector2.from_angle(TAU * float(step) / float(_FOUNDATION_DIRECTIONS)))
+		for jitter: Vector2 in jitters:
+			for orientation: BotStatics.OrientationInfo in variants:
+				if out.size() - start >= quota or is_full():
+					return
+				_try_add(base + jitter * t.foundation_jitter_m, orientation, SITE_FOUNDATION, false, 0.0)
 
 	## Orientations the uniform fill may use (low tip risk; the least risky when none is).
 	func fill_orientations() -> Array[BotStatics.OrientationInfo]:
@@ -363,6 +412,8 @@ class _Gen:
 		# the pivot the host tests (centre_shift is 0 for yaw-only orientations).
 		var origin: Vector2 = point - orientation.center_shift * view.cube_size
 		if not _placeable(origin):
+			return false
+		if avoid_debris_m > 0.0 and view.stack != null and view.stack.debris_near(point, avoid_debris_m):
 			return false
 		var key: Vector3i = Vector3i(
 			roundi(origin.x / t.distinct_quantum_m), roundi(origin.y / t.distinct_quantum_m), orientation.index

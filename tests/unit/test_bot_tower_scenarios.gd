@@ -266,3 +266,58 @@ func test_plate_straddling_blocks_of_different_heights_rests_on_the_tall_one() -
 	var origin: Vector2 = centre + Vector2(-0.5, 0.0)
 	var block: Block = _place_via_bot(origin, 0)
 	await _assert_lands_and_stays(block, PLATE9_SHAPE, 0, origin, tall_top_y)
+
+
+## Bontago-1t5.54: a pile of really tilted blocks beside a real column. The snapshot of real bodies must read
+## the pile as unsound (debris) and the column's top as the only sound top, and a new base search over it
+## must keep clear of the pile.
+const PILE_TILT_RAD: float = 0.6
+const PILE_BLOCKS: int = 3
+const COLUMN_BLOCKS: int = 2
+const PILE_GAP_M: float = 4.0
+const SOUND_BASE_CLEARANCE_M: float = 2.0
+## Cube pivots sit at the bottom face: lift the scripted column a hair off the disc.
+const COLUMN_LIFT_M: float = 0.02
+
+
+func test_real_snapshot_reads_a_tilted_pile_as_debris_and_the_column_as_the_sound_top() -> void:
+	await _start_match_holding(CUBE_SHAPE)
+	var centre: Vector2 = _stack_centre()
+	var column_xz: Vector2 = centre + Vector2(0.0, -PILE_GAP_M)
+	for level: int in range(COLUMN_BLOCKS):
+		var block: Block = BlockFactory.build(CUBE_SHAPE, PHYSICS_TUNING, BOT_SLOT)
+		_blocks_root.add_child(block)
+		block.global_position = _field.world_from_disk_local(
+			column_xz, _field.surface_y() + float(level) * PHYSICS_TUNING.cube_size + COLUMN_LIFT_M
+		)
+		block.freeze = true
+		Events.block_placed.emit(block, CUBE_SHAPE.id)
+		_stack.append(block)
+	for i: int in range(PILE_BLOCKS):
+		var leaning: Block = BlockFactory.build(BAR3_SHAPE, PHYSICS_TUNING, BOT_SLOT)
+		_blocks_root.add_child(leaning)
+		leaning.global_position = _field.world_from_disk_local(
+			centre + Vector2(float(i) * 1.5, 0.0), _field.surface_y() + 1.5 * PHYSICS_TUNING.cube_size
+		)
+		leaning.rotate_z(PILE_TILT_RAD)
+		leaning.freeze = true
+		Events.block_placed.emit(leaning, BAR3_SHAPE.id)
+		_stack.append(leaning)
+	await wait_physics_frames(2)
+	var team: int = int(Match.team_of(BOT_SLOT))
+	var stack: BotStack = BotStackProbe.build(
+		_registry, _field, PackedVector2Array([centre, column_xz]), BotEvaluator.stack_tuning,
+		PHYSICS_TUNING.cube_size, func(_slot: int) -> int: return team
+	)
+	assert_not_null(stack)
+	if stack == null:
+		return
+	while not stack.analyse_step(stack.body_count(), BotEvaluator.stack_tuning):
+		pass
+	assert_eq(stack.body_count(), COLUMN_BLOCKS + PILE_BLOCKS)
+	var tops: PackedInt32Array = stack.sound_tops(team)
+	assert_eq(tops.size(), 1, "one sound top: the column's")
+	if tops.size() == 1:
+		assert_lt(stack.com_xz(tops[0]).distance_to(column_xz), 0.1)
+	assert_true(stack.debris_near(centre, 1.0), "the pile is debris")
+	assert_false(stack.debris_near(column_xz, SOUND_BASE_CLEARANCE_M), "the sound column is not")

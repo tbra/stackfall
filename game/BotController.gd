@@ -133,6 +133,8 @@ func _ready() -> void:
 ## P5) right alongside HotSeat's own per-slot wiring.
 func setup(slot_id: int, difficulty: MatchConfig.AiDifficulty, field: Field, registry: BlockRegistry) -> void:
 	_slot_id = slot_id
+	# Bontago-1t5.54: a new bot never inherits the previous match's Reach the Sky base memory.
+	BotThink.clear_strategy_memory(slot_id)
 	_difficulty = difficulty
 	_field = field
 	_registry = registry
@@ -362,10 +364,35 @@ func _apply_stack(view: BotWorldView, match_ref: Variant) -> void:
 		centres.append(entry["point"] as Vector2)
 	if view.mode_goal != null and view.mode_goal.has_tower:
 		centres.append(view.mode_goal.tower_origin)
+	if view.mode == MatchConfig.GameMode.REACH_THE_SKY:
+		_append_uncovered_towers(view, tops, centres, gen)
 	view.stack = BotStackProbe.build(
 		_registry, _field, centres, BotEvaluator.stack_tuning, view.cube_size,
 		func(slot: int) -> int: return int(match_ref.team_of(slot))
 	)
+
+
+## Bontago-1t5.54: Reach the Sky only. The tallest circles can all belong to one toppled pile, which would leave
+## a sound stack elsewhere out of the snapshot (so it could never be chosen as the base). Tall own circles
+## farther than the snapshot radius from every source so far become sources too (tallest first, at most
+## `stack_site_count` more); a bot with one cluster of blocks gets exactly the old sources.
+func _append_uncovered_towers(
+	view: BotWorldView, tops: Array[Dictionary], centres: PackedVector2Array, gen: BotGenTuning
+) -> void:
+	var radius: float = BotEvaluator.stack_tuning.snapshot_radius_m
+	var added: int = 0
+	for entry: Dictionary in tops:
+		if added >= maxi(gen.stack_site_count, 0):
+			break
+		var point: Vector2 = entry["point"] as Vector2
+		var covered: bool = false
+		for centre: Vector2 in centres:
+			if centre.distance_to(point) <= radius:
+				covered = true
+				break
+		if not covered:
+			centres.append(point)
+			added += 1
 
 
 ## Bontago-1t5.42: after the sudden-death shrink, the view's live radius is the surviving disc.

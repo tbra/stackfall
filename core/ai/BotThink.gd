@@ -2,11 +2,12 @@ class_name BotThink
 extends RefCounted
 ## Bot V2 (docs/BOT_AI_REDESIGN.md 2.3): one resumable think-cycle for one piece. The
 ## assembled pipeline, each stage resumable under the caller's microsecond budget:
+##   STACK    BotStack.analyse_step over the snapshot of the towers (Bontago-1t5.53b; sliced, one unit
+##            per body; skipped with no snapshot, which keeps the think exactly as before). Bontago-1t5.54:
+##            it runs FIRST, because PLAN and SITES read which blocks are sound (leaning piles).
 ##   PLAN     BotChains + BotStrategy.choose -> BotIntent                (one chunk)
 ##   SITES    BotCandidateGen.begin: the targeted TIP / STACK sites       (one chunk)
 ##   FILL     the uniform FILL draws, fill_chunk_attempts per step        (sliced)
-##   STACK    BotStack.analyse_step over the snapshot of the towers (Bontago-1t5.53b; sliced, one unit
-##            per body; skipped with no snapshot, which keeps the think exactly as before)
 ##   PROBE    support ray + one ray per footprint cell, statics -> tip_risk, and the tower's centre
 ##            of mass margin under the site (`load_margin`, block-supported sites only)
 ##   RANK     BotEvaluator.proxy on every site, rank_chunk_sites per step, best first
@@ -38,11 +39,16 @@ const COST_AVERAGE_WEIGHT: float = 0.25
 const NO_SAMPLE: float = -1.0
 
 enum DecisionKind { PLACE, WAIT }
-enum Phase { PLAN, SITES, FILL, STACK, PROBE, RANK, MEASURE, PICK, DONE }
+enum Phase { STACK, PLAN, SITES, FILL, PROBE, RANK, MEASURE, PICK, DONE }
 
 static var _intent_log: int = -1
 ## Per-seat BotStrategy stickiness memory (slot id -> Dictionary), kept between pieces.
 static var _strategy_memory: Dictionary = {}
+## Forgets the stickiness / Reach the Sky base memory of `slot_id` (a new match starts clean).
+static func clear_strategy_memory(slot_id: int) -> void:
+	_strategy_memory.erase(slot_id)
+
+
 ## Bontago-1t5.37: microseconds per work unit of each phase (index = Phase; units: PLAN, PICK
 ## one per think, SITES one per candidate_count, FILL one per draw, PROBE / RANK / MEASURE one
 ## per site), averaged over the phases finished by every V2 bot in the process: unit costs follow
@@ -112,6 +118,8 @@ func _init(view: BotWorldView, profile: BotDifficultyProfile, rng: RandomNumberG
 	_rng = rng
 	_phase_us.resize(Phase.DONE)
 	_phase_units.resize(Phase.DONE)
+	if view != null and view.held != null and _stack_pending():
+		_phase = Phase.STACK
 
 
 ## Advances the think by at most about `budget_usec` microseconds (always at least one unit
@@ -183,6 +191,11 @@ func remaining_work_us() -> int:
 func finish_early() -> void:
 	if _phase == Phase.DONE:
 		return
+	if _phase == Phase.STACK:
+		# The sound / debris reading must be complete before the plan uses it.
+		while not _view.stack.analyse_step(_view.stack.body_count(), BotEvaluator.stack_tuning):
+			pass
+		_phase = Phase.PLAN
 	if _phase == Phase.PLAN or _phase == Phase.SITES or _phase == Phase.FILL:
 		if _view.held == null:
 			_phase = Phase.DONE
@@ -193,8 +206,6 @@ func finish_early() -> void:
 			_make_sites()
 		while _phase == Phase.FILL:
 			_fill_sites(_site_job.attempts_left())
-	if _phase == Phase.STACK:
-		_phase = Phase.PROBE
 	if _phase == Phase.PROBE:
 		_rank_all(_probe_index if _probe_index > 0 else _candidates.size())
 	elif _phase == Phase.RANK:
@@ -376,7 +387,7 @@ func _fill_sites(max_attempts: int) -> int:
 		if _candidates.is_empty():
 			_phase = Phase.PICK
 		else:
-			_phase = Phase.STACK if _stack_pending() else Phase.PROBE
+			_phase = Phase.PROBE
 	return draws
 
 
@@ -391,7 +402,7 @@ func _stack_step() -> int:
 	var units: int = clampi(_view.stack.body_count() - _stack_pos, 1, per_step)
 	_stack_pos += units
 	if _view.stack.analyse_step(per_step, BotEvaluator.stack_tuning):
-		_phase = Phase.PROBE
+		_phase = Phase.PLAN
 	return units
 
 

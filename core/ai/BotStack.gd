@@ -153,6 +153,55 @@ func sound_tops(team: int) -> PackedInt32Array:
 	return PackedInt32Array(tops)
 
 
+## Bontago-1t5.54: the body whose centre of mass lies within `radius` of `point` (disk-local XZ) and
+## whose top face is nearest `top` (a circle's own top height decides between the bodies of a column);
+## -1 when none. Circles carry no body id, so this is how a circle finds its body.
+func body_near(point: Vector2, radius: float, top: float) -> int:
+	var best: int = -1
+	var best_dy: float = INF
+	for i: int in body_ids.size():
+		var com: Vector3 = body_com[i]
+		if Vector2(com.x, com.z).distance_to(point) > radius:
+			continue
+		var dy: float = absf(top_height(i) - top)
+		if dy < best_dy:
+			best_dy = dy
+			best = i
+	return best
+
+
+## True when `body` is sound and carries nothing unsound (a tower top a piece may still be added to).
+func is_usable_top(body: int) -> bool:
+	if not is_sound(body):
+		return false
+	for u: int in _above[body]:
+		if _sound[u] != 1:
+			return false
+	return true
+
+
+## Number of snapshotted bodies of `team`.
+func team_body_count(team: int) -> int:
+	var count: int = 0
+	for t: int in body_team:
+		if t == team:
+			count += 1
+	return count
+
+
+## True when a body of `team` has not settled yet (a block still falling or sliding).
+func has_unsettled(team: int) -> bool:
+	for i: int in body_ids.size():
+		if body_team[i] == team and body_settled[i] == 0:
+			return true
+	return false
+
+
+## Disk-local XZ of the body's centre of mass.
+func com_xz(body: int) -> Vector2:
+	return Vector2(body_com[body].x, body_com[body].z)
+
+
 ## True when any cube of an unsound body lies within `radius` of `point` (disk-local XZ).
 func debris_near(point: Vector2, radius: float) -> bool:
 	if not _done:
