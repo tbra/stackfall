@@ -49,6 +49,8 @@ var _icons: Array[Texture2D] = []
 var _tooltips: PackedStringArray = PackedStringArray()
 var _disabled_items: Array[bool] = []
 var _selected: int = NONE
+## The widest item (icon, gap, text) so far, kept as items are added so add_item stays O(1).
+var _widest_item_px: float = 0.0
 var _hold: UiHoldRepeat = UiHoldRepeat.new(nudge)
 var _hold_button: UiIconButton = null
 
@@ -98,6 +100,7 @@ func add_item(text: String, item_disabled: bool = false, icon: Texture2D = null,
 	_icons.append(icon)
 	_tooltips.append(tooltip)
 	_disabled_items.append(item_disabled)
+	_widest_item_px = maxf(_widest_item_px, _item_width(_texts.size() - 1))
 	if _selected == NONE:
 		_selected = _texts.size() - 1
 	_refresh()
@@ -110,6 +113,7 @@ func clear() -> void:
 	_icons.clear()
 	_tooltips.clear()
 	_disabled_items.clear()
+	_widest_item_px = 0.0
 	_selected = NONE
 	_refresh()
 
@@ -269,17 +273,17 @@ func _enabled_count() -> int:
 
 ## The value area's natural width: the widest item (icon, gap, text) plus the padding on both sides.
 func content_width() -> float:
-	var m: ComponentMetrics = UiRowItem.metrics()
-	var gap: float = float(MenuStyleFactory.arcade_tuning().space_1_px)
-	var widest: float = 0.0
+	return _widest_item_px + float(UiRowItem.metrics().cycler_value_padding_px * 2)
+
+
+## One item's natural width: its text, plus the icon and the gap when it has one.
+func _item_width(index: int) -> float:
 	var font: Font = value_label.get_theme_font(&"font")
 	var font_size: int = value_label.get_theme_font_size(&"font_size")
-	for index: int in range(_texts.size()):
-		var item_width: float = ceilf(font.get_string_size(_texts[index], HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size).x)
-		if _icons[index] != null:
-			item_width += float(m.cycler_icon_px) + gap
-		widest = maxf(widest, item_width)
-	return widest + float(m.cycler_value_padding_px * 2)
+	var item_width: float = ceilf(font.get_string_size(_texts[index], HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size).x)
+	if _icons[index] != null:
+		item_width += float(UiRowItem.metrics().cycler_icon_px) + float(MenuStyleFactory.arcade_tuning().space_1_px)
+	return item_width
 
 
 func _refresh() -> void:

@@ -102,3 +102,38 @@ func test_unavailable_chip_ignores_accept() -> void:
 	Input.flush_buffered_events()
 	await wait_frames(1)
 	assert_false(chip.is_on())
+
+
+func test_blocks_are_shared_across_chips_and_stay_after_state_changes() -> void:
+	var first: UiChipToggle = _make("A")
+	var second: UiChipToggle = _make("B")
+	assert_same(first.get_theme_stylebox("normal"), second.get_theme_stylebox("normal"), "one block per state per token set")
+	var normal_before: StyleBox = first.get_theme_stylebox("normal")
+	var margin_top: float = normal_before.content_margin_top
+	first.set_on(true)
+	first.set_available(false)
+	first.set_on_silent(false)
+	assert_same(first.get_theme_stylebox("normal"), normal_before, "toggling never rebuilds the block")
+	assert_eq(normal_before.content_margin_top, margin_top, "the shared block is never mutated again")
+
+
+func test_disabled_block_follows_the_chips_own_face() -> void:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var on_chip: UiChipToggle = _make("On")
+	var off_chip: UiChipToggle = _make("Off")
+	on_chip.set_on(true)
+	on_chip.set_available(false)
+	off_chip.set_available(false)
+	assert_eq((on_chip.get_theme_stylebox("disabled") as BlockStyleBox).face_color, arcade.mint_color)
+	assert_eq((off_chip.get_theme_stylebox("disabled") as BlockStyleBox).face_color, arcade.disc_700_color)
+	on_chip.set_on_silent(false)
+	assert_eq((on_chip.get_theme_stylebox("disabled") as BlockStyleBox).face_color, arcade.disc_700_color)
+
+
+func test_invalidating_the_cache_restyles_from_current_tokens() -> void:
+	var chip: UiChipToggle = _make("A")
+	var old_box: StyleBox = chip.get_theme_stylebox("normal")
+	UiChipToggle.invalidate_style_cache()
+	chip.set_on(true)
+	assert_ne(chip.get_theme_stylebox("normal"), old_box, "a new block after invalidation")
+	assert_eq((chip.get_theme_stylebox("normal") as BlockStyleBox).face_color, MenuStyleFactory.arcade_tuning().disc_700_color)
