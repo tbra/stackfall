@@ -61,6 +61,17 @@ var _sfx_players: Array[AudioStreamPlayer] = []
 const UI_PLAYER_COUNT: int = 4
 var _ui_players: Array[AudioStreamPlayer] = []
 var _next_ui_player_index: int = 0
+## Focus-move hover cue (Bontago-1pi.159.48): one central hook for every menu. Menu navigation
+## actions that press this frame arm it; a gui_focus_changed in the same frame plays one hover.
+## Mouse focus (click/hover grab) and programmatic focus (a screen opening) arm nothing, so
+## they stay silent here and mouse hover keeps its own mouse_entered cue.
+const FOCUS_NAV_ACTIONS: Array[StringName] = [
+	&"ui_up", &"ui_down", &"ui_left", &"ui_right", &"ui_focus_next", &"ui_focus_prev",
+]
+var _focus_nav_frame: int = -1
+var _focus_hover_frame: int = -1
+## Number of hover cues requested by focus moves (test seam; counts even with no assets).
+var focus_hover_count: int = 0
 var _next_sfx_player_index: int = 0
 var _music_player: AudioStreamPlayer
 var _music_enabled: bool = true
@@ -158,6 +169,10 @@ func _ready() -> void:
 	_build_player_pool()
 	_refresh_tense_stem()
 	_build_claim_layer()
+	var listener: FocusNavListener = FocusNavListener.new()
+	listener.on_event = _note_focus_nav
+	add_child(listener)
+	get_viewport().gui_focus_changed.connect(_on_gui_focus_changed)
 	Events.block_impacted_at.connect(_on_block_impacted_at)
 	Events.lobby_ui_cue.connect(play_ui_cue)
 	Events.net_peer_joined.connect(_on_net_peer_joined)
@@ -214,6 +229,41 @@ func _on_audio_settings_changed() -> void:
 		_music_player.volume_db = calm_stem_target_volume_db()
 	if _tense_stem_available and _tense_music_player.playing:
 		_tense_music_player.volume_db = tense_stem_target_volume_db()
+
+
+## Inner node that stays live under the offline pause menu (Sfx itself pauses with the tree).
+class FocusNavListener extends Node:
+	var on_event: Callable
+
+	func _init() -> void:
+		process_mode = Node.PROCESS_MODE_ALWAYS
+
+	func _input(event: InputEvent) -> void:
+		on_event.call(event)
+
+
+## Arms the focus-move hover cue for this frame. Code that moves focus from _process (a held
+## stick or d-pad repeat, with no input event that frame) calls this just before grab_focus().
+func note_focus_nav() -> void:
+	_focus_nav_frame = Engine.get_process_frames()
+
+
+func _note_focus_nav(event: InputEvent) -> void:
+	if event is InputEventMouse or not event.is_pressed():
+		return
+	for action: StringName in FOCUS_NAV_ACTIONS:
+		if event.is_action_pressed(action, true):
+			note_focus_nav()
+			return
+
+
+func _on_gui_focus_changed(_control: Control) -> void:
+	var frame: int = Engine.get_process_frames()
+	if _focus_nav_frame != frame or _focus_hover_frame == frame:
+		return
+	_focus_hover_frame = frame
+	focus_hover_count += 1
+	play(AudioConfig.EVENT_HOVER)
 
 
 func _build_player_pool() -> void:

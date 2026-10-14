@@ -671,26 +671,48 @@ func _draw_dpad() -> void:
 	var cross: StyleBoxFlat = _cell_box(_arcade.sand_color)
 	draw_style_box(cross, horizontal)
 	draw_style_box(cross, vertical)
-	var reach: float = (side - arm) * 0.5
-	var direction: Vector2 = Vector2.ZERO
-	var lit: Rect2 = Rect2()
-	match _dpad_dir:
-		&"up":
-			direction = Vector2.UP
-			lit = Rect2(vertical.position, Vector2(arm, reach + arm * 0.5))
-		&"down":
-			direction = Vector2.DOWN
-			lit = Rect2(Vector2(vertical.position.x, mid.y - arm * 0.5), Vector2(arm, reach + arm * 0.5))
-		&"left":
-			direction = Vector2.LEFT
-			lit = Rect2(horizontal.position, Vector2(reach + arm * 0.5, arm))
-		&"right":
-			direction = Vector2.RIGHT
-			lit = Rect2(Vector2(mid.x - arm * 0.5, horizontal.position.y), Vector2(reach + arm * 0.5, arm))
+	var direction: Vector2 = _dpad_direction()
+	var lit: Rect2 = dpad_lit_rect()
 	if direction == Vector2.ZERO:
 		return
 	draw_style_box(_rim_cell_box(), lit)
-	_draw_chevron(mid + direction * (arm * 0.5 + reach * 0.5), direction, DPAD_CHEVRON_PX, _arcade.ink_color)
+	# Bontago-1pi.159.49: lit arms mirror (tip to centre) and the chevron sits on the lit centre.
+	_draw_chevron(lit.get_center(), direction, DPAD_CHEVRON_PX, _arcade.ink_color)
+
+
+func _dpad_direction() -> Vector2:
+	match _dpad_dir:
+		&"up":
+			return Vector2.UP
+		&"down":
+			return Vector2.DOWN
+		&"left":
+			return Vector2.LEFT
+		&"right":
+			return Vector2.RIGHT
+	return Vector2.ZERO
+
+
+## The lit arm of the D-pad pictogram (tip to centre), in local coordinates; the four directions
+## mirror each other exactly (Bontago-1pi.159.49). Rect2() when this glyph is not a D-pad.
+func dpad_lit_rect() -> Rect2:
+	var drop: float = float(_arcade.drop_sm_px)
+	var side: float = minf(size.x, size.y - drop)
+	var arm: float = side * DPAD_ARM_FRACTION
+	var origin: Vector2 = Vector2((size.x - side) * 0.5, 0.0)
+	var mid: Vector2 = origin + Vector2(side, side) * 0.5
+	var reach: float = (side - arm) * 0.5
+	var length: float = reach + arm * 0.5
+	match _dpad_dir:
+		&"up":
+			return Rect2(Vector2(mid.x - arm * 0.5, mid.y - length), Vector2(arm, length))
+		&"down":
+			return Rect2(Vector2(mid.x - arm * 0.5, mid.y), Vector2(arm, length))
+		&"left":
+			return Rect2(Vector2(mid.x - length, mid.y - arm * 0.5), Vector2(length, arm))
+		&"right":
+			return Rect2(Vector2(mid.x, mid.y - arm * 0.5), Vector2(length, arm))
+	return Rect2()
 
 
 ## Stick pictogram: a sand round cap with the side letter, L3/R3 for the click, and a flare arrow
