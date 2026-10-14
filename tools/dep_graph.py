@@ -1943,6 +1943,13 @@ EDGE_GROUP_OF = {"extends": 0, "preload": 1, "path": 1, "class": 2, "autoload": 
 # Per-file flag bits copied to the payload.
 FLAG_BITS = {"cycle": 1, "preload-cycle": 2, "layer": 4, "dead": 8}
 FLAG_AUTOLOAD = 16
+# Function view (Bontago-fca.118). Call-edge kind order for the payload; kinds not listed are appended.
+CALL_KINDS = ["self", "typed", "class", "autoload", "unique", "ref", "string", "override", "scene", "ambiguous"]
+# Call kinds shown by default in the function view (name-only guesses are hidden until toggled on).
+CALL_KINDS_OFF = ("ambiguous",)
+LIVE_CODES = {"live": 0, "ambiguous-only": 1, "test-tool-only": 2, "dead": 3}
+# Per-function flag bits copied to the payload.
+FN_STATIC, FN_RPC, FN_ENGINE, FN_TEST, FN_OVERRIDE, FN_CYCLE = 1, 2, 4, 8, 16, 32
 # Folders collapse to at most this many path segments in the module view (source_art: 1).
 MODULE_DEPTH = 2
 MODULE_DEPTH_OVERRIDE = {"source_art": 1, "docs": 1}
@@ -2016,11 +2023,91 @@ def build_viewer_payload(graph):
     for v in cyc.get("layer_violations", []):
         if v["src"] in pidx:
             viol.append([pidx[v["src"]], pidx.get(v["dst"], -1), v["rule"]])
-    return {"v": 1, "generated": graph["meta"]["generated"], "layers": layers, "kinds": kinds,
-            "statuses": STATUSES, "groups": EDGE_GROUPS, "mods": mods, "files": fl, "edges": edges,
-            "medges": medges, "sccs": sccs, "viol": viol,
-            "defaults": {"tests": False, "tools": False, "addons": False, "assets": False,
-                         "groups": DEFAULT_GROUPS}}
+    payload = {"v": 1, "generated": graph["meta"]["generated"], "layers": layers, "kinds": kinds,
+               "statuses": STATUSES, "groups": EDGE_GROUPS, "mods": mods, "files": fl, "edges": edges,
+               "medges": medges, "sccs": sccs, "viol": viol,
+               "defaults": {"tests": False, "tools": False, "addons": False, "assets": False,
+                            "groups": DEFAULT_GROUPS}}
+    payload["fv"] = build_func_payload(graph, pidx)
+    return payload
+
+
+def build_func_payload(graph, pidx):
+    """Function call view data (Bontago-fca.118), compact and index-based.
+
+    fn:     one row per function, sorted by (file index, line): [name, line, end, flags, live]
+    fstart: fstart[i]..fstart[i+1] is the fn row range of file i (len(files)+1 entries)
+    ce:     call edges [src, dst, kind, amb]; src >= 0 is a fn row, src < 0 is top-level/scene code of
+            file index -(src+1); dst is always a fn row; amb is 1 for a name-only guess
+    ckinds: kind code names; ckoff: 1 when the kind starts hidden
+    sigs / fsig: signal names and {fn row: [[signal index, 0 emit | 1 listen]]}
+    """
+    funcs = graph["funcs"]
+    live = func_liveness(graph)
+    order = sorted((f for f in funcs.values() if f["file"] in pidx), key=lambda f: (pidx[f["file"]], f["line"], f["name"]))
+    row = {}
+    for i, f in enumerate(order):
+        row[f["id"]] = i
+    override_dst = set(e["dst"] for e in graph["call_edges"] if e["kind"] == "override")
+    cyc_funcs = set()
+    for c in graph.get("cycles", {}).get("func_sccs", []):
+        for m in c.get("members", []):
+            cyc_funcs.add(m)
+    fn = []
+    fstart = [0] * (len(pidx) + 1)
+    cnt = [0] * len(pidx)
+    for f in order:
+        bits = 0
+        if f.get("static"):
+            bits |= FN_STATIC
+        if f.get("rpc"):
+            bits |= FN_RPC
+        if f.get("root") == "engine":
+            bits |= FN_ENGINE
+        elif f.get("root") == "test":
+            bits |= FN_TEST
+        if f["id"] in override_dst:
+            bits |= FN_OVERRIDE
+        if f["id"] in cyc_funcs:
+            bits |= FN_CYCLE
+        fn.append([f["name"], f["line"], f["end"], bits, LIVE_CODES.get(live.get(f["id"], "dead"), 3)])
+        cnt[pidx[f["file"]]] += 1
+    for i in range(len(pidx)):
+        fstart[i + 1] = fstart[i] + cnt[i]
+    ckinds = [k for k in CALL_KINDS]
+    for e in graph["call_edges"]:
+        if e["kind"] not in ckinds:
+            ckinds.append(e["kind"])
+    kcode = dict((k, i) for i, k in enumerate(ckinds))
+    ce = []
+    for e in graph["call_edges"]:
+        d = row.get(e["dst"])
+        if d is None:
+            continue
+        if e["src"] in row:
+            s = row[e["src"]]
+        elif e["src"] in pidx:
+            s = -(pidx[e["src"]] + 1)
+        else:
+            continue
+        ce.append([s, d, kcode[e["kind"]], 1 if e["amb"] else 0])
+    ce.sort()
+    names = sorted(graph.get("signals", {}))
+    sidx = dict((n, i) for i, n in enumerate(names))
+    fsig = {}
+    for n in names:
+        sg = graph["signals"][n]
+        for role, key in ((0, "emit"), (1, "listen")):
+            for fid in sg.get(key, []):
+                r = row.get(fid)
+                if r is None:
+                    continue
+                ent = [sidx[n], role]
+                lst = fsig.setdefault(r, [])
+                if ent not in lst:
+                    lst.append(ent)
+    return {"fn": fn, "fstart": fstart, "ce": ce, "ckinds": ckinds,
+            "ckoff": [1 if k in CALL_KINDS_OFF else 0 for k in ckinds], "sigs": names, "fsig": fsig}
 
 
 def module_edges(files, edges):
