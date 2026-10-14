@@ -44,6 +44,7 @@ class FocusPanel extends HookPanel:
 
 
 func after_each() -> void:
+	DebugMode.clear_override_for_test()  # Bontago-1pi.159.43: the debug-only row-style switch is a focus stop
 	# Bontago-fca.41: synthetic events parsed into the global Input singleton stay latched
 	# (stick axis, ui_* actions) for every later script in the same process; clear them.
 	Input.flush_buffered_events()
@@ -52,6 +53,7 @@ func after_each() -> void:
 
 
 func _make_lobby(is_host: bool, panel_script: Script = null) -> Lobby:
+	DebugMode.set_override_for_test(false)  # these tests pin the shipped (non-debug) panel
 	var scene: PackedScene = load("res://ui/Lobby.tscn")
 	var lobby: Lobby = autofree(scene.instantiate())
 	if panel_script != null:

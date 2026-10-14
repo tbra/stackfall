@@ -143,6 +143,12 @@ var _blocker_known: bool = false
 ## Which header controls were focus stops at the last _refresh_header() (-1 = never): a change
 ## tells the Lobby to rewire its loop even when no row was redrawn.
 var _header_focus_state: int = -1
+## Bontago-1pi.159.43: group headers / the card grid of the non-classic looks (rebuilt with the rows).
+var _extras: Array[Node] = []
+## The debug-only "Row style" dropdown at the top of the panel (null with debug mode off).
+var _style_selector: UiDropdown = null
+## Test seam: whether this lobby chats (so a row reserves / shows the Mute column). Invalid = ask Net.
+var mute_column_override: Callable = Callable()
 
 
 func _ready() -> void:
@@ -156,6 +162,7 @@ func _ready() -> void:
 	_player_list.add_child(_open_seat_row)
 	# remove_child() cleared the owner: restore it so %AddBotButton keeps resolving.
 	_add_bot_button.owner = self
+	_build_style_selector()
 	_teams_toggle.toggled.connect(_on_teams_toggle_toggled)
 	_add_bot_button.pressed.connect(_on_add_bot_pressed)
 	visibility_changed.connect(_on_visibility_changed)
@@ -342,6 +349,8 @@ func is_editable() -> bool:
 ## keyboard/mouse only, so a pad can never be trapped in the text field.
 func focus_entries() -> Array[Control]:
 	var entries: Array[Control] = []
+	if _style_selector != null:
+		entries.append(_style_selector)
 	if _teams_toggle.visible and _teams_toggle.focus_mode != Control.FOCUS_NONE:
 		entries.append(_teams_toggle)
 	for row_node: Node in _player_rows:
@@ -645,9 +654,15 @@ func _render() -> void:
 	for row: Node in _player_rows:
 		# Out of the tree at once (not only queued): the redraw can run inside a
 		# button's own `pressed` signal, and the new rows must be the only ones.
-		_player_list.remove_child(row)
+		row.get_parent().remove_child(row)
 		row.queue_free()
 	_player_rows.clear()
+	for extra: Node in _extras:
+		if extra.get_parent() != null:
+			extra.get_parent().remove_child(extra)
+		extra.queue_free()
+	_extras.clear()
+	var built: Array[LobbySeatRow] = []
 
 	var ready_count: int = 0
 	_align_bot_columns = bot_total > 0
@@ -659,10 +674,11 @@ func _render() -> void:
 		# The host counts as ready; a seat is only waited on if it can still become ready.
 		if human_row.is_ready or human_row.is_host:
 			ready_count += 1
-		_add_row(human_row)
+		built.append(human_row)
 	for ordinal: int in range(bot_total):
 		ready_count += 1
-		_add_row(_build_bot_row(ordinal))
+		built.append(_build_bot_row(ordinal))
+	_place_rows(built)
 	_player_list.move_child(_open_seat_row, -1)
 	_refresh_header()
 	_restore_focus(focus_memory)
@@ -670,14 +686,167 @@ func _render() -> void:
 	focus_entries_changed.emit()
 
 
-func _add_row(row: LobbySeatRow) -> void:
+func _connect_row(row: LobbySeatRow) -> void:
 	row.color_cycle_requested.connect(_on_color_cycle_requested)
 	row.team_cycle_requested.connect(_on_team_cycle_requested)
 	row.team_chosen.connect(_on_team_chosen)
 	row.difficulty_chosen.connect(_on_difficulty_chosen)
 	row.remove_requested.connect(_on_remove_requested)
-	_player_list.add_child(row)
-	_player_rows.append(row)
+
+
+## Puts the built rows in the list the way the current look wants them (Bontago-1pi.159.43): one per
+## line (CLASSIC / SLOT), under team headers (GROUPED, rows ordered by group so the focus loop reads
+## top to bottom) or in a card grid (CARDS, row-major). _player_rows is always the visual order.
+func _place_rows(built: Array[LobbySeatRow]) -> void:
+	var style: int = LobbySeatVariants.current()
+	if style == LobbySeatVariants.Style.GROUPED:
+		built = _sorted_by_group(built)
+	var columns: Array[VBoxContainer] = []
+	var grid: Control = null
+	if style == LobbySeatVariants.Style.CARDS:
+		grid = _make_card_grid()
+		_player_list.add_child(grid)
+		_extras.append(grid)
+		for column: Node in grid.get_children():
+			if column is VBoxContainer:
+				columns.append(column as VBoxContainer)
+	var last_group: int = GROUP_NONE
+	for row: LobbySeatRow in built:
+		_connect_row(row)
+		if style == LobbySeatVariants.Style.GROUPED and _group_of(row) != last_group:
+			last_group = _group_of(row)
+			_add_group_header(built, last_group)
+		if grid != null:
+			columns[_player_rows.size() % columns.size()].add_child(row)
+		else:
+			_player_list.add_child(row)
+		_player_rows.append(row)
+	if grid != null:
+		_wire_card_columns(layout_tuning.seat_card_columns)
+
+
+## The card grid: `seat_card_columns` equal columns side by side, cards dealt across them in row-major order
+## (every card reserves the same height, so the columns line up like a grid).
+func _make_card_grid() -> Control:
+	var grid: UiRow = UiRow.new()
+	grid.name = "CardGrid"
+	grid.label.visible = false
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for _column: int in range(maxi(layout_tuning.seat_card_columns, 1)):
+		var column: UiStack = UiStack.new()
+		column.gap_px = MenuStyleFactory.arcade_tuning().space_2_px
+		column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		column.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		grid.add_child(column)
+	return grid
+
+
+const GROUP_SPECTATORS: int = 1000
+const GROUP_RANDOM: int = 999
+const GROUP_FFA: int = 0
+const GROUP_NONE: int = -1
+
+
+## Group of a row in the GROUPED look: its team (1..), Random after the numbered teams, the seat-less
+## after those; one group for free-for-all.
+func _group_of(row: LobbySeatRow) -> int:
+	if row.seat_key == LobbySeats.KEY_NONE:
+		return GROUP_SPECTATORS
+	if not row.show_team:
+		return GROUP_FFA
+	return row.team_pick if row.team_pick > MatchConfig.TEAM_PICK_RANDOM else GROUP_RANDOM
+
+
+func _sorted_by_group(rows: Array[LobbySeatRow]) -> Array[LobbySeatRow]:
+	var ordered: Array[LobbySeatRow] = rows.duplicate()
+	# sort_custom is not stable: break ties on the original index.
+	var index_of: Dictionary = {}
+	for index: int in range(rows.size()):
+		index_of[rows[index]] = index
+	ordered.sort_custom(func(a: LobbySeatRow, b: LobbySeatRow) -> bool:
+		var group_a: int = _group_of(a)
+		var group_b: int = _group_of(b)
+		if group_a != group_b:
+			return group_a < group_b
+		return int(index_of[a]) < int(index_of[b])
+	)
+	return ordered
+
+
+func _add_group_header(rows: Array[LobbySeatRow], group: int) -> void:
+	var seats: int = 0
+	for row: LobbySeatRow in rows:
+		if _group_of(row) == group:
+			seats += 1
+	var title: String = "Free for all"
+	var tint: Color = Color.TRANSPARENT
+	match group:
+		GROUP_FFA:
+			title = "Free for all"
+		GROUP_SPECTATORS:
+			title = "Spectators"
+		GROUP_RANDOM:
+			title = "Random team"
+		_:
+			title = PlayerNames.team_label(group)
+			tint = LobbySeatRow.team_color_of(layout_tuning, group)
+	var header: LobbySeatGroupHeader = LobbySeatGroupHeader.new()
+	header.build(layout_tuning, title, tint, seats)
+	_player_list.add_child(header)
+	_extras.append(header)
+
+
+## CARDS: left / right also hop between the cards of a grid line (the row wiring stops at a card's
+## own edge), so the pad can walk every control sideways as well as down.
+func _wire_card_columns(columns: int) -> void:
+	var cols: int = maxi(columns, 1)
+	for index: int in range(_player_rows.size() - 1):
+		if (index + 1) % cols == 0:
+			continue
+		var left: Array[Control] = (_player_rows[index] as LobbySeatRow).focusable_controls()
+		var right: Array[Control] = (_player_rows[index + 1] as LobbySeatRow).focusable_controls()
+		if left.is_empty() or right.is_empty():
+			continue
+		left.back().focus_neighbor_right = left.back().get_path_to(right.front())
+		right.front().focus_neighbor_left = right.front().get_path_to(left.back())
+
+
+# --- The debug-only look switch (Bontago-1pi.159.43) -------------------------------------
+
+## DECISION (Bontago-1pi.159.43): the owner switches the row look live from a dropdown under the panel
+## title, shown only with DebugMode on (like F4's tabs; F4 itself is a bottom dock that does not
+## exist in the lobby). The choice is session-static (LobbySeatVariants.chosen); CLASSIC ships.
+func _build_style_selector() -> void:
+	if not LobbySeatVariants.switch_available():
+		return
+	_style_selector = UiDropdown.new()
+	_style_selector.name = "RowStyleSelector"
+	for style_name: String in LobbySeatVariants.NAMES:
+		_style_selector.add_item(style_name)
+	_style_selector.select(LobbySeatVariants.current())
+	_style_selector.item_selected.connect(set_row_style)
+	var line: UiRow = UiRow.new()
+	line.name = "RowStyleLine"
+	line.setup("Row style (debug)", _style_selector)
+	line.label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	add_child(line)
+	move_child(line, get_node("TitleRow").get_index() + 1)
+
+
+## Switches the row look and redraws the rows from the same seat table (no seat state is touched).
+func set_row_style(style: int) -> void:
+	if not LobbySeatVariants.switch_available():
+		return
+	LobbySeatVariants.chosen = clampi(style, 0, LobbySeatVariants.NAMES.size() - 1)
+	if _style_selector != null and _style_selector.selected != LobbySeatVariants.chosen:
+		_style_selector.select(LobbySeatVariants.chosen)
+	if _roster_seen:
+		_render()
+
+
+## The debug switch (null while debug mode is off).
+func style_selector() -> UiDropdown:
+	return _style_selector
 
 
 ## DECISION (ui/Lobby.gd, Bontago-1pi.9b): "3 players" (plural handled),
@@ -734,6 +903,9 @@ func _new_row(key: int) -> LobbySeatRow:
 	row.show_team = _team_cap() > 0
 	row.align_bot_columns = _align_bot_columns
 	row.align_remove_column = _is_editable
+	row.variant = LobbySeatVariants.current()
+	row.team_cap = _team_cap()
+	row.mute_column_override = mute_column_override
 	row.team_pick = maxi(LobbySeats.team_of(_seats, key), MatchConfig.TEAM_PICK_RANDOM)
 	return row
 
