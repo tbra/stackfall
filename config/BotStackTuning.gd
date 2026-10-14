@@ -34,3 +34,11 @@ extends Resource
 ## A tower-top circle finds its body (Bontago-1t5.54) among the snapshot's bodies whose centre of mass
 ## lies within this distance of the circle centre (the circle is built on the same centre of mass).
 @export var circle_match_radius_m: float = 1.0
+## Bontago-1t5.72 (STATICS_DESIGN 3): the stability model's allowance for snapshot float noise and Jolt contact slop,
+## about one cube_margin. A placement is stable only while its centre-of-mass margin exceeds the requirement.
+@export var numeric_tolerance_m: float = 0.02
+## Share of the tier's worst-case aim error (BotDifficultyProfile.aim_noise_m) the model requires as margin:
+## 1.0 = the whole error (the owner's rule), 0 = ignore aim.
+@export var aim_margin_share: float = 1.0
+## Extra margin required of a placement when gifts are on (read by the disturbance package, Bontago-1t5.72.5).
+@export var gift_disturbance_m: float = 0.1

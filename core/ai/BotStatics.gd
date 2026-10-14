@@ -59,6 +59,12 @@ class OrientationInfo:
 	var contact_area: float = 0.0
 	## Bontago-1t5.69: number of cubes in the top layer (the landing area the next piece gets).
 	var top_area: float = 0.0
+	## Bontago-1t5.72: rule 1 of the owner's statics on the flat disc, in cube units: the signed distance of the
+	## centre of mass inside the hull of the bottom cubes' contact squares (face half (cube - cube_margin) / 2),
+	## positive inside. A property of the orientation alone; the stability model (BotStability) judges real sites.
+	var self_margin: float = 0.0
+	## Bontago-1t5.72: the centre of mass above the bottom face, cube units (cubes are uniform).
+	var com_height: float = 0.5
 
 
 ## Tip risk 0..1 of candidate `c` (its orientation of `shape`). With per-cell probe
@@ -115,8 +121,10 @@ static func orientation_info(shape: BlockShape, index: int, tuning: BotGenTuning
 	info.height = float(max_y - min_y + 1)
 	var sum: Vector2 = Vector2.ZERO
 	var top_cubes: int = 0
+	var layer_sum: float = 0.0
 	for i: int in range(info.cubes.size()):
 		sum += info.cubes[i]
+		layer_sum += float(layer_y[i] - min_y)
 		if layer_y[i] == min_y:
 			info.contact.append(info.cubes[i])
 		if layer_y[i] == max_y:
@@ -124,11 +132,23 @@ static func orientation_info(shape: BlockShape, index: int, tuning: BotGenTuning
 	info.top_area = float(top_cubes)
 	if not info.cubes.is_empty():
 		info.com = sum / float(info.cubes.size())
+		info.com_height = layer_sum / float(info.cubes.size()) + HALF_CUBE
+	info.self_margin = _self_margin(info)
 	info.contact_area = float(info.contact.size())
 	info.signature = _signature(info)
 	info.flat_risk = _risk(info, info.contact, t)
 	info.base_risk = _risk(info, info.contact, t, 0.0)
 	return info
+
+
+## Rule 1 on the flat disc (OrientationInfo.self_margin): cube units.
+static func _self_margin(info: OrientationInfo) -> float:
+	var physics: PhysicsTuning = SHIPPED_PHYSICS_TUNING
+	var half: float = (physics.cube_size - physics.cube_margin) * HALF_CUBE / physics.cube_size
+	var corners: PackedVector2Array = PackedVector2Array()
+	for offset: Vector2 in info.contact:
+		corners.append_array(BotGeom2D.square(offset, Vector2(half, 0.0), Vector2(0.0, half)))
+	return BotGeom2D.signed_inside_hull(BotGeom2D.hull(corners), info.com)
 
 
 ## Bontago-1t5.55.2: disk-local xz of the real bottom-cube centres of `c` (its pivot `c.origin` plus the
