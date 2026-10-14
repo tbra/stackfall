@@ -72,6 +72,8 @@ const NOT_READY_TEXT: String = "Not ready"
 const MENU_TUNING_PATH: String = "res://config/main_menu_tuning.tres"
 ## Frames a fetched plate stays referenced so queued RenderingServer commands drain (Bontago-6cw).
 const TEXTURE_RELEASE_FRAMES: int = 3
+## DisplayServer.get_name() of a --headless run, which renders with the dummy rasterizer (Bontago-8xf).
+const HEADLESS_DISPLAY: String = "headless"
 
 ## Bontago-1pi.63: the loading bar is gone; the stage fraction is only kept for
 ## progress() (game/Main.gd still reports it).
@@ -517,6 +519,9 @@ func _select_backdrop(config: MatchConfig) -> void:
 	var orphan_index: int = _backdrop_orphans.find(path)
 	if orphan_index >= 0:
 		_backdrop_orphans.remove_at(orphan_index)
+	if not threaded_texture_loads_safe():
+		_show_backdrop(load(path) as Texture2D, false)
+		return
 	if ResourceLoader.load_threaded_request(path, "Texture2D") != OK:
 		push_warning("LoadingScreen: could not request the backdrop %s." % path)
 		return
@@ -539,7 +544,24 @@ func _poll_backdrop(animate: bool) -> void:
 	if status != ResourceLoader.THREAD_LOAD_LOADED:
 		push_warning("LoadingScreen: the backdrop %s failed to load." % _backdrop_path)
 		return
-	var texture: Texture2D = ResourceLoader.load_threaded_get(_backdrop_path) as Texture2D
+	_show_backdrop(ResourceLoader.load_threaded_get(_backdrop_path) as Texture2D, animate)
+
+
+## Bontago-8xf. ROOT CAUSE of the flaky dummy-renderer 'Parameter "t" is null'
+## (texture_storage.h:85): Godot's dummy rasterizer keeps texture RIDs in a RID_PtrOwner
+## without a lock (RD/GLES3 use a thread-safe owner), and RenderingServer allocates a
+## texture's RID on the calling thread. A plate decoded on a loader thread allocated its RID
+## while the main thread created or freed textures; both threads took the same slot and one
+## texture lost it. A sequential load has no second thread, so headless (the dummy
+## rasterizer) loads the plate on the main thread; a real renderer keeps the worker.
+## DECISION: headless only (tests, dedicated hosts): nobody sees the plate there, and the
+## lossless decode is a one-off main-thread cost.
+static func threaded_texture_loads_safe() -> bool:
+	return DisplayServer.get_name() != HEADLESS_DISPLAY
+
+
+## Shows a fetched plate (null: nothing to show); `animate` fades it in.
+func _show_backdrop(texture: Texture2D, animate: bool) -> void:
 	if texture == null:
 		return
 	_backdrop.texture = texture
@@ -605,13 +627,11 @@ func _exit_tree() -> void:
 	_backdrop_orphans = PackedStringArray()
 
 
-## Bontago-6cw. ROOT CAUSE of the flaky 'Parameter "t" is null' / 'Parameter "texture" is
-## null' engine errors: a texture finished on the loader thread has its RenderingServer
-## create/initialize commands queued for the main thread, while a free issued from the
-## main thread runs at once. Dropping a just-fetched plate (an abandoned request, a cleared
-## rect) before the next frame flushed that queue freed the RID first and the queued
-## initialize then hit a missing texture. Holding the last reference for a few frames
-## lets the queue drain first. A static coroutine: it outlives the node that called it.
+## Bontago-6cw: holds the last reference to a just-fetched plate for a few frames so the
+## RenderingServer commands its loader thread queued drain before the texture is freed.
+## (Bontago-8xf: a main-thread free flushes that queue first in 4.7.2, so this was not the
+## cause of the 'Parameter "t" is null' flake; see threaded_texture_loads_safe(). Kept as a
+## cheap guard.) A static coroutine: it outlives the node that called it.
 static func release_later(resource: Resource) -> void:
 	if resource == null:
 		return
