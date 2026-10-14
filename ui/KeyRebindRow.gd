@@ -40,14 +40,14 @@ const OPTIONS_TUNING: OptionsVisualTuning = preload("res://config/options_visual
 ## goes unlabeled just because nobody updated this dictionary yet.
 const DISPLAY_NAMES: Dictionary[StringName, String] = {
 	&"ghost_place": "Place block",
-	&"use_gift_slot": "Use gift",
+	&"use_gift_slot": "Activate gift",
 	&"rotate_yaw_ccw": "Rotate left",
 	&"rotate_yaw_cw": "Rotate right",
 	&"rotate_pitch_fwd": "Tilt forward",
 	&"rotate_pitch_back": "Tilt back",
 	&"rotate_roll_left": "Roll left",
 	&"rotate_roll_right": "Roll right",
-	&"rotation_mode": "Free rotation mode",
+	&"rotation_mode": "Free rotation mode (hold)",
 	&"rotate_reset": "Reset rotation",
 	&"rotate_drag": "Rotate (drag)",
 	&"hover_raise": "Raise block",
