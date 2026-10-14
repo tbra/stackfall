@@ -399,10 +399,7 @@ const LOCAL_HELD_GROUP: StringName = &"local_held_ghost"
 
 ## The 8 corner signs of a unit box centred on its own local position, used by
 ## _rotated_bottom_offset() to find a rotated shape's true lowest point.
-const _CORNER_SIGNS: Array[Vector3] = [
-	Vector3(-1.0, -1.0, -1.0), Vector3(1.0, -1.0, -1.0), Vector3(-1.0, 1.0, -1.0), Vector3(1.0, 1.0, -1.0),
-	Vector3(-1.0, -1.0, 1.0), Vector3(1.0, -1.0, 1.0), Vector3(-1.0, 1.0, 1.0), Vector3(1.0, 1.0, 1.0),
-]
+const _CORNER_SIGNS: Array[Vector3] = BlockShape.CORNER_SIGNS
 
 @export var tuning: PhysicsTuning = preload("res://config/physics_tuning.tres")
 @export var ghost_tuning: GhostTuning = preload("res://config/ghost_tuning.tres")
@@ -953,18 +950,9 @@ func sync_remote_position(origin: Vector3) -> void:
 ## symmetric shape, level with) the origin, never above it, since the origin
 ## itself is always a point on the shape's own surface. Always <= 0.
 func _rotated_bottom_offset() -> float:
-	if _shape == null or _shape.cells.is_empty():
+	if _shape == null:
 		return 0.0
-	var half_size: float = (tuning.cube_size - tuning.cube_margin) * 0.5
-	var pivot: Vector3 = _shape.bottom_center()
-	var min_y: float = INF
-	for cell: Vector3i in _shape.cells:
-		var local: Vector3 = (Vector3(cell) - pivot) * tuning.cube_size
-		for corner_sign: Vector3 in _CORNER_SIGNS:
-			var corner: Vector3 = local + corner_sign * half_size
-			var rotated_y: float = (basis * corner).y
-			min_y = minf(min_y, rotated_y)
-	return 0.0 if min_y == INF else min_y
+	return _shape.rotated_bottom_offset(basis, tuning.cube_size, tuning.cube_margin)
 
 
 ## Bontago-xtq.9 (this file's own header, fix (2)): the mirror image of

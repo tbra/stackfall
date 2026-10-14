@@ -1052,7 +1052,15 @@ func _send_best_placement(place_target_override: Variant = null) -> StringName:
 	# actual noisy point the request is about to use, never the stale
 	# pre-noise sample.
 	var hit: Dictionary = _raycast_support_height(noisy_origin)
-	var world_origin: Vector3 = _field.world_from_disk_local(noisy_origin, float(hit.get("height", 0.0)))
+	# Bontago-1t5.51: `request_place` takes the bottom-centre PIVOT of the unrotated shape (as the
+	# human ghost sends it), so raise it until the ROTATED shape's lowest corner sits on the support;
+	# without this a lying piece spawns inside the disc and falls through it.
+	var held: BlockShape = match_ref.held_shape(_slot_id)
+	var pivot_lift: float = 0.0
+	if held != null:
+		var orient: Basis = BlockOrientations.get_basis(best.orientation_index)
+		pivot_lift = -held.rotated_bottom_offset(orient, _physics_tuning.cube_size, _physics_tuning.cube_margin)
+	var world_origin: Vector3 = _field.world_from_disk_local(noisy_origin, float(hit.get("height", 0.0)) + pivot_lift)
 	var recording: Dictionary = _record_capture(best, place_target_override != null)
 	var reason: StringName = StringName(match_ref.request_place(
 		_slot_id, world_origin, best.orientation_index, Quaternion.IDENTITY, false, int(match_ref.feed_seq(_slot_id))
