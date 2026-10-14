@@ -198,7 +198,9 @@ func test_candidates_carry_v2_fields_and_probe_results() -> void:
 	assert_almost_eq(candidate.top_height, candidate.support_height + candidate.shape_height, 0.0001)
 	assert_gt(candidate.shape_height, 0.0)
 	assert_gt(_probe_calls, think.candidates().size(), "support plus footprint probes")
-	assert_eq(candidate.cell_support.size(), mini(3, candidate.footprint_cells.size()))
+	assert_eq(candidate.probe_points.size(), candidate.cell_support.size())
+	assert_eq(candidate.support_bodies.size(), candidate.probe_points.size())
+	assert_between(candidate.probe_points.size(), 1, 3, "one ray per real bottom cube, capped at the tier")
 	assert_gte(candidate.corner_support_hits, 0)
 	assert_between(candidate.tip_risk, 0.0, 1.0)
 

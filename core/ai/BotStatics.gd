@@ -77,9 +77,9 @@ static func tip_risk_of(
 	c: BotCandidate, info: OrientationInfo, grid: CellGrid = null, tuning: BotGenTuning = null, cube_size: float = NO_CUBE_SIZE
 ) -> float:
 	var t: BotGenTuning = tuning if tuning != null else SHIPPED_TUNING
-	if c.cell_support.is_empty() or c.footprint_cells.is_empty():
+	if c.cell_support.is_empty() or (c.footprint_cells.is_empty() and c.probe_points.is_empty()):
 		return info.flat_risk
-	if grid != null:
+	if grid != null or not c.probe_points.is_empty():
 		var supported: PackedVector2Array = _supported_contacts(c, info, grid, t, cube_size)
 		return _risk(info, supported, t)
 	return _combine(info.flat_risk, _unsupported_overhang(c, t))
@@ -118,6 +118,36 @@ static func orientation_info(shape: BlockShape, index: int, tuning: BotGenTuning
 	info.signature = _signature(info)
 	info.flat_risk = _risk(info, info.contact, t)
 	return info
+
+
+## Bontago-1t5.55.2: disk-local xz of the real bottom-cube centres of `c` (its pivot `c.origin` plus the
+## spawn-frame contact offsets), ordered from the outermost inward (descending distance from the contact
+## centroid, ties in contact order) and cut to `max_count`: a capped tier still probes the cubes that decide
+## an overhang. Deterministic; empty for no contact cubes or a non-positive `max_count`.
+static func contact_probe_points(
+	c: BotCandidate, info: OrientationInfo, cube_size: float, max_count: int
+) -> PackedVector2Array:
+	var points: PackedVector2Array = PackedVector2Array()
+	var total: int = info.contact.size()
+	if total == 0 or max_count <= 0:
+		return points
+	var centroid: Vector2 = Vector2.ZERO
+	for offset: Vector2 in info.contact:
+		centroid += offset
+	centroid /= float(total)
+	var order: Array[int] = []
+	for i: int in range(total):
+		order.append(i)
+	order.sort_custom(func(a: int, b: int) -> bool:
+		var da: float = info.contact[a].distance_squared_to(centroid)
+		var db: float = info.contact[b].distance_squared_to(centroid)
+		if not is_equal_approx(da, db):
+			return da > db
+		return a < b
+	)
+	for i: int in range(mini(max_count, total)):
+		points.append(c.origin + info.contact[order[i]] * cube_size)
+	return points
 
 
 ## Cells covered by the piece when its pivot is at `origin` (disk xz): exact spawn-frame footprint.
@@ -254,12 +284,34 @@ static func _unsupported_overhang(c: BotCandidate, t: BotGenTuning) -> float:
 	return clampf((share - t.unsupported_safe_fraction) / maxf(1.0 - t.unsupported_safe_fraction, MIN_DIVISOR), 0.0, 1.0)
 
 
+## Bontago-1t5.55.2: cube-probe matching. `c.cell_support[i]` was measured under the bottom cube centred
+## at `c.probe_points[i]`; a cube with no probe (a capped tier) is assumed supported (DECISION: lower tiers
+## stay cheap; contact_probe_points always probes the outermost cubes).
+static func _supported_by_cube_probes(
+	c: BotCandidate, info: OrientationInfo, t: BotGenTuning, cube: float
+) -> PackedVector2Array:
+	var probed: int = mini(c.cell_support.size(), c.probe_points.size())
+	var supported: PackedVector2Array = PackedVector2Array()
+	for offset: Vector2 in info.contact:
+		var world: Vector2 = c.origin + offset * cube
+		var covered: bool = true
+		for i: int in range(probed):
+			if c.probe_points[i].distance_to(world) <= MATCH_EPSILON_M:
+				covered = _is_contact(c.cell_support[i], c, t)
+				break
+		if covered:
+			supported.append(offset)
+	return supported
+
+
 ## The bottom cubes whose probed cells (matched through `grid`) are mostly contact; a
 ## cube with no probed cell under it is assumed supported.
 static func _supported_contacts(
 	c: BotCandidate, info: OrientationInfo, grid: CellGrid, t: BotGenTuning, cube_size: float
 ) -> PackedVector2Array:
 	var cube: float = cube_size if cube_size > 0.0 else SHIPPED_PHYSICS_TUNING.cube_size
+	if not c.probe_points.is_empty():
+		return _supported_by_cube_probes(c, info, t, cube)
 	var reach: float = (cube + grid.cell_size) * 0.5 - MATCH_EPSILON_M
 	var probed: int = mini(c.cell_support.size(), c.footprint_cells.size())
 	var centers: PackedVector2Array = PackedVector2Array()
