@@ -12,7 +12,7 @@ extends RefCounted
 ## DECISION: the shipped disc surface is field-local y = 0 (probe heights are field-local, "above the
 ## disc"), so ground_y stays 0.
 
-## Body instance id -> {xform, field_xform, child_count, cubes, basis}.
+## Body instance id -> {xform, field_xform, child_count, cubes, basis, face_half}.
 static var _cache: Dictionary = {}
 
 
@@ -54,7 +54,9 @@ static func build(
 		var cubes: PackedVector3Array = data["cubes"] as PackedVector3Array
 		var team: int = int(team_of.call(body.owner_slot)) if body.owner_slot >= 0 else -1
 		var settled: bool = body.sleeping or body.freeze or body.linear_velocity.length() <= tuning.settled_speed_mps
-		stack.add_body(body.get_instance_id(), team, data["basis"] as Basis, cubes, body.mass, settled)
+		stack.add_body(
+			body.get_instance_id(), team, data["basis"] as Basis, cubes, body.mass, settled, data["face_half"] as float
+		)
 	return stack
 
 
@@ -70,13 +72,18 @@ static func _cubes_of(body: Block, field: Node3D, field_xform: Transform3D, fiel
 	):
 		return cached
 	var cubes: PackedVector3Array = PackedVector3Array()
+	var face_half: float = -1.0
 	for child: Node in body.get_children():
 		var shape: CollisionShape3D = child as CollisionShape3D
 		if shape != null and not shape.disabled:
 			cubes.append(field.to_local(xform * shape.position))
+			var box: BoxShape3D = shape.shape as BoxShape3D
+			if box != null:
+				# DECISION: one face half-width per body (the widest collider box); the cubes of a body are equal.
+				face_half = maxf(face_half, box.size.x * 0.5)
 	var data: Dictionary = {
 		"xform": xform, "field_xform": field_xform, "child_count": child_count, "cubes": cubes,
-		"basis": field_basis_inv * xform.basis.orthonormalized(),
+		"basis": field_basis_inv * xform.basis.orthonormalized(), "face_half": face_half,
 	}
 	_cache[id] = data
 	return data
