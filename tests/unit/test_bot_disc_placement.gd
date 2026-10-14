@@ -81,6 +81,9 @@ func _place_via_bot(origin: Vector2, orientation_index: int = 0) -> Block:
 	var hit: Dictionary = bot._raycast_support_height(origin)
 	candidate.support_height = float(hit.get("height", 0.0))
 	bot._candidates = [candidate] as Array[BotCandidate]
+	# The profile is the shared, cached shipped tuning resource: mutate a copy, never the
+	# original, or the zeroed aim noise leaks into later scripts (test_bot_tuning, gate 2026-10-14).
+	bot._profile = bot._profile.duplicate() as BotDifficultyProfile
 	bot._profile.aim_noise_m = 0.0
 	var before: int = _registry.all_blocks().size()
 	var reason: StringName = bot._send_best_placement()
