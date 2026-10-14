@@ -16,7 +16,7 @@ map geometry, not the current game's round visual fallback for some variants.
 
 ## Reproduce
 
-Run `python tools/generate_map_pictograms.py`. Then use the isolated headless
+Run a script removed in Bontago-dbn.1 (see git history). Then use the isolated headless
 Godot helper in `source_art/map_pictograms_v1`: copy `project.godot.review`
 to a temporary folder as `project.godot`, copy `rasterize.gd` beside it, then run
 that temporary project with `-s rasterize.gd --` followed

@@ -31,13 +31,13 @@ No sky shader, theme, moon direction or game code is changed in this package.
 
 ## Reproduce
 
-Run `python tools/generate_moon_assets.py` for SVG sources and manifest. Copy
+Run a script removed in Bontago-dbn.1 (see git history) for SVG sources and manifest. Copy
 `source_art/moon_v1/project.godot.review` to a temporary directory as
 `project.godot`, alongside `rasterize.gd`, then:
 
 ```powershell
 godot --headless --path $helper --script "$helper/rasterize.gd" -- "$checkout/source_art/moon_v1" "$helper/png"
-python tools/generate_moon_assets.py --review-native "$helper/png"
+# generator removed in Bontago-dbn.1 (see git history)
 ```
 
 Review requires Python3.8+ and Pillow. The helper stays separate from the game.

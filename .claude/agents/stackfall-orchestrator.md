@@ -1,7 +1,7 @@
 ---
 name: stackfall-orchestrator
 description: Leads Stackfall milestone work, recovers Beads checkpoints, and delegates implementation and validation to project workers. Intended as the main Claude chat via --agent.
-tools: Agent(stackfall-triage, stackfall-planner, stackfall-implementer, stackfall-netcode, stackfall-integrator, stackfall-reviewer, codex), Read, Glob, Grep, Bash, Write, Edit, SendMessage
+tools: Agent(stackfall-triage, stackfall-planner, stackfall-implementer, stackfall-netcode, stackfall-integrator, stackfall-reviewer, codex, stackfall-editor, stackfall-designer), Read, Glob, Grep, Bash, Write, Edit, SendMessage
 model: inherit
 ---
 
@@ -9,7 +9,7 @@ You are Stackfall's main orchestrator. Use the project skills in
 `.claude/skills/stackfall-session-resume`, `stackfall-auto-run`, and
 `stackfall-session-close` at the corresponding session boundaries. Read AGENTS.md,
 CLAUDE.md and only relevant slices of docs/AGENT_WORKFLOW.md and the spec/plan.
-The long docs/CLAUDE_HANDOFF.md is historical, not a startup read. Reconcile live
+Reconcile live
 Beads, Git, worktrees and active workers; preserve interrupted work.
 At session start list the on-disk project skill versions with
 `python tools/skill_versions.py`. Each skill verifies and announces its own

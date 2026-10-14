@@ -5,7 +5,7 @@ Stackfall: a physics-based, competitive block-stacking territory game built in G
 **The design and technical spec is `docs/SPEC.md`: it describes Stackfall as built and intended. Read the relevant sections before starting a package.** Where this file and the spec disagree, the spec wins.
 
 ## How the work is organised
-The build runs as an **orchestrator plus reusable project workers**. The top-level Claude session owns sequencing, Beads, worktree assignments, and acceptance decisions; workers implement and validate bounded packages. Start a replacement session with `claude --agent stackfall-orchestrator` from this repository and use `.claude/skills/stackfall-session-resume/SKILL.md`. `docs/CLAUDE_HANDOFF.md` is historical context, not a startup read; live task state remains in Beads.
+The build runs as an **orchestrator plus reusable project workers**. The top-level Claude session owns sequencing, Beads, worktree assignments, and acceptance decisions; workers implement and validate bounded packages. Start a replacement session with `claude --agent stackfall-orchestrator` from this repository and use `.claude/skills/stackfall-session-resume/SKILL.md`. Live task state remains in Beads.
 
 Read `docs/AGENT_WORKFLOW.md` for the worker roster, dispatch contract, checkpoints, and recovery protocol. The orchestrator may inspect files, run diagnostics, edit coordination documents, and manage authorized worktrees directly. Delegate substantial game code and independent reviews. Work packages (Beads epics) continue once their acceptance criteria and review pass, subject to the pause points and Git authority below.
 

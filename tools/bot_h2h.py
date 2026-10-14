@@ -91,7 +91,7 @@ _TEMPLATE_PLACEHOLDER = re.compile(r"<[^<>\s]+>")  # battery templates: <v2>, <h
 
 
 def parse_candidate(path: str) -> Dict[str, float]:
-    """Weights from a bot_fit_weights proposal (`weight_x = v` lines) or a JSON object."""
+    """Weights from an offline-fit proposal (`weight_x = v` lines) or a JSON object."""
     with open(path, encoding="utf-8") as fh:
         text = fh.read()
     if text.lstrip().startswith("{"):

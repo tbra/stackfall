@@ -1,4 +1,4 @@
-"""UI component ratchet (Bontago-1pi.159.6; plan: docs/UI_COMPONENTS_PLAN.md section 5).
+"""UI component ratchet (Bontago-1pi.159.6).
 
 Screens must build their controls from ui/components/ (Ui* nodes) instead of raw Godot
 controls restyled per screen. This lint counts matching lines per (rule, file) in ui/** and
@@ -198,7 +198,7 @@ def main(argv):
     for p in problems:
         print("UI COMPONENT LINT FAIL " + p)
     if problems:
-        print("UI COMPONENT LINT RED: %d (rule, file) pair(s); build from ui/components (docs/UI_COMPONENTS_PLAN.md)"
+        print("UI COMPONENT LINT RED: %d (rule, file) pair(s); build from ui/components"
               % len(problems))
         return 1
     stale = sum(1 for rid, files in baseline.items() for rel, b in files.items()

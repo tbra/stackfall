@@ -558,7 +558,7 @@ void raster_path(vec2 uv, vec3 base, out vec3 albedo, out vec3 emission) {
 }
 
 // DECISION (shaders/territory.gdshader, Bontago-1pi.11.1): bake the circle loop.
-// Measured (tools/bench_perf_attrib, 300 asleep blocks): uploading only the 2
+// Measured (a script removed in Bontago-dbn.1 (see git history), 300 asleep blocks): uploading only the 2
 // home circles cut GPU 16.4 -> 7.6 ms, so the per-pixel circle loop (even
 // binned) dominated and scales with pixels (3440x1440 is 2.4x 1080p). The
 // loop's three outputs (best value, second-best team value, owner) are a pure

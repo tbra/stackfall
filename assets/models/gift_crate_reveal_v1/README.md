@@ -9,9 +9,9 @@ The closed bounds match the original: 1.11 units wide, about 1.165 deep includin
 Editable source: `source_art/gift_crate_reveal_v1/gift_crate_reveal_v1.blend`. `.gdignore` keeps the art source out of game imports. Rebuild with Blender 4.5 and Pillow:
 
 ```text
-blender --factory-startup -b --python tools/build_gift_crate_reveal.py -- --source source_art/gift_crate_v1/gift_crate_v1.blend
-python tools/build_gift_crate_reveal.py --assemble
-python tools/build_gift_crate_reveal.py --verify
+# generator removed in Bontago-dbn.1 (see git history)
+# generator removed in Bontago-dbn.1 (see git history)
+# generator removed in Bontago-dbn.1 (see git history)
 ```
 
 The original source is read without editing it. Temporary frames go to the system temp directory `codex_gift_crate_reveal`. `geometry_review.json` records bounds, hinge and playback intent; `glb_review.json` checks the exported meshes, palette count, quaternion normalization, lid rotation, timeline and GIF decoding.

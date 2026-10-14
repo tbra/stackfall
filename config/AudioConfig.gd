@@ -15,10 +15,10 @@ extends Resource
 	"thud1.wav", "thud2.wav", "thud3.wav", "thud4.wav",
 ]
 @export var rejected_file: String = "placement_rejected_pcm.wav"
-## Menu select/hover (Bontago-eq0, tools/generate_core_cues.py) replace select.wav
+## Menu select/hover (Bontago-eq0, a script removed in Bontago-dbn.1 (see git history)) replace select.wav
 ## and button_hover_pcm.wav. The drop cue replaced block_placed.wav (a sustained
 ## tone that read as a sharp note over the music); after owner feedback the
-## round-two candidates block_drop_a/b.wav (tools/generate_gift_cues_v2.py) replace
+## round-two candidates block_drop_a/b.wav (a script removed in Bontago-dbn.1 (see git history)) replace
 ## block_release.wav. Unused candidates stay in assets/effects for A/B.
 @export var click_file: String = "ui_select.wav"
 @export var start_game_file: String = "start_game.mp3"
@@ -179,7 +179,7 @@ func playlist_track_count(context: StringName) -> int:
 ## Special activation cues (spec 2.10 "Specials have distinct warning sounds",
 ## Bontago-eq0): SpecialDef.id -> filename in assets/effects, played on
 ## Events.special_triggered on the host and on every client. An id with no
-## entry, or a missing file, is silent. Rendered by tools/generate_special_sfx.py.
+## entry, or a missing file, is silent. Rendered by a script removed in Bontago-dbn.1 (see git history).
 ## DECISION (Bontago-eq0): special_triggered fires on the Rocket's detonation,
 ## not its launch, so the Rocket gets a blast cue; rocket.wav (a launch
 ## whistle) stays registered under EVENT_ROCKET with no caller.
@@ -238,7 +238,7 @@ func playlist_track_count(context: StringName) -> int:
 
 ## DECISION (Bontago-1pi.28): effects were near-inaudible because the bundled
 ## wavs sat at -29..-12 dBFS window-RMS AND this baseline was -16 dB (6 dB
-## below the music's). tools/measure_audio.py --normalize now brings every
+## below the music's). a script removed in Bontago-dbn.1 (see git history) --normalize now brings every
 ## bundled wav to -16 dBFS short-window RMS (peak <= -1 dBFS); with this -3 dB
 ## baseline a full-scale cue lands near -19 dBFS RMS, ~5 dB above the music bed
 ## (music_volume_db below on ~-14 dBFS-RMS mastered tracks, never measured:

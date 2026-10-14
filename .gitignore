@@ -89,3 +89,5 @@ build_info.cfg
 
 # Blender auto-save backups
 *.blend1
+
+/docs/archive/

@@ -814,7 +814,7 @@ func _build_disk_mesh(faces: PackedVector3Array) -> void:
 
 
 ## How many times the disk trimesh has been built (set_faces calls) since
-## this Field was created. Read by tests and tools/bench_holes.gd.
+## this Field was created. Read by tests and a script removed in Bontago-dbn.1 (see git history).
 func disk_mesh_build_count() -> int:
 	return _rebuild_count
 

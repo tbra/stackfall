@@ -6,12 +6,9 @@ extends GutTest
 ## Input.parse_input_event()-based version of this test unreliable:
 ## (1) GUT's headless root Window defaults to a 64x64 size, so a click at the
 ## button's real get_global_rect() center often lands outside the window
-## entirely; (2) the project's own windowed off-screen probe convention
-## (tools/screenshot_m7p7_menu.gd's own header comment) documents that
-## Windows clamps an off-screen window to a tiny size too, so even a real
-## windowed run can't be trusted for GUI click coordinates -- that tool
-## renders into a fixed-size SubViewport and captures that for exactly this
-## reason. A SubViewport sized explicitly (this file reuses that same
+## entirely; (2) Windows clamps an off-screen window to a tiny size too, so
+## even a real windowed run can't be trusted for GUI click coordinates. A
+## SubViewport sized explicitly (this file reuses the same
 ## 1280x720) and fed via Viewport.push_input() (which targets *that*
 ## viewport, unlike the global Input.parse_input_event(), which always
 ## targets the SceneTree's root viewport) gives the row a realistic, real

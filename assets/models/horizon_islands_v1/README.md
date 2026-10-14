@@ -69,7 +69,7 @@ cleanly. No game scene, full suite, benchmark or shared sky files were changed.
 ## Reproduce
 
 ```powershell
-blender --factory-startup -b -t 2 --python tools/generate_horizon_islands.py
+# generator removed in Bontago-dbn.1 (see git history)
 ```
 
 Use factory startup to avoid unrelated installed Blender add-ons. The generated
@@ -80,7 +80,7 @@ repository. Run that isolated project tiny, muted and offscreen:
 
 ```powershell
 godot --path $helper --windowed --position 10000,10000 --resolution 320x180 --audio-driver Dummy res://review.tscn -- "$checkout/assets/models/horizon_islands_v1" "$checkout/docs/art_mockups/horizon_islands_v1/native" --agent-probe
-python tools/review_horizon_islands.py
+# generator removed in Bontago-dbn.1 (see git history)
 ```
 
 Use actual separate CLI arguments (`--position 10000,10000`,

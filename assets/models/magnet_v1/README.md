@@ -1,6 +1,6 @@
 # Faceted magnet gift study
 
-Original U-shaped magnet asset for a future held-gift visual. `tools/generate_magnet_model.py` creates the editable Blender 4.5 source at `source_art/magnet_v1/magnet_v1.blend`, a GLB export containing only the magnet, and a neutral preview PNG. The source folder has `.gdignore` so Godot imports the GLB without needing its Blender importer. No external meshes, textures or samples are used.
+Original U-shaped magnet asset for a future held-gift visual. a script removed in Bontago-dbn.1 (see git history) creates the editable Blender 4.5 source at `source_art/magnet_v1/magnet_v1.blend`, a GLB export containing only the magnet, and a neutral preview PNG. The source folder has `.gdignore` so Godot imports the GLB without needing its Blender importer. No external meshes, textures or samples are used.
 
 The model is about one block wide and one block tall, centered at the held-object origin. A dark edge surrounds a coral enamel face, with warm silver pole caps and a separate thin teal field arc. The arc is a distinct mesh so an integrator can omit it if the live effect should own magnetic energy. The silhouette reads as a magnet without the arc. The live `assets/gifts/held/magnet.tscn` remains unchanged.
 

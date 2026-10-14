@@ -1197,7 +1197,7 @@ func _cycle_text(selector: UiCycler) -> String:
 	return selector.selected_text()
 
 
-## Bontago-mp0.3.5: tools/capture_mockup08.gd's own `--lobby-advanced` frame (public wrapper
+## Bontago-mp0.3.5: a script removed in Bontago-dbn.1 (see git history)'s own `--lobby-advanced` frame (public wrapper
 ## so the capture tool, which isn't part of this package's own private-method surface,
 ## has a seam). DECISION (ui/Lobby.gd, Bontago-1pi.53 S1b): the popup is gone, so the
 ## seam keeps its name and now opens every section's Advanced block -- the lobby's
