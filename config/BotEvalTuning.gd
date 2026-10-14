@@ -76,3 +76,12 @@ extends Resource
 ## Extra TIP-axis penalty when the piece would carry the tower's centre of mass outside a support
 ## hull (a sure topple), after the rim_outside_penalty precedent.
 @export var topple_penalty: float = 10.0
+
+## Height gained (Bontago-1t5.69, Reach the Sky only): REACH-axis bonus per metre the placed piece's top
+## rises above the own tallest block (0 when it does not raise the tower), so a bar stands up when the
+## statics allow. 0 disables it (and the next term).
+@export var height_gain_weight: float = 1.0
+## REACH-axis bonus per cube in the piece's top layer (the landing area left for the next piece), up to
+## height_top_area_cap cubes: a piece stood on end where nothing can land on it scores lower.
+@export var height_top_area_weight: float = 0.3
+@export var height_top_area_cap: float = 4.0

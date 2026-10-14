@@ -39,7 +39,7 @@ static func proxy_terms(c: BotCandidate, view: BotWorldView, intent: BotIntent) 
 	var terms: PackedFloat32Array = PackedFloat32Array()
 	terms.resize(BotIntent.Term.size())
 	var radius: float = future_radius(c, view)
-	terms[BotIntent.Term.REACH] = radius - c.origin.distance_to(intent.target)
+	terms[BotIntent.Term.REACH] = radius - c.origin.distance_to(intent.target) + height_gain(c, view)
 	var inside: float = _own_overlap_fraction(c.origin, radius, view)
 	terms[BotIntent.Term.AREA] = PI * radius * radius * (1.0 - inside) / tuning.area_unit_m2
 	var covered: int = 0
@@ -72,7 +72,7 @@ static func measure(
 	var terms: PackedFloat32Array = PackedFloat32Array()
 	terms.resize(BotIntent.Term.size())
 	var radius: float = future_radius(c, view)
-	terms[BotIntent.Term.REACH] = _reach(c, view, chains, intent, radius)
+	terms[BotIntent.Term.REACH] = _reach(c, view, chains, intent, radius) + height_gain(c, view)
 	var fractions: Vector2 = _sample_fractions(c, view, radius)
 	var area_m2: float = PI * radius * radius * fractions.x
 	terms[BotIntent.Term.AREA] = area_m2 / tuning.area_unit_m2
@@ -210,6 +210,21 @@ static func rim_risk(c: BotCandidate, view: BotWorldView) -> float:
 		var shrunk: float = 1.0 - view.live_radius / view.field_radius
 		risk += tuning.shrink_centre_weight * shrunk * clampf(c.origin.length() / view.live_radius, 0.0, 1.0)
 	return risk
+
+
+## Bontago-1t5.69: Reach the Sky only (else 0): height_gain_weight times the metres this placement raises the
+## column it rests on (top height minus the support height under the site, from the probe), plus
+## height_top_area_weight per cube of its top layer (capped). DECISION (review): the baseline is the surface
+## the piece lands on, not the tallest own block, so a bar still stands up on a new base beside tall debris.
+## Added to the REACH term (the intent's REACH weight scales it); the TIP axis (tip risk, stack load margin)
+## still penalises standing up unsound.
+static func height_gain(c: BotCandidate, view: BotWorldView) -> float:
+	if view.mode != MatchConfig.GameMode.REACH_THE_SKY or tuning.height_gain_weight <= 0.0:
+		return 0.0
+	var gain: float = maxf(c.top_height - c.support_height, 0.0)
+	if gain <= 0.0:
+		return 0.0
+	return tuning.height_gain_weight * gain + tuning.height_top_area_weight * minf(c.top_area, tuning.height_top_area_cap)
 
 
 ## Radius of the influence circle the placed piece will project.
