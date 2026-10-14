@@ -45,6 +45,12 @@ func _apply_settings() -> void:
 		# Spec 3.1 - stack.
 		"application/config/features": PackedStringArray(["4.4", "Forward Plus"]),
 		"rendering/renderer/rendering_method": "forward_plus",
+		# Bontago-1pi.209 (owner: dark grey window before the splash): Godot's
+		# default clear colour (0.3 grey) shows in the window whenever the engine has
+		# presented a frame but no scene draws yet (window created windowed, then
+		# resized/maximized by Settings.apply_window_mode()). Match the black boot
+		# splash / SplashScreen background so there is no grey flash.
+		"rendering/environment/defaults/default_clear_color": Color.BLACK,
 		"physics/3d/physics_engine": "Jolt Physics",
 		# M8 P7 (Bontago-8or.13): the macOS export preset is universal/arm64,
 		# which Godot refuses unless ETC2/ASTC VRAM compression is imported.
