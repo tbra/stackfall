@@ -142,6 +142,42 @@ func is_sound(body: int) -> bool:
 	return _done and body >= 0 and body < _sound.size() and _sound[body] == 1
 
 
+## Bontago-1t5.70: sound bodies of `team` with no SOUND body resting on them, tallest first. Unlike sound_tops an
+## unsound block lying on the tower (a leaning top piece, a stray) does not take the tower below it out of the
+## list: the tower still stands, the plan keeps following it. DECISION: unsound bodies above are ignored here
+## only; is_usable_top (the site filter) still refuses a top that carries one.
+func standing_tops(team: int) -> PackedInt32Array:
+	var tops: Array[int] = []
+	if not _done:
+		return PackedInt32Array()
+	for i: int in body_ids.size():
+		if body_team[i] != team or _sound[i] != 1:
+			continue
+		var carries_sound: bool = false
+		for u: int in _above[i]:
+			if _sound[u] == 1:
+				carries_sound = true
+				break
+		if not carries_sound:
+			tops.append(i)
+	tops.sort_custom(
+		func(a: int, b: int) -> bool:
+			var ha: float = top_height(a)
+			var hb: float = top_height(b)
+			return a < b if is_equal_approx(ha, hb) else ha > hb
+	)
+	return PackedInt32Array(tops)
+
+
+## Bontago-1t5.70: true when `body` or any body carrying it down to the disc has its centre of mass within `radius`
+## of `point` (disk-local XZ): the body belongs to the tower rooted there, however far its own top has wandered.
+func rooted_near(body: int, point: Vector2, radius: float) -> bool:
+	for b: int in _down_set(PackedInt32Array([body])):
+		if com_xz(b).distance_to(point) <= radius:
+			return true
+	return false
+
+
 ## Top face height of the body's highest cube.
 func top_height(body: int) -> float:
 	var top: float = -INF

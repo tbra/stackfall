@@ -37,6 +37,12 @@ extends Resource
 ## Bontago-1t5.54: the bot abandons its base and starts a new one when the sound top that is left
 ## stands this far below the highest it ever reached there (a collapse).
 @export var collapse_drop_m: float = 3.0
+## Bontago-1t5.70: ...and only when it also stands under this fraction of that peak (a tall tower that loses its
+## top few pieces is still a tower).
+@export var collapse_keep_fraction: float = 0.5
+## Bontago-1t5.70: a tower that looks lost (no standing sound top rooted at the base, or a collapse-sized loss) is
+## kept for this many consecutive plans before a new base starts.
+@export var collapse_grace_thinks: int = 2
 ## A sound top within this distance of the remembered base is the same tower.
 @export var base_match_radius_m: float = 1.5
 ## Sunflower points tried over each circle when searching a new base.
