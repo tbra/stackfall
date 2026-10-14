@@ -13,6 +13,16 @@ const TICK_START: Vector2 = Vector2(0.0, 0.55)
 const TICK_MID: Vector2 = Vector2(0.38, 0.95)
 const TICK_END: Vector2 = Vector2(1.0, 0.05)
 
+## The hourglass is one solid silhouette (Bontago-1pi.159.61): top and bottom bars, two bulbs meeting at
+## a narrow neck, as fractions of the mark box (fixed glyph shape, not tunables). The empty upper bulb is
+## cut out in the face colour, the lower bulb stays solid like the sand.
+const HG_BAR: float = 0.16
+const HG_BULB_INSET: float = 0.12
+const HG_NECK_HALF: float = 0.06
+const HG_GLASS_TOP: float = 0.24
+const HG_GLASS_HALF: float = 0.24
+const HG_GLASS_DEPTH: float = 0.22
+
 ## Icon-only READY / NOT_READY marks are drawn, not font glyphs: a tick and an hourglass outline in
 ## the same square box, stroke and baseline, tinted by the face's ink.
 
@@ -75,14 +85,30 @@ static func has_mark(variant_value: Look) -> bool:
 	return variant_value == Look.READY or variant_value == Look.NOT_READY
 
 
-## The mark's polyline in a box of edge [param edge] at [param origin]: a tick for READY, a closed
-## hourglass outline (top bar, crossing diagonals, bottom bar) for NOT_READY.
+## The mark's polyline in a box of edge [param edge] at [param origin]: a tick for READY, a solid
+## hourglass silhouette (bars, bulbs, neck) for NOT_READY.
 static func mark_points(variant_value: Look, origin: Vector2, edge: float) -> PackedVector2Array:
 	if variant_value == Look.READY:
 		return PackedVector2Array([
 			origin + TICK_START * edge, origin + TICK_MID * edge, origin + TICK_END * edge])
+	var mid: float = 0.5
+	var fractions: PackedVector2Array = PackedVector2Array([
+		Vector2(0.0, 0.0), Vector2(1.0, 0.0), Vector2(1.0, HG_BAR), Vector2(1.0 - HG_BULB_INSET, HG_BAR),
+		Vector2(mid + HG_NECK_HALF, mid), Vector2(1.0 - HG_BULB_INSET, 1.0 - HG_BAR), Vector2(1.0, 1.0 - HG_BAR),
+		Vector2(1.0, 1.0), Vector2(0.0, 1.0), Vector2(0.0, 1.0 - HG_BAR), Vector2(HG_BULB_INSET, 1.0 - HG_BAR),
+		Vector2(mid - HG_NECK_HALF, mid), Vector2(HG_BULB_INSET, HG_BAR), Vector2(0.0, HG_BAR)])
+	var out: PackedVector2Array = PackedVector2Array()
+	for fraction: Vector2 in fractions:
+		out.append(origin + fraction * edge)
+	return out
+
+
+## The hourglass's empty upper bulb (a triangle cut out of the solid shape), same box as [method mark_points].
+static func glass_points(origin: Vector2, edge: float) -> PackedVector2Array:
 	return PackedVector2Array([
-		origin, origin + Vector2(edge, 0.0), origin + Vector2(0.0, edge), origin + Vector2(edge, edge), origin])
+		origin + Vector2(0.5 - HG_GLASS_HALF, HG_GLASS_TOP) * edge,
+		origin + Vector2(0.5 + HG_GLASS_HALF, HG_GLASS_TOP) * edge,
+		origin + Vector2(0.5, HG_GLASS_TOP + HG_GLASS_DEPTH) * edge])
 
 
 ## Whether the face carries a lit lip (the neutral badge is flat).
@@ -144,5 +170,10 @@ func _draw_mark(arcade: ArcadeVisualTuning) -> void:
 	var edge: float = float(m.status_icon_px)
 	var lip: float = float(arcade.lip_sm_px) if has_lip(variant) else 0.0
 	var origin: Vector2 = Vector2((size.x - edge) / 2.0, (size.y - lip - edge) / 2.0)
-	draw_polyline(mark_points(variant, origin, edge), MenuStyleFactory.ink_for_face(face_for(variant, arcade)),
-		float(m.status_icon_stroke_px), true)
+	var face: Color = face_for(variant, arcade)
+	var ink: Color = MenuStyleFactory.ink_for_face(face)
+	if variant == Look.READY:
+		draw_polyline(mark_points(variant, origin, edge), ink, float(m.status_icon_stroke_px), true)
+		return
+	draw_colored_polygon(mark_points(variant, origin, edge), ink)
+	draw_colored_polygon(glass_points(origin, edge), face)

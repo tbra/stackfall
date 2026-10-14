@@ -130,9 +130,9 @@ A momentary HUD message (about 1.5s) above the cursor or near the top centre.
 
 A grid of on/off chips for the gift and special pool (Anvil, Black hole, Bomb…) and the lobby's experiment flags.
 
-- **On:** a `mint` block with an ink ✓ box.
-- **Off:** a `disc-700` block with an empty box.
-- **The check box carries the state**, so it never relies on colour.
+- **On:** a `mint` block with ink label and icon.
+- **Off:** a `disc-700` block with cream label and icon. The icon is always a flat silhouette.
+- **No check box** (owner 2026-10-14): the block colour carries the state; mint and disc-700 differ strongly in luminance.
 - **Layout:** two columns in the lobby and three at ultrawide.
 - **The consumer provides:** a label, an optional icon from the gift pictograms, and the state.
 - **Gamepad:** A toggles the focused chip.
