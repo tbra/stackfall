@@ -55,6 +55,8 @@ var _icon_rect: TextureRect = null
 var _icon_texture: Texture2D = null
 ## Draws the disclosure triangle over the bar's left padding (never takes the mouse).
 var _arrow: Control = null
+## The hairline rule under the header row (separates the caption from the controls).
+var _rule: Panel = null
 
 
 func _init() -> void:
@@ -78,9 +80,16 @@ func _ready() -> void:
 ## The header colours: dust caption and summary (the design's label / caption styles).
 func _style_header() -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	for label: Label in [_title_label, _summary_label]:
-		label.add_theme_color_override("font_color", arcade.dust_color)
-	_icon_rect.modulate = arcade.dust_color
+	_title_label.add_theme_color_override("font_color", arcade.cream_color)
+	_summary_label.add_theme_color_override("font_color", arcade.dust_color)
+	_icon_rect.modulate = arcade.flare_color
+	var rule: StyleBoxFlat = StyleBoxFlat.new()
+	rule.bg_color = arcade.disc_700_color
+	rule.set_corner_radius_all(arcade.radius_cell_px)
+	rule.content_margin_top = float(arcade.section_rule_px)
+	_rule.add_theme_stylebox_override("panel", rule)
+	_rule.custom_minimum_size = Vector2(0.0, float(arcade.section_rule_px))
+	add_theme_constant_override("separation", arcade.space_2_px)
 
 
 ## Advanced is a full-width disc-700 bar (rim caret + word; the value summary stays in the header
@@ -218,6 +227,11 @@ func _build_header() -> void:
 	row.add_child(_summary_label)
 	add_child(row)
 	move_child(row, 0)
+	_rule = Panel.new()
+	_rule.name = "HeaderRule"
+	_rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_rule)
+	move_child(_rule, 1)
 
 
 func _build_advanced_bar() -> void:

@@ -78,6 +78,11 @@ extends Resource
 @export var space_6_px: int = 32
 ## Menu column inset from the screen edge.
 @export var space_7_px: int = 48
+## Gap between settings categories (UiSection stacks, e.g. the lobby's GAME / ROUND / GIFTS /
+## EXPERIMENTS); the design's "gap between panel groups" (space-6).
+@export var section_gap_px: int = 32
+## Thickness of the hairline rule under a UiSection header (disc-700).
+@export var section_rule_px: int = 2
 
 ## -- Radii --
 ## Voxel cell corner radius.
