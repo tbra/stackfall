@@ -36,6 +36,12 @@ extends Resource
 ## Flattest orientations offered per stack top.
 @export var stack_orientation_variants: int = 2
 
+@export_group("Foundation sites")
+## Bontago-1t5.54: sites offered around a new base (widest, flattest orientation first).
+@export var foundation_site_count: int = 12
+## Foundation sites sit at the base and at this offset in each of the eight directions around it.
+@export var foundation_jitter_m: float = 0.5
+
 @export_group("Mix")
 ## Share of the candidate budget per source; the remainder is uniform FILL.
 ## Default intents (RACE, DEFEND, STRIKE, SIEGE).

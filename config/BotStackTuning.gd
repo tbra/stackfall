@@ -27,3 +27,6 @@ extends Resource
 ## Cube lists kept between thinks by game/BotStackProbe (sleeping blocks cost one comparison); the
 ## cache is cleared when it grows past this (Bontago-1t5.53b).
 @export var probe_cache_limit: int = 512
+## A tower-top circle finds its body (Bontago-1t5.54) among the snapshot's bodies whose centre of mass
+## lies within this distance of the circle centre (the circle is built on the same centre of mass).
+@export var circle_match_radius_m: float = 1.0

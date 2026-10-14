@@ -13,6 +13,10 @@ enum Term { REACH, AREA, KILL, EXPOSURE, TIP, WASTE, HAZARD }
 var kind: Kind = Kind.RACE
 var target: Vector2 = Vector2.ZERO
 var focus_circle: int = -1
+## Bontago-1t5.54: the target is a new base after a collapse (BotCandidateGen offers FOUNDATION sites
+## there and keeps every site `debris_clearance_m` clear of unsound blocks).
+var new_base: bool = false
+var debris_clearance_m: float = 0.0
 ## Indexed by Term.
 var weights: PackedFloat32Array = PackedFloat32Array()
 

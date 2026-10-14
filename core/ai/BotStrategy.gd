@@ -38,7 +38,7 @@ static func choose(
 	var t: BotStrategyTuning = tuning if tuning != null else SHIPPED_TUNING
 	var mask: int = profile.intent_mask
 	var spread: bool = BotIntent.is_enabled(mask, BotIntent.Kind.STRIKE)
-	var plan: Dictionary = _mode_plan(view, chains, t, spread)
+	var plan: Dictionary = _mode_plan(view, chains, t, spread, memory)
 	var target: Vector2 = plan["target"] as Vector2
 	var has_target: bool = plan["has_target"] as bool
 	var allowance: float = t.threat_allowance_m + profile.threat_lookahead_m
@@ -65,6 +65,9 @@ static func choose(
 	if not BotIntent.is_enabled(mask, default_kind):
 		default_kind = BotIntent.Kind.RACE
 	var base: BotIntent = _make(t, default_kind, target)
+	if plan["new_base"] as bool:
+		base.new_base = true
+		base.debris_clearance_m = t.debris_clearance_m
 	if default_kind == BotIntent.Kind.ANCHOR or not BotIntent.is_enabled(mask, BotIntent.Kind.ANCHOR):
 		return base
 	var anchor: int = _anchor_circle(view, chains, t, mask, target, has_target)
@@ -80,7 +83,7 @@ static func _sticky(
 	view: BotWorldView, t: BotStrategyTuning, memory: Dictionary, fresh: BotIntent, base: BotIntent
 ) -> BotIntent:
 	var own_count: int = view.indices_of_team(view.team_id).size()
-	if memory.is_empty() or own_count == 0:
+	if not memory.has("kind") or own_count == 0:
 		memory["kind"] = int(fresh.kind)
 		memory["own"] = own_count
 		memory["age"] = 0
@@ -123,10 +126,12 @@ static func _focused(view: BotWorldView, t: BotStrategyTuning, kind: BotIntent.K
 
 
 ## Per-mode plan: {target, has_target, hold, finishable, default (BotIntent.Kind)}.
-static func _mode_plan(view: BotWorldView, chains: BotChains, t: BotStrategyTuning, spread: bool) -> Dictionary:
+static func _mode_plan(
+	view: BotWorldView, chains: BotChains, t: BotStrategyTuning, spread: bool, memory: Dictionary
+) -> Dictionary:
 	var plan: Dictionary = {
 		"target": view.own_home, "has_target": view.has_home, "hold": false,
-		"finishable": false, "default": BotIntent.Kind.RACE,
+		"finishable": false, "default": BotIntent.Kind.RACE, "new_base": false,
 	}
 	match view.mode:
 		MatchConfig.GameMode.ELIMINATION:
@@ -145,12 +150,122 @@ static func _mode_plan(view: BotWorldView, chains: BotChains, t: BotStrategyTuni
 			if goal != null and goal.has_tower:
 				plan["target"] = goal.tower_origin
 				plan["has_target"] = true
+			_plan_sound_tower(view, t, memory, plan)
 			plan["default"] = BotIntent.Kind.ANCHOR
 		MatchConfig.GameMode.CAPTURE_THE_FLAG:
 			_plan_beacons(view, chains, plan)
 		_:
 			_plan_goals(view, chains, plan)
 	return plan
+
+
+## Reach the Sky (Bontago-1t5.54, docs/BOT_TOWER_PLAN.md B.5): the mode context's target is the tallest
+## settled block, which after a topple is a leaning pile. With an analysed snapshot of the own blocks the
+## target becomes the tallest SOUND top near the remembered base, or a new base clear of debris when the
+## tower fell (no sound top near the base, or the top left stands `collapse_drop_m` under the peak).
+## Memory (per seat, kept by BotThink): sky_base (xz), sky_peak (m), sky_pending (a new base with no sound
+## top yet), sky_target / sky_new_base (the last plan, reused while own blocks are still moving). Without
+## a snapshot, or with no own block in it, the plan keeps the mode context's target (the old behaviour).
+## DECISION: the memory is static across matches (BotThink._strategy_memory); the own_count == 0 reset
+## below clears the base for a fresh match.
+static func _plan_sound_tower(
+	view: BotWorldView, t: BotStrategyTuning, memory: Dictionary, plan: Dictionary
+) -> void:
+	if view.indices_of_team(view.team_id).is_empty():
+		for key: String in SKY_KEYS:
+			memory.erase(key)
+		return
+	var stack: BotStack = view.stack
+	if stack == null or not stack.is_analysed() or stack.team_body_count(view.team_id) == 0:
+		return
+	if stack.has_unsettled(view.team_id) and memory.has("sky_target"):
+		_apply_sky_plan(plan, memory["sky_target"] as Vector2, memory.get("sky_new_base", false) as bool)
+		return
+	var tops: PackedInt32Array = stack.sound_tops(view.team_id)
+	var has_base: bool = memory.has("sky_base")
+	var base: Vector2 = memory.get("sky_base", Vector2.ZERO) as Vector2
+	var peak: float = memory.get("sky_peak", 0.0) as float
+	var pending: bool = memory.get("sky_pending", false) as bool
+	var follow: int = NONE
+	if not has_base:
+		follow = tops[0] if not tops.is_empty() else NONE
+	else:
+		for top: int in tops:
+			if stack.com_xz(top).distance_to(base) <= t.base_match_radius_m:
+				follow = top
+				break
+	if follow != NONE:
+		var height: float = stack.top_height(follow)
+		if pending or not has_base or height >= peak - t.collapse_drop_m:
+			var xz: Vector2 = stack.com_xz(follow)
+			memory["sky_base"] = xz
+			memory["sky_peak"] = height if (pending or not has_base) else maxf(peak, height)
+			memory["sky_pending"] = false
+			_apply_sky_plan(plan, xz, false, memory)
+			return
+	if has_base and pending and _base_usable(view, stack, t, base):
+		_apply_sky_plan(plan, base, true, memory)
+		return
+	var fresh: Vector2 = _find_new_base(view, stack, t)
+	if fresh == PlacementRules.NO_ORIGIN:
+		return
+	memory["sky_base"] = fresh
+	memory["sky_peak"] = 0.0
+	memory["sky_pending"] = true
+	_apply_sky_plan(plan, fresh, true, memory)
+
+
+const SKY_KEYS: Array[String] = ["sky_base", "sky_peak", "sky_pending", "sky_target", "sky_new_base"]
+
+
+static func _apply_sky_plan(plan: Dictionary, target: Vector2, new_base: bool, memory: Dictionary = {}) -> void:
+	plan["target"] = target
+	plan["has_target"] = true
+	plan["new_base"] = new_base
+	if not memory.is_empty():
+		memory["sky_target"] = target
+		memory["sky_new_base"] = new_base
+
+
+## A base point the bot may build on: own valid territory, inside the rim margin, clear of debris.
+static func _base_usable(view: BotWorldView, stack: BotStack, t: BotStrategyTuning, point: Vector2) -> bool:
+	if view.raster == null or PlacementRules.validate_point(point, view.raster, view.team_id) != PlacementRules.Result.VALID:
+		return false
+	if view.live_radius > 0.0 and point.length() > view.live_radius - BotEvaluator.tuning.rim_margin_m:
+		return false
+	return not stack.debris_near(point, t.debris_clearance_m)
+
+
+## The new base: a sunflower of `base_samples` points over the own home circle (then over the nearest own
+## circles); the kept point (usable, see _base_usable) closest to the home wins, the earlier sample on a
+## tie. DECISION: the plan's "ties go to the lower hazard" is the sample order, which is deterministic;
+## the dissolve-hazard grade is not computed here. NO_ORIGIN when no circle holds a usable point.
+static func _find_new_base(view: BotWorldView, stack: BotStack, t: BotStrategyTuning) -> Vector2:
+	var origin: Vector2 = view.own_home if view.has_home else Vector2.ZERO
+	var circles: Array[Vector3] = []
+	if view.has_home:
+		circles.append(Vector3(view.own_home.x, view.own_home.y, view.territory_tuning.home_radius))
+	var extra: Array[Vector3] = []
+	for i: int in view.indices_of_team(view.team_id):
+		extra.append(Vector3(view.cx[i], view.cz[i], view.cr[i]))
+	extra.sort_custom(func(a: Vector3, b: Vector3) -> bool:
+		return Vector2(a.x, a.y).distance_squared_to(origin) < Vector2(b.x, b.y).distance_squared_to(origin)
+	)
+	circles.append_array(extra.slice(0, maxi(t.base_extra_circles, 0)))
+	var samples: int = maxi(t.base_samples, 1)
+	for circle: Vector3 in circles:
+		var centre: Vector2 = Vector2(circle.x, circle.y)
+		var best: Vector2 = PlacementRules.NO_ORIGIN
+		var best_gap: float = INF
+		for k: int in range(samples):
+			var point: Vector2 = centre + Vector2.from_angle(float(k) * BotEvaluator.GOLDEN_ANGLE) 				* (circle.z * sqrt((float(k) + 0.5) / float(samples)))
+			var gap: float = point.distance_to(origin)
+			if gap < best_gap and _base_usable(view, stack, t, point):
+				best_gap = gap
+				best = point
+		if best != PlacementRules.NO_ORIGIN:
+			return best
+	return PlacementRules.NO_ORIGIN
 
 
 ## Classic: the unheld goal to race to (the mode context's target for several goals, else the
