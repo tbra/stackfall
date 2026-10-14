@@ -166,13 +166,14 @@ const MODIFIED_MARKER: String = "• "
 ## itself.
 const EXPORT_USAGE_MASK: int = PROPERTY_USAGE_STORAGE | PROPERTY_USAGE_EDITOR | PROPERTY_USAGE_SCRIPT_VARIABLE
 
+## Bontago-1pi.211: the SFX tab (audio is local) sits after Sky, so it stays client-visible.
 ## Tabs whose content is hidden from a client (see class doc "Availability").
 ## Indices match the order rebuild() adds tabs in -- rebuild() adds every
 ## client-visible tab first (Camera, Controls, then the M7 visual tabs: Blocks
 ## FX, Beacons, Camera FX, HUD, Sky) so this one cutoff still holds; Physics/
 ## Territory/Feed (host-only: they tune the physics/territory simulation
 ## itself, not just how it looks) always come last.
-const CLIENT_HIDDEN_TAB_FIRST: int = 6
+const CLIENT_HIDDEN_TAB_FIRST: int = 7
 ## Bontago-mp0.150.4: the Field-only arena look tab, inserted after Territory look.
 const ARENA_TAB: String = "Arena"
 const ARENA_TAB_INDEX: int = 4
@@ -287,6 +288,9 @@ var hud_visual_tuning: HUDVisualTuning = preload("res://config/hud_visual_tuning
 ## tab only exists while a Field is wired.
 var arena_side_style: ArenaSideStyle = preload("res://config/arena_side_style.tres")
 var qol_experiments: QolExperiments = preload("res://config/qol_experiments.tres")
+## Bontago-1pi.211: the SFX tab edits the live AudioConfig autoload/Sfx.gd reads (the same cached
+## preload instance, so no copy step; Reset/tests restore the shipped file values).
+var audio_config: AudioConfig = preload("res://config/audio_config.tres")
 var sky_theme: SkyThemeDef = preload("res://config/sky_themes/sunset.tres")
 
 ## DECISION (ui/TuningPanel.gd): same `Variant` test seam as
@@ -624,6 +628,7 @@ func _base_tab_plan() -> Array[Dictionary]:
 		{"name": "Territory look", "resources": [territory_visuals, beacon_visual_tuning]},
 		{"name": "HUD", "resources": [hud_visual_tuning]},
 		{"name": "Sky", "resources": [sky_theme]},
+		{"name": TuningSfxTab.TAB_NAME, "resources": []},
 		{"name": "Physics", "resources": [physics_tuning]},
 		{"name": "Territory rules", "resources": [territory_tuning]},
 		{"name": "Block bag", "resources": [block_feed_config]},
@@ -668,6 +673,9 @@ func _add_tab(tab_name: String, resources: Array) -> void:
 		]
 		list.add_child(_build_section(HAND_BUILT_CLASS, SCENE_SECTION_TITLE, scene_rows, true))
 		first_section = false
+
+	if tab_name == TuningSfxTab.TAB_NAME:
+		list.add_child(_build_sfx_section())
 
 	for entry: Variant in resources:
 		var resource: Resource = entry as Resource
@@ -978,6 +986,55 @@ func _build_arena_style_row(resource: Resource, prop_name: String, class_label: 
 	)
 	_register_row(frame, resource, prop_name, option, default_value, TYPE_INT, "", 0)
 	return frame["row"] as Control
+
+
+## Bontago-1pi.211: the SFX tab's one section: a dropdown + Play row per AudioConfig effect-file
+## field (TuningSfxTab.sfx_fields). Registered in _rows like a reflected row, so the modified marker,
+## default column, Reset and Save all work on it; the live config is what Sfx reads on the next event.
+func _build_sfx_section() -> Control:
+	var available: PackedStringArray = Sfx.effect_files()
+	var rows: Array[Control] = []
+	for prop_name: String in TuningSfxTab.sfx_fields(audio_config, available):
+		rows.append(_build_sfx_row(prop_name, available))
+	return _build_section(TuningSfxTab.CLASS_LABEL, TuningSfxTab.SECTION_TITLE, rows, true)
+
+
+func _build_sfx_row(prop_name: String, available: PackedStringArray) -> Control:
+	var fresh: Resource = _fresh_instance_for(audio_config)
+	var default_value: Variant = fresh.get(prop_name) if fresh != null else audio_config.get(prop_name)
+	var current: String = String(audio_config.get(prop_name))
+	var choices: PackedStringArray = TuningSfxTab.ordered_choices(current, available)
+	var holder: HBoxContainer = HBoxContainer.new()
+	holder.add_theme_constant_override("separation", ROW_SEPARATION)
+	var option: OptionButton = OptionButton.new()
+	option.name = "SfxOption"
+	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for filename: String in choices:
+		option.add_item(filename)
+	option.select(maxi(choices.find(current), 0))
+	holder.add_child(option)
+	var play: Button = Button.new()
+	play.name = "PlayButton"
+	play.text = "Play"
+	holder.add_child(play)
+	var frame: Dictionary = _build_row_frame(prop_name, TuningSfxTab.CLASS_LABEL, holder, TYPE_STRING, default_value, "", 0)
+	var value_label: Label = frame["value_label"] as Label
+	value_label.text = current
+	option.item_selected.connect(func(index: int) -> void:
+		audio_config.set(prop_name, option.get_item_text(index))
+		value_label.text = option.get_item_text(index)
+		_on_field_changed(audio_config, prop_name)
+	)
+	play.pressed.connect(func() -> void: preview_sfx(prop_name))
+	_register_row(frame, audio_config, prop_name, holder, default_value, TYPE_STRING, "", 0)
+	return frame["row"] as Control
+
+
+## Plays `prop_name`'s current file once through Sfx's own pool and volume. False for a missing file
+## (or a field that is not an AudioConfig string). Public so a test can press Play without a Button.
+func preview_sfx(prop_name: String) -> bool:
+	var value: Variant = audio_config.get(prop_name)
+	return value is String and Sfx.preview_file(String(value))
 
 
 func _build_int_row(resource: Resource, prop_name: String, class_label: String, default_value: Variant) -> Control:
@@ -1892,6 +1949,7 @@ func reset_all() -> void:
 	_reset_resource(arena_side_style)
 	_reset_resource(block_feed_config)
 	_reset_resource(skybox_config)
+	TuningSfxTab.reset_fields(audio_config)
 	# Bontago-1pi.1 (owner playtest: "Sky settings in F4 doesn't reset"):
 	# sky_theme was the one preloaded tuning resource this loop never
 	# touched -- Bontago-xtq.36's own DECISION (this file's class doc)
@@ -1950,6 +2008,7 @@ func save_overrides() -> Error:
 	_write_overrides(config, "ArenaSideStyle", arena_side_style)
 	_write_overrides(config, "BlockFeedConfig", block_feed_config)
 	_write_overrides(config, "SkyboxConfig", skybox_config)
+	TuningSfxTab.write_overrides(config, audio_config, Sfx.effect_files())
 	return config.save(save_path())
 
 

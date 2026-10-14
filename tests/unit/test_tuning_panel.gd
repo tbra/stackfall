@@ -669,15 +669,15 @@ func test_host_shows_every_tab() -> void:
 		assert_false(_panel._tab_container.is_tab_hidden(index))
 
 
-## Bontago-1pi.113: the 10-task-tab layout -- CLIENT_HIDDEN_TAB_FIRST is 6, so
-## every look/feel tab (Camera ... Sky) stays visible to a client and only the
+## Bontago-1pi.113: the 10-task-tab layout -- CLIENT_HIDDEN_TAB_FIRST is 7 (Bontago-1pi.211 added SFX), so
+## every look/feel tab (Camera ... SFX) stays visible to a client and only the
 ## host-only simulation tabs (Physics, Territory rules, Block bag, QoL) hide.
 func test_client_hides_the_simulation_tabs_but_not_the_visual_tabs() -> void:
 	_own_panel(false)
 	_panel.net_provider = FakeNet.client(0)
 	_panel.rebuild()
 	var visible_names: PackedStringArray = [
-		"Camera", "Controls", "Ghost & Blocks", "Territory look", "HUD", "Sky",
+		"Camera", "Controls", "Ghost & Blocks", "Territory look", "HUD", "Sky", "SFX",
 	]
 	for index: int in range(visible_names.size()):
 		assert_false(

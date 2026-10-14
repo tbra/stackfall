@@ -26,6 +26,8 @@ static func apply_saved() -> void:
 	_apply_saved_section(config, "TerritoryVisuals", load("res://config/territory_visuals.tres"))
 	_apply_saved_section(config, "BlockFeedConfig", load("res://config/block_feed.tres"))
 	_apply_saved_section(config, "SkyboxConfig", load("res://config/skybox_config.tres"))
+	# Bontago-1pi.211: the F4 SFX tab's file picks (TuningSfxTab.write_overrides writes only *_file keys).
+	_apply_saved_section(config, "AudioConfig", load("res://config/audio_config.tres"))
 
 
 static func _apply_saved_section(config: ConfigFile, section: String, resource: Resource) -> void:
