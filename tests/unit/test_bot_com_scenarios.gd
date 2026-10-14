@@ -127,7 +127,6 @@ func _site(view: BotWorldView, shape: BlockShape, com_xz: Vector2) -> BotCandida
 	candidate.site_kind = BotCandidateGen.SITE_STACK
 	candidate.on_top_of_own_stack = true
 	candidate.shape_height = info.height
-	candidate.tip_risk = info.flat_risk
 	candidate.footprint_cells = BotStatics.footprint_cells_of(view.held, info, candidate.origin, view.cube_size, view.grid)
 	return candidate
 
@@ -222,21 +221,21 @@ func _max_column_move() -> float:
 func test_think_picks_the_centred_site_with_the_stack_and_the_overhang_without() -> void:
 	var aware: BotController = await _setup_and_think(true)
 	var c: Vector2 = _tower_centre()
-	var safe_m: float = BotEvaluator.stack_tuning.safe_margin_m
 	var candidates: Array[BotCandidate] = aware._think.candidates()
 	assert_eq(candidates.size(), 2)
 	var overhang: BotCandidate = candidates[0]
 	var counter: BotCandidate = candidates[1]
-	assert_gte(counter.load_margin, safe_m, "the centred site keeps the safe margin")
-	assert_lt(overhang.load_margin, 0.0, "the overhanging site pushes the load past the column")
-	assert_lt(BotEvaluator.stack_risk(counter), BotEvaluator.stack_risk(overhang))
+	assert_gt(counter.stability_slack, 0.0, "the centred site keeps the combined centre of mass inside the column")
+	assert_lte(overhang.stability_slack, 0.0, "the overhanging site pushes the load past the column")
+	assert_lt(BotEvaluator.stability_risk(counter), BotEvaluator.stability_risk(overhang))
 	assert_true(_picked_origin(aware).is_equal_approx(_site_origin(_counter_site(c))), "the stack-aware bot picks the centred site")
 	for cand: BotCandidate in candidates:
 		assert_eq(cand.support_bodies.size(), cand.probe_points.size())
 	var blind: BotController = _think_over(CUBE8_SHAPE, [_overhang_site(c), _counter_site(c)] as Array[Vector2], false, c)
 	for cand: BotCandidate in blind._think.candidates():
-		assert_true(is_inf(cand.load_margin), "no stack, no load margin")
-		assert_eq(BotEvaluator.stack_risk(cand), 0.0)
+		assert_false(is_inf(cand.stability_slack), "no stack: the probe-only fallback still judges the piece")
+		assert_gt(cand.stability_slack, 0.0, "the piece's own centre of mass is over its own contact patch")
+		assert_eq(BotEvaluator.stability_risk(cand), 0.0)
 	assert_true(_picked_origin(blind).is_equal_approx(_site_origin(_overhang_site(c))), "without the stack the overhang wins on reach and area")
 
 

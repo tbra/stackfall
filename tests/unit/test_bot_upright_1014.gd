@@ -158,7 +158,7 @@ func test_toppling_upright_loses_to_the_flat_piece() -> void:
 	var view: BotWorldView = _view(_bar3, MatchConfig.GameMode.REACH_THE_SKY)
 	var sites: Array[BotCandidate] = _stack_sites(view, _gen_tuning)
 	for c: BotCandidate in sites:
-		c.load_margin = TOPPLE_MARGIN_M if c.shape_height > 1.0 else SOUND_MARGIN_M
+		c.stability_slack = TOPPLE_MARGIN_M if c.shape_height > 1.0 else SOUND_MARGIN_M
 	assert_eq(_best(sites, view).shape_height, 1.0, "a toppling upright bar loses to the flat one")
 
 
@@ -190,7 +190,6 @@ func test_new_base_beside_taller_debris_still_stands_the_bar_up() -> void:
 	upright.shape_height = 3.0
 	upright.top_height = base_height + 3.0
 	upright.top_area = 1.0
-	upright.tip_risk = 0.33
 	assert_gt(BotEvaluator.proxy(upright, view, _intent()), BotEvaluator.proxy(flat, view, _intent()),
 		"upright wins on a sound low base even though the debris is taller")
 

@@ -70,11 +70,8 @@ extends Resource
 ## Safety margin added to an incoming special's impact radius when grading a site.
 @export var incoming_margin_m: float = 1.0
 
-## Tower statics (Bontago-1t5.53b): TIP-axis weight of a site whose tower has less centre-of-mass headroom
-## than BotStackTuning.safe_margin_m (0 at the safe margin, the full weight at zero headroom).
-@export var stack_risk_weight: float = 1.0
-## Extra TIP-axis penalty when the piece would carry the tower's centre of mass outside a support
-## hull (a sure topple), after the rim_outside_penalty precedent.
+## TIP-axis penalty of a site whose placement is not stable under the two centre-of-mass rules (Bontago-1t5.72.5):
+## its piece or a tower level below it would topple (BotStability slack <= 0).
 @export var topple_penalty: float = 10.0
 
 ## Height gained (Bontago-1t5.69, Reach the Sky only): REACH-axis bonus per metre the placed piece's top

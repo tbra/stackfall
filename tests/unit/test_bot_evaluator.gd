@@ -23,7 +23,7 @@ const NEAR_ENEMY: Vector2 = Vector2(12.5, 0.0)
 const FAR_FROM_ENEMY: Vector2 = Vector2(-20.0, 15.0)
 const OPEN_FIELD: Vector2 = Vector2(0.0, 30.0)
 const DEEP_OWN: Vector2 = Vector2(-28.0, 1.0)
-const RISKY: float = 0.5
+const UNSTABLE_SLACK: float = -0.1
 const TOLERANCE: float = 0.001
 ## A site this far inside the enemy tip circle (its origin cell is enemy-held).
 const INSIDE_ENEMY_M: float = 0.5
@@ -88,11 +88,11 @@ func _intent(weights: Dictionary) -> BotIntent:
 	return intent
 
 
-func _site(origin: Vector2, top: float, risk: float = 0.0) -> BotCandidate:
+func _site(origin: Vector2, top: float, slack: float = INF) -> BotCandidate:
 	var c: BotCandidate = BotCandidate.new()
 	c.origin = origin
 	c.top_height = top
-	c.tip_risk = risk
+	c.stability_slack = slack
 	return c
 
 
@@ -163,12 +163,14 @@ func test_exposure_inside_enemy_reach_only() -> void:
 	assert_lt(BotEvaluator.proxy(near, _view, intent), BotEvaluator.proxy(far, _view, intent), "exposure lowers the score")
 
 
-func test_tip_risk_is_a_penalty() -> void:
+func test_unstable_site_pays_the_topple_penalty() -> void:
 	_build(false)
 	var intent: BotIntent = _intent({BotIntent.Term.TIP: 2.0})
-	var steady: BotCandidate = _site(OPEN_FIELD, BLOCK_TOP_M, 0.0)
-	var risky: BotCandidate = _site(OPEN_FIELD, BLOCK_TOP_M, RISKY)
-	assert_lt(BotEvaluator.proxy(risky, _view, intent), BotEvaluator.proxy(steady, _view, intent), "tip risk subtracts")
+	var steady: BotCandidate = _site(OPEN_FIELD, BLOCK_TOP_M, 0.3)
+	var unstable: BotCandidate = _site(OPEN_FIELD, BLOCK_TOP_M, UNSTABLE_SLACK)
+	assert_lt(BotEvaluator.proxy(unstable, _view, intent), BotEvaluator.proxy(steady, _view, intent), "instability subtracts")
+	assert_almost_eq(_proxied(unstable, intent, BotIntent.Term.TIP), BotEvaluator.tuning.topple_penalty, TOLERANCE)
+	assert_almost_eq(_measured(steady, intent, BotIntent.Term.TIP), 0.0, TOLERANCE)
 
 
 func test_off_mode_has_no_kill_term() -> void:
