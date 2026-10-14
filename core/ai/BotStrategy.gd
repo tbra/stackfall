@@ -181,7 +181,7 @@ static func _plan_sound_tower(
 	if stack.has_unsettled(view.team_id) and memory.has("sky_target"):
 		_apply_sky_plan(plan, memory["sky_target"] as Vector2, memory.get("sky_new_base", false) as bool)
 		return
-	var tops: PackedInt32Array = stack.sound_tops(view.team_id)
+	var tops: PackedInt32Array = stack.standing_tops(view.team_id)
 	var has_base: bool = memory.has("sky_base")
 	var base: Vector2 = memory.get("sky_base", Vector2.ZERO) as Vector2
 	var peak: float = memory.get("sky_peak", 0.0) as float
@@ -190,32 +190,52 @@ static func _plan_sound_tower(
 	if not has_base:
 		follow = tops[0] if not tops.is_empty() else NONE
 	else:
+		# Bontago-1t5.70: a top belongs to the tower when it, or anything it rests on, is rooted near the base.
 		for top: int in tops:
-			if stack.com_xz(top).distance_to(base) <= t.base_match_radius_m:
+			if stack.rooted_near(top, base, t.base_match_radius_m):
 				follow = top
 				break
 	if follow != NONE:
 		var height: float = stack.top_height(follow)
-		if pending or not has_base or height >= peak - t.collapse_drop_m:
+		if pending or not has_base or not _collapsed(height, peak, t):
 			var xz: Vector2 = stack.com_xz(follow)
 			memory["sky_base"] = xz
 			memory["sky_peak"] = height if (pending or not has_base) else maxf(peak, height)
 			memory["sky_pending"] = false
+			memory.erase("sky_lost")
 			_apply_sky_plan(plan, xz, false, memory)
 			return
 	if has_base and pending and _base_usable(view, stack, base):
 		_apply_sky_plan(plan, base, true, memory)
 		return
+	# Bontago-1t5.70: a tower that looks lost (no standing top near the base, or a collapse-sized loss) is kept for
+	# `collapse_grace_thinks` plans before a new base starts, so a few degrees of sway, a block that has not yet
+	# settled for the snapshot or a piece knocked off for a moment do not abandon a standing tower.
+	if has_base:
+		var lost: int = (memory.get("sky_lost", 0) as int) + 1
+		if lost <= t.collapse_grace_thinks:
+			memory["sky_lost"] = lost
+			_apply_sky_plan(plan, base, pending, memory)
+			return
 	var fresh: Vector2 = _find_new_base(view, stack, t)
 	if fresh == PlacementRules.NO_ORIGIN:
 		return
 	memory["sky_base"] = fresh
 	memory["sky_peak"] = 0.0
 	memory["sky_pending"] = true
+	memory.erase("sky_lost")
 	_apply_sky_plan(plan, fresh, true, memory)
 
 
-const SKY_KEYS: Array[String] = ["sky_base", "sky_peak", "sky_pending", "sky_target", "sky_new_base"]
+## Bontago-1t5.70: a real collapse: the top that is left stands `collapse_drop_m` under the peak AND under
+## `collapse_keep_fraction` of it (the tower is mostly on the disc). Losing the top few pieces of a tall tower is
+## not a collapse. DECISION: the peak is not lowered by such a loss, so a second loss is judged against the
+## original height.
+static func _collapsed(height: float, peak: float, t: BotStrategyTuning) -> bool:
+	return height < peak - t.collapse_drop_m and height < peak * t.collapse_keep_fraction
+
+
+const SKY_KEYS: Array[String] = ["sky_base", "sky_peak", "sky_pending", "sky_target", "sky_new_base", "sky_lost"]
 
 
 static func _apply_sky_plan(plan: Dictionary, target: Vector2, new_base: bool, memory: Dictionary = {}) -> void:

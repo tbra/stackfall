@@ -318,7 +318,11 @@ func test_the_new_base_may_sit_beside_the_pile() -> void:
 func test_the_new_base_may_sit_on_a_flat_fallen_block_but_not_on_a_flat_top_of_a_leaning_pile() -> void:
 	var first: Vector2 = _first_base_sample()
 	var far_base: Vector2 = HOME_A + Vector2(0.0, -_territory_tuning.home_radius)
-	var memory: Dictionary = {"sky_base": far_base, "sky_peak": 9.0, "sky_pending": false}
+	# Bontago-1t5.70: the grace time has run out (sky_lost), so the fallen tower starts the new base at once.
+	var memory: Dictionary = {
+		"sky_base": far_base, "sky_peak": 9.0, "sky_pending": false,
+		"sky_lost": BotStrategy.SHIPPED_TUNING.collapse_grace_thinks,
+	}
 	# A flat fallen cube under the first sample, a leaning one 1.1 m east of it.
 	var view: BotWorldView = _view([first, first + Vector2(1.1, 0.0)])
 	var stack: BotStack = _stack()

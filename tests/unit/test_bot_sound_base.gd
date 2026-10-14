@@ -293,7 +293,11 @@ func test_the_base_persists_while_the_tower_grows() -> void:
 
 
 func test_a_collapse_moves_the_base() -> void:
-	var memory: Dictionary = {"sky_base": STACK_XZ, "sky_peak": PEAK_M, "sky_pending": false}
+	# Bontago-1t5.70: the grace time has run out (sky_lost), so the collapse starts the new base at once.
+	var memory: Dictionary = {
+		"sky_base": STACK_XZ, "sky_peak": PEAK_M, "sky_pending": false,
+		"sky_lost": _strategy_tuning.collapse_grace_thinks,
+	}
 	var specs: Array = _pile_circle_specs()
 	specs.append([STACK_XZ, SOUND_TOP_M])
 	var view: BotWorldView = _view(specs, PILE_ORIGIN)
