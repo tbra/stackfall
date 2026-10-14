@@ -176,3 +176,20 @@ func test_default_config_resource_loads_and_has_eager_flags() -> void:
 	assert_gt(cfg.chunks.size(), 0)
 	assert_true(cfg.eager_flags.has("hot-seat"))
 	assert_eq(cfg.all_paths()[0], "res://ui/Lobby.tscn", "lobby is the first chunk")
+
+
+## Bontago-1pi.11.89: the Lobby's gift checklist loads every SpecialDef (each pulls its held-gift
+## scene, model and preview), a ~1 s stall the first time. Every def is prewarmed behind the menu.
+func test_default_config_prewarms_every_special_def() -> void:
+	var cfg: MenuPrewarmConfig = load("res://config/menu_prewarm.tres") as MenuPrewarmConfig
+	var paths: PackedStringArray = cfg.all_paths()
+	var dir: DirAccess = DirAccess.open(SpecialDef.SPECIALS_DIR)
+	assert_not_null(dir)
+	var found: int = 0
+	for file_name: String in dir.get_files():
+		var clean: String = file_name.trim_suffix(".remap")
+		if clean.ends_with(".tres"):
+			found += 1
+			assert_true(paths.has(SpecialDef.SPECIALS_DIR + clean), "%s is prewarmed" % clean)
+			assert_gt(paths.find(SpecialDef.SPECIALS_DIR + clean), paths.find("res://ui/Lobby.tscn"))
+	assert_gt(found, 0)
