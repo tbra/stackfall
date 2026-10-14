@@ -15,12 +15,7 @@ extends CanvasLayer
 ##   Controls  -> PlayerController.ghost_tuning (GhostTuning)
 ##   Physics   -> PlayerController.tuning (PhysicsTuning)
 ##   Territory -> Field.territory_tuning (TerritoryTuning) + Field.visuals
-##                (TerritoryVisuals). Bontago-1pi.1: the Skybox dropdown row
-##                (Bontago-xtq.22, config/SkyboxConfig.gd's `default_set`/
-##                `enabled`) that used to live here moved to the Sky tab
-##                below (owner playtest: "the skybox setting in territory
-##                should probably move over to sky settings") -- see
-##                _build_skybox_row()'s own doc.
+##                (TerritoryVisuals).
 ##   Feed      -> config/block_feed.tres (BlockFeedConfig), preloaded
 ##                directly -- autoload/Match.gd is the only script holding a
 ##                live reference to this one and it's a different package's
@@ -41,9 +36,7 @@ extends CanvasLayer
 ##   HUD       -> ui/HUD.gd's hud_visual_tuning + ui/Minimap.gd's tuning
 ##                (both preload config/hud_visual_tuning.tres -- HUDVisualTuning)
 ##   Sky       -> game/Skybox.gd's theme (SkyThemeDef), config/sky_themes/
-##                sunset.tres -- the only shipped theme on this branch --
-##                plus the Skybox dropdown row (Bontago-1pi.1, moved from
-##                Territory above)
+##                sunset.tres -- the only shipped theme on this branch
 ##
 ## Every control writes straight onto the *live* resource instance the rest
 ## of the game already reads -- the same object every other
@@ -75,13 +68,6 @@ extends CanvasLayer
 ##     CameraRig.apply_follow_tuning() on every rig in CameraRig.TUNING_GROUP,
 ##     re-snapshotting follow_distance/follow_pitch_deg (clamped, as _ready()
 ##     does) without disturbing a manual orbit/zoom the player already did.
-##   - SkyboxConfig: the Territory tab's Skybox dropdown calls
-##     apply_skybox_set(), which writes default_set/enabled onto the live
-##     skybox_config and then calls Skybox.apply_set() on every Skybox in
-##     Skybox.TUNING_GROUP so the loaded six-face set (and the Environment's
-##     Sky material every reflection/ambient read samples -- see
-##     game/Skybox.gd's own class doc) actually reloads, rather than only
-##     changing a Resource field nothing re-reads on its own.
 ##   - SkyThemeDef: apply_sky_theme_live() calls Skybox.apply_theme() on every
 ##     rig in Skybox.TUNING_GROUP (see that function's own doc for a known
 ##     partial-live gap around the FogVolume child). Bontago-59o.18 (U1): a rig
@@ -662,13 +648,10 @@ func _add_tab(tab_name: String, resources: Array) -> void:
 		list.add_child(_build_section(HAND_BUILT_CLASS, PRESET_SECTION_TITLE, preset_rows, true))
 		first_section = false
 	if tab_name == "Sky":
-		# Bontago-xtq.22 / 1pi.1: the Skybox row switches the loaded six-face
-		# set; its live result (the disc's mirror) is judged against
-		# TerritoryVisuals' reflection fields on the Territory look tab.
-		# Bontago-1pi.113: Theme/Time/Skybox/Weather/Breeze are one ordinary
+		# Bontago-1pi.113: Theme/Time/Weather/Breeze are one ordinary
 		# foldable section in the same grid as every reflected row.
 		var scene_rows: Array[Control] = [
-			_build_theme_row(), _build_time_of_day_row(), _build_skybox_row(),
+			_build_theme_row(), _build_time_of_day_row(),
 			_build_weather_row(), _build_breeze_row(),
 		]
 		list.add_child(_build_section(HAND_BUILT_CLASS, SCENE_SECTION_TITLE, scene_rows, true))
@@ -1365,12 +1348,7 @@ func apply_physics_preset(preset_id: String) -> void:
 ## config/sky_themes/*.tres SkyThemeDef, discovered by
 ## Skybox.list_available_themes()), led by Bontago-59o.18's "cycle" entry (the
 ## default match sky: Skybox.start_cycle(); the Time-of-day row below locks it).
-## DECISION: a sibling row directly above the
-## Skybox row rather than extra Skybox entries -- the Skybox row picks a
-## six-face texture set (or procedural), a different axis from the whole-look
-## theme (light, fog, clouds, birds), and mixing them would make "night" and
-## "beach" look like mutually exclusive choices. Persists like the Skybox row:
-## the pick lives on skybox_config.theme_name (saved by Save override).
+## Persists on skybox_config.theme_name (saved by Save override).
 func _build_theme_row() -> Control:
 	var row: HBoxContainer = HBoxContainer.new()
 	row.add_theme_constant_override("separation", ROW_SEPARATION)
@@ -1750,73 +1728,6 @@ func _time_choice_for_phase(phase: float) -> String:
 	return TIME_CUSTOM
 
 
-## Bontago-xtq.22: the Sky tab's own Skybox row (Bontago-1pi.1: moved here
-## from the Territory tab -- owner playtest: "the skybox setting in
-## territory should probably move over to sky settings"), built the same way
-## _build_physics_preset_row() above is (a plain Control returned to
-## _add_tab's caller, not reflection-built and not registered in _rows --
-## config/SkyboxConfig.gd's `default_set`/`enabled` are a String and a bool
-## the reflection loop either can't render (String) or would show as a
-## second, redundant control alongside this dropdown (`enabled`), so both
-## stay off the generic per-field roster and are written here as a pair
-## instead, the same "one control owns several fields at once" idiom the
-## preset row already established).
-func _build_skybox_row() -> Control:
-	var row: HBoxContainer = HBoxContainer.new()
-	row.add_theme_constant_override("separation", ROW_SEPARATION)
-
-	var label: Label = Label.new()
-	label.text = "Skybox"
-	label.custom_minimum_size = Vector2(NAME_COLUMN_WIDTH, 0.0)
-	row.add_child(label)
-
-	var option: OptionButton = OptionButton.new()
-	option.tooltip_text = (
-		"Switches the loaded six-face skybox set live (the sky and the disc's " +
-		"mirror/reflection both update immediately) -- lets the owner judge " +
-		"disc reflectivity against different skies without restarting the match."
-	)
-	var ids: Array[String] = [Skybox.PROCEDURAL_SET_ID]
-	option.add_item("Procedural / none")
-	for set_id: String in Skybox.list_available_sets():
-		ids.append(set_id)
-		option.add_item(set_id)
-
-	var selected_id: String = (
-		skybox_config.default_set if skybox_config.enabled else Skybox.PROCEDURAL_SET_ID
-	)
-	var selected_index: int = ids.find(selected_id)
-	option.selected = selected_index if selected_index >= 0 else 0
-
-	option.item_selected.connect(func(index: int) -> void:
-		apply_skybox_set(ids[index])
-	)
-	row.add_child(_in_control_column(option))
-
-	return row
-
-
-## Writes the owner's dropdown pick onto the shared skybox_config (so it
-## round-trips through Save override/Reset/Copy exactly like every other
-## tunable -- see config/SkyboxConfig.gd's own DECISION) and then pushes it
-## onto every live Skybox the same "every live instance already in the tree"
-## way apply_physics_live()/apply_camera_tuning_live()/
-## refresh_territory_visuals_live() already do via their own TUNING_GROUPs --
-## a no-op push (but not a no-op write) in a bare-panel test with no Skybox in
-## the tree, the same contract those three already have. Public so a test can
-## drive it without a real OptionButton.
-func apply_skybox_set(set_id: String) -> void:
-	if set_id == Skybox.PROCEDURAL_SET_ID:
-		skybox_config.enabled = false
-	else:
-		skybox_config.default_set = set_id
-		skybox_config.enabled = true
-	for node: Node in get_tree().get_nodes_in_group(Skybox.TUNING_GROUP):
-		var skybox: Skybox = node as Skybox
-		if skybox != null:
-			skybox.apply_set(set_id)
-
-
 func _physics_preset_resource(preset_id: String) -> PhysicsTuning:
 	for preset: Dictionary in PHYSICS_PRESETS:
 		if String(preset["id"]) == preset_id:
@@ -1893,9 +1804,7 @@ func apply_arena_style_live() -> void:
 
 
 ## Bontago-xtq.36: pushes sky_theme onto every live Skybox's own public
-## re-apply method (game/Skybox.gd's apply_theme(), the same seam
-## apply_skybox_set() above already calls it through -- see that function
-## and Skybox.apply_theme()'s own doc). Iterates Skybox.TUNING_GROUP, the same
+## re-apply method (game/Skybox.gd's apply_theme(); see its own doc). Iterates Skybox.TUNING_GROUP, the same
 ## "every live instance already in the tree" idiom apply_camera_tuning_live()/
 ## refresh_territory_visuals_live() use, so this reaches a Skybox even in a
 ## bare-panel test. Known gap (not fixed here -- Skybox.gd isn't an owned
@@ -1963,7 +1872,6 @@ func reset_all() -> void:
 	apply_physics_live()
 	refresh_territory_visuals_live()
 	apply_arena_style_live()
-	apply_skybox_set(skybox_config.default_set if skybox_config.enabled else Skybox.PROCEDURAL_SET_ID)
 	if cycle_was_active:
 		apply_sky_theme_live()
 	elif not apply_sky_theme_id(skybox_config.theme_name):
@@ -2013,8 +1921,8 @@ func save_overrides() -> Error:
 
 
 ## Bontago-xtq.22: TYPE_STRING joins the allowed set here (and in
-## _copy_section() below) so config/SkyboxConfig.gd's `default_set` --
-## the F4 Skybox row's own value, not reflection-built and so never reaching
+## _copy_section() below) so config/SkyboxConfig.gd's `theme_name` --
+## the F4 Theme row's own value, not reflection-built and so never reaching
 ## either function through a Control -- still round-trips through Save
 ## override/Copy the same as every BOOL/INT/FLOAT/COLOR field already does.
 ## No existing resource this panel writes had a String field before, so nothing

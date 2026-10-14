@@ -72,8 +72,6 @@ func _snapshot(rig: Dictionary) -> Dictionary:
 	return {
 		"theme": skybox.theme.resource_path,
 		"theme_name": skybox.config.theme_name,
-		"set_enabled": skybox.config.enabled,
-		"fallback_active": skybox.fallback_active,
 		"cycle_active": skybox.is_cycle_active(),
 		"locked_phase": skybox.locked_phase(),
 		"cycle_phase": skybox.current_cycle_phase(),
@@ -236,22 +234,6 @@ func test_reset_drops_the_cycle_sky_materials_it_no_longer_uses() -> void:
 		_overcast(skybox, 1.0)
 		skybox.reset_to_launch()
 	assert_lte(skybox._overcast_sky_bases.size(), 1, "only the live material keeps a baseline exposure")
-
-
-func test_a_textured_set_override_does_not_survive_the_reset() -> void:
-	var rig: Dictionary = _rig()
-	var skybox: Skybox = rig["skybox"] as Skybox
-	var launch: Dictionary = _snapshot(rig)
-	var launch_enabled: bool = skybox.config.enabled
-	var launch_set: String = skybox.config.default_set
-	skybox.config.enabled = not launch_enabled
-	skybox.config.default_set = "elsewhere"
-	skybox.fallback_active = false
-	skybox.reset_to_launch()
-	assert_eq(skybox.config.enabled, launch_enabled)
-	assert_eq(skybox.config.default_set, launch_set)
-	assert_true(skybox.fallback_active)
-	_assert_same_snapshot(_snapshot(rig), launch, "after reset")
 
 
 func test_match_scope_reset_resets_every_skybox_and_leaving_the_tree_unhooks_it() -> void:
