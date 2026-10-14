@@ -3,8 +3,8 @@ extends GutTest
 ## row. rotate_yaw_ccw/cw and lock_vertical (and a few more) carry only
 ## keyboard/mouse events in the Input Map because the pad performs the same job
 ## through other actions (tests/unit/test_project_setup.gd DEVICE_EXCEPTIONS,
-## spec 2.5). ui/KeyRebindRow.gd's PAD_STAND_INS / PAD_NOT_APPLICABLE tables
-## say which, so this file checks (1) every stand-in resolves to a real pad
+## spec 2.5). ui/KeyRebindRow.gd's PAD_ONLY_ACTIONS / PAD_NOT_APPLICABLE tables
+## say which, so this file checks (1) every pad row resolves to a real pad
 ## event that really drives its action, (2) every listed gameplay row has a
 ## glyph or is hidden on the pad page, and (3) no two gameplay actions share a
 ## pad event unless that overlap is intentional and documented.
@@ -43,15 +43,15 @@ func after_each() -> void:
 
 # --- Resolution: the exact controls the pad page shows ---------------------------
 
-func test_rotate_yaw_cw_resolves_to_the_b_snap_button() -> void:
-	var events: Array[InputEvent] = KeyRebindRow.gamepad_events_for(&"rotate_yaw_cw")
+func test_rotate_snap_resolves_to_the_b_button() -> void:
+	var events: Array[InputEvent] = KeyRebindRow.gamepad_events_for(&"rotate_snap")
 	assert_eq(events.size(), 1)
 	assert_true(events[0] is InputEventJoypadButton)
 	assert_eq((events[0] as InputEventJoypadButton).button_index, JOY_BUTTON_B)
 
 
-func test_rotate_yaw_ccw_resolves_to_the_right_trigger_free_rotation_axis() -> void:
-	var events: Array[InputEvent] = KeyRebindRow.gamepad_events_for(&"rotate_yaw_ccw")
+func test_rotate_drag_pad_resolves_to_the_right_trigger_free_rotation_axis() -> void:
+	var events: Array[InputEvent] = KeyRebindRow.gamepad_events_for(&"rotate_drag_pad")
 	assert_eq(events.size(), 1)
 	assert_true(events[0] is InputEventJoypadMotion)
 	assert_eq((events[0] as InputEventJoypadMotion).axis, JOY_AXIS_TRIGGER_RIGHT)
@@ -87,7 +87,7 @@ func test_pad_page_hides_fixed_camera_rows_and_snap_rows_are_hidden_everywhere()
 		assert_false(row.visible)
 		Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
 	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
-	assert_true(_make_row(&"camera_orbit").is_available_on_active_device(), "Orbit camera stays on the pad page")
+	assert_false(_make_row(&"camera_orbit").is_available_on_active_device(), "Orbit camera is keyboard/mouse only (Bontago-1pi.159.63)")
 
 	for action: StringName in KeyRebindRow.SNAP_ACTIONS:
 		var row: KeyRebindRow = _make_row(action)
@@ -102,11 +102,12 @@ func test_pad_page_hides_fixed_camera_rows_and_snap_rows_are_hidden_everywhere()
 		Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
 
 
-## A player who rebinds Rotate right on the pad page adds a real pad event to
-## rotate_yaw_cw itself (KeyRebindRow's capture path is unchanged); the row must
-## then show that binding, not the stand-in. The event is removed again so the
-## real Input Map is left as bootstrap generated it.
-func test_an_actions_own_pad_binding_wins_over_its_stand_in() -> void:
+## A pad rebind adds a real pad event to the action itself; the row shows it, and an
+## action with no pad event of its own shows nothing (the old stand-ins are gone,
+## Bontago-1pi.159.63). The event is removed again so the real Input Map is left as
+## bootstrap generated it.
+func test_an_actions_own_pad_binding_is_what_the_row_shows() -> void:
+	assert_eq(KeyRebindRow.gamepad_events_for(&"rotate_yaw_cw").size(), 0, "no stand-in for a keyboard-only action")
 	var own: InputEventJoypadButton = InputEventJoypadButton.new()
 	own.button_index = JOY_BUTTON_MISC1
 	InputMap.action_add_event(&"rotate_yaw_cw", own)
@@ -114,23 +115,7 @@ func test_an_actions_own_pad_binding_wins_over_its_stand_in() -> void:
 	InputMap.action_erase_event(&"rotate_yaw_cw", own)
 	assert_eq(events.size(), 1)
 	assert_eq((events[0] as InputEventJoypadButton).button_index, JOY_BUTTON_MISC1)
-	assert_eq(KeyRebindRow.gamepad_events_for(&"rotate_yaw_cw").size(), 1, "stand-in returns once the own event is gone")
-
-
-func test_every_stand_in_source_exists_and_is_bound_on_the_pad() -> void:
-	for action: StringName in KeyRebindRow.PAD_STAND_INS.keys():
-		var sources: Array = KeyRebindRow.PAD_STAND_INS[action]
-		assert_gt(sources.size(), 0, "%s needs at least one stand-in source" % action)
-		for source: StringName in sources:
-			assert_true(InputMap.has_action(source), "%s stand-in source %s must be a real Input Map action" % [action, source])
-			assert_gt(
-				KeyRebindRow.gamepad_events_for(source).size(), 0,
-				"%s stand-in source %s must have a gamepad event" % [action, source]
-			)
-		assert_eq(
-			KeyRebindRow.gamepad_events_for(action).size(), sources.size(),
-			"%s must resolve one glyph event per stand-in source" % action
-		)
+	assert_eq(KeyRebindRow.gamepad_events_for(&"rotate_yaw_cw").size(), 0)
 
 
 ## Every Options row either shows at least one pad glyph on the gamepad page or
@@ -147,38 +132,29 @@ func test_every_rebindable_action_shows_a_pad_glyph_or_is_hidden_on_the_pad_page
 			assert_true(KeyRebindRow.PAD_NOT_APPLICABLE.has(action) or KeyRebindRow.SNAP_ACTIONS.has(action), "%s is hidden on the gamepad page without being declared PAD_NOT_APPLICABLE" % action)
 
 
-func test_rows_render_the_stand_in_glyphs() -> void:
+func test_pad_rows_render_their_own_glyphs() -> void:
 	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
-	assert_eq(_glyph_labels(_make_row(&"rotate_yaw_cw")), ["B"])
-	assert_eq(_glyph_labels(_make_row(&"rotate_yaw_ccw")), ["RT"])
-	assert_eq(_glyph_labels(_make_row(&"rotate_drag")), ["B", "RT"])
-	assert_eq(_glyph_labels(_make_row(&"camera_orbit")), ["R Stick right"])
-	assert_eq(_glyph_labels(_make_row(&"camera_zoom_in")), ["LT", "L Stick up"])
+	assert_eq(_glyph_labels(_make_row(&"rotate_snap")), ["B"])
+	assert_eq(_glyph_labels(_make_row(&"rotate_drag_pad")), ["RT"])
 
 
-func test_keyboard_page_is_unchanged_by_the_stand_ins() -> void:
+func test_keyboard_page_shows_the_real_bindings() -> void:
 	var cw: KeyRebindRow = _make_row(&"rotate_yaw_cw")
 	assert_eq(_glyph_labels(cw), ["S"], "keyboard/mouse page still shows only the real S binding")
 
 
-# --- Synthetic input drives the stand-in actions ----------------------------------
+# --- Synthetic input drives the pad-only actions ----------------------------------
 
-## The stand-in glyphs are only honest if pressing those physical inputs really
-## triggers the action they stand in for. Pushes each resolved event through
-## Input.parse_input_event() and checks the source action reacts, then releases.
-func test_synthetic_pad_events_drive_every_stand_in_source_action() -> void:
-	for action: StringName in KeyRebindRow.PAD_STAND_INS.keys():
-		var sources: Array = KeyRebindRow.PAD_STAND_INS[action]
+## The glyphs are only honest if pressing those physical inputs really triggers the
+## action the row stands for.
+func test_synthetic_pad_events_drive_the_pad_only_actions() -> void:
+	for action: StringName in KeyRebindRow.PAD_ONLY_ACTIONS:
 		for event: InputEvent in KeyRebindRow.gamepad_events_for(action):
 			_push(event, true)
-			var driven: bool = false
-			for source: StringName in sources:
-				if Input.is_action_pressed(source):
-					driven = true
+			var driven: bool = Input.is_action_pressed(action)
 			_push(event, false)
-			assert_true(driven, "%s: pad event %s did not press any of its stand-in actions %s" % [action, event.as_text(), sources])
-			for source: StringName in sources:
-				assert_false(Input.is_action_pressed(source), "%s must be released after the synthetic release" % source)
+			assert_true(driven, "%s: pad event %s did not press the action" % [action, event.as_text()])
+			assert_false(Input.is_action_pressed(action), "%s must be released after the synthetic release" % action)
 
 
 # --- No unintended pad-event collisions among gameplay actions --------------------

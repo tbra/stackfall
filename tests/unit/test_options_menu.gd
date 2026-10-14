@@ -398,6 +398,8 @@ func test_every_rebindable_action_has_a_keyboard_or_mouse_binding() -> void:
 	for action: StringName in OptionsMenu.REBINDABLE_ACTIONS:
 		if not InputMap.has_action(action):
 			continue  # Reported by test_project_setup.gd's test_every_required_action_exists.
+		if KeyRebindRow.PAD_ONLY_ACTIONS.has(action):
+			continue  # Bontago-1pi.159.63: pad-only rows (B / RT) are listed on the gamepad page only.
 		found_any = true
 		var has_desktop: bool = false
 		for event: InputEvent in InputMap.action_get_events(action):
@@ -612,7 +614,7 @@ func test_focus_chain_skips_rows_hidden_on_the_gamepad_page() -> void:
 	assert_false(chain_pad.has(lock_button), "no focus-chain stop may point at the hidden row")
 	for hidden_button: Control in pad_hidden:
 		assert_false(chain_pad.has(hidden_button), "no focus-chain stop may point at a pad-hidden row")
-	assert_eq(chain_pad.size(), chain_before.size() - pad_hidden.size(), "only the hidden rows drop out of the chain")
+	assert_eq(chain_pad.size(), chain_before.size() - pad_hidden.size() + KeyRebindRow.PAD_ONLY_ACTIONS.size(), "the hidden rows drop out and the pad-only rows join the chain")
 
 	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
 	assert_true(lock_button.visible)

@@ -71,18 +71,15 @@ const PRESET_LABELS: Array[String] = GraphicsSettingsTab.PRESET_LABELS
 ## (docs/AGENT_WORKFLOW.md minor ambiguity: no gameplay rule or [ORIGINAL]
 ## binding changes); the gamepad bindings themselves are untouched.
 ##
-## Same reasoning excludes rotate_snap: tools/bootstrap_project.gd's own
-## comment on that action already documents it as gamepad-only (B) *because*
-## rotate_yaw_cw (KEY_S) gives a K+M player the identical single-tap
-## 90-degree yaw already -- a real, listed row -- so rotate_snap's own row
-## would be a second, K+M-unmappable control for the same function. The
-## gamepad page's "Rotate right" row shows rotate_snap's B instead
-## (ui/KeyRebindRow.gd PAD_STAND_INS, Bontago-1pi.41).
+## Bontago-1pi.159.63 (owner decision 1pi.159.62): rotate_snap (B, 90 degree tap) and
+## rotate_drag_pad (RT held + left stick) are now listed too, as the gamepad page's own
+## "Rotate 90 deg" / "Free rotate (hold)" rows; they carry no keyboard binding, so
+## ui/KeyRebindRow.gd PAD_ONLY_ACTIONS hides them on the mouse/keyboard page.
 const REBINDABLE_ACTIONS: Array[StringName] = [
 	&"ghost_place", &"use_gift_slot",
 	&"rotate_yaw_ccw", &"rotate_yaw_cw", &"rotate_pitch_fwd", &"rotate_pitch_back",
 	&"rotate_roll_left", &"rotate_roll_right", &"rotation_mode", &"rotate_reset",
-	&"rotate_drag",
+	&"rotate_drag", &"rotate_snap", &"rotate_drag_pad",
 	&"hover_raise", &"hover_lower", &"lock_vertical",
 	&"camera_mode", &"camera_orbit",
 	&"camera_pan_left", &"camera_pan_right", &"camera_pan_forward", &"camera_pan_back",
@@ -111,7 +108,7 @@ const SECTIONS: Array[Dictionary] = [
 		"actions": [
 			&"rotate_yaw_ccw", &"rotate_yaw_cw", &"rotate_pitch_fwd", &"rotate_pitch_back",
 			&"rotate_roll_left", &"rotate_roll_right", &"rotation_mode", &"rotate_reset",
-			&"rotate_drag",
+			&"rotate_drag", &"rotate_snap", &"rotate_drag_pad",
 		],
 	},
 	{

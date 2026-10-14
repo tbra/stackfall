@@ -49,7 +49,9 @@ const DISPLAY_NAMES: Dictionary[StringName, String] = {
 	&"rotate_roll_right": "Roll right",
 	&"rotation_mode": "Free rotation mode (hold)",
 	&"rotate_reset": "Reset rotation",
-	&"rotate_drag": "Rotate (drag)",
+	&"rotate_drag": "Free rotate (drag)",
+	&"rotate_snap": "Rotate 90 deg",
+	&"rotate_drag_pad": "Free rotate (hold)",
 	&"hover_raise": "Raise block",
 	&"hover_lower": "Lower block",
 	&"lock_vertical": "Lock height",
@@ -70,36 +72,16 @@ const DISPLAY_NAMES: Dictionary[StringName, String] = {
 	&"chat_open": "Chat",
 }
 
-## Bontago-1pi.41 (owner capture of the Options gamepad Controls page: blank
-## rows for Rotate left/right, Lock height, ...). Several gameplay actions have
-## no Input Map *gamepad event of their own* because the pad performs the same
-## job through a different, pad-only action -- tools/bootstrap_project.gd's
-## DEVICE_EXCEPTIONS (tests/unit/test_project_setup.gd) and spec 2.5's control
-## table document each one. On the gamepad page such a row shows those real
-## stand-in controls (read live from the InputMap, never a raw button literal):
-##   rotate_yaw_cw      -> rotate_snap (B, 90 degree yaw tap)
-##   rotate_yaw_ccw     -> rotate_drag_pad (RT held + left stick, free rotation;
-##                         the pad has no counter-clockwise tap)
-##   rotation_mode      -> rotate_drag_pad (the pad's own free-rotation gesture)
-##   rotate_drag        -> rotate_snap + rotate_drag_pad (B taps, RT drags)
-##   camera_mode,
-##   camera_orbit       -> camera_look_right (right stick orbits unconditionally)
-##   camera_zoom_in/out -> camera_zoom_modifier + ghost_move_forward/back
-##                         (LT held + left stick; InputGlyph has no stick
-##                         direction, so both rows read "LT + L Stick")
-## An action's own gamepad binding always wins: once a player rebinds it on the
-## pad page the row shows that binding instead (KeyRebindRow's normal capture
-## path is unchanged -- it adds a real gamepad event to the action itself).
-const PAD_STAND_INS: Dictionary[StringName, Array] = {
-	&"rotate_yaw_cw": [&"rotate_snap"],
-	&"rotate_yaw_ccw": [&"rotate_drag_pad"],
-	&"rotation_mode": [&"rotate_drag_pad"],
-	&"rotate_drag": [&"rotate_snap", &"rotate_drag_pad"],
-	&"camera_mode": [&"camera_look_right"],
-	&"camera_orbit": [&"camera_look_right"],
-	&"camera_zoom_in": [&"camera_zoom_modifier", &"ghost_move_forward"],
-	&"camera_zoom_out": [&"camera_zoom_modifier", &"ghost_move_back"],
-}
+## Bontago-1pi.159.63 (owner decision 1pi.159.62, option A): the gamepad page lists only
+## the pad's real controls. The pad rotates with B (rotate_snap, a 90 degree tap) and with
+## RT held + left stick (rotate_drag_pad, free rotation), so those two have their own rows
+## ("Rotate 90 deg", "Free rotate (hold)") and the keyboard rows that used to show them as
+## stand-ins (Rotate left/right, Free rotation mode, Free rotate (drag)) are hidden on the
+## pad page (PAD_NOT_APPLICABLE). An action's glyphs are always its own pad events.
+
+## Pad-only actions: they have no mouse/keyboard binding (tools/bootstrap_project.gd), so
+## their rows exist on the gamepad page only.
+const PAD_ONLY_ACTIONS: Array[StringName] = [&"rotate_snap", &"rotate_drag_pad"]
 
 ## DECISION (Bontago-1pi.41): actions with no gamepad function at all are hidden
 ## from the gamepad page instead of showing a blank row. lock_vertical: spec
@@ -113,8 +95,15 @@ const PAD_STAND_INS: Dictionary[StringName, Array] = {
 ## live in the unused free camera, left stick + modifier), the pan modifier,
 ## and zoom in/out (the pad zooms with LT + left stick). "Orbit camera" (right
 ## stick) stays as the one camera row a pad player may want to read.
+##
+## Bontago-1pi.159.63 (owner decision 1pi.159.62): also hidden on the pad page are the rows that
+## only ever showed a stand-in (Rotate left/right, Free rotation mode, Free rotate (drag)) and
+## Orbit camera (the right stick always orbits and is not rebindable). "Orbit camera" stays on
+## the mouse/keyboard page (right mouse button).
 const PAD_NOT_APPLICABLE: Array[StringName] = [
 	&"lock_vertical",
+	&"rotate_yaw_ccw", &"rotate_yaw_cw", &"rotation_mode", &"rotate_drag",
+	&"camera_orbit",
 	&"camera_mode", &"camera_modifier",
 	&"camera_pan_left", &"camera_pan_right", &"camera_pan_forward", &"camera_pan_back",
 	&"camera_zoom_in", &"camera_zoom_out",
@@ -411,8 +400,9 @@ func _clear_glyphs() -> void:
 ## device family (autoload/Settings.gd's own active_input_device()) -- the
 ## "only showing mouse/keyboard, switch to showing only gamepad" behavior the
 ## owner asked for. Bontago-1pi.41: on the gamepad page an action without its
-## own pad event shows its documented stand-in controls (PAD_STAND_INS) and an
-## action with no pad function at all (PAD_NOT_APPLICABLE) hides the row. Any
+## own pad event shows no glyph, an action with no pad function at all
+## (PAD_NOT_APPLICABLE) hides the row on the pad page and a pad-only action
+## (PAD_ONLY_ACTIONS) hides it on the mouse/keyboard page. Any
 ## other row with no binding for the active family is left visible with an
 ## empty glyph row -- still a real, rebindable row for that device.
 ## Owner: "max two glyphs per row, extra bindings hidden behind '+1'" -- a
@@ -432,7 +422,8 @@ func _refresh_glyphs() -> void:
 
 
 ## Whether this row belongs on the page of the player's active device family:
-## false for a PAD_NOT_APPLICABLE action while the gamepad page shows, and for
+## false for a PAD_NOT_APPLICABLE action while the gamepad page shows, for a
+## PAD_ONLY_ACTIONS action while the keyboard/mouse page shows, and for
 ## the snap rows while snapping is disabled in CameraTuning.
 ## Computed from Settings (not from `visible`) so ui/OptionsMenu.gd can ask it
 ## when rebuilding the focus chain without depending on signal order.
@@ -440,7 +431,7 @@ func is_available_on_active_device() -> bool:
 	if SNAP_ACTIONS.has(_action) and not camera_tuning.snap_enabled:
 		return false
 	if Settings.active_input_device() != Settings.DEVICE_GAMEPAD:
-		return true
+		return not PAD_ONLY_ACTIONS.has(_action)
 	return not PAD_NOT_APPLICABLE.has(_action)
 
 
@@ -451,19 +442,10 @@ func _events_for_active_device() -> Array[InputEvent]:
 
 
 ## The gamepad controls the Options page shows for `action`: its own pad events
-## when it has any, otherwise the first pad event of each PAD_STAND_INS source
-## action (empty when the action has neither). Public static so tests can assert
-## the resolution without building a row.
+## (empty when it has none). Public static so tests can assert the resolution
+## without building a row.
 static func gamepad_events_for(action: StringName) -> Array[InputEvent]:
-	var own: Array[InputEvent] = events_of_family(action, true)
-	if not own.is_empty():
-		return own
-	var stand_ins: Array[InputEvent] = []
-	for source: StringName in (PAD_STAND_INS.get(action, []) as Array):
-		var source_events: Array[InputEvent] = events_of_family(source, true)
-		if not source_events.is_empty():
-			stand_ins.append(source_events[0])
-	return stand_ins
+	return events_of_family(action, true)
 
 
 static func events_of_family(action: StringName, gamepad: bool) -> Array[InputEvent]:
