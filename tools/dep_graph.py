@@ -37,7 +37,8 @@ import sys
 import time
 
 DEFAULT_ROOT = "M:/Bontago"
-DEFAULT_OUT = "M:/Bontago-tools/scratch/depgraph/"
+# Outside scratch/ so `tools/scratch.py prune` never deletes it (Bontago-fca.113).
+DEFAULT_OUT = "M:/Bontago-tools/depgraph/"
 
 # Top-level directories that are not game content. docs/ files are added on
 # demand when something in the game references them (res://docs/...).
