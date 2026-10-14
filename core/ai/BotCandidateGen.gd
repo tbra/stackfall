@@ -359,16 +359,19 @@ class _Gen:
 	func _try_add(
 		point: Vector2, orientation: BotStatics.OrientationInfo, kind: int, on_stack: bool, stack_top: float
 	) -> bool:
-		if not _placeable(point):
+		# Bontago-1t5.55.1: `point` is where the piece's footprint centre should land; the origin is
+		# the pivot the host tests (centre_shift is 0 for yaw-only orientations).
+		var origin: Vector2 = point - orientation.center_shift * view.cube_size
+		if not _placeable(origin):
 			return false
 		var key: Vector3i = Vector3i(
-			roundi(point.x / t.distinct_quantum_m), roundi(point.y / t.distinct_quantum_m), orientation.index
+			roundi(origin.x / t.distinct_quantum_m), roundi(origin.y / t.distinct_quantum_m), orientation.index
 		)
 		if _seen.has(key):
 			return false
 		_seen[key] = true
 		var candidate: BotCandidate = BotCandidate.new()
-		candidate.origin = point
+		candidate.origin = origin
 		candidate.orientation_index = orientation.index
 		candidate.site_kind = kind
 		candidate.support_height = stack_top if on_stack else 0.0
@@ -376,8 +379,8 @@ class _Gen:
 		candidate.shape_height = orientation.height
 		candidate.top_height = candidate.support_height + candidate.shape_height
 		candidate.tip_risk = orientation.flat_risk
-		candidate.footprint_cells = PlacementRules.footprint_cells(
-			view.held.cells, BlockOrientations.get_basis(orientation.index), point, view.cube_size, view.grid
+		candidate.footprint_cells = BotStatics.footprint_cells_of(
+			view.held, orientation, candidate.origin, view.cube_size, view.grid
 		)
 		out.append(candidate)
 		return true

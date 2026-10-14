@@ -553,16 +553,18 @@ func test_fire_stability_raycasts_counts_only_corners_within_tolerance() -> void
 	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
 
 	var two_wide_shape: BlockShape = BlockShape.new()
-	two_wide_shape.cells = [Vector3i(0, 0, 0), Vector3i(1, 0, 0)]
+	# Bontago-1t5.55.1: cubes now sit around the pivot (B*(cell - bottom_center())), so a
+	# three-wide bar puts its middle cube over the origin (the platform) and one cube each side.
+	two_wide_shape.cells = [Vector3i(0, 0, 0), Vector3i(1, 0, 0), Vector3i(2, 0, 0)]
 	controller._generate_one_candidate(0, two_wide_shape, 0)
 
 	assert_eq(controller._candidates.size(), 1, "fixture: exactly one candidate generated")
 	var candidate: BotCandidate = controller._candidates[0]
-	assert_eq(candidate.footprint_cells.size(), 2, "fixture: the two-wide shape covers exactly two footprint cells")
+	assert_eq(candidate.footprint_cells.size(), 3, "fixture: the three-wide shape covers exactly three footprint cells")
 	assert_almost_eq(candidate.support_height, 1.0, 0.05, "fixture: the origin raycast hits the platform's own top surface")
 	assert_eq(
 		candidate.corner_support_hits, 1,
-		"only the corner over the platform (half the 2-ray footprint) counts as in contact"
+		"only the middle cube over the platform counts as in contact"
 	)
 
 

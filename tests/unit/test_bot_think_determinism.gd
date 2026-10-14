@@ -20,7 +20,10 @@ const STEP_GUARD: int = 5000
 const SHAPE_IDS: Array[String] = ["cube", "pillar", "L4", "T4", "arch5", "plus5", "stair6"]
 const WAVE_SCALE: float = 0.7
 const WAVE_HEIGHT_M: float = 0.8
-const BASELINE_MD5: String = "3703bcb9cdab17f12e340a391ee5f05c"
+# DECISION (Bontago-1t5.55.1): re-baselined once. The bot now models the piece in the spawn frame
+# (cubes at B*(cell - pivot), origin = pivot), so sites, footprints and probes legitimately change.
+# Old 3703bcb9cdab17f12e340a391ee5f05c (main 4c474d41), new below.
+const BASELINE_MD5: String = "610fd6bfd53c89ae1101771485635286"
 ## Slices the deadline driver takes before complete() runs the rest.
 const DEADLINE_SLICES: int = 3
 ## A small positive slice: step() then also weighs the next unit's predicted cost.
