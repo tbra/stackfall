@@ -12,8 +12,21 @@ const GROUP: StringName = &"ui_row_item"
 const METRICS_PATH: String = "res://config/component_metrics.tres"
 
 
+static var _metrics: ComponentMetrics = null
+
+
+## The shared metrics resource, loaded once (load() per call cost ~0.3 ms per row item).
 static func metrics() -> ComponentMetrics:
-	return load(METRICS_PATH) as ComponentMetrics
+	if _metrics == null:
+		_metrics = load(METRICS_PATH) as ComponentMetrics
+		if _metrics != null and not _metrics.changed.is_connected(invalidate_metrics_cache):
+			_metrics.changed.connect(invalidate_metrics_cache)
+	return _metrics
+
+
+## Drops the cached resource so the next call reloads it (a `changed` emission, tests, tooling).
+static func invalidate_metrics_cache() -> void:
+	_metrics = null
 
 
 ## Applies the row-item contract to [param control]. [param fill] lets a meter / field / dropdown
