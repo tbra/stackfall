@@ -1,13 +1,13 @@
 # CLAUDE.md
 
 ## Project
-A remake of Bontãgo (2003): a physics-based, competitive block-stacking territory game built in Godot 4.6+ with Jolt physics. It supports 2–8 players, online over Steam and on LAN. Working title: **Stackfall**.
-**The full spec is `docs/SPEC.md`. Read the relevant sections before starting any milestone.** Where this file and the spec disagree, the spec wins.
+Stackfall: a physics-based, competitive block-stacking territory game built in Godot 4.6+ with Jolt physics. It supports 2–8 players, online over Steam and on LAN. Working title: **Stackfall**. It began as a remake of Bontãgo (2003); that phase is complete (owner, 2026-10-14). We now build Stackfall as its own game: the original is history, not a reference or gate to build against.
+**The design and technical spec is `docs/SPEC.md`: it describes Stackfall as built and intended. Read the relevant sections before starting a package.** Where this file and the spec disagree, the spec wins.
 
 ## How the work is organised
 The build runs as an **orchestrator plus reusable project workers**. The top-level Claude session owns sequencing, Beads, worktree assignments, and acceptance decisions; workers implement and validate bounded packages. Start a replacement session with `claude --agent stackfall-orchestrator` from this repository and use `.claude/skills/stackfall-session-resume/SKILL.md`. `docs/CLAUDE_HANDOFF.md` is historical context, not a startup read; live task state remains in Beads.
 
-Read `docs/AGENT_WORKFLOW.md` for the worker roster, dispatch contract, checkpoints, and recovery protocol. The orchestrator may inspect files, run diagnostics, edit coordination documents, and manage authorized worktrees directly. Delegate substantial game code and independent reviews. Milestones (spec Part 4) continue once their acceptance criteria and review pass, subject to the pause points and Git authority below.
+Read `docs/AGENT_WORKFLOW.md` for the worker roster, dispatch contract, checkpoints, and recovery protocol. The orchestrator may inspect files, run diagnostics, edit coordination documents, and manage authorized worktrees directly. Delegate substantial game code and independent reviews. Work packages (Beads epics) continue once their acceptance criteria and review pass, subject to the pause points and Git authority below.
 
 Project Claude skills are versioned: bump the `Version:` line for each behavior change, run `python tools/skill_versions.py` at session start, and verify/announce the on-disk version on each use. A stale loaded skill must be re-invoked or run in a fresh session. Auto-run has no fixed task-count cutoff: keep main-thread output small, checkpoint at batch boundaries, and continue through native compaction when recovery is safe.
 
@@ -18,7 +18,6 @@ Project Claude skills are versioned: bump the `Version:` line for each behavior 
 **Model routing:** retain the user's chosen orchestrator model (currently Fable). Use Haiku for mechanical edits, triage, running known checks and the Codex bridge; Sonnet for normal planning, implementation, netcode and review. Reserve explicit Opus overrides for bounded genuinely hard reasoning, justify the escalation in the brief, then return routine work to its normal model. Do not propagate the orchestrator's model to every worker. Consult Jev first: `python tools/route_model.py` (see `docs/AGENT_WORKFLOW.md`) returns the tier, whether a review is needed and whether to split; override only with a stated reason.
 
 Pause points — the only times the pipeline stops for the owner:
-- **Any change to a rule tagged [ORIGINAL]** in the spec.
 - **Major ambiguity:** anything that changes rules, game feel, scope, or player-facing behaviour in a way the spec doesn't settle. Describe the options and ask **through Beads**: a `decision` issue with `--label human --assignee Tony` (the owner answers with `bd human respond <id>`), and `bd gate create --type human --blocks <work-id>` or a dependency when the work must wait. Do not guess; do not use interactive prompts.
 - **M7 art direction:** propose it and wait for approval before writing code.
 

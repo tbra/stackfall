@@ -1,8 +1,9 @@
 # Stackfall
 
 A physics-based, competitive block-stacking territory game for 1–8 players, online over
-Steam and on LAN. It is a remake of **Bontãgo** (Circular Logic, 2003); "Stackfall" is a
-placeholder name, because the original name and assets belong to DigiPen and Circular Logic.
+Steam and on LAN. It began as a remake of **Bontãgo** (Circular Logic, 2003); that phase is complete and
+Stackfall is now developed as its own game (working title; the original name and assets
+belong to DigiPen and Circular Logic).
 
 Built in Godot 4.7 (Forward+, Jolt physics). The full design and technical spec is
 [docs/SPEC.md](docs/SPEC.md); working rules for the project are in [CLAUDE.md](CLAUDE.md).
