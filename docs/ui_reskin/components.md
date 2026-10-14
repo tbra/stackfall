@@ -330,6 +330,7 @@ A collapsible group header inside a panel, used for the lobby's Advanced and Exp
 - **Header:** a `rim` caret (pointing right when closed, down when open), an uppercase label, and on the right a `dust` summary of the current values so the player can read the settings without opening it.
 - **The consumer provides:** a label, a summary string and the open state.
 - **Gamepad:** A toggles it.
+- **Category header (UiSection, 2026-10-14):** the section symbol in `flare`, the caption in `cream` capitals, the `dust` summary on the right, and a `section_rule_px` `disc-700` hairline under the row. Stacked sections sit `section_gap_px` (space-6, "gap between panel groups") apart; the header-to-body gap is space-2. All four lobby categories (GAME, ROUND, GIFTS, EXPERIMENTS) are UiSection instances.
 
 ---
 

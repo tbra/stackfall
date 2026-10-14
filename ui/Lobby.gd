@@ -1044,9 +1044,9 @@ func _on_sound_button_hovered() -> void:
 ## game/Main.gd" rule intact while giving Main.gd something to connect to.
 func _apply_visual_style() -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	# Hierarchy (UI_COMPONENTS_PLAN section 4): the card heading, then sections one space-5 apart,
+	# Hierarchy (UI_COMPONENTS_PLAN section 4): the card heading, then sections one section_gap apart,
 	# then rows one space-3 apart (_prepare_rows); everything else is the component's own look.
-	_settings_column.add_theme_constant_override("separation", arcade.space_5_px)
+	_settings_column.add_theme_constant_override("separation", arcade.section_gap_px)
 	# Bontago-mp0.124: each section header carries its UiArtTable symbol.
 	var art: UiArtTable = UiArtTable.shared()
 	_game_section.set_header_icon(art.lobby_icon(UiArtTable.KEY_SECTION_GAME))
