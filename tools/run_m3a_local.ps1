@@ -1,6 +1,6 @@
 # M3a local acceptance harness (docs/archive/M3a_PLAN.md P4, "Testing without a
 # second PC"). Launches 1 headless host + (Peers - 1) headless clients, all
-# on 127.0.0.1, running tests/bench/m3a_acceptance.tscn, and aggregates their
+# on 127.0.0.1, running tests/enet/m3a_acceptance.tscn, and aggregates their
 # exit codes. Client 1 gets -SimLag / -SimLoss, which defaults to spec Part 4
 # M3's acceptance condition itself: "a client with 100 ms of simulated lag
 # and 2% packet loss sees smooth towers."
@@ -19,7 +19,7 @@
 # Exit code: 0 if every instance exited 0; the first non-zero exit code
 # otherwise (an instance exiting 2 means it hit the "layer is still a stub"
 # guard in m3a_acceptance.gd rather than actually failing an assertion — see
-# that script's header). -ThrowPass passes tests/bench/m3a_acceptance.gd's own
+# that script's header). -ThrowPass passes tests/enet/m3a_acceptance.gd's own
 # --throw-pass flag to every instance; a throw-phase failure there already
 # makes that instance exit 1 (see m3a_acceptance.gd's _ready()), so no extra
 # handling is needed here for "the ps1 fails on FAIL" -- the existing
@@ -60,7 +60,7 @@ if ($LateJoinAfter -gt 0) {
 $hardDeadlineMs = [System.Diagnostics.Stopwatch]::GetTimestamp() + ([long]$hardTimeoutSeconds * [System.Diagnostics.Stopwatch]::Frequency)
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$scenePath = "res://tests/bench/m3a_acceptance.tscn"
+$scenePath = "res://tests/enet/m3a_acceptance.tscn"
 $logDir = Join-Path $env:TEMP "m3a_local_$([guid]::NewGuid().ToString('N'))"
 New-Item -ItemType Directory -Path $logDir | Out-Null
 Write-Host "M3A harness: logs in $logDir"

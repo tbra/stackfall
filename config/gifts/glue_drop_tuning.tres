@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="GlueDropTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/gifts/GlueDropTuning.gd" id="1_tuning"]
+
+[resource]
+script = ExtResource("1_tuning")
+max_contacts_reported = 16
+absorb_impact = true
+max_fused_cubes = 0
+fuse_window_s = 0.25
+anchor_rest_ticks = 6

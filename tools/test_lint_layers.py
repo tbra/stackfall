@@ -32,10 +32,10 @@ class LintLayersTest(unittest.TestCase):
         return lint_layers.evaluate(lint_layers.measure(graph), base)
 
     def test_l1_hits_class_and_autoload_use(self):
-        g = make_graph([("game/specials/A.gd", "autoload/Match.gd", "autoload_use"),
+        g = make_graph([("game/gifts/specials/A.gd", "autoload/Match.gd", "autoload_use"),
                         ("core/B.gd", "autoload/Net.gd", "class"),
-                        ("vfx/C.gd", "net/MatchNet.gd", "preload"),
-                        ("game/Field.gd", "autoload/match/MatchStats.gd", "ext_resource"),
+                        ("game/weather/C.gd", "net/MatchNet.gd", "preload"),
+                        ("game/field/Field.gd", "autoload/match/MatchStats.gd", "ext_resource"),
                         ("ui/D.gd", "autoload/Match.gd", "class")], AUTO)
         v = [x for x in self.check(g, {"largest_scc": 0}) if x.startswith("L1")]
         self.assertEqual(len(v), 4)
@@ -46,8 +46,8 @@ class LintLayersTest(unittest.TestCase):
         self.assertEqual([x for x in self.check(g, {}) if x.startswith("L1")], [])
 
     def test_l1_baselined_exception_passes(self):
-        g = make_graph([("game/specials/A.gd", "autoload/Match.gd", "class")], AUTO)
-        base = {"largest_scc": 0, "l1_exceptions": ["game/specials/A.gd -> autoload/Match.gd"],
+        g = make_graph([("game/gifts/specials/A.gd", "autoload/Match.gd", "class")], AUTO)
+        base = {"largest_scc": 0, "l1_exceptions": ["game/gifts/specials/A.gd -> autoload/Match.gd"],
                 "closure": ["autoload/Match.gd", "autoload/Net.gd"]}
         self.assertEqual(self.check(g, base), [])
 
@@ -82,23 +82,23 @@ class LintLayersTest(unittest.TestCase):
                          ["L3 game/New.gd entered the autoload closure"])
 
     def test_l4_forbidden_file_in_main_closure_fails(self):
-        g = make_graph([("game/Main.tscn", "game/Main.gd", "ext_resource"),
-                        ("game/Main.gd", "ui/Lobby.gd", "class")], AUTO)
+        g = make_graph([("game/main/Main.tscn", "game/main/Main.gd", "ext_resource"),
+                        ("game/main/Main.gd", "ui/lobby/Lobby.gd", "class")], AUTO)
         v = [x for x in self.check(g, {}) if x.startswith("L4")]
-        self.assertEqual(v, ["L4 ui/Lobby.gd is in the game/Main.tscn compile closure (load it on demand)"])
+        self.assertEqual(v, ["L4 ui/lobby/Lobby.gd is in the game/main/Main.tscn compile closure (load it on demand)"])
 
     def test_l4_closure_growth_fails_and_path_edges_are_free(self):
-        g = make_graph([("game/Main.tscn", "game/Main.gd", "ext_resource"),
-                        ("game/Main.gd", "ui/New.gd", "class"),
-                        ("game/Main.gd", "ui/Lobby.tscn", "path")], AUTO)
-        base = {"main_closure": ["game/Main.tscn", "game/Main.gd"]}
+        g = make_graph([("game/main/Main.tscn", "game/main/Main.gd", "ext_resource"),
+                        ("game/main/Main.gd", "ui/New.gd", "class"),
+                        ("game/main/Main.gd", "ui/lobby/Lobby.tscn", "path")], AUTO)
+        base = {"main_closure": ["game/main/Main.tscn", "game/main/Main.gd"]}
         v = [x for x in self.check(g, base) if x.startswith("L4")]
-        self.assertEqual(v, ["L4 ui/New.gd entered the game/Main.tscn closure"])
+        self.assertEqual(v, ["L4 ui/New.gd entered the game/main/Main.tscn closure"])
         base["main_closure"].append("ui/New.gd")
         self.assertEqual([x for x in self.check(g, base) if x.startswith("L4")], [])
 
     def test_l4_without_baseline_key_only_checks_forbidden(self):
-        g = make_graph([("game/Main.tscn", "ui/New.gd", "class")], AUTO)
+        g = make_graph([("game/main/Main.tscn", "ui/New.gd", "class")], AUTO)
         self.assertEqual([x for x in self.check(g, {}) if x.startswith("L4")], [])
 
     def test_closure_ignores_path_edges(self):
@@ -114,17 +114,17 @@ class LintLayersTest(unittest.TestCase):
         self.assertNotIn("game/Old.gd", low["closure"])
         grown = make_graph([("autoload/Match.gd", "game/Old.gd", "class"),
                             ("autoload/Match.gd", "game/New.gd", "class"),
-                            ("game/specials/Z.gd", "autoload/Match.gd", "class")], AUTO)
+                            ("game/gifts/specials/Z.gd", "autoload/Match.gd", "class")], AUTO)
         gcur = lint_layers.measure(grown)
         same = lint_layers.lowered(gcur, base)
         self.assertNotIn("game/New.gd", same["closure"])
         self.assertEqual(same["l1_exceptions"], [])
-        added = lint_layers.apply_allow_new(same, gcur, ["game/New.gd", "game/specials/Z.gd"])
+        added = lint_layers.apply_allow_new(same, gcur, ["game/New.gd", "game/gifts/specials/Z.gd"])
         self.assertIn("game/New.gd", added["closure"])
-        self.assertEqual(added["l1_exceptions"], ["game/specials/Z.gd -> autoload/Match.gd"])
+        self.assertEqual(added["l1_exceptions"], ["game/gifts/specials/Z.gd -> autoload/Match.gd"])
 
     def test_run_report_exit_codes(self):
-        g = make_graph([("game/specials/A.gd", "autoload/Match.gd", "class")], AUTO)
+        g = make_graph([("game/gifts/specials/A.gd", "autoload/Match.gd", "class")], AUTO)
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "b.json")
             with open(path, "w") as fh:

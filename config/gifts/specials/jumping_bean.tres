@@ -1,0 +1,43 @@
+[gd_resource type="Resource" script_class="SpecialDef" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://config/gifts/specials/SpecialDef.gd" id="1_def"]
+[ext_resource type="Script" path="res://game/gifts/specials/JumpingBeanEffect.gd" id="2_effect"]
+[ext_resource type="PackedScene" path="res://assets/models/gifts/held/jumping_bean.tscn" id="9_held"]
+[ext_resource type="Texture2D" path="res://assets/ui/gift_previews/jumping_bean.png" id="10_icon"]
+
+[ext_resource type="Script" path="res://config/gifts/specials/fx/LandedTuning.gd" id="11_landed"]
+
+[sub_resource type="Resource" id="Resource_landed"]
+script = ExtResource("11_landed")
+landed_speed_mps = 2.0
+landed_hold_s = 0.15
+landed_timeout_s = 1.0
+contact_probe_m = 0.05
+
+[sub_resource type="Resource" id="Resource_jumping_bean_effect"]
+script = ExtResource("2_effect")
+hop_impulse = 11.0
+hop_horizontal_speed = 11.0
+first_hop_delay_s = 0.6
+hop_interval_s = 1.8
+centre_weight = 0.65
+centre_spread_deg = 70.0
+hole_radius_m = 2.5
+hole_open_s = 3.0
+lifetime_s = 24.0
+landed = SubResource("Resource_landed")
+
+[resource]
+script = ExtResource("1_def")
+id = &"jumping_bean"
+held_scene = ExtResource("9_held")
+preview_icon = ExtResource("10_icon")
+scene = null
+weight = 1.5
+enabled_by_default = true
+throwable = true
+arm_delay = 0.4
+arm_impulse = 10.0
+fuse_timeout_s = 20.0
+effect = SubResource("Resource_jumping_bean_effect")
+activation_scale = 2.0

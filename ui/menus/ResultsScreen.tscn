@@ -1,0 +1,113 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://ui/menus/ResultsScreen.gd" id="1_script"]
+[ext_resource type="Script" path="res://ui/components/UiBlockButton.gd" id="3_block"]
+[ext_resource type="Script" path="res://ui/components/UiText.gd" id="4_text"]
+[ext_resource type="Script" path="res://ui/components/UiPanel.gd" id="5_panel"]
+[ext_resource type="Theme" path="res://ui/theme/stackfall_theme.tres" id="2_theme"]
+[ext_resource type="Script" path="res://ui/components/FocusScrollContainer.gd" id="9_focus_scroll"]
+[ext_resource type="Script" path="res://ui/components/UiStack.gd" id="10_stack"]
+
+[node name="ResultsScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("2_theme")
+script = ExtResource("1_script")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.06, 0.07, 0.09, 0.92)
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Card" type="PanelContainer" parent="Center"]
+unique_name_in_owner = true
+layout_mode = 2
+script = ExtResource("5_panel")
+
+[node name="Layout" type="VBoxContainer" parent="Center/Card"]
+unique_name_in_owner = true
+layout_mode = 2
+script = ExtResource("10_stack")
+
+[node name="ModeTitle" type="Label" parent="Center/Card/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+horizontal_alignment = 1
+text = "Classic"
+script = ExtResource("4_text")
+
+[node name="Headline" type="Label" parent="Center/Card/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+horizontal_alignment = 1
+text = "Player wins!"
+script = ExtResource("4_text")
+role = 0
+
+[node name="ModeOutcome" type="Label" parent="Center/Card/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+horizontal_alignment = 1
+autowrap_mode = 3
+custom_minimum_size = Vector2(0, 0)
+visible = false
+script = ExtResource("4_text")
+
+[node name="TableScroll" type="ScrollContainer" parent="Center/Card/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 1
+script = ExtResource("9_focus_scroll")
+
+[node name="RowsList" type="VBoxContainer" parent="Center/Card/Layout/TableScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+script = ExtResource("10_stack")
+
+[node name="WaitingHint" type="Label" parent="Center/Card/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+horizontal_alignment = 1
+text = "Waiting for the host..."
+visible = false
+script = ExtResource("4_text")
+
+[node name="ButtonsRow" type="HBoxContainer" parent="Center/Card/Layout"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 12
+
+[node name="ReplayButton" type="Button" parent="Center/Card/Layout/ButtonsRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "PLAY AGAIN"
+script = ExtResource("3_block")
+variant = 0
+small = false
+
+[node name="LobbyButton" type="Button" parent="Center/Card/Layout/ButtonsRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "BACK TO LOBBY"
+script = ExtResource("3_block")
+variant = 1
+small = false

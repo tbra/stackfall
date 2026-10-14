@@ -50,7 +50,7 @@ const STEAM_APP_ID_EXPECTED: int = NetIds.STEAM_APP_ID_EXPECTED
 const REJOIN_TOKEN_BYTES: int = 16
 const REJOIN_TOKEN_MAX_CHARS: int = 64
 
-@export var config: NetConfig = preload("res://config/net_config.tres")
+@export var config: NetConfig = preload("res://config/net/net_config.tres")
 
 var _mode: Mode = Mode.OFFLINE
 ## The peer this instance created, generic MultiplayerPeer only — never typed
@@ -80,7 +80,7 @@ var _seat_pref_buckets: Dictionary = {}
 
 ## -- Player chat (Bontago-1pi.192.3, docs/CHAT_PLAN.md section 2) ----------
 ## Tunables (clamped in _ready like `config`).
-var chat_config: ChatConfig = preload("res://config/chat_config.tres")
+var chat_config: ChatConfig = preload("res://config/net/chat_config.tres")
 ## Host only: peer_id -> ChatRules.Bucket (flood), peer_id -> {"text", "at"} (duplicate
 ## guard), peer_id -> time of the last notice sent, and the ring of recent lines.
 var _chat_buckets: Dictionary = {}
@@ -94,7 +94,7 @@ var _chat_seen_seq: int = -1
 ## process shares the global Events bus, so tests listen here per instance).
 signal chat_line_accepted(line: Dictionary)
 signal chat_history_accepted(lines: Array)
-## The lobby seat table key inside the published lobby data (ui/Lobby.gd SEATS_KEY).
+## The lobby seat table key inside the published lobby data (ui/lobby/Lobby.gd SEATS_KEY).
 const _CHAT_LOBBY_SEATS_KEY: String = "seats"
 const _CHAT_JOINED_FORMAT: String = "%s joined"
 const _CHAT_LEFT_FORMAT: String = "%s left"
@@ -108,7 +108,7 @@ var _private_session: bool = false
 
 ## -- Mid-match join and reconnect (Bontago-8or.11, spec 3.4 "Late join /
 ## reconnect") ------------------------------------------------------------
-## Host only: true while the match flow is past the lobby (game/Main.gd sets
+## Host only: true while the match flow is past the lobby (game/main/Main.gd sets
 ## it next to set_accepting_joins()). Decides which seat a handshake gets: the
 ## next lobby slot, or a seat-policy choice / spectator seat mid-match.
 var _match_in_progress: bool = false
@@ -121,12 +121,12 @@ var _tokens: Dictionary = {}
 ## seat policy still calls it reclaimable (inside its NetConfig.
 ## disconnect_grace). Cleared whenever a match (re)starts or ends.
 var _reservations: Dictionary = {}
-## Host only (installed by game/Main.gd): () -> int. The open human seat a new
+## Host only (installed by game/main/Main.gd): () -> int. The open human seat a new
 ## mid-match joiner may take, or -1 to seat it as a spectator. Net never
 ## decides this itself: "open" is a gameplay question (a living human slot no
 ## peer holds and no departed peer has reserved).
 var _pick_open_seat: Callable = Callable()
-## Host only (installed by game/Main.gd): (slot_id: int) -> bool. Whether a
+## Host only (installed by game/main/Main.gd): (slot_id: int) -> bool. Whether a
 ## returning peer may reclaim `slot_id` (still inside its disconnect grace).
 var _can_reclaim_seat: Callable = Callable()
 ## Client only: the token the host issued on our last accepted join. Survives
@@ -172,15 +172,15 @@ var _lan: LanDiscovery
 ## built only for the real autoload on a windowed, non-agent run; tests set `upnp_backend_factory`
 ## to a Callable returning a fake UpnpBackend and never touch a router.
 signal upnp_state_changed(state: int)
-var upnp_config: UpnpConfig = preload("res://config/upnp_config.tres")
+var upnp_config: UpnpConfig = preload("res://config/net/upnp_config.tres")
 var upnp_backend_factory: Callable = Callable()
 var _upnp: UpnpRunner = UpnpRunner.new()
 
 ## `--match-config=<res path>` (Bontago-3k0, deferred from Bontago-keo.19):
 ## host-only override for the MatchConfig a `--headless-host` match starts
-## from. Null (the ordinary case) means "no override" -- game/Main.gd's own
+## from. Null (the ordinary case) means "no override" -- game/main/Main.gd's own
 ## _build_headless_bot_config() then falls back to its preloaded
-## config/match_defaults.tres exactly as before this flag existed. Set only
+## config/match/match_defaults.tres exactly as before this flag existed. Set only
 ## from inside _apply_command_line_args()'s host branch (see
 ## _load_match_config_override() below), never touched by --join, so a client
 ## passing this flag by accident is silently ignored -- this is a host-only
@@ -188,8 +188,8 @@ var _upnp: UpnpRunner = UpnpRunner.new()
 var _match_config_override: MatchConfig = null
 
 ## docs/archive/M3b_PLAN.md P1: the Steam-facing seam, exactly the net_provider/
-## match_provider pattern ui/MainMenu.gd, ui/Lobby.gd and
-## ui/NetDebugOverlay.gd already use. Set to a real SteamClient in _ready();
+## match_provider pattern ui/menus/MainMenu.gd, ui/lobby/Lobby.gd and
+## ui/debug/NetDebugOverlay.gd already use. Set to a real SteamClient in _ready();
 ## tests overwrite it with a FakeSteam.
 var steam_provider: Variant = null
 ## True only once host_online()/join_lobby() has an active peer (see
@@ -211,7 +211,7 @@ var _discovered_lobbies: Array[Dictionary] = []
 ## refresh_lobby_list()/init_steam() runs, without double-connecting the same
 ## provider repeatedly.
 var _steam_signals_wired: Variant = null
-## init_steam() is idempotent (game/Main.gd may call it once at boot); this
+## init_steam() is idempotent (game/main/Main.gd may call it once at boot); this
 ## is the guard.
 var _steam_initialized: bool = false
 ## True only once steam_provider's init_result reports status 0 (steamInitEx
@@ -525,7 +525,7 @@ func is_offline() -> bool:
 
 
 ## Bontago-1pi.167 (owner: "Pausing in an offline mode should freeze everything"): true when
-## no remote human shares this session, so ui/PauseMenu.gd may pause the whole tree.
+## no remote human shares this session, so ui/menus/PauseMenu.gd may pause the whole tree.
 func is_solo_session() -> bool:
 	return solo_session_rule(is_offline(), is_client(), peer_ids(), local_peer_id())
 
@@ -738,7 +738,7 @@ func ping_ms(peer_id: int = 0) -> float:
 # --- Lobby data (spec 3.4: "Steam lobbies store match settings as lobby
 # data"; over ENet the host broadcasts the same Dictionary reliably) ---------
 
-## Host only: publishes the lobby settings. ui/Lobby.gd passes
+## Host only: publishes the lobby settings. ui/lobby/Lobby.gd passes
 ## MatchConfig.to_dict(); M3b writes the same Dictionary into Steam lobby data
 ## with no change on this side of the call.
 func set_lobby_data(data: Dictionary) -> void:
@@ -751,7 +751,7 @@ func set_lobby_data(data: Dictionary) -> void:
 		_rpc_lobby_data.rpc_id(peer_id, _lobby_data)
 	# docs/archive/M3b_PLAN.md "Design notes": tee the same Dictionary into Steam
 	# lobby data, under one JSON key, every time this is called — the exact
-	# call site ui/Lobby.gd already has, so it needs no change of its own.
+	# call site ui/lobby/Lobby.gd already has, so it needs no change of its own.
 	if _steam_session and steam_provider != null and _steam_lobby_id != 0:
 		steam_provider.set_lobby_data(
 			_steam_lobby_id, String(SteamClient.KEY_MATCH_CONFIG), SteamClient.encode_match_config(_lobby_data)
@@ -807,7 +807,7 @@ func steam_available() -> bool:
 
 ## Calls Steam.steamInitEx() through steam_provider and emits
 ## Events.net_steam_status_changed once it answers. Idempotent — safe for
-## game/Main.gd to call unconditionally at boot even if something else
+## game/main/Main.gd to call unconditionally at boot even if something else
 ## already did. A no-op (not an error) when steam_provider is null, which
 ## only happens if this is called before _ready() has run.
 func init_steam() -> void:
@@ -890,7 +890,7 @@ func discovered_lobbies() -> Array[Dictionary]:
 ## Asks Steam for the current lobby list, filtered to this game and this
 ## exact build version (spec 3.4: "Compare the version when joining a
 ## lobby..."; a stale build should not even appear in the list). Pull-based,
-## unlike LAN's push advert — ui/MainMenu.gd (P3) is expected to call this on
+## unlike LAN's push advert — ui/menus/MainMenu.gd (P3) is expected to call this on
 ## a config.steam_lobby_list_refresh_s timer. Results arrive later as
 ## Events.net_steam_lobbies_discovered.
 func refresh_lobby_list() -> void:
@@ -1291,7 +1291,7 @@ func simulation_enabled() -> bool:
 ## {"mode": int, "peers": int, "ping_ms": float, "snapshot_bps": float,
 ## "snapshot_last_bytes": int, "interp_delay_ms": float, "loss_pct": float,
 ## "sim_lag_ms": float, "sim_loss": float}. Refreshed at config.stats_hz and
-## mirrored on Events.net_stats_updated; ui/NetDebugOverlay.gd only reads it.
+## mirrored on Events.net_stats_updated; ui/debug/NetDebugOverlay.gd only reads it.
 func stats() -> Dictionary:
 	var loss_pct: float = 0.0
 	var submitted: int = _sim.submitted_count()
@@ -1326,7 +1326,7 @@ func report_stats(source: StringName, values: Dictionary) -> void:
 ## convention (docs/archive/M3b_PLAN.md "Design notes": Valve's own argv convention,
 ## not this project's --flag=value one, so OS.get_cmdline_user_args() — the
 ## tokens after Godot's own "--" — would never see it). Called once by
-## game/Main.gd so a headless instance needs no UI. Returns true when an
+## game/main/Main.gd so a headless instance needs no UI. Returns true when an
 ## argument put this instance into a session.
 func apply_command_line() -> bool:
 	if _apply_command_line_args(OS.get_cmdline_user_args()):
@@ -1384,7 +1384,7 @@ func _apply_command_line_args(args: PackedStringArray) -> bool:
 	# entry point — no menu button reaches it. It exists only so the smoke
 	# test can be launched and observed from stdout with `godot --path .
 	# -- --host-online` on a machine that already has the addon installed and
-	# Steam running, without needing game/Main.gd's own
+	# Steam running, without needing game/main/Main.gd's own
 	# Net.init_steam() call (the integrator's not-yet-landed line, step 4 of
 	# docs/archive/M3b_PLAN.md's integration order) to already be wired in. Uses the
 	# same existing bare-flag convention --host/--headless-host already do,
@@ -1409,7 +1409,7 @@ func _apply_command_line_args(args: PackedStringArray) -> bool:
 
 ## The MatchConfig `--match-config=<path>` loaded, or null if the flag was
 ## absent, the command line never reached the host branch (--join, or no
-## role flag at all), or the path/resource was rejected. game/Main.gd's
+## role flag at all), or the path/resource was rejected. game/main/Main.gd's
 ## _build_headless_bot_config() reads this in place of its own preloaded
 ## `match_config` export when it is non-null — the same
 ## duplicate-then-override seam that function already uses for --bots=/
@@ -1421,8 +1421,8 @@ func match_config_override() -> MatchConfig:
 ## _apply_command_line_args()'s --match-config=<path> handler. A bad path or
 ## a resource of the wrong type never blocks --headless-host from starting —
 ## it logs a push_error and leaves _match_config_override null, which reads
-## downstream as "no override" (game/Main.gd falls back to
-## config/match_defaults.tres exactly as if the flag had been omitted).
+## downstream as "no override" (game/main/Main.gd falls back to
+## config/match/match_defaults.tres exactly as if the flag had been omitted).
 ## Explicitly resets to null on failure (not "keep whatever was there
 ## before") so one bad flag value can never be masked by an earlier good one.
 func _load_match_config_override(path: String) -> void:
@@ -1911,7 +1911,7 @@ func _broadcast_roster() -> void:
 		roster.append((_peers[peer_id] as Dictionary).duplicate())
 	# Bontago-mv0.6: the host's own copy of the roster (ready flags, joins,
 	# leaves, kicks — every caller of _broadcast_roster()) changed right here;
-	# tell ui/Lobby.gd directly rather than waiting on a lobby-data republish.
+	# tell ui/lobby/Lobby.gd directly rather than waiting on a lobby-data republish.
 	Events.net_roster_changed.emit(roster)
 	for peer_id: int in _broadcast_targets():
 		_rpc_roster_update.rpc_id(peer_id, roster)
@@ -1936,7 +1936,7 @@ func _rpc_roster_update(roster: Array) -> void:
 	if _peers.has(mine):
 		_local_slot = int(_peers[mine].get(LobbySeats.FIELD_SLOT_ID, -1))
 	# Bontago-mv0.6: the client-side mirror of the emit above, so a client's
-	# own ui/Lobby.gd updates the moment this RPC lands instead of on the
+	# own ui/lobby/Lobby.gd updates the moment this RPC lands instead of on the
 	# next unrelated net_lobby_data_changed republish.
 	Events.net_roster_changed.emit(typed_roster)
 
@@ -1980,7 +1980,7 @@ func _fail_join(error: int, detail: String = "") -> void:
 ##
 ## host_game() and leave() reset it to true, so a fresh session always accepts.
 ##
-## Bontago-8or.11: mid-match, game/Main.gd keeps it true while the running
+## Bontago-8or.11: mid-match, game/main/Main.gd keeps it true while the running
 ## MatchConfig.allow_mid_match_join is on; set_match_in_progress() then routes
 ## the handshake through _handshake_mid_match() (open seat, spectator, or a
 ## rejoin token's reserved slot -- the last ignores this flag).
@@ -1992,7 +1992,7 @@ func _fail_join(error: int, detail: String = "") -> void:
 ## concept — no Match"). Match already depends on Net (Net.is_host()), so the
 ## dependency keeps its existing direction. Wire it where the state machine
 ## moves: `Net.set_accepting_joins(to_state == Match.State.LOBBY)` in
-## game/Main.gd's _on_match_state_changed() (or Match._set_state()).
+## game/main/Main.gd's _on_match_state_changed() (or Match._set_state()).
 ##
 ## The transport stays open on purpose. docs/archive/M3a_PLAN.md suggests
 ## set_refuse_new_connections(true) once the match starts, but that fails the
@@ -2008,7 +2008,7 @@ func accepting_joins() -> bool:
 	return _accepting_joins
 
 
-## Host only (Bontago-8or.11). game/Main.gd calls this with true when a match
+## Host only (Bontago-8or.11). game/main/Main.gd calls this with true when a match
 ## world is (re)built (LOBBY -> LOADING) and with false on a real return to
 ## the lobby. Every call drops the rejoin reservations, so a slot reserved in
 ## one match can never be reclaimed in the next. Going back to the lobby also
@@ -2081,7 +2081,7 @@ func _rpc_set_ready(ready: bool) -> void:
 #
 # Owner playtest 2026-10-03: every human player presses ready (ui_accept: Enter,
 # Space or the gamepad's A) on the loading screen and the host starts the
-# countdown once all of them have (core/LoadingReadyGate.gd holds the rule,
+# countdown once all of them have (core/rules/LoadingReadyGate.gd holds the rule,
 # autoload/match/MatchLifecycle.gd the per-match state). Net is only the
 # transport: it never names Match, so the host-side handoff and the mirror both
 # go over the Events bus (net_loading_ready_received / loading_ready_changed /

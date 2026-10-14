@@ -8,8 +8,8 @@ extends Node
 ## the mouse is captured and over menus alike. Listens directly on the Input
 ## Map action rather than Events (CLAUDE.md's bus is for gameplay state
 ## changes between systems; a screenshot is a one-shot local side effect with
-## no other system caring about it, the same reasoning ui/MainMenu.gd and
-## ui/Lobby.gd use for calling Sfx.play() directly on button press).
+## no other system caring about it, the same reasoning ui/menus/MainMenu.gd and
+## ui/lobby/Lobby.gd use for calling Sfx.play() directly on button press).
 ##
 ## No class_name: this is the Screenshots autoload singleton (same reason
 ## Events, Settings, Net, Match and Sfx have none -- see autoload/Net.gd's

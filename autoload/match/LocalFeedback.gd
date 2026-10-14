@@ -10,7 +10,7 @@ extends RefCounted
 ## (the host's own seat, a client's own seat, or every seat in offline
 ## hot-seat) and not a bot. Match-layer state (slot.is_bot) is read through the
 ## Match autoload; the session through Net, so this stays transport-neutral.
-## ui/HUD.gd and game/PlayerController.gd already apply the same per-viewer
+## ui/hud/HUD.gd and game/player/PlayerController.gd already apply the same per-viewer
 ## slot filter to their own reactions.
 ##
 ## No class_name on purpose: Sfx and Rumble preload() it, so a checkout whose

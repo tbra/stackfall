@@ -5,7 +5,7 @@
 Steps (each step's full output goes to <log-dir>/NN_name.log; stdout stays compact):
   1 worktree  temp integration worktree + branch from local main (origin/main must be an ancestor)
   2 merge     git merge --no-ff each branch; on conflict stop and list conflicting files. Exception
-              (Bontago-fca.33): if config/tuning_panel_hints.tres is the ONLY conflicted file and every
+              (Bontago-fca.33): if config/ui/tuning_panel_hints.tres is the ONLY conflicted file and every
               hunk is a pure union of distinct `"key": value,` entries (no base line removed or changed,
               no duplicate key afterwards) the markers are stripped, both sides kept, and the merge
               committed; anything else aborts the merge.
@@ -172,7 +172,7 @@ def close_bead(ctx, repo, bead, reason, force_close):
         raise StepFailed("close", "bd close %s failed; log %s" % (bead, log))
 
 
-HINTS_PATH = "config/tuning_panel_hints.tres"
+HINTS_PATH = "config/ui/tuning_panel_hints.tres"
 HINT_ENTRY_RE = re.compile(r'^("(?:[^"\\]|\\.)+")\s*:\s*.+,\s*$')
 SECTION_RE = re.compile(r"^(\w+) = \{\s*$")
 

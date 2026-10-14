@@ -150,7 +150,7 @@ rebinding is a change there rather than in gameplay code.
 `godot --path . -- --sandbox [--players=N]` is a second unlisted debug build, like
 `--hot-seat`: an offline match with every slot locally controllable, no feed timer (so
 nothing auto-drops), and a fresh block issued the instant the last one lands. `N` defaults
-to 2 (`config/sandbox.tres`); sandbox is the one place a 1-player match is allowed, for
+to 2 (`config/match/sandbox.tres`); sandbox is the one place a 1-player match is allowed, for
 solo rules testing. Placement, rotation, hover and camera controls are the hot-seat build's
 (above); one extra set of hotkeys switches who you're playing and pokes at the match
 directly:
@@ -177,7 +177,7 @@ what the panel's validity label prints, never this file.
 
 Press **F4** (gamepad: hold **Start** and press **X**) at any time — sandbox, hot-seat, or a
 real networked match — to open an in-game panel of sliders/spinboxes/checkboxes/color
-pickers for every tunable in `config/CameraTuning.gd`, `GhostTuning.gd`, `PhysicsTuning.gd`,
+pickers for every tunable in `config/player/CameraTuning.gd`, `GhostTuning.gd`, `PhysicsTuning.gd`,
 `TerritoryTuning.gd`/`TerritoryVisuals.gd` and `BlockFeedConfig.gd`, one control per exported
 field, built automatically by reflection: add a new `@export` to any of those resources and
 it gets a control here for free, no panel code change required. The mouse is released and
@@ -204,7 +204,7 @@ Buttons at the bottom:
 
 - **Reset** — reloads every resource's fields from its `.tres` on disk (discards unsaved
   edits, does not touch a saved override file).
-- **Save override** — writes every field to `user://tuning_overrides.cfg`. `game/Main.gd`
+- **Save override** — writes every field to `user://tuning_overrides.cfg`. `game/main/Main.gd`
   applies this file to the shared tuning resources first thing at boot, before anything else
   in the game reads them, so a saved tweak survives a restart without editing a `.tres`.
 - **Copy** — copies every field's current value to the clipboard as `name = value` lines
@@ -297,7 +297,7 @@ turn-taking rule claim -- except the placement-cadence criterion, which needs
 `hot_seat = false` to exercise the real fixed-interval release lock:
 
 ```bash
-godot --headless --path . res://tests/bench/m2_acceptance.tscn
+godot --headless --path . res://tests/enet/m2_acceptance.tscn
 ```
 
 Run the M3a end-to-end acceptance scenario (1 headless host + N-1 headless clients play a
@@ -318,7 +318,7 @@ godot --headless --path . res://tests/bench/bench_snapshot.tscn
 
 ### Command-line flags
 
-`game/Main.gd` reads these after `--` (`godot --path . -- --host`, etc.), the same
+`game/main/Main.gd` reads these after `--` (`godot --path . -- --host`, etc.), the same
 convention `OS.get_cmdline_user_args()` uses:
 
 | Flag | Effect |
@@ -329,7 +329,7 @@ convention `OS.get_cmdline_user_args()` uses:
 | `--advertise` | With `--headless-host`: broadcast the session on the LAN like an ordinary host. |
 | `--join=<ip[:port]>` | Joins that address and opens the lobby. |
 | `--port=<n>` | Overrides the port for `--host`/`--headless-host`/`--join`. |
-| `--match-config=<res path>` | Loads that `MatchConfig` `.tres` as the base for the bot match `--headless-host --bots=<n>` starts (fixtures: `tests/fixtures/match_configs/`). Ignored on `--join`, and a no-op for a plain `--host`/`--headless-host` lobby, whose match still takes the lobby's settings. Falls back to the default on a bad path or wrong resource type. |
+| `--match-config=<res path>` | Loads that `MatchConfig` `.tres` as the base for the bot match `--headless-host --bots=<n>` starts (fixtures: `tests/support/fixtures/match_configs/`). Ignored on `--join`, and a no-op for a plain `--host`/`--headless-host` lobby, whose match still takes the lobby's settings. Falls back to the default on a bad path or wrong resource type. |
 | `--bot-brain=<legacy\|v2>` | Dev flag: every bot spawned in a lobby/menu match (host-side) uses that decision brain; default legacy. Prints `bots: brain v2` at match start. Headless `--bot-brain-slots=` still limits it per slot. |
 | `--sim-lag=<ms>` / `--sim-loss=<0..1>` | Simulated one-way lag / packet loss from launch, the same sliders the F3 overlay controls. |
 

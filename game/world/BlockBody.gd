@@ -1,6 +1,6 @@
 class_name BlockBody
 extends RigidBody3D
-## The light base class of game/Block.gd (autoload decoupling S2a, docs/
+## The light base class of game/blocks/Block.gd (autoload decoupling S2a, docs/
 ## AUTOLOAD_DECOUPLING_PLAN.md D1/D8). It carries the identity fields and the
 ## two audio statics that autoload facades (Match, MatchNet, Sfx, SnapshotSync)
 ## read and write, plus no-op virtual stubs for the Block methods those facades
@@ -21,12 +21,12 @@ extends RigidBody3D
 ## &"" for an ordinary block. Presentation only; the effect is SpecialBehavior.
 var gift_id: StringName = &""
 
-## M3's network id, assigned by game/BlockRegistry.gd when the block is
+## M3's network id, assigned by game/blocks/BlockRegistry.gd when the block is
 ## registered. -1 until then.
 @export var net_id: int = -1
 
 ## autoload/Sfx.gd sets both statics once at startup from AudioConfig so
-## game/Block.gd carries no direct dependency on the AudioConfig class.
+## game/blocks/Block.gd carries no direct dependency on the AudioConfig class.
 static var impact_speed_min: float = 1.0
 ## Kill switch, set from AudioConfig.impacts_enabled; false costs nothing per
 ## tick beyond the `if` check itself.

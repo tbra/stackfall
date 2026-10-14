@@ -1,0 +1,144 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://ui/menus/LoadingScreen.gd" id="1_loading"]
+[ext_resource type="Theme" path="res://ui/theme/stackfall_theme.tres" id="2_theme"]
+
+[node name="LoadingScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme = ExtResource("2_theme")
+script = ExtResource("1_loading")
+
+[node name="Layer" type="CanvasLayer" parent="."]
+unique_name_in_owner = true
+layer = 50
+
+[node name="Content" type="Control" parent="Layer"]
+unique_name_in_owner = true
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme = ExtResource("2_theme")
+
+[node name="Background" type="ColorRect" parent="Layer/Content"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.06, 0.07, 0.09, 0.96)
+
+[node name="Backdrop" type="TextureRect" parent="Layer/Content"]
+unique_name_in_owner = true
+visible = false
+modulate = Color(1, 1, 1, 0)
+texture_filter = 2
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 6
+
+[node name="Dim" type="ColorRect" parent="Layer/Content/Backdrop"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.06, 0.07, 0.09, 0.32)
+
+[node name="Vignette" type="TextureRect" parent="Layer/Content/Backdrop"]
+unique_name_in_owner = true
+texture_filter = 2
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+expand_mode = 1
+
+[node name="Center" type="CenterContainer" parent="Layer/Content"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Card" type="PanelContainer" parent="Layer/Content/Center"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(360, 0)
+mouse_filter = 2
+
+[node name="Layout" type="VBoxContainer" parent="Layer/Content/Center/Card"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="MapIcon" type="TextureRect" parent="Layer/Content/Center/Card/Layout"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="MapLabel" type="Label" parent="Layer/Content/Center/Card/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+horizontal_alignment = 1
+
+[node name="PlayerList" type="VBoxContainer" parent="Layer/Content/Center/Card/Layout"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+mouse_filter = 2
+
+[node name="ReadyBox" type="VBoxContainer" parent="Layer/Content/Center/Card/Layout"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+mouse_filter = 2
+alignment = 1
+
+[node name="PromptContent" type="VBoxContainer" parent="Layer/Content/Center/Card/Layout/ReadyBox"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+alignment = 1
+
+[node name="PromptText" type="Label" parent="Layer/Content/Center/Card/Layout/ReadyBox/PromptContent"]
+unique_name_in_owner = true
+layout_mode = 2
+horizontal_alignment = 1
+mouse_filter = 2
+
+[node name="GlyphSlot" type="HBoxContainer" parent="Layer/Content/Center/Card/Layout/ReadyBox/PromptContent"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+alignment = 1

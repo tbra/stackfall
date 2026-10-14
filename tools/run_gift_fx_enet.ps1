@@ -10,7 +10,7 @@ param(
 	[int]$TimeoutSeconds = 600,
 	[switch]$WeatherOff
 )
-$scene = "res://tests/bench/gift_fx_enet.tscn"
+$scene = "res://tests/enet/gift_fx_enet.tscn"
 . (Join-Path $PSScriptRoot "enet_result.ps1")
 $procs = @()
 $extra = @(); if ($WeatherOff) { $extra = @("--weather-off") }

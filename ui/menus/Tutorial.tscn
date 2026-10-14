@@ -1,0 +1,57 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://ui/menus/Tutorial.gd" id="1_tutorial"]
+[ext_resource type="PackedScene" path="res://game/player/GhostPreview.tscn" id="2_ghost"]
+[ext_resource type="Script" path="res://game/player/PlayerController.gd" id="3_controller"]
+[ext_resource type="PackedScene" path="res://ui/hud/HUD.tscn" id="4_hud"]
+[ext_resource type="PackedScene" path="res://game/player/ThrowArcPreview.tscn" id="5_arc"]
+[ext_resource type="Resource" path="res://config/match/tutorial_config.tres" id="6_config"]
+[ext_resource type="Script" path="res://ui/hud/InputPromptFlow.gd" id="7_hints"]
+
+[node name="Tutorial" type="Node"]
+script = ExtResource("1_tutorial")
+tutorial_config = ExtResource("6_config")
+
+[node name="GhostPreview" parent="." instance=ExtResource("2_ghost")]
+
+[node name="ThrowArcPreview" parent="." instance=ExtResource("5_arc")]
+
+[node name="PlayerController" type="Node" parent="."]
+script = ExtResource("3_controller")
+ghost_path = NodePath("../GhostPreview")
+arc_preview_path = NodePath("../ThrowArcPreview")
+
+[node name="HUDLayer" parent="." instance=ExtResource("4_hud")]
+
+[node name="PromptLayer" type="CanvasLayer" parent="."]
+
+[node name="PromptPanel" type="PanelContainer" parent="PromptLayer"]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.0
+anchor_right = 0.5
+anchor_bottom = 0.0
+offset_left = -320.0
+offset_top = 126.0
+offset_right = 320.0
+offset_bottom = 174.0
+grow_horizontal = 2
+mouse_filter = 2
+
+[node name="Row" type="HBoxContainer" parent="PromptLayer/PromptPanel"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="StepLabel" type="Label" parent="PromptLayer/PromptPanel/Row"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+text = "1/5"
+horizontal_alignment = 1
+
+[node name="PromptLabel" type="HFlowContainer" parent="PromptLayer/PromptPanel/Row"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+script = ExtResource("7_hints")

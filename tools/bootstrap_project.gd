@@ -56,9 +56,9 @@ func _apply_settings() -> void:
 		# which Godot refuses unless ETC2/ASTC VRAM compression is imported.
 		"rendering/textures/vram_compression/import_etc2_astc": true,
 		# Bontago-1pi.11.74 (G1): the sky shaders read this global instead of TIME so the
-		# radiance is not re-rendered every frame (game/Skybox.gd writes it).
+		# radiance is not re-rendered every frame (game/sky/Skybox.gd writes it).
 		"shader_globals/sky_time": {"type": "float", "value": 0.0},
-		# Bontago-mp0.153: per-frame sun/moon disc directions (game/Skybox.gd).
+		# Bontago-mp0.153: per-frame sun/moon disc directions (game/sky/Skybox.gd).
 		"shader_globals/sky_sun_dir": {"type": "vec3", "value": Vector3(1.0, 0.0, 0.0)},
 		"shader_globals/sky_moon_dir": {"type": "vec3", "value": Vector3(-1.0, 0.0, 0.0)},
 
@@ -68,7 +68,7 @@ func _apply_settings() -> void:
 		# Bontago-e7o D (owner decision 2026-10-09): cap catch-up physics steps per frame
 		# (engine default 8) so a long frame cannot spiral. The number lives in
 		# PhysicsTuning.catchup_steps_capped; the F4 toggle flips Engine's live value.
-		"physics/common/max_physics_steps_per_frame": (load("res://config/physics_tuning.tres") as PhysicsTuning).catchup_steps_capped,
+		"physics/common/max_physics_steps_per_frame": (load("res://config/physics/physics_tuning.tres") as PhysicsTuning).catchup_steps_capped,
 		# Jolt solver iterations. Spec 3.5: "Start at 10 and 4, and tune using
 		# a benchmark scene with a 40-block tower." The position count is
 		# still the spec's 4; the velocity count had to go much higher, and
@@ -94,7 +94,7 @@ func _apply_settings() -> void:
 		# with zero per-block damping. Earlier M1 revisions hid this behind
 		# linear damping of 4.0, which only slowed the topple enough for the
 		# tower to fall asleep first - and made blocks drift down like
-		# feathers. See config/PhysicsTuning.gd and test_project_setup.gd.
+		# feathers. See config/physics/PhysicsTuning.gd and test_project_setup.gd.
 		#
 		# Cost, measured on bench_rain (300 blocks all colliding at once, the
 		# worst case this project has): ~2.8 ms per physics step at the old
@@ -158,8 +158,8 @@ func _apply_settings() -> void:
 		# UI uses a 720p logical canvas so fullscreen/high-DPI displays keep
 		# readable controls; expand preserves additional ultrawide space.
 		# Bontago-mp0.9: engine boot splash stays black until
-		# ui/SplashScreen.gd reveals the image with the jingle.
-		"application/config/icon": "res://assets/ui/stackfall_mark.svg",
+		# ui/menus/SplashScreen.gd reveals the image with the jingle.
+		"application/config/icon": "res://assets/ui/brand/stackfall_mark.svg",
 		# DECISION: the engine's loading image is suppressed so launch stays
 		# black until the in-engine splash can start visuals and audio together.
 		"application/boot_splash/bg_color": Color.BLACK,
@@ -181,8 +181,8 @@ func _apply_settings() -> void:
 		# shrank it. The "editor" feature (any run of the editor binary: probes,
 		# benches, tests, `godot --path .`) starts windowed; exported builds keep the
 		# borderless fullscreen boot above. Real dev runs still switch to the saved
-		# mode in game/Main.gd (Settings.apply_window_mode()). Pinned by
-		# tests/unit/test_window_launch_defaults.gd so a bootstrap regen cannot drop it.
+		# mode in game/main/Main.gd (Settings.apply_window_mode()). Pinned by
+		# tests/unit/main/test_window_launch_defaults.gd so a bootstrap regen cannot drop it.
 		"display/window/size/mode.editor": 0,
 		"display/window/size/borderless.editor": false,
 
@@ -278,7 +278,7 @@ func _actions() -> Dictionary:
 	a["use_gift_slot"] = [_key(KEY_G), _pad(JOY_BUTTON_X)]
 
 	# Bontago-1pi.69 (owner playtest: a hold-to-show score tracker). DECISION: Tab
-	# is shared with the sandbox-only sandbox_next_slot; ui/ScoreboardOverlay.gd is
+	# is shared with the sandbox-only sandbox_next_slot; ui/hud/ScoreboardOverlay.gd is
 	# suppressed in the sandbox so Tab keeps its sandbox meaning there. R3 is also
 	# the debug perf_overlay_toggle chord (Back held + R3): the overlay ignores a
 	# pad press while Back (camera_snap_home) is held.
@@ -297,7 +297,7 @@ func _actions() -> Dictionary:
 	# the clockwise 90 degree tap and RT + left stick (rotate_drag_pad) free-rotates
 	# both ways; there is no free button for a counter-clockwise tap. The Options
 	# gamepad page lists those two as their own rows and hides this one
-	# (ui/KeyRebindRow.gd PAD_ONLY_ACTIONS / PAD_NOT_APPLICABLE, Bontago-1pi.159.63).
+	# (ui/menus/KeyRebindRow.gd PAD_ONLY_ACTIONS / PAD_NOT_APPLICABLE, Bontago-1pi.159.63).
 	a["rotate_yaw_ccw"] = [_key(KEY_A)]
 	a["rotate_yaw_cw"] = [_key(KEY_S)]
 
@@ -325,7 +325,7 @@ func _actions() -> Dictionary:
 	# so RT comes off this action (keyboard R keeps the snap grid unchanged)
 	# and moves to its own rotate_drag_pad action below, mirroring rotate_drag
 	# (MMB)'s own free-rotation path instead of this one.
-	# DEVICE_EXCEPTION (tests/unit/test_project_setup.gd): rotation_mode is now
+	# DEVICE_EXCEPTION (tests/unit/main/test_project_setup.gd): rotation_mode is now
 	# keyboard-only; RT drives a different gesture (rotate_drag_pad).
 	a["rotation_mode"] = [_key(KEY_R)]
 
@@ -335,7 +335,7 @@ func _actions() -> Dictionary:
 	# PlayerController._accumulate_gamepad_rotate_drag(). Pad-only: there is no
 	# mouse/keyboard equivalent action here (rotate_drag itself already covers
 	# that device) -- a documented "mouse" DEVICE_EXCEPTION
-	# (tests/unit/test_project_setup.gd).
+	# (tests/unit/main/test_project_setup.gd).
 	a["rotate_drag_pad"] = [_axis(JOY_AXIS_TRIGGER_RIGHT, 1.0)]
 	# Bontago-iry (owner feedback/controller-update.md, "Q or Home resets ghost
 	# block rotation back to default"): spec 1.5 (ORIGINAL) already names Q for
@@ -361,7 +361,7 @@ func _actions() -> Dictionary:
 	# DECISION: no gamepad binding on this action itself. The gamepad's own
 	# drag-rotate is rotate_snap (B tap) + rotate_drag_pad (RT + left stick,
 	# above) -- a documented "pad" DEVICE_EXCEPTION
-	# (tests/unit/test_project_setup.gd); the Options gamepad page lists those
+	# (tests/unit/main/test_project_setup.gd); the Options gamepad page lists those
 	# two controls as their own rows and hides this one (Bontago-1pi.159.63).
 	a["rotate_drag"] = [_mouse(MOUSE_BUTTON_MIDDLE)]
 
@@ -396,7 +396,7 @@ func _actions() -> Dictionary:
 	# (DEVICE_EXCEPTIONS) -- the gamepad already keeps ghost movement (left
 	# stick) and height (LB/RB) on separate physical inputs, so there is
 	# nothing to lock there; the Options gamepad page hides this row instead of
-	# showing it blank (ui/KeyRebindRow.gd PAD_NOT_APPLICABLE, Bontago-1pi.41).
+	# showing it blank (ui/menus/KeyRebindRow.gd PAD_NOT_APPLICABLE, Bontago-1pi.41).
 	a["lock_vertical"] = [_key(KEY_CTRL)]
 
 	# Bontago-1en.14 (M4 P2d, owner decision 2026-09-22 Bontago-mvl (a): "hold
@@ -406,7 +406,7 @@ func _actions() -> Dictionary:
 	# spec 2.5 flagged pending this exact owner decision -- see camera_orbit's
 	# own comment below, which no longer needs to mention throw_aim at all)
 	# onto MOUSE_BUTTON_LEFT instead, the same physical button ghost_place
-	# already uses -- game/PlayerController.gd's ghost_place handler tells
+	# already uses -- game/player/PlayerController.gd's ghost_place handler tells
 	# the two apart by whether the piece in hand is a throwable special.
 
 	# --- Camera -------------------------------------------------------------
@@ -432,7 +432,7 @@ func _actions() -> Dictionary:
 	# conflict. No gamepad binding either, for the same reason camera_mode has
 	# none: the right stick already orbits unconditionally, with no hold
 	# required -- a documented "pad" DEVICE_EXCEPTION
-	# (tests/unit/test_project_setup.gd), same as camera_mode's own entry
+	# (tests/unit/main/test_project_setup.gd), same as camera_mode's own entry
 	# there.
 	a["camera_orbit"] = [_mouse(MOUSE_BUTTON_RIGHT)]
 
@@ -447,7 +447,7 @@ func _actions() -> Dictionary:
 	# On gamepad, pan is the left stick while camera_modifier is held, so the
 	# pan actions share the left stick axes with ghost_move_*. Bontago-mv0.14:
 	# pan below is only live while CameraTuning.follow_block is false (see
-	# game/CameraRig.gd) -- the default block-locked camera has nothing to
+	# game/player/CameraRig.gd) -- the default block-locked camera has nothing to
 	# pan away from. camera_snap_home/goal below are different: Bontago-b7r
 	# (owner decision 2026-09-28, Bontago-aem) gives them a tap-to-turn/
 	# hold-to-peek gesture that IS live in the default follow camera too.
@@ -466,7 +466,7 @@ func _actions() -> Dictionary:
 	# come off these two actions entirely; Z/X stay the sole zoom input on
 	# keyboard. See camera_zoom_modifier below for the trigger's new job (LT +
 	# left stick = continuous zoom).
-	# DEVICE_EXCEPTION (tests/unit/test_project_setup.gd): camera_zoom_in/out
+	# DEVICE_EXCEPTION (tests/unit/main/test_project_setup.gd): camera_zoom_in/out
 	# are keyboard-only now.
 	a["camera_zoom_in"] = [_key(KEY_Z)]
 	a["camera_zoom_out"] = [_key(KEY_X)]
@@ -480,17 +480,17 @@ func _actions() -> Dictionary:
 	a["camera_snap_home"] = [_key(KEY_1), _pad(JOY_BUTTON_BACK)]
 	# Bontago-b7r (owner decision 2026-09-28, Bontago-aem): moved off B -- B
 	# stays rotate_snap only now, no more block_held gate needed between the
-	# two (see game/CameraRig.gd's own DECISION on camera_snap_home's press
-	# handling). X was the next free face/shoulder button; game/CameraRig.gd's
+	# two (see game/player/CameraRig.gd's own DECISION on camera_snap_home's press
+	# handling). X was the next free face/shoulder button; game/player/CameraRig.gd's
 	# own _goal_focus_chord_blocked() keeps this from also firing through
-	# ui/TuningPanel.gd's Start+X chord or game/Sandbox.gd's Back+X chord.
+	# ui/debug/TuningPanel.gd's Start+X chord or game/sandbox/Sandbox.gd's Back+X chord.
 	a["camera_snap_goal"] = [_key(KEY_2), _pad(JOY_BUTTON_X)]
 
 	# Bontago-1pi.187 (owner playtest 2026-10-12: "add a reset camera button,
 	# resets camera to the starting camera"). DECISION: V on keyboard (unbound,
 	# "view"); gamepad Back, deliberately shared with camera_snap_home -- snap is
 	# inert while CameraTuning.snap_enabled is false, every other standard pad
-	# button is taken in a match, and game/CameraRig.gd ignores the pad press while
+	# button is taken in a match, and game/player/CameraRig.gd ignores the pad press while
 	# snap is enabled (snap_home owns Back then) or the sandbox owns Back.
 	a["camera_reset"] = [_key(KEY_V), _pad(JOY_BUTTON_BACK)]
 
@@ -524,7 +524,7 @@ func _actions() -> Dictionary:
 	# Bontago-1pi.159.27: X adds a bot (host); Start/Enter (below) starts. DECISION: keyboard X too.
 	a["lobby_add_bot"] = [_key(KEY_X), _pad(JOY_BUTTON_X)]
 	# Bontago-1pi.98: Enter/KP Enter/pad Start start the match (host) or toggle Ready
-	# (client) from any control; ui/Lobby.gd intercepts it in _input, ahead of GUI focus.
+	# (client) from any control; ui/lobby/Lobby.gd intercepts it in _input, ahead of GUI focus.
 	a["lobby_confirm"] = [_key(KEY_ENTER), _key(KEY_KP_ENTER), _pad(JOY_BUTTON_START)]
 	a["lobby_quick_advanced"] = [_key(KEY_Y), _pad(JOY_BUTTON_Y)]
 	# Bontago-1pi.190: opens the Options overlay from the lobby (O / pad Select-Back; Esc and Start
@@ -552,7 +552,7 @@ func _actions() -> Dictionary:
 	# feature. The Input Map action itself can only bind single events, not a
 	# two-button chord, so its gamepad half is bound to Y (already
 	# rotate_reset's button — two actions sharing one physical event is normal
-	# in Godot) and ui/NetDebugOverlay.gd requires camera_snap_home (Back) to
+	# in Godot) and ui/debug/NetDebugOverlay.gd requires camera_snap_home (Back) to
 	# be held at the same time before it treats the press as the toggle. That
 	# keeps CLAUDE.md's "never check raw keycodes" rule intact: the chord is
 	# built entirely from two Input Map actions, not a JOY_BUTTON_* literal
@@ -567,7 +567,7 @@ func _actions() -> Dictionary:
 	# Elite/DualSense-only paddle buttons sandbox_reset_field etc. use. Same
 	# technique as net_debug_toggle's own Back+Y chord though: every
 	# face/shoulder/stick/D-pad button is already claimed, so the gamepad half
-	# binds to X (already hover_lower) and ui/TuningPanel.gd requires
+	# binds to X (already hover_lower) and ui/debug/TuningPanel.gd requires
 	# pause_menu (Start) to be held at the same time before it treats the
 	# press as the toggle -- a Start+X chord, distinct from net_debug_toggle's
 	# own Back+Y one, built entirely from existing Input Map actions rather
@@ -576,7 +576,7 @@ func _actions() -> Dictionary:
 
 	# --- Sandbox debug hotkeys (Bontago-mv0.8) -------------------------------
 	# Unlisted like net_debug_toggle above: only reachable through
-	# `godot --path . -- --sandbox` (game/Main.gd), never seen in the shipped
+	# `godot --path . -- --sandbox` (game/main/Main.gd), never seen in the shipped
 	# hot-seat or networked flows. Every face/shoulder/stick/D-pad button is
 	# already claimed by placement and camera controls (spec 2.5) or by
 	# net_debug_toggle's own Back+Y chord, so these reach for the buttons
@@ -593,12 +593,12 @@ func _actions() -> Dictionary:
 	a["sandbox_reset_field"] = [_key(KEY_F5), _pad(JOY_BUTTON_PADDLE1)]
 	a["sandbox_toggle_timer"] = [_key(KEY_F6), _pad(JOY_BUTTON_PADDLE3)]
 	a["sandbox_spawn_tower"] = [_key(KEY_F7), _pad(JOY_BUTTON_PADDLE2)]
-	# Bontago-1pi.213: F8 / PADDLE4 now toggles the in-match HUD (ui/HUD.gd), in
+	# Bontago-1pi.213: F8 / PADDLE4 now toggles the in-match HUD (ui/hud/HUD.gd), in
 	# every match and the sandbox; it was the sandbox territory-overlay toggle.
 	a["hud_toggle"] = [_key(KEY_F8), _pad(JOY_BUTTON_PADDLE4)]
 
 	# DECISION (tools/bootstrap_project.gd, Bontago-1en.24): sandbox_force_
-	# special (game/Sandbox.gd's F9) is the fifth sandbox-only hotkey, but
+	# special (game/sandbox/Sandbox.gd's F9) is the fifth sandbox-only hotkey, but
 	# PADDLE1-4 above already claim every Xbox Elite/DualSense-class paddle,
 	# and every face/shoulder/stick/D-pad/Back/Start/MISC1 button on a
 	# standard pad is claimed by placement, camera, shell or another sandbox
@@ -616,7 +616,7 @@ func _actions() -> Dictionary:
 	# is already claimed above. Rather than a cross-script chord like net_
 	# debug_toggle's Back+Y (a different node's _unhandled_input), these reuse
 	# PADDLE1/PADDLE2 -- already sandbox_reset_field's and sandbox_spawn_
-	# tower's own buttons, checked in this same file's game/Sandbox.gd
+	# tower's own buttons, checked in this same file's game/sandbox/Sandbox.gd
 	# _unhandled_input -- gated on hud_toggle (PADDLE4) / sandbox_
 	# force_special (TOUCHPAD) being held at the same time. Keeping both
 	# halves of each chord inside one script (rather than splitting the
@@ -629,30 +629,30 @@ func _actions() -> Dictionary:
 	a["sandbox_pause_physics"] = [_key(KEY_F11), _pad(JOY_BUTTON_PADDLE2)]
 
 	# DECISION (tools/bootstrap_project.gd, Bontago-470.8): perf_overlay_toggle
-	# is the debug-only F1 performance overlay (ui/PerfOverlay.gd, gated by
-	# game/DebugMode.gd). JOY_BUTTON_RIGHT_STICK is the one standard-pad button
+	# is the debug-only F1 performance overlay (ui/debug/PerfOverlay.gd, gated by
+	# game/debug/DebugMode.gd). JOY_BUTTON_RIGHT_STICK is the one standard-pad button
 	# nothing else binds (hover_raise/lower moved to the shoulders long ago),
-	# but a stray stick click must not flip a debug overlay, so ui/PerfOverlay.gd
+	# but a stray stick click must not flip a debug overlay, so ui/debug/PerfOverlay.gd
 	# only accepts the pad press while Back (camera_snap_home) is held -- the
 	# same action-built chord net_debug_toggle uses -- and avoids Start, whose
 	# press opens the pause menu.
 	a["perf_overlay_toggle"] = [_key(KEY_F1), _pad(JOY_BUTTON_RIGHT_STICK)]
 
 	# DECISION (tools/bootstrap_project.gd, Bontago-1t5.63): bot_cost_overlay_toggle is the debug-only F2 bot
-	# think cost overlay (ui/PerfBotCostOverlay.gd, gated by game/DebugMode.gd). R3 already belongs to F1 (and
+	# think cost overlay (ui/debug/PerfBotCostOverlay.gd, gated by game/debug/DebugMode.gd). R3 already belongs to F1 (and
 	# show_scores), so its pad half is the left-stick click, accepted by the overlay only while Back
 	# (camera_snap_home) is held, like F1/F3. L3 is camera_modifier, a hold modifier that only matters
 	# together with camera stick motion, so a Back+L3 press does no harm; a bare L3 press is ignored.
 	a["bot_cost_overlay_toggle"] = [_key(KEY_F2), _pad(JOY_BUTTON_LEFT_STICK)]
 
 	# --- Gift demo (Bontago-1pi.70) ---------------------------------------------
-	# Only read by game/Sandbox.gd while the gift-demo preset is active, so they
+	# Only read by game/sandbox/Sandbox.gd while the gift-demo preset is active, so they
 	# never act in a normal sandbox or match.
 	a["gift_demo_cycle_prev"] = [_key(KEY_LEFT), _pad(JOY_BUTTON_LEFT_SHOULDER)]
 	a["gift_demo_cycle_next"] = [_key(KEY_RIGHT), _pad(JOY_BUTTON_RIGHT_SHOULDER)]
 
 	# --- Watch bots spectator (Bontago-1pi.212) ---------------------------------
-	# Only read by game/SpectatorController.gd, which exists only in a debug Watch bots match (every seat a
+	# Only read by game/player/SpectatorController.gd, which exists only in a debug Watch bots match (every seat a
 	# bot, so no ghost/rotation/placement input is in use). DECISION: plain buttons are free in that context,
 	# so no chord: next/previous follow on N/B and the shoulders, overview on H and Y, speed step on L and
 	# D-pad up, pause on P and D-pad down. Free orbit/pan/zoom reuse the camera actions (right stick orbit,

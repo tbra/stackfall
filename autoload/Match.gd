@@ -84,16 +84,16 @@ static func is_start_transition(from_state: int, to_state: int) -> bool:
 const COUNTDOWN_SECONDS: float = MatchConfig.COUNTDOWN_SECONDS_DEFAULT
 
 ## The config the running match was started with. A duplicate of whatever was
-## handed to start_match(), never the shared config/match_defaults.tres.
+## handed to start_match(), never the shared config/match/match_defaults.tres.
 var config: MatchConfig = null
 
-var _physics_tuning: PhysicsTuning = preload("res://config/physics_tuning.tres")
-var _territory_tuning: TerritoryTuning = preload("res://config/territory_tuning.tres")
-var _block_feed_config: BlockFeedConfig = preload("res://config/block_feed.tres")
-var _net_config: NetConfig = preload("res://config/net_config.tres")
+var _physics_tuning: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
+var _territory_tuning: TerritoryTuning = preload("res://config/territory/territory_tuning.tres")
+var _block_feed_config: BlockFeedConfig = preload("res://config/match/block_feed.tres")
+var _net_config: NetConfig = preload("res://config/net/net_config.tres")
 
 ## DECISION (autoload/Match.gd): Net is a plain autoload, and GUT cannot
-## double one (see game/PlayerController.gd's matching DECISION), so every
+## double one (see game/player/PlayerController.gd's matching DECISION), so every
 ## host gate below reads through this seam instead of naming `Net` directly.
 ## null means "the real Net", which is what every shipped build uses; a test
 ## injects a double with set_net_provider(). Net.is_host() is true offline
@@ -159,7 +159,7 @@ var _context: MatchContextLive = null
 ## True once late_activate() has built the controllers. Windowed runs defer it until Boot has
 ## prewarmed the scripts (LateScripts.boot_defers_activation); headless runs activate in _ready().
 var _late_active: bool = false
-## Test seam (tests/unit/test_match_activation.gd): forces the deferred path in a headless run.
+## Test seam (tests/unit/match/test_match_activation.gd): forces the deferred path in a headless run.
 var force_defer_activation: bool = false
 
 
@@ -392,7 +392,7 @@ func debug_unlock_slot(slot_id: int) -> void:
 
 ## Hands Match the world it drives. Called once by Main after the scene is
 ## built, so nothing here ever walks the scene tree looking for its
-## collaborators (CLAUDE.md). `registry` is game/BlockRegistry.gd, which
+## collaborators (CLAUDE.md). `registry` is game/blocks/BlockRegistry.gd, which
 ## tracks live blocks and their settled state; `blocks_parent` is where new
 ## blocks are added.
 func register_world(field: FieldBody, registry: Node, blocks_parent: Node3D) -> void:
@@ -432,7 +432,7 @@ func blocks_parent() -> Node3D:
 ## Validity-guarded: Main frees its world without unregistering it, so
 ## between one match world's teardown and the next register_world() these
 ## accessors would otherwise hand out a freed node (seen when
-## ui/SandboxPanel.gd and game/PlayerController.gd read them from _ready()).
+## ui/debug/SandboxPanel.gd and game/player/PlayerController.gd read them from _ready()).
 func field() -> FieldBody:
 	return _field if is_instance_valid(_field) else null
 
@@ -684,7 +684,7 @@ func pop_pending_special(slot_id: int) -> StringName:
 
 
 ## M4 P2b: how many specials `slot_id` currently has queued (capped at
-## GiftConfig.max_pending_specials). ui/HUD.gd's queued-count indicator
+## GiftConfig.max_pending_specials). ui/hud/HUD.gd's queued-count indicator
 ## (Bontago-1en.16, not this package) is the only consumer today.
 func pending_special_count(slot_id: int) -> int:
 	if not _late_active:
@@ -724,7 +724,7 @@ func consume_glue_drop(slot_id: int) -> bool:
 
 
 ## M4 P2b: installs the real weighted special-type draw P2c wires in once
-## config/specials/ exists; the default (MatchGifts._default_special_drawer)
+## config/gifts/specials/ exists; the default (MatchGifts._default_special_drawer)
 ## always returns MatchGifts.PENDING_SPECIAL_ID. See
 ## MatchGifts.set_special_drawer().
 func set_special_drawer(drawer: Callable) -> void:
@@ -732,7 +732,7 @@ func set_special_drawer(drawer: Callable) -> void:
 	_gifts.set_special_drawer(drawer)
 
 
-## Bontago-1en.24: game/Sandbox.gd's F9 hotkey turning back "off" -- reinstalls
+## Bontago-1en.24: game/sandbox/Sandbox.gd's F9 hotkey turning back "off" -- reinstalls
 ## whatever drawer a real match would be running (the weighted SpecialDef
 ## pick, or the shipped placeholder). See MatchGifts.restore_default_special_
 ## drawer().
@@ -741,7 +741,7 @@ func restore_default_special_drawer() -> void:
 	_gifts.restore_default_special_drawer()
 
 
-## Bontago-1en.24: game/Sandbox.gd's F9 sandbox_force_special hotkey and
+## Bontago-1en.24: game/sandbox/Sandbox.gd's F9 sandbox_force_special hotkey and
 ## `--force-special=` -- appends `special_id` straight onto `slot_id`'s
 ## pending queue with no crate needed, host-only and sandbox-only. See
 ## MatchGifts.debug_queue_special() for the full contract (the cap, the
@@ -850,7 +850,7 @@ func apply_replicated_qol(slot_id: int, backlog: int, paused: bool) -> void:
 
 
 ## Whether _tick_feed() is currently decrementing timers (Bontago-mv0.8:
-## true for every real match). ui/SandboxPanel.gd shows this as the timer's
+## true for every real match). ui/debug/SandboxPanel.gd shows this as the timer's
 ## "running"/"paused" state.
 func feed_timer_enabled() -> bool:
 	if not _late_active:
@@ -858,7 +858,7 @@ func feed_timer_enabled() -> bool:
 	return _feed.feed_timer_enabled()
 
 
-## game/Sandbox.gd's sandbox_toggle_timer hotkey. A no-op call outside
+## game/sandbox/Sandbox.gd's sandbox_toggle_timer hotkey. A no-op call outside
 ## sandbox is harmless (every real match starts true and nothing else in the
 ## shipped game ever calls this), but nothing stops a caller from flipping it
 ## — this file does not gate it on config.sandbox, the same way

@@ -43,3 +43,5 @@ replace	tests/unit/test_light_boundary_types.gd	, "res://vfx"]	]
 replace	tests/unit/test_tuning_panel.gd	"net", "vfx", "ui"	"net", "ui"
 allow	tests/unit/*test_tuning_panel.gd	config/
 allow	tests/unit/*test_ui_scaling.gd	ui
+replace	tests/unit/test_home_spawn_height.gd	res://config/maps/	res://config/match/maps/
+replace	tests/unit/test_home_spawn_height.gd	config/maps must hold	config/match/maps must hold

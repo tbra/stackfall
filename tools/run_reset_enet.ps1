@@ -1,4 +1,4 @@
-# Bontago-1pi.46 R3: match-reset fingerprint over real ENet. Runs tests/bench/reset_enet.gd
+# Bontago-1pi.46 R3: match-reset fingerprint over real ENet. Runs tests/enet/reset_enet.gd
 # twice -- mode "fresh" (host + lagged client start match B on a fresh launch, fingerprints
 # written to -Out) then mode "dirty" (they play match A, Replay, a client leave/re-join, then
 # B, and diff against the fresh fingerprints) -- under one shared hard deadline.
@@ -8,7 +8,7 @@
 # Exit code: 0 when every peer of both runs prints "result=PASS" (verdict PASS) or "result=PENDING"
 # (only the known seat gap differs, verdict PENDING); 1 otherwise or when a deadline was hit.
 param([string]$Path = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path, [int]$Port = 0, [int]$Lag = 50, [string]$Out = $env:TEMP, [int]$TimeoutSeconds = 900)
-$scene = "res://tests/bench/reset_enet.tscn"
+$scene = "res://tests/enet/reset_enet.tscn"
 . (Join-Path $PSScriptRoot "enet_result.ps1")
 $deadlineAt = (Get-Date).AddSeconds($TimeoutSeconds)
 $script:deadlineHit = $false

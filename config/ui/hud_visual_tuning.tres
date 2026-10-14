@@ -1,0 +1,46 @@
+[gd_resource type="Resource" script_class="HUDVisualTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/ui/HUDVisualTuning.gd" id="1_hud_visual"]
+
+[resource]
+script = ExtResource("1_hud_visual")
+minimap_size_px = 168
+minimap_zoom_margin_m = 6.0
+minimap_refresh_hz = 8.0
+minimap_beacon_radius_px = 4.0
+minimap_goal_radius_px = 5.0
+minimap_goal_neutral_color = Color(0.85098, 0.796078, 0.741176, 1)
+minimap_goal_contested_color = Color(1, 0.776471, 0.352941, 1)
+minimap_goal_capture_width_px = 2.0
+minimap_gift_radius_px = 5.0
+minimap_gift_falling_color = Color(1, 0.91, 0.35, 1)
+minimap_gift_landed_color = Color(1, 0.69, 0.27, 1)
+minimap_gift_outline_color = Color(0.08, 0.09, 0.12, 0.95)
+minimap_frame_border_width_px = 3.0
+panel_background_color = Color(0.0862745, 0.0705882, 0.109804, 0.86)
+panel_corner_radius_px = 12.0
+panel_border_width_px = 2.0
+minimap_frame_color = Color(1, 0.776471, 0.352941, 1)
+minimap_backdrop_color = Color(0.0862745, 0.0705882, 0.109804, 0.86)
+minimap_disc_outline_color = Color(0.85098, 0.796078, 0.741176, 0.55)
+minimap_territory_saturation_boost = 1.2
+minimap_territory_value_boost = 1.15
+hud_row_glyph_size_px = 20.0
+hud_share_bar_track_color = Color(0.164706, 0.141176, 0.2, 1)
+hud_share_bar_highlight_color = Color(1, 1, 1, 0.18)
+hud_share_bar_border_color = Color(0.0862745, 0.0705882, 0.109804, 1)
+surface_color = Color(0.0862745, 0.0705882, 0.109804, 0.86)
+surface_border_color = Color(1, 1, 1, 0.12)
+ink_color = Color(1, 0.964706, 0.917647, 1)
+muted_ink_color = Color(0.85098, 0.796078, 0.741176, 1)
+card_padding_px = 12.0
+share_bar_width_px = 88.0
+hud_row_name_width_px = 132.0
+share_bar_height_px = 12.0
+toast_fill_color = Color(0.0862745, 0.0705882, 0.109804, 1)
+countdown_go_text = "GO"
+countdown_font_size = 128
+toast_corner_radius_px = 8.0
+toast_padding_x_px = 12.0
+toast_padding_y_px = 8.0
+toast_border_width_px = 4.0

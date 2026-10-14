@@ -1,7 +1,7 @@
 # Glue fusion WP5: host + client + late joiner on loopback under a hard wall-clock deadline (pattern of
 # run_glue_fall_enet.ps1). The late client starts once the host reports the group at rest.
 param([string]$Path = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path, [int]$Port = (Get-Random -Minimum 20000 -Maximum 60000), [int]$Lag = 0, [switch]$Unanchored, [string]$Out = $env:TEMP, [int]$TimeoutSeconds = 540)
-$scene = "res://tests/bench/glue_fuse_enet.tscn"
+$scene = "res://tests/enet/glue_fuse_enet.tscn"
 . (Join-Path $PSScriptRoot "enet_result.ps1")
 $procs = @()
 $deadlineHit = $false

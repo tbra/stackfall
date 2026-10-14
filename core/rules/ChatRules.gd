@@ -3,7 +3,7 @@ extends RefCounted
 ## Pure rules for player chat (Bontago-1pi.192, docs/CHAT_PLAN.md): cleaning a
 ## typed line, the wire line shape and its client-side check, the host's
 ## per-peer flood bucket and the history ring. No scene tree, no transport; the
-## numbers come from ChatConfig (config/chat_config.tres).
+## numbers come from ChatConfig (config/net/chat_config.tres).
 
 const KIND_TEXT: int = 0
 const KIND_SYSTEM: int = 1

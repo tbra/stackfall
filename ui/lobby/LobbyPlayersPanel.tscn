@@ -1,7 +1,7 @@
 [gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://ui/lobby/LobbyPlayersPanel.gd" id="1_panel"]
-[ext_resource type="Script" path="res://ui/FocusScrollContainer.gd" id="2_scroll"]
+[ext_resource type="Script" path="res://ui/components/FocusScrollContainer.gd" id="2_scroll"]
 [ext_resource type="Script" path="res://ui/components/UiTitleRow.gd" id="3_title"]
 [ext_resource type="Script" path="res://ui/components/UiRow.gd" id="4_row"]
 [ext_resource type="Script" path="res://ui/components/UiToggle.gd" id="5_toggle"]

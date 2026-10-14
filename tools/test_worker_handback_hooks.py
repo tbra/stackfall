@@ -90,7 +90,7 @@ class HandbackTests(unittest.TestCase):
             'bd -C M:/Bontago children Bontago-59o',
             'git -C M:/Bontago-worktrees/x log --oneline -20',
             'git -C M:/Bontago show --stat abc123',
-            'git -C M:/Bontago diff a1b2c3..HEAD -- game/Field.gd',
+            'git -C M:/Bontago diff a1b2c3..HEAD -- game/field/Field.gd',
             'bd -C M:/Bontago comments add Bontago-1 --actor stackfall-reviewer "HIGH a.gd:3 x<y; a|b & c"',
         ):
             self.assertIsNone(run_hook("guard_reviewer_bash.py", {"tool_input": {"command": command}}), command)

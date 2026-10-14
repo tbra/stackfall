@@ -7,12 +7,12 @@ extends Node3D
 ## Prints one machine-readable result line, then quits.
 ##
 ## **Must be a .tscn, not a -s script.** Autoload identifiers (Match, Events)
-## do not resolve in a bare -s SceneTree (tests/bench/m3a_acceptance.gd's own
+## do not resolve in a bare -s SceneTree (tests/enet/m3a_acceptance.gd's own
 ## header finding, commit 12d2ec2). VolcanoEffect.physics_tick() spawns real
 ## orbs through Match.spawn_special_projectile(), which requires a live,
 ## PLAYING host match with a registered Field/BlockRegistry/blocks-parent
 ## (autoload/match/MatchPlacement.gd's own guard) -- this scene builds that
-## exact fixture (tests/bench/m3a_acceptance.gd's own _run_host() shape,
+## exact fixture (tests/enet/m3a_acceptance.gd's own _run_host() shape,
 ## minus networking/replication), rather than tests/bench/bench_tower.gd's/
 ## bench_rain.gd's simpler Field-only setup, since neither of those benches
 ## ever spawns through Match.
@@ -75,7 +75,7 @@ func _ready() -> void:
 	add_child(registry)
 	Match.register_world(_field, registry, _blocks_root)
 
-	var config: MatchConfig = (load("res://config/match_defaults.tres") as MatchConfig).duplicate(true) as MatchConfig
+	var config: MatchConfig = (load("res://config/match/match_defaults.tres") as MatchConfig).duplicate(true) as MatchConfig
 	config.disc_size_step = 1
 	config.player_count = 2
 	config.hot_seat = false
@@ -90,7 +90,7 @@ func _ready() -> void:
 		]
 	)
 
-	# Same wait shape as tests/bench/m3a_acceptance.gd's own _run_host():
+	# Same wait shape as tests/enet/m3a_acceptance.gd's own _run_host():
 	# Match.COUNTDOWN_SECONDS of simulated time plus a fixed margin, driven by
 	# Match's own autoload _process() (never disabled here, unlike the GUT
 	# unit tests, which call Match.set_process(false) to drive it manually).
@@ -105,7 +105,7 @@ func _spawn_volcanoes() -> void:
 			volcano_def = def
 			break
 	if volcano_def == null:
-		push_error("BENCH_SPECIALS_CHAIN: config/specials/volcano.tres not found")
+		push_error("BENCH_SPECIALS_CHAIN: config/gifts/specials/volcano.tres not found")
 		get_tree().quit(1)
 		return
 

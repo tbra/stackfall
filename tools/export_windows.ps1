@@ -99,7 +99,7 @@ foreach ($dll in @("libgodotsteam.windows.template_release.x86_64.dll", "libgodo
 Set-Content -Path (Join-Path $outDir "steam_appid.txt") -Value "480" -Encoding ascii -NoNewline
 
 # Playtest share (owner 2026-10-01): with the 480 test AppID a plain launch
-# skips Steam init (game/Main.gd), so testers get a launcher that opts in.
+# skips Steam init (game/main/Main.gd), so testers get a launcher that opts in.
 $launcher = "@echo off`r`nstart `"`" `"%~dp0Stackfall.exe`" -- --steam-online --steam-public-lobby`r`n"
 Set-Content -Path (Join-Path $outDir "Play Online (Steam).bat") -Value $launcher -Encoding ascii -NoNewline
 $readme = @"
@@ -130,11 +130,11 @@ Set-Content -Path (Join-Path $outDir "README-PLAYTEST.txt") -Value $readme -Enco
 # Sfx loads effect files directly from <exe dir>/assets/effects in exports,
 # not from the PCK. Mirror that folder beside the exe or the editor's working
 # hover sound (and all other effects) becomes silent in a packaged build.
-$effectAssets = Join-Path $Path "assets/effects"
+$effectAssets = Join-Path $Path "assets/audio/sfx"
 if (Test-Path $effectAssets) {
-	Copy-DirContents $effectAssets (Join-Path $outDir "assets/effects")
+	Copy-DirContents $effectAssets (Join-Path $outDir "assets/audio/sfx")
 } else {
-	Write-Warning "assets/effects/ not found in $Path; the exported build will have no effects."
+	Write-Warning "assets/audio/sfx/ not found in $Path; the exported build will have no effects."
 }
 
 # Smoke gate (Bontago-8or.18): GUT runs from source, never from the PCK, so

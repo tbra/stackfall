@@ -1,7 +1,7 @@
 class_name BlockShape
 extends Resource
 ## One placeable block shape: a set of unit-cube offsets plus feed weight
-## (spec 3.6, 2.4). The block factory (game/BlockFactory.gd) turns this data
+## (spec 3.6, 2.4). The block factory (game/blocks/BlockFactory.gd) turns this data
 ## into a RigidBody3D with one BoxShape3D per cell.
 
 ## Unique identifier, e.g. &"cube", &"bar3".
@@ -21,7 +21,7 @@ extends Resource
 
 ## Cells (must also appear in `cells`) whose collision and mesh should be a
 ## 45-degree wedge instead of a full cube (spec 2.4's now-removed wedge shape
-## used this; game/BlockFactory.gd's DECISION comment on the sloped branch
+## used this; game/blocks/BlockFactory.gd's DECISION comment on the sloped branch
 ## explains why the machinery stays). Empty for every shipped shape today.
 @export var sloped_cells: Array[Vector3i] = []
 
@@ -36,7 +36,7 @@ const SHAPES_DIR: String = "res://config/blocks/"
 ## in cell units, computed once and cached. Every shape whose cells don't
 ## straddle the origin symmetrically (bar3's cells run 0..2, so its centre is
 ## (1, 0, 0); domino's run 0..1, so its centre is (0.5, 0, 0)) used to hang off
-## the cursor and rotate about the wrong point, because game/BlockFactory.gd
+## the cursor and rotate about the wrong point, because game/blocks/BlockFactory.gd
 ## and autoload/Match.gd both treated cell (0, 0, 0) as the pivot.
 ##
 ## Bontago-mv0.17 item 3 (owner feel report: "the ghost/body pivot is the
@@ -46,7 +46,7 @@ const SHAPES_DIR: String = "res://config/blocks/"
 ## `bottom_center()` instead of `center()` — the x/z centre of the cell
 ## bounds unchanged, but y is the bottom face of the lowest cell
 ## (min_y - 0.5 cell, i.e. half a cube below the lowest cell's own centre)
-## rather than the vertical midpoint. game/BlockFactory.gd builds every cell
+## rather than the vertical midpoint. game/blocks/BlockFactory.gd builds every cell
 ## offset relative to this point now, so a body's/ghost's own local origin
 ## (0, 0, 0) sits at the bottom of the *unrotated* shape.
 ##
@@ -54,7 +54,7 @@ const SHAPES_DIR: String = "res://config/blocks/"
 ## the old geometric-centre method — nothing in the project still wants a
 ## mid-height pivot, so carrying two pivot conventions would just be a second
 ## place for BlockFactory/GhostPreview/Match to disagree about which one to
-## use. See game/GhostPreview.gd's own DECISION for how rotation (which still
+## use. See game/player/GhostPreview.gd's own DECISION for how rotation (which still
 ## happens about this same local origin) is compensated so the *rotated*
 ## shape's lowest point — not always this unrotated bottom-centre point after
 ## a 90-degree pitch/roll — is what actually lands at the cursor height.
@@ -156,9 +156,9 @@ static func load_bag_shapes() -> Array[BlockShape]:
 ## Loads every BlockShape resource in SHAPES_DIR, sorted by id so the result is
 ## deterministic across platforms and directory-listing orders. The single
 ## source of truth for "what shapes exist" — used by the M1 plain-random feed
-## (game/PlayerController.gd), the rain benchmark (tests/bench/bench_rain.gd),
+## (game/player/PlayerController.gd), the rain benchmark (tests/bench/bench_rain.gd),
 ## and M2's weighted bag. BlockFeedConfig falls back to this when its `shapes`
-## list is empty, and core/feed/BlockBag.gd needs the order to be stable so the
+## list is empty, and core/blocks/BlockBag.gd needs the order to be stable so the
 ## same rng_seed always deals the same sequence (spec 2.4).
 static func load_all_shapes() -> Array[BlockShape]:
 	var shapes: Array[BlockShape] = []

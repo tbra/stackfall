@@ -1,6 +1,0 @@
-[gd_resource type="Resource" script_class="FreezeFxTuning" load_steps=2 format=3]
-
-[ext_resource type="Script" path="res://config/specials/fx/FreezeFxTuning.gd" id="1_fx"]
-
-[resource]
-script = ExtResource("1_fx")

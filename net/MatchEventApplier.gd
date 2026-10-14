@@ -58,8 +58,8 @@ func apply_event(event: StringName, args: Array) -> void:
 			# and the ghost at the controls that are live here, which is
 			# always your own slot. Mirroring the host's value verbatim would
 			# aim this client's whole UI at another player, so outside
-			# hot-seat a client substitutes its own slot. ui/HUD.gd and
-			# game/PlayerController.gd therefore need no networking of their
+			# hot-seat a client substitutes its own slot. ui/hud/HUD.gd and
+			# game/player/PlayerController.gd therefore need no networking of their
 			# own.
 			var turn_slot: int = int(args[0])
 			var running: MatchConfig = _authority().config
@@ -270,7 +270,7 @@ func apply_event(event: StringName, args: Array) -> void:
 			_authority().apply_replicated_gift_expired(expired_gift_id)
 			Events.gift_expired.emit(expired_gift_id)
 		MatchNet.EVENT_SPECIAL_TRIGGERED:
-			# M4 P2c-ii: mirrors game/specials/SpecialBehavior.gd's own trigger
+			# M4 P2c-ii: mirrors game/gifts/specials/SpecialBehavior.gd's own trigger
 			# to every client -- a client runs no SpecialBehavior of its own
 			# (Events.special_triggered is only ever emitted host-side, see
 			# _on_special_triggered() above), so this dispatch is the only

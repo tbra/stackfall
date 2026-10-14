@@ -67,7 +67,7 @@ var _goal_positions: PackedVector2Array = PackedVector2Array()
 var _goal_radii: PackedFloat32Array = PackedFloat32Array()
 
 ## The analytic circle list the last _run_territory_step() built for
-## game/TerritoryOverlay.gd (see _apply_circle_render()), cached so
+## game/field/TerritoryOverlay.gd (see _apply_circle_render()), cached so
 ## net/MatchNet.gd's replicate_territory() can ship the identical list to
 ## clients without re-deriving it from raw circles a client never has (every
 ## body is frozen there). Host only; a client's copy lives only in the
@@ -427,9 +427,9 @@ func bot_mode_goal(slot_id: int) -> BotModeGoal:
 
 ## Bontago-1pi.166: Reach the Sky's target height is NetConfig.build_height_target_m
 ## (single source with the network position band).
-const SKY_NET_CONFIG: NetConfig = preload("res://config/net_config.tres")
+const SKY_NET_CONFIG: NetConfig = preload("res://config/net/net_config.tres")
 ## Shipped bot tuning, read for the Domination leader sample cap only.
-const BOT_TUNING: BotTuning = preload("res://config/bot_tuning.tres")
+const BOT_TUNING: BotTuning = preload("res://config/bots/bot_tuning.tres")
 
 
 ## Domination (Bontago-1pi.25.1): flags whether `own_team` already leads and, when
@@ -784,7 +784,7 @@ func _collect_circles() -> Array[InfluenceCircle]:
 
 
 ## Bontago-cmc.5 (owner requirement: "should look smooth"). Builds the
-## analytic circle list game/TerritoryOverlay.gd's shader draws instead of
+## analytic circle list game/field/TerritoryOverlay.gd's shader draws instead of
 ## the smoothstepped, bilinearly-upscaled 1 m cell raster: only the
 ## *home-anchored* circles TerritorySolver kept in a group (never a raw,
 ## possibly cut-off circle — the raster and the shader must agree on which
@@ -965,7 +965,7 @@ func _attacker_slot_for(victim: int, team: int) -> int:
 ## that only ever sent the raster payload) still compiles and still mirrors
 ## the raster exactly as before -- an empty circle list just means the
 ## overlay falls back to the raster path for that frame
-## (game/TerritoryOverlay.gd's set_circles(), "circles_valid"), never a
+## (game/field/TerritoryOverlay.gd's set_circles(), "circles_valid"), never a
 ## crash. net/MatchNet.gd's net_territory() is the only real caller that
 ## passes a non-empty list.
 func apply_replicated_territory(
@@ -1007,7 +1007,7 @@ func apply_replicated_territory(
 ## A special effect's own hole, independent of territory contest (spec 2.6).
 ## `world_pos` is disk-local (x, z) metres -- Field.disk_local_from_world()'s
 ## convention, the same one CellGrid documents -- not a Vector3 world
-## position; a caller (e.g. game/specials/JumpingBeanEffect.gd) converts
+## position; a caller (e.g. game/gifts/specials/JumpingBeanEffect.gd) converts
 ## before calling in.
 ##
 ## Host-only, the same guard _tick_territory()/_check_home_flags() use, and a
@@ -1101,7 +1101,7 @@ func punch_special_hole(world_pos: Vector2, radius_m: float, hole_open_s: float)
 ## the same mechanism punch_special_hole() above already proves for Jumping
 ## Bean) rather than resizing CellGrid/rebuilding Field's trimesh -- A0
 ## established that a whole-disk operation, not something to run every 10 s.
-## game/Field.gd needs no new code at all for sudden death: it already reacts
+## game/field/Field.gd needs no new code at all for sudden death: it already reacts
 ## to set_hole_cells()/wakes bodies above a newly-opened cell exactly as it
 ## does for a natural overlap hole.
 ##

@@ -1,5 +1,5 @@
-// The territory disc's procedural cel plating, shared by shaders/territory.gdshader (the top)
-// and shaders/arena_side_shell.gdshader (the SHADER_DOME side/underside look, Bontago-mp0.150.2)
+// The territory disc's procedural cel plating, shared by shaders/territory/territory.gdshader (the top)
+// and shaders/territory/arena_side_shell.gdshader (the SHADER_DOME side/underside look, Bontago-mp0.150.2)
 // so both draw the very same plates, seams and rivets. Moved verbatim out of territory.gdshader.
 
 // -- Bontago-adt.2: procedural cel plating (DiscSurfaceDef.Mode.PROCEDURAL) --
@@ -9,7 +9,7 @@
 // fades with the camera's height above the disc (rivets first, then seams),
 // uniformly across the whole disc, leaving a calm glossy disc from high up;
 // a small per-pixel guard drops only sub-pixel detail at the grazing horizon. See proc_plating() below; the values are
-// pushed from config/DiscSurfaceDef.gd by game/TerritoryOverlay.gd.
+// pushed from config/territory/DiscSurfaceDef.gd by game/field/TerritoryOverlay.gd.
 uniform bool disc_procedural = false;
 uniform vec3 disc_proc_base_tint = vec3(0.14, 0.155, 0.25);
 uniform float disc_proc_hub_radius_m = 3.5;

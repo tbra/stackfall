@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="FogTuning" load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://config/FogTuning.gd" id="1_wt"]
+[ext_resource type="Script" path="res://config/weather/FogTuning.gd" id="1_wt"]
 
 [resource]
 script = ExtResource("1_wt")
@@ -11,4 +11,4 @@ ramp_in_s = 6.0
 ramp_out_s = 6.0
 hold_min_s = 40.0
 hold_max_s = 80.0
-presentation_scene = "res://vfx/weather/fog_presentation.tscn"
+presentation_scene = "res://game/weather/fog_presentation.tscn"

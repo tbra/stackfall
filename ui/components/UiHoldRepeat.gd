@@ -10,7 +10,7 @@ extends RefCounted
 ## stick_release_threshold (hysteresis), so drift never retriggers; it auto-repeats only near full
 ## deflection (stick_repeat_threshold) at the slower stick delay / interval.
 
-const TUNING: SliderNavTuning = preload("res://config/slider_nav_tuning.tres")
+const TUNING: SliderNavTuning = preload("res://config/ui/slider_nav_tuning.tres")
 const DIR_NONE: int = 0
 const SOURCE_KEY: int = 0
 const SOURCE_STICK: int = 1

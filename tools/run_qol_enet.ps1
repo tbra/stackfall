@@ -1,5 +1,5 @@
 # Bontago-1pi.18.8 (QoL Q4): host + one lagged client on loopback, the QoL toggle
-# matrix of tests/bench/qol_enet.gd, under a hard wall-clock deadline.
+# matrix of tests/enet/qol_enet.gd, under a hard wall-clock deadline.
 # Follows tools/run_m3a_local.ps1: Process.Kill($true) ends the whole process
 # tree (the godot shim spawns the real console exe), and a finally block does it
 # again so an error or Ctrl+C cannot orphan a child.
@@ -8,7 +8,7 @@
 # Exit code: 0 only when BOTH peers print "result=PASS" and neither hit the deadline;
 # 1 otherwise. Log lines (QOLENET ...) are echoed per peer for inspection.
 param([string]$Path = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path, [int]$Port = 0, [int]$Lag = 50, [string]$Out = $env:TEMP, [int]$TimeoutSeconds = 180)
-$scene = "res://tests/bench/qol_enet.tscn"
+$scene = "res://tests/enet/qol_enet.tscn"
 . (Join-Path $PSScriptRoot "enet_result.ps1")
 $procs = @()
 $deadlineHit = $false

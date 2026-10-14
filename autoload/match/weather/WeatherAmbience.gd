@@ -20,7 +20,7 @@ extends Node
 ## DECISION (WeatherAmbience): WAV loops are not looping on import, so the
 ## runtime duplicates each stream and sets forward looping over its full length.
 
-var tuning: WeatherAudioTuning = preload("res://config/weather_audio.tres")
+var tuning: WeatherAudioTuning = preload("res://config/weather/weather_audio.tres")
 
 var _defs: Dictionary = {}
 var _beds: Dictionary = {}

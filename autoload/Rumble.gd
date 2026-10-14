@@ -6,8 +6,8 @@ extends Node
 ## SteamMultiplayerPeer as a bare identifier); rumble goes through Input only.
 ##
 ## Listens on Events (CLAUDE.md's global signal bus), the same pattern
-## game/CameraRig.gd's Events.block_impacted -> camera shake reaction already
-## uses (config/CameraShakeConfig.gd is this file's config/RumbleConfig.gd
+## game/player/CameraRig.gd's Events.block_impacted -> camera shake reaction already
+## uses (config/physics/CameraShakeConfig.gd is this file's config/player/RumbleConfig.gd
 ## precedent). Only ever rumbles the joypad that most recently sent a real
 ## button/axis event (see _input()); a session driven entirely by mouse and
 ## keyboard never buzzes a pad sitting idle nearby, and this is a total no-op
@@ -17,7 +17,7 @@ extends Node
 ## No class_name: this is the Rumble autoload singleton, the same convention
 ## Events/Settings/Net/Match/Sfx already use (see autoload/Net.gd's header).
 
-@export var config: RumbleConfig = preload("res://config/rumble_config.tres")
+@export var config: RumbleConfig = preload("res://config/player/rumble_config.tres")
 
 const DEVICE_NONE: int = -1
 const LocalFeedback := preload("res://autoload/match/LocalFeedback.gd")
@@ -35,7 +35,7 @@ var _last_device_id: int = DEVICE_NONE
 ## pair of StringName constants reused for DRY).
 var _last_family: StringName = &""
 
-## Test seam (tests/unit/test_rumble.gd): swaps the real Input calls for a
+## Test seam (tests/unit/player/test_rumble.gd): swaps the real Input calls for a
 ## Callable that records what was asked for instead of touching hardware --
 ## the same Variant/Callable seam idea autoload/Sfx.gd's set_root_dir_for_test()
 ## uses for a value GUT can't otherwise inject into the real singleton, except
@@ -74,7 +74,7 @@ func _input(event: InputEvent) -> void:
 
 
 ## Stops whatever the last-tracked pad is currently doing. Called by
-## ui/PauseMenu.gd's own pause_menu_opened (via _on_pause_menu_opened below)
+## ui/menus/PauseMenu.gd's own pause_menu_opened (via _on_pause_menu_opened below)
 ## and by this file's own match-end handler, so a mid-decay rumble never
 ## keeps buzzing into a menu or the results screen.
 func stop_all() -> void:
@@ -87,9 +87,9 @@ func _on_pause_menu_opened() -> void:
 
 
 func _on_block_impacted(speed: float) -> void:
-	# Bontago (rumble package): no slot on this signal at all (game/Block.gd
+	# Bontago (rumble package): no slot on this signal at all (game/blocks/Block.gd
 	# never passes one -- confirmed by reading Block.gd), so this reacts for
-	# every instance unconditionally, exactly like game/CameraRig.gd's own
+	# every instance unconditionally, exactly like game/player/CameraRig.gd's own
 	# camera-shake reaction to the same signal.
 	if speed < config.impact_speed_threshold:
 		return
@@ -182,7 +182,7 @@ func _on_match_won(team_id: int) -> void:
 		return
 
 
-## Null-safe mirror of config/MatchConfig.gd's team_of_slot() -- Match.config
+## Null-safe mirror of config/match/MatchConfig.gd's team_of_slot() -- Match.config
 ## is null before a match starts, matching autoload/Sfx.gd's own
 ## _team_of_slot() helper.
 func _team_of_slot(slot_id: int) -> int:
@@ -204,14 +204,14 @@ func _trigger(weak_magnitude: float, strong_magnitude: float, duration_s: float)
 	start_vibration_fn.call(_last_device_id, scaled_weak, scaled_strong, duration_s)
 
 
-## Bontago (options package): a short "test" pulse ui/OptionsMenu.gd's rumble
+## Bontago (options package): a short "test" pulse ui/menus/OptionsMenu.gd's rumble
 ## intensity slider nudges (when the slider is released or the rumble toggle
 ## is turned on) so the player can feel the current intensity without
 ## needing to trigger a real match event first. Reuses config.impact_weak_
 ## magnitude/impact_strong_magnitude/impact_duration_s -- the same "moderate
 ## hit" pulse _on_block_impacted() already produces at full impact speed --
 ## rather than inventing a new RumbleConfig field for a UI-only nudge
-## (config/RumbleConfig.gd sits outside this package's owned files).
+## (config/player/RumbleConfig.gd sits outside this package's owned files).
 ## DECISION (autoload/Rumble.gd). Goes through the same _trigger() gating as
 ## every other rumble reaction, so it is silent unless rumble is enabled and
 ## a gamepad is the last-active device.
@@ -229,7 +229,7 @@ func _stop_vibration_real(device: int) -> void:
 
 # --- Test seam -----------------------------------------------------------
 
-## tests/unit/test_rumble.gd injects the last-seen device/family directly,
+## tests/unit/player/test_rumble.gd injects the last-seen device/family directly,
 ## the same "inject state GUT can't otherwise reach" role
 ## Settings.set_active_input_device_for_test() plays for its own tracker --
 ## real hardware never delivers a synthetic InputEventJoypadButton/Motion to

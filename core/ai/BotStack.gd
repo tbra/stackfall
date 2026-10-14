@@ -35,7 +35,7 @@ extends RefCounted
 ## known contact hull; a carrier may lean (debris), and whether the pile holds the piece is load_margin's call
 ## through every carrier down to the disc. DECISION: "flat against the disc" is measured in this snapshot's frame,
 ## which is disc-local: game/BotStackProbe converts cube centres with Field.to_local and bases with the inverse
-## field basis, and Field (game/Field.gd _apply_tilt_transform) carries the tilt in its own transform, so local y
+## field basis, and Field (game/field/Field.gd _apply_tilt_transform) carries the tilt in its own transform, so local y
 ## IS the disc normal while the field tilts; world up never enters. The bot's real cube probes are cast along the
 ## same disc-local column (BotController._column_hit) and report field-local heights.
 ##

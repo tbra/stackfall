@@ -10,9 +10,9 @@ extends Node3D
 ## rather than an absolute guarantee of 120 fps in the shipped game.
 ##
 ## Add --preset=<id> (Bontago-xtq.17 review fix SHOULD-FIX 2; id = a file stem
-## under config/physics_presets/, e.g. "heavy_bouncy") to run this bench
-## against one of ui/TuningPanel.gd's shipped presets instead of the default
-## shipped config/physics_tuning.tres:
+## under config/physics/presets/, e.g. "heavy_bouncy") to run this bench
+## against one of ui/debug/TuningPanel.gd's shipped presets instead of the default
+## shipped config/physics/physics_tuning.tres:
 ##   godot --headless --path . res://tests/bench/bench_rain.tscn -- --preset=heavy_damped
 
 const BLOCK_COUNT: int = 300
@@ -22,12 +22,12 @@ const SPAWN_RADIUS: float = 20.0
 const SPAWN_HEIGHT_MIN: float = 15.0
 const SPAWN_HEIGHT_MAX: float = 40.0
 const RNG_SEED: int = 1
-## --preset=<id>; absent (the default) uses the shipped config/physics_tuning.tres.
+## --preset=<id>; absent (the default) uses the shipped config/physics/physics_tuning.tres.
 const PRESET_ARG_PREFIX: String = "--preset="
 ## Where --preset=<id> resolves `<id>.tres` from.
-const PRESET_DIR: String = "res://config/physics_presets/"
+const PRESET_DIR: String = "res://config/physics/presets/"
 
-var _tuning: PhysicsTuning = preload("res://config/physics_tuning.tres")
+var _tuning: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
 ## Which tuning source produced `_tuning`, for the printed result line --
 ## "shipped" (default) or the --preset= id.
 var _preset_label: String = "shipped"
@@ -64,7 +64,7 @@ func _ready() -> void:
 	print("BENCH_RAIN start blocks=%d duration_s=%.1f preset=%s" % [BLOCK_COUNT, RUN_SECONDS, _preset_label])
 
 
-## Loads `config/physics_presets/<id>.tres` and replaces `_tuning` with it,
+## Loads `config/physics/presets/<id>.tres` and replaces `_tuning` with it,
 ## called from _ready() before any block is built -- mirrors bench_tower.gd's
 ## own _apply_preset_arg(). An id that doesn't resolve to a real preset .tres
 ## is reported and left on the shipped default rather than silently

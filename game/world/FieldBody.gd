@@ -1,10 +1,10 @@
 class_name FieldBody
 extends AnimatableBody3D
-## Light base of game/Field.gd (docs/AUTOLOAD_DECOUPLING_PLAN.md, S1b, D8): the geometry members
+## Light base of game/field/Field.gd (docs/AUTOLOAD_DECOUPLING_PLAN.md, S1b, D8): the geometry members
 ## world code reads, plus virtual stubs Field overrides with identical signatures. Lets MatchContext
 ## and the specials name the field without compiling the whole Field scene closure.
 
-@export var map_def: MapDef = preload("res://config/maps/round_medium.tres")
+@export var map_def: MapDef = preload("res://config/match/maps/round.tres")
 
 
 func map_definition() -> MapDef:

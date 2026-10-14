@@ -15,11 +15,11 @@ extends RefCounted
 ## The future circle is centred on the candidate origin with radius
 ## InfluenceCircle.radius_for_height(top height) (cone half-angle 40 deg).
 
-const SHIPPED_TUNING: BotEvalTuning = preload("res://config/bot_eval_tuning.tres")
+const SHIPPED_TUNING: BotEvalTuning = preload("res://config/bots/bot_eval_tuning.tres")
 ## Tests (and the tuning tools) may swap this; it is read-only in play.
 static var tuning: BotEvalTuning = SHIPPED_TUNING
 ## Bontago-1t5.53b: the tower-statics tunables (aim share, tolerance, analysis slice); tests may swap it.
-const SHIPPED_STACK_TUNING: BotStackTuning = preload("res://config/bot_stack_tuning.tres")
+const SHIPPED_STACK_TUNING: BotStackTuning = preload("res://config/bots/bot_stack_tuning.tres")
 static var stack_tuning: BotStackTuning = SHIPPED_STACK_TUNING
 ## Sunflower spiral step, pi * (3 - sqrt(5)) radians.
 const GOLDEN_ANGLE: float = 2.39996323
@@ -228,7 +228,7 @@ static func future_radius(c: BotCandidate, view: BotWorldView) -> float:
 ## Bontago-1t5.32: dissolve risk (0 safe .. 1 doomed) of the site's base under the overlap-hole
 ## rule; 0 under HoleMode.OFF, where nothing dissolves. The legacy fill turns every cell that
 ## home-connected circles of two teams cover CONTESTED, opens a hole there after
-## TerritoryTuning.hole_delay, and game/HoleDissolver.gd dissolves a disc-level block touching
+## TerritoryTuning.hole_delay, and game/field/HoleDissolver.gd dissolves a disc-level block touching
 ## the hole together with everything stacked on it. A block's own circle always covers its
 ## footprint, so the piece is lost as soon as an enemy circle covers any footprint cell:
 ##   1     a footprint cell is already enemy-held, contested or a hole (a raster read);

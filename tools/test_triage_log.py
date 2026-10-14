@@ -190,7 +190,7 @@ class KnownLimitationKeywordTests(unittest.TestCase):
         self.assertTrue(tl._is_specific_keyword("MatchConfig.TeamMode"))
         self.assertTrue(tl._is_specific_keyword("cell_overlap"))
         self.assertTrue(tl._is_specific_keyword("team_count()"))
-        self.assertTrue(tl._is_specific_keyword("tests/bench/m2_acceptance.gd"))
+        self.assertTrue(tl._is_specific_keyword("tests/enet/m2_acceptance.gd"))
 
 
 if __name__ == "__main__":

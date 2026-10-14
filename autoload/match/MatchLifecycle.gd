@@ -7,9 +7,9 @@ extends RefCounted
 ## that file's own header comment for the full state-machine contract.
 
 ## Bontago-1pi.18.1: the shared (F4-editable) QoL experiment toggles.
-const QOL_EXPERIMENTS: QolExperiments = preload("res://config/qol_experiments.tres")
+const QOL_EXPERIMENTS: QolExperiments = preload("res://config/match/qol_experiments.tres")
 ## Bontago-1pi.32: min display time and ready-wait cap of the loading-screen gate.
-const LOADING_TUNING: LoadingScreenTuning = preload("res://config/loading_screen_tuning.tres")
+const LOADING_TUNING: LoadingScreenTuning = preload("res://config/ui/loading_screen_tuning.tres")
 
 var _match: MatchAutoload = null
 
@@ -23,13 +23,13 @@ var _countdown_held: bool = false
 
 ## -- Loading-screen ready gate (Bontago-1pi.32) ---------------------------------
 ## Owner playtest 2026-10-03: every human presses ready (ui_accept / gamepad A)
-## on the loading screen before the countdown runs (1pi.63: no minimum display time). The rule is core/LoadingReadyGate.gd; this file owns the
+## on the loading screen before the countdown runs (1pi.63: no minimum display time). The rule is core/rules/LoadingReadyGate.gd; this file owns the
 ## per-match state and the host's hooks. Net (autoload/Net.gd) is the transport:
 ## it validates the sender and hands the intent over on the Events bus.
 ##
-## DECISION: the gate is *armed* by ui/LoadingScreen.gd when it shows for a
+## DECISION: the gate is *armed* by ui/menus/LoadingScreen.gd when it shows for a
 ## match (arm_loading_ready_gate()), and only when a window exists (not
-## headless) and the run is not an agent probe -- the same conditions game/Main.gd
+## headless) and the run is not an agent probe -- the same conditions game/main/Main.gd
 ## uses to run the staged build behind the loading screen (headless or
 ## AgentProbe.is_active() keep the synchronous start contract). Sandbox never
 ## raises the overlay so it is never gated; the tutorial, hot-seat, vs-bots and
@@ -207,7 +207,7 @@ func start_match(match_config: MatchConfig) -> void:
 
 	# Bontago-1en.23 (M4 P5-TILT): register_world() itself runs before
 	# start_match() on every path (hot-seat, sandbox and the lobby -- see
-	# game/Main.gd's own "Wiring order matters" doc), before Match.config
+	# game/main/Main.gd's own "Wiring order matters" doc), before Match.config
 	# exists, so this is the first point at which both the Field and the new
 	# match's tilt_mode are known together. Runs on the host and on a client
 	# alike: this whole function is what net/MatchNet.gd's net_match_start RPC
@@ -218,9 +218,9 @@ func start_match(match_config: MatchConfig) -> void:
 
 	# DECISION (autoload/match/MatchLifecycle.gd, Bontago-mv0.20a): the lobby's
 	# gravity_multiplier (spec 2.8 "Gravity 0.5x-2x") is written straight into
-	# the shared config/physics_tuning.tres *instance* Match already holds
+	# the shared config/physics/physics_tuning.tres *instance* Match already holds
 	# (_physics_tuning), not a config-local copy -- BlockFactory.build() and
-	# every already-standing Block.apply_physics_tuning() (ui/TuningPanel.gd's
+	# every already-standing Block.apply_physics_tuning() (ui/debug/TuningPanel.gd's
 	# same live-apply path) both read that one shared object, so this is the
 	# only write needed for every future spawn this match to pick it up. The
 	# lobby value therefore overwrites the shared PhysicsTuning resource for
@@ -246,7 +246,7 @@ func start_match(match_config: MatchConfig) -> void:
 		_match._registry.reset()
 
 	_set_state(MatchAutoload.State.LOADING)
-	# Bontago-1pi.32: the real arm happens in ui/LoadingScreen.gd's LOADING handler
+	# Bontago-1pi.32: the real arm happens in ui/menus/LoadingScreen.gd's LOADING handler
 	# above; the test/harness seam arms here for runs with no overlay.
 	if _gate_forced:
 		arm_loading_ready_gate()
@@ -271,7 +271,7 @@ func start_match(match_config: MatchConfig) -> void:
 
 ## Back to Lobby from anywhere, clearing the field. Emits (old -> LOBBY) even
 ## from LOBBY itself: callers that want silence check state() first
-## (game/Main.gd does), and the emit is what tells every consumer -- Main's
+## (game/main/Main.gd does), and the emit is what tells every consumer -- Main's
 ## world, RemoteCursors, MatchNet's start flag -- that the match is over.
 func abort_match() -> void:
 	var old_state: MatchAutoload.State = _state
@@ -332,11 +332,11 @@ func _reset_match_state() -> void:
 	# Bontago-1en.23 (M4 P5-TILT): shared by abort_match() (teardown back to
 	# LOBBY) and start_match()'s own leading call to this function (tearing
 	# down whatever match was running before the new one's _apply_tilt_mode()
-	# call re-enables it) -- Field is a persistent node game/Field.gd's own
+	# call re-enables it) -- Field is a persistent node game/field/Field.gd's own
 	# clear_match_state() doc describes, so a tilt (and its spring velocity)
 	# left enabled here would otherwise still be live the moment the field
 	# sits idle behind the main menu. set_tilt_enabled(false) is also what
-	# levels the disc (game/Field.gd: "Disabling mid-match also snaps the tilt
+	# levels the disc (game/field/Field.gd: "Disabling mid-match also snaps the tilt
 	# itself back to level"); a no-op if tilt was never enabled this match.
 	if _match._field != null:
 		_match._field.set_tilt_enabled(false)
@@ -348,10 +348,10 @@ func _reset_match_state() -> void:
 
 
 ## Bontago-1en.23 (M4 P5-TILT): turns the Field tilt controller on for the
-## match that just got a config, per config/MatchConfig.gd's tilt_mode (spec
+## match that just got a config, per config/match/MatchConfig.gd's tilt_mode (spec
 ## 2.8). A no-op if register_world() was never called (some unit tests never
 ## hand Match a field at all) or by a caller who -- unlike every real path in
-## game/Main.gd -- called start_match() before register_world().
+## game/main/Main.gd -- called start_match() before register_world().
 ##
 ## DECISION (autoload/match/MatchLifecycle.gd): written as an exhaustive match
 ## over TiltMode's two current members, both of which tilt (config/
@@ -458,12 +458,12 @@ func _issue_first_blocks() -> void:
 # --- Loading-screen ready gate (Bontago-1pi.32) -----------------------------
 
 ## Test/harness seam: arm the gate at every start_match() even headless. Production
-## code never calls it; ui/LoadingScreen.gd arms through arm_loading_ready_gate().
+## code never calls it; ui/menus/LoadingScreen.gd arms through arm_loading_ready_gate().
 func set_loading_gate_forced(forced: bool) -> void:
 	_gate_forced = forced
 
 
-## Called by ui/LoadingScreen.gd while it shows for a match (LOADING). Starts the
+## Called by ui/menus/LoadingScreen.gd while it shows for a match (LOADING). Starts the
 ## host's min-display/ready clock; a client just starts waiting for the host's
 ## open message. Returns whether the gate is armed. See the DECISION above.
 func arm_loading_ready_gate() -> bool:
@@ -482,7 +482,7 @@ func arm_loading_ready_gate() -> bool:
 
 ## Pure: a headless display or an agent-probe run never arms the gate on its own
 ## (nobody is there to press ready, and a probe tool would otherwise sit 5-60 s on
-## the overlay). Bontago-1pi.32 review: the probe half mirrors game/Main.gd's
+## the overlay). Bontago-1pi.32 review: the probe half mirrors game/main/Main.gd's
 ## staged-build condition.
 static func gate_suppressed_for_environment(display_name: String, probe_active: bool) -> bool:
 	return display_name == "headless" or probe_active
@@ -661,7 +661,7 @@ func match_timer_left() -> float:
 	return _match_timer_left
 
 
-## True only in State.SUDDEN_DEATH. ui/HUD.gd may read this later (M6 A3's
+## True only in State.SUDDEN_DEATH. ui/hud/HUD.gd may read this later (M6 A3's
 ## own brief); MatchGifts._effective_special_frequency() reads it now, to
 ## ramp the gift chance only once sudden death has actually started.
 func sudden_death_active() -> bool:
@@ -1162,7 +1162,7 @@ func _finish_match(winning_team: int) -> void:
 	_set_state(MatchAutoload.State.END)
 	Events.match_won.emit(winning_team)
 	# Bontago-1pi.13: built after match_won so a listener that reacts to the
-	# win first (ui/HUD.gd's show_winner()) and one that wants the fuller
+	# win first (ui/hud/HUD.gd's show_winner()) and one that wants the fuller
 	# payload (the results-screen UI worker) both see events in the same
 	# order every match. _finish_match() only ever runs on the host (see
 	# this function's own call sites: _check_last_team_standing() and

@@ -47,7 +47,7 @@ extends RefCounted
 ##
 ## Pure logic: no scene tree (CLAUDE.md). The image bytes go out as
 ## PackedByteArrays so that building the ImageTexture, which is presentation,
-## stays in game/TerritoryOverlay.gd.
+## stays in game/field/TerritoryOverlay.gd.
 
 ## Per-cell state bits, packed into state_bytes() for the shader. Both
 ## rulesets' bits fit in the one byte without colliding, so switching mode
@@ -155,13 +155,13 @@ func grid() -> CellGrid:
 
 ## Bontago-1pi.11.9: engine-side hash of the per-cell owner ids (one native
 ## pass, no GDScript loop), so a reader that only cares whether ownership
-## changed (ui/Minimap.gd's periodic image rebuild) can skip the work cheaply.
+## changed (ui/hud/Minimap.gd's periodic image rebuild) can skip the work cheaply.
 func ownership_hash() -> int:
 	return hash(_team_ids) * 31 + hash(_hole)
 
 
 ## Bontago-1pi.11.11: the raster's per-cell data as RES x RES images for a GPU
-## reader (ui/Minimap.gd colours them in shaders/minimap_territory.gdshader),
+## reader (ui/hud/Minimap.gd colours them in shaders/territory/minimap_territory.gdshader),
 ## each built with one native copy instead of a GDScript per-cell loop.
 ## Team ids as RGBA8: the int32 little-endian bytes, so R = team id for 0..254
 ## and every byte 255 for the unowned -1 (readers treat R >= their slot count as

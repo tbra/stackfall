@@ -17,7 +17,7 @@ extends RefCounted
 ## multi-cell check. autoload/Match.gd no longer calls them under any
 ## hole_mode; they stay compiled only for tests/bench/bench_territory.gd's
 ## legacy regression row and this file's own direct unit tests
-## (tests/unit/test_placement_rules.gd), per the audit's instruction not to
+## (tests/unit/match/test_placement_rules.gd), per the audit's instruction not to
 ## reintroduce a footprint test in normal play.
 ##
 ## Spec 3.3: "On the host, the cell under the ghost's footprint must be owned

@@ -1,0 +1,569 @@
+[gd_scene load_steps=19 format=3]
+
+[ext_resource type="Script" path="res://ui/lobby/Lobby.gd" id="1_lobby"]
+[ext_resource type="Theme" path="res://ui/theme/stackfall_theme.tres" id="2_theme"]
+[ext_resource type="Script" path="res://ui/menus/MenuBackdrop.gd" id="4_backdrop"]
+[ext_resource type="PackedScene" path="res://ui/lobby/LobbyPlayersPanel.tscn" id="5_playerspanel"]
+[ext_resource type="Script" path="res://ui/components/UiSection.gd" id="6_section"]
+[ext_resource type="Script" path="res://ui/components/UiCycler.gd" id="7_cycler"]
+[ext_resource type="Script" path="res://ui/components/UiRow.gd" id="8_row"]
+[ext_resource type="Script" path="res://ui/components/UiToggle.gd" id="9_toggle"]
+[ext_resource type="Script" path="res://ui/components/UiStepper.gd" id="10_stepper"]
+[ext_resource type="Script" path="res://ui/components/UiSegmentMeter.gd" id="11_meter"]
+[ext_resource type="Script" path="res://ui/components/UiChipToggle.gd" id="12_chip"]
+[ext_resource type="Script" path="res://ui/components/UiTitleRow.gd" id="13_titlerow"]
+[ext_resource type="Script" path="res://ui/components/UiStatusBadge.gd" id="14_badge"]
+[ext_resource type="Script" path="res://ui/components/UiBlockButton.gd" id="15_block"]
+[ext_resource type="Script" path="res://ui/components/UiPanel.gd" id="16_panel"]
+[ext_resource type="Script" path="res://ui/components/UiHelpLine.gd" id="17_help"]
+[ext_resource type="Script" path="res://ui/components/FocusScrollContainer.gd" id="99_focus_scroll"]
+
+[node name="Lobby" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("2_theme")
+script = ExtResource("1_lobby")
+
+[node name="Backdrop" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("4_backdrop")
+draw_art = false
+
+[node name="BackdropImage" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture_filter = 4
+expand_mode = 1
+stretch_mode = 6
+
+[node name="Scrim" type="ColorRect" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 20
+
+[node name="Layout" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 21
+
+[node name="Header" type="HBoxContainer" parent="Margin/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+script = ExtResource("13_titlerow")
+title = "LOBBY"
+bullet = false
+
+[node name="Eyebrow" type="Label" parent="Margin/Layout/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"DisplayLabel"
+text = "STACKFALL"
+
+[node name="StatusBadge" type="PanelContainer" parent="Margin/Layout/Header"]
+unique_name_in_owner = true
+script = ExtResource("14_badge")
+layout_mode = 2
+
+[node name="OptionsButton" type="Button" parent="Margin/Layout/Header"]
+unique_name_in_owner = true
+script = ExtResource("15_block")
+layout_mode = 2
+text = "OPTIONS"
+
+[node name="BackButton" type="Button" parent="Margin/Layout/Header"]
+unique_name_in_owner = true
+script = ExtResource("15_block")
+layout_mode = 2
+text = "‹ BACK"
+
+[node name="Columns" type="HBoxContainer" parent="Margin/Layout"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 16
+
+[node name="SettingsCard" type="PanelContainer" parent="Margin/Layout/Columns"]
+unique_name_in_owner = true
+script = ExtResource("16_panel")
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.5
+
+[node name="SettingsCardLayout" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard"]
+layout_mode = 2
+theme_override_constants/separation = 13
+
+[node name="SettingsScroll" type="ScrollContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout"]
+unique_name_in_owner = true
+script = ExtResource("99_focus_scroll")
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+follow_focus = true
+
+[node name="Settings" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 13
+
+[node name="Title" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings"]
+unique_name_in_owner = true
+script = ExtResource("13_titlerow")
+layout_mode = 2
+title = "MATCH SETTINGS"
+
+[node name="GameSection" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings"]
+unique_name_in_owner = true
+script = ExtResource("6_section")
+layout_mode = 2
+title = "GAME"
+
+[node name="Body" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection" groups=["lobby_stack"]]
+layout_mode = 2
+
+[node name="GameModeCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body"]
+script = ExtResource("8_row")
+layout_mode = 2
+metadata/row_label = "Game mode"
+
+[node name="GameModeOption" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/GameModeCol"]
+unique_name_in_owner = true
+script = ExtResource("7_cycler")
+layout_mode = 2
+
+[node name="DiscSizeCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body"]
+script = ExtResource("8_row")
+layout_mode = 2
+metadata/row_label = "Disc size"
+
+[node name="DiscSizeMeter" type="Control" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/DiscSizeCol"]
+unique_name_in_owner = true
+script = ExtResource("11_meter")
+layout_mode = 2
+step_count = 6
+
+[node name="SkyCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body"]
+script = ExtResource("8_row")
+layout_mode = 2
+metadata/row_label = "Time of day"
+
+[node name="SkyThemeOption" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/SkyCol"]
+unique_name_in_owner = true
+script = ExtResource("7_cycler")
+layout_mode = 2
+
+[node name="WeatherCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body"]
+script = ExtResource("8_row")
+layout_mode = 2
+metadata/row_label = "Weather"
+
+[node name="WeatherOption" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Body/WeatherCol"]
+unique_name_in_owner = true
+script = ExtResource("7_cycler")
+layout_mode = 2
+
+[node name="Advanced" type="MarginContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection"]
+layout_mode = 2
+
+[node name="AdvancedGrid" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced" groups=["lobby_stack"]]
+layout_mode = 2
+
+[node name="GravityGroup" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid"]
+script = ExtResource("8_row")
+layout_mode = 2
+metadata/row_label = "Gravity"
+
+[node name="GravityMeter" type="Control" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/GravityGroup"]
+unique_name_in_owner = true
+script = ExtResource("11_meter")
+layout_mode = 2
+step_count = 10
+
+[node name="TiltCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid"]
+script = ExtResource("8_row")
+layout_mode = 2
+metadata/row_label = "Tilt mode"
+
+[node name="TiltModeOption" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/TiltCol"]
+unique_name_in_owner = true
+script = ExtResource("7_cycler")
+layout_mode = 2
+
+[node name="HoleCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid"]
+script = ExtResource("8_row")
+layout_mode = 2
+metadata/row_label = "Hole mode"
+
+[node name="HoleModeOption" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/HoleCol"]
+unique_name_in_owner = true
+script = ExtResource("7_cycler")
+layout_mode = 2
+
+[node name="TurnBasedCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid"]
+script = ExtResource("8_row")
+layout_mode = 2
+metadata/row_label = "Turn-based"
+
+[node name="TurnBasedCheck" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/TurnBasedCol"]
+unique_name_in_owner = true
+script = ExtResource("9_toggle")
+layout_mode = 2
+caption = "Turn-based"
+
+[node name="MidJoinCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid"]
+script = ExtResource("8_row")
+layout_mode = 2
+metadata/row_label = "Mid-match joining"
+
+[node name="MidJoinCheck" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GameSection/Advanced/AdvancedGrid/MidJoinCol"]
+unique_name_in_owner = true
+script = ExtResource("9_toggle")
+layout_mode = 2
+caption = "Mid-match joining"
+
+[node name="RoundSection" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings"]
+unique_name_in_owner = true
+script = ExtResource("6_section")
+layout_mode = 2
+title = "ROUND"
+
+[node name="Body" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection" groups=["lobby_stack"]]
+layout_mode = 2
+
+[node name="RoundRow" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body" groups=["lobby_stack"]]
+layout_mode = 2
+
+[node name="RoundTimerCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow"]
+unique_name_in_owner = true
+script = ExtResource("8_row")
+layout_mode = 2
+metadata/row_label = "Round length (min)"
+
+[node name="RoundTimerStepper" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/RoundTimerCol"]
+unique_name_in_owner = true
+script = ExtResource("10_stepper")
+layout_mode = 2
+min_value = 2
+max_value = 30
+step = 1
+
+[node name="MatchTimerCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow"]
+unique_name_in_owner = true
+script = ExtResource("8_row")
+layout_mode = 2
+metadata/row_label = "Round length (min)"
+
+[node name="MatchTimerStepper" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/MatchTimerCol"]
+unique_name_in_owner = true
+script = ExtResource("10_stepper")
+layout_mode = 2
+min_value = 0
+max_value = 30
+step = 1
+
+[node name="SuddenDeathCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow"]
+unique_name_in_owner = true
+script = ExtResource("8_row")
+layout_mode = 2
+metadata/row_label = "Sudden death"
+
+[node name="SuddenDeathCheck" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/SuddenDeathCol"]
+unique_name_in_owner = true
+script = ExtResource("9_toggle")
+layout_mode = 2
+caption = "Sudden death"
+
+[node name="BlockTimerGroup" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow"]
+script = ExtResource("8_row")
+layout_mode = 2
+metadata/row_label = "Block timer (s)"
+
+[node name="BlockTimerStepper" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/BlockTimerGroup"]
+unique_name_in_owner = true
+script = ExtResource("10_stepper")
+layout_mode = 2
+min_value = 6
+max_value = 24
+step = 1
+
+[node name="GoalFlagCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow"]
+unique_name_in_owner = true
+script = ExtResource("8_row")
+layout_mode = 2
+metadata/row_label = "Goal flags"
+
+[node name="GoalFlagStepper" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/GoalFlagCol"]
+unique_name_in_owner = true
+script = ExtResource("10_stepper")
+layout_mode = 2
+min_value = 1
+max_value = 5
+step = 1
+
+[node name="SkyTeamCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow"]
+unique_name_in_owner = true
+script = ExtResource("8_row")
+layout_mode = 2
+metadata/row_label = "Team height: sum of members"
+visible = false
+
+[node name="SkyTeamSumCheck" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/SkyTeamCol"]
+unique_name_in_owner = true
+script = ExtResource("9_toggle")
+layout_mode = 2
+caption = "Team height: sum of members"
+
+[node name="GiftsSection" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings"]
+unique_name_in_owner = true
+script = ExtResource("6_section")
+layout_mode = 2
+title = "GIFTS"
+
+[node name="Body" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection" groups=["lobby_stack"]]
+layout_mode = 2
+
+[node name="GiftsRow" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Body" groups=["lobby_stack"]]
+layout_mode = 2
+
+[node name="GiftsToggleCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Body/GiftsRow"]
+script = ExtResource("8_row")
+layout_mode = 2
+metadata/row_label = "Gifts"
+
+[node name="GiftsCheck" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Body/GiftsRow/GiftsToggleCol"]
+unique_name_in_owner = true
+script = ExtResource("9_toggle")
+layout_mode = 2
+caption = "Gifts"
+
+[node name="SpecialFreqGroup" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Body/GiftsRow"]
+unique_name_in_owner = true
+script = ExtResource("8_row")
+layout_mode = 2
+metadata/row_label = "Frequency"
+
+[node name="SpecialFreqMeter" type="Control" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Body/GiftsRow/SpecialFreqGroup"]
+unique_name_in_owner = true
+script = ExtResource("11_meter")
+layout_mode = 2
+step_count = 10
+
+[node name="Advanced" type="MarginContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection"]
+layout_mode = 2
+
+[node name="SpecialsGroup" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Advanced"]
+script = ExtResource("8_row")
+layout_mode = 2
+metadata/row_label = "Enabled gifts"
+
+[node name="SpecialsChecklist" type="GridContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Advanced/SpecialsGroup"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+columns = 2
+
+[node name="ExperimentsSection" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings"]
+unique_name_in_owner = true
+script = ExtResource("6_section")
+layout_mode = 2
+title = "EXPERIMENTS"
+
+[node name="Body" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection" groups=["lobby_stack"]]
+layout_mode = 2
+
+[node name="ExperimentsRow" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Body" groups=["lobby_stack"]]
+layout_mode = 2
+
+[node name="ExperimentsToggleCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Body/ExperimentsRow"]
+script = ExtResource("8_row")
+layout_mode = 2
+metadata/row_label = "Experiments"
+
+[node name="ExperimentsCheck" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Body/ExperimentsRow/ExperimentsToggleCol"]
+unique_name_in_owner = true
+script = ExtResource("9_toggle")
+layout_mode = 2
+caption = "Experiments"
+
+[node name="Advanced" type="MarginContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection"]
+layout_mode = 2
+
+[node name="ExperimentsGroup" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced"]
+script = ExtResource("8_row")
+layout_mode = 2
+metadata/row_label = "Trials"
+
+[node name="ExperimentsChecklist" type="GridContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced/ExperimentsGroup"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+columns = 2
+
+[node name="QolTimerPauseCheck" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced/ExperimentsGroup/ExperimentsChecklist"]
+unique_name_in_owner = true
+script = ExtResource("12_chip")
+layout_mode = 2
+size_flags_horizontal = 3
+label = "Pause timer on events"
+
+[node name="QolBacklogCheck" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced/ExperimentsGroup/ExperimentsChecklist"]
+unique_name_in_owner = true
+script = ExtResource("12_chip")
+layout_mode = 2
+size_flags_horizontal = 3
+label = "Queue expired blocks"
+
+[node name="QolGoalRadiusCheck" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced/ExperimentsGroup/ExperimentsChecklist"]
+unique_name_in_owner = true
+script = ExtResource("12_chip")
+layout_mode = 2
+size_flags_horizontal = 3
+label = "Bigger goal claim radius"
+
+[node name="QolGiftSlotCheck" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced/ExperimentsGroup/ExperimentsChecklist"]
+unique_name_in_owner = true
+script = ExtResource("12_chip")
+layout_mode = 2
+size_flags_horizontal = 3
+label = "Gift slot"
+
+[node name="QolGiftAfterNextCheck" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced/ExperimentsGroup/ExperimentsChecklist"]
+unique_name_in_owner = true
+script = ExtResource("12_chip")
+layout_mode = 2
+size_flags_horizontal = 3
+label = "Gift after next block"
+
+[node name="HelpLine" type="MarginContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout"]
+unique_name_in_owner = true
+script = ExtResource("17_help")
+layout_mode = 2
+
+[node name="PlayersCard" type="PanelContainer" parent="Margin/Layout/Columns"]
+unique_name_in_owner = true
+script = ExtResource("16_panel")
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Players" type="VBoxContainer" parent="Margin/Layout/Columns/PlayersCard"]
+layout_mode = 2
+custom_minimum_size = Vector2(260, 0)
+theme_override_constants/separation = 8
+
+[node name="PlayersPanel" parent="Margin/Layout/Columns/PlayersCard/Players" instance=ExtResource("5_playerspanel")]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="Footer" type="HBoxContainer" parent="Margin/Layout/Columns/PlayersCard/Players"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="InviteFriendsButton" type="Button" parent="Margin/Layout/Columns/PlayersCard/Players/Footer"]
+unique_name_in_owner = true
+script = ExtResource("15_block")
+layout_mode = 2
+visible = false
+text = "Invite Friends"
+
+[node name="FooterSpacer" type="Control" parent="Margin/Layout/Columns/PlayersCard/Players/Footer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ReadyCheck" type="CheckButton" parent="Margin/Layout/Columns/PlayersCard/Players/Footer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Ready"
+
+[node name="BottomBar" type="HBoxContainer" parent="Margin/Layout"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="WaitingStatusPill" type="PanelContainer" parent="Margin/Layout/BottomBar"]
+unique_name_in_owner = true
+script = ExtResource("14_badge")
+layout_mode = 2
+
+[node name="BottomBarSpacer" type="Control" parent="Margin/Layout/BottomBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="StartButton" type="Button" parent="Margin/Layout/BottomBar"]
+unique_name_in_owner = true
+script = ExtResource("15_block")
+layout_mode = 2
+size_flags_vertical = 4
+disabled = true
+variant = 0
+small = false
+text = "START MATCH"
+
+[node name="HiddenSources" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Seats" type="HBoxContainer" parent="HiddenSources"]
+layout_mode = 0
+
+[node name="PlayerCountSpin" type="SpinBox" parent="HiddenSources/Seats"]
+unique_name_in_owner = true
+layout_mode = 2
+min_value = 1.0
+max_value = 8.0
+value = 4.0
+
+[node name="AiCountSpin" type="SpinBox" parent="HiddenSources/Seats"]
+unique_name_in_owner = true
+layout_mode = 2
+max_value = 8.0
+
+[node name="AiDifficultyOption" type="HBoxContainer" parent="HiddenSources/Seats"]
+unique_name_in_owner = true
+script = ExtResource("7_cycler")
+layout_mode = 2
+
+[node name="TeamModeOption" type="OptionButton" parent="HiddenSources/Seats"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="MapThumbnail" type="PanelContainer" parent="HiddenSources/Seats"]
+unique_name_in_owner = true
+layout_mode = 2
+visible = false

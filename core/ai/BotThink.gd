@@ -23,7 +23,7 @@ extends RefCounted
 ## start a unit predicted to overrun its slice. Timing never reaches a decision: how the work is
 ## sliced does not change what is chosen.
 
-const SHIPPED_TUNING: BotTuning = preload("res://config/bot_tuning.tres")
+const SHIPPED_TUNING: BotTuning = preload("res://config/bots/bot_tuning.tres")
 ## BotCandidate.site_kind of a candidate from the retired legacy sampler (kept as the 0 default).
 const SITE_LEGACY: int = 0
 ## Support height recorded for a probe cell with no hit (hole, rim, open air).

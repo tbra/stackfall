@@ -34,9 +34,9 @@ class RuleTests(unittest.TestCase):
 
     def test_exempt_paths_ignored(self):
         for rid, (_rel, text) in CASES.items():
-            for rel in ("ui/components/UiToggle.gd", "ui/theme/MenuStyleFactory.gd", "ui/TuningPanel.gd",
-                        "ui/NetDebugOverlay.gd", "ui/PerfOverlay.gd",
-                        "ui/SandboxPanel.gd", "game/Field.gd"):
+            for rel in ("ui/components/UiToggle.gd", "ui/theme/MenuStyleFactory.gd", "ui/debug/TuningPanel.gd",
+                        "ui/debug/NetDebugOverlay.gd", "ui/debug/PerfOverlay.gd",
+                        "ui/debug/SandboxPanel.gd", "game/field/Field.gd"):
                 self.assertEqual(lu.violations_in(rel, text), [], "%s %s" % (rid, rel))
 
     def test_comments_strings_and_lookalikes_ignored(self):

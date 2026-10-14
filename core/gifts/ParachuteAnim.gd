@@ -11,8 +11,8 @@ extends RefCounted
 ## DESCENDING  fully open: pendulum lean about the riser + gentle breathing
 ## COLLAPSING  deflates, sinks and fades, then returns to HIDDEN
 ##
-## game/GiftParachute.gd owns one of these and applies the sampled values;
-## game/GiftCrate.gd drives it from the replicated falling/landed state through
+## game/gifts/GiftParachute.gd owns one of these and applies the sampled values;
+## game/gifts/GiftCrate.gd drives it from the replicated falling/landed state through
 ## deploy()/collapse() (its set_falling()).
 
 enum Phase { HIDDEN, DEPLOYING, DESCENDING, COLLAPSING }

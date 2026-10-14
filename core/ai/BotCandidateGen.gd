@@ -14,7 +14,7 @@ extends RefCounted
 ## estimates (0 on the ground, the circle's top on a stack) until the caller probes.
 ## Pure: no scene tree.
 
-const SHIPPED_TUNING: BotGenTuning = preload("res://config/bot_gen_tuning.tres")
+const SHIPPED_TUNING: BotGenTuning = preload("res://config/bots/bot_gen_tuning.tres")
 ## BotCandidate.site_kind values (0 = BotThink.SITE_LEGACY).
 const SITE_TIP: int = 1
 const SITE_STACK: int = 2

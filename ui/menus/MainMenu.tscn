@@ -1,0 +1,491 @@
+[gd_scene load_steps=21 format=3]
+
+[ext_resource type="Script" path="res://ui/menus/MainMenu.gd" id="1_menu"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/back.svg" id="glyph_back"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/blocks.svg" id="glyph_blocks"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/guide.svg" id="glyph_guide"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/host.svg" id="glyph_host"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/join.svg" id="glyph_join"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/play.svg" id="glyph_play"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/quit.svg" id="glyph_quit"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/refresh.svg" id="glyph_refresh"]
+[ext_resource type="Texture2D" path="res://assets/ui/icons/settings.svg" id="glyph_settings"]
+[ext_resource type="Theme" path="res://ui/theme/stackfall_theme.tres" id="2_theme"]
+[ext_resource type="Texture2D" path="res://assets/ui/brand/stackfall-lockup.svg" id="6_lockup"]
+[ext_resource type="Script" path="res://ui/menus/MenuBackdrop.gd" id="4_backdrop"]
+[ext_resource type="Script" path="res://ui/hud/InputPromptFlow.gd" id="5_hints"]
+[ext_resource type="Script" path="res://ui/components/UiBlockButton.gd" id="7_block"]
+[ext_resource type="Script" path="res://ui/components/UiText.gd" id="8_text"]
+[ext_resource type="Script" path="res://ui/components/UiWell.gd" id="9_well"]
+[ext_resource type="Script" path="res://ui/components/UiTabs.gd" id="10_tabs"]
+[ext_resource type="Script" path="res://ui/components/UiField.gd" id="11_field"]
+[ext_resource type="Script" path="res://ui/components/UiStack.gd" id="12_stack"]
+
+[node name="MainMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("2_theme")
+script = ExtResource("1_menu")
+
+[node name="Backdrop" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("4_backdrop")
+draw_art = false
+
+[node name="BackdropImage" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture_filter = 4
+expand_mode = 1
+stretch_mode = 6
+
+[node name="Scrim" type="TextureRect" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 9
+anchor_bottom = 1.0
+offset_right = 700.0
+grow_vertical = 2
+mouse_filter = 2
+expand_mode = 1
+
+[node name="Center" type="CenterContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 9
+anchor_bottom = 1.0
+offset_right = 464.0
+grow_vertical = 2
+
+[node name="Panel" type="MarginContainer" parent="Center"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(368, 0)
+
+[node name="Layout" type="VBoxContainer" parent="Center/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 12
+script = ExtResource("12_stack")
+
+[node name="TitleWrap" type="Control" parent="Center/Panel/Layout"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 52)
+
+[node name="Title" type="TextureRect" parent="Center/Panel/Layout/TitleWrap"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+focus_mode = 0
+mouse_filter = 2
+texture = ExtResource("6_lockup")
+expand_mode = 1
+stretch_mode = 4
+
+[node name="Tagline" type="Label" parent="Center/Panel/Layout"]
+layout_mode = 2
+text = "BUILD · BALANCE · DOMINATE"
+script = ExtResource("8_text")
+role = 3
+
+[node name="SectionGap" type="Control" parent="Center/Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="NameField" type="VBoxContainer" parent="Center/Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+script = ExtResource("11_field")
+label_text = "NAME"
+placeholder = "Player"
+
+[node name="HostRow" type="VBoxContainer" parent="Center/Panel/Layout"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="HostButton" type="Button" parent="Center/Panel/Layout/HostRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"BlockButtonLarge"
+icon = ExtResource("glyph_host")
+alignment = 0
+text = "HOST"
+script = ExtResource("7_block")
+variant = 0
+small = false
+
+[node name="JoinButton" type="Button" parent="Center/Panel/Layout/HostRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"BlockButtonLarge"
+icon = ExtResource("glyph_join")
+alignment = 0
+text = "JOIN"
+script = ExtResource("7_block")
+variant = 1
+small = false
+
+[node name="PlayLocalButton" type="Button" parent="Center/Panel/Layout/HostRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"BlockButtonLarge"
+icon = ExtResource("glyph_play")
+alignment = 0
+text = "PLAY OFFLINE"
+script = ExtResource("7_block")
+variant = 1
+small = false
+
+[node name="HostOnlineButton" type="Button" parent="Center/Panel/Layout/HostRow"]
+unique_name_in_owner = true
+layout_mode = 2
+icon = ExtResource("glyph_host")
+text = "HOST ONLINE (STEAM)"
+script = ExtResource("7_block")
+variant = 1
+small = true
+
+[node name="SmallRow" type="HBoxContainer" parent="Center/Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="OptionsButton" type="Button" parent="Center/Panel/Layout/SmallRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+icon = ExtResource("glyph_settings")
+alignment = 0
+text = "OPTIONS"
+script = ExtResource("7_block")
+variant = 1
+small = true
+
+[node name="QuitButton" type="Button" parent="Center/Panel/Layout/SmallRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+icon = ExtResource("glyph_quit")
+alignment = 0
+text = "QUIT"
+script = ExtResource("7_block")
+variant = 1
+small = true
+
+[node name="JoinTabRow" type="BoxContainer" parent="Center/Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+script = ExtResource("10_tabs")
+handle_shoulders = false
+
+[node name="SteamSection" type="VBoxContainer" parent="Center/Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="SteamGamesWell" type="PanelContainer" parent="Center/Panel/Layout/SteamSection"]
+unique_name_in_owner = true
+layout_mode = 2
+script = ExtResource("9_well")
+
+[node name="SteamGamesLayout" type="VBoxContainer" parent="Center/Panel/Layout/SteamSection/SteamGamesWell"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="SteamHeaderRow" type="HBoxContainer" parent="Center/Panel/Layout/SteamSection/SteamGamesWell/SteamGamesLayout"]
+layout_mode = 2
+
+[node name="SteamLabel" type="Label" parent="Center/Panel/Layout/SteamSection/SteamGamesWell/SteamGamesLayout/SteamHeaderRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+text = "STEAM LOBBIES"
+script = ExtResource("8_text")
+role = 3
+
+[node name="SteamHeaderSpacer" type="Control" parent="Center/Panel/Layout/SteamSection/SteamGamesWell/SteamGamesLayout/SteamHeaderRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="RefreshSteamButton" type="Button" parent="Center/Panel/Layout/SteamSection/SteamGamesWell/SteamGamesLayout/SteamHeaderRow"]
+icon = ExtResource("glyph_refresh")
+unique_name_in_owner = true
+layout_mode = 2
+text = "REFRESH"
+script = ExtResource("7_block")
+variant = 1
+small = true
+
+[node name="SteamListStack" type="Control" parent="Center/Panel/Layout/SteamSection/SteamGamesWell/SteamGamesLayout"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 61)
+
+size_flags_horizontal = 3
+
+[node name="SteamLobbyList" type="ItemList" parent="Center/Panel/Layout/SteamSection/SteamGamesWell/SteamGamesLayout/SteamListStack"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="SteamEmptyStateLabel" type="Label" parent="Center/Panel/Layout/SteamSection/SteamGamesWell/SteamGamesLayout/SteamListStack"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+horizontal_alignment = 1
+vertical_alignment = 1
+text = "No lobbies yet"
+script = ExtResource("8_text")
+role = 3
+
+[node name="LanGamesWell" type="PanelContainer" parent="Center/Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+script = ExtResource("9_well")
+
+[node name="LanGamesLayout" type="VBoxContainer" parent="Center/Panel/Layout/LanGamesWell"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="LanHeaderRow" type="HBoxContainer" parent="Center/Panel/Layout/LanGamesWell/LanGamesLayout"]
+layout_mode = 2
+
+[node name="JoinLabel" type="Label" parent="Center/Panel/Layout/LanGamesWell/LanGamesLayout/LanHeaderRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+text = "LAN GAMES"
+script = ExtResource("8_text")
+role = 3
+
+[node name="LanHeaderSpacer" type="Control" parent="Center/Panel/Layout/LanGamesWell/LanGamesLayout/LanHeaderRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="RefreshButton" type="Button" parent="Center/Panel/Layout/LanGamesWell/LanGamesLayout/LanHeaderRow"]
+icon = ExtResource("glyph_refresh")
+unique_name_in_owner = true
+layout_mode = 2
+text = "REFRESH"
+script = ExtResource("7_block")
+variant = 1
+small = true
+
+[node name="GameListStack" type="Control" parent="Center/Panel/Layout/LanGamesWell/LanGamesLayout"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 92)
+
+size_flags_horizontal = 3
+
+[node name="GameList" type="ItemList" parent="Center/Panel/Layout/LanGamesWell/LanGamesLayout/GameListStack"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="EmptyStateLabel" type="Label" parent="Center/Panel/Layout/LanGamesWell/LanGamesLayout/GameListStack"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+horizontal_alignment = 1
+vertical_alignment = 1
+text = "Searching for games..."
+script = ExtResource("8_text")
+role = 3
+
+[node name="DirectRow" type="HBoxContainer" parent="Center/Panel/Layout/LanGamesWell/LanGamesLayout"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="DirectIpField" type="VBoxContainer" parent="Center/Panel/Layout/LanGamesWell/LanGamesLayout/DirectRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+script = ExtResource("11_field")
+placeholder = "1.2.3.4:47999 or join code"
+
+[node name="DirectJoinButton" type="Button" parent="Center/Panel/Layout/LanGamesWell/LanGamesLayout/DirectRow"]
+icon = ExtResource("glyph_join")
+unique_name_in_owner = true
+layout_mode = 2
+text = "JOIN IP"
+script = ExtResource("7_block")
+variant = 0
+small = true
+
+[node name="BottomRow" type="VBoxContainer" parent="Center/Panel/Layout"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="BotsButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"BlockButtonLarge"
+icon = ExtResource("glyph_blocks")
+alignment = 0
+text = "VS BOTS"
+script = ExtResource("7_block")
+variant = 0
+small = false
+
+[node name="SandboxButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"BlockButtonLarge"
+icon = ExtResource("glyph_blocks")
+alignment = 0
+text = "SANDBOX"
+script = ExtResource("7_block")
+variant = 1
+small = false
+
+[node name="TutorialButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"BlockButtonLarge"
+icon = ExtResource("glyph_guide")
+alignment = 0
+text = "TUTORIAL"
+script = ExtResource("7_block")
+variant = 1
+small = false
+
+[node name="GiftDemoButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"BlockButtonLarge"
+alignment = 0
+text = "GIFT DEMO"
+script = ExtResource("7_block")
+variant = 1
+small = false
+
+[node name="TowerToppleButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"BlockButtonLarge"
+alignment = 0
+text = "TOWER TOPPLE"
+script = ExtResource("7_block")
+variant = 1
+small = false
+
+[node name="WatchBotsButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"BlockButtonLarge"
+alignment = 0
+text = "WATCH BOTS"
+script = ExtResource("7_block")
+variant = 1
+small = false
+
+[node name="BackButton" type="Button" parent="Center/Panel/Layout/BottomRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 0
+icon = ExtResource("glyph_back")
+text = "BACK"
+script = ExtResource("7_block")
+variant = 1
+small = true
+
+[node name="StatusLabel" type="Label" parent="Center/Panel/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 2
+text = ""
+script = ExtResource("8_text")
+role = 3
+
+[node name="DebugButton" type="Button" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -112.0
+offset_top = 24.0
+offset_right = -24.0
+offset_bottom = 64.0
+grow_horizontal = 0
+text = "DEBUG"
+script = ExtResource("7_block")
+variant = 1
+small = true
+
+[node name="BuildVersionLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -368.0
+offset_top = 24.0
+offset_right = -120.0
+offset_bottom = 64.0
+grow_horizontal = 0
+mouse_filter = 2
+horizontal_alignment = 2
+vertical_alignment = 1
+script = ExtResource("8_text")
+role = 3
+
+[node name="GamepadHintPill" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -360.0
+offset_top = -64.0
+offset_right = -24.0
+offset_bottom = -24.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_filter = 2
+script = ExtResource("9_well")
+
+[node name="GamepadHintRow" type="HFlowContainer" parent="GamepadHintPill"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("5_hints")
+label_style = true
+template = "{ui_accept} Select   {ui_cancel} Back"

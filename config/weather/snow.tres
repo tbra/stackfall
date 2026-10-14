@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="SnowTuning" load_steps=3 format=3]
 
-[ext_resource type="Script" path="res://config/SnowTuning.gd" id="1_st"]
-[ext_resource type="Texture2D" uid="uid://bbpiomkl126x7" path="res://assets/vfx/snow_atlas_v1/snow_atlas.png" id="2_atlas"]
+[ext_resource type="Script" path="res://config/weather/SnowTuning.gd" id="1_st"]
+[ext_resource type="Texture2D" uid="uid://bbpiomkl126x7" path="res://assets/textures/fx/snow_atlas/snow_atlas.png" id="2_atlas"]
 
 [resource]
 script = ExtResource("1_st")
@@ -12,8 +12,8 @@ ramp_in_s = 4.0
 ramp_out_s = 24.0
 hold_min_s = 40.0
 hold_max_s = 80.0
-presentation_scene = "res://vfx/weather/snow_presentation.tscn"
-ambience_loop = "res://assets/effects/weather_ambience_v1/snow_loop.wav"
+presentation_scene = "res://game/weather/snow_presentation.tscn"
+ambience_loop = "res://assets/audio/sfx/weather_ambience_v1/snow_loop.wav"
 ambience_volume_db = 0.0
 effect_script = "res://autoload/match/weather/SnowEffect.gd"
 max_depth_m = 0.14

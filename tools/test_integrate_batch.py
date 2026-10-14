@@ -411,7 +411,7 @@ class ProbeLintTests(unittest.TestCase):
 
 
 class HintsMergeTests(unittest.TestCase):
-    """Real git repo: two branches editing config/tuning_panel_hints.tres."""
+    """Real git repo: two branches editing config/ui/tuning_panel_hints.tres."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -428,6 +428,7 @@ class HintsMergeTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def write(self, text):
+        os.makedirs(os.path.dirname(os.path.join(self.repo, ib.HINTS_PATH)), exist_ok=True)
         with open(os.path.join(self.repo, ib.HINTS_PATH), "w", encoding="utf-8", newline="\n") as fh:
             fh.write(text)
 

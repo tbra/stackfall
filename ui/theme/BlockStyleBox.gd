@@ -5,7 +5,7 @@ extends StyleBox
 ## StyleBoxFlat cannot draw it (one border colour for every side), so _draw() stacks four rounded
 ## rectangles. Pressed = no ledge, the face moves down by the drop and the lip is shallow;
 ## disabled = flat, translucent and ledge-less. Every size and mix comes from ArcadeVisualTuning
-## (config/arcade_visual_tuning.tres); build instances with BlockStyleBox.make().
+## (config/ui/arcade_visual_tuning.tres); build instances with BlockStyleBox.make().
 
 ## Block face colour (the "normal" colour; pressed/hover variants are derived by make()).
 @export var face_color: Color = Color.WHITE

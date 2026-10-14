@@ -9,7 +9,7 @@ extends PanelContainer
 
 enum Phase { HIDDEN, RUNNING, HURRY, OVERTIME }
 
-const TUNING_PATH: String = "res://config/hud_visual_tuning.tres"
+const TUNING_PATH: String = "res://config/ui/hud_visual_tuning.tres"
 const THEME_PATH: String = "res://ui/theme/stackfall_theme.tres"
 const SECONDS_PER_MINUTE: int = 60
 ## The widest clock the plate reserves room for (overtime text may still grow it).

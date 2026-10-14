@@ -1,7 +1,7 @@
 class_name PerchPlanner
 extends RefCounted
 ## Bontago-adt.3: pure rules for the cosmetic perching birds (no scene tree, no
-## autoloads; unit-tested in tests/unit/test_perch_planner.gd). Everything is
+## autoloads; unit-tested in tests/unit/sky/test_perch_planner.gd). Everything is
 ## horizontal (X/Z) unless a function says otherwise; positions are world
 ## Vector3s, the disc surface height is passed in by the caller.
 

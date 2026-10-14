@@ -91,7 +91,7 @@ var team_cap: int = 0
 # --- Built by build() ------------------------------------------------------------------
 var layout: Container = null
 var color_button: Button = null
-## The shared colour diamond inside color_button (ui/SlotDiamond.tscn).
+## The shared colour diamond inside color_button (ui/hud/SlotDiamond.tscn).
 var color_diamond: SlotDiamond = null
 var name_label: Label = null
 var subtitle_label: Label = null
@@ -715,7 +715,7 @@ func _on_difficulty_selected(index: int) -> void:
 ## Right click = previous colour. The matching event is consumed BEFORE the request goes
 ## out: handling it redraws the rows, and this control then leaves the tree. Connected to the
 ## control's `gui_input` signal (not _gui_input) so tests can drive it with a plain emit, like
-## the timer sliders in ui/Lobby.gd. 
+## the timer sliders in ui/lobby/Lobby.gd. 
 func _on_cycle_gui_input(event: InputEvent, kind: StringName) -> void:
 	if not (event is InputEventMouseButton):
 		# Bontago-1pi.93: ui_left / ui_right (held, echoed or pad) only move focus; a click /

@@ -15,7 +15,7 @@ signal action_chosen(id: StringName)
 signal canceled
 
 const THEME_PATH: String = "res://ui/theme/stackfall_theme.tres"
-const OPTIONS_TUNING: OptionsVisualTuning = preload("res://config/options_visual_tuning.tres")
+const OPTIONS_TUNING: OptionsVisualTuning = preload("res://config/ui/options_visual_tuning.tres")
 const CANCEL_ID: StringName = &"cancel"
 const CANCEL_TEXT: String = "Cancel"
 

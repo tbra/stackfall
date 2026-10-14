@@ -17,7 +17,7 @@ var _held_shapes: Array[BlockShape] = []
 var _feed_time_left: Array[float] = []
 var _feed_expired: Array[bool] = []
 
-## Bontago-1pi.18.1 (QoL experiments 1 and 2; see config/QolExperiments.gd).
+## Bontago-1pi.18.1 (QoL experiments 1 and 2; see config/match/QolExperiments.gd).
 ## _backlog[slot] holds blocks queued instead of force-dropped (host only);
 ## _backlog_mirror/_paused_mirror are what a client displays, kept by
 ## apply_replicated_qol(). _timer_pause is null unless the toggle is on.
@@ -66,7 +66,7 @@ var _shapes_by_id: Dictionary = {}
 ## Whether _tick_feed() decrements anything this frame (Bontago-mv0.8).
 ## True for every real match; a sandbox match (config.sandbox) starts it
 ## false, so feed_time_left never counts down and no slot ever auto-drops —
-## game/Sandbox.gd's sandbox_toggle_timer hotkey flips it back on to
+## game/sandbox/Sandbox.gd's sandbox_toggle_timer hotkey flips it back on to
 ## deliberately exercise auto-drop. A placement still refeeds immediately
 ## either way (_consume_and_refeed() runs from request_place() regardless of
 ## this flag), so "unlimited blocks" falls out of the existing per-placement
@@ -79,7 +79,7 @@ var _shapes_by_id: Dictionary = {}
 ## it from a hotkey would blur "match settings" with "what this instance is
 ## doing right now". Not implemented by setting block_timer to a huge number
 ## either: that would still tick, drift, and eventually expire, and would
-## show a misleading countdown on ui/SandboxPanel.gd's timer readout instead
+## show a misleading countdown on ui/debug/SandboxPanel.gd's timer readout instead
 ## of an honest "paused".
 var _feed_timer_enabled: bool = true
 
@@ -126,13 +126,13 @@ func feed_progress(slot_id: int) -> float:
 
 
 ## Whether _tick_feed() is currently decrementing timers (Bontago-mv0.8:
-## true for every real match). ui/SandboxPanel.gd shows this as the timer's
+## true for every real match). ui/debug/SandboxPanel.gd shows this as the timer's
 ## "running"/"paused" state.
 func feed_timer_enabled() -> bool:
 	return _feed_timer_enabled
 
 
-## game/Sandbox.gd's sandbox_toggle_timer hotkey. A no-op call outside
+## game/sandbox/Sandbox.gd's sandbox_toggle_timer hotkey. A no-op call outside
 ## sandbox is harmless (every real match starts true and nothing else in the
 ## shipped game ever calls this), but nothing stops a caller from flipping it
 ## — this file does not gate it on config.sandbox, the same way
@@ -231,7 +231,7 @@ func _tick_feed(delta: float) -> void:
 	if not _feed_timer_enabled:
 		# Bontago-mv0.8: sandbox's default state (and sandbox_toggle_timer's
 		# "off" position) — feed_time_left is left exactly where it is, so
-		# ui/SandboxPanel.gd reads a paused timer, not a frozen countdown
+		# ui/debug/SandboxPanel.gd reads a paused timer, not a frozen countdown
 		# drifting toward zero. Bontago-mv0.10: this also means the
 		# placement-interval lock below never engages while the timer is
 		# paused -- sandbox's own "unlimited blocks" with the timer disabled
@@ -557,7 +557,7 @@ func feed_seq(slot_id: int) -> int:
 
 
 ## Bontago-mv0.10 (spec 2.4 "[ORIGINAL target]" cadence): whether `slot_id`'s
-## currently held piece may be released right now. game/PlayerController.gd
+## currently held piece may be released right now. game/player/PlayerController.gd
 ## reads this every frame to tint the ghost distinctly from the normal
 ## valid/invalid/hole states -- "a location-valid ghost does not imply that
 ## the current interval permits release" (spec 2.5). Always false in
@@ -670,7 +670,7 @@ func apply_replicated_next_gift(slot_id: int, shape_id: StringName) -> void:
 		_next_gift_shapes[slot_id] = shape
 
 
-## Test-only seam (tests/unit/test_match_net.gd, test_remote_intent_
+## Test-only seam (tests/unit/net/test_match_net.gd, test_remote_intent_
 ## validation.gd): unlocks `slot_id`'s post-placement interval immediately
 ## and starts a fresh one for it, exactly what _tick_feed()'s own boundary-
 ## crossing branch does once `config.block_timer` really elapses. Lets a
@@ -751,7 +751,7 @@ func apply_replicated_feed(
 	_feed_expired[slot_id] = false
 
 
-## M6 B2, game/Sandbox.gd's block-picker OptionButton: forces `slot_id`'s
+## M6 B2, game/sandbox/Sandbox.gd's block-picker OptionButton: forces `slot_id`'s
 ## currently held shape to `shape_id` without touching the bag, so a tester
 ## can drop an exact shape on demand instead of waiting on the bag's draw
 ## order. Gated exactly like MatchGifts.debug_queue_special() (that
@@ -764,7 +764,7 @@ func apply_replicated_feed(
 ## Does not touch _feed_seq -- this is not a real consume, so no in-flight
 ## intent for the previous held shape is invalidated by it.
 ##
-## DECISION (autoload/match/MatchFeed.gd): game/Sandbox.gd calls this
+## DECISION (autoload/match/MatchFeed.gd): game/sandbox/Sandbox.gd calls this
 ## directly as `Match._feed.debug_force_next_shape(...)` rather than through a
 ## new one-line Match wrapper (the shape debug_queue_special/set_special_
 ## drawer/etc. all have on autoload/Match.gd) -- docs/archive/M6_PLAN.md's package B2

@@ -41,7 +41,7 @@ extends RefCounted
 ## **0.0074 deg**, and the adversarial case — all four components near 0.5,
 ## where the reconstructed component's sensitivity d(w)/d(x) = x/w reaches 1
 ## on all three at once — reaches **0.0084 deg**. The honest ceiling is
-## therefore **0.009 deg**, which tests/unit/test_quantize.gd asserts. That is
+## therefore **0.009 deg**, which tests/unit/net/test_quantize.gd asserts. That is
 ## 0.15 mm of displacement at a 1 m lever arm, an order of magnitude below the
 ## 2.06 mm position step this same record carries, so rotation is not the
 ## limiting term and the 48-bit layout stands as specified. Note that
@@ -74,7 +74,7 @@ const NET_ID_BYTES: int = 3
 ## carrying it names nothing, so the client drops it as unknown.
 const NET_ID_NONE: int = 0
 ## Largest net_id the record can carry. BlockRegistry stops allocating here
-## rather than wrapping (game/BlockRegistry.gd), so no body ever exists with an
+## rather than wrapping (game/blocks/BlockRegistry.gd), so no body ever exists with an
 ## id the wire cannot name.
 const NET_ID_MAX: int = 0xFFFFFF
 ## Bytes in the packed position (three u16 axes).
@@ -298,7 +298,7 @@ static func is_wire_id(net_id: int) -> bool:
 ## dropped and counted on the client (Interpolator.dropped_unknown_count).
 static func pack_net_id(out: PackedByteArray, offset: int, net_id: int) -> int:
 	# DECISION (core/net/Quantize.gd, Bontago-mv0.1.7): the wire net_id is u24,
-	# not spec 3.4's u16. game/BlockRegistry.gd allocates ids monotonically and
+	# not spec 3.4's u16. game/blocks/BlockRegistry.gd allocates ids monotonically and
 	# never reuses one within a match (docs/archive/M3a_PLAN.md, "net_id allocation and
 	# the spawn/snapshot race"), so a u16 field would pack the 65536th block of
 	# a match as 0 ("no body", dropped) and the 65537th as 1 — the first block

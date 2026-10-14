@@ -20,29 +20,29 @@ CASES = {
     "COLOR_LOOKUP": ("game/Fx.gd", 'var c: Color = palette.player_colors[slot_id]\n',
                      "core/rules/SlotColors.gd", None),
     "DIAMOND": ("ui/Beacon.gd", 'var diamond: PackedVector2Array = make_points()\n',
-                "ui/SlotDiamond.gd", "game/Beacon.gd"),
+                "ui/hud/SlotDiamond.gd", "game/Beacon.gd"),
     "GLYPH_EVENTS": ("ui/Prompt.gd", 'for e: InputEvent in InputMap.action_get_events(action):\n\tpass\n',
-                     "ui/InputGlyph.gd", "core/Prompt.gd"),
+                     "ui/hud/InputGlyph.gd", "core/Prompt.gd"),
     "GLYPH_ASSET": ("ui/Icon.gd", 'var t := load("res://assets/ui/input_glyphs/a.png")\n',
-                    "ui/InputGlyph.gd", None),
+                    "ui/hud/InputGlyph.gd", None),
     "GLYPH_TEXT": ("ui/Hint.gd", 'label.text = "Press Enter to start"\n',
-                   "ui/InputGlyph.gd", "core/Hint.gd"),
+                   "ui/hud/InputGlyph.gd", "core/Hint.gd"),
     "ENUM_LABEL": ("ui/Pick.gd", 'var n: String = MatchConfig.TeamMode.keys()[i]\n',
-                   "config/MapDef.gd", "core/Pick.gd"),
+                   "config/match/MapDef.gd", "core/Pick.gd"),
     "CAPITALIZE_ID": ("ui/Name.gd", 'var n: String = String(id).capitalize()\n',
                       "core/rules/DisplayNames.gd", "core/Name.gd"),
     "RESULTS_KEY": ("ui/Board.gd", 'var w: int = int(results.get("winner_id", -1))\n',
                     "core/rules/ResultsPayload.gd", "game/Board.gd"),
-    "RESULTS_KEY_SHARED": ("ui/ScoreTable.gd", 'var s: int = int(row.get("slot_id", -1))\n',
-                           "core/rules/ResultsPayload.gd", "ui/Lobby.gd"),
-    "GIFT_ICON": ("ui/Gift.gd", 'var t := load("res://assets/gifts/bomb.png")\n',
-                  "game/GiftCrate.gd", None),
+    "RESULTS_KEY_SHARED": ("ui/menus/ScoreTable.gd", 'var s: int = int(row.get("slot_id", -1))\n',
+                           "core/rules/ResultsPayload.gd", "ui/lobby/Lobby.gd"),
+    "GIFT_ICON": ("ui/Gift.gd", 'var t := load("res://assets/models/gifts/bomb.png")\n',
+                  "game/gifts/GiftCrate.gd", None),
     "STATE_SET": ("net/Foo.gd", 'if s == Match.State.PLAYING or s == Match.State.SUDDEN_DEATH:\n\tpass\n',
                   "autoload/Match.gd", None),
     "NET_PREDICATE": ("ui/Peer.gd", 'func _is_host() -> bool:\n\treturn true\n',
                       "autoload/Net.gd", None),
-    "SEQUENTIAL_PREDICATE": ("ui/Lobby.gd", 'var seq: bool = hot_seat or turn_based\n',
-                             "config/MatchConfig.gd", None),
+    "SEQUENTIAL_PREDICATE": ("ui/lobby/Lobby.gd", 'var seq: bool = hot_seat or turn_based\n',
+                             "config/match/MatchConfig.gd", None),
     "SEAT_WIRE_KEY": ("net/Roster.gd", 'var sid: int = entry.get("slot_id", -1)\n',
                       "core/rules/LobbySeats.gd", "ui/Roster.gd"),
 }
@@ -95,12 +95,12 @@ class LintTest(unittest.TestCase):
         # no STATE_SET allowances are checked in (d2c92388 migrated the HUD sites to Match.is_lobby_or_end),
         # so the HUD text now fails; the line-level waiver mechanism is exercised with a temporary entry.
         waived = "if to_state == Match.State.LOBBY or to_state == Match.State.END:\n\tpass\n"
-        self.assertEqual(ls.violations_in("ui/HUD.gd", waived)[0][0], "STATE_SET")
-        seam = [("ui/HUD.gd", "to_state == Match.State.LOBBY or to_state == Match.State.END", "test seam")]
+        self.assertEqual(ls.violations_in("ui/hud/HUD.gd", waived)[0][0], "STATE_SET")
+        seam = [("ui/hud/HUD.gd", "to_state == Match.State.LOBBY or to_state == Match.State.END", "test seam")]
         with mock.patch.dict(ls.LINE_ALLOW, {"STATE_SET": seam}):
-            self.assertEqual(ls.violations_in("ui/HUD.gd", waived), [])
+            self.assertEqual(ls.violations_in("ui/hud/HUD.gd", waived), [])
             # whole files are not waived: only the exact line-level entry passes
-            self.assertEqual(ls.violations_in("ui/HUD.gd", chain)[0][0], "STATE_SET")
+            self.assertEqual(ls.violations_in("ui/hud/HUD.gd", chain)[0][0], "STATE_SET")
             self.assertEqual(ls.violations_in("net/Foo.gd", waived)[0][0], "STATE_SET")
         for entries in ls.LINE_ALLOW.values():
             for _file, _snippet, reason in entries:
@@ -161,14 +161,14 @@ class LintTest(unittest.TestCase):
                          ["ENUM_LABEL"])
 
     def test_directory_allow_entries_and_scenes(self):
-        gift = 'var t := load("res://assets/gifts/a.png")\n'
-        self.assertEqual(ls.violations_in("config/specials/X.gd", gift), [])
+        gift = 'var t := load("res://assets/models/gifts/a.png")\n'
+        self.assertEqual(ls.violations_in("config/gifts/specials/X.gd", gift), [])
         self.assertEqual(len(ls.violations_in("autoload/X.gd", gift)), 1)
         scene = '[ext_resource type="Texture2D" path="res://assets/ui/input_glyphs/a.png" id="1"]\n'
         self.assertEqual([r for r, _, _ in ls.violations_in("ui/A.tscn", scene)], ["GLYPH_ASSET"])
-        self.assertEqual(ls.violations_in("ui/InputGlyph.gd", scene), [])
+        self.assertEqual(ls.violations_in("ui/hud/InputGlyph.gd", scene), [])
         # a .tscn is scanned for GLYPH_ASSET only
-        other = 'text = "Team %d"\n[ext_resource path="res://assets/gifts/a.png"]\n'
+        other = 'text = "Team %d"\n[ext_resource path="res://assets/models/gifts/a.png"]\n'
         self.assertEqual(ls.violations_in("ui/A.tscn", other), [])
 
     def test_skip_dirs_and_other_extensions(self):

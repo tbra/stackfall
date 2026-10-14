@@ -33,8 +33,8 @@ from lint_magic_numbers import strip_line  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASELINE_NAME = "ui_components_baseline.json"
 SCOPE = "ui/"
-EXEMPT_PREFIXES = ("ui/components/", "ui/theme/", "ui/NetDebugOverlay", "ui/TuningPanel",
-                   "ui/Perf", "ui/Physics", "ui/Sandbox")
+EXEMPT_PREFIXES = ("ui/components/", "ui/theme/", "ui/debug/",
+                   "ui/hud/SandboxHintBar")
 SKIP_DIRS = {".godot", "addons", ".git", "build", "feedback", ".claude", "tests", "tools", "source_art"}
 
 RAW = r"(?:CheckButton|CheckBox|SpinBox|TabBar|TabContainer|HSlider|OptionButton)"

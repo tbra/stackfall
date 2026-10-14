@@ -98,7 +98,7 @@ func _ready() -> void:
 			var value: String = arg.trim_prefix("--sweep=")
 			sweep = FEATURES if value == "all" else value.split(",", false)
 	Settings.set_graphics_preset(preset_id)
-	_main = (load("res://game/Main.tscn") as PackedScene).instantiate()
+	_main = (load("res://game/main/Main.tscn") as PackedScene).instantiate()
 	_render_vp = AgentProbe.make_render_viewport(self, DEFAULT_RENDER_SIZE)
 	_render_vp.add_child.call_deferred(_main)
 	await get_tree().process_frame

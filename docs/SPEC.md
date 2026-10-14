@@ -43,7 +43,7 @@ Archived in the research file.
 **Scale:** 1 unit = 1 cube edge = 1 m. Numbers below are the current values of the config resources.
 
 ### 2.1 Field
-- **Shape:** a disk of radius `field_radius` (`MapDef`, `config/maps/*.tres`): 30 small, 45 medium, 60 large. The lobby has a disc-size slider (index into `config/disc_size_tuning.tres`, 50% to 175%, default 100%; owner 2026-10-07, Bontago-1pi.107); map shape and size are not otherwise lobby-selectable (`MatchConfig.gd:117-122`).
+- **Shape:** a disk of radius `field_radius` (`MapDef`, `config/maps/*.tres`): 30 small, 45 medium, 60 large. The lobby has a disc-size slider (index into `config/match/disc_size_tuning.tres`, 50% to 175%, default 100%; owner 2026-10-07, Bontago-1pi.107); map shape and size are not otherwise lobby-selectable (`MatchConfig.gd:117-122`).
 - **Map shapes:** round only. Oval, Ring, Twin and Cross were removed (owner decision Bontago-fca.74 = B, `MapDef.gd:13-18`).
 - **Tilt:** `tilt_mode = SPECIALS_ONLY` (default): the disk is an animated body driven by a critically damped spring on its tilt vector, 12° maximum, about 4 s return; only specials (Anvil, Propeller, Earthquake) tilt or level it. `PHYSICAL_BALANCE`: the disk is a RigidBody3D on a two-axis joint; block weight tilts it and a restoring spring and angular damping keep it controllable. Both are selectable in the lobby.
 - **Holes:** the disk surface is divided into cells so holes can appear (2.2, 3.3).
@@ -85,7 +85,7 @@ Archived in the research file.
 
 - **Rigid bodies:** every block is one RigidBody3D with a compound shape of 1 m cube BoxShape3Ds, each shrunk by a 0.02 m margin so neighbors do not jam. Mass 1 per cube; friction 0.8, bounce 0.05.
 - **Shapes:** every shape is a `BlockShape` resource (`config/blocks/*.tres`). Shapes: cube, domino, bar3, bar4, bar5, L3, L4, T4, S4, square4 (2×2 flat), slab6 (2×3 flat), pillar (1×1×3 upright), plus5 (flat plus), u5 (flat U), corner4 (3D corner, chiral), stair6, arch5 (upright arch), cube8 (2×2×2), plate9 (3×3 flat). Five-cell and larger shapes were added by owner 2026-10-08. bar4 and bar5 are out of the match bag (`in_match_bag = false`; bag, gifts, bots, preview and Sandbox picker never deal them; owner 2026-10-12, Bontago-1pi.180).
-- **Weighted random feed:** per-shape weights in `BlockFeedConfig`, dealt from a bag randomizer (`core/feed/BlockBag.gd`) so no player goes long without a stabilizing shape.
+- **Weighted random feed:** per-shape weights in `BlockFeedConfig`, dealt from a bag randomizer (`core/blocks/BlockBag.gd`) so no player goes long without a stabilizing shape.
 - **Next-block preview:** shows the next piece, its timer and a top-down territory minimap. The queued preview is distinct from the held-but-locked piece. A three-piece preview is a possible option.
 
 ### 2.5 Controls & placement feel
@@ -263,24 +263,30 @@ Target scenarios for rule tests; they are not a claim of passed tests.
 ### 3.2 Project layout
 ```
 res://
-  project.godot
-  autoload/              # Events (signal bus), Settings, Net, Match (+ match/ state-machine parts), Sfx, Rumble, ...
-    match/               # MatchLifecycle, MatchFeed, MatchPlacement, MatchTerritory, MatchGifts, MatchStats, MatchWeather, ...
-  config/                # Resource scripts + .tres: MatchConfig, PhysicsTuning, TerritoryTuning, NetConfig,
-                         #   CameraTuning, GiftConfig, ... blocks/*.tres, maps/*.tres, specials/*.tres
-  core/                  # pure logic, no scene tree, unit tested
-    territory/           # TerritorySolver, InfluenceCircle, TerritoryRaster, TerritoryGroups, CellGrid
-    feed/BlockBag.gd
-    rules/               # WinChecker, PlacementRules, *Objective (game modes), TeamAssigner, MatchPhase, ...
-    blocks/ gifts/ net/ physics/ ai/ weather/ ...
-  game/                  # Field, Block, BlockRegistry, GiftCrate, GhostPreview, PlayerController, BotController,
-                         #   CameraRig, StableBlockManager, HoleDissolver, Sandbox, Main (+ specials/, world/)
-  net/                   # SnapshotSync, Interpolator, LanDiscovery, MatchNet, SteamClient, UpnpBackend, ...
-  ui/                    # MainMenu, Lobby, HUD, OptionsMenu, PauseMenu, Tutorial, ResultsScreen, Minimap, ...
-  vfx/, sfx/, shaders/   # territory, block, hole-edge shaders and effects
-  tests/                 # unit/, bench/
-  tools/                 # build-time and agent scripts (not part of the running game)
+  project.godot  export_presets.cfg  .gutconfig.json  README.md  AGENTS.md  CLAUDE.md
+  addons/gut/                  test framework (vendored); GodotSteam installed locally (ignored)
+  autoload/                    boot-time singletons (Events bus, Settings, Net, Match, Sfx, Rumble, ...)
+    match/                     Match autoload's host state-machine parts
+  core/                        pure logic, no scene tree, unit tested (lint L1)
+    ai/ audio/ blocks/ gifts/ net/ perf/ physics/ rules/ sky/ territory/ weather/
+  config/                      Resource scripts next to their default .tres, by feature
+    audio/ blocks/ (BlockShape .tres) blocks/tuning/ bots/ gifts/(specials/) graphics/(presets/)
+    match/(maps/round.tres) net/ physics/(presets/) player/ sky/(themes/) territory/(disc_surfaces/)
+    ui/ weather/
+  game/                        scene-tree gameplay and presentation nodes, scenes next to scripts
+    main/ field/ blocks/ player/ bots/ flags/ gifts/(specials/fx/) sky/ weather/ ambient/
+    world/ sandbox/ debug/
+  net/                         transport, replication, SnapshotSync and MatchNet autoloads
+  ui/                          components/ theme/ hud/ menus/ lobby/ debug/
+  shaders/                     territory/ blocks/ sky/ weather/ gifts/ ambient/ include/ (shared includes)
+  assets/                      audio/{sfx,music}/  models/{gifts,horizon_islands,fog_colossus}/  textures/{sky,fx}/  ui/
+  tests/                       unit/<feature>/ (mirrors game features)  bench/ (spec benches)
+                               enet/ (scenario scenes + m2/m3a acceptance)  support/ (fakes, hooks, fixtures)
+  tools/                       flat: gate, lints, baselines, agent CLIs, Godot tool scenes
+  docs/                        SPEC.md, AGENT_WORKFLOW.md (docs/archive is local-only)
 ```
+Bontago-uwq reorganisation (P10): vfx/ and sfx/ dissolved into game/, shaders/ and assets/; `_vN` asset
+suffixes dropped; tests mirror the feature tree. Move map: `tools/reorg_move_map.tsv`; tool: `tools/reorg_move.py`.
 
 ### 3.3 Territory & holes implementation
 - **Data:** `TerritorySolver` takes `(owner_team, center2D, radius)` circles plus home circles and returns connected groups per team.
@@ -289,7 +295,7 @@ res://
 - **Rate:** the host solves continuously at `solve_hz` (20) independent of placement events. Replication and render cadence are separate; smooth visuals must not hide stale authoritative rules.
 - **Raster map** (`core/territory/TerritoryRaster.gd`): a `territory_res × territory_res` grid (256 S, 384 M, 512 L) in disk-local Cartesian space. Each pixel stores owning team, contested flag or hole flag; fill each group's circles; pixels with more than one team are contested. A separate float array accumulates each pixel's contested time toward `hole_delay`.
 - **Rendering:** outlines are smooth and circle-derived; enlarging a coarse nearest-sampled raster cannot recover a curved boundary (interpolation, analytic circles or a field shader are all acceptable). Visual ownership, legal placement and capture stay aligned at borders; GPU-only apparent ownership does not permit building. Discard floor pixels only for actual physical holes, never for goal no-build zones.
-- **Physics holes:** the disk's collision is built from a square grid of `cell_size = 1.0` BoxShape3Ds clipped to the disk, in one body. Holes are visual voids with solid collision (2.2); blocks touching an applied hole cell dissolve (`game/HoleDissolver.gd`). Hole toggles are batched and sleeping blocks above changed cells wake.
+- **Physics holes:** the disk's collision is built from a square grid of `cell_size = 1.0` BoxShape3Ds clipped to the disk, in one body. Holes are visual voids with solid collision (2.2); blocks touching an applied hole cell dissolve (`game/field/HoleDissolver.gd`). Hole toggles are batched and sleeping blocks above changed cells wake.
 - **Placement validation:** one downward ray and the hit-point test in 2.5. A grid may cache ownership; it never turns the rule back into a full footprint check. The host also checks interval eligibility and rejects duplicate releases for the same interval and piece.
 - **Win check:** final owned connectivity plus simultaneous all-goal coverage and the shared hold (2.3), via `core/rules/WinChecker.gd` and the mode objectives. A cached pre-contest group label is not a substitute.
 - **`OFF` mode borders:** local height-weighted, mutually exclusive borders using an additively weighted distance field (`radius - distance`), not a true power diagram. A taller circle can swallow a smaller one entirely when the radii differ by more than their separation. Complete engulfment is possible; an exact tie on a cell goes to the lower team id; circles cut off from a living home exert no influence; cells outside every anchored circle are unowned (`TerritoryRaster._argmax`; host computes, clients mirror the replicated raster; Bontago-gmu.3). `OFF` is not the default.
@@ -331,7 +337,7 @@ Gameplay code talks only to Godot's high-level `MultiplayerAPI`, never to a tran
 - **Tick rate:** 60 physics ticks per second with physics interpolation on.
 - **Solver:** Jolt velocity and position iterations raised from defaults (start 10 and 4), tuned on a 40-block tower benchmark.
 - **Sleep:** bodies sleep after 0.5 s below the speed thresholds; they wake when the disk tilts, something nearby explodes, or the hole cell under them changes.
-- **Stable-block optimization:** a block asleep for more than 20 s and touching no awake body is switched to `freeze_mode = STATIC` by the host (`game/StableBlockManager.gd`), and returns to normal on any impulse, tilt or change in the cells under it; tilting the disk wakes all frozen blocks in the tilted region. A block that stays awake but within 5 mm (and a small rotation threshold) of the pose its still window started in for 5 continuous seconds, with no fast-moving block next to it, is frozen the same way (`settle_freeze_*` in `PhysicsTuning`, master toggle `settle_freeze_enabled`; owner 2026-10-09, Bontago-e7o; 20 s lowered to 5 s, owner 2026-10-12, Bontago-1pi.176; `core/physics/SettleTracker.gd`). Catch-up physics steps per frame are capped at 2 (`catchup_*`; F4 toggle restores 8).
+- **Stable-block optimization:** a block asleep for more than 20 s and touching no awake body is switched to `freeze_mode = STATIC` by the host (`game/blocks/StableBlockManager.gd`), and returns to normal on any impulse, tilt or change in the cells under it; tilting the disk wakes all frozen blocks in the tilted region. A block that stays awake but within 5 mm (and a small rotation threshold) of the pose its still window started in for 5 continuous seconds, with no fast-moving block next to it, is frozen the same way (`settle_freeze_*` in `PhysicsTuning`, master toggle `settle_freeze_enabled`; owner 2026-10-09, Bontago-e7o; 20 s lowered to 5 s, owner 2026-10-12, Bontago-1pi.176; `core/physics/SettleTracker.gd`). Catch-up physics steps per frame are capped at 2 (`catchup_*`; F4 toggle restores 8).
 - **Continuous collision:** Rockets, lava orbs, thrown specials and any body faster than 15 m/s use continuous collision detection.
 - **Body limits:** `max_active_blocks = 600`; beyond that, the lowest-influence blocks that are off the disk or fully buried are removed first with a visible dissolve. Explosion chains are capped (2.6).
 - **Explosions:** `PhysicsDirectSpaceState3D.intersect_shape` (sphere), `apply_impulse` with falloff `(1 - d/r)^2`, clamped per body to `max_explosion_impulse`, waking hit bodies.

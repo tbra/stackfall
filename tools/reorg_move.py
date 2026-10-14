@@ -55,6 +55,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 DEFAULT_RULES = os.path.join(HERE, "reorg_move_rules.tsv")
 LAYER_RULES = "tools/layer_rules.json"
+# The tool and its own test/map carry old paths as data: never rewritten (Bontago-uwq P10 fix).
+SELF_FILES = frozenset(["tools/reorg_move.py", "tools/test_reorg_move.py", "tools/reorg_move_map.tsv"])
 
 MOVE_ACTIONS = ("move", "restore-move")
 SKIP_PREFIXES = ("docs/archive/", ".git/", ".godot/", ".beads/", "addons/")
@@ -493,7 +495,7 @@ def compute(root, plan, allows, extras, base_ref, rep):
     post_dirs = set(d for p in post for d in parent_dirs(p))
     results = {}
     for p in sorted(tracked):
-        if p in deleted_now or not is_text_target(p):
+        if p in deleted_now or not is_text_target(p) or p in SELF_FILES:
             continue
         if os.path.exists(os.path.join(root, p)):
             text = read_text(os.path.join(root, p))
@@ -629,9 +631,7 @@ def verify(root, plan, allows, extras, base_ref, args, say):
     post_dirs = set(d for p in post for d in parent_dirs(p))
     keys = dict((k, v) for k, v in plan.token_map.items())
     own = set([os.path.relpath(a, root).replace("\\", "/") for a in [args.map, args.rules] if a and os.path.abspath(a).startswith(os.path.abspath(root))])
-    own.add("tools/reorg_move.py")
-    own.add("tools/test_reorg_move.py")
-    own.add("tools/reorg_move_map.tsv")
+    own.update(SELF_FILES)
     old_left = collections.defaultdict(list)
     unresolved = collections.defaultdict(list)
     stale = collections.defaultdict(list)
@@ -688,11 +688,11 @@ def verify(root, plan, allows, extras, base_ref, args, say):
     if not ok:
         problems.append("lint membership")
     if not args.skip_godot:
-        problems.extend(godot_checks(root, tracked, args, say))
+        problems.extend(godot_checks(root, tracked, args, say, plan))
     return problems
 
 
-def godot_checks(root, tracked, args, say):
+def godot_checks(root, tracked, args, say, plan):
     problems = []
     for n in (1, 2):
         code, out = run_godot(root, ["--headless", "--editor", "--path", root, "--quit"], "reorg_editor%d" % n)
