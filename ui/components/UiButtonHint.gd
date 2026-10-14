@@ -23,6 +23,8 @@ const STATE_NAMES: Dictionary[int, String] = {
 	BaseButton.DRAW_DISABLED: "disabled",
 }
 const META_RESERVE: StringName = &"hint_reserve"
+## Marks a stylebox this button owns (a private copy of the shared block): only those are mutated.
+const META_OWN: StringName = &"hint_own"
 
 
 ## Adds (or re-targets) the hint for [param action] on [param button]; an empty action removes it.
@@ -89,6 +91,11 @@ static func _place(button: Button, flow: InputPromptFlow) -> void:
 		if box != null:
 			var delta: float = reserve - float(box.get_meta(META_RESERVE, 0.0))
 			if absf(delta) > 0.0:
+				if not box.has_meta(META_OWN):
+					# Block styleboxes are shared across buttons: reserve room on a private copy.
+					box = box.duplicate() as StyleBox
+					box.set_meta(META_OWN, true)
+					button.add_theme_stylebox_override(state, box)
 				# The meta first: changing the margin can re-enter this function synchronously.
 				box.set_meta(META_RESERVE, reserve)
 				box.content_margin_right = maxf(box.content_margin_right, 0.0) + delta
