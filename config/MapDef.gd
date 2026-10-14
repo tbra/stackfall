@@ -16,13 +16,6 @@ const BASE_PATH: String = "res://config/maps/round_medium.tres"
 @export var id: StringName = &"round_medium"
 @export var field_radius: float = RADIUS_MEDIUM
 
-## Which placeholder six-face skybox set (config/SkyboxConfig.gd, game/Skybox.gd)
-## this map loads at match start. A name with no matching
-## assets/sky/face_sets/<set> folder just falls back to the existing
-## ProceduralSkyMaterial (see Skybox.load_set()), so this is safe to set
-## where no local face sets exist.
-@export var skybox_set: String = "beach"
-
 ## Thickness of the disk. Field builds its collision and mesh from this.
 ##
 ## DECISION (config/MapDef.gd, Bontago-xtq.6, owner 2026-09-23: "the glass

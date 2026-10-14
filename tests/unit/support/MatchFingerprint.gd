@@ -285,7 +285,6 @@ static func _capture_sky(main: Node, out: Dictionary) -> void:
 	out["sky.config_theme_name"] = skybox.config.theme_name
 	out["sky.cycle_active"] = skybox.is_cycle_active()
 	out["sky.locked_phase"] = _r(skybox.locked_phase())
-	out["sky.fallback_active"] = skybox.fallback_active
 	out["sky.storm"] = _r(skybox.storm_sky_amount())
 	out["sky.overcast"] = _r(skybox.overcast_amount())
 	out["sky.cloud_overcast"] = _r(skybox.cloud_overcast_amount())
