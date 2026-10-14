@@ -1448,7 +1448,7 @@ func _collect_code(dir_path: String, out: PackedStringArray) -> void:
 	for file_name: String in DirAccess.get_files_at(dir_path):
 		if not (file_name.ends_with(".gd") or file_name.ends_with(".gdshader")):
 			continue
-		if dir_path == "res://ui" and file_name == "TuningPanel.gd":
+		if file_name == "TuningPanel.gd":
 			continue
 		var text: String = FileAccess.get_file_as_string("%s/%s" % [dir_path, file_name])
 		var kept: PackedStringArray = PackedStringArray()

@@ -137,5 +137,17 @@ class LintLayersTest(unittest.TestCase):
             self.assertTrue(lines[-1].startswith("LAYER LINT GREEN"))
 
 
+class LayerRulesFileTest(unittest.TestCase):
+    def test_rules_file_feeds_the_lint(self):
+        rules = lint_layers.load_rules()
+        self.assertEqual(tuple(rules["source_prefixes"]), lint_layers.SOURCE_PREFIXES)
+        self.assertEqual(frozenset(rules["source_files"]), lint_layers.SOURCE_FILES)
+        self.assertEqual(tuple(rules["forbidden_prefixes"]), lint_layers.FORBIDDEN_PREFIXES)
+        self.assertEqual(rules["main_scene"], lint_layers.MAIN_SCENE)
+        self.assertTrue(lint_layers.is_source(rules["source_files"][0]))
+        self.assertTrue(lint_layers.is_forbidden(rules["forbidden_files"][0]))
+        self.assertTrue(rules["main_forbidden"])
+
+
 if __name__ == "__main__":
     unittest.main()

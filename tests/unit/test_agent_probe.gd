@@ -46,6 +46,8 @@ func test_capture_allowed_outside_probe_mode() -> void:
 func test_detects_bench_scene_path() -> void:
 	assert_true(AgentProbe.detect(PackedStringArray(["res://tests/bench/bench_snapshot.tscn"]), PackedStringArray()))
 	assert_true(AgentProbe.detect(PackedStringArray(["tests/bench/bench_snapshot.tscn"]), PackedStringArray()))
+	assert_true(AgentProbe.detect(PackedStringArray(["res://tests/bench/m3a_acceptance.tscn"]), PackedStringArray()))
+	assert_false(AgentProbe.detect(PackedStringArray(["res://game/Main.tscn"]), PackedStringArray()))
 
 
 func test_has_cli_port() -> void:
