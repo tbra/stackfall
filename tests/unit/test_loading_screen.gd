@@ -305,6 +305,21 @@ func test_the_backdrop_loads_threaded_and_is_shown_cover_cropped_behind_the_card
 	assert_almost_eq(backdrop.modulate.a, 1.0, 0.01)
 
 
+## Bontago-8xf: the dummy rasterizer allocates texture RIDs without a lock, so a plate decoded on a
+## loader thread raced the main thread's textures ('Parameter "t" is null'). Headless loads it on
+## the main thread: the plate is there at once and no threaded request exists for it.
+func test_headless_loads_the_backdrop_on_the_main_thread() -> void:
+	if LoadingScreen.threaded_texture_loads_safe():
+		pass_test("a real renderer keeps the worker-thread load.")
+		return
+	_screen.show_for_match(_config(), _slots(2))
+	var path: String = _screen.backdrop_path()
+	assert_true(_menu_paths().has(path))
+	assert_eq(_screen.backdrop_shown_path(), path, "shown in the same call, no worker to wait for.")
+	assert_eq(_screen.backdrop_texture().resource_path, path)
+	assert_eq(ResourceLoader.load_threaded_get_status(path), ResourceLoader.THREAD_LOAD_INVALID_RESOURCE, "no threaded request.")
+
+
 func test_the_backdrop_fills_the_screen_at_1280x720_and_3440x1440_and_the_card_stays_put() -> void:
 	for window: Vector2i in COVER_SIZES:
 		var host: SubViewport = UiScale.make_viewport(window)
