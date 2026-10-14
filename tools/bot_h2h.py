@@ -33,7 +33,14 @@ P1b options (Bontago-1t5.20; evaluation plan docs/BOT_AI_REDESIGN.md section 2.5
                    own team, team id = slot id). Without --players the offset is 0.
   Summary          adds the candidate win time median and max in game seconds (the
                    HEADLESS_MATCH duration= field, Bontago-1t5.16). Draws and timeouts stay separate.
-  --battery E1..E5|all   only with --dry-run: prints the section 2.5 command lines. Their templates
+  --stats          after the summary prints `H2H STATS` lines per side (A = candidate seats, B = other bot seats,
+                   passive = the --players seats): median/p25/max of peak and peak180 in metres, lost/placed,
+                   and in how many matches the bot-seat median peak >= the best passive seat. Without it the
+                   output is unchanged. Reach the Sky S-gate (docs/BOT_TOWER_PLAN.md), all 7 bots on side A:
+                     python tools/bot_h2h.py --bots 7 --players 8 --mode sky --no-swap --pairs 10 --seconds 180
+                       --stats --cand-slots-a 0,1,2,3,4,5,6 --godot-args "--match-seed={seed}
+                       --bot-difficulty=hard --bot-brain=v2 --gifts=0"
+  --battery E1..E5|all  only with --dry-run: prints the section 2.5 command lines. Their templates
                    carry <...> placeholders (e.g. <v2>) that must be filled in by hand; a real launch
                    refuses a template that still contains one.
 
@@ -77,6 +84,7 @@ Z95 = 1.959964
 _MATCH_RE = re.compile(r"HEADLESS_MATCH\b.*?\bwinner_team=(-?\d+)")
 _TIMEOUT_RE = re.compile(r"HEADLESS_MATCH\b.*\btimeout=1\b")
 _DURATION_RE = re.compile(r"HEADLESS_MATCH\b.*?\bduration=(-?[0-9]+(?:\.[0-9]+)?)")
+_STATS_RE = re.compile(r"HEADLESS_MATCH\b.*?\bstats=(\S+)")
 _WEIGHT_LINE = re.compile(r"^\s*(weight_\w+)\s*=\s*(-?[0-9.eE+-]+)\s*$")
 _WEIGHT_PLACEHOLDER = re.compile(r"\{weights_file\}|\{weights_json\}")
 _TEMPLATE_PLACEHOLDER = re.compile(r"<[^<>\s]+>")  # battery templates: <v2>, <hard|normal>
@@ -115,6 +123,89 @@ def timed_out(output: str) -> bool:
     """True when the LAST HEADLESS_MATCH line carries timeout=1 (--seconds cap hit while PLAYING)."""
     lines = [ln for ln in output.splitlines() if "HEADLESS_MATCH" in ln]
     return bool(lines) and _TIMEOUT_RE.search(lines[-1]) is not None
+
+
+def parse_stats(output: str) -> Dict[int, Tuple[int, int, float, float]]:
+    """stats= of the LAST HEADLESS_MATCH line: slot -> (placed, lost, peak_m, peak180_m); {} if absent.
+
+    Field format (MainHeadlessBotsFlow._headless_stats_string): `slot:placed/lost/peak/peak180,...`."""
+    found = [m.group(1) for ln in output.splitlines() for m in [_STATS_RE.search(ln)] if m]
+    result: Dict[int, Tuple[int, int, float, float]] = {}
+    if not found:
+        return result
+    for part in found[-1].split(","):
+        try:
+            slot_s, rest = part.split(":", 1)
+            placed, lost, peak, p180 = rest.split("/")
+            result[int(slot_s)] = (int(placed), int(lost), float(peak), float(p180))
+        except ValueError:
+            continue
+    return result
+
+
+def _quantile(values: Sequence[float], q: float) -> float:
+    """Linear-interpolated quantile (q in 0..1) of a non-empty list."""
+    v = sorted(values)
+    pos = (len(v) - 1) * q
+    lo = int(pos)
+    hi = min(lo + 1, len(v) - 1)
+    return v[lo] + (v[hi] - v[lo]) * (pos - lo)
+
+
+def side_slots(job: MatchJob, bots: int, players: Optional[int], cand_a: str, cand_b: str) -> Dict[str, List[int]]:
+    """Absolute slots per stats side for one match: A = candidate seats, B = other bot seats,
+    P = passive seats (slots below the first bot)."""
+    off = seat_offset(bots, players)
+    cand = _csv_ints(absolute_slots(cand_b if job.swapped else cand_a, bots, players))
+    bot_slots = list(range(off, off + bots))
+    return {"A": cand, "B": [s for s in bot_slots if s not in cand], "P": list(range(off))}
+
+
+def stats_report(jobs: Sequence[MatchJob], outputs: Sequence[str], bots: int, players: Optional[int],
+                 cand_a: str, cand_b: str) -> List[str]:
+    """`H2H STATS` lines: per side median/p25/max of peak and peak180 (metres) and lost/placed over
+    every seat of that side across all matches, plus how often the bot-seat median peak is >= the
+    best passive seat (Reach the Sky S-gate, docs/BOT_TOWER_PLAN.md)."""
+    acc: Dict[str, Dict[str, List[float]]] = {
+        k: {"peak": [], "p180": [], "placed": [], "lost": []} for k in ("A", "B", "P")}
+    ge = 0
+    cmp_n = 0
+    for job, out in zip(jobs, outputs):
+        stats = parse_stats(out)
+        if not stats:
+            continue
+        sides = side_slots(job, bots, players, cand_a, cand_b)
+        for key, slots in sides.items():
+            for s in slots:
+                if s in stats:
+                    placed, lost, peak, p180 = stats[s]
+                    acc[key]["peak"].append(peak)
+                    acc[key]["p180"].append(p180)
+                    acc[key]["placed"].append(placed)
+                    acc[key]["lost"].append(lost)
+        bot_peaks = [stats[s][2] for k in ("A", "B") for s in sides[k] if s in stats]
+        pas_peaks = [stats[s][2] for s in sides["P"] if s in stats]
+        if bot_peaks and pas_peaks:
+            cmp_n += 1
+            if statistics.median(bot_peaks) >= max(pas_peaks):
+                ge += 1
+    lines: List[str] = []
+    for key, name in (("A", "side_a"), ("B", "side_b"), ("P", "passive")):
+        d = acc[key]
+        if not d["peak"]:
+            continue
+        placed = sum(d["placed"])
+        lines.append(
+            "H2H STATS %s seats=%d peak_m median=%.1f p25=%.1f max=%.1f peak180_m median=%.1f p25=%.1f "
+            "max=%.1f lost=%d placed=%d lost_per_placed=%.3f" % (
+                name, len(d["peak"]), statistics.median(d["peak"]), _quantile(d["peak"], 0.25), max(d["peak"]),
+                statistics.median(d["p180"]), _quantile(d["p180"], 0.25), max(d["p180"]),
+                int(sum(d["lost"])), int(placed), (sum(d["lost"]) / placed) if placed else 0.0))
+    if not lines:
+        lines.append("H2H STATS n/a (no stats= field in any HEADLESS_MATCH line)")
+    elif cmp_n:
+        lines.append("H2H STATS bot_median_peak>=passive_max matches=%d/%d" % (ge, cmp_n))
+    return lines
 
 
 def wilson(wins: int, n: int, z: float = Z95) -> Tuple[float, float]:
@@ -375,6 +466,9 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--difficulty-b", default=None, help="bot difficulty of side B (the other bot seats)")
     ap.add_argument("--no-swap", action="store_true",
                     help="run only the A-seat half of each seed; print one H2H seed= line per match")
+    ap.add_argument("--stats", action="store_true",
+                    help="also print per-side median/p25/max of peak and peak180 (m) and lost/placed from the "
+                         "HEADLESS_MATCH stats= field (Reach the Sky heights; side A, side B, passive seats)")
     ap.add_argument("--battery", default=None, choices=["E1", "E2", "E3", "E4", "E5", "all"],
                     help="section 2.5 presets; only with --dry-run (prints their command lines)")
     ap.add_argument("--godot", default="godot")
@@ -474,6 +568,9 @@ def main(argv: Optional[List[str]] = None, runner: Callable[[Sequence[str], floa
         print("H2H candidate_win_time_s median=n/a max=n/a n=0 (game seconds)")
     if args.no_swap:
         for line in seed_lines(jobs, outputs, teams_a, teams_b):
+            print(line)
+    if args.stats:
+        for line in stats_report(jobs, outputs, args.bots, args.players, args.cand_slots_a, args.cand_slots_b):
             print(line)
     print("H2H RESULT %s" % v)
     return 0 if v == "PASS" else 1

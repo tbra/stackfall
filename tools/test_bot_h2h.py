@@ -223,5 +223,43 @@ class HarnessAOptionTests(unittest.TestCase):
         self.assertIn("--bot-difficulty-slots=1:easy", text)
 
 
+class StatsTests(unittest.TestCase):
+    """Bontago-1t5.56: --stats parses stats= (slot:placed/lost/peak/peak180)."""
+
+    LINE = ("HEADLESS_MATCH index=0 mode=3 seed=1 duration=180.0 winner_team=-1 timeout=1 "
+            "stats=0:40/0/22.0/20.0,1:30/3/10.0/8.0,2:30/1/14.0/12.0,3:20/0/18.0/16.0")
+
+    def test_parse_stats(self) -> None:
+        st = h2h.parse_stats("noise\n" + self.LINE)
+        self.assertEqual(st[1], (30, 3, 10.0, 8.0))
+        self.assertEqual(len(st), 4)
+        self.assertEqual(h2h.parse_stats("HEADLESS_MATCH winner_team=1"), {})
+
+    def test_stats_output_and_default_unchanged(self) -> None:
+        argv = ["--no-swap", "--pairs", "2", "--bots", "3", "--players", "4", "--cand-slots-a", "0,1,2",
+                "--godot-args=--match-seed={seed}"]
+        with tempfile.TemporaryDirectory() as tmp:
+            rc, plain = _run(argv + ["--out-dir", tmp], runner=lambda c, t: self.LINE)
+            rc, text = _run(argv + ["--stats", "--out-dir", tmp], runner=lambda c, t: self.LINE)
+        self.assertNotIn("H2H STATS", plain)
+        self.assertTrue(text.startswith(plain.rsplit("H2H RESULT", 1)[0]))
+        side_a = [ln for ln in text.splitlines() if "STATS side_a" in ln][0]
+        self.assertIn("seats=6", side_a)  # 3 bot seats x 2 matches
+        self.assertIn("peak_m median=14.0 p25=11.0 max=18.0", side_a)
+        self.assertIn("lost=8 placed=160 lost_per_placed=0.050", side_a)
+        self.assertIn("STATS passive seats=2 peak_m median=22.0", text)
+        self.assertIn("bot_median_peak>=passive_max matches=0/2", text)
+
+    def test_dry_run_gate_command_and_gifts(self) -> None:
+        rc, text = _run(["--dry-run", "--stats", "--bots", "7", "--players", "8", "--mode", "sky", "--no-swap",
+                         "--pairs", "10", "--seconds", "180", "--godot-args",
+                         "--match-seed={seed} --bot-difficulty=hard --bot-brain=v2 --gifts=0"])
+        self.assertEqual(rc, 0)
+        lines = [ln for ln in text.splitlines() if "--headless-host" in ln]
+        self.assertEqual(len(lines), 10)
+        for tok in ("--bots=7", "--players=8", "--seconds=180", "--mode=sky", "--gifts=0", "--bot-brain=v2"):
+            self.assertIn(tok, lines[0])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

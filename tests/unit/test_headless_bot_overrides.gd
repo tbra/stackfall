@@ -166,6 +166,15 @@ func test_round_timer_flag_per_mode() -> void:
 	assert_eq(absent.round_timer_minutes, MatchConfig.clamp_round_timer(_main.match_config.round_timer_minutes, MatchConfig.GameMode.ELIMINATION))
 
 
+func test_gifts_flag_disables_gifts_only_when_zero() -> void:
+	var off: MatchConfig = _flow()._build_headless_bot_config(2, PackedStringArray(["--gifts=0"]))
+	assert_false(off.gifts_enabled, "--gifts=0 disables gifts")
+	var absent: MatchConfig = _flow()._build_headless_bot_config(2, PackedStringArray())
+	assert_eq(absent.gifts_enabled, _main.match_config.gifts_enabled, "absent flag keeps the configured default")
+	var other: MatchConfig = _flow()._build_headless_bot_config(2, PackedStringArray(["--gifts=1"]))
+	assert_eq(other.gifts_enabled, _main.match_config.gifts_enabled, "only 0 changes anything")
+
+
 func test_round_timer_bad_value_keeps_configured() -> void:
 	for bad: String in ["abc", "-3", ""]:
 		var config: MatchConfig = _flow()._build_headless_bot_config(2, PackedStringArray(["--round-timer=%s" % bad]))

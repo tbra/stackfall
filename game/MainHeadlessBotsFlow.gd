@@ -307,6 +307,9 @@ func _build_headless_bot_config(bots: int, args: PackedStringArray) -> MatchConf
 	var timer_override: int = _round_timer_arg(args)
 	if timer_override >= 0:
 		config.round_timer_minutes = MatchConfig.clamp_round_timer(timer_override, config.game_mode)
+	# Bontago-1t5.56: `--gifts=0` turns gift spawns off (Reach the Sky height measurement); absent = unchanged.
+	if _string_arg(args, "gifts=") == "0":
+		config.gifts_enabled = false
 	return config
 
 
