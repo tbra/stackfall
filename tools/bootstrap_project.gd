@@ -296,8 +296,8 @@ func _actions() -> Dictionary:
 	# DECISION: keyboard-only (DEVICE_EXCEPTIONS). On the pad B (rotate_snap) is
 	# the clockwise 90 degree tap and RT + left stick (rotate_drag_pad) free-rotates
 	# both ways; there is no free button for a counter-clockwise tap. The Options
-	# gamepad page shows those stand-ins (ui/KeyRebindRow.gd PAD_STAND_INS,
-	# Bontago-1pi.41).
+	# gamepad page lists those two as their own rows and hides this one
+	# (ui/KeyRebindRow.gd PAD_ONLY_ACTIONS / PAD_NOT_APPLICABLE, Bontago-1pi.159.63).
 	a["rotate_yaw_ccw"] = [_key(KEY_A)]
 	a["rotate_yaw_cw"] = [_key(KEY_S)]
 
@@ -361,8 +361,8 @@ func _actions() -> Dictionary:
 	# DECISION: no gamepad binding on this action itself. The gamepad's own
 	# drag-rotate is rotate_snap (B tap) + rotate_drag_pad (RT + left stick,
 	# above) -- a documented "pad" DEVICE_EXCEPTION
-	# (tests/unit/test_project_setup.gd); the Options gamepad page shows those
-	# two controls on this row (ui/KeyRebindRow.gd PAD_STAND_INS, Bontago-1pi.41).
+	# (tests/unit/test_project_setup.gd); the Options gamepad page lists those
+	# two controls as their own rows and hides this one (Bontago-1pi.159.63).
 	a["rotate_drag"] = [_mouse(MOUSE_BUTTON_MIDDLE)]
 
 	# Bontago-mv0.14 (original tutorial: "the mouse wheel raises and lowers
