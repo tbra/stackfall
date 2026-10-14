@@ -33,13 +33,13 @@ This package changes no physics, networking, particle code or gameplay state.
 
 ## Reproduce
 
-`python tools/generate_impact_puff.py` regenerates32frame SVGs,2atlas SVGs and
+a script removed in Bontago-dbn.1 (see git history) regenerates32frame SVGs,2atlas SVGs and
 manifest. Copy `source_art/impact_puff_v1/project.godot.review` to a temporary
 folder as `project.godot`, alongside `rasterize.gd`, then:
 
 ```powershell
 godot --headless --path $helper --script "$helper/rasterize.gd" -- "$checkout/source_art/impact_puff_v1" "$helper/png"
-python tools/generate_impact_puff.py --review-native "$helper/png"
+# generator removed in Bontago-dbn.1 (see git history)
 ```
 
 Python3.8+ and Pillow are needed for review. Source uses seeded original geometry.

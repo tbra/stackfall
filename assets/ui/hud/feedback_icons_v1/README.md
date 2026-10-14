@@ -28,7 +28,7 @@ text. Preserve aspect ratio and linear SVG raster filtering when resizing.
 ## Provenance and reproduction
 
 Original Codex SVG paths; no external artwork or embedded font. The generator
-`python tools/generate_hud_feedback_icons.py` recreates all four sources and
+a script removed in Bontago-dbn.1 (see git history) recreates all four sources and
 `catalog.json`, including their intended semantics.
 
 Copy `source_art/hud_feedback_icons_v1/project.godot.review` to a temporary
@@ -36,7 +36,7 @@ helper directory as `project.godot`, alongside `rasterize.gd`, then:
 
 ```powershell
 godot --headless --path $helper --script "$helper/rasterize.gd" -- "$checkout/assets/ui/hud/feedback_icons_v1" "$helper/png"
-python tools/generate_hud_feedback_icons.py --review-native "$helper/png"
+# generator removed in Bontago-dbn.1 (see git history)
 ```
 
 Review uses Python3.8+ and Pillow. Keep the project's `.review` suffix inside

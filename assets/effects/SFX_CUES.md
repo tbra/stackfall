@@ -8,7 +8,7 @@
 | `creak.wav` | 1.15 s | Structural strain | Stick-slip pulse train (two rubs, slow-fast-slow) ringing damped wood resonances |
 | `rocket.wav` | 1.28 s | Rocket activation | Rising motor whistle with soft air rush |
 
-Render with `python tools/generate_sfx_cues.py`. Outputs are deterministic 44.1 kHz mono 16-bit PCM WAVs. The generator targets roughly -16 dBFS over the loudest 300 ms while capping the peak at -1 dBFS, in line with bundled effect guidance in `config/AudioConfig.gd`. Runtime wiring is unchanged; any use of `creak` or `rocket` depends on existing event hooks.
+Render with a script removed in Bontago-dbn.1 (see git history). Outputs are deterministic 44.1 kHz mono 16-bit PCM WAVs. The generator targets roughly -16 dBFS over the loudest 300 ms while capping the peak at -1 dBFS, in line with bundled effect guidance in `config/AudioConfig.gd`. Runtime wiring is unchanged; any use of `creak` or `rocket` depends on existing event hooks.
 
 Every cue gets a 1 ms fade-in and 8 ms fade-out so no file starts or stops on a non-zero sample.
 
@@ -16,7 +16,7 @@ Review (Claude, 2026-10-02, Bontago-mp0.39): judged from waveform/spectrogram re
 
 # Menu and drop cue replacements (Bontago-eq0, 2026-10-12)
 
-`python tools/generate_core_cues.py` renders three original replacements, wired through `AudioConfig.click_file`, `hover_file` and `drop_file`. The old files remain in the folder for comparison.
+a script removed in Bontago-dbn.1 (see git history) renders three original replacements, wired through `AudioConfig.click_file`, `hover_file` and `drop_file`. The old files remain in the folder for comparison.
 
 | File | Replaces | Duration | Character |
 | --- | --- | ---: | --- |

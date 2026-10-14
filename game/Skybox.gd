@@ -873,7 +873,7 @@ func _exit_tree() -> void:
 ## Public re-apply seam ui/TuningPanel.gd calls (via TUNING_GROUP above)
 ## whenever the owner edits a reflection tunable live in the F4 panel --
 ## configure_reflection_probe()/configure_ssr() otherwise only ever run once,
-## at boot. Also the one place tools/screenshot_xtq11_disk_opaque.gd's
+## at boot. Also the one place a script removed in Bontago-dbn.1 (see git history)'s
 ## `--mirror-mode=`/`--reflection-mode=` overrides re-apply their duplicated
 ## TerritoryVisuals after swapping `visuals` out from under an already-ready
 ## Skybox.

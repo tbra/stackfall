@@ -200,7 +200,7 @@ func test_agent_probe_run_leaves_the_gate_unarmed_unless_forced() -> void:
 	Match._lifecycle.set_loading_gate_forced(true)
 	results.clear()
 	Match.start_match(_config(2, 0))
-	assert_eq(results, [true] as Array[bool], "the explicit force seam still arms it (tools/screenshot_loading_ready.gd)")
+	assert_eq(results, [true] as Array[bool], "the explicit force seam still arms it")
 	assert_true(Match._lifecycle.loading_gate_blocking())
 	Events.match_state_changed.disconnect(on_state)
 

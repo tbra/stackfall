@@ -279,7 +279,7 @@ func set_gift_states(states: Array[Dictionary]) -> void:
 ## the camera's own basis rather than deriving `right` from `forward` with an
 ## assumed perpendicular/no-roll rotation -- reading the real basis.x is
 ## exact for any camera (including the capture tool's own off-axis
-## three-quarter framing, tools/capture_mockup08.gd's _frame_overview()) with
+## three-quarter framing, a script removed in Bontago-dbn.1 (see git history)'s _frame_overview()) with
 ## no cross-product sign convention to get wrong. A near-zero vector (no
 ## camera, or one looking/rolled straight along an axis) is ignored, leaving
 ## whatever basis was last set.

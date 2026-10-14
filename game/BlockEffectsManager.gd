@@ -250,7 +250,7 @@ func _impact_intensity(speed: float) -> float:
 ## origin can sit exactly on a shared edge/corner between cubes -- outside
 ## every individual cube's own box shape -- so a zero-radius point query
 ## there can miss the block entirely. Reproduced while capturing this
-## package's own vfx/capture_vfx_evidence_probe.gd evidence: a landing
+## package's own removed capture probe (Bontago-dbn.1; see git history) evidence: a landing
 ## square4 (2x2) block's cubelet burst rendered in
 ## cubelet_fallback_color instead of its own team color. A small sphere
 ## (FIND_BLOCK_QUERY_RADIUS_M) reliably overlaps at least one of the

@@ -10,13 +10,13 @@ extends Node
 ##       --headless-host --port=47778 --expect-peers=4
 ##   godot --headless --path . res://tests/bench/m3a_acceptance.tscn -- \
 ##       --join=127.0.0.1:47778 --sim-lag=100 --sim-loss=0.02
-## tools/run_m3a_local.ps1 / .sh drive one host and N-1 clients from a single
+## tools/run_m3a_local.ps1 drives one host and N-1 clients from a single
 ## command; `--expect-peers` is this script's own flag (Net.apply_command_line()
 ## has no such thing), read directly off OS.get_cmdline_user_args() so the
 ## host knows how many peers to wait for before starting.
 ##
 ## Review item 2 (M4 P2c-ii acceptance): passing `--throw-pass` to every
-## instance (tools/run_m3a_local.ps1 -ThrowPass / .sh THROW_PASS=1) runs an
+## instance (tools/run_m3a_local.ps1 -ThrowPass) runs an
 ## additional phase after the placement phase above, proving
 ## MatchNet.submit_throw()/net_request_throw() over a real ENet transport --
 ## an accepted throw for slot THROW_SLOT_ID (clamped speed, continuous_cd,
@@ -54,7 +54,7 @@ extends Node
 ##      within CONNECT_TIMEOUT_SECONDS.
 ## Either guard failing prints one `M3A_ACCEPT harness_blocked` line naming
 ## the stubbed layer and exits 2 — a code distinct from PASS (0) and a real
-## assertion FAILURE (1), so tools/run_m3a_local.* can tell "nothing to test
+## assertion FAILURE (1), so tools/run_m3a_local.ps1 can tell "nothing to test
 ## yet" apart from "something is broken". Once a real MatchNet is registered
 ## and Net actually connects, a third guard (_matchnet_is_wired(), a single
 ## probe intent checked against intents_sent()) catches the remaining case
@@ -113,7 +113,7 @@ const OFFSET_STEP: float = 1.5
 ## off, so the existing placement-only regression is unchanged), proving
 ## M4 P2c-ii's submit_throw()/net_request_throw() over a real ENet transport
 ## rather than only FakeNet unit tests. Always slot 1 (the first, and in
-## tools/run_m3a_local.*'s own default -Peers 2 usage the only, client) --
+## tools/run_m3a_local.ps1's own default -Peers 2 usage the only, client) --
 ## this phase does not attempt to generalise to every peer, only to prove the
 ## wire path end to end for one of them.
 const THROW_SLOT_ID: int = 1
@@ -214,7 +214,7 @@ var _failures: Array[String] = []
 ## Review item 2: kept separate from _failures so "M3A_THROW result=..."
 ## reports only the throw phase's own criteria; folded into _failures before
 ## the final quit() so a throw failure still fails the whole harness run
-## (and therefore tools/run_m3a_local.* via its existing non-zero-exit check,
+## (and therefore tools/run_m3a_local.ps1 via its existing non-zero-exit check,
 ## with no ps1/sh changes needed for that part).
 var _throw_failures: Array[String] = []
 var _blocks_spawned: int = 0

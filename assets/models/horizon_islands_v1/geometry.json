@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generator": "tools/generate_horizon_islands.py",
+  "generator": "a script removed in Bontago-dbn.1 (see git history)",
   "units": "meters; default render camera is art review only",
   "pivot": "surface center at origin; rock body extends down",
   "variants": [

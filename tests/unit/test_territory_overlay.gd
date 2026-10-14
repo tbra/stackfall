@@ -421,6 +421,19 @@ func test_configure_pushes_the_top_grain_uniforms() -> void:
 	)
 
 
+## A TEXTURE-mode disc surface built in memory (no texture files on disk).
+func _texture_surface() -> DiscSurfaceDef:
+	var image: Image = Image.create(2, 2, false, Image.FORMAT_RGBA8)
+	var texture: ImageTexture = ImageTexture.create_from_image(image)
+	var surface: DiscSurfaceDef = DiscSurfaceDef.new()
+	surface.mode = DiscSurfaceDef.Mode.TEXTURE
+	surface.albedo_texture = texture
+	surface.normal_texture = texture
+	surface.roughness_texture = texture
+	surface.metalness_texture = texture
+	return surface
+
+
 ## Bontago-adt.2: the swappable DiscSurfaceDef texture set reaches the shader,
 ## and a null set leaves the flat look (disc_textured false).
 func test_disc_surface_pushes_texture_uniforms_and_null_disables_them() -> void:
@@ -430,7 +443,7 @@ func test_disc_surface_pushes_texture_uniforms_and_null_disables_them() -> void:
 	add_child_autofree(overlay)
 	assert_false(bool(overlay.material().get_shader_parameter(&"disc_textured")))
 
-	var surface: DiscSurfaceDef = (load("res://config/disc_surfaces/MetalPlates001.tres") as DiscSurfaceDef).duplicate() as DiscSurfaceDef
+	var surface: DiscSurfaceDef = _texture_surface()
 	surface.tile_size_m = 7.5
 	visuals.disc_surface = surface
 	overlay.refresh_visual_uniforms()
@@ -470,7 +483,7 @@ func test_procedural_disc_surface_is_default_and_pushes_its_uniforms() -> void:
 	assert_almost_eq(weights.w, 0.9, 0.0001)
 
 	# Switching back to a texture set disables the procedural path.
-	visuals.disc_surface = load("res://config/disc_surfaces/MetalPlates001.tres") as DiscSurfaceDef
+	visuals.disc_surface = _texture_surface()
 	overlay.refresh_visual_uniforms()
 	assert_false(bool(material.get_shader_parameter(&"disc_procedural")))
 	assert_true(bool(material.get_shader_parameter(&"disc_textured")))

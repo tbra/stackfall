@@ -22,7 +22,7 @@ extends Resource
 ## light rotation. sunset.tres rotates panorama sampling to place its painted
 ## sun on this axis; changing the light instead caused a grazing hotspot and
 ## moved the sun away from the default home view. See sunset_clouds.gdshader
-## for the measured panorama centre and tools/capture_pt1_sun_sweep.gd for QA.
+## for the measured panorama centre and a script removed in Bontago-dbn.1 (see git history) for QA.
 @export var sun_direction: Vector3 = Vector3(0.963087, 0.069011, -0.260192)
 
 ## Warm tint applied to every flare element (core, rays, ghosts) before

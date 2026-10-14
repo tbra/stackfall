@@ -21,7 +21,7 @@ func test_build_empty_is_one_pixel() -> void:
 
 
 func test_run_name() -> void:
-	assert_eq(ContactSheet.run_name(PackedStringArray(["--path", ".", "res://tools/screenshot_fog.tscn"])), "screenshot_fog")
+	assert_eq(ContactSheet.run_name(PackedStringArray(["--path", ".", "res://tools/sandbox_shot.tscn"])), "sandbox_shot")
 	assert_eq(ContactSheet.run_name(PackedStringArray()), ContactSheet.FALLBACK_NAME)
 
 

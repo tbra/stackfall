@@ -7,6 +7,6 @@ Files:
 - `fog_colossus_v1.glb`: Godot-ready animated model candidate.
 - `fog_colossus_v1_front.png`, `fog_colossus_v1_side.png`: neutral inspection renders. These do not simulate final scene fog.
 - `source_art/fog_colossus_v1/fog_colossus_v1.blend`: editable Blender source under `.gdignore`.
-- `tools/generate_fog_colossus.py`: deterministic geometry, animation, export, and preview source. Run with Blender 4.5: `blender -b --python tools/generate_fog_colossus.py`.
+- a script removed in Bontago-dbn.1 (see git history): deterministic geometry, animation, export, and preview source. Run with Blender 4.5: a script removed in Bontago-dbn.1 (see git history).
 
 The model uses normalized art units (roughly 11 wide × 11 tall). A later map scene must position and scale it far beyond the arena, add distance fog, and decide how its own movement combines with the asset's loop. Keep much of the body outside the camera frame so the scale remains uncertain. This package does not change the map scene, camera, shaders, or gameplay.

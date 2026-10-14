@@ -151,7 +151,7 @@ func test_event_map_covers_every_audio_config_key() -> void:
 
 
 ## Bontago-1pi.28: effects were inaudible next to the music. The bundled wavs
-## are now normalised (tools/measure_audio.py); these guard the playback side.
+## are now normalised (a script removed in Bontago-dbn.1 (see git history)); these guard the playback side.
 const BUNDLED_CUE_EVENTS: Array[StringName] = [
 	AudioConfig.EVENT_THUD, AudioConfig.EVENT_REJECTED, AudioConfig.EVENT_CLICK,
 	AudioConfig.EVENT_START_GAME, AudioConfig.EVENT_HOVER, AudioConfig.EVENT_DROP,
