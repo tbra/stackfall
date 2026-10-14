@@ -83,9 +83,13 @@ var align_bot_columns: bool = false
 ## The list's bot rows carry a remove button (the host's view): human rows reserve its room too. A
 ## client's own (editable) row must not decide this from its own `editable`.
 var align_remove_column: bool = false
+## Bontago-1pi.159.43: which look this row builds (LobbySeatVariants.Style); the panel sets it, CLASSIC is the shipped row.
+var variant: int = LobbySeatVariants.Style.CLASSIC
+## The lobby team cap (picks run 1..team_cap, then Random); GROUPED mover names the team it moves to.
+var team_cap: int = 0
 
 # --- Built by build() ------------------------------------------------------------------
-var layout: HBoxContainer = null
+var layout: Container = null
 var color_button: Button = null
 ## The shared colour diamond inside color_button (ui/SlotDiamond.tscn).
 var color_diamond: SlotDiamond = null
@@ -103,6 +107,12 @@ var mute_button: UiBlockButton = null
 var mute_column_override: Callable = Callable()
 var badge: UiStatusBadge = null
 var badge_label: Label = null
+## Variant controls (Bontago-1pi.159.43): a bot's difficulty as a compact dropdown (SLOT / GROUPED / CARDS),
+## and GROUPED's "move to the next team" icon button (the team itself is read off the group header).
+var difficulty_dropdown: UiDropdown = null
+var team_move_button: UiBlockButton = null
+## CARDS: the line under the marker row that holds the card's controls.
+var card_controls: UiFlow = null
 
 var _tuning: MenuVisualTuning = null
 var _layout_tuning: LobbyLayoutTuning = null
@@ -151,22 +161,34 @@ func build(tuning: MenuVisualTuning, layout_tuning: LobbyLayoutTuning) -> void:
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	if layout_tuning.seat_row_min_height_px > 0:
 		custom_minimum_size = Vector2(0.0, float(layout_tuning.seat_row_min_height_px))
+	if variant != LobbySeatVariants.Style.CLASSIC:
+		_apply_team_edge(row_box)
 	layout = HBoxContainer.new()
 	layout.add_theme_constant_override("separation", arcade.space_2_px)
-	add_child(layout)
-
-	_build_color_button()
-	_build_text_column()
-	if show_team and seat_key != LobbySeats.KEY_NONE:
-		_build_team_button()
-	if is_bot:
-		_build_difficulty_option()
-		if editable:
-			_build_remove_button()
-	elif align_bot_columns and show_team and seat_key != LobbySeats.KEY_NONE:
-		_build_bot_column_spacers()
-	_build_mute_slot()
-	_build_badge()
+	match variant:
+		LobbySeatVariants.Style.SLOT, LobbySeatVariants.Style.GROUPED:
+			add_child(layout)
+			_build_flat_variant()
+		LobbySeatVariants.Style.CARDS:
+			var body: UiStack = UiStack.new()
+			body.gap_px = arcade.space_2_px
+			add_child(body)
+			body.add_child(layout)
+			_build_card_variant(body)
+		_:
+			add_child(layout)
+			_build_color_button()
+			_build_text_column()
+			if show_team and seat_key != LobbySeats.KEY_NONE:
+				_build_team_button()
+			if is_bot:
+				_build_difficulty_option()
+				if editable:
+					_build_remove_button()
+			elif align_bot_columns and show_team and seat_key != LobbySeats.KEY_NONE:
+				_build_bot_column_spacers()
+			_build_mute_slot()
+			_build_badge()
 	_wire_horizontal_focus()
 
 
@@ -182,11 +204,16 @@ func focusable_controls() -> Array[Control]:
 			controls.append(mute_button)
 		return controls
 	controls.append(color_button)
-	if team_button != null:
-		controls.append(team_button)
-	if difficulty_option != null:
-		controls.append(difficulty_option)
-	if remove_button != null:
+	# Visual order: GROUPED puts the skill before the team mover, every other look the team first.
+	var ordered: Array[Control] = [team_button, difficulty_option, difficulty_dropdown, team_move_button]
+	if variant == LobbySeatVariants.Style.GROUPED:
+		ordered = [difficulty_dropdown, team_move_button]
+	if variant == LobbySeatVariants.Style.CARDS and remove_button != null:
+		controls.append(remove_button)  # the card's X sits top right, above its settings
+	for control: Control in ordered:
+		if control != null:
+			controls.append(control)
+	if remove_button != null and variant != LobbySeatVariants.Style.CARDS:
 		controls.append(remove_button)
 	if mute_button != null:
 		controls.append(mute_button)
@@ -199,9 +226,11 @@ func kind_of(control: Node) -> StringName:
 		return &""
 	if control == color_button or color_button.is_ancestor_of(control):
 		return KIND_COLOR
-	if team_button != null and (control == team_button or team_button.is_ancestor_of(control)):
+	var team_control: Control = team_control_of_row()
+	if team_control != null and (control == team_control or team_control.is_ancestor_of(control)):
 		return KIND_TEAM
-	if difficulty_option != null and (control == difficulty_option or difficulty_option.is_ancestor_of(control)):
+	var skill: Control = difficulty_control()
+	if skill != null and (control == skill or skill.is_ancestor_of(control)):
 		return KIND_DIFFICULTY
 	if remove_button != null and (control == remove_button or remove_button.is_ancestor_of(control)):
 		return KIND_REMOVE
@@ -216,9 +245,9 @@ func control_of(kind: StringName) -> Control:
 		KIND_COLOR:
 			return color_button
 		KIND_TEAM:
-			return team_button
+			return team_control_of_row()
 		KIND_DIFFICULTY:
-			return difficulty_option
+			return difficulty_control()
 		KIND_REMOVE:
 			return remove_button
 		KIND_MUTE:
@@ -226,14 +255,24 @@ func control_of(kind: StringName) -> Control:
 	return null
 
 
+## The row's team control: the team dropdown (CLASSIC / SLOT / CARDS) or GROUPED's move button; null for none.
+func team_control_of_row() -> Control:
+	return team_move_button if team_move_button != null else team_button
+
+
+## The row's bot difficulty control (the classic cycler or a variant's dropdown); null for a human.
+func difficulty_control() -> Control:
+	return difficulty_dropdown if difficulty_dropdown != null else difficulty_option
+
+
 # --- Building --------------------------------------------------------------------------
 
 ## The colour box: a Button holding the shared SlotDiamond in the seat's colour (lit on
 ## hover when live, ringed on focus), so a read-only row looks just like a live one.
-func _build_color_button() -> void:
+func _build_color_button(box_px: Vector2 = Vector2.ZERO, diamond_px: float = -1.0) -> void:
 	color_button = Button.new()
 	color_button.name = "ColorButton"
-	color_button.custom_minimum_size = _layout_tuning.color_box_size_px
+	color_button.custom_minimum_size = box_px if box_px.x > 0.0 else _layout_tuning.color_box_size_px
 	color_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	color_button.focus_mode = Control.FOCUS_ALL if editable and seat_key != LobbySeats.KEY_NONE else Control.FOCUS_NONE
 	var radius: int = _layout_tuning.color_box_corner_radius_px
@@ -247,7 +286,7 @@ func _build_color_button() -> void:
 	for state: String in faces:
 		color_button.add_theme_stylebox_override(state, faces[state] as StyleBox)
 	# Bontago-1pi.81: the seat colour is the shared SlotDiamond, centred in the button.
-	color_diamond = SlotDiamond.create(seat_color)
+	color_diamond = SlotDiamond.create(seat_color, diamond_px)
 	color_diamond.name = "SlotDiamond"
 	var half: float = color_diamond.diamond_size_px() * 0.5
 	color_diamond.anchor_left = 0.5
@@ -268,8 +307,8 @@ func _build_color_button() -> void:
 
 
 func _build_text_column() -> void:
-	var text_column: VBoxContainer = VBoxContainer.new()
-	text_column.add_theme_constant_override("separation", _layout_tuning.seat_text_separation_px)
+	var text_column: UiStack = UiStack.new()
+	text_column.gap_px = _layout_tuning.seat_text_separation_px
 	text_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name_label = Label.new()
 	name_label.theme_type_variation = &"TitleLabel"
@@ -376,6 +415,8 @@ func _build_mute_slot() -> void:
 	var can_mute: bool = not is_bot and seat_key > LobbySeats.KEY_NONE and seat_key != Net.local_peer_id()
 	var probe_width: float = _mute_width()
 	if not can_mute:
+		if variant == LobbySeatVariants.Style.CARDS:
+			return  # a card has no columns to keep aligned
 		var spacer: Control = Control.new()
 		spacer.name = "MuteSpacer"
 		spacer.custom_minimum_size = Vector2(probe_width, 0.0)
@@ -464,6 +505,174 @@ func _build_badge() -> void:
 	layout.add_child(badge)
 
 
+# --- Variants (Bontago-1pi.159.43) ----------------------------------------------------
+
+## The team's colour (tuning list, wrapping), or Color.TRANSPARENT for Random / FFA / a seat-less row.
+func team_color() -> Color:
+	if not show_team or seat_key == LobbySeats.KEY_NONE or team_pick <= MatchConfig.TEAM_PICK_RANDOM:
+		return Color.TRANSPARENT
+	return team_color_of(_layout_tuning, team_pick)
+
+
+static func team_color_of(layout_tuning: LobbyLayoutTuning, pick: int) -> Color:
+	var colors: PackedColorArray = layout_tuning.seat_team_colors
+	return colors[posmod(pick - 1, colors.size())]
+
+
+## GROUPED / CARDS: a band of the team colour on the row's left (group) or top (card) edge.
+func _apply_team_edge(box: StyleBoxFlat) -> void:
+	var tint: Color = team_color()
+	if tint.a <= 0.0:
+		return
+	box.border_color = tint
+	if variant == LobbySeatVariants.Style.GROUPED:
+		box.border_width_left = _layout_tuning.seat_team_band_px
+	elif variant == LobbySeatVariants.Style.CARDS:
+		box.border_width_top = _layout_tuning.seat_team_band_px
+
+
+## SLOT and GROUPED: one line -- marker, name, then (host / own row) the team and bot controls, then the state.
+func _build_flat_variant() -> void:
+	var grouped: bool = variant == LobbySeatVariants.Style.GROUPED
+	_build_color_button()
+	_build_text_column()
+	var has_seat: bool = seat_key != LobbySeats.KEY_NONE
+	if show_team and has_seat and not grouped:
+		_build_team_chip(layout)
+	if is_bot:
+		_build_difficulty_dropdown(layout)
+	elif align_bot_columns and show_team and has_seat:
+		_add_spacer(_difficulty_dropdown_width())
+	if show_team and has_seat and grouped and editable:
+		_build_team_move_button()
+	if is_bot:
+		if editable:
+			_build_remove_button()
+	elif align_bot_columns and show_team and has_seat and align_remove_column:
+		_add_spacer(float(UiRowItem.metrics().row_height_px))
+	_build_mute_slot()
+	_build_badge()
+
+
+## CARDS: a big marker beside the name, the bot's X and the state on top; the card's settings (team,
+## difficulty, mute) on a line below. Every card reserves that line, so a card grid keeps equal heights.
+func _build_card_variant(body: VBoxContainer) -> void:
+	var marker_px: float = float(_layout_tuning.seat_card_marker_px)
+	_build_color_button(Vector2.ONE * marker_px, marker_px)
+	_build_text_column()
+	if is_bot and editable:
+		_build_remove_button()
+	_build_badge()
+	var has_seat: bool = seat_key != LobbySeats.KEY_NONE
+	var controls_line: UiFlow = UiFlow.new()
+	controls_line.name = "CardControls"
+	controls_line.h_gap_px = MenuStyleFactory.arcade_tuning().space_2_px
+	controls_line.v_gap_px = MenuStyleFactory.arcade_tuning().space_2_px
+	var top: Container = layout
+	layout = controls_line  # the shared builders add to the controls line
+	if show_team and has_seat:
+		_build_team_chip(controls_line)
+	if is_bot:
+		_build_difficulty_dropdown(controls_line)
+	else:
+		_build_mute_slot()
+	layout = top
+	card_controls = controls_line
+	if controls_line.get_child_count() == 0:
+		var reserve: Control = Control.new()
+		reserve.name = "CardControlsReserve"
+		reserve.custom_minimum_size = Vector2(0.0, float(UiRowItem.metrics().row_height_px))
+		reserve.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		controls_line.add_child(reserve)
+	body.add_child(controls_line)
+
+
+## The team as a team-coloured dropdown chip: Random, Team 1..N (the item index is the pick).
+func _build_team_chip(parent: Control) -> void:
+	team_button = UiDropdown.new()
+	team_button.name = "TeamButton"
+	team_button.show_chevron = false
+	team_button.add_item("Random")
+	for pick: int in range(MatchConfig.TEAM_PICK_RANDOM + 1, MatchConfig.TEAM_PICK_MAX + 1):
+		team_button.add_item(PlayerNames.team_label(pick))
+	team_button.select(clampi(team_pick, MatchConfig.TEAM_PICK_RANDOM, MatchConfig.TEAM_PICK_MAX))
+	_compact(team_button, team_button.content_width(), false)
+	_tint_chip(team_button)
+	team_button.disabled = not editable
+	team_button.focus_mode = Control.FOCUS_ALL if editable else Control.FOCUS_NONE
+	if editable:
+		team_button.item_selected.connect(_on_team_selected)
+	parent.add_child(team_button)
+
+
+## Paints the chip in the team colour with dark ink (Random keeps the neutral block).
+func _tint_chip(chip: UiDropdown) -> void:
+	var tint: Color = team_color()
+	if tint.a <= 0.0:
+		return
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	for state: String in UiDropdown.STATES:
+		var box: StyleBoxFlat = chip.get_theme_stylebox(state) as StyleBoxFlat
+		if box == null:
+			continue
+		box.bg_color = tint.lightened(_layout_tuning.seat_team_hover_lighten) if state.begins_with("hover") else tint
+		box.border_color = tint.darkened(_layout_tuning.seat_team_border_darken)
+	for item: String in ["font_color", "font_pressed_color", "font_hover_color", "font_hover_pressed_color", "font_focus_color", "font_disabled_color"]:
+		chip.add_theme_color_override(item, arcade.disc_950_color)
+
+
+## GROUPED: an icon button that moves the seat to the next team (click / ui_accept; right click = previous).
+func _build_team_move_button() -> void:
+	team_move_button = UiBlockButton.new()
+	team_move_button.name = "TeamMoveButton"
+	var next_pick: int = TeamAssigner.next_pick(team_pick, maxi(team_cap, 1), false)
+	team_move_button.text = "To %s" % ("Random" if next_pick <= MatchConfig.TEAM_PICK_RANDOM else PlayerNames.team_label(next_pick))
+	team_move_button.tooltip_text = "Move to the next team (right click: previous)"
+	team_move_button.pressed.connect(_on_team_move_pressed)
+	team_move_button.gui_input.connect(_on_cycle_gui_input.bind(KIND_TEAM))
+	layout.add_child(team_move_button)
+
+
+## A bot's difficulty as one compact dropdown (icon + word), read-only for a client.
+func _build_difficulty_dropdown(parent: Control) -> void:
+	difficulty_dropdown = _make_difficulty_dropdown()
+	difficulty_dropdown.name = "DifficultyDropdown"
+	difficulty_dropdown.select(clampi(difficulty, 0, DIFFICULTY_LABELS.size() - 1))
+	difficulty_dropdown.disabled = not editable
+	difficulty_dropdown.focus_mode = Control.FOCUS_ALL if editable else Control.FOCUS_NONE
+	if editable:
+		difficulty_dropdown.item_selected.connect(_on_difficulty_selected)
+	parent.add_child(difficulty_dropdown)
+
+
+func _make_difficulty_dropdown() -> UiDropdown:
+	var dropdown: UiDropdown = UiDropdown.new()
+	var art: UiArtTable = UiArtTable.shared()
+	for index: int in range(DIFFICULTY_LABELS.size()):
+		dropdown.add_item(DIFFICULTY_LABELS[index])
+		dropdown.set_item_icon(index, art.difficulty_icon(index))
+	return dropdown
+
+
+func _difficulty_dropdown_width() -> float:
+	var probe: UiDropdown = _make_difficulty_dropdown()
+	var width: float = probe.content_width()
+	probe.free()
+	return width
+
+
+func _add_spacer(width: float) -> void:
+	var spacer: Control = Control.new()
+	spacer.name = "ColumnSpacer"
+	spacer.custom_minimum_size = Vector2(width, 0.0)
+	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layout.add_child(spacer)
+
+
+func _on_team_move_pressed() -> void:
+	team_cycle_requested.emit(seat_key, false)
+
+
 static func _color_box(color: Color, radius: int, border_px: int, border_color: Color) -> StyleBoxFlat:
 	var box: StyleBoxFlat = StyleBoxFlat.new()
 	box.bg_color = color
@@ -507,7 +716,7 @@ func _on_difficulty_selected(index: int) -> void:
 ## out: handling it redraws the rows, and this control then leaves the tree. Connected to the
 ## control's `gui_input` signal (not _gui_input) so tests can drive it with a plain emit, like
 ## the timer sliders in ui/Lobby.gd. 
-func _on_cycle_gui_input(event: InputEvent, _kind: StringName) -> void:
+func _on_cycle_gui_input(event: InputEvent, kind: StringName) -> void:
 	if not (event is InputEventMouseButton):
 		# Bontago-1pi.93: ui_left / ui_right (held, echoed or pad) only move focus; a click /
 		# ui_accept (pressed) cycles the colour.
@@ -516,4 +725,7 @@ func _on_cycle_gui_input(event: InputEvent, _kind: StringName) -> void:
 	if not click.pressed or click.button_index != MOUSE_BUTTON_RIGHT:
 		return
 	accept_event()
+	if kind == KIND_TEAM:
+		team_cycle_requested.emit(seat_key, true)
+		return
 	color_cycle_requested.emit(seat_key, true)
