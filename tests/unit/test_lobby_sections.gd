@@ -123,7 +123,8 @@ func test_controls_live_in_their_plan_sections() -> void:
 		assert_true(gifts.body.is_ancestor_of(lobby.get_node(unique_name)), "%s is GIFTS main" % unique_name)
 	assert_true(gifts.advanced.is_ancestor_of(lobby.get_node("%SpecialsChecklist")), "the per-gift checkboxes are GIFTS Advanced")
 	var experiments: UiSection = _section(lobby, "%ExperimentsSection")
-	assert_null(experiments.body, "EXPERIMENTS has no main body")
+	# Bontago-1pi.159.60: the master switch is EXPERIMENTS main; the trial chips stay behind Advanced.
+	assert_true(experiments.body.is_ancestor_of(lobby.get_node("%ExperimentsCheck")), "the Experiments switch is EXPERIMENTS main")
 	assert_not_null(experiments.advanced_button, "its checks sit behind the Advanced chip like every section")
 	for unique_name: String in QOL_NAMES:
 		assert_true(experiments.advanced.is_ancestor_of(lobby.get_node(unique_name)), "%s is EXPERIMENTS Advanced" % unique_name)

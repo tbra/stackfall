@@ -146,6 +146,10 @@ var _map_thumbnail_icon: TextureRect = null
 var _gravity_value: float = MatchConfig.GRAVITY_DEFAULT
 var _special_frequency_value: int = 0
 @onready var _gifts_check: UiToggle = %GiftsCheck
+## Bontago-1pi.159.59: the Frequency row, hidden with the gifts switch off (with the Advanced bar).
+@onready var _special_freq_group: Control = %SpecialFreqGroup
+## Bontago-1pi.159.60: the Experiments master switch (host-editable, replicated as MatchConfig.experiments_enabled).
+@onready var _experiments_check: UiToggle = %ExperimentsCheck
 @onready var _tilt_mode_option: UiCycler = %TiltModeOption
 @onready var _hole_mode_option: UiCycler = %HoleModeOption
 @onready var _weather_option: UiCycler = %WeatherOption
@@ -336,7 +340,7 @@ func _ready() -> void:
 	_settings_controls = [
 		_disc_size_meter, _player_count_spin, _ai_count_spin,
 		_ai_difficulty_option, _team_mode_option, _block_timer_stepper, _gravity_meter,
-		_goal_flag_stepper, _gifts_check, _special_freq_meter, _tilt_mode_option,
+		_goal_flag_stepper, _gifts_check, _experiments_check, _special_freq_meter, _tilt_mode_option,
 		_hole_mode_option, _match_timer_stepper, _sudden_death_check, _turn_based_check,
 		_mid_join_check,
 	]
@@ -700,7 +704,7 @@ func _wire_focus_chain() -> void:
 	chain.append_array(_section_chain(_gifts_section, gifts_main, gifts_advanced))
 	var experiments_advanced: Array[Control] = []
 	experiments_advanced.append_array(_qol_checks)
-	chain.append_array(_section_chain(_experiments_section, [], experiments_advanced))
+	chain.append_array(_section_chain(_experiments_section, [_experiments_check], experiments_advanced))
 	# Bontago-1pi.53 (E1): the players panel's own focusable controls sit between the
 	# settings and the footer, in visual order; the panel asks for a rewire through
 	# focus_entries_changed.
@@ -984,6 +988,7 @@ func _connect_control_signals() -> void:
 	_match_timer_stepper.value_changed.connect(_on_timer_stepper_changed.bind(_match_timer_stepper))
 	_disc_size_meter.value_changed.connect(_on_disc_size_changed)
 	_gifts_check.toggled.connect(_on_toggled)
+	_experiments_check.toggled.connect(_on_toggled)
 	_sudden_death_check.toggled.connect(_on_toggled)
 	_turn_based_check.toggled.connect(_on_toggled)
 	_mid_join_check.toggled.connect(_on_toggled)
@@ -1182,7 +1187,10 @@ func _update_section_summaries() -> void:
 	for qol_check: UiChipToggle in _qol_checks:
 		if qol_check.button_pressed and qol_check != _qol_gift_after_next_check:
 			experiments_on += 1
-	_experiments_section.set_summary(SUMMARY_EXPERIMENTS_FORMAT % experiments_on)
+	if _experiments_check.button_pressed:
+		_experiments_section.set_summary(SUMMARY_EXPERIMENTS_FORMAT % experiments_on)
+	else:
+		_experiments_section.set_summary(SUMMARY_GIFTS_OFF)
 
 
 func _cycle_text(selector: UiCycler) -> String:
@@ -1372,7 +1380,27 @@ func _refresh_sky_controls(_index: int = 0) -> void:
 
 
 func _on_toggled(_pressed: bool) -> void:
+	_refresh_master_toggles()
 	_on_setting_changed()
+
+
+## Bontago-1pi.159.59 / .60: a master switch that is off hides what it governs and focus skips it
+## (_visible_chain drops hidden stops): gifts off -> the Frequency row and the GIFTS Advanced bar;
+## experiments off -> the EXPERIMENTS Advanced bar. Turning it back on restores the bar closed; the
+## chip selections themselves are untouched. Runs on a local toggle and after a remote apply.
+func _refresh_master_toggles() -> void:
+	_special_freq_group.visible = _gifts_check.button_pressed
+	_set_advanced_available(_gifts_section, _gifts_check.button_pressed)
+	_set_advanced_available(_experiments_section, _experiments_check.button_pressed)
+	_rewire_focus()
+
+
+func _set_advanced_available(section: UiSection, available: bool) -> void:
+	if section.advanced_button == null:
+		return
+	if not available:
+		section.set_advanced_open(false)
+	section.advanced_button.visible = available
 
 
 ## The one place a host's edit turns into a publish (docs/archive/M3a_PLAN.md P4
@@ -1426,6 +1454,7 @@ func _config_from_controls() -> MatchConfig:
 	config.gravity_multiplier = _gravity_value
 	config.goal_flag_count = _goal_flag_stepper.value
 	config.gifts_enabled = _gifts_check.button_pressed
+	config.experiments_enabled = _experiments_check.button_pressed
 	config.special_frequency = _special_frequency_value
 	config.tilt_mode = _tilt_mode_option.selected()
 	config.hole_mode = _hole_mode_option.selected()
@@ -1546,6 +1575,7 @@ func _apply_data(data: Dictionary) -> void:
 	_gravity_meter.queue_redraw()
 	_goal_flag_stepper.set_value_silent(config.goal_flag_count)
 	_toggle_silent(_gifts_check, config.gifts_enabled)
+	_toggle_silent(_experiments_check, config.experiments_enabled)
 	_special_frequency_value = config.special_frequency
 	_special_freq_meter.set_value_silent(_frequency_cells_for(_special_frequency_value))
 	_special_freq_meter.queue_redraw()
@@ -1576,6 +1606,7 @@ func _apply_data(data: Dictionary) -> void:
 	# A null qol (config/match_defaults.tres) leaves the trial at the shared resource's default.
 	_chip_silent(_qol_gift_after_next_check, QOL_SHARED.gift_queue_after_next if qol == null else qol.gift_queue_after_next)
 	_applying_remote_data = false
+	_refresh_master_toggles()
 	_update_section_summaries()
 	# Bontago-1pi.9b: re-bound %AiCountSpin's max after every value assignment
 	# above (player_count and ai_count both just moved, possibly from a wire
