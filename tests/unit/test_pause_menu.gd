@@ -187,6 +187,22 @@ func test_options_button_opens_options_and_hides_center() -> void:
 	assert_not_null(_menu._options_menu)
 
 
+func test_options_is_built_once_and_reused_on_reopen() -> void:
+	_menu._unhandled_input(_key_press(KEY_ESCAPE))  # open
+	_menu._on_options_pressed()
+	var first: OptionsMenu = _menu._options_menu
+	first._tabs.select(OptionsMenu.TAB_CONTROLS)
+	_menu._on_options_closed()
+	assert_false(first.visible, "closing hides the cached window instead of freeing it.")
+	assert_false(first.is_queued_for_deletion())
+
+	_menu._on_options_pressed()
+
+	assert_same(_menu._options_menu, first, "reopening must reuse the built window.")
+	assert_true(first.visible)
+	assert_eq(first._tabs.current, OptionsMenu.TAB_GAME, "reopen starts on the Game tab like a fresh build.")
+
+
 func test_options_closed_restores_center_and_focus() -> void:
 	_menu._unhandled_input(_key_press(KEY_ESCAPE))  # open
 	_menu._on_options_pressed()

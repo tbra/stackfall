@@ -115,6 +115,8 @@ var context_provider: Callable = Callable()
 
 var _froze_tree: bool = false
 var _options_menu: OptionsMenu = null
+## Bontago-1pi.11.92: the built-once Options window, hidden between opens (see OptionsMenu.present()).
+var _options_cache: OptionsMenu = null
 var _pending_action: PendingAction = PendingAction.NONE
 var _confirm_origin: UiBlockButton = null
 ## Restores the focus modes UiFocusTrap.suspend_outside() cleared while Options is open.
@@ -281,16 +283,23 @@ func _on_resume_pressed() -> void:
 func _on_options_pressed() -> void:
 	if _options_menu != null:
 		return
-	_options_menu = OPTIONS_MENU_SCENE.instantiate() as OptionsMenu
+	var first_open: bool = _options_cache == null
+	if first_open:
+		_options_cache = OPTIONS_MENU_SCENE.instantiate() as OptionsMenu
+	_options_menu = _options_cache
 	_center.visible = false
-	_root.add_child(_options_menu)
+	if first_open:
+		_root.add_child(_options_menu)
+	else:
+		_options_menu.present()
 	_restore_focus = UiFocusTrap.suspend_outside(_options_menu, get_tree().root)
-	_options_menu.closed.connect(_on_options_closed)
+	if not _options_menu.closed.is_connected(_on_options_closed):
+		_options_menu.closed.connect(_on_options_closed)
 
 
 func _on_options_closed() -> void:
 	if _options_menu != null:
-		_options_menu.queue_free()
+		_options_menu.dismiss()
 		_options_menu = null
 	if _restore_focus.is_valid():
 		_restore_focus.call()

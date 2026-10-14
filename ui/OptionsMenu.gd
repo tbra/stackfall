@@ -285,6 +285,8 @@ var _rows: Array[KeyRebindRow] = []
 var _dragging_meter: UiSegmentMeter = null
 ## Each component meter's value range, so its cell count maps to the setting's own unit.
 var _meter_ranges: Dictionary[UiSegmentMeter, Vector2] = {}
+## True after present() until the Graphics page re-reads Settings (see present()).
+var _graphics_stale: bool = false
 
 
 func _ready() -> void:
@@ -334,6 +336,28 @@ func _ready() -> void:
 	_reset_button.pressed.connect(_on_reset_pressed)
 	Events.input_device_changed.connect(_on_input_device_changed)
 
+	_window_mode_option.grab_focus()
+
+
+## DECISION (Bontago-1pi.11.92): the opener (MainMenu / PauseMenu) builds this menu once and
+## keeps it hidden between opens instead of freeing it (the ~390 ms rebuild per open).
+## dismiss() hides it and stops its back-gesture input; present() shows it again exactly as a
+## fresh _ready() left it: Game tab, values re-read from Settings, window-mode row focused.
+func dismiss() -> void:
+	visible = false
+	set_process_unhandled_input(false)
+
+
+func present() -> void:
+	set_process_unhandled_input(true)
+	visible = true
+	_tabs.select(TAB_GAME)
+	_settings_page.scroll_vertical = 0
+	# The Graphics page re-reads Settings only when its tab is shown (_on_tab_changed): that
+	# refresh is the one costly part (~36 ms). Device-dependent UI is already kept current by
+	# _on_input_device_changed while hidden, so it is not redone here.
+	_graphics_stale = true
+	_load_current_values(false)
 	_window_mode_option.grab_focus()
 
 
@@ -522,6 +546,9 @@ func _refresh_layout() -> void:
 func _on_tab_changed(id: StringName) -> void:
 	_settings_page.visible = id == TAB_GAME
 	_graphics_page.visible = id == TAB_GRAPHICS
+	if id == TAB_GRAPHICS and _graphics_stale:
+		_graphics_stale = false
+		_graphics_page.refresh_from_settings()
 	_controls_page.visible = id == TAB_CONTROLS
 	_wire_tab_focus()
 	_trap_focus()
@@ -617,8 +644,10 @@ func _build_window_mode_items() -> void:
 		_window_mode_option.add_item(Settings.window_mode_label(id))
 
 
-func _load_current_values() -> void:
-	_graphics_page.refresh_from_settings()
+func _load_current_values(include_graphics: bool = true) -> void:
+	if include_graphics:
+		_graphics_stale = false
+		_graphics_page.refresh_from_settings()
 
 	_load_channel_row(_master_mute_button, _master_volume_slider, settings_provider.master_muted(), settings_provider.master_volume_percent())
 	_load_channel_row(_music_mute_button, _music_volume_slider, settings_provider.music_muted(), settings_provider.music_volume_percent())
