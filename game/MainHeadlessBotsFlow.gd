@@ -356,6 +356,13 @@ func _build_headless_bot_config(bots: int, args: PackedStringArray) -> MatchConf
 	# Bontago-1t5.56: `--gifts=0` turns gift spawns off (Reach the Sky height measurement); absent = unchanged.
 	if _string_arg(args, "gifts=") == "0":
 		config.gifts_enabled = false
+	# Bontago-1t5.64: `--weather=0` turns weather off (WeatherMode.OFF); `--weather=1` turns it on (the
+	# CHANGING schedule) only when the configured mode is OFF; absent = unchanged.
+	var weather_arg: String = _string_arg(args, "weather=")
+	if weather_arg == "0":
+		config.weather_mode = MatchConfig.WeatherMode.OFF
+	elif weather_arg == "1" and config.weather_mode == MatchConfig.WeatherMode.OFF:
+		config.weather_mode = MatchConfig.WeatherMode.CHANGING
 	return config
 
 
