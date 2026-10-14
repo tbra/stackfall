@@ -636,6 +636,13 @@ func _actions() -> Dictionary:
 	# press opens the pause menu.
 	a["perf_overlay_toggle"] = [_key(KEY_F1), _pad(JOY_BUTTON_RIGHT_STICK)]
 
+	# DECISION (tools/bootstrap_project.gd, Bontago-1t5.63): bot_cost_overlay_toggle is the debug-only F2 bot
+	# think cost overlay (ui/PerfBotCostOverlay.gd, gated by game/DebugMode.gd). R3 already belongs to F1 (and
+	# show_scores), so its pad half is the left-stick click, accepted by the overlay only while Back
+	# (camera_snap_home) is held, like F1/F3. L3 is camera_modifier, a hold modifier that only matters
+	# together with camera stick motion, so a Back+L3 press does no harm; a bare L3 press is ignored.
+	a["bot_cost_overlay_toggle"] = [_key(KEY_F2), _pad(JOY_BUTTON_LEFT_STICK)]
+
 	# --- Gift demo (Bontago-1pi.70) ---------------------------------------------
 	# Only read by game/Sandbox.gd while the gift-demo preset is active, so they
 	# never act in a normal sandbox or match.
