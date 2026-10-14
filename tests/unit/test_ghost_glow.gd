@@ -76,29 +76,16 @@ func test_glow_follows_tint_colour_in_shader_albedo() -> void:
 	assert_almost_eq(tint.b, 0.9, 0.001, "shader derives the rim colour from albedo_color")
 
 
-func test_gift_glow_overlay_follows_tint_and_level() -> void:
-	var shape: BlockShape = load("res://config/blocks/L3.tres") as BlockShape
-	if shape == null:
-		pending("no block shape")
-		return
-	_ghost.set_shape(shape)
-	_ghost.set_held_gift(&"freeze")
-	_ghost.set_drop_time_left(0.0)
-	_ghost.advance_glow(0.01)
-	var glow: ShaderMaterial = _ghost._gift_glow_material
-	assert_not_null(glow)
-	assert_almost_eq(float(glow.get_shader_parameter(&"glow_strength")), _ghost.glow_level(), 0.0001)
-
-
-## Bontago-1pi.85.76: a held gift's rim carries no player colour in the plain valid state.
-func test_gift_glow_rim_ignores_player_colour() -> void:
+## Bontago-1pi.85.77: a held gift carries no glow-rim or tint overlay at all (authored colours).
+func test_held_gift_has_no_glow_overlay() -> void:
 	var shape: BlockShape = load("res://config/blocks/L3.tres") as BlockShape
 	_ghost.set_shape(shape)
 	_ghost.set_player_color(Color(0.2, 0.4, 0.9, 1.0))
 	_ghost.set_held_gift(&"freeze")
+	_ghost.set_drop_time_left(0.0)
 	_ghost.advance_glow(0.01)
-	var rim: Color = _ghost._gift_glow_material.get_shader_parameter(&"glow_color") as Color
-	assert_eq(rim, Color.WHITE, "valid held gift rim is neutral")
+	for node: Node in _ghost.gift_visual().find_children("*", "MeshInstance3D", true, false):
+		assert_null((node as MeshInstance3D).material_overlay, "no overlay on a held gift mesh")
 
 
 ## Bontago-sen.12: a locked (greyed, interval-locked) piece is never force

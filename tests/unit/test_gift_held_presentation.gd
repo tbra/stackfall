@@ -111,31 +111,26 @@ func test_hud_uses_gift_icon_for_held_and_next() -> void:
 	assert_null(hud.next_gift_icon())
 
 
-func test_held_gift_shows_validity_tint() -> void:
+## Bontago-1pi.85.77: gifts are never recoloured (owner 2026-10-05); no ghost state tints one.
+func test_held_gift_is_never_tinted_in_any_state() -> void:
 	var ghost: GhostPreview = _make_ghost()
 	ghost.set_held_gift(&"rocket")
 	var meshes: Array[Node] = ghost.gift_visual().find_children("*", "MeshInstance3D", true, false)
 	var mi: MeshInstance3D = meshes[0] as MeshInstance3D
-	var valid_overlay: Material = mi.material_overlay
-	assert_false(valid_overlay is StandardMaterial3D, "valid held gift has no white tint overlay (85.33)")
+	assert_null(mi.material_overlay, "valid")
 	ghost.set_locked(true)
-	assert_true(mi.material_overlay is StandardMaterial3D, "locked gift gets the tint overlay")
+	assert_null(mi.material_overlay, "locked")
 	ghost.set_locked(false)
 	ghost.apply_validity(PlacementRules.Result.OUTSIDE_TERRITORY)
-	assert_true(mi.material_overlay is StandardMaterial3D, "invalid gift gets the tint overlay")
-	ghost.apply_validity(PlacementRules.Result.VALID)
-	var valid_color: Color = Color.WHITE
-	ghost.set_locked(true)
-	var locked_color: Color = (mi.material_overlay as StandardMaterial3D).albedo_color
-	assert_ne(valid_color, locked_color, "tint follows ghost state")
+	assert_null(mi.material_overlay, "invalid")
 
 
-func test_fallback_crate_is_tinted_too() -> void:
+func test_fallback_crate_is_not_tinted_either() -> void:
 	var ghost: GhostPreview = _make_ghost()
 	ghost.set_held_gift(&"no_such_gift")
 	var mi: MeshInstance3D = ghost.gift_visual().find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D
 	ghost.set_locked(true)
-	assert_not_null(mi.material_overlay)
+	assert_null(mi.material_overlay)
 
 
 ## Bontago-sen.9: a held gift shows no placement projection (footprint quad,

@@ -226,6 +226,21 @@ static func activation_scale_for(gift_id: StringName) -> float:
 	return def.activation_scale
 
 
+## Bontago-1pi.85.80: where the host must put an AIMED gift's body origin so its model lands on the
+## held model. The held ghost draws the model root at `origin + gift_cell_center()` upright; a
+## spawned body draws it at `origin + faced * root_position` (root_position includes the
+## activation-scale lift), so turning the body to face its flight line swung the model about the
+## bottom-face pivot, below where it was held. Pure function of shape data both peers share; the
+## host applies it once, clients only see the replicated spawn transform.
+static func muzzle_matched_origin(
+	origin: Vector3, faced: Basis, shape: BlockShape, tuning: PhysicsTuning, gift_id: StringName
+) -> Vector3:
+	var centre: Vector3 = gift_cell_center(shape, tuning)
+	var scale_factor: float = activation_scale_for(gift_id)
+	var body_root: Vector3 = centre + Vector3.UP * ((scale_factor - 1.0) * tuning.cube_size * 0.5)
+	return origin + centre - faced * body_root
+
+
 ## Bontago-t8x.1: where a gift's single cell sits, in the carrier shape's own
 ## (unrotated, bottom-face-pivot) frame: the centre of the shape's bounds. The
 ## visual, the collider and the held-gift touch test all use this one point.

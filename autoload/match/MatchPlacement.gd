@@ -508,6 +508,9 @@ func request_throw(
 	# Bontago-1pi.85.54: the overlap/lift check tests that same faced basis (null = upright).
 	var faced: Variant = launch_facing_basis(held_def, throw_mode, aim_direction, clamped_velocity)
 	var overlap_basis: Basis = faced as Basis if faced != null else basis
+	if faced != null and throw_mode == GiftThrow.Mode.AIMED and gift_id != &"":
+		# Bontago-1pi.85.80: the faced body's model must start where the held model is drawn.
+		world_origin = BlockFactory.muzzle_matched_origin(world_origin, overlap_basis, shape, _match._physics_tuning, gift_id)
 	var lifted: Variant = _lift_pose_clear(shape, world_origin, overlap_basis, false, gift_id)
 	if lifted == null:
 		Events.placement_rejected.emit(slot_id, PlacementRules.REASON_NO_BLOCK)
@@ -887,6 +890,13 @@ static func launch_facing_basis(
 		if direction == Vector3.ZERO:
 			return null
 		return FlightFacing.nose_basis(rocket.model_nose_axis, direction)
+	if mode == GiftThrow.Mode.AIMED and def.effect is PaintballEffect:
+		# Bontago-1pi.85.79: the slingshot spawns facing its shot, as the held model does.
+		var paintball: PaintballEffect = def.effect as PaintballEffect
+		var down_direction: Vector3 = RocketEffect.sanitize_downward_direction(aim_direction)
+		if down_direction == Vector3.ZERO:
+			return null
+		return FlightFacing.upright_nose_basis(paintball.model_nose_axis, down_direction)
 	if mode == GiftThrow.Mode.THROW and def.effect is MagnetEffect and throw_velocity.length() > 0.0:
 		var magnet: MagnetEffect = def.effect as MagnetEffect
 		return FlightFacing.nose_basis(magnet.model_nose_axis, throw_velocity)

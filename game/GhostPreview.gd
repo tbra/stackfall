@@ -334,9 +334,6 @@ const GHOST_CELL_GRID_SHADER: Shader = preload("res://shaders/ghost_cell_grid.gd
 # Bontago-1pi.203: a static var, not a const: GDScript folds `CONST.prop` reads of a const Resource
 # at compile time, which left every F4 edit of this tuning dead.
 static var VISUAL_TUNING: BlockVisualTuning = preload("res://config/block_visual_tuning.tres")
-## Bontago-sen.6: additive rim used as the held-gift overlay's next_pass (the
-## plain block ghost computes the same rim inside GHOST_CELL_GRID_SHADER).
-const GHOST_GLOW_RIM_SHADER: Shader = preload("res://shaders/ghost_glow_rim.gdshader")
 
 ## Bontago-xtq.18 attempt 3 (this file's own header): the smallest decal fade
 ## exponent _update_block_projection_decal() ever applies. Not a look tunable
@@ -713,6 +710,7 @@ func _rebuild_gift_visual() -> void:
 ## Shortest aim vector treated as a direction (a blend guard, not a tunable).
 const MIN_AIM_LENGTH: float = 0.0001
 var _held_nose_axis: Vector3 = Vector3.ZERO
+var _held_keep_upright: bool = false
 var _held_aim: Vector3 = Vector3.ZERO
 
 
@@ -743,6 +741,7 @@ func gift_visual_world_aabb() -> AABB:
 func _setup_held_facing() -> void:
 	var entry: GiftModelEntry = GiftModelTable.shared().entry_for(_held_gift_id)
 	_held_nose_axis = entry.held_nose_axis if entry != null else Vector3.ZERO
+	_held_keep_upright = entry != null and entry.held_keep_upright
 	if _held_nose_axis == Vector3.ZERO:
 		return
 	var tree: SceneTree = get_tree()
@@ -771,48 +770,21 @@ func _refresh_held_facing() -> void:
 		if flat.length() < MIN_AIM_LENGTH:
 			return
 		direction = flat.normalized()
-	_gift_visual.basis = global_basis.inverse() * FlightFacing.nose_basis(_held_nose_axis, direction)
+	var facing: Basis = FlightFacing.nose_basis(_held_nose_axis, direction)
+	if _held_keep_upright:
+		facing = FlightFacing.upright_nose_basis(_held_nose_axis, direction)
+	_gift_visual.basis = global_basis.inverse() * facing
 
 
-## Bontago-59o.14.1: held gift models keep their own colours; the ghost's
-## valid/invalid/hole/locked/throw state shows as a translucent overlay of the
-## same colour the block ghost material currently uses (_material's
-## albedo_color), so a gift reads the same state cues as a plain block.
-## Overlay share of the ghost's own opacity (a blend constant, not a tunable).
-const HELD_GIFT_TINT_STRENGTH: float = 0.55
-var _gift_tint_material: StandardMaterial3D = null
-var _gift_glow_material: ShaderMaterial = null
-
-
-## True while the ghost's state colour is the owner's colour (plain valid placement), the one
-## state a gift must not be recoloured by.
-func _gift_uses_owner_colour() -> bool:
-	return not _locked and not _throw_hint_active and _last_result == PlacementRules.Result.VALID
-
-
+## Bontago-1pi.85.77 (owner 2026-10-05 gift-wide decision + 2026-10-14 playtest): a held gift is
+## shown exactly as authored, in every ghost state. No tint overlay and no glow-rim overlay is put
+## on its meshes (the old translucent state wash and the additive white rim read as a white
+## tint); validity/lock state is still shown by the footprint and the HUD, not by recolouring.
 func _apply_gift_tint() -> void:
-	if _gift_visual == null or _material == null:
+	if _gift_visual == null:
 		return
-	if _gift_tint_material == null:
-		_gift_tint_material = StandardMaterial3D.new()
-		_gift_tint_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		_gift_tint_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		# Bontago-sen.6: glow rim for gift models rides as a next pass.
-		_gift_glow_material = ShaderMaterial.new()
-		_gift_glow_material.shader = GHOST_GLOW_RIM_SHADER
-		_gift_tint_material.next_pass = _gift_glow_material
-	var tint: Color = current_tint_color()
-	if _gift_uses_owner_colour():
-		# Bontago-1pi.85.33: plain valid state shows the model's OWN materials. The old white
-		# unshaded wash made every dark GLB look plain white. Only the additive glow rim
-		# (transparent away from the silhouette edge) stays as the overlay.
-		for node: Node in _gift_visual.find_children("*", "MeshInstance3D", true, false):
-			(node as MeshInstance3D).material_overlay = _gift_glow_material
-	else:
-		_gift_tint_material.albedo_color = Color(tint.r, tint.g, tint.b, tint.a * HELD_GIFT_TINT_STRENGTH)
-		for node: Node in _gift_visual.find_children("*", "MeshInstance3D", true, false):
-			(node as MeshInstance3D).material_overlay = _gift_tint_material
-	_apply_glow()
+	for node: Node in _gift_visual.find_children("*", "MeshInstance3D", true, false):
+		(node as MeshInstance3D).material_overlay = null
 
 
 ## Generic gift look (GiftCrate's crate + ribbon colours), one cell in size.
@@ -2401,13 +2373,6 @@ func _apply_glow() -> void:
 	if _material != null:
 		_material.set_shader_parameter(&"glow_strength", level)
 		_material.set_shader_parameter(&"glow_rim_power", ghost_tuning.glow_rim_power)
-	if _gift_glow_material != null:
-		# Bontago-1pi.85.76: no player colour on gifts; the rim is neutral white in the plain valid
-		# state and only follows the ghost's state colour (locked / invalid / throw hint).
-		var tint: Color = Color.WHITE if _gift_uses_owner_colour() else current_tint_color()
-		_gift_glow_material.set_shader_parameter(&"glow_color", Color(tint.r, tint.g, tint.b, 1.0))
-		_gift_glow_material.set_shader_parameter(&"glow_strength", level)
-		_gift_glow_material.set_shader_parameter(&"glow_rim_power", ghost_tuning.glow_rim_power)
 
 
 func _with_alpha(color: Color, alpha: float) -> Color:
