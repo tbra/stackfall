@@ -62,5 +62,51 @@ class SerialSplitTest(unittest.TestCase):
             self.assertEqual(full_gate.run_lint(root, "lint_layers", Stub), 3)
 
 
+class FailureDetailTest(unittest.TestCase):
+    """Bontago-fca.116: failing assertion text survives in result.json."""
+
+    ESC = chr(27)
+    LOG = "\n".join([
+        "res://tests/unit/test_a.gd",
+        ESC + "[0m* test_ok",
+        "* test_bad",
+        "    " + ESC + "[31m[Failed]" + ESC + "[0m:  Expected [1] to equal [2]: tilt angle",
+        "          at line 30",
+        "",
+        "res://tests/unit/test_b.gd",
+        "* test_fine",
+        "Tests             3",
+        "Failing Tests     1",
+        "",
+    ])
+
+    def _log(self):
+        fd, path = tempfile.mkstemp(suffix=".log")
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(self.LOG)
+        self.addCleanup(os.remove, path)
+        return path
+
+    def test_detail_names_test_and_assertion_only(self):
+        totals, failing, detail = full_gate.parse_detail(self._log())
+        self.assertEqual(totals.get("Failing Tests"), 1)
+        self.assertEqual(sorted(failing), ["res://tests/unit/test_a.gd"])
+        entry = detail["res://tests/unit/test_a.gd"][0]
+        self.assertIn("* test_bad", entry)
+        self.assertIn("Expected [1] to equal [2]: tilt angle", entry)
+        self.assertIn("at line 30", entry)
+        self.assertNotIn("test_b.gd", entry)
+        self.assertNotIn(self.ESC, entry)
+
+    def test_parse_keeps_its_old_shape(self):
+        totals, failing = full_gate.parse(self._log())
+        self.assertEqual(sorted(failing), ["res://tests/unit/test_a.gd"])
+
+    def test_details_for_merges_runs_and_caps(self):
+        many = {"res://t.gd": ["x"] * (full_gate.DETAIL_MAX_LINES + 3)}
+        out = full_gate._details_for(["res://t.gd", "res://none.gd"], {"shard0": {"failing_detail": many}}, {})
+        self.assertEqual(len(out["res://t.gd"]), full_gate.DETAIL_MAX_LINES)
+        self.assertEqual(out["res://none.gd"], [])
+
 if __name__ == "__main__":
     unittest.main()
