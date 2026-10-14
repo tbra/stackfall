@@ -1173,7 +1173,9 @@ func test_v2_deadline_is_the_legacy_generating_window() -> void:
 		var legacy_ticks: int = _ticks_in_state(legacy, BotController.State.GENERATING)
 		assert_eq(legacy_ticks, tuning.profile_for(difficulty).generation_ticks(tuning.max_generation_frames))
 		var v2: BotController = _make_v2_bot(difficulty)
-		assert_eq(v2.think_deadline_ticks(), legacy_ticks, "difficulty %d" % difficulty)
+		# Bontago-1t5.57: every V2 tier uses hard_v2's window, which equals legacy Hard's.
+		var hard_ticks: int = tuning.hard.generation_ticks(tuning.max_generation_frames)
+		assert_eq(v2.think_deadline_ticks(), hard_ticks, "difficulty %d" % difficulty)
 	assert_eq(tuning.normal.generation_ticks(tuning.max_generation_frames), 9, "ceil(70 / 8)")
 
 

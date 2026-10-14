@@ -466,7 +466,10 @@ func _disk_heading(world_dir: Vector2) -> Vector2:
 ## legacy brain's window for the same difficulty (its GENERATING ticks, BotDifficultyProfile.
 ## generation_ticks), so V2 never decides later than legacy (docs/BOT_AI_REDESIGN.md 2.5 E6).
 func think_deadline_ticks() -> int:
-	var ticks: int = tuning.profile_for(_difficulty).generation_ticks(tuning.max_generation_frames)
+	# Bontago-1t5.57: the active profile (V2 tiers share Hard's 14 ticks); the tier's legacy profile
+	# only when no profile is resolved yet (a controller built without setup).
+	var active: BotDifficultyProfile = _profile if _profile != null else tuning.profile_for(_difficulty)
+	var ticks: int = active.generation_ticks(tuning.max_generation_frames)
 	return clamp_think_ticks(
 		ticks, _feed_time_left(), tuning.timer_plan_margin_s, int(Engine.physics_ticks_per_second)
 	)

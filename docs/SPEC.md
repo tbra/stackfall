@@ -360,7 +360,7 @@ The AI runs only on the host, and for multiple bots it spreads its thinking acro
 
 **Specials:** replan bot targeting around §2.6's verified effect types. Do not aim a Rocket as if it homes or a Propeller as if it blows sideways. Offensive/defensive placement heuristics must account for launch-upward, leveling, tilt and Jumping Bean holes; exact scoring is **[NEW]**. V2 targets enemy chain joints/towers and its own key towers deliberately (Paintball, Freeze and Glue included).
 
-**Difficulty:** Affects how many spots are sampled, the intent set, evaluation depth and pick temperature, a random aiming error, reaction delay, and whether the bot uses defensive specials (V2 uses the easy_v2/normal_v2/hard_v2 profiles).
+**Difficulty (owner decision Bontago-1t5.57, 2026-10-14):** the game is about stacking, so no tier builds piles. In the V2 brain every tier uses Hard's mechanics (spots sampled, targeted vs random share, support probes, evaluation depth, pick, think time, reaction delay); Easy and Normal differ only by a slightly larger random aiming error, so their towers fall over more often, which is the difficulty curve. Strategy and goals (the intent set, gift weighting, offensive/defensive specials) may differ per tier to tune difficulty on top. Profiles: easy_v2/normal_v2/hard_v2; the legacy brain keeps its older tier profiles.
 
 ### 2.10 Presentation [NEW, modernizing the original look]
 
