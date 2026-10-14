@@ -288,6 +288,8 @@ func debris_near(point: Vector2, radius: float) -> bool   # any unsound cube wit
   4. `lint_layers`: `BotStackProbe` stays in game/, and core/ai/BotStack has no scene references.
 
 ### 1t5.54: leaning piles, building on sound stacks and starting a new base after a collapse
+
+> Superseded in part (owner 2026-10-14, Bontago-1t5.68): `debris_clearance_m` is gone. A site may rest on or beside debris when every supporting face is parallel to the disc within `BotStackTuning.support_face_tolerance_deg` (disc-local frame); tilted faces still reject and the load-margin check runs through debris carriers.
 - **Change:**
   - **Tower-top site filter (all modes):** tower-top sites only on sound tops, matched through `view.stack.index_of` at the circle centre's column. Unsound tops are skipped.
   - **Reach the Sky plan (`_mode_plan` branch):** the target is the tallest of `view.stack.sound_tops(team)`. The seat memory keeps `base` (xz), `base_peak` and `base_age`.

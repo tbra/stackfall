@@ -9,6 +9,10 @@ extends Resource
 @export var min_contact_overlap_m: float = 0.1
 ## A body tilted more than this from upright is unsound (so is everything resting on it).
 @export var max_tilt_deg: float = 8.0
+## Bontago-1t5.68: a piece may rest on a block face (fallen debris included) only when the face lies within this
+## angle of the disc plane. Measured against the disc normal (the snapshot's local y), so it holds while the
+## field tilts. Starts at max_tilt_deg.
+@export var support_face_tolerance_deg: float = 8.0
 ## Centre-of-mass margin (metres inside the support hull) at which a site counts as fully safe.
 ## Read by the evaluator (53b); BotStack itself only reports the margin.
 @export var safe_margin_m: float = 0.2

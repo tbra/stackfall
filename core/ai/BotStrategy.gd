@@ -67,7 +67,6 @@ static func choose(
 	var base: BotIntent = _make(t, default_kind, target)
 	if plan["new_base"] as bool:
 		base.new_base = true
-		base.debris_clearance_m = t.debris_clearance_m
 	if default_kind == BotIntent.Kind.ANCHOR or not BotIntent.is_enabled(mask, BotIntent.Kind.ANCHOR):
 		return base
 	var anchor: int = _anchor_circle(view, chains, t, mask, target, has_target)
@@ -161,8 +160,9 @@ static func _mode_plan(
 
 ## Reach the Sky (Bontago-1t5.54, docs/BOT_TOWER_PLAN.md B.5): the mode context's target is the tallest
 ## settled block, which after a topple is a leaning pile. With an analysed snapshot of the own blocks the
-## target becomes the tallest SOUND top near the remembered base, or a new base clear of debris when the
-## tower fell (no sound top near the base, or the top left stands `collapse_drop_m` under the peak).
+## target becomes the tallest SOUND top near the remembered base, or a new base (on the disc or a sound, flat
+## block face; Bontago-1t5.68: debris beside it no longer matters, see _base_usable) when the tower fell (no
+## sound top near the base, or the top left stands `collapse_drop_m` under the peak).
 ## Memory (per seat, kept by BotThink): sky_base (xz), sky_peak (m), sky_pending (a new base with no sound
 ## top yet), sky_target / sky_new_base (the last plan, reused while own blocks are still moving). Without
 ## a snapshot, or with no own block in it, the plan keeps the mode context's target (the old behaviour).
@@ -203,7 +203,7 @@ static func _plan_sound_tower(
 			memory["sky_pending"] = false
 			_apply_sky_plan(plan, xz, false, memory)
 			return
-	if has_base and pending and _base_usable(view, stack, t, base):
+	if has_base and pending and _base_usable(view, stack, base):
 		_apply_sky_plan(plan, base, true, memory)
 		return
 	var fresh: Vector2 = _find_new_base(view, stack, t)
@@ -227,13 +227,25 @@ static func _apply_sky_plan(plan: Dictionary, target: Vector2, new_base: bool, m
 		memory["sky_new_base"] = new_base
 
 
-## A base point the bot may build on: own valid territory, inside the rim margin, clear of debris.
-static func _base_usable(view: BotWorldView, stack: BotStack, t: BotStrategyTuning, point: Vector2) -> bool:
+## A base point the bot may build on: own valid territory, inside the rim margin, and (Bontago-1t5.68, replacing
+## the 1t5.54 debris clearance) a held piece over the point rests on the disc or on a sound block face flat
+## against it, with the centre of mass inside every support down to the disc (BotStack.rest_margin). Debris
+## beside the point does not matter. DECISION: the base itself needs the disc or a SOUND face (a fallen block
+## lying flat on the disc qualifies); a flat face on a leaning pile may still carry sites (BotCandidateGen) but
+## not the base, because the plan follows only sound tops and a base on unsound debris would never become the
+## followed tower. DECISION: the base is checked with one probe at the point (the foundation sites around it are
+## checked with their full footprints).
+static func _base_usable(view: BotWorldView, stack: BotStack, point: Vector2) -> bool:
 	if view.raster == null or PlacementRules.validate_point(point, view.raster, view.team_id) != PlacementRules.Result.VALID:
 		return false
 	if view.live_radius > 0.0 and point.length() > view.live_radius - BotEvaluator.tuning.rim_margin_m:
 		return false
-	return not stack.debris_near(point, t.debris_clearance_m)
+	var surface: int = stack.surface_at(point)
+	if surface >= 0 and not stack.is_sound(surface):
+		return false
+	var cubes: int = view.held.cells.size() if view.held != null else 1
+	var mass: float = BotWorldView.SHIPPED_PHYSICS_TUNING.cube_mass * float(cubes)
+	return stack.rest_margin(PackedVector2Array([point]), point, mass) >= 0.0
 
 
 ## The new base: a sunflower of `base_samples` points over the own home circle (then over the nearest own
@@ -260,7 +272,7 @@ static func _find_new_base(view: BotWorldView, stack: BotStack, t: BotStrategyTu
 		for k: int in range(samples):
 			var point: Vector2 = centre + Vector2.from_angle(float(k) * BotEvaluator.GOLDEN_ANGLE) 				* (circle.z * sqrt((float(k) + 0.5) / float(samples)))
 			var gap: float = point.distance_to(origin)
-			if gap < best_gap and _base_usable(view, stack, t, point):
+			if gap < best_gap and _base_usable(view, stack, point):
 				best_gap = gap
 				best = point
 		if best != PlacementRules.NO_ORIGIN:

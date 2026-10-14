@@ -137,7 +137,7 @@ func test_report_aggregates_two_records() -> void:
 	assert_almost_eq(report.outside_stats()["build_mean_us"] as float, 100.0, 0.001)
 	var lines: PackedStringArray = report.render_lines()
 	assert_true(lines[0].begins_with("BOT_THINK_COST scenario=t summary thinks=2"))
-	assert_eq(lines.size(), BotThinkCostReport.PHASE_COUNT + 6, "summary, phases, probe, outside, latency, frame, ranking")
+	assert_eq(lines.size(), BotThinkCostReport.PHASE_COUNT + 7, "summary, phases, probe, outside, latency, frame, fill fallback, ranking")
 	assert_true(lines[lines.size() - 1].contains("ranking PROBE="))
 
 
@@ -185,3 +185,56 @@ func test_full_window_overwrites_oldest_in_a_ring() -> void:
 	assert_eq(report.think_count(), SMALL_WINDOW)
 	assert_almost_eq(report.latency_stats()["ticks_mean"] as float, 3.5, 0.001, "keeps the last two (3 and 4)")
 	assert_lte(report.frame_count(), SMALL_WINDOW * BotThinkCostReport.SHIPPED_TUNING.frames_per_think)
+
+
+## Bontago-1t5.67: the zero-targeted FILL fallback counter.
+func _fallback_record(zero_targeted: bool) -> Dictionary:
+	var think: BotThink = _think(true)
+	if zero_targeted:
+		var none: BotGenTuning = (load("res://config/bot_gen_tuning.tres") as BotGenTuning).duplicate() as BotGenTuning
+		none.tip_share = 0.0
+		none.stack_share = 0.0
+		none.tower_tip_share = 0.0
+		none.tower_stack_share = 0.0
+		none.area_tip_share = 0.0
+		none.area_stack_share = 0.0
+		think.gen_tuning = none
+	assert_true(think.step(BIG_BUDGET_US, _probe))
+	return think.stats_record()
+
+
+func test_zero_targeted_think_marks_the_fill_fallback() -> void:
+	var record: Dictionary = _fallback_record(true)
+	assert_eq(record["fill_fallback"], 1, "fallback ran")
+	assert_gt(record["fill_fallback_sites"] as int, 0, "and produced FILL sites")
+
+
+func test_normal_think_does_not_mark_the_fill_fallback() -> void:
+	var record: Dictionary = _fallback_record(false)
+	assert_eq(record["fill_fallback"], 0)
+	assert_eq(record["fill_fallback_sites"], 0)
+
+
+func test_report_counts_fill_fallbacks_per_slot_and_aggregate() -> void:
+	var collector: BotThinkCostCollector = BotThinkCostCollector.enable("t", 0)
+	var phases: Array[int] = [1, 1, 1, 1, 1, 1, 1, 1]
+	var units: Array[int] = [1, 1, 1, 1, 1, 1, 1, 1]
+	var hit: Dictionary = _fake_record(phases, units, 1, 1)
+	hit["fill_fallback"] = 1
+	hit["fill_fallback_sites"] = 7
+	var miss: Dictionary = _fake_record(phases, units, 1, 1)
+	collector.record_think(FAKE_SLOT_A, hit)
+	collector.record_think(FAKE_SLOT_A, miss)
+	collector.record_think(FAKE_SLOT_B, miss)
+	collector.record_think(FAKE_SLOT_B, miss)
+	var all: Dictionary = collector.aggregate().fill_fallback_stats()
+	assert_eq(all["count"], 1)
+	assert_eq(all["thinks"], 4)
+	assert_eq(all["sites"], 7)
+	assert_almost_eq(all["share_pct"] as float, 25.0, PERCENT_TOLERANCE)
+	assert_eq(collector.for_slot(FAKE_SLOT_A).fill_fallback_stats()["count"], 1)
+	assert_eq(collector.for_slot(FAKE_SLOT_B).fill_fallback_stats()["count"], 0)
+	var found: bool = false
+	for line: String in collector.aggregate().render_lines():
+		found = found or line.contains("fill_fallback count=1 thinks=4")
+	assert_true(found, "BOT_THINK_COST report line")

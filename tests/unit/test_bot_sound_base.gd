@@ -1,8 +1,9 @@
 extends GutTest
 ## Bontago-1t5.54 (docs/BOT_TOWER_PLAN.md C "1t5.54"): after a topple Reach the Sky bots stop building on the
 ## leaning pile. The tower-top site filter keeps unsound tops out, the Reach the Sky plan targets the tallest
-## SOUND top (or a new base clear of debris after a collapse), the generator adds FOUNDATION sites at a new
-## base, and the stack analysis now runs before the plan. Pure: hand-built BotStack snapshots, a synthetic
+## SOUND top (or a new base after a collapse), the generator adds FOUNDATION sites at a new base, and the stack
+## analysis now runs before the plan. Bontago-1t5.68: the new base and its sites no longer keep a clearance from the
+## debris; they only never rest on the leaning pile (tests/unit/test_bot_debris_surface_1014.gd covers the rule). Pure: hand-built BotStack snapshots, a synthetic
 ## raster, no scene tree.
 
 const MAP_RADIUS: float = 20.0
@@ -149,6 +150,21 @@ func _choose(view: BotWorldView, memory: Dictionary) -> BotIntent:
 	return BotStrategy.choose(view, BotChains.build(view), profile, null, memory)
 
 
+## Bontago-1t5.68 (replaces the 1t5.54 clearance pins): true when a probe at disk-local `point` hits an unsound
+## (leaning pile) block in the snapshot.
+func _over_unsound(stack: BotStack, point: Vector2) -> bool:
+	var body: int = stack.surface_at(point)
+	return body >= 0 and not stack.is_sound(body)
+
+
+## True when a bottom cube of the piece with its pivot at `origin` stands over an unsound block.
+func _rests_on_unsound(stack: BotStack, origin: Vector2, info: BotStatics.OrientationInfo) -> bool:
+	for offset: Vector2 in info.contact:
+		if _over_unsound(stack, origin + offset * _physics.cube_size):
+			return true
+	return false
+
+
 func _clearance_of(point: Vector2) -> float:
 	var nearest: float = INF
 	for xz: Vector2 in _pile_positions():
@@ -172,22 +188,22 @@ func test_the_target_is_the_sound_stack_not_the_pile() -> void:
 	assert_lt(intent.target.distance_to(STACK_XZ), TOL, "the target is the sound stack's top")
 
 
-func test_a_pile_alone_starts_a_new_base_clear_of_debris() -> void:
+func test_a_pile_alone_starts_a_new_base_off_the_debris() -> void:
 	var view: BotWorldView = _view(_pile_circle_specs(), PILE_ORIGIN)
 	var stack: BotStack = _stack()
 	_add_pile(stack)
 	view.stack = _analysed(stack)
 	var intent: BotIntent = _choose(view, {})
 	assert_true(intent.new_base, "no sound top: a new base")
-	assert_gte(_clearance_of(intent.target), _strategy_tuning.debris_clearance_m, "the base is clear of the debris")
+	assert_false(_over_unsound(view.stack, intent.target), "the base does not rest on the leaning pile")
 	assert_eq(
 		PlacementRules.validate_point(intent.target, _raster, TEAM), PlacementRules.Result.VALID,
 		"the base is valid own land"
 	)
-	assert_false(view.stack.debris_near(intent.target, _strategy_tuning.debris_clearance_m))
+	assert_gte(view.stack.rest_margin(PackedVector2Array([intent.target]), intent.target, BODY_MASS), 0.0)
 
 
-func test_foundation_sites_are_clear_valid_and_flat() -> void:
+func test_foundation_sites_stay_off_the_pile_valid_and_flat() -> void:
 	var view: BotWorldView = _view(_pile_circle_specs(), PILE_ORIGIN)
 	var stack: BotStack = _stack()
 	_add_pile(stack)
@@ -202,9 +218,9 @@ func test_foundation_sites_are_clear_valid_and_flat() -> void:
 	for site: BotCandidate in sites:
 		var info: BotStatics.OrientationInfo = BotStatics.orientation_info(view.held, site.orientation_index)
 		var centre: Vector2 = site.origin + info.center_shift * _physics.cube_size
-		assert_gte(
-			_clearance_of(centre), _strategy_tuning.debris_clearance_m,
-			"no site (%s) rests near the debris" % [site.site_kind]
+		assert_false(
+			_rests_on_unsound(view.stack, site.origin, info),
+			"no site (%s at %s) rests on the leaning pile" % [site.site_kind, centre]
 		)
 		assert_eq(
 			PlacementRules.validate_point(site.origin, _raster, TEAM), PlacementRules.Result.VALID, "valid"
@@ -288,7 +304,7 @@ func test_a_collapse_moves_the_base() -> void:
 	var intent: BotIntent = _choose(view, memory)
 	assert_true(intent.new_base, "the sound top (4 m) is far under the old peak (9 m)")
 	assert_gt(intent.target.distance_to(STACK_XZ), 0.0)
-	assert_gte(_clearance_of(intent.target), _strategy_tuning.debris_clearance_m)
+	assert_false(_over_unsound(view.stack, intent.target), "the new base is off the leaning pile")
 	assert_true(memory["sky_pending"] as bool, "the new base is remembered")
 	# The same snapshot again keeps the same new base (no flip-flop between pieces).
 	var again: BotIntent = _choose(view, memory)
@@ -349,7 +365,7 @@ func _flat_probe(_xz: Vector2) -> Dictionary:
 	return {"hit": true, "height": 0.0, "own": false, "body": -1}
 
 
-func test_the_think_analyses_the_stack_first_and_picks_clear_of_the_pile() -> void:
+func test_the_think_analyses_the_stack_first_and_picks_off_the_pile() -> void:
 	var view: BotWorldView = _view(_pile_circle_specs(), PILE_ORIGIN)
 	var stack: BotStack = _stack()
 	_add_pile(stack)
@@ -366,8 +382,7 @@ func test_the_think_analyses_the_stack_first_and_picks_clear_of_the_pile() -> vo
 	var decision: BotThink.Decision = think.decision()
 	assert_eq(decision.kind, BotThink.DecisionKind.PLACE)
 	var info: BotStatics.OrientationInfo = BotStatics.orientation_info(view.held, decision.orientation_index)
-	var centre: Vector2 = decision.origin + info.center_shift * _physics.cube_size
-	assert_gte(_clearance_of(centre), _strategy_tuning.debris_clearance_m, "the piece lands clear of the pile")
+	assert_false(_rests_on_unsound(view.stack, decision.origin, info), "the piece does not land on the pile")
 
 
 func test_finish_early_in_the_stack_phase_still_plans_on_the_analysed_stack() -> void:

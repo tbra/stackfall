@@ -118,6 +118,8 @@ var _stats_probe_calls: int = 0
 ## FILL draws made and sites they added in this think.
 var _fill_draws: int = 0
 var _fill_added: int = 0
+## Bontago-1t5.67: the zero-targeted FILL fallback ran this think (stats only), and the sites it added.
+var _fill_fallback: bool = false
 ## Orientation index -> BotStatics.OrientationInfo of the held piece (built on first use).
 var _orientation_infos: Dictionary = {}
 
@@ -264,6 +266,8 @@ func stats_record() -> Dictionary:
 		"total_us": _stats_total_us,
 		"probe_call_us": _stats_probe_call_us,
 		"probe_calls": _stats_probe_calls,
+		"fill_fallback": 1 if _fill_fallback else 0,
+		"fill_fallback_sites": _fill_added if _fill_fallback else 0,
 	}
 
 
@@ -438,6 +442,7 @@ func _gen() -> BotGenTuning:
 func _make_sites() -> void:
 	_site_job = BotCandidateGen.begin(_view, _intent, _profile, _rng, gen_tuning)
 	_candidates = _site_job.out
+	_fill_fallback = _site_job.fallback_ran
 	_probe_index = 0
 	_phase = Phase.FILL
 

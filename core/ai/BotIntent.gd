@@ -14,9 +14,9 @@ var kind: Kind = Kind.RACE
 var target: Vector2 = Vector2.ZERO
 var focus_circle: int = -1
 ## Bontago-1t5.54: the target is a new base after a collapse (BotCandidateGen offers FOUNDATION sites
-## there and keeps every site `debris_clearance_m` clear of unsound blocks).
+## there). Bontago-1t5.68: every site then rests on the disc or on flat block faces whose pile holds it
+## (BotStack.rest_margin); the old debris clearance is gone.
 var new_base: bool = false
-var debris_clearance_m: float = 0.0
 ## Indexed by Term.
 var weights: PackedFloat32Array = PackedFloat32Array()
 

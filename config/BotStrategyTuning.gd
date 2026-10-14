@@ -39,11 +39,9 @@ extends Resource
 @export var collapse_drop_m: float = 3.0
 ## A sound top within this distance of the remembered base is the same tower.
 @export var base_match_radius_m: float = 1.5
-## A new base and its foundation sites keep this far from the cubes of unsound (fallen, leaning) blocks.
-@export var debris_clearance_m: float = 2.0
 ## Sunflower points tried over each circle when searching a new base.
 @export var base_samples: int = 24
-## Own circles (nearest the home first) searched after the home circle when it holds no clear point.
+## Own circles (nearest the home first) searched after the home circle when it holds no usable point.
 @export var base_extra_circles: int = 4
 
 @export_group("Gifts")
