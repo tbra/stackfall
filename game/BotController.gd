@@ -376,6 +376,7 @@ func _begin_thinking(match_ref: Variant) -> void:
 	)
 	var built_us: int = Time.get_ticks_usec() if cost != null else 0
 	_apply_weather(view, match_ref)
+	_apply_gravity_and_gifts(view, match_ref)
 	_apply_live_radius(view, match_ref)
 	_apply_incoming_specials(view, match_ref)
 	_apply_stack(view, match_ref)
@@ -453,6 +454,18 @@ func _apply_live_radius(view: BotWorldView, match_ref: Variant) -> void:
 		var live: float = BotWorldView.live_radius_from_raster(view.raster, view.grid)
 		if live > 0.0:
 			view.live_radius = minf(live, view.field_radius)
+
+
+## Bontago-1t5.72.6: live gravity in the Field's local frame (magnitude g * gravity_multiplier) and the match's
+## gifts flag, for BotStability's tilted-disc shift and gift allowance.
+func _apply_gravity_and_gifts(view: BotWorldView, match_ref: Variant) -> void:
+	if _field != null:
+		var gravity_base: float = float(ProjectSettings.get_setting("physics/3d/default_gravity"))
+		var world_gravity: Vector3 = Vector3.DOWN * gravity_base * _physics_tuning.gravity_multiplier
+		view.gravity_local = _field.global_transform.basis.orthonormalized().inverse() * world_gravity
+	var config: Variant = match_ref.get("config") if match_ref is Object else null
+	if config is MatchConfig:
+		view.gifts_enabled = (config as MatchConfig).gifts_enabled
 
 
 ## Bontago-1t5.41: copies the live weather (host) into the view; only a Storm blows wind.
