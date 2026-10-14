@@ -122,6 +122,8 @@ var _fill_added: int = 0
 var _fill_fallback: bool = false
 ## Orientation index -> BotStatics.OrientationInfo of the held piece (built on first use).
 var _orientation_infos: Dictionary = {}
+## This think's BotStability requirement (built on the first probed site).
+var _stability_req: BotStability.Requirement = null
 
 
 func _init(view: BotWorldView, profile: BotDifficultyProfile, rng: RandomNumberGenerator) -> void:
@@ -494,8 +496,27 @@ func _probe_one(probe: Callable) -> void:
 	candidate.top_height = candidate.support_height + candidate.shape_height
 	candidate.tip_risk = _tip_risk(candidate)
 	candidate.load_margin = _load_margin(candidate)
+	_judge_stability(candidate)
 	if _probe_index >= _candidates.size():
 		_phase = Phase.RANK
+
+
+## Bontago-1t5.72.4: BotStability.evaluate of a probed site fills `stability_slack` / `stability_binding`.
+## Nothing reads them yet (the evaluator switches in the next package), so decisions are unchanged.
+## DECISION: the model's resting plane goes to `stability_plane_y` only; support_height / top_height stay as probed
+## because the scorer reads them (the evaluator package switches them over).
+func _judge_stability(candidate: BotCandidate) -> void:
+	var info: BotStatics.OrientationInfo = _orientation_info(candidate.orientation_index)
+	if info == null:
+		return
+	if _stability_req == null:
+		_stability_req = BotStability.requirement(
+			_profile, _view, BotEvaluator.stack_tuning, tuning.stability_contact_tolerance_m
+		)
+	var result: BotStability.Result = BotStability.evaluate(candidate, info, _view, _stability_req)
+	candidate.stability_slack = result.slack
+	candidate.stability_binding = result.binding
+	candidate.stability_plane_y = result.plane_y
 
 
 ## BotStatics.tip_risk of a probed site, each orientation of the held piece described once per

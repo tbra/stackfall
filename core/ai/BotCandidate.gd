@@ -71,3 +71,11 @@ var load_margin: float = INF
 ## Bontago-1t5.69 (append-only): cubes in the placed piece's top layer (BotStatics.OrientationInfo.top_area),
 ## the landing area the next piece gets; 0 = unknown (older candidates).
 var top_area: float = 0.0
+
+## Bontago-1t5.72.4 (append-only): BotStability.evaluate's slack (min margin - required over the piece cut and
+## every lower cut; stable iff > 0). INF = not evaluated.
+var stability_slack: float = INF
+## The cut that binds the slack (BotStability.BINDING_PIECE, a lower cut's body index, or BINDING_NONE = -2).
+var stability_binding: int = BotStability.BINDING_NONE
+## Where BotStability says the piece comes to rest (disc-local); read by nothing until the evaluator switches.
+var stability_plane_y: float = 0.0

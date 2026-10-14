@@ -228,6 +228,7 @@ func test_per_decision_ray_budget_is_bounded() -> void:
 		for candidate: BotCandidate in think.candidates():
 			assert_lte(candidate.probe_points.size(), rays)
 			assert_eq(candidate.cell_support.size(), candidate.probe_points.size())
+			assert_ne(candidate.stability_slack, INF, "PROBE fills the stability slack of every site")
 
 
 # --- Send-time support (BotController.highest_cube_support / spawn_pose) ---------------------------------
