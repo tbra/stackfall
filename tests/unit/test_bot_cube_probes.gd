@@ -116,7 +116,8 @@ func test_candidate_stub_defaults_keep_todays_behaviour() -> void:
 func test_shipped_hard_v2_probes_nine_cubes() -> void:
 	var tuning: BotTuning = load("res://config/bot_tuning.tres") as BotTuning
 	assert_eq(tuning.hard_v2.stability_raycast_count, HARD_RAYS)
-	assert_lt(tuning.normal_v2.stability_raycast_count, HARD_RAYS)
+	# Bontago-1t5.57: every V2 tier probes like Hard.
+	assert_eq(tuning.normal_v2.stability_raycast_count, HARD_RAYS)
 
 
 func test_contact_points_are_the_real_cubes_outermost_first() -> void:

@@ -362,7 +362,7 @@ python tools/bot_h2h.py --bots 7 --players 8 --mode sky --no-swap --pairs 10 --s
 - **Contacts between tilted bodies are only approximate:** tilt above `max_tilt_deg` simply marks the body unsound.
 
 ## D. Proposed owner decisions (I have not decided these)
-- **D1. Lower-tier aim noise versus towers.**
+- **D1. Lower-tier aim noise versus towers.** DECIDED 2026-10-14 (Bontago-1t5.57): none of the options below; every tier uses Hard's mechanics and Easy/Normal get a slightly larger aim error (start 0.5 / 0.25 m, final values from the 1t5.60 measurement). Implemented in Bontago-1t5.61. D3 answered (a).
   - Problem: Normal (3.0 m) and Easy (3.5 m) noise is applied after the choice, so these tiers cannot stack at all in Reach the Sky.
   - Options:
     - (a) keep as tuned in 1t5.40;

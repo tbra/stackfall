@@ -93,22 +93,15 @@ func test_shipped_bot_tuning_hard_is_stronger_than_easy() -> void:
 		assert_between(mid, lo, hi, "normal.%s sits between easy and hard" % field)
 
 
-func test_shipped_bot_tuning_v2_ladder_is_monotonic() -> void:
-	# Bontago-1t5.34: the V2 strength knobs must keep Easy > Normal > Hard in sloppiness
-	# (aim noise, pick pool, temperature, fill share) and Hard > Normal > Easy in search depth.
+func test_shipped_bot_tuning_v2_ladder_is_precision_only() -> void:
+	# Bontago-1t5.57: the V2 tiers share Hard's mechanics; only aim noise (precision) is a ladder
+	# (the full field audit is test_bot_tier_parity_1014).
 	var tuning: BotTuning = load("res://config/bot_tuning.tres")
-	var easy_v2: BotDifficultyProfile = tuning.easy_v2
-	var normal_v2: BotDifficultyProfile = tuning.normal_v2
-	var hard_v2: BotDifficultyProfile = tuning.hard_v2
-	for field: String in ["aim_noise_m", "pick_pool", "pick_temperature", "fill_share"]:
-		var easy_v: float = float(easy_v2.get(field))
-		var normal_v: float = float(normal_v2.get(field))
-		var hard_v: float = float(hard_v2.get(field))
-		assert_gt(easy_v, normal_v, "easy.%s above normal" % field)
-		assert_gt(normal_v, hard_v, "normal.%s above hard" % field)
-	for field: String in ["candidate_count", "eval_top_k"]:
-		assert_lt(float(easy_v2.get(field)), float(normal_v2.get(field)), "easy.%s below normal" % field)
-		assert_lt(float(normal_v2.get(field)), float(hard_v2.get(field)), "normal.%s below hard" % field)
+	var easy_v: float = tuning.easy_v2.aim_noise_m
+	var normal_v: float = tuning.normal_v2.aim_noise_m
+	var hard_v: float = tuning.hard_v2.aim_noise_m
+	assert_gt(easy_v, normal_v, "easy aim noise above normal")
+	assert_gt(normal_v, hard_v, "normal aim noise above hard")
 
 
 func test_legacy_profiles_keep_their_pre_v2_values() -> void:
