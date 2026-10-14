@@ -39,6 +39,11 @@ extends Resource
 ## Overlay layout.
 @export var overlay_margin: Vector2 = Vector2(12.0, 12.0)
 @export var overlay_font_size: int = 13
+
+## Bot think cost overlay (ui/BotCostOverlay.gd, F2, Bontago-1t5.63): seconds between table refreshes
+## (the report maths sorts the window, so it does not run every frame) and the table's column gap.
+@export_range(0.05, 5.0, 0.05) var bot_cost_refresh_s: float = 0.5
+@export var bot_cost_column_gap_px: int = 12
 ## Overlay colours (Bontago-hfa.10): by default sourced from the ArcadeVisualTuning tokens so the
 ## dev overlay follows the Stackfall Arcade palette. Each *_override colour with alpha > 0 replaces
 ## its token (owner-tunable); leave it fully transparent to follow the token. Read them through the

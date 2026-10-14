@@ -61,6 +61,7 @@ extends Node3D
 @export var sandbox_config: SandboxConfig = preload("res://config/sandbox.tres")
 
 const MAIN_MENU_SCENE: PackedScene = preload("res://ui/MainMenu.tscn")
+const BOT_COST_OVERLAY_PATH: String = "res://ui/PerfBotCostOverlay.gd"
 ## DECISION: Field, CameraRig and BlockRegistry are NOT dormant: they settle reset state (Field
 ## tilt basis, camera follow/origin/target) that a results->lobby leave starts, and pausing them
 ## left the next match differing from a fresh launch (test_match_reset_fingerprint). Only the
@@ -1273,6 +1274,11 @@ func _build_debug_tools() -> void:
 	overlay.config = debug_config
 	overlay.sampler = sampler
 	add_child(overlay)
+	# Loaded on demand by path (debug builds only): the bot code behind it stays out of Main's compile closure.
+	var bot_cost_script: GDScript = load(BOT_COST_OVERLAY_PATH) as GDScript
+	var bot_cost: CanvasLayer = bot_cost_script.new() as CanvasLayer
+	bot_cost.set(&"config", debug_config)
+	add_child(bot_cost)
 	var logger: PerfLogger = PerfLogger.new()
 	logger.config = debug_config
 	logger.sampler = sampler
