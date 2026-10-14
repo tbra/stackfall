@@ -38,6 +38,12 @@ TIMINGS = os.path.join(ROOT, "tests", ".gut_targeted", "gate_timings.json")
 TOTAL_RE = re.compile(r"^(Scripts|Tests|Passing Tests|Failing Tests|Pending|Risky)\s+(\d+)", re.M)
 SCRIPT_RE = re.compile(r"^(?:\x1b\[[0-9;]*m)*(res://tests/\S+\.gd)", re.M)
 FAILED_RE = re.compile(r"\[Failed\]")
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+TEST_RE = re.compile(r"^\*\s*test_\w+")
+# Bontago-fca.116: failure evidence kept per failing script in result.json.
+DETAIL_LINES_AFTER = 3
+DETAIL_MAX_LINES = 8
+DETAIL_MAX_CHARS = 400
 DEFAULT_TIMEOUT_S = 1200
 
 
@@ -133,18 +139,44 @@ def start(path, out_dir, name, tests):
 
 
 def parse(log_path):
+    totals, failing, _detail = parse_detail(log_path)
+    return totals, failing
+
+
+def parse_detail(log_path):
+    """Totals, failing scripts and, per failing script, the failing test name plus the
+    [Failed] line and the assertion lines after it (Bontago-fca.116: the shard log is
+    deleted with the temp integrate worktree, so result.json must keep the evidence)."""
     with open(log_path, encoding="utf-8", errors="replace") as fh:
         text = fh.read()
     totals = {k: int(v) for k, v in TOTAL_RE.findall(text)}
     failing = set()
+    detail = {}
     current = None
-    for line in text.splitlines():
+    current_test = ""
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
         m = SCRIPT_RE.match(line)
         if m:
             current = m.group(1)
+            current_test = ""
+            continue
+        plain = ANSI_RE.sub("", line).strip()
+        if TEST_RE.match(plain):
+            current_test = plain
         elif current and FAILED_RE.search(line):
             failing.add(current)
-    return totals, failing
+            kept = detail.setdefault(current, [])
+            if len(kept) < DETAIL_MAX_LINES:
+                after = []
+                for x in lines[i + 1:i + 1 + DETAIL_LINES_AFTER]:
+                    x_plain = ANSI_RE.sub("", x).strip()
+                    if SCRIPT_RE.match(x) or TEST_RE.match(x_plain) or FAILED_RE.search(x):
+                        break
+                    after.append(x_plain)
+                entry = " | ".join([current_test, plain] + [x for x in after if x])
+                kept.append(entry[:DETAIL_MAX_CHARS])
+    return totals, failing, detail
 
 
 def suite_times(out_dir, name):
@@ -162,6 +194,18 @@ def suite_times(out_dir, name):
         except ValueError:
             pass
     return times
+
+
+def _details_for(scripts, *result_maps):
+    """Failure lines per script from the given run_batch results (shards first, then retries)."""
+    out = {}
+    for t in scripts:
+        lines = []
+        for results_map in result_maps:
+            for r in results_map.values():
+                lines.extend(r.get("failing_detail", {}).get(t, []))
+        out[t] = lines[:DETAIL_MAX_LINES]
+    return out
 
 
 def _kill_tree(proc):
@@ -209,9 +253,9 @@ def run_batch(path, out_dir, batches, timeout_s):
     results = {}
     for name, (proc, log, log_path) in procs.items():
         log.close()
-        totals, failing = parse(log_path)
+        totals, failing, detail = parse_detail(log_path)
         code, seconds = finished[name]
-        results[name] = {"exit": code, "totals": totals, "failing": sorted(failing),
+        results[name] = {"exit": code, "totals": totals, "failing": sorted(failing), "failing_detail": detail,
                          "log": log_path, "seconds": seconds}
     return results
 
@@ -291,8 +335,9 @@ def main(argv):
         json.dump(timings, fh)
 
     confirmed, flaky = [], []
+    retry_results = {}
     if failing:
-        retry = run_batch(path, out_dir, [("retry_%d" % i, [t]) for i, t in enumerate(sorted(failing))], args.timeout)
+        retry = retry_results = run_batch(path, out_dir, [("retry_%d" % i, [t]) for i, t in enumerate(sorted(failing))], args.timeout)
         for (name, r), t in zip(sorted(retry.items(), key=lambda kv: int(kv[0].split("_")[1])), sorted(failing)):
             # GUT omits the "Failing Tests" line when everything passed.
             ok = "Tests" in r["totals"] and r["totals"].get("Failing Tests", 0) == 0 and not r["failing"]
@@ -300,7 +345,7 @@ def main(argv):
 
     verdict = "GREEN" if not confirmed and not harness and lint_code == 0 and ss_code == 0 and layer_code == 0 and ui_code == 0 else "RED"
     result = {"verdict": verdict, "path": path, "shards": len(shards), "serial": serial, "serial_seconds": serial_seconds, "seconds": round(time.time() - t0, 1),
-              "totals": sums, "failing": confirmed, "parallel_flaky": flaky, "harness_errors": harness, "magic_lint": "green" if lint_code == 0 else "red",
+              "totals": sums, "failing": confirmed, "parallel_flaky": flaky, "failing_detail": _details_for(confirmed, results, retry_results), "flaky_detail": _details_for(flaky, results), "harness_errors": harness, "magic_lint": "green" if lint_code == 0 else "red",
               "single_source_lint": "green" if ss_code == 0 else "red",
               "layer_lint": "green" if layer_code == 0 else "red",
               "ui_component_lint": "green" if ui_code == 0 else "red",
