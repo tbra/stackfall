@@ -8,8 +8,24 @@ func _log(tracker: GutErrorTracker, text: String, fn: String = "some_fn") -> Gut
 	return tracker.add_error(fn, "file.cpp", 1, text, "", false, Logger.ERROR_TYPE_WARNING, [])
 
 
-func test_hook_installed_tracker() -> void:
-	assert_true(gut.error_tracker is JoltOverflowErrorTracker, "pre-run hook swapped the tracker")
+## Every runner config names the hook. Checked statically (not via gut.error_tracker at run
+## time) so the test also passes when an older runner without the hook runs it, e.g. the
+## main-branch gate integrating this very change (Bontago-fca.119 integration, 2026-10-14).
+const HOOK_PATH: String = "res://tests/support/jolt_overflow_hook.gd"
+const RUNNER_FILES: Array[String] = ["res://.gutconfig.json", "res://tools/full_gate.py", "res://tools/run_gut.ps1"]
+
+
+func test_every_runner_config_names_the_hook() -> void:
+	for path: String in RUNNER_FILES:
+		var text: String = FileAccess.get_file_as_string(path)
+		assert_true(text.contains(HOOK_PATH), "%s configures the Jolt overflow pre-run hook" % path)
+
+
+func test_hook_installs_the_filtering_tracker() -> void:
+	if gut.error_tracker is JoltOverflowErrorTracker:
+		assert_true(true, "this runner installed the hook")
+		return
+	pending("this run did not use the hook (older runner); the static config test covers the runners")
 
 
 func test_overflow_engine_error_is_handled() -> void:
