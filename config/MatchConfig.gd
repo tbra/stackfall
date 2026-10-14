@@ -172,6 +172,10 @@ const DISC_SIZE_STEP_DEFAULT: int = 2
 ## Goal flags, 1-5.
 @export var goal_flag_count: int = 1
 @export var gifts_enabled: bool = true
+## Bontago-1pi.159.60: the lobby's Experiments master switch. Off: the match starts with no QoL experiment
+## active (MatchConfig.qol_in_effect()), whatever the chips say; the chips keep their selection for when it
+## is switched back on. Default on = the chips decide, as before.
+@export var experiments_enabled: bool = true
 ## Special frequency, 0-100.
 @export var special_frequency: int = 30
 ## Empty means "every special enabled by default" (M4 populates it).
@@ -549,6 +553,14 @@ func clamp_to_connected_peers(peer_count: int) -> void:
 
 ## Clamps every field into its spec 2.8 range. The host calls this on any
 ## config that arrived over the wire before using it.
+## Bontago-1pi.159.60: with the Experiments master switch off no opt-in experiment runs. Called when a
+## match starts (MatchLifecycle), NOT from sanitize(): the lobby publishes sanitized configs and the
+## chips must keep their selection for when the switch is turned back on.
+func apply_experiments_switch() -> void:
+	if not experiments_enabled and qol != null:
+		qol = QolExperiments.with_toggles(qol, false, false, false, false)
+
+
 func sanitize() -> void:
 	# Bontago-fca.75: ROUND is the only map shape; a removed value clamps to it.
 	map_variant = MapVariant.ROUND
@@ -728,6 +740,7 @@ func to_dict() -> Dictionary:
 		"gravity_scale_version": 2,
 		"goal_flag_count": goal_flag_count,
 		"gifts_enabled": gifts_enabled,
+		"experiments_enabled": experiments_enabled,
 		"special_frequency": special_frequency,
 		"enabled_specials": enabled_specials.duplicate(),
 		"tilt_mode": tilt_mode,
@@ -783,6 +796,7 @@ static func from_dict(data: Dictionary) -> MatchConfig:
 		config.gravity_multiplier /= LEGACY_GRAVITY_BASELINE
 	config.goal_flag_count = int(data.get("goal_flag_count", config.goal_flag_count))
 	config.gifts_enabled = bool(data.get("gifts_enabled", config.gifts_enabled))
+	config.experiments_enabled = bool(data.get("experiments_enabled", config.experiments_enabled))
 	config.special_frequency = int(data.get("special_frequency", config.special_frequency))
 	if data.has("enabled_specials"):
 		var specials: Array[StringName] = []

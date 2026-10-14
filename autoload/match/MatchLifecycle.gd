@@ -188,6 +188,7 @@ func start_match(match_config: MatchConfig) -> void:
 	if _match._is_host() and _match.config.qol == null:
 		_match.config.qol = QOL_EXPERIMENTS.duplicate() as QolExperiments
 	_match.config.sanitize()
+	_match.config.apply_experiments_switch()
 	# Bontago-1pi.62: the host names its bots once; clients keep the names the
 	# config dict carried.
 	if _match._is_host():

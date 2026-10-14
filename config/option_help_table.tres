@@ -9,6 +9,7 @@ entries = Dictionary[String, String]({
 "BlockTimerGroup": "How many seconds you have to place each block before it drops by itself.",
 "CameraShakeCheck": "Shakes the camera on explosions and heavy impacts. Turn it off if it makes you dizzy.",
 "DiscSizeCol": "How big the play disc is. A smaller disc makes for a tighter, more crowded fight.",
+"ExperimentsToggleCol": "Master switch for the opt-in experiments. Off: none of them are active and their options are hidden.",
 "GameModeCol": "How the match is won. Pick a mode to see its rule here.",
 "GameModeCol/0": "Classic: hold every goal flag to win.",
 "GameModeCol/1": "Capture the Flag: hold beacons to score; the highest score wins when the round ends.",

@@ -283,7 +283,7 @@ step = 1
 unique_name_in_owner = true
 script = ExtResource("8_row")
 layout_mode = 2
-metadata/row_label = "Match timer (min)"
+metadata/row_label = "Round length (min)"
 
 [node name="MatchTimerStepper" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/MatchTimerCol"]
 unique_name_in_owner = true
@@ -369,6 +369,7 @@ layout_mode = 2
 caption = "Gifts"
 
 [node name="SpecialFreqGroup" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/GiftsSection/Body/GiftsRow"]
+unique_name_in_owner = true
 script = ExtResource("8_row")
 layout_mode = 2
 metadata/row_label = "Frequency"
@@ -398,6 +399,23 @@ unique_name_in_owner = true
 script = ExtResource("6_section")
 layout_mode = 2
 title = "EXPERIMENTS"
+
+[node name="Body" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection" groups=["lobby_stack"]]
+layout_mode = 2
+
+[node name="ExperimentsRow" type="VBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Body" groups=["lobby_stack"]]
+layout_mode = 2
+
+[node name="ExperimentsToggleCol" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Body/ExperimentsRow"]
+script = ExtResource("8_row")
+layout_mode = 2
+metadata/row_label = "Experiments"
+
+[node name="ExperimentsCheck" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Body/ExperimentsRow/ExperimentsToggleCol"]
+unique_name_in_owner = true
+script = ExtResource("9_toggle")
+layout_mode = 2
+caption = "Experiments"
 
 [node name="Advanced" type="MarginContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection"]
 layout_mode = 2
