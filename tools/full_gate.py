@@ -45,6 +45,11 @@ DETAIL_LINES_AFTER = 3
 DETAIL_MAX_LINES = 8
 DETAIL_MAX_CHARS = 400
 DEFAULT_TIMEOUT_S = 1200
+# Bontago-fca.120: GUT drops a test script it cannot load and its totals simply omit it, so the
+# gate cross-checks every scheduled script against the per-script result headers and these lines.
+LOAD_FAIL_RE = re.compile(r'Failed to load script "(res://tests/\S+?\.gd)" with error "([^"]*)"')
+IGNORED_RE = re.compile(r"Ignoring script (res://tests/\S+?\.gd) because")
+MISSING_ERROR = "no results in GUT output (script dropped, load error or shard died)"
 
 
 # Bontago-fca.38.7: --fixed-fps disables wall-clock pacing, so physics ticks
@@ -180,6 +185,35 @@ def parse_detail(log_path):
     return totals, failing, detail
 
 
+def find_unloadable(scheduled, log_path):
+    """Scheduled scripts GUT dropped: [{script, error}] (Bontago-fca.120). The error text is the
+    parse/load lines naming the script when GUT logged any, else MISSING_ERROR."""
+    try:
+        with open(log_path, encoding="utf-8", errors="replace") as fh:
+            text = ANSI_RE.sub("", fh.read())
+    except OSError:
+        text = ""
+    seen = set(SCRIPT_RE.findall(text))
+    errors = {}
+    for script, why in LOAD_FAIL_RE.findall(text):
+        errors.setdefault(script, []).append('Failed to load: "%s"' % why)
+    for script in IGNORED_RE.findall(text):
+        errors.setdefault(script, []).append("ignored by GUT (not loadable as a GutTest)")
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        if line.startswith("SCRIPT ERROR:") and i + 1 < len(lines):
+            for script in errors:
+                if "(%s:" % script in lines[i + 1]:
+                    errors[script].insert(0, line[len("SCRIPT ERROR:"):].strip())
+    out = []
+    for script in scheduled:
+        if script in errors:
+            out.append({"script": script, "error": " | ".join(dict.fromkeys(errors[script]))[:DETAIL_MAX_CHARS]})
+        elif script not in seen:
+            out.append({"script": script, "error": MISSING_ERROR})
+    return out
+
+
 def suite_times(out_dir, name):
     """Per-script seconds from GUT's JUnit export (testsuite name = res path)."""
     times = {}
@@ -313,12 +347,17 @@ def main(argv):
     sums = {}
     failing = set()
     harness = []
+    unloadable = []
     for name, r in results.items():
+        bad = find_unloadable(by_name[name], r["log"])
+        unloadable.extend(bad)
         for k, v in r["totals"].items():
             sums[k] = sums.get(k, 0) + v
         failing.update(r["failing"])
         if "Tests" not in r["totals"]:
             harness.append("%s exit=%s (no Totals; see %s)" % (name, r["exit"], r["log"]))
+    if unloadable:
+        harness.append("unloadable test scripts: " + "; ".join("%s (%s)" % (u["script"], u["error"]) for u in unloadable))
     # Per-script durations (JUnit) balance the next run; fall back to the
     # shard average for scripts the export missed.
     for name, r in sorted(results.items()):
@@ -346,7 +385,7 @@ def main(argv):
 
     verdict = "GREEN" if not confirmed and not harness and lint_code == 0 and ss_code == 0 and layer_code == 0 and ui_code == 0 else "RED"
     result = {"verdict": verdict, "path": path, "shards": len(shards), "serial": serial, "serial_seconds": serial_seconds, "seconds": round(time.time() - t0, 1),
-              "totals": sums, "failing": confirmed, "parallel_flaky": flaky, "failing_detail": _details_for(confirmed, results, retry_results), "flaky_detail": _details_for(flaky, results), "harness_errors": harness, "magic_lint": "green" if lint_code == 0 else "red",
+              "totals": sums, "failing": confirmed, "parallel_flaky": flaky, "failing_detail": _details_for(confirmed, results, retry_results), "flaky_detail": _details_for(flaky, results), "harness_errors": harness, "unloadable": unloadable, "magic_lint": "green" if lint_code == 0 else "red",
               "single_source_lint": "green" if ss_code == 0 else "red",
               "layer_lint": "green" if layer_code == 0 else "red",
               "ui_component_lint": "green" if ui_code == 0 else "red",
