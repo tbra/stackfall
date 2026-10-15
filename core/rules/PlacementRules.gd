@@ -13,12 +13,11 @@ extends RefCounted
 ## verbatim and extends to reject a contested/holed point too (see
 ## validate_point()'s own comment). Package B does the raycast in
 ## autoload/Match.gd; everything from the hit point on is here.
-## footprint_cells()/validate()/closest_valid_origin() are spec 3.3's original
-## multi-cell check. autoload/Match.gd no longer calls them under any
-## hole_mode; they stay compiled only for tests/bench/bench_territory.gd's
-## legacy regression row and this file's own direct unit tests
-## (tests/unit/match/test_placement_rules.gd), per the audit's instruction not to
-## reintroduce a footprint test in normal play.
+## footprint_cells()/validate() are spec 3.3's original multi-cell check.
+## autoload/Match.gd no longer calls them under any hole_mode; they stay compiled
+## for the bots' footprint scoring, tests/bench/bench_territory.gd's legacy
+## regression row and this file's direct unit tests, per the audit's instruction
+## not to reintroduce a footprint test in normal play.
 ##
 ## Spec 3.3: "On the host, the cell under the ghost's footprint must be owned
 ## by the placing player's team and not contested or a hole." Every cell of
@@ -26,9 +25,8 @@ extends RefCounted
 ##
 ## Spec 2.5: "When the timer runs out, the held block drops from its current
 ## ghost position. If that spot isn't valid, it drops at the closest valid
-## point." closest_valid_origin() is that search: a widening ring scan in
-## auto_drop_search_step increments out to auto_drop_search_max_radius,
-## re-testing the whole rotated footprint at each candidate.
+## point." closest_valid_point() is that search: a widening ring scan in
+## auto_drop_search_step increments out to auto_drop_search_max_radius.
 ##
 ## Spec 2.2: "Players can't place blocks in contested areas. If a block is
 ## released there anyway, it is thrown off the map with a visible reject
@@ -72,7 +70,7 @@ const REASON_GOAL_ZONE: StringName = &"goal_zone"
 const REASON_NOT_YOUR_TURN: StringName = &"not_your_turn"
 const REASON_NO_BLOCK: StringName = &"no_block"
 
-## closest_valid_origin() returns this when nothing within the search radius
+## closest_valid_point() returns this when nothing within the search radius
 ## works, which means the block must be rejected instead of relocated.
 const NO_ORIGIN: Vector2 = Vector2(INF, INF)
 
@@ -203,42 +201,6 @@ static func reason_for(result: Result) -> StringName:
 			return REASON_OK
 
 
-## The nearest disk-local origin at or around `desired` whose footprint
-## validates, or NO_ORIGIN. Returns `desired` unchanged when it is already
-## valid, so the common case costs one validate().
-static func closest_valid_origin(
-	desired: Vector2,
-	cells: Array[Vector3i],
-	basis: Basis,
-	cube_size: float,
-	grid: CellGrid,
-	raster: TerritoryRaster,
-	team_id: int,
-	tuning: TerritoryTuning
-) -> Vector2:
-	if validate(
-		footprint_cells(cells, basis, desired, cube_size, grid), raster, team_id
-	) == Result.VALID:
-		return desired
-
-	var step: float = maxf(tuning.auto_drop_search_step, 0.001)
-	var limit: float = tuning.auto_drop_search_max_radius
-	var radius: float = step
-	while radius <= limit:
-		# Enough samples that neighbouring candidates on the ring sit about one
-		# step apart, so the scan cannot thread past a valid pocket of cells.
-		var samples: int = maxi(1, ceili(TAU * radius / step))
-		for i: int in range(samples):
-			var angle: float = TAU * float(i) / float(samples)
-			var candidate: Vector2 = desired + Vector2(cos(angle), sin(angle)) * radius
-			if validate(
-				footprint_cells(cells, basis, candidate, cube_size, grid), raster, team_id
-			) == Result.VALID:
-				return candidate
-		radius += step
-	return NO_ORIGIN
-
-
 static func is_no_origin(origin: Vector2) -> bool:
 	return is_inf(origin.x) or is_inf(origin.y)
 
@@ -315,10 +277,9 @@ static func validate_point(
 ## whole disk. tuning_panel_hints.tres's entry for this field is reworded to
 ## match (it no longer means "or the block is thrown").
 ##
-## Same widening-ring geometry as closest_valid_origin(), and the same two
-## tunables, but one point per candidate instead of a rotated footprint --
-## ownership at a candidate is pure math once the raster is filled, so no
-## second raycast is needed either. Returns `desired` untouched when it is
+## A widening-ring search over auto_drop_search_step / auto_drop_search_max_radius, one point
+## per candidate -- ownership at a candidate is pure math once the raster is filled, so no
+## second raycast is needed. Returns `desired` untouched when it is
 ## already valid, so the common case costs one cell lookup.
 static func closest_valid_point(
 	desired: Vector2, raster: TerritoryRaster, team_id: int, tuning: TerritoryTuning

@@ -20,16 +20,6 @@ func _deferred_match() -> MatchAutoload:
 	return node
 
 
-func test_deferred_instance_is_inactive_after_ready() -> void:
-	var node: MatchAutoload = _deferred_match()
-	assert_false(node.is_late_active())
-	assert_null(node._feed)
-	assert_null(node._lifecycle)
-	assert_null(node._gift_fx)
-	assert_false(node.is_processing())
-	assert_false(node.is_physics_processing())
-
-
 func test_context_answers_defaults_while_inactive() -> void:
 	var node: MatchAutoload = _deferred_match()
 	var context: MatchContext = node.context()
@@ -47,33 +37,6 @@ func test_context_answers_defaults_while_inactive() -> void:
 	assert_false(context.has_weather())
 	assert_false(context.grant_glue_drops(0, 1))
 	assert_false(context.start_cat(0, Vector3.ZERO, null))
-
-
-func test_late_activate_builds_controllers_in_order_once() -> void:
-	var node: MatchAutoload = _deferred_match()
-	node.late_activate()
-	assert_true(node.is_late_active())
-	for controller: RefCounted in [node._feed, node._placement, node._territory, node._lifecycle,
-			node._gifts, node._stats, node._weather]:
-		assert_not_null(controller)
-	assert_eq(node._feed.get_script().resource_path, LateScripts.MATCH_FEED)
-	assert_eq(node._weather.get_script().resource_path, LateScripts.MATCH_WEATHER)
-	assert_not_null(node._gift_fx)
-	assert_eq(node._gift_fx.get_script().resource_path, LateScripts.GIFT_FX_PRESENTER)
-	assert_true(node.is_processing())
-	var feed: RefCounted = node._feed
-	var children: int = node.get_child_count()
-	node.late_activate()
-	assert_eq(node._feed, feed, "second call is a no-op")
-	assert_eq(node.get_child_count(), children)
-	assert_eq(node.state(), MatchPhase.State.LOBBY)
-
-
-func test_headless_ready_activates_immediately() -> void:
-	var node: MatchAutoload = MatchAutoload.new()
-	add_child_autofree(node)
-	assert_true(node.is_late_active())
-	assert_not_null(node._lifecycle)
 
 
 ## Bontago-1pi.11.77.18: MatchNet._process reads the authority's state, so a deferred

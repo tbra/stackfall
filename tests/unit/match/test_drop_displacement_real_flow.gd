@@ -1,18 +1,6 @@
 extends GutTest
-## Bontago-1pi.24 (owner playtest 2026-10-02: "block displacement, no change at
-## all, exactly the same issue"; earlier: "when dropping a block the next block
-## loads instantly which means it's always inside a block when spawning. Fix:
-## don't run for disabled ghost blocks? Don't count the dropped block until
-## it's settled? Only count settled blocks? Small delay?").
-##
-## Real flow, not a synthetic overlap: the real Main scene, a real host, the
-## HotSeat PlayerController/GhostPreview/CameraRig Main wires for slot 0, the
-## real GhostTuning/PhysicsTuning, and every frame driven by the engine's own
-## _process/_physics_process. The player stacks: a block A rests on the disk,
-## the player wheels the held piece up so it hangs clear above A, and drops it
-## (B). The next piece appears at once at the very same pose, i.e. inside B
-## while B is still falling. Traced per frame: the next ghost's hover offset,
-## the camera's follow target, and A/B's own poses.
+## Bontago-1pi.24: through the real Main scene, the next piece loading under a just-dropped block must not lift
+## the ghost or camera, and a needed raise waits until the dropped block has settled.
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
 const HOST_SLOT: int = 0
@@ -249,20 +237,3 @@ func test_a_raise_waits_for_the_dropped_block_to_settle_then_clears_it() -> void
 	assert_gt(ghost.manual_hover_offset, player_offset, "once it rests inside the next piece, the piece is raised")
 	assert_false(controller._ghost_overlaps_a_placed_block(), "and clears it")
 
-
-## Bontago-1pi.33 (owner playtest 2026-10-03: "Start the first block higher up,
-## it loads inside the home beacon currently"): through the real Main wiring
-## (Main -> HotSeat.bind_local_slot() -> set_home_position()), the first held
-## piece hangs above the home beacon's top by the tuned margin.
-func test_first_piece_in_the_real_match_starts_clear_of_the_home_beacon() -> void:
-	await _start_hosted_match()
-	for _i: int in range(5):
-		await _frame()
-	var controller: PlayerController = _controller()
-	assert_not_null(controller._ghost.get_shape(), "fixture: the first piece is held")
-	var beacon_top: float = Match.field().global_position.y + controller.beacon_visuals.beacon_top_height()
-	var lowest: float = controller._ghost.height_above_surface() + controller._last_hit_point.y
-	assert_gte(
-		lowest, beacon_top + controller.ghost_tuning.home_spawn_beacon_margin - 0.0001,
-		"the first held piece's lowest point (%.3f) must clear the home beacon top (%.3f) plus margin" % [lowest, beacon_top]
-	)

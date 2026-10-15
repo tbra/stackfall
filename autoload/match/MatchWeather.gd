@@ -165,17 +165,6 @@ func active_intensity() -> float:
 	return maxf(_intensity, 0.0) if _active_id != &"" else 0.0
 
 
-func event_phase() -> int:
-	return _phase
-
-
-## Seconds until the next event while calm; -1.0 when not calm. The "weather
-## incoming" cue reads this (approximate on a client: it counts down locally
-## from the host's last announcement).
-func next_event_in() -> float:
-	return _left if _sched == Sched.CALM else -1.0
-
-
 func seed_value() -> int:
 	return _seed
 
