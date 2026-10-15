@@ -90,6 +90,7 @@ class DispatchPrepTest(unittest.TestCase):
         dispatch_prep.prepare(self.args(redispatch=True), BRIEF, self.runner())
         claim = next(c for c in self.calls if "update" in c)
         self.assertNotIn("--if-status=open", claim)
+        self.assertIn("--force", claim)
 
 
 if __name__ == "__main__":

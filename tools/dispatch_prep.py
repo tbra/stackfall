@@ -7,7 +7,8 @@ Usage (the brief comes from stdin):
 
 Steps: save the brief under the bead's scratchpad; ask tools/route_model.py for the verdict;
 claim the bead with `bd update --if-status=open --status=in_progress --assignee "<role> (<model>)"`
-(with --redispatch, an in-progress bead only gets the new assignee); post the dispatch comment
+(with --redispatch, an in-progress bead only gets the new assignee, forced past the previous
+worker's claim: use it only after that worker has handed back); post the dispatch comment
 with the verdict, any override and the brief path. Prints one `DISPATCH ...` line naming the
 model to pass in the Agent call; exit 1 names the failed step.
 """
@@ -53,7 +54,9 @@ def prepare(args, brief, runner=run):
     model = args.model or verdict.get("model", "sonnet")
     assignee = "%s (%s)" % (args.role, model)
     claim = [bd, "update", args.bead, "--actor", ACTOR, "--assignee", assignee]
-    if not args.redispatch:
+    if args.redispatch:
+        claim.append("--force")
+    else:
         claim[3:3] = ["--if-status=open", "--status=in_progress"]
     code, out, err = runner(claim)
     if code != 0:
@@ -79,7 +82,7 @@ def main(argv):
     ap.add_argument("--prior-attempts", type=int, default=0)
     ap.add_argument("--model", default="", help="override the routed model (needs --reason)")
     ap.add_argument("--reason", default="", help="why the routed model is overridden")
-    ap.add_argument("--redispatch", action="store_true", help="re-assign an already in-progress bead")
+    ap.add_argument("--redispatch", action="store_true", help="re-assign an in-progress bead after its previous worker handed back")
     args = ap.parse_args(argv)
     if args.model and not args.reason.strip():
         ap.error("--model overrides the routed verdict and needs --reason")
