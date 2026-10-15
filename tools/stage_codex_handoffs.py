@@ -244,7 +244,7 @@ def is_asset_path(path):
 
 
 def normalize_eol(ctx, dest, c):
-    """CRLF -> LF in the copied text files so `git add` prints no line-ending warnings (fca.26)."""
+    """CRLF -> LF in the copied text files so `git add` prints no line-ending warnings."""
     for i, chunk in enumerate(add_chunks(c.paths)):
         code, text, log = run_cmd(ctx, "eol_%s_%d" % (c.bead, i),
                                   [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "normalize_eol.py"),

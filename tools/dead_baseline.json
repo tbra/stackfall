@@ -1442,8 +1442,6 @@
    "tools/check_steam_setup.ps1: docs/archive/M3b_RESEARCH.md",
    "tools/lint_dead.py: docs/archive/",
    "tools/lint_single_source.py: ui/InputPrompt.gd",
-   "tools/reorg_move.py: docs/archive/",
-   "tools/reorg_move.py: res://olddir/x",
    "tools/run_gut.ps1: tests/unit/test_zz_throwaway_fail.gd",
    "tools/run_m3a_local.ps1: docs/archive/M3a_PLAN.md",
    "tools/stage_codex_handoffs.py: docs/art_mockups/",

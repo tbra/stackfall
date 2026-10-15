@@ -59,6 +59,13 @@ class LintPublicTest(unittest.TestCase):
         self.write("docs/a.md", "see Bontago-abc.1 lint-public: allow fixture\n")
         self.assertEqual(self.run_lint()[0], 0)
 
+    def test_short_bead_ids_and_plan_docs_are_findings(self):
+        self.write("docs/a.md", "see 1pi.94 and docs/archive/M2_PLAN.md, not v4.7 or 100.0\n")  # lint-public: allow fixture
+        code, out = self.run_lint()
+        self.assertEqual(code, 1)
+        self.assertIn("short-bead-id x1", out)
+        self.assertIn("plan-doc x1", out)
+
     def test_skips_addons_binaries_beads_and_local_notes(self):
         for rel in ("addons/x/a.gd", ".beads/a.md", "CLAUDE.local.md"):
             self.write(rel, "# Zebulon Bontago-abc.1\n")  # lint-public: allow fixture

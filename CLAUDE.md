@@ -67,7 +67,7 @@ Each milestone runs as a pipeline of agents, as parallel as the work allows:
 
 ## Folder layout
 Follow spec §2.2. New scenes go next to their scripts, shaders go in `res://shaders/`, and build-time scripts that aren't part of the running game go in `tools/`.
-Layout: layers at the top (`core/` pure logic, `config/` Resources by feature, `game/` scene nodes by feature, `net/`, `ui/` components/theme/hud/menus/lobby/debug, `shaders/<feature>`, `assets/{audio,models,textures,ui}`, `tests/unit/<feature>`, flat `tools/`). `vfx/` and `sfx/` no longer exist: put new code in the feature folder. Move tool: `tools/reorg_move.py` (map `tools/reorg_move_map.tsv`).
+Layout: layers at the top (`core/` pure logic, `config/` Resources by feature, `game/` scene nodes by feature, `net/`, `ui/` components/theme/hud/menus/lobby/debug, `shaders/<feature>`, `assets/{audio,models,textures,ui}`, `tests/unit/<feature>`, flat `tools/`). `vfx/` and `sfx/` no longer exist: put new code in the feature folder.
 
 ## Definition of done (every task)
 - [ ] `godot --headless --editor --path . --quit` prints no errors and no new warnings.

@@ -326,7 +326,7 @@ class KnownLimitation:
 
 def load_known_limitations(plan_path: str) -> List[KnownLimitation]:
     """Parse the "## Known limitations (...)" section of a milestone plan doc
-    (e.g. docs/archive/M2_PLAN.md) into paragraphs, and pull out any `backticked`
+    (e.g. a plan document) into paragraphs, and pull out any `backticked`
     identifiers as cheap deterministic match keywords."""
     try:
         with open(plan_path, "r", encoding="utf-8") as f:

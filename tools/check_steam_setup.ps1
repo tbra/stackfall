@@ -3,9 +3,8 @@
     Reports whether the local, untracked GodotSteam addon install is complete.
 
 .DESCRIPTION
-    res://addons/godotsteam/ is deliberately NOT committed to git (spike
-    written up in docs/archive/M3b_RESEARCH.md's "Spike results"
-    section). Godot only tries to load a .gdextension file if one exists on
+    res://addons/godotsteam/ is deliberately NOT committed to git
+    (a partial install breaks the open-project check). Godot only tries to load a .gdextension file if one exists on
     disk, so a machine that has never run the local Steam setup step (see
     README.md, "Steam setup (development)") gets a completely clean
     `godot --headless --editor --path . --quit` and plays fine over LAN/ENet

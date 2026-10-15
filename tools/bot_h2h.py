@@ -35,7 +35,7 @@ P1b options (evaluation plan docs/BOT_AI_REDESIGN.md section 2.5):
   --stats          after the summary prints `H2H STATS` lines per side (A = candidate seats, B = other bot seats,
                    passive = the --players seats): median/p25/max of peak and peak180 in metres, lost/placed,
                    and in how many matches the bot-seat median peak >= the best passive seat. Without it the
-                   output is unchanged. Reach the Sky S-gate (docs/BOT_TOWER_PLAN.md), all 7 bots on side A:
+                   output is unchanged. Reach the Sky S-gate, all 7 bots on side A:
                      python tools/bot_h2h.py --bots 7 --players 8 --mode sky --no-swap --pairs 10 --seconds 180
                        --stats --cand-slots-a 0,1,2,3,4,5,6 --godot-args "--match-seed={seed}
                        --bot-difficulty=hard --gifts=0"
@@ -135,7 +135,7 @@ def stats_report(jobs: Sequence[MatchJob], outputs: Sequence[str], bots: int, pl
                  cand_a: str, cand_b: str) -> List[str]:
     """`H2H STATS` lines: per side median/p25/max of peak and peak180 (metres) and lost/placed over
     every seat of that side across all matches, plus how often the bot-seat median peak is >= the
-    best passive seat (Reach the Sky S-gate, docs/BOT_TOWER_PLAN.md)."""
+    best passive seat (Reach the Sky S-gate)."""
     acc: Dict[str, Dict[str, List[float]]] = {
         k: {"peak": [], "p180": [], "placed": [], "lost": []} for k in ("A", "B", "P")}
     ge = 0

@@ -88,7 +88,7 @@ ENGINE_ROOTS = frozenset([
 ROOT_PREFIXES = ("_get_", "_set_")
 CALLISH = ("call", "callable", "connect", "rpc", "has_method", "deferred", "group",
            "tween", "invoke", "method", "handler", "callback", "bind", "timeout", "emit")
-# Missing-on-purpose res:// paths (fca.73 pattern 3): negative-test names, existence-guarded
+# Missing-on-purpose res:// paths: negative-test names, existence-guarded
 # literals, output dirs, and optional per-machine config files.
 NEGATIVE_NAME_RE = re.compile(r"__missing|missing_|no_such|does_not_exist|nonexistent|not_a_real", re.I)
 GUARDED_LINE_RE = re.compile(
@@ -361,7 +361,7 @@ class Builder(object):
                 out.add(rel.rsplit("/", 1)[0] + "/")
         return out
 
-    # DECISION: gitignored files are not part of the project (fca.73 pattern 2); outside git
+    # DECISION: gitignored files are not part of the project; outside git
     # (fixtures, exports) the plain directory walk is used.
     def walk(self):
         listed = self.git_files()
@@ -824,7 +824,7 @@ class Builder(object):
     def target_file_of_name(self, rel, d, name):
         if name in d["aliases"]:
             # DECISION: an alias to a .tres/.tscn (var tuning: SnowTuning = preload(x.tres)) is a
-            # typed value, not the class: let the declared type resolve it (fca.73 pattern 6).
+            # typed value, not the class: let the declared type resolve it.
             tgt = d["aliases"][name]
             return tgt if tgt in self.files and tgt.endswith(".gd") else None
         if name in self.autoloads:
@@ -1141,7 +1141,7 @@ def func_liveness(graph):
             adj_strict.setdefault(e["src"], []).append(e["dst"])
         if e["kind"] == "override":
             # A live override means the base declaration is the dispatch target of a base-typed
-            # call (fca.73 pattern 6b): keep the base stub live as well.
+            # call: keep the base stub live as well.
             adj_loose.setdefault(e["dst"], []).append(e["src"])
             adj_strict.setdefault(e["dst"], []).append(e["src"])
 
@@ -1550,7 +1550,7 @@ def analyze_cycles(graph, liveness):
     funcs = graph["funcs"]
     fadj = {}
     padj = {}
-    # DECISION (fca.73 pattern 8): a .tres/.tscn and the script it attaches (script= ext_resource)
+    # DECISION: a .tres/.tscn and the script it attaches (script= ext_resource)
     # form a benign pair when the script loads that resource back; drop both directions.
     attached = set()
     for e in graph["file_edges"]:

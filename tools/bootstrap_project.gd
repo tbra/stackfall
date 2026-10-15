@@ -531,7 +531,7 @@ func _actions() -> Dictionary:
 	# itself typically intercepts rather than passing to the game.
 	a["screenshot_capture"] = [_key(KEY_F12), _pad(JOY_BUTTON_MISC1)]
 
-	# DECISION (tools/bootstrap_project.gd): docs/archive/M3a_PLAN.md specifies
+	# DECISION (tools/bootstrap_project.gd): the networking design asks for
 	# net_debug_toggle as "F3 + gamepad Back+Y". Every face/shoulder/stick
 	# button on the pad is already claimed by placement and camera controls
 	# (spec 2.5), so there is no free single button left for a debug-only

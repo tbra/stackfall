@@ -80,6 +80,10 @@ RULES: Tuple[Tuple[str, "re.Pattern[str]", str], ...] = (
     ("bead-id", re.compile(BEAD_ID), "all"),
     ("date", re.compile(r"(?<!expires )" + DATE + r"(?!T\d)"), "all"),
     ("owner", re.compile(OWNER), "prose"),
+    # A Beads id without its prefix (three characters with a letter, then .N): history, not code.
+    ("short-bead-id", re.compile(r"(?<![\w./-])(?=[a-z0-9]{0,2}[a-z])[a-z0-9]{3}\.\d+(?:\.\d+)*\b"), "prose"),
+    # Pointers to planning documents that are not part of the public repo.
+    ("plan-doc", re.compile(r"\bdocs/archive/\S*|\b[A-Z0-9_]+_PLAN\.md\b"), "prose"),
     # Only the provenance tag forms: the word inside a parenthesised note, or followed by a date.
     # The session-close review step and its memory key are procedure, not provenance.
     ("debrief", re.compile(r"\([^)\n]*(?<![-\w])[Dd]ebrief\b[^)\n]*\)|(?<![-\w])[Dd]ebrief,? " + DATE), "prose"),

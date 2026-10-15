@@ -38,7 +38,7 @@ RULES_NAME = "layer_rules.json"
 
 
 def load_rules(path=None):
-    """The path-prefix data of the layer rules (tools/layer_rules.json; tools/reorg_move.py rewrites it)."""
+    """The path-prefix data of the layer rules (tools/layer_rules.json)."""
     with open(path or os.path.join(os.path.dirname(os.path.abspath(__file__)), RULES_NAME), encoding="utf-8") as fh:
         return json.load(fh)
 

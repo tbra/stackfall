@@ -1,3 +1,812 @@
 {
- "findings": {}
+ "findings": {
+  ".claude/agents/stackfall-netcode.md": {
+   "plan-doc": 1
+  },
+  ".gitignore": {
+   "plan-doc": 2
+  },
+  "autoload/Events.gd": {
+   "plan-doc": 8
+  },
+  "autoload/Match.gd": {
+   "plan-doc": 3
+  },
+  "autoload/Net.gd": {
+   "plan-doc": 27
+  },
+  "autoload/Settings.gd": {
+   "plan-doc": 1,
+   "short-bead-id": 1
+  },
+  "autoload/Sfx.gd": {
+   "plan-doc": 7
+  },
+  "autoload/match/MatchContextLive.gd": {
+   "plan-doc": 1
+  },
+  "autoload/match/MatchFeed.gd": {
+   "plan-doc": 9
+  },
+  "autoload/match/MatchGiftActivation.gd": {
+   "plan-doc": 1,
+   "short-bead-id": 4
+  },
+  "autoload/match/MatchGifts.gd": {
+   "plan-doc": 1
+  },
+  "autoload/match/MatchLifecycle.gd": {
+   "plan-doc": 4,
+   "short-bead-id": 2
+  },
+  "autoload/match/MatchPlacement.gd": {
+   "plan-doc": 16,
+   "short-bead-id": 4
+  },
+  "autoload/match/MatchTerritory.gd": {
+   "plan-doc": 4
+  },
+  "config/audio/AudioConfig.gd": {
+   "plan-doc": 3
+  },
+  "config/blocks/BlockShape.gd": {
+   "short-bead-id": 1
+  },
+  "config/blocks/tuning/GhostTuning.gd": {
+   "plan-doc": 3
+  },
+  "config/bots/BotStackTuning.gd": {
+   "plan-doc": 1
+  },
+  "config/bots/BotTuning.gd": {
+   "plan-doc": 3
+  },
+  "config/gifts/GiftConfig.gd": {
+   "plan-doc": 1
+  },
+  "config/gifts/specials/SpecialDef.gd": {
+   "plan-doc": 4,
+   "short-bead-id": 2
+  },
+  "config/gifts/specials/SpecialTuning.gd": {
+   "plan-doc": 1
+  },
+  "config/gifts/specials/fx/VolcanoParticleTuning.gd": {
+   "plan-doc": 1
+  },
+  "config/graphics/GraphicsPreset.gd": {
+   "short-bead-id": 1
+  },
+  "config/match/MapDef.gd": {
+   "plan-doc": 1
+  },
+  "config/match/MatchConfig.gd": {
+   "plan-doc": 3
+  },
+  "config/match/TutorialConfig.gd": {
+   "plan-doc": 3
+  },
+  "config/match/TutorialStep.gd": {
+   "plan-doc": 2
+  },
+  "config/net/ChatConfig.gd": {
+   "plan-doc": 1
+  },
+  "config/net/NetConfig.gd": {
+   "plan-doc": 7
+  },
+  "config/physics/PhysicsTuning.gd": {
+   "plan-doc": 2
+  },
+  "config/player/CameraTuning.gd": {
+   "short-bead-id": 1
+  },
+  "config/sky/SkyThemeDef.gd": {
+   "plan-doc": 4
+  },
+  "config/territory/BeaconVisualTuning.gd": {
+   "short-bead-id": 3
+  },
+  "config/territory/TerritoryTuning.gd": {
+   "plan-doc": 2
+  },
+  "config/territory/TerritoryVisuals.gd": {
+   "short-bead-id": 1
+  },
+  "config/ui/ArcadeVisualTuning.gd": {
+   "plan-doc": 1
+  },
+  "config/ui/ComponentMetrics.gd": {
+   "plan-doc": 1
+  },
+  "config/ui/HUDVisualTuning.gd": {
+   "plan-doc": 2
+  },
+  "config/ui/LoadingScreenTuning.gd": {
+   "short-bead-id": 1
+  },
+  "config/ui/LobbyLayoutTuning.gd": {
+   "plan-doc": 1
+  },
+  "config/ui/MainMenuTuning.gd": {
+   "plan-doc": 1
+  },
+  "config/ui/MenuVisualTuning.gd": {
+   "plan-doc": 1
+  },
+  "config/ui/OptionsVisualTuning.gd": {
+   "plan-doc": 1
+  },
+  "config/ui/ResultsTableTuning.gd": {
+   "plan-doc": 1
+  },
+  "config/ui/tuning_panel_hints.tres": {
+   "short-bead-id": 1
+  },
+  "config/weather/WeatherTuning.gd": {
+   "short-bead-id": 3
+  },
+  "core/ai/BotCandidate.gd": {
+   "plan-doc": 1
+  },
+  "core/ai/BotCandidateGen.gd": {
+   "short-bead-id": 2
+  },
+  "core/ai/BotStack.gd": {
+   "plan-doc": 1
+  },
+  "core/ai/BotStatics.gd": {
+   "short-bead-id": 1
+  },
+  "core/ai/BotStrategy.gd": {
+   "plan-doc": 1,
+   "short-bead-id": 1
+  },
+  "core/ai/BotWorldView.gd": {
+   "short-bead-id": 1
+  },
+  "core/gifts/GiftAim.gd": {
+   "plan-doc": 1,
+   "short-bead-id": 1
+  },
+  "core/gifts/GiftShapePicker.gd": {
+   "plan-doc": 1
+  },
+  "core/gifts/GiftSpawner.gd": {
+   "plan-doc": 1
+  },
+  "core/gifts/GiftThrow.gd": {
+   "plan-doc": 1,
+   "short-bead-id": 1
+  },
+  "core/gifts/GiftWirePhase.gd": {
+   "plan-doc": 1
+  },
+  "core/net/NetIds.gd": {
+   "plan-doc": 1
+  },
+  "core/net/Quantize.gd": {
+   "plan-doc": 2
+  },
+  "core/rules/BeaconTimerText.gd": {
+   "short-bead-id": 1
+  },
+  "core/rules/ChatMute.gd": {
+   "plan-doc": 1
+  },
+  "core/rules/ChatRules.gd": {
+   "plan-doc": 1
+  },
+  "core/rules/LobbySeats.gd": {
+   "plan-doc": 1
+  },
+  "core/rules/ModeObjective.gd": {
+   "short-bead-id": 1
+  },
+  "core/rules/PlacementRules.gd": {
+   "plan-doc": 1
+  },
+  "core/rules/ResultsPayload.gd": {
+   "plan-doc": 1,
+   "short-bead-id": 1
+  },
+  "core/rules/ResultsValidation.gd": {
+   "plan-doc": 1
+  },
+  "core/rules/TeamAssigner.gd": {
+   "plan-doc": 1
+  },
+  "core/rules/ThrowRules.gd": {
+   "plan-doc": 1
+  },
+  "core/sky/SkyPalette.gd": {
+   "plan-doc": 1
+  },
+  "core/territory/CellGrid.gd": {
+   "plan-doc": 1
+  },
+  "core/territory/TerritoryRaster.gd": {
+   "plan-doc": 7
+  },
+  "game/blocks/Block.gd": {
+   "plan-doc": 5
+  },
+  "game/blocks/BlockFactory.gd": {
+   "plan-doc": 1
+  },
+  "game/blocks/BlockRegistry.gd": {
+   "plan-doc": 7
+  },
+  "game/blocks/FusedBody.gd": {
+   "plan-doc": 1
+  },
+  "game/blocks/GlueFusion.gd": {
+   "plan-doc": 1
+  },
+  "game/blocks/StableBlockManager.gd": {
+   "plan-doc": 1
+  },
+  "game/bots/BotController.gd": {
+   "plan-doc": 2
+  },
+  "game/field/Field.gd": {
+   "plan-doc": 7
+  },
+  "game/field/TerritoryOverlay.gd": {
+   "plan-doc": 2
+  },
+  "game/gifts/specials/AnvilEffect.gd": {
+   "plan-doc": 1
+  },
+  "game/gifts/specials/BombEffect.gd": {
+   "plan-doc": 1
+  },
+  "game/gifts/specials/EarthquakeEffect.gd": {
+   "plan-doc": 3
+  },
+  "game/gifts/specials/JumpingBeanEffect.gd": {
+   "plan-doc": 1
+  },
+  "game/gifts/specials/MagnetEffect.gd": {
+   "plan-doc": 2
+  },
+  "game/gifts/specials/PropellerStand.gd": {
+   "plan-doc": 1
+  },
+  "game/gifts/specials/SpecialBehavior.gd": {
+   "plan-doc": 7
+  },
+  "game/gifts/specials/SpecialEffect.gd": {
+   "plan-doc": 3
+  },
+  "game/gifts/specials/SpecialPhysics.gd": {
+   "plan-doc": 1
+  },
+  "game/main/HotSeat.gd": {
+   "plan-doc": 4
+  },
+  "game/main/Main.gd": {
+   "plan-doc": 7
+  },
+  "game/main/MainFlowPort.gd": {
+   "plan-doc": 1
+  },
+  "game/main/MainHeadlessBotsFlow.gd": {
+   "plan-doc": 5
+  },
+  "game/main/MainMatchFlow.gd": {
+   "plan-doc": 3
+  },
+  "game/main/MainSandboxFlow.gd": {
+   "plan-doc": 3
+  },
+  "game/main/MenuPrewarmQueue.gd": {
+   "plan-doc": 1
+  },
+  "game/player/GhostPreview.gd": {
+   "plan-doc": 5
+  },
+  "game/player/PlayerController.gd": {
+   "plan-doc": 7
+  },
+  "game/sandbox/Sandbox.gd": {
+   "plan-doc": 1
+  },
+  "game/sky/Skybox.gd": {
+   "plan-doc": 1
+  },
+  "game/world/BlockBody.gd": {
+   "plan-doc": 2
+  },
+  "game/world/FieldBody.gd": {
+   "plan-doc": 1
+  },
+  "game/world/MatchContext.gd": {
+   "plan-doc": 1
+  },
+  "net/Interpolator.gd": {
+   "plan-doc": 1
+  },
+  "net/LanDiscovery.gd": {
+   "plan-doc": 1
+  },
+  "net/MatchEventApplier.gd": {
+   "plan-doc": 1
+  },
+  "net/MatchNet.gd": {
+   "plan-doc": 2
+  },
+  "net/SnapshotSync.gd": {
+   "plan-doc": 3
+  },
+  "net/SteamClient.gd": {
+   "plan-doc": 8
+  },
+  "shaders/blocks/block_cell_grid.gdshader": {
+   "plan-doc": 1
+  },
+  "shaders/blocks/block_outline.gdshader": {
+   "plan-doc": 1
+  },
+  "tests/bench/bench_snapshot.gd": {
+   "plan-doc": 3
+  },
+  "tests/bench/bench_specials_chain.gd": {
+   "plan-doc": 1
+  },
+  "tests/enet/gift_fx_enet.gd": {
+   "plan-doc": 1,
+   "short-bead-id": 2
+  },
+  "tests/enet/m2_acceptance.gd": {
+   "plan-doc": 1
+  },
+  "tests/enet/m3a_acceptance.gd": {
+   "plan-doc": 7
+  },
+  "tests/support/FakeMatch.gd": {
+   "plan-doc": 2
+  },
+  "tests/support/FakeMatchContext.gd": {
+   "plan-doc": 1
+  },
+  "tests/support/FakeNet.gd": {
+   "plan-doc": 3
+  },
+  "tests/support/FakeSteam.gd": {
+   "plan-doc": 3
+  },
+  "tests/unit/audio/test_sfx.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/blocks/test_afk_spawn_height.gd": {
+   "short-bead-id": 1
+  },
+  "tests/unit/blocks/test_block_freeze_api.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/blocks/test_block_shapes.gd": {
+   "short-bead-id": 1
+  },
+  "tests/unit/blocks/test_block_shapes_v2.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/blocks/test_fused_body.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/blocks/test_ghost_preview.gd": {
+   "short-bead-id": 1
+  },
+  "tests/unit/blocks/test_ghost_tint.gd": {
+   "plan-doc": 2
+  },
+  "tests/unit/blocks/test_stable_block_manager.gd": {
+   "plan-doc": 1,
+   "short-bead-id": 1
+  },
+  "tests/unit/bots/test_bot_com_pick.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/bots/test_bot_com_scenarios.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/bots/test_bot_controller.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/bots/test_bot_debris_surface.gd": {
+   "short-bead-id": 1
+  },
+  "tests/unit/bots/test_bot_sound_base.gd": {
+   "plan-doc": 1,
+   "short-bead-id": 2
+  },
+  "tests/unit/bots/test_bot_spawn_frame.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/bots/test_bot_tier_parity.gd": {
+   "short-bead-id": 1
+  },
+  "tests/unit/bots/test_bot_tower_keep.gd": {
+   "short-bead-id": 1
+  },
+  "tests/unit/bots/test_bot_tower_scenarios.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/bots/test_headless_bot_match.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/field/test_field_map_def.gd": {
+   "plan-doc": 1,
+   "short-bead-id": 1
+  },
+  "tests/unit/field/test_field_raycast.gd": {
+   "plan-doc": 2
+  },
+  "tests/unit/field/test_field_tilt.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/gifts/test_anvil_effect.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/gifts/test_bomb_effect.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/gifts/test_earthquake_effect.gd": {
+   "plan-doc": 4
+  },
+  "tests/unit/gifts/test_freeze_effect.gd": {
+   "plan-doc": 2
+  },
+  "tests/unit/gifts/test_fused_specials.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/gifts/test_gift_blast_blocks.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/gifts/test_gift_claim.gd": {
+   "plan-doc": 3
+  },
+  "tests/unit/gifts/test_gift_entrances.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/gifts/test_gift_fx_explosion.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/gifts/test_gift_fx_landed.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/gifts/test_gift_fx_pull.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/gifts/test_gift_icon_table.gd": {
+   "short-bead-id": 1
+  },
+  "tests/unit/gifts/test_gift_in_place.gd": {
+   "plan-doc": 1,
+   "short-bead-id": 1
+  },
+  "tests/unit/gifts/test_gift_models.gd": {
+   "short-bead-id": 2
+  },
+  "tests/unit/gifts/test_gift_playtest2_contracts.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/gifts/test_gift_projectile_flight.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/gifts/test_gift_spawner.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/gifts/test_gift_throw.gd": {
+   "short-bead-id": 1
+  },
+  "tests/unit/gifts/test_glue_drops.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/gifts/test_glue_fusion.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/gifts/test_jumping_bean_effect.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/gifts/test_jumping_bean_real_physics.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/gifts/test_late_activation_facades.gd": {
+   "short-bead-id": 1
+  },
+  "tests/unit/gifts/test_magnet_effect.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/gifts/test_rocket_effect.gd": {
+   "plan-doc": 1,
+   "short-bead-id": 1
+  },
+  "tests/unit/gifts/test_special_behavior.gd": {
+   "plan-doc": 2
+  },
+  "tests/unit/gifts/test_special_black_hole.gd": {
+   "short-bead-id": 1
+  },
+  "tests/unit/gifts/test_special_def.gd": {
+   "plan-doc": 2
+  },
+  "tests/unit/gifts/test_special_physics.gd": {
+   "plan-doc": 2
+  },
+  "tests/unit/main/test_boot.gd": {
+   "short-bead-id": 1
+  },
+  "tests/unit/main/test_sandbox_placement.gd": {
+   "plan-doc": 2
+  },
+  "tests/unit/main/test_settings.gd": {
+   "plan-doc": 2
+  },
+  "tests/unit/match/test_beacon_timers.gd": {
+   "short-bead-id": 1
+  },
+  "tests/unit/match/test_expiry_throw.gd": {
+   "short-bead-id": 3
+  },
+  "tests/unit/match/test_match_config.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/match/test_match_context.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/match/test_match_flow.gd": {
+   "plan-doc": 3
+  },
+  "tests/unit/match/test_match_throw.gd": {
+   "short-bead-id": 1
+  },
+  "tests/unit/match/test_mode_polish.gd": {
+   "short-bead-id": 2
+  },
+  "tests/unit/match/test_placement_events.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/match/test_placement_rules.gd": {
+   "plan-doc": 2
+  },
+  "tests/unit/match/test_win_checker.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/net/test_impact_replication.gd": {
+   "short-bead-id": 1
+  },
+  "tests/unit/net/test_interpolator.gd": {
+   "plan-doc": 2
+  },
+  "tests/unit/net/test_kick_broadcast.gd": {
+   "short-bead-id": 1
+  },
+  "tests/unit/net/test_lan_discovery.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/net/test_late_join.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/net/test_match_net.gd": {
+   "plan-doc": 2
+  },
+  "tests/unit/net/test_net_chat.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/net/test_net_debug_overlay.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/net/test_net_session.gd": {
+   "plan-doc": 6
+  },
+  "tests/unit/net/test_net_sim.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/net/test_quantize.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/net/test_remote_cursors.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/net/test_snapshot_wire.gd": {
+   "plan-doc": 2
+  },
+  "tests/unit/net/test_steam_client.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/player/test_camera_drop_continuity.gd": {
+   "short-bead-id": 1
+  },
+  "tests/unit/player/test_camera_rig.gd": {
+   "short-bead-id": 1
+  },
+  "tests/unit/player/test_hot_seat.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/player/test_playercontroller_gamepad.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/player/test_playercontroller_hover_cap.gd": {
+   "short-bead-id": 3
+  },
+  "tests/unit/player/test_playercontroller_mouse.gd": {
+   "short-bead-id": 1
+  },
+  "tests/unit/player/test_throw_arc_preview.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/sky/test_sky_palette.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/sky/test_sky_themes.gd": {
+   "plan-doc": 2
+  },
+  "tests/unit/territory/test_cell_grid.gd": {
+   "plan-doc": 2
+  },
+  "tests/unit/territory/test_claim_radius_cache.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/territory/test_fused_territory.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/territory/test_raster_replication.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/territory/test_territory_collect_cache.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/territory/test_territory_overlay.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/territory/test_territory_raster.gd": {
+   "plan-doc": 2
+  },
+  "tests/unit/ui/test_controls_pad_rows.gd": {
+   "short-bead-id": 1
+  },
+  "tests/unit/ui/test_hud.gd": {
+   "plan-doc": 2
+  },
+  "tests/unit/ui/test_key_rebind_row.gd": {
+   "short-bead-id": 1
+  },
+  "tests/unit/ui/test_lobby.gd": {
+   "plan-doc": 3
+  },
+  "tests/unit/ui/test_lobby_players.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/ui/test_lobby_qol.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/ui/test_lobby_sections.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/ui/test_main_menu.gd": {
+   "plan-doc": 3
+  },
+  "tests/unit/ui/test_main_menu_arcade.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/ui/test_main_menu_pages.gd": {
+   "short-bead-id": 1
+  },
+  "tests/unit/ui/test_menu_slider_nav.gd": {
+   "short-bead-id": 2
+  },
+  "tests/unit/ui/test_options_menu.gd": {
+   "plan-doc": 2
+  },
+  "tests/unit/ui/test_options_pause_arcade.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/ui/test_slot_diamond.gd": {
+   "short-bead-id": 1
+  },
+  "tests/unit/ui/test_tutorial.gd": {
+   "plan-doc": 1
+  },
+  "tests/unit/ui/test_ui_dropdown.gd": {
+   "short-bead-id": 1
+  },
+  "ui/components/ComponentGallery.gd": {
+   "plan-doc": 1
+  },
+  "ui/components/UiChatPanel.gd": {
+   "plan-doc": 1
+  },
+  "ui/components/UiHoldRepeat.gd": {
+   "short-bead-id": 4
+  },
+  "ui/components/UiIconButton.gd": {
+   "plan-doc": 1
+  },
+  "ui/components/UiRow.gd": {
+   "plan-doc": 1
+  },
+  "ui/components/UiRowItem.gd": {
+   "plan-doc": 1
+  },
+  "ui/components/UiSection.gd": {
+   "short-bead-id": 1
+  },
+  "ui/components/UiSegmentMeter.gd": {
+   "short-bead-id": 1
+  },
+  "ui/components/UiStatusBadge.gd": {
+   "short-bead-id": 1
+  },
+  "ui/components/UiTitleRow.gd": {
+   "plan-doc": 1
+  },
+  "ui/components/UiToggle.gd": {
+   "short-bead-id": 1
+  },
+  "ui/debug/NetDebugOverlay.gd": {
+   "plan-doc": 2
+  },
+  "ui/debug/SandboxPanel.gd": {
+   "plan-doc": 3
+  },
+  "ui/hud/HUD.gd": {
+   "plan-doc": 6,
+   "short-bead-id": 3
+  },
+  "ui/hud/HudChat.gd": {
+   "plan-doc": 1
+  },
+  "ui/hud/Minimap.gd": {
+   "plan-doc": 1
+  },
+  "ui/lobby/Lobby.gd": {
+   "plan-doc": 11,
+   "short-bead-id": 2
+  },
+  "ui/lobby/LobbyChat.gd": {
+   "plan-doc": 1
+  },
+  "ui/lobby/LobbyPlayersPanel.gd": {
+   "plan-doc": 3
+  },
+  "ui/lobby/LobbySeatRow.gd": {
+   "plan-doc": 1
+  },
+  "ui/menus/GraphicsSettingsTab.gd": {
+   "short-bead-id": 1
+  },
+  "ui/menus/KeyRebindRow.gd": {
+   "plan-doc": 3,
+   "short-bead-id": 2
+  },
+  "ui/menus/LoadingScreen.gd": {
+   "plan-doc": 1
+  },
+  "ui/menus/MainMenu.gd": {
+   "plan-doc": 10
+  },
+  "ui/menus/MenuBackdrop.gd": {
+   "plan-doc": 1
+  },
+  "ui/menus/OptionsMenu.gd": {
+   "plan-doc": 3,
+   "short-bead-id": 1
+  },
+  "ui/menus/ResultsScreen.gd": {
+   "plan-doc": 1
+  },
+  "ui/menus/Tutorial.gd": {
+   "plan-doc": 3
+  },
+  "ui/theme/BlockStyleBox.gd": {
+   "plan-doc": 1
+  },
+  "ui/theme/MenuStyleFactory.gd": {
+   "plan-doc": 2
+  },
+  "ui/theme/UiScale.gd": {
+   "short-bead-id": 1
+  }
+ }
 }
