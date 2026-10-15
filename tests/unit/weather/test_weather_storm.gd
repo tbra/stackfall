@@ -281,7 +281,7 @@ func test_presentation_density_follows_intensity_and_never_touches_physics() -> 
 	assert_true(presentation.visible)
 	var streaks: MultiMeshInstance3D = presentation.get_node("Streaks") as MultiMeshInstance3D
 	var material: ShaderMaterial = streaks.material_override as ShaderMaterial
-	var breeze: BreezeTuning = load("res://config/weather/breeze.tres") as BreezeTuning
+	var breeze: BreezeTuning = load("res://config/breeze/breeze.tres") as BreezeTuning
 	assert_almost_eq(float(material.get_shader_parameter(&"density")), 0.7, 0.0001)
 	assert_eq(streaks.layers, RainPresentation.RENDER_LAYER_BIT)
 	assert_lte(_tuning.streak_length_m, 12.0)

@@ -308,14 +308,14 @@ assets/effects/black_hole.wav	assets/audio/sfx/black_hole.wav	move	feature folde
 assets/effects/black_hole.wav.import	assets/audio/sfx/black_hole.wav.import	move	companion of assets/effects/black_hole.wav
 assets/effects/block_drop_a.wav	assets/audio/sfx/block_drop_a.wav	move	feature folder
 assets/effects/block_drop_a.wav.import	assets/audio/sfx/block_drop_a.wav.import	move	companion of assets/effects/block_drop_a.wav
-assets/effects/block_drop_b.wav		delete	named by no config or code (only the F4 SFX tab's directory listing shows it)
-assets/effects/block_drop_b.wav.import		delete	named by no config or code (only the F4 SFX tab's directory listing shows it)
+assets/effects/block_drop_b.wav	assets/audio/sfx/block_drop_b.wav	restore-move	P10 fix: owner F4 audition candidates (block_drop_b/d/e), restored from main and moved to the sfx folder
+assets/effects/block_drop_b.wav.import	assets/audio/sfx/block_drop_b.wav.import	restore-move	P10 fix: owner F4 audition candidates (block_drop_b/d/e), restored from main and moved to the sfx folder
 assets/effects/block_drop_c.wav	assets/audio/sfx/block_drop_c.wav	move	feature folder
 assets/effects/block_drop_c.wav.import	assets/audio/sfx/block_drop_c.wav.import	move	companion of assets/effects/block_drop_c.wav
-assets/effects/block_drop_d.wav		delete	named by no config or code (only the F4 SFX tab's directory listing shows it)
-assets/effects/block_drop_d.wav.import		delete	named by no config or code (only the F4 SFX tab's directory listing shows it)
-assets/effects/block_drop_e.wav		delete	named by no config or code (only the F4 SFX tab's directory listing shows it)
-assets/effects/block_drop_e.wav.import		delete	named by no config or code (only the F4 SFX tab's directory listing shows it)
+assets/effects/block_drop_d.wav	assets/audio/sfx/block_drop_d.wav	restore-move	P10 fix: owner F4 audition candidates (block_drop_b/d/e), restored from main and moved to the sfx folder
+assets/effects/block_drop_d.wav.import	assets/audio/sfx/block_drop_d.wav.import	restore-move	P10 fix: owner F4 audition candidates (block_drop_b/d/e), restored from main and moved to the sfx folder
+assets/effects/block_drop_e.wav	assets/audio/sfx/block_drop_e.wav	restore-move	P10 fix: owner F4 audition candidates (block_drop_b/d/e), restored from main and moved to the sfx folder
+assets/effects/block_drop_e.wav.import	assets/audio/sfx/block_drop_e.wav.import	restore-move	P10 fix: owner F4 audition candidates (block_drop_b/d/e), restored from main and moved to the sfx folder
 assets/effects/block_placed.wav	assets/audio/sfx/block_placed.wav	move	feature folder
 assets/effects/block_placed.wav.import	assets/audio/sfx/block_placed.wav.import	move	companion of assets/effects/block_placed.wav
 assets/effects/block_release.wav	assets/audio/sfx/block_release.wav	move	feature folder
@@ -1056,8 +1056,8 @@ config/BotThinkCostTuning.gd	config/bots/BotThinkCostTuning.gd	move	feature fold
 config/BotThinkCostTuning.gd.uid	config/bots/BotThinkCostTuning.gd.uid	move	companion of config/BotThinkCostTuning.gd
 config/BotTuning.gd	config/bots/BotTuning.gd	move	feature folder
 config/BotTuning.gd.uid	config/bots/BotTuning.gd.uid	move	companion of config/BotTuning.gd
-config/BreezeTuning.gd	config/weather/BreezeTuning.gd	move	feature folder
-config/BreezeTuning.gd.uid	config/weather/BreezeTuning.gd.uid	move	companion of config/BreezeTuning.gd
+config/BreezeTuning.gd	config/breeze/BreezeTuning.gd	move	feature folder
+config/BreezeTuning.gd.uid	config/breeze/BreezeTuning.gd.uid	move	companion of config/BreezeTuning.gd
 config/CameraShakeConfig.gd	config/physics/CameraShakeConfig.gd	move	feature folder
 config/CameraShakeConfig.gd.uid	config/physics/CameraShakeConfig.gd.uid	move	companion of config/CameraShakeConfig.gd
 config/CameraTuning.gd	config/player/CameraTuning.gd	move	feature folder
@@ -1232,7 +1232,7 @@ config/bot_stack_tuning.tres	config/bots/bot_stack_tuning.tres	move	feature fold
 config/bot_strategy_tuning.tres	config/bots/bot_strategy_tuning.tres	move	feature folder
 config/bot_think_cost.tres	config/bots/bot_think_cost.tres	move	feature folder
 config/bot_tuning.tres	config/bots/bot_tuning.tres	move	feature folder
-config/breeze.tres	config/weather/breeze.tres	move	feature folder
+config/breeze.tres	config/breeze/breeze.tres	move	feature folder
 config/camera_shake.tres	config/physics/camera_shake.tres	move	feature folder
 config/camera_tuning.tres	config/player/camera_tuning.tres	move	feature folder
 config/chat_config.tres	config/net/chat_config.tres	move	feature folder

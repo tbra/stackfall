@@ -4,7 +4,7 @@ extends GutTest
 ## skips its spawn attempt while the active weather is Storm and resumes when
 ## the Storm ends; clear/rain/other weather leave it as before. Gusts reach
 ## clients only as host announcements (net/BreezeNet.gd), so no announcement
-## means no client gust. Shipped numbers: config/weather/breeze.tres.
+## means no client gust. Shipped numbers: config/breeze/breeze.tres.
 
 const DELTA: float = 1.0 / 60.0
 const SEED_A: int = 4242
@@ -13,7 +13,7 @@ const SIM_SECONDS: float = 600.0
 const SIM_STEP: float = 0.1
 const MIN_GUSTS_CLEAR: int = 100
 const STORM_ID: StringName = &"storm"
-const BREEZE_TUNING_PATH: String = "res://config/weather/breeze.tres"
+const BREEZE_TUNING_PATH: String = "res://config/breeze/breeze.tres"
 const BLOCK_SHAPE_PATH: String = "res://config/blocks/cube.tres"
 const PHYSICS_TUNING_PATH: String = "res://config/physics/physics_tuning.tres"
 const FAST_SPAWN_INTERVAL_S: float = 0.1

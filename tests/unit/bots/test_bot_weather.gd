@@ -77,7 +77,7 @@ func test_wind_scales_with_intensity() -> void:
 
 # --- Bontago-1t5.46: Breeze gusts and wind direction ---
 
-const BREEZE: BreezeTuning = preload("res://config/weather/breeze.tres")
+const BREEZE: BreezeTuning = preload("res://config/breeze/breeze.tres")
 const GUST_CENTRE: Vector3 = Vector3(0.0, 6.0, 0.0)
 const GUST_RADIUS_M: float = 6.0
 const OFFSET_M: float = 3.0

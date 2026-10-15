@@ -1,7 +1,7 @@
 extends GutTest
 ## Breeze (Bontago-470.2): the pure gust rules (core/weather/BreezeField.gd), the host
 ## effect (autoload/match/BreezeEffect.gd) against real Jolt bodies, the wire
-## sanitizer and the bounded presenter. Shipped numbers: config/weather/breeze.tres.
+## sanitizer and the bounded presenter. Shipped numbers: config/breeze/breeze.tres.
 
 const DELTA: float = 1.0 / 60.0
 const SEED_A: int = 4242
@@ -26,7 +26,7 @@ var _gusts_seen: Array[Dictionary] = []
 
 
 func before_each() -> void:
-	_tuning = (load("res://config/weather/breeze.tres") as BreezeTuning).duplicate() as BreezeTuning
+	_tuning = (load("res://config/breeze/breeze.tres") as BreezeTuning).duplicate() as BreezeTuning
 	# Statistical tests below need many gusts: a frequent, short-lived profile
 	# (the shipped defaults are sporadic, see test_default_gusts_are_sporadic_single).
 	_tuning.spawn_interval_s = BUSY_INTERVAL_S
@@ -182,12 +182,12 @@ func _top_sway(count: int, with_gust: bool, center_height: float) -> float:
 	effect.begin(SEED_A)
 	if with_gust:
 		# The shipped (sporadic) gust size, not the busy statistics profile.
-		var shipped: BreezeTuning = load("res://config/weather/breeze.tres") as BreezeTuning
+		var shipped: BreezeTuning = load("res://config/breeze/breeze.tres") as BreezeTuning
 		var duration: float = (shipped.duration_min_s + shipped.duration_max_s) * 0.5
 		var radius: float = (shipped.radius_min_m + shipped.radius_max_m) * 0.5
 		effect.gusts().append({"id": 1, "x": 0.0, "y": center_height, "z": 0.0, "a": 0.0, "r": radius, "d": duration, "s": 1.0, "age": 0.0})
 	var moved: float = 0.0
-	for _i: int in range(int(((load("res://config/weather/breeze.tres") as BreezeTuning).duration_max_s + 3.0) * 60.0)):
+	for _i: int in range(int(((load("res://config/breeze/breeze.tres") as BreezeTuning).duration_max_s + 3.0) * 60.0)):
 		effect.tick(DELTA)
 		await get_tree().physics_frame
 		if not is_instance_valid(top):
@@ -261,7 +261,7 @@ func test_gusts_are_rare_low_and_common_high() -> void:
 
 
 func test_default_gusts_are_sporadic_single() -> void:
-	var shipped: BreezeTuning = load("res://config/weather/breeze.tres") as BreezeTuning
+	var shipped: BreezeTuning = load("res://config/breeze/breeze.tres") as BreezeTuning
 	assert_gte(shipped.spawn_interval_s, 15.0, "a gust every now and then")
 	assert_lte(shipped.radius_max_m, 6.0, "small gusts")
 	assert_lte(shipped.duration_max_s, 3.0, "short gusts")

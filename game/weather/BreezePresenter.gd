@@ -5,7 +5,7 @@ extends Node3D
 ## and on clients. Bounded: at most BreezeTuning.max_presented_gusts alive; a
 ## new gust beyond that is dropped. Presentation only.
 
-const GUST_SCENE_DEFAULT_TUNING: BreezeTuning = preload("res://config/weather/breeze.tres")
+const GUST_SCENE_DEFAULT_TUNING: BreezeTuning = preload("res://config/breeze/breeze.tres")
 
 var tuning: BreezeTuning = GUST_SCENE_DEFAULT_TUNING
 var _live: Array[GustPresentation] = []

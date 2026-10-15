@@ -1427,7 +1427,7 @@ func _build_weather_row() -> Control:
 
 
 ## Bontago-470.2: F4 toggle for the always-on Breeze gust layer (host only, for
-## testing; strength lives in config/weather/breeze.tres). Clients see gusts through
+## testing; strength lives in config/breeze/breeze.tres). Clients see gusts through
 ## replication, so the box is disabled with a hint on a client.
 func _build_breeze_row() -> Control:
 	var row: HBoxContainer = HBoxContainer.new()

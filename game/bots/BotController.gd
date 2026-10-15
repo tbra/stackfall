@@ -37,7 +37,7 @@ const STORM_TUNING: StormTuning = preload("res://config/weather/storm.tres")
 ## Bontago-1t5.46: the wire fields (Events.breeze_gust_started) a listed gust must carry to be read.
 const GUST_KEYS: Array[String] = ["x", "y", "z", "a", "r", "d", "s"]
 ## Bontago-1t5.46: the shipped Breeze response the V2 evaluator reads for live gusts (same resource BreezeEffect uses).
-const BREEZE_TUNING: BreezeTuning = preload("res://config/weather/breeze.tres")
+const BREEZE_TUNING: BreezeTuning = preload("res://config/breeze/breeze.tres")
 
 enum State { IDLE, GENERATING, ACTING, THINKING, RELEASE_WAIT }
 

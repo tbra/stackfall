@@ -109,7 +109,7 @@ func _measure(top: Block, seconds: float, step: Callable, stop_above: float = IN
 
 
 func _gust_sway(tower: Array[Block], seed_value: int, strength: float, stop_above: float = INF) -> float:
-	var tuning: BreezeTuning = (load("res://config/weather/breeze.tres") as BreezeTuning).duplicate() as BreezeTuning
+	var tuning: BreezeTuning = (load("res://config/breeze/breeze.tres") as BreezeTuning).duplicate() as BreezeTuning
 	tuning.spawn_interval_s = 1.0e6
 	# Capability test: an explicitly strong gust (the pre-1pi.76 defaults), not the
 	# shipped small, short gust (r 4-6 m, 1.5-2.5 s), which topples only some towers.

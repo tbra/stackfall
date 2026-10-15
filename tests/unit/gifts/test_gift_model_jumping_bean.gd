@@ -20,7 +20,7 @@ func _has_part(names: PackedStringArray, part: String) -> bool:
 func test_table_row_uses_the_spring_blob_model_and_keeps_the_hop_loop() -> void:
 	var entry: GiftModelEntry = GiftModelTable.shared().entry_for(&"jumping_bean")
 	assert_not_null(entry)
-	assert_true(entry.scene.resource_path.contains("jumping_bean_v3"), "v3 model")
+	assert_true(entry.scene.resource_path.contains("assets/models/gifts/jumping_bean.glb"), "the shipped jumping_bean model (version suffix dropped by P10)")
 	assert_eq(entry.loop_animation, &"idle_hop_1p5s")
 
 
