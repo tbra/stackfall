@@ -431,7 +431,7 @@ class _Gen:
 	## against it whose pile keeps the centre of mass inside every support (BotStack.rest_margin >= 0); true
 	## without an analysed snapshot. DECISION: the model probes every bottom cube, not the tier's
 	## stability_raycast_count (that cap limits real rays; a snapshot lookup is cheap), and the piece's mass is
-	## BotThink._load_margin's (cube count times the shipped cube mass).
+	## its cube count times the shipped cube mass.
 	func _rests_flat(origin: Vector2, orientation: BotStatics.OrientationInfo) -> bool:
 		var stack: BotStack = view.stack
 		if stack == null or not stack.is_analysed():

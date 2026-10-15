@@ -131,7 +131,6 @@ func test_sound_column_picks_the_bar_upright() -> void:
 
 
 func test_bar4_and_bar5_stand_up_on_a_sound_top() -> void:
-	# Bontago-1t5.71: slenderness is a soft penalty, not a generation cap (real physics: tests/unit/bots/test_bot_slender.gd).
 	for shape: BlockShape in [_bar4, _bar5]:
 		var view: BotWorldView = _view(shape, MatchConfig.GameMode.REACH_THE_SKY)
 		var sites: Array[BotCandidate] = _stack_sites(view, _gen_tuning)

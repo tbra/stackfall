@@ -151,7 +151,7 @@ func phase_stats(phase: int) -> Dictionary:
 
 
 ## PROBE split: {call_mean_us (physics queries in the caller's callables), call_p95_us, rest_mean_us
-## (statics, tip risk, load margin), calls_per_think, call_share_of_probe_pct}.
+## (the statics cut model), calls_per_think, call_share_of_probe_pct}.
 func probe_split() -> Dictionary:
 	var call_us: PackedInt64Array = _column("probe_call_us")
 	var call_mean: float = _mean(call_us)

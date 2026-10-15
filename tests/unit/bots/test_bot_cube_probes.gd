@@ -1,7 +1,7 @@
 extends GutTest
 ## Bontago-1t5.55.2 (55b): the bot probes the REAL bottom cubes (outermost first), the resting plane is the
 ## highest probed hit, an overhanging cube beyond a capped tier's first cells is detected, and BotCandidate
-## carries the stub fields 1t5.53b fills (probe_points, support_bodies, load_margin).
+## carries the stub fields 1t5.53b fills (probe_points, support_bodies).
 
 const MAP_RADIUS: float = 20.0
 const CELL: float = 1.0
@@ -117,7 +117,6 @@ func test_candidate_stub_defaults_keep_todays_behaviour() -> void:
 	var c: BotCandidate = BotCandidate.new()
 	assert_eq(c.probe_points.size(), 0)
 	assert_eq(c.support_bodies.size(), 0)
-	assert_eq(c.load_margin, INF)
 	assert_eq(c.stability_slack, INF)
 
 

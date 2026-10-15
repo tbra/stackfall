@@ -22,7 +22,7 @@ const STAND_MAX_MOVE_M: float = 0.1
 const STAND_MAX_TILT_RAD: float = 0.15
 ## The piece stays up while its pivot (at its bottom face) is within this of its plane; a fallen piece is a cube or more below.
 const STAND_MAX_SINK_M: float = 0.2
-## The piece is dropped this far above its plane (m), as test_bot_slender_1014 does.
+## The piece is dropped this far above its plane (m), as test_bot_slender does.
 const DROP_LIFT_M: float = 0.02
 const _OBSERVER_TEAM: int = 0
 
