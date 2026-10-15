@@ -158,7 +158,7 @@ func test_submit_place_on_a_client_sends_without_touching_match() -> void:
 		1, _home_world_position(1), 0, Quaternion.IDENTITY, false, Match.feed_seq(1)
 	)
 
-	assert_eq(_block_count(), before, "A client must never spawn a block itself (spec 3.4).")
+	assert_eq(_block_count(), before, "A client must never spawn a block itself (spec 2.6).")
 	assert_eq(net.intents_accepted(1), 0, "Only the host accepts.")
 	assert_eq(reason, PlacementRules.REASON_NO_BLOCK, "With no peer there is nowhere to send it.")
 	assert_eq(

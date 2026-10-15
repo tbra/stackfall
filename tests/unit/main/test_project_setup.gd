@@ -140,7 +140,7 @@ func test_autoloads_are_registered() -> void:
 	for singleton: String in AUTOLOADS:
 		assert_true(
 			ProjectSettings.has_setting("autoload/%s" % singleton),
-			"Autoload %s is missing (spec 3.2)." % singleton
+			"Autoload %s is missing (spec 2.2)." % singleton
 		)
 		assert_not_null(
 			get_tree().root.get_node_or_null(NodePath(singleton)),
@@ -150,7 +150,7 @@ func test_autoloads_are_registered() -> void:
 
 func test_every_required_action_exists() -> void:
 	for action: String in REQUIRED_ACTIONS:
-		assert_true(InputMap.has_action(action), "Input action %s is missing (spec 2.5)." % action)
+		assert_true(InputMap.has_action(action), "Input action %s is missing (spec 1.3)." % action)
 
 
 func test_every_action_is_bound_on_both_devices() -> void:

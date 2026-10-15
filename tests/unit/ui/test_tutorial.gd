@@ -91,7 +91,7 @@ func test_start_tutorial_from_menu_builds_a_playing_one_player_sandbox_match() -
 	_start_tutorial()
 
 	assert_eq(Match.state(), Match.State.PLAYING)
-	assert_true(Match.config.sandbox, "spec 2.7: the tutorial waives territory limits like Sandbox.")
+	assert_true(Match.config.sandbox, "spec 1.2: the tutorial waives territory limits like Sandbox.")
 	assert_eq(Match.config.player_count, 1, "there is only ever one tutorial participant.")
 	assert_null(_main._lobby, "the Main-Menu tutorial path never builds a Lobby.")
 	assert_true(Net.is_offline(), "the Main-Menu tutorial path never touches Net's host/join state.")

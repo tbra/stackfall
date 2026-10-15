@@ -72,5 +72,5 @@ func test_a_rejected_placement_emits_the_event_and_spawns_nothing_locally() -> v
 	assert_signal_emitted_with_parameters(Events, "placement_rejected", [0, PlacementRules.REASON_CONTESTED])
 	assert_almost_eq(
 		ghost.current_tint_color().r, ghost.ghost_tuning.reject_flash_color.r, 0.001,
-		"A rejected placement should flash the ghost (spec 2.2's reject animation)."
+		"A rejected placement should flash the ghost (spec 1.5's reject animation)."
 	)

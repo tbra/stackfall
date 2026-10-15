@@ -102,7 +102,7 @@ func test_a_client_does_not_auto_drop_itself() -> void:
 	assert_eq(
 		fake_match.request_place_calls.size(),
 		0,
-		"Spec 2.5's auto-drop happens on the host, from the last cursor it received."
+		"Spec 1.4's auto-drop happens on the host, from the last cursor it received."
 	)
 
 

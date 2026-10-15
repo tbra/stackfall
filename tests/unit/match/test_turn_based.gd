@@ -60,7 +60,7 @@ func test_a_never_settling_block_advances_at_exactly_the_safety_cap() -> void:
 		spawned.linear_velocity = Vector3(10.0, 0.0, 0.0)
 
 	assert_eq(Match.active_slot(), 1,
-		"spec 2.7: a block that never settles still hands the turn over after turn_based_max_settle_s")
+		"spec 1.2: a block that never settles still hands the turn over after turn_based_max_settle_s")
 
 
 func test_request_place_rejects_the_slot_whose_turn_it_isnt_under_turn_based() -> void:

@@ -20,9 +20,9 @@ func test_field_forwards_text_placeholder_and_signals() -> void:
 	field.text_changed.connect(func(t: String) -> void: changed.append(t))
 	field.text_submitted.connect(func(t: String) -> void: submitted.append(t))
 	field.placeholder = "Your name"
-	field.text = "Tony"  # lint-public: allow fixture text, not a user name
+	field.text = "Alex"
 	assert_eq(field.edit.placeholder_text, "Your name")
-	assert_eq(field.edit.text, "Tony")  # lint-public: allow fixture text, not a user name
+	assert_eq(field.edit.text, "Alex")
 	field.edit.text_changed.emit("Tonyx")
 	assert_eq(field.text, "Tonyx", "typing updates the component text")
 	assert_eq(changed, ["Tonyx"])

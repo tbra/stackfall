@@ -90,7 +90,7 @@ func test_a_cut_off_tower_loses_its_cells() -> void:
 	var cut: Array[InfluenceCircle] = [linked[0], linked[2]]
 	_step(cut, 0.1)
 	assert_eq(_team_at_point(probe), -1,
-		"Spec 2.2: if a tower is cut off, its influence is gone.")
+		"Spec 1.5: if a tower is cut off, its influence is gone.")
 
 
 ## -- Teams -------------------------------------------------------------------
@@ -233,7 +233,7 @@ func test_a_hole_stays_open_while_the_overlap_lasts() -> void:
 	for i: int in range(60):
 		_step(contested, 0.1, TEMPORARY)
 	assert_true(_raster.is_hole(cell.x, cell.y),
-		"Spec 2.2: a cell stays a hole while contested.")
+		"Spec 1.5: a cell stays a hole while contested.")
 
 
 ## -- Shader bytes ------------------------------------------------------------
@@ -459,7 +459,7 @@ func test_v2_a_cut_off_tower_loses_its_area_not_just_the_win_check() -> void:
 
 	_step_v2([home, b, rival] as Array[InfluenceCircle])
 	assert_eq(_team_at_point(Vector2(4.0, 0.0)), -1,
-		"Spec 2.2: a cut-off tower's influence is gone from the field, not just "
+		"Spec 1.5: a cut-off tower's influence is gone from the field, not just "
 		+ "from the win check.")
 	assert_eq(_team_at_point(Vector2(9.0, 0.0)), 1,
 		"And the ground it held falls to whoever else reaches it.")

@@ -237,7 +237,7 @@ func test_backlog_drains_at_the_per_frame_budget() -> void:
 	assert_lte(
 		_hole_cell_count(field),
 		budget * 2,
-		"Spec 3.3: at most max_cell_toggles_per_frame toggles in a frame."
+		"Spec 2.5: at most max_cell_toggles_per_frame toggles in a frame."
 	)
 
 	var frames: int = 0

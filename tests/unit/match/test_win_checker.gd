@@ -107,7 +107,7 @@ func test_one_team_holding_two_goals_in_two_groups_does_not_win() -> void:
 
 	_run(checker, circles, 60)
 	assert_eq(checker.winner(), WinChecker.NO_TEAM,
-		"Spec 2.3 wants ONE connected territory holding every goal.")
+		"Spec 1.5 wants ONE connected territory holding every goal.")
 	assert_eq(checker.capturing_team(), WinChecker.NO_TEAM)
 	assert_almost_eq(checker.capture_progress(), 0.0, 0.0001)
 

@@ -91,7 +91,7 @@ func test_manual_placement_outside_territory_succeeds_in_sandbox() -> void:
 		slot_id, _home_world_position(1), 0, Quaternion.IDENTITY, false
 	)
 
-	assert_eq(reason, PlacementRules.REASON_OK, "spec 2.7: sandbox has no territory limits.")
+	assert_eq(reason, PlacementRules.REASON_OK, "spec 1.2: sandbox has no territory limits.")
 	assert_eq(_blocks_root.get_child_count(), 1)
 	_teardown_placement()
 
@@ -152,7 +152,7 @@ func test_hole_placement_is_still_refused_in_sandbox() -> void:
 
 	assert_eq(
 		reason, PlacementRules.REASON_HOLE,
-		"spec 2.7: 'no territory limits' is not 'place blocks through a hole'."
+		"spec 1.2: 'no territory limits' is not 'place blocks through a hole'."
 	)
 	assert_eq(_blocks_root.get_child_count(), 0)
 	_teardown_placement()
