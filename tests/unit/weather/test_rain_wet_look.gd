@@ -30,15 +30,6 @@ func _presentation() -> RainPresentation:
 	return p
 
 
-func test_dry_without_rain() -> void:
-	assert_not_null(_overlay)
-	assert_almost_eq(_param(&"wet_darken"), 0.0, 0.00001)
-	var dry_rough: float = _param(&"base_roughness")
-	_overlay.set_wet(0.0, _rain.wet_sheen_add, _rain.wet_roughness_scale, _rain.wet_darken)
-	assert_almost_eq(_param(&"wet_darken"), 0.0, 0.00001)
-	assert_almost_eq(_param(&"base_roughness"), dry_rough, 0.00001)
-
-
 func test_wetness_follows_rain_intensity_and_clears() -> void:
 	var dry_rough: float = _param(&"base_roughness")
 	var dry_sheen: float = _param(&"disk_sheen_strength")

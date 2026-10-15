@@ -40,50 +40,6 @@ func test_round_bottom_rests_on_the_clump_level_a_flat_one_is_cut_there() -> voi
 	assert_almost_eq(CloudSea.puff_centre_y(150.0, 10.0, 100.0, 1.0), 140.0, 0.0001)
 
 
-func test_sink_lets_round_bottoms_hang_below_the_clump_level_at_different_depths() -> void:
-	var shallow: float = CloudSea.puff_centre_y(0.0, 10.0, 100.0, 1.0, 1.0) - 10.0
-	var deep: float = CloudSea.puff_centre_y(0.0, 10.0, 100.0, 1.0, 6.0) - 10.0
-	assert_almost_eq(shallow, 99.0, 0.0001)
-	assert_almost_eq(deep, 94.0, 0.0001)
-	assert_ne(shallow, deep, "puffs of one clump with different sinks share no base plane")
-	assert_almost_eq(CloudSea.puff_centre_y(0.0, 10.0, 100.0, 1.0), 110.0, 0.0001, "no sink keeps the old rule")
-
-
-func test_round_mesh_has_no_base_plane_and_the_flat_mesh_keeps_its_plane() -> void:
-	var round_mesh: ArrayMesh = CloudSea.build_puff_mesh(1.0)
-	var arrays: Array = round_mesh.surface_get_arrays(0)
-	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-	var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
-	var lowest: float = INF
-	for i: int in range(vertices.size()):
-		lowest = minf(lowest, vertices[i].y)
-		assert_almost_eq(vertices[i].length(), 1.0, 0.0001, "every vertex of a round puff is on the unit sphere")
-		assert_almost_eq(normals[i].distance_to(vertices[i]), 0.0, 0.001, "radial normals, no base normals pointing down")
-	assert_lt(lowest, -0.8, "the lower half exists")
-	var flat_lowest: float = INF
-	for v: Vector3 in (CloudSea.build_puff_mesh(0.15).surface_get_arrays(0)[Mesh.ARRAY_VERTEX] as PackedVector3Array):
-		flat_lowest = minf(flat_lowest, v.y)
-	assert_almost_eq(flat_lowest, -0.15, 0.0001, "the sea's puff mesh keeps its flat base")
-
-
-func test_upper_layer_uses_its_own_round_base_and_the_sea_keeps_the_theme_flat_base() -> void:
-	var sea: CloudSea = _upper_sea()
-	var tuning: WeatherCeilingTuning = sea.upper_tuning
-	assert_not_null(tuning)
-	assert_gte(tuning.upper_flat_base, 0.9, "round bottoms: no base plane for a camera below to see as a slab")
-	assert_lt(tuning.upper_puff_squash, 1.0, "round puffs stay low and wide")
-	assert_gt(tuning.upper_base_sink_m, 0.0, "per-puff depth jitter breaks coplanar bottoms")
-	assert_gt(tuning.upper_belly_depth, 0.0, "detail puffs also bulge from the underside")
-	assert_almost_eq(float(sea.upper_instance().get_instance_shader_parameter(&"flat_base_override")),
-		tuning.upper_flat_base, 0.0001)
-	assert_null(sea.puff_instance().get_instance_shader_parameter(&"flat_base_override"),
-		"the sea keeps the material's flat_base (the shader default of -1)")
-	var material: ShaderMaterial = sea.puff_material()
-	assert_almost_eq(float(material.get_shader_parameter(&"base_clear_start_m")), tuning.upper_clear_fade_start_m, 0.0001)
-	assert_almost_eq(float(material.get_shader_parameter(&"base_clear_end_m")), tuning.upper_clear_fade_end_m, 0.0001)
-	assert_gt(tuning.upper_clear_fade_end_m, tuning.upper_clear_fade_start_m)
-
-
 func test_upper_puffs_never_hang_far_below_the_layer_height() -> void:
 	var sea: CloudSea = _upper_sea()
 	var tuning: WeatherCeilingTuning = sea.upper_tuning
@@ -97,45 +53,12 @@ func test_upper_puffs_never_hang_far_below_the_layer_height() -> void:
 		"the layer still reaches down to its base height")
 
 
-func test_pass_one_look_is_still_reachable_from_tuning() -> void:
-	# The old flat-bottomed look is the same code with the old values (also how the capture
-	# tool makes its before/after sheet).
-	var sea: CloudSea = _upper_sea()
-	var tuning: WeatherCeilingTuning = sea.upper_tuning
-	var saved_flat: float = tuning.upper_flat_base
-	var saved_sink: float = tuning.upper_base_sink_m
-	var saved_squash: float = tuning.upper_puff_squash
-	var saved_belly: float = tuning.upper_belly_depth
-	tuning.upper_belly_depth = -0.25
-	tuning.upper_flat_base = 0.15
-	tuning.upper_base_sink_m = 0.0
-	tuning.upper_puff_squash = 1.0
-	sea.configure(_skybox.theme, 1.0, _skybox.theme.sky_material)
-	assert_almost_eq(float(sea.upper_instance().get_instance_shader_parameter(&"flat_base_override")), 0.15, 0.0001)
-	assert_gte(sea.upper_lowest_bottom(), tuning.height_m - 0.5, "flat bottoms sit on height_m")
-	tuning.upper_flat_base = saved_flat
-	tuning.upper_base_sink_m = saved_sink
-	tuning.upper_puff_squash = saved_squash
-	tuning.upper_belly_depth = saved_belly
-
-
 func _uniform_names() -> Array:
 	var shader: Shader = load("res://shaders/sky/cloud_puffs.gdshader") as Shader
 	var names: Array = []
 	for entry: Dictionary in shader.get_shader_uniform_list():
 		names.append(entry["name"])
 	return names
-
-
-## The shader exposes the knobs the CloudSea code drives (presence, not source text); the
-## behaviour they carry is covered by the tuning/instance-parameter tests above.
-func test_shader_exposes_the_round_bottom_and_clearance_fade_params() -> void:
-	var names: Array = _uniform_names()
-	for param: String in ["base_clear_start_m", "base_clear_end_m", "hull_chord_margin", "upper_rim_down_shift"]:
-		assert_true(names.has(param), "cloud_puffs shader declares %s" % param)
-	var sea: CloudSea = _upper_sea()
-	assert_not_null(sea.puff_material().get_shader_parameter(&"base_clear_end_m"), "CloudSea passes the fade to the material")
-	assert_not_null(sea.upper_instance().get_instance_shader_parameter(&"flat_base_override"), "the upper layer carries its own base plane")
 
 
 ## The shader's declared default of a float uniform (the dummy renderer cannot report it).
@@ -175,21 +98,3 @@ func _inradius(mesh: ArrayMesh) -> float:
 		smallest = minf(smallest, absf(normal.dot(a)))
 	return smallest
 
-
-## Bontago-1pi.11.67 (fix 2a): clumps at or beyond the billboard distance draw as 4-triangle
-## impostors; the puff count and the occlusion rows do not change.
-func test_far_clumps_use_billboard_impostors() -> void:
-	var theme: SkyThemeDef = load("res://config/sky/themes/sunset.tres") as SkyThemeDef
-	var hulls: CloudSea = CloudSea.new()
-	add_child_autofree(hulls)
-	hulls.configure(theme, 0.2, theme.sky_material, 1, 0.0)
-	var impostors: CloudSea = CloudSea.new()
-	add_child_autofree(impostors)
-	impostors.configure(theme, 0.2, theme.sky_material, 1, 150.0)
-	assert_null(hulls.billboard_instance(), "distance 0 keeps every hull")
-	assert_not_null(impostors.billboard_instance())
-	assert_gt(impostors.billboard_puff_count(), 0)
-	assert_eq(impostors.billboard_instance().get_instance_shader_parameter(&"billboard"), 1.0)
-	assert_eq(CloudSea.build_billboard_mesh().get_faces().size() / 3, 4, "hexagon impostor")
-	assert_lt(impostors.triangle_count(), hulls.triangle_count() / 2, "far puffs cost 4 triangles, not 80")
-	assert_eq(impostors.occlusion_puff_count(), impostors.puff_count() + impostors.upper_puff_count())

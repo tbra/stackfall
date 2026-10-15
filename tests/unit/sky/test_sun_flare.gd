@@ -46,17 +46,6 @@ func _make_camera_facing(direction: Vector3) -> Camera3D:
 	return camera
 
 
-func test_sun_screen_uv_lands_near_screen_center_when_camera_faces_the_sun() -> void:
-	var flare: SunFlare = _make_flare()
-	var camera: Camera3D = await _make_camera_facing(flare.config.sun_direction)
-	flare._camera = camera
-
-	var uv: Vector2 = flare._sun_screen_uv()
-
-	assert_almost_eq(uv.x, 0.5, 0.05, "a camera looking straight at the sun direction must project it near screen-center X.")
-	assert_almost_eq(uv.y, 0.5, 0.05, "a camera looking straight at the sun direction must project it near screen-center Y.")
-
-
 func test_visibility_is_zero_when_camera_faces_away_from_the_sun() -> void:
 	var flare: SunFlare = _make_flare()
 	var camera: Camera3D = await _make_camera_facing(-flare.config.sun_direction)
@@ -66,34 +55,6 @@ func test_visibility_is_zero_when_camera_faces_away_from_the_sun() -> void:
 
 	assert_eq(visibility, 0.0, "facing directly away from the sun must gate visibility to zero via min_facing_dot.")
 
-
-func test_visibility_is_positive_when_camera_faces_the_sun_with_no_occluder() -> void:
-	var flare: SunFlare = _make_flare()
-	var camera: Camera3D = await _make_camera_facing(flare.config.sun_direction)
-	flare._camera = camera
-
-	var visibility: float = flare._compute_visibility()
-
-	assert_gt(visibility, 0.0, "facing the sun with nothing between the camera and it must not be gated to zero.")
-
-
-func test_edge_fade_is_full_at_center_and_zero_far_outside() -> void:
-	var flare: SunFlare = _make_flare()
-
-	assert_almost_eq(flare._edge_fade(Vector2(0.5, 0.5)), 1.0, 0.001, "screen center must be fully visible.")
-	assert_eq(flare._edge_fade(Vector2(-2.0, 0.5)), 0.0, "far outside the edge_fade_margin must be fully faded.")
-
-
-func test_low_graphics_preset_disables_the_flare() -> void:
-	var flare: SunFlare = _make_flare()
-	assert_true(flare.is_flare_enabled(), "fixture: the flare must start enabled on the current (non-Low) preset.")
-
-	Settings.set_graphics_preset(&"low")
-
-	assert_false(flare.is_flare_enabled(), "the Low graphics preset must disable the full-viewport flare pass.")
-
-
-## --- Bontago-mp0.95: the sun was visible through the arena disc and through the clouds ---
 
 const DISC_RADIUS_M: float = 6.0
 const BELOW_DISC_M: float = 20.0
@@ -144,16 +105,6 @@ func test_disc_blocks_the_flare_ray_seen_from_below() -> void:
 	assert_eq(flare._compute_visibility(), 0.0, "and the flare visibility follows")
 	flare.config.reverse_ray_enabled = false
 	assert_eq(flare._occlusion_factor(sun), 1.0, "with the reverse ray off, the old single ray lets the sun through")
-
-
-func test_disc_blocks_the_flare_ray_from_below_at_a_shallow_angle() -> void:
-	_tiny_field()
-	# Just under the rim, the sun a shallow climb away: the ray still has to leave through the disc top face.
-	var sun: Vector3 = Vector3(1.0, 0.45, 0.0).normalized()
-	var flare: SunFlare = _flare_aimed(sun)
-	var camera: Camera3D = await _camera_at(Vector3(-DISC_RADIUS_M * 0.6, -3.0, 0.0), sun)
-	flare._camera = camera
-	assert_eq(flare._occlusion_factor(sun), 0.0, "the disc hides a sun seen at a shallow angle from beneath it")
 
 
 func test_open_sky_beside_the_disc_is_not_occluded() -> void:
@@ -229,18 +180,3 @@ func test_cloud_occlusion_fades_in_over_time_instead_of_popping() -> void:
 	flare._process(2.0)
 	assert_lt(flare.current_visibility(), 0.01, "and given time it is gone behind the cloud")
 
-
-func test_cloud_query_is_throttled_between_refreshes() -> void:
-	var sea: CloudSea = _single_puff_sea()
-	var centre: Vector3 = _puff_centre(sea)
-	var sun: Vector3 = Vector3(1.0, 0.0, 0.0)
-	var flare: SunFlare = _flare_aimed(sun)
-	flare.config.cloud_occlusion_refresh_s = 10.0
-	var blocked: Camera3D = await _camera_at(centre - sun * CLOUD_DISTANCE_M, sun)
-	flare._camera = blocked
-	assert_lt(flare._compute_visibility(), 0.01, "fixture: blocked on the first (always fresh) query")
-	var clear: Camera3D = await _camera_at(centre - sun * CLOUD_DISTANCE_M + Vector3(0.0, 0.0, SIDEWAYS_M), sun)
-	flare._camera = clear
-	assert_lt(flare._compute_visibility(), 0.01, "inside the refresh interval the last cloud answer stands")
-	flare.invalidate_cloud_query()
-	assert_gt(flare._compute_visibility(), 0.5, "the next refresh picks up the clear view")

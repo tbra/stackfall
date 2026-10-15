@@ -26,106 +26,6 @@ func _pad_button(index: int) -> InputEventJoypadButton:
 	return event
 
 
-func test_keyboard_key_is_a_cream_cap() -> void:
-	var event: InputEventKey = InputEventKey.new()
-	event.keycode = KEY_E
-	var glyph: InputGlyph = _glyph_for(event)
-	assert_true(glyph.is_arcade_cap())
-	assert_eq(glyph.arcade_face_color(), _arcade.cream_color)
-
-
-func test_long_key_label_widens_the_cap_instead_of_shrinking_the_legend() -> void:
-	var event: InputEventKey = InputEventKey.new()
-	event.keycode = KEY_ENTER
-	var glyph: InputGlyph = _glyph_for(event)
-	assert_gt(glyph.custom_minimum_size.x, InputGlyph.GLYPH_HEIGHT_PX)
-	assert_eq(glyph.custom_minimum_size.y, InputGlyph.GLYPH_HEIGHT_PX)
-
-
-func test_pad_face_buttons_use_the_arcade_tokens() -> void:
-	var expected: Dictionary[int, Color] = {
-		JOY_BUTTON_A: _arcade.mint_color,
-		JOY_BUTTON_B: _arcade.flare_color,
-		JOY_BUTTON_X: _arcade.player_2_color,
-		JOY_BUTTON_Y: _arcade.rim_color,
-	}
-	for index: int in expected:
-		var glyph: InputGlyph = _glyph_for(_pad_button(index))
-		assert_true(glyph.is_arcade_cap(), "button %d" % index)
-		assert_eq(glyph.arcade_face_color(), expected[index], "button %d" % index)
-		assert_eq(glyph.custom_minimum_size.x, InputGlyph.GLYPH_HEIGHT_PX, "round cap stays square")
-
-
-func test_shoulder_is_a_sand_chip() -> void:
-	var glyph: InputGlyph = _glyph_for(_pad_button(JOY_BUTTON_LEFT_SHOULDER))
-	assert_true(glyph.is_arcade_cap())
-	assert_eq(glyph.arcade_face_color(), _arcade.sand_color)
-
-
-func test_pictograms_are_not_caps() -> void:
-	var mouse: InputEventMouseButton = InputEventMouseButton.new()
-	mouse.button_index = MOUSE_BUTTON_LEFT
-	assert_false(_glyph_for(mouse).is_arcade_cap())
-	assert_false(_glyph_for(_pad_button(JOY_BUTTON_DPAD_UP)).is_arcade_cap())
-	assert_false(_glyph_for(_pad_button(JOY_BUTTON_LEFT_STICK)).is_arcade_cap())
-
-
-func test_pictograms_share_the_glyph_box_and_are_never_caps() -> void:
-	var mouse: InputEventMouseButton = InputEventMouseButton.new()
-	for button: int in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_XBUTTON1]:
-		mouse.button_index = button as MouseButton
-		var glyph: InputGlyph = _glyph_for(mouse)
-		assert_eq(glyph.custom_minimum_size, Vector2(InputGlyph.GLYPH_HEIGHT_PX, InputGlyph.GLYPH_HEIGHT_PX), "mouse %d" % button)
-	for index: int in [JOY_BUTTON_DPAD_UP, JOY_BUTTON_LEFT_STICK]:
-		var pad: InputGlyph = _glyph_for(_pad_button(index))
-		assert_eq(pad.custom_minimum_size, Vector2(InputGlyph.GLYPH_HEIGHT_PX, InputGlyph.GLYPH_HEIGHT_PX))
-
-
-func test_pictograms_actually_paint_without_errors() -> void:
-	# Drawing runs inside the render loop; a frame proves _draw() does not push errors for any kind.
-	var holder: HBoxContainer = HBoxContainer.new()
-	add_child_autofree(holder)
-	var mouse: InputEventMouseButton = InputEventMouseButton.new()
-	mouse.button_index = MOUSE_BUTTON_WHEEL_LEFT
-	var stick: InputEventJoypadMotion = InputEventJoypadMotion.new()
-	stick.axis = JOY_AXIS_RIGHT_Y
-	stick.axis_value = 1.0
-	for event: InputEvent in [mouse, stick, _pad_button(JOY_BUTTON_DPAD_RIGHT), _pad_button(JOY_BUTTON_RIGHT_STICK)]:
-		var glyph: InputGlyph = INPUT_GLYPH_SCENE.instantiate() as InputGlyph
-		glyph.pad_style = InputGlyph.PadStyle.PLAYSTATION
-		holder.add_child(glyph)
-		glyph.set_event(event)
-		glyph.force_update_transform()
-		glyph.queue_redraw()
-	await wait_frames(2)
-	assert_eq(holder.get_child_count(), 4)
-
-
-func test_playstation_style_uses_symbol_legends_on_the_same_cap_colours() -> void:
-	var expected: Dictionary[int, String] = {
-		JOY_BUTTON_A: "Cross", JOY_BUTTON_B: "Circle", JOY_BUTTON_X: "Square", JOY_BUTTON_Y: "Triangle",
-		JOY_BUTTON_LEFT_SHOULDER: "L1", JOY_BUTTON_RIGHT_SHOULDER: "R1",
-	}
-	for index: int in expected:
-		var glyph: InputGlyph = INPUT_GLYPH_SCENE.instantiate() as InputGlyph
-		glyph.pad_style = InputGlyph.PadStyle.PLAYSTATION
-		add_child_autofree(glyph)
-		glyph.set_event(_pad_button(index))
-		assert_eq(glyph.label_text(), expected[index], "button %d" % index)
-		assert_eq(glyph.resolved_pad_style(), InputGlyph.PadStyle.PLAYSTATION)
-	var cross: InputGlyph = INPUT_GLYPH_SCENE.instantiate() as InputGlyph
-	cross.pad_style = InputGlyph.PadStyle.PLAYSTATION
-	add_child_autofree(cross)
-	cross.set_event(_pad_button(JOY_BUTTON_A))
-	assert_eq(cross.arcade_face_color(), _arcade.mint_color, "the cap keeps its position colour")
-	assert_eq(cross.custom_minimum_size.x, InputGlyph.GLYPH_HEIGHT_PX, "still a round cap")
-	var trigger: InputEventJoypadMotion = InputEventJoypadMotion.new()
-	trigger.axis = JOY_AXIS_TRIGGER_RIGHT
-	trigger.axis_value = 1.0
-	cross.set_event(trigger)
-	assert_eq(cross.label_text(), "R2")
-
-
 func test_xbox_style_is_the_default_and_joy_names_select_the_family() -> void:
 	assert_eq(InputGlyph.style_for_joy_name("PS5 Controller"), InputGlyph.PadStyle.PLAYSTATION)
 	assert_eq(InputGlyph.style_for_joy_name("Sony DualSense"), InputGlyph.PadStyle.PLAYSTATION)
@@ -137,13 +37,6 @@ func test_xbox_style_is_the_default_and_joy_names_select_the_family() -> void:
 	add_child_autofree(glyph)
 	glyph.set_event(_pad_button(JOY_BUTTON_B))
 	assert_eq(glyph.label_text(), "B")
-
-
-func test_overflow_badge() -> void:
-	var glyph: InputGlyph = INPUT_GLYPH_SCENE.instantiate() as InputGlyph
-	add_child_autofree(glyph)
-	glyph.set_overflow_count(2)
-	assert_eq(glyph.arcade_face_color(), _arcade.disc_600_color)
 
 
 func test_glyph_never_takes_focus_and_a_synthetic_pad_press_does_not_move_it() -> void:

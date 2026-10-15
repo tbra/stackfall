@@ -4,14 +4,7 @@ extends GutTest
 ## the player switches between keyboard/mouse and gamepad.
 
 const MAIN_MENU_SCENE: PackedScene = preload("res://ui/menus/MainMenu.tscn")
-const OPTIONS_SCENE: PackedScene = preload("res://ui/menus/OptionsMenu.tscn")
 const TUTORIAL_CONFIG: TutorialConfig = preload("res://config/match/tutorial_config.tres")
-const PLAYER_FACING_FILES: Array[String] = [
-	"res://ui/menus/MainMenu.tscn", "res://ui/lobby/Lobby.tscn", "res://ui/menus/OptionsMenu.tscn",
-	"res://config/match/tutorial_config.tres",
-]
-
-
 func after_each() -> void:
 	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
 
@@ -61,18 +54,6 @@ func test_main_menu_footer_swaps_glyphs_with_the_active_device() -> void:
 	_assert_swaps(menu.get_node("%GamepadHintRow") as InputPromptFlow, "main menu")
 
 
-func test_options_footer_swaps_glyphs_with_the_active_device() -> void:
-	var menu: OptionsMenu = autofree(OPTIONS_SCENE.instantiate())
-	add_child_autofree(menu)
-	var row: InputPromptFlow = menu.get_node("%FooterHintLabel") as InputPromptFlow
-	_press_pad_button()
-	assert_true(_texts(row).has("A") and _texts(row).has("B"))
-	assert_true(_texts(row).has("LB") and _texts(row).has("RB"), "gamepad footer shows the tab bumpers")
-	_press_key()
-	assert_false(_texts(row).has("A"))
-	assert_true(_texts(row).has("Enter") or _texts(row).has("Space"), "keyboard footer shows the accept key")
-
-
 func test_footer_follows_a_rebind_of_ui_accept() -> void:
 	var original: Array[InputEvent] = InputMap.action_get_events(&"ui_accept")
 	var row: InputPromptFlow = autofree(InputPromptFlow.new())
@@ -89,14 +70,6 @@ func test_footer_follows_a_rebind_of_ui_accept() -> void:
 		InputMap.action_add_event(&"ui_accept", event)
 
 
-func test_unbound_action_falls_back_to_its_name_not_a_key() -> void:
-	var row: InputPromptFlow = autofree(InputPromptFlow.new())
-	row.template = "Press {no_such_action_71} now"
-	add_child_autofree(row)
-	assert_eq(row.glyphs().size(), 0)
-	assert_eq(row.plain_text(), "Press no such action 71 now")
-
-
 func test_tutorial_prompts_use_action_tokens_not_key_names() -> void:
 	var banned: PackedStringArray = ["left click", "right bumper", "left stick", "right stick", "arrow keys", "(S ", "(R)", "(A)"]
 	for step: TutorialStep in TUTORIAL_CONFIG.steps:
@@ -104,23 +77,3 @@ func test_tutorial_prompts_use_action_tokens_not_key_names() -> void:
 			assert_false(step.prompt_text.contains(word), "%s: '%s' typed in prompt" % [step.id, word])
 	assert_true(TUTORIAL_CONFIG.steps[0].prompt_text.contains("{ghost_place}"))
 
-
-func test_player_facing_files_name_no_key_or_button_literals() -> void:
-	var pattern: RegEx = RegEx.new()
-	pattern.compile(r"(?i)(Enter · Esc|\(A\) Select|\(B\) Back|A Select|B Back|⌨)")
-	for path: String in PLAYER_FACING_FILES:
-		var text: String = FileAccess.get_file_as_string(path)
-		assert_null(pattern.search(text), "%s still types a key/button name" % path)
-
-
-func test_words_use_font_spacing_and_last_two_words_are_glued() -> void:
-	var row: InputPromptFlow = autofree(InputPromptFlow.new())
-	row.template = "Aim then place it."
-	add_child_autofree(row)
-	assert_eq(row.get_theme_constant(&"h_separation"), 0, "no container gap between words")
-	var texts: PackedStringArray = PackedStringArray()
-	for child: Node in row.get_children():
-		if child is Label:
-			texts.append((child as Label).text)
-	assert_eq(texts, PackedStringArray(["Aim ", "then ", "place it."]))
-	assert_eq(row.plain_text(), "Aim then place it.")

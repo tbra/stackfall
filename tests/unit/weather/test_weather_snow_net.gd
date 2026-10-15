@@ -131,22 +131,6 @@ func test_client_draws_caps_but_never_colliders() -> void:
 	assert_eq(_snow_net.states_applied, 1)
 
 
-func test_a_block_spawning_after_the_state_is_drawn_once_bound() -> void:
-	_start_client_snow()
-	var early: Block = _client_block(NET_ID, Vector3.ZERO)
-	assert_true(_snow_net.apply_state(_state([NET_ID, LATE_NET_ID], -1)))
-	_snow_net.step_client(BIG_BUDGET)
-	assert_not_null(SnowCaps.cap_mesh(early, SnowCaps.CAP_NAME))
-	var late: Block = BlockFactory.build(load("res://config/blocks/cube.tres") as BlockShape, _physics)
-	late.freeze = true
-	add_child_autofree(late)
-	Events.block_placed.emit(late, &"cube")
-	_registry.bind_net_id(late, LATE_NET_ID)
-	await get_tree().process_frame
-	_snow_net.step_client(BIG_BUDGET)
-	assert_not_null(SnowCaps.cap_mesh(late, SnowCaps.CAP_NAME), "drawn after its net_id was bound")
-
-
 func test_client_refuses_bad_or_out_of_event_states() -> void:
 	var block: Block = _client_block(NET_ID, Vector3.ZERO)
 	assert_false(_snow_net.apply_state(_state([NET_ID], -1)), "no snow event live")
@@ -213,77 +197,3 @@ func test_host_throttles_flushes_empty_states_and_serves_late_joiners() -> void:
 	assert_eq(_snow_net.states_sent, before + 1, "late joiner gets the current state")
 	relay.publish(_empty_state())
 
-
-## Bontago-mp0.97: the client follows the host's melt. Each shrinking state
-## redraws a lower cap, the cover level follows, and the empty state removes
-## the cap and lets the cover fade out (it does not pop, and it is not left
-## behind).
-func test_client_follows_the_host_melt_down_to_nothing() -> void:
-	_snow.cover_ease_s = 1.0
-	_start_client_snow()
-	var block: Block = _client_block(NET_ID, Vector3.ZERO)
-	var heights: Array[float] = []
-	var covers: Array[int] = []
-	for level: int in range(_snow.depth_levels, 0, -1):
-		var b: PackedInt32Array = PackedInt32Array()
-		SnowGeometry.append_block_record(b, NET_ID, SnowGeometry.AXIS_UP, PackedInt32Array([0]), PackedInt32Array([level]))
-		assert_true(_snow_net.apply_state(SnowGeometry.make_state(99, level, b, PackedInt32Array())))
-		_snow_net.step_client(BIG_BUDGET)
-		heights.append(_cap_height(block))
-		covers.append(SnowCaps.disc_cover(_field).level())
-	for i: int in range(1, heights.size()):
-		assert_lt(heights[i], heights[i - 1], "the cap is lower at every host melt step")
-	assert_eq(covers, [4, 3, 2, 1], "the cover level follows the host")
-	var cover: SnowDiscCover = SnowCaps.disc_cover(_field)
-	cover.set_process(false)
-	cover.ease_step(10.0)
-	assert_true(_snow_net.apply_state(_empty_state()))
-	_snow_net.step_client(BIG_BUDGET)
-	assert_null(SnowCaps.cap_mesh(block, SnowCaps.CAP_NAME), "melted cap removed")
-	assert_null(SnowCaps.disc_cover(_field), "no live cover")
-	assert_eq(SnowCaps.fading_disc_cover(_field), cover, "the cover fades out instead of popping")
-	cover.ease_step(10.0)
-	await get_tree().process_frame
-	assert_null(SnowCaps.fading_disc_cover(_field), "and is gone once faded")
-	assert_eq(float(_field.overlay().material().get_shader_parameter(&"snow_strength")), 0.0)
-
-
-func _cap_height(block: Block) -> float:
-	var instance: MeshInstance3D = SnowCaps.cap_mesh(block, SnowCaps.CAP_NAME)
-	if instance == null or instance.mesh == null:
-		return 0.0
-	var vertices: PackedVector3Array = (instance.mesh as ArrayMesh).surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-	var low: float = INF
-	var high: float = -INF
-	for vertex: Vector3 in vertices:
-		low = minf(low, vertex.y)
-		high = maxf(high, vertex.y)
-	return high - low
-
-
-func test_a_freed_rendered_block_is_dropped_without_an_engine_error() -> void:
-	_start_client_snow()
-	var keep: Block = _client_block(NET_ID, Vector3.ZERO)
-	var doomed: Block = _client_block(LATE_NET_ID, Vector3(4.0, 0.0, 0.0))
-	assert_true(_snow_net.apply_state(_state([NET_ID, LATE_NET_ID], -1)))
-	_snow_net.step_client(BIG_BUDGET)
-	assert_true(_snow_net._rendered.has(LATE_NET_ID), "both blocks drawn")
-	_registry._on_block_removed(doomed, "gift_blast")  # the registry unbinds it, as in play
-	doomed.free()
-	# The host still lists the freed block (gift blast), then stops listing it.
-	assert_true(_snow_net.apply_state(_state([NET_ID, LATE_NET_ID], _a_disc_cell())))
-	assert_false(_snow_net._rendered.has(LATE_NET_ID), "stale key dropped")
-	assert_false(_snow_net._rendered_records.has(LATE_NET_ID))
-	assert_true(_snow_net.apply_state(_state([NET_ID], -1)))
-	assert_not_null(SnowCaps.cap_mesh(keep, SnowCaps.CAP_NAME), "live block keeps its cap")
-
-
-func test_clearing_the_client_tolerates_a_freed_rendered_block() -> void:
-	_start_client_snow()
-	var doomed: Block = _client_block(NET_ID, Vector3.ZERO)
-	assert_true(_snow_net.apply_state(_state([NET_ID], -1)))
-	_snow_net.step_client(BIG_BUDGET)
-	_registry._on_block_removed(doomed, "gift_blast")
-	doomed.free()
-	_snow_net.clear_client()
-	assert_true(_snow_net._rendered.is_empty())

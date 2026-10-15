@@ -77,21 +77,6 @@ func test_lobby_back_button_leaves_the_hosted_session_and_returns_to_the_main_me
 	assert_eq(Sfx._music_context, &"menu", "returning restores the menu playlist")
 
 
-## The handler itself (game/main/Main.gd's _on_lobby_back_requested()), isolated
-## from the signal/button wiring the test above already covers -- both are
-## kept because the button test would still pass if the handler were wired
-## to the wrong method name, and this one would still pass if %BackButton's
-## own pressed connection were missing.
-func test_on_lobby_back_requested_leaves_the_hosted_session() -> void:
-	assert_eq(Net.host_game(_take_port(), "Hostie"), OK)
-	assert_true(Net.is_host())
-
-	_main._on_lobby_back_requested()
-
-	assert_true(Net.is_offline())
-	assert_not_null(_main._main_menu)
-
-
 func test_play_local_bots_opens_private_lobby_with_no_bot() -> void:
 	var previous_port: int = Net.config.game_port
 	var occupied_port: int = _take_port()

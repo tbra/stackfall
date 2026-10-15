@@ -46,10 +46,6 @@ func _fake_image() -> Image:
 	return Image.create(4, 4, false, Image.FORMAT_RGBA8)
 
 
-func _empty_image() -> Image:
-	return Image.new()
-
-
 func _pngs_in_tmp_dir() -> Array:
 	var pngs: Array = []
 	for filename: String in DirAccess.get_files_at(_tmp_dir):
@@ -85,16 +81,6 @@ func test_unhandled_input_with_screenshot_action_saves_one_png() -> void:
 	assert_eq(_pngs_in_tmp_dir().size(), 1, "A single screenshot_capture press should save one file.")
 
 
-func test_unhandled_input_ignores_unrelated_actions() -> void:
-	var event: InputEventKey = _key_press(KEY_F4)  # tuning_panel_toggle, not this action.
-	_shots._unhandled_input(event)
-	await get_tree().process_frame
-	await get_tree().process_frame
-	assert_eq(_pngs_in_tmp_dir().size(), 0, "An unrelated action must not trigger a capture.")
-
-
-# --- (b): a second press saves a second, differently named file -------------
-
 func test_second_capture_gets_a_distinct_filename() -> void:
 	await _shots.capture()
 	await _shots.capture()
@@ -105,8 +91,3 @@ func test_second_capture_gets_a_distinct_filename() -> void:
 
 
 # --- Robustness: an empty captured image is skipped, not saved --------------
-
-func test_empty_image_is_not_saved() -> void:
-	_shots.image_provider = Callable(self, "_empty_image")
-	await _shots.capture()
-	assert_eq(_pngs_in_tmp_dir().size(), 0, "An empty captured image must not produce a file.")

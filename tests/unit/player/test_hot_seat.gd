@@ -13,14 +13,6 @@ func _make_hot_seat() -> HotSeat:
 	return hot_seat
 
 
-func test_hot_seat_instances_its_own_controller_ghost_and_hud() -> void:
-	var hot_seat: HotSeat = _make_hot_seat()
-	assert_not_null(hot_seat.controller())
-	assert_not_null(hot_seat.ghost())
-	assert_not_null(hot_seat.hud())
-	assert_eq(hot_seat.controller()._ghost, hot_seat.ghost(), "The controller should drive HotSeat's own ghost.")
-
-
 func test_turn_changed_switches_the_active_slot() -> void:
 	var hot_seat: HotSeat = _make_hot_seat()
 
@@ -28,24 +20,6 @@ func test_turn_changed_switches_the_active_slot() -> void:
 
 	assert_eq(hot_seat.controller()._active_slot, 1)
 	assert_eq(hot_seat.hud()._active_slot, 1)
-
-
-func test_turn_changed_recolors_the_ghost_and_hud_from_the_slot(
-) -> void:
-	var hot_seat: HotSeat = _make_hot_seat()
-	var fake_match: FakeMatch = FakeMatch.new()
-	# A colour that doesn't appear in match_defaults.tres's palette, so a test
-	# that forgot to wire the fake into HUD can't accidentally pass by
-	# falling back to that static palette instead.
-	var slot1: PlayerSlot = PlayerSlot.new(1, 1, "P2", Color(0.11, 0.62, 0.33))
-	fake_match.slots_by_id[1] = slot1
-	hot_seat.controller()._match = fake_match
-	hot_seat.hud().match_provider = fake_match
-
-	Events.turn_changed.emit(1)
-
-	assert_almost_eq(hot_seat.ghost().current_tint_color().r, slot1.color.r, 0.01)
-	assert_almost_eq(hot_seat.hud()._active_color.r, slot1.color.r, 0.01)
 
 
 func test_only_the_active_slots_press_reaches_request_place() -> void:

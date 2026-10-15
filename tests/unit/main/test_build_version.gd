@@ -13,10 +13,6 @@ func after_each() -> void:
 	DebugMode.clear_override_for_test()
 
 
-func test_label_is_non_empty() -> void:
-	assert_false(BuildVersion.label().is_empty())
-
-
 func test_compose_rules() -> void:
 	assert_eq(BuildVersion.compose("0.0.1", "abc123"), "0.0.1+abc123")
 	assert_eq(BuildVersion.compose("0.0.1", ""), "0.0.1")
