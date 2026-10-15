@@ -36,7 +36,7 @@ static func apply_block(button: Button, face: Color, ink: Color, small: bool = f
 	apply_block_states(button, face, _hover_face(face), ink, small)
 
 
-## apply_block() with an explicit hover face (apply_pill() passes the one its caller chose).
+## apply_block() with an explicit hover face.
 static func apply_block_states(button: Button, face: Color, hover_face: Color, ink: Color, small: bool = false) -> void:
 	var arcade: ArcadeVisualTuning = arcade_tuning()
 	var lip: Color = lip_for(face)
@@ -107,15 +107,6 @@ static func _hover_face(face: Color) -> Color:
 	return face.lerp(Color.WHITE, arcade_tuning().block_hover_light_mix)
 
 
-## Legacy pastel-pill entry point, routed to the Arcade block (P0 keeps every old function name
-## working so P1-P7 can migrate call sites one by one). [param normal_color] / [param hover_color]
-## are the faces; [param font_color] is ignored in favour of ink_for_face(), because the old
-## callers pass pastel-era inks that no longer match the re-pointed faces.
-## DECISION (Bontago-hfa.2): pills become the compact block recipe so existing layouts keep their size.
-static func apply_pill(button: Button, normal_color: Color, hover_color: Color, font_color: Color, tuning: MenuVisualTuning) -> void:
-	apply_block_states(button, normal_color, hover_color, ink_for_face(normal_color), true)
-
-
 ## Bontago-1pi.37: the single place a Button's label and icon colours are set.
 ## Every non-disabled draw state (normal, focus, hover, pressed, hover_pressed)
 ## gets [param ink] for both the font_*color and icon_*_color theme items:
@@ -160,83 +151,14 @@ static func _linear_channel(channel: float) -> float:
 	return pow((channel + SRGB_GAMMA_OFFSET) / SRGB_GAMMA_SCALE, SRGB_GAMMA_EXPONENT)
 
 
-## A sunken input/list "well": inset border, no drop shadow, used for the
-## LAN games list, the Steam lobby list and the direct-IP field (gap item 5).
-static func make_well(tuning: MenuVisualTuning) -> StyleBoxFlat:
-	var box: StyleBoxFlat = StyleBoxFlat.new()
-	box.bg_color = tuning.well_color
-	box.border_color = tuning.well_border_color
-	box.set_border_width_all(int(tuning.well_border_width_px))
-	box.set_corner_radius_all(int(tuning.well_corner_radius_px))
-	box.set_content_margin_all(tuning.well_content_margin_px)
-	return box
-
-
-## Bontago-mp0.3.5 (polish pass, problem 2): a sunken, fully rounded pill --
-## same inset-border/no-shadow "well" language as make_well(), but with the
-## pill corner radius instead of the well's own smaller one, for mockup 11's
-## single "[label] (-) value (+)" stepper pill.
-static func make_well_pill(tuning: MenuVisualTuning) -> StyleBoxFlat:
-	var box: StyleBoxFlat = make_well(tuning)
-	box.set_corner_radius_all(int(tuning.pill_corner_radius_px))
-	return box
-
-
-## Bontago-mp0.3.5 (polish pass, problem 2): a borderless "-"/"+" glyph
-## button for inside a stepper pill -- no background of its own in any state
-## (the pill it sits in already draws one), just the ink-colored glyph, so it
-## doesn't read as a second nested button.
-static func apply_flat_stepper_button(button: Button, tuning: MenuVisualTuning) -> void:
-	var empty: StyleBoxEmpty = StyleBoxEmpty.new()
-	empty.content_margin_left = 4.0
-	empty.content_margin_right = 4.0
-	button.add_theme_stylebox_override("normal", empty)
-	button.add_theme_stylebox_override("hover", empty)
-	button.add_theme_stylebox_override("pressed", empty)
-	button.add_theme_stylebox_override("disabled", empty)
-	# Bontago-1pi.37: apply_ink() also covers the focus state, which the theme's
-	# pale default font_focus_color left near-invisible on this cream pill.
-	apply_ink(button, tuning.ink_color)
-	button.add_theme_color_override("font_disabled_color", tuning.label_muted_color)
-
-
 ## Bontago-mp0.3.5 (review r1, item 5): a borderless white list panel for a
-## server/lobby row list that already sits inside its own make_well() card
+## server/lobby row list that already sits inside its own well card
 ## (ui/menus/MainMenu.tscn's %LanGamesWell) -- avoids stacking two sunken borders.
 static func make_flat_list(tuning: MenuVisualTuning) -> StyleBoxFlat:
 	var box: StyleBoxFlat = StyleBoxFlat.new()
 	box.bg_color = arcade_tuning().disc_700_color
 	box.set_corner_radius_all(arcade_tuning().radius_block_px)
 	box.set_content_margin_all(tuning.well_content_margin_px)
-	return box
-
-
-## A card. Arcade (Bontago-hfa.2): the single disc-800 plate with the panel drop. The old offset
-## "shadow" cards (mint/apricot) are removed from the design, so they come back fully transparent
-## and the three-card stack collapses to the one plate until P1/P3/P5 drop the nodes.
-static func make_card(color: Color, tuning: MenuVisualTuning) -> StyleBoxFlat:
-	if color.is_equal_approx(tuning.card_shadow_mint_color) or color.is_equal_approx(tuning.card_shadow_apricot_color):
-		var hidden: StyleBoxFlat = StyleBoxFlat.new()
-		hidden.bg_color = Color.TRANSPARENT
-		return hidden
-	var box: StyleBoxFlat = make_plate()
-	box.set_content_margin_all(tuning.card_content_margin_px)
-	return box
-
-
-## A static chip for a badge-style Label/PanelContainer: [param color] face, radius-chip, a
-## lip-sm bottom edge (the block recipe without the ledge). Never focused or pressed.
-static func make_badge(color: Color, tuning: MenuVisualTuning) -> StyleBoxFlat:
-	var arcade: ArcadeVisualTuning = arcade_tuning()
-	var box: StyleBoxFlat = StyleBoxFlat.new()
-	box.bg_color = color
-	box.set_corner_radius_all(arcade.radius_chip_px)
-	box.border_color = lip_for(color)
-	box.border_width_bottom = arcade.lip_sm_px
-	box.content_margin_left = tuning.pill_margin_x_px
-	box.content_margin_right = tuning.pill_margin_x_px
-	box.content_margin_top = tuning.pill_margin_y_px
-	box.content_margin_bottom = tuning.pill_margin_y_px
 	return box
 
 
@@ -260,38 +182,3 @@ static func apply_toggle_chip(toggle: Button, off_color: Color, off_hover_color:
 	for item: String in ["icon_pressed_color", "icon_hover_pressed_color"]:
 		toggle.add_theme_color_override(item, on_ink)
 
-
-## Cached 1x1 fully-transparent texture shared by every hide_spinbox_arrows()
-## call -- built once, not per SpinBox.
-static var _blank_icon: ImageTexture = null
-
-
-## Bontago-xtq.44: drops the static texture/material cache on exit (freed before the renderer shuts down).
-static func release_statics() -> void:
-	_blank_icon = null
-
-
-## Bontago-mp0.3.5 (review r3, problem 3): SpinBox's own "buttons_width" theme
-## constant only changes the *reserved layout width* for its native up/down
-## spinner, not whether the chevron icons themselves still draw (confirmed
-## by a windowed capture: the chevrons still rendered, just squeezed against
-## the LineEdit's right edge) -- the icons are theme items in their own
-## right (ThemeDB.get_default_theme().get_icon_list("SpinBox") ==
-## ["updown","up","up_hover","up_pressed","up_disabled","down","down_hover",
-## "down_pressed","down_disabled"]), so this overrides every one of them with
-## a blank 1x1 transparent texture. [param spin] keeps its normal min/max/
-## step/value/value_changed and LineEdit -- only its own native buttons
-## become invisible; mockup 11's round pill "-"/"+" buttons
-## (_add_stepper_buttons()) are the only visible way to nudge it now.
-static func hide_spinbox_arrows(spin: SpinBox) -> void:
-	if _blank_icon == null:
-		var image: Image = Image.create(1, 1, false, Image.FORMAT_RGBA8)
-		image.fill(Color(0.0, 0.0, 0.0, 0.0))
-		_blank_icon = ImageTexture.create_from_image(image)
-	for icon_name: String in [
-		"updown", "up", "up_hover", "up_pressed", "up_disabled",
-		"down", "down_hover", "down_pressed", "down_disabled",
-	]:
-		spin.add_theme_icon_override(icon_name, _blank_icon)
-	spin.add_theme_constant_override("buttons_width", 0)
-	spin.add_theme_constant_override("field_and_buttons_separation", 0)

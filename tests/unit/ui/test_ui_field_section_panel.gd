@@ -30,7 +30,7 @@ func test_field_forwards_text_placeholder_and_signals() -> void:
 	assert_eq(submitted, ["Tonyx"])
 
 
-func test_field_label_shows_only_when_given_and_focus_goes_to_the_input() -> void:
+func test_field_label_shows_only_when_given() -> void:
 	var field: UiField = UiField.new()
 	add_child_autofree(field)
 	assert_false(field.label.visible)
@@ -38,8 +38,6 @@ func test_field_label_shows_only_when_given_and_focus_goes_to_the_input() -> voi
 	assert_true(field.label.visible)
 	assert_eq(field.label.text, "DIRECT IP")
 	await wait_frames(2)
-	field.focus_input()
-	assert_true(field.edit.has_focus(), "the container hands focus to the LineEdit")
 	assert_eq(field.focus_mode, Control.FOCUS_NONE)
 
 

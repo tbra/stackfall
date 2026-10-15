@@ -5,8 +5,6 @@ extends HBoxContainer
 ## instead of aligning controls by hand; every item is a UiRowItem and so shares one height.
 
 var label: Label = null
-## The optional readout right of the items (see [method with_value]); null until requested.
-var value_label: Label = null
 
 
 func _init() -> void:
@@ -31,22 +29,6 @@ func setup(label_text: String, control: Control = null) -> UiRow:
 
 func add_item(control: Control) -> void:
 	add_child(control)
-	if value_label != null:
-		move_child(value_label, get_child_count() - 1)
-
-
-## Appends a readout cell (sand text, fixed minimum width) and returns it.
-func with_value(text: String = "") -> Label:
-	if value_label == null:
-		var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-		value_label = Label.new()
-		value_label.custom_minimum_size.x = float(UiRowItem.metrics().row_value_cell_width_px)
-		value_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		value_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		value_label.add_theme_color_override("font_color", arcade.sand_color)
-		add_child(value_label)
-	value_label.text = text
-	return value_label
 
 
 ## The row items (every direct child in group `ui_row_item`), in order.

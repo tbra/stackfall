@@ -1182,16 +1182,6 @@ func _cycle_text(selector: UiCycler) -> String:
 	return selector.selected_text()
 
 
-## Bontago-mp0.3.5: a script removed in Bontago-dbn.1 (see git history)'s own `--lobby-advanced` frame (public wrapper
-## so the capture tool, which isn't part of this package's own private-method surface,
-## has a seam). DECISION (ui/lobby/Lobby.gd, Bontago-1pi.53 S1b): the popup is gone, so the
-## seam keeps its name and now opens every section's Advanced block -- the lobby's
-## equivalent of "show the advanced rules" -- instead of breaking that tool.
-func debug_open_advanced_rules_popup() -> void:
-	for section: UiSection in _sections():
-		section.set_advanced_open(true)
-
-
 ## Bontago-1pi.190: shows the Options screen over the lobby (same build/free pattern as MainMenu).
 ## Lobby networking keeps running (this node keeps processing); focus outside the overlay is
 ## suspended so pad / arrows never reach the lobby, and returns to the Options button on close.

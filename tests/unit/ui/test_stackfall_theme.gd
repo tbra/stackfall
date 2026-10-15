@@ -58,16 +58,7 @@ func test_panel_and_field_use_the_arcade_radii() -> void:
 	assert_eq((_theme.get_stylebox("normal", "LineEdit") as StyleBoxFlat).corner_radius_top_left, _arcade.radius_block_px)
 
 
-func test_factory_apply_block_make_plate_and_old_names_still_work() -> void:
-	var button: Button = Button.new()
-	add_child_autofree(button)
-	var tuning: MenuVisualTuning = load("res://config/ui/menu_visual_tuning.tres") as MenuVisualTuning
-	MenuStyleFactory.apply_pill(button, tuning.pill_coral_color, tuning.pill_coral_hover_color, tuning.ink_color, tuning)
-	assert_true(button.get_theme_stylebox("normal") is BlockStyleBox)
-	assert_eq(button.get_theme_color("font_color"), _arcade.ink_color, "ink on the flare face, whatever the caller passed")
+func test_factory_make_plate_uses_the_arcade_plate() -> void:
 	var plate: StyleBoxFlat = MenuStyleFactory.make_plate()
 	assert_eq(plate.bg_color, _arcade.disc_800_color)
 	assert_eq(plate.corner_radius_top_left, _arcade.radius_panel_px)
-	assert_not_null(MenuStyleFactory.make_card(tuning.card_cream_color, tuning))
-	assert_not_null(MenuStyleFactory.make_badge(tuning.pill_mint_color, tuning))
-	assert_not_null(MenuStyleFactory.make_well(tuning))

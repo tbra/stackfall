@@ -901,24 +901,6 @@ func _apply_steam_availability() -> void:
 		_steam_refresh_countdown_s = float(net_provider.config.steam_lobby_list_refresh_s)
 
 
-## Bontago-mp0.3.7 (capture-only): a script removed in Bontago-dbn.1 (see git history)'s own
-## `--force-steam-ui` flag calls this to show %SteamSection on a machine
-## where Steam isn't actually available, mirroring ui/lobby/Lobby.gd's
-## debug_open_advanced_rules_popup() -- a capture/test-only seam, not a
-## player-facing feature. [param sample_lobby] fills the well with one
-## placeholder row so the row style is visible too; false leaves it on the
-## "No lobbies yet" empty state.
-func debug_force_steam_ui(sample_lobby: bool = true) -> void:
-	_steam_section.visible = true
-	_host_online_button.disabled = false
-	if sample_lobby:
-		_on_steam_lobbies_discovered([
-			{"lobby_id": 1, "name": "Alice's lobby", "players": 2, "max": 8, "map": "Round"},
-		])
-	else:
-		_on_steam_lobbies_discovered([])
-
-
 ## Bontago-1pi.49: the name field shows the saved name every time a menu is
 ## built (a rebuilt menu used to reset it to "Player"), and every edit is saved
 ## straight away, so it also survives restarts and the Host/Join page switches.

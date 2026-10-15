@@ -67,12 +67,9 @@ func test_icon_kind_is_square_row_height() -> void:
 	assert_eq(UiRowItem.min_width_for(UiRowItem.Kind.ICON), float(_metrics.row_height_px))
 
 
-func test_row_label_column_is_fixed_width_and_value_cell_trails() -> void:
+func test_row_label_column_is_fixed_width() -> void:
 	var row: UiRow = UiRow.new().setup("LABEL", UiBlockButton.new())
-	var value: Label = row.with_value("42")
 	add_child_autofree(row)
 	await wait_frames(2)
 	assert_eq(row.label.size.x, float(_metrics.row_label_width_px))
-	assert_eq(row.get_child(row.get_child_count() - 1), value, "the readout is the last cell")
-	assert_eq(value.text, "42")
 	assert_eq(row.get_theme_constant("separation"), MenuStyleFactory.arcade_tuning().space_2_px, "items are space-2 apart")

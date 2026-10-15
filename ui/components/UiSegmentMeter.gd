@@ -89,16 +89,6 @@ func set_value_silent(new_value: int) -> void:
 	_silent = false
 
 
-## 0..1 position of the filled part.
-func ratio() -> float:
-	return float(value) / float(step_count)
-
-
-## Sets the filled cells from a 0..1 [param position_ratio].
-func set_ratio(position_ratio: float) -> void:
-	value = roundi(clampf(position_ratio, 0.0, 1.0) * float(step_count))
-
-
 ## The readout text: [member formatter] when set, else the cell count.
 func display_text() -> String:
 	if formatter.is_valid():

@@ -7,7 +7,7 @@ extends Control
 ## Every glyph is code-drawn in the Stackfall Arcade design system (docs/ui_reskin/components.md
 ## KeyPrompt; Bontago-1pi.159.17), so it shares the block recipe (lit top, lip, ledge) and the tokens
 ## of ArcadeVisualTuning and recolours with them: keys are cream caps with an ink legend, shoulders,
-## triggers and chords sand chips, pad face buttons round caps (A mint, B flare, X player-2, Y rim;
+## triggers sand chips, pad face buttons round caps (A mint, B flare, X player-2, Y rim;
 ## the PlayStation set draws cross/circle/square/triangle on the same caps), the stick is a sand
 ## round cap with an L/R legend (a rim arrow when it is a direction, L3/R3 for the click), and the
 ## mouse and D-pad are block pictograms with the bound button lit in rim gold.
@@ -182,12 +182,9 @@ var _pad_style: PadStyle = PadStyle.XBOX
 var _stick_side: StringName = &""
 var _stick_direction: StringName = &""
 var _stick_click: bool = false
-## True for a chord prompt (several events held together): drawn as one sand chip.
-var _chord: bool = false
-## Keys, pad face buttons, shoulders/triggers, chords and plain text badges are ink-on-block caps;
+## Keys, pad face buttons, shoulders/triggers, and plain text badges are ink-on-block caps;
 ## false for the mouse, D-pad and stick pictograms.
 var _arcade_cap: bool = false
-var _listening: bool = false
 var _face_button_index: int = -1
 var _arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 
@@ -202,9 +199,7 @@ func _ready() -> void:
 ## changes) -- each call fully replaces this glyph's state and redraws
 ## rather than layering onto a previous call's state.
 func set_event(event: InputEvent) -> void:
-	_listening = false
 	_face_button_index = -1
-	_chord = false
 	_stick_side = &""
 	_stick_direction = &""
 	_stick_click = false
@@ -221,26 +216,6 @@ func set_event(event: InputEvent) -> void:
 		_kind = Kind.GENERIC
 		_text = event.as_text()
 		custom_minimum_size = Vector2(SHAPE_WIDTH_PX, GLYPH_HEIGHT_PX)
-	_refresh_arcade_cap()
-	queue_redraw()
-
-
-## Chord prompt: `events` (all gamepad) held together, drawn as one chip whose label is the joined
-## component labels.
-func set_chord(events: Array[InputEvent]) -> void:
-	if events.is_empty():
-		return
-	set_event(events[0])
-	if events.size() == 1:
-		return
-	var labels: PackedStringArray = PackedStringArray()
-	for event: InputEvent in events:
-		var part: InputGlyph = InputGlyph.new()
-		part.set_event(event)
-		labels.append(part.label_text())
-		part.free()
-	_text = "+".join(labels)
-	_chord = true
 	_refresh_arcade_cap()
 	queue_redraw()
 
@@ -299,22 +274,8 @@ static func signature_for_action(action: StringName) -> String:
 ## two glyphs per row, extra bindings hidden behind '+1'".
 func set_overflow_count(count: int) -> void:
 	_kind = Kind.GENERIC
-	_listening = false
-	_chord = false
 	_text = "+%d" % count
 	custom_minimum_size = Vector2(SHAPE_WIDTH_PX, GLYPH_HEIGHT_PX)
-	_refresh_arcade_cap()
-	queue_redraw()
-
-
-## Renders the row's own "listening" placeholder (owner: "activating it
-## enters 'press a key/button…' state shown in the glyph slot").
-func set_listening() -> void:
-	_kind = Kind.GENERIC
-	_text = "…"
-	_chord = false
-	_listening = true
-	custom_minimum_size = Vector2(SHAPE_WIDTH_PX * 2.0, GLYPH_HEIGHT_PX)
 	_refresh_arcade_cap()
 	queue_redraw()
 
@@ -451,7 +412,7 @@ func _draw() -> void:
 ## Decides whether this glyph is a cap or a pictogram and sizes it: caps to their legend, round
 ## caps and pictograms to the square glyph box.
 func _refresh_arcade_cap() -> void:
-	_arcade_cap = _chord or ARCADE_CAP_KINDS.has(_kind)
+	_arcade_cap = ARCADE_CAP_KINDS.has(_kind)
 	var width: float = GLYPH_HEIGHT_PX
 	if _arcade_cap and not _is_round_cap():
 		var legend: float = _label_width(_text.to_upper(), ARCADE_LEGEND_FONT_SIZE)
@@ -460,9 +421,9 @@ func _refresh_arcade_cap() -> void:
 	custom_minimum_size = Vector2(width, GLYPH_HEIGHT_PX)
 
 
-## A single pad face button is a round cap; a chord containing one is a chip.
+## A single pad face button is a round cap.
 func _is_round_cap() -> bool:
-	return not _chord and _kind == Kind.FACE and _face_button_index >= 0
+	return _kind == Kind.FACE and _face_button_index >= 0
 
 
 func _draw_arcade_cap() -> void:
@@ -474,20 +435,15 @@ func _draw_arcade_cap() -> void:
 		else:
 			_draw_text_at(_text.to_upper(), _arcade.ink_color, ARCADE_LEGEND_FONT_SIZE, center)
 		return
-	var lip: Color = _arcade.rim_lip_color if _listening else Color.TRANSPARENT
-	draw_style_box(BlockStyleBox.make(face, _arcade, true, BlockStyleBox.STATE_NORMAL, lip), Rect2(Vector2.ZERO, size))
+	draw_style_box(BlockStyleBox.make(face, _arcade, true, BlockStyleBox.STATE_NORMAL, Color.TRANSPARENT), Rect2(Vector2.ZERO, size))
 	var face_rect: Rect2 = _cap_face_rect(Rect2(Vector2.ZERO, size))
 	# Bontago-1pi.149: the legend is uppercase per the mock; label_text() keeps the as_text() form.
 	_draw_text_at(_text.to_upper(), MenuStyleFactory.ink_for_face(face), ARCADE_LEGEND_FONT_SIZE, face_rect.get_center())
 
 
-## Face colour per kind: keys cream, pad chips and chords sand, plain badges disc-600, the
-## listening placeholder rim gold, a lone face button its own token.
+## Face colour per kind: keys cream, pad shoulders/triggers sand, plain badges disc-600, a lone
+## face button its own token.
 func _arcade_cap_face() -> Color:
-	if _listening:
-		return _arcade.rim_color
-	if _chord:
-		return _arcade.sand_color
 	match _kind:
 		Kind.KEY:
 			return _arcade.cream_color

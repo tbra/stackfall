@@ -49,20 +49,6 @@ func add_trailing(item: Control) -> void:
 	add_child(item)
 
 
-## The panel-heading look for a bare [param heading_label] (a flare notch on its left and the
-## text in capitals) for screens whose title Label is authored in a scene.
-static func style_heading_label(heading_label: Label) -> void:
-	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	var notch: StyleBoxFlat = StyleBoxFlat.new()
-	notch.bg_color = Color.TRANSPARENT
-	notch.border_color = arcade.flare_color
-	notch.border_width_left = arcade.space_2_px
-	notch.set_corner_radius_all(arcade.radius_cell_px)
-	notch.content_margin_left = float(arcade.space_4_px)
-	heading_label.text = heading_label.text.to_upper()
-	heading_label.add_theme_stylebox_override("normal", notch)
-
-
 func _draw_bullet() -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	var box: StyleBoxFlat = StyleBoxFlat.new()

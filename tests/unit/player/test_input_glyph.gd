@@ -142,14 +142,10 @@ func test_unnamed_gamepad_button_keeps_its_label() -> void:
 	assert_true(glyph.label_text().begins_with("Btn"))
 
 
-func test_set_event_after_overflow_or_listening_replaces_the_badge() -> void:
+func test_set_event_after_overflow_replaces_the_badge() -> void:
 	var glyph: InputGlyph = _make_glyph()
 	glyph.set_overflow_count(2)
 	assert_eq(glyph.label_text(), "+2")
-	glyph.set_event(_key_event(KEY_NONE, KEY_E))
-	assert_eq(glyph.label_text(), "E")
-	glyph.set_listening()
-	assert_true(glyph.is_arcade_cap())
 	glyph.set_event(_key_event(KEY_NONE, KEY_E))
 	assert_eq(glyph.label_text(), "E")
 

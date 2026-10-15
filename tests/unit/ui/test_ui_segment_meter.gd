@@ -70,9 +70,6 @@ func test_formatter_changes_the_readout_only() -> void:
 	meter.formatter = func(v: int) -> String: return "%d%%" % (v * 10)
 	assert_eq(meter.display_text(), "40%")
 	assert_eq(meter.value, 4)
-	assert_almost_eq(meter.ratio(), 0.4, 0.001)
-	meter.set_ratio(1.0)
-	assert_eq(meter.value, 10)
 
 
 func test_ui_left_and_right_step_one_cell() -> void:

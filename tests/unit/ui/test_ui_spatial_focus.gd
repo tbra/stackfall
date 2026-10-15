@@ -55,10 +55,3 @@ func test_single_control_points_at_itself() -> void:
 	var list: Array[Control] = [only]
 	UiSpatialFocus.wire(list, true)
 	assert_eq(_n(only, SIDE_LEFT), only)
-
-
-func test_nearest_in_rect_picks_closest_intersecting_control() -> void:
-	var g: Array[Control] = _grid()
-	var rect: Rect2 = Rect2(0, 0, 400, 50)
-	assert_eq(UiSpatialFocus.nearest_in_rect(g, rect, Vector2(210, 10)), g[1])
-	assert_null(UiSpatialFocus.nearest_in_rect(g, Rect2(1000, 1000, 5, 5), Vector2.ZERO))
