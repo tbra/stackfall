@@ -108,5 +108,45 @@ class FailureDetailTest(unittest.TestCase):
         self.assertEqual(len(out["res://t.gd"]), full_gate.DETAIL_MAX_LINES)
         self.assertEqual(out["res://none.gd"], [])
 
+class UnloadableScriptTest(unittest.TestCase):
+    """Bontago-fca.120: a scheduled script GUT dropped must surface, not vanish from the totals."""
+
+    GOOD = "res://tests/unit/test_good.gd"
+    BAD = "res://tests/unit/test_bad.gd"
+    ESC = chr(27)
+
+    def _log(self, text):
+        fd, path = tempfile.mkstemp(suffix=".log")
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        self.addCleanup(os.remove, path)
+        return path
+
+    def test_parse_error_script_reported_with_error_text(self):
+        log = "\n".join([
+            'SCRIPT ERROR: Parse Error: Preload file "res://config/x.tres" does not exist.',
+            "   at: GDScript::reload (%s:13)" % self.BAD,
+            'ERROR: Failed to load script "%s" with error "Parse error".' % self.BAD,
+            self.ESC + "[33m[WARNING]:  " + self.ESC + "[0mIgnoring script %s because it does not extend GutTest" % self.BAD,
+            self.GOOD, "* test_ok", "Tests  1", "Passing Tests  1", ""])
+        out = full_gate.find_unloadable([self.BAD, self.GOOD], self._log(log))
+        self.assertEqual([u["script"] for u in out], [self.BAD])
+        self.assertIn("Preload file", out[0]["error"])
+        self.assertIn("Parse error", out[0]["error"])
+
+    def test_script_absent_from_results_is_reported(self):
+        log = "\n".join([self.GOOD, "* test_ok", "Tests  1", ""])
+        out = full_gate.find_unloadable([self.GOOD, self.BAD], self._log(log))
+        self.assertEqual(out, [{"script": self.BAD, "error": full_gate.MISSING_ERROR}])
+
+    def test_all_present_is_clean(self):
+        log = "\n".join([self.ESC + "[0m" + self.GOOD, self.BAD, "Tests  2", ""])
+        self.assertEqual(full_gate.find_unloadable([self.GOOD, self.BAD], self._log(log)), [])
+
+    def test_missing_log_reports_every_script(self):
+        out = full_gate.find_unloadable([self.GOOD], "/nonexistent/shard.log")
+        self.assertEqual(len(out), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
