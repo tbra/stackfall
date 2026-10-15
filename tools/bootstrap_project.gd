@@ -181,8 +181,7 @@ func _apply_settings() -> void:
 		# shrank it. The "editor" feature (any run of the editor binary: probes,
 		# benches, tests, `godot --path .`) starts windowed; exported builds keep the
 		# borderless fullscreen boot above. Real dev runs still switch to the saved
-		# mode in game/main/Main.gd (Settings.apply_window_mode()). Pinned by
-		# tests/unit/main/test_window_launch_defaults.gd so a bootstrap regen cannot drop it.
+		# mode in game/main/Main.gd (Settings.apply_window_mode()).
 		"display/window/size/mode.editor": 0,
 		"display/window/size/borderless.editor": false,
 

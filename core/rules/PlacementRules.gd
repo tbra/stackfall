@@ -15,9 +15,7 @@ extends RefCounted
 ## autoload/Match.gd; everything from the hit point on is here.
 ## footprint_cells()/validate() are spec 3.3's original multi-cell check.
 ## autoload/Match.gd no longer calls them under any hole_mode; they stay compiled
-## for the bots' footprint scoring, tests/bench/bench_territory.gd's legacy
-## regression row and this file's direct unit tests, per the audit's instruction
-## not to reintroduce a footprint test in normal play.
+## for the bots' footprint scoring; normal play must not reintroduce a footprint test.
 ##
 ## Spec 3.3: "On the host, the cell under the ghost's footprint must be owned
 ## by the placing player's team and not contested or a hole." Every cell of

@@ -136,8 +136,7 @@ uniform float ray_shimmer_amount = 0.08;
 // night (game/sky/Skybox.gd via CloudLighting.sun_effect_scale); 1 = clear daylight.
 // Bontago-mp0.94: EVERY additive sun term below (core, halo, god rays) multiplies it, and
 // it is exactly 0 at full storm where the procedural sun glow is also 0, so the rays can
-// never outlive a hidden sun. A new sun term must multiply it too (pinned in
-// tests/unit/sky/test_sunset_clouds_shader.gd).
+// never outlive a hidden sun. A new sun term must multiply it too.
 uniform float sun_effect_scale : hint_range(0.0, 1.0) = 1.0;
 
 
