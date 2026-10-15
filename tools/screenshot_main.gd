@@ -1,5 +1,5 @@
 extends Node
-## Windowed smoke-shot of game/Main.tscn, for eyeballing the M2 build without
+## Windowed smoke-shot of game/main/Main.tscn, for eyeballing the M2 build without
 ## playing it. Run it as an autoload-style extra scene alongside the game:
 ##   godot --path . --scene res://tools/screenshot_main.tscn
 ## It scripts a few placements through Match, waits, saves
@@ -19,13 +19,13 @@ const SETTLE_FRAMES: int = 42
 ## How far above the disk a scripted placement is released, in meters.
 const PLACE_HEIGHT: float = 0.55
 
-var _tuning: TerritoryTuning = preload("res://config/territory_tuning.tres")
-var _physics: PhysicsTuning = preload("res://config/physics_tuning.tres")
+var _tuning: TerritoryTuning = preload("res://config/territory/territory_tuning.tres")
+var _physics: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
 var _cube: BlockShape = preload("res://config/blocks/cube.tres")
 
 
 func _ready() -> void:
-	var main: Node = (load("res://game/Main.tscn") as PackedScene).instantiate()
+	var main: Node = (load("res://game/main/Main.tscn") as PackedScene).instantiate()
 	get_tree().root.add_child.call_deferred(main)
 	await get_tree().process_frame
 	await get_tree().process_frame

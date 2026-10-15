@@ -82,7 +82,7 @@ const _LOBBY_COMPARISON_EQUAL: int = 0
 ## without needing a NetConfig parameter — the plan's static signature takes
 ## only the text, and a static method has no `self.config` to read. The one
 ## constant this file could not avoid pulling from NetConfig.
-const _DEFAULT_CONFIG: NetConfig = preload("res://config/net_config.tres")
+const _DEFAULT_CONFIG: NetConfig = preload("res://config/net/net_config.tres")
 
 var _steam: Object = null
 

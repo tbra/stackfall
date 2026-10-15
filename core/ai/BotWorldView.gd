@@ -6,8 +6,8 @@ extends RefCounted
 ## every living home circle; those are stripped here (matched by home position
 ## and TerritoryTuning.home_radius) so `cx/cz/cr/cteam` hold block circles only.
 
-const SHIPPED_TERRITORY_TUNING: TerritoryTuning = preload("res://config/territory_tuning.tres")
-const SHIPPED_PHYSICS_TUNING: PhysicsTuning = preload("res://config/physics_tuning.tres")
+const SHIPPED_TERRITORY_TUNING: TerritoryTuning = preload("res://config/territory/territory_tuning.tres")
+const SHIPPED_PHYSICS_TUNING: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
 ## Position / radius slack when matching a render-list circle to a home flag.
 ## Default gravity magnitude (m/s^2) of a view nobody filled in.
 const DEFAULT_GRAVITY: float = 9.8
@@ -75,7 +75,7 @@ var gust_center: PackedVector3Array = PackedVector3Array()
 var gust_radius: PackedFloat32Array = PackedFloat32Array()
 var gust_heading: PackedVector2Array = PackedVector2Array()
 var gust_power_values: PackedFloat32Array = PackedFloat32Array()
-## Bontago-1t5.53b: snapshot of the cubes near the own towers (game/BotStackProbe.gd); BotThink's STACK
+## Bontago-1t5.53b: snapshot of the cubes near the own towers (game/bots/BotStackProbe.gd); BotThink's STACK
 ## phase analyses it. null = no tower statics: every site keeps its old score.
 var stack: BotStack = null
 ## Bontago-1t5.72.6: live gravity in the disc frame (magnitude = g * gravity_multiplier); DOWN = a level disc.

@@ -3,7 +3,7 @@ extends MarginContainer
 ## The design system's help line (Bontago-1pi.159.35; owner 2026-10-12 "explanation of options next to
 ## them when unclear ... instead of tooltips"): one body-text line per settings panel that explains
 ## the option the player is on. Rows are tagged with a key ([method tag]); the sentence lives in
-## config/option_help_table.tres (OptionHelpTable). The line shows the hovered row's text, else the
+## config/ui/option_help_table.tres (OptionHelpTable). The line shows the hovered row's text, else the
 ## focused row's, so mouse hover, keyboard focus and gamepad focus all work; a row with no entry
 ## (self-explanatory) leaves the line empty. A cycler / dropdown row shows the per-item entry
 ## "<key>/<index>" of the item currently selected when the table has one.

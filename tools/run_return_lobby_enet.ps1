@@ -4,7 +4,7 @@
 # again. -Port 0 (default) picks a random free UDP port.
 # Exit code: 0 when both peers print "result=PASS", 1 otherwise or when the deadline was hit.
 param([string]$Path = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path, [int]$Port = 0, [int]$Lag = 50, [string]$Out = $env:TEMP, [int]$TimeoutSeconds = 150)
-$scene = "res://tests/bench/return_lobby_enet.tscn"
+$scene = "res://tests/enet/return_lobby_enet.tscn"
 . (Join-Path $PSScriptRoot "enet_result.ps1")
 $script:procs = @()
 function Stop-Tree([object]$p) {

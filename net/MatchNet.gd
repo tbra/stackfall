@@ -89,7 +89,7 @@ var _gift_spawn_notified: Dictionary = {}
 const EVENT_GIFT_SPAWNED: StringName = &"gift_spawned"
 const EVENT_GIFT_CLAIMED: StringName = &"gift_claimed"
 const EVENT_GIFT_EXPIRED: StringName = &"gift_expired"
-## M4 P2c-ii: mirrors game/specials/SpecialBehavior.gd's own trigger, via
+## M4 P2c-ii: mirrors game/gifts/specials/SpecialBehavior.gd's own trigger, via
 ## autoload/match/MatchPlacement._on_special_behavior_triggered() ->
 ## Events.special_triggered (host only). See _on_special_triggered() below.
 const EVENT_SPECIAL_TRIGGERED: StringName = &"special_triggered"
@@ -125,15 +125,15 @@ const EVENT_MATCH_CLOCK: StringName = &"match_clock"
 const EVENT_LOADING_GATE: StringName = &"loading_gate"
 ## Bontago-1pi.69: the live scoreboard snapshot (MatchStats.build_live_payload()),
 ## sent at NetConfig.scoreboard_hz while the round is live; clients show it in the
-## hold-to-show scoreboard (ui/ScoreboardOverlay.gd). Display only.
+## hold-to-show scoreboard (ui/hud/ScoreboardOverlay.gd). Display only.
 const EVENT_LIVE_SCORES: StringName = &"live_scores"
 
-@export var config: NetConfig = preload("res://config/net_config.tres")
+@export var config: NetConfig = preload("res://config/net/net_config.tres")
 
 ## Clients build their replicated bodies with the same factory and the same
 ## tuning the host built the originals with, so a frozen copy has the same
 ## collision shape and mass even though it never simulates.
-var _physics_tuning: PhysicsTuning = preload("res://config/physics_tuning.tres")
+var _physics_tuning: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
 ## Lazily built id -> BlockShape index; BlockShape.load_all_shapes() scans a
 ## directory, so it happens once and only where a spawn needs it.
 var _shapes_by_id: Dictionary = {}
@@ -143,15 +143,15 @@ var _shapes_by_id: Dictionary = {}
 ## through _authority() -- the config is architecture-fixed for the build,
 ## the same reason _physics_tuning above is preloaded rather than read from
 ## Match's own running MatchConfig.
-var _special_tuning: SpecialTuning = preload("res://config/special_tuning.tres")
+var _special_tuning: SpecialTuning = preload("res://config/gifts/special_tuning.tres")
 ## Bontago-1pi.11.41: the fade length a client reports with a replicated
 ## dissolve start (same shipped resource the host's HoleDissolver reads).
-var _hole_dissolve_tuning: HoleDissolveTuning = preload("res://config/hole_dissolve_tuning.tres")
+var _hole_dissolve_tuning: HoleDissolveTuning = preload("res://config/blocks/tuning/hole_dissolve_tuning.tres")
 ## Bontago-1pi.40: the same shipped resources PlayerController reads for the
 ## player's first-block hover, so the AFK auto-drop's no-cursor fallback origin
 ## clears the home beacon by the identical rule (_afk_fallback_origin()).
-var _ghost_tuning: GhostTuning = preload("res://config/ghost_tuning.tres")
-var _beacon_visuals: BeaconVisualTuning = preload("res://config/beacon_visual_tuning.tres")
+var _ghost_tuning: GhostTuning = preload("res://config/blocks/tuning/ghost_tuning.tres")
+var _beacon_visuals: BeaconVisualTuning = preload("res://config/territory/beacon_visual_tuning.tres")
 ## Test-only (Bontago-1pi.11.41): net_ids _on_block_dissolve_started() decided
 ## to replicate, in order -- NetFanout.can_send() is false without a live peer, so this
 ## is what proves the host would have sent them. Game code never reads it.
@@ -217,7 +217,7 @@ var _impact_accept_ms: Array[int] = []
 var _special_ids_by_id: Dictionary = {}
 var _special_ids_cached: bool = false
 ## Test seam (mirrors set_providers()): overrides the roster
-## _known_special_ids() reads. res://config/specials/ is deliberately empty
+## _known_special_ids() reads. res://config/gifts/specials/ is deliberately empty
 ## until P3-P5 land a concrete special, so a test proving real
 ## roster-membership gating (as opposed to "empty roster, only the
 ## placeholder passes") needs a way to fake "some ids exist" without writing
@@ -226,19 +226,19 @@ var _special_ids_cached: bool = false
 var _special_ids_override: Variant = null
 
 ## DECISION (net/MatchNet.gd): Net and Match are plain autoloads and GUT
-## cannot double one (see game/PlayerController.gd's DECISION for the whole
+## cannot double one (see game/player/PlayerController.gd's DECISION for the whole
 ## story), so the two collaborators this node cannot work without are reached
 ## through seams. null means "the real autoload", which is what every shipped
 ## build uses; tests inject doubles with set_providers().
 var _net_provider: Variant = null
 var _match_provider: Variant = null
-## Test seam (tests/unit/test_match_activation.gd): forces the deferred path in a headless run.
+## Test seam (tests/unit/match/test_match_activation.gd): forces the deferred path in a headless run.
 var force_defer_activation: bool = false
 
 ## slot_id -> {"origin": Vector3, "orientation_index": int,
 ## "free_quat": Quaternion, "time": float}. On the host this is what spec
 ## 2.5's auto-drop [ORIGINAL] fires from; on every instance it is what
-## game/RemoteCursors.gd draws.
+## game/player/RemoteCursors.gd draws.
 var _cursors: Dictionary = {}
 
 var _intents_sent: Dictionary = {}
@@ -1405,7 +1405,7 @@ func _known_special_ids() -> Dictionary:
 ## either MatchGifts.PENDING_SPECIAL_ID (the default drawer's placeholder,
 ## always valid regardless of roster -- see MatchPlacement._attach_pending_
 ## special()'s own "safe default" handling of it) or actually a member of the
-## running roster. An empty res://config/specials/ (P3-P5 not landed yet)
+## running roster. An empty res://config/gifts/specials/ (P3-P5 not landed yet)
 ## therefore lets only the placeholder through, exactly as it should: there is
 ## no real special for any other id to name yet.
 func _gift_special_id_wire_ok(special_id: String) -> bool:
@@ -1725,7 +1725,7 @@ func _on_gift_expired(gift_id: int) -> void:
 
 
 ## M4 P2c-ii: autoload/match/MatchPlacement._on_special_behavior_triggered()
-## emits Events.special_triggered only on the host (game/specials/
+## emits Events.special_triggered only on the host (game/gifts/specials/
 ## SpecialBehavior.gd only ever attaches there -- see that file's own header
 ## and orchestrator amendment 2), so this mirrors it to every client exactly
 ## like _on_gift_spawned above.
@@ -2006,7 +2006,7 @@ func _impact_playback_delay_ms() -> float:
 	return 0.0
 
 
-## The same pair game/Block.gd emits on the host, so Sfx (thud), CameraRig
+## The same pair game/blocks/Block.gd emits on the host, so Sfx (thud), CameraRig
 ## (shake), Rumble, BlockEffectsManager (dust) and PerchingBirds need nothing
 ## network-aware.
 func _emit_impact(speed: float, position: Vector3) -> void:
@@ -2097,7 +2097,7 @@ func is_match_live() -> bool:
 
 # --- Mid-match join and reconnect (Bontago-8or.11, spec 3.4) -----------------
 
-## Host only, installed into Net's seat policy by game/Main.gd: the lowest open
+## Host only, installed into Net's seat policy by game/main/Main.gd: the lowest open
 ## human seat for a new mid-match joiner, or -1 (spectate). Open means a human
 ## (not bot) slot that is still alive, held by no peer, and not reserved by a
 ## departed peer inside its disconnect grace.
@@ -2121,7 +2121,7 @@ func pick_open_seat() -> int:
 	return -1
 
 
-## Host only, installed into Net's seat policy by game/Main.gd: whether a
+## Host only, installed into Net's seat policy by game/main/Main.gd: whether a
 ## returning peer may have `slot_id` back -- the match is live, the slot is
 ## alive and its disconnect grace is still running.
 func seat_reclaimable(slot_id: int) -> bool:

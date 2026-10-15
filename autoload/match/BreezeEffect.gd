@@ -4,7 +4,7 @@ extends WindEffect
 ## local GUSTS, layered independently of the weather mode and of any active
 ## weather, except Storm: no NEW gust spawns while a Storm event is active
 ## (Bontago-mp0.91, owner playtest "gust shouldn't occur during storm"); they
-## resume when it ends. Rules: core/BreezeField.gd; numbers: config/breeze.tres
+## resume when it ends. Rules: core/weather/BreezeField.gd; numbers: config/breeze/breeze.tres
 ## (BreezeTuning).
 ##
 ## Every spawn_interval_s the host picks one live block from its seeded RNG and
@@ -60,7 +60,7 @@ var _weather_id_source: Callable = Callable()
 
 
 func _init() -> void:
-	tuning = preload("res://config/breeze.tres")
+	tuning = preload("res://config/breeze/breeze.tres")
 
 
 ## `weather_tuning` null keeps the current (default breeze.tres) tuning.

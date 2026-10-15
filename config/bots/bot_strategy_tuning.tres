@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="BotStrategyTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/bots/BotStrategyTuning.gd" id="1_strategy"]
+
+[resource]
+script = ExtResource("1_strategy")
+anchor_rhythm = 0
+weights_race = PackedFloat32Array(1.5, 0.1, 0.2, 0.3, 2, 0.4, 10)

@@ -1,6 +1,6 @@
 extends Node
 ## Audio for the game's own sound effects and music (assets-audio package).
-## Loads streams at runtime from res://assets/effects (in the editor) or
+## Loads streams at runtime from res://assets/audio/sfx (in the editor) or
 ## <exe dir>/assets/effects (exported). HARD CONSTRAINT: third-party
 ## copyrighted assets (including the original Bontago's) never enter this
 ## repo. Absent folder: one info print, then every play() is a silent
@@ -8,7 +8,7 @@ extends Node
 ## pattern tools/check_steam_setup.ps1 documents for addons/godotsteam/.
 ##
 ## Listens on Events; nothing in gameplay code calls Sfx directly (CLAUDE.md's
-## global-signal-bus convention). ui/MainMenu.gd and ui/Lobby.gd are the sole
+## global-signal-bus convention). ui/menus/MainMenu.gd and ui/lobby/Lobby.gd are the sole
 ## UI exceptions -- button press/hover has no Events signal of its own, so
 ## those screens call Sfx.play() from their button handlers. Main.gd also
 ## supplies the current menu/lobby/gameplay music context.
@@ -28,7 +28,7 @@ extends Node
 
 const LocalFeedback := preload("res://autoload/match/LocalFeedback.gd")
 
-const AUDIO_SUBDIR: String = "assets/effects"
+const AUDIO_SUBDIR: String = "assets/audio/sfx"
 
 ## Effectively-silent volume_db floor for whichever music stem is faded out
 ## of the adaptive crossfade (docs/M7_PLAN.md P6). Not a tunable -- it is an
@@ -47,7 +47,7 @@ const MUSIC_STEM_MUTE_DB: float = -80.0
 const QUIT_DRAIN_S: float = 0.25
 const MSEC_PER_S: float = 1000.0
 
-@export var config: AudioConfig = preload("res://config/audio_config.tres")
+@export var config: AudioConfig = preload("res://config/audio/audio_config.tres")
 
 var _root_dir: String = ""
 var _available: bool = false
@@ -432,8 +432,8 @@ func _next_sfx_player() -> AudioStreamPlayer:
 
 # --- Test seam ---------------------------------------------------------------
 
-## tests/unit/test_sfx.gd points a fresh Sfx instance at a temp folder instead
-## of assets/effects, so the tests never depend on shipped files -- the same Variant/seam pattern ui/MainMenu.gd's net_provider
+## tests/unit/audio/test_sfx.gd points a fresh Sfx instance at a temp folder instead
+## of assets/audio/sfx, so the tests never depend on shipped files -- the same Variant/seam pattern ui/menus/MainMenu.gd's net_provider
 ## uses for a value GUT can't otherwise inject.
 func set_root_dir_for_test(path: String) -> void:
 	_root_dir = path
@@ -545,7 +545,7 @@ func tense_stem_target_volume_db() -> float:
 ## P6): the crossfade only cares how close ANY team is to capturing, not
 ## which one, so team_id is unused here -- underscore-prefixed to match this
 ## file's own convention for an unused handler parameter (e.g.
-## _on_player_eliminated()), even though ui/HUD.gd's own sibling handler of
+## _on_player_eliminated()), even though ui/hud/HUD.gd's own sibling handler of
 ## this same signal does use it for a different purpose (which team's colour
 ## to draw). Events.gd's own doc comment: "team_id is -1 with progress 0 when
 ## a capture breaks" -- that case falls out of the plain
@@ -1293,8 +1293,8 @@ func _looped_copy(source: AudioStream) -> AudioStream:
 ## actually hear happen, so those play for every slot; the rejection sound is
 ## personal and gated to the refused local human since Bontago-1pi.52), a gift claim queues a special for the whole claiming team -- it is
 ## personal feedback, not a world event. Gating on "any locally-driven slot on
-## the claiming team" mirrors game/GiftCrate.gd's own "_local_watch_slot()"
-## comment and ui/HUD.gd's gift toast (Bontago-1en.16), both already
+## the claiming team" mirrors game/gifts/GiftCrate.gd's own "_local_watch_slot()"
+## comment and ui/hud/HUD.gd's gift toast (Bontago-1en.16), both already
 ## local-only; a global "someone somewhere claimed a gift" chime would be
 ## noise in an 8-player match with crates spawning continuously. The loop gates
 ## on LocalFeedback.is_own_human_slot() (Bontago-1pi.52): a human seat driven
@@ -1318,7 +1318,7 @@ func _looped_copy(source: AudioStream) -> AudioStream:
 ## local player at slot 0 or its teammate slot 2 alike under TEAMS_2.
 ##
 ## The loop bound is `maxi(Match.slot_count(), recipient_slot + 1)`, not just
-## Match.slot_count(): tests/unit/test_sfx.gd's own gift_claimed tests call
+## Match.slot_count(): tests/unit/audio/test_sfx.gd's own gift_claimed tests call
 ## this directly with no match ever started (Match.slot_count() == 0 then),
 ## the same way they always have -- team_of_slot() falls back to identity
 ## with no config (see _team_of_slot() below), so this bound keeps checking
@@ -1337,9 +1337,9 @@ func _on_gift_claimed(_gift_id: int, recipient_slot: int, _special_id: StringNam
 		return
 
 
-## Null-safe mirror of config/MatchConfig.gd's team_of_slot() -- Match.config
+## Null-safe mirror of config/match/MatchConfig.gd's team_of_slot() -- Match.config
 ## is null before a match starts (TeamMode.OFF's own "every slot is its own
-## team" fallback), matching ui/HUD.gd's own _team_of_slot() helper.
+## team" fallback), matching ui/hud/HUD.gd's own _team_of_slot() helper.
 func _team_of_slot(slot_id: int) -> int:
 	if Match.config == null:
 		return slot_id

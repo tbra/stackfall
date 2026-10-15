@@ -28,7 +28,7 @@ var _sequence: int = 0
 func setup(match_ref: MatchAutoload) -> void:
 	_match = match_ref
 	# No linger after the effect ends: the anchor has no body worth showing.
-	_special_tuning = (preload("res://config/special_tuning.tres") as SpecialTuning).duplicate() as SpecialTuning
+	_special_tuning = (preload("res://config/gifts/special_tuning.tres") as SpecialTuning).duplicate() as SpecialTuning
 	_special_tuning.gift_despawn_delay_s = 0.0
 
 

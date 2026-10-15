@@ -78,7 +78,7 @@ const SEQUENCE_MODULUS: int = 65536
 ## A fragment_count of 0 is meaningless and 255 is the u8 ceiling.
 const MAX_FRAGMENTS: int = 255
 
-@export var config: NetConfig = preload("res://config/net_config.tres")
+@export var config: NetConfig = preload("res://config/net/net_config.tres")
 
 # --- Shared state -----------------------------------------------------------
 

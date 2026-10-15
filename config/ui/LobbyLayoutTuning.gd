@@ -1,0 +1,100 @@
+class_name LobbyLayoutTuning
+extends Resource
+## Layout tunables for the lobby rework (Bontago-1pi.53, docs/LOBBY_REWORK_PLAN.md,
+## D9): sizes and spacings that are new to the rework live here, so
+## config/ui/menu_visual_tuning.tres (colours, pill shapes) is never touched. Read by
+## ui/lobby/Lobby.gd and ui/lobby/LobbyPlayersPanel.gd.
+##
+## Not one of the F4 tuning panel's six resource classes (CameraTuning,
+## GhostTuning, PhysicsTuning, TerritoryTuning, TerritoryVisuals,
+## BlockFeedConfig -- same note as config/ui/LoadingScreenTuning.gd), so these
+## exports do not need a config/ui/tuning_panel_hints.tres entry.
+##
+## E1 (the lobby extraction) keeps today's look: every default below equals the
+## literal it replaced, so moving the roster rows into LobbyPlayersPanel changes
+## no pixel. The section/advanced fields are consumed by the S1 packages.
+
+## Vertical gap between two UiSection blocks in the settings column (S1a).
+@export var section_spacing_px: int = 10
+
+## Left indent of an Advanced block under its section header (S1b).
+@export var advanced_indent_px: int = 12
+## Horizontal padding inside the Advanced disclosure so its focus ring clears the text.
+@export var advanced_toggle_padding_px: int = 8
+
+## Width of the label column every settings row shares (Bontago-1pi.61), in px.
+@export var label_column_width_px: int = 98
+
+## Width of the value column (slider readout chip / value label) every row shares.
+@export var value_column_width_px: int = 120
+
+## Bontago-1pi.146: one height for every control in a settings row (cycle selectors, toggles, the
+## -/value/+ stepper pill, the segmented meters), so rows align and no row type towers over another.
+@export var row_control_height_px: int = 36
+
+## Horizontal gap between the cells of one settings row.
+@export var row_separation_px: int = 12
+
+## Vertical gap between settings rows (and between checklist rows).
+@export var row_spacing_px: int = 8
+
+## Bontago-1pi.150: smallest width of the Players card, so a full seat row (colour box, name,
+## difficulty, remove, badge) never clips on the 960x540 mockup-scale canvas; the settings column
+## takes what is left.
+@export var players_card_min_width_px: int = 384
+
+## Edge of a seat row's colour box, in px (width, height). Replaces the 24 x 24
+## clay-cube icon the roster rows drew before the rework.
+@export var color_box_size_px: Vector2 = Vector2(24.0, 24.0)
+
+## Corner radius of the colour box.
+@export var color_box_corner_radius_px: int = 6
+
+## Smallest height of a seat row, in px. 0 = natural content height (today's
+## look); the seat-row package raises it once rows carry buttons.
+@export var seat_row_min_height_px: int = 0
+
+## Gap between a seat's name and its subtitle line.
+@export var seat_text_separation_px: int = 0
+
+## Font size of a seat's name.
+@export var seat_name_font_size: int = 16
+
+## Widest a seat name may force its row to be (logical px, scaled by the one UI scale
+## rule): a short name is never clipped, a longer one ends in an ellipsis (Bontago-1pi.95).
+@export var seat_name_max_width_px: int = 180
+
+## Seat-row controls (PL1a, ui/lobby/LobbySeatRow.gd). Smallest size of the team
+## number button (visible with teams on): width, height in px.
+@export var seat_team_button_min_size_px: Vector2 = Vector2(40.0, 32.0)
+
+## Smallest width of a bot's difficulty dropdown, in px.
+@export var seat_difficulty_min_width_px: int = 108
+## Bontago-1pi.150: largest side margin of the difficulty pill's text, in px.
+@export var seat_difficulty_margin_px: int = 8
+
+## Width of the focus ring drawn round the colour box while it holds gamepad/keyboard
+## focus, in px (the box is a flat colour, so the shared theme's ring would vanish
+## into it).
+@export var seat_color_focus_border_px: int = 3
+
+## Open-seat row (Bontago-hfa.11, ui/lobby/LobbyOpenSeatRow.gd): dash length, gap and line width of its
+## dashed outline, and how far the next-free-colour diamond is dimmed (alpha).
+@export var open_seat_dash_px: int = 8
+@export var open_seat_gap_px: int = 6
+@export var open_seat_border_px: int = 2
+@export_range(0.0, 1.0, 0.05) var open_seat_diamond_alpha: float = 0.45
+
+## Players-row variants (Bontago-1pi.159.43, ui/lobby/LobbySeatRow.gd). Colour of team 1..4 on the team chip,
+## the group header band and the row edge (the pick wraps past the end); Random keeps the neutral chip.
+@export var seat_team_colors: PackedColorArray = PackedColorArray([
+	Color("#ff7a59"), Color("#4aa8ff"), Color("#5fd38a"), Color("#c08cff"),
+])
+## Width of a team-coloured edge band on a row / card / group header, in px.
+@export var seat_team_band_px: int = 4
+## Seat cards (CARDS variant): grid columns and the marker's edge in px.
+@export var seat_card_columns: int = 2
+@export var seat_card_marker_px: int = 40
+## Team chip: how much brighter the hovered chip is and how much darker its rim is than the team colour.
+@export_range(0.0, 1.0, 0.01) var seat_team_hover_lighten: float = 0.18
+@export_range(0.0, 1.0, 0.01) var seat_team_border_darken: float = 0.3

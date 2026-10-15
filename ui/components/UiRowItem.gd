@@ -9,7 +9,7 @@ extends RefCounted
 enum Kind { BUTTON_SM, ICON, TOGGLE, STEPPER, DROPDOWN, BADGE, METER }
 
 const GROUP: StringName = &"ui_row_item"
-const METRICS_PATH: String = "res://config/component_metrics.tres"
+const METRICS_PATH: String = "res://config/ui/component_metrics.tres"
 
 
 static var _metrics: ComponentMetrics = null

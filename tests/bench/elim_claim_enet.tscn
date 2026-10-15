@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3]
-
-[ext_resource type="Script" path="res://tests/bench/elim_claim_enet.gd" id="1_q"]
-
-[node name="ElimClaimEnet" type="Node"]
-script = ExtResource("1_q")

@@ -26,17 +26,17 @@ signal minimap_size_changed(preset: int)
 
 ## autoload/Rumble.gd reads rumble_enabled()/rumble_strength() directly (the
 ## same camera_shake_enabled() precedent); this fires so a future
-## ui/OptionsMenu.gd row can live-update without polling.
+## ui/menus/OptionsMenu.gd row can live-update without polling.
 signal rumble_setting_changed(enabled: bool, strength: float)
 ## Bontago-1pi.49: the local player's typed name changed (already cleaned).
 signal player_name_changed(player_name: String)
 
 const DEFAULT_PRESET_ID: StringName = &"medium"
-const PRESETS_DIR: String = "res://config/graphics_presets/"
+const PRESETS_DIR: String = "res://config/graphics/presets/"
 
 ## Bontago-1pi.10 (owner: "default to only showing mouse/keyboard, switch to
 ## showing only gamepad options on gamepad input and switch back on mouse/
-## keyboard input"). ui/OptionsMenu.gd's Controls page and ui/KeyRebindRow.gd
+## keyboard input"). ui/menus/OptionsMenu.gd's Controls page and ui/menus/KeyRebindRow.gd
 ## read active_input_device() to decide which device's binding glyphs to
 ## show; Events.input_device_changed lets both live-swap without reopening
 ## the menu.
@@ -46,7 +46,7 @@ const DEFAULT_ACTIVE_DEVICE: StringName = DEVICE_KEYBOARD_MOUSE
 
 ## DECISION (Bontago-1pi.10): a UI-feel/detection threshold, not gameplay or
 ## physics tuning (CLAUDE.md's no-magic-numbers rule targets those), the same
-## reasoning ui/OptionsMenu.gd's own MIN_VOLUME_DB/MAX_VOLUME_DB DECISION
+## reasoning ui/menus/OptionsMenu.gd's own MIN_VOLUME_DB/MAX_VOLUME_DB DECISION
 ## gives for a plain script const instead of a config/*.tres Resource.
 ## Filters incidental mouse jitter (a resting hand, OS pointer noise) from
 ## counting as "the player just used the mouse".
@@ -111,7 +111,7 @@ const KEY_STICK_MOVE_SPEED_SCALE: String = "stick_move_speed_scale"
 const KEY_STICK_SPEED_BASIS: String = "stick_speed_basis"
 const STICK_SPEED_BASIS_CURRENT: int = 2
 ## Old base -> new base ratio (30 -> 36) and the Options slider's range (kept
-## in step with ui/OptionsMenu.gd MIN/MAX_MOVE_SPEED_SCALE) for the migration.
+## in step with ui/menus/OptionsMenu.gd MIN/MAX_MOVE_SPEED_SCALE) for the migration.
 const STICK_SPEED_BASE_RATIO: float = 1.2
 const STICK_SPEED_MIGRATED_MIN: float = 0.5
 const STICK_SPEED_MIGRATED_MAX: float = 2.0
@@ -119,7 +119,7 @@ const STICK_SPEED_MIGRATED_MAX: float = 2.0
 ## Bontago-xtq.45 (M7 P4): the three player-facing window modes, exclusive
 ## fullscreen, borderless fullscreen and windowed. Ids are StringName rather
 ## than a real GDScript enum so they persist to ConfigFile directly (same
-## pattern as _current_preset_id) and so a future ui/OptionsMenu.gd
+## pattern as _current_preset_id) and so a future ui/menus/OptionsMenu.gd
 ## OptionButton can iterate WINDOW_MODE_IDS without depending on this
 ## script's enum type.
 const WINDOW_MODE_FULLSCREEN: StringName = &"fullscreen"
@@ -129,7 +129,7 @@ const WINDOW_MODE_WINDOWED: StringName = &"windowed"
 ## Owner request (Bontago-xtq.45): borderless fullscreen is the default.
 const DEFAULT_WINDOW_MODE_ID: StringName = WINDOW_MODE_BORDERLESS_FULLSCREEN
 
-## Display order for the future OptionButton (ui/OptionsMenu.gd, a separate
+## Display order for the future OptionButton (ui/menus/OptionsMenu.gd, a separate
 ## package) -- exclusive fullscreen, then borderless fullscreen, then windowed.
 const WINDOW_MODE_IDS: Array[StringName] = [
 	WINDOW_MODE_FULLSCREEN,
@@ -146,16 +146,16 @@ const WINDOW_MODE_LABELS: Dictionary[StringName, String] = {
 	WINDOW_MODE_WINDOWED: "Windowed",
 }
 
-## Bontago-xtq.29 (M7 P4): default on -- matches the shake game/CameraRig.gd
+## Bontago-xtq.29 (M7 P4): default on -- matches the shake game/player/CameraRig.gd
 ## already applies before the player ever opens Options, so a fresh install
 ## shows the intended feel rather than a silent off-by-default.
 const DEFAULT_CAMERA_SHAKE_ENABLED: bool = true
 
 ## Bontago (rumble package): the single source of truth for a fresh install's
-## rumble defaults -- see config/RumbleConfig.gd's own DECISION comment. Once
+## rumble defaults -- see config/player/RumbleConfig.gd's own DECISION comment. Once
 ## user://settings.cfg has a [gamepad] section, _load() never reads these
 ## fields again.
-var _rumble_defaults: RumbleConfig = preload("res://config/rumble_config.tres")
+var _rumble_defaults: RumbleConfig = preload("res://config/player/rumble_config.tres")
 
 ## Options package: Master/Music/SFX are three independent channels, each a
 ## plain 0..1 linear "slider position" (owner: "Sliders 0-100% (linear,
@@ -177,10 +177,10 @@ const SILENT_VOLUME_DB: float = -80.0
 
 ## Owner correction (options package, mid-review): the single "block movement
 ## speed" slider is replaced by two independent scales -- mouse_move_speed_
-## scale multiplies game/PlayerController.gd's mouse-cursor use of
+## scale multiplies game/player/PlayerController.gd's mouse-cursor use of
 ## GhostTuning.block_move_sensitivity, stick_move_speed_scale multiplies its
 ## gamepad cursor's max speed. 1.0 = the tuning Resource's own untouched
-## default for either. The *designed* slider range lives in ui/OptionsMenu.gd
+## default for either. The *designed* slider range lives in ui/menus/OptionsMenu.gd
 ## (the same MIN_VOLUME_DB/MAX_VOLUME_DB "scene-level widget configuration"
 ## DECISION that file already documents), not here.
 const DEFAULT_MOUSE_MOVE_SPEED_SCALE: float = 1.0
@@ -198,7 +198,7 @@ var _graphics_overrides: Dictionary = {}
 const DEFAULT_ADAPTIVE_QUALITY: bool = false
 var _adaptive_quality: bool = DEFAULT_ADAPTIVE_QUALITY
 var _governor_level: int = 0
-var _governor_config: QualityGovernorConfig = preload("res://config/quality_governor.tres")
+var _governor_config: QualityGovernorConfig = preload("res://config/graphics/quality_governor.tres")
 
 ## Keyed by AudioChannel; see the enum's own doc above. Muting never touches
 ## the stored percent -- toggling mute back off simply reveals whatever
@@ -223,12 +223,12 @@ var _custom_music_dir: String = ""
 ## Bontago-1pi.49: the name the local player typed, "" until they type one (the
 ## host then seats them as "Player N"). Length cap: NetConfig.max_player_name_length.
 var _player_name: String = ""
-var _net_config: NetConfig = preload("res://config/net_config.tres")
+var _net_config: NetConfig = preload("res://config/net/net_config.tres")
 var _camera_shake_enabled: bool = DEFAULT_CAMERA_SHAKE_ENABLED
 ## Bontago-1pi.204: 0.0 = no override (the camera uses CameraTuning.fov_deg, which F4 edits).
 var _fov_override_deg: float = 0.0
 var _window_mode_id: StringName = DEFAULT_WINDOW_MODE_ID
-var _ui_scale_tuning: UiScaleTuning = preload("res://config/ui_scale_tuning.tres")
+var _ui_scale_tuning: UiScaleTuning = preload("res://config/ui/ui_scale_tuning.tres")
 var _ui_scale: float = 1.0
 var _hud_scale: float = 1.0
 var _minimap_preset: int = 1
@@ -241,7 +241,7 @@ var _stick_move_speed_scale: float = DEFAULT_STICK_MOVE_SPEED_SCALE
 ## the full InputMap default set -- key_override_events() answers "what has
 ## the user overridden", not "what is bound").
 var _key_overrides: Dictionary[StringName, Array] = {}
-## Bontago-470.8: user-level debug-mode switch (game/DebugMode.gd's source 3).
+## Bontago-470.8: user-level debug-mode switch (game/debug/DebugMode.gd's source 3).
 ## -1 = never set (fall through to the other sources), 0 = off, 1 = on. Edited
 ## by hand in user://settings.cfg ([debug] enabled=true) or via
 ## set_debug_setting(); there is no in-game menu entry on purpose.
@@ -539,7 +539,7 @@ func toggle_weather_mute() -> void:
 	set_weather_muted(not weather_muted())
 
 
-## ui/OptionsMenu.gd's ResetButton: every channel back to 100%, unmuted.
+## ui/menus/OptionsMenu.gd's ResetButton: every channel back to 100%, unmuted.
 func reset_audio_settings() -> void:
 	for channel: AudioChannel in [AudioChannel.MASTER, AudioChannel.MUSIC, AudioChannel.SFX, AudioChannel.WEATHER]:
 		_channel_volume_percent[channel] = DEFAULT_VOLUME_PERCENT
@@ -591,7 +591,7 @@ func set_custom_music_dir(path: String) -> void:
 
 
 ## Bontago-1pi.49: the local player's saved display name, "" when never set.
-## ui/MainMenu.gd prefills its name field from this and writes every edit back,
+## ui/menus/MainMenu.gd prefills its name field from this and writes every edit back,
 ## so the name survives page changes, a rebuilt menu and a restart.
 func player_name() -> String:
 	return _player_name
@@ -608,9 +608,9 @@ func set_player_name(typed: String) -> void:
 
 
 ## Bontago-xtq.29 (M7 P4, spec 2.10 "camera shake"): read directly by
-## game/CameraRig.gd (autoload/Sfx.gd's own master_volume_db()/
+## game/player/CameraRig.gd (autoload/Sfx.gd's own master_volume_db()/
 ## custom_music_dir() precedent -- a plain-bool feel setting, not something
-## that needs a per-test provider seam the way ui/OptionsMenu.gd's InputMap
+## that needs a per-test provider seam the way ui/menus/OptionsMenu.gd's InputMap
 ## rebinding does).
 func camera_shake_enabled() -> bool:
 	return _camera_shake_enabled
@@ -625,13 +625,13 @@ func set_camera_shake_enabled(enabled: bool) -> void:
 ## Bontago-1pi.204: the player's field of view in degrees, or 0.0 when never chosen.
 ## DECISION (autoload/Settings.gd): an optional override rather than a second default, so the
 ## F4 CameraTuning.fov_deg slider stays the baseline until a player picks a value in Options;
-## game/CameraRig.gd applies this over the tuning value.
+## game/player/CameraRig.gd applies this over the tuning value.
 func fov_override_deg() -> float:
 	return _fov_override_deg
 
 
-## Applies live (game/CameraRig.gd listens and clamps to the CameraTuning range; kept out of
-## here so config/CameraTuning.gd stays out of the autoload closure, lint_layers L3).
+## Applies live (game/player/CameraRig.gd listens and clamps to the CameraTuning range; kept out of
+## here so config/player/CameraTuning.gd stays out of the autoload closure, lint_layers L3).
 func set_fov_override_deg(degrees: float) -> void:
 	_fov_override_deg = maxf(degrees, 0.0)
 	_save()
@@ -645,7 +645,7 @@ func reset_fov_override() -> void:
 
 
 ## Bontago (rumble package): read directly by autoload/Rumble.gd, the same
-## way camera_shake_enabled() above is read directly by game/CameraRig.gd.
+## way camera_shake_enabled() above is read directly by game/player/CameraRig.gd.
 func rumble_enabled() -> bool:
 	return _rumble_enabled
 
@@ -656,7 +656,7 @@ func set_rumble_enabled(enabled: bool) -> void:
 	rumble_setting_changed.emit(_rumble_enabled, _rumble_strength)
 
 
-## 0..1, clamped -- the same range config/RumbleConfig.gd's
+## 0..1, clamped -- the same range config/player/RumbleConfig.gd's
 ## global_strength_scale default seeds this from.
 func rumble_strength() -> float:
 	return _rumble_strength
@@ -668,7 +668,7 @@ func set_rumble_strength(strength: float) -> void:
 	rumble_setting_changed.emit(_rumble_enabled, _rumble_strength)
 
 
-## ui/OptionsMenu.gd's ResetButton.
+## ui/menus/OptionsMenu.gd's ResetButton.
 func reset_rumble_settings() -> void:
 	_rumble_enabled = _rumble_defaults.enabled_by_default
 	_rumble_strength = _rumble_defaults.global_strength_scale
@@ -677,7 +677,7 @@ func reset_rumble_settings() -> void:
 
 
 # --- Block movement speed (options package) -----------------------------------
-## Two independent feel multipliers game/PlayerController.gd applies: mouse_
+## Two independent feel multipliers game/player/PlayerController.gd applies: mouse_
 ## move_speed_scale to the mouse cursor's block_move_sensitivity,
 ## stick_move_speed_scale to the gamepad cursor's max speed. Owner correction
 ## (mid-review): kept separate rather than one shared scale, since a mouse
@@ -690,7 +690,7 @@ func mouse_move_speed_scale() -> float:
 
 func set_mouse_move_speed_scale(scale: float) -> void:
 	# DECISION (autoload/Settings.gd): the *designed* range (the Options
-	# slider's own min/max) lives in ui/OptionsMenu.gd, the same
+	# slider's own min/max) lives in ui/menus/OptionsMenu.gd, the same
 	# MIN_VOLUME_DB/MAX_VOLUME_DB "scene-level widget configuration" DECISION
 	# that file already documents -- this clamp is only a generic safety
 	# floor so a scale can never reach zero or negative and stall or invert
@@ -768,7 +768,7 @@ func reset_minimap_size() -> void:
 ## DECISION (Bontago-1pi.150): one knob, Window.content_scale_factor of the root window, which the
 ## engine multiplies onto the project stretch (canvas_items, expand): the UI canvas shrinks/grows,
 ## 3D rendering, cameras and Label3D are untouched. Isolated runs (GUT, agent probes) never touch the
-## real window; they only publish the value to UiScaleTuning.current_scale, which ui/UiScale.gd's
+## real window; they only publish the value to UiScaleTuning.current_scale, which ui/theme/UiScale.gd's
 ## SubViewport emulation reads.
 func apply_ui_scale() -> void:
 	UiScaleTuning.current_scale = _ui_scale
@@ -790,7 +790,7 @@ func window_mode() -> StringName:
 
 ## Validates `id` against WINDOW_MODE_IDS, persists it, emits
 ## window_mode_changed(id) and applies it immediately via apply_window_mode()
-## -- game/Main.gd (a separate package) only needs to call apply_window_mode()
+## -- game/main/Main.gd (a separate package) only needs to call apply_window_mode()
 ## once at boot for the persisted value; every later change goes through here.
 func set_window_mode(id: StringName) -> void:
 	if not WINDOW_MODE_IDS.has(id):

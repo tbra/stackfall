@@ -51,11 +51,11 @@ LINE_ALLOW = {
         ("autoload/Match.gd", "func _is_host", "the injectable net-provider seam over Net.is_host(); ~70 controller/test call sites"),
         ("autoload/match/WindEffect.gd", "func _is_host", "shared Storm/Breeze test override seam, then Match._is_host(); no own predicate"),
         ("autoload/match/MatchWeather.gd", "func _is_host", "test override seam, then Match._is_host(); no own predicate"),
-        ("game/HoleDissolver.gd", "func _is_host", "reads BlockRegistry's cached host-authority flag, not the session"),
+        ("game/field/HoleDissolver.gd", "func _is_host", "reads BlockRegistry's cached host-authority flag, not the session"),
     ],
 }
 
-ALL_CODE = ("ui/", "game/", "autoload/", "net/", "core/", "vfx/")
+ALL_CODE = ("ui/", "game/", "autoload/", "net/", "core/")
 
 RULES = [
     Rule("NAME_FMT",
@@ -68,35 +68,35 @@ RULES = [
          "no inline display_name fallback; use PlayerNames.label_for_slot"),
     Rule("COLOR_LOOKUP",
          r"\b(?:default_player_colors|player_colors)\s*(?:\[|\.size|\()",
-         None, ("config/MatchConfig.gd", "core/rules/SlotColors.gd", "core/rules/LobbySeats.gd",
-                "autoload/Match.gd", "game/Field.gd", "ui/Minimap.gd"), False, GD,
+         None, ("config/match/MatchConfig.gd", "core/rules/SlotColors.gd", "core/rules/LobbySeats.gd",
+                "autoload/Match.gd", "game/field/Field.gd", "ui/hud/Minimap.gd"), False, GD,
          "resolve slot colours through SlotColors / Match.slot_color"),
     Rule("DIAMOND",
          # A diamond identifier (SlotDiamond, the owner's class, is exempt) on a line that
          # builds or draws geometry. Plain `SlotDiamond.create(...)` consumers stay legal.
          r"(?i)^(?=.*(?<!slot)diamond)(?=.*(?:PackedVector2Array|draw_\w+|Polygon2D|polygon|polyline))",
-         ("ui/",), ("ui/SlotDiamond.gd",), False, GD,
-         "draw the colour diamond through ui/SlotDiamond.gd (SlotDiamond.create / .points)"),
+         ("ui/",), ("ui/hud/SlotDiamond.gd",), False, GD,
+         "draw the colour diamond through ui/hud/SlotDiamond.gd (SlotDiamond.create / .points)"),
     Rule("GLYPH_EVENTS",
          r"InputMap\.action_get_events|\.as_text\(\)",
-         ("ui/", "game/", "vfx/"), ("ui/InputGlyph.gd", "ui/InputPrompt.gd", "autoload/Settings.gd"), False, GD,
+         ("ui/", "game/"), ("ui/hud/InputGlyph.gd", "ui/InputPrompt.gd", "autoload/Settings.gd"), False, GD,
          "derive action glyphs through InputGlyph, not InputMap/as_text"),
     Rule("GLYPH_ASSET",
          r"assets/ui/input_glyphs|input_glyph_table",
-         None, ("ui/InputGlyph.gd", "config/InputGlyphTable.gd"), True, GD + (".tscn",),
+         None, ("ui/hud/InputGlyph.gd", "config/player/InputGlyphTable.gd"), True, GD + (".tscn",),
          "glyph textures belong to InputGlyph / InputGlyphTable"),
     Rule("GLYPH_TEXT",
          r"\"[^\"]*\b(?:Press|Hold|Tap|Click)\s+(?:Enter|Space|Esc|[A-Z])\b[^\"]*\"",
-         ("ui/", "game/"), ("ui/InputGlyph.gd",), True, GD,
+         ("ui/", "game/"), ("ui/hud/InputGlyph.gd",), True, GD,
          "no hard-coded key names in prompts; use an InputGlyph"),
     Rule("ENUM_LABEL",
          # Enum receivers start upper-case (MatchConfig.TeamMode.keys()[i]); dictionary variables do not.
          r"\b[A-Z]\w*\.keys\(\)\s*\[",
-         ("ui/", "autoload/"), ("core/rules/DisplayNames.gd", "config/MapDef.gd"), False, GD,
+         ("ui/", "autoload/"), ("core/rules/DisplayNames.gd", "config/match/MapDef.gd"), False, GD,
          "label enums through DisplayNames, not enum.keys()[i]"),
     Rule("CAPITALIZE_ID",
          r"\.capitalize\(\)",
-         ("ui/", "game/", "autoload/"), ("core/rules/DisplayNames.gd", "game/Skybox.gd"), False, GD,
+         ("ui/", "game/", "autoload/"), ("core/rules/DisplayNames.gd", "game/sky/Skybox.gd"), False, GD,
          "label ids through DisplayNames, not capitalize()"),
     Rule("RESULTS_KEY",
          # Results-payload keys that no other payload uses: any ui/ literal-key read is a bypass of
@@ -108,7 +108,7 @@ RULES = [
     Rule("RESULTS_KEY_SHARED",
          # Keys other payloads also use (lobby seats, mode state), so only the results readers are scanned.
          r"(?:\.get\(|\[)\s*\"(?:slot_id|team_id|name|is_bot|wins|height|mode|mode_id|scores|live|is_winner)\"",
-         ("ui/ResultsScreen.gd", "ui/ScoreTable.gd", "ui/ScoreboardOverlay.gd"), ("core/rules/ResultsPayload.gd",), True, GD,
+         ("ui/menus/ResultsScreen.gd", "ui/menus/ScoreTable.gd", "ui/hud/ScoreboardOverlay.gd"), ("core/rules/ResultsPayload.gd",), True, GD,
          "read results-payload keys through ResultsPayload (KEY_* / accessors)"),
     Rule("SEAT_WIRE_KEY",
          # Roster-entry keys (Net._peers / _rpc_roster_update): net/ and autoload/ build and read them only
@@ -117,8 +117,8 @@ RULES = [
          ("net/", "autoload/"), ("core/rules/LobbySeats.gd", "autoload/match/MatchStats.gd"), True, GD,
          "seat/roster payload keys belong to LobbySeats (FIELD_* / entry_to_wire / entry_from_wire)"),
     Rule("GIFT_ICON",
-         r"res://assets/gifts/",
-         None, ("config/", "game/GiftCrate.gd", "game/BlockFactory.gd"), True, GD,
+         r"res://assets/models/gifts/",
+         None, ("config/", "game/gifts/GiftCrate.gd", "game/blocks/BlockFactory.gd"), True, GD,
          "gift art paths belong to GiftIconTable / GiftModelTable"),
     Rule("STATE_SET",
          # Two or more Match.State members in one statement joined by or/and/a match-arm comma:
@@ -142,7 +142,7 @@ RULES = [
          # (hot_seat or turn_based). A hand-written pair of the two flags (either order,
          # or/and, multi-line) is a copy; single-flag checks stay legal.
          r"\bhot_seat\b.*\b(?:or|and)\b.*\bturn_based\b|\bturn_based\b.*\b(?:or|and)\b.*\bhot_seat\b",
-         None, ("config/MatchConfig.gd",), False, GD,
+         None, ("config/match/MatchConfig.gd",), False, GD,
          "use MatchConfig.is_sequential_play(), not a hand-written hot_seat/turn_based pair",
          True),
 ]

@@ -3,7 +3,7 @@
 # tree (the godot shim spawns the real console exe), and a finally block does it
 # again so an error or Ctrl+C cannot orphan a child.
 param([string]$Path = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path, [int]$Port = 47795, [int]$Lag = 50, [string]$Out = $env:TEMP, [int]$TimeoutSeconds = 60, [switch]$Late)
-$scene = "res://tests/bench/loading_ready_enet.tscn"
+$scene = "res://tests/enet/loading_ready_enet.tscn"
 . (Join-Path $PSScriptRoot "enet_result.ps1")
 $procs = @()
 $deadlineHit = $false

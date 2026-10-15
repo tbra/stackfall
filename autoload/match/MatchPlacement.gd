@@ -30,7 +30,7 @@ extends RefCounted
 ## clamp radius itself (>= 150 m on the smallest map), comfortably above the
 ## worst-case impulse travel above, without touching _burn_block()'s impulse
 ## for a legitimate near-disk burn (docs/archive/M2_PLAN.md owner decision 2) --
-## proven by tests/unit/test_match_flow.gd's
+## proven by tests/unit/match/test_match_flow.gd's
 ## test_repro_burn_clamp_margin_lets_a_maximally_clamped_burn_escape_the_kill_plane.
 const _BURN_CLAMP_MARGIN: float = 0.5
 
@@ -46,9 +46,9 @@ var _blocks_spawned: int = 0
 ## rather than added to autoload/Match.gd's field set (that file, per this
 ## package's own file ownership, gets only a one-line forward), the same way
 ## Match.gd itself preloads _physics_tuning/_territory_tuning etc.
-var _special_tuning: SpecialTuning = preload("res://config/special_tuning.tres")
-var _glue_drop_tuning: GlueDropTuning = preload("res://config/glue_drop_tuning.tres")
-var _ghost_tuning: GhostTuning = preload("res://config/ghost_tuning.tres")
+var _special_tuning: SpecialTuning = preload("res://config/gifts/special_tuning.tres")
+var _glue_drop_tuning: GlueDropTuning = preload("res://config/gifts/glue_drop_tuning.tres")
+var _ghost_tuning: GhostTuning = preload("res://config/blocks/tuning/ghost_tuning.tres")
 # DECISION (Bontago-1pi.14 round 3): numeric guards, not gameplay tunables --
 # a floor so a zero/negative step cannot loop forever, and float slack so the
 # final step landing on the cap is still tried.
@@ -64,7 +64,7 @@ const CLEARANCE_CAP_EPSILON: float = 0.0001
 var _special_defs_by_id: Dictionary = {}
 var _special_defs_config: MatchConfig = null
 
-## _attach_pending_special()'s per-id warning gate: an empty config/specials/
+## _attach_pending_special()'s per-id warning gate: an empty config/gifts/specials/
 ## roster (P3-P5 not landed yet) or a misconfigured drawer would otherwise
 ## push_warning on every single spawn once gifts are common, drowning any
 ## other warning in the log. DECISION (autoload/match/MatchPlacement.gd, M4
@@ -373,7 +373,7 @@ func request_place(
 			# Bontago-mv0.24: this auto-drop *did* find a valid point and
 			# landed there instead of at the caller's raw ghost position --
 			# tell the owning client where, so its cursor and camera can jump
-			# to match (game/PlayerController.gd's _on_placement_relocated).
+			# to match (game/player/PlayerController.gd's _on_placement_relocated).
 			Events.placement_relocated.emit(slot_id, final_disk_origin)
 
 	_match._feed._consume_and_refeed(slot_id, auto_drop)
@@ -609,7 +609,7 @@ func _apply_aim_direction(block: Block, def: SpecialDef, direction: Vector3) -> 
 ## off-host. Not a player intent, so unlike request_place()/request_throw()
 ## this consumes no feed slot and runs no PlacementRules/ThrowRules point
 ## check -- the caller (an effect's physics_tick(), which SpecialBehavior
-## only ever runs host-side, see game/specials/SpecialBehavior.gd) already
+## only ever runs host-side, see game/gifts/specials/SpecialBehavior.gd) already
 ## decided the exact world pose and velocity to spawn at.
 ##
 ## Follows _spawn_block()'s exact pipeline (BlockFactory.build ->
@@ -1030,7 +1030,7 @@ func _held_deliverable_gift(slot_id: int) -> StringName:
 func _resolve_deliverable_special(special_id: StringName) -> SpecialDef:
 	if special_id == MatchGifts.PENDING_SPECIAL_ID:
 		# The default drawer's placeholder -- MatchGifts has not installed its
-		# real weighted drawer yet (an empty config/specials/ roster; P3-P5 not
+		# real weighted drawer yet (an empty config/gifts/specials/ roster; P3-P5 not
 		# landed). Safe default: spawn exactly as an ordinary block.
 		_warn_unresolved_special_once(special_id, "no roster installed yet")
 		return null
@@ -1058,7 +1058,7 @@ func _arm_special_behavior(block: Block, def: SpecialDef, tuning: SpecialTuning)
 	return behavior
 
 
-## Forwards SpecialBehavior's own `triggered` signal (game/specials/
+## Forwards SpecialBehavior's own `triggered` signal (game/gifts/specials/
 ## SpecialBehavior.gd, not touched by this package -- orchestrator amendment
 ## 2) into Events.special_triggered, appended to autoload/Events.gd by this
 ## package. `net_id` is bound at connect time in _attach_pending_special()

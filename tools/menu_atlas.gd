@@ -39,7 +39,7 @@ const LABEL_FONT_SIZE: int = 15
 const LABEL_BG: Color = Color(0.1, 0.1, 0.1, 1.0)
 const LABEL_FG: Color = Color(0.92, 0.92, 0.92, 1.0)
 const LABEL_FRAMES: int = 2
-const MAIN_SCENE: String = "res://game/Main.tscn"
+const MAIN_SCENE: String = "res://game/main/Main.tscn"
 const TAB_BUTTON_GLOB: String = "*TabButton"
 
 var _out: String = ""

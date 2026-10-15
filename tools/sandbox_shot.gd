@@ -55,7 +55,7 @@ func _ready() -> void:
 			return
 	DirAccess.make_dir_recursive_absolute(out.get_base_dir())
 
-	_main = (load("res://game/Main.tscn") as PackedScene).instantiate()
+	_main = (load("res://game/main/Main.tscn") as PackedScene).instantiate()
 	_vp = AgentProbe.make_render_viewport(self, FALLBACK_RENDER_SIZE)
 	_vp.add_child(_main)
 	for _i: int in range(BOOT_FRAMES):

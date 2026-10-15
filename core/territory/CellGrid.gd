@@ -40,7 +40,7 @@ var half_extent: float = 0.5
 ## test consulted by is_in_disk() below, on top of the circle test every map
 ## already relied on. Empty (the default, and every two-argument caller's
 ## constructor) means "circle only" -- byte-identical to before this package.
-## Set from MapDef.shape_test() (config/MapDef.gd) by every production
+## Set from MapDef.shape_test() (config/match/MapDef.gd) by every production
 ## CellGrid.new() call site; still a plain RefCounted with no map/config
 ## dependency of its own -- the caller hands over a bound Callable, this
 ## class never imports MapDef.

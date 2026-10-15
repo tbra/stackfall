@@ -21,7 +21,7 @@ const _BROADCAST_ADDRESS: String = "255.255.255.255"
 ## length byte (0..255) can never claim more than fits a UDP datagram.
 const _MAX_FIELD_BYTES: int = 255
 
-@export var config: NetConfig = preload("res://config/net_config.tres")
+@export var config: NetConfig = preload("res://config/net/net_config.tres")
 
 ## A host advert was received or refreshed. Net re-emits this as
 ## Events.net_games_discovered after de-duplicating by address:port.

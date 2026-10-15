@@ -49,7 +49,7 @@ const WIRE_MAX_ID_LENGTH: int = 32
 var _match: MatchAutoload = null
 var _defs: Dictionary = {}
 var _defs_loaded: bool = false
-var _schedule: WeatherScheduleTuning = preload("res://config/weather_schedule.tres")
+var _schedule: WeatherScheduleTuning = preload("res://config/weather/weather_schedule.tres")
 ## Test seams. `_host_override` null means "ask Match"; the factory builds the
 ## WeatherEffect for a def (null = no physics effect).
 var _host_override: Variant = null

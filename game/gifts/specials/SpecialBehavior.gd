@@ -1,0 +1,333 @@
+class_name SpecialBehavior
+extends Node
+## Attached (as a child Node) to a spawned special's Block (spec 2.6). Ages
+## from bind(), arms at `def.arm_delay`, detects an impact by sampling its
+## own parent Block's velocity drop each tick (game/blocks/Block.gd:61-75's own
+## impact-detection pattern, reused rather than duplicated via
+## `contact_monitor`/signals -- see the DECISION on _check_impact() below),
+## triggers exactly once (impact, the effect's own early-trigger check, or a
+## fuse timeout, whichever comes first), and can chain into nearby specials
+## up to `SpecialTuning.max_chain_depth`.
+##
+## Pure logic wrapped in a Node rather than core/ RefCounted: CLAUDE.md keeps
+## core/ free of scene-tree dependence, but this class's whole job --
+## reading a live RigidBody3D's velocity every physics tick, finding sibling
+## specials via get_tree().get_nodes_in_group() -- IS scene-tree dependence,
+## so it belongs in game/ instead. Testable without physics regardless: every
+## tick's actual work happens in advance(delta) below, which
+## _physics_process() just forwards to; a test calls advance() directly with
+## a stub Block whose linear_velocity/mass it sets by hand, so no physics
+## simulation ever needs to run for these tests.
+
+## Every SpecialBehavior joins this group so trigger_others_in_range() below
+## can find chain-reaction candidates via get_tree().get_nodes_in_group()
+## rather than a hand-maintained registry.
+const GROUP: StringName = &"specials"
+
+## Emitted the instant trigger() actually runs (idempotent -- never fires
+## twice for the same instance). autoload/Events.gd is NOT touched by this
+## package (docs/archive/M4_P2_PACKAGES.md's orchestrator amendment 2); P2c listens
+## to this signal on every spawned special and re-emits/replicates
+## Events.special_triggered from there.
+signal triggered(def_id: StringName, position: Vector3, chain_depth: int)
+
+## Bontago-t8x.5: emitted once, host-side, when a gift-bound behavior's
+## action is complete (a short linger after trigger(), or the hard
+## max-lifetime backstop for an action that never completes). The owner of
+## the block (MatchPlacement) removes the body through the normal block-
+## removal path; this class never frees its own parent.
+signal completed(block: Block)
+
+## Set by MatchPlacement for a gift-drawn special only. Projectile specials
+## (Volcano orbs) and plain blocks never set it, so they are never despawned.
+var despawn_when_done: bool = false
+
+var _completed: bool = false
+var _despawn_timer: float = -1.0
+
+## The SpecialEffect of a def (SpecialDef.effect is a Resource so config/ stays free
+## of game/); null if the def or its effect is missing or of another type.
+static func effect_of(def: SpecialDef) -> SpecialEffect:
+	return def.effect as SpecialEffect if def != null else null
+
+
+var _block: Block = null
+var _def: SpecialDef = null
+var _tuning: SpecialTuning = null
+
+var _age: float = 0.0
+var _armed: bool = false
+var _has_triggered: bool = false
+var _chain_depth: int = 0
+var _prev_linear_velocity: Vector3 = Vector3.ZERO
+
+## Bontago-1pi.85.9: landing detection for effects with needs_landing(). Replaces
+## Jolt `sleeping`, which never fires on a tilting disc with an awake island.
+var _landed_probe: LandedProbe = null
+var _landed_at_age: float = -1.0
+
+
+## Entry point -- called once, immediately after this node is created and
+## added as a child of `block` (docs/archive/M4_P2_PACKAGES.md P2a: "avoids an
+## @export-then-add_child() ordering race" that plain @export var def/tuning
+## fields would have, since Godot doesn't guarantee export values are set
+## before _ready() runs for a node built with .new()).
+func bind(block: Block, def: SpecialDef, tuning: SpecialTuning) -> void:
+	_block = block
+	_def = def
+	_tuning = tuning
+	_age = 0.0
+	_armed = false
+	_has_triggered = false
+	_chain_depth = 0
+	_completed = false
+	_despawn_timer = -1.0
+	var effect_landed: LandedTuning = effect_of(_def).landed_tuning() if _def != null and _def.effect != null else null
+	_landed_probe = LandedProbe.new(effect_landed)
+	_landed_at_age = -1.0
+	_prev_linear_velocity = block.linear_velocity if block != null else Vector3.ZERO
+	add_to_group(GROUP)
+
+
+func is_armed() -> bool:
+	return _armed
+
+
+func is_triggered() -> bool:
+	return _has_triggered
+
+
+func age() -> float:
+	return _age
+
+
+func chain_depth() -> int:
+	return _chain_depth
+
+
+## True once the carrier has landed per the LandedProbe. Only meaningful for an
+## effect whose needs_landing() is true (the probe is not fed otherwise).
+func has_landed() -> bool:
+	return _landed_at_age >= 0.0
+
+
+## Seconds since landing; 0.0 before it.
+func landed_age() -> float:
+	return maxf(_age - _landed_at_age, 0.0) if _landed_at_age >= 0.0 else 0.0
+
+
+func _physics_process(delta: float) -> void:
+	advance(delta)
+
+
+## The actual per-tick logic, split out from _physics_process() so a test can
+## drive it directly regardless of whether the test tree is actually running
+## physics (docs/archive/M4_P2_PACKAGES.md P2a: "tests drive `_physics_process(delta)`
+## /an `advance(delta)` hook").
+func advance(delta: float) -> void:
+	if _block == null or _def == null:
+		return
+	if _has_triggered:
+		_advance_completion(delta)
+		return
+	_age += delta
+	if despawn_when_done and _tuning != null and _age >= _tuning.gift_max_lifetime_s:
+		_complete()
+		return
+	if not _armed and _age >= _def.arm_delay:
+		_armed = true
+		# Re-sample right at the arming instant so the very first post-arm
+		# tick's decel is measured against "velocity when arming happened",
+		# not a stale sample from before arm_delay elapsed.
+		_prev_linear_velocity = _block.linear_velocity
+	# Bontago-1pi.85.35: an in-place activated gift has no falling carrier to wait for.
+	var needs_landing: bool = (
+		_def.effect != null and effect_of(_def).needs_landing() and not _def.activates_in_place
+	)
+	if needs_landing and _landed_at_age < 0.0:
+		_landed_probe.update(_block, delta)
+		if _landed_probe.has_landed():
+			_landed_at_age = _age
+	if _armed:
+		_check_impact()
+	var effect_may_run: bool = not needs_landing or _landed_at_age >= 0.0
+	if not _has_triggered and _armed and effect_may_run and _def.effect != null:
+		effect_of(_def).physics_tick(_block, self, delta)
+		if not _has_triggered and effect_of(_def).wants_early_trigger(_block, self):
+			trigger(0)
+	if not _has_triggered and _age >= _fuse_deadline():
+		trigger(0)
+
+
+## Age at which the fuse force-triggers. Without an effect lifetime this is the
+## old arm_delay + fuse_timeout_s. With effect_lifetime_s() > 0 it is derived from the
+## lifetime: landing time (or, before landing, arm_delay + fuse_timeout_s as the
+## landing wait) + lifetime + SpecialTuning.fuse_backstop_margin_s.
+func _fuse_deadline() -> float:
+	var base: float = _def.arm_delay + _def.fuse_timeout_s
+	if _def.effect == null:
+		return base
+	var lifetime: float = effect_of(_def).effect_lifetime_s()
+	if lifetime <= 0.0:
+		return base
+	var margin: float = _tuning.fuse_backstop_margin_s if _tuning != null else 0.0
+	if effect_of(_def).needs_landing() and _landed_at_age < 0.0:
+		return base + lifetime + margin
+	var start: float = _landed_at_age if _landed_at_age >= 0.0 else _def.arm_delay
+	return start + lifetime + margin
+
+
+## Counts the post-trigger linger down and completes once it elapses.
+func _advance_completion(delta: float) -> void:
+	if _despawn_timer < 0.0 or _completed:
+		return
+	_despawn_timer -= delta
+	if _despawn_timer <= 0.0:
+		_complete()
+
+
+## DECISION (Bontago-t8x.5): every effect's action is over when trigger()
+## returns -- instant effects (Bomb, Anvil, Rocket explosion, Cat, Glue,
+## Paintball, Stackfall) act inside detonate(), and the timed windows
+## (Propeller, Jumping Bean hops, Earthquake, Volcano, Magnet) end exactly
+## when wants_early_trigger() fires trigger(). So one hook covers all of them:
+## `gift_despawn_delay_s` after trigger the gift is complete. Anything that
+## never triggers is caught by the fuse timeout and, as a hard backstop, by
+## SpecialTuning.gift_max_lifetime_s.
+func _complete() -> void:
+	if _completed:
+		return
+	_completed = true
+	completed.emit(_block)
+
+
+## DECISION (game/gifts/specials/SpecialBehavior.gd, docs/archive/M4_P2_PACKAGES.md P2a
+## decision 3): reuses game/blocks/Block.gd's own velocity-drop impact pattern
+## (`mass * (prev_speed - now_speed)`, an impulse-like deceleration measure
+## in kg*m/s) instead of RigidBody3D's `contact_monitor`/`body_entered`
+## signals -- no `game/blocks/Block.gd` edit, no per-block `contact_monitor`
+## wiring, and it is cheap enough to run every tick for every armed special
+## (Block.gd's own comment: an earlier contact_monitor revision cost 5-7 ms
+## /step at 300 blocks). Only checked once armed (spec 2.6: activation
+## requires both the impact AND having passed arm_delay).
+##
+## Review fix (Bontago-1en.12): mirrors game/blocks/Block.gd:61-63's own
+## `if not impacts_enabled or sleeping` guard -- Jolt stops integrating a
+## sleeping body, so its `linear_velocity` reads as a false, constant value
+## the instant something wakes it, which would otherwise look like a sudden
+## "impact" the tick after wake and detonate a settled special spuriously.
+## While asleep, just re-seed `_prev_linear_velocity` from the current
+## (stale-but-honest) reading and skip the drop test entirely; the first
+## tick after waking then compares against that fresh sample rather than
+## whatever velocity happened to be cached from before sleep, exactly like
+## Block.gd's own `_prev_linear_velocity = linear_velocity; return` early
+## exit. Arming/fuse ageing (advance()'s caller) is untouched by this --
+## only the impact *test* is skipped while asleep.
+##
+## FIX (Bontago-1en.22): a decel past `arm_impulse` now also consults
+## `effect_of(_def).impact_triggers()` (SpecialEffect.gd's own doc comment on
+## that hook) before calling trigger() -- a timed-effect-pattern special
+## (Propeller/Jumping Bean/Earthquake/Volcano) vetoes it so its OWN arming-
+## tick landing impact can never short-circuit its physics_tick() window
+## before that window ever ran even once. A null `_def.effect` (no special
+## script assigned) keeps the old unconditional behavior.
+func _check_impact() -> void:
+	if _block.sleeping:
+		_prev_linear_velocity = _block.linear_velocity
+		return
+	var prev_speed: float = _prev_linear_velocity.length()
+	var current_velocity: Vector3 = _block.linear_velocity
+	var now_speed: float = current_velocity.length()
+	var decel: float = _block.mass * (prev_speed - now_speed)
+	_prev_linear_velocity = current_velocity
+	if _has_triggered or decel < _def.arm_impulse:
+		return
+	if _def.effect != null:
+		if not effect_of(_def).triggers_on_impact() or not effect_of(_def).impact_triggers(_block, self):
+			return
+	trigger(0)
+
+
+## Bontago-1pi.85.10 (docs/GIFT_EFFECTS_PLAN.md section 2 `impact_filter`): contact
+## filter for an effect that detects its own impact instead of using the velocity-drop
+## test above (Rocket probes the contact it is about to make, so it knows the collider).
+## True when a contact with `collider` counts as an impact. The carrier itself never
+## counts. For the first `SpecialDef.arm_delay` seconds after `window_start_age` (this
+## behaviour's age() when the effect started acting, 0 = since bind) the owner's own
+## blocks do not count either, so a launch does not detonate on its thrower's stack.
+## Anything that is not a Block (the disc, map geometry) always counts.
+func impact_filter(collider: Object, window_start_age: float = 0.0) -> bool:
+	if collider == null or collider == _block:
+		return false
+	var other: Block = collider as Block
+	if other == null or _block == null or _def == null:
+		return true
+	var in_grace: bool = _age - window_start_age < _def.arm_delay
+	if in_grace and _block.owner_slot >= 0 and other.owner_slot == _block.owner_slot:
+		return false
+	return true
+
+
+## Idempotent (docs/archive/M4_P2_PACKAGES.md P2a): a second/third call after the
+## first is a no-op. Always calls def.effect.detonate() (a SpecialDef with
+## no effect assigned just detonates as a no-op -- see SpecialEffect.gd) and
+## always emits `triggered`, even past the chain-depth cap -- the hit
+## special itself is always visible; only the chain it might have started
+## stops extending (see trigger_others_in_range()'s own cap check).
+func trigger(incoming_chain_depth: int) -> void:
+	if _has_triggered:
+		return
+	_has_triggered = true
+	_chain_depth = incoming_chain_depth
+	var position: Vector3 = _block.global_position if _block != null else Vector3.ZERO
+	if _def != null and _def.effect != null:
+		effect_of(_def).detonate(_block, self, _chain_depth)
+	var def_id: StringName = _def.id if _def != null else &""
+	triggered.emit(def_id, position, _chain_depth)
+	if despawn_when_done:
+		if _def != null and _def.effect != null and effect_of(_def).detaches():
+			# The effect owns a standalone world node: no linger, the carrier goes now.
+			_despawn_timer = 0.0
+			_complete()
+		else:
+			_despawn_timer = _tuning.gift_despawn_delay_s if _tuning != null else 0.0
+
+
+## Called by a concrete SpecialEffect's own detonate() (P3-P5), not by
+## trigger() itself -- each effect knows its own blast/chain radius (a field
+## on that effect's subclass, e.g. RocketEffect.radius), which SpecialDef/
+## SpecialBehavior have no business knowing generically. Finds every other
+## SpecialBehavior in GROUP via the scene tree, then delegates the actual
+## in-range/not-already-triggered filtering to the pure _filter_in_range()
+## below, and triggers each survivor one chain link deeper.
+func trigger_others_in_range(center: Vector3, radius: float, chain_depth: int) -> void:
+	var candidates: Array[SpecialBehavior] = []
+	for node: Node in get_tree().get_nodes_in_group(GROUP):
+		if node is SpecialBehavior and node != self:
+			candidates.append(node as SpecialBehavior)
+	for target: SpecialBehavior in _filter_in_range(candidates, center, radius, chain_depth):
+		target.trigger(chain_depth + 1)
+
+
+## Pure (no scene-tree/group lookups of its own) so tests/unit/
+## test_special_behavior.gd can call it directly with a manufactured
+## candidate array (docs/archive/M4_P2_PACKAGES.md P2a). Chain-cap semantics: once
+## `chain_depth >= _tuning.max_chain_depth`, returns an empty array
+## immediately -- the chain stops extending, even though the special that
+## got us here already detonated in trigger() regardless of this check.
+## Otherwise keeps candidates that are (a) not already triggered and
+## (b) within `radius` of `center`.
+func _filter_in_range(
+	candidates: Array[SpecialBehavior], center: Vector3, radius: float, chain_depth: int
+) -> Array[SpecialBehavior]:
+	var result: Array[SpecialBehavior] = []
+	if _tuning != null and chain_depth >= _tuning.max_chain_depth:
+		return result
+	for candidate: SpecialBehavior in candidates:
+		if candidate == null or candidate.is_triggered():
+			continue
+		if candidate._block == null:
+			continue
+		if candidate._block.global_position.distance_to(center) <= radius:
+			result.append(candidate)
+	return result

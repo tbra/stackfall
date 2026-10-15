@@ -14,7 +14,7 @@ signal block_placed(block: RigidBody3D, shape_id: StringName)
 ## REASON_* constants below rather than a string literal so it can't drift.
 signal block_removed(block: RigidBody3D, reason: String)
 
-## game/Field.gd: a block fell below tuning.kill_plane_y, or (Bontago-1pi.11.41)
+## game/field/Field.gd: a block fell below tuning.kill_plane_y, or (Bontago-1pi.11.41)
 ## dissolved on a hole, which counts exactly like an edge fall.
 const REASON_KILL_PLANE: StringName = &"kill_plane"
 
@@ -24,7 +24,7 @@ const REASON_GIFT_DESPAWN: StringName = &"gift_despawn"
 
 ## Bontago-1pi.11.41: `block` touched an applied hole cell at disc level and
 ## will be removed (block_removed, REASON_KILL_PLANE) after `duration_s`.
-## Emitted by game/HoleDissolver.gd on the host and by net/MatchNet.gd on
+## Emitted by game/field/HoleDissolver.gd on the host and by net/MatchNet.gd on
 ## clients; presentation only (the A2 fade), never a rule input.
 signal block_dissolve_started(block: RigidBody3D, net_id: int, duration_s: float)
 
@@ -43,7 +43,7 @@ signal match_state_changed(from_state: int, to_state: int)
 
 ## Bontago-1pi.46 (docs/MATCH_RESET_AUDIT.md section 4): a match world is about to
 ## be built, or was just torn down (host, client, sandbox and tutorial alike;
-## game/Main.gd's _reset_match_scope() is the only emitter). Persistent owners
+## game/main/Main.gd's _reset_match_scope() is the only emitter). Persistent owners
 ## that Main cannot name (sky, weather ceiling, audio, rumble) connect here and
 ## return to the state their own _ready() leaves on a fresh launch. Every
 ## listener must be idempotent: it fires once per world build and once per
@@ -53,7 +53,7 @@ signal match_scope_reset
 
 ## Bontago-t8x.4: the host pressed Start. Emitted on a client by
 ## net/MatchNet.gd's net_match_loading, one message ahead of net_match_start, so
-## game/Main.gd can raise the loading overlay before the match world builds.
+## game/main/Main.gd can raise the loading overlay before the match world builds.
 signal match_loading_announced
 
 ## Bontago-1pi.56: a client is applying (`active` true) or has finished applying
@@ -67,7 +67,7 @@ signal match_loading_announced
 ## after `false` are unaffected.
 signal world_replay_changed(active: bool)
 
-## Bontago-1pi.32: loading-screen ready gate (core/LoadingReadyGate.gd, owned per
+## Bontago-1pi.32: loading-screen ready gate (core/rules/LoadingReadyGate.gd, owned per
 ## match by autoload/match/MatchLifecycle.gd). `ready_peer_ids` are the required
 ## peers that pressed ready, `required_peer_ids` every peer the host waits for
 ## (peers holding a human slot; bots never appear, they are auto-ready; offline
@@ -229,7 +229,7 @@ signal gift_claimed(gift_id: int, slot_id: int, special_id: StringName)
 signal gift_expired(gift_id: int)
 
 ## M4 P2c (docs/archive/M4_P2_PACKAGES.md, orchestrator amendment 2): a spawned
-## special (placed or thrown) triggered -- game/specials/SpecialBehavior.gd
+## special (placed or thrown) triggered -- game/gifts/specials/SpecialBehavior.gd
 ## emits its own `triggered(def_id, position, chain_depth)` signal per
 ## instance; autoload/match/MatchPlacement.gd connects every behaviour it
 ## attaches to a forwarder that re-emits it here with the block's net_id
@@ -253,7 +253,7 @@ signal special_triggered(net_id: int, def_id: StringName, position: Vector3, cha
 signal special_consumed(slot_id: int, special_id: StringName)
 
 ## Bontago-eq0: a Jumping Bean carrier just hopped off the ground at `position`.
-## Client-derived on every peer (game/specials/fx/BeanHopFx.gd watches the carrier's
+## Client-derived on every peer (game/gifts/specials/fx/BeanHopFx.gd watches the carrier's
 ## own motion), visual/audio only; autoload/Sfx.gd plays the hop sound.
 signal bean_hopped(position: Vector3)
 
@@ -307,7 +307,7 @@ signal net_lobby_data_changed(data: Dictionary)
 signal net_games_discovered(games: Array[Dictionary])
 
 ## Ping, snapshot size, interpolation delay and measured loss, refreshed at
-## NetConfig.stats_hz. ui/NetDebugOverlay.gd is the only consumer; the shape
+## NetConfig.stats_hz. ui/debug/NetDebugOverlay.gd is the only consumer; the shape
 ## is Net.stats().
 signal net_stats_updated(stats: Dictionary)
 
@@ -316,7 +316,7 @@ signal net_stats_updated(stats: Dictionary)
 ## _broadcast_roster() with the roster it just sent, and on a client from the
 ## end of its _rpc_roster_update() with the roster it just applied, so both
 ## sides update without a wait for net_lobby_data_changed to be republished.
-## Each entry is {peer_id, slot_id, name, ready}; ui/Lobby.gd is the only
+## Each entry is {peer_id, slot_id, name, ready}; ui/lobby/Lobby.gd is the only
 ## consumer today.
 signal net_roster_changed(roster: Array[Dictionary])
 
@@ -354,28 +354,28 @@ signal net_steam_lobbies_discovered(lobbies: Array[Dictionary])
 
 # --- Audio (assets-audio package) --------------------------------------------
 
-## game/Block.gd detected a sudden drop in its own speed frame to frame (a
+## game/blocks/Block.gd detected a sudden drop in its own speed frame to frame (a
 ## landing or collision -- no contact_monitor, which cost too much physics
 ## step time; see Block._physics_process()). `speed` is that deceleration
 ## magnitude in m/s; autoload/Sfx.gd is the only listener and scales its
-## thud's volume from it (config/AudioConfig.gd's impact_speed_min/_loud).
+## thud's volume from it (config/audio/AudioConfig.gd's impact_speed_min/_loud).
 ## Throttled per block (Block.IMPACT_EMIT_INTERVAL_MS) so a long slide or
 ## tumble doesn't spam one impact into a machine-gun of thuds.
 signal block_impacted(speed: float)
 
 ## Bontago-mp0.117: a local lobby UI action with its own sound (autoload/Sfx.gd
 ## maps `cue` to a lobby_ui_cues_v1 file via AudioConfig.ui_cue_files). Emitted
-## by ui/Lobby.gd and ui/lobby/LobbyPlayersPanel.gd only for the local user's
+## by ui/lobby/Lobby.gd and ui/lobby/LobbyPlayersPanel.gd only for the local user's
 ## confirmed action; peer join/leave and the loading gate use their own signals.
 signal lobby_ui_cue(cue: StringName)
 
 # --- M7 P4: block effects (spec 2.10) ---------------------------------------
 
 ## Additive alongside block_impacted above (Bontago-xtq.29, M7 P4 fix):
-## game/Block.gd emits both from the same detection, in the same call, right
+## game/blocks/Block.gd emits both from the same detection, in the same call, right
 ## next to each other -- this one also carries the block's own global
 ## position at emit time, for effects that need to know *where* the impact
-## happened (game/BlockEffectsManager.gd's landing-dust/impact burst).
+## happened (game/blocks/BlockEffectsManager.gd's landing-dust/impact burst).
 ## autoload/Sfx.gd deliberately keeps listening to block_impacted only and is
 ## untouched by this signal.
 signal block_impacted_at(speed: float, position: Vector3)
@@ -383,17 +383,17 @@ signal block_impacted_at(speed: float, position: Vector3)
 # --- M7 P42: pause menu (owner playtest: "no pause menu, can't abandon a
 # game and go back to the main menu or quit the game") -----------------------
 
-## ui/PauseMenu.gd opened (pause_menu action -- Esc/gamepad Start -- while no
-## other menu already owns that input). game/PlayerController.gd is the one
+## ui/menus/PauseMenu.gd opened (pause_menu action -- Esc/gamepad Start -- while no
+## other menu already owns that input). game/player/PlayerController.gd is the one
 ## listener today: it sets its own input_enabled false and releases mouse
 ## capture, the same "gate input, don't touch the scene tree" contract
-## ui/TuningPanel.gd's own toggle already established. Physics/simulation is
+## ui/debug/TuningPanel.gd's own toggle already established. Physics/simulation is
 ## never paused (CLAUDE.md's host-authority model) -- this only suppresses
 ## local input while the overlay is up.
 signal pause_menu_opened
 
-## ui/PauseMenu.gd closed (Resume, or ui_cancel/pause_menu again while no
-## nested menu is capturing it). game/PlayerController.gd restores
+## ui/menus/PauseMenu.gd closed (Resume, or ui_cancel/pause_menu again while no
+## nested menu is capturing it). game/player/PlayerController.gd restores
 ## input_enabled and, if it had mouse capture enabled, re-captures the mouse.
 signal pause_menu_closed
 
@@ -401,15 +401,15 @@ signal pause_menu_closed
 
 ## autoload/Settings.gd detected the player's last-used input device changed
 ## (a real keyboard/mouse press/motion vs. a gamepad button/stick beyond its
-## own deadzone -- see Settings._classify_device()). ui/OptionsMenu.gd's
-## Controls page and ui/KeyRebindRow.gd's own glyph row are today's only
+## own deadzone -- see Settings._classify_device()). ui/menus/OptionsMenu.gd's
+## Controls page and ui/menus/KeyRebindRow.gd's own glyph row are today's only
 ## listeners: each swaps which device's binding glyphs it shows, live,
 ## without the player needing to reopen the menu.
 signal input_device_changed(device: StringName)
 
 # --- Weather events (Bontago-22y.10) ------------------------------------------
 # Emitted on the host and, from replicated state, on every client, so
-# presentation code (vfx/weather/WeatherPresenter.gd, a later HUD cue) needs
+# presentation code (game/weather/WeatherPresenter.gd, a later HUD cue) needs
 # no networking of its own.
 
 ## A weather event began (one at a time). `weather_id` is a WeatherTuning.id.

@@ -18,7 +18,7 @@ signal submit_requested(text: String)
 signal input_opened
 signal input_closed
 
-const CONFIG_PATH: String = "res://config/chat_config.tres"
+const CONFIG_PATH: String = "res://config/net/chat_config.tres"
 const PLACEHOLDER_LOBBY: String = "Click or press T to chat"
 const PLACEHOLDER_HUD: String = "Type a message"
 const TITLE: String = "Chat"

@@ -6,7 +6,7 @@ param(
 	[string]$Out = $env:TEMP,
 	[int]$TimeoutSeconds = 150
 )
-$scene = "res://tests/bench/rocket_enet.tscn"
+$scene = "res://tests/enet/rocket_enet.tscn"
 . (Join-Path $PSScriptRoot "enet_result.ps1")
 $procs = @()
 $timedOut = $false

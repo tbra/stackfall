@@ -1,4 +1,0 @@
-[application]
-config/name="Lobby icon vector review"
-[rendering]
-renderer/rendering_method="gl_compatibility"

@@ -14,11 +14,11 @@ extends RefCounted
 ## spawns anything itself.
 
 var _match: MatchAutoload = null
-var _gift_config: GiftConfig = preload("res://config/gift_config.tres")
+var _gift_config: GiftConfig = preload("res://config/gifts/gift_config.tres")
 ## Host seconds of live play this match (physics ticks), for GiftConfig.first_gift_delay_s.
 var _play_time_s: float = 0.0
 
-const GIFT_CRATE_SCENE: PackedScene = preload("res://game/GiftCrate.tscn")
+const GIFT_CRATE_SCENE: PackedScene = preload("res://game/gifts/GiftCrate.tscn")
 const FALLING: int = GiftWirePhase.FALLING
 const LANDED: int = GiftWirePhase.LANDED
 ## Client-side wire-tracking only states (net/MatchNet.gd GiftWirePhase aliases
@@ -37,7 +37,7 @@ static func is_valid_wire_phase(value: int) -> bool:
 ## _draw_special_id().
 const PENDING_SPECIAL_ID: StringName = SpecialIds.PENDING
 
-## DECISION (autoload/match/MatchGifts.gd, M6 A4): ui/Lobby.gd's specials
+## DECISION (autoload/match/MatchGifts.gd, M6 A4): ui/lobby/Lobby.gd's specials
 ## checklist writes this exact literal into config.enabled_specials when the
 ## host unchecks every special (its own matching ALL_DISABLED_SENTINEL
 ## constant/DECISION) -- an autoload must not import a ui/ script just to
@@ -58,14 +58,14 @@ var _next_gift_id: int = 0
 ## later the HUD/ghost) must be able to know what they hold while aiming,
 ## not just that they hold something. _draw_special_id() is the one call
 ## site; P2c installs the real weighted SpecialDef.pick_weighted() draw
-## through set_special_drawer() once config/specials/ exists. Kept an
+## through set_special_drawer() once config/gifts/specials/ exists. Kept an
 ## injectable Callable rather than a hard SpecialDef dependency so P2a and
 ## P2b can land in parallel with fully disjoint files.
 var _special_drawer: Callable = _default_special_drawer
 
 ## M4 P2c: the roster _weighted_special_drawer() draws from, filtered to
 ## `_match.config.enabled_specials` (empty means every special, per
-## config/MatchConfig.gd:57's own doc comment) once per match, plus the own
+## config/match/MatchConfig.gd:57's own doc comment) once per match, plus the own
 ## RNG that draw uses. Reset flags (`_roster_ready`/`_special_rng_ready`) so a
 ## new match re-filters against its own config rather than reusing the
 ## previous match's roster or reseeding an already-seeded RNG.
@@ -184,7 +184,7 @@ func _default_special_drawer() -> StringName:
 	return PENDING_SPECIAL_ID
 
 
-## Host-only entry point P2c calls once config/specials/ exists; `drawer`
+## Host-only entry point P2c calls once config/gifts/specials/ exists; `drawer`
 ## must be a `func() -> StringName`. Passing an invalid/null Callable is not
 ## guarded here -- Callable.call() on one simply fails at the call site in
 ## _draw_special_id(), which is guarded (see its own doc comment).
@@ -238,7 +238,7 @@ func grant_glue_drops(slot_id: int, count: int) -> bool:
 ## the host grants its charges at once and leaves the queued gift and the
 ## feed untouched; every other gift queues as the next held piece.
 const GLUE_SPECIAL_ID: StringName = &"glue"
-const GLUE_DEF: SpecialDef = preload("res://config/specials/glue.tres")
+const GLUE_DEF: SpecialDef = preload("res://config/gifts/specials/glue.tres")
 
 
 ## `immediate` skips the after-next trial: the sandbox's forced special (debug_queue_special) is
@@ -507,7 +507,7 @@ func pending_special_count(slot_id: int) -> int:
 const DEBUG_GIFT_ID: int = -1
 
 
-## Sandbox-only debug entry point (Bontago-1en.24, game/Sandbox.gd's F9
+## Sandbox-only debug entry point (Bontago-1en.24, game/sandbox/Sandbox.gd's F9
 ## sandbox_force_special hotkey and `--force-special=`): replaces `slot_id`'s
 ## next gift and emits Events.gift_claimed with
 ## DEBUG_GIFT_ID, exactly the same signal _claim_gift() fires for a real
@@ -536,11 +536,11 @@ func debug_queue_special(slot_id: int, special_id: StringName) -> bool:
 	return true
 
 
-## Sandbox-only reset seam (Bontago-1en.24, game/Sandbox.gd's F9 hotkey
+## Sandbox-only reset seam (Bontago-1en.24, game/sandbox/Sandbox.gd's F9 hotkey
 ## turning back "off"): re-runs the exact same lazy install
 ## _ensure_special_drawer_installed() already performs at a match's first
 ## real claim, rather than a second, divergent copy of that roster-filtering
-## logic living in game/Sandbox.gd. Resets `_roster_ready` first so the lazy
+## logic living in game/sandbox/Sandbox.gd. Resets `_roster_ready` first so the lazy
 ## install actually runs again -- a forced special's own set_special_drawer()
 ## call already replaced whatever ran before, so a plain
 ## _ensure_special_drawer_installed() call would otherwise stay a no-op
@@ -672,10 +672,10 @@ func _ensure_rng() -> void:
 ## Lazily installs the real weighted-SpecialDef drawer the first time a
 ## match actually claims a crate, filtered to
 ## `_match.config.enabled_specials` (empty means every special --
-## config/MatchConfig.gd:57). Idempotent per match via `_roster_ready`,
+## config/match/MatchConfig.gd:57). Idempotent per match via `_roster_ready`,
 ## cleared by reset(). Keeps `_special_drawer` at its default
 ## (_default_special_drawer, always PENDING_SPECIAL_ID) when the filtered
-## roster is empty -- P3-P5 have not landed any config/specials/*.tres yet,
+## roster is empty -- P3-P5 have not landed any config/gifts/specials/*.tres yet,
 ## so a spawn with no draw stays a safe, ordinary block (see
 ## MatchPlacement._spawn_block()'s own P2c extension).
 func _ensure_special_drawer_installed() -> void:

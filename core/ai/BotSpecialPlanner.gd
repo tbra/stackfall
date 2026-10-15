@@ -15,19 +15,19 @@ extends RefCounted
 ## # DECISION (core/ai/BotSpecialPlanner.gd, Bontago-d5c.9, supersedes the
 ## earlier throw_origin-parking DECISION): `BotSpecialAction` now carries its
 ## own disk-local `place_target`/`has_place_target` pair, distinct from
-## `throw_origin` (read by `game/BotController.gd._send_throw()` only when
+## `throw_origin` (read by `game/bots/BotController.gd._send_throw()` only when
 ## `should_throw` is true). Every placed-special heuristic below (Rocket,
 ## Volcano, Earthquake/Anvil/Propeller, Jumping Bean -- anything that sets
 ## `should_place_ordinarily = true` with intent) sets `has_place_target = true`
 ## and `place_target` to the intended disk-local point; `throw_origin` is only
 ## ever set on a genuine `should_throw = true` action (Bomb). This package
-## still must not touch `game/BotController.gd` or `core/ai/
+## still must not touch `game/bots/BotController.gd` or `core/ai/
 ## BotPlacementScorer.gd` itself, so at the time this package landed
 ## `has_place_target`/`place_target` were inert (`_send_best_placement()`
 ## ignored this planner's output and used its own already-generated candidate
 ## list) but observable/testable at this layer and forward-compatible.
 ##
-## UPDATE (Bontago-d5c.8, M5 P3b-ii): `game/BotController.gd._tick_acting()`
+## UPDATE (Bontago-d5c.8, M5 P3b-ii): `game/bots/BotController.gd._tick_acting()`
 ## now reads `has_place_target`/`place_target` and, when set, sends whichever
 ## already-generated candidate lands nearest `place_target`
 ## (`_send_best_placement(place_target_override)`) instead of

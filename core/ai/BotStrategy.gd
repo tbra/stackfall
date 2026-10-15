@@ -22,7 +22,7 @@ extends RefCounted
 ## STRIKE, FINISH, SIEGE, AREA) pre-empts at once. A repeated think without a placement (WAIT)
 ## ages nothing, so the rhythm does not repeat on its own.
 
-const SHIPPED_TUNING: BotStrategyTuning = preload("res://config/bot_strategy_tuning.tres")
+const SHIPPED_TUNING: BotStrategyTuning = preload("res://config/bots/bot_strategy_tuning.tres")
 ## Threat priorities (a higher one wins before downstream counts are compared).
 const PRIORITY_KEY: float = 1000.0
 const PRIORITY_GOAL: float = 2000.0

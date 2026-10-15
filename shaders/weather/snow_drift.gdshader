@@ -1,6 +1,6 @@
 shader_type spatial;
 // Bontago-22y.6: a colliding snow drift on the disc. Lit exactly like the
-// disc's own snow layer (shaders/territory.gdshader: desaturated sun, lit or
+// disc's own snow layer (shaders/territory/territory.gdshader: desaturated sun, lit or
 // cool shadow tone, same gain and reduced sky ambient), so it reads as part
 // of the same snow, and it fades in over its lowest `rim_fade_height` (in
 // the mesh's own, field-local height) so no oval outline shows where it

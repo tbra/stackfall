@@ -61,7 +61,7 @@ extends RefCounted
 ##   "winner_name": String,            # a slot's own display_name in FFA, or
 ##       "Team %d" % MatchConfig.team_number_for(winner_id) in team mode --
 ##       1-based (winner_id + 1 unless the lobby's teams were host-resolved, then
-##       the number the team had in the lobby), matching ui/HUD.gd's
+##       the number the team had in the lobby), matching ui/hud/HUD.gd's
 ##       "Team %d wins!" numbering.
 ##   "match_duration": float,          # seconds spent in State.PLAYING or
 ##       State.SUDDEN_DEATH (the two "live" states, MatchLifecycle.
@@ -116,7 +116,7 @@ var _peak_share: Array[float] = []
 ## Bontago-1pi.72.2: host-session win tally, slot_id -> {"wins": int, "bot": bool}.
 ## NOT cleared by reset() (that runs every start_match); cleared when the net
 ## session changes (Events.net_mode_changed: hosting started/ended, joined, left)
-## and when the main menu is shown (game/Main.gd; local Play again accumulates
+## and when the main menu is shown (game/main/Main.gd; local Play again accumulates
 ## until the player leaves for the menu). Each entry also records its occupant ("peer",
 ## Net.peer_of_slot; "bot"); a seat whose occupant changed (a different peer, a
 ## bot, or nobody took it) starts again at 0 while other seats keep theirs.

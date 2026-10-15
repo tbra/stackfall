@@ -10,9 +10,9 @@ extends RefCounted
 ## (up to 1.4 m), so probes looked at the wrong patch. `cell_support` entries
 ## still line up with the cubes they were measured under (footprint_cells_of).
 
-const SHIPPED_TUNING: BotGenTuning = preload("res://config/bot_gen_tuning.tres")
-const SHIPPED_PHYSICS_TUNING: PhysicsTuning = preload("res://config/physics_tuning.tres")
-const SHIPPED_STACK_TUNING: BotStackTuning = preload("res://config/bot_stack_tuning.tres")
+const SHIPPED_TUNING: BotGenTuning = preload("res://config/bots/bot_gen_tuning.tres")
+const SHIPPED_PHYSICS_TUNING: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
+const SHIPPED_STACK_TUNING: BotStackTuning = preload("res://config/bots/bot_stack_tuning.tres")
 ## Slack when comparing a probed cell centre with a cube centre.
 const MATCH_EPSILON_M: float = 0.001
 ## Half a cube in cube units (a supported cube's square extends this far).

@@ -3,7 +3,7 @@ extends RefCounted
 ## Wire packing for the territory circle list (Bontago-cmc.5, owner
 ## requirement: "should look smooth... some kind of metaballs system").
 ##
-## game/TerritoryOverlay.gd's shader now draws territory as the analytic
+## game/field/TerritoryOverlay.gd's shader now draws territory as the analytic
 ## union of the *home-anchored* circles TerritorySolver/TerritoryGroups kept,
 ## rather than smoothstepping a bilinearly-upscaled 1 m cell grid (see that
 ## class's doc comment for why the grid route cannot recover a curved
@@ -46,7 +46,7 @@ extends RefCounted
 ##
 ## At the graded size (400 circles, 5 goals) the whole payload is
 ## HEADER_BYTES + 400*7 + 5*6 = 5 + 2800 + 30 = 2835 bytes, under the
-## ticket's 4 KB budget (tests/unit/test_circle_wire.gd asserts this).
+## ticket's 4 KB budget (tests/unit/net/test_circle_wire.gd asserts this).
 
 ## Bumped whenever the layout changes, exactly like Quantize's body record
 ## and MatchNet.RASTER_VERSION — architecture, not a tunable (CLAUDE.md's "no

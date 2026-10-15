@@ -6,7 +6,7 @@ Usage:
     python tools/perf_log_summary.py --dir <dir> ...   # override log directory
     python tools/perf_log_summary.py log.csv --json    # machine-readable
 
-Logs are written by game/PerfLogger.gd when debug mode is on, to
+Logs are written by game/debug/PerfLogger.gd when debug mode is on, to
 %APPDATA%/Godot/app_userdata/<project>/perf_logs/<timestamp>.csv. Reports
 percentiles (p50/p95/p99/max), spikes, and start->end trends per metric.
 """

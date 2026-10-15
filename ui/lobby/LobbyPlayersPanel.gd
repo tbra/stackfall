@@ -3,7 +3,7 @@ extends VBoxContainer
 ## The lobby's right-hand roster (Bontago-1pi.53, packages E1 + PL1a, docs/
 ## LOBBY_REWORK_PLAN.md "Right panel"): the "Players" title row with its
 ## "N players · M bots · K/S seats" header, and one LobbySeatRow per seat (the humans
-## from the roster in slot order, then one row per bot). Extracted 1:1 from ui/Lobby.gd
+## from the roster in slot order, then one row per bot). Extracted 1:1 from ui/lobby/Lobby.gd
 ## in E1 so the seat-row package could grow it without touching the Lobby again.
 ##
 ## **PL1a: the seat table.** The panel owns the lobby's seat table (core/rules/
@@ -91,12 +91,12 @@ const _AI_DIFFICULTY_LABELS: Array[String] = LobbySeatRow.DIFFICULTY_LABELS
 
 ## The same layered-pastel tunables the Lobby draws from; the Lobby overwrites this
 ## with its own export in _ready() so a swapped resource reaches the rows too.
-@export var tuning: MenuVisualTuning = preload("res://config/menu_visual_tuning.tres")
+@export var tuning: MenuVisualTuning = preload("res://config/ui/menu_visual_tuning.tres")
 ## Sizes and spacings of the rows (colour box, separation, name size, seat controls).
-@export var layout_tuning: LobbyLayoutTuning = preload("res://config/lobby_layout_tuning.tres")
+@export var layout_tuning: LobbyLayoutTuning = preload("res://config/ui/lobby_layout_tuning.tres")
 
 ## DECISION (ui/lobby/LobbyPlayersPanel.gd): same `Variant` test seam as
-## ui/Lobby.gd's net_provider, which forwards its own value here.
+## ui/lobby/Lobby.gd's net_provider, which forwards its own value here.
 var net_provider: Variant = null
 ## The colour palette (the Lobby's default_config.player_colors, the same eight colours
 ## as MatchConfig.default_player_colors()); a seat's colour INDEX picks from it and an
@@ -201,7 +201,7 @@ func apply(config: MatchConfig, roster: Variant, seats: Dictionary) -> void:
 		_refresh_header()
 
 
-## DECISION (ui/Lobby.gd, Bontago-mv0.6): Events.net_roster_changed's payload is the
+## DECISION (ui/lobby/Lobby.gd, Bontago-mv0.6): Events.net_roster_changed's payload is the
 ## roster Net just built, so it goes straight to the rows rather than being re-derived
 ## from net_provider.peer_ids()/peer_info() the way [method build_roster] does for a
 ## host's own outbound publish.
@@ -624,7 +624,7 @@ func _live_table(config: MatchConfig, slot_map: Dictionary) -> Dictionary:
 
 # --- Rendering -------------------------------------------------------------------
 
-## DECISION (ui/Lobby.gd, Bontago-1pi.9b): owner playtest -- "the right panel
+## DECISION (ui/lobby/Lobby.gd, Bontago-1pi.9b): owner playtest -- "the right panel
 ## lists 'players+bots'/'players', I can add bots up to the player limit" --
 ## traced to two different roster payload shapes landing here: Net's own
 ## live roster events (autoload/Net.gd's _broadcast_roster(), reached via
@@ -849,7 +849,7 @@ func style_selector() -> UiDropdown:
 	return _style_selector
 
 
-## DECISION (ui/Lobby.gd, Bontago-1pi.9b): "3 players" (plural handled),
+## DECISION (ui/lobby/Lobby.gd, Bontago-1pi.9b): "3 players" (plural handled),
 ## "2 bots" only appended when there are any (a 0-bot lobby doesn't need to
 ## announce that), then the seat fraction against [param seats] -- how many seats
 ## this lobby is configured for, not a hardcoded MatchConfig.PLAYER_COUNT_MAX.

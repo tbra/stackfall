@@ -14,9 +14,9 @@ extends Node3D
 ##   godot --headless --path . res://tests/bench/bench_tower.tscn -- --offset=0.5,0
 ##
 ## Add --preset=<id> (Bontago-xtq.17 review fix SHOULD-FIX 2; id = a file stem
-## under config/physics_presets/, e.g. "heavy_bouncy") to run this bench
-## against one of ui/TuningPanel.gd's shipped presets instead of the default
-## shipped config/physics_tuning.tres -- a reproducible way to check a preset
+## under config/physics/presets/, e.g. "heavy_bouncy") to run this bench
+## against one of ui/debug/TuningPanel.gd's shipped presets instead of the default
+## shipped config/physics/physics_tuning.tres -- a reproducible way to check a preset
 ## doesn't collapse/never-sleep the same 40-cube tower, mirroring
 ## test_physics_tuning.gd's own byte-identical "current" preset check:
 ##   godot --headless --path . res://tests/bench/bench_tower.tscn -- --preset=heavy_bouncy
@@ -32,12 +32,12 @@ const TRACE_ARG_PREFIX: String = "--trace="
 const OFFSET_ARG_PREFIX: String = "--offset="
 ## Default --offset when the arg is absent.
 const DEFAULT_OFFSET: Vector2 = Vector2.ZERO
-## --preset=<id>; absent (the default) uses the shipped config/physics_tuning.tres.
+## --preset=<id>; absent (the default) uses the shipped config/physics/physics_tuning.tres.
 const PRESET_ARG_PREFIX: String = "--preset="
 ## Where --preset=<id> resolves `<id>.tres` from.
-const PRESET_DIR: String = "res://config/physics_presets/"
+const PRESET_DIR: String = "res://config/physics/presets/"
 
-var _tuning: PhysicsTuning = preload("res://config/physics_tuning.tres")
+var _tuning: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
 ## Which tuning source produced `_tuning`, for the printed result line --
 ## "shipped" (default) or the --preset= id.
 var _preset_label: String = "shipped"
@@ -103,7 +103,7 @@ func _parse_offset(value: String) -> Vector2:
 	return Vector2(parts[0].to_float(), parts[1].to_float())
 
 
-## Loads `config/physics_presets/<id>.tres` and replaces `_tuning` with it,
+## Loads `config/physics/presets/<id>.tres` and replaces `_tuning` with it,
 ## called from _ready() before any block is built -- so every block this
 ## bench spawns is built from the requested preset, not the shipped default.
 ## An id that doesn't resolve to a real preset .tres is reported and left on

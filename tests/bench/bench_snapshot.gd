@@ -30,8 +30,8 @@ const EXTRA_BODIES: Array[int] = [84, 600]
 const RUNS: int = 200
 const RNG_SEED: int = 20260918
 
-var _config: NetConfig = preload("res://config/net_config.tres")
-var _map: MapDef = preload("res://config/maps/round_medium.tres")
+var _config: NetConfig = preload("res://config/net/net_config.tres")
+var _map: MapDef = preload("res://config/match/maps/round.tres")
 var _sync: Node = null
 var _constants: Dictionary = {}
 var _bounds: AABB = AABB()
@@ -198,7 +198,7 @@ func _random_quat() -> Quaternion:
 	).normalized()
 
 
-## See tests/unit/test_quantize.gd: acos(dot) cannot resolve this error on
+## See tests/unit/net/test_quantize.gd: acos(dot) cannot resolve this error on
 ## float32 quaternions, so the 4D chord is used instead.
 func _angle_deg(a: Quaternion, b: Quaternion) -> float:
 	var other: Quaternion = b if a.dot(b) >= 0.0 else -b

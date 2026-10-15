@@ -1,0 +1,47 @@
+[gd_resource type="Resource" script_class="SpecialDef" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://config/gifts/specials/SpecialDef.gd" id="1_def"]
+[ext_resource type="Script" path="res://game/gifts/specials/VolcanoEffect.gd" id="2_effect"]
+[ext_resource type="PackedScene" path="res://assets/models/gifts/held/volcano.tscn" id="9_held"]
+[ext_resource type="PackedScene" path="res://assets/models/gifts/volcano.glb" id="11_model"]
+[ext_resource type="Texture2D" path="res://assets/ui/gift_previews/volcano.png" id="10_icon"]
+
+[sub_resource type="Resource" id="Resource_volcano_effect"]
+script = ExtResource("2_effect")
+rise_s = 2.0
+eruption_duration_s = 22.0
+height_m = 4.0
+base_radius_m = 2.5
+ring_segments = 16
+surface_friction = 0.4
+eruption_interval_min_s = 0.4
+eruption_interval_max_s = 1.2
+min_blocks_per_burst = 1
+max_blocks_per_burst = 3
+cone_angle_deg = 50.0
+launch_speed_mps = 16.0
+launch_speed_jitter = 0.3
+azimuth_even = true
+multi_burst_min_cone_fraction = 0.5
+spawn_clearance_m = 0.4
+burst_spread_m = 1.6
+block_cap = 600
+push_speed_mps = 4.0
+push_margin_m = 0.6
+push_max_bodies = 64
+cone_color = Color(0.45, 0.18, 0.08, 1)
+model_scene = ExtResource("11_model")
+
+[resource]
+script = ExtResource("1_def")
+id = &"volcano"
+held_scene = ExtResource("9_held")
+preview_icon = ExtResource("10_icon")
+scene = null
+weight = 0.4
+enabled_by_default = true
+arm_delay = 0.0
+activates_in_place = true
+arm_impulse = 5.0
+fuse_timeout_s = 6.0
+effect = SubResource("Resource_volcano_effect")

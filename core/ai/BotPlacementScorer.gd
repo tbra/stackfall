@@ -25,17 +25,17 @@ extends RefCounted
 ##   "Known risks: Perf") is the actual thing this estimate avoids doing.
 ## - Stability: BotCandidate carries `footprint_cells` (the geometric
 ##   footprint PlacementRules.footprint_cells() already computed) but not what
-##   game/BotController.gd's own `_fire_stability_raycasts()` corner samples
+##   game/bots/BotController.gd's own `_fire_stability_raycasts()` corner samples
 ##   found -- that file's class doc names this ("P2 is the package that stores
 ##   and scores what each one finds (BotCandidate may gain a field for that
 ##   then)"), but this package's own brief is explicit: "Must NOT touch
-##   game/BotController.gd" (owned by another package's window right now). So
+##   game/bots/BotController.gd" (owned by another package's window right now). So
 ##   `corner_support_hits` is appended to BotCandidate as the real signal
 ##   *once something populates it*, defaulting to -1 ("not measured"); today,
 ##   with no producer wired in, every real candidate reports -1 and
 ##   `_stability_term()` falls back to treating the whole geometric footprint
 ##   as in contact. Flagged as a known limitation/follow-up: whichever package
-##   next owns game/BotController.gd should have `_fire_stability_raycasts()`
+##   next owns game/bots/BotController.gd should have `_fire_stability_raycasts()`
 ##   tally hits near `support_height` into this field instead of discarding
 ##   them, at which point this scorer already knows what to do with it.
 

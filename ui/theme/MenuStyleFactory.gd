@@ -4,7 +4,7 @@ class_name MenuStyleFactory
 ## shadow cards mockups 10/11 (docs/art_mockups/10-main-menu-layered-pastel.png,
 ## 11-lobby-layered-pastel.png) show, entirely from StyleBoxFlat -- no image
 ## assets (hard constraint in the brief). Every color/size it draws from comes
-## from config/MenuVisualTuning.gd (CLAUDE.md "No magic numbers"); this file
+## from config/ui/MenuVisualTuning.gd (CLAUDE.md "No magic numbers"); this file
 ## only assembles StyleBoxFlat objects, it owns no tunables of its own.
 ##
 ## ui/theme/stackfall_theme.tres already gives every Button/LineEdit/OptionButton
@@ -63,13 +63,13 @@ static func make_plate(face: Color = Color.TRANSPARENT) -> StyleBoxFlat:
 	return box
 
 
-## The lazily loaded shared design tokens (config/arcade_visual_tuning.tres).
+## The lazily loaded shared design tokens (config/ui/arcade_visual_tuning.tres).
 static var _arcade_tuning: ArcadeVisualTuning = null
 
 
 static func arcade_tuning() -> ArcadeVisualTuning:
 	if _arcade_tuning == null:
-		_arcade_tuning = load("res://config/arcade_visual_tuning.tres") as ArcadeVisualTuning
+		_arcade_tuning = load("res://config/ui/arcade_visual_tuning.tres") as ArcadeVisualTuning
 	return _arcade_tuning
 
 
@@ -137,7 +137,7 @@ static func relative_luminance(color: Color) -> float:
 
 
 ## Bontago-1pi.37: WCAG contrast ratio of two colours, symmetric, 1.0 (same
-## colour) .. 21.0 (black on white). tests/unit/test_menu_icons.gd asserts
+## colour) .. 21.0 (black on white). tests/unit/ui/test_menu_icons.gd asserts
 ## every menu icon stays above MenuVisualTuning.icon_min_contrast_ratio.
 static func contrast_ratio(a: Color, b: Color) -> float:
 	var luminance_a: float = relative_luminance(a)
@@ -202,7 +202,7 @@ static func apply_flat_stepper_button(button: Button, tuning: MenuVisualTuning) 
 
 ## Bontago-mp0.3.5 (review r1, item 5): a borderless white list panel for a
 ## server/lobby row list that already sits inside its own make_well() card
-## (ui/MainMenu.tscn's %LanGamesWell) -- avoids stacking two sunken borders.
+## (ui/menus/MainMenu.tscn's %LanGamesWell) -- avoids stacking two sunken borders.
 static func make_flat_list(tuning: MenuVisualTuning) -> StyleBoxFlat:
 	var box: StyleBoxFlat = StyleBoxFlat.new()
 	box.bg_color = arcade_tuning().disc_700_color

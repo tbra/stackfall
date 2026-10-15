@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="HoneyCoatTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/gifts/HoneyCoatTuning.gd" id="1_tuning"]
+
+[resource]
+script = ExtResource("1_tuning")
+color = Color(1, 0.7, 0.04, 1)
+deep_amber = Color(0.85, 0.42, 0, 1)
+ghost_alpha = 0.6
+rim_power = 3.5
+shine_color = Color(1, 0.96, 0.75, 1)
+hud_jelly_tint = Color(1, 0.7, 0.04, 0.55)
+render_priority = 10

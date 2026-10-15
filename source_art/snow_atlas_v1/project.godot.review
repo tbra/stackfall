@@ -1,5 +1,0 @@
-config_version=5
-[application]
-config/name="Snow atlas native raster helper"
-[rendering]
-renderer/rendering_method="gl_compatibility"

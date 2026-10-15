@@ -61,7 +61,7 @@ MODELS: Dict[str, str] = {
 }
 
 CORE_PATH_PREFIXES = ("core/", "net/", "autoload/", "shaders/")
-SPECIALIZED_PATH_PREFIXES = ("net/", "autoload/", "core/territory", "tests/bench/")
+SPECIALIZED_PATH_PREFIXES = ("net/", "autoload/", "core/territory", "tests/bench/", "tests/enet/")
 VERIFICATION_TIERS = {
     "quick": "Documentation, generated files or mechanical edits: inspect the diff or run one quick check; no game launch.",
     "targeted": "Local behavior or UI change: run only the named affected tests, at most one retry after a fix.",

@@ -1,6 +1,6 @@
 # Bontago-1pi.14: host + one lagged client on loopback, hard 180 s deadline.
 param([string]$Path = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path, [int]$Port = 47791, [int]$Lag = 150, [string]$BPose = "-26.6,0.99,-0.1", [string]$Out = $env:TEMP)
-$scene = "res://tests/bench/drop_displace_enet.tscn"
+$scene = "res://tests/enet/drop_displace_enet.tscn"
 . (Join-Path $PSScriptRoot "enet_result.ps1")
 $h = Start-Process godot -ArgumentList @("--headless","--log-file","${Out}\godot_$([guid]::NewGuid().ToString('N').Substring(0,6)).log","--path",$Path,$scene,"--","--headless-host","--port=$Port","--expect-peers=2") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\dd_host.log" -RedirectStandardError "$Out\dd_host.err"
 Start-Sleep 3

@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="GraphicsPreset" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/graphics/GraphicsPreset.gd" id="1_preset"]
+
+[resource]
+script = ExtResource("1_preset")
+id = &"medium"
+ssr_enabled = true
+msaa_3d = 1
+shadow_atlas_size = 4096
+volumetric_fog_enabled = true
+cloud_puff_subdivisions = 1
+cloud_billboard_distance_m = 250.0
+cloud_puff_density = 0.6
+sun_shadow_mode = 1
+sun_shadow_max_distance = 100.0
+reflection_probe_mode = 2
+reflection_probe_interval_s = 4.0

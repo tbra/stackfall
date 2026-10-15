@@ -11,7 +11,7 @@ const PHASE_COUNT: int = BotThink.Phase.DONE
 const PHASE_NAMES: PackedStringArray = ["STACK", "PLAN", "SITES", "FILL", "PROBE", "RANK", "MEASURE", "PICK"]
 const PERCENT: float = 100.0
 const US_PER_MS: float = 1000.0
-const SHIPPED_TUNING: BotThinkCostTuning = preload("res://config/bot_think_cost.tres")
+const SHIPPED_TUNING: BotThinkCostTuning = preload("res://config/bots/bot_think_cost.tres")
 
 var tuning: BotThinkCostTuning = SHIPPED_TUNING
 var scenario: String = ""

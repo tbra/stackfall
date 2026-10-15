@@ -22,7 +22,7 @@ var gusts_applied: int = 0
 var gusts_refused: int = 0
 var last_sent_gust: Dictionary = {}
 
-var _tuning: BreezeTuning = preload("res://config/breeze.tres")
+var _tuning: BreezeTuning = preload("res://config/breeze/breeze.tres")
 var _net_provider: Variant = null
 var _match_provider: Variant = null
 var _last_id: int = 0

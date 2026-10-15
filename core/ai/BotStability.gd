@@ -10,7 +10,7 @@ extends RefCounted
 ## Disturbance (STATICS_DESIGN 3.1, 2.6; Bontago-1t5.72.6): the Storm's sustained push and the gift allowance raise
 ## the requirement only while weather or gifts are on; a tilted disc shifts every centre of mass exactly.
 
-const SHIPPED_PHYSICS_TUNING: PhysicsTuning = preload("res://config/physics_tuning.tres")
+const SHIPPED_PHYSICS_TUNING: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
 ## Result.binding: no cut was evaluated.
 const BINDING_NONE: int = -2
 ## Result.binding: the piece's own cut (rule 1) is the tightest.
