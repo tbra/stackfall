@@ -36,8 +36,8 @@ peers) model the real API's documented callback sequence, including callbacks ec
 to the caller itself (Steam's `lobby_joined` for the lobby's own creator). For a bug
 that needs a user retest, first build or run a direct probe (such as the
 steam-lobby-probe in the tools folder) for a deterministic reproduction instead of
-asking the user to retest a guess. For Steam work, read
-docs/archive/M3b_RESEARCH.md, verify current upstream contracts and run the
+asking the user to retest a guess. For Steam work, read the
+local Steam research notes (see CLAUDE.local.md), verify current upstream contracts and run the
 extension-load spike before depending on it; never publish Valve binaries or
 credentials. Inspect per-peer results; real Steam and two-PC checks stay unverified
 until the user runs them.

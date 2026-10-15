@@ -1,11 +1,5 @@
 {
  "findings": {
-  ".claude/agents/stackfall-netcode.md": {
-   "plan-doc": 1
-  },
-  ".gitignore": {
-   "plan-doc": 2
-  },
   "tests/bench/bench_snapshot.gd": {
    "plan-doc": 3
   },

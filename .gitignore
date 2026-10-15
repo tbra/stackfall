@@ -10,7 +10,7 @@
 
 # Steam
 steam_appid.txt
-# Valve / GodotSteam redistributables never enter the public repo (docs/archive/M3b_RESEARCH.md):
+# Valve / GodotSteam redistributables never enter the public repo:
 # install them locally; a fresh clone must handle their absence deliberately.
 *.dll
 *.so
@@ -86,7 +86,7 @@ build_info.cfg
 # Blender auto-save backups
 *.blend1
 
-/docs/archive/
+/docs/archive
 # Machine-specific agent notes and the Beads export stay local (public repo)
 /CLAUDE.local.md
 /.beads/issues.jsonl
