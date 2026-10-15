@@ -28,8 +28,7 @@ static func _vec(v: Vector2, step: float) -> Array:
 	return [round_to(v.x, step), round_to(v.y, step)]
 
 
-## Index of the highest-weighted candidate (first on ties, like pick_best's strict
-## `>`); -1 when `terms` is empty. Used for the footer's passive policy self-check.
+## Index of the highest-weighted candidate (first on ties, strict `>`); -1 when `terms` is empty. Used for the footer's passive policy self-check.
 static func scored_best_index(terms: Array[BotScoreTerms], tuning: BotTuning) -> int:
 	var best: int = -1
 	var best_score: float = -INF

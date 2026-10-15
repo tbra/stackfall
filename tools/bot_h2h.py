@@ -39,10 +39,8 @@ P1b options (Bontago-1t5.20; evaluation plan docs/BOT_AI_REDESIGN.md section 2.5
                    output is unchanged. Reach the Sky S-gate (docs/BOT_TOWER_PLAN.md), all 7 bots on side A:
                      python tools/bot_h2h.py --bots 7 --players 8 --mode sky --no-swap --pairs 10 --seconds 180
                        --stats --cand-slots-a 0,1,2,3,4,5,6 --godot-args "--match-seed={seed}
-                       --bot-difficulty=hard --bot-brain=v2 --gifts=0"
-  --battery E1..E5|all  only with --dry-run: prints the section 2.5 command lines. Their templates
-                   carry <...> placeholders (e.g. <v2>) that must be filled in by hand; a real launch
-                   refuses a template that still contains one.
+                       --bot-difficulty=hard --gifts=0"
+  --battery E1..E5|all  only with --dry-run: prints the section 2.5 command lines.
 
 SEAM DEPENDENCY (plan BT5): the game has no per-slot weight override or match
 seed flag yet. Weight runs therefore need `--godot-args`, a template appended
@@ -87,7 +85,6 @@ _DURATION_RE = re.compile(r"HEADLESS_MATCH\b.*?\bduration=(-?[0-9]+(?:\.[0-9]+)?
 _STATS_RE = re.compile(r"HEADLESS_MATCH\b.*?\bstats=(\S+)")
 _WEIGHT_LINE = re.compile(r"^\s*(weight_\w+)\s*=\s*(-?[0-9.eE+-]+)\s*$")
 _WEIGHT_PLACEHOLDER = re.compile(r"\{weights_file\}|\{weights_json\}")
-_TEMPLATE_PLACEHOLDER = re.compile(r"<[^<>\s]+>")  # battery templates: <v2>, <hard|normal>
 
 
 def parse_candidate(path: str) -> Dict[str, float]:
@@ -408,39 +405,34 @@ class Preset:
     difficulty_b: Optional[str] = None
 
 
-# Section 2.5 battery (E1-E5). The <...> placeholders are filled in by hand before a real launch.
+# Section 2.5 battery (E1-E5). Candidate weights come in through --godot-args; the sides differ by seat
+# weights and, for the tier ladder, by --bot-difficulty-slots (Bontago-1t5.28; Preset difficulty_a/_b,
+# A = candidate seats). Preset slots are bot-relative.
 # DECISION (Bontago-1t5.20): section 2.5 gives no seconds for E2 and E5; they use 600 like E1.
-# E5 uses --bot-difficulty-slots (Bontago-1t5.28) via the Preset difficulty_a/_b fields (A = candidate seats);
-# only the <v2> brain placeholder stays to be filled in by hand. Preset slots are bot-relative.
-_HARD_V2 = "--match-seed={seed} --bot-difficulty=hard --bot-brain=<v2> --bot-brain-slots={cand_slots}"
+_HARD = "--match-seed={seed} --bot-difficulty=hard"
+_SEED = "--match-seed={seed}"
 BATTERY: Tuple[Preset, ...] = (
-    Preset("E1", "classic 8 seats, v2 Hard x4 vs legacy Hard x4, seats swapped", _HARD_V2,
+    Preset("E1", "classic 8 seats, Hard x4 vs Hard x4, seats swapped", _HARD,
            bots=8, pairs=50, slots_a="0,2,4,6", slots_b="1,3,5,7", seconds=600.0),
-    Preset("E2", "classic duel 1v1, slots 0/1", _HARD_V2,
+    Preset("E2", "classic duel 1v1, slots 0/1", _HARD,
            bots=2, pairs=30, slots_a="0", slots_b="1", seconds=600.0),
-    Preset("E3", "vs passive, classic M, 4 seats (1 bot), no swap", _HARD_V2,
+    Preset("E3", "vs passive, classic M, 4 seats (1 bot), no swap", _HARD,
            bots=1, pairs=20, slots_a="0", slots_b="0", seconds=600.0, players=4, mode="classic", swap=False),
-    Preset("E4", "elimination 8 seats, seats swapped", _HARD_V2,
+    Preset("E4", "elimination 8 seats, seats swapped", _HARD,
            bots=8, pairs=30, slots_a="0,2,4,6", slots_b="1,3,5,7", seconds=600.0, mode="elimination"),
-    Preset("E4-passive", "elimination vs passive, 5 seats, no swap", _HARD_V2,
+    Preset("E4-passive", "elimination vs passive, 5 seats, no swap", _HARD,
            bots=1, pairs=10, slots_a="0", slots_b="0", seconds=600.0, players=5, mode="elimination", swap=False),
-    Preset("E5a", "tier ladder: v2 Hard vs v2 Normal, 1v1",
-           "--match-seed={seed} --bot-brain=<v2> --bot-brain-slots={cand_slots}",
+    Preset("E5a", "tier ladder: Hard vs Normal, 1v1", _SEED,
            bots=2, pairs=20, slots_a="0", slots_b="1", seconds=600.0, difficulty_a="hard", difficulty_b="normal"),
-    Preset("E5b", "tier ladder: v2 Normal vs v2 Easy, 1v1",
-           "--match-seed={seed} --bot-brain=<v2> --bot-brain-slots={cand_slots}",
+    Preset("E5b", "tier ladder: Normal vs Easy, 1v1", _SEED,
            bots=2, pairs=20, slots_a="0", slots_b="1", seconds=600.0, difficulty_a="normal", difficulty_b="easy"),
-    Preset("E5c", "tier ladder: v2 Normal vs legacy Hard, 1v1",
-           "--match-seed={seed} --bot-brain=<v2> --bot-brain-slots={cand_slots}",
-           bots=2, pairs=20, slots_a="0", slots_b="1", seconds=600.0, difficulty_a="normal", difficulty_b="hard"),
-    Preset("E5d", "v2 Easy vs passive, 1v1, no swap (10/10 within 600 s)",
-           "--match-seed={seed} --bot-brain=<v2> --bot-brain-slots={cand_slots}",
+    Preset("E5d", "Easy vs passive, 1v1, no swap (10/10 within 600 s)", _SEED,
            bots=1, pairs=10, slots_a="0", slots_b="0", seconds=600.0, players=2, swap=False, difficulty_a="easy"),
 )
 
 
 def battery_presets(name: str) -> List[Preset]:
-    """`all`, or every preset whose label starts with the name (E4 -> E4 and E4-passive, E5 -> E5a-d)."""
+    """`all`, or every preset whose label starts with the name (E4 -> E4 and E4-passive, E5 -> E5a, E5b, E5d)."""
     if name == "all":
         return list(BATTERY)
     return [p for p in BATTERY if p.label.startswith(name)]
@@ -487,7 +479,7 @@ def main(argv: Optional[List[str]] = None, runner: Callable[[Sequence[str], floa
 
     if args.battery:
         if not args.dry_run:
-            print("bot_h2h: --battery is dry-run only (its <...> placeholders must be filled in first).",
+            print("bot_h2h: --battery is dry-run only (use --dry-run).",
                   file=sys.stderr)
             return 2
         total = 0
@@ -515,11 +507,6 @@ def main(argv: Optional[List[str]] = None, runner: Callable[[Sequence[str], floa
         print("bot_h2h: --godot-args uses {weights_file}/{weights_json} but no --candidate was given.",
               file=sys.stderr)
         return 2
-    if not args.dry_run and _TEMPLATE_PLACEHOLDER.search(template):
-        print("bot_h2h: --godot-args still has a <...> placeholder; fill it in before launching.",
-              file=sys.stderr)
-        return 2
-
     weights_file = ""
     weights_json = "{}"
     if args.candidate is not None:

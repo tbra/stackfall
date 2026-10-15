@@ -194,7 +194,7 @@ func test_candidates_carry_v2_fields_and_probe_results() -> void:
 	var think: BotThink = BotThink.new(_view(_pillar), _profile(), _rng())
 	think.step(BIG_BUDGET_US, _probe)
 	var candidate: BotCandidate = think.candidates()[0]
-	assert_ne(candidate.site_kind, BotThink.SITE_LEGACY, "targeted sites, not the retired sampler")
+	assert_ne(candidate.site_kind, BotThink.SITE_NONE, "targeted sites, not an unset kind")
 	assert_almost_eq(candidate.top_height, candidate.support_height + candidate.shape_height, 0.0001)
 	assert_gt(candidate.shape_height, 0.0)
 	assert_gt(_probe_calls, think.candidates().size(), "support plus footprint probes")

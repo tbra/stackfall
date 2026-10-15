@@ -113,8 +113,8 @@ func begin_match(header: Dictionary, bot_slots: PackedInt32Array, match_index: i
 
 
 ## Pre-request half of a decision: snapshots everything the request itself could change.
-## `terms` are score_terms() of every candidate, computed by the controller with the exact
-## pick_best inputs. Returns {} when not recording.
+## `terms` are score_terms() of every candidate, computed by the controller with the decision's
+## inputs. Returns {} when not recording.
 func capture(
 	slot_id: int, team_id: int, shape_id: StringName, candidates: Array[BotCandidate],
 	terms: Array[BotScoreTerms], chosen: int, special_policy: bool, state: Dictionary

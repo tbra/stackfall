@@ -63,7 +63,6 @@ func _make_bot() -> BotController:
 	var bot: BotController = BotController.new()
 	add_child_autofree(bot)
 	bot.setup(BOT_SLOT, MatchConfig.AiDifficulty.HARD, _field, _registry)
-	bot.set_brain(BotController.Brain.LEGACY)
 	return bot
 
 
@@ -86,18 +85,31 @@ func _place_via_bot(origin: Vector2, orientation_index: int = 0) -> Block:
 	bot._profile = bot._profile.duplicate() as BotDifficultyProfile
 	bot._profile.aim_noise_m = 0.0
 	var before: int = _registry.all_blocks().size()
-	var reason: StringName = bot._send_best_placement()
+	var reason: StringName = bot._send_best_placement(origin)
 	assert_eq(reason, PlacementRules.REASON_OK, "the host accepts the bot's placement")
 	var blocks: Array[Block] = _registry.all_blocks()
 	assert_eq(blocks.size(), before + 1, "one block spawned")
 	return blocks[blocks.size() - 1] if blocks.size() > before else null
 
 
-## The orientation the bot actually prefers: BotPlacementScorer's flattest one (a lying pillar),
-## whose lowest point is far below the pillar's upright bottom-centre pivot.
-func _flat_orientation() -> int:
-	var flat: Array[int] = BotPlacementScorer.flattest_orientations(PILLAR_SHAPE, 1)
-	return flat[0]
+## The orientation with the flattest base (most cells on the lowest layer; ties by index): for the
+## pillar, a lying one whose lowest point is far below its upright bottom-centre pivot.
+func _flat_orientation(shape: BlockShape) -> int:
+	var best_index: int = 0
+	var best_coverage: int = -1
+	for i: int in range(BlockOrientations.count()):
+		var basis: Basis = BlockOrientations.get_basis(i)
+		var low: int = 1000000
+		for cell: Vector3i in shape.cells:
+			low = mini(low, int(round((basis * Vector3(cell)).y)))
+		var coverage: int = 0
+		for cell: Vector3i in shape.cells:
+			if int(round((basis * Vector3(cell)).y)) == low:
+				coverage += 1
+		if coverage > best_coverage:
+			best_coverage = coverage
+			best_index = i
+	return best_index
 
 
 func _lowest_point_local_y(block: Block) -> float:
@@ -126,7 +138,7 @@ func test_bot_upright_block_on_bare_disc_rests_on_the_disc_top() -> void:
 
 func test_bot_flat_block_spawns_above_the_disc_not_inside_it() -> void:
 	await _start_reach_the_sky()
-	var block: Block = _place_via_bot(_bot_target(), _flat_orientation())
+	var block: Block = _place_via_bot(_bot_target(), _flat_orientation(PILLAR_SHAPE))
 	assert_not_null(block)
 	if block == null:
 		return

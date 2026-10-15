@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1t5.57 / 1t5.61 (owner 2026-10-14): the V2 tiers share hard_v2's mechanics; Easy and
+## Bontago-1t5.57 / 1t5.61 (owner 2026-10-14): the tiers share Hard's mechanics; Easy and
 ## Normal differ only in precision (aim_noise_m) plus the strategy-level fields.
 
 ## Fields that control how the bot searches, probes, scores, picks or times a think.
@@ -37,24 +37,24 @@ func test_every_profile_field_is_classified() -> void:
 
 func test_mechanical_fields_match_hard() -> void:
 	for f: String in MECHANICAL_FIELDS:
-		assert_eq(_tuning.easy_v2.get(f), _tuning.hard_v2.get(f), "easy_v2.%s == hard_v2" % f)
-		assert_eq(_tuning.normal_v2.get(f), _tuning.hard_v2.get(f), "normal_v2.%s == hard_v2" % f)
+		assert_eq(_tuning.easy.get(f), _tuning.hard.get(f), "easy.%s == hard" % f)
+		assert_eq(_tuning.normal.get(f), _tuning.hard.get(f), "normal.%s == hard" % f)
 
 
 func test_precision_is_the_ladder() -> void:
-	assert_gt(_tuning.easy_v2.aim_noise_m, _tuning.normal_v2.aim_noise_m)
-	assert_gt(_tuning.normal_v2.aim_noise_m, _tuning.hard_v2.aim_noise_m)
-	assert_true(_tuning.easy_v2.aim_noise_m <= SLIGHTLY_WORSE_MAX_M, "Easy is only slightly worse")
+	assert_gt(_tuning.easy.aim_noise_m, _tuning.normal.aim_noise_m)
+	assert_gt(_tuning.normal.aim_noise_m, _tuning.hard.aim_noise_m)
+	assert_true(_tuning.easy.aim_noise_m <= SLIGHTLY_WORSE_MAX_M, "Easy is only slightly worse")
 
 
-func test_tier_mapping_still_returns_v2_profiles() -> void:
-	assert_same(_tuning.profile_for_brain(MatchConfig.AiDifficulty.EASY, true), _tuning.easy_v2)
-	assert_same(_tuning.profile_for_brain(MatchConfig.AiDifficulty.NORMAL, true), _tuning.normal_v2)
-	assert_same(_tuning.profile_for_brain(MatchConfig.AiDifficulty.HARD, true), _tuning.hard_v2)
+func test_tier_mapping_returns_the_tier_profiles() -> void:
+	assert_same(_tuning.profile_for(MatchConfig.AiDifficulty.EASY), _tuning.easy)
+	assert_same(_tuning.profile_for(MatchConfig.AiDifficulty.NORMAL), _tuning.normal)
+	assert_same(_tuning.profile_for(MatchConfig.AiDifficulty.HARD), _tuning.hard)
 
 
 func test_easy_tower_intent_generates_targeted_stack_sites() -> void:
-	var profile: BotDifficultyProfile = _tuning.easy_v2.duplicate() as BotDifficultyProfile
+	var profile: BotDifficultyProfile = _tuning.easy.duplicate() as BotDifficultyProfile
 	profile.candidate_count = CANDIDATE_COUNT
 	var helper: Object = load("res://tests/unit/bots/test_bot_candidate_gen.gd").new()
 	helper.before_each()
@@ -70,14 +70,13 @@ func test_easy_tower_intent_generates_targeted_stack_sites() -> void:
 	helper.free()
 
 
-func test_v2_think_deadline_is_the_same_for_every_tier() -> void:
+func test_think_deadline_is_the_same_for_every_tier() -> void:
 	var ticks: Array[int] = []
 	for difficulty: MatchConfig.AiDifficulty in [
 		MatchConfig.AiDifficulty.EASY, MatchConfig.AiDifficulty.NORMAL, MatchConfig.AiDifficulty.HARD
 	]:
 		var controller: BotController = BotController.new()
 		add_child_autofree(controller)
-		controller.set_brain(BotController.Brain.V2)
 		controller.setup(0, difficulty, null, null)
 		ticks.append(controller.think_deadline_ticks())
 	assert_eq(ticks[0], ticks[2], "Easy deadline == Hard")

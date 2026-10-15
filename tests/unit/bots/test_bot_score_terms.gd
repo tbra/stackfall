@@ -106,14 +106,20 @@ func test_terms_are_the_unweighted_components() -> void:
 	assert_eq(terms.to_array().size(), 5)
 
 
-func test_scored_best_matches_pick_best() -> void:
+func test_scored_best_is_the_highest_scoring_candidate() -> void:
 	var candidates: Array[BotCandidate] = _candidates()
 	var terms: Array[BotScoreTerms] = []
 	for candidate: BotCandidate in candidates:
 		terms.append(BotPlacementScorer.score_terms(
 			candidate, _raster, _grid, 0, PackedVector2Array(), PackedVector2Array(), PackedVector2Array(), _bot_tuning, MAP_RADIUS, null))
-	var picked: BotCandidate = BotPlacementScorer.pick_best(
-		candidates, _raster, _grid, 0, PackedVector2Array(), PackedVector2Array(), PackedVector2Array(), _bot_tuning, MAP_RADIUS)
+	var picked: BotCandidate = null
+	var picked_score: float = -INF
+	for candidate: BotCandidate in candidates:
+		var candidate_score: float = BotPlacementScorer.score(
+			candidate, _raster, _grid, 0, PackedVector2Array(), PackedVector2Array(), PackedVector2Array(), _bot_tuning, MAP_RADIUS)
+		if picked == null or candidate_score > picked_score:
+			picked = candidate
+			picked_score = candidate_score
 	assert_eq(candidates[BotDecisionRecord.scored_best_index(terms, _bot_tuning)], picked)
 	assert_eq(BotDecisionRecord.scored_best_index([], _bot_tuning), -1)
 

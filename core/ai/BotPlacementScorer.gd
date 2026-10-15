@@ -1,43 +1,14 @@
 class_name BotPlacementScorer
 extends RefCounted
-## Pure (CLAUDE.md "core/ ... no dependence on the scene tree"): every
-## argument is a value type or an already-built core/ object.
+## Pure (CLAUDE.md "core/ ... no dependence on the scene tree"). The spec 2.9 four-factor candidate
+## score (height, goal progress, stability, risk, plus the per-mode terms), kept as the decomposition
+## the offline decision recorder (BotDecisionRecorder) re-scores V2 candidates with, and
+## `next_goal_index` / `target_home_index` for the mode goal. The V2 brain itself picks through BotThink.
 ##
-## docs/archive/M5_PLAN.md P2 (Bontago-d5c.3): real scoring for the four spec 2.9
-## factors -- height gained, goal progress, stability, risk -- combined with
-## BotTuning's four weights, plus flattest_orientations()'s pure geometry and
-## pick_best()'s highest-scorer selection. P1's trivial default bodies (always
-## candidates[0], flattest_orientations() == [0], score() == 0.0) are gone;
-## every signature below is exactly what P1 committed.
-##
-## DECISION (Bontago-d5c.3): "goal progress" and "stability" are the two
-## factors spec 2.9 does not give an exact formula for, so both are estimates,
-## not a recompute of the real territory/physics state:
-## - Goal progress: distance(candidate.origin, nearest goal) minus the
-##   candidate's own estimated future influence-circle radius
-##   (InfluenceCircle.radius_for_height(candidate.support_height +
-##   candidate.shape_height, ...) -- Bontago-d5c.9 appends `shape_height`,
-##   the oriented shape's own height in cube units, since the circle's radius
-##   is driven by the block's highest point above the disk, not merely its
-##   pivot's support height) -- a smaller (even negative) number is better.
-##   A full TerritorySolver.solve()
-##   per candidate (up to 120 per bot per think-cycle, docs/archive/M5_PLAN.md's own
-##   "Known risks: Perf") is the actual thing this estimate avoids doing.
-## - Stability: BotCandidate carries `footprint_cells` (the geometric
-##   footprint PlacementRules.footprint_cells() already computed) but not what
-##   game/bots/BotController.gd's own `_fire_stability_raycasts()` corner samples
-##   found -- that file's class doc names this ("P2 is the package that stores
-##   and scores what each one finds (BotCandidate may gain a field for that
-##   then)"), but this package's own brief is explicit: "Must NOT touch
-##   game/bots/BotController.gd" (owned by another package's window right now). So
-##   `corner_support_hits` is appended to BotCandidate as the real signal
-##   *once something populates it*, defaulting to -1 ("not measured"); today,
-##   with no producer wired in, every real candidate reports -1 and
-##   `_stability_term()` falls back to treating the whole geometric footprint
-##   as in contact. Flagged as a known limitation/follow-up: whichever package
-##   next owns game/bots/BotController.gd should have `_fire_stability_raycasts()`
-##   tally hits near `support_height` into this field instead of discarding
-##   them, at which point this scorer already knows what to do with it.
+## Goal progress and stability are estimates, not a recompute of the real territory/physics state:
+## goal progress is the distance to the nearest goal minus the candidate's estimated future
+## influence-circle radius; stability reads `BotCandidate.corner_support_hits` (-1 = not measured, the
+## whole footprint then counts as in contact).
 
 ## Distance-decayed penalty for a candidate close to an enemy circle center or
 ## an active special -- 0 at or past `radius`, growing linearly to `radius` at
@@ -406,8 +377,8 @@ static func _sky_term(candidate: BotCandidate, grid: CellGrid, mode_goal: BotMod
 
 
 ## Weighted sum of the four spec 2.9 factors. `team_id` names whose territory
-## `candidate` was sampled inside (BotController already only ever samples a
-## point inside its own team's area -- see _sample_territory_point()), kept in
+## `candidate` was sampled inside (candidates are only ever generated
+## inside its own team's area), kept in
 ## the signature because P1 committed it and a future factor may want it; this
 ## package's own scoring math does not need it, since goal_positions/
 ## enemy_circle_centers/active_special_positions are already resolved relative
@@ -478,87 +449,3 @@ static func score_terms(
 	elif mode_goal != null and not mode_goal.is_neutral():
 		terms.mode = _mode_term(candidate, raster, grid, mode_goal, enemy_circle_centers, territory_tuning, tuning, field_radius)
 	return terms
-
-
-## How many of `cells` (rotated by `basis`) sit at the lowest transformed
-## height -- the flat-footprint coverage of resting this shape down on that
-## face. Pure geometry: `basis` is always one of BlockOrientations' 24
-## axis-aligned rotations, so every transformed offset lands on (or within
-## float rounding of) an integer grid coordinate.
-static func _flat_footprint_coverage(cells: Array[Vector3i], basis: Basis) -> int:
-	if cells.is_empty():
-		return 0
-	var heights: PackedInt32Array = PackedInt32Array()
-	heights.resize(cells.size())
-	heights[0] = int(round((basis * Vector3(cells[0])).y))
-	var min_height: int = heights[0]
-	for i: int in range(1, cells.size()):
-		var transformed: Vector3 = basis * Vector3(cells[i])
-		var height: int = int(round(transformed.y))
-		heights[i] = height
-		min_height = mini(min_height, height)
-	var coverage: int = 0
-	for height: int in heights:
-		if height == min_height:
-			coverage += 1
-	return coverage
-
-
-## Spec 2.9 "the orientation (out of the 24) that gives the flattest base" --
-## purely from `shape.cells` geometry, independent of terrain. Ranks every one
-## of BlockOrientations' 24 entries by `_flat_footprint_coverage()` (highest
-## first; ties broken by ascending index, so a shape with no single flattest
-## face -- a cube, any face is equally flat -- still deterministically returns
-## the identity orientation first) and returns up to `max_count` distinct
-## indices. The caller still scores each returned index against the real site
-## (terrain is not consulted here at all).
-static func flattest_orientations(shape: BlockShape, max_count: int) -> Array[int]:
-	var result: Array[int] = []
-	if shape == null or shape.cells.is_empty() or max_count <= 0:
-		return result
-	var orientation_count: int = BlockOrientations.count()
-	var coverage: PackedInt32Array = PackedInt32Array()
-	coverage.resize(orientation_count)
-	for i: int in range(orientation_count):
-		coverage[i] = _flat_footprint_coverage(shape.cells, BlockOrientations.get_basis(i))
-	var indices: Array[int] = []
-	for i: int in range(orientation_count):
-		indices.append(i)
-	indices.sort_custom(func(a: int, b: int) -> bool:
-		if coverage[a] != coverage[b]:
-			return coverage[a] > coverage[b]
-		return a < b
-	)
-	var limit: int = mini(max_count, indices.size())
-	for i: int in range(limit):
-		result.append(indices[i])
-	return result
-
-
-## The one entry point BotController calls once a think-tick's candidate list
-## is complete. Null only when `candidates` is empty.
-static func pick_best(
-	candidates: Array[BotCandidate],
-	raster: TerritoryRaster,
-	grid: CellGrid,
-	team_id: int,
-	goal_positions: PackedVector2Array,
-	enemy_circle_centers: PackedVector2Array,
-	active_special_positions: PackedVector2Array,
-	tuning: BotTuning,
-	field_radius: float,
-	mode_goal: BotModeGoal = null
-) -> BotCandidate:
-	if candidates.is_empty():
-		return null
-	var best: BotCandidate = null
-	var best_score: float = -INF
-	for candidate: BotCandidate in candidates:
-		var candidate_score: float = score(
-			candidate, raster, grid, team_id, goal_positions, enemy_circle_centers,
-			active_special_positions, tuning, field_radius, mode_goal
-		)
-		if best == null or candidate_score > best_score:
-			best = candidate
-			best_score = candidate_score
-	return best

@@ -215,14 +215,14 @@ Each special is a `SpecialDef` resource plus a script.
 ### 2.9 AI bots
 The AI runs only on the host and spreads its thinking across frames for multiple bots.
 
-**Placement (V2 brain, default since Bontago-1t5.38; the earlier uniform-sampling brain stays behind `--bot-brain=legacy`):** each time a bot receives a block, a strategy layer picks an intent (race, anchor, finish, hold, defend, strike, plus per-mode siege and area). The bot evaluates 40–120 targeted sites (frontier tip toward the target, own stack tops, strike and defend points) plus a few random ones. Per site it picks the orientation (of 24) with the most reach that passes an analytic stability check (upright at the tip, flat as a tower base). Candidates are scored by intent-weighted terms:
+**Placement:** each time a bot receives a block, a strategy layer picks an intent (race, anchor, finish, hold, defend, strike, plus per-mode siege and area). The bot evaluates 40–120 targeted sites (frontier tip toward the target, own stack tops, strike and defend points) plus a few random ones. Per site it picks the orientation (of 24) with the most reach that passes an analytic stability check (upright at the tip, flat as a tower base). Candidates are scored by intent-weighted terms:
 - **Reach** toward the target and measured territory gain from raster samples.
 - **Chains and towers cut:** enemy snake joints or towers the site would cut.
 - **Exposure** to enemy reach and tip-over risk; wasted overlap inside own land.
 
 **Specials:** targeting follows 2.6's effect types and accounts for launch, leveling, tilt and Bean holes. V2 targets enemy chain joints and towers and its own key towers deliberately (Paintball, Freeze and Glue included).
 
-**Difficulty (owner decision Bontago-1t5.57, 2026-10-14):** the game is about stacking, so no tier builds piles. In the V2 brain every tier uses Hard's mechanics (spots sampled, targeted versus random share, support probes, evaluation depth, pick, think time, reaction delay); Easy and Normal differ only by a slightly larger random aiming error (0.5 / 0.25 / 0.05 m for Easy / Normal / Hard), so their towers fall more often. Strategy and goals (intent set, gift weighting, specials) may differ per tier on top. Profiles: `easy_v2`/`normal_v2`/`hard_v2`; the legacy brain keeps its older profiles.
+**Difficulty (owner decision Bontago-1t5.57, 2026-10-14):** the game is about stacking, so no tier builds piles. Every tier uses Hard's mechanics (spots sampled, targeted versus random share, support probes, evaluation depth, pick, think time, reaction delay); Easy and Normal differ only by a slightly larger random aiming error (0.5 / 0.25 / 0.05 m for Easy / Normal / Hard), so their towers fall more often. Strategy and goals (intent set, gift weighting, specials) may differ per tier on top. Profiles: `easy`/`normal`/`hard` in `config/bots/bot_tuning.tres`.
 
 ### 2.10 Presentation
 - **Disk:** an opaque, polished, mirror-like metal plate (owner 2026-09-23, Bontago-xtq.11; mirror pass removed 2026-10-07), with sky reflections from the Environment sky and a reflection probe for nearby blocks. A shader draws territory: each player's area is a soft tint in their color with an animated outline; contested areas shimmer; hole edges glow and crackle.
