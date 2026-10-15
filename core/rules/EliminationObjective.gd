@@ -57,12 +57,6 @@ func mode_id() -> int:
 	return MatchConfig.GameMode.ELIMINATION
 
 
-## Timed through round_timer_minutes; 0 minutes arms nothing, so the match runs
-## until one team is left.
-func uses_goal_flags() -> bool:
-	return false
-
-
 func is_timed() -> bool:
 	return true
 
@@ -234,10 +228,6 @@ func is_slot_out(slot: int) -> bool:
 
 
 ## Slot ids in elimination order (first out first).
-func elimination_order() -> PackedInt32Array:
-	return _order.duplicate()
-
-
 func winners() -> PackedInt32Array:
 	return _winners.duplicate()
 

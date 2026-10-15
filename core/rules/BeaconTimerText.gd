@@ -21,14 +21,6 @@ static func clock(seconds: int) -> String:
 	return "%d:%02d" % [whole / SECONDS_PER_MINUTE, whole % SECONDS_PER_MINUTE]
 
 
-## Classic countdown: seconds left until `team` captures, rounded up so it reads
-## 0:01 until the instant of capture. "" when nobody is capturing.
-static func classic_text(team: int, progress: float, hold_seconds: float) -> String:
-	if team < 0 or progress <= 0.0 or hold_seconds <= 0.0:
-		return ""
-	return clock(int(ceil(remaining_seconds(progress, hold_seconds))))
-
-
 static func remaining_seconds(progress: float, hold_seconds: float) -> float:
 	return maxf((1.0 - clampf(progress, 0.0, 1.0)) * hold_seconds, 0.0)
 

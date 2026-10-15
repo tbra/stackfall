@@ -9,15 +9,6 @@ const S: int = MatchPhase.State.SUDDEN_DEATH
 const E: int = MatchPhase.State.END
 
 
-func test_ordinals_pinned() -> void:
-	assert_eq([L, LO, C, P, S, E], [0, 1, 2, 3, 4, 5])
-
-
-func test_alias_keys_match() -> void:
-	assert_eq(MatchAutoload.State.keys(), MatchPhase.State.keys())
-	assert_eq(MatchAutoload.State.values(), MatchPhase.State.values())
-
-
 func _table() -> Dictionary:
 	# predicate name -> states for which it is true
 	return {

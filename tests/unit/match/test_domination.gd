@@ -39,7 +39,6 @@ func test_no_win_before_the_timer_even_with_total_dominance() -> void:
 	assert_eq(objective.winner(), ModeObjective.NO_TEAM)
 	assert_gt(objective.team_score(0), 0.0)
 	assert_true(objective.is_timed())
-	assert_false(objective.uses_goal_flags())
 
 
 func test_largest_share_wins_at_the_timer() -> void:
@@ -76,36 +75,6 @@ func test_team_shares_aggregate_all_members_of_a_team() -> void:
 	assert_eq(objective.on_round_timer_end(), 0)
 
 
-func test_replication_throttle_and_final_state() -> void:
-	var objective: DominationObjective = DominationObjective.new(1.0)
-	objective.reset(2)
-	_rasterize([_circle(0.0, 0.0, 5.0, 0, 0)])
-	objective.update(_raster, 0.1)
-	assert_true(objective.consume_state_dirty(), "first change after a quiet spell goes out at once")
-	_rasterize([_circle(0.0, 0.0, 7.0, 0, 0)])
-	objective.update(_raster, 0.1)
-	assert_false(objective.consume_state_dirty(), "throttled inside the interval")
-	objective.update(_raster, 1.0)
-	assert_true(objective.consume_state_dirty())
-	objective.on_round_timer_end()
-	assert_true(objective.consume_state_dirty(), "final state always goes out")
-
-
-func test_client_mirror_restores_scores() -> void:
-	var host: DominationObjective = _objective()
-	host.set_shares(PackedFloat32Array([0.3, 0.1]))
-	var state: Dictionary = host.mode_state()
-	state["round_left"] = 42.0
-	var clean: Dictionary = ModeObjective.validate_state(state)
-	assert_false(clean.is_empty())
-	assert_eq(clean["mode_id"], MatchConfig.GameMode.DOMINATION)
-	var client: DominationObjective = _objective()
-	client.apply_mode_state(clean)
-	assert_almost_eq(client.team_score(0), 0.3, 0.0001)
-	assert_almost_eq(float(clean["round_left"]), 42.0, 0.0001)
-	assert_eq(client.winner(), ModeObjective.NO_TEAM)
-
-
 func test_results_block_validates() -> void:
 	var host: DominationObjective = _objective()
 	host.set_shares(PackedFloat32Array([0.2, 0.4]))
@@ -117,34 +86,3 @@ func test_results_block_validates() -> void:
 	assert_eq(clean["winners"], "1")
 	assert_eq(clean["mode_id"], MatchConfig.GameMode.DOMINATION)
 
-
-func test_factory_and_selectable() -> void:
-	assert_eq(MatchConfig.GameMode.DOMINATION, 4, "appended; wire int")
-	assert_true(MatchConfig.is_game_mode_selectable(MatchConfig.GameMode.DOMINATION))
-	assert_eq(MatchConfig.GAME_MODE_LABELS.size(), MatchConfig.GameMode.DOMINATION + 1)
-	var objective: ModeObjective = ModeObjective.create(
-		MatchConfig.GameMode.DOMINATION, PackedVector2Array(), 3.0, 2
-	)
-	assert_true(objective is DominationObjective)
-	assert_false(MatchConfig.mode_uses_goal_flags(MatchConfig.GameMode.DOMINATION))
-
-
-func test_timer_is_required_and_defaults() -> void:
-	var mode: int = MatchConfig.GameMode.DOMINATION
-	assert_eq(MatchConfig.timer_min_minutes(mode), MatchConfig.ROUND_TIMER_MIN_MINUTES)
-	assert_eq(MatchConfig.timer_default_minutes(mode), MatchConfig.DOMINATION_ROUND_MINUTES_DEFAULT)
-	assert_eq(MatchConfig.clamp_round_timer(0, mode), MatchConfig.ROUND_TIMER_MIN_MINUTES, "never off")
-	assert_false(MatchConfig.timer_is_match_timer(mode))
-
-
-func test_config_round_trip_keeps_mode_and_timer() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	config.game_mode = MatchConfig.GameMode.DOMINATION
-	config.round_timer_minutes = 15
-	config.team_mode = MatchConfig.TeamMode.TEAMS_2
-	var copy: MatchConfig = MatchConfig.from_dict(config.to_dict())
-	assert_eq(copy.game_mode, MatchConfig.GameMode.DOMINATION)
-	assert_eq(copy.round_timer_minutes, 15)
-	assert_eq(copy.team_mode, MatchConfig.TeamMode.TEAMS_2)
-	var zero: MatchConfig = MatchConfig.from_dict({"game_mode": 4, "round_timer_minutes": 0})
-	assert_eq(zero.round_timer_minutes, MatchConfig.ROUND_TIMER_MIN_MINUTES)

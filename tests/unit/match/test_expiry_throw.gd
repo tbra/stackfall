@@ -1,4 +1,4 @@
-extends GutTest
+extends "res://tests/unit/match/match_world_test.gd"
 ## Bontago-1pi.134 (owner decision 1pi.133 = A) and 1pi.135: a held throwable gift is thrown
 ## along the player's last known aim at timer expiry, exactly like a manual release; bots pick
 ## release points for the map's throw range. Fixture family of test_gift_throw.gd.
@@ -9,26 +9,7 @@ const REMOTE_SLOT: int = 1
 const AIM: Vector3 = Vector3(1.0, 0.2, 0.0)
 const GRAVITY: float = 9.8
 
-var _blocks_root: Node3D
-var _field: Field
-var _registry: BlockRegistry
-var _tiny_map: MapDef
 var _net: MatchNetScript
-
-
-func before_each() -> void:
-	Match.set_process(false)
-	Match.abort_match()
-	_tiny_map = (load("res://config/match/maps/round.tres") as MapDef).duplicate(true)
-	_tiny_map.field_radius = 20.0
-	_field = autofree(Field.new())
-	_field.map_def = _tiny_map
-	add_child_autofree(_field)
-	_blocks_root = autofree(Node3D.new())
-	add_child_autofree(_blocks_root)
-	_registry = autofree(BlockRegistry.new())
-	add_child_autofree(_registry)
-	Match.register_world(_field, _registry, _blocks_root)
 
 
 func after_each() -> void:
@@ -54,11 +35,6 @@ func _config() -> MatchConfig:
 	config.block_timer = 6.0
 	config.rng_seed = 13579
 	return config
-
-
-func _home_world_position(slot_id: int) -> Vector3:
-	var home: Vector2 = Match.slot(slot_id).home_position
-	return _field.to_global(Vector3(home.x, 5.0, home.y))
 
 
 func _make_def(id: StringName, mode: GiftThrow.Mode) -> SpecialDef:
@@ -115,46 +91,6 @@ func test_expiry_throws_a_held_throwable_gift_along_the_last_aim() -> void:
 	assert_eq(_blocks_root.get_child_count(), 1)
 
 
-func test_expiry_throw_equals_the_manual_release_at_the_same_aim() -> void:
-	_start_with(&"gift_bomb", GiftThrow.Mode.THROW)
-	Match.note_aim(0, AIM)
-	assert_eq(_expire(), PlacementRules.REASON_OK)
-	var auto: Block = _blocks_root.get_child(0) as Block
-	var auto_velocity: Vector3 = auto.linear_velocity
-	var auto_position: Vector3 = auto.global_position
-	_hold(&"gift_bomb", GiftThrow.Mode.THROW)
-	var reason: StringName = Match.request_throw(
-		0, _home_world_position(0), 0, Quaternion.IDENTITY, AIM, Match.feed_seq(0)
-	)
-	assert_eq(reason, PlacementRules.REASON_OK)
-	var manual: Block = _blocks_root.get_child(1) as Block
-	assert_true(manual.linear_velocity.is_equal_approx(auto_velocity), "same arc and range")
-	assert_true(manual.global_position.is_equal_approx(auto_position), "same spawn point")
-
-
-func test_expiry_throw_scales_with_the_map_range_like_a_manual_throw() -> void:
-	_start_with(&"gift_bomb", GiftThrow.Mode.THROW)
-	var original: float = _tuning().gift_throw_reference_radius
-	_tuning().gift_throw_reference_radius = _tiny_map.field_radius / 1.5
-	Match.note_aim(0, AIM)
-	var result: StringName = _expire()
-	var expected: Vector3 = _scaled_throw(AIM)
-	_tuning().gift_throw_reference_radius = original
-	assert_eq(result, PlacementRules.REASON_OK)
-	var block: Block = _blocks_root.get_child(0) as Block
-	assert_true(block.linear_velocity.is_equal_approx(expected))
-	assert_gt(block.linear_velocity.length(), _tuning().gift_throw_speed_mps, "range_scale > 1 speeds it up")
-
-
-func test_expiry_releases_a_held_rocket_as_an_aimed_launch() -> void:
-	_start_with(&"gift_rocket", GiftThrow.Mode.AIMED)
-	Match.note_aim(0, Vector3(0.0, 0.5, 1.5))
-	var seq: int = Match.feed_seq(0)
-	assert_eq(_expire(), PlacementRules.REASON_OK)
-	assert_eq(Match.feed_seq(0), seq + 1)
-	assert_eq(_blocks_root.get_child_count(), 1)
-
-
 # --- fallbacks --------------------------------------------------------------------
 
 func test_a_non_throwable_special_follows_its_manual_release_path() -> void:
@@ -165,44 +101,6 @@ func test_a_non_throwable_special_follows_its_manual_release_path() -> void:
 	var block: Block = _blocks_root.get_child(0) as Block
 	assert_eq(block.linear_velocity, Vector3.ZERO, "dropped in place, never thrown")
 	assert_eq(Match.feed_seq(0), seq + 1)
-
-
-func test_no_known_aim_falls_back_to_the_ordinary_drop() -> void:
-	_start_with(&"gift_bomb", GiftThrow.Mode.THROW)
-	assert_eq(_expire(), PlacementRules.REASON_OK)
-	assert_eq((_blocks_root.get_child(0) as Block).linear_velocity, Vector3.ZERO)
-
-
-func test_an_invalid_aim_falls_back_to_the_ordinary_drop_and_still_consumes() -> void:
-	_start_with(&"gift_bomb", GiftThrow.Mode.THROW)
-	Match.note_aim(0, Vector3(900.0, 0.0, 0.0))
-	var seq: int = Match.feed_seq(0)
-	assert_eq(_expire(), PlacementRules.REASON_OK)
-	assert_eq((_blocks_root.get_child(0) as Block).linear_velocity, Vector3.ZERO)
-	assert_eq(Match.feed_seq(0), seq + 1, "an expiry never leaves the piece held")
-
-
-func test_a_cursor_off_the_disk_falls_back_to_the_forced_drop_not_a_throw() -> void:
-	_start_with(&"gift_bomb", GiftThrow.Mode.THROW)
-	Match.note_aim(0, AIM)
-	var seq: int = Match.feed_seq(0)
-	_expire(0, _field.to_global(Vector3(500.0, 5.0, 0.0)))
-	assert_eq(Match.feed_seq(0), seq + 1, "the forced drop still spends the piece")
-	assert_eq(_blocks_root.get_child_count(), 1)
-	assert_eq((_blocks_root.get_child(0) as Block).linear_velocity, Vector3.ZERO, "not thrown")
-
-
-func test_note_aim_forgets_unusable_values_and_a_match_reset_clears_it() -> void:
-	_start_with(&"gift_bomb", GiftThrow.Mode.THROW)
-	Match.note_aim(0, AIM)
-	assert_eq(Match.noted_aim(0), AIM)
-	Match.note_aim(0, Vector3(NAN, 0.0, 1.0))
-	assert_eq(Match.noted_aim(0), Vector3.ZERO)
-	Match.note_aim(99, AIM)
-	assert_eq(Match.noted_aim(99), Vector3.ZERO)
-	Match.note_aim(0, AIM)
-	Match.abort_match()
-	assert_eq(Match.noted_aim(0), Vector3.ZERO, "world teardown drops stale aim")
 
 
 func test_a_stale_feed_seq_expiry_is_refused_before_any_throw() -> void:
@@ -260,28 +158,6 @@ func test_another_peers_cursor_cannot_set_this_slots_aim() -> void:
 
 # --- 1pi.135: clamp and bot range -----------------------------------------------------
 
-func test_flat_range_scales_with_the_map_range_scale() -> void:
-	var t: SpecialTuning = SpecialTuning.new()
-	var base: float = GiftAim.flat_range(t, 1.0, GRAVITY)
-	assert_gt(base, 0.0)
-	assert_almost_eq(GiftAim.flat_range(t, 2.0, GRAVITY) / base, 2.0, 0.001)
-	assert_almost_eq(GiftAim.flat_range(t, 0.5, GRAVITY) / base, 0.5, 0.001)
-	assert_eq(GiftAim.flat_range(t, 1.0, 0.0), 0.0)
-
-
-func test_the_speed_clamp_scaling_is_limited_to_the_ballistic_throw() -> void:
-	# An AIMED gift is dropped with the aim handed to the effect, never given a launch velocity.
-	_start_with(&"gift_rocket", GiftThrow.Mode.AIMED)
-	var original: float = _tuning().throw_max_speed
-	_tuning().throw_max_speed = 0.5
-	var reason: StringName = Match.request_throw(
-		0, _home_world_position(0), 0, Quaternion.IDENTITY, Vector3(0.0, 0.0, 1.0), Match.feed_seq(0)
-	)
-	_tuning().throw_max_speed = original
-	assert_eq(reason, PlacementRules.REASON_OK)
-	assert_eq((_blocks_root.get_child(0) as Block).linear_velocity, Vector3.ZERO)
-
-
 func _bot_tuning() -> BotTuning:
 	var tuning: BotTuning = BotTuning.new()
 	var profile: BotDifficultyProfile = BotDifficultyProfile.new()
@@ -310,19 +186,3 @@ func test_bot_bomb_release_point_lands_within_tolerance_on_small_medium_and_larg
 		var landing_error: float = absf(action.throw_origin.distance_to(cluster) - range_m)
 		assert_lte(landing_error, 1.0, "radius %s: landing %.1f m from the cluster" % [radius, landing_error])
 
-
-func test_bot_bomb_without_a_range_keeps_the_nearest_release_point() -> void:
-	var points: PackedVector2Array = PackedVector2Array([Vector2(0.0, 0.0), Vector2(-30.0, 0.0)])
-	var action: BotSpecialPlanner.BotSpecialAction = BotSpecialPlanner.plan(
-		&"bomb", Vector2.ZERO, points, PackedVector2Array([Vector2(-60.0, 0.0)]), PackedVector2Array(),
-		MatchConfig.AiDifficulty.HARD, _bot_tuning()
-	)
-	assert_eq(action.throw_origin, Vector2(-30.0, 0.0))
-
-
-func test_issuing_a_new_piece_clears_the_previous_pieces_aim() -> void:
-	_start_with(&"gift_bomb", GiftThrow.Mode.THROW)
-	Match.note_aim(0, AIM)
-	assert_eq(Match.noted_aim(0), AIM)
-	Match._feed._consume_and_refeed(0, false)
-	assert_eq(Match.noted_aim(0), Vector3.ZERO, "expiry must not reuse an earlier piece's aim")

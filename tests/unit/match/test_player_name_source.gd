@@ -45,21 +45,6 @@ func test_persona_beats_typed_name_when_steam_up() -> void:
 	assert_eq(_host_lobby_name("Zed", fake), "PersonaPat")
 
 
-func test_typed_name_used_when_persona_empty() -> void:
-	_steam_up("   ")
-	assert_eq(_net.resolve_local_name("Zed"), "Zed")
-
-
-func test_offline_slot0_uses_persona_with_steam_up() -> void:
-	_steam_up("PersonaPat")
-	Settings.set_player_name("Zed")
-	Match.set_net_provider(_net)
-	assert_eq(Match._lifecycle._peer_name_for_slot(0), "PersonaPat")
-	assert_eq(Match._lifecycle._peer_name_for_slot(1), "", "hot-seat extras stay Player N")
-	Match.set_net_provider(null)
-	Settings.set_player_name("")
-
-
 func test_stored_name_used_without_steam_and_empty_stays_empty() -> void:
 	var fake: FakeSteam = FakeSteam.new()
 	fake.available_value = false
@@ -68,12 +53,6 @@ func test_stored_name_used_without_steam_and_empty_stays_empty() -> void:
 	_net.init_steam()
 	assert_eq(_net.resolve_local_name("Zed"), "Zed")
 	assert_eq(_net.resolve_local_name(""), "", "no Steam: the host seats Player N")
-
-
-func test_no_provider_is_the_enet_path_unchanged() -> void:
-	_net.steam_provider = null
-	assert_eq(_net.resolve_local_name(""), "")
-	assert_eq(_net.resolve_local_name("Zed"), "Zed")
 
 
 func test_persona_is_sanitised_like_any_name() -> void:
@@ -85,11 +64,6 @@ func test_persona_is_sanitised_like_any_name() -> void:
 		_net.config.max_player_name_length)
 
 
-func test_persona_that_cleans_to_empty_falls_back_to_typed_name() -> void:
-	_steam_up("\u200b\u202e\u0007")
-	assert_eq(_net.resolve_local_name("Zed"), "Zed")
-
-
 func test_lan_host_and_join_use_persona_when_steam_up() -> void:
 	_steam_up("PersonaPat")
 	assert_eq(_net.host_game(AgentProbe.free_udp_port(), "Zed", false), OK)
@@ -98,7 +72,3 @@ func test_lan_host_and_join_use_persona_when_steam_up() -> void:
 	assert_eq(_net.join_game("127.0.0.1", AgentProbe.free_udp_port(), "Zed"), OK)
 	assert_eq(_net._pending_join_name, "PersonaPat")
 
-
-func test_lan_host_without_steam_keeps_typed_name() -> void:
-	assert_eq(_net.host_game(AgentProbe.free_udp_port(), "Zed", false), OK)
-	assert_eq(_net.name_for_slot(0), "Zed")

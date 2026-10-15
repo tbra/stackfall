@@ -226,9 +226,8 @@ func request_place(
 	# under the legacy fill (TerritoryRaster._fill_legacy(), which
 	# TEMPORARY/PERMANENT still run every solve), so the point path alone
 	# already reports every case the footprint chain used to.
-	# footprint_cells()/validate()/closest_valid_origin() stay compiled for
-	# tests/bench/bench_territory.gd's legacy regression row and their own
-	# direct unit tests only; this call site never reaches them.
+	# footprint_cells()/validate() stay compiled for the bots' footprint scoring and
+	# tests/bench/bench_territory.gd's legacy regression row only; this call site never reaches them.
 	var result: PlacementRules.Result
 	var relocated: Vector2 = PlacementRules.NO_ORIGIN
 	var hit: Variant = _match._field.raycast_down_disk_local(origin)
@@ -793,7 +792,7 @@ func is_pose_well_formed(origin: Vector3, orientation_index: int, free_quat: Qua
 ## working P1 territory solve (docs/archive/M2_PLAN.md's P2 brief: "use fakes/stubs
 ## for territory results — the P1 stubs exist and compile"). `initial_result`
 ## is what validate() said about the desired spot; `relocated` is what
-## closest_valid_origin() found (or PlacementRules.NO_ORIGIN), already
+## closest_valid_point() found (or PlacementRules.NO_ORIGIN), already
 ## computed by the caller since that search itself needs a real raster.
 ##
 ## Returns {"reason": StringName, "use_relocation": bool}: the reason
@@ -1141,7 +1140,7 @@ func _burn_block(block: Block, disk_origin: Vector2) -> void:
 ## heard a cursor from it — a peer that has not moved its ghost once. Spec
 ## 2.5's auto-drop [ORIGINAL] drops "from its current ghost position", and
 ## with no ghost known the slot's own home flag is the honest stand-in;
-## PlacementRules.closest_valid_origin() relocates from there as usual.
+## PlacementRules.closest_valid_point() relocates from there as usual.
 func default_ghost_origin(slot_id: int) -> Vector3:
 	var target: PlayerSlot = _match.slot(slot_id)
 	if target == null or _match._field == null:

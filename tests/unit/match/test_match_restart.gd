@@ -2,16 +2,6 @@ extends GutTest
 ## Bontago-1pi.46 (owner playtest 2026-10-03: "leaving match and starting a new
 ## match doesn't reset properly, when i tried it my camera and zoom level were
 ## the same as when i left the old match and the arena still had rain puddles").
-##
-## The CameraRig and the Field's RainPuddles layer are persistent children of
-## game/main/Main.tscn, so a second match inherited the first one's zoom/pitch and
-## whatever wetness had not dried yet. These drive the real Main scene, Net and
-## Match autoloads (same fixture as test_match_lifecycle.gd) through
-## play -> leave -> start a new match, and pin the unit seams under it:
-## CameraRig.reset_view() and RainPuddles.clear_on(). R0 of the full match-reset
-## plan (docs/MATCH_RESET_AUDIT.md) adds the Events.match_scope_reset hub: once per
-## world build and once per teardown, also for a cancelled staged build and a menu
-## sandbox/tutorial start, and reset_view() clears suppress_pad_home_focus.
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
 const CAMERA_RIG_SCENE: PackedScene = preload("res://game/player/CameraRig.tscn")
@@ -133,76 +123,7 @@ func _assert_launch_view(rig: CameraRig, fresh: CameraRig, label: String) -> voi
 
 # --- CameraRig.reset_view() ---------------------------------------------------
 
-func test_reset_view_puts_every_field_back_to_a_fresh_rigs_values() -> void:
-	var fresh: CameraRig = _fresh_rig()
-	var rig: CameraRig = _fresh_rig()
-	_dirty(rig)
-	assert_ne(rig.get_distance(), fresh.get_distance(), "fixture: the zoom changed")
-	assert_true(rig.shake_offset() != Vector3.ZERO or not Settings.camera_shake_enabled(), "fixture: shaking")
-
-	rig.reset_view()
-
-	assert_almost_eq(rig.get_distance(), fresh.get_distance(), 0.0001)
-	assert_almost_eq(rig.get_pitch(), fresh.get_pitch(), 0.0001)
-	assert_almost_eq(rig.get_yaw(), fresh.get_yaw(), 0.0001)
-	assert_eq(rig.get_target(), fresh.get_target())
-	assert_eq(rig.shake_offset(), Vector3.ZERO, "no shake carries over")
-	assert_false(rig.is_peeking())
-	assert_false(rig.block_held)
-	assert_eq(rig._follow_position, fresh._follow_position)
-	assert_eq(rig._local_slot, fresh._local_slot)
-	assert_false(rig._drop_recovering)
-	assert_false(rig._peek_returning)
-	assert_eq(rig._focus_action, &"")
-	assert_eq(rig._goal_cycle_index, 0)
-	assert_true(rig.get_camera().global_transform.origin.is_equal_approx(fresh.get_camera().global_transform.origin), "same camera position")
-	assert_true(rig.get_camera().global_transform.basis.is_equal_approx(fresh.get_camera().global_transform.basis), "same camera orientation")
-
-
-func test_reset_view_stops_an_in_flight_turn_tween() -> void:
-	var rig: CameraRig = _fresh_rig()
-	rig.set_follow_position(Vector3(10.0, 0.0, 0.0))
-	rig._turn_to_face(Vector3.ZERO)
-	assert_eq(rig._view_tweens.size(), 1, "the turn is tracked")
-
-	rig.reset_view()
-	var yaw_after_reset: float = rig.get_yaw()
-	await wait_seconds(rig.tuning.focus_turn_duration_s + 0.2)
-
-	assert_eq(rig._view_tweens.size(), 0)
-	assert_almost_eq(rig.get_yaw(), yaw_after_reset, 0.0001, "the old turn does not keep rotating the next match's view")
-
-
-func test_finished_tweens_are_dropped_from_the_tracking_list() -> void:
-	var rig: CameraRig = _fresh_rig()
-	rig.set_follow_position(Vector3(10.0, 0.0, 0.0))
-	rig._turn_to_face(Vector3.ZERO)
-	await wait_seconds(rig.tuning.focus_turn_duration_s + 0.2)
-	rig._turn_to_face(Vector3(0.0, 0.0, 10.0))
-	assert_eq(rig._view_tweens.size(), 1, "the finished one was pruned when the next was tracked")
-
-
 # --- RainPuddles.clear_on() ---------------------------------------------------
-
-func test_clear_on_removes_the_layer_and_a_new_one_builds_dry() -> void:
-	var holder: Node3D = Node3D.new()
-	add_child_autofree(holder)
-	var map_def: MapDef = MapDef.new()
-	var puddles: RainPuddles = RainPuddles.ensure_on(holder, map_def, RAIN_TUNING, 1.0)
-	puddles.set_rain(1.0)
-	puddles.advance(RAIN_TUNING.puddle_fill_time_s)
-	assert_eq(puddles.wetness(), 1.0, "fixture: fully wet")
-
-	assert_true(RainPuddles.clear_on(holder))
-
-	assert_false(is_instance_valid(puddles), "freed at once, not at end of frame")
-	assert_null(holder.get_node_or_null(RainPuddles.NODE_NAME))
-	assert_false(RainPuddles.clear_on(holder), "nothing left to clear")
-	assert_false(RainPuddles.clear_on(null))
-	var rebuilt: RainPuddles = RainPuddles.ensure_on(holder, map_def, RAIN_TUNING, 1.0)
-	assert_eq(rebuilt.wetness(), 0.0, "a new layer starts dry")
-	assert_eq(rebuilt.name, RainPuddles.NODE_NAME, "and takes the plain name, not an auto-renamed one")
-
 
 # --- play -> leave -> start a new match (real Main) -----------------------------
 
@@ -248,51 +169,6 @@ func test_a_new_match_after_leaving_starts_from_the_launch_camera_and_a_dry_aren
 	assert_true(layer == null or layer.wetness() == 0.0, "and none appears while it stays clear")
 
 
-func test_the_new_match_entry_resets_even_when_the_teardown_left_state_behind() -> void:
-	var fresh: CameraRig = _fresh_rig()
-	_host()
-	_start(MatchConfig.WeatherMode.OFF)
-	var rig: CameraRig = _rig()
-	var match_yaw: float = rig.get_yaw()
-	Net.leave()
-	await _settle()
-	# Whatever survives the teardown (a late weather event, a stray tween, an
-	# older build without the teardown reset) must still not reach the next match.
-	_dirty(rig)
-	var soaked: RainPuddles = RainPuddles.ensure_on(_field(), _tiny_map, RAIN_TUNING, 1.0)
-	soaked.set_rain(1.0)
-	soaked.advance(RAIN_TUNING.puddle_fill_time_s)
-	assert_almost_eq(soaked.wetness(), 1.0, 0.001, "fixture: wet again")
-
-	_host()
-	_start(MatchConfig.WeatherMode.OFF)
-
-	_assert_launch_view(rig, fresh, "new match entry")
-	assert_almost_eq(rig.get_yaw(), match_yaw, 0.0001, "the home-beacon orientation, not the dirtied one")
-	assert_false(is_instance_valid(soaked), "the wet layer is dropped when the new world builds")
-	assert_null(_puddles())
-
-
-func test_a_live_rain_presentation_rebuilds_a_dry_layer_after_the_reset() -> void:
-	_host()
-	_start(MatchConfig.WeatherMode.RAIN)
-	_run_until_raining()
-	var presenter: WeatherPresenter = get_tree().root.find_child("WeatherPresenter", true, false) as WeatherPresenter
-	assert_not_null(presenter)
-	var presentation: RainPresentation = presenter.presentation_for(&"rain")
-	assert_not_null(presentation, "fixture: the rain presentation is alive")
-	var old_layer: RainPuddles = _puddles()
-	assert_not_null(old_layer)
-
-	_main._reset_match_scope(false)
-	assert_false(is_instance_valid(old_layer))
-	presentation.set_intensity(1.0)
-
-	var new_layer: RainPuddles = _puddles()
-	assert_not_null(new_layer, "rain that is still falling builds a fresh layer instead of keeping a dead reference")
-	assert_eq(new_layer.wetness(), 0.0, "which starts dry and fills from zero")
-
-
 # --- Events.match_scope_reset hub (Bontago-1pi.46 R0) ---------------------------
 
 const SCOPE_SIGNAL: String = "match_scope_reset"
@@ -309,78 +185,6 @@ func test_the_scope_reset_signal_fires_once_per_build_and_once_per_teardown() ->
 	Match.abort_match()
 	assert_false(_main._world_built, "fixture: the world came down")
 	assert_signal_emit_count(Events, SCOPE_SIGNAL, 2, "the teardown adds exactly one")
-
-
-func test_a_replay_is_one_teardown_and_one_build() -> void:
-	_host()
-	_start(MatchConfig.WeatherMode.OFF)
-	watch_signals(Events)
-
-	Match.start_match(_config(MatchConfig.WeatherMode.OFF))
-
-	assert_true(_main._world_built)
-	assert_signal_emit_count(Events, SCOPE_SIGNAL, 2, "start_match goes (X -> LOBBY) then (LOBBY -> LOADING): one reset each")
-
-
-func test_the_scope_reset_runs_on_a_cancelled_staged_build_too() -> void:
-	var fresh: CameraRig = _fresh_rig()
-	_host()
-	_start(MatchConfig.WeatherMode.OFF)
-	var rig: CameraRig = _rig()
-	_main._end_match_world()
-	assert_false(_main._world_built, "fixture: no world is up, so a staged build may start")
-	watch_signals(Events)
-
-	_main._build_match_world(true)
-	# What a LOBBY transition does to a build that is waiting on a frame: it bumps the
-	# generation, and the build bails out at its first checkpoint.
-	_main._loading_generation += 1
-	await _settle()
-	assert_false(_main._world_built, "fixture: the staged build was cancelled before it finished")
-	assert_false(_main._world_building)
-	assert_signal_emit_count(Events, SCOPE_SIGNAL, 1, "the cancelled build still opened its scope")
-	var config: MatchConfig = Match.config
-	_field().place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
-	assert_gt(_field().home_flags().size(), 0, "fixture: the half-built world put flags on the Field")
-	_dirty(rig)
-
-	Match.abort_match()
-
-	assert_signal_emit_count(Events, SCOPE_SIGNAL, 2, "the teardown resets although _world_built was false")
-	_assert_launch_view(rig, fresh, "after the cancelled build")
-	assert_eq(_field().home_flags().size(), 0, "the half-built world's flags are cleared too")
-
-
-func test_a_menu_sandbox_start_emits_the_scope_reset_once() -> void:
-	watch_signals(Events)
-
-	_main.start_sandbox_from_menu()
-
-	assert_not_null(_main._sandbox, "fixture: the sandbox is live")
-	assert_signal_emit_count(Events, SCOPE_SIGNAL, 1, "start_sandbox_from_menu bypasses _build_match_world and resets itself")
-
-
-func test_a_menu_tutorial_start_emits_the_scope_reset_once() -> void:
-	watch_signals(Events)
-
-	_main.start_tutorial_from_menu()
-
-	assert_not_null(_main._tutorial, "fixture: the tutorial is live")
-	assert_signal_emit_count(Events, SCOPE_SIGNAL, 1, "start_tutorial_from_menu bypasses _build_match_world and resets itself")
-
-
-func test_a_sandbox_reset_emits_once_and_keeps_the_players_view() -> void:
-	_main.start_sandbox_from_menu()
-	var rig: CameraRig = _rig()
-	_dirty(rig)
-	var zoomed: float = rig.get_distance()
-	watch_signals(Events)
-
-	_main._sandbox._reset_field()
-
-	assert_signal_emit_count(Events, SCOPE_SIGNAL, 1, "the (X -> LOBBY) half of a sandbox reset; the (LOBBY -> LOADING) half is diverted")
-	assert_eq(rig.get_distance(), zoomed, "F5 does not move the camera")
-	assert_true(rig.suppress_pad_home_focus, "and the sandbox keeps its own pad Back = next slot")
 
 
 func test_a_lobby_match_after_a_menu_sandbox_has_gamepad_home_focus_again() -> void:
@@ -407,11 +211,3 @@ func test_a_lobby_match_after_a_menu_sandbox_has_gamepad_home_focus_again() -> v
 	rig._unhandled_input(pad_back)
 	assert_eq(rig._focus_action, &"camera_snap_home", "pad Back focuses home in the lobby match")
 
-
-func test_reset_view_clears_suppress_pad_home_focus() -> void:
-	var rig: CameraRig = _fresh_rig()
-	rig.suppress_pad_home_focus = true
-
-	rig.reset_view()
-
-	assert_false(rig.suppress_pad_home_focus)

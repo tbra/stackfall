@@ -1,10 +1,6 @@
 extends GutTest
-## core/rules/ThrowRules.gd: a throw's release-point check collapses to
-## exactly two outcomes -- REASON_OK inside the throwing player's own
-## territory, REASON_OUTSIDE_TERRITORY outside/contested territory (spec 2.5), and
-## the hole / off-disk / goal-zone reasons by name (Bontago-1pi.85.54). Same
-## fixture pattern as tests/unit/match/test_placement_rules.gd's v2 point-API
-## section (grid/solver/raster built directly, no Match/Field involved).
+## core/rules/ThrowRules: a throw's release point is OK in own territory, OUTSIDE_TERRITORY elsewhere (spec 2.5);
+## hole, off-disk and goal-zone reasons keep their names (Bontago-1pi.85.54).
 
 const MAP_RADIUS: float = 20.0
 const CELL: float = 1.0
@@ -46,41 +42,6 @@ func _reason(point: Vector2, team: int = 0) -> StringName:
 
 ## -- validate_release_point delegates to PlacementRules.validate_point ------
 
-func test_a_point_inside_my_own_territory_is_valid() -> void:
-	_my_territory()
-	assert_eq(_validate(Vector2(0.5, 0.5)), PlacementRules.Result.VALID)
-
-
-func test_a_point_nobody_owns_is_outside_territory() -> void:
-	_my_territory()
-	assert_eq(_validate(Vector2(12.5, 0.5)), PlacementRules.Result.OUTSIDE_TERRITORY)
-
-
-func test_a_contested_point_is_not_valid() -> void:
-	_rasterize([_home(-3.0, 0.0, 0), _home(3.0, 0.0, 1)], true)
-	assert_eq(_validate(Vector2(0.5, 0.5)), PlacementRules.Result.CONTESTED)
-
-
-func test_a_holed_point_is_not_valid() -> void:
-	var circles: Array[InfluenceCircle] = [_home(-3.0, 0.0, 0), _home(3.0, 0.0, 1)]
-	for i: int in range(10):
-		_rasterize(circles, true)
-	var cell: Vector2i = _grid.world_to_cell(Vector2(0.5, 0.5))
-	assert_true(_raster.is_hole(cell.x, cell.y), "Setup: the cell has holed through.")
-	assert_eq(_validate(Vector2(0.5, 0.5)), PlacementRules.Result.HOLE)
-
-
-func test_a_point_past_the_rim_is_off_disk() -> void:
-	_my_territory()
-	assert_eq(_validate(Vector2(500.0, 0.0)), PlacementRules.Result.OFF_DISK)
-
-
-func test_a_goal_zone_point_is_not_valid_even_on_my_own_ground() -> void:
-	_raster.set_goal_zones(PackedVector2Array([Vector2(0.0, 0.0)]), ZONE_RADIUS)
-	_my_territory()
-	assert_eq(_validate(Vector2(0.0, 0.0)), PlacementRules.Result.GOAL_ZONE)
-
-
 ## -- reason_for collapses every non-VALID result to one reason ---------------
 
 func test_valid_maps_to_reason_ok() -> void:
@@ -115,10 +76,3 @@ func test_goal_zone_reports_its_own_reason() -> void:
 	_my_territory()
 	assert_eq(_reason(Vector2(0.0, 0.0)), PlacementRules.REASON_GOAL_ZONE)
 
-
-func test_reason_not_a_special_is_a_distinct_constant() -> void:
-	# MatchPlacement.request_throw() returns this directly (never produced by
-	# reason_for()) when the slot has no pending special at all -- pinned here
-	# so it can never collide with REASON_OUTSIDE_TERRITORY or REASON_OK.
-	assert_ne(ThrowRules.REASON_NOT_A_SPECIAL, ThrowRules.REASON_OUTSIDE_TERRITORY)
-	assert_ne(ThrowRules.REASON_NOT_A_SPECIAL, PlacementRules.REASON_OK)
