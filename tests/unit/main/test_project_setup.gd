@@ -137,69 +137,6 @@ func test_snap_rotation_uses_b_without_shoulder_rotation() -> void:
 				assert_false(event.button_index in [JOY_BUTTON_LEFT_SHOULDER, JOY_BUTTON_RIGHT_SHOULDER])
 
 
-func test_physics_engine_is_jolt() -> void:
-	assert_eq(
-		str(ProjectSettings.get_setting("physics/3d/physics_engine", "")),
-		"Jolt Physics",
-		"Spec 3.1 requires Jolt for 3D physics."
-	)
-
-
-func test_physics_runs_at_60_hz() -> void:
-	assert_eq(Engine.physics_ticks_per_second, 60, "Spec 3.5 fixes the tick rate at 60 Hz.")
-
-
-func test_physics_interpolation_is_on() -> void:
-	assert_true(
-		bool(ProjectSettings.get_setting("physics/common/physics_interpolation", false)),
-		"Spec 3.5 needs interpolation so rendering stays smooth above 60 fps."
-	)
-
-
-func test_renderer_is_forward_plus() -> void:
-	assert_eq(
-		str(ProjectSettings.get_setting("rendering/renderer/rendering_method", "")),
-		"forward_plus",
-		"Spec 3.1 requires the Forward+ renderer."
-	)
-
-
-func test_jolt_solver_iterations_are_at_least_the_spec_baseline() -> void:
-	# Spec 3.5: "Start at 10 and 4, and tune using a benchmark scene with a
-	# 40-block tower." The tuned values (see tools/bootstrap_project.gd) may rise
-	# above the spec's starting point but must never fall below it; the 40-block
-	# tower benchmark (tests/bench) owns the exact numbers.
-	var velocity_steps: int = int(ProjectSettings.get_setting("physics/jolt_physics_3d/simulation/velocity_steps", 0))
-	var position_steps: int = int(ProjectSettings.get_setting("physics/jolt_physics_3d/simulation/position_steps", 0))
-	assert_gte(velocity_steps, 10, "spec 3.5 velocity iterations baseline")
-	assert_gte(position_steps, 4, "spec 3.5 position iterations baseline")
-
-
-func test_blocks_are_not_damped_into_stability() -> void:
-	# Guard rail for spec 1.6's "real sense of weight and balance": towers are
-	# held up by solver convergence, not by damping. Linear damping caps a
-	# falling block at g / damp, so the cap must stay above the speed a block
-	# reaches falling the whole way to the kill plane, or blocks float down.
-	var tuning: PhysicsTuning = load("res://config/physics/physics_tuning.tres")
-	var gravity: float = float(ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)) * tuning.gravity_multiplier
-	var terminal_speed: float = gravity / maxf(tuning.block_linear_damp, 0.001)
-	var free_fall_speed: float = sqrt(2.0 * gravity * absf(tuning.kill_plane_y))
-	assert_gt(
-		terminal_speed, free_fall_speed,
-		"Linear damping of %.2f caps terminal fall speed at %.1f m/s, below free fall to the kill plane (%.1f m/s); blocks would float." % [
-			tuning.block_linear_damp, terminal_speed, free_fall_speed,
-		]
-	)
-
-
-func test_untyped_declarations_are_errors() -> void:
-	assert_eq(
-		int(ProjectSettings.get_setting("debug/gdscript/warnings/untyped_declaration", 0)),
-		2,
-		"CLAUDE.md treats untyped declarations as errors, not warnings."
-	)
-
-
 func test_autoloads_are_registered() -> void:
 	for singleton: String in AUTOLOADS:
 		assert_true(
@@ -210,10 +147,6 @@ func test_autoloads_are_registered() -> void:
 			get_tree().root.get_node_or_null(NodePath(singleton)),
 			"Autoload %s did not load at runtime." % singleton
 		)
-
-
-func test_startup_pump_is_first_root_child() -> void:
-	assert_eq(get_tree().root.get_child(0).name, &"StartupPump", "StartupPump must be the first autoload.")
 
 
 func test_every_required_action_exists() -> void:

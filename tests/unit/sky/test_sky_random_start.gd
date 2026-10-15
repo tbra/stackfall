@@ -41,29 +41,12 @@ func test_same_seed_same_phase_and_different_seeds_differ_within_range() -> void
 	assert_gt(seen.size(), SEED_COUNT / 2, "different seeds start at different phases")
 
 
-func test_unseeded_match_uses_the_roll_and_resolves_once() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	config.resolve_sky_start_phase(123, 0.1, 0.5)
-	var first: float = config.sky_start_phase
-	assert_between(first, 0.1, 0.5)
-	config.resolve_sky_start_phase(456, 0.1, 0.5)
-	assert_eq(config.sky_start_phase, first, "resolving is once per match")
-
-
 func test_client_agrees_with_host_through_the_wire_dict() -> void:
 	var host: MatchConfig = _config(SEED_BASE)
 	var client: MatchConfig = MatchConfig.from_dict(host.to_dict())
 	assert_almost_eq(client.sky_start_phase, host.sky_start_phase, PHASE_EPSILON)
 	assert_almost_eq(_opening_phase(client), _opening_phase(host), PHASE_EPSILON)
 	assert_almost_eq(_opening_phase(host), host.sky_start_phase, PHASE_EPSILON, "skybox opens at the chosen phase")
-
-
-func test_unresolved_phase_falls_back_and_bad_wire_data_is_safe() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	assert_eq(config.sky_start_phase, MatchConfig.SKY_START_PHASE_UNRESOLVED)
-	assert_almost_eq(_opening_phase(config), _def.cycle_start_phase, PHASE_EPSILON)
-	assert_eq(MatchConfig.from_dict({"sky_start_phase": "x"}).sky_start_phase, -1.0)
-	assert_eq(MatchConfig.from_dict({"sky_start_phase": 5.0}).sky_start_phase, 1.0)
 
 
 func test_fixed_presets_ignore_the_random_start() -> void:

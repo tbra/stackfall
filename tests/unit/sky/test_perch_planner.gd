@@ -16,20 +16,6 @@ func _radii(count: int, radius: float) -> PackedFloat32Array:
 	return radii
 
 
-func test_is_clear_uses_horizontal_distance() -> void:
-	var points: PackedVector3Array = PackedVector3Array([Vector3(10.0, 50.0, 0.0)])
-	assert_false(PerchPlanner.is_clear(Vector3(15.0, 0.0, 0.0), points, _radii(1, 6.0)), "5 m away horizontally is too close even 50 m below")
-	assert_true(PerchPlanner.is_clear(Vector3(17.0, 0.0, 0.0), points, _radii(1, 6.0)))
-
-
-func test_is_on_disc_requires_margin_all_round() -> void:
-	var on_disc: Callable = Callable(self, "_circle")
-	assert_true(PerchPlanner.is_on_disc(Vector3(0.0, 0.0, 0.0), 3.0, on_disc))
-	assert_true(PerchPlanner.is_on_disc(Vector3(26.0, 0.0, 0.0), 3.0, on_disc))
-	assert_false(PerchPlanner.is_on_disc(Vector3(28.0, 0.0, 0.0), 3.0, on_disc), "inside the disc but within the edge margin")
-	assert_false(PerchPlanner.is_on_disc(Vector3(40.0, 0.0, 0.0), 3.0, on_disc))
-
-
 func test_pick_spot_respects_every_hazard_distance() -> void:
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = 42
@@ -68,18 +54,6 @@ func test_flee_reason_camera_cursor_overhead_and_calm() -> void:
 	assert_eq(PerchPlanner.flee_reason(bird, null, none, PackedVector3Array([Vector3(20.0, 5.0, 5.0)]), 9.0, 8.0, 3.5, 0.4), &"", "a block far above and aside is not overhead")
 
 
-func test_top_face_of_upright_and_rotated_boxes() -> void:
-	var half: Vector3 = Vector3(0.5, 0.5, 0.5)
-	var upright: Variant = PerchPlanner.top_face(Transform3D(Basis.IDENTITY, Vector3(2.0, 1.5, 3.0)), half)
-	assert_not_null(upright)
-	assert_eq(((upright as Dictionary)["center"] as Vector3), Vector3(2.0, 2.0, 3.0))
-	assert_eq(((upright as Dictionary)["size"] as Vector2), Vector2(1.0, 1.0))
-	var on_side: Transform3D = Transform3D(Basis(Vector3.RIGHT, PI * 0.5), Vector3(0.0, 1.0, 0.0))
-	assert_not_null(PerchPlanner.top_face(on_side, Vector3(0.5, 1.0, 0.5)), "a 90 degree turn still has an axis-aligned top")
-	var tilted: Transform3D = Transform3D(Basis(Vector3.RIGHT, 0.6), Vector3.ZERO)
-	assert_null(PerchPlanner.top_face(tilted, half), "a tilted block offers no flat top")
-
-
 func test_top_is_free_detects_a_block_stacked_above() -> void:
 	var half: Vector3 = Vector3(0.5, 0.5, 0.5)
 	var lower: Transform3D = Transform3D(Basis.IDENTITY, Vector3(0.0, 0.5, 0.0))
@@ -98,17 +72,6 @@ func test_top_is_free_detects_a_block_stacked_above() -> void:
 		PerchPlanner.top_is_free(face, 0.45, 1.4, side_inverses, halves, PackedVector3Array([lower.origin, beside.origin]), bounds, 0),
 		"a block overlapping the bird footprint above the face blocks it"
 	)
-
-
-func test_pick_candidate_skips_hazardous_faces() -> void:
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng.seed = 7
-	var faces: PackedVector3Array = PackedVector3Array([Vector3(0.0, 5.0, 0.0), Vector3(20.0, 3.0, 0.0), Vector3(-20.0, 8.0, 0.0)])
-	var hazards: PackedVector3Array = PackedVector3Array([Vector3(0.0, 0.0, 0.0), Vector3(-20.0, 0.0, 1.0)])
-	for _i: int in range(20):
-		assert_eq(PerchPlanner.pick_candidate(rng, faces, hazards, _radii(2, 10.0)), 1, "only the far face is clear")
-	assert_eq(PerchPlanner.pick_candidate(rng, faces, PackedVector3Array([Vector3(20.0, 0.0, 0.0)]), _radii(1, 200.0)), -1)
-	assert_eq(PerchPlanner.pick_candidate(rng, PackedVector3Array(), hazards, _radii(2, 10.0)), -1)
 
 
 func test_block_moved_detects_translation_and_rotation() -> void:

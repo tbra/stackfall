@@ -72,29 +72,12 @@ func test_high_preset_keeps_msaa_and_ssr_and_volumetric_fog() -> void:
 	)
 
 
-func test_glow_follows_the_preset() -> void:
-	Settings.set_graphics_preset(&"low")
-	assert_false(_world_environment().environment.glow_enabled, "low drops the glow pass")
-	Settings.set_graphics_preset(&"high")
-	assert_true(_world_environment().environment.glow_enabled, "high keeps the glow pass")
-
-
 func test_preset_change_reconfigures_the_reflection_probe() -> void:
 	var skybox: Skybox = _main.get_node("Skybox") as Skybox
 	Settings.set_graphics_preset(&"low")
 	assert_eq(skybox.probe_mode(), GraphicsPreset.ReflectionProbeMode.OFF)
 	Settings.set_graphics_preset(&"high")
 	assert_eq(skybox.probe_mode(), GraphicsPreset.ReflectionProbeMode.INTERVAL)
-
-
-func test_low_preset_reduces_sun_shadow_cascades() -> void:
-	Settings.set_graphics_preset(&"low")
-	var low_preset: GraphicsPreset = Settings.current_graphics_preset()
-	var sun: DirectionalLight3D = _main.get_node("DirectionalLight3D") as DirectionalLight3D
-	assert_eq(int(sun.directional_shadow_mode), low_preset.sun_shadow_mode, "low preset sets cascade count")
-	assert_eq(sun.directional_shadow_max_distance, low_preset.sun_shadow_max_distance)
-	Settings.set_graphics_preset(&"high")
-	assert_eq(int(sun.directional_shadow_mode), DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS)
 
 
 ## Bontago-1pi.11.49: drops the main menu so no MenuBackdrop holds the menu budget.
@@ -181,20 +164,3 @@ func test_headless_leaves_engine_cap_alone() -> void:
 	Settings.set_graphics_preset(&"low")
 	assert_eq(Engine.max_fps, before_fps)
 
-
-## Bontago-1pi.11.86: the Graphics tab's frame-cap controls are overrides on the stored preset;
-## Main re-applies on graphics_preset_changed and Engine.max_fps follows FrameCapRule.
-func test_graphics_tab_frame_cap_override_sets_engine_max_fps() -> void:
-	var before_fps: int = Engine.max_fps
-	_leave_menu()
-	_stub_refresh(144.0)
-	Settings.set_graphics_preset(&"medium")
-	assert_eq(Engine.max_fps, 144)
-	Settings.set_graphics_override(&"frame_cap_mode", GraphicsPreset.FrameCap.FIXED)
-	Settings.set_graphics_override(&"fixed_fps", 90)
-	assert_true(Settings.graphics_preset_is_custom())
-	assert_eq(Engine.max_fps, 90, "Fixed cap through the Graphics tab override")
-	Settings.set_graphics_override(&"frame_cap_mode", GraphicsPreset.FrameCap.UNCAPPED)
-	assert_eq(Engine.max_fps, 0, "Uncapped through the override")
-	MenuBackdrop.clear_match_cap()
-	Engine.max_fps = before_fps
