@@ -252,7 +252,7 @@ func test_wheel_while_camera_orbit_held_zooms_the_rig_not_the_ghost_height() -> 
 
 ## "the mmb rotation issue persists, can the camera
 ## just be locked in place while mmb is pressed?" -- feedback/rotation-issue.png:
-## mv0.28's rotated-centre follow target still made the camera visibly move
+## The rotated-centre follow target still made the camera visibly move
 ## *during* a drag -- only the settled end state ever matched the ghost's
 ## rotated centre exactly, not every frame in between (rotated_center_offset()'s
 ## own doc comment: a pitch component tips the vertical origin-to-centre

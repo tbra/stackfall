@@ -1,5 +1,5 @@
 extends "res://tests/unit/match/match_world_test.gd"
-## (1pi.133 = A) and 1pi.135: a held throwable gift is thrown
+## A held throwable gift is thrown
 ## along the player's last known aim at timer expiry, exactly like a manual release; bots pick
 ## release points for the map's throw range. Fixture family of test_gift_throw.gd.
 
@@ -155,4 +155,4 @@ func test_another_peers_cursor_cannot_set_this_slots_aim() -> void:
 	assert_eq(Match.noted_aim(0), Vector3.ZERO, "slot/peer mismatch is dropped before the aim is read")
 
 
-# --- 1pi.135: clamp and bot range -----------------------------------------------------
+# --- clamp and bot range -----------------------------------------------------

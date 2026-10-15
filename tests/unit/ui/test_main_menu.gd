@@ -1,5 +1,5 @@
 extends GutTest
-## docs/archive/M3a_PLAN.md P4: ui/menus/MainMenu.gd offers only Host / Join / Quit (hot-seat is unlisted), a LAN game list fed by Events, and a
+## ui/menus/MainMenu.gd offers only Host / Join / Quit (hot-seat is unlisted), a LAN game list fed by Events, and a
 ## direct-IP fallback (spec 2.6).
 
 
@@ -76,7 +76,7 @@ func test_bots_button_emits_player_name() -> void:
 	assert_signal_emitted(menu, "bots_requested")
 
 
-# --- Sandbox (docs/archive/M6_PLAN.md package B1) ------------------------------------
+# --- Sandbox ------------------------------------
 
 func test_direct_join_rejects_junk_without_calling_net() -> void:
 	var menu: MainMenu = _make_menu()
@@ -116,7 +116,7 @@ func test_activating_a_list_entry_joins_that_game() -> void:
 	assert_eq(calls[0].get("address"), "192.168.1.20")
 
 
-# --- Steam section (docs/archive/M3b_PLAN.md P3) --------------------------------------
+# --- Steam section --------------------------------------
 
 func test_steam_choices_follow_availability_on_host_and_join_pages() -> void:
 	var menu: MainMenu = _make_menu()

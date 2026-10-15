@@ -1,5 +1,5 @@
 extends GutTest
-## Glue fusion WP4 (docs/GLUE_FUSION_PLAN.md section 4): weather, Paintball, Black hole, blast
+## Glue fusion: weather, Paintball, Black hole, blast
 ## and bot routing against a FusedBody built directly through GlueFusion.
 
 const DELTA: float = 1.0 / 60.0

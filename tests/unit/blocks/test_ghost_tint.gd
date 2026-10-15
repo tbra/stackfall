@@ -1,7 +1,7 @@
 extends GutTest
 ## Spec 1.5/2.5: the ghost is tinted in the player's colour when the spot is
 ## valid, red when outside territory/contested/off the disk, and hatched over
-## a hole. docs/archive/M2_PLAN.md P4: "the ghost is the owner's color when
+## a hole. The design: "the ghost is the owner's color when
 ## Match.preview_placement returns VALID, red for
 ## OUTSIDE_TERRITORY/CONTESTED/OFF_DISK, hatched over HOLE."
 
@@ -90,7 +90,7 @@ func test_hole_is_hatched() -> void:
 	assert_true(ghost.current_tint_color().is_equal_approx(_with_ghost_opacity(ghost, ghost.ghost_tuning.hole_tint_color)))
 
 
-## Territory v2 (docs/TERRITORY_V2_PLAN.md package C): a goal flag's no-build
+## Territory v2: a goal flag's no-build
 ## zone reads the same as a legacy hole — hatched, hole_tint_color — since the
 ## spec's "hatched pattern when over a hole" visual language already means
 ## "can't build here" for either reason.

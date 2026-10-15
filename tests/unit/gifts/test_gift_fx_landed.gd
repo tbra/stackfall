@@ -1,5 +1,5 @@
 extends GutTest
-## LandedProbe (docs/GIFT_EFFECTS_PLAN.md section 5 A1): velocity/hold/timeout
+## LandedProbe: velocity/hold/timeout
 ## detection instead of Jolt sleeping. The disc keeps tilting so the island never sleeps.
 
 const TICK: float = 1.0 / 60.0

@@ -1,7 +1,7 @@
 extends GutTest
 ## /85.29: gift throw policy. Bomb/Magnet/Jumping Bean are thrown along GiftAim's
 ## host-computed ballistic velocity from the camera forward (client speed is ignored), Rocket/Paintball
-## fly along that forward (Rocket at any pitch, 1pi.85.34 Q3), every other gift refuses a throw.
+## fly along that forward (Rocket at any pitch), every other gift refuses a throw.
 ## Fixture family of test_match_throw.gd (tiny map, real Field, injected SpecialDefs).
 
 var _blocks_root: Node3D

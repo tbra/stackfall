@@ -149,7 +149,7 @@ func test_volcano_tres_loads_with_a_usable_eruption() -> void:
 	assert_gt(effect.height_m, 0.0)
 	assert_gt(effect.base_radius_m, 0.0)
 	assert_gt(effect.cone_angle_deg, 0.0)
-	assert_eq(effect.launch_speed_mps, 16.0, "Bontago-1pi.85.46: harder launch")  # lint-public: allow string literal kept verbatim (assertion message or fixture)
+	assert_eq(effect.launch_speed_mps, 16.0, "harder launch")
 	assert_eq(effect.cone_angle_deg, 50.0)
 	assert_eq(effect.burst_spread_m, 1.6)
 	assert_gt(effect.launch_speed_jitter, 0.0)

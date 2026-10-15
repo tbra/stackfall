@@ -73,7 +73,7 @@ func test_pad_page_hides_fixed_camera_rows_and_snap_rows_are_hidden_everywhere()
 		assert_false(row.visible)
 		Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
 	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
-	assert_false(_make_row(&"camera_orbit").is_available_on_active_device(), "Orbit camera is keyboard/mouse only (Bontago-1pi.159.63)")  # lint-public: allow string literal kept verbatim (assertion message or fixture)
+	assert_false(_make_row(&"camera_orbit").is_available_on_active_device(), "Orbit camera is keyboard/mouse only")
 
 	for action: StringName in KeyRebindRow.SNAP_ACTIONS:
 		var row: KeyRebindRow = _make_row(action)

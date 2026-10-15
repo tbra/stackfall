@@ -1,5 +1,5 @@
 extends GutTest
-## spec 2.6 "Late join / reconnect", docs/M8_PLAN.md P6:
+## spec 2.6 "Late join / reconnect":
 ## mid-match admission, the ordered world replay, the replay-ack intent gate
 ## and reconnect inside the disconnect grace.
 ##

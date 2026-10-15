@@ -1,7 +1,7 @@
 extends GutTest
 ## Field's SPECIALS_ONLY tilt controller (spec 1.7, 2.7, 3.5): the
 ## critically damped spring on Field._tilt, its max_tilt_deg clamp, and the
-## AnimatableBody3D conversion (docs/archive/M4_PLAN.md P0b).
+## AnimatableBody3D conversion.
 ##
 ## A deliberately tiny disk, same pattern test_field_cells.gd already uses:
 ## small enough that a real physics settle (the one test here that needs one)

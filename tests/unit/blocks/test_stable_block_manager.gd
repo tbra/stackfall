@@ -1,6 +1,6 @@
 extends GutTest
-## game/blocks/StableBlockManager.gd (spec 2.7 "Stable-block optimization" [NEW],
-## docs/M8_PLAN.md P5): a block asleep past PhysicsTuning.stable_freeze_delay_s
+## game/blocks/StableBlockManager.gd (spec 2.7 "Stable-block optimization" [NEW]):
+## a block asleep past PhysicsTuning.stable_freeze_delay_s
 ## gets frozen static; waking releases it; below the threshold it's left
 ## alone. Drives the manager deterministically through its own _tick(delta)
 ## seam (see that function's own doc comment) instead of waiting real seconds
@@ -211,7 +211,7 @@ func test_a_wake_that_moves_the_block_restarts_its_freeze_timer() -> void:
 func test_real_physics_island_wakes_still_freeze_and_a_tilt_carries_the_released_pile() -> void:
 	# Real frames: a 3-cube tower (one Jolt island) is woken every 0.75 s, so it
 	# never sleeps a whole delay in a row, yet still freezes; a tilt impulse
-	# then releases every frozen block and the base rides the disc (sen.11).
+	# then releases every frozen block and the base rides the disc.
 	var tuning: PhysicsTuning = _tuning.duplicate() as PhysicsTuning
 	tuning.stable_freeze_delay_s = 1.5
 	tuning.stable_freeze_scan_interval_s = 0.25

@@ -126,7 +126,7 @@ func test_bottom_center_of_an_off_origin_shape_is_not_the_origin() -> void:
 
 
 ## The shape that actually distinguishes bottom_center() from the old
-## mv0.12 geometric centre: pillar stacks three cells in y (0..2), so its
+## geometric centre: pillar stacks three cells in y (0..2), so its
 ## true vertical midpoint would be y = 1.0, but the bottom face of its lowest
 ## cell is y = -0.5.
 func test_bottom_center_of_a_tall_shape_is_its_lowest_face_not_its_midpoint() -> void:

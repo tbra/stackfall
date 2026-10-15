@@ -1,6 +1,6 @@
 class_name FakeMatchContext
 extends MatchContext
-## Test double for the MatchContext port (docs/AUTOLOAD_DECOUPLING_PLAN.md, S1b): one public
+## Test double for the MatchContext port: one public
 ## `<name>_value` field per read, `<command>_calls` per command. Install with
 ## MatchContext.install(fake) and restore the previous one (MatchContext.installed()) in after_each.
 

@@ -1,6 +1,6 @@
 extends GutTest
-## C1b: core/sky/SkyPalette.gd, the dawn -> sunset day palette blend of the
-## sky cycle (docs/SKY_CYCLE_DEFAULT_PLAN.md s2). Pure rules; the Skybox wiring
+## core/sky/SkyPalette.gd, the dawn -> sunset day palette blend of the
+## sky cycle. Pure rules; the Skybox wiring
 ## (morning = dawn palette, sunset lock = sunset palette) is in test_sky_themes.gd.
 
 const DEFAULT_WINDOW: Vector4 = Vector4(0.30, 0.46, 0.90, 0.98)

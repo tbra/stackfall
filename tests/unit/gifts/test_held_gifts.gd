@@ -1,5 +1,5 @@
 extends GutTest
-## / 85.79 / 85.80: held gifts keep their authored colours, the held slingshot
+## Held gifts keep their authored colours, the held slingshot
 ## faces the aim like the Rocket, and aimed Rocket/Paintball bodies spawn where the held model is
 ## drawn (host path: Match.request_throw; the client sees the same replicated spawn transform).
 

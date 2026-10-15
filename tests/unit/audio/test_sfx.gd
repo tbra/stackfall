@@ -239,7 +239,7 @@ func _stop_all_sfx_players() -> void:
 		player.stop()
 
 
-# --- Adaptive music crossfade (docs/M7_PLAN.md P6) ------------
+# --- Adaptive music crossfade ------------
 
 func _install_both_stem_files() -> void:
 	_config.music_stem_calm_file = "calm_stem.wav"

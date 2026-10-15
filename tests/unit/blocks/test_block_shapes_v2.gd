@@ -1,6 +1,6 @@
 extends GutTest
 ## the eight shapes added on top of the original 11
-## (docs/BLOCK_POOL_PLAN.md section 3; spec 1.4).
+## (spec 1.4).
 
 const NEW_IDS: Array[StringName] = [&"bar5", &"plus5", &"u5", &"corner4", &"stair6", &"arch5", &"cube8", &"plate9"]
 const CELL_COUNTS: Dictionary = {

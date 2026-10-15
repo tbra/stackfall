@@ -57,7 +57,7 @@ func _cell_corner(cx: int = 0, cy: int = 0) -> Vector2:
 ## -- footprint_cells ---------------------------------------------------------
 
 func test_a_cube_straddling_a_cell_corner_covers_four_cells() -> void:
-	## docs/archive/M2_PLAN.md: "a rotated cube covers up to four cells... every cube
+	## Design rule: "a rotated cube covers up to four cells... every cube
 	## contributes the cells its footprint square overlaps, not just the one
 	## under its centre."
 	var cells: PackedInt32Array = _footprint(_cell_corner())
@@ -90,7 +90,7 @@ func test_crossing_the_rim_is_off_disk() -> void:
 	assert_eq(_validate(_cell_corner(14, 14)), PlacementRules.Result.OFF_DISK)
 
 
-## -- v2: one point, no footprint (docs/TERRITORY_V2_PLAN.md) ------------------
+## -- v2: one point, no footprint ------------------
 ##
 ## Clarification: "Placement check: one raycast from the
 ## middle of the ghost block straight down; the hit point must be inside your

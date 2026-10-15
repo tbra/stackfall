@@ -1,5 +1,5 @@
 extends GutTest
-## game/player/ThrowArcPreview.gd coverage (M4 P2e, docs/archive/M4_P2_PACKAGES.md P2e, spec
+## game/player/ThrowArcPreview.gd coverage (spec
 ## 2.5 "Throw (specials only)"): the arc preview's own pure ballistic sampler
 ## (sample_arc()) matches the closed-form projectile formula the brief
 ## specifies, and the visibility lifecycle (hidden until update_arc(), gone

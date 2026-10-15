@@ -1,6 +1,6 @@
 extends GutTest
-## UI reskin P2: the Stackfall Arcade look of Options, Pause and the rebinding rows
-## (docs/UI_RESKIN_PLAN.md P2). Look-only checks: tab rim notch, UiSegmentMeter cells, ON/OFF
+## The Stackfall Arcade look of Options, Pause and the rebinding rows.
+## Look-only checks: tab rim notch, UiSegmentMeter cells, ON/OFF
 ## words, BindingRow listening state and a synthetic gamepad focus traversal of both screens, each
 ## focused control carrying a visible focus stylebox.
 

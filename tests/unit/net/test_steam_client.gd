@@ -1,6 +1,6 @@
 extends GutTest
 ## net/SteamClient.gd: encode_match_config() output
-## (spec 2.6, docs/archive/M3b_PLAN.md P1).
+## (spec 2.6).
 ##
 ## Static, pure functions — no Steam singleton, real or fake, is touched
 ## anywhere in this file, so it passes identically whether or not

@@ -1,5 +1,5 @@
 extends GutTest
-## docs/archive/M2_PLAN.md P4: HUD.gd "connects to Events only" and implements its
+## HUD.gd "connects to Events only" and implements its
 ## API exactly. Covers both halves: calling the public API directly (text and
 ## ratios update) and driving it through the documented Events signals.
 
@@ -348,9 +348,9 @@ func test_gift_claimed_toast_skips_the_other_team_under_teams_2() -> void:
 	)
 
 
-# --- M7 P5 / HUD minimap ------------------------------------
-## (docs/M7_PLAN.md "P5 -- HUD minimap + reskin"; rebuilt for 
-## the minimap "reflecting the sky depending on the camera angle" --
+# --- HUD minimap ------------------------------------
+## Rebuilt after the report that the minimap was
+## "reflecting the sky depending on the camera angle" --
 ## see ui/hud/Minimap.gd's own class doc DECISION for the root cause and fix.)
 
 

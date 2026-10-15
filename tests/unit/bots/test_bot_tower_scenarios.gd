@@ -1,5 +1,5 @@
 extends GutTest
-## Field physics scenarios for the bot tower work (docs/BOT_TOWER_PLAN.md C, 55a/55b).
+## Field physics scenarios for the bot tower work.
 ## A scripted stack of real blocks settles on a real Field; a bot (zero aim noise) then places a held piece
 ## through the real send path (BotController._send_best_placement, as test_bot_disc_placement does). Each
 ## scenario asserts (a) the spawned cubes sit where the bot's spawn-frame model (BotStatics.OrientationInfo

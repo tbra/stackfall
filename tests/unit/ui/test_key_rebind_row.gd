@@ -28,7 +28,7 @@ var _prior_device: StringName = Settings.DEFAULT_ACTIVE_DEVICE
 func before_each() -> void:
 	# Settings.active_input_device() is process-global and flips to gamepad on any
 	# joypad event (e.g. test_playercontroller_throw earlier in the same shard).
-	# The row only shows keyboard glyphs while it is keyboard_mouse (fca.50).
+	# The row only shows keyboard glyphs while it is keyboard_mouse.
 	_prior_device = Settings.active_input_device()
 	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
 	if not InputMap.has_action(_test_action):

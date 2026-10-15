@@ -45,7 +45,7 @@ func test_manual_drop_outside_territory_is_refused_and_the_block_stays_held() ->
 	assert_eq(reason, PlacementRules.REASON_OUTSIDE_TERRITORY)
 	assert_eq(
 		_blocks_root.get_child_count(), 0,
-		"Owner test 2026-09-22: a refused manual drop must not spawn a block, burned or otherwise."  # lint-public: allow string literal kept verbatim (assertion message or fixture)
+		"A refused manual drop must not spawn a block, burned or otherwise."
 	)
 	assert_eq(Match.feed_seq(slot_id), seq_before, "the piece must not be consumed")
 	assert_eq(Match.held_shape(slot_id), shape_before, "the player must still be holding the exact same piece")

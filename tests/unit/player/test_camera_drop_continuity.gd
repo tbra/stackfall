@@ -14,7 +14,7 @@ extends GutTest
 ## anchor to stop depending on the held shape's geometry in the first place.
 ## _camera_follow_anchor() now supplies X/Z from rotated_center_world() (so
 ## orbiting/pitching the block still doesn't swing the camera horizontally --
-## mv0.28's own fix) but Y from _last_hit_point.y (the cursor's own surface
+## the existing fix) but Y from _last_hit_point.y (the cursor's own surface
 ## hit) plus the current hover height (tuning.hover_height +
 ## _ghost.manual_hover_offset) -- shape-independent by construction.
 ## begin_follow_transition() is now only called for the one case that *is* a

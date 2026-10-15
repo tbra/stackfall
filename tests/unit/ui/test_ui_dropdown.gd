@@ -1,6 +1,5 @@
 extends GutTest
-## / 159.14: UiDropdown is a normal popup list (the click-to-cycle of decision
-## 1pi.94 is gone; cycling options use UiCycler), OptionButton-parity API, ui_accept open / ui_down
+## UiDropdown is a normal popup list (the old click-to-cycle is gone; cycling options use UiCycler), OptionButton-parity API, ui_accept open / ui_down
 ## move / ui_accept pick / ui_cancel close through the Input Map, outside click closes, row-item contract.
 
 var _picked: Array[int] = []

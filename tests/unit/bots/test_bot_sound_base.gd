@@ -1,5 +1,5 @@
 extends GutTest
-## docs/BOT_TOWER_PLAN.md C "1t5.54": after a topple Reach the Sky bots stop building on the
+## After a topple Reach the Sky bots stop building on the
 ## leaning pile. The tower-top site filter keeps unsound tops out, the Reach the Sky plan targets the tallest
 ## SOUND top (or a new base after a collapse), the generator adds FOUNDATION sites at a new base, and the stack
 ## analysis now runs before the plan. the new base and its sites no longer keep a clearance from the
@@ -149,7 +149,7 @@ func _choose(view: BotWorldView, memory: Dictionary) -> BotIntent:
 	return BotStrategy.choose(view, BotChains.build(view), profile, null, memory)
 
 
-## replaces the 1t5.54 clearance pins: true when a probe at disk-local `point` hits an unsound
+## replaces the old clearance pins: true when a probe at disk-local `point` hits an unsound
 ## (leaning pile) block in the snapshot.
 func _over_unsound(stack: BotStack, point: Vector2) -> bool:
 	var body: int = stack.surface_at(point)

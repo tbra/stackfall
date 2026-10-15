@@ -215,7 +215,7 @@ func test_respects_tilt_mode_off_via_the_real_field_guard() -> void:
 
 
 func test_impact_never_triggers_it() -> void:
-	assert_false(PropellerEffect.new().impact_triggers(null, null), "the impact veto stands (Bontago-1en.22)")  # lint-public: allow string literal kept verbatim (assertion message or fixture)
+	assert_false(PropellerEffect.new().impact_triggers(null, null), "the impact veto stands")
 
 
 # --- acceptance: real Field, compared with an Anvil ---------------------------

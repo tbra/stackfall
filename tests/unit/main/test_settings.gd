@@ -1,6 +1,6 @@
 extends GutTest
 ## autoload/Settings.gd + config/graphics/GraphicsPreset.gd: user settings persisted to
-## a single user://settings.cfg ConfigFile (docs/archive/M6_PLAN.md package C1). Uses
+## a single user://settings.cfg ConfigFile. Uses
 ## a fresh Settings instance pointed at a temp cfg path
 ## (set_config_path_for_test) rather than the real "Settings" autoload
 ## singleton, mirroring autoload/Sfx.gd's own set_root_dir_for_test()
@@ -59,8 +59,8 @@ func test_defaults_with_no_saved_file() -> void:
 	assert_eq(_settings.stick_move_speed_scale(), 1.0)
 	assert_eq(_settings.custom_music_dir(), "")
 	assert_eq(_settings.key_override_events(_test_action).size(), 0)
-	assert_true(_settings.camera_shake_enabled(), "Bontago-xtq.29: camera shake defaults on")  # lint-public: allow string literal kept verbatim (assertion message or fixture)
-	assert_eq(_settings.window_mode(), &"borderless_fullscreen", "Bontago-xtq.45: borderless fullscreen is the default window mode")  # lint-public: allow string literal kept verbatim (assertion message or fixture)
+	assert_true(_settings.camera_shake_enabled(), "camera shake defaults on")
+	assert_eq(_settings.window_mode(), &"borderless_fullscreen", "borderless fullscreen is the default window mode")
 
 
 func test_audio_settings_round_trip_and_persist() -> void:
@@ -180,8 +180,7 @@ func test_key_override_persists_and_reapplies_on_fresh_settings() -> void:
 ## F2 regression: a keyboard override must not erase the action's gamepad
 ## default (and vice versa) -- overrides are device-class aware. Also
 ## verifies a keyboard override and a joypad override for the same action
-## coexist through a ConfigFile persist + reload cycle (docs/archive/M6_PLAN.md C1
-## review finding F1).
+## coexist through a ConfigFile persist + reload cycle.
 func test_key_override_keeps_other_device_class_and_round_trips_both() -> void:
 	var key_default: InputEventKey = InputEventKey.new()
 	key_default.keycode = KEY_F1

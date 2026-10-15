@@ -1,6 +1,5 @@
 extends GutTest
-## RocketEffect after the (docs/SPEC.md 1.6,
-## docs/GIFT_EFFECTS_PLAN.md section 3): on activation the Rocket flies a straight line along a
+## RocketEffect (docs/SPEC.md 1.6): on activation the Rocket flies a straight line along a
 ## host-side launch direction (camera direction, never upward) and explodes on the first contact
 ## with a block, the disc or the map; the safety fuel still fires. Fixtures:
 ##
@@ -92,7 +91,7 @@ func test_inert_before_armed() -> void:
 func test_armed_tick_launches_along_the_given_direction() -> void:
 	var directions: Array[Vector3] = [
 		Vector3(1.0, 0.0, 0.0),
-		Vector3(0.0, 1.0, 0.0),  # straight up (1pi.85.34 Q3)
+		Vector3(0.0, 1.0, 0.0),  # straight up
 		Vector3(0.3, 0.8, -0.5),
 		Vector3(0.0, -1.0, 0.0),
 		Vector3(0.6, -0.3, -0.8),

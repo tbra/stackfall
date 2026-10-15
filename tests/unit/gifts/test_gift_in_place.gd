@@ -1,5 +1,5 @@
 extends GutTest
-## docs/GIFT_PLAYTEST2_PLAN.md PB: releasing a held Stackfall, Volcano or
+## Releasing a held Stackfall, Volcano or
 ## Earthquake activates it in place through MatchGiftActivation: no carrier body, the effect
 ## starts at the release point, the held gift is consumed once. Fixture from
 ## test_gift_playtest2_contracts.gd.
@@ -230,7 +230,7 @@ func test_clear_frees_live_anchors() -> void:
 	await get_tree().process_frame
 	assert_eq(_anchor_count(), 0)
 
-## Review of 1pi.85.24: an abort (or a restart) frees live anchors through the shared
+## An abort (or a restart) frees live anchors through the shared
 ## match reset, not only through the lifetime backstop.
 func test_abort_match_frees_live_anchors() -> void:
 	_start()

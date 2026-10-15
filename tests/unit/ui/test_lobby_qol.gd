@@ -1,5 +1,5 @@
 extends GutTest
-## docs/QOL_EXPERIMENTS_PLAN.md, Q1: the lobby's
+## The lobby's
 ## "Experiments" section -- four opt-in QoL toggles. (S1b): they are the
 ## EXPERIMENTS section's Advanced block of the lobby's settings column (the Advanced rules
 ## popup is gone); the header summary reads "n on". Host-editable and read-only for a

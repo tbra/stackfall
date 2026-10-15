@@ -1,5 +1,5 @@
 extends GutTest
-## / .38 / .39: bot difficulty is a UiCycler (seat rows and
+## Bot difficulty is a UiCycler (seat rows and
 ## the default), the gravity meter steps exactly 0.1x, the lobby buttons carry their device glyph centred
 ## with the label and inside the button.
 

@@ -1,5 +1,5 @@
 extends GutTest
-## docs/GIFT_PLAYTEST2_PLAN.md section 1: the Jumping Bean sat idle for
+## The Jumping Bean used to sit idle for
 ## ~5 s, hopped once, tiny and straight up, and dissolved in its own hole. Real physics: the
 ## shipped jumping_bean.tres def on a live Match field with a tilting disc and a live
 ## registry (so HoleDissolver is active), a bean thrown onto the disc on an arc.

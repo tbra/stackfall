@@ -1,6 +1,5 @@
 extends GutTest
-## packages E1 + PL1a (docs/LOBBY_REWORK_PLAN.md "Right panel"):
-## the roster extracted from ui/lobby/Lobby.gd into ui/lobby/LobbyPlayersPanel behaves
+## The roster extracted from ui/lobby/Lobby.gd into ui/lobby/LobbyPlayersPanel behaves
 ## exactly as it did inside the Lobby, the narrow Lobby <-> panel hooks are installed
 ## (seats_data() merged into a host publish, apply(config, roster, seats) from
 ## _apply_data, on_roster_changed, finalize_start_config() after the peer clamp,

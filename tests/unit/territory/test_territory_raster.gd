@@ -1,6 +1,6 @@
 extends GutTest
 ## Spec 1.5's contested zones and holes, on the authoritative cell grid
-## (spec 2.5, docs/archive/M2_PLAN.md "Raster resolution").
+## (spec 2.5).
 ##
 ## "Areas where two or more territories from different teams overlap are
 ## contested. Contested cells become holes after hole_delay = 0.75 s."
@@ -312,7 +312,7 @@ func test_an_empty_solve_leaves_the_disk_unowned() -> void:
 	assert_eq(_raster.group_at_point(Vector2.ZERO), TerritoryGroups.NO_GROUP)
 
 
-## -- v2 fill: the argmax field (docs/TERRITORY_V2_PLAN.md, "The formula") -----
+## -- v2 fill: the argmax field -----
 ##
 ## Clarification: "Areas of different players never overlap.
 ## Where they meet, the border is pushed by the heights of the stacks producing

@@ -196,7 +196,7 @@ func test_accepted_throw_spawns_with_the_requested_velocity_and_continuous_cd() 
 	_run_countdown()
 	var slot_id: int = 0
 	_queue_special(slot_id)
-	var velocity: Vector3 = Vector3(0.6, 0.0, 0.8)  # unit camera aim (1pi.85.29)
+	var velocity: Vector3 = Vector3(0.6, 0.0, 0.8)  # unit camera aim
 
 	var reason: StringName = Match.request_throw(
 		slot_id, _home_world_position(slot_id), 0, Quaternion.IDENTITY, velocity
@@ -206,7 +206,7 @@ func test_accepted_throw_spawns_with_the_requested_velocity_and_continuous_cd() 
 	assert_eq(_blocks_root.get_child_count(), 1)
 	var block: Block = _blocks_root.get_child(0) as Block
 	var fixed: Vector3 = GiftAim.throw_velocity(velocity, Match._placement._special_tuning, Match._placement._throw_range_scale())
-	assert_true(block.linear_velocity.is_equal_approx(fixed), "Bontago-1pi.85.21: normalised, not the raw client velocity")  # lint-public: allow string literal kept verbatim (assertion message or fixture)
+	assert_true(block.linear_velocity.is_equal_approx(fixed), "normalised, not the raw client velocity")
 	assert_true(block.continuous_cd, "spec 2.7: thrown specials always use continuous_cd")
 
 

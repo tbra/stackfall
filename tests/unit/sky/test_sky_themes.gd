@@ -167,7 +167,7 @@ func test_locked_phase_for_maps_concrete_ids_and_rejects_the_rest() -> void:
 	assert_eq(theme.locked_phase_for("night"), 0.8, "the lock phase is tunable content")
 
 
-## C1a, docs/SKY_CYCLE_DEFAULT_PLAN.md s3: Cycle is the default sky
+## Cycle is the default sky
 ## and Sunset / Night / Dawn / Random are the same cycle locked at a phase.
 func _configured_skybox(config: MatchConfig) -> Array:
 	var parts: Array = _make_skybox(load(SUNSET_PATH) as SkyThemeDef)
@@ -267,7 +267,7 @@ func test_lock_and_unlock_a_running_cycle_keep_the_phase_continuous() -> void:
 	sunset.cycle_length_seconds = saved_length
 
 
-## C1b, docs/SKY_CYCLE_DEFAULT_PLAN.md s2: the cycle's day half is the
+## The cycle's day half is the
 ## dawn palette by morning and noon, fading into the sunset palette on the setting
 ## side (SkyPalette), and the night mix on top is unchanged.
 func _day_palette_skybox(mode: MatchConfig.SkyThemeMode) -> Array:

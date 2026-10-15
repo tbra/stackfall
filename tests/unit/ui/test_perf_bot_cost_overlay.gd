@@ -80,6 +80,6 @@ func test_table_has_every_phase_row_numbers_and_highlight() -> void:
 	assert_eq(cells[snapshot_base + PerfBotCostOverlay.COLUMN_COUNT + 1].text, "80.0")
 	var footer: PackedStringArray = PerfBotCostOverlay.footer_lines(report)
 	assert_eq(footer.size(), 4)
-	assert_eq(footer[3], "FILL fallback: 0 of 2 thinks (0.0%, 0 sites)", "Bontago-1t5.67 line under the table")  # lint-public: allow string literal kept verbatim (assertion message or fixture)
+	assert_eq(footer[3], "FILL fallback: 0 of 2 thinks (0.0%, 0 sites)", "FILL fallback line under the table")
 	assert_true(footer[0].begins_with("PROBE physics 100.0 us"))
 	assert_true(PerfBotCostOverlay.header_text(report, 2, PerfBotCostOverlay.ALL_SLOTS).contains("2 bots"))

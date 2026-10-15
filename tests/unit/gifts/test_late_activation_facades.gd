@@ -188,7 +188,7 @@ func test_double_apply_replicated_activates_once_and_first_payload_lands() -> vo
 	assert_eq(m.state(), MatchPhase.State.LOADING)
 
 
-## review follow-up of 1pi.11.85.2: Net.host_game() emits net_mode_changed; Main's
+## Net.host_game() emits net_mode_changed; Main's
 ## handler (connected first, in _ready) must activate Match + MatchNet before any later listener
 ## or poll runs. The real autoloads are put back into the pre-activation state first.
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")

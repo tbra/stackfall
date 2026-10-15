@@ -142,7 +142,7 @@ func _assert_neighbours_usable(menu: MainMenu, label: String) -> void:
 			assert_ne(target.focus_mode, Control.FOCUS_NONE, "%s unfocusable neighbour" % where)
 
 
-# --- 1pi.34: debug entry ----------------------------------------------------------
+# --- debug entry ----------------------------------------------------------
 
 func test_debug_entry_is_visible_only_in_debug_mode() -> void:
 	var player_menu: MainMenu = _make_menu(false)

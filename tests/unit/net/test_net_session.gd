@@ -1,6 +1,6 @@
 extends GutTest
 ## autoload/Net.gd: session lifecycle, handshake, roster, disconnect and
-## command-line parsing (spec 2.6, docs/archive/M3a_PLAN.md P1).
+## command-line parsing (spec 2.6).
 ##
 ## Net.gd has no class_name (it must not collide with the `Net` autoload
 ## singleton), so a second, independent instance of the same script cannot be
@@ -53,7 +53,7 @@ func after_each() -> void:
 	if _host != null:
 		_host.leave()
 	# A rejected peer's own Net._reject_peer() waits a couple of frames
-	# before actually closing the connection (docs/archive/M3a_PLAN.md: the refusal
+	# before actually closing the connection (the refusal
 	# RPC must reach the wire first). Give it that time before add_child_
 	# autofree() frees the node out from under the still-awaiting coroutine.
 	await get_tree().process_frame
@@ -183,7 +183,7 @@ func test_mismatched_build_version_is_refused_and_disconnected() -> void:
 # --- Lobby-only joining ---------------------------------------
 #
 # Spec 2.6: joining is lobby-only in M3a. Net does not know Match's state
-# machine (docs/archive/M3a_PLAN.md P1: Net must not name a gameplay concept), so the
+# machine (Net must not name a gameplay concept), so the
 # match flow flips set_accepting_joins(); these tests flip it directly. The
 # "not accepting" window stands in for COUNTDOWN, PLAYING, SUDDEN_DEATH and
 # END alike — Net treats every non-lobby state the same way.
@@ -299,11 +299,11 @@ func test_broadcast_roster_after_transport_closed_does_not_rpc() -> void:
 ## the private _apply_command_line_args(args) it delegates to instead — the
 ## exact same parsing/dispatch code, with the argument list passed explicitly.
 
-# --- Steam session (spec 2.6, docs/archive/M3b_PLAN.md P1) --------------------------
+# --- Steam session (spec 2.6) --------------------------
 #
 # Every test below drives Net through a FakeSteam, never the real Steam
 # singleton, so the suite is correct whether or not addons/godotsteam/ is
-# installed in this checkout (docs/archive/M3b_PLAN.md's acceptance criterion).
+# installed in this checkout.
 #
 # steam_available() requires both steam_provider.is_available() *and* a
 # successful init_result (see autoload/Net.gd's `_steam_ready`), matching
@@ -316,7 +316,7 @@ func test_broadcast_roster_after_transport_closed_does_not_rpc() -> void:
 # without a prior successful steamInitEx() segfaults the process
 # (netcode-F-probe_peer_no_init.log). That means the actual HOST/CLIENT mode
 # transition after a successful lobby_created/lobby_joined is exactly the one
-# step docs/archive/M3b_PLAN.md's "Testing without Steam" says GUT genuinely cannot
+# step GUT genuinely cannot
 # exercise — every test below asserts the (deterministic, safe) OFFLINE
 # outcome for that step rather than skipping it.
 
@@ -354,7 +354,7 @@ func test_lobby_created_tags_the_lobby_with_the_json_encoded_match_config() -> v
 	assert_eq(fake.get_lobby_data(lobby_id, String(SteamClient.KEY_GAME)), String(Net.DISCOVERY_MAGIC))
 	assert_eq(fake.get_lobby_data(lobby_id, String(SteamClient.KEY_VERSION)), _host.build_version())
 	assert_eq(fake.get_lobby_data(lobby_id, String(SteamClient.KEY_HOST_NAME)), "TestSteamUser")
-	assert_eq(fake.joinable_calls, [[lobby_id, true]], "host lobby is explicitly joinable (Bontago-1pi.48)")  # lint-public: allow string literal kept verbatim (assertion message or fixture)
+	assert_eq(fake.joinable_calls, [[lobby_id, true]], "host lobby is explicitly joinable")
 
 	var decoded: Dictionary = JSON.parse_string(
 		fake.get_lobby_data(lobby_id, String(SteamClient.KEY_MATCH_CONFIG))

@@ -1,5 +1,5 @@
 extends GutTest
-## docs/archive/M3a_PLAN.md P4 "Tests first": every spec 1.9 setting round-trips
+## Every spec 1.9 setting round-trips
 ## through MatchConfig.to_dict() -> Net.set_lobby_data -> Events.
 ## net_lobby_data_changed -> from_dict -> sanitize(); a client's controls are
 ## disabled while the host's are not; an out-of-range value arriving over the
@@ -196,7 +196,7 @@ func test_start_clamps_player_count_to_connected_peers() -> void:
 	assert_eq(config.ai_count, 0, "match_defaults.tres ships ai_count = 0, so no bots were requested")
 
 
-## M5 P4 (docs/archive/M5_PLAN.md): the host's own outbound
+## The host's own outbound
 ## LobbyPlayersPanel.build_roster() must append one synthetic row per bot seat -- slot_id
 ## running from player_count - ai_count up, matching autoload/match/
 ## MatchLifecycle.gd's _build_slots() formula for PlayerSlot.is_bot -- so the
@@ -252,7 +252,7 @@ func test_ai_count_spin_clamps_to_seats_minus_connected_humans() -> void:
 	assert_eq(int(ai_spin.value), 3, "the existing 4 bots shrink to fit the now-smaller headroom")
 
 
-# --- Invite Friends (docs/archive/M3b_PLAN.md P3) -------------------------------------
+# --- Invite Friends -------------------------------------
 
 func test_unchecking_one_special_and_publishing_removes_exactly_that_id() -> void:
 	var lobby: Lobby = _make_lobby(true)

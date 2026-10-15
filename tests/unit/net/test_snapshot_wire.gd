@@ -1,6 +1,5 @@
 extends GutTest
-## net/SnapshotSync.gd's packet format (spec 2.6 "Snapshots",
-## docs/archive/M3a_PLAN.md P2 and "The wire, byte for byte").
+## net/SnapshotSync.gd's packet format (spec 2.6 "Snapshots").
 ##
 ## "Split into several packets if needed to stay under ~1200 bytes each" and
 ## "tag each with a sequence number". Everything here is the static half of
@@ -222,7 +221,7 @@ func test_an_inbound_packet_reaches_the_interpolator() -> void:
 
 
 func test_a_sample_for_an_unspawned_body_is_dropped_and_counted() -> void:
-	# docs/archive/M3a_PLAN.md: the reliable spawn RPC and the unreliable snapshot ride
+	# The reliable spawn RPC and the unreliable snapshot ride
 	# different channels, so a snapshot can name a body whose spawn has not
 	# landed. It must be dropped and counted, never buffered and never an error.
 	_start_match()

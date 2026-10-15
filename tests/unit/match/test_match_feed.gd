@@ -54,7 +54,7 @@ func test_a_voluntary_placement_after_unanswered_expiry_unlatches_the_slot() -> 
 	var third: StringName = Match.request_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, false)
 	assert_eq(
 		third, PlacementRules.REASON_OK,
-		"Bontago-2lr: a full interval later, the slot must be able to place again, not latched shut."  # lint-public: allow string literal kept verbatim (assertion message or fixture)
+		"a full interval later, the slot must be able to place again, not latched shut."
 	)
 	assert_eq(_blocks_root.get_child_count(), 2, "Both accepted placements spawned exactly one block each.")
 

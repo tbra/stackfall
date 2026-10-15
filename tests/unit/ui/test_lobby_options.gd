@@ -59,7 +59,7 @@ func test_options_button_opens_and_close_restores_focus_to_it() -> void:
 	menu.closed.emit()
 	await wait_process_frames(2)
 	assert_false(lobby.is_options_open())
-	assert_false(menu.visible, "Options is hidden, kept for reuse (Bontago-1pi.11.95)")  # lint-public: allow string literal kept verbatim (assertion message or fixture)
+	assert_false(menu.visible, "Options is hidden, kept for reuse")
 	assert_eq(button.focus_mode, Control.FOCUS_ALL)
 	assert_eq(lobby.get_viewport().gui_get_focus_owner(), button, "focus returns to the Options button")
 

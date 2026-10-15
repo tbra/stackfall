@@ -120,7 +120,7 @@ func test_team_of_slot_interleaves_for_every_team_mode_and_player_count() -> voi
 
 
 # --- HoleMode.TEMPORARY, the default again --------------------
-# docs/TERRITORY_V2_PLAN.md's HoleMode.OFF (the v2 no-overlap mode) was the
+# HoleMode.OFF (the v2 no-overlap mode) was the
 # default for a while; SPEC.md's evidence audit ("Decisions made —
 # current target": "restore overlap holes as the fidelity target... The
 # no-overlap v2 mode is optional, not the default") reverted it back to

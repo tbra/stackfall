@@ -9,7 +9,7 @@ extends GutTest
 ##     whole chain above it out of the sound set;
 ##  T4 any top loss of collapse_drop_m, however tall the tower still was.
 ## Not triggers (checked): another own tower becoming taller (the plan only follows tops near the base), unsettled
-## bodies (the last plan is reused), the 1t5.68 support-face rule (it only gates NEW bases).
+## bodies (the last plan is reused), the support-face rule (it only gates NEW bases).
 ## Pure: hand-built BotStack snapshots like test_bot_sound_base.
 
 const MAP_RADIUS: float = 20.0
