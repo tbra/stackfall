@@ -1,6 +1,6 @@
 class_name CloudShadowConfig
 extends Resource
-## Bontago-mp0.127: tunables of the cloud shadows sweeping the arena (game/sky/CloudShadows.gd)
+## tunables of the cloud shadows sweeping the arena (game/sky/CloudShadows.gd)
 ## and of the sun dimming when a cloud covers the sun direction. Loaded from
 ## config/sky/cloud_shadows.tres; hints in config/ui/tuning_panel_hints.tres.
 

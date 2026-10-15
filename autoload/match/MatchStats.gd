@@ -1,7 +1,7 @@
 class_name MatchStats
 extends RefCounted
 ## Match's per-slot statistics + the results-screen data/flow interface
-## (Bontago-1pi.13, split from Bontago-1pi.6: the results-screen UI worker
+## (split from the results-screen UI worker
 ## consumes this file's payload and Events.match_results_ready; it does not
 ## own or edit this file).
 ##
@@ -29,7 +29,7 @@ extends RefCounted
 ## package edits concurrently (disjoint file ownership; this package's own brief flagged MatchGifts.gd's expiry logic
 ## as a concurrent edit to avoid colliding with).
 ##
-## **blocks_placed is the one exception** (review fix, Bontago-1pi.13):
+## **blocks_placed is the one exception** (review fix):
 ## Events.block_placed alone cannot tell a genuine player placement/auto-drop
 ## apart from MatchPlacement.spawn_special_projectile()'s own effect spawns
 ## (e.g. Volcano's 8-14 lava orbs) — both go through the same
@@ -75,7 +75,7 @@ extends RefCounted
 ##           slot -- a genuine player placement/auto-drop only, never a
 ##           special effect's own projectile spawn (see this file's header).
 ##       "blocks_lost": int,           # Events.block_removed, reason ==
-##           Events.REASON_KILL_PLANE, for this slot (spec 3.5's kill plane:
+##           Events.REASON_KILL_PLANE, for this slot (spec 2.7's kill plane:
 ##           "a block fell below tuning.kill_plane_y" -- "off the disc").
 ##       "gifts_claimed": int,         # Events.gift_claimed for this slot.
 ##       "specials_used": int,         # Events.special_consumed for this
@@ -107,12 +107,12 @@ var _blocks_lost: Array[int] = []
 var _gifts_claimed: Array[int] = []
 var _specials_used: Array[int] = []
 var _eliminated_at: Array[float] = []
-## Bontago-1pi.72.2: highest settled block top per slot (m above the disk, all
+## highest settled block top per slot (m above the disk, all
 ## modes) and the peak territory share per TEAM seen while the match was live.
 var _height_reached: Array[float] = []
 var _peak_share: Array[float] = []
 
-## Bontago-1pi.72.2: host-session win tally, slot_id -> {"wins": int, "bot": bool}.
+## host-session win tally, slot_id -> {"wins": int, "bot": bool}.
 ## NOT cleared by reset() (that runs every start_match); cleared when the net
 ## session changes (Events.net_mode_changed: hosting started/ended, joined, left)
 ## and when the main menu is shown (game/main/Main.gd; local Play again accumulates
@@ -125,7 +125,7 @@ var _session_wins: Dictionary = {}
 ## State.SUDDEN_DEATH). Reset to 0.0 by reset(); read by match_duration() and
 ## snapshotted into build_results_payload()'s "match_duration" field.
 var _elapsed: float = 0.0
-## Bontago-1pi.69: client copy of the host's last live snapshot; cleared by reset().
+## client copy of the host's last live snapshot; cleared by reset().
 var _remote_live: Dictionary = {}
 
 
@@ -234,7 +234,7 @@ func reset_session_wins() -> void:
 	_session_wins.clear()
 
 
-## Bontago-1pi.72.3: a seat whose occupant changed starts at 0.
+## a seat whose occupant changed starts at 0.
 func _drop_stale_session_wins(slot_count: int) -> void:
 	for slot_id: int in _session_wins.keys():
 		var entry: Dictionary = _session_wins[slot_id] as Dictionary
@@ -319,14 +319,14 @@ func build_results_payload(winning_team: int, mode_fields: Dictionary = {}) -> D
 		ResultsPayload.KEY_MATCH_DURATION: _elapsed,
 		ResultsPayload.KEY_ROWS: rows,
 	}
-	# Bontago-22y.11: the mode outcome rides in an optional "mode" block, absent
+	# the mode outcome rides in an optional "mode" block, absent
 	# for classic so its payload is unchanged.
 	if not mode_fields.is_empty():
 		payload[ResultsPayload.KEY_MODE] = mode_fields
 	return payload
 
 
-## Bontago-1pi.69: one row per seated slot from the current counters (the
+## one row per seated slot from the current counters (the
 ## results payload and the live scoreboard snapshot share it).
 func _build_rows() -> Array[Dictionary]:
 	var rows: Array[Dictionary] = []
@@ -353,7 +353,7 @@ func _build_rows() -> Array[Dictionary]:
 	return rows
 
 
-## Bontago-1pi.69 (hold-to-show scoreboard): the same payload shape as
+## hold-to-show scoreboard: the same payload shape as
 ## build_results_payload() for the round in progress. Side-effect free (records
 ## no session wins); winner_id -1 / empty name = nobody has won. DECISION: the
 ## optional "mode" block carries only mode_id + scores (no winners/order, which
@@ -396,7 +396,7 @@ func _winner_name(winning_team: int, ffa: bool) -> String:
 		if slot != null:
 			return slot.display_name
 		return PlayerNames.fallback_for_slot(winning_team)
-	# Lobby rework (Bontago-1pi.53): the number the team had in the lobby once the
+	# Lobby rework: the number the team had in the lobby once the
 	# host resolved the picks (MatchConfig.team_number_for()), else team id + 1.
 	var config: MatchConfig = _match.config
 	var team_number: int = config.team_number_for(winning_team) if config != null else winning_team + 1
@@ -407,10 +407,10 @@ func _winner_name(winning_team: int, ffa: bool) -> String:
 
 # --- Event listeners (host only) --------------------------------------------
 
-## Spec 3.5's kill plane is the only "off the disc" removal reason that
+## Spec 2.7's kill plane is the only "off the disc" removal reason that
 ## exists today (Events.REASON_KILL_PLANE's own doc: "a block fell below
 ## tuning.kill_plane_y"); a future removal reason (the body-cap dissolve
-## spec 3.5 also describes) is deliberately not counted as "lost" here unless
+## spec 2.7 also describes) is deliberately not counted as "lost" here unless
 ## a later package decides it should be.
 func _on_block_removed(block: RigidBody3D, reason: String) -> void:
 	if not _match._is_host():

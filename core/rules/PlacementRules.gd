@@ -1,32 +1,32 @@
 class_name PlacementRules
 extends RefCounted
 ## Whether a block may be dropped where the player wants it, and where it goes
-## instead when it may not (spec 2.2, 2.5, 3.3).
+## instead when it may not (spec 1.5, 1.4, 2.5).
 ##
 ## **Two checks; only one runs in live play** (docs/TERRITORY_V2_PLAN.md;
-## reconciled with the 2026-09-20 evidence audit by Bontago-cmc.7).
+## reconciled with the evidence audit by).
 ## validate_point()/closest_valid_point() are the placement contract for
-## **every** MatchConfig.HoleMode -- owner clarifications 2026-09-20, "one
+## **every** MatchConfig.HoleMode -- clarifications "one
 ## raycast from the middle of the ghost block straight down; the hit point
 ## must be inside your own area and outside every goal flag's area. No cell
 ## footprint tests", which the audit's SPEC.md 2.5 "Placement legality" keeps
 ## verbatim and extends to reject a contested/holed point too (see
 ## validate_point()'s own comment). Package B does the raycast in
 ## autoload/Match.gd; everything from the hit point on is here.
-## footprint_cells()/validate() are spec 3.3's original multi-cell check.
+## footprint_cells()/validate() are spec 2.5's original multi-cell check.
 ## autoload/Match.gd no longer calls them under any hole_mode; they stay compiled
 ## for the bots' footprint scoring; normal play must not reintroduce a footprint test.
 ##
-## Spec 3.3: "On the host, the cell under the ghost's footprint must be owned
+## Spec 2.5: "On the host, the cell under the ghost's footprint must be owned
 ## by the placing player's team and not contested or a hole." Every cell of
 ## the footprint has to pass, not just the center one.
 ##
-## Spec 2.5: "When the timer runs out, the held block drops from its current
+## Spec 1.4: "When the timer runs out, the held block drops from its current
 ## ghost position. If that spot isn't valid, it drops at the closest valid
 ## point." closest_valid_point() is that search: a widening ring scan in
 ## auto_drop_search_step increments out to auto_drop_search_max_radius.
 ##
-## Spec 2.2: "Players can't place blocks in contested areas. If a block is
+## Spec 1.5: "Players can't place blocks in contested areas. If a block is
 ## released there anyway, it is thrown off the map with a visible reject
 ## animation." This class decides *that* it is a reject and why; Match throws
 ## the block, because throwing it needs a body.
@@ -153,7 +153,7 @@ static func footprint_cells(
 	return unique
 
 
-## Spec 3.3's check, over every cell of the footprint.
+## Spec 2.5's check, over every cell of the footprint.
 static func validate(
 	footprint: PackedInt32Array, raster: TerritoryRaster, team_id: int
 ) -> Result:
@@ -205,10 +205,10 @@ static func is_no_origin(origin: Vector2) -> bool:
 
 ## -- The v2 point check ------------------------------------------------------
 
-## Spec 3.3's check reduced to the single point the owner's raycast hit
-## (owner clarifications 2026-09-20; reaffirmed as the placement contract for
-## every hole_mode by the 2026-09-20 evidence audit, SPEC.md 2.5 "Placement
-## legality" and Bontago-cmc.7). `point` is disk-local (x, z), already
+## Spec 2.5's check reduced to the single point the owner's raycast hit
+## (clarifications reaffirmed as the placement contract for
+## every hole_mode by the evidence audit, SPEC.md 2.5 "Placement
+## legality" and). `point` is disk-local (x, z), already
 ## converted by the caller; this never touches physics.
 ##
 ## Order matters: off the disk first, because a point past the rim has no cell
@@ -243,17 +243,17 @@ static func validate_point(
 	return Result.VALID
 
 
-## Spec 2.5's auto-drop relocation, now shared by every hole_mode
-## (Bontago-cmc.7): the nearest disk-local point at or around `desired` that
+## Spec 1.4's auto-drop relocation, now shared by every hole_mode
+## : the nearest disk-local point at or around `desired` that
 ## validate_point() accepts, or NO_ORIGIN when the placing team owns no valid
-## point anywhere on the disk. SPEC.md's 2026-09-20 audit, 2.5 "Expiry and
+## point anywhere on the disk. SPEC.md's audit, 2.5 "Expiry and
 ## invalid actions", flags relocate-vs-lose-vs-retain as [OPEN] for the
 ## original and calls the closest-valid-point search only the remake's own
 ## [NEW] fallback -- kept unchanged here because nothing in the audit
 ## contradicts it, only notes that it is not evidenced.
 ##
-## Bontago-xtq.23 (owner playtest 2026-09-24, "if I'm close to my area it
-## relocates, otherwise it just yeets the block in a direction"): the ring
+## "if I'm close to my area it
+## relocates, otherwise it just yeets the block in a direction": the ring
 ## search below only ever looked out to auto_drop_search_max_radius (12 m by
 ## default) and returned NO_ORIGIN past it, which sent request_place() down
 ## the burn/throw path even though the player's own territory was sitting
@@ -265,7 +265,7 @@ static func validate_point(
 ## whole disk (home flag down and every stack lost) -- and the throw-off-the-
 ## map fallback is reachable only in that genuine case.
 ##
-## DECISION (core/rules/PlacementRules.gd, Bontago-xtq.23): rather than raise
+## DECISION (core/rules/PlacementRules.gd): rather than raise
 ## or repurpose auto_drop_search_max_radius, it keeps its old meaning -- the
 ## radius of the cheap, sub-cell-accurate ring search below -- and the disk
 ## scan is a second, unconditional fallback with no tunable of its own. A
@@ -303,7 +303,7 @@ static func closest_valid_point(
 
 ## The ring search's fallback: every in-disk cell, at most once, so a team
 ## whose only territory sits farther than auto_drop_search_max_radius from the
-## expired ghost still gets relocated instead of burned (Bontago-xtq.23).
+## expired ghost still gets relocated instead of burned.
 ##
 ## Cost: one validate_point() per in-disk cell (CellGrid.in_disk_cells(),
 ## cached after the first call). At MapDef's default cell_size = 1 m this is

@@ -2,22 +2,22 @@ class_name BotThink
 extends RefCounted
 ## Bot V2 (docs/BOT_AI_REDESIGN.md 2.3): one resumable think-cycle for one piece. The
 ## assembled pipeline, each stage resumable under the caller's microsecond budget:
-##   STACK    BotStack.analyse_step over the snapshot of the towers (Bontago-1t5.53b; sliced, one unit
-##            per body; skipped with no snapshot, which keeps the think exactly as before). Bontago-1t5.54:
+##   STACK BotStack.analyse_step over the snapshot of the towers (.53b; sliced, one unit
+##            per body; skipped with no snapshot, which keeps the think exactly as before). 
 ##            it runs FIRST, because PLAN and SITES read which blocks are sound (leaning piles).
-##   PLAN     BotChains + BotStrategy.choose -> BotIntent                (one chunk)
-##   SITES    BotCandidateGen.begin: the targeted TIP / STACK sites       (one chunk)
-##   FILL     the uniform FILL draws, fill_chunk_attempts per step        (sliced)
-##   PROBE    support ray + one ray per footprint cell, then BotStability: the placement's centre-of-mass
+##   PLAN BotChains + BotStrategy.choose -> BotIntent (one chunk)
+##   SITES BotCandidateGen.begin: the targeted TIP / STACK sites (one chunk)
+##   FILL the uniform FILL draws, fill_chunk_attempts per step (sliced)
+##   PROBE support ray + one ray per footprint cell, then BotStability: the placement's centre-of-mass
 ##            slack over the piece and every tower level below it (`stability_slack`)
-##   RANK     BotEvaluator.proxy on every site, rank_chunk_sites per step, best first
-##   MEASURE  BotEvaluator.measure on the top `eval_top_k` (skipped when 0) (per site)
-##   PICK     argmax, or a softmax sample from the best `pick_pool`; the origin is
+##   RANK BotEvaluator.proxy on every site, rank_chunk_sites per step, best first
+##   MEASURE BotEvaluator.measure on the top `eval_top_k` (skipped when 0) (per site)
+##   PICK argmax, or a softmax sample from the best `pick_pool`; the origin is
 ##            re-validated against the live raster (state can move during the think)
 ## The PLAN and SITES chunks are not sliceable (they are pure rule code, a few ms at 110
 ## sites); step() checks the budget between chunks. Pure: physics is reached only through
 ## the `probe` callable the caller supplies.
-## Deadline support (Bontago-1t5.37): every unit of work is timed per phase; finished thinks
+## Deadline support: every unit of work is timed per phase; finished thinks
 ## feed a process-wide per-unit cost average, from which remaining_work_us() estimates what is
 ## left (the caller spreads it over the ticks left before its deadline) and step() declines to
 ## start a unit predicted to overrun its slice. Timing never reaches a decision: how the work is
@@ -32,7 +32,7 @@ const NO_SUPPORT: float = -1.0
 ## Floor for the softmax temperature (a 0 would divide by zero).
 const MIN_TEMPERATURE: float = 0.001
 const INTENT_LOG_ARG: String = "--bot-intent-log"
-## Bontago-1t5.37: weight of the newest finished think in the unit-cost and share averages.
+## weight of the newest finished think in the unit-cost and share averages.
 ## DECISION: a const, not a tuning field: it only shapes the slice schedule, never a decision.
 const COST_AVERAGE_WEIGHT: float = 0.25
 ## Marks an average with no sample yet.
@@ -52,12 +52,12 @@ static func clear_strategy_memory(slot_id: int) -> void:
 	_strategy_memory.erase(slot_id)
 
 
-## Bontago-1t5.37: microseconds per work unit of each phase (index = Phase; units: PLAN, PICK
+## microseconds per work unit of each phase (index = Phase; units: PLAN, PICK
 ## one per think, SITES one per candidate_count, FILL one per draw, PROBE / RANK / MEASURE one
 ## per site), averaged over the phases finished by every V2 bot in the process: unit costs follow
 ## the machine and the board, not the seat. NO_SAMPLE until a think has finished that phase.
 static var _unit_cost_us: PackedFloat64Array = PackedFloat64Array()
-## Bontago-1t5.37: averaged FILL draws and generated sites per candidate_count, for the estimate
+## averaged FILL draws and generated sites per candidate_count, for the estimate
 ## made before SITES / FILL have produced the exact counts.
 static var _fill_draw_share: float = NO_SAMPLE
 static var _site_share: float = NO_SAMPLE
@@ -80,7 +80,7 @@ var tuning: BotTuning = SHIPPED_TUNING
 var strategy_tuning: BotStrategyTuning = null
 var gen_tuning: BotGenTuning = null
 ## Optional cheaper probe for the per-bottom-cube rays (they read `hit`, `height` and the optional
-## `body` collider id, never `own`); falls back to the step's `probe` when not valid. (Bontago-1t5.30)
+## `body` collider id, never `own`); falls back to the step's `probe` when not valid.
 var cell_probe: Callable = Callable()
 
 var _view: BotWorldView
@@ -94,7 +94,7 @@ var _site_job: BotCandidateGen.SiteJob = null
 ## Next candidate the sliced proxy RANK scores.
 var _rank_pos: int = 0
 var _probe_index: int = 0
-## Bontago-1t5.53b: bodies the sliced STACK phase has analysed so far.
+##.53b: bodies the sliced STACK phase has analysed so far.
 var _stack_pos: int = 0
 ## Candidate indices ranked best first (proxy, then measured on the head).
 var _ranked: PackedInt32Array = PackedInt32Array()
@@ -105,10 +105,10 @@ var _best: BotCandidate = null
 ## Ranked positions in pick order (the chosen one first), for revalidate().
 var _pick_order: Array[int] = []
 var _decision: Decision = Decision.new()
-## Bontago-1t5.37: this think's microseconds and work units per phase (index = Phase).
+## this think's microseconds and work units per phase (index = Phase).
 var _phase_us: PackedInt64Array = PackedInt64Array()
 var _phase_units: PackedInt64Array = PackedInt64Array()
-## Bontago-1t5.62: opt-in cost report. Off by default: no extra clock reads, no record. When the caller
+## opt-in cost report. Off by default: no extra clock reads, no record. When the caller
 ## sets it, step() / complete() add their wall time to `_stats_total_us` and the probe callables
 ## are timed where they are called (core stays scene-tree free; only the Callable is measured).
 var collect_stats: bool = false
@@ -118,7 +118,7 @@ var _stats_probe_calls: int = 0
 ## FILL draws made and sites they added in this think.
 var _fill_draws: int = 0
 var _fill_added: int = 0
-## Bontago-1t5.67: the zero-targeted FILL fallback ran this think (stats only), and the sites it added.
+## the zero-targeted FILL fallback ran this think (stats only), and the sites it added.
 var _fill_fallback: bool = false
 ## Orientation index -> BotStatics.OrientationInfo of the held piece (built on first use).
 var _orientation_infos: Dictionary = {}
@@ -139,7 +139,7 @@ func _init(view: BotWorldView, profile: BotDifficultyProfile, rng: RandomNumberG
 ## Advances the think by at most about `budget_usec` microseconds (always at least one unit
 ## of work, so a zero budget still progresses). `probe(xz: Vector2)` returns
 ## {hit: bool, height: float, own: bool}. True once the decision is ready.
-## Bontago-1t5.37: after the first unit, a unit whose averaged cost would carry the slice past
+## after the first unit, a unit whose averaged cost would carry the slice past
 ## `budget_usec` is left for the next step.
 func step(budget_usec: int, probe: Callable) -> bool:
 	var start_usec: int = Time.get_ticks_usec()
@@ -161,7 +161,7 @@ func _step_slice(budget_usec: int, probe: Callable, start_usec: int) -> bool:
 	return true
 
 
-## Bontago-1t5.37: runs every remaining stage now (the caller's deadline tick). The decision is
+## runs every remaining stage now (the caller's deadline tick). The decision is
 ## the one any slicing of step() reaches; unlike finish_early() nothing is skipped.
 func complete(probe: Callable) -> void:
 	var complete_start_usec: int = Time.get_ticks_usec() if collect_stats else 0
@@ -182,7 +182,7 @@ func _complete_all(probe: Callable) -> void:
 			guard = 0
 
 
-## Bontago-1t5.37: true once thinks in this process have finished every costly phase this one
+## true once thinks in this process have finished every costly phase this one
 ## will run (PROBE, RANK and, with eval_top_k, MEASURE), so remaining_work_us() covers the whole
 ## think (before that it only knows the phases measured so far and is a lower bound).
 func has_cost_estimate() -> bool:
@@ -193,7 +193,7 @@ func has_cost_estimate() -> bool:
 	return _profile.eval_top_k <= 0 or _unit_cost_us[Phase.MEASURE] >= 0.0
 
 
-## Bontago-1t5.37: estimated microseconds of work left, from the exact counts known so far (FILL
+## estimated microseconds of work left, from the exact counts known so far (FILL
 ## draws left, sites left to probe / rank / measure) times the averaged unit costs; counts not
 ## known yet (before SITES / FILL) come from the averaged shares. 0 when done; a phase with no
 ## cost sample yet (the process's first thinks) counts as free.
@@ -256,7 +256,7 @@ func _finish_early_now() -> void:
 	_pick()
 
 
-## Bontago-1t5.62: this think's cost record (null unless `collect_stats`): per-phase microseconds and
+## this think's cost record (null unless `collect_stats`): per-phase microseconds and
 ## work units (index = Phase), the step() / complete() wall total, and the time spent inside the
 ## caller's probe callables (the game-side physics queries, a part of PROBE).
 func stats_record() -> Dictionary:
@@ -440,7 +440,7 @@ func _gen() -> BotGenTuning:
 	return gen_tuning if gen_tuning != null else BotCandidateGen.SHIPPED_TUNING
 
 
-## Builds the targeted sites; the uniform FILL then runs in FILL slices (Bontago-1t5.30).
+## Builds the targeted sites; the uniform FILL then runs in FILL slices.
 func _make_sites() -> void:
 	_site_job = BotCandidateGen.begin(_view, _intent, _profile, _rng, gen_tuning)
 	_candidates = _site_job.out
@@ -467,7 +467,7 @@ func _fill_sites(max_attempts: int) -> int:
 	return draws
 
 
-## True while the view carries a snapshot (Bontago-1t5.53b) whose analysis is not finished.
+## True while the view carries a snapshot (.53b) whose analysis is not finished.
 func _stack_pending() -> bool:
 	return _view.stack != null and _view.stack.body_count() > 0 and not _view.stack.is_analysed()
 
@@ -498,7 +498,7 @@ func _probe_one(probe: Callable) -> void:
 		_phase = Phase.RANK
 
 
-## Bontago-1t5.72.4: BotStability.evaluate of a probed site fills `stability_slack` / `stability_binding`;
+## BotStability.evaluate of a probed site fills `stability_slack` / `stability_binding`;
 ## the evaluator's TIP term reads the slack (BotEvaluator.stability_risk).
 ## DECISION: the model's resting plane goes to `stability_plane_y` only; support_height / top_height stay as probed.
 func _judge_stability(candidate: BotCandidate) -> void:
@@ -527,14 +527,14 @@ func _orientation_info(orientation_index: int) -> BotStatics.OrientationInfo:
 	return info
 
 
-## Bontago-1t5.55.2: one ray under each real bottom cube (BotStatics.contact_probe_points, outermost
+## one ray under each real bottom cube (BotStatics.contact_probe_points, outermost
 ## cubes first), capped at the tier's stability_raycast_count. `cell_support` / `support_bodies` are
 ## parallel to `probe_points` (NO_SUPPORT / -1 for a hole or a miss). The resting plane
 ## (`support_height`) becomes the highest probed hit, which is where the host lift puts the piece; a
 ## cube is in contact when it is within stability_contact_tolerance_m of that plane. With no hit
-## at all the pivot ray's height stays. DECISION (Bontago-1t5.19): holes are read off the raster's
+## at all the pivot ray's height stays. DECISION: holes are read off the raster's
 ## hole state.
-## DECISION (Bontago-1t5.55.2): a cube beyond the cap is not probed and counts as supported.
+## DECISION: a cube beyond the cap is not probed and counts as supported.
 func _fire_cell_probes(candidate: BotCandidate, probe: Callable) -> void:
 	var info: BotStatics.OrientationInfo = _orientation_info(candidate.orientation_index)
 	var points: PackedVector2Array = PackedVector2Array()
@@ -618,7 +618,7 @@ func _finish_rank(limit: int) -> void:
 	_phase = Phase.MEASURE if _profile.eval_top_k > 0 and not _ranked.is_empty() else Phase.PICK
 
 
-## Intent score plus the gift-claim bonus (Bontago-1t5.25). DECISION: the bonus is added
+## Intent score plus the gift-claim bonus. DECISION: the bonus is added
 ## outside the intent weight vectors (it is not a BotIntent.Term) so the weights stay 6-wide.
 func _site_score(candidate: BotCandidate, terms: PackedFloat32Array) -> float:
 	return BotEvaluator.score(terms, _intent) + _gift_bonus(candidate)

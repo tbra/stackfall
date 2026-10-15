@@ -1,6 +1,6 @@
 class_name TutorialConfig
 extends Resource
-## docs/archive/M6_PLAN.md package B3 (spec 2.7 "Tutorial"): the five-step script
+## docs/archive/M6_PLAN.md package B3 (spec 1.2 "Tutorial"): the five-step script
 ## ui/menus/Tutorial.gd drives, kept as data (CLAUDE.md: no magic numbers/strings
 ## baked into the state machine) so the wording and step order are a resource
 ## edit, not a code change.

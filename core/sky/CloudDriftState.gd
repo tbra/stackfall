@@ -1,6 +1,6 @@
 class_name CloudDriftState
 extends RefCounted
-## Bontago-mp0.92: the one running cloud wind (no scene tree). Skybox steps it every frame;
+## the one running cloud wind (no scene tree). Skybox steps it every frame;
 ## the puff shader, the sun-occlusion bounds and CloudShadows all read it, so they cannot
 ## disagree. `offset` integrates the eased wind (m per m/s of clump speed): a clump moves by
 ## offset * its own speed, so nothing jumps when the wind turns or the storm arrives.

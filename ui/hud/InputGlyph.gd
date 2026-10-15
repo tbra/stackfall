@@ -1,11 +1,11 @@
 class_name InputGlyph
 extends Control
-## Icon glyph for a single InputEvent (Bontago-1pi.10 polish pass). ui/menus/KeyRebindRow.gd builds one
+## Icon glyph for a single InputEvent (polish pass). ui/menus/KeyRebindRow.gd builds one
 ## of these per bound event of the active device family (autoload/Settings.gd's
 ## own active_input_device()); set_event() is the single seam every consumer uses.
 ##
 ## Every glyph is code-drawn in the Stackfall Arcade design system (docs/ui_reskin/components.md
-## KeyPrompt; Bontago-1pi.159.17), so it shares the block recipe (lit top, lip, ledge) and the tokens
+## KeyPrompt), so it shares the block recipe (lit top, lip, ledge) and the tokens
 ## of ArcadeVisualTuning and recolours with them: keys are cream caps with an ink legend, shoulders,
 ## triggers sand chips, pad face buttons round caps (A mint, B flare, X player-2, Y rim;
 ## the PlayStation set draws cross/circle/square/triangle on the same caps), the stick is a sand
@@ -16,7 +16,7 @@ extends Control
 ## Pad family for legends and face symbols (AUTO follows the connected pad, Xbox when none).
 @export var pad_style: PadStyle = PadStyle.AUTO
 
-## Owner: "Glyph height consistent (~32 px at 1080p)".
+## Requirement: "Glyph height consistent (~32 px at 1080p)".
 const GLYPH_HEIGHT_PX: float = 32.0
 const SHAPE_WIDTH_PX: float = 32.0
 const MOUSE_WIDTH_PX: float = 22.0
@@ -270,7 +270,7 @@ static func signature_for_action(action: StringName) -> String:
 	return "|".join(parts)
 
 
-## Renders a plain "+N" overflow badge instead of a real event -- Owner: "max
+## Renders a plain "+N" overflow badge instead of a real event -- Requirement: "max
 ## two glyphs per row, extra bindings hidden behind '+1'".
 func set_overflow_count(count: int) -> void:
 	_kind = Kind.GENERIC
@@ -437,7 +437,7 @@ func _draw_arcade_cap() -> void:
 		return
 	draw_style_box(BlockStyleBox.make(face, _arcade, true, BlockStyleBox.STATE_NORMAL, Color.TRANSPARENT), Rect2(Vector2.ZERO, size))
 	var face_rect: Rect2 = _cap_face_rect(Rect2(Vector2.ZERO, size))
-	# Bontago-1pi.149: the legend is uppercase per the mock; label_text() keeps the as_text() form.
+	# the legend is uppercase per the mock; label_text() keeps the as_text() form.
 	_draw_text_at(_text.to_upper(), MenuStyleFactory.ink_for_face(face), ARCADE_LEGEND_FONT_SIZE, face_rect.get_center())
 
 
@@ -632,7 +632,7 @@ func _draw_dpad() -> void:
 	if direction == Vector2.ZERO:
 		return
 	draw_style_box(_rim_cell_box(), lit)
-	# Bontago-1pi.159.49: lit arms mirror (tip to centre) and the chevron sits on the lit centre.
+	# lit arms mirror (tip to centre) and the chevron sits on the lit centre.
 	_draw_chevron(lit.get_center(), direction, DPAD_CHEVRON_PX, _arcade.ink_color)
 
 
@@ -650,7 +650,7 @@ func _dpad_direction() -> Vector2:
 
 
 ## The lit arm of the D-pad pictogram (tip to centre), in local coordinates; the four directions
-## mirror each other exactly (Bontago-1pi.159.49). Rect2() when this glyph is not a D-pad.
+## mirror each other exactly. Rect2() when this glyph is not a D-pad.
 func dpad_lit_rect() -> Rect2:
 	var drop: float = float(_arcade.drop_sm_px)
 	var side: float = minf(size.x, size.y - drop)

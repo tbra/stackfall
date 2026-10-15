@@ -1,15 +1,15 @@
 class_name BotStrategy
 extends RefCounted
-## Bot V2 strategy layer (docs/BOT_AI_REDESIGN.md 2.3 step 3, Bontago-1t5.23): picks the
+## Bot V2 strategy layer (docs/BOT_AI_REDESIGN.md 2.3 step 3): picks the
 ## BotIntent for one piece from a BotWorldView and its BotChains. First match wins:
-##   HOLD    every goal / beacon is already own: raise the covering stack, strike a
+##   HOLD every goal / beacon is already own: raise the covering stack, strike a
 ##           threatening enemy circle (focus_circle)
-##   DEFEND  an own key (home in Elimination, goal-covering stack, circle carrying
+##   DEFEND an own key (home in Elimination, goal-covering stack, circle carrying
 ##           >= defend_downstream_min) is inside an enemy circle's reach + allowance
-##   STRIKE  an enemy circle carrying >= strike_downstream_min (or covering a goal)
+##   STRIKE an enemy circle carrying >= strike_downstream_min (or covering a goal)
 ##           whose base one placement can cover
-##   FINISH  the gap to the target <= finish_gap_m: build the tower at the zone edge
-##   ANCHOR  the tip stack is low and an enemy circle contests it, or every Nth piece
+##   FINISH the gap to the target <= finish_gap_m: build the tower at the zone edge
+##   ANCHOR the tip stack is low and an enemy circle contests it, or every Nth piece
 ##   default RACE; mode adapters replace it: Elimination SIEGE on a per-seat target home,
 ##           Domination AREA, Reach the Sky ANCHOR on the own tallest stack, CTF RACE
 ##           to the unheld beacons. Classic with several goals targets the goal the mode
@@ -158,10 +158,10 @@ static func _mode_plan(
 	return plan
 
 
-## Reach the Sky (Bontago-1t5.54, docs/BOT_TOWER_PLAN.md B.5): the mode context's target is the tallest
+## Reach the Sky (docs/BOT_TOWER_PLAN.md B.5): the mode context's target is the tallest
 ## settled block, which after a topple is a leaning pile. With an analysed snapshot of the own blocks the
 ## target becomes the tallest SOUND top near the remembered base, or a new base (on the disc or a sound, flat
-## block face; Bontago-1t5.68: debris beside it no longer matters, see _base_usable) when the tower fell (no
+## block face; debris beside it no longer matters, see _base_usable) when the tower fell (no
 ## sound top near the base, or the top left stands `collapse_drop_m` under the peak).
 ## Memory (per seat, kept by BotThink): sky_base (xz), sky_peak (m), sky_pending (a new base with no sound
 ## top yet), sky_target / sky_new_base (the last plan, reused while own blocks are still moving). Without
@@ -190,7 +190,7 @@ static func _plan_sound_tower(
 	if not has_base:
 		follow = tops[0] if not tops.is_empty() else NONE
 	else:
-		# Bontago-1t5.70: a top belongs to the tower when it, or anything it rests on, is rooted near the base.
+		# a top belongs to the tower when it, or anything it rests on, is rooted near the base.
 		for top: int in tops:
 			if stack.rooted_near(top, base, t.base_match_radius_m):
 				follow = top
@@ -208,7 +208,7 @@ static func _plan_sound_tower(
 	if has_base and pending and _base_usable(view, stack, base):
 		_apply_sky_plan(plan, base, true, memory)
 		return
-	# Bontago-1t5.70: a tower that looks lost (no standing top near the base, or a collapse-sized loss) is kept for
+	# a tower that looks lost (no standing top near the base, or a collapse-sized loss) is kept for
 	# `collapse_grace_thinks` plans before a new base starts, so a few degrees of sway, a block that has not yet
 	# settled for the snapshot or a piece knocked off for a moment do not abandon a standing tower.
 	if has_base:
@@ -227,7 +227,7 @@ static func _plan_sound_tower(
 	_apply_sky_plan(plan, fresh, true, memory)
 
 
-## Bontago-1t5.70: a real collapse: the top that is left stands `collapse_drop_m` under the peak AND under
+## a real collapse: the top that is left stands `collapse_drop_m` under the peak AND under
 ## `collapse_keep_fraction` of it (the tower is mostly on the disc). Losing the top few pieces of a tall tower is
 ## not a collapse. DECISION: the peak is not lowered by such a loss, so a second loss is judged against the
 ## original height.
@@ -247,7 +247,7 @@ static func _apply_sky_plan(plan: Dictionary, target: Vector2, new_base: bool, m
 		memory["sky_new_base"] = new_base
 
 
-## A base point the bot may build on: own valid territory, inside the rim margin, and (Bontago-1t5.68, replacing
+## A base point the bot may build on: own valid territory, inside the rim margin, and (replacing
 ## the 1t5.54 debris clearance) a held piece over the point rests on the disc or on a sound block face flat
 ## against it, with the centre of mass inside every support down to the disc (BotStack.rest_margin). Debris
 ## beside the point does not matter. DECISION: the base itself needs the disc or a SOUND face (a fallen block
@@ -360,7 +360,7 @@ static func _closest_unheld(points: PackedVector2Array, held: Array[bool], chain
 ## elim_tie_epsilon_m tie to the smallest clockwise angle step around the field centre.
 ## DECISION: "clockwise" is increasing polar angle in disk-local x/z; the exact sense does
 ## not matter, only that every seat of a ring uses the same one, so eight bots on equidistant
-## seats pick eight distinct homes. Hard only (`spread`, the tier with STRIKE, spec 2.6);
+## seats pick eight distinct homes. Hard only (`spread`, the tier with STRIKE, spec 1.6);
 ## lower tiers take the plainly nearest home (first index on a tie). NONE when no enemy home lives.
 static func _elimination_target(view: BotWorldView, t: BotStrategyTuning, spread: bool) -> int:
 	var origin: Vector2 = view.own_home if view.has_home else Vector2.ZERO

@@ -1,6 +1,6 @@
 class_name VolcanoParticleTuning
 extends Resource
-## Presentation tunables for the Volcano's eruption particles (Bontago-1pi.85.30,
+## Presentation tunables for the Volcano's eruption particles (
 ## docs/GIFT_PLAYTEST2_PLAN.md PF). Loaded from config/gifts/specials/fx/volcano_particle_tuning.tres
 ## through VolcanoEffect.particles. Visual-only (client and host build the same cosmetic node), so
 ## it is not part of the F4 tuning panel and needs no config/ui/tuning_panel_hints.tres entries.

@@ -1,6 +1,6 @@
 class_name UiScale
 extends RefCounted
-## Bontago-1pi.23 / 1pi.26: the ONE UI scaling rule.
+## / 1pi.26: the ONE UI scaling rule.
 ##
 ## The project stretch (display/window/stretch/mode = canvas_items, aspect =
 ## expand, base size = display/window/size/viewport_width x _height, written
@@ -19,7 +19,7 @@ static func base_size() -> Vector2:
 		float(ProjectSettings.get_setting("display/window/size/viewport_height", 720)))
 
 
-## Bontago-1pi.150: the player's UI scale (autoload/Settings.gd, applied by Settings to the root
+## the player's UI scale (autoload/Settings.gd, applied by Settings to the root
 ## window) multiplies this stretch. Its effective factor (base scale x the stored
 ## relative value) is what the engine adds on top of the stretch; AgentProbe viewports and layout
 ## tests use it too, so they lay out exactly like the real window.

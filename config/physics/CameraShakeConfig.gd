@@ -1,6 +1,6 @@
 class_name CameraShakeConfig
 extends Resource
-## Camera shake tunables (spec 2.10 effects + camera shake), driven by
+## Camera shake tunables (spec 1.10 effects + camera shake), driven by
 ## Events.block_impacted. Keeps game/player/CameraRig.gd free of magic numbers per
 ## CLAUDE.md.
 

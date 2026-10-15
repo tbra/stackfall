@@ -1,6 +1,6 @@
 class_name PlayerNames
 extends RefCounted
-## Pure rules for the name a human player goes by (Bontago-1pi.49): cleaning a
+## Pure rules for the name a human player goes by: cleaning a
 ## typed or received name, the "Player N" fallback, and which label a slot shows.
 ## No scene tree and no transport (CLAUDE.md: rule logic lives in core/); the
 ## maximum length is NetConfig.max_player_name_length, passed in by the caller.
@@ -17,13 +17,13 @@ extends RefCounted
 const FALLBACK_FORMAT: String = "Player %d"
 ## "Bot %d" with the 1-based ordinal: a bot seat whose list name ran out.
 const BOT_FALLBACK_FORMAT: String = "Bot %d"
-## "Team %d" with the 1-based team number (Bontago-1pi.86 single owner).
+## "Team %d" with the 1-based team number (single owner).
 const TEAM_FORMAT: String = "Team %d"
 ## Winner banner for a team: the team label plus this suffix.
 const WINS_SUFFIX: String = " wins!"
 ## Longest bot name the wire accepts (the owner's longest list entry is 13).
 const BOT_NAME_MAX_LENGTH: int = 24
-## A joiner with no seat (slot -1, Bontago-8or.11) who sent no name.
+## A joiner with no seat (slot -1) who sent no name.
 const SPECTATOR_FALLBACK: String = "Spectator"
 
 ## How many raw characters clean() looks at per allowed name character. A name is

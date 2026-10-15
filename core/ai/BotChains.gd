@@ -1,6 +1,6 @@
 class_name BotChains
 extends RefCounted
-## Bot V2 (docs/BOT_AI_REDESIGN.md 2.3 step 2, Bontago-1t5.22): the per-team overlap
+## Bot V2 (docs/BOT_AI_REDESIGN.md 2.3 step 2): the per-team overlap
 ## graph of influence circles, rooted at the team's living home flag(s). Answers
 ## "how much does a cut here remove" (downstream, articulation) and "how far is
 ## this team's home-connected land from a point" (gap_to). Pure: reads a

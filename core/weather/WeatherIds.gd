@@ -1,6 +1,6 @@
 class_name WeatherIds
 extends RefCounted
-## The one owner of the weather event ids the code branches on (Bontago-fca.36.6).
+## The one owner of the weather event ids the code branches on.
 ## They match the `id` of each config/weather/*.tres definition.
 # DECISION: a const holder in core/weather, not WeatherCeilingTuning.storm_id: the
 # ids are identity, not tunables, and net/ + autoload/ code must read them without

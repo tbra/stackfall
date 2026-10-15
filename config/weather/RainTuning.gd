@@ -1,6 +1,6 @@
 class_name RainTuning
 extends WeatherTuning
-## Rain's tunables (Bontago-22y.5): the wet-friction physics numbers the host
+## Rain's tunables: the wet-friction physics numbers the host
 ## effect (autoload/match/weather/RainEffect.gd) reads and the streak look the
 ## client presentation (game/weather/RainPresentation.gd) reads. One instance:
 ## config/weather/rain.tres. Every strength is scaled by the ramped intensity.
@@ -20,7 +20,7 @@ extends WeatherTuning
 ## within this delay; no per-block signal or contact monitor is used).
 @export_range(0.05, 5.0, 0.05) var rescan_interval_s: float = 0.25
 
-## DECISION (Bontago-mp0.21): Jolt cannot do negative friction, so while it
+## DECISION: Jolt cannot do negative friction, so while it
 ## rains every awake block already sliding also gets a force along its own
 ## horizontal velocity (never radial, so RING/TWIN maps are not biased).
 ## Acceleration in m/s^2 at full intensity; 0 turns it off.
@@ -102,5 +102,5 @@ extends WeatherTuning
 ## Wet disc: extra sheen strength and a roughness factor at full intensity.
 @export_range(0.0, 2.0, 0.01) var wet_sheen_add: float = 0.12
 @export_range(0.0, 1.0, 0.01) var wet_roughness_scale: float = 0.6
-## Bontago-mp0.140: share of the disc albedo removed at full rain (0 = no darkening).
+## share of the disc albedo removed at full rain (0 = no darkening).
 @export_range(0.0, 0.8, 0.01) var wet_darken: float = 0.22

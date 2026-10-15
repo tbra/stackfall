@@ -1,6 +1,6 @@
 class_name SandboxPanel
 extends CanvasLayer
-## Bontago-mv0.8's sandbox debug panel: active slot + colour, block held/next,
+## 's sandbox debug panel: active slot + colour, block held/next,
 ## timer state, the ghost's placement-validity reason under the cursor and
 ## territory share per slot. Block count and physics step time live in the F1
 ## PerfOverlay (ui/debug/PerfOverlay.gd), not here.
@@ -51,7 +51,7 @@ var _ghost: GhostPreview = null
 @onready var _validity_label: Label = %ValidityLabel
 @onready var _shares_label: Label = %SharesLabel
 @onready var _rules_label: Label = %RulesLabel
-## Bontago-1en.24: game/sandbox/Sandbox.gd's F9 sandbox_force_special hotkey.
+## game/sandbox/Sandbox.gd's F9 sandbox_force_special hotkey.
 @onready var _forced_special_label: Label = %ForcedSpecialLabel
 ## M6 B2: game/sandbox/Sandbox.gd's F10/F11 hotkeys and the height record.
 @onready var _slow_motion_label: Label = %SlowMotionLabel
@@ -125,7 +125,7 @@ func _refresh_active_slot(slot_id: int) -> void:
 		_active_slot_label.modulate = slot.color
 	else:
 		_active_slot_label.text = "Active: -"
-		# DECISION (Bontago-hfa.9): no-slot label uses the arcade cream token, not raw white.
+		# DECISION: no-slot label uses the arcade cream token, not raw white.
 		_active_slot_label.modulate = MenuStyleFactory.arcade_tuning().cream_color
 
 
@@ -138,7 +138,7 @@ func _refresh_held_block(slot_id: int) -> void:
 	]
 
 
-## Bontago-mv0.10 (spec 2.4/2.5 "[ORIGINAL target]" fixed-interval cadence):
+## spec 1.4 "[ORIGINAL target]" fixed-interval cadence:
 ## "locked"/"unlocked" alongside the timer, the same distinction
 ## game/player/GhostPreview.gd's grey tint draws for the held ghost -- Match.
 ## is_release_locked() is the one source of truth both read.
@@ -151,7 +151,7 @@ func _refresh_timer(slot_id: int) -> void:
 	]
 
 
-## Bontago-1en.24: game/player/GhostPreview.gd's own current_state() already
+## game/player/GhostPreview.gd's own current_state() already
 ## distinguishes STATE_THROW (M4 P2e's throw-aim tint, set by show_throw_hint()
 ## while a held special is being dragged for a throw) from the ordinary
 ## valid/hole/invalid tints this label used to show exclusively via a fresh
@@ -206,7 +206,7 @@ func _refresh_rules_mode() -> void:
 	_rules_label.text = "Rules: holes %s" % hole_mode_name
 
 
-## Bontago-1en.24: game/sandbox/Sandbox.gd's F9 sandbox_force_special hotkey (and
+## game/sandbox/Sandbox.gd's F9 sandbox_force_special hotkey (and
 ## `--force-special=`). _sandbox is the same Variant test seam active_slot()
 ## already reads through (see this file's own DECISION on why it isn't a
 ## typed Sandbox); forced_special()/forced_special_queue_full() are the two

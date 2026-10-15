@@ -1,6 +1,6 @@
 class_name GiftThrow
 extends RefCounted
-## Bontago-1pi.85.16 / 85.29 (docs/GIFT_PLAYTEST2_PLAN.md): pure host-side rules for how a held
+## / 85.29 (docs/GIFT_PLAYTEST2_PLAN.md): pure host-side rules for how a held
 ## gift leaves the hand. No scene tree. Every active mode is camera-aimed: the intent carries the
 ## activating player's camera forward in the existing throw RPC's `velocity` slot; the host
 ## validates it (finite, length band), normalises it and derives everything else (GiftAim).

@@ -1,6 +1,6 @@
 class_name DiscSurfaceDef
 extends Resource
-## One swappable surface for the disc top (Bontago-adt.2): an image texture set
+## One swappable surface for the disc top: an image texture set
 ## (mode TEXTURE) or the procedural cel plating (mode PROCEDURAL). Referenced from
 ## TerritoryVisuals.disc_surface (config/territory/territory_visuals.tres); switch sets by
 ## pointing that field at another config/territory/disc_surfaces/*.tres in the editor.
@@ -43,7 +43,7 @@ extends Resource
 @export var detail_fade_px: float = 96.0
 
 
-## -- Bontago-adt.2: procedural cel-styled plating ---------------------------
+## -- procedural cel-styled plating ---------------------------
 ## TEXTURE draws the image maps above; PROCEDURAL draws the analytic plating
 ## below in shaders/territory/territory.gdshader (no textures, no tiling, so it never
 ## repeats, and every detail fades out with the camera height above the disc).
@@ -149,7 +149,7 @@ enum Mode { TEXTURE, PROCEDURAL }
 @export var proc_roughness_variation: float = 0.08
 
 @export_group("Procedural height fade")
-## Detail fades with the camera's height above the disc top alone (owner
+## Detail fades with the camera's height above the disc top alone (feel
 ## follow-up), so the whole disc fades in and out together as the camera
 ## rises or zooms: rivets first, then seams, hatches, tone variation and sheen
 ## facets. Below *_start_m the detail is fully drawn, above *_end_m it is gone.

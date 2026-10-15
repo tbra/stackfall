@@ -1,7 +1,7 @@
 class_name SettleTracker
 extends RefCounted
-## Pure decision logic for the awake-but-still settle freeze (owner decision
-## Bontago-e7o B, spec 3.5): a block that is AWAKE (Jolt keeps it awake, e.g. a
+## Pure decision logic for the awake-but-still settle freeze (
+## B, spec 2.7): a block that is AWAKE (Jolt keeps it awake, e.g. a
 ## micro-jittering pile) but has stayed within `move_epsilon_m` (and
 ## `rotation_epsilon`, the same unit-basis-axis distance
 ## StableBlockManager already uses) of the pose its still window started in,

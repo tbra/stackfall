@@ -1,6 +1,6 @@
 class_name BuildVersion
 extends RefCounted
-## Bontago-1pi.74: the one source of the build label shown in the main menu.
+## the one source of the build label shown in the main menu.
 ## "<application/config/version>+<short git revision>", or just the version
 ## when no revision is known, or FALLBACK when even the version is empty.
 ##
@@ -43,7 +43,7 @@ static func compose(version: String, revision: String) -> String:
 	return v + REVISION_SEPARATOR + r
 
 
-## Bontago-1pi.136: editor-binary runs (dev, `godot --path .`) prefer the live
+## editor-binary runs (dev, `godot --path .`) prefer the live
 ## git revision, so a build_info.cfg left behind by an earlier export cannot
 ## show a stale label; exported builds have no git and use the baked file.
 static func read_revision() -> String:

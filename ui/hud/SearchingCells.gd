@@ -1,12 +1,12 @@
 class_name SearchingCells
 extends Control
 ## Three pulsing mint cells under a "Searching for games..." line (components.md ServerRow:
-## "Empty list: one dust line ... with three pulsing cells"; Bontago-1pi.149). Purely
+## "Empty list: one dust line ... with three pulsing cells"). Purely
 ## decorative: it draws, takes no input and only animates while it is visible in the tree.
 ## Cell size and gap reuse the LoadingCard's (config/ui/loading_screen_tuning.tres).
 
 const LOADING_TUNING: LoadingScreenTuning = preload("res://config/ui/loading_screen_tuning.tres")
-## DECISION (Bontago-1pi.149): the pulse values are presentation constants of this one
+## DECISION: the pulse values are presentation constants of this one
 ## decorative widget, not gameplay tunables: three cells, one full pulse per PULSE_PERIOD_SEC,
 ## each cell a third of a period behind the last, alpha swinging between MIN_ALPHA and 1.
 const CELL_COUNT: int = 3

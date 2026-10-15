@@ -1,7 +1,7 @@
 class_name BlockShape
 extends Resource
 ## One placeable block shape: a set of unit-cube offsets plus feed weight
-## (spec 3.6, 2.4). The block factory (game/blocks/BlockFactory.gd) turns this data
+## (spec 2.8, 1.4). The block factory (game/blocks/BlockFactory.gd) turns this data
 ## into a RigidBody3D with one BoxShape3D per cell.
 
 ## Unique identifier, e.g. &"cube", &"bar3".
@@ -16,11 +16,11 @@ extends Resource
 
 ## Whether this shape is dealt in matches (bag, gifts, Sandbox picker). Off keeps the
 ## resource on disk and resolvable by id but never fed to anyone.
-## [OWNER decision 2026-10-12, Bontago-1pi.180]: bar4 and bar5 are off.
+## [OWNER decision]: bar4 and bar5 are off.
 @export var in_match_bag: bool = true
 
 ## Cells (must also appear in `cells`) whose collision and mesh should be a
-## 45-degree wedge instead of a full cube (spec 2.4's now-removed wedge shape
+## 45-degree wedge instead of a full cube (spec 1.4's now-removed wedge shape
 ## used this; game/blocks/BlockFactory.gd's DECISION comment on the sloped branch
 ## explains why the machinery stays). Empty for every shipped shape today.
 @export var sloped_cells: Array[Vector3i] = []
@@ -32,14 +32,14 @@ extends Resource
 ## Directory scanned by load_all_shapes() for every BlockShape .tres resource.
 const SHAPES_DIR: String = "res://config/blocks/"
 
-## Bontago-mv0.12 (owner-reported playability): `cells`' bounding-box centre,
+## Reported playability: `cells`' bounding-box centre,
 ## in cell units, computed once and cached. Every shape whose cells don't
 ## straddle the origin symmetrically (bar3's cells run 0..2, so its centre is
 ## (1, 0, 0); domino's run 0..1, so its centre is (0.5, 0, 0)) used to hang off
 ## the cursor and rotate about the wrong point, because game/blocks/BlockFactory.gd
 ## and autoload/Match.gd both treated cell (0, 0, 0) as the pivot.
 ##
-## Bontago-mv0.17 item 3 (owner feel report: "the ghost/body pivot is the
+## item 3 (feel report: "the ghost/body pivot is the
 ## block's middle, so half the block sinks below the cursor point and clips
 ## into the disk"): the geometric centre from mv0.12 fixed the *rotation*
 ## drift but was still a mid-height pivot for placement purposes. This is now
@@ -76,7 +76,7 @@ func bottom_center() -> Vector3:
 	return _cached_bottom_center
 
 
-## Bontago-1t5.51: height (<= 0 for a tilted shape) of this shape's lowest collision corner relative to its
+## height (<= 0 for a tilted shape) of this shape's lowest collision corner relative to its
 ## bottom_center() pivot once rotated by `basis`. The pivot must be raised by -this value for the
 ## rotated shape to rest ON a surface instead of sinking into it. Shared by GhostPreview (human
 ## placement) and BotController (bot placement) so both send the same pose.
@@ -99,7 +99,7 @@ func rotated_bottom_offset(basis: Basis, cube_size: float, cube_margin: float) -
 	return 0.0 if min_y == INF else min_y
 
 
-## Bontago-1t5.55.1: each cube's centre relative to the bottom_center() pivot once rotated by `basis`
+## each cube's centre relative to the bottom_center() pivot once rotated by `basis`
 ## (cells order; BlockFactory.build's CollisionShape3D positions, the spawned body's frame).
 func cube_offsets(basis: Basis, cube_size: float) -> PackedVector3Array:
 	var out: PackedVector3Array = PackedVector3Array()
@@ -109,7 +109,7 @@ func cube_offsets(basis: Basis, cube_size: float) -> PackedVector3Array:
 	return out
 
 
-## Bontago-1t5.55.1: the rotated bounding-box centre of the cube centres, relative to the pivot
+## the rotated bounding-box centre of the cube centres, relative to the pivot
 ## (GhostPreview.rotated_center_offset parity; xz is 0 for a yaw-only basis).
 func rotated_center_offset(basis: Basis, cube_size: float) -> Vector3:
 	if cells.is_empty():
@@ -159,7 +159,7 @@ static func load_bag_shapes() -> Array[BlockShape]:
 ## (game/player/PlayerController.gd), the rain benchmark (tests/bench/bench_rain.gd),
 ## and M2's weighted bag. BlockFeedConfig falls back to this when its `shapes`
 ## list is empty, and core/blocks/BlockBag.gd needs the order to be stable so the
-## same rng_seed always deals the same sequence (spec 2.4).
+## same rng_seed always deals the same sequence (spec 1.4).
 static func load_all_shapes() -> Array[BlockShape]:
 	var shapes: Array[BlockShape] = []
 	var dir: DirAccess = DirAccess.open(SHAPES_DIR)
@@ -172,7 +172,7 @@ static func load_all_shapes() -> Array[BlockShape]:
 		# convert-text-resources-to-binary step); load() resolves the original
 		# path through that remap, so only the listing suffix needs stripping.
 		# Without this no shape/special ever loads in an exported build
-		# (feedback/playtest.md 2026-09-26: "no block ever spawns").
+		# (feedback/playtest.md "no block ever spawns").
 		if file_name.ends_with(".remap"):
 			file_name = file_name.trim_suffix(".remap")
 		if file_name.ends_with(".tres"):

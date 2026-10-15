@@ -14,15 +14,15 @@ signal block_placed(block: RigidBody3D, shape_id: StringName)
 ## REASON_* constants below rather than a string literal so it can't drift.
 signal block_removed(block: RigidBody3D, reason: String)
 
-## game/field/Field.gd: a block fell below tuning.kill_plane_y, or (Bontago-1pi.11.41)
+## game/field/Field.gd: a block fell below tuning.kill_plane_y, or
 ## dissolved on a hole, which counts exactly like an edge fall.
 const REASON_KILL_PLANE: StringName = &"kill_plane"
 
-## Bontago-t8x.5: a gift body whose action completed was despawned. Not a
+## a gift body whose action completed was despawned. Not a
 ## kill: no edge-fall burst, no blocks_lost stat.
 const REASON_GIFT_DESPAWN: StringName = &"gift_despawn"
 
-## Bontago-1pi.11.41: `block` touched an applied hole cell at disc level and
+## `block` touched an applied hole cell at disc level and
 ## will be removed (block_removed, REASON_KILL_PLANE) after `duration_s`.
 ## Emitted by game/field/HoleDissolver.gd on the host and by net/MatchNet.gd on
 ## clients; presentation only (the A2 fade), never a rule input.
@@ -36,12 +36,12 @@ signal blocks_fused(carrier: Node, members: Array)
 ## or the body ended). Glue fusion (docs/GLUE_FUSION_PLAN.md WP0 stub; no emitter yet).
 signal fused_member_released(member: Node)
 
-# --- M2: match flow (spec 3.7) ----------------------------------------------
+# --- M2: match flow (spec 2.4) ----------------------------------------------
 
 ## The host's state machine moved. Both arguments are Match.State values.
 signal match_state_changed(from_state: int, to_state: int)
 
-## Bontago-1pi.46 (docs/MATCH_RESET_AUDIT.md section 4): a match world is about to
+## docs/MATCH_RESET_AUDIT.md section 4: a match world is about to
 ## be built, or was just torn down (host, client, sandbox and tutorial alike;
 ## game/main/Main.gd's _reset_match_scope() is the only emitter). Persistent owners
 ## that Main cannot name (sky, weather ceiling, audio, rumble) connect here and
@@ -51,12 +51,12 @@ signal match_state_changed(from_state: int, to_state: int)
 ## match) fire it a second time with nothing left to reset.
 signal match_scope_reset
 
-## Bontago-t8x.4: the host pressed Start. Emitted on a client by
+## the host pressed Start. Emitted on a client by
 ## net/MatchNet.gd's net_match_loading, one message ahead of net_match_start, so
 ## game/main/Main.gd can raise the loading overlay before the match world builds.
 signal match_loading_announced
 
-## Bontago-1pi.56: a client is applying (`active` true) or has finished applying
+## a client is applying (`active` true) or has finished applying
 ## the host's late-join / reconnect world replay (net/MatchNet.gd, from the
 ## net_match_start that carries the replay id to its net_replay_end). The replay
 ## restores state through the same Events a live match uses (every body goes out
@@ -67,7 +67,7 @@ signal match_loading_announced
 ## after `false` are unaffected.
 signal world_replay_changed(active: bool)
 
-## Bontago-1pi.32: loading-screen ready gate (core/rules/LoadingReadyGate.gd, owned per
+## loading-screen ready gate (core/rules/LoadingReadyGate.gd, owned per
 ## match by autoload/match/MatchLifecycle.gd). `ready_peer_ids` are the required
 ## peers that pressed ready, `required_peer_ids` every peer the host waits for
 ## (peers holding a human slot; bots never appear, they are auto-ready; offline
@@ -77,24 +77,24 @@ signal world_replay_changed(active: bool)
 ## arrives. Presentation reads this; it never decides anything.
 signal loading_ready_changed(ready_peer_ids: PackedInt32Array, required_peer_ids: PackedInt32Array)
 
-## Bontago-1pi.32: the host's gate opened (min display elapsed AND everyone ready,
+## the host's gate opened (min display elapsed AND everyone ready,
 ## or the safety cap) -- the countdown may now run. Host: emitted by the
 ## lifecycle; client: re-emitted when Net._rpc_loading_gate_open arrives. Always
 ## fires once per match, also when no gate was armed (headless/sandbox).
 signal loading_gate_opened
 
-## Bontago-1pi.32: Net validated that a seated peer pressed ready (host side
+## Net validated that a seated peer pressed ready (host side
 ## only; offline/host-local presses come through Net.request_loading_ready()).
 ## MatchLifecycle owns the remaining checks (phase, required set, idempotence).
 signal net_loading_ready_received(peer_id: int)
 
-## Bontago-1pi.53: Net (host side only; offline and the host's own request come
+## Net (host side only; offline and the host's own request come
 ## through Net.request_seat_pref() locally) validated a peer's request to change
 ## ITS OWN lobby seat. `peer_id` is the transport's id of the seated sender, never
 ## a payload field. `color_index` is LobbySeats.UNCHANGED (-1) or a palette index in
 ## range; `team_pick` is LobbySeats.UNCHANGED or 0 (Random) .. MatchConfig.TEAM_PICK_MAX,
 ## and at least one of them is not UNCHANGED. Net checks only that wire sanity
-## (type, range, seated sender, lobby phase, flood limit): the lobby applies it with
+## type, range, seated sender, lobby phase, flood limit: the lobby applies it with
 ## LobbySeats.apply_human_pref (exact team cap, colour swap) and republishes.
 signal net_seat_pref_requested(peer_id: int, color_index: int, team_pick: int)
 
@@ -104,24 +104,24 @@ signal countdown_tick(seconds_left: int)
 ## Hot-seat: it is now this slot's turn to hold and place a block.
 signal turn_changed(slot_id: int)
 
-## A team met the win condition (spec 2.3). The match state goes to End.
+## A team met the win condition (spec 1.5). The match state goes to End.
 signal match_won(team_id: int)
-## Bontago-22y.11: the active mode objective's replicated state ({"mode_id",
+## the active mode objective's replicated state ({"mode_id",
 ## "scores", "extra", "round_left"}). Host: emitted when it changes (MatchNet
 ## replicates it); client: emitted after the validated host state is applied.
 signal mode_state_changed(state: Dictionary)
 
-## Bontago-1pi.13: the full results-screen payload is ready -- fired once per
+## the full results-screen payload is ready -- fired once per
 ## match end, on the host directly from MatchLifecycle._finish_match() (right
 ## after match_won above) and on every client after net/MatchNet.gd's single
 ## EVENT_MATCH_RESULTS RPC has validated the wire payload
 ## (ResultsValidation.validate_results_payload()). `results` is always the typed
 ## Dictionary shape MatchStats.gd's own header comment documents (winner_kind/
 ## winner_id/winner_name/match_duration/rows); the results-screen UI worker
-## (Bontago-1pi.6) is this signal's consumer.
+##  is this signal's consumer.
 signal match_results_ready(results: Dictionary)
 
-# --- M2: block feed (spec 2.4, 3.7) -----------------------------------------
+# --- M2: block feed (spec 1.4, 2.4) -----------------------------------------
 
 ## A slot received a new block from the bag. `next_shape_id` is what the HUD
 ## shows in the next-block preview; it is &"" when the preview is off.
@@ -129,28 +129,28 @@ signal feed_block_issued(slot_id: int, shape_id: StringName, next_shape_id: Stri
 
 ## A slot's block timer ran out. The slot's controller answers by calling
 ## Match.request_place(..., auto_drop = true) from wherever its ghost is;
-## Match relocates it to the closest valid point if it has to (spec 2.5).
+## Match relocates it to the closest valid point if it has to (spec 1.4).
 signal feed_timer_expired(slot_id: int)
-## Bontago-1pi.18.1 (QoL experiments): a slot's queued-block count or its
+## QoL experiments: a slot's queued-block count or its
 ## timer-paused flag changed. Host emits it; clients re-emit the replicated copy.
 signal qol_feed_changed(slot_id: int, backlog: int, paused: bool)
-## Bontago-1pi.18.2: a slot's gift-slot contents changed; activated/carrier are set when the slot was just spent.
+## a slot's gift-slot contents changed; activated/carrier are set when the slot was just spent.
 signal gift_slot_changed(slot_id: int, contents: Array, activated: StringName, carrier_id: StringName)
 
 ## The host refused a placement intent. `reason` is one of the
 ## PlacementRules.REASON_* constants.
 ##
-## Bontago-mv0.24 (owner test 2026-09-22): supersedes spec 2.2's older "the
+## Supersedes spec 1.5's older "the
 ## block is thrown off the map with a visible reject animation" line for a
 ## *manual* release — the owner's test of the original found a refused drop
 ## is simply not a drop: nothing is spawned or consumed, the player keeps
-## holding the same piece, and the client shows a reject effect (spec 3.4)
+## holding the same piece, and the client shows a reject effect (spec 2.6)
 ## instead of a throw. An auto-drop that finds no valid point to relocate to
 ## (PlacementRules.closest_valid_point() returns NO_ORIGIN) still burns —
 ## see placement_relocated below for the relocated case.
 signal placement_rejected(slot_id: int, reason: StringName)
 
-## Bontago-mv0.24 (spec 2.5's auto-drop [ORIGINAL]): the host relocated an
+## spec 1.4's auto-drop [ORIGINAL]: the host relocated an
 ## auto-drop that landed outside `slot_id`'s territory to the nearest valid
 ## point, `point` (disk-local x, z, Field's local space — the same frame the
 ## spawned block's origin sits in). Fired only for `slot_id`'s own client so
@@ -158,7 +158,7 @@ signal placement_rejected(slot_id: int, reason: StringName)
 ## other instance ignores an event for a slot that isn't its own.
 signal placement_relocated(slot_id: int, point: Vector2)
 
-# --- M2: territory (spec 2.2, 3.3) ------------------------------------------
+# --- M2: territory (spec 1.5, 2.5) ------------------------------------------
 
 ## The host finished a territory solve, at TerritoryTuning.solve_hz. Carries
 ## the live raster; receivers read it, never mutate it.
@@ -169,15 +169,15 @@ signal territory_share_changed(shares: PackedFloat32Array)
 
 ## Cells whose hole state flipped in the last solve, as row-major CellGrid
 ## indices. Field batches the collision toggles and wakes the blocks above
-## them (spec 3.3).
+## them (spec 2.5).
 signal hole_cells_changed(opened: PackedInt32Array, closed: PackedInt32Array)
 
 ## A team is holding every goal flag in one connected territory. `progress`
 ## runs 0..1 over TerritoryTuning.capture_hold and drives the flag's radial
-## ring (spec 2.3). team_id is -1 with progress 0 when a capture breaks.
+## ring (spec 1.5). team_id is -1 with progress 0 when a capture breaks.
 signal goal_capture_progress(team_id: int, progress: float)
 
-## Local-player-relative claim tension (Bontago-1pi.114), derived from
+## Local-player-relative claim tension, derived from
 ## goal_capture_progress by core/audio/ClaimTensionState via Sfx; nothing new is
 ## replicated. `level` is 0..1 (0 = silent), `mine` is true when a team this
 ## machine's human seat belongs to is the one holding.
@@ -188,14 +188,14 @@ signal claim_tension_changed(level: float, mine: bool)
 ## progress it reached.
 signal claim_interrupted(was_mine: bool, peak: float)
 
-## A slot's home flag was lost to a hole opening under it (spec 2.2 is silent
-## on this; docs/archive/M2_PLAN.md's owner decision: this eliminates the slot —
+## A slot's home flag was lost to a hole opening under it (spec 1.5 is silent
+## on this; docs/archive/M2_PLAN.md's : this eliminates the slot —
 ## PlayerSlot.home_flag_alive goes false, its circles unanchor, and it gets no
 ## more feed). Match ends the match itself via match_won if only one
 ## player/team is left.
 signal player_eliminated(slot_id: int, team_id: int)
 
-# --- M4 P1: gift crates (spec 2.6) ------------------------------------------
+# --- M4 P1: gift crates (spec 1.6) ------------------------------------------
 
 ## A gift crate appeared at `position` (disk-local x, z). Host-authored; a
 ## client only ever builds the visual from this and the two events below.
@@ -208,17 +208,17 @@ signal gift_landed(gift_id: int, landing: Vector3)
 ## A crate in a team's territory popped: `slot_id` is the RESOLVED RECIPIENT --
 ## the one teammate whose home circle (PlayerSlot.home_position) is nearest
 ## the crate, picked by autoload/match/MatchGifts.gd's _resolve_recipient_slot()
-## (Bontago-keo.17, owner decision "b" on docs/archive/M6_PLAN.md's Owner Q1). Only
+## ("b" on the M6 plan's question 1). Only
 ## that slot's own pending queue (Match.held_special()/pop_pending_special())
 ## grows; a claim never queues onto a teammate's queue who isn't the resolved
 ## recipient. `special_id` is the id drawn for this claim -- Orchestrator
-## amendment 1 (M4 P2b, 2026-09-23): the special TYPE is decided at claim
+## amendment 1 (M4 P2b): the special TYPE is decided at claim
 ## time on the host, not at spawn time, so a player already knows what they
 ## hold while aiming/placing it. See autoload/match/MatchGifts.gd's
 ## PENDING_SPECIAL_ID for the placeholder id used until P2c installs the real
 ## weighted draw.
 ##
-## Bontago-keo.17: a team-WIDE consumer (a toast/sfx every teammate should
+## a team-WIDE consumer (a toast/sfx every teammate should
 ## still see/hear even though only `slot_id` holds the item) derives "is my
 ## team" from `MatchConfig.team_of_slot(slot_id)`, never by comparing
 ## `slot_id` to a raw local slot id -- harmless while team_of_slot() is the
@@ -236,11 +236,11 @@ signal gift_expired(gift_id: int)
 ## added, so a listener can tell which block without holding a live reference
 ## to it. Host-only: only the host ever attaches a SpecialBehavior (a client
 ## never calls _spawn_block() -- decision 4 in docs/archive/M4_P2_PACKAGES.md).
-## net/MatchNet.gd (Bontago-1en.17, not this package) replicates it to
+## net/MatchNet.gd (not this package) replicates it to
 ## clients from here.
 signal special_triggered(net_id: int, def_id: StringName, position: Vector3, chain_depth: int)
 
-## Bontago-1en.21: the head of `slot_id`'s pending-special queue was actually
+## the head of `slot_id`'s pending-special queue was actually
 ## spent -- a place-spawn or a throw (autoload/match/MatchGifts.gd's
 ## pop_pending_special() is the one host-side emit site; a burned auto-drop
 ## deliberately never reaches it, see MatchPlacement._attach_pending_special()'s
@@ -252,7 +252,7 @@ signal special_triggered(net_id: int, def_id: StringName, position: Vector3, cha
 ## gift_claimed's own grow-side replication.
 signal special_consumed(slot_id: int, special_id: StringName)
 
-## Bontago-eq0: a Jumping Bean carrier just hopped off the ground at `position`.
+## a Jumping Bean carrier just hopped off the ground at `position`.
 ## Client-derived on every peer (game/gifts/specials/fx/BeanHopFx.gd watches the carrier's
 ## own motion), visual/audio only; autoload/Sfx.gd plays the hop sound.
 signal bean_hopped(position: Vector3)
@@ -261,15 +261,15 @@ signal bean_hopped(position: Vector3)
 ## one match; client mirrors re-emit only when accepting a newer update.
 signal glue_charges_changed(slot_id: int, charges: int, revision: int)
 
-## Host-only (Bontago-1pi.85.72): a freshly spawned block took a glue charge and is
+## Host-only: a freshly spawned block took a glue charge and is
 ## coated from its first frame, before any bond forms.
 signal glue_drop_charged(block: Node)
 
 ## Paintball's host-owned block conversion. Clients emit this only after a
-## valid, new owner change by net ID; terrain ownership uses the registry.
+## valid, new owning-slot change by net ID; terrain ownership uses the registry.
 signal block_owner_changed(net_id: int, owner_slot: int)
 
-## Freeze special (Bontago-8or.2): a block started/stopped being held frozen by
+## Freeze special: a block started/stopped being held frozen by
 ## the special. Host emits it (net_id is the host's); clients re-emit on the
 ## replicated event after applying the icy visual.
 signal block_frozen_changed(net_id: int, frozen: bool)
@@ -279,7 +279,7 @@ signal block_frozen_changed(net_id: int, frozen: bool)
 signal cat_started(id: int, slot_id: int, position: Vector3, duration: float)
 signal cat_ended(id: int)
 
-# --- M3a: session and transport (spec 3.4) ----------------------------------
+# --- M3a: session and transport (spec 2.6) ----------------------------------
 
 ## Net changed between OFFLINE, HOST and CLIENT. `mode` is a Net.Mode value.
 signal net_mode_changed(mode: int)
@@ -297,12 +297,12 @@ signal net_peer_left(peer_id: int, slot_id: int, reason: int)
 ## human-readable line for the lobby, never parsed.
 signal net_join_failed(error: int, detail: String)
 
-## The host published new lobby settings (spec 3.4: Steam lobbies store match
+## The host published new lobby settings (spec 2.6: Steam lobbies store match
 ## settings as lobby data; over ENet the host broadcasts the same Dictionary).
 ## The payload is MatchConfig.to_dict() plus the roster.
 signal net_lobby_data_changed(data: Dictionary)
 
-## The LAN browser's list changed (spec 3.4 "LAN discovery"). Each entry is
+## The LAN browser's list changed (spec 2.6 "LAN discovery"). Each entry is
 ## {name, address, port, version, players, max, map}.
 signal net_games_discovered(games: Array[Dictionary])
 
@@ -311,7 +311,7 @@ signal net_games_discovered(games: Array[Dictionary])
 ## is Net.stats().
 signal net_stats_updated(stats: Dictionary)
 
-## Bontago-mv0.6: the lobby roster changed (a peer's ready flag flipped, or
+## the lobby roster changed (a peer's ready flag flipped, or
 ## one joined/left). Emitted on the host from autoload/Net.gd's
 ## _broadcast_roster() with the roster it just sent, and on a client from the
 ## end of its _rpc_roster_update() with the roster it just applied, so both
@@ -320,7 +320,7 @@ signal net_stats_updated(stats: Dictionary)
 ## consumer today.
 signal net_roster_changed(roster: Array[Dictionary])
 
-# --- M3a: replication (spec 3.4) --------------------------------------------
+# --- M3a: replication (spec 2.6) --------------------------------------------
 
 ## A client built its frozen copy of a block the host spawned. The local
 ## equivalent of block_placed for bodies this instance does not simulate:
@@ -328,19 +328,19 @@ signal net_roster_changed(roster: Array[Dictionary])
 signal block_replicated(block: RigidBody3D, net_id: int)
 
 ## A client applied a territory update from the host. Clients never solve
-## territory themselves (spec 3.4: only the host runs physics and the rules),
+## territory themselves (spec 2.6: only the host runs physics and the rules),
 ## so this replaces territory_updated on a client. The raster is the client's
 ## mirror; read it, never mutate it.
 signal territory_replicated(raster: TerritoryRaster)
 
-## Another player's ghost moved (spec 3.4: "update_cursor(pos) ... only used to
+## Another player's ghost moved (spec 2.6: "update_cursor(pos) ... only used to
 ## show other players' ghosts"). Emitted on every instance for every non-local
 ## slot, at NetConfig.cursor_hz.
 signal remote_cursor_updated(
 	slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion
 )
 
-# --- M3b: Steam transport (spec 3.4, docs/archive/M3b_PLAN.md P1) -------------------
+# --- M3b: Steam transport (spec 2.6, docs/archive/M3b_PLAN.md P1) -------------------
 
 ## Net.init_steam() finished (or the extension isn't installed). `available`
 ## mirrors Net.steam_available(); `detail` is a human-readable line for the
@@ -363,15 +363,15 @@ signal net_steam_lobbies_discovered(lobbies: Array[Dictionary])
 ## tumble doesn't spam one impact into a machine-gun of thuds.
 signal block_impacted(speed: float)
 
-## Bontago-mp0.117: a local lobby UI action with its own sound (autoload/Sfx.gd
+## a local lobby UI action with its own sound (autoload/Sfx.gd
 ## maps `cue` to a lobby_ui_cues_v1 file via AudioConfig.ui_cue_files). Emitted
 ## by ui/lobby/Lobby.gd and ui/lobby/LobbyPlayersPanel.gd only for the local user's
 ## confirmed action; peer join/leave and the loading gate use their own signals.
 signal lobby_ui_cue(cue: StringName)
 
-# --- M7 P4: block effects (spec 2.10) ---------------------------------------
+# --- M7 P4: block effects (spec 1.10) ---------------------------------------
 
-## Additive alongside block_impacted above (Bontago-xtq.29, M7 P4 fix):
+## Additive alongside block_impacted above (M7 P4 fix):
 ## game/blocks/Block.gd emits both from the same detection, in the same call, right
 ## next to each other -- this one also carries the block's own global
 ## position at emit time, for effects that need to know *where* the impact
@@ -380,7 +380,7 @@ signal lobby_ui_cue(cue: StringName)
 ## untouched by this signal.
 signal block_impacted_at(speed: float, position: Vector3)
 
-# --- M7 P42: pause menu (owner playtest: "no pause menu, can't abandon a
+# --- M7 P42: pause menu ("no pause menu, can't abandon a
 # game and go back to the main menu or quit the game") -----------------------
 
 ## ui/menus/PauseMenu.gd opened (pause_menu action -- Esc/gamepad Start -- while no
@@ -397,7 +397,7 @@ signal pause_menu_opened
 ## input_enabled and, if it had mouse capture enabled, re-captures the mouse.
 signal pause_menu_closed
 
-# --- Options menu: input device tracking (Bontago-1pi.10) --------------------
+# --- Options menu: input device tracking --------------------
 
 ## autoload/Settings.gd detected the player's last-used input device changed
 ## (a real keyboard/mouse press/motion vs. a gamepad button/stick beyond its
@@ -407,7 +407,7 @@ signal pause_menu_closed
 ## without the player needing to reopen the menu.
 signal input_device_changed(device: StringName)
 
-# --- Weather events (Bontago-22y.10) ------------------------------------------
+# --- Weather events ------------------------------------------
 # Emitted on the host and, from replicated state, on every client, so
 # presentation code (game/weather/WeatherPresenter.gd, a later HUD cue) needs
 # no networking of its own.
@@ -428,14 +428,14 @@ signal weather_intensity_changed(weather_id: StringName, intensity: float)
 ## "phase" and "t". A HUD can show a "weather incoming" cue from it.
 signal weather_state_changed(state: Dictionary)
 
-## Bontago-470.2: a Breeze gust started (host, and on clients from
+## a Breeze gust started (host, and on clients from
 ## net/BreezeNet.gd). `gust` is the compact wire dictionary: "id", "x", "y",
 ## "z" (world centre), "a" (heading, radians), "r" radius, "d" duration s, "s"
 ## strength 0..1. Presentation only.
 signal breeze_gust_started(gust: Dictionary)
 
 
-# --- Player chat (Bontago-1pi.192, docs/CHAT_PLAN.md). Net relays, UI listens. ---
+# --- Player chat (docs/CHAT_PLAN.md). Net relays, UI listens. ---
 
 ## A UI submitted a chat line (raw typed text; the host cleans it).
 signal chat_send_requested(text: String)

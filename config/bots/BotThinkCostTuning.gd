@@ -1,6 +1,6 @@
 class_name BotThinkCostTuning
 extends Resource
-## Bontago-1t5.62: tunables of the opt-in Hard-bot think-cost report (core/ai/BotThinkCostReport.gd,
+## tunables of the opt-in Hard-bot think-cost report (core/ai/BotThinkCostReport.gd,
 ## core/ai/BotThinkCostCollector.gd; headless run: tools/run_bot_think_cost.ps1). Loaded as
 ## config/bots/bot_think_cost.tres.
 

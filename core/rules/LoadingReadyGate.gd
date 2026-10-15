@@ -1,6 +1,6 @@
 class_name LoadingReadyGate
 extends RefCounted
-## Bontago-1pi.32 (owner playtest 2026-10-03: "The loading screen is too fast
+## ("The loading screen is too fast
 ## now, add a minimum of 5s that it is displayed and require each player to
 ## click a start button (A on gamepad) to indicate that they are ready; when
 ## every player is ready the game starts.").
@@ -11,12 +11,12 @@ extends RefCounted
 ## (every connected peer that holds a human slot; bots never appear in it).
 ##
 ## The gate opens once every required peer is ready, and only then.
-## DECISION (Bontago-1pi.125, owner: the ready screen's hidden auto-start timer is
+## DECISION (the ready screen's hidden auto-start timer is
 ## "disabled and removed"): there is no wait cap that opens the gate for a laggard. A peer
 ## that never loads or never answers leaves through the transport disconnect (it then drops
 ## out of the required set) or its own load-failure path (ui/menus/LoadingScreen.gd
 ## readiness_timed_out -> back to the lobby); it never starts the match for everyone.
-## Bontago-1pi.63 (owner playtest 2026-10-04): there is no minimum display time any
+## there is no minimum display time any
 ## more; the ready presses alone hold the screen.
 ## The required set is passed in on every call rather than stored, so a peer
 ## that disconnects drops out of it at once and one that joins is waited for.

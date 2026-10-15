@@ -1,6 +1,6 @@
 class_name SlotDiamond
 extends Control
-## Bontago-1pi.81: the ONE faceted colour diamond (lit left half, shaded right half,
+## the ONE faceted colour diamond (lit left half, shaded right half,
 ## thin outline) that marks a player slot: the HUD share rows, the lobby seat rows and the
 ## round score table all instance ui/hud/SlotDiamond.tscn. It draws whatever colour its owner
 ## hands to set_color(); it has no colour logic of its own (the slot -> colour lookup
@@ -60,7 +60,7 @@ func _apply_size() -> void:
 
 
 func _draw() -> void:
-	# Stackfall Arcade (Bontago-hfa.6) beacon marker (docs/ui_reskin/markers/): an ink diamond frame,
+	# Stackfall Arcade beacon marker (docs/ui_reskin/markers/): an ink diamond frame,
 	# the inner diamond split into a lit left and shaded right half, and the slot colour over its top facet.
 	var center: Vector2 = size * 0.5
 	var half: float = diamond_size_px() * 0.5

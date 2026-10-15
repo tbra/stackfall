@@ -1,6 +1,6 @@
 class_name UiHelpLine
 extends MarginContainer
-## The design system's help line (Bontago-1pi.159.35; owner 2026-10-12 "explanation of options next to
+## The design system's help line ("explanation of options next to
 ## them when unclear ... instead of tooltips"): one body-text line per settings panel that explains
 ## the option the player is on. Rows are tagged with a key ([method tag]); the sentence lives in
 ## config/ui/option_help_table.tres (OptionHelpTable). The line shows the hovered row's text, else the
@@ -32,7 +32,7 @@ static func key_of(node: Node) -> String:
 
 func _init() -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	# Separation from the rows above (Bontago-1pi.159.44): a top rule plus one space-2 step of air.
+	# Separation from the rows above: a top rule plus one space-2 step of air.
 	add_theme_constant_override("margin_top", arcade.space_2_px + arcade.well_border_px)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	focus_mode = Control.FOCUS_NONE
@@ -46,7 +46,7 @@ func _init() -> void:
 func _ready() -> void:
 	if table == null:
 		table = OptionHelpTable.shared()
-	# DECISION (Bontago-1pi.159.35): reserve the height a full text of reserved_lines lines really takes
+	# DECISION: reserve the height a full text of reserved_lines lines really takes
 	# (line spacing included), measured once. N * get_line_height() was a few px short, so the first
 	# hint grew the line after focus-follow had positioned the settings scroll and clipped the last row.
 	var probe: PackedStringArray = PackedStringArray()

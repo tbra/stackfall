@@ -1,7 +1,7 @@
 class_name MatchWeather
 extends RefCounted
-## Weather as a random host-scheduled EVENT (Bontago-22y.10; owner decision
-## Bontago-22y.14: at most one weather at a time, calm most of the time).
+## Weather as a random host-scheduled EVENT (
+## at most one weather at a time, calm most of the time).
 ##
 ## Timeline per match, all decided by the host from one seed:
 ##   calm (WeatherScheduleTuning.first_delay_s)
@@ -14,8 +14,7 @@ extends RefCounted
 ## the same WeatherTuning ramp curve, so the host sends state per phase change
 ## rather than per frame.
 ##
-## DECISION (autoload/match/MatchWeather.gd): lobby mapping, per the owner
-## decision above, revised by owner decision 470.1: a TYPE mode (STORM/RAIN/
+## DECISION (autoload/match/MatchWeather.gd): lobby mapping, per the above, revised by 470.1: a TYPE mode (STORM/RAIN/
 ## SNOW/...) is CONSTANT weather: after WeatherScheduleTuning.constant_start_delay_s
 ## the type ramps in, holds at full intensity for the whole match and never
 ## ramps out. RANDOM = one type drawn at match start, then constant. CHANGING =
@@ -59,7 +58,7 @@ var _running: bool = false
 var _mode: int = MatchConfig.WeatherMode.OFF
 var _seed: int = 0
 var _epoch: int = -1
-## Bontago-22y.4: which event of this match is (or was last) active, 1-based;
+## which event of this match is (or was last) active, 1-based;
 ## replicated so per-event seeded effects (wind heading) agree on every peer.
 var _event_index: int = 0
 var _host_epoch_counter: int = 0
@@ -82,8 +81,8 @@ var _phase_t: float = 0.0
 var _hold_total: float = 0.0
 var _intensity: float = 0.0
 var _effect: WeatherEffect = null
-## Bontago-470.2: the always-on gust layer; it spawns no gusts while a Storm is
-## active (Bontago-mp0.91).
+## the always-on gust layer; it spawns no gusts while a Storm is
+## active.
 ## DECISION: it lives here because MatchWeather already owns the host check,
 ## the per-frame tick and the PLAYING/teardown lifecycle; it never touches the
 ## schedule or the epoch.

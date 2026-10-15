@@ -1,11 +1,11 @@
 class_name MainMenu
 extends Control
-## The game's front door (spec 3.4 "LAN discovery"; docs/archive/M3a_PLAN.md P4).
+## The game's front door (spec 2.6 "LAN discovery"; docs/archive/M3a_PLAN.md P4).
 ##
-## Owner decision (docs/archive/M3a_PLAN.md question 3): hot-seat is unlisted — this
+##  docs/archive/M3a_PLAN.md question 3: hot-seat is unlisted — this
 ## menu offers only Host, Join (LAN list or direct IP), Sandbox (docs/
-## M6_PLAN.md package B1, spec 2.7), Tutorial (docs/archive/M6_PLAN.md package B3,
-## spec 2.7) and Quit. Hot-seat is reachable solely through the `--hot-seat`
+## M6_PLAN.md package B1, spec 1.2), Tutorial (docs/archive/M6_PLAN.md package B3,
+## spec 1.2) and Quit. Hot-seat is reachable solely through the `--hot-seat`
 ## command-line flag, which `Net.apply_command_line()` / `game/main/Main.gd`
 ## handle before this scene is even shown.
 ##
@@ -26,9 +26,9 @@ var net_provider: Variant = null
 ## to ui/lobby/Lobby.gd's own `start_requested` -- a direct child-signal connection,
 ## not the Events bus, since Main already owns this node's lifetime and this
 ## menu "does not know about ... game/main/Main.gd" (this file's own header
-## comment above). Sandbox is still unlisted in the sense that spec 3.4 never
+## comment above). Sandbox is still unlisted in the sense that spec 2.6 never
 ## asked for it in the Host/Join/Quit set this header describes, but the
-## Main Menu is the one entry point spec 2.7 gives it (unlike hot-seat, which
+## Main Menu is the one entry point spec 1.2 gives it (unlike hot-seat, which
 ## stays command-line only).
 signal sandbox_requested
 
@@ -39,12 +39,12 @@ signal sandbox_requested
 signal tutorial_requested
 signal bots_requested(player_name: String)
 
-## Bontago-1pi.70: the Debug page's Gift demo button asks game/main/Main.gd to start
+## the Debug page's Gift demo button asks game/main/Main.gd to start
 ## the sandbox with the gift-demo preset. Only ever emitted while debug mode is
 ## on: the entry is not even visible otherwise.
 signal gift_demo_requested
 signal tower_topple_requested
-## Bontago-1pi.212: the Debug page's Watch bots picker confirmed; game/main/Main.gd starts the all-bot match.
+## the Debug page's Watch bots picker confirmed; game/main/Main.gd starts the all-bot match.
 signal watch_bots_requested(options: RefCounted)
 
 ## Tagline shown on the Debug page in place of the wordmark's own tagline.
@@ -70,7 +70,7 @@ const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/menus/OptionsMenu.tscn
 ## Well/list/compact-page sizes and the menu render budget (config/ui/menu_visual_tuning.tres);
 ## colours and block recipes come from ArcadeVisualTuning through MenuStyleFactory.
 @export var tuning: MenuVisualTuning = preload("res://config/ui/menu_visual_tuning.tres")
-## Bontago-hfa.3 (UI reskin P1): left column, scrim and lockup geometry.
+## UI reskin P1: left column, scrim and lockup geometry.
 @export var layout: MainMenuTuning = preload("res://config/ui/main_menu_tuning.tres")
 
 @onready var _name_row: UiField = %NameField
@@ -80,14 +80,14 @@ const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/menus/OptionsMenu.tscn
 @onready var _play_local_button: Button = %PlayLocalButton
 @onready var _bots_button: Button = %BotsButton
 @onready var _back_button: Button = %BackButton
-## Bontago-1pi.34: the debug-only entry. A corner overlay on the menu root (not
+## the debug-only entry. A corner overlay on the menu root (not
 ## a child of the card's containers), so showing or hiding it can never move
 ## any other control; %GiftDemoButton lives on the Debug page.
 @onready var _debug_button: Button = %DebugButton
 @onready var _gift_demo_button: Button = %GiftDemoButton
 @onready var _tower_topple_button: Button = %TowerToppleButton
 @onready var _watch_bots_button: Button = %WatchBotsButton
-## Bontago-1pi.74: build label (BuildVersion.label()) in the top-right corner beside the Debug pill (Bontago-1pi.150: moved off the bottom edge, which collided with the button column on short canvases).
+## build label (BuildVersion.label()) in the top-right corner beside the Debug pill (moved off the bottom edge, which collided with the button column on short canvases).
 @onready var _build_version_label: UiText = %BuildVersionLabel
 @onready var _host_row: VBoxContainer = $Center/Panel/Layout/HostRow
 @onready var _small_row: HBoxContainer = %SmallRow
@@ -109,7 +109,7 @@ var _syncing_tabs: bool = false
 @onready var _center: CenterContainer = %Center
 @onready var _game_list: ItemList = %GameList
 @onready var _refresh_button: Button = %RefreshButton
-## Bontago-mp0.3.5 (review r1, item 5): the sunken "well" card wrapping the
+## review r1, item 5: the sunken "well" card wrapping the
 ## header row + %GameList + %DirectRow -- one sunken panel instead of a
 ## standalone tall Refresh button and separator lines.
 @onready var _lan_games_well: UiWell = %LanGamesWell
@@ -122,25 +122,25 @@ var _syncing_tabs: bool = false
 @onready var _front_card: MarginContainer = %Panel
 @onready var _title: TextureRect = %Title
 @onready var _join_label: UiText = %JoinLabel
-## Bontago-mp0.3.5: mockup 10's bottom-right controller hint is a pill, not a
+## mockup 10's bottom-right controller hint is a pill, not a
 ## bare Label -- %GamepadHintPill wraps the existing %GamepadHintBar Label in
 ## a PanelContainer so it reads as a chip instead of floating text.
 @onready var _gamepad_hint_pill: UiWell = %GamepadHintPill
 @onready var _hint_row: InputPromptFlow = %GamepadHintRow
 
 ## M3b (docs/archive/M3b_PLAN.md P3): the Steam section vs. the "not available" notice
-## (spec 3.4: "Hide the online menu entries and show a notice").
+## (spec 2.6: "Hide the online menu entries and show a notice").
 @onready var _steam_section: VBoxContainer = %SteamSection
 @onready var _host_online_button: Button = %HostOnlineButton
-## Bontago-mp0.3.7: the sunken "well" card wrapping the Steam header row +
+## the sunken "well" card wrapping the Steam header row +
 ## %SteamLobbyList -- same one-sunken-panel treatment as %LanGamesWell
-## (Bontago-mp0.3.5 review r1, item 5), replacing the old standalone tall
+## (review r1, item 5), replacing the old standalone tall
 ## "Refresh" button + bare sunken %SteamLobbyList.
 @onready var _steam_games_well: UiWell = %SteamGamesWell
 @onready var _steam_lobby_list: ItemList = %SteamLobbyList
 @onready var _refresh_steam_button: Button = %RefreshSteamButton
 @onready var _empty_state_label: Label = %EmptyStateLabel
-## Bontago-mp0.3.7: "No lobbies yet" inside the Steam well while
+## "No lobbies yet" inside the Steam well while
 ## _steam_lobbies is empty, mirroring %EmptyStateLabel's own role for
 ## %GameList (_rebuild_game_list()'s own "blank white box" fix).
 @onready var _steam_empty_state_label: Label = %SteamEmptyStateLabel
@@ -166,7 +166,7 @@ const PAGE_JOIN: int = 1
 const PAGE_LOCAL: int = 2
 const PAGE_DEBUG: int = 3
 var _page: int = PAGE_HOME
-## DECISION (Bontago-1pi.34): "debug mode" is the project's single switch,
+## DECISION: "debug mode" is the project's single switch,
 ## DebugMode.is_enabled() (game/debug/DebugMode.gd: F1-F4 overlays, sandbox hotkeys),
 ## not a bare OS.is_debug_build(): the owner's `godot --path .` runs are debug
 ## runs automatically, `-- --no-debug` previews the player build, and an
@@ -176,7 +176,7 @@ var _home_tagline: String = ""
 var _join_steam_tab: bool = false
 var _host_dialog: UiDialog = null
 var _host_steam_choice: Button = null
-## Bontago-1pi.212: built only while debug mode is on (see _build_watch_bots_dialog()).
+## built only while debug mode is on (see _build_watch_bots_dialog()).
 var _watch_bots_dialog: UiDialog = null
 
 ## The live OptionsMenu.tscn instance while it's open, or null. Tracked here
@@ -185,7 +185,7 @@ var _watch_bots_dialog: UiDialog = null
 ## place, the same "one owner frees what it opened" convention
 ## _on_quit_pressed() implicitly follows via get_tree().quit().
 var _options_menu: OptionsMenu = null
-## Bontago-1pi.11.92: the built-once Options window, hidden between opens (see OptionsMenu.present()).
+## the built-once Options window, hidden between opens (see OptionsMenu.present()).
 var _options_cache: OptionsMenu = null
 ## Restores the focus modes UiFocusTrap.suspend_outside() cleared while Options is open.
 var _restore_focus: Callable = Callable()
@@ -320,7 +320,7 @@ func _on_sound_button_hovered() -> void:
 	Sfx.play(AudioConfig.EVENT_HOVER)
 
 
-# --- Visual style (Bontago-hfa.3, Stackfall Arcade) -------------------------------------------
+# --- Visual style (Stackfall Arcade) -------------------------------------------
 
 ## Dresses the scene's nodes in the Arcade look: a transparent left column over a disc-dark scrim,
 ## the lockup, one flare primary per page and disc-600 secondary blocks. Every colour is an
@@ -462,7 +462,7 @@ func _on_watch_bots_pressed() -> void:
 func _build_watch_bots_dialog() -> void:
 	if not _debug_entry_enabled:
 		return
-	# DECISION (Bontago-1pi.212): loaded by path, like Main's other debug tools, so the picker and its
+	# DECISION: loaded by path, like Main's other debug tools, so the picker and its
 	# stepper/toggle components stay out of the Main.tscn compile closure (tools/lint_layers.py L4).
 	var dialog_script: GDScript = load(WATCH_BOTS_DIALOG_PATH) as GDScript
 	_watch_bots_dialog = dialog_script.new() as UiDialog
@@ -493,12 +493,12 @@ func _on_back_pressed() -> void:
 func _on_bots_pressed() -> void:
 	var bot_host_name: String = _player_name()
 	if net_provider.has_method(&"resolve_local_name"):
-		# Bontago-1pi.100: the Steam persona wins when Steam is up.
+		# the Steam persona wins when Steam is up.
 		bot_host_name = String(net_provider.resolve_local_name(bot_host_name))
 	bots_requested.emit(bot_host_name)
 
 
-## Bontago-1pi.34 seam: shows/hides the debug entry on a live menu (the answer
+## seam: shows/hides the debug entry on a live menu (the answer
 ## is otherwise read once from DebugMode.is_enabled() in _ready()). Turning it
 ## off while the Debug page is open returns to the home page.
 func set_debug_entry_enabled(enabled: bool) -> void:
@@ -510,7 +510,7 @@ func set_debug_entry_enabled(enabled: bool) -> void:
 ## choices stay together on Play local; the front page is a short navigation
 ## screen that also fits smaller viewports.
 ##
-## Bontago-1pi.34/36: the name field only belongs to the pages that host or
+## /36: the name field only belongs to the pages that host or
 ## join (Home, Join) -- Play local and Debug hide it, so Vs bots (the first
 ## Play local option) is what takes focus there. The debug corner pill is an
 ## overlay outside every container, so toggling it moves nothing else.
@@ -579,7 +579,7 @@ func _steam_available() -> bool:
 
 # --- Controller / keyboard focus ----------------------------------------------
 #
-# Bontago-1pi.38/39: every neighbour is wired here, per page, from the controls
+# /39: every neighbour is wired here, per page, from the controls
 # that are actually usable right now. The scene file carries no focus_neighbor_*
 # paths any more (the stale ones pointed at controls that are hidden on the
 # page in question, and Godot then hops through them to nowhere -- Tutorial's
@@ -732,7 +732,7 @@ func _on_options_pressed() -> void:
 		add_child(_options_menu)
 	else:
 		_options_menu.present()
-	# Bontago-1pi.159.15: nothing behind Options may take pad / arrow focus while it is open.
+	# nothing behind Options may take pad / arrow focus while it is open.
 	_restore_focus = UiFocusTrap.suspend_outside(_options_menu, self)
 	if not _options_menu.closed.is_connected(_on_options_closed):
 		_options_menu.closed.connect(_on_options_closed)
@@ -770,7 +770,7 @@ func _on_game_activated(index: int) -> void:
 
 
 func _on_quit_pressed() -> void:
-	# Bontago-fca.49: let the AudioServer free stopped playbacks before exit (no quit-time leaks).
+	# let the AudioServer free stopped playbacks before exit (no quit-time leaks).
 	await Sfx.drain_for_quit()
 	QuitFlag.mark()
 	get_tree().quit()
@@ -820,7 +820,7 @@ func _join(address: String, port: int) -> void:
 		_show_status("Could not join: %s" % error_string(err))
 
 
-## Bontago-1pi.149 (components.md ServerRow): three pulsing cells under the "Searching for
+## components.md ServerRow: three pulsing cells under the "Searching for
 ## games..." line. They are a child of the label, so they show and hide with it.
 ## DECISION: SEARCH_CELLS_GAP_PX below the label's centre line is a layout offset, one line of the
 ## caption text, not a tunable.
@@ -851,11 +851,11 @@ func _rebuild_game_list() -> void:
 			int(game.get("port", 0)),
 		]
 		_game_list.add_item(label)
-	# Bontago-mp0.3.5 (review r1, item 5): "Searching for games..." inside the
+	# review r1, item 5: "Searching for games..." inside the
 	# well instead of a blank white box while LAN discovery has found nothing
 	# yet.
 	_empty_state_label.visible = _games.is_empty()
-	# Bontago-1pi.38: an empty list does nothing, so it leaves the focus chain.
+	# an empty list does nothing, so it leaves the focus chain.
 	_wire_focus()
 
 
@@ -869,19 +869,19 @@ func _rebuild_steam_lobby_list() -> void:
 			str(lobby.get("map", "")),
 		]
 		_steam_lobby_list.add_item(label)
-	# Bontago-mp0.3.7: "No lobbies yet" inside the well instead of a blank
+	# "No lobbies yet" inside the well instead of a blank
 	# white box, the same _rebuild_game_list() fix for %GameList.
 	_steam_empty_state_label.visible = _steam_lobbies.is_empty()
 	_wire_focus()
 
 
-## Toggles the Steam section vs. a disabled Host Online pill (spec 3.4: "Hide
+## Toggles the Steam section vs. a disabled Host Online pill (spec 2.6: "Hide
 ## the online menu entries and show a notice"). Reads net_provider directly
 ## rather than taking a bool parameter, so a test can mutate a FakeNet's
 ## `steam_available_value` and re-call this the same way test_lobby.gd
 ## re-calls `_update_host_only_state()` after mutating its fake.
 ##
-## Bontago-mp0.3.5 (review r1, item 4): the old permanent "Steam not
+## review r1, item 4: the old permanent "Steam not
 ## available - hidden. Host/join over LAN or direct IP below." paragraph is
 ## gone -- the host dialog's text carries that explanation only when Steam is
 ## unavailable (no tooltips), instead of a standing block of card-width text.
@@ -901,7 +901,7 @@ func _apply_steam_availability() -> void:
 		_steam_refresh_countdown_s = float(net_provider.config.steam_lobby_list_refresh_s)
 
 
-## Bontago-1pi.49: the name field shows the saved name every time a menu is
+## the name field shows the saved name every time a menu is
 ## built (a rebuilt menu used to reset it to "Player"), and every edit is saved
 ## straight away, so it also survives restarts and the Host/Join page switches.
 func _init_name_field() -> void:
@@ -943,7 +943,7 @@ func _show_status(text: String) -> void:
 	_status_label.text = text
 
 
-## Bontago-1pi.164: the direct-join field takes an IP[:port] or a join code (core/net/JoinCode.gd).
+## the direct-join field takes an IP[:port] or a join code (core/net/JoinCode.gd).
 ## Returns parse_address()'s shape, plus a "reason" for a bad code.
 static func resolve_join_text(text: String) -> Dictionary:
 	if JoinCode.looks_like_code(text):
@@ -953,7 +953,7 @@ static func resolve_join_text(text: String) -> Dictionary:
 
 ## Split out from the button handler so it can be unit-tested without a
 ## scene tree (mirrors net/LanDiscovery.gd's encode_advert/decode_advert
-## split). Accepts "1.2.3.4" and "1.2.3.4:47999" (spec 3.4's direct-IP
+## split). Accepts "1.2.3.4" and "1.2.3.4:47999" (spec 2.6's direct-IP
 ## fallback); rejects anything else without throwing.
 static func parse_address(text: String) -> Dictionary:
 	var trimmed: String = text.strip_edges()

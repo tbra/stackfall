@@ -1,9 +1,9 @@
 class_name GraphicsSettingsTab
 extends FocusScrollContainer
-## Bontago-1pi.11.86 / 1pi.153: the Options "Graphics" page, built from design-system components
+## / 1pi.153: the Options "Graphics" page, built from design-system components
 ## (UiSection / UiRow / UiDropdown / UiToggle / UiSegmentMeter).
 ##
-## DECISION (owner 2026-10-10 "limit it to the options games usually include", research delegated to
+## DECISION ("limit it to the options games usually include", research delegated to
 ## the orchestrator): the page shows the common PC-game set only -- Graphics preset, Anti-aliasing,
 ## Render scale, Upscaler, Shadows, Reflections, Bloom, Volumetric fog, Environment detail, Block
 ## outlines, Frame cap (+ Fixed fps while the cap is Fixed). Shadows, Reflections and Environment
@@ -73,7 +73,7 @@ var _by_field: Dictionary = {}
 var _refreshing: bool = false
 
 
-## Builds the page. Call once, after the node is in the tree (so `owner` can be set).
+## Builds the page. Call once, after the node is in the tree (so its owner can be set).
 func build(provider_getter: Callable, menu_owner: Node) -> void:
 	_provider_getter = provider_getter
 	horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -92,7 +92,7 @@ func build(provider_getter: Callable, menu_owner: Node) -> void:
 	refresh_from_settings()
 
 
-## DECISION (Bontago-1pi.159.32): the dropdowns of one section share the width of the widest one
+## DECISION: the dropdowns of one section share the width of the widest one
 ## (a tidy column, like the lobby cyclers); none expands to the row.
 func _align_dropdowns(body: VBoxContainer) -> void:
 	var dropdowns: Array[UiDropdown] = []

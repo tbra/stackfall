@@ -1,12 +1,12 @@
 class_name MatchAutoload
 extends Node
-## Match configuration and the host-side state machine (spec 3.7).
+## Match configuration and the host-side state machine (spec 2.4).
 ##
 ## Lobby -> Loading -> Countdown(3s) -> Playing -> (SuddenDeath) -> End -> Lobby.
 ## M2 implements Lobby, Loading, Countdown, Playing and End; SuddenDeath is
 ## M6.
 ##
-## **This node is the authority.** Spec 3.4: "The host is authoritative, and
+## **This node is the authority.** Spec 2.6: "The host is authoritative, and
 ## only the host runs physics. Clients send intents. The host checks every
 ## intent before acting on it." Everything that decides an outcome lives here
 ## or in core/: the feed timers, the territory solve, the win check, and
@@ -18,7 +18,7 @@ extends Node
 ## Signals are emitted on the Events bus rather than declared here, per
 ## CLAUDE.md's "use a global signal bus to decouple systems".
 ##
-## Bontago-split.1 (pure refactor, no behaviour change): the state machine's
+## Pure refactor (no behaviour change): the state machine's
 ## rules used to all live directly on this Node. They now live in four
 ## RefCounted controllers under res://autoload/match/ -- MatchFeed (bags,
 ## held/next shapes, feed_seq, interval timers, the replicated feed mirror),
@@ -31,7 +31,7 @@ extends Node
 ## seams tests reach) as a one-line forward to whichever controller now owns
 ## the logic, so nothing outside autoload/match/ had to change.
 ##
-## DECISION (autoload/Match.gd, Bontago-split.1): the class_name is
+## DECISION (autoload/Match.gd): the class_name is
 ## `MatchAutoload`, not `Match` -- Godot 4.7 refuses `class_name Match` outright
 ## ("Class 'Match' hides an autoload singleton") since project.godot's
 ## [autoload] section already binds the global identifier `Match` to this
@@ -42,7 +42,7 @@ extends Node
 ## everywhere it always has, so every existing `Match.foo()` call site outside
 ## this package is unaffected.
 
-## Spec 3.7's states. The rules live in core/rules/MatchPhase.gd (Bontago-1pi.11.77.1, D4);
+## Spec 2.4's states. The rules live in core/rules/MatchPhase.gd (D4);
 ## the alias and the forwarding statics below keep every existing caller unchanged.
 const State = MatchPhase.State
 
@@ -76,8 +76,8 @@ static func is_start_transition(from_state: int, to_state: int) -> bool:
 	return MatchPhase.is_start_transition(from_state, to_state)
 
 
-## Spec 3.7: "Countdown(3s)". A fixed part of the state machine's shape, not a
-## lobby setting (spec 2.8's table doesn't list it) — kept as a named constant
+## Spec 2.4: "Countdown(3s)". A fixed part of the state machine's shape, not a
+## lobby setting (spec 1.9's table doesn't list it) — kept as a named constant
 ## here rather than in a Resource for the same reason
 ## BlockOrientations.ORIENTATION_COUNT is a const: it isn't tunable, it's the
 ## architecture (CLAUDE.md's "no magic numbers" targets tunables).
@@ -106,14 +106,14 @@ var _net_provider: Variant = null
 ## null means "not networked", which is exactly the M2 and single-player case.
 var _replicator: Variant = null
 
-# DECISION (Bontago-1pi.11.77.10, D5/D8): world nodes are held by their light bases (FieldBody, Node) so
+# DECISION (D5/D8): world nodes are held by their light bases (FieldBody, Node) so
 # this autoload does not compile the Field / BlockRegistry closure; Field-only API is called dynamically.
 var _field: FieldBody = null
 var _registry: Node = null
 var _blocks_parent: Node3D = null
 ## Sandbox may tune the cone projection or pause it for diagnostics. New
-## matches use the owner-approved top-height cone projection by default.
-## (Value 0 was the removed linear per-block model, Bontago-1pi.111; the
+## matches use the user-approved top-height cone projection by default.
+## (Value 0 was the removed linear per-block model, the
 ## remaining values keep their numbers.)
 const SANDBOX_TERRITORY_CONE: int = 1
 const SANDBOX_TERRITORY_PAUSED: int = 2
@@ -126,10 +126,10 @@ var _sandbox_cone_base_mode: int = SandboxConeExperiment.BASE_ADDITIVE
 var _sandbox_territory_profile_enabled: bool = false
 var _territory_cache_enabled: bool = true
 
-## Bontago-split.1: the four controllers this file forwards to. Built and
+## The four controllers this file forwards to. Built and
 ## wired in _ready() rather than at field-declaration time, so each one's
 ## setup(self) can hand back a fully-constructed Match reference.
-## DECISION (Bontago-1pi.11.77.10, S2c): the controllers are typed RefCounted and built from
+## DECISION (S2c): the controllers are typed RefCounted and built from
 ## LateScripts paths in late_activate(), so naming them here no longer compiles their closure into
 ## the autoload (calls are dynamic; UNSAFE_* warnings are ignored project-wide).
 var _feed: RefCounted = null
@@ -141,12 +141,12 @@ var _lifecycle: RefCounted = null
 ## array. See autoload/match/MatchGifts.gd's own header for the split.
 var _gifts: RefCounted = null
 
-## Bontago-1pi.13: per-slot match statistics and the results-screen payload
+## per-slot match statistics and the results-screen payload
 ## builder. See autoload/match/MatchStats.gd's own header for the split and
 ## the full results payload contract.
 var _stats: RefCounted = null
 
-## Bontago-22y.10: host-scheduled weather events. See autoload/match/MatchWeather.gd.
+## host-scheduled weather events. See autoload/match/MatchWeather.gd.
 var _weather: RefCounted = null
 var _cat: RigidBody3D = null  # a CatController
 var _gift_fx: Node = null  # a GiftFxPresenter
@@ -188,7 +188,7 @@ func is_late_active() -> bool:
 	return _late_active
 
 
-## Bontago-1pi.11.85.1: facade contract before late_activate(). Read-only getters answer an
+## facade contract before late_activate(). Read-only getters answer an
 ## idle LOBBY-equivalent default (state LOBBY, slot_count 0, team_of -1, null world objects, ...);
 ## no-op commands (abort_match, set_countdown_held, request_place, ...) do nothing. Mutators that
 ## must build state (start_match and every apply_replicated_*, a replicated packet needs the
@@ -221,7 +221,7 @@ func late_activate() -> void:
 	_stats.setup(self)
 	_weather.setup(self)
 	Events.feed_block_issued.connect(_on_feed_block_issued)
-	# Bontago-1pi.85.8: one presenter owns every per-gift client visual
+	# one presenter owns every per-gift client visual
 	# (Paintball splash, Black hole disc, ...); it subscribes to
 	# Events.special_triggered itself.
 	_gift_fx = LateScripts.script(LateScripts.GIFT_FX_PRESENTER).new()
@@ -308,7 +308,7 @@ func _on_cat_match_state_changed(_old: int, next: int) -> void:
 			end_cat(cat.activation_id)
 
 
-# --- Test/debug seams (Bontago-split.1) --------------------------------------
+# --- Test/debug seams --------------------------------------
 #
 # tests/ and tools/ reach several of these directly (by grep of
 # `Match\._` and `Match\.debug_`): _held_shapes (index-assigned), _raster and
@@ -360,7 +360,7 @@ func _physics_process(delta: float) -> void:
 	elif not _is_host() and _lifecycle != null and is_live(state()):
 		_gifts.tick_client(delta)
 	PerfProbe.stop(&"gifts", probe_gifts)
-	# Bontago-22y.10: no-op unless a weather schedule is running.
+	# no-op unless a weather schedule is running.
 	var probe_weather: int = PerfProbe.start()
 	_weather.tick(delta)
 	PerfProbe.stop(&"weather", probe_weather)
@@ -384,7 +384,7 @@ func register_world(field: FieldBody, registry: Node, blocks_parent: Node3D) -> 
 	_registry = registry
 	_blocks_parent = blocks_parent
 	if _registry != null:
-		# Spec 3.4: only the host simulates. A client's registry must not hand
+		# Spec 2.6: only the host simulates. A client's registry must not hand
 		# out net_ids of its own — the host's are the only ones that mean
 		# anything — and must not run the settled rule over frozen bodies.
 		_registry.set_host_authority(_is_host())
@@ -461,7 +461,7 @@ func start_match(match_config: MatchConfig) -> void:
 	_sandbox_cone_height_source = SandboxConeExperiment.HEIGHT_TOP
 	_sandbox_cone_base_mode = SandboxConeExperiment.BASE_ADDITIVE
 	_territory_cache_enabled = true
-	# Bontago-8or.30: a forced-special drawer (Sandbox / gift demo) must not
+	# a forced-special drawer (Sandbox / gift demo) must not
 	# leak into a later real match. Sandbox installs its drawer after start,
 	# so resetting here for every non-sandbox start is safe; the weighted
 	# drawer is re-installed lazily at the first claim (_roster_ready reset).
@@ -493,28 +493,28 @@ func countdown_remaining() -> float:
 	return _lifecycle.countdown_remaining()
 
 
-## Bontago-mp0.27: pause/resume the countdown's run-down (loading hand-off).
+## pause/resume the countdown's run-down (loading hand-off).
 func set_countdown_held(held: bool) -> void:
 	if not _late_active:
 		return
 	_lifecycle.set_countdown_held(held)
 
 
-## Seconds left on the match timer (spec 2.8), 0.0 when off or run out.
+## Seconds left on the match timer (spec 1.9), 0.0 when off or run out.
 func match_timer_left() -> float:
 	if not _late_active:
 		return 0.0
 	return _lifecycle.match_timer_left()
 
 
-## True only in State.SUDDEN_DEATH (spec 2.8).
+## True only in State.SUDDEN_DEATH (spec 1.9).
 func sudden_death_active() -> bool:
 	if not _late_active:
 		return false
 	return _lifecycle.sudden_death_active()
 
 
-## Spec 3.4: "The host is authoritative ... only the host runs physics." Every
+## Spec 2.6: "The host is authoritative ... only the host runs physics." Every
 ## clock that decides something — the countdown, the feed timers and their
 ## auto-drops, the 10 Hz territory solve, the win check and the disconnect
 ## grace — runs here and only on the host. A client's copy of Match is a
@@ -530,7 +530,7 @@ func _process(delta: float) -> void:
 	match _lifecycle._state:
 		State.COUNTDOWN:
 			_lifecycle._tick_countdown(delta)
-			# Bontago-mp0.27. # DECISION: while Main holds the countdown for the
+			# . # DECISION: while Main holds the countdown for the
 			# loading screen, the loading readiness gate still needs its first
 			# applied territory result, which is otherwise only solved in PLAYING
 			# (it used to arrive during the old unconditional 3 s). Solve the
@@ -550,12 +550,12 @@ func _process(delta: float) -> void:
 			# nothing extra here (mirrors _tick_match_timer's own
 			# config.match_timer_minutes == 0 no-op).
 			_lifecycle._tick_turn_based(delta)
-			# Bontago-1pi.13: match_duration() accumulates only across the two
+			# match_duration() accumulates only across the two
 			# "live" states (is_live()), mirroring every
 			# other per-state tick call above.
 			_stats._tick(delta)
 		State.SUDDEN_DEATH:
-			# Spec 2.8 sudden death (M6 A3): normal play continues -- the same
+			# Spec 1.9 sudden death (M6 A3): normal play continues -- the same
 			# three ticks PLAYING runs -- plus the gift ramp / disk shrink /
 			# radius-8 tiebreak schedule in MatchLifecycle.
 			_lifecycle._tick_disconnect_grace(delta)
@@ -586,7 +586,7 @@ func slot(slot_id: int) -> PlayerSlot:
 
 
 ## The colour of `slot_id`: the live PlayerSlot.color, else the config palette,
-## else `fallback` (SlotColors.resolve owns the order, Bontago-1pi.86 D1).
+## else `fallback` (SlotColors.resolve owns the order D1).
 func slot_color(slot_id: int, fallback: Color = Color.WHITE) -> Color:
 	var live: PlayerSlot = slot(slot_id) if _lifecycle != null else null
 	var palette: PackedColorArray = config.player_colors if config != null else MatchConfig.default_player_colors()
@@ -615,7 +615,7 @@ func advance_turn() -> void:
 	_lifecycle.advance_turn()
 
 
-# --- Block feed (spec 2.4, 3.7) ---------------------------------------------
+# --- Block feed (spec 1.4, 2.4) ---------------------------------------------
 
 ## The shape `slot_id` is holding right now, or null between blocks.
 func held_shape(slot_id: int) -> BlockShape:
@@ -632,7 +632,7 @@ func next_shape(slot_id: int) -> BlockShape:
 
 
 ## M4 P1b/P2b: the oldest pending special `slot_id` is holding from a claimed
-## gift crate, or &"" for none (spec 2.6: "your next fed block becomes a
+## gift crate, or &"" for none (spec 1.6: "your next fed block becomes a
 ## special") -- a peek, not a pop. P2c reads this from its own
 ## _spawn_block() extension and pops via pop_pending_special() where
 ## MatchGifts.on_feed_block_issued()'s unconditional clear used to run. See
@@ -644,14 +644,14 @@ func held_special(slot_id: int) -> StringName:
 	return _gifts.held_special(slot_id)
 
 
-## Bontago-1pi.85.69: the claimed gift staged as the block AFTER next, or &"".
+## the claimed gift staged as the block AFTER next, or &"".
 func after_next_special(slot_id: int) -> StringName:
 	if not _late_active:
 		return &""
 	return _gifts.after_next_special(slot_id)
 
 
-## Presentation peek (Bontago-59o.13): the gift queued as `slot_id`'s next
+## Presentation peek: the gift queued as `slot_id`'s next
 ## piece, or &"" for none. See MatchGifts.next_special().
 func next_special(slot_id: int) -> StringName:
 	if not _late_active:
@@ -659,7 +659,7 @@ func next_special(slot_id: int) -> StringName:
 	return _gifts.next_special(slot_id)
 
 
-## M4 P2b (Bontago-csc): dequeues and returns `slot_id`'s oldest pending
+## M4 P2b: dequeues and returns `slot_id`'s oldest pending
 ## special, or &"" if its queue is empty. See MatchGifts.pop_pending_special().
 func pop_pending_special(slot_id: int) -> StringName:
 	if not _late_active:
@@ -669,7 +669,7 @@ func pop_pending_special(slot_id: int) -> StringName:
 
 ## M4 P2b: how many specials `slot_id` currently has queued (capped at
 ## GiftConfig.max_pending_specials). ui/hud/HUD.gd's queued-count indicator
-## (Bontago-1en.16, not this package) is the only consumer today.
+## (not this package) is the only consumer today.
 func pending_special_count(slot_id: int) -> int:
 	if not _late_active:
 		return 0
@@ -716,7 +716,7 @@ func set_special_drawer(drawer: Callable) -> void:
 	_gifts.set_special_drawer(drawer)
 
 
-## Bontago-1en.24: game/sandbox/Sandbox.gd's F9 hotkey turning back "off" -- reinstalls
+## game/sandbox/Sandbox.gd's F9 hotkey turning back "off" -- reinstalls
 ## whatever drawer a real match would be running (the weighted SpecialDef
 ## pick, or the shipped placeholder). See MatchGifts.restore_default_special_
 ## drawer().
@@ -725,7 +725,7 @@ func restore_default_special_drawer() -> void:
 	_gifts.restore_default_special_drawer()
 
 
-## Bontago-1en.24: game/sandbox/Sandbox.gd's F9 sandbox_force_special hotkey and
+## game/sandbox/Sandbox.gd's F9 sandbox_force_special hotkey and
 ## `--force-special=` -- appends `special_id` straight onto `slot_id`'s
 ## pending queue with no crate needed, host-only and sandbox-only. See
 ## MatchGifts.debug_queue_special() for the full contract (the cap, the
@@ -744,7 +744,7 @@ func _on_feed_block_issued(slot_id: int, _shape_id: StringName, _next_shape_id: 
 	_gifts.on_feed_block_issued(slot_id)
 
 
-## Seconds left on the slot's block timer (spec 2.8: 3-12 s, default 6).
+## Seconds left on the slot's block timer (spec 1.9: 3-12 s, default 6).
 func feed_time_left(slot_id: int) -> float:
 	if not _late_active:
 		return 0.0
@@ -758,7 +758,7 @@ func feed_progress(slot_id: int) -> float:
 	return _feed.feed_progress(slot_id)
 
 
-## Bontago-1pi.18.1 (QoL experiments): blocks queued for `slot_id` (0 when the
+## QoL experiments: blocks queued for `slot_id` (0 when the
 ## backlog toggle is off), and whether its block timer is paused by the pause toggle.
 func qol_backlog_count(slot_id: int) -> int:
 	if not _late_active:
@@ -772,7 +772,7 @@ func qol_timer_paused(slot_id: int) -> bool:
 	return _feed.timer_paused(slot_id)
 
 
-## Bontago-1pi.18.6: the goal claim radius in force, in meters: the very value
+## the goal claim radius in force, in meters: the very value
 ## MatchTerritory feeds capture (WinChecker.claim_at), so the beacon's ground ring
 ## (GoalFlag.set_claim_ring) cannot disagree with it. 0.0 when the toggle is off or
 ## no match config exists yet. Reads Match.config.qol, so host and client agree.
@@ -782,7 +782,7 @@ func qol_claim_radius() -> float:
 	return _territory._claim_radius()
 
 
-## Bontago-mp0.152: the radius of the beacon zone every goal flag draws (GoalFlag.set_claim_ring):
+## the radius of the beacon zone every goal flag draws (GoalFlag.set_claim_ring):
 ## the claim radius while the goal-radius experiment is on, else the goal no-build zone radius
 ## (TerritoryTuning.goal_zone_radius), the area the beacon is claimed from. Visual only; both
 ## sources are replicated config/tuning, so host and clients draw the same disc.
@@ -791,7 +791,7 @@ func goal_zone_visual_radius() -> float:
 	return claim if claim > 0.0 else _territory_tuning.goal_zone_radius
 
 
-## Bontago-1pi.18.2 (QoL gift slot): the gift `slot_id` could spend now (&"" if none), how many wait, and the host-validated use.
+## QoL gift slot: the gift `slot_id` could spend now (&"" if none), how many wait, and the host-validated use.
 func gift_slot_head(slot_id: int) -> StringName:
 	if not _late_active:
 		return &""
@@ -833,7 +833,7 @@ func apply_replicated_qol(slot_id: int, backlog: int, paused: bool) -> void:
 	_feed.apply_replicated_qol(slot_id, backlog, paused)
 
 
-## Whether _tick_feed() is currently decrementing timers (Bontago-mv0.8:
+## Whether _tick_feed() is currently decrementing timers (
 ## true for every real match). ui/debug/SandboxPanel.gd shows this as the timer's
 ## "running"/"paused" state.
 func feed_timer_enabled() -> bool:
@@ -874,7 +874,7 @@ func sandbox_territory_mode() -> int:
 
 
 
-# --- The one authoritative entry point (spec 3.4) ---------------------------
+# --- The one authoritative entry point (spec 2.6) ---------------------------
 
 ## Every placement in the game goes through here, local or remote. See
 ## autoload/match/MatchPlacement.gd's request_place() for the full contract
@@ -893,7 +893,7 @@ func request_place(
 	return _placement.request_place(slot_id, origin, orientation_index, free_quat, auto_drop, feed_seq)
 
 
-## Spec 2.5's throw: releases a pending special with velocity instead of
+## Spec 1.6's throw: releases a pending special with velocity instead of
 ## dropping it in place. See MatchPlacement.request_throw() for the full
 ## contract (guard order, REASON_NOT_A_SPECIAL, the never-burns refusal, the
 ## throw_max_speed clamp and continuous_cd).
@@ -910,7 +910,7 @@ func request_throw(
 	return _placement.request_throw(slot_id, origin, orientation_index, free_quat, velocity, feed_seq)
 
 
-## Bontago-1pi.134: host-side last aim (unit camera forward) of a slot; the forced release at
+## host-side last aim (unit camera forward) of a slot; the forced release at
 ## timer expiry throws a held throwable gift along it. See MatchPlacement.note_aim().
 func note_aim(slot_id: int, forward: Vector3) -> void:
 	if not _late_active:
@@ -949,7 +949,7 @@ func is_pose_well_formed(origin: Vector3, orientation_index: int, free_quat: Qua
 
 
 ## Dry run of request_place()'s territory check, for the ghost's valid/red/
-## hatched tint (spec 2.5). See MatchPlacement.preview_placement().
+## hatched tint (spec 1.4). See MatchPlacement.preview_placement().
 func preview_placement(
 	slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion
 ) -> PlacementRules.Result:
@@ -976,7 +976,7 @@ func feed_seq(slot_id: int) -> int:
 	return _feed.feed_seq(slot_id)
 
 
-## Bontago-mv0.10 (spec 2.4 "[ORIGINAL target]" cadence): whether `slot_id`'s
+## spec 1.4 "[ORIGINAL target]" cadence: whether `slot_id`'s
 ## currently held piece may be released right now. See MatchFeed.is_release_locked().
 func is_release_locked(slot_id: int) -> bool:
 	if not _late_active:
@@ -1014,7 +1014,7 @@ func disconnect_grace_left(slot_id: int) -> float:
 	return _lifecycle.disconnect_grace_left(slot_id)
 
 
-# --- Territory and the win check (spec 2.2, 2.3, 3.3) -----------------------
+# --- Territory and the win check (spec 1.5, 2.5) -----------------------
 
 ## The live raster. Never mutate it from outside Match.
 func raster() -> TerritoryRaster:
@@ -1030,7 +1030,7 @@ func groups() -> TerritoryGroups:
 	return _territory.groups()
 
 
-## Bontago-1t5.3: mode goal context for a bot slot (see MatchTerritory.bot_mode_goal()).
+## mode goal context for a bot slot (see MatchTerritory.bot_mode_goal()).
 func bot_mode_goal(slot_id: int) -> BotModeGoal:
 	if not _late_active:
 		return null
@@ -1057,17 +1057,17 @@ func winner_team() -> int:
 	return _territory.winner_team()
 
 
-## Bontago-22y.10: the weather controller (net/WeatherNet.gd, the HUD cue and
+## the weather controller (net/WeatherNet.gd, the HUD cue and
 ## tests read it; rules never do).
 func weather() -> RefCounted:
 	return _weather
 
 
-# --- Match statistics + results (spec 3.7, Bontago-1pi.13) ------------------
+# --- Match statistics + results (spec 2.4) ------------------
 
 ## Per-slot stats and the results-payload builder. See
 ## autoload/match/MatchStats.gd's own header for the full contract; the
-## results-screen UI worker (Bontago-1pi.6) reads Events.match_results_ready
+## results-screen UI worker reads Events.match_results_ready
 ## rather than reaching in here directly, but net/MatchNet.gd's replication
 ## and this file's own tests need the object itself.
 func stats() -> RefCounted:
@@ -1075,7 +1075,7 @@ func stats() -> RefCounted:
 
 
 ## Tallest point any of this slot's settled blocks reaches above the disk, in
-## meters. Spec 2.10's HUD shows it as a number.
+## meters. Spec 1.10's HUD shows it as a number.
 func max_height_for_slot(slot_id: int) -> float:
 	return _registry.max_height_for_slot(slot_id) if _registry != null else 0.0
 
@@ -1115,7 +1115,7 @@ func punch_special_hole(world_pos: Vector2, radius_m: float, hole_open_s: float)
 	_territory.punch_special_hole(world_pos, radius_m, hole_open_s)
 
 
-# --- The client's read model (spec 3.4) -------------------------------------
+# --- The client's read model (spec 2.6) -------------------------------------
 #
 # Everything below is called only by net/MatchNet.gd, only on a client, and
 # decides nothing: it writes the host's answers into this instance's copy of
@@ -1160,14 +1160,14 @@ func apply_replicated_elimination(slot_id: int, by_slot: int = -1) -> void:
 	_lifecycle.apply_replicated_elimination(slot_id, by_slot)
 
 
-## Bontago-1pi.186: the slot credited with eliminating `slot_id`, -1 if unknown.
+## the slot credited with eliminating `slot_id`, -1 if unknown.
 func eliminated_by(slot_id: int) -> int:
 	if not _late_active:
 		return -1
 	return _lifecycle.eliminated_by(slot_id)
 
 
-## Bontago-22y.11: client mirror of the host's mode-objective state, and the
+## client mirror of the host's mode-objective state, and the
 ## host's snapshot of it for a reconnecting peer ({} when there is none).
 func apply_replicated_mode_state(state: Dictionary) -> void:
 	_ensure_active()
@@ -1225,13 +1225,13 @@ func apply_replicated_gift_expired(gift_id: int) -> void:
 	_gifts.apply_replicated_expire(gift_id)
 
 
-## Bontago-1en.21: net/MatchNet.gd's EVENT_SPECIAL_CONSUMED dispatch calls
+## net/MatchNet.gd's EVENT_SPECIAL_CONSUMED dispatch calls
 ## this before re-emitting Events.special_consumed -- the spend-side
 ## counterpart of apply_replicated_gift_claimed() above. `special_id` is the
 ## wire argument net/MatchNet.gd's own _special_id_wire_ok() has already
 ## checked before this is ever called.
 ##
-## DECISION (autoload/Match.gd, Bontago-1en.21): this package's own brief did
+## DECISION (autoload/Match.gd): this package's own brief did
 ## not list autoload/Match.gd among its owned files, but net/MatchNet.gd's
 ## dispatch needs an entry point on the same _authority() surface every other
 ## apply_replicated_* call already uses (see the three siblings directly

@@ -1,6 +1,6 @@
 class_name FlockPlanner
 extends RefCounted
-## Bontago-470.5: pure planning for the occasional distant bird flocks (no scene
+## pure planning for the occasional distant bird flocks (no scene
 ## tree; unit-tested in tests/unit/sky/test_flock_planner.gd). A flight is a
 ## near-straight path through the sky: it enters from the far path ring, passes
 ## the disc axis at its closest-approach distance and leaves the far side. The

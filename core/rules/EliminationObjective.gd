@@ -1,6 +1,6 @@
 class_name EliminationObjective
 extends ModeObjective
-## Elimination (Bontago-22y.8, owner decision Bontago-fim). The existing home
+## Elimination. The existing home
 ## triggers (MatchTerritory._check_home_flags / _check_home_flags_v2) are reused
 ## unchanged: a slot is out when its home flag is lost. This objective only
 ## decides what that means for the match:
@@ -13,7 +13,7 @@ extends ModeObjective
 ##    the surviving teams are ranked by territory share, highest wins, equal
 ##    shares share the win.
 ## _scores holds each team's living player count (0 = out).
-## [OWNER decision 2026-10-12, Bontago-1pi.185] A home flag is only knocked out
+## [OWNER decision] A home flag is only knocked out
 ## after the attacker has kept the pressure on it continuously for the claim
 ## time (TerritoryTuning.capture_hold, the goal-beacon claim duration). The
 ## per-slot claim timers live here (pure); MatchTerritory feeds the pressure.
@@ -37,7 +37,7 @@ var _winners: PackedInt32Array = PackedInt32Array()
 ## Claim time in seconds (<= 0 = instant knockout).
 var _claim_hold: float = 0.0
 ## Seconds of claim progress lost per second while the pressure has lapsed
-## (<= 0 = the old instant reset). [OWNER decision 2026-10-12, Bontago-9s9 b]
+## (<= 0 = the old instant reset). [OWNER decision b]
 var _claim_decay_rate: float = 0.0
 ## slot -> seconds the current attacker has held its home flag.
 var _claim_held: Dictionary = {}
@@ -91,7 +91,7 @@ func update(raster: TerritoryRaster, _delta: float) -> void:
 
 ## Host: advances every home-flag claim by `delta`. `pressure` maps each slot
 ## whose home flag is currently under attack to the attacking team id
-## (NO_TEAM when unknown). [OWNER decision 2026-10-12, Bontago-9s9 b] A slot
+## (NO_TEAM when unknown). [OWNER decision b] A slot
 ## missing from `pressure` keeps its claim and FADES by claim_decay_rate seconds
 ## per second (removed at 0) instead of resetting, so brief lapses (temporary
 ## holes) do not undo it; resumed pressure from the same attacker continues from
@@ -145,7 +145,7 @@ func leading_claim_slot() -> int:
 
 
 ## HUD ring feed: the attacking team and progress of the furthest claim.
-## DECISION (Bontago-1pi.185): a pressure with no owning team (a hole under the
+## DECISION: a pressure with no owning team (a hole under the
 ## flag in the overlap modes) has no attacker colour, so the ring is drawn in the
 ## victim's team colour; the knockout is then attributed to nobody ("Eliminated").
 func capturing_team() -> int:

@@ -1,6 +1,6 @@
 class_name ModeObjective
 extends RefCounted
-## What decides a match (Bontago-22y.11). One objective is active per match;
+## What decides a match. One objective is active per match;
 ## MatchTerritory feeds it every territory solve and MatchLifecycle asks it
 ## about the round timer, so neither hard-codes the classic all-goal hold.
 ##
@@ -58,7 +58,7 @@ static func create(
 	return objective
 
 
-## Bontago-1pi.18.1: QoL claim radius (0 = the flag cell only). Objectives that
+## QoL claim radius (0 = the flag cell only). Objectives that
 ## read goal cells override this.
 func set_claim_radius(_radius: float) -> void:
 	pass

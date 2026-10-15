@@ -1,6 +1,6 @@
 class_name BotStack
 extends RefCounted
-## A pure, team-agnostic model of tower statics (Bontago-1t5.53a, docs/BOT_TOWER_PLAN.md B.3-B.5
+## A pure, team-agnostic model of tower statics (.53a, docs/BOT_TOWER_PLAN.md B.3-B.5
 ## and C "1t5.53a"): a snapshot of the cubes near the bot's towers and the analysis of it.
 ##
 ## Frame: disk-local, y up. The disc's top surface is y == ground_y; a cube whose bottom face is
@@ -19,7 +19,7 @@ extends RefCounted
 ## fell outside the snapshot) has no hull: it is unsound, but the margin walk skips it rather than
 ## forcing -INF.
 ##
-## Cut model (Bontago-1t5.72, the owner's two centre-of-mass rules): the CUT at a body b treats b plus everything
+## Cut model (the owner's two centre-of-mass rules): the CUT at a body b treats b plus everything
 ## resting on it (its up-closure U(b), through any number of carriers) as one object; its support region is the
 ## convex hull of every contact patch between U(b) and what is NOT in U(b) (the other carriers and the disc), its
 ## combined centre of mass is the mass-weighted mean over U(b). The margin is the signed distance of that centre
@@ -29,7 +29,7 @@ extends RefCounted
 ## carriers' whole top surfaces: an inverted-T piece standing on its stem tips over the stem. Face outlines use the
 ## real collider half-width (add_body face_half) and are centred on the FACE, not the cube centre, for a tilted body.
 ##
-## Support faces (Bontago-1t5.68): soundness describes a TOWER (every body down to the disc upright). Where a
+## Support faces: soundness describes a TOWER (every body down to the disc upright). Where a
 ## piece may REST is a separate, looser rule (is_flat_support, rest_margin): the faces under the piece lie flat
 ## against the disc within support_face_tolerance_deg, and the body and every carrier below it are settled with a
 ## known contact hull; a carrier may lean (debris), and whether the pile holds the piece is load_margin's call
@@ -77,7 +77,7 @@ class PieceCut:
 	extends RefCounted
 	var plane_y: float = 0.0
 	var on_disc: bool = false
-	var flat: bool = true  # every support is_flat_support (Bontago-1t5.68)
+	var flat: bool = true  # every support is_flat_support
 	var supports: PackedInt32Array = PackedInt32Array()  # snapshot body indices
 	var points: PackedVector2Array = PackedVector2Array()  # patch vertices (block patches eroded by aim)
 	var owners: PackedInt32Array = PackedInt32Array()  # per point: body index, -1 disc, -2 unknown block
@@ -106,7 +106,7 @@ var _above: Array[PackedInt32Array] = []  # bodies resting on this one, directly
 var _load_mass: PackedFloat32Array = PackedFloat32Array()
 var _load_com: PackedVector3Array = PackedVector3Array()
 var _sound: PackedByteArray = PackedByteArray()
-## Bontago-1t5.68: 1 when the body and every body carrying it (down to the disc) are settled with a known hull.
+## 1 when the body and every body carrying it (down to the disc) are settled with a known hull.
 var _known_chain: PackedByteArray = PackedByteArray()
 var _face_tolerance_deg: float = 0.0  # set from the tuning in _prepare
 var _contact_tolerance: float = 0.0  # set from the tuning in _prepare
@@ -206,7 +206,7 @@ func is_sound(body: int) -> bool:
 	return _done and body >= 0 and body < _sound.size() and _sound[body] == 1
 
 
-## Bontago-1t5.70: sound bodies of `team` with no SOUND body resting on them, tallest first. Unlike sound_tops an
+## sound bodies of `team` with no SOUND body resting on them, tallest first. Unlike sound_tops an
 ## unsound block lying on the tower (a leaning top piece, a stray) does not take the tower below it out of the
 ## list: the tower still stands, the plan keeps following it. DECISION: unsound bodies above are ignored here
 ## only; is_usable_top (the site filter) still refuses a top that carries one.
@@ -233,7 +233,7 @@ func standing_tops(team: int) -> PackedInt32Array:
 	return PackedInt32Array(tops)
 
 
-## Bontago-1t5.70: true when `body` or any body carrying it down to the disc has its centre of mass within `radius`
+## true when `body` or any body carrying it down to the disc has its centre of mass within `radius`
 ## of `point` (disk-local XZ): the body belongs to the tower rooted there, however far its own top has wandered.
 func rooted_near(body: int, point: Vector2, radius: float) -> bool:
 	for b: int in down_set(PackedInt32Array([body])):
@@ -267,7 +267,7 @@ func sound_tops(team: int) -> PackedInt32Array:
 	return PackedInt32Array(tops)
 
 
-## Bontago-1t5.54: the body whose centre of mass lies within `radius` of `point` (disk-local XZ) and
+## the body whose centre of mass lies within `radius` of `point` (disk-local XZ) and
 ## whose top face is nearest `top` (a circle's own top height decides between the bodies of a column);
 ## -1 when none. Circles carry no body id, so this is how a circle finds its body.
 func body_near(point: Vector2, radius: float, top: float) -> int:
@@ -334,7 +334,7 @@ func load_margin(support_ids: PackedInt64Array, piece_com: Vector3, piece_mass: 
 	return _margin_with(pc, supports, piece_com, piece_mass)
 
 
-## Bontago-1t5.68: true when a piece may rest on `body`'s top faces: they lie within support_face_tolerance_deg
+## true when a piece may rest on `body`'s top faces: they lie within support_face_tolerance_deg
 ## of the disc plane (the body's tilt against the disc normal), and the body and every body carrying it are
 ## settled with a known contact hull. A carrier may lean or be unsound (fallen debris): whether the pile holds
 ## the piece is the load margin's call (rest_margin). A body with an unknown hull below it (floating in the
@@ -345,14 +345,14 @@ func is_flat_support(body: int) -> bool:
 	return _known_chain[body] == 1 and body_tilt_deg[body] <= _face_tolerance_deg
 
 
-## Bontago-1t5.68: index of the body whose top face is highest above disk-local `point` (the first one a probe
+## index of the body whose top face is highest above disk-local `point` (the first one a probe
 ## down the disc-normal column hits), -1 when the column holds only the disc.
 func surface_at(point: Vector2) -> int:
 	var ci: int = _top_cube_at(point)
 	return cube_body[ci] if ci >= 0 else -1
 
 
-## Bontago-1t5.68: how a piece would rest with its bottom cubes over the disk-local `points` (the columns the
+## how a piece would rest with its bottom cubes over the disk-local `points` (the columns the
 ## bot's cube probes fire down). The highest face under them is the resting plane (the host lifts the piece onto
 ## it); the bodies whose faces lie on it within rest_tolerance_m carry the piece. INF when only the disc carries
 ## it (no block support, as load_margin); -INF when a carrying face is not a flat support (is_flat_support:
@@ -572,12 +572,12 @@ func _piece_cut(
 						continue
 					# DECISION: a body tilted past the face tolerance only sets the plane when the square's centre is
 					# on its top outline (a probe would hit it, rest_margin rejects it); beside a leaning cube the
-					# piece rests on the disc (Bontago-1t5.68), and the projected outline of a tilted top is only
+					# piece rests on the disc, and the projected outline of a tilted top is only
 					# an approximation of where the host would lift the piece.
 					if body_tilt_deg[cube_body[k]] > _face_tolerance_deg:
 						if BotGeom2D.signed_inside_hull(_top_poly[k], centre) < 0.0:
 							continue
-					# DECISION (Bontago-1t5.72.10): ANY positive overlap sets the plane and carries the piece. The host lifts
+					# DECISION: ANY positive overlap sets the plane and carries the piece. The host lifts
 					# a placement onto every box it intersects (MatchPlacement._lift_pose_clear, no minimum overlap), and
 					# Jolt stands a piece on a 9 cm strip (statics Jolt case F), so dropping slivers below
 					# min_contact_overlap_m called a piece resting on a sliver "on the lower plane / on the disc". The
@@ -620,7 +620,7 @@ func _piece_cut(
 
 
 ## The overlap of the axis-aligned box lo..hi (a piece's bottom face) with cube `k`'s top face eroded by `aim`.
-## DECISION (Bontago-1t5.72.10): the aim error erodes the merged support REGION once, not each cube top: an edge that
+## DECISION: the aim error erodes the merged support REGION once, not each cube top: an edge that
 ## abuts a coplanar top across the seam is interior to the region and is not eroded (see _eroded_top).
 func _patch_of(k: int, lo: Vector2, hi: Vector2, aim: float) -> PackedVector2Array:
 	if _axis_aligned[k] == 1:
@@ -760,7 +760,7 @@ func _add_outlines(c: Vector3, basis: Basis, face_half: float) -> void:
 	var v_axis: Vector3 = _basis_axis(basis, (up_axis + 2) % _AXES)
 	var u: Vector2 = Vector2(u_axis.x, u_axis.z) * face_half
 	var v: Vector2 = Vector2(v_axis.x, v_axis.z) * face_half
-	# Bontago-1t5.72: a tilted body's faces are centred on the FACE centres, not on the cube centre.
+	# a tilted body's faces are centred on the FACE centres, not on the cube centre.
 	var lift: Vector2 = Vector2(up.x, up.z) * face_half
 	var centre: Vector2 = Vector2(c.x, c.z)
 	var top: PackedVector2Array = BotGeom2D.square(centre + lift, u, v)
@@ -862,7 +862,7 @@ func _finish(t: BotStackTuning) -> void:
 		for s: int in _supporters[b]:
 			ok = ok and _sound[s] == 1
 		_sound[b] = 1 if ok else 0
-		# Bontago-1t5.68: the carrier chain a support face needs (tilt and centre of mass are not part of it).
+		# the carrier chain a support face needs (tilt and centre of mass are not part of it).
 		var known: bool = body_settled[b] == 1 and not _hull[b].is_empty()
 		for s: int in _supporters[b]:
 			known = known and _known_chain[s] == 1

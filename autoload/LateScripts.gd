@@ -1,6 +1,6 @@
 class_name LateScripts
 extends RefCounted
-## Bontago-1pi.11.77.3 (S2b): script paths for everything an autoload facade builds late
+## S2b: script paths for everything an autoload facade builds late
 ## (after Boot has prewarmed them). STRING PATHS ONLY: this file must never name a class_name,
 ## an autoload or a preload of a world script, or it would pull that script back into the
 ## autoloads' compile graph. Facades call script(path).new() from late_activate().

@@ -1,6 +1,6 @@
 class_name ClaimProgressExtrapolator
 extends RefCounted
-## Client-side smoothing of the beacon-claim hold progress (Bontago-1pi.117,
+## Client-side smoothing of the beacon-claim hold progress (
 ## shared by Sfx's claim-tension bed and the HUD capture ring so they never
 ## disagree). A client only receives Events.goal_capture_progress when the
 ## territory raster changes, so on a static board the value freezes. Between
@@ -13,7 +13,7 @@ const NO_TEAM: int = -1
 var _team: int = NO_TEAM
 var _progress: float = 0.0
 ## False once a snap for the same team came in lower (Elimination home claims
-## fade, Bontago-1pi.194): never extrapolate upward while the value is falling.
+## fade): never extrapolate upward while the value is falling.
 var _rising: bool = true
 
 

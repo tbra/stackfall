@@ -1,7 +1,7 @@
 class_name DisplayNames
 extends RefCounted
-## Single owner of player-facing mode / map / sky / weather / gift labels
-## (Bontago-1pi.86 concept M, D3). Pure statics, no scene tree. Unknown ids return a
+## Single source of player-facing mode / map / sky / weather / gift labels
+## (concept M, D3). Pure statics, no scene tree. Unknown ids return a
 ## stable fallback, never "". Plain strings (Q2): a later tr() is a one-file change.
 
 ## MatchConfig.SkyThemeMode order (DAY is shown as "Sunset").

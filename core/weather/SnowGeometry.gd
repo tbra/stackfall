@@ -1,6 +1,6 @@
 class_name SnowGeometry
 extends RefCounted
-## Pure snow geometry and wire format (Bontago-22y.6). No scene tree: the host
+## Pure snow geometry and wire format. No scene tree: the host
 ## effect and every client renderer build from these same functions, so a
 ## snow collider and the mesh drawn for it come from one list of points.
 ##
@@ -11,7 +11,7 @@ extends RefCounted
 ## that grid; the collider is the convex hull of the same grid points. The
 ## dome is (nearly) concave-down, so hull top and drawn surface agree within
 ## a few millimetres (tested). Its layout comes from a seed per patch, so only
-## (owner, cell, level) crosses the wire.
+## (cell, level) crosses the wire.
 
 ## Block-local axis directions; the index is the wire value of a patch face.
 const AXES: Array[Vector3i] = [
@@ -38,7 +38,7 @@ const DOME_STRIDE: int = 5
 
 ## Wire format. Architecture, not tunables.
 const WIRE_VERSION: int = 2
-## Disc patches use this owner id in the seed (block net ids are >= 1).
+## Disc patches use this owning id in the seed (block net ids are >= 1).
 const DISC_OWNER: int = -1
 ## Most ints one accepted block patch can cost: its 3 header ints plus 2 for the patch itself.
 const BLOCK_RECORD_INTS_MAX: int = 5
@@ -167,7 +167,7 @@ static func dome_points(params: PackedFloat32Array, patch_edge: float, level: in
 	return points
 
 
-## Block top-face snow (Bontago-mp0.31). Unlike dome_points() this is a flat
+## Block top-face snow. Unlike dome_points() this is a flat
 ## plateau at the level's depth over the whole face, with a soft quarter-sine
 ## shoulder along the OUTER rims only: a side whose neighbour cell carries
 ## snow (`neighbor_levels`, one entry per SIDE_* in the patch frame, 0 = none)
@@ -178,7 +178,7 @@ static func dome_points(params: PackedFloat32Array, patch_edge: float, level: in
 ## bumps are not used. Grid points are clustered toward the edges (sine warp)
 ## so the shoulder is resolved. Concave like the dome, so hull == drawn surface.
 ##
-## `cross_levels` (Bontago-mp0.32, visual only; same SIDE_* layout) names sides
+## `cross_levels` (visual only; same SIDE_* layout) names sides
 ## that touch a same-height snowy top of ANOTHER block: they merge exactly like
 ## `neighbor_levels` sides (flush to the cell boundary, no rim, height blended
 ## to the mean) but the seeded tilt is kept and faded out toward that side
@@ -297,7 +297,7 @@ static func append_dome_triangles(points: PackedVector3Array, tuning: SnowTuning
 			if points[a].y <= rim and points[b].y <= rim and points[c].y <= rim and points[d].y <= rim:
 				continue
 			# Front face: (b - a) x (c - a) points down, into the snow
-			# (core/blocks/BlockMeshBuilder.gd, Bontago-xtq.5).
+			# (core/blocks/BlockMeshBuilder.gd).
 			vertices.append(points[a])
 			vertices.append(points[b])
 			vertices.append(points[c])

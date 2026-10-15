@@ -1,6 +1,6 @@
 class_name BotGeom2D
 extends RefCounted
-## Pure 2D geometry for the bot's statics (Bontago-1t5.72, docs: STATICS_DESIGN 7.2): convex polygons in the disc
+## Pure 2D geometry for the bot's statics (docs: STATICS_DESIGN 7.2): convex polygons in the disc
 ## plane, counter-clockwise (cross > 0 turns), as PackedVector2Array. No scene tree.
 
 const _MIN_POINTS: int = 3

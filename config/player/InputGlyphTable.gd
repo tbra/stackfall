@@ -1,7 +1,7 @@
 class_name InputGlyphTable
 extends Resource
 ## Colours of the Stackfall Arcade pad face-button caps drawn by ui/InputGlyph (static helpers only;
-## the old paper-and-ink stick/chord art table is gone, Bontago-1pi.159.30).
+## the old paper-and-ink stick/chord art table is gone).
 
 ## Stackfall Arcade pad face-button caps (docs/ui_reskin/components.md KeyPrompt): A mint, B flare,
 ## X player-2 blue, Y rim gold, all read from ArcadeVisualTuning (single source of the colours).

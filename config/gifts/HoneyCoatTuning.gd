@@ -1,7 +1,7 @@
 class_name HoneyCoatTuning
 extends Resource
-## Look of the glue glaze: an inflated translucent jelly shell (Bontago-lv2, jelly-only per owner
-## 2026-10-11, Bontago-1pi.85.71) on placed glued blocks, the held ghost (scaled by ghost_alpha so
+## Look of the glue glaze: an inflated translucent jelly shell (jelly-only per slot
+## ) on placed glued blocks, the held ghost (scaled by ghost_alpha so
 ## its validity colour shows through) and, as an amber tint, the HUD held/next preview.
 
 ## Honey yellow of the jelly.

@@ -1,6 +1,6 @@
 class_name WindField
 extends RefCounted
-## Pure wind rules (Bontago-22y.4): direction, gust and the height response.
+## Pure wind rules: direction, gust and the height response.
 ## No scene tree; the host effect and the client presentation both call these
 ## NOTE (470.1): typed on StormTuning (the Storm rename). A future always-on
 ## Breeze reuses these rules by extending StormTuning with its own numbers.

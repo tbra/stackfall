@@ -1,6 +1,6 @@
 class_name DiscShakeConfig
 extends Resource
-## Bontago-1pi.110: which gift specials shake the camera. Only events that
+## which gift specials shake the camera. Only events that
 ## shake the disc itself or risk toppling towers do; cosmetic ones (volcano
 ## spew, landings, UI) never do. Not shown in the F4 panel on purpose.
 
@@ -8,7 +8,7 @@ extends Resource
 ## within `max_distance_field_factor` x the field radius of the disc centre.
 @export var impulse_special_ids: Array[StringName] = [&"anvil", &"bomb", &"rocket"]
 
-## Bontago-1pi.110 (review fix): the earthquake's special_triggered fires at
+## review fix: the earthquake's special_triggered fires at
 ## the END of the quake, so it cannot drive the shake. Instead the camera
 ## shakes while the disc itself is visibly tilting faster than this (rad/s),
 ## measured from Field.tilt_vector() on every peer (clients get the tilt from

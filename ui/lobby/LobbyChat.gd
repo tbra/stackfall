@@ -1,6 +1,6 @@
 class_name LobbyChat
 extends UiChatPanel
-## Lobby adapter for the chat panel (Bontago-1pi.192.4, docs/CHAT_PLAN.md C3): the opaque LOBBY skin at the
+## Lobby adapter for the chat panel (docs/CHAT_PLAN.md C3): the opaque LOBBY skin at the
 ## foot of the right players panel, wired to the Events chat bus. Typed text goes out through
 ## Events.chat_send_requested; wire lines, the late-join history and host notices come back through Events.
 ## The panel hides itself offline and on the private local bot host, where nobody can chat.

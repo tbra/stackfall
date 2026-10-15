@@ -1,8 +1,8 @@
 class_name GiftConfig
 extends Resource
-## Tunables for gift-crate spawning (spec 2.6).
+## Tunables for gift-crate spawning (spec 1.6).
 ##
-## DECISION (config/gifts/GiftConfig.gd, M4 P1a): the 2026-09-20/22 evidence audit
+## DECISION (config/gifts/GiftConfig.gd, M4 P1a): the/22 evidence audit
 ## (docs/archive/M4_PLAN.md header amendment; SPEC.md 2.6 "Gift spawning [ORIGINAL
 ## target]") retired the earlier reconstructed 20 -> 45 s / 100 -> 6 s spawn
 ## interval with jitter. Nothing here implements that mapping. Instead a
@@ -12,7 +12,7 @@ extends Resource
 ##
 ## Loaded once as config/gifts/gift_config.tres.
 ##
-## M4 P1b review fix (Bontago-4fa): "once per placement window for the whole
+## M4 P1b review fix: "once per placement window for the whole
 ## match" is enforced by the caller, not by should_spawn() itself --
 ## autoload/match/MatchGifts.gd rolls only for the lowest-indexed slot still
 ## alive on any given feed-issue event, so an N-player concurrent match still
@@ -23,15 +23,15 @@ extends Resource
 ## 0..this. 100 -> frequency_to_chance_max, 0 -> 0.0, monotonic in between.
 @export var frequency_to_chance_max: float = 0.5
 
-## Start grace (owner playtest 2026-10-11, Bontago-1pi.85.68): no spawn roll runs
+## Start grace: no spawn roll runs
 ## until this many seconds of host play have elapsed (the roll is skipped, not
 ## queued). Counted on host physics ticks while the match is live.
 @export var first_gift_delay_s: float = 10.0
 
-## Hard ceiling on simultaneously live crates (owner playtest 2026-10-07:
+## Hard ceiling on simultaneously live crates (
 ## several gifts may be on the disc together). No new crate spawns while this
 ## many are already live and unclaimed.
-## DECISION (Bontago-1pi.85.58): the effective cap scales with the match:
+## DECISION: the effective cap scales with the match:
 ## ceil(players / players_per_crate), clamped to 1..max_live_crates
 ## (GiftSpawner.live_cap()). Spawn chance per window is unchanged: still one
 ## roll per window, so crates accumulate at most one per window and the cap
@@ -44,8 +44,8 @@ extends Resource
 ## every other live crate so simultaneous crates never stack.
 @export var crate_min_separation_m: float = 3.0
 
-## Seconds a crate lives before it expires unclaimed (spec 2.6, "Crate life"
-## owner decision: stationary pickups, 25 s per owner 2026-09-30, Bontago-sen.2).
+## Seconds a crate lives before it expires unclaimed (spec 1.6, "Crate life"
+## : stationary pickups, 25 s per).
 @export var life_s: float = 25.0
 
 ## Descent begins this many metres above the field and advances on host physics ticks.
@@ -60,7 +60,7 @@ extends Resource
 ## Ignore remote cursor poses older than this; a stale pose cannot collect a gift.
 @export var cursor_max_age_s: float = 0.5
 
-## Owner playtest report (Bontago-1pi.2, "Unclaimed presents should respawn in
+##  report ("Unclaimed presents should respawn in
 ## different places when unclaimed"): how far (meters, disk-local XZ distance)
 ## an expired crate's immediate replacement must land from the crate it
 ## replaces. MatchGifts._pick_relocation_point() retries the same seeded RNG/
@@ -68,7 +68,7 @@ extends Resource
 ## uses -- up to spawn_max_attempts times -- until a candidate clears this
 ## distance, so replays stay deterministic under a fixed rng_seed.
 ##
-## DECISION (config/gifts/GiftConfig.gd, Bontago-1pi.2): 5.0 m -- large enough that a
+## DECISION (config/gifts/GiftConfig.gd): 5.0 m -- large enough that a
 ## relocated crate never reads as "the same crate that didn't move" next to a
 ## 1 m cube, small enough that it still fits comfortably inside a 20 m disk's
 ## effective (edge-margined) radius alongside spawn_edge_margin_m. GiftConfig
@@ -91,15 +91,15 @@ extends Resource
 @export var spawn_edge_margin_m: float = 2.0
 
 ## Caps each slot's FIFO of drawn-but-unspent specials (Orchestrator
-## amendment 1, M4 P2b/Bontago-csc, 2026-09-23 — supersedes the earlier
+## amendment 1, M4 P2b/ — supersedes the earlier
 ## single-slot "latest wins" scalar). A claim landing while a slot's queue is
 ## already at this many leaves the crate alive for someone else instead of
 ## consuming it (amendment 3) — nothing a slot claims is ever silently
 ## discarded.
 @export var max_pending_specials: int = 3
 
-## -- Claim feedback (Bontago-d04, owner report "I grabbed a yellow cube but
-## nothing seemed to happen"): spec 2.6's claim rule was never actually
+## -- Claim feedback ("I grabbed a yellow cube but
+## nothing seemed to happen"): spec 1.6's claim rule was never actually
 ## broken (a crate claims only when it lands inside the claiming slot's own
 ## territory — see MatchGifts.claim_or_expire_gifts()'s own doc), but a
 ## successful claim had *no visible feedback at all*: _free_crate_visual()
@@ -107,7 +107,7 @@ extends Resource
 ## only silently refreshed a small text counter. This section's tunables
 ## drive game/gifts/GiftCrate.gd's claim-pop effect and ui/hud/HUD.gd's claim toast.
 ##
-## DECISION (config/gifts/GiftConfig.gd, Bontago-d04): these live here rather than
+## DECISION (config/gifts/GiftConfig.gd): these live here rather than
 ## in GhostTuning's own "-- HUD --" section, which is that resource's
 ## documented home for HUD tunables (ui/hud/HUD.gd's own class doc references it)
 ## and where hud_reject_message_duration/hud_reject_fade_duration already
@@ -144,7 +144,7 @@ extends Resource
 ## Seconds the toast then takes to fade to invisible.
 @export var claim_toast_fade_duration_s: float = 0.5
 
-## -- Not-claimable hint (spec 2.6's claim rule is territory-only [ORIGINAL]:
+## -- Not-claimable hint (spec 1.6's claim rule is territory-only [ORIGINAL]:
 ## walking a held block/ghost over a crate that is not inside the local
 ## player's own territory does nothing by design, and used to look identical
 ## to a crate the player really could walk into and claim) -------------------
@@ -158,7 +158,7 @@ extends Resource
 ## sitting static and reading exactly like a claimable one.
 @export var hint_pulse_color: Color = Color(1.0, 1.0, 1.0, 1.0)
 
-## -- Spawn glow (Bontago-mp0.23): a brief flash settles into a soft idle light
+## -- Spawn glow: a brief flash settles into a soft idle light
 ## around the pickup. GiftConfig is not on the F4 roster, so no hints entry.
 ## Seconds the flash takes to settle (and the halo to expand and fade).
 @export var spawn_glow_duration_s: float = 0.7
@@ -175,7 +175,7 @@ extends Resource
 @export var spawn_halo_start_scale: float = 0.75
 @export var spawn_halo_end_scale: float = 2.0
 
-## -- Parachute (Bontago-mp0.139): the visual canopy a crate wears while it
+## -- Parachute: the visual canopy a crate wears while it
 ## descends. Purely cosmetic and client-side: it follows the replicated
 ## falling/landed state (GiftCrate.set_falling) and changes no descent speed,
 ## landing time, claim rule or network message. GiftConfig is not on the F4

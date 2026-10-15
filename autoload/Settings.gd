@@ -13,13 +13,13 @@ extends Node
 
 signal graphics_preset_changed(preset: GraphicsPreset)
 signal audio_settings_changed()
-## Bontago-1pi.11.37: the "Adaptive quality" option flipped.
+## the "Adaptive quality" option flipped.
 signal adaptive_quality_setting_changed(enabled: bool)
 signal camera_shake_setting_changed(enabled: bool)
-## Bontago-1pi.204: the player-chosen field of view changed (degrees; 0.0 = cleared, use CameraTuning.fov_deg).
+## the player-chosen field of view changed (degrees; 0.0 = cleared, use CameraTuning.fov_deg).
 signal fov_override_changed(degrees: float)
 signal window_mode_changed(id: StringName)
-## Bontago-1pi.150: the relative UI scale changed (already sanitized and applied).
+## the relative UI scale changed (already sanitized and applied).
 signal ui_scale_changed(scale: float)
 signal hud_scale_changed(scale: float)
 signal minimap_size_changed(preset: int)
@@ -28,13 +28,13 @@ signal minimap_size_changed(preset: int)
 ## same camera_shake_enabled() precedent); this fires so a future
 ## ui/menus/OptionsMenu.gd row can live-update without polling.
 signal rumble_setting_changed(enabled: bool, strength: float)
-## Bontago-1pi.49: the local player's typed name changed (already cleaned).
+## the local player's typed name changed (already cleaned).
 signal player_name_changed(player_name: String)
 
 const DEFAULT_PRESET_ID: StringName = &"medium"
 const PRESETS_DIR: String = "res://config/graphics/presets/"
 
-## Bontago-1pi.10 (owner: "default to only showing mouse/keyboard, switch to
+## ("default to only showing mouse/keyboard, switch to
 ## showing only gamepad options on gamepad input and switch back on mouse/
 ## keyboard input"). ui/menus/OptionsMenu.gd's Controls page and ui/menus/KeyRebindRow.gd
 ## read active_input_device() to decide which device's binding glyphs to
@@ -44,7 +44,7 @@ const DEVICE_KEYBOARD_MOUSE: StringName = &"keyboard_mouse"
 const DEVICE_GAMEPAD: StringName = &"gamepad"
 const DEFAULT_ACTIVE_DEVICE: StringName = DEVICE_KEYBOARD_MOUSE
 
-## DECISION (Bontago-1pi.10): a UI-feel/detection threshold, not gameplay or
+## DECISION: a UI-feel/detection threshold, not gameplay or
 ## physics tuning (CLAUDE.md's no-magic-numbers rule targets those), the same
 ## reasoning ui/menus/OptionsMenu.gd's own MIN_VOLUME_DB/MAX_VOLUME_DB DECISION
 ## gives for a plain script const instead of a config/*.tres Resource.
@@ -71,7 +71,7 @@ const KEY_DEBUG_ENABLED: String = "enabled"
 
 const KEY_PRESET: String = "preset"
 const KEY_ADAPTIVE_QUALITY: String = "adaptive_quality"
-## Bontago-1pi.11.86: the player's per-field edits layered over the base preset (field -> value).
+## the player's per-field edits layered over the base preset (field -> value).
 const KEY_GRAPHICS_OVERRIDES: String = "overrides"
 ## The GraphicsPreset fields the Options Graphics tab may override; anything else in a saved
 ## file is dropped on load.
@@ -106,7 +106,7 @@ const KEY_RUMBLE_ENABLED: String = "rumble_enabled"
 const KEY_RUMBLE_STRENGTH: String = "rumble_strength"
 const KEY_MOUSE_MOVE_SPEED_SCALE: String = "mouse_move_speed_scale"
 const KEY_STICK_MOVE_SPEED_SCALE: String = "stick_move_speed_scale"
-## Bontago-1pi.109: marks a save written after gamepad_cursor_base_speed was
+## marks a save written after gamepad_cursor_base_speed was
 ## raised x1.2; a save without it holds a scale relative to the old base.
 const KEY_STICK_SPEED_BASIS: String = "stick_speed_basis"
 const STICK_SPEED_BASIS_CURRENT: int = 2
@@ -116,7 +116,7 @@ const STICK_SPEED_BASE_RATIO: float = 1.2
 const STICK_SPEED_MIGRATED_MIN: float = 0.5
 const STICK_SPEED_MIGRATED_MAX: float = 2.0
 
-## Bontago-xtq.45 (M7 P4): the three player-facing window modes, exclusive
+## M7 P4: the three player-facing window modes, exclusive
 ## fullscreen, borderless fullscreen and windowed. Ids are StringName rather
 ## than a real GDScript enum so they persist to ConfigFile directly (same
 ## pattern as _current_preset_id) and so a future ui/menus/OptionsMenu.gd
@@ -126,7 +126,7 @@ const WINDOW_MODE_FULLSCREEN: StringName = &"fullscreen"
 const WINDOW_MODE_BORDERLESS_FULLSCREEN: StringName = &"borderless_fullscreen"
 const WINDOW_MODE_WINDOWED: StringName = &"windowed"
 
-## Owner request (Bontago-xtq.45): borderless fullscreen is the default.
+## : borderless fullscreen is the default.
 const DEFAULT_WINDOW_MODE_ID: StringName = WINDOW_MODE_BORDERLESS_FULLSCREEN
 
 ## Display order for the future OptionButton (ui/menus/OptionsMenu.gd, a separate
@@ -146,7 +146,7 @@ const WINDOW_MODE_LABELS: Dictionary[StringName, String] = {
 	WINDOW_MODE_WINDOWED: "Windowed",
 }
 
-## Bontago-xtq.29 (M7 P4): default on -- matches the shake game/player/CameraRig.gd
+## M7 P4: default on -- matches the shake game/player/CameraRig.gd
 ## already applies before the player ever opens Options, so a fresh install
 ## shows the intended feel rather than a silent off-by-default.
 const DEFAULT_CAMERA_SHAKE_ENABLED: bool = true
@@ -158,7 +158,7 @@ const DEFAULT_CAMERA_SHAKE_ENABLED: bool = true
 var _rumble_defaults: RumbleConfig = preload("res://config/player/rumble_config.tres")
 
 ## Options package: Master/Music/SFX are three independent channels, each a
-## plain 0..1 linear "slider position" (owner: "Sliders 0-100% (linear,
+## plain 0..1 linear "slider position" ("Sliders 0-100% (linear,
 ## mapped to dB with linear_to_db; 0% = silent)") plus its own mute flag.
 enum AudioChannel { MASTER, MUSIC, SFX, WEATHER }
 
@@ -175,7 +175,7 @@ const DEFAULT_VOLUME_PERCENT: float = 1.0
 ## on top of this), so a large-but-finite floor is used instead.
 const SILENT_VOLUME_DB: float = -80.0
 
-## Owner correction (options package, mid-review): the single "block movement
+## Correction: the single "block movement
 ## speed" slider is replaced by two independent scales -- mouse_move_speed_
 ## scale multiplies game/player/PlayerController.gd's mouse-cursor use of
 ## GhostTuning.block_move_sensitivity, stick_move_speed_scale multiplies its
@@ -190,10 +190,10 @@ const REAL_CONFIG_PATH: String = "user://settings.cfg"
 var _config_path: String = REAL_CONFIG_PATH
 var _gut_run: bool = false
 var _current_preset_id: StringName = DEFAULT_PRESET_ID
-## Bontago-1pi.11.86: field name -> value, only for fields that differ from the base preset.
+## field name -> value, only for fields that differ from the base preset.
 ## Non-empty means the player's graphics are "Custom".
 var _graphics_overrides: Dictionary = {}
-## Bontago-1pi.11.37: opt-in adaptive quality. Default OFF (owner decides). The level is
+## opt-in adaptive quality. Default OFF (the user decides). The level is
 ## runtime-only (never saved) and only ever layered over the stored preset.
 const DEFAULT_ADAPTIVE_QUALITY: bool = false
 var _adaptive_quality: bool = DEFAULT_ADAPTIVE_QUALITY
@@ -220,12 +220,12 @@ var _channel_muted: Dictionary[int, bool] = {
 }
 
 var _custom_music_dir: String = ""
-## Bontago-1pi.49: the name the local player typed, "" until they type one (the
+## the name the local player typed, "" until they type one (the
 ## host then seats them as "Player N"). Length cap: NetConfig.max_player_name_length.
 var _player_name: String = ""
 var _net_config: NetConfig = preload("res://config/net/net_config.tres")
 var _camera_shake_enabled: bool = DEFAULT_CAMERA_SHAKE_ENABLED
-## Bontago-1pi.204: 0.0 = no override (the camera uses CameraTuning.fov_deg, which F4 edits).
+## 0.0 = no override (the camera uses CameraTuning.fov_deg, which F4 edits).
 var _fov_override_deg: float = 0.0
 var _window_mode_id: StringName = DEFAULT_WINDOW_MODE_ID
 var _ui_scale_tuning: UiScaleTuning = preload("res://config/ui/ui_scale_tuning.tres")
@@ -241,7 +241,7 @@ var _stick_move_speed_scale: float = DEFAULT_STICK_MOVE_SPEED_SCALE
 ## the full InputMap default set -- key_override_events() answers "what has
 ## the user overridden", not "what is bound").
 var _key_overrides: Dictionary[StringName, Array] = {}
-## Bontago-470.8: user-level debug-mode switch (game/debug/DebugMode.gd's source 3).
+## user-level debug-mode switch (game/debug/DebugMode.gd's source 3).
 ## -1 = never set (fall through to the other sources), 0 = off, 1 = on. Edited
 ## by hand in user://settings.cfg ([debug] enabled=true) or via
 ## set_debug_setting(); there is no in-game menu entry on purpose.
@@ -251,8 +251,8 @@ var _debug_setting: int = -1
 func _ready() -> void:
 	AgentProbe.apply()
 	# Sharded GUT gates run several Godot processes at once; they must not share
-	# (or clobber) the player's user://settings.cfg (Bontago-1pi.20).
-	# Bontago-1pi.11.86: agent probe runs are isolated the same way (per-PID file, never the player's).
+	# (or clobber) the player's user://settings.cfg.
+	# agent probe runs are isolated the same way (per-PID file, never the player's).
 	_gut_run = UserPaths.is_isolated_run()
 	if _gut_run:
 		_config_path = UserPaths.gut_path(REAL_CONFIG_PATH)
@@ -262,7 +262,7 @@ func _ready() -> void:
 	apply_ui_scale()
 
 
-## The player's last-used input device family (Bontago-1pi.10): real keyboard/
+## The player's last-used input device family: real keyboard/
 ## mouse key or button press, or mouse motion beyond
 ## MOUSE_MOTION_DEVICE_THRESHOLD_PX, sets DEVICE_KEYBOARD_MOUSE; a real
 ## gamepad button or a stick/trigger beyond JOYPAD_MOTION_DEVICE_THRESHOLD
@@ -316,7 +316,7 @@ func current_graphics_preset() -> GraphicsPreset:
 
 
 ## The user's chosen preset exactly as stored (never carries governor overrides).
-## Bontago-1pi.11.86: the base preset duplicated with the player's overrides applied (the base
+## the base preset duplicated with the player's overrides applied (the base
 ## itself when there are none). DECISION: `id` stays the base preset's id so consumers that
 ## branch on it (e.g. the Low snow look) keep working; graphics_preset_is_custom() says Custom.
 func stored_graphics_preset() -> GraphicsPreset:
@@ -427,7 +427,7 @@ func set_graphics_preset(id: StringName) -> void:
 		push_warning("Settings: unknown graphics preset id %s" % id)
 		return
 	_current_preset_id = id
-	_graphics_overrides.clear()  # Bontago-1pi.11.86: picking a preset resets every control to it.
+	_graphics_overrides.clear()  # picking a preset resets every control to it.
 	_save()
 	graphics_preset_changed.emit(current_graphics_preset())
 
@@ -513,7 +513,7 @@ func toggle_sfx_mute() -> void:
 	set_sfx_muted(not sfx_muted())
 
 
-## Weather channel (Bontago-1pi.77): weather ambience loops and gust whoosh.
+## Weather channel: weather ambience loops and gust whoosh.
 ## Scales only itself (plus Master), never the SFX slider.
 func weather_volume_percent() -> float:
 	return _channel_volume_percent[AudioChannel.WEATHER]
@@ -590,7 +590,7 @@ func set_custom_music_dir(path: String) -> void:
 	audio_settings_changed.emit()
 
 
-## Bontago-1pi.49: the local player's saved display name, "" when never set.
+## the local player's saved display name, "" when never set.
 ## ui/menus/MainMenu.gd prefills its name field from this and writes every edit back,
 ## so the name survives page changes, a rebuilt menu and a restart.
 func player_name() -> String:
@@ -607,7 +607,7 @@ func set_player_name(typed: String) -> void:
 	player_name_changed.emit(_player_name)
 
 
-## Bontago-xtq.29 (M7 P4, spec 2.10 "camera shake"): read directly by
+## M7 P4, spec 1.10 "camera shake": read directly by
 ## game/player/CameraRig.gd (autoload/Sfx.gd's own master_volume_db()/
 ## custom_music_dir() precedent -- a plain-bool feel setting, not something
 ## that needs a per-test provider seam the way ui/menus/OptionsMenu.gd's InputMap
@@ -622,7 +622,7 @@ func set_camera_shake_enabled(enabled: bool) -> void:
 	camera_shake_setting_changed.emit(enabled)
 
 
-## Bontago-1pi.204: the player's field of view in degrees, or 0.0 when never chosen.
+## the player's field of view in degrees, or 0.0 when never chosen.
 ## DECISION (autoload/Settings.gd): an optional override rather than a second default, so the
 ## F4 CameraTuning.fov_deg slider stays the baseline until a player picks a value in Options;
 ## game/player/CameraRig.gd applies this over the tuning value.
@@ -679,8 +679,7 @@ func reset_rumble_settings() -> void:
 # --- Block movement speed (options package) -----------------------------------
 ## Two independent feel multipliers game/player/PlayerController.gd applies: mouse_
 ## move_speed_scale to the mouse cursor's block_move_sensitivity,
-## stick_move_speed_scale to the gamepad cursor's max speed. Owner correction
-## (mid-review): kept separate rather than one shared scale, since a mouse
+## stick_move_speed_scale to the gamepad cursor's max speed. Kept separate rather than one shared scale, since a mouse
 ## and a gamepad player tune their own device's feel independently; 1.0 = the
 ## tuning Resource's own untouched default for either.
 
@@ -714,7 +713,7 @@ func reset_move_speed_scales() -> void:
 	_save()
 
 
-## Bontago-1pi.150: the player's UI scale, RELATIVE to the design-mockup scale (1.0 = mockup).
+## the player's UI scale, RELATIVE to the design-mockup scale (1.0 = mockup).
 func ui_scale() -> float:
 	return _ui_scale
 
@@ -731,7 +730,7 @@ func reset_ui_scale() -> void:
 	set_ui_scale(_ui_scale_tuning.default_scale)
 
 
-## Bontago-1pi.191: the in-match HUD scale (separate from the UI scale; same range and step).
+## the in-match HUD scale (separate from the UI scale; same range and step).
 func hud_scale() -> float:
 	return _hud_scale
 
@@ -765,7 +764,7 @@ func reset_minimap_size() -> void:
 	set_minimap_size_preset(_ui_scale_tuning.minimap_default_preset)
 
 
-## DECISION (Bontago-1pi.150): one knob, Window.content_scale_factor of the root window, which the
+## DECISION: one knob, Window.content_scale_factor of the root window, which the
 ## engine multiplies onto the project stretch (canvas_items, expand): the UI canvas shrinks/grows,
 ## 3D rendering, cameras and Label3D are untouched. Isolated runs (GUT, agent probes) never touch the
 ## real window; they only publish the value to UiScaleTuning.current_scale, which ui/theme/UiScale.gd's
@@ -781,7 +780,7 @@ func apply_ui_scale() -> void:
 		tree.root.content_scale_factor = _ui_scale_tuning.effective_factor(_ui_scale)
 
 
-## Bontago-xtq.45 (M7 P4): the persisted window-mode id. Defaults to
+## M7 P4: the persisted window-mode id. Defaults to
 ## DEFAULT_WINDOW_MODE_ID (borderless fullscreen) when user://settings.cfg has
 ## never stored one.
 func window_mode() -> StringName:
@@ -814,7 +813,7 @@ func window_mode_label(id: StringName) -> String:
 ## Safe to call any number of times (idempotent: re-applying the same mode is
 ## just redundant DisplayServer calls, not observable state churn).
 ##
-## Bontago-xtq.45: guarded so it is a no-op whenever there is no real player
+## guarded so it is a no-op whenever there is no real player
 ## window to change:
 ##  - DisplayServer.get_name() == "headless": no window exists at all (every
 ##    GUT test run, CI, `--headless-host` bot matches).
@@ -826,7 +825,7 @@ func window_mode_label(id: StringName) -> String:
 ##  - `--position`, `--windowed` or `-w` in OS.get_cmdline_args(): an explicit
 ##    windowed/off-screen CLI request wins over the saved mode. Our own
 ##    screenshot/probe tools launch with `--windowed --position 10000,10000`
-##    specifically so a run never appears on the owner's monitor; forcing
+##    specifically so a run never appears on the user's monitor; forcing
 ##    fullscreen (now also the project default) would undo that.
 func apply_window_mode() -> void:
 	if not _can_apply_window_mode():
@@ -916,7 +915,7 @@ func set_key_override(action: StringName, event: InputEvent) -> void:
 	_save()
 
 
-## Bontago-1pi.10 polish pass (owner: "Add one 'Reset to defaults' action in
+## polish pass ("Add one 'Reset to defaults' action in
 ## the footer"): clears every persisted override and reloads the InputMap
 ## straight from project.godot's own [input] section, the exact bindings
 ## tools/bootstrap_project.gd wrote there, undoing every runtime
@@ -992,7 +991,7 @@ func set_config_path_for_test(path: String) -> void:
 
 # --- Persistence --------------------------------------------------------------
 
-## Bontago-470.8: see _debug_setting. -1 when the user never set it.
+## see _debug_setting. -1 when the user never set it.
 func debug_setting() -> int:
 	return _debug_setting
 
@@ -1081,7 +1080,7 @@ func _load() -> void:
 	_ui_scale = _ui_scale_tuning.sanitize(
 		float(cfg.get_value(SECTION_GRAPHICS, KEY_UI_SCALE, _ui_scale_tuning.default_scale))
 	)
-	# Migration (Bontago-1pi.191): a save without a HUD scale keeps the HUD at its old (UI-scaled) size.
+	# Migration: a save without a HUD scale keeps the HUD at its old (UI-scaled) size.
 	_hud_scale = _ui_scale_tuning.sanitize(
 		float(cfg.get_value(SECTION_GRAPHICS, KEY_HUD_SCALE, _ui_scale))
 	)
@@ -1098,7 +1097,7 @@ func _load() -> void:
 	_stick_move_speed_scale = clampf(
 		float(cfg.get_value(SECTION_CONTROLS, KEY_STICK_MOVE_SPEED_SCALE, DEFAULT_STICK_MOVE_SPEED_SCALE)), 0.01, 10.0
 	)
-	# DECISION (Bontago-1pi.109): no settings-version mechanism existed, so a
+	# DECISION: no settings-version mechanism existed, so a
 	# minimal per-key basis marker is used. A stored stick scale without it is
 	# relative to the old base speed: divide by the ratio, clamped to the slider.
 	if cfg.has_section_key(SECTION_CONTROLS, KEY_STICK_MOVE_SPEED_SCALE) 			and int(cfg.get_value(SECTION_CONTROLS, KEY_STICK_SPEED_BASIS, 1)) < STICK_SPEED_BASIS_CURRENT:

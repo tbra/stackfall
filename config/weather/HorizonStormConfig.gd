@@ -1,10 +1,10 @@
 class_name HorizonStormConfig
 extends Resource
-## Bontago-mp0.126: tunables for the distant storm cells on the horizon during
+## tunables for the distant storm cells on the horizon during
 ## storm weather (game/weather/HorizonStormCells.gd). Presentation only.
 ## config/weather/horizon_storm.tres is the shipped instance.
 
-## Master switch. Off by default (owner playtest 2026-10-05, Bontago-mp0.133: the
+## Master switch. Off by default (the
 ## cells looked bad); set true in config/weather/horizon_storm.tres to restore them.
 @export var enabled: bool = true
 

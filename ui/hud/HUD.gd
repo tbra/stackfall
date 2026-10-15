@@ -1,24 +1,24 @@
 class_name HUD
 extends CanvasLayer
-## Spec 2.10's HUD, scoped to what M2/Bontago-mv0.9 need: a timer ring around
+## Spec 1.10's HUD, scoped to what M2/ need: a timer ring around
 ## the held-block preview, a separate next-block preview, max height,
 ## per-player territory share, capture ring, a greyed locked ring, and a
-## hot-seat turn indicator. Bontago-1en.16 (M4 P2b-ii) adds a small pending-
+## hot-seat turn indicator. (M4 P2b-ii) adds a small pending-
 ## special queue indicator beside the next-shape preview. M7 P5 adds the
-## live minimap (ui/hud/Minimap.gd); Bontago-mp0.3.3 restyles the whole HUD
+## live minimap (ui/hud/Minimap.gd) restyles the whole HUD
 ## toward docs/art_mockups/08-cel-shaded-home-beacons.png (per-player
 ## diamond+bar rows top-left, a numeral in the timer ring top-center, a
 ## circular minimap bottom-right) and rebuilds the minimap as a 2D draw off
 ## the live TerritoryRaster instead of a 3D camera (see ui/hud/Minimap.gd's own
-## class doc for why). Bontago-1pi.5 (owner playtest: "Held/next previews
+## class doc for why). ("Held/next previews
 ## should be grouped and moved to the bottom left corner") moves the
 ## held-shape and next-shape cards off the top edge into one grouped
 ## %HeldNextPanel in the bottom-left corner (clear of both the top-left
-## per-player cluster and the bottom-right minimap). Bontago-35f replaces
+## per-player cluster and the bottom-right minimap). replaces
 ## the procedural cube drawing with pre-rendered actual mesh thumbnails.
 ##
-## Bontago-mv0.9: outside hot-seat there is no "turn" — every slot plays at
-## once (spec 2.4 "[ORIGINAL target]") — so this HUD shows **the local
+## outside hot-seat there is no "turn" — every slot plays at
+## once (spec 1.4 "[ORIGINAL target]") — so this HUD shows **the local
 ## player's own status** instead of a turn banner. `_active_slot` doubles as
 ## "whichever slot this HUD's widgets currently read": in hot-seat it is
 ## whoever's turn it is (set_active_slot(), wired off Events.turn_changed);
@@ -49,27 +49,27 @@ extends CanvasLayer
 ##
 
 
-## Bontago-mp0.3.3 (owner review 2026-09-26: "bar ~22-25% of screen width"):
-## 300px is 23.4% of the 1280px reference width a script removed in Bontago-dbn.1 (see git history)
+## "bar ~22-25% of screen width":
+## 300px is 23.4% of the 1280px reference width a script removed in (see git history)
 ## and every other fixed HUD offset in this file already assume.
 const SHARE_BAR_MAX_WIDTH: float = 200.0
 const SHARE_BAR_HEIGHT: float = 14.0
 const SKY_NET_CONFIG: NetConfig = preload("res://config/net/net_config.tres")
-## Bontago-mp0.3.3 (owner review 2026-09-26: "thicker ring (~8 px)").
+## ("thicker ring (~8 px)").
 const RING_LINE_WIDTH: float = 8.0
-## Stackfall Arcade (Bontago-hfa.6): the ring's empty track is disc-500 (ArcadeVisualTuning).
-## Bontago-mp0.3.3: the bold numeral drawn in the middle of the timer ring
+## Stackfall Arcade: the ring's empty track is disc-500 (ArcadeVisualTuning).
+## the bold numeral drawn in the middle of the timer ring
 ## (mockup 08's "6"), pure screen-space geometry like every other constant in
-## this section (this file's own pre-M7 DECISION above). Owner review
-## 2026-09-26 grew the ring itself to ~84-96px; the numeral grows with it.
+## this section (this file's own pre-M7 DECISION above). 
+## grew the ring itself to ~84-96px; the numeral grows with it.
 ## (The size now comes from ArcadeVisualTuning.font_size_timer_px.)
-## Bontago-mp0.3.3 (owner review 2026-09-26: "subtle drop shadow"), shared by
+## ("subtle drop shadow"), shared by
 ## the timer ring's disc.
 const DROP_SHADOW_OFFSET: Vector2 = Vector2(2.0, 3.0)
 const DROP_SHADOW_COLOR: Color = Color(0.0, 0.0, 0.0, 0.35)
 const ELIMINATED_COLOR: Color = Color(0.4, 0.4, 0.4, 0.5)
 @export var ghost_tuning: GhostTuning = preload("res://config/blocks/tuning/ghost_tuning.tres")
-## Bontago-d04: durations for the "Special queued: <name>" claim toast below
+## durations for the "Special queued: <name>" claim toast below
 ## (see config/gifts/GiftConfig.gd's own "-- Claim feedback --" section for why
 ## these live there rather than in ghost_tuning above).
 @export var gift_config: GiftConfig = preload("res://config/gifts/gift_config.tres")
@@ -95,13 +95,13 @@ const GIFT_CARD_ICON_GLYPH_GAP_PX: float = 2.0
 ## real Match hasn't landed on this branch yet. Defaults to the real
 ## autoload; tests overwrite it with a fake after add_child().
 var match_provider: Variant = null
-## Bontago-1pi.49: where a human seat's replicated name comes from, anything
+## where a human seat's replicated name comes from, anything
 ## answering name_for_slot(slot_id) -> String. Null means the real Net autoload.
 var name_provider: Variant = null
 
 @onready var _turn_label: Label = %TurnLabel
 @onready var _timer_ring: Control = %TimerRing
-## The match clock in the top-right corner (UiRoundTimer, Bontago-1pi.159.34).
+## The match clock in the top-right corner (UiRoundTimer).
 var _round_timer: UiRoundTimer = null
 ## Seconds the current unlimited match has been live (the round clock counts up from it).
 var _round_played_s: float = 0.0
@@ -115,27 +115,27 @@ var _round_played_s: float = 0.0
 @onready var _status_pill: VBoxContainer = %StatusPill
 @onready var _capture_ring: Control = %CaptureRing
 @onready var _toasts: ToastStack = %ToastStack
-## Bontago-mp0.124: feedback pictograms (config/ui/hud_feedback_icon_table.tres)
+## feedback pictograms (config/ui/hud_feedback_icon_table.tres)
 ## beside held height, the capture ring and the reject/relocated message.
 @onready var _capture_icon: TextureRect = %CaptureIcon
 @onready var _reject_icon: TextureRect = %RejectIcon
 @export var feedback_icons: HudFeedbackIconTable = preload("res://config/ui/hud_feedback_icon_table.tres")
 @onready var _winner_label: Label = %WinnerLabel
-## Bontago-mp0.3.3 (mockup 08 restyle): the next-shape card's own backing
+## mockup 08 restyle: the next-shape card's own backing
 ## panel, and the live minimap. Added as new HUD.tscn nodes; every
 ## pre-existing %UniqueName above keeps the exact same path it always had.
 ## The M7 P5 status/shares boxy backing panels (StatusPanel/SharesPanel) are
-## gone -- feedback/graphics_feedback.md + Bontago-mp0.2 ("top-left HUD
+## gone -- feedback/graphics_feedback.md + ("top-left HUD
 ## unreadable"): mockup 08 has no panel behind the top-left readouts at all,
 ## just outlined text and slim bars (Stackfall Arcade now puts them on one plate).
 @onready var _next_shape_card: Panel = %NextShapeCard
-## Bontago-mp0.3.3 (owner review 2026-09-27): the held-shape icon's own
+## the held-shape icon's own
 ## labeled card, styled the same as _next_shape_card -- previously an
 ## unlabeled flat icon floating loose beside the timer ring, which the
 ## review correctly read as a stray leftover glyph.
 @onready var _held_shape_card: Panel = %HeldShapeCard
-## Bontago-1pi.5 (owner playtest: "Held/next previews should be grouped and
-## moved to the bottom left corner"): the outer frame around both
+## "Held/next previews should be grouped and
+## moved to the bottom left corner": the outer frame around both
 ## %HeldShapeCard and %NextShapeCard (ui/hud/HUD.tscn's HeldNextRow), styled the
 ## same as those two inner cards so the group reads as one panel rather than
 ## two loose cards -- DECISION: keeps the inner cards' own borders too
@@ -145,7 +145,7 @@ var _round_played_s: float = 0.0
 ## slightly nested double border in the same palette.
 @onready var _held_next_panel: Panel = %HeldNextPanel
 @onready var _minimap: Minimap = %Minimap
-## Bontago-1pi.191: parent of every HUD control (see _build_scale_root()).
+## parent of every HUD control (see _build_scale_root()).
 var _scale_root: Control = null
 @onready var _top_left_backplate: Panel = %TopLeftBackplate
 @onready var _top_left_cluster: VBoxContainer = $TopLeftCluster
@@ -160,7 +160,7 @@ var _preview_textures: Dictionary[StringName, Texture2D] = {}
 ## doc comment above.
 var _active_slot: int = -1
 var _active_color: Color = Color.WHITE
-## Stackfall Arcade (Bontago-hfa.6): the shared design tokens, the stackfall theme (fonts for the
+## Stackfall Arcade: the shared design tokens, the stackfall theme (fonts for the
 ## code-built labels) and its display (Bungee) font for numerals, percentages and the countdown.
 var _arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 var _ui_theme: Theme = preload("res://ui/theme/stackfall_theme.tres")
@@ -170,7 +170,7 @@ var _lock_fade_nodes: Array[Control] = []
 ## Timer numeral shown while a QoL experiment has the block timer paused.
 const QOL_PAUSED_TEXT: String = "||"
 var _feed_progress: float = 1.0
-## Bontago-1pi.18.1 (QoL experiments): queued-block count and "timer paused"
+## QoL experiments: queued-block count and "timer paused"
 ## flag for the active slot; both stay 0/false unless an experiment is on.
 var _qol_backlog: int = 0
 var _qol_paused: bool = false
@@ -189,19 +189,19 @@ var _capture_ext: ClaimProgressExtrapolator = ClaimProgressExtrapolator.new()
 var _share_rows: Array = []
 var _share_bars: Array = []
 var _share_labels: Array = []
-## Bontago-1pi.68: the ellipsized player-name label of each row, parallel to _share_labels
+## the ellipsized player-name label of each row, parallel to _share_labels
 ## (which now holds only the mode-specific value text).
 var _share_name_labels: Array = []
 ## Last values fed to the rows, so a mode-state or roster change can repaint them.
 var _last_shares: PackedFloat32Array = PackedFloat32Array()
 var _mode_state: Dictionary = {}
-## Bontago-mp0.3.3: the small team-colored diamond glyph drawn beside each
+## the small team-colored diamond glyph drawn beside each
 ## player's share bar (mockup 08), parallel to _share_rows/_share_bars/
 ## _share_labels above.
 var _share_glyphs: Array = []
 ## Stackfall Arcade: the "· YOU" marker label of each row, shown on the local player's row only.
 var _share_you_labels: Array = []
-## Bontago-1pi.189: per-row CTF "xN" chip (rim gold), visible while a team holds several beacons.
+## per-row CTF "xN" chip (rim gold), visible while a team holds several beacons.
 var _share_mult_labels: Array = []
 ## Seconds left on the active slot's block timer, drawn as the bold numeral
 ## inside the timer ring (mockup 08's "6"). -1 until the first _process()
@@ -212,24 +212,24 @@ var _feed_seconds_left: float = -1.0
 ## ticks (every placement) don't re-frame its camera when the map hasn't
 ## actually changed.
 var _last_map_def: MapDef = null
-## Bontago-1pi.11.6: change-gates for the per-frame _process() polls.
+## change-gates for the per-frame _process() polls.
 var _last_gift_states: Array[Dictionary] = []
 var _last_height_text: String = ""
 var _last_special_signature: Array = []
-## Bontago-22y.7: live per-team score line for timed modes (Capture the Flag),
+## live per-team score line for timed modes (Capture the Flag),
 ## built in code under the status pill so HUD.tscn and classic stay unchanged.
 var _mode_score_label: Label = null
-## Bontago-mp0.27: big centred 3-2-1 label, built in code (no scene edit).
+## big centred 3-2-1 label, built in code (no scene edit).
 ## Driven by the host's replicated countdown (Match.countdown_remaining()),
 ## never by a local timer, so clients stay in step with the host.
 var _reject_icon_tween: Tween
 var _countdown_label: Label = null
-## Bontago-1pi.186: red "Eliminated by <name>" banner for the local player.
+## red "Eliminated by <name>" banner for the local player.
 var _eliminated_label: Label = null
 var _countdown_was_active: bool = false
 var _go_left_s: float = 0.0
 
-## Bontago-1pi.18.2 (QoL gift slot): a third card beside HELD/NEXT, built in
+## QoL gift slot: a third card beside HELD/NEXT, built in
 ## code and shown only while the experiment has a gift waiting. Styled with the
 ## same helpers as the HELD/NEXT cards.
 var _gift_slot_column: VBoxContainer = null
@@ -239,12 +239,12 @@ var _gift_slot_id: StringName = &""
 var _gift_slot_panel_base_right: float = 0.0
 ## Space the extra column adds to the HELD/NEXT panel (card width plus row separation).
 var _gift_slot_extra_width: float = 0.0
-## Bontago-1pi.18.7: the use_gift_slot binding drawn along the card's bottom edge
+## the use_gift_slot binding drawn along the card's bottom edge
 ## (one InputGlyph for the active device family) and what it was built from.
 var _gift_slot_glyph_row: HBoxContainer = null
 var _gift_slot_glyph: InputGlyph = null
 var _gift_slot_glyph_signature: String = ""
-## Bontago-1pi.213: F8 / PADDLE4 (hud_toggle) hides every HUD control at once.
+## F8 / PADDLE4 (hud_toggle) hides every HUD control at once.
 ## DECISION: the HUD owns this state (every in-match HUD element hangs off its
 ## HudScaleRoot; the pause menu, results, loading and F1-F4 overlays are other
 ## layers, so they are untouched). It toggles the scale root, not HUD.visible,
@@ -271,7 +271,7 @@ func _ready() -> void:
 	_capture_ring.visible = false
 	_special_indicator.visible = false
 
-	# Stackfall Arcade (Bontago-hfa.6): every HUD group sits on a disc-900 plate (hud-plate opacity)
+	# Stackfall Arcade: every HUD group sits on a disc-900 plate (hud-plate opacity)
 	# so the same HUD reads over the day, night, storm and snow skies; cards inside a plate are
 	# disc-700 blocks. The CanvasLayer is not a Control, so each root group gets the stackfall theme
 	# explicitly (Rubik text, cream ink); numerals use Bungee through _display_font.
@@ -286,7 +286,7 @@ func _ready() -> void:
 	_style_panel(_held_shape_card, true)
 	_lock_fade_nodes = [_held_shape_card, _next_shape_card]
 	_build_gift_slot_column()
-	# Bontago-1pi.68 (owner playtest 2026-10-04): the status pill keeps only the
+	# the status pill keeps only the
 	# locked/special/toast rows; the name header, tower/block line and
 	# experiments line are gone from the HUD.
 	_turn_label.visible = false
@@ -300,7 +300,7 @@ func _ready() -> void:
 		_style_card_caption(caption)
 	for plated: Label in [_turn_label, _height_label]:
 		_style_status_plate(plated, hud_visual_tuning.ink_color)
-	# DECISION (Bontago-hfa.6): the queued-special chip is a small plate under the scoreboard with its
+	# DECISION: the queued-special chip is a small plate under the scoreboard with its
 	# label in rim gold (components.md TipBanner "Special queued"); the claim toast is the rim Callout.
 	_style_status_plate(_special_indicator, _arcade.rim_color)
 	_setup_toast_stack()
@@ -336,7 +336,7 @@ func _ready() -> void:
 	Events.gift_landed.connect(_on_gift_state_changed)
 	Events.gift_expired.connect(_on_gift_state_changed)
 	Events.input_device_changed.connect(_on_input_device_changed)
-	# Bontago-1pi.99: the world build awaits frames, so the HUD can be created after
+	# the world build awaits frames, so the HUD can be created after
 	# the LOADING/COUNTDOWN state emits it would otherwise prime on. Catch up now.
 	if Match.is_in_progress(Match.state()):
 		prime_pregame_widgets()
@@ -347,7 +347,7 @@ func _build_countdown_label() -> void:
 	_countdown_label = _make_countdown_style_label(
 		"CountdownLabel", hud_visual_tuning.countdown_font_size, _arcade.cream_color
 	)
-	# Bontago-1pi.186: the "Eliminated by <name>" banner is the same style in alert red.
+	# the "Eliminated by <name>" banner is the same style in alert red.
 	_eliminated_label = _make_countdown_style_label(
 		"EliminatedLabel", hud_visual_tuning.eliminated_font_size, _arcade.alert_color
 	)
@@ -412,7 +412,7 @@ func _process(delta: float) -> void:
 	_update_countdown_label(delta)
 	if Net.is_client() and Match.is_live(Match.state()):
 		extrapolate_capture(delta, Match._territory_tuning.capture_hold)
-	# Bontago-mp0.3.3 (owner review 2026-09-26: "the minimap must match what
+	# ("the minimap must match what
 	# the player sees -- rotate it with the camera yaw"). DECISION (ui/hud/HUD.gd):
 	# reads Viewport.get_camera_3d() (whichever Camera3D currently has
 	# `current = true`) rather than a node path into game/player/CameraRig.gd or a
@@ -442,7 +442,7 @@ func _process(delta: float) -> void:
 			_qol_paused = paused_now
 			_timer_ring.queue_redraw()
 		_qol_backlog = int(match_provider.qol_backlog_count(_active_slot))
-	# Bontago-mp0.3.3: the timer ring's numeral (mockup 08's "6"). Guarded by
+	# the timer ring's numeral (mockup 08's "6"). Guarded by
 	# has_method() the same way _update_minimap()'s raster() read is --
 	# tests/support/FakeMatch.gd (and any other Variant double) has no
 	# feed_time_left(), and a bare HUD-only instance should draw no numeral
@@ -459,8 +459,8 @@ func _process(delta: float) -> void:
 	_refresh_special_indicator()
 
 
-## Bontago-1pi.159.34 (owner: "Need a round timer component"): the match clock on a hud-plate.
-## Owner 2026-10-12: the round timer sits in the top-right corner, its top aligned with the
+## "Need a round timer component": the match clock on a hud-plate.
+## the round timer sits in the top-right corner, its top aligned with the
 ## player-stats backplate and its right edge with the minimap (read from those nodes).
 func _build_round_timer() -> void:
 	var slot: Control = Control.new()
@@ -505,7 +505,7 @@ func timer_ring_bottom_px() -> float:
 	return _timer_ring.offset_bottom * _scale_root.scale.y
 
 
-# --- Public API (docs/archive/M2_PLAN.md — "implement exactly"; Bontago-mv0.9 adds
+# --- Public API (docs/archive/M2_PLAN.md — "implement exactly" adds
 # set_local_slot/set_held_shape/set_locked) -----------------------------------
 
 ## Hot-seat only: whoever's turn it is right now. Shows the "Player N's
@@ -522,7 +522,7 @@ func set_active_slot(slot_id: int, color: Color) -> void:
 		"%s — eliminated" % display_name if eliminated else "%s's turn" % display_name
 	)
 	_turn_label.modulate = ELIMINATED_COLOR if eliminated else color
-	# DECISION (Bontago-1pi.68): the name header is gone except in hot-seat, where
+	# DECISION: the name header is gone except in hot-seat, where
 	# the "<name>'s turn" banner is the only turn indicator there is.
 	_turn_label.visible = true
 	_pull_current_shapes(slot_id)
@@ -554,7 +554,7 @@ func set_local_slot(slot_id: int) -> void:
 	_next_shape_preview.queue_redraw()
 
 
-## Bontago-mp0.3.3 (owner review 2026-09-26: "It must show the actual
+## ("It must show the actual
 ## upcoming/held block for the local player ... If it's genuinely empty at
 ## capture time in sandbox, find out why"). ROOT CAUSE: the held/next
 ## previews previously only ever updated from Events.feed_block_issued
@@ -585,9 +585,9 @@ func set_next_shape(shape: BlockShape) -> void:
 	_next_shape_preview.queue_redraw()
 
 
-## Spec 2.4/2.5's release-locked state (Match.is_release_locked): the held
+## Spec 1.4's release-locked state (Match.is_release_locked): the held
 ## piece may be aimed but not released again until the interval boundary.
-## Greys the ring out (Bontago-1pi.92: no LOCKED text, owner 2026-10-06 "locked
+## Greys the ring out (no LOCKED text, "locked
 ## text still exists, get rid of it"); a no-op call when nothing changed,
 ## matching set_capture's shape.
 func set_locked(locked: bool) -> void:
@@ -609,7 +609,7 @@ func set_feed_progress(fraction: float) -> void:
 	_timer_ring.queue_redraw()
 
 
-## Bontago-mp0.3.3: seconds left on the block timer, shown as the bold
+## seconds left on the block timer, shown as the bold
 ## numeral inside the timer ring (mockup 08's "6"). A negative value (the
 ## -1.0 default, or a caller's own choice) draws no numeral at all.
 func set_feed_seconds(seconds: float) -> void:
@@ -619,12 +619,12 @@ func set_feed_seconds(seconds: float) -> void:
 	_timer_ring.queue_redraw()
 
 
-## Bontago-mp0.124: sizes the three pictograms from the table. The held-height
+## sizes the three pictograms from the table. The held-height
 ## icon only shows while a block is held (set_tower_and_block_height); the reject
 ## icon sits centred above the message and is hidden until a message plays.
 func _setup_feedback_icons() -> void:
 	var px: float = float(feedback_icons.icon_px)
-	# DECISION (Bontago-1pi.80): the held-height icon is gone from the HUD; with the
+	# DECISION: the held-height icon is gone from the HUD; with the
 	# height text hidden it was a label-less icon that carried no information.
 	_capture_icon.texture = feedback_icons.icon_for(HudFeedbackIconTable.Feedback.CAPTURE)
 	_capture_icon.offset_left = -px * 0.5
@@ -652,7 +652,7 @@ func set_height(meters: float) -> void:
 	_set_height_text("Height: %.2f m%s" % [meters, sky_target_suffix(_mode_state)])
 
 
-## Bontago-1pi.166: " / 100 m" on the height line in Reach the Sky (the race
+## " / 100 m" on the height line in Reach the Sky (the race
 ## target, NetConfig.build_height_target_m, the same value the host wins on), else "".
 static func sky_target_suffix(state: Dictionary) -> String:
 	if int(state.get("mode_id", -1)) != MatchConfig.GameMode.REACH_THE_SKY:
@@ -660,8 +660,8 @@ static func sky_target_suffix(state: Dictionary) -> String:
 	return " / %.0f m" % SKY_NET_CONFIG.build_height_target_m
 
 
-## Bontago-mv0.35 (owner: "there is still a maximum height the block cannot
-## be raised"): the old single "Height" readout is the slot's tallest
+## "there is still a maximum height the block cannot
+## be raised": the old single "Height" readout is the slot's tallest
 ## *placed* structure (Match.max_height_for_slot()), which does not move
 ## while the held block is wheeled up -- and the follow camera keeps the
 ## ghost fixed at screen centre -- so raising looked capped. While a local
@@ -670,7 +670,7 @@ func set_tower_and_block_height(tower_meters: float, block_meters: float) -> voi
 	_set_height_text("Tower: %.2f m%s   Block: %.1f m" % [tower_meters, sky_target_suffix(_mode_state), block_meters])
 
 
-## Bontago-1pi.11.6: only touches the Label (which re-lays out text) on change.
+## only touches the Label (which re-lays out text) on change.
 func _set_height_text(text: String) -> void:
 	if text == _last_height_text:
 		return
@@ -701,9 +701,9 @@ func show_reject(reason: StringName) -> void:
 	_play_reject_icon(HudFeedbackIconTable.Feedback.REJECTED, ghost_tuning.hud_reject_fade_duration)
 
 
-## Bontago-xtq.23 (owner playtest 2026-09-24, "if I'm hovering over another
+## "if I'm hovering over another
 ## player's area I get the rejected message but the block still drops more or
-## less in place"): a manual click over enemy territory is correctly refused
+## less in place": a manual click over enemy territory is correctly refused
 ## (show_reject() above, nothing spawns) -- the "drops more or less in place"
 ## half of the report is a *separate*, later event: the interval boundary
 ## still auto-drops that same held piece, and PlacementRules.
@@ -718,7 +718,7 @@ func show_reject(reason: StringName) -> void:
 ## hud_relocated_fade_duration), so tuning the reject message never silently
 ## detunes this one.
 func show_relocated() -> void:
-	# DECISION (Bontago-hfa.6): the forced auto-drop is a neutral correction, not a refusal, so it
+	# DECISION: the forced auto-drop is a neutral correction, not a refusal, so it
 	# takes the mint Callout face with a check; a refusal stays alert + cross.
 	_toasts.push(
 		"RELOCATED INTO YOUR TERRITORY", _arcade.mint_color, HudCallout.Glyph.CHECK,
@@ -727,7 +727,7 @@ func show_relocated() -> void:
 	_play_reject_icon(HudFeedbackIconTable.Feedback.RELOCATED, ghost_tuning.hud_relocated_fade_duration)
 
 
-## DECISION (ui/hud/HUD.gd, Bontago-1pi.5): a separate results screen (built
+## DECISION (ui/hud/HUD.gd): a separate results screen (built
 ## elsewhere) now owns the "who won" announcement, so this in-HUD banner must
 ## no longer appear. Keeps computing/storing the text and tint (harmless, and
 ## a cheap seam for a future results-screen consumer that might want to read
@@ -743,7 +743,7 @@ func show_winner(team_id: int, color: Color) -> void:
 	_winner_label.visible = false
 
 
-## Bontago-d04: the local player's own claim feedback beside the pending-
+## the local player's own claim feedback beside the pending-
 ## special indicator (_refresh_special_indicator() above) -- same fade shape
 ## as show_reject() (a hold, then a fade), but its own durations
 ## (GiftConfig.claim_toast_visible_duration_s/claim_toast_fade_duration_s)
@@ -759,7 +759,7 @@ func show_gift_toast(special_id: StringName) -> void:
 
 # --- Events reactions --------------------------------------------------------
 
-## Bontago-mv0.9: in hot-seat this really is a turn changing hands
+## in hot-seat this really is a turn changing hands
 ## (Match.advance_turn()); outside hot-seat net/MatchNet.gd's own
 ## EVENT_TURN_CHANGED handler already substitutes this instance's local slot
 ## before re-emitting the signal (see its DECISION), so either way `slot_id`
@@ -791,7 +791,7 @@ func _on_placement_rejected(slot_id: int, reason: StringName) -> void:
 	show_reject(reason)
 
 
-## Bontago-xtq.23: same per-viewer-HUD filter as _on_placement_rejected() above
+## same per-viewer-HUD filter as _on_placement_rejected() above
 ## -- every other slot's own relocation is none of this instance's business.
 ## `point` (the disk-local landing spot) is not shown; the message text alone
 ## already says everything this placeholder HUD needs to (M7 owns richer art).
@@ -809,7 +809,7 @@ func _on_territory_share_changed(shares: PackedFloat32Array) -> void:
 ## Pure formatting of a replicated mode state: "1: 3.5  2: 1.0   2:05", or ""
 ## when the state has no scores. Static so tests need no scene.
 ##
-## Lobby rework (Bontago-1pi.53): `team_numbers` is MatchConfig.team_numbers of a
+## Lobby rework: `team_numbers` is MatchConfig.team_numbers of a
 ## match whose lobby teams were host-resolved (dense team id -> the number the
 ## team had in the lobby); empty = the legacy "team id + 1" label.
 static func mode_score_text(state: Dictionary, team_numbers: PackedInt32Array = PackedInt32Array()) -> String:
@@ -819,7 +819,7 @@ static func mode_score_text(state: Dictionary, team_numbers: PackedInt32Array = 
 	if int(state.get("mode_id", -1)) == MatchConfig.GameMode.DOMINATION:
 		return domination_text(state, team_numbers)
 	var parts: PackedStringArray = PackedStringArray()
-	# Reach the Sky scores are record heights in meters (Bontago-22y.9).
+	# Reach the Sky scores are record heights in meters.
 	var unit: String = " m" if int(state.get("mode_id", -1)) == MatchConfig.GameMode.REACH_THE_SKY else ""
 	var elimination: bool = int(state.get("mode_id", -1)) == MatchConfig.GameMode.ELIMINATION
 	for team: int in range(scores.size()):
@@ -830,7 +830,7 @@ static func mode_score_text(state: Dictionary, team_numbers: PackedInt32Array = 
 	return "  ".join(parts)
 
 
-## Bontago-1pi.25.1: Domination territory race, "Leading: 2 (41%)" (ties list every leader). The
+## Domination territory race, "Leading: 2 (41%)" (ties list every leader). The
 ## per-team bars above already show each share, so this only adds the leader; the time left is the
 ## UiRoundTimer's (1pi.159.34). Pure.
 static func domination_text(state: Dictionary, team_numbers: PackedInt32Array = PackedInt32Array()) -> String:
@@ -848,7 +848,7 @@ static func domination_text(state: Dictionary, team_numbers: PackedInt32Array = 
 	return text
 
 
-## Bontago-1pi.68: what the row value shows for `team` in this mode state: Capture
+## what the row value shows for `team` in this mode state: Capture
 ## the Flag the team's hold time in seconds, Reach the Sky its record height in
 ## meters, every other mode the territory `share` as a percent. Pure.
 static func row_value_text(state: Dictionary, team: int, share: float) -> String:
@@ -862,7 +862,7 @@ static func row_value_text(state: Dictionary, team: int, share: float) -> String
 	return "%.0f%%" % (share * 100.0)
 
 
-## Bontago-1pi.68: the line under the rows. CTF and Reach the Sky put their score in the rows, so
+## the line under the rows. CTF and Reach the Sky put their score in the rows, so
 ## nothing is left for them; Domination and Elimination keep their existing summary line. The round
 ## clock is no longer part of it: UiRoundTimer in the top-right corner owns it (1pi.159.34). Pure.
 static func mode_status_text(state: Dictionary, team_numbers: PackedInt32Array = PackedInt32Array()) -> String:
@@ -893,7 +893,7 @@ func _on_goal_capture_progress(team_id: int, progress: float) -> void:
 
 
 ## A client gets capture progress only when the territory raster changes, so on
-## a static board the ring froze (Bontago-1pi.117). Advance it at the hold rate
+## a static board the ring froze. Advance it at the hold rate
 ## between updates, the same ClaimProgressExtrapolator Sfx uses; callers gate
 ## this to live client matches. Each real update snaps it back.
 func extrapolate_capture(delta: float, hold_seconds: float) -> void:
@@ -907,7 +907,7 @@ func extrapolate_capture(delta: float, hold_seconds: float) -> void:
 ## A shared win (CTF tie) replaces the sole-winner text, from the payload's
 ## winners list. Single-winner payloads leave show_winner()'s text untouched.
 func _on_match_results_ready(results: Dictionary) -> void:
-	# Bontago-1pi.23: the results screen owns the end of a match; the whole HUD
+	# the results screen owns the end of a match; the whole HUD
 	# (previews, stats, timer ring, countdown, minimap) steps aside so nothing
 	# draws over its card.
 	visible = false
@@ -938,7 +938,7 @@ func _on_player_eliminated(slot_id: int, _team_id: int) -> void:
 		set_local_slot(_active_slot)
 
 
-## Bontago-1pi.186: the large red "Eliminated by <name>" text for `slot_id`'s own
+## the large red "Eliminated by <name>" text for `slot_id`'s own
 ## screen; "Eliminated" alone when the eliminator is unknown (a disconnect, a
 ## knockout with no single attacker). Stays up until the match leaves play.
 func show_eliminated_banner(slot_id: int) -> void:
@@ -958,13 +958,13 @@ func eliminated_banner_text() -> String:
 	return _eliminated_label.text if _eliminated_label != null and _eliminated_label.visible else ""
 
 
-## Bontago-1en.16: an instant refresh for the local slot the moment it claims
+## an instant refresh for the local slot the moment it claims
 ## a crate, rather than waiting up to one frame for _process()'s poll below.
 ## _refresh_special_indicator() re-reads Match itself (not the signal's own
 ## special_id) so this handler and the per-frame poll can never disagree about
 ## what the queue currently holds.
 ##
-## Bontago-keo.17 (owner decision "b"): Events.gift_claimed's second argument
+## "b": Events.gift_claimed's second argument
 ## is the RESOLVED RECIPIENT slot -- the one teammate nearest the crate, not
 ## every teammate. This HUD toast is still a team-wide notification (a
 ## teammate should see "your team claimed a special" even on the frame they
@@ -986,7 +986,7 @@ func _on_gift_state_changed(_gift_id: int, _position: Variant = null, _landing: 
 
 func _update_gift_markers() -> void:
 	if match_provider != null and match_provider.has_method(&"gift_states"):
-		# Bontago-1pi.11.6: _process() polls this every frame; skip the
+		# _process() polls this every frame; skip the
 		# minimap's duplicate + redraw unless a crate actually changed.
 		var states: Array[Dictionary] = match_provider.gift_states()
 		if states == _last_gift_states:
@@ -997,7 +997,7 @@ func _update_gift_markers() -> void:
 
 # --- Helpers -----------------------------------------------------------------
 
-## Bontago-mv0.9: whether Events.turn_changed still means "it is this slot's
+## whether Events.turn_changed still means "it is this slot's
 ## turn" (set_active_slot(), "Player N's turn" wording) rather than "this is
 ## the local slot" (set_local_slot(), no turn wording). config == null (no
 ## match built yet, or a bare HUD-only test with no FakeMatch.config set)
@@ -1020,7 +1020,7 @@ func _hot_seat_active() -> bool:
 ## set_map_def() when the map actually changed, so this doesn't re-frame the
 ## minimap on every placement's territory-share tick.
 ##
-## Bontago-mp0.3.3: also forwards the live TerritoryRaster/player colors/home
+## also forwards the live TerritoryRaster/player colors/home
 ## positions every tick (Minimap.set_match_state(), cheap reference stores —
 ## see its own doc), guarded by has_method(&"raster") the same way
 ## set_feed_seconds()'s feed_time_left() read is: the real Match autoload has
@@ -1046,13 +1046,13 @@ func _update_minimap() -> void:
 		var slot: PlayerSlot = match_provider.slot(i)
 		homes.append(slot.home_position if slot != null else Vector2.ZERO)
 	_minimap.set_goal_positions(PlayerSlot.goal_positions_for(running_config.effective_goal_flag_count(), map_def))
-	# Lobby rework (Bontago-1pi.53): territory and goal colours are per TEAM
+	# Lobby rework: territory and goal colours are per TEAM
 	# (territory_colors()); the home beacons stay per SLOT (player_colors).
 	_minimap.set_match_state(raster, running_config.territory_colors(), homes, running_config.player_colors)
 	_update_gift_markers()
 
 
-## Stackfall Arcade (Bontago-hfa.6): the plate every HUD group sits on (disc-900 at hud-plate opacity,
+## Stackfall Arcade: the plate every HUD group sits on (disc-900 at hud-plate opacity,
 ## radius-panel, a solid disc-950 drop under it), or with `inner` a disc-700 card with a compact lip
 ## (radius-block). Colours and radii come from hud_visual_tuning / ArcadeVisualTuning so the HUD
 ## scene holds no literals.
@@ -1099,7 +1099,7 @@ func _style_status_plate(label: Label, ink: Color) -> void:
 	label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 
 
-## Bontago-1pi.191: every HUD control lives under this root. The window's UI scale (content scale
+## every HUD control lives under this root. The window's UI scale (content scale
 ## factor) scales the whole canvas, so the root is scaled by HUD scale / UI scale and sized to the logical
 ## canvas divided by that factor: the HUD's on-screen size follows the HUD scale alone, and every HUD
 ## anchor (corners, timer, toasts, held/next) still resolves against the visible canvas.
@@ -1168,7 +1168,7 @@ func _on_minimap_size_changed(preset: int) -> void:
 	_minimap.set_size_px(UiScaleTuning.shared().minimap_size_px_for(preset))
 
 
-## Bontago-1pi.150: on a narrow (UI-scaled) canvas the scoreboard would run under the centred timer
+## on a narrow (UI-scaled) canvas the scoreboard would run under the centred timer
 ## ring; its right edge is clamped to keep UiScaleTuning.hud_timer_clearance_px clear of it.
 func _fit_top_left_cluster() -> void:
 	var canvas_w: float = _scale_root.size.x
@@ -1184,14 +1184,14 @@ func _resize_top_left_backplate() -> void:
 		maxf(_top_left_cluster.size.x, _top_left_cluster.get_combined_minimum_size().x) + padding * 2.0,
 		_top_left_cluster.get_combined_minimum_size().y + padding * 2.0
 	)
-	# Bontago-1pi.80: the status rows (locked/special/toast/mode score) live
+	# the status rows (locked/special/toast/mode score) live
 	# outside the stats box, stacked just below it.
 	_status_pill.position = Vector2(
 		_top_left_backplate.position.x, _top_left_backplate.position.y + _top_left_backplate.size.y + padding
 	)
 
 
-## Bontago-1pi.159.12 (H1): every transient HUD message (reject, relocated, gift claimed) goes through
+## H1: every transient HUD message (reject, relocated, gift claimed) goes through
 ## the one bottom-centre ToastStack, which sits above the HELD/NEXT card row so it never covers the
 ## cards, the gift card's key prompt or the minimap. Audit: the 3-2-1/GO numeral is a persistent
 ## state display (stays centred); the winner banner is hidden (the results screen owns it); the
@@ -1213,7 +1213,7 @@ func _style_toast(label: Label, face: Color, glyph: HudCallout.Glyph) -> void:
 	_set_callout(label, face, glyph)
 
 
-## Bontago-mp0.145 / Stackfall Arcade (Bontago-hfa.6): the one Callout look every transient HUD
+## / Stackfall Arcade: the one Callout look every transient HUD
 ## message shares (claim toast, refusal, relocation): a block face (alert / mint / rim) with a
 ## dark lip, an ink icon tile on its left (HudCallout) and uppercase ink text. The face is the
 ## label's own "normal" stylebox, so a single modulate fade fades face, tile and text together.
@@ -1260,7 +1260,7 @@ func _set_callout(label: Label, face: Color, glyph: HudCallout.Glyph) -> void:
 		tile.glyph = glyph
 
 
-## Spec M2 owner decision 3: no dedicated Events signal exists for "home flag
+## Spec M2 3: no dedicated Events signal exists for "home flag
 ## lost", so — like PlayerController — the HUD reads the already-documented
 ## PlayerSlot.home_flag_alive straight off Match.slot() instead of inventing
 ## a signal on a contract this package doesn't own.
@@ -1271,7 +1271,7 @@ func _is_slot_eliminated(slot_id: int) -> bool:
 	return slot != null and not slot.home_flag_alive
 
 
-## Bontago-keo.17: null-safe mirror of config/match/MatchConfig.gd's team_of_slot()
+## null-safe mirror of config/match/MatchConfig.gd's team_of_slot()
 ## for _on_gift_claimed()'s team-membership check -- config == null (no match
 ## built yet, or a bare HUD-only test with no FakeMatch.config set) falls back
 ## to "every slot is its own team", the same TeamMode.OFF behaviour
@@ -1338,12 +1338,12 @@ func _color_for_slot(slot_id: int) -> Color:
 	return SlotColors.resolve(slot_id, live_color, default_palette.player_colors)
 
 
-## Bontago-mv0.9: PlayerSlot.display_name when Match has built one, otherwise
+## PlayerSlot.display_name when Match has built one, otherwise
 ## the same "Player N" fallback set_active_slot always used — pre-match (no
 ## slots exist yet) and in a bare HUD-only test with no FakeMatch.slots_by_id
 ## entry.
 ##
-## Bontago-1pi.49: a human seat's replicated roster name wins over the slot's own
+## a human seat's replicated roster name wins over the slot's own
 ## label (the host never copies roster names onto its PlayerSlots, so its slots
 ## still read "Player N"); bots keep their slot label.
 func _name_for_slot(slot_id: int) -> String:
@@ -1355,7 +1355,7 @@ func _name_for_slot(slot_id: int) -> String:
 	return PlayerNames.label_for_slot(slot_id, "", false, peer_name)
 
 
-## Bontago-1pi.68: the display name of the row for team `team_id`: the roster name of
+## the display name of the row for team `team_id`: the roster name of
 ## its slot, or every member's name joined with " & " in a team match. Falls back
 ## to the slot of the same number with no config (team t is slot t).
 func _name_for_team(team_id: int) -> String:
@@ -1375,7 +1375,7 @@ func _names() -> Variant:
 	return name_provider if name_provider != null else Net
 
 
-## Bontago-1en.16 (docs/archive/M4_P2_PACKAGES.md P2b-ii): the pending-special queue
+## docs/archive/M4_P2_PACKAGES.md P2b-ii: the pending-special queue
 ## indicator, next to the next-shape preview. Reads `_active_slot` the exact
 ## same way the previews do (set_active_slot/set_local_slot both drive it, so
 ## this follows hot-seat's acting slot or the local slot outside hot-seat,
@@ -1400,8 +1400,8 @@ func _refresh_special_indicator() -> void:
 	var glue_charges: int = 0
 	if match_provider.has_method(&"glue_drops_left"):
 		glue_charges = int(match_provider.glue_drops_left(_active_slot))
-	# Bontago-1pi.11.6: nothing below depends on anything but these inputs.
-	# Bontago-1pi.85.69: a claimed gift staged as the block AFTER next is not the next piece;
+	# nothing below depends on anything but these inputs.
+	# a claimed gift staged as the block AFTER next is not the next piece;
 	# the NEXT preview keeps the ordinary block and the label marks the queued gift.
 	var staged_id: StringName = StringName(match_provider.after_next_special(_active_slot)) if match_provider.has_method(&"after_next_special") else &""
 	var staged_count: int = 1 if staged_id != &"" else 0
@@ -1450,11 +1450,11 @@ func _special_display_name(head_id: StringName) -> String:
 	return DisplayNames.special(head_id)
 
 
-## Bontago-mp0.3.3 (mockup 08): one row per player, a small team-colored
+## mockup 08: one row per player, a small team-colored
 ## diamond glyph (the shared SlotDiamond) beside a slim rounded
-## territory-share bar. Bontago-1pi.80: each bar is ONE ui/menus/ShareBar.gd control
+## territory-share bar. each bar is ONE ui/menus/ShareBar.gd control
 ## drawing its track, the team-colored fill inside it and a sheen. Replaces
-## the old boxy SharesPanel background entirely (Bontago-mp0.2).
+## the old boxy SharesPanel background entirely.
 func _ensure_share_row_count(count: int) -> void:
 	while _share_rows.size() < count:
 		var row: HBoxContainer = HBoxContainer.new()
@@ -1566,13 +1566,13 @@ func _on_timer_ring_draw() -> void:
 	var size: Vector2 = _timer_ring.size
 	var radius: float = minf(size.x, size.y) * 0.5 - RING_LINE_WIDTH
 	var center: Vector2 = size * 0.5
-	# Bontago-mp0.3.3 (owner review 2026-09-26: "subtle drop shadow"): a soft
+	# "subtle drop shadow": a soft
 	# offset dark disc behind everything else, then the round hud-plate itself
 	# so the numeral always has contrast against a bright sky.
 	_timer_ring.draw_circle(center + DROP_SHADOW_OFFSET, radius - RING_LINE_WIDTH * 0.5, DROP_SHADOW_COLOR)
 	_timer_ring.draw_circle(center, radius - RING_LINE_WIDTH * 0.5, hud_visual_tuning.panel_background_color)
 	var locked: bool = _locked or _qol_paused
-	# Stackfall Arcade (Bontago-hfa.6, FeedTimer): the active player's colour counts down around a
+	# Stackfall Arcade (FeedTimer): the active player's colour counts down around a
 	# disc-500 track; the last `timer_hurry_seconds` turn ring and number rim gold; a release lock
 	# draws one full `locked` circle (disc-500), with no text.
 	var hurry: bool = _feed_seconds_left >= 0.0 and _feed_seconds_left <= hud_visual_tuning.timer_hurry_seconds
@@ -1581,7 +1581,7 @@ func _on_timer_ring_draw() -> void:
 	else:
 		_timer_ring.draw_arc(center, radius, 0.0, TAU, 48, _arcade.disc_500_color, RING_LINE_WIDTH)
 		if _feed_progress > 0.0:
-			# DECISION (ui/hud/HUD.gd, owner review 2026-09-26): this HUD is per-viewer, so there is only
+			# DECISION (ui/hud/HUD.gd): this HUD is per-viewer, so there is only
 			# ever one player's colour to draw here.
 			var ring_color: Color = _arcade.rim_color if hurry else _active_color
 			_timer_ring.draw_arc(
@@ -1591,10 +1591,10 @@ func _on_timer_ring_draw() -> void:
 		_draw_timer_numeral(center, hurry and not locked)
 
 
-## Bontago-mp0.3.3: the bold numeral inside the timer ring, ceil()'d the same way a countdown
+## the bold numeral inside the timer ring, ceil()'d the same way a countdown
 ## reads to a player (still shows "1" for the last fraction of a second, not "0"). Stackfall
 ## Arcade: Bungee in cream (rim in the hurry window). The lock shows only as the full `locked`
-## ring, never as text (owner 2026-10-06, Bontago-1pi.92).
+## ring, never as text.
 func _draw_timer_numeral(center: Vector2, hurry: bool) -> void:
 	var font: Font = _display_font if _display_font != null else _timer_ring.get_theme_default_font()
 	var font_size: int = _arcade.font_size_timer_px
@@ -1624,7 +1624,7 @@ func _preview_texture(shape: BlockShape) -> Texture2D:
 	return _preview_textures[shape.id]
 
 
-## Bontago-59o.13: gift ids currently shown by the held/next previews
+## gift ids currently shown by the held/next previews
 ## (&"" = ordinary block). A gift draws SpecialDef.preview_icon_for() (the
 ## generic gift icon when the def has none) instead of the shape image.
 var _held_gift_id: StringName = &""
@@ -1650,14 +1650,14 @@ func _next_gift_id_for(count: int, head_id: StringName) -> StringName:
 	return next_id if next_id != &"" else GENERIC_GIFT_ID
 
 
-## Bontago-sen.3: while Glue charges remain, the held/next previews wear a
+## while Glue charges remain, the held/next previews wear a
 ## jelly tint (HoneyCoatTuning.hud_jelly_tint) drawn over the block silhouette.
 const HONEY_TUNING_PATH: String = "res://config/gifts/honey_coat_tuning.tres"
 static var _honey_tuning: HoneyCoatTuning = null
 var _glue_active: bool = false
 
 
-## Bontago-sen.8: leaving a match (lobby/end) drops the overlay at once and
+## leaving a match (lobby/end) drops the overlay at once and
 ## forces the next refresh to re-read the charges.
 func _on_match_state_changed_glue(_from_state: int, to_state: int) -> void:
 	if _eliminated_label != null and (Match.is_lobby_or_end(to_state) or Match.is_pregame(to_state)):
@@ -1671,7 +1671,7 @@ func _on_match_state_changed_glue(_from_state: int, to_state: int) -> void:
 		_set_glue_active(false)
 
 
-## Bontago-1pi.84: the player-stat rows and minimap otherwise fill in only on
+## the player-stat rows and minimap otherwise fill in only on
 ## the first territory_share_changed, which the solver emits once play begins, so
 ## the countdown showed an empty stats panel and no minimap. Called on
 ## LOADING/COUNTDOWN (the HUD is loaded behind the Ready screen): builds one
@@ -1721,7 +1721,7 @@ func _build_gift_slot_column() -> void:
 	card.custom_minimum_size = _held_shape_card.custom_minimum_size
 	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_style_panel(card, true)
-	# Bontago-1pi.18.7: the icon sits above a strip reserved for the bound-key glyph, so
+	# the icon sits above a strip reserved for the bound-key glyph, so
 	# the badge never covers the gift art. Same left inset/width as the HELD/NEXT icons.
 	var glyph_strip_px: float = InputGlyph.GLYPH_HEIGHT_PX
 	_gift_slot_preview = Control.new()
@@ -1776,7 +1776,7 @@ func _refresh_gift_slot() -> void:
 		_gift_slot_preview.queue_redraw()
 
 
-## Bontago-1pi.18.7: the use_gift_slot binding for the player's current device
+## the use_gift_slot binding for the player's current device
 ## family, drawn by the shared InputGlyph (keycap/pad art, or its fallback). Rebuilt
 ## only when the device or the bound events changed, so a rebind in the pause
 ## menu shows up on the card without any signal of its own.
@@ -1801,7 +1801,7 @@ func _on_input_device_changed(_device: StringName) -> void:
 		_refresh_gift_slot_glyph()
 
 
-## Bontago-1pi.85.76: the gift icon is never tinted with the player colour.
+## the gift icon is never tinted with the player colour.
 func _on_gift_slot_preview_draw() -> void:
 	if _gift_slot_id == &"":
 		return

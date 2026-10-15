@@ -3,11 +3,11 @@
 [ext_resource type="Script" uid="uid://dwnvohxs1dcu1" path="res://config/bots/BotTuning.gd" id="1_bot_tuning"]
 [ext_resource type="Script" uid="uid://dipaamgegm0il" path="res://config/bots/BotDifficultyProfile.gd" id="2_bot_profile"]
 
-; DECISION (Bontago-1t5.57, owner 2026-10-14): all three tiers run the Hard mechanics
+; DECISION: all three tiers run the Hard mechanics
 ; (search, probes, scoring, pick, timing); Easy and Normal differ only in precision
 ; (aim_noise_m, so their towers fall more often: starting values, final ones from the tier
-; measurement Bontago-1t5.60) plus the strategy fields intent_mask, gift_claim_scale,
-; uses_*_specials and threat_lookahead_m. Hard keeps the Bontago-1t5.30 budget.
+; measurement) plus the strategy fields intent_mask, gift_claim_scale,
+; uses_*_specials and threat_lookahead_m. Hard keeps its budget.
 [sub_resource type="Resource" id="Resource_easy"]
 script = ExtResource("2_bot_profile")
 candidate_count = 110
@@ -50,7 +50,7 @@ reaction_delay_s = 0.2
 uses_defensive_specials = true
 uses_offensive_specials = true
 think_budget_us = 1600
-; DECISION (Bontago-1t5.37): Hard's think uses every tick of the
+; DECISION: Hard's think uses every tick of the
 ; window: its mean per tick, not its worst tick, is the tight E6 bar, so no reserve tick.
 think_reserve_frames = 0
 eval_top_k = 12

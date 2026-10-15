@@ -1,6 +1,6 @@
 class_name MatchGiftActivation
 extends RefCounted
-## Bontago-1pi.85.35 / 1pi.85.24 (docs/GIFT_PLAYTEST2_PLAN.md): host-side in-place gift
+## / 1pi.85.24 (docs/GIFT_PLAYTEST2_PLAN.md): host-side in-place gift
 ## activation. A gift whose SpecialDef.activates_in_place is true (Stackfall, Volcano,
 ## Earthquake) is activated at the release point without a falling carrier: a small
 ## invisible, non-colliding, frozen anchor Block carries the effect for as long as it runs

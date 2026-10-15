@@ -21,7 +21,7 @@ var _win_checker: WinChecker = null:
 		_win_checker = value
 		if _objective is ClassicObjective:
 			(_objective as ClassicObjective).set_checker(value)
-## The active mode objective (Bontago-22y.11): fed every solve, owns the win.
+## The active mode objective: fed every solve, owns the win.
 var _objective: ModeObjective = null
 var _last_groups: TerritoryGroups = null
 var _solve_accum: float = 0.0
@@ -37,7 +37,7 @@ var _sandbox_cache_hits: int = 0
 var _cached_sources: Dictionary = {}
 var _cached_circles: Array[InfluenceCircle] = []
 var _cached_groups: TerritoryGroups = null
-## Bontago-1pi.11.10: dirty state. The board is clean when no block event bumped
+## dirty state. The board is clean when no block event bumped
 ## the registry revision, the small non-block config signature is unchanged and
 ## nobody called mark_dirty() since the last real solve step.
 var _seen_revision: int = -1
@@ -46,7 +46,7 @@ var _force_dirty: bool = true
 var _clean_skips: int = 0
 var _solve_steps: int = 0
 
-## Bontago-1pi.11.28 (P-ASYNC): the in-flight WorkerThreadPool solve, if any.
+## P-ASYNC: the in-flight WorkerThreadPool solve, if any.
 ## DECISION: one job at a time, applied on the first frame it is seen complete
 ## (one frame after kickoff at the earliest). While pending the main thread only
 ## accumulates _solve_accum, so no elapsed time is lost or applied twice.
@@ -57,7 +57,7 @@ var _pending_step: float = 0.0
 ## DECISION: private raster the worker fills; adopt_fill() swaps it in (O(1)).
 var _shadow_raster: TerritoryRaster = null
 
-## Bontago-cmc.5: goal no-build discs, cached at _build_territory() (goal
+## goal no-build discs, cached at _build_territory() (goal
 ## flags never move) so _run_territory_step() does not rebuild them every
 ## solve, and so net/MatchNet.gd's replicate_territory() can ship the exact
 ## same list a client's overlay draws. Parallel arrays: goal_radii is
@@ -83,7 +83,7 @@ func setup(match_ref: MatchAutoload) -> void:
 	_match = match_ref
 
 
-# --- Territory and the win check (spec 2.2, 2.3, 3.3) -----------------------
+# --- Territory and the win check (spec 1.5, 2.5) -----------------------
 
 ## The live raster. Never mutate it from outside Match.
 func raster() -> TerritoryRaster:
@@ -111,12 +111,12 @@ func winner_team() -> int:
 
 func _build_territory() -> void:
 	cancel_pending()
-	# Bontago-1pi.46 (G3): the previous match's influence circles must not be encoded to
+	# G3: the previous match's influence circles must not be encoded to
 	# clients (net/MatchNet.gd _encode_circles) while this one loads and counts down.
 	clear_circles()
 	var map_def: MapDef = _match.config.map_def()
 	_cell_grid = CellGrid.new(map_def.field_radius, map_def.cell_size, map_def.shape_test())
-	# Bontago-1pi.18.11: a new match (map / goal layout) starts with no cached claim
+	# a new match (map / goal layout) starts with no cached claim
 	# cell lists. The cache is value-keyed, so this frees memory rather than guarding
 	# correctness.
 	ClaimCells.clear()
@@ -127,17 +127,17 @@ func _build_territory() -> void:
 	if _match._territory_tuning.async_solve_min_circles > 0:
 		_shadow_raster = TerritoryRaster.new(_cell_grid, _match._territory_tuning)
 	var goal_positions: PackedVector2Array = PlayerSlot.goal_positions_for(_match.config.effective_goal_flag_count(), map_def)
-	# DECISION (autoload/Match.gd, Bontago-cmc.7): goal-flag no-build zones now
-	# stamp under every hole_mode, not just OFF. SPEC.md's 2026-09-20 audit,
+	# DECISION (autoload/Match.gd): goal-flag no-build zones now
+	# stamp under every hole_mode, not just OFF. SPEC.md's audit,
 	# 2.2 "Goal no-build zones [OWNER, original unverified]": "keep the earlier
 	# requirement for a no-placement disc around each goal... Zones block
-	# placement, not influence or capture" -- an owner-retained requirement the
+	# placement, not influence or capture" -- a retained requirement the
 	# audit did not withdraw, unlike v2's OFF default. Zones are static for the
 	# match (goal flags never move) so this stamps once, right after reset(),
 	# rather than every solve. This makes m2_acceptance's scenario (d) (a
 	# capture at the exact flag position) fail under TEMPORARY, since the
 	# march now runs into the flag's own zone before it can capture --
-	# Bontago-cmc.6, not this ticket, owns rewriting that scenario to march to
+	# not this ticket, owns rewriting that scenario to march to
 	# the zone's rim instead of the flag's centre point.
 	_raster.set_goal_zones(goal_positions, _match._territory_tuning.goal_zone_radius)
 	_objective = ModeObjective.create(
@@ -161,7 +161,7 @@ func _build_territory() -> void:
 	_sandbox_cache_hits = 0
 	_force_dirty = true
 
-	# Bontago-cmc.5: the same goal list, cached for the analytic shader and
+	# the same goal list, cached for the analytic shader and
 	# the replicated circle wire (see the class-level DECISION on
 	# _goal_positions above).
 	_goal_positions = goal_positions
@@ -170,13 +170,13 @@ func _build_territory() -> void:
 	_goal_radii.fill(_match._territory_tuning.goal_zone_radius)
 
 
-## Bontago-1pi.18.1 (QoL experiment 3): the capture claim radius -- 0 (flag cell
+## QoL experiment 3: the capture claim radius -- 0 (flag cell
 ## only, the rule) unless the toggle is on, then goal_zone_radius times the
 ## multiplier. The no-build disc and its drawn circle keep the base radius.
 ##
 ## DECISION: capture is decided over the cells within this radius around each
 ## beacon (WinChecker.claim_at): the team owning the most cells claims it, a tie
-## or no owner leaves it contested/unclaimed. No claim-radius ring is drawn: the
+## or no owning slot leaves it contested/unclaimed. No claim-radius ring is drawn: the
 ## overlay circle API has no cheap second ring.
 func _claim_radius() -> float:
 	var qol: QolExperiments = _match.config.qol
@@ -186,14 +186,14 @@ func _claim_radius() -> float:
 
 
 func _tick_territory(delta: float) -> void:
-	# Spec 3.4 / docs/archive/M3a_PLAN.md, "Clients never solve territory": on a
+	# Spec 2.6 / docs/archive/M3a_PLAN.md, "Clients never solve territory": on a
 	# client every body is frozen, so the settled rule would call the whole
 	# field settled instantly and the solve would invent a territory that
 	# disagrees with the host's. The mirror raster arrives over the wire
 	# instead (see apply_replicated_territory).
 	if not _match._is_host():
 		# A job pending across a loss of authority must never be applied to a
-		# mirror raster later (Bontago-1pi.11.28).
+		# mirror raster later.
 		cancel_pending()
 		return
 	if _raster == null or _solver == null:
@@ -204,7 +204,7 @@ func _tick_territory(delta: float) -> void:
 		_sandbox_tick_steps = 0
 	_solve_accum += delta
 	if _pending != null:
-		# DECISION (Bontago-1pi.11.28): apply one frame after kickoff at the
+		# DECISION: apply one frame after kickoff at the
 		# earliest, and never kick off again on the apply frame.
 		if WorkerThreadPool.is_task_completed(_pending.task_id):
 			_complete_pending()
@@ -220,7 +220,7 @@ func _tick_territory(delta: float) -> void:
 		_solve_accum = maxf(_solve_accum - clean_time, 0.0)
 		_advance_clean(clean_time)
 		due_steps = 0
-	# Bontago-na5: awake blocks contribute no influence and keep flipping the
+	# awake blocks contribute no influence and keep flipping the
 	# source signature, so re-solving every 50 ms while a pile tumbles is wasted
 	# work. Hold the solve until everything settles, but never longer than
 	# solve_defer_max_s (the accumulator is exactly the time since the last
@@ -259,7 +259,7 @@ func _tick_territory(delta: float) -> void:
 
 ## Remaining v2 catch-up after the first step of a tick was applied. `config`
 ## is the config signature the first step solved against: the rest of the window
-## is time-only when nothing but body revisions changed (Bontago-1pi.11.29).
+## is time-only when nothing but body revisions changed.
 ## When the config moved (an elimination during apply) the sync step runs.
 func _continue_v2(
 	remaining: int, step: float, alive_before: int, config: Dictionary, from_async: bool
@@ -274,7 +274,7 @@ func _continue_v2(
 		if clean:
 			# The first step consumed every change, so the rest of the
 			# catch-up window is time only: no second raster pass, overlay
-			# rebuild or territory_updated emission (Bontago-1pi.11.29).
+			# rebuild or territory_updated emission.
 			_advance_clean(float(remaining) * step)
 		else:
 			alive_before = _alive_home_count()
@@ -373,14 +373,14 @@ func _run_clean_legacy_step(delta: float) -> void:
 func _finish_objective_step() -> void:
 	Events.goal_capture_progress.emit(_objective.capturing_team(), _objective.capture_progress())
 	_match._lifecycle.publish_mode_state_if_changed()
-	# Bontago-6fc.2: a sandbox never ends on the goal hold.
+	# a sandbox never ends on the goal hold.
 	if _match.config.sandbox and _objective is ClassicObjective:
 		return
 	if MatchAutoload.is_live(_match.state()) and _objective.winner() != ModeObjective.NO_TEAM:
 		_match._lifecycle._finish_match(_objective.winner())
 
 
-## Bontago-1t5.3: the mode goal context bots score against (null in Classic,
+## the mode goal context bots score against (null in Classic,
 ## so classic scoring is untouched). Host-side; reads the live
 ## objective, raster and registry only.
 func bot_mode_goal(slot_id: int) -> BotModeGoal:
@@ -398,7 +398,7 @@ func bot_mode_goal(slot_id: int) -> BotModeGoal:
 		for point: Vector2 in goal.beacon_positions:
 			goal.beacon_held_by_own.append(_raster != null and WinChecker.goal_holder(_raster, point, _claim_radius()) == own_team)
 	elif _objective is EliminationObjective:
-		# Bontago-1t5.4: OFF mode flips a home only when an enemy radius beats the home circle.
+		# OFF mode flips a home only when an enemy radius beats the home circle.
 		goal.no_overlap_mode = _match.config.hole_mode == MatchConfig.HoleMode.OFF
 	elif _objective is DominationObjective:
 		_fill_domination_goal(goal, _match.team_of(slot_id))
@@ -412,14 +412,14 @@ func bot_mode_goal(slot_id: int) -> BotModeGoal:
 	return goal
 
 
-## Bontago-1pi.166: Reach the Sky's target height is NetConfig.build_height_target_m
+## Reach the Sky's target height is NetConfig.build_height_target_m
 ## (single source with the network position band).
 const SKY_NET_CONFIG: NetConfig = preload("res://config/net/net_config.tres")
 ## Shipped bot tuning, read for the Domination leader sample cap only.
 const BOT_TUNING: BotTuning = preload("res://config/bots/bot_tuning.tres")
 
 
-## Domination (Bontago-1pi.25.1): flags whether `own_team` already leads and, when
+## Domination: flags whether `own_team` already leads and, when
 ## it does not, samples (capped) cells of the first leading team for the bot.
 func _fill_domination_goal(goal: BotModeGoal, own_team: int) -> void:
 	var leaders: PackedInt32Array = (_objective as DominationObjective).leading_teams()
@@ -439,7 +439,7 @@ func _fill_domination_goal(goal: BotModeGoal, own_team: int) -> void:
 		goal.leader_points.append(grid.index_center(cells[i]))
 
 
-## Bontago-1t5.1: classic multi-goal context (left empty for a single goal so
+## classic multi-goal context (left empty for a single goal so
 ## classic scoring stays exactly as before).
 func _fill_classic_goals(goal: BotModeGoal, slot_id: int) -> void:
 	if _raster == null:
@@ -470,7 +470,7 @@ func _fill_classic_goals(goal: BotModeGoal, slot_id: int) -> void:
 	goal.target_goal_index = BotModeGoal.next_goal_index(positions, in_home_group, component_points, home)
 
 
-## Reach the Sky (Bontago-22y.9): team of every slot, index = slot id.
+## Reach the Sky: team of every slot, index = slot id.
 func _sky_slot_teams() -> PackedInt32Array:
 	var teams: PackedInt32Array = PackedInt32Array()
 	for slot: int in range(_match.config.player_count):
@@ -487,7 +487,7 @@ func _connect_sky_records() -> void:
 
 func _on_block_settled(owner_slot: int, height: float) -> void:
 	if MatchAutoload.is_live(_match.state()):
-		_match._stats.record_height(owner_slot, height)  # Bontago-1pi.72.2
+		_match._stats.record_height(owner_slot, height)
 	if _objective is ReachSkyObjective and MatchAutoload.is_live(_match.state()):
 		(_objective as ReachSkyObjective).record_height(owner_slot, height)
 
@@ -615,7 +615,7 @@ func _kickoff(delta: float) -> TerritorySolveJob:
 		_sandbox_cache_hits += 1
 	else:
 		job.circles = _collect_circles()
-		# Bontago-1pi.11.45: a field/registry freed by scene teardown can still be
+		# a field/registry freed by scene teardown can still be
 		# referenced here for one step; never pass a freed object to the typed call.
 		if _match._sandbox_territory_mode == MatchAutoload.SANDBOX_TERRITORY_CONE \
 				and is_instance_valid(_match._field) and is_instance_valid(_match._registry):
@@ -660,10 +660,10 @@ func _apply(job: TerritorySolveJob) -> void:
 
 	Events.territory_updated.emit(_raster, groups)
 
-	# DECISION (autoload/Match.gd, Bontago-cmc.7): overlap modes (TEMPORARY/
+	# DECISION (autoload/Match.gd): overlap modes (TEMPORARY/
 	# PERMANENT) keep the existing hole-under-home-flag trigger below
 	# unchanged; OFF keeps _check_home_flags_v2()'s argmax-ownership trigger.
-	# SPEC.md's 2026-09-20 audit leaves the overlap-mode trigger explicitly
+	# SPEC.md's audit leaves the overlap-mode trigger explicitly
 	# [OPEN] (2.3 "Home elimination": "the persistent home circle prevents
 	# enemy ownership at its center; resolve the trigger before implementation
 	# ... Until resolved, do not claim default-mode elimination complies
@@ -771,7 +771,7 @@ func _collect_circles() -> Array[InfluenceCircle]:
 	return circles
 
 
-## Bontago-cmc.5 (owner requirement: "should look smooth"). Builds the
+## (requirement: "should look smooth"). Builds the
 ## analytic circle list game/field/TerritoryOverlay.gd's shader draws instead of
 ## the smoothstepped, bilinearly-upscaled 1 m cell raster: only the
 ## *home-anchored* circles TerritorySolver kept in a group (never a raw,
@@ -805,7 +805,7 @@ func _apply_circle_render(render: Dictionary) -> void:
 		_match._field.set_overlay_circles(xs, zs, radii, teams, _goal_positions, _goal_radii, argmax_mode)
 
 
-## Bontago-1pi.46 (G3): drops the cached influence-circle list (only that list; goal
+## G3: drops the cached influence-circle list (only that list; goal
 ## positions/radii are rebuilt by the next _build_territory()). Called from MatchLifecycle._reset_match_state() (every
 ## abort/start, host and client) and at the top of _build_territory(); idempotent.
 ## Does not touch Field's overlay (Main's clear_match_state owns that).
@@ -833,7 +833,7 @@ func circle_render_arrays() -> Dictionary:
 	}
 
 
-## Owner decision (docs/archive/M2_PLAN.md, "Home flag lost to a hole"): a hole
+##  docs/archive/M2_PLAN.md, "Home flag lost to a hole": a hole
 ## opening under a slot's home flag eliminates it — home_flag_alive goes
 ## false, its circles unanchor (P1's TerritorySolver drops them next solve
 ## since they no longer connect to a home circle), it gets no more feed, and
@@ -843,7 +843,7 @@ func _check_home_flags(opened: PackedInt32Array) -> void:
 	if not _match._is_host():
 		return
 	if _objective is EliminationObjective:
-		# Bontago-1pi.185: the claim timers run from _tick_home_claims().
+		# the claim timers run from _tick_home_claims().
 		return
 	var opened_set: Dictionary = {}
 	for cell: int in opened:
@@ -890,13 +890,13 @@ func _check_home_flags_v2(delta: float = 0.0) -> void:
 	_match._lifecycle._check_last_team_standing()
 
 
-## [OWNER decision 2026-10-12, Bontago-1pi.185] Elimination: a home flag is
+## [OWNER decision] Elimination: a home flag is
 ## knocked out only after the attacker controls it continuously for the claim
 ## time (TerritoryTuning.capture_hold, shared with the goal beacons). Pressure is
 ## the same trigger the instant knockout used: v2 (HoleMode.OFF) an enemy-owned
 ## (or unowned) home cell, the overlap modes a hole at the home cell. The
 ## claim progress shows through Events.goal_capture_progress (the goal ring).
-## When the pressure lapses the claim fades (home_claim_decay_rate, Bontago-1pi.194).
+## When the pressure lapses the claim fades (home_claim_decay_rate).
 ## `delta` is the time this step covers (0 = re-evaluate only).
 func _tick_home_claims(delta: float) -> void:
 	if not _match._is_host() or not _objective is EliminationObjective:
@@ -940,14 +940,14 @@ func _attacker_slot_for(victim: int, team: int) -> int:
 	return best
 
 
-# --- The client's read model (spec 3.4) -------------------------------------
+# --- The client's read model (spec 2.6) -------------------------------------
 
 ## Writes one territory payload into the mirror raster (see
 ## TerritoryRaster.apply_replicated_state). Returns the cells whose hole bit
 ## flipped so MatchNet can re-emit Events.hole_cells_changed and Field opens
 ## exactly the same holes the host did.
 ##
-## Bontago-cmc.5: the circle_* / goal_* / argmax_mode arguments are
+## the circle_* / goal_* / argmax_mode arguments are
 ## core/net/CircleWire.gd's decoded analytic circle list, defaulted empty so
 ## every pre-existing call site (this file's own tests, a stale client build
 ## that only ever sent the raster payload) still compiles and still mirrors
@@ -992,24 +992,24 @@ func apply_replicated_territory(
 
 # --- Special-punched holes (M4 P5-HOLE) -------------------------------------
 
-## A special effect's own hole, independent of territory contest (spec 2.6).
+## A special effect's own hole, independent of territory contest (spec 1.6).
 ## `world_pos` is disk-local (x, z) metres -- Field.disk_local_from_world()'s
 ## convention, the same one CellGrid documents -- not a Vector3 world
 ## position; a caller (e.g. game/gifts/specials/JumpingBeanEffect.gd) converts
 ## before calling in.
 ##
 ## Host-only, the same guard _tick_territory()/_check_home_flags() use, and a
-## no-op under HoleMode.OFF -- owner decision Bontago-z4h: enforced here, not
+## no-op under HoleMode.OFF -- enforced here, not
 ## trusted to every SpecialEffect caller, so a special cannot invent a hole
 ## ruleset the lobby turned off. Otherwise force-opens every in-disk cell
 ## whose centre falls within radius_m of world_pos, then runs the same
 ## change-set path _run_territory_step() runs for a natural hole: one
 ## Events.hole_cells_changed for the whole punch, then _check_home_flags(opened)
-## -- Bontago-3td (owner question 2, M4_SPECIALS_PACKAGES.md orchestrator
-## decision 2): a special-punched hole eliminates a home flag exactly like a
+## -- open question 2, M4_SPECIALS_PACKAGES.md orchestrator
+## decision 2: a special-punched hole eliminates a home flag exactly like a
 ## natural one, shipped as the default while that question is open.
 ##
-## DECISION (autoload/match/MatchTerritory.gd, Bontago-1en.20): the opened
+## DECISION (autoload/match/MatchTerritory.gd): the opened
 ## change-set is computed locally from is_hole() before/after each cell,
 ## rather than by reading TerritoryRaster.holes_opened() the way
 ## _run_territory_step() does. That array is only cleared at the top of
@@ -1024,9 +1024,9 @@ func apply_replicated_territory(
 func punch_special_hole(world_pos: Vector2, radius_m: float, hole_open_s: float) -> void:
 	if not _match._is_host():
 		return
-	# DECISION (autoload/match/MatchTerritory.gd, Bontago-1en.20 review):
-	# live-play guard (Bontago-1pi.85.8: PLAYING or SUDDEN_DEATH via
-	# MatchAutoload.is_live(), like placement since Bontago-1pi.87).
+	# DECISION (autoload/match/MatchTerritory.gd review):
+	# live-play guard (PLAYING or SUDDEN_DEATH via
+	# MatchAutoload.is_live(), like placement since).
 	# _finish_match() only sets State.END -- it never tears the raster down or
 	# stops a SpecialEffect's physics_tick() -- so a Jumping Bean still hopping
 	# after a natural win could otherwise still punch a hole here and, through
@@ -1075,9 +1075,9 @@ func punch_special_hole(world_pos: Vector2, radius_m: float, hole_open_s: float)
 		_check_home_flags(opened)
 
 
-# --- Sudden death disk shrink (spec 2.8, M6 A3) ------------------------------
+# --- Sudden death disk shrink (spec 1.9, M6 A3) ------------------------------
 
-## Spec 2.8: "The disk's edge crumbles inward by 1 m every 10 s." Called by
+## Spec 1.9: "The disk's edge crumbles inward by 1 m every 10 s." Called by
 ## MatchLifecycle._tick_sudden_death() with the current shrink radius (field
 ## radius minus however many 1 m steps have elapsed); punches every currently
 ## solid (not already a hole), still-in-disk cell whose center now falls

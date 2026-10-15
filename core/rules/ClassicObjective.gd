@@ -1,7 +1,7 @@
 class_name ClassicObjective
 extends ModeObjective
 ## The classic objective: one connected territory holding every goal flag for
-## capture_hold seconds (spec 2.3). A thin wrapper over WinChecker, which keeps
+## capture_hold seconds (spec 1.5). A thin wrapper over WinChecker, which keeps
 ## all the logic; winner(), capture ring and hold behave exactly as before.
 ## Untimed: the match timer keeps its sudden-death meaning.
 

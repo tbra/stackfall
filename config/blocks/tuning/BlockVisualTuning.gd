@@ -1,15 +1,15 @@
 class_name BlockVisualTuning
 extends Resource
-## Bontago-xtq.27 (M7 P2, docs/M7_ART_DIRECTION.md, owner decision 2026-09-26
-## Bontago-5h7 Q1/Q2): tunables for the block toon material + inverted-hull
+## M7 P2, docs/M7_ART_DIRECTION.md
+## Q1/Q2: tunables for the block toon material + inverted-hull
 ## outline + cell-grid influence glow. The mesh itself stays one merged solid
-## shape per block (Bontago-xtq.3); everything here only changes how that one
+## shape per block; everything here only changes how that one
 ## `ArrayMesh` is shaded and outlined, never its geometry/collision.
 
 ## Inverted-hull outline pass (shaders/blocks/block_outline.gdshader): outline width
 ## in screen pixels for blocks closer than outline_fade_start_m. The push is
 ## done in clip space, so the line stays this many pixels wide at any distance
-## instead of shrinking to a shimmering sub-pixel line (Bontago-adt.2).
+## instead of shrinking to a shimmering sub-pixel line.
 @export var outline_width_px: float = 1.6
 
 ## Outline width in pixels for blocks at or beyond outline_far_distance_m;
@@ -31,7 +31,7 @@ extends Resource
 
 ## Screen-space width, in pixels, of the dark line drawn along each visible
 ## face's UV edge (BlockMeshBuilder's existing 0..1 per-cell UVs put one such
-## edge at every cell boundary, spec 2.10 as amended).
+## edge at every cell boundary, spec 1.10 as amended).
 @export var grid_line_width_px: float = 1.4
 
 ## Cell-grid line color for a block that is not currently read as
@@ -40,19 +40,19 @@ extends Resource
 
 ## Cell-grid line color for a block whose `contributing` per-instance shader
 ## parameter is true (settled/sleeping -- see BlockFactory.build()'s
-## `sleeping_state_changed` wiring). Owner playtest 2026-09-26 (Bontago-xtq.39):
+## `sleeping_state_changed` wiring).  
 ## the owner-colour glow on landed blocks "looks bad, they should always stay
 ## black", so the shipped default now equals grid_line_color; the uniform and
 ## F4 slider stay so the glow can be re-enabled per session.
 @export var grid_line_glow_color: Color = Color(0.12, 0.1, 0.1)
 
 ## Emission multiplier applied to grid_line_glow_color while `contributing`
-## is true. 0 disables the glow entirely (owner decision above); raise it on
+## is true. 0 disables the glow entirely (above); raise it on
 ## the F4 "Blocks FX" tab to preview the old lit-lines look.
 @export var grid_line_glow_strength: float = 0.0
 
-## Bontago-mp0.3.1 (owner feedback: "the mockup shows much more detailed
-## cel-shading with highlights and shadows... not heavy black lines"): how
+## "the mockup shows much more detailed
+## cel-shading with highlights and shadows... not heavy black lines": how
 ## much of grid_line_color/grid_line_glow_color to mix into the seam versus
 ## the block's own albedo_color (0 = seam invisible, 1 = the old flat-replace
 ## look). A darker *shade of the block's own colour* reads as a seam instead
@@ -60,7 +60,7 @@ extends Resource
 @export var grid_line_seam_mix: float = 0.95
 
 ## -- Toon banding: three explicit, distinctly-coloured bands ----------------
-## Fix round (owner review of blocks-r1: "Right now all red faces are nearly
+## Fix round (of blocks-r1: "Right now all red faces are nearly
 ## the same red... make the bands produce ~3 distinct values per colour").
 ## shaders/blocks/block_cell_grid.gdshader's light() builds shadow/lit/highlight
 ## "keyframe" colours from a block's own albedo_color using the tint/mix/
@@ -90,7 +90,7 @@ extends Resource
 @export var shadow_brightness: float = 0.7
 
 ## -- Hard-edged specular highlight (a small "plastic" light-catcher) ---------
-## Fix round (owner review: "blue blocks show large pure-white patches...
+## Fix round ("blue blocks show large pure-white patches...
 ## clamp the specular so it stays a small, hard, slightly tinted highlight
 ## below the glow threshold [1.1] and never whites out a whole face"):
 ## specular_strength/sharpness/softness retuned so the lit dot is small and
@@ -108,7 +108,7 @@ extends Resource
 @export var specular_albedo_tint: float = 0.25
 
 ## -- Bevelled cell-edge highlight (hugs the true cell edge, fades inward) ----
-## Fix round (owner review: "every cell face shows a second square drawn well
+## Fix round (: "every cell face shows a second square drawn well
 ## inside the edge... remove it. The bevel highlight must hug the actual cell
 ## edge (outermost ~1-1.5 px, fading inward)"): the previous version offset
 ## the bright band past the seam width, drawing a visible inset "picture
@@ -124,7 +124,7 @@ extends Resource
 @export var bevel_highlight_strength: float = 0.42
 
 ## -- Subtle warm rim light on silhouette/cell edges facing the sun -----------
-## Fix round (owner review: "plus a subtle warm rim light on silhouette edges
+## Fix round ("plus a subtle warm rim light on silhouette edges
 ## facing the sun"). A cheap Fresnel term (1 - N.V), masked to the lit side,
 ## kept low-strength so it reads as a soft edge glow rather than a second
 ## specular pass.
@@ -132,11 +132,11 @@ extends Resource
 @export var rim_power: float = 3.0
 @export var rim_strength: float = 0.22
 
-## -- Outline tint (owner feedback: "restrained... a dark tinted version of
+## -- Outline tint ("restrained... a dark tinted version of
 ## the block color rather than pure black") -----------------------------------
 ## How much of a block's own colour (darkened by outline_tint_darken) to mix
 ## into the outline pass versus the flat outline_color above. The outline
-## ShaderMaterial stays one shared instance across every owner colour
+## ShaderMaterial stays one shared instance across every slot colour
 ## (game/blocks/BlockFactory.gd's own DECISION); the tint itself reaches it through a
 ## per-instance shader parameter, not a second cached material.
 @export var outline_tint_amount: float = 0.65
@@ -144,7 +144,7 @@ extends Resource
 ## outline, so the tint still reads as a silhouette, not a lit surface.
 @export var outline_tint_darken: float = 0.35
 
-## -- Bontago-adt.2 cel-shader rework (mockup 08) -------------------------------
+## -- cel-shader rework (mockup 08) -------------------------------
 ## Cell-grid line/bevel distance stability: once a cell face is smaller than
 ## grid_line_full_cell_px on screen the line and bevel fade toward
 ## grid_line_far_strength (reached at grid_line_far_cell_px), so a distant

@@ -1,6 +1,6 @@
 class_name LoadingScreenTuning
 extends Resource
-## Tunables for ui/menus/LoadingScreen.gd (Bontago-1pi.8, owner playtest 2026-09-27:
+## Tunables for ui/menus/LoadingScreen.gd (
 ## "add a proper loading screen instead" of the idle centre-beacon camera
 ## shot between Start Match and the countdown).
 ##
@@ -23,12 +23,12 @@ extends Resource
 ## before starting the actual fade -- see that function's own DECISION doc.
 @export var warmup_frames: int = 3
 
-## Bontago-t8x.4: rendered frames the host holds the overlay up after Start is
+## rendered frames the host holds the overlay up after Start is
 ## pressed, before Match.start_match() runs its synchronous world build, so the
 ## overlay is actually presented first.
 @export var pre_start_frames: int = 2
 
-## Bontago-t8x.4: a "pending" overlay (shown ahead of the match start) that no
+## a "pending" overlay (shown ahead of the match start) that no
 ## start ever follows (host left, start refused) hides itself after this long.
 @export var pending_timeout_s: float = 10.0
 
@@ -38,13 +38,13 @@ extends Resource
 ## Presented frames after the first result, while the new world renders covered.
 @export var stable_frames: int = 4
 
-## Bontago-1pi.125: the ready-wait auto-start cap (ready_wait_max_s) was removed; the match starts
+## the ready-wait auto-start cap (ready_wait_max_s) was removed; the match starts
 ## only when every required player is ready.
 
-## --- Bontago-1pi.32 L2: the ready prompt and player ready list (presentation) ---
+## --- L2: the ready prompt and player ready list (presentation) ---
 ## Colours come from config/ui/arcade_visual_tuning.tres; only sizes and wording live here.
 
-## Bontago-1pi.63: the line above the device glyph ("Ready?" + [Enter] / [A]); the
+## the line above the device glyph ("Ready?" + [Enter] / [A]); the
 ## glyph is the bound ui_accept key/button of the player's active device
 ## (ui/hud/InputGlyph.gd).
 @export var ready_prompt_text: String = "Ready?"
@@ -71,12 +71,12 @@ extends Resource
 @export var ready_list_separation_px: int = 6
 @export var ready_row_separation_px: int = 10
 
-## Stackfall Arcade LoadingCard (Bontago-hfa.7): the searching-cells size and gap (ui/hud/SearchingCells.gd), the, the mode-name size (Bungee), the name size, the card width and the
+## Stackfall Arcade LoadingCard: the searching-cells size and gap (ui/hud/SearchingCells.gd), the, the mode-name size (Bungee), the name size, the card width and the
 ## diamond marker edge.
 @export var loading_cell_width_px: int = 18
 @export var loading_cell_height_px: int = 12
 @export var loading_cell_gap_px: int = 4
-## Bontago-1pi.158: the Ready / Not ready pill on each player row (smaller than the lobby seat's badge so
+## the Ready / Not ready pill on each player row (smaller than the lobby seat's badge so
 ## eight rows still fit the card at 1280x720).
 @export var loading_pill_width_px: int = 32
 @export var loading_pill_height_px: int = 24
@@ -90,7 +90,7 @@ extends Resource
 ## children of Main until the match world clears them.
 @export var overlay_z_index: int = 100
 
-## Bontago-1pi.32 L3: the overlay lives on its own CanvasLayer so it covers the HUD
+## L3: the overlay lives on its own CanvasLayer so it covers the HUD
 ## (CanvasLayer 1: player bars, held/next, minimap, timer ring, the big countdown
 ## digit), which a Control z_index can never beat. Above the HUD and the sandbox
 ## and tuning panels (1-11), below the pause menu and perf overlay (100).
@@ -111,7 +111,7 @@ extends Resource
 @export var warm_camera_distance: float = 8.0
 @export var warm_mesh_offset: float = 1.5
 
-## --- Bontago-mp0.96 / 1pi.157: the loading backdrop. The image is one of the main menu's
+## --- / 1pi.157: the loading backdrop. The image is one of the main menu's
 ## (MainMenuTuning.backdrop_paths, the single list), picked at random per loading screen and
 ## drawn cover-cropped behind the loading card.
 

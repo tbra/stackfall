@@ -1,7 +1,7 @@
 class_name TerritoryRaster
 extends RefCounted
 ## The authoritative grid: who owns each cell of the disk, which cells are
-## contested, and which have become holes (spec 2.2, 3.3).
+## contested, and which have become holes (spec 1.5, 2.5).
 ##
 ## One cell of CellGrid is one pixel here and one BoxShape3D in the field's
 ## collision, so the three never disagree about where a hole is. See
@@ -9,13 +9,13 @@ extends RefCounted
 ## resolution while MapDef.territory_res is the size the overlay uploads.
 ##
 ## **Two fills.** `update()`'s `holes_enabled` selects which ruleset decides a
-## cell's owner (docs/TERRITORY_V2_PLAN.md). Two bools rather than a mode enum
+## cell's owning slot (docs/TERRITORY_V2_PLAN.md). Two bools rather than a mode enum
 ## keeps core/ free of any MatchConfig reference (CLAUDE.md): nothing here
 ## needs to know the lobby setting's name, only whether holes are on and
 ## whether they are permanent.
 ##
-## **v2 fill (`holes_enabled = false`, the default ruleset).** Owner
-## clarifications 2026-09-20: "Areas of different players never overlap. Where
+## **v2 fill (`holes_enabled = false`, the default ruleset).** Owning
+## clarifications "Areas of different players never overlap. Where
 ## they meet, the border is pushed by the heights of the stacks producing the
 ## contested area: the taller local stack gets more of the shared region, but
 ## not all of it, and it is the individual contesting stacks that count, never
@@ -26,12 +26,12 @@ extends RefCounted
 ## (cut off from its home) is never evaluated, so it loses its *area* the same
 ## tick it loses the win check.
 ##
-## **Legacy fill (`holes_enabled = true`).** Spec 2.2's original rule, kept
+## **Original fill (`holes_enabled = true`).** Spec 1.5's original rule, kept
 ## whole behind MatchConfig.hole_mode for the lobby's holes mode: every circle
 ## of every home-anchored group is stamped over its bounding box. A cell hit
 ## by a second group of the same team keeps its group id; a cell hit by a
 ## group of a *different* team becomes CONTESTED. Teammates therefore never
-## contest each other, which is spec 2.2's "territories of teammates never
+## contest each other, which is spec 1.5's "territories of teammates never
 ## create holes between them".
 ##
 ## **Contested time** (legacy only). `contested_time[i]` accumulates delta
@@ -116,7 +116,7 @@ var _team_counts: Dictionary[int, int] = {}
 
 var _owner_bytes: PackedByteArray = PackedByteArray()
 var _state_bytes: PackedByteArray = PackedByteArray()
-## Bontago-1pi.11.23: owner_bytes()/state_bytes() rebuild only after a mutation.
+## owner_bytes()/state_bytes() rebuild only after a mutation.
 var _owner_dirty: bool = true
 var _state_dirty: bool = true
 var _content_revision: int = 0
@@ -153,14 +153,14 @@ func grid() -> CellGrid:
 	return _grid
 
 
-## Bontago-1pi.11.9: engine-side hash of the per-cell owner ids (one native
+## engine-side hash of the per-cell owning ids (one native
 ## pass, no GDScript loop), so a reader that only cares whether ownership
 ## changed (ui/hud/Minimap.gd's periodic image rebuild) can skip the work cheaply.
 func ownership_hash() -> int:
 	return hash(_team_ids) * 31 + hash(_hole)
 
 
-## Bontago-1pi.11.11: the raster's per-cell data as RES x RES images for a GPU
+## the raster's per-cell data as RES x RES images for a GPU
 ## reader (ui/hud/Minimap.gd colours them in shaders/territory/minimap_territory.gdshader),
 ## each built with one native copy instead of a GDScript per-cell loop.
 ## Team ids as RGBA8: the int32 little-endian bytes, so R = team id for 0..254
@@ -191,7 +191,7 @@ func tuning() -> TerritoryTuning:
 ## HoleMode.OFF) runs the v2 argmax fill and leaves the whole contested/hole
 ## state machine untouched, so holes_opened()/holes_closed() stay empty,
 ## is_contested()/is_hole_index() stay false and `delta` is unused. True runs
-## spec 2.2's original stamp-and-contest fill and advances the timers by
+## spec 1.5's original stamp-and-contest fill and advances the timers by
 ## `delta` seconds, with `permanent_holes` from MatchConfig.hole_mode.
 ##
 ## Both bools default to the legacy behaviour, so a caller written before v2
@@ -207,7 +207,7 @@ func update(
 	adopt_fill(self, delta, holes_enabled, permanent_holes)
 
 
-## Bontago-1pi.11.28 (P-ASYNC): the pure half of update(). Rewrites only
+## P-ASYNC: the pure half of update(). Rewrites only
 ## _group_ids/_team_ids/_team_counts/_best_value/_newly_contested, so it is safe
 ## on a private "shadow" raster inside a WorkerThreadPool task. It never touches
 ## timers, the active list, hole lists or the content revision.
@@ -227,7 +227,7 @@ func fill_ownership(
 ## Main-thread half of update(): marks the content changed, resets the per-step
 ## hole lists, takes `source`'s fill (an O(1) array swap when it is a different
 ## raster), registers newly contested cells for the timers and advances them.
-## DECISION (Bontago-1pi.11.28): swapping instead of copying keeps the apply
+## DECISION: swapping instead of copying keeps the apply
 ## frame cheap; the shadow ends up holding this raster's previous arrays, which
 ## the next fill_ownership() overwrites in full.
 func adopt_fill(
@@ -254,7 +254,7 @@ func adopt_fill(
 		_advance_timers(delta, permanent_holes)
 
 
-## Bontago-1pi.11.10: advances only the contest/hole timers on an unchanged
+## advances only the contest/hole timers on an unchanged
 ## legacy-mode board (the stamp would reproduce the same ids), clearing the
 ## per-step opened/closed lists exactly as update() does.
 func advance_time(delta: float, permanent_holes: bool) -> void:
@@ -281,7 +281,7 @@ func _mark_changed() -> void:
 ## Stamps the goal flags' no-build zones, replacing any previous layout. Goal
 ## flags never move, so this is called once per match rather than per solve.
 ## The zones are placement-only: they never touch ownership or influence
-## (docs/TERRITORY_V2_PLAN.md, "Owner questions").
+## (docs/TERRITORY_V2_PLAN.md, "open questions").
 func set_goal_zones(positions: PackedVector2Array, radius: float) -> void:
 	_mark_changed()
 	_goal_zone.fill(0)
@@ -307,10 +307,10 @@ func group_at_point(point: Vector2) -> int:
 
 ## Team owning a cell, or -1 when unowned, contested, or a hole.
 ##
-## DECISION (core/territory/TerritoryRaster.gd, Bontago-1en.20 review): a
+## DECISION (core/territory/TerritoryRaster.gd review): a
 ## natural hole only ever opens on a CONTESTED cell (_team_ids == -1
 ## already), but force_hole_cell() can open a cell a single team's own
-## circle still covers -- punch_special_hole()'s whole point (spec 2.6). Its
+## circle still covers -- punch_special_hole()'s whole point (spec 1.6). Its
 ## own class doc says "do not touch update()/_fill_legacy()/_argmax()", so
 ## _stamp()/_argmax() keep re-stamping that cell to the team every solve
 ## exactly as before (that write-side bookkeeping is what lets
@@ -327,7 +327,7 @@ func team_at(cx: int, cy: int) -> int:
 	return _team_ids[index]
 
 
-## Bontago-1pi.18.11: how many of the cells at `indices` each (team, group) owns,
+## how many of the cells at `indices` each (team, group) owns,
 ## for a reader that votes over hundreds of cells per call (WinChecker.claim_at()
 ## over a claim radius). `indices` are row-major cell indices (CellGrid.
 ## cell_index()); the result maps team * key_stride + group to a cell count.
@@ -426,9 +426,9 @@ func holes_closed() -> PackedInt32Array:
 
 
 ## Fraction of the disk's in-disk cells a team owns, 0..1. Feeds the HUD's
-## "territory percentage per player" (spec 2.10).
+## "territory percentage per player" (spec 1.10).
 ##
-## DECISION (core/territory/TerritoryRaster.gd, Bontago-1en.20 review): see
+## DECISION (core/territory/TerritoryRaster.gd review): see
 ## team_at()'s own DECISION -- force_hole_cell() can leave a cell inside a
 ## single team's own uncontested circle, which _stamp()/_argmax() (unmodified)
 ## keep counting into _team_counts every solve. `_active` already lists every
@@ -451,7 +451,7 @@ func team_share(team_id: int) -> float:
 ## One byte per cell for the shader's R channel: 0 = unowned, otherwise
 ## team_id + 1. Row-major, cell_count() long.
 ##
-## DECISION (core/territory/TerritoryRaster.gd, Bontago-1en.20 review): reads
+## DECISION (core/territory/TerritoryRaster.gd review): reads
 ## `_hole` the same way team_at() now does, so a punched cell inside a single
 ## team's own circle draws unowned (no floor) instead of that team's tint --
 ## see team_at()'s own DECISION for why the write side is left alone.
@@ -610,7 +610,7 @@ func _rebuild_team_counts() -> void:
 ## circle with the largest kernel value, radius - distance, there; a point
 ## outside every anchored circle stays unowned. See the class comment and
 ## docs/TERRITORY_V2_PLAN.md, "The formula", for why that one expression
-## satisfies every owner bullet at once.
+## satisfies every requirement bullet at once.
 func _fill_v2(circles: Array[InfluenceCircle], groups: TerritoryGroups) -> void:
 	_best_value.fill(-INF)
 	for group: int in range(groups.group_count()):
@@ -718,7 +718,7 @@ func _stamp_goal_zone(center: Vector2, radius: float) -> void:
 			_goal_zone[index] = 1
 
 
-## -- Fill: the legacy stamp (spec 2.2, hole modes) ---------------------------
+## -- Fill: the original stamp (spec 1.5, hole modes) ---------------------------
 
 ## Every circle of every home-anchored group, stamped in group order. Exactly
 ## what update() did before v2, so the hole ruleset is unchanged.
@@ -730,7 +730,7 @@ func _fill_legacy(circles: Array[InfluenceCircle], groups: TerritoryGroups) -> v
 
 
 ## Stamps one circle's cells. A cell already held by another team becomes
-## CONTESTED (spec 2.2); a cell held by the same team keeps the group it
+## CONTESTED (spec 1.5); a cell held by the same team keeps the group it
 ## already has, which is why teammates never contest each other.
 ##
 ## The row scan solves dx^2 <= r^2 - dz^2 for the span instead of testing every
@@ -806,7 +806,7 @@ func _advance_timers(delta: float, permanent_holes: bool) -> void:
 				_hole[index] = 1
 				_opened.append(index)
 		else:
-			# Spec 2.2 is a drain, not a reset: brief flickers of contest still
+			# Spec 1.5 is a drain, not a reset: brief flickers of contest still
 			# add up towards a hole.
 			elapsed = maxf(elapsed - delta, 0.0)
 			_contested_time[index] = elapsed
@@ -835,7 +835,7 @@ static func _reached(value: float, threshold: float) -> bool:
 ## -- Forced holes (M4 P5-HOLE) ------------------------------------------------
 
 ## Forces (cx, cy) into a hole right now, independent of any contest overlap
-## (spec 2.6: a special effect's own hole, not spec 2.2's two-territories
+## (spec 1.6: a special effect's own hole, not spec 1.5's two-territories
 ## rule). MatchTerritory.punch_special_hole() is the one caller; it has
 ## already resolved the disk-local point to cell coordinates and the lobby's
 ## hole_mode to `permanent_holes` before calling in, so this never touches
@@ -847,7 +847,7 @@ static func _reached(value: float, threshold: float) -> bool:
 ## always) is what actually closes this hole later; nothing here starts a
 ## second timer mechanism.
 ##
-## DECISION (core/territory/TerritoryRaster.gd, Bontago-1en.20): once a cell is
+## DECISION (core/territory/TerritoryRaster.gd): once a cell is
 ## not CONTESTED, `_advance_timers()`'s `else` branch is the one that ever
 ## closes a hole -- it grows `_idle_time` by `delta` each call and closes once
 ## `_idle_time` reaches `hole_close_delay` (unless `permanent_holes`). A

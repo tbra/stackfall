@@ -35,12 +35,12 @@ extends Resource
 @export var stack_jitter_m: float = 0.5
 ## Flattest orientations offered per stack top.
 @export var stack_orientation_variants: int = 2
-## Bontago-1t5.69 (Reach the Sky only): tallest extra eligible orientations offered per stack top, after the
+## Reach the Sky only: tallest extra eligible orientations offered per stack top, after the
 ## flattest ones. 0 = flat-first only.
 @export var stack_tall_variants: int = 2
 
 @export_group("Foundation sites")
-## Bontago-1t5.54: sites offered around a new base (widest, flattest orientation first).
+## sites offered around a new base (widest, flattest orientation first).
 @export var foundation_site_count: int = 12
 ## Foundation sites sit at the base and at this offset in each of the eight directions around it.
 @export var foundation_jitter_m: float = 0.5

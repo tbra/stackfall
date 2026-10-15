@@ -1,6 +1,6 @@
 class_name BotModeGoal
 extends RefCounted
-## Bontago-1t5.3 phase A: the per-mode goal context BotStrategy and BotController read.
+## phase A: the per-mode goal context BotStrategy and BotController read.
 ## Pure data, built on the host from the active ModeObjective (see
 ## MatchTerritory.bot_mode_goal()) and handed to the bot through BotWorldView; null or a CLASSIC
 ## context means the ordinary classic behaviour.
@@ -18,7 +18,7 @@ var beacon_held_by_own: Array[bool] = []
 var has_tower: bool = false
 var tower_origin: Vector2 = Vector2.ZERO
 
-## Domination (Bontago-1pi.25.1): sample points (disk-local) of the leading
+## Domination: sample points (disk-local) of the leading
 ## enemy team's territory, and whether the bot's own team already holds (or
 ## shares) the largest share. Empty / true means "just grow own territory".
 var leader_points: PackedVector2Array = PackedVector2Array()
@@ -28,7 +28,7 @@ var own_team_leads: bool = true
 ## home radius (else an overlap opens a hole). BotEvaluator reads it.
 var no_overlap_mode: bool = false
 
-## Bontago-1t5.1 (Classic with several goal flags): every goal flag and `target_goal_index`, the
+## Classic with several goal flags: every goal flag and `target_goal_index`, the
 ## unheld goal nearest to the bot's home-connected component (-1 when every goal is already held).
 ## Only filled when the match has more than one goal.
 var goal_positions: PackedVector2Array = PackedVector2Array()

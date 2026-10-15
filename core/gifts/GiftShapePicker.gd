@@ -1,6 +1,6 @@
 class_name GiftShapePicker
 extends RefCounted
-## Bontago-1pi.85.31 (docs/GIFT_PLAYTEST2_PLAN.md, PG): picks the BlockShape of a block an effect
+## docs/GIFT_PLAYTEST2_PLAN.md, PG: picks the BlockShape of a block an effect
 ## spawns (Stackfall rain, Volcano eruption). Pure, deterministic for a given RNG state: exactly one
 ## rng.randf() is consumed per pick (none when no shape is available).
 
