@@ -1,4 +1,4 @@
-"""PostToolUse hook (Bontago-fca.123): run the instruction drift guard right after an edit.
+"""PostToolUse hook: run the instruction drift guard right after an edit.
 
 Registered for Edit|Write in .claude/settings.json. When the edited file is an agent
 instruction file (CLAUDE.md, .claude/agents/*.md or .claude/skills/*/SKILL.md), it runs

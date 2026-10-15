@@ -1,18 +1,18 @@
-"""One-shot orchestrator integration sequence (Bontago-fca.7).
+"""One-shot orchestrator integration sequence.
 
   python tools/integrate_batch.py --branches wt/a wt/b --beads Bontago-1 Bontago-2 [--no-game-code]
 
 Steps (each step's full output goes to <log-dir>/NN_name.log; stdout stays compact):
   1 worktree  temp integration worktree + branch from local main (origin/main must be an ancestor)
   2 merge     git merge --no-ff each branch; on conflict stop and list conflicting files. Exception
-              (Bontago-fca.33): if config/ui/tuning_panel_hints.tres is the ONLY conflicted file and every
+             : if config/ui/tuning_panel_hints.tres is the ONLY conflicted file and every
               hunk is a pure union of distinct `"key": value,` entries (no base line removed or changed,
               no duplicate key afterwards) the markers are stripped, both sides kept, and the merge
               committed; anything else aborts the merge.
   3 import    godot --headless --editor --path <wt> --quit (bounded error/warning lines)
   4 check-only (always): tools/check_scripts.gd compiles each added/modified tools/*.gd with autoloads loaded
   5 gate      --game-code (default): main's tools/full_gate.py --path <wt>; ONLY a `FULL GATE GREEN`
-              line passes (missing verdict line = RED). Bontago-fca.54: when the merged diff (base..merge)
+              line passes (missing verdict line = RED). when the merged diff (base..merge)
               touches the gate runner (GATE_RUNNER_PATHS: tools/full_gate.py, tools/full_gate_serial.txt,
               tools/run_gut.ps1, .gutconfig.json, addons/gut/) the candidate tree's own
               <wt>/tools/full_gate.py is ALSO run on the temp worktree ("gate2"); both must be GREEN
@@ -20,7 +20,7 @@ Steps (each step's full output goes to <log-dir>/NN_name.log; stdout stays compa
   6 ff        fast-forward the main checkout (refuses on dirty touched files or a moved main)
   7 push      git push origin main (separate step), git fetch, verify HEAD == origin/main
   8 close     only after remote verification, per bead: `bd update --assignee stackfall-orchestrator`
-              (retried with --force when bd refuses a live worker claim; Bontago-fca.32), then `bd close`
+              (retried with --force when bd refuses a live worker claim), then `bd close`
               (--force-close adds --force to the close for reviewed handoffs held by another agent)
   9 postimport  godot import check in the main checkout
  10 sidecars  if that import generated untracked .import/.uid sidecars whose source file is tracked,
@@ -33,11 +33,11 @@ then removes the temp worktree and branch. NOTE: --dry-run still runs the full g
 must not run while a Godot worker is live; for a conflict-only precheck use --merge-only, which stops
 after step 2 (no import, no gate, no Godot) and removes the temp worktree. Exit 0 = success,
 1 = failed step (named).
-Probe lint (Bontago-fca.63): before merging, each branch's ADDED files are checked with
+Probe lint: before merging, each branch's ADDED files are checked with
 tools/probe_lint.py (tools/screenshot_*, capture_*, *probe*, tools/_scratch*/; allowlist
 tools/probe_allowlist.txt); any offender fails step `probes` before a merge starts. Escape: --allow-probes.
-The same check flags an added *.gd/*.gdshader/*.gdshaderinc without its sibling .uid (Bontago-fca.91).
-Main moved during the gate (Bontago-fca.90): if the delta since the gated base touches ONLY docs/** or
+The same check flags an added *.gd/*.gdshader/*.gdshaderinc without its sibling .uid.
+Main moved during the gate: if the delta since the gated base touches ONLY docs/** or
 *.md files and none the batch changed, it is merged into the gated result (one line names the
 absorbed commits) and the ff proceeds without re-gating; any other delta fails step ff as before.
 """
@@ -55,9 +55,10 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import probe_lint  # noqa: E402
 import prune_worktrees  # noqa: E402
+import repo_paths  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_REPO = "M:/Bontago"
+DEFAULT_REPO = repo_paths.repo_dir()
 STEP_TIMEOUT_S = 600
 GATE_TIMEOUT_S = 1500
 GIT_TIMEOUT_S = 120
@@ -106,7 +107,7 @@ def run_cmd(ctx, name, args, cwd, timeout):
             out, err = p.communicate(timeout=timeout)
             code, text = p.returncode, (out or "") + (err or "")
         except subprocess.TimeoutExpired:
-            # 2026-10-14: subprocess.run's timeout kills only the direct child, so a hung gate
+            # subprocess.run's timeout kills only the direct child, so a hung gate
             # left its Godot shards/retries running and holding a godot_slots slot. Kill the
             # whole process tree, then collect what the child printed.
             kill_tree(p.pid)
@@ -139,7 +140,7 @@ def godot_exe():
 
 def bd_exe():
     # npm installs bd as bd.CMD on Windows; CreateProcess (no shell) cannot find it by
-    # bare name, so resolve it the way the shell would (Bontago-fca.13).
+    # bare name, so resolve it the way the shell would.
     return shutil.which("bd") or "bd"
 
 
@@ -462,7 +463,7 @@ def commit_import_sidecars(ctx, repo, beads):
 
 def import_check(ctx, name, path):
     cmd = [godot_exe(), "--headless", "--log-file", ctx.log_path(name + "_godotlog"), "--editor", "--path", path, "--quit"]
-    # Owner PC crash 2026-10-13: the import was the one unslotted Godot launch.
+    # The import was the one unslotted Godot launch.
     import godot_slots
     with godot_slots.godot_slot("integrate:" + name):
         run_cmd(ctx, name + "_warm", cmd, path, STEP_TIMEOUT_S)  # first run builds .godot
@@ -474,7 +475,7 @@ def check_tools_scripts(ctx, base, wt):
     """Compile-check every added/modified tools/*.gd with tools/check_scripts.gd (one
     headless Godot run, 180 s timeout). `godot --check-only -s` cannot be used: it
     parses before autoloads are registered, so any script naming one (Events, Match)
-    fails with "Identifier not found" (false positive found 2026-10-03).
+    fails with "Identifier not found" (false positive found).
     Returns (code, errors_list, num_files, log_path); code 0 = all scripts compile."""
     code, text, _ = git(ctx, "diff_tools", wt, "diff", "--name-only", "--diff-filter=AM", base + "..HEAD", "--", "tools/*.gd")
     if code != 0:
@@ -497,7 +498,7 @@ def check_tools_scripts(ctx, base, wt):
 
 
 def check_probes(ctx, repo, base, branches):
-    """Fail step `probes` when a branch adds throwaway probe/capture files (Bontago-fca.63)."""
+    """Fail step `probes` when a branch adds throwaway probe/capture files."""
     allow = probe_lint.read_allowlist(repo)
     bad = []
     for b in branches:
@@ -517,7 +518,7 @@ def is_docs_path(path):
 
 
 def absorb_docs_delta(ctx, repo, wt, base, cur_main, result, say):
-    """Main moved while the gate ran (Bontago-fca.90). If the delta base..cur_main is non-empty,
+    """Main moved while the gate ran. If the delta base..cur_main is non-empty,
     descends from base, touches ONLY docs/** or *.md files and none the batch changed, merge it
     into the gated result in the temp worktree (docs cannot affect the gate) and return the new
     result; otherwise raise StepFailed('ff', 'main moved during integration')."""
@@ -650,7 +651,7 @@ def integrate(args, ctx, say, res):
     if args.no_push:
         say("push      skip --no-push (beads not closed)")
         # main moved: refresh its .godot caches so runs from the main checkout see new
-        # class_name scripts (2026-10-07: a soak in main hit a stale global class cache).
+        # class_name scripts (a soak in main hit a stale global class cache).
         code, issues, log = import_check(ctx, "postimport", repo)
         for l in issues:
             say("  postimport: " + l)
@@ -715,7 +716,7 @@ def main(argv):
     ap.add_argument("--branches", nargs="+", required=True)
     ap.add_argument("--beads", nargs="*", default=[])
     ap.add_argument("--repo", default=DEFAULT_REPO)
-    ap.add_argument("--worktree-root", default="M:/Bontago-worktrees")
+    ap.add_argument("--worktree-root", default=repo_paths.worktrees_root())
     ap.add_argument("--log-dir", default="")
     ap.add_argument("--game-code", dest="game_code", action="store_true", default=True)
     ap.add_argument("--no-game-code", dest="game_code", action="store_false")
@@ -723,13 +724,13 @@ def main(argv):
     ap.add_argument("--merge-only", action="store_true",
                     help="conflict precheck: stop after step 2, start no Godot process (safe while workers run)")
     ap.add_argument("--no-push", action="store_true")
-    # DECISION (owner 2026-10-10: the PC crashed under ~11 concurrent Godot processes on 4 cores):
+    # DECISION (the PC crashed under ~11 concurrent Godot processes on 4 cores):
     # the gate defaults to 2 shards instead of full_gate.py's cpu-based auto count.
     ap.add_argument("--gate-shards", type=int, default=2,
                     help="parallel Godot shards for the full gate (default 2; 0 = full_gate.py auto)")
     ap.add_argument("--allow-probes", action="store_true",
                     help="skip the added-probe-file lint (tools/probe_lint.py) before merging")
-    # DECISION (Bontago-fca.13): opt-in rather than automatic, so a bead held by a live
+    # DECISION: opt-in rather than automatic, so a bead held by a live
     # worker is never force-closed by default; pass it only for reviewed Codex handoffs.
     ap.add_argument("--force-close", action="store_true",
                     help="pass --force to bd close (reviewed handoffs whose claim another agent holds, e.g. codex)")

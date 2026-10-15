@@ -1,0 +1,3026 @@
+{
+ "findings": {
+  ".claude/agents/stackfall-designer.md": {
+   "owner": 2
+  },
+  ".claude/agents/stackfall-editor.md": {
+   "bead-id": 1,
+   "date": 2,
+   "drive-path": 5,
+   "owner": 8
+  },
+  ".claude/agents/stackfall-netcode.md": {
+   "drive-path": 1,
+   "owner": 3
+  },
+  ".claude/agents/stackfall-orchestrator.md": {
+   "bead-id": 1,
+   "date": 3,
+   "owner": 11
+  },
+  ".claude/agents/stackfall-planner.md": {
+   "owner": 1
+  },
+  ".claude/agents/stackfall-reviewer.md": {
+   "bead-id": 1,
+   "drive-path": 4,
+   "owner": 1
+  },
+  ".claude/settings.json": {
+   "drive-path": 3
+  },
+  ".claude/skills/stackfall-auto-run/SKILL.md": {
+   "owner": 7
+  },
+  ".claude/skills/stackfall-godot/SKILL.md": {
+   "drive-path": 1,
+   "owner": 3
+  },
+  ".claude/skills/stackfall-owner-questions/SKILL.md": {
+   "drive-path": 1,
+   "owner": 9,
+   "user-name": 1
+  },
+  ".claude/skills/stackfall-session-close/SKILL.md": {
+   "debrief": 8,
+   "owner": 4
+  },
+  ".claude/skills/stackfall-session-resume/SKILL.md": {
+   "debrief": 6,
+   "owner": 9
+  },
+  ".claude/skills/stackfall-worker/SKILL.md": {
+   "drive-path": 2
+  },
+  ".gitignore": {
+   "bead-id": 1,
+   "owner": 2
+  },
+  "CLAUDE.md": {
+   "drive-path": 3,
+   "owner": 7,
+   "user-name": 1
+  },
+  "README.md": {
+   "bead-id": 3
+  },
+  "assets/textures/sky/horizon_storm_cell/storm_cell.gd": {
+   "bead-id": 1
+  },
+  "autoload/Events.gd": {
+   "bead-id": 32,
+   "date": 2,
+   "owner": 7
+  },
+  "autoload/LateScripts.gd": {
+   "bead-id": 1
+  },
+  "autoload/Match.gd": {
+   "bead-id": 35,
+   "owner": 1
+  },
+  "autoload/Net.gd": {
+   "bead-id": 82,
+   "date": 2,
+   "debrief": 1,
+   "owner": 10
+  },
+  "autoload/Rumble.gd": {
+   "bead-id": 5
+  },
+  "autoload/Screenshots.gd": {
+   "date": 1,
+   "owner": 2
+  },
+  "autoload/Settings.gd": {
+   "bead-id": 34,
+   "owner": 11
+  },
+  "autoload/Sfx.gd": {
+   "bead-id": 41,
+   "owner": 4
+  },
+  "autoload/StartupPump.gd": {
+   "bead-id": 1
+  },
+  "autoload/UserPaths.gd": {
+   "bead-id": 3,
+   "owner": 1
+  },
+  "autoload/match/BreezeEffect.gd": {
+   "bead-id": 7,
+   "owner": 1
+  },
+  "autoload/match/LocalFeedback.gd": {
+   "bead-id": 1,
+   "date": 1,
+   "owner": 1
+  },
+  "autoload/match/MatchContextLive.gd": {
+   "bead-id": 1
+  },
+  "autoload/match/MatchFeed.gd": {
+   "bead-id": 27,
+   "owner": 4
+  },
+  "autoload/match/MatchGiftActivation.gd": {
+   "bead-id": 1
+  },
+  "autoload/match/MatchGifts.gd": {
+   "bead-id": 39,
+   "date": 1,
+   "owner": 11
+  },
+  "autoload/match/MatchLifecycle.gd": {
+   "bead-id": 45,
+   "date": 1,
+   "owner": 3
+  },
+  "autoload/match/MatchPlacement.gd": {
+   "bead-id": 73,
+   "date": 7,
+   "owner": 12
+  },
+  "autoload/match/MatchStats.gd": {
+   "bead-id": 11
+  },
+  "autoload/match/MatchTerritory.gd": {
+   "bead-id": 37,
+   "date": 3,
+   "owner": 6
+  },
+  "autoload/match/MatchWeather.gd": {
+   "bead-id": 5,
+   "owner": 3
+  },
+  "autoload/match/StormEffect.gd": {
+   "bead-id": 1
+  },
+  "autoload/match/WeatherEffect.gd": {
+   "bead-id": 1
+  },
+  "autoload/match/WindEffect.gd": {
+   "bead-id": 3,
+   "owner": 1
+  },
+  "autoload/match/weather/RainEffect.gd": {
+   "bead-id": 2
+  },
+  "autoload/match/weather/SnowCapBuilder.gd": {
+   "bead-id": 3,
+   "owner": 7
+  },
+  "autoload/match/weather/SnowCaps.gd": {
+   "bead-id": 3,
+   "owner": 2
+  },
+  "autoload/match/weather/SnowEffect.gd": {
+   "bead-id": 2,
+   "owner": 5
+  },
+  "autoload/match/weather/SnowRelay.gd": {
+   "bead-id": 1
+  },
+  "autoload/match/weather/WeatherAmbience.gd": {
+   "bead-id": 4
+  },
+  "config/audio/AudioConfig.gd": {
+   "bead-id": 16,
+   "owner": 5
+  },
+  "config/blocks/BlockShape.gd": {
+   "bead-id": 6,
+   "date": 2,
+   "owner": 2
+  },
+  "config/blocks/tuning/BlockEffectsConfig.gd": {
+   "bead-id": 5,
+   "owner": 5
+  },
+  "config/blocks/tuning/BlockVisualTuning.gd": {
+   "bead-id": 7,
+   "date": 2,
+   "owner": 12
+  },
+  "config/blocks/tuning/GhostTuning.gd": {
+   "bead-id": 57,
+   "date": 24,
+   "owner": 42
+  },
+  "config/blocks/tuning/HoleDissolveTuning.gd": {
+   "bead-id": 2,
+   "owner": 1
+  },
+  "config/bots/BotDifficultyProfile.gd": {
+   "bead-id": 6
+  },
+  "config/bots/BotEvalTuning.gd": {
+   "bead-id": 8
+  },
+  "config/bots/BotGenTuning.gd": {
+   "bead-id": 2
+  },
+  "config/bots/BotStackTuning.gd": {
+   "bead-id": 6,
+   "owner": 1
+  },
+  "config/bots/BotStrategyTuning.gd": {
+   "bead-id": 5
+  },
+  "config/bots/BotThinkCostTuning.gd": {
+   "bead-id": 1
+  },
+  "config/bots/BotTuning.gd": {
+   "bead-id": 8
+  },
+  "config/bots/bot_tuning.tres": {
+   "bead-id": 4,
+   "date": 1,
+   "owner": 1
+  },
+  "config/breeze/BreezeTuning.gd": {
+   "bead-id": 6,
+   "owner": 1
+  },
+  "config/gifts/BlackHoleVisualTuning.gd": {
+   "bead-id": 3
+  },
+  "config/gifts/GiftConfig.gd": {
+   "bead-id": 11,
+   "date": 5,
+   "owner": 6
+  },
+  "config/gifts/GiftIconTable.gd": {
+   "bead-id": 2
+  },
+  "config/gifts/GiftModelEntry.gd": {
+   "bead-id": 3
+  },
+  "config/gifts/GiftModelTable.gd": {
+   "bead-id": 6,
+   "owner": 1
+  },
+  "config/gifts/GiftRingTuning.gd": {
+   "bead-id": 1
+  },
+  "config/gifts/GiftShapeWeights.gd": {
+   "bead-id": 1
+  },
+  "config/gifts/HoneyCoatTuning.gd": {
+   "bead-id": 2,
+   "date": 1,
+   "owner": 1
+  },
+  "config/gifts/specials/SpecialDef.gd": {
+   "bead-id": 11,
+   "date": 1,
+   "owner": 1
+  },
+  "config/gifts/specials/SpecialTuning.gd": {
+   "bead-id": 10
+  },
+  "config/gifts/specials/fx/BeanHopFxTuning.gd": {
+   "bead-id": 1
+  },
+  "config/gifts/specials/fx/ExplosionTuning.gd": {
+   "bead-id": 1
+  },
+  "config/gifts/specials/fx/FreezeFxTuning.gd": {
+   "bead-id": 1
+  },
+  "config/gifts/specials/fx/GiftExplosionFxTuning.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "config/gifts/specials/fx/VolcanoParticleTuning.gd": {
+   "bead-id": 1
+  },
+  "config/graphics/GraphicsPreset.gd": {
+   "bead-id": 24,
+   "date": 2,
+   "owner": 2
+  },
+  "config/graphics/QualityGovernorConfig.gd": {
+   "bead-id": 1
+  },
+  "config/graphics/presets/low.tres": {
+   "bead-id": 1
+  },
+  "config/match/DebugConfig.gd": {
+   "bead-id": 4,
+   "owner": 1
+  },
+  "config/match/DiscSizeTuning.gd": {
+   "bead-id": 3,
+   "date": 1,
+   "owner": 1
+  },
+  "config/match/MapDef.gd": {
+   "bead-id": 3,
+   "date": 2,
+   "owner": 3
+  },
+  "config/match/MatchConfig.gd": {
+   "bead-id": 45,
+   "date": 10,
+   "owner": 11
+  },
+  "config/match/MenuPrewarmConfig.gd": {
+   "bead-id": 1
+  },
+  "config/match/QolExperiments.gd": {
+   "bead-id": 4,
+   "date": 2,
+   "owner": 2
+  },
+  "config/match/SandboxConfig.gd": {
+   "bead-id": 4,
+   "owner": 1
+  },
+  "config/match/TutorialStep.gd": {
+   "bead-id": 1
+  },
+  "config/match/WatchBotsTuning.gd": {
+   "bead-id": 1
+  },
+  "config/net/ChatConfig.gd": {
+   "bead-id": 3,
+   "date": 1,
+   "owner": 1
+  },
+  "config/net/NetConfig.gd": {
+   "bead-id": 7,
+   "date": 1,
+   "owner": 3
+  },
+  "config/net/UpnpConfig.gd": {
+   "bead-id": 1
+  },
+  "config/physics/DiscShakeConfig.gd": {
+   "bead-id": 2
+  },
+  "config/physics/PhysicsTuning.gd": {
+   "bead-id": 8,
+   "date": 4,
+   "owner": 3
+  },
+  "config/physics/TiltTuning.gd": {
+   "bead-id": 5,
+   "owner": 1
+  },
+  "config/player/CameraTuning.gd": {
+   "bead-id": 12,
+   "date": 8,
+   "owner": 15
+  },
+  "config/player/InputGlyphTable.gd": {
+   "bead-id": 1
+  },
+  "config/player/RumbleConfig.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "config/sky/AmbientLifeConfig.gd": {
+   "bead-id": 2,
+   "date": 1,
+   "owner": 1
+  },
+  "config/sky/CloudDriftConfig.gd": {
+   "bead-id": 1
+  },
+  "config/sky/CloudShadowConfig.gd": {
+   "bead-id": 1
+  },
+  "config/sky/HorizonIslandsConfig.gd": {
+   "bead-id": 2,
+   "date": 1,
+   "owner": 1
+  },
+  "config/sky/SkyRadianceConfig.gd": {
+   "bead-id": 1
+  },
+  "config/sky/SkyThemeDef.gd": {
+   "bead-id": 25,
+   "date": 3,
+   "owner": 9
+  },
+  "config/sky/SkyboxConfig.gd": {
+   "bead-id": 1
+  },
+  "config/sky/SunFlareConfig.gd": {
+   "bead-id": 7,
+   "date": 2,
+   "owner": 7
+  },
+  "config/territory/ArenaSideStyle.gd": {
+   "bead-id": 1,
+   "date": 3,
+   "owner": 5
+  },
+  "config/territory/BeaconVisualTuning.gd": {
+   "bead-id": 16,
+   "owner": 7
+  },
+  "config/territory/DiscBodyVisuals.gd": {
+   "bead-id": 6,
+   "owner": 7
+  },
+  "config/territory/DiscSurfaceDef.gd": {
+   "bead-id": 2,
+   "owner": 1
+  },
+  "config/territory/HoleVisualTuning.gd": {
+   "bead-id": 2,
+   "owner": 1
+  },
+  "config/territory/TerritoryTuning.gd": {
+   "bead-id": 10,
+   "date": 6,
+   "owner": 4
+  },
+  "config/territory/TerritoryVisuals.gd": {
+   "bead-id": 32,
+   "date": 6,
+   "owner": 22
+  },
+  "config/ui/ArcadeVisualTuning.gd": {
+   "bead-id": 1
+  },
+  "config/ui/ComponentMetrics.gd": {
+   "bead-id": 3,
+   "date": 1,
+   "owner": 1
+  },
+  "config/ui/HUDVisualTuning.gd": {
+   "bead-id": 13,
+   "date": 7,
+   "owner": 9
+  },
+  "config/ui/HudFeedbackIconTable.gd": {
+   "bead-id": 3
+  },
+  "config/ui/LoadingScreenTuning.gd": {
+   "bead-id": 10,
+   "date": 1,
+   "owner": 1
+  },
+  "config/ui/LobbyLayoutTuning.gd": {
+   "bead-id": 8
+  },
+  "config/ui/MainMenuTuning.gd": {
+   "bead-id": 4
+  },
+  "config/ui/MenuVisualTuning.gd": {
+   "bead-id": 10,
+   "owner": 2
+  },
+  "config/ui/OptionHelpTable.gd": {
+   "bead-id": 1,
+   "date": 1,
+   "owner": 1
+  },
+  "config/ui/OptionsVisualTuning.gd": {
+   "bead-id": 3
+  },
+  "config/ui/ResultsTableTuning.gd": {
+   "bead-id": 1
+  },
+  "config/ui/SliderNavTuning.gd": {
+   "bead-id": 4
+  },
+  "config/ui/TuningPanelHints.gd": {
+   "bead-id": 3,
+   "owner": 3
+  },
+  "config/ui/UiArtTable.gd": {
+   "bead-id": 3
+  },
+  "config/ui/UiScaleTuning.gd": {
+   "bead-id": 7,
+   "date": 2,
+   "owner": 2
+  },
+  "config/ui/tuning_panel_hints.tres": {
+   "owner": 2
+  },
+  "config/weather/FogTuning.gd": {
+   "bead-id": 2,
+   "date": 1,
+   "owner": 1
+  },
+  "config/weather/HorizonStormConfig.gd": {
+   "bead-id": 2,
+   "date": 1,
+   "owner": 1
+  },
+  "config/weather/RainTuning.gd": {
+   "bead-id": 3
+  },
+  "config/weather/SnowTuning.gd": {
+   "bead-id": 3
+  },
+  "config/weather/StormTuning.gd": {
+   "bead-id": 4
+  },
+  "config/weather/WeatherAudioTuning.gd": {
+   "bead-id": 1
+  },
+  "config/weather/WeatherCeilingTuning.gd": {
+   "bead-id": 8
+  },
+  "config/weather/WeatherScheduleTuning.gd": {
+   "bead-id": 2,
+   "owner": 1
+  },
+  "config/weather/WeatherTuning.gd": {
+   "bead-id": 2
+  },
+  "core/ai/BotCandidate.gd": {
+   "bead-id": 7
+  },
+  "core/ai/BotCandidateGen.gd": {
+   "bead-id": 17,
+   "date": 1,
+   "owner": 2
+  },
+  "core/ai/BotChains.gd": {
+   "bead-id": 1
+  },
+  "core/ai/BotEvaluator.gd": {
+   "bead-id": 14,
+   "owner": 1
+  },
+  "core/ai/BotGeom2D.gd": {
+   "bead-id": 1
+  },
+  "core/ai/BotIntent.gd": {
+   "bead-id": 3
+  },
+  "core/ai/BotModeGoal.gd": {
+   "bead-id": 3
+  },
+  "core/ai/BotSpecialPlanner.gd": {
+   "bead-id": 1
+  },
+  "core/ai/BotStability.gd": {
+   "bead-id": 2,
+   "owner": 1
+  },
+  "core/ai/BotStack.gd": {
+   "bead-id": 16,
+   "owner": 1
+  },
+  "core/ai/BotStatics.gd": {
+   "bead-id": 6,
+   "owner": 2
+  },
+  "core/ai/BotStrategy.gd": {
+   "bead-id": 7
+  },
+  "core/ai/BotThink.gd": {
+   "bead-id": 23
+  },
+  "core/ai/BotThinkCostCollector.gd": {
+   "bead-id": 2
+  },
+  "core/ai/BotThinkCostReport.gd": {
+   "bead-id": 2
+  },
+  "core/ai/BotWorldView.gd": {
+   "bead-id": 12
+  },
+  "core/ai/bot_names.gd": {
+   "bead-id": 1,
+   "owner": 2
+  },
+  "core/ambient/FlockPlanner.gd": {
+   "bead-id": 1
+  },
+  "core/ambient/PerchPlanner.gd": {
+   "bead-id": 1
+  },
+  "core/audio/ClaimProgressExtrapolator.gd": {
+   "bead-id": 2
+  },
+  "core/audio/ClaimTensionState.gd": {
+   "bead-id": 1
+  },
+  "core/blocks/BlockMeshBuilder.gd": {
+   "bead-id": 5,
+   "owner": 1
+  },
+  "core/gifts/GiftAim.gd": {
+   "bead-id": 3
+  },
+  "core/gifts/GiftShapePicker.gd": {
+   "bead-id": 1
+  },
+  "core/gifts/GiftSpawner.gd": {
+   "bead-id": 1
+  },
+  "core/gifts/GiftThrow.gd": {
+   "bead-id": 1
+  },
+  "core/gifts/ParachuteAnim.gd": {
+   "bead-id": 1
+  },
+  "core/net/BuildVersion.gd": {
+   "bead-id": 2
+  },
+  "core/net/CircleWire.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "core/net/ImpactWire.gd": {
+   "bead-id": 1
+  },
+  "core/net/JoinCode.gd": {
+   "bead-id": 1
+  },
+  "core/net/Quantize.gd": {
+   "bead-id": 2
+  },
+  "core/net/WireSchema.gd": {
+   "bead-id": 1
+  },
+  "core/perf/FrameCapRule.gd": {
+   "bead-id": 1
+  },
+  "core/perf/QualityGovernor.gd": {
+   "bead-id": 1,
+   "date": 1,
+   "owner": 1
+  },
+  "core/physics/SettleTracker.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "core/rules/BeaconTimerText.gd": {
+   "bead-id": 1
+  },
+  "core/rules/CaptureFlagObjective.gd": {
+   "bead-id": 2,
+   "owner": 1
+  },
+  "core/rules/ChatMute.gd": {
+   "bead-id": 1
+  },
+  "core/rules/ChatRules.gd": {
+   "bead-id": 1
+  },
+  "core/rules/ClaimCells.gd": {
+   "bead-id": 1
+  },
+  "core/rules/DisplayNames.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "core/rules/DominationObjective.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "core/rules/EliminationObjective.gd": {
+   "bead-id": 6,
+   "date": 3,
+   "owner": 1
+  },
+  "core/rules/GoalControl.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "core/rules/LoadingReadyGate.gd": {
+   "bead-id": 3,
+   "date": 2,
+   "owner": 3
+  },
+  "core/rules/LobbySeats.gd": {
+   "bead-id": 2,
+   "owner": 1
+  },
+  "core/rules/MatchPhase.gd": {
+   "bead-id": 3
+  },
+  "core/rules/ModeObjective.gd": {
+   "bead-id": 2
+  },
+  "core/rules/PlacementRules.gd": {
+   "bead-id": 6,
+   "date": 6,
+   "owner": 4
+  },
+  "core/rules/PlayerNames.gd": {
+   "bead-id": 3,
+   "owner": 1
+  },
+  "core/rules/ReachSkyObjective.gd": {
+   "bead-id": 4,
+   "owner": 1
+  },
+  "core/rules/ResultsPayload.gd": {
+   "bead-id": 2
+  },
+  "core/rules/SlotColors.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "core/rules/SpecialIds.gd": {
+   "bead-id": 1
+  },
+  "core/rules/TeamAssigner.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "core/rules/ThrowRules.gd": {
+   "bead-id": 2
+  },
+  "core/rules/TimerPause.gd": {
+   "bead-id": 2
+  },
+  "core/rules/WinChecker.gd": {
+   "bead-id": 4
+  },
+  "core/sky/CloudDriftMath.gd": {
+   "bead-id": 1
+  },
+  "core/sky/CloudDriftState.gd": {
+   "bead-id": 1
+  },
+  "core/sky/CloudLighting.gd": {
+   "bead-id": 5
+  },
+  "core/sky/CloudShadowMath.gd": {
+   "bead-id": 1
+  },
+  "core/sky/SkyPalette.gd": {
+   "bead-id": 1
+  },
+  "core/sky/SkyVariation.gd": {
+   "bead-id": 3,
+   "date": 1,
+   "owner": 1
+  },
+  "core/sky/SunContrast.gd": {
+   "bead-id": 1
+  },
+  "core/territory/InfluenceCircle.gd": {
+   "bead-id": 1,
+   "date": 1,
+   "owner": 1
+  },
+  "core/territory/SandboxConeExperiment.gd": {
+   "bead-id": 1
+  },
+  "core/territory/SandboxContainmentExperiment.gd": {
+   "bead-id": 1
+  },
+  "core/territory/TerritoryRaster.gd": {
+   "bead-id": 11,
+   "date": 1,
+   "owner": 6
+  },
+  "core/territory/TerritorySolveJob.gd": {
+   "bead-id": 3
+  },
+  "core/weather/BreezeField.gd": {
+   "bead-id": 1
+  },
+  "core/weather/SnowGeometry.gd": {
+   "bead-id": 4,
+   "owner": 3
+  },
+  "core/weather/WeatherIds.gd": {
+   "bead-id": 1
+  },
+  "core/weather/WindField.gd": {
+   "bead-id": 1
+  },
+  "docs/SPEC.md": {
+   "bead-id": 64,
+   "date": 55,
+   "owner": 66
+  },
+  "game/ambient/DistantBirds.gd": {
+   "bead-id": 1
+  },
+  "game/ambient/Fireflies.gd": {
+   "bead-id": 1
+  },
+  "game/ambient/PerchingBird.gd": {
+   "bead-id": 1
+  },
+  "game/ambient/PerchingBirdModel.gd": {
+   "bead-id": 1
+  },
+  "game/ambient/PerchingBirds.gd": {
+   "bead-id": 2,
+   "date": 1,
+   "owner": 1
+  },
+  "game/blocks/Block.gd": {
+   "bead-id": 27,
+   "owner": 2
+  },
+  "game/blocks/BlockDissolveFx.gd": {
+   "bead-id": 2,
+   "owner": 1
+  },
+  "game/blocks/BlockEffectsManager.gd": {
+   "bead-id": 16,
+   "owner": 5
+  },
+  "game/blocks/BlockFactory.gd": {
+   "bead-id": 39,
+   "date": 1,
+   "owner": 10
+  },
+  "game/blocks/BlockRegistry.gd": {
+   "bead-id": 12,
+   "owner": 3
+  },
+  "game/blocks/BlockStepBatch.gd": {
+   "bead-id": 2
+  },
+  "game/blocks/FusedBody.gd": {
+   "bead-id": 1,
+   "owner": 4
+  },
+  "game/blocks/ImpactPuff.gd": {
+   "bead-id": 1
+  },
+  "game/blocks/StableBlockManager.gd": {
+   "bead-id": 9,
+   "owner": 1
+  },
+  "game/bots/BotController.gd": {
+   "bead-id": 56
+  },
+  "game/bots/BotStackProbe.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "game/debug/AgentProbe.gd": {
+   "bead-id": 2,
+   "date": 1,
+   "debrief": 1,
+   "owner": 1
+  },
+  "game/debug/DebugMode.gd": {
+   "bead-id": 2,
+   "owner": 1
+  },
+  "game/debug/PerfLogger.gd": {
+   "bead-id": 2,
+   "owner": 1
+  },
+  "game/debug/PerfProbe.gd": {
+   "bead-id": 1
+  },
+  "game/debug/PerfSampler.gd": {
+   "bead-id": 2
+  },
+  "game/debug/QualityGovernorDriver.gd": {
+   "bead-id": 1
+  },
+  "game/field/ArenaMesh.gd": {
+   "bead-id": 6,
+   "owner": 1
+  },
+  "game/field/ArenaSideBuilder.gd": {
+   "bead-id": 1
+  },
+  "game/field/Field.gd": {
+   "bead-id": 53,
+   "date": 3,
+   "owner": 18
+  },
+  "game/field/HoleDissolver.gd": {
+   "bead-id": 5,
+   "date": 1,
+   "owner": 3
+  },
+  "game/field/TerritoryOverlay.gd": {
+   "bead-id": 34,
+   "date": 1,
+   "owner": 7
+  },
+  "game/flags/GoalFlag.gd": {
+   "bead-id": 9,
+   "owner": 1
+  },
+  "game/flags/HomeFlag.gd": {
+   "bead-id": 6,
+   "owner": 6
+  },
+  "game/flags/PulseRing.gd": {
+   "bead-id": 1
+  },
+  "game/gifts/GiftCrate.gd": {
+   "bead-id": 16,
+   "owner": 4
+  },
+  "game/gifts/GiftDemoStrip.gd": {
+   "bead-id": 1
+  },
+  "game/gifts/GiftParachute.gd": {
+   "bead-id": 1
+  },
+  "game/gifts/ParachuteMesh.gd": {
+   "bead-id": 1
+  },
+  "game/gifts/specials/BlackHoleEffect.gd": {
+   "bead-id": 6,
+   "date": 1,
+   "owner": 3
+  },
+  "game/gifts/specials/BlackHoleField.gd": {
+   "bead-id": 2,
+   "owner": 1
+  },
+  "game/gifts/specials/BlackHoleVisual.gd": {
+   "bead-id": 1
+  },
+  "game/gifts/specials/BombEffect.gd": {
+   "bead-id": 3,
+   "date": 1
+  },
+  "game/gifts/specials/CatController.gd": {
+   "bead-id": 1
+  },
+  "game/gifts/specials/EarthquakeEffect.gd": {
+   "bead-id": 1
+  },
+  "game/gifts/specials/FreezeEffect.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "game/gifts/specials/GlueDrops.gd": {
+   "bead-id": 2
+  },
+  "game/gifts/specials/GlueEffect.gd": {
+   "owner": 1
+  },
+  "game/gifts/specials/JumpingBeanEffect.gd": {
+   "bead-id": 9,
+   "date": 1,
+   "owner": 3
+  },
+  "game/gifts/specials/MagnetEffect.gd": {
+   "bead-id": 6
+  },
+  "game/gifts/specials/PaintballEffect.gd": {
+   "bead-id": 4,
+   "owner": 2
+  },
+  "game/gifts/specials/PropellerEffect.gd": {
+   "bead-id": 1,
+   "date": 1,
+   "owner": 1
+  },
+  "game/gifts/specials/PropellerStand.gd": {
+   "bead-id": 1
+  },
+  "game/gifts/specials/RocketEffect.gd": {
+   "bead-id": 17,
+   "date": 1,
+   "owner": 6
+  },
+  "game/gifts/specials/SpecialBehavior.gd": {
+   "bead-id": 7,
+   "owner": 2
+  },
+  "game/gifts/specials/SpecialEffect.gd": {
+   "bead-id": 3
+  },
+  "game/gifts/specials/SpecialPhysics.gd": {
+   "bead-id": 5,
+   "date": 1
+  },
+  "game/gifts/specials/VolcanoEffect.gd": {
+   "bead-id": 4,
+   "date": 1,
+   "owner": 3
+  },
+  "game/gifts/specials/VolcanoStructure.gd": {
+   "bead-id": 3,
+   "owner": 3
+  },
+  "game/gifts/specials/fx/BeanHopFx.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "game/gifts/specials/fx/BlockSpawner.gd": {
+   "owner": 1
+  },
+  "game/gifts/specials/fx/CartoonBlast.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "game/gifts/specials/fx/DiscAnchor.gd": {
+   "bead-id": 1
+  },
+  "game/gifts/specials/fx/FlightFacing.gd": {
+   "bead-id": 2
+  },
+  "game/gifts/specials/fx/FreezeBurst.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "game/gifts/specials/fx/FxEase.gd": {
+   "bead-id": 1
+  },
+  "game/gifts/specials/fx/FxRing.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "game/gifts/specials/fx/GiftBlink.gd": {
+   "bead-id": 1
+  },
+  "game/gifts/specials/fx/GiftFxPresenter.gd": {
+   "bead-id": 5
+  },
+  "game/gifts/specials/fx/HoneyBlobMeshes.gd": {
+   "bead-id": 1
+  },
+  "game/gifts/specials/fx/HoneyCoat.gd": {
+   "bead-id": 4
+  },
+  "game/gifts/specials/fx/LandedProbe.gd": {
+   "bead-id": 1
+  },
+  "game/gifts/specials/fx/VolcanoEruptionFx.gd": {
+   "bead-id": 1
+  },
+  "game/main/Boot.gd": {
+   "bead-id": 6
+  },
+  "game/main/ExitRelease.gd": {
+   "bead-id": 1
+  },
+  "game/main/HotSeat.gd": {
+   "bead-id": 5,
+   "owner": 1
+  },
+  "game/main/Main.gd": {
+   "bead-id": 71,
+   "date": 3,
+   "owner": 6
+  },
+  "game/main/MainFlowPort.gd": {
+   "bead-id": 1
+  },
+  "game/main/MainHeadlessBotsFlow.gd": {
+   "bead-id": 28
+  },
+  "game/main/MainHeadlessBotsFlowPort.gd": {
+   "bead-id": 1
+  },
+  "game/main/MainMatchFlow.gd": {
+   "bead-id": 29,
+   "date": 1,
+   "owner": 5
+  },
+  "game/main/MainMatchFlowPort.gd": {
+   "bead-id": 1
+  },
+  "game/main/MainSandboxFlow.gd": {
+   "bead-id": 14,
+   "owner": 1
+  },
+  "game/main/MainSandboxFlowPort.gd": {
+   "bead-id": 1
+  },
+  "game/main/MenuPrewarmQueue.gd": {
+   "bead-id": 1
+  },
+  "game/main/QuitFlag.gd": {
+   "bead-id": 1
+  },
+  "game/main/TuningOverrides.gd": {
+   "bead-id": 3,
+   "owner": 1
+  },
+  "game/main/WatchBotsOptions.gd": {
+   "bead-id": 2
+  },
+  "game/player/CameraRig.gd": {
+   "bead-id": 58,
+   "date": 14,
+   "owner": 28
+  },
+  "game/player/GhostPreview.gd": {
+   "bead-id": 126,
+   "date": 26,
+   "owner": 40
+  },
+  "game/player/PlayerController.gd": {
+   "bead-id": 106,
+   "date": 20,
+   "owner": 37
+  },
+  "game/player/RemoteCursors.gd": {
+   "bead-id": 3
+  },
+  "game/player/SpectatorController.gd": {
+   "bead-id": 1
+  },
+  "game/player/ThrowArcPreview.gd": {
+   "bead-id": 8
+  },
+  "game/sandbox/Sandbox.gd": {
+   "bead-id": 17,
+   "owner": 1
+  },
+  "game/sandbox/SandboxConeAdapter.gd": {
+   "bead-id": 2
+  },
+  "game/sky/CloudSea.gd": {
+   "bead-id": 34
+  },
+  "game/sky/CloudShadows.gd": {
+   "bead-id": 3,
+   "owner": 1
+  },
+  "game/sky/Skybox.gd": {
+   "bead-id": 99,
+   "owner": 6
+  },
+  "game/sky/SunFlare.gd": {
+   "bead-id": 9,
+   "date": 1,
+   "owner": 3
+  },
+  "game/weather/BreezePresenter.gd": {
+   "bead-id": 1
+  },
+  "game/weather/CloudCeiling.gd": {
+   "bead-id": 2
+  },
+  "game/weather/FogPresentation.gd": {
+   "bead-id": 1
+  },
+  "game/weather/GustPresentation.gd": {
+   "bead-id": 2
+  },
+  "game/weather/HorizonStormCells.gd": {
+   "bead-id": 1
+  },
+  "game/weather/RainPresentation.gd": {
+   "bead-id": 6
+  },
+  "game/weather/RainPuddles.gd": {
+   "bead-id": 2,
+   "owner": 1
+  },
+  "game/weather/SnowDiscCover.gd": {
+   "bead-id": 4
+  },
+  "game/weather/SnowPresentation.gd": {
+   "bead-id": 5
+  },
+  "game/weather/StormPresentation.gd": {
+   "bead-id": 5
+  },
+  "game/weather/WeatherFogShader.gd": {
+   "bead-id": 4
+  },
+  "game/weather/WeatherPresentation.gd": {
+   "bead-id": 1
+  },
+  "game/weather/WeatherPresenter.gd": {
+   "bead-id": 4
+  },
+  "game/world/BlockBody.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "game/world/MatchContext.gd": {
+   "bead-id": 2
+  },
+  "net/BreezeNet.gd": {
+   "bead-id": 1
+  },
+  "net/Interpolator.gd": {
+   "bead-id": 1
+  },
+  "net/MatchEventApplier.gd": {
+   "bead-id": 11,
+   "owner": 1
+  },
+  "net/MatchNet.gd": {
+   "bead-id": 90,
+   "date": 2,
+   "owner": 9
+  },
+  "net/NetFanout.gd": {
+   "bead-id": 3
+  },
+  "net/SnapshotSync.gd": {
+   "bead-id": 14
+  },
+  "net/SnowNet.gd": {
+   "bead-id": 1
+  },
+  "net/SteamClient.gd": {
+   "bead-id": 10,
+   "owner": 1
+  },
+  "net/UpnpBackend.gd": {
+   "bead-id": 1
+  },
+  "net/UpnpRunner.gd": {
+   "bead-id": 1
+  },
+  "net/WeatherNet.gd": {
+   "bead-id": 4
+  },
+  "shaders/ambient/distant_birds.gdshader": {
+   "bead-id": 2
+  },
+  "shaders/ambient/fireflies.gdshader": {
+   "bead-id": 2
+  },
+  "shaders/ambient/perching_bird.gdshader": {
+   "bead-id": 1
+  },
+  "shaders/ambient/perching_bird_outline.gdshader": {
+   "bead-id": 1
+  },
+  "shaders/blocks/block_cell_grid.gdshader": {
+   "bead-id": 6,
+   "date": 1,
+   "owner": 4
+  },
+  "shaders/blocks/block_outline.gdshader": {
+   "bead-id": 7
+  },
+  "shaders/blocks/ghost_cell_grid.gdshader": {
+   "bead-id": 7,
+   "owner": 2
+  },
+  "shaders/gifts/black_hole_vortex.gdshader": {
+   "bead-id": 1
+  },
+  "shaders/gifts/cartoon_blast_flash.gdshader": {
+   "bead-id": 1
+  },
+  "shaders/gifts/cartoon_blast_puff.gdshader": {
+   "bead-id": 1
+  },
+  "shaders/gifts/cubelet.gdshader": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "shaders/gifts/dust_puff.gdshader": {
+   "bead-id": 1,
+   "owner": 2
+  },
+  "shaders/gifts/fx_ring.gdshader": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "shaders/gifts/gift_toon.gdshader": {
+   "bead-id": 1
+  },
+  "shaders/gifts/honey_jelly.gdshader": {
+   "bead-id": 1
+  },
+  "shaders/gifts/impact_puff.gdshader": {
+   "bead-id": 1
+  },
+  "shaders/gifts/trail_streak.gdshader": {
+   "bead-id": 1
+  },
+  "shaders/include/block_dissolve.gdshaderinc": {
+   "bead-id": 1
+  },
+  "shaders/include/cloud_common.gdshaderinc": {
+   "bead-id": 7,
+   "owner": 2
+  },
+  "shaders/include/disc_plating.gdshaderinc": {
+   "bead-id": 7,
+   "owner": 1
+  },
+  "shaders/include/honey_shading.gdshaderinc": {
+   "bead-id": 1
+  },
+  "shaders/sky/cloud_puffs.gdshader": {
+   "bead-id": 17
+  },
+  "shaders/sky/horizon_island.gdshader": {
+   "bead-id": 1
+  },
+  "shaders/sky/night_sky.gdshader": {
+   "bead-id": 5
+  },
+  "shaders/sky/sun_flare.gdshader": {
+   "bead-id": 2,
+   "date": 1,
+   "owner": 2
+  },
+  "shaders/sky/sunset_clouds.gdshader": {
+   "bead-id": 18,
+   "owner": 3
+  },
+  "shaders/territory/arena_side_shell.gdshader": {
+   "bead-id": 2,
+   "owner": 1
+  },
+  "shaders/territory/beacon_crystal.gdshader": {
+   "bead-id": 2,
+   "owner": 1
+  },
+  "shaders/territory/disc_band_overlay.gdshader": {
+   "bead-id": 1
+  },
+  "shaders/territory/disc_rim.gdshader": {
+   "owner": 1
+  },
+  "shaders/territory/goal_beam.gdshader": {
+   "bead-id": 1
+  },
+  "shaders/territory/goal_claim_zone.gdshader": {
+   "bead-id": 1
+  },
+  "shaders/territory/minimap_territory.gdshader": {
+   "bead-id": 2
+  },
+  "shaders/territory/territory.gdshader": {
+   "bead-id": 50,
+   "date": 3,
+   "owner": 18
+  },
+  "shaders/territory/territory_circle_bake.gdshader": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "shaders/territory/territory_circle_field.gdshaderinc": {
+   "bead-id": 2,
+   "owner": 1
+  },
+  "shaders/weather/gust_swoosh.gdshader": {
+   "bead-id": 5
+  },
+  "shaders/weather/rain_puddles.gdshader": {
+   "bead-id": 1
+  },
+  "shaders/weather/rain_streaks.gdshader": {
+   "bead-id": 1
+  },
+  "shaders/weather/snow_cap.gdshader": {
+   "bead-id": 1
+  },
+  "shaders/weather/snow_drift.gdshader": {
+   "bead-id": 1
+  },
+  "shaders/weather/snow_flake.gdshader": {
+   "bead-id": 3
+  },
+  "shaders/weather/wind_streak.gdshader": {
+   "bead-id": 4
+  },
+  "tests/bench/bench_gpu_frame.gd": {
+   "bead-id": 5,
+   "owner": 1
+  },
+  "tests/bench/bench_rain.gd": {
+   "bead-id": 1
+  },
+  "tests/bench/bench_specials_chain.gd": {
+   "bead-id": 2,
+   "owner": 1
+  },
+  "tests/bench/bench_tower.gd": {
+   "bead-id": 4
+  },
+  "tests/enet/beacon_timers_enet.gd": {
+   "bead-id": 1
+  },
+  "tests/enet/black_hole_enet.gd": {
+   "bead-id": 2
+  },
+  "tests/enet/countdown_enet.gd": {
+   "bead-id": 2
+  },
+  "tests/enet/drop_displace_enet.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "tests/enet/elim_claim_enet.gd": {
+   "bead-id": 1
+  },
+  "tests/enet/gift_after_next_enet.gd": {
+   "bead-id": 2
+  },
+  "tests/enet/gift_fx_enet.gd": {
+   "bead-id": 10
+  },
+  "tests/enet/gift_slot_enet.gd": {
+   "bead-id": 2
+  },
+  "tests/enet/glue_fuse_enet.gd": {
+   "bead-id": 2
+  },
+  "tests/enet/live_scores_enet.gd": {
+   "bead-id": 2
+  },
+  "tests/enet/loading_ready_enet.gd": {
+   "bead-id": 2
+  },
+  "tests/enet/m2_acceptance.gd": {
+   "bead-id": 9,
+   "date": 4,
+   "owner": 10
+  },
+  "tests/enet/m3a_acceptance.gd": {
+   "bead-id": 41
+  },
+  "tests/enet/muzzle_spawn_enet.gd": {
+   "bead-id": 1
+  },
+  "tests/enet/qol_enet.gd": {
+   "bead-id": 2
+  },
+  "tests/enet/reset_enet.gd": {
+   "bead-id": 1
+  },
+  "tests/enet/return_lobby_enet.gd": {
+   "bead-id": 1
+  },
+  "tests/enet/rocket_enet.gd": {
+   "bead-id": 2
+  },
+  "tests/support/BootFixture.gd": {
+   "bead-id": 1
+  },
+  "tests/support/BootFixtureLate.gd": {
+   "bead-id": 1
+  },
+  "tests/support/FakeMatch.gd": {
+   "bead-id": 6
+  },
+  "tests/support/FakeNet.gd": {
+   "bead-id": 5
+  },
+  "tests/support/FakeSteam.gd": {
+   "bead-id": 1
+  },
+  "tests/support/MatchFingerprint.gd": {
+   "bead-id": 4
+  },
+  "tests/support/MatchTestReset.gd": {
+   "bead-id": 2
+  },
+  "tests/support/PhysicsCallDriver.gd": {
+   "bead-id": 1
+  },
+  "tests/support/StaticsJoltScene.gd": {
+   "bead-id": 1
+  },
+  "tests/support/TerritoryTestHelpers.gd": {
+   "bead-id": 1
+  },
+  "tests/support/TinyMapMatchConfig.gd": {
+   "bead-id": 2
+  },
+  "tests/support/WeatherProbeEffect.gd": {
+   "bead-id": 1
+  },
+  "tests/support/jolt_overflow_error_tracker.gd": {
+   "bead-id": 1
+  },
+  "tests/support/jolt_overflow_hook.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/audio/test_music_playlists.gd": {
+   "bead-id": 3
+  },
+  "tests/unit/audio/test_sfx.gd": {
+   "bead-id": 3,
+   "owner": 2
+  },
+  "tests/unit/audio/test_sfx_claim_tension.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/audio/test_sfx_drop_cue.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/audio/test_sfx_impacts.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/audio/test_sfx_ui_cues.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/blocks/test_afk_spawn_height.gd": {
+   "bead-id": 2,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/blocks/test_block_awake_set.gd": {
+   "bead-id": 3
+  },
+  "tests/unit/blocks/test_block_effects.gd": {
+   "bead-id": 3,
+   "owner": 1
+  },
+  "tests/unit/blocks/test_block_factory.gd": {
+   "bead-id": 17,
+   "owner": 6
+  },
+  "tests/unit/blocks/test_block_mesh_builder.gd": {
+   "bead-id": 2,
+   "owner": 1
+  },
+  "tests/unit/blocks/test_block_orientations.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/blocks/test_block_outline_pass.gd": {
+   "bead-id": 4
+  },
+  "tests/unit/blocks/test_block_rebound_physics.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/blocks/test_block_registry.gd": {
+   "bead-id": 4
+  },
+  "tests/unit/blocks/test_block_shapes.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/blocks/test_block_shapes_v2.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/blocks/test_block_step_batch.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/blocks/test_block_style_box.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/blocks/test_fused_body.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/blocks/test_ghost_centre_pivot.gd": {
+   "bead-id": 3,
+   "date": 1,
+   "owner": 3
+  },
+  "tests/unit/blocks/test_ghost_collision.gd": {
+   "bead-id": 2,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/blocks/test_ghost_footprint_projection.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/blocks/test_ghost_glow.gd": {
+   "bead-id": 3
+  },
+  "tests/unit/blocks/test_ghost_preview.gd": {
+   "bead-id": 42,
+   "date": 9,
+   "owner": 19
+  },
+  "tests/unit/blocks/test_ghost_tint.gd": {
+   "bead-id": 4,
+   "date": 3,
+   "owner": 5
+  },
+  "tests/unit/blocks/test_hover_cap_real_match.gd": {
+   "bead-id": 1,
+   "owner": 5
+  },
+  "tests/unit/blocks/test_settle_tracker.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/blocks/test_stable_block_manager.gd": {
+   "bead-id": 4
+  },
+  "tests/unit/bots/test_bot_airborne.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/bots/test_bot_candidate_gen.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/bots/test_bot_chains.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/bots/test_bot_com_pick.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/bots/test_bot_com_scenarios.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/bots/test_bot_controller.gd": {
+   "bead-id": 16
+  },
+  "tests/unit/bots/test_bot_cube_probes.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/bots/test_bot_debris_surface.gd": {
+   "bead-id": 3,
+   "owner": 1
+  },
+  "tests/unit/bots/test_bot_disc_placement.gd": {
+   "bead-id": 1,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/bots/test_bot_evaluator.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/bots/test_bot_fill_cost.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/bots/test_bot_names.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "tests/unit/bots/test_bot_rim.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/bots/test_bot_slender.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/bots/test_bot_sound_base.gd": {
+   "bead-id": 4
+  },
+  "tests/unit/bots/test_bot_spawn_frame.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/bots/test_bot_special_planner.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/bots/test_bot_stability.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/bots/test_bot_stability_decision.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/bots/test_bot_stability_disturbance.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/bots/test_bot_stability_fix.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/bots/test_bot_stability_think.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/bots/test_bot_stack.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/bots/test_bot_stack_cuts.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/bots/test_bot_statics.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/bots/test_bot_statics_jolt.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/bots/test_bot_statics_jolt_stack.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/bots/test_bot_strategy.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/bots/test_bot_think.gd": {
+   "bead-id": 3
+  },
+  "tests/unit/bots/test_bot_think_determinism.gd": {
+   "bead-id": 4
+  },
+  "tests/unit/bots/test_bot_tier_parity.gd": {
+   "bead-id": 1,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/bots/test_bot_timer_budget.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/bots/test_bot_tower_keep.gd": {
+   "bead-id": 1,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/bots/test_bot_tower_scenarios.gd": {
+   "bead-id": 2,
+   "date": 1
+  },
+  "tests/unit/bots/test_bot_upright.gd": {
+   "bead-id": 2,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/bots/test_bot_weather.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/bots/test_headless_bot_match.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/bots/test_headless_bot_overrides.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/bots/test_headless_loop_matches.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/bots/test_watch_bots.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/field/test_arena_side_builder.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/field/test_arena_style_live.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/field/test_disc_body.gd": {
+   "bead-id": 3,
+   "owner": 4
+  },
+  "tests/unit/field/test_disc_size.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/field/test_eliminated_ghost.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/field/test_field.gd": {
+   "bead-id": 4,
+   "owner": 2
+  },
+  "tests/unit/field/test_field_cells.gd": {
+   "bead-id": 6,
+   "owner": 3
+  },
+  "tests/unit/field/test_field_map_def.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/field/test_field_tilt.gd": {
+   "bead-id": 7,
+   "owner": 1
+  },
+  "tests/unit/field/test_home_spawn_height.gd": {
+   "bead-id": 2,
+   "date": 2,
+   "owner": 3
+  },
+  "tests/unit/field/test_map_visual_shape.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/gifts/test_black_hole_gift_demo_flow.gd": {
+   "bead-id": 2,
+   "owner": 2
+  },
+  "tests/unit/gifts/test_bomb_effect.gd": {
+   "bead-id": 1,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/gifts/test_cartoon_fx.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/gifts/test_cat_effect.gd": {
+   "owner": 1
+  },
+  "tests/unit/gifts/test_earthquake_effect.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/gifts/test_freeze_effect.gd": {
+   "bead-id": 2,
+   "owner": 2
+  },
+  "tests/unit/gifts/test_gift_activation_scale.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/gifts/test_gift_blast_blocks.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/gifts/test_gift_claim.gd": {
+   "bead-id": 13,
+   "date": 1,
+   "owner": 4
+  },
+  "tests/unit/gifts/test_gift_claim_bot_match.gd": {
+   "bead-id": 4,
+   "owner": 1
+  },
+  "tests/unit/gifts/test_gift_claim_crate_feedback.gd": {
+   "bead-id": 6,
+   "owner": 1
+  },
+  "tests/unit/gifts/test_gift_crate_prewarm.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/gifts/test_gift_demo_preset.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/gifts/test_gift_despawn.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/gifts/test_gift_effects_ride_disc.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/gifts/test_gift_entrances.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/gifts/test_gift_flight.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/gifts/test_gift_flight_facing.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/gifts/test_gift_fx_disc.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/gifts/test_gift_fx_landed.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/gifts/test_gift_fx_presenter.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/gifts/test_gift_fx_spawner.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/gifts/test_gift_held_presentation.gd": {
+   "bead-id": 5,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/gifts/test_gift_icon_table.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/gifts/test_gift_in_place.gd": {
+   "bead-id": 4
+  },
+  "tests/unit/gifts/test_gift_model_jumping_bean.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/gifts/test_gift_model_paintball.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/gifts/test_gift_model_volcano.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/gifts/test_gift_models.gd": {
+   "bead-id": 5
+  },
+  "tests/unit/gifts/test_gift_multi.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/gifts/test_gift_parachute.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/gifts/test_gift_playtest2_contracts.gd": {
+   "bead-id": 4
+  },
+  "tests/unit/gifts/test_gift_projectile_flight.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/gifts/test_gift_pulse_ring.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/gifts/test_gift_queue_after_next.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/gifts/test_gift_relocate.gd": {
+   "bead-id": 3,
+   "owner": 1
+  },
+  "tests/unit/gifts/test_gift_shape_picker.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/gifts/test_gift_spawn_facing.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/gifts/test_gift_throw.gd": {
+   "bead-id": 4
+  },
+  "tests/unit/gifts/test_gift_throw_origin.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/gifts/test_glue_coat_replication.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/gifts/test_glue_drops.gd": {
+   "bead-id": 3,
+   "date": 1
+  },
+  "tests/unit/gifts/test_glue_sticks_overhang.gd": {
+   "bead-id": 1,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/gifts/test_held_gift_facing.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/gifts/test_held_gifts.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/gifts/test_honey_coat.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/gifts/test_jumping_bean_effect.gd": {
+   "bead-id": 10
+  },
+  "tests/unit/gifts/test_jumping_bean_real_physics.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "tests/unit/gifts/test_late_activation_facades.gd": {
+   "bead-id": 3
+  },
+  "tests/unit/gifts/test_magnet_effect.gd": {
+   "bead-id": 2,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/gifts/test_propeller_effect.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/gifts/test_propeller_fan_orientation.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/gifts/test_rocket_effect.gd": {
+   "bead-id": 4,
+   "date": 1,
+   "owner": 2
+  },
+  "tests/unit/gifts/test_special_behavior.gd": {
+   "bead-id": 4
+  },
+  "tests/unit/gifts/test_special_black_hole.gd": {
+   "bead-id": 8
+  },
+  "tests/unit/gifts/test_special_def.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/gifts/test_special_physics.gd": {
+   "owner": 1
+  },
+  "tests/unit/gifts/test_stackfall_effect.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/gifts/test_volcano_effect.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/gifts/test_volcano_floor_columns.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/gifts/test_volcano_structure.gd": {
+   "bead-id": 3
+  },
+  "tests/unit/main/test_agent_probe.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/main/test_boot.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/main/test_build_version.gd": {
+   "bead-id": 3,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/main/test_debug_mode.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/main/test_impact_puff.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/main/test_jolt_overflow_filter.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/main/test_late_scripts.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/main/test_main.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/main/test_main_graphics_preset.gd": {
+   "bead-id": 3
+  },
+  "tests/unit/main/test_main_lazy_loads.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/main/test_main_match_flow_split.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/main/test_main_overlays_lazy.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/main/test_main_prewarm_wiring.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/main/test_physics_tuning.gd": {
+   "bead-id": 1,
+   "date": 1,
+   "owner": 2
+  },
+  "tests/unit/main/test_project_setup.gd": {
+   "bead-id": 4,
+   "date": 2,
+   "owner": 3
+  },
+  "tests/unit/main/test_quality_governor.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/main/test_sandbox.gd": {
+   "bead-id": 6
+  },
+  "tests/unit/main/test_screenshots.gd": {
+   "bead-id": 2,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/main/test_settings.gd": {
+   "bead-id": 6,
+   "drive-path": 3,
+   "owner": 2
+  },
+  "tests/unit/main/test_startup_pump.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/match/test_beacon_collision.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/match/test_beacon_timers.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/match/test_build_height_band.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/match/test_capture_flag.gd": {
+   "bead-id": 2,
+   "owner": 1
+  },
+  "tests/unit/match/test_chat_mute.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/match/test_chat_rules.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/match/test_ctf_center_drop.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/match/test_display_names.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/match/test_domination.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/match/test_drop_displacement.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/match/test_drop_displacement_real_flow.gd": {
+   "bead-id": 5,
+   "owner": 3
+  },
+  "tests/unit/match/test_elimination.gd": {
+   "bead-id": 3
+  },
+  "tests/unit/match/test_expiry_throw.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "tests/unit/match/test_flags.gd": {
+   "bead-id": 3,
+   "owner": 2
+  },
+  "tests/unit/match/test_goal_control.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/match/test_goal_flag_claim_ring.gd": {
+   "bead-id": 3
+  },
+  "tests/unit/match/test_lobby_seats.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/match/test_match_activation.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/match/test_match_config.gd": {
+   "bead-id": 3,
+   "date": 1
+  },
+  "tests/unit/match/test_match_countdown.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/match/test_match_feed.gd": {
+   "bead-id": 3
+  },
+  "tests/unit/match/test_match_flow.gd": {
+   "bead-id": 15,
+   "date": 4,
+   "owner": 6
+  },
+  "tests/unit/match/test_match_lifecycle.gd": {
+   "bead-id": 5,
+   "owner": 1
+  },
+  "tests/unit/match/test_match_reset_fingerprint.gd": {
+   "bead-id": 2,
+   "owner": 1
+  },
+  "tests/unit/match/test_match_reset_rules.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/match/test_match_reset_sky.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/match/test_match_restart.gd": {
+   "bead-id": 3,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/match/test_match_stats.gd": {
+   "bead-id": 3
+  },
+  "tests/unit/match/test_match_territory_punch.gd": {
+   "bead-id": 2,
+   "date": 1
+  },
+  "tests/unit/match/test_match_throw.gd": {
+   "bead-id": 6
+  },
+  "tests/unit/match/test_match_tilt_wiring.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/match/test_match_weather.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/match/test_match_weather_net.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/match/test_mode_framework.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/match/test_mode_polish.gd": {
+   "bead-id": 5,
+   "date": 1,
+   "owner": 2
+  },
+  "tests/unit/match/test_mode_sky_setup.gd": {
+   "bead-id": 3,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/match/test_placement_events.gd": {
+   "owner": 1
+  },
+  "tests/unit/match/test_placement_refusal.gd": {
+   "bead-id": 3,
+   "date": 4,
+   "owner": 4
+  },
+  "tests/unit/match/test_placement_rules.gd": {
+   "bead-id": 1,
+   "date": 2,
+   "owner": 1
+  },
+  "tests/unit/match/test_player_name_source.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/match/test_player_names.gd": {
+   "bead-id": 4,
+   "owner": 1
+  },
+  "tests/unit/match/test_qol_experiments.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/match/test_reach_sky.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/match/test_results_payload.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/match/test_results_screen.gd": {
+   "bead-id": 7
+  },
+  "tests/unit/match/test_rule_scenarios.gd": {
+   "bead-id": 2,
+   "date": 1
+  },
+  "tests/unit/match/test_rules_defaults.gd": {
+   "bead-id": 1,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/match/test_slot_colors.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/match/test_sudden_death.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/match/test_team_assigner.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/match/test_team_slots.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/match/test_throw_rules.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/match/test_timer_pause.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/match/test_tower_placement.gd": {
+   "bead-id": 4
+  },
+  "tests/unit/match/test_tower_topple_preset.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/match/test_turn_based.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/match/test_win_checker.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "tests/unit/net/test_circle_wire.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/net/test_impact_replication.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/net/test_intent_gate.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/net/test_join_code.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/net/test_kick_broadcast.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/net/test_lan_discovery.gd": {
+   "user-name": 1
+  },
+  "tests/unit/net/test_late_join.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/net/test_late_join_silence.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/net/test_lobby_ready_sync.gd": {
+   "bead-id": 3
+  },
+  "tests/unit/net/test_match_net.gd": {
+   "bead-id": 9
+  },
+  "tests/unit/net/test_net_chat.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/net/test_net_debug_overlay.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/net/test_net_helpers.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/net/test_net_match_config_flag.gd": {
+   "bead-id": 4
+  },
+  "tests/unit/net/test_net_session.gd": {
+   "bead-id": 11,
+   "date": 1
+  },
+  "tests/unit/net/test_remote_cursors.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/net/test_remote_intent_validation.gd": {
+   "bead-id": 5,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/net/test_seat_wire.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/net/test_snapshot_sync.gd": {
+   "bead-id": 5
+  },
+  "tests/unit/net/test_upnp_host.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/net/test_wire_schema.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/player/test_camera_drop_continuity.gd": {
+   "bead-id": 2,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/player/test_camera_focus.gd": {
+   "bead-id": 5,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/player/test_camera_input_block.gd": {
+   "bead-id": 1,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/player/test_camera_rig.gd": {
+   "bead-id": 3,
+   "owner": 1
+  },
+  "tests/unit/player/test_camera_shake.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/player/test_gamepad_bindings.gd": {
+   "bead-id": 4,
+   "date": 1,
+   "owner": 2
+  },
+  "tests/unit/player/test_hot_seat.gd": {
+   "owner": 1
+  },
+  "tests/unit/player/test_input_device.gd": {
+   "bead-id": 3,
+   "owner": 1
+  },
+  "tests/unit/player/test_input_glyph.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "tests/unit/player/test_input_glyph_arcade.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/player/test_input_hint_glyphs.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/player/test_playercontroller_gamepad.gd": {
+   "bead-id": 3,
+   "date": 3,
+   "owner": 4
+  },
+  "tests/unit/player/test_playercontroller_gift_slot.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/player/test_playercontroller_hover_cap.gd": {
+   "bead-id": 4,
+   "date": 3,
+   "owner": 4
+  },
+  "tests/unit/player/test_playercontroller_mouse.gd": {
+   "bead-id": 6,
+   "date": 2,
+   "owner": 4
+  },
+  "tests/unit/player/test_playercontroller_spawn_clearance.gd": {
+   "bead-id": 4,
+   "date": 2,
+   "owner": 1
+  },
+  "tests/unit/player/test_playercontroller_throw.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "tests/unit/player/test_start_camera_flow.gd": {
+   "bead-id": 2,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/player/test_start_framing.gd": {
+   "bead-id": 2,
+   "date": 1,
+   "owner": 2
+  },
+  "tests/unit/player/test_throw_arc_preview.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/sky/test_cloud_drift.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/sky/test_cloud_lighting.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/sky/test_cloud_sea_geometry.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/sky/test_cloud_sea_occlusion.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/sky/test_cloud_shadows.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/sky/test_flock_planner.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/sky/test_horizon_islands.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/sky/test_horizon_storm_cells.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/sky/test_perch_planner.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/sky/test_perching_birds.gd": {
+   "bead-id": 3
+  },
+  "tests/unit/sky/test_sky_aurora.gd": {
+   "bead-id": 2,
+   "owner": 1
+  },
+  "tests/unit/sky/test_sky_aurora_nights.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "tests/unit/sky/test_sky_moon.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/sky/test_sky_palette.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/sky/test_sky_radiance.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/sky/test_sky_random_start.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/sky/test_sky_themes.gd": {
+   "bead-id": 8,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/sky/test_skybox.gd": {
+   "bead-id": 5
+  },
+  "tests/unit/sky/test_sun_flare.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/sky/test_sun_flare_layering.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/territory/test_claim_progress_extrapolator.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/territory/test_claim_radius_cache.gd": {
+   "bead-id": 2,
+   "owner": 1
+  },
+  "tests/unit/territory/test_claim_tension_state.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/territory/test_hole_dissolve.gd": {
+   "bead-id": 4,
+   "date": 2,
+   "owner": 1
+  },
+  "tests/unit/territory/test_hole_visuals.gd": {
+   "bead-id": 3,
+   "owner": 1
+  },
+  "tests/unit/territory/test_home_claim_decay.gd": {
+   "bead-id": 2,
+   "owner": 1
+  },
+  "tests/unit/territory/test_raster_replication.gd": {
+   "bead-id": 3
+  },
+  "tests/unit/territory/test_sandbox_cone_experiment.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/territory/test_territory_async_solve.gd": {
+   "bead-id": 3
+  },
+  "tests/unit/territory/test_territory_collect_cache.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/territory/test_territory_deferral.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/territory/test_territory_overlay.gd": {
+   "bead-id": 17,
+   "date": 4,
+   "owner": 5
+  },
+  "tests/unit/territory/test_territory_polish.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/territory/test_territory_raster.gd": {
+   "bead-id": 3,
+   "date": 4,
+   "owner": 6
+  },
+  "tests/unit/territory/test_territory_single_emit.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_art_release.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_confirm_dialog_theme.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "tests/unit/ui/test_controls_pad_rows.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "tests/unit/ui/test_graphics_settings_tab.gd": {
+   "bead-id": 3
+  },
+  "tests/unit/ui/test_hud.gd": {
+   "bead-id": 10,
+   "owner": 2
+  },
+  "tests/unit/ui/test_hud_chat.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_hud_countdown_stats.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_hud_glyph_wiring.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_hud_scale.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_hud_toggle.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_key_rebind_row.gd": {
+   "bead-id": 4,
+   "owner": 2
+  },
+  "tests/unit/ui/test_loading_ready.gd": {
+   "bead-id": 3,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/ui/test_loading_screen.gd": {
+   "bead-id": 3,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/ui/test_lobby.gd": {
+   "bead-id": 13,
+   "owner": 1
+  },
+  "tests/unit/ui/test_lobby_chat.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_lobby_confirm.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_lobby_gamepad_focus.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_lobby_options.gd": {
+   "bead-id": 3
+  },
+  "tests/unit/ui/test_lobby_players.gd": {
+   "bead-id": 4
+  },
+  "tests/unit/ui/test_lobby_polish.gd": {
+   "bead-id": 1,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/ui/test_lobby_qol.gd": {
+   "bead-id": 3
+  },
+  "tests/unit/ui/test_lobby_seat_variants.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_lobby_sections.gd": {
+   "bead-id": 3
+  },
+  "tests/unit/ui/test_lobby_toggles.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "tests/unit/ui/test_main_menu.gd": {
+   "bead-id": 2,
+   "owner": 1
+  },
+  "tests/unit/ui/test_main_menu_arcade.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_main_menu_pages.gd": {
+   "bead-id": 3,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/ui/test_menu_icons.gd": {
+   "bead-id": 2,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/ui/test_menu_prewarm_queue.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_menu_render_budget.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_menu_scroll_focus.gd": {
+   "bead-id": 2,
+   "owner": 1
+  },
+  "tests/unit/ui/test_menu_scroll_stick.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_menu_slider_nav.gd": {
+   "bead-id": 1,
+   "date": 1
+  },
+  "tests/unit/ui/test_minimap.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/ui/test_no_tooltips.gd": {
+   "bead-id": 1,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/ui/test_options.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_options_menu.gd": {
+   "bead-id": 8,
+   "owner": 3
+  },
+  "tests/unit/ui/test_options_pause_arcade.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "tests/unit/ui/test_pause_freeze.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_pause_menu.gd": {
+   "bead-id": 5,
+   "owner": 2
+  },
+  "tests/unit/ui/test_pause_return_lobby.gd": {
+   "bead-id": 1,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/ui/test_perf_bot_cost_overlay.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/ui/test_personal_feedback_local.gd": {
+   "bead-id": 2,
+   "owner": 2
+  },
+  "tests/unit/ui/test_refusal_feedback_local.gd": {
+   "bead-id": 1,
+   "date": 1,
+   "owner": 1
+  },
+  "tests/unit/ui/test_scoreboard_overlay.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_slider_nav_hold.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_slider_stick_friction.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_slot_diamond.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_splash_screen.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_stackfall_theme.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_tuning_panel.gd": {
+   "bead-id": 14,
+   "date": 1,
+   "owner": 3
+  },
+  "tests/unit/ui/test_tuning_sfx_tab.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_tutorial.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_ui_block_button.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_ui_chat_panel.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_ui_chip_toggle.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_ui_cycler.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_ui_dialog.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_ui_dropdown.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_ui_field_section_panel.gd": {
+   "bead-id": 1,
+   "user-name": 2
+  },
+  "tests/unit/ui/test_ui_focus_glyph.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_ui_focus_trap.gd": {
+   "bead-id": 2,
+   "owner": 3
+  },
+  "tests/unit/ui/test_ui_help_line.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_ui_icon_button.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_ui_round_timer.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_ui_row_item.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_ui_scaling.gd": {
+   "bead-id": 4
+  },
+  "tests/unit/ui/test_ui_segment_meter.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_ui_spatial_focus.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_ui_stepper.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_ui_tabs.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/ui/test_ui_text.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/ui/test_ui_toggle.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/weather/test_fog_retune.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/weather/test_gust_storm.gd": {
+   "bead-id": 2,
+   "owner": 1
+  },
+  "tests/unit/weather/test_rain_wet_look.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/weather/test_weather_ambience.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/weather/test_weather_breeze.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/weather/test_weather_ceiling.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/weather/test_weather_fog.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/weather/test_weather_rain.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/weather/test_weather_snow.gd": {
+   "bead-id": 2
+  },
+  "tests/unit/weather/test_weather_snow_geometry.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/weather/test_weather_snow_net.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/weather/test_weather_snow_presentation.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "tests/unit/weather/test_weather_storm.gd": {
+   "bead-id": 1
+  },
+  "tests/unit/weather/test_weather_wind_settled_tower.gd": {
+   "bead-id": 2
+  },
+  "ui/components/FocusScrollContainer.gd": {
+   "bead-id": 6,
+   "date": 1,
+   "owner": 3
+  },
+  "ui/components/UiButtonHint.gd": {
+   "bead-id": 2
+  },
+  "ui/components/UiChatPanel.gd": {
+   "bead-id": 4,
+   "owner": 1
+  },
+  "ui/components/UiChipToggle.gd": {
+   "bead-id": 2,
+   "date": 1,
+   "owner": 1
+  },
+  "ui/components/UiCycler.gd": {
+   "bead-id": 1
+  },
+  "ui/components/UiDropdown.gd": {
+   "bead-id": 1,
+   "date": 1,
+   "owner": 3
+  },
+  "ui/components/UiFlow.gd": {
+   "bead-id": 1
+  },
+  "ui/components/UiFocusTrap.gd": {
+   "bead-id": 1
+  },
+  "ui/components/UiHelpLine.gd": {
+   "bead-id": 3,
+   "date": 1,
+   "owner": 1
+  },
+  "ui/components/UiHoldRepeat.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "ui/components/UiRoundTimer.gd": {
+   "date": 1,
+   "owner": 1
+  },
+  "ui/components/UiRowItem.gd": {
+   "date": 2,
+   "owner": 2
+  },
+  "ui/components/UiSection.gd": {
+   "bead-id": 1,
+   "owner": 2
+  },
+  "ui/components/UiSegmentMeter.gd": {
+   "bead-id": 1,
+   "date": 1,
+   "owner": 1
+  },
+  "ui/components/UiSpatialFocus.gd": {
+   "bead-id": 1
+  },
+  "ui/components/UiStack.gd": {
+   "bead-id": 1
+  },
+  "ui/components/UiStatusBadge.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "ui/components/UiStepper.gd": {
+   "bead-id": 2
+  },
+  "ui/components/UiTab.gd": {
+   "bead-id": 1
+  },
+  "ui/components/UiTabs.gd": {
+   "owner": 1
+  },
+  "ui/components/UiToggle.gd": {
+   "date": 1,
+   "owner": 1
+  },
+  "ui/debug/NetDebugOverlay.gd": {
+   "bead-id": 4
+  },
+  "ui/debug/PerfBotCostOverlay.gd": {
+   "bead-id": 2
+  },
+  "ui/debug/PerfOverlay.gd": {
+   "bead-id": 3,
+   "owner": 1
+  },
+  "ui/debug/SandboxPanel.gd": {
+   "bead-id": 6
+  },
+  "ui/debug/TuningPanel.gd": {
+   "bead-id": 71,
+   "date": 4,
+   "owner": 13
+  },
+  "ui/debug/TuningSfxTab.gd": {
+   "bead-id": 1,
+   "owner": 1
+  },
+  "ui/hud/HUD.gd": {
+   "bead-id": 99,
+   "date": 14,
+   "owner": 20
+  },
+  "ui/hud/HudCallout.gd": {
+   "bead-id": 1
+  },
+  "ui/hud/HudChat.gd": {
+   "bead-id": 1
+  },
+  "ui/hud/InputGlyph.gd": {
+   "bead-id": 5,
+   "owner": 2
+  },
+  "ui/hud/InputPromptFlow.gd": {
+   "bead-id": 4
+  },
+  "ui/hud/Minimap.gd": {
+   "bead-id": 15,
+   "date": 4,
+   "owner": 8
+  },
+  "ui/hud/SandboxHintBar.gd": {
+   "bead-id": 1
+  },
+  "ui/hud/ScoreboardOverlay.gd": {
+   "bead-id": 4,
+   "owner": 1
+  },
+  "ui/hud/SearchingCells.gd": {
+   "bead-id": 2
+  },
+  "ui/hud/SlotDiamond.gd": {
+   "bead-id": 2
+  },
+  "ui/hud/ToastStack.gd": {
+   "bead-id": 1
+  },
+  "ui/lobby/Lobby.gd": {
+   "bead-id": 125,
+   "date": 4,
+   "owner": 8
+  },
+  "ui/lobby/LobbyChat.gd": {
+   "bead-id": 1
+  },
+  "ui/lobby/LobbyPlayersPanel.gd": {
+   "bead-id": 18,
+   "owner": 4
+  },
+  "ui/lobby/LobbySeatGroupHeader.gd": {
+   "bead-id": 1
+  },
+  "ui/lobby/LobbySeatRow.gd": {
+   "bead-id": 17
+  },
+  "ui/lobby/LobbySeatVariants.gd": {
+   "bead-id": 2,
+   "owner": 1
+  },
+  "ui/menus/GraphicsSettingsTab.gd": {
+   "bead-id": 2,
+   "date": 1,
+   "owner": 2
+  },
+  "ui/menus/JoinCodeRow.gd": {
+   "bead-id": 2
+  },
+  "ui/menus/KeyRebindRow.gd": {
+   "bead-id": 18,
+   "date": 2,
+   "owner": 14
+  },
+  "ui/menus/LoadingScreen.gd": {
+   "bead-id": 38,
+   "date": 1,
+   "owner": 5
+  },
+  "ui/menus/MainMenu.gd": {
+   "bead-id": 29,
+   "owner": 2
+  },
+  "ui/menus/MenuBackdrop.gd": {
+   "bead-id": 5,
+   "date": 1,
+   "owner": 2
+  },
+  "ui/menus/OptionsMenu.gd": {
+   "bead-id": 32,
+   "date": 2,
+   "owner": 18
+  },
+  "ui/menus/PauseMenu.gd": {
+   "bead-id": 21,
+   "date": 1,
+   "owner": 5
+  },
+  "ui/menus/ResultsScreen.gd": {
+   "bead-id": 18,
+   "owner": 4
+  },
+  "ui/menus/ScoreTable.gd": {
+   "bead-id": 10
+  },
+  "ui/menus/ShareBar.gd": {
+   "bead-id": 2
+  },
+  "ui/menus/SplashScreen.gd": {
+   "owner": 1
+  },
+  "ui/menus/Tutorial.gd": {
+   "bead-id": 6,
+   "owner": 1
+  },
+  "ui/menus/WatchBotsDialog.gd": {
+   "bead-id": 1
+  },
+  "ui/theme/MenuStyleFactory.gd": {
+   "bead-id": 7
+  },
+  "ui/theme/UiScale.gd": {
+   "bead-id": 2
+  }
+ }
+}

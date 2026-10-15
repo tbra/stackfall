@@ -1,6 +1,6 @@
 """Remove git worktrees whose branch is already merged into main.
 
-Usage: python tools/prune_worktrees.py [--repo M:/Bontago] [--apply] [--branches wt/a wt/b] [--protect PATTERN ...]
+Usage: python tools/prune_worktrees.py [--repo <main checkout>] [--apply] [--branches wt/a wt/b] [--protect PATTERN ...]
 
 A worktree is removable only if ALL hold: it is not the main checkout, its branch is not
 protected (fnmatch patterns; defaults codex/*, wt/assets-batch6, integrate/*), the branch is an
@@ -13,8 +13,12 @@ import fnmatch
 import subprocess
 import time
 import sys
+import os
 
-DEFAULT_REPO = "M:/Bontago"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import repo_paths  # noqa: E402
+
+DEFAULT_REPO = repo_paths.repo_dir()
 DEFAULT_PROTECT = ["codex/*", "wt/assets-batch6", "integrate/*"]
 GIT_TIMEOUT_S = 120
 SIDECAR_SUFFIXES = (".import", ".uid")
@@ -53,7 +57,7 @@ FRESH_MAX_AGE_S = 24 * 3600
 
 
 def is_fresh(repo, branch):
-    """True when the branch was created and never committed to (Bontago-fca.57): a just-created
+    """True when the branch was created and never committed to: a just-created
     agent worktree is clean and its tip is already in main, so it looks 'merged'. Its reflog then
     holds only the 'branch: Created from' entry."""
     code, text = _git(repo, "reflog", "show", "--format=%ct|%gs", "refs/heads/" + branch)

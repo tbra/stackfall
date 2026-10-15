@@ -1,6 +1,6 @@
 extends SceneTree
 ## Compile-checks GDScript files with the project's autoloads and global classes
-## registered (Bontago-fca.17). `godot --check-only -s <script>` parses before
+## registered. `godot --check-only -s <script>` parses before
 ## autoload singletons exist, so any script naming one (Events, Match, ...)
 ## fails there with "Identifier not found". Loading through ResourceLoader inside
 ## a running SceneTree compiles each script exactly as the game would.

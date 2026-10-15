@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Scripted project reorganisation: git mv a move map and rewrite every reference (Bontago-uwq.6).
+"""Scripted project reorganisation: git mv a move map and rewrite every reference.
 
   python tools/reorg_move.py --map <tsv> [--path <checkout>] [--rules <tsv>] [--extra <file>...]
          (--dry-run | --apply | --verify) [--base-ref REV] [--report FILE]
 
 The map (TSV, header `old_path new_path action reason`, `#` comment lines ignored) has one row per
 tracked file. Actions: move / restore-move (git mv; companions .uid/.import are rows of their own),
-keep (no change), delete / delete-owner / delete-toolscut (git rm, skipped when already gone).
+keep (no change), delete and its delete-* variants (git rm, skipped when already gone).
 
 --dry-run  Validate the map and print the plan: git operations, files that would be rewritten
            and how many references, unmapped tracked files, references to a split directory prefix
@@ -55,7 +55,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 DEFAULT_RULES = os.path.join(HERE, "reorg_move_rules.tsv")
 LAYER_RULES = "tools/layer_rules.json"
-# The tool and its own test/map carry old paths as data: never rewritten (Bontago-uwq P10 fix).
+# The tool and its own test/map carry old paths as data: never rewritten (P10 fix).
 SELF_FILES = frozenset(["tools/reorg_move.py", "tools/test_reorg_move.py", "tools/reorg_move_map.tsv"])
 
 MOVE_ACTIONS = ("move", "restore-move")
@@ -831,7 +831,7 @@ def print_plan(rep, plan, say, detail):
 
 
 def build_parser():
-    ap = argparse.ArgumentParser(description="Scripted project reorganisation (Bontago-uwq.6)")
+    ap = argparse.ArgumentParser(description="Scripted project reorganisation")
     ap.add_argument("--map", required=True, help="move map TSV")
     ap.add_argument("--path", default=REPO, help="checkout to operate on")
     ap.add_argument("--rules", default=DEFAULT_RULES, help="manual rules TSV (rewrite/allow lines)")

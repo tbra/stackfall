@@ -6,7 +6,7 @@ import guard_store_python as g
 class GuardStorePythonTest(unittest.TestCase):
     def test_blocks_store_aliases(self):
         for cmd in ["python3 tools/x.py", "cd /m && python3 -c 'print(1)'", "pip3 install x",
-                    "python3.12 -V", "& python3.exe x.py", "C:/Users/t/AppData/Local/Microsoft/WindowsApps/python.exe x",
+                    "python3.12 -V", "& python3.exe x.py", "/store/WindowsApps/python.exe x",
                     "start ms-windows-store://pdp/?productid=9NQ7512CXL7T", "x | python3"]:
             self.assertTrue(g.blocked(cmd), cmd)
 

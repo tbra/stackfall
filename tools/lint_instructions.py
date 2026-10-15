@@ -1,4 +1,4 @@
-"""Instruction drift guard (Bontago-tj6): every agent rule has one home file.
+"""Instruction drift guard: every agent rule has one home file.
 
 Usage: python tools/lint_instructions.py [--path <checkout>] [--list]
 

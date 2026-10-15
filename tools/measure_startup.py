@@ -1,4 +1,4 @@
-"""Off-screen boot timing (Bontago-fca.85).
+"""Off-screen boot timing.
 
 Usage: python tools/measure_startup.py [--path <checkout>] [--runs 3] [--godot <exe>]
 
@@ -27,7 +27,7 @@ ARGS = ["--windowed", "--position", "10000,10000", "--resolution", "320x180",
 
 def one_run(godot, path):
     try:
-        with godot_slots.godot_exclusive("measure_startup"):  # timing tool: runs alone (Bontago-fca.95)
+        with godot_slots.godot_exclusive("measure_startup"):  # timing tool: runs alone
             p = subprocess.run([godot, "--path", path] + ARGS, capture_output=True, text=True,
                                encoding="utf-8", errors="replace", timeout=RUN_TIMEOUT_S)
     except (subprocess.TimeoutExpired, TimeoutError):
@@ -53,7 +53,7 @@ def main():
     ap.add_argument("--runs", type=int, default=DEFAULT_RUNS)
     ap.add_argument("--godot", default="godot")
     a = ap.parse_args()
-    a.godot = godot_exe.resolve(a.godot)  # real .exe behind PATH shims (Bontago-fca.93)
+    a.godot = godot_exe.resolve(a.godot)  # real .exe behind PATH shims
     firsts, menus, errs, failed = [], [], 0, False
     for i in range(a.runs):
         first, menu, e, fail = one_run(a.godot, a.path)

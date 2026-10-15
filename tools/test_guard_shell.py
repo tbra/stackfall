@@ -1,4 +1,4 @@
-"""Focused tests for the project shell guard (Bontago-fca.121)."""
+"""Focused tests for the project shell guard."""
 
 import json
 import os
@@ -18,8 +18,8 @@ class GodotLaunchTest(unittest.TestCase):
             "godot --headless --path . -- --headless-host --bots=8",
             "godot %s --path . res://tools/shot.tscn -- --agent-probe" % OFF,
             "python tools/godot_slots.py run --exclusive -- godot --headless --path . res://x.tscn",
-            "cd M:/wt/a && timeout 600 godot --headless -s tools/x.gd",
-            '& "C:/Godot/Godot_v4.7.2-stable_win64_console.exe" --headless --path .',
+            "cd /work/wt/a && timeout 600 godot --headless -s tools/x.gd",
+            '& "/opt/godot/Godot_v4.7.2-stable_win64_console.exe" --headless --path .',
             "godot --version",
         ):
             self.assertIsNone(g.problem(command), command)
@@ -28,9 +28,9 @@ class GodotLaunchTest(unittest.TestCase):
         for command in (
             "godot --path .",
             "godot --path . -- --headless-host --bots=8",
-            "cd M:/wt/a; godot --editor --path .",
+            "cd /work/wt/a; godot --editor --path .",
             "python tools/godot_slots.py run -- godot --path . res://x.tscn",
-            '"C:/Godot/Godot_v4.7.2-stable_win64_console.exe" --path . res://main.tscn',
+            '"/opt/godot/Godot_v4.7.2-stable_win64_console.exe" --path . res://main.tscn',
         ):
             self.assertEqual(g.problem(command), g.REASON_WINDOW, command)
 
@@ -54,7 +54,7 @@ class KillAndSuiteTest(unittest.TestCase):
 
     def test_full_suite_only_denied_for_writer_roles(self):
         suite = "godot --headless --path . -s addons/gut/gut_cmdln.gd -gdir=res://tests -gexit"
-        gate = "python tools/full_gate.py --path M:/wt/a"
+        gate = "python tools/full_gate.py --path /work/wt/a"
         for command in (suite, gate):
             self.assertEqual(g.problem(command, "stackfall-implementer"), g.REASON_SUITE)
             self.assertIsNone(g.problem(command, "stackfall-integrator"))

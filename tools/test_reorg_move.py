@@ -1,4 +1,4 @@
-"""Unit tests for tools/reorg_move.py (Bontago-uwq.6) on a temporary git repo.
+"""Unit tests for tools/reorg_move.py on a temporary git repo.
 
 Run: python -m unittest tools.test_reorg_move   (or python tools/test_reorg_move.py)
 """
@@ -192,7 +192,7 @@ class ReorgMoveTest(unittest.TestCase):
         rows = base_rows() + [("config/maps/medium.tres", "config/match/maps/round.tres", "restore-move", "")]
         fx = Fixture(files, rows)
         try:
-            os.remove(os.path.join(fx.root, "config/maps/medium.tres"))  # the owner deleted it, still in HEAD
+            os.remove(os.path.join(fx.root, "config/maps/medium.tres"))  # the user deleted it, still in HEAD
             code, out = fx.run("--apply")
             self.assertEqual(code, 0, out)
             self.assertEqual(fx.read("config/match/maps/round.tres"), "map\n")

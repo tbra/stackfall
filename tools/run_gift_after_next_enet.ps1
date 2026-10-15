@@ -1,4 +1,4 @@
-# Bontago-1pi.85.69: host + one client on loopback under a hard wall-clock deadline.
+# host + one client on loopback under a hard wall-clock deadline.
 # Follows tools/run_m3a_local.ps1: Process.Kill($true) ends the whole process
 # tree (the godot shim spawns the real console exe), and a finally block does it
 # again so an error or Ctrl+C cannot orphan a child.

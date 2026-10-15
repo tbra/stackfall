@@ -41,9 +41,10 @@ class NewWorktreeTest(unittest.TestCase):
         self.assertEqual(g(self.repo, "rev-parse", "--short", "main"), sha)
 
     def test_default_root_is_sibling_of_repo(self):
+        os.environ.pop("STACKFALL_WORKTREES", None)
         path, _, _ = nw.create("feat2", self.repo)
         self.assertEqual(os.path.normcase(os.path.realpath(os.path.dirname(path))),
-                         os.path.normcase(os.path.realpath(os.path.join(self.tmp.name, "Bontago-worktrees"))))
+                         os.path.normcase(os.path.realpath(os.path.join(self.tmp.name, "main-worktrees"))))
 
     def test_refusals(self):
         nw.create("feat", self.repo, root=self.root)

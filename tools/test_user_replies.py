@@ -1,20 +1,20 @@
-"""Focused tests for the owner-reply check's hook modes (Bontago-fca.125)."""
+"""Focused tests for the user-reply check's hook modes."""
 
 import contextlib
 import io
 import unittest
 from unittest import mock
 
-import owner_replies
+import user_replies
 
-REPLY = ("2026-10-15T20:00:00Z", "Bontago-1", "open", "Pick a map?", "Tony", "b please")
+REPLY = ("2026-10-15T20:00:00Z", "Bontago-1", "open", "Pick a map?", "Pat", "b please")
 
 
 def run(argv, replies=None, error=None):
     out = io.StringIO()
-    with mock.patch.object(owner_replies, "find_replies", side_effect=error, return_value=replies or []), \
-            mock.patch.object(owner_replies, "_save"), contextlib.redirect_stdout(out):
-        code = owner_replies.main(argv)
+    with mock.patch.object(user_replies, "find_replies", side_effect=error, return_value=replies or []), \
+            mock.patch.object(user_replies, "_save"), contextlib.redirect_stdout(out):
+        code = user_replies.main(argv)
     return code, out.getvalue()
 
 
@@ -22,7 +22,7 @@ class RewakeTest(unittest.TestCase):
     def test_replies_wake_claude_with_exit_2(self):
         code, text = run(["--rewake"], [REPLY])
         self.assertEqual(code, 2)
-        self.assertIn("NEW OWNER REPLIES", text)
+        self.assertIn("NEW USER REPLIES", text)
         self.assertIn("Bontago-1", text)
 
     def test_no_replies_or_query_failure_stay_silent(self):

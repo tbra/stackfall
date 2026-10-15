@@ -1,4 +1,4 @@
-"""Magic-number ratchet (Bontago-fca.35).
+"""Magic-number ratchet.
 
 CLAUDE.md requires tunables to live in config/ Resources. This counts numeric
 literals other than 0, 1, -1, 2, 0.5 (and float spellings) per game .gd file,

@@ -308,14 +308,14 @@ assets/effects/black_hole.wav	assets/audio/sfx/black_hole.wav	move	feature folde
 assets/effects/black_hole.wav.import	assets/audio/sfx/black_hole.wav.import	move	companion of assets/effects/black_hole.wav
 assets/effects/block_drop_a.wav	assets/audio/sfx/block_drop_a.wav	move	feature folder
 assets/effects/block_drop_a.wav.import	assets/audio/sfx/block_drop_a.wav.import	move	companion of assets/effects/block_drop_a.wav
-assets/effects/block_drop_b.wav	assets/audio/sfx/block_drop_b.wav	restore-move	P10 fix: owner F4 audition candidates (block_drop_b/d/e), restored from main and moved to the sfx folder
-assets/effects/block_drop_b.wav.import	assets/audio/sfx/block_drop_b.wav.import	restore-move	P10 fix: owner F4 audition candidates (block_drop_b/d/e), restored from main and moved to the sfx folder
+assets/effects/block_drop_b.wav	assets/audio/sfx/block_drop_b.wav	restore-move	P10 fix: user F4 audition candidates (block_drop_b/d/e), restored from main and moved to the sfx folder
+assets/effects/block_drop_b.wav.import	assets/audio/sfx/block_drop_b.wav.import	restore-move	P10 fix: user F4 audition candidates (block_drop_b/d/e), restored from main and moved to the sfx folder
 assets/effects/block_drop_c.wav	assets/audio/sfx/block_drop_c.wav	move	feature folder
 assets/effects/block_drop_c.wav.import	assets/audio/sfx/block_drop_c.wav.import	move	companion of assets/effects/block_drop_c.wav
-assets/effects/block_drop_d.wav	assets/audio/sfx/block_drop_d.wav	restore-move	P10 fix: owner F4 audition candidates (block_drop_b/d/e), restored from main and moved to the sfx folder
-assets/effects/block_drop_d.wav.import	assets/audio/sfx/block_drop_d.wav.import	restore-move	P10 fix: owner F4 audition candidates (block_drop_b/d/e), restored from main and moved to the sfx folder
-assets/effects/block_drop_e.wav	assets/audio/sfx/block_drop_e.wav	restore-move	P10 fix: owner F4 audition candidates (block_drop_b/d/e), restored from main and moved to the sfx folder
-assets/effects/block_drop_e.wav.import	assets/audio/sfx/block_drop_e.wav.import	restore-move	P10 fix: owner F4 audition candidates (block_drop_b/d/e), restored from main and moved to the sfx folder
+assets/effects/block_drop_d.wav	assets/audio/sfx/block_drop_d.wav	restore-move	P10 fix: user F4 audition candidates (block_drop_b/d/e), restored from main and moved to the sfx folder
+assets/effects/block_drop_d.wav.import	assets/audio/sfx/block_drop_d.wav.import	restore-move	P10 fix: user F4 audition candidates (block_drop_b/d/e), restored from main and moved to the sfx folder
+assets/effects/block_drop_e.wav	assets/audio/sfx/block_drop_e.wav	restore-move	P10 fix: user F4 audition candidates (block_drop_b/d/e), restored from main and moved to the sfx folder
+assets/effects/block_drop_e.wav.import	assets/audio/sfx/block_drop_e.wav.import	restore-move	P10 fix: user F4 audition candidates (block_drop_b/d/e), restored from main and moved to the sfx folder
 assets/effects/block_placed.wav	assets/audio/sfx/block_placed.wav	move	feature folder
 assets/effects/block_placed.wav.import	assets/audio/sfx/block_placed.wav.import	move	companion of assets/effects/block_placed.wav
 assets/effects/block_release.wav	assets/audio/sfx/block_release.wav	move	feature folder
@@ -3094,7 +3094,7 @@ tools/menu_atlas.gd.uid	tools/menu_atlas.gd.uid	keep
 tools/menu_atlas.tscn	tools/menu_atlas.tscn	keep	
 tools/new_worktree.py	tools/new_worktree.py	keep	
 tools/normalize_eol.py	tools/normalize_eol.py	keep	
-tools/owner_replies.py	tools/owner_replies.py	keep	
+tools/user_replies.py	tools/user_replies.py	keep	
 tools/perf_log_summary.py	tools/perf_log_summary.py	keep	
 tools/probe_allowlist.txt	tools/probe_allowlist.txt	keep	
 tools/probe_lint.py	tools/probe_lint.py	keep	

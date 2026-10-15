@@ -1,4 +1,4 @@
-# Bontago-1pi.85.17 (Gift fx J): host + three lagged clients on loopback under a hard wall-clock
+# Gift fx J: host + three lagged clients on loopback under a hard wall-clock
 # deadline (default 600 s). Process.Kill($true) ends the whole tree (the godot shim spawns the
 # real console exe); the finally block does it again so an error cannot orphan a child.
 # Prints every GFXENET line, then per-peer error-line counts. A deadline hit prints "timeout".

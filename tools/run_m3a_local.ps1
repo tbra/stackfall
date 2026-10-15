@@ -44,7 +44,7 @@ if ($Peers -lt 1) {
 	exit 1
 }
 
-# Bontago-8or.11 (integrator): hard wall-clock timeout to prevent hung processes.
+# integrator: hard wall-clock timeout to prevent hung processes.
 # Ensures that processes cannot hang indefinitely; they will be forcefully killed if exceeded.
 [int]$hardTimeoutSeconds = $TimeoutSeconds
 if ($LateJoinAfter -gt 0) {
@@ -76,7 +76,7 @@ function Start-Instance {
 	# it and $process.ExitCode reads back $null after the child exits, so
 	# every instance reported "(exit )" and the run was declared FAILED even
 	# when all four peers printed M3A_ACCEPT result=PASS (found while
-	# validating Bontago-mv0.1.4-.6).
+	# validating-.6).
 	$null = $process.Handle
 	return [pscustomobject]@{ Name = $Name; Process = $process; OutLog = $outLog; ErrLog = $errLog }
 }
@@ -90,7 +90,7 @@ $instances = @()
 # peers had actually joined, so slot_of_peer() collisions in the host's
 # per-slot counters masqueraded as duplicate/lost placements. The host must
 # be told how many peers this run is actually bringing.
-# Bontago-8or.11: --late-join-after triggers mid-match join testing; if set,
+# --late-join-after triggers mid-match join testing; if set,
 # the host expects one extra client to join after the match starts.
 $expectedPeers = $Peers
 if ($LateJoinAfter -gt 0) {
@@ -103,7 +103,7 @@ if ($ThrowPass) {
 if ($LateJoinAfter -gt 0) {
 	$hostArgs += "--late-join-after=$LateJoinAfter"
 }
-# Bontago-fca.30: a real mid-match drop + rejoin of the slot-1 client.
+# a real mid-match drop + rejoin of the slot-1 client.
 if ($ReconnectPass) {
 	$hostArgs += "--reconnect-pass"
 }
@@ -126,14 +126,14 @@ for ($i = 1; $i -lt $Peers; $i++) {
 	if ($ReconnectPass) {
 		$clientArgs += "--reconnect-pass"
 	}
-	# Bontago-8or.11: pass late-join flag to initial clients so they stay alive longer
+	# pass late-join flag to initial clients so they stay alive longer
 	if ($LateJoinAfter -gt 0) {
 		$clientArgs += "--late-join-after=$LateJoinAfter"
 	}
 	$instances += Start-Instance -Name "client$i" -GameArgs $clientArgs
 }
 
-# Bontago-8or.11: late-join scenario --- spawn an extra client before regular clients.
+# late-join scenario --- spawn an extra client before regular clients.
 # Start the late-join client immediately so it arrives quickly and gives the host time
 # to wait for all expected peers before the placement phase begins.
 # This ensures the late joiner is present in Net.peer_ids() during the placement phase,
@@ -150,7 +150,7 @@ if ($LateJoinAfter -gt 0) {
 	$instances += Start-Instance -Name "client_late" -GameArgs $lateClientArgs
 }
 
-# Bontago-8or.11: hard wall-clock timeout check with aggressive process termination.
+# hard wall-clock timeout check with aggressive process termination.
 $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
 foreach ($instance in $instances) {
 	# Check hard deadline (wall-clock, not based on this loop's position)
@@ -188,7 +188,7 @@ foreach ($instance in $instances) {
 	}
 }
 
-# Bontago-fca.30: a reconnect run must also be clean of engine errors/warnings
+# a reconnect run must also be clean of engine errors/warnings
 # (bad RPCs, dangling peers) in every instance's logs. The engine's
 # quit-time "ObjectDB instances were leaked at exit" line is excluded: it also
 # appears intermittently in runs without this pass (98 of the old run logs);

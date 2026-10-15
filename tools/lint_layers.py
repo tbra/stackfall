@@ -1,4 +1,4 @@
-"""Layer / cycle lint on top of tools/dep_graph.py (Bontago-1pi.11.77.4, plan section 6).
+"""Layer / cycle lint on top of tools/dep_graph.py (plan section 6).
 
 Report-only until S4b hooks it into tools/full_gate.py. Rules:
 
@@ -7,7 +7,7 @@ Report-only until S4b hooks it into tools/full_gate.py. Rules:
 * L2 SCC ratchet on the file graph (same edges as cycles.md): the largest SCC may not grow and an
   SCC containing an autoload may only contain baselined autoloads (allow-listed pairs).
 * L3 autoload closure: the static compile closure of the [autoload] scripts may not gain files.
-* L4 Main closure (Bontago-1pi.11.84 MF4): the compile closure of game/main/Main.tscn may not contain
+* L4 Main closure (MF4): the compile closure of game/main/Main.tscn may not contain
   the on-demand flow/scene files (MAIN_FORBIDDEN) and may not gain files over the baseline
   "main_closure" (a baseline without that key only enforces the forbidden set).
 
@@ -243,7 +243,7 @@ def run(root, report=False, list_all=False, update=False, allow_new=(), baseline
 
 
 def build_parser():
-    ap = argparse.ArgumentParser(description="Layer / cycle lint (Bontago-1pi.11.77.4)")
+    ap = argparse.ArgumentParser(description="Layer / cycle lint")
     ap.add_argument("--root", "--path", dest="root", default=REPO)
     ap.add_argument("--report", action="store_true", help="print findings, always exit 0")
     ap.add_argument("--list", action="store_true", dest="list_all", help="include per-edge line numbers")

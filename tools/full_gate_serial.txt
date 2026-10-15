@@ -1,5 +1,5 @@
 # Heavy physics scripts (120-300 Jolt bodies) that fail inside parallel shards under CPU
-# starvation and pass alone (Bontago-fca.56). tools/full_gate.py runs these in ONE Godot
+# starvation and pass alone. tools/full_gate.py runs these in ONE Godot
 # process AFTER the parallel shards finish. One res:// path per line; '#' comments ok;
 # missing files are skipped. Add a script here when it shows up as parallel_flaky.
 res://tests/unit/weather/test_weather_wind_settled_tower.gd

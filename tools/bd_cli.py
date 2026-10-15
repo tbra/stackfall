@@ -1,4 +1,4 @@
-"""Locate the bd CLI for project tools (Bontago-fca.125).
+"""Locate the bd CLI for project tools.
 
 On this machine `bd` is an npm shim (bd.cmd -> node -> bd.exe). The native binary starts
 faster, and a subprocess timeout can kill it; killing the shim left its child holding the

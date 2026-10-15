@@ -1,4 +1,4 @@
-# Bontago-1pi.50: pause-menu Return to lobby, host + one lagged client on loopback under a
+# pause-menu Return to lobby, host + one lagged client on loopback under a
 # hard wall-clock deadline. Modelled on tools/run_reset_enet.ps1: Process.Kill($true) ends the
 # whole process tree (the godot shim spawns the real console exe) and a finally block does it
 # again. -Port 0 (default) picks a random free UDP port.

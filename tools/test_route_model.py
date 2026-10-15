@@ -59,7 +59,7 @@ SAMPLE = """Memories matching "x":
 
 class MemoryTests(unittest.TestCase):
     def test_keywords_drop_short_stop_numeric_and_ids(self):
-        kws = router.extract_keywords("Bontago-fca.67 StartupPump exit leak on 12345 quit update tooling")
+        kws = router.extract_keywords("Bontago-123 StartupPump exit leak on 12345 quit update tooling")
         self.assertEqual(kws, ["startuppump", "startup", "tooling"])
 
     def test_keywords_prefer_longer_and_cap(self):

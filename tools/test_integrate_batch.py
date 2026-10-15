@@ -143,11 +143,11 @@ class Tests(unittest.TestCase):
         self.assertLess(n.index("close_B-2"), n.index("postimport"))
 
     def test_close_uses_resolved_bd_and_force_only_on_request(self):
-        with mock.patch.object(ib.shutil, "which", lambda n: "C:/npm/bd.CMD" if n == "bd" else None):
+        with mock.patch.object(ib.shutil, "which", lambda n: "/npm/bd.CMD" if n == "bd" else None):
             fake = Fake()
             run(fake)
             closes = [a for name, a in fake.calls if name.startswith("close_")]
-            self.assertEqual(closes[0][0], "C:/npm/bd.CMD")
+            self.assertEqual(closes[0][0], "/npm/bd.CMD")
             self.assertNotIn("--force", closes[0])
             fake = Fake()
             run(fake, force_close=True)
@@ -320,7 +320,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(warning_lines)
 
     def test_merge_message_and_trailer(self):
-        self.assertEqual(ib.merge_subject("wt/fca.7-x", ["Bontago-fca.11", "Bontago-fca.7"]), "Merge wt/fca.7-x (Bontago-fca.7)")
+        self.assertEqual(ib.merge_subject("wt/123.7-x", ["Bontago-123.11", "Bontago-123.7"]), "Merge wt/123.7-x (Bontago-123.7)")
         self.assertEqual(ib.merge_subject("wt/x", ["B-1", "B-2"]), "Merge wt/x (B-1, B-2)")
         self.assertEqual(ib.merge_subject("wt/x", []), "Merge wt/x")
         fake = Fake()
@@ -580,7 +580,7 @@ class UiBaselineTests(unittest.TestCase):
 
 
 class AbsorbRealGitTests(unittest.TestCase):
-    """Real temp repo: main gains commits after the gated base (Bontago-fca.90)."""
+    """Real temp repo: main gains commits after the gated base."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

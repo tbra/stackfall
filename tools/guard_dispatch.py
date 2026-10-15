@@ -1,4 +1,4 @@
-"""Project PreToolUse hook for the Agent tool (Bontago-fca.122): check worker dispatches.
+"""Project PreToolUse hook for the Agent tool: check worker dispatches.
 
 A `stackfall-*` dispatch must pass the model `tools/route_model.py` chose (agent-file
 `model:` values are only fallbacks), and its brief must name the Bead (`Bontago-<id>`) and
@@ -10,7 +10,7 @@ import re
 import sys
 
 BEAD = re.compile(r"\bBontago-[A-Za-z0-9.]+")
-CHECKOUT = re.compile(r"\b[A-Za-z]:[\\/]")
+CHECKOUT = re.compile(r"(?<![\w.\-])(?:[A-Za-z]:[\\/]|/[\w.\-]+/)")
 
 
 def problem(tool_input):

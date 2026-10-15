@@ -1,15 +1,15 @@
-"""Create an agent worktree with its off-screen override.cfg (Bontago-fca.46).
+"""Create an agent worktree with its off-screen override.cfg.
 
 Usage: python tools/new_worktree.py <name> [--branch wt/<name>] [--base main]
-                                    [--root M:/Bontago-worktrees] [--repo <repo>] [--no-import]
+                                    [--root <worktrees root>] [--repo <repo>] [--no-import]
 
 Runs `git worktree add -b <branch> <root>/<name> <base>`, then tools/agent_worktree_setup.py on
 the new path (keeps agent Godot windows off-screen), and prints
-`worktree <path> branch <branch> base <short-sha>`. Then (Bontago-fca.63) runs a headless
+`worktree <path> branch <branch> base <short-sha>`. Then runs a headless
 `godot --headless --editor --path <wt> --quit` import (timeout 600 s; executable from env GODOT, else
 `godot` on PATH; skip with --no-import) and prints `import ok|failed(<code>)|timeout`; the worktree is
 never deleted on import failure (exit stays 0 so the path is still usable; rerun the import by hand). Refuses an existing path, an existing
-branch, or the main checkout itself. Default root: sibling `Bontago-worktrees` of the repo.
+branch, or the main checkout itself. Default root: sibling `<repo name>-worktrees` of the repo.
 Never use bare `git worktree add` for agent worktrees.
 """
 import argparse
@@ -26,7 +26,7 @@ import godot_slots  # noqa: E402
 
 GIT_TIMEOUT_S = 300
 DEFAULT_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ROOT_DIRNAME = "Bontago-worktrees"
+ROOT_SUFFIX = "-worktrees"
 IMPORT_TIMEOUT_S = 600
 
 
@@ -52,7 +52,9 @@ def create(name, repo, branch=None, base="main", root=None):
     """Returns (path, branch, short_sha). Raises ValueError on refusal, RuntimeError on git failure."""
     repo = os.path.abspath(repo)
     branch = branch or "wt/" + name
-    root = root or os.path.join(os.path.dirname(main_checkout(repo)), ROOT_DIRNAME)
+    main = main_checkout(repo)
+    root = root or os.environ.get("STACKFALL_WORKTREES") or os.path.join(
+        os.path.dirname(main), os.path.basename(main) + ROOT_SUFFIX)
     path = os.path.abspath(os.path.join(root, name))
     if _norm(path) == _norm(main_checkout(repo)):
         raise ValueError("refusing: %s is the main checkout" % path)
@@ -83,7 +85,7 @@ def godot_exe():
 def import_project(path):
     """Headless import so .godot exists. Returns 'ok', 'failed(<code>)' or 'timeout'."""
     try:
-        with godot_slots.godot_slot("new_worktree import"):  # machine-wide Godot cap (Bontago-fca.89)
+        with godot_slots.godot_slot("new_worktree import"):  # machine-wide Godot cap
             p = subprocess.run([godot_exe(), "--headless", "--editor", "--path", path, "--quit"],
                                capture_output=True, text=True, encoding="utf-8", errors="replace",
                                timeout=IMPORT_TIMEOUT_S)

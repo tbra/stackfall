@@ -1,4 +1,4 @@
-"""Single-source ratchet (Bontago-1pi.86.1).
+"""Single-source ratchet.
 
 Cross-cutting player-facing concepts (names, slot colours, input glyphs,
 mode/map/sky/weather labels, gift names and icons) each have ONE owner; see
@@ -72,7 +72,7 @@ RULES = [
                 "autoload/Match.gd", "game/field/Field.gd", "ui/hud/Minimap.gd"), False, GD,
          "resolve slot colours through SlotColors / Match.slot_color"),
     Rule("DIAMOND",
-         # A diamond identifier (SlotDiamond, the owner's class, is exempt) on a line that
+         # A diamond identifier (SlotDiamond, the user's class, is exempt) on a line that
          # builds or draws geometry. Plain `SlotDiamond.create(...)` consumers stay legal.
          r"(?i)^(?=.*(?<!slot)diamond)(?=.*(?:PackedVector2Array|draw_\w+|Polygon2D|polygon|polyline))",
          ("ui/",), ("ui/hud/SlotDiamond.gd",), False, GD,
@@ -130,7 +130,7 @@ RULES = [
          "use Match.is_live / is_replicating / is_resetting, not a hand-written state set",
          True),
     Rule("NET_PREDICATE",
-         # Bontago-fca.36.5: Net.is_host() / NetFanout.can_send() own "am I the host" and "is
+         # Net.is_host() / NetFanout.can_send() own "am I the host" and "is
          # there a live peer to send to". A new `func _is_host` / `func _can_send` (or an
          # OfflineMultiplayerPeer test) outside the owners is a copy; call the owners instead.
          r"\bfunc\s+_?(?:is_host|can_send)\s*\(|\bOfflineMultiplayerPeer\b",
@@ -138,7 +138,7 @@ RULES = [
          "use Net.is_host() / NetFanout.can_send(), not a private copy",
          True),
     Rule("SEQUENTIAL_PREDICATE",
-         # Bontago-fca.36.11: MatchConfig.is_sequential_play() owns "one actor at a time"
+         # MatchConfig.is_sequential_play() owns "one actor at a time"
          # (hot_seat or turn_based). A hand-written pair of the two flags (either order,
          # or/and, multi-line) is a copy; single-flag checks stay legal.
          r"\bhot_seat\b.*\b(?:or|and)\b.*\bturn_based\b|\bturn_based\b.*\b(?:or|and)\b.*\bhot_seat\b",

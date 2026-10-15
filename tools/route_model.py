@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Ask TypeSafe/Jev which Claude model a Stackfall work package should run on.
 
-Owner decision 2026-09-22: consult Jev before every dispatch instead of guessing.
+ consult Jev before every dispatch instead of guessing.
 Jev is a System One model: it returns a typed Choice with a probability per
 option and a confidence, not prose. Code owns the policy (thresholds below);
 Jev supplies the judgement about the brief.
@@ -184,7 +184,7 @@ def _fallback(files: List[str], kind: str, brief: str) -> Dict[str, Any]:
         "verification_tier": tier,
         "visual_probe_recommended": visual,
         "max_targeted_runs": 0 if tier == "quick" else 2,
-        "max_windowed_probes": None,  # owner 2026-10-07: no fixed probe cap
+        "max_windowed_probes": None,  # no fixed probe cap
         "reason": "TYPESAFE_API_KEY missing or API unreachable; deterministic rules applied",
     }
 
@@ -304,7 +304,7 @@ def route(title: str, brief: str, files: List[str], kind: str, prior_attempts: i
         "visual_probe_recommended": visual,
         "visual_probe_probability": visual_p,
         "max_targeted_runs": 0 if tier == "quick" else 2,
-        "max_windowed_probes": None,  # owner 2026-10-07: no fixed probe cap
+        "max_windowed_probes": None,  # no fixed probe cap
         "usage": response.get("usage", {}),
         "reason": "Jev judgement; opus requires confidence >= 0.6",
     }

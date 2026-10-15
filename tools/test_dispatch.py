@@ -1,4 +1,4 @@
-"""Focused tests for the dispatch guard and dispatch_prep (Bontago-fca.122)."""
+"""Focused tests for the dispatch guard and dispatch_prep."""
 
 import argparse
 import json
@@ -10,7 +10,7 @@ import unittest
 import dispatch_prep
 import guard_dispatch
 
-BRIEF = "Bontago-123: fix overlap scoring in M:/Bontago-worktrees/a (base abc123)."
+BRIEF = "Bontago-123: fix overlap scoring in /repo-worktrees/a (base abc123)."
 
 
 class GuardDispatchTest(unittest.TestCase):

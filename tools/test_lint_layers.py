@@ -1,4 +1,4 @@
-"""Unit tests for tools/lint_layers.py (Bontago-1pi.11.77.4) on synthetic graphs.
+"""Unit tests for tools/lint_layers.py on synthetic graphs.
 
 Run: python tools/test_lint_layers.py   (or python -m unittest tools.test_lint_layers)
 """

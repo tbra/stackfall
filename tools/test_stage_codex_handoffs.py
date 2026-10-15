@@ -15,7 +15,7 @@ from unittest import mock
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import stage_codex_handoffs as sch  # noqa: E402
 
-CX = "M:/Bontago/.claude/worktrees/"
+CX = "/repo/.claude/worktrees/"
 DEST_ROOT = "W"
 NOW = 1_000_000.0
 MIN = 60.0
@@ -111,7 +111,7 @@ class World:
 
 def args_for(**kw):
     ns = dict(beads=["B-1", "B-2"], branch="wt/assets-x", repo="R", worktree_root=DEST_ROOT, base="main",
-              dry_run=False, min_age_min=30.0, allow_missing=False, log_dir=tempfile.gettempdir())
+              dry_run=False, min_age_min=30.0, allow_missing=False, log_dir=tempfile.gettempdir(), no_import=True, godot="godot")
     ns.update(kw)
     return type("A", (), ns)()
 
@@ -142,7 +142,7 @@ def run_stage(world, **kw):
 
 def run_main(world, extra=None, **kw):
     argv = ["--beads", "B-1", "B-2", "--branch", "wt/assets-x", "--repo", "R", "--worktree-root", DEST_ROOT,
-            "--log-dir", tempfile.gettempdir()] + (extra or [])
+            "--log-dir", tempfile.gettempdir(), "--no-import"] + (extra or [])
     buf = io.StringIO()
     with patched(world), contextlib.redirect_stdout(buf):
         code = sch.main(argv)
@@ -158,27 +158,27 @@ def two_beads(world=None, **kw):
 
 class PathExtraction(unittest.TestCase):
     def test_backslash_and_forward_slash(self):
-        a = [codex_comment("worktree M:\\Bontago\\.claude\\worktrees\\codex-assets-menu-icons, base e35")]
-        b = [codex_comment("worktree M:/Bontago/.claude/worktrees/codex-assets-menu-icons, base e35")]
-        want = "M:/Bontago/.claude/worktrees/codex-assets-menu-icons"
+        a = [codex_comment("worktree \\repo\\.claude\\worktrees\\codex-assets-menu-icons, base e35")]
+        b = [codex_comment("worktree /repo/.claude/worktrees/codex-assets-menu-icons, base e35")]
+        want = "/repo/.claude/worktrees/codex-assets-menu-icons"
         self.assertEqual(sch.extract_worktree(a), want)
         self.assertEqual(sch.extract_worktree(b), want)
 
     def test_last_path_wins_within_and_across_comments(self):
-        t = "first M:/Bontago/.claude/worktrees/codex-old then M:\\Bontago\\.claude\\worktrees\\codex-mid."
+        t = "first /repo/.claude/worktrees/codex-old then \\repo\\.claude\\worktrees\\codex-mid."
         cs = [codex_comment(t, "2026-10-01T00:00:00Z"),
-              codex_comment("moved to M:/Bontago/.claude/worktrees/codex-new now", "2026-10-02T00:00:00Z")]
-        self.assertEqual(sch.extract_worktree(cs), "M:/Bontago/.claude/worktrees/codex-new")
-        self.assertEqual(sch.extract_worktree(cs[:1]), "M:/Bontago/.claude/worktrees/codex-mid")
+              codex_comment("moved to /repo/.claude/worktrees/codex-new now", "2026-10-02T00:00:00Z")]
+        self.assertEqual(sch.extract_worktree(cs), "/repo/.claude/worktrees/codex-new")
+        self.assertEqual(sch.extract_worktree(cs[:1]), "/repo/.claude/worktrees/codex-mid")
 
     def test_created_at_orders_when_listed_out_of_order(self):
-        cs = [codex_comment("M:/Bontago/.claude/worktrees/codex-new", "2026-10-02T00:00:00Z"),
-              codex_comment("M:/Bontago/.claude/worktrees/codex-old", "2026-10-01T00:00:00Z")]
+        cs = [codex_comment("/repo/.claude/worktrees/codex-new", "2026-10-02T00:00:00Z"),
+              codex_comment("/repo/.claude/worktrees/codex-old", "2026-10-01T00:00:00Z")]
         self.assertEqual(sch.extract_worktree(cs).rsplit("/", 1)[-1], "codex-new")
 
     def test_only_codex_comments_count(self):
-        cs = [codex_comment("M:/Bontago/.claude/worktrees/codex-real", "2026-10-01T00:00:00Z"),
-              codex_comment("staged from M:/Bontago/.claude/worktrees/codex-other", "2026-10-02T00:00:00Z",
+        cs = [codex_comment("/repo/.claude/worktrees/codex-real", "2026-10-01T00:00:00Z"),
+              codex_comment("staged from /repo/.claude/worktrees/codex-other", "2026-10-02T00:00:00Z",
                             author="stackfall-orchestrator")]
         self.assertEqual(sch.extract_worktree(cs).rsplit("/", 1)[-1], "codex-real")
         self.assertIsNone(sch.extract_worktree(cs[1:]))
@@ -186,8 +186,8 @@ class PathExtraction(unittest.TestCase):
         self.assertIsNone(sch.extract_worktree([]))
 
     def test_other_worktree_root(self):
-        cs = [codex_comment("at M:\\Bontago-worktrees\\codex-assets-y/ done")]
-        self.assertEqual(sch.extract_worktree(cs), "M:/Bontago-worktrees/codex-assets-y")
+        cs = [codex_comment("at \\repo-worktrees\\codex-assets-y/ done")]
+        self.assertEqual(sch.extract_worktree(cs), "/repo-worktrees/codex-assets-y")
 
 
 class Parsing(unittest.TestCase):
@@ -218,9 +218,9 @@ class Parsing(unittest.TestCase):
         self.assertEqual(list(sch.add_chunks([])), [])
 
     def test_commit_message_parts(self):
-        s, b, t = sch.commit_message("Art: glyphs", "B-9", "M:/x/codex-y")
+        s, b, t = sch.commit_message("Art: glyphs", "B-9", "/x/codex-y")
         self.assertEqual(s, "Art: glyphs (B-9)")
-        self.assertEqual(b, "Staged from Codex handoff worktree M:/x/codex-y (uncommitted candidate).")
+        self.assertEqual(b, "Staged from Codex handoff worktree /x/codex-y (uncommitted candidate).")
         self.assertEqual(t, "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>")
 
 
@@ -483,11 +483,11 @@ class Tooling(unittest.TestCase):
     def test_bd_cmd_resolution(self):
         w = two_beads()
         out, res = [], {}
-        with patched(w, which=lambda n: "C:/npm/bd.CMD" if n == "bd" else None):
+        with patched(w, which=lambda n: "/npm/bd.CMD" if n == "bd" else None):
             sch.stage(args_for(dry_run=True), sch.Ctx(tempfile.gettempdir()), out.append, res)
         for name, argv, _ in w.calls:
             if name.startswith("bd_"):
-                self.assertEqual(argv[0], "C:/npm/bd.CMD", name)
+                self.assertEqual(argv[0], "/npm/bd.CMD", name)
                 self.assertEqual(argv[1:3], ["-C", "R"])
         self.assertIn("--json", w.argv("bd_comments_B-1")[0])
         self.assertEqual(w.argv("bd_show_B-1")[0][-3:], ["B-1", "--json", "--brief-deps"])
