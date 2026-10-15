@@ -223,11 +223,10 @@ func request_place(
 	# ray straight down from the ghost's middle... Do not require the whole
 	# footprint to fit... not permission to reintroduce footprint territory
 	# tests." validate_point() itself now also rejects a contested/holed point
-	# under the legacy fill (TerritoryRaster._fill_legacy(), which
-	# TEMPORARY/PERMANENT still run every solve), so the point path alone
-	# already reports every case the footprint chain used to.
-	# footprint_cells()/validate() stay compiled for the bots' footprint scoring and
-	# tests/bench/bench_territory.gd's legacy regression row only; this call site never reaches them.
+	# under the raster fill that TEMPORARY/PERMANENT still run every solve, so the
+	# point path alone already reports every case the footprint chain used to.
+	# footprint_cells()/validate() stay compiled for the bots' footprint scoring only;
+	# this call site never reaches them.
 	var result: PlacementRules.Result
 	var relocated: Vector2 = PlacementRules.NO_ORIGIN
 	var hit: Variant = _match._field.raycast_down_disk_local(origin)
