@@ -2565,11 +2565,6 @@ func _apply_peer_timeout(id: int) -> void:
 		packet_peer.call("set_timeout", config.peer_timeout_limit, config.peer_timeout_min_ms, config.peer_timeout_max_ms)
 
 
-## True while this host broadcasts its game on the LAN (Bontago-fca.88 test seam).
-func is_lan_advertising() -> bool:
-	return _lan != null and _lan.is_advertising()
-
-
 ## Bontago-1pi.164: Net.upnp_state() etc. are what the lobby reads. IDLE = not tried.
 func upnp_state() -> int:
 	return int(_upnp.state)

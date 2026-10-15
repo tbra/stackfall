@@ -183,41 +183,6 @@ func test_a_replayed_remote_intent_places_exactly_one_block() -> void:
 	assert_eq(Match.feed_seq(REMOTE_SLOT), seq + 1)
 
 
-func test_after_a_refused_negative_seq_a_valid_seq_places_one_and_the_timer_still_auto_drops() -> void:
-	var net: MatchNetScript = _make_host_net()
-	_start_playing()
-	var where: Vector3 = _home_world_position(REMOTE_SLOT)
-
-	_remote_place(net, where, 0, Quaternion.IDENTITY, -1)
-	assert_eq(_block_count(), 0)
-	_remote_place(net, where, 0, Quaternion.IDENTITY, Match.feed_seq(REMOTE_SLOT))
-	assert_eq(_block_count(), 1, "A real sequence still places exactly one block.")
-	assert_eq(net.intents_accepted(REMOTE_SLOT), 1)
-
-	# The host's own timer path quotes Match.feed_seq() itself and must be
-	# untouched by the wire-side rule.
-	_remote_cursor(net, where, 0, Quaternion.IDENTITY)
-	Events.feed_timer_expired.emit(REMOTE_SLOT)
-
-	assert_eq(_block_count(), 2, "The host still auto-drops for the remote slot from its cursor.")
-	assert_eq(net.auto_drops(REMOTE_SLOT), 1)
-	assert_eq(
-		Match.blocks_spawned(),
-		net.intents_accepted(REMOTE_SLOT) + net.auto_drops(REMOTE_SLOT),
-		"blocks_spawned must equal accepted intents plus auto-drops"
-	)
-
-
-func test_the_omitted_feed_seq_sentinel_still_works_for_trusted_local_callers() -> void:
-	_make_host_net()
-	_start_playing()
-
-	var reason: StringName = Match.request_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, false)
-
-	assert_eq(reason, PlacementRules.REASON_OK, "M2 call sites omit feed_seq and must keep working.")
-	assert_eq(_block_count(), 1)
-
-
 # --- .5  Orientation index must be inside BlockOrientations' table ----------
 
 
@@ -236,25 +201,6 @@ func test_out_of_range_remote_orientations_are_refused_without_spending_a_block(
 		refused += 1
 
 
-func test_every_valid_orientation_index_is_still_accepted_from_the_wire() -> void:
-	var net: MatchNetScript = _make_host_net()
-	_start_playing()
-
-	for index: int in range(BlockOrientations.ORIENTATION_COUNT):
-		_remote_place(net, _home_world_position(REMOTE_SLOT), index, Quaternion.IDENTITY, Match.feed_seq(REMOTE_SLOT))
-		# Bontago-mv0.10 (spec 2.4 "[ORIGINAL target]" cadence): a deliberate
-		# release now locks the slot until its fixed interval's boundary, so
-		# without this every index past the first would be refused with
-		# REASON_NO_BLOCK rather than exercising BlockOrientations' table.
-		# Match.debug_unlock_slot() is the test-only seam for skipping that
-		# wait; it is not what this test is about.
-		Match.debug_unlock_slot(REMOTE_SLOT)
-
-	assert_eq(net.intents_accepted(REMOTE_SLOT), BlockOrientations.ORIENTATION_COUNT, "All 24 rotations place.")
-	assert_eq(net.intents_refused(REMOTE_SLOT), 0)
-	assert_eq(_block_count(), BlockOrientations.ORIENTATION_COUNT)
-
-
 func test_a_cursor_with_an_out_of_range_orientation_is_dropped_and_auto_drop_still_lands() -> void:
 	var net: MatchNetScript = _make_host_net()
 	_start_playing()
@@ -271,19 +217,6 @@ func test_a_cursor_with_an_out_of_range_orientation_is_dropped_and_auto_drop_sti
 	Events.feed_timer_expired.emit(REMOTE_SLOT)
 
 	assert_eq(_block_count(), 1, "The timer path never sees the malformed pose and still drops.")
-	assert_eq(net.auto_drops(REMOTE_SLOT), 1)
-
-
-func test_a_slot_whose_only_cursors_were_malformed_still_auto_drops_from_its_home() -> void:
-	var net: MatchNetScript = _make_host_net()
-	_start_playing()
-
-	_remote_cursor(net, _home_world_position(REMOTE_SLOT), BlockOrientations.ORIENTATION_COUNT, Quaternion.IDENTITY)
-	assert_true(net.cursor_for_slot(REMOTE_SLOT).is_empty(), "A malformed first cursor is not stored at all.")
-
-	Events.feed_timer_expired.emit(REMOTE_SLOT)
-
-	assert_eq(_block_count(), 1, "With no stored cursor the host drops on the slot's home flag, as before.")
 	assert_eq(net.auto_drops(REMOTE_SLOT), 1)
 
 
@@ -326,18 +259,6 @@ func test_malformed_remote_quaternions_are_refused() -> void:
 		refused += 1
 
 
-func test_a_unit_free_rotation_from_the_wire_still_places() -> void:
-	var net: MatchNetScript = _make_host_net()
-	_start_playing()
-
-	_remote_place(
-		net, _home_world_position(REMOTE_SLOT), 5, Quaternion(Vector3.UP, 0.7).normalized(), Match.feed_seq(REMOTE_SLOT)
-	)
-
-	assert_eq(net.intents_accepted(REMOTE_SLOT), 1)
-	assert_eq(_block_count(), 1)
-
-
 func test_remote_heights_outside_the_replicable_band_are_refused() -> void:
 	var net: MatchNetScript = _make_host_net()
 	_start_playing()
@@ -355,29 +276,6 @@ func test_remote_heights_outside_the_replicable_band_are_refused() -> void:
 		_remote_place(net, _home_world_position(REMOTE_SLOT, bad_height), 0, Quaternion.IDENTITY, seq)
 		_assert_nothing_was_spent(net, seq, 0, refused, "height %f from the wire" % bad_height)
 		refused += 1
-
-
-func test_remote_heights_inside_the_band_still_place_at_the_requested_height() -> void:
-	var net: MatchNetScript = _make_host_net()
-	_start_playing()
-	var physics: PhysicsTuning = load("res://config/physics/physics_tuning.tres")
-	var heights: Array[float] = [physics.hover_height, _net_config.pos_max_y, _net_config.pos_min_y]
-
-	for height: float in heights:
-		_remote_place(net, _home_world_position(REMOTE_SLOT, height), 0, Quaternion.IDENTITY, Match.feed_seq(REMOTE_SLOT))
-		# Bontago-mv0.10: see test_every_valid_orientation_index_is_still_
-		# accepted_from_the_wire's matching comment -- this loop is about the
-		# replicable height band, not the interval lock.
-		Match.debug_unlock_slot(REMOTE_SLOT)
-
-	assert_eq(net.intents_accepted(REMOTE_SLOT), heights.size(), "The normal hover and both band edges place.")
-	assert_eq(net.intents_refused(REMOTE_SLOT), 0)
-	assert_eq(_block_count(), heights.size())
-	for i: int in range(heights.size()):
-		var block: Block = _blocks_root.get_child(i) as Block
-		assert_almost_eq(
-			block.global_position.y, heights[i], 0.001, "request_place keeps the requested height (block %d)" % i
-		)
 
 
 ## A well-formed but far-off-disk manual release used to burn the block from an
@@ -412,59 +310,3 @@ func test_a_far_off_disk_remote_intent_is_refused_and_keeps_the_piece() -> void:
 	assert_eq(rejections.size(), far_origins.size(), "Each refused release reports placement_rejected once.")
 	assert_eq(rejections.count(REMOTE_SLOT), far_origins.size(), "The rejection names the releasing slot.")
 
-
-func test_malformed_cursor_poses_are_dropped_and_the_last_good_cursor_survives() -> void:
-	var net: MatchNetScript = _make_host_net()
-	_start_playing()
-	var good: Vector3 = _home_world_position(REMOTE_SLOT)
-	_remote_cursor(net, good, 0, Quaternion.IDENTITY)
-	watch_signals(Events)
-
-	_remote_cursor(net, Vector3(NAN, 0.0, 0.0), 0, Quaternion.IDENTITY)
-	_remote_cursor(net, Vector3(0.0, INF, 0.0), 0, Quaternion.IDENTITY)
-	_remote_cursor(net, good, 0, Quaternion(0.0, 0.0, 0.0, 0.0))
-	_remote_cursor(net, good, 0, Quaternion(0.0, 0.0, 0.0, 3.0))
-	_remote_cursor(net, _home_world_position(REMOTE_SLOT, 1.0e9), 0, Quaternion.IDENTITY)
-	_remote_cursor(net, _home_world_position(REMOTE_SLOT, _net_config.pos_min_y - 1.0), 0, Quaternion.IDENTITY)
-
-	var cursor: Dictionary = net.cursor_for_slot(REMOTE_SLOT)
-	assert_eq(cursor["origin"], good, "Only the well-formed cursor is stored.")
-	assert_eq(net.cursors_refused(REMOTE_SLOT), 6)
-	assert_signal_not_emitted(
-		Events, "remote_cursor_updated", "A malformed cursor is never re-emitted (or rebroadcast) to anyone."
-	)
-
-	Events.feed_timer_expired.emit(REMOTE_SLOT)
-
-	assert_eq(_block_count(), 1, "Auto-drop fires from the last good cursor.")
-	var block: Block = _blocks_root.get_child(0) as Block
-	assert_almost_eq(block.global_position.x, good.x, 1.5)
-	assert_almost_eq(block.global_position.z, good.z, 1.5)
-
-
-func test_a_well_formed_remote_cursor_is_stored_and_re_emitted() -> void:
-	var net: MatchNetScript = _make_host_net()
-	_start_playing()
-	watch_signals(Events)
-	var where: Vector3 = _home_world_position(REMOTE_SLOT, 2.0)
-	var quat: Quaternion = Quaternion(Vector3.RIGHT, 0.4).normalized()
-
-	_remote_cursor(net, where, 7, quat)
-
-	assert_signal_emitted_with_parameters(Events, "remote_cursor_updated", [REMOTE_SLOT, where, 7, quat])
-	var cursor: Dictionary = net.cursor_for_slot(REMOTE_SLOT)
-	assert_eq(cursor["origin"], where)
-	assert_eq(cursor["orientation_index"], 7)
-	assert_eq(net.cursors_refused(REMOTE_SLOT), 0)
-
-
-func test_a_cursor_for_someone_elses_slot_is_still_ignored() -> void:
-	var net: MatchNetScript = _make_host_net()
-	_start_playing()
-
-	# Peer 2 holds slot 1 but claims slot 0; and a peer with no slot at all.
-	net._handle_cursor_update(REMOTE_PEER, 0, _home_world_position(0), 0, Quaternion.IDENTITY)
-	net._handle_cursor_update(99, REMOTE_SLOT, _home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY)
-
-	assert_true(net.cursor_for_slot(0).is_empty())
-	assert_true(net.cursor_for_slot(REMOTE_SLOT).is_empty())

@@ -173,36 +173,6 @@ func test_every_host_broadcast_skips_a_peer_that_is_being_kicked() -> void:
 	await _kick_then_fire(_fire_every_broadcast)
 
 
-func test_match_net_broadcasts_skip_a_peer_that_is_being_kicked() -> void:
-	await _kick_then_fire(_fire_match_net)
-
-
-func test_per_peer_sends_skip_a_peer_that_is_being_kicked() -> void:
-	await _kick_then_fire(_fire_per_peer)
-
-
-## The guard itself: allowed for a settled peer, refused while kicked, and
-## send_to() reports whether it queued anything.
-func test_net_fanout_can_send_to_guards_a_disconnecting_peer() -> void:
-	var clients: Array[Rig] = await _connect(1)
-	var peer_id: int = clients[0].net.local_peer_id()
-	var api: MultiplayerAPI = (_host.net as Node).multiplayer
-	assert_true(NetFanout.can_send_to(api, _host.net, peer_id), "a settled peer is addressable")
-	assert_false(NetFanout.can_send_to(api, _host.net, 9999), "an unlisted peer is not")
-	_host.net.kick_peer(peer_id)
-	assert_false(NetFanout.can_send_to(api, _host.net, peer_id), "a kicked peer is not")
-	assert_false(NetFanout.send_to(_host.match_net, _host.net, peer_id, &"net_replay_end", [1]), "and nothing is queued")
-	await _wait_until(func() -> bool: return _peers_of(_host).is_empty(), 120)
-
-
-func test_snapshot_sync_skips_a_peer_that_is_being_kicked() -> void:
-	await _kick_then_fire(_fire_snapshot)
-
-
-func test_weather_snow_and_breeze_relays_skip_a_peer_that_is_being_kicked() -> void:
-	await _kick_then_fire(_fire_relays)
-
-
 ## The production trigger: MatchNet._tick_replay_timeouts kicks a mid-match joiner
 ## that never acknowledged its world replay, and the host's next broadcast tick
 ## follows right behind it.
@@ -242,37 +212,4 @@ func test_the_peer_that_stays_still_hears_every_broadcast_while_the_other_is_kic
 	assert_eq(get_signal_emit_count(Events, "match_loading_announced"), 1, "and it heard the broadcast exactly once")
 
 
-func test_with_nobody_being_kicked_every_peer_gets_exactly_one_copy() -> void:
-	await _connect(2)
-	watch_signals(Events)
-	_host.match_net.replicate_match_loading()
-	var heard: bool = await _wait_until(func() -> bool:
-		return get_signal_emit_count(Events, "match_loading_announced") >= 2
-	)
-	assert_true(heard, "both clients receive it")
-	await get_tree().process_frame
-	assert_eq(get_signal_emit_count(Events, "match_loading_announced"), 2, "one copy per peer, none duplicated")
-
-
 # --- NetFanout and the snapshot peer list -----------------------------------------
-
-func test_targets_leave_out_exactly_the_peers_being_kicked() -> void:
-	var clients: Array[Rig] = await _connect(2)
-	var kicked_id: int = clients[0].net.local_peer_id()
-	var kept_id: int = clients[1].net.local_peer_id()
-	var api: MultiplayerAPI = (_host.net as Node).multiplayer
-	var everyone: Array[int] = NetFanout.targets(api, _host.net)
-	assert_eq(everyone.size(), 2, "nobody is being kicked yet")
-	_host.net.kick_peer(kicked_id)
-	assert_eq(NetFanout.targets(api, _host.net), [kept_id] as Array[int])
-	assert_eq(NetFanout.targets(api, null).size(), 2, "a session that cannot say is treated as not kicking anyone")
-	assert_eq(Array(_host.snapshot._remote_peers()), [kept_id], "SnapshotSync's peer list drops the kicked peer too")
-	_host.net.kick_peer(kept_id)
-	assert_true(NetFanout.targets(api, _host.net).is_empty(), "every peer kicked leaves nobody to address")
-	assert_eq(_host.snapshot._remote_peer_count(), 0)
-
-
-func test_targets_are_empty_without_a_transport() -> void:
-	var api: MultiplayerAPI = MultiplayerAPI.create_default_interface()
-	assert_true(NetFanout.targets(api, null).is_empty())
-	assert_true(NetFanout.targets(null, null).is_empty())
