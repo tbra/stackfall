@@ -6,8 +6,3 @@ extends MainFlowPort
 
 func start_match_with_args(_args: PackedStringArray) -> void:
 	pass
-
-
-## Report-tick entry point driven from Main's frame loop while a bot match runs.
-func report_tick(_delta: float) -> void:
-	pass

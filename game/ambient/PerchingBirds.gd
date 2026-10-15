@@ -209,10 +209,6 @@ func spawn_now(_index: int = 0) -> void:
 	_flock_timer = 0.0
 
 
-func flock_count() -> int:
-	return _flocks.size()
-
-
 ## Slot indices of the flock that slot `index` belongs to (empty when none).
 func flock_slot_indices(index: int) -> PackedInt32Array:
 	var result: PackedInt32Array = PackedInt32Array()

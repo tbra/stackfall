@@ -689,13 +689,6 @@ func _build_bake_viewport() -> void:
 	add_child(_bake_viewport)
 
 
-## Bench/test hook: flips TerritoryVisuals.circle_bake_enabled on the live
-## resource and re-requests the bake.
-func set_bake_enabled_for_bench(enabled: bool) -> void:
-	_visuals.circle_bake_enabled = enabled
-	_request_bake(_bake_wanted)
-
-
 ## Host-side signal (autoload/match/MatchTerritory.gd): true while any tracked
 ## block is awake. Leaving churn flushes a parked bake at once.
 func set_churning(churning: bool, solve_waited_s: float = 0.0) -> void:

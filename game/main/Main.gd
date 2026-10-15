@@ -686,10 +686,6 @@ func start_tutorial_from_menu() -> void:
 	_sandbox_flow_port().start_tutorial_from_menu()
 
 
-func _on_tutorial_finished() -> void:
-	_sandbox_flow_port().on_tutorial_finished()
-
-
 ## The sandbox flow, loaded through the serial prewarm queue on first use. DECISION: the queue
 ## is built lazily here (synchronous path); MF4 owns the background start and eager flags.
 func _sandbox_flow_port() -> MainSandboxFlowPort:
@@ -713,10 +709,6 @@ func _apply_match_sky(config: MatchConfig) -> void:
 
 func _start_headless_bot_match_with_args(args: PackedStringArray) -> void:
 	_headless_bots_flow_port().start_match_with_args(args)
-
-
-func _start_headless_loop_match(bots: int, args: PackedStringArray) -> void:
-	_headless_bots_flow_port().call(&"_start_headless_loop_match", bots, args)
 
 
 func _has_loop_matches_arg(args: PackedStringArray) -> bool:
@@ -747,32 +739,8 @@ func _seconds_arg(args: PackedStringArray) -> float:
 	return _headless_bots_flow_port().call(&"_seconds_arg", args) as float
 
 
-func _headless_bot_players_arg(args: PackedStringArray) -> int:
-	return _headless_bots_flow_port().call(&"_headless_bot_players_arg", args) as int
-
-
 func _build_headless_bot_config(bots: int, args: PackedStringArray) -> MatchConfig:
 	return _headless_bots_flow_port().call(&"_build_headless_bot_config", bots, args) as MatchConfig
-
-
-func _disc_size_arg(args: PackedStringArray) -> int:
-	return _headless_bots_flow_port().call(&"_disc_size_arg", args) as int
-
-
-func _goals_arg(args: PackedStringArray) -> int:
-	return _headless_bots_flow_port().call(&"_goals_arg", args) as int
-
-
-func _headless_bots_goal_coverage() -> String:
-	return _headless_bots_flow_port().call(&"_headless_bots_goal_coverage") as String
-
-
-func _mode_arg(args: PackedStringArray) -> int:
-	return _headless_bots_flow_port().call(&"_mode_arg", args) as int
-
-
-func _start_headless_bots_diagnostics() -> void:
-	_headless_bots_flow_port().call(&"_start_headless_bots_diagnostics")
 
 
 ## Only a loaded flow can have started diagnostics, so teardown never loads it.
@@ -799,14 +767,6 @@ func _headless_bots_periodic_line() -> String:
 
 func _headless_bots_done_line() -> String:
 	return _headless_bots_flow_port().call(&"_headless_bots_done_line") as String
-
-
-func _headless_bots_frontier_gap() -> float:
-	return _headless_bots_flow_port().call(&"_headless_bots_frontier_gap") as float
-
-
-func _headless_bots_homes_alive() -> int:
-	return _headless_bots_flow_port().call(&"_headless_bots_homes_alive") as int
 
 
 func _headless_bots_elapsed_s() -> float:
