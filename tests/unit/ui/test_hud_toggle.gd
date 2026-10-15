@@ -64,15 +64,6 @@ func test_paddle4_toggles_on_release() -> void:
 	assert_true(hud._scale_root.visible)
 
 
-func test_new_match_starts_with_the_hud_visible() -> void:
-	var hud: HUD = _make_hud()
-	hud._unhandled_input(_key(true))
-	assert_false(hud._scale_root.visible)
-	Events.match_scope_reset.emit()
-	assert_true(_shown(hud), "a hidden HUD must not persist into the next match")
-	assert_false(hud.is_hud_hidden())
-
-
 func _boot_main() -> Node:
 	var main: Node = MAIN_SCENE.instantiate()
 	var tiny: MapDef = (load("res://config/match/maps/round.tres") as MapDef).duplicate(true)

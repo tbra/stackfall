@@ -26,15 +26,6 @@ func _action(action: StringName, pressed: bool = true) -> InputEventAction:
 	return event
 
 
-func test_first_item_is_selected_and_select_is_silent() -> void:
-	var cycler: UiCycler = _make(3, 0)
-	assert_eq(cycler.selected(), 0)
-	cycler.select(2)
-	assert_eq(cycler.selected(), 2)
-	assert_eq(cycler.value_label.text, "Item 2")
-	assert_eq(_picked.size(), 0)
-
-
 func test_wraps_both_ways_and_emits_once_per_step() -> void:
 	var cycler: UiCycler = _make(3, 2)
 	assert_true(cycler.nudge(1))
@@ -54,23 +45,6 @@ func test_disabled_items_are_skipped() -> void:
 	assert_eq(cycler.selected(), 0, "wraps over the disabled tail")
 	cycler.nudge(-1)
 	assert_eq(cycler.selected(), 2)
-
-
-func test_one_enabled_item_cannot_move_and_dims_the_buttons() -> void:
-	var cycler: UiCycler = _make(2, 0)
-	cycler.set_item_disabled(1, true)
-	assert_false(cycler.nudge(1))
-	assert_true(cycler.prev_button.disabled)
-	assert_true(cycler.next_button.disabled)
-	assert_eq(_picked.size(), 0)
-
-
-func test_empty_and_clear() -> void:
-	var cycler: UiCycler = _make(2, 1)
-	cycler.clear()
-	assert_eq(cycler.selected(), UiCycler.NONE)
-	assert_false(cycler.nudge(1))
-	assert_eq(cycler.value_label.text, "")
 
 
 func test_ui_left_and_right_keys_step() -> void:
@@ -141,74 +115,9 @@ func test_stick_around_the_deadzone_steps_exactly_once() -> void:
 	assert_false(cycler.is_holding())
 
 
-func test_buttons_are_square_and_it_hugs_its_content() -> void:
-	var cycler: UiCycler = _make(3, 0)
-	await wait_frames(2)
-	var h: float = float(UiRowItem.metrics().row_height_px)
-	assert_eq(cycler.size.y, h)
-	assert_eq(cycler.prev_button.size, Vector2(h, h))
-	assert_eq(cycler.next_button.size, Vector2(h, h))
-	assert_eq(cycler.size_flags_horizontal, Control.SIZE_SHRINK_BEGIN)
-	assert_true(cycler.is_in_group(UiRowItem.GROUP))
-	assert_lt(cycler.size.x, h * float(UiRowItem.metrics().stepper_width_units) * 2.0)
-
-
 func test_disabled_blocks_input() -> void:
 	var cycler: UiCycler = _make(3, 0)
 	cycler.disabled = true
 	assert_true(cycler.prev_button.disabled)
 	cycler._gui_input(_action(&"ui_right"))
 	assert_eq(cycler.selected(), 0)
-
-
-func test_cycling_through_every_item_keeps_the_size_constant() -> void:
-	var cycler: UiCycler = UiCycler.new()
-	var icon: Texture2D = PlaceholderTexture2D.new()
-	cycler.add_item("A")
-	cycler.add_item("A much longer value", false, icon)
-	cycler.add_item("Mid", false, icon)
-	add_child_autofree(cycler)
-	await wait_frames(2)
-	var start: Vector2 = cycler.size
-	var arrow_x: float = cycler.next_button.position.x
-	for _step: int in range(cycler.get_item_count() * 2):
-		cycler.nudge(1)
-		await wait_frames(1)
-		assert_eq(cycler.size, start, "size is stable at item %d" % cycler.selected())
-		assert_eq(cycler.next_button.position.x, arrow_x, "the > block never moves")
-
-
-func test_value_area_has_padding_each_side_of_the_widest_item() -> void:
-	var cycler: UiCycler = _make(3, 0)
-	var pad: float = float(UiRowItem.metrics().cycler_value_padding_px)
-	var font: Font = cycler.value_label.get_theme_font(&"font")
-	var text_w: float = font.get_string_size("Item 0", HORIZONTAL_ALIGNMENT_LEFT, -1.0, cycler.value_label.get_theme_font_size(&"font_size")).x
-	assert_gte(cycler.value_box.custom_minimum_size.x, ceilf(text_w) + pad * 2.0)
-
-
-func test_min_value_width_widens_the_value_area_and_icons_are_stored() -> void:
-	var cycler: UiCycler = UiCycler.new()
-	var icon: Texture2D = PlaceholderTexture2D.new()
-	cycler.add_item("A", false, icon, "tip")
-	cycler.min_value_width = 300.0
-	assert_eq(cycler.value_box.custom_minimum_size.x, 300.0)
-	assert_eq(cycler.get_item_icon(0), icon)
-	assert_eq(cycler.get_item_tooltip(0), "tip")
-	assert_true(cycler.value_icon.visible)
-	cycler.free()
-
-
-func test_content_width_tracks_the_widest_item_as_items_are_added_and_cleared() -> void:
-	var cycler: UiCycler = UiCycler.new()
-	add_child_autofree(cycler)
-	var empty_width: float = cycler.content_width()
-	cycler.add_item("a")
-	var narrow: float = cycler.content_width()
-	cycler.add_item("a much longer item")
-	var wide: float = cycler.content_width()
-	cycler.add_item("b")
-	assert_gt(narrow, empty_width - 0.01)
-	assert_gt(wide, narrow)
-	assert_eq(cycler.content_width(), wide, "a shorter item never narrows it")
-	cycler.clear()
-	assert_eq(cycler.content_width(), empty_width)

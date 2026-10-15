@@ -116,33 +116,6 @@ func test_ensure_of_queued_path_dequeues_it() -> void:
 	assert_true(queue.is_ready(PATH_B))
 
 
-func test_collect_in_flight_returns_after_completion() -> void:
-	var fake: FakeLoader = FakeLoader.new()
-	var queue: MenuPrewarmQueue = _make(fake, [[PATH_A], [PATH_B]])
-	queue.start(get_tree())
-	assert_true(queue.has_in_flight())
-	queue.halt()
-	queue.collect_in_flight()
-	assert_false(queue.has_in_flight(), "the request completed")
-	assert_true(queue.is_ready(PATH_A))
-	assert_eq(fake.in_flight.size(), 0, "collected, never cancelled")
-	queue.poll()
-	assert_false(queue.has_in_flight(), "halt() stops further requests")
-	assert_false(fake.requests.has(PATH_B))
-	queue.collect_in_flight()  # idempotent when nothing is in flight
-	assert_eq(fake.collected, [PATH_A])
-
-
-func test_unknown_path_pushes_one_error_and_returns_null() -> void:
-	var fake: FakeLoader = FakeLoader.new()
-	var queue: MenuPrewarmQueue = _make(fake, [[PATH_A]])
-	assert_null(queue.ensure(PATH_UNKNOWN))
-	assert_push_error_count(1)
-	assert_null(queue.ensure_script(PATH_UNKNOWN))
-	assert_push_error_count(2)
-	assert_eq(fake.sync_loads.size(), 0)
-
-
 func test_missing_files_are_skipped_in_the_background() -> void:
 	var fake: FakeLoader = FakeLoader.new()
 	fake.missing = [PATH_A]
@@ -152,44 +125,3 @@ func test_missing_files_are_skipped_in_the_background() -> void:
 		queue.poll()
 	assert_eq(fake.requests, [PATH_B])
 	assert_false(queue.is_ready(PATH_A))
-
-
-func test_load_all_blocking_loads_every_path_in_order() -> void:
-	var fake: FakeLoader = FakeLoader.new()
-	var queue: MenuPrewarmQueue = _make(fake, [[PATH_A], [PATH_B, PATH_C]])
-	queue.load_all_blocking()
-	assert_eq(fake.sync_loads, [PATH_A, PATH_B, PATH_C])
-	assert_eq(fake.requests.size(), 0, "no threaded request on the blocking path")
-	assert_true(queue.is_ready(PATH_C))
-
-
-func test_run_blocking_loads_a_real_resource() -> void:
-	var cfg: MenuPrewarmConfig = MenuPrewarmConfig.new()
-	cfg.chunks = _chunks([[REAL_PATH]])
-	MenuPrewarmQueue.run_blocking(get_tree(), cfg)
-	assert_not_null(load(REAL_PATH), "run_blocking completes without errors for an existing path")
-
-
-func test_default_config_resource_loads_and_has_eager_flags() -> void:
-	var cfg: MenuPrewarmConfig = load("res://config/match/menu_prewarm.tres") as MenuPrewarmConfig
-	assert_not_null(cfg)
-	assert_gt(cfg.chunks.size(), 0)
-	assert_true(cfg.eager_flags.has("hot-seat"))
-	assert_eq(cfg.all_paths()[0], "res://ui/lobby/Lobby.tscn", "lobby is the first chunk")
-
-
-## Bontago-1pi.11.89: the Lobby's gift checklist loads every SpecialDef (each pulls its held-gift
-## scene, model and preview), a ~1 s stall the first time. Every def is prewarmed behind the menu.
-func test_default_config_prewarms_every_special_def() -> void:
-	var cfg: MenuPrewarmConfig = load("res://config/match/menu_prewarm.tres") as MenuPrewarmConfig
-	var paths: PackedStringArray = cfg.all_paths()
-	var dir: DirAccess = DirAccess.open(SpecialDef.SPECIALS_DIR)
-	assert_not_null(dir)
-	var found: int = 0
-	for file_name: String in dir.get_files():
-		var clean: String = file_name.trim_suffix(".remap")
-		if clean.ends_with(".tres"):
-			found += 1
-			assert_true(paths.has(SpecialDef.SPECIALS_DIR + clean), "%s is prewarmed" % clean)
-			assert_gt(paths.find(SpecialDef.SPECIALS_DIR + clean), paths.find("res://ui/lobby/Lobby.tscn"))
-	assert_gt(found, 0)

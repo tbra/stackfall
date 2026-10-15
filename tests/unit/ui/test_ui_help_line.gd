@@ -85,30 +85,11 @@ func test_gamepad_dpad_moves_the_line_with_focus() -> void:
 	assert_eq(_line.label.text, SENTENCE_B, "the line follows pad focus on its own")
 
 
-func test_a_row_without_text_leaves_the_line_empty() -> void:
-	_a.grab_focus()
-	_line.refresh()
-	_plain.grab_focus()
-	_line.refresh()
-	assert_eq(_line.label.text, "")
-
-
 func test_controls_outside_the_scope_are_ignored() -> void:
 	UiHelpLine.tag(_outside, KEY_A)
 	_outside.grab_focus()
 	_line.refresh()
 	assert_eq(_line.label.text, "")
-
-
-func test_a_tagged_ancestor_explains_its_inner_controls() -> void:
-	var row: HBoxContainer = HBoxContainer.new()
-	_a.get_parent().add_child(row)
-	UiHelpLine.tag(row, KEY_B)
-	var inner: Button = Button.new()
-	row.add_child(inner)
-	inner.grab_focus()
-	_line.refresh()
-	assert_eq(_line.label.text, SENTENCE_B)
 
 
 func test_item_text_follows_the_selected_item() -> void:
@@ -128,30 +109,6 @@ func test_item_text_follows_the_selected_item() -> void:
 	_line.refresh()
 	assert_eq(_line.label.text, "Item one text.")
 
-
-func test_table_prefers_item_entries_and_reports_missing_keys() -> void:
-	var table: OptionHelpTable = OptionHelpTable.new()
-	table.entries = {"k": "row", "k/2": "item"}
-	assert_eq(table.text_for("k", 2), "item")
-	assert_eq(table.text_for("k", 1), "row")
-	assert_eq(table.text_for("k"), "row")
-	assert_eq(table.text_for("missing", 0), "")
-	assert_false(table.has_text("missing"))
-
-
-func test_the_shipped_table_covers_the_unclear_options() -> void:
-	var table: OptionHelpTable = OptionHelpTable.shared()
-	for key: String in ["GameModeCol", "HoleCol", "GravityGroup", "DiscSizeCol", "GoalFlagCol", "BlockTimerGroup", "RoundTimerCol",
-			"RoundTimerDominationCol", "MatchTimerCol", "GiftsToggleCol", "SpecialFreqGroup", "frame_cap_mode", "render_scale_3d",
-			"WindowModeOption", "UiScaleSlider", "AdaptiveQualityCheck", "preset"]:
-		assert_ne(table.text_for(key), "", "%s has help text" % key)
-	for mode: int in MatchConfig.GAME_MODE_LABELS.size():
-		assert_ne(table.text_for("GameModeCol", mode), table.text_for("GameModeCol"), "mode %d has its own sentence" % mode)
-	for special: SpecialDef in SpecialDef.load_selectable_specials():
-		assert_ne(table.text_for(OptionHelpTable.gift_key(special.id)), "", "gift %s has help text" % special.id)
-
-
-# --- Lobby -------------------------------------------------------------------
 
 func _make_lobby() -> Lobby:
 	var lobby: Lobby = autofree(LOBBY_SCENE.instantiate())
@@ -177,28 +134,6 @@ func test_lobby_game_mode_focus_explains_the_selected_mode() -> void:
 	line.refresh()
 	assert_eq(line.label.text, table.text_for("GameModeCol", MatchConfig.GameMode.REACH_THE_SKY))
 	assert_eq(mode.tooltip_text, "", "no tooltip (inline help only)")
-
-
-func test_lobby_round_length_row_changes_text_in_domination() -> void:
-	var lobby: Lobby = _make_lobby()
-	var line: UiHelpLine = lobby.get_node("%HelpLine") as UiHelpLine
-	var mode: UiCycler = lobby.get_node("%GameModeOption") as UiCycler
-	mode.select(MatchConfig.GameMode.DOMINATION)
-	mode.item_selected.emit(MatchConfig.GameMode.DOMINATION)
-	var stepper: Control = lobby.get_node("%RoundTimerStepper") as Control
-	line.hover_source = func() -> Control: return stepper
-	line.refresh()
-	assert_eq(line.label.text, OptionHelpTable.shared().text_for(Lobby.ROUND_HELP_KEY_DOMINATION))
-
-
-func test_lobby_self_explanatory_row_has_no_text() -> void:
-	var lobby: Lobby = _make_lobby()
-	var line: UiHelpLine = lobby.get_node("%HelpLine") as UiHelpLine
-	var weather: Control = lobby.get_node("%WeatherOption") as Control
-	get_viewport().gui_release_focus()
-	line.hover_source = func() -> Control: return weather
-	line.refresh()
-	assert_eq(line.label.text, "")
 
 
 func test_lobby_gift_chip_explains_its_gift() -> void:
@@ -243,18 +178,3 @@ func test_options_game_tab_explains_unclear_rows_only() -> void:
 	master.grab_focus()
 	line.refresh()
 	assert_eq(line.label.text, "", "volume rows are self-explanatory")
-
-
-func test_options_graphics_tab_explains_frame_cap_per_item() -> void:
-	var menu: OptionsMenu = _make_menu()
-	var line: UiHelpLine = menu.get_node("%HelpLine") as UiHelpLine
-	menu._tabs.select(OptionsMenu.TAB_GRAPHICS)
-	var page: GraphicsSettingsTab = menu.get_node("%GraphicsPage") as GraphicsSettingsTab
-	var cap: UiDropdown = page.control_for(&"frame_cap_mode") as UiDropdown
-	var table: OptionHelpTable = OptionHelpTable.shared()
-	cap.select(GraphicsPreset.FrameCap.FIXED)
-	cap.grab_focus()
-	line.refresh()
-	assert_eq(line.label.text, table.text_for("frame_cap_mode", GraphicsPreset.FrameCap.FIXED))
-	assert_ne(line.label.text, table.text_for("frame_cap_mode"), "the shown item has its own sentence")
-

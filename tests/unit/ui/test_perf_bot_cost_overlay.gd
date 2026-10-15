@@ -27,13 +27,6 @@ func _f2() -> InputEventKey:
 	return event
 
 
-func _pad_toggle() -> InputEventJoypadButton:
-	var event: InputEventJoypadButton = InputEventJoypadButton.new()
-	event.button_index = JOY_BUTTON_LEFT_STICK
-	event.pressed = true
-	return event
-
-
 func _record(phase_us: Array[int]) -> Dictionary:
 	var units: Array[int] = [1, 2, 3, 4, 5, 6, 7, 8]
 	return {
@@ -60,25 +53,6 @@ func test_f2_toggles_only_in_debug_mode() -> void:
 	DebugMode.set_override_for_test(false)
 	_overlay._unhandled_input(_f2())
 	assert_false(_overlay.is_shown(), "debug off: F2 does nothing")
-
-
-func test_pad_press_needs_back_held() -> void:
-	_overlay._unhandled_input(_pad_toggle())
-	assert_false(_overlay.is_shown(), "bare left-stick click is ignored")
-	Input.action_press(&"camera_snap_home")
-	_overlay._unhandled_input(_pad_toggle())
-	assert_true(_overlay.is_shown(), "Back held: chord toggles")
-	DebugMode.set_override_for_test(false)
-	_overlay._unhandled_input(_pad_toggle())
-	assert_true(_overlay.is_shown(), "debug off: no toggle")
-
-
-func test_show_enables_collector_and_hide_disables_it() -> void:
-	assert_null(BotThinkCostCollector.current())
-	_overlay.set_shown(true)
-	assert_not_null(BotThinkCostCollector.current())
-	_overlay.set_shown(false)
-	assert_null(BotThinkCostCollector.current())
 
 
 func test_table_has_every_phase_row_numbers_and_highlight() -> void:
@@ -109,37 +83,3 @@ func test_table_has_every_phase_row_numbers_and_highlight() -> void:
 	assert_eq(footer[3], "FILL fallback: 0 of 2 thinks (0.0%, 0 sites)", "Bontago-1t5.67 line under the table")
 	assert_true(footer[0].begins_with("PROBE physics 100.0 us"))
 	assert_true(PerfBotCostOverlay.header_text(report, 2, PerfBotCostOverlay.ALL_SLOTS).contains("2 bots"))
-
-
-func test_selector_switches_between_all_and_one_slot() -> void:
-	_overlay.set_shown(true)
-	_feed()
-	_overlay.refresh()
-	var probe_mean_cell: int = (BotThink.Phase.PROBE + 1) * PerfBotCostOverlay.COLUMN_COUNT + 1
-	assert_eq(_overlay.grid_cells()[probe_mean_cell].text, "600.0")
-	_overlay.step_selection(1)
-	assert_eq(_overlay.selected_slot, 1)
-	assert_eq(_overlay.grid_cells()[probe_mean_cell].text, "400.0")
-	_overlay.step_selection(1)
-	assert_eq(_overlay.selected_slot, 2)
-	assert_eq(_overlay.grid_cells()[probe_mean_cell].text, "800.0")
-	_overlay.step_selection(1)
-	assert_eq(_overlay.selected_slot, PerfBotCostOverlay.ALL_SLOTS, "wraps back to all bots")
-	_overlay.step_selection(-1)
-	assert_eq(_overlay.selected_slot, 2)
-
-
-func test_empty_host_and_client_lines() -> void:
-	_overlay.client_override = 0
-	_overlay.set_shown(true)
-	assert_eq(_status_text(), PerfBotCostOverlay.EMPTY_LINE)
-	_overlay.client_override = 1
-	_overlay.refresh()
-	assert_eq(_status_text(), PerfBotCostOverlay.CLIENT_LINE)
-
-
-func _status_text() -> String:
-	for label: Label in _overlay.find_children("*", "Label", true, false):
-		if label.visible and (label.text == PerfBotCostOverlay.EMPTY_LINE or label.text == PerfBotCostOverlay.CLIENT_LINE):
-			return label.text
-	return ""

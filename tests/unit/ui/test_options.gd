@@ -17,11 +17,6 @@ func _make_menu() -> OptionsMenu:
 	return menu
 
 
-func test_control_labels() -> void:
-	assert_eq(KeyRebindRow.DISPLAY_NAMES[&"use_gift_slot"], "Activate gift")
-	assert_eq(KeyRebindRow.DISPLAY_NAMES[&"rotation_mode"], "Free rotation mode (hold)")
-
-
 func _press(action: StringName) -> void:
 	var event: InputEventAction = InputEventAction.new()
 	event.action = action

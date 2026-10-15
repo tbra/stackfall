@@ -604,34 +604,6 @@ func _draw_beacons() -> void:
 		_canvas.draw_polyline(outline, frame_color, frame_width, true)
 
 
-## Test seam (tests/unit/ui/test_hud.gd, test_minimap.gd): a slow CPU reference
-## rasterization of the current state, the exact look the territory shader
-## reproduces. Never called by the running game.
-func debug_image() -> Image:
-	var size_px: int = _size_px
-	var image: Image = Image.create(size_px, size_px, false, Image.FORMAT_RGBA8)
-	if _raster == null or _half_extent <= 0.0:
-		return image
-	var grid: CellGrid = _raster.grid()
-	var meters_per_px: float = (_half_extent * 2.0) / float(size_px)
-	for py: int in range(size_px):
-		var v: float = _half_extent - (float(py) + 0.5) * meters_per_px
-		for px: int in range(size_px):
-			var u: float = (float(px) + 0.5) * meters_per_px - _half_extent
-			var world: Vector2 = Vector2(
-				u * _image_right.x + v * _image_forward.x, u * _image_right.y + v * _image_forward.y
-			)
-			var cell: Vector2i = grid.world_to_cell(world)
-			if not grid.in_bounds(cell.x, cell.y) or not grid.is_in_disk(cell.x, cell.y):
-				continue
-			var team: int = _raster.team_at(cell.x, cell.y)
-			var color: Color = tuning.minimap_backdrop_color
-			if team >= 0 and team < mini(_team_colors.size(), MAX_SLOTS):
-				color = _territory_color(_team_colors[team])
-			image.set_pixel(px, py, color)
-	return image
-
-
 ## Bontago-1pi.191: resizes the minimap to a square of `px` HUD pixels, keeping its bottom-right corner
 ## fixed (the HUD anchors it there and aligns the round timer with that edge). The image rebuilds on
 ## the next refresh because _image_inputs_changed() sees the new size.

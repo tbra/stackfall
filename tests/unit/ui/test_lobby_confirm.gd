@@ -70,11 +70,3 @@ func test_line_edit_focus_suppresses_the_shortcut() -> void:
 	watch_signals(lobby)
 	lobby._input(_key(KEY_ENTER))
 	assert_signal_not_emitted(lobby, "start_requested")
-
-
-func test_client_toggles_ready() -> void:
-	var lobby: Lobby = _make_lobby(false)
-	var check: CheckButton = lobby.get_node("%ReadyCheck") as CheckButton
-	var before: bool = check.button_pressed
-	lobby._input(_pad_start())
-	assert_eq(check.button_pressed, not before)

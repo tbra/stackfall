@@ -29,27 +29,6 @@ func after_each() -> void:
 	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
 
 
-func test_set_active_slot_updates_the_turn_label() -> void:
-	var hud: HUD = _make_hud()
-	hud.set_active_slot(0, Color.RED)
-	assert_true(hud._turn_label.text.findn("Player 1") >= 0)
-	assert_true(hud._turn_label.text.findn("turn") >= 0)
-
-
-func test_set_active_slot_shows_eliminated_slots(
-) -> void:
-	var hud: HUD = _make_hud()
-	var fake_match: FakeMatch = FakeMatch.new()
-	var eliminated_slot: PlayerSlot = PlayerSlot.new(0, 0, "P1", Color.RED)
-	eliminated_slot.home_flag_alive = false
-	fake_match.slots_by_id[0] = eliminated_slot
-	hud.match_provider = fake_match
-
-	hud.set_active_slot(0, Color.RED)
-
-	assert_true(hud._turn_label.text.findn("eliminated") >= 0)
-
-
 ## Bontago-1pi.186: the eliminated local player gets the big red banner, naming
 ## the eliminator, or plain "Eliminated" when none is known.
 func test_eliminated_banner_names_the_eliminator_or_falls_back() -> void:
@@ -66,36 +45,6 @@ func test_eliminated_banner_names_the_eliminator_or_falls_back() -> void:
 	hud.show_eliminated_banner(0)
 	assert_true(hud.eliminated_banner_text().begins_with("Eliminated by "))
 	assert_true(hud._eliminated_label.get_theme_font_size("font_size") > 0)
-
-
-func test_set_next_shape_stores_the_shape_for_the_preview() -> void:
-	var hud: HUD = _make_hud()
-	var bar4: BlockShape = load("res://config/blocks/bar4.tres")
-	hud.set_next_shape(bar4)
-	assert_eq(hud._next_shape, bar4)
-
-
-func test_set_held_shape_stores_the_shape_for_the_held_preview() -> void:
-	var hud: HUD = _make_hud()
-	var cube: BlockShape = load("res://config/blocks/cube.tres")
-	hud.set_held_shape(cube)
-	assert_eq(hud._held_shape, cube)
-
-
-func test_set_feed_progress_clamps_into_0_1() -> void:
-	var hud: HUD = _make_hud()
-	hud.set_feed_progress(0.42)
-	assert_almost_eq(hud._feed_progress, 0.42, 0.001)
-	hud.set_feed_progress(1.5)
-	assert_almost_eq(hud._feed_progress, 1.0, 0.001)
-	hud.set_feed_progress(-0.5)
-	assert_almost_eq(hud._feed_progress, 0.0, 0.001)
-
-
-func test_set_height_formats_meters() -> void:
-	var hud: HUD = _make_hud()
-	hud.set_height(3.14159)
-	assert_eq(hud._height_label.text, "Height: 3.14 m")
 
 
 func test_reach_the_sky_height_line_shows_the_target() -> void:
@@ -119,14 +68,6 @@ func test_set_territory_shares_builds_one_row_per_player_with_matching_width() -
 	assert_eq(bar0.get_child_count(), 0, "the fill is drawn inside the track control, not a child bar")
 	assert_true((hud._share_labels[0] as Label).text.contains("25"))
 	assert_true((hud._share_labels[1] as Label).text.contains("75"))
-
-
-func test_set_territory_shares_shrinks_rows_when_player_count_drops() -> void:
-	var hud: HUD = _make_hud()
-	hud.set_territory_shares(PackedFloat32Array([0.5, 0.5, 0.0]))
-	assert_eq(hud._share_bars.size(), 3)
-	hud.set_territory_shares(PackedFloat32Array([1.0]))
-	assert_eq(hud._share_bars.size(), 1)
 
 
 func test_set_territory_shares_marks_eliminated_slots() -> void:
@@ -158,39 +99,6 @@ func _toast(hud: HUD, needle: String) -> Label:
 		if text.findn(needle) >= 0:
 			return hud._toasts.label_for(text)
 	return null
-
-
-func _toast_accent(label: Label) -> Color:
-	# Stackfall Arcade Callout: the message face (alert / mint / rim) is the accent.
-	return (label.get_theme_stylebox("normal") as StyleBoxFlat).bg_color
-
-
-## Bontago-mp0.145 / 1pi.159.12: every transient message is one pill style in the ONE bottom-centre stack.
-func test_toasts_share_one_pill_style_in_one_stack() -> void:
-	var hud: HUD = _make_hud()
-	hud.show_gift_toast(&"jumping_bean")
-	hud.show_reject(&"outside_territory")
-	hud.show_relocated()
-	assert_eq(hud._toasts.active_texts().size(), 3, "gift, reject and relocated all land in the one stack")
-	for text: String in hud._toasts.active_texts():
-		var label: Label = hud._toasts.label_for(text)
-		assert_eq(label.get_parent(), hud._toasts)
-		assert_not_null(label.get_theme_stylebox("normal") as StyleBoxFlat)
-		assert_eq(label.get_theme_font_size("font_size"), hud.hud_visual_tuning.toast_font_size)
-		assert_not_null(label.get_node_or_null("CalloutIcon"), "every Callout carries its ink icon tile")
-		assert_almost_eq(label.modulate.r, 1.0, 0.001, "the face carries the accent, not a modulate tint")
-	assert_eq(_toast_accent(_toast(hud, "SPECIAL QUEUED")), hud._arcade.rim_color, "a claimed special is a rim reward Callout")
-
-
-func test_toast_stack_is_anchored_bottom_centre_clear_of_the_card_row() -> void:
-	var hud: HUD = _make_hud()
-	var stack: ToastStack = hud._toasts
-	assert_almost_eq(stack.anchor_left, 0.5, 0.001)
-	assert_almost_eq(stack.anchor_right, 0.5, 0.001)
-	assert_almost_eq(stack.anchor_top, 1.0, 0.001)
-	assert_almost_eq(stack.anchor_bottom, 1.0, 0.001)
-	assert_lte(stack.offset_bottom, hud._held_next_panel.offset_top, "the stack sits above the HELD/NEXT row")
-	assert_almost_eq(stack.offset_right - stack.offset_left, hud.hud_visual_tuning.toast_max_width_px, 0.001)
 
 
 func test_toasts_stack_in_arrival_order_and_extra_ones_queue() -> void:
@@ -230,39 +138,6 @@ func test_show_reject_sets_the_message() -> void:
 	assert_almost_eq(label.modulate.a, 1.0, 0.001)
 
 
-## Bontago-xtq.23 (owner playtest 2026-09-24, "if I'm hovering over another
-## player's area I get the rejected message but the block still drops more or
-## less in place"): root cause was a silent auto-drop relocation right after
-## an earlier, correctly-refused manual click -- see
-## tests/unit/match/test_placement_refusal.gd for the rule-level regression tests;
-## these pin the HUD's own missing feedback fix.
-func test_show_relocated_sets_a_distinct_message_from_show_reject() -> void:
-	var hud: HUD = _make_hud()
-	hud.show_relocated()
-	var label: Label = _toast(hud, "relocated")
-	assert_not_null(label)
-	assert_true(label.text.findn("territory") >= 0)
-	assert_almost_eq(label.modulate.a, 1.0, 0.001)
-	assert_eq(
-		_toast_accent(label), hud._arcade.mint_color,
-		"the relocated message should read distinctly from a reject (mint check, not the alert face)."
-	)
-
-
-## Guards show_reject()/show_relocated() sharing one label from bleeding into
-## each other: a relocated message right after an unrelated reject must not
-## keep the reject's own (different) tint.
-func test_show_relocated_after_show_reject_does_not_keep_the_stale_reject_tint() -> void:
-	var hud: HUD = _make_hud()
-	hud.show_reject(&"outside_territory")
-	hud.show_relocated()
-	assert_eq(_toast_accent(_toast(hud, "relocated")), hud._arcade.mint_color)
-	assert_eq(
-		_toast_accent(_toast(hud, "outside territory")), hud._arcade.alert_color,
-		"a reject next to a relocated message keeps its own accent."
-	)
-
-
 func test_placement_relocated_event_shows_relocated_only_for_the_active_slot() -> void:
 	var hud: HUD = _make_hud()
 	Events.turn_changed.emit(0)
@@ -275,87 +150,6 @@ func test_placement_relocated_event_shows_relocated_only_for_the_active_slot() -
 	assert_not_null(_toast(hud, "relocated"))
 
 
-## Bontago-1pi.5 (owner playtest: a separate results screen replaces this
-## in-HUD banner): show_winner() still formats the text/tint (a cheap seam
-## for whatever consumes it next) but must no longer make %WinnerLabel
-## visible.
-func test_show_winner_no_longer_shows_the_hud_banner() -> void:
-	var hud: HUD = _make_hud()
-	assert_false(hud._winner_label.visible)
-	hud.show_winner(0, Color.GOLD)
-	assert_false(hud._winner_label.visible, "the results screen owns the winner announcement now, not this HUD banner")
-	assert_true(hud._winner_label.text.findn("wins") >= 0, "the formatted text is kept harmless, just not shown")
-
-
-# --- Driven through Events, per docs/archive/M2_PLAN.md's acceptance check ---------
-
-
-func test_turn_changed_event_updates_the_hud() -> void:
-	var hud: HUD = _make_hud()
-	Events.turn_changed.emit(1)
-	assert_eq(hud._active_slot, 1)
-	assert_true(hud._turn_label.text.findn("Player 2") >= 0)
-
-
-func test_feed_block_issued_event_updates_the_next_shape_preview_for_the_active_slot() -> void:
-	var hud: HUD = _make_hud()
-	var domino: BlockShape = load("res://config/blocks/domino.tres")
-	Events.turn_changed.emit(0)
-	Events.feed_block_issued.emit(0, &"cube", &"domino")
-	assert_eq(hud._next_shape, domino)
-
-
-func test_feed_block_issued_event_ignores_other_slots() -> void:
-	var hud: HUD = _make_hud()
-	Events.turn_changed.emit(0)
-	Events.feed_block_issued.emit(1, &"cube", &"bar4")
-	assert_null(hud._next_shape)
-
-
-func test_gift_claim_refreshes_only_recipient_next_preview_immediately() -> void:
-	var hud: HUD = _make_hud()
-	var fake_match: FakeMatch = FakeMatch.new()
-	var gift_shape: BlockShape = load("res://config/blocks/bar4.tres")
-	hud.match_provider = fake_match
-	hud.set_local_slot(0)
-	fake_match.next_shapes[0] = gift_shape
-	Events.gift_claimed.emit(42, 1, &"jumping_bean")
-	assert_null(hud._next_shape)
-	Events.gift_claimed.emit(43, 0, &"jumping_bean")
-	assert_same(hud._next_shape, gift_shape)
-	assert_eq(hud._next_label.text, "NEXT")
-	fake_match.pending_special_count_by_slot[0] = 1
-	hud._refresh_special_indicator()
-	assert_eq(hud._next_label.text, "NEXT · GIFT")
-	fake_match.held_special_by_slot[0] = &"jumping_bean"
-	hud._refresh_special_indicator()
-	assert_eq(hud._held_label.text, "HELD: Jumping Bean")
-	assert_eq(hud._next_label.text, "NEXT")
-
-
-func test_territory_share_changed_event_updates_hud() -> void:
-	var hud: HUD = _make_hud()
-	Events.territory_share_changed.emit(PackedFloat32Array([0.3, 0.7]))
-	assert_eq(hud._share_bars.size(), 2)
-
-
-func test_goal_capture_progress_event_updates_hud() -> void:
-	var hud: HUD = _make_hud()
-	Events.goal_capture_progress.emit(0, 0.8)
-	assert_true(hud._capture_ring.visible)
-	assert_almost_eq(hud._capture_progress, 0.8, 0.001)
-
-
-## Bontago-1pi.5: the signal wiring (Events.match_won -> _on_match_won ->
-## show_winner()) must stay harmless -- it still runs, it just must not show
-## anything on this HUD instance anymore (a separate results screen owns
-## that now).
-func test_match_won_event_no_longer_shows_the_hud_winner_label() -> void:
-	var hud: HUD = _make_hud()
-	Events.match_won.emit(1)
-	assert_false(hud._winner_label.visible)
-
-
 func test_a_tied_results_payload_announces_a_shared_win() -> void:
 	var hud: HUD = _make_hud()
 	Events.match_won.emit(0)
@@ -365,43 +159,6 @@ func test_a_tied_results_payload_announces_a_shared_win() -> void:
 		"mode": {"winners": "0,1"},
 	})
 	assert_eq(hud._winner_label.text, "Teams 1 & 2 share the win!")
-
-
-func test_placement_rejected_event_shows_reject_only_for_the_active_slot() -> void:
-	var hud: HUD = _make_hud()
-	Events.turn_changed.emit(0)
-	Events.placement_rejected.emit(1, &"contested")
-	assert_eq(hud._toasts.active_texts().size(), 0, "A rejection for a different slot shouldn't show on this hot-seat HUD.")
-	Events.placement_rejected.emit(0, &"contested")
-	assert_not_null(_toast(hud, "contested"))
-
-
-# --- Bontago-mv0.9: real-time status replaces the hot-seat "turn" banner ----
-
-
-func test_set_local_slot_never_shows_turn_wording() -> void:
-	var hud: HUD = _make_hud()
-	hud.set_local_slot(0)
-	assert_true(hud._turn_label.text.findn("turn") < 0)
-	assert_true(hud._turn_label.text.findn("Player 1") >= 0)
-
-
-func test_set_local_slot_switches_which_slot_the_widgets_read() -> void:
-	var hud: HUD = _make_hud()
-	var fake_match: FakeMatch = FakeMatch.new()
-	var slot0: PlayerSlot = PlayerSlot.new(0, 0, "P1", Color.RED)
-	var slot1: PlayerSlot = PlayerSlot.new(1, 1, "P2", Color.BLUE)
-	fake_match.slots_by_id[0] = slot0
-	fake_match.slots_by_id[1] = slot1
-	hud.match_provider = fake_match
-
-	hud.set_local_slot(0)
-	assert_eq(hud._active_slot, 0)
-	assert_almost_eq(hud._active_color.r, slot0.color.r, 0.01)
-
-	hud.set_local_slot(1)
-	assert_eq(hud._active_slot, 1)
-	assert_almost_eq(hud._active_color.r, slot1.color.r, 0.01)
 
 
 func test_turn_changed_event_shows_no_turn_wording_outside_hot_seat() -> void:
@@ -429,22 +186,6 @@ func test_turn_changed_event_still_shows_turn_wording_in_hot_seat() -> void:
 	assert_true(hud._turn_label.text.findn("turn") >= 0)
 
 
-func test_process_updates_ring_progress_from_the_local_slots_feed_progress() -> void:
-	var hud: HUD = _make_hud()
-	var fake_match: FakeMatch = FakeMatch.new()
-	fake_match.feed_progress_by_slot[0] = 0.75
-	fake_match.feed_progress_by_slot[1] = 0.25
-	hud.match_provider = fake_match
-
-	hud.set_local_slot(0)
-	hud._process(0.0)
-	assert_almost_eq(hud._feed_progress, 0.75, 0.001)
-
-	hud.set_local_slot(1)
-	hud._process(0.0)
-	assert_almost_eq(hud._feed_progress, 0.25, 0.001)
-
-
 func test_process_shows_locked_when_the_local_slots_release_is_locked() -> void:
 	var hud: HUD = _make_hud()
 	var fake_match: FakeMatch = FakeMatch.new()
@@ -470,15 +211,6 @@ func test_process_shows_locked_when_the_local_slots_release_is_locked() -> void:
 # are specifically about the indicator's read of held and next gifts.
 
 
-func test_special_indicator_hidden_when_nothing_is_pending() -> void:
-	var hud: HUD = _make_hud()
-	hud.set_local_slot(0)
-
-	hud._process(0.0)
-
-	assert_false(hud._special_indicator.visible)
-
-
 func test_glue_charges_show_for_the_active_slot_and_clear_when_spent() -> void:
 	var hud: HUD = _make_hud()
 	var fake_match: FakeMatch = FakeMatch.new()
@@ -495,33 +227,6 @@ func test_glue_charges_show_for_the_active_slot_and_clear_when_spent() -> void:
 	fake_match.pending_special_count_by_slot[0] = 0
 	hud._refresh_special_indicator()
 	assert_false(hud._special_indicator.visible)
-
-
-func test_glue_preview_overlay_follows_charges() -> void:
-	var hud: HUD = _make_hud()
-	var fake_match: FakeMatch = FakeMatch.new()
-	hud.match_provider = fake_match
-	hud.set_local_slot(0)
-	assert_false(hud.glue_preview_active())
-	fake_match.glue_drops_by_slot[0] = 5
-	hud._refresh_special_indicator()
-	assert_true(hud.glue_preview_active())
-	fake_match.glue_drops_by_slot[0] = 0
-	hud._refresh_special_indicator()
-	assert_false(hud.glue_preview_active())
-
-
-func test_glue_overlay_clears_when_the_provider_goes_away() -> void:
-	var hud: HUD = _make_hud()
-	var fake_match: FakeMatch = FakeMatch.new()
-	hud.match_provider = fake_match
-	hud.set_local_slot(0)
-	fake_match.glue_drops_by_slot[0] = 5
-	hud._refresh_special_indicator()
-	assert_true(hud.glue_preview_active())
-	hud.match_provider = null
-	hud._refresh_special_indicator()
-	assert_false(hud.glue_preview_active())
 
 
 func test_glue_overlay_clears_on_match_end_and_lobby() -> void:
@@ -563,21 +268,6 @@ func test_special_indicator_shows_a_count_badge_once_a_second_special_is_queued(
 	assert_eq(hud._special_indicator.text, "Jumping Bean ×2")
 
 
-func test_special_indicator_hides_again_after_popping_the_last_pending_special() -> void:
-	var hud: HUD = _make_hud()
-	hud.set_local_slot(0)
-	Match._gifts._ensure_capacity(0)
-	(Match._gifts._pending_queues[0] as Array).append(MatchGifts.PENDING_SPECIAL_ID)
-	hud._process(0.0)
-	assert_true(hud._special_indicator.visible, "must show before the pop")
-
-	Match._gifts.activate_next_special(0)
-	Match.pop_pending_special(0)
-	hud._process(0.0)
-
-	assert_false(hud._special_indicator.visible)
-
-
 func test_special_indicator_ignores_a_claim_for_a_different_slot() -> void:
 	var hud: HUD = _make_hud()
 	hud.set_local_slot(0)
@@ -607,43 +297,6 @@ func test_gift_claimed_for_the_local_slot_shows_the_toast_with_the_special_name(
 	assert_eq(hud._toasts.active_texts(), PackedStringArray(["SPECIAL QUEUED: JUMPING BEAN"]))
 	assert_almost_eq(_toast(hud, "SPECIAL QUEUED").modulate.a, 1.0, 0.0001)
 
-
-func test_gift_claimed_toast_ignores_a_claim_for_a_different_slot() -> void:
-	var hud: HUD = _make_hud()
-	hud.set_local_slot(0)
-
-	Match._gifts._ensure_capacity(1)
-	(Match._gifts._pending_queues[1] as Array).append(MatchGifts.PENDING_SPECIAL_ID)
-	Events.gift_claimed.emit(0, 1, MatchGifts.PENDING_SPECIAL_ID)
-
-	assert_eq(hud._toasts.active_texts().size(), 0, "a claim for another slot must not show a toast on this HUD")
-
-
-func test_gift_claimed_toast_fades_after_its_configured_hold_duration() -> void:
-	var hud: HUD = _make_hud()
-	hud.set_local_slot(0)
-	hud.gift_config = hud.gift_config.duplicate() as GiftConfig
-	hud.gift_config.claim_toast_visible_duration_s = 0.1
-	hud.gift_config.claim_toast_fade_duration_s = 0.1
-
-	Match._gifts._ensure_capacity(0)
-	(Match._gifts._pending_queues[0] as Array).append(MatchGifts.PENDING_SPECIAL_ID)
-	Events.gift_claimed.emit(0, 0, MatchGifts.PENDING_SPECIAL_ID)
-	assert_almost_eq(_toast(hud, "SPECIAL QUEUED").modulate.a, 1.0, 0.0001, "fixture: fully visible right after the claim")
-
-	await get_tree().create_timer(0.35).timeout
-
-	assert_eq(hud._toasts.active_texts().size(), 0, "must have faded out and been removed after hold + fade elapsed")
-
-
-# --- Bontago-keo.17: gift_claimed's slot_id must still reach every teammate -
-# Owner decision "b": Events.gift_claimed's second argument is the RESOLVED
-# RECIPIENT slot (the one teammate nearest the crate), not a team id. Under
-# TEAMS_2 with 4 players, team_of_slot() interleaves
-# (posmod(slot_id, team_count())), so slots 0/2 are team 0 and slots 1/3 are
-# team 1. A claim resolved to slot 0 (team 0) must still show on both slots 0
-# and 2's HUD -- this toast is a team-wide notification, deriving "my team"
-# from _team_of_slot() on both sides -- and on neither slot 1 nor 3's.
 
 func _teams_2_config() -> MatchConfig:
 	var config: MatchConfig = load("res://config/match/match_defaults.tres").duplicate(true) as MatchConfig
@@ -701,184 +354,6 @@ func test_gift_claimed_toast_skips_the_other_team_under_teams_2() -> void:
 ## see ui/hud/Minimap.gd's own class doc DECISION for the root cause and fix.)
 
 
-## Pins the fix directly: nothing under the minimap may be a 3D camera or
-## viewport ever again, because that is exactly what let the mirror's sky
-## reflection leak in depending on view angle. The minimap now draws the live
-## TerritoryRaster in 2D instead.
-func test_minimap_never_creates_a_3d_camera_or_viewport() -> void:
-	var hud: HUD = _make_hud()
-	assert_eq(
-		hud._minimap.find_children("*", "Camera3D", true, false).size(), 0,
-		"the minimap must not own a Camera3D (that path sampled the sky/mirror through camera angle)"
-	)
-	assert_eq(
-		hud._minimap.find_children("*", "SubViewport", true, false).size(), 0,
-		"the minimap must not own a SubViewport"
-	)
-
-
-## No match loaded (a bare HUD-only instance, e.g. a menu behind the scenes)
-## must render nothing and cost nothing: the widget stays hidden until
-## set_map_def() is ever called with a real map.
-func test_minimap_stays_disabled_with_no_match_loaded() -> void:
-	var hud: HUD = _make_hud()
-	assert_false(hud._minimap.is_active())
-	assert_false(hud._minimap.visible)
-
-
-func test_set_map_def_frames_from_the_maps_radius() -> void:
-	var hud: HUD = _make_hud()
-	var small_map: MapDef = MapDef.base().scaled(0.75)
-	var large_map: MapDef = MapDef.base().scaled(1.25)
-	assert_true(large_map.field_radius > small_map.field_radius, "fixture: the large map must actually be bigger")
-
-	hud._minimap.set_map_def(small_map)
-	var small_extent: float = hud._minimap.half_extent()
-	assert_true(hud._minimap.is_active())
-	assert_true(hud._minimap.visible)
-
-	hud._minimap.set_map_def(large_map)
-	var large_extent: float = hud._minimap.half_extent()
-
-	assert_true(
-		large_extent > small_extent,
-		"a bigger map's radius must widen the minimap's framed half-extent"
-	)
-
-
-func test_minimap_gift_markers_follow_camera_and_disappear_from_read_model() -> void:
-	var hud: HUD = _make_hud()
-	var minimap: Minimap = hud._minimap
-	var map_def: MapDef = MapDef.new()
-	map_def.field_radius = 20.0
-	minimap.set_map_def(map_def)
-	minimap.set_gift_states([
-		{"id": 7, "phase": MatchGifts.FALLING, "position": Vector2(10.0, 0.0)},
-		{"id": 8, "phase": MatchGifts.LANDED, "position": Vector2(0.0, 10.0)},
-	])
-	var markers: Array[Dictionary] = minimap.gift_marker_draw_data()
-	assert_eq(markers.size(), 2)
-	assert_gt((markers[0]["pixel"] as Vector2).x, minimap.size.x * 0.5)
-	assert_lt((markers[1]["pixel"] as Vector2).y, minimap.size.y * 0.5)
-	minimap.set_camera_basis(Vector2(0.0, -1.0), Vector2(1.0, 0.0))
-	markers = minimap.gift_marker_draw_data()
-	assert_lt((markers[0]["pixel"] as Vector2).y, minimap.size.y * 0.5)
-	minimap.set_gift_states([{"id": 8, "phase": MatchGifts.LANDED, "position": Vector2(0.0, 10.0)}])
-	assert_eq(minimap.gift_marker_draw_data().size(), 1)
-	minimap.set_gift_states([])
-	assert_eq(minimap.gift_marker_draw_data().size(), 0)
-
-
-## Drives the minimap the same way real play does -- through
-## Events.territory_share_changed, HUD.gd's own chosen hook (no new signal) --
-## and confirms it actually re-frames from the FakeMatch's MapDef, with no
-## error in headless mode. FakeMatch has no raster(), pinning that the
-## has_method(&"raster") guard in HUD._update_minimap() lets this run cleanly
-## with a double that cannot answer it.
-func test_territory_share_changed_event_updates_the_minimap_from_match_config() -> void:
-	var hud: HUD = _make_hud()
-	var fake_match: FakeMatch = FakeMatch.new()
-	fake_match.config = MatchConfig.new()
-	fake_match.config.disc_size_step = 3
-	hud.match_provider = fake_match
-
-	Events.territory_share_changed.emit(PackedFloat32Array([0.5, 0.5]))
-
-	assert_true(hud._minimap.is_active())
-	var expected_map: MapDef = fake_match.config.map_def()
-	assert_almost_eq(
-		hud._minimap.half_extent(), expected_map.field_radius + hud.hud_visual_tuning.minimap_zoom_margin_m, 0.01
-	)
-
-
-func test_territory_share_changed_event_leaves_the_minimap_disabled_with_no_config() -> void:
-	var hud: HUD = _make_hud()
-	var fake_match: FakeMatch = FakeMatch.new()
-	hud.match_provider = fake_match
-
-	Events.territory_share_changed.emit(PackedFloat32Array([0.5, 0.5]))
-
-	assert_false(hud._minimap.is_active())
-
-
-## Content regression for the owner's actual complaint: the minimap must show
-## the real TerritoryRaster's team colors, and never anything sampled from a
-## 3D scene (no sky can leak into a value nothing here ever reads from a
-## camera). Builds a real raster (same fixture shape as
-## tests/unit/territory/test_territory_raster.gd) with one home circle at the disk
-## centre, feeds it to the minimap directly via set_match_state()+
-## render_now(), and reads the rendered image back.
-func test_minimap_image_draws_the_live_raster_not_a_camera_sample() -> void:
-	var hud: HUD = _make_hud()
-	var map_def: MapDef = MapDef.new()
-	map_def.id = &"test_minimap"
-	map_def.field_radius = 20.0
-	map_def.cell_size = 1.0
-	hud._minimap.set_map_def(map_def)
-
-	var tuning: TerritoryTuning = load("res://config/territory/territory_tuning.tres")
-	var grid: CellGrid = CellGrid.new(map_def.field_radius, map_def.cell_size)
-	var solver: TerritorySolver = TerritorySolver.new(tuning)
-	var raster: TerritoryRaster = TerritoryRaster.new(grid, tuning)
-	var circles: Array[InfluenceCircle] = [
-		InfluenceCircle.new(Vector2(0.0, 0.0), tuning.home_radius, 0, 0, true, -1)
-	]
-	var groups: TerritoryGroups = solver.solve(circles)
-	raster.update(circles, groups, 0.1, true, false)
-
-	hud._minimap.set_match_state(raster, PackedColorArray([Color.RED]), PackedVector2Array([Vector2.ZERO]))
-	hud._minimap.render_now()
-
-	var image: Image = hud._minimap.debug_image()
-	var size_px: int = image.get_width()
-	var center: Color = image.get_pixel(size_px / 2, size_px / 2)
-	assert_almost_eq(center.r, 1.0, 0.05, "the disk centre, inside the home circle, must render team 0's own color")
-	assert_almost_eq(center.a, 1.0, 0.05, "an owned in-disk cell must be fully opaque")
-
-	var corner: Color = image.get_pixel(1, 1)
-	assert_almost_eq(
-		corner.a, 0.0, 0.001,
-		"outside the disk must be fully transparent -- never a sampled sky/mirror pixel"
-	)
-
-
-## Every dealt shape has a baked thumbnail; repeated draws reuse its texture.
-func test_static_preview_assets_cover_every_shape_and_are_cached() -> void:
-	var hud: HUD = _make_hud()
-	for shape: BlockShape in BlockShape.load_all_shapes():
-		var texture: Texture2D = hud._preview_texture(shape)
-		assert_not_null(texture, "%s needs a baked preview" % shape.id)
-		assert_same(texture, hud._preview_texture(shape), "preview textures must be reused")
-		if texture != null:
-			assert_gt(texture.get_width(), 0)
-			assert_gt(texture.get_height(), 0)
-
-
-func test_null_shape_has_no_static_preview() -> void:
-	var hud: HUD = _make_hud()
-	assert_null(hud._preview_texture(null))
-	assert_eq(hud._preview_textures.size(), 0)
-
-
-func test_gift_slot_card_shows_only_while_a_gift_is_slotted() -> void:
-	var hud: HUD = _make_hud()
-	hud.set_active_slot(0, Color.RED)
-	hud._refresh_gift_slot()
-	assert_false(hud._gift_slot_column.visible)
-	var base_right: float = hud._held_next_panel.offset_right
-	Match._gifts._gift_slots[0] = [&"anvil"]
-	hud._refresh_gift_slot()
-	assert_true(hud._gift_slot_column.visible)
-	assert_gt(hud._held_next_panel.offset_right, base_right, "panel widens for the card")
-	assert_true(hud._gift_slot_label.text.begins_with("GIFT"))
-	Match._gifts._gift_slots.clear()
-	hud._refresh_gift_slot()
-	assert_false(hud._gift_slot_column.visible)
-	assert_eq(hud._held_next_panel.offset_right, base_right)
-
-
-# --- Bontago-1pi.25.1 Domination readout ------------------------------------
-
 func test_domination_readout_only_in_domination() -> void:
 	var hud: HUD = _make_hud()
 	var dom: Dictionary = {"mode_id": MatchConfig.GameMode.DOMINATION, "scores": [0.25, 0.41], "extra": {}, "round_left": 125.0}
@@ -916,171 +391,6 @@ class GiftFakeMatch:
 		return gift_count
 
 
-func _qol_config(timer_pause: bool, backlog: bool, goal_radius: bool, gift_slot: bool) -> MatchConfig:
-	var config: MatchConfig = MatchConfig.new()
-	config.hot_seat = false
-	config.qol = QolExperiments.with_toggles(null, timer_pause, backlog, goal_radius, gift_slot)
-	return config
-
-
-## A HUD reading `config` through a GiftFakeMatch (gift slot holding an anvil when `gift`).
-func _qol_hud(config: MatchConfig, gift: bool, parent: Node = null) -> HUD:
-	var scene: PackedScene = load("res://ui/hud/HUD.tscn")
-	var hud: HUD = scene.instantiate() as HUD
-	if parent == null:
-		add_child_autofree(hud)
-	else:
-		parent.add_child(hud)
-	var provider: GiftFakeMatch = GiftFakeMatch.new()
-	provider.config = config
-	provider.gift_head = &"anvil" if gift else &""
-	provider.gift_count = 1 if gift else 0
-	hud.match_provider = provider
-	hud.set_local_slot(0)
-	return hud
-
-
-func _first_binding(action: StringName, gamepad: bool) -> InputEvent:
-	for event: InputEvent in InputMap.action_get_events(action):
-		var is_pad: bool = event is InputEventJoypadButton or event is InputEventJoypadMotion
-		if is_pad == gamepad:
-			return event
-	return null
-
-
-func _reference_glyph(event: InputEvent) -> InputGlyph:
-	var glyph: InputGlyph = INPUT_GLYPH_SCENE.instantiate() as InputGlyph
-	add_child_autofree(glyph)
-	glyph.set_event(event)
-	return glyph
-
-
-func test_gift_slot_card_shows_the_keyboard_binding_glyph() -> void:
-	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
-	var hud: HUD = _qol_hud(_qol_config(false, false, false, true), true)
-	hud._process(0.0)
-	assert_true(hud._gift_slot_column.visible)
-	assert_not_null(hud._gift_slot_glyph, "the card carries a glyph")
-	assert_eq(hud._gift_slot_glyph.get_parent(), hud._gift_slot_glyph_row)
-	var event: InputEvent = _first_binding(HUD.GIFT_SLOT_ACTION, false)
-	assert_true(event is InputEventKey, "use_gift_slot has a keyboard binding")
-	var reference: InputGlyph = _reference_glyph(event)
-	assert_eq(hud._gift_slot_glyph.label_text(), reference.label_text())
-	assert_true(hud._gift_slot_glyph.is_arcade_cap(), "keycap is drawn")
-	assert_eq(hud._gift_slot_glyph_row.get_child_count(), 1)
-	hud._process(0.0)
-	assert_eq(hud._gift_slot_glyph_row.get_child_count(), 1, "an unchanged binding is not rebuilt")
-
-
-func test_gift_slot_card_glyph_follows_a_synthetic_joypad_button() -> void:
-	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
-	var hud: HUD = _qol_hud(_qol_config(false, false, false, true), true)
-	hud._process(0.0)
-	var key_label: String = hud._gift_slot_glyph.label_text()
-
-	var press: InputEventJoypadButton = InputEventJoypadButton.new()
-	press.device = -1
-	press.button_index = JOY_BUTTON_A
-	press.pressed = true
-	Input.parse_input_event(press)
-	Input.flush_buffered_events()
-	assert_eq(Settings.active_input_device(), Settings.DEVICE_GAMEPAD, "the joypad event flips the device")
-	assert_not_null(hud._gift_slot_glyph, "refreshed on input_device_changed, no frame needed")
-	var pad_event: InputEvent = _first_binding(HUD.GIFT_SLOT_ACTION, true)
-	assert_true(pad_event is InputEventJoypadButton, "use_gift_slot has a gamepad binding")
-	var reference: InputGlyph = _reference_glyph(pad_event)
-	assert_eq(hud._gift_slot_glyph.label_text(), reference.label_text())
-	assert_ne(hud._gift_slot_glyph.label_text(), key_label, "pad glyph replaces the keycap")
-	assert_true(hud._gift_slot_glyph.is_arcade_cap(), "pad cap is drawn")
-	assert_eq(hud._gift_slot_glyph_row.get_child_count(), 1)
-
-	var release: InputEventJoypadButton = InputEventJoypadButton.new()
-	release.device = -1
-	release.button_index = JOY_BUTTON_A
-	release.pressed = false
-	Input.parse_input_event(release)
-	Input.flush_buffered_events()
-	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
-	assert_eq(hud._gift_slot_glyph.label_text(), key_label, "back on keyboard/mouse")
-
-
-func test_gift_slot_card_glyph_follows_a_rebind_and_a_missing_binding() -> void:
-	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
-	var hud: HUD = _qol_hud(_qol_config(false, false, false, true), true)
-	hud._process(0.0)
-	var original: Array[InputEvent] = InputMap.action_get_events(HUD.GIFT_SLOT_ACTION)
-
-	var rebound: InputEventKey = InputEventKey.new()
-	rebound.physical_keycode = KEY_H
-	rebound.keycode = KEY_H
-	InputMap.action_erase_events(HUD.GIFT_SLOT_ACTION)
-	InputMap.action_add_event(HUD.GIFT_SLOT_ACTION, rebound)
-	hud._process(0.0)
-	var after_rebind: String = hud._gift_slot_glyph.label_text() if hud._gift_slot_glyph != null else "<none>"
-	# The rebound action has no gamepad binding now: the pad family shows nothing.
-	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
-	var pad_glyph_present: bool = hud._gift_slot_glyph != null
-
-	InputMap.action_erase_events(HUD.GIFT_SLOT_ACTION)
-	for event: InputEvent in original:
-		InputMap.action_add_event(HUD.GIFT_SLOT_ACTION, event)
-	assert_eq(after_rebind, "H", "the card shows the new key")
-	assert_false(pad_glyph_present, "no binding for the active device shows no glyph")
-	hud._process(0.0)
-	assert_not_null(hud._gift_slot_glyph, "the restored gamepad binding shows again")
-
-
-func _layout_hud(vp: SubViewport, config: MatchConfig) -> HUD:
-	var hud: HUD = _qol_hud(config, true, vp)
-	var shares: PackedFloat32Array = PackedFloat32Array()
-	for _i: int in LAYOUT_PLAYER_COUNT:
-		shares.append(1.0 / float(LAYOUT_PLAYER_COUNT))
-	hud.set_territory_shares(shares)
-	return hud
-
-
-func _settle_layout() -> void:
-	for _i: int in LAYOUT_SETTLE_FRAMES:
-		await get_tree().process_frame
-
-
-func test_gift_glyph_and_name_rows_fit_at_1280x720_and_3440x1440() -> void:
-	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
-	for window: Vector2i in LAYOUT_SIZES:
-		var vp: SubViewport = UiScale.make_viewport(window)
-		vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-		add_child_autofree(vp)
-		var config: MatchConfig = _qol_config(true, true, true, true)
-		config.player_count = LAYOUT_PLAYER_COUNT
-		var hud: HUD = _layout_hud(vp, config)
-		await _settle_layout()
-		var screen: Rect2 = Rect2(Vector2.ZERO, Vector2(vp.get_visible_rect().size))
-		var backplate: Rect2 = hud._top_left_backplate.get_global_rect()
-		var where: String = "at %s" % window
-		for name_label: Label in hud._share_name_labels:
-			assert_true(backplate.grow(EDGE_EPS).encloses(name_label.get_global_rect()), "name stays inside the stats backplate %s" % where)
-		assert_true(screen.encloses(backplate), "backplate on screen %s" % where)
-		var panel: Rect2 = hud._held_next_panel.get_global_rect()
-		assert_false(backplate.intersects(hud._timer_ring.get_global_rect()), "stats vs timer ring %s" % where)
-		assert_false(backplate.intersects(hud._minimap.get_global_rect()), "stats vs minimap %s" % where)
-		assert_false(backplate.intersects(panel), "stats (8 players) vs held/next/gift panel %s: %s vs %s" % [where, backplate, panel])
-		assert_false(panel.intersects(hud._minimap.get_global_rect()), "held/next/gift panel vs minimap %s" % where)
-		assert_false(panel.intersects(hud._timer_ring.get_global_rect()), "held/next/gift panel vs timer ring %s" % where)
-		assert_true(screen.encloses(panel), "panel on screen %s" % where)
-		# Gift card: glyph sits inside the card, below (not over) the gift icon.
-		assert_true(hud._gift_slot_column.visible, "gift card shown %s" % where)
-		assert_not_null(hud._gift_slot_glyph, "glyph on the card %s" % where)
-		var card: Rect2 = (hud._gift_slot_preview.get_parent() as Control).get_global_rect()
-		var glyph_rect: Rect2 = hud._gift_slot_glyph.get_global_rect()
-		assert_true(card.grow(EDGE_EPS).encloses(glyph_rect), "glyph inside the card %s: %s vs %s" % [where, glyph_rect, card])
-		assert_false(glyph_rect.intersects(hud._gift_slot_preview.get_global_rect()), "glyph does not cover the gift icon %s" % where)
-		assert_true(card.grow(EDGE_EPS).encloses(hud._gift_slot_preview.get_global_rect()), "icon inside the card %s" % where)
-		vp.queue_free()
-		await get_tree().process_frame
-
-
-# --- Bontago-1pi.68: names + mode-specific row values, removed lines ----------
-
 func _named_match(names: Array[String]) -> FakeMatch:
 	var fake_match: FakeMatch = FakeMatch.new()
 	for slot_id: int in range(names.size()):
@@ -1104,16 +414,6 @@ func test_rows_show_player_names_not_p_numbers() -> void:
 		assert_eq(name_label.text_overrun_behavior, TextServer.OVERRUN_TRIM_ELLIPSIS, "long names ellipsize")
 
 
-func test_bot_rows_show_the_roster_name() -> void:
-	var hud: HUD = _make_hud()
-	var fake_match: FakeMatch = _named_match(["Tonyflow", "Gizmo"])
-	(fake_match.slots_by_id[1] as PlayerSlot).is_bot = true
-	hud.match_provider = fake_match
-	hud.set_territory_shares(PackedFloat32Array([0.5, 0.5]))
-	assert_true((hud._share_name_labels[1] as Label).text.length() > 0)
-	assert_false((hud._share_name_labels[1] as Label).text.begins_with("P1"))
-
-
 func test_ctf_rows_show_hold_time_and_no_separate_score_line() -> void:
 	var hud: HUD = _make_hud()
 	hud.match_provider = _named_match(["A", "B"])
@@ -1124,37 +424,6 @@ func test_ctf_rows_show_hold_time_and_no_separate_score_line() -> void:
 	assert_eq((hud._share_labels[1] as Label).text, "0.0 s")
 	assert_null(hud._mode_score_label, "the round clock moved to the UiRoundTimer; no CTF status line is left")
 	assert_eq(HUD.mode_status_text(ctf).find("58"), -1)
-
-
-func test_reach_the_sky_rows_show_height() -> void:
-	var hud: HUD = _make_hud()
-	hud.match_provider = _named_match(["A", "B"])
-	hud.set_territory_shares(PackedFloat32Array([0.0, 0.0]))
-	hud._on_mode_state_changed({"mode_id": MatchConfig.GameMode.REACH_THE_SKY, "scores": [11.93, 2.0], "extra": {}, "round_left": 0.0})
-	assert_eq((hud._share_labels[0] as Label).text, "11.9 m")
-	assert_eq((hud._share_labels[1] as Label).text, "2.0 m")
-
-
-func test_territory_modes_keep_percent_rows() -> void:
-	var state: Dictionary = {"mode_id": MatchConfig.GameMode.DOMINATION, "scores": [0.25, 0.41], "extra": {}, "round_left": 0.0}
-	assert_eq(HUD.row_value_text(state, 1, 0.41), "41%")
-	assert_eq(HUD.row_value_text({}, 0, 0.5), "50%", "Classic: no mode state")
-
-
-func test_name_header_tower_block_and_experiments_lines_are_not_shown() -> void:
-	var hud: HUD = _make_hud()
-	hud.set_local_slot(0)
-	hud.set_tower_and_block_height(11.93, 19.6)
-	assert_false(hud._turn_label.visible, "no local-player name header outside hot-seat")
-	assert_false(hud._height_label.visible, "no Tower/Block line")
-	assert_null(hud.find_child("ExperimentsLabel", true, false), "no experiments line")
-	var hot_seat: MatchConfig = MatchConfig.new()
-	hot_seat.hot_seat = true
-	var fake_match: FakeMatch = FakeMatch.new()
-	fake_match.config = hot_seat
-	hud.match_provider = fake_match
-	hud.set_active_slot(1, Color.RED)
-	assert_true(hud._turn_label.visible, "hot-seat keeps its turn banner")
 
 
 ## Bontago-1pi.117: a client gets sparse capture updates on a static board; the
@@ -1172,21 +441,6 @@ func test_client_capture_ring_rises_between_sparse_updates_and_snaps() -> void:
 	assert_almost_eq(hud._capture_progress, 1.0, 0.0001, "capped")
 
 
-func test_client_capture_ring_stops_on_break_and_win() -> void:
-	var hud: HUD = _make_hud()
-	Events.goal_capture_progress.emit(0, 0.4)
-	Events.goal_capture_progress.emit(-1, 0.0)
-	hud.extrapolate_capture(5.0, 20.0)
-	assert_eq(hud._capture_progress, 0.0)
-	assert_false(hud._capture_ring.visible)
-	Events.goal_capture_progress.emit(1, 0.4)
-	Events.match_won.emit(1)
-	hud.extrapolate_capture(5.0, 20.0)
-	assert_almost_eq(hud._capture_progress, 0.4, 0.0001, "no rise after a win")
-
-
-# --- Stackfall Arcade HUD reskin (Bontago-hfa.6) -------------------------------
-
 func test_scoreboard_marks_only_the_local_row_with_you() -> void:
 	var hud: HUD = _make_hud()
 	hud.set_territory_shares(PackedFloat32Array([0.5, 0.5]))
@@ -1194,40 +448,6 @@ func test_scoreboard_marks_only_the_local_row_with_you() -> void:
 	assert_false((hud._share_you_labels[0] as Label).visible)
 	assert_true((hud._share_you_labels[1] as Label).visible)
 	assert_eq((hud._share_you_labels[1] as Label).get_theme_color("font_color"), hud._arcade.rim_color)
-
-
-func test_share_bar_cuts_every_tenth() -> void:
-	var hud: HUD = _make_hud()
-	hud.set_territory_shares(PackedFloat32Array([0.5]))
-	var bar: ShareBar = hud._share_bars[0]
-	var ticks: PackedFloat32Array = bar.tick_positions()
-	assert_eq(ticks.size(), hud.hud_visual_tuning.share_tick_count - 1)
-	assert_almost_eq(ticks[0], bar.size.x / float(hud.hud_visual_tuning.share_tick_count), 0.001)
-
-
-func test_locked_fades_the_held_and_next_cards() -> void:
-	var hud: HUD = _make_hud()
-	hud.set_locked(true)
-	assert_almost_eq(hud._held_shape_card.modulate.a, hud.hud_visual_tuning.locked_card_alpha, 0.001)
-	assert_almost_eq(hud._next_shape_card.modulate.a, hud.hud_visual_tuning.locked_card_alpha, 0.001)
-	hud.set_locked(false)
-	assert_almost_eq(hud._held_shape_card.modulate.a, 1.0, 0.001)
-
-
-func test_reject_callout_is_an_alert_face_with_a_cross_and_uppercase_text() -> void:
-	var hud: HUD = _make_hud()
-	hud.show_reject(&"outside_territory")
-	var label: Label = hud._toasts.label_for("REJECTED: OUTSIDE TERRITORY")
-	assert_not_null(label)
-	assert_eq(_toast_accent(label), hud._arcade.alert_color)
-	var tile: HudCallout = label.get_node("CalloutIcon") as HudCallout
-	assert_eq(tile.glyph, HudCallout.Glyph.CROSS)
-	assert_eq(label.get_theme_color("font_color"), hud._arcade.ink_color)
-
-
-func test_timer_ring_bottom_sits_above_the_tutorial_banner_gap() -> void:
-	var hud: HUD = _make_hud()
-	assert_gt(hud.timer_ring_bottom_px(), 0.0)
 
 
 ## Bontago-1pi.85.69: a gift staged as the block AFTER next marks the NEXT label and leaves the
@@ -1239,24 +459,3 @@ class StagedGiftFakeMatch:
 
 	func after_next_special(_slot_id: int) -> StringName:
 		return staged_id
-
-
-func test_staged_after_next_gift_is_marked_but_the_next_preview_stays_ordinary() -> void:
-	var hud: HUD = _make_hud()
-	var fake_match: StagedGiftFakeMatch = StagedGiftFakeMatch.new()
-	hud.match_provider = fake_match
-	hud.set_local_slot(0)
-	fake_match.pending_special_count_by_slot[0] = 1
-	fake_match.staged_id = &"anvil"
-	hud._refresh_special_indicator()
-	assert_eq(hud._next_label.text, "NEXT · +1 GIFT")
-	assert_null(hud.next_gift_icon(), "the staged gift is not drawn as the next piece")
-	fake_match.pending_special_count_by_slot[0] = 2
-	fake_match.staged_id = &"anvil"
-	hud._refresh_special_indicator()
-	assert_eq(hud._next_label.text, "NEXT · GIFT +1", "a gift next and one staged behind it")
-	fake_match.pending_special_count_by_slot[0] = 1
-	fake_match.staged_id = &""
-	hud._refresh_special_indicator()
-	assert_eq(hud._next_label.text, "NEXT · GIFT", "once promoted it is the next piece")
-

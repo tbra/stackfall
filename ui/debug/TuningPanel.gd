@@ -1181,15 +1181,6 @@ func control_for(resource: Resource, prop_name: String) -> Control:
 	return null
 
 
-## Test/inspection seam: the section titles built for `resource`, in order.
-func section_titles_for(resource: Resource) -> Array[String]:
-	var titles: Array[String] = []
-	for entry: Dictionary in _group_titles:
-		if entry.get("resource") == resource:
-			titles.append(String(entry.get("title")))
-	return titles
-
-
 ## Test/inspection seam: the _rows entry for one field ({} if none).
 func _row_for(resource: Resource, prop_name: String) -> Dictionary:
 	for row: Dictionary in _rows:
