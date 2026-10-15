@@ -8,7 +8,7 @@ func test_live_cone_switch_projects_a_settled_block_and_restores_the_default_ang
 	var registry: BlockRegistry = Match.registry()
 	for entry: Variant in registry._entries.values():
 		entry.is_settled = true
-	var original: Array[InfluenceCircle] = Match._collect_circles()
+	var original: Array[InfluenceCircle] = Match._territory._collect_circles()
 	assert_gt(original.size(), 2, "fixture needs two homes and one settled block")
 	var projected: Dictionary = SandboxConeAdapter.project(
 		original, _main._field, registry, 75.0, SandboxConeExperiment.HEIGHT_TOP,

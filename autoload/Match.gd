@@ -336,24 +336,8 @@ var _solver: TerritorySolver:
 	get: return _territory._solver if _late_active else null
 
 
-func _resolve_outcome(initial_result: PlacementRules.Result, auto_drop: bool, relocated: Vector2) -> Dictionary:
-	return _placement._resolve_outcome(initial_result, auto_drop, relocated)
-
-
 func _finish_match(winning_team: int) -> void:
 	_lifecycle._finish_match(winning_team)
-
-
-func _check_home_flags(opened: PackedInt32Array) -> void:
-	_territory._check_home_flags(opened)
-
-
-func _check_home_flags_v2() -> void:
-	_territory._check_home_flags_v2()
-
-
-func _collect_circles() -> Array[InfluenceCircle]:
-	return _territory._collect_circles()
 
 
 ## M4 P1b: MatchGifts.claim_or_expire_gifts() runs right after the raster
@@ -888,9 +872,6 @@ func set_sandbox_territory_mode(
 func sandbox_territory_mode() -> int:
 	return _sandbox_territory_mode
 
-
-func sandbox_territory_paused() -> bool:
-	return _sandbox_territory_mode == SANDBOX_TERRITORY_PAUSED
 
 
 # --- The one authoritative entry point (spec 3.4) ---------------------------

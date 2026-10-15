@@ -289,30 +289,30 @@ func _sample_valid_payload() -> Dictionary:
 
 
 func test_validate_results_payload_accepts_a_well_formed_payload() -> void:
-	var validated: Dictionary = MatchStats.validate_results_payload(_sample_valid_payload())
+	var validated: Dictionary = ResultsValidation.validate_results_payload(_sample_valid_payload())
 	assert_false(validated.is_empty(), "a well-formed payload must not be rejected")
 	assert_eq(String(validated["winner_kind"]), "slot")
 	assert_eq((validated["rows"] as Array).size(), 2)
 
 
 func test_validate_results_payload_rejects_malformed_payloads() -> void:
-	assert_true(MatchStats.validate_results_payload("not a dictionary").is_empty(), "a non-Dictionary must be dropped")
+	assert_true(ResultsValidation.validate_results_payload("not a dictionary").is_empty(), "a non-Dictionary must be dropped")
 
 	var bad_kind: Dictionary = _sample_valid_payload()
 	bad_kind["winner_kind"] = "clan"
-	assert_true(MatchStats.validate_results_payload(bad_kind).is_empty(), "an unknown winner_kind must be dropped")
+	assert_true(ResultsValidation.validate_results_payload(bad_kind).is_empty(), "an unknown winner_kind must be dropped")
 
 	var missing_rows: Dictionary = _sample_valid_payload()
 	missing_rows.erase("rows")
-	assert_true(MatchStats.validate_results_payload(missing_rows).is_empty(), "a payload with no rows array must be dropped")
+	assert_true(ResultsValidation.validate_results_payload(missing_rows).is_empty(), "a payload with no rows array must be dropped")
 
 	var negative_duration: Dictionary = _sample_valid_payload()
 	negative_duration["match_duration"] = -1.0
-	assert_true(MatchStats.validate_results_payload(negative_duration).is_empty(), "a negative duration must be dropped")
+	assert_true(ResultsValidation.validate_results_payload(negative_duration).is_empty(), "a negative duration must be dropped")
 
 	var nan_duration: Dictionary = _sample_valid_payload()
 	nan_duration["match_duration"] = NAN
-	assert_true(MatchStats.validate_results_payload(nan_duration).is_empty(), "a non-finite duration must be dropped")
+	assert_true(ResultsValidation.validate_results_payload(nan_duration).is_empty(), "a non-finite duration must be dropped")
 
 	var bad_row: Dictionary = _sample_valid_payload()
 	var rows: Array = (bad_row["rows"] as Array).duplicate(true)
@@ -320,7 +320,7 @@ func test_validate_results_payload_rejects_malformed_payloads() -> void:
 	row0["blocks_placed"] = -1
 	rows[0] = row0
 	bad_row["rows"] = rows
-	assert_true(MatchStats.validate_results_payload(bad_row).is_empty(), "a negative counter inside a row must be dropped")
+	assert_true(ResultsValidation.validate_results_payload(bad_row).is_empty(), "a negative counter inside a row must be dropped")
 
 	var wrong_type_row: Dictionary = _sample_valid_payload()
 	var rows2: Array = (wrong_type_row["rows"] as Array).duplicate(true)
@@ -328,7 +328,7 @@ func test_validate_results_payload_rejects_malformed_payloads() -> void:
 	row1["is_bot"] = "yes"
 	rows2[0] = row1
 	wrong_type_row["rows"] = rows2
-	assert_true(MatchStats.validate_results_payload(wrong_type_row).is_empty(), "a wrong-typed field inside a row must be dropped")
+	assert_true(ResultsValidation.validate_results_payload(wrong_type_row).is_empty(), "a wrong-typed field inside a row must be dropped")
 
 
 # --- Host-only replay / return-to-lobby intents (net/MatchNet.gd) ----------
@@ -545,7 +545,7 @@ func test_client_receives_the_same_tally_over_the_results_event() -> void:
 
 	var bad: Dictionary = host_results.duplicate(true)
 	(bad["rows"] as Array)[0]["wins"] = -1
-	assert_true(MatchStats.validate_results_payload(bad).is_empty(), "a negative wins count is dropped")
+	assert_true(ResultsValidation.validate_results_payload(bad).is_empty(), "a negative wins count is dropped")
 
 
 # --- Bontago-1pi.69: live scoreboard snapshot ----------------------------------
@@ -562,7 +562,7 @@ func test_live_payload_is_the_results_shape_for_the_round_in_progress() -> void:
 	assert_eq(rows.size(), 2)
 	assert_eq(int((rows[0] as Dictionary)["blocks_placed"]), 1)
 	assert_almost_eq(float((rows[1] as Dictionary)["height"]), 3.0, 0.001)
-	assert_false(MatchStats.validate_results_payload(live).is_empty(), "same wire validation as the results payload")
+	assert_false(ResultsValidation.validate_results_payload(live).is_empty(), "same wire validation as the results payload")
 	var wins_before: int = Match.stats().session_wins(0)
 	Match.stats().build_live_payload()
 	assert_eq(Match.stats().session_wins(0), wins_before, "building a live snapshot records no win")
@@ -570,7 +570,7 @@ func test_live_payload_is_the_results_shape_for_the_round_in_progress() -> void:
 
 func test_client_live_payload_is_the_last_replicated_snapshot() -> void:
 	var stats: MatchStats = MatchStats.new()
-	var snapshot: Dictionary = MatchStats.validate_results_payload(_sample_valid_payload())
+	var snapshot: Dictionary = ResultsValidation.validate_results_payload(_sample_valid_payload())
 	stats.apply_live_snapshot(snapshot)
 	assert_eq((stats._remote_live["rows"] as Array).size(), 2)
 	assert_true(bool(stats._remote_live["live"]))
