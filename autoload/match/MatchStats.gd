@@ -18,7 +18,7 @@ extends RefCounted
 ## does) but never accumulates: it receives the host's authoritative numbers
 ## as one payload over Events.match_results_ready, replicated by
 ## net/MatchNet.gd's single EVENT_MATCH_RESULTS RPC and re-validated by
-## validate_results_payload() below before that signal ever reaches a
+## ResultsValidation.validate_results_payload() before that signal ever reaches a
 ## client's game code.
 ##
 ## **Most counters are driven by the existing Events bus, not by new call
@@ -46,7 +46,7 @@ extends RefCounted
 ## Events.match_results_ready(results: Dictionary) fires once per match end,
 ## on the host directly from MatchLifecycle._finish_match() and on every
 ## client after net/MatchNet.gd's EVENT_MATCH_RESULTS dispatch has validated
-## the wire payload with validate_results_payload() below. `results` is
+## the wire payload with ResultsValidation.validate_results_payload(). `results` is
 ## always shaped:
 ## ```
 ## {
@@ -91,7 +91,7 @@ extends RefCounted
 ## }
 ## ```
 ## (ResultsPayload owns the key names and the validator.)
-## validate_results_payload(raw: Variant) -> Dictionary rebuilds and
+## ResultsValidation.validate_results_payload(raw: Variant) -> Dictionary rebuilds and
 ## strictly re-types a wire Dictionary into exactly this shape, or returns an
 ## empty Dictionary for anything malformed (net/MatchNet.gd's dispatch treats
 ## an empty return as "drop the packet", the same convention
@@ -385,7 +385,7 @@ func live_payload() -> Dictionary:
 
 
 ## Client side of the replicated live snapshot (already validated by the
-## caller via validate_results_payload()); display only.
+## caller via ResultsValidation.validate_results_payload()); display only.
 func apply_live_snapshot(payload: Dictionary) -> void:
 	_remote_live = payload.duplicate()
 	_remote_live[ResultsPayload.KEY_LIVE] = true
@@ -405,19 +405,6 @@ func _winner_name(winning_team: int, ffa: bool) -> String:
 
 
 # --- Wire validation (net/MatchNet.gd EVENT_MATCH_RESULTS dispatch) ---------
-
-## Strictly re-types a wire payload into this file's own results shape, or
-## returns an empty Dictionary for anything malformed -- a short/renamed key,
-## a wrong-shaped row, a winner_kind outside the two known values, or a
-## negative/non-finite duration. Follows net/MatchNet.gd's own
-## `_gift_wire_ok()`/`_pose_is_acceptable()` precedent: reject rather than
-## default, because a client only ever shows this payload on a results
-## screen (never feeds it back into a rule), so there is no safe partial
-## value to fall back to the way MatchConfig.from_dict() falls back to a
-## field default.
-static func validate_results_payload(raw: Variant) -> Dictionary:
-	return ResultsValidation.validate_results_payload(raw)
-
 
 # --- Event listeners (host only) --------------------------------------------
 

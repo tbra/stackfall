@@ -9,7 +9,7 @@ extends RefCounted
 ## DECISION (minor): a small core/ class rather than MatchStats, because the
 ## readers are pure UI/rule helpers that should not depend on an autoload-side
 ## script, and core/ has no scene-tree dependence (unit-testable). MatchStats
-## stays the builder and keeps validate_results_payload() as a thin delegate.
+## stays the builder.
 ## The wire format and every string value are unchanged.
 ##
 ## Shape: {winner_kind, winner_id, winner_name, match_duration, rows[, mode][, live]};

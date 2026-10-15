@@ -78,12 +78,6 @@ const KEY_MATCH_CONFIG: StringName = &"match_config"
 ## project's lobby tags ever need.
 const _LOBBY_COMPARISON_EQUAL: int = 0
 
-## Loaded once so decode_match_config()'s size check has a byte limit to read
-## without needing a NetConfig parameter — the plan's static signature takes
-## only the text, and a static method has no `self.config` to read. The one
-## constant this file could not avoid pulling from NetConfig.
-const _DEFAULT_CONFIG: NetConfig = preload("res://config/net/net_config.tres")
-
 var _steam: Object = null
 
 
@@ -335,34 +329,6 @@ func _on_join_requested(lobby_id: int, friend_id: int) -> void:
 ## Serializes a MatchConfig.to_dict()-shaped Dictionary as one lobby-data
 ## value (research's decision: one JSON string, not a key per field). Split
 ## out from any Steam call so a unit test can assert the round trip without
-## the singleton — mirrors net/LanDiscovery.gd's encode_advert/decode_advert
-## split.
+## the singleton.
 static func encode_match_config(data: Dictionary) -> String:
 	return JSON.stringify(data)
-
-
-## Malformed, truncated, random, or oversized text decodes to {} without
-## erroring — same contract as LanDiscovery.decode_advert() for a foreign
-## payload.
-##
-## DECISION/bugfix: the static convenience function `JSON.parse_string()`
-## returns null on invalid input as documented, but it *also* prints an
-## engine `ERROR: Parse JSON failed...` line (core/io/json.cpp) on every
-## malformed call — confirmed empirically
-## (netcode-F-gut-quick.log/netcode-F-probe_json.log), and GUT counts that as
-## an "Unexpected Error" test failure, not a silent {} return. A per-call
-## `JSON.new()` instance's `parse()` returns the same information as an
-## `Error` code with no engine-level print, so this is the version that
-## actually meets "without erroring".
-static func decode_match_config(text: String) -> Dictionary:
-	if text.is_empty():
-		return {}
-	if text.to_utf8_buffer().size() > _DEFAULT_CONFIG.steam_lobby_data_max_bytes:
-		return {}
-	var json: JSON = JSON.new()
-	if json.parse(text) != OK:
-		return {}
-	var parsed: Variant = json.get_data()
-	if not (parsed is Dictionary):
-		return {}
-	return parsed as Dictionary

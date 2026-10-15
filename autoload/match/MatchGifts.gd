@@ -28,9 +28,6 @@ const WIRE_LEGACY: int = GiftWirePhase.WIRE_LEGACY
 const WIRE_REMOVED: int = GiftWirePhase.WIRE_REMOVED
 
 
-static func is_valid_wire_phase(value: int) -> bool:
-	return GiftWirePhase.is_valid_wire_phase(value)
-
 ## The id MatchGifts.PENDING_SPECIAL_ID's default drawer hands out until P2c
 ## installs the real weighted SpecialDef pick (set_special_drawer() below).
 ## Also the fallback a malformed drawer result is replaced with -- see

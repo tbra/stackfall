@@ -248,7 +248,7 @@ func _lose_homes(slots: Array[int]) -> void:
 		_open_holes(slots)
 		Match._territory._tick_home_claims(Match._territory_tuning.capture_hold)
 		return
-	Match._check_home_flags(opened)
+	Match._territory._check_home_flags(opened)
 
 
 func _open_holes(slots: Array[int], permanent: bool = true) -> void:

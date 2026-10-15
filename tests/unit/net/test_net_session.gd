@@ -698,9 +698,9 @@ func test_lobby_created_tags_the_lobby_with_the_json_encoded_match_config() -> v
 	assert_eq(fake.get_lobby_data(lobby_id, String(SteamClient.KEY_HOST_NAME)), "TestSteamUser")
 	assert_eq(fake.joinable_calls, [[lobby_id, true]], "host lobby is explicitly joinable (Bontago-1pi.48)")
 
-	var decoded: Dictionary = SteamClient.decode_match_config(
+	var decoded: Dictionary = JSON.parse_string(
 		fake.get_lobby_data(lobby_id, String(SteamClient.KEY_MATCH_CONFIG))
-	)
+	) as Dictionary
 	assert_eq(int(decoded.get("map_variant")), 2, "the JSON-encoded config must be written under one key")
 	assert_eq(int(decoded.get("player_count")), 4)
 
@@ -741,9 +741,9 @@ func test_set_lobby_data_tees_into_steam_lobby_data_after_the_lobby_is_tagged() 
 
 	_host.set_lobby_data({"map_variant": 7})
 
-	var decoded: Dictionary = SteamClient.decode_match_config(
+	var decoded: Dictionary = JSON.parse_string(
 		fake.get_lobby_data(55, String(SteamClient.KEY_MATCH_CONFIG))
-	)
+	) as Dictionary
 	assert_eq(int(decoded.get("map_variant")), 7, "a later set_lobby_data() call must re-tag the lobby too")
 
 

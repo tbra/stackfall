@@ -110,4 +110,3 @@ func test_validation_forwards_agree() -> void:
 	assert_true(ResultsValidation.validate_mode_state({"mode_id": 99}).is_empty())
 	assert_eq(ResultsValidation.clean_scores([1, "x"]), [null])
 	assert_null(ResultsValidation.clean_scalars({"k": Vector2.ZERO}))
-	assert_eq(ResultsValidation.validate_results_payload("x"), MatchStats.validate_results_payload("x"))

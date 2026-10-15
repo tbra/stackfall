@@ -5,7 +5,7 @@ extends GutTest
 ## PlacementRules.validate()/closest_valid_origin() are P1-owned and still
 ## stubs at the time this package was built (docs/archive/M2_PLAN.md: packages build
 ## in parallel off the stub commit). The accept/reject/burn *decision* is
-## exercised directly against Match._resolve_outcome() with manufactured
+## exercised directly against Match._placement._resolve_outcome() with manufactured
 ## PlacementRules.Result values instead of a working raster — the "use
 ## fakes/stubs for territory results" the P2 brief calls for. The state
 ## machine, turn order and feed timer tests below don't touch PlacementRules
@@ -640,14 +640,14 @@ func test_is_pose_well_formed_accepts_every_table_index_and_any_unit_rotation() 
 
 
 # --- request_place's accept/reject/burn decision (spec 2.2, 2.5) -----------
-# Match._resolve_outcome() is the pure seam: given a PlacementRules.Result
+# Match._placement._resolve_outcome() is the pure seam: given a PlacementRules.Result
 # (what a working raster would have produced) and, for auto-drop, a
 # relocation result, it decides the reason and whether to relocate. Testing
 # it directly does not require PlacementRules' still-stubbed validate()/
 # closest_valid_origin() to do anything real yet.
 
 func test_resolve_outcome_valid_is_accepted_without_relocation() -> void:
-	var outcome: Dictionary = Match._resolve_outcome(PlacementRules.Result.VALID, false, PlacementRules.NO_ORIGIN)
+	var outcome: Dictionary = Match._placement._resolve_outcome(PlacementRules.Result.VALID, false, PlacementRules.NO_ORIGIN)
 	assert_eq(outcome["reason"], PlacementRules.REASON_OK)
 	assert_false(outcome["use_relocation"])
 
@@ -660,7 +660,7 @@ func test_resolve_outcome_deliberate_invalid_burns_with_its_reason() -> void:
 		PlacementRules.Result.OFF_DISK,
 	]
 	for result: PlacementRules.Result in invalid_results:
-		var outcome: Dictionary = Match._resolve_outcome(result, false, PlacementRules.NO_ORIGIN)
+		var outcome: Dictionary = Match._placement._resolve_outcome(result, false, PlacementRules.NO_ORIGIN)
 		# reason_for() itself is still a P1 stub (always REASON_OK) at the time
 		# this package was built; what this test owns is that _resolve_outcome
 		# defers to it verbatim rather than inventing its own mapping.
@@ -670,13 +670,13 @@ func test_resolve_outcome_deliberate_invalid_burns_with_its_reason() -> void:
 
 func test_resolve_outcome_auto_drop_relocates_when_a_valid_spot_was_found() -> void:
 	var relocated: Vector2 = Vector2(4.0, -2.0)
-	var outcome: Dictionary = Match._resolve_outcome(PlacementRules.Result.CONTESTED, true, relocated)
+	var outcome: Dictionary = Match._placement._resolve_outcome(PlacementRules.Result.CONTESTED, true, relocated)
 	assert_eq(outcome["reason"], PlacementRules.REASON_OK)
 	assert_true(outcome["use_relocation"])
 
 
 func test_resolve_outcome_auto_drop_burns_when_no_relocation_exists() -> void:
-	var outcome: Dictionary = Match._resolve_outcome(
+	var outcome: Dictionary = Match._placement._resolve_outcome(
 		PlacementRules.Result.HOLE, true, PlacementRules.NO_ORIGIN
 	)
 	assert_eq(outcome["reason"], PlacementRules.reason_for(PlacementRules.Result.HOLE))
@@ -773,7 +773,7 @@ func test_player_eliminated_when_holes_open_under_their_home_flag() -> void:
 
 	var home_cell: Vector2i = Match.cell_grid().world_to_cell(Match.slot(0).home_position)
 	var index: int = Match.cell_grid().cell_index(home_cell.x, home_cell.y)
-	Match._check_home_flags(PackedInt32Array([index]))
+	Match._territory._check_home_flags(PackedInt32Array([index]))
 
 	assert_false(Match.slot(0).home_flag_alive)
 	assert_signal_emitted_with_parameters(Events, "player_eliminated", [0, 0])
@@ -786,7 +786,7 @@ func test_match_ends_when_only_one_team_remains() -> void:
 
 	var home_cell: Vector2i = Match.cell_grid().world_to_cell(Match.slot(0).home_position)
 	var index: int = Match.cell_grid().cell_index(home_cell.x, home_cell.y)
-	Match._check_home_flags(PackedInt32Array([index]))
+	Match._territory._check_home_flags(PackedInt32Array([index]))
 
 	assert_eq(Match.state(), Match.State.END)
 	assert_signal_emitted_with_parameters(Events, "match_won", [1])
@@ -902,7 +902,7 @@ func test_check_home_flags_v2_leaves_an_unchallenged_home_alone() -> void:
 	_run_countdown()
 	watch_signals(Events)
 
-	Match._check_home_flags_v2()
+	Match._territory._check_home_flags_v2()
 
 	assert_true(Match.slot(0).home_flag_alive)
 	assert_true(Match.slot(1).home_flag_alive)
@@ -930,12 +930,12 @@ func test_check_home_flags_v2_eliminates_a_slot_once_an_enemy_circle_outscores_i
 	var enemy_circle: InfluenceCircle = InfluenceCircle.new(
 		home0, Match._territory_tuning.home_radius + 4.0, Match.team_of(1), 1, false, 999
 	)
-	var circles: Array[InfluenceCircle] = Match._collect_circles()
+	var circles: Array[InfluenceCircle] = Match._territory._collect_circles()
 	circles.append(enemy_circle)
 	var groups: TerritoryGroups = Match._solver.solve(circles)
 	Match._raster.update(circles, groups, 1.0 / Match._territory_tuning.solve_hz, false, false)
 
-	Match._check_home_flags_v2()
+	Match._territory._check_home_flags_v2()
 
 	assert_false(Match.slot(0).home_flag_alive)
 	assert_signal_emitted_with_parameters(Events, "player_eliminated", [0, 0])

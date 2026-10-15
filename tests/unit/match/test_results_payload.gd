@@ -39,7 +39,7 @@ func test_wire_strings_are_unchanged() -> void:
 func test_valid_payload_passes_and_matches_match_stats_delegate() -> void:
 	var clean: Dictionary = ResultsPayload.validate(_valid_payload())
 	assert_false(clean.is_empty())
-	assert_eq(clean, MatchStats.validate_results_payload(_valid_payload()), "one validator behind both entry points")
+	assert_eq(clean, ResultsValidation.validate_results_payload(_valid_payload()), "one validator behind both entry points")
 	assert_eq(ResultsPayload.winner_name(clean), "Ann")
 	assert_eq(ResultsPayload.rows(clean).size(), 1)
 
