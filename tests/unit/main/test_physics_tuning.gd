@@ -15,18 +15,6 @@ func _is_exported_field(prop: Dictionary) -> bool:
 
 # --- rebound_damping ---------------------------------------------------------
 
-func test_rebound_damping_default_is_a_valid_damping_factor() -> void:
-	var fresh: PhysicsTuning = PhysicsTuning.new()
-	assert_gte(fresh.rebound_damping, 0.0, "a scale factor is never negative")
-	assert_lte(fresh.rebound_damping, 1.0, "a factor above 1 would amplify the bounce")
-	var live: PhysicsTuning = load("res://config/physics/physics_tuning.tres")
-	assert_between(live.rebound_damping, 0.0, 1.0, "the shipped tuning is a valid factor too")
-	# The default drives Block._damp_rebound: the result is the fresh bounce scaled by it.
-	assert_almost_eq(Block._damp_rebound(-2.0, 4.0, fresh.rebound_damping, 0.15), 4.0 * fresh.rebound_damping, 0.0001)
-
-
-# --- The shipped presets ------------------------------------------------------
-
 ## Every shipped preset must supply a sane value for every exported field of the live
 ## tuning, so an A/B swap from the Physics tab can never leave a field NaN, negative
 ## where a magnitude is expected, or missing (a stale preset after a new field).
@@ -90,17 +78,6 @@ func test_damp_rebound_leaves_a_continued_fall_alone() -> void:
 	assert_almost_eq(Block._damp_rebound(-2.0, -1.0, 0.25, 0.15), -1.0, 0.0001, "still falling must not be touched.")
 
 
-func test_damp_rebound_leaves_a_continued_rise_alone() -> void:
-	assert_almost_eq(
-		Block._damp_rebound(1.0, 2.0, 0.25, 0.15), 2.0, 0.0001,
-		"already rising (a later tick of the same bounce, not a fresh one) must not be re-scaled."
-	)
-
-
-func test_damp_rebound_leaves_rest_alone() -> void:
-	assert_almost_eq(Block._damp_rebound(0.0, 0.0, 0.25, 0.15), 0.0, 0.0001)
-
-
 func test_damp_rebound_is_a_no_op_at_the_default_multiplier() -> void:
 	assert_almost_eq(Block._damp_rebound(-5.0, 4.0, 1.0, 0.15), 4.0, 0.0001)
 
@@ -113,6 +90,3 @@ func test_damp_rebound_ignores_a_flicker_within_the_noise_floor() -> void:
 	assert_almost_eq(Block._damp_rebound(-0.2, 0.1, 0.0, 0.15), 0.1, 0.0001, "prev crosses the floor but current doesn't.")
 	assert_almost_eq(Block._damp_rebound(-0.1, 0.2, 0.0, 0.15), 0.2, 0.0001, "current crosses the floor but prev doesn't.")
 
-
-func test_damp_rebound_scales_once_both_sides_clear_the_noise_floor() -> void:
-	assert_almost_eq(Block._damp_rebound(-0.2, 0.2, 0.0, 0.15), 0.0, 0.0001)

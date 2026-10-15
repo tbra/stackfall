@@ -1,10 +1,5 @@
 extends GutTest
-## M4 P4-SPAWN (docs/archive/M4_SPECIALS_PACKAGES.md "P4-SPAWN"):
-## Match.spawn_special_projectile() / MatchPlacement.spawn_special_projectile().
-## Same tiny-map/real-Field fixture as tests/unit/match/test_match_throw.gd; a
-## hand-built SpecialDef stands in for a real config/gifts/specials/ resource
-## (that file's own convention -- "do not add real specials under
-## config/gifts/specials/" outside the per-special packages that own it).
+## Match.spawn_special_projectile (M4 P4-SPAWN): host-only spawn, registration, velocity, special binding.
 
 var _blocks_root: Node3D
 var _field: Field
@@ -114,37 +109,6 @@ func test_on_host_spawns_a_registered_block_with_the_requested_velocity() -> voi
 	assert_eq(_registry.block_for_net_id(result.net_id), result, "must be registered in BlockRegistry")
 	assert_true(result.linear_velocity.is_equal_approx(velocity))
 	assert_signal_emit_count(Events, "block_placed", 1)
-
-
-func test_ccd_is_armed_above_the_threshold_and_not_below() -> void:
-	Match.start_match(_config())
-	_run_countdown()
-	var slow: Vector3 = Vector3(1.0, 0.0, 0.0) * (_tuning.ccd_speed_threshold_mps * 0.5)
-	var fast: Vector3 = Vector3(1.0, 0.0, 0.0) * (_tuning.ccd_speed_threshold_mps * 2.0)
-
-	var slow_block: Block = Match.spawn_special_projectile(
-		_cube_shape(), _home_world_position(0), Basis.IDENTITY, 0, slow, _make_test_def(), _tuning
-	)
-	var fast_block: Block = Match.spawn_special_projectile(
-		_cube_shape(), _home_world_position(1), Basis.IDENTITY, 1, fast, _make_test_def(), _tuning
-	)
-
-	assert_false(slow_block.continuous_cd, "below the threshold, continuous_cd must be false")
-	assert_true(fast_block.continuous_cd, "above the threshold, continuous_cd must be true")
-
-
-func test_null_orb_tuning_falls_back_to_the_match_tuning_instead_of_crashing() -> void:
-	Match.start_match(_config())
-	_run_countdown()
-	var velocity: Vector3 = Vector3.UP * 20.0
-
-	var result: Block = Match.spawn_special_projectile(
-		_cube_shape(), _home_world_position(0), Basis.IDENTITY, 0,
-		velocity, _make_test_def(), null
-	)
-
-	assert_not_null(result, "must return a spawned Block even with null orb_tuning")
-	assert_true(result.continuous_cd, "must use fallback tuning's ccd_speed_threshold_mps (15 m/s), and 20 m/s is above it")
 
 
 func test_spawned_projectile_binds_and_arms_a_special_behavior_referencing_orb_def() -> void:

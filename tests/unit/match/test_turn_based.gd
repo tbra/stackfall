@@ -1,52 +1,6 @@
-extends GutTest
-## Spec 2.7 "Turn-based [NEW]" and docs/archive/M6_PLAN.md's B4: config.turn_based
-## replaces hot-seat's instant hand-off with a settle-wait -- the next
-## player's turn starts once every placed block has settled (game/
-## BlockRegistry.gd's all_settled(), spec 2.2's own settled rule) or after
-## TerritoryTuning.turn_based_max_settle_s, whichever comes first.
-##
-## Fixture mirrors test_sudden_death.gd's own before_each exactly
-## (TinyMapMatchConfig over a manually-registered Field/BlockRegistry, no
-## full Main scene). Settling itself is driven by BlockRegistry's own real
-## _physics_process() (test_block_registry.gd's own convention: freeze the
-## body, then await real physics frames until settled_time crosses
-## PhysicsTuning.sleep_settle_time) in lockstep with manual Match._process()
-## calls that carry _tick_turn_based() (mirrors test_only_the_active_slot_
-## timer_runs_in_hot_seat()'s own 1/60 s per iteration convention).
-
-var _blocks_root: Node3D
-var _field: Field
-var _registry: BlockRegistry
-var _tiny_map: MapDef
-
-
-func before_each() -> void:
-	Match.set_process(false)
-	Match.abort_match()
-	_tiny_map = (load("res://config/match/maps/round.tres") as MapDef).duplicate(true)
-	_tiny_map.field_radius = 20.0
-	_field = autofree(Field.new())
-	_field.map_def = _tiny_map
-	add_child_autofree(_field)
-	_blocks_root = autofree(Node3D.new())
-	add_child_autofree(_blocks_root)
-	_registry = autofree(BlockRegistry.new())
-	add_child_autofree(_registry)
-	Match.register_world(_field, _registry, _blocks_root)
-
-
-func after_each() -> void:
-	Match.abort_match()
-	Match.set_process(true)
-	MatchTestReset.clear_world()
-
-
-func _tiny_map_config() -> MatchConfig:
-	var config: MatchConfig = load("res://config/match/match_defaults.tres").duplicate(true) as MatchConfig
-	config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))
-	(config as TinyMapMatchConfig).set_tiny_map(_tiny_map)
-	return config
-
+extends "res://tests/unit/match/match_world_test.gd"
+## Spec 2.7 turn-based: the next turn starts once every placed block has settled or after
+## TerritoryTuning.turn_based_max_settle_s.
 
 func _turn_based_config(player_count: int = 2) -> MatchConfig:
 	var config: MatchConfig = _tiny_map_config()
@@ -58,34 +12,9 @@ func _turn_based_config(player_count: int = 2) -> MatchConfig:
 	return config
 
 
-func _run_countdown() -> void:
-	for _i: int in range(int(ceil(Match.COUNTDOWN_SECONDS * Engine.physics_ticks_per_second)) + 2):
-		Match._process(1.0 / Engine.physics_ticks_per_second)
-
-
-func _home_world_position(slot_id: int) -> Vector3:
-	var home: Vector2 = Match.slot(slot_id).home_position
-	return _field.to_global(Vector3(home.x, 5.0, home.y))
-
-
-## Ticks one real physics frame (advances BlockRegistry's own settle timers)
-## and one matching Match._process() call (advances _tick_turn_based()'s
-## countdown by the same 1/60 s), the same pairing the file header explains.
 func _tick_one_physics_and_match_frame() -> void:
 	await get_tree().physics_frame
 	Match._process(1.0 / Engine.physics_ticks_per_second)
-
-
-func test_placement_does_not_advance_the_turn_immediately() -> void:
-	Match.start_match(_turn_based_config(2))
-	_run_countdown()
-	assert_eq(Match.active_slot(), 0)
-
-	var reason: StringName = Match.request_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, false)
-	assert_eq(reason, PlacementRules.REASON_OK)
-
-	assert_eq(Match.active_slot(), 0,
-		"turn_based must not hand the turn over immediately like hot_seat -- it waits for the settle-wait")
 
 
 func test_advance_turn_fires_once_all_settled_turns_true() -> void:

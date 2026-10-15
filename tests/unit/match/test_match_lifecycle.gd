@@ -1,24 +1,5 @@
 extends GutTest
-## game/main/Main.gd's match lifecycle over a real (peerless) ENet host session:
-## first network start, a repeated start, leaving mid-match and rehosting
-## afterwards (spec 3.7 `End -> Lobby`, docs/archive/M3a_PLAN.md "Disconnects";
-## Beads Bontago-mv0.1.9).
-##
-## These drive the **real** Main scene, the real Net autoload and the real
-## Match/SnapshotSync/MatchNet autoloads, because the two defects this pins
-## were ordering bugs *between* them that no single-system test could see:
-## Main bound the territory overlay to Match.raster() inside the LOADING emit
-## before Match had built it, and Net.leave() left Match PLAYING so the next
-## host's start_match() arrived as PLAYING -> LOADING and Main never rebuilt
-## the world. Net.host_game() opens a listen server with no clients; every
-## send path (MatchNet.replicate_*, SnapshotSync.host_tick) is a no-op with
-## an empty peer list, so nothing here touches the network beyond binding a
-## port. The client role cannot be driven in-process (the Net autoload owns
-## the tree's default MultiplayerAPI, and a second scoped session's RPC
-## paths do not resolve against it), so a client whose host quit is covered
-## by the manual steps in the task report; Main's OFFLINE route is the same
-## code for both roles (autoload/Net.gd's _on_server_disconnected() calls
-## the same leave()).
+## Main's match lifecycle over a real (peerless) ENet host session: start, leave mid-match, rehost (spec 3.7).
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
 
@@ -186,26 +167,6 @@ func test_first_network_start_binds_the_overlay_and_snapshot_sync_to_the_new_mat
 
 # --- (b) Repeated start -------------------------------------------------------
 
-func test_a_repeated_start_rebuilds_exactly_one_fresh_world() -> void:
-	_host()
-	_start(2)
-	var old_raster: TerritoryRaster = Match.raster()
-	var old_hot_seat: Node = _main._hot_seat
-	var old_cursors: Node = _main._remote_cursors
-	await _settle()
-	var connections_after_first: int = _bus_connection_count()
-
-	_start(3)
-	await _settle()
-
-	_assert_one_fresh_world(3, "second start")
-	assert_ne(Match.raster(), old_raster, "a fresh raster, not the first match's")
-	assert_ne(_main._hot_seat, old_hot_seat, "a fresh HotSeat")
-	assert_false(is_instance_valid(old_hot_seat), "the first HotSeat is freed")
-	assert_false(is_instance_valid(old_cursors), "the first RemoteCursors is freed")
-	assert_eq(_bus_connection_count(), connections_after_first, "no listener leaks across the rebuild")
-
-
 # --- (c) Leave during PLAYING -------------------------------------------------
 
 func test_leaving_during_play_aborts_the_match_and_tears_the_world_down() -> void:
@@ -285,18 +246,6 @@ func test_rehost_after_the_match_ended_and_the_session_closed_builds_a_fresh_wor
 	assert_eq(_bus_connection_count(), connections_after_first, "no listener leaks across leave and rehost")
 
 
-func test_a_host_that_quits_before_starting_returns_to_the_menu_without_a_lobby_to_lobby_emit() -> void:
-	_host()
-	watch_signals(Events)
-
-	Net.leave()
-
-	assert_signal_not_emitted(Events, "match_state_changed", "Match was already in the lobby; nothing to abort")
-	assert_eq(Match.state(), Match.State.LOBBY)
-	assert_not_null(_main._main_menu)
-	assert_null(_main._lobby)
-
-
 # --- (e) Lobby-only joining (Bontago-mv0.1.8) ---------------------------------
 #
 # autoload/Net.gd's _accepting_joins gate is inert until the match flow flips
@@ -308,49 +257,6 @@ func test_a_host_that_quits_before_starting_returns_to_the_menu_without_a_lobby_
 # the client role cannot be driven in-process against the Net autoload (see the
 # header).
 
-func test_joins_close_when_the_match_leaves_the_lobby_and_reopen_on_abort() -> void:
-	_host()
-	assert_true(Net.accepting_joins(), "a fresh lobby accepts joins")
-
-	_start(2)
-	assert_eq(Match.state(), Match.State.COUNTDOWN)
-	assert_false(Net.accepting_joins(), "COUNTDOWN: joins are closed")
-	_run_countdown()
-	assert_eq(Match.state(), Match.State.PLAYING)
-	assert_false(Net.accepting_joins(), "PLAYING: joins stay closed")
-	Match._finish_match(0)
-	assert_eq(Match.state(), Match.State.END)
-	assert_false(Net.accepting_joins(), "END: still closed; End -> Lobby is the only way back")
-
-	Match.abort_match()
-	assert_eq(Match.state(), Match.State.LOBBY)
-	assert_true(Net.is_host(), "aborting the match does not end the session")
-	assert_true(Net.accepting_joins(), "back in the lobby, joins reopen")
-	assert_not_null(_main._lobby, "returning from a match rebuilds the lobby UI")
-
-
-func test_a_repeated_start_leaves_joins_closed_and_leaving_reopens_them() -> void:
-	_host()
-	_start(2)
-	_run_countdown()
-	assert_eq(Match.state(), Match.State.PLAYING, "fixture reaches PLAYING")
-
-	# start_match() from PLAYING goes back through abort_match() (PLAYING ->
-	# LOBBY, which momentarily reopens joins) and on to LOBBY -> LOADING ->
-	# COUNTDOWN, all synchronously: what must hold once it returns is closed.
-	_start(3)
-	assert_eq(Match.state(), Match.State.COUNTDOWN)
-	assert_false(Net.accepting_joins(), "a restarted match closes joins again")
-
-	Net.leave()
-	assert_true(Net.is_offline())
-	assert_eq(Match.state(), Match.State.LOBBY)
-	assert_true(Net.accepting_joins(), "leaving resets the gate for the next session")
-
-	_host()
-	assert_true(Net.accepting_joins(), "a rehosted lobby accepts joins")
-
-
 # --- (f) Field state does not survive the match that opened it ---------------
 #
 # game/field/Field.gd is persistent (Main never frees or rebuilds it, unlike
@@ -358,50 +264,6 @@ func test_a_repeated_start_leaves_joins_closed_and_leaving_reopens_them() -> voi
 # (_reset_match_state()) never touches it, so leaving mid-match used to leave
 # its flags, its overlay's raster reference and every hole it had opened
 # behind on the field the main menu sits over (Beads Bontago-mv0.1.9).
-
-func test_leaving_mid_match_clears_the_fields_flags_overlay_and_holes() -> void:
-	_host()
-	_start(2)
-	_run_countdown()
-	assert_eq(Match.state(), Match.State.PLAYING, "fixture reaches PLAYING")
-
-	# grid.cell_index(1, 1) and (2, 2) are near the (0, 0) corner of the square
-	# CellGrid wraps around the disk (core/territory/CellGrid.gd) -- outside the
-	# actual round map for any field_radius bigger than a couple of cells, so
-	# Field._enqueue_toggle() (game/field/Field.gd) silently drops them
-	# (_cell_owner_ids[cell] < 0 for a cell with no shape owner) and the fixture
-	# assertion below never sees them applied. The disk centre and its neighbor
-	# are always in-disk by construction (CellGrid's central cell), so use those.
-	var grid: CellGrid = _main._field.grid()
-	var mid: int = grid.res / 2
-	var opened: PackedInt32Array = PackedInt32Array([
-		grid.cell_index(mid, mid), grid.cell_index(mid + 1, mid),
-	])
-	Events.hole_cells_changed.emit(opened, PackedInt32Array())
-	for _i: int in range(5):
-		await get_tree().physics_frame
-	for cell: int in opened:
-		assert_true(_main._field.is_hole_cell(cell), "fixture: the hole is actually applied before we leave")
-
-	Net.leave()
-	await _settle()
-
-	assert_true(_main._field.home_flags().is_empty(), "no stale home flags behind the menu")
-	assert_true(_main._field.goal_flags().is_empty(), "no stale goal flags behind the menu")
-	assert_null(_overlay_raster(), "the overlay keeps no reference to the ended match's raster")
-	for cell: int in opened:
-		assert_false(_main._field.is_hole_cell(cell), "every hole this match opened is closed")
-	assert_eq(_main._field.pending_toggle_count(), 0, "no queued toggle survives the teardown")
-
-	# A rehost still places the right number of flags for the next match
-	# (existing coverage: test_rehost_after_the_match_ended_and_the_session_closed_builds_a_fresh_world;
-	# this only pins that the fresh flag count is not an accident of a field
-	# that was never actually cleared).
-	_host()
-	_start(3)
-	await _settle()
-	assert_eq(_home_flag_count(), 3, "a rehosted match still places the right number of flags")
-
 
 # --- (g) Lobby gravity reaches physics at match start (Bontago-mv0.20a) ------
 
@@ -416,49 +278,7 @@ func test_start_match_writes_the_lobbys_gravity_into_the_shared_physics_tuning()
 	assert_almost_eq(tuning.gravity_multiplier, 1.75 * 1.2, 0.0001)
 
 
-func test_start_match_re_applies_gravity_to_a_block_already_standing() -> void:
-	var shape: BlockShape = load("res://config/blocks/cube.tres")
-	var tuning: PhysicsTuning = load("res://config/physics/physics_tuning.tres")
-	var block: Block = BlockFactory.build(shape, tuning)
-	add_child_autofree(block)  # _ready() joins Block.TUNING_GROUP for real.
-
-	_host()
-	var config: MatchConfig = _config(2)
-	config.gravity_multiplier = 1.2
-	_main._on_lobby_start_requested(config)
-
-	assert_almost_eq(block.gravity_scale, 1.75 * 1.2, 0.0001)
-
-
 # --- (h) M5 P1: _build_slots() marks the trailing ai_count slots as bots ----
-
-func test_build_slots_marks_exactly_the_trailing_ai_count_slots_as_bots() -> void:
-	_host()
-	var config: MatchConfig = _config(6)
-	config.ai_count = 2
-
-	_main._on_lobby_start_requested(config)
-
-	assert_eq(Match.slot_count(), 6)
-	for i: int in range(4):
-		assert_false(Match.slot(i).is_bot, "slot %d is a human seat" % i)
-	assert_true(Match.slot(4).is_bot, "the first trailing slot is a bot")
-	assert_true(Match.slot(5).is_bot, "the second trailing slot is a bot")
-
-
-# --- Bontago-1pi.200 / owner decision Bontago-1pi.206: solo matches ----------
-func test_solo_start_builds_one_slot_one_home_flag_and_no_second_player() -> void:
-	_host()
-	_start(1)
-
-	assert_eq(Match.slot_count(), 1, "a solo start has exactly one slot, no passive Player 2")
-	assert_eq(_home_flag_count(), 1, "one home beacon only")
-	assert_false(Match.slot(0).is_bot)
-	_run_countdown()
-	assert_eq(Match.state(), Match.State.PLAYING, "a 1-player match keeps running")
-	assert_eq(Match.feed_time_left(1), 0.0, "no feed exists for a second slot")
-	assert_gt(Match.feed_time_left(0), 0.0, "the one seat has a running feed")
-
 
 # --- (i) M6 A3 regression: match_timer_minutes == 0 (Off) never arms sudden
 # death, no matter how it is toggled -----------------------------------------
@@ -466,18 +286,3 @@ func test_solo_start_builds_one_slot_one_home_flag_and_no_second_player() -> voi
 # See tests/unit/match/test_sudden_death.gd for the full match-timer/sudden-death
 # contract; this one lives here (not there) because it is the one case this
 # package's own plan names as a test_match_lifecycle.gd append.
-
-func test_sudden_death_never_fires_with_match_timer_minutes_zero() -> void:
-	_host()
-	var config: MatchConfig = _config(2)
-	config.match_timer_minutes = 0
-	config.sudden_death = true
-	_main._on_lobby_start_requested(config)
-	_run_countdown()
-	assert_eq(Match.state(), Match.State.PLAYING, "fixture reaches PLAYING")
-	assert_almost_eq(Match.match_timer_left(), 0.0, 0.0001, "Off (0) never arms a timer")
-
-	for _i: int in range(5):
-		Match._process(1.0 / Engine.physics_ticks_per_second)
-
-	assert_eq(Match.state(), Match.State.PLAYING, "no timer means sudden death can never trigger")

@@ -434,16 +434,6 @@ static func layout(seats: Dictionary, slot_of_peer: Dictionary = {}) -> Layout:
 	return plan
 
 
-## Team pick of every slot (size = layout().player_count): the seat's pick, Random
-## for a vacant slot. Empty when layout() reports an error.
-static func team_picks_by_slot(seats: Dictionary, slot_of_peer: Dictionary = {}) -> PackedInt32Array:
-	var data: Dictionary = _prepared(seats, MatchConfig.AiDifficulty.NORMAL, 0)
-	var plan: Layout = layout(data, slot_of_peer)
-	if not plan.is_valid():
-		return PackedInt32Array()
-	return _slot_picks(data, plan)
-
-
 ## "" when the lobby may start, else the reason Start must be disabled with: a seat
 ## layout that cannot become match slots (BLOCKER_*), or teams on (`cap` =
 ## MatchConfig.team_pick_cap() > 0) with everyone explicitly on one team

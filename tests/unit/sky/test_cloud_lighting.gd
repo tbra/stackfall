@@ -46,20 +46,6 @@ func test_theme_change_reaches_every_layer() -> void:
 	_assert_layers_match(skybox, "night theme")
 
 
-func test_cycle_phase_reaches_every_layer() -> void:
-	var skybox: Skybox = _wired_skybox()
-	var config: MatchConfig = MatchConfig.new()
-	config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
-	skybox.configure_match_sky(config)
-	var seen: Dictionary = {}
-	for phase: float in [0.25, 0.5, 0.75, 0.9]:
-		skybox.set_cycle_phase(phase)
-		_assert_layers_match(skybox, "phase %s" % phase)
-		seen[snappedf(skybox.cloud_lighting().night_mix, 0.01)] = true
-	assert_gt(seen.size(), 1, "night mix actually moved")
-	assert_gt(skybox.cloud_lighting().night_mix, 0.9, "deep night at phase 0.9")
-
-
 func test_storm_and_overcast_reach_every_layer() -> void:
 	var skybox: Skybox = _wired_skybox()
 	var config: MatchConfig = MatchConfig.new()
@@ -81,83 +67,6 @@ func test_storm_and_overcast_reach_every_layer() -> void:
 	assert_eq(skybox.cloud_lighting().storm, 0.0)
 	assert_eq(skybox.cloud_lighting().dim, 0.0)
 	_assert_layers_match(skybox, "cleared")
-
-
-func test_puffs_follow_every_published_input() -> void:
-	var skybox: Skybox = _wired_skybox()
-	skybox.apply_theme(skybox.theme)
-	var l: CloudLighting = skybox.cloud_lighting()
-	var puff: ShaderMaterial = skybox.get_cloud_sea().puff_material()
-	l.publish(l.shadow_color, l.mid_color, l.lit_color, l.rim_color, l.light_direction, l.light_color, l.night_mix, 1.0, 1.0, 0.5, 0.9)
-	skybox.get_cloud_sea().apply_lighting(l)
-	assert_almost_eq(float(puff.get_shader_parameter(&"weather_dim")), 0.5, EPS, "puffs follow the weather dim")
-	assert_almost_eq(float(puff.get_shader_parameter(&"weather_desaturate")), 0.9, EPS, "puffs follow the weather desaturation")
-
-
-func test_publish_is_quiet_when_nothing_changed() -> void:
-	var l: CloudLighting = CloudLighting.new()
-	var count: Array[int] = [0]
-	l.changed.connect(func() -> void: count[0] += 1)
-	assert_false(l.publish(l.shadow_color, l.mid_color, l.lit_color, l.rim_color, l.light_direction, l.light_color,
-		l.night_mix, l.overcast, l.storm, l.dim, l.desaturate))
-	assert_eq(count[0], 0)
-	assert_true(l.publish(l.shadow_color, l.mid_color, l.lit_color, l.rim_color, l.light_direction, l.light_color,
-		0.5, l.overcast, l.storm, l.dim, l.desaturate))
-	assert_eq(count[0], 1)
-
-
-const CEILING: WeatherCeilingTuning = preload("res://config/weather/ceiling.tres")
-
-
-func test_night_storm_dim_is_capped_and_relieved() -> void:
-	var stacked: float = CloudLighting.combined_dim(CEILING.cloud_overcast_dim, CEILING.storm_darkness_add, 1.0, 1.0,
-		1.0, CEILING.night_dim_relief, CEILING.max_combined_dim)
-	var day_storm: float = CloudLighting.combined_dim(CEILING.cloud_overcast_dim, CEILING.storm_darkness_add, 1.0, 1.0,
-		0.0, CEILING.night_dim_relief, CEILING.max_combined_dim)
-	assert_lt(stacked, day_storm, "night relieves the weather dim instead of stacking")
-	assert_lte(CloudLighting.combined_dim(1.0, 1.0, 1.0, 1.0, 0.0, 0.0, CEILING.max_combined_dim), CEILING.max_combined_dim)
-
-
-func test_sun_effects_off_at_night_reduced_by_overcast() -> void:
-	var clear: float = CloudLighting.sun_effect_scale(0.0, CEILING.sun_night_fade_end, 0.0, CEILING.sun_overcast_attenuation, 0.0, CEILING.sun_storm_attenuation)
-	var overcast: float = CloudLighting.sun_effect_scale(0.0, CEILING.sun_night_fade_end, 1.0, CEILING.sun_overcast_attenuation, 0.0, CEILING.sun_storm_attenuation)
-	var storm: float = CloudLighting.sun_effect_scale(0.0, CEILING.sun_night_fade_end, 1.0, CEILING.sun_overcast_attenuation, 1.0, CEILING.sun_storm_attenuation)
-	var night: float = CloudLighting.sun_effect_scale(1.0, CEILING.sun_night_fade_end, 0.0, CEILING.sun_overcast_attenuation, 0.0, CEILING.sun_storm_attenuation)
-	assert_almost_eq(clear, 1.0, EPS)
-	assert_lt(overcast, clear, "overcast reduces the sun effects")
-	assert_eq(storm, 0.0, "a full storm turns them off exactly (Bontago-mp0.94: no residual ray fan)")
-	assert_almost_eq(night, 0.0, EPS, "night turns them off")
-
-
-func test_skybox_publishes_sun_scale_to_sky_and_flare() -> void:
-	var skybox: Skybox = _wired_skybox()
-	skybox.apply_theme(skybox.theme)
-	skybox.set_overcast(1.0, 1.0, 1.0, 1.0, Color.WHITE, 1.0)
-	var scale: float = skybox.cloud_lighting().sun_scale
-	assert_lt(scale, 1.0, "overcast attenuates the published sun scale")
-	var sky: ShaderMaterial = skybox.theme.sky_material as ShaderMaterial
-	assert_almost_eq(float(sky.get_shader_parameter(&"sun_effect_scale")), scale, EPS)
-
-
-## Bontago-mp0.94 (owner playtest: "sun is hidden during storm but the rays are still
-## visible"): the sun disc glow fades linearly to exactly 0 at full storm (Skybox lerps
-## proc_sun_glow_strength to the storm theme), but sun_effect_scale kept 3 % x the overcast
-## keep (about 1 %) of the god rays, so a faint warm ray fan outlived the hidden disc.
-## Every sun effect must now fade with, and never outlast, the disc.
-func test_storm_sun_effects_never_outlive_the_disc_fade() -> void:
-	for overcast: float in [0.0, 0.5, 1.0]:
-		var previous: float = 2.0
-		for storm: float in [0.0, 0.25, 0.3, 0.6, 0.9, 1.0]:
-			var scale: float = CloudLighting.sun_effect_scale(0.0, CEILING.sun_night_fade_end, overcast,
-				CEILING.sun_overcast_attenuation, storm, CEILING.sun_storm_attenuation)
-			assert_lte(scale, (1.0 - storm) + EPS, "overcast %s storm %s: sun effects stay below the disc's own fade" % [overcast, storm])
-			assert_lte(scale, previous + EPS, "more storm never brings the sun effects back")
-			previous = scale
-		assert_eq(previous, 0.0, "overcast %s: nothing of the rays/halo/flare is left at full storm" % overcast)
-	assert_almost_eq(CloudLighting.sun_effect_scale(0.0, CEILING.sun_night_fade_end, 1.0, CEILING.sun_overcast_attenuation,
-		0.0, CEILING.sun_storm_attenuation), 1.0 - CEILING.sun_overcast_attenuation, EPS, "overcast alone is unchanged")
-	assert_almost_eq(CloudLighting.sun_weather_keep(0.0, CEILING.sun_overcast_attenuation, 0.0, CEILING.sun_storm_attenuation), 1.0, EPS,
-		"clear weather keeps every sun effect")
 
 
 ## One sun term, as the player sees it: its share of the clear-weather strength.

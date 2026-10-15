@@ -228,10 +228,6 @@ func is_slot_out(slot: int) -> bool:
 
 
 ## Slot ids in elimination order (first out first).
-func elimination_order() -> PackedInt32Array:
-	return _order.duplicate()
-
-
 func winners() -> PackedInt32Array:
 	return _winners.duplicate()
 

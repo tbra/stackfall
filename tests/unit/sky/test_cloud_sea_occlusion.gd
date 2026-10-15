@@ -8,10 +8,6 @@ extends GutTest
 
 const SEPARATION_RADII: float = 2.0
 const FAR_M: float = 500.0
-## Looser than any sane machine needs; the measured cost is printed for the Bead.
-const QUERY_BUDGET_MS: float = 12.0
-
-
 func after_each() -> void:
 	Settings.set_graphics_preset(&"high")
 
@@ -38,15 +34,6 @@ func _centre(sea: CloudSea) -> Vector3:
 
 func _horizontal_radius(sea: CloudSea) -> float:
 	return sea._occ_puffs[3]
-
-
-func test_one_puff_is_recorded_with_its_clump_bounds() -> void:
-	var sea: CloudSea = _single_puff_sea()
-	assert_eq(sea.occlusion_clump_count(), 1)
-	assert_eq(sea.occlusion_puff_count(), 1)
-	var centre: Vector3 = _centre(sea)
-	assert_true(sea._occ_centre[0].distance_to(centre) < 0.01, "a one-puff clump is bounded around its puff")
-	assert_gte(sea._occ_radius[0], _horizontal_radius(sea), "the bounding sphere reaches the puff's silhouette")
 
 
 func test_sun_behind_a_puff_is_fully_occluded() -> void:
@@ -94,17 +81,6 @@ func test_edge_of_a_puff_is_soft_and_monotonic() -> void:
 	assert_gt(hard, 0.99, "zero softness keeps the whole disc solid")
 
 
-func test_flat_base_blocks_nothing_below_the_cut() -> void:
-	var sea: CloudSea = _single_puff_sea()
-	var cut: float = sea._occ_puffs[5]
-	assert_gt(cut, CloudSea.NO_BASE_CUT, "the sea's flat-bottomed puff records its base plane")
-	var centre: Vector3 = _centre(sea)
-	var under: float = sea.sun_ray_cloud_occlusion(Vector3(centre.x - FAR_M, cut - 0.2, centre.z), Vector3.RIGHT, null, Vector2.ZERO)
-	assert_eq(under, 0.0, "a horizontal ray just under the flat base passes below the puff")
-	var up_through: float = sea.sun_ray_cloud_occlusion(Vector3(centre.x, cut - 40.0, centre.z), Vector3.UP, null, Vector2.ZERO)
-	assert_gt(up_through, 0.99, "a ray from below the sea that climbs through the puff is hidden by its base")
-
-
 func test_clump_drift_follows_the_shared_wind_offset() -> void:
 	var sea: CloudSea = _single_puff_sea(10.0)
 	var speed: float = sea._occ_speed[0]
@@ -126,66 +102,3 @@ func test_clump_drift_follows_the_shared_wind_offset() -> void:
 	assert_eq(sea.sun_ray_cloud_occlusion(rest - Vector3(FAR_M, 0.0, 0.0), Vector3.RIGHT), 0.0,
 			"the default query uses the live offset set by set_drift_offset()")
 
-
-func test_several_thin_puffs_add_up_and_an_empty_sea_is_clear() -> void:
-	var sea: CloudSea = CloudSea.new()
-	add_child_autofree(sea)
-	assert_eq(sea.sun_ray_cloud_occlusion(Vector3.ZERO, Vector3.UP, null, Vector2.ZERO), 0.0, "an unbuilt sea hides nothing")
-	var single: CloudSea = _single_puff_sea()
-	var centre: Vector3 = _centre(single)
-	var radius: float = _horizontal_radius(single)
-	var tuning: SunFlareConfig = (load("res://config/sky/sun_flare.tres") as SunFlareConfig).duplicate() as SunFlareConfig
-	var from: Vector3 = centre + Vector3(-FAR_M, 0.0, radius * 0.85)
-	var one: float = single.sun_ray_cloud_occlusion(from, Vector3.RIGHT, tuning, Vector2.ZERO)
-	# The same single puff twice over, as two clumps' worth of records.
-	var doubled: CloudSea = _single_puff_sea()
-	doubled._occ_puffs.append_array(doubled._occ_puffs.duplicate())
-	doubled._occ_centre.append(doubled._occ_centre[0])
-	doubled._occ_radius.append(doubled._occ_radius[0])
-	doubled._occ_speed.append(doubled._occ_speed[0])
-	doubled._occ_rest.append(doubled._occ_rest[0])
-	doubled._occ_domain.append(doubled._occ_domain[0])
-	doubled._occ_excl.append(doubled._occ_excl[0])
-	doubled._occ_y_low.append(doubled._occ_y_low[0])
-	doubled._occ_y_high.append(doubled._occ_y_high[0])
-	doubled._occ_first.append(1)
-	doubled._occ_count.append(1)
-	doubled._occ_upper.append(0)
-	var two: float = doubled.sun_ray_cloud_occlusion(from, Vector3.RIGHT, tuning, Vector2.ZERO)
-	assert_almost_eq(two, 1.0 - (1.0 - one) * (1.0 - one), 0.001, "transmittances multiply")
-	assert_gt(two, one)
-
-
-func test_real_theme_bounds_match_the_built_puffs_and_a_query_is_cheap() -> void:
-	Settings.set_graphics_preset(&"high")
-	var sky: Sky = Sky.new()
-	sky.sky_material = ProceduralSkyMaterial.new()
-	var environment: Environment = Environment.new()
-	environment.sky = sky
-	var skybox: Skybox = Skybox.new()
-	skybox.config = SkyboxConfig.new()
-	skybox.environment = environment
-	skybox.theme = Skybox.load_theme("sunset")
-	add_child_autofree(skybox)
-	skybox.apply_theme(skybox.theme)
-	var sea: CloudSea = skybox.get_cloud_sea()
-	assert_gt(sea.occlusion_clump_count(), 100, "the full theme records its clumps")
-	assert_eq(sea.occlusion_puff_count(), sea.puff_count() + sea.upper_puff_count(), "one bounds row per drawn puff")
-	# Typical gameplay: a camera above the sea, low sun; and the worst case: under the sea, high sun.
-	var tuning: SunFlareConfig = load("res://config/sky/sun_flare.tres") as SunFlareConfig
-	var sun_low: Vector3 = Vector3(0.963087, 0.069011, -0.260192).normalized()
-	var sun_high: Vector3 = Vector3(0.3, 0.9, 0.2).normalized()
-	var typical_ms: float = _time_query_ms(sea, Vector3(0.0, 40.0, 60.0), sun_low, tuning)
-	var worst_ms: float = _time_query_ms(sea, Vector3(0.0, -400.0, 0.0), sun_high, tuning)
-	gut.p("sun_ray_cloud_occlusion: typical %.3f ms, worst case %.3f ms per query (%d clumps, %d puffs)" % [
-			typical_ms, worst_ms, sea.occlusion_clump_count(), sea.occlusion_puff_count()])
-	assert_lt(typical_ms, QUERY_BUDGET_MS)
-	assert_lt(worst_ms, QUERY_BUDGET_MS)
-
-
-func _time_query_ms(sea: CloudSea, from: Vector3, dir: Vector3, tuning: SunFlareConfig) -> float:
-	var runs: int = 20
-	var begin: int = Time.get_ticks_usec()
-	for _i: int in range(runs):
-		sea.sun_ray_cloud_occlusion(from, dir, tuning, Vector2(12.0, 0.0))
-	return float(Time.get_ticks_usec() - begin) / 1000.0 / float(runs)

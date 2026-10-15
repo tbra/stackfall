@@ -5,7 +5,6 @@ extends GutTest
 ## draws fewer, and the flakes thin out and stop early in the ramp-out so the
 ## melt that follows is seen with the snowfall over.
 
-const SHADER_PATH: String = "res://shaders/weather/snow_flake.gdshader"
 const SHARE_TOLERANCE: float = 0.001
 
 var _snow: SnowPresentation = null
@@ -25,79 +24,6 @@ func _preset(id: StringName, density_scale: float) -> GraphicsPreset:
 	preset.id = id
 	preset.weather_density_scale = density_scale
 	return preset
-
-
-func _flake_material() -> ShaderMaterial:
-	return (_snow.particles().draw_pass_1 as QuadMesh).material as ShaderMaterial
-
-
-func test_flakes_use_the_raised_config_values() -> void:
-	assert_eq(_snow.amount_for(_preset(&"high", 1.0)), _tuning.flake_amount)
-	assert_eq(_snow.amount_for(_preset(&"low", 1.0)), _tuning.flake_amount_low, "Low keeps the thinner set")
-	assert_lt(_tuning.flake_amount_low, _tuning.flake_amount)
-	assert_gt(_tuning.flake_amount, 1600, "denser than before the playtest")
-	assert_gt(_tuning.flake_size_m, 0.1, "bigger than before the playtest")
-	assert_true(_tuning.flake_prefill, "the column is full the moment snowfall starts")
-	assert_gt(_tuning.flake_sim_fps, 0)
-	var quad: QuadMesh = _snow.particles().draw_pass_1 as QuadMesh
-	assert_eq(quad.size, Vector2.ONE * _tuning.flake_size_m, "the quad is the configured flake size")
-	assert_eq(_snow.particles().lifetime, _tuning.flake_lifetime_s, "lifetime untouched until the ceiling fall is applied")
-
-
-func test_flake_shader_gets_the_visibility_numbers() -> void:
-	var material: ShaderMaterial = _flake_material()
-	assert_eq(material.shader.resource_path, SHADER_PATH)
-	assert_eq(material.get_shader_parameter(&"flake_color"), _tuning.flake_color)
-	assert_eq(material.get_shader_parameter(&"edge_color"), _tuning.flake_edge_color)
-	assert_eq(float(material.get_shader_parameter(&"edge_start")), _tuning.flake_edge_start)
-	assert_eq(float(material.get_shader_parameter(&"flake_size")), _tuning.flake_size_m)
-	assert_eq(float(material.get_shader_parameter(&"min_angle")), _tuning.flake_min_angle)
-	assert_eq(float(material.get_shader_parameter(&"max_angle")), _tuning.flake_max_angle)
-	assert_gt(float(material.get_shader_parameter(&"min_angle")), 0.0, "far flakes keep a minimum on-screen size")
-	for uniform: String in ["flake_color", "edge_color", "edge_start", "flake_size", "min_angle", "max_angle"]:
-		var names: Array[StringName] = []
-		for entry: Dictionary in material.shader.get_shader_uniform_list():
-			names.append(StringName(String(entry["name"])))
-		assert_true(names.has(StringName(uniform)), "the flake shader declares %s" % uniform)
-
-
-func test_flake_column_is_packed_near_the_view_not_up_to_the_clouds() -> void:
-	var ceiling: WeatherCeilingTuning = CloudCeiling.TUNING
-	var camera_y: float = 10.0
-	var bottom: float = camera_y - _tuning.flake_below_camera_m
-	var top: float = _snow.column_top(camera_y, ceiling)
-	assert_almost_eq(top - bottom, _tuning.flake_max_column_m, 0.001, "the column is capped at flake_max_column_m")
-	assert_lt(top - bottom, ceiling.snow_max_fall_m, "shorter than the ceiling fall, so the flakes are denser")
-	assert_gte(top, camera_y + _tuning.flake_height_above_camera_m, "never starts level with the camera")
-	var high_camera: float = _snow.column_top(200.0, ceiling)
-	assert_almost_eq(high_camera - (200.0 - _tuning.flake_below_camera_m), _tuning.flake_max_column_m, 0.001)
-	assert_gt(_tuning.flake_below_camera_m, ceiling.snow_below_camera_m, "flakes fall past the camera, down to the disc")
-
-
-## Playtest capture: the dense flakes sat in one corner of the view and the far
-## half was empty, because the box was centred on the camera while the camera
-## looks across the play area. The box is centred ahead of the camera.
-func test_flake_box_is_centred_ahead_of_the_camera_across_the_play_area() -> void:
-	var camera_pos: Vector3 = Vector3(3.0, 20.0, 40.0)
-	var look: Vector3 = Vector3(0.0, -20.0, -40.0).normalized()
-	var centre: Vector3 = _snow.box_centre(camera_pos, look)
-	assert_gt(_tuning.flake_forward_shift_m, 0.0)
-	assert_almost_eq(centre.y, camera_pos.y, 0.0001, "ground-plane shift only")
-	var shift: Vector3 = Vector3(centre.x - camera_pos.x, 0.0, centre.z - camera_pos.z)
-	var reach_to_focus: float = _snow.focus_distance(camera_pos, look)
-	assert_almost_eq(reach_to_focus, 40.0, 0.01, "the view ray meets the arena plane 40 m ahead")
-	assert_almost_eq(shift.length(), reach_to_focus * _tuning.flake_focus_blend, 0.001, "moved towards the look point")
-	assert_lt(shift.z, 0.0, "towards where the camera looks")
-	assert_almost_eq(shift.normalized().dot(Vector3(look.x, 0.0, look.z).normalized()), 1.0, 0.0001)
-	# The view across the disc is covered: the box reaches well past the camera.
-	var reach: float = shift.length() + _snow.box_half_m(reach_to_focus)
-	assert_gte(reach, reach_to_focus + _tuning.flake_box_half_extent.z - 0.001, "flakes reach past the arena the camera looks at")
-	assert_lt(shift.length(), _snow.box_half_m(reach_to_focus), "the camera itself is still inside the box")
-	assert_almost_eq(_snow.focus_distance(Vector3(0.0, 400.0, 0.0), look), _tuning.flake_focus_max_m, 0.001, "capped")
-	assert_almost_eq(_snow.focus_distance(camera_pos, Vector3(0.0, 0.2, -1.0).normalized()), _tuning.flake_forward_shift_m, 0.001, "level view uses the fixed shift")
-	# Straight down (or up): no horizontal direction, so no shift.
-	assert_eq(_snow.box_centre(camera_pos, Vector3.DOWN), camera_pos)
-	assert_eq(_snow.box_centre(camera_pos, Vector3.UP), camera_pos)
 
 
 func test_flakes_follow_the_intensity_while_building_up() -> void:

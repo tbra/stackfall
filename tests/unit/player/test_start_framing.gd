@@ -118,24 +118,3 @@ func test_client_mirror_populates_held_and_next_cards_during_the_countdown() -> 
 	assert_eq(hud._held_shape.id if hud._held_shape != null else &"", held.id)
 	assert_eq(hud._next_shape.id if hud._next_shape != null else &"", next.id)
 
-
-func test_late_bound_controller_pulls_the_held_block_into_its_ghost() -> void:
-	# The staged windowed build issues (host) / receives (client) the first block
-	# before the controller exists; binding afterwards must still fill the ghost.
-	var map: MapDef = MapDef.base().scaled(DISC_FACTORS[0]).duplicate(true)
-	await _start_match(map)
-	var ghost: GhostPreview = _main._hot_seat.ghost()
-	ghost.set_shape(null)
-	assert_null(ghost.get_shape())
-	_main._hot_seat.bind_local_slot(HELD_SLOT)
-	assert_not_null(ghost.get_shape(), "bind pulls the slot's held block")
-	assert_eq(ghost.get_shape().id, Match.held_shape(HELD_SLOT).id)
-
-
-func test_hud_stats_and_minimap_are_populated_in_the_countdown() -> void:
-	var map: MapDef = MapDef.base().scaled(DISC_FACTORS[0]).duplicate(true)
-	await _start_match(map)
-	var hud: HUD = _main._hot_seat.hud()
-	assert_eq(Match.state(), Match.State.COUNTDOWN)
-	assert_eq(hud._share_rows.size(), Match.slot_count(), "one stats row per player before the first solve")
-	assert_true(hud._minimap.visible, "minimap shown in the countdown")

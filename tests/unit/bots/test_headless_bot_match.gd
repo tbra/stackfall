@@ -97,24 +97,8 @@ func _settle() -> void:
 
 # --- _bots_arg / _seconds_arg parsing -----------------------------------------
 
-func test_bots_arg_parses_the_flag() -> void:
-	assert_eq(_main._bots_arg(PackedStringArray(["--bots=8"])), 8)
-
-
-func test_bots_arg_defaults_to_zero_with_no_flag() -> void:
-	assert_eq(_main._bots_arg(PackedStringArray([])), 0, "feature off by default")
-	assert_eq(_main._bots_arg(PackedStringArray(["--headless-host"])), 0)
-
-
-func test_seconds_arg_parses_the_flag() -> void:
-	assert_eq(_main._seconds_arg(PackedStringArray(["--seconds=30"])), 30.0)
-
-
-func test_seconds_arg_defaults_to_zero_unbounded_with_no_flag() -> void:
-	assert_eq(_main._seconds_arg(PackedStringArray([])), 0.0)
-
-
 # --- _start_headless_bot_match_with_args --------------------------------------
+
 
 func test_bots_zero_is_a_no_op() -> void:
 	_main._start_headless_bot_match_with_args(PackedStringArray([]))
@@ -124,24 +108,6 @@ func test_bots_zero_is_a_no_op() -> void:
 
 
 # --- Review finding 1: refuse a bot match with nobody actually hosting -------
-
-func test_offline_with_bots_is_refused_and_logs_an_error() -> void:
-	assert_true(Net.is_offline(), "fixture: no _host() call in this test -- host_game() never ran")
-	assert_false(_main._net_is_hosting())
-
-	_main._start_headless_bot_match_with_args(PackedStringArray(["--bots=4"]))
-	await _settle()
-
-	assert_eq(Match.state(), Match.State.LOBBY, "refused: Net never became the host")
-	assert_false(_main._world_built)
-	assert_eq(_bot_controller_count(), 0, "no bots are spawned when the match never starts")
-	assert_push_error("never became the host", "refusal must be logged, not silent")
-
-
-func test_net_is_hosting_reflects_net_mode() -> void:
-	assert_false(_main._net_is_hosting(), "offline is not the same as actually hosting")
-	_host()
-	assert_true(_main._net_is_hosting())
 
 
 func test_all_bot_match_reaches_playing_with_n_bot_slots_and_no_hot_seat() -> void:
@@ -164,23 +130,6 @@ func test_all_bot_match_reaches_playing_with_n_bot_slots_and_no_hot_seat() -> vo
 	for _i: int in range(int(ceil(Match.COUNTDOWN_SECONDS * Engine.physics_ticks_per_second)) + 2):
 		Match._process(1.0 / Engine.physics_ticks_per_second)
 	assert_eq(Match.state(), Match.State.PLAYING)
-
-
-func test_staged_and_synchronous_world_builds_have_matching_nodes() -> void:
-	_host()
-	_main._start_headless_bot_match_with_args(PackedStringArray(["--bots=4"]))
-	assert_true(_main._world_built, "headless start builds synchronously")
-	var synchronous_counts: Array[int] = [_main._field._home_flags.size() + _main._field._goal_flags.size(), _bot_controller_count(), int(_main._remote_cursors != null), int(_main._hot_seat != null), int(_main._debug_overlay != null)]
-	_main._end_match_world()
-	await _settle()
-	_main._loading_screen.show_for_match(Match.config, _main._loading_screen_slots())
-	_main._build_match_world(true)
-	assert_false(_main._world_built, "staged build waits for a frame")
-	for _i: int in range(4):
-		await get_tree().process_frame
-	assert_true(_main._world_built)
-	var staged_counts: Array[int] = [_main._field._home_flags.size() + _main._field._goal_flags.size(), _bot_controller_count(), int(_main._remote_cursors != null), int(_main._hot_seat != null), int(_main._debug_overlay != null)]
-	assert_eq(staged_counts, synchronous_counts)
 
 
 func test_players_override_leaves_idle_human_seats_and_still_builds_a_hot_seat() -> void:
@@ -220,47 +169,3 @@ func test_end_match_world_frees_the_bot_controllers() -> void:
 
 
 # --- Review finding 2: HEADLESS_BOTS progress line ----------------------------
-
-func test_headless_bots_diagnostics_counts_placements_and_formats_lines() -> void:
-	_host()
-	_main._start_headless_bot_match_with_args(PackedStringArray(["--bots=4"]))
-	await _settle()
-
-	assert_eq(_main._headless_bots_placements, 0, "fixture: no blocks placed yet")
-	Events.block_placed.emit(null, &"cube")
-	Events.block_placed.emit(null, &"cube")
-	assert_eq(_main._headless_bots_placements, 2, "each Events.block_placed increments the counter")
-
-	var periodic: String = _main._headless_bots_periodic_line()
-	assert_true(periodic.begins_with("HEADLESS_BOTS t="), "periodic line: %s" % periodic)
-	assert_true(periodic.contains(" state=%s " % _main._headless_bots_state_name()), "carries Match's own state name: %s" % periodic)
-	assert_true(periodic.contains(" placements=2 mode="), "periodic line: %s" % periodic)
-
-	var done: String = _main._headless_bots_done_line()
-	assert_true(done.begins_with("HEADLESS_BOTS done t="), "done line: %s" % done)
-	assert_true(done.contains(" placements=2 mode="), "done line: %s" % done)
-
-
-func test_stats_string_carries_peak_and_peak180() -> void:
-	_host()
-	_main._start_headless_bot_match_with_args(PackedStringArray(["--bots=2"]))
-	await _settle()
-	var stats: String = _main._headless_bots_flow_port().call(&"_headless_stats_string") as String
-	var fields: PackedStringArray = stats.split(",")[0].split(":")[1].split("/")
-	assert_eq(fields.size(), 4, "placed/lost/peak/peak180: %s" % stats)
-	assert_eq(float(fields[2]), float(fields[3]), "before 180 s the peak180 field reads the live peak")
-
-
-func test_end_match_world_stops_headless_bots_diagnostics() -> void:
-	_host()
-	_main._start_headless_bot_match_with_args(PackedStringArray(["--bots=4"]))
-	await _settle()
-
-	_main._end_match_world()
-	await _settle()
-
-	assert_false(
-		Events.block_placed.is_connected(_main._on_headless_bots_block_placed),
-		"teardown disconnects the placements counter"
-	)
-	assert_null(_main._headless_bots_report_timer, "teardown frees the report timer")

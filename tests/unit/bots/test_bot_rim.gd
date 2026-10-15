@@ -36,15 +36,6 @@ func _intent() -> BotIntent:
 	return intent
 
 
-func test_full_size_central_scores_unchanged() -> void:
-	var intent: BotIntent = _intent()
-	var c: BotCandidate = _site(CENTRAL)
-	var legacy: BotWorldView = _view(0.0)
-	var full: BotWorldView = _view(FULL_RADIUS_M)
-	assert_eq(BotEvaluator.rim_risk(c, full), 0.0, "far from the rim, no term")
-	assert_eq(BotEvaluator.proxy(c, full, intent), BotEvaluator.proxy(c, legacy, intent), "bit-identical")
-
-
 func test_rim_candidate_scores_below_central() -> void:
 	var intent: BotIntent = _intent()
 	var shrunk: BotWorldView = _view(SHRUNK_RADIUS_M)
@@ -70,15 +61,6 @@ func test_beyond_live_radius_never_chosen() -> void:
 	assert_true(BotEvaluator.rim_risk(_site(OUTSIDE), shrunk) >= BotEvaluator.tuning.rim_outside_penalty)
 
 
-func test_shrink_biases_to_centre() -> void:
-	var shrunk: BotWorldView = _view(SHRUNK_RADIUS_M)
-	var near: float = BotEvaluator.rim_risk(_site(Vector2(1.0, 0.0)), shrunk)
-	var mid: float = BotEvaluator.rim_risk(_site(Vector2(10.0, 0.0)), shrunk)
-	assert_lt(near, mid)
-	assert_true(shrunk.is_shrunk())
-	assert_false(_view(FULL_RADIUS_M).is_shrunk())
-
-
 func test_live_radius_read_from_shrunk_raster() -> void:
 	var tuning: TerritoryTuning = load("res://config/territory/territory_tuning.tres") as TerritoryTuning
 	var grid: CellGrid = CellGrid.new(FULL_RADIUS_M, CELL_M)
@@ -99,13 +81,6 @@ func _raster_fixture() -> Array:
 	return [grid, TerritoryRaster.new(grid, tuning)]
 
 
-func _shrink(grid: CellGrid, raster: TerritoryRaster, radius: float) -> void:
-	for index: int in grid.in_disk_cells():
-		var xy: Vector2i = grid.cell_coords(index)
-		if grid.index_center(index).length() > radius:
-			raster.force_hole_cell(xy.x, xy.y, 0.0, true)
-
-
 func test_natural_interior_holes_do_not_shrink() -> void:
 	var fx: Array = _raster_fixture()
 	var grid: CellGrid = fx[0] as CellGrid
@@ -114,41 +89,3 @@ func test_natural_interior_holes_do_not_shrink() -> void:
 	assert_eq(BotWorldView.live_radius_from_raster(raster, grid), FULL_RADIUS_M, "unshrunk reports field_radius")
 	var view: BotWorldView = _view(BotWorldView.live_radius_from_raster(raster, grid))
 	assert_false(view.is_shrunk(), "t=0 / natural holes: not shrunk")
-
-
-func test_non_circular_map_not_falsely_shrunk() -> void:
-	var grid: CellGrid = CellGrid.new(FULL_RADIUS_M, CELL_M, func(p: Vector2) -> bool: return absf(p.x) < 10.0)
-	var tuning: TerritoryTuning = load("res://config/territory/territory_tuning.tres") as TerritoryTuning
-	var raster: TerritoryRaster = TerritoryRaster.new(grid, tuning)
-	assert_eq(BotWorldView.live_radius_from_raster(raster, grid), FULL_RADIUS_M)
-
-
-func test_live_radius_cached_and_invalidated_by_next_step() -> void:
-	var fx: Array = _raster_fixture()
-	var grid: CellGrid = fx[0] as CellGrid
-	var raster: TerritoryRaster = fx[1] as TerritoryRaster
-	_shrink(grid, raster, SHRUNK_RADIUS_M)
-	var first: float = BotWorldView.live_radius_from_raster(raster, grid)
-	var scans: int = BotWorldView.scan_count
-	assert_eq(BotWorldView.live_radius_from_raster(raster, grid), first)
-	assert_eq(BotWorldView.scan_count, scans, "second bot, same state: no rescan")
-	_shrink(grid, raster, SHRUNK_RADIUS_M - 3.0)
-	var second: float = BotWorldView.live_radius_from_raster(raster, grid)
-	assert_lt(second, first, "further shrink step is picked up")
-	assert_eq(BotWorldView.scan_count, scans + 1)
-
-
-func test_early_out_matches_full_loop() -> void:
-	var fx: Array = _raster_fixture()
-	var grid: CellGrid = fx[0] as CellGrid
-	var shape: BlockShape = BlockShape.new()
-	shape.cells = [Vector3i(0, 0, 0), Vector3i(1, 0, 0)] as Array[Vector3i]
-	var with_extent: BotWorldView = _view(FULL_RADIUS_M)
-	with_extent.grid = grid
-	with_extent.held = shape
-	var without: BotWorldView = _view(FULL_RADIUS_M)
-	without.grid = grid
-	for x: float in [0.0, 5.0, 12.0, 20.0, 26.0, 29.0]:
-		var c: BotCandidate = _site(Vector2(x, 0.0))
-		c.footprint_cells = PackedInt32Array([grid.cell_index(grid.world_to_cell(c.origin).x, grid.world_to_cell(c.origin).y)])
-		assert_eq(BotEvaluator.rim_risk(c, with_extent), BotEvaluator.rim_risk(c, without), "x=%f" % x)

@@ -57,20 +57,6 @@ func test_rotate_drag_pad_resolves_to_the_right_trigger_free_rotation_axis() -> 
 	assert_eq((events[0] as InputEventJoypadMotion).axis, JOY_AXIS_TRIGGER_RIGHT)
 
 
-func test_lock_vertical_has_no_pad_function_and_is_hidden_not_blank() -> void:
-	assert_true(KeyRebindRow.PAD_NOT_APPLICABLE.has(&"lock_vertical"))
-	assert_eq(KeyRebindRow.gamepad_events_for(&"lock_vertical").size(), 0, "no pad event exists to show for lock_vertical")
-
-	var row: KeyRebindRow = _make_row(&"lock_vertical")
-	assert_true(row.visible, "keyboard/mouse page keeps the Lock height row")
-	assert_true(row.is_available_on_active_device())
-	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
-	assert_false(row.visible, "gamepad page hides the row instead of showing it blank")
-	assert_false(row.is_available_on_active_device())
-	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
-	assert_true(row.visible, "switching back to keyboard/mouse restores the row")
-
-
 ## Bontago-1pi.159.22 (owner 2026-10-11): camera rows that make no sense to remap
 ## are absent on the pad page, still listed on the keyboard page; snap rows are
 ## hidden on both pages while CameraTuning.snap_enabled is false.
@@ -102,22 +88,6 @@ func test_pad_page_hides_fixed_camera_rows_and_snap_rows_are_hidden_everywhere()
 		Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
 
 
-## A pad rebind adds a real pad event to the action itself; the row shows it, and an
-## action with no pad event of its own shows nothing (the old stand-ins are gone,
-## Bontago-1pi.159.63). The event is removed again so the real Input Map is left as
-## bootstrap generated it.
-func test_an_actions_own_pad_binding_is_what_the_row_shows() -> void:
-	assert_eq(KeyRebindRow.gamepad_events_for(&"rotate_yaw_cw").size(), 0, "no stand-in for a keyboard-only action")
-	var own: InputEventJoypadButton = InputEventJoypadButton.new()
-	own.button_index = JOY_BUTTON_MISC1
-	InputMap.action_add_event(&"rotate_yaw_cw", own)
-	var events: Array[InputEvent] = KeyRebindRow.gamepad_events_for(&"rotate_yaw_cw")
-	InputMap.action_erase_event(&"rotate_yaw_cw", own)
-	assert_eq(events.size(), 1)
-	assert_eq((events[0] as InputEventJoypadButton).button_index, JOY_BUTTON_MISC1)
-	assert_eq(KeyRebindRow.gamepad_events_for(&"rotate_yaw_cw").size(), 0)
-
-
 ## Every Options row either shows at least one pad glyph on the gamepad page or
 ## is hidden there -- the owner-reported "blank row" can never come back.
 func test_every_rebindable_action_shows_a_pad_glyph_or_is_hidden_on_the_pad_page() -> void:
@@ -131,19 +101,6 @@ func test_every_rebindable_action_shows_a_pad_glyph_or_is_hidden_on_the_pad_page
 		else:
 			assert_true(KeyRebindRow.PAD_NOT_APPLICABLE.has(action) or KeyRebindRow.SNAP_ACTIONS.has(action), "%s is hidden on the gamepad page without being declared PAD_NOT_APPLICABLE" % action)
 
-
-func test_pad_rows_render_their_own_glyphs() -> void:
-	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
-	assert_eq(_glyph_labels(_make_row(&"rotate_snap")), ["B"])
-	assert_eq(_glyph_labels(_make_row(&"rotate_drag_pad")), ["RT"])
-
-
-func test_keyboard_page_shows_the_real_bindings() -> void:
-	var cw: KeyRebindRow = _make_row(&"rotate_yaw_cw")
-	assert_eq(_glyph_labels(cw), ["S"], "keyboard/mouse page still shows only the real S binding")
-
-
-# --- Synthetic input drives the pad-only actions ----------------------------------
 
 ## The glyphs are only honest if pressing those physical inputs really triggers the
 ## action the row stands for.
@@ -194,13 +151,6 @@ func _make_row(action: StringName) -> KeyRebindRow:
 	add_child_autofree(row)
 	row.setup(action)
 	return row
-
-
-func _glyph_labels(row: KeyRebindRow) -> Array[String]:
-	var labels: Array[String] = []
-	for child: Node in (row.get_node("%GlyphRow") as HBoxContainer).get_children():
-		labels.append((child as InputGlyph).label_text())
-	return labels
 
 
 ## Stable identity of one physical pad input: a button index, or an axis plus

@@ -65,7 +65,7 @@ static func should_spawn(
 ## the rim (spec 2.6: "at a random uncontested point"). Returns
 ## NO_SPAWN_POINT when every attempt failed; the caller just waits for the
 ## next window rather than treating that as an error (mirrors
-## PlacementRules.closest_valid_origin()'s NO_ORIGIN contract).
+## PlacementRules.closest_valid_point()'s NO_ORIGIN contract).
 ##
 ## `avoid` lists the positions of crates already live; a candidate closer than
 ## config.crate_min_separation_m to any of them is skipped.

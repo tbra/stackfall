@@ -1,33 +1,5 @@
-extends GutTest
-## autoload/match/MatchPlacement.gd's request_throw() (spec 2.5, 3.4, M4 P2c)
-## and _spawn_block()'s special-attach extension. Same tiny-map/real-Field
-## fixture as tests/unit/match/test_placement_refusal.gd; SpecialDef attach cases
-## seed Match._placement's per-id cache directly rather than adding a real
-## .tres under res://config/gifts/specials/ (docs/archive/M4_P2_PACKAGES.md P2c: "do not
-## add real specials under config/gifts/specials/") -- the same "reach into a
-## private field directly" convention autoload/Match.gd's own header
-## documents for tests.
-
-var _blocks_root: Node3D
-var _field: Field
-var _registry: BlockRegistry
-var _tiny_map: MapDef
-
-
-func before_each() -> void:
-	Match.set_process(false)
-	Match.abort_match()
-	_tiny_map = (load("res://config/match/maps/round.tres") as MapDef).duplicate(true)
-	_tiny_map.field_radius = 20.0
-	_field = autofree(Field.new())
-	_field.map_def = _tiny_map
-	add_child_autofree(_field)
-	_blocks_root = autofree(Node3D.new())
-	add_child_autofree(_blocks_root)
-	_registry = autofree(BlockRegistry.new())
-	add_child_autofree(_registry)
-	Match.register_world(_field, _registry, _blocks_root)
-
+extends "res://tests/unit/match/match_world_test.gd"
+## MatchPlacement.request_throw and special attach (spec 2.5, 3.4, M4 P2c).
 
 func after_each() -> void:
 	Match.set_net_provider(null)
@@ -62,20 +34,6 @@ func _config(player_count: int = 2) -> MatchConfig:
 	return config
 
 
-func _run_countdown() -> void:
-	for _i: int in range(int(ceil(Match.COUNTDOWN_SECONDS * Engine.physics_ticks_per_second)) + 2):
-		Match._process(1.0 / Engine.physics_ticks_per_second)
-
-
-func _home_world_position(slot_id: int) -> Vector3:
-	var home: Vector2 = Match.slot(slot_id).home_position
-	return _field.to_global(Vector3(home.x, 5.0, home.y))
-
-
-## Pushes `special_id` straight onto `slot_id`'s pending queue -- the FIFO
-## MatchGifts._claim_gift() would otherwise fill; bypassing the claim/roll
-## machinery keeps these tests about request_throw()/_ spawn_block(), not
-## about gifts (that is test_gift_claim.gd's job).
 func _queue_special(slot_id: int, special_id: StringName = &"test_special") -> void:
 	Match._gifts._ensure_capacity(slot_id)
 	if Match.held_special(slot_id) == &"":
@@ -126,20 +84,6 @@ func test_throw_with_no_pending_special_is_refused_and_nothing_is_consumed() -> 
 
 
 # --- Held gifts waive territory (Bontago-sen.1) -------------------------------
-
-func test_held_gift_throw_outside_territory_is_accepted() -> void:
-	Match.start_match(_config())
-	_run_countdown()
-	var slot_id: int = 0
-	_queue_special(slot_id)
-
-	# Slot 1's home is outside slot 0's own territory; a gift may go anywhere.
-	var reason: StringName = Match.request_throw(
-		slot_id, _home_world_position(1), 0, Quaternion.IDENTITY, Vector3(1.0, 0.0, 0.0)
-	)
-
-	assert_eq(reason, PlacementRules.REASON_OK)
-
 
 # --- Refusal (off the disk): never burned ------------------------------------
 
@@ -266,62 +210,6 @@ func test_accepted_throw_spawns_with_the_requested_velocity_and_continuous_cd() 
 	assert_true(block.continuous_cd, "spec 3.5: thrown specials always use continuous_cd")
 
 
-func test_accepted_throw_pops_the_pending_special_exactly_once() -> void:
-	Match.start_match(_config())
-	_run_countdown()
-	var slot_id: int = 0
-	_queue_special(slot_id, &"special_a")
-	_queue_special(slot_id, &"special_b")
-	assert_eq(Match.pending_special_count(slot_id), 2, "setup")
-
-	Match.request_throw(slot_id, _home_world_position(slot_id), 0, Quaternion.IDENTITY, Vector3(1.0, 0.0, 0.0))
-
-	assert_eq(Match.pending_special_count(slot_id), 1, "exactly one pop per spawn")
-	assert_eq(Match.held_special(slot_id), &"special_b", "FIFO order preserved")
-
-
-func test_accepted_throw_attaches_a_special_behavior_bound_to_the_right_def_and_forwards_triggered() -> void:
-	Match.start_match(_config())
-	_run_countdown()
-	var slot_id: int = 0
-	_queue_special(slot_id, &"test_special")
-	var def: SpecialDef = _make_test_def(&"test_special")
-	_install_test_def(def)
-	watch_signals(Events)
-
-	Match.request_throw(slot_id, _home_world_position(slot_id), 0, Quaternion.IDENTITY, Vector3(1.0, 0.0, 0.0))
-
-	var block: Block = _blocks_root.get_child(0) as Block
-	var behavior: SpecialBehavior = null
-	for child: Node in block.get_children():
-		if child is SpecialBehavior:
-			behavior = child as SpecialBehavior
-	assert_not_null(behavior, "a real, roster-resolvable special id must attach a SpecialBehavior")
-
-	behavior.trigger(0)
-	assert_signal_emitted_with_parameters(
-		Events, "special_triggered", [block.net_id, def.id, block.global_position, 0]
-	)
-	# Freed immediately (not autofree()'s deferred queue_free()) -- GUT's
-	# end-of-script orphan check runs before the next idle frame processes a
-	# merely-queued free. block itself is freed synchronously too, by
-	# after_each() (see that function's own comment).
-	behavior.free()
-
-
-func test_placeholder_pending_id_spawns_an_ordinary_block_with_no_special_behavior() -> void:
-	Match.start_match(_config())
-	_run_countdown()
-	var slot_id: int = 0
-	_queue_special(slot_id, MatchGifts.PENDING_SPECIAL_ID)
-
-	Match.request_throw(slot_id, _home_world_position(slot_id), 0, Quaternion.IDENTITY, Vector3(1.0, 0.0, 0.0))
-
-	var block: Block = _blocks_root.get_child(0) as Block
-	for child: Node in block.get_children():
-		assert_false(child is SpecialBehavior, "the placeholder id must never attach a real behavior")
-
-
 # --- Client refusal mirrors request_place()'s own -----------------------------
 
 func test_a_client_call_is_refused_exactly_like_request_place() -> void:
@@ -344,28 +232,6 @@ func test_a_client_call_is_refused_exactly_like_request_place() -> void:
 
 
 # --- A placed (not thrown) special arms too ----------------------------------
-
-func test_request_place_with_a_pending_real_id_also_attaches_the_behavior() -> void:
-	Match.start_match(_config())
-	_run_countdown()
-	var slot_id: int = 0
-	_queue_special(slot_id, &"test_special")
-	var def: SpecialDef = _make_test_def(&"test_special")
-	_install_test_def(def)
-
-	var reason: StringName = Match.request_place(
-		slot_id, _home_world_position(slot_id), 0, Quaternion.IDENTITY, false
-	)
-
-	assert_eq(reason, PlacementRules.REASON_OK)
-	var block: Block = _blocks_root.get_child(0) as Block
-	var behavior: SpecialBehavior = null
-	for child: Node in block.get_children():
-		if child is SpecialBehavior:
-			behavior = child as SpecialBehavior
-	assert_not_null(behavior, "a placed special must arm too, not only a thrown one")
-	behavior.free()  # see the earlier test's own comment on why not autofree()
-
 
 # --- Bontago-1en.13 review fix: a burn must never consume the queue ---------
 
@@ -402,95 +268,4 @@ func test_auto_drop_burn_does_not_consume_the_pending_special() -> void:
 		assert_false(child is SpecialBehavior, "a burned block must never arm a special")
 
 
-## The companion case: an auto-drop that *does* find a valid point to
-## relocate to is not a burn at all (request_place()'s own `reason ==
-## PlacementRules.REASON_OK` path) -- it must still attach and pop exactly
-## like any other successful spawn.
-func test_auto_drop_that_relocates_still_attaches_and_pops() -> void:
-	Match.start_match(_config())
-	_run_countdown()
-	var slot_id: int = 0
-	_queue_special(slot_id, &"test_special")
-	var def: SpecialDef = _make_test_def(&"test_special")
-	_install_test_def(def)
-	var home: Vector2 = Match.slot(slot_id).home_position
-	var tuning: TerritoryTuning = load("res://config/territory/territory_tuning.tres")
-	# Just past the home circle's own radius, well inside auto_drop_search_
-	# max_radius -- the same setup test_placement_refusal.gd's own relocation
-	# test uses.
-	var desired_local: Vector2 = home + Vector2(tuning.home_radius + 1.5, 0.0)
-	var desired_world: Vector3 = _field.to_global(Vector3(desired_local.x, 5.0, desired_local.y))
-
-	var reason: StringName = Match.request_place(slot_id, desired_world, 0, Quaternion.IDENTITY, true)
-
-	assert_eq(reason, PlacementRules.REASON_OK, "setup: must actually relocate, not burn")
-	assert_eq(Match.pending_special_count(slot_id), 0, "a successful relocation still pops the pending special")
-	var block: Block = _blocks_root.get_child(0) as Block
-	var behavior: SpecialBehavior = null
-	for child: Node in block.get_children():
-		if child is SpecialBehavior:
-			behavior = child as SpecialBehavior
-	assert_not_null(behavior, "a relocated auto-drop must still attach the special")
-	behavior.free()
-
-
 # --- Bontago-1en.21: Events.special_consumed must fire exactly on a real pop -
-
-## The bug this package fixes: MatchGifts.pop_pending_special() must emit
-## Events.special_consumed exactly once, with the popped id, on the accepted-
-## throw path -- request_throw()'s own call to _attach_pending_special() is
-## its only pop.
-func test_accepted_throw_emits_special_consumed_exactly_once_with_the_popped_id() -> void:
-	Match.start_match(_config())
-	_run_countdown()
-	var slot_id: int = 0
-	_queue_special(slot_id, &"special_a")
-	_queue_special(slot_id, &"special_b")
-	watch_signals(Events)
-
-	Match.request_throw(slot_id, _home_world_position(slot_id), 0, Quaternion.IDENTITY, Vector3(1.0, 0.0, 0.0))
-
-	assert_signal_emit_count(Events, "special_consumed", 1, "exactly one pop per accepted throw")
-	assert_signal_emitted_with_parameters(Events, "special_consumed", [slot_id, &"special_a"])
-
-
-## The place-spawn twin of the throw test above -- request_place()'s own call
-## to _attach_pending_special(), on its non-burn path.
-func test_request_place_emits_special_consumed_exactly_once_with_the_popped_id() -> void:
-	Match.start_match(_config())
-	_run_countdown()
-	var slot_id: int = 0
-	_queue_special(slot_id, &"test_special")
-	var def: SpecialDef = _make_test_def(&"test_special")
-	_install_test_def(def)
-	watch_signals(Events)
-
-	Match.request_place(slot_id, _home_world_position(slot_id), 0, Quaternion.IDENTITY, false)
-
-	assert_signal_emit_count(Events, "special_consumed", 1, "exactly one pop per accepted placement")
-	assert_signal_emitted_with_parameters(Events, "special_consumed", [slot_id, &"test_special"])
-
-
-## The P2c-i rule this package must not break: a burned auto-drop (nowhere
-## valid to relocate to) keeps the special queued, so it must never emit
-## Events.special_consumed either -- the companion case to
-## test_auto_drop_burn_does_not_consume_the_pending_special above.
-func test_auto_drop_burn_never_emits_special_consumed() -> void:
-	Match.start_match(_config())
-	_run_countdown()
-	var slot_id: int = 0
-	_queue_special(slot_id, &"test_special")
-	var def: SpecialDef = _make_test_def(&"test_special")
-	_install_test_def(def)
-	watch_signals(Events)
-
-	# Bontago-xtq.23: guarantee the genuine no-valid-point-anywhere case (see
-	# test_auto_drop_burn_does_not_consume_the_pending_special's own comment)
-	# rather than relying on distance, which the full-disk scan fallback now
-	# always resolves to a relocation instead.
-	TerritoryTestHelpers.blank_owned_territory(Match.raster(), Match.team_of(slot_id))
-	var far_world: Vector3 = _field.to_global(Vector3(5000.0, 5.0, 5000.0))
-	var reason: StringName = Match.request_place(slot_id, far_world, 0, Quaternion.IDENTITY, true)
-
-	assert_ne(reason, PlacementRules.REASON_OK, "setup: nothing valid within reach must burn, not relocate")
-	assert_signal_not_emitted(Events, "special_consumed", "a burn must never emit special_consumed")

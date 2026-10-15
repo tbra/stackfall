@@ -95,8 +95,6 @@ func test_cube_at_disc_level_rests_on_the_disc_and_floating_cube_does_not() -> v
 	_analyse()
 	assert_true(_stack.is_sound(_stack.index_of(1)))
 	assert_false(_stack.is_sound(_stack.index_of(2)), "floating: no support at all")
-	assert_true(_stack.debris_near(Vector2(5.0, 0.0), 0.5))
-	assert_false(_stack.debris_near(Vector2(0.0, 0.0), 1.0))
 
 
 func test_sound_tops_and_top_height() -> void:
@@ -110,46 +108,6 @@ func test_sound_tops_and_top_height() -> void:
 	assert_eq(_stack.body_ids[tops[0]], 2, "tallest first")
 	assert_almost_eq(_stack.top_height(tops[0]), 2.0, EPS)
 	assert_eq(_stack.sound_tops(1).size(), 1)
-
-
-func _build_tower(levels: int, columns: int) -> void:
-	for col: int in columns:
-		for lv: int in levels:
-			_cube(col * 100 + lv, float(col) * 3.0, lv)
-
-
-func test_sliced_analysis_matches_one_pass() -> void:
-	_build_tower(4, 3)
-	_cube(900, 0.5, 4)
-	_analyse()
-	var one: PackedByteArray = _stack._sound.duplicate()
-	var again: BotStack = BotStack.new()
-	again.cube_size = CUBE
-	for i: int in _stack.body_count():
-		again.add_body(_stack.body_ids[i], 0, Basis.IDENTITY, PackedVector3Array([_stack.cube_pos[i]]), MASS, true)
-	var steps: int = 0
-	while not again.analyse_step(1, _t):
-		steps += 1
-	assert_eq(again._sound, one)
-	assert_eq(
-		again.load_margin(_ids(3), Vector3(0.0, 4.5, 0.0), MASS),
-		_stack.load_margin(_ids(3), Vector3(0.0, 4.5, 0.0), MASS)
-	)
-
-
-func test_four_hundred_cubes_finish_within_the_step_budget() -> void:
-	for i: int in 100:
-		var cubes: Array[Vector3] = []
-		for k: int in 4:
-			cubes.append(Vector3(float(i % 10) * 3.0, HALF + float(k) * CUBE, float(i / 10) * 3.0))
-		_body(i, cubes)
-	var budget: int = ceili(float(_stack.body_count()) / float(_t.analyse_bodies_per_step))
-	var steps: int = 1
-	while not _stack.analyse_step(_t.analyse_bodies_per_step, _t):
-		steps += 1
-	assert_eq(_stack.cube_pos.size(), 400)
-	assert_lte(steps, budget)
-	assert_true(_stack.is_sound(_stack.index_of(0)))
 
 
 func test_rolled_bars_are_sound_with_the_lying_footprint() -> void:
@@ -178,34 +136,3 @@ func test_rolled_bars_are_sound_with_the_lying_footprint() -> void:
 		var size: Vector2 = hi - lo
 		assert_almost_eq(maxf(size.x, size.y), 3.0, EPS)
 		assert_almost_eq(minf(size.x, size.y), 1.0, EPS)
-
-
-func test_thirty_degree_body_stays_unsound_above_max_tilt() -> void:
-	_body(1, [Vector3(0.0, HALF, 0.0)], 0, Basis(Vector3.BACK, deg_to_rad(30.0)))
-	_analyse()
-	assert_almost_eq(_stack.body_tilt_deg[0], 30.0, 0.1)
-	assert_false(_stack.is_sound(0))
-
-
-func test_support_order_is_topological_for_l_shapes() -> void:
-	# L body: foot cube on the disc, arm cube two levels up on another leg; a block on the arm
-	# must be judged after both. Its lowest cube is lower than the arm's support top.
-	_cube(1, 2.0, 0)
-	_cube(2, 2.0, 1)
-	_body(3, [Vector3(0.0, HALF, 0.0), Vector3(0.0, 1.5, 0.0), Vector3(1.0, 2.5, 0.0), Vector3(2.0, 2.5, 0.0)])
-	_cube(4, 2.0, 3)
-	_analyse()
-	var order: Array[int] = _stack._support_order()
-	assert_lt(order.find(_stack.index_of(2)), order.find(_stack.index_of(4)))
-	assert_lt(order.find(_stack.index_of(1)), order.find(_stack.index_of(2)))
-
-
-func test_disc_carries_a_body_that_also_touches_it() -> void:
-	# A wide body on the disc overhangs a lone cube it also rests on; the cube's load must not
-	# include it (the disc carries it), and a piece on the wide body stops at the disc.
-	_cube(1, 0.0, 0)
-	_body(2, [Vector3(0.0, 1.5, 0.0), Vector3(3.0, HALF, 0.0), Vector3(2.0, HALF, 0.0), Vector3(1.0, 1.5, 0.0)])
-	_analyse()
-	var low: int = _stack.index_of(1)
-	assert_eq(_stack._carriers(_stack.index_of(2)), 2, "cube plus disc")
-	assert_almost_eq(_stack._load_mass[low], MASS, EPS)

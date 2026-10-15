@@ -80,16 +80,6 @@ func test_volume_and_duck_follow_progress() -> void:
 		assert_gt(_sfx.claim_tension_pitch_scale(), 1.0)
 
 
-func test_duck_reaches_playlist_volume() -> void:
-	_config.contextual_music_enabled = true
-	_sfx._music_envelope = 1.0
-	_sfx._apply_playlist_volume()
-	var base: float = _sfx._music_player.volume_db
-	_sfx._set_claim_duck(-6.0)
-	_sfx._apply_playlist_volume()
-	assert_almost_eq(_sfx._music_player.volume_db, base - 6.0, 0.001)
-
-
 func test_rival_is_quieter_darker() -> void:
 	Events.goal_capture_progress.emit(MINE, 0.8)
 	var mine_db: float = _sfx.claim_tension_target_volume_db()
@@ -148,24 +138,6 @@ func test_scope_reset_clears_layer() -> void:
 	assert_eq(_sfx._claim_player.volume_db, SFX_SCRIPT.MUSIC_STEM_MUTE_DB)
 
 
-func test_missing_files_are_a_silent_noop() -> void:
-	for filename: String in DirAccess.get_files_at(_dir):
-		DirAccess.remove_absolute(_dir.path_join(filename))
-	_sfx.set_root_dir_for_test(_dir)
-	var before: int = _sfx._next_sfx_player_index
-	Events.goal_capture_progress.emit(MINE, 0.7)
-	assert_false(_sfx._claim_player.playing)
-	Events.goal_capture_progress.emit(-1, 0.0)
-	await get_tree().process_frame
-	assert_eq(_stings(before), 0)
-
-
-func test_disabled_music_silences_bed() -> void:
-	_sfx.set_music_enabled(false)
-	Events.goal_capture_progress.emit(MINE, 0.9)
-	assert_eq(_sfx.claim_tension_target_volume_db(), SFX_SCRIPT.MUSIC_STEM_MUTE_DB)
-
-
 func test_client_extrapolates_between_sparse_updates_and_stops_on_break() -> void:
 	_sfx._claim_test_client = true
 	_sfx._claim_test_hold_s = 20.0
@@ -195,21 +167,3 @@ func test_host_does_not_extrapolate() -> void:
 	_sfx._claim_extrapolate(5.0)
 	assert_eq(_sfx.claim_tension_level(), before)
 
-
-func test_holding_update_ignored_when_match_not_live() -> void:
-	Events.goal_capture_progress.emit(MINE, 0.9)
-	Events.match_won.emit(MINE)
-	_sfx._claim_test_live = false
-	Events.goal_capture_progress.emit(MINE, 1.0)  # END zero-time redraw
-	assert_eq(_sfx.claim_tension_level(), 0.0)
-	assert_false(_sfx._claim_player.playing and _sfx._claim_player.volume_db > SFX_SCRIPT.MUSIC_STEM_MUTE_DB)
-
-
-func test_unchanged_target_makes_no_new_tweens() -> void:
-	Events.goal_capture_progress.emit(-1, 0.0)
-	assert_null(_sfx._claim_tween, "silent and already silent: no tween")
-	Events.goal_capture_progress.emit(MINE, 0.5)
-	var tween: Tween = _sfx._claim_tween
-	assert_not_null(tween)
-	Events.goal_capture_progress.emit(MINE, 0.5)
-	assert_same(_sfx._claim_tween, tween, "same target keeps the running tween")

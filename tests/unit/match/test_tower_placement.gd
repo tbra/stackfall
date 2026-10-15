@@ -1,54 +1,13 @@
 extends GutTest
-## M1 acceptance: "You can build a stable 30-block tower... with mouse and
-## keyboard and with a gamepad." This drives the real placement path
-## (PlayerController._place_ghost_block) the way ghost_place does, stacks 30
-## cubes, lets physics settle for 10 s, and checks the tower is still
-## standing and asleep. The gamepad half is covered by
-## test_playercontroller_gamepad.gd's synthetic-input test.
-##
-## Updated for M2 (docs/archive/M2_PLAN.md P4): placement is intent-only now (spec
-## 3.4) — PlayerController calls Match.request_place() and never builds a
-## Block itself. P2's real Match hasn't landed on this branch yet, so this
-## uses FakeMatch (tests/support/FakeMatch.gd) with spawn_on_ok = true,
-## which spawns the same way the real Match eventually will, keeping this
-## acceptance test's physics half (a stable, sleeping tower) exercised
-## end-to-end.
+## M1 acceptance: a 30-cube tower placed through PlayerController stands and sleeps.
 
 const TOWER_HEIGHT: int = 30
 const SETTLE_SECONDS: float = 10.0
 const MAX_TOP_DRIFT: float = 2.0
-## Real settle time between placements rather than all 30 at once or a couple
-## of ticks apart — spec 2.8's block timer is 3-12 s, never sub-frame, and a
-## freshly dropped cube needs a moment to genuinely come to rest before the
-## next one lands on it.
 const TICKS_BETWEEN_PLACEMENTS: int = 30
 
-## DECISION (Bontago-mv0.3): this test genuinely needs ~1500 real physics
-## ticks (900 while placing, 600 to settle) -- it is exactly the "inherently
-## slow, keep it" case CLAUDE.md's own workflow calls out, since a 30-cube
-## tower's stability is the thing under test. Tried Engine.time_scale = 8 to
-## pack more physics ticks into less real time: it broke the test outright
-## (an out-of-bounds child index reading blocks_root mid-placement, and
-## FakeMatch/PlayerController's own add_child() landing later than the test's
-## next physics_frame await expected) rather than just changing timing, so it
-## is not used here. The map-size fix below is the safe win for this file.
-
-## DECISION (Bontago-1pi.45): the sharded-gate failure ("30 of 30 still awake
-## after 10 s", passes alone) is NOT leaked resource/Engine state; do not chase it
-## there again. In the failing shard order (test_playercontroller_spawn_clearance
-## -> test_weather_breeze -> this) the world at this test's start was identical
-## on every run (same PhysicsTuning hash, 0 active bodies/islands, no Blocks,
-## time_scale 1, 60 tps), yet the tower's outcome varied: standalone and idle it
-## is bit-identical and asleep within 1 s; after those scripts, with 3 copies of
-## the order running at once, the built tower differed run to run (top block y
-## 28.382 .. 28.395 m) and stayed awake 0 s, 6 s, 8 s, and 10 s+ (the original
-## failure). Working explanation: the earlier scripts leave run-varying history
-## inside the default physics space (Jolt body ids/broadphase), which nothing
-## here can reset. So the tower is built in a private World3D (SubViewport with
-## its own World3D = a fresh physics space every run); with that, 3 of 3
-## loaded shard-order runs slept at 0.00 s. The asleep-onset time is printed
-## and added to the failure message so a future failure shows how far past
-## the budget it was.
+## DECISION (Bontago-1pi.45): the tower is built in a private World3D (fresh physics space) because
+## earlier scripts leave run-varying Jolt state in the default space.
 ##
 ## DECISION (Bontago-1pi.21): pin the shared physics_tuning.tres instance to its
 ## on-disk values for this test. Sharded gate processes share user://, and

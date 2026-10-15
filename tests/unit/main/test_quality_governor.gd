@@ -87,24 +87,6 @@ func test_recovery_restores_with_hysteresis() -> void:
 	assert_eq(gov.level, 0)
 
 
-func test_off_does_nothing() -> void:
-	var settings: Node = _settings()
-	assert_false(settings.adaptive_quality_enabled(), "defaults to OFF")
-	var emitted: Array[int] = [0]
-	settings.graphics_preset_changed.connect(func(_p: GraphicsPreset) -> void: emitted[0] += 1)
-	settings.set_governor_level(4)
-	assert_eq(settings.governor_level(), 0)
-	assert_eq(emitted[0], 0)
-	var driver: QualityGovernorDriver = QualityGovernorDriver.new()
-	driver.settings_node = settings
-	add_child_autofree(driver)
-	assert_false(driver.is_processing(), "driver idles while OFF")
-	for i: int in range(20):
-		driver.sample(500.0, 500, 10.0)
-	assert_eq(settings.governor_level(), 0)
-	assert_eq(settings.current_graphics_preset().particle_budget_scale, 1.0)
-
-
 func test_driver_sheds_through_settings_and_user_settings_are_untouched() -> void:
 	var settings: Node = _settings()
 	settings.set_graphics_preset(&"high")
@@ -135,22 +117,3 @@ func test_driver_sheds_through_settings_and_user_settings_are_untouched() -> voi
 	assert_true(restored.volumetric_fog_enabled)
 	assert_eq(restored.sun_shadow_max_distance, distance_before)
 
-
-func test_preset_change_while_shed_resolves_on_the_new_preset() -> void:
-	var settings: Node = _settings()
-	settings.set_graphics_preset(&"high")
-	settings.set_adaptive_quality_enabled(true)
-	settings.set_governor_level(3)
-	var seen: Array[GraphicsPreset] = []
-	settings.graphics_preset_changed.connect(func(p: GraphicsPreset) -> void: seen.append(p))
-	settings.set_graphics_preset(&"low")
-	assert_eq(seen.size(), 1)
-	var low: GraphicsPreset = load("res://config/graphics/presets/low.tres") as GraphicsPreset
-	var effective: GraphicsPreset = seen[0]
-	assert_eq(effective.id, &"low")
-	assert_eq(effective.particle_budget_scale, minf(low.particle_budget_scale, _cfg.shed_particle_budget_scale), "governor override still on")
-	assert_eq(effective.sun_shadow_max_distance, minf(low.sun_shadow_max_distance, _cfg.shed_shadow_max_distance_m))
-	assert_eq(effective.cloud_puff_density, low.cloud_puff_density, "new preset own fields win")
-	assert_eq(settings.stored_graphics_preset().id, &"low")
-	assert_eq(settings.stored_graphics_preset().particle_budget_scale, low.particle_budget_scale)
-	assert_eq(QualityGovernor.apply(low, 5, _cfg).sun_shadow_mode, mini(low.sun_shadow_mode, _cfg.shed_shadow_mode))

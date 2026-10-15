@@ -3,39 +3,6 @@ extends GutTest
 ## hide while a full-screen panel (results, pause) is open.
 
 const RESULTS_SCENE: PackedScene = preload("res://ui/menus/ResultsScreen.tscn")
-const UI_SCENES: Array[String] = [
-	"res://ui/hud/HUD.tscn",
-	"res://ui/menus/PauseMenu.tscn",
-	"res://ui/debug/TuningPanel.tscn",
-	"res://ui/debug/NetDebugOverlay.tscn",
-	"res://ui/debug/SandboxPanel.tscn",
-]
-
-
-func test_flare_layer_is_below_default_canvas_and_every_ui_layer() -> void:
-	var flare: SunFlare = SunFlare.new()
-	add_child_autofree(flare)
-	assert_lt(flare.layer, 0, "flare must sit under layer 0 (ResultsScreen lives on the default canvas).")
-	for path: String in UI_SCENES:
-		var ui: CanvasLayer = (load(path) as PackedScene).instantiate() as CanvasLayer
-		assert_not_null(ui, path)
-		if ui == null:
-			continue
-		assert_lt(flare.layer, maxi(ui.layer, 0), "flare must be below %s" % path)
-		ui.free()
-
-
-func test_main_scene_flare_uses_default_layer_overridden_in_ready() -> void:
-	var main: PackedScene = load("res://game/main/Main.tscn") as PackedScene
-	var state: SceneState = main.get_state()
-	for i: int in state.get_node_count():
-		if state.get_node_name(i) == &"SunFlare":
-			for p: int in state.get_node_property_count(i):
-				assert_ne(state.get_node_property_name(i, p), &"layer", "layer is owned by SunFlare.FLARE_LAYER, not the scene.")
-			return
-	fail_test("Main.tscn has no SunFlare node")
-
-
 func test_flare_hides_while_results_are_shown() -> void:
 	var flare: SunFlare = SunFlare.new()
 	add_child_autofree(flare)

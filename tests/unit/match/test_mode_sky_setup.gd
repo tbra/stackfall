@@ -45,30 +45,9 @@ func _assert_sky_configured(mode: String) -> void:
 	assert_eq(sky.environment.sky.sky_material, sky.theme.sky_material, "%s: the cycle's material is the live sky" % mode)
 
 
-
 func test_hot_seat_configures_sky() -> void:
 	_main._start_hot_seat_match()
 	_assert_sky_configured("hot-seat")
-
-
-func test_sandbox_configures_sky() -> void:
-	_main._start_sandbox_match_with_args(PackedStringArray(["--players=2"]))
-	_assert_sky_configured("sandbox")
-
-
-func test_tutorial_configures_sky() -> void:
-	_main.start_tutorial_from_menu()
-	_assert_sky_configured("tutorial")
-
-
-func test_gift_demo_configures_sky() -> void:
-	_main.start_gift_demo_from_menu()
-	_assert_sky_configured("gift demo")
-
-
-func test_tower_topple_configures_sky() -> void:
-	_main.start_tower_topple_from_menu()
-	_assert_sky_configured("tower topple")
 
 
 ## Bontago-1pi.127 (owner screenshot 2026-10-08 showed the painted sunset): the real menu

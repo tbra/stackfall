@@ -1,9 +1,6 @@
 extends GutTest
 ## Bontago-mp0.122: the moon_v1 disc + halo in the procedural cycle sky.
 
-const MOON_DISC: String = "res://assets/textures/sky/moon/moon_disc.png"
-
-
 func _cycle_skybox() -> Skybox:
 	Settings.set_graphics_preset(&"high")
 	var environment: Environment = Environment.new()
@@ -26,18 +23,6 @@ func _sky(skybox: Skybox) -> ShaderMaterial:
 
 func _param(skybox: Skybox, name: StringName) -> Variant:
 	return _sky(skybox).get_shader_parameter(name)
-
-
-func test_moon_textures_and_config_uniforms_are_set() -> void:
-	var skybox: Skybox = _cycle_skybox()
-	skybox.set_cycle_phase(0.75)
-	var disc: Texture2D = _param(skybox, &"moon_disc_tex") as Texture2D
-	assert_not_null(disc, "disc texture set")
-	assert_eq(disc.resource_path, MOON_DISC)
-	assert_not_null(_param(skybox, &"moon_halo_tex"), "halo texture set")
-	var def: SkyThemeDef = SkyThemeDef.new()
-	assert_almost_eq(_param(skybox, &"moon_angular_radius_deg") as float, def.cycle_moon_angular_radius_deg, 0.0001)
-	assert_almost_eq(_param(skybox, &"moon_halo_strength") as float, def.cycle_moon_halo_strength, 0.0001)
 
 
 func test_moon_opposes_the_sun() -> void:

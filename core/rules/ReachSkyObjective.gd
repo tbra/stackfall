@@ -109,16 +109,8 @@ func record_height(slot: int, height: float) -> void:
 		_publish_pending = true
 
 
-func record_of_slot(slot: int) -> float:
-	return _records[slot] if slot >= 0 and slot < _records.size() else 0.0
-
-
 func target_height() -> float:
 	return _target_height
-
-
-func sums_members() -> bool:
-	return _sum_members
 
 
 ## Highest record wins; the earlier to reach it breaks a tie. A tie that

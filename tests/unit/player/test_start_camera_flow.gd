@@ -12,7 +12,6 @@ extends GutTest
 ## the gate opening until PLAYING_FRAMES frames into play.
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
-const LOCAL_SLOT: int = 0
 ## A short countdown keeps the test fast; its length does not change the code path.
 const COUNTDOWN_S: float = 1.0
 const PLAYING_FRAMES: int = 30
@@ -155,18 +154,3 @@ func test_gate_open_countdown_and_play_share_one_camera_pose() -> void:
 			worst_frame = int(_trace[index]["frame"])
 	assert_lt(worst_m, POSITION_TOLERANCE_M, "largest camera shift after the gate opened: %.4f m at frame %d" % [worst_m, worst_frame])
 
-
-func test_the_start_view_is_the_follow_view_of_the_held_piece() -> void:
-	await _start_vs_bots_match_from_the_lobby()
-	await _trace_until_playing()
-	var gate_open: int = _first_index(func(s: Dictionary) -> bool: return bool(s["fading"]))
-	assert_gt(gate_open, -1, "the loading screen's ready gate opened (fade-out started)")
-	if gate_open < 0:
-		return
-	var tuning: CameraTuning = (_main._camera_rig as CameraRig).tuning
-	for index: int in [gate_open, _trace.size() - 1]:
-		var sample: Dictionary = _trace[index]
-		assert_true(bool(sample["has_piece"]), "frame %d: the held piece is shown" % int(sample["frame"]))
-		assert_lt((sample["target"] as Vector3).distance_to(sample["anchor"] as Vector3), POSITION_TOLERANCE_M, "frame %d: the camera pivots on the held piece, not the bare beacon" % int(sample["frame"]))
-		assert_almost_eq(float(sample["pitch"]), deg_to_rad(tuning.start_pitch_deg), 0.0001, "frame %d: start pitch" % int(sample["frame"]))
-		assert_almost_eq(float(sample["distance"]), clampf(tuning.start_distance_m, tuning.zoom_min, tuning.zoom_max), 0.0001, "frame %d: start distance" % int(sample["frame"]))

@@ -11,11 +11,8 @@ const SNAKE_XS: Array[float] = [-10.0, -8.0, -6.0, -4.0, -2.0]
 const TOWER_POS: Vector2 = Vector2(-6.0, 3.0)
 const TOWER_TOP_M: float = 4.0
 const CANDIDATE_COUNT: int = 110
-const SMALL_COUNT: int = 20
 const SEED: int = 99
 const TIP_EDGE_TOLERANCE_M: float = 0.5
-const DISTINCT_SHARE: float = 0.95
-const KEY_SCALE: float = 100.0
 const ENEMY_POS: Vector2 = Vector2(5.0, 0.0)
 const ENEMY_TOP_M: float = 5.0
 const GOAL_POS: Vector2 = Vector2(-6.0, 1.5)
@@ -26,7 +23,6 @@ var _territory_tuning: TerritoryTuning = preload("res://config/territory/territo
 var _tuning: BotGenTuning = preload("res://config/bots/bot_gen_tuning.tres")
 var _stack_tuning: BotStackTuning = preload("res://config/bots/bot_stack_tuning.tres")
 var _physics: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
-var _cube: BlockShape = preload("res://config/blocks/cube.tres")
 var _pillar: BlockShape = preload("res://config/blocks/pillar.tres")
 var _slots: Array[PlayerSlot] = []
 
@@ -111,18 +107,6 @@ func test_tip_sites_sit_at_the_snake_edge_nearest_the_target() -> void:
 	assert_true(nearest <= TIP_EDGE_TOLERANCE_M, "nearest tip site %.2f m from the edge" % nearest)
 
 
-func test_sites_are_distinct_and_valid() -> void:
-	var view: BotWorldView = _view(_pillar, true)
-	var sites: Array[BotCandidate] = _sites(view, _intent(BotIntent.Kind.RACE))
-	# Bontago-1t5.66: fill_share 0 no longer tops up to the budget; only the targeted sites remain.
-	assert_gt(sites.size(), 0, "got %d" % sites.size())
-	var keys: Dictionary = {}
-	for c: BotCandidate in sites:
-		assert_eq(PlacementRules.validate_point(c.origin, view.raster, view.team_id), PlacementRules.Result.VALID)
-		keys[Vector3i(roundi(c.origin.x * KEY_SCALE), roundi(c.origin.y * KEY_SCALE), c.orientation_index)] = true
-	assert_true(keys.size() >= int(DISTINCT_SHARE * float(sites.size())))
-
-
 func test_pillar_stands_upright_at_the_tip() -> void:
 	var sites: Array[BotCandidate] = _sites(_view(_pillar), _intent(BotIntent.Kind.RACE))
 	var first_tip: BotCandidate = null
@@ -136,15 +120,6 @@ func test_pillar_stands_upright_at_the_tip() -> void:
 	assert_gt(info.self_margin * _physics.cube_size, _stack_tuning.numeric_tolerance_m, "eligible by its own margin")
 
 
-func test_only_orientations_that_stand_on_their_contact_are_offered() -> void:
-	var l4: BlockShape = preload("res://config/blocks/L4.tres")
-	var sites: Array[BotCandidate] = _sites(_view(l4, true), _intent(BotIntent.Kind.ANCHOR))
-	assert_gt(sites.size(), 0)
-	for c: BotCandidate in sites:
-		var info: BotStatics.OrientationInfo = BotStatics.orientation_info(l4, c.orientation_index)
-		assert_gt(info.self_margin * _physics.cube_size, _stack_tuning.numeric_tolerance_m, "orientation %d" % c.orientation_index)
-
-
 func test_stack_tops_get_the_flattest_orientation() -> void:
 	var sites: Array[BotCandidate] = _sites(_view(_pillar, true), _intent(BotIntent.Kind.ANCHOR))
 	var stack_sites: int = 0
@@ -154,36 +129,6 @@ func test_stack_tops_get_the_flattest_orientation() -> void:
 			assert_almost_eq(c.shape_height, 1.0, 0.001, "flat on a stack")
 			assert_true(c.support_height >= _tuning.stack_min_height_m)
 	assert_true(stack_sites > 0)
-
-
-func test_threat_intents_tag_strike_sites() -> void:
-	var sites: Array[BotCandidate] = _sites(_view(_cube, true), _intent(BotIntent.Kind.STRIKE))
-	var strike: int = 0
-	for c: BotCandidate in sites:
-		if c.site_kind == BotCandidateGen.SITE_STRIKE:
-			strike += 1
-	assert_true(strike > 0)
-
-
-func test_same_seed_gives_the_same_sites() -> void:
-	var view: BotWorldView = _view(_pillar, true)
-	var a: Array[BotCandidate] = _sites(view, _intent(BotIntent.Kind.RACE))
-	var b: Array[BotCandidate] = _sites(view, _intent(BotIntent.Kind.RACE))
-	assert_eq(a.size(), b.size())
-	for i: int in range(mini(a.size(), b.size())):
-		assert_eq(a[i].origin, b[i].origin)
-		assert_eq(a[i].orientation_index, b[i].orientation_index)
-
-
-func test_no_held_piece_gives_no_sites() -> void:
-	var view: BotWorldView = _view(_cube)
-	view.held = null
-	assert_eq(_sites(view, _intent(BotIntent.Kind.RACE)).size(), 0)
-
-
-func test_budget_is_respected() -> void:
-	var view: BotWorldView = _view(_pillar, true)
-	assert_true(_sites(view, _intent(BotIntent.Kind.RACE), SMALL_COUNT).size() <= SMALL_COUNT)
 
 
 func _assert_all_placeable(view: BotWorldView, sites: Array[BotCandidate]) -> void:

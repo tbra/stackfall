@@ -1551,7 +1551,7 @@ func _on_feed_block_issued(slot_id: int, shape_id: StringName, next_shape_id: St
 ## remote player and back on timer expiry could be lost or arrive twice. The
 ## host therefore drops for every slot it does not itself control, from the
 ## last update_cursor it received for that slot — at NetConfig.cursor_hz that
-## is at worst 67 ms stale, and closest_valid_origin() relocates from there
+## is at worst 67 ms stale, and closest_valid_point() relocates from there
 ## anyway. A slot this instance controls locally (every slot offline, which is
 ## all of M2's hot-seat) is left to its own PlayerController, whose ghost is
 ## exact and costs nothing.

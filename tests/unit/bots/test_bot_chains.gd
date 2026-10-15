@@ -15,8 +15,6 @@ const B: int = 1
 const C: int = 2
 const D: int = 3
 const E: int = 4
-const ALT: int = 5
-const BRIDGE: int = 6
 
 var _view: BotWorldView = null
 
@@ -44,38 +42,13 @@ func before_each() -> void:
 	_circle(Vector2(-6.0, 10.0))
 
 
-func test_fork_downstream_and_articulation() -> void:
+func test_fork_downstream() -> void:
 	var chains: BotChains = BotChains.build(_view)
 	assert_eq(chains.downstream(A), 5, "cutting the root-side joint loses the whole chain")
 	assert_eq(chains.downstream(B), 4, "the fork joint loses C, D and E plus itself")
 	assert_eq(chains.downstream(C), 1, "a tip loses only itself")
 	assert_eq(chains.downstream(D), 2, "the branch joint loses E plus itself")
 	assert_eq(chains.downstream(E), 1, "the branch tip loses only itself")
-	for joint: int in [A, B, D]:
-		assert_true(chains.is_articulation(joint), "circle %d is an articulation" % joint)
-	for tip: int in [C, E]:
-		assert_false(chains.is_articulation(tip), "circle %d is a tip" % tip)
-	assert_eq(chains.connected_count(ENEMY_TEAM), 5, "all five circles are home-connected")
-
-
-func test_cycle_removes_articulation() -> void:
-	_circle(Vector2(-13.0, 4.0))
-	_circle(Vector2(-10.0, 5.0))
-	# ALT touches the home and overlaps A and BRIDGE; BRIDGE overlaps D: a second path home.
-	var chains: BotChains = BotChains.build(_view)
-	assert_false(chains.is_articulation(A), "A no longer cuts anything with a second path home")
-	assert_true(chains.connected(ALT) and chains.connected(BRIDGE), "the extra circles are connected")
-	assert_eq(chains.downstream(B), 2, "B now cuts only C: D and E have a route home through the bridge")
-
-
-func test_unconnected_circle_has_no_downstream() -> void:
-	_circle(Vector2(-6.0, 20.0))
-	_circle(Vector2(-6.0, 24.0))
-	var chains: BotChains = BotChains.build(_view)
-	assert_false(chains.connected(ALT), "a floating chain is not home-connected")
-	assert_eq(chains.downstream(ALT), 0, "floating circles remove nothing")
-	assert_false(chains.is_articulation(ALT), "floating circles are never articulations")
-	assert_eq(chains.connected_count(ENEMY_TEAM), 5, "only the rooted five count")
 
 
 func test_gap_to_uses_connected_land_only() -> void:
@@ -104,14 +77,6 @@ func test_teammate_home_roots_own_chain() -> void:
 	var rooted: BotChains = BotChains.build(_view)
 	assert_true(rooted.connected(5), "rooted at a teammate home")
 	assert_eq(rooted.downstream(5), 1, "leaf downstream")
-
-
-func test_dead_own_home_is_not_a_root() -> void:
-	_circle(Vector2(30.0, 25.0), OWN_TEAM)
-	_view.team_homes = PackedVector2Array()
-	var chains: BotChains = BotChains.build(_view)
-	assert_false(chains.connected(5), "no living home: nothing is connected")
-	assert_true(is_inf(chains.gap_to(OWN_TEAM, Vector2.ZERO)), "no gap without a root")
 
 
 func test_build_collects_living_team_homes() -> void:

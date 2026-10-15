@@ -174,10 +174,6 @@ func shown_color() -> Color:
 	return _color
 
 
-func flash_amount() -> float:
-	return _flash
-
-
 func _flicker_color() -> Color:
 	var hz: float = maxf(beacon_visuals.contested_flicker_hz, 0.001)
 	var first: bool = fposmod(_clock_s * hz, 1.0) < 0.5
@@ -324,11 +320,6 @@ func capture_progress() -> float:
 
 func ring_visible() -> bool:
 	return _ring != null and _ring.visible
-
-
-## The arc currently drawn, or null before the first capture.
-func ring_mesh() -> Mesh:
-	return _ring.mesh if _ring != null else null
 
 
 ## An annulus arc covering `progress` of a full turn, starting at +z and

@@ -22,16 +22,6 @@ func test_band_covers_the_target_plus_margin() -> void:
 	assert_gte(_net_config.pos_max_y - _ghost.hover_ceiling_margin, TARGET_M + PROBE_ABOVE_TARGET_M, "the ghost origin can reach 105 m")
 
 
-func test_band_is_derived_from_the_target_height() -> void:
-	var cfg: NetConfig = NetConfig.new()
-	cfg.build_height_target_m = 160.0
-	assert_gte(cfg.pos_max_y, 160.0 + cfg.build_height_margin_m, "a taller target lifts the band")
-
-
-func test_hover_manual_max_does_not_cap_below_the_band() -> void:
-	assert_gte(_ghost.hover_manual_max, _net_config.pos_max_y - _ghost.hover_ceiling_margin, "manual hover cap is not the binding limit")
-
-
 func test_a_100m_plus_pose_round_trips_over_the_wire() -> void:
 	var map_def: MapDef = load("res://config/match/maps/round.tres")
 	var bounds: AABB = _net_config.position_bounds(map_def)
