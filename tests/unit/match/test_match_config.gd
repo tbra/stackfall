@@ -580,12 +580,10 @@ func test_team_pick_constants() -> void:
 		"the pick ceiling is the largest TeamMode's team count")
 
 
-func test_team_pick_cap_and_teams_enabled_follow_team_mode() -> void:
+func test_team_pick_cap_follows_team_mode() -> void:
 	var config: MatchConfig = MatchConfig.new()
-	assert_false(config.teams_enabled())
 	assert_eq(config.team_pick_cap(), 0, "teams off: no picks")
 	config.team_mode = MatchConfig.TeamMode.TEAMS_2
-	assert_true(config.teams_enabled())
 	assert_eq(config.team_pick_cap(), 2)
 	config.team_mode = MatchConfig.TeamMode.TEAMS_3
 	assert_eq(config.team_pick_cap(), 3)
@@ -743,7 +741,7 @@ func _assert_team_arrays_dropped(config: MatchConfig, label: String) -> void:
 	assert_true(config.team_numbers.is_empty(), "%s: team_numbers dropped" % label)
 	assert_false(config.teams_resolved(), label)
 	# ...and the config is back on the legacy interleave.
-	assert_eq(config.team_count(), mini(config.team_pick_cap(), config.player_count) if config.teams_enabled() else config.player_count, label)
+	assert_eq(config.team_count(), mini(config.team_pick_cap(), config.player_count) if config.team_mode != MatchConfig.TeamMode.OFF else config.player_count, label)
 
 
 func test_sanitize_drops_inconsistent_team_arrays() -> void:

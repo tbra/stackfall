@@ -104,7 +104,6 @@ func test_gift_wire_phase_numbering_and_reexport() -> void:
 
 func test_validation_forwards_agree() -> void:
 	var state: Dictionary = {"mode_id": MatchConfig.GameMode.ELIMINATION, "scores": [1, 2.5], "extra": {"a": 1}, "round_left": 3.0}
-	assert_eq(ResultsValidation.validate_mode_state(state), ModeObjective.validate_state(state))
 	assert_false(ResultsValidation.validate_mode_state(state).is_empty())
 	assert_true(ResultsValidation.validate_mode_state("nope").is_empty())
 	assert_true(ResultsValidation.validate_mode_state({"mode_id": 99}).is_empty())
