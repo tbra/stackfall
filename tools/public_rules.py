@@ -8,7 +8,7 @@ docstrings). The rules themselves:
     ones (an expiry date in a legacy marker, a timestamp such as 2026-01-01T00:00:00Z);
   - no machine-specific paths or names (drive-letter paths, user folders, user names);
   - "the user" where a human is meant; the word for a slot, file or concept owner in the technical
-    sense stays (OWNER_BEFORE / OWNER_AFTER list the accepted contexts).
+    sense stays (OWNER lists the person forms; everything else is the game's own word).
 
 Rule scopes: "all" rules apply to every character of a tracked text file; "prose" rules apply only to
 comment text and docstrings in code files (.gd .gdshader .gdshaderinc .py .ps1) and to every character of
@@ -29,11 +29,20 @@ CODE_EXTS = (".gd", ".gdshader", ".gdshaderinc", ".py", ".ps1")
 
 BEAD_ID = r"Bontago-(?!123\b)[a-z0-9]{3}(?:\.\d+)*\b"
 DATE = r"\b20\d\d-\d\d-\d\d\b"
-# Contexts that make the person word technical (slot X, exclusive X, X pid, ONE X, ...).
-OWNER_BEFORE = r"(?<!slot )(?<!file )(?<!single )(?<!exclusive )(?<!gate )(?<!sole )(?<!class )(?<!its )(?<!process )" \
-               r"(?<!concept )(?<!each )(?<!home )(?<!unique )(?<!lock )(?<!one )(?<!ONE )(?<!the single )(?<!static )"
-OWNER_AFTER = r"(?![ \t]+(?:pid|PID|api|API|file|files|token|info|consumers|class|index|env|path)\b)"
-OWNER = OWNER_BEFORE + r"\b[Oo]wner\b" + OWNER_AFTER
+# Only the person sense of the word is provenance: a parenthesised note that starts with it,
+# the word followed by one of OWNER_TAG_WORDS, or the word next to a verb of asking or
+# reporting (OWNER_CUES). In the game "owner" is a domain word (a block's owning slot, a cell's owner byte,
+# a shape owner, a concept's single owner API) and stays.
+OWNER_TAG_WORDS = ("decision|choice|request|report|playtest|feedback|clarification|rule|update|call|"
+                   "preference|answer|ruling|review|approval")
+OWNER_CUES = (r"(?:asked|asks|wants|wanted|prefers|preferred|said|says|reported|reports|decided|"
+              r"confirmed|approved|playtest\w*|tested|retest\w*|monitor|PC|machine|chose|requested)")
+OWNER = (r"\(\s*[Oo]wner\b[^)\n]*\)"
+         r"|\b[Oo]wner(?:'s)?\s+(?:" + OWNER_TAG_WORDS + r")\b"
+         r"|\b[Tt]he owner(?:'s)?\b(?=[^.\n]{0,50}\b" + OWNER_CUES + r"\b)"
+         r"|\b[Oo]wner\s+" + OWNER_CUES + r"\b"
+         r"|\b[Oo]wner's (?:PC|machine|monitor|checkout|screen)\b")
+PERSON_OWNER = re.compile(OWNER)
 
 PRIVATE_TERMS_ENV = "STACKFALL_PRIVATE_TERMS"
 # Words that are never personal names, so a generic home folder or git name cannot ban them.

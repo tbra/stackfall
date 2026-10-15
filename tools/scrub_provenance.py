@@ -87,10 +87,12 @@ def clean_prose(seg: str) -> str:
         seg = PARENS.sub(paren, seg)
     seg = re.sub(r"[ ]?" + SENT + "P", "", seg)
     seg = clean_tokens(seg)
-    seg = re.sub(r"\b[Tt]he owner's\b", lambda m: "the user's" if m.group(0)[0] == "t" else "The user's", seg)
-    seg = re.sub(r"\b([Tt])he owner\b(?! (?:file|files|api|class|pid|token|info|consumers|index|env|path)\b)",
-                 lambda m: m.group(1) + "he user", seg)
-    seg = re.sub(r"(?<![\w'])owner's\b", "the user's", seg)
+    # Only the person sense becomes "the user"; the game's own owner (a block's owning slot, an
+    # owner byte, a shape owner) stays.
+    if pr.PERSON_OWNER.search(orig):
+        seg = re.sub(r"\b[Tt]he owner's\b", lambda m: "the user's" if m.group(0)[0] == "t" else "The user's", seg)
+        seg = re.sub(r"\b([Tt])he owner\b", lambda m: m.group(1) + "he user", seg)
+        seg = re.sub(r"(?<![\w'])owner's (?=PC|machine|monitor|checkout|screen)", "the user's ", seg)
     if seg != orig:
         seg = re.sub(r"(?<=\S)[ ]{2,}(?=\S)", " ", seg)
         seg = re.sub(r"[ \t]+([,;)])", r"\1", seg)
