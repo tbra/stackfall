@@ -1,11 +1,11 @@
 extends Node
-## Glue fusion WP5 (Bontago-1pi.85.74.6): host + client (+ late joiner) over real ENet. The host stacks three
+## Glue fusion WP5: host + client (+ late joiner) over real ENet. The host stacks three
 ## blocks (the upper two glue-charged) so they fuse into one FusedBody, kicks it, then dissolves one member
 ## (hole path) and finally removes the rest (kill-plane path). Clients check: coat on every member, members
 ## rigid (pair-distance spread < MOVING_TOL_M while moving, < REST_TOL_M at rest), the dissolve despawns only
 ## the touched member, the kill removes all, no stray body. Run via tools/run_glue_fuse_enet.ps1.
 ## Host: --headless-host --expect-peers=2. Late joiner: pass `--late` after `--`.
-## `--unanchored` (Bontago-1pi.85.74.8): the host drops the disc anchor, waits PRE_KICK_S and pushes the
+## `--unanchored`: the host drops the disc anchor, waits PRE_KICK_S and pushes the
 ## group so it flies/slides as a free rigid body; every client then MUST measure a moving spread
 ## (< MOVING_TOL_M) and a rest spread (< REST_TOL_M) of the member distances.
 

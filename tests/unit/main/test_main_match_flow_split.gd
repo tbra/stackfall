@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.11.84 (MF3): game/main/Main.gd no longer names the match-world classes; the match flow
+## MF3: game/main/Main.gd no longer names the match-world classes; the match flow
 ## lives in game/main/MainMatchFlow.gd and is loaded before the first LOBBY -> LOADING reaction.
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")

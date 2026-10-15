@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-59o.1/.2: SlopShop splash gating, skip handling, assets and icon.
+##/.2: SlopShop splash gating, skip handling, assets and icon.
 
 
 func test_skipped_when_headless_or_cli_args() -> void:

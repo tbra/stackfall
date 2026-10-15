@@ -1,8 +1,8 @@
 extends GutTest
-## The host's validation of what arrives over the wire (spec 3.4: "The host
+## The host's validation of what arrives over the wire (spec 2.6: "The host
 ## checks every intent before acting on it"). These are the regression cases
 ## for three review findings against net/MatchNet.gd's remote boundary
-## (Beads Bontago-mv0.1.4, .5, .6):
+## Beads .5, .6:
 ##
 ##   .4  a remote intent quoting a negative feed_seq slipped past Match's
 ##       "-1 means don't check" local sentinel and so past replay protection;
@@ -35,7 +35,7 @@ var _net: MatchNetScript
 var _fake_net: FakeNet
 var _net_config: NetConfig = preload("res://config/net/net_config.tres")
 
-## DECISION (Bontago-mv0.3): see test_match_flow.gd's own `_tiny_map` comment.
+## DECISION: see test_match_flow.gd's own `_tiny_map` comment.
 ## Same real Field/Match world built fresh in every one of this file's 18
 ## tests' before_each, same ~11 s round_medium.tres (45 m, ~6300 cells)
 ## collision build paid for nothing every time; same TinyMapMatchConfig seam.
@@ -279,8 +279,8 @@ func test_remote_heights_outside_the_replicable_band_are_refused() -> void:
 
 
 ## A well-formed but far-off-disk manual release used to burn the block from an
-## origin clamped inside the kill plane (Bontago-mv0.1.11). Since Bontago-mv0.24
-## (owner test of the original, 2026-09-22) a manual release outside the
+## origin clamped inside the kill plane. Since
+## a manual release outside the
 ## player's territory is refused instead: nothing spawns, the piece stays
 ## held, feed_seq does not move, and the client can retry. The burn clamp is
 ## still exercised for auto-drops in tests/unit/match/test_match_flow.gd.
@@ -301,7 +301,7 @@ func test_a_far_off_disk_remote_intent_is_refused_and_keeps_the_piece() -> void:
 	var held_before: BlockShape = Match.held_shape(REMOTE_SLOT)
 	for i: int in range(far_origins.size()):
 		_remote_place(net, far_origins[i], 0, Quaternion.IDENTITY, Match.feed_seq(REMOTE_SLOT))
-		assert_eq(net.intents_accepted(REMOTE_SLOT), 0, "A far-off-disk release is refused, not consumed (Bontago-mv0.24).")
+		assert_eq(net.intents_accepted(REMOTE_SLOT), 0, "A far-off-disk release is refused, not consumed (Bontago-mv0.24).")  # lint-public: allow string literal kept verbatim (assertion message or fixture)
 		assert_eq(_block_count(), 0, "Nothing spawns for a refused release.")
 		assert_eq(Match.feed_seq(REMOTE_SLOT), seq_before, "A refusal never advances the cadence.")
 		assert_eq(Match.held_shape(REMOTE_SLOT), held_before, "The refused piece stays in hand.")

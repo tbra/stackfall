@@ -1,5 +1,5 @@
 extends GutTest
-## core/ai/BotStack.gd (Bontago-1t5.53a): pure tower statics on synthetic snapshots, no scene tree.
+## core/ai/BotStack.gd (.53a): pure tower statics on synthetic snapshots, no scene tree.
 
 const CUBE: float = 1.0
 const HALF: float = 0.5

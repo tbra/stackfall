@@ -1,5 +1,5 @@
 extends GutTest
-## Regression coverage for Bontago-pt-4 (owner playtest: "Camera always jumps
+## Regression coverage for Bontago-pt-4 ("Camera always jumps
 ## up after block drops or when clicking the drop button").
 ##
 ## ROOT CAUSE (full writeup on game/player/PlayerController.gd's
@@ -51,7 +51,7 @@ func before_each() -> void:
 func after_each() -> void:
 	Match.abort_match()
 	Match.set_process(true)
-	# Bontago-integ (2026-09-23 combined-run regression, same DECISION as
+	# Bontago-integ (combined-run regression, same DECISION as
 	# test_playercontroller_spawn_clearance.gd's own after_each()): clears the
 	# throwaway Field this file registered so a later script's Match.field()
 	# read never sees a freed node.
@@ -83,7 +83,7 @@ func _make_controller_with_rig() -> Dictionary:
 	var ghost: GhostPreview = autofree(GhostPreview.new())
 	add_child_autofree(ghost)
 	var controller: PlayerController = autofree(PlayerController.new())
-	# Bontago-1pi.4: spawn clearance is off by default now; these tests cover
+	# spawn clearance is off by default now; these tests cover
 	# the feature itself, so enable it on a private copy of the tuning.
 	controller.ghost_tuning = controller.ghost_tuning.duplicate() as GhostTuning
 	controller.ghost_tuning.spawn_clearance_enabled = true
@@ -148,7 +148,7 @@ func test_camera_target_y_stays_continuous_across_a_drop_that_needs_spawn_cleara
 	rig.set_follow_position(controller._camera_follow_anchor())
 	rig._process(1.0 / 60.0)
 
-	# Bontago-1pi.14 round 2: the camera is tied to the held block, so it
+	# round 2: the camera is tied to the held block, so it
 	# eases up to the raised ghost (no permanent offset, no drift).
 	var expected_y: float = controller._camera_follow_anchor().y
 	assert_gt(expected_y, target_y_before_clearance + 0.01, "fixture: the followed anchor must include the raise.")

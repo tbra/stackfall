@@ -1,5 +1,5 @@
 extends Node
-## Bontago-1pi.185/.186: host + one lagged client over real ENet. Elimination, 3
+## /.186: host + one lagged client over real ENet. Elimination, 3
 ## seats (host, client, one bot). The host opens a hole under the client's home
 ## flag; the client must see the claim progress rise (goal_capture_progress),
 ## survive until the claim time, then be eliminated: the held/next block are

@@ -1,5 +1,5 @@
 extends GutTest
-## Player names (Bontago-1pi.49): saved name, handshake validation on the host, rosters and slot labels.
+## Player names: saved name, handshake validation on the host, rosters and slot labels.
 
 const _NET_SCRIPT: GDScript = preload("res://autoload/Net.gd")
 const SETTINGS_SCRIPT: GDScript = preload("res://autoload/Settings.gd")
@@ -196,7 +196,7 @@ func _named_fake(names: Dictionary) -> FakeNet:
 
 
 # --- Slot display names: what Results and every PlayerSlot reader show -----------
-# Follow-up of Bontago-1pi.49: MatchLifecycle._build_slots() used to seed every
+# Follow-up of MatchLifecycle._build_slots() used to seed every
 # slot "Player N", so the host's results (MatchStats reads PlayerSlot.display_name)
 # ignored the names the loading screen and HUD already showed.
 
@@ -233,7 +233,7 @@ func _slot_names() -> Array[String]:
 	var names: Array[String] = []
 	for slot_id: int in range(Match.slot_count()):
 		var shown: String = Match.slot(slot_id).display_name
-		# Bontago-1pi.62: a bot carries a themed name from BotNames, never a human's.
+		# a bot carries a themed name from BotNames, never a human's.
 		if Match.slot(slot_id).is_bot:
 			assert_true(BotNames.all_names().has(shown), "bot slot %d name %s" % [slot_id, shown])
 			shown = BOT_NAME
@@ -259,4 +259,4 @@ class BareHost:
 		return true
 
 
-## -- Bontago-1pi.86 single-owner formats ------------------------------------
+## -- single-player formats ------------------------------------

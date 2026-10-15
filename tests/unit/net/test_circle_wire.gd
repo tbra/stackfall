@@ -1,6 +1,6 @@
 extends GutTest
 ## core/net/CircleWire.gd: the analytic circle list's wire format
-## (Bontago-cmc.5, "MatchNet replicates the list and a client applies it").
+## ("MatchNet replicates the list and a client applies it").
 ## Pure encode/decode round-trips, mirroring tests/unit/net/test_quantize.gd's
 ## style — no MatchNet, no Match, no peer.
 

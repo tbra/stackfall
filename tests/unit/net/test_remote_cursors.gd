@@ -1,5 +1,5 @@
 extends GutTest
-## game/player/RemoteCursors.gd and PlayerController's networked half (spec 3.4,
+## game/player/RemoteCursors.gd and PlayerController's networked half (spec 2.6,
 ## docs/archive/M3a_PLAN.md P3): other players' ghosts, which slot a controller acts
 ## for once a session is running, and the ghost lock that stops a double click
 ## inside one round trip from spending two blocks.
@@ -144,5 +144,5 @@ func test_the_lock_expires_on_its_own_after_intent_ack_timeout() -> void:
 	assert_eq(controller._intent_lock_left, 0.0)
 
 
-# --- Glue presentation (Bontago-sen.8) ---------------------------------------
+# --- Glue presentation ---------------------------------------
 

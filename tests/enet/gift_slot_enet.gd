@@ -1,10 +1,10 @@
 extends Node
-## Bontago-1pi.18.2: host + client over real ENet with the QoL gift slot on.
+## host + client over real ENet with the QoL gift slot on.
 ## The host slots a gift for the client's seat; the client sees it replicate,
 ## sends the use_gift_slot intent, and the host validates it. Run via
 ## tools/run_gift_slot_enet.ps1. Host: --headless-host --expect-peers=2.
 
-## Net.peer_ids() counts the host too: one host + one client (Bontago-1pi.18.8).
+## Net.peer_ids() counts the host too: one host + one client.
 const HOST_AND_CLIENT_PEERS: int = 2
 const CONNECT_TIMEOUT: float = 20.0
 const GIFT_ID: StringName = &"anvil"

@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.32 (owner playtest 2026-10-03): the loading screen stays up for a
+## the loading screen stays up for a
 ## minimum time and every human presses ready (ui_accept / gamepad A) before the
 ## host starts the countdown. Covers the pure rule (core/rules/LoadingReadyGate.gd),
 ## the host's authoritative gate in autoload/match/MatchLifecycle.gd, Net's
@@ -141,7 +141,7 @@ func test_bots_are_auto_ready_and_never_required() -> void:
 	assert_true(Match._lifecycle.loading_slot_ready(0))
 
 
-## Bontago-1pi.125: a slow peer delays the start indefinitely; the match never auto-starts.
+## a slow peer delays the start indefinitely; the match never auto-starts.
 func test_no_auto_start_after_the_old_wait_cap_and_slow_peer_delays_start() -> void:
 	var net: FakeNet = FakeNet.host({1: 0, 2: 1}, [0] as Array[int])
 	_start_gated(net, 2, 0)
@@ -251,7 +251,7 @@ func _close(screen: LoadingScreen) -> void:
 
 ## The synthetic Enter / pad-A presses above are never released by the tests; an unreleased
 ## Enter/A keeps ui_accept, ghost_place, chat_open ... held for every later script in this
-## process (Bontago-fca.101: sharded gate failures in test_playercontroller_gamepad).
+## process (sharded gate failures in test_playercontroller_gamepad).
 func _release_accept_inputs() -> void:
 	var key: InputEventKey = _accept_key()
 	key.pressed = false

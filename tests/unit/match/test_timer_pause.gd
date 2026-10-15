@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.18.4 (QoL Q0): the stall guard on core/rules/TimerPause (a pause is capped at pause_max_s, then re-arms).
+## QoL Q0: the stall guard on core/rules/TimerPause (a pause is capped at pause_max_s, then re-arms).
 
 const STEP_S: float = 0.25
 

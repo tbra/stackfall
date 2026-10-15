@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mp0.127: cloud shadow math, config, sun contrast, Low preset gate and the node's
+## cloud shadow math, config, sun contrast, Low preset gate and the node's
 ## decal / sun dimming behaviour.
 
 const CONFIG_PATH: String = "res://config/sky/cloud_shadows.tres"

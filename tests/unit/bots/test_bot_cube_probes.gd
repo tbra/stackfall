@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1t5.55.2 (55b): the bot probes the REAL bottom cubes (outermost first), the resting plane is the
+## 55b: the bot probes the REAL bottom cubes (outermost first), the resting plane is the
 ## highest probed hit, an overhanging cube beyond a capped tier's first cells is detected, and BotCandidate
 ## carries the stub fields 1t5.53b fills (probe_points, support_bodies).
 

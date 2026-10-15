@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1t5.72.4 (P2a): BotThink's PROBE phase fills BotCandidate.stability_slack / stability_binding with
+## P2a: BotThink's PROBE phase fills BotCandidate.stability_slack / stability_binding with
 ## BotStability.evaluate.
 
 const CUBE: float = 1.0

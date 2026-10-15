@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mp0.93 pass 2: the overcast (upper) puff layer is seen from below, where flat
+## pass 2: the overcast (upper) puff layer is seen from below, where flat
 ## bases meant huge featureless slabs with razor-flat bottoms. Its puffs now have their own
 ## base: round bottoms (no base plane), squashed to the old low profile, each hanging a random
 ## depth below its clump's level so no two share a plane, small puffs also bulging from the

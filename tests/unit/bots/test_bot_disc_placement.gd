@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1t5.51 (owner playtest: "when bots place blocks directly on the disc they fall straight
+## ("when bots place blocks directly on the disc they fall straight
 ## through"). Drives BotController._send_best_placement() against the real Match/Field/physics and
 ## asserts the spawned block comes to rest on the disc top, for both a bare-disc column and a
 ## candidate whose support probe falls back (no hit).
@@ -81,7 +81,7 @@ func _place_via_bot(origin: Vector2, orientation_index: int = 0) -> Block:
 	candidate.support_height = float(hit.get("height", 0.0))
 	bot._candidates = [candidate] as Array[BotCandidate]
 	# The profile is the shared, cached shipped tuning resource: mutate a copy, never the
-	# original, or the zeroed aim noise leaks into later scripts (test_bot_tuning, gate 2026-10-14).
+	# original, or the zeroed aim noise leaks into later scripts (test_bot_tuning, gate).
 	bot._profile = bot._profile.duplicate() as BotDifficultyProfile
 	bot._profile.aim_noise_m = 0.0
 	var before: int = _registry.all_blocks().size()

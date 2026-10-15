@@ -1,5 +1,5 @@
 extends GutTest
-## LobbySeats roster-entry wire (Bontago-fca.36.8 part B): the writer keeps the legacy
+## LobbySeats roster-entry wire (part B): the writer keeps the legacy
 ## byte layout, the validator pins what a client accepts and rejects.
 
 const HOST_ID: int = 1

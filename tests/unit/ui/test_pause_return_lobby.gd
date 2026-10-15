@@ -1,6 +1,6 @@
 extends GutTest
-## Bontago-1pi.50 (owner playtest 2026-10-03: "return to lobby option from pause
-## menu"): ui/menus/PauseMenu.gd's Return to lobby entry and game/main/Main.gd's handler.
+## "return to lobby option from pause
+## menu": ui/menus/PauseMenu.gd's Return to lobby entry and game/main/Main.gd's handler.
 ##
 ## Two layers. The bare PauseMenu (a Callable context stands in for Main) pins the
 ## entry per session role -- host enabled, client disabled with the tooltip, offline

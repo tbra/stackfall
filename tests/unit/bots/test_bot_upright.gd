@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1t5.69 (owner playtest 2026-10-14: "they always lay blocks flat"): in Reach the Sky the stack
+## "they always lay blocks flat": in Reach the Sky the stack
 ## generator also offers the tallest orientations and the evaluator scores the height a placement gains,
 ## so a bar stands up on a sound top and lies flat only when the tower under it cannot carry it.
 ## Pure: real CellGrid + TerritoryRaster on a synthetic tower (the test_bot_candidate_gen fixture).
@@ -119,7 +119,7 @@ func test_sound_column_picks_the_bar_upright() -> void:
 
 
 func test_upright_bar5_centred_on_a_sound_top_is_stable_and_pays_no_tip_charge() -> void:
-	# Bontago-1t5.72: height is not a risk; only the centre of mass against the contact patches decides.
+	# height is not a risk; only the centre of mass against the contact patches decides.
 	var view: BotWorldView = _view(_bar5, MatchConfig.GameMode.REACH_THE_SKY)
 	var info: BotStatics.OrientationInfo = null
 	for candidate_info: BotStatics.OrientationInfo in BotStatics.orientation_infos(_bar5, _gen_tuning):

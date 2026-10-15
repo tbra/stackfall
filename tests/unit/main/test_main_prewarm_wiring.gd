@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.11.84 (MF4): Main builds MenuPrewarmQueue on the interactive path. The Lobby chunk
+## MF4: Main builds MenuPrewarmQueue on the interactive path. The Lobby chunk
 ## is collected before the menu shows, the rest prewarms behind it one request at a time, an
 ## early menu click shows "Loading..." and proceeds, and a window close during an in-flight chunk
 ## waits for it (R7). Headless/flag runs stay synchronous. A fake loader gates the requests.

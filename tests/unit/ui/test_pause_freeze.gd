@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.167: the pause menu freezes the whole tree when no remote human is connected
+## the pause menu freezes the whole tree when no remote human is connected
 ## (Net.solo_session_rule), never otherwise. Predicate, PauseMenu wiring, a real Vs-bots match, and an
 ## ENet host with a connected client.
 

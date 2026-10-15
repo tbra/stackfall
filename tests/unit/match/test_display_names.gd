@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.86 concept M: labels never empty, tables line up with the enums.
+## concept M: labels never empty, tables line up with the enums.
 
 
 func test_special_names() -> void:

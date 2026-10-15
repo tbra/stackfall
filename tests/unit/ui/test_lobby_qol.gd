@@ -1,6 +1,6 @@
 extends GutTest
-## Bontago-1pi.18.5 (docs/QOL_EXPERIMENTS_PLAN.md, Q1): the lobby's
-## "Experiments" section -- four opt-in QoL toggles. Bontago-1pi.53 (S1b): they are the
+## docs/QOL_EXPERIMENTS_PLAN.md, Q1: the lobby's
+## "Experiments" section -- four opt-in QoL toggles. (S1b): they are the
 ## EXPERIMENTS section's Advanced block of the lobby's settings column (the Advanced rules
 ## popup is gone); the header summary reads "n on". Host-editable and read-only for a
 ## client. The checkboxes are the single
@@ -97,7 +97,7 @@ func test_wire_garbage_in_qol_is_ignored_safely() -> void:
 	assert_eq(_flags(lobby), [false, false, false, true], "wrong-typed flags keep the OFF default")
 
 
-# --- Gift-after-next trial chip (Bontago-1pi.159.29) --------------------------
+# --- Gift-after-next trial chip --------------------------
 
 const AFTER_NEXT_CHIP: String = "%QolGiftAfterNextCheck"
 

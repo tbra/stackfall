@@ -1,5 +1,5 @@
 extends GutTest
-## Owner playtest report (Bontago-1pi.2): "Unclaimed presents should respawn
+##  report: "Unclaimed presents should respawn
 ## in different places when unclaimed." Covers
 ## autoload/match/MatchGifts._relocate_after_expiry()/_pick_relocation_point():
 ## an expired (unclaimed) crate is immediately replaced by a fresh one at a
@@ -112,9 +112,9 @@ func test_relocation_point_pick_is_deterministic_for_the_same_seed() -> void:
 	assert_false(GiftSpawner.is_no_spawn_point(point_a), "setup: most of this fixture's disk is still open")
 
 
-## DECISION (autoload/match/MatchGifts.gd, Bontago-1pi.2): when no candidate
+## DECISION (autoload/match/MatchGifts.gd): when no candidate
 ## can clear relocate_min_distance_m within spawn_max_attempts retries, this
-## falls back to the pre-Bontago-1pi.2 behavior -- the crate simply stays
+## falls back to the pre- behavior -- the crate simply stays
 ## expired with no immediate replacement -- rather than forcing a spawn at a
 ## too-close point.
 func test_falls_back_to_no_replacement_when_no_point_can_clear_the_distance() -> void:

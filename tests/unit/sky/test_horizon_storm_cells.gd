@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mp0.126: distant horizon storm cells (game/weather/HorizonStormCells.gd).
+## distant horizon storm cells (game/weather/HorizonStormCells.gd).
 
 const SEED_A: int = 4242
 const SEED_SWEEP: int = 40
@@ -12,7 +12,7 @@ var _config: HorizonStormConfig = null
 
 
 func before_each() -> void:
-	# Shipped default is off (Bontago-mp0.133); these tests exercise the restored cells.
+	# Shipped default is off; these tests exercise the restored cells.
 	_config = (load("res://config/weather/horizon_storm.tres") as HorizonStormConfig).duplicate() as HorizonStormConfig
 	_config.enabled = true
 

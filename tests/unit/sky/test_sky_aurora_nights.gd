@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.131 (owner playtest: the aurora showed every night): the aurora is a per-night
+## the aurora showed every night: the aurora is a per-night
 ## roll against SkyThemeDef.aurora_night_chance (default 10%), a pure function of the
 ## replicated match seed, so the host and every client agree and each night re-rolls.
 

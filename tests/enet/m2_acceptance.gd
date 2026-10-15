@@ -28,7 +28,7 @@ extends Node3D
 ##   (a) both players' territory shares grow as they build.
 ##   (b) where two territories overlap, the contested cells become holes after
 ##       hole_delay, and a block dropped on a hole cell dissolves and is removed
-##       (the disc stays solid; game/field/HoleDissolver.gd, Bontago-1pi.11.41).
+##       (the disc stays solid; game/field/HoleDissolver.gd).
 ##   (c) a tower whose base is cut off loses its influence: removing a link in
 ##       the chain drops the owner's territory share.
 ##   (d) a player whose connected territory holds the goal flag's base for
@@ -38,10 +38,10 @@ extends Node3D
 ##       REASON_GOAL_ZONE (scenario 4), and the win fires only after the hold.
 ##   (e) a deliberate release on an invalid spot is refused outright: nothing
 ##       spawns or is consumed, and the same still-held piece places
-##       correctly right after (spec 2.5 "Held-block behaviour"/"Expiry and
-##       invalid actions", Bontago-mv0.24, owner test 2026-09-22).
-##   (f) a hole under a home flag eliminates that slot (owner decision 3).
-##   (g) the placement cadence (spec 2.4): an early release locks the slot's
+##       correctly right after (spec 1.4 "Held-block behaviour"/"Expiry and
+##       invalid actions").
+##   (f) a hole under a home flag eliminates that slot (3).
+##   (g) the placement cadence (spec 1.4): an early release locks the slot's
 ##       next piece until the interval boundary, a second release before then
 ##       is refused, the lock lifts at the boundary without forcing anything,
 ##       and an untouched piece auto-drops at expiry (Events.feed_timer_expired).
@@ -52,7 +52,7 @@ extends Node3D
 ## scenario: the GUT suite would grow by the wall clock the physics actually
 ## takes. Nothing here is a benchmark -- the name is the folder's.
 ##
-## **Why it routes the march around the goal.** SPEC.md 2.2's goal no-build
+## **Why it routes the march around the goal.** SPEC.md 1.5's goal no-build
 ## zone (`TerritoryTuning.goal_zone_radius`) now stamps under every hole_mode,
 ## not just the old v2-only default, and MapDef's one-goal layout puts that
 ## goal at the disk centre -- exactly where a straight chain between two
@@ -69,7 +69,7 @@ extends Node3D
 ## zone and stacking height there so the tower's *reach* -- not its physical
 ## position -- covers the flag base.
 
-## Spec 2.8 lobby settings this scenario needs. The small map keeps every
+## Spec 1.9 lobby settings this scenario needs. The small map keeps every
 ## chain short enough to lay in well under a minute of wall clock each; the
 ## rest are defaults.
 const DISC_STEP: int = 1
@@ -89,7 +89,7 @@ const SETTLE_FRAMES: int = 42
 ## sits, in meters. Small enough that the block is at rest almost immediately
 ## (SETTLE_FRAMES covers the drop).
 ##
-## Bontago-mv0.17 item 3 (owner feel report: "the ghost/body pivot is the
+## item 3 (reported as "the ghost/body pivot is the
 ## block's middle" -- see config/blocks/BlockShape.gd's bottom_center()):
 ## request_place()'s `origin`/`spot.y` used to be the shape's geometric
 ## *centre*, so 0.55 m meant "the block's bottom sits ~0.06 m above the
@@ -193,7 +193,7 @@ func _scenario_growth_holes_cutoff_and_topple() -> void:
 	# floor once (b) opens a hole there. Every later position check reads
 	# these plain Vector2s instead of a Block's .global_position, so a chain
 	# base that later falls through its own hole can never crash a later
-	# criterion (an owner-retained requirement, not a bug this test should
+	# criterion (a retained requirement, not a bug this test should
 	# paper over: two fronts built directly on top of the exact cell where
 	# their circles first met can legitimately hole out from under themselves).
 	var points_0: Array[Vector2] = []
@@ -395,16 +395,16 @@ func _scenario_capture_win() -> void:
 ## refused outright: nothing spawns, nothing is consumed, and the same piece
 ## is still there to place correctly afterward.
 ##
-## DECISION (tests/enet/m2_acceptance.gd, Bontago-p0a): rewritten from the
+## DECISION (tests/enet/m2_acceptance.gd): rewritten from the
 ## old "burns the block: it is spawned, thrown off the map, and the next
-## block is fed (docs/archive/M2_PLAN.md owner decision 2)" expectation, which
-## Bontago-mv0.24 (owner test 2026-09-22) superseded for exactly this case --
-## SPEC.md 2.5 "Held-block behaviour": "A drop outside the player's own
+## block is fed" expectation, which
+## superseded for exactly this case --
+## SPEC.md 1.4 "Held-block behaviour": "A drop outside the player's own
 ## territory is refused (the block stays in hand; no drop, feedback only)",
 ## and "Expiry and invalid actions": "An invalid manual click does not drop
 ## and does not consume the piece: the game refuses it and the block stays
 ## in hand... Failed clicks never advance the cadence." That change predates
-## this test's own last rewrite (Bontago-cmc.6, 2026-09-21) by a day, which
+## this test's own last rewrite by a day, which
 ## is why this scenario went stale rather than ever having been broken by
 ## it. autoload/match/MatchPlacement.gd's request_place() now returns before
 ## spawning anything at all on this path (auto_drop == false and reason !=
@@ -454,7 +454,7 @@ func _scenario_burned_block() -> void:
 	await _end_match()
 
 
-## (g) Spec 2.4's fixed placement-window cadence: an early release locks the
+## (g) Spec 1.4's fixed placement-window cadence: an early release locks the
 ## slot's next piece until the interval boundary; a second release before then
 ## is refused; the boundary unlocks it without forcing anything (this slot's
 ## piece was already spent); a slot that never releases at all gets its piece
@@ -737,7 +737,7 @@ func _march_one(slot_id: int, front: Vector2, reach: float, target: Vector2) -> 
 	return null
 
 
-## A block's influence circle when it is sitting on the disk (spec 2.2:
+## A block's influence circle when it is sitting on the disk (spec 1.5:
 ## r = influence_base + tan(45 deg) * h, h being its highest point).
 func _cube_reach() -> float:
 	return _tuning.influence_base + InfluenceCircle.cone_slope() * _physics.cube_size
@@ -759,7 +759,7 @@ func _corner_margin() -> float:
 	return cell * 0.5 * sqrt(2.0)
 
 
-## The tallest any front in scenarios (a)-(c) ever grows (spec 2.2's
+## The tallest any front in scenarios (a)-(c) ever grows (spec 1.5's
 ## r = influence_base + tan(45 deg) * h), after _raise_fronts() stacks
 ## FRONT_STACK_HEIGHT extra layers on the first cube. This is the largest
 ## radius any single circle in those scenarios can ever have.
@@ -957,12 +957,12 @@ func _build_isolated_tower(
 
 ## Spends a slot's turn without building, and hands the turn on.
 ##
-## DECISION (tests/enet/m2_acceptance.gd, Bontago-p0a): must call
+## DECISION (tests/enet/m2_acceptance.gd): must call
 ## request_place() with auto_drop = true, not _release()'s manual
-## (auto_drop = false) path. Bontago-mv0.24 (owner test 2026-09-22, SPEC.md
-## 2.5 "Held-block behaviour"/"Expiry and invalid actions") changed a
+## (auto_drop = false) path. (SPEC.md
+## 1.4 "Invalid actions and expiry") changed a
 ## *manual* release on an invalid spot from "spawns, burns, and hands the
-## turn on" (the old docs/archive/M2_PLAN.md owner decision 2 this comment used to
+## turn on" (the old docs/archive/M2_PLAN.md 2 this comment used to
 ## cite) to "refused outright: nothing spawns, nothing is consumed, feed_seq
 ## does not move" -- autoload/match/MatchPlacement.gd's request_place()
 ## returns before ever reaching _consume_and_refeed()/advance_turn() on that
@@ -972,9 +972,9 @@ func _build_isolated_tower(
 ## _march_solo_route(), _march_to_distance(), _build_isolated_tower(): a
 ## stuck active_slot() turns every next real release into
 ## REASON_NOT_YOUR_TURN, which _march_one() treats as "no further step
-## possible" -- Bontago-p0a's (d)/(f)/(h) failures, each stalled at exactly
+## possible" --'s (d)/(f)/(h) failures, each stalled at exactly
 ## the chain length reached right before this function's first call).
-## auto_drop = true still burns an off-disk release (spec 2.5's forced-
+## auto_drop = true still burns an off-disk release (spec 1.4's forced-
 ## release case keeps "nowhere valid to land -> spawn and throw it off the
 ## map"), and unlike the manual path it always reaches
 ## _consume_and_refeed()/advance_turn(), which is what a harness-only "pass"

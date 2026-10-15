@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.190: the Options screen opens over the lobby and closes back to it with focus restored,
+## the Options screen opens over the lobby and closes back to it with focus restored,
 ## lobby shortcuts stay silent while it is open, and lobby networking carries on underneath.
 
 const LOBBY_SCENE: PackedScene = preload("res://ui/lobby/Lobby.tscn")
@@ -59,7 +59,7 @@ func test_options_button_opens_and_close_restores_focus_to_it() -> void:
 	menu.closed.emit()
 	await wait_process_frames(2)
 	assert_false(lobby.is_options_open())
-	assert_false(menu.visible, "Options is hidden, kept for reuse (Bontago-1pi.11.95)")
+	assert_false(menu.visible, "Options is hidden, kept for reuse (Bontago-1pi.11.95)")  # lint-public: allow string literal kept verbatim (assertion message or fixture)
 	assert_eq(button.focus_mode, Control.FOCUS_ALL)
 	assert_eq(lobby.get_viewport().gui_get_focus_owner(), button, "focus returns to the Options button")
 
@@ -91,7 +91,7 @@ func _make_net_side(node_name: String) -> Variant:
 ## Polls once per frame until `condition` holds or `timeout_msec` of wall-clock time passes.
 ## Loopback ENet delivery takes real time that frame counts do not measure (a loaded
 ## machine runs hundreds of frames per millisecond of OS scheduling delay), so the bound
-## is a clock, not a frame budget (Bontago-fca.102).
+## is a clock, not a frame budget.
 func _wait_for(condition: Callable, timeout_msec: int = WAIT_TIMEOUT_MSEC) -> bool:
 	var deadline: int = Time.get_ticks_msec() + timeout_msec
 	while not condition.call():

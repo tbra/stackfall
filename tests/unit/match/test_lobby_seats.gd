@@ -1,5 +1,5 @@
 extends GutTest
-## core/rules/LobbySeats.gd (Bontago-1pi.53, package P2): the pure lobby seat model.
+## core/rules/LobbySeats.gd (package P2): the pure lobby seat model.
 ## Plain data in, data out: seats are a Dictionary, peers are ints, slots are a
 ## {peer_id: slot} dictionary. No Net, no scene tree.
 

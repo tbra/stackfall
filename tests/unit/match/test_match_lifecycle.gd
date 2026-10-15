@@ -1,5 +1,5 @@
 extends GutTest
-## Main's match lifecycle over a real (peerless) ENet host session: start, leave mid-match, rehost (spec 3.7).
+## Main's match lifecycle over a real (peerless) ENet host session: start, leave mid-match, rehost (spec 2.4).
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
 
@@ -13,7 +13,7 @@ static var _next_port: int = 47900
 ## its members resolved at runtime, as test_net_session.gd does for Net.
 var _main: Variant = null
 
-## DECISION (Bontago-mv0.3): see test_match_flow.gd's own `_tiny_map` comment
+## DECISION: see test_match_flow.gd's own `_tiny_map` comment
 ## for the full story. Here Main.tscn's own persistent `$Field` child (not a
 ## Field this file builds itself) is the one paying round_medium.tres's
 ## ~6300-cell collision build on every _host()+_start() in every test's
@@ -22,7 +22,7 @@ var _main: Variant = null
 ## same TinyMapMatchConfig seam so Match's own geometry still agrees with it.
 var _tiny_map: MapDef
 
-## Bontago-mv0.20a: start_match() writes the lobby's gravity_multiplier
+## .20a: start_match() writes the lobby's gravity_multiplier
 ## straight into the shared config/physics/physics_tuning.tres *instance* (see
 ## MatchLifecycle.gd's matching DECISION) -- the same process-wide singleton
 ## test_tuning_panel.gd's own before_each/after_each comment documents, so
@@ -246,7 +246,7 @@ func test_rehost_after_the_match_ended_and_the_session_closed_builds_a_fresh_wor
 	assert_eq(_bus_connection_count(), connections_after_first, "no listener leaks across leave and rehost")
 
 
-# --- (e) Lobby-only joining (Bontago-mv0.1.8) ---------------------------------
+# --- (e) Lobby-only joining ---------------------------------
 #
 # autoload/Net.gd's _accepting_joins gate is inert until the match flow flips
 # it; game/main/Main.gd's _on_match_state_changed() is where that happens (Net must
@@ -263,9 +263,9 @@ func test_rehost_after_the_match_ended_and_the_session_closed_builds_a_fresh_wor
 # HotSeat/RemoteCursors/NetDebugOverlay), and Match's own teardown
 # (_reset_match_state()) never touches it, so leaving mid-match used to leave
 # its flags, its overlay's raster reference and every hole it had opened
-# behind on the field the main menu sits over (Beads Bontago-mv0.1.9).
+# behind on the field the main menu sits over (Beads).
 
-# --- (g) Lobby gravity reaches physics at match start (Bontago-mv0.20a) ------
+# --- (g) Lobby gravity reaches physics at match start (.20a) ------
 
 func test_start_match_writes_the_lobbys_gravity_into_the_shared_physics_tuning() -> void:
 	_host()

@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.192.6 C5: per-player chat mute (ChatMute) and its views.
+## C5: per-player chat mute (ChatMute) and its views.
 
 const PANEL_SCENE: PackedScene = preload("res://ui/lobby/LobbyPlayersPanel.tscn")
 const PEER_A: int = 5

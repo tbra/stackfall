@@ -1,5 +1,5 @@
 extends GutTest
-## No gusts during a Storm (Bontago-mp0.91, owner playtest: "gust shouldn't occur
+## No gusts during a Storm ("gust shouldn't occur
 ## during storm"). The host Breeze scheduler (autoload/match/BreezeEffect.gd)
 ## skips its spawn attempt while the active weather is Storm and resumes when
 ## the Storm ends; clear/rain/other weather leave it as before. Gusts reach
@@ -125,7 +125,7 @@ func test_storm_ending_lets_gusts_resume() -> void:
 
 
 func test_a_gust_in_flight_when_the_storm_starts_finishes_and_no_new_one_follows() -> void:
-	# DECISION (BreezeEffect, Bontago-mp0.91): the in-flight gust is not cancelled
+	# DECISION (BreezeEffect): the in-flight gust is not cancelled
 	# (its visual on clients cannot be cancelled), it just lives out its life.
 	_block(Vector3(0.0, HIGH_M, 0.0))
 	var fast: BreezeTuning = _fast_tuning()

@@ -1,14 +1,14 @@
 extends GutTest
 ## Field builds its disk from MapDef/PhysicsTuning and frees anything that
-## reaches the kill plane (spec 2.1).
+## reaches the kill plane (spec 1.7).
 ##
-## M2 replaced the single cylinder collision with the cell grid spec 3.3 asks
+## M2 replaced the single cylinder collision with the cell grid spec 2.5 asks
 ## for; the grid itself is covered by test_field_cells.gd, so what is left here
 ## is the disk's size, its material and the kill plane.
 
-## DECISION (Bontago-mv0.3): none of this file's assertions depend on the
+## DECISION: none of this file's assertions depend on the
 ## map's actual scale (mesh radius tracks whatever map_def says; cell_count()
-## just has to be positive, under one trimesh owner; friction and the
+## just has to be positive, under one trimesh shape; friction and the
 ## kill plane are size-independent) -- only a couple of tests already used
 ## a scaled round_medium.tres; the ones that instead built a plain
 ## Field.new() (round_medium.tres, ~6300 cells) or explicitly loaded
@@ -30,7 +30,7 @@ func test_disk_mesh_radius_matches_map_def() -> void:
 
 	var overlay: TerritoryOverlay = field.overlay()
 	assert_not_null(overlay, "Field should build the disk's visible surface.")
-	# Bontago-mp0.150.1: one merged ArrayMesh; surface 0 is the cylinder slab.
+	# one merged ArrayMesh; surface 0 is the cylinder slab.
 	var arena: ArrayMesh = overlay.mesh as ArrayMesh
 	assert_not_null(arena, "The arena is one generated mesh.")
 	var lo: Vector3 = Vector3(INF, INF, INF)
@@ -47,7 +47,7 @@ func test_disk_collision_covers_the_disk() -> void:
 	field.map_def = _tiny_map
 	add_child_autofree(field)
 
-	# Bontago-ruw: one trimesh on one shape owner, a quad per in-disk cell;
+	# one trimesh on one collision shape, a quad per in-disk cell;
 	# this small a disk at cell_size 1 is still a bit over a hundred cells.
 	assert_gt(field.cell_count(), 0, "The disk collides as a grid of cells.")
 	assert_eq(field.get_shape_owners().size(), 1, "The disk is one shape owner.")
@@ -89,7 +89,7 @@ func test_kill_plane_frees_the_body_and_emits_event() -> void:
 	assert_true(body.is_queued_for_deletion(), "The body should be freed once it hits the kill plane.")
 
 
-# --- clear_match_state() (Beads Bontago-mv0.1.9) -----------------------------
+# --- clear_match_state() -----------------------------
 #
 # Field is a persistent node -- Main never frees or rebuilds it between
 # matches -- so nothing else resets its flags, its overlay's raster reference
@@ -123,7 +123,7 @@ func test_clear_match_state_frees_flags_clears_the_overlay_source_and_closes_hol
 
 func test_clear_match_state_discards_a_toggle_still_in_the_backlog() -> void:
 	# A hole enqueued but not yet drained (the backlog is rate-limited per
-	# physics frame, spec 3.3) must not survive either -- draining it after
+	# physics frame, spec 2.5) must not survive either -- draining it after
 	# the field's match state was otherwise cleared would reopen a hole
 	# nothing owns any more.
 	var field: Field = autofree(Field.new())

@@ -1,5 +1,5 @@
 extends GutTest
-## Snow (Bontago-22y.6): pure geometry and wire format (core/weather/
+## Snow: pure geometry and wire format (core/weather/
 ## SnowGeometry.gd, config/weather/SnowTuning.gd). No scene tree, no physics.
 
 const EPS: float = 0.0001

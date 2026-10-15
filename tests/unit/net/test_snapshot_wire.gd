@@ -1,5 +1,5 @@
 extends GutTest
-## net/SnapshotSync.gd's packet format (spec 3.4 "Snapshots",
+## net/SnapshotSync.gd's packet format (spec 2.6 "Snapshots",
 ## docs/archive/M3a_PLAN.md P2 and "The wire, byte for byte").
 ##
 ## "Split into several packets if needed to stay under ~1200 bytes each" and

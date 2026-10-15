@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.191: the in-match HUD scale is separate from the UI scale, and the minimap size is an
+## the in-match HUD scale is separate from the UI scale, and the minimap size is an
 ## option. Covers persistence + migration, HUD-only scaling, live minimap resize, and the round-timer /
 ## minimap / held-next layout at the extreme scales.
 

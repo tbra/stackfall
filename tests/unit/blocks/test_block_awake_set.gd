@@ -1,7 +1,7 @@
 extends GutTest
-## Bontago-1pi.11.32: the shared awake set (Block.awake_blocks()) and its
+## the shared awake set (Block.awake_blocks()) and its
 ## consumers: BlockRegistry's settle loop, BlockEffectsManager's trail scan and
-## the per-tick BlockStepBatch pass (Bontago-bth.1; was Block's own callback).
+## the per-tick BlockStepBatch pass (was Block's own callback).
 
 const TICK: float = 1.0 / 60.0
 const SLEEP_WAIT_FRAMES: int = 60
@@ -34,7 +34,7 @@ func _frozen_block(parent: Node) -> Block:
 func test_awake_set_tracks_enter_sleep_wake_freeze_and_remove() -> void:
 	var block: Block = _block()
 	assert_true(Block.is_awake_registered(block), "a block entering the tree starts awake")
-	# Bontago-bth.1: no per-node tick callback; BlockStepBatch visits the set.
+	# no per-node tick callback; BlockStepBatch visits the set.
 	assert_false(block.is_physics_processing(), "no per-node physics callback")
 
 	# Zero gravity and no velocity: Jolt puts it to sleep by itself.

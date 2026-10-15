@@ -1,9 +1,9 @@
 extends GutTest
-## Bontago-1pi.41: the Options gamepad Controls page must never show a blank
+## the Options gamepad Controls page must never show a blank
 ## row. rotate_yaw_ccw/cw and lock_vertical (and a few more) carry only
 ## keyboard/mouse events in the Input Map because the pad performs the same job
 ## through other actions (tests/unit/main/test_project_setup.gd DEVICE_EXCEPTIONS,
-## spec 2.5). ui/menus/KeyRebindRow.gd's PAD_ONLY_ACTIONS / PAD_NOT_APPLICABLE tables
+## spec 1.3). ui/menus/KeyRebindRow.gd's PAD_ONLY_ACTIONS / PAD_NOT_APPLICABLE tables
 ## say which, so this file checks (1) every pad row resolves to a real pad
 ## event that really drives its action, (2) every listed gameplay row has a
 ## glyph or is hidden on the pad page, and (3) no two gameplay actions share a
@@ -23,7 +23,7 @@ const EXTRA_GAMEPLAY_ACTIONS: Array[StringName] = [
 
 ## Each entry is one physical pad event deliberately bound to several gameplay
 ## actions, names sorted and joined with ",".
-## - X: use_gift_slot vs camera_snap_goal (Bontago-1pi.18.12); snap is inert while
+## - X: use_gift_slot vs camera_snap_goal; snap is inert while
 ##   CameraTuning.snap_enabled is false, so X is free in a match.
 ## - Left stick axes: ghost_move_* vs camera_pan_* (camera_modifier held pans
 ##   instead of moving; PlayerController zeroes the stick while it is held).
@@ -57,7 +57,7 @@ func test_rotate_drag_pad_resolves_to_the_right_trigger_free_rotation_axis() -> 
 	assert_eq((events[0] as InputEventJoypadMotion).axis, JOY_AXIS_TRIGGER_RIGHT)
 
 
-## Bontago-1pi.159.22 (owner 2026-10-11): camera rows that make no sense to remap
+## camera rows that make no sense to remap
 ## are absent on the pad page, still listed on the keyboard page; snap rows are
 ## hidden on both pages while CameraTuning.snap_enabled is false.
 func test_pad_page_hides_fixed_camera_rows_and_snap_rows_are_hidden_everywhere() -> void:
@@ -73,7 +73,7 @@ func test_pad_page_hides_fixed_camera_rows_and_snap_rows_are_hidden_everywhere()
 		assert_false(row.visible)
 		Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
 	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
-	assert_false(_make_row(&"camera_orbit").is_available_on_active_device(), "Orbit camera is keyboard/mouse only (Bontago-1pi.159.63)")
+	assert_false(_make_row(&"camera_orbit").is_available_on_active_device(), "Orbit camera is keyboard/mouse only (Bontago-1pi.159.63)")  # lint-public: allow string literal kept verbatim (assertion message or fixture)
 
 	for action: StringName in KeyRebindRow.SNAP_ACTIONS:
 		var row: KeyRebindRow = _make_row(action)
@@ -89,7 +89,7 @@ func test_pad_page_hides_fixed_camera_rows_and_snap_rows_are_hidden_everywhere()
 
 
 ## Every Options row either shows at least one pad glyph on the gamepad page or
-## is hidden there -- the owner-reported "blank row" can never come back.
+## is hidden there -- the user-reported "blank row" can never come back.
 func test_every_rebindable_action_shows_a_pad_glyph_or_is_hidden_on_the_pad_page() -> void:
 	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
 	for action: StringName in OptionsMenu.REBINDABLE_ACTIONS:

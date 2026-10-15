@@ -1,8 +1,8 @@
 extends GutTest
-## game/field/ArenaMesh.gd (formerly game/field/ArenaMesh.gd): the disc's purely-visual thickness (Bontago-mp0.3.2,
-## owner feedback: "The disc is just a thin mirror currently, the mockup has
+## game/field/ArenaMesh.gd: the disc's purely-visual thickness (
+## : "The disc is just a thin mirror currently, the mockup has
 ## a much thicker metallic disc with a soft glowing border going round the
-## rim.") plus its Bontago-pt.12 chamfer/texture redesign (owner: "the
+## rim.") plus its Bontago-pt.12 chamfer/texture redesign ("the
 ## glowing strip currently sits slightly outside the disc as its own
 ## separate element ... the disc has a chamfered edge that makes up the
 ## glowing strip", "it lacks the texture ... visible where it interacts with
@@ -136,7 +136,7 @@ func test_round_band_footprint_is_the_field_radius_circle() -> void:
 	assert_almost_eq(aabb.size.z, 24.0, 0.05, "z footprint spans 2 * field_radius (round).")
 
 
-## Bontago-pt.12 (owner: "the glowing strip currently sits slightly outside
+## Bontago-pt.12 ("the glowing strip currently sits slightly outside
 ## the disc as its own separate element ... the disc has a chamfered edge
 ## that makes up the glowing strip"). The chamfer's own TOP ring must sit
 ## exactly at the true field_radius edge -- not band_radius_scale's proud
@@ -178,7 +178,7 @@ func test_chamfer_slopes_outward_to_the_bands_own_proud_radius() -> void:
 	assert_almost_eq(chamfer_aabb.size.x, 22.0, 0.1, "2 * field_radius * band_radius_scale.")
 
 
-## Bontago-mp0.150.1: every side surface lives in ONE ArrayMesh with its own
+## every side surface lives in ONE ArrayMesh with its own
 ## material slot (chamfer, band, bottom), y-shifted by the overlay's half height.
 func test_side_surfaces_are_separate_surfaces_of_one_mesh() -> void:
 	var visuals: DiscBodyVisuals = _default_visuals()
@@ -206,7 +206,7 @@ func test_bottom_cap_disabled_still_builds_a_valid_open_band() -> void:
 	assert_true(body.band_mesh_instance().mesh.get_surface_count() > 0)
 
 
-# --- Bontago-mp0.3.8/pt.12: chamfer screen-space-minimum-width shader wiring,
+# ---/pt.12: chamfer screen-space-minimum-width shader wiring,
 # plus pt.12's shared procedural surface texture -----------------------------
 
 ## The chamfer's dashing-at-distance fix (shaders/territory/disc_rim.gdshader) needs a
@@ -280,7 +280,7 @@ func test_band_material_and_mesh_are_unaffected_by_the_gradient() -> void:
 	assert_null(arrays[Mesh.ARRAY_COLOR], "the band mesh must carry no vertex colors.")
 
 
-## Bontago-pt.12 (owner: "it lacks the texture ... visible where it interacts
+## Bontago-pt.12 ("it lacks the texture ... visible where it interacts
 ## with the sun"): the band's own StandardMaterial3D must wire up the
 ## procedural anisotropic/normal-map surface texture from visuals.
 func test_band_material_wires_up_the_procedural_surface_texture() -> void:

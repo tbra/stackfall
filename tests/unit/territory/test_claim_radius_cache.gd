@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.18.11: WinChecker.claim_at() reads the raster over a cached list of
+## WinChecker.claim_at() reads the raster over a cached list of
 ## in-radius cells (ClaimCells) instead of rescanning the square around each beacon
 ## every solve. The cache must change cost, never results: every claim below is
 ## compared with _reference_claim_at, a verbatim copy of the pre-cache implementation
@@ -86,7 +86,7 @@ func _points(field_radius: float) -> Array[Vector2]:
 	]
 
 
-## The implementation before Bontago-1pi.18.11, verbatim: the oracle.
+## The implementation before verbatim: the oracle.
 func _reference_claim_at(raster: TerritoryRaster, point: Vector2, claim_radius: float) -> Vector2i:
 	var grid: CellGrid = raster.grid()
 	var center: Vector2i = grid.world_to_cell(point)
@@ -366,7 +366,7 @@ func test_the_cache_is_bounded_and_still_exact_past_its_capacity() -> void:
 # --- the raster's one-pass tally (the claim_at read path) ------------------------
 
 ## Punches holes into a settled raster the two ways a real one gets them: forced
-## (force_hole_cell, inside a single team's own circle -- the raw owner stays set but
+## (force_hole_cell, inside a single team's own circle -- the stored team id stays set but
 ## team_at() reads unowned) and natural (a contested cell whose timer ran out).
 func _punch_holes(raster: TerritoryRaster, circles: Array[InfluenceCircle]) -> void:
 	var grid: CellGrid = raster.grid()

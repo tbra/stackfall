@@ -1,5 +1,5 @@
 extends GutTest
-## SPEC.md 2026-09-20 audit 'Rule acceptance scenarios' 2, 4, 5 and 8 (Bontago-cmc.7), core-only fixtures.
+## SPEC.md audit 'Rule acceptance scenarios' 2, 4, 5 and 8, core-only fixtures.
 
 const MAP_RADIUS: float = 20.0
 const CELL: float = 1.0
@@ -195,4 +195,4 @@ func test_scenario_8_temporary_restores_and_permanent_erodes_separately() -> voi
 	assert_true(_raster.is_hole(cell.x, cell.y), "PERMANENT: the board only ever erodes.")
 
 
-# --- Additional acceptance points named in Bontago-cmc.7 --------------------
+# --- Additional acceptance points named in --------------------

@@ -60,7 +60,7 @@ func after_each() -> void:
 	Net._mode = Net.Mode.OFFLINE
 	Net._local_slot = 0
 	# Restore the real Settings singleton to its own persisted file so later
-	# tests (and the owner's real user://settings.cfg) never see this test
+	# tests (and the user's real user://settings.cfg) never see this test
 	# file's temp custom_music_dir/master_volume_db values.
 	Settings.set_config_path_for_test(Settings.default_config_path())
 	_delete_if_exists(_settings_cfg_path)
@@ -88,8 +88,8 @@ func test_play_returns_false_for_unknown_event() -> void:
 	assert_false(_sfx.play(&"not_a_real_event"))
 
 
-## Bontago-1pi.28: effects were inaudible next to the music. The bundled wavs
-## are now normalised (a script removed in Bontago-dbn.1 (see git history)); these guard the playback side.
+## effects were inaudible next to the music. The bundled wavs
+## are now normalised (a script removed in (see git history)); these guard the playback side.
 const BUNDLED_CUE_EVENTS: Array[StringName] = [
 	AudioConfig.EVENT_THUD, AudioConfig.EVENT_REJECTED, AudioConfig.EVENT_CLICK,
 	AudioConfig.EVENT_START_GAME, AudioConfig.EVENT_HOVER, AudioConfig.EVENT_DROP,
@@ -239,7 +239,7 @@ func _stop_all_sfx_players() -> void:
 		player.stop()
 
 
-# --- Adaptive music crossfade (docs/M7_PLAN.md P6, Bontago-xtq.31) ------------
+# --- Adaptive music crossfade (docs/M7_PLAN.md P6) ------------
 
 func _install_both_stem_files() -> void:
 	_config.music_stem_calm_file = "calm_stem.wav"

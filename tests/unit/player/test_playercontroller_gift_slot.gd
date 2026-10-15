@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.18.2: the use_gift_slot action (keyboard G, gamepad X since Bontago-1pi.18.12)
+## the use_gift_slot action (keyboard G, gamepad X since)
 ## asks Match to spend the slotted gift, and only when one is waiting.
 
 

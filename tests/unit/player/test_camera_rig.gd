@@ -2,7 +2,7 @@ extends GutTest
 ## game/player/CameraRig.gd's own coverage (previously only exercised indirectly
 ## through test_playercontroller_mouse.gd's follow-block tests).
 ##
-## Bontago-mv0.17 item 4 (owner feel report: "on match start the follow
+## Requirement: "on match start the follow
 ## camera's yaw must look from the player's home flag toward the disk
 ## centre"): CameraRig.set_home_view() is what PlayerController.
 ## set_home_position() calls once a controller binds to a real slot
@@ -47,7 +47,7 @@ func test_camera_target_matches_the_ghost_position_the_same_frame_it_moves() -> 
 	controller.set_camera_rig(rig)
 	# DECISION (tests/unit/player/test_camera_rig.gd): a rig-local tuning duplicate
 	# with ghost_collision disabled -- this test is isolating the CameraRig/
-	# PlayerController process-order question only. Bontago-mv0.23's swept
+	# PlayerController process-order question only.'s swept
 	# collision test (_clamp_cursor_collision()) queries the live
 	# PhysicsDirectSpaceState3D every _process(), which only reflects whatever
 	# the physics server has actually stepped so far; with no Field/physics
@@ -151,7 +151,7 @@ func _disturb(rig: CameraRig) -> void:
 	rig._update_transform()
 
 
-## Bontago-1pi.187: camera_reset (V / pad Back) restores the match-start pose.
+## camera_reset (V / pad Back) restores the match-start pose.
 func test_camera_reset_key_restores_the_recorded_start_pose() -> void:
 	var rig: CameraRig = _make_rig()
 	rig.tuning = rig.tuning.duplicate()

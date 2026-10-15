@@ -1,6 +1,6 @@
 extends GutTest
-## Bontago-1pi.10 (owner: "using glyphs to show what different actions are
-## mapped to"): ui/hud/InputGlyph.gd's own event -> label mapping, covering one
+## "using glyphs to show what different actions are
+## mapped to": ui/hud/InputGlyph.gd's own event -> label mapping, covering one
 ## representative case per device family so every glyph ui/menus/KeyRebindRow.gd
 ## can ever build has real text rather than a raw Godot event string.
 

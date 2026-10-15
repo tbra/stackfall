@@ -1,6 +1,6 @@
 class_name MatchFingerprint
 extends RefCounted
-## Bontago-1pi.46 R3 (docs/MATCH_RESET_AUDIT.md section 6): "after leaving a match and
+## R3 (docs/MATCH_RESET_AUDIT.md section 6): "after leaving a match and
 ## starting another, everything is as if freshly launched", made checkable.
 ##
 ## capture(main) reads everything a match can leave behind on a real game/main/Main.tscn
@@ -29,7 +29,7 @@ const RUMBLE_PROBE_DEVICE: int = 0
 ## Fingerprint of `main` (a game/main/Main.tscn instance) and the shared singletons.
 static func capture(main: Node) -> Dictionary:
 	var out: Dictionary = {}
-	# MF5 (Bontago-1pi.11.84.6): the four overlays are created lazily; build them first so a
+	# MF5: the four overlays are created lazily; build them first so a
 	# fresh launch and a session that already needed some compare like for like.
 	if main != null and main.has_method(&"_ensure_overlays"):
 		main.call(&"_ensure_overlays")
@@ -49,7 +49,7 @@ static func capture(main: Node) -> Dictionary:
 ## Keys that move with wall-clock cadence or per-peer traffic, so two networked runs cannot
 ## match on them: dropped by without_volatile() for the ENet bench. The in-process unit test
 ## drives time by hand and compares every key.
-## Bontago-fca.81: the loading overlay (its fade state and the backdrop SubViewport nodes it
+## the loading overlay (its fade state and the backdrop SubViewport nodes it
 ## frees when the fade ends) is a transient: under machine load the fade can still be running
 ## at COUNTDOWN + 0.5 s on one peer and not on the other, so it is excluded too.
 # DECISION: exclude the transient rather than wait for it, since a loaded peer's fade can
@@ -307,7 +307,7 @@ static func _capture_sky(main: Node, out: Dictionary) -> void:
 	if light != null:
 		out["sky.light_basis"] = _basis(light.global_basis)
 		out["sky.light_color"] = _col(light.light_color)
-		# Bontago-mp0.132: the sun's cloud dimming (CloudShadows, from the live puff occlusion) follows
+		# the sun's cloud dimming (CloudShadows, from the live puff occlusion) follows
 		# frame count and the drifting clouds, so it is transient by design; the fingerprint reads
 		# the undimmed energy.
 		out["sky.light_energy"] = _r(light.light_energy / maxf(skybox.sun_cloud_scale(), 0.001))

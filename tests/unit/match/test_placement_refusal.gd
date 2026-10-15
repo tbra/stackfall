@@ -1,7 +1,7 @@
 extends "res://tests/unit/match/match_world_test.gd"
 ## autoload/match/MatchPlacement.gd's request_place(): a manual (auto_drop ==
-## false) release outside the placing player's own territory (spec 2.5's
-## contract; Bontago-mv0.24, owner test 2026-09-22).
+## false) release outside the placing player's own territory (spec 1.4's
+## contract).
 
 const MatchNetScript := preload("res://net/MatchNet.gd")
 
@@ -45,7 +45,7 @@ func test_manual_drop_outside_territory_is_refused_and_the_block_stays_held() ->
 	assert_eq(reason, PlacementRules.REASON_OUTSIDE_TERRITORY)
 	assert_eq(
 		_blocks_root.get_child_count(), 0,
-		"Owner test 2026-09-22: a refused manual drop must not spawn a block, burned or otherwise."
+		"Owner test 2026-09-22: a refused manual drop must not spawn a block, burned or otherwise."  # lint-public: allow string literal kept verbatim (assertion message or fixture)
 	)
 	assert_eq(Match.feed_seq(slot_id), seq_before, "the piece must not be consumed")
 	assert_eq(Match.held_shape(slot_id), shape_before, "the player must still be holding the exact same piece")
@@ -110,8 +110,8 @@ func test_auto_drop_outside_the_zone_relocates_and_emits_placement_relocated() -
 	assert_almost_eq(relocated_point.x, spawned_local.x, 0.01)
 	assert_almost_eq(relocated_point.y, spawned_local.z, 0.01)
 
-	# Bontago-xtq.23 (owner playtest 2026-09-24, "the block still drops more
-	# or less in place"): the relocated point is by construction near the
+	# "the block still drops more
+	# or less in place": the relocated point is by construction near the
 	# invalid one it replaces (closest_valid_point() widens outward one step
 	# at a time), which is exactly what reads as "in place" to the owner --
 	# so pin down that it is nonetheless genuinely inside the acting slot's
@@ -125,7 +125,7 @@ func test_auto_drop_outside_the_zone_relocates_and_emits_placement_relocated() -
 
 # --- Outcome 3: PlayerController reacts only to its own slot's relocation ---
 
-## Bontago-sen.1 (owner 2026-09-30): a held gift is exempt from the territory
+## a held gift is exempt from the territory
 ## check; the host decides from its own held state.
 func _hold_gift(slot_id: int, gift_id: StringName = &"bomb") -> void:
 	# debug_queue_special is sandbox-only; flip the flag just for the queue

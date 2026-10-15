@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mp0.120: flipbook dust puff (game/blocks/ImpactPuff.gd) spawned from
+## flipbook dust puff (game/blocks/ImpactPuff.gd) spawned from
 ## BlockEffectsManager's replicated impact event.
 
 

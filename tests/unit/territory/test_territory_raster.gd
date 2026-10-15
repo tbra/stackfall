@@ -1,6 +1,6 @@
 extends GutTest
-## Spec 2.2's contested zones and holes, on the authoritative cell grid
-## (spec 3.3, docs/archive/M2_PLAN.md "Raster resolution").
+## Spec 1.5's contested zones and holes, on the authoritative cell grid
+## (spec 2.5, docs/archive/M2_PLAN.md "Raster resolution").
 ##
 ## "Areas where two or more territories from different teams overlap are
 ## contested. Contested cells become holes after hole_delay = 0.75 s."
@@ -314,7 +314,7 @@ func test_an_empty_solve_leaves_the_disk_unowned() -> void:
 
 ## -- v2 fill: the argmax field (docs/TERRITORY_V2_PLAN.md, "The formula") -----
 ##
-## Owner clarifications 2026-09-20: "Areas of different players never overlap.
+## Clarification: "Areas of different players never overlap.
 ## Where they meet, the border is pushed by the heights of the stacks producing
 ## the contested area: the taller local stack gets more of the shared region,
 ## but not all of it, and it is the individual contesting stacks that count,
@@ -442,7 +442,7 @@ func test_v2_individual_stacks_count_never_a_team_sum() -> void:
 
 func test_v2_a_cut_off_tower_loses_its_area_not_just_the_win_check() -> void:
 	## Mirrors tests/unit/territory/test_territory_solver.gd's cut-off case, asserting on
-	## the raster's owner instead of group membership: home(-10, r6) --
+	## the raster's team instead of group membership: home(-10, r6) --
 	## A(-2, r3) -- B(4, r7), with B the tall one, plus a rival whose circle
 	## reaches B's outskirts. B does not reach home on its own (14 > 6 + 7),
 	## so removing A really does cut it off.
@@ -534,9 +534,9 @@ func test_the_legacy_path_is_what_update_does_by_default() -> void:
 
 ## -- Goal-flag no-build zones ------------------------------------------------
 ##
-## Owner clarifications 2026-09-20: "Goal flags have their own area of
+## Clarification: "Goal flags have their own area of
 ## influence in which no player may place a block." Orchestrator decision
-## 2026-09-20: the zone blocks placement only, never ownership.
+## the zone blocks placement only, never ownership.
 
 const ZONE_RADIUS: float = 3.0
 
@@ -646,7 +646,7 @@ func test_reset_clears_the_goal_zones() -> void:
 		"A new match re-stamps its own goal layout.")
 
 
-## -- Forced holes (M4 P5-HOLE, Bontago-1en.20) -------------------------------
+## -- Forced holes (M4 P5-HOLE) -------------------------------
 ##
 ## force_hole_cell() opens a cell independent of contest overlap, seeding the
 ## same _hole/_contested_time/_idle_time bookkeeping a natural hole uses, so
@@ -721,7 +721,7 @@ func test_force_hole_cell_appears_in_the_opened_change_set_exactly_once() -> voi
 
 
 ## -- A punched hole inside a single team's own circle (SHOULD-FIX, review
-## 2026-09-23) --------------------------------------------------------------
+## ) --------------------------------------------------------------
 ##
 ## Unlike the tests above, force_hole_cell() here lands on a cell a single
 ## uncontested team already owns (a natural hole never does: it only opens on
@@ -780,7 +780,7 @@ func test_a_punched_hole_inside_a_single_teams_circle_still_closes_after_hole_op
 		"Once closed, the cell reads as team 0's again -- the circle never left.")
 
 
-## Bontago-1pi.11.23: cached owner/state bytes equal a forced rebuild after
+## cached team/state bytes equal a forced rebuild after
 ## any mutation, and content_revision() moves exactly when bytes can change.
 func _assert_cache_matches_fresh() -> void:
 	var cached_owner: PackedByteArray = _raster.owner_bytes().duplicate()
@@ -845,7 +845,7 @@ func test_content_revision_is_stable_without_mutation() -> void:
 	assert_gt(_raster.content_revision(), after_goal)
 
 
-## -- tally_owned_cells (Bontago-1pi.18.11) ------------------------------------
+## -- tally_owned_cells ------------------------------------
 ##
 ## The one-pass, by-index vote WinChecker.claim_at() reads over its cached claim
 ## cells. It must count exactly the cells the per-cell coordinate readers count

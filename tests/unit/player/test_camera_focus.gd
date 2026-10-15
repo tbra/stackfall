@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-b7r (owner decision 2026-09-28, Bontago-aem): camera_snap_home/
+## camera_snap_home/
 ## camera_snap_goal's tap-to-TURN / hold-to-PEEK gesture in the default follow
 ## camera (CameraTuning.follow_block = true). See game/player/CameraRig.gd's own
 ## "Focus home/goal" section (_on_focus_pressed()/_on_focus_released()/
@@ -53,7 +53,7 @@ func _make_rig() -> CameraRig:
 	# config/player/camera_tuning.tres singleton every other test/scene reads, and
 	# lets these tests shrink the tap/peek/glide durations so they run fast.
 	rig.tuning = rig.tuning.duplicate() as CameraTuning
-	rig.tuning.snap_enabled = true  # snap ships disabled (Bontago-1pi.159.22); these tests cover the gesture itself.
+	rig.tuning.snap_enabled = true  # snap ships disabled; these tests cover the gesture itself.
 	rig.tuning.focus_hold_threshold_s = 0.05
 	rig.tuning.focus_turn_duration_s = 0.05
 	rig.tuning.focus_peek_transition_s = 0.05
@@ -100,7 +100,7 @@ func _finish_tweens(seconds: float) -> void:
 			tween.custom_step(seconds)
 
 
-# --- snap disabled (Bontago-1pi.159.22) ----------------------------------------
+# --- snap disabled ----------------------------------------
 
 
 func test_tap_camera_snap_home_turns_yaw_toward_the_local_slots_home_beacon() -> void:
@@ -117,7 +117,7 @@ func test_tap_camera_snap_home_turns_yaw_toward_the_local_slots_home_beacon() ->
 	# (game/player/CameraRig.gd's _turn_to_face()), which only advances on the
 	# engine's own real frames -- not on this file's own manual rig._process()
 	# calls -- so the tween is stepped explicitly via _finish_tweens() (no
-	# wall-clock wait, which flaked under full-suite load; Bontago-fca.3).
+	# wall-clock wait, which flaked under full-suite load).
 	_press_and_hold(rig, &"camera_snap_home", 1)
 	_release_and_settle(rig, &"camera_snap_home")
 	assert_false(rig.is_peeking(), "a tap must never engage PEEK.")

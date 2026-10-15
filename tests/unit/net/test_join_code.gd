@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.164: join-code encoding, public-address check and the Join page's field routing.
+## join-code encoding, public-address check and the Join page's field routing.
 
 
 func test_round_trip_known_addresses() -> void:

@@ -1,5 +1,5 @@
 extends GutTest
-## autoload/Sfx.gd beacon-claim tension layer (Bontago-1pi.114): volume, duck,
+## autoload/Sfx.gd beacon-claim tension layer: volume, duck,
 ## sting and reset, in both contextual_music modes. A fresh Sfx instance is
 ## used so nothing depends on the shipped assets; state is driven through the
 ## real Events signals.

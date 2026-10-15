@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.26: nothing in the UI scales independently. The project stretch
+## nothing in the UI scales independently. The project stretch
 ## (ui/theme/UiScale.gd) is the one rule; each screen is laid out in a SubViewport
 ## that emulates a real window of every supported size, and key elements must
 ## keep their logical size (so physical size / stretch factor is constant),
@@ -50,7 +50,7 @@ func _settle() -> void:
 func _rect_of(node: Node, path: String) -> Rect2:
 	var control: Control = node.get_node_or_null(path) as Control
 	if control == null and node is HUD:
-		# Bontago-1pi.191: HUD controls live under the HudScaleRoot.
+		# HUD controls live under the HudScaleRoot.
 		control = node.find_child(path, true, false) as Control
 	assert_not_null(control, "missing node %s" % path)
 	if control == null:
@@ -150,7 +150,7 @@ func test_ui_scale_rule_matches_project_stretch() -> void:
 	assert_eq(ProjectSettings.get_setting("display/window/stretch/aspect"), "expand")
 	assert_almost_eq(UiScale.stretch_factor(Vector2(3440, 1440)), 2.0, 0.001)
 	assert_almost_eq(UiScale.stretch_factor(Vector2(900, 1200)), 900.0 / 1280.0, 0.001)
-	# Bontago-1pi.151: the 100% default is half the old mockup scale (1920x1080 logical at 1280x720).
+	# the 100% default is half the old mockup scale (1920x1080 logical at 1280x720).
 	var base: float = UiScaleTuning.shared().base_scale
 	assert_almost_eq(UiScale.factor(Vector2(3440, 1440)), 2.0 * base, 0.001)
 	assert_eq(UiScale.logical_size(Vector2(1280, 720)), Vector2i(1920, 1080))
@@ -205,7 +205,7 @@ func test_lobby_settings_all_visible_or_reachable_at_every_size() -> void:
 		var vp: SubViewport = _host(window)
 		var lobby: Lobby = _build_lobby(vp) as Lobby
 		await _settle()
-		# Lobby rework (Bontago-1pi.53): advanced options live in collapsible blocks;
+		# Lobby rework: advanced options live in collapsible blocks;
 		# open every section and Advanced block so they are checked for reachability too.
 		for section: UiSection in lobby._sections():
 			if section.has_advanced():

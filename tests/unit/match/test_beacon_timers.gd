@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.188 / 1pi.189: goal-beacon timer labels (Classic countdown, CTF
+## / 1pi.189: goal-beacon timer labels (Classic countdown, CTF
 ## count-up) and the CTF score-multiplier chip, plus the pure text helpers.
 
 const CTF: int = MatchConfig.GameMode.CAPTURE_THE_FLAG

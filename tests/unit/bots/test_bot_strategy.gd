@@ -1,5 +1,5 @@
 extends GutTest
-## core/ai/BotStrategy.gd (Bontago-1t5.23, Bot V2 P4): the intent rule table (HOLD, DEFEND,
+## core/ai/BotStrategy.gd (Bot V2 P4): the intent rule table (HOLD, DEFEND,
 ## STRIKE, FINISH, ANCHOR, RACE) and the mode adapters (Elimination SIEGE and the per-seat
 ## target spread, Domination AREA, Reach the Sky ANCHOR, CTF RACE/HOLD, multi-goal target).
 ## Pure: hand-built BotWorldViews, no scene tree.

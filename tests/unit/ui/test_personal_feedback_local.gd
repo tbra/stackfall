@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.52 (scope widened by the owner: "before it, every refusal was
+## (scope widened by the owner: "before it, every refusal was
 ## broadcast to all peers -- check if other sounds and effects have the same
 ## issue"). The audit of every feedback trigger (see the bead's comment) found
 ## these PERSONAL reactions that still reached the wrong machine or seat:
@@ -257,7 +257,7 @@ func test_a_bots_gift_claim_never_chimes_for_the_human_offline() -> void:
 
 
 func test_a_teammates_claim_still_chimes_team_wide() -> void:
-	# Bontago-keo.17 owner decision "b": a claim is a team notification, so a
+	# "b": a claim is a team notification, so a
 	# teammate hears it. Slots 0 and 2 are one team, 1 and 3 the other.
 	_make_host_net()
 	var config: MatchConfig = _config(4, 0)

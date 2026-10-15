@@ -1,5 +1,5 @@
 extends "res://tests/unit/match/match_world_test.gd"
-## Bontago-1pi.134 (owner decision 1pi.133 = A) and 1pi.135: a held throwable gift is thrown
+## (1pi.133 = A) and 1pi.135: a held throwable gift is thrown
 ## along the player's last known aim at timer expiry, exactly like a manual release; bots pick
 ## release points for the map's throw range. Fixture family of test_gift_throw.gd.
 

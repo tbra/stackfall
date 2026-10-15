@@ -1,7 +1,7 @@
 extends GutTest
 ## autoload/match/MatchGifts.gd: spawn rolls, the territory-tick claim/expire
 ## sweep, the pending-special array, and the three replicated gift events
-## (spec 2.6, docs/archive/M4_PLAN.md P1).
+## (spec 1.6, docs/archive/M4_PLAN.md P1).
 ##
 ## Same tiny-map fixture as test_match_flow.gd/test_match_net.gd, and the same
 ## Match._gifts direct-access convention Match.gd's own header documents for
@@ -64,8 +64,8 @@ func _config(player_count: int = 2, gifts_enabled: bool = true) -> MatchConfig:
 	config.block_timer = 6.0
 	config.rng_seed = 4242
 	config.gifts_enabled = gifts_enabled
-	# These tests cover the 2026-09-29 rule (a claim replaces the next piece); the
-	# after-next trial (Bontago-1pi.85.69, default on) is in test_gift_queue_after_next.gd.
+	# These tests cover the rule (a claim replaces the next piece); the
+	# after-next trial (default on) is in test_gift_queue_after_next.gd.
 	config.qol = QolExperiments.new()
 	config.qol.gift_queue_after_next = false
 	return config
@@ -211,7 +211,7 @@ func test_pop_pending_special_consumes_only_the_held_gift() -> void:
 	assert_eq(Match.pop_pending_special(0), &"", "an empty queue pops to the blank sentinel")
 	assert_eq(Match.held_special(0), &"")
 
-	# Bontago-1en.21: a real pop emits Events.special_consumed with the id it
+	# a real pop emits Events.special_consumed with the id it
 	# actually popped; popping an already-empty queue (the third call above)
 	# must not emit a third, empty-id event.
 	assert_signal_emit_count(Events, "special_consumed", 1, "only the held gift is consumed")
@@ -249,7 +249,7 @@ func test_custom_drawer_id_is_queued_and_emitted() -> void:
 	assert_signal_emitted_with_parameters(Events, "gift_claimed", [gift_id, 0, &"jumping_bean"])
 
 
-## Bontago-sen.3: a claimed Glue gift grants charges at once and never
+## a claimed Glue gift grants charges at once and never
 ## becomes the held or next piece; an already queued gift survives.
 func test_claimed_glue_grants_charges_without_queueing_or_changing_held_piece() -> void:
 	_start_playing(_config_with_no_real_specials())
@@ -355,7 +355,7 @@ func test_apply_replicated_claim_replaces_the_next_gift() -> void:
 
 
 ## apply_replicated_special_consumed() is the client mirror of
-## pop_pending_special() (Bontago-1en.21) and must shrink the same queue
+## pop_pending_special() and must shrink the same queue
 ## apply_replicated_claim() grows, oldest-first.
 func test_apply_replicated_special_consumed_clears_only_held_gift() -> void:
 	_start_playing(_config())
@@ -370,7 +370,7 @@ func test_apply_replicated_special_consumed_clears_only_held_gift() -> void:
 	assert_eq(Match.held_special(0), &"")
 
 
-## DECISION (autoload/match/MatchGifts.gd, Bontago-1en.21): a mismatched head
+## DECISION (autoload/match/MatchGifts.gd): a mismatched head
 ## (the two mirrors drifted) still pops -- it does not silently do nothing --
 ## so the mirror's length stays in step with the host's even though the
 ## popped id itself was the wrong one.
@@ -434,7 +434,7 @@ func test_net_mirrors_gift_spawned_claimed_and_expired() -> void:
 	net.set_providers(null, null)
 
 
-## Review fix #2 (Bontago-4fa): outside hot-seat every slot's own feed window
+## Review fix #2: outside hot-seat every slot's own feed window
 ## fires on_feed_block_issued() independently, so an unconditional roll would
 ## have given a 3-player match ~3 rolls per window. Only the lowest-indexed
 ## alive slot (0, since all three are alive) actually rolls.
@@ -526,7 +526,7 @@ func test_replicated_claim_with_a_garbage_slot_id_is_ignored() -> void:
 	net.set_providers(null, null)
 
 
-# --- debug_queue_special (Bontago-1en.24, game/sandbox/Sandbox.gd's F9 hotkey) -------
+# --- debug_queue_special (game/sandbox/Sandbox.gd's F9 hotkey) -------
 
 func _sandbox_config(player_count: int = 2) -> MatchConfig:
 	var config: MatchConfig = _config_with_no_real_specials(player_count)
@@ -598,8 +598,8 @@ func test_debug_queue_special_refused_for_an_out_of_range_slot() -> void:
 	assert_eq(Match._gifts._pending_queues.size(), before_size, "must never grow _pending_queues")
 
 
-## Bontago-keo.17 (owner decision "b" on docs/archive/M6_PLAN.md's Owner Q1)
-## supersedes the old M6 A1 "shared team queue" contract below: a crate
+## (chosen option "b")
+## supersedes the old "shared team queue" contract below: a crate
 ## claimed in a team's territory is offered to the ONE teammate whose home
 ## circle is nearest the crate (MatchGifts._resolve_recipient_slot()), never
 ## to a queue shared by the whole team. _inject_crate(0) places the crate
@@ -647,7 +647,7 @@ func test_a_crate_nearest_the_other_teammates_circle_resolves_to_that_teammate()
 ## candidate recipient -- _resolve_recipient_slot() must fall through to the
 ## next-nearest ALIVE teammate rather than refusing the claim outright.
 ##
-## DECISION (tests/unit/gifts/test_gift_claim.gd, Bontago-keo.17): exercised
+## DECISION (tests/unit/gifts/test_gift_claim.gd): exercised
 ## directly against _resolve_recipient_slot() rather than through
 ## _inject_crate()/_step_territory() -- MatchTerritory.gd's own solve skips
 ## seeding a dead home flag's circle at all (autoload/match/MatchTerritory.gd:
@@ -666,7 +666,7 @@ func test_a_dead_nearest_teammate_is_skipped_for_the_next_nearest_alive_one() ->
 	assert_eq(recipient, 0, "the only other alive teammate on team 0 must be picked once slot 2's home flag is dead")
 
 
-## Bontago-keo.17 (owner decision "b"): max_pending_specials caps each
+## "b": max_pending_specials caps each
 ## RECIPIENT SLOT's own queue, never a team total -- slot 0 sitting at the
 ## cap must not block its own teammate, slot 2, from claiming a crate that
 ## resolves to slot 2 itself.
@@ -715,8 +715,8 @@ func test_pop_pending_special_never_touches_a_teammates_own_queue_under_teams_2(
 	assert_eq(Match.held_special(2), &"", "the teammate's queue -- already empty -- is untouched")
 
 
-## Bontago-keo.17 (owner decision "b" supersedes the old M6 A1 review fix
-## below): apply_replicated_special_consumed() no longer translates its
+## "b" supersedes the old M6 A1 review fix
+## below: apply_replicated_special_consumed() no longer translates its
 ## slot_id through team_of_slot() -- there is no shared team queue left to
 ## translate into -- it pops the exact slot it is given, same as
 ## held_special()/pop_pending_special() now do. Team 1's own, unrelated
@@ -765,7 +765,7 @@ func test_restore_default_special_drawer_reinstalls_the_weighted_drawer() -> voi
 	)
 
 
-## Bontago-8or.30: a forced drawer left by Sandbox must not survive into a
+## a forced drawer left by Sandbox must not survive into a
 ## normal match.
 func test_start_match_restores_default_drawer_after_forced_one() -> void:
 	Match._gifts.set_special_drawer(func() -> StringName: return &"forced_id")
@@ -773,7 +773,7 @@ func test_start_match_restores_default_drawer_after_forced_one() -> void:
 	assert_ne(Match._gifts._special_drawer.call(), &"forced_id", "normal start drops the forced drawer")
 
 
-## Bontago-1pi.85.68: no spawn roll before first_gift_delay_s of host play; the
+## no spawn roll before first_gift_delay_s of host play; the
 ## skipped roll is not queued, and the usual chance applies afterwards.
 func test_no_gift_spawns_before_first_gift_delay() -> void:
 	_start_playing(_config())

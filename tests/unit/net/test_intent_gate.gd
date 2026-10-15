@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-fca.36.2: pins the host-side guard preamble of every authoritative
+## pins the host-side guard preamble of every authoritative
 ## intent entry point (request_place manual + auto-drop, request_throw,
 ## request_use_gift_slot, spawn_special_projectile) across match states and
 ## the main guard cases. Written against the pre-refactor code and kept green

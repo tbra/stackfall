@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1t5.58: Field physics scenarios for the bot tower work (docs/BOT_TOWER_PLAN.md C, 55a/55b).
+## Field physics scenarios for the bot tower work (docs/BOT_TOWER_PLAN.md C, 55a/55b).
 ## A scripted stack of real blocks settles on a real Field; a bot (zero aim noise) then places a held piece
 ## through the real send path (BotController._send_best_placement, as test_bot_disc_placement does). Each
 ## scenario asserts (a) the spawned cubes sit where the bot's spawn-frame model (BotStatics.OrientationInfo
@@ -90,7 +90,7 @@ func _make_bot() -> BotController:
 	var bot: BotController = BotController.new()
 	add_child_autofree(bot)
 	bot.setup(BOT_SLOT, MatchConfig.AiDifficulty.HARD, _field, _registry)
-	# The profile is the shared, cached tuning resource: mutate a copy only (gate leak 2026-10-14).
+	# The profile is the shared, cached tuning resource: mutate a copy only (gate leak).
 	bot._profile = bot._profile.duplicate() as BotDifficultyProfile
 	bot._profile.aim_noise_m = 0.0
 	return bot
@@ -232,7 +232,7 @@ func test_plate_straddling_blocks_of_different_heights_rests_on_the_tall_one() -
 	await _assert_lands_and_stays(block, PLATE9_SHAPE, 0, origin, tall_top_y)
 
 
-## Bontago-1t5.54: a pile of really tilted blocks beside a real column. The snapshot of real bodies must read
+## a pile of really tilted blocks beside a real column. The snapshot of real bodies must read
 ## the pile as unsound (debris) and the column's top as the only sound top, and a new base search over it
 ## must keep clear of the pile.
 const PILE_TILT_RAD: float = 0.6

@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mp0.92: the shared cloud drift. Per-layer parallax rates ordered by depth, a
+## the shared cloud drift. Per-layer parallax rates ordered by depth, a
 ## per-match calm heading, storm drift easing onto the storm wind, the wrap / dissolve rules,
 ## and the puffs, the occlusion bounds and the cloud shadows all reading the same drift.
 

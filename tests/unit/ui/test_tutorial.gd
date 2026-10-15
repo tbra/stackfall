@@ -1,5 +1,5 @@
 extends GutTest
-## docs/archive/M6_PLAN.md package B3 (spec 2.7 "Tutorial"): ui/menus/Tutorial.gd's own
+## docs/archive/M6_PLAN.md package B3 (spec 1.2 "Tutorial"): ui/menus/Tutorial.gd's own
 ## five-step state machine, driven the same "drive Main from the Main Menu"
 ## way tests/unit/main/test_sandbox_placement.gd's own Part 2 drives
 ## start_sandbox_from_menu() -- a real game/main/Main.tscn, a tiny MapDef so the
@@ -172,7 +172,7 @@ func test_step_camera_advances_after_the_configured_hold_and_ends_the_tutorial()
 
 # --- Cancel (pause_menu) --------------------------------------------------------
 
-## Bontago-1pi.15.1 fix: this used to fire ui_cancel, but ui_cancel now has a
+## fix: this used to fire ui_cancel, but ui_cancel now has a
 ## gamepad B binding (project-wide menu back-navigation fix) and gamepad B is
 ## also rotate_snap/camera_snap_goal's own button during gameplay -- reading
 ## ui_cancel here would end the tutorial on every gamepad snap-rotate. See

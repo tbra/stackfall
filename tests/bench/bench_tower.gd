@@ -1,5 +1,5 @@
 extends Node3D
-## Spec 3.5 benchmark: a 40-block tower that must stay standing for 60 s with
+## Spec 2.7 benchmark: a 40-block tower that must stay standing for 60 s with
 ## no jitter. Run headless:
 ##   godot --headless --path . res://tests/bench/bench_tower.tscn
 ## Prints one machine-readable result line, then quits.
@@ -13,7 +13,7 @@ extends Node3D
 ## before it drops, e.g. to straddle a cell seam:
 ##   godot --headless --path . res://tests/bench/bench_tower.tscn -- --offset=0.5,0
 ##
-## Add --preset=<id> (Bontago-xtq.17 review fix SHOULD-FIX 2; id = a file stem
+## Add --preset=<id> (review fix SHOULD-FIX 2; id = a file stem
 ## under config/physics/presets/, e.g. "heavy_bouncy") to run this bench
 ## against one of ui/debug/TuningPanel.gd's shipped presets instead of the default
 ## shipped config/physics/physics_tuning.tres -- a reproducible way to check a preset
@@ -64,7 +64,7 @@ func _ready() -> void:
 	var field: Field = Field.new()
 	add_child(field)
 
-	# Bontago-r2v: BlockFactory.build()'s body origin is the shape's
+	# BlockFactory.build()'s body origin is the shape's
 	# bottom-face centre (commit 955d7d1), so block i's bottom face -- not its
 	# centre -- must sit at the disk's own top surface (Field.surface_y(),
 	# not assumed to be 0.0) plus edge * i; that is what makes the whole
@@ -77,7 +77,7 @@ func _ready() -> void:
 	# collision box, not the origin, on the disk: with the origin on the disk
 	# the whole tower fell 1 cm on tick one, and that landing impulse (not the
 	# disk surface) is what made the result flip between PASS and collapse
-	# across otherwise identical runs (Bontago-ddz).
+	# across otherwise identical runs.
 	var cube_shape: BlockShape = load("res://config/blocks/cube.tres")
 	var edge: float = _tuning.cube_size - _tuning.cube_margin
 	var start_y: float = field.surface_y() - _tuning.cube_margin * 0.5
@@ -122,7 +122,7 @@ func _physics_process(_delta: float) -> void:
 	_tick += 1
 
 	var top: RigidBody3D = _blocks[TOWER_HEIGHT - 1]
-	# DECISION (Bontago-r2v): a genuine collapse can carry a block past
+	# DECISION: a genuine collapse can carry a block past
 	# tuning.kill_plane_y, which Field._on_kill_plane_body_entered() frees;
 	# without this guard the next line's global_position read throws a
 	# script error every remaining tick and the bench never reaches its own

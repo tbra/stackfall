@@ -1,11 +1,11 @@
 extends GutTest
-## Spec 2.3: one connected territory holding every goal flag continuously for capture_hold wins.
+## Spec 1.5: one connected territory holding every goal flag continuously for capture_hold wins.
 
 const MAP_RADIUS: float = 20.0
 const CELL: float = 1.0
 ## The timing tests below step whole seconds against a fixed hold so they test
 ## WinChecker's logic, not the shipped tunable (config/territory/territory_tuning.tres,
-## 20 s since Bontago-1pi.91), which changes by owner request.
+## 20 s since), which changes by .
 const TEST_HOLD: float = 5.0
 const CENTRE_GOAL: Vector2 = Vector2(0.0, 0.0)
 

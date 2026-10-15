@@ -1,5 +1,5 @@
 extends GutTest
-## Spec 2.2/2.5: the ghost is tinted in the player's colour when the spot is
+## Spec 1.5/2.5: the ghost is tinted in the player's colour when the spot is
 ## valid, red when outside territory/contested/off the disk, and hatched over
 ## a hole. docs/archive/M2_PLAN.md P4: "the ghost is the owner's color when
 ## Match.preview_placement returns VALID, red for
@@ -8,7 +8,7 @@ extends GutTest
 const PLAYER_COLOR: Color = Color(0.25, 0.55, 0.95, 1.0)
 
 
-## Bontago-xtq.13 (owner playtest 2026-09-23): every tint colour's own stored
+## every tint colour's own stored
 ## alpha channel is now dead weight -- game/player/GhostPreview.gd's
 ## _apply_validity_material() always overrides it with ghost_tuning.
 ## ghost_opacity -- so a test that used to compare a live tint straight
@@ -19,7 +19,7 @@ func _with_ghost_opacity(ghost: GhostPreview, color: Color) -> Color:
 	return Color(color.r, color.g, color.b, ghost.ghost_tuning.ghost_opacity)
 
 
-## Bontago-xtq.13: ghost_tuning is the same process-wide preloaded singleton
+## ghost_tuning is the same process-wide preloaded singleton
 ## every GhostPreview's own @export field resolves to (test_tuning_panel.gd's
 ## own class doc explains why) -- test_ghost_opacity_is_the_alpha_of_every_
 ## tint_state() below mutates its ghost_opacity, so it must be restored here
@@ -165,7 +165,7 @@ func test_controller_skips_preview_when_no_active_slot() -> void:
 	assert_eq(fake_match.preview_placement_calls.size(), 0, "No hot-seat turn yet, so nothing should be previewed.")
 
 
-# --- Bontago-xtq.9 (owner test 2026-09-23, "the ghost block should be a bit
+# --- (requirement "the ghost block should be a bit
 # more opaque") --------------------------------------------------------------
 
 ## Must fail against the old ~0.55-0.65 GhostTuning defaults and pass once
@@ -199,12 +199,12 @@ func test_every_tint_state_alpha_is_at_least_the_new_more_opaque_default() -> vo
 	)
 
 
-# --- Bontago-xtq.13 (owner playtest 2026-09-23, "ghost block should still be
+# --- ("ghost block should still be
 # less transparent -> add a slider for it in the F4 menu") ------------------
 
 ## Must fail against the pre-xtq.13 code (every state's alpha came from that
 ## colour's own stored channel -- 0.75 for every one of these -- not one
-## shared, owner-tunable slider) and pass once every state's own alpha is
+## shared, tunable slider) and pass once every state's own alpha is
 ## exactly ghost_tuning.ghost_opacity, including a non-default value.
 func test_ghost_opacity_is_the_alpha_of_every_tint_state() -> void:
 	var ghost: GhostPreview = _make_ghost()

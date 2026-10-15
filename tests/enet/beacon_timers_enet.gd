@@ -1,5 +1,5 @@
 extends Node
-## Bontago-1pi.188/189: host + client over real ENet. The host fakes beacon ownership
+## /189: host + client over real ENet. The host fakes beacon ownership
 ## (team 0 on both goal cells) plus, per --mode, a Classic capture progress or a CTF
 ## mode state with two beacons held; the client's own Field beacon labels must follow.
 ## Run via tools/run_beacon_timers_enet.ps1. Host: --headless-host --expect-peers=2 --mode=classic|ctf.

@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mp0.160: the paintball is a loaded slingshot; releasing the gift plays its baked
+## the paintball is a loaded slingshot; releasing the gift plays its baked
 ## 'fire' clip on the gift body's visual (every peer builds it through BlockFactory), the held
 ## ghost visual stays still, and non-paintball gifts are unaffected.
 

@@ -1,5 +1,5 @@
 extends "res://tests/unit/match/match_world_test.gd"
-## Bontago-6fc.1 (one lobby timer control per mode) and Bontago-6fc.2 (no goal
+## (one lobby timer control per mode) and (no goal
 ## flags in Reach the Sky / Elimination; the sandbox never wins on a goal hold).
 ## The bot-targeting check lives in test_bot_controller.gd (its fake match).
 
@@ -76,7 +76,7 @@ func test_non_sandbox_classic_still_wins_on_the_hold() -> void:
 	assert_eq(Match.state(), Match.State.END)
 
 
-# --- Bontago-1pi.25.1 Domination --------------------------------------------
+# --- Domination --------------------------------------------
 
 func test_lobby_forces_a_timer_for_domination() -> void:
 	var lobby: Lobby = _make_lobby(true)
@@ -91,12 +91,12 @@ func test_lobby_forces_a_timer_for_domination() -> void:
 	assert_gte(slider.value, MatchConfig.ROUND_TIMER_MIN_MINUTES)
 	var fake: FakeNet = lobby.net_provider as FakeNet
 	assert_gte(int(fake.set_lobby_data_calls[-1]["round_timer_minutes"]), MatchConfig.ROUND_TIMER_MIN_MINUTES)
-	assert_null(lobby.get_node_or_null("%RoundTimerValue"), "no \"required\" readout (Bontago-1pi.173)")
+	assert_null(lobby.get_node_or_null("%RoundTimerValue"), "no \"required\" readout (Bontago-1pi.173)")  # lint-public: allow string literal kept verbatim (assertion message or fixture)
 	assert_eq(((lobby.get_node("%RoundTimerCol") as UiRow).label.text), "Round length (min)")
 	assert_false(OptionHelpTable.shared().text_for(UiHelpLine.key_of(lobby.get_node("%GameModeOption").get_parent()), 0).is_empty(), "mode description")
 
 
-# --- Bontago-1pi.30 round timer slider (owner playtest 2026-10-03) ------------------
+# --- round timer slider ------------------
 
 func _dpad_event(button: JoyButton) -> InputEventJoypadButton:
 	var event: InputEventJoypadButton = InputEventJoypadButton.new()
@@ -108,7 +108,7 @@ func _dpad_event(button: JoyButton) -> InputEventJoypadButton:
 
 ## Feeds [param slider] a real D-pad press the way a focused control receives it: its
 ## gui_input signal (GUT cannot route key/pad events through the viewport to a focus
-## owner here). The event is matched against the real InputMap's ui_left/ui_right.
+## control here). The event is matched against the real InputMap's ui_left/ui_right.
 func _dpad_step(slider: UiStepper, button: JoyButton) -> void:
 	var event: InputEventJoypadButton = _dpad_event(button)
 	assert_true(event.is_action_pressed(&"ui_left", true) or event.is_action_pressed(&"ui_right", true),

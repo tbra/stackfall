@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.85.77 / 85.79 / 85.80: held gifts keep their authored colours, the held slingshot
+## / 85.79 / 85.80: held gifts keep their authored colours, the held slingshot
 ## faces the aim like the Rocket, and aimed Rocket/Paintball bodies spawn where the held model is
 ## drawn (host path: Match.request_throw; the client sees the same replicated spawn transform).
 

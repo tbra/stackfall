@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.5: UiToggle (ui/components/UiToggle.gd): ON / OFF word, state API, ui_accept /
+## UiToggle (ui/components/UiToggle.gd): ON / OFF word, state API, ui_accept /
 ## ui_left / ui_right through the Input Map, row-item contract, disabled still shows state.
 
 var _toggled: Array[bool] = []

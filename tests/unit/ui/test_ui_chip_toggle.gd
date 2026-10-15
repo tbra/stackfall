@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.5: UiChipToggle: mint + tick box when on, disc-700 + empty box when off, disabled
+## UiChipToggle: mint + tick box when on, disc-700 + empty box when off, disabled
 ## with tooltip via set_available(false), ui_accept toggles, row height.
 
 var _toggled: Array[bool] = []

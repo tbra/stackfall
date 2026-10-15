@@ -1,5 +1,5 @@
 extends GutTest
-## Weather framework (Bontago-22y.10): host schedule, effect apply/restore and match lifecycle.
+## Weather framework: host schedule, effect apply/restore and match lifecycle.
 
 const DELTA: float = 0.25
 

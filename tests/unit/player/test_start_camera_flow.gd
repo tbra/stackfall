@@ -1,6 +1,6 @@
 extends GutTest
-## Bontago-1pi.90 (owner feedback 2026-10-06, "START CAMERA STILL NOT FIXED";
-## feedback/051026/3.png countdown vs 4.png play): the camera must show the final
+## "START CAMERA STILL NOT FIXED";
+## feedback/051026/3.png countdown vs 4.png play: the camera must show the final
 ## in-play view -- behind and above the held piece at the local home -- from the
 ## moment the ready gate opens, through the countdown and into play, with no
 ## shift at PLAYING. Unlike tests/unit/player/test_start_framing.gd this drives the real
@@ -26,7 +26,7 @@ var _trace: Array[Dictionary] = []
 
 
 func before_each() -> void:
-	# Bontago-fca.80: this test needs Match's real _process (countdown, loading hand-off); an
+	# this test needs Match's real _process (countdown, loading hand-off); an
 	# earlier script in the batch may have left it paused.
 	Match.set_process(true)
 	Match.abort_match()

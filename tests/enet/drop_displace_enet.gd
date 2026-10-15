@@ -1,10 +1,10 @@
 extends Node
-## Bontago-1pi.14 round 3: owner scenario over real ENet with simulated lag.
+## Drop/displace scenario over real ENet with simulated lag.
 ## The client releases block A, then releases the next piece at the SAME cursor
 ## spot one beat after the interval unlocks it -- before A's replicated pose
 ## could have reached the client's ghost. The host prints how far A moved
 ## after B spawned. Run via tools/run_drop_displace_enet.ps1 (3 min deadline).
-## Host: --headless-host --expect-peers=2 ; client: --join=127.0.0.1:PORT --sim-lag=N
+## Host: --headless-host --expect-peers=2; client: --join=127.0.0.1:PORT --sim-lag=N
 
 const PLACE_HEIGHT: float = 0.5
 const FIRST_RELEASE_DELAY: float = 0.5

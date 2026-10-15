@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.28: UiCycler: wrap both ways, disabled items skipped, one signal per step,
+## UiCycler: wrap both ways, disabled items skipped, one signal per step,
 ## ui_left / ui_right, stick friction around the deadzone, square buttons, hugs content.
 
 var _picked: Array[int] = []

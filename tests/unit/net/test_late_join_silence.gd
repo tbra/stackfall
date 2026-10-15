@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.56: a client joining mid-match must hear the world being rebuilt
+## a client joining mid-match must hear the world being rebuilt
 ## as silence. The host's world replay restores state through the same Events a
 ## live match emits (block_placed per body, player_eliminated per dead slot,
 ## gift_flight_spawned per falling crate), and Sfx used to answer every one with

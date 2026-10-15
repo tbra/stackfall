@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1t5.57 / 1t5.61 (owner 2026-10-14): the tiers share Hard's mechanics; Easy and
+## / 1t5.61: the tiers share Hard's mechanics; Easy and
 ## Normal differ only in precision (aim_noise_m) plus the strategy-level fields.
 
 ## Fields that control how the bot searches, probes, scores, picks or times a think.

@@ -1,5 +1,5 @@
 extends GutTest
-## docs/archive/M3a_PLAN.md P4 "Tests first": every spec 2.8 setting round-trips
+## docs/archive/M3a_PLAN.md P4 "Tests first": every spec 1.9 setting round-trips
 ## through MatchConfig.to_dict() -> Net.set_lobby_data -> Events.
 ## net_lobby_data_changed -> from_dict -> sanitize(); a client's controls are
 ## disabled while the host's are not; an out-of-range value arriving over the
@@ -22,7 +22,7 @@ func _fake_of(lobby: Lobby) -> FakeNet:
 	return lobby.net_provider as FakeNet
 
 
-## Bontago-1pi.53 (E1): the roster title row and rows live in the instanced
+## E1: the roster title row and rows live in the instanced
 ## ui/lobby/LobbyPlayersPanel.tscn, so %PlayerList and %PlayerCountLabel resolve
 ## through %PlayersPanel (unique names are scoped to their own scene).
 func _panel_of(lobby: Lobby) -> LobbyPlayersPanel:
@@ -42,7 +42,7 @@ func test_cycle_option_round_trips_through_lobby_data() -> void:
 	assert_eq(option.selected(), MatchConfig.SkyThemeMode.CYCLE)
 
 
-## Bontago-1pi.15.1: this file's own real-gamepad-B tests below route real
+## this file's own real-gamepad-B tests below route real
 ## InputEventJoypadButton events through Input.parse_input_event(), which
 ## flips the Settings autoload's own active_input_device() to DEVICE_GAMEPAD
 ## as a side effect -- reset it so a later test file in the same run doesn't
@@ -68,9 +68,9 @@ func test_a_client_teams_toggle_is_ignored() -> void:
 	assert_eq((lobby.get_node("%TeamModeOption") as OptionButton).selected, MatchConfig.TeamMode.OFF)
 
 
-## Bontago-1pi.107: the disc-size meter defaults to medium (step 2, 100%), publishes the chosen
+## the disc-size meter defaults to medium (step 2, 100%), publishes the chosen
 ## step and pins the map to Round/Medium; the other map pickers are gone from the card.
-## Bontago-1pi.159.2.1: a UiSegmentMeter that lights step + 1 cells.
+## a UiSegmentMeter that lights step + 1 cells.
 func test_disc_size_meter_defaults_to_medium_and_publishes_the_step() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var meter: UiSegmentMeter = lobby.get_node("%DiscSizeMeter") as UiSegmentMeter
@@ -174,7 +174,7 @@ func test_start_pressed_emits_start_requested_only_when_ready() -> void:
 	assert_signal_emitted(lobby, "start_requested")
 
 
-## Bontago-mv0.7: config/match/match_defaults.tres ships player_count = 4, but a
+## config/match/match_defaults.tres ships player_count = 4, but a
 ## slot with no connected peer still runs a feed timer (autoload/Match.gd's
 ## _tick_feed) and auto-drops a block at its home flag forever -- read by a
 ## player as a phantom opponent taking turns. Windowed repro: host + one
@@ -196,7 +196,7 @@ func test_start_clamps_player_count_to_connected_peers() -> void:
 	assert_eq(config.ai_count, 0, "match_defaults.tres ships ai_count = 0, so no bots were requested")
 
 
-## M5 P4 (docs/archive/M5_PLAN.md, Bontago-d5c.5): the host's own outbound
+## M5 P4 (docs/archive/M5_PLAN.md): the host's own outbound
 ## LobbyPlayersPanel.build_roster() must append one synthetic row per bot seat -- slot_id
 ## running from player_count - ai_count up, matching autoload/match/
 ## MatchLifecycle.gd's _build_slots() formula for PlayerSlot.is_bot -- so the
@@ -216,7 +216,7 @@ func test_build_roster_appends_bot_rows_for_ai_count() -> void:
 	var bot_two: Dictionary = roster[5] as Dictionary
 	assert_eq(int(bot_one.get("slot_id")), 4)
 	assert_eq(int(bot_two.get("slot_id")), 5)
-	# Bontago-1pi.62: each bot carries the host-assigned themed name, also in bot_names.
+	# each bot carries the host-assigned themed name, also in bot_names.
 	var names: Array = calls[calls.size() - 1].get("bot_names") as Array
 	assert_eq(names.size(), 2)
 	assert_ne(names[0], names[1])
@@ -226,7 +226,7 @@ func test_build_roster_appends_bot_rows_for_ai_count() -> void:
 	assert_true(bool(bot_two.get("ready")))
 
 
-## Bontago-1pi.9b: owner playtest -- "I can add bots up to the player limit"
+## .9b: -- "I can add bots up to the player limit"
 ## -- nothing previously stopped ai_count + connected humans from exceeding
 ## player_count. %AiCountSpin's own max_value must track the empty-seat count
 ## (seats - humans) and clamp an already-too-high value down to it.
@@ -285,7 +285,7 @@ func test_unchecking_every_special_publishes_the_sentinel_not_an_empty_array() -
 	assert_eq(published[0], Lobby.ALL_DISABLED_SENTINEL)
 
 
-## Bontago-1pi.53 (S1b): ui_cancel backs out of the lobby (synthetic action through
+## S1b: ui_cancel backs out of the lobby (synthetic action through
 ## _unhandled_input(), the way Esc would reach it) -- the popup case is gone.
 func test_ui_cancel_backs_out_of_the_lobby() -> void:
 	var lobby: Lobby = _make_lobby(true)
@@ -297,7 +297,7 @@ func test_ui_cancel_backs_out_of_the_lobby() -> void:
 	assert_signal_emitted(lobby, "back_requested")
 
 
-# --- Gamepad parity (Bontago-1pi.15.1: "gamepad works in some menus but not
+# --- Gamepad parity ("gamepad works in some menus but not
 # all; B never goes back in any menu") ------------------------------------------
 #
 # Real InputEventJoypadButton, checked against the real InputMap via the
@@ -322,7 +322,7 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	var lobby: Lobby = _make_lobby(true)
 
 	var start_button: Control = lobby.get_node("%StartButton") as Control
-	# Bontago-1pi.61: section headers are static; the loop starts at the GAME mode.
+	# section headers are static; the loop starts at the GAME mode.
 	var first_stop: Control = lobby.get_node("%GameModeOption") as Control
 	var start_bottom: Node = start_button.get_node(start_button.focus_neighbor_bottom)
 	assert_eq(start_bottom, first_stop, "the chain must wrap from StartButton back to the game mode")
@@ -332,7 +332,7 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	var second_option: Control = lobby.get_node("%DiscSizeMeter") as Control
 	assert_eq(first_stop.get_node(first_stop.focus_neighbor_bottom), second_option, "the map picker follows the mode picker")
 
-	# Bontago-1pi.53 (S1b): the hidden sources of truth (%TeamModeOption, the seat spins and
+	# S1b: the hidden sources of truth (%TeamModeOption, the seat spins and
 	# the default-difficulty dropdown, plus the map variant/size options behind the combined
 	# map dropdown) are never stops a Tab press could not visibly land on. Collapsed Advanced
 	# blocks and the hidden Steam-only invite button are not stops either.
@@ -367,7 +367,7 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 		assert_ne(control.focus_neighbor_bottom, NodePath(""), "%s must have a down neighbor once opened" % control.name)
 
 
-## Bontago-1pi.159.27: X / keyboard X (lobby_add_bot) adds a bot for the host while a seat is free,
+## X / keyboard X (lobby_add_bot) adds a bot for the host while a seat is free,
 ## never starts the match, and does nothing for a client or a full lobby.
 func test_lobby_add_bot_shortcut_adds_a_bot_for_the_host_only() -> void:
 	var event: InputEventAction = InputEventAction.new()

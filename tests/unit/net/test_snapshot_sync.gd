@@ -1,6 +1,6 @@
 extends GutTest
-## net/SnapshotSync.gd's host -> client disk-state apply path (Bontago-1en.27,
-## spec 3.4 "Disk state: tilt quaternion and position offset, sent every
+## net/SnapshotSync.gd's host -> client disk-state apply path (
+## spec 2.6 "Disk state: tilt quaternion and position offset, sent every
 ## snapshot"). Before this fix, the client half of that sentence was never
 ## true: client_tick() decoded a snapshot's disk pose into disk_position()/
 ## disk_rotation() and stopped there -- nothing ever wrote it into a client's
@@ -23,12 +23,12 @@ const TICK: float = 1.0 / 60.0
 ## _physics_process(), driven for real via wait_physics_frames() below,
 ## already does this) and for driving the client's SnapshotSync.client_tick():
 ## apply_replicated_pose() writes global_transform on an AnimatableBody3D with
-## sync_to_physics = true (spec 3.5), which game/field/Field.gd's set_tilt_enabled()
+## sync_to_physics = true (spec 2.7), which game/field/Field.gd's set_tilt_enabled()
 ## DECISION documents as only accepting writes made through an actual physics
 ## step -- calling client_tick() as a bare synchronous test call silently
 ## reverts the write, which would make this file's assertions compare two
 ## untilted (identity) transforms and pass for the wrong reason. Review NIT
-## (Bontago-1en.27): this used to be a private inner class identical to
+## : this used to be a private inner class identical to
 ## tests/unit/field/test_field_tilt.gd's own.
 
 var _config: NetConfig = preload("res://config/net/net_config.tres")
@@ -168,13 +168,13 @@ func test_the_client_field_tilts_to_match_the_hosts_tilt_after_a_snapshot() -> v
 	)
 
 
-# --- Bontago-xtq.27 fix round (review MAJOR): a client's own "contributing" --
+# --- fix round (review MAJOR): a client's own "contributing" --
 # --- glow must follow the wire, not this body's own (inert on a client) -----
 # --- sleeping_state_changed ---------------------------------------------------
 
 # --- The 2-sample bracket: blend, ordering, extrapolation, decay -----------
 #
-# Bontago-1en.27 review SHOULD-FIX 2: every test above delivers exactly one
+# review SHOULD-FIX 2: every test above delivers exactly one
 # snapshot, so the bracket itself -- lerp/slerp between two samples,
 # rejecting a late/duplicate one, extrapolating past the newest for at most
 # config.max_extrapolation_ms then holding, and converging rather than
@@ -232,7 +232,7 @@ func test_disk_pose_blends_between_two_bracketing_samples() -> void:
 	assert_lt(mid_x, three_quarter_x, "the blend is monotone across the bracket")
 
 
-# --- Host peer gating (Bontago-1pi.11.30) ------------------------------------
+# --- Host peer gating ------------------------------------
 
 ## Test seam: overriding _remote_peers() replaces the live multiplayer peer
 ## list; _select_bodies() is counted so "no selection/build" is observable.

@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1t5.13 (BT5): `--bot-difficulty`, `--match-seed` and the other training overrides on the headless
+## BT5: `--bot-difficulty`, `--match-seed` and the other training overrides on the headless
 ## bot flow.
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")

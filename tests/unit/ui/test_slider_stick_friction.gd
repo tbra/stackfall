@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.152 / 159.10 (on UiSegmentMeter + UiHoldRepeat): a slow stick push moves a meter exactly one step (no 0 -> 100 run); only a
+## / 159.10 (on UiSegmentMeter + UiHoldRepeat): a slow stick push moves a meter exactly one step (no 0 -> 100 run); only a
 ## near-full hold auto-repeats, slower than the d-pad.
 
 const FRAME: float = 1.0 / 60.0

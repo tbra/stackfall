@@ -1,5 +1,5 @@
 extends Node
-## Bontago-1pi.32: host + one lagged client over real ENet, loading-screen ready
+## host + one lagged client over real ENet, loading-screen ready
 ## gate armed (MatchLifecycle.set_loading_gate_forced -- headless has no overlay
 ## to arm it). Per-peer log lines (LRENET): the host holds the countdown until
 ## both humans pressed ready; the client presses ready
@@ -7,7 +7,7 @@ extends Node
 ## run down and PLAYING. Run via tools/run_loading_ready_enet.ps1.
 ## Host: --headless-host --expect-peers=2.
 ##
-## Late-join step (Bontago-1pi.42, runner -Late): the host runs a 3-seat match with
+## Late-join step (runner -Late): the host runs a 3-seat match with
 ## the production seat policy, holds its own ready press until a third peer
 ## (--late-joiner) has joined mid-gate, and that joiner must hold the host's
 ## current ready/required sets after its replay (the lifecycle's roster broadcast

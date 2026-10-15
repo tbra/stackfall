@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.52 (owner playtest 2026-10-03, two players over direct IP: "the
+## (two players over direct IP: "the
 ## host could hear my block rejected sound"). A placement refusal is decided on
 ## the host and replicated as Events.placement_rejected; its feedback (sound,
 ## rumble, HUD toast, ghost flash) belongs only to the refused player's own

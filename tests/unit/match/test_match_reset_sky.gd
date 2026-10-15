@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.46 R1 (docs/MATCH_RESET_AUDIT.md G1, G2 and weather-fog parity): the
+## R1 (docs/MATCH_RESET_AUDIT.md G1, G2 and weather-fog parity): the
 ## sky and weather presentation owners return to what a fresh launch has when
 ## Events.match_scope_reset fires, so a match never starts under the previous one's
 ## night / cycle / storm / overcast sky or its fading ceiling.

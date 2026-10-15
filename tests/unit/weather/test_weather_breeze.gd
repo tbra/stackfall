@@ -1,5 +1,5 @@
 extends GutTest
-## Breeze (Bontago-470.2): the pure gust rules (core/weather/BreezeField.gd), the host
+## Breeze: the pure gust rules (core/weather/BreezeField.gd), the host
 ## effect (autoload/match/BreezeEffect.gd) against real Jolt bodies, the wire
 ## sanitizer and the bounded presenter. Shipped numbers: config/breeze/breeze.tres.
 

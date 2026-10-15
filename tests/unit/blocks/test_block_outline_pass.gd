@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.11.60: the per-block outline is a next_pass on the block's mesh
+## the per-block outline is a next_pass on the block's mesh
 ## material (no separate BlockOutline node), and Block._integrate_forces()
 ## skips its rebound work for frozen bodies.
 
@@ -79,7 +79,7 @@ func test_frozen_block_skips_rebound_work_and_awake_runs_it() -> void:
 	frozen.free()
 
 
-## Bontago-1pi.11.67 fix2b: Low detaches the outline next_pass from every cached block
+## fix2b: Low detaches the outline next_pass from every cached block
 ## material (no draw in the prepass, colour pass or shadow cascades); High reattaches it.
 func test_low_preset_detaches_outline_and_high_reattaches() -> void:
 	_restore_preset_id = Settings.current_graphics_preset().id
@@ -100,7 +100,7 @@ func test_low_preset_detaches_outline_and_high_reattaches() -> void:
 	assert_not_null(low_material.next_pass)
 
 
-## Bontago-1pi.11.67 fix2b: a test that switches the graphics preset records the
+## fix2b: a test that switches the graphics preset records the
 ## original here; after_each puts it back even when an assert failed midway.
 var _restore_preset_id: StringName = &""
 
@@ -111,7 +111,7 @@ func after_each() -> void:
 		_restore_preset_id = &""
 
 
-## Bontago-1pi.130: every block pass must take Environment fog like ordinary
+## every block pass must take Environment fog like ordinary
 ## geometry (no fog_disabled render mode, no custom fog() hook).
 func test_block_passes_do_not_opt_out_of_fog() -> void:
 	# fix2b: Low detaches the outline pass; check both passes on High.

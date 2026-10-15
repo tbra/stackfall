@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.11.77.10 (S2c): Match builds its controllers in late_activate(), not in _ready()
+## S2c: Match builds its controllers in late_activate(), not in _ready()
 ## when Boot defers activation; the MatchContext answers null-object defaults until then.
 
 var _previous_context: MatchContext = null
@@ -39,7 +39,7 @@ func test_context_answers_defaults_while_inactive() -> void:
 	assert_false(context.start_cat(0, Vector3.ZERO, null))
 
 
-## Bontago-1pi.11.77.18: MatchNet._process reads the authority's state, so a deferred
+## MatchNet._process reads the authority's state, so a deferred
 ## (pre-Boot-prewarm) MatchNet must stay idle until its own late_activate().
 func test_deferred_match_net_is_idle_until_activated() -> void:
 	var match_node: MatchAutoload = _deferred_match()

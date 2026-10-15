@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.11.53: game/main/Boot.tscn is the main scene and hands over to Main. Headless
+## game/main/Boot.tscn is the main scene and hands over to Main. Headless
 ## (this suite) takes the synchronous path, so Main exists right after Boot's _ready.
 
 func test_headless_boot_adds_main_to_root_and_frees_itself() -> void:
@@ -88,7 +88,7 @@ func test_close_request_is_deferred_until_load_collected() -> void:
 	get_tree().auto_accept_quit = true
 
 
-## Bontago-6a4: a second close request after the first quit is a no-op.
+## a second close request after the first quit is a no-op.
 func test_second_close_request_quits_once() -> void:
 	_quit_calls = 0
 	var boot: Boot = _threaded_boot("res://game/main/Main.tscn")

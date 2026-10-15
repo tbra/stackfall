@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.11.84 (MF0): MenuPrewarmQueue is strictly serial, ensure() collects an in-flight
+## MF0: MenuPrewarmQueue is strictly serial, ensure() collects an in-flight
 ## path or dequeues a queued one, run_blocking loads everything, collect_in_flight() finishes
 ## the request, and unknown paths push one error. A fake loader replaces ResourceLoader.
 

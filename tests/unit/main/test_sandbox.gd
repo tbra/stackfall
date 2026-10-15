@@ -7,7 +7,7 @@ const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
 ## the instance is held through a Variant-typed reference.
 var _main: Variant = null
 
-## DECISION (Bontago-mv0.3): see test_match_flow.gd's own `_tiny_map` comment.
+## DECISION: see test_match_flow.gd's own `_tiny_map` comment.
 ## Main.gd's `_build_sandbox_config()` (game/main/Main.gd) duplicates its own
 ## `match_config` export -- normally the shared round_medium.tres-backed
 ## match_defaults.tres -- so it, not this file's own code, is what has to
@@ -37,7 +37,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	# Bontago-1en.24: several sandbox_force_special tests below install a
+	# several sandbox_force_special tests below install a
 	# forced Callable via Match.set_special_drawer() (game/sandbox/Sandbox.gd's
 	# force_special_by_id()); Match._gifts.reset() (run by abort_match() right
 	# below) deliberately leaves `_special_drawer` untouched -- it is an
@@ -169,7 +169,7 @@ func test_sandbox_timer_is_disabled_by_default_so_feed_time_left_never_moves() -
 	assert_signal_not_emitted(Events, "feed_timer_expired")
 
 
-## Bontago-mv0.10 (spec 2.4 "[ORIGINAL target]" cadence): with the feed timer
+## spec 1.4 "[ORIGINAL target]" cadence: with the feed timer
 ## paused -- sandbox's default, "unlimited blocks" -- placements must never
 ## lock, or a tester could place one block and then be stuck aiming a piece
 ## it can never release (nothing would ever count the interval down to
@@ -214,7 +214,7 @@ func test_sandbox_reset_field_clears_blocks_and_rebuilds_for_the_same_config() -
 
 ## config/gifts/specials/ includes the original roster and the enabled remake gifts;
 ## SpecialDef.load_selectable_specials() sorts by id and leaves out disabled gifts
-## (Cat, Bontago-1pi.160), so this is the exact cycle
+## (Cat), so this is the exact cycle
 ## order F9 must walk through -- pinned here rather than re-derived from the
 ## loader, so a regression in the loader's own sort shows up as a failure
 ## here too, not just in test_special_def.gd.
@@ -237,7 +237,7 @@ func test_sandbox_force_special_hotkey_cycles_the_roster_in_order_and_wraps_to_o
 		sandbox._unhandled_input(event)
 		assert_eq(sandbox.forced_special(), StringName(expected_id))
 		if expected_id == "glue":
-			# Bontago-sen.3: glue applies on claim as charges, not a queued piece.
+			# glue applies on claim as charges, not a queued piece.
 			assert_gt(Match._gifts.glue_drops_left(sandbox.active_slot()), 0, "forced glue grants charges")
 		else:
 			assert_eq(
@@ -308,7 +308,7 @@ func test_sandbox_pause_physics_hotkey_pauses_the_tree_and_toggles_back() -> voi
 	assert_false(sandbox.is_physics_paused())
 
 
-## Bontago-470.8: with debug mode off the F5
+## with debug mode off the F5
 ## reset hotkey do nothing, while slot switching (Tab) stays a play feature.
 func test_debug_hotkeys_ignored_when_debug_mode_off() -> void:
 	_start_sandbox(2)

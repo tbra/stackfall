@@ -1,5 +1,5 @@
 extends Node3D
-## Spec 3.5 benchmark (docs/archive/M4_SPECIALS_PACKAGES.md's P4-VOLCANO package):
+## Spec 2.7 benchmark (docs/archive/M4_SPECIALS_PACKAGES.md's P4-VOLCANO package):
 ## five Volcano specials placed close enough that their orb blasts overlap,
 ## covering a full eruption from each plus chain propagation up to
 ## SpecialTuning.max_chain_depth. Run headless:
@@ -54,7 +54,7 @@ var _triggered_count: int = 0
 var _max_chain_depth_seen: int = 0
 var _field: Field = null
 var _blocks_root: Node3D = null
-## Review fix (Bontago-1en.3): the 5 spawned volcano Blocks themselves, kept
+## Review fix: the 5 spawned volcano Blocks themselves, kept
 ## around so the final report can print each one's own
 ## volcano_orbs_spawned/volcano_orb_count meta -- the reviewer could not tell
 ## "5 full eruptions" from "some fired zero orbs" (e.g. a volcano detonated by
@@ -144,7 +144,7 @@ func _physics_process(delta: float) -> void:
 		return
 
 	_finished = true
-	# Review fix (Bontago-1en.3): one line per volcano so a self-triggered
+	# Review fix: one line per volcano so a self-triggered
 	# volcano (spawned < orb_count) is visible instead of hidden inside the
 	# single aggregate result line below.
 	for idx: int in range(_volcano_blocks.size()):

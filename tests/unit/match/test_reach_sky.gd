@@ -1,5 +1,5 @@
 extends GutTest
-## Reach the Sky (Bontago-22y.9): monotonic settled-height records, team aggregation, ties, timer and early win.
+## Reach the Sky: monotonic settled-height records, team aggregation, ties, timer and early win.
 
 const MatchNetScript := preload("res://net/MatchNet.gd")
 
@@ -132,7 +132,7 @@ func test_team_sum_mode() -> void:
 	assert_almost_eq(objective.team_score(0), 7.5, 0.0001)
 
 
-# --- First to the target (Bontago-1pi.166) ---------------------------------------------
+# --- First to the target ---------------------------------------------
 
 func _target_m() -> float:
 	return (load("res://config/net/net_config.tres") as NetConfig).build_height_target_m

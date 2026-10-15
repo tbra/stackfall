@@ -1,8 +1,8 @@
 extends GutTest
-## Bontago-1t5.54 (docs/BOT_TOWER_PLAN.md C "1t5.54"): after a topple Reach the Sky bots stop building on the
+## docs/BOT_TOWER_PLAN.md C "1t5.54": after a topple Reach the Sky bots stop building on the
 ## leaning pile. The tower-top site filter keeps unsound tops out, the Reach the Sky plan targets the tallest
 ## SOUND top (or a new base after a collapse), the generator adds FOUNDATION sites at a new base, and the stack
-## analysis now runs before the plan. Bontago-1t5.68: the new base and its sites no longer keep a clearance from the
+## analysis now runs before the plan. the new base and its sites no longer keep a clearance from the
 ## debris; they only never rest on the leaning pile (tests/unit/bots/test_bot_debris_surface.gd covers the rule). Pure: hand-built BotStack snapshots, a synthetic
 ## raster, no scene tree.
 
@@ -149,7 +149,7 @@ func _choose(view: BotWorldView, memory: Dictionary) -> BotIntent:
 	return BotStrategy.choose(view, BotChains.build(view), profile, null, memory)
 
 
-## Bontago-1t5.68 (replaces the 1t5.54 clearance pins): true when a probe at disk-local `point` hits an unsound
+## replaces the 1t5.54 clearance pins: true when a probe at disk-local `point` hits an unsound
 ## (leaning pile) block in the snapshot.
 func _over_unsound(stack: BotStack, point: Vector2) -> bool:
 	var body: int = stack.surface_at(point)
@@ -245,7 +245,7 @@ func test_the_base_persists_while_the_tower_grows() -> void:
 
 
 func test_a_collapse_moves_the_base() -> void:
-	# Bontago-1t5.70: the grace time has run out (sky_lost), so the collapse starts the new base at once.
+	# the grace time has run out (sky_lost), so the collapse starts the new base at once.
 	var memory: Dictionary = {
 		"sky_base": STACK_XZ, "sky_peak": PEAK_M, "sky_pending": false,
 		"sky_lost": _strategy_tuning.collapse_grace_thinks,

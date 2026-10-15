@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mp0.163: the volcano GLB carries a looping smoke clip, and the large spawned
+## the volcano GLB carries a looping smoke clip, and the large spawned
 ## volcano reuses the same model (smoke excluded from its footprint fit).
 
 const CLIP: StringName = &"smoke_rise_2s"

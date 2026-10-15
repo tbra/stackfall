@@ -1,5 +1,5 @@
 extends GutTest
-## Owner playtest 2026-10-12: Bontago-1pi.176 / .178 / .179 / .180.
+## / .178 / .179 / .180.
 
 const REMOVED_IDS: Array[StringName] = [&"bar4", &"bar5"]
 

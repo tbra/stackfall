@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.47 (owner playtest: "In menus that have scrolling, for example
+## ("In menus that have scrolling, for example
 ## controller remapping, navigating with gamepad/arrow keys doesn't update the
 ## scroll position"). ui/menus/OptionsMenu.tscn's Settings page and Controls rebind
 ## list are ui/components/FocusScrollContainer.gd; this drives real ui_up/ui_down through
@@ -101,7 +101,7 @@ func _assert_focus_in_view(scroll: ScrollContainer, expected: Control, label: St
 func _walk_controls_list(pad: bool) -> void:
 	var menu: OptionsMenu = await _make_menu(pad)
 	var scroll: ScrollContainer = await _show_controls_tab(menu)
-	# The pad page lists fewer rows now (Bontago-1pi.159.22 hides fixed camera rows), so
+	# The pad page lists fewer rows now (hides fixed camera rows), so
 	# shorten the view like the settings page does to keep the list overflowing.
 	scroll.size_flags_vertical = Control.SIZE_FILL
 	scroll.custom_minimum_size = Vector2(0.0, SHORT_SETTINGS_VIEW_PX)

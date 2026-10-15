@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.63 (owner decision 1pi.159.62, option A): the gamepad Controls page lists only
+## 1pi.159.62, option A: the gamepad Controls page lists only
 ## the pad's real controls ("Rotate 90 deg" = B, "Free rotate (hold)" = RT), the keyboard page
 ## keeps "Free rotate (drag)" and a rebindable "Orbit camera".
 

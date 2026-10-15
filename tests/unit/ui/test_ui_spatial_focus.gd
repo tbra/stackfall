@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.15 (N1): UiSpatialFocus wires left/right/up/down from on-screen rects.
+## N1: UiSpatialFocus wires left/right/up/down from on-screen rects.
 
 
 ## a b

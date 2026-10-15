@@ -1,6 +1,6 @@
 extends GutTest
-## Bontago-1pi.159.15 (N1): focus must not escape an overlay into the screen behind it.
-## Owner: "hovering a dropdown and going left/right on stick or arrow keys moves my selection to
+## N1: focus must not escape an overlay into the screen behind it.
+## "hovering a dropdown and going left/right on stick or arrow keys moves my selection to
 ## the main menu". find_valid_focus_neighbor() is the engine's own resolution of ui_left / right /
 ## up / down, so asserting on it is the headless stand-in for the real stick press.
 
@@ -102,7 +102,7 @@ func test_results_screen_focus_never_leaves_the_screen() -> void:
 	assert_eq(_escapes(screen), [] as Array[String])
 
 
-# --- Options window (Bontago-1pi.159.16 / .15, O2) --------------------------------
+# --- Options window (/ .15, O2) --------------------------------
 
 ## Opens Options from the main menu (pause = false) or the pause menu and returns the window.
 func _open_options(from_pause: bool) -> OptionsMenu:
@@ -128,7 +128,7 @@ func _assert_options_trapped(options: OptionsMenu, label: String) -> void:
 		options._tabs.select(id)
 		assert_eq(_escapes(options), [] as Array[String], "%s / tab %s: no direction leaves Options" % [label, id])
 	options._tabs.select(OptionsMenu.TAB_GAME)
-	# Owner's case: the dropdown with ui_left / ui_right pressed never leaves and never strands focus.
+	# Case: the dropdown with ui_left / ui_right pressed never leaves and never strands focus.
 	var dropdown: Control = options._window_mode_option
 	for side: Side in [SIDE_LEFT, SIDE_RIGHT]:
 		var target: Control = dropdown.find_valid_focus_neighbor(side)

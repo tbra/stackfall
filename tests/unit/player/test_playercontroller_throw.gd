@@ -1,7 +1,7 @@
 extends GutTest
-## PlayerController.gd camera-aimed gift release (Bontago-1pi.85.29, owner: "throwable gifts ...
+## PlayerController.gd camera-aimed gift release (requirement: "throwable gifts ...
 ## use the camera as the base of the trajectory, tied directly to the gift so it automatically
-## activates when held (no LT required)"). Supersedes the M4 P2d hold-and-drag throw aim.
+## activates when held (no LT required)"). Supersedes the earlier hold-and-drag throw aim.
 ## Fixture family of test_playercontroller_mouse.gd/test_playercontroller_gamepad.gd.
 
 

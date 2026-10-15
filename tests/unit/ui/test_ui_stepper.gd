@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.5: UiStepper: clamp + step, dim at limits, formatter, silent set, -/+ clicks, key
+## UiStepper: clamp + step, dim at limits, formatter, silent set, -/+ clicks, key
 ## and pad steps, hold repeat and stick friction (SliderNavTuning numbers), row-item width/height.
 
 var _values: Array[int] = []

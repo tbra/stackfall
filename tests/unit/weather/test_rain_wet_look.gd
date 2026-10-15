@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mp0.140: the disc looks wet while it rains. The rain presentation drives
+## the disc looks wet while it rains. The rain presentation drives
 ## the overlay's shader parameters from the ramped intensity (no net traffic).
 
 const RAIN_PATH: String = "res://config/weather/rain.tres"

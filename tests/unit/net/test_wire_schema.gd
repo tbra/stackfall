@@ -1,5 +1,5 @@
 extends GutTest
-## WireSchema table tests (Bontago-fca.36.6) plus the accept/reject tables of the
+## WireSchema table tests plus the accept/reject tables of the
 ## migrated sites (breeze gust, snow state header, weather state).
 
 func _schema() -> Dictionary:

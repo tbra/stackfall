@@ -1,5 +1,5 @@
 extends GutTest
-## core/ai/BotThink.gd, BotWorldView.gd, BotIntent.gd (Bontago-1t5.19, Bot V2 P1): the
+## core/ai/BotThink.gd, BotWorldView.gd, BotIntent.gd (Bot V2 P1): the
 ## resumable legacy-equivalent think-cycle driven by a fake physics probe, plus the
 ## world view's home-circle stripping. Pure: a real CellGrid/TerritoryRaster, no scene tree.
 
@@ -82,7 +82,7 @@ func _rng() -> RandomNumberGenerator:
 
 # --- Home circles stripped from the view --------------------------------------
 
-# --- BotThink (Bontago-1t5.23: the assembled V2 pipeline) -----------------------
+# --- BotThink (the assembled V2 pipeline) -----------------------
 
 
 func test_unlimited_budget_finishes_in_one_step_with_a_valid_place_decision() -> void:
@@ -120,7 +120,7 @@ func test_revalidate_falls_back_when_the_choice_became_invalid_after_the_think()
 	assert_eq(PlacementRules.validate_point(second.origin, _raster, 0), PlacementRules.Result.VALID)
 
 
-# --- Gift claim term (Bontago-1t5.25) ------------------------------------------
+# --- Gift claim term ------------------------------------------
 
 const GIFT_TEST_VALUE: float = 100.0
 const GIFT_PROBE_STEP_M: float = 0.5

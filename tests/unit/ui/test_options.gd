@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.50/.51/.52: control labels, Reset/Back left-right focus, FOV meter 5 deg/step.
+##/.51/.52: control labels, Reset/Back left-right focus, FOV meter 5 deg/step.
 
 const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/menus/OptionsMenu.tscn")
 const SETTINGS_SCRIPT: GDScript = preload("res://autoload/Settings.gd")

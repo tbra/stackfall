@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.74: the main-menu build label has one source (BuildVersion),
+## the main-menu build label has one source (BuildVersion),
 ## is never empty, and sits beside the Debug pill at every supported size.
 
 const SIZES: Array[Vector2i] = [
@@ -20,7 +20,7 @@ func test_compose_rules() -> void:
 	assert_eq(BuildVersion.compose("  ", " "), BuildVersion.FALLBACK)
 
 
-## Bontago-1pi.136: a stale baked revision must not win over live git in dev runs.
+## a stale baked revision must not win over live git in dev runs.
 func test_pick_revision_prefers_live_git_in_editor_builds() -> void:
 	assert_eq(BuildVersion.pick_revision(true, "21ad7df1", "f84a4f7f"), "21ad7df1")
 	assert_eq(BuildVersion.pick_revision(true, " ", "f84a4f7f"), "f84a4f7f")
@@ -48,7 +48,7 @@ func test_label_shown_beside_debug_button_at_sizes() -> void:
 		var dr: Rect2 = debug_button.get_global_rect()
 		assert_true(logical.grow(EDGE_EPS).encloses(lr), "label on screen at %s" % window)
 		assert_false(lr.intersects(dr), "label does not overlap Debug at %s" % window)
-		# Bontago-1pi.171 (owner 2026-10-11): the version text sits left of the Debug pill.
+		# the version text sits left of the Debug pill.
 		assert_lte(lr.end.x, dr.position.x + EDGE_EPS, "label left of Debug at %s" % window)
 		vp.queue_free()
 		await get_tree().process_frame

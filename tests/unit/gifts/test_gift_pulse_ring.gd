@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.85.57: the shared PulseRing and the ring under a landed gift crate.
+## the shared PulseRing and the ring under a landed gift crate.
 
 
 func _crate() -> GiftCrate:

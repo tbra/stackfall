@@ -1,5 +1,5 @@
 extends GutTest
-## core/ai/BotStatics.gd (Bontago-1t5.21, Bot V2 P2; Bontago-1t5.72 P4): orientation dedup, each
+## core/ai/BotStatics.gd (Bot V2 P2 P4): orientation dedup, each
 ## orientation's own centre-of-mass margin (rule 1 on flat ground) and eligibility by it. Pure, no scene tree.
 
 var _tuning: BotGenTuning = preload("res://config/bots/bot_gen_tuning.tres")

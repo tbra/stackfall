@@ -1,7 +1,6 @@
 extends GutTest
-## docs/archive/M3a_PLAN.md P4: ui/menus/MainMenu.gd offers only Host / Join / Quit (owner
-## decision: hot-seat is unlisted), a LAN game list fed by Events, and a
-## direct-IP fallback (spec 3.4).
+## docs/archive/M3a_PLAN.md P4: ui/menus/MainMenu.gd offers only Host / Join / Quit (hot-seat is unlisted), a LAN game list fed by Events, and a
+## direct-IP fallback (spec 2.6).
 
 
 func _make_menu() -> MainMenu:
@@ -9,7 +8,7 @@ func _make_menu() -> MainMenu:
 	var menu: MainMenu = autofree(scene.instantiate())
 	add_child_autofree(menu)
 	# MainMenu._ready() opens the real LAN listener; close it so another shard's
-	# live host cannot fill this test's game list (Bontago-1pi.44).
+	# live host cannot fill this test's game list.
 	Net.stop_discovery()
 	var fake: FakeNet = FakeNet.new()
 	menu.net_provider = fake
@@ -20,7 +19,7 @@ func _fake_of(menu: MainMenu) -> FakeNet:
 	return menu.net_provider as FakeNet
 
 
-## Bontago-1pi.15.1: this file's own gamepad-A test below routes a real
+## this file's own gamepad-A test below routes a real
 ## InputEventJoypadButton through Input.parse_input_event(), which flips the
 ## Settings autoload's own active_input_device() to DEVICE_GAMEPAD as a side
 ## effect -- reset it so a later test file in the same run doesn't inherit

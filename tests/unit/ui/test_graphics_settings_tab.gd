@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.11.86: Options "Graphics" tab -- presets set every control, editing a control
+## Options "Graphics" tab -- presets set every control, editing a control
 ## switches the picker to Custom, overrides persist, and every control is gamepad-reachable.
 
 const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/menus/OptionsMenu.tscn")
@@ -138,7 +138,6 @@ func test_fixed_fps_meter_is_editable_only_in_fixed_mode() -> void:
 	assert_eq(_settings.current_graphics_preset().fixed_fps, 80, "30 + 5 cells of 10")
 
 
-## Bontago-mp0.154
 func test_vsync_defaults_on_persists_and_leaves_the_cap_rows_active() -> void:
 	for id: StringName in [&"low", &"medium", &"high"]:
 		assert_true((load("res://config/graphics/presets/%s.tres" % id) as GraphicsPreset).vsync_enabled)
@@ -205,7 +204,7 @@ func test_gamepad_accept_opens_a_dropdown_list_and_flips_a_toggle() -> void:
 	var msaa: UiDropdown = _dd(&"msaa_3d")
 	msaa.grab_focus()
 	await _pad_accept()
-	assert_true(msaa.is_open(), "A opens the list (Bontago-1pi.159.14)")
+	assert_true(msaa.is_open(), "A opens the list (Bontago-1pi.159.14)")  # lint-public: allow string literal kept verbatim (assertion message or fixture)
 	assert_eq(_settings.current_graphics_preset().msaa_3d, 1, "opening changes nothing")
 	msaa.pick(msaa.selected + 1)
 	assert_eq(_settings.current_graphics_preset().msaa_3d, 2, "picking the next row sets MSAA 4x")

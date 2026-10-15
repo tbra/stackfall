@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.59: a peer the host is kicking (Net.kick_peer) stays in
+## a peer the host is kicking (Net.kick_peer) stays in
 ## multiplayer.get_peers() until ENet completes the disconnect, and a send that
 ## addresses it logs an engine error. 1pi.57 filtered Net's own fan-outs; this
 ## covers every other host broadcast: MatchNet, SnapshotSync and the
@@ -122,7 +122,7 @@ func _fire_match_net(rig: Rig) -> void:
 	rig.match_net.submit_cursor(0, Vector3.ZERO, 0, Quaternion.IDENTITY)
 
 
-## Bontago-1pi.140: the per-peer (rpc_id) senders, aimed at every listed peer.
+## the per-peer (rpc_id) senders, aimed at every listed peer.
 func _fire_per_peer(rig: Rig) -> void:
 	for peer_id: int in _peers_of(rig):
 		rig.match_net._reject_to_peer(peer_id, 0, &"test")

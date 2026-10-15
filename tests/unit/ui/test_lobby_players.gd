@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.53 packages E1 + PL1a (docs/LOBBY_REWORK_PLAN.md "Right panel"):
+## packages E1 + PL1a (docs/LOBBY_REWORK_PLAN.md "Right panel"):
 ## the roster extracted from ui/lobby/Lobby.gd into ui/lobby/LobbyPlayersPanel behaves
 ## exactly as it did inside the Lobby, the narrow Lobby <-> panel hooks are installed
 ## (seats_data() merged into a host publish, apply(config, roster, seats) from
@@ -44,8 +44,8 @@ class FocusPanel extends HookPanel:
 
 
 func after_each() -> void:
-	DebugMode.clear_override_for_test()  # Bontago-1pi.159.43: the debug-only row-style switch is a focus stop
-	# Bontago-fca.41: synthetic events parsed into the global Input singleton stay latched
+	DebugMode.clear_override_for_test()  # the debug-only row-style switch is a focus stop
+	# synthetic events parsed into the global Input singleton stay latched
 	# (stick axis, ui_* actions) for every later script in the same process; clear them.
 	Input.flush_buffered_events()
 	for action: StringName in InputMap.get_actions():
@@ -697,7 +697,7 @@ func test_over_enet_a_clients_colour_and_team_requests_reach_the_hosts_start_con
 	await get_tree().process_frame
 
 
-## Bontago-1pi.95 (DECISION in ui/lobby/Lobby.gd): the host's Start is its consent -- enabled once every
+## DECISION in ui/lobby/Lobby.gd: the host's Start is its consent -- enabled once every
 ## OTHER seat is ready -- and its own Ready toggle is hidden; a client keeps its toggle.
 func test_host_start_needs_no_own_ready_and_hides_the_ready_toggle_but_a_client_keeps_it() -> void:
 	var host: Lobby = _host_lobby(1, 3)

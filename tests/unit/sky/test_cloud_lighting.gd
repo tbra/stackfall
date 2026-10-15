@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mp0.29: the sea and the upper puff layer take one shared
+## the sea and the upper puff layer take one shared
 ## CloudLighting (palette, light, cycle, weather grade) from the Skybox. The
 ## upper layer is the cloud sea's own puff field, so it shares the very material.
 

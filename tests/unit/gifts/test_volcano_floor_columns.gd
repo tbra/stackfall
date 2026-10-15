@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.85.55: a Volcano never removes floor. The placement/cursor column ray
+## a Volcano never removes floor. The placement/cursor column ray
 ## (Field.raycast_down_disk_local, PLACEMENT_QUERY_MASK) keeps hitting the disc floor at
 ## every point of the cone's footprint, through the rise and the eruption.
 

@@ -1,5 +1,5 @@
 extends GutTest
-## Spec 2.6 "Gift spawning [ORIGINAL target]": probability per placement
+## Spec 1.6 "Gift spawning [ORIGINAL target]": probability per placement
 ## window, not the retired seconds-based interval (docs/archive/M4_PLAN.md header
 ## amendment). Covers GiftSpawner's pure chance mapping and spawn-point pick.
 

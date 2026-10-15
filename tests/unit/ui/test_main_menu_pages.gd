@@ -1,11 +1,11 @@
 extends GutTest
-## Bontago-1pi.34/36/38/39 (owner playtest 2026-10-03): the debug-only menu
+## /36/38/39: the debug-only menu
 ## entry, the reworked Play local page, the controller-reachable "invisible"
 ## control, and left/right navigation on Play local. Navigation is driven with
 ## real InputEventJoypadButton events through Input.parse_input_event (the
 ## route a physical pad takes), the same technique test_main_menu.gd uses.
 ##
-## Bontago-1pi.44 (flaky in the sharded gate): two things made the "no dead
+## flaky in the sharded gate: two things made the "no dead
 ## focus" checks depend on what else the machine was doing.
 ## 1. MainMenu._ready() starts the REAL Net autoload's LAN browser (UDP 47777)
 ##    before a test swaps in FakeNet, and nothing ever stopped it. In a sharded
@@ -224,7 +224,7 @@ func test_no_dead_focus_on_any_page_without_steam() -> void:
 	_assert_neighbours_usable(menu, "join (LAN, no Steam)")
 
 
-## Bontago-1pi.44: the case the sharded gate hit by accident -- a LAN game in the
+## the case the sharded gate hit by accident -- a LAN game in the
 ## list makes it focusable, so it must have a real size once the page is laid
 ## out. Driven deterministically through the Events bus instead of a stray
 ## real advert.

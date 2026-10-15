@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mv0.34 (owner playtest 2026-09-23: "there's a max height above which
+## ("there's a max height above which
 ## I can't scroll up or place blocks, there shouldn't be"). Before this fix,
 ## GhostTuning.hover_manual_max was 30 m, so no amount of wheeling could raise
 ## the held block past 30 m above the disk, and any placement request built
@@ -19,13 +19,13 @@ extends GutTest
 ##    PhysicsTuning.hover_height (60.3 m total), so Quantize/NetConfig needed
 ##    no change; this test is the regression pin proving that.
 ##
-## Bontago-mv0.35 (owner regression report, 2026-09-23, "REGRESSION/UNFIXED --
+## Regression report, "REGRESSION/UNFIXED --
 ## there is still a maximum height the block cannot be raised or placed
-## above", reproduced hovering a domino above a placed tower): mv0.34's fix
+## above", reproduced hovering a domino above a placed tower: mv0.34's fix
 ## above raised the configured *ceiling* (GhostTuning.hover_manual_max), but
 ## never exercised the hover-raise path against an actual placed block. The
 ## real remaining bug was in game/player/PlayerController.gd's ghost-vs-placed-block
-## collision sweep (Bontago-mv0.23) -- _cast_one_box(): the ghost's own
+## collision sweep -- _cast_one_box(): the ghost's own
 ## baseline hover height (_update_ghost_transform(), mv0.17 item 5)
 ## deliberately ignores whatever tower sits under the cursor, so a ghost
 ## routinely starts a frame already embedded in a placed block; raising past
@@ -45,7 +45,7 @@ var _field: Field
 var _registry: BlockRegistry
 var _tiny_map: MapDef
 
-## The exact height the owner's playtest report named as unreachable under
+## The exact height the report named as unreachable under
 ## the old 30 m cap.
 const TARGET_HEIGHT_M: float = 40.0
 func before_each() -> void:
@@ -66,7 +66,7 @@ func before_each() -> void:
 func after_each() -> void:
 	Match.abort_match()
 	Match.set_process(true)
-	# Bontago-integ (2026-09-23 combined-run regression): before_each()'s own
+	# Bontago-integ (combined-run regression): before_each()'s own
 	# _field is autofree()'d at the end of this test, but Match._field is a
 	# plain autoload var nothing else resets (same DECISION as
 	# test_jumping_bean_effect.gd:251) -- left alone, the next script in a
@@ -173,7 +173,7 @@ func test_towers_below_the_ghost_do_not_trap_the_hover_raise() -> void:
 		controller._clamp_cursor_collision()
 		controller._update_ghost_transform()
 
-	# Bontago-mv0.35 second pass: the real ceiling is now the wire band
+	# second pass: the real ceiling is now the wire band
 	# (_hover_offset_ceiling(): NetConfig.pos_max_y - hover_ceiling_margin),
 	# below hover_manual_max's own 200 m default.
 	assert_almost_eq(

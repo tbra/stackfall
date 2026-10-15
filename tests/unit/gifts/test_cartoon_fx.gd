@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-a3z: the cartoon gift effects (CartoonBlast, FreezeBurst, BeanHopFx,
+## the cartoon gift effects (CartoonBlast, FreezeBurst, BeanHopFx,
 ## FxRing, FxEase). Visual-only nodes; these pin their lifecycles and the bean's
 ## hop/landing detection, not their look (see the probe screenshots on the bead).
 

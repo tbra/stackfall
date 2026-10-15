@@ -1,5 +1,5 @@
 extends Node
-## Bontago-1pi.85.25 (PA1): host + one lagged client over real ENet. The host launches a Rocket
+## PA1: host + one lagged client over real ENet. The host launches a Rocket
 ## carrier (real SpecialBehavior, normal gravity) steeply down onto the disc; the client samples
 ## the REPLICATED body each frame and checks its nose axis follows the travel direction and that
 ## it ends up where the host says the rocket exploded (no desync). Run: tools/run_rocket_enet.ps1.
@@ -11,7 +11,7 @@ const GATE_TIMEOUT: float = 40.0
 const POLL_S: float = 0.05
 const SEED: int = 20261007
 const START_LOCAL: Vector3 = Vector3(-10.0, 35.0, 0.0)
-## Aimed steeply UPWARD (Bontago-1pi.85.43): the host must detonate it before it leaves the
+## Aimed steeply UPWARD: the host must detonate it before it leaves the
 ## replicable volume, so the client never sees a body pinned at the quantization clamp.
 const AIM: Vector3 = Vector3(0.2, 1.0, 0.0)
 const MAX_NOSE_ERROR_DEG: float = 8.0

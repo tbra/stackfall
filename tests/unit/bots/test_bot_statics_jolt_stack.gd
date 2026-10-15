@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1t5.72.3 (STATICS_DESIGN 6.1, cases B, C, H and the no-hull lower-cut check): multi-level agreement between
+## STATICS_DESIGN 6.1, cases B, C, H and the no-hull lower-cut check: multi-level agreement between
 ## the bot's statics model (BotStability on a BotStackProbe snapshot) and real Jolt. A mismatch is a finding about
 ## the model, never a reason to move a case.
 
@@ -97,7 +97,7 @@ func test_c_bar_resting_on_one_pillar_end_falls() -> void:
 
 
 ## H: loose 1x1 columns of cubes. A cube on top is predicted and stands. An upright bar3 on top is predicted stable
-## (every cut has 0.49 m of margin) while Jolt may drop it (Bontago-1t5.71 measured 0/6): STATICS_DESIGN 6.3 says
+## (every cut has 0.49 m of margin) while Jolt may drop it (measured 0/6): STATICS_DESIGN 6.3 says
 ## record such a divergence and do not tune the model.
 func _loose_column(count: int) -> bool:
 	for level: int in count:

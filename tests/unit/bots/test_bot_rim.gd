@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1t5.42: V2 bots see the live (shrunk) radius and avoid the disc rim.
+## V2 bots see the live (shrunk) radius and avoid the disc rim.
 
 const FULL_RADIUS_M: float = 30.0
 const SHRUNK_RADIUS_M: float = 20.0

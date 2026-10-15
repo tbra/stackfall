@@ -1,5 +1,5 @@
 extends GutTest
-## Field's cell collision and its batched hole toggles (spec 2.1, 3.3).
+## Field's cell collision and its batched hole toggles (spec 1.5, 3.3).
 ##
 ## Every test builds a deliberately small disk — a 6 m radius is 113 in-disk
 ## cells at cell_size 1, enough to overflow the 64-per-frame toggle budget in
@@ -40,7 +40,7 @@ func _expected_in_disk_cells(grid: CellGrid) -> int:
 	return count
 
 
-## Applied holes across the disk. Bontago-ruw replaced one shape owner per
+## Applied holes across the disk. replaced one collision shape per
 ## cell with one disk trimesh, so this counts the logical applied state rather
 ## than disabled owners; test_the_disk_is_one_owner_and_collides_exactly_off_holes
 ## pins that the physics agrees with it.
@@ -94,8 +94,8 @@ func _cells_near_center(grid: CellGrid, reach: float) -> PackedInt32Array:
 # --- The grid ---------------------------------------------------------------
 
 func test_the_disk_is_one_owner_and_stays_solid_under_holes() -> void:
-	# Bontago-ruw: the disk is one trimesh on one shape owner. Bontago-1pi.11.41
-	# (owner decision Bontago-gdb, option A): holes no longer cut it, so every
+	# the disk is one trimesh on one collision shape.
+	# option A: holes no longer cut it, so every
 	# in-disk cell collides at the surface, hole or not -- a lone hole, a small
 	# patch and a hole on the rim included.
 	var field: Field = _make_field()
@@ -265,7 +265,7 @@ func test_repeating_a_hole_request_does_not_queue_twice() -> void:
 	)
 
 
-# --- Holes leave the disk alone (Bontago-1pi.11.41) -------------------------
+# --- Holes leave the disk alone -------------------------
 
 ## Holes do not change collision, so Field wakes nothing: a sleeping block on
 ## an opened cell keeps sleeping on solid ground. Dissolving it is the host
@@ -303,7 +303,7 @@ func test_a_block_dropped_from_the_wake_height_lands_on_the_surface() -> void:
 	)
 
 
-## Bontago-1pi.11.41: the trimesh is built once per map; no hole toggle, open
+## the trimesh is built once per map; no hole toggle, open
 ## or close, ever calls set_faces() again (it cost ~13 ms per change on
 ## round_medium and woke every body on the disk).
 func test_hole_toggles_never_rebuild_the_disk_mesh() -> void:

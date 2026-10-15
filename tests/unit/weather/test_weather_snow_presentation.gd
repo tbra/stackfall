@@ -1,5 +1,5 @@
 extends GutTest
-## Snow presentation (Bontago-mp0.97, owner playtest: "snow particle effects
+## Snow presentation ("snow particle effects
 ## is too subtle"): the falling flakes take their visibility numbers from
 ## config/weather/snow.tres, the flake shader gets them, the Low preset still
 ## draws fewer, and the flakes thin out and stop early in the ramp-out so the

@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.86 D1: live colour, then palette, then fallback.
+## D1: live colour, then palette, then fallback.
 
 const PALETTE: PackedColorArray = [Color.RED, Color.GREEN]
 

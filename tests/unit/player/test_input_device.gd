@@ -1,7 +1,7 @@
 extends GutTest
-## Bontago-1pi.10 (owner: "default to only showing mouse/keyboard, switch to
+## "default to only showing mouse/keyboard, switch to
 ## showing only gamepad options on gamepad input and switch back on mouse/
-## keyboard input"): autoload/Settings.gd's own last-used-device tracking.
+## keyboard input": autoload/Settings.gd's own last-used-device tracking.
 ## Exercised through the real Settings/Events autoloads directly (device
 ## tracking has no per-instance state to isolate the way the graphics/audio/
 ## key-override settings in tests/unit/main/test_settings.gd do -- a fresh
@@ -10,7 +10,7 @@ extends GutTest
 ## in after_each so this file never leaks a changed active device into
 ## another test file sharing the process.
 
-# Bontago-1pi.11.45: other files sharing a gate shard can leave the device on
+# other files sharing a gate shard can leave the device on
 # gamepad, so start every test from the default too, not just restore after.
 func before_each() -> void:
 	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
@@ -43,7 +43,7 @@ func test_a_real_gamepad_button_switches_to_gamepad() -> void:
 	assert_eq(Settings.active_input_device(), Settings.DEVICE_GAMEPAD)
 
 
-## Bontago-1pi.10: these four call Settings._input(event) directly rather
+## these four call Settings._input(event) directly rather
 ## than through Input.parse_input_event() -- a real InputEventMouseMotion fed
 ## through the global Input singleton has its own `relative` recomputed from
 ## whatever screen position a previous test last warped the (shared,

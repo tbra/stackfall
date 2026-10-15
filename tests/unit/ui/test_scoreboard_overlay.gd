@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.69: the hold-to-show scoreboard (ui/hud/ScoreboardOverlay.gd, action
+## the hold-to-show scoreboard (ui/hud/ScoreboardOverlay.gd, action
 ## show_scores = Tab / right-stick click). Press shows it during a live round,
 ## release hides it; the Back + R3 perf chord, a paused menu, a sandbox and a
 ## non-live state never show it.

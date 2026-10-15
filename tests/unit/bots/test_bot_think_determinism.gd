@@ -1,8 +1,8 @@
 extends GutTest
-## Bontago-1t5.30: the sliced V2 think (FILL / RANK in budgeted slices) must choose exactly what
+## the sliced V2 think (FILL / RANK in budgeted slices) must choose exactly what
 ## the one-shot think chooses, and must keep choosing what the pre-slicing pipeline chose
 ## (BASELINE_MD5 was captured from main 5150b091 before the change).
-## Bontago-1t5.37: the same holds with the per-cell rays on BotThink.cell_probe (the
+## the same holds with the per-cell rays on BotThink.cell_probe (the
 ## controller's wiring), and for the deadline driver (a few slices, then complete()).
 
 const MAP_RADIUS: float = 20.0
@@ -20,10 +20,10 @@ const STEP_GUARD: int = 5000
 const SHAPE_IDS: Array[String] = ["cube", "pillar", "L4", "T4", "arch5", "plus5", "stair6"]
 const WAVE_SCALE: float = 0.7
 const WAVE_HEIGHT_M: float = 0.8
-# DECISION (Bontago-1t5.55.1): re-baselined once. The bot now models the piece in the spawn frame
+# DECISION: re-baselined once. The bot now models the piece in the spawn frame
 # (cubes at B*(cell - pivot), origin = pivot), so sites, footprints and probes legitimately change.
 # Old 3703bcb9cdab17f12e340a391ee5f05c (main 4c474d41), then 610fd6bfd53c89ae1101771485635286.
-# DECISION (Bontago-1t5.66): re-baselined again. Profiles with fill_share 0 no longer top the site
+# DECISION: re-baselined again. Profiles with fill_share 0 no longer top the site
 # list up with random FILL sites (they were never picked: 0/24 in the tower scenes), so the site set
 # and the RNG draw order legitimately change. Every slicing variant still matches the one value.
 const BASELINE_MD5: String = "d59a3cafc6008aa99bee8e04631ca8a4"

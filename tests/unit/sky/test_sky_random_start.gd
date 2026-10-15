@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.75: a Cycle match opens at a host-rolled, seed-derived random phase that
+## a Cycle match opens at a host-rolled, seed-derived random phase that
 ## replicates through MatchConfig.to_dict(); locked presets stay fixed.
 
 const SEED_COUNT: int = 12
@@ -55,5 +55,5 @@ func test_fixed_presets_ignore_the_random_start() -> void:
 	assert_almost_eq(_opening_phase(config), _def.cycle_locked_phase_night, PHASE_EPSILON)
 
 
-# test_loading_backdrop_follows_the_chosen_phase was removed (Bontago-1pi.157): the loading backdrop is
+# test_loading_backdrop_follows_the_chosen_phase was removed: the loading backdrop is
 # now a random main-menu image, no longer derived from the sky phase.

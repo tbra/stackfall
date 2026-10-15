@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.41: UiDialog (docs/ui_reskin/components.md "Dialog") -- plate width, actions in
+## UiDialog (docs/ui_reskin/components.md "Dialog") -- plate width, actions in
 ## order with Cancel last, initial focus, glyph hints, focus trap, and keyboard / gamepad parity
 ## through synthetic events (A or Enter confirms, B or Start closes).
 

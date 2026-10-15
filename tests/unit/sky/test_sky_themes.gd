@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-adt.1: night theme resource, theme-driven light/environment,
+## night theme resource, theme-driven light/environment,
 ## 3D cloud-puff sea and distant bird flocks.
 
 const NIGHT_PATH: String = "res://config/sky/themes/night.tres"
@@ -18,7 +18,7 @@ func _make_skybox(theme: SkyThemeDef) -> Array:
 	skybox.theme = theme
 	skybox.light_path = skybox.get_path_to(light) if skybox.is_inside_tree() else NodePath("")
 	add_child_autofree(skybox)
-	# Bontago-fca.108: a persistent CloudCeiling (the weather presenter inside MatchNet)
+	# a persistent CloudCeiling (the weather presenter inside MatchNet)
 	# pushes a fading storm blend into every skybox in this group; an earlier script's
 	# weather events leave it mid-fade, so this fixture opts out and stays isolated.
 	skybox.remove_from_group(Skybox.OVERCAST_GROUP)
@@ -111,7 +111,7 @@ func test_cycle_runs_a_full_loop_in_the_authored_length() -> void:
 	sunset.cycle_length_seconds = 300.0
 	var skybox: Skybox = _cycle_skybox()
 	assert_almost_eq(skybox.cycle_length_seconds(), 300.0, 0.001)
-	# Bontago-59o.18: the cycle opens at SkyThemeDef.cycle_start_phase, not at dawn.
+	# the cycle opens at SkyThemeDef.cycle_start_phase, not at dawn.
 	var start: float = sunset.cycle_start_phase
 	skybox.update_cycle_clock(75.0)
 	assert_almost_eq(skybox.cycle_phase_at(75.0), fposmod(start + 0.25, 1.0), 0.0001, "a quarter of 5 min on")
@@ -121,7 +121,7 @@ func test_cycle_runs_a_full_loop_in_the_authored_length() -> void:
 	sunset.cycle_length_seconds = saved_length
 
 
-## Bontago-mp0.83: a live length edit changes the speed only; the time of day
+## a live length edit changes the speed only; the time of day
 ## at the moment of the edit is unchanged.
 func test_cycle_length_change_keeps_the_phase_continuous() -> void:
 	var sunset: SkyThemeDef = load(SUNSET_PATH) as SkyThemeDef
@@ -149,7 +149,7 @@ func test_cycle_length_change_keeps_the_phase_continuous() -> void:
 	sunset.cycle_length_seconds = saved_length
 
 
-## Bontago-59o.18 (S0): the locked phases the lobby's Sunset / Dawn / Night options
+## S0: the locked phases the lobby's Sunset / Dawn / Night options
 ## use. Each concrete id maps to its authored phase, anything else (including the
 ## "" of a running cycle) is -1.0, and the shipped defaults put the sun where the
 ## option's name says (phase 0 dawn, 0.25 noon, 0.5 sunset, 0.75 midnight).
@@ -167,7 +167,7 @@ func test_locked_phase_for_maps_concrete_ids_and_rejects_the_rest() -> void:
 	assert_eq(theme.locked_phase_for("night"), 0.8, "the lock phase is tunable content")
 
 
-## Bontago-59o.18 (C1a, docs/SKY_CYCLE_DEFAULT_PLAN.md s3): Cycle is the default sky
+## C1a, docs/SKY_CYCLE_DEFAULT_PLAN.md s3: Cycle is the default sky
 ## and Sunset / Night / Dawn / Random are the same cycle locked at a phase.
 func _configured_skybox(config: MatchConfig) -> Array:
 	var parts: Array = _make_skybox(load(SUNSET_PATH) as SkyThemeDef)
@@ -267,7 +267,7 @@ func test_lock_and_unlock_a_running_cycle_keep_the_phase_continuous() -> void:
 	sunset.cycle_length_seconds = saved_length
 
 
-## Bontago-59o.18 (C1b, docs/SKY_CYCLE_DEFAULT_PLAN.md s2): the cycle's day half is the
+## C1b, docs/SKY_CYCLE_DEFAULT_PLAN.md s2: the cycle's day half is the
 ## dawn palette by morning and noon, fading into the sunset palette on the setting
 ## side (SkyPalette), and the night mix on top is unchanged.
 func _day_palette_skybox(mode: MatchConfig.SkyThemeMode) -> Array:
@@ -342,8 +342,8 @@ func test_the_palette_fades_from_dawn_to_sunset_across_the_dusk_window() -> void
 	assert_eq(skybox.theme.proc_zenith_color, sunset.proc_zenith_color, "the sunset palette is complete at the window end")
 
 
-## Bontago-59o.18 (C1b variation, owner 2026-10-03: "lets add some variation and just set
-## a range so it can vary"): the cycle's sky exposure and cloud coverage wander inside
+## C1b variation, "lets add some variation and just set
+## a range so it can vary": the cycle's sky exposure and cloud coverage wander inside
 ## the SkyThemeDef.variation_* ranges as a smooth function of the match seed and the
 ## cycle phase (core/sky/SkyVariation.gd); storm and overcast compose on top.
 const VARIATION_SEED: int = 4242

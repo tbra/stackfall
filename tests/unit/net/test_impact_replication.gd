@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.55: block impacts are detected only by host physics
+## block impacts are detected only by host physics
 ## (game/blocks/Block.gd) and replicated to clients by net/MatchNet.gd through
 ## core/net/ImpactWire.gd. A client re-emits Events.block_impacted /
 ## block_impacted_at, so Sfx/camera/rumble/dust need no network awareness; a
@@ -162,7 +162,7 @@ func test_malformed_batches_are_ignored() -> void:
 	assert_eq(_speeds.size(), 1, "the well-formed control still plays")
 
 
-## Bontago-1pi.55 review fix: one bad event inside a well-formed batch is
+## review fix: one bad event inside a well-formed batch is
 ## skipped on its own; its neighbours still play.
 func test_one_bad_event_does_not_silence_the_rest_of_the_batch() -> void:
 	var client: MatchNetScript = _client()

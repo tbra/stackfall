@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.4: UiIconButton (the kick / remove X): square, exactly one row height, never
+## UiIconButton (the kick / remove X): square, exactly one row height, never
 ## smaller than the other items of its row; danger tone paints the glyph alert.
 
 

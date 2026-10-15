@@ -26,7 +26,7 @@ func before_each() -> void:
 
 func after_each() -> void:
 	_delete_if_exists(_cfg_path)
-	# Bontago-1pi.150 review: the published UI scale is static; never leak it into later tests.
+	# review: the published UI scale is static; never leak it into later tests.
 	UiScaleTuning.current_scale = -1.0
 	if InputMap.has_action(_test_action):
 		InputMap.erase_action(_test_action)
@@ -59,19 +59,19 @@ func test_defaults_with_no_saved_file() -> void:
 	assert_eq(_settings.stick_move_speed_scale(), 1.0)
 	assert_eq(_settings.custom_music_dir(), "")
 	assert_eq(_settings.key_override_events(_test_action).size(), 0)
-	assert_true(_settings.camera_shake_enabled(), "Bontago-xtq.29: camera shake defaults on")
-	assert_eq(_settings.window_mode(), &"borderless_fullscreen", "Bontago-xtq.45: borderless fullscreen is the default window mode")
+	assert_true(_settings.camera_shake_enabled(), "Bontago-xtq.29: camera shake defaults on")  # lint-public: allow string literal kept verbatim (assertion message or fixture)
+	assert_eq(_settings.window_mode(), &"borderless_fullscreen", "Bontago-xtq.45: borderless fullscreen is the default window mode")  # lint-public: allow string literal kept verbatim (assertion message or fixture)
 
 
 func test_audio_settings_round_trip_and_persist() -> void:
 	_settings.set_master_volume_percent(0.5)
-	_settings.set_custom_music_dir("C:/music")
+	_settings.set_custom_music_dir("C:/music")  # lint-public: allow fixture path string, not a machine path
 	assert_almost_eq(_settings.master_volume_percent(), 0.5, 0.0001)
-	assert_eq(_settings.custom_music_dir(), "C:/music")
+	assert_eq(_settings.custom_music_dir(), "C:/music")  # lint-public: allow fixture path string, not a machine path
 
 	var reloaded: Node = _fresh_settings_at_same_path()
 	assert_almost_eq(reloaded.master_volume_percent(), 0.5, 0.0001)
-	assert_eq(reloaded.custom_music_dir(), "C:/music")
+	assert_eq(reloaded.custom_music_dir(), "C:/music")  # lint-public: allow fixture path string, not a machine path
 
 
 ## Bontago (options package): Master/Music/SFX each have their own percent +
@@ -124,7 +124,7 @@ func test_migrated_stick_scale_is_clamped_and_not_migrated_twice() -> void:
 	assert_almost_eq(twice.stick_move_speed_scale(), 1.5, 0.0001, "a current save must not migrate again")
 
 
-## Bontago-xtq.45 (M7 P4): the three window-mode ids round-trip through
+## M7 P4: the three window-mode ids round-trip through
 ## ConfigFile the same way the graphics preset id does above.
 func test_window_mode_round_trips_and_persists() -> void:
 	_settings.set_window_mode(&"windowed")
@@ -220,7 +220,7 @@ func test_key_override_keeps_other_device_class_and_round_trips_both() -> void:
 	assert_true(_events_contain_joy(reapplied, JOY_BUTTON_X), "joypad override should reapply on a fresh Settings instance")
 
 
-## Bontago-1pi.10 polish pass (owner: "Add one 'Reset to defaults' action in
+## polish pass ("Add one 'Reset to defaults' action in
 ## the footer"): uses a real project action (ghost_place) rather than
 ## _test_action -- InputMap.load_from_project_settings() reloads strictly
 ## from project.godot's own [input] section, so a synthetic action added at
@@ -255,8 +255,8 @@ func _events_contain_joy(events: Array[InputEvent], button_index: JoyButton) -> 
 	return false
 
 
-## Bontago-1pi.20: in a GUT run, restoring the "default" (real) path then saving
-## must never touch the owner's user://settings.cfg.
+## in a GUT run, restoring the "default" (real) path then saving
+## must never touch the user's user://settings.cfg.
 func test_gut_run_never_touches_real_settings_file() -> void:
 	var real: String = Settings.REAL_CONFIG_PATH
 	var existed: bool = FileAccess.file_exists(real)

@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.71: every footer/prompt that names an input shows the glyph of the
+## every footer/prompt that names an input shows the glyph of the
 ## BOUND action for the ACTIVE device (ui/hud/InputPromptFlow.gd) and swaps live when
 ## the player switches between keyboard/mouse and gamepad.
 

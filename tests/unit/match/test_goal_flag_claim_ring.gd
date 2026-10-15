@@ -1,6 +1,6 @@
 extends GutTest
-## Bontago-1pi.18.6 (QoL experiment 4): the ground ring a goal beacon shows at the
-## effective claim radius while the bigger-claim-radius toggle is on, and (Bontago-mp0.152)
+## QoL experiment 4: the ground ring a goal beacon shows at the
+## effective claim radius while the bigger-claim-radius toggle is on, and
 ## at goal_zone_radius while it is off. With the toggle on the radius must be the value the
 ## host uses for capture (Match.qol_claim_radius() -> MatchTerritory._claim_radius()).
 
@@ -68,7 +68,7 @@ func _base_radius() -> float:
 	return Match._territory_tuning.goal_zone_radius
 
 
-# --- toggle off: the zone still draws, at the no-build radius (Bontago-mp0.152) ----
+# --- toggle off: the zone still draws, at the no-build radius ----
 
 func test_toggle_off_draws_the_zone_at_goal_zone_radius_while_claim_radius_stays_zero() -> void:
 	var flags: Array[GoalFlag] = _place(_qol(false), 2)

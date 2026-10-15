@@ -1,5 +1,5 @@
 extends GutTest
-## ResultsPayload (Bontago-fca.36.8): the single owner of the results payload
+## ResultsPayload: the single owner of the results payload
 ## schema -- stable wire strings, the one validator (host build and client
 ## receipt) and the typed accessors the UI reads through.
 

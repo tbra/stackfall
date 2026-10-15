@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.11.84.6 (MF5): Main creates PauseMenu / ResultsScreen / ScoreboardOverlay /
+## MF5: Main creates PauseMenu / ResultsScreen / ScoreboardOverlay /
 ## LoadingScreen at first need (ensure), never in _ready(). Cold and while-prewarming paths work.
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")

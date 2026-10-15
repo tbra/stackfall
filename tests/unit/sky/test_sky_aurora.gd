@@ -1,6 +1,6 @@
 extends GutTest
-## Bontago-mp0.129 (owner playtest: "at night lets add an aurora borealis effect to the
-## sky"): the aurora borealis curtains of the night sky. game/sky/Skybox.gd writes the
+## "at night lets add an aurora borealis effect to the
+## sky": the aurora borealis curtains of the night sky. game/sky/Skybox.gd writes the
 ## `aurora_visibility` uniform (night x weather keep x theme switch x graphics preset) and
 ## the look uniforms from SkyThemeDef.aurora_*; the shaders only draw what that says, so the
 ## day / night / weather / preset behaviour is checked on the uniforms, like test_sky_moon.gd.
@@ -14,7 +14,7 @@ var _original_chance: float = 0.0
 func before_each() -> void:
 	_original_preset_id = Settings.current_graphics_preset().id
 	Settings.set_graphics_preset(&"high")
-	# Bontago-1pi.131: these tests check the per-night fade, so every night shows it here;
+	# these tests check the per-night fade, so every night shows it here;
 	# the per-night roll itself is covered by test_sky_aurora_nights.gd.
 	var source: SkyThemeDef = Skybox.load_theme(Skybox.DEFAULT_THEME_ID)
 	_original_chance = source.aurora_night_chance

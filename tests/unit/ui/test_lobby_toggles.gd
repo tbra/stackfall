@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.53 / .59 / .60: the round-length row reads "Round length" in every game mode (no
+## / .59 / .60: the round-length row reads "Round length" in every game mode (no
 ## "required" wording anywhere), a gifts switch that is off hides Frequency and the GIFTS Advanced bar,
 ## the new Experiments master switch hides its Advanced bar and starts matches with no experiment
 ## active, and it replicates host -> client like the gifts switch.
@@ -54,7 +54,7 @@ func _action_press(action: StringName) -> void:
 	Input.flush_buffered_events()
 
 
-## Walks the loop with synthetic pad D-pad-down presses; returns every focus owner it lands on.
+## Walks the loop with synthetic pad D-pad-down presses; returns every focused control it lands on.
 func _walk_with_pad(lobby: Lobby) -> Array[Control]:
 	var first: Control = _stops(lobby)[0]
 	first.grab_focus()

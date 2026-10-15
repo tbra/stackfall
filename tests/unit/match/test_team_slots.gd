@@ -1,5 +1,5 @@
 extends GutTest
-## Lobby rework M1 (Bontago-1pi.53): match-side consumers of per-seat difficulty, team ids and team numbers.
+## Lobby rework M1: match-side consumers of per-seat difficulty, team ids and team numbers.
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
 const HUD_SCENE: PackedScene = preload("res://ui/hud/HUD.tscn")

@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-hfa.8 (UI reskin P6): Stackfall Arcade keycaps and pad glyphs. Keys are cream blocks, pad
+## UI reskin P6: Stackfall Arcade keycaps and pad glyphs. Keys are cream blocks, pad
 ## face buttons are round caps A mint / B flare / X player-2 / Y rim, shoulders are sand chips; mouse,
 ## D-pad and stick are block pictograms. Glyphs are display-only, so they never take focus.
 
@@ -55,7 +55,7 @@ func test_glyph_never_takes_focus_and_a_synthetic_pad_press_does_not_move_it() -
 	assert_true(button.has_focus(), "the cap is not a focus stop")
 
 
-## Bontago-1pi.149: the legend is drawn uppercase (mock), the cap is sized to that uppercase text
+## the legend is drawn uppercase (mock), the cap is sized to that uppercase text
 ## (so PGUP, ESC, ENTER, SPACE, CTRL still fit) and label_text() keeps the as_text() form.
 func test_key_legends_are_uppercase_and_every_long_name_fits_its_cap() -> void:
 	for code: Key in [KEY_PAGEUP, KEY_ESCAPE, KEY_ENTER, KEY_SPACE, KEY_CTRL, KEY_BACKSPACE, KEY_TAB]:

@@ -1,8 +1,8 @@
 extends GutTest
-## core/ai/BotEvaluator.gd (Bontago-1t5.22, Bot V2 P3): proxy and measured terms on a
+## core/ai/BotEvaluator.gd (Bot V2 P3): proxy and measured terms on a
 ## synthetic two-team map: kill on an enemy snake joint, reach of a tall tip stack,
 ## waste inside own land, exposure inside enemy reach, no kill under HoleMode.OFF, and the
-## Bontago-1t5.32 HAZARD term (doomed footprint, one-placement look-ahead, none under OFF).
+## HAZARD term (doomed footprint, one-placement look-ahead, none under OFF).
 ## Pure: a real CellGrid/TerritoryRaster, no scene tree.
 
 const MAP_RADIUS: float = 45.0

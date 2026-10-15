@@ -9,7 +9,7 @@ extends Node3D
 ## Prints one machine-readable row per body count, then quits non-zero if the
 ## graded row missed either budget.
 ##
-## Spec 3.4 sets the numbers this checks: "300 awake bodies x ~13 bytes ≈ 4 KB
+## Spec 2.6 sets the numbers this checks: "300 awake bodies x ~13 bytes ≈ 4 KB
 ## per packet. Split into several packets if needed to stay under ~1200 bytes
 ## each" and "Rate: 30 Hz". Packing is pure, so there is no physics to step and
 ## everything happens in _ready.
@@ -18,7 +18,7 @@ extends Node3D
 ## rate the host pays encode and it is the half that runs on the machine with
 ## less headroom.
 
-## The graded configuration (spec 3.4's headline case).
+## The graded configuration (spec 2.6's headline case).
 const GRADED_BODIES: int = 300
 ## docs/archive/M3a_PLAN.md: 2 ms of the 33.3 ms available at snapshot_hz = 30.
 const ENCODE_BUDGET_MS: float = 2.0
@@ -132,7 +132,7 @@ func _measure(count: int, graded: bool) -> bool:
 
 
 ## Reports what the wire costs in precision, so the size numbers above are
-## always read next to what was traded for them (spec 3.4: "≈1-2 mm").
+## always read next to what was traded for them (spec 2.6: "≈1-2 mm").
 func _report_quantization_error() -> void:
 	var samples: int = 50000
 	var data: PackedByteArray = PackedByteArray()

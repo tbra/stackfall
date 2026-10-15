@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.192.2 C1: UiChatPanel (lobby and HUD skins, fade timeline, plain-text log, input rules).
+## C1: UiChatPanel (lobby and HUD skins, fade timeline, plain-text log, input rules).
 
 var _submitted: Array[String] = []
 var _opened: int = 0

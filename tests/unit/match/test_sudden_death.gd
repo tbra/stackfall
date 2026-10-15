@@ -1,5 +1,5 @@
 extends "res://tests/unit/match/match_world_test.gd"
-## Spec 2.8 match timer and sudden death (M6 A3).
+## Spec 1.9 match timer and sudden death (M6 A3).
 
 func _config(player_count: int) -> MatchConfig:
 	var config: MatchConfig = _tiny_map_config()
@@ -54,9 +54,9 @@ func test_match_timer_at_zero_enters_sudden_death_only_when_configured() -> void
 # --- Match._process()'s SUDDEN_DEATH branch (regression against the audit --
 # named gap: this state used to have no case at all, so everything froze) ---
 
-# --- Bontago-1pi.87: placement / preview / client feed display stay live ----
+# --- placement / preview / client feed display stay live ----
 
-# --- shrink_to_radius() (spec 2.8: "crumbles inward by 1 m every 10 s") -----
+# --- shrink_to_radius() (spec 1.9: "crumbles inward by 1 m every 10 s") -----
 
 func test_shrink_to_radius_punches_exactly_the_cells_outside_its_argument() -> void:
 	Match.start_match(_config(2))
@@ -74,7 +74,7 @@ func test_shrink_to_radius_punches_exactly_the_cells_outside_its_argument() -> v
 			"cell %d hole state must match whether it's outside the shrink radius" % index)
 
 
-# --- Radius-8 tiebreak (spec 2.8, verbatim numbers) -------------------------
+# --- Radius-8 tiebreak (spec 1.9, verbatim numbers) -------------------------
 
 func test_sudden_death_tiebreak_picks_the_team_with_strictly_more_territory_share() -> void:
 	Match.start_match(_config(2))
@@ -137,4 +137,4 @@ func test_goal_capture_during_sudden_death_finishes_the_match_immediately() -> v
 	assert_signal_emitted_with_parameters(Events, "match_won", [1])
 
 
-# --- Gift-chance ramp (spec 2.8: "climbs toward the maximum") ---------------
+# --- Gift-chance ramp (spec 1.9: "climbs toward the maximum") ---------------

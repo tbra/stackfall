@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-8or.21: `--loop-matches` restarts a headless bot match on END with a
+## `--loop-matches` restarts a headless bot match on END with a
 ## fresh seed and prints one HEADLESS_MATCH summary line per finished match.
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")

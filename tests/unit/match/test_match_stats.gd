@@ -1,5 +1,5 @@
 extends GutTest
-## autoload/match/MatchStats.gd (Bontago-1pi.13): per-slot stats, the results
+## autoload/match/MatchStats.gd: per-slot stats, the results
 ## payload MatchLifecycle._finish_match() builds, and net/MatchNet.gd's
 ## replay/return-to-lobby host intents that reuse the same results flow.
 
@@ -91,7 +91,7 @@ func test_blocks_placed_and_blocks_lost_are_tracked_per_slot() -> void:
 
 	assert_eq(_place(0), PlacementRules.REASON_OK, "fixture: a legal placement on slot 0's own home flag")
 	assert_eq(_place(1), PlacementRules.REASON_OK, "fixture: a legal placement on slot 1's own home flag")
-	# Spec 2.4's release-lock ("one release per fixed interval") refuses a
+	# Spec 1.4's release-lock ("one release per fixed interval") refuses a
 	# second immediate placement on the same slot -- tick a full interval so
 	# slot 0's own second block is a legal, counted placement too.
 	_tick_playing(6.0)
@@ -102,7 +102,7 @@ func test_blocks_placed_and_blocks_lost_are_tracked_per_slot() -> void:
 	assert_eq(Match.stats().blocks_placed(1), 1, "slot 1 placed one block")
 	assert_eq(Match.stats().blocks_lost(0), 0, "nothing has fallen off the disc yet")
 
-	# One of slot 0's own blocks falls off the disc (spec 3.5's kill plane);
+	# One of slot 0's own blocks falls off the disc (spec 2.7's kill plane);
 	# a non-kill-plane despawn (a future body-cap dissolve) must not count.
 	Events.block_removed.emit(placed_blocks[0], String(Events.REASON_KILL_PLANE))
 	Events.block_removed.emit(placed_blocks[1], "some_other_reason")
@@ -213,7 +213,7 @@ func test_net_match_event_match_results_drops_a_malformed_payload() -> void:
 	assert_eq(String(captured[0]["winner_kind"]), "slot")
 
 
-# --- Bontago-1pi.72.2: height, mode stat, session win tally ------------------
+# --- height, mode stat, session win tally ------------------
 
 func _finish_and_capture(winner: int) -> Dictionary:
 	var captured: Array[Dictionary] = []
@@ -279,4 +279,4 @@ func test_client_receives_the_same_tally_over_the_results_event() -> void:
 	assert_true(ResultsValidation.validate_results_payload(bad).is_empty(), "a negative wins count is dropped")
 
 
-# --- Bontago-1pi.69: live scoreboard snapshot ----------------------------------
+# --- live scoreboard snapshot ----------------------------------

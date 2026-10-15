@@ -1,9 +1,9 @@
 extends GutTest
-## core/ai/BotSpecialPlanner.gd's per-type heuristics (spec 2.6, 2.9 "do not aim a Rocket as if it
+## core/ai/BotSpecialPlanner.gd's per-type heuristics (spec 1.6, 2.9 "do not aim a Rocket as if it
 ## homes or a Propeller as if it blows sideways"): plan_v2's chain-aware targeting.
 
 
-# --- plan_v2 (Bot V2, Bontago-1t5.24): chain-aware targeting -----------------
+# --- plan_v2 (Bot V2): chain-aware targeting -----------------
 
 const V2_OWN_TEAM: int = 0
 const V2_ENEMY_TEAM: int = 1

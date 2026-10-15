@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.108: every mode that builds a world (hot-seat, sandbox, tutorial,
+## every mode that builds a world (hot-seat, sandbox, tutorial,
 ## and the gift demo / tower topple sandbox presets) must configure the Skybox for
 ## the config's theme / cycle, not leave it on the launch fallback sky.
 
@@ -39,7 +39,7 @@ func _assert_sky_configured(mode: String) -> void:
 	var sky: Skybox = _main.get_node("Skybox") as Skybox
 	assert_true(sky.is_cycle_active(), "%s: the Skybox must run the configured sky cycle" % mode)
 	assert_ne(sky.theme, null, "%s: a theme is applied" % mode)
-	# Bontago-1pi.127: the panorama is absent: the live
+	# the panorama is absent: the live
 	# sky is the cycle's own procedural material.
 	assert_true(sky.theme.sky_look_procedural, "%s: procedural sky look" % mode)
 	assert_eq(sky.environment.sky.sky_material, sky.theme.sky_material, "%s: the cycle's material is the live sky" % mode)
@@ -50,7 +50,7 @@ func test_hot_seat_configures_sky() -> void:
 	_assert_sky_configured("hot-seat")
 
 
-## Bontago-1pi.127 (owner screenshot 2026-10-08 showed the painted sunset): the real menu
+## A screenshot showed the painted sunset: the real menu
 ## entry, with the match clock running, keeps the painted panorama off the live sky material
 ## (procedural_sea_mix replaces it entirely) and survives the F5 reset's restart.
 func test_menu_sandbox_never_samples_the_painted_panorama() -> void:

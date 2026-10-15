@@ -1,5 +1,5 @@
 extends "res://tests/unit/match/match_world_test.gd"
-## Bontago-1pi.51 (SPEC 2.2 goal no-build zones): only a disc around each ACTUAL goal beacon blocks building;
+## SPEC 1.5 goal no-build zones: only a disc around each ACTUAL goal beacon blocks building;
 ## with one beacon that is the map centre, with 2..5 beacons the centre is ordinary ground.
 
 const CENTRE: Vector2 = Vector2.ZERO

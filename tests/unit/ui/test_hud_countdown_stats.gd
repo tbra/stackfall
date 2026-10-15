@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.99: the top-left player stats box must list every player from
+## the top-left player stats box must list every player from
 ## the first COUNTDOWN frame, whether the HUD existed before the state change
 ## (host/client mirror signal path) or is built after it (world build awaits
 ## frames, so the LOADING/COUNTDOWN emits can precede HUD._ready()).

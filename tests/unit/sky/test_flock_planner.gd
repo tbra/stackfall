@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-470.5: core/ambient/FlockPlanner.gd plans the occasional distant
+## core/ambient/FlockPlanner.gd plans the occasional distant
 ## flocks; game/ambient/DistantBirds.gd schedules them (quiet gaps, one flight at a time
 ## per slot, birds parked between flights).
 

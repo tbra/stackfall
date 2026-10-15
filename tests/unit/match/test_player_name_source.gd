@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.100: the local player's name defaults to the Steam persona name
+## the local player's name defaults to the Steam persona name
 ## while Steam is initialised; a custom (typed/saved) name overrides it; without
 ## Steam only the stored name applies. FakeSteam only, no live Steam.
 

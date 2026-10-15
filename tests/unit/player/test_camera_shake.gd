@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-xtq.29 (M7 P4, spec 2.10 "effects + camera shake"):
+## M7 P4, spec 1.10 "effects + camera shake":
 ## game/player/CameraRig.gd's shake_offset()/Settings.camera_shake_enabled()
 ## integration. game/player/CameraRig.gd reads the real "Settings" autoload directly
 ## (autoload/Sfx.gd's own master_volume_db()/custom_music_dir() precedent), so

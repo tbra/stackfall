@@ -1,6 +1,6 @@
 extends GutTest
-## core/rules/ThrowRules: a throw's release point is OK in own territory, OUTSIDE_TERRITORY elsewhere (spec 2.5);
-## hole, off-disk and goal-zone reasons keep their names (Bontago-1pi.85.54).
+## core/rules/ThrowRules: a throw's release point is OK in own territory, OUTSIDE_TERRITORY elsewhere (spec 1.4);
+## hole, off-disk and goal-zone reasons keep their names.
 
 const MAP_RADIUS: float = 20.0
 const CELL: float = 1.0

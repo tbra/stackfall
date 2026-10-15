@@ -11,7 +11,7 @@ func _make_hud() -> HUD:
 	return hud
 
 
-## Bontago-1en.16: the special-indicator tests below drive Match._gifts
+## the special-indicator tests below drive Match._gifts
 ## directly, the same way tests/unit/gifts/test_gift_claim.gd does (no full match
 ## needs to be running for a FIFO queue read/write). Match is a singleton
 ## that outlives this script, so a lingering pending-special queue or claim
@@ -29,7 +29,7 @@ func after_each() -> void:
 	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
 
 
-## Bontago-1pi.186: the eliminated local player gets the big red banner, naming
+## the eliminated local player gets the big red banner, naming
 ## the eliminator, or plain "Eliminated" when none is known.
 func test_eliminated_banner_names_the_eliminator_or_falls_back() -> void:
 	var hud: HUD = _make_hud()
@@ -196,7 +196,7 @@ func test_process_shows_locked_when_the_local_slots_release_is_locked() -> void:
 	hud._process(0.0)
 
 	assert_true(hud._locked)
-	# Bontago-1pi.92: the lock shows only as the greyed ring, never as text.
+	# the lock shows only as the greyed ring, never as text.
 	assert_null(hud.find_child("LockedLabel", true, false))
 
 	hud.set_local_slot(1)
@@ -205,7 +205,7 @@ func test_process_shows_locked_when_the_local_slots_release_is_locked() -> void:
 	assert_false(hud._locked)
 
 
-# --- Bontago-1en.16: pending-special queue indicator ------------------------
+# --- pending-special queue indicator ------------------------
 # Drives the real Match/MatchGifts singleton, the same way
 # tests/unit/gifts/test_gift_claim.gd does, rather than FakeMatch -- these tests
 # are specifically about the indicator's read of held and next gifts.
@@ -280,8 +280,8 @@ func test_special_indicator_ignores_a_claim_for_a_different_slot() -> void:
 	assert_false(hud._special_indicator.visible, "a claim for another slot must not show on this HUD")
 
 
-# --- Bontago-d04: claim toast -------------------------------------------------
-# Owner report "I grabbed a yellow cube but nothing seemed to happen": the
+# --- claim toast -------------------------------------------------
+#  "I grabbed a yellow cube but nothing seemed to happen": the
 # claim itself already worked (the indicator tests above), but nothing told
 # the player it had. show_gift_toast()/_on_gift_claimed() add a one-line
 # "Special queued: <name>" message next to the pending-special indicator.
@@ -348,9 +348,9 @@ func test_gift_claimed_toast_skips_the_other_team_under_teams_2() -> void:
 	)
 
 
-# --- M7 P5 / Bontago-mp0.3.3: HUD minimap ------------------------------------
-## (docs/M7_PLAN.md "P5 -- HUD minimap + reskin"; rebuilt for Bontago-mp0.3.3,
-## owner: the minimap "reflecting the sky depending on the camera angle" --
+# --- M7 P5 / HUD minimap ------------------------------------
+## (docs/M7_PLAN.md "P5 -- HUD minimap + reskin"; rebuilt for 
+## the minimap "reflecting the sky depending on the camera angle" --
 ## see ui/hud/Minimap.gd's own class doc DECISION for the root cause and fix.)
 
 
@@ -368,7 +368,7 @@ func test_domination_readout_only_in_domination() -> void:
 	assert_null(hud2._mode_score_label, "no readout without a mode state (Classic)")
 
 
-# --- Bontago-1pi.18.7: experiments line + gift-slot card glyph ----------------
+# --- experiments line + gift-slot card glyph ----------------
 
 const INPUT_GLYPH_SCENE: PackedScene = preload("res://ui/hud/InputGlyph.tscn")
 const LAYOUT_SIZES: Array[Vector2i] = [Vector2i(1280, 720), Vector2i(3440, 1440)]
@@ -426,7 +426,7 @@ func test_ctf_rows_show_hold_time_and_no_separate_score_line() -> void:
 	assert_eq(HUD.mode_status_text(ctf).find("58"), -1)
 
 
-## Bontago-1pi.117: a client gets sparse capture updates on a static board; the
+## a client gets sparse capture updates on a static board; the
 ## ring must rise between them at the hold rate, snap on each update, and stop.
 func test_client_capture_ring_rises_between_sparse_updates_and_snaps() -> void:
 	var hud: HUD = _make_hud()
@@ -450,7 +450,7 @@ func test_scoreboard_marks_only_the_local_row_with_you() -> void:
 	assert_eq((hud._share_you_labels[1] as Label).get_theme_color("font_color"), hud._arcade.rim_color)
 
 
-## Bontago-1pi.85.69: a gift staged as the block AFTER next marks the NEXT label and leaves the
+## a gift staged as the block AFTER next marks the NEXT label and leaves the
 ## next preview an ordinary block.
 class StagedGiftFakeMatch:
 	extends FakeMatch

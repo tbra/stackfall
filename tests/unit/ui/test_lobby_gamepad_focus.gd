@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-hfa.5 (UI reskin P3): gamepad focus stays visible and reachable on the restyled lobby.
+## UI reskin P3: gamepad focus stays visible and reachable on the restyled lobby.
 ## A synthetic D-pad-down press (InputEventJoypadButton through Input.parse_input_event) walks
 ## the lobby's focus loop, and every stop keeps a focus style from the shared theme.
 

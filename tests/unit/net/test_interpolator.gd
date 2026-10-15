@@ -1,5 +1,5 @@
 extends GutTest
-## net/Interpolator.gd (spec 3.4 "Client interpolation", docs/archive/M3a_PLAN.md P2).
+## net/Interpolator.gd (spec 2.6 "Client interpolation", docs/archive/M3a_PLAN.md P2).
 ##
 ## "Render 100 ms behind the host (the delay adjusts to measured jitter),
 ## interpolating between the two surrounding snapshots. If snapshots are late,

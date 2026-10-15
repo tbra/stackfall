@@ -1,6 +1,6 @@
 extends GutTest
-## Bontago-1pi.85.78: the Propeller model is an upward-facing fan, so the airflow reads as
-## the lift the effect applies (SPEC 2.6). Blades lie flat and the spin is about vertical Y.
+## the Propeller model is an upward-facing fan, so the airflow reads as
+## the lift the effect applies (SPEC 1.6). Blades lie flat and the spin is about vertical Y.
 
 const SPIN_CLIP: StringName = &"spin_1s"
 const QUARTER_TURN_T: float = 0.25

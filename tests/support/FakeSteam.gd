@@ -132,7 +132,7 @@ func self_check_line(lobby_id: int) -> String:
 	return "lobby=%d members=%d owner=%d" % [lobby_id, lobby_member_count(lobby_id), lobby_owner(lobby_id)]
 
 
-## Answers a create_lobby() the way Steamworks does (Bontago-1pi.48, seen in
+## Answers a create_lobby() the way Steamworks does (seen in
 ## every probe log): lobby_created, then — on success — the creator's own
 ## lobby_joined (LobbyEnter_t) for the same lobby.
 func answer_create_lobby(result: int, lobby_id: int) -> void:

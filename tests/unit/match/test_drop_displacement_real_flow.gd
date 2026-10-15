@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.24: through the real Main scene, the next piece loading under a just-dropped block must not lift
+## through the real Main scene, the next piece loading under a just-dropped block must not lift
 ## the ghost or camera, and a needed raise waits until the dropped block has settled.
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
@@ -11,7 +11,7 @@ const SETTLE_MAX_FRAMES: int = 600
 const CAMERA_SETTLE_FRAMES: int = 180
 const WATCH_FRAMES: int = 150
 ## A dropped block that falls clear of the next ghost must not lift it: any
-## rise above the player's own hover is the displacement the owner reports.
+## rise above the player's own hover is the displacement the user reports.
 const MAX_GHOST_RISE_M: float = 0.05
 const MAX_CAMERA_RISE_M: float = 0.05
 
@@ -22,7 +22,7 @@ var _saved_feed_config: BlockFeedConfig = null
 
 
 func before_each() -> void:
-	# Bontago-fca.41: synthetic events parsed into the global Input singleton stay latched
+	# synthetic events parsed into the global Input singleton stay latched
 	# (stick axis, ui_* actions) for every later script in the same process; clear them.
 	Input.flush_buffered_events()
 	for action: StringName in InputMap.get_actions():
@@ -42,7 +42,7 @@ func before_each() -> void:
 	_main.match_config = config
 	add_child_autofree(_main)
 
-## DECISION (Bontago-1pi.115): these tests aim at a placed block's origin or rely on the
+## DECISION: these tests aim at a placed block's origin or rely on the
 ## held piece being solid there, which fails for concave shapes (u5, arch5, corner4, stair6)
 ## now in the random feed. Pin the feed to the cube; the shape mix is not under test.
 func _pin_feed_to_convex_shape() -> void:
@@ -79,7 +79,7 @@ func _controller() -> PlayerController:
 	return _main._hot_seat.controller()
 
 
-## Bontago-1pi.33: the match's first piece now starts raised clear of the home
+## the match's first piece now starts raised clear of the home
 ## beacon (PlayerController.set_home_position()). These tests exercise the
 ## ordinary hover, so the player first wheels it back down to the floor -- the
 ## same input that makes any raise their own -- which restores the geometry
@@ -141,7 +141,7 @@ func _stack_drop_trace() -> Dictionary:
 	var ghost: GhostPreview = controller._ghost
 	var rig: CameraRig = _main._camera_rig
 	# Two metres in from the home flag, toward the disk centre (own territory).
-	# Bontago-1pi.64: the first spawn now sits home_spawn_back_offset outward of
+	# the first spawn now sits home_spawn_back_offset outward of
 	# the flag, so measure from the flag itself to keep this fixture's geometry
 	# (A's spot, and B tumbling clear of it) exactly as it was written.
 	var home: Vector3 = controller._cursor

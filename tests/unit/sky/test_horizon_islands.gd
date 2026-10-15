@@ -1,8 +1,8 @@
 extends GutTest
-## Bontago-mp0.123: the horizon island ring (game/sky/HorizonIslands.gd).
+## the horizon island ring (game/sky/HorizonIslands.gd).
 
 func _enabled_config() -> HorizonIslandsConfig:
-	# Shipped default is off (Bontago-mp0.133); these tests exercise the restored ring.
+	# Shipped default is off; these tests exercise the restored ring.
 	var cfg: HorizonIslandsConfig = HorizonIslands.DEFAULT_CONFIG.duplicate() as HorizonIslandsConfig
 	cfg.enabled = true
 	return cfg

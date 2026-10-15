@@ -12,7 +12,7 @@ extends Node
 ## make a test compare two untouched (identity) transforms and pass for the
 ## wrong reason.
 ##
-## Shared (Bontago-1en.27 review NIT) between tests/unit/field/test_field_tilt.gd
+## Shared (review NIT) between tests/unit/field/test_field_tilt.gd
 ## (driving Field.apply_replicated_pose()/clear_match_state() directly) and
 ## tests/unit/net/test_snapshot_sync.gd (driving a whole client_tick() through the
 ## same real physics step). Both previously carried their own identical inner

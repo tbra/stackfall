@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mp0.122: the moon_v1 disc + halo in the procedural cycle sky.
+## the moon_v1 disc + halo in the procedural cycle sky.
 
 func _cycle_skybox() -> Skybox:
 	Settings.set_graphics_preset(&"high")

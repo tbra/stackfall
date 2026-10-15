@@ -1,5 +1,5 @@
 extends GutTest
-## ChatRules, ChatConfig defaults and the chat_open action (Bontago-1pi.192.1).
+## ChatRules, ChatConfig defaults and the chat_open action.
 
 const MAX_NAME: int = 24
 const SMALL_RING: int = 3

@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.211: the F4 panel's SFX tab (ui/debug/TuningSfxTab.gd + TuningPanel._build_sfx_section).
+## the F4 panel's SFX tab (ui/debug/TuningSfxTab.gd + TuningPanel._build_sfx_section).
 ## Sfx.config is the shared preloaded audio_config.tres, so every test restores drop_file and the
 ## per-PID overrides file in after_each rather than leaking a pick into later tests.
 

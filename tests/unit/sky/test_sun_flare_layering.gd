@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mp0.33: the additive sun flare must render below every UI layer and
+## the additive sun flare must render below every UI layer and
 ## hide while a full-screen panel (results, pause) is open.
 
 const RESULTS_SCENE: PackedScene = preload("res://ui/menus/ResultsScreen.tscn")
