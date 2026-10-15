@@ -162,7 +162,7 @@ class _Gen:
 	var _own_index: PackedInt32Array = PackedInt32Array()
 	var _tip_orientations: Array[BotStatics.OrientationInfo] = []
 	var _stack_orientations: Array[BotStatics.OrientationInfo] = []
-	## replaces the 1t5.54 debris clearance: a site must rest on the disc or on block faces
+	## Replaces the older debris clearance: a site must rest on the disc or on block faces
 	## flat against it whose pile holds the piece in the analysed snapshot (_rests_flat).
 	var flat_supports_only: bool = false
 
@@ -372,8 +372,8 @@ class _Gen:
 	## block, or one carrying such a block); an unmatched circle or no snapshot keeps the old behaviour.
 	func _usable_top(i: int, top: float) -> bool:
 		var stack: BotStack = view.stack
-		# DECISION (1t5.54 review): only Reach the Sky skips unsound tops; the other modes keep the old
-		# sites until the E3 Classic screen says otherwise.
+		# DECISION: only Reach the Sky skips unsound tops; the other modes keep the old
+		# sites until the Classic mode's screen decides otherwise.
 		if view.mode != MatchConfig.GameMode.REACH_THE_SKY or stack == null or not stack.is_analysed():
 			return true
 		var body: int = stack.body_near(

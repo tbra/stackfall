@@ -38,8 +38,7 @@ static func _query_unique_bodies(
 	return ExplosionFx.query_bodies(space_state, center, radius, exclude)
 
 
-## Query-only sibling of ExplosionFx.blast() (docs/M8_PLAN.md "Interface stubs" item
-## 1). Sphere-queries real RigidBody3D bodies within `radius` of `center`,
+## Query-only sibling of ExplosionFx.blast(). Sphere-queries real RigidBody3D bodies within `radius` of `center`,
 ## deduped per-body exactly like ExplosionFx.blast(), but applies no impulse, no wake
 ## and no `mark_script_kick()` -- purely a read of "what bodies are in range
 ## right now". Consumed by the Magnet (P1), Glue (P3) and Gravity well (P4)

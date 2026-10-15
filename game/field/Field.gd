@@ -7,15 +7,15 @@ extends FieldBody
 ## Godot both treat it as static collision the physics step sees moved, not
 ## simulated), so every existing shape_owner/collision API below keeps
 ## working unchanged. `PHYSICAL_BALANCE` tilt (M6 B5, spec 1.7/1.2) is a
-## kinematic-torque approximation, not a real RigidBody3D on a joint (docs/
-## M6_PLAN.md DECISION, owner-approved): settled blocks'
+## kinematic-torque approximation, not a real RigidBody3D on a joint (a decided
+## approximation): settled blocks'
 ## aggregate mass * lever-arm torque (BlockRegistry.settled_torque_samples())
 ## feeds straight into the same _tilt_velocity a special's
 ## apply_tilt_impulse() drives, and the existing SPECIALS_ONLY spring/clamp/
 ## replication machinery below carries and mirrors it unchanged.
 ##
 ## **Cells (spec 2.5).** The disk's collision is one ConcavePolygonShape3D on
-## one shape_owner (docs/archive/M4_PLAN.md P0a): a trimesh with one
+## one shape_owner: a trimesh with one
 ## `map_def.cell_size` quad per in-disk cell of the square CellGrid, plus
 ## vertical walls at the rim. One cell is one CellGrid index is one pixel of
 ## the territory raster, so the rules and the picture never disagree about
@@ -469,9 +469,8 @@ func _wake_tilt() -> void:
 
 
 ## Sums settled blocks' mass * disk-local lever-arm into the same 2-axis
-## acceleration term the spring above integrates (M6 B5, spec 1.7/1.2;
-## kinematic-torque approximation, docs/archive/M6_PLAN.md DECISION, owner-approved
-## -- explicitly not a real RigidBody3D/joint coupling).
+## acceleration term the spring above integrates (a kinematic-torque approximation,
+## explicitly not a real RigidBody3D/joint coupling).
 ##
 ## DECISION (game/field/Field.gd, M6 B5): each sample packs (disk-local x offset,
 ## mass, disk-local z offset); Vector2(z, -x) * mass is the same small-angle
@@ -618,8 +617,8 @@ func _push_level_pose_to_physics() -> void:
 
 
 ## Builds (or rebuilds) the disk's cell grid, collision trimesh and shape
-## shape_owner from the current map_def. Callable more than once (
-## docs/archive/M6_PLAN.md package A0): create_shape_owner()'s own contract is that a
+## shape_owner from the current map_def. Callable more than once: create_shape_owner()'s
+## contract is that a
 ## caller frees what it creates, and _ready() previously called this exactly
 ## once, so the shape_owner it made was never freed by anything -- calling this
 ## again (rebuild_for_map() below) would otherwise leak one shape_owner RID
@@ -691,7 +690,7 @@ func _rebuild_cells() -> void:
 
 
 ## Public entry point for rebuilds this Field for a different
-## MapDef (docs/archive/M6_PLAN.md package A0). game/main/Main.gd calls this at every site
+## MapDef. game/main/Main.gd calls this at every site
 ## that already calls place_flags()/set_overlay_source() together, right
 ## before place_flags() (which reads map_def-derived flag positions) -- so a
 ## match that picked a size/shape other than whatever map_def Field's own
@@ -910,7 +909,7 @@ func _on_hole_cells_changed(opened: PackedInt32Array, closed: PackedInt32Array) 
 	set_hole_cells(opened, closed)
 
 
-# --- Placement validity raycast (docs/TERRITORY_V2_PLAN.md) -----------------
+# --- Placement validity raycast -----------------------------------------------
 
 ## The v2 ruleset's one physics query (user clarifications): "just
 ## do a raycast from the middle of the ghost block and straight down". Casts
@@ -1336,8 +1335,8 @@ func _build_kill_plane() -> void:
 
 
 func _on_kill_plane_body_entered(body: Node3D) -> void:
-	# DECISION (M3a integration): a client's synced blocks are frozen-kinematic
-	# mirrors (docs/archive/M3a_PLAN.md "Frozen bodies") whose transforms SnapshotSync
+	# DECISION: a client's synced blocks are frozen-kinematic
+	# mirrors whose transforms SnapshotSync
 	# writes directly, so the kill-plane Area3D still overlaps and fires this
 	# callback there too even though only the host runs physics (CLAUDE.md).
 	# Only the host may decide a block is dead; a client learns about it from

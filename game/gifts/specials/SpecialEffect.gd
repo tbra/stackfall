@@ -8,8 +8,8 @@ extends Resource
 ##
 ## Every concrete subclass declares its own typed `@export` tunables (speed,
 ## radius, impulse, ...) rather than an untyped `params: Dictionary`
-## (docs/archive/M4_PLAN.md's own DECISION, restated here since this is the base
-## class those subclasses extend) -- CLAUDE.md's static-typing rule applies
+## (restated here because this is the base class those subclasses extend) -- the
+## project's static-typing rule applies
 ## to those exports too.
 
 ## Runs once per physics tick while the owning SpecialBehavior is armed and
@@ -26,8 +26,7 @@ func physics_tick(_block: Block, _behavior: SpecialBehavior, _delta: float) -> v
 ## landing or the fuse timeout, nothing else needed.
 ##
 ## FIX (game/gifts/specials/SpecialEffect.gd): a "timed-effect
-## pattern" special (Propeller, Jumping Bean, Earthquake, Volcano -- see
-## docs/archive/M4_SPECIALS_PACKAGES.md's timed-effect pattern) overrides this to
+## pattern" special (Propeller, Jumping Bean, Earthquake, Volcano) overrides this to
 ## false. Those effects already run physics_tick() every armed tick
 ## regardless of impact, and their own end is entirely time-driven
 ## (wants_early_trigger()/the fuse) -- without this veto, a block thrown or
@@ -60,7 +59,7 @@ func detonate(_block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> v
 	pass
 
 
-## lifecycle hooks (docs/GIFT_EFFECTS_PLAN.md section 2). Every
+## lifecycle hooks. Every
 ## default below preserves the pre-rework behaviour, so an effect opts in
 ## individually.
 

@@ -53,7 +53,7 @@ func apply_event(event: StringName, args: Array) -> void:
 			# DECISION (net/MatchNet.gd): offline and in hot-seat,
 			# Events.turn_changed means "it is this slot's turn". In real-time
 			# networked play there are no turns — every slot plays at once
-			# (docs/archive/M3a_PLAN.md question 1) — and what the
+			# — and what the
 			# signal actually does on a receiving instance is point the HUD
 			# and the ghost at the controls that are live here, which is
 			# always your own slot. Mirroring the host's value verbatim would

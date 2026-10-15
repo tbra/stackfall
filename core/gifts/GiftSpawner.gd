@@ -5,8 +5,8 @@ extends RefCounted
 ##
 ## SPEC.md 2.6 "Gift spawning [ORIGINAL target]": probability per placement
 ## turn/window, not the earlier reconstructed seconds-based interval with
-## jitter -- docs/archive/M4_PLAN.md's own header amendment retires that mapping
-## explicitly. This file implements only the probability form.
+## jitter. That mapping was retired in favour of the probability form, which is the only
+## form this file implements.
 
 ## Sentinel returned by pick_spawn_point() when every attempt failed, mirroring
 ## PlacementRules.NO_ORIGIN's convention (an unmistakable, non-finite point

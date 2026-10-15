@@ -1,7 +1,7 @@
 class_name MainMatchFlow
 extends MainMatchFlowPort
 ## MF3: the match-world flow (state routing, loading hand-off, world build/teardown,
-## bot controllers, scope reset) moved verbatim out of game/main/Main.gd (docs/MENU_FIRST_PLAN.md 3.2).
+## bot controllers, scope reset) moved verbatim out of game/main/Main.gd.
 ## Main keeps one forwarder per old name and loads this script before the first match_state_changed
 ## reaction (R4: the client's net_match_start RPC arrives with no Main involvement, so the Main
 ## forwarder of `_on_match_state_changed` always ensures this flow first). State fields stay on Main
@@ -327,7 +327,7 @@ func build_match_world(force_staging_for_test: bool = false) -> void:
 
 	spawn_bot_controllers(config)
 
-	# M8 P5's single wiring point (docs/M8_PLAN.md P5): built here, right
+	# Single wiring point for the stable-block manager: built here, right
 	# alongside _spawn_bot_controllers() above, for the same reason every
 	# other host-only match manager already lives in this function --
 	# BlockRegistry.all_blocks() only has anything to scan once _registry
@@ -363,7 +363,7 @@ func build_spectator(config: MatchConfig) -> void:
 	spectator.build_presentation(main_node._load_scene(HUD_SCENE_PATH), main_node._load_scene(TUNING_PANEL_SCENE_PATH), _field)
 
 
-## docs/archive/M5_PLAN.md P5 item 3: one BotController per bot slot, for the
+## One BotController per bot slot, for the
 ## headless-only-bots path above (_start_headless_bot_match_with_args()'s own
 ## Match.start_match() reaches this function too, via Events.match_state_
 ## changed -- see its own doc) and an ordinary mixed human+bot lobby match

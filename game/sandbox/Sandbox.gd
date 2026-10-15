@@ -12,7 +12,7 @@ extends Node
 ## about the rules itself — sandbox_spawn_tower still goes through
 ## Match.request_place() like every other placement, and sandbox_reset_field
 ## goes through Match.start_match() — so it survives a rules rewrite
-## (docs/TERRITORY_V2_PLAN.md) untouched.
+## untouched by territory rule changes.
 
 @export var sandbox_config: SandboxConfig = preload("res://config/match/sandbox.tres")
 

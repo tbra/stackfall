@@ -1,7 +1,6 @@
 class_name Main
 extends Node3D
-## The game's entry point: a router, not a match (spec Part 4 M3a;
-## docs/archive/M3a_PLAN.md integration order step 4).
+## The game's entry point: a router, not a match.
 ##
 ## This is the one file nobody but the integrator owns (as in M2), and it
 ## stays deliberately thin: every system self-wires through the Events bus or
@@ -43,7 +42,7 @@ extends Node3D
 ## unconditionally: both no-op unless the role and running state match
 ## (net/SnapshotSync.gd), so Main never has to branch on is_host()/is_client()
 ## itself. client_tick() writes global_transform and must run from
-## _physics_process, never _process (docs/archive/M3a_PLAN.md "Frozen bodies").
+## _physics_process, never _process (frozen bodies are driven from the physics step).
 ##
 ## M2's other ticks (10 Hz solve, 5 Hz overlay upload, the hole backlog and
 ## the settled rule) are unchanged and still live inside Match, TerritoryOverlay
@@ -80,7 +79,7 @@ const WATCH_BOTS_OPTIONS_PATH: String = "res://game/main/WatchBotsOptions.gd"
 const SANDBOX_SCENE_PATH: String = "res://game/sandbox/Sandbox.tscn"
 const GIFT_DEMO_PRESET_PATH: String = "res://config/match/sandbox_gift_demo.tres"
 const TOWER_TOPPLE_PRESET_PATH: String = "res://config/match/sandbox_tower_topple.tres"
-## docs/archive/M6_PLAN.md package B3 (spec 1.2 "Tutorial").
+## Spec 1.2 "Tutorial".
 const TUTORIAL_SCENE_PATH: String = "res://ui/menus/Tutorial.tscn"
 const REMOTE_CURSORS_SCENE_PATH: String = "res://game/player/RemoteCursors.tscn"
 const NET_DEBUG_OVERLAY_SCENE_PATH: String = "res://ui/debug/NetDebugOverlay.tscn"
@@ -140,9 +139,8 @@ var _spectator: Node = null
 var _sandbox: Node = null
 ## set only by start_gift_demo_from_menu().
 var _sandbox_preset: SandboxConfig = null
-## docs/archive/M6_PLAN.md package B3: built/freed only by start_tutorial_from_menu()/
-## _on_tutorial_finished() below -- never touched by _build_match_world()/
-## _end_match_world() (this package does not own those functions).
+## Built and freed only by start_tutorial_from_menu() and _on_tutorial_finished() below --
+## never touched by _build_match_world() or _end_match_world().
 var _tutorial: Node = null
 var _remote_cursors: Node = null
 var _debug_overlay: Node = null
@@ -478,8 +476,7 @@ func _ready() -> void:
 	Events.territory_updated.connect(_on_loading_territory_updated)
 	Events.territory_replicated.connect(_on_loading_territory_replicated)
 
-	# docs/archive/M3b_PLAN.md integration order step 4: Steam init is synchronous by
-	# this point, so MainMenu._ready() can immediately read steam_available().
+	# Steam init is synchronous by this point, so MainMenu._ready() can immediately read steam_available().
 	# Spacewar (480) is only our development Steam AppID. On Windows, its
 	# Steam Input configuration intercepts physical pad events from Godot as
 	# soon as steamInitEx runs, even though the pad still appears connected.
@@ -647,7 +644,7 @@ func _apply_graphics_preset(preset: GraphicsPreset) -> void:
 # --- Hot-seat / sandbox / tutorial: forwarders (MF1) -------
 #
 # The bodies live in game/main/MainSandboxFlow.gd, loaded on demand through the prewarm queue
-# (docs/MENU_FIRST_PLAN.md 3.2). Every old member name stays here for tests and tools.
+# (the menu-first flow split). Every old member name stays here for tests and tools.
 
 func _start_hot_seat_match() -> void:
 	_sandbox_flow_port().start_hot_seat_match()
@@ -947,8 +944,7 @@ func _on_net_mode_changed(mode: int) -> void:
 	if mode == Net.Mode.OFFLINE:
 		# Covers both a deliberate leave and the host disconnecting a client
 		# (autoload/Net.gd's _on_server_disconnected() calls leave(), which
-		# emits this): never a half-dead match (docs/archive/M3a_PLAN.md
-		# "Disconnects").
+		# emits this): never a half-dead match.
 		_end_match_world()
 		_watch_bots_active = false
 		# DECISION (game/main/Main.gd): Net.leave() does not know about Match, so

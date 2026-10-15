@@ -57,7 +57,7 @@ var weather_id: StringName = &""
 var weather_intensity: float = 0.0
 ## Height response of the active wind (WindField.height_factor); null when no wind blows
 ## (calm, rain, snow, ...), which keeps every wind term at exactly 0.
-# DECISION (replaces the 1t5.41 "direction and gusts ignored" note): the height
+# DECISION (replaces the earlier "direction and gusts ignored" note): the height
 # response still decides how tip-prone a tall stack is, and the wind HEADING now only grades the
 # fall-off-the-rim part of it (BotEvaluator.downwind_rim_factor): a piece with open disc downwind
 # of it is unchanged, one near the rim on the downwind side is graded worse. The Storm heading is

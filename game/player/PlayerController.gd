@@ -1,13 +1,13 @@
 class_name PlayerController
 extends Node
-## Local input -> placement intents (spec 1.4, 2.2; docs/archive/M2_PLAN.md P4).
+## Local input -> placement intents (spec 1.4, 2.2).
 ## Every action goes through the Input Map (bootstrap_project.gd); nothing
 ## here reads a raw keycode.
 ##
 ## M2 makes placement intent-only (spec 2.6, "clients send intents; the host
 ## checks every intent before acting on it"): this script never builds a
 ## Block itself. It positions the ghost, tracks whose turn it is in hot-seat
-## (docs/archive/M2_PLAN.md 1: strict alternation), and sends an
+## (strict alternation), and sends an
 ## intent; the host alone decides what happens next and answers on the Events
 ## bus.
 ##
@@ -42,7 +42,7 @@ extends Node
 
 @export var camera_rig_path: NodePath
 @export var ghost_path: NodePath
-## M4 P2e (docs/archive/M4_P2_PACKAGES.md P2e): the same NodePath pattern as
+## The same NodePath pattern as
 ## ghost_path above, wired in game/main/HotSeat.tscn / game/sandbox/Sandbox.tscn to a
 ## sibling ThrowArcPreview instance. Null on a bare unit-test controller
 ## (no scene wiring) -- every call site below guards for that.
@@ -88,7 +88,7 @@ var _shapes_by_id: Dictionary = {}
 
 ## Seconds this controller's ghost stays locked after sending an intent, so a
 ## second click inside one round trip cannot spend a second block
-## (docs/archive/M3a_PLAN.md, "Never duplicated, never lost", defence 2). Only a
+## (never duplicated, never lost: the second defence). Only a
 ## client ever sets it: the host's intent resolves inline, in the same frame.
 var _intent_lock_left: float = 0.0
 
@@ -261,7 +261,7 @@ func _ready() -> void:
 
 
 ## HotSeat.gd calls this after Main builds the shared CameraRig: HotSeat.tscn
-## is self-contained (docs/archive/M2_PLAN.md), but the camera rig lives in Main's
+## is self-contained, but the camera rig lives in Main's
 ## tree, so it can't be wired by NodePath at scene-author time.
 func set_camera_rig(rig: CameraRig) -> void:
 	_camera_rig = rig
@@ -908,8 +908,7 @@ func _drive_gamepad_zoom(stick_y: float, delta: float) -> void:
 # --- Placement intent (spec 2.6) --------------------------------------------
 
 ## ghost_place: send exactly one intent to Match and let it decide. Never
-## builds a Block itself (spec 2.6; docs/archive/M2_PLAN.md P4 "intent-only
-## placement").
+## builds a Block itself (spec 2.6: intent-only placement).
 func _place_ghost_block() -> void:
 	if _ghost == null or _match == null or _acting_slot() < 0:
 		return
@@ -928,7 +927,7 @@ func _place_ghost_block() -> void:
 
 ## The one door every intent goes through: net/MatchNet.gd, which calls
 ## Match.request_place() inline on the host and sends the reliable intent RPC
-## on a client (docs/archive/M3a_PLAN.md P3). It exists only once the MatchNet
+## on a client. It exists only once the MatchNet
 ## autoload has installed itself on Match, and only for the real Match -- a
 ## test that injects a FakeMatch into _match is asking for that object's
 ## calls and gets them directly, which is exactly what MatchNet's host path

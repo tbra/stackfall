@@ -21,7 +21,7 @@ extends RefCounted
 ## Cell index is row-major, `cy * res + cx`, which is also the pixel index of
 ## the authoritative territory raster and the quad order Field uses when it
 ## builds its collision trimesh. One cell is one raster pixel is one quad.
-## See docs/archive/M2_PLAN.md, "Raster resolution", for why the rules run at cell
+## The rules run at cell
 ## resolution and MapDef.territory_res is the upload size instead.
 ##
 ## Pure logic: no scene tree, no nodes (CLAUDE.md).

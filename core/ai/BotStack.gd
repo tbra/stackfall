@@ -1,7 +1,6 @@
 class_name BotStack
 extends RefCounted
-## A pure, team-agnostic model of tower statics (.53a, docs/BOT_TOWER_PLAN.md B.3-B.5
-## and C "1t5.53a"): a snapshot of the cubes near the bot's towers and the analysis of it.
+## A pure, team-agnostic model of tower statics: a snapshot of the cubes near the bot's towers and the analysis of it.
 ##
 ## Frame: disk-local, y up. The disc's top surface is y == ground_y; a cube whose bottom face is
 ## within rest_tolerance_m of it rests on the disc. Cubes are squares of cube_size in XZ, turned by

@@ -122,9 +122,8 @@ var _contributing_visual_set: bool = false
 var _block_mesh_cache: MeshInstance3D = null
 var _block_mesh_looked_up: bool = false
 
-## M8 P5 (spec 2.7 "freeze old stable blocks as static", docs/M8_PLAN.md
-## Interface stubs item 2): the one reason this milestone's own caller
-## (game/blocks/StableBlockManager.gd) ever passes to request_freeze_static() below.
+## The reason the stable-block manager (game/blocks/StableBlockManager.gd) passes to
+## request_freeze_static() below: freeze old stable blocks as static.
 ## A StringName constant, not a bare &"stable" literal at each call site, so a
 ## typo can't silently open a second, never-released "reason" -- every caller
 ## that means "the stable-block auto-freeze" spells it the same way.
@@ -133,13 +132,12 @@ const FREEZE_REASON_STABLE: StringName = &"stable"
 ## Reason-keyed set of who currently wants this block frozen to STATIC (Godot
 ## Dictionary used as a set: presence of a key, not its value, is what
 ## matters -- same idiom project-wide, e.g. game/blocks/BlockRegistry.gd's
-## _entries). More than one caller can hold this block frozen at once (this
-## milestone's StableBlockManager and a future Freeze special, per
-## docs/M8_PLAN.md's own Interface stub) without either caller needing to know
+## _entries). More than one caller can hold this block frozen at once (the
+## stable-block manager and any future Freeze special) without either caller needing to know
 ## about the other or race the other's release.
 var _freeze_reasons: Dictionary = {}
 
-## Glue fusion (docs/GLUE_FUSION_PLAN.md section 3): while this Block is a
+## Glue fusion: while this Block is a
 ## "follower" its FusedBody carrier owns the collision shapes and the physics;
 ## the Block keeps identity (net_id, owner_slot, meshes) and is posed from the
 ## carrier every tick. Null for an ordinary Block and for a carrier itself.
@@ -692,8 +690,7 @@ func is_freeze_static() -> bool:
 	return not _freeze_reasons.is_empty()
 
 
-## Releases only FREEZE_REASON_STABLE (docs/M8_PLAN.md Interface stubs item
-## 2): called by a special effect right before it writes this block's
+## Releases only FREEZE_REASON_STABLE: called by a special effect right before it writes this block's
 ## velocity/applies an impulse (SpecialPhysics.wake_and_impulse callers and
 ## ExplosionFx.blast), so the stable-block auto-freeze above can
 ## never turn a special's impulse into a silent no-op -- RigidBody3D ignores
@@ -710,7 +707,7 @@ func wake_for_impulse() -> void:
 	release_freeze_static(FREEZE_REASON_STABLE)
 
 
-# --- Glue fusion follower state (docs/GLUE_FUSION_PLAN.md WP1) -----------------
+# --- Glue fusion follower state -----------------------------------------------
 
 ## The live carrier while this Block is a follower, else null (a freed carrier
 ## drops the reference instead of dangling).

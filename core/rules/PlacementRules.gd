@@ -3,8 +3,7 @@ extends RefCounted
 ## Whether a block may be dropped where the player wants it, and where it goes
 ## instead when it may not (spec 1.5, 1.4, 2.5).
 ##
-## **Two checks; only one runs in live play** (docs/TERRITORY_V2_PLAN.md;
-## reconciled with the evidence audit by).
+## **Two checks; only one runs in live play.**
 ## validate_point()/closest_valid_point() are the placement contract for
 ## **every** MatchConfig.HoleMode -- clarifications "one
 ## raycast from the middle of the ghost block straight down; the hit point

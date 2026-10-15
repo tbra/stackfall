@@ -158,7 +158,7 @@ static func _mode_plan(
 	return plan
 
 
-## Reach the Sky (docs/BOT_TOWER_PLAN.md B.5): the mode context's target is the tallest
+## Reach the Sky: the mode context's target is the tallest
 ## settled block, which after a topple is a leaning pile. With an analysed snapshot of the own blocks the
 ## target becomes the tallest SOUND top near the remembered base, or a new base (on the disc or a sound, flat
 ## block face; debris beside it no longer matters, see _base_usable) when the tower fell (no
@@ -248,7 +248,7 @@ static func _apply_sky_plan(plan: Dictionary, target: Vector2, new_base: bool, m
 
 
 ## A base point the bot may build on: own valid territory, inside the rim margin, and (replacing
-## the 1t5.54 debris clearance) a held piece over the point rests on the disc or on a sound block face flat
+## the older debris clearance) a held piece over the point rests on the disc or on a sound block face flat
 ## against it, with the centre of mass inside every support down to the disc (BotStack.rest_margin). Debris
 ## beside the point does not matter. DECISION: the base itself needs the disc or a SOUND face (a fallen block
 ## lying flat on the disc qualifies); a flat face on a leaning pile may still carry sites (BotCandidateGen) but

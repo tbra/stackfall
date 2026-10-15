@@ -1,7 +1,6 @@
 class_name LobbySeats
 extends RefCounted
-## Pure lobby seat model for the lobby rework (docs/LOBBY_REWORK_PLAN.md
-## section 3). The lobby keeps ONE seat table, next to "roster" in the lobby data:
+## Pure lobby seat model. The lobby keeps ONE seat table, next to "roster" in the lobby data:
 ##
 ##   { "humans": [ {"peer_id": int, "color": int, "team": int} ],
 ##     "bots":   [ {"color": int, "team": int, "difficulty": int} ] }

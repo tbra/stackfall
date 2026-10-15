@@ -1,7 +1,6 @@
 class_name TeamAssigner
 extends RefCounted
-## Pure team resolution for the lobby rework (docs/LOBBY_REWORK_PLAN.md
-## section 3). Every seat carries a team pick: 1..cap = an explicit lobby team
+## Pure team resolution for the lobby. Every seat carries a team pick: 1..cap = an explicit lobby team
 ## number (same number = same team) or MatchConfig.TEAM_PICK_RANDOM. At match
 ## start the host turns the per-slot picks into dense team ids (0..n-1, what
 ## every downstream loop over range(team_count()) needs) plus the lobby number

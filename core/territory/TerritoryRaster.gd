@@ -5,11 +5,11 @@ extends RefCounted
 ##
 ## One cell of CellGrid is one pixel here and one BoxShape3D in the field's
 ## collision, so the three never disagree about where a hole is. See
-## docs/archive/M2_PLAN.md, "Raster resolution", for why the rules run at cell
+## The rules run at cell
 ## resolution while MapDef.territory_res is the size the overlay uploads.
 ##
 ## **Two fills.** `update()`'s `holes_enabled` selects which ruleset decides a
-## cell's owning slot (docs/TERRITORY_V2_PLAN.md). Two bools rather than a mode enum
+## cell's owning slot. Two bools rather than a mode enum
 ## keeps core/ free of any MatchConfig reference (CLAUDE.md): nothing here
 ## needs to know the lobby setting's name, only whether holes are on and
 ## whether they are permanent.
@@ -51,15 +51,14 @@ extends RefCounted
 
 ## Per-cell state bits, packed into state_bytes() for the shader. Both
 ## rulesets' bits fit in the one byte without colliding, so switching mode
-## needs no wire change (docs/TERRITORY_V2_PLAN.md, "Rendering").
+## needs no wire change.
 const STATE_CONTESTED: int = 1
 const STATE_HOLE: int = 2
 const STATE_GOAL_ZONE: int = 4
 
 ## Group id written into every owned cell of a *replicated* raster (M3a).
 ##
-## A client's raster is a mirror, not a solve (docs/archive/M3a_PLAN.md, "The client's
-## raster is a mirror"): the host ships one owner byte and one state byte per
+## A client's raster is a mirror, not a solve: the host ships one owner byte and one state byte per
 ## cell, which is exactly the set PlacementRules.validate() reads, but real
 ## group indices cannot be reconstructed from them and are not needed — the
 ## win check is host-only. So on a mirror only three group values ever occur:
@@ -281,7 +280,7 @@ func _mark_changed() -> void:
 ## Stamps the goal flags' no-build zones, replacing any previous layout. Goal
 ## flags never move, so this is called once per match rather than per solve.
 ## The zones are placement-only: they never touch ownership or influence
-## (docs/TERRITORY_V2_PLAN.md, "open questions").
+## The open questions about them are not settled.
 func set_goal_zones(positions: PackedVector2Array, radius: float) -> void:
 	_mark_changed()
 	_goal_zone.fill(0)
@@ -577,7 +576,7 @@ func _write_replicated_cell(index: int, owner_byte: int, state_byte: int) -> voi
 
 	# The goal-zone bit rides along in the same byte, so a mirror answers
 	# is_goal_zone() — and therefore PlacementRules.validate_point() — exactly
-	# as the host does, with no extra RPC (docs/TERRITORY_V2_PLAN.md).
+	# as the host does, with no extra RPC.
 	_goal_zone[index] = 1 if (state_byte & STATE_GOAL_ZONE) != 0 else 0
 
 	_hole[index] = 1 if is_hole_now else 0
@@ -609,7 +608,7 @@ func _rebuild_team_counts() -> void:
 ## The default ruleset. Ownership at a point is the team of the home-anchored
 ## circle with the largest kernel value, radius - distance, there; a point
 ## outside every anchored circle stays unowned. See the class comment and
-## docs/TERRITORY_V2_PLAN.md, "The formula", for why that one expression
+## The formula, for why that one expression
 ## satisfies every requirement bullet at once.
 func _fill_v2(circles: Array[InfluenceCircle], groups: TerritoryGroups) -> void:
 	_best_value.fill(-INF)

@@ -6,7 +6,7 @@ extends RefCounted
 ##
 ## DECISION: cube offsets are in the SPAWN frame, B*(cell - bottom_center()),
 ## exactly where BlockFactory puts the collision cubes around the pivot the host is given
-## (`candidate.origin` is that pivot). Before 1t5.55.1 they were B*cell, shifted by B*pivot
+## (`candidate.origin` is that pivot). An earlier version placed them at B*cell, shifted by B*pivot
 ## (up to 1.4 m), so probes looked at the wrong patch. `cell_support` entries
 ## still line up with the cubes they were measured under (footprint_cells_of).
 

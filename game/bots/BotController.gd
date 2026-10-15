@@ -14,8 +14,7 @@ extends Node
 ## 999979) -- this file's own per-system stream off the shared
 ## Match.config.rng_seed, so a fixed match seed reproduces this bot's own
 ## jitter/aim-noise/territory-sample draws without colliding with any other
-## seeded system in the match (see docs/archive/M5_PLAN.md's "Known risks:
-## Determinism").
+## seeded system in the match (determinism is the reason for the separate stream).
 const RNG_OFFSET: int = 777001
 
 ## the shipped Storm wind response the V2 evaluator reads (same resource StormEffect uses).
@@ -59,7 +58,7 @@ var _match_provider: Variant = null
 var _net_provider: Variant = null
 
 ## Seeded once at setup() off Match.config.rng_seed + RNG_OFFSET + a per-slot
-## stride, per docs/archive/M5_PLAN.md's determinism requirement -- never
+## stride, per the determinism requirement -- never
 ## randi()/randf()'s global state. Drives the reaction-delay jitter (drawn
 ## once, below), the territory-point sampling and the aim-noise offset.
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()

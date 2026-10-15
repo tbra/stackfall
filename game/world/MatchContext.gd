@@ -1,7 +1,7 @@
 class_name MatchContext
 extends RefCounted
 ## The port world code (fields, specials, presenters, weather effects) uses to reach the running
-## match without naming the Match or Net autoloads (docs/AUTOLOAD_DECOUPLING_PLAN.md, S1b, D1-D5).
+## match without naming the Match or Net autoloads.
 ##
 ## The base class is the null object: "no match, offline". autoload/match/MatchContextLive.gd
 ## forwards each method 1:1 to the real autoloads and is installed by Match._ready(). Tests install

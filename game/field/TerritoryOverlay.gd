@@ -8,8 +8,8 @@ extends MeshInstance3D
 ## ground if what it discards *is* the ground. A separate quad hovering over an
 ## intact disk would just reveal the disk underneath.
 ##
-## **The upload.** TerritoryRaster is authoritative at *cell* resolution (see
-## docs/archive/M2_PLAN.md, "Raster resolution"): 90x90 on map M, which is also the
+## **The upload.** TerritoryRaster is authoritative at *cell* resolution (the rules
+## run per cell): 90x90 on map M, which is also the
 ## collision grid and the hole granularity. Spec 2.5's territory_res texture is
 ## the *upload* size, so the cell image is upscaled with
 ## Image.resize(INTERPOLATE_BILINEAR) — one C++ call — and that is what the
@@ -479,8 +479,8 @@ func hole_mask_image() -> Image:
 ## x/z, B = radius, A = team id — rather than a shader array uniform: a
 ## uniform array needs a compile-time size and a second cap to keep in sync
 ## with TerritoryTuning.max_circles, where a sampler2D's width is just
-## however many texels this call uploads (docs/TERRITORY_V2_PLAN.md's
-## rendering section rejected this shape for the *raster* renderer on cost
+## however many texels this call uploads (the rendering design rejected this shape
+## for the *raster* renderer on cost
 ## grounds that do not apply here: 400 texels is a few KB, not a resize()).
 ## texelFetch(), not a filtered sample, reads them back exactly.
 func set_circles(

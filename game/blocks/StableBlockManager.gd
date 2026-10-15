@@ -3,7 +3,7 @@ extends Node
 ## Stable-block optimization (spec 2.7 [NEW]: "If a block has been asleep for
 ## more than 20 s and isn't touching any awake body, the host switches it to
 ## freeze_mode = STATIC. It goes back to normal the moment any impulse,
-## tilt, or change in the cells under it happens."), docs/M8_PLAN.md P5.
+## tilt, or change in the cells under it happens.").
 ##
 ## Host-gated the same way every autoload/match/ controller already is (`if
 ## not Net.is_host(): return`, true offline too, matching

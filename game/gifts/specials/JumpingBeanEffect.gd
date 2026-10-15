@@ -1,7 +1,7 @@
 class_name JumpingBeanEffect
 extends SpecialEffect
 ## Jumping Bean special (spec 1.6: "Jumping Bean creates a hole between random
-## hops"; docs/GIFT_EFFECTS_PLAN.md section 3 and 4 row E).
+## hops").
 ##
 ## Lifecycle: needs_landing() makes SpecialBehavior run a LandedProbe and call
 ## physics_tick() only once the carrier has landed. The old `block.sleeping` gate

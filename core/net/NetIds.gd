@@ -8,6 +8,5 @@ extends RefCounted
 const DISCOVERY_MAGIC: StringName = &"stackfall"
 
 ## Steam's public test app ("Spacewar"), passed directly into
-## Steam.steamInitEx() (docs/archive/M3b_RESEARCH.md's spike: no steam_appid.txt is
-## needed once the app id is passed as an argument).
+## Steam.steamInitEx() (no steam_appid.txt is needed once the app id is passed as an argument).
 const STEAM_APP_ID_EXPECTED: int = 480

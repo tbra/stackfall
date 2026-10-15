@@ -1,7 +1,6 @@
 class_name ResultsPayload
 extends RefCounted
-## The one owner of the match-results payload schema (audit
-## fca.36 finding [13]; docs/SINGLE_SOURCE_PLAN.md section 2). The payload is
+## The one owner of the match-results payload schema. The payload is
 ## built by MatchStats.build_results_payload()/build_live_payload(), shipped as
 ## EVENT_MATCH_RESULTS / the live snapshot (net/MatchNet.gd), re-typed here on
 ## receipt and read by ResultsScreen, ScoreTable and ScoreboardOverlay.

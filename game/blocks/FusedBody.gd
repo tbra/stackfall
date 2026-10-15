@@ -1,6 +1,6 @@
 class_name FusedBody
 extends Block
-## Glue fusion (docs/GLUE_FUSION_PLAN.md sections 3 and 5): the one Jolt body of a
+## Glue fusion: the one Jolt body of a
 ## group of glued blocks. It owns every member's CollisionShape3D (reparented, local
 ## pose preserved) and `mass`; the member Blocks stay as identity "followers" (net_id,
 ## meshes) posed from this body each tick. Never registered, never replicated,

@@ -1,6 +1,6 @@
 class_name GlueFusion
 extends RefCounted
-## Glue fusion (docs/GLUE_FUSION_PLAN.md section 5), host only: fuses a charged Block with
+## Glue fusion, host only: fuses a charged Block with
 ## what it touched (a Block, a FusedBody carrier or the Field disc) into one FusedBody.
 ## GlueDrops (WP2) is the live caller; nothing here depends on the scene beyond the bodies
 ## it is handed.

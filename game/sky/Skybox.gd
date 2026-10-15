@@ -417,7 +417,7 @@ func cycle_length_seconds() -> float:
 	return _cycle_length_s if _cycle_theme != null else 0.0
 
 
-## --- cycle-default API (docs/SKY_CYCLE_DEFAULT_PLAN.md s3) -----
+## --- cycle-default API -----------------------------------------
 
 ## Starts the day/night cycle now (F4's Theme "cycle" entry, boot theme_name
 ## "cycle"; configure_match_sky() uses the same builder at match start).
