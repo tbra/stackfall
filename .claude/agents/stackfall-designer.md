@@ -51,3 +51,15 @@ windowed runs only (`--windowed --position 10000,10000 --resolution 320x180
 Comment checkpoints on your Bead with `--actor stackfall-designer`; the orchestrator
 owns status, commits, integration and push. Return only the compact JSON handback
 from docs/AGENT_WORKFLOW.md.
+
+## Handback (checked by tools/validate_worker_handback.py)
+Post your full checkpoint comment to the assigned bead first, then finish with
+SubagentHandback carrying exactly one JSON object and nothing else:
+`{"bead":"Bontago-<id>","verdict":"done","candidate":"<checkout>@<rev or uncommitted>","files":"a.gd;b.gd","checks":"test_x: 12/12 PASS; lint_all: GREEN","finding":"decisive result, risk or blocker","next":"exact next action","record":"bd:Bontago-<id>"}`
+Use all eight keys, spelled exactly so (not `status`, `summary`, `findings` or
+`next_action`). `verdict` is one of done | review | partial | blocked | failed;
+reviewers use `review` and start `finding` with APPROVE or CHANGES. A check the
+brief named that did not run makes the verdict partial. Limits: 1100 characters
+for done/review, 1500 for partial/blocked/failed, at most 8 lines. If the bead
+comment fails after one retry: verdict blocked, record `comment-failed:<error>`
+(up to 3200 characters).

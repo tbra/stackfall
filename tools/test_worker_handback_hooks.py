@@ -29,6 +29,31 @@ class HandbackTests(unittest.TestCase):
             "tool_input": {"message": message},
         }))
 
+    def test_list_fields_aliases_and_fence_pass(self):
+        # Bontago-a73: the shapes most first handbacks used (lists, synonym keys, a fence).
+        report = {"bead": "Bontago-123", "verdict": "review", "candidate": "M:/wt/a@abc123",
+                  "files": ["core/rules.gd", "tests/test_rules.gd"],
+                  "checks": {"test_rules": "12/12 pass", "import": True},
+                  "findings": ["APPROVE: no blocking issue"], "next_action": "integrate",
+                  "record": "bd:Bontago-123"}
+        for message in (json.dumps(report), "```json\n%s\n```" % json.dumps(report)):
+            self.assertIsNone(run_hook("validate_worker_handback.py", {
+                "hook_event_name": "PreToolUse", "tool_name": "SubagentHandback",
+                "tool_input": {"message": message},
+            }))
+
+    def test_empty_or_unmatched_structured_fields_are_denied(self):
+        base = {"bead": "Bontago-123", "verdict": "done", "candidate": "M:/wt/a@abc123",
+                "files": "core/rules.gd", "checks": "test_rules: 12/12 pass",
+                "finding": "Fixed overlap scoring", "next": "integrate", "record": "bd:Bontago-123"}
+        for report in (dict(base, files=[]), dict(base, checks={"lint": ""}),
+                       dict(base, bead=["Bontago-123"]), dict(base, verdict="pass")):
+            result = run_hook("validate_worker_handback.py", {
+                "hook_event_name": "PreToolUse", "tool_name": "SubagentHandback",
+                "tool_input": {"message": json.dumps(report)},
+            })
+            self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
+
     def test_prose_is_denied_before_handback(self):
         result = run_hook("validate_worker_handback.py", {
             "hook_event_name": "PreToolUse", "tool_name": "SubagentHandback",

@@ -39,3 +39,15 @@ merges, pushes or Dolt sync without explicit authorization in your assignment.
 
 - **Windowed Godot runs (owner, 2026-09-23):** any windowed launch you make (screenshot probes, smoke runs) must pass `--windowed --position 10000,10000 --resolution 320x180 --audio-driver Dummy` plus `-- --agent-probe` (and `--render-size=WxH` when a bench/screenshot needs a real render resolution; AgentProbe renders into a SubViewport), never `--always-on-top`/`--maximized`/fullscreen, and must quit right after the capture; use `--headless` when no screenshot is needed. Visible windows interrupt the owner on another monitor.
 - **Visual probes (owner 2026-10-07: the old three-run cap is removed - it was gating progress):** diagnose by reading code first, then take as many off-screen probe/screenshot runs as the problem needs; each run uses the off-screen flags below and quits right after its capture. Report progress in the Bead checkpoint rather than looping silently.
+
+## Handback (checked by tools/validate_worker_handback.py)
+Post your full checkpoint comment to the assigned bead first, then finish with
+SubagentHandback carrying exactly one JSON object and nothing else:
+`{"bead":"Bontago-<id>","verdict":"done","candidate":"<checkout>@<rev or uncommitted>","files":"a.gd;b.gd","checks":"test_x: 12/12 PASS; lint_all: GREEN","finding":"decisive result, risk or blocker","next":"exact next action","record":"bd:Bontago-<id>"}`
+Use all eight keys, spelled exactly so (not `status`, `summary`, `findings` or
+`next_action`). `verdict` is one of done | review | partial | blocked | failed;
+reviewers use `review` and start `finding` with APPROVE or CHANGES. A check the
+brief named that did not run makes the verdict partial. Limits: 1100 characters
+for done/review, 1500 for partial/blocked/failed, at most 8 lines. If the bead
+comment fails after one retry: verdict blocked, record `comment-failed:<error>`
+(up to 3200 characters).
