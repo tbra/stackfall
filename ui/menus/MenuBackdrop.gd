@@ -1,6 +1,6 @@
 class_name MenuBackdrop
 extends Control
-## M7 P7 (docs/M7_PLAN.md "P7 -- Main menu / lobby reskin"):
+## Main menu / lobby reskin:
 ## the flat "paper-cut" half of the split background (docs/art_mockups/
 ## 10-main-menu-layered-pastel.png, 11-lobby-layered-pastel.png) -- a banded
 ## sky, a layered concentric sun, pill-shaped cloud strata and apricot/mint

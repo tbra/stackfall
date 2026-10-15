@@ -21,7 +21,7 @@ extends Node
 ## Every play()/play_music()/impact-thud
 ## volume_db also adds Settings.master_volume_db() on top of this file's own
 ## AudioConfig.sfx_volume_db/music_volume_db baseline, live-updated via
-## Settings.audio_settings_changed (docs/archive/M6_PLAN.md package C3). Bontago
+## Settings.audio_settings_changed (the options audio settings). Bontago
 ## (options package): SFX playback additionally adds Settings.sfx_volume_db(),
 ## music playback additionally adds Settings.music_volume_db() -- master
 ## multiplies every channel, the music/SFX sliders only ever scale their own.
@@ -31,7 +31,7 @@ const LocalFeedback := preload("res://autoload/match/LocalFeedback.gd")
 const AUDIO_SUBDIR: String = "assets/audio/sfx"
 
 ## Effectively-silent volume_db floor for whichever music stem is faded out
-## of the adaptive crossfade (docs/M7_PLAN.md P6). Not a tunable -- it is an
+## of the adaptive crossfade.
 ## engineering constant matching AudioServer's own convention that -80 dB
 ## reads as inaudible on any reasonable output device -- so it stays a local
 ## const rather than another AudioConfig field (CLAUDE.md "no magic numbers"
@@ -77,7 +77,7 @@ var _music_player: AudioStreamPlayer
 var _music_enabled: bool = true
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
-## Adaptive music (docs/M7_PLAN.md P6): a second AudioStreamPlayer for the
+## Adaptive music:
 ## tense stem, on the same bus as _music_player, started in sync with it
 ## whenever both config.music_stem_calm_file and config.music_stem_tense_file
 ## resolve to real files under _music_root_dir. Missing tense file: this
@@ -217,7 +217,7 @@ func _refresh_music_root_dir() -> void:
 
 ## Settings.audio_settings_changed fires for both a master-volume change and a
 ## custom-music-dir change (autoload/Settings.gd), so this re-resolves the
-## music folder and, per docs/archive/M6_PLAN.md package C3, re-applies the volume to
+## music folder and re-applies
 ## whatever is already playing -- no restart needed to hear a slider move.
 func _on_audio_settings_changed() -> void:
 	if config.contextual_music_enabled:
@@ -444,7 +444,7 @@ func set_root_dir_for_test(path: String) -> void:
 	_refresh_tense_stem()
 
 
-# --- Adaptive music (docs/M7_PLAN.md P6) -------------------------------------
+# --- Adaptive music -------------------------------------------------------------
 
 ## Re-derives _tense_stem_available against the current _music_root_dir.
 ## Requires BOTH config.music_stem_calm_file and config.music_stem_tense_file
@@ -541,7 +541,7 @@ func tense_stem_target_volume_db() -> float:
 	return baseline_db if _tense_stem_is_active else MUSIC_STEM_MUTE_DB
 
 
-## Events.goal_capture_progress (spec 1.10's adaptive music, docs/M7_PLAN.md
+## Events.goal_capture_progress (spec 1.10's adaptive music, the crossfade
 ## P6): the crossfade only cares how close ANY team is to capturing, not
 ## which one, so team_id is unused here -- underscore-prefixed to match this
 ## file's own convention for an unused handler parameter (e.g.
@@ -554,7 +554,7 @@ func tense_stem_target_volume_db() -> float:
 func _on_goal_capture_progress(_team_id: int, progress: float) -> void:
 	if config.contextual_music_enabled:
 		return
-	# Hysteresis (docs/M7_PLAN.md P6 review, MINOR): the rising
+	# Hysteresis: the rising
 	# edge (calm -> tense) always uses the plain threshold; the falling edge
 	# (tense -> calm) only fires music_tense_release_margin below it, so
 	# progress hovering right at the threshold doesn't flap the crossfade

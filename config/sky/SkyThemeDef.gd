@@ -57,7 +57,7 @@ extends Resource
 @export_range(1.0, 3.0, 0.05) var cycle_sun_energy_gain: float = 1.7
 @export_range(0.2, 1.0, 0.01) var cycle_day_ambient_scale: float = 0.7
 @export_range(0.1, 1.0, 0.01) var cycle_sun_contrast_full_sin: float = 0.6
-## docs/SKY_CYCLE_DEFAULT_PLAN.md: Cycle is the default sky and
+## Cycle is the default sky and
 ## the lobby's Sunset / Dawn / Night options become the same cycle locked at a
 ## fixed phase. Phase 0 = dawn horizon, 0.25 = noon, 0.5 = sunset horizon,
 ## 0.75 = midnight (Skybox.set_cycle_phase). All five values below are
@@ -106,7 +106,7 @@ extends Resource
 ## times a day (the average swing lasts cycle_length_seconds / this; 3 = 100 s of a
 ## 300 s day). Fewer is slower and calmer, more is busier; always smooth.
 @export_range(2, 12, 1) var variation_knots_per_cycle: int = 3
-## opt-in procedural sky look (docs/SKY_PROCEDURAL_PLAN.md),
+## opt-in procedural sky look,
 ## declared first so it is the first row of the F4 Sky tab for the owner's
 ## painted-vs-procedural comparison. Skybox.apply_theme() writes
 ## procedural_sea_mix (0 while this is false) and the proc_* parameters.
@@ -125,7 +125,7 @@ extends Resource
 ## M7 P3 ships exactly one instance,
 ## config/sky/themes/sunset.tres, tuned against docs/art_mockups/
 ## 04-sunset-signal.png and 07-sunset-signal-cel-shaded.png. M8 follow-up
-## do not build now, per docs/M7_PLAN.md's P3 package: dawn/storm/night
+## do not build now: dawn/storm/night
 ## instances, plus a theme-selection row in ui/debug/TuningPanel.gd (parallel to its
 ## existing Skybox six-face-set dropdown, `_build_skybox_row()`) once there is
 ## more than one instance for the owner to choose between -- a single theme
@@ -329,7 +329,7 @@ extends Resource
 ## fireflies on night) -- see config/sky/AmbientLifeConfig.gd. Null means none.
 @export var ambient_life: AmbientLifeConfig = null
 
-## procedural sky, docs/SKY_PROCEDURAL_PLAN.md: the proc_*
+## procedural sky: the proc_*
 ## parameters below drive the procedural branch of shaders/sky/sunset_clouds.gdshader
 ## (plus the puff far-fade and night sea) when sky_look_procedural is on.
 @export var procedural_sea_mix: float = 1.0

@@ -394,7 +394,7 @@ func _current_config() -> MatchConfig:
 
 # --- Visual style + focus chain -------------------------------------------------
 
-## Stackfall Arcade (docs/UI_RESKIN_PLAN.md P5): a disc-800 plate on a disc-950
+## Stackfall Arcade:
 ## scrim, the mode as a rim kicker, the outcome in Bungee, PLAY AGAIN as the one flare block.
 func _apply_visual_style() -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()

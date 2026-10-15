@@ -23,7 +23,7 @@ var _countdown_held: bool = false
 
 ## -- Loading-screen ready gate ---------------------------------
 ##  every human presses ready (ui_accept / gamepad A)
-## on the loading screen before the countdown runs (1pi.63: no minimum display time). The rule is core/rules/LoadingReadyGate.gd; this file owns the
+## on the loading screen before the countdown runs (no minimum display time).
 ## per-match state and the host's hooks. Net (autoload/Net.gd) is the transport:
 ## it validates the sender and hands the intent over on the Events bus.
 ##
@@ -497,7 +497,7 @@ func is_loading_gate_armed() -> bool:
 func loading_gate_blocking() -> bool:
 	if not _gate_armed:
 		return false
-	# DECISION (fca.36.3): the gate exists only in the pre-play window LOADING..COUNTDOWN,
+	# DECISION: the gate exists only
 	# a set no other site shares, so it is not a Match predicate.
 	var pre_play: bool = _state == MatchAutoload.State.LOADING
 	pre_play = pre_play or _state == MatchAutoload.State.COUNTDOWN
@@ -839,7 +839,7 @@ func _resolve_sudden_death_tiebreak() -> void:
 
 # --- Turn-based (spec 1.2, M6 B4) --------------------------------------------
 
-## DECISION (autoload/match/MatchLifecycle.gd, M6 B4, per docs/archive/M6_PLAN.md's B4
+## DECISION (autoload/match/MatchLifecycle.gd, the turn-lock rule
 ## section): turn_based and hot_seat are mutually exclusive in practice -- the
 ## lobby never offers hot_seat, and the CLI --hot-seat path never sets
 ## turn_based -- so nothing here resolves "both true" (advance_turn()'s own
@@ -968,7 +968,7 @@ func _build_slots() -> void:
 		var home: Vector2 = PlayerSlot.home_position_for(i, _match.config.player_count, map_def)
 		# M5 P1: the trailing ai_count slots become bots; every
 		# slot before that stays a human seat exactly as today. See
-		# docs/archive/M5_PLAN.md P1's own doc for why this is a one-line append.
+		# The bot notes explain why this is a one-line append.
 		var is_bot: bool = i >= _match.config.player_count - _match.config.ai_count
 		# a human seat carries the name the host replicated for its
 		# peer (Net.name_for_slot, already sanitised by the host); a bot, an
@@ -1039,7 +1039,7 @@ func _on_roster_names_changed(_roster: Array[Dictionary]) -> void:
 	refresh_slot_names()
 
 
-# --- Disconnects (docs/archive/M3a_PLAN.md question 2) ------------------------------
+# --- Disconnects -----------------------------------------------------------------
 
 ## Host only. The peer holding `slot_id` vanished: stop its feed at once and
 ## start NetConfig.disconnect_grace. If it has not come back by then the slot
@@ -1101,7 +1101,7 @@ func _tick_disconnect_grace(delta: float) -> void:
 
 
 ## The one elimination path, shared by a home flag lost to a hole (spec 1.5)
-## and by a peer that never came back (docs/archive/M3a_PLAN.md question 2), so the
+## and by a peer that never came back, so the
 ## two cannot drift apart.
 func _eliminate_slot(slot_id: int, by_slot: int = -1) -> void:
 	var target: PlayerSlot = _slots[slot_id]

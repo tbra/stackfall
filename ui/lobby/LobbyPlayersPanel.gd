@@ -1,7 +1,7 @@
 class_name LobbyPlayersPanel
 extends VBoxContainer
 ## The lobby's right-hand roster (packages E1 + PL1a, docs/
-## LOBBY_REWORK_PLAN.md "Right panel"): the "Players" title row with its
+## the lobby layout's "Right panel"):
 ## "N players · M bots · K/S seats" header, and one LobbySeatRow per seat (the humans
 ## from the roster in slot order, then one row per bot). Extracted 1:1 from ui/lobby/Lobby.gd
 ## in E1 so the seat-row package could grow it without touching the Lobby again.
@@ -233,7 +233,7 @@ func build_roster(config: MatchConfig) -> Array[Dictionary]:
 	return roster
 
 
-## M5 P4 (docs/archive/M5_PLAN.md): one synthetic row per bot seat, slot_id running
+## One synthetic row
 ## from player_count - ai_count to player_count - 1 -- the same formula
 ## autoload/match/MatchLifecycle.gd's _build_slots() uses for
 ## PlayerSlot.is_bot, so the lobby preview and the real match slots never
@@ -340,7 +340,7 @@ func set_editable(is_host: bool) -> void:
 ## and Add bot button, then per row the colour box, the team button, a bot's difficulty
 ## dropdown and its remove button -- every row for the host, only its own row's colour
 ## box and team button for a client. A disabled header control is no focus stop.
-## The chat edit (and its log) are deliberately NOT listed (docs/CHAT_PLAN.md section 4): chat input is
+## The chat edit (and its log) are deliberately NOT listed:
 ## keyboard/mouse only, so a pad can never be trapped in the text field.
 func focus_entries() -> Array[Control]:
 	var entries: Array[Control] = []

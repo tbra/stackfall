@@ -41,7 +41,7 @@ const SHAPES_DIR: String = "res://config/blocks/"
 ##
 ## item 3 (feel report: "the ghost/body pivot is the
 ## block's middle, so half the block sinks below the cursor point and clips
-## into the disk"): the geometric centre from mv0.12 fixed the *rotation*
+## into the disk"): the geometric centre from the earlier fixed the *rotation*
 ## drift but was still a mid-height pivot for placement purposes. This is now
 ## `bottom_center()` instead of `center()` — the x/z centre of the cell
 ## bounds unchanged, but y is the bottom face of the lowest cell

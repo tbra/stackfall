@@ -1,6 +1,6 @@
 class_name HudChat
 extends Control
-## In-match chat adapter (docs/CHAT_PLAN.md sections 3 and 4): hosts a HUD-skin
+## In-match chat adapter (sections 3 and 4 of the chat design):
 ## UiChatPanel in the bottom-left corner above the held/next preview, feeds it from the Events chat
 ## signals, opens it with the chat_open action and tells the rest of the game when it owns the keyboard
 ## (Events.chat_input_opened / chat_input_closed; PlayerController and CameraRig listen like they do for

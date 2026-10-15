@@ -695,7 +695,7 @@ func _apply_ready_styles() -> void:
 	_prompt_text.add_theme_color_override("font_color", arcade.cream_color)
 
 
-## Stackfall Arcade LoadingCard (docs/UI_RESKIN_PLAN.md P5): the disc-800 plate, the
+## Stackfall Arcade LoadingCard:
 ## mode name in Bungee, one diamond + progress-cell row per player. No spinners.
 func _apply_card_style() -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()

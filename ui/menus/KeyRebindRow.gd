@@ -1,6 +1,6 @@
 class_name KeyRebindRow
 extends Button
-## docs/archive/M6_PLAN.md package C2: one row per rebindable Input Map action, built
+## One row per rebindable
 ## dynamically by ui/menus/OptionsMenu.gd's _build_rebind_rows() (one instance of
 ## this scene per OptionsMenu.REBINDABLE_ACTIONS entry). Shows the action's
 ## current binding(s) as InputGlyph icons (InputMap.action_get_events(),
@@ -72,7 +72,7 @@ const DISPLAY_NAMES: Dictionary[StringName, String] = {
 	&"chat_open": "Chat",
 }
 
-## 1pi.159.62, option A: the gamepad page lists only
+## The gamepad page lists only
 ## the pad's real controls. The pad rotates with B (rotate_snap, a 90 degree tap) and with
 ## RT held + left stick (rotate_drag_pad, free rotation), so those two have their own rows
 ## ("Rotate 90 deg", "Free rotate (hold)") and the keyboard rows that used to show them as
@@ -96,7 +96,7 @@ const PAD_ONLY_ACTIONS: Array[StringName] = [&"rotate_snap", &"rotate_drag_pad"]
 ## and zoom in/out (the pad zooms with LT + left stick). "Orbit camera" (right
 ## stick) stays as the one camera row a pad player may want to read.
 ##
-## 1pi.159.62: also hidden on the pad page are the rows that
+## Also hidden on the pad page
 ## only ever showed a stand-in (Rotate left/right, Free rotation mode, Free rotate (drag)) and
 ## Orbit camera (the right stick always orbits and is not rebindable). "Orbit camera" stays on
 ## the mouse/keyboard page (right mouse button).
@@ -107,7 +107,7 @@ const PAD_NOT_APPLICABLE: Array[StringName] = [
 	&"camera_mode", &"camera_modifier",
 	&"camera_pan_left", &"camera_pan_right", &"camera_pan_forward", &"camera_pan_back",
 	&"camera_zoom_in", &"camera_zoom_out",
-	# chat is keyboard only (docs/CHAT_PLAN.md section 4), no pad function.
+	# chat is keyboard only, no pad function.
 	&"chat_open",
 ]
 
@@ -277,7 +277,7 @@ func _show_listening_glyph() -> void:
 
 
 ## Captures the very next real input while listening -- InputEventKey,
-## InputEventMouseButton or InputEventJoypadButton (docs/archive/M6_PLAN.md package
+## InputEventMouseButton or InputEventJoypadButton (the rebinding rule
 ## C2's own list) or, since an InputEventJoypadMotion past
 ## OptionsVisualTuning.rebind_axis_threshold (triggers and stick directions, stored as axis +
 ## sign; _handle_motion). Pad B binds instead of cancelling.

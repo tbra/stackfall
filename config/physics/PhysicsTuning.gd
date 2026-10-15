@@ -110,7 +110,7 @@ extends Resource
 @export var release_tilt_min_gap_cubes: float = 1.0
 
 ## -- Stable-block freeze (spec 2.7 "Stable-block optimization" [NEW],
-## docs/M8_PLAN.md P5) ---------------------------------------------------------
+## ---
 ## DECISION (config/physics/PhysicsTuning.gd): spec 2.7 gives this rule's own number
 ## directly ("asleep for more than 20 s") -- no fidelity-table ambiguity to
 ## resolve, unlike some of this file's other fields. 20.0 also matches the
@@ -122,7 +122,7 @@ extends Resource
 ## frozen) the instant it wakes, per spec 2.7's "goes back to normal the
 ## moment any impulse, tilt, or change in the cells under it happens".
 @export var stable_freeze_delay_s: float = 20.0
-## DECISION (config/physics/PhysicsTuning.gd): docs/M8_PLAN.md's own P5 section
+## DECISION (config/physics/PhysicsTuning.gd): the physics tuning section
 ## suggested reusing a bare internal accumulator instead of a tunable here,
 ## since spec 2.7 names no interval of its own -- but this project's own "no
 ## magic numbers" rule (CLAUDE.md) is stricter than that suggestion, so this

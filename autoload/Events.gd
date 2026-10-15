@@ -29,11 +29,11 @@ const REASON_GIFT_DESPAWN: StringName = &"gift_despawn"
 signal block_dissolve_started(block: RigidBody3D, net_id: int, duration_s: float)
 
 ## Host-only: `members` (Array[Block], newly fused) joined `carrier` (FusedBody).
-## Glue fusion (docs/GLUE_FUSION_PLAN.md WP0 stub; no emitter yet).
+## Glue fusion: stub signal, no emitter yet.
 signal blocks_fused(carrier: Node, members: Array)
 
 ## Host-only: a member left its fused body (dissolved, collapsed to a single block,
-## or the body ended). Glue fusion (docs/GLUE_FUSION_PLAN.md WP0 stub; no emitter yet).
+## or the body ended). Glue fusion: stub signal, no emitter yet.
 signal fused_member_released(member: Node)
 
 # --- M2: match flow (spec 2.4) ----------------------------------------------
@@ -189,7 +189,7 @@ signal claim_tension_changed(level: float, mine: bool)
 signal claim_interrupted(was_mine: bool, peak: float)
 
 ## A slot's home flag was lost to a hole opening under it (spec 1.5 is silent
-## on this; docs/archive/M2_PLAN.md's : this eliminates the slot —
+## on this; this eliminates the slot's home-flag path (see below).
 ## PlayerSlot.home_flag_alive goes false, its circles unanchor, and it gets no
 ## more feed). Match ends the match itself via match_won if only one
 ## player/team is left.
@@ -228,14 +228,14 @@ signal gift_claimed(gift_id: int, slot_id: int, special_id: StringName)
 ## A crate lived past GiftConfig.life_s without being claimed.
 signal gift_expired(gift_id: int)
 
-## M4 P2c (docs/archive/M4_P2_PACKAGES.md, orchestrator amendment 2): a spawned
+## A spawned gift that is a special (placed or thrown) triggers the spawn path
 ## special (placed or thrown) triggered -- game/gifts/specials/SpecialBehavior.gd
 ## emits its own `triggered(def_id, position, chain_depth)` signal per
 ## instance; autoload/match/MatchPlacement.gd connects every behaviour it
 ## attaches to a forwarder that re-emits it here with the block's net_id
 ## added, so a listener can tell which block without holding a live reference
 ## to it. Host-only: only the host ever attaches a SpecialBehavior (a client
-## never calls _spawn_block() -- decision 4 in docs/archive/M4_P2_PACKAGES.md).
+## never calls _spawn_block() -- see the decision list in the spawn section.
 ## net/MatchNet.gd (not this package) replicates it to
 ## clients from here.
 signal special_triggered(net_id: int, def_id: StringName, position: Vector3, chain_depth: int)
@@ -289,7 +289,7 @@ signal net_mode_changed(mode: int)
 signal net_peer_joined(peer_id: int, slot_id: int, player_name: String)
 
 ## A peer disconnected. `reason` is a Net.LeaveReason value. The host decides
-## what happens to its slot (docs/archive/M3a_PLAN.md); this is the notification, not
+## what happens to its slot; this is the notification, not
 ## the decision.
 signal net_peer_left(peer_id: int, slot_id: int, reason: int)
 
@@ -340,7 +340,7 @@ signal remote_cursor_updated(
 	slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion
 )
 
-# --- M3b: Steam transport (spec 2.6, docs/archive/M3b_PLAN.md P1) -------------------
+# --- Steam transport (spec 2.6) -------------------------------------------------
 
 ## Net.init_steam() finished (or the extension isn't installed). `available`
 ## mirrors Net.steam_available(); `detail` is a human-readable line for the
@@ -435,7 +435,7 @@ signal weather_state_changed(state: Dictionary)
 signal breeze_gust_started(gust: Dictionary)
 
 
-# --- Player chat (docs/CHAT_PLAN.md). Net relays, UI listens. ---
+# --- Player chat. Net relays, UI listens. ---
 
 ## A UI submitted a chat line (raw typed text; the host cleans it).
 signal chat_send_requested(text: String)

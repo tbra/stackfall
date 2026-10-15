@@ -1,6 +1,6 @@
 extends Node
 ## NetworkManager: transport selection, host/join, LAN discovery, peer registry
-## (spec 2.6, docs/archive/M3a_PLAN.md P1).
+## (spec 2.6).
 ##
 ## Gameplay code only ever talks to MultiplayerAPI; this node decides whether
 ## the peer underneath is ENet (LAN, direct IP, tests — M3a) or Steam (M3b).
@@ -39,9 +39,9 @@ const HOST_PEER_ID: int = 1
 const DISCOVERY_MAGIC: StringName = NetIds.DISCOVERY_MAGIC
 
 ## Steam's public test app ("Spacewar"), passed directly into
-## Steam.steamInitEx() (docs/archive/M3b_RESEARCH.md's spike: no steam_appid.txt is
+## Steam.steamInitEx() (the spike showed that no steam_appid.txt is
 ## needed once the app id is passed as an argument). Named here, not in
-## net/SteamClient.gd, per docs/archive/M3b_PLAN.md's tunables table.
+## net/SteamClient.gd, per the tunables table in config/net/NetConfig.gd.
 const STEAM_APP_ID_EXPECTED: int = NetIds.STEAM_APP_ID_EXPECTED
 
 ## size of a rejoin token (random bytes; hex doubles it) and
@@ -78,7 +78,7 @@ var _disconnecting_peers: Dictionary = {}
 ## peer (_on_peer_disconnected) and with the session (_reset_rejoin_state).
 var _seat_pref_buckets: Dictionary = {}
 
-## -- Player chat (docs/CHAT_PLAN.md section 2) ----------
+## -- Player chat ----------------------------------------------------------------
 ## Tunables (clamped in _ready like `config`).
 var chat_config: ChatConfig = preload("res://config/net/chat_config.tres")
 ## Host only: peer_id -> ChatRules.Bucket (flood), peer_id -> {"text", "at"} (duplicate
@@ -187,7 +187,7 @@ var _upnp: UpnpRunner = UpnpRunner.new()
 ## concern (spec 2.6: only the host's MatchConfig ever matters).
 var _match_config_override: MatchConfig = null
 
-## docs/archive/M3b_PLAN.md P1: the Steam-facing seam, exactly the net_provider/
+## The Steam-facing seam, exactly the net_provider/
 ## match_provider pattern ui/menus/MainMenu.gd, ui/lobby/Lobby.gd and
 ## ui/debug/NetDebugOverlay.gd already use. Set to a real SteamClient in _ready();
 ## tests overwrite it with a FakeSteam.
@@ -251,7 +251,7 @@ var _steam_ready: bool = false
 ## DECISION: GodotSteam's signals carry no call-correlation id, so "which
 ## queued generation an answer resolves" is necessarily FIFO-by-issue-order,
 ## not true per-call identity — matching Steamworks' own practical ordering
-## for same-typed calls from one local client (docs/archive/M3b_RESEARCH.md). This
+## for same-typed calls from one local client. This
 ## still guarantees the two invariants that matter: no lobby is ever
 ## orphaned, and exactly one attempt can ever become the live session.
 var _steam_request_generation: int = 0
@@ -748,7 +748,7 @@ func set_lobby_data(data: Dictionary) -> void:
 	# review: same teardown hazard as _broadcast_roster().
 	for peer_id: int in _broadcast_targets():
 		_rpc_lobby_data.rpc_id(peer_id, _lobby_data)
-	# docs/archive/M3b_PLAN.md "Design notes": tee the same Dictionary into Steam
+	# Tee the same Dictionary into Steam
 	# lobby data, under one JSON key, every time this is called — the exact
 	# call site ui/lobby/Lobby.gd already has, so it needs no change of its own.
 	if _steam_session and steam_provider != null and _steam_lobby_id != 0:
@@ -763,7 +763,7 @@ func lobby_data() -> Dictionary:
 	return _lobby_data
 
 
-# --- Steam session (spec 2.6, docs/archive/M3b_PLAN.md P1) --------------------------
+# --- Steam session (spec 2.6) --------------------------------------------------
 #
 # M3b is a peer swap, not a new architecture: host_online()/join_lobby() are
 # the Steam-shaped host_game()/join_game(), but Steam's own matchmaking calls
@@ -773,14 +773,14 @@ func lobby_data() -> Dictionary:
 # actual _mode transition and multiplayer.multiplayer_peer assignment happen
 # in _on_steam_lobby_created()/_on_steam_lobby_joined() once Steam answers.
 # From that point on _rpc_handshake, the roster RPCs and _on_connected_to_
-# server() all run completely unmodified (docs/archive/M3b_PLAN.md "the version check
+# server() all run completely unmodified (the version check
 # needs no new code") because they only ever touch MultiplayerAPI, never a
 # concrete peer type.
 
 ## False whenever the addon was never installed in this checkout (most
-## worktrees; see docs/archive/M3b_RESEARCH.md "Spike results") OR Steam.steamInitEx()
+## worktrees, see the spike results) OR Steam.steamInitEx()
 ## has not yet succeeded (status != 0 — client not running, out of date, or
-## init_steam() simply hasn't been called yet). docs/archive/M3b_PLAN.md "Design
+## init_steam() simply hasn't been called yet). The design notes
 ## notes": "addon not installed" and "status != 0" are logged with different
 ## messages but collapse to this one false for every UI purpose — the whole
 ## point being a caller never needs to ask which case it is.
@@ -1010,7 +1010,7 @@ func _on_steam_lobby_created(result: int, lobby_id: int) -> void:
 	# value GodotSteam's own docs describe for this exact signal), not
 	# re-verified against isteamclient.h/steamtypes.h in this checkout — no
 	# Steamworks SDK headers are bundled in the downloaded GDExtension zip
-	# (see docs/archive/M3b_RESEARCH.md "Spike results").
+	# (see the spike results).
 	if result != 1:
 		Events.net_join_failed.emit(JoinError.TRANSPORT, "Steam lobby creation failed (result %d)" % result)
 		return
@@ -1020,7 +1020,7 @@ func _on_steam_lobby_created(result: int, lobby_id: int) -> void:
 	)
 	# Tag the lobby *before* attempting to instantiate the transport peer.
 	# ClassDB.instantiate(&"SteamMultiplayerPeer") succeeding is explicitly
-	# unverifiable by GUT (docs/archive/M3b_PLAN.md "Testing without Steam" /"Known
+	# unverifiable by GUT (see the testing notes below and the known limitations) on any checkout that hasn't installed the addon, but the
 	# limitations") on any checkout that hasn't installed the addon, but the
 	# lobby-data write itself only needs steam_provider, so ordering it first
 	# keeps this half of host_online()'s contract testable with FakeSteam
@@ -1208,7 +1208,7 @@ func _on_steam_lobby_join_requested(lobby_id: int, _friend_id: int) -> void:
 const _SMOKE_LOBBY_WAIT_S: float = 5.0
 const _SMOKE_LIST_WAIT_S: float = 6.0
 
-## docs/archive/M3b_PLAN.md P1's "windowed single-PC Steam smoke test", reached only
+## the windowed single-PC Steam smoke test, reached only
 ## through --host-online (see _apply_command_line_args()'s DECISION above).
 ## Never run by any automated test or by normal play; prints exactly what
 ## that acceptance step needs onto stdout so the check can be read off a
@@ -1265,7 +1265,7 @@ func stop_discovery() -> void:
 ## `lag_ms` is one-way. Configures this instance's own queue for outbound
 ## intents and cursors, and forwards to SnapshotSync so inbound snapshots get
 ## the same settings on its own queue — the two sides must not share one
-## NetSim, or they would steal each other's payloads (docs/archive/M3a_PLAN.md,
+## NetSim, or they would steal each other's payloads (see the known limitations),
 ## integrator wiring). # DECISION: SnapshotSync is an autoload, so it is
 ## always safe to reach directly here rather than through a signal.
 func set_simulation(lag_ms: float, jitter_ms: float, loss: float) -> void:
@@ -1320,7 +1320,7 @@ func report_stats(source: StringName, values: Dictionary) -> void:
 ## --host-online, --advertise (headless hosts opt in to LAN broadcast), --player-name=<s>, --sim-lag=<ms>, --sim-loss=<fraction>
 ## from OS command-line arguments after "--" and acts on them, then separately scans
 ## the full command line for Steam's own "+connect_lobby <id>" launch
-## convention (docs/archive/M3b_PLAN.md "Design notes": Valve's own argv convention,
+## convention (Valve's own argv convention,
 ## not this project's --flag=value one, so OS.get_cmdline_user_args() — the
 ## tokens after Godot's own "--" — would never see it). Called once by
 ## game/main/Main.gd so a headless instance needs no UI. Returns true when an
@@ -1377,13 +1377,13 @@ func _apply_command_line_args(args: PackedStringArray) -> bool:
 		return true
 
 	# DECISION: --host-online is this package's own windowed single-PC Steam
-	# smoke test aid (docs/archive/M3b_PLAN.md P1 acceptance), not a shipped player
+	# smoke test aid (the Steam acceptance check), not a shipped player
 	# entry point — no menu button reaches it. It exists only so the smoke
 	# test can be launched and observed from stdout with `godot --path .
 	# -- --host-online` on a machine that already has the addon installed and
 	# Steam running, without needing game/main/Main.gd's own
 	# Net.init_steam() call (the integrator's not-yet-landed line, step 4 of
-	# docs/archive/M3b_PLAN.md's integration order) to already be wired in. Uses the
+	# the integration order) to already be wired in. Uses the
 	# same existing bare-flag convention --host/--headless-host already do,
 	# not a new parser shape.
 	if flags.has("host-online"):
@@ -1494,7 +1494,7 @@ func _make_client_peer(address: String, port: int) -> MultiplayerPeer:
 ## match. Still the only two functions in the file (besides the ENet pair
 ## above) that may name a concrete peer class — here reached purely through
 ## ClassDB, never a static `SteamMultiplayerPeer` type, so this file still
-## parses in a checkout without the addon installed (docs/archive/M3b_PLAN.md
+## parses in a checkout without the addon installed (see the Steam notes
 ## "Design notes"; ClassDB.class_exists(&"SteamMultiplayerPeer") verified
 ## true with the addon installed on this machine, false without it).
 ##
@@ -1507,7 +1507,7 @@ func _make_client_peer(address: String, port: int) -> MultiplayerPeer:
 ## `not (steam_provider is SteamClient)` guards the FakeSteam-driven case a
 ## GUT test always uses, so ClassDB.instantiate(&"SteamMultiplayerPeer") is
 ## architecturally unreachable from any automated test regardless of what a
-## FakeSteam's signals claim — the exact thing docs/archive/M3b_PLAN.md's "Testing
+## FakeSteam's signals claim — the exact thing the "Testing
 ## without Steam" says GUT cannot verify either way.
 func _make_steam_host_peer() -> MultiplayerPeer:
 	if steam_host_peer_override != null:
@@ -1589,7 +1589,7 @@ func _on_peer_disconnected(id: int) -> void:
 	_chat_system_line(_CHAT_LEFT_FORMAT % left_name)
 	# DECISION: ENet's peer_disconnected carries no reason, and distinguishing
 	# a graceful client leave() from a dropped connection would need its own
-	# wire message. Reported uniformly as TIMEOUT; docs/archive/M3a_PLAN.md's grace
+	# wire message. Reported uniformly as TIMEOUT; the grace
 	# period (P3's Match.on_peer_left) reacts the same way either way, so this
 	# has no gameplay impact.
 	Events.net_peer_left.emit(id, slot_id, LeaveReason.TIMEOUT)
@@ -1712,7 +1712,7 @@ func _reclaimable_slot_for(rejoin_token: String) -> int:
 
 ## The slot a lobby joiner (or a spectator returning to the lobby) is seated in.
 ##
-## docs/LOBBY_REWORK_PLAN.md R4: the LOWEST free slot, not the next
+## Decision R4 of the lobby rework: the LOWEST free slot, not the next
 ## monotonic id, so a joiner never lands above a hole. (_compact_lobby_slots closes
 ## the holes a leaver makes; this keeps the invariant for every seating path.)
 ## "Free" = no roster entry holds it and no rejoin reservation names it. Mid-match
@@ -1970,7 +1970,7 @@ func _fail_join(error: int, detail: String = "") -> void:
 
 ## Host only. Whether _rpc_handshake may still seat a new peer. Spec 2.6 makes
 ## joining lobby-only in M3a ("Mid-match joins can be enabled in settings" is a
-## future setting; docs/archive/M3a_PLAN.md "Known limitations": "the host refuses new
+## future setting; the known-limitations list says "the host refuses new
 ## connections once the match starts"). A peer that handshakes while this is
 ## false is refused with JoinError.MATCH_IN_PROGRESS and disconnected, gets no
 ## slot, and the existing roster is not touched or re-broadcast.
@@ -1985,13 +1985,13 @@ func _fail_join(error: int, detail: String = "") -> void:
 ## DECISION (autoload/Net.gd): a flag the match flow flips,
 ## not a subscription to Events.match_state_changed. That signal carries
 ## Match.State ints, and deciding which value is "lobby" would make this file
-## name a gameplay concept (docs/archive/M3a_PLAN.md P1: "Must NOT name a gameplay
+## name a gameplay concept (the Net contract: "Must NOT name a gameplay
 ## concept — no Match"). Match already depends on Net (Net.is_host()), so the
 ## dependency keeps its existing direction. Wire it where the state machine
 ## moves: `Net.set_accepting_joins(to_state == Match.State.LOBBY)` in
 ## game/main/Main.gd's _on_match_state_changed() (or Match._set_state()).
 ##
-## The transport stays open on purpose. docs/archive/M3a_PLAN.md suggests
+## The transport stays open on purpose. The known-limitations notes suggest
 ## set_refuse_new_connections(true) once the match starts, but that fails the
 ## late joiner's connection at the ENet layer, which surfaces as
 ## JoinError.TRANSPORT or TIMEOUT — not a message the lobby can explain.
@@ -2156,7 +2156,7 @@ func _rpc_loading_gate_open() -> void:
 
 # --- Lobby seat preferences ---------------------------------
 #
-# docs/LOBBY_REWORK_PLAN.md section 3: the host owns every seat's picks; a client
+# Lobby rework section 3: the host owns every seat's picks
 # may change only its OWN colour and team, and does so by sending this intent. Net
 # is transport only: it takes the peer id from the connection, refuses anything
 # that is not a plain in-range request from a seated peer in the lobby, and hands
@@ -2247,7 +2247,7 @@ func _seat_pref_take_token(peer_id: int, now: float) -> bool:
 	return allowed
 
 
-# --- Player chat (docs/CHAT_PLAN.md section 2) ---------------------------------
+# --- Player chat ---------------------------------------------------------------
 
 ## UI entry point (Events.chat_send_requested). A client cleans the text (bounds the
 ## wire cost) and submits it to the host; the host runs the same checks on its own

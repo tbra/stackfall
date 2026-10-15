@@ -2,7 +2,7 @@ class_name GhostTuning
 extends Resource
 ## Ghost preview / placement control-feel tunables (spec 1.4) that aren't
 ## physics-body numbers, so they live apart from PhysicsTuning. M2 package P4
-## (docs/archive/M2_PLAN.md) also parks its HUD tunables here rather than inventing a
+## also parks its HUD tunables here
 ## second resource just for a couple of floats — CLAUDE.md's "no magic
 ## numbers" rule cares that every tunable lives in *some* res://config/
 ## resource, not that each owner gets its own file.
@@ -309,7 +309,7 @@ extends Resource
 @export var hatch_stripe_width: float = 0.5
 
 ## -- Reject animation (spec 1.5: "thrown off the map with a visible reject
-## animation" — see docs/archive/M2_PLAN.md 2) ------------------------
+## animation" — see placement rule 2) 
 @export var reject_flash_color: Color = Color(1.0, 1.0, 1.0, 0.9)
 @export var reject_flash_duration: float = 0.12
 ## Sideways (+world X) and upward (+world Y) distance the ghost kicks during
@@ -433,7 +433,7 @@ extends Resource
 ## horizontally away from the field centre (the side the home camera sits on).
 @export var home_spawn_back_offset: float = 2.0
 
-## -- Throw aim (M4 P2e, docs/archive/M4_P2_PACKAGES.md P2e; spec 1.6 "Throw
+## -- Throw aim (spec 1.6
 ## (specials only)") ----------------------------------------------------------
 ## Ghost tint while game/player/PlayerController.gd's is_aiming_throw() is true
 ## (game/player/GhostPreview.gd's show_throw_hint()) -- distinct from every other

@@ -1,6 +1,6 @@
 class_name ResultsTableTuning
 extends Resource
-## Stackfall Arcade results table / scoreboard overlay / loading card numbers (docs/UI_RESKIN_PLAN.md
+## Stackfall Arcade results table / scoreboard overlay / loading card numbers (
 ## P5). Colours and radii come from ArcadeVisualTuning; this holds only the sizes and
 ## mixes specific to ui/menus/ScoreTable.gd, ui/menus/ResultsScreen.gd and ui/hud/ScoreboardOverlay.gd
 ## (the loading card's own sizes live in config/ui/LoadingScreenTuning.gd).

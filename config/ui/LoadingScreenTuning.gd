@@ -111,7 +111,7 @@ extends Resource
 @export var warm_camera_distance: float = 8.0
 @export var warm_mesh_offset: float = 1.5
 
-## --- / 1pi.157: the loading backdrop. The image is one of the main menu's
+## --- the loading backdrop.
 ## (MainMenuTuning.backdrop_paths, the single list), picked at random per loading screen and
 ## drawn cover-cropped behind the loading card.
 

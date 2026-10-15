@@ -7,7 +7,7 @@ extends Button
 ## ui_right switches on (like the other value controls). The well and knob are drawn here from
 ## ArcadeVisualTuning + ComponentMetrics; the word is the Button's own text. Disabled keeps showing
 ## its state, dimmed by `disabled_alpha`.
-## DECISION (1pi.159.5): the knob jumps between its two ends (no slide tween); the design's motion
+## DECISION:
 ## tokens are not wired into any component yet.
 
 const WORD_ON: String = "ON"

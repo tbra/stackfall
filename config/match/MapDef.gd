@@ -34,7 +34,7 @@ const BASE_PATH: String = "res://config/match/maps/round.tres"
 
 ## Spec 2.5: the disk's collision is a square grid of BoxShape3Ds of this
 ## edge length, clipped to the disk. One cell is also one pixel of the
-## authoritative territory raster (see docs/archive/M2_PLAN.md, "Raster resolution").
+## authoritative territory raster ("Raster resolution").
 @export var cell_size: float = 1.0
 
 ## Spec 2.5: the size of the ImageTexture handed to territory.gdshader. The

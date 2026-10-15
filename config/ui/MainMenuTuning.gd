@@ -1,6 +1,6 @@
 class_name MainMenuTuning
 extends Resource
-## UI reskin P1, docs/UI_RESKIN_PLAN.md: every tunable of the Stackfall Arcade
+## UI reskin P1:
 ## main menu that is not a shared design token (those live in config/ui/ArcadeVisualTuning.gd): the
 ## left column and scrim geometry (ui/menus/MainMenu.gd). The backdrop is a static image
 ## , set on the scene's BackdropImage node by MenuBackdrop picks one

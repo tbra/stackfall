@@ -1,10 +1,10 @@
 class_name MainMenu
 extends Control
-## The game's front door (spec 2.6 "LAN discovery"; docs/archive/M3a_PLAN.md P4).
+## The game's front door (spec 2.6 "LAN discovery").
 ##
-##  docs/archive/M3a_PLAN.md question 3: hot-seat is unlisted — this
+##  Hot-seat is unlisted — this
 ## menu offers only Host, Join (LAN list or direct IP), Sandbox (docs/
-## M6_PLAN.md package B1, spec 1.2), Tutorial (docs/archive/M6_PLAN.md package B3,
+## spec 1.2), Tutorial,
 ## spec 1.2) and Quit. Hot-seat is reachable solely through the `--hot-seat`
 ## command-line flag, which `Net.apply_command_line()` / `game/main/Main.gd`
 ## handle before this scene is even shown.
@@ -21,7 +21,7 @@ extends Control
 ## add_child().
 var net_provider: Variant = null
 
-## docs/archive/M6_PLAN.md package B1: game/main/Main.gd instantiates this scene directly
+## game/main/Main.gd instantiates this scene directly
 ## (`_show_main_menu()`) and connects to this signal the same way it connects
 ## to ui/lobby/Lobby.gd's own `start_requested` -- a direct child-signal connection,
 ## not the Events bus, since Main already owns this node's lifetime and this
@@ -32,7 +32,7 @@ var net_provider: Variant = null
 ## stays command-line only).
 signal sandbox_requested
 
-## docs/archive/M6_PLAN.md package B3: %TutorialButton's own signal, the same direct
+## %TutorialButton's own signal, the same direct
 ## child-signal convention sandbox_requested above uses -- game/main/Main.gd's
 ## start_tutorial_from_menu() connects to this in _show_main_menu(),
 ## mirroring its own start_sandbox_from_menu() hookup.
@@ -58,7 +58,7 @@ const HOST_STEAM_TEXT: String = "Host on Steam"
 const HOST_DIALOG_QUESTION: String = "How should friends connect?"
 const HOST_STEAM_UNAVAILABLE: String = "Steam is unavailable; host locally instead."
 
-## docs/archive/M6_PLAN.md package C2: OptionsMenu.tscn is instanced/freed directly by
+## OptionsMenu.tscn is instanced/freed directly by
 ## this menu (ui/menus/OptionsMenu.gd's own header: "self-contained ... MainMenu
 ## instances this scene directly"), not routed through game/main/Main.gd -- the
 ## same reason sandbox_requested/tutorial_requested above are direct
@@ -128,7 +128,7 @@ var _syncing_tabs: bool = false
 @onready var _gamepad_hint_pill: UiWell = %GamepadHintPill
 @onready var _hint_row: InputPromptFlow = %GamepadHintRow
 
-## M3b (docs/archive/M3b_PLAN.md P3): the Steam section vs. the "not available" notice
+## The Steam section vs. the
 ## (spec 2.6: "Hide the online menu entries and show a notice").
 @onready var _steam_section: VBoxContainer = %SteamSection
 @onready var _host_online_button: Button = %HostOnlineButton
@@ -149,7 +149,7 @@ var _games: Array[Dictionary] = []
 var _steam_lobbies: Array[Dictionary] = []
 
 ## Seconds until the next automatic refresh_lobby_list() poll while the Steam
-## section is visible (docs/archive/M3b_PLAN.md: "Steam's request_lobby_list() is
+## section is visible ("Steam's request_lobby_list() is
 ## pull-based ... call it on a config.steam_lobby_list_refresh_s timer"). A
 ## plain accumulator rather than a Timer node, since it only needs to run
 ## while _steam_section is visible and reads its interval from
@@ -716,7 +716,7 @@ func _on_tutorial_pressed() -> void:
 	tutorial_requested.emit()
 
 
-## docs/archive/M6_PLAN.md package C2: hides %Center (this menu's own root layout)
+## hides %Center
 ## rather than this whole MainMenu, so the background stays visible behind
 ## OptionsMenu's own semi-transparent %Background -- matches OptionsMenu.tscn
 ## being authored as an overlay, not a full scene swap.

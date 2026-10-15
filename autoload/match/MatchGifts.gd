@@ -49,7 +49,7 @@ var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _rng_ready: bool = false
 var _next_gift_id: int = 0
 
-## Orchestrator amendment 1 (docs/archive/M4_P2_PACKAGES.md): the special
+## The special
 ## TYPE is drawn here, at claim time, on the host -- not at spawn time. Spec
 ## 2.6 hands a player "a special as the next piece", so the player (and
 ## later the HUD/ghost) must be able to know what they hold while aiming,

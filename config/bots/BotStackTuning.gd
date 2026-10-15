@@ -1,6 +1,6 @@
 class_name BotStackTuning
 extends Resource
-## Tower-statics tunables for core/ai/BotStack.gd (.53a, docs/BOT_TOWER_PLAN.md
+## Tower-statics tunables for core/ai/BotStack.gd (Distances are metres).
 ## C "1t5.53a"). Shipped values live in config/bots/bot_stack_tuning.tres. Distances are metres.
 
 ## A cube is above another when its centre is higher by 0 < dy <= cube size + this.

@@ -4,7 +4,7 @@ extends Node
 ## Persisted to a single user://settings.cfg ConfigFile (this autoload already
 ## runs before any scene, project.godot's [autoload] section) and saved on
 ## every setter -- small, infrequent writes, no debouncing needed
-## (docs/archive/M6_PLAN.md package C1).
+## (audio and options settings).
 ##
 ## Settings only stores the user's choices and emits signals; it never
 ## touches a Viewport/Environment or plays audio itself -- C2 (options menu)
@@ -821,7 +821,7 @@ func window_mode_label(id: StringName) -> String:
 ##    (tool mode), which owns its own window. Not OS.has_feature("editor"):
 ##    that is true for every run from this repo's editor binary, including the
 ##    owner's own `godot --path .` launches, and would make the setting inert
-##    until an export template exists (orchestrator correction, xtq.45).
+##    until an export template exists.
 ##  - `--position`, `--windowed` or `-w` in OS.get_cmdline_args(): an explicit
 ##    windowed/off-screen CLI request wins over the saved mode. Our own
 ##    screenshot/probe tools launch with `--windowed --position 10000,10000`

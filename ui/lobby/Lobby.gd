@@ -2,7 +2,7 @@ class_name Lobby
 extends Control
 ## Every spec 1.9 match setting as a control, synced as lobby data so every
 ## client sees the host's settings (spec 2.6 "Steam lobbies store match
-## settings as lobby data"; docs/archive/M3a_PLAN.md P4).
+## settings as lobby data").
 ##
 ## **The round trip.** The host builds a MatchConfig from its controls,
 ## serializes it with to_dict(), merges in the roster, and calls
@@ -10,7 +10,7 @@ extends Control
 ## own UI never waits on an echo that may not arrive over a stub or a lossy
 ## transport — applies the same Dictionary through _apply_data(): from_dict(),
 ## then sanitize() so a value that arrived out of its spec 1.9 range is
-## clamped rather than trusted (docs/archive/M3a_PLAN.md P4 "Tests first"). A guard
+## clamped rather than trusted ("Tests first").
 ## flag stops that inbound apply from re-triggering another outbound publish.
 ##
 ## **Host-only editing.** Net.is_host() is true on the host and offline
@@ -21,7 +21,7 @@ extends Control
 ## Connects to Events and Net only — no node paths into game/main/Main.gd. Start
 ## is a signal for whoever owns scene-building (the integrator's Main) to
 ## react to; this script never calls Match.start_match() itself, on the host
-## or (per docs/archive/M3a_PLAN.md P4 "Must NOT") on a client.
+## or ("Must NOT") on a client.
 
 ## Emitted when the host presses Start with every peer ready. `config` is the
 ## sanitized MatchConfig the lobby is currently showing.
@@ -75,7 +75,7 @@ const SPATIAL_HEIGHT_WEIGHT: float = 4.0
 ## matching DECISION comment pointing back here.
 const ALL_DISABLED_SENTINEL: StringName = &"__none__"
 
-## docs/QOL_EXPERIMENTS_PLAN.md, Q1: the shared experiments
+## Shared experiments:
 ## resource the F4 panel edits. The four enable flags come from the lobby's
 ## "Experiments" checkboxes; every numeric parameter (pause_event_s,
 ## backlog_max, goal_radius_multiplier, ...) is copied from here, so those stay
@@ -106,14 +106,14 @@ var net_provider: Variant = null:
 var _map_thumbnail_icon: TextureRect = null
 ## S1b: the Players/AI steppers, the default-difficulty dropdown and the
 ## segmented Teams control left the settings card -- seats, bots and teams are managed in
-## the players panel (docs/LOBBY_REWORK_PLAN.md section 2). These four stay as HIDDEN
+## the players panel (section 2 of the lobby layout).
 ## sources of truth under %HiddenSources (the pattern the map combo already uses): every
 ## read and write of `.value` / `.selected`, the host-only gating, the bot clamp and
 ## the round trip are unchanged, and the panel drives them (_on_teams_toggled,
 ## _set_bot_count). They are never focus stops.
 ## DECISION (ui/lobby/Lobby.gd, PL1b): with the panel's Teams toggle and "+ Add bot" button now
 ## the only way to change them (PL1b), they are no longer a temporary fallback but the
-## state holders docs/LOBBY_REWORK_PLAN.md D6 chose: _config_from_controls() /
+## state holders chosen for the lobby rework:
 ## _apply_data() / _clamp_ai_count_to_seats() and every existing lobby test read and
 ## write them, so removing them would rewrite the whole config round trip (and
 ## tests/unit/ui/test_lobby.gd's 31 references) for no player-visible change.
@@ -213,7 +213,7 @@ var _special_frequency_value: int = 0
 @onready var _header_eyebrow: Label = %Eyebrow
 @onready var _back_button: UiBlockButton = %BackButton
 ## opens the Options overlay. DECISION: it sits in the header beside Back, outside the
-## vertical focus loop (like Back, 1pi.182) so no stray up/down lands on it; reached with left from Back
+## vertical focus loop (like Back)
 ## (left from Start/Ready, then left again) or the lobby_options shortcut (O / pad Select).
 @onready var _options_button: UiBlockButton = %OptionsButton
 ## components.md footer chip: an uppercase label chip, "3 OF 4 READY".
@@ -523,7 +523,7 @@ func _expose(node: Node, unique_name: String) -> void:
 	node.unique_name_in_owner = true
 
 
-## DECISION (reversing 1pi.94): game mode, time of day, weather, tilt and hole mode
+## DECISION (reversing the earlier decision):
 ## are UiCyclers ("<" value ">" blocks, wrapping, ui_left / ui_right step); each bot's difficulty in
 ## LobbySeatRow is a UiCycler too; only its team pill is a popup UiDropdown.
 ## %TeamModeOption is a hidden sources of truth that nobody
@@ -535,7 +535,7 @@ func _populate_options() -> void:
 	_fill_cycle(_ai_difficulty_option, ["Easy", "Normal", "Hard"])
 	_fill_option(_team_mode_option, ["Off", "2 teams", "3 teams", "4 teams"])
 	_fill_cycle(_tilt_mode_option, ["Specials only", "Physical balance"])
-	# Territory v2 (docs/TERRITORY_V2_PLAN.md) added HoleMode.OFF (= 2,
+	# Territory v2 added HoleMode.OFF
 	# appended after TEMPORARY/PERMANENT) as the optional no-overlap mode.
 	# "Off" must still be the option list's third item, at the same index as
 	# the enum value, or OptionButton.selected = 2 on a 2-item list is
@@ -613,7 +613,7 @@ func _fill_cycle(selector: UiCycler, labels: Array) -> void:
 		selector.add_item(label)
 
 
-## M6 A4 (docs/archive/M6_PLAN.md "A4 -- Enabled-specials checklist"): one CheckBox per
+## Enabled-specials checklist:
 ## config/gifts/specials/*.tres with enabled_by_default (SpecialDef.load_selectable_specials(),
 ## ), in id order (the same sorted, deterministic order every peer's own load produces, so the
 ## checklist never shows two peers a differently-ordered list). Checked =
@@ -1373,7 +1373,7 @@ func _set_advanced_available(section: UiSection, available: bool) -> void:
 	section.advanced_button.visible = available
 
 
-## The one place a host's edit turns into a publish (docs/archive/M3a_PLAN.md P4
+## The one place a host's edit turns into a publish
 ## "Tests first": "every setting round-trips through ... Net.set_lobby_data").
 func _on_setting_changed() -> void:
 	if _applying_remote_data:
@@ -1409,7 +1409,7 @@ func _config_from_controls() -> MatchConfig:
 	# forces Match's strict-alternation single-timer branch (autoload/Match.gd
 	# _tick_feed and friends). The lobby is reachable only for networked play —
 	# hot-seat stays a separate, unlisted `--hot-seat` path straight to
-	# game/main/HotSeat.tscn (docs/archive/M3a_PLAN.md question 3) — so every config this
+	# game/main/HotSeat.tscn
 	# screen builds must run the real-time per-player-timer branch instead.
 	config.hot_seat = false
 	# there is one map; the disc size is the choice.
@@ -1876,7 +1876,7 @@ func _on_start_pressed() -> void:
 	start_requested.emit(config)
 
 
-## M3b (docs/archive/M3b_PLAN.md P3): opens the Steam overlay's invite dialog. Only
+## Opens the Steam overlay's invite dialog.
 ## `net_provider.invite_friends()` is called here — never a raw Steam call —
 ## the same discipline every other button handler in this file keeps.
 func _on_invite_friends_pressed() -> void:
