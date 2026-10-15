@@ -13,9 +13,6 @@ extends Resource
 ## angle of the disc plane. Measured against the disc normal (the snapshot's local y), so it holds while the
 ## field tilts. Starts at max_tilt_deg.
 @export var support_face_tolerance_deg: float = 8.0
-## Centre-of-mass margin (metres inside the support hull) at which a site counts as fully safe.
-## Read by the evaluator (53b); BotStack itself only reports the margin.
-@export var safe_margin_m: float = 0.2
 ## Blocks whose centre of mass lies within this distance of a tower source are snapshotted (53b).
 @export var snapshot_radius_m: float = 4.0
 ## Cap on snapshotted bodies, nearest first (53b).

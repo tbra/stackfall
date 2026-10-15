@@ -208,7 +208,7 @@ static func rim_risk(c: BotCandidate, view: BotWorldView) -> float:
 ## column it rests on (top height minus the support height under the site, from the probe), plus
 ## height_top_area_weight per cube of its top layer (capped). DECISION (review): the baseline is the surface
 ## the piece lands on, not the tallest own block, so a bar still stands up on a new base beside tall debris.
-## Added to the REACH term (the intent's REACH weight scales it); the TIP axis (tip risk, stack load margin)
+## Added to the REACH term (the intent's REACH weight scales it); the TIP axis (the statics model's topple penalty)
 ## still penalises standing up unsound.
 static func height_gain(c: BotCandidate, view: BotWorldView) -> float:
 	if view.mode != MatchConfig.GameMode.REACH_THE_SKY or tuning.height_gain_weight <= 0.0:

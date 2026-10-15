@@ -10,8 +10,8 @@ const EASY_AIM: float = 0.5
 const SLIVER_M: float = 0.05
 const PROBE_CONTACT: float = 0.15
 
-var _stack_t: BotStackTuning = preload("res://config/bot_stack_tuning.tres")
-var _gen_t: BotGenTuning = preload("res://config/bot_gen_tuning.tres")
+var _stack_t: BotStackTuning = preload("res://config/bots/bot_stack_tuning.tres")
+var _gen_t: BotGenTuning = preload("res://config/bots/bot_gen_tuning.tres")
 var _cube: BlockShape = preload("res://config/blocks/cube.tres")
 var _view: BotWorldView = null
 var _stack: BotStack = null

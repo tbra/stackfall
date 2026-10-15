@@ -202,7 +202,6 @@ func test_candidates_carry_v2_fields_and_probe_results() -> void:
 	assert_eq(candidate.support_bodies.size(), candidate.probe_points.size())
 	assert_between(candidate.probe_points.size(), 1, 3, "one ray per real bottom cube, capped at the tier")
 	assert_gte(candidate.corner_support_hits, 0)
-	assert_between(candidate.tip_risk, 0.0, 1.0)
 
 
 func test_finish_early_decides_from_what_was_gathered() -> void:

@@ -169,7 +169,7 @@ func test_upright_bars_stand_on_a_wide_sound_top_whatever_their_height() -> void
 
 
 ## ... and a cube or a lying bar3 landing with Normal's aim error rarely knocks it down: bar4/bar5 survive
-## as often as bar3 (within one seed), so slenderness is a soft penalty and not a cap.
+## as often as bar3 (within one seed).
 func test_taller_bars_survive_the_next_piece_as_often_as_bar3() -> void:
 	for next: BlockShape in [CUBE_SHAPE, BAR3_SHAPE]:
 		var bar3: Vector2i = await _count("2x2", BAR3_SHAPE, next, 0.25)
@@ -181,7 +181,7 @@ func test_taller_bars_survive_the_next_piece_as_often_as_bar3() -> void:
 
 
 ## The limit the soft penalty cannot see: a bar on a loose 1x1 column of cubes does not stay up (the
-## load-margin and top-area terms, not slenderness, have to keep bots from building these).
+## load-margin and top-area terms have to keep bots from building these).
 func test_bar_on_a_loose_one_cube_column_does_not_stand() -> void:
 	var result: Vector2i = await _count("col3", BAR3_SHAPE, CUBE_SHAPE, 0.05)
 	assert_lt(result.x, SEEDS, "a 1x1 loose column of 3 cubes does not hold an upright bar3 reliably")
