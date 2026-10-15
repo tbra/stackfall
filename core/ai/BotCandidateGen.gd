@@ -464,7 +464,6 @@ class _Gen:
 		candidate.orientation_index = orientation.index
 		candidate.site_kind = kind
 		candidate.support_height = stack_top if on_stack else 0.0
-		candidate.on_top_of_own_stack = on_stack
 		candidate.shape_height = orientation.height
 		candidate.top_height = candidate.support_height + candidate.shape_height
 		candidate.top_area = orientation.top_area

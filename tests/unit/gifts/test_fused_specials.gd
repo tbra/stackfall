@@ -18,15 +18,6 @@ var _blocks: Node3D
 var _registry: BlockRegistry
 
 
-## Minimal match provider for BotController._is_own_block: one team per slot.
-class TeamFake:
-	extends RefCounted
-
-	func team_of(slot_id: int) -> int:
-		return slot_id
-
-
-
 func before_each() -> void:
 	Match.set_process(false)
 	Match.abort_match()
@@ -128,18 +119,6 @@ func test_paintball_converts_only_members_inside_the_splash() -> void:
 	effect.detonate(glob, null, 0)
 	assert_eq(inside.owner_slot, glob.owner_slot, "member in the splash converts")
 	assert_eq(outside.owner_slot, outside_slot, "member outside the splash keeps its owner")
-
-
-func test_bot_ray_over_mixed_owner_group_reads_the_hit_members_owner() -> void:
-	var carrier: FusedBody = _group()
-	var fake: TeamFake = TeamFake.new()
-	var bot: BotController = BotController.new()
-	add_child_autofree(bot)
-	bot.set_match_provider(fake)
-	for member: Block in carrier.members:
-		var point: Vector3 = carrier.member_shapes(member)[0].global_position
-		assert_eq(bot._is_own_block(carrier, 0, point), member.owner_slot == 0)
-		assert_eq(bot._is_own_block(carrier, 1, point), member.owner_slot == 1)
 
 
 func test_blast_pushes_the_group_as_one_body() -> void:

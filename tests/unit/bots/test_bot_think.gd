@@ -113,20 +113,6 @@ func test_view_top_height_inverts_the_cone_radius() -> void:
 	assert_eq(view.indices_of_team(1), PackedInt32Array())
 
 
-func test_view_enemy_circle_centers_are_enemy_homes_plus_enemy_block_circles() -> void:
-	var view: BotWorldView = _view()
-	assert_eq(view.enemy_circle_centers(), PackedVector2Array([HOME_B]), "own block circle is not an enemy")
-	var arrays: Dictionary = _render_arrays()
-	var teams: PackedInt32Array = arrays["teams"] as PackedInt32Array
-	teams[2] = 1
-	arrays["teams"] = teams
-	var enemy_view: BotWorldView = BotWorldView.build(
-		0, 0, arrays, _slots, _raster, PackedVector2Array(), 0.0, _cube, null, null,
-		PackedVector2Array(), PackedVector2Array()
-	)
-	assert_eq(enemy_view.enemy_circle_centers().size(), 2)
-
-
 func test_circle_near_but_not_at_a_home_is_kept() -> void:
 	# A render-list circle at the home radius but offset from every home stays.
 	var arrays: Dictionary = _render_arrays()

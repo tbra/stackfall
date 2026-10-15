@@ -1,24 +1,13 @@
 class_name BotTuning
 extends Resource
 ## Bot AI tunables (spec 2.9): one BotDifficultyProfile per
-## MatchConfig.AiDifficulty value, plus the scoring weights and risk radii
-## shared across every difficulty. Loaded once as config/bots/bot_tuning.tres.
+## MatchConfig.AiDifficulty value, plus the timing, special and
+## stability tunables shared across every difficulty. Loaded once as config/bots/bot_tuning.tres.
 
 @export var easy: BotDifficultyProfile
 @export var normal: BotDifficultyProfile
 @export var hard: BotDifficultyProfile
 
-## Placement-candidate scoring weights (spec 2.9's candidate score formula;
-## core/ai/BotPlacementScorer.gd applies these).
-@export var weight_height: float = 1.0
-@export var weight_goal_progress: float = 1.5
-@export var weight_stability: float = 2.0
-@export var weight_risk: float = 1.0
-## Meters within an enemy's territory a candidate counts as risky.
-@export var risk_enemy_territory_radius_m: float = 4.0
-## Meters within an active special's blast/effect radius a candidate counts
-## as risky.
-@export var risk_active_special_radius_m: float = 5.0
 ## Per-bot phase offset so N bots' think-ticks don't all land on one frame
 ## (spec 2.9: "for multiple bots it spreads its thinking across several
 ## frames").
@@ -61,17 +50,6 @@ extends Resource
 ## code with no SpecialTuning reference.
 @export var special_throw_loft_ratio: float = 0.6
 
-## Bontago-d5c.9 (M5 P3b-i, append-only): core/ai/BotPlacementScorer.gd's
-## stability factor multiplies the supported-cell contact count by this
-## factor when a candidate's own centre-of-mass estimate (BotCandidate.origin)
-## falls outside its footprint's bounds -- an off-balance placement still
-## scores something, just less than a well-centred one.
-@export var stability_off_centre_factor: float = 0.5
-## Flat bonus core/ai/BotPlacementScorer.gd's stability factor adds when a
-## candidate rests on the bot's own already-placed stack
-## (BotCandidate.on_top_of_own_stack).
-@export var stability_stack_bonus: float = 1.0
-
 ## Bontago-d5c.8 (M5 P3b-ii, append-only per docs/archive/M5_PLAN.md's "if you need a
 ## new numeric... add it as an @export on BotTuning, append-only"): how close
 ## (meters) a BotThink cube probe's
@@ -82,76 +60,9 @@ extends Resource
 ## flat surface without both raycasts reporting bit-identical heights.
 @export var stability_contact_tolerance_m: float = 0.15
 
-## Bontago-1t5.3 phase A (append-only): mode-aware scoring weights read by
-## core/ai/BotPlacementScorer.gd through a BotModeGoal. All are inert in Classic.
-## Capture the Flag: pull towards the nearest beacon the team does not hold
-## (multiplied by the beacon score rate), same distance-minus-future-radius
-## metric as goal progress.
-@export var weight_ctf_extend: float = 1.0
-## Capture the Flag: bonus for a connected placement near an already-held
-## beacon (scaled by the score rate), fading to 0 at the radius below.
-@export var weight_ctf_reinforce: float = 1.0
-@export var ctf_reinforce_radius_m: float = 6.0
-## Reach the Sky: reward for the candidate's total top height (support + shape).
-@export var weight_sky_top: float = 1.5
-## Reach the Sky: reward for contact fraction (0..1, off-centre scaled), the
-## anti-overhang term, on top of the ordinary stability weight.
-@export var weight_sky_stability: float = 4.0
-## Reach the Sky: per-meter penalty for sitting farther from the bot's own
-## tallest tower than the reach below.
-@export var weight_sky_tower_distance: float = 1.0
-@export var sky_tower_reach_m: float = 2.0
-
-## Bontago-1t5.3 phase B (append-only): Elimination weights, inert elsewhere.
-## Pull towards the best living enemy home (goal-progress metric: distance minus
-## the candidate's future influence radius).
-@export var weight_elim_attack: float = 1.5
-## Distance inflation per unit of the enemy team's territory share (0..1): a
-## larger value steers the bot to weaker enemies over nearer strong ones.
-@export var elim_weak_target_bias: float = 1.0
-## Bonus for building up influence near the bot's own home, fading to 0 at the radius.
-@export var weight_elim_defend: float = 2.0
-@export var elim_defend_radius_m: float = 5.0
-## Defend multiplier added per enemy circle centre within the threat radius of home.
-@export var weight_elim_threat: float = 1.0
-@export var elim_threat_radius_m: float = 8.0
-## Bontago-1t5.4: flat bonus (in attack-metric meters) for a candidate whose
-## future circle covers an enemy home beyond the flip margin (the elimination
-## condition), plus a diminishing gain per meter of overshoot capped below.
-@export var elim_achieve_bonus_m: float = 6.0
-@export var elim_overshoot_gain: float = 0.25
-@export var elim_overshoot_cap_m: float = 2.0
-## Bontago-1t5.4 part 2 (approach/reach): weight of the approach term, which pays
-## for each meter a candidate's influence frontier (distance to the target home
-## minus its future radius) sits closer than the bot's own home does, scaled by
-## (1 + elim_approach_reach_gain * future radius) so taller (bigger-influence)
-## placements extend further.
-@export var weight_elim_approach: float = 1.5
-@export var elim_approach_reach_gain: float = 0.5
-## Future radius (m) beyond which a taller placement earns no extra reach multiplier.
-@export var elim_approach_reach_cap_m: float = 3.0
-## Approach fades by 1 / (1 + this * enemy circles near own home): defend wins when threatened.
-@export var elim_approach_threat_damp: float = 8.0
-## OFF mode defend: extra defend weight scaled by how much of the home radius the
-## candidate's own circle covers at the home point (0..1).
-@export var elim_off_defend_gain: float = 2.0
-
-## Bontago-1pi.25.1 (append-only): Domination. Reward per meter of the candidate's
-## future influence radius (own territory growth), pull towards the leading
-## enemy team's territory while the bot's team is not leading (distance minus
-## the future radius, floored at 0), and how many leader territory sample points
-## the host hands the scorer (the leader's cells are subsampled to this cap).
-@export var weight_dom_grow: float = 1.0
-@export var weight_dom_contest: float = 1.0
+## Domination: how many leader territory sample points the host hands BotModeGoal.leader_points.
 @export var dom_leader_sample_cap: int = 48
 
-## Bontago-1t5.1 (append-only): Classic with several goal flags. Penalty for a
-## candidate outside the bot's home-connected component (it cannot help the
-## all-goals-in-one-component win), a bonus (fading to 0 at the radius) for
-## reinforcing a goal the component already holds, and the radius itself.
-@export var weight_goal_disconnected: float = 6.0
-@export var weight_goal_hold_reinforce: float = 3.0
-@export var goal_hold_reinforce_radius_m: float = 5.0
 
 ## Black hole (Bontago-8or.27, BotSpecialPlanner.plan_v2): penalty per own circle the pull radius
 ## would drag in, and the least net score worth spending the special on.

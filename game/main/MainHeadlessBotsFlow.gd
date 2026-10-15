@@ -66,8 +66,6 @@ func start_match_with_args(args: PackedStringArray) -> void:
 	main_node._headless_loop_index = 0
 	if main_node._headless_loop_enabled:
 		Events.match_state_changed.connect(main_node._on_headless_loop_state_changed)
-	_setup_bot_record(args)
-	_load_bot_weight_overrides(args, bots)
 	if not main_node._headless_loop_enabled:
 		# DECISION (Bontago-1t5.13): a single (non-loop) match also prints its HEADLESS_MATCH line on
 		# END, so tools/bot_h2h.py can parse winner_team without --loop-matches.
@@ -148,8 +146,6 @@ func _start_headless_loop_match(bots: int, args: PackedStringArray) -> void:
 	else:
 		main_node._headless_loop_seed = config.rng_seed
 	Match.start_match(config)
-	_apply_bot_weight_overrides()
-	_begin_bot_record(config)
 	_start_headless_bots_diagnostics()
 
 
@@ -375,7 +371,7 @@ func _round_timer_arg(args: PackedStringArray) -> int:
 
 
 ## Bontago-1t5.28: `--bot-difficulty-slots=<slot:level,...>` fills config.slot_ai_difficulties for the
-## named bot slots (absolute slot ids, like --bot-weights-slots); every other slot keeps its current
+## named bot slots (absolute slot ids); every other slot keeps its current
 ## difficulty (--bot-difficulty / config default). Unknown slots or levels warn and are skipped.
 func _apply_bot_difficulty_slots(config: MatchConfig, args: PackedStringArray, bots: int) -> void:
 	var text: String = _string_arg(args, "bot-difficulty-slots=")
@@ -539,7 +535,6 @@ func _on_headless_bots_seconds_elapsed() -> void:
 	print(_headless_bots_done_line())
 	if Match.state() == Match.State.PLAYING:
 		print(_headless_match_summary_line(true))
-	_finish_bot_record(-1)
 	await Sfx.drain_for_quit()
 	QuitFlag.mark()
 	main_node.get_tree().quit(0)
@@ -558,90 +553,6 @@ func _headless_bots_done_line() -> String:
 		_headless_bots_elapsed_s(), _headless_bots_wall_s(), main_node._headless_bots_placements,
 		Match.config.game_mode if Match.config != null else 0, _headless_bots_homes_alive(),
 	]
-
-
-# --- Bot decision recording: `--bot-record=<dir>` (Bontago-1t5.11, BT3) -------
-#
-# docs/BOT_TRAINING_SOAK_PLAN.md: OFF unless the flag is given. One JSONL file per bot per
-# match (game/bots/BotDecisionRecorder.gd), rotated per --loop-matches match; the recorder is a
-# passive observer attached to every BotController. DECISION: the recorder and its state
-# live on this flow object (Main.gd is not part of this package), and END/--seconds close
-# the files so footers and truncated outcomes are always written.
-
-var _bot_record_dir: String = ""
-var _bot_recorder: BotDecisionRecorder = null
-var _bot_record_timeline_started: bool = false
-
-
-## `--bot-record=<dir>`, "" when absent.
-func _bot_record_arg(args: PackedStringArray) -> String:
-	const PREFIX: String = "bot-record="
-	for raw: String in args:
-		var text: String = raw
-		while text.begins_with("-"):
-			text = text.substr(1)
-		if text.begins_with(PREFIX):
-			return text.substr(PREFIX.length())
-	return ""
-
-
-func _setup_bot_record(args: PackedStringArray) -> void:
-	_bot_record_dir = _bot_record_arg(args)
-	if _bot_record_dir.is_empty() or _bot_recorder != null:
-		return
-	_bot_recorder = BotDecisionRecorder.new()
-	main_node.add_child(_bot_recorder)
-	if not _bot_recorder.configure(_bot_record_dir):
-		# The recorder already printed BOT_RECORD_ERROR; the match runs unrecorded.
-		return
-	Events.match_state_changed.connect(_on_bot_record_state_changed)
-
-
-func _begin_bot_record(config: MatchConfig) -> void:
-	if _bot_recorder == null or not _bot_recorder.is_enabled():
-		return
-	var slots: PackedInt32Array = PackedInt32Array()
-	var difficulties: Array = []
-	for slot_id: int in range(config.player_count - config.ai_count, config.player_count):
-		slots.append(slot_id)
-		difficulties.append(int(config.ai_difficulty_for_slot(slot_id)))
-	for override_slot: int in _bot_weight_tunings:
-		_bot_recorder.set_slot_tuning(override_slot, _bot_weight_tunings[override_slot] as BotTuning)
-	var map_def: MapDef = config.map_def()
-	var header: Dictionary = {
-		"seed": config.rng_seed,
-		"mode": int(config.game_mode),
-		"map_id": String(map_def.id) if map_def != null else "",
-		"bot_count": config.ai_count,
-		"difficulty": int(config.ai_difficulty),
-		"difficulties": difficulties,
-		"weight_overrides": _bot_weight_overrides_for_header(),
-		"git_revision": BuildVersion.git_revision(),
-	}
-	_bot_record_timeline_started = false
-	_bot_recorder.begin_match(header, slots, main_node._headless_loop_index)
-
-
-func _on_bot_record_state_changed(_from_state: int, to_state: int) -> void:
-	if _bot_recorder == null or not is_instance_valid(_bot_recorder):
-		return
-	# Controllers are spawned while the world builds; attach (idempotent) on every transition.
-	for node: Node in main_node._bot_controllers:
-		var bot: BotController = node as BotController
-		if bot != null and is_instance_valid(bot):
-			bot.set_recorder(_bot_recorder)
-	if to_state == Match.State.PLAYING and not _bot_record_timeline_started:
-		_bot_record_timeline_started = true
-		_bot_recorder.on_tick(0.0)
-	elif to_state == Match.State.END:
-		_finish_bot_record(Match.winner_team())
-
-
-func _finish_bot_record(winner_team: int) -> void:
-	if _bot_recorder == null:
-		return
-	_bot_recorder.end_match(winner_team)
-	print("BOT_RECORD match=%d %s" % [main_node._headless_loop_index, JSON.stringify(_bot_recorder.stats())])
 
 
 ## Bontago-1t5.4 diagnostics: smallest (distance to a living enemy home minus
@@ -700,19 +611,10 @@ func _headless_bots_state_name() -> String:
 # `--bot-difficulty=<easy|normal|hard|0..2>` sets every bot slot; `--bot-difficulty-slots=<slot:level,...>`
 # (absolute slot ids; bots occupy the LAST `bots` of `--players` slots) overrides named bot slots only;
 # `--round-timer=<minutes>` (0 = off, Elimination only) overrides the round timer after --mode;
-# `--match-seed=<int>` is the first
-# match's rng_seed; `--bot-weights=<json file>` [+ `--bot-weights-slots=<csv>`] overrides BotTuning
-# weight_* fields for the named bot slots only. DECISION: the weights file is either ONE flat object
-# {"weight_x": v, ...} applied to --bot-weights-slots (default: every bot slot; this is what
-# tools/bot_h2h.py writes) or a slot map {"3": {"weight_x": v}, ...}. Bad JSON / unknown keys warn
-# and the bots keep the shipped weights.
+# `--match-seed=<int>` is the first match's rng_seed.
 
 const LOOP_SEED_STRIDE: int = 7919
 const LOOP_SEED_MAX: int = 2147483647
-
-var _bot_weight_overrides: Dictionary = {}  # slot_id -> weights Dictionary (raw, for the header)
-var _bot_weight_tunings: Dictionary = {}  # slot_id -> BotTuning copy
-
 
 func _string_arg(args: PackedStringArray, prefix: String) -> String:
 	for raw: String in args:
@@ -765,66 +667,3 @@ func _difficulty_level_from_text(value: String) -> int:
 		"hard", "2":
 			return MatchConfig.AiDifficulty.HARD
 	return -1
-
-
-## Parses --bot-weights[/-slots] into _bot_weight_overrides / _bot_weight_tunings. Never fatal.
-func _load_bot_weight_overrides(args: PackedStringArray, bots: int) -> void:
-	_bot_weight_overrides.clear()
-	_bot_weight_tunings.clear()
-	var path: String = _string_arg(args, "bot-weights=")
-	if path.is_empty():
-		return
-	var first_slot: int = maxi(bots, _headless_bot_players_arg(args)) - bots
-	var bot_slots: PackedInt32Array = PackedInt32Array()
-	for slot_id: int in range(first_slot, first_slot + bots):
-		bot_slots.append(slot_id)
-	var text: String = FileAccess.get_file_as_string(path)
-	var parser: JSON = JSON.new()  # not parse_string: that logs an engine error on bad input
-	var data: Variant = parser.data if not text.is_empty() and parser.parse(text) == OK else null
-	if typeof(data) != TYPE_DICTIONARY:
-		push_warning("--bot-weights=%s is missing or not a JSON object; bots keep the shipped weights" % path)
-		return
-	var table: Dictionary = data as Dictionary
-	var by_slot: bool = not table.is_empty()
-	for key: Variant in table:
-		if typeof(table[key]) != TYPE_DICTIONARY or not String(key).is_valid_int():
-			by_slot = false
-	if by_slot:
-		for key: Variant in table:
-			var keyed_slot: int = int(String(key))
-			if bot_slots.has(keyed_slot):
-				_bot_weight_overrides[keyed_slot] = table[key]
-			else:
-				push_warning("--bot-weights: slot %d is not a bot slot; ignored" % keyed_slot)
-	else:
-		var slots_text: String = _string_arg(args, "bot-weights-slots=")
-		var targets: PackedInt32Array = bot_slots
-		if not slots_text.is_empty():
-			targets = PackedInt32Array()
-			for part: String in slots_text.split(",", false):
-				if part.strip_edges().is_valid_int() and bot_slots.has(int(part)):
-					targets.append(int(part))
-				else:
-					push_warning("--bot-weights-slots: '%s' is not a bot slot; ignored" % part)
-		for target_slot: int in targets:
-			_bot_weight_overrides[target_slot] = table
-	var shipped: BotTuning = load("res://config/bots/bot_tuning.tres") as BotTuning
-	for override_slot: int in _bot_weight_overrides:
-		_bot_weight_tunings[override_slot] = BotController.tuning_with_weights(shipped, _bot_weight_overrides[override_slot] as Dictionary)
-
-
-## Installs each named slot's tuning copy on its controller (idempotent; other slots untouched).
-func _apply_bot_weight_overrides() -> void:
-	if _bot_weight_tunings.is_empty():
-		return
-	for node: Node in main_node._bot_controllers:
-		var bot: BotController = node as BotController
-		if bot != null and is_instance_valid(bot) and _bot_weight_tunings.has(bot.bound_slot()):
-			bot.set_tuning_override(_bot_weight_tunings[bot.bound_slot()] as BotTuning)
-
-
-func _bot_weight_overrides_for_header() -> Dictionary:
-	var out: Dictionary = {}
-	for slot_id: int in _bot_weight_overrides:
-		out[str(slot_id)] = _bot_weight_overrides[slot_id]
-	return out

@@ -305,7 +305,7 @@ func test_client_mirrors_host_scores_for_display_only() -> void:
 
 
 ## Bontago-1t5.3: the bot goal carries every beacon, held state per own team and the rate.
-func test_bot_mode_goal_lists_beacons_and_the_score_rate() -> void:
+func test_bot_mode_goal_lists_beacons() -> void:
 	_setup_world()
 	Match.start_match(_ctf_config())
 	_tick(Match.COUNTDOWN_SECONDS + 0.1)
@@ -313,6 +313,5 @@ func test_bot_mode_goal_lists_beacons_and_the_score_rate() -> void:
 	assert_eq(goal.mode, MatchConfig.GameMode.CAPTURE_THE_FLAG)
 	assert_eq(goal.beacon_positions.size(), Match.config.effective_goal_flag_count())
 	assert_eq(goal.beacon_held_by_own.size(), goal.beacon_positions.size())
-	assert_gt(goal.beacon_score_rate, 0.0)
 	for held: bool in goal.beacon_held_by_own:
 		assert_false(held, "nothing is held at the start of a match")

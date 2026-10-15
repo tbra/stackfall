@@ -388,5 +388,4 @@ func test_bot_mode_goal_reports_the_tallest_settled_tower() -> void:
 	goal = Match.bot_mode_goal(0)
 	assert_true(goal.has_tower)
 	assert_almost_eq(goal.tower_origin.x, 4.0, 0.1)
-	assert_gt(goal.tower_height, 0.0)
 	assert_false(Match.bot_mode_goal(1).has_tower)
