@@ -28,10 +28,6 @@ static func shared() -> OptionHelpTable:
 	return _shared
 
 
-static func release_shared() -> void:
-	_shared = null
-
-
 static func gift_key(special_id: StringName) -> String:
 	return GIFT_KEY_PREFIX + String(special_id)
 
@@ -44,7 +40,3 @@ func text_for(key: String, item: int = -1) -> String:
 		if entries.has(item_key):
 			return entries[item_key]
 	return entries.get(key, "")
-
-
-func has_text(key: String) -> bool:
-	return entries.has(key)

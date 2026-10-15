@@ -136,7 +136,6 @@ func test_table_prefers_item_entries_and_reports_missing_keys() -> void:
 	assert_eq(table.text_for("k", 1), "row")
 	assert_eq(table.text_for("k"), "row")
 	assert_eq(table.text_for("missing", 0), "")
-	assert_false(table.has_text("missing"))
 
 
 func test_the_shipped_table_covers_the_unclear_options() -> void:
