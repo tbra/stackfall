@@ -1,9 +1,6 @@
 # Stackfall
 
-A physics-based, competitive block-stacking territory game for 1–8 players, online over
-Steam and on LAN. It began as a remake of **Bontãgo** (Circular Logic, 2003); that phase is complete and
-Stackfall is now developed as its own game (working title; the original name and assets
-belong to DigiPen and Circular Logic).
+A physics-based, competitive block-stacking territory game for 1–8 players, inspired by **Bontãgo** (Circular Logic, 2003).
 
 Built in Godot 4.7 (Forward+, Jolt physics). The full design and technical spec is
 [docs/SPEC.md](docs/SPEC.md); working rules for the project are in [CLAUDE.md](CLAUDE.md).
@@ -155,13 +152,13 @@ solo rules testing. Placement, rotation, hover and camera controls are the hot-s
 (above); one extra set of hotkeys switches who you're playing and pokes at the match
 directly:
 
-| Action | Keyboard | Gamepad |
-|---|---|---|
-| Switch active slot | `Tab` | Back |
-| Reset the field (same config) | `F5` | Paddle 1 |
-| Toggle the feed timer (off by default) | `F6` | Paddle 3 |
-| Spawn a tower of blocks at the cursor | `F7` | Paddle 2 |
-| Toggle the territory overlay | `F8` | Paddle 4 |
+| Action                                 | Keyboard | Gamepad  |
+| -------------------------------------- | -------- | -------- |
+| Switch active slot                     | `Tab`    | Back     |
+| Reset the field (same config)          | `F5`     | Paddle 1 |
+| Toggle the feed timer (off by default) | `F6`     | Paddle 3 |
+| Spawn a tower of blocks at the cursor  | `F7`     | Paddle 2 |
+| Toggle the territory overlay           | `F8`     | Paddle 4 |
 
 A debug panel in the top-right shows the active slot and its colour, the block held and up
 next, whether the timer is running or paused, why the ghost is (in)valid right where it's
@@ -321,16 +318,16 @@ godot --headless --path . res://tests/bench/bench_snapshot.tscn
 `game/main/Main.gd` reads these after `--` (`godot --path . -- --host`, etc.), the same
 convention `OS.get_cmdline_user_args()` uses:
 
-| Flag | Effect |
-|---|---|
-| `--hot-seat` | Skips the menu and lobby entirely; starts M2's two-player, one-PC build. |
-| `--host` | Hosts on `net_config.tres`'s `game_port` (or `--port=`) and opens the lobby. |
-| `--headless-host` | Same as `--host`, for a dedicated/scripted host with no window. Not shown in LAN Join browsers (clients still join by address) unless `--advertise` is also passed. |
-| `--advertise` | With `--headless-host`: broadcast the session on the LAN like an ordinary host. |
-| `--join=<ip[:port]>` | Joins that address and opens the lobby. |
-| `--port=<n>` | Overrides the port for `--host`/`--headless-host`/`--join`. |
-| `--match-config=<res path>` | Loads that `MatchConfig` `.tres` as the base for the bot match `--headless-host --bots=<n>` starts (fixtures: `tests/support/fixtures/match_configs/`). Ignored on `--join`, and a no-op for a plain `--host`/`--headless-host` lobby, whose match still takes the lobby's settings. Falls back to the default on a bad path or wrong resource type. |
-| `--sim-lag=<ms>` / `--sim-loss=<0..1>` | Simulated one-way lag / packet loss from launch, the same sliders the F3 overlay controls. |
+| Flag                                   | Effect                                                                                                                                                                                                                                                                                                                                               |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--hot-seat`                           | Skips the menu and lobby entirely; starts M2's two-player, one-PC build.                                                                                                                                                                                                                                                                             |
+| `--host`                               | Hosts on `net_config.tres`'s `game_port` (or `--port=`) and opens the lobby.                                                                                                                                                                                                                                                                         |
+| `--headless-host`                      | Same as `--host`, for a dedicated/scripted host with no window. Not shown in LAN Join browsers (clients still join by address) unless `--advertise` is also passed.                                                                                                                                                                                  |
+| `--advertise`                          | With `--headless-host`: broadcast the session on the LAN like an ordinary host.                                                                                                                                                                                                                                                                      |
+| `--join=<ip[:port]>`                   | Joins that address and opens the lobby.                                                                                                                                                                                                                                                                                                              |
+| `--port=<n>`                           | Overrides the port for `--host`/`--headless-host`/`--join`.                                                                                                                                                                                                                                                                                          |
+| `--match-config=<res path>`            | Loads that `MatchConfig` `.tres` as the base for the bot match `--headless-host --bots=<n>` starts (fixtures: `tests/support/fixtures/match_configs/`). Ignored on `--join`, and a no-op for a plain `--host`/`--headless-host` lobby, whose match still takes the lobby's settings. Falls back to the default on a bad path or wrong resource type. |
+| `--sim-lag=<ms>` / `--sim-loss=<0..1>` | Simulated one-way lag / packet loss from launch, the same sliders the F3 overlay controls.                                                                                                                                                                                                                                                           |
 
 With no flag, `Main` shows the main menu and these are chosen through Host/Join instead.
 
@@ -349,13 +346,13 @@ instances.
 
 Follows spec §3.2.
 
-| Path | What lives there |
-|---|---|
-| `autoload/` | `Events` signal bus, `Settings`, `Net`, `Match`, `SnapshotSync`, `MatchNet` singletons |
-| `config/` | Tunable values as `Resource` files — no magic numbers in code |
-| `core/` | Pure rule logic (territory, feed, win check, net wire packing), no scene tree, unit-tested |
-| `game/` | Scenes and scripts for the field, blocks, specials, controllers, `Main` (the router) |
-| `net/` | `SnapshotSync`, `Interpolator`, `MatchNet` (RPCs), `LanDiscovery` |
-| `ui/`, `vfx/`, `sfx/`, `shaders/` | Presentation — `MainMenu`, `Lobby`, `NetDebugOverlay` live in `ui/` |
-| `tests/unit/`, `tests/bench/` | Unit tests and physics benchmark scenes |
-| `tools/` | Build-time scripts that are not part of the running game |
+| Path                              | What lives there                                                                           |
+| --------------------------------- | ------------------------------------------------------------------------------------------ |
+| `autoload/`                       | `Events` signal bus, `Settings`, `Net`, `Match`, `SnapshotSync`, `MatchNet` singletons     |
+| `config/`                         | Tunable values as `Resource` files — no magic numbers in code                              |
+| `core/`                           | Pure rule logic (territory, feed, win check, net wire packing), no scene tree, unit-tested |
+| `game/`                           | Scenes and scripts for the field, blocks, specials, controllers, `Main` (the router)       |
+| `net/`                            | `SnapshotSync`, `Interpolator`, `MatchNet` (RPCs), `LanDiscovery`                          |
+| `ui/`, `vfx/`, `sfx/`, `shaders/` | Presentation — `MainMenu`, `Lobby`, `NetDebugOverlay` live in `ui/`                        |
+| `tests/unit/`, `tests/bench/`     | Unit tests and physics benchmark scenes                                                    |
+| `tools/`                          | Build-time scripts that are not part of the running game                                   |
