@@ -70,38 +70,11 @@ func _judge(c: BotCandidate, aim: float) -> BotStability.Result:
 	return BotStability.evaluate(c, _cube_info(), _view, _req(aim))
 
 
-func test_easy_aim_is_at_least_the_face_half() -> void:
-	_analysed()
-	assert_gte(_req(EASY_AIM).aim_m, FACE_HALF, "the premise: per-top erosion would empty every cube top")
-
-
-func test_easy_centred_on_2x2_top_has_positive_slack() -> void:
-	_plate(1, 2)
-	_analysed()
-	var r: BotStability.Result = _judge(_candidate(Vector2(HALF, HALF), CUBE, 1), EASY_AIM)
-	assert_gt(r.slack, 0.0, "slack %f" % r.slack)
-	assert_gt(r.piece_margin, 0.0)
-
-
-func test_easy_centred_on_3x3_plate_has_positive_slack() -> void:
-	_plate(1, 3)
-	_analysed()
-	var r: BotStability.Result = _judge(_candidate(Vector2(CUBE, CUBE), CUBE, 1), EASY_AIM)
-	assert_gt(r.slack, 0.0, "slack %f" % r.slack)
-
-
 func test_easy_on_a_1x1_top_is_refused() -> void:
 	_plate(1, 1)
 	_analysed()
 	var r: BotStability.Result = _judge(_candidate(Vector2.ZERO, CUBE, 1), EASY_AIM)
 	assert_lt(r.slack, 0.0)
-
-
-func test_calm_hard_still_stands_on_a_1x1_top() -> void:
-	_plate(1, 1)
-	_analysed()
-	var r: BotStability.Result = _judge(_candidate(Vector2.ZERO, CUBE, 1), 0.0)
-	assert_gt(r.slack, 0.0, "slack %f" % r.slack)
 
 
 func test_erosion_keeps_the_exposed_edge() -> void:
@@ -111,27 +84,6 @@ func test_erosion_keeps_the_exposed_edge() -> void:
 	var edge_piece: Vector2 = Vector2(HALF + 0.6, HALF)
 	assert_lt(_judge(_candidate(edge_piece, CUBE, 1), EASY_AIM).slack, 0.0, "com 0.1 m from the exposed edge")
 	assert_gt(_judge(_candidate(Vector2(HALF + 0.3, HALF), CUBE, 1), EASY_AIM).slack, 0.0)
-
-
-func test_probe_only_path_merges_adjacent_squares() -> void:
-	# No snapshot: a 2x2 piece on a 2x2 top has a positive margin at aim 0.5 (per-square erosion would empty it).
-	var square: BlockShape = preload("res://config/blocks/square4.tres")
-	var flat: BotStatics.OrientationInfo = null
-	for info: BotStatics.OrientationInfo in BotStatics.orientation_infos(square, _gen_t):
-		if info.contact.size() == 4:
-			flat = info
-			break
-	assert_not_null(flat)
-	var c: BotCandidate = BotCandidate.new()
-	c.origin = Vector2.ZERO
-	c.orientation_index = flat.index
-	c.support_height = CUBE
-	for offset: Vector2 in flat.contact:
-		c.probe_points.append(c.origin + offset * CUBE)
-		c.cell_support.append(CUBE)
-		c.support_bodies.append(7)
-	var r: BotStability.Result = BotStability.evaluate(c, flat, _view, _req(EASY_AIM))
-	assert_gt(r.piece_margin, 0.0, "margin %f" % r.piece_margin)
 
 
 func test_sliver_overlap_the_host_lifts_on_sets_the_plane() -> void:

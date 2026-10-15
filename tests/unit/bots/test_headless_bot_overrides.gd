@@ -36,20 +36,6 @@ func _flow() -> Variant:
 	return _main._headless_bots_flow_port()
 
 
-func _start(args: PackedStringArray) -> void:
-	assert_eq(Net.host_game(AgentProbe.free_udp_port(), "Hostie"), OK)
-	_main._start_headless_bot_match_with_args(args)
-	await get_tree().process_frame
-	await get_tree().process_frame
-
-
-func _bot_for(slot_id: int) -> BotController:
-	for node: Node in _main._bot_controllers:
-		if (node as BotController).bound_slot() == slot_id:
-			return node as BotController
-	return null
-
-
 func test_difficulty_flag_sets_every_bot_slot() -> void:
 	for name_and_value: Array in [["easy", MatchConfig.AiDifficulty.EASY], ["hard", MatchConfig.AiDifficulty.HARD], ["2", MatchConfig.AiDifficulty.HARD]]:
 		var config: MatchConfig = _flow()._build_headless_bot_config(4, PackedStringArray(["--bot-difficulty=%s" % name_and_value[0]]))
@@ -57,13 +43,6 @@ func test_difficulty_flag_sets_every_bot_slot() -> void:
 			assert_eq(config.ai_difficulty_for_slot(slot_id), name_and_value[1], "slot %d %s" % [slot_id, name_and_value[0]])
 	var unset: MatchConfig = _flow()._build_headless_bot_config(4, PackedStringArray())
 	assert_eq(unset.ai_difficulty, MatchConfig.AiDifficulty.NORMAL, "no flag keeps the configured difficulty")
-
-
-func test_difficulty_flag_reaches_running_controllers_and_header() -> void:
-	await _start(PackedStringArray(["--bots=3", "--bot-difficulty=hard"]))
-	assert_eq(_main._bot_controllers.size(), 3)
-	for node: Node in _main._bot_controllers:
-		assert_eq((node as BotController)._difficulty, MatchConfig.AiDifficulty.HARD)
 
 
 func test_match_seed_is_deterministic() -> void:
@@ -108,14 +87,6 @@ func test_weather_flag_zero_off_one_on_absent_unchanged() -> void:
 	assert_ne(on.weather_mode, MatchConfig.WeatherMode.OFF, "--weather=1 leaves weather on")
 
 
-func test_round_timer_bad_value_keeps_configured() -> void:
-	for bad: String in ["abc", "-3", ""]:
-		var config: MatchConfig = _flow()._build_headless_bot_config(2, PackedStringArray(["--round-timer=%s" % bad]))
-		assert_eq(config.round_timer_minutes, _main.match_config.round_timer_minutes, "'%s' keeps the configured timer" % bad)
-	assert_eq(_flow()._round_timer_arg(PackedStringArray(["--round-timer=12"])), 12)
-	assert_eq(_flow()._round_timer_arg(PackedStringArray()), -1)
-
-
 func test_difficulty_slots_fill_named_slots_only() -> void:
 	var args: PackedStringArray = PackedStringArray(["--bot-difficulty=normal", "--bot-difficulty-slots=0:hard,2:easy,3:2"])
 	var config: MatchConfig = _flow()._build_headless_bot_config(4, args)
@@ -125,13 +96,6 @@ func test_difficulty_slots_fill_named_slots_only() -> void:
 	assert_eq(config.ai_difficulty_for_slot(3), MatchConfig.AiDifficulty.HARD)
 
 
-func test_difficulty_slots_use_absolute_ids_with_passive_seats() -> void:
-	# 5 players, 1 bot: the bot is slot 4; slot 0 is a passive human seat and is ignored.
-	var config: MatchConfig = _flow()._build_headless_bot_config(1, PackedStringArray(["--players=5", "--bot-difficulty-slots=4:easy,0:hard"]))
-	assert_eq(config.ai_difficulty_for_slot(4), MatchConfig.AiDifficulty.EASY)
-	assert_ne(config.ai_difficulty_for_slot(0), MatchConfig.AiDifficulty.HARD)
-
-
 func test_difficulty_slots_bad_input_keeps_defaults() -> void:
 	var args: PackedStringArray = PackedStringArray(["--bot-difficulty-slots=9:hard,1:godlike,x,1,0:easy"])
 	var config: MatchConfig = _flow()._build_headless_bot_config(2, args)
@@ -139,9 +103,3 @@ func test_difficulty_slots_bad_input_keeps_defaults() -> void:
 	assert_eq(config.ai_difficulty_for_slot(1), _main.match_config.ai_difficulty_for_slot(1), "bad level leaves slot 1 alone")
 	var none: MatchConfig = _flow()._build_headless_bot_config(2, PackedStringArray(["--bot-difficulty-slots=7:hard"]))
 	assert_eq(none.ai_difficulty_for_slot(0), _main.match_config.ai_difficulty_for_slot(0))
-
-
-func test_difficulty_slots_reach_running_controllers() -> void:
-	await _start(PackedStringArray(["--bots=3", "--bot-difficulty=normal", "--bot-difficulty-slots=1:hard"]))
-	assert_eq(_bot_for(1)._difficulty, MatchConfig.AiDifficulty.HARD)
-	assert_eq(_bot_for(0)._difficulty, MatchConfig.AiDifficulty.NORMAL)

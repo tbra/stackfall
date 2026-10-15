@@ -40,19 +40,9 @@ func downstream(i: int) -> int:
 	return _downstream[i]
 
 
-## True when removing circle `i` disconnects at least one other circle from home.
-func is_articulation(i: int) -> bool:
-	return downstream(i) > 1
-
-
 ## True when circle `i` is linked to a home of its team.
 func connected(i: int) -> bool:
 	return i >= 0 and i < _count and _connected[i] == 1
-
-
-## Number of home-connected block circles of `team`.
-func connected_count(team: int) -> int:
-	return _team_connected.get(team, 0)
 
 
 ## Minimum over the team's home-connected circles (and its home circles) of

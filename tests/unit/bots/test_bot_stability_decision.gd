@@ -25,7 +25,6 @@ const UNSTABLE_SLACK: float = -0.1
 const LOW_HEIGHT: float = 1.0
 const TALL_HEIGHT: float = 3.0
 const MAX_PIECE_HEIGHT_M: float = 5.0
-const TOL: float = 0.001
 
 var _territory_tuning: TerritoryTuning = preload("res://config/territory/territory_tuning.tres")
 var _physics: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
