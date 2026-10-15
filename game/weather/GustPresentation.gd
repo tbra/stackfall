@@ -1,11 +1,11 @@
 class_name GustPresentation
 extends Node3D
-## Bontago-59o.6 / mp0.81: one gust's visual, a handful of soft wind wisps (bowed,
+## / : one gust's visual, a handful of soft wind wisps (bowed,
 ## feathered, banded ribbons) scattered in a heading-aligned box around the gust's
 ## centre, drifting along its heading (shaders/weather/wind_streak.gdshader does all per-wisp
 ## motion: draw-on, hold, erase from the tail, respawn). Frees itself when the gust
 ## ends. The Low graphics preset draws a fraction of the wisps. Presentation only.
-## Bontago-mp0.81 swapped the looks: a gust used to draw the curled swoosh strokes
+## swapped the looks: a gust used to draw the curled swoosh strokes
 ## that now belong to the ambient Storm wind (StormPresentation.build_swoosh_ribbon).
 
 const SHADER: Shader = preload("res://shaders/weather/wind_streak.gdshader")

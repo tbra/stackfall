@@ -9,7 +9,7 @@ extends RefCounted
 ##
 ## Speed is measured RELATIVE to the supporting surface (the tilting disc's point velocity
 ## under the carrier, or the velocity of the block it rests on), so a gift riding a moving
-## disc settles promptly instead of waiting for the timeout (Bontago-1pi.85.67).
+## disc settles promptly instead of waiting for the timeout.
 ##
 ## Depends on: LandedTuning, Block
 

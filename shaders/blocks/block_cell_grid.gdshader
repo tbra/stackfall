@@ -1,14 +1,13 @@
 shader_type spatial;
-// Bontago-xtq.27 (M7 P2, docs/M7_PLAN.md P2; spec 2.10 as amended, owner
-// decision 2026-09-26 Bontago-5h7 Q1/Q2): the block mesh stays one merged
-// solid shape (Bontago-xtq.3) -- this shader is what actually draws the
+// M7 P2, docs/M7_PLAN.md P2; spec 1.10 as amended Q1/Q2: the block mesh stays one merged
+// solid shape -- this shader is what actually draws the
 // per-cell grid lines and the toon shading bands on its faces, it never
 // changes geometry/collision/connectivity.
 //
-// Bontago-mp0.3.1 (owner feedback on docs/art_mockups/08-cel-shaded-home-
+// (on docs/art_mockups/08-cel-shaded-home-
 // beacons.png: "Blocks only have the black borders, the mockup shows much
 // more detailed cel-shading with highlights and shadows affected by the
-// light source"), fix round (owner review of blocks-r1):
+// light source"), fix round (of blocks-r1):
 //   - shadow/lit/highlight are three explicit tinted "keyframe" colours
 //     interpolated by the toon-banded N.L, not one hue scaled by a single
 //     brightness scalar -- see light()'s own comment for why.
@@ -33,13 +32,13 @@ shader_type spatial;
 //
 // Glow: `contributing` is a per-instance shader parameter (not a plain
 // uniform -- every block shares this one ShaderMaterial instance, cached by
-// owner color in game/blocks/BlockFactory.gd's `_material_for_color()`), set via
+// slot color in game/blocks/BlockFactory.gd's `_material_for_color()`), set via
 // GeometryInstance3D.set_instance_shader_parameter(&"contributing", bool) --
 // see BlockFactory.build()'s `sleeping_state_changed` wiring for who flips it
 // and why "resting" stands in for "contributing to territory influence"
 // this milestone.
 //
-// Bontago-adt.2 (graphics roadmap "Improved cel-shader/toon-shader", mockup 08):
+// graphics roadmap "Improved cel-shader/toon-shader", mockup 08:
 // look rework.
 //   - The toon ramp used to bake ALBEDO into its band colours, but Godot
 //     multiplies DIFFUSE_LIGHT by ALBEDO once more after light(), so colours
@@ -120,7 +119,7 @@ uniform float rim_cool_strength : hint_range(0.0, 1.0) = 0.16;
 // Explicit instance indices: this shader's next_pass (block_outline.gdshader)
 // shares dissolve_amount on the same MeshInstance3D, so the slots must match.
 instance uniform bool contributing : instance_index(0) = false;
-// Bontago-1pi.11.42: hole dissolve progress 0..1, driven per block by
+// hole dissolve progress 0..1, driven per block by
 // game/blocks/BlockDissolveFx.gd (instance uniform: the shared per-colour material
 // is untouched). 0 costs one branch.
 instance uniform float dissolve_amount : instance_index(1) = 0.0;

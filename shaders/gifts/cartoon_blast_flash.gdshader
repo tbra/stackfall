@@ -1,6 +1,6 @@
 shader_type spatial;
 render_mode unshaded, cull_disabled, depth_draw_never, shadows_disabled, blend_mix;
-// Bontago-a3z: the cartoon blast's spiky star flash, billboarded on the camera
+// the cartoon blast's spiky star flash, billboarded on the camera
 // (same billboard as shaders/gifts/impact_puff.gdshader). CartoonBlast drives `size`
 // and `alpha_scale` over the flash's short life.
 

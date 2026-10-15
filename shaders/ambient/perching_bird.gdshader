@@ -1,7 +1,7 @@
 shader_type spatial;
 render_mode cull_back, specular_disabled, shadows_disabled;
 
-// Bontago-adt.3: cel shading for the cosmetic perching birds
+// cel shading for the cosmetic perching birds
 // (game/ambient/PerchingBirds.gd). Same recipe as shaders/blocks/block_cell_grid.gdshader's
 // toon bands: the N.L term is quantised into `band_count` steps and mapped to
 // a cool-shadow .. warm-lit multiplier; the engine multiplies by ALBEDO once.

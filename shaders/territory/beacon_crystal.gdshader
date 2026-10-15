@@ -1,7 +1,7 @@
 shader_type spatial;
-// Bontago-mp0.3.1 (Graphics pass 2, owner feedback on docs/art_mockups/
+// Graphics pass 2, on docs/art_mockups/
 // 08-cel-shaded-home-beacons.png: "Same for the beacons" -- the beacons need
-// the same cel-shading detail as blocks): the crystal is a faceted bipyramid
+// the same cel-shading detail as blocks: the crystal is a faceted bipyramid
 // with its own per-facet flat normals (HomeFlag._build_crystal_mesh()/
 // _add_facet()) -- this shader adds toon-banded diffuse with a never-near-
 // black shadow floor/cool tint, a hard-edged specular facet highlight, and
@@ -16,7 +16,7 @@ shader_type spatial;
 // directly from BeaconVisualTuning/the flag's own colour in
 // HomeFlag._apply_color() -- no per-instance shader parameters needed here.
 //
-// Bontago-adt.2 (graphics roadmap "Textures/materials (disc/emissive)"):
+// (graphics roadmap "Textures/materials (disc/emissive)"):
 // stylized emissive rework. The toon ramp is now a per-channel multiplier
 // (Godot multiplies DIFFUSE_LIGHT by ALBEDO once after light(), the old code
 // squared it). The emission has a dimmer core and a brighter fresnel edge

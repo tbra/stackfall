@@ -1,6 +1,6 @@
 shader_type spatial;
 render_mode unshaded, cull_back, shadows_disabled;
-// Bontago-mp0.3.4 fix round (owner: "make them actual tiny 3D cubes...
+// fix round ("make them actual tiny 3D cubes...
 // with the cel look"): a cheap unshaded 2-tone shade, not a full lit
 // material -- a fixed faux light direction decides whether each face is
 // "lit" or "shadow" and picks one of exactly two brightness levels (a hard

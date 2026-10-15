@@ -1,5 +1,5 @@
 shader_type spatial;
-// Bontago-xtq.27 (M7 P2, docs/M7_PLAN.md P2): inverted-hull outline pass for
+// M7 P2, docs/M7_PLAN.md P2: inverted-hull outline pass for
 // a block's merged mesh. game/blocks/BlockFactory.gd adds this as a *second*
 // MeshInstance3D sharing the exact same ArrayMesh as the toon/cell-grid pass
 // (shaders/blocks/block_cell_grid.gdshader).
@@ -8,24 +8,24 @@ shader_type spatial;
 // enlarged back faces show, silhouetting the real mesh from behind it) and
 // push every vertex outward. Flat, unshaded colour -- a hand-inked line.
 //
-// Bontago-adt.2 (graphics roadmap "Improved cel-shader"): the push is now
+// graphics roadmap "Improved cel-shader": the push is now
 // done in clip space so the outline is a constant number of *screen pixels*
 // wide at any distance (the old 6 mm world-space push was sub-pixel far away
 // and shimmered/muddied there). The width eases from outline_width_px close
 // up to the thinner outline_far_width_px between outline_fade_start_m and
 // outline_far_distance_m so a 300-block skyline does not turn into a dark mesh.
 //
-// Bontago-mp0.3.1: `tint_color` is a per-instance parameter (the block's own
+// `tint_color` is a per-instance parameter (the block's own
 // colour) so the material stays one shared instance; outline_color mixes with
 // the darkened tint by outline_tint_amount.
-// DECISION (Bontago-1pi.11.67 fix2b, GPU cost): depth_draw_never moves the hull
+// DECISION (fix2b, GPU cost): depth_draw_never moves the hull
 // out of the opaque path into the transparent pass. An opaque next_pass is drawn
 // in the depth prepass, the colour pass and every shadow cascade (collapsed there
 // via IN_SHADOW_PASS, but still one draw per block per cascade); a no-depth-write
 // pass is drawn once, depth-TESTED against the finished opaque depth, so the
 // back faces behind the block are still rejected and only the silhouette rim
 // shades, exactly as before. The output colour is unchanged (no ALPHA write =
-// opaque blend) and fog still applies (Bontago-1pi.130). The one difference: the
+// opaque blend) and fog still applies. The one difference: the
 // transparent pass runs after SSR, so the rim no longer shows inside the disc's
 // screen-space reflection of a block (a ~1 px line in a rough reflection).
 render_mode cull_front, unshaded, depth_draw_never;
@@ -40,7 +40,7 @@ uniform float outline_tint_amount : hint_range(0.0, 1.0) = 0.65;
 uniform float outline_tint_darken : hint_range(0.0, 1.0) = 0.35;
 
 uniform vec4 tint_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
-// Bontago-1pi.11.42: same progress as the cell-grid pass (shared noise), the
+// same progress as the cell-grid pass (shared noise), the
 // outline vanishes with the surface it inks.
 instance uniform float dissolve_amount : instance_index(1) = 0.0;
 uniform float dissolve_noise_scale = 5.0;
@@ -48,7 +48,7 @@ uniform float dissolve_edge_width : hint_range(0.01, 0.6) = 0.14;
 varying vec3 v_obj;
 
 void vertex() {
-	// Bontago-1pi.11.60: next_pass surfaces are also drawn in the shadow pass;
+	// next_pass surfaces are also drawn in the shadow pass;
 	// collapse to a degenerate (culled) triangle there.
 	v_obj = VERTEX;
 	vec4 view_pos = MODELVIEW_MATRIX * vec4(VERTEX, 1.0);

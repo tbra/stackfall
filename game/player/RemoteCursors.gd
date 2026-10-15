@@ -1,6 +1,6 @@
 class_name RemoteCursors
 extends Node3D
-## Other players' held blocks (spec 3.4: "update_cursor(pos): unreliable,
+## Other players' held blocks (spec 2.6: "update_cursor(pos): unreliable,
 ## 15 Hz. Only used to show other players' ghosts").
 ##
 ## One GhostPreview per non-local slot, created the first time that slot's
@@ -82,7 +82,7 @@ func _on_remote_cursor_updated(
 	# both, so setting the index last is what makes one pose out of the two.
 	ghost.free_quaternion = free_quat
 	ghost.set_orientation_index(orientation_index)
-	# DECISION (game/player/RemoteCursors.gd, Bontago-mv0.17 items 3/5): spec 3.4's
+	# DECISION (game/player/RemoteCursors.gd items 3/5): spec 2.6's
 	# update_cursor carries the sending peer's own already-fully-resolved
 	# GhostPreview.global_position (hover and the rotated-bottom-pivot
 	# correction both already applied on their end) -- not a surface to
@@ -107,14 +107,14 @@ func _on_feed_block_issued(slot_id: int, shape_id: StringName, _next_shape_id: S
 		_sync_gift(ghost, slot_id)
 
 
-## Bontago-59o.13: mirror the held-gift presentation on remote ghosts.
+## mirror the held-gift presentation on remote ghosts.
 func _sync_gift(ghost: GhostPreview, slot_id: int) -> void:
 	var authority: Object = _authority()
 	if authority != null and authority.has_method(&"held_special"):
 		ghost.set_held_gift(StringName(authority.held_special(slot_id)))
 
 
-## Bontago-sen.8: remote ghosts wear the glue look while their slot has
+## remote ghosts wear the glue look while their slot has
 ## charges, from the replicated count (also applied when a ghost is created).
 func _on_glue_charges_changed(slot_id: int, charges: int, _revision: int) -> void:
 	var ghost: GhostPreview = ghost_for_slot(slot_id)

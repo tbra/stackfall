@@ -115,12 +115,12 @@ func qol_claim_radius() -> float:
 	return 0.0
 
 
-## Bontago-mp0.152: radius of the zone every goal beacon draws (null object: nothing).
+## radius of the zone every goal beacon draws (null object: nothing).
 func goal_zone_visual_radius() -> float:
 	return 0.0
 
 
-## Bontago-1pi.188: seconds a Classic capture must be held (the beacon countdown's start).
+## seconds a Classic capture must be held (the beacon countdown's start).
 func capture_hold_seconds() -> float:
 	return 0.0
 

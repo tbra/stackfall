@@ -1,6 +1,6 @@
-// Owner id encoding shared by the bake pass and the disc decode (Bontago-1pi.11.1).
+// Slot id encoding shared by the bake pass and the disc decode.
 const float OWNER_ENCODE_DIV = 16.0;
-// Bontago-1pi.11.1: the analytic influence-circle field, shared by
+// the analytic influence-circle field, shared by
 // shaders/territory/territory.gdshader (direct fallback) and
 // shaders/territory/territory_circle_bake.gdshader (the once-per-change bake). Declares
 // the circle/bin uniforms both shaders read and circle_field(), which evaluates

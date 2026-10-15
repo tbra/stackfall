@@ -29,7 +29,7 @@ extends Node3D
 ##     start_match() itself runs first when a match is restarted from any
 ##     later state -- and when Net drops to OFFLINE, which also aborts the
 ##     stale Match so it stops ticking and the next host/join starts from a
-##     clean LOBBY (Beads Bontago-mv0.1.9).
+##     clean LOBBY .
 ##
 ## **Wiring order matters**, same reason as M2: Match.register_world() must
 ## happen before start_match() (it configures BlockRegistry's host authority
@@ -56,7 +56,7 @@ extends Node3D
 ## `--hot-seat` starts a two-player hot-seat match. Both live in MatchConfig
 ## rather than as literals here (CLAUDE.md: no magic numbers).
 @export var player_count: int = 2
-## Bontago-mv0.8: tunables for the unlisted `--sandbox` debug entry point
+## tunables for the unlisted `--sandbox` debug entry point
 ## below (CLAUDE.md: no magic numbers — see config/match/SandboxConfig.gd).
 @export var sandbox_config: SandboxConfig = preload("res://config/match/sandbox.tres")
 
@@ -80,22 +80,22 @@ const WATCH_BOTS_OPTIONS_PATH: String = "res://game/main/WatchBotsOptions.gd"
 const SANDBOX_SCENE_PATH: String = "res://game/sandbox/Sandbox.tscn"
 const GIFT_DEMO_PRESET_PATH: String = "res://config/match/sandbox_gift_demo.tres"
 const TOWER_TOPPLE_PRESET_PATH: String = "res://config/match/sandbox_tower_topple.tres"
-## docs/archive/M6_PLAN.md package B3 (spec 2.7 "Tutorial").
+## docs/archive/M6_PLAN.md package B3 (spec 1.2 "Tutorial").
 const TUTORIAL_SCENE_PATH: String = "res://ui/menus/Tutorial.tscn"
 const REMOTE_CURSORS_SCENE_PATH: String = "res://game/player/RemoteCursors.tscn"
 const NET_DEBUG_OVERLAY_SCENE_PATH: String = "res://ui/debug/NetDebugOverlay.tscn"
-## Bontago-xtq.42 (M7 P42, owner playtest: "there's no pause menu, I can't
+## (M7 P42, : "there's no pause menu, I can't
 ## abandon a game and go back to the main menu or quit the game").
 const PAUSE_MENU_SCENE_PATH: String = "res://ui/menus/PauseMenu.tscn"
-## Bontago-1pi.6 (owner playtest: "the win screen always says 'Team x wins!'
+## ("the win screen always says 'Team x wins!'
 ## even when not playing in teams"). Self-contained the same way
 ## ui/menus/PauseMenu.gd is (see its own header) -- it self-wires to
 ## Events.match_results_ready/match_state_changed, so this is only an
 ## instantiate-and-hide, no further wiring in this file.
 const RESULTS_SCREEN_SCENE_PATH: String = "res://ui/menus/ResultsScreen.tscn"
-## Bontago-1pi.69: hold-to-show live scoreboard (action show_scores).
+## hold-to-show live scoreboard (action show_scores).
 const SCOREBOARD_SCENE_PATH: String = "res://ui/hud/ScoreboardOverlay.tscn"
-## Bontago-1pi.8 (owner playtest 2026-09-27): covers the LOBBY -> LOADING ->
+## covers the LOBBY -> LOADING ->
 ## COUNTDOWN window instead of leaving the idle centre-beacon camera shot on
 ## screen -- see ui/menus/LoadingScreen.gd's own header doc.
 const LOADING_SCREEN_SCENE_PATH: String = "res://ui/menus/LoadingScreen.tscn"
@@ -105,17 +105,17 @@ const LOADING_SCREEN_SCENE_PATH: String = "res://ui/menus/LoadingScreen.tscn"
 @onready var _registry: BlockRegistry = $BlockRegistry
 @onready var _camera_rig: CameraRig = $CameraRig
 @onready var _skybox: Skybox = $Skybox
-## Bontago-mp0.123: cosmetic horizon island ring, rebuilt wherever the sky set loads.
+## cosmetic horizon island ring, rebuilt wherever the sky set loads.
 @onready var _horizon_islands: HorizonIslands = $HorizonIslands
-## Bontago-xtq.26 (M7 P1): the one WorldEnvironment in game/main/Main.tscn --
+## M7 P1: the one WorldEnvironment in game/main/Main.tscn --
 ## _apply_graphics_preset() below forwards ssr_enabled/volumetric_fog_enabled
 ## to its Environment resource. Null-checked rather than assumed non-null so a
 ## stripped-down test fixture without this node stays a safe no-op.
 @onready var _world_environment: WorldEnvironment = $WorldEnvironment
 
-## Bontago-1pi.11.84: serial prewarm queue and the on-demand sandbox flow (typed to the light ports).
+## serial prewarm queue and the on-demand sandbox flow (typed to the light ports).
 var _prewarm_queue: MenuPrewarmQueue = null
-## Bontago-1pi.11.84 (MF4): true while the queue loads behind the menu (interactive launches only;
+## MF4: true while the queue loads behind the menu (interactive launches only;
 ## headless, agent-probe and CLI-flag runs keep the synchronous on-demand loads).
 var _prewarm_background: bool = false
 ## The menu has been shown once, so _process may advance the queue (the Lobby chunk loads first).
@@ -133,12 +133,12 @@ var _match_flow: MainMatchFlowPort = null
 var _main_menu: MainMenu = null
 var _lobby: Node = null
 var _hot_seat: Node = null
-## Bontago-1pi.212 (debug Watch bots): true from start_watch_bots() until the session ends or returns to
+## debug Watch bots: true from start_watch_bots() until the session ends or returns to
 ## the menu; the match flow then builds a SpectatorController instead of a HotSeat.
 var _watch_bots_active: bool = false
 var _spectator: Node = null
 var _sandbox: Node = null
-## Bontago-1pi.70: set only by start_gift_demo_from_menu().
+## set only by start_gift_demo_from_menu().
 var _sandbox_preset: SandboxConfig = null
 ## docs/archive/M6_PLAN.md package B3: built/freed only by start_tutorial_from_menu()/
 ## _on_tutorial_finished() below -- never touched by _build_match_world()/
@@ -146,7 +146,7 @@ var _sandbox_preset: SandboxConfig = null
 var _tutorial: Node = null
 var _remote_cursors: Node = null
 var _debug_overlay: Node = null
-## Bontago-xtq.42: built once below, right where Events.match_state_changed/
+## built once below, right where Events.match_state_changed/
 ## net_mode_changed are connected -- kept alive for every menu/lobby/match
 ## screen that follows (main menu, lobby, sandbox-from-menu, tutorial-from-
 ## menu, a real online host/client match), the same "instantiate once, self-
@@ -154,11 +154,10 @@ var _debug_overlay: Node = null
 ## built for --hot-seat/the CLI-only --sandbox debug entry point above (both
 ## `return` out of _ready() before reaching this): this file's own header
 ## requires --hot-seat stay byte-identical to M2, and --sandbox is explicitly
-## "not player-facing" (see _start_sandbox_match()'s own doc) -- the owner
-## playtest finding this package answers was about the ordinary menu-driven
+## "not player-facing" (see _start_sandbox_match()'s own doc) -- the finding this package answers was about the ordinary menu-driven
 ## game, which start_sandbox_from_menu()/start_tutorial_from_menu() below
 ## already cover.
-## Bontago-1pi.11.84.6 (MF5): the four overlays are created on first need (ensure), not in
+## MF5: the four overlays are created on first need (ensure), not in
 ## _ready(). `_pause_menu` & co. are lazy accessors (the flows and tests read them and always
 ## get an instance); the `*_node` fields are the raw slots, null until created, for the paths
 ## that must NOT create one (main-menu entry, territory callbacks).
@@ -166,7 +165,7 @@ var _pause_menu_node: PauseMenu = null
 var _pause_menu: PauseMenu:
 	get:
 		return _ensure_pause_menu()
-## Bontago-1pi.6: built once alongside _pause_menu above, for the same reason
+## built once alongside _pause_menu above, for the same reason
 ## (self-wired via Events, inert until it has something to show). Unlike
 ## _pause_menu it needs no `suppressed` gate: it only ever appears in
 ## response to Events.match_results_ready (never a raw key press), so there
@@ -179,7 +178,7 @@ var _scoreboard_node: ScoreboardOverlay = null
 var _scoreboard: ScoreboardOverlay:
 	get:
 		return _ensure_scoreboard()
-## Bontago-1pi.8: built once, right alongside _pause_menu above (same
+## built once, right alongside _pause_menu above (same
 ## "instantiate once, self-wire" contract this file's own header describes),
 ## never for --hot-seat/the CLI-only --sandbox debug entry point (both return
 ## out of _ready() before Events.match_state_changed is even connected below,
@@ -189,14 +188,14 @@ var _loading_screen: LoadingScreen:
 	get:
 		return _ensure_loading_screen()
 var _start_pending: bool = false
-## Bontago-d5c.6 (M5 P5): one instance per bot slot in the match currently
+## M5 P5: one instance per bot slot in the match currently
 ## built, built in _build_match_world() (or _start_headless_bot_match_with_
 ## args()'s own reuse of it) and freed in _end_match_world() -- see
 ## _spawn_bot_controllers()'s own doc for why this lives here rather than in
 ## a P4 lobby append.
 var _bot_controllers: Array[Node] = []
 
-## M8 P5 (spec 3.5 "Stable-block optimization"): one instance for the match
+## M8 P5 (spec 2.7 "Stable-block optimization"): one instance for the match
 ## currently built, same build/teardown lifecycle as _bot_controllers above
 ## (built in _build_match_world(), freed in _end_match_world()) -- see
 ## _build_match_world()'s own single wiring-point comment. Host-gated inside
@@ -206,7 +205,7 @@ var _bot_controllers: Array[Node] = []
 ## gives for BotController.
 var _stable_block_manager: Node = null
 
-## Bontago-d5c.6 review finding 2: diagnostics-only cadence for the
+## review finding 2: diagnostics-only cadence for the
 ## `HEADLESS_BOTS` progress line printed by _on_headless_bots_report_tick()
 ## below, while a `--headless-host --bots=<n>` match is running. Not a
 ## gameplay tunable (CLAUDE.md's "no magic numbers" targets values that affect
@@ -221,7 +220,7 @@ const HEADLESS_BOTS_REPORT_INTERVAL_S: float = 5.0
 var _headless_bots_report_timer: Timer = null
 var _headless_bots_start_msec: int = 0
 var _headless_bots_placements: int = 0
-## Bontago-8or.21: `--loop-matches` state. Index 0 = no bot match started yet;
+## `--loop-matches` state. Index 0 = no bot match started yet;
 ## _headless_loop_args is the command line the loop restarts from. Only ever
 ## armed by _start_headless_bot_match_with_args() with the flag present.
 var _headless_loop_enabled: bool = false
@@ -243,16 +242,16 @@ var _controller_was_processing: bool = false
 var _controller_was_handling_input: bool = false
 
 
-## Bontago-xtq.44: the process-wide caches are released as the game scene leaves the tree.
+## the process-wide caches are released as the game scene leaves the tree.
 func _exit_tree() -> void:
-	# Bontago-1pi.11.80: never cancel an in-flight threaded load during exit cleanup.
+	# never cancel an in-flight threaded load during exit cleanup.
 	if _prewarm_queue != null:
 		_prewarm_queue.collect_in_flight()
 	ExitRelease.release_if_quitting()
 
 
-## Bontago-xtq.46: a window close once Boot has handed over is a real quit.
-## Bontago-1pi.11.84 (MF4, R7): while the background prewarm owns the close request, the quit
+## a window close once Boot has handed over is a real quit.
+## MF4, R7: while the background prewarm owns the close request, the quit
 ## waits for the in-flight chunk (the message pump stays alive) and no further chunk starts.
 func _notification(what: int) -> void:
 	if what != NOTIFICATION_WM_CLOSE_REQUEST:
@@ -274,7 +273,7 @@ func _quit_now() -> void:
 	if quit_callable.is_valid():
 		quit_callable.call()
 	else:
-		Sfx.quit_tree()  # marks QuitFlag, drains audio, then quits (Bontago-xtq.47)
+		Sfx.quit_tree()  # marks QuitFlag, drains audio, then quits
 
 
 ## Drives the one serial background loader (one request in flight) once the menu is up.
@@ -311,7 +310,7 @@ func _wants_background_prewarm() -> bool:
 	return not cfg.wants_eager(OS.get_cmdline_user_args())
 
 
-## Bontago-1pi.11.85.2: true once both autoload facades built their late state.
+## true once both autoload facades built their late state.
 func _late_active() -> bool:
 	return Match.is_late_active() and MatchNet.is_late_active()
 
@@ -336,7 +335,7 @@ func _activate_late_if_loaded() -> void:
 	_ensure_late_active()
 
 
-## Bontago-1pi.11.85.2: Match + MatchNet late_activate (WeatherNet child included) must exist
+## Match + MatchNet late_activate (WeatherNet child included) must exist
 ## before any session starts or a replicated packet can arrive, so every flow calls this first
 ## (idempotent). Blocks only for what the background queue has not delivered yet: the in-flight
 ## request is collected (never cancelled, R7/F1), the rest loads synchronously.
@@ -369,7 +368,7 @@ func _stop_background_prewarm() -> void:
 	set_process(false)
 
 
-## Bontago-1pi.11.91: the world roots that stop processing while a menu/lobby holds the render
+## the world roots that stop processing while a menu/lobby holds the render
 ## budget (ui/menus/MenuBackdrop.gd). Overlays, perf tools and net/match nodes are not among them.
 func _register_menu_dormant_world() -> void:
 	var roots: Array[Node] = []
@@ -425,18 +424,18 @@ func _await_prewarmed(paths: PackedStringArray) -> bool:
 func _ready() -> void:
 	print(_boot_line())
 
-	# Bontago-mv0.18: load any saved tuning-panel overrides onto the shared
+	# load any saved tuning-panel overrides onto the shared
 	# tuning singletons before anything else in the tree reads them (nothing
 	# does yet at this point -- see ui/debug/TuningPanel.gd's own doc comment on why
 	# that ordering doesn't matter either way).
 	TuningOverrides.apply_saved()
 
-	# Bontago-1pi.11.85.2: synchronous runs (headless, CLI flags, probes) build the autoloads' late
+	# synchronous runs (headless, CLI flags, probes) build the autoloads' late
 	# state now; the interactive path does it behind the menu (_activate_late_if_loaded).
 	if not _wants_background_prewarm():
 		_ensure_late_active()
 
-	# Bontago-xtq.26 (M7 P1): connected before the hot-seat/sandbox early
+	# M7 P1: connected before the hot-seat/sandbox early
 	# returns below so those offline entry points get the current graphics
 	# preset applied too, even though they skip ui/menus/MainMenu.tscn/ui/Lobby.tscn
 	# entirely. current_graphics_preset() never returns null (Settings loads
@@ -445,10 +444,10 @@ func _ready() -> void:
 	Settings.graphics_preset_changed.connect(_apply_graphics_preset)
 	Settings.window_mode_changed.connect(_on_window_mode_changed)
 	_apply_graphics_preset(Settings.current_graphics_preset())
-	# Bontago-1pi.11.37: opt-in adaptive quality (idle unless the Options toggle is on).
+	# opt-in adaptive quality (idle unless the Options toggle is on).
 	add_child(QualityGovernorDriver.new())
 
-	# Bontago-xtq.45 (M7 P4): applies the persisted window mode (borderless
+	# M7 P4: applies the persisted window mode (borderless
 	# fullscreen by default) over whatever project.godot's own boot-time
 	# window settings produced. Settings.apply_window_mode()'s own guards
 	# already skip headless/editor/--position runs, so this is a no-op for
@@ -468,7 +467,7 @@ func _ready() -> void:
 
 	Events.match_state_changed.connect(_on_match_state_changed)
 	Events.net_mode_changed.connect(_on_net_mode_changed)
-	# Bontago-8or.11: the gameplay half of mid-match admission. Net must not
+	# the gameplay half of mid-match admission. Net must not
 	# name Match, so MatchNet (the membrane that reads both) answers which seat
 	# a late joiner may take and whether a returning peer's slot is still its.
 	Net.set_seat_policy(MatchNet.pick_open_seat, MatchNet.seat_reclaimable)
@@ -488,7 +487,7 @@ func _ready() -> void:
 	# explicitly while using that test ID. A real AppID restores auto-init.
 	if Net.STEAM_APP_ID_EXPECTED != 480 or _has_cmdline_flag("steam-online") or _has_cmdline_flag("host-online"):
 		Net.init_steam()
-	# Bontago-59o.1: interactive launches show the SlopShop splash (with its
+	# interactive launches show the SlopShop splash (with its
 	# jingle) first; headless/CLI entry points go straight to the menu.
 	if _wants_background_prewarm():
 		_start_background_prewarm()
@@ -505,7 +504,7 @@ func _ready() -> void:
 	# has already swapped the menu for the lobby by the time we get here.
 	Net.apply_command_line()
 
-	# Bontago-d5c.6 (M5 P5): a headless host has no human to click the
+	# M5 P5: a headless host has no human to click the
 	# Lobby's own Start button, so `--headless-host --bots=<n>` (n > 0) skips
 	# straight past that wait -- see _start_headless_bot_match_with_args()'s
 	# own doc. A no-op (and so byte-identical to today) for every other
@@ -513,7 +512,7 @@ func _ready() -> void:
 	# being present and > 0.
 	if _has_cmdline_flag("headless-host"):
 		_start_headless_bot_match_with_args(OS.get_cmdline_user_args())
-	# Bontago-1pi.212: `-- --watch-bots=<n> [--mode=<id>] [--difficulty=<level>]` starts the same debug
+	# `-- --watch-bots=<n> [--mode=<id>] [--difficulty=<level>]` starts the same debug
 	# all-bot watch match the Debug page's picker does (debug mode only).
 	# Loaded by path so the watch-bots rules stay out of Main's compile closure (tools/lint_layers.py L4).
 	var watch_options: GDScript = load(WATCH_BOTS_OPTIONS_PATH) as GDScript
@@ -528,7 +527,7 @@ func _physics_process(delta: float) -> void:
 	PerfProbe.stop(&"snapshot", probe_snapshot)
 
 
-## Bontago-1pi.11.49: the single place that decides the in-match frame cap (default =
+## the single place that decides the in-match frame cap (default =
 ## display refresh, see GraphicsPreset.FrameCap); ui/menus/MenuBackdrop.gd arbitrates it
 ## against the menu cap. Headless and agent-probe runs keep the engine default.
 ## Tests set frame_cap_in_headless and refresh_rate_provider.
@@ -538,7 +537,7 @@ var refresh_rate_provider: Callable = Callable()
 var vsync_applier: Callable = Callable()
 
 
-## Bontago-1pi.11.51: the cap also follows the window: re-applied after a window-mode
+## the cap also follows the window: re-applied after a window-mode
 ## change and when a low-frequency check (GraphicsPreset.screen_check_interval_s) sees the
 ## window on another screen or the screen's refresh rate changed. Tests set screen_provider.
 var screen_provider: Callable = Callable()
@@ -565,7 +564,7 @@ func _current_refresh_hz() -> float:
 func _apply_frame_cap(preset: GraphicsPreset) -> void:
 	if _frame_cap_skipped():
 		return
-	# DECISION (Bontago-mp0.154): vsync is set explicitly either way; Engine.max_fps still applies
+	# DECISION: vsync is set explicitly either way; Engine.max_fps still applies
 	# alongside it, so the frame cap is resolved as before.
 	var vsync_mode: int = DisplayServer.VSYNC_ENABLED if preset.vsync_enabled else DisplayServer.VSYNC_DISABLED
 	if vsync_applier.is_valid():
@@ -597,7 +596,7 @@ func _on_window_mode_changed(_id: StringName) -> void:
 	_apply_frame_cap.call_deferred(Settings.current_graphics_preset())
 
 
-## Bontago-xtq.26 (M7 P1): applies every field GraphicsPreset (config/
+## M7 P1: applies every field GraphicsPreset (config/
 ## GraphicsPreset.gd) currently declares. Connected to
 ## Settings.graphics_preset_changed and also called once at startup above, so
 ## a mid-match preset change (Options screen, not built yet) and the initial
@@ -606,15 +605,15 @@ func _apply_graphics_preset(preset: GraphicsPreset) -> void:
 	var viewport: Viewport = get_viewport()
 	if viewport != null:
 		viewport.msaa_3d = preset.msaa_3d
-		# Bontago-1pi.11.37: only written on change; 1.0 on every shipped preset.
+		# only written on change; 1.0 on every shipped preset.
 		if not is_equal_approx(viewport.scaling_3d_scale, preset.render_scale_3d):
 			viewport.scaling_3d_scale = preset.render_scale_3d
-		# DECISION (Bontago-1pi.11.67): the upscaler is a preset field (Low: FSR 1.0).
+		# DECISION: the upscaler is a preset field (Low: FSR 1.0).
 		var mode: Viewport.Scaling3DMode = preset.render_scale_3d_mode as Viewport.Scaling3DMode
 		if viewport.scaling_3d_mode != mode:
 			viewport.scaling_3d_mode = mode
 
-	# DECISION (Bontago-xtq.26): Godot 4 has no per-Viewport or per-light
+	# DECISION: Godot 4 has no per-Viewport or per-light
 	# directional-shadow-atlas size -- RenderingServer.
 	# directional_shadow_atlas_set_size() is the only API surface (confirmed
 	# via ClassDB.class_get_method_list(&"RenderingServer"); Viewport only
@@ -628,11 +627,11 @@ func _apply_graphics_preset(preset: GraphicsPreset) -> void:
 	# GraphicsPreset field.
 	RenderingServer.directional_shadow_atlas_set_size(preset.shadow_atlas_size, true)
 
-	# Bontago-1pi.11.49: frame cap per preset (the headless server/tests keep the engine
+	# frame cap per preset (the headless server/tests keep the engine
 	# default so bot matches and test waits are not throttled).
 	_apply_frame_cap(preset)
 
-	# Bontago-1pi.11.2: cascade count / range of the sun's shadow pass.
+	# cascade count / range of the sun's shadow pass.
 	var sun: DirectionalLight3D = get_node_or_null("DirectionalLight3D") as DirectionalLight3D
 	if sun != null:
 		sun.directional_shadow_mode = preset.sun_shadow_mode as DirectionalLight3D.ShadowMode
@@ -641,11 +640,11 @@ func _apply_graphics_preset(preset: GraphicsPreset) -> void:
 	if _world_environment != null and _world_environment.environment != null:
 		var environment: Environment = _world_environment.environment
 		environment.ssr_enabled = preset.ssr_enabled
-		environment.glow_enabled = preset.glow_enabled  # Bontago-1pi.11.67
+		environment.glow_enabled = preset.glow_enabled
 		environment.volumetric_fog_enabled = preset.volumetric_fog_enabled
 
 
-# --- Hot-seat / sandbox / tutorial: forwarders (Bontago-1pi.11.84 MF1) -------
+# --- Hot-seat / sandbox / tutorial: forwarders (MF1) -------
 #
 # The bodies live in game/main/MainSandboxFlow.gd, loaded on demand through the prewarm queue
 # (docs/MENU_FIRST_PLAN.md 3.2). Every old member name stays here for tests and tools.
@@ -696,13 +695,13 @@ func _sandbox_flow_port() -> MainSandboxFlowPort:
 	return _sandbox_flow
 
 
-## Bontago-1pi.108: every mode that builds a world (match, hot-seat, sandbox, tutorial)
+## every mode that builds a world (match, hot-seat, sandbox, tutorial)
 ## gets the same sky: the config's theme / cycle.
 func _apply_match_sky(config: MatchConfig) -> void:
 	_skybox.configure_match_sky(config)
 
 
-# --- Headless bot match: forwarders (Bontago-1pi.11.84 MF2) ------------------
+# --- Headless bot match: forwarders (MF2) ------------------
 #
 # The bodies live in game/main/MainHeadlessBotsFlow.gd, loaded on demand through the prewarm queue;
 # the headless/CLI path stays synchronous. State fields (_headless_*) stay here.
@@ -803,10 +802,10 @@ func _ensure_pause_menu() -> PauseMenu:
 		var menu: PauseMenu = _load_scene(PAUSE_MENU_SCENE_PATH).instantiate() as PauseMenu
 		add_child(menu)
 		menu.leave_match_requested.connect(_on_pause_leave_requested)
-		# Bontago-1pi.50: Return to lobby (host ends the match for everyone).
+		# Return to lobby (host ends the match for everyone).
 		menu.return_to_lobby_requested.connect(_on_pause_return_to_lobby_requested)
 		menu.context_provider = _pause_menu_context
-		# Bontago-xtq.42: inert until a match/sandbox world exists (flows clear it).
+		# inert until a match/sandbox world exists (flows clear it).
 		menu.suppressed = true
 		_pause_menu_node = menu
 	return _pause_menu_node
@@ -847,17 +846,17 @@ func _ensure_overlays() -> void:
 
 
 func _show_main_menu() -> void:
-	# Bontago-1pi.11.85.1: stats() is null until late_activate(); a fresh session has no wins to reset.
+	# stats() is null until late_activate(); a fresh session has no wins to reset.
 	var session_stats: RefCounted = Match.stats()
 	if session_stats != null:
-		session_stats.reset_session_wins()  # Bontago-1pi.72.3: a fresh local session
+		session_stats.reset_session_wins()  # a fresh local session
 	Sfx.set_music_context(&"menu")
-	# DECISION (Bontago-1pi.156): Main owns the splash -> menu hand-off, so it starts the
+	# DECISION: Main owns the splash -> menu hand-off, so it starts the
 	# menu music here (after the splash `finished`, or immediately with no splash).
 	# play_music() is idempotent: a later return to the menu keeps the running music.
 	Sfx.play_music()
 	_clear_menu_and_lobby()
-	# Bontago-xtq.42 fix round 2 (orchestrator review): the main menu is a
+	# fix round 2 (orchestrator review): the main menu is a
 	# "no match world" screen -- force_close() handles the case where the
 	# match ended by some means other than PauseMenu's own Leave button (e.g.
 	# a host disconnect on a client, reaching this via _on_net_mode_changed()
@@ -877,8 +876,8 @@ func _show_main_menu() -> void:
 
 
 ## DECISION: Play local → Vs bots starts from the normal lobby with one human
-## and no bot preloaded (ai_count 0, one open seat). The owner asked for no
-## default bot (playtest 2026-10-11). The lobby remains editable before Start,
+## and no bot preloaded (ai_count 0, one open seat). The user asked for no
+## default bot (playtest). The lobby remains editable before Start,
 ## while LAN discovery stays off for this local entry point.
 func start_bots_from_menu(player_name: String) -> void:
 	if not await _await_prewarmed(PackedStringArray()):
@@ -894,7 +893,7 @@ func start_bots_from_menu(player_name: String) -> void:
 	Net.set_lobby_data(config.to_dict())
 
 
-## Bontago-1pi.212: debug-only. A local host session with every seat a bot and no human seat, so the
+## debug-only. A local host session with every seat a bot and no human seat, so the
 ## match flow builds a SpectatorController (watch, follow, speed) instead of a HotSeat. Back to menu and
 ## Play again on the results screen work as for any host match.
 func start_watch_bots(options: RefCounted) -> void:
@@ -916,7 +915,7 @@ func _show_lobby() -> void:
 	# Menu and lobby share a playlist; navigation must not restart the song.
 	Sfx.set_music_context(&"menu")
 	_clear_menu_and_lobby()
-	# Bontago-xtq.42 fix round 2: see _show_main_menu()'s own comment just
+	# fix round 2: see _show_main_menu()'s own comment just
 	# above -- the lobby is equally a "no match world" screen.
 	_ensure_overlays()
 	_pause_menu_node.force_close()
@@ -957,7 +956,7 @@ func _on_net_mode_changed(mode: int) -> void:
 		# Without it Match stayed PLAYING/END on the main menu -- still
 		# ticking feed timers and the territory solve against a world that
 		# no longer exists -- and the next host/join's start_match() came
-		# from that stale state (Beads Bontago-mv0.1.9). abort_match() emits
+		# from that stale state . abort_match() emits
 		# (old -> LOBBY), which _on_match_state_changed() below answers with
 		# the same _end_match_world() (idempotent, so the order of these two
 		# lines does not matter); it is skipped when Match is already in the
@@ -972,7 +971,7 @@ func _on_net_mode_changed(mode: int) -> void:
 		_show_lobby()
 
 
-## Bontago-t8x.4: Match.start_match() runs the whole world build synchronously
+## Match.start_match() runs the whole world build synchronously
 ## in one frame, so an overlay shown inside it is never presented before the
 ## freeze. The Lobby's Start button therefore lands here first: the overlay (and
 ## the clients' net_match_loading) goes up, tuning.pre_start_frames rendered
@@ -1002,7 +1001,7 @@ func _on_lobby_start_requested(config: MatchConfig) -> void:
 
 
 ## Client side of the above: raise the overlay as soon as the host announces.
-## Bontago-1pi.11.62: rarely used scenes are loaded on first use instead of
+## rarely used scenes are loaded on first use instead of
 ## preloaded at parse time. No member keeps the PackedScene: the resource cache
 ## holds it while an instance is alive and releases it afterwards.
 func _load_scene(path: String) -> PackedScene:
@@ -1011,7 +1010,7 @@ func _load_scene(path: String) -> PackedScene:
 	return load(path) as PackedScene
 
 
-## Bontago-1pi.11.62: threaded prefetch of the match-start scene set so the
+## threaded prefetch of the match-start scene set so the
 ## world build's _load_scene() calls do not hitch (called while the lobby /
 ## loading screen is up).
 func _prefetch_match_scenes() -> void:
@@ -1050,7 +1049,7 @@ func _on_loading_readiness_timed_out() -> void:
 		Net.leave()
 
 
-## ui/lobby/Lobby.gd's %BackButton (Bontago-xtq.32 redo #3, review finding #1):
+## ui/lobby/Lobby.gd's %BackButton (redo #3, review finding #1):
 ## _show_lobby() above is only ever entered from _on_net_mode_changed() once
 ## Net is already HOST or CLIENT, so this needs no host/client branch --
 ## Net.leave()'s own contract ("the host disconnects everyone ... first",
@@ -1084,9 +1083,9 @@ func _on_lobby_back_requested() -> void:
 ## menu()/_on_tutorial_finished() above) -- Tutorial keeps its own existing
 ## ui_cancel -> _end_tutorial() quit gesture unmodified.
 ##
-## DECISION (game/main/Main.gd, Bontago-xtq.42 round 3): _sandbox is freed and
+## DECISION (game/main/Main.gd round 3): _sandbox is freed and
 ## nulled *before* Match.abort_match() below, not after. _on_match_state_
-## changed()'s own Bontago-xtq.43 round 2 fix diverts every (-> LOBBY)
+## changed()'s own round 2 fix diverts every (-> LOBBY)
 ## reaction away from _end_match_world() while _sandbox is still a live
 ## instance (see that handler's own DECISION) -- freeing it first here means
 ## abort_match()'s (old -> LOBBY) emit instead takes the ordinary
@@ -1110,7 +1109,7 @@ func _on_pause_leave_requested() -> void:
 		Net.leave()
 		return
 	if _sandbox != null and is_instance_valid(_sandbox):
-		# Bontago-1pi.46 (G8). ROOT CAUSE: queue_free() only frees at the end of the
+		# (G8). ROOT CAUSE: queue_free() only frees at the end of the
 		# frame, so the sandbox's PlayerController still ran _process once more after
 		# the abort below had reset the camera (-> _end_match_world() ->
 		# _reset_match_scope() -> CameraRig.reset_view()) and wrote its follow position
@@ -1127,8 +1126,8 @@ func _on_pause_leave_requested() -> void:
 	_show_main_menu()
 
 
-## Bontago-1pi.50 (owner playtest 2026-10-03: "return to lobby option from pause
-## menu"): what ui/menus/PauseMenu.gd's Return to lobby entry shows, answered here
+## "return to lobby option from pause
+## menu": what ui/menus/PauseMenu.gd's Return to lobby entry shows, answered here
 ## because only Main may name Net and Match for it (the menu's own header).
 ## HOST: enabled -- every hosted session has a lobby to go back to, a local
 ## "Vs bots" game included (Net.host_game() without advertising). CLIENT: shown
@@ -1148,7 +1147,7 @@ func _pause_menu_context() -> Dictionary:
 			entry = PauseMenu.ReturnEntry.DISABLED
 	var state: int = int(Match.state())
 	var in_progress: bool = Match.is_in_progress(state)
-	# Bontago-1pi.167: PauseMenu freezes the tree only when no remote human is connected.
+	# PauseMenu freezes the tree only when no remote human is connected.
 	return {"return_entry": entry, "match_in_progress": in_progress, "freeze_tree": Net.is_solo_session()}
 
 
@@ -1180,7 +1179,7 @@ func _on_pause_return_to_lobby_requested() -> void:
 
 # --- Building the match world (host and client alike) ------------------------
 
-## Bontago-1pi.8: MatchLifecycle._build_slots() (autoload/match/
+## MatchLifecycle._build_slots() (autoload/match/
 ## MatchLifecycle.gd's start_match()) already ran before the LOBBY -> LOADING
 ## emit this feeds, so every slot's display_name/is_bot is already final for
 ## the match that is about to build -- collected into a plain array so
@@ -1196,7 +1195,7 @@ func _loading_screen_slots() -> Array[PlayerSlot]:
 	return slots
 
 
-# --- Match world: forwarders (Bontago-1pi.11.84 MF3) --------------------------
+# --- Match world: forwarders (MF3) --------------------------
 #
 # The bodies live in game/main/MainMatchFlow.gd. R4: `_on_match_state_changed` is connected in _ready()
 # and also fires from a client's net_match_start RPC with no other Main involvement, so every
@@ -1205,7 +1204,7 @@ func _loading_screen_slots() -> Array[PlayerSlot]:
 # that awaits the old name still waits, while fire-and-forget callers behave as before (a
 # coroutine that never suspends completes synchronously, e.g. headless).
 
-## Bontago-1pi.11.84: the match-world rules (state routing, world build/teardown, loading hand-off).
+## the match-world rules (state routing, world build/teardown, loading hand-off).
 func _on_match_state_changed(from_state: int, to_state: int) -> void:
 	if to_state == Match.State.LOADING:
 		_ensure_overlays()  # MF5: sandbox/bots/test entries never pass the lobby
@@ -1245,7 +1244,7 @@ func _match_flow_port() -> MainMatchFlowPort:
 	return _match_flow
 
 
-# --- Debug tools (Bontago-470.8) ---------------------------------------------
+# --- Debug tools ---------------------------------------------
 
 ## Debug mode only (game/debug/DebugMode.gd): the F1 perf overlay, its sampler and
 ## the per-session CSV logger. Lives under Main for the whole session, so it
@@ -1290,7 +1289,7 @@ func _has_cmdline_flag(flag: String) -> bool:
 	return false
 
 
-## One-line report of the settings M0 is required to get right (spec 3.1, 3.5).
+## One-line report of the settings M0 is required to get right (spec 2.1, 2.7).
 func _boot_line() -> String:
 	var version: String = str(Engine.get_version_info().get("string", "unknown"))
 	var physics_engine: String = str(ProjectSettings.get_setting("physics/3d/physics_engine", "?"))

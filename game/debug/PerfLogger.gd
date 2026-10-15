@@ -1,6 +1,6 @@
 class_name PerfLogger
 extends Node
-## Bontago-470.8: writes one CSV per debug session to
+## writes one CSV per debug session to
 ## <DebugConfig.log_dir>/<timestamp>.csv, a row every DebugConfig.log_interval_s
 ## fed by game/debug/PerfSampler.gd's newest snapshot. Flushes every
 ## log_flush_every_rows rows, closes on tree exit, and keeps only the newest
@@ -36,9 +36,9 @@ func _ready() -> void:
 		open_log()
 
 
-## Bontago-1pi.11.15: headless and agent-probe runs (tests, benches, bots)
+## headless and agent-probe runs (tests, benches, bots)
 ## must not write session logs -- each open_log() prunes to log_keep_files,
-## so a burst of automated runs deleted the owner's own playtest log.
+## so a burst of automated runs deleted the user's own playtest log.
 static func is_automated_run() -> bool:
 	return DisplayServer.get_name() == "headless" or AgentProbe.is_active()
 

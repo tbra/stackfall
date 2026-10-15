@@ -1,6 +1,6 @@
 class_name MainFlowPort
 extends RefCounted
-## Bontago-1pi.11.84 (MF0): tiny base of the typed ports Main uses to reach flow code that is
+## MF0: tiny base of the typed ports Main uses to reach flow code that is
 ## loaded on demand (see docs/MENU_FIRST_PLAN.md 3.1). It names no heavy class_name and no
 ## autoload facade type, so Main.gd can hold one without compiling the match/sandbox graph.
 ## Implementations (game/main/MainSandboxFlow.gd, MainHeadlessBotsFlow.gd, MainMatchFlow.gd) extend

@@ -1,8 +1,8 @@
 shader_type spatial;
 render_mode unshaded, cull_disabled, depth_draw_never, shadows_disabled, blend_mix;
-// Bontago-a3z: a flat expanding ring (the cartoon blast's shock ring, the Freeze
+// a flat expanding ring (the cartoon blast's shock ring, the Freeze
 // frost ring and the Jumping Bean hop ring),
-// drawn on a 2x2 plane whose UV edge is radius 1. The owner scales the node to
+// drawn on a 2x2 plane whose UV edge is radius 1. The caller scales the node to
 // the current radius and sets `width_frac` (band width / radius) and `alpha_scale`.
 // `fill` adds a faint disc inside the band (0 = band only).
 

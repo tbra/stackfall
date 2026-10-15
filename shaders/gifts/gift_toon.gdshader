@@ -1,6 +1,6 @@
 shader_type spatial;
 render_mode cull_back;
-// Bontago-9cv: cel shading for the gift models (config/gifts/GiftModelTable.gd swaps each
+// cel shading for the gift models (config/gifts/GiftModelTable.gd swaps each
 // imported model material for one of these at build time). Same light model as
 // the blocks (shaders/blocks/block_cell_grid.gdshader light()): N.L quantized into
 // toon_band_count bands that blend shadow -> lit -> highlight multipliers, a crisp

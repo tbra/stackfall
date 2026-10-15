@@ -1,6 +1,6 @@
 class_name MenuPrewarmQueue
 extends RefCounted
-## Bontago-1pi.11.84 (MF0): the single serial background loader behind the main menu
+## MF0: the single serial background loader behind the main menu
 ## (docs/MENU_FIRST_PLAN.md 3.1). At most one threaded request is ever in flight (F1: overlapping
 ## threaded loads of scripts with shared closures can hang), and every on-demand load goes through
 ## ensure() so a main-thread load never stalls behind a different chunk (F2). Never reuse Boot's
@@ -103,7 +103,7 @@ func has_in_flight() -> bool:
 
 
 ## Window close / _exit_tree: blocks until the in-flight request finishes so it is never
-## cancelled (a cancelled worker compile logs "Could not preload" and may hang, 1pi.11.80).
+## cancelled (a cancelled worker compile logs "Could not preload" and may hang).
 func collect_in_flight() -> void:
 	if not _in_flight.is_empty():
 		_collect_in_flight_path()

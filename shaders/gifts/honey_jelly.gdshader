@@ -1,6 +1,6 @@
 shader_type spatial;
 render_mode blend_mix, depth_draw_opaque, cull_back, specular_schlick_ggx;
-// Honey look A (Bontago-lv2): jelly shell. Each cell is a subdivided cube pushed toward a ball
+// Honey look A: jelly shell. Each cell is a subdivided cube pushed toward a ball
 // (corners rounded, faces shared with a glued neighbour cell stay flat so blobs merge), with a
 // moving noise bulge and a down-hanging sag lobe on the lower half. Translucent so the block
 // colour shows through. CUSTOM0 = (cell centre xyz, neighbour bitmask).

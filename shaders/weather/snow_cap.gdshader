@@ -1,5 +1,5 @@
 shader_type spatial;
-// Bontago-22y.6: cel-styled snow cap. Two light bands (lit white, cool blue
+// cel-styled snow cap. Two light bands (lit white, cool blue
 // shade) plus a soft cool rim, so a cap reads as snow against the toon blocks.
 // Geometry is the exact collider hull; the "soft rim" is lighting only.
 render_mode specular_disabled;

@@ -1,10 +1,10 @@
 shader_type canvas_item;
-// Bontago-1pi.11.1: bakes territory.gdshader's per-pixel circle loop into a
+// bakes territory.gdshader's per-pixel circle loop into a
 // texture, rendered once per circle-set change by game/field/TerritoryOverlay.gd's
 // SubViewport (see its DECISION comment). Channels (all in [0, 1]):
-//   R = best value  (clamped to +-BAKE_VALUE_CLAMP_M, encoded v / (2*clamp) + 0.5)
+//   R = best value (clamped to +-BAKE_VALUE_CLAMP_M, encoded v / (2*clamp) + 0.5)
 //   G = second-best team value (same encoding)
-//   B = (owner team + 1) / 16, 0 = unowned
+//   B = (team + 1) / 16, 0 = unowned
 // The disk shader samples R/G with a linear filter (the fields are continuous,
 // so this reconstructs a smooth, anti-aliased edge) and B with nearest.
 #include "res://shaders/territory/territory_circle_field.gdshaderinc"

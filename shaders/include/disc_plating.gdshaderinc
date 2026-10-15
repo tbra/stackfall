@@ -1,8 +1,8 @@
 // The territory disc's procedural cel plating, shared by shaders/territory/territory.gdshader (the top)
-// and shaders/territory/arena_side_shell.gdshader (the SHADER_DOME side/underside look, Bontago-mp0.150.2)
+// and shaders/territory/arena_side_shell.gdshader (the SHADER_DOME side/underside look)
 // so both draw the very same plates, seams and rivets. Moved verbatim out of territory.gdshader.
 
-// -- Bontago-adt.2: procedural cel plating (DiscSurfaceDef.Mode.PROCEDURAL) --
+// -- procedural cel plating (DiscSurfaceDef.Mode.PROCEDURAL) --
 // Concentric rings of plates (plate count per ring grows with radius, random
 // per-ring stagger and count jitter, so nothing tiles), crisp constant-pixel
 // seams with a sun-facing lip, toon rivets, banded per-plate sheen. Detail
@@ -50,7 +50,7 @@ uniform float disc_proc_brush_strength = 0.35;
 uniform float disc_proc_brush_scale_m = 0.05;
 uniform float disc_proc_roughness = 0.22;
 uniform float disc_proc_roughness_variation = 0.08;
-// Bontago-adt.2 (owner follow-up): detail fades with the camera's HEIGHT
+// user follow-up: detail fades with the camera's HEIGHT
 // above the disc top only, so the whole disc fades in and out together.
 uniform float disc_proc_rivet_fade_height_start_m = 14.0;
 uniform float disc_proc_rivet_fade_height_end_m = 22.0;
@@ -61,7 +61,7 @@ uniform float disc_proc_seam_fade_height_end_m = 40.0;
 uniform float disc_proc_aa_rivet_min_px = 1.5;
 uniform float disc_proc_aa_plate_min_px = 6.0;
 uniform float disc_proc_brush_fade_px = 3.0;
-// Bontago-1pi.11.67 fix2b: GraphicsPreset.disc_fine_detail_enabled. false (Low)
+// fix2b: GraphicsPreset.disc_fine_detail_enabled. false (Low)
 // drops the rivets and the brushed streaks, the two most expensive per-pixel
 // details of proc_plating(); plates, seams, lips, hatches, tone and sheen stay.
 uniform bool disc_fine_detail = true;
@@ -78,7 +78,7 @@ float value_noise_1d(float x) {
 	return mix(a, b, f * f * (3.0 - 2.0 * f));
 }
 
-// -- Bontago-adt.2: procedural cel plating -----------------------------------
+// -- procedural cel plating -----------------------------------
 // Fixed toon shape constants (the look's geometry, not tunables): where the
 // lit/shaded crescents start on a rivet dome (dot with the sun, -1..1), the
 // catchlight's offset/radius as fractions of the rivet radius, and the
@@ -101,7 +101,7 @@ float proc_hash(vec2 id, float salt) {
 void proc_rivet(vec2 o, vec2 sun2, float fw, float fade, inout float tone, inout float highlight) {
 	float radius = max(disc_proc_rivet_radius_m, 0.001);
 	float d = length(o);
-	// Bontago-1pi.11.67 fix2b: exact early-out. Past this reach the head
+	// fix2b: exact early-out. Past this reach the head
 	// (radius + fw / 2), its cast shadow (head offset by radius * shadow_offset
 	// along the unit sun2) and its outline (radius + outline_w + fw / 2) all
 	// smoothstep to exactly 0, so every factor below is exactly 1.0 and the
@@ -143,7 +143,7 @@ void proc_groove(float d, vec2 into_plate, vec2 sun2, float fade, inout float to
 	float fw = max(fwidth(d), 0.00001);
 	float half_w = 0.5 * disc_proc_seam_width_px * fw;
 	float lip_end = half_w + disc_proc_lip_width_px * fw;
-	// Bontago-1pi.11.67 fix2b: exact early-out (after the fwidth above, which
+	// fix2b: exact early-out (after the fwidth above, which
 	// must stay in uniform control flow). Past both the seam (half_w + fw / 2)
 	// and the lip (lip_end + fw / 2) both masks smoothstep to exactly 0: tone
 	// is multiplied by exactly 1.0, highlight gains 0 and seam_occ keeps its

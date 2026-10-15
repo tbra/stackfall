@@ -1,6 +1,6 @@
 class_name MainHeadlessBotsFlow
 extends MainHeadlessBotsFlowPort
-## Bontago-1pi.11.84 (MF2): the `--headless-host --bots=<n>` flow moved verbatim out of game/main/Main.gd
+## MF2: the `--headless-host --bots=<n>` flow moved verbatim out of game/main/Main.gd
 ## (docs/MENU_FIRST_PLAN.md 3.2). Main loads this script on demand through MenuPrewarmQueue and keeps a
 ## forwarder for every old member name; the state fields (_headless_*) stay on Main because tests
 ## and tools read them. DECISION: signal/timer callbacks connect to Main's forwarders so
@@ -15,7 +15,7 @@ var main_node: Main:
 var _headless_bots_start_physics_frame: int = 0
 
 
-# --- Headless bot match: `--bots=<n>` (Bontago-d5c.6, M5 P5) -----------------
+# --- Headless bot match: `--bots=<n>` (M5 P5) -----------------
 #
 # `godot --headless --path . -- --headless-host --bots=<n> [--players=<n2>]
 # [--seconds=<n3>]` starts a **real** networked match (config.sandbox = false,
@@ -45,7 +45,7 @@ func start_match_with_args(args: PackedStringArray) -> void:
 		# Lobby wait-for-Start path, unaffected.
 		return
 	if not _net_is_hosting():
-		# Bontago-d5c.6 review finding 1: --headless-host's own host_game()
+		# review finding 1: --headless-host's own host_game()
 		# call (Net.apply_command_line(), already run by the time _ready()
 		# reaches this branch -- see this function's own doc above) can fail
 		# to bind its port and leave Net at OFFLINE. Net.is_host() cannot see
@@ -67,7 +67,7 @@ func start_match_with_args(args: PackedStringArray) -> void:
 	if main_node._headless_loop_enabled:
 		Events.match_state_changed.connect(main_node._on_headless_loop_state_changed)
 	if not main_node._headless_loop_enabled:
-		# DECISION (Bontago-1t5.13): a single (non-loop) match also prints its HEADLESS_MATCH line on
+		# DECISION: a single (non-loop) match also prints its HEADLESS_MATCH line on
 		# END, so tools/bot_h2h.py can parse winner_team without --loop-matches.
 		Events.match_state_changed.connect(_on_headless_single_state_changed)
 	_setup_think_cost(args, bots)
@@ -81,7 +81,7 @@ func start_match_with_args(args: PackedStringArray) -> void:
 		main_node.get_tree().create_timer(seconds).timeout.connect(main_node._on_headless_bots_seconds_elapsed)
 
 
-# --- Hard-bot think cost report: `--bot-think-cost=<file>` (Bontago-1t5.62) ---------------------
+# --- Hard-bot think cost report: `--bot-think-cost=<file>` ---------------------
 # Turns on BotThinkCostCollector (unbounded window), runs the match for `--bot-think-cost-seconds=<n>` match
 # seconds (default config/bots/bot_think_cost.tres default_duration_s), then prints the BOT_THINK_COST lines and a
 # table, writes them to <file> and quits. Combine with --mode=, --bot-difficulty=hard, --match-seed=.
@@ -134,10 +134,10 @@ func _start_headless_loop_match(bots: int, args: PackedStringArray) -> void:
 	main_node._headless_loop_index += 1
 	var has_match_seed: bool = _has_match_seed_arg(args)
 	if main_node._headless_loop_enabled:
-		# DECISION (Bontago-8or.21): match 1 keeps the configured seed when one is
+		# DECISION: match 1 keeps the configured seed when one is
 		# set; every later match draws a fresh positive seed so repeats differ.
 		if has_match_seed:
-			# DECISION (Bontago-1t5.13): with --match-seed the later loop matches derive their
+			# DECISION: with --match-seed the later loop matches derive their
 			# seeds deterministically from it instead of drawing fresh random ones.
 			config.rng_seed = _derived_loop_seed(_match_seed_arg(args), main_node._headless_loop_index)
 		elif main_node._headless_loop_index > 1 or config.rng_seed < 0:
@@ -160,7 +160,7 @@ func _has_loop_matches_arg(args: PackedStringArray) -> bool:
 	return false
 
 
-## Bontago-8or.21: on END print one compact `HEADLESS_MATCH` summary line and
+## on END print one compact `HEADLESS_MATCH` summary line and
 ## restart on the next frame (deferred, so the END emit finishes first; the
 ## restart goes END -> LOBBY -> LOADING, which tears the old world down).
 func _on_headless_loop_state_changed(_from_state: int, to_state: int) -> void:
@@ -183,7 +183,7 @@ func _restart_headless_loop_match() -> void:
 	_start_headless_loop_match(_bots_arg(main_node._headless_loop_args), main_node._headless_loop_args)
 
 
-## `timed_out` (Bontago-1t5.16): the --seconds cap hit with the match still PLAYING; the line then
+## `timed_out`: the --seconds cap hit with the match still PLAYING; the line then
 ## carries winner_team=-1 and a trailing `timeout=1` (tools/bot_h2h.py counts it as a draw).
 func _headless_match_summary_line(timed_out: bool = false) -> String:
 	var line: String = "HEADLESS_MATCH index=%d mode=%d seed=%d duration=%.1f winner_team=%d placements=%d homes_alive=%d teams=%s" % [
@@ -197,10 +197,10 @@ func _headless_match_summary_line(timed_out: bool = false) -> String:
 	return line + " timeout=1" if timed_out else line
 
 
-## Bontago-1t5.31: per-slot `slot:placed/lost/peak_height_m` (comma-separated), read from the live
+## per-slot `slot:placed/lost/peak_height_m` (comma-separated), read from the live
 ## MatchStats, so bot_h2h-style logs can show blocks lost per placement and tower height.
 ## Appended after teams= so the existing regexes keep matching.
-## Bontago-1t5.35: a 4th field, peak180 = peak height reached by 180 s of match time (the E7 height
+## a 4th field, peak180 = peak height reached by 180 s of match time (the E7 height
 ## gate). DECISION: sampled on the 5 s report tick (so <=5 s late, peak is monotone); a match that
 ## ends before 180 s reports its final peak.
 const PEAK_SNAPSHOT_S: float = 180.0
@@ -234,7 +234,7 @@ func _headless_slot_teams() -> String:
 	return ",".join(parts)
 
 
-## Bontago-d5c.6 review finding 1: true only when Net actually became the
+## review finding 1: true only when Net actually became the
 ## HOST, unlike Net.is_host() (autoload/Net.gd: "True on the host **and
 ## offline**"), which cannot tell a genuine offline mode apart from
 ## --headless-host's own host_game() call having failed to bind. A private
@@ -298,7 +298,7 @@ func _headless_bot_players_arg(args: PackedStringArray) -> int:
 ## whole point being that the real feed/territory/win loop survives N
 ## concurrent bots, not sandbox's relaxed rules.
 func _build_headless_bot_config(bots: int, args: PackedStringArray) -> MatchConfig:
-	# DECISION (game/main/Main.gd, Bontago-3k0, deferred from Bontago-keo.19):
+	# DECISION (game/main/Main.gd, deferred from):
 	# Net.match_config_override() (set by --match-config=<path>, parsed inside
 	# Net's own host branch -- autoload/Net.gd's _apply_command_line_args())
 	# takes over `match_config`'s usual role as the duplication source here,
@@ -314,14 +314,14 @@ func _build_headless_bot_config(bots: int, args: PackedStringArray) -> MatchConf
 	config.player_count = maxi(bots, _headless_bot_players_arg(args))
 	config.hot_seat = false
 	config.sandbox = false
-	# DECISION (Bontago-mp0.27): headless bot matches have no human to wait for,
+	# DECISION: headless bot matches have no human to wait for,
 	# so they skip the 3-2-1 countdown (harnesses and loops stay fast).
 	config.countdown_seconds = 0.0
-	# DECISION (Bontago-1t5.3): `--mode=<classic|ctf|elimination|sky>` (or the
+	# DECISION: `--mode=<classic|ctf|elimination|sky>` (or the
 	# GameMode integer) picks the headless bot match's mode; absent keeps the
 	# config's own mode. resolve_game_mode() still falls back for unselectable ids.
-	# DECISION (Bontago-1t5.1): `--goals=<1..5>` overrides goal_flag_count for headless bot matches.
-	# Bontago-1pi.107: `--disc-size=<step>` picks the disc-size slider step (0 tiny .. 5 enormous).
+	# DECISION: `--goals=<1..5>` overrides goal_flag_count for headless bot matches.
+	# `--disc-size=<step>` picks the disc-size slider step (0 tiny .. 5 enormous).
 	var disc_step: int = _disc_size_arg(args)
 	if disc_step >= 0:
 		config.disc_size_step = DiscSizeTuning.shared().clamp_step(disc_step)
@@ -341,15 +341,15 @@ func _build_headless_bot_config(bots: int, args: PackedStringArray) -> MatchConf
 	if mode_override >= 0:
 		config.game_mode = MatchConfig.resolve_game_mode(mode_override)
 		config.round_timer_minutes = MatchConfig.clamp_round_timer(config.round_timer_minutes, config.game_mode)
-	# Bontago-1t5.28: `--round-timer=<minutes>` after the mode override (0 = no round timer, Elimination only;
+	# `--round-timer=<minutes>` after the mode override (0 = no round timer, Elimination only;
 	# other modes clamp to their minimum), so harness matches are not bound by the 5-minute default.
 	var timer_override: int = _round_timer_arg(args)
 	if timer_override >= 0:
 		config.round_timer_minutes = MatchConfig.clamp_round_timer(timer_override, config.game_mode)
-	# Bontago-1t5.56: `--gifts=0` turns gift spawns off (Reach the Sky height measurement); absent = unchanged.
+	# `--gifts=0` turns gift spawns off (Reach the Sky height measurement); absent = unchanged.
 	if _string_arg(args, "gifts=") == "0":
 		config.gifts_enabled = false
-	# Bontago-1t5.64: `--weather=0` turns weather off (WeatherMode.OFF); `--weather=1` turns it on (the
+	# `--weather=0` turns weather off (WeatherMode.OFF); `--weather=1` turns it on (the
 	# CHANGING schedule) only when the configured mode is OFF; absent = unchanged.
 	var weather_arg: String = _string_arg(args, "weather=")
 	if weather_arg == "0":
@@ -370,7 +370,7 @@ func _round_timer_arg(args: PackedStringArray) -> int:
 	return -1
 
 
-## Bontago-1t5.28: `--bot-difficulty-slots=<slot:level,...>` fills config.slot_ai_difficulties for the
+## `--bot-difficulty-slots=<slot:level,...>` fills config.slot_ai_difficulties for the
 ## named bot slots (absolute slot ids); every other slot keeps its current
 ## difficulty (--bot-difficulty / config default). Unknown slots or levels warn and are skipped.
 func _apply_bot_difficulty_slots(config: MatchConfig, args: PackedStringArray, bots: int) -> void:
@@ -419,7 +419,7 @@ func _goals_arg(args: PackedStringArray) -> int:
 	return 0
 
 
-## Bontago-1t5.1 diagnostics: per team, the most goals it holds in one group, "tN:k/total".
+## diagnostics: per team, the most goals it holds in one group, "tN:k/total".
 func _headless_bots_goal_coverage() -> String:
 	var raster: TerritoryRaster = Match.raster()
 	if raster == null or Match.config == null:
@@ -473,7 +473,7 @@ func _mode_arg(args: PackedStringArray) -> int:
 	return -1
 
 
-# --- Headless bot match diagnostics (Bontago-d5c.6 review finding 2) ---------
+# --- Headless bot match diagnostics (review finding 2) ---------
 #
 # The literal acceptance command (`--headless-host --bots=8 --seconds=60`) has
 # no console to watch, so this prints one `HEADLESS_BOTS` line every
@@ -490,7 +490,7 @@ func _mode_arg(args: PackedStringArray) -> int:
 # file outside this package's ownership.
 
 func _start_headless_bots_diagnostics() -> void:
-	# Idempotent (Bontago-8or.21): a --loop-matches restart must not double-connect
+	# Idempotent: a --loop-matches restart must not double-connect
 	# block_placed or leak a second report Timer.
 	_stop_headless_bots_diagnostics()
 	main_node._headless_bots_start_msec = Time.get_ticks_msec()
@@ -555,7 +555,7 @@ func _headless_bots_done_line() -> String:
 	]
 
 
-## Bontago-1t5.4 diagnostics: smallest (distance to a living enemy home minus
+## diagnostics: smallest (distance to a living enemy home minus
 ## the circle's radius) over every circle, i.e. how close any team's influence
 ## frontier is to an enemy home (<= 0 means a circle covers one). -1 when n/a.
 func _headless_bots_frontier_gap() -> float:
@@ -585,7 +585,7 @@ func _headless_bots_homes_alive() -> int:
 	return alive
 
 
-## DECISION (Bontago-1t5.16): the `t=` / `duration=` fields are GAME time (physics ticks), the same
+## DECISION: the `t=` / `duration=` fields are GAME time (physics ticks), the same
 ## clock the --seconds SceneTree timer uses, so `done t=` matches the cap even under an unpaced
 ## `--fixed-fps 60` run; wall-clock seconds are printed as an extra `wall=` field.
 func _headless_bots_elapsed_s() -> float:
@@ -606,7 +606,7 @@ func _headless_bots_state_name() -> String:
 	return str(key) if key != null else "UNKNOWN"
 
 
-# --- Training overrides (Bontago-1t5.13, BT5) ---------------------------------
+# --- Training overrides (BT5) ---------------------------------
 #
 # `--bot-difficulty=<easy|normal|hard|0..2>` sets every bot slot; `--bot-difficulty-slots=<slot:level,...>`
 # (absolute slot ids; bots occupy the LAST `bots` of `--players` slots) overrides named bot slots only;

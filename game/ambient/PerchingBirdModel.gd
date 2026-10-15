@@ -1,6 +1,6 @@
 class_name PerchingBirdModel
 extends RefCounted
-## Bontago-adt.3: procedural low-poly model of the cosmetic perching bird. The
+## procedural low-poly model of the cosmetic perching bird. The
 ## body and head are lofted from rings so the silhouette has a real pointed
 ## beak, perky head, wings folded along the back and a wedge tail; each face
 ## gets its own vertices (flat shading + per-face vertex colour: slate back,

@@ -18,7 +18,7 @@ extends SpecialEffect
 ## tick" lives in block.set_meta()/get_meta(), keyed by a unique StringName,
 ## exactly the seam PropellerEffect.gd/VolcanoEffect.gd already use.
 
-## Pull strength and reach (Bontago-1pi.85.13). RadialPull applies a
+## Pull strength and reach. RadialPull applies a
 ## mass-independent acceleration (accel_mps2 * falloff) plus friction_compensation,
 ## so an 8 kg tetromino on the 0.85-friction disc really slides toward the magnet.
 ## radius_m is docs/SPEC.md's "within 8 m"; Magnet has no capture.
@@ -30,12 +30,12 @@ extends SpecialEffect
 
 ## The model's "nose" in the carrier's local frame: magnet_v1.glb's pole tips sit at +Y. While
 ## thrown (airborne, before the pull starts) the carrier turns so this axis leads along its
-## velocity (Bontago-1pi.85.49, FlightFacing).
+## velocity (FlightFacing).
 @export var model_nose_axis: Vector3 = Vector3(0.0, 1.0, 0.0)
 
 ## Seconds after the throw before the pull starts (the old SpecialDef.arm_delay of 0.4 s). The def's
 ## arm_delay is 0 so physics_tick() runs, and the carrier faces its velocity, from the first tick
-## (Bontago-1pi.85.49); the pull itself waits this long.
+## ; the pull itself waits this long.
 @export var pull_start_delay_s: float = 0.0
 
 ## Below this speed (m/s) the thrown magnet keeps its pose instead of facing its velocity.
@@ -89,13 +89,13 @@ func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void
 		return candidate != null and candidate.owner_slot != mover_owner_slot
 
 	var exclude: Array[RID] = [block.get_rid()]
-	# DECISION (Bontago-1pi.85.13): query through RadialPull (ExplosionFx.query_bodies)
+	# DECISION: query through RadialPull (ExplosionFx.query_bodies)
 	# instead of SpecialPhysics.query_bodies_in_range, which misses blocks near the
 	# concave disc floor (one hit per triangle, capped).
 	RadialPull.pull(space_state, block.global_position, pull, exclude, enemy_only_filter, delta)
 
 
-## Bontago-1pi.85.49: while the thrown magnet is still travelling it turns so the pole tips lead
+## while the thrown magnet is still travelling it turns so the pole tips lead
 ## along its velocity (FlightFacing); once it slows below `face_min_speed_mps` it has landed and
 ## keeps that pose for good. Runs from the first tick (magnet.tres arm_delay is 0).
 func _face_while_airborne(block: Block) -> void:
@@ -110,11 +110,10 @@ func _face_while_airborne(block: Block) -> void:
 
 
 ## FIX pattern (matches PropellerEffect.gd/VolcanoEffect.gd's own
-## impact_triggers() override, Bontago-1en.22): vetoes the decel-based impact
+## impact_triggers() override): vetoes the decel-based impact
 ## trigger entirely so the magnet's own landing impact right as it arms can't
 ## trigger() (a no-op detonate()) before physics_tick() has run even once,
-## which would skip the whole pull window -- the exact bug class Bontago-
-## 1en.22 fixed for Propeller/Jumping Bean/Earthquake/Volcano.
+## which would skip the whole pull window -- the exact bug class fixed for Propeller/Jumping Bean/Earthquake/Volcano.
 func impact_triggers(_block: Block, _behavior: SpecialBehavior) -> bool:
 	return false
 

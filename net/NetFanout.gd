@@ -1,11 +1,11 @@
 class_name NetFanout
 extends RefCounted
-## Bontago-1pi.59: the one way a host broadcast leaves a node in net/.
+## the one way a host broadcast leaves a node in net/.
 ##
 ## Net.kick_peer() asks the transport to disconnect a peer, but ENet keeps it in
 ## multiplayer.get_peers() until the disconnect completes a poll or more later,
 ## and every send addressed to it in that window logs an engine error ("Condition
-## p_channel >= peer->channelCount is true", once per packet; 1pi.57 fixed Net's
+## p_channel >= peer->channelCount is true", once per packet; fixed Net's
 ## own fan-outs). A plain rpc() addresses every listed peer, so each host
 ## broadcast in MatchNet, SnapshotSync and the weather / snow / breeze relays goes
 ## through broadcast() instead, which leaves the disconnecting peer out.
@@ -45,7 +45,7 @@ static func targets(api: MultiplayerAPI, session: Variant) -> Array[int]:
 ## class is not a transport assumption (CLAUDE.md): it is the engine's own
 ## stand-in for "no transport", and ENet and Steam are equally unaffected.
 ##
-## DECISION (Bontago-fca.36.5): the one owner of this predicate. It lives here as
+## DECISION: the one owner of this predicate. It lives here as
 ## a static helper beside broadcast() rather than only on the Net autoload
 ## because every caller (MatchNet, WeatherNet, SnowNet, BreezeNet) tests against
 ## its own node's MultiplayerAPI and an injectable `session` double; Net.can_send()
@@ -78,7 +78,7 @@ static func broadcast(node: Node, session: Variant, method: StringName, args: Ar
 ## transport (can_send), the peer still listed in get_peers(), and `session` not
 ## reporting it as disconnecting (a kick in flight, or ENet already showing its
 ## link as not connected, which logs "Unable to send packet on channel 0, max
-## channels: 0" on every packet; Bontago-1pi.140).
+## channels: 0" on every packet).
 static func can_send_to(api: MultiplayerAPI, session: Variant, peer_id: int) -> bool:
 	if not can_send(api, session) or not api.get_peers().has(peer_id):
 		return false

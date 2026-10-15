@@ -1,9 +1,9 @@
 class_name BlockStepBatch
 extends RefCounted
-## Bontago-bth.1: one batched pass per physics tick over Block's awake set
+## one batched pass per physics tick over Block's awake set
 ## replacing the two GDScript callbacks Godot used to make per awake Block per
 ## tick (Block._integrate_forces() and Block._physics_process(); the
-## Bontago-bth REPORT attributed ~40-55% of a 250-block moving pile's step to
+## REPORT attributed ~40-55% of a 250-block moving pile's step to
 ## them). It runs the rebound
 ## damping / kick pass-through bookkeeping and the impact-audio detection for
 ## every awake Block in ONE engine->script call (SceneTree.physics_frame).

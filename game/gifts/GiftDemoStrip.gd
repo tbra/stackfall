@@ -1,6 +1,6 @@
 class_name GiftDemoStrip
 extends CanvasLayer
-## Bontago-1pi.70: the gift demo's on-screen hint: which gift the next piece is
+## the gift demo's on-screen hint: which gift the next piece is
 ## forced to, plus the bound prev/next glyphs (shared InputGlyph, active device).
 
 const ACTION_PREV: StringName = &"gift_demo_cycle_prev"

@@ -1,6 +1,6 @@
 class_name SnowNet
 extends Node
-## Snow replication and client rendering (Bontago-22y.6), a child of
+## Snow replication and client rendering, a child of
 ## WeatherNet so its RPC path (/root/MatchNet/WeatherNet/SnowNet) is the same
 ## on every instance.
 ##

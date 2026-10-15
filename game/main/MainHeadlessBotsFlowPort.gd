@@ -1,6 +1,6 @@
 class_name MainHeadlessBotsFlowPort
 extends MainFlowPort
-## Bontago-1pi.11.84 (MF0): virtuals Main calls for the headless bot-match flow
+## MF0: virtuals Main calls for the headless bot-match flow
 ## (`--headless-host --bots=<n>`). game/main/MainHeadlessBotsFlow.gd (MF2) overrides them.
 
 

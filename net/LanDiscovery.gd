@@ -1,6 +1,6 @@
 class_name LanDiscovery
 extends Node
-## LAN game advertising and browsing over UDP broadcast (spec 3.4 "LAN
+## LAN game advertising and browsing over UDP broadcast (spec 2.6 "LAN
 ## discovery"): the host broadcasts `{game, version, name, players, max, map,
 ## port}` once per second to 255.255.255.255 on NetConfig.discovery_port
 ## (47777); clients listen and show a list.

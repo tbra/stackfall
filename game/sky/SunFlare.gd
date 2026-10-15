@@ -1,7 +1,7 @@
 class_name SunFlare
 extends CanvasLayer
-## Bontago-mp0.3.4 (Graphics pass 2, owner feedback feedback/graphics_
-## feedback.md: "lens flare from the sun"): a screen-space lens flare -- a
+## Graphics pass 2, feedback/graphics_
+## feedback.md: "lens flare from the sun": a screen-space lens flare -- a
 ## tight starburst sparkle at the sun's own screen position, plus ghost
 ## discs sampled along the axis from the sun to the screen center -- drawn
 ## via a full-viewport ColorRect using shaders/sky/sun_flare.gdshader
@@ -10,7 +10,7 @@ extends CanvasLayer
 ## number lives in config/sky/SunFlareConfig.gd (`config`, see its own class doc
 ## for why it is not yet reachable from the in-game F4 panel).
 ##
-## Fix round (owner: "move god rays into the sky, they're painting dark
+## Fix round ("move god rays into the sky, they're painting dark
 ## spokes over the disc"): the big warm sun halo and long god-ray beams are
 ## NOT drawn here anymore -- they moved into shaders/sky/sunset_clouds.gdshader
 ## (part of the sky render pass, so they sit behind every opaque object for
@@ -75,18 +75,18 @@ var _material: ShaderMaterial = null
 var _camera: Camera3D = null
 var _current_visibility: float = 0.0
 var _enabled: bool = true
-## Bontago-mp0.95: the cloud puffs' share of hiding the sun (0..1) from the last CloudSea
+## the cloud puffs' share of hiding the sun (0..1) from the last CloudSea
 ## query, the seconds since that query, and the CloudSea it came from (found by group).
 var _cloud_block: float = 0.0
 var _cloud_age_s: float = 0.0
 var _cloud_queried: bool = false
 var _cloud_sea: CloudSea = null
-## Bontago-adt: the active SkyThemeDef's sun_flare_enabled (Skybox.apply_theme()
+## the active SkyThemeDef's sun_flare_enabled (Skybox.apply_theme()
 ## pushes it through set_theme_enabled(); night turns the sunset-aimed flare off).
 var _theme_enabled: bool = true
 
 const GROUP: StringName = &"sun_flare"
-## Bontago-mp0.33: the flare is an additive full-viewport rect, so it must sit
+## the flare is an additive full-viewport rect, so it must sit
 ## below every UI CanvasLayer (HUD is layer 1, pause 100, splash 128, perf 100)
 ## and below the layer-0 default canvas that hosts ResultsScreen. Negative
 ## layers draw under layer 0.
@@ -95,7 +95,7 @@ const FLARE_LAYER: int = -1
 ## visible the flare is hidden.
 const FULLSCREEN_UI_GROUP: StringName = &"fullscreen_ui"
 
-## Bontago-mp0.34: weather + night share of the flare that survives (set by
+## weather + night share of the flare that survives (set by
 ## Skybox); 0 hides it, so a storm or night cannot show the sun flare.
 var _weather_scale: float = 1.0
 
@@ -132,7 +132,7 @@ func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 	_enabled = preset == null or preset.volumetric_fog_enabled
 
 
-## Bontago-adt: theme gate (see _theme_enabled). Fades out via the hidden rect
+## theme gate (see _theme_enabled). Fades out via the hidden rect
 ## immediately; the smoothed visibility restarts from 0 on re-enable.
 func set_theme_enabled(value: bool) -> void:
 	if _cycle_config_local:
@@ -244,7 +244,7 @@ func _ghost_positions_vector4() -> Vector4:
 ## 0 (fully hidden) to 1 (fully shown): the sun must be roughly ahead of the
 ## camera (min_facing_dot), inside the screen rect plus a fade margin
 ## (_edge_fade()), not blocked by scene geometry (_occlusion_factor(): forward and reverse
-## ray, Bontago-mp0.95) and not hidden by cloud puffs (_cloud_block_factor()).
+## ray) and not hidden by cloud puffs (_cloud_block_factor()).
 ## The caller smooths the result over time; this function itself is a plain
 ## per-frame snapshot with no memory of its own.
 func _compute_visibility() -> float:
@@ -295,11 +295,10 @@ func _edge_fade(uv: Vector2) -> float:
 	return clampf(fade_x, 0.0, 1.0) * clampf(fade_y, 0.0, 1.0)
 
 
-## Bontago-mp0.95: two physics rays, either hit hides the flare. The forward ray (camera toward
+## two physics rays, either hit hides the flare. The forward ray (camera toward
 ## the sun) is what blocks, but game/field/Field.gd's disc collider is a single-sided trimesh -- faces
 ## only up and out of the rim -- so seen from below or edge-on the forward ray crosses the disc
-## without a hit and the starburst drew over the disc's underside (owner playtest 2026-10-03,
-## feedback/screenshot_20261003_183854.png). The reverse ray (sun point back to the camera)
+## without a hit and the starburst drew over the disc's underside. The reverse ray (sun point back to the camera)
 ## meets the very same faces from outside, so together the rays find every crossing of a
 ## one-sided surface; convex blocks answer to both. Two intersect_ray() calls per refresh,
 ## cheap enough for the brief ("check with a raycast or depth, cheap"). Any hit fades the
@@ -325,7 +324,7 @@ func _occlusion_factor(direction: Vector3) -> float:
 	return 1.0
 
 
-## Bontago-mp0.95: how much of the flare the cloud puffs hide (0..1), from CloudSea's bounds
+## how much of the flare the cloud puffs hide (0..1), from CloudSea's bounds
 ## query (the puffs are shader instances, not physics bodies). Re-queried every
 ## config.cloud_occlusion_refresh_s; between queries the last answer stands, and the visibility
 ## lerp in _process() smooths the steps. A scene without a CloudSea hides nothing.

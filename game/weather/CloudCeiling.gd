@@ -1,6 +1,6 @@
 class_name CloudCeiling
 extends Node
-## Bontago-mp0.19 / mp0.29: drives the overcast puff layer above the disc while
+## / : drives the overcast puff layer above the disc while
 ## it rains, snows or storms (the disc floats above a cloud sea, so precipitation
 ## needs clouds overhead). The layer itself is the cloud sea's own puff field
 ## (game/sky/CloudSea.gd: same mesh, shader, noise and CloudLighting), duplicated high
@@ -40,8 +40,8 @@ func _exit_tree() -> void:
 	_push_storm(0.0)
 
 
-## Bontago-1pi.46 (docs/MATCH_RESET_AUDIT.md G2; Events.match_scope_reset runs this at
-## every world build and teardown): drops every active weather request and the
+## docs/MATCH_RESET_AUDIT.md G2; Events.match_scope_reset runs this at
+## every world build and teardown: drops every active weather request and the
 ## fades in flight, and pushes "clear" to the skyboxes now. Without it a match that
 ## starts right after a storm / rain one (Replay, quick re-host, sandbox) opens
 ## overcast and storm-tinted and fades out over `fade_out_s`. Idempotent.

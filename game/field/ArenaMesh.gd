@@ -1,6 +1,6 @@
 class_name ArenaMesh
 extends RefCounted
-## The arena's generated SIDE surfaces (Bontago-mp0.150.1): the glowing chamfer,
+## The arena's generated SIDE surfaces: the glowing chamfer,
 ## the metal side band and the bottom cap, appended as extra surfaces to the ONE
 ## ArrayMesh that game/field/TerritoryOverlay.gd draws the whole arena with (top =
 ## surface 0, territory shader). Formerly game/DiscBody.gd drew these as two
@@ -12,7 +12,7 @@ extends RefCounted
 ## normals are unchanged) and then split into two surfaces so the side and the
 ## bottom each carry their own material slot (the next package restyles them).
 ##
-## Shape support: the round disc only (Bontago-fca.75 removed the other shapes).
+## Shape support: the round disc only (removed the other shapes).
 ##
 ## DECISION (game/field/ArenaMesh.gd): the side materials keep cull_mode
 ## CULL_DISABLED rather than hand-verified winding, as DiscBody did.
@@ -23,7 +23,7 @@ enum Kind { TOP, CHAMFER, BAND, BOTTOM, GLOW }
 
 const _CHAMFER_SHADER: Shader = preload("res://shaders/territory/disc_rim.gdshader")
 const _BAND_OVERLAY_SHADER: Shader = preload("res://shaders/territory/disc_band_overlay.gdshader")
-## SHADER_DOME's side/underside shader: the top's own plating (Bontago-mp0.150.2 r4).
+## SHADER_DOME's side/underside shader: the top's own plating (r4).
 const _SHELL_SHADER: Shader = preload("res://shaders/territory/arena_side_shell.gdshader")
 
 ## Minimum segments for a degenerate/test MapDef (a triangle is the fewest a
@@ -232,9 +232,9 @@ func _scaled_points(points: PackedVector2Array, scale: float) -> PackedVector2Ar
 ## tangent data (U around the circumference, V from 0 at the top ring to 1 at
 ## the bottom) so both this mesh's own material (StandardMaterial3D or
 ## disc_rim.gdshader) can sample a shared procedural normal-map texture and
-## drive anisotropic specular from real tangent data (Bontago-pt.12).
+## drive anisotropic specular from real tangent data .
 ##
-## `with_gradient` (Bontago-mp0.3.8) paints COLOR.r = 0.0 on every top-edge
+## `with_gradient` paints COLOR.r = 0.0 on every top-edge
 ## vertex and 1.0 on every bottom-edge vertex, so shaders/territory/disc_rim.gdshader's
 ## rim material can tell, per vertex, which edge it is without a second
 ## uniform. Unused (false) by the band's own plain StandardMaterial3D.
@@ -334,7 +334,7 @@ func _add_bottom_cap(
 		surface_tool.add_vertex(Vector3(b.x, y, b.y))
 
 
-## Bontago-pt.12: procedurally generated (FastNoiseLite-backed, no
+## Procedurally generated (FastNoiseLite-backed, no
 ## third-party asset) tangent-space normal map, shared by the band's own
 ## StandardMaterial3D and the chamfer's ShaderMaterial so both disc surfaces
 ## this package owns carry the same fine-grained "brushed metal" micro-
@@ -371,7 +371,7 @@ func _band_material() -> StandardMaterial3D:
 	return material
 
 
-## Bontago-adt.2: additive banded-wall overlay (inlay line, lower line, cool
+## additive banded-wall overlay (inlay line, lower line, cool
 ## fresnel sheen) chained after the band's StandardMaterial3D.
 func _band_overlay_material() -> ShaderMaterial:
 	var overlay: ShaderMaterial = ShaderMaterial.new()
@@ -387,7 +387,7 @@ func _band_overlay_material() -> ShaderMaterial:
 	return overlay
 
 
-## Bontago-mp0.3.8: a ShaderMaterial (shaders/territory/disc_rim.gdshader) rather than
+## a ShaderMaterial (shaders/territory/disc_rim.gdshader) rather than
 ## the band's own plain StandardMaterial3D -- the dashing-at-distance fix
 ## needs a vertex shader that reads this mesh's own gradient vertex colors
 ## (see _ring_arrays()'s `with_gradient`) to push its bottom edge down by

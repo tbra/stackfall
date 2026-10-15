@@ -1,7 +1,7 @@
 shader_type spatial;
 render_mode unshaded, blend_mix, cull_disabled, depth_draw_never, shadows_disabled, fog_disabled;
 
-// Bontago-8or.26: flat-shaded cel vortex drawn on a horizontal disc whose edge is the
+// flat-shaded cel vortex drawn on a horizontal disc whose edge is the
 // black hole's pull radius (game/gifts/specials/BlackHoleVisual.gd). Dark core, swirling
 // two-tone accretion arms, and thin streaks sliding inward. `grow` (0..1) scales the
 // whole pattern so it grows in on spawn and collapses at the end of the lifetime.
