@@ -3,7 +3,7 @@
 Usage: python tools/prune_worktrees.py [--repo <main checkout>] [--apply] [--branches wt/a wt/b] [--protect PATTERN ...]
 
 A worktree is removable only if ALL hold: it is not the main checkout, its branch is not
-protected (fnmatch patterns; defaults codex/*, wt/assets-batch6, integrate/*), the branch is an
+protected (fnmatch patterns; defaults wt/assets-batch6, integrate/*), the branch is an
 ancestor of main, and `git status --porcelain` shows nothing but untracked *.import / *.uid files.
 Removal: `git worktree remove --force`, then `git branch -d` (never -D), then `git worktree prune`.
 Dry-run unless --apply. Prints one line: PRUNE removed=N kept_dirty=N kept_unmerged=N protected=N
@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import repo_paths  # noqa: E402
 
 DEFAULT_REPO = repo_paths.repo_dir()
-DEFAULT_PROTECT = ["codex/*", "wt/assets-batch6", "integrate/*"]
+DEFAULT_PROTECT = ["wt/assets-batch6", "integrate/*"]
 GIT_TIMEOUT_S = 120
 SIDECAR_SUFFIXES = (".import", ".uid")
 

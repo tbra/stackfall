@@ -731,9 +731,9 @@ def main(argv):
     ap.add_argument("--allow-probes", action="store_true",
                     help="skip the added-probe-file lint (tools/probe_lint.py) before merging")
     # DECISION: opt-in rather than automatic, so a bead held by a live
-    # worker is never force-closed by default; pass it only for reviewed Codex handoffs.
+    # worker is never force-closed by default; pass it only for reviewed handoffs.
     ap.add_argument("--force-close", action="store_true",
-                    help="pass --force to bd close (reviewed handoffs whose claim another agent holds, e.g. codex)")
+                    help="pass --force to bd close (reviewed handoffs whose claim another agent holds)")
     args = ap.parse_args(argv)
     log_dir = args.log_dir or tempfile.mkdtemp(prefix="integrate_batch_")
     os.makedirs(log_dir, exist_ok=True)

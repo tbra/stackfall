@@ -1444,8 +1444,6 @@
    "tools/lint_single_source.py: ui/InputPrompt.gd",
    "tools/run_gut.ps1: tests/unit/test_zz_throwaway_fail.gd",
    "tools/run_m3a_local.ps1: docs/archive/M3a_PLAN.md",
-   "tools/stage_codex_handoffs.py: docs/art_mockups/",
-   "tools/stage_codex_handoffs.py: docs/audio_review/",
    "tools/steam_probe.gd: docs/archive/M3b_PLAN.md",
    "tools/steam_probe.gd: docs/archive/M3b_RESEARCH.md",
    "tools/triage_log.py: docs/archive/M2_PLAN.md",

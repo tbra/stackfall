@@ -94,7 +94,7 @@ class PruneTest(unittest.TestCase):
         self.assertIn("wt/a", self.branches())
 
     def test_protected_kept(self):
-        p = self.add_wt("codex/job")
+        p = self.add_wt("integrate/job")
         c = self.run_prune()
         self.assertEqual((c["removed"], c["protected"]), (0, 1))
         self.assertTrue(os.path.exists(p))

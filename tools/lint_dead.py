@@ -64,7 +64,7 @@ STALE_EXTS = (".gd", ".tscn", ".tres", ".gdshader", ".gdshaderinc", ".json", ".p
 PATH_RE = re.compile(r"(?<![\w./:-])(res://|(?:%s)/)([\w./-]*)" % "|".join(STALE_TOP))
 STALE_FILES = ("CLAUDE.md", "README.md", "docs/SPEC.md")
 STALE_SUFFIX = (".gd", ".gdshader", ".gdshaderinc", ".tscn", ".tres", ".cfg", ".py", ".ps1")
-# .claude/worktrees holds agent isolation checkouts and old Codex checkouts, not this tree.
+# .claude/worktrees holds agent isolation checkouts, not this tree.
 STALE_SKIP_DIRS = ("addons/", "docs/archive/", ".godot/", ".git/", "tools/test_", ".claude/worktrees/")
 # Paths that legitimately do not exist in a checkout: per-developer addon, generated at build/run time.
 STALE_GENERATED = ("addons/godotsteam", "build_info.cfg", "tests/.gut_targeted")
