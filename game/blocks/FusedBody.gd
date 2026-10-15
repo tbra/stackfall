@@ -3,17 +3,17 @@ extends Block
 ## Glue fusion (docs/GLUE_FUSION_PLAN.md sections 3 and 5): the one Jolt body of a
 ## group of glued blocks. It owns every member's CollisionShape3D (reparented, local
 ## pose preserved) and `mass`; the member Blocks stay as identity "followers" (net_id,
-## owner, meshes) posed from this body each tick. Never registered, never replicated,
+## meshes) posed from this body each tick. Never registered, never replicated,
 ## net_id stays -1. Host-only: only the host builds one (GlueFusion).
 ##
 ## A group holding a disc anchor is kinematic and rides the Field (a STATIC body would
-## not follow a tilting disc, see game/blocks/StableBlockManager.gd Bontago-sen.11); when the
+## not follow a tilting disc, see game/blocks/StableBlockManager.gd); when the
 ## last anchored member goes it turns dynamic and falls under normal physics.
 
 ## Runs after Field's own _physics_process (priority 0) so an anchored carrier reads the
 ## disc pose of the same tick. DECISION: a structural ordering constant, not a tunable.
 const ANCHOR_PROCESS_PRIORITY: int = 10
-## Owner-scan sentinel: no member seen yet (distinct from -1, the real "no owner").
+## Scan sentinel: no member seen yet (distinct from -1, the real "no slot").
 const SLOT_UNSET: int = -2
 ## Anchored-rest tick count lives in GlueDropTuning.anchor_rest_ticks.
 const GLUE_TUNING_PATH: String = "res://config/gifts/glue_drop_tuning.tres"
@@ -130,7 +130,7 @@ func _apply_awake(awake: bool) -> void:
 	super(awake and not is_disc_anchored())
 
 
-## Re-derives the carrier owner slot (members converted by Paintball).
+## Re-derives the carrier's slot (members converted by Paintball).
 func refresh_owner() -> void:
 	_refresh_mass_and_owner()
 

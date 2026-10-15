@@ -1,6 +1,6 @@
 class_name VolcanoEruptionFx
 extends Node3D
-## Cosmetic eruption particles of a VolcanoStructure (Bontago-1pi.85.30): a one-shot ember burst per
+## Cosmetic eruption particles of a VolcanoStructure: a one-shot ember burst per
 ## block shot plus a light continuous plume, both GPUParticles3D, unshaded flat-colour low-poly embers
 ## that cool from lava orange to dark red and fade (matches the game's cel look). No net traffic: the
 ## structure drives it from its own replicated clock. Counts are bounded by

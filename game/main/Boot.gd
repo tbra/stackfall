@@ -1,6 +1,6 @@
 class_name Boot
 extends Node
-## Bontago-1pi.11.53: the project's main scene. Compiling Main.gd and the menu/lobby/match
+## the project's main scene. Compiling Main.gd and the menu/lobby/match
 ## script graph it names takes seconds; as the main scene that ran before the first frame with
 ## the window already open and no message pump, so Windows flagged "Not responding". Boot is
 ## trivially small: it queues game/main/Main.tscn on a worker thread, keeps the main loop (and so the
@@ -9,7 +9,7 @@ extends Node
 
 const MAIN_SCENE_PATH: String = "res://game/main/Main.tscn"
 const MAIN_NODE_NAME: String = "Main"
-## Process exit code when the game scene cannot be loaded (review of 1pi.11.53: never leave a
+## Process exit code when the game scene cannot be loaded (review of : never leave a
 ## black window forever).
 const LOAD_FAILURE_EXIT_CODE: int = 1
 const LOAD_FAILURE_TITLE: String = "Stackfall"
@@ -29,7 +29,7 @@ var collected_resource: Resource = null
 var _threaded: bool = false
 ## Threaded path: Main.tscn once loaded.
 var _main_scene: PackedScene = null
-## Bontago-1pi.11.80: the threaded request not yet collected. Exit cleanup cancels an in-flight
+## the threaded request not yet collected. Exit cleanup cancels an in-flight
 ## load and the cancelled worker compile logs "Could not preload" for the whole script graph
 ## (and can hang), so _exit_tree collects it first.
 var _pending_path: String = ""
@@ -87,14 +87,14 @@ var _quit_done: bool = false
 
 
 func _quit_now() -> void:
-	if _quit_done:  # a second close request must not quit twice (Bontago-6a4)
+	if _quit_done:  # a second close request must not quit twice
 		return
 	_quit_done = true
 	set_process(false)  # review nit: never poll again once quitting
 	if quit_callable.is_valid():
 		quit_callable.call()
 	else:
-		Sfx.quit_tree()  # marks QuitFlag, drains audio, then quits (Bontago-xtq.47)
+		Sfx.quit_tree()  # marks QuitFlag, drains audio, then quits
 
 
 func _process(_delta: float) -> void:
@@ -110,13 +110,13 @@ func _process(_delta: float) -> void:
 	if _quit_requested:
 		_quit_now()
 		return
-	# Bontago-1pi.11.85.2: Main starts right away; the LateScripts prewarm and the Match/MatchNet
+	# Main starts right away; the LateScripts prewarm and the Match/MatchNet
 	# late_activate() run behind the menu (Main's MenuPrewarmQueue, ensured on every flow).
 	_start_main(_main_scene, false)
 
 
 ## `activate_late`: the synchronous (headless) path activates the autoloads' late state before Main
-## exists; the threaded path leaves it to Main (Bontago-1pi.11.85.2).
+## exists; the threaded path leaves it to Main.
 func _start_main(scene: PackedScene, activate_late: bool = true) -> void:
 	get_tree().auto_accept_quit = true
 	if scene == null:

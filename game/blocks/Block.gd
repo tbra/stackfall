@@ -1,6 +1,6 @@
 class_name Block
 extends BlockBody
-## A placed or falling block (spec 2.4, 3.6). Built by BlockFactory from a
+## A placed or falling block (spec 1.4, 2.8). Built by BlockFactory from a
 ## BlockShape; carries just enough identity for M1 (which shape it is and how
 ## many cubes it has). Ownership, influence, and special behavior arrive in
 ## later milestones.
@@ -10,14 +10,14 @@ extends BlockBody
 ## shape_id, owner_slot, gift_id and net_id live on game/world/BlockBody.gd
 ## (the light base class); they are inherited unchanged.
 
-## Bontago-mv0.18 (in-game tuning panel): every Block adds itself to this
+## in-game tuning panel: every Block adds itself to this
 ## group in _ready() so ui/debug/TuningPanel.gd can push a PhysicsTuning edit onto
 ## every block already standing, not just the next one BlockFactory builds
 ## (get_tree().get_nodes_in_group(TUNING_GROUP), never a game/blocks/BlockRegistry.gd
 ## change -- that file belongs to a different package).
 const TUNING_GROUP: StringName = &"tuning_blocks"
 
-## Bontago-1pi.11.32: the one shared awake set. Instance id (int) -> Block for
+## the one shared awake set. Instance id (int) -> Block for
 ## every Block that is in the tree and not asleep (RigidBody3D.sleeping false)
 ## and not held by request_freeze_static(). Maintained here from
 ## sleeping_state_changed plus tree enter/exit and the static-freeze pair
@@ -37,7 +37,7 @@ const SLEPT_TAIL_FRAMES: int = 2
 ## assets-audio package (revised: no contact_monitor -- an earlier revision's
 ## bench_rain.gd cost ~5-7 ms/step at 300 blocks, well over budget). Impacts
 ## are detected from the body's own motion instead: _batch_tick()'s inlined impact test below
-## (Bontago-bth.1: the old per-node _physics_process, now driven from
+## (the old per-node _physics_process, now driven from
 ## game/blocks/BlockStepBatch.gd's one batched pass) compares this tick's
 ## linear_velocity against the previous tick's, and a sudden drop in speed
 ## (hitting something) crosses AudioConfig.impact_speed_min.
@@ -54,8 +54,8 @@ const IMPACT_EMIT_INTERVAL_MS: int = 120
 var _last_impact_emit_ms: int = -1000000
 var _prev_linear_velocity: Vector3 = Vector3.ZERO
 
-## Bontago-xtq.17 (owner feel report "heavier and more bouncy, but a dropped
-## block shouldn't just bounce straight up again"): the live PhysicsTuning
+## owner feel report "heavier and more bouncy, but a dropped
+## block shouldn't just bounce straight up again": the live PhysicsTuning
 ## this Block was built from, kept only so _integrate_forces() below can read
 ## rebound_damping without a scene-tree/group lookup every physics step. Set
 ## once by BlockFactory.build() and refreshed by apply_physics_tuning() below,
@@ -75,30 +75,30 @@ var tuning: PhysicsTuning = null
 ## (runs after).
 var _prev_step_linear_velocity_y: float = 0.0
 
-## Review fix (Bontago-xtq.17 SHOULD-FIX 1): set by kick()/mark_script_kick()
+## Review fix (SHOULD-FIX 1): set by kick()/mark_script_kick()
 ## below, consumed (and cleared) by the very next _integrate_forces() call.
 ## See kick()'s own doc comment for what this is for.
 var _script_kick_pending: bool = false
-## Bontago-bth.1: physics frame mark_script_kick() ran in. The old
+## physics frame mark_script_kick() ran in. The old
 ## _integrate_forces() consumed a kick at the body's first state sync AFTER
 ## the mark; game/blocks/BlockStepBatch.gd runs after the whole sync phase, so a mark
 ## made during this frame's sync phase is only due from the next frame.
 var _kick_frame: int = -1
-## For tests (Bontago-1pi.11.60): how many rebound passes (the old
+## For tests: how many rebound passes (the old
 ## _integrate_forces() calls, now _batch_tick()) ran the full
 ## rebound path (awake, non-frozen body) rather than the early-out.
 var rebound_work_runs: int = 0
 var _release_checked: bool = false
-## Bontago-bth.1: first physics frame at which Jolt has synced this body
+## first physics frame at which Jolt has synced this body
 ## (state sync callback) since it last entered the awake set -- the frames
 ## the old _integrate_forces() ran on. See _next_sync_frame().
 var _sync_from_frame: int = 0
-## Bontago-bth.1 test seam: false for a subclass that keeps its own per-node
+## test seam: false for a subclass that keeps its own per-node
 ## physics hooks (tests/unit/blocks/test_block_step_batch.gd's reference copy of the
 ## pre-batch Block); BlockStepBatch then leaves it alone.
 var step_batched: bool = true
 
-## Fix round (Bontago-xtq.27 review MAJOR): the "contributing to territory
+## Fix round (review MAJOR): the "contributing to territory
 ## influence" glow (BlockFactory.build()'s own DECISION: RigidBody3D.sleeping
 ## as the settled proxy) used to be written straight onto the BlockMesh
 ## MeshInstance3D from inside BlockFactory.build() and a local
@@ -122,7 +122,7 @@ var _contributing_visual_set: bool = false
 var _block_mesh_cache: MeshInstance3D = null
 var _block_mesh_looked_up: bool = false
 
-## M8 P5 (spec 3.5 "freeze old stable blocks as static", docs/M8_PLAN.md
+## M8 P5 (spec 2.7 "freeze old stable blocks as static", docs/M8_PLAN.md
 ## Interface stubs item 2): the one reason this milestone's own caller
 ## (game/blocks/StableBlockManager.gd) ever passes to request_freeze_static() below.
 ## A StringName constant, not a bare &"stable" literal at each call site, so a
@@ -141,14 +141,14 @@ var _freeze_reasons: Dictionary = {}
 
 ## Glue fusion (docs/GLUE_FUSION_PLAN.md section 3): while this Block is a
 ## "follower" its FusedBody carrier owns the collision shapes and the physics;
-## the Block keeps identity (net_id, owner, meshes) and is posed from the
+## the Block keeps identity (net_id, owner_slot, meshes) and is posed from the
 ## carrier every tick. Null for an ordinary Block and for a carrier itself.
 var _fused_carrier: Block = null
 var _pre_fuse_layer: int = 0
 var _pre_fuse_mask: int = 0
 
 
-## Bontago-1pi.11.32: a copy of the awake set's Blocks (safe to iterate while
+## a copy of the awake set's Blocks (safe to iterate while
 ## the set changes under a callback).
 static func awake_blocks() -> Array:
 	var result: Array = _awake.values()
@@ -174,7 +174,7 @@ static func clear_awake_set_for_tests() -> void:
 	_slept_frames.clear()
 
 
-## Bontago-bth.1: the first physics frame whose state sync can include a body
+## the first physics frame whose state sync can include a body
 ## that became Jolt-active (spawned, woken or unfrozen by script) right now.
 ## Jolt syncs at tick F exactly the bodies it stepped at F-1 (pre_step over the
 ## active list) or woke during that step. Anything a script does during
@@ -190,7 +190,7 @@ func _enter_tree() -> void:
 	if step_batched:
 		BlockStepBatch.ensure_installed()
 		if not _release_checked:
-			# Bontago-bth.1: the release tilt runs inside Jolt's own first state
+			# the release tilt runs inside Jolt's own first state
 			# sync of this body, before the C++ RigidBody3D sync, exactly where the
 			# old _integrate_forces() ran it (once per block, not per tick).
 			PhysicsServer3D.body_set_force_integration_callback(get_rid(), _on_first_integration)
@@ -250,7 +250,7 @@ func _on_sleeping_state_changed() -> void:
 		_sync_from_frame = Engine.get_physics_frames()
 
 
-## Bontago-bth.1: this block's share of game/blocks/BlockStepBatch.gd's per-tick pass
+## this block's share of game/blocks/BlockStepBatch.gd's per-tick pass
 ## (it calls this for every block in the awake set, once per physics frame,
 ## before any node's _physics_process). Replaces the old per-node
 ## _integrate_forces() (rebound pass, only on frames Jolt synced this body)
@@ -304,7 +304,7 @@ func _batch_tick(frame: int, physics_active: bool, damp_on: bool, damp: float, n
 
 ## Impact event (the detection itself is inlined in _batch_tick(); see the
 ## DECISION above this class's impact statics). DECISION (game/blocks/Block.gd,
-## Bontago-bth.1): detection runs in BlockStepBatch's pass before every node's
+## ): detection runs in BlockStepBatch's pass before every node's
 ## _physics_process instead of at this block's own tree position; it only reads
 ## the velocity and emits audio/VFX events, so physics state is unchanged, but a
 ## velocity another node writes earlier in tree order the same tick is heard one
@@ -315,7 +315,7 @@ func _emit_impact(decel: float) -> void:
 		return
 	_last_impact_emit_ms = now_ms
 	Events.block_impacted.emit(decel)
-	# Bontago-xtq.29 (M7 P4 fix): additive alongside the line above -- see
+	# M7 P4 fix: additive alongside the line above -- see
 	# Events.block_impacted_at's own doc comment. autoload/Sfx.gd's listener
 	# on block_impacted is unchanged.
 	Events.block_impacted_at.emit(decel, global_position)
@@ -335,7 +335,7 @@ func _ready() -> void:
 		sleeping_state_changed.connect(_on_sleeping_state_changed)
 	collision_mask |= Field.BEACON_COLLISION_LAYER
 	if tuning == null:
-		# Review fix (Bontago-xtq.17 SHOULD-FIX 3): game/blocks/BlockFactory.gd's
+		# Review fix (SHOULD-FIX 3): game/blocks/BlockFactory.gd's
 		# build() now sets `block.tuning = tuning` itself (its own build()
 		# doc comment), so this fallback only matters for a bare Block never
 		# built through that factory (e.g. Block.new() directly in a test) --
@@ -348,7 +348,7 @@ func _ready() -> void:
 		tuning = preload("res://config/physics/physics_tuning.tres")
 
 
-## Impact detection (assets-audio package; Bontago-bth.1 moved it into
+## Impact detection (assets-audio package moved it into
 ## _batch_tick(), driven by game/blocks/BlockStepBatch.gd once per tick):
 ## sleeping bodies (a settled pile) skip it entirely -- Jolt stops
 ## integrating them, so linear_velocity would otherwise read as a false,
@@ -357,13 +357,13 @@ func _ready() -> void:
 ## dot product -- cheap, and correct for the case that matters (a fall
 ## suddenly arrested by a landing); a block that speeds up between ticks
 ## (still falling, or getting knocked) never crosses the threshold here.
-## Bontago-1pi.55: a frozen body is not simulated -- a client's synced replica
+## a frozen body is not simulated -- a client's synced replica
 ## (SnapshotSync.freeze_body()) or a held/static body -- so only real physics
 ## detects impacts; a client hears the host's via MatchNet.net_block_impacts().
 
 
-## Bontago-xtq.17 rebound damping (run per synced body by _batch_tick(),
-## driven by game/blocks/BlockStepBatch.gd since Bontago-bth.1; it used to be
+## rebound damping (run per synced body by _batch_tick(),
+## driven by game/blocks/BlockStepBatch.gd since it used to be
 ## this class's _integrate_forces() override, so "_integrate_forces()" below
 ## means that pass): damps only a fresh bounce's straight-up (world Y) velocity,
 ## leaving horizontal and angular velocity alone so block_bounce still gives
@@ -378,7 +378,7 @@ func _ready() -> void:
 ## follows from "only the host runs physics" (CLAUDE.md) without this file
 ## needing to ask Net anything.
 ##
-## Review fix (Bontago-xtq.17 SHOULD-FIX 1): a special effect's own
+## Review fix (SHOULD-FIX 1): a special effect's own
 ## intentional velocity write (a Jumping Bean hop, a Rocket's continuous
 ## thrust tick, a Propeller lift start, an explosion's apply_impulse) can also
 ## flip a block's vertical velocity from falling to rising -- indistinguishable
@@ -416,7 +416,7 @@ func _ready() -> void:
 ##
 ## DECISION (game/blocks/Block.gd): "a real bounce", not any sign flip at all --
 ## _damp_rebound() below gates on tuning.sleep_linear_threshold (the same
-## settled-block speed floor spec 2.2 already defines, reused rather than
+## settled-block speed floor spec 1.5 already defines, reused rather than
 ## inventing a second magic number for "this is noise"). A stacked tower's
 ## resting contacts flicker by a fraction of a mm/s of solver noise every
 ## step (PhysicsTuning.gd's own long comment on this exact 40-chain's
@@ -432,7 +432,7 @@ func _ready() -> void:
 ## it outright; see config/physics/presets/heavy_bouncy.tres for the shipped
 ## values this was tuned against.
 ##
-## Bontago-bth.1: the one-shot release tilt below is the only part still run
+## the one-shot release tilt below is the only part still run
 ## from an engine callback per body: Jolt's force-integration callback at the
 ## body's first state sync (installed in _enter_tree(), dropped after its one
 ## call), i.e. the same flush position and order the old first
@@ -450,7 +450,7 @@ func _drop_first_integration_callback() -> void:
 	PhysicsServer3D.body_set_force_integration_callback(get_rid(), Callable())
 
 
-## DECISION Bontago-8bc: Jolt keeps even offset flat impacts symmetrical.
+## DECISION Jolt keeps even offset flat impacts symmetrical.
 ## Opt-in preset breaks release symmetry with a fixed tiny tilt, allowing
 ## the solver's actual edge contact to create tumble. No impulses/randomness.
 ## One downward query at first integration; resting/low-gap bodies untouched.
@@ -536,7 +536,7 @@ static func _damp_rebound(prev_step_y: float, current_y: float, rebound_damping:
 
 ## Re-applies every PhysicsTuning number a live body would otherwise only
 ## ever read once, at BlockFactory.build() time: damping, the friction/bounce
-## material, and gravity_scale (spec 2.8 "Gravity 0.5x-2x" -- BlockFactory.
+## material, and gravity_scale (spec 1.9 "Gravity 0.5x-2x" -- BlockFactory.
 ## build() sets gravity_scale from this same field for every new spawn;
 ## rewriting it here on an already-falling body only changes the acceleration
 ## RigidBody3D integrates on the *next* physics step, not any velocity it has
@@ -557,7 +557,7 @@ func apply_physics_tuning(tuning: PhysicsTuning) -> void:
 	material.bounce = tuning.block_bounce
 
 
-## Fix round (Bontago-xtq.27 review MAJOR): the one write site for the
+## Fix round (review MAJOR): the one write site for the
 ## "contributing to territory influence" glow's instance shader parameter.
 ## Called by BlockFactory.build() (from the real RigidBody3D.sleeping /
 ## sleeping_state_changed on this body's physics authority) and by
@@ -588,7 +588,7 @@ func is_contributing_visual() -> bool:
 	return _contributing_visual
 
 
-## Bontago-8or.2 (Freeze special): icy overlay on the block mesh while the
+## Freeze special: icy overlay on the block mesh while the
 ## Freeze special holds this block. Cosmetic only, host and client alike (a
 ## client drives it from Events.block_frozen_changed's replicated event).
 ## A material_override swap would fight BlockFactory.recolor(), so this uses
@@ -620,7 +620,7 @@ func _block_mesh() -> MeshInstance3D:
 
 
 ## Adds `reason` to the set of callers holding this block frozen to STATIC
-## (spec 3.5). Idempotent: a reason already held is a no-op, so a caller that
+## (spec 2.7). Idempotent: a reason already held is a no-op, so a caller that
 ## re-requests every scan tick (game/blocks/StableBlockManager.gd) never re-triggers
 ## the freeze_mode/freeze writes below on ticks after the first. Only the
 ## *first* reason to arrive actually flips the body to STATIC -- every
@@ -637,7 +637,7 @@ func request_freeze_static(reason: StringName) -> void:
 		return
 	_freeze_reasons[reason] = true
 	if _freeze_reasons.size() == 1:
-		# Bontago-bth.1: frozen between ticks, a body Jolt stepped last tick is
+		# frozen between ticks, a body Jolt stepped last tick is
 		# still queued for one more state sync, where the old _integrate_forces()
 		# took its early-out. A STATIC freeze also puts the body to sleep, so
 		# that sync raises sleeping_state_changed and _on_sleeping_state_changed()

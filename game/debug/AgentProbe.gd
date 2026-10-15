@@ -2,7 +2,7 @@ class_name AgentProbe
 extends RefCounted
 ## Agent probe mode: agent-launched Godot runs (tools/*.tscn scenes, or any run
 ## passing `-- --agent-probe`) must never disturb the owner: tiny window, no
-## focus, muted, and the mouse is never captured (Bontago-fca.1). Pure static
+## focus, muted, and the mouse is never captured. Pure static
 ## helpers; Settings._ready() calls apply() once at startup.
 ##   godot --windowed --position 10000,10000 --resolution 320x180 --audio-driver Dummy \
 ##     --path . res://tools/x.tscn -- --agent-probe [--render-size=1920x1080]
@@ -10,7 +10,7 @@ extends RefCounted
 const FLAG: String = "--agent-probe"
 const RENDER_SIZE_PREFIX: String = "--render-size="
 const TOOLS_SCENE_PREFIX: String = "res://tools/"
-## Benchmark and ENet scenes anywhere under tests/ are agent runs too (session debrief 2026-10-01).
+## Benchmark and ENet scenes anywhere under tests/ are agent runs too (session).
 const TEST_SCENE_PREFIX: String = "res://tests/"
 const QUIT_ON_MENU_FLAG: String = "--quit-on-menu"
 const STARTUP_LINE_FORMAT: String = "AGENT_PROBE startup first_frame_ms=%d menu_ready_ms=%d"
@@ -142,7 +142,7 @@ static func _finish_startup(menu_ms: int, exit_code: int) -> void:
 	print(format_startup_line(_first_frame_ms, menu_ms))
 	var sfx: Node = (Engine.get_main_loop() as SceneTree).root.get_node_or_null("Sfx")
 	if sfx != null:
-		sfx.call(&"quit_tree", exit_code)  # drains audio first (Bontago-xtq.47)
+		sfx.call(&"quit_tree", exit_code)  # drains audio first
 	else:
 		QuitFlag.mark()
 		(Engine.get_main_loop() as SceneTree).quit(exit_code)

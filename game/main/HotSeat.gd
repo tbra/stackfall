@@ -1,10 +1,10 @@
 class_name HotSeat
 extends Node
-## Self-contained hot-seat subtree (docs/archive/M2_PLAN.md P4, owner decision 1):
+## Self-contained hot-seat subtree (docs/archive/M2_PLAN.md P4, 1):
 ## one PlayerController + GhostPreview + HUD, meant to be dropped into
 ## Main.tscn as a single instance. It decides no rules of its own — every
 ## placement still goes through Match.request_place() even though every slot
-## is local (spec 3.4). This is the debug/test scaffold for M2's "two
+## is local (spec 2.6). This is the debug/test scaffold for M2's "two
 ## players take turns on one PC" acceptance criterion, not a shipped menu
 ## mode: real hot-seat vs. real-time play is MatchConfig.hot_seat, decided at
 ## the lobby, and M3 replaces one-mouse hot-seat with one controller per peer.
@@ -12,7 +12,7 @@ extends Node
 @onready var _controller: PlayerController = $PlayerController
 @onready var _ghost: GhostPreview = $GhostPreview
 @onready var _hud: HUD = $HUDLayer
-## Bontago-mv0.18: the in-game tuning panel (F4). Self-contained here (like
+## the in-game tuning panel (F4). Self-contained here (like
 ## _hud above) rather than instanced separately by game/main/Main.gd, so it exists
 ## on every path that builds a HotSeat -- the local --hot-seat entry point
 ## AND the real networked match (game/main/Main.gd's _build_match_world() uses
@@ -25,7 +25,7 @@ extends Node
 ## the integrator's help; see set_camera_rig()/set_field() below.
 
 
-## Bontago-mv0.14 (spec 1.5): the original's mouse only ever positions the
+## spec 1.5: the original's mouse only ever positions the
 ## held block, so a real play session hides/captures the OS cursor
 ## (PlayerController.enable_mouse_capture()) instead of leaving a free system
 ## cursor with nothing to point at. Safe to call unconditionally: it is a
@@ -47,7 +47,7 @@ func set_camera_rig(rig: CameraRig) -> void:
 	_tuning_panel.set_camera_rig(rig)
 
 
-## Bontago-mv0.18: called once by game/main/Main.gd, the same hand-off as
+## called once by game/main/Main.gd, the same hand-off as
 ## set_camera_rig() above, for the tuning panel's Territory tab and its
 ## refresh_territory_visuals_live() push (Field lives outside this subtree,
 ## same reason CameraRig does).
@@ -63,14 +63,14 @@ func set_field(field: Field) -> void:
 ## Events.turn_changed still decides, so hot-seat is byte-identical to M2.
 func bind_local_slot(slot_id: int) -> void:
 	_controller.set_acting_slot(slot_id)
-	# Bontago-mv0.17 item 4: this is "the controller binds the local slot" the
+	# item 4: this is "the controller binds the local slot" the
 	# item calls for -- Match.default_ghost_origin() is the existing read-only
 	# API that already converts PlayerSlot.home_position (disk-local) to a
 	# world point (autoload/Match.gd; named for its other caller, a peer whose
 	# timer expired with no cursor ever reported, but it is exactly "this
 	# slot's home flag in world space" with no fallback logic of its own).
 	_controller.set_home_position(Match.default_ghost_origin(slot_id))
-	# Bontago-1pi.79: the HUD's per-slot widgets (HELD/NEXT cards, timer ring)
+	# the HUD's per-slot widgets (HELD/NEXT cards, timer ring)
 	# follow the local slot from now on, not from the first PLAYING-time
 	# Events.turn_changed -- so the first block issued when the countdown begins
 	# lands in the cards, and the world build leaves no empty-card frame.

@@ -1,5 +1,5 @@
 shader_type spatial;
-// Bontago-470.7: the light pillar rising from a claimed goal beacon. Additive,
+// the light pillar rising from a claimed goal beacon. Additive,
 // unshaded, fading to nothing at the top, with bands scrolling upward so the
 // claim reads through pattern and brightness, not hue alone. When contested,
 // the bands alternate between color_a and color_b (a striped beam).

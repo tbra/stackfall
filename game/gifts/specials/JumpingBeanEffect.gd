@@ -1,7 +1,7 @@
 class_name JumpingBeanEffect
 extends SpecialEffect
-## Jumping Bean special (spec 2.6: "Jumping Bean creates a hole between random
-## hops"; docs/GIFT_EFFECTS_PLAN.md section 3 and 4 row E, Bontago-1pi.85.12).
+## Jumping Bean special (spec 1.6: "Jumping Bean creates a hole between random
+## hops"; docs/GIFT_EFFECTS_PLAN.md section 3 and 4 row E).
 ##
 ## Lifecycle: needs_landing() makes SpecialBehavior run a LandedProbe and call
 ## physics_tick() only once the carrier has landed. The old `block.sleeping` gate
@@ -9,8 +9,8 @@ extends SpecialEffect
 ## the bean never started and the fuse ended it silently. Once landed, every
 ## hop_interval_s of landed time (frame-rate independent: driven by
 ## behavior.landed_age()) the bean punches a territory hole at the position it is
-## about to leave through HolePunch (a no-op under HoleMode.OFF, owner decision
-## Bontago-z4h; the dissolve of blocks over the hole is HoleDissolver's job) and
+## about to leave through HolePunch (a no-op under HoleMode.OFF, 
+## the dissolve of blocks over the hole is HoleDissolver's job) and
 ## kicks itself into the next hop. The effect ends effect_lifetime_s() after
 ## landing; detonate() is a no-op because the hopping already ran tick by tick.
 ##
@@ -30,19 +30,19 @@ extends SpecialEffect
 ## nothing needs it to be).
 ##
 ## DECISION (config/gifts/specials/jumping_bean.tres): arm_impulse is 10.0 and
-## fuse_timeout_s 20.0, kept from review fix Bontago-1en.8. impact_triggers()
-## vetoes decel-based impact activation entirely (Bontago-1en.22), so a hop's own
+## fuse_timeout_s 20.0, kept from review fix. impact_triggers()
+## vetoes decel-based impact activation entirely, so a hop's own
 ## landing can never trigger the bean; a nearby explosion still chains into it.
 
 ## Vertical speed (m/s) applied straight up on every hop.
 @export var hop_impulse: float = 11.0
 
 ## Horizontal speed (m/s) applied in a random direction on every hop, one physics
-## tick AFTER the vertical kick (Bontago-1pi.85.28: written while still touching the
+## tick AFTER the vertical kick (written while still touching the
 ## disc, the contact friction ate it and the bean hopped straight up).
 @export var hop_horizontal_speed: float = 11.0
 
-## Seconds from landing to the FIRST hop (Bontago-1pi.85.28: the owner saw ~5 s idle).
+## Seconds from landing to the FIRST hop (the owner saw ~5 s idle).
 @export var first_hop_delay_s: float = 0.6
 
 ## Seconds between the following hops.
@@ -59,13 +59,13 @@ extends SpecialEffect
 @export var lifetime_s: float = 24.0
 
 ## Probability (0..1) that a hop heads roughly at the disc centre; otherwise the bearing is
-## uniform over the full circle, so an off-disc hop stays possible (owner 2026-10-07).
+## uniform over the full circle, so an off-disc hop stays possible.
 @export_range(0.0, 1.0) var centre_weight: float = 0.65
 
 ## Half-width (degrees) of the random cone around the inward bearing for a centre-weighted hop.
 @export var centre_spread_deg: float = 70.0
 
-## Bean-specific landing probe (Bontago-1pi.85.28): a bouncing/rolling bean on a tilting
+## Bean-specific landing probe: a bouncing/rolling bean on a tilting
 ## disc never drops below LandedProbe's default 0.5 m/s, so it only "landed" at the 5 s
 ## timeout. Looser speed, shorter hold and a 1 s ceiling start the hopping promptly.
 @export var landed: LandedTuning = LandedTuning.new()
@@ -141,7 +141,7 @@ func landed_tuning() -> LandedTuning:
 	return landed
 
 
-## Bontago-1en.22: vetoes the decel-based impact trigger (see class DECISION).
+## vetoes the decel-based impact trigger (see class DECISION).
 func impact_triggers(_block: Block, _behavior: SpecialBehavior) -> bool:
 	return false
 
@@ -189,7 +189,7 @@ func _kick(block: Block) -> void:
 		horizontal.y = 0.0
 		horizontal = horizontal.normalized()
 	horizontal *= hop_horizontal_speed
-	# Bontago-1pi.85.74.3: a bean never fuses (it takes no glue charge, and GlueFusion refuses it).
+	# a bean never fuses (it takes no glue charge, and GlueFusion refuses it).
 	block.wake_for_impulse()
 	if block.is_freeze_static():
 		return

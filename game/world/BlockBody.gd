@@ -11,12 +11,12 @@ extends RigidBody3D
 ## Which BlockShape this block was built from (BlockFactory sets it).
 @export var shape_id: StringName = &""
 
-## M2 (spec 2.2 "height credit", 3.4): which PlayerSlot placed this block,
+## M2 (spec 1.5 "height credit", 3.4): which PlayerSlot placed this block,
 ## permanently -- territory influence and multiplayer attribution both key off
-## this. -1 means "no owner", e.g. M1's placements before slots existed.
+## this. -1 means no slot, e.g. placements made before slots existed.
 @export var owner_slot: int = -1
 
-## Bontago-t8x.1: the gift this body delivers (set by BlockFactory.
+## the gift this body delivers (set by BlockFactory.
 ## apply_gift_visual() on the host and, from the spawn RPC, on clients), or
 ## &"" for an ordinary block. Presentation only; the effect is SpecialBehavior.
 var gift_id: StringName = &""

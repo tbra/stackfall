@@ -1,6 +1,6 @@
 class_name SnowDiscCover
 extends Node3D
-## Visual-only snow on the disc (Bontago-22y.6). No geometry of its own: it
+## Visual-only snow on the disc. No geometry of its own: it
 ## drives the snow layer inside the disc's own shader (shaders/territory.
 ## gdshader, the TerritoryOverlay material), so the composite order is
 ## disc -> snow -> territory tint/contour, holes stay open, and territory
@@ -8,14 +8,14 @@ extends Node3D
 ##
 ## The shader's depth is an even base amount that rises with the level, plus
 ## a gentle low-frequency variation, deepened along plate seams, near the rim
-## and around block bases (Bontago-mp0.32: no threshold, so no separate white
+## and around block bases (no threshold, so no separate white
 ## blobs). The block-base bias is a one-byte-per-cell drift map this node
 ## rebuilds, a few blocks per frame, at each level change, and is filtered
 ## smooth so drifts fade out gently. Light snow is a faint frosting (low
 ## strength), heavy snow wind-streaked partial cover, capped so territory shows. Leaving the tree (snow cleared, match over) switches the
 ## layer off again. The colliding drifts are SnowCapBuilder's domes.
 ##
-## Bontago-mp0.97: the displayed level eases toward the target level at one
+## the displayed level eases toward the target level at one
 ## level per SnowTuning.cover_ease_s, so growth and melt read as the snow
 ## spreading and retreating instead of stepping. A cover set to level 0 retires
 ## (SnowCaps renames it) and frees itself once it has faded out.
@@ -228,7 +228,7 @@ func _advance_drift(budget: int) -> void:
 		var entry: Variant = _drift_queue[_drift_head]
 		_drift_head += 1
 		left -= 1
-		# Bontago-1pi.11.26: a block freed since the queue was captured (burned,
+		# a block freed since the queue was captured (burned,
 		# kill plane) must be rejected BEFORE the typed cast, which errors on a
 		# freed object every frame it is hit.
 		if not is_instance_valid(entry):

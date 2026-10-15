@@ -1,8 +1,8 @@
 class_name RocketEffect
 extends SpecialEffect
-## Rocket special. OWNER decision 2026-10-05 (docs/SPEC.md 2.6, Bontago-1pi.85, answer
+## Rocket special. OWNER decision (docs/SPEC.md 2.6, answer
 ## to plan question 1): on activation the Rocket launches in a STRAIGHT LINE along the
-## activating player's camera direction (not thrown; any angle, upward included, 1pi.85.34 Q3) and explodes on the
+## activating player's camera direction (not thrown; any angle, upward included, Q3) and explodes on the
 ## first thing it touches (a block, the disc or map geometry); fuel running out is only
 ## a safety backstop. It no longer climbs 27 m and bursts in empty air.
 ##
@@ -11,15 +11,15 @@ extends SpecialEffect
 ## contact it is about to make; a contact the behaviour's impact_filter accepts sets a
 ## block-meta flag, wants_early_trigger() reports it, and detonate() blasts with ExplosionFx.
 ##
-## DECISION (Bontago-1pi.85.10): impact is detected by this effect's own contact probe
+## DECISION: impact is detected by this effect's own contact probe
 ## (a short body_test_motion along the flight line), not by SpecialBehavior's
 ## velocity-drop test, so triggers_on_impact() is false: the velocity-drop test cannot
-## tell what was hit (needed for the owner-grace filter) and would also fire on the
+## tell what was hit (needed for the slot-grace filter) and would also fire on the
 ## carrier's own landing before the launch. The probe runs after the velocity write and
 ## looks one tick of travel (plus `impact_probe_margin_m`) ahead, continuous_cd stays
 ## armed, so the blast is centred within about a third of a metre of the surface.
 ##
-## DECISION (Bontago-1pi.85.10): the launch direction is host-side input, per block, in
+## DECISION: the launch direction is host-side input, per block, in
 ## block meta: the shared SpecialEffect resource keeps no per-block state (the pattern
 ## every timed effect uses). The camera-direction wiring from the client (PlayerController
 ## intent -> MatchPlacement) is package I's; it calls
@@ -28,25 +28,25 @@ extends SpecialEffect
 ## and it is normalised (any pitch is kept); anything unusable
 ## keeps the default (see default_launch_direction()).
 
-## Speed (m/s) the Rocket flies at along its launch direction (Bontago-1pi.85.25: 60).
+## Speed (m/s) the Rocket flies at along its launch direction (60).
 @export var thrust_speed_mps: float = 60.0
 
 ## Safety fuel: seconds after the launch before it explodes even if it touched nothing
-## (Bontago-1pi.85.25: 3.0).
+## (3.0).
 @export var fuel_duration_s: float = 3.0
 
-## Gravity scale while in flight (Bontago-1pi.85.25: 0, the rocket flies dead straight). The
+## Gravity scale while in flight (0, the rocket flies dead straight). The
 ## carrier's own scale is restored at the explosion.
 @export var flight_gravity_scale: float = 0.0
 
 ## The model's nose axis in the carrier's local frame. rocket_v1.glb points its nose along +Y
 ## (nose mesh at y = +0.625). Every flight tick the carrier basis is turned so this axis points
-## along its velocity (Bontago-1pi.85.25); the pose snapshot already carries the rotation.
+## along its velocity; the pose snapshot already carries the rotation.
 @export var model_nose_axis: Vector3 = Vector3(0.0, 1.0, 0.0)
 
-## Seconds after the launch during which the owner's own blocks that were within
+## Seconds after the launch during which the player's own blocks that were within
 ## `own_block_clear_radius_m` at the launch are collision exceptions (neither an impact nor shoved).
-## Enemy blocks and everything else stay solid from the first tick (Bontago-1pi.85.37).
+## Enemy blocks and everything else stay solid from the first tick.
 @export var own_block_grace_s: float = 0.4
 
 ## Radius (m) around the launch point whose own blocks the projectile may leave through.
@@ -59,7 +59,7 @@ extends SpecialEffect
 ## Extra look-ahead (m) beyond one tick of travel for the impact probe.
 @export var impact_probe_margin_m: float = 0.05
 
-## Blast shape (Bontago-1pi.85.27 Q1: delta-v x10, radius x1.6 of the old 4.5 m / 10 m/s).
+## Blast shape (Q1: delta-v x10, radius x1.6 of the old 4.5 m / 10 m/s).
 @export var blast: ExplosionTuning = ExplosionTuning.new()
 
 ## Smallest horizontal-plus-downward direction length treated as a direction at all.
@@ -92,7 +92,7 @@ static func set_launch_direction(block: Block, direction: Vector3) -> bool:
 	if clean == Vector3.ZERO:
 		return false
 	block.set_meta(LAUNCH_DIRECTION_META, clean)
-	# Bontago-1pi.85.49: face the carrier at once (needs the effect's nose axis, so the shipped
+	# face the carrier at once (needs the effect's nose axis, so the shipped
 	# def's), not only on the first physics tick, so the pose written to the body already matches.
 	var def: SpecialDef = SpecialDef.find_by_id(&"rocket")
 	var effect: RocketEffect = def.effect as RocketEffect if def != null else null
@@ -115,7 +115,7 @@ static func is_outside_bounds(point: Vector3, bounds: AABB) -> bool:
 
 
 ## Pure: the direction the host will actually fly. Non-finite or degenerate input gives
-## Vector3.ZERO (rejected). Bontago-1pi.85.34 Q3 (owner "c"): the Rocket flies exactly where
+## Vector3.ZERO (rejected). Q3 (the user chose "c"): the Rocket flies exactly where
 ## the camera aims, upward and straight up included (fuel ends it if it hits nothing), so no
 ## upward part is removed any more.
 static func sanitize_launch_direction(direction: Vector3) -> Vector3:
@@ -170,14 +170,14 @@ func effect_lifetime_s() -> float:
 	return fuel_duration_s
 
 
-## DECISION (Bontago-1pi.85.10): the spent Rocket is removed at its explosion (no 0.75 s
+## DECISION: the spent Rocket is removed at its explosion (no 0.75 s
 ## linger), same as the Bomb.
 func detaches() -> bool:
 	return true
 
 
 ## Every armed tick: launch once, hold the straight-line velocity, probe for contact.
-## Written with kick() so the thrust is exempt from rebound damping (Bontago-xtq.17).
+## Written with kick() so the thrust is exempt from rebound damping.
 func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void:
 	if block.has_meta(_HIT_META):
 		return
@@ -194,7 +194,7 @@ func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void
 		release_own_exceptions(block)
 	if _contact_ahead(block, behavior, direction, delta, launched_at):
 		block.set_meta(_HIT_META, true)
-	# DECISION (Bontago-1pi.85.43): a rocket aimed upward (or out past the field) would leave the
+	# DECISION: a rocket aimed upward (or out past the field) would leave the
 	# volume snapshots quantize into, and clients would see it pinned at the clamp. The host
 	# detonates it on the last tick it is still inside, using NetConfig.position_bounds() (the
 	# encoder's own bounds, no second constant); the burst in the sky is harmless.
@@ -238,7 +238,7 @@ func _launch(block: Block, behavior: SpecialBehavior) -> void:
 
 ## Whether the body would touch something accepted by the behaviour's impact_filter within
 ## the next tick of travel (plus the margin). Disc and map geometry are not Blocks, so the
-## filter always accepts them; only the owner's own blocks are ignored during the grace.
+## filter always accepts them; only the player's own blocks are ignored during the grace.
 func _contact_ahead(
 	block: Block, behavior: SpecialBehavior, direction: Vector3, delta: float, launched_at: float
 ) -> bool:
@@ -257,12 +257,12 @@ func _face_direction(block: Block, direction: Vector3) -> void:
 	FlightFacing.face_direction(block, model_nose_axis, direction)
 
 
-## Pure: delegates to FlightFacing.nose_basis (Bontago-1pi.85.49).
+## Pure: delegates to FlightFacing.nose_basis.
 static func nose_basis(nose: Vector3, direction: Vector3) -> Basis:
 	return FlightFacing.nose_basis(nose, direction)
 
 
-## Shared by Rocket and Paintball (Bontago-1pi.85.37): makes every block of `block`'s owner within
+## Shared by Rocket and Paintball: makes every block of `block`'s slot within
 ## `radius` of it a collision exception, so the projectile leaves its own tower without
 ## detonating on it or shoving it, while enemy blocks stay solid. Replaces the old time window
 ## that only looked at the first collider of the probe and so also hid an enemy right behind an
@@ -297,7 +297,7 @@ static func release_own_exceptions(block: Block) -> void:
 
 
 ## RIDs of the blocks currently held as collision exceptions. The Jolt body_test_motion probe does
-## not read a body's exception list, so it is given them explicitly (Bontago-1pi.85.37).
+## not read a body's exception list, so it is given them explicitly.
 static func held_own_rids(block: Block) -> Array[RID]:
 	var rids: Array[RID] = []
 	if not block.has_meta(_OWN_EXCEPTIONS_META):

@@ -1,4 +1,4 @@
-// Bontago-1pi.11.42: shared by block_cell_grid.gdshader and
+// shared by block_cell_grid.gdshader and
 // block_outline.gdshader so both passes eat the same pixels. 3D value noise in
 // block-local space; a pixel is gone while its noise is below the threshold.
 

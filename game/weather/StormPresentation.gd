@@ -1,8 +1,8 @@
 class_name StormPresentation
 extends WeatherPresentation
-## Bontago-22y.4: client-side wind visuals -- cartoon wind swooshes and drifting
+## client-side wind visuals -- cartoon wind swooshes and drifting
 ## dust/leaf motes flowing along the seeded wind heading (core/weather/WindField.gd,
-## the same direction the host pushes blocks). Bontago-mp0.81 swapped the looks:
+## the same direction the host pushes blocks). swapped the looks:
 ## the streaks are the curled swoosh strokes (shaders/weather/gust_swoosh.gdshader, strokes
 ## scattered through the weather box) that a Breeze gust used to draw; the motes
 ## stay on shaders/weather/wind_streak.gdshader. The script only integrates the gusting
@@ -44,7 +44,7 @@ var _horizon: HorizonStormCells = null
 
 
 func _ready() -> void:
-	# Bontago-mp0.126: distant storm cells on the horizon follow the same intensity.
+	# distant storm cells on the horizon follow the same intensity.
 	_horizon = HorizonStormCells.new()
 	_horizon.name = "HorizonStormCells"
 	add_child(_horizon)
@@ -74,7 +74,7 @@ static func _hash11(n: float) -> float:
 	return fposmod(sin(n * 127.1 + 311.7) * 43758.5453, 1.0)
 
 
-## Cycle time of one swoosh stroke: draw-on, hold and draw-off seconds (Bontago-mp0.131).
+## Cycle time of one swoosh stroke: draw-on, hold and draw-off seconds.
 static func stroke_cycle_s(wind_tuning: StormTuning) -> float:
 	return maxf(wind_tuning.streak_draw_on_s + wind_tuning.streak_hold_s + wind_tuning.streak_draw_off_s, MIN_CYCLE_S)
 
@@ -401,7 +401,7 @@ static func build_swoosh_ribbon(wind_tuning: StormTuning, curled: bool = true) -
 	return mesh
 
 
-## Bontago-mp0.92: the clouds drift along this same wind (Skybox cloud drift), easing in and
+## the clouds drift along this same wind (Skybox cloud drift), easing in and
 ## out with the storm blend.
 func _push_cloud_wind(direction: Vector2) -> void:
 	if not is_inside_tree():

@@ -1,6 +1,6 @@
 class_name EarthquakeEffect
 extends SpecialEffect
-## Earthquake special (spec 2.6): "shakes the field, tilts randomly, helps
+## Earthquake special (spec 1.6): "shakes the field, tilts randomly, helps
 ## level existing tilt." docs/archive/M4_SPECIALS_PACKAGES.md P5-EARTHQUAKE, moved onto
 ## DiscForce.shake by docs/GIFT_EFFECTS_PLAN.md package D (behaviour
 ## unchanged). Follows the "timed-effect pattern": physics_tick() shakes every
@@ -14,19 +14,19 @@ extends SpecialEffect
 const START_AGE_META: StringName = &"earthquake_start_age"
 
 ## DiscForce tuning: `duration_s` is the seconds the shake runs before this
-## special force-triggers on its own (spec 2.6's Earthquake row; no explicit
+## special force-triggers on its own (spec 1.6's Earthquake row; no explicit
 ## number given -- provisional), `shake_amplitude_m` the tilt impulse units per
 ## second of the kick and `shake_tilt_deg` how fast its axis sweeps around the
 ## disc.
 ##
-## DECISION (carried over): spec 2.6 pairs a linear amplitude (0.25 m) with an
+## DECISION (carried over): spec 1.6 pairs a linear amplitude (0.25 m) with an
 ## angular one (2.5 deg); Field.gd exposes no vertical-bounce entry point, so
 ## both fold onto the one tilt-impulse tunable. 3.0 per second equals the old
 ## 0.05 per tick at 60 Hz.
 @export var disc_force: DiscForceTuning = DiscForceTuning.new()
 
 ## Fraction of the field's current |tilt_vector()| fed back as an impulse
-## opposing the tilt each armed tick -- spec 2.6: Earthquake "helps level
+## opposing the tilt each armed tick -- spec 1.6: Earthquake "helps level
 ## existing tilt." NEW, OPEN in spec.
 @export var leveling_strength: float = 0.5
 
@@ -71,7 +71,7 @@ func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void
 		field.apply_tilt_impulse(cancel_direction, leveling_strength * tilt.length())
 
 
-## FIX (Bontago-1en.22): vetoes the decel-based impact trigger entirely -- see
+## FIX: vetoes the decel-based impact trigger entirely -- see
 ## SpecialEffect.impact_triggers()'s own doc comment. This effect's own end is
 ## time-driven (wants_early_trigger() below) or a chain trigger from a nearby
 ## special (SpecialBehavior.trigger_others_in_range(), unaffected).

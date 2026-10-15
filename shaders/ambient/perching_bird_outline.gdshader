@@ -1,7 +1,7 @@
 shader_type spatial;
 render_mode cull_front, unshaded, skip_vertex_transform, shadows_disabled;
 
-// Bontago-adt.3: inverted-hull outline pass (next_pass of perching_bird
+// inverted-hull outline pass (next_pass of perching_bird
 // .gdshader) for the cel look. Expanded in view space with the correct normal
 // matrix so non-uniformly scaled parts get an even line.
 

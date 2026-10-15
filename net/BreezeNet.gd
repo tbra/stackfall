@@ -1,6 +1,6 @@
 class_name BreezeNet
 extends Node
-## Breeze gust replication (Bontago-470.2), a child of WeatherNet so its RPC
+## Breeze gust replication, a child of WeatherNet so its RPC
 ## path (/root/MatchNet/WeatherNet/BreezeNet) is the same on every instance.
 ## Uses only MultiplayerAPI.
 ##

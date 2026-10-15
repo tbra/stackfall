@@ -1,6 +1,6 @@
 class_name ThrowArcPreview
 extends Node3D
-## M4 P2e / Bontago-1pi.85.29: a pure-presentation arc polyline, shown while game/
+## M4 P2e / a pure-presentation arc polyline, shown while game/
 ## PlayerController.gd holds a throwable/aimed gift (no LT/drag any more). It samples the same
 ## closed-form `position(t) = origin + velocity*t + 0.5*gravity*t^2` game/
 ## BlockFactory.gd's own gravity_scale wiring implies (constant acceleration,
@@ -9,8 +9,8 @@ extends Node3D
 ## the FIRST sample that reaches the landing surface, not a fixed sample
 ## count.
 ##
-## Bontago-1en.25 (feedback/throw-arc.png, "arc leaves the screen while
-## rising"): the arc used to always sample out to throw_arc_max_time_s
+## feedback/throw-arc.png, "arc leaves the screen while
+## rising": the arc used to always sample out to throw_arc_max_time_s
 ## regardless of where it lands, so a hard lofted throw's preview was still
 ## rising off the top of the screen when the line simply stopped. Landing
 ## height comes from the optional `field` argument sample_arc()/update_arc()
@@ -28,7 +28,7 @@ extends Node3D
 ## its own doc comment always claimed rather than the normal cutoff).
 ##
 ## `field` defaults to null so every existing bare-unit-test caller (no Field
-## instanced) keeps its pre-Bontago-1en.25 behaviour unchanged: sampled purely
+## instanced) keeps its pre- behaviour unchanged: sampled purely
 ## to the safety cap, no landing cutoff at all -- there is no ground to land
 ## on when nothing describes one, so this deliberately does not invent a fake
 ## y=0 floor for that case.
@@ -47,7 +47,7 @@ extends Node3D
 var _mesh_instance: MeshInstance3D
 var _immediate_mesh: ImmediateMesh
 var _material: StandardMaterial3D
-## Bontago-1pi.85.63 landing-zone ring (one reused instance, see _update_end_ring()).
+## landing-zone ring (one reused instance, see _update_end_ring()).
 var _ring_instance: MeshInstance3D
 var _ring_material: StandardMaterial3D
 var _ring_built_for: Vector2 = Vector2.ZERO
@@ -88,13 +88,13 @@ func _ready() -> void:
 
 
 ## Pure ballistic sampler -- P2e's own testable seam, extended in
-## Bontago-1en.25 to cut off at ground/disc contact. `origin`/`velocity` are
+## to cut off at ground/disc contact. `origin`/`velocity` are
 ## world-space; matches game/player/PlayerController.gd._throw_velocity_for_drag()'s
 ## and _request_throw()'s own launch convention (a straight-line velocity
 ## from a spawn point, no initial acceleration ramp). `field`, if given, is
 ## read-only (see this file's top doc comment); null keeps the pre-landing
 ## fixed-time-budget behaviour every existing bare-unit-test caller relies on.
-## Bontago-1pi.85.29: `gravity_scale` multiplies the block gravity (default 1.0 = a thrown block;
+## `gravity_scale` multiplies the block gravity (default 1.0 = a thrown block;
 ## 0.0 = the straight gravity-free flight of Rocket/Paintball).
 func sample_arc(
 	origin: Vector3, velocity: Vector3, field: Field = null, gravity_scale: float = 1.0
@@ -161,7 +161,7 @@ func _landing_point(previous: Vector3, point: Vector3, landing_y: float) -> Vect
 ## PlayerController._drive_throw_visuals() decides the live drag would
 ## commit as a throw right now (see that function's own DECISION comment) --
 ## safe to call every frame, like GhostPreview.apply_validity(). `field` is
-## forwarded straight to sample_arc() (Bontago-1en.25); PlayerController
+## forwarded straight to sample_arc(); PlayerController
 ## passes Match.field(), read-only, same as its own _on_placement_relocated().
 func update_arc(
 	origin: Vector3, velocity: Vector3, field: Field = null, gravity_scale: float = 1.0, ring_scale: float = 1.0
@@ -229,7 +229,7 @@ func _rebuild_mesh(points: PackedVector3Array) -> void:
 	_immediate_mesh.surface_end()
 
 
-## Bontago-1pi.85.63: the landing-zone ring. One reused MeshInstance3D holding a flat
+## the landing-zone ring. One reused MeshInstance3D holding a flat
 ## annulus ArrayMesh (rebuilt only when radius/width change); each arc update just sets its
 ## transform: centred on the landing point, up axis = the landing surface normal, lifted along
 ## it. No per-frame allocation.

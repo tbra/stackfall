@@ -1,7 +1,7 @@
 shader_type sky;
 #include "res://shaders/include/cloud_common.gdshaderinc"
 
-// Bontago-1pi.11.74 (G1): the sky must NOT read the built-in TIME. Any TIME use makes
+// G1: the sky must NOT read the built-in TIME. Any TIME use makes
 // the engine re-render the whole radiance octmap + filter every frame (sky.cpp:1033,
 // uses_time), and so does every material uniform write (sky.cpp:1044). `sky_time` is a
 // GLOBAL uniform (project.godot [shader_globals]): game/sky/Skybox.gd writes it each frame
@@ -9,7 +9,7 @@ shader_type sky;
 // animates smoothly while the radiance only re-renders at SkyRadianceConfig.radiance_hz
 // (a `radiance_tick` write + the cycle's palette/sun writes).
 global uniform float sky_time;
-// Bontago-mp0.153: per-frame disc directions (game/sky/Skybox.gd); a global write does not dirty
+// per-frame disc directions (game/sky/Skybox.gd); a global write does not dirty
 // the material, so the discs move smoothly while the material (light, palette) steps.
 global uniform vec3 sky_sun_dir;
 global uniform vec3 sky_moon_dir;
@@ -18,14 +18,14 @@ uniform float radiance_tick = 0.0;
 
 
 uniform float exposure = 0.8;
-// Bontago-59o.18 P6a: the painted panorama is removed. sky_yaw/pitch_offset_deg are kept only
+// P6a: the painted panorama is removed. sky_yaw/pitch_offset_deg are kept only
 // because game/sky/Skybox.gd, CloudSea and the theme resources still write them (cleanup follow-up);
 // this shader no longer samples with them.
 uniform float sky_yaw_offset_deg = 0.0;
 uniform float sky_pitch_offset_deg = 0.0;
 
-// Bontago-mp0.3.4 (Graphics pass 2, owner feedback "lens flare from the sun"
-// + fix round "move god rays into the sky"): a warm sun glow/halo and
+// Graphics pass 2, "lens flare from the sun"
+// + fix round "move god rays into the sky": a warm sun glow/halo and
 // crepuscular god-ray beams, drawn as part of the sky pass itself -- this
 // runs behind every opaque object (the disc, blocks, beacons) for free (a
 // sky shader is always the backmost thing drawn) and is naturally picked up
@@ -36,7 +36,7 @@ uniform float sky_pitch_offset_deg = 0.0;
 // directly on the sun disc, and the ghost discs along the sun->center
 // axis) -- see that file's own class doc.
 uniform vec3 sun_direction = vec3(0.963087, 0.069011, -0.260192);
-// Bontago-mp0.13: the cycle uses this same sky pass and uniforms; its
+// the cycle uses this same sky pass and uniforms; its
 // procedural branch hides the panorama's painted sun before the sun moves.
 uniform float cycle_night_mix = 0.0;
 uniform vec3 cycle_night_zenith : source_color = vec3(0.008, 0.018, 0.06);
@@ -47,7 +47,7 @@ uniform float cycle_star_cells = 105.0;
 uniform float cycle_star_threshold = 0.92;
 uniform float cycle_star_radius = 0.12;
 uniform float cycle_star_horizon_fade = 0.22;
-// Bontago-mp0.122: Codex moon_v1 disc + halo textures (assets/textures/sky/moon), drawn at
+// Codex moon_v1 disc + halo textures (assets/textures/sky/moon), drawn at
 // night opposite the sun. moon_visibility is 0..1 (time of day x weather keep, set by
 // game/sky/Skybox.gd); the angular sizes and strengths come from SkyThemeDef.cycle_moon_*.
 uniform sampler2D moon_disc_tex : source_color, filter_linear_mipmap, repeat_disable;
@@ -61,7 +61,7 @@ uniform float moon_brightness = 1.0;
 // Visible disc / halo radius as a fraction of the half texture quad (400/512 and 480/512).
 uniform float moon_disc_fill = 0.78125;
 uniform float moon_halo_fill = 0.9375;
-// Bontago-mp0.129: aurora borealis curtains (cloud_common aurora_borealis) behind the moon
+// aurora borealis curtains (cloud_common aurora_borealis) behind the moon
 // at night. aurora_visibility is 0..1 (night x weather keep x graphics preset, set by
 // game/sky/Skybox.gd, so it is exactly 0 by day, in a storm and on Low); the rest come from
 // SkyThemeDef.aurora_*.
@@ -95,7 +95,7 @@ uniform vec4 sun_ray_color : source_color = vec4(1.0, 0.72, 0.38, 1.0);
 uniform float sun_core_angular_radius_deg = 1.6;
 uniform float sun_halo_angular_radius_deg = 9.0;
 uniform float sun_halo_softness_deg = 10.0;
-// DECISION (shaders/sky/sunset_clouds.gdshader, Bontago-1pi.1, owner playtest:
+// DECISION (shaders/sky/sunset_clouds.gdshader, 
 // "there are 2 suns, one built in to the skybox and another with the lens
 // flares" + follow-up "the sun isn't fixed either... the suns are basically
 // 180 degrees apart"): assets/sky/sunset-clouds-v1.png already has a painted
@@ -132,15 +132,15 @@ uniform float ray_intensity = 0.35;
 // atmospheric drift, not a flicker.
 uniform float ray_shimmer_speed = 0.15;
 uniform float ray_shimmer_amount = 0.08;
-// Bontago-mp0.34: share of the sun glow and god rays that survives weather and
+// share of the sun glow and god rays that survives weather and
 // night (game/sky/Skybox.gd via CloudLighting.sun_effect_scale); 1 = clear daylight.
-// Bontago-mp0.94: EVERY additive sun term below (core, halo, god rays) multiplies it, and
+// EVERY additive sun term below (core, halo, god rays) multiplies it, and
 // it is exactly 0 at full storm where the procedural sun glow is also 0, so the rays can
 // never outlive a hidden sun. A new sun term must multiply it too.
 uniform float sun_effect_scale : hint_range(0.0, 1.0) = 1.0;
 
 
-// Bontago-59o.18 P6a: the painted panorama (and its seam fix, sway/warp drift and
+// P6a: the painted panorama (and its seam fix, sway/warp drift and
 // sea-flow code) is gone; every theme runs the procedural branch below. The shared
 // noise texture drives the procedural cloud layers. All animated terms are skipped
 // in the radiance (reflection) pass.
@@ -167,7 +167,7 @@ uniform vec3 cloud_mid_color : source_color = vec3(0.86, 0.55, 0.52);
 uniform vec3 cloud_lit_color : source_color = vec3(1.0, 0.82, 0.52);
 uniform vec3 cloud_rim_color : source_color = vec3(1.0, 0.9, 0.66);
 
-// Bontago-59o.16 (procedural sky P1): declarations only; the branch that
+// procedural sky P1: declarations only; the branch that
 // reads them lands in P2-P4.
 uniform float procedural_sea_mix = 1.0;
 uniform vec4 proc_zenith_color : source_color = vec4(0.161, 0.2, 0.333, 1.0);
@@ -209,15 +209,15 @@ uniform float proc_strata2_coverage = 0.6;
 uniform float proc_strata2_bands = 3.0;
 uniform float proc_strata2_fade_start = 0.08;
 uniform float proc_strata2_fade_height = 0.4;
-// Pass 2 (Bontago-59o.19) upper-cloud shape: x warp, y bank-mask weight, z sun probe, w light contrast.
+// Pass 2 upper-cloud shape: x warp, y bank-mask weight, z sun probe, w light contrast.
 uniform vec4 proc_upper_shape = vec4(0.15, 0.3, 0.04, 6.0);
 uniform float proc_upper_rot2 = 0.6;
-// Bontago-59o.20: authored cloud-card layers replace the noise overhead layers
+// authored cloud-card layers replace the noise overhead layers
 // when proc_cards_mix > 0. proc_cards_layout*: x plane scale, y horizon lift,
 // z density, w card half-size in cells. proc_cards_light: x openness floor,
 // y skylight up-bias, z rim power, w rim strength. proc_cards_wind: layer 1 xy, layer 2 zw.
 uniform sampler2D cloud_cards : filter_linear_mipmap, repeat_disable;
-// Bontago-t8x.2: master switch for both procedural overhead layers (cards and noise strata).
+// master switch for both procedural overhead layers (cards and noise strata).
 uniform float proc_overhead_mix = 1.0;
 uniform float proc_cards_mix = 0.0;
 uniform float proc_cards_opacity = 0.95;
@@ -239,11 +239,11 @@ void sky() {
 	float cos_angle = dot(eyedir, sun_dir);
 	float angle_deg = degrees(acos(clamp(cos_angle, -1.0, 1.0)));
 
-	// DECISION (Bontago-59o.18 P6a): COLOR starts black; the procedural gradient below fills it
+	// DECISION (P6a): COLOR starts black; the procedural gradient below fills it
 	// whenever procedural_sea_mix > 0 (default 1, every theme sets 1).
 	COLOR = vec3(0.0);
 
-	// Procedural gradient sky (Bontago-59o.16 P2), blended by procedural_sea_mix.
+	// Procedural gradient sky (P2), blended by procedural_sea_mix.
 	// The radiance pass takes no noise taps here, so it is cheap and stable.
 	if (procedural_sea_mix > 0.0) {
 		vec3 pcol = sky_gradient(eyedir.y, proc_horizon_color.rgb, proc_mid_color.rgb, proc_zenith_color.rgb,
@@ -272,7 +272,7 @@ void sky() {
 		COLOR = mix(COLOR, pcol * exposure, clamp(procedural_sea_mix, 0.0, 1.0));
 	}
 
-	// Procedural upper clouds (Bontago-59o.19): two isotropic broken-cumulus
+	// Procedural upper clouds: two isotropic broken-cumulus
 	// layers on rotated high planes (see cloud_common procedural_upper_clouds),
 	// background pass only.
 	if (!AT_CUBEMAP_PASS && eyedir.y > 0.0 && procedural_sea_mix > 0.0 && proc_cards_mix > 0.0 && proc_overhead_mix > 0.0) {

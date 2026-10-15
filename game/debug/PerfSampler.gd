@@ -1,6 +1,6 @@
 class_name PerfSampler
 extends Node
-## Bontago-470.8: gathers one metrics snapshot every DebugConfig.stats_window_s
+## gathers one metrics snapshot every DebugConfig.stats_window_s
 ## and keeps a rolling history for the overlay graph. Both ui/debug/PerfOverlay.gd and
 ## game/debug/PerfLogger.gd read `latest`/`history_*` and never sample on their own, so
 ## PerfProbe.drain() has a single consumer.
@@ -34,7 +34,7 @@ var _bucket_s: float = 0.0
 var _bucket_frame_max_ms: float = 0.0
 var _bucket_physics_max_ms: float = 0.0
 var _last_blocks: int = 0
-## Bontago-1pi.11.36: physics catch-up and effects-burst tracking.
+## physics catch-up and effects-burst tracking.
 var _last_physics_frames: int = -1
 var _steps_current: int = 0
 var _steps_peak: int = 0

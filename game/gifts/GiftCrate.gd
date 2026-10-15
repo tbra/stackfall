@@ -1,6 +1,6 @@
 class_name GiftCrate
 extends Area3D
-## A gift crate (spec 2.6): a descending pickup that shows which player it
+## A gift crate (spec 1.6): a descending pickup that shows which player it
 ## belongs to once claimed. Presence-only for M4 P1 -- a block or a thrown
 ## special can be seen to strike it, matching the chain-reaction flavor text,
 ## even though nothing here currently *reacts* to that contact: body_entered
@@ -41,15 +41,15 @@ var _visual_time: float = 0.0
 var _glow_light: OmniLight3D = null
 var _spawn_halo: MeshInstance3D = null
 var _spawn_halo_material: StandardMaterial3D = null
-## Bontago-1pi.85.57: pulse ring shown while the crate lies on the disc (not falling).
+## pulse ring shown while the crate lies on the disc (not falling).
 var _land_ring: PulseRing = null
 @export var ring_tuning: GiftRingTuning = preload("res://config/gifts/gift_ring_tuning.tres")
 ## GraphicsPreset.gift_idle_glow_enabled: false (Low) keeps only the spawn
 ## flash; the OmniLight3D is hidden once the flash ends.
 var _idle_glow_enabled: bool = true
 
-## Bontago-d04 (owner report "I grabbed a yellow cube but nothing seemed to
-## happen"): a successful claim needs visible feedback whether a held block
+## "I grabbed a yellow cube but nothing seemed to
+## happen": a successful claim needs visible feedback whether a held block
 ## touches the descending crate or territory owns its landing cell, but a
 ## successful claim had no visible feedback at all: MatchGifts.
 ## _free_crate_visual() queue_free()s this node the instant it is claimed, so
@@ -69,7 +69,7 @@ var _idle_glow_enabled: bool = true
 ## freed anyway.
 var _claimed: bool = false
 var _hint_time: float = 0.0
-## Bontago-mp0.139: the visual parachute (see game/gifts/GiftParachute.gd) and the
+## the visual parachute (see game/gifts/GiftParachute.gd) and the
 ## replicated falling state it follows. `_falling` is false for a crate nothing
 ## has told to fall -- a landed crate built by a client's replicated spawn --
 ## so such a crate shows no canopy (it used to keep one forever).
@@ -108,8 +108,8 @@ func _build() -> void:
 	shape_node.shape = box_shape
 	add_child(shape_node)
 
-	# Bontago-mp0.119: gift_crate_v1 (config/gifts/gift_model_table.tres) replaces the
-	# box + lid + ribbon placeholder. `Mesh` is the model root; the hint/owner
+	# gift_crate_v1 (config/gifts/gift_model_table.tres) replaces the
+	# box + lid + ribbon placeholder. `Mesh` is the model root; the hint/slot
 	# tint rides on it as a translucent overlay (_material keeps the tint
 	# colour). Collision and CRATE_SIZE are unchanged. Falls back to the plain
 	# box when the table has no crate row.
@@ -134,7 +134,7 @@ func _build() -> void:
 	_mesh.name = &"Mesh"
 	add_child(_mesh)
 
-	# Bontago-1pi.137: the small inner PickupRing was removed; the LandRing below is the one ground ring.
+	# the small inner PickupRing was removed; the LandRing below is the one ground ring.
 
 	# The spawn halo expands once, then the small light continues to mark a
 	# landed gift against both pale and dark territory without covering blocks.
@@ -145,7 +145,7 @@ func _build() -> void:
 	_glow_light.light_energy = gift_config.spawn_glow_start_energy
 	_glow_light.omni_range = gift_config.glow_light_range_m
 	_glow_light.shadow_enabled = false
-	# Bontago-1pi.143: the omni light has no shadow, so on the default cull mask it
+	# the omni light has no shadow, so on the default cull mask it
 	# lit every block face it was near, through the blocks a crate falls or lands
 	# among (bright pink faces / washed-out towers). It only marks the ground, so
 	# it is restricted to the territory disc layer; blocks and the crate itself
@@ -180,7 +180,7 @@ func _build() -> void:
 	var jewel: MeshInstance3D = _add_box(_beacon, &"BeaconDiamond", Vector3(0.22, 0.22, 0.22), Vector3.ZERO, _flat_material(BEACON_COLOR, true))
 	jewel.rotation = Vector3(0.0, 0.0, PI * 0.25)
 
-	# Bontago-mp0.139: procedural gore-panel parachute (game/gifts/ParachuteMesh.gd),
+	# procedural gore-panel parachute (game/gifts/ParachuteMesh.gd),
 	# animated by core/gifts/ParachuteAnim.gd; hidden until set_falling(true).
 	_parachute = GiftParachute.new()
 	_parachute.name = &"Parachute"
@@ -279,7 +279,7 @@ func _on_body_entered(_body: Node3D) -> void:
 	pass
 
 
-# --- Claim feedback (Bontago-d04) --------------------------------------------
+# --- Claim feedback --------------------------------------------
 
 ## Every live GiftCrate listens for its own claim. MatchGifts._claim_gift()
 ## (host) and MatchNet.gd's EVENT_GIFT_CLAIMED dispatch (client) both call
@@ -289,7 +289,7 @@ func _on_body_entered(_body: Node3D) -> void:
 ## / Events.gift_claimed.emit() pair), so this handler still reads a fully
 ## valid node: queue_free() only defers the actual deletion, it doesn't
 ## invalidate the node the same frame it's called.
-## Bontago-keo.17 (owner decision "b"): `slot_id` is now the RESOLVED
+## "b": `slot_id` is now the RESOLVED
 ## RECIPIENT -- the one teammate whose home circle is nearest the crate
 ## (autoload/match/MatchGifts.gd's _resolve_recipient_slot()), not a team id.
 func _on_gift_claimed(claimed_gift_id: int, slot_id: int, _special_id: StringName) -> void:
@@ -303,7 +303,7 @@ func _on_gift_claimed(claimed_gift_id: int, slot_id: int, _special_id: StringNam
 	var parent: Node = get_parent()
 	if parent == null or not (parent is Node3D) or not parent.is_inside_tree():
 		return
-	# Bontago-mp0.139: this crate is freed right after the claim, so a canopy
+	# this crate is freed right after the claim, so a canopy
 	# that is still up (an air capture, or a landing claimed the same tick)
 	# moves to the crate's parent and finishes its collapse there.
 	if _parachute != null and _parachute.is_active():
@@ -318,14 +318,14 @@ func _on_gift_claimed(claimed_gift_id: int, slot_id: int, _special_id: StringNam
 ## seam, and this is three lines, not worth a new coupling between the two
 ## owned files for.
 ##
-## Bontago-keo.17 (owner decision "b"): `slot_id` is now the actual resolved
+## "b": `slot_id` is now the actual resolved
 ## recipient's own slot (MatchGifts._resolve_recipient_slot()), so
 ## Match.slot(slot_id) is literally that player's own colour -- no team-proxy
 ## trick needed anymore (an earlier revision of this comment explained why a
 ## team id safely stood in for a teammate's colour; that no longer applies
 ## now that the payload is a real slot).
 func _claim_color(slot_id: int) -> Color:
-	# DECISION (Bontago-1pi.86.3): D1 precedence via Match.slot_color (live slot, else the
+	# DECISION: D1 precedence via Match.slot_color (live slot, else the
 	# running config's palette, else the default palette, else white). The old copy read
 	# match_defaults.tres even with a live config; identical unless a match overrides colours.
 	return MatchContext.current().slot_color(slot_id, Color.WHITE)
@@ -343,7 +343,7 @@ static func spawn_claim_pop(parent: Node3D, world_position: Vector3, color: Colo
 	parent.add_child(pop)
 	pop.global_position = world_position
 
-	# Bontago-mp0.119: child 0 is the slot-coloured glow cube (the claimed
+	# child 0 is the slot-coloured glow cube (the claimed
 	# gift); when the table has the reveal model, it opens around the cube
 	# (gift_crate_reveal_v1, `open_reveal_1s` sped up to fit the pop), otherwise
 	# the cube is the old full-size crate-sized pop.
@@ -369,7 +369,7 @@ static func spawn_claim_pop(parent: Node3D, world_position: Vector3, color: Colo
 	tween.tween_callback(pop.queue_free)
 
 
-# --- Not-claimable hint (Bontago-d04) ----------------------------------------
+# --- Not-claimable hint ----------------------------------------
 
 ## Pulses a LANDED crate's tint while the local player's held ghost hovers
 ## near it outside that player's own territory. Falling crates can be claimed
@@ -408,7 +408,7 @@ func _is_hint_hovering() -> bool:
 	return not _crate_in_local_territory(crate_local)
 
 
-## DECISION (game/gifts/GiftCrate.gd, Bontago-d04): "the local player's own slot",
+## DECISION (game/gifts/GiftCrate.gd): "the local player's own slot",
 ## the same distinction ui/hud/HUD.gd's own _hot_seat_active()/_active_slot pair
 ## makes -- in hot-seat exactly one human drives whichever slot's turn it is
 ## (Match.active_slot()); outside hot-seat each running instance drives
@@ -426,7 +426,7 @@ func _local_watch_slot() -> int:
 	return -1
 
 
-## Bontago-keo.17 (A1 review fix, same bug class as _on_gift_claimed()):
+## (A1 review fix, same bug class as _on_gift_claimed()):
 ## TerritoryRaster.team_at() returns a TEAM id (territory is per-team), so a
 ## local slot has to be resolved to its own team before the comparison --
 ## under TeamMode.OFF, MatchConfig.team_of_slot() is the identity, so this is

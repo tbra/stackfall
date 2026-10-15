@@ -1,6 +1,6 @@
 class_name WatchBotsOptions
 extends RefCounted
-## Bontago-1pi.212: the choices of a debug "Watch bots" match (every seat a bot, the local player only
+## the choices of a debug "Watch bots" match (every seat a bot, the local player only
 ## watches), and the one place that turns them into a MatchConfig. The main-menu picker
 ## (ui/menus/WatchBotsDialog.gd) and the command line (`-- --watch-bots=<n> [--mode=<id>] [--difficulty=<level>]
 ## [--gifts=0] [--weather=0]`) both fill one of these and call build_config(), so both start the same match.
@@ -124,7 +124,7 @@ func build_config(base: MatchConfig) -> MatchConfig:
 		config.weather_mode = MatchConfig.WeatherMode.CHANGING
 	config.slot_ai_difficulties = PackedInt32Array()
 	if difficulty == Difficulty.MIXED:
-		# DECISION (Bontago-1pi.212): "mixed" spreads Easy/Normal/Hard over the seats in turn.
+		# DECISION: "mixed" spreads Easy/Normal/Hard over the seats in turn.
 		for slot_id: int in range(count):
 			config.slot_ai_difficulties.append(slot_id % MatchConfig.AiDifficulty.size())
 	else:

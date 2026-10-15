@@ -1,13 +1,13 @@
 class_name PlayerController
 extends Node
-## Local input -> placement intents (spec 2.5, 3.2; docs/archive/M2_PLAN.md P4).
+## Local input -> placement intents (spec 1.4, 2.2; docs/archive/M2_PLAN.md P4).
 ## Every action goes through the Input Map (bootstrap_project.gd); nothing
 ## here reads a raw keycode.
 ##
-## M2 makes placement intent-only (spec 3.4, "clients send intents; the host
+## M2 makes placement intent-only (spec 2.6, "clients send intents; the host
 ## checks every intent before acting on it"): this script never builds a
 ## Block itself. It positions the ghost, tracks whose turn it is in hot-seat
-## (docs/archive/M2_PLAN.md owner decision 1: strict alternation), and sends an
+## (docs/archive/M2_PLAN.md 1: strict alternation), and sends an
 ## intent; the host alone decides what happens next and answers on the Events
 ## bus.
 ##
@@ -17,8 +17,8 @@ extends Node
 ## net/MatchNet.gd -- inline to Match on the host, a reliable RPC on a client
 ## -- and always for Net.local_slot(), because one instance drives one player.
 ##
-## Bontago-mv0.14 (original-style block-locked controls, spec 1.5,
-## docs/ORIGINAL_BONTAGO_NOTES.md "Controls"): the original's mouse "positions
+## original-style block-locked controls, spec 1.5,
+## docs/ORIGINAL_BONTAGO_NOTES.md "Controls": the original's mouse "positions
 ## the block" directly and the camera is attached to it, rather than the
 ## on-screen cursor raycasting onto the field. This script now keeps a single
 ## world-space cursor (_cursor) that both mouse motion and the gamepad stick
@@ -32,9 +32,9 @@ extends Node
 ## gone (spec 1.7 flagged that drift as a reported original problem; "do not
 ## keep two rotation systems").
 ##
-## Bontago-mv0.30 (owner test 2026-09-23, "when you place a block and the
+## owner test "when you place a block and the
 ## next block loads it gets displaced so it doesn't spawn directly within the
-## placed block"): _on_feed_block_issued() now seeds the newly issued ghost's
+## placed block": _on_feed_block_issued() now seeds the newly issued ghost's
 ## hover height above whatever this controller's own last accepted placement
 ## actually spawned (_apply_spawn_clearance(), config/blocks/tuning/GhostTuning.gd's
 ## spawn_clearance) instead of leaving the new piece exactly where the old one
@@ -51,10 +51,10 @@ extends Node
 @export var ghost_tuning: GhostTuning = preload("res://config/blocks/tuning/ghost_tuning.tres")
 @export var camera_tuning: CameraTuning = preload("res://config/player/camera_tuning.tres")
 @export var net_config: NetConfig = preload("res://config/net/net_config.tres")
-## Bontago-1pi.33: the home beacon's own extents, read only to clear its top
+## the home beacon's own extents, read only to clear its top
 ## with the match's first held piece (set_home_position()).
 @export var beacon_visuals: BeaconVisualTuning = preload("res://config/territory/beacon_visual_tuning.tres")
-## M4 P2d (spec 2.5 "Throw (specials only)"): throw_drag_min_distance_m/
+## M4 P2d (spec 1.4 "Throw (specials only)"): throw_drag_min_distance_m/
 ## throw_drag_min_speed_mps gate a release between an ordinary place and a
 ## throw; throw_speed_per_meter/throw_max_speed turn the drag into a launch
 ## velocity. Same @export-a-preloaded-Resource pattern as ghost_tuning/
@@ -92,12 +92,11 @@ var _shapes_by_id: Dictionary = {}
 ## client ever sets it: the host's intent resolves inline, in the same frame.
 var _intent_lock_left: float = 0.0
 
-## Hot-seat: which slot this controller currently acts for (spec M2 owner
-## decision 1: strict alternation, only the active slot's timer/controls do
+## Hot-seat: which slot this controller currently acts for (spec M2 1: strict alternation, only the active slot's timer/controls do
 ## anything). -1 until the first Events.turn_changed.
 var _active_slot: int = -1
 
-## Bontago-mv0.14: bookkeeping only now -- both mouse and gamepad move the
+## bookkeeping only now -- both mouse and gamepad move the
 ## same _cursor, and _update_ghost_transform() always raycasts straight down
 ## from above it (the screen-space mouse ray is gone). Tests and any future
 ## "which device last moved you" UI still read this.
@@ -108,29 +107,29 @@ var _using_gamepad_cursor: bool = false
 ## block" (spec 1.5).
 var _cursor: Vector3 = Vector3.ZERO
 ## Gamepad-only: the stick drives an accelerating velocity rather than a
-## direct offset (spec 2.5 "acceleration and a small dead zone"); the mouse
+## direct offset (spec 1.4 "acceleration and a small dead zone"); the mouse
 ## has no equivalent since its deltas are already analog-instant.
 var _cursor_velocity: Vector3 = Vector3.ZERO
 ## Accumulated camera-relative drag (x = yaw, y = pitch) while rotation_mode
 ## is held, in GhostTuning's "drag units" (see _accumulate_rotation_drag()).
 var _rotation_drag: Vector2 = Vector2.ZERO
-## Bontago-iry (owner feedback/controller-update.md, "clicking mmb rotates
-## the ghost block ... Q or Home resets"): total unscaled mouse-pixel motion
+## /controller-update.md, "clicking mmb rotates
+## the ghost block ... Q or Home resets": total unscaled mouse-pixel motion
 ## accumulated since the current rotate_drag (MMB) press, reset on every
 ## press. Below ghost_tuning.rotate_tap_max_motion_px this whole hold is a
 ## tap -- no continuous free rotation is applied at all, and release fires a
 ## single BlockOrientations.step_yaw_cw() snap (the same fixed pattern
 ## rotate_snap/rotate_yaw_cw use). Once it crosses the threshold this hold is
 ## a drag -- rotate_drag's InputEventMouseMotion branch below starts applying
-## apply_free_rotation_delta() every frame (mv0.22/mv0.25's continuous
+## apply_free_rotation_delta() every frame (/continuous
 ## behaviour, unchanged), and release no longer snaps.
 var _rotate_drag_motion_px: float = 0.0
 ## Set by HotSeat.gd/Sandbox.gd via enable_mouse_capture(); left false for
 ## bare unit-test instances so GUT never captures a test runner's real mouse.
 var _mouse_capture_enabled: bool = false
 
-## Bontago-mv0.23 (spec 2.5 "Held-block behaviour" [ORIGINAL], owner test
-## 2026-09-22): the last cursor position the collision sweep accepted --
+## spec 1.4 "Held-block behaviour" [ORIGINAL], owner test
+## : the last cursor position the collision sweep accepted --
 ## _clamp_cursor_collision() sweeps from here to the frame's new _cursor
 ## every frame and only advances this once the (possibly clamped) result is
 ## known, so a block held against a wall keeps being tested from where it
@@ -147,9 +146,9 @@ var _collision_cursor_seeded: bool = false
 var _last_hit_point: Vector3 = Vector3.ZERO
 var _last_hit_normal: Vector3 = Vector3.UP
 
-## Bontago-mv0.30 (owner test 2026-09-23, "when you place a block and the
+## owner test "when you place a block and the
 ## next block loads it gets displaced so it doesn't spawn directly within the
-## placed block"): true from the moment this controller's own _request_place()
+## placed block": true from the moment this controller's own _request_place()
 ## call is sent (a deliberate click, or a host-only auto-drop) until the
 ## outcome is known -- lets _on_feed_block_issued() tell "this feed follows a
 ## placement I actually just asked for" apart from the match's very first
@@ -163,24 +162,24 @@ var _pending_spawn_active: bool = false
 ## The world-space Y of the *top* of the shape this controller's pending
 ## placement is about to occupy -- captured from the held ghost's own
 ## GhostPreview.projection_span_y() (already exactly "the shape's own current
-## highest point in world space", Bontago-xtq.9) at the moment the intent is
+## highest point in world space") at the moment the intent is
 ## sent, so _apply_spawn_clearance() can seed the next ghost's hover height
 ## just above it once the feed confirms the placement actually happened.
 ## Re-captured by _on_placement_relocated() at the relocated spot for an
 ## auto-drop the host moved, so this always reflects where the block actually
 ## ended up, not just wherever this controller last aimed.
 var _pending_spawn_top_y: float = 0.0
-## Bontago-1pi.24: seconds since the pending spawn clearance started waiting
+## seconds since the pending spawn clearance started waiting
 ## for the block it would overlap to settle (see _apply_spawn_clearance()).
 var _spawn_settle_elapsed: float = 0.0
-## Bontago-1pi.24: whether the pending clearance already took back the previous
+## whether the pending clearance already took back the previous
 ## piece's raise and started its settle wait (done once per placement).
 var _spawn_settle_waiting: bool = false
-## Bontago-1pi.24: whether the host has issued the piece that follows the
+## whether the host has issued the piece that follows the
 ## pending placement (on a client this can lag the request by a round trip).
 var _pending_spawn_fed: bool = false
 
-## Bontago-1pi.14 (round 2): how much of _ghost.manual_hover_offset is
+## round 2: how much of _ghost.manual_hover_offset is
 ## spawn-clearance raise (see _apply_spawn_clearance()) rather than the
 ## player's own hover input. The camera follows the ghost INCLUDING this raise
 ## (eased once via CameraRig.begin_follow_transition()); the split exists only
@@ -190,34 +189,34 @@ var _clearance_raise: float = 0.0
 ## Part of the hover offset/_clearance_raise added by the release-time lift
 ## (_clear_ghost_before_release()); undone if the host refuses the release.
 var _release_raise: float = 0.0
-## Bontago-1pi.33: part of _ghost.manual_hover_offset that is the first piece's
+## part of _ghost.manual_hover_offset that is the first piece's
 ## raise above the home beacon (set_home_position()). Taken back off by the next
 ## accepted placement's spawn (_take_back_clearance_raise()) or absorbed by the
 ## player's own hover input, so only the very first piece ever carries it.
 var _home_spawn_raise: float = 0.0
 
-## Bontago-mv0.18 (in-game tuning panel): ui/debug/TuningPanel.gd sets this false
+## in-game tuning panel: ui/debug/TuningPanel.gd sets this false
 ## while it is open, so dragging a slider or clicking Reset/Save/Copy can't
 ## also move the ghost, rotate it, or spend a placement underneath the panel.
 ## Defaults true so every existing bare-controller test (no panel involved)
 ## keeps behaving exactly as before.
 var input_enabled: bool = true
-## Bontago-1pi.65: set by Events.match_results_ready; this controller is freed
+## set by Events.match_results_ready; this controller is freed
 ## with the match world, so it never needs clearing.
 var _results_open: bool = false
-## Bontago-1pi.192.5: tracked beside input_enabled so closing one blocker never re-enables input under another.
+## tracked beside input_enabled so closing one blocker never re-enables input under another.
 var _pause_open: bool = false
 var _chat_open: bool = false
 
-## Bontago-1pi.85.29: gift release is camera-aimed and automatic (no LT/drag state); the held
+## gift release is camera-aimed and automatic (no LT/drag state); the held
 ## throwable's arc preview is simply driven every frame by _drive_throw_visuals().
 
-## Bontago-mv0.35: seconds the current held raise/lower input has been down,
+## seconds the current held raise/lower input has been down,
 ## for _handle_hover_adjust()'s acceleration ramp (GhostTuning.
 ## hover_hold_acceleration/hover_hold_max_speed). Reset to 0 whenever no
 ## held raise/lower is active.
 var _hover_hold_seconds: float = 0.0
-## Bontago-59o.5: continuous wheel-scroll time and time since the last notch,
+## continuous wheel-scroll time and time since the last notch,
 ## for _wheel_step_multiplier() (GhostTuning.hover_wheel_*). Idle starts past
 ## any gap so the first notch is always a plain step.
 var _wheel_scroll_seconds: float = 0.0
@@ -230,12 +229,12 @@ func _ready() -> void:
 	_camera_rig = get_node_or_null(camera_rig_path) as CameraRig
 	_ghost = get_node_or_null(ghost_path) as GhostPreview
 	_arc_preview = get_node_or_null(arc_preview_path) as ThrowArcPreview
-	# Bontago-mv0.35: lets ui/hud/HUD.gd read the local held block's own height
+	# lets ui/hud/HUD.gd read the local held block's own height
 	# (GhostPreview.height_above_surface()) without a node path -- see
 	# GhostPreview.LOCAL_HELD_GROUP.
 	if _ghost != null:
 		_ghost.add_to_group(GhostPreview.LOCAL_HELD_GROUP)
-		# Bontago-gyy: _process() moves the local ghost every render frame and
+		# _process() moves the local ghost every render frame and
 		# CameraRig turns interpolation off, so an interpolated ghost jitters
 		# against the camera. Remote ghosts are not touched.
 		_ghost.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
@@ -247,14 +246,14 @@ func _ready() -> void:
 	Events.feed_timer_expired.connect(_on_feed_timer_expired)
 	Events.placement_rejected.connect(_on_placement_rejected)
 	Events.placement_relocated.connect(_on_placement_relocated)
-	# Bontago-xtq.42 (M7 P42, pause menu): ui/menus/PauseMenu.gd is the only thing
+	# M7 P42, pause menu: ui/menus/PauseMenu.gd is the only thing
 	# that reads the pause_menu action now (its own _unhandled_input) -- this
 	# controller only reacts to the Events it emits, the same "gate input,
 	# don't touch the scene tree" contract input_enabled already has for
 	# ui/debug/TuningPanel.gd's toggle.
 	Events.pause_menu_opened.connect(_on_pause_menu_opened)
 	Events.pause_menu_closed.connect(_on_pause_menu_closed)
-	# Bontago-1pi.65: the results screen blocks gameplay input like the pause menu.
+	# the results screen blocks gameplay input like the pause menu.
 	Events.chat_input_opened.connect(_on_chat_input_opened)
 	Events.chat_input_closed.connect(_on_chat_input_closed)
 	Events.match_results_ready.connect(_on_match_results_ready)
@@ -266,13 +265,13 @@ func _ready() -> void:
 ## tree, so it can't be wired by NodePath at scene-author time.
 func set_camera_rig(rig: CameraRig) -> void:
 	_camera_rig = rig
-	# Bontago-1pi.90: the rig's match-start framing pivots on the held piece's
+	# the rig's match-start framing pivots on the held piece's
 	# spawn anchor (see spawn_camera_anchor()), not on the bare home beacon.
 	if rig != null:
 		rig.set_start_anchor_source(spawn_camera_anchor)
 
 
-## Bontago-1pi.90 (owner: "START CAMERA STILL NOT FIXED"): places the ghost at
+## "START CAMERA STILL NOT FIXED": places the ghost at
 ## the current cursor -- at match start, the held piece's spawn pose behind the
 ## home beacon (set_home_position()) -- and returns the camera anchor the
 ## ordinary follow uses there (_camera_follow_anchor()). CameraRig.
@@ -286,7 +285,7 @@ func spawn_camera_anchor() -> Vector3:
 	return _camera_follow_anchor()
 
 
-## Bontago-mv0.17 item 4 (owner feel report: "the camera starts looking from
+## item 4 (owner feel report: "the camera starts looking from
 ## the player's home flag toward the disk centre, and the initial cursor
 ## should start at the home flag"): called once by HotSeat.bind_local_slot()/
 ## Sandbox's own turn-changed handler with that slot's home-flag world
@@ -304,7 +303,7 @@ func set_home_position(home_position: Vector3) -> void:
 		_camera_rig.set_home_view(home_position)
 
 
-## Bontago-1pi.33 (owner playtest 2026-10-03, "Start the first block higher up,
+## ("Start the first block higher up,
 ## it loads inside the home beacon currently"). The first held piece is seeded
 ## on the home flag, but the ghost anchors at the bare disc surface plus
 ## tuning.hover_height, and neither the placement ray nor the spawn-clearance
@@ -322,7 +321,7 @@ func _seed_home_spawn_raise() -> void:
 	if _ghost == null:
 		return
 	_take_back_home_spawn_raise()
-	# Bontago-1pi.40: the same rule the host's no-cursor AFK auto-drop uses.
+	# the same rule the host's no-cursor AFK auto-drop uses.
 	var clear_hover: float = ghost_tuning.home_spawn_clear_hover(beacon_visuals)
 	var raise: float = maxf(clear_hover - tuning.hover_height - _ghost.manual_hover_offset, 0.0)
 	_ghost.manual_hover_offset += raise
@@ -335,16 +334,16 @@ func _take_back_home_spawn_raise() -> void:
 	_home_spawn_raise = 0.0
 
 
-## Bontago-mv0.14: called once by HotSeat.gd/Sandbox.gd (never by a bare unit
+## called once by HotSeat.gd/Sandbox.gd (never by a bare unit
 ## test) so a real play session hides/captures the OS cursor -- the original's
 ## mouse only ever positions the held block, there is nothing on screen for a
-## free system cursor to point at. ui/menus/PauseMenu.gd (Bontago-xtq.42) releases it
+## free system cursor to point at. ui/menus/PauseMenu.gd releases it
 ## back to visible via Events.pause_menu_opened so the pause overlay's buttons
 ## can be clicked; see _on_pause_menu_opened()/_on_pause_menu_closed().
 ## Restores the OS cursor when this controller leaves the tree (match teardown
 ## in Main._end_match_world()). Without this the cursor stayed captured on the
 ## main menu after leaving a match, soft-locking mouse users
-## (feedback/playtest.md 2026-09-26). Only undoes a capture this controller
+## (feedback/playtest.md). Only undoes a capture this controller
 ## itself enabled, so headless runs and tests are unaffected.
 func _exit_tree() -> void:
 	if _mouse_capture_enabled and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
@@ -356,7 +355,7 @@ func enable_mouse_capture() -> void:
 	AgentProbe.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
 
-## Bontago-xtq.42: gates every other input handler in this file (input_enabled
+## gates every other input handler in this file (input_enabled
 ## already guards _process()/_unhandled_input(), the same seam ui/TuningPanel.
 ## gd's own toggle uses) and releases the OS cursor so the overlay's buttons
 ## are reachable -- physics/simulation itself is never paused (CLAUDE.md's
@@ -368,7 +367,7 @@ func _on_pause_menu_opened() -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
-## Bontago-1pi.192.5: the chat input line owns the keyboard, so every gameplay handler here stops
+## the chat input line owns the keyboard, so every gameplay handler here stops
 ## (the same gate pause uses); mouse capture is left alone so the ghost still follows the cursor.
 func _on_chat_input_opened() -> void:
 	_chat_open = true
@@ -387,7 +386,7 @@ func _on_match_results_ready(_results: Dictionary) -> void:
 
 
 ## Play again / sandbox reset reuse this controller: the results screen is gone,
-## so gameplay input comes back (review finding on Bontago-1pi.65).
+## so gameplay input comes back (review finding on).
 func _on_match_scope_reset() -> void:
 	_chat_open = false
 	if not _results_open:
@@ -408,7 +407,7 @@ func _on_pause_menu_closed() -> void:
 		AgentProbe.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
 
-## Bontago-mp0.27. # DECISION: during the pre-match 3-2-1 this controller
+## . # DECISION: during the pre-match 3-2-1 this controller
 ## ignores all gameplay input (cursor, rotate, place, throw); camera look is
 ## CameraRig's own separate listener and keeps working. The host also refuses
 ## every intent outside PLAYING, so this is feedback, not the rule.
@@ -425,14 +424,14 @@ func _process(delta: float) -> void:
 		return
 	_tick_wheel_ramp(delta)
 	if _camera_rig != null:
-		# Bontago-b7r: kept current every frame (harmless while peeking, too)
+		# kept current every frame (harmless while peeking, too)
 		# so a Focus home press right after a turn hand-off or a sandbox slot
 		# cycle always resolves the beacon for whichever slot this controller
 		# is acting for right now -- see CameraRig.set_local_slot()'s own doc
 		# comment for who reads it.
 		_camera_rig.set_local_slot(_acting_slot())
 		if _camera_rig.is_peeking():
-			# Owner decision 2026-09-28 (Bontago-b7r): "the ghost/cursor never
+			#  "the ghost/cursor never
 			# moves during peek" and placing must not happen while peeking --
 			# the simplest safe choice is to suppress every other per-frame
 			# gameplay input this controller drives while PEEK holds the
@@ -448,7 +447,7 @@ func _process(delta: float) -> void:
 	_update_throw_aim(delta)
 	_clamp_cursor_collision()
 	_update_ghost_transform()
-	# Bontago-mv0.33: must run after _update_ghost_transform() above (so the
+	# must run after _update_ghost_transform() above (so the
 	# overlap test below sees the *new* piece's shape at the *current* cursor,
 	# not a stale pose) and, just as importantly, not any earlier than this --
 	# see _apply_spawn_clearance()'s own header DECISION for why doing this
@@ -466,7 +465,7 @@ func _process(delta: float) -> void:
 	_follow_held_piece()
 
 
-## Bontago-1pi.90 (owner: "START CAMERA STILL NOT FIXED"; feedback/051026/3.png
+## ("START CAMERA STILL NOT FIXED"; feedback/051026/3.png
 ## vs 4.png). ROOT CAUSE: _countdown_blocks_input() made _process() return before
 ## it ever placed the ghost or fed the camera, so for the whole 3-2-1 the held
 ## piece sat unplaced and the camera pivoted on the bare home beacon; the first
@@ -486,19 +485,19 @@ func _present_countdown_hold() -> void:
 func _follow_held_piece() -> void:
 	if _camera_rig != null and _ghost != null:
 		_camera_rig.block_held = _ghost.get_shape() != null
-		# Bontago-mv0.28 (owner test 2026-09-22): follow the rotated shape's own
+		# user test: follow the rotated shape's own
 		# centre in X/Z, not this node's fixed local origin -- see GhostPreview.
 		# rotated_center_world()'s own doc comment. Placement intents/cursor
 		# publishing below keep sending _ghost.global_position unchanged (the
 		# node origin), matching what MatchPlacement._spawn_block() actually
 		# spawns the block at.
-		# Bontago-pt-4: Y comes from _camera_follow_anchor() instead, not
+		# Y comes from _camera_follow_anchor() instead, not
 		# rotated_center_world()'s own Y -- see that method's own doc comment
 		# for why (the held shape's own geometry must not move the camera).
 		_camera_rig.set_follow_position(_camera_follow_anchor())
 
 
-## Bontago-pt-4 (owner playtest: "Camera always jumps up after block drops or
+## Bontago-pt-4 ("Camera always jumps up after block drops or
 ## when clicking the drop button", coordinator follow-up: easing over
 ## CameraTuning.drop_recover_seconds still visibly moved the camera up on
 ## every new piece). ROOT CAUSE: GhostPreview.rotated_center_world()'s own Y
@@ -509,7 +508,7 @@ func _follow_held_piece() -> void:
 ## overlap, no spawn clearance, the very same cursor spot). What the camera
 ## should follow instead: the same X/Z rotated_center_world() already gives
 ## (so orbiting/pitching the block still doesn't swing the camera's
-## horizontal framing -- mv0.28's own fix), but a Y built from
+## horizontal framing -- own fix), but a Y built from
 ## _last_hit_point.y (the cursor's own surface hit, cached by
 ## _update_ghost_transform()) plus the current hover height
 ## (tuning.hover_height + _ghost.manual_hover_offset) -- exactly the anchor
@@ -524,7 +523,7 @@ func _follow_held_piece() -> void:
 ## _apply_spawn_clearance()'s own call site) -- not for every shape swap.
 func _camera_follow_anchor() -> Vector3:
 	var center: Vector3 = _ghost.rotated_center_world()
-	# Bontago-1pi.14 round 2: the camera is tied to the held block, raise included.
+	# round 2: the camera is tied to the held block, raise included.
 	var anchor_y: float = _last_hit_point.y + tuning.hover_height + _ghost.manual_hover_offset
 	return Vector3(center.x, anchor_y, center.z)
 
@@ -553,7 +552,7 @@ func set_acting_slot(slot_id: int) -> void:
 	_active_slot = slot_id
 
 
-## Bontago-mv0.8: game/sandbox/Sandbox.gd's own typed name for the same seam, called
+## game/sandbox/Sandbox.gd's own typed name for the same seam, called
 ## from its sandbox_next_slot hotkey handler. A thin alias over
 ## set_acting_slot() rather than a second field — offline, _acting_slot()
 ## already reads _active_slot regardless of which caller last set it
@@ -565,7 +564,7 @@ func set_sandbox_slot(slot_id: int) -> void:
 	set_acting_slot(slot_id)
 
 
-## Spec 3.4's update_cursor, every frame. MatchNet keeps the local record and
+## Spec 2.6's update_cursor, every frame. MatchNet keeps the local record and
 ## throttles the send to NetConfig.cursor_hz, so calling it per frame is both
 ## correct and cheap; offline there is nobody to tell.
 func _publish_cursor() -> void:
@@ -599,7 +598,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not input_enabled or _countdown_blocks_input():
 		return
 	if _camera_rig != null and _camera_rig.is_peeking():
-		# Bontago-b7r: same PEEK gate _process() applies above -- mouse/gamepad
+		# same PEEK gate _process() applies above -- mouse/gamepad
 		# motion, rotation, and ghost_place must not reach the ghost while the
 		# camera is peeking at a focus target. CameraRig's own _unhandled_input
 		# is a separate listener and still gets camera_snap_home/goal's release
@@ -610,8 +609,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		var motion: InputEventMouseMotion = event
 		_using_gamepad_cursor = false
 		if Input.is_action_pressed(&"rotate_drag"):
-			# Bontago-mv0.22 (spec 2.5 "Rotate block (hold + drag)" [ORIGINAL,
-			# owner test 2026-09-22]): a genuine continuous rotation, unlike
+			# (spec 1.4 "Rotate block (hold + drag)" [ORIGINAL,
+			# owner test]): a genuine continuous rotation, unlike
 			# rotation_mode's 90 degree snap grid below -- GhostPreview.
 			# free_quaternion already travels the wire untouched
 			# (net/MatchNet.gd submit_cursor/submit_place) and
@@ -622,16 +621,16 @@ func _unhandled_input(event: InputEvent) -> void:
 			# table -- so this needs no wire-format change, just a fresh
 			# continuous input for a field that already carries one safely.
 			#
-			# Bontago-mv0.25 (docs/rotation-issue.png, owner test 2026-09-22,
-			# "like the RMB orbit but for the block"): full 3-DOF now, not
+			# user test 
+			# "like the RMB orbit but for the block": full 3-DOF now, not
 			# yaw-only -- horizontal motion yaws about world up, vertical
 			# motion pitches about the camera's current right axis
 			# (_camera_right_axis()), the same axis CameraRig's own orbit
 			# turns about. DECISION: signs are an easily-flipped feel choice,
-			# not a rule -- see this package's manual owner test step.
+			# not a rule -- see the manual owner test step.
 			#
-			# Bontago-iry (owner feedback/controller-update.md, "clicking mmb
-			# rotates the ghost block ... follows a set pattern"): accumulate
+			# /controller-update.md, "clicking mmb
+			# rotates the ghost block ... follows a set pattern": accumulate
 			# this event's motion toward the tap/drag threshold
 			# (_rotate_drag_motion_px) before applying anything -- while the
 			# whole hold is still under ghost_tuning.rotate_tap_max_motion_px,
@@ -649,7 +648,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			# of the block" -- mouse motion is this device's "movement keys".
 			_accumulate_rotation_drag(motion.relative, ghost_tuning.block_rotation_sensitivity)
 		elif Input.is_action_pressed(&"camera_mode") or Input.is_action_pressed(&"camera_orbit"):
-			pass  # CameraRig._unhandled_input consumes this motion to orbit (mv0.22: either hold works).
+			pass  # CameraRig._unhandled_input consumes this motion to orbit (either hold works).
 		elif Input.is_action_pressed(&"lock_vertical"):
 			pass  # "Locks block to vertical movement only": ignore XZ motion; the wheel still changes height.
 		else:
@@ -657,7 +656,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	if event is InputEventMouseButton and event.pressed:
-		# Bontago-mv0.14: the wheel is block height now, not zoom or yaw
+		# the wheel is block height now, not zoom or yaw
 		# (tools/bootstrap_project.gd). Wheel notches are momentary --
 		# InputEventMouseButton fires a press then an immediate release for
 		# each one -- so they get one fixed step here rather than
@@ -666,8 +665,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		# actions.
 		if event.is_action_pressed(&"hover_raise"):
 			if _camera_orbit_held():
-				# Bontago-mv0.22 (spec 2.5 "Camera orbit ... mouse wheel zooms
-				# while held"): route the wheel to CameraRig's own zoom step
+				# spec 1.3 "Camera orbit ... mouse wheel zooms
+				# while held": route the wheel to CameraRig's own zoom step
 				# instead of block height while orbiting.
 				_zoom_camera(-1.0)
 			else:
@@ -681,16 +680,16 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 
 	if event.is_action_pressed(&"rotate_drag"):
-		# Bontago-iry (owner feedback/controller-update.md, "clicking mmb
-		# rotates the ghost block, seems to follow a set pattern"): every MMB
+		# /controller-update.md, "clicking mmb
+		# rotates the ghost block, seems to follow a set pattern": every MMB
 		# press starts a fresh tap/drag measurement -- see
 		# _rotate_drag_motion_px's own doc comment and the
 		# InputEventMouseMotion branch above that accumulates into it.
 		_rotate_drag_motion_px = 0.0
 	elif event.is_action_released(&"rotate_drag"):
-		# DECISION (game/player/PlayerController.gd, Bontago-iry): reusing
+		# DECISION (game/player/PlayerController.gd): reusing
 		# rotate_drag's own press/release here, rather than rebinding
-		# rotate_snap back onto MMB (tools/bootstrap_project.gd's mv0.22 fix
+		# rotate_snap back onto MMB (tools/bootstrap_project.gd's fix
 		# removed that exact binding because a bare press fired both actions
 		# from one physical button) -- this way MMB stays one action end to
 		# end and there is only one place that decides tap vs. drag.
@@ -705,7 +704,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		# degree yaw tap, distinct from rotate_reset ("returns it to its
 		# default rotation"). Gamepad-only now (RB) -- MMB's own tap does the
 		# same 90 degree yaw via rotate_drag's release branch above
-		# (Bontago-iry); see test_project_setup.gd's DEVICE_EXCEPTIONS for why
+		# ; see test_project_setup.gd's DEVICE_EXCEPTIONS for why
 		# rotate_snap itself carries no desktop binding.
 		_apply_step(BlockOrientations.step_yaw_cw(_orientation_index()))
 	elif event.is_action_pressed(&"rotate_yaw_ccw"):
@@ -725,15 +724,15 @@ func _unhandled_input(event: InputEvent) -> void:
 			_ghost.reset_rotation()
 		_rotation_drag = Vector2.ZERO
 	elif event.is_action_pressed(&"use_gift_slot"):
-		# Bontago-1pi.69: the pad half moved off R3 (now show_scores), so the old
+		# the pad half moved off R3 (now show_scores), so the old
 		# Back-held guard for the perf chord is no longer needed.
 		_use_gift_slot()
 	elif event.is_action_pressed(&"ghost_place"):
-		# Bontago-1pi.85.29: a held throwable is released by the same plain click/A press as any
+		# a held throwable is released by the same plain click/A press as any
 		# placement (_request_place sends the camera aim); there is no hold-to-aim any more.
 		_place_ghost_block()
 
-## Bontago-1pi.18.2 (QoL gift slot): asks the host to spend this slot's
+## QoL gift slot: asks the host to spend this slot's
 ## slotted gift. A no-op unless the toggle is on and a gift is waiting; the host
 ## validates everything again (MatchGifts.request_use_gift_slot).
 func _use_gift_slot() -> void:
@@ -758,7 +757,7 @@ func _apply_step(new_index: int) -> void:
 		_ghost.set_orientation_index(new_index)
 
 
-## Bontago-mv0.22 (spec 2.5 "Camera orbit (hold + drag) ... mouse wheel zooms
+## (spec 1.3 "Camera orbit (hold + drag) ... mouse wheel zooms
 ## while held"): true while either orbit hold is down, so the wheel handler
 ## above routes to _zoom_camera() instead of _step_hover().
 func _camera_orbit_held() -> bool:
@@ -770,7 +769,7 @@ func _zoom_camera(direction: float) -> void:
 		_camera_rig.zoom_by_orbit_step(direction)
 
 
-## Bontago-59o.5: advances the continuous-scroll clock. Scroll time only
+## advances the continuous-scroll clock. Scroll time only
 ## accrues while notches keep arriving within hover_wheel_gap_seconds.
 func _tick_wheel_ramp(delta: float) -> void:
 	_wheel_idle_seconds += delta
@@ -804,7 +803,7 @@ func _step_hover(direction: float) -> void:
 	_refresh_ghost_pose()
 
 
-## Bontago-mv0.35: re-poses the ghost right after a hover change instead of
+## re-poses the ghost right after a hover change instead of
 ## waiting for next frame's _update_ghost_transform(), so a fast wheel spin
 ## (several notches delivered in one frame) has each notch's collision sweep
 ## and _hover_offset_ceiling() start from where the previous notch actually
@@ -815,8 +814,8 @@ func _refresh_ghost_pose() -> void:
 		_ghost.update_placement(_last_hit_point, _last_hit_normal)
 
 
-## Bontago-mv0.35 (second pass, owner: "there is still a maximum height the
-## block cannot be raised or placed above"): the highest manual_hover_offset
+## second pass, owner: "there is still a maximum height the
+## block cannot be raised or placed above": the highest manual_hover_offset
 ## the held ghost may reach right now. The binding limit is the wire band --
 ## the ghost's own origin may rise to NetConfig.pos_max_y minus
 ## GhostTuning.hover_ceiling_margin, the band core/net/Quantize.gd can
@@ -844,7 +843,7 @@ func _hover_offset_ceiling() -> float:
 	return maxf(minf(ceiling, band_ceiling), 0.0)
 
 
-## Bontago-mv0.14 (spec 1.5/1.7): rotation_mode turns "movement" (mouse motion
+## spec 1.5/1.7: rotation_mode turns "movement" (mouse motion
 ## or the gamepad's left stick) into 90 degree orientation snaps instead of
 ## the old continuous free/quaternion rotation, so there is exactly one
 ## rotation system and it can never drift. `relative` is in GhostTuning's
@@ -870,8 +869,8 @@ func _accumulate_rotation_drag(relative: Vector2, sensitivity: float) -> void:
 		_rotation_drag.y += 1.0
 
 
-## Owner controller update (feedback/controller-update.md, re-confirmed
-## 2026-09-28: "RT held + left stick = continuous free rotation of the held
+## Owner controller update (re-confirmed
+## "RT held + left stick = continuous free rotation of the held
 ## block exactly like holding MMB and moving the mouse"): the gamepad's own
 ## path onto GhostPreview.apply_free_rotation_delta(), mirroring rotate_drag's
 ## own InputEventMouseMotion branch in _unhandled_input() above -- X yaws
@@ -906,10 +905,10 @@ func _drive_gamepad_zoom(stick_y: float, delta: float) -> void:
 	_camera_rig.zoom_continuous(stick_y * camera_tuning.gamepad_trigger_zoom_speed * delta)
 
 
-# --- Placement intent (spec 3.4) --------------------------------------------
+# --- Placement intent (spec 2.6) --------------------------------------------
 
 ## ghost_place: send exactly one intent to Match and let it decide. Never
-## builds a Block itself (spec 3.4; docs/archive/M2_PLAN.md P4 "intent-only
+## builds a Block itself (spec 2.6; docs/archive/M2_PLAN.md P4 "intent-only
 ## placement").
 func _place_ghost_block() -> void:
 	if _ghost == null or _match == null or _acting_slot() < 0:
@@ -941,12 +940,12 @@ func _intent_target() -> Variant:
 
 
 func _request_place(auto_drop: bool) -> StringName:
-	# Bontago-1pi.85.29: every throwable/aimed gift (Bomb, Magnet, Jumping Bean, Rocket,
+	# every throwable/aimed gift (Bomb, Magnet, Jumping Bean, Rocket,
 	# Paintball) is released along the camera forward (the throw intent carries it); every
 	# other release is an ordinary place.
 	if not auto_drop and _held_gift_mode() != GiftThrow.Mode.NONE:
 		return _request_throw(_camera_forward())
-	# Bontago-1pi.134: at timer expiry the host throws a held throwable gift along the last
+	# at timer expiry the host throws a held throwable gift along the last
 	# aim it knows (MatchPlacement.request_place); a seat this instance controls reports its
 	# own camera first (MatchNet only ever hears remote seats' aim from their cursor packets).
 	if auto_drop and _held_gift_mode() != GiftThrow.Mode.NONE and _match.has_method(&"note_aim"):
@@ -954,7 +953,7 @@ func _request_place(auto_drop: bool) -> StringName:
 	var slot_id: int = _acting_slot()
 	var membrane: Variant = _intent_target()
 	_clear_ghost_before_release()
-	# Bontago-mv0.30: record what this request is about to occupy *before*
+	# record what this request is about to occupy *before*
 	# sending it -- on the host this resolves synchronously inside the call
 	# below (Events.placement_rejected/placement_relocated/feed_block_issued
 	# all fire before _match.request_place() returns), so this has to be set
@@ -979,7 +978,7 @@ func _request_place(auto_drop: bool) -> StringName:
 
 
 ## The one door a throw goes through, mirroring _request_place() above
-## (Bontago-1en.14, M4 P2d): same slot/pose arguments, same membrane
+## M4 P2d: same slot/pose arguments, same membrane
 ## (net/MatchNet.gd's submit_throw on the wire, or the offline/test-double
 ## Match.request_throw()/FakeMatch.request_throw() directly), same
 ## spawn-clearance bookkeeping for the next ghost. DECISION (game/
@@ -1014,9 +1013,9 @@ func _request_throw(velocity: Vector3) -> StringName:
 	)
 
 
-# --- Camera-aimed gift throw (Bontago-1pi.85.29) ---------------------------------------
+# --- Camera-aimed gift throw ---------------------------------------
 
-## Bontago-1pi.85.16: how the gift in hand leaves it (NONE for an ordinary piece).
+## how the gift in hand leaves it (NONE for an ordinary piece).
 func _held_gift_mode() -> GiftThrow.Mode:
 	var slot_id: int = _acting_slot()
 	if _match == null or slot_id < 0:
@@ -1027,7 +1026,7 @@ func _held_gift_mode() -> GiftThrow.Mode:
 	return GiftThrow.mode_for(SpecialDef.find_by_id(special_id))
 
 
-## Bontago-1pi.85.16: the activating player's camera forward (unit), sent as the aim of a
+## the activating player's camera forward (unit), sent as the aim of a
 ## Rocket/Paintball launch. The host validates and normalises it again.
 func _camera_forward() -> Vector3:
 	var camera: Camera3D = _camera_rig.get_camera() if _camera_rig != null else null
@@ -1037,10 +1036,10 @@ func _camera_forward() -> Vector3:
 	return Vector3(sin(yaw), 0.0, cos(yaw))
 
 
-## Bontago-1pi.85.29: no state machine -- called every frame from _process(). While a throwable
+## no state machine -- called every frame from _process(). While a throwable
 ## or aimed gift is held, the arc starts at the held gift and follows the camera forward (no LT,
-## no drag; Bontago-1pi.85.47) for gifts whose GiftThrow.shows_preview() is true; Rocket and
-## Paintball draw none (Bontago-1pi.85.50). The previewed launch comes from the same GiftAim
+## no drag) for gifts whose GiftThrow.shows_preview() is true; Rocket and
+## Paintball draw none. The previewed launch comes from the same GiftAim
 ## functions the host uses, so the line equals the real flight.
 func _update_throw_aim(_delta: float) -> void:
 	_drive_throw_visuals()
@@ -1087,7 +1086,7 @@ func gift_launch_preview() -> Dictionary:
 	var forward: Vector3 = _camera_forward()
 	var field: Field = Match.field() if _match == Match else null
 	var surface_y: float = field.surface_y() if field != null else _ghost.global_position.y
-	# Bontago-1pi.85.62: the arc starts at the held model's visual centre, not the ghost's
+	# the arc starts at the held model's visual centre, not the ghost's
 	# bottom-face pivot (which sits below the model).
 	var origin: Vector3 = GiftAim.spawn_point(_held_model_centre(), forward, surface_y, special_tuning)
 	if mode == GiftThrow.Mode.THROW:
@@ -1106,7 +1105,7 @@ func gift_launch_preview() -> Dictionary:
 	}
 
 
-## Bontago-1pi.126: the active field's thrown-gift range scale (same GiftAim rule the host
+## the active field's thrown-gift range scale (same GiftAim rule the host
 ## applies); 1.0 with no field.
 func _throw_range_scale() -> float:
 	var field: Field = Match.field() if _match == Match else null
@@ -1123,7 +1122,7 @@ func _held_model_centre() -> Vector3:
 	return box.get_center()
 
 
-## Direction the held gift will leave in (Bontago-1pi.85.61: the held Rocket/Magnet model points
+## Direction the held gift will leave in (the held Rocket/Magnet model points
 ## its nose along it); ZERO when nothing aimable is held.
 func _held_gift_aim_direction() -> Vector3:
 	if _ghost == null or special_tuning == null or _match == null or _acting_slot() < 0:
@@ -1139,13 +1138,13 @@ func _held_gift_aim_direction() -> Vector3:
 	return Vector3.ZERO
 
 
-## Whether the held aimed gift may fly upward (Rocket, 1pi.85.34 Q3); Paintball may not.
+## Whether the held aimed gift may fly upward (Rocket, Q3); Paintball may not.
 func _held_gift_flies_upward() -> bool:
 	var def: SpecialDef = SpecialDef.find_by_id(StringName(_match.held_special(_acting_slot())))
 	return def != null and def.effect is RocketEffect
 
 
-## Spec M2 owner decision 3: a slot whose home flag is gone is effectively
+## Spec M2 3: a slot whose home flag is gone is effectively
 ## eliminated. Match.slot(id).home_flag_alive is the one already-documented
 ## source of truth for this — no dedicated Events signal exists for it, so
 ## rather than inventing one on a stub I don't own, both the controller and
@@ -1158,10 +1157,10 @@ func _is_active_slot_eliminated() -> bool:
 	return slot != null and not slot.home_flag_alive
 
 
-# --- Events reactions (spec 3.7, M2 owner decision 1) -----------------------
+# --- Events reactions (spec 2.4, M2 1) -----------------------
 
-## Bontago-1pi.198 (owner playtest 2026-10-12: "still holding ghost block when
-## eliminated"): an eliminated slot holds nothing, so its ghost (and the
+## "still holding ghost block when
+## eliminated": an eliminated slot holds nothing, so its ghost (and the
 ## footprint, projection and decal that are its children) is hidden. Reads the
 ## same replicated home_flag_alive as _is_active_slot_eliminated(), so host and
 ## ENet clients agree; runs every frame (also covers a new match or slot swap)
@@ -1198,12 +1197,12 @@ func _on_turn_changed(slot_id: int) -> void:
 	if shape != null:
 		_ghost.set_shape(shape)
 		_sync_ghost_gift(slot_id)
-		# Bontago-pt-4: no longer needs to tell the camera anything here --
+		# no longer needs to tell the camera anything here --
 		# _camera_follow_anchor()'s own doc comment explains why an ordinary
 		# shape swap no longer moves the followed height at all.
 
 
-## Bontago-59o.13: show the held-gift presentation on the ghost while the
+## show the held-gift presentation on the ghost while the
 ## slot's current piece is a claimed gift (Match.held_special is set before
 ## feed_block_issued fires), the plain block ghost otherwise.
 func _sync_ghost_gift(slot_id: int) -> void:
@@ -1212,7 +1211,7 @@ func _sync_ghost_gift(slot_id: int) -> void:
 	_ghost.set_held_gift(StringName(_match.held_special(slot_id)))
 
 
-## Bontago-1pi.79: the staged windowed build issues the first block (host) or
+## the staged windowed build issues the first block (host) or
 ## receives its replicated feed (client) before this controller and its ghost
 ## exist, so a bind pulls whatever the acting slot already holds -- shape,
 ## colour and gift -- instead of waiting for the next feed signal.
@@ -1242,7 +1241,7 @@ func _on_feed_block_issued(slot_id: int, shape_id: StringName, _next_shape_id: S
 		_sync_ghost_gift(slot_id)
 	if _pending_spawn_active:
 		_pending_spawn_fed = true
-	# Bontago-mv0.33: does NOT call _apply_spawn_clearance() here anymore --
+	# does NOT call _apply_spawn_clearance() here anymore --
 	# see that function's own header DECISION. This handler runs synchronously
 	# inside the placement request that spawned the block (Events dispatch is
 	# not deferred), before this frame's physics step has run, so a physics
@@ -1252,9 +1251,9 @@ func _on_feed_block_issued(slot_id: int, shape_id: StringName, _next_shape_id: S
 	# world has actually caught up.
 
 
-## Bontago-mv0.30 (owner test 2026-09-23, "when you place a block and the next
+## owner test "when you place a block and the next
 ## block loads it gets displaced so it doesn't spawn directly within the
-## placed block"): seeds the newly issued ghost's manual_hover_offset just
+## placed block": seeds the newly issued ghost's manual_hover_offset just
 ## high enough that its own lowest point clears the top of the shape this
 ## controller's own last accepted placement actually spawned (spawn_clearance
 ## on top of it), so the next held block floats above it instead of rendering
@@ -1264,9 +1263,9 @@ func _on_feed_block_issued(slot_id: int, shape_id: StringName, _next_shape_id: S
 ## anything near the cursor (see _pending_spawn_active's own field comment,
 ## both cleared there before this ever runs).
 ##
-## Bontago-mv0.33 (owner playtest 2026-09-23, "the displace-outward thing
+## "the displace-outward thing
 ## should only happen when the block would spawn inside another block, not
-## all the time"): mv0.30's own version above raised (or reset) the offset on
+## all the time": own version above raised (or reset) the offset on
 ## *every* feed unconditionally, even when the new piece's cursor had moved
 ## somewhere the old block was nowhere near. This now only touches
 ## manual_hover_offset when _would_overlap_a_placed_block_at_baseline_hover()
@@ -1275,19 +1274,19 @@ func _on_feed_block_issued(slot_id: int, shape_id: StringName, _next_shape_id: S
 ## whatever manual_hover_offset the ghost already had (0, or wherever the
 ## player had last wheeled it) exactly alone.
 ##
-## DECISION (game/player/PlayerController.gd, Bontago-mv0.30, still true after
-## mv0.33's gating): raises hover height rather than nudging the cursor
+## DECISION (game/player/PlayerController.gd, still true after
+## gating): raises hover height rather than nudging the cursor
 ## sideways (this package's other offered option) -- the disk-surface probe
-## already reports the bare disk under any tower (Bontago-mv0.17 item 5), so
+## already reports the bare disk under any tower (item 5), so
 ## the only thing wrong with today's spawn point is its Y, and reusing that
 ## same, already-tested hover path keeps this a one-field change with no new
 ## footprint/geometry math.
 ##
-## Bontago-1pi.24 (owner playtest 2026-10-02, "the next block loads instantly
+## ("the next block loads instantly
 ## which means it's always inside a block when spawning ... Don't count the
 ## dropped block until it's settled? Only count settled blocks? Small
 ## delay?"). ROOT CAUSE, measured in the real Main scene
-## (tests/unit/match/test_drop_displacement_real_flow.gd): the next piece is issued
+## tests/unit/match/test_drop_displacement_real_flow.gd: the next piece is issued
 ## in the same call that spawns the dropped block, at the very same pose, so
 ## the one-shot overlap query below always found the dropped block -- still
 ## falling from where the ghost had been -- and raised the new ghost by a
@@ -1313,7 +1312,7 @@ func _apply_spawn_clearance(delta: float = 0.0, wait_for_settle: bool = false) -
 		return
 	if not _spawn_settle_waiting:
 		_spawn_settle_waiting = true
-		# DECISION (Bontago-1pi.14 round 2): the previous piece's raise is taken
+		# DECISION (round 2): the previous piece's raise is taken
 		# back off first, so every spawn starts from the player's own hover and a
 		# raise can never compound across drops (the 69 m ratchet).
 		_take_back_clearance_raise()
@@ -1333,7 +1332,7 @@ func _apply_spawn_clearance(delta: float = 0.0, wait_for_settle: bool = false) -
 var _settle_samples: Dictionary = {}
 
 
-## Bontago-1pi.24: a new placement request restarts the settle wait.
+## a new placement request restarts the settle wait.
 func _begin_pending_spawn() -> void:
 	_settle_samples.clear()
 	_spawn_settle_waiting = false
@@ -1348,7 +1347,7 @@ func _end_pending_spawn() -> void:
 	_pending_spawn_fed = false
 
 
-## Bontago-1pi.24: whether a placed body has come to rest. On the physics
+## whether a placed body has come to rest. On the physics
 ## authority that is Jolt's own sleep (or a static freeze: stable-block
 ## freeze, Freeze special); a client's mirrored blocks are always frozen
 ## kinematic, so there it is the replicated sleeping flag the snapshot drives
@@ -1364,7 +1363,7 @@ func _is_settled_body(body: RigidBody3D) -> bool:
 	return block.sleeping
 
 
-## Bontago-1pi.27: a client's mirrored block is frozen kinematic and
+## a client's mirrored block is frozen kinematic and
 ## is_contributing_visual() is only written when a BlockMesh exists, so it can
 ## stay false forever.
 ## DECISION: also treat a frozen block as settled once its replicated pose has
@@ -1390,7 +1389,7 @@ func _frozen_body_is_still(block: Block) -> bool:
 ## every placed block; a no-op when it already is. Shared by the post-placement
 ## spawn clearance and the release-time guard (_clear_ghost_before_release()).
 ##
-## Bontago-1pi.24 (regression found by test_tower_placement): `for_release`
+## regression found by test_tower_placement: `for_release`
 ## lifts are limited only by the hover ceiling, not by spawn_clearance_max_raise.
 ## DECISION: the settle wait keeps the held ghost unraised until the previous
 ## block rests, so the release-time lift (which protects the real spawn from
@@ -1434,7 +1433,7 @@ func _raise_ghost_until_clear(for_release: bool = false) -> void:
 		_camera_rig.begin_follow_transition()
 
 
-## Bontago-1pi.14 round 3 (owner playtest 2026-10-02: the dropped block gets
+## round 3 (the dropped block gets
 ## displaced): the host spawns a released block exactly where the ghost
 ## stands and never checks it for overlap, so a pose that interpenetrates a
 ## placed block makes Jolt shove the older body out of the way. The
@@ -1455,7 +1454,7 @@ func _clear_ghost_before_release() -> void:
 	_release_raise = _ghost.manual_hover_offset - offset_before
 
 
-## Bontago-1pi.14 round 3: a refused release spawned nothing, so the
+## round 3: a refused release spawned nothing, so the
 ## predictive lift made for it must not linger on the held ghost.
 func _undo_release_raise() -> void:
 	if _release_raise > 0.0 and _ghost != null:
@@ -1485,7 +1484,7 @@ func _overlaps_with_offset(offset: float) -> bool:
 	return overlaps
 
 
-## DECISION (Bontago-1pi.14 round 2): the raise decays back to the player's own
+## DECISION (round 2): the raise decays back to the player's own
 ## hover once it is no longer needed -- each frame, lower by
 ## spawn_clearance_decay_speed * delta if the ghost would still be clear at that
 ## lower pose (the falling just-released block has moved on, or the cursor moved
@@ -1512,15 +1511,15 @@ func _absorb_clearance_raise() -> void:
 	_home_spawn_raise = 0.0
 
 
-## Bontago-mv0.33: a stationary (zero-motion) overlap query at the ghost's
+## a stationary (zero-motion) overlap query at the ghost's
 ## *current* global_position/basis, using the same collision boxes
-## _sweep_motion() below builds for the swept collision test (Bontago-mv0.23)
+## _sweep_motion() below builds for the swept collision test
 ## -- collision_box_local_centers()/collision_half_size(), matching what
 ## game/blocks/BlockFactory.gd would actually give the spawned Block. No
 ## ghost_collision_skin inflation here (unlike _sweep_motion()'s clearance
 ## gap): this asks "does it overlap right now", not "how much gap should be
 ## kept while sliding", so the boxes are used at their true size.
-## Bontago-1pi.24: `unsettled_only` counts only bodies that have not come to
+## `unsettled_only` counts only bodies that have not come to
 ## rest yet (_is_settled_body()), for the spawn clearance's settle wait.
 func _ghost_overlaps_a_placed_block(unsettled_only: bool = false) -> bool:
 	var boxes: Array[Vector3] = _ghost.collision_box_local_centers()
@@ -1548,7 +1547,7 @@ func _ghost_overlaps_a_placed_block(unsettled_only: bool = false) -> bool:
 	return false
 
 
-## Spec 2.5's auto-drop is [ORIGINAL]: the held block drops from its current
+## Spec 1.4's auto-drop is [ORIGINAL]: the held block drops from its current
 ## ghost position. On the host -- and offline, which is all of M2 -- that is
 ## this ghost, exactly, and it costs nothing. On a client the host has
 ## already dropped it from the last cursor it received (see MatchNet), so
@@ -1568,7 +1567,7 @@ func _on_placement_rejected(slot_id: int, _reason: StringName) -> void:
 		return
 	_intent_lock_left = 0.0
 	_undo_release_raise()
-	# Bontago-mv0.30: neither refusal branch spawned anything near the cursor
+	# neither refusal branch spawned anything near the cursor
 	# (a manual refusal spawns nothing at all; an auto-drop burn spawns
 	# something, but throws it off the map) -- see _pending_spawn_active's own
 	# field comment.
@@ -1576,7 +1575,7 @@ func _on_placement_rejected(slot_id: int, _reason: StringName) -> void:
 	_ghost.play_reject_animation()
 
 
-## Bontago-mv0.24 (spec 2.5's auto-drop [ORIGINAL]): the host relocated this
+## spec 1.4's auto-drop [ORIGINAL]: the host relocated this
 ## slot's auto-dropped block to `point` (disk-local x, z) because its own
 ## ghost position wasn't valid. Only ever acted on for this controller's own
 ## slot -- another slot's relocation is none of this instance's business, the
@@ -1594,14 +1593,14 @@ func _on_placement_relocated(slot_id: int, point: Vector2) -> void:
 		return
 	_cursor = field.to_global(Vector3(point.x, 0.0, point.y))
 	# The relocation is a teleport the host already validated, so it must not
-	# be swept against placed blocks (Bontago-mv0.23): re-seed the collision
+	# be swept against placed blocks: re-seed the collision
 	# sweep's last safe point here, or a tower between the old cursor and the
 	# zone would clamp the jump on the next frame.
 	_last_safe_cursor = _cursor
 	_collision_cursor_seeded = true
 	_update_ghost_transform()
 	if _pending_spawn_active:
-		# Bontago-mv0.30: the block actually landed here, not at whatever spot
+		# the block actually landed here, not at whatever spot
 		# _request_place() captured before the host relocated it -- re-capture
 		# the top height at the now-updated ghost position (still the shape
 		# that was just placed; _on_feed_block_issued() hasn't swapped it yet)
@@ -1609,13 +1608,13 @@ func _on_placement_relocated(slot_id: int, point: Vector2) -> void:
 		# block truly is.
 		_pending_spawn_top_y = _ghost.projection_span_y().x
 	if _camera_rig != null:
-		# Bontago-pt-4: see _camera_follow_anchor()'s own doc comment.
+		# see _camera_follow_anchor()'s own doc comment.
 		_camera_rig.set_follow_position(_camera_follow_anchor())
 
 
-## Every frame: the read-only, advisory preview (spec 2.5) that tints the
+## Every frame: the read-only, advisory preview (spec 1.4) that tints the
 ## ghost before the click. request_place() re-validates from scratch and
-## never trusts this (spec 3.4).
+## never trusts this (spec 2.6).
 func _update_ghost_tint() -> void:
 	if _ghost == null or _match == null or _acting_slot() < 0:
 		return
@@ -1625,7 +1624,7 @@ func _update_ghost_tint() -> void:
 		_acting_slot(), _ghost.global_position, _ghost.orientation_index, _ghost.free_quaternion
 	)
 	_ghost.apply_validity(result)
-	# Bontago-mv0.10 (spec 2.5): "A distinct timer-locked state must remain
+	# spec 1.4: "A distinct timer-locked state must remain
 	# visible even at a legal location" -- release-locked overrides whatever
 	# apply_validity() just set, since the interval lock is about *when* this
 	# piece may drop, not *where*.
@@ -1648,7 +1647,7 @@ func _handle_hover_adjust(delta: float) -> void:
 	if change == 0.0:
 		_hover_hold_seconds = 0.0
 		return
-	# Bontago-mv0.35: a held input accelerates (see GhostTuning.
+	# a held input accelerates (see GhostTuning.
 	# hover_hold_acceleration's own doc comment) -- speed is evaluated from
 	# the time held *before* this frame, so the first frame of any hold still
 	# moves at exactly hover_manual_adjust_speed.
@@ -1667,24 +1666,24 @@ func _handle_hover_adjust(delta: float) -> void:
 	_refresh_ghost_pose()
 
 
-## Bontago-mv0.14 (spec 1.5): the mouse "positions the block" directly,
+## spec 1.5: the mouse "positions the block" directly,
 ## camera-relative, instead of the old screen-space raycast. `relative` is the
 ## InputEventMouseMotion's raw pixel delta.
-## Bontago (options package): scaled by Settings.mouse_move_speed_scale() --
+## scaled by Settings.mouse_move_speed_scale() --
 ## the Options menu's "Mouse speed" slider (Controls tab) -- on top of the
 ## tuning Resource's own block_move_sensitivity baseline.
 func _move_cursor_from_mouse(relative: Vector2) -> void:
 	_cursor += _camera_relative_dir(relative) * ghost_tuning.block_move_sensitivity * Settings.mouse_move_speed_scale()
 
 
-## Moves the gamepad's world-space cursor (spec 2.5), relative to the camera,
+## Moves the gamepad's world-space cursor (spec 1.3), relative to the camera,
 ## with acceleration and speed scaling with zoom -- unless rotation_mode,
 ## rotate_drag_pad or camera_zoom_modifier is held, in which case the same
 ## left stick drives one of those instead (spec 1.5: "the movement keys
 ## change the orientation of the block"; owner controller update: RT/LT +
 ## stick rotate/zoom), and the cursor doesn't move at all while any of them
 ## is held (owner controller update, feedback/controller-update.md,
-## re-confirmed 2026-09-28: "While either trigger modifier is held, the ghost
+## re-confirmed "While either trigger modifier is held, the ghost
 ## cursor must not move").
 func _update_gamepad_cursor(delta: float) -> void:
 	var stick: Vector2 = Vector2(
@@ -1700,8 +1699,8 @@ func _update_gamepad_cursor(delta: float) -> void:
 	if stick.length() > 1.0:
 		stick = stick.normalized()
 
-	# Owner controller update (feedback/controller-update.md, re-confirmed
-	# 2026-09-28): RT (rotate_drag_pad) + left stick free-rotates the held
+	# Owner controller update (re-confirmed
+	# ): RT (rotate_drag_pad) + left stick free-rotates the held
 	# block continuously, exactly like rotate_drag (MMB) + mouse motion --
 	# NOT rotation_mode's 90 degree snap grid below. Checked before
 	# rotation_mode so RT always wins over R if somehow both are held at once
@@ -1713,7 +1712,7 @@ func _update_gamepad_cursor(delta: float) -> void:
 		return
 
 	# Owner controller update: LT (camera_zoom_modifier) + left stick zooms
-	# the camera continuously. Bontago-1pi.85.29: throwing no longer uses LT, so this applies to
+	# the camera continuously. throwing no longer uses LT, so this applies to
 	# every held piece.
 	if Input.is_action_pressed(&"camera_zoom_modifier"):
 		if stick.y != 0.0:
@@ -1729,7 +1728,7 @@ func _update_gamepad_cursor(delta: float) -> void:
 	if stick.length() > 0.0:
 		_using_gamepad_cursor = true
 
-	# Bontago (options package): scaled by Settings.stick_move_speed_scale() --
+	# scaled by Settings.stick_move_speed_scale() --
 	# the Options menu's "Stick speed" slider (Controls tab) -- on top of the
 	# tuning Resource's own gamepad_cursor_base_speed baseline.
 	var max_speed: float = ghost_tuning.gamepad_cursor_base_speed * Settings.stick_move_speed_scale()
@@ -1752,7 +1751,7 @@ func _camera_relative_dir(input_2d: Vector2) -> Vector3:
 	return right * input_2d.x + forward * input_2d.y
 
 
-## Bontago-mv0.25 (spec 2.5 rotate_drag's vertical axis, docs/rotation-issue.png):
+## spec 1.4 rotate_drag's vertical axis, docs/rotation-issue.png:
 ## the world-space "right" axis of whatever way the camera currently faces --
 ## the same forward/right construction _camera_relative_dir() above already
 ## uses for cursor movement, factored out so rotate_drag's pitch axis tracks
@@ -1765,13 +1764,13 @@ func _camera_right_axis() -> Vector3:
 
 
 ## Casts the placement ray straight down from above _cursor and updates the
-## ghost. Bontago-mv0.14: this used to branch between a screen-space mouse
+## ghost. this used to branch between a screen-space mouse
 ## ray and a straight-down gamepad-cursor ray; now both devices move the same
 ## world-space _cursor (spec 1.5, "the mouse positions the block"), so there
 ## is only one path. Public so tests can exercise it without going through
 ## real input devices.
 ##
-## Bontago-mv0.17 item 5 (owner feel report: "the block's height changes ONLY
+## item 5 (owner feel report: "the block's height changes ONLY
 ## via the wheel", not whatever is directly underneath it): the probe below
 ## skips over any RigidBody3D (a placed block) so it always reports the disk
 ## surface itself, never a tower. The ghost's own height then comes only from
@@ -1819,8 +1818,8 @@ func _raycast_disk_surface(origin: Vector3) -> Dictionary:
 	)
 
 
-# --- Ghost-vs-placed-block collision (Bontago-mv0.23, spec 2.5 "Held-block
-# behaviour" [ORIGINAL], owner test 2026-09-22) ------------------------------
+# --- Ghost-vs-placed-block collision (spec 1.4 "Held-block
+# behaviour" [ORIGINAL], owner test) ------------------------------
 #
 # The held ghost collides with an already placed block -- it cannot pass
 # through a tower -- but never pushes or knocks one. This runs a shape cast
@@ -1864,7 +1863,7 @@ func _seed_collision_cursor_if_needed() -> void:
 ## later never sweeps across a stale gap -- when collision is disabled,
 ## nothing is held, or the cursor didn't move this frame.
 ##
-## Bontago-mv0.28 (owner test 2026-09-22): _cursor is the aim point the
+## user test: _cursor is the aim point the
 ## *rotated* held shape's own centre sits over (GhostPreview.
 ## update_placement()), not this node's own origin -- so the boxes
 ## _sweep_motion() below places at `position + basis * local_center` have to
@@ -1874,7 +1873,7 @@ func _seed_collision_cursor_if_needed() -> void:
 ## sweep would validate one position, update_placement() would show a
 ## different one). `center_offset` is zero for a yaw-only or unrotated pose
 ## (rotated_center_offset()'s own doc comment), so this is a no-op change for
-## every pre-mv0.28 test that never pitches/rolls the held shape.
+## every pre-test that never pitches/rolls the held shape.
 func _clamp_cursor_collision() -> void:
 	_seed_collision_cursor_if_needed()
 	if not ghost_tuning.ghost_collision_enabled or _ghost == null or _ghost.get_shape() == null:
@@ -1972,15 +1971,15 @@ func _sweep_motion(position: Vector3, motion: Vector3) -> Vector3:
 ## non-block colliders in the way can't spin this loop forever. Returns the
 ## safe fraction of `motion` (1.0 = fully clear).
 ##
-## Bontago-mv0.35 (owner regression report, 2026-09-23, "there is still a
-## maximum height the block cannot be raised or placed above"): if `box_shape`
+## owner regression report, "there is still a
+## maximum height the block cannot be raised or placed above": if `box_shape`
 ## already overlaps a placed block right at `world_center` -- zero motion --
 ## this returns 1.0 (the full requested motion) without ever calling
 ## cast_motion(). The ghost's own baseline hover height
-## (_update_ghost_transform(), mv0.17 item 5) deliberately ignores whatever
+## (_update_ghost_transform(), item 5) deliberately ignores whatever
 ## tower sits under the cursor, so a freshly spawned or freshly rotated ghost
 ## routinely starts a frame already embedded in a placed block -- raising past
-## it is the only way out, by design (mv0.30/mv0.33's own spawn-clearance
+## it is the only way out, by design (/own spawn-clearance
 ## logic already relies on manual_hover_offset being able to lift the ghost
 ## clear of exactly this state). cast_motion() itself, called from a shape
 ## that already overlaps a body, reports collisions to a shallow query depth
@@ -1990,7 +1989,7 @@ func _sweep_motion(position: Vector3, motion: Vector3) -> Vector3:
 ## a domino held above it froze at manual_hover_offset ~0.6 m forever, nowhere
 ## near the tower's own ~3.4 m top or GhostTuning.hover_manual_max's 60 m
 ## ceiling, even though every notch kept requesting more upward motion).
-## DECISION (game/player/PlayerController.gd, Bontago-mv0.35): exempting an
+## DECISION (game/player/PlayerController.gd): exempting an
 ## already-overlapping box from this frame's block entirely, rather than
 ## trying to compute a partial "depenetration" distance, keeps the fix to the
 ## one case that regressed (a box that starts this query already embedded)

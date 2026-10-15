@@ -1,5 +1,5 @@
 extends Node
-## Every gameplay RPC in the game (spec 3.4 "Client -> host intents" and the
+## Every gameplay RPC in the game (spec 2.6 "Client -> host intents" and the
 ## reliable channel's list), and nothing else.
 ##
 ## Registered as the `MatchNet` autoload, so the RPC node path is
@@ -41,7 +41,7 @@ const RASTER_VERSION: int = 1
 ## version u8, flags u8, uncompressed byte count u32.
 const RASTER_HEADER_BYTES: int = 6
 const RASTER_FLAG_COMPRESSED: int = 1 << 0
-## One diff entry: cell index u32, owner byte, state byte.
+## One diff entry: cell index u32, slot byte, state byte.
 const RASTER_ENTRY_BYTES: int = 6
 
 ## Names for the match-flow events mirrored over net_match_event. StringNames
@@ -51,21 +51,21 @@ const EVENT_COUNTDOWN: StringName = &"countdown"
 const EVENT_TURN_CHANGED: StringName = &"turn_changed"
 const EVENT_FEED_ISSUED: StringName = &"feed_issued"
 const EVENT_FEED_EXPIRED: StringName = &"feed_expired"
-## Bontago-1pi.18.1: [slot_id, backlog_count, timer_paused] for the QoL experiments.
+## [slot_id, backlog_count, timer_paused] for the QoL experiments.
 const EVENT_QOL_FEED: StringName = &"qol_feed"
-## Bontago-1pi.18.2: [slot_id, contents, activated_special, carrier_shape_id] for the QoL gift slot.
+## [slot_id, contents, activated_special, carrier_shape_id] for the QoL gift slot.
 const EVENT_GIFT_SLOT: StringName = &"gift_slot"
 const EVENT_PLACEMENT_REJECTED: StringName = &"placement_rejected"
-## Bontago-1pi.52: longest refusal reason a client will show. The real ones
+## longest refusal reason a client will show. The real ones
 ## (PlacementRules/ThrowRules REASON_*) are all well under this; a longer one is
 ## not from this build's host.
 const REJECT_REASON_MAX_LENGTH: int = 48
 const EVENT_PLACEMENT_RELOCATED: StringName = &"placement_relocated"
 const EVENT_PLAYER_ELIMINATED: StringName = &"player_eliminated"
 const EVENT_MATCH_WON: StringName = &"match_won"
-## Bontago-22y.11: the active mode objective's score/state, host -> clients.
+## the active mode objective's score/state, host -> clients.
 const EVENT_MODE_STATE: StringName = &"mode_state"
-## Bontago-1pi.13: mirrors Events.match_results_ready (autoload/match/
+## mirrors Events.match_results_ready (autoload/match/
 ## MatchStats.gd's own header documents the payload shape). See
 ## _on_match_results_ready() below and net_match_event's own dispatch case.
 const EVENT_MATCH_RESULTS: StringName = &"match_results"
@@ -74,8 +74,8 @@ const EVENT_GIFT_LANDED: StringName = &"gift_landed"
 
 # DECISION: reliable channel order plus per-match tombstones prevents a late
 # spawn/flight from resurrecting a claimed gift. Legacy spawn can upgrade once.
-# DECISION (Bontago-1pi.11.77.11): the enum below shadows the global GiftWirePhase
-# class inside this file, so the pure numbering owner is reached through this alias.
+# DECISION: the enum below shadows the global GiftWirePhase
+# class inside this file, so the pure numbering module is reached through this alias.
 const _WIRE_PHASE_OWNER: GDScript = preload("res://core/gifts/GiftWirePhase.gd")
 enum GiftWirePhase {
 	FALLING = _WIRE_PHASE_OWNER.FALLING,
@@ -93,37 +93,37 @@ const EVENT_GIFT_EXPIRED: StringName = &"gift_expired"
 ## autoload/match/MatchPlacement._on_special_behavior_triggered() ->
 ## Events.special_triggered (host only). See _on_special_triggered() below.
 const EVENT_SPECIAL_TRIGGERED: StringName = &"special_triggered"
-## Bontago-1en.21: mirrors autoload/match/MatchGifts.gd's pop_pending_special()
+## mirrors autoload/match/MatchGifts.gd's pop_pending_special()
 ## own emit (Events.special_consumed, host-only) -- see _on_special_consumed()
 ## below.
 const EVENT_SPECIAL_CONSUMED: StringName = &"special_consumed"
 const EVENT_GLUE_CHARGES: StringName = &"glue_charges_changed"
-## Bontago-1pi.85.52: [net_id, glued] -- a placed block gained its first / lost its last glue bond.
+## [net_id, glued] -- a placed block gained its first / lost its last glue bond.
 const EVENT_BLOCK_GLUED: StringName = &"block_glued_changed"
 const EVENT_BLOCK_OWNER_CHANGED: StringName = &"block_owner_changed"
 const EVENT_BLOCK_FROZEN: StringName = &"block_frozen_changed"
 const EVENT_CAT_STARTED: StringName = &"cat_started"
 const EVENT_CAT_ENDED: StringName = &"cat_ended"
-## Bontago-1pi.11.41: [net_id] of a block the host started dissolving on a
+## [net_id] of a block the host started dissolving on a
 ## hole. Its removal follows through the ordinary net_block_despawned.
 const EVENT_BLOCK_DISSOLVE_STARTED: StringName = &"block_dissolve_started"
-## Bontago-8or.11 (mid-match join replay only): one slot's absolute feed and
+## mid-match join replay only: one slot's absolute feed and
 ## gift state -- [slot_id, held_shape_id, next_shape_id, feed_seq, time_left,
 ## release_locked, held_special_id, next_special_id]. See
 ## _apply_slot_replay().
 const EVENT_SLOT_REPLAY: StringName = &"slot_replay"
-## EVENT_SLOT_REPLAY arity: 8 args before Bontago-1pi.85.69; the current payload adds the
+## EVENT_SLOT_REPLAY arity: 8 args before the current payload adds the
 ## after-next gift id and its carrier shape id. Indices of the id-typed args for each.
 const SLOT_REPLAY_ARGS_LEGACY: int = 8
 const SLOT_REPLAY_ARGS: int = SLOT_REPLAY_ARGS_LEGACY + 2
 const SLOT_REPLAY_ID_ARGS_LEGACY: Array[int] = [1, 2, 6, 7]
 const SLOT_REPLAY_ID_ARGS: Array[int] = [1, 2, 6, 7, 8, 9]
-## Bontago-8or.11 (mid-match join replay only): [match_timer_left].
+## mid-match join replay only: [match_timer_left].
 const EVENT_MATCH_CLOCK: StringName = &"match_clock"
-## Bontago-1pi.42 (mid-match join replay only, COUNTDOWN): the loading-screen ready
+## mid-match join replay only, COUNTDOWN: the loading-screen ready
 ## gate as the host sees it now -- [ready_peer_ids, required_peer_ids, open].
 const EVENT_LOADING_GATE: StringName = &"loading_gate"
-## Bontago-1pi.69: the live scoreboard snapshot (MatchStats.build_live_payload()),
+## the live scoreboard snapshot (MatchStats.build_live_payload()),
 ## sent at NetConfig.scoreboard_hz while the round is live; clients show it in the
 ## hold-to-show scoreboard (ui/hud/ScoreboardOverlay.gd). Display only.
 const EVENT_LIVE_SCORES: StringName = &"live_scores"
@@ -144,39 +144,39 @@ var _shapes_by_id: Dictionary = {}
 ## the same reason _physics_tuning above is preloaded rather than read from
 ## Match's own running MatchConfig.
 var _special_tuning: SpecialTuning = preload("res://config/gifts/special_tuning.tres")
-## Bontago-1pi.11.41: the fade length a client reports with a replicated
+## the fade length a client reports with a replicated
 ## dissolve start (same shipped resource the host's HoleDissolver reads).
 var _hole_dissolve_tuning: HoleDissolveTuning = preload("res://config/blocks/tuning/hole_dissolve_tuning.tres")
-## Bontago-1pi.40: the same shipped resources PlayerController reads for the
+## the same shipped resources PlayerController reads for the
 ## player's first-block hover, so the AFK auto-drop's no-cursor fallback origin
 ## clears the home beacon by the identical rule (_afk_fallback_origin()).
 var _ghost_tuning: GhostTuning = preload("res://config/blocks/tuning/ghost_tuning.tres")
 var _beacon_visuals: BeaconVisualTuning = preload("res://config/territory/beacon_visual_tuning.tres")
-## Test-only (Bontago-1pi.11.41): net_ids _on_block_dissolve_started() decided
+## Test-only: net_ids _on_block_dissolve_started() decided
 ## to replicate, in order -- NetFanout.can_send() is false without a live peer, so this
 ## is what proves the host would have sent them. Game code never reads it.
 var replicated_dissolve_starts: Array[int] = []
 ## Host: net ids of blocks currently fused into a FusedBody (Glue fusion WP5).
 var _fused_ids: Dictionary = {}
-## Bontago-1pi.85.72: net ids of charged glue drops coated at spawn (cleared when their
+## net ids of charged glue drops coated at spawn (cleared when their
 ## last bond ends, as that is when the coat is removed).
 var _glue_charged_ids: Dictionary = {}
-## Test-only (Bontago-1pi.52): how many times each event name reached
+## Test-only: how many times each event name reached
 ## replicate_match_event() on the host, counted before its NetFanout.can_send() gate
 ## (false in a unit test). Proves a refusal was never broadcast to every peer.
 ## Bounded by the number of event names. Game code never reads it.
 var replicated_event_counts: Dictionary = {}
-## Test-only (Bontago-1pi.52): peer_id -> placement_rejected replies addressed
+## Test-only: peer_id -> placement_rejected replies addressed
 ## to it by _reject_to_peer(), and the most recent one as [peer_id, slot_id,
 ## reason]. Game code never reads either.
 var reject_replies_by_peer: Dictionary = {}
 var last_reject_reply: Array = []
-## Test-only (Bontago-1pi.52): the same pair for placement_relocated, the other
+## Test-only: the same pair for placement_relocated, the other
 ## per-player cursor message. Game code never reads either.
 var relocate_replies_by_peer: Dictionary = {}
 var last_relocate_reply: Array = []
 
-## Bontago-1pi.55: replicated block impacts (core/net/ImpactWire.gd).
+## replicated block impacts (core/net/ImpactWire.gd).
 ## Host: coalesce bucket (ImpactWire.coalesce_key) -> strongest event this
 ## batch window, as {speed, position, time_ms}. Cleared on every flush, so it
 ## never holds more than one window and is never replayed to a late joiner.
@@ -188,7 +188,7 @@ var _impact_refill_ms: int = -1
 ## Client: [due_ms, speed, position] rows waiting for the interpolated view to
 ## reach the moment they happened (receive_impacts()).
 var _impact_queue: Array[Array] = []
-## Test-only (Bontago-1pi.55): when true the host collects impacts and records
+## Test-only: when true the host collects impacts and records
 ## every batch flush_impacts() builds even without a live peer (NetFanout.can_send() is
 ## false in a unit test). Game code never sets it.
 var capture_impacts: bool = false
@@ -236,7 +236,7 @@ var _cursors: Dictionary = {}
 var _intents_sent: Dictionary = {}
 var _intents_accepted: Dictionary = {}
 var _intents_refused: Dictionary = {}
-## Bontago-1pi.52: the slot whose refusal _on_placement_rejected() already sent
+## the slot whose refusal _on_placement_rejected() already sent
 ## to its owning peer while the current intent was being applied, so the intent
 ## handler's own tail reply (for refusals Match never announces: a stale
 ## feed_seq, a held-block lock, NOT_A_SPECIAL) is not a second copy. -1 = none.
@@ -253,7 +253,7 @@ var _cursors_refused: Dictionary = {}
 var _spawned_net_ids: Dictionary = {}
 var _duplicate_net_ids: int = 0
 
-## Test-only (Bontago-mv0.1.7): counts every replicate_spawn() call this host
+## Test-only: counts every replicate_spawn() call this host
 ## refused to put on the wire because BlockRegistry's allocator left the block
 ## with an id the wire cannot carry (net_id == -1 past Quantize.NET_ID_MAX).
 ## NetFanout.can_send() is already false in a unit test with no live peer, so that gate
@@ -261,7 +261,7 @@ var _duplicate_net_ids: int = 0
 ## counter is the seam that does. Game code never reads it.
 var _invalid_spawn_refusals: int = 0
 
-## Test-only (Bontago-mv0.1.13): to_state values _on_match_state_changed
+## Test-only: to_state values _on_match_state_changed
 ## actually decided to replicate as EVENT_STATE_CHANGED, in order. Needed for
 ## the same reason as _invalid_spawn_refusals above: NetFanout.can_send() is already
 ## false in a unit test with no live peer, so it alone cannot prove the
@@ -270,7 +270,7 @@ var _invalid_spawn_refusals: int = 0
 ## Game code never reads it.
 var replicated_state_changes: Array[int] = []
 
-## Test-only (Bontago-mv0.1.13): how many times replicate_match_start()
+## Test-only: how many times replicate_match_start()
 ## actually queued net_match_start for the running match. Must be exactly 1
 ## per start, including a restart from PLAYING/END with a client connected.
 var match_starts_replicated: int = 0
@@ -278,7 +278,7 @@ var match_starts_replicated: int = 0
 var _cursor_send_accum: float = 0.0
 var _raster_send_accum: float = 0.0
 
-## The last owner/state bytes the host sent, to diff this tick's against.
+## The last slot/state bytes the host sent, to diff this tick's against.
 var _last_owner_bytes: PackedByteArray = PackedByteArray()
 var _last_state_bytes: PackedByteArray = PackedByteArray()
 ## Forces the next territory packet to be a full keyframe: set at match start
@@ -290,7 +290,7 @@ var _force_full_raster: bool = true
 var _capture_team: int = -1
 var _capture_progress: float = 0.0
 ## The capture values the last territory packet carried, and whether the last
-## one was a falling value (Bontago-1pi.194).
+## one was a falling value.
 var _sent_capture_team: int = -1
 var _sent_capture_progress: float = 0.0
 var _capture_fading: bool = false
@@ -300,7 +300,7 @@ var _capture_fading: bool = false
 ## fire.
 var _match_start_sent: bool = false
 
-## -- Mid-match join / reconnect replay (Bontago-8or.11) -----------------------
+## -- Mid-match join / reconnect replay -----------------------
 ## Host only: peer_id -> replay id of a world replay sent to that peer and not
 ## yet acknowledged. Gameplay intents from a peer in here are refused (spec
 ## 3.4: the host checks every intent; a peer with no world yet cannot have
@@ -329,7 +329,7 @@ var replays_acknowledged: int = 0
 var intents_refused_before_replay_ack: int = 0
 ## Client only: the replay id this instance last acknowledged (0 = none).
 var last_replay_acknowledged: int = 0
-## Client only (Bontago-1pi.56): the id of the late-join world replay being
+## Client only: the id of the late-join world replay being
 ## applied right now (0 = none). Set by the net_match_start that carries it,
 ## cleared by the matching net_replay_end -- or by anything that ends the replay
 ## early (a new match start, leaving the session, teardown, the ack timeout), so
@@ -337,12 +337,12 @@ var last_replay_acknowledged: int = 0
 var _replaying_id: int = 0
 var _replaying_since_ms: int = 0
 
-## Bontago-22y.10: the weather RPC surface (net/WeatherNet.gd), a child node.
+## the weather RPC surface (net/WeatherNet.gd), a child node.
 var _weather_net: Node = null
-## Bontago-1pi.11.77.16: the client-side event applier child (net/MatchEventApplier.gd).
+## the client-side event applier child (net/MatchEventApplier.gd).
 ## net_match_event stays the RPC entry point; this child holds the apply bulk.
 var _applier: Node = null
-## Bontago-1pi.11.77.11: true once late_activate() has built the WeatherNet child.
+## true once late_activate() has built the WeatherNet child.
 var _late_active: bool = false
 var _cat_send_accum: float = 0.0
 var _scores_send_accum: float = 0.0
@@ -386,10 +386,10 @@ func _ready() -> void:
 	Events.net_peer_left.connect(_on_net_peer_left)
 	Events.net_peer_joined.connect(_on_net_peer_joined)
 	Events.net_mode_changed.connect(_on_net_mode_changed)
-	# Bontago-1pi.11.77.11: the WeatherNet child is built by late_activate(); headless
+	# the WeatherNet child is built by late_activate(); headless
 	# and non-Boot runs activate right here, a windowed Boot run lets Boot prewarm first.
 	if LateScripts.boot_defers_activation(get_tree()) or force_defer_activation:
-		# Bontago-1pi.11.77.18: _process reads Match state, which does not exist until
+		# _process reads Match state, which does not exist until
 		# Match.late_activate(); stay idle until our own late_activate() re-enables it.
 		set_process(false)
 	else:
@@ -407,12 +407,12 @@ func late_activate() -> void:
 		return
 	_late_active = true
 	set_process(true)
-	# Bontago-22y.10: weather replication lives in its own child node.
+	# weather replication lives in its own child node.
 	_weather_net = LateScripts.script(LateScripts.WEATHER_NET).new() as Node
 	_weather_net.name = "WeatherNet"
 	add_child(_weather_net)
 	_weather_net.set_providers(_net_provider, _match_provider)
-	# Bontago-8or.11: weather/snow/breeze broadcasts before net_match_start
+	# weather/snow/breeze broadcasts before net_match_start
 	# are dropped on the same gate as match events.
 	_weather_net.awaiting_world = _client_awaiting_world
 	_event_applier()
@@ -463,7 +463,7 @@ func _authority() -> Variant:
 	return _match_provider if _match_provider != null else Match
 
 
-## Bontago-1pi.59: every host -> clients broadcast goes through here, so a peer the
+## every host -> clients broadcast goes through here, so a peer the
 ## host is kicking (still listed by the transport until its disconnect completes)
 ## is never addressed. See net/NetFanout.gd.
 func _broadcast(method: StringName, args: Array = []) -> void:
@@ -525,7 +525,7 @@ func submit_place(
 			_bump(_intents_sent, slot_id)
 		return _apply_intent(slot_id, origin, orientation_index, free_quat, auto_drop, feed_seq)
 
-	# A client never auto-drops: spec 2.5's auto-drop is [ORIGINAL] and must
+	# A client never auto-drops: spec 1.4's auto-drop is [ORIGINAL] and must
 	# not be able to go missing in a round trip, so the host fires it from the
 	# last cursor it received (see _on_feed_timer_expired).
 	if auto_drop:
@@ -550,7 +550,7 @@ func submit_place(
 
 
 ## The single call site for a throw, host or client, local or remote --
-## submit_place()'s own twin (spec 3.4: "request_throw(slot_id, pos, orient,
+## submit_place()'s own twin (spec 2.6: "request_throw(slot_id, pos, orient,
 ## velocity): the host clamps velocity to throw_max_speed"). A throw has no
 ## auto_drop equivalent at all (MatchPlacement.request_throw()'s own doc
 ## comment), so unlike submit_place() there is no bool to gate the host-side
@@ -595,7 +595,7 @@ func submit_throw(
 ## the send is throttled to config.cursor_hz here, so no caller has to own a
 ## rate accumulator of its own.
 ##
-## Bontago-1pi.134: `aim` is the player's unit camera forward. It rides only the client->host
+## `aim` is the player's unit camera forward. It rides only the client->host
 ## packet (other clients never see it); the host keeps it as the slot's expiry-throw aim.
 func submit_cursor(
 	slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion, aim: Vector3 = Vector3.ZERO
@@ -634,7 +634,7 @@ func _handle_cat_target(sender_peer_id: int, slot_id: int, point: Vector3) -> vo
 	_authority().set_cat_target(slot_id, point)
 
 
-## Bontago-1pi.13 (results screen "Play again"): restarts the match that just
+## results screen "Play again": restarts the match that just
 ## ended with the same MatchConfig, for every peer. Mirrors submit_place()'s
 ## own single-door shape: **the host's own local call acts inline, with no
 ## sender check** (exactly submit_place()'s host branch calling
@@ -643,13 +643,13 @@ func _handle_cat_target(sender_peer_id: int, slot_id: int, point: Vector3) -> vo
 ## otherwise be refused, since Net's `_peers` map (slot_of_peer()'s backing
 ## store) is only ever populated by host_game()/join_game(), never in pure
 ## offline play. A **remote** request goes through the reliable RPC below,
-## which _is_ validated (spec 3.4 "the host checks every intent before acting
+## which _is_ validated (spec 2.6 "the host checks every intent before acting
 ## on it") -- a global restart/return affects every connected peer, so unlike
 ## a placement there is no per-sender outcome to report back, only "the host
 ## did it or it didn't".
 ##
-## DECISION (net/MatchNet.gd, Bontago-1pi.13): any seated slot (not only the
-## host's own player) may request a replay/return over the wire -- spec 3.4
+## DECISION (net/MatchNet.gd): any seated slot (not only the
+## host's own player) may request a replay/return over the wire -- spec 2.6
 ## does not name a narrower "only the host's own local player" rule the way
 ## it names "the host checks ... that the slot matches" for a placement, and
 ## the results screen's own Replay/Return buttons are a natural thing for any
@@ -659,7 +659,7 @@ func _handle_cat_target(sender_peer_id: int, slot_id: int, point: Vector3) -> vo
 ## local call skips only the sender-slot check (see _match_flow_state_allows()
 ## below and its review-fix doc) -- it is validated on State.END exactly like
 ## a remote request, since a stray local call mid-match must not restart or
-## abandon every other player's match either (Bontago-1pi.13 review fix).
+## abandon every other player's match either (review fix).
 func request_replay() -> void:
 	if _session().is_host():
 		if _match_flow_state_allows():
@@ -692,7 +692,7 @@ func _replay_current_match() -> void:
 	_authority().start_match(current)
 
 
-## Bontago-1pi.13 review fix: the state half of both request_replay()'s and
+## review fix: the state half of both request_replay()'s and
 ## request_return_to_lobby()'s authorization, shared by their trusted
 ## host-local branch above (request_replay()'s own doc explains why a local
 ## call is still checked against this) and _remote_may_request_match_flow()
@@ -767,7 +767,7 @@ func cursor_for_slot(slot_id: int) -> Dictionary:
 ## Host only. Announces a block the host just spawned, reliably, before any
 ## snapshot can reference it. Clients build a frozen copy and bind `net_id`.
 ##
-## `net_id` may be -1 (Bontago-mv0.1.7: BlockRegistry.debug_set_next_net_id /
+## `net_id` may be -1 (BlockRegistry.debug_set_next_net_id /
 ## the allocator refusing past Quantize.NET_ID_MAX) when the body's own
 ## net_id allocation failed; that body lives and simulates on the host only,
 ## exactly as the allocator's own error says, so nothing goes out for it here
@@ -788,8 +788,8 @@ func replicate_spawn(block: BlockBody, net_id: int) -> void:
 
 
 ## net_block_spawned's argument list for `block`: the one wire shape both a
-## live spawn and a mid-match join replay use (Bontago-8or.11). owner_slot is
-## the block's *current* owner, so a Paintball conversion (Bontago-22y.2)
+## live spawn and a mid-match join replay use. owner_slot is
+## the block's *current* slot, so a Paintball conversion
 ## replays as the converted colour.
 func _spawn_args(block: BlockBody, net_id: int) -> Array:
 	var basis: Basis = block.global_transform.basis.orthonormalized()
@@ -812,25 +812,25 @@ func replicate_despawn(net_id: int, reason: String) -> void:
 	_broadcast(&"net_block_despawned", [net_id, reason])
 
 
-## Host only, at NetConfig.raster_diff_hz. Sends the cells whose owner or
+## Host only, at NetConfig.raster_diff_hz. Sends the cells whose slot or
 ## state byte changed since the last diff, or a full compressed raster when
 ## more than NetConfig.raster_full_threshold_fraction of them changed or a
 ## client has just joined. Territory shares and capture progress ride along so
 ## the HUD costs no extra packet.
 ##
-## Bontago-cmc.5: the analytic circle list rides along too, one
+## the analytic circle list rides along too, one
 ## core/net/CircleWire.gd payload per packet — always the *current* full
 ## list, never diffed like the raster, because it is already small (≤ 400
 ## circles, ~2.8 KB) and a circle that vanished (a tower toppled) has no
 ## "unchanged" cell to skip the way a raster byte does.
-# DECISION (Bontago-1pi.194): a decaying home claim changes no raster cell, so
+# DECISION: a decaying home claim changes no raster cell, so
 # territory packets (raster-change only) would freeze the client ring. Rather
 # than a new RPC or a replicated decay flag, the existing raster_diff_hz tick
 # sends an empty diff carrying the capture values while a previously-sent claim
 # is falling, changed team, or (once falling) moving at all -- until it clears
 # (0 / no team). That bounds extra traffic to raster_diff_hz, adds no knob, and
 # a late joiner already gets the current value in the replay's full packet.
-# Rising holds on a static board are unchanged (client extrapolates, 1pi.117).
+# Rising holds on a static board are unchanged (client extrapolates).
 func _capture_update_due() -> bool:
 	if _sent_capture_progress <= 0.0:
 		return false
@@ -857,7 +857,7 @@ func replicate_territory() -> void:
 		return
 	var raw_owners: PackedByteArray = raster.owner_bytes()
 	var raw_states: PackedByteArray = raster.state_bytes()
-	# Bontago-1pi.11.23: unchanged bytes are exactly the changed.size() == 0
+	# unchanged bytes are exactly the changed.size() == 0
 	# return below, reached without the per-cell loop or the copies.
 	if (
 		not _force_full_raster
@@ -922,7 +922,7 @@ func _encode_circles() -> PackedByteArray:
 ## Host only. Mirrors a match-flow event to every client: state changes, the
 ## countdown, feed issues, eliminations and the win. A per-player cue (a
 ## refusal, a relocation) is not one of these: it goes to its owning peer alone
-## (_on_placement_rejected, _on_placement_relocated; Bontago-1pi.52).
+## (_on_placement_rejected, _on_placement_relocated).
 func replicate_match_event(event: StringName, args: Array) -> void:
 	if not _session().is_host():
 		return
@@ -947,7 +947,7 @@ func replicate_match_start(match_config: MatchConfig) -> void:
 	_broadcast(&"net_match_start", [match_config.to_dict(), _roster(), 0])
 
 
-## Host only (Bontago-t8x.4). Tells every client the host just pressed Start,
+## Host only. Tells every client the host just pressed Start,
 ## one reliable message ahead of net_match_start, so a client can raise its
 ## loading overlay and have it drawn before the synchronous world build that
 ## net_match_start triggers. Reliable RPCs are ordered, so it always lands first.
@@ -982,7 +982,7 @@ func intents_refused(slot_id: int) -> int:
 
 
 ## Blocks the host dropped for `slot_id` because its feed timer ran out
-## (spec 2.5). Never an intent: no client sends one.
+## (spec 1.4). Never an intent: no client sends one.
 func auto_drops(slot_id: int) -> int:
 	return int(_auto_drops.get(slot_id, 0))
 
@@ -1030,11 +1030,11 @@ func reset_counters() -> void:
 	_sent_capture_team = -1
 	_sent_capture_progress = 0.0
 	_capture_fading = false
-	# Bontago-8or.11: a (re)start is itself a full sync for every peer (the
+	# a (re)start is itself a full sync for every peer (the
 	# broadcast net_match_start), so no replay is still owed an ack.
 	_replay_pending.clear()
 	_replay_age.clear()
-	# Test-only instrumentation; bounded per match (review mv0.1.13).
+	# Test-only instrumentation; bounded per match (review ).
 	replicated_state_changes.clear()
 	match_starts_replicated = 0
 	replicated_dissolve_starts.clear()
@@ -1096,8 +1096,8 @@ func _apply_throw_intent(
 ## feed, an eliminated slot, a stale feed_seq — all REASON_NO_BLOCK) and it
 ## was not its turn in hot-seat.
 ##
-## Bontago-mv0.24 (owner test 2026-09-22): every other reason used to mean the
-## block was consumed regardless, because spec 2.2 threw a rejected block off
+## user test: every other reason used to mean the
+## block was consumed regardless, because spec 1.5 threw a rejected block off
 ## the map rather than handing it back. That is still true for an auto-drop
 ## (a forced release always lands somewhere, relocated or burned), but a
 ## manual (auto_drop == false) refusal now spends nothing at all
@@ -1110,7 +1110,7 @@ static func _consumed_a_block(reason: StringName, auto_drop: bool) -> bool:
 	return auto_drop or reason == PlacementRules.REASON_OK
 
 
-## Bontago-1pi.18.2: the use_gift_slot intent, host or client. The client only
+## the use_gift_slot intent, host or client. The client only
 ## sends the request; the host validates it (sender owns the slot, slot holds a
 ## gift, state, no gift already in hand) and the result arrives as the normal
 ## feed event. Returns whether the request was applied (host) or sent (client).
@@ -1154,7 +1154,7 @@ func _handle_place_intent(
 		return
 	_bump(_intents_sent, sender_slot)
 	if _replay_pending.has(sender_peer_id):
-		# Bontago-8or.11: a mid-match joiner's world is not built until it has
+		# a mid-match joiner's world is not built until it has
 		# acknowledged its replay. Refused (counted and echoed, like every
 		# other refusal, so the harness identities hold and its ghost unlocks)
 		# rather than acted on.
@@ -1162,7 +1162,7 @@ func _handle_place_intent(
 		_refuse_intent(sender_peer_id, sender_slot, PlacementRules.REASON_NO_BLOCK)
 		return
 	if sender_slot != slot_id:
-		# Spec 3.4: the host checks "that the slot matches". A peer may only
+		# Spec 2.6: the host checks "that the slot matches". A peer may only
 		# ever act for its own slot; the claimed slot_id is never trusted.
 		_refuse_intent(sender_peer_id, sender_slot, PlacementRules.REASON_NOT_YOUR_TURN)
 		return
@@ -1176,12 +1176,12 @@ func _handle_place_intent(
 		return
 	if not _pose_is_acceptable(origin, orientation_index, free_quat):
 		# Not a rule violation — a real ghost cannot produce such a pose — so
-		# the block is neither burned (spec 2.2 is for releases on a spot) nor
+		# the block is neither burned (spec 1.5 is for releases on a spot) nor
 		# consumed; the sender is told so its ghost unlocks and it may retry.
 		_refuse_intent(sender_peer_id, sender_slot, PlacementRules.REASON_NO_BLOCK)
 		return
 	# auto_drop is never taken from the wire: it grants the relocation
-	# privilege of spec 2.5, so only the host's own timer may set it.
+	# privilege of spec 1.4, so only the host's own timer may set it.
 	_reject_replied_slot = -1
 	var reason: StringName = _apply_intent(slot_id, origin, orientation_index, free_quat, false, feed_seq)
 	if not _consumed_a_block(reason, false):
@@ -1197,7 +1197,7 @@ func _handle_place_intent(
 ## _handle_place_intent() check-for-check (sender-owns-slot, feed_seq, pose)
 ## with one addition: `velocity.is_finite()`. The host does not also bound
 ## its length here -- MatchPlacement.request_throw() always clamps to
-## SpecialTuning.throw_max_speed rather than ever refusing on speed (spec 3.4:
+## SpecialTuning.throw_max_speed rather than ever refusing on speed (spec 2.6:
 ## "the host clamps velocity to throw_max_speed"), so a second length check at
 ## this boundary would only reject a pose the authority is happy to clamp and
 ## use anyway.
@@ -1251,7 +1251,7 @@ func _handle_throw_intent(
 
 ## Host side of net_update_cursor, split out (like _handle_place_intent) so a
 ## test can drive it with a manufactured sender id and no peer at all. What is
-## stored here is what spec 2.5's auto-drop fires from when the slot's timer
+## stored here is what spec 1.4's auto-drop fires from when the slot's timer
 ## expires (_on_feed_timer_expired), so it is an input boundary too.
 func _handle_cursor_update(
 	sender_peer_id: int,
@@ -1267,7 +1267,7 @@ func _handle_cursor_update(
 	if sender_slot < 0 or sender_slot != slot_id:
 		return
 	if _replay_pending.has(sender_peer_id):
-		# Bontago-8or.11: a cursor is what the host auto-drops from, so an
+		# a cursor is what the host auto-drops from, so an
 		# unreplayed peer's pose (formed against no world) is not stored.
 		return
 	if not _pose_is_acceptable(origin, orientation_index, free_quat):
@@ -1280,7 +1280,7 @@ func _handle_cursor_update(
 		_bump(_cursors_refused, sender_slot)
 		return
 	_store_cursor(slot_id, origin, orientation_index, free_quat)
-	# Bontago-1pi.134: the aim is validated again by the throw itself (GiftThrow.sanitize_aim);
+	# the aim is validated again by the throw itself (GiftThrow.sanitize_aim);
 	# a non-finite one just forgets the slot's aim (note_aim).
 	if _authority().has_method(&"note_aim"):
 		_authority().note_aim(slot_id, aim)
@@ -1301,8 +1301,8 @@ func _handle_cursor_update(
 ## changes nothing a legitimate client can do: the ghost sits at most
 ## hover offset (GhostTuning, capped by pos_max_y - hover_ceiling_margin) above
 ## the disk or a tower, and pos_max_y (NetConfig.build_height_target_m +
-## build_height_margin_m, Bontago-1pi.165) brackets the tallest reachable tower. No new tunable; X/Z are left to territory validation,
-## which already burns an off-disk release (spec 2.2).
+## build_height_margin_m) brackets the tallest reachable tower. No new tunable; X/Z are left to territory validation,
+## which already burns an off-disk release (spec 1.5).
 func _pose_is_acceptable(origin: Vector3, orientation_index: int, free_quat: Quaternion) -> bool:
 	if not bool(_authority().is_pose_well_formed(origin, orientation_index, free_quat)):
 		return false
@@ -1474,7 +1474,7 @@ func _roster() -> Array:
 # --- Events the host mirrors to its clients ---------------------------------
 
 func _on_match_state_changed(_from_state: int, to_state: int) -> void:
-	# DECISION (fca.36.3): impacts clear on LOBBY|LOADING only; END is excluded from
+	# DECISION: impacts clear on LOBBY|LOADING only; END is excluded from
 	# is_resetting so impacts already queued still play into the results screen.
 	if MatchPhase.is_resetting(to_state) and to_state != MatchPhase.State.END:
 		# World teardown / rebuild: nothing still waiting may play into it.
@@ -1489,14 +1489,14 @@ func _on_match_state_changed(_from_state: int, to_state: int) -> void:
 		replicate_match_start(_authority().config)
 	elif to_state == MatchPhase.State.LOBBY:
 		_match_start_sent = false
-	# Bontago-mv0.1.13: the LOBBY/LOADING/COUNTDOWN start_match() produces
+	# the LOBBY/LOADING/COUNTDOWN start_match() produces
 	# internally (see MatchLifecycle._starting's own doc) is fully replayed on
 	# a client by net_match_start alone; replicating them again here would
 	# race that local replay and turn into spurious re-emits on the other
 	# side. Every OTHER state change -- reached outside a start_match() call,
 	# such as PLAYING->END from a win -- still replicates normally.
 	#
-	# DECISION (net/MatchNet.gd, Bontago-mv0.1.13): reaches _authority()'s own
+	# DECISION (net/MatchNet.gd): reaches _authority()'s own
 	# _lifecycle directly rather than through a new Match.is_starting_match()
 	# forward -- autoload/Match.gd is not one of this package's owned files.
 	# _authority() is always either the real Match (which always has a
@@ -1525,14 +1525,14 @@ func _on_turn_changed(slot_id: int) -> void:
 ## Events.feed_block_issued's own signature is untouched; this is the RPC
 ## payload, not the signal.
 ##
-## Bontago-mv0.10 follow-up: also rides feed_time_left()/is_release_locked()
+## follow-up: also rides feed_time_left()/is_release_locked()
 ## for this slot, read at this exact moment -- Match's own _consume_and_
 ## refeed()/_begin_playing() update both before calling _issue_next_block(),
 ## which is what emits Events.feed_block_issued and triggers this handler
 ## synchronously, so "this exact moment" already reflects the placement that
 ## just happened. Without them a client's mirror always assumed a fresh
 ## config.block_timer-length interval, which is wrong on an early release
-## (spec 2.4 "does not restart the interval") and never showed the ghost
+## (spec 1.4 "does not restart the interval") and never showed the ghost
 ## locked on a client's own screen either.
 func _on_feed_block_issued(slot_id: int, shape_id: StringName, next_shape_id: StringName) -> void:
 	if _session().is_host():
@@ -1546,7 +1546,7 @@ func _on_feed_block_issued(slot_id: int, shape_id: StringName, next_shape_id: St
 		)
 
 
-## Spec 2.5's auto-drop is [ORIGINAL] and must keep dropping "from its current
+## Spec 1.4's auto-drop is [ORIGINAL] and must keep dropping "from its current
 ## ghost position", so it must never make a round trip: a request sent to a
 ## remote player and back on timer expiry could be lost or arrive twice. The
 ## host therefore drops for every slot it does not itself control, from the
@@ -1569,8 +1569,8 @@ func _on_feed_timer_expired(slot_id: int) -> void:
 	_apply_intent(slot_id, origin, orientation_index, free_quat, true, _authority().feed_seq(slot_id))
 
 
-## Bontago-1pi.40 (follow-up to 1pi.33, owner playtest 2026-10-03: the first
-## block "loads inside the home beacon"): where the host auto-drops a slot it
+## follow-up to , the first
+## block "loads inside the home beacon": where the host auto-drops a slot it
 ## has never heard a cursor from. Match.default_ghost_origin() is the home flag
 ## at disc level, which is inside the beacon's socket and crystal (the beacon is
 ## invisible to the placement ray and the spawn-clearance query), so the origin
@@ -1584,7 +1584,7 @@ func _on_feed_timer_expired(slot_id: int) -> void:
 ## DECISION: world UP, not field-local up, matching PlayerController's own
 ## hover and Match.default_ghost_origin()'s own world-space result. Tilt modes
 ## rotate the Field by at most a few degrees, which still leaves the block well
-## clear of the beacon (review 1pi.40).
+## clear of the beacon (review ).
 func _afk_fallback_origin(slot_id: int) -> Vector3:
 	var home: Vector3 = _authority().default_ghost_origin(slot_id)
 	return home + Vector3.UP * _ghost_tuning.home_spawn_pivot_height(_beacon_visuals, _physics_tuning)
@@ -1600,8 +1600,8 @@ func _on_gift_slot_changed(slot_id: int, contents: Array, activated: StringName,
 		replicate_match_event(EVENT_GIFT_SLOT, [slot_id, contents, activated, carrier_id])
 
 
-## Bontago-1pi.52 (owner playtest: "the host could hear my block rejected
-## sound"): a refusal is feedback for the refused player alone. It used to be
+## "the host could hear my block rejected
+## sound": a refusal is feedback for the refused player alone. It used to be
 ## broadcast to every peer, so the host's own bus (and every other client's)
 ## saw each client's refusals; now it goes only to the peer that holds the slot
 ## -- never the host's own seat, a bot's or a vacated one, which have no remote
@@ -1628,10 +1628,10 @@ func _remote_peer_of_slot(slot_id: int) -> int:
 	return peer_id
 
 
-## Bontago-mv0.24: mirrors an auto-drop's relocation to the owning client so its
+## mirrors an auto-drop's relocation to the owning client so its
 ## cursor and camera can jump to where the block landed.
 ##
-## Bontago-1pi.52 (audit after the refusal fix): that jump is the owning seat's
+## audit after the refusal fix: that jump is the owning seat's
 ## own feedback, so it goes to that peer alone, exactly like a refusal, instead
 ## of to every client that would only ignore it (PlayerController and the HUD
 ## drop a slot that is not theirs). Never the host's own seat (it reacts to
@@ -1649,7 +1649,7 @@ func _on_placement_relocated(slot_id: int, point: Vector2) -> void:
 
 func _on_player_eliminated(slot_id: int, team_id: int) -> void:
 	if _session().is_host():
-		# Bontago-1pi.186: the third argument is the eliminator slot (-1 unknown).
+		# the third argument is the eliminator slot (-1 unknown).
 		replicate_match_event(EVENT_PLAYER_ELIMINATED, [slot_id, team_id, int(_authority().eliminated_by(slot_id))])
 
 
@@ -1665,7 +1665,7 @@ func _on_match_won(team_id: int) -> void:
 		replicate_match_event(EVENT_MATCH_WON, [team_id])
 
 
-## Bontago-1pi.13: mirrors MatchLifecycle._finish_match()'s own
+## mirrors MatchLifecycle._finish_match()'s own
 ## Events.match_results_ready emit (fired right after match_won above) to
 ## every client, in one reliable packet. The dictionary rides as a single
 ## net_match_event argument -- Godot's high-level RPC marshalling already
@@ -1694,7 +1694,7 @@ func _on_gift_spawned(gift_id: int, position: Vector2) -> void:
 
 func _on_gift_claimed(gift_id: int, slot_id: int, special_id: StringName) -> void:
 	if _session().is_host():
-		# Bontago-1pi.85.69: in the after-next trial the carrier is the staged shape, not the next piece.
+		# in the after-next trial the carrier is the staged shape, not the next piece.
 		replicate_match_event(EVENT_GIFT_CLAIMED, [gift_id, slot_id, special_id, _authority()._feed.claim_carrier_shape_id(slot_id)])
 
 
@@ -1710,14 +1710,14 @@ func _on_gift_expired(gift_id: int) -> void:
 ## like _on_gift_spawned above.
 func _on_special_triggered(net_id: int, def_id: StringName, position: Vector3, chain_depth: int) -> void:
 	if _session().is_host():
-		# Bontago-1pi.18.1 (QoL 1): a special freezes block timers for a while.
+		# QoL 1: a special freezes block timers for a while.
 		var feed: Variant = _authority().get("_feed")
 		if feed != null:
 			feed.note_special_triggered()
 		replicate_match_event(EVENT_SPECIAL_TRIGGERED, [net_id, def_id, position, chain_depth])
 
 
-## Bontago-1en.21: mirrors autoload/match/MatchGifts.gd's pop_pending_special()
+## mirrors autoload/match/MatchGifts.gd's pop_pending_special()
 ## emit to every client -- a client never pops its own queue (it only ever
 ## mirrors the host's, via apply_replicated_special_consumed() below), so this
 ## dispatch is the only place a client ever learns a special was spent.
@@ -1817,7 +1817,7 @@ func _on_cat_ended(id: int) -> void:
 		replicate_match_event(EVENT_CAT_ENDED, [id])
 
 
-# --- Replicated block impacts (Bontago-1pi.55) ------------------------------
+# --- Replicated block impacts ------------------------------
 #
 # Host: Block._physics_process emits Events.block_impacted_at for a real
 # landing (host physics only; frozen client replicas emit nothing). The host's
@@ -2010,7 +2010,7 @@ func _on_net_peer_left(peer_id: int, slot_id: int, _reason: int) -> void:
 		_authority().on_peer_left(slot_id)
 
 
-## Bontago-8or.11: a peer was seated (Net emits this after it has already sent
+## a peer was seated (Net emits this after it has already sent
 ## the joiner its join-accepted and the roster). In the lobby that is all:
 ## the broadcast net_match_start will carry the world. Mid-match the host
 ## owes this peer the whole world, as one ordered replay -- see
@@ -2068,21 +2068,21 @@ func _on_net_mode_changed(mode: int) -> void:
 
 
 ## True while a match is past its start and not over: the states a mid-match
-## joiner is admitted into and gets a replay for (spec 3.7).
+## joiner is admitted into and gets a replay for (spec 2.4).
 func is_match_live() -> bool:
 	var state: int = int(_authority().state())
 	return MatchPhase.is_replicating(state)
 
 
-# --- Mid-match join and reconnect (Bontago-8or.11, spec 3.4) -----------------
+# --- Mid-match join and reconnect (spec 2.6) -----------------
 
 ## Host only, installed into Net's seat policy by game/main/Main.gd: the lowest open
 ## human seat for a new mid-match joiner, or -1 (spectate). Open means a human
 ## (not bot) slot that is still alive, held by no peer, and not reserved by a
 ## departed peer inside its disconnect grace.
 ##
-## DECISION (Bontago-8or.11): a joiner never takes over a bot seat -- the bot
-## would have to be torn down mid-match and spec 2.9 does not ask for it;
+## DECISION: a joiner never takes over a bot seat -- the bot
+## would have to be torn down mid-match and spec 1.8 does not ask for it;
 ## with every human seat filled or reserved the joiner spectates.
 func pick_open_seat() -> int:
 	if not _session().is_host() or not is_match_live():
@@ -2115,7 +2115,7 @@ func seat_reclaimable(slot_id: int) -> bool:
 	return float(authority.disconnect_grace_left(slot_id)) >= 0.0
 
 
-## Bontago-8or.11 (review LOW4): a joiner that never acks its replay would stay
+## review LOW4: a joiner that never acks its replay would stay
 ## intent-gated with its cursors dropped forever. Past
 ## config.replay_ack_timeout the host drops it cleanly.
 ## DECISION: drop, not retry. A second replay would re-send spawns for bodies
@@ -2144,7 +2144,7 @@ func replay_pending_for(peer_id: int) -> bool:
 	return _replay_pending.has(peer_id)
 
 
-## Host only. Spec 3.4 "Late join / reconnect: Send the full world state in
+## Host only. Spec 2.6 "Late join / reconnect: Send the full world state in
 ## chunks: all bodies, the territory raster, and match state." Every message
 ## is a reliable rpc_id() on the default channel, so the joiner receives them
 ## in exactly this order, after the join-accepted and roster Net already
@@ -2169,8 +2169,8 @@ func replay_pending_for(peer_id: int) -> bool:
 ## _awaiting_match_start) is already folded in, and every broadcast after it
 ## applies on top in order.
 ##
-## DECISION (Bontago-8or.11, owner decision Bontago-ahr.3 still open): the
-## match clock does NOT pause while a player joins mid-match. Spec 3.4 only
+## DECISION (still open): the
+## match clock does NOT pause while a player joins mid-match. Spec 2.6 only
 ## pauses it for lobby-mode joins; the open decision can add a pause later in
 ## MatchLifecycle without changing this protocol.
 func _replay_world_to(peer_id: int) -> void:
@@ -2232,11 +2232,11 @@ func build_world_replay(replay_id: int = 0) -> Array[Array]:
 				dissolving.append(block.net_id)
 		for net_id: int in dissolving:
 			messages.append(_event(EVENT_BLOCK_DISSOLVE_STARTED, [net_id]))
-		# Freeze gift (Bontago-8or.2): the icy overlay is an event, not part of
+		# Freeze gift: the icy overlay is an event, not part of
 		# the spawn args, so a joiner needs it after the block exists.
 		for frozen_payload: Array in _frozen_overlay_snapshot():
 			messages.append(_event(EVENT_BLOCK_FROZEN, frozen_payload))
-		# Bontago-1pi.85.52: honey coat of currently glued blocks.
+		# honey coat of currently glued blocks.
 		var glued_ids: Array = _fused_ids.keys()
 		for charged_id: int in _glue_charged_ids:
 			if not glued_ids.has(charged_id):
@@ -2252,7 +2252,7 @@ func build_world_replay(replay_id: int = 0) -> Array[Array]:
 	var state: int = int(authority.state())
 	if state == MatchPhase.State.COUNTDOWN:
 		messages.append(_event(EVENT_COUNTDOWN, [int(ceil(float(authority.countdown_remaining())))]))
-		# Bontago-1pi.42: the ready gate lives only through the countdown; sent after
+		# the ready gate lives only through the countdown; sent after
 		# net_match_start (whose start_match() resets the joiner's mirror), so the
 		# joiner holds the host's current sets whatever it heard before.
 		var gate_args: Array = authority._lifecycle.loading_gate_replay_args()
@@ -2286,7 +2286,7 @@ func build_world_replay(replay_id: int = 0) -> Array[Array]:
 			messages.append(_event(EVENT_SLOT_REPLAY, slot_args))
 	for payload: Array in _glue_rejoin_snapshot():
 		messages.append(_event(EVENT_GLUE_CHARGES, payload))
-	# Bontago-1pi.18.1: a late joiner's HUD mirror starts at zero/unpaused, so
+	# a late joiner's HUD mirror starts at zero/unpaused, so
 	# replay each slot's non-default QoL state (nothing is sent with the toggles off).
 	for slot_id: int in range(slot_count):
 		var backlog: int = int(authority.qol_backlog_count(slot_id))
@@ -2376,7 +2376,7 @@ func _slot_replay_args(slot_id: int) -> Array:
 ## and marked as the next carrier, the feed event activates it, then the
 ## queued next gift is queued behind it.
 func _apply_slot_replay(args: Array) -> void:
-	# 8 args before Bontago-1pi.85.69; 10 adds the after-next gift and its carrier.
+	# 8 args before 10 adds the after-next gift and its carrier.
 	var has_after: bool = args.size() == SLOT_REPLAY_ARGS
 	if (args.size() != SLOT_REPLAY_ARGS_LEGACY and not has_after) or not args[0] is int or not args[3] is int or not args[5] is bool:
 		return
@@ -2435,13 +2435,13 @@ func _handle_replay_ack(sender_peer_id: int, replay_id: int) -> void:
 	_replay_pending.erase(sender_peer_id)
 	_replay_age.erase(sender_peer_id)
 	replays_acknowledged += 1
-	# Spec 3.4's snapshots resume: the next one carries every body, so the
+	# Spec 2.6's snapshots resume: the next one carries every body, so the
 	# joiner's interpolator starts from fresh samples for sleepers too.
 	if _net_provider == null:
 		SnapshotSync.request_full_snapshot()
 
 
-## Bontago-8or.2: a rejoining peer missed the icy overlay events of an active Freeze.
+## a rejoining peer missed the icy overlay events of an active Freeze.
 func _frozen_overlay_snapshot() -> Array[Array]:
 	var snapshot: Array[Array] = []
 	var registry: Node = _authority().registry()
@@ -2558,7 +2558,7 @@ static func _capture_wire_ok(team_id: int, progress: float, team_count: int) -> 
 
 # --- RPCs -------------------------------------------------------------------
 # Client -> host. The host checks the caller's peer id against `slot_id`
-# (spec 3.4: "The host checks territory, the timer, and that the slot
+# (spec 2.6: "The host checks territory, the timer, and that the slot
 # matches") and drops anything else on the floor; it never trusts slot_id.
 
 # auto_drop is part of the wire contract but deliberately never read: spec
@@ -2579,7 +2579,7 @@ func net_request_place(
 	)
 
 
-## Spec 3.4: "request_throw(slot_id, pos, orient, velocity): the host clamps
+## Spec 2.6: "request_throw(slot_id, pos, orient, velocity): the host clamps
 ## velocity to throw_max_speed." Mirrors net_request_place above exactly.
 @rpc("any_peer", "call_remote", "reliable")
 func net_request_throw(
@@ -2627,7 +2627,7 @@ func net_cat_state(id: int, position: Vector3, velocity: Vector3, point: Vector3
 
 # Host -> clients.
 
-## Bontago-1pi.55: one batch of host-detected block impacts. Unreliable on the
+## one batch of host-detected block impacts. Unreliable on the
 ## cosmetic CURSOR_CHANNEL: a lost batch is a missed thud, never worth a
 ## retransmit or head-of-line blocking a spawn on channel 0. Events are
 ## position-keyed (ImpactWire's DECISION), so arrival order relative to the
@@ -2675,7 +2675,7 @@ func _apply_roster(roster: Array) -> void:
 		target.is_local = bool(_session().is_local_slot(target.slot_id))
 
 
-## Bontago-8or.11: the client half of the replay handshake. Lands after every
+## the client half of the replay handshake. Lands after every
 ## replay message (reliable, ordered), so the world is built by now.
 @rpc("authority", "call_remote", "reliable")
 func net_replay_end(replay_id: int) -> void:
@@ -2723,7 +2723,7 @@ func net_block_spawned(
 		# own guard above), but this is the client's own boundary and must not
 		# trust the wire either -- a body built for an id the wire cannot
 		# carry would sit under blocks_parent forever with nothing able to
-		# address it for a despawn (Bontago-mv0.1.7).
+		# address it for a despawn.
 		return
 	_note_spawn(net_id)
 	var registry: Node = _authority().registry()
@@ -2736,24 +2736,23 @@ func net_block_spawned(
 	if shape == null:
 		return
 
-	# Bontago-mv0.11: the same slot-colour tint as the host's own block (see
+	# the same slot-colour tint as the host's own block (see
 	# autoload/Match.gd's _spawn_block DECISION on using the slot's own colour
 	# rather than a separate team lookup). `origin` below is already the
-	# host's exact spawned transform -- the bottom-centre pivot (Bontago-
-	# mv0.17 item 3, was Bontago-mv0.12's geometric centre) needs no extra
+	# host's exact spawned transform -- the bottom-centre pivot needs no extra
 	# conversion here either, since BlockFactory.build() offsets this shape's
 	# cells by the same shape.bottom_center() on every instance.
 	var owner_slot_ref: PlayerSlot = _authority().slot(owner_slot)
 	var color: Color = owner_slot_ref.color if owner_slot_ref != null else Color.WHITE
 	var block: BlockBody = _block_factory().call(&"build", shape, _physics_tuning, owner_slot, color) as BlockBody
-	# Spec 3.4: "Clients set every synced RigidBody3D to freeze = true
+	# Spec 2.6: "Clients set every synced RigidBody3D to freeze = true
 	# (kinematic) and move them by interpolating snapshots." Freezing before
 	# the body enters the tree means it never simulates a single step here.
 	block.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
 	block.freeze = true
 	parent.add_child(block)
 	block.global_transform = Transform3D(Basis(rotation), origin)
-	# Bontago-t8x.1: untrusted wire id; only a known roster gift swaps the look.
+	# untrusted wire id; only a known roster gift swaps the look.
 	if gift_id != &"" and _gift_special_id_wire_ok(String(gift_id)):
 		_block_factory().call(&"apply_gift_visual", block, shape, _physics_tuning, gift_id)
 
@@ -2786,7 +2785,7 @@ func net_block_despawned(net_id: int, reason: String) -> void:
 ## whose hole bit flipped, so Field opens the same holes without a second RPC.
 ##
 ## `circle_payload` is core/net/CircleWire.gd's encoding of the same host
-## tick's analytic circle list (Bontago-cmc.5); a default empty value keeps a
+## tick's analytic circle list; a default empty value keeps a
 ## direct local call from an older test/caller compiling (CircleWire.decode()
 ## on an empty array returns {} for a truncated payload, which the branch
 ## below already treats as "no circle update this packet", not an error).

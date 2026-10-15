@@ -1,6 +1,6 @@
 class_name SteamClient
 extends RefCounted
-## The Steam-facing half of the transport (spec 3.4, docs/archive/M3b_PLAN.md P1).
+## The Steam-facing half of the transport (spec 2.6, docs/archive/M3b_PLAN.md P1).
 ##
 ## The only file besides autoload/Net.gd's _make_steam_host_peer() /
 ## _make_steam_client_peer() that may touch the Engine "Steam" singleton or a
@@ -20,7 +20,7 @@ extends RefCounted
 ## ENetPacketPeer one file over. `ClassDB.class_exists(&"Steam")` is the gate.
 ##
 ## Every method call and signal name here was verified against the actual
-## GodotSteam 4.22.1 addon installed on this machine (Bontago-mv0.2.1's
+## GodotSteam 4.22.1 addon installed on this machine ('s
 ## spike), not guessed from documentation alone — see
 ## netcode-F-probe_methods.log, netcode-F-probe_signals2.log,
 ## netcode-F-probe_method_sigs.log and netcode-F-probe_comp.log in the
@@ -81,16 +81,16 @@ const _LOBBY_COMPARISON_EQUAL: int = 0
 var _steam: Object = null
 
 
-## Bontago-1pi.48: lobby data values are truncated to this many characters in the diagnostic log.
+## lobby data values are truncated to this many characters in the diagnostic log.
 const LOG_VALUE_MAX_CHARS: int = 40
-## Bontago-1pi.48: the SELFCHECK line's all-lobby-data dump is cut to this many characters.
+## the SELFCHECK line's all-lobby-data dump is cut to this many characters.
 const SELFCHECK_DATA_MAX_CHARS: int = 400
-## Bontago-1pi.48: call_origin() lists at most this many script frames.
+## call_origin() lists at most this many script frames.
 const ORIGIN_MAX_FRAMES: int = 6
 const _MSEC_PER_SEC: float = 1000.0
 
 
-## Bontago-1pi.48: every Steam diagnostic line is `STEAM [HH:MM:SS.mmm] text`
+## every Steam diagnostic line is `STEAM [HH:MM:SS.mmm] text`
 ## (local wall clock), so a host log can be lined up against another PC's log.
 static func log_line(text: String) -> void:
 	var now: float = Time.get_unix_time_from_system()
@@ -98,7 +98,7 @@ static func log_line(text: String) -> void:
 	print("STEAM [%s.%03d] %s" % [Time.get_time_string_from_system(), msec, text])
 
 
-## Bontago-1pi.48: the GDScript caller chain of the current call (innermost
+## the GDScript caller chain of the current call (innermost
 ## first, this helper and its direct caller skipped), e.g.
 ## "Net.gd:1023 _on_steam_lobby_joined < SteamClient.gd:290 _on_lobby_joined".
 ## get_stack() is empty in release exports; debug exports track it.
@@ -178,7 +178,7 @@ func set_lobby_data(lobby_id: int, key: String, value: String) -> void:
 	log_line("setLobbyData lobby=%d %s=%s -> %s" % [lobby_id, key, value.left(LOG_VALUE_MAX_CHARS), str(ok)])
 
 
-## Bontago-1pi.48 diagnostics: explicitly marks the lobby joinable and logs the result.
+## diagnostics: explicitly marks the lobby joinable and logs the result.
 func set_lobby_joinable(lobby_id: int, joinable: bool) -> void:
 	if _steam == null:
 		return
@@ -233,7 +233,7 @@ func join_lobby(lobby_id: int) -> void:
 	_steam.call("joinLobby", lobby_id)
 
 
-## `reason` names the Net path that gave up the lobby (Bontago-1pi.48: a host
+## `reason` names the Net path that gave up the lobby (a host
 ## leaving its own lobby must always be visible in the log).
 func leave_lobby(lobby_id: int, reason: String = "") -> void:
 	if _steam == null:
@@ -242,8 +242,8 @@ func leave_lobby(lobby_id: int, reason: String = "") -> void:
 	_steam.call("leaveLobby", lobby_id)
 
 
-## Bontago-1pi.48 diagnostics: one line describing what Steam itself reports for
-## `lobby_id` (membership, owner vs this account, member limit, all lobby data).
+## diagnostics: one line describing what Steam itself reports for
+## `lobby_id` (membership, host vs this account, member limit, all lobby data).
 func self_check_line(lobby_id: int) -> String:
 	if _steam == null:
 		return "lobby=%d (Steam not initialised)" % lobby_id
@@ -260,7 +260,7 @@ func self_check_line(lobby_id: int) -> String:
 ## Steam's own request_lobby_list(); applied fresh before every call since
 ## Steamworks does not persist filters between requests.
 ## Valve ELobbyDistanceFilter ordinal (Close=0, Default=1, Far=2, Worldwide=3).
-## Bontago-1pi.48: Steam's default distance filter only returns lobbies in the
+## Steam's default distance filter only returns lobbies in the
 ## searcher's own/nearby region, so a friend elsewhere never saw the host's
 ## lobby; search worldwide (results stay filtered to this game + version).
 const LOBBY_DISTANCE_FILTER_WORLDWIDE: int = 3

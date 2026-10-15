@@ -1,6 +1,6 @@
 class_name HoleDissolver
 extends Node
-## Bontago-1pi.11.41 (owner decision Bontago-gdb, option A): holes no longer
+## option A: holes no longer
 ## cut the disc's collision. On the host, a block whose footprint rests or
 ## lands on an applied hole cell (Field.is_hole_cell) dissolves: after
 ## HoleDissolveTuning.dissolve_delay_s it is removed through
@@ -21,7 +21,7 @@ extends Node
 ##   has any applied hole. That catches a block dropped into a hole, a stack
 ##   falling onto one and a block sliding onto one.
 ##
-## "Touches" (owner: resting or landing contact, not merely being above it):
+## "Touches" (resting or landing contact, not merely being above it):
 ## some collision corner of the block, pulled HoleDissolveTuning.contact_inset_m
 ## toward its shape's centre, lies within contact_height_m of the disc surface
 ## over an applied hole cell, and the block is not moving away from the disc
@@ -149,7 +149,7 @@ func physics_tick(delta: float, candidates: Array[Block]) -> void:
 		_finish(block)
 
 
-## Bontago-1pi.85.12 (owner resolution 1pi.85.2): the ONE removal entry for every
+## slot resolution: the ONE removal entry for every
 ## cause. Territory holes call start_dissolve() below on this registry's dissolver;
 ## the Black hole's capture sweep calls this static wrapper, which
 ## resolves the live match's registry and calls the very same start_dissolve(), so
@@ -182,7 +182,7 @@ func start_dissolve(block: Block) -> void:
 		return
 	_pending[id] = tuning.dissolve_delay_s
 	_pending_blocks[id] = block
-	# Bontago-8or.2: a hole dissolve overrides a Freeze hold on the block
+	# a hole dissolve overrides a Freeze hold on the block
 	# touching the void.
 	FreezeEffect.release_hold(block)
 	dissolves_started += 1
@@ -218,7 +218,7 @@ func _on_block_removed(block: RigidBody3D, _reason: String) -> void:
 func touches_hole(block: Block) -> bool:
 	if not _field_ready() or block == null or not is_instance_valid(block):
 		return false
-	# [OWNER decision 2026-10-12, Bontago-1pi.85.73]: territory holes never destroy a gift.
+	# [OWNER decision]: territory holes never destroy a gift.
 	# DECISION: a placed/held gift special is simply not a dissolve candidate; it keeps its
 	# physics, so over a hole it falls normally like any body (only the kill plane, far below,
 	# can still remove it). The Black hole's capture sweep (request_dissolve) is unchanged.

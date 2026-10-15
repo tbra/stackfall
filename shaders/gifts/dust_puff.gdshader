@@ -1,6 +1,6 @@
 shader_type spatial;
 render_mode unshaded, cull_disabled, shadows_disabled;
-// Bontago-mp0.3.4 fix round (owner: dust rendered as "huge flat hard-edged
+// fix round (dust rendered as "huge flat hard-edged
 // blown-out yellow rectangles smeared across the disc" -- the previous
 // candidate was a plain unshaded BoxMesh cube, many of which overlapped
 // into one solid blob at close range). A soft, round, billboarded quad

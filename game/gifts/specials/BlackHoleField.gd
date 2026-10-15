@@ -25,7 +25,7 @@ func age() -> float:
 	return _age
 
 
-## Bontago-1pi.85.56 DECISION: the pull and capture reach grow with the visual (same
+## DECISION: the pull and capture reach grow with the visual (same
 ## curve, BlackHoleVisual.scale_at) so what you see is what pulls. The field's own age
 ## starts at the trigger; clients draw the visual from the same replicated trigger event.
 func reach_scale() -> float:
@@ -69,8 +69,8 @@ func tick(delta: float) -> void:
 	_sweep_capture(space, delta, radius_scale)
 
 
-## Bontago-1pi.85.26 (reproduced in the real gift demo flow, tests/unit/
-## test_black_hole_gift_demo_flow.gd): the old capture was RadialPull's 3D sphere of
+## reproduced in the real gift demo flow, tests/unit/
+## test_black_hole_gift_demo_flow.gd: the old capture was RadialPull's 3D sphere of
 ## a 0.8 m core radius around the hole, measured to each block's ORIGIN. The hole sits at
 ## the carrier's origin, i.e. on the disc surface, and a Block's origin is the middle
 ## of its BOTTOM face (BlockFactory: colliders are built above the shape's
@@ -125,7 +125,7 @@ static func collision_centre(body: RigidBody3D) -> Vector3:
 ## Captured blocks go through the territory holes' removal (shared entry, no
 ## duplicate removal code). DECISION: with no live registry (an isolated unit test)
 ## the block simply stays at the core.
-## Glue fusion (owner OQ6): a captured FusedBody takes the WHOLE group, each member through
+## Glue fusion: a captured FusedBody takes the WHOLE group, each member through
 ## the same removal (the carrier itself is never registered or dissolved).
 func _capture(body: RigidBody3D) -> bool:
 	if body.has_method(&"members_in_sphere"):

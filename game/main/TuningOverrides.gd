@@ -1,6 +1,6 @@
 class_name TuningOverrides
 extends RefCounted
-## Bontago-1pi.11.84 (MF4): the boot-time half of ui/debug/TuningPanel.gd, split out so game/main/Main.gd can
+## MF4: the boot-time half of ui/debug/TuningPanel.gd, split out so game/main/Main.gd can
 ## apply the saved F4 overrides without compiling the whole panel (and its PlayerController
 ## closure) before the menu appears. TuningPanel keeps forwarders for its old names.
 
@@ -8,7 +8,7 @@ const SAVE_PATH: String = "user://tuning_overrides.cfg"
 
 
 ## The file actually read/written: SAVE_PATH, or a per-PID file in a GUT run so
-## tests never touch the owner's real F4 overrides (Bontago-1pi.21).
+## tests never touch the owner's real F4 overrides.
 static func save_path() -> String:
 	return UserPaths.resolve(SAVE_PATH)
 
@@ -26,7 +26,7 @@ static func apply_saved() -> void:
 	_apply_saved_section(config, "TerritoryVisuals", load("res://config/territory/territory_visuals.tres"))
 	_apply_saved_section(config, "BlockFeedConfig", load("res://config/match/block_feed.tres"))
 	_apply_saved_section(config, "SkyboxConfig", load("res://config/sky/skybox_config.tres"))
-	# Bontago-1pi.211: the F4 SFX tab's file picks (TuningSfxTab.write_overrides writes only *_file keys).
+	# the F4 SFX tab's file picks (TuningSfxTab.write_overrides writes only *_file keys).
 	_apply_saved_section(config, "AudioConfig", load("res://config/audio/audio_config.tres"))
 
 

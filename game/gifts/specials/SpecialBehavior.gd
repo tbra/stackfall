@@ -1,6 +1,6 @@
 class_name SpecialBehavior
 extends Node
-## Attached (as a child Node) to a spawned special's Block (spec 2.6). Ages
+## Attached (as a child Node) to a spawned special's Block (spec 1.6). Ages
 ## from bind(), arms at `def.arm_delay`, detects an impact by sampling its
 ## own parent Block's velocity drop each tick (game/blocks/Block.gd:61-75's own
 ## impact-detection pattern, reused rather than duplicated via
@@ -31,10 +31,10 @@ const GROUP: StringName = &"specials"
 ## Events.special_triggered from there.
 signal triggered(def_id: StringName, position: Vector3, chain_depth: int)
 
-## Bontago-t8x.5: emitted once, host-side, when a gift-bound behavior's
+## emitted once, host-side, when a gift-bound behavior's
 ## action is complete (a short linger after trigger(), or the hard
-## max-lifetime backstop for an action that never completes). The owner of
-## the block (MatchPlacement) removes the body through the normal block-
+## max-lifetime backstop for an action that never completes). The block's owning slot
+## (MatchPlacement) removes the body through the normal block-
 ## removal path; this class never frees its own parent.
 signal completed(block: Block)
 
@@ -61,7 +61,7 @@ var _has_triggered: bool = false
 var _chain_depth: int = 0
 var _prev_linear_velocity: Vector3 = Vector3.ZERO
 
-## Bontago-1pi.85.9: landing detection for effects with needs_landing(). Replaces
+## landing detection for effects with needs_landing(). Replaces
 ## Jolt `sleeping`, which never fires on a tilting disc with an awake island.
 var _landed_probe: LandedProbe = null
 var _landed_at_age: float = -1.0
@@ -140,7 +140,7 @@ func advance(delta: float) -> void:
 		# tick's decel is measured against "velocity when arming happened",
 		# not a stale sample from before arm_delay elapsed.
 		_prev_linear_velocity = _block.linear_velocity
-	# Bontago-1pi.85.35: an in-place activated gift has no falling carrier to wait for.
+	# an in-place activated gift has no falling carrier to wait for.
 	var needs_landing: bool = (
 		_def.effect != null and effect_of(_def).needs_landing() and not _def.activates_in_place
 	)
@@ -186,7 +186,7 @@ func _advance_completion(delta: float) -> void:
 		_complete()
 
 
-## DECISION (Bontago-t8x.5): every effect's action is over when trigger()
+## DECISION: every effect's action is over when trigger()
 ## returns -- instant effects (Bomb, Anvil, Rocket explosion, Cat, Glue,
 ## Paintball, Stackfall) act inside detonate(), and the timed windows
 ## (Propeller, Jumping Bean hops, Earthquake, Volcano, Magnet) end exactly
@@ -208,10 +208,10 @@ func _complete() -> void:
 ## signals -- no `game/blocks/Block.gd` edit, no per-block `contact_monitor`
 ## wiring, and it is cheap enough to run every tick for every armed special
 ## (Block.gd's own comment: an earlier contact_monitor revision cost 5-7 ms
-## /step at 300 blocks). Only checked once armed (spec 2.6: activation
+## /step at 300 blocks). Only checked once armed (spec 1.6: activation
 ## requires both the impact AND having passed arm_delay).
 ##
-## Review fix (Bontago-1en.12): mirrors game/blocks/Block.gd:61-63's own
+## Review fix: mirrors game/blocks/Block.gd:61-63's own
 ## `if not impacts_enabled or sleeping` guard -- Jolt stops integrating a
 ## sleeping body, so its `linear_velocity` reads as a false, constant value
 ## the instant something wakes it, which would otherwise look like a sudden
@@ -224,7 +224,7 @@ func _complete() -> void:
 ## exit. Arming/fuse ageing (advance()'s caller) is untouched by this --
 ## only the impact *test* is skipped while asleep.
 ##
-## FIX (Bontago-1en.22): a decel past `arm_impulse` now also consults
+## FIX: a decel past `arm_impulse` now also consults
 ## `effect_of(_def).impact_triggers()` (SpecialEffect.gd's own doc comment on
 ## that hook) before calling trigger() -- a timed-effect-pattern special
 ## (Propeller/Jumping Bean/Earthquake/Volcano) vetoes it so its OWN arming-
@@ -248,7 +248,7 @@ func _check_impact() -> void:
 	trigger(0)
 
 
-## Bontago-1pi.85.10 (docs/GIFT_EFFECTS_PLAN.md section 2 `impact_filter`): contact
+## docs/GIFT_EFFECTS_PLAN.md section 2 `impact_filter`: contact
 ## filter for an effect that detects its own impact instead of using the velocity-drop
 ## test above (Rocket probes the contact it is about to make, so it knows the collider).
 ## True when a contact with `collider` counts as an impact. The carrier itself never

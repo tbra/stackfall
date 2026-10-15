@@ -1,6 +1,6 @@
 shader_type spatial;
 render_mode unshaded, cull_disabled, depth_draw_never, shadows_disabled, blend_mix;
-// Bontago-mp0.120: cel dust-puff flipbook (assets/textures/fx/impact_puff, 4x4 atlas
+// cel dust-puff flipbook (assets/textures/fx/impact_puff, 4x4 atlas
 // of 256px cells, 16 frames). Billboarded on the camera; the contact pivot
 // (UV y = pivot_uv_y) sits on the node origin so the dust rises from the
 // impact point. No mipmaps/filter bleed: linear filtering, no mip sampling.

@@ -48,7 +48,7 @@ func try_bond(other: Node3D) -> bool:
 	return true
 
 
-## DECISION (Bontago-1pi.85.74.3 follow-up A): the old joint version bonded the charged block
+## DECISION (follow-up A): the old joint version bonded the charged block
 ## to every body it touched, so a block bridging two stacks stuck to both. After the first fuse
 ## the block is a shapeless follower, so for `fuse_window_s` the contacts of the CHARGED block's
 ## own shapes on the carrier are fused too (default 0.25 s ~ the first settle; 0 = first tick
@@ -129,7 +129,7 @@ func _other_window_open(carrier: FusedBody) -> bool:
 	return false
 
 
-## "Bonded" now means "already in the same fused body" (Bontago-1pi.85.74.3).
+## "Bonded" now means "already in the same fused body".
 func _has_bond(a: Block, b: PhysicsBody3D) -> bool:
 	var carrier: RigidBody3D = a.fused_carrier()
 	if carrier == null:

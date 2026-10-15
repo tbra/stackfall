@@ -1,5 +1,5 @@
 class_name HoneyBlobMeshes
-## Generated (never hand-modelled) jelly mesh (Bontago-lv2): a subdivided cube shell per block cell.
+## Generated (never hand-modelled) jelly mesh: a subdivided cube shell per block cell.
 ## Cells are given as block-local centres (the CollisionShape3D offsets).
 ## CUSTOM0 on the shell mesh = (cell centre xyz, bitmask of occupied neighbour cells).
 

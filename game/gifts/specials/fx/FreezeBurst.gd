@@ -1,6 +1,6 @@
 class_name FreezeBurst
 extends Node3D
-## Bontago-a3z (owner: "freeze activating could use some nice effect"): the Freeze
+## "freeze activating could use some nice effect": the Freeze
 ## gift's activation burst, drawn by GiftFxPresenter on every peer from the replicated
 ## special_triggered. Visual only; the freeze itself is FreezeEffect (host) and the
 ## per-block frost overlay (Block.set_frozen_visual).

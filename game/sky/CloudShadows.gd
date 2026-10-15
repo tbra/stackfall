@@ -1,7 +1,7 @@
 class_name CloudShadows
 extends Node3D
-## Bontago-mp0.127 (owner playtest: "clouds should cast shadows on arena when they cover the
-## sun"): soft cloud shadows sweeping the disc and blocks by day, and a brief dimming of the
+## "clouds should cast shadows on arena when they cover the
+## sun": soft cloud shadows sweeping the disc and blocks by day, and a brief dimming of the
 ## direct sun light while a cloud covers the sun direction.
 ##
 ## DECISION: two cross-fading Decal nodes projected along the sun direction, textured with
@@ -10,7 +10,7 @@ extends Node3D
 ## shader and gives the right oblique stretch at low sun for free. A light projector is not
 ## available on a DirectionalLight3D, and per-shader shadow terms would touch every material.
 ## The two layers use different noise and cross-fade (core/sky/CloudShadowMath.gd) while each
-## drifts along the cloud wind (Bontago-mp0.92: heading and speed from the Skybox's shared
+## drifts along the cloud wind (heading and speed from the Skybox's shared
 ## CloudDriftState, so shadows follow the visible clouds and the storm wind; the config
 ## heading is only the fallback), so no decal edge is ever visible. Territory colours stay readable: the shadow
 ## only multiplies albedo by a tint at <= max_strength alpha.
@@ -73,7 +73,7 @@ func _build_layers() -> void:
 		decal.normal_fade = 0.0
 		# The disc is darkened by its own shader term (EMISSION-dominated); keep the decal off it.
 		decal.cull_mask = decal.cull_mask & ~TerritoryOverlay.DISC_LAYER_BIT
-		# Bontago-mp0.136: the cloud puffs (sea and upper layer) sit inside the decal box; the
+		# the cloud puffs (sea and upper layer) sit inside the decal box; the
 		# decal darkened them in moving streaks (clouds shadowing clouds, blinking as the two
 		# layers cross-fade). Their own layer bit keeps the decal off them.
 		decal.cull_mask = decal.cull_mask & ~CloudSea.RENDER_LAYER_BIT

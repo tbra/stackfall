@@ -1,6 +1,6 @@
 class_name BlackHoleVisual
 extends Node3D
-## Cel vortex for the black hole (Bontago-8or.26): a dark core sphere plus a flat
+## Cel vortex for the black hole: a dark core sphere plus a flat
 ## disc (shaders/gifts/black_hole_vortex.gdshader) sized to the pull radius, which grows
 ## in on spawn and collapses out at the end of the lifetime. Built on every peer
 ## from the replicated special_triggered event; presentation only. The Low graphics
@@ -21,7 +21,7 @@ var _material: ShaderMaterial = null
 var _core: MeshInstance3D = null
 var _last_grow: float = -1.0
 ## Set when spawned into a match world (GiftFxPresenter): the visual frees itself once the
-## match is no longer live, since it now hangs under the persistent Field (1pi.85.66)
+## match is no longer live, since it now hangs under the persistent Field
 ## rather than the per-match blocks container.
 var bind_to_match: bool = false
 

@@ -1,5 +1,5 @@
 extends Node
-## Host -> client rigid body state (spec 3.4 "Snapshots"), at
+## Host -> client rigid body state (spec 2.6 "Snapshots"), at
 ## NetConfig.snapshot_hz (30 Hz), as unreliable RPCs carrying a packed
 ## PackedByteArray on NetConfig.snapshot_channel.
 ##
@@ -7,7 +7,7 @@ extends Node
 ## /root/SnapshotSync on every instance and no scene structure has to match.
 ## **No `class_name`** — it would collide with the singleton name.
 ##
-## An unreliable RPC on its own channel is how spec 3.4's "custom packets on
+## An unreliable RPC on its own channel is how spec 2.6's "custom packets on
 ## their own channel ... tag each with a sequence number" is met while staying
 ## inside MultiplayerAPI (CLAUDE.md: gameplay code must never assume a
 ## transport). Steam's peer in M3b carries it unchanged.
@@ -24,12 +24,12 @@ extends Node
 ## | 5 | 4 | `host_time_ms`, u32 — the host's snapshot clock, the only time base the client interpolates against |
 ## | 9 | 1 | flags: bit0 FLAG_DISK_STATE, bit1 FLAG_KEYFRAME |
 ## | 10 | 2 | `body_count`, u16 |
-## | 12 | 12 | disk state, only when FLAG_DISK_STATE: 6 B quantized offset + 6 B tilt quaternion (spec 3.4 "Disk state: tilt quaternion and position offset, sent every snapshot") |
+## | 12 | 12 | disk state, only when FLAG_DISK_STATE: 6 B quantized offset + 6 B tilt quaternion (spec 2.6 "Disk state: tilt quaternion and position offset, sent every snapshot") |
 ## | .. | 15 x body_count | body records |
 ##
 ## The header is HEADER_BYTES (12) or HEADER_BYTES + DISK_STATE_BYTES (24);
 ## NetConfig.bodies_per_fragment() turns that into the per-fragment body cap,
-## which at 1200 bytes is 78 bodies, so spec 3.4's 300 awake bodies take four
+## which at 1200 bytes is 78 bodies, so spec 2.6's 300 awake bodies take four
 ## fragments.
 ##
 ## Every fragment is independently decodable — it carries the whole header and
@@ -49,7 +49,7 @@ extends Node
 ## Bumped whenever the layout above changes. A mismatched version is dropped
 ## rather than misread; the build-version handshake in Net should already have
 ## refused the peer, so this is a belt-and-braces check.
-## 2: the body record's net_id grew from u16 to u24 (Bontago-mv0.1.7).
+## 2: the body record's net_id grew from u16 to u24.
 const PACKET_VERSION: int = 2
 
 const HEADER_BYTES: int = 12
@@ -59,7 +59,7 @@ const FLAG_DISK_STATE: int = 1 << 0
 const FLAG_KEYFRAME: int = 1 << 1
 
 ## Snapshots ride their own channel so a burst of them cannot head-of-line
-## block the reliable stream (spec 3.4 "Channels"). @rpc needs a compile-time
+## block the reliable stream (spec 2.6 "Channels"). @rpc needs a compile-time
 ## constant, so the number lives here rather than in NetConfig, which
 ## documents the pairing; it is architecture, not a tunable.
 const SNAPSHOT_CHANNEL: int = 1
@@ -86,7 +86,7 @@ const MAX_FRAGMENTS: int = 255
 var _registry: Node = null
 var _bounds: AABB = AABB()
 var _running: bool = false
-## Bontago-1pi.59 test seam: the session whose is_peer_disconnecting() the send
+## test seam: the session whose is_peer_disconnecting() the send
 ## path asks (a test drives a second Net instance on its own MultiplayerAPI).
 ## null keeps the real Net autoload.
 var _net_provider: Variant = null
@@ -127,7 +127,7 @@ var _last_snapshot_bytes: int = 0
 var _keyframe_cursor: int = 0
 var _known_peer_count: int = 0
 ## Peer ids seen last tick (sorted); a new id forces a full snapshot even
-## when another peer left in the same tick (review of Bontago-1pi.11.27).
+## when another peer left in the same tick (review of).
 var _known_peers: PackedInt32Array = PackedInt32Array()
 var _disk: Node3D = null
 
@@ -139,7 +139,7 @@ var _disk_position: Vector3 = Vector3.ZERO
 var _disk_rotation: Quaternion = Quaternion.IDENTITY
 var _stats_accumulator: float = 0.0
 
-## Disk pose interpolation (Bontago-1en.27): a 2-sample bracket (oldest,
+## Disk pose interpolation: a 2-sample bracket (oldest,
 ## newest) kept the same way Interpolator.Track keeps one per body, sampled at
 ## _interpolator.render_time_ms() so the disc moves on the same render clock
 ## bodies do. Not folded into Interpolator itself: it buffers per net_id
@@ -159,7 +159,7 @@ var _disk_next_rotation: Quaternion = Quaternion.IDENTITY
 ## last_position/last_rotation/was_clamped fields (see that class's docs for
 ## why: leaving a held/extrapolated pose is the one place a jump can appear,
 ## so that is the one place an offset is seeded, and it decays everywhere
-## else). Review fix (Bontago-1en.27 SHOULD-FIX 1): before this, past the
+## else). Review fix (SHOULD-FIX 1): before this, past the
 ## newest sample the disk pose held flat forever with no cap-then-resume
 ## offset, so a snapshot that broke a stall at a materially different tilt
 ## snapped the mirrored disc straight there.
@@ -257,7 +257,7 @@ func is_running() -> bool:
 	return _running
 
 
-## Host only (Bontago-8or.11): makes the next snapshot carry every body, the
+## Host only: makes the next snapshot carry every body, the
 ## same thing a newly connected peer id triggers in host_tick(). net/MatchNet.gd
 ## calls it once a mid-match joiner acknowledges its world replay: the joiner
 ## connected (and was "new" here) before it had a world to apply snapshots to.
@@ -265,10 +265,10 @@ func request_full_snapshot() -> void:
 	_last_sent.clear()
 
 
-## The disk, so its tilt can ride every snapshot (spec 3.4 "Disk state"). Main
+## The disk, so its tilt can ride every snapshot (spec 2.6 "Disk state"). Main
 ## hands it over when it builds the world, on the host (host_tick() reads its
 ## real global_transform via _disk_transform()) and on a client (client_tick()
-## drives it via apply_replicated_pose(), Bontago-1en.27) alike.
+## drives it via apply_replicated_pose()) alike.
 func set_disk(disk: Node3D) -> void:
 	_disk = disk
 
@@ -288,7 +288,7 @@ func set_disk(disk: Node3D) -> void:
 func host_tick(delta: float) -> void:
 	if not _running or _net().is_client():
 		return
-	# DECISION (Bontago-mp0.13): the snapshot clock also ticks in offline play;
+	# DECISION: the snapshot clock also ticks in offline play;
 	# only packet selection and sending require a network host.
 	_host_clock_ms += delta * 1000.0
 	if not _net().is_host() or _net().is_offline():
@@ -389,7 +389,7 @@ func client_tick(delta: float) -> void:
 		block.global_transform = Transform3D(
 			Basis(pose["rotation"] as Quaternion), pose["position"] as Vector3
 		)
-		# Fix round (Bontago-xtq.27 review MAJOR): the "contributing to
+		# Fix round (review MAJOR): the "contributing to
 		# territory influence" glow (Block.set_contributing_visual()) has to
 		# be driven from here too, not just from a block's own
 		# sleeping_state_changed (BlockFactory.build()) -- this body is frozen
@@ -401,8 +401,8 @@ func client_tick(delta: float) -> void:
 		# cheap.
 		block.set_contributing_visual(bool(pose["sleeping"]))
 
-	# Bontago-1en.27: the disk rides every snapshot the same way a body does
-	# (spec 3.4 "Disk state ... sent every snapshot"), so it gets the same
+	# the disk rides every snapshot the same way a body does
+	# (spec 2.6 "Disk state ... sent every snapshot"), so it gets the same
 	# render-time interpolation treatment here, on a client only -- a host
 	# drives its own Field straight off Field's own tilt spring, never off
 	# this. `_disk` is a plain Node3D so set_disk() stays decoupled from any
@@ -458,7 +458,7 @@ func disk_rotation() -> Quaternion:
 
 ## Puts one body into the state a client keeps every synced body in: kinematic
 ## freeze, so Jolt never integrates it and only the interpolator's writes move
-## it (spec 3.4: "Clients set every synced RigidBody3D to freeze = true").
+## it (spec 2.6: "Clients set every synced RigidBody3D to freeze = true").
 static func freeze_body(body: RigidBody3D) -> void:
 	if body.freeze and body.freeze_mode == RigidBody3D.FREEZE_MODE_KINEMATIC:
 		return
@@ -683,7 +683,7 @@ func _is_spawned(net_id: int) -> bool:
 	return _registry.call("block_for_net_id", net_id) != null
 
 
-## Test seam (Bontago-1pi.59); see _net_provider. null restores the real Net.
+## Test seam; see _net_provider. null restores the real Net.
 func set_net_provider(provider: Variant) -> void:
 	_net_provider = provider
 
@@ -720,7 +720,7 @@ func _remote_peer_count() -> int:
 func _remote_peers() -> PackedInt32Array:
 	if not multiplayer.has_multiplayer_peer():
 		return PackedInt32Array()
-	# Bontago-1pi.59: a peer being kicked is not a snapshot target (and with only
+	# a peer being kicked is not a snapshot target (and with only
 	# such peers left there is nothing to select, quantize or send).
 	var peers: PackedInt32Array = PackedInt32Array(NetFanout.targets(multiplayer, _session()))
 	peers.sort()
@@ -827,7 +827,7 @@ func _push_disk_sample(host_time_ms: int, position: Vector3, rotation: Quaternio
 ## mirroring a client's disc, the spring never runs, so nothing else here
 ## smooths a stall). `ok` is false until the first disk sample has arrived.
 ##
-## Review fix (Bontago-1en.27 SHOULD-FIX 1): before this, past the newest
+## Review fix (SHOULD-FIX 1): before this, past the newest
 ## sample the pose held flat with no extrapolation and no offset, so a
 ## dropped fragment at high tilt made the next real sample apply as a hard
 ## snap once it finally arrived.
@@ -886,7 +886,7 @@ func _disk_pose_at_render_time() -> Dictionary:
 ## comment on why clamping the elapsed time rather than the result is what
 ## makes the hold exact.
 ##
-## DECISION (net/SnapshotSync.gd, Bontago-1en.27 SHOULD-FIX 1): reuses
+## DECISION (net/SnapshotSync.gd SHOULD-FIX 1): reuses
 ## config.max_extrapolation_ms rather than adding a second tunable. The disk
 ## rides the same NetConfig resource and the same render clock
 ## (_interpolator.render_time_ms()) every synced body does; a second knob for

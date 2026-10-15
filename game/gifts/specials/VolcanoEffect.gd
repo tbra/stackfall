@@ -1,8 +1,8 @@
 class_name VolcanoEffect
 extends SpecialEffect
-## Volcano gift (spec 2.6; owner 2026-10-05, Bontago-1pi.85.14): "a large mountain
-## rises where you released and keeps firing blocks for 20 s+". Owner answer
-## 1pi.85.4 (a): a solid cone that rides the tilting disc, pushing blocks in its
+## Volcano gift (spec 1.6): "a large mountain
+## rises where you released and keeps firing blocks for 20 s+". 
+## (a): a solid cone that rides the tilting disc, pushing blocks in its
 ## footprint outward as it rises.
 ##
 ## Flow: the gift carrier lands (needs_landing), the effect triggers at once
@@ -45,7 +45,7 @@ extends SpecialEffect
 ## Half-angle (degrees) of the launch cone around the structure's up.
 @export var cone_angle_deg: float = 50.0
 
-## Base launch speed of each block in m/s (Bontago-1pi.85.46: 9 -> 16, ejected blocks fly clear).
+## Base launch speed of each block in m/s (9 -> 16, ejected blocks fly clear).
 @export var launch_speed_mps: float = 16.0
 
 ## Per-block speed spread as a fraction of the base: each block's speed is drawn from
@@ -68,8 +68,8 @@ extends SpecialEffect
 ## Fallback single shape, used only when `shape_weights` is null.
 @export var block_shape: BlockShape = preload("res://config/blocks/cube.tres")
 
-## Per-block shape pick (shared GiftShapeWeights, Bontago-1pi.85.31); null = every block is
-## `block_shape`. Blocks are owner-coloured by the spawn path.
+## Per-block shape pick (shared GiftShapeWeights); null = every block is
+## `block_shape`. Blocks are slot-coloured by the spawn path.
 @export var shape_weights: GiftShapeWeights = preload("res://config/gifts/gift_shape_weights.tres")
 
 ## Erupting stops once the blocks root holds this many children (same 600 cap as
@@ -89,7 +89,7 @@ extends SpecialEffect
 ## Fallback cone colour (used only when model_scene is null).
 @export var cone_color: Color = Color(0.45, 0.18, 0.08)
 
-## Eruption particles (Bontago-1pi.85.30); null = none.
+## Eruption particles; null = none.
 @export var particles: VolcanoParticleTuning = preload("res://config/gifts/specials/fx/volcano_particle_tuning.tres")
 
 

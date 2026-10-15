@@ -1,6 +1,6 @@
 class_name CartoonBlast
 extends Node3D
-## Bontago-a3z (owner: the Bomb/Rocket explosion "should be more cartoony"): a
+## the Bomb/Rocket explosion "should be more cartoony": a
 ## self-contained, visual-only blast drawn by GiftFxPresenter on every peer.
 ##
 ## Layers, all timed from one clock (GiftExplosionFxTuning):

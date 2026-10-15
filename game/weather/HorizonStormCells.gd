@@ -1,6 +1,6 @@
 class_name HorizonStormCells
 extends Node3D
-## Bontago-mp0.126: one or two distant storm cells (assets/textures/sky/horizon_storm_cell)
+## one or two distant storm cells (assets/textures/sky/horizon_storm_cell)
 ## on the horizon while the storm weather runs. StormPresentation owns one and feeds
 ## it the replicated storm intensity; the cells fade with it. Silhouette, count and
 ## bearing come from the match seed (pure `layout`), so host and clients agree,

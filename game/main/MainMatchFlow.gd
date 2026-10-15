@@ -1,6 +1,6 @@
 class_name MainMatchFlow
 extends MainMatchFlowPort
-## Bontago-1pi.11.84 (MF3): the match-world flow (state routing, loading hand-off, world build/teardown,
+## MF3: the match-world flow (state routing, loading hand-off, world build/teardown,
 ## bot controllers, scope reset) moved verbatim out of game/main/Main.gd (docs/MENU_FIRST_PLAN.md 3.2).
 ## Main keeps one forwarder per old name and loads this script before the first match_state_changed
 ## reaction (R4: the client's net_match_start RPC arrives with no Main involvement, so the Main
@@ -52,14 +52,14 @@ var _pause_menu: PauseMenu:
 func on_match_state_changed(from_state: int, to_state: int) -> void:
 	if to_state == Match.State.LOADING:
 		Sfx.set_music_context(&"gameplay")
-	# Spec 3.4: joining is lobby-only in M3a. Net must not name Match, so the
+	# Spec 2.6: joining is lobby-only in M3a. Net must not name Match, so the
 	# match flow flips Net's gate here, where every state change is routed: a
 	# handshake arriving while the match is past LOBBY is refused with
 	# JoinError.MATCH_IN_PROGRESS, and abort_match()'s (old -> LOBBY) emit
 	# reopens it (Net.leave() also resets it itself). On a client this is a
-	# harmless flag write; _rpc_handshake is host-gated (Beads Bontago-mv0.1.8).
+	# harmless flag write; _rpc_handshake is host-gated .
 	#
-	# Bontago-8or.11 (spec 3.4 "Mid-match joins can be enabled in settings"):
+	# spec 2.6 "Mid-match joins can be enabled in settings":
 	# a live match also admits new joiners when its config allows it. LOADING
 	# (synchronous on the host) and END stay closed; MatchNet replays the
 	# world to whoever is admitted. Net is told when a match world starts and
@@ -74,7 +74,7 @@ func on_match_state_changed(from_state: int, to_state: int) -> void:
 	var mid_match_join: bool = live_state and Match.config != null and Match.config.allow_mid_match_join
 	Net.set_accepting_joins(to_state == Match.State.LOBBY or mid_match_join)
 
-	# DECISION (game/main/Main.gd, Bontago-xtq.43 round 2): a sandbox reset
+	# DECISION (game/main/Main.gd round 2): a sandbox reset
 	# (sandbox_reset_field, F5 -- game/sandbox/Sandbox.gd's _reset_field()) re-runs
 	# Match.start_match() with its own current config, which always goes back
 	# through abort_match() first (MatchLifecycle.start_match()'s own doc: "A
@@ -115,24 +115,24 @@ func on_match_state_changed(from_state: int, to_state: int) -> void:
 	if main_node._sandbox != null and is_instance_valid(main_node._sandbox):
 		if to_state == Match.State.LOBBY:
 			_field.clear_match_state()
-			# Bontago-1pi.46: a sandbox reset is a new match too -- dry arena;
+			# a sandbox reset is a new match too -- dry arena;
 			# the camera stays where the player put it, and so does the sandbox's
 			# own CameraRig.suppress_pad_home_focus (only a camera reset clears it).
 			_reset_match_scope(false)
 		elif Match.is_start_transition(from_state, to_state) and Match.config != null:
-			# Bontago-1pi.127 (owner screenshot: the sandbox showed the painted sunset after
-			# F5): the scope reset on the (X -> LOBBY) half returns the Skybox to its launch
+			# owner screenshot: the sandbox showed the painted sunset after
+			# F5: the scope reset on the (X -> LOBBY) half returns the Skybox to its launch
 			# sky (the static painted-panorama sunset), so the restart sets the sandbox's sky
 			# up again like at entry.
 			main_node._apply_match_sky(Match.config)
-			# Bontago-1pi.199: a new match restarts the shared clock (day/night cycle) too.
+			# a new match restarts the shared clock (day/night cycle) too.
 			SnapshotSync.begin_match(Match.registry(), Match.config.map_def())
 		return
 
 	if to_state == Match.State.LOBBY:
 		main_node._loading_generation += 1
 		end_match_world()
-		# Bontago-1pi.8: safety net for a match aborted mid-load -- see
+		# safety net for a match aborted mid-load -- see
 		# LoadingScreen.cancel()'s own doc.
 		_loading_screen.cancel()
 		# A results-screen return ends the match without changing Net's mode,
@@ -141,7 +141,7 @@ func on_match_state_changed(from_state: int, to_state: int) -> void:
 		# out of the UI route so the new match builds directly.
 		if not Match._lifecycle.is_starting_match() and not Net.is_offline():
 			if main_node._watch_bots_active:
-				# Bontago-1pi.212: a watch match has no lobby to return to; Back to menu leaves the
+				# a watch match has no lobby to return to; Back to menu leaves the
 				# session, which routes to the main menu (Main._on_net_mode_changed).
 				Net.leave()
 			else:
@@ -149,11 +149,11 @@ func on_match_state_changed(from_state: int, to_state: int) -> void:
 	elif Match.is_start_transition(from_state, to_state):
 		main_node._loading_generation += 1
 		main_node._first_territory_ready = false
-		# Bontago-1pi.8: shown before _build_match_world() below runs, so the
+		# shown before _build_match_world() below runs, so the
 		# overlay is already queued to composite over this same frame's draw
 		# pass -- see ui/menus/LoadingScreen.gd's own header doc.
 		_loading_screen.show_for_match(Match.config, main_node._loading_screen_slots())
-		# Bontago-mp0.27. # DECISION: the 3-2-1 must start once the loading screen
+		# . # DECISION: the 3-2-1 must start once the loading screen
 		# is gone, not run down behind it. Held from here until
 		# _finish_loading_when_ready() releases it (a reset/abort also clears it).
 		# Skipped headless: no loading screen is ever rendered there, and tests
@@ -198,7 +198,7 @@ func _finish_loading_when_ready(generation: int) -> void:
 			return
 		_loading_screen.set_stage("Stabilizing view", lerpf(_loading_screen.tuning.stabilize_start_progress, _loading_screen.tuning.stabilize_end_progress, float(frame + 1) / maxf(float(_loading_screen.tuning.stable_frames), 1.0)))
 	_loading_screen.set_stage("Ready", _loading_screen.tuning.complete_progress)
-	# Bontago-mp0.27: the camera starts at the local player's own beacon, looking
+	# the camera starts at the local player's own beacon, looking
 	# at the centre, whatever the loading frames did to it.
 	if main_node._hot_seat != null and _camera_rig != null:
 		_camera_rig.begin_start_framing(Net.local_slot())
@@ -209,11 +209,11 @@ func _finish_loading_when_ready(generation: int) -> void:
 	# DECISION (MF3, R5): Main may be freed while this coroutine is suspended.
 	if not is_instance_valid(main):
 		return
-	# Bontago-mp0.27: the screen is gone; now the 3-2-1 starts running down.
+	# the screen is gone; now the 3-2-1 starts running down.
 	_release_countdown_hold(generation)
 
 
-## Bontago-mp0.27 review: every exit of the loading hand-off (overlay already
+## review: every exit of the loading hand-off (overlay already
 ## hidden, cancelled, timed out, superseded) must free the countdown hold, or a
 ## match could sit held. A stale generation belongs to a newer load, which owns
 ## the hold now, so only the current generation releases.
@@ -227,7 +227,7 @@ func build_match_world(force_staging_for_test: bool = false) -> void:
 		return
 	main_node._world_building = true
 	var generation: int = main_node._loading_generation
-	# Bontago-1pi.46: the single new-match entry (host, client and headless
+	# the single new-match entry (host, client and headless
 	# alike) -- starts from the launch camera and a dry arena whatever the
 	# previous match left behind, and tells the persistent owners (Events.
 	# match_scope_reset) to do the same. Runs before configure_match_sky() below.
@@ -236,7 +236,7 @@ func build_match_world(force_staging_for_test: bool = false) -> void:
 	# Headless hosts and test/probe runs retain the synchronous start contract.
 	var stage_build: bool = force_staging_for_test or (_loading_screen != null and _loading_screen.visible and DisplayServer.get_name() != "headless" and not AgentProbe.is_active())
 	main_node._clear_menu_and_lobby()
-	# Bontago-xtq.42 fix round 2: every real (host/client/headless-bot) match
+	# fix round 2: every real (host/client/headless-bot) match
 	# reaches this one guarded builder -- start_sandbox_from_menu() above is
 	# the only match-start path that bypasses it (see its own doc comment),
 	# so it needs its own copy of this line.
@@ -267,7 +267,7 @@ func build_match_world(force_staging_for_test: bool = false) -> void:
 	_field.set_overlay_source(Match.raster(), config.territory_colors())
 	main_node._apply_match_sky(config)
 	_horizon_islands.rebuild_for_map(config.map_def(), _world_environment.environment if _world_environment != null else null)
-	# Bontago-470.4: the lobby's Day/Night/Random, resolved by the host and
+	# the lobby's Day/Night/Random, resolved by the host and
 	# replicated; the F4 Theme dropdown still overrides live afterwards.
 
 	SnapshotSync.set_disk(_field)
@@ -285,7 +285,7 @@ func build_match_world(force_staging_for_test: bool = false) -> void:
 	main_node._remote_cursors = main_node._load_scene(Main.REMOTE_CURSORS_SCENE_PATH).instantiate() as RemoteCursors
 	main_node.add_child(main_node._remote_cursors)
 
-	# Bontago-d5c.6 (M5 P5): a HotSeat instance always binds Net.local_slot()
+	# M5 P5: a HotSeat instance always binds Net.local_slot()
 	# (0 on the host, whether online, offline or the headless-bots path
 	# above), so it must not be built when that slot itself is a bot -- the
 	# all-bot `--bots=<n>` acceptance command (config.player_count ==
@@ -294,9 +294,9 @@ func build_match_world(force_staging_for_test: bool = false) -> void:
 	# before: humans always fill the lowest slot ids first (MatchLifecycle.
 	# _build_slots()'s `is_bot = i >= player_count - ai_count`), so
 	# Net.local_slot() is never a bot slot on any path but this one.
-	# Bontago-8or.11: a mid-match spectator (Net.local_slot() == -1) gets no
+	# a mid-match spectator (Net.local_slot() == -1) gets no
 	# controller at all.
-	# DECISION (Bontago-8or.11): it watches through the default camera rig
+	# DECISION: it watches through the default camera rig
 	# with no HotSeat -- there is no slot for one to drive.
 	if main_node._watch_bots_active and DebugMode.is_enabled():
 		build_spectator(config)
@@ -307,8 +307,8 @@ func build_match_world(force_staging_for_test: bool = false) -> void:
 		hot_seat.set_camera_rig(_camera_rig)
 		hot_seat.set_field(_field)
 		hot_seat.bind_local_slot(Net.local_slot())
-		# Bontago-mv0.26 (owner test 2026-09-22, "the original lets me keep moving
-		# once I hit the edge of the screen"): HotSeat.gd's own _ready() already
+		# owner test "the original lets me keep moving
+		# once I hit the edge of the screen": HotSeat.gd's own _ready() already
 		# calls this unconditionally (this scene is the exact same HOT_SEAT_SCENE_PATH scene
 		# --hot-seat uses), so it should already be captured by the time
 		# add_child() above returns. Called again here, explicitly, the same way
@@ -340,7 +340,7 @@ func build_match_world(force_staging_for_test: bool = false) -> void:
 	main_node._debug_overlay = main_node._load_scene(Main.NET_DEBUG_OVERLAY_SCENE_PATH).instantiate() as NetDebugOverlay
 	main_node.add_child(main_node._debug_overlay)
 
-	# Bontago-xtq.26 (M7 P1): re-applies the current preset once the match
+	# M7 P1: re-applies the current preset once the match
 	# world exists. _world_environment is a static child of Main today, so
 	# this is a no-op repeat of the _ready()-time call -- kept here anyway
 	# because this is the one shared scene-load path (lobby-driven and
@@ -353,7 +353,7 @@ func build_match_world(force_staging_for_test: bool = false) -> void:
 	main_node._world_building = false
 
 
-## Bontago-1pi.212 (debug Watch bots): the local player's whole presence in an all-bot match -- spectator
+## debug Watch bots: the local player's whole presence in an all-bot match -- spectator
 ## camera, follow / speed controls and the match HUD -- in place of a HotSeat.
 func build_spectator(config: MatchConfig) -> void:
 	var spectator: SpectatorController = SpectatorController.new()
@@ -373,7 +373,7 @@ func build_spectator(config: MatchConfig) -> void:
 ## (`game/bots/BotController.gd`'s own `_is_host()` check), so building one on a
 ## client too costs nothing and stays inert.
 ##
-## Lobby rework (Bontago-1pi.53): each bot gets its own seat's difficulty
+## Lobby rework: each bot gets its own seat's difficulty
 ## (MatchConfig.ai_difficulty_for_slot(): slot_ai_difficulties[slot] when the
 ## lobby set per-seat values, else the lobby-wide ai_difficulty -- so `--bots=N`,
 ## sandbox and every older config keep the single shared difficulty).
@@ -386,7 +386,7 @@ func spawn_bot_controllers(config: MatchConfig) -> void:
 		main_node._bot_controllers.append(bot)
 
 
-## Bontago-1pi.46 (owner playtest: "leaving match and starting a new match
+## ("leaving match and starting a new match
 ## doesn't reset properly ... my camera and zoom level were the same as when i
 ## left the old match and the arena still had rain puddles"; owner requirement:
 ## after leaving a match and starting another, everything is as if freshly
@@ -394,8 +394,8 @@ func spawn_bot_controllers(config: MatchConfig) -> void:
 ## number of autoloads/presentation nodes are persistent, so they outlived every
 ## match; a match start re-aimed only the camera's yaw/target, and puddles dry
 ## over RainTuning.puddle_dry_time_s. This is the one presentation-reset entry
-## (docs/MATCH_RESET_AUDIT.md section 4): Main resets the children it owns
-## directly, then emits Events.match_scope_reset for every persistent owner it
+## docs/MATCH_RESET_AUDIT.md section 4: Main resets the children it owns
+## directly, then emits Events.match_scope_reset for every persistent holder it
 ## cannot name. Run when a match world is built, when one is torn down (also a
 ## cancelled staged build and a menu sandbox/tutorial) and on a sandbox reset;
 ## synchronous and idempotent, so the next match starts like a fresh launch.
@@ -409,7 +409,7 @@ func _reset_match_scope(reset_camera: bool = true) -> void:
 
 
 func end_match_world() -> void:
-	# Bontago-1pi.46 (G5). DECISION: the scope reset runs before the _world_built
+	# (G5). DECISION: the scope reset runs before the _world_built
 	# early return, so every (-> LOBBY) -- including a staged build that was
 	# cancelled before it finished (_world_built still false), and a CLI
 	# --sandbox, which never sets it -- leaves a launch-state camera, dry arena
@@ -417,7 +417,7 @@ func end_match_world() -> void:
 	# Field (flags, rebuild, overlay), so it is cleared here too. Idempotent: a
 	# net leave reaches this twice (mode change, then the abort's -> LOBBY).
 	if not main_node._world_built:
-		# Bontago-1pi.199: a CLI --sandbox never sets _world_built but does run the shared clock.
+		# a CLI --sandbox never sets _world_built but does run the shared clock.
 		SnapshotSync.end_match()
 		_field.clear_match_state()
 		_reset_match_scope()
@@ -428,9 +428,9 @@ func end_match_world() -> void:
 	# Field is persistent (unlike everything else torn down below) and Match's
 	# own teardown never touches it, so its flags, overlay raster reference
 	# and open holes would otherwise still belong to the match that just ended
-	# (Beads Bontago-mv0.1.9).
+	# .
 	_field.clear_match_state()
-	# Bontago-1pi.46: and the menu/lobby behind it looks like a fresh launch too.
+	# and the menu/lobby behind it looks like a fresh launch too.
 	_reset_match_scope()
 	if main_node._remote_cursors != null and is_instance_valid(main_node._remote_cursors):
 		main_node._remote_cursors.queue_free()

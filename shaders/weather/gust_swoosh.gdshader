@@ -1,7 +1,7 @@
 shader_type spatial;
 render_mode unshaded, blend_mix, cull_disabled, depth_draw_never, skip_vertex_transform, shadows_disabled, fog_disabled;
 
-// Bontago-59o.6: cartoon wind swooshes. Bontago-mp0.81 swapped the two wind looks: this
+// cartoon wind swooshes. swapped the two wind looks: this
 // curled SWOOSH look is now the ambient Storm wind's (game/weather/StormPresentation.gd
 // scatters the strokes through its weather box: `center`/`radius`/spread_* describe that
 // volume); a Breeze gust now draws the soft wisp look (wind_streak.gdshader).
@@ -35,7 +35,7 @@ uniform float cycle_s = 1.8;
 uniform float draw_frac = 0.4;
 uniform float erase_frac = 0.35;
 uniform float tip_taper = 0.12;
-// Bontago-mp0.131: feather (arc fraction) of the draw-on head and draw-off tail edge.
+// feather (arc fraction) of the draw-on head and draw-off tail edge.
 uniform float reveal_softness = 0.25;
 uniform float peak_bias = 0.8;
 uniform float spread_along = 0.8;
@@ -69,14 +69,14 @@ void vertex() {
 	vec3 side = normalize(cross(wind_dir, vec3(0.0, 1.0, 0.0)));
 	vec3 up = cross(side, wind_dir);
 	float along = (hash(key + 1.0) * 2.0 - 1.0) * radius * spread_along + c * cycle_s * speed;
-	// Bontago-mp0.28 round 2: height_bias > 1 pushes strokes toward the top of the
+	// round 2: height_bias > 1 pushes strokes toward the top of the
 	// gust volume (matching the height-weighted force); higher strokes run longer.
 	float high = pow(hash(key + 3.0), 1.0 / max(height_bias, 0.1));
 	vec3 p = center + wind_dir * along
 		+ side * ((hash(key + 2.0) * 2.0 - 1.0) * radius * spread_side)
 		+ up * ((high * 2.0 - 1.0) * radius * spread_up);
 	vec4 view_pos = VIEW_MATRIX * vec4(p, 1.0);
-	// Bontago-mp0.28: the screen direction of the world heading (wind_dir) must follow the
+	// the screen direction of the world heading (wind_dir) must follow the
 	// perspective projection (strokes converge on the heading's vanishing
 	// point), not the camera-plane projection of the direction vector, or
 	// off-centre strokes visibly disagree with the way the wind moves.
