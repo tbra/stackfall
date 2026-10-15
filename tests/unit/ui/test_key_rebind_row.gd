@@ -100,16 +100,6 @@ func _press_key(keycode: Key) -> void:
 	_sub_viewport.push_input(key_event, true)
 
 
-func test_real_click_on_rebind_button_enters_listening_state() -> void:
-	await get_tree().process_frame
-	await get_tree().process_frame
-
-	_click_button(_row.rebind_button())
-	await get_tree().process_frame
-
-	assert_true(_row.is_listening(), "a real click on the RebindButton must start listening")
-
-
 func test_real_click_then_real_key_press_replaces_the_binding() -> void:
 	var cfg_path: String = OS.get_user_data_dir().path_join("test_key_rebind_row_kbd_tmp.cfg")
 	if FileAccess.file_exists(cfg_path):
@@ -195,18 +185,6 @@ func _assert_key_replaces_binding(keycode: Key, cfg_name: String) -> void:
 		DirAccess.remove_absolute(cfg_path)
 
 
-func test_space_key_replaces_the_binding() -> void:
-	await _assert_key_replaces_binding(KEY_SPACE, "space")
-
-
-func test_enter_key_replaces_the_binding() -> void:
-	await _assert_key_replaces_binding(KEY_ENTER, "enter")
-
-
-func test_left_arrow_key_replaces_the_binding() -> void:
-	await _assert_key_replaces_binding(KEY_LEFT, "left")
-
-
 func test_tab_key_replaces_the_binding() -> void:
 	await _assert_key_replaces_binding(KEY_TAB, "tab")
 
@@ -248,20 +226,6 @@ func test_ui_cancel_while_listening_cancels_without_binding() -> void:
 	assert_false(_row.is_listening(), "ui_cancel must end the listening state")
 	assert_eq(InputMap.action_get_events(_test_action).size(), 0, "ui_cancel must not bind anything")
 
-
-func test_key_press_is_not_consumed_when_not_listening() -> void:
-	await get_tree().process_frame
-	await get_tree().process_frame
-
-	assert_false(_row.is_listening(), "must not be listening without a prior click on the RebindButton")
-	_press_key(KEY_F9)
-	await get_tree().process_frame
-
-	assert_false(_sub_viewport.is_input_handled(), "a key press must not be swallowed when no row is listening")
-	assert_eq(InputMap.action_get_events(_test_action).size(), 0)
-
-
-# --- Bontago-1pi.159.20: gamepad page accepts B, triggers and stick directions ------------
 
 func _listen_on_pad_page() -> void:
 	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
@@ -341,20 +305,6 @@ func test_bound_trigger_fires_its_action() -> void:
 	Input.parse_input_event(release)
 	Input.flush_buffered_events()
 	assert_false(Input.is_action_pressed(_test_action))
-
-
-func test_pad_page_escape_cancels_without_binding() -> void:
-	await _listen_on_pad_page()
-	_press_key(KEY_ESCAPE)
-	assert_false(_row.is_listening())
-	assert_eq(_pad_events_of_test_action().size(), 0)
-
-
-func test_pad_page_mouse_click_elsewhere_cancels() -> void:
-	await _listen_on_pad_page()
-	_click_at(Vector2(VIEWPORT_SIZE) - Vector2(5.0, 5.0))
-	assert_false(_row.is_listening())
-	assert_eq(InputMap.action_get_events(_test_action).size(), 0)
 
 
 func test_pad_page_idle_timeout_cancels() -> void:

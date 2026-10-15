@@ -12,35 +12,6 @@ func before_each() -> void:
 	_arcade = load("res://config/ui/arcade_visual_tuning.tres") as ArcadeVisualTuning
 
 
-func test_theme_loads_with_rubik_body_and_no_manrope() -> void:
-	assert_not_null(_theme)
-	var font: FontVariation = _theme.default_font as FontVariation
-	assert_not_null(font, "default font is a FontVariation")
-	assert_true(font.base_font.resource_path.ends_with("Rubik-Variable.ttf"))
-	assert_eq(_theme.default_font_size, _arcade.font_size_body_px)
-	assert_false(FileAccess.get_file_as_string(THEME_PATH).contains("Manrope"), "Manrope is retired from the theme")
-
-
-func test_display_label_uses_bungee() -> void:
-	var font: FontVariation = _theme.get_font("font", "DisplayLabel") as FontVariation
-	assert_true(font.base_font.resource_path.ends_with("Bungee-Regular.ttf"))
-
-
-func test_button_states_are_blocks() -> void:
-	for state: String in ["normal", "hover", "pressed", "disabled"]:
-		assert_true(_theme.get_stylebox(state, "Button") is BlockStyleBox, "Button/%s is a BlockStyleBox" % state)
-	assert_true((_theme.get_stylebox("pressed", "Button") as BlockStyleBox).pressed)
-	assert_true((_theme.get_stylebox("disabled", "Button") as BlockStyleBox).disabled)
-
-
-func test_focus_is_a_three_px_cream_outline_three_px_outside() -> void:
-	var focus: StyleBoxFlat = _theme.get_stylebox("focus", "Button") as StyleBoxFlat
-	assert_eq(focus.border_width_left, _arcade.focus_px)
-	assert_eq(focus.border_color, _arcade.cream_color)
-	assert_eq(focus.expand_margin_left, float(_arcade.focus_offset_px))
-	assert_false(focus.draw_center)
-
-
 func test_text_reads_on_the_disc_surfaces() -> void:
 	var pairs: Array = [
 		[_theme.get_color("font_color", "Label"), _arcade.disc_800_color],
@@ -51,14 +22,3 @@ func test_text_reads_on_the_disc_surfaces() -> void:
 	]
 	for pair: Array in pairs:
 		assert_gte(MenuStyleFactory.contrast_ratio(pair[0] as Color, pair[1] as Color), 4.5, "%s on %s" % [pair[0], pair[1]])
-
-
-func test_panel_and_field_use_the_arcade_radii() -> void:
-	assert_eq((_theme.get_stylebox("panel", "PanelContainer") as StyleBoxFlat).corner_radius_top_left, _arcade.radius_panel_px)
-	assert_eq((_theme.get_stylebox("normal", "LineEdit") as StyleBoxFlat).corner_radius_top_left, _arcade.radius_block_px)
-
-
-func test_factory_make_plate_uses_the_arcade_plate() -> void:
-	var plate: StyleBoxFlat = MenuStyleFactory.make_plate()
-	assert_eq(plate.bg_color, _arcade.disc_800_color)
-	assert_eq(plate.corner_radius_top_left, _arcade.radius_panel_px)

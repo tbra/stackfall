@@ -595,11 +595,6 @@ func _decorate_map_picker() -> void:
 	_refresh_map_thumbnail()
 
 
-## The pictogram of the currently selected map variant, or null.
-func map_thumbnail_texture() -> Texture2D:
-	return _map_thumbnail_icon.texture if _map_thumbnail_icon != null else null
-
-
 func _refresh_map_thumbnail() -> void:
 	if _map_thumbnail_icon != null:
 		_map_thumbnail_icon.texture = UiArtTable.shared().map_pictogram()

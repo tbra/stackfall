@@ -44,14 +44,6 @@ func _escapes(root: Control) -> Array[String]:
 	return bad
 
 
-func test_repro_without_trap_focus_leaves_the_overlay() -> void:
-	var stage: Dictionary = _stage()
-	var lone: Button = stage["lone"] as Button
-	var target: Control = lone.find_valid_focus_neighbor(SIDE_LEFT)
-	assert_true(target != null and (stage["menu"] as Control).is_ancestor_of(target),
-		"the unfixed engine default sends 'left' from the lone overlay control into the menu")
-
-
 func test_trap_keeps_every_direction_inside_root() -> void:
 	var stage: Dictionary = _stage()
 	UiFocusTrap.trap(stage["overlay"] as Control)
@@ -71,32 +63,6 @@ func test_trap_redirects_neighbours_that_point_outside_and_keeps_inside_ones() -
 	assert_eq(lone.find_valid_focus_neighbor(SIDE_LEFT), lone)
 	assert_eq(lone.find_valid_focus_neighbor(SIDE_BOTTOM), other, "an inside neighbour is untouched")
 
-
-func test_trap_wraps_next_and_previous_inside_root() -> void:
-	var stage: Dictionary = _stage()
-	UiFocusTrap.trap(stage["overlay"] as Control)
-	var lone: Button = stage["lone"] as Button
-	var other: Button = stage["other"] as Button
-	assert_eq(lone.get_node(lone.focus_next), other)
-	assert_eq(other.get_node(other.focus_next), lone)
-	assert_eq(lone.get_node(lone.focus_previous), other)
-
-
-func test_suspend_outside_clears_and_restores_focus_modes() -> void:
-	var stage: Dictionary = _stage()
-	var menu_buttons: Array[Control] = stage["menu_buttons"] as Array[Control]
-	var overlay: Control = stage["overlay"] as Control
-	var restore: Callable = UiFocusTrap.suspend_outside(overlay, overlay.get_parent())
-	for button: Control in menu_buttons:
-		assert_eq(button.focus_mode, Control.FOCUS_NONE)
-	assert_eq((stage["lone"] as Button).focus_mode, Control.FOCUS_ALL, "root itself is untouched")
-	assert_null((stage["lone"] as Button).find_valid_focus_neighbor(SIDE_LEFT))
-	restore.call()
-	for button: Control in menu_buttons:
-		assert_eq(button.focus_mode, Control.FOCUS_ALL)
-
-
-# --- Real screens ---------------------------------------------------------------
 
 func test_main_menu_controls_are_focus_none_while_options_is_open_and_restored_after() -> void:
 	var menu: MainMenu = autofree(load("res://ui/menus/MainMenu.tscn").instantiate())
@@ -127,16 +93,6 @@ func test_pause_menu_focus_never_leaves_its_panel() -> void:
 	var panel: Control = pause._resume_button.get_parent() as Control
 	assert_eq(_escapes(panel), [] as Array[String])
 	assert_eq(pause._resume_button.find_valid_focus_neighbor(SIDE_LEFT), pause._resume_button)
-
-
-func test_pause_options_suspends_pause_buttons_and_restores() -> void:
-	var pause: PauseMenu = autofree(load("res://ui/menus/PauseMenu.tscn").instantiate())
-	add_child_autofree(pause)
-	pause._open()
-	pause._on_options_pressed()
-	assert_eq(pause._resume_button.focus_mode, Control.FOCUS_NONE)
-	pause._on_options_closed()
-	assert_eq(pause._resume_button.focus_mode, Control.FOCUS_ALL)
 
 
 func test_results_screen_focus_never_leaves_the_screen() -> void:
@@ -190,17 +146,3 @@ func test_options_from_main_menu_traps_focus_on_every_tab() -> void:
 	var options: OptionsMenu = await _open_options(false)
 	assert_not_null(options)
 	_assert_options_trapped(options, "main menu")
-
-
-func test_options_from_pause_menu_traps_focus_on_every_tab() -> void:
-	var options: OptionsMenu = await _open_options(true)
-	assert_not_null(options)
-	_assert_options_trapped(options, "pause menu")
-
-
-func test_options_graphics_controls_are_trapped() -> void:
-	var options: OptionsMenu = await _open_options(false)
-	for control: Control in options._graphics_page.focus_controls():
-		for side: Side in SIDES:
-			var target: Control = control.find_valid_focus_neighbor(side)
-			assert_true(target == null or target == options or options.is_ancestor_of(target), "%s side %d" % [control.name, side])

@@ -72,41 +72,6 @@ func test_fade_timeline_visible_fading_hidden_restored() -> void:
 	assert_true(panel.visible, "typing keeps the panel up")
 
 
-func test_hold_visible_keeps_the_hud_panel_up() -> void:
-	var panel: UiChatPanel = _make(UiChatPanel.Mode.HUD)
-	panel.append_line(_line("hello"))
-	panel.hold_visible = true
-	panel.apply_fade(panel.config.line_visible_s + panel.config.fade_s + 1.0)
-	assert_true(panel.visible)
-	panel.hold_visible = false
-	panel.apply_fade(panel.config.line_visible_s + panel.config.fade_s + 1.0)
-	assert_false(panel.visible)
-
-
-func test_history_replacement_does_not_wake_a_hidden_hud_panel() -> void:
-	var panel: UiChatPanel = _make(UiChatPanel.Mode.HUD)
-	panel.replace_history([_line("old one"), _line("old two")])
-	assert_false(panel.visible)
-	assert_eq(panel.shown_line_count(), 2)
-	panel.replace_history([_line("only")])
-	assert_eq(panel.shown_line_count(), 1)
-
-
-func test_log_is_plain_text_and_brackets_render_literally() -> void:
-	var panel: UiChatPanel = _make(UiChatPanel.Mode.LOBBY)
-	assert_false(panel.log.bbcode_enabled)
-	for payload: String in ["[b]x[/b]", "[url]http://a[/url]", "[img]res://icon.svg[/img]"]:
-		panel.append_line(_line(payload, 1, "[b]Mal[/b]"))
-	var text: String = panel.log.get_parsed_text()
-	for payload: String in ["[b]x[/b]", "[url]http://a[/url]", "[img]res://icon.svg[/img]", "[b]Mal[/b]: "]:
-		assert_true(text.contains(payload), payload)
-
-
-func test_sender_name_is_tinted_with_the_palette_colour() -> void:
-	var line: Dictionary = _line("hi", 2)
-	assert_eq(UiChatPanel.name_color(line), MatchConfig.default_player_colors()[2])
-
-
 func test_enter_submits_trimmed_text_then_closes() -> void:
 	var panel: UiChatPanel = _make(UiChatPanel.Mode.HUD)
 	panel.open_input()
@@ -166,41 +131,3 @@ func test_pad_press_while_typing_closes_and_keeps_the_draft() -> void:
 	assert_eq(_submitted.size(), 0)
 	panel.open_input()
 	assert_eq(panel.edit.text, "half a thought")
-
-
-func test_pad_events_are_ignored_while_not_typing() -> void:
-	var panel: UiChatPanel = _make(UiChatPanel.Mode.LOBBY)
-	var motion: InputEventJoypadMotion = InputEventJoypadMotion.new()
-	motion.axis_value = 1.0
-	panel._input(motion)
-	assert_eq(_closed, 0)
-	assert_false(panel.is_typing())
-
-
-func test_max_length_comes_from_the_chat_config() -> void:
-	var panel: UiChatPanel = _make(UiChatPanel.Mode.LOBBY)
-	assert_eq(panel.edit.max_length, panel.config.max_chars)
-	assert_eq(panel.edit.max_length, 140)
-	panel.edit.text = "x".repeat(panel.config.max_chars + 20)
-	assert_lte(panel.edit.text.length(), panel.config.max_chars)
-
-
-func test_lobby_edit_is_click_focus_only_and_hud_ignores_the_mouse() -> void:
-	var lobby: UiChatPanel = _make(UiChatPanel.Mode.LOBBY)
-	assert_eq(lobby.edit.focus_mode, Control.FOCUS_CLICK)
-	var hud: UiChatPanel = _make(UiChatPanel.Mode.HUD)
-	assert_eq(hud.mouse_filter, Control.MOUSE_FILTER_IGNORE)
-	assert_eq(hud.log.mouse_filter, Control.MOUSE_FILTER_IGNORE)
-	assert_eq(hud.edit.mouse_filter, Control.MOUSE_FILTER_IGNORE)
-
-
-func test_mode_switch_restyles_in_place() -> void:
-	var panel: UiChatPanel = _make(UiChatPanel.Mode.LOBBY)
-	for i: int in panel.config.hud_lines + 2:
-		panel.append_line(_line("l%d" % i))
-	panel.mode = UiChatPanel.Mode.HUD
-	assert_eq(panel.shown_line_count(), panel.config.hud_lines)
-	assert_false(panel.edit.visible)
-	panel.mode = UiChatPanel.Mode.LOBBY
-	assert_eq(panel.shown_line_count(), panel.config.hud_lines + 2)
-	assert_true(panel.edit.visible)

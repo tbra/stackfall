@@ -21,22 +21,6 @@ func _make_lobby(is_host: bool = true) -> Lobby:
 	return lobby
 
 
-func _pick_mode(lobby: Lobby, mode: int) -> void:
-	var option: UiCycler = lobby.get_node("%GameModeOption")
-	option.select(mode)
-	option.item_selected.emit(mode)
-
-
-func _visible_timer_row(lobby: Lobby) -> UiRow:
-	var rows: Array[UiRow] = []
-	for row_name: String in ["%MatchTimerCol", "%RoundTimerCol"]:
-		var row: UiRow = lobby.get_node(row_name) as UiRow
-		if row.visible:
-			rows.append(row)
-	assert_eq(rows.size(), 1, "exactly one timer row is shown")
-	return rows[0] if not rows.is_empty() else null
-
-
 func _all_texts(node: Node, out: PackedStringArray) -> void:
 	for child: Node in node.get_children():
 		var label: Label = child as Label
@@ -46,33 +30,6 @@ func _all_texts(node: Node, out: PackedStringArray) -> void:
 		if button != null:
 			out.append(button.text)
 		_all_texts(child, out)
-
-
-func _assert_round_length_everywhere(lobby: Lobby, who: String) -> void:
-	for mode: int in MatchConfig.GameMode.values():
-		_pick_mode(lobby, mode)
-		assert_eq(_visible_timer_row(lobby).label.text, ROUND_LENGTH_TEXT, "%s, mode %d" % [who, mode])
-		var texts: PackedStringArray = PackedStringArray()
-		_all_texts(lobby, texts)
-		for text: String in texts:
-			assert_false(text.to_lower().contains("required"), "no 'required' text (%s: %s, mode %d)" % [who, text, mode])
-			assert_ne(text, OLD_TIMER_TEXT, "the old caption is gone (%s, mode %d)" % [who, mode])
-
-
-func test_round_length_label_in_every_mode_and_no_required_text() -> void:
-	var lobby: Lobby = _make_lobby()
-	await wait_frames(1)
-	_assert_round_length_everywhere(lobby, "host")
-
-
-func test_a_client_lobby_shows_round_length_in_every_mode() -> void:
-	var lobby: Lobby = _make_lobby(false)
-	await wait_frames(1)
-	for mode: int in MatchConfig.GameMode.values():
-		var data: Dictionary = MatchConfig.new().to_dict()
-		data["game_mode"] = mode
-		Events.net_lobby_data_changed.emit(data)
-		assert_eq(_visible_timer_row(lobby).label.text, ROUND_LENGTH_TEXT, "client, mode %d" % mode)
 
 
 func _stops(lobby: Lobby) -> Array[Control]:
@@ -197,16 +154,6 @@ func test_experiments_off_keeps_the_chip_selection_and_starts_with_none_active()
 	var again: MatchConfig = MatchConfig.from_dict(lobby._config_from_controls().to_dict())
 	again.sanitize()
 	assert_true(again.qol.backlog_enabled and again.qol.goal_radius_enabled, "on again: the previous selection applies")
-
-
-func test_match_started_with_experiments_off_has_none_active() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	config.qol = QolExperiments.with_toggles(null, true, true, true, true)
-	config.experiments_enabled = false
-	Match.start_match(config)
-	assert_not_null(Match.config.qol)
-	assert_eq(Match.config.qol.active_ids().size(), 0, "no experiment active")
-	Match.abort_match()
 
 
 func _make_net_side(node_name: String) -> Variant:

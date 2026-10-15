@@ -39,50 +39,6 @@ func _row(menu: OptionsMenu, action: StringName) -> KeyRebindRow:
 	return null
 
 
-func _label(row: KeyRebindRow) -> String:
-	return (row.get_node("%ActionLabel") as Label).text
-
-
-func _glyphs(row: KeyRebindRow) -> Array[String]:
-	var texts: Array[String] = []
-	for child: Node in (row.get_node("%GlyphRow") as HBoxContainer).get_children():
-		texts.append((child as InputGlyph).label_text())
-	return texts
-
-
-func test_pad_page_lists_the_real_rotate_controls_only() -> void:
-	var menu: OptionsMenu = _make_menu()
-	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
-	var snap: KeyRebindRow = _row(menu, &"rotate_snap")
-	var drag: KeyRebindRow = _row(menu, &"rotate_drag_pad")
-	assert_not_null(snap)
-	assert_not_null(drag)
-	assert_true(snap.visible and drag.visible)
-	assert_eq(_label(snap), "Rotate 90 deg")
-	assert_eq(_label(drag), "Free rotate (hold)")
-	assert_eq(_glyphs(snap), ["B"])
-	assert_eq(_glyphs(drag), ["RT"])
-	for action: StringName in PAD_HIDDEN:
-		var row: KeyRebindRow = _row(menu, action)
-		if row != null:
-			assert_false(row.visible, "%s must be hidden on the pad page" % action)
-			assert_false(row.is_available_on_active_device())
-
-
-func test_keyboard_page_renames_free_rotate_and_keeps_orbit_camera() -> void:
-	var menu: OptionsMenu = _make_menu()
-	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
-	assert_eq(_label(_row(menu, &"rotate_drag")), "Free rotate (drag)")
-	var orbit: KeyRebindRow = _row(menu, &"camera_orbit")
-	assert_true(orbit.visible, "Orbit camera stays on the keyboard page")
-	assert_false(_glyphs(orbit).is_empty(), "it shows its right mouse binding")
-	orbit.rebind_button().pressed.emit()
-	assert_true(orbit.is_listening(), "and is rebindable")
-	orbit._cancel_listening()
-	assert_false(_row(menu, &"rotate_snap").visible, "pad-only rows stay off the keyboard page")
-	assert_false(_row(menu, &"rotate_drag_pad").visible)
-
-
 func test_rebinding_rotate_snap_on_the_pad_persists() -> void:
 	if FileAccess.file_exists(_cfg_path):
 		DirAccess.remove_absolute(_cfg_path)

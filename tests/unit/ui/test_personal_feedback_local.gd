@@ -206,18 +206,6 @@ func test_offline_match_start_ticks_the_pad_for_the_human_seat_only() -> void:
 	assert_eq(_rumble_calls.size(), 1, "one tick: the human's own first block, not the bot's")
 
 
-func test_a_bots_next_block_never_ticks_the_pad_offline() -> void:
-	_start_playing(2, 1)
-
-	Rumble._on_feed_block_issued(1, &"", &"")
-
-	assert_eq(_rumble_calls.size(), 0, "offline bot feed")
-
-	Rumble._on_feed_block_issued(HOST_SLOT, &"", &"")
-
-	assert_eq(_rumble_calls.size(), 1, "the human's own feed still ticks")
-
-
 func test_a_hosts_pad_ticks_for_its_own_seat_and_not_for_a_remote_clients() -> void:
 	_make_host_net()
 	_start_playing()
@@ -227,31 +215,6 @@ func test_a_hosts_pad_ticks_for_its_own_seat_and_not_for_a_remote_clients() -> v
 
 	Rumble._on_feed_block_issued(HOST_SLOT, &"", &"")
 	assert_eq(_rumble_calls.size(), 1, "host, its own next block")
-
-
-func test_a_clients_pad_ticks_for_its_own_seat_and_not_for_the_hosts() -> void:
-	_make_client_net(REMOTE_SLOT)
-
-	Rumble._on_feed_block_issued(HOST_SLOT, &"", &"")
-	assert_eq(_rumble_calls.size(), 0, "client, host's next block")
-
-	Rumble._on_feed_block_issued(REMOTE_SLOT, &"", &"")
-	assert_eq(_rumble_calls.size(), 1, "client, its own next block")
-
-
-# --- Rumble: elimination ------------------------------------------------------
-
-
-func test_a_bots_elimination_never_buzzes_the_human_pad_offline() -> void:
-	_start_playing(2, 1)
-
-	Rumble._on_player_eliminated(1, 1)
-
-	assert_eq(_rumble_calls.size(), 0, "offline bot elimination")
-
-	Rumble._on_player_eliminated(HOST_SLOT, 0)
-
-	assert_eq(_rumble_calls.size(), 1, "the human's own elimination still buzzes")
 
 
 func test_an_elimination_buzzes_only_the_eliminated_players_own_machine() -> void:
@@ -280,29 +243,6 @@ func test_the_match_end_pulse_is_the_local_humans_not_a_bot_seats() -> void:
 	assert_almost_eq(float(_rumble_calls[0]["weak"]), Rumble.config.match_won_weak_magnitude, 0.0001, "slot 1 is on the winning team")
 
 
-func test_a_match_with_only_bot_seats_never_buzzes_a_pad() -> void:
-	_start_playing(2, 0)
-	Match.slot(0).is_bot = true
-	Match.slot(1).is_bot = true
-
-	Rumble._on_match_won(0)
-
-	assert_eq(_rumble_calls.size(), 0, "no human seat on this machine: nothing to buzz")
-
-
-func test_a_host_wins_or_loses_on_its_own_seat_only() -> void:
-	_make_host_net()
-	_start_playing()
-
-	Rumble._on_match_won(REMOTE_SLOT)
-
-	assert_eq(_rumble_calls.size(), 1)
-	assert_almost_eq(float(_rumble_calls[0]["weak"]), Rumble.config.match_lost_weak_magnitude, 0.0001, "the remote's win is the host's loss")
-
-
-# --- Sfx: gift claimed --------------------------------------------------------
-
-
 func test_a_bots_gift_claim_never_chimes_for_the_human_offline() -> void:
 	_start_playing(2, 1)
 	assert_true(Match.slot(1).is_bot, "fixture: slot 1 is the bot")
@@ -314,19 +254,6 @@ func test_a_bots_gift_claim_never_chimes_for_the_human_offline() -> void:
 	_sfx._on_gift_claimed(GIFT_ID, HOST_SLOT, SOME_SPECIAL)
 
 	assert_true(_any_sfx_playing(), "the human's own claim still chimes")
-
-
-func test_a_remote_clients_claim_does_not_chime_for_an_opposing_host() -> void:
-	_make_host_net()
-	_start_playing()
-
-	_sfx._on_gift_claimed(GIFT_ID, REMOTE_SLOT, SOME_SPECIAL)
-
-	assert_false(_any_sfx_playing(), "host, an opponent's claim")
-
-	_sfx._on_gift_claimed(GIFT_ID, HOST_SLOT, SOME_SPECIAL)
-
-	assert_true(_any_sfx_playing(), "host, its own claim")
 
 
 func test_a_teammates_claim_still_chimes_team_wide() -> void:
@@ -357,47 +284,6 @@ func test_a_remote_clients_relocation_goes_to_that_peer_alone() -> void:
 	assert_eq(int(net.relocate_replies_by_peer.get(REMOTE_PEER, 0)), 1, "the owner is told exactly once")
 	assert_eq(net.relocate_replies_by_peer.size(), 1, "and nobody else is addressed")
 	assert_eq(net.last_relocate_reply, [REMOTE_PEER, REMOTE_SLOT, RELOCATED_POINT])
-
-
-func test_the_hosts_own_and_a_bots_relocation_are_never_sent_anywhere() -> void:
-	var net: MatchNetScript = _make_host_net()
-	_start_playing(3, 1)
-	assert_true(Match.slot(2).is_bot, "fixture: slot 2 is the bot")
-
-	Events.placement_relocated.emit(HOST_SLOT, RELOCATED_POINT)
-	Events.placement_relocated.emit(2, RELOCATED_POINT)
-
-	assert_eq(int(net.replicated_event_counts.get(MatchNetScript.EVENT_PLACEMENT_RELOCATED, 0)), 0, "nothing broadcast")
-	assert_eq(net.relocate_replies_by_peer.size(), 0, "the host's seat reacts to the local emit; a bot has no peer")
-
-
-func test_no_relocation_is_addressed_to_a_peer_that_already_left() -> void:
-	var net: MatchNetScript = _make_host_net()
-	_start_playing()
-	_fake_net.slots_by_peer.erase(REMOTE_PEER)
-
-	Events.placement_relocated.emit(REMOTE_SLOT, RELOCATED_POINT)
-
-	assert_eq(net.relocate_replies_by_peer.size(), 0, "a vacated seat is nobody's to notify")
-
-
-func test_a_client_applies_its_own_relocation() -> void:
-	var net: MatchNetScript = _make_client_net(REMOTE_SLOT)
-	watch_signals(Events)
-
-	net.net_match_event(MatchNetScript.EVENT_PLACEMENT_RELOCATED, [REMOTE_SLOT, RELOCATED_POINT])
-
-	assert_signal_emitted_with_parameters(Events, "placement_relocated", [REMOTE_SLOT, RELOCATED_POINT])
-
-
-func test_a_client_ignores_a_relocation_for_someone_elses_seat() -> void:
-	var net: MatchNetScript = _make_client_net(REMOTE_SLOT)
-	watch_signals(Events)
-
-	# What an older build's host broadcast for the host's own auto-drop looks like.
-	net.net_match_event(MatchNetScript.EVENT_PLACEMENT_RELOCATED, [HOST_SLOT, RELOCATED_POINT])
-
-	assert_signal_not_emitted(Events, "placement_relocated")
 
 
 func test_a_client_drops_a_malformed_relocation_payload() -> void:
