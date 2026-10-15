@@ -35,7 +35,7 @@ def child_map(rows):
 
 
 def tracker_note(issue_id, children):
-    """Debrief 2026-10-13: a ready parent is a tracker; name its open children
+    """a ready parent is a tracker; name its open children
     so a worker is not dispatched on a parent whose steps are already closed."""
     kids = children.get(issue_id) or []
     if not kids:
@@ -50,12 +50,12 @@ def main():
     parser.add_argument("--limit", type=int, default=5, help="items per section (max 10)")
     args = parser.parse_args()
     limit = max(1, min(args.limit, 10))
-    import owner_replies
-    children = child_map(owner_replies._export())
+    import user_replies
+    children = child_map(user_replies._export())
     for label, command in (("ready", ("ready",)), ("in progress", ("list", "--status=in_progress"))):
         issues = read_issues(*command)
         if label == "ready":
-            # Owner 2026-10-13: deferred/backlog work is not auto-run work.
+            # deferred/backlog work is not auto-run work.
             issues = [i for i in issues if "deferred" not in (i.get("labels") or []) and i.get("priority") != 4]
         print(f"{label}: {len(issues)}")
         for issue in issues[:limit]:
@@ -65,18 +65,18 @@ def main():
     epic_hygiene()
     parent_hygiene(limit)
     stale_blocked(limit)
-    # Owner 2026-10-01: surface new owner replies on Beads at every board scan.
-    import owner_replies
-    owner_replies.main([])
+    # surface new user replies on Beads at every board scan.
+    import user_replies
+    user_replies.main([])
 
 
 def epic_hygiene():
-    """Owner 2026-10-02: epics stay high-level; an open epic with no open
+    """epics stay high-level; an open epic with no open
     child means it is done (close it) or its remaining reason needs a bead;
     no dated per-round epics (e.g. 'Playtest feedback <date>')."""
     import re
-    import owner_replies
-    rows = owner_replies._export()
+    import user_replies
+    rows = user_replies._export()
     open_children = {}
     for row in rows:
         for dep in row.get("dependencies") or []:
@@ -102,8 +102,8 @@ def epic_hygiene():
 def parent_hygiene(limit):
     """Non-epic issues with open/in_progress status where all children are closed
     should either be closed or have remaining work filed as a separate child issue."""
-    import owner_replies
-    rows = owner_replies._export()
+    import user_replies
+    rows = user_replies._export()
     # Build a map: parent_id -> (open_child_count, total_child_count)
     parent_info = {}
     for row in rows:
@@ -153,8 +153,8 @@ def find_stale_blocked(rows):
 
 def stale_blocked(limit):
     """One bd export call; prints a count and at most `limit` lines."""
-    import owner_replies
-    stale = find_stale_blocked(owner_replies._export())
+    import user_replies
+    stale = find_stale_blocked(user_replies._export())
     if not stale:
         return
     print(f"stale blocked (all blockers closed): {len(stale)}")

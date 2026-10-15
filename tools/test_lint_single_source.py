@@ -1,4 +1,4 @@
-"""Tests for tools/lint_single_source.py (Bontago-1pi.86.1). Run: python tools/test_lint_single_source.py"""
+"""Tests for tools/lint_single_source.py. Run: python tools/test_lint_single_source.py"""
 import contextlib
 import io
 import json
@@ -280,7 +280,7 @@ class FullGateWiringTest(unittest.TestCase):
         buf = io.StringIO()
         with mock.patch.object(full_gate, "collect", return_value=["res://tests/unit/test_x.gd"]), \
                 mock.patch.object(full_gate, "run_batch", return_value=fake) as batch, \
-                mock.patch.object(full_gate, "TIMINGS", os.path.join(out_dir, "timings.json")), \
+                mock.patch.object(full_gate, "find_unloadable", return_value=[]),                 mock.patch.object(full_gate, "TIMINGS", os.path.join(out_dir, "timings.json")), \
                 contextlib.redirect_stdout(buf):
             code = full_gate.main(["--path", root, "--out", out_dir, "--shards", "2"])
         self.assertEqual(batch.call_count, 1)  # shards only run once; nothing failed
@@ -294,6 +294,9 @@ class FullGateWiringTest(unittest.TestCase):
             os.makedirs(os.path.join(root, "tools"))
             with open(os.path.join(root, "tools", ls.BASELINE_NAME), "w", encoding="utf-8") as fh:
                 fh.write("{}")
+            import lint_layers
+            with contextlib.redirect_stdout(io.StringIO()):
+                lint_layers.main(["--path", root, "--update"])
             code, text, result = self.run_gate(root, out)
             self.assertEqual(code, 0, text)
             self.assertEqual(result["verdict"], "GREEN")

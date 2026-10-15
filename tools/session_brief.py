@@ -1,8 +1,8 @@
 """Small Claude SessionStart pointer; live state is loaded by the resume skill.
 
-Also prints the two keyed memories the session skills hand over (owner 2026-10-07):
-`stackfall-handoff` (next work target) and `stackfall-debrief` (previous session's
-improvement items with reasoning), so they reach a new or compacted session even when
+Also prints the two keyed memories the session skills hand over:
+`stackfall-handoff` (next work target) and the previous session's
+improvement items with reasoning, so they reach a new or compacted session even when
 the resume skill is not invoked. The hook's `bd prime` runs with --no-memories; other
 memories are fetched by key on demand.
 """

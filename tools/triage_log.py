@@ -181,7 +181,7 @@ def _restore_refs(text: str, saved: Sequence[str]) -> str:
 
 
 _NORMALIZERS: List[Tuple[re.Pattern, str]] = [
-    # ISO-ish timestamps: 2026-09-18 12:34:56(.789)
+    # ISO-ish timestamps: 12:34:56(.789)
     (re.compile(r"\b\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?\b"), "<TS>"),
     # Bracketed clock timestamps: [12:34:56] or [12:34:56.789]
     (re.compile(r"\[\d{1,2}:\d{2}:\d{2}(?:\.\d+)?\]"), "<TS>"),

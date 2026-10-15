@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Static dependency graph of a Godot project: files, functions and their callers.
 
-Bontago-fca.52. Stdlib only, Python 3.8 compatible. Never imports the project
+. Stdlib only, Python 3.8 compatible. Never imports the project
 into Godot; everything is text analysis, so it is best-effort:
 
 * File edges: res:// and uid:// strings, ext_resource lines, preload/load,
@@ -36,9 +36,12 @@ import subprocess
 import sys
 import time
 
-DEFAULT_ROOT = "M:/Bontago"
-# Outside scratch/ so `tools/scratch.py prune` never deletes it (Bontago-fca.113).
-DEFAULT_OUT = "M:/Bontago-tools/depgraph/"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import repo_paths  # noqa: E402
+
+DEFAULT_ROOT = repo_paths.repo_dir()
+# Outside scratch/ so `tools/scratch.py prune` never deletes it.
+DEFAULT_OUT = repo_paths.tools_root() + "/depgraph/"
 
 # Top-level directories that are not game content. docs/ files are added on
 # demand when something in the game references them (res://docs/...).
@@ -195,7 +198,7 @@ def _indent(line):
 
 
 def parse_functions(path, stripped):
-    """Return (funcs, owner) where owner[line_no] -> func index (1-based lines)."""
+    """Return (funcs, line_to_func) where line_to_func[line_no] -> func index (1-based lines)."""
     lines = stripped.split("\n")
     funcs = []
     class_stack = []  # (indent, name)
@@ -1929,7 +1932,7 @@ def render_html(graph):
 
 
 # --------------------------------------------------------------------------
-# graph.html: the visual map (Bontago-fca.117). Template: tools/dep_graph_viewer.html
+# graph.html: the visual map. Template: tools/dep_graph_viewer.html
 # --------------------------------------------------------------------------
 
 VIEWER_TEMPLATE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dep_graph_viewer.html")
@@ -1943,7 +1946,7 @@ EDGE_GROUP_OF = {"extends": 0, "preload": 1, "path": 1, "class": 2, "autoload": 
 # Per-file flag bits copied to the payload.
 FLAG_BITS = {"cycle": 1, "preload-cycle": 2, "layer": 4, "dead": 8}
 FLAG_AUTOLOAD = 16
-# Function view (Bontago-fca.118). Call-edge kind order for the payload; kinds not listed are appended.
+# Function view. Call-edge kind order for the payload; kinds not listed are appended.
 CALL_KINDS = ["self", "typed", "class", "autoload", "unique", "ref", "string", "override", "scene", "ambiguous"]
 # Call kinds shown by default in the function view (name-only guesses are hidden until toggled on).
 CALL_KINDS_OFF = ("ambiguous",)
@@ -2033,7 +2036,7 @@ def build_viewer_payload(graph):
 
 
 def build_func_payload(graph, pidx):
-    """Function call view data (Bontago-fca.118), compact and index-based.
+    """Function call view data, compact and index-based.
 
     fn:     one row per function, sorted by (file index, line): [name, line, end, flags, live]
     fstart: fstart[i]..fstart[i+1] is the fn row range of file i (len(files)+1 entries)
@@ -2153,7 +2156,7 @@ def write_outputs(graph, out_dir):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="Godot project dependency graph (Bontago-fca.52)")
+    ap = argparse.ArgumentParser(description="Godot project dependency graph")
     ap.add_argument("--root", default=DEFAULT_ROOT)
     ap.add_argument("--out", default=DEFAULT_OUT)
     ap.add_argument("--callers", help="query: callers/callees of SYMBOL (File.gd:func, Class.func or func)")

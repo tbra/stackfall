@@ -1,16 +1,16 @@
-"""Surface new owner replies on Beads to the orchestrator (Claude hook).
+"""Surface new user replies on Beads to the orchestrator (Claude hook).
 
-Owner 2026-10-01: "the whole bd human system is kinda pointless if you dont
-check for responses". Run from the UserPromptSubmit and SessionStart hooks and
-from tools/board_brief.py: prints one line per owner comment (any author that
+A reply on a Beads issue is only useful if it is noticed: check for responses on every prompt and
+board scan. Run from the UserPromptSubmit and SessionStart hooks and
+from tools/board_brief.py: prints one line per user comment (any author that
 is not an agent profile) newer than the last check, then records the check
 time so each reply is shown once.
 
 Usage:
-  python tools/owner_replies.py          # print new replies, mark them seen
-  python tools/owner_replies.py --peek   # print without marking seen
-  python tools/owner_replies.py --since 2026-10-01T00:00:00Z --peek
-  python tools/owner_replies.py --rewake # UserPromptSubmit hook (asyncRewake): exit 2 with the
+  python tools/user_replies.py          # print new replies, mark them seen
+  python tools/user_replies.py --peek   # print without marking seen
+  python tools/user_replies.py --since 2026-10-01T00:00:00Z --peek
+  python tools/user_replies.py --rewake # UserPromptSubmit hook (asyncRewake): exit 2 with the
                                          # replies wakes Claude; silent exit 0 otherwise
 
 Calls bd through tools/bd_cli.py (native binary when present).
@@ -26,8 +26,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from bd_cli import bd_executable  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-STATE = os.path.join(ROOT, ".claude", "owner_replies_state.json")
-# Comment authors that are agents, not the owner.
+STATE = os.path.join(ROOT, ".claude", "owner_replies_state.json")  # file name kept: it is listed in .gitignore
+# Comment authors that are agents, not the user.
 AGENT_PREFIXES = ("stackfall-", "codex", "claude", "orchestrator", "jev", "typesafe")
 MAX_TEXT = 400
 # First run with no state: look back this far so a fresh install still shows
@@ -53,7 +53,7 @@ def _export():
     return rows
 
 
-def _is_owner(author):
+def _is_user(author):
     name = (author or "").strip().lower()
     return bool(name) and not name.startswith(AGENT_PREFIXES)
 
@@ -76,9 +76,9 @@ def find_replies(since):
     replies = []
     for issue in _export():
         # No updated_at prefilter: adding a comment does not bump the issue's
-        # updated_at in Beads, so that filter hid owner replies (2026-10-05).
+        # updated_at in Beads, so that filter hid user replies.
         for comment in issue.get("comments") or []:
-            if (comment.get("created_at") or "") <= since or not _is_owner(comment.get("author")):
+            if (comment.get("created_at") or "") <= since or not _is_user(comment.get("author")):
                 continue
             text = " ".join((comment.get("text") or "").split())
             if len(text) > MAX_TEXT:
@@ -97,10 +97,10 @@ def main(argv):
         replies = find_replies(since)
     except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as exc:
         if not rewake:  # A background check stays silent; the next prompt retries.
-            print("owner_replies: could not query Beads (%s); check bd comments manually." % exc)
+            print("user_replies: could not query Beads (%s); check bd comments manually." % exc)
         return 0
     if replies:
-        print("NEW OWNER REPLIES ON BEADS (%d) - act on these before other work:" % len(replies))
+        print("NEW USER REPLIES ON BEADS (%d) - act on these before other work:" % len(replies))
         for created, issue_id, status, title, author, text in replies:
             print("  %s [%s] %s (%s) %s: %s" % (issue_id, status, title, created[:16], author, text))
     if not peek:

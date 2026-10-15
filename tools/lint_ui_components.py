@@ -1,4 +1,4 @@
-"""UI component ratchet (Bontago-1pi.159.6).
+"""UI component ratchet.
 
 Screens must build their controls from ui/components/ (Ui* nodes) instead of raw Godot
 controls restyled per screen. This lint counts matching lines per (rule, file) in ui/** and

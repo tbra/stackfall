@@ -1,9 +1,9 @@
-"""Project PreToolUse hook for Bash and PowerShell calls (Bontago-fca.121).
+"""Project PreToolUse hook for Bash and PowerShell calls.
 
 Registered once in .claude/settings.json, so a call starts one Python process. It denies:
-- `python3`/`pip3` Microsoft Store aliases (tools/guard_store_python.py, owner 2026-10-07);
-- a Godot launch that is neither `--headless` nor off-screen (owner 2026-09-23: windows
-  interrupted the owner on another monitor; the flags are in CLAUDE.md §Environment);
+- `python3`/`pip3` Microsoft Store aliases (tools/guard_store_python.py);
+- a Godot launch that is neither `--headless` nor off-screen (windows
+  interrupted the user on another monitor; the flags are in CLAUDE.md §Environment);
 - killing Godot by image name (other agents run Godot in other worktrees);
 - the full GUT suite from writer roles (`agent_type` in the hook input names the subagent;
   the orchestrator and the integrator may run it).
@@ -46,7 +46,7 @@ WRITER_ROLES = frozenset((
 ))
 
 REASON_WINDOW = (
-    "Blocked: windowed Godot launches must run off-screen (owner 2026-09-23). Add the off-screen "
+    "Blocked: windowed Godot launches must run off-screen. Add the off-screen "
     "flags from CLAUDE.md §Environment (`--position 10000,10000` and the rest, plus `-- --agent-probe`), "
     "or use `--headless` when no screenshot is needed.")
 REASON_KILL = (

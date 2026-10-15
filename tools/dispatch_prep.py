@@ -1,4 +1,4 @@
-"""Prepare a worker dispatch in one command (Bontago-fca.122).
+"""Prepare a worker dispatch in one command.
 
 Usage (the brief comes from stdin):
     python tools/dispatch_prep.py --bead Bontago-123 --role stackfall-implementer \

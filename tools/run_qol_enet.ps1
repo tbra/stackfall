@@ -1,4 +1,4 @@
-# Bontago-1pi.18.8 (QoL Q4): host + one lagged client on loopback, the QoL toggle
+# QoL Q4: host + one lagged client on loopback, the QoL toggle
 # matrix of tests/enet/qol_enet.gd, under a hard wall-clock deadline.
 # Follows tools/run_m3a_local.ps1: Process.Kill($true) ends the whole process
 # tree (the godot shim spawns the real console exe), and a finally block does it

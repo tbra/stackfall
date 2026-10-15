@@ -1,5 +1,5 @@
 extends SceneTree
-## Headless spike probe for Bontago-mv0.2.1 (docs/archive/M3b_RESEARCH.md, CLAUDE.md Steam rows).
+## Headless spike probe for (docs/archive/M3b_RESEARCH.md, CLAUDE.md Steam rows).
 ##
 ## Confirms the GodotSteam GDExtension classes are registered and exercises
 ## Steam.steamInitEx() without assuming a running Steam client. Never calls the

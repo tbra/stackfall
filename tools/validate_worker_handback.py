@@ -12,7 +12,7 @@ import sys
 REQUIRED = ("bead", "verdict", "candidate", "files", "checks", "finding", "next", "record")
 FAILURE_VERDICTS = {"blocked", "fail", "failed", "partial"}
 VERDICTS = FAILURE_VERDICTS | {"done", "review"}
-# DECISION (Bontago-a73, /doctor 2026-10-15): replaying 1,322 recorded first handbacks,
+# DECISION (/doctor): replaying 1,322 recorded first handbacks,
 # 98% were denied, mostly for list-valued files/checks, synonym keys or a ```json fence,
 # costing nearly every worker a retry turn. These shapes carry the same compact content,
 # so accept them; the size and line limits still apply to the raw message. bead,

@@ -1,4 +1,4 @@
-"""Focused tests for the instruction drift guard (Bontago-tj6)."""
+"""Focused tests for the instruction drift guard."""
 
 import os
 import shutil

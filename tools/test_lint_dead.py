@@ -1,4 +1,4 @@
-"""Tests for tools/lint_dead.py (Bontago-uwq.22) on small temp-dir fixture repos.
+"""Tests for tools/lint_dead.py on small temp-dir fixture repos.
 
 Run: python -m unittest discover -s tools -p test_lint_dead.py
 """
@@ -13,7 +13,7 @@ from contextlib import redirect_stdout
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import lint_dead  # noqa: E402
 
-TODAY = "2026-10-15"
+TODAY = "2026-10-15"  # lint-public: allow fixture clock for the expiry check
 PROJECT = 'config_version=5\n[application]\nrun/main_scene="res://game/Main.tscn"\n'
 MAIN_TSCN = ('[gd_scene load_steps=2 format=3]\n[ext_resource type="Script" path="res://game/Main.gd" id="1"]\n'
              '[node name="Main" type="Node"]\nscript = ExtResource("1")\n')
@@ -137,13 +137,15 @@ class StalePathTest(unittest.TestCase):
 class LegacyTest(unittest.TestCase):
     def test_marker_without_expiry_or_past_expiry_is_flagged(self):
         main = ('extends Node\n# legacy fallback\n# kept for one release\nvar compat_mode: bool = false\n'
-                '# deprecated (Bontago-abc.1, expires 2026-01-01)\n')
+                '# deprecated (Bontago-123.1, expires 2026-01-01)\n# legacy (expires 2026-01-02)\n')
         got = findings({"game/Main.gd": main}, "undated-legacy")
-        self.assertEqual([f[1] for f in got], [2, 3, 4, 5])
+        self.assertEqual([f[1] for f in got], [2, 3, 4, 5, 6])
+        self.assertIn("expired", got[-2][3])
         self.assertIn("expired", got[-1][3])
 
     def test_future_expiry_and_unrelated_words_pass(self):
-        main = 'extends Node\n# legacy (Bontago-abc.1, expires 2026-12-31)\n# compatible with the lobby\n'
+        main = ('extends Node\n# legacy (Bontago-123.1, expires 2026-12-31)\n# legacy (expires 2026-12-31)\n'
+                '# compatible with the lobby\n')
         self.assertEqual(findings({"game/Main.gd": main}, "undated-legacy"), [])
 
     def test_tests_are_not_scanned(self):

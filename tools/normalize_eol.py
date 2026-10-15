@@ -1,4 +1,4 @@
-"""Rewrite CRLF to LF in a checkout's changed text files before staging (Bontago-fca.26).
+"""Rewrite CRLF to LF in a checkout's changed text files before staging.
 
   python tools/normalize_eol.py [--path <checkout>] [--dry-run] [files...]
 

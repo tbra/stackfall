@@ -1,10 +1,10 @@
-"""Stage Codex asset handoffs into one integration branch, one commit per bead (Bontago-fca.14).
+"""Stage Codex asset handoffs into one integration branch, one commit per bead.
 
-  python tools/stage_codex_handoffs.py --beads Bontago-mp0.52 Bontago-mp0.53 --branch wt/assets-batch3
-         [--worktree-root M:/Bontago-worktrees] [--repo M:/Bontago] [--base <rev, default main>]
+  python tools/stage_codex_handoffs.py --beads --branch wt/assets-batch3
+         [--worktree-root <worktrees root>] [--repo <main checkout>] [--base <rev, default main>]
          [--dry-run] [--min-age-min 30] [--allow-missing] [--no-import] [--godot godot] [--log-dir DIR]
 
-Codex leaves each package UNCOMMITTED in its own checkout (M:/Bontago/.claude/worktrees/codex-*) and names
+Codex leaves each package UNCOMMITTED in its own checkout (<repo>/.claude/worktrees/codex-*) and names
 that path in a bead comment (author "codex"; backslashes or slashes; the LAST path mentioned wins). This
 tool turns those candidates into reviewable, mergeable commits without ever modifying a Codex worktree
 (its only commands there are `git --no-optional-locks status` and file reads).
@@ -27,7 +27,7 @@ Unless --dry-run: `git worktree add -b <branch> <root>/<branch tail> <base>`, co
 "<title> (<bead>)" per bead, then verify the branch diff against <base> is exactly the staged files. A
 failure after the worktree exists removes that worktree and branch (the Codex sources are untouched).
 
-Import metadata (Bontago-fca.25): after the per-bead commits, `godot --headless --editor --path <staging
+Import metadata: after the per-bead commits, `godot --headless --editor --path <staging
 worktree> --quit` runs once (--godot to override the executable) so Godot generates the `.import` / `.uid`
 sidecars; only the untracked sidecars belonging to the staged paths (`<path>.import`, `<path>.uid`) are
 committed, as a final "Import metadata for staged assets" commit (nothing else Godot touches is added).
@@ -49,8 +49,11 @@ import sys
 import tempfile
 import time
 
-DEFAULT_REPO = "M:/Bontago"
-DEFAULT_WORKTREE_ROOT = "M:/Bontago-worktrees"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import repo_paths  # noqa: E402
+
+DEFAULT_REPO = repo_paths.repo_dir()
+DEFAULT_WORKTREE_ROOT = repo_paths.worktrees_root()
 DEFAULT_MIN_AGE_MIN = 30.0
 GIT_TIMEOUT_S = 120
 STEP_TIMEOUT_S = 600
@@ -64,9 +67,9 @@ SIDECAR_SUFFIXES = (".import", ".uid")
 NO_SIDECAR_SUFFIXES = (".import", ".uid", ".md", ".txt", ".json", ".py", ".cfg", ".ps1", ".csv")
 ADD_CHUNK_CHARS = 20000  # stay well under the ~32k Windows command-line limit
 COMMIT_TRAILER = "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
-# Drive path whose parent directory name ends in "worktrees" (.claude/worktrees/x, Bontago-worktrees/x).
-# DECISION (Bontago-fca.14): path segments may not contain spaces; Codex worktrees never do.
-WORKTREE_RE = re.compile(r"[A-Za-z]:/(?:[\w.\-]+/)*[\w.\-]*worktrees/[\w.\-]+")
+# Absolute path (optional drive letter) whose parent directory name ends in "worktrees" (.claude/worktrees/x, <name>-worktrees/x).
+# DECISION: path segments may not contain spaces; Codex worktrees never do.
+WORKTREE_RE = re.compile(r"(?<![\w.\-/:])(?:[A-Za-z]:)?/(?:[\w.\-]+/)*[\w.\-]*worktrees/[\w.\-]+")
 STATUS_RE = re.compile(r"^([ MADRCUT?!]{2}) (.+)$")
 _ESCAPES = {"n": 10, "t": 9, "r": 13, '"': 34, "\\": 92, "a": 7, "b": 8, "f": 12, "v": 11}
 

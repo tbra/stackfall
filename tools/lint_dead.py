@@ -1,8 +1,8 @@
-"""Dead-weight recurrence guard (Bontago-uwq.22, reorg P7).
+"""Dead-weight recurrence guard (reorg P7).
 
 Usage: python tools/lint_dead.py [--path <checkout>] [--report] [--update-baseline] [--today YYYY-MM-DD]
 
-Enforces the owner rules "a test never keeps code alive", "files mentioned only in comments or docs are
+Enforces the rules "a test never keeps code alive", "files mentioned only in comments or docs are
 dead" and "no dead weight left behind". Four checks, one finding per line as `path:line: id: message`:
 
   dead-file       a game file (not tests/tools/addons/docs/.claude/source_art) unreachable from project.godot
@@ -15,7 +15,8 @@ dead" and "no dead weight left behind". Four checks, one finding per line as `pa
   stale-path      a res:// or repo-relative path in a comment/string of a tracked text file that does not exist.
                   A line containing `lint-dead: ignore` is skipped.
   undated-legacy  legacy | kept for one release | compat(ibility) | deprecated in a game .gd comment or
-                  identifier without `(Bontago-<id>, expires YYYY-MM-DD)` on the line, or past its expiry.
+                  identifier without `(expires YYYY-MM-DD)` on the line, or past its expiry. The older
+                  `(Bontago-<id>, expires YYYY-MM-DD)` form still passes until the code pass converts it.
 
 tools/dead_baseline.json holds today's findings per check (`checks`) and reviewed exceptions (`allow`:
 [{"id","entry","reason"}]). Only findings outside both fail the run (exit 1); baseline entries that no longer
@@ -54,7 +55,7 @@ FOLDER_SCANS = (
 )
 # Letter-bounded (not a word boundary) so identifiers such as compat_mode or legacy_path match too.
 LEGACY_RE = re.compile(r"(?<![A-Za-z])(legacy|kept for one release|compat(?:ibility)?|deprecated)(?![A-Za-z])", re.I)
-EXPIRY_RE = re.compile(r"\(Bontago-[\w.]+,\s*expires\s+(\d{4}-\d{2}-\d{2})\)")
+EXPIRY_RE = re.compile(r"\((?:Bontago-[\w.]+,\s*)?expires\s+(\d{4}-\d{2}-\d{2})\)")
 IGNORE_MARK = "lint-dead: ignore"
 STALE_TOP = ("autoload", "config", "core", "game", "net", "ui", "shaders", "assets", "tests", "tools",
              "docs", "addons", "source_art", "vfx", "sfx", "scenes", "scripts")
@@ -305,7 +306,7 @@ def check_legacy(root, files, today):
                 continue
             e = EXPIRY_RE.search(line)
             if e is None:
-                out.append((rel, i, "undated-legacy", "'%s' without (Bontago-<id>, expires YYYY-MM-DD)" % m.group(1),
+                out.append((rel, i, "undated-legacy", "'%s' without (expires YYYY-MM-DD)" % m.group(1),
                             "%s: %s" % (rel, line.strip())))
             elif e.group(1) < today:
                 out.append((rel, i, "undated-legacy", "'%s' expired %s" % (m.group(1), e.group(1)),

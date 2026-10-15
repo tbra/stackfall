@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-"""Paired head-to-head driver: side A bots vs side B bots (Bontago-1t5.12).
+"""Paired head-to-head driver: side A bots vs side B bots.
 
-Ship gate (owner, decision Bontago-1t5.10): the candidate side needs >= 75 %
+Ship gate (decision): the candidate side needs >= 75 %
 win share over >= 100 paired head-to-head matches. For each seed this runs two
 8-bot headless matches with the same seed and swapped seats (candidate on the
 A seats, then on the B seats), as N parallel
@@ -14,7 +14,7 @@ winner_team=-1 timeout=1 (game time; `HEADLESS_BOTS done t=` is game time too, `
 clock): it counts as a draw and shows in the `timeouts=` part of the summary, separate from
 `failed` (no HEADLESS_MATCH line: launch failure, crash, kill).
 
-P1b options (Bontago-1t5.20; evaluation plan docs/BOT_AI_REDESIGN.md section 2.5):
+P1b options (evaluation plan docs/BOT_AI_REDESIGN.md section 2.5):
   --players N      adds --players=N (passive human seats, e.g. E3/E4 vs passive).
   --no-swap        runs only the A-seat half of each seed and prints one `H2H seed=` line per
                    match. The gate verdict then reads INSUFFICIENT (under 100 matches) by design;
@@ -31,7 +31,7 @@ P1b options (Bontago-1t5.20; evaluation plan docs/BOT_AI_REDESIGN.md section 2.5
                    offset to the slots it passes to the game and to the winner-team check (every bot is its
                    own team, team id = slot id). Without --players the offset is 0.
   Summary          adds the candidate win time median and max in game seconds (the
-                   HEADLESS_MATCH duration= field, Bontago-1t5.16). Draws and timeouts stay separate.
+                   HEADLESS_MATCH duration= field). Draws and timeouts stay separate.
   --stats          after the summary prints `H2H STATS` lines per side (A = candidate seats, B = other bot seats,
                    passive = the --players seats): median/p25/max of peak and peak180 in metres, lost/placed,
                    and in how many matches the bot-seat median peak >= the best passive seat. Without it the
@@ -235,7 +235,7 @@ def build_cmd(godot: str, project: str, seconds: float, bots: int, godot_args: s
     return cmd
 
 
-# DECISION (Bontago-1t5.28): the default --round-timer is 0 (no timer) for --mode elimination, because the
+# DECISION: the default --round-timer is 0 (no timer) for --mode elimination, because the
 # game's 5-minute default round timer turns every headless Elimination match into a 300 s draw; other modes
 # pass nothing (their timers are part of what a mode run measures). An explicit --round-timer always wins.
 def effective_round_timer(mode: Optional[str], round_timer: Optional[int]) -> Optional[int]:
@@ -288,7 +288,7 @@ def plan_jobs(pairs: int, base_seed: int, slots_a: str, slots_b: str, swap: bool
 def run_process(cmd: Sequence[str], timeout_s: float) -> str:
     """Run one match; return its combined output ('' on timeout or launch failure)."""
     try:
-        with godot_slots.godot_slot("bot_h2h"):  # machine-wide Godot cap (Bontago-fca.89)
+        with godot_slots.godot_slot("bot_h2h"):  # machine-wide Godot cap
             proc = subprocess.run(list(cmd), capture_output=True, text=True, timeout=timeout_s)
     except (subprocess.TimeoutExpired, OSError, TimeoutError):
         return ""
@@ -376,9 +376,9 @@ class Preset:
     difficulty_b: Optional[str] = None
 
 
-# Section 2.5 battery (E1-E5). The sides differ by seat and, for the tier ladder, by --bot-difficulty-slots (Bontago-1t5.28; Preset difficulty_a/_b,
+# Section 2.5 battery (E1-E5). The sides differ by seat and, for the tier ladder, by --bot-difficulty-slots (Preset difficulty_a/_b,
 # A = candidate seats). Preset slots are bot-relative.
-# DECISION (Bontago-1t5.20): section 2.5 gives no seconds for E2 and E5; they use 600 like E1.
+# DECISION: section 2.5 gives no seconds for E2 and E5; they use 600 like E1.
 _HARD = "--match-seed={seed} --bot-difficulty=hard"
 _SEED = "--match-seed={seed}"
 BATTERY: Tuple[Preset, ...] = (
@@ -413,7 +413,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--pairs", type=int, default=50, help="seeds; each runs 2 matches (seats swapped)")
     ap.add_argument("--base-seed", type=int, default=1000)
     ap.add_argument("--parallel", type=int, default=1,
-                    help="concurrent matches; default 1 for the owner's CPU cap (Bontago-1t5.20)")
+                    help="concurrent matches; default 1 for the CPU cap")
     ap.add_argument("--seconds", type=float, default=300.0, help="--seconds= match bound")
     ap.add_argument("--timeout-s", type=float, default=900.0, help="hard wall-clock kill per match")
     ap.add_argument("--bots", type=int, default=8)
@@ -442,7 +442,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Optional[List[str]] = None, runner: Callable[[Sequence[str], float], str] = run_process) -> int:
     args = build_parser().parse_args(argv)
-    args.godot = godot_exe.resolve(args.godot)  # real .exe behind PATH shims (Bontago-fca.93)
+    args.godot = godot_exe.resolve(args.godot)  # real .exe behind PATH shims
 
     if args.battery:
         if not args.dry_run:

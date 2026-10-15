@@ -1,4 +1,4 @@
-# Bontago-8or.25: host + one lagged client on loopback, hard 180 s deadline.
+# host + one lagged client on loopback, hard 180 s deadline.
 param([string]$Path = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path, [int]$Port = 47793, [int]$Lag = 150, [string]$Out = $env:TEMP)
 $scene = "res://tests/enet/black_hole_enet.tscn"
 . (Join-Path $PSScriptRoot "enet_result.ps1")

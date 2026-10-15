@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Tests for bot_h2h.py (Bontago-1t5.12 gate tool; P1b options Bontago-1t5.20).
+"""Tests for bot_h2h.py (gate tool; P1b options).
 
 Fake runner only: no Godot is launched. Run with:
     python -I tools/test_bot_h2h.py
@@ -142,7 +142,7 @@ class P1bOptionTests(unittest.TestCase):
 
 
 class HarnessAOptionTests(unittest.TestCase):
-    """Bontago-1t5.28: round timer default, per-side difficulty, passive-seat slot mapping."""
+    """round timer default, per-side difficulty, passive-seat slot mapping."""
 
     def _lines(self, argv: list) -> list:
         rc, text = _run(["--dry-run"] + argv)
@@ -193,7 +193,7 @@ class HarnessAOptionTests(unittest.TestCase):
 
 
 class StatsTests(unittest.TestCase):
-    """Bontago-1t5.56: --stats parses stats= (slot:placed/lost/peak/peak180)."""
+    """--stats parses stats= (slot:placed/lost/peak/peak180)."""
 
     LINE = ("HEADLESS_MATCH index=0 mode=3 seed=1 duration=180.0 winner_team=-1 timeout=1 "
             "stats=0:40/0/22.0/20.0,1:30/3/10.0/8.0,2:30/1/14.0/12.0,3:20/0/18.0/16.0")
