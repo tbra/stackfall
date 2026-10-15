@@ -1,24 +1,24 @@
 class_name TiltTuning
 extends Resource
-## Spring-damper tunables for the SPECIALS_ONLY disk tilt (spec 2.1, 2.7, 3.5).
+## Spring-damper tunables for the SPECIALS_ONLY disk tilt (spec 1.7, 1.2, 2.7).
 ## Loaded once as config/physics/tilt_tuning.tres and read only by Field; nothing else
 ## should reach into a special's own params to tilt the disk directly -- that
 ## is exactly what Field.apply_tilt_impulse() is for.
 
-## Spec 3.5 "12 deg maximum... implementation choice, not an original
+## Spec 2.7 "12 deg maximum... implementation choice, not an original
 ## measurement". No single impulse, or any number of impulses landing in one
 ## physics frame, may push the tilt vector's magnitude past this.
 @export var max_tilt_deg: float = 12.0
 
-## Spec 3.5 "approximately 4 s return". The tilt vector is driven by a
-## critically damped spring (spec 3.5: "a critically damped spring on its
+## Spec 2.7 "approximately 4 s return". The tilt vector is driven by a
+## critically damped spring (spec 2.7: "a critically damped spring on its
 ## tilt vector"), so this is read as the spring's characteristic decay time,
 ## not a literal settle-to-zero deadline -- a real damped exponential never
 ## reaches exactly zero.
 @export var return_time_constant_s: float = 4.0
 
-## M6 B5 (spec 2.1/2.7): PHYSICAL_BALANCE tilt's kinematic-torque
-## approximation (docs/archive/M6_PLAN.md DECISION, owner-approved Bontago-keo.16)
+## M6 B5 (spec 1.7/1.2): PHYSICAL_BALANCE tilt's kinematic-torque
+## approximation (M6 plan DECISION, approved)
 ## scales BlockRegistry.settled_torque_samples()'s summed mass * disk-local
 ## lever-arm (kg*m) into the same acceleration term the spring already
 ## integrates in Field._update_tilt() -- so the steady tilt under a constant
@@ -27,7 +27,7 @@ extends Resource
 ## PHYSICAL_BALANCE match then tilts only from apply_tilt_impulse() specials,
 ## same as SPECIALS_ONLY).
 ##
-## DECISION (config/physics/TiltTuning.gd, M6 B5, Bontago-keo.11 follow-up): spec 2.1
+## DECISION (config/physics/TiltTuning.gd, M6 B5 follow-up): spec 1.7
 ## flags PHYSICAL_BALANCE's "feasibility still to be benchmarked", so there is
 ## no measured original value to match -- this is picked from the spring's
 ## own equilibrium plus one empirical benchmark finding, not trial and error
@@ -81,7 +81,7 @@ extends Resource
 ## the disk's tilt angle, so a second angle-only cap would not have helped.
 @export var physical_balance_torque_gain: float = 0.00002
 
-## DECISION (config/physics/TiltTuning.gd, M6 B5, Bontago-keo.11 follow-up 2): Field
+## DECISION (config/physics/TiltTuning.gd, M6 B5 follow-up 2): Field
 ## extends AnimatableBody3D, and sync_to_physics writes `transform` to the
 ## physics server every physics tick regardless of whether the value actually
 ## changed (Field._apply_tilt_transform(), called unconditionally from
@@ -91,7 +91,7 @@ extends Resource
 ## nonzero (if vanishingly small) value forever, and Jolt keeps treating a
 ## kinematic body that is still nominally "moving" every tick as active,
 ## which keeps every resting block contacting it awake too -- confirmed by
-## bench_physical_balance's own evidence (Bontago-keo.11 follow-up 2): after
+## bench_physical_balance's own evidence (follow-up 2): after
 ## the torque latch fixed the limit cycle, final_tilt_deg matched max_tilt_deg
 ## (no more runaway creep or oscillation -- the spring genuinely converged to
 ## its analytic equilibrium) and max_top_drift_m stayed far under the bound,
@@ -102,7 +102,7 @@ extends Resource
 ## forever: once snapped, _tilt stops changing bit-for-bit (adding a zero
 ## velocity * delta changes nothing), so _apply_tilt_transform() writes the
 ## same transform every subsequent tick and Jolt can finally let contacting
-## blocks sleep, exactly as spec 3.5's "critically damped spring" already
+## blocks sleep, exactly as spec 2.7's "critically damped spring" already
 ## implies it eventually should (a real damped spring is also only ever
 ## "settled" up to some measurement floor, never exactly).
 ##
@@ -171,7 +171,7 @@ extends Resource
 @export var tilt_settle_relative_epsilon: float = 0.01
 @export var tilt_settle_floor_rad: float = 0.0001
 
-## Bontago-b0w rest deadband. Once |_tilt_velocity| < rest_velocity_rad_s and the
+## rest deadband. Once |_tilt_velocity| < rest_velocity_rad_s and the
 ## error toward the spring's target is < rest_position_rad for rest_hold_s, Field
 ## zeroes the velocity and stops writing its transform (the kinematic disc is truly
 ## static, so blocks on it can sleep). It wakes only when the target moves more than

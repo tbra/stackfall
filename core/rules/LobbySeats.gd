@@ -1,6 +1,6 @@
 class_name LobbySeats
 extends RefCounted
-## Pure lobby seat model for the lobby rework (Bontago-1pi.53, docs/LOBBY_REWORK_PLAN.md
+## Pure lobby seat model for the lobby rework (docs/LOBBY_REWORK_PLAN.md
 ## section 3). The lobby keeps ONE seat table, next to "roster" in the lobby data:
 ##
 ##   { "humans": [ {"peer_id": int, "color": int, "team": int} ],
@@ -394,7 +394,7 @@ static func apply_human_pref(seats: Dictionary, peer_id: int, color_index: int, 
 ## peer missing from it, or with a negative slot, is a spectator and holds no seat);
 ## an EMPTY dictionary means "no Net": humans take slots 0.. in seat order (tests,
 ## offline). The slot count is the seated humans + bots, at least
-## MatchConfig.PLAYER_COUNT_MIN (1, owner decision Bontago-1pi.206): a solo lobby
+## MatchConfig.PLAYER_COUNT_MIN (1): a solo lobby
 ## forms exactly one slot and no vacant one. Reports an error instead of a
 ## layout when there are more than 8 seats or a human's real slot is not below the
 ## trailing bot slots (two seats in one slot: Net reuses the lowest free slot for a

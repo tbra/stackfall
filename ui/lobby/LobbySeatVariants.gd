@@ -1,6 +1,6 @@
 class_name LobbySeatVariants
 extends RefCounted
-## The lobby players row's switchable looks (Bontago-1pi.159.43, round 2). One shared LobbySeatRow
+## The lobby players row's switchable looks (round 2). One shared LobbySeatRow
 ## builds every look for BOTH the vs-bots and the hosted lobby; the panel arranges the rows
 ## (flat list, team groups, a two-column card grid). Only CLASSIC ships: the others are chosen
 ## from the debug-only "Row style" dropdown at the top of the Players panel (DebugMode on).
@@ -10,7 +10,7 @@ enum Style { CLASSIC, SLOT, GROUPED, CARDS }
 const NAMES: Array[String] = ["Classic row", "Slot (state right)", "Team groups", "Seat cards"]
 
 ## The look chosen this session (the dropdown writes it; a panel rebuilt on re-entering the lobby keeps it).
-# DECISION (Bontago-1pi.159.43): a static session value, not a saved setting: the switch is an owner
+# DECISION: a static session value, not a saved setting: the switch is a
 # comparison tool, so it costs nothing to persist and the shipped default stays CLASSIC.
 static var chosen: int = Style.CLASSIC
 

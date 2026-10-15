@@ -1,8 +1,8 @@
 class_name SnowEffect
 extends WeatherEffect
-## Snow's host physics (Bontago-22y.6): bounded, colliding accumulation on the
+## Snow's host physics: bounded, colliding accumulation on the
 ## tops of settled blocks and on the disc, melted away by a melt clock that
-## starts when snowfall stops (Bontago-mp0.97).
+## starts when snowfall stops.
 ## Named by config/weather/snow.tres `effect_script`; MatchWeather creates one
 ## per snow event on the host only. Clients never run this: they draw the
 ## replicated patch list (net/SnowNet.gd) with the same SnowCapBuilder code,
@@ -38,7 +38,7 @@ extends WeatherEffect
 
 enum Work { GROW, MELT }
 
-## Owner id of disc work items (block items use the block's instance id).
+## Owning id of disc work items (block items use the block's instance id).
 const DISC_ITEM: int = -1
 const WORK_STRIDE: int = 3
 ## Disc drift placement: tries per wanted drift, and the share of tries
@@ -86,8 +86,8 @@ var _world_overridden: bool = false
 var _blocks: Dictionary = {}
 var _disc: Dictionary = {}
 var _disc_prepared: bool = false
-## Work items as (kind, owner, index) triplets. PackedInt64Array because an
-## owner is a 64-bit instance id (a Vector3i would truncate it).
+## Work items as (kind, owning id, index) triplets. PackedInt64Array because an
+## owning id is a 64-bit instance id (a Vector3i would truncate it).
 var _queue: PackedInt64Array = PackedInt64Array()
 var _queue_head: int = 0
 var _growth_acc: float = 0.0

@@ -1,6 +1,6 @@
 class_name BotThinkCostReport
 extends RefCounted
-## Bontago-1t5.62: one window of Hard-bot think cost records (a slot's, or every bot's). Aggregates
+## one window of Hard-bot think cost records (a slot's, or every bot's). Aggregates
 ## BotThink.stats_record() plus the controller's snapshot / frame timings into mean / p50 / p95 / max per
 ## phase, the PROBE split, the work outside BotThink, the think latency and the per-frame bot time, and
 ## renders `BOT_THINK_COST ...` lines plus a short human table. Pure: no scene tree. `capacity` > 0 keeps a
@@ -70,7 +70,7 @@ func clear() -> void:
 	_frame_head = 0
 
 
-## Bontago-1t5.67: {thinks, count, share_pct, sites} for the zero-targeted FILL fallback in this window.
+## {thinks, count, share_pct, sites} for the zero-targeted FILL fallback in this window.
 func fill_fallback_stats() -> Dictionary:
 	var flags: PackedInt64Array = _column("fill_fallback")
 	var n: int = _sum(flags)

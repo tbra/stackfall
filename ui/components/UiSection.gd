@@ -4,7 +4,7 @@ extends VBoxContainer
 ## panel (the section's caption with an optional icon on the left, a dust one-line summary of the
 ## current values on the right, never collapsible) over a main body that is always shown, and an
 ## optional Advanced block behind a disclosure bar (rim caret + "ADVANCED"). Only the Advanced
-## block collapses. Moved here from the old lobby section block (Bontago-1pi.53 / .61 / .83 / mp0.124).
+## block collapses. Moved here from the old lobby section block (/ .61 / .83 / mp0.124).
 ##
 ## **Scene convention** (the section builds only its own header and bar; every setting control
 ## stays an authored node so its `%UniqueName` keeps resolving, and nothing is reparented at
@@ -159,13 +159,13 @@ func has_advanced() -> bool:
 	return advanced != null
 
 
-## True while the viewport's focus owner is this section's bar or any control inside it.
+## True while the viewport's focused control is this section's bar or any control inside it.
 func has_focus_inside() -> bool:
 	var focus_owner: Control = _focus_owner()
 	return focus_owner != null and (focus_owner == self or is_ancestor_of(focus_owner))
 
 
-## True while the focus owner sits inside [param node] (itself or a descendant).
+## True while the focused control sits inside [param node] (itself or a descendant).
 func _focus_in(node: Control) -> bool:
 	var focus_owner: Control = _focus_owner()
 	return node != null and focus_owner != null and (focus_owner == node or node.is_ancestor_of(focus_owner))

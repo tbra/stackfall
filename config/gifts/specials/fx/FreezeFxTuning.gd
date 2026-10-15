@@ -1,7 +1,7 @@
 class_name FreezeFxTuning
 extends Resource
 ## Presentation tunables for the Freeze activation burst (game/gifts/specials/fx/FreezeBurst.gd,
-## Bontago-a3z), drawn by GiftFxPresenter on every peer. Loaded from
+## ), drawn by GiftFxPresenter on every peer. Loaded from
 ## config/gifts/specials/fx/freeze_fx_tuning.tres. Visual-only: not in the F4 tuning panel.
 ## The frost ring grows to the special's own FreezeEffect.freeze_radius_m.
 

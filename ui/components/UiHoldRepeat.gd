@@ -1,7 +1,7 @@
 class_name UiHoldRepeat
 extends RefCounted
 ## The shared pad / key / mouse hold-repeat of the menu value controls (UiStepper, UiSegmentMeter;
-## Bontago-1pi.159.10, folded from the per-control copies of 1pi.159.5 / 159.7 and the old
+## folded from the per-control copies of 1pi.159.5 / 159.7 and the old
 ## SliderNav.Repeater of 1pi.119 / 1pi.142 / 1pi.152).
 ##
 ## One press moves one step and the event is accepted. Holding repeats after

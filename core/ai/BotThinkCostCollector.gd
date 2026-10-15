@@ -1,10 +1,10 @@
 class_name BotThinkCostCollector
 extends RefCounted
-## Bontago-1t5.62: the opt-in sink of Hard-bot think cost records. One process-wide instance exists only
+## the opt-in sink of Hard-bot think cost records. One process-wide instance exists only
 ## while the report is on: `current()` is null otherwise, and BotController then takes no clock reads and
 ## allocates no record. It keeps a BotThinkCostReport per bot slot plus an all-bots aggregate (rolling
 ## windows of `window_thinks` when > 0, unbounded when 0).
-## DECISION (Bontago-1t5.62): reached through this static registry, not an autoload or a node path, so
+## DECISION: reached through this static registry, not an autoload or a node path, so
 ## the F2 overlay and the headless flow both read `BotThinkCostCollector.current()` without wiring.
 ## Bots run on the host only: on a client nothing feeds it, current() stays null or has_data() is false.
 

@@ -1,31 +1,31 @@
 class_name MatchConfig
 extends Resource
-## Every lobby setting from spec 2.8, plus the player palette, serializable to
+## Every lobby setting from spec 1.9, plus the player palette, serializable to
 ## a Dictionary so M3 can send it over an RPC or store it as Steam lobby data
-## (spec 3.4, 3.6).
+## (spec 2.6, 2.8).
 ##
 ## Loaded once as config/match/match_defaults.tres. Match.start_match() takes a
 ## duplicate, never the shared resource, so a match can never write back into
 ## the defaults on disk.
 
-## Spec 2.8 "Teams: Off / 2 / 3 / 4".
+## Spec 1.9 "Teams: Off / 2 / 3 / 4".
 enum TeamMode { OFF, TEAMS_2, TEAMS_3, TEAMS_4 }
 enum AiDifficulty { EASY, NORMAL, HARD }
-## Spec 2.1.
+## Spec 1.7.
 enum TiltMode { SPECIALS_ONLY, PHYSICAL_BALANCE }
-## Spec 2.2. TEMPORARY closes a hole hole_close_delay after the overlap ends;
+## Spec 1.5. TEMPORARY closes a hole hole_close_delay after the overlap ends;
 ## PERMANENT never closes it, so the board erodes over the match. OFF is the
 ## no-overlap v2 mode (docs/TERRITORY_V2_PLAN.md): no floor holes at all,
 ## ownership decided by TerritoryRaster's argmax fill.
 ##
-## DECISION (config/match/MatchConfig.gd, Bontago-cmc.7): reverted to TEMPORARY as
-## the default. SPEC.md's 2026-09-20 evidence audit ("Decisions made — current
+## DECISION (config/match/MatchConfig.gd): reverted to TEMPORARY as
+## the default. SPEC.md's evidence audit ("Decisions made — current
 ## target": "restore overlap holes as the fidelity target... The no-overlap v2
-## mode is optional, not the default") supersedes the earlier owner answer
+## mode is optional, not the default") supersedes the earlier 
 ## this comment used to cite -- the installed original's own tutorial text
 ## confirms overlap sinking (docs/ORIGINAL_INSTALL_EVIDENCE.md), which the v2
 ## OFF default contradicted. Point-ray placement, continuous solving and goal
-## no-build zones are retained owner requirements and now apply under every
+## no-build zones are retained requirements and now apply under every
 ## mode (autoload/Match.gd, core/rules/PlacementRules.gd), not just OFF.
 ##
 ## DECISION (config/match/MatchConfig.gd): OFF is **appended** rather than inserted,
@@ -34,7 +34,7 @@ enum TiltMode { SPECIALS_ONLY, PHYSICAL_BALANCE }
 ## previous build -- keeps meaning exactly what it meant.
 enum HoleMode { TEMPORARY, PERMANENT, OFF }
 
-## Weather (Bontago-22y.10, owner decisions Bontago-22y.14 and 470.1).
+## Weather.
 ## DECISION (config/match/MatchConfig.gd): a TYPE mode (STORM/RAIN/SNOW/...) is that
 ## weather active CONSTANTLY for the whole match (short start delay, then full
 ## intensity, no calm gaps); RANDOM = one type drawn at match start, then
@@ -46,8 +46,8 @@ enum HoleMode { TEMPORARY, PERMANENT, OFF }
 ## lower-casing its name.
 enum WeatherMode { OFF, STORM, RAIN, SNOW, FOG, RANDOM, CHANGING }
 
-## Lobby "Map" time of day (Bontago-470.4, owner 2026-09-30; reworked by
-## Bontago-59o.18, docs/SKY_CYCLE_DEFAULT_PLAN.md). CYCLE = the running
+## Lobby "Map" time of day (reworked by
+## docs/SKY_CYCLE_DEFAULT_PLAN.md). CYCLE = the running
 ## day/night cycle, the DEFAULT. DAY ("Sunset"), NIGHT and DAWN are that same
 ## cycle locked at a fixed phase (SkyThemeDef.locked_phase_for). RANDOM = the
 ## host picks one of the three locked ones at match start
@@ -62,18 +62,18 @@ const SKY_ID_SUNSET: String = "sunset"
 const SKY_ID_NIGHT: String = "night"
 const SKY_ID_DAWN: String = "dawn"
 const SKY_THEME_IDS: PackedStringArray = [SKY_ID_SUNSET, SKY_ID_NIGHT, SKY_ID_DAWN]
-## Bontago-59o.18 (C1b follow-up): sky_variation_seed's "not resolved" value, and the
+## C1b follow-up: sky_variation_seed's "not resolved" value, and the
 ## largest seed (a 31-bit int, so core/SkyVariation's integer hash never overflows).
 const SKY_VARIATION_SEED_UNRESOLVED: int = -1
 const SKY_VARIATION_SEED_MAX: int = 2147483647
-## Bontago-1pi.75: sky_start_phase's "not resolved" value (the cycle then opens at
+## sky_start_phase's "not resolved" value (the cycle then opens at
 ## SkyThemeDef.cycle_start_phase).
 const SKY_START_PHASE_UNRESOLVED: float = -1.0
 
-## Game mode (Bontago-22y.11). Appended-only like the other enums: ints ride
+## Game mode. Appended-only like the other enums: ints ride
 ## in to_dict() and in saved lobbies. Only the ids in SELECTABLE_GAME_MODES
 ## may be played; CAPTURE_THE_FLAG, ELIMINATION and REACH_THE_SKY are
-## RESERVED ids for Bontago-22y.7/.8/.9. A reserved or out-of-range id is
+## RESERVED ids for/.8/.9. A reserved or out-of-range id is
 ## never an error: sanitize() (host, on every config it adopts) and
 ## from_dict() (so a wire value can never start a mode with no objective)
 ## fall back to CLASSIC. A mode package makes its id selectable by adding it
@@ -86,7 +86,7 @@ const SELECTABLE_GAME_MODES: Array[int] = [
 ## Lobby labels, indexed by GameMode.
 const GAME_MODE_LABELS: PackedStringArray = ["Classic", "Capture the Flag", "Elimination", "Reach the Sky", "Domination"]
 ## Round timer (timed modes only), minutes. Classic keeps match_timer_minutes.
-## DECISION (Bontago-1pi.30, owner playtest 2026-10-03): the lobby timer is a
+## DECISION: the lobby timer is a
 ## 2-30 minute slider defaulting to 5 (was 1-40, default 10). Classic's
 ## match_timer_minutes shares ROUND_TIMER_MAX_MINUTES as its ceiling, so an old
 ## saved/remote 40 is clamped to 30 by sanitize() like any other out-of-range value.
@@ -94,24 +94,24 @@ const ROUND_TIMER_MIN_MINUTES: int = 2
 const ROUND_TIMER_MAX_MINUTES: int = 30
 ## Round length a CTF / Reach the Sky match starts from (matches round_timer_minutes).
 const ROUND_TIMER_DEFAULT_MINUTES: int = 5
-## Domination (Bontago-1pi.25) always needs a timer (it has no early win); this is
+## Domination always needs a timer (it has no early win); this is
 ## the round length it starts from when the lobby has none to carry over.
-## DECISION (Bontago-1pi.30): follows the owner's 5-minute default round timer
-## (playtest 2026-10-03) like every other timed mode.
+## DECISION: follows the owner's 5-minute default round timer
+## (playtest) like every other timed mode.
 const DOMINATION_ROUND_MINUTES_DEFAULT: int = 5
 ## Elimination alone may switch its round timer off (0): it then runs until one
 ## team is left. Every other timed mode needs a timer to end.
 const ROUND_TIMER_OFF_MINUTES: int = 0
 
-## Lobby team picks (Bontago-1pi.53): 1..TEAM_PICK_MAX are explicit lobby team
+## Lobby team picks: 1..TEAM_PICK_MAX are explicit lobby team
 ## numbers (same number = same team), TEAM_PICK_RANDOM is resolved by the host at
 ## match start (core/rules/TeamAssigner.gd). TEAM_PICK_MAX is the largest
 ## TeamMode's team count.
 const TEAM_PICK_RANDOM: int = 0
 const TEAM_PICK_MAX: int = 4
 
-## -- Spec 2.8 table, in order -----------------------------------------------
-## Bontago-1pi.107 (owner 2026-10-07): the lobby's disc-size slider step, an index
+## -- Spec 1.9 table, in order -----------------------------------------------
+## the lobby's disc-size slider step, an index
 ## into config/match/disc_size_tuning.tres (0 = tiny 50% .. 5 = enormous 175%); the
 ## default is the medium step, 100% = the unscaled default map (the one map).
 const DISC_SIZE_STEP_DEFAULT: int = 2
@@ -123,7 +123,7 @@ const DISC_SIZE_STEP_DEFAULT: int = 2
 ## Default difficulty for every bot; slot_ai_difficulties overrides it per slot.
 @export var ai_difficulty: AiDifficulty = AiDifficulty.NORMAL
 @export var team_mode: TeamMode = TeamMode.OFF
-## Lobby rework (Bontago-1pi.53, docs/LOBBY_REWORK_PLAN.md section 3). Per-seat
+## Lobby rework (docs/LOBBY_REWORK_PLAN.md section 3). Per-seat
 ## team picks live in the lobby seat table; at Start the host resolves them
 ## (core/rules/TeamAssigner.gd) and writes the result here. All three arrays are
 ## OPTIONAL and empty by default, which is exactly the legacy behaviour (teams
@@ -142,29 +142,29 @@ const DISC_SIZE_STEP_DEFAULT: int = 2
 ## Difficulty (AiDifficulty int) of the bot in each slot, indexed by slot id
 ## (entries for human slots are ignored); empty or short = ai_difficulty.
 @export var slot_ai_difficulties: PackedInt32Array = PackedInt32Array()
-## Bontago-1pi.62: the name of each bot, by bot ordinal (bot k holds slot
+## the name of each bot, by bot ordinal (bot k holds slot
 ## player_count - ai_count + k). Runtime state (exported only so duplicate() carries it): the host fills it at
 ## match start (BotNames.assign) and it rides in to_dict() so every client labels
 ## the same bots the same. Empty or short = "Player N" for the missing bots.
 @export var bot_names: PackedStringArray = PackedStringArray()
 ## Block timer in seconds, 3-12.
 @export var block_timer: float = 5.0
-## Bontago-1pi.18.1: snapshot of the host's QolExperiments (all OFF by default)
+## snapshot of the host's QolExperiments (all OFF by default)
 ## taken at start_match() and carried to clients in to_dict() (last key). Null
 ## means "no experiments", the default for every config built outside a match.
 @export var qol: QolExperiments = null
 ## Lobby gravity multiplier, GRAVITY_MIN-GRAVITY_MAX, 1.0 = the shipped feel.
-## DECISION (Bontago-59o.11): this is relative to PhysicsTuning.lobby_gravity_baseline
+## DECISION: this is relative to PhysicsTuning.lobby_gravity_baseline
 ## (the old 1.4 Heavy & Bouncy factor); start_match() writes
 ## baseline * this into the shared tuning's gravity_multiplier, so the
 ## effective default gravity is unchanged while the lobby reads 1.0.
-## [OWNER decision 2026-10-12, Bontago-1pi.179]: the lobby default stays 1.0x; the BASE gravity
+## [OWNER decision]: the lobby default stays 1.0x; the BASE gravity
 ## (PhysicsTuning.lobby_gravity_baseline) was raised 1.25x instead.
 @export var gravity_multiplier: float = GRAVITY_DEFAULT
 ## Goal flags, 1-5.
 @export var goal_flag_count: int = 1
 @export var gifts_enabled: bool = true
-## Bontago-1pi.159.60: the lobby's Experiments master switch. Off: the match starts with no QoL experiment
+## the lobby's Experiments master switch. Off: the match starts with no QoL experiment
 ## active (MatchConfig.qol_in_effect()), whatever the chips say; the chips keep their selection for when it
 ## is switched back on. Default on = the chips decide, as before.
 @export var experiments_enabled: bool = true
@@ -175,11 +175,11 @@ const DISC_SIZE_STEP_DEFAULT: int = 2
 @export var tilt_mode: TiltMode = TiltMode.SPECIALS_ONLY
 @export var hole_mode: HoleMode = HoleMode.TEMPORARY
 ## Match timer in minutes; 0 is off, otherwise up to ROUND_TIMER_MAX_MINUTES
-## (the lobby slider skips 1 so on is 2-30; spec 2.8's 10-40 was superseded by
-## the owner's 2026-10-03 playtest note, Bontago-1pi.30).
+## (the lobby slider skips 1 so on is 2-30; spec 1.9's 10-40 was superseded by
+## the note).
 @export var match_timer_minutes: int = 0
 @export var sudden_death: bool = false
-## Spec 2.7 "Turn-based [NEW]": physics settles completely before the next
+## Spec 1.2 "Turn-based [NEW]": physics settles completely before the next
 ## player's turn starts. Orthogonal to team_mode and to hot_seat (M2's own
 ## single-PC test harness, spec Part 4 M2: "must not become normal play") --
 ## turn_based is a real, networkable mode B4 implements against active_slot/
@@ -192,32 +192,31 @@ const DISC_SIZE_STEP_DEFAULT: int = 2
 ## match when it reaches zero). Ignored by CLASSIC, which keeps using
 ## match_timer_minutes + sudden_death exactly as before.
 @export var round_timer_minutes: int = ROUND_TIMER_DEFAULT_MINUTES
-## Reach the Sky only (Bontago-22y.9): false = a team's record is its best
+## Reach the Sky only: false = a team's record is its best
 ## member's, true = the sum of its members' records. A plain bool, so it needs
 ## no clamp; the host still re-types it from the wire in from_dict().
 @export var sky_team_sum: bool = false
-## Weather event schedule (Bontago-22y.10); see WeatherMode.
+## Weather event schedule; see WeatherMode.
 @export var weather_mode: WeatherMode = WeatherMode.CHANGING
-## Lobby "Map" time of day (see SkyThemeMode). DECISION (owner 2026-10-03,
-## Bontago-59o.18): default CYCLE.
+## Lobby "Map" time of day (see SkyThemeMode). DECISION: default CYCLE.
 @export var sky_theme_mode: SkyThemeMode = SkyThemeMode.CYCLE
 ## The concrete theme id the host resolved at match start ("" = not resolved
 ## yet, and "" for CYCLE, which is not a concrete theme). Rides in to_dict() so
 ## clients never roll their own.
 @export var sky_theme_resolved: String = ""
-## Bontago-59o.18 (C1b follow-up): the seed of the cycle sky's exposure / cloud
+## C1b follow-up: the seed of the cycle sky's exposure / cloud
 ## coverage variation (core/sky/SkyVariation.gd). -1 = not resolved yet. The host rolls it
 ## once per match start (resolve_sky_variation_seed) and it rides in to_dict(), so the
 ## host and every client draw the same sky and each match gets its own curve. A match
 ## with a deterministic rng_seed (>= 0) needs no roll: effective_sky_variation_seed()
 ## falls back to it, keeping seeded tests and bot loops reproducible.
 @export var sky_variation_seed: int = SKY_VARIATION_SEED_UNRESOLVED
-## Bontago-1pi.75: the phase (0..1, Skybox cycle phase) a running Cycle sky opens at.
+## the phase (0..1, Skybox cycle phase) a running Cycle sky opens at.
 ## -1 = not resolved (opens at SkyThemeDef.cycle_start_phase). The host rolls it once
 ## per match from the match seed (resolve_sky_start_phase) and it rides in to_dict(),
 ## so every peer, and the loading screen backdrop, agree. Unused by locked presets.
 @export var sky_start_phase: float = SKY_START_PHASE_UNRESOLVED
-## Spec 3.4 "Mid-match joins can be enabled in settings" (Bontago-8or.11): when
+## Spec 2.6 "Mid-match joins can be enabled in settings": when
 ## true the host admits a new peer while a match runs (an open human seat, else
 ## a spectator) and replays the world to it. Off by default, so a match stays
 ## lobby-only exactly as before. Reconnects inside NetConfig.disconnect_grace
@@ -226,7 +225,7 @@ const DISC_SIZE_STEP_DEFAULT: int = 2
 @export var allow_mid_match_join: bool = false
 
 ## -- Beyond the 2.8 table ---------------------------------------------------
-## Bontago-mp0.27: seconds of pre-match 3-2-1 countdown (spec 3.7). 0 disables it.
+## seconds of pre-match 3-2-1 countdown (spec 2.4). 0 disables it.
 ## Host-only knob, deliberately not in to_dict(): clients mirror the host's
 ## replicated countdown ticks. Sandbox matches always skip it, see
 ## effective_countdown_seconds(). Match.COUNTDOWN_SECONDS is this default.
@@ -253,7 +252,7 @@ const COUNTDOWN_SECONDS_DEFAULT: float = 3.0
 @export var rng_seed: int = -1
 
 ## True only for the unlisted `godot --path . -- --sandbox` debug entry point
-## (Bontago-mv0.8; game/main/Main.gd's _build_sandbox_config()). Never set by the
+## (game/main/Main.gd's _build_sandbox_config()). Never set by the
 ## lobby, a wire message or Steam lobby data — Main sets it only on the
 ## sandbox config it builds itself, offline.
 ##
@@ -287,18 +286,18 @@ static func default_player_colors() -> PackedColorArray:
 		Color(0.95, 0.45, 0.75),
 	])
 
-## Spec 2.8 ranges, so the lobby and the host's validation share one source.
-## [OWNER decision Bontago-1pi.206 = b]: 1-8 players (solo matches allowed).
+## Spec 1.9 ranges, so the lobby and the host's validation share one source.
+## [OWNER decision = b]: 1-8 players (solo matches allowed).
 const PLAYER_COUNT_MIN: int = 1
 const PLAYER_COUNT_MAX: int = 8
 const BLOCK_TIMER_MIN: float = 3.0
 const BLOCK_TIMER_MAX: float = 12.0
 ## Old effective range 0.5-2.0 divided by the 1.4 baseline, rounded.
-## [OWNER decision 2026-10-12, Bontago-1pi.179]: range 0.1x-2.0x.
+## [OWNER decision]: range 0.1x-2.0x.
 const GRAVITY_DEFAULT: float = 1.0
 const GRAVITY_MIN: float = 0.1
 const GRAVITY_MAX: float = 2.0
-## One step of the lobby gravity meter (Bontago-1pi.159.38): every lit cell is exactly this much, from 0 to
+## One step of the lobby gravity meter: every lit cell is exactly this much, from 0 to
 ## GRAVITY_MAX, so 1.0 is a cell and the meter has GRAVITY_MAX / GRAVITY_STEP cells.
 const GRAVITY_STEP: float = 0.1
 ## Saved/networked dicts without a "gravity_scale_version" key hold the old
@@ -310,7 +309,7 @@ const SPECIAL_FREQUENCY_MIN: int = 0
 const SPECIAL_FREQUENCY_MAX: int = 100
 
 
-## Bontago-6fc.1: the lobby shows ONE timer control whose range follows the
+## the lobby shows ONE timer control whose range follows the
 ## mode. Classic edits match_timer_minutes (0 = off); CTF and Reach the Sky edit
 ## round_timer_minutes (minimum 1); Elimination edits round_timer_minutes with 0
 ## meaning "no limit".
@@ -326,7 +325,7 @@ static func timer_min_minutes(mode: int) -> int:
 
 
 ## Value the timer control takes when the mode changes family: classic off,
-## Elimination, CTF and Sky the shipped 5-minute round (owner decision Bontago-1t5.6: Elimination is timed, most territory wins; Off stays selectable).
+## Elimination, CTF and Sky the shipped 5-minute round (Elimination is timed, most territory wins; Off stays selectable).
 static func timer_default_minutes(mode: int) -> int:
 	match resolve_game_mode(mode):
 		GameMode.CLASSIC:
@@ -337,7 +336,7 @@ static func timer_default_minutes(mode: int) -> int:
 
 
 ## Hole mode the lobby selects when the host switches INTO `mode`.
-## [OWNER decision 2026-10-12, Bontago-1pi.178]: Elimination defaults to permanent holes;
+## [OWNER decision]: Elimination defaults to permanent holes;
 ## every other mode keeps the temporary default.
 static func default_hole_mode(mode: int) -> HoleMode:
 	if resolve_game_mode(mode) == GameMode.ELIMINATION:
@@ -367,7 +366,7 @@ static func resolve_game_mode(mode: int) -> GameMode:
 	return mode as GameMode if is_game_mode_selectable(mode) else GameMode.CLASSIC
 
 
-## Bontago-6fc.2: true when `mode` plays with goal flags (Classic, CTF).
+## true when `mode` plays with goal flags (Classic, CTF).
 ## Reach the Sky and Elimination have no goal flag at all.
 static func mode_uses_goal_flags(mode: int) -> bool:
 	var resolved: GameMode = resolve_game_mode(mode)
@@ -437,7 +436,7 @@ func team_count() -> int:
 ## (TEAMS_4 with player_count == 2: team_count() returns 2, not 4, so no team
 ## is ever empty).
 ##
-## Lobby rework (Bontago-1pi.53): once the host has resolved the lobby team picks
+## Lobby rework: once the host has resolved the lobby team picks
 ## (slot_team_ids) a slot the array covers uses its resolved id; the interleave
 ## stays the fallback for everything else, so a lobby with no picks, an old
 ## config and `--bots=N` behave exactly as before.
@@ -510,7 +509,7 @@ func territory_colors() -> PackedColorArray:
 	return colors
 
 
-## Bontago-mv0.7: networked play only has as many real players as connected
+## networked play only has as many real players as connected
 ## peers, so a lobby that starts with player_count above that count leaves a
 ## slot with no peer behind it. That slot still gets a feed timer
 ## (autoload/Match.gd's _tick_feed) and auto-drops a block at its home flag on
@@ -522,8 +521,8 @@ func territory_colors() -> PackedColorArray:
 ## in config/), so ui/lobby/Lobby.gd's own DECISION on where to call this from
 ## stays the only place that needs to know about Net.
 ##
-## DECISION (config/match/MatchConfig.gd, Bontago-d5c, M5): a bot never needs a
-## connected peer behind it -- only ai_count and the spec 2.8 range bound it.
+## DECISION (config/match/MatchConfig.gd, M5): a bot never needs a
+## connected peer behind it -- only ai_count and the spec 1.9 range bound it.
 ## Humans outrank bots for the available seats: peer_count is never reduced
 ## to make room for a bot, and a stale ai_count that doesn't fit is trimmed
 ## down to whatever room is left, never zeroed outright unless there is none.
@@ -536,9 +535,9 @@ func clamp_to_connected_peers(peer_count: int) -> void:
 	player_count = clampi(peer_count + ai_count, PLAYER_COUNT_MIN, PLAYER_COUNT_MAX)
 
 
-## Clamps every field into its spec 2.8 range. The host calls this on any
+## Clamps every field into its spec 1.9 range. The host calls this on any
 ## config that arrived over the wire before using it.
-## Bontago-1pi.159.60: with the Experiments master switch off no opt-in experiment runs. Called when a
+## with the Experiments master switch off no opt-in experiment runs. Called when a
 ## match starts (MatchLifecycle), NOT from sanitize(): the lobby publishes sanitized configs and the
 ## chips must keep their selection for when the switch is turned back on.
 func apply_experiments_switch() -> void:
@@ -550,7 +549,7 @@ func sanitize() -> void:
 	var disc_tuning: DiscSizeTuning = DiscSizeTuning.shared()
 	if disc_tuning != null:
 		disc_size_step = disc_tuning.clamp_step(disc_size_step)
-	# Spec 2.8 range is 1-8 players (owner decision Bontago-1pi.206).
+	# Spec 1.9 range is 1-8 players.
 	player_count = clampi(player_count, PLAYER_COUNT_MIN, PLAYER_COUNT_MAX)
 	ai_count = clampi(ai_count, 0, player_count)
 	ai_difficulty = clampi(ai_difficulty, AiDifficulty.EASY, AiDifficulty.HARD)
@@ -759,7 +758,7 @@ func to_dict() -> Dictionary:
 ## Rebuilds a config from to_dict() output. Unknown keys keep their defaults.
 static func from_dict(data: Dictionary) -> MatchConfig:
 	var config: MatchConfig = MatchConfig.new()
-	# Absent in lobby data from before Bontago-1pi.107: the default (medium, 1.0).
+	# Absent in lobby data from before the default (medium, 1.0).
 	config.disc_size_step = int(data.get("disc_size_step", config.disc_size_step))
 	config.player_count = int(data.get("player_count", config.player_count))
 	config.ai_count = int(data.get("ai_count", config.ai_count))
@@ -767,7 +766,7 @@ static func from_dict(data: Dictionary) -> MatchConfig:
 	config.team_mode = int(data.get("team_mode", config.team_mode))
 	config.block_timer = float(data.get("block_timer", config.block_timer))
 	config.gravity_multiplier = float(data.get("gravity_multiplier", config.gravity_multiplier))
-	# DECISION (Bontago-59o.11): a dict without the version key is pre-rescale,
+	# DECISION: a dict without the version key is pre-rescale,
 	# so its multiplier was absolute; convert to the new baseline-relative scale.
 	if data.has("gravity_multiplier") and not data.has("gravity_scale_version"):
 		config.gravity_multiplier /= LEGACY_GRAVITY_BASELINE
@@ -801,7 +800,7 @@ static func from_dict(data: Dictionary) -> MatchConfig:
 	var start_phase: Variant = data.get("sky_start_phase", config.sky_start_phase)
 	if start_phase is int or start_phase is float:
 		config.sky_start_phase = clampf(float(start_phase), SKY_START_PHASE_UNRESOLVED, 1.0)
-	# Host-validated (Bontago-8or.11): bool("false") is true, so a String or
+	# Host-validated: bool("false") is true, so a String or
 	# any other type from Steam lobby data or an old build keeps the default.
 	var mid_match_join: Variant = data.get("allow_mid_match_join", config.allow_mid_match_join)
 	if mid_match_join is bool:
@@ -856,7 +855,7 @@ static func _int_array_from(value: Variant) -> PackedInt32Array:
 	return parsed
 
 
-## Bontago-mp0.27. # DECISION: sandbox (and the tutorial, which is a sandbox
+## . # DECISION: sandbox (and the tutorial, which is a sandbox
 ## config) skip the countdown: a lone tester wants to place immediately.
 ## Headless bot matches set countdown_seconds = 0 in Main.
 func effective_countdown_seconds() -> float:

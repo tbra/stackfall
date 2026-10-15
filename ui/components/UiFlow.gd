@@ -1,6 +1,6 @@
 class_name UiFlow
 extends HFlowContainer
-## Bontago-1pi.159.31: a wrapping row whose horizontal and vertical gaps come from config values, so
+## a wrapping row whose horizontal and vertical gaps come from config values, so
 ## screens set `h_gap_px` / `v_gap_px` instead of per-node theme overrides (lint_ui_components R2).
 ## The overrides live here, inside ui/components, the one place allowed to style through the theme API.
 

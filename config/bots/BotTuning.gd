@@ -1,6 +1,6 @@
 class_name BotTuning
 extends Resource
-## Bot AI tunables (spec 2.9): one BotDifficultyProfile per
+## Bot AI tunables (spec 1.8): one BotDifficultyProfile per
 ## MatchConfig.AiDifficulty value, plus the timing, special and
 ## stability tunables shared across every difficulty. Loaded once as config/bots/bot_tuning.tres.
 
@@ -9,15 +9,15 @@ extends Resource
 @export var hard: BotDifficultyProfile
 
 ## Per-bot phase offset so N bots' think-ticks don't all land on one frame
-## (spec 2.9: "for multiple bots it spreads its thinking across several
+## (spec 1.8: "for multiple bots it spreads its thinking across several
 ## frames").
 @export var think_phase_jitter_s: float = 0.4
 
 ## Hard bound on the physics ticks one think-cycle may run (BotController THINKING state), and the
 ## ceiling of a tier's decision deadline (BotDifficultyProfile.generation_ticks).
 @export var max_generation_frames: int = 40
-## Bontago-d5c.2 (review fix, append-only per docs/archive/M5_PLAN.md's "if you need
-## a new numeric... add it as an @export on BotTuning, append-only"): seconds
+## review fix, append-only per docs/archive/M5_PLAN.md's "if you need
+## a new numeric... add it as an @export on BotTuning, append-only": seconds
 ## BotController._apply_rejection_backoff() holds a bot in IDLE after
 ## request_place()/request_throw() comes back with anything but
 ## PlacementRules.REASON_OK, so a rejected placement (e.g. another block
@@ -26,10 +26,10 @@ extends Resource
 ## rejected request.
 @export var rejection_backoff_s: float = 0.5
 
-## Reaction delay (s) for a piece carrying a held special (Bontago-1t5.2).
+## Reaction delay (s) for a piece carrying a held special.
 @export var gift_use_delay_s: float = 0.25
 
-## P3 (Bontago-d5c.4, append-only per docs/archive/M5_PLAN.md's "if you need a new
+## P3 (append-only per docs/archive/M5_PLAN.md's "if you need a new
 ## numeric... add it as an @export on BotTuning, append-only"): core/ai/
 ## BotSpecialPlanner.gd's Bomb heuristic (a thrown special) needs its own
 ## pre-clamp launch-speed and loft tunables -- the planner is never handed a
@@ -50,8 +50,8 @@ extends Resource
 ## code with no SpecialTuning reference.
 @export var special_throw_loft_ratio: float = 0.6
 
-## Bontago-d5c.8 (M5 P3b-ii, append-only per docs/archive/M5_PLAN.md's "if you need a
-## new numeric... add it as an @export on BotTuning, append-only"): how close
+## M5 P3b-ii, append-only per docs/archive/M5_PLAN.md's "if you need a
+## new numeric... add it as an @export on BotTuning, append-only": how close
 ## (meters) a BotThink cube probe's
 ## own hit height must land to that candidate's own `support_height` to count
 ## as "in contact" for BotCandidate.corner_support_hits -- a small slack
@@ -64,12 +64,12 @@ extends Resource
 @export var dom_leader_sample_cap: int = 48
 
 
-## Black hole (Bontago-8or.27, BotSpecialPlanner.plan_v2): penalty per own circle the pull radius
+## Black hole (BotSpecialPlanner.plan_v2): penalty per own circle the pull radius
 ## would drag in, and the least net score worth spending the special on.
 @export var black_hole_own_penalty: float = 1.5
 @export var black_hole_min_net_score: float = 1.0
 
-## Bot V2 specials (Bontago-1t5.24, BotSpecialPlanner.plan_v2). Reach: how far (m) beyond own
+## Bot V2 specials (BotSpecialPlanner.plan_v2). Reach: how far (m) beyond own
 ## land an offensive target may sit. Min downstream: fewest circles a joint must cut off to be
 ## worth an area special. Height tiebreak: score per metre of tower height. Throw tolerance: how
 ## far (m) the nearest own release point may be from the host's fixed throw range. Paintball min
@@ -84,7 +84,7 @@ extends Resource
 ## Slack (m) added to a placed special's effect radius when snapping it to own land.
 @export var special_v2_effect_margin_m: float = 1.0
 
-## Bontago-1pi.175: once a bot's plan is ready it holds the piece for a seeded random delay in
+## once a bot's plan is ready it holds the piece for a seeded random delay in
 ## [release_delay_min_s, release_delay_max_s] seconds before releasing, so bots no longer all
 ## drop on the same tick. The hold is always cut short so the release lands at least
 ## release_safety_margin_s before the block timer expires (the host's forced auto-drop).
@@ -92,7 +92,7 @@ extends Resource
 @export var release_delay_max_s: float = 1.5
 @export var release_safety_margin_s: float = 0.5
 
-## Bontago-1t5.43: short block timers. The reaction delay and the V2 think deadline are clamped so the
+## short block timers. The reaction delay and the V2 think deadline are clamped so the
 ## plan is ready timer_plan_margin_s before the host's auto-drop and the bot keeps at least
 ## timer_min_think_s of think time (the reaction delay never eats it). Normal timers are unaffected.
 @export var timer_plan_margin_s: float = 0.5

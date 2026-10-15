@@ -1,6 +1,6 @@
 class_name NetConfig
 extends Resource
-## Every tunable number the M3a network stack uses (spec 3.4, docs/archive/M3a_PLAN.md).
+## Every tunable number the M3a network stack uses (spec 2.6, docs/archive/M3a_PLAN.md).
 ##
 ## CLAUDE.md: "No magic numbers. Every tunable value belongs in a Resource
 ## under res://config/." Nothing in autoload/Net.gd, net/*.gd or core/net/*.gd
@@ -8,18 +8,18 @@ extends Resource
 ## config/net/net_config.tres; callers that mutate it (the debug overlay's lag
 ## sliders) must duplicate() first, exactly as Match does with MatchConfig.
 
-# --- Ports and session (spec 3.4 "LAN discovery") ---------------------------
+# --- Ports and session (spec 2.6 "LAN discovery") ---------------------------
 
 ## UDP port the host broadcasts its game advert on, and clients listen on.
 @export var discovery_port: int = 47777
 ## Default ENet game port. --port= overrides it so several hosts can share a PC.
 @export var game_port: int = 47778
-## Spec 2.8: 2-8 players, so at most 7 remote peers plus the listen-server host.
+## Spec 1.9: 2-8 players, so at most 7 remote peers plus the listen-server host.
 @export var max_peers: int = 8
-## Longest player name, in characters, the host accepts (Bontago-1pi.49). The
+## Longest player name, in characters, the host accepts. The
 ## menu's name field, Settings and the host's handshake check all use it.
 @export var max_player_name_length: int = 16
-## How often the host sends its LAN advert, in Hz (spec 3.4: "once per second").
+## How often the host sends its LAN advert, in Hz (spec 2.6: "once per second").
 @export var discovery_broadcast_hz: float = 1.0
 ## Seconds a discovered game stays in the browser list after its last advert.
 @export var discovery_entry_ttl: float = 3.0
@@ -46,7 +46,7 @@ extends Resource
 ## Seconds a slot whose peer vanished keeps its territory before Match
 ## eliminates it. See docs/archive/M3a_PLAN.md "Questions for the owner" 3.
 @export var disconnect_grace: float = 10.0
-## Host: per-peer flood limit on Net.request_seat_pref (Bontago-1pi.53), a token
+## Host: per-peer flood limit on Net.request_seat_pref, a token
 ## bucket. This is its size: how many colour/team requests a seated peer may send
 ## back to back (every request drains a token, valid or not). Each accepted
 ## request makes the lobby republish its data to every peer, so an unthrottled
@@ -57,11 +57,11 @@ extends Resource
 ## Requests per second the seat-preference bucket refills (see seat_pref_burst).
 @export var seat_pref_refill_per_s: float = 3.0
 
-# --- Steam lobby (spec 3.4, docs/archive/M3b_PLAN.md P1) ----------------------------
+# --- Steam lobby (spec 2.6, docs/archive/M3b_PLAN.md P1) ----------------------------
 
 ## Steam.LOBBY_TYPE_* ordinal passed to SteamClient.create_lobby(). Default
-## FriendsOnly (owner decision, docs/archive/M3b_PLAN.md "Questions for the owner":
-## answered 2026-09-19). Verified against the installed GodotSteam 4.22.1
+## FriendsOnly (docs/archive/M3b_PLAN.md "Questions for the user":
+## answered). Verified against the installed GodotSteam 4.22.1
 ## addon on this machine (netcode-F-probe_lobby_const.log):
 ## Steam.LOBBY_TYPE_PRIVATE=0, LOBBY_TYPE_FRIENDS_ONLY=1, LOBBY_TYPE_PUBLIC=2,
 ## LOBBY_TYPE_INVISIBLE=3, LOBBY_TYPE_PRIVATE_UNIQUE=4 — this is Valve's own
@@ -70,7 +70,7 @@ extends Resource
 ## into the Steam singleton via a duck-typed .call(), which cannot accept a
 ## GDScript enum type either way.
 @export var steam_lobby_type: int = 1
-## Valve's LOBBY_TYPE_PUBLIC ordinal (see the list above). Bontago-1pi.48: Steam's
+## Valve's LOBBY_TYPE_PUBLIC ordinal (see the list above). Steam's
 ## RequestLobbyList() never returns FriendsOnly lobbies (they are for friends and
 ## invitees, not the lobby list), so the Join > Steam list could not find a
 ## friend's lobby; `--steam-public-lobby` (passed by the playtest Steam launcher)
@@ -93,7 +93,7 @@ const STEAM_LOBBY_TYPE_PUBLIC: int = 2
 ## servers from every client's menu screen.
 @export var steam_lobby_list_refresh_s: float = 5.0
 
-# --- Channels (spec 3.4 "Channels") -----------------------------------------
+# --- Channels (spec 2.6 "Channels") -----------------------------------------
 #
 # Reliable gameplay RPCs (lobby, spawn/despawn, raster diffs, win) ride the
 # default channel 0. Snapshots and cursors get their own so a burst of either
@@ -103,47 +103,47 @@ const STEAM_LOBBY_TYPE_PUBLIC: int = 2
 # architecture, not tunables — the same reason Match.COUNTDOWN_SECONDS is a
 # const (CLAUDE.md's "no magic numbers" targets tunables).
 
-# --- Rates (spec 3.4, 3.7) --------------------------------------------------
+# --- Rates (spec 2.6, 2.4) --------------------------------------------------
 
-## Body snapshots per second (spec 3.4: "Rate: 30 Hz").
+## Body snapshots per second (spec 2.6: "Rate: 30 Hz").
 @export var snapshot_hz: float = 30.0
-## Territory raster diffs per second (spec 3.7: "Territory diffs are sent to
+## Territory raster diffs per second (spec 2.4: "Territory diffs are sent to
 ## clients at 5 Hz").
 @export var raster_diff_hz: float = 5.0
-## Cursor updates per second, client -> host and host -> clients (spec 3.4:
+## Cursor updates per second, client -> host and host -> clients (spec 2.6:
 ## "update_cursor(pos): unreliable, 15 Hz").
 @export var cursor_hz: float = 15.0
-## Bontago-1pi.69: live scoreboard snapshots per second, host -> clients.
+## live scoreboard snapshots per second, host -> clients.
 @export var scoreboard_hz: float = 2.0
 
-# --- Snapshot packing (spec 3.4 "Snapshots") --------------------------------
+# --- Snapshot packing (spec 2.6 "Snapshots") --------------------------------
 
-## Hard cap on one snapshot fragment, in bytes (spec 3.4: "Split into several
+## Hard cap on one snapshot fragment, in bytes (spec 2.6: "Split into several
 ## packets if needed to stay under ~1200 bytes each").
 @export var max_packet_bytes: int = 1200
 ## Position quantization bounds in X/Z, as a multiple of MapDef.field_radius.
 ## 1.5 x 45 m gives +-67.5 m, so an int16 axis step is 135/65536 = 2.1 mm —
-## inside spec 3.4's "≈1-2 mm precision". Raising this coarsens every axis.
+## inside spec 2.6's "≈1-2 mm precision". Raising this coarsens every axis.
 @export var pos_xz_margin: float = 1.5
 ## Absolute lower Y bound of the quantized volume, in meters. Must bracket
 ## PhysicsTuning.kill_plane_y (-40) below.
 @export var pos_min_y: float = -48.0
-## Bontago-1pi.165: the tallest tower height the match must support (disc top
+## the tallest tower height the match must support (disc top
 ## is world y 0), in meters. Reach the Sky's target height feeds this (set it
 ## >= that target); the band top is derived from it, never hard-coded.
 @export var build_height_target_m: float = 100.0
 ## Meters of headroom above build_height_target_m: the held ghost hovers above
 ## the tower, and a released block rises a little before it settles.
 @export var build_height_margin_m: float = 50.0
-## World y of the disc surface (spec 3.4: y 0 is the disc top).
+## World y of the disc surface (spec 2.6: y 0 is the disc top).
 @export var disc_surface_y: float = 0.0
 ## Top of the quantized volume (derived, read-only): disc + target + margin =
 ## 150 m by default. Over pos_min_y..this (198 m) an int16 axis is a ~3.0 mm
-## step (spec 3.4).
+## step (spec 2.6).
 var pos_max_y: float:
 	get:
 		return disc_surface_y + build_height_target_m + build_height_margin_m
-## Spec 3.4: "Every 2 s, send a full keyframe for sleeping bodies at a low
+## Spec 2.6: "Every 2 s, send a full keyframe for sleeping bodies at a low
 ## rate." Sleepers are sent round-robin so each one is refreshed this often.
 @export var keyframe_interval: float = 2.0
 ## A sleeping body is re-sent early if it drifted further than this since the
@@ -153,9 +153,9 @@ var pos_max_y: float:
 ## Same, for rotation, in degrees.
 @export var resend_angle_epsilon: float = 0.5
 
-# --- Client interpolation (spec 3.4 "Client interpolation") -----------------
+# --- Client interpolation (spec 2.6 "Client interpolation") -----------------
 
-## Spec 3.4: "Render 100 ms behind the host". This is the floor the adaptive
+## Spec 2.6: "Render 100 ms behind the host". This is the floor the adaptive
 ## delay starts from, in milliseconds.
 @export var base_interp_delay_ms: float = 100.0
 @export var min_interp_delay_ms: float = 50.0
@@ -166,7 +166,7 @@ var pos_max_y: float:
 ## EMA weight for both the jitter estimate and the delay itself, per snapshot.
 ## Small means slow, stable adaptation; 1.0 means snap to the newest reading.
 @export var interp_delay_smoothing: float = 0.1
-## Spec 3.4: "If snapshots are late, extrapolate for at most 100 ms."
+## Spec 2.6: "If snapshots are late, extrapolate for at most 100 ms."
 @export var max_extrapolation_ms: float = 100.0
 ## Samples kept per body. At 30 Hz this is half a second of history, enough for
 ## max_interp_delay_ms plus a late packet.
@@ -175,14 +175,14 @@ var pos_max_y: float:
 ## fraction of real time per second. Above ~0.2 the correction is visible.
 @export var clock_correction_rate: float = 0.15
 
-# --- Intents (spec 3.4 "Client -> host intents") ----------------------------
+# --- Intents (spec 2.6 "Client -> host intents") ----------------------------
 
 ## Seconds a client keeps its ghost locked after sending a place intent, if no
 ## feed_block_issued for its slot arrives. Stops a double click from spending
 ## two blocks; see docs/archive/M3a_PLAN.md "Never duplicated, never lost".
 @export var intent_ack_timeout: float = 1.0
 ## Host: seconds a mid-match joiner may take to acknowledge its world replay
-## before it is dropped (Bontago-8or.11).
+## before it is dropped.
 @export var replay_ack_timeout: float = 15.0
 
 # --- Territory replication --------------------------------------------------
@@ -190,11 +190,11 @@ var pos_max_y: float:
 ## When more than this fraction of cells changed since the last diff, send a
 ## full compressed raster instead of a cell-by-cell diff.
 @export var raster_full_threshold_fraction: float = 0.35
-## Compress raster payloads with PackedByteArray.compress (spec 3.4: "territory
+## Compress raster payloads with PackedByteArray.compress (spec 2.6: "territory
 ## raster diffs (sent compressed at 5 Hz)").
 @export var raster_compress: bool = true
 
-# --- Replicated block impacts (Bontago-1pi.55) ------------------------------
+# --- Replicated block impacts ------------------------------
 #
 # Only the host runs physics, so only the host's Block detects landings;
 # net/MatchNet.gd batches them to clients (core/net/ImpactWire.gd). Cosmetic

@@ -2,14 +2,14 @@ class_name BeaconVisualTuning
 extends Resource
 ## Sizes, colors and emission strengths for the procedural "beacon" that
 ## replaces the M2 pole-and-banner placeholder on both HomeFlag and GoalFlag
-## (M7 P8, Bontago-xtq.33; docs/M7_ART_DIRECTION.md Q6: "procedural home
+## (M7 P8, docs/M7_ART_DIRECTION.md Q6: "procedural home
 ## beacons (socket + luminous ring + faceted crystal) replace the pennants; a
 ## neutral variant for the goal flag").
 ##
 ## Every beacon is three MeshInstance3D pieces built from primitives/an
 ## ArrayMesh in HomeFlag._build() -- no imported art assets, no shader (P2
 ## owns toon shading; these stay plain StandardMaterial3D):
-## - Socket: a low cylinder, always socket_color regardless of owner.
+## - Socket: a low cylinder, always socket_color regardless of owning slot.
 ## - Ring: a flat annulus lying on top of the socket, tinted the owner's
 ##   color (or neutral_color on a GoalFlag) and lit up via emission.
 ## - Crystal: a faceted bipyramid ("cut gem") on top of the ring, same tint.
@@ -20,12 +20,12 @@ extends Resource
 ## only the socket ever stays a fixed size.
 ##
 ## Exposed on the F4 TuningPanel "Beacons" tab with ranges/descriptions in
-## config/ui/tuning_panel_hints.tres (Bontago-xtq.34/xtq.36; the original xtq.33
+## config/ui/tuning_panel_hints.tres (/xtq.36; the original xtq.33
 ## package left the wiring to a follow-up).
 ##
 ## Loaded once as config/territory/beacon_visual_tuning.tres.
 ##
-## DECISION (Bontago-xtq.41, owner playtest: "the beacons are way too small"):
+## DECISION ("the beacons are way too small"):
 ## socket/ring/crystal dimensions scaled up 2.5x from the xtq.33/34 launch
 ## defaults (socket_radius 0.4->1.0, socket_height 0.25->0.625,
 ## ring_outer_radius 0.55->1.375, ring_thickness 0.12->0.3, crystal_radius
@@ -48,7 +48,7 @@ extends Resource
 @export var socket_radius: float = 1.0
 @export var socket_height: float = 0.625
 ## Always this color, home or goal -- only the ring and crystal above it
-## carry an owner's (or the goal's neutral) color, matching the reference
+## carry an an owner's (or the goal's neutral) color, matching the reference
 ## mockup's dark, uniform beacon bases (docs/art_mockups/
 ## 08-cel-shaded-home-beacons.png).
 @export var socket_color: Color = Color(0.16, 0.16, 0.18)
@@ -78,7 +78,7 @@ extends Resource
 @export var crystal_facets: int = 6
 @export var crystal_emission: float = 1.1
 
-## -- Crystal cel shading (Bontago-mp0.3.1, owner feedback on docs/art_mockups/
+## -- Crystal cel shading (on docs/art_mockups/
 ## 08-cel-shaded-home-beacons.png: "Same for the beacons" -- the faceted
 ## crystal now draws with shaders/territory/beacon_crystal.gdshader, the same toon-band
 ## + shadow-tint + hard specular technique as shaders/blocks/block_cell_grid.gdshader,
@@ -104,7 +104,7 @@ extends Resource
 ## Width of the smoothstep used to turn the specular falloff into a hard edge.
 @export var crystal_specular_softness: float = 0.08
 
-## -- Pulsating glow (owner feedback: "pulsating glow from the beacons") ------
+## -- Pulsating glow ("pulsating glow from the beacons") ------
 ## HomeFlag._process()/_apply_pulse() drive both the ring's own scale and the
 ## ring/crystal emission energy from a single sine wave over this period, so
 ## every beacon on the disk pulses in lockstep rather than drifting out of
@@ -133,28 +133,28 @@ extends Resource
 ## TerritoryVisuals.gd).
 @export var neutral_color: Color = Color(1.0, 1.0, 1.0)
 
-## Bontago-adt.2: Global multiplier on the beacon ring and crystal emission (raise/lower for night themes). Peaks stay near the 1.3 glow threshold at 1.0.
+## Global multiplier on the beacon ring and crystal emission (raise/lower for night themes). Peaks stay near the 1.3 glow threshold at 1.0.
 @export var emission_scale: float = 1.0
 
-## Bontago-adt.2: Fraction of the crystal emission shown face-on (the dimmer core); the silhouette edges glow at full strength.
+## Fraction of the crystal emission shown face-on (the dimmer core); the silhouette edges glow at full strength.
 @export var crystal_core_glow: float = 0.55
 
-## Bontago-adt.2: Extra white-hot emission on the crystal facet silhouettes (fresnel edge).
+## Extra white-hot emission on the crystal facet silhouettes (fresnel edge).
 @export var crystal_edge_glow: float = 0.6
 
-## Bontago-adt.2: How much white is mixed into the crystal edge glow (0 = pure beacon color).
+## How much white is mixed into the crystal edge glow (0 = pure beacon color).
 @export var crystal_edge_white_mix: float = 0.55
 
-## Bontago-adt.2: Fresnel exponent of the crystal edge glow; higher confines it to the very edge.
+## Fresnel exponent of the crystal edge glow; higher confines it to the very edge.
 @export var crystal_edge_power: float = 2.2
 
-## Bontago-adt.2: Metallic value of the beacon socket base (polished graphite).
+## Metallic value of the beacon socket base (polished graphite).
 @export var socket_metallic: float = 0.8
 
-## Bontago-adt.2: Roughness of the beacon socket base.
+## Roughness of the beacon socket base.
 @export var socket_roughness: float = 0.3
 
-## -- Goal claim display (Bontago-470.7: goal beacons must clearly show who has
+## -- Goal claim display (goal beacons must clearly show who has
 ## claimed them). Neutral goals keep the look above; a claimed goal takes its
 ## controller's colour with boosted emission and a tall light beam; a contested
 ## goal flickers between the contesting colours with a striped beam.
@@ -195,7 +195,7 @@ extends Resource
 ## Number of probe points on that ring.
 @export var contested_probe_samples: int = 16
 
-## -- Claim-radius ring (Bontago-1pi.18.6, QoL experiment 4). Drawn on the ground
+## -- Claim-radius ring (QoL experiment 4). Drawn on the ground
 ## around each goal beacon ONLY while the "bigger goal claim radius" toggle is on
 ## (see GoalFlag.set_claim_ring()); with the toggle off nothing is built.
 ## Tint of the ring (alpha is claim_ring_alpha); neutral so it reads as "the area
@@ -209,7 +209,7 @@ extends Resource
 @export var claim_ring_lift: float = 0.05
 ## Segments in the ring's full circle (built once per match).
 @export var claim_ring_segments: int = 96
-## Claim-zone shader (Bontago-mp0.147): opacity of the stepped fill inside the rim.
+## Claim-zone shader: opacity of the stepped fill inside the rim.
 @export var claim_zone_fill_alpha: float = 0.14
 ## Number of cel-shaded brightness bands in the fill.
 @export var claim_zone_cel_steps: float = 4.0
@@ -227,7 +227,7 @@ extends Resource
 @export var claim_zone_rim_lighten: float = 0.45
 
 
-## -- Timer labels (Bontago-1pi.188 / 1pi.189) ---------------------------------
+## -- Timer labels (/ 1pi.189) ---------------------------------
 ## A camera-facing Label3D above each goal beacon: Classic counts down to the
 ## capture, CTF counts up the hold (with an "xN" chip when the holder controls
 ## several beacons). Colours are the Stackfall Arcade tokens (cream text, disc-950
@@ -250,7 +250,7 @@ extends Resource
 @export var timer_no_depth_test: bool = true
 
 
-## Bontago-1pi.33: height of a beacon's highest point (the crystal tip) above
+## height of a beacon's highest point (the crystal tip) above
 ## the surface its socket stands on, in metres -- the same extents
 ## HomeFlag._build()/collision_transforms() place the socket and crystal at
 ## (socket_height plus the crystal's apex-to-apex height). `scale_factor` is

@@ -1,6 +1,6 @@
 class_name TuningSfxTab
 extends RefCounted
-## Bontago-1pi.211: pure helpers for the F4 panel's SFX tab (owner: "wire it up so I can test it in
+## pure helpers for the F4 panel's SFX tab ("wire it up so I can test it in
 ## game the same way I can test the arena layouts"). The tab lists one dropdown + Play row per
 ## sound-effect file field of AudioConfig; ui/debug/TuningPanel.gd builds the controls, this file decides
 ## which fields and files appear and in what order, and owns the save/reset of just those fields.

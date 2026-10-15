@@ -1,6 +1,6 @@
 class_name HoleDissolveTuning
 extends Resource
-## Bontago-1pi.11.41 (owner decision Bontago-gdb, option A): the disc stays
+## option A: the disc stays
 ## solid under holes; a block whose footprint rests or lands on an applied
 ## hole cell dissolves on the host and is removed like an edge fall.
 ## game/field/HoleDissolver.gd reads every number here.

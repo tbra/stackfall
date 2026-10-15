@@ -1,6 +1,6 @@
 class_name CircleWire
 extends RefCounted
-## Wire packing for the territory circle list (Bontago-cmc.5, owner
+## Wire packing for the territory circle list (
 ## requirement: "should look smooth... some kind of metaballs system").
 ##
 ## game/field/TerritoryOverlay.gd's shader now draws territory as the analytic
@@ -34,7 +34,7 @@ extends RefCounted
 ## = 400 that is 2800 bytes.
 ##
 ## **One goal record** (GOAL_RECORD_BYTES = 6): x:u16, z:u16, radius:u16 —
-## no team, a goal's no-build zone belongs to nobody. Spec 2.2 allows 1-5
+## no team, a goal's no-build zone belongs to nobody. Spec 1.5 allows 1-5
 ## goal flags; GOAL_COUNT_MAX below is a wire safety cap, not a rule.
 ##
 ## DECISION (core/net/CircleWire.gd): unlike net/MatchNet.gd's raster payload

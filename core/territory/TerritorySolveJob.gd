@@ -1,6 +1,6 @@
 class_name TerritorySolveJob
 extends RefCounted
-## Bontago-1pi.11.28 (P-ASYNC): one territory solve step as a self-contained job.
+## P-ASYNC: one territory solve step as a self-contained job.
 ## The main thread fills the inputs (the scene reads: collect, source signature,
 ## cone heights), then run() executes either inline (synchronous path) or inside
 ## a WorkerThreadPool task. run() touches only this job, its fill raster and a
@@ -51,7 +51,7 @@ func run() -> void:
 			)
 			out_circles = projected["circles"]
 		elif not holes_enabled:
-			# Bontago-1pi.11.33: circle mode (HoleMode.OFF) drops same-team circles
+			# circle mode (HoleMode.OFF) drops same-team circles
 			# fully inside a larger one BEFORE the solver's max_circles budget, so
 			# redundant circles never spend budget. Exact: raster, shader and
 			# connectivity are unchanged (the cone path already culls its own).
@@ -68,7 +68,7 @@ func run() -> void:
 ## home-anchored circles a group kept, sorted by team then largest radius first.
 ## Moved from MatchTerritory._update_circle_render.
 static func build_render_list(circles: Array[InfluenceCircle], groups: TerritoryGroups) -> Dictionary:
-	# Bontago-1pi.11.33: native lexicographic sort on [team, -radius, sequence]
+	# native lexicographic sort on [team, -radius, sequence]
 	# replaces the GDScript lambda comparator. The sequence tiebreak makes equal
 	# (team, radius) entries keep insertion order (the old unstable sort left
 	# that unspecified; every distinct-key order is identical).

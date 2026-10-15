@@ -1,7 +1,7 @@
 class_name BreezeTuning
 extends StormTuning
-## Breeze's tunables (Bontago-470.2): an always-on, weak wind layered on top of
-## whatever weather is active (but no new gusts spawn during a Storm, Bontago-mp0.91).
+## Breeze's tunables: an always-on, weak wind layered on top of
+## whatever weather is active (but no new gusts spawn during a Storm).
 ## It is NOT a weather type (it lives at
 ## config/breeze/breeze.tres, not under config/weather/), so the schedule and the
 ## lobby never see it. It reuses Storm's rules (core/weather/WindField.gd) through
@@ -25,7 +25,7 @@ extends StormTuning
 ## Seconds between spawn attempts (host, seeded). Only one gust is ever alive
 ## at a time (BreezeEffect enforces it), so a new attempt is skipped while one
 ## is still blowing.
-## DECISION (Bontago-1pi.76, owner: "a sporadic single gust every now and then"):
+## DECISION ("a sporadic single gust every now and then"):
 ## 1.2 s -> 20.0 s. High up an attempt mostly succeeds, so roughly one gust
 ## every 20-40 s; near the disc far rarer (low_spawn_probability).
 @export var spawn_interval_s: float = 20.0
@@ -34,11 +34,11 @@ extends StormTuning
 @export_range(0.0, 1.0, 0.01) var low_spawn_probability: float = 0.04
 ## Gust strength factor at/below threshold height; rises to 1.0 at cap height.
 @export_range(0.0, 1.0, 0.01) var low_strength_factor: float = 0.15
-## DECISION (Bontago-1pi.76): gust radius 7.0-12.0 m -> 4.0-6.0 m (a local puff,
+## DECISION: gust radius 7.0-12.0 m -> 4.0-6.0 m (a local puff,
 ## not a screen-wide wall of wind).
 @export var radius_min_m: float = 4.0
 @export var radius_max_m: float = 6.0
-## DECISION (Bontago-1pi.76): gust duration 3.0-5.0 s -> 1.5-2.5 s.
+## DECISION: gust duration 3.0-5.0 s -> 1.5-2.5 s.
 @export var duration_min_s: float = 1.5
 @export var duration_max_s: float = 2.5
 ## A gust is centred on a live block plus a random offset of up to this
@@ -55,7 +55,7 @@ extends StormTuning
 @export var wire_max_coord_m: float = 1000.0
 ## Most gust visuals alive at once on a client.
 @export var max_presented_gusts: int = 12
-## Wisp strokes per gust. Bontago-mp0.81: a gust draws the soft wisp look (bowed,
+## Wisp strokes per gust. a gust draws the soft wisp look (bowed,
 ## feathered, banded ribbons that draw on, drift along the gust heading and erase);
 ## the curled swoosh look moved to the ambient Storm wind (StormTuning swoosh_*).
 @export var gust_streak_count: int = 24

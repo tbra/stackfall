@@ -1,13 +1,13 @@
 class_name FocusScrollContainer
 extends ScrollContainer
-## Bontago-1pi.47 (owner playtest: "In menus that have scrolling, for example
+## ("In menus that have scrolling, for example
 ## controller remapping, navigating with gamepad/arrow keys doesn't update the
 ## scroll position"). A ScrollContainer that keeps whichever descendant just
 ## took keyboard/gamepad focus visible -- the shared approach for every menu
 ## list that can outgrow its panel (ui/menus/OptionsMenu.tscn's Settings page and
-## Controls rebind list, and ui/lobby/Lobby.tscn's settings column since Bontago-1pi.159.33, use it).
+## Controls rebind list, and ui/lobby/Lobby.tscn's settings column since use it).
 ##
-## DECISION (Bontago-1pi.47): the engine's own `follow_focus` (set here, and
+## DECISION: the engine's own `follow_focus` (set here, and
 ## explicitly in the scene) does the actual scrolling -- its handler listens to
 ## the viewport's `gui_focus_changed` and calls ensure_control_visible() for any
 ## descendant, however deeply nested, and works with the custom focus_neighbor
@@ -27,7 +27,7 @@ const TUNING: SliderNavTuning = preload("res://config/ui/slider_nav_tuning.tres"
 var scroll_axis_reader: Callable = _read_right_stick_y
 ## True once the right stick moved the view: the next ui_up / ui_down then jumps the selection to
 ## the nearest control inside the visible viewport instead of scrolling back to the old one
-## (Bontago-1pi.159.19, owner playtest 2026-10-11).
+## .
 var stick_scrolled: bool = false
 ## Left-stick / d-pad vertical hold: one move per push, repeat only at full deflection.
 var _hold: UiHoldRepeat = UiHoldRepeat.new(_move_selection)
@@ -41,7 +41,7 @@ func _init() -> void:
 
 
 func _ready() -> void:
-	# Bontago-1pi.121 (owner playtest: menus with scrollbars don't start at the top): a list
+	# menus with scrollbars don't start at the top: a list
 	# opens at its top, then follows focus as before. Deferred so it runs after the opening
 	# focus grab (whose ensure_control_visible would otherwise leave it scrolled down).
 	visibility_changed.connect(_on_visibility_changed)
@@ -124,7 +124,7 @@ func _move_selection(direction: int) -> void:
 		return
 	var target: Control = focused.find_valid_focus_neighbor(SIDE_BOTTOM if direction > 0 else SIDE_TOP)
 	if target != null and target != focused:
-		Sfx.note_focus_nav()  # Bontago-1pi.159.48: a held-stick repeat has no input event this frame
+		Sfx.note_focus_nav()  # a held-stick repeat has no input event this frame
 		target.grab_focus()
 
 

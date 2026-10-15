@@ -1,6 +1,6 @@
 class_name MenuBackdrop
 extends Control
-## M7 P7 (docs/M7_PLAN.md "P7 -- Main menu / lobby reskin", Bontago-xtq.32):
+## M7 P7 (docs/M7_PLAN.md "P7 -- Main menu / lobby reskin"):
 ## the flat "paper-cut" half of the split background (docs/art_mockups/
 ## 10-main-menu-layered-pastel.png, 11-lobby-layered-pastel.png) -- a banded
 ## sky, a layered concentric sun, pill-shaped cloud strata and apricot/mint
@@ -16,13 +16,13 @@ extends Control
 ## companion .tscn children" convention.
 
 @export var tuning: MenuVisualTuning = preload("res://config/ui/menu_visual_tuning.tres")
-## Bontago-hfa.3 (UI reskin P1): false keeps only the render-budget holding below and draws
+## UI reskin P1: false keeps only the render-budget holding below and draws
 ## nothing, for screens whose backdrop is not drawn here (the main menu shows a static image node).
 ## The lobby keeps the paper-cut art until its own package.
 @export var draw_art: bool = true
 
 
-## Bontago-1pi.11.48 (owner: "main menu uses 95% of my gpu"). Root cause: the
+## ("main menu uses 95% of my gpu"). Root cause: the
 ## match world (Field disc, Skybox, SSR, shadows, glow, reflection probe, disc
 ## mirror: ~400k prims) kept rendering uncapped, at monitor refresh, behind this
 ## full-screen opaque backdrop. Menu/lobby screens now hold a render budget: the
@@ -31,14 +31,14 @@ extends Control
 static var _budget_holders: int = 0
 static var _saved_max_fps: int = 0
 static var _saved_disable_3d: bool = false
-## Bontago-1pi.11.49: the in-match cap decided by game/main/Main.gd (-1 = none decided, so
+## the in-match cap decided by game/main/Main.gd (-1 = none decided, so
 ## the cap saved on menu entry is restored). Main is the single place that decides it;
 ## this class only arbitrates menu vs match, so a preset change made while a menu is
 ## open cannot leave the match cap behind in the menu (or the menu cap in the match).
 static var _match_cap: int = -1
 static var _menu_cap: int = 0
 
-## Bontago-1pi.11.91 (owner 2026-10-13: the menu is a picture). Measured at menu, options and
+## (the menu is a picture). Measured at menu, options and
 ## lobby: root disable_3d was already true (no 3D pass), but 12 world scripts (Skybox, birds,
 ## Field, BlockRegistry, CameraRig, CloudShadows, HorizonIslands, ...) kept running _process behind
 ## it. DECISION: while a menu holds the budget the world nodes Main registers go

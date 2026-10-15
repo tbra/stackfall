@@ -1,6 +1,6 @@
 class_name SandboxHintBar
 extends CanvasLayer
-## Bontago-1pi.202: the bottom-centre sandbox hint listing every debug F-key and its function.
+## the bottom-centre sandbox hint listing every debug F-key and its function.
 ## Key names are read from the Input Map (InputGlyph.events_of_family), never hard-coded, so a
 ## rebind or a regenerated map shows up here. Debug-mode only (game/debug/DebugMode.gd).
 

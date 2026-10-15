@@ -1,30 +1,30 @@
 class_name Minimap
 extends PanelContainer
 ## Top-down minimap for M7 P5 (docs/M7_PLAN.md "P5 -- HUD minimap + reskin"),
-## rebuilt for Bontago-mp0.3.3 (owner feedback, feedback/graphics_feedback.md:
+## rebuilt for (feedback/graphics_feedback.md:
 ## "the minimap especially has a bunch of graphical problems where it's
 ## reflecting the sky depending on the camera angle").
 ##
-## DECISION (ui/hud/Minimap.gd, Bontago-mp0.3.3): the original M7 P5 design used a
+## DECISION (ui/hud/Minimap.gd): the original M7 P5 design used a
 ## live orthographic SubViewport + Camera3D looking straight down at the
-## shared World3D (docs/M7_ART_DIRECTION.md Q4, owner-selected option (a)).
+## shared World3D (docs/M7_ART_DIRECTION.md Q4, selected option (a)).
 ## In practice that camera also framed the removed DiscMirror's planar-reflection
 ## quad -- a real 3D plane sitting on the disk -- and a top-down camera's own
 ## viewing angle relative to that mirror plane changes with match state (disk
 ## tilt, camera height reframing per MapDef), so the mirror sometimes bounced
 ## sky/cloud color into the minimap and sometimes didn't: exactly the "graphical
 ## problems ... reflecting the sky depending on the camera angle" report,
-## which per-camera Environment overrides (Bontago-xtq.30's earlier fix, see
+## which per-camera Environment overrides ('s earlier fix, see
 ## this file's git history) could not solve because the mirror itself is a
 ## reflective 3D surface, not a post-process. This file paints the minimap
 ## directly from Match's own TerritoryRaster/MapDef/PlayerSlot state -- no
 ## Camera3D, no SubViewport, so there is no "camera angle" left for it to
 ## depend on, ever.
 ##
-## DECISION (ui/hud/Minimap.gd, Bontago-mp0.3.3, owner review 2026-09-26): drawn
+## DECISION (ui/hud/Minimap.gd): drawn
 ## **camera-relative** ("up" on the minimap = the main gameplay camera's own
 ## forward direction, mockup 08's behaviour) rather than the earlier north-up
-## choice -- the owner's review compared the overview capture's 3D framing
+## choice -- the compared the overview capture's 3D framing
 ## (red home on the LEFT) against the minimap (blue on the left) and called
 ## that out as a mismatch: "the minimap must match what the player sees".
 ## set_camera_forward() below takes the horizontal (x, z) component of
@@ -68,7 +68,7 @@ var _slot_colors: PackedColorArray = PackedColorArray()
 var _home_positions: PackedVector2Array = PackedVector2Array()
 ## Host and client both expose disk-local gift positions through Match.gift_states().
 var _gift_states: Array[Dictionary] = []
-## Goal beacons (Bontago-sen.10): disk-local positions, controllers derived with
+## Goal beacons: disk-local positions, controllers derived with
 ## GoalControl.owner_at on the replicated raster (host and client agree), and
 ## the shared capture progress from Events.goal_capture_progress.
 var _goal_positions: PackedVector2Array = PackedVector2Array()
@@ -86,7 +86,7 @@ var _camera_forward: Vector2 = Vector2(0.0, 1.0)
 ## Basis the cached image was rasterized with. The image is rebuilt at
 ## minimap_refresh_hz, but the basis changes every frame while the camera
 ## orbits, so _on_canvas_draw() rotates the cached texture by the difference
-## (Bontago-sen.5: territory used to lag behind the beacons and the camera).
+## (territory used to lag behind the beacons and the camera).
 var _image_right: Vector2 = Vector2(1.0, 0.0)
 var _image_forward: Vector2 = Vector2(0.0, 1.0)
 
@@ -94,7 +94,7 @@ var _image_forward: Vector2 = Vector2(0.0, 1.0)
 ## is read from this frame's final camera transform, not the previous one.
 const _PROCESS_PRIORITY_AFTER_CAMERA: int = 2
 
-## Bontago-1pi.11.11: the territory is coloured on the GPU from the raster's
+## the territory is coloured on the GPU from the raster's
 ## per-cell textures (shaders/territory/minimap_territory.gdshader); no CPU image.
 const HOLE_VISUALS: HoleVisualTuning = preload("res://config/territory/hole_visual_tuning.tres")
 const MAX_SLOTS: int = 16
@@ -107,11 +107,11 @@ var _disk_tex: ImageTexture = null
 var _disk_raster: TerritoryRaster = null
 var _tex_res: int = 0
 var _built_size_px: int = 0
-## Bontago-1pi.191: the current square size; the Options minimap-size preset changes it via set_size_px()
+## the current square size; the Options minimap-size preset changes it via set_size_px()
 ## (the shared tuning Resource is never written).
 var _size_px: int = 0
 var _panel_style: StyleBoxFlat = null
-## Bontago-1pi.11.9: inputs of the last _rebuild_image(), so the refresh timer can skip an unchanged rebuild.
+## inputs of the last _rebuild_image(), so the refresh timer can skip an unchanged rebuild.
 const NO_BUILD_HASH: int = -1
 var _built_raster_hash: int = NO_BUILD_HASH
 var _built_colors: PackedColorArray = PackedColorArray()
@@ -133,7 +133,7 @@ func _ready() -> void:
 	# the drawn image fully transparent, so this circular backdrop is what
 	# shows through in the corners.
 	style.set_corner_radius_all(int(_size_px * 0.5))
-	# Stackfall Arcade (Bontago-hfa.6): the disc-900 frame's 3 px rim ring casts a soft rim glow,
+	# Stackfall Arcade: the disc-900 frame's 3 px rim ring casts a soft rim glow,
 	# echoing the arena's own glowing gold edge; it is the one place the HUD glows.
 	style.shadow_color = Color(tuning.minimap_frame_color, tuning.minimap_glow_alpha)
 	style.shadow_size = int(tuning.minimap_glow_size_px)
@@ -219,7 +219,7 @@ func set_map_def(map_def: MapDef) -> void:
 ## game/field/Field.gd's own shader upload use, so the minimap and the disk itself
 ## can never disagree about which color a team is.
 ##
-## Lobby rework (Bontago-1pi.53, review F3): team ids no longer equal slot ids
+## Lobby rework (review F3): team ids no longer equal slot ids
 ## once the lobby resolved its teams, so the home beacons (one per SLOT) take
 ## their own `slot_colors` (MatchConfig.player_colors, indexed by slot id).
 ## Omitted/empty keeps the old single-array behaviour: beacons use `team_colors`.
@@ -273,13 +273,12 @@ func set_gift_states(states: Array[Dictionary]) -> void:
 ## be pre-normalized. ui/hud/HUD.gd calls this every frame from whichever
 ## Camera3D Viewport.get_camera_3d() currently reports (see its own DECISION
 ## for why it reads the camera that way instead of a node path). Rotates the
-## minimap so it always matches what that camera is showing on screen (owner
-## review 2026-09-26: "the minimap must match what the player sees"): right
+## minimap so it always matches what that camera is showing on screen ("the minimap must match what the player sees"): right
 ## reads as right, forward as up. DECISION: takes both vectors straight from
 ## the camera's own basis rather than deriving `right` from `forward` with an
 ## assumed perpendicular/no-roll rotation -- reading the real basis.x is
 ## exact for any camera (including the capture tool's own off-axis
-## three-quarter framing, a script removed in Bontago-dbn.1 (see git history)'s _frame_overview()) with
+## three-quarter framing, a script removed in (see git history)'s _frame_overview()) with
 ## no cross-product sign convention to get wrong. A near-zero vector (no
 ## camera, or one looking/rolled straight along an axis) is ignored, leaving
 ## whatever basis was last set.
@@ -355,7 +354,7 @@ func _refresh_interval() -> float:
 func _on_refresh_timeout() -> void:
 	if _map_def == null:
 		return
-	# Bontago-1pi.11.9: the pixel loop in _rebuild_image() costs ~60 ms of
+	# the pixel loop in _rebuild_image() costs ~60 ms of
 	# GDScript; at minimap_refresh_hz that was an 8 Hz frame hitch even with a
 	# completely settled board. DECISION: rebuild only when the image inputs
 	# changed. Camera rotation alone is covered by image_to_current_transform()
@@ -365,7 +364,7 @@ func _on_refresh_timeout() -> void:
 	render_now()
 
 
-## True when the raster's owner ids, the team colors or the image size differ
+## True when the raster's owning ids, the team colors or the image size differ
 ## from what the cached image was last built from.
 func _image_inputs_changed() -> bool:
 	if _raster == null:
@@ -387,7 +386,7 @@ func _world_to_px(world: Vector2, px_per_m: float) -> Vector2:
 	return Vector2((u + _half_extent) * px_per_m, (_half_extent - v) * px_per_m)
 
 
-## Uploads the live TerritoryRaster to the territory shader. Bontago-1pi.11.11:
+## Uploads the live TerritoryRaster to the territory shader. 
 ## the former 160x160 GDScript per-pixel loop (55-100 ms) now lives only in
 ## debug_image() for tests; here the per-cell data goes up as native-copied
 ## textures and shaders/territory/minimap_territory.gdshader colours it at draw time,
@@ -559,7 +558,7 @@ func gift_marker_draw_data() -> Array[Dictionary]:
 
 ## Thin stroke at the disk's own field-radius edge (inside the zoom-margin
 ## padding), so the playable disc's true boundary reads against the darker
-## unowned floor drawn around it (owner review 2026-09-26).
+## unowned floor drawn around it.
 func _draw_disc_outline() -> void:
 	if _canvas == null or _map_def == null or _half_extent <= 0.0:
 		return
@@ -581,7 +580,7 @@ func _beacon_color(slot_id: int) -> Color:
 
 
 ## Small team-colored diamond at each slot's home-flag position, echoing
-## mockup 08's beacon glyphs (owner review 2026-09-26: diamonds, not circles).
+## mockup 08's beacon glyphs (diamonds, not circles).
 func _draw_beacons() -> void:
 	if _canvas == null or _map_def == null or _half_extent <= 0.0:
 		return
@@ -604,7 +603,7 @@ func _draw_beacons() -> void:
 		_canvas.draw_polyline(outline, frame_color, frame_width, true)
 
 
-## Bontago-1pi.191: resizes the minimap to a square of `px` HUD pixels, keeping its bottom-right corner
+## resizes the minimap to a square of `px` HUD pixels, keeping its bottom-right corner
 ## fixed (the HUD anchors it there and aligns the round timer with that edge). The image rebuilds on
 ## the next refresh because _image_inputs_changed() sees the new size.
 func set_size_px(px: int) -> void:

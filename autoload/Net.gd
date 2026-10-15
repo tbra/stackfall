@@ -1,6 +1,6 @@
 extends Node
 ## NetworkManager: transport selection, host/join, LAN discovery, peer registry
-## (spec 3.4, docs/archive/M3a_PLAN.md P1).
+## (spec 2.6, docs/archive/M3a_PLAN.md P1).
 ##
 ## Gameplay code only ever talks to MultiplayerAPI; this node decides whether
 ## the peer underneath is ENet (LAN, direct IP, tests — M3a) or Steam (M3b).
@@ -44,7 +44,7 @@ const DISCOVERY_MAGIC: StringName = NetIds.DISCOVERY_MAGIC
 ## net/SteamClient.gd, per docs/archive/M3b_PLAN.md's tunables table.
 const STEAM_APP_ID_EXPECTED: int = NetIds.STEAM_APP_ID_EXPECTED
 
-## Bontago-8or.11: size of a rejoin token (random bytes; hex doubles it) and
+## size of a rejoin token (random bytes; hex doubles it) and
 ## the longest token string the handshake will even look up. Architecture,
 ## not tunables, like HOST_PEER_ID.
 const REJOIN_TOKEN_BYTES: int = 16
@@ -69,16 +69,16 @@ var _pending_handshake: Dictionary = {}
 ## Host only: peer ids kick_peer() has asked the transport to disconnect that
 ## are still listed in multiplayer.get_peers() (ENet drops them only once the
 ## disconnect completes, a poll later). Sending to one logs the engine error
-## "Unable to send packet on channel 0, max channels: 0" (Bontago-1pi.57), so
+## "Unable to send packet on channel 0, max channels: 0", so
 ## every host-side fan-out goes through _broadcast_targets(), which skips them.
 var _disconnecting_peers: Dictionary = {}
-## Host only (Bontago-1pi.53): peer_id -> {"tokens": float, "at": float}, the
+## Host only: peer_id -> {"tokens": float, "at": float}, the
 ## request_seat_pref flood bucket of each peer that sent one (size and refill:
 ## NetConfig.seat_pref_burst / seat_pref_refill_per_s). Dropped with the
 ## peer (_on_peer_disconnected) and with the session (_reset_rejoin_state).
 var _seat_pref_buckets: Dictionary = {}
 
-## -- Player chat (Bontago-1pi.192.3, docs/CHAT_PLAN.md section 2) ----------
+## -- Player chat (docs/CHAT_PLAN.md section 2) ----------
 ## Tunables (clamped in _ready like `config`).
 var chat_config: ChatConfig = preload("res://config/net/chat_config.tres")
 ## Host only: peer_id -> ChatRules.Bucket (flood), peer_id -> {"text", "at"} (duplicate
@@ -102,11 +102,11 @@ var _next_slot_id: int = 1
 ## Host only: whether _rpc_handshake may still seat a new peer. True in the
 ## lobby, false once the match flow leaves it (see set_accepting_joins()).
 var _accepting_joins: bool = true
-## Bontago-1pi.83: true for a private loopback host (host_game(..., advertise=false), the
+## true for a private loopback host (host_game(..., advertise=false), the
 ## Vs bots session); lets the lobby badge say so instead of "LAN". Cleared by leave().
 var _private_session: bool = false
 
-## -- Mid-match join and reconnect (Bontago-8or.11, spec 3.4 "Late join /
+## -- Mid-match join and reconnect (spec 2.6 "Late join /
 ## reconnect") ------------------------------------------------------------
 ## Host only: true while the match flow is past the lobby (game/main/Main.gd sets
 ## it next to set_accepting_joins()). Decides which seat a handshake gets: the
@@ -134,14 +134,14 @@ var _can_reclaim_seat: Callable = Callable()
 ## the same host again (the direct-IP field, the LAN browser or the Steam
 ## lobby) quotes it and gets its slot back. A deliberate leave() clears it, and
 ## it is only ever sent to the host it came from (_rejoin_scope). DECISION
-## (Bontago-8or.11): memory only -- a crashed and
+## : memory only -- a crashed and
 ## restarted client has no token and rejoins as a new late joiner. Persisting
 ## it would write a bearer credential to disk for a window that is only
 ## NetConfig.disconnect_grace long.
 var _rejoin_token: String = ""
 ## Which host issued _rejoin_token: "enet:<address>:<port>" or "steam:<lobby>".
 var _rejoin_scope: String = ""
-## Last peer id local_peer_id() read from a live transport (Bontago-fca.30).
+## Last peer id local_peer_id() read from a live transport.
 var _last_local_peer_id: int = 0
 ## Scope of the ENet connection the client is making now (join_game()).
 var _join_scope: String = ""
@@ -168,7 +168,7 @@ var _own_ping_ms: float = 0.0
 var _lobby_data: Dictionary = {}
 var _lan: LanDiscovery
 
-## Bontago-1pi.164: router port opening (UPnP) for non-Steam internet hosting. The real backend is
+## router port opening (UPnP) for non-Steam internet hosting. The real backend is
 ## built only for the real autoload on a windowed, non-agent run; tests set `upnp_backend_factory`
 ## to a Callable returning a fake UpnpBackend and never touch a router.
 signal upnp_state_changed(state: int)
@@ -176,7 +176,7 @@ var upnp_config: UpnpConfig = preload("res://config/net/upnp_config.tres")
 var upnp_backend_factory: Callable = Callable()
 var _upnp: UpnpRunner = UpnpRunner.new()
 
-## `--match-config=<res path>` (Bontago-3k0, deferred from Bontago-keo.19):
+## `--match-config=<res path>` (deferred from):
 ## host-only override for the MatchConfig a `--headless-host` match starts
 ## from. Null (the ordinary case) means "no override" -- game/main/Main.gd's own
 ## _build_headless_bot_config() then falls back to its preloaded
@@ -184,7 +184,7 @@ var _upnp: UpnpRunner = UpnpRunner.new()
 ## from inside _apply_command_line_args()'s host branch (see
 ## _load_match_config_override() below), never touched by --join, so a client
 ## passing this flag by accident is silently ignored -- this is a host-only
-## concern (spec 3.4: only the host's MatchConfig ever matters).
+## concern (spec 2.6: only the host's MatchConfig ever matters).
 var _match_config_override: MatchConfig = null
 
 ## docs/archive/M3b_PLAN.md P1: the Steam-facing seam, exactly the net_provider/
@@ -219,7 +219,7 @@ var _steam_initialized: bool = false
 ## factories require this — see the crash this guards against, documented at
 ## _make_steam_host_peer().
 var _steam_ready: bool = false
-## Bontago-mv0.2.6 (independent-review finding B): _mode stays OFFLINE for the
+## independent-review finding B: _mode stays OFFLINE for the
 ## whole time a host_online()/join_lobby() Steam answer is pending, so a
 ## second call in the meantime used to sail past the "if _mode != Mode.OFFLINE:
 ## leave()" guard and issue a second Steam request. Both entry points refuse a
@@ -227,13 +227,13 @@ var _steam_ready: bool = false
 ## below) is still outstanding — _steam_request_pending() at the bottom of
 ## this block is the single predicate both use.
 ##
-## Bontago-mv0.4: a single pending bool fixed the case above but broke
+## a single pending bool fixed the case above but broke
 ## leave() -> host_online()/join_lobby() done twice before the first
 ## attempt's own answer lands: the second call set the (single, shared) flag
 ## true again, so the FIRST attempt's late answer was consumed by
 ## _on_steam_lobby_created()/_on_steam_lobby_joined() as if it were the
 ## SECOND attempt's own answer — and the second attempt's real, later answer
-## was then dropped as stale in its place (see `bd show Bontago-mv0.4`).
+## was then dropped as stale in its place (see `bd show`).
 ## GodotSteam's lobby_created/lobby_joined signals carry no per-call id to
 ## tell two outstanding requests' eventual answers apart, so a bool alone
 ## cannot distinguish them once a second request is in flight.
@@ -259,7 +259,7 @@ var _steam_request_generation: int = 0
 ## host_online()/join_lobby() call was issued under. See
 ## _steam_request_generation's doc comment above.
 var _steam_pending_generations: Array[int] = []
-## Bontago-1pi.48: parallel to _steam_pending_generations — the lobby id each
+## parallel to _steam_pending_generations — the lobby id each
 ## pending join_lobby() targets, or _STEAM_CREATE_REQUEST (-1: Steam lobby ids
 ## are positive) for host_online().
 ## lobby_created resolves the oldest pending create, lobby_joined the pending
@@ -267,7 +267,7 @@ var _steam_pending_generations: Array[int] = []
 ## be consumed as some other request's answer.
 var _steam_pending_targets: Array[int] = []
 const _STEAM_CREATE_REQUEST: int = -1
-## Bontago-1pi.48: every lobby this process created (live or abandoned).
+## every lobby this process created (live or abandoned).
 ## Steamworks answers a successful CreateLobby with lobby_created AND a
 ## lobby_joined (LobbyEnter_t) for the creator; that echo is not a join answer
 ## and must never reach the stray-answer leave_lobby() (it used to: the host
@@ -277,7 +277,7 @@ var _steam_created_lobbies: Dictionary = {}
 ## SteamMultiplayerPeer (never built for a FakeSteam provider, crash safety),
 ## so a FakeSteam test can reach the live Steam HOST state.
 var steam_host_peer_override: MultiplayerPeer = null
-## Bontago-1pi.48 diagnostics: seconds between `STEAM SELFCHECK` lines while a
+## diagnostics: seconds between `STEAM SELFCHECK` lines while a
 ## Steam session is live (diagnostic cadence, not a gameplay knob).
 const STEAM_SELFCHECK_PERIOD_S: float = 10.0
 var _steam_selfcheck_accum: float = 0.0
@@ -288,7 +288,7 @@ var _steam_selfcheck_accum: float = 0.0
 ## guard above. False once leave() bumps the generation, even if an older
 ## generation's request is still genuinely in flight with Steam (those
 ## resolve as stale — see _steam_request_generation's doc comment).
-## Bontago-1pi.48: --steam-lobby-debug prints the game/version data of at most this many
+## --steam-lobby-debug prints the game/version data of at most this many
 ## unfiltered lobbies (a diagnostic sample size, not gameplay).
 const LOBBY_DEBUG_SAMPLE_COUNT: int = 5
 
@@ -305,11 +305,11 @@ var _stats_accum: float = 0.0
 
 
 func _ready() -> void:
-	# Bontago-1pi.53 review F3: the shipped resource goes through the same clamps
+	# review F3: the shipped resource goes through the same clamps
 	# every other config does, so a hand-edited net_config.tres (a zero
 	# seat_pref_burst, a tiny packet cap) cannot lock clients out or break the wire.
 	config.sanitize()
-	# Bontago-1pi.167: keep transport/Steam/UPnP/handshake/ping polling alive while the offline
+	# keep transport/Steam/UPnP/handshake/ping polling alive while the offline
 	# pause menu has paused the tree, so a peer joining during a solo pause still gets through.
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	# Autoload decoupling S3a: SnapshotSync reaches Net through this binding
@@ -329,7 +329,7 @@ func _ready() -> void:
 	_lan.game_seen.connect(_on_lan_advert_changed)
 	_lan.game_expired.connect(_on_lan_advert_expired)
 	steam_provider = SteamClient.new()
-	# Bontago-1pi.32: the host mirrors the loading-screen ready gate to clients.
+	# the host mirrors the loading-screen ready gate to clients.
 	Events.loading_ready_changed.connect(_on_loading_ready_changed)
 	Events.loading_gate_opened.connect(_on_loading_gate_opened)
 	chat_config.sanitize()
@@ -382,7 +382,7 @@ func host_game(port: int = 0, player_name: String = "", advertise: bool = true, 
 			return ERR_CANT_CREATE
 	# Agent runs (AgentProbe: tool/bench scenes, --agent-probe) host on a random
 	# free port unless one was given, so parallel benches and the ENet harness
-	# never fight over the default port (session debrief 2026-10-01).
+	# never fight over the default port (session).
 	if port <= 0 and AgentProbe.is_active() and not AgentProbe.has_cli_port(OS.get_cmdline_user_args()):
 		var free_port: int = AgentProbe.free_udp_port()
 		if free_port > 0:
@@ -397,7 +397,7 @@ func host_game(port: int = 0, player_name: String = "", advertise: bool = true, 
 	_host_port = use_port
 	_host_build_version = build_version()
 	_peers.clear()
-	# Bontago-1pi.49: the host's own name goes through the same check a joiner's
+	# the host's own name goes through the same check a joiner's
 	# does, so an empty or oversized typed name is "Player 1" or cut, everywhere.
 	var host_name: String = PlayerNames.sanitize(resolve_local_name(player_name), config.max_player_name_length, 0)
 	_peers[HOST_PEER_ID] = LobbySeats.entry_to_wire(HOST_PEER_ID, 0, host_name, false, 0.0, _host_build_version)
@@ -407,7 +407,7 @@ func host_game(port: int = 0, player_name: String = "", advertise: bool = true, 
 	_reset_rejoin_state()
 	Events.net_mode_changed.emit(_mode)
 	# Agent runs must not appear in the owner's LAN browser.
-	# Bontago-fca.88: `lan_visible=false` keeps the normal "*" bind and open joins but skips the
+	# `lan_visible=false` keeps the normal "*" bind and open joins but skips the
 	# broadcast (headless bot hosts must not show up in a Join browser).
 	if advertise and lan_visible and not AgentProbe.is_active():
 		_start_lan_advertising(host_name)
@@ -430,7 +430,7 @@ func join_game(address: String, port: int = 0, player_name: String = "") -> Erro
 	_peer = peer
 	_mode = Mode.CLIENT
 	_peers.clear()
-	# Bontago-1pi.49: cleaned here so a bad name is never sent; "" stays "" (the
+	# cleaned here so a bad name is never sent; "" stays "" (the
 	# host seats the joiner as "Player N"). The host re-checks it regardless.
 	_pending_join_name = PlayerNames.clean(resolve_local_name(player_name), config.max_player_name_length)
 	_join_scope = "enet:%s:%d" % [address, use_port]
@@ -445,7 +445,7 @@ func join_game(address: String, port: int = 0, player_name: String = "") -> Erro
 ## LeaveReason.HOST_SHUTDOWN first. A deliberate leave forgets the rejoin
 ## token; the connection-lost and failed-join paths pass false to keep it.
 func leave(forget_rejoin: bool = true) -> void:
-	# DECISION (Bontago-mv0.2.6 finding B, generation added for Bontago-mv0.4):
+	# DECISION (finding B, generation added for):
 	# bumped unconditionally, before the OFFLINE early-return below, because a
 	# pending host_online()/join_lobby() attempt never moves _mode off OFFLINE
 	# until its Steam answer actually lands — so a caller cancelling mid-
@@ -524,7 +524,7 @@ func is_offline() -> bool:
 	return _mode == Mode.OFFLINE
 
 
-## Bontago-1pi.167 (owner: "Pausing in an offline mode should freeze everything"): true when
+## "Pausing in an offline mode should freeze everything": true when
 ## no remote human shares this session, so ui/menus/PauseMenu.gd may pause the whole tree.
 func is_solo_session() -> bool:
 	return solo_session_rule(is_offline(), is_client(), peer_ids(), local_peer_id())
@@ -548,7 +548,7 @@ static func solo_session_rule(offline: bool, client: bool, peers: PackedInt32Arr
 func local_peer_id() -> int:
 	if _mode == Mode.OFFLINE:
 		return HOST_PEER_ID
-	# Bontago-fca.30: while the transport is already closed (the server_disconnected
+	# while the transport is already closed (the server_disconnected
 	# path emits net_peer_left before leave() runs, and listeners such as Sfx ask
 	# "was that me?"), get_unique_id() is an engine error ("The multiplayer
 	# instance isn't currently active"). Answer with the last live id instead.
@@ -561,7 +561,7 @@ func local_peer_id() -> int:
 
 ## The game build version both ends compare during the handshake. Reads
 ## ProjectSettings' application/config/version, so bumping the version there is
-## all it takes to refuse older builds (spec 3.4 "Version check").
+## all it takes to refuse older builds (spec 2.6 "Version check").
 func build_version() -> String:
 	return str(ProjectSettings.get_setting("application/config/version", ""))
 
@@ -598,8 +598,7 @@ func slot_of_peer(peer_id: int) -> int:
 
 
 ## Inverse of slot_of_peer(). -1 for an unclaimed slot (an empty seat, or a
-## bot's from M5). A negative slot_id is never a seat: spectators (Bontago-
-## 8or.11) all hold -1, so it must not match the first of them.
+## bot's from M5). A negative slot_id is never a seat: spectators all hold -1, so it must not match the first of them.
 func peer_of_slot(slot_id: int) -> int:
 	if slot_id < 0:
 		return -1
@@ -609,7 +608,7 @@ func peer_of_slot(slot_id: int) -> int:
 	return -1
 
 
-## Bontago-1pi.49: the replicated name of the human peer seated at `slot_id`, or
+## the replicated name of the human peer seated at `slot_id`, or
 ## "" when no peer holds it (a bot, an empty seat, a departed player). Host and
 ## client read the same roster, so the loading screen and HUD show one name per
 ## slot on both sides; late joiners and rejoiners get theirs from the roster
@@ -638,7 +637,7 @@ func local_slot() -> int:
 func is_local_slot(slot_id: int) -> bool:
 	if _mode == Mode.OFFLINE:
 		return true
-	# A spectator's local_slot() is -1 (Bontago-8or.11); no real slot is -1.
+	# A spectator's local_slot() is -1; no real slot is -1.
 	return slot_id >= 0 and slot_id == local_slot()
 
 
@@ -651,9 +650,9 @@ func set_peer_ready(peer_id: int, ready: bool) -> void:
 
 
 ## Host only: clears every peer's ready flag (host included) and republishes the roster.
-## Bontago-1pi.89: Net owns this rule -- the session returning to the lobby calls it (through
+## Net owns this rule -- the session returning to the lobby calls it (through
 ## set_match_in_progress(false)) -- and the Lobby's Ready toggle only shows the result; it no
-## longer resets the flags itself on entry (Bontago-1pi.73's workaround).
+## longer resets the flags itself on entry ('s workaround).
 func reset_ready_flags() -> void:
 	if _clear_ready_flags():
 		_broadcast_roster()
@@ -682,7 +681,7 @@ func kick_peer(peer_id: int, reason: LeaveReason = LeaveReason.KICKED) -> void:
 	_pending_handshake.erase(peer_id)
 	# A kicked peer forfeits its rejoin token: no reservation is made for it.
 	_tokens.erase(peer_id)
-	# Bontago-1pi.57: ENet keeps a disconnecting peer in get_peers() until the
+	# ENet keeps a disconnecting peer in get_peers() until the
 	# disconnect completes a poll later, and a send to it logs an engine error.
 	# Mark it before anything below can broadcast (the roster, and whatever a
 	# net_peer_left listener republishes), so it is never addressed again. A peer
@@ -691,7 +690,7 @@ func kick_peer(peer_id: int, reason: LeaveReason = LeaveReason.KICKED) -> void:
 	if transport != null and multiplayer.get_peers().has(peer_id):
 		_disconnecting_peers[peer_id] = true
 		transport.disconnect_peer(peer_id)
-	# Bontago-1pi.53 review F2: compact BEFORE announcing the departure, as the
+	# review F2: compact BEFORE announcing the departure, as the
 	# disconnect path does, so a listener of net_peer_left (the lobby republishing
 	# its data) already reads the closed-up slot ids.
 	_compact_lobby_slots()
@@ -712,7 +711,7 @@ func all_peers_ready() -> bool:
 	if _peers.is_empty():
 		return false
 	for peer_id: int in _peers.keys():
-		# DECISION (Bontago-1pi.67): the host's own entry mirrors its Ready toggle like
+		# DECISION: the host's own entry mirrors its Ready toggle like
 		# any peer's (seeded false), but pressing Start is the host's consent, so the
 		# Start gate waits for every OTHER seated human only.
 		if peer_id == HOST_PEER_ID:
@@ -735,7 +734,7 @@ func ping_ms(peer_id: int = 0) -> float:
 	return float(_peers[target].get(LobbySeats.FIELD_PING_MS, 0.0))
 
 
-# --- Lobby data (spec 3.4: "Steam lobbies store match settings as lobby
+# --- Lobby data (spec 2.6: "Steam lobbies store match settings as lobby
 # data"; over ENet the host broadcasts the same Dictionary reliably) ---------
 
 ## Host only: publishes the lobby settings. ui/lobby/Lobby.gd passes
@@ -746,7 +745,7 @@ func set_lobby_data(data: Dictionary) -> void:
 		return
 	_lobby_data = data.duplicate(true)
 	Events.net_lobby_data_changed.emit(_lobby_data)
-	# Bontago-mv0.1.10 review: same teardown hazard as _broadcast_roster().
+	# review: same teardown hazard as _broadcast_roster().
 	for peer_id: int in _broadcast_targets():
 		_rpc_lobby_data.rpc_id(peer_id, _lobby_data)
 	# docs/archive/M3b_PLAN.md "Design notes": tee the same Dictionary into Steam
@@ -764,7 +763,7 @@ func lobby_data() -> Dictionary:
 	return _lobby_data
 
 
-# --- Steam session (spec 3.4, docs/archive/M3b_PLAN.md P1) --------------------------
+# --- Steam session (spec 2.6, docs/archive/M3b_PLAN.md P1) --------------------------
 #
 # M3b is a peer swap, not a new architecture: host_online()/join_lobby() are
 # the Steam-shaped host_game()/join_game(), but Steam's own matchmaking calls
@@ -785,8 +784,8 @@ func lobby_data() -> Dictionary:
 ## notes": "addon not installed" and "status != 0" are logged with different
 ## messages but collapse to this one false for every UI purpose — the whole
 ## point being a caller never needs to ask which case it is.
-## Bontago-1pi.100 single owner of "which name does the local player go by".
-## DECISION (owner: names come from Steam, the name setting is the fallback):
+## single owner of "which name does the local player go by".
+## DECISION (names come from Steam, the name setting is the fallback):
 ## (1) while Steam is initialised and reports a non-empty persona name, the
 ## persona wins; (2) otherwise the typed/saved name (`typed`, the Settings name;
 ## "" when never set); (3) "" so the host seats "Player N". The result is still
@@ -843,7 +842,7 @@ func host_online(player_name: String = "") -> Error:
 	_wire_steam_signals()
 	if not steam_available():
 		return ERR_UNAVAILABLE
-	# Bontago-mv0.2.6 finding B: refuse a second concurrent attempt rather than
+	# finding B: refuse a second concurrent attempt rather than
 	# issue a second Steam create_lobby() request while the first is still
 	# awaiting its own lobby_created answer — see _steam_request_generation's
 	# doc comment for the orphaned-lobby / misattributed-answer races this
@@ -866,8 +865,7 @@ func join_lobby(lobby_id: int, player_name: String = "") -> Error:
 	_wire_steam_signals()
 	if not steam_available():
 		return ERR_UNAVAILABLE
-	# Same guard as host_online() above, and for the same reason (Bontago-
-	# mv0.2.6 finding B).
+	# Same guard as host_online() above, and for the same reason.
 	if _steam_request_pending():
 		return ERR_BUSY
 	if _mode != Mode.OFFLINE:
@@ -888,7 +886,7 @@ func discovered_lobbies() -> Array[Dictionary]:
 
 
 ## Asks Steam for the current lobby list, filtered to this game and this
-## exact build version (spec 3.4: "Compare the version when joining a
+## exact build version (spec 2.6: "Compare the version when joining a
 ## lobby..."; a stale build should not even appear in the list). Pull-based,
 ## unlike LAN's push advert — ui/menus/MainMenu.gd (P3) is expected to call this on
 ## a config.steam_lobby_list_refresh_s timer. Results arrive later as
@@ -897,7 +895,7 @@ func refresh_lobby_list() -> void:
 	_wire_steam_signals()
 	if not steam_available():
 		return
-	# Bontago-1pi.105: Steam keeps one outstanding lobby list request; never overlap.
+	# Steam keeps one outstanding lobby list request; never overlap.
 	if _lobby_list_pending != LobbyListPending.NONE and Time.get_ticks_msec() - _lobby_list_sent_msec < LOBBY_LIST_STALE_MSEC:
 		_lobby_list_refresh_queued = true
 		SteamClient.log_line("lobby search: refresh coalesced, a request is still pending")
@@ -947,7 +945,7 @@ func _on_steam_init_result(status: int, verbal: String) -> void:
 ## success (`ok`) is handed straight to steam_provider.leave_lobby() so it is
 ## never orphaned; a stale failure is simply dropped. Shared by
 ## _on_steam_lobby_created() and _on_steam_lobby_joined() below.
-## Bontago-1pi.48: `index` is the pending entry this answer resolves (see
+## `index` is the pending entry this answer resolves (see
 ## _steam_pending_index()), or -1 when no request matches it.
 func _consume_steam_answer_is_stale(index: int, ok: bool, lobby_id: int) -> bool:
 	if index < 0 or index >= _steam_pending_generations.size():
@@ -982,7 +980,7 @@ func _steam_first_pending_join_index() -> int:
 	return -1
 
 
-## Bontago-1pi.48: true for Steam's LobbyEnter echo of a lobby this process
+## true for Steam's LobbyEnter echo of a lobby this process
 ## created (or a repeat enter of the lobby it is already in) — a success no
 ## join_lobby() asked for. Arrives after lobby_created in every probe log, but
 ## the order is not relied on: an echo while a create is still pending counts.
@@ -1000,7 +998,7 @@ func _on_steam_lobby_created(result: int, lobby_id: int) -> void:
 	SteamClient.log_line("lobby_created: result=%d lobby_id=%d" % [result, lobby_id])
 	if result == 1:
 		_steam_created_lobbies[lobby_id] = true
-	# Bontago-mv0.2.6 finding B / Bontago-mv0.4: consume this request's
+	# finding B / consume this request's
 	# generation first; a stale answer abandons whatever lobby Steam actually
 	# created rather than let the guard below silently drop it and orphan it.
 	if _consume_steam_answer_is_stale(_steam_pending_index(_STEAM_CREATE_REQUEST), result == 1, lobby_id):
@@ -1062,7 +1060,7 @@ func _on_steam_lobby_created(result: int, lobby_id: int) -> void:
 
 
 func _on_steam_lobby_joined(lobby_id: int, response: int) -> void:
-	# Bontago-1pi.48 root cause: Steam also sends the creator a lobby_joined for
+	# root cause: Steam also sends the creator a lobby_joined for
 	# its own new lobby. With the create already answered, the stray-answer
 	# branch below used to leave_lobby() it, so every game-hosted lobby died
 	# instantly and was never found by another account's search.
@@ -1075,7 +1073,7 @@ func _on_steam_lobby_joined(lobby_id: int, response: int) -> void:
 		# the oldest pending join (the pre-1pi.48 FIFO rule), never a create.
 		index = _steam_first_pending_join_index()
 	# Same stale-answer handling as _on_steam_lobby_created() above, and for
-	# the same reason (Bontago-mv0.2.6 finding B / Bontago-mv0.4).
+	# the same reason (finding B /).
 	if _consume_steam_answer_is_stale(index, response == 1, lobby_id):
 		return
 	if _mode != Mode.OFFLINE:
@@ -1088,7 +1086,7 @@ func _on_steam_lobby_joined(lobby_id: int, response: int) -> void:
 	var owner_id: int = steam_provider.lobby_owner(lobby_id)
 	var peer: MultiplayerPeer = _make_steam_client_peer(owner_id)
 	if peer == null:
-		# Bontago-mv0.2.6 (independent-review finding A): Steam's own
+		# independent-review finding A: Steam's own
 		# lobby_joined already made this instance a lobby member (response ==
 		# 1) by the time the transport peer fails to construct, but neither
 		# _steam_session nor _steam_lobby_id is set yet at this point (those
@@ -1167,7 +1165,7 @@ func _on_steam_lobby_match_list(lobby_ids: Array) -> void:
 		})
 	_discovered_lobbies = result
 	Events.net_steam_lobbies_discovered.emit(result)
-	# Bontago-1pi.48: one line per search so a failed Steam join can be diagnosed from godot.log.
+	# one line per search so a failed Steam join can be diagnosed from godot.log.
 	SteamClient.log_line("lobby search (answers the filtered request): %d lobbies returned, %d match game+version %s" % [lobby_ids.size(), result.size(), build_version()])
 	_drain_queued_lobby_refresh()
 
@@ -1178,10 +1176,10 @@ func _drain_queued_lobby_refresh() -> void:
 		refresh_lobby_list()
 
 
-## Bontago-1pi.48 diagnostics: every STEAM_SELFCHECK_PERIOD_S while a Steam
-## session is live, logs `STEAM [time] SELFCHECK ...` (members, owner vs me,
+## diagnostics: every STEAM_SELFCHECK_PERIOD_S while a Steam
+## session is live, logs `STEAM [time] SELFCHECK ...` (members, owning account vs this account,
 ## member limit, all lobby data). A host that silently left its lobby reads
-## members=0 / owner=0 here even though Net still believes it is hosting.
+## members=0 / owning account=0 here even though Net still believes it is hosting.
 func _tick_steam_selfcheck(delta: float) -> void:
 	if not _steam_session or _steam_lobby_id == 0 or steam_provider == null:
 		return
@@ -1194,7 +1192,7 @@ func _tick_steam_selfcheck(delta: float) -> void:
 
 
 ## The overlay's "Join Game" / invite-accept path when this game is already
-## running (spec 3.4/research: "Invites arrive two ways and both must be
+## running (spec 2.6/research: "Invites arrive two ways and both must be
 ## handled"). The other way, `+connect_lobby` on a freshly launched process's
 ## command line, is handled by _apply_connect_lobby_args() below.
 
@@ -1217,17 +1215,17 @@ const _SMOKE_LIST_WAIT_S: float = 6.0
 ## captured log. Fire-and-forget: apply_command_line() does not await this.
 ##
 ## NOTE for whoever reruns this: with config.steam_lobby_type at its
-## FriendsOnly default (owner decision), discovered_lobbies() below is
+## FriendsOnly default, discovered_lobbies() below is
 ## expected to print [] on a single Steam account — verified empirically
-## (netcode-F2-smoke-public.log vs netcode-F2-smoke-fixed3.log in this
-## worker's scratch directory): the exact same lobby is found immediately
+## netcode-F2-smoke-public.log vs netcode-F2-smoke-fixed3.log in this
+## worker's scratch directory: the exact same lobby is found immediately
 ## when steam_lobby_type is temporarily set to Public (2), and
 ## lobby_member_count()/lobby_owner() below always confirm the lobby is real
 ## either way. Steamworks' own RequestLobbyList() does not return a
 ## FriendsOnly lobby to a search from the owner's own account (it is scoped
 ## to the owner's *friends*, a genuinely different Steam identity) — this is
 ## the one part of this acceptance step that a single-PC/single-account
-## smoke test cannot exercise, and needs the owner's two-PC run instead.
+## smoke test cannot exercise, and needs the user's two-PC run instead.
 func _run_steam_smoke_host_online(player_name: String) -> void:
 	var mgr: Object = Engine.get_singleton(&"GDExtensionManager")
 	print("NET_SMOKE loaded_extensions=%s" % [mgr.call("get_loaded_extensions")])
@@ -1249,7 +1247,7 @@ func _run_steam_smoke_host_online(player_name: String) -> void:
 	print("NET_SMOKE discovered_lobbies=%s" % [discovered_lobbies()])
 
 
-# --- LAN discovery (spec 3.4) -----------------------------------------------
+# --- LAN discovery (spec 2.6) -----------------------------------------------
 
 ## Starts listening on config.discovery_port for hosts advertising themselves.
 ## Results arrive as Events.net_games_discovered.
@@ -1316,7 +1314,7 @@ func report_stats(source: StringName, values: Dictionary) -> void:
 		_report[key] = values[key]
 
 
-# --- Command line (spec 3.4 "Testing") --------------------------------------
+# --- Command line (spec 2.6 "Testing") --------------------------------------
 
 ## Parses --host, --join=<ip[:port]>, --port=<n>, --headless-host,
 ## --host-online, --advertise (headless hosts opt in to LAN broadcast), --player-name=<s>, --sim-lag=<ms>, --sim-loss=<fraction>
@@ -1354,7 +1352,7 @@ func _apply_command_line_args(args: PackedStringArray) -> bool:
 		var loss: float = float(options.get("sim-loss", 0.0))
 		set_simulation(lag, 0.0, loss)
 
-	# Bontago-1pi.48: host a Public Steam lobby so the Join > Steam list can find
+	# host a Public Steam lobby so the Join > Steam list can find
 	# it (FriendsOnly lobbies never appear in Steam's lobby search). Duplicated so
 	# the shared net_config.tres resource is not mutated.
 	if flags.has("steam-public-lobby"):
@@ -1371,7 +1369,7 @@ func _apply_command_line_args(args: PackedStringArray) -> bool:
 		# have("join") guard needed.
 		if options.has("match-config"):
 			_load_match_config_override(String(options["match-config"]))
-		# DECISION (Bontago-fca.88): a --headless-host (bot training, soaks, h2h, ENet harness
+		# DECISION: a --headless-host (bot training, soaks, h2h, ENet harness
 		# hosts) does not broadcast on the LAN by default, so it never appears as "Host (1/8)" in
 		# a Join browser; clients still connect by address. `--advertise` opts back in.
 		var lan_visible: bool = not flags.has("headless-host") or flags.has("advertise")
@@ -1522,7 +1520,7 @@ func _make_steam_host_peer() -> MultiplayerPeer:
 	var peer: MultiplayerPeer = obj as MultiplayerPeer
 	if peer == null:
 		return null
-	# server_relay = true: client traffic routes through the host (spec 3.4
+	# server_relay = true: client traffic routes through the host (spec 2.6
 	# "Model: Host-authoritative listen server"), matching ENet's implicit
 	# star topology.
 	peer.set("server_relay", true)
@@ -1577,14 +1575,14 @@ func _on_peer_disconnected(id: int) -> void:
 	var left_name: String = String(_peers[id].get(LobbySeats.FIELD_NAME, ""))
 	_peers.erase(id)
 	_ping_samples.erase(id)
-	# Bontago-8or.11: a seated peer dropping mid-match keeps a reservation on
+	# a seated peer dropping mid-match keeps a reservation on
 	# its slot for as long as the seat policy calls it reclaimable (its
 	# disconnect grace); quoting the token on the next handshake gets it back.
 	var token: String = String(_tokens.get(id, ""))
 	_tokens.erase(id)
 	if _match_in_progress and slot_id >= 0 and token != "":
 		_reservations[token] = slot_id
-	# Bontago-1pi.53: in the lobby the seats close up behind the leaver, in the
+	# in the lobby the seats close up behind the leaver, in the
 	# same roster broadcast (a no-op mid-match).
 	_compact_lobby_slots()
 	_broadcast_roster()
@@ -1631,7 +1629,7 @@ func _on_server_disconnected() -> void:
 
 # --- Handshake & roster RPCs -------------------------------------------------
 
-## `rejoin_token` (Bontago-8or.11) is what _rpc_join_accepted handed this
+## `rejoin_token` is what _rpc_join_accepted handed this
 ## player on an earlier join, or "". It has a default so the parameter list
 ## still binds for a sender that omits it; the build check refuses any real
 ## older build first anyway.
@@ -1648,7 +1646,7 @@ func _rpc_handshake(build: String, player_name: String, rejoin_token: String = "
 	if _match_in_progress:
 		_handshake_mid_match(sender, build, player_name, rejoin_token)
 		return
-	# Spec 3.4: joining is lobby-only in M3a. Checked before capacity so a
+	# Spec 2.6: joining is lobby-only in M3a. Checked before capacity so a
 	# late joiner learns the real reason — a full lobby is a different message.
 	if not _accepting_joins:
 		_reject_peer(sender, JoinError.MATCH_IN_PROGRESS)
@@ -1659,16 +1657,16 @@ func _rpc_handshake(build: String, player_name: String, rejoin_token: String = "
 	_accept_peer(sender, build, player_name, _take_next_lobby_slot())
 
 
-## Bontago-8or.11: the handshake while a match runs. A token naming a slot
+## the handshake while a match runs. A token naming a slot
 ## that is still reclaimable wins first and skips _accepting_joins and the
-## capacity check (its own departure freed the room): spec 3.4 lists
+## capacity check (its own departure freed the room): spec 2.6 lists
 ## reconnect separately from "Mid-match joins can be enabled in settings", and
 ## the disconnect grace exists precisely so a dropped player can come back.
 ## Anyone else is a new late joiner: refused unless the match allows
 ## mid-match joins, then seated in an open human slot or, failing that, as a
 ## spectator (slot -1).
 ##
-## DECISION (Bontago-8or.11): a returning player whose grace already ran out
+## DECISION: a returning player whose grace already ran out
 ## (its slot was eliminated) is treated as a brand-new late joiner, not
 ## refused -- the eliminated slot is no longer theirs to reclaim, and the
 ## ordinary mid-match-join rules decide whether they may watch or take a seat.
@@ -1681,7 +1679,7 @@ func _handshake_mid_match(sender: int, build: String, player_name: String, rejoi
 	if not _accepting_joins:
 		_reject_peer(sender, JoinError.MATCH_IN_PROGRESS)
 		return
-	# DECISION (Bontago-8or.11): spectators count against config.max_peers --
+	# DECISION: spectators count against config.max_peers --
 	# it is the transport's connection budget, not a player count.
 	if _peers.size() >= config.max_peers:
 		_reject_peer(sender, JoinError.SERVER_FULL)
@@ -1714,7 +1712,7 @@ func _reclaimable_slot_for(rejoin_token: String) -> int:
 
 ## The slot a lobby joiner (or a spectator returning to the lobby) is seated in.
 ##
-## Bontago-1pi.53 (docs/LOBBY_REWORK_PLAN.md R4): the LOWEST free slot, not the next
+## docs/LOBBY_REWORK_PLAN.md R4: the LOWEST free slot, not the next
 ## monotonic id, so a joiner never lands above a hole. (_compact_lobby_slots closes
 ## the holes a leaver makes; this keeps the invariant for every seating path.)
 ## "Free" = no roster entry holds it and no rejoin reservation names it. Mid-match
@@ -1745,7 +1743,7 @@ func _take_next_lobby_slot() -> int:
 ## (_broadcast_roster), which is what carries the new peer -> slot map to every
 ## client (and to the host's own lobby through net_roster_changed).
 ##
-## Bontago-1pi.53, P2 review finding 1: slot ids were never compacted, so after a
+## P2 review finding 1: slot ids were never compacted, so after a
 ## player left the lobby the table had a hole below the highest human slot, and
 ## LobbySeats.start_blocker reported a slot conflict that blocked Start even with
 ## zero bots until someone rejoined. Never during a match: there a slot id is a
@@ -1775,7 +1773,7 @@ func _compact_lobby_slots() -> int:
 ## derived itself (the joiner sent none, so it holds the "Player N" fallback of
 ## the slot it was accepted into: "name_auto") is derived again for the new slot,
 ## so the label never goes stale and never collides with the next joiner's or a
-## bot's "Player N" for the slot this peer vacated (Bontago-1pi.53 review F1). A
+## bot's "Player N" for the slot this peer vacated (review F1). A
 ## name the player chose is never touched, even when it reads "Player 3".
 func _set_peer_slot(peer_id: int, slot_id: int) -> void:
 	var entry: Dictionary = _peers[peer_id]
@@ -1784,11 +1782,11 @@ func _set_peer_slot(peer_id: int, slot_id: int) -> void:
 		entry[LobbySeats.FIELD_NAME] = PlayerNames.fallback_for_slot(slot_id)
 
 
-## Seats `peer_id` in `slot_id` (-1 = spectator, Bontago-8or.11). `token` is a
+## Seats `peer_id` in `slot_id` (1 = spectator). `token` is a
 ## reconnecting peer's existing rejoin token, reused so a second drop also
 ## works; a new peer gets a fresh one.
 ##
-## Bontago-8or.11 ordering: the joiner hears _rpc_join_accepted and the
+## ordering: the joiner hears _rpc_join_accepted and the
 ## roster *before* Events.net_peer_joined fires, because net/MatchNet.gd
 ## answers that event with a mid-match world replay (rpc_id, reliable, the
 ## same ordered channel), and the replay's net_match_start builds the
@@ -1799,13 +1797,13 @@ func _accept_peer(peer_id: int, build: String, player_name: String, slot_id: int
 		_next_slot_id = slot_id + 1
 	var issued: String = token if token != "" else _new_rejoin_token()
 	_tokens[peer_id] = issued
-	# Bontago-1pi.49: the host owns the roster, so it validates the name a peer
+	# the host owns the roster, so it validates the name a peer
 	# claims (control characters, trim, max length, "Player N" if empty) before
 	# anyone else sees it. Everything below uses the checked name.
 	var typed_name: String = PlayerNames.clean(player_name, config.max_player_name_length)
 	var name_auto: bool = typed_name == ""
 	var checked_name: String = PlayerNames.fallback_for_slot(slot_id) if name_auto else typed_name
-	# Bontago-1pi.53 review F1: name_auto is true when the joiner sent no usable name and
+	# review F1: name_auto is true when the joiner sent no usable name and
 	# the name is the host's own "Player N" for the seat (see _set_peer_slot).
 	_peers[peer_id] = LobbySeats.entry_to_wire(peer_id, slot_id, checked_name, false, 0.0, build, true, name_auto)
 	_ping_samples[peer_id] = []
@@ -1824,7 +1822,7 @@ func _new_rejoin_token() -> String:
 
 func _reject_peer(peer_id: int, error: int) -> void:
 	_pending_handshake.erase(peer_id)
-	# Bontago-1pi.59 review: a refused peer lingers for the grace frames below;
+	# review: a refused peer lingers for the grace frames below;
 	# mark it so NetFanout broadcasts skip it like a kicked peer.
 	_disconnecting_peers[peer_id] = true
 	_rpc_join_refused.rpc_id(peer_id, error)
@@ -1847,7 +1845,7 @@ func _reject_peer(peer_id: int, error: int) -> void:
 		multiplayer.multiplayer_peer.disconnect_peer(peer_id)
 
 
-## Bontago-mv0.1.10: whether an RPC broadcast can actually reach the wire
+## whether an RPC broadcast can actually reach the wire
 ## right now. _on_peer_disconnected can call _broadcast_roster() while the
 ## transport is mid-teardown — the multiplayer_peer already closed/nulled
 ## (leave()/host shutdown racing a late disconnect signal), or still open but
@@ -1868,7 +1866,7 @@ func is_peer_disconnecting(peer_id: int) -> bool:
 	return _disconnecting_peers.has(peer_id) or not _transport_peer_sendable(peer_id)
 
 
-## Bontago-1pi.103: ENet marks a remote peer ZOMBIE/DISCONNECTING as soon as its
+## ENet marks a remote peer ZOMBIE/DISCONNECTING as soon as its
 ## disconnect command arrives, but get_peers() keeps listing it until its own
 ## queued DISCONNECT event is dispatched (several clients leaving at host
 ## shutdown, or one peer's event running a roster broadcast first). Sending then
@@ -1908,7 +1906,7 @@ func _broadcast_roster() -> void:
 	var roster: Array[Dictionary] = []
 	for peer_id: int in _peers.keys():
 		roster.append((_peers[peer_id] as Dictionary).duplicate())
-	# Bontago-mv0.6: the host's own copy of the roster (ready flags, joins,
+	# the host's own copy of the roster (ready flags, joins,
 	# leaves, kicks — every caller of _broadcast_roster()) changed right here;
 	# tell ui/lobby/Lobby.gd directly rather than waiting on a lobby-data republish.
 	Events.net_roster_changed.emit(roster)
@@ -1934,7 +1932,7 @@ func _rpc_roster_update(roster: Array) -> void:
 	var mine: int = local_peer_id()
 	if _peers.has(mine):
 		_local_slot = int(_peers[mine].get(LobbySeats.FIELD_SLOT_ID, -1))
-	# Bontago-mv0.6: the client-side mirror of the emit above, so a client's
+	# the client-side mirror of the emit above, so a client's
 	# own ui/lobby/Lobby.gd updates the moment this RPC lands instead of on the
 	# next unrelated net_lobby_data_changed republish.
 	Events.net_roster_changed.emit(typed_roster)
@@ -1950,7 +1948,7 @@ func _rpc_join_accepted(slot_id: int, _host_peer_id: int, rejoin_token: String =
 	_local_slot = slot_id
 	_joined_accepted = true
 	# Same check the host ran on the name it was sent, so this event carries the
-	# very string the roster will show (Bontago-1pi.49).
+	# very string the roster will show.
 	Events.net_peer_joined.emit(
 		local_peer_id(), slot_id, PlayerNames.sanitize(_pending_join_name, config.max_player_name_length, slot_id)
 	)
@@ -1970,7 +1968,7 @@ func _fail_join(error: int, detail: String = "") -> void:
 
 # --- Lobby-only joining ------------------------------------------------------
 
-## Host only. Whether _rpc_handshake may still seat a new peer. Spec 3.4 makes
+## Host only. Whether _rpc_handshake may still seat a new peer. Spec 2.6 makes
 ## joining lobby-only in M3a ("Mid-match joins can be enabled in settings" is a
 ## future setting; docs/archive/M3a_PLAN.md "Known limitations": "the host refuses new
 ## connections once the match starts"). A peer that handshakes while this is
@@ -1979,12 +1977,12 @@ func _fail_join(error: int, detail: String = "") -> void:
 ##
 ## host_game() and leave() reset it to true, so a fresh session always accepts.
 ##
-## Bontago-8or.11: mid-match, game/main/Main.gd keeps it true while the running
+## mid-match, game/main/Main.gd keeps it true while the running
 ## MatchConfig.allow_mid_match_join is on; set_match_in_progress() then routes
 ## the handshake through _handshake_mid_match() (open seat, spectator, or a
 ## rejoin token's reserved slot -- the last ignores this flag).
 ##
-## DECISION (autoload/Net.gd, Bontago-mv0.1.8): a flag the match flow flips,
+## DECISION (autoload/Net.gd): a flag the match flow flips,
 ## not a subscription to Events.match_state_changed. That signal carries
 ## Match.State ints, and deciding which value is "lobby" would make this file
 ## name a gameplay concept (docs/archive/M3a_PLAN.md P1: "Must NOT name a gameplay
@@ -2007,12 +2005,12 @@ func accepting_joins() -> bool:
 	return _accepting_joins
 
 
-## Host only (Bontago-8or.11). game/main/Main.gd calls this with true when a match
+## Host only. game/main/Main.gd calls this with true when a match
 ## world is (re)built (LOBBY -> LOADING) and with false on a real return to
 ## the lobby. Every call drops the rejoin reservations, so a slot reserved in
 ## one match can never be reclaimed in the next. Going back to the lobby also
 ## gives each spectator a real lobby slot again, so the next Start counts it
-## as a player, and clears every ready flag (Bontago-1pi.89).
+## as a player, and clears every ready flag.
 ##
 ## Like set_accepting_joins(), a flag the match flow flips rather than a
 ## subscription to a gameplay signal: this file must not name Match.
@@ -2027,11 +2025,11 @@ func set_match_in_progress(active: bool) -> void:
 		if int(_peers[peer_id].get(LobbySeats.FIELD_SLOT_ID, -1)) < 0:
 			_set_peer_slot(peer_id, _take_next_lobby_slot())
 			reseated = true
-	# Bontago-1pi.53: a player who left for good during the match left a hole too
+	# a player who left for good during the match left a hole too
 	# (nothing compacts mid-match); close it now the lobby is back, so Start is not
 	# blocked on a seat nobody can fill.
 	var compacted: bool = _compact_lobby_slots() > 0
-	# Bontago-1pi.89: back in the lobby nobody is ready (every lobby view reads this flag).
+	# back in the lobby nobody is ready (every lobby view reads this flag).
 	var cleared: bool = _clear_ready_flags()
 	if reseated or compacted or cleared:
 		_broadcast_roster()
@@ -2041,7 +2039,7 @@ func match_in_progress() -> bool:
 	return _match_in_progress
 
 
-## Host only (Bontago-8or.11): installs the gameplay side of mid-match
+## Host only: installs the gameplay side of mid-match
 ## admission (see _pick_open_seat / _can_reclaim_seat). Either Callable may be
 ## invalid: then every late joiner spectates and no slot can be reclaimed.
 func set_seat_policy(pick_open_seat: Callable, can_reclaim_seat: Callable) -> void:
@@ -2076,9 +2074,9 @@ func _rpc_set_ready(ready: bool) -> void:
 	set_peer_ready(multiplayer.get_remote_sender_id(), ready)
 
 
-# --- Loading-screen ready gate (Bontago-1pi.32) -------------------------------
+# --- Loading-screen ready gate -------------------------------
 #
-# Owner playtest 2026-10-03: every human player presses ready (ui_accept: Enter,
+#  every human player presses ready (ui_accept: Enter,
 # Space or the gamepad's A) on the loading screen and the host starts the
 # countdown once all of them have (core/rules/LoadingReadyGate.gd holds the rule,
 # autoload/match/MatchLifecycle.gd the per-match state). Net is only the
@@ -2156,7 +2154,7 @@ func _rpc_loading_gate_open() -> void:
 	Events.loading_gate_opened.emit()
 
 
-# --- Lobby seat preferences (Bontago-1pi.53) ---------------------------------
+# --- Lobby seat preferences ---------------------------------
 #
 # docs/LOBBY_REWORK_PLAN.md section 3: the host owns every seat's picks; a client
 # may change only its OWN colour and team, and does so by sending this intent. Net
@@ -2481,7 +2479,7 @@ func _tick_ping(delta: float) -> void:
 		return
 	_ping_accum = fmod(_ping_accum, interval)
 	var now_ms: int = Time.get_ticks_msec()
-	# Bontago-mv0.1.10 review: same teardown hazard as _broadcast_roster().
+	# review: same teardown hazard as _broadcast_roster().
 	if not _can_send():
 		return
 	for peer_id: int in _broadcast_targets():
@@ -2565,7 +2563,7 @@ func _apply_peer_timeout(id: int) -> void:
 		packet_peer.call("set_timeout", config.peer_timeout_limit, config.peer_timeout_min_ms, config.peer_timeout_max_ms)
 
 
-## Bontago-1pi.164: Net.upnp_state() etc. are what the lobby reads. IDLE = not tried.
+## Net.upnp_state() etc. are what the lobby reads. IDLE = not tried.
 func upnp_state() -> int:
 	return int(_upnp.state)
 
@@ -2586,7 +2584,7 @@ func host_port() -> int:
 	return _host_port
 
 
-## DECISION (Bontago-1pi.164): the real backend needs a windowed, non-agent autoload; headless hosts
+## DECISION: the real backend needs a windowed, non-agent autoload; headless hosts
 ## (bot matches, GUT) never reach a router. Callers pass advertise and lan_visible, so bot hosts
 ## (lan_visible false) and private sessions (advertise false) are excluded before this runs.
 func _upnp_backend() -> UpnpBackend:

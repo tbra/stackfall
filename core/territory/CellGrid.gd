@@ -1,7 +1,7 @@
 class_name CellGrid
 extends RefCounted
 ## The one disk-local coordinate convention shared by the solver, the raster,
-## the field's collision cells and placement validation (spec 3.3).
+## the field's collision cells and placement validation (spec 2.5).
 ##
 ## **Convention.** Disk-local space is plain Cartesian (x, z) in meters with
 ## the origin at the disk center; the y axis (height along the disk normal) is
@@ -36,7 +36,7 @@ var res: int = 1
 ## disk-local meters and cell coordinates goes through it.
 var half_extent: float = 0.5
 
-## The map-shape mechanism (spec 2.1, M6 A0): an optional extra membership
+## The map-shape mechanism (spec 1.7, M6 A0): an optional extra membership
 ## test consulted by is_in_disk() below, on top of the circle test every map
 ## already relied on. Empty (the default, and every two-argument caller's
 ## constructor) means "circle only" -- byte-identical to before this package.

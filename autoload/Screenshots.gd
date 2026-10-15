@@ -1,5 +1,5 @@
 extends Node
-## In-game screenshot capture (owner request 2026-09-23: "add a button to
+## In-game screenshot capture ("add a button to
 ## take in-game screenshots which automatically saves to the docs", revised
 ## the same day to a folder outside the repo -- see OUTPUT_DIR_ENV).
 ##
@@ -34,7 +34,7 @@ var image_provider: Callable = Callable(self, "_grab_viewport_image")
 ## a headless `godot --headless -s addons/gut/gut_cmdln.gd` run never draws a
 ## frame, so RenderingServer never emits frame_post_draw and an unconditional
 ## await here hung every test (and would hang capture() forever on a headless
-## bot-match host too, spec 3.2 M5). Production capture() still needs the
+## bot-match host too, spec 2.2 M5). Production capture() still needs the
 ## wait -- reading the viewport texture before the frame finishes drawing can
 ## grab a stale or partial image -- so the wait stays the default and only
 ## tests, which already stub image_provider and have no real frame to wait
@@ -99,7 +99,7 @@ func _next_filename() -> String:
 
 
 ## Screenshots land in user://screenshots, or in the folder named by the
-## STACKFALL_SCREENSHOT_DIR environment variable when set (agent/owner drop
+## STACKFALL_SCREENSHOT_DIR environment variable when set (agent or owner drop
 ## folders live outside the repo).
 const OUTPUT_DIR_ENV: String = "STACKFALL_SCREENSHOT_DIR"
 const DEFAULT_DIR: String = "user://screenshots"

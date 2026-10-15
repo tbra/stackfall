@@ -1,6 +1,6 @@
 class_name WeatherTuning
 extends Resource
-## One weather's tunables and registry entry (Bontago-22y.10). One .tres per
+## One weather's tunables and registry entry. One .tres per
 ## weather under res://config/weather/; WeatherTuning.load_all() is the
 ## registry. Effects (Storm 22y.4, Rain 22y.5, Snow 22y.6) read their own
 ## strength numbers from a subclass or a sibling resource; this base only
@@ -35,7 +35,7 @@ enum Phase { RAMP_IN, HOLD, RAMP_OUT }
 ## Host-side physics effect: a script extending WeatherEffect. Empty means the
 ## weather has no physics effect (visual-only, or a later package's slot).
 @export_file("*.gd") var effect_script: String = ""
-## Looping ambience bed (Bontago-mp0.118), played on every peer while this
+## Looping ambience bed, played on every peer while this
 ## weather is active; its volume follows the ramped intensity. Empty = silent.
 @export_file("*.wav") var ambience_loop: String = ""
 ## Bed volume (dB) at full intensity, before the Master/SFX sliders.

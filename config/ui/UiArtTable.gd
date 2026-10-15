@@ -1,6 +1,6 @@
 class_name UiArtTable
 extends Resource
-## Maps map variants and lobby icon keys to their UI art (Bontago-mp0.124 part A):
+## Maps map variants and lobby icon keys to their UI art (part A):
 ## the arena pictograms (assets/ui/map_pictograms) for the lobby map picker and the
 ## loading screen, and the white-source lobby rework icons (assets/ui/icons/lobby)
 ## for section headers, bot/team controls and the Advanced chips. Loaded as
@@ -28,7 +28,7 @@ const KEY_DIFFICULTY: Array[StringName] = [&"difficulty_easy", &"difficulty_norm
 const MAP_KEY: StringName = &"ROUND"
 @export var map_atlas: Texture2D = null
 @export var map_regions: Dictionary = {}
-## Bontago-1pi.83: the atlas SVG is imported at this svg/scale (crisp at 1080p+); the regions
+## the atlas SVG is imported at this svg/scale (crisp at 1080p+); the regions
 ## stay in the authored 256x128 coordinates and are multiplied by it.
 @export var map_atlas_import_scale: float = 4.0
 
@@ -52,7 +52,7 @@ static func shared() -> UiArtTable:
 	return _shared
 
 
-## Bontago-xtq.44: drops the shared instance on exit so its textures are freed with the tree.
+## drops the shared instance on exit so its textures are freed with the tree.
 static func release_shared() -> void:
 	_shared = null
 

@@ -1,14 +1,14 @@
 class_name MatchLifecycle
 extends RefCounted
 ## Match's state machine (Lobby -> Loading -> Countdown -> Playing -> End ->
-## Lobby, spec 3.7), slots/teams, disconnect grace and hot-seat turn logic.
+## Lobby, spec 2.4), slots/teams, disconnect grace and hot-seat turn logic.
 ##
 ## Split out of autoload/Match.gd (pure refactor: no behaviour change). See
 ## that file's own header comment for the full state-machine contract.
 
-## Bontago-1pi.18.1: the shared (F4-editable) QoL experiment toggles.
+## the shared (F4-editable) QoL experiment toggles.
 const QOL_EXPERIMENTS: QolExperiments = preload("res://config/match/qol_experiments.tres")
-## Bontago-1pi.32: min display time and ready-wait cap of the loading-screen gate.
+## min display time and ready-wait cap of the loading-screen gate.
 const LOADING_TUNING: LoadingScreenTuning = preload("res://config/ui/loading_screen_tuning.tres")
 
 var _match: MatchAutoload = null
@@ -16,13 +16,13 @@ var _match: MatchAutoload = null
 var _state: MatchAutoload.State = MatchAutoload.State.LOBBY
 var _countdown_remaining: float = 0.0
 var _countdown_last_whole: int = 0
-## Bontago-mp0.27: while true the countdown does not run down. Game/Main.gd
+## while true the countdown does not run down. Game/Main.gd
 ## holds it from LOADING until the fullscreen loading screen is done, so the
 ## 3-2-1 is actually seen. Cleared by every match reset.
 var _countdown_held: bool = false
 
-## -- Loading-screen ready gate (Bontago-1pi.32) ---------------------------------
-## Owner playtest 2026-10-03: every human presses ready (ui_accept / gamepad A)
+## -- Loading-screen ready gate ---------------------------------
+##  every human presses ready (ui_accept / gamepad A)
 ## on the loading screen before the countdown runs (1pi.63: no minimum display time). The rule is core/rules/LoadingReadyGate.gd; this file owns the
 ## per-match state and the host's hooks. Net (autoload/Net.gd) is the transport:
 ## it validates the sender and hands the intent over on the Events bus.
@@ -36,7 +36,7 @@ var _countdown_held: bool = false
 ## online matches all are. Headless tests, bot harnesses and windowed
 ## --agent-probe tools (screenshots, benches) drive Match by hand and see no gate
 ## (set_loading_gate_forced() is the test/harness seam that arms it anyway; the
-## ready-prompt probe a script removed in Bontago-dbn.1 (see git history) forces it). An unarmed
+## ready-prompt probe a script removed in (see git history) forces it). An unarmed
 ## gate opens immediately, so a client of an ungated host is never left waiting.
 var _loading_tuning: LoadingScreenTuning = LOADING_TUNING
 var _ready_gate: LoadingReadyGate = LoadingReadyGate.new()
@@ -69,7 +69,7 @@ var _active_slot: int = -1
 ## _state has already moved past them (this function runs synchronously
 ## start-to-finish, with no yield in between), so apply_replicated_state_
 ## change() would read them as new backward transitions instead of the no-ops
-## they should be (Bontago-mv0.1.13: a client-observed COUNTDOWN->LOADING
+## they should be (a client-observed COUNTDOWN->LOADING
 ## immediately followed by LOADING->COUNTDOWN, spurious both times). Only
 ## net_match_start carries the start across the wire; every OTHER state
 ## change -- PLAYING->END from a win, a future standalone "return to lobby"
@@ -83,13 +83,13 @@ var _starting: bool = false
 ## negative means "connected".
 var _disconnect_grace_left: Array[float] = []
 ## slot -> slot credited with the knockout (-1 / absent = unknown). Mirrored on
-## clients through the player_eliminated event (Bontago-1pi.186).
+## clients through the player_eliminated event.
 var _eliminated_by: Dictionary = {}
 
-## -- Match timer + sudden death (spec 2.8, M6 A3) ----------------------------
+## -- Match timer + sudden death (spec 1.9, M6 A3) ----------------------------
 
 ## Seconds left on the match timer, armed at State.PLAYING entry from
-## config.match_timer_minutes * 60.0. 0.0 means "off" (spec 2.8's own range
+## config.match_timer_minutes * 60.0. 0.0 means "off" (spec 1.9's own range
 ## row: "Off / 10-40 min") and _tick_match_timer() is then a permanent no-op
 ## for the rest of the match -- config.match_timer_minutes == 0 must never
 ## start sudden death, timer or no.
@@ -113,7 +113,7 @@ var _sudden_death_elapsed: float = 0.0
 ## always runs once.
 var _last_shrink_radius: float = INF
 
-## -- Turn-based (spec 2.7, M6 B4) ---------------------------------------------
+## -- Turn-based (spec 1.2, M6 B4) ---------------------------------------------
 
 ## Seconds left before a turn-based placement's settle-wait forces the turn to
 ## advance anyway, or -1.0 when no wait is running (not turn-based, or the
@@ -127,14 +127,14 @@ var _turn_settle_wait_left: float = -1.0
 
 func setup(match_ref: MatchAutoload) -> void:
 	_match = match_ref
-	# Bontago-1pi.32: Net hands over validated intents and the host's mirror on the
+	# Net hands over validated intents and the host's mirror on the
 	# bus (it never names Match); a roster change re-evaluates the required set.
 	Events.net_loading_ready_received.connect(_on_loading_ready_intent)
 	Events.loading_ready_changed.connect(_on_loading_ready_changed)
 	Events.loading_gate_opened.connect(_on_loading_gate_opened)
 	Events.net_peer_left.connect(_on_loading_roster_changed)
 	Events.net_peer_joined.connect(_on_loading_roster_changed)
-	# Bontago-1pi.49: a roster change mid-match (a late joiner taking a seat, a rejoin)
+	# a roster change mid-match (a late joiner taking a seat, a rejoin)
 	# carries the new player's name onto the slot the results are read from.
 	Events.net_roster_changed.connect(_on_roster_names_changed)
 
@@ -150,7 +150,7 @@ func setup(match_ref: MatchAutoload) -> void:
 ## its mirror was left in). A start from anything but LOBBY first goes back
 ## through the lobby -- abort_match(), which emits (old -> LOBBY) so every
 ## consumer tears the previous match down -- so the transition consumers see
-## for a genuine start is always exactly LOBBY -> LOADING (spec 3.7's
+## for a genuine start is always exactly LOBBY -> LOADING (spec 2.4's
 ## `End -> Lobby -> Loading`), never PLAYING -> LOADING. A start from LOBBY
 ## still resets every per-match scalar silently: a client mirror sits in
 ## LOBBY with the previous match's slots and feed state after the host's
@@ -162,7 +162,7 @@ func setup(match_ref: MatchAutoload) -> void:
 ## (Match.registry(), config.map_def()) -- so the raster, the slots and the
 ## configured registry must all exist before the signal goes out; emitting
 ## first and building afterwards handed those consumers a null raster (Beads
-## Bontago-mv0.1.9). Nothing in the build reads _state, so building while
+## ). Nothing in the build reads _state, so building while
 ## still LOBBY costs nothing.
 func start_match(match_config: MatchConfig) -> void:
 	# DECISION (autoload/Match.gd): a repeated or stale start is handled here
@@ -170,7 +170,7 @@ func start_match(match_config: MatchConfig) -> void:
 	# future rematch button): Match owns its state machine, so it is Match
 	# that guarantees the sequence consumers can rely on.
 	#
-	# Bontago-mv0.1.13: set before the abort_match() branch below, not just
+	# set before the abort_match() branch below, not just
 	# around the two _set_state() calls further down, so the leading
 	# old_state->LOBBY transition a restart-from-PLAYING/END produces is
 	# covered too -- see _starting's own doc.
@@ -181,7 +181,7 @@ func start_match(match_config: MatchConfig) -> void:
 		_reset_match_state()
 
 	_match.config = match_config.duplicate(true) as MatchConfig
-	# Bontago-1pi.18.1 DECISION: the host snapshots the shared QoL experiment
+	# DECISION: the host snapshots the shared QoL experiment
 	# toggles once here (unless the caller already supplied some, e.g. a test);
 	# a client keeps whatever net_match_start's dict carried, so both ends run
 	# the same values for the whole match even if the F4 panel is edited later.
@@ -189,23 +189,23 @@ func start_match(match_config: MatchConfig) -> void:
 		_match.config.qol = QOL_EXPERIMENTS.duplicate() as QolExperiments
 	_match.config.sanitize()
 	_match.config.apply_experiments_switch()
-	# Bontago-1pi.62: the host names its bots once; clients keep the names the
+	# the host names its bots once; clients keep the names the
 	# config dict carried.
 	if _match._is_host():
 		_assign_bot_names()
-	# Bontago-470.4: the host resolves Random once; a client keeps the id it
+	# the host resolves Random once; a client keeps the id it
 	# was sent (net_match_start carries sky_theme_resolved).
 	if _match._is_host():
 		_match.config.resolve_sky_theme(randi())
-		# Bontago-59o.18 (C1b follow-up): and the cycle sky's variation seed, so every
+		# C1b follow-up: and the cycle sky's variation seed, so every
 		# match (not just seeded ones) draws its own curve; it rides in to_dict().
 		_match.config.resolve_sky_variation_seed(randi())
-		# Bontago-1pi.75: and the random phase a Cycle sky opens at (seed-derived).
+		# and the random phase a Cycle sky opens at (seed-derived).
 		var sky_source: SkyThemeDef = Skybox.load_theme(Skybox.DEFAULT_THEME_ID)
 		if sky_source != null:
 			_match.config.resolve_sky_start_phase(randi(), sky_source.cycle_random_start_min, sky_source.cycle_random_start_max)
 
-	# Bontago-1en.23 (M4 P5-TILT): register_world() itself runs before
+	# M4 P5-TILT: register_world() itself runs before
 	# start_match() on every path (hot-seat, sandbox and the lobby -- see
 	# game/main/Main.gd's own "Wiring order matters" doc), before Match.config
 	# exists, so this is the first point at which both the Field and the new
@@ -216,8 +216,8 @@ func start_match(match_config: MatchConfig) -> void:
 	# host's rather than only reacting to specials it never simulates itself.
 	_apply_tilt_mode()
 
-	# DECISION (autoload/match/MatchLifecycle.gd, Bontago-mv0.20a): the lobby's
-	# gravity_multiplier (spec 2.8 "Gravity 0.5x-2x") is written straight into
+	# DECISION (autoload/match/MatchLifecycle.gd.20a): the lobby's
+	# gravity_multiplier (spec 1.9 "Gravity 0.5x-2x") is written straight into
 	# the shared config/physics/physics_tuning.tres *instance* Match already holds
 	# (_physics_tuning), not a config-local copy -- BlockFactory.build() and
 	# every already-standing Block.apply_physics_tuning() (ui/debug/TuningPanel.gd's
@@ -246,7 +246,7 @@ func start_match(match_config: MatchConfig) -> void:
 		_match._registry.reset()
 
 	_set_state(MatchAutoload.State.LOADING)
-	# Bontago-1pi.32: the real arm happens in ui/menus/LoadingScreen.gd's LOADING handler
+	# the real arm happens in ui/menus/LoadingScreen.gd's LOADING handler
 	# above; the test/harness seam arms here for runs with no overlay.
 	if _gate_forced:
 		arm_loading_ready_gate()
@@ -256,11 +256,11 @@ func start_match(match_config: MatchConfig) -> void:
 	_countdown_last_whole = int(ceil(_countdown_remaining))
 	Events.countdown_tick.emit(_countdown_last_whole)
 	_starting = false
-	# Bontago-1pi.32: after net_match_start went out (it is queued by the
+	# after net_match_start went out (it is queued by the
 	# LOADING -> COUNTDOWN emit above), so a client's reliable channel delivers
 	# the gate state to a match it has already built.
 	_publish_loading_gate_start()
-	# Bontago-1pi.79: every slot holds its first block from the moment the
+	# every slot holds its first block from the moment the
 	# countdown exists (the HUD cards and the local ghost are populated when the
 	# ready gate opens, not on the first PLAYING frame). Placement stays
 	# PLAYING-only and the feed timers only tick in PLAYING, so nothing can be
@@ -306,7 +306,7 @@ func _reset_match_state() -> void:
 	_sudden_death_elapsed = 0.0
 	_last_shrink_radius = INF
 	_turn_settle_wait_left = -1.0
-	# Bontago-1pi.11.28: no async solve outlives the territory it would apply to.
+	# no async solve outlives the territory it would apply to.
 	_match._territory.cancel_pending()
 	_match._territory._cell_grid = null
 	_match._territory._raster = null
@@ -317,11 +317,11 @@ func _reset_match_state() -> void:
 	_pending_mode_state = {}
 	_match._territory._last_groups = null
 	_match._territory._solve_accum = 0.0
-	# Bontago-1pi.46 (G3): no stale influence circles into the next match's replication.
+	# G3: no stale influence circles into the next match's replication.
 	_match._territory.clear_circles()
 	_match._feed._feed_timer_enabled = true
 	_match._gifts.reset()
-	# Bontago-1pi.13: shared by abort_match() and start_match()'s own leading
+	# shared by abort_match() and start_match()'s own leading
 	# call to this function, exactly like _match._gifts.reset() just above --
 	# a replay or a return-to-lobby must never leak one match's stats into
 	# the next. resize_for_slots() (this file's own _build_slots()) runs
@@ -329,7 +329,7 @@ func _reset_match_state() -> void:
 	# anything can bump them.
 	_match._stats.reset()
 	_match.config = null
-	# Bontago-1en.23 (M4 P5-TILT): shared by abort_match() (teardown back to
+	# M4 P5-TILT: shared by abort_match() (teardown back to
 	# LOBBY) and start_match()'s own leading call to this function (tearing
 	# down whatever match was running before the new one's _apply_tilt_mode()
 	# call re-enables it) -- Field is a persistent node game/field/Field.gd's own
@@ -347,7 +347,7 @@ func _reset_match_state() -> void:
 		_match._field.set_physical_balance_enabled(false)
 
 
-## Bontago-1en.23 (M4 P5-TILT): turns the Field tilt controller on for the
+## M4 P5-TILT: turns the Field tilt controller on for the
 ## match that just got a config, per config/match/MatchConfig.gd's tilt_mode (spec
 ## 2.8). A no-op if register_world() was never called (some unit tests never
 ## hand Match a field at all) or by a caller who -- unlike every real path in
@@ -383,7 +383,7 @@ func state() -> MatchAutoload.State:
 	return _state
 
 
-## Bontago-mv0.1.13: see _starting's own doc.
+## see _starting's own doc.
 func is_starting_match() -> bool:
 	return _starting
 
@@ -421,7 +421,7 @@ func _tick_countdown(delta: float) -> void:
 
 func _begin_playing() -> void:
 	_set_state(MatchAutoload.State.PLAYING)
-	# Spec 2.8: "Match timer: Off / 10-40 min", 0 meaning off. Armed here (not
+	# Spec 1.9: "Match timer: Off / 10-40 min", 0 meaning off. Armed here (not
 	# at start_match(), which runs during LOADING/COUNTDOWN) so config changes
 	# made while still counting down are picked up, and so a match aborted
 	# before ever reaching PLAYING never arms a timer it will not tick.
@@ -430,7 +430,7 @@ func _begin_playing() -> void:
 	_issue_first_blocks()
 	if _active_slot != -1:
 		Events.turn_changed.emit(_active_slot)
-	# The home circles exist from the first frame of play (spec 2.2), so the
+	# The home circles exist from the first frame of play (spec 1.5), so the
 	# raster must too: without this seeding solve the first 1/solve_hz second
 	# of the match has an empty raster and every placement — even one right on
 	# your own home flag — reads OUTSIDE_TERRITORY. delta is 0.0 so no
@@ -440,11 +440,10 @@ func _begin_playing() -> void:
 
 
 ## Arms every slot's block timer and issues its first block. Idempotent: a slot
-## that already holds its first block (issued when the countdown began, Bontago-
-## 1pi.79) is left alone, so the bag is never advanced twice.
+## that already holds its first block (issued when the countdown began) is left alone, so the bag is never advanced twice.
 func _issue_first_blocks() -> void:
 	for i: int in range(_slots.size()):
-		# Bontago-mv0.10 follow-up: set the interval before issuing, not
+		# follow-up: set the interval before issuing, not
 		# after -- _issue_next_block() emits Events.feed_block_issued
 		# synchronously, and net/MatchNet.gd's handler reads feed_time_left()
 		# at that exact moment to replicate it, so a client's mirror is only
@@ -455,7 +454,7 @@ func _issue_first_blocks() -> void:
 			_match._feed._issue_next_block(i)
 
 
-# --- Loading-screen ready gate (Bontago-1pi.32) -----------------------------
+# --- Loading-screen ready gate -----------------------------
 
 ## Test/harness seam: arm the gate at every start_match() even headless. Production
 ## code never calls it; ui/menus/LoadingScreen.gd arms through arm_loading_ready_gate().
@@ -482,7 +481,7 @@ func arm_loading_ready_gate() -> bool:
 
 ## Pure: a headless display or an agent-probe run never arms the gate on its own
 ## (nobody is there to press ready, and a probe tool would otherwise sit 5-60 s on
-## the overlay). Bontago-1pi.32 review: the probe half mirrors game/main/Main.gd's
+## the overlay). review: the probe half mirrors game/main/Main.gd's
 ## staged-build condition.
 static func gate_suppressed_for_environment(display_name: String, probe_active: bool) -> bool:
 	return display_name == "headless" or probe_active
@@ -566,7 +565,7 @@ func _reset_loading_gate() -> void:
 
 ## Host. Net already checked the sender is a seated peer; this checks the phase
 ## (an armed gate that has not opened), that the peer is one the gate waits for
-## (a human slot's owner, not a spectator or a bot's seat) and ignores repeats.
+## (a human slot, not a spectator or a bot's seat) and ignores repeats.
 func _on_loading_ready_intent(peer_id: int) -> void:
 	if not _match._is_host():
 		return
@@ -629,7 +628,7 @@ func _publish_loading_ready(force: bool = false) -> void:
 
 
 ## Host. The gate as a peer joining mid-countdown must see it: [ready peer ids,
-## required peer ids, open] (Bontago-1pi.42). net/MatchNet.gd sends it inside the
+## required peer ids, open]. net/MatchNet.gd sends it inside the
 ## world replay, i.e. after the joiner's own start_match() -- the net_peer_joined
 ## handler above runs before MatchNet's replay, so its roster broadcast lands on the
 ## joiner ahead of net_match_start and is wiped by the reset. An unarmed gate (a
@@ -653,7 +652,7 @@ func _publish_loading_gate_start() -> void:
 		Events.loading_gate_opened.emit()
 
 
-# --- Match timer + sudden death (spec 2.8, M6 A3) ---------------------------
+# --- Match timer + sudden death (spec 1.9, M6 A3) ---------------------------
 
 ## Seconds left on the match timer, or 0.0 once it has run out or was never
 ## armed (config.match_timer_minutes == 0, "Off").
@@ -683,9 +682,9 @@ func _tick_match_timer(delta: float) -> void:
 	var objective: ModeObjective = _match._territory._objective
 	if objective != null and objective.is_timed():
 		# Timed modes: the timer ends the round through the objective, with no
-		# sudden death (Bontago-22y.11). Clients get the time left once a second.
+		# sudden death. Clients get the time left once a second.
 		if _match_timer_left <= 0.0:
-			# Bontago-1pi.11.28: an in-flight async solve applies before the
+			# an in-flight async solve applies before the
 			# round-end outcome is read, so it equals the synchronous result.
 			_match._territory.flush_pending()
 			if _state != MatchAutoload.State.PLAYING:
@@ -699,7 +698,7 @@ func _tick_match_timer(delta: float) -> void:
 		return
 	if _match_timer_left <= 0.0 and _match.config != null and _match.config.sudden_death:
 		_begin_sudden_death()
-	# Spec 2.8: "Sudden death: Off/On ... on if match timer is set" by
+	# Spec 1.9: "Sudden death: Off/On ... on if match timer is set" by
 	# default, independently toggleable -- config.sudden_death == false with a
 	# set timer means the timer simply becomes cosmetic once it hits zero
 	# (this function's own doc header comment; also this package's plan
@@ -779,7 +778,7 @@ func _begin_sudden_death() -> void:
 
 ## Ticked from Match._process()'s new State.SUDDEN_DEATH branch, alongside
 ## the same three ticks State.PLAYING already runs (disconnect grace, feed,
-## territory) -- spec 2.8's three bullets: the gift-chance ramp is
+## territory) -- spec 1.9's three bullets: the gift-chance ramp is
 ## MatchGifts._effective_special_frequency()'s own job (reads
 ## sudden_death_active()/`_sudden_death_elapsed` above), so this function
 ## only has to run the disk shrink and, once it has crumbled far enough, the
@@ -792,7 +791,7 @@ func _tick_sudden_death(delta: float) -> void:
 	var tuning: TerritoryTuning = _match._territory_tuning
 	var field_radius: float = _match.config.map_def().field_radius
 	var interval: float = maxf(tuning.sudden_death_shrink_interval_s, 0.001)
-	# Spec 2.8: "crumbles inward by 1 m every 10 s" -- recomputed from total
+	# Spec 1.9: "crumbles inward by 1 m every 10 s" -- recomputed from total
 	# elapsed time rather than a second running accumulator, so a caller that
 	# fast-forwards with one large delta (a test, a client that missed a few
 	# frames) lands on exactly the same radius a real match reaches one frame
@@ -808,7 +807,7 @@ func _tick_sudden_death(delta: float) -> void:
 		_resolve_sudden_death_tiebreak()
 
 
-## Spec 2.8: "If nobody has won when the disk has shrunk to a radius of 8,
+## Spec 1.9: "If nobody has won when the disk has shrunk to a radius of 8,
 ## the player or team with the most territory wins." Guarded on _state still
 ## being SUDDEN_DEATH so a tiebreak already resolved (or a natural win landed
 ## the same tick) never calls _finish_match() a second time -- once this sets
@@ -838,7 +837,7 @@ func _resolve_sudden_death_tiebreak() -> void:
 	_finish_match(best_team)
 
 
-# --- Turn-based (spec 2.7, M6 B4) --------------------------------------------
+# --- Turn-based (spec 1.2, M6 B4) --------------------------------------------
 
 ## DECISION (autoload/match/MatchLifecycle.gd, M6 B4, per docs/archive/M6_PLAN.md's B4
 ## section): turn_based and hot_seat are mutually exclusive in practice -- the
@@ -861,7 +860,7 @@ func begin_turn_settle_wait() -> void:
 
 ## Ticked from Match._process()'s State.PLAYING and State.SUDDEN_DEATH
 ## branches, only when config.turn_based (mirrors _tick_sudden_death()'s own
-## call site pattern). Spec 2.7: "Physics settles completely (all bodies
+## call site pattern). Spec 1.2: "Physics settles completely (all bodies
 ## asleep, or after 6 s) before the next player's turn starts" -- hands the
 ## turn over the instant every tracked block is settled, or once the safety
 ## cap runs out, whichever comes first, so one block that never fully sleeps
@@ -913,7 +912,7 @@ func advance_turn() -> void:
 	# Any settle-wait belonged to the outgoing turn. If the active slot was
 	# eliminated mid-wait, MatchFeed._tick_feed() advances the turn here and
 	# the stale wait must not fire a second advance_turn() once settled or
-	# capped (Bontago-keo.10 review follow-up).
+	# capped (review follow-up).
 	_turn_settle_wait_left = -1.0
 	var next_slot: int = _next_alive_slot(_active_slot)
 	_active_slot = next_slot
@@ -935,7 +934,7 @@ func _next_alive_slot(after: int) -> int:
 	return -1
 
 
-## Bontago-1pi.62: the names this host gave its bots so far, by bot ordinal. They
+## the names this host gave its bots so far, by bot ordinal. They
 ## persist across matches (play again) and are trimmed when a bot seat goes away.
 var _host_bot_names: PackedStringArray = PackedStringArray()
 
@@ -967,11 +966,11 @@ func _build_slots() -> void:
 	for i: int in range(_match.config.player_count):
 		var color: Color = SlotColors.wrapped_color(i, _match.config.player_colors)
 		var home: Vector2 = PlayerSlot.home_position_for(i, _match.config.player_count, map_def)
-		# Bontago-d5c (M5 P1): the trailing ai_count slots become bots; every
+		# M5 P1: the trailing ai_count slots become bots; every
 		# slot before that stays a human seat exactly as today. See
 		# docs/archive/M5_PLAN.md P1's own doc for why this is a one-line append.
 		var is_bot: bool = i >= _match.config.player_count - _match.config.ai_count
-		# Bontago-1pi.49: a human seat carries the name the host replicated for its
+		# a human seat carries the name the host replicated for its
 		# peer (Net.name_for_slot, already sanitised by the host); a bot, an
 		# offline hot-seat seat or an empty seat keeps "Player N". Host and client
 		# both build from the same roster, so MatchStats' results (host-built,
@@ -990,7 +989,7 @@ func _build_slots() -> void:
 	_match._feed._feed_seq.resize(_slots.size())
 	_match._feed._release_locked.resize(_slots.size())
 	_disconnect_grace_left.resize(_slots.size())
-	# Bontago-1pi.13: sizes MatchStats' per-slot arrays now that the new
+	# sizes MatchStats' per-slot arrays now that the new
 	# match's slot count is known (reset() above cannot do this -- it runs
 	# before _build_slots() on start_match()'s own call order).
 	_match._stats.resize_for_slots(_slots.size())
@@ -1003,7 +1002,7 @@ func _build_slots() -> void:
 		_disconnect_grace_left[i] = -1.0
 
 
-## Bontago-1pi.49: the replicated name of the human peer seated at `slot_id`, or ""
+## the replicated name of the human peer seated at `slot_id`, or ""
 ## when nobody holds it (a bot, an empty or hot-seat seat, a departed player) or
 ## the session double has no name roster. Offline (sandbox / hot-seat) there are no
 ## peers, so the local human on slot 0 goes by the name saved in Settings.
@@ -1017,14 +1016,14 @@ func _peer_name_for_slot(slot_id: int) -> String:
 	if session.has_method(&"name_for_slot"):
 		peer_name = String(session.name_for_slot(slot_id))
 	if peer_name == "" and slot_id == 0 and session.has_method(&"is_offline") and bool(session.is_offline()):
-		# Bontago-1pi.100: the Steam persona wins when Steam is up.
+		# the Steam persona wins when Steam is up.
 		if session.has_method(&"resolve_local_name"):
 			return String(session.resolve_local_name(Settings.player_name()))
 		return Settings.player_name()
 	return peer_name
 
 
-## Bontago-1pi.49: copies each human seat's current roster name onto its slot. A
+## copies each human seat's current roster name onto its slot. A
 ## seat nobody holds keeps the last name it had (a player who left mid-match is
 ## still named in the results); bots are never touched.
 func refresh_slot_names() -> void:
@@ -1050,7 +1049,7 @@ func _on_roster_names_changed(_roster: Array[Dictionary]) -> void:
 ## left standing.
 ##
 ## Its held block needs no cleanup: a held block is a ghost, drawn only on its
-## owner's screen and held here as a BlockShape, so there is nothing in the
+## the user's screen and held here as a BlockShape, so there is nothing in the
 ## physics world to tidy. An intent already in flight is refused by
 ## net/MatchNet.gd's peer check, its sender no longer holding a slot.
 func on_peer_left(slot_id: int) -> void:
@@ -1101,7 +1100,7 @@ func _tick_disconnect_grace(delta: float) -> void:
 		_check_last_team_standing()
 
 
-## The one elimination path, shared by a home flag lost to a hole (spec 2.2)
+## The one elimination path, shared by a home flag lost to a hole (spec 1.5)
 ## and by a peer that never came back (docs/archive/M3a_PLAN.md question 2), so the
 ## two cannot drift apart.
 func _eliminate_slot(slot_id: int, by_slot: int = -1) -> void:
@@ -1110,7 +1109,7 @@ func _eliminate_slot(slot_id: int, by_slot: int = -1) -> void:
 		return
 	target.home_flag_alive = false
 	_eliminated_by[slot_id] = by_slot
-	# Bontago-1pi.186: an eliminated player holds nothing and cannot drop.
+	# an eliminated player holds nothing and cannot drop.
 	_match._feed.clear_slot_blocks(slot_id)
 	var objective: ModeObjective = _match._territory._objective
 	if objective is EliminationObjective:
@@ -1138,7 +1137,7 @@ func _check_last_team_standing() -> void:
 		_finish_match(alive_teams.keys()[0])
 
 
-## Elimination (Bontago-22y.8): the objective decides the outcome of the
+## Elimination: the objective decides the outcome of the
 ## eliminations since the last call (last team standing, or the same-batch
 ## larger-share tiebreak) and the final state is published before the END.
 func _resolve_elimination(objective: EliminationObjective) -> void:
@@ -1154,14 +1153,14 @@ func _resolve_elimination(objective: EliminationObjective) -> void:
 
 func _finish_match(winning_team: int) -> void:
 	var already_ended: bool = _state == MatchAutoload.State.END
-	# Bontago-1pi.11.28: apply any in-flight solve before the results are built;
+	# apply any in-flight solve before the results are built;
 	# if that apply itself ended the match, it already published the outcome.
 	_match._territory.flush_pending()
 	if _state == MatchAutoload.State.END and not already_ended:
 		return
 	_set_state(MatchAutoload.State.END)
 	Events.match_won.emit(winning_team)
-	# Bontago-1pi.13: built after match_won so a listener that reacts to the
+	# built after match_won so a listener that reacts to the
 	# win first (ui/hud/HUD.gd's show_winner()) and one that wants the fuller
 	# payload (the results-screen UI worker) both see events in the same
 	# order every match. _finish_match() only ever runs on the host (see
@@ -1187,7 +1186,7 @@ func _set_state(new_state: MatchAutoload.State) -> void:
 	Events.match_state_changed.emit(old_state, new_state)
 
 
-# --- The client's read model (spec 3.4) -------------------------------------
+# --- The client's read model (spec 2.6) -------------------------------------
 
 ## Mirrors the host's state machine. Re-emits match_state_changed only on a
 ## real change, so a client that already moved itself (the countdown it ran

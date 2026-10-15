@@ -14,7 +14,7 @@ extends CanvasLayer
 ## ui/menus/MainMenu.gd, ui/lobby/Lobby.gd and ui/hud/HUD.gd's match_provider.
 var net_provider: Variant = null
 
-## DECISION (ui/debug/NetDebugOverlay.gd, Bontago-mv0.1.12): a second `Variant` test
+## DECISION (ui/debug/NetDebugOverlay.gd): a second `Variant` test
 ## seam, exactly net_provider's own pattern, for the counters
 ## net/MatchNet.gd keeps per slot (intents_sent/accepted/refused,
 ## cursors_refused). null (the default outside tests) reads the real
@@ -29,7 +29,7 @@ var match_net_provider: Variant = null
 @onready var _snapshot_label: Label = %SnapshotLabel
 @onready var _interp_label: Label = %InterpLabel
 @onready var _loss_label: Label = %LossLabel
-## Bontago-mv0.1.12: one Label per slot (Panel/Layout/SlotRows in the .tscn,
+## one Label per slot (Panel/Layout/SlotRows in the .tscn,
 ## sized to MatchConfig.PLAYER_COUNT_MAX so every legal slot has a row),
 ## indexed by scene order -- child 0 is slot 0, etc. _refresh_slot_rows()
 ## shows/hides each one rather than creating nodes at runtime.
@@ -66,7 +66,7 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed(&"net_debug_toggle"):
 		return
-	# Bontago-470.8: F3 is debug-only (game/debug/DebugMode.gd).
+	# F3 is debug-only (game/debug/DebugMode.gd).
 	if not DebugMode.is_enabled():
 		return
 	# See tools/bootstrap_project.gd's DECISION: the gamepad half of this
@@ -101,7 +101,7 @@ func _refresh_labels(stats: Dictionary) -> void:
 	_loss_label.text = "Loss: %.1f%%" % (float(stats.get("loss_pct", 0.0)) * 100.0)
 
 
-## net/MatchNet.gd's per-slot intent/cursor counters (Bontago-mv0.1.12) are
+## net/MatchNet.gd's per-slot intent/cursor counters are
 ## host-only: `_apply_intent`/`_apply_throw_intent` and the malformed-cursor
 ## drop that bumps `cursors_refused` all run "Host only" (see their own
 ## comments), so a client's copy of every one of these dictionaries stays

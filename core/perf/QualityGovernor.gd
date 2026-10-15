@@ -1,11 +1,11 @@
 class_name QualityGovernor
 extends RefCounted
-## Bontago-1pi.11.37: pure rules of the opt-in adaptive quality governor (no scene
+## pure rules of the opt-in adaptive quality governor (no scene
 ## tree). A level 0..max_level() counts how many expensive visuals are shed, cheapest
 ## visual loss first:
 ##   1 particle budget, 2 weather density, 3 shadow distance + cascades,
 ##   4 volumetric fog, 5 3D render scale (optional). (The disc mirror step was removed
-##   with the mirror pass, owner 2026-10-07.)
+##   with the mirror pass, .)
 ## evaluate() is fed one low-rate sample (mean frame ms, awake block count) and moves
 ## the level one step at a time: down after a sustained stress, back up only after a
 ## longer sustained recovery below a stricter band (hysteresis). apply() builds the

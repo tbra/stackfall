@@ -1,6 +1,6 @@
 class_name GoalControl
 extends RefCounted
-## Who currently controls each goal flag (spec 2.3), for the goal beacons.
+## Who currently controls each goal flag (spec 1.5), for the goal beacons.
 ##
 ## A goal is controlled by a team when the final owned raster cell under the
 ## goal base belongs to that team. That already encodes the win check's
@@ -9,7 +9,7 @@ extends RefCounted
 ## cells inside those groups, so "in a controlled component connected to a
 ## living allied home" is exactly "the raster names a team here".
 ##
-## DECISION (Bontago-470.7): derived locally from the raster on host and client
+## DECISION: derived locally from the raster on host and client
 ## alike instead of replicating a per-goal array. The mirror raster
 ## (TerritoryRaster.apply_replicated_state) carries the owner byte, the
 ## contested bit and the hole bit per cell, which is all this reads, so host

@@ -1,13 +1,13 @@
 class_name BotStability
 extends RefCounted
-## Bontago-1t5.72 (STATICS_DESIGN 2.3 and 3): does a candidate placement stand? The bot's one stability judgement,
+## STATICS_DESIGN 2.3 and 3: does a candidate placement stand? The bot's one stability judgement,
 ## built from the owner's two centre-of-mass rules. A placement is stable iff `slack > 0`, where slack is the
 ## smallest (margin - required) over the piece's own cut (rule 1: its centre of mass against the contact patches
 ## under it) and every lower cut (rule 2: everything resting on a body as one object, down to the disc). BotStack
 ## holds the geometry (piece_cut, lower_cuts). Pure: reads a candidate, its orientation, the world view's stack
 ## snapshot and a Requirement; no scene tree.
 ##
-## Disturbance (STATICS_DESIGN 3.1, 2.6; Bontago-1t5.72.6): the Storm's sustained push and the gift allowance raise
+## Disturbance (STATICS_DESIGN 3.1, 2.6): the Storm's sustained push and the gift allowance raise
 ## the requirement only while weather or gifts are on; a tilted disc shifts every centre of mass exactly.
 
 const SHIPPED_PHYSICS_TUNING: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")

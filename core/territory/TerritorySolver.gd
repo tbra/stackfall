@@ -1,11 +1,11 @@
 class_name TerritorySolver
 extends RefCounted
 ## Turns a flat list of influence circles into connected, home-anchored groups
-## (spec 2.2, 3.3).
+## (spec 1.5, 2.5).
 ##
 ## **Algorithm.** Union-find over pairs of overlapping circles, with a spatial
 ## hash so it is not all-pairs. Two circles are united only when they overlap
-## **and share a team**, which is exactly spec 2.2's two rules at once: "your
+## **and share a team**, which is exactly spec 1.5's two rules at once: "your
 ## territory is the union of all circles connected... to your home circle",
 ## and "Teams: territories of teammates never create holes between them, they
 ## merge". Free-for-all is the same code path, because MatchConfig gives every
@@ -102,7 +102,7 @@ func solve(circles: Array[InfluenceCircle]) -> TerritoryGroups:
 
 ## True when circle `index` ended up in a home-anchored group. Valid only
 ## after the matching solve() call; used by tests and by the block shader's
-## "glows brighter when contributing influence" flag (spec 2.10).
+## "glows brighter when contributing influence" flag (spec 1.10).
 ##
 ## CONTRACT CHANGE (was `is_connected` in the M2 stub commit): TerritorySolver
 ## extends RefCounted, so `is_connected` collides with the native
@@ -315,7 +315,7 @@ func _collect_pairs(circles: Array[InfluenceCircle]) -> void:
 					continue
 				_pair_count += 1
 				var second: InfluenceCircle = circles[j]
-				# Spec 2.2: circles merge only within a team. Across teams an
+				# Spec 1.5: circles merge only within a team. Across teams an
 				# overlap is a contest, which is the raster's business.
 				if first_team != second.team_id:
 					continue
@@ -353,7 +353,7 @@ func _union(a: int, b: int) -> void:
 
 ## -- Group assembly ----------------------------------------------------------
 
-## Keeps only components holding at least one home circle, which is spec 2.2's
+## Keeps only components holding at least one home circle, which is spec 1.5's
 ## cut-off rule, and writes them out with ascending member indices.
 func _build_groups(circles: Array[InfluenceCircle], groups: TerritoryGroups) -> void:
 	var count: int = circles.size()

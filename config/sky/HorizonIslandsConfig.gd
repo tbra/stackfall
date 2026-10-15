@@ -5,7 +5,7 @@ extends Resource
 ## collision, no shadows, never networked. Placement is a pure function of
 ## (seed, map id, these values), so host and clients agree.
 
-## Master switch. Off by default (owner playtest 2026-10-05, Bontago-mp0.133: the
+## Master switch. Off by default (the
 ## islands looked bad); set true in config/sky/horizon_islands.tres to restore them.
 @export var enabled: bool = true
 ## Number of islands in the ring (0 hides them).
@@ -14,7 +14,7 @@ extends Resource
 @export var radius_min_m: float = 850.0
 @export var radius_max_m: float = 1200.0
 ## Height band (m, world Y) of each island's cap-surface center. The rock body
-## hangs below. Bontago-mp0.123 root cause: the sky's horizon cloud banks
+## hangs below. root cause: the sky's horizon cloud banks
 ## (ring 300-760 m, tops up to 60 m) stand between the camera and the ring, so
 ## a cap near eye height left only its edge above the banks (a thin wedge).
 ## Keep the hanging body above the bank tops so the whole rock mass shows.

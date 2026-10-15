@@ -4,7 +4,7 @@ extends Resource
 ## every peer. Loaded from config/gifts/specials/fx/gift_explosion_fx_tuning.tres. Visual-only:
 ## not in the F4 tuning panel, so no tuning_panel_hints entries (same as GiftBlinkTuning).
 ##
-## Bontago-a3z (owner: "more cartoony"): the blast is a CartoonBlast -- a star flash,
+## "more cartoony": the blast is a CartoonBlast -- a star flash,
 ## a cluster of cel-shaded, outlined fireball puffs that pop in with overshoot and cool
 ## from yellow through orange to smoke, a ground shock ring and a few flung debris
 ## chunks -- over the original dust flipbook, which stays as a ground layer.

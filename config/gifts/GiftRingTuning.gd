@@ -1,6 +1,6 @@
 class_name GiftRingTuning
 extends Resource
-## Pulse ring under a landed gift crate (Bontago-1pi.85.57), drawn by the shared
+## Pulse ring under a landed gift crate, drawn by the shared
 ## PulseRing (the same node the home beacons use). Presentation only.
 
 @export var color: Color = Color(1.0, 0.89, 0.48, 1.0)

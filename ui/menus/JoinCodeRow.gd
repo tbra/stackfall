@@ -1,6 +1,6 @@
 class_name JoinCodeRow
 extends HBoxContainer
-## Bontago-1pi.164: one isolated host-lobby row showing the internet join code (or why there is none).
+## one isolated host-lobby row showing the internet join code (or why there is none).
 ## Reads only what Net exposes (upnp_state / upnp_join_code / host_port); shown for a non-Steam host.
 ## The lobby rebuild may move this row anywhere: it has no layout assumptions.
 
@@ -11,7 +11,7 @@ const TEXT_COPY: String = "Copy"
 const TEXT_COPIED: String = "Copied"
 
 var _label: Label = Label.new()
-# Bontago-1pi.159.6 lint: shared component, not a raw Button.
+# lint: shared component, not a raw Button.
 var _copy_button: UiBlockButton = UiBlockButton.new()
 var _code: String = ""
 

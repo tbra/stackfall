@@ -1,6 +1,6 @@
 class_name CaptureFlagObjective
 extends ModeObjective
-## Capture the Flag (Bontago-22y.7, owner decision Bontago-pi8). The beacons are
+## Capture the Flag. The beacons are
 ## the goal flags. Each beacon held by a team adds score_rate points per second
 ## to that team, starting immediately; the highest score at the round timer wins
 ## and a tie is a shared win. Classic all-goal victory is not used here.

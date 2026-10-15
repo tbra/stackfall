@@ -1,8 +1,8 @@
 class_name BlockBag
 extends RefCounted
-## The weighted "bag" randomizer (spec 2.4), replacing M1's SimpleBlockFeed.
+## The weighted "bag" randomizer (spec 1.4), replacing M1's SimpleBlockFeed.
 ##
-## Spec 2.4: "Weights are set per shape in BlockFeedConfig. Use a 'bag'
+## Spec 1.4: "Weights are set per shape in BlockFeedConfig. Use a 'bag'
 ## randomizer so no player goes long without getting a stabilizing shape."
 ##
 ## **Algorithm.** A bag holds round(weight * bag_multiplier) copies of each
@@ -88,7 +88,7 @@ func next() -> BlockShape:
 
 
 ## The next `count` shapes without consuming them, for the HUD's next-block
-## preview (spec 2.4: the next block, optionally the next 3). Peeking across a
+## preview (spec 1.4: the next block, optionally the next 3). Peeking across a
 ## bag boundary refills first, so the preview never goes short.
 func peek(count: int = 1) -> Array[BlockShape]:
 	var result: Array[BlockShape] = []

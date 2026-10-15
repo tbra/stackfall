@@ -1,6 +1,6 @@
 class_name QolExperiments
 extends Resource
-## Opt-in quality-of-life experiments (Bontago-1pi.18.1, owner roadmap "Qol
+## Opt-in quality-of-life experiments (roadmap "Qol
 ## tests (friction)"). Every toggle defaults OFF, so the default rules are
 ## untouched.
 ##
@@ -29,7 +29,7 @@ extends Resource
 @export var pause_tail_s: float = 1.5
 ## Seconds between host scans of block velocities for the topple test.
 @export var topple_scan_interval_s: float = 0.25
-## Stall guard (Bontago-1pi.18.4): longest continuous pause. After this many seconds paused, the slot's timer runs
+## Stall guard: longest continuous pause. After this many seconds paused, the slot's timer runs
 ## again until the pause cause fully clears, then the guard re-arms.
 @export var pause_max_s: float = PAUSE_MAX_DEFAULT_S
 
@@ -47,7 +47,7 @@ extends Resource
 ## Factor applied to the goal zone radius while the toggle is on.
 @export var goal_radius_multiplier: float = 2.0
 
-## -- Toggle B: gift slot instead of the block queue (Bontago-1pi.18.2) ------
+## -- Toggle B: gift slot instead of the block queue ------
 ## A claimed gift waits in a per-player slot instead of replacing the next
 ## block; the player spends it with the use_gift_slot action. No timer runs on
 ## a slotted gift.
@@ -58,11 +58,11 @@ extends Resource
 ## activated, so it cannot be auto-dropped the instant it appears.
 @export var gift_slot_min_window_s: float = 2.0
 
-## -- Rule trial: a claimed gift joins the queue one block later (Bontago-1pi.85.69) --
-## Owner-approved trial (playtest 2026-10-11), ON by default and NOT counted by
+## -- Rule trial: a claimed gift joins the queue one block later --
+## Approved trial (playtest), ON by default and NOT counted by
 ## any_enabled()/active_ids() (it is a rule variant, not an opt-in experiment): a claimed gift becomes
 ## the block AFTER next and the ordinary next piece stays, so a late claim leaves
-## more time to plan. Off restores the 2026-09-29 rule (the gift replaces the next piece).
+## more time to plan. Off restores the rule (the gift replaces the next piece).
 ## DECISION: unsupported next to the backlog or gift-slot experiments, which keep the old rule.
 @export var gift_queue_after_next: bool = true
 

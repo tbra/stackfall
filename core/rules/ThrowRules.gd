@@ -1,7 +1,7 @@
 class_name ThrowRules
 extends RefCounted
 ## Whether a thrown special's release point lands inside the throwing
-## player's own territory (spec 2.5: "release point inside own territory").
+## player's own territory (spec 1.6: "release point inside own territory").
 ##
 ## Delegates the actual point test to PlacementRules.validate_point()
 ## (core/rules/PlacementRules.gd:268-283, the v2 single-raycast point check)
@@ -17,15 +17,15 @@ extends RefCounted
 
 ## Raised by MatchPlacement.request_throw(), not by this file: the acting
 ## slot has no pending special queued at all (Match.held_special(slot_id) ==
-## &""), so there is nothing to throw (spec 2.6's "your next fed block
+## &""), so there is nothing to throw (spec 1.6's "your next fed block
 ## becomes a special" contract). Kept here, next to REASON_OUTSIDE_TERRITORY,
 ## so every REASON_* a throw can return lives in one place.
 const REASON_NOT_A_SPECIAL: StringName = &"not_a_special"
 
-## Spec 2.5 gives a throw a single "outside your own territory" release-point
+## Spec 1.6 gives a throw a single "outside your own territory" release-point
 ## failure, not PlacementRules' several distinguishable reasons (contested,
 ## hole, off-disk, goal zone) -- reason_for() below maps the territory outcomes
-## (outside territory, contested) to this constant and, since Bontago-1pi.85.54,
+## (outside territory, contested) to this constant and, since 
 ## reports hole / off-disk / goal zone by their own reasons. Aliased to PlacementRules'
 ## own constant (not a new StringName literal) so MatchNet/HUD code that
 ## already switches on PlacementRules.REASON_OUTSIDE_TERRITORY recognizes a
@@ -33,7 +33,7 @@ const REASON_NOT_A_SPECIAL: StringName = &"not_a_special"
 const REASON_OUTSIDE_TERRITORY: StringName = PlacementRules.REASON_OUTSIDE_TERRITORY
 
 
-## Spec 2.5's release-point check for a throw: exactly PlacementRules' v2
+## Spec 1.6's release-point check for a throw: exactly PlacementRules' v2
 ## point check, reused rather than re-derived so a throw and a placement can
 ## never disagree about what "your own territory" means at a given point.
 ## `point` is disk-local (x, z), already converted by the caller, exactly
@@ -44,8 +44,8 @@ static func validate_release_point(
 	return PlacementRules.validate_point(point, raster, team_id)
 
 
-## Bontago-1pi.85.54: only the territory outcomes (OUTSIDE_TERRITORY, CONTESTED) collapse into
-## REASON_OUTSIDE_TERRITORY (spec 2.5). A cursor over a pit/hole, past the rim or in a goal zone
+## only the territory outcomes (OUTSIDE_TERRITORY, CONTESTED) collapse into
+## REASON_OUTSIDE_TERRITORY (spec 1.6). A cursor over a pit/hole, past the rim or in a goal zone
 ## reports its real reason (hole / off_disk / goal_zone) -- e.g. the volcano crater at a home
 ## whose column has no floor used to be mislabelled "outside_territory" although a held gift
 ## waives territory. REASON_NOT_A_SPECIAL is never produced here.

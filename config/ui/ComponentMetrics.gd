@@ -1,6 +1,6 @@
 class_name ComponentMetrics
 extends Resource
-## Sizes shared by every ui/components/ component (Bontago-1pi.159.4, docs/UI_COMPONENTS_PLAN.md
+## Sizes shared by every ui/components/ component (docs/UI_COMPONENTS_PLAN.md
 ## section 3.1). Colours, radii, lips and the spacing scale (space-1..7) stay in
 ## config/ui/arcade_visual_tuning.tres (the design tokens); this resource only holds the sizes that
 ## the tokens do not name. Not an F4 tuning-panel class (no tuning_panel_hints entry needed).
@@ -35,8 +35,8 @@ extends Resource
 ## plus this line must still fit row_height_px.
 @export var icon_glyph_font_px: int = 16
 
-## Toggle (Bontago-1pi.159.5): the sunken well's height and the gap between well edge and knob. The
-## knob is a square block, so the well's width follows (2 knobs and 3 gaps; owner 2026-10-11).
+## Toggle: the sunken well's height and the gap between well edge and knob. The
+## knob is a square block, so the well's width follows (2 knobs and 3 gaps).
 @export var toggle_well_height_px: int = 26
 @export var toggle_knob_inset_px: int = 3
 
@@ -59,7 +59,7 @@ extends Resource
 @export var status_icon_px: int = 14
 @export var status_icon_stroke_px: int = 3
 
-## UiText (Bontago-1pi.159.11 C4a): size of the VALUE role (a Bungee readout in a row or a card;
+## UiText (C4a): size of the VALUE role (a Bungee readout in a row or a card;
 ## the other roles take their sizes from the ArcadeVisualTuning type styles) and the outline every
 ## role draws (0: the design's text has no outline; this also cancels a theme outline).
 @export var text_value_font_px: int = 16

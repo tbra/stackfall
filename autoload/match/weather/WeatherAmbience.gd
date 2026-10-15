@@ -1,6 +1,6 @@
 class_name WeatherAmbience
 extends Node
-## Weather ambience and gust whoosh (Bontago-mp0.118). Client-side cosmetic on
+## Weather ambience and gust whoosh. Client-side cosmetic on
 ## every peer, driven only by Events (the replicated weather state and the
 ## replicated Breeze gust signal); it owns no physics and no authority.
 ##
@@ -14,7 +14,7 @@ extends Node
 ##
 ## DECISION (WeatherAmbience): no new bus; the ambience counts as SFX for the
 ## slider. While the pause menu is open it is ducked, not stopped.
-## DECISION (Bontago-1pi.77): superseded -- weather has its own Settings
+## DECISION: superseded -- weather has its own Settings
 ## channel (Weather slider, Master still applies, SFX no longer does). The
 ## project has no AudioServer bus layout, so "bus" here is the Settings channel.
 ## DECISION (WeatherAmbience): WAV loops are not looping on import, so the
@@ -46,7 +46,7 @@ func _ready() -> void:
 	Settings.audio_settings_changed.connect(_refresh_volumes)
 
 
-## Quit-time release (Bontago-fca.49): stop beds and gust voices, drop streams.
+## Quit-time release: stop beds and gust voices, drop streams.
 func _exit_tree() -> void:
 	release_audio()
 
@@ -98,7 +98,7 @@ func advance(delta: float) -> void:
 		_release_bed(weather_id)
 
 
-## Bontago-1pi.11.63: a bed that has faded out drops its looped WAV copy (~1 MB
+## a bed that has faded out drops its looped WAV copy (~1 MB
 ## decoded) and player; _bed_for() rebuilds it when that weather returns.
 func _release_bed(weather_id: StringName) -> void:
 	var bed: Dictionary = _beds.get(weather_id, {}) as Dictionary

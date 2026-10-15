@@ -13,7 +13,7 @@ const TICK_START: Vector2 = Vector2(0.0, 0.55)
 const TICK_MID: Vector2 = Vector2(0.38, 0.95)
 const TICK_END: Vector2 = Vector2(1.0, 0.05)
 
-## The hourglass is one solid silhouette (Bontago-1pi.159.61): top and bottom bars, two bulbs meeting at
+## The hourglass is one solid silhouette: top and bottom bars, two bulbs meeting at
 ## a narrow neck, as fractions of the mark box (fixed glyph shape, not tunables). The empty upper bulb is
 ## cut out in the face colour, the lower bulb stays solid like the sand.
 const HG_BAR: float = 0.16

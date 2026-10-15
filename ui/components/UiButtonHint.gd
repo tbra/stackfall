@@ -1,7 +1,7 @@
 class_name UiButtonHint
 extends RefCounted
 ## The optional trailing input hint of a block button (docs/ui_reskin/components.md BlockButton:
-## "an optional trailing input hint"; Bontago-1pi.159.42). One component path for every glyph
+## "an optional trailing input hint"). One component path for every glyph
 ## button: UiBlockButton.hint_action calls [method attach]; screens never place a glyph themselves.
 ##
 ## Layout (all values from ArcadeVisualTuning): the group [icon, label, gap(space_2), glyph] is
@@ -81,7 +81,7 @@ static func _place(button: Button, flow: InputPromptFlow) -> void:
 		return
 	var cap_drop: float = float(arcade.drop_sm_px)
 	var body: float = maxf(natural.y - cap_drop, 1.0)
-	var face_room: float = button.size.y - float(arcade.drop_sm_px) - float(arcade.space_3_px)  # Bontago-1pi.159.58: space-3 total breathing room above/below the cap
+	var face_room: float = button.size.y - float(arcade.drop_sm_px) - float(arcade.space_3_px)  # space-3 total breathing room above/below the cap
 	var fit: float = 1.0
 	if face_room > 0.0 and body > face_room:
 		fit = face_room / body

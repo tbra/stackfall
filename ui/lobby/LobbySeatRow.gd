@@ -1,18 +1,18 @@
 class_name LobbySeatRow
 extends PanelContainer
-## One seat of the lobby's right-hand panel (Bontago-1pi.53, package PL1a, docs/
+## One seat of the lobby's right-hand panel (package PL1a, docs/
 ## LOBBY_REWORK_PLAN.md "Right panel"): the raised white pill the roster always drew,
 ## now carrying the host's per-seat controls --
 ##   [colour box] [name / subtitle] [team number] [difficulty] [x] [ready badge]
 ## - the colour box is a Button: a click / ui_accept asks for the next palette colour,
-##   a right click the previous one (Bontago-1pi.93: ui_left / ui_right only move focus; the panel applies it through
+##   a right click the previous one (ui_left / ui_right only move focus; the panel applies it through
 ##   LobbySeats.cycle_color, which swaps on a clash);
 ## - the team button exists only with teams on and cycles 1..cap then Random ("?")
 ##   the same way (LobbySeats.cycle_team);
 ## - a bot row has a difficulty cycler (Easy / Normal / Hard) and, for the host, a
 ##   remove button.
 ##
-## Every control is a ui/components row item (Bontago-1pi.159.2.2): the team selector is a UiDropdown (popup list), the difficulty a
+## Every control is a ui/components row item: the team selector is a UiDropdown (popup list), the difficulty a
 ## UiCycler, the remove X a UiIconButton
 ## (DANGER), the Ready / host badge a UiStatusBadge, so they all share one height
 ## (ComponentMetrics.row_height_px). Only the colour diamond keeps its own flat, borderless button.
@@ -25,7 +25,7 @@ extends PanelContainer
 ## Gamepad / keyboard: every control the player may use is focusable (the panel hands
 ## them to the Lobby's focus loop through focus_entries()); ui_accept presses and
 ## a right click goes back; ui_left / ui_right (held, echoed or pad) only move focus
-## (Bontago-1pi.94), as do ui_up / ui_down through the loop. Every control's left / right
+## , as do ui_up / ui_down through the loop. Every control's left / right
 ## neighbours are the row's previous / next control.
 
 ## Cycle the seat's colour; `backwards` = previous colour.
@@ -47,7 +47,7 @@ const KIND_DIFFICULTY: StringName = &"difficulty"
 const KIND_REMOVE: StringName = &"remove"
 const KIND_MUTE: StringName = &"mute"
 
-## Chat mute button texts (Bontago-1pi.192.6).
+## Chat mute button texts.
 const MUTE_TEXT: String = "Mute"
 const UNMUTE_TEXT: String = "Unmute"
 
@@ -83,7 +83,7 @@ var align_bot_columns: bool = false
 ## The list's bot rows carry a remove button (the host's view): human rows reserve its room too. A
 ## client's own (editable) row must not decide this from its own `editable`.
 var align_remove_column: bool = false
-## Bontago-1pi.159.43: which look this row builds (LobbySeatVariants.Style); the panel sets it, CLASSIC is the shipped row.
+## which look this row builds (LobbySeatVariants.Style); the panel sets it, CLASSIC is the shipped row.
 var variant: int = LobbySeatVariants.Style.CLASSIC
 ## The lobby team cap (picks run 1..team_cap, then Random); GROUPED mover names the team it moves to.
 var team_cap: int = 0
@@ -101,13 +101,13 @@ var team_button: UiDropdown = null
 var difficulty_option: UiCycler = null
 ## null unless the row is a bot's and `editable`.
 var remove_button: UiIconButton = null
-## Chat mute toggle (Bontago-1pi.192.6): only on a networked, seated human row that is not the local player's.
+## Chat mute toggle: only on a networked, seated human row that is not the local player's.
 var mute_button: UiBlockButton = null
 ## Test seam: returns whether this row's session can chat (default: networked, not the private host).
 var mute_column_override: Callable = Callable()
 var badge: UiStatusBadge = null
 var badge_label: Label = null
-## Variant controls (Bontago-1pi.159.43): a bot's difficulty as a compact dropdown (SLOT / GROUPED / CARDS),
+## Variant controls: a bot's difficulty as a compact dropdown (SLOT / GROUPED / CARDS),
 ## and GROUPED's "move to the next team" icon button (the team itself is read off the group header).
 var difficulty_dropdown: UiDropdown = null
 var team_move_button: UiBlockButton = null
@@ -133,7 +133,7 @@ static func team_text(pick: int) -> String:
 	return str(pick)
 
 
-## Bontago-1pi.95: with clip_text the label's own minimum width is 0, so on a narrow card the
+## with clip_text the label's own minimum width is 0, so on a narrow card the
 ## fixed-width controls took every pixel and a short bot name ("Velocity") showed as one
 ## letter. Once in the tree (the theme font is known) the name asks for its own text width,
 ## capped by seat_name_max_width_px; only a longer name still ends in an ellipsis.
@@ -150,7 +150,7 @@ func _ready() -> void:
 func build(tuning: MenuVisualTuning, layout_tuning: LobbyLayoutTuning) -> void:
 	_tuning = tuning
 	_layout_tuning = layout_tuning
-	# Arcade (Bontago-hfa.5): a PlayerSlot row is a flat disc-700 block inside the disc-800 plate.
+	# Arcade: a PlayerSlot row is a flat disc-700 block inside the disc-800 plate.
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	var row_box: StyleBoxFlat = MenuStyleFactory.make_flat_list(tuning)
 	row_box.content_margin_left = float(arcade.space_3_px)
@@ -285,7 +285,7 @@ func _build_color_button(box_px: Vector2 = Vector2.ZERO, diamond_px: float = -1.
 	}
 	for state: String in faces:
 		color_button.add_theme_stylebox_override(state, faces[state] as StyleBox)
-	# Bontago-1pi.81: the seat colour is the shared SlotDiamond, centred in the button.
+	# the seat colour is the shared SlotDiamond, centred in the button.
 	color_diamond = SlotDiamond.create(seat_color, diamond_px)
 	color_diamond.name = "SlotDiamond"
 	var half: float = color_diamond.diamond_size_px() * 0.5
@@ -314,7 +314,7 @@ func _build_text_column() -> void:
 	name_label.theme_type_variation = &"TitleLabel"
 	name_label.add_theme_font_size_override("font_size", _layout_tuning.seat_name_font_size)
 	name_label.text = display_name
-	# Bontago-1pi.95: long names / subtitles clip so a row's minimum width is its controls only.
+	# long names / subtitles clip so a row's minimum width is its controls only.
 	name_label.clip_text = true
 	name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	subtitle_label = Label.new()
@@ -328,7 +328,7 @@ func _build_text_column() -> void:
 
 
 ## The team selector: a compact UiDropdown showing "?" (Random) or "1".."4" that opens a list.
-## DECISION (Bontago-1pi.159.14): seat pills are popups, not UiCyclers (a cycler's two blocks would
+## DECISION: seat pills are popups, not UiCyclers (a cycler's two blocks would
 ## not fit a seat row). Items run Random, 1..TEAM_PICK_MAX so the item index is the pick itself;
 ## the pick lives in the panel's seat table, so the dropdown only reports the choice
 ## ([signal team_chosen]) and the row is rebuilt.
@@ -347,7 +347,7 @@ func _build_team_button() -> void:
 	layout.add_child(team_button)
 
 
-## A bot's own difficulty: a UiCycler ("<" value ">", Bontago-1pi.159.36), read-only (disabled) for
+## A bot's own difficulty: a UiCycler ("<" value ">"), read-only (disabled) for
 ## a client. ui_left / ui_right step it, the blocks click.
 func _build_difficulty_option() -> void:
 	difficulty_option = UiCycler.new()
@@ -494,7 +494,7 @@ func _build_badge() -> void:
 		badge.add_child(crown)
 		layout.add_child(badge)
 		return
-	# Bontago-1pi.158: the Ready / Not ready tile is an icon-only UiStatusBadge (tick / hourglass).
+	# the Ready / Not ready tile is an icon-only UiStatusBadge (tick / hourglass).
 	var pill: UiStatusBadge = UiStatusBadge.new()
 	pill.icon_only = true
 	pill.custom_minimum_size = badge_size
@@ -505,7 +505,7 @@ func _build_badge() -> void:
 	layout.add_child(badge)
 
 
-# --- Variants (Bontago-1pi.159.43) ----------------------------------------------------
+# --- Variants ----------------------------------------------------
 
 ## The team's colour (tuning list, wrapping), or Color.TRANSPARENT for Random / FFA / a seat-less row.
 func team_color() -> Color:
@@ -718,7 +718,7 @@ func _on_difficulty_selected(index: int) -> void:
 ## the timer sliders in ui/lobby/Lobby.gd. 
 func _on_cycle_gui_input(event: InputEvent, kind: StringName) -> void:
 	if not (event is InputEventMouseButton):
-		# Bontago-1pi.93: ui_left / ui_right (held, echoed or pad) only move focus; a click /
+		# ui_left / ui_right (held, echoed or pad) only move focus; a click /
 		# ui_accept (pressed) cycles the colour.
 		return
 	var click: InputEventMouseButton = event as InputEventMouseButton

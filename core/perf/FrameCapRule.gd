@@ -1,6 +1,6 @@
 class_name FrameCapRule
 extends RefCounted
-## Bontago-1pi.11.49: pure rule for the in-match Engine.max_fps. No scene tree.
+## pure rule for the in-match Engine.max_fps. No scene tree.
 
 ## Returns the Engine.max_fps value (0 = uncapped) for a GraphicsPreset.FrameCap mode.
 ## refresh_hz is the display's reported rate (<= 0 when unknown).

@@ -1,6 +1,6 @@
 class_name MenuPrewarmConfig
 extends Resource
-## Bontago-1pi.11.84 (MF0): what MenuPrewarmQueue loads behind the main menu and which CLI flags
+## MF0: what MenuPrewarmQueue loads behind the main menu and which CLI flags
 ## force a synchronous startup instead. Loaded once as config/match/menu_prewarm.tres.
 
 ## Serial load order. Every path is requested one at a time (a second overlapping threaded load

@@ -1,9 +1,9 @@
 class_name WinChecker
 extends RefCounted
-## The win condition (spec 2.3, 3.3).
+## The win condition (spec 1.5, 2.5).
 ##
-## Spec 2.3: "A player or team wins when one connected territory contains
-## every goal flag continuously for capture_hold = 3 s." Spec 3.3 says to
+## Spec 1.5: "A player or team wins when one connected territory contains
+## every goal flag continuously for capture_hold = 3 s." Spec 2.5 says to
 ## check it against the raster, which is what this does: read the group index
 ## at each goal flag position; if every goal reads the *same* group index and
 ## that group is real, that group's team is capturing. "The same group", not
@@ -22,7 +22,7 @@ const GROUP_KEY_STRIDE: int = 1000000
 
 var _goal_positions: PackedVector2Array = PackedVector2Array()
 var _capture_hold: float = 3.0
-## Bontago-1pi.18.1: 0 = sample the flag's own cell (the rule). > 0 = decide each
+## 0 = sample the flag's own cell (the rule). > 0 = decide each
 ## goal over the cells within this radius (see claim_at).
 var _claim_radius: float = 0.0
 
@@ -55,7 +55,7 @@ func capture_hold() -> float:
 
 
 ## Advances the capture timer by `delta` seconds against one raster. Called
-## once per territory solve (spec 3.7: "Win check: runs every territory
+## once per territory solve (spec 2.4: "Win check: runs every territory
 ## update"), so delta is 1 / TerritoryTuning.solve_hz.
 func update(raster: TerritoryRaster, delta: float) -> void:
 	if _winner != NO_TEAM:
@@ -101,7 +101,7 @@ func capturing_team() -> int:
 
 
 ## How far through capture_hold the current capture is, 0..1. Drives the goal
-## flag's radial progress ring (spec 2.3) and the HUD.
+## flag's radial progress ring (spec 1.5) and the HUD.
 func capture_progress() -> float:
 	if _winner != NO_TEAM:
 		return 1.0
@@ -138,11 +138,11 @@ func _clear_capture() -> void:
 ## when any goal is unowned or contested, or when there are no goals at all; and
 ## the team claiming the first goal (y, NO_TEAM alongside NO_GROUP).
 ##
-## Comparing group indices rather than teams is the whole point (spec 2.3, "one
+## Comparing group indices rather than teams is the whole point (spec 1.5, "one
 ## connected territory"): two towers of the same team holding a goal each are
 ## two groups, and must not win.
 ##
-## Bontago-1pi.18.11: goal 0 is evaluated once and its team returned with its
+## goal 0 is evaluated once and its team returned with its
 ## group, so update() no longer repeats the (radius-sized) claim_at() for it.
 func _claim_holding_every_goal(raster: TerritoryRaster) -> Vector2i:
 	var none: Vector2i = Vector2i(TerritoryGroups.NO_GROUP, NO_TEAM)
@@ -160,7 +160,7 @@ func _claim_holding_every_goal(raster: TerritoryRaster) -> Vector2i:
 	return first
 
 
-## The per-goal test of spec 2.3, shared with other objectives (Capture the
+## The per-goal test of spec 1.5, shared with other objectives (Capture the
 ## Flag scores each beacon with it): the team holding the goal at `point`, or
 ## NO_TEAM. A goal is held only when its cell is in a real solver group (the
 ## solver only forms groups anchored to a living home, so this is the "unbroken
@@ -175,7 +175,7 @@ static func goal_holder(raster: TerritoryRaster, point: Vector2, claim_radius: f
 ## (NO_TEAM when none). claim_radius <= 0 reads the single flag cell, exactly the
 ## original rule.
 ##
-## DECISION (Bontago-1pi.18.1, QoL "bigger claim radius"): with a radius, every
+## DECISION (QoL "bigger claim radius"): with a radius, every
 ## cell whose centre lies within it votes if it is in a real group and owned;
 ## the team owning the most such cells claims the goal (group = that team's most
 ## common group, lowest index on a tie). A tie between teams, or no owned cell,
@@ -185,7 +185,7 @@ static func claim_at(raster: TerritoryRaster, point: Vector2, claim_radius: floa
 	if claim_radius <= 0.0:
 		var center: Vector2i = grid.world_to_cell(point)
 		return Vector2i(raster.group_at(center.x, center.y), raster.team_at(center.x, center.y))
-	# Bontago-1pi.18.11: which cells are in range depends only on the grid, the
+	# which cells are in range depends only on the grid, the
 	# point and the radius, so their indices are cached (ClaimCells) and each solve
 	# only tallies the raster over them in one pass, with exactly the votes
 	# group_at()/team_at() would give cell by cell (see TerritoryRaster.

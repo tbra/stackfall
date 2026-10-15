@@ -1,7 +1,6 @@
 class_name DiscBodyVisuals
 extends Resource
-## Purely-visual thickness for the play disc (Bontago-mp0.3.2, owner
-## feedback: "The disc is just a thin mirror currently, the mockup has a
+## Purely-visual thickness for the play disc ("The disc is just a thin mirror currently, the mockup has a
 ## much thicker metallic disc with a soft glowing border going round the
 ## rim."). game/field/TerritoryOverlay.gd's own CylinderMesh stays exactly
 ## MapDef.disk_height thick -- that number is load-bearing for physics
@@ -21,7 +20,7 @@ extends Resource
 ## budget is carved into the sloped chamfer face (see below); the remainder
 ## stays a plain vertical wall.
 ##
-## DECISION (config/territory/DiscBodyVisuals.gd, Bontago-mp0.3.2 review pass 2, owner:
+## DECISION (config/territory/DiscBodyVisuals.gd review pass 2, feel:
 ## "make the visible band roughly 3-4% of the disc diameter tall"): the
 ## original 4-5% read against docs/art_mockups/08-cel-shaded-home-
 ## beacons.png's own side wall; narrowed into the reviewer's tighter 3-4%
@@ -40,7 +39,7 @@ extends Resource
 ## side wall, which occupies the exact same radius over the same
 ## [-disk_height, 0] range.
 ##
-## DECISION (config/territory/DiscBodyVisuals.gd, Bontago-pt.12, owner: "the glowing
+## DECISION (config/territory/DiscBodyVisuals.gd, feel: "the glowing
 ## strip currently sits slightly outside the disc as its own separate
 ## element; in the mockup the disc has a chamfered edge that makes up the
 ## glowing strip"): doubled from the old 1.003 hair's-width to 1.006 -- the
@@ -57,7 +56,7 @@ extends Resource
 ## (the top surface's own CylinderMesh) so this mesh's circular silhouette
 ## can be tuned without paying for a denser top-surface mesh too.
 ##
-## DECISION (config/territory/DiscBodyVisuals.gd, Bontago-mp0.3.2 review pass 2, owner:
+## DECISION (config/territory/DiscBodyVisuals.gd review pass 2, feel:
 ## "the bottom edge of the band is stair-stepped/jagged ... must be a smooth
 ## circle"): raised well past the 96 the top surface uses -- a life-sized
 ## (tens of meters) disc silhouette seen close up at a grazing angle shows
@@ -65,7 +64,7 @@ extends Resource
 ## enough that a much higher segment count costs nothing measurable.
 @export var segments: int = 192
 
-## -- Surface texture (Bontago-pt.12, owner: "the disc looks close to the
+## -- Surface texture (feel: "the disc looks close to the
 ## mockup but it lacks the texture, it's especially visible in the mockup
 ## where it interacts with the sun") -- a subtle brushed-metal look on the
 ## band + chamfer material (the only disc surfaces this package owns; the
@@ -100,18 +99,18 @@ extends Resource
 ## TerritoryOverlay.gd's own top-face boundary, no gap) down and out to the
 ## band's own outer radius (band_radius_scale above).
 ##
-## DECISION (config/territory/DiscBodyVisuals.gd, Bontago-pt.12, owner: "the glowing
+## DECISION (config/territory/DiscBodyVisuals.gd, feel: "the glowing
 ## strip currently sits slightly outside the disc as its own separate
 ## element ... the disc has a chamfered edge that makes up the glowing
 ## strip"): replaces the old separate, radius- and Y-offset "rim" mesh
-## (Bontago-mp0.3.2/mp0.3.8) with a single sloped face that shares its top
+## (/mp0.3.8) with a single sloped face that shares its top
 ## ring with the true disc edge and its bottom ring with the band's own top
 ## ring -- watertight, no floating gap, no second offset element. Kept at the
 ## same 0.08 magnitude the old rim_height_fraction (a thin lip, not a thick
-## neon band) was already tuned to across two owner review passes.
+## neon band) was already tuned to across two passes.
 @export var chamfer_height_fraction: float = 0.08
 @export var chamfer_glow_color: Color = Color(1.0, 0.64, 0.22)
-## Main.tscn's HDR glow threshold is 1.1 (Bontago-mp0.3); comfortably above
+## Main.tscn's HDR glow threshold is 1.1; comfortably above
 ## that so the chamfer actually blooms, matching the mockup's soft glow.
 @export var chamfer_glow_energy: float = 1.7
 ## shaders/territory/disc_rim.gdshader's own min_screen_width_factor uniform -- world
@@ -122,7 +121,7 @@ extends Resource
 ## disables it (the mesh renders exactly as authored).
 @export var chamfer_screen_min_width_factor: float = 0.004
 
-## -- Banded side wall (Bontago-adt.2): an additive overlay pass (shaders/territory/disc_band_overlay.gdshader) on the band material.
+## -- Banded side wall: an additive overlay pass (shaders/territory/disc_band_overlay.gdshader) on the band material.
 
 ## Color of the thin inlay line just under the glowing chamfer on the disc side wall.
 @export var band_inlay_color: Color = Color(1.0, 0.7, 0.3)

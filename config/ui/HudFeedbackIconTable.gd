@@ -1,7 +1,7 @@
 class_name HudFeedbackIconTable
 extends Resource
-## HUD feedback pictograms (assets/ui/hud/feedback_icons, Bontago-mp0.111 art,
-## wired by Bontago-mp0.124): held-block height, goal capture, placement rejected
+## HUD feedback pictograms (assets/ui/hud/feedback_icons art,
+## wired by): held-block height, goal capture, placement rejected
 ## and placement relocated. Loaded as config/ui/hud_feedback_icon_table.tres so UI
 ## code never carries asset paths. Presentation only (every peer shows the same
 ## replicated events). Not an F4 tuning panel resource (no hints entry needed).
@@ -27,7 +27,7 @@ static func shared() -> HudFeedbackIconTable:
 	return _shared
 
 
-## Bontago-xtq.44: drops the shared instance on exit so its textures are freed with the tree.
+## drops the shared instance on exit so its textures are freed with the tree.
 static func release_shared() -> void:
 	_shared = null
 

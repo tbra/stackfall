@@ -1,6 +1,6 @@
 class_name MatchGifts
 extends RefCounted
-## Match's gift-crate lifecycle (spec 2.6): per-window spawn rolls, the
+## Match's gift-crate lifecycle (spec 1.6): per-window spawn rolls, the
 ## territory-tick claim/expire sweep, and one replaceable next gift per slot.
 ##
 ## Split out the same way MatchFeed/MatchPlacement/MatchTerritory/MatchLifecycle
@@ -22,7 +22,7 @@ const GIFT_CRATE_SCENE: PackedScene = preload("res://game/gifts/GiftCrate.tscn")
 const FALLING: int = GiftWirePhase.FALLING
 const LANDED: int = GiftWirePhase.LANDED
 ## Client-side wire-tracking only states (net/MatchNet.gd GiftWirePhase aliases
-## these; core/gifts/GiftWirePhase.gd is the single numbering owner and these
+## these; core/gifts/GiftWirePhase.gd is the single numbering source and these
 ## constants re-export it). Never stored in a crate.
 const WIRE_LEGACY: int = GiftWirePhase.WIRE_LEGACY
 const WIRE_REMOVED: int = GiftWirePhase.WIRE_REMOVED
@@ -49,7 +49,7 @@ var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _rng_ready: bool = false
 var _next_gift_id: int = 0
 
-## Orchestrator amendment 1 (docs/archive/M4_P2_PACKAGES.md, 2026-09-23): the special
+## Orchestrator amendment 1 (docs/archive/M4_P2_PACKAGES.md): the special
 ## TYPE is drawn here, at claim time, on the host -- not at spawn time. Spec
 ## 2.6 hands a player "a special as the next piece", so the player (and
 ## later the HUD/ghost) must be able to know what they hold while aiming,
@@ -95,7 +95,7 @@ var _crates: Dictionary = {}
 ## (autoload/match/MatchLifecycle.gd's start_match(): reset, then
 ## _build_slots()) -- see that file's one-line reset() call below.
 ##
-## Bontago-keo.17 (owner decision "b"): keyed by RECIPIENT SLOT, not by team.
+## "b": keyed by RECIPIENT SLOT, not by team.
 ## A crate claimed in a team's territory is offered to the one teammate whose
 ## home circle is nearest the crate (_resolve_recipient_slot() below), never
 ## to a queue shared by the whole team -- so index i here is always slot i's
@@ -113,7 +113,7 @@ var _pending_queues: Array[Array] = []
 ## The queued gift is separate from the currently held piece. A claim never
 ## changes this value; only the subsequent feed activates the queued gift.
 var _held_specials: Dictionary = {}
-## DECISION (Bontago-22y.3.1): a dictionary keyed by recipient slot keeps
+## DECISION: a dictionary keyed by recipient slot keeps
 ## charges independent of the shared GlueEffect resource and gift queue.
 ## A later Glue activation replaces the count instead of adding to it.
 var _glue_drops: Dictionary = {}
@@ -134,7 +134,7 @@ var _glue_revisions: Dictionary = {}
 var _container: Node3D = null
 
 
-## Bontago-1pi.11.87: true once the crate model table, GLB and toon materials were built once.
+## true once the crate model table, GLB and toon materials were built once.
 var _crate_prewarmed: bool = false
 
 
@@ -145,7 +145,7 @@ func setup(match_ref: MatchAutoload) -> void:
 		Events.player_eliminated.connect(_on_player_eliminated_clear_glue)
 
 
-## DECISION (Bontago-1pi.11.87): the first GiftCrate of a process cost 42-70 ms inside a bot's
+## DECISION: the first GiftCrate of a process cost 42-70 ms inside a bot's
 ## placement frame (GiftModelTable load + crate GLB instantiate + toon materials), the worst frame
 ## of the E6 bot bench; one throwaway build_crate_visual() at setup (host and client both run
 ## setup) moves that cost out of the match. Idempotent; nothing is added to the tree.
@@ -162,7 +162,7 @@ func crate_prewarmed() -> bool:
 	return _crate_prewarmed
 
 
-## DECISION (Bontago-sen.8): an eliminated slot can never drop again, so the
+## DECISION: an eliminated slot can never drop again, so the
 ## host zeroes its Glue charges (harmless to rules) and publishes the change,
 ## which hides the glue presentation everywhere. Clients ignore it: they get
 ## the host's zero through glue_charges_changed.
@@ -197,7 +197,7 @@ func _new_typed_queue() -> Array[StringName]:
 	return queue
 
 
-## Bontago-keo.17: still needed by _resolve_recipient_slot() below to test
+## still needed by _resolve_recipient_slot() below to test
 ## whether a given slot is on the claiming team at all (team membership), now
 ## that `_pending_queues` itself is keyed by recipient slot, not by team --
 ## held_special()/pop_pending_special()/pending_special_count()/
@@ -213,7 +213,7 @@ func _team_id_for_slot(slot_id: int) -> int:
 
 ## The oldest pending special `slot_id` is holding, or &"" for none -- a
 ## peek, not a pop. P2c reads this to decide whether the next spawned block
-## should be a special; the HUD (Bontago-1en.16, split out of this package)
+## should be a special; the HUD (split out of this package)
 ## reads pending_special_count() for the queued-count indicator.
 func held_special(slot_id: int) -> StringName:
 	return StringName(_held_specials.get(slot_id, &""))
@@ -231,7 +231,7 @@ func grant_glue_drops(slot_id: int, count: int) -> bool:
 	return true
 
 
-## DECISION (Bontago-sen.3): Glue is a modifier, not a held piece. On claim
+## DECISION: Glue is a modifier, not a held piece. On claim
 ## the host grants its charges at once and leaves the queued gift and the
 ## feed untouched; every other gift queues as the next held piece.
 const GLUE_SPECIAL_ID: StringName = &"glue"
@@ -261,7 +261,7 @@ func _queue_claimed_special(slot_id: int, special_id: StringName, immediate: boo
 	_match._feed.replace_next_with_gift(slot_id)
 
 
-## Bontago-1pi.85.69: queue order is [gift that is next (if any), staged gift].
+## queue order is [gift that is next (if any), staged gift].
 ## A later claim replaces an earlier staged gift (latest wins, as in the old rule);
 ## a gift already next is never displaced.
 func _enqueue_after_next(slot_id: int, special_id: StringName, had_staged: bool) -> void:
@@ -279,7 +279,7 @@ func after_next_special(slot_id: int) -> StringName:
 	return StringName(queue.back()) if not queue.is_empty() else &""
 
 
-## Bontago-1pi.18.2 (QoL gift slot): per-slot gifts waiting to be spent with
+## QoL gift slot: per-slot gifts waiting to be spent with
 ## use_gift_slot, oldest first. Empty (and never touched) with the toggle off.
 var _gift_slots: Dictionary = {}
 
@@ -310,7 +310,7 @@ func gift_slot_count(slot_id: int) -> int:
 
 func _store_in_gift_slot(slot_id: int, special_id: StringName) -> void:
 	var contents: Array = _gift_slots.get(slot_id, [])
-	# DECISION (Bontago-1pi.18.2): a claim into a full slot drops the OLDEST
+	# DECISION: a claim into a full slot drops the OLDEST
 	# slotted gift (with capacity 1: the new gift replaces the old one), the
 	# same "latest claim wins" rule the block queue already uses.
 	while contents.size() >= gift_slot_capacity():
@@ -329,7 +329,7 @@ func _store_in_gift_slot(slot_id: int, special_id: StringName) -> void:
 func request_use_gift_slot(slot_id: int) -> bool:
 	if _match == null or gift_slot_capacity() <= 0:
 		return false
-	# Bontago-fca.36.2: the shared host/live/slot/home/turn/held-shape preamble
+	# the shared host/live/slot/home/turn/held-shape preamble
 	# (same one-actor-at-a-time gate request_place uses: off-turn seats cannot spend).
 	if _match._placement._intent_gate(slot_id, -1, MatchPlacement.IntentKind.GIFT_USE) != &"":
 		return false
@@ -427,11 +427,11 @@ func activate_next_special(slot_id: int) -> void:
 	if queue.is_empty():
 		return
 	_held_specials[slot_id] = StringName(queue[0])
-	# Bontago-1pi.85.69: pop only the activated gift; a staged one stays queued.
+	# pop only the activated gift; a staged one stays queued.
 	queue.pop_front()
 
 
-## Presentation getter (Bontago-59o.13): the queued gift that will be the
+## Presentation getter: the queued gift that will be the
 ## slot's NEXT held piece, or &"" for none. A peek; changes no state.
 func next_special(slot_id: int) -> StringName:
 	if slot_id < 0 or slot_id >= _pending_queues.size():
@@ -439,7 +439,7 @@ func next_special(slot_id: int) -> StringName:
 	var queue: Array = _pending_queues[slot_id]
 	if queue.is_empty():
 		return &""
-	# Bontago-1pi.85.69: a lone staged gift is not next yet (after_next_special()).
+	# a lone staged gift is not next yet (after_next_special()).
 	if queue.size() == 1 and _match._feed.has_staged_gift(slot_id):
 		return &""
 	return StringName(queue[0])
@@ -455,7 +455,7 @@ func defer_held_special_after_burn(slot_id: int) -> void:
 		return
 	_ensure_capacity(slot_id)
 	var queue: Array = _pending_queues[slot_id]
-	# DECISION (Bontago-3ow.5): a later claim already owns the next slot.
+	# DECISION: a later claim already owns the next slot.
 	# A burned held gift must not replace it with the older gift again.
 	# Without a later claim, keep the existing burn behavior: retry this gift
 	# as the next held piece, replacing the next ordinary draw.
@@ -468,7 +468,7 @@ func defer_held_special_after_burn(slot_id: int) -> void:
 ## Consumes the held gift, or returns &"" for an ordinary piece. The next
 ## gift remains untouched until MatchFeed issues it as a held piece.
 ##
-## Bontago-1en.21: the one host-side emit site for Events.special_consumed --
+## the one host-side emit site for Events.special_consumed --
 ## _attach_pending_special() (autoload/match/MatchPlacement.gd) is this
 ## function's only caller, on the place-spawn non-burn path and always on a
 ## throw, so a single emit here covers both consumers without a second call
@@ -496,7 +496,7 @@ func pending_special_count(slot_id: int) -> int:
 	return queue.size() + (1 if held_special(slot_id) != &"" else 0)
 
 
-## The gift_id every debug_queue_special() claim reports (Bontago-1en.24).
+## The gift_id every debug_queue_special() claim reports.
 ## _spawn_crate_at()'s real ids start at 0 and only ever increase, so a
 ## negative sentinel can never collide with one -- a client/HUD watching
 ## Events.gift_claimed sees an id it can recognize as "not a real crate" if it
@@ -504,7 +504,7 @@ func pending_special_count(slot_id: int) -> int:
 const DEBUG_GIFT_ID: int = -1
 
 
-## Sandbox-only debug entry point (Bontago-1en.24, game/sandbox/Sandbox.gd's F9
+## Sandbox-only debug entry point (game/sandbox/Sandbox.gd's F9
 ## sandbox_force_special hotkey and `--force-special=`): replaces `slot_id`'s
 ## next gift and emits Events.gift_claimed with
 ## DEBUG_GIFT_ID, exactly the same signal _claim_gift() fires for a real
@@ -528,12 +528,12 @@ func debug_queue_special(slot_id: int, special_id: StringName) -> bool:
 	_queue_claimed_special(slot_id, special_id, true)
 	# slot_id, not a team id -- matches _claim_gift()'s own gift_claimed emit
 	# below, whose second parameter is the resolved recipient slot
-	# (Events.gd's gift_claimed signal -- Bontago-keo.17).
+	# (Events.gd's gift_claimed signal).
 	Events.gift_claimed.emit(DEBUG_GIFT_ID, slot_id, special_id)
 	return true
 
 
-## Sandbox-only reset seam (Bontago-1en.24, game/sandbox/Sandbox.gd's F9 hotkey
+## Sandbox-only reset seam (game/sandbox/Sandbox.gd's F9 hotkey
 ## turning back "off"): re-runs the exact same lazy install
 ## _ensure_special_drawer_installed() already performs at a match's first
 ## real claim, rather than a second, divergent copy of that roster-filtering
@@ -562,8 +562,8 @@ func _ensure_capacity(slot_id: int) -> void:
 ## Gift activation and the ordinary piece after gift use do not create new
 ## ordinary placement windows, so neither gets a gift-spawn roll. Other
 ## rolls are gated here by _should_roll_for_window()
-## below -- see review fix (Beads Bontago-4fa): outside hot-seat every
-## slot's window advances independently (spec 2.4's "players act
+## below -- see review fix (Beads): outside hot-seat every
+## slot's window advances independently (spec 1.4's "players act
 ## concurrently, each handling their own supplied piece"), so rolling here
 ## unconditionally gave an N-player match ~N rolls per window instead of
 ## GiftSpawner.should_spawn()'s documented "one roll per window, for the
@@ -573,8 +573,8 @@ func on_feed_block_issued(slot_id: int) -> void:
 		return
 	if _match._feed._suppress_gift_roll:
 		return
-	# Bontago-1pi.85.68: start grace; the roll is skipped outright, not queued.
-	# DECISION: sandbox / gift-demo matches skip the grace (testing aid; the owner's request is about real matches).
+	# start grace; the roll is skipped outright, not queued.
+	# DECISION: sandbox / gift-demo matches skip the grace (testing aid; the is about real matches).
 	if _play_time_s < _gift_config.first_gift_delay_s and not (_match.config != null and _match.config.sandbox):
 		return
 	if not _should_roll_for_window(slot_id):
@@ -582,7 +582,7 @@ func on_feed_block_issued(slot_id: int) -> void:
 	_try_spawn()
 
 
-## DECISION (autoload/match/MatchGifts.gd, Bontago-4fa): outside hot-seat,
+## DECISION (autoload/match/MatchGifts.gd): outside hot-seat,
 ## every slot's own window fires this signal independently, so rolling on
 ## every one of them would multiply the match-wide roll by player_count. The
 ## lowest-indexed slot that still has a home flag stands in for "the match's
@@ -590,7 +590,7 @@ func on_feed_block_issued(slot_id: int) -> void:
 ## (early releases desync individual slots' windows over time), but it is
 ## always exactly one slot at any instant, which is all should_spawn()'s
 ## contract actually needs: one roll, somewhere, per window. Hot-seat already
-## has only one slot issuing at a time, so it always rolls (spec 2.4's
+## has only one slot issuing at a time, so it always rolls (spec 1.4's
 ## turn-based mode needs no such gate).
 func _should_roll_for_window(slot_id: int) -> bool:
 	if _match.config == null:
@@ -608,13 +608,13 @@ func _lowest_alive_slot() -> int:
 	return -1
 
 
-## Spec 2.8's sudden-death bullet: "Gift probability climbs toward the
+## Spec 1.9's sudden-death bullet: "Gift probability climbs toward the
 ## maximum of the finalized spawn model (2.6)." Outside sudden death this is
 ## exactly `_match.config.special_frequency` (should_spawn()'s existing
 ## input, unchanged behaviour); once MatchLifecycle.sudden_death_active() is
 ## true it lerps monotonically toward MatchConfig.SPECIAL_FREQUENCY_MAX --
 ## GiftConfig.frequency_to_chance_max is already the finalized spawn model's
-## own maximum spawn chance (spec 2.6), so should_spawn() itself needs no
+## own maximum spawn chance (spec 1.6), so should_spawn() itself needs no
 ## change, only what frequency value it is handed -- over
 ## TerritoryTuning.sudden_death_ramp_s, then clamps there for the rest of the
 ## match. See that tunable's own DECISION for why the ramp duration is not
@@ -679,8 +679,8 @@ func _ensure_special_drawer_installed() -> void:
 	if _roster_ready:
 		return
 	_roster_ready = true
-	# Bontago-1pi.85.9: the draw honours SpecialDef.enabled_by_default (Cat is off).
-	# The lobby checklist and the sandbox cycle list use the same roster (Bontago-1pi.160).
+	# the draw honours SpecialDef.enabled_by_default (Cat is off).
+	# The lobby checklist and the sandbox cycle list use the same roster.
 	var all_defs: Array[SpecialDef] = SpecialDef.load_selectable_specials()
 	var enabled: Array[StringName] = _match.config.enabled_specials if _match.config != null else []
 	var roster: Array[SpecialDef] = []
@@ -891,7 +891,7 @@ func _held_block_touches(slot_id: int, crate_world: Vector3) -> bool:
 	var half: float = _match._physics_tuning.cube_size * 0.5 + _gift_config.air_touch_margin_m
 	var crate_half: Vector3 = GiftCrate.CRATE_SIZE * 0.5
 	var pivot: Vector3 = shape.bottom_center()
-	# Bontago-t8x.1: a held gift is one cell where its model sits, matching the
+	# a held gift is one cell where its model sits, matching the
 	# collider it will be delivered with, not the whole carrier piece.
 	if _match.held_special(slot_id) != &"":
 		var gift_center: Vector3 = origin + basis * BlockFactory.gift_cell_center(shape, _match._physics_tuning)
@@ -948,14 +948,14 @@ func _claim_gift_for_slot(gift_id: int, slot_id: int) -> bool:
 	return true
 
 
-## Bontago-keo.17 (owner decision "b", overriding this file's earlier "one
-## shared team queue" design): a crate claimed in `team_id`'s territory is
+## "b", overriding this file's earlier "one
+## shared team queue" design: a crate claimed in `team_id`'s territory is
 ## offered to the ONE teammate whose home circle is nearest the crate, not to
 ## every teammate through a queue they all share. _resolve_recipient_slot()
 ## below does that resolution; if no teammate's home flag is still alive, the
 ## crate is left untouched (no claim, no crate consumed, no event).
 ##
-## Bontago-3ow.5: the latest claim replaces this recipient's next gift or
+## the latest claim replaces this recipient's next gift or
 ## ordinary draw. Resolve the recipient before freeing the crate because its
 ## position is needed for that choice.
 func _claim_gift(gift_id: int, team_id: int) -> void:
@@ -977,14 +977,13 @@ func _claim_gift(gift_id: int, team_id: int) -> void:
 	Events.gift_claimed.emit(gift_id, recipient_slot, special_id)
 
 
-## Bontago-keo.17 (owner decision "b" on docs/archive/M6_PLAN.md's Owner Q1): picks
+## "b" on the M6 plan's question 1: picks
 ## the alive (home_flag_alive) member of `team_id` whose home circle
 ## (PlayerSlot.home_position, disk-local, computed once by
 ## MatchLifecycle._build_slots()) is closest to `crate_position`. Returns -1
 ## if `team_id` has no living teammate to give the special to.
 ##
-## DECISION (autoload/match/MatchGifts.gd, Bontago-keo.17): the spec/owner
-## answer settles "nearest wins" but not an exact tie (two teammates
+## DECISION (autoload/match/MatchGifts.gd): the spec/ settles "nearest wins" but not an exact tie (two teammates
 ## equidistant from the crate). Iterating slots in ascending id order and
 ## only replacing the current best on a strict `<` (not `<=`) comparison
 ## makes the lowest slot id win a tie with no extra branching -- simplest
@@ -1021,7 +1020,7 @@ func _draw_special_id() -> StringName:
 	return PENDING_SPECIAL_ID
 
 
-## Owner playtest report (Bontago-1pi.2, "Unclaimed presents should respawn in
+##  report ("Unclaimed presents should respawn in
 ## different places when unclaimed"): captures the expiring crate's own
 ## position before _free_crate_visual() erases its `_crates` entry, so
 ## _relocate_after_expiry() below has something to measure the replacement's
@@ -1037,7 +1036,7 @@ func _expire_gift(gift_id: int) -> void:
 	_relocate_after_expiry(old_position)
 
 
-## Bontago-1pi.2: an expired (unclaimed) crate is immediately replaced by a
+## an expired (unclaimed) crate is immediately replaced by a
 ## fresh one at a new valid random location at least
 ## GiftConfig.relocate_min_distance_m from the one it replaces, using the same
 ## seeded gift-spawn RNG and GiftSpawner.pick_spawn_point() location logic
@@ -1048,13 +1047,13 @@ func _expire_gift(gift_id: int) -> void:
 ## deliberately NOT re-checked here -- the crate that just expired already
 ## counted against max_live_crates, and this relocation directly replaces it
 ## one-for-one, so the live-crate count this produces is exactly what it was
-## the instant before expiry (spec 2.6 unchanged; owner instruction: "the
+## the instant before expiry (spec 1.6 unchanged; owner instruction: "the
 ## relocated crate counts as the live crate").
 ##
-## DECISION (autoload/match/MatchGifts.gd, Bontago-1pi.2): if no valid spot
+## DECISION (autoload/match/MatchGifts.gd): if no valid spot
 ## clearing relocate_min_distance_m can be found (raster/grid missing, gifts
 ## disabled mid-match, or _pick_relocation_point() exhausts its attempt
-## budget), this simply falls back to the existing pre-Bontago-1pi.2 behavior
+## budget), this simply falls back to the existing pre- behavior
 ## -- the crate stays gone and the next spawn comes from the ordinary
 ## per-window roll -- rather than forcing a spawn at a too-close or invalid
 ## point.
@@ -1127,7 +1126,7 @@ func _gifts_container() -> Node3D:
 
 ## Builds the one crate scene both the host's real spawn and a client's
 ## mirrored spawn use, so the two visuals can never disagree. `point` is
-## disk-local (x, z); the crate sits on the field surface (spec 2.6:
+## disk-local (x, z); the crate sits on the field surface (spec 1.6:
 ## "stationary pickups"), lifted by half its own visual height so it rests on
 ## the surface rather than being bisected by it.
 func _make_crate_node(point: Vector2, gift_id: int) -> GiftCrate:
@@ -1145,7 +1144,7 @@ func _make_crate_node(point: Vector2, gift_id: int) -> GiftCrate:
 	return crate
 
 
-# --- The client's read model (spec 3.4) -------------------------------------
+# --- The client's read model (spec 2.6) -------------------------------------
 # Called only by net/MatchNet.gd's net_match_event, only on a client (a
 # well-behaved host never receives its own replicated RPC). A client never
 # claims or expires anything itself -- these three only ever build or free a
@@ -1217,7 +1216,7 @@ func apply_replicated_landing(gift_id: int, landing: Vector3) -> void:
 		node.set_falling(false)
 
 
-## Bontago-keo.17 (owner decision "b"): the resolved RECIPIENT slot arrives
+## "b": the resolved RECIPIENT slot arrives
 ## over the wire -- the host already picked the one teammate nearest the
 ## crate in _claim_gift() before it ever replicated this event -- so this
 ## bounds-checks against _match.slot_count() before it ever reaches
@@ -1226,7 +1225,7 @@ func apply_replicated_landing(gift_id: int, landing: Vector3) -> void:
 ## MatchLifecycle.apply_replicated_elimination()'s own slot(slot_id)
 ## null-check convention.
 ##
-## Bontago-csc: mirrors _claim_gift()'s own cap check (net/MatchNet.gd's wire
+## mirrors _claim_gift()'s own cap check (net/MatchNet.gd's wire
 ## check has already rejected a malformed `special_id` by the time this
 ## runs) -- a client's queue can never exceed the same
 ## GiftConfig.max_pending_specials the host enforces. The crate visual is
@@ -1254,7 +1253,7 @@ func apply_replicated_expire(gift_id: int) -> void:
 	_free_crate_visual(gift_id)
 
 
-## Bontago-1en.21: the client mirror of pop_pending_special(), called by
+## the client mirror of pop_pending_special(), called by
 ## net/MatchNet.gd's EVENT_SPECIAL_CONSUMED dispatch (after its own wire
 ## check) right before it re-emits Events.special_consumed. Keeps a client's
 ## pending_special_count()/held_special() shrinking in step with the host's
@@ -1267,8 +1266,8 @@ func apply_replicated_expire(gift_id: int) -> void:
 ## unlike a claim, a consumed-special mirror has nothing useful to do for a
 ## slot whose queue was never grown by an earlier claim anyway.
 ##
-## Bontago-keo.17 (owner decision "b", superseding the earlier M6 A1 team
-## translation here): `_pending_queues` is now keyed by recipient slot, the
+## "b", superseding the earlier M6 A1 team
+## translation here: `_pending_queues` is now keyed by recipient slot, the
 ## same slot pop_pending_special() popped on the host, so this indexes
 ## `slot_id` directly -- no team_of_slot() translation needed or correct
 ## anymore (a teammate other than the resolved recipient never held this

@@ -1,6 +1,6 @@
 class_name MatchPlacement
 extends RefCounted
-## Match's one authoritative entry point (spec 3.4): request_place(), pose
+## Match's one authoritative entry point (spec 2.6): request_place(), pose
 ## validation, the pure outcome-resolution seam, spawn/burn and the blocks-
 ## spawned counter.
 ##
@@ -8,7 +8,7 @@ extends RefCounted
 ## that file's own header comment for the state machine this placement logic
 ## serves.
 
-## Bontago-mv0.1.11, revised Bontago-mv0.2.6 (independent-review finding C):
+## revised (independent-review finding C):
 ## how far inside Field's kill-plane box a burned block's spawn point is kept,
 ## as a fraction of the box's half-extent. _burn_block() then adds an outward
 ## impulse (TerritoryTuning.reject_impulse / reject_upward_fraction) before
@@ -16,7 +16,7 @@ extends RefCounted
 ## for that impulse's own horizontal travel, not just spawn the body inside
 ## the box.
 ##
-## DECISION (autoload/Match.gd, Bontago-mv0.2.6): 0.9 left only
+## DECISION (autoload/Match.gd): 0.9 left only
 ## `field_radius` (30-60 m across the shipped maps) of slack to the box edge.
 ## reject_impulse=30 on a mass-1 block with reject_upward_fraction=0.35 gives
 ## a horizontal launch speed of impulse * (1 - up_fraction) / sqrt((1 -
@@ -29,7 +29,7 @@ extends RefCounted
 ## radius = half the box half-extent) makes the reserved slack equal to the
 ## clamp radius itself (>= 150 m on the smallest map), comfortably above the
 ## worst-case impulse travel above, without touching _burn_block()'s impulse
-## for a legitimate near-disk burn (docs/archive/M2_PLAN.md owner decision 2) --
+## for a legitimate near-disk burn (docs/archive/M2_PLAN.md 2) --
 ## proven by tests/unit/match/test_match_flow.gd's
 ## test_repro_burn_clamp_margin_lets_a_maximally_clamped_burn_escape_the_kill_plane.
 const _BURN_CLAMP_MARGIN: float = 0.5
@@ -49,7 +49,7 @@ var _blocks_spawned: int = 0
 var _special_tuning: SpecialTuning = preload("res://config/gifts/special_tuning.tres")
 var _glue_drop_tuning: GlueDropTuning = preload("res://config/gifts/glue_drop_tuning.tres")
 var _ghost_tuning: GhostTuning = preload("res://config/blocks/tuning/ghost_tuning.tres")
-# DECISION (Bontago-1pi.14 round 3): numeric guards, not gameplay tunables --
+# DECISION (round 3): numeric guards, not gameplay tunables --
 # a floor so a zero/negative step cannot loop forever, and float slack so the
 # final step landing on the cap is still tried.
 const MIN_CLEARANCE_STEP: float = 0.001
@@ -73,11 +73,11 @@ var _special_defs_config: MatchConfig = null
 ## drawer/roster bug without spamming it.
 var _warned_special_ids: Dictionary = {}
 
-## Bontago-1pi.134: per-slot last aim (unit camera forward), see note_aim().
+## per-slot last aim (unit camera forward), see note_aim().
 var _aim_by_slot: Dictionary = {}
 
 
-## Bontago-1pi.85.35: in-place gift activation (see MatchGiftActivation).
+## in-place gift activation (see MatchGiftActivation).
 var _activation: MatchGiftActivation = MatchGiftActivation.new()
 
 
@@ -86,7 +86,7 @@ func setup(match_ref: MatchAutoload) -> void:
 	_activation.setup(match_ref)
 
 
-# --- The one intent gate (Bontago-fca.36.2) ---------------------------------
+# --- The one intent gate ---------------------------------
 
 ## Which host-side entry point is asking _intent_gate().
 enum IntentKind {
@@ -106,7 +106,7 @@ enum IntentKind {
 ## held special, aim, territory) after it and map the reason to their own
 ## return type (bool/null for GIFT_USE/PROJECTILE). `feed_seq < 0` is the
 ## trusted-local "don't check" sentinel (see request_place's doc comment).
-## DECISION (Bontago-fca.36.2): the dead-home check ranks before the turn gate
+## DECISION: the dead-home check ranks before the turn gate
 ## for every kind (request_place/request_throw already did; request_use_gift_slot
 ## had them swapped, which cannot change its bool result).
 func _intent_gate(slot_id: int, feed_seq: int, kind: IntentKind) -> StringName:
@@ -133,7 +133,7 @@ func _intent_gate(slot_id: int, feed_seq: int, kind: IntentKind) -> StringName:
 		return PlacementRules.REASON_NOT_YOUR_TURN
 	if _match.held_shape(slot_id) == null:
 		return PlacementRules.REASON_NO_BLOCK
-	# Bontago-mv0.10 lock. A forced auto-drop is what ends it, and the gift slot
+	# lock. A forced auto-drop is what ends it, and the gift slot
 	# has always ignored it (finding for the orchestrator: a locked slot may
 	# still use a slotted gift; behaviour kept).
 	if (kind == IntentKind.PLACE or kind == IntentKind.THROW) and _match.is_release_locked(slot_id):
@@ -141,20 +141,20 @@ func _intent_gate(slot_id: int, feed_seq: int, kind: IntentKind) -> StringName:
 	return &""
 
 
-# --- The one authoritative entry point (spec 3.4) ---------------------------
+# --- The one authoritative entry point (spec 2.6) ---------------------------
 
 ## Every placement in the game goes through here, local or remote. `origin` is
 ## the world position the block's local origin would sit at, `orientation_index`
 ## the BlockOrientations index and `free_quat` the free rotation layered on it
-## (spec 2.5). `auto_drop` is true when the slot's timer ran out rather than
+## (spec 1.4). `auto_drop` is true when the slot's timer ran out rather than
 ## the player clicking, which is the only case where the host relocates the
-## block to the closest valid point instead of rejecting it (spec 2.5).
+## block to the closest valid point instead of rejecting it (spec 1.4).
 ##
 ## Returns PlacementRules.REASON_OK on success, otherwise the REASON_* that
 ## explains the refusal, which is also emitted as Events.placement_rejected.
 ##
-## Bontago-mv0.24 (owner test 2026-09-22, supersedes spec 2.2's older "thrown
-## off the map with a visible reject animation" line for this case): a
+## Supersedes spec 1.5's older "thrown
+## off the map with a visible reject animation" line for this case: a
 ## refused *deliberate* (auto_drop == false) placement spawns nothing and
 ## consumes nothing — the piece stays held, feed_seq does not advance, and
 ## the caller may try again. A refused auto-drop that finds no valid point to
@@ -182,7 +182,7 @@ func _intent_gate(slot_id: int, feed_seq: int, kind: IntentKind) -> StringName:
 ## outside BlockOrientations' table) is refused with REASON_NO_BLOCK before
 ## anything is touched. That is not a rule — the ghost can never produce such
 ## a pose — but the authority's own guard against corrupt or hostile input
-## (spec 3.4: "The host checks every intent before acting on it"); MatchNet
+## (spec 2.6: "The host checks every intent before acting on it"); MatchNet
 ## refuses the same poses at the wire so they are normally never seen here.
 func request_place(
 	slot_id: int,
@@ -192,19 +192,19 @@ func request_place(
 	auto_drop: bool,
 	feed_seq: int = -1
 ) -> StringName:
-	# Spec 3.4: the host decides every placement. A client that somehow got
+	# Spec 2.6: the host decides every placement. A client that somehow got
 	# here locally must not spawn anything; it waits for the host's spawn.
 	var gate_kind: IntentKind = IntentKind.AUTO_DROP if auto_drop else IntentKind.PLACE
 	var refusal: StringName = _intent_gate(slot_id, feed_seq, gate_kind)
 	if refusal != &"":
 		return refusal
-	# Bontago-1pi.134 (owner decision 1pi.133 = A): a forced release of a held throwable gift
+	# 1pi.133 = A: a forced release of a held throwable gift
 	# is the manual throw along the slot's last known aim, not a drop in place.
 	if auto_drop and _try_expiry_throw(slot_id, origin, orientation_index, free_quat, feed_seq):
 		return PlacementRules.REASON_OK
 	var acting_slot: PlayerSlot = _match.slot(slot_id)
 	var shape: BlockShape = _match.held_shape(slot_id)
-	# DECISION (Bontago-mv0.10): the release lock (enforced in _intent_gate for
+	# DECISION: the release lock (enforced in _intent_gate for
 	# manual releases only) reuses REASON_NO_BLOCK rather than a new
 	# PlacementRules.REASON_* constant (core/ is not this package's); auto_drop is
 	# exempt because it is the host's own forced release that ends the lock.
@@ -216,10 +216,10 @@ func request_place(
 	var disk_origin: Vector2 = Vector2(local_origin.x, local_origin.z)
 	var team_id: int = acting_slot.team_id
 
-	# DECISION (autoload/Match.gd, Bontago-cmc.7): every MatchConfig.HoleMode
+	# DECISION (autoload/Match.gd): every MatchConfig.HoleMode
 	# now uses one raycast straight down from `origin` plus
 	# PlacementRules.validate_point(), not just the old v2-only OFF default.
-	# SPEC.md's 2026-09-20 evidence audit, 2.5 "Placement legality": "cast one
+	# SPEC.md's evidence audit, 2.5 "Placement legality": "cast one
 	# ray straight down from the ghost's middle... Do not require the whole
 	# footprint to fit... not permission to reintroduce footprint territory
 	# tests." validate_point() itself now also rejects a contested/holed point
@@ -240,7 +240,7 @@ func request_place(
 		disk_origin = hit as Vector2
 		result = PlacementRules.validate_point(disk_origin, _match.raster(), team_id)
 		# DECISION (autoload/match/MatchPlacement.gd, docs/archive/M6_PLAN.md package
-		# B1, spec 2.7 "Sandbox: no territory limits"): only the two
+		# B1, spec 1.2 "Sandbox: no territory limits"): only the two
 		# territory-ownership outcomes are waived here -- OFF_DISK (the
 		# hit == null branch above, which never reaches this remap), HOLE and
 		# GOAL_ZONE all stay refused, since the spec line is "no territory
@@ -248,32 +248,31 @@ func request_place(
 		# zone". core/rules/PlacementRules.gd itself stays config-agnostic;
 		# this is the one call site that already knows about config.sandbox
 		# (autoload/match/MatchLifecycle.gd:121's own precedent).
-		result = _apply_territory_waiver(slot_id, result)  # Bontago-sen.1: held gift waives territory (host state)
+		result = _apply_territory_waiver(slot_id, result)  # held gift waives territory (host state)
 	if result != PlacementRules.Result.VALID and auto_drop:
 		relocated = PlacementRules.closest_valid_point(disk_origin, _match.raster(), team_id, _match._territory_tuning)
 	var outcome: Dictionary = _resolve_outcome(result, auto_drop, relocated)
 	var reason: StringName = outcome["reason"]
 
 	if reason != PlacementRules.REASON_OK and not auto_drop:
-		# DECISION (autoload/match/MatchPlacement.gd, Bontago-mv0.24, owner test
-		# 2026-09-22): a manual out-of-zone release is refused outright, not
+		# DECISION (autoload/match/MatchPlacement.gd
+		# ): a manual out-of-zone release is refused outright, not
 		# burned -- the previous "thrown off the map with a visible reject
-		# animation" spawn (spec 2.2) is unreachable from here now; nothing is
+		# animation" spawn (spec 1.5) is unreachable from here now; nothing is
 		# spawned or consumed, feed_seq does not move, and _match._feed's
 		# release lock (if any) is never touched, so the caller may simply try
 		# again. This makes the far-off-disk burn/clamp path below (and
 		# net/MatchNet.gd's matching _consumed_a_block()) reachable only for
-		# auto_drop == true, where spec 2.5's forced release still has to land
+		# auto_drop == true, where spec 1.4's forced release still has to land
 		# somewhere. See Events.placement_rejected's own doc comment.
 		Events.placement_rejected.emit(slot_id, reason)
 		return reason
 
 	var final_disk_origin: Vector2 = relocated if outcome["use_relocation"] else disk_origin
 	if reason != PlacementRules.REASON_OK:
-		# Bontago-mv0.1.11: this is the burn path (docs/archive/M2_PLAN.md owner
-		# decision 2 below), now reachable only for auto_drop == true (see the
+		# this is the burn path (docs/archive/M2_PLAN.md 2 below), now reachable only for auto_drop == true (see the
 		# early return above) -- the last cursor MatchNet stored for a remote
-		# slot is finite-but-arbitrary (spec 3.4: "The host checks every intent
+		# slot is finite-but-arbitrary (spec 2.6: "The host checks every intent
 		# before acting on it"; is_pose_well_formed() above only refuses
 		# non-finite poses, not far-off-disk ones). Left unclamped, a block
 		# spawns and is thrown from that raw point, lands outside Field's kill
@@ -283,7 +282,7 @@ func request_place(
 		# Field.KILL_PLANE_RADIUS_FACTOR).
 		final_disk_origin = _clamp_disk_origin_for_burn(final_disk_origin)
 
-	# Bontago-mv0.12 + Bontago-cmc.7, updated Bontago-mv0.17 item 3: `origin`
+	# + updated item 3: `origin`
 	# is the shape's bottom-centre pivot (GhostPreview/BlockFactory both pivot
 	# there now, rotated-shape corrected -- see GhostPreview's own DECISION)
 	# and the point test above works on that same x/z, so final_disk_origin
@@ -293,7 +292,7 @@ func request_place(
 		final_disk_origin.x, local_origin.y, final_disk_origin.y
 	))
 	if reason == PlacementRules.REASON_OK:
-		# Bontago-1pi.85.35: an in-place gift activates here, with no carrier body.
+		# an in-place gift activates here, with no carrier body.
 		# An ordinary piece (held id &"") never queries the special roster.
 		var held_id: StringName = _match.held_special(slot_id)
 		var in_place_def: SpecialDef = _resolve_deliverable_special(held_id) if held_id != &"" else null
@@ -304,8 +303,8 @@ func request_place(
 			elif _match.config.turn_based:
 				_match._lifecycle.begin_turn_settle_wait()
 			return PlacementRules.REASON_OK
-		# Bontago-1pi.14 round 3: host-side spawn validation (see _lift_pose_clear()).
-		# Bontago-1pi.85.45: a sky-drop gift (Anvil) spawns high above the validated point and
+		# round 3: host-side spawn validation (see _lift_pose_clear()).
+		# a sky-drop gift (Anvil) spawns high above the validated point and
 		# falls; there is nothing up there to clear, so the lift search is skipped for it.
 		var sky_height_m: float = in_place_def.sky_drop_height_m if in_place_def != null else 0.0
 		var sky_origin: Variant = _sky_spawn_origin(shape, final_world_origin, basis, in_place_def) if sky_height_m > 0.0 else null
@@ -317,23 +316,23 @@ func request_place(
 				Events.placement_rejected.emit(slot_id, PlacementRules.REASON_NO_BLOCK)
 				return PlacementRules.REASON_NO_BLOCK
 			final_world_origin = lifted as Vector3
-	# Bontago-t8x.1: only a non-burn spawn delivers the gift (a burn keeps it queued).
+	# only a non-burn spawn delivers the gift (a burn keeps it queued).
 	var gift_id: StringName = _held_deliverable_gift(slot_id) if reason == PlacementRules.REASON_OK else &""
 	var spawned: Block = _spawn_block(shape, final_world_origin, basis, slot_id, true, gift_id)
 	if reason != PlacementRules.REASON_OK:
-		# Owner decision (docs/archive/M2_PLAN.md, "Invalid release — burn the block"),
-		# narrowed by Bontago-mv0.24 to auto-drop only (see above): a forced
+		#  (docs/archive/M2_PLAN.md, "Invalid release — burn the block"),
+		# narrowed by to auto-drop only (see above): a forced
 		# release that finds no valid point to relocate to still spawns the
 		# block and throws it off the map; it is still consumed either way.
 		#
-		# DECISION (autoload/match/MatchPlacement.gd, Bontago-1en.13 review
-		# fix, spec 2.5's OPEN "how expiry handles a held special"): a burn
+		# DECISION (autoload/match/MatchPlacement.gd review
+		# fix, spec 1.4's OPEN "how expiry handles a held special"): a burn
 		# must NOT pop/attach the pending special -- _attach_pending_special()
 		# is deliberately not called on this path, so an unlucky forced
 		# auto-drop that finds nowhere valid to land never destroys a queued
 		# special; it stays queued for the slot's next spawn instead.
 		#
-		# Bontago-xtq.23: PlacementRules.closest_valid_point() now falls back
+		# PlacementRules.closest_valid_point() now falls back
 		# to a full-disk scan (see its own doc comment), so this line is only
 		# reachable when slot_id's team genuinely owns no valid point
 		# anywhere -- home flag down and every stack lost, not merely far
@@ -354,7 +353,7 @@ func request_place(
 		# spot, or (see below) relocated -- so this is the one path allowed
 		# to consume the pending special.
 		var is_glue_activation: bool = _match.held_special(slot_id) == &"glue"
-		# DECISION (Bontago-1pi.85.70): a Jumping Bean never takes a glue charge (it would
+		# DECISION: a Jumping Bean never takes a glue charge (it would
 		# be bonded and unable to hop); the charge stays for the next ordinary drop.
 		var is_bean: bool = _match.held_special(slot_id) == &"jumping_bean"
 		_attach_pending_special(spawned, slot_id)
@@ -368,7 +367,7 @@ func request_place(
 			bonding.bind(spawned, _glue_drop_tuning)
 			Events.glue_drop_charged.emit(spawned)
 		if outcome["use_relocation"]:
-			# Bontago-mv0.24: this auto-drop *did* find a valid point and
+			# this auto-drop *did* find a valid point and
 			# landed there instead of at the caller's raw ghost position --
 			# tell the owning client where, so its cursor and camera can jump
 			# to match (game/player/PlayerController.gd's _on_placement_relocated).
@@ -383,16 +382,16 @@ func request_place(
 	return reason
 
 
-## Spec 2.5's throw: releases a pending special with velocity instead of
-## dropping it in place (spec 2.5: "Throw strength scales with drag distance,
-## capped at throw_max_speed = 25 m/s"; spec 3.4: "request_throw(slot_id,
+## Spec 1.6's throw: releases a pending special with velocity instead of
+## dropping it in place (spec 1.6: "Throw strength scales with drag distance,
+## capped at throw_max_speed = 25 m/s"; spec 2.6: "request_throw(slot_id,
 ## pos, orient, velocity): the host clamps velocity to throw_max_speed").
 ## Mirrors request_place() guard-for-guard (docs/archive/M4_P2_PACKAGES.md P2c:
 ## "check-for-check identical") through the pose-well-formed gate, then
 ## diverges: a throw only ever fires a pending special (REASON_NOT_A_SPECIAL
 ## otherwise, checked before the raycast -- there is nothing to test a point
 ## for without one), a refused throw is never burned -- the piece stays held
-## exactly like a refused manual placement (Bontago-mv0.24's own contract,
+## exactly like a refused manual placement ('s own contract,
 ## see that function's doc comment) -- and the release velocity is always
 ## clamped rather than ever being a refusal reason.
 ##
@@ -419,19 +418,19 @@ func request_throw(
 		return PlacementRules.REASON_NO_BLOCK
 	if _match.held_special(slot_id) == &"":
 		return ThrowRules.REASON_NOT_A_SPECIAL
-	# Bontago-1pi.85.16 (owner answer 1pi.85.1): only Bomb/Magnet/Jumping Bean are thrown (on a
+	# 1pi.85.1: only Bomb/Magnet/Jumping Bean are thrown (on a
 	# fixed trajectory) and Rocket/Paintball take an aimed launch direction; every other gift
 	# refuses a throw (nothing burned, the piece stays held). The client's `velocity` is never
 	# used as a launch velocity: THROW keeps only its horizontal heading, AIMED treats it as the
 	# camera forward and validates it.
-	# DECISION (Bontago-1pi.85.16): the camera forward rides the unchanged throw RPC's
+	# DECISION: the camera forward rides the unchanged throw RPC's
 	# `velocity` slot (no new RPC, no replicated camera pose exists to read instead); the host
 	# validates length/finiteness and drops the upward part in RocketEffect.
 	var held_def: SpecialDef = _resolve_deliverable_special(_match.held_special(slot_id))
 	var throw_mode: GiftThrow.Mode = GiftThrow.mode_for(held_def)
 	if throw_mode == GiftThrow.Mode.NONE and held_def != null:
 		return ThrowRules.REASON_NOT_A_SPECIAL
-	# DECISION (Bontago-1pi.85.29): every gift release is camera-aimed now. The unit camera
+	# DECISION: every gift release is camera-aimed now. The unit camera
 	# forward is the ONLY thing read from the client's `velocity` slot (finite, length band,
 	# 85.21 refusals without consuming); the host derives launch velocity and spawn point from
 	# it and SpecialTuning alone (GiftAim), so a client-supplied speed is never trusted.
@@ -445,7 +444,7 @@ func request_throw(
 		if launch_velocity == Vector3.ZERO:
 			return PlacementRules.REASON_NO_BLOCK
 	elif held_def.effect is RocketEffect:
-		# Owner 2026-10-06 (1pi.85.34 Q3): any aim, upward included.
+		# 1pi.85.34 Q3: any aim, upward included.
 		if RocketEffect.sanitize_launch_direction(aim_direction) == Vector3.ZERO:
 			return PlacementRules.REASON_NO_BLOCK
 	elif RocketEffect.sanitize_downward_direction(aim_direction) == Vector3.ZERO:
@@ -454,12 +453,12 @@ func request_throw(
 		return PlacementRules.REASON_NO_BLOCK
 
 	var gift_id: StringName = _held_deliverable_gift(slot_id)
-	# Bontago-1pi.85.21: the overlap/lift check must test the basis _spawn_block() will use.
+	# the overlap/lift check must test the basis _spawn_block() will use.
 	var basis: Basis = _spawn_basis(gift_id, Basis(free_quat) * BlockOrientations.get_basis(orientation_index))
 	var local_origin: Vector3 = _match._field.to_local(origin)
 	var team_id: int = acting_slot.team_id
 
-	# Exactly request_place()'s own raycast-then-point-test (Bontago-cmc.7);
+	# Exactly request_place()'s own raycast-then-point-test;
 	# ThrowRules.validate_release_point() delegates to the identical
 	# PlacementRules.validate_point() so a throw and a placement can never
 	# disagree about what "your own territory" means at a point.
@@ -474,40 +473,40 @@ func request_throw(
 		# DECISION (autoload/match/MatchPlacement.gd, docs/archive/M6_PLAN.md package
 		# B1): the throw-path twin of request_place()'s own sandbox remap
 		# above -- same waived outcomes, same reasoning.
-		# DECISION (Bontago-sen.1): orchestrator ruling -- owner says gifts may be
+		# DECISION: gifts may be
 		# "dropped anywhere", so a host-held gift (always true here, see the
 		# NOT_A_SPECIAL guard above) waives territory on the throw path too.
 		result = _apply_territory_waiver(slot_id, result)
 	if result != PlacementRules.Result.VALID:
 		# docs/archive/M4_P2_PACKAGES.md P2c: "a refused throw keeps the piece in
 		# hand, like a refused click; never burns" -- mirrors request_place()'s
-		# manual-refusal path (Bontago-mv0.24): nothing spawns, nothing is
+		# manual-refusal path: nothing spawns, nothing is
 		# consumed, and the caller may simply try again.
 		var reason: StringName = ThrowRules.reason_for(result)
 		Events.placement_rejected.emit(slot_id, reason)
 		return reason
 
-	# Bontago-1pi.135 (a): the map-size range scaling applies to the ballistic THROW only; an
+	# a: the map-size range scaling applies to the ballistic THROW only; an
 	# AIMED launch (Rocket/Paintball) keeps the plain throw_max_speed clamp.
 	var speed_cap: float = _special_tuning.throw_max_speed
 	if held_def == null or throw_mode == GiftThrow.Mode.THROW:
 		speed_cap *= GiftAim.speed_factor(_throw_range_scale())
 	var clamped_velocity: Vector3 = launch_velocity.limit_length(speed_cap)
 	var world_origin: Vector3 = _match._field.to_global(Vector3(disk_origin.x, local_origin.y, disk_origin.y))
-	# Bontago-1pi.14 round 3: the throw spawns at the client-sent pose too, so
+	# round 3: the throw spawns at the client-sent pose too, so
 	# it gets the same host overlap validation (a manual intent: refused, the
 	# special stays in hand, when no lift clears it).
-	# Bontago-1pi.85.29: the projectile spawns on the camera line (cursor point moved back along
+	# the projectile spawns on the camera line (cursor point moved back along
 	# the aim, never below gift_aim_min_height_m over the surface); territory was validated at
 	# the cursor above.
 	world_origin = GiftAim.spawn_point(world_origin, aim_direction, _match._field.surface_y(), _special_tuning)
-	# Bontago-1pi.85.53: Rocket/Magnet spawn already facing their flight line, so the first
+	# Rocket/Magnet spawn already facing their flight line, so the first
 	# replicated pose is never upright.
-	# Bontago-1pi.85.54: the overlap/lift check tests that same faced basis (null = upright).
+	# the overlap/lift check tests that same faced basis (null = upright).
 	var faced: Variant = launch_facing_basis(held_def, throw_mode, aim_direction, clamped_velocity)
 	var overlap_basis: Basis = faced as Basis if faced != null else basis
 	if faced != null and throw_mode == GiftThrow.Mode.AIMED and gift_id != &"":
-		# Bontago-1pi.85.80: the faced body's model must start where the held model is drawn.
+		# the faced body's model must start where the held model is drawn.
 		world_origin = BlockFactory.muzzle_matched_origin(world_origin, overlap_basis, shape, _match._physics_tuning, gift_id)
 	var lifted: Variant = _lift_pose_clear(shape, world_origin, overlap_basis, false, gift_id)
 	if lifted == null:
@@ -516,7 +515,7 @@ func request_throw(
 	world_origin = lifted as Vector3
 	var spawned: Block = _spawn_block(shape, world_origin, basis, slot_id, true, gift_id, faced)
 	spawned.linear_velocity = clamped_velocity
-	# DECISION (autoload/match/MatchPlacement.gd, M4 P2c): spec 3.5 names
+	# DECISION (autoload/match/MatchPlacement.gd, M4 P2c): spec 2.7 names
 	# "thrown specials" as their own continuous_cd case in the same sentence
 	# as "any body moving faster than 15 m/s", but as a case of its own, not
 	# conditioned on that speed -- request_throw() only ever reaches this line
@@ -524,7 +523,7 @@ func request_throw(
 	# call), so every thrown body qualifies unconditionally; no second
 	# threshold tunable is read or needed here.
 	spawned.continuous_cd = true
-	# DECISION (autoload/match/MatchPlacement.gd, Bontago-1en.13 review fix):
+	# DECISION (autoload/match/MatchPlacement.gd review fix):
 	# a throw is never a burn -- every earlier return above already refused
 	# anything that would not land -- so this is always the one call that
 	# pops/attaches the pending special this throw is spending (see
@@ -543,7 +542,7 @@ func request_throw(
 	return PlacementRules.REASON_OK
 
 
-## Bontago-1pi.134: records the unit camera forward a slot last reported (the cursor packet's
+## records the unit camera forward a slot last reported (the cursor packet's
 ## aim on the wire, the local controller's own camera for the host seat, a bot's planned aim).
 ## Host only; an unusable value forgets the slot's aim. It is never trusted: the expiry throw
 ## runs it through request_throw()'s own GiftThrow.sanitize_aim() like a manual release.
@@ -566,10 +565,10 @@ func noted_aim(slot_id: int) -> Vector3:
 	return _aim_by_slot.get(slot_id, Vector3.ZERO)
 
 
-## Bontago-1pi.134: the expiry half of request_place(). True when a held, throwable gift was
+## the expiry half of request_place(). True when a held, throwable gift was
 ## released as a manual throw along the slot's last noted aim (same validation, arc and range:
 ## it IS request_throw()). False leaves the caller's ordinary forced drop to run.
-## DECISION (Bontago-1pi.134): no usable aim, a non-throwable special, an unresolved gift, an
+## DECISION: no usable aim, a non-throwable special, an unresolved gift, an
 ## off-disk cursor or a refused throw (nothing is burned by a refused throw) fall back to the
 ## ordinary auto-drop, which relocates to the nearest valid release point; non-throwable
 ## specials therefore follow their manual-release path (placed where the ghost is).
@@ -590,7 +589,7 @@ func _try_expiry_throw(slot_id: int, origin: Vector3, orientation_index: int, fr
 	return request_throw(slot_id, origin, orientation_index, free_quat, aim, feed_seq) == PlacementRules.REASON_OK
 
 
-## Bontago-1pi.85.16: hands the validated camera forward to the effect that flies along it.
+## hands the validated camera forward to the effect that flies along it.
 ## The Rocket keeps any pitch (1pi.85.34 Q3); Paintball drops an upward part.
 func _apply_aim_direction(block: Block, def: SpecialDef, direction: Vector3) -> void:
 	if def.effect is RocketEffect:
@@ -616,7 +615,7 @@ func _apply_aim_direction(block: Block, def: SpecialDef, direction: Vector3) -> 
 ## `orb_def`/`orb_tuning` via the same _arm_special_behavior() helper
 ## _attach_pending_special() uses (see that function's own doc comment for
 ## why this is a separate helper rather than a duplicate of those four
-## lines), then sets the launch velocity. Spec 3.5 names "lava orbs" as
+## lines), then sets the launch velocity. Spec 2.7 names "lava orbs" as
 ## their own continuous_cd case alongside "any body moving faster than
 ## 15 m/s" -- `orb_tuning.ccd_speed_threshold_mps` is that same 15 m/s
 ## number, so continuous_cd is armed whenever this spawn's own speed clears
@@ -642,11 +641,11 @@ func spawn_special_projectile(
 	if shape == null:
 		return null
 
-	# is_player_placement = false (Bontago-1pi.13 review fix): an effect's own
+	# is_player_placement = false (review fix): an effect's own
 	# projectile spawn (e.g. Volcano's 8-14 lava orbs) must not inflate
 	# `owner_slot`'s blocks_placed stat.
 	var spawned: Block = _spawn_block(shape, world_origin, basis, owner_slot, false)
-	# DECISION (autoload/match/MatchPlacement.gd, Bontago-1en.19 review): a null
+	# DECISION (autoload/match/MatchPlacement.gd review): a null
 	# orb_tuning falls back to the match's preloaded _special_tuning, the same
 	# resource _attach_pending_special() uses, instead of crashing the host on
 	# the ccd read below when a .tres leaves its tuning export unset.
@@ -658,7 +657,7 @@ func spawn_special_projectile(
 	return spawned
 
 
-## Bontago-1pi.85.45: spawn pose of a sky-drop gift (Anvil), derived on the host from the
+## spawn pose of a sky-drop gift (Anvil), derived on the host from the
 ## validated drop point, never from the client's hover height: the top of whatever is below
 ## the point (disc surface or the highest block, a downward ray) plus sky_drop_height_m,
 ## clamped hover_ceiling_margin below NetConfig.pos_max_y so the carrier stays inside the
@@ -686,7 +685,7 @@ func _sky_spawn_origin(shape: BlockShape, origin: Vector3, basis: Basis, def: Sp
 	return sky_origin
 
 
-## Bontago-1pi.14 round 3 (owner playtest: dropped blocks get shoved): the
+## round 3 (dropped blocks get shoved): the
 ## client lifts its ghost clear of placed blocks as a prediction, but a late
 ## replication, a rotation or a hostile client can still send a pose that
 ## interpenetrates a placed block, and Jolt then ejects the older body. The
@@ -736,7 +735,7 @@ func _lift_pose_clear(shape: BlockShape, origin: Vector3, basis: Basis, auto_dro
 
 func _pose_overlaps(space: PhysicsDirectSpaceState3D, shape: BlockShape, origin: Vector3, basis: Basis, tuning: GhostTuning, gift_id: StringName = &"") -> bool:
 	var physics: PhysicsTuning = _match._physics_tuning
-	# Bontago-1pi.85.32: a gift that spawns enlarged is tested as its one scaled cube (bottom-anchored
+	# a gift that spawns enlarged is tested as its one scaled cube (bottom-anchored
 	# at the gift cell, like BlockFactory.apply_gift_visual), not as the 1x carrier cells.
 	var gift_scale: float = BlockFactory.activation_scale_for(gift_id) if gift_id != &"" else 1.0
 	if gift_id != &"" and not is_equal_approx(gift_scale, 1.0):
@@ -797,8 +796,8 @@ func is_pose_well_formed(origin: Vector3, orientation_index: int, free_quat: Qua
 ## Returns {"reason": StringName, "use_relocation": bool}: the reason
 ## request_place() should return, and whether the block should land at
 ## `relocated` (true) or stay at the original spot and be thrown off the map
-## (false, with reason != REASON_OK) — spec 2.2's "burn the block" rule
-## (docs/archive/M2_PLAN.md owner decision 2): any release on an invalid spot burns
+## (false, with reason != REASON_OK) — spec 1.5's "burn the block" rule
+## docs/archive/M2_PLAN.md 2: any release on an invalid spot burns
 ## the block; auto-drop gets one relocation attempt first.
 func _resolve_outcome(
 	initial_result: PlacementRules.Result, auto_drop: bool, relocated: Vector2
@@ -811,8 +810,8 @@ func _resolve_outcome(
 
 
 ## Dry run of request_place()'s territory check, for the ghost's valid/red/
-## hatched tint (spec 2.5). One raycast plus one point test, matching
-## request_place() under every MatchConfig.HoleMode (Bontago-cmc.7); safe to
+## hatched tint (spec 1.4). One raycast plus one point test, matching
+## request_place() under every MatchConfig.HoleMode; safe to
 ## call every frame.
 func preview_placement(
 	slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion
@@ -836,13 +835,13 @@ func preview_placement(
 		var local_origin: Vector3 = _match._field.to_local(origin)
 		return _hole_column_result(slot_id, Vector2(local_origin.x, local_origin.z))
 	var preview_result: PlacementRules.Result = PlacementRules.validate_point(hit as Vector2, _match.raster(), team_id)
-	# Bontago-sen.1: mirrors request_place(): a held gift ignores territory.
+	# mirrors request_place(): a held gift ignores territory.
 	return _apply_territory_waiver(slot_id, preview_result)
 
 
-## Bontago-1pi.87: the one territory waiver shared by request_place(),
+## the one territory waiver shared by request_place(),
 ## request_throw() and preview_placement(): sandbox (no territory limits) or a
-## held gift (Bontago-sen.1) turns OUTSIDE_TERRITORY / CONTESTED into VALID;
+## held gift turns OUTSIDE_TERRITORY / CONTESTED into VALID;
 ## every other result (OFF_DISK, HOLE, GOAL_ZONE, ...) is unchanged.
 func _apply_territory_waiver(slot_id: int, result: PlacementRules.Result) -> PlacementRules.Result:
 	var territory: bool = (
@@ -851,7 +850,7 @@ func _apply_territory_waiver(slot_id: int, result: PlacementRules.Result) -> Pla
 	)
 	if (_match.config.sandbox or _match.held_special(slot_id) != &"") and territory:
 		return PlacementRules.Result.VALID
-	# [OWNER decision 2026-10-12, Bontago-1pi.85.73]: a held gift may be used above a hole or a
+	# [OWNER decision]: a held gift may be used above a hole or a
 	# goal zone. DECISION: only the gift waives these (a plain block and the sandbox keep
 	# refusing them); OFF_DISK still refuses.
 	if _match.held_special(slot_id) != &"" and (
@@ -861,7 +860,7 @@ func _apply_territory_waiver(slot_id: int, result: PlacementRules.Result) -> Pla
 	return result
 
 
-## [OWNER decision 2026-10-12, Bontago-1pi.85.73]: over an open hole cell the down-ray finds no
+## [OWNER decision]: over an open hole cell the down-ray finds no
 ## floor (null). A held gift whose flat disk projection is still inside the disk is then usable
 ## there (it spawns at the sent pose and falls normally); anything else stays OFF_DISK.
 ## DECISION: a hole under the gift is not a rim overhang, so it must not read as OFF_DISK.
@@ -875,7 +874,7 @@ func _hole_column_result(slot_id: int, disk_xz: Vector2) -> PlacementRules.Resul
 	return PlacementRules.Result.OFF_DISK
 
 
-## Bontago-1pi.85.53: the basis a thrown/launched Rocket or Magnet carrier spawns with (nose along
+## the basis a thrown/launched Rocket or Magnet carrier spawns with (nose along
 ## its flight line), or null when the gift keeps the upright spawn pose. Pure.
 static func launch_facing_basis(
 	def: SpecialDef, mode: GiftThrow.Mode, aim_direction: Vector3, throw_velocity: Vector3
@@ -889,7 +888,7 @@ static func launch_facing_basis(
 			return null
 		return FlightFacing.nose_basis(rocket.model_nose_axis, direction)
 	if mode == GiftThrow.Mode.AIMED and def.effect is PaintballEffect:
-		# Bontago-1pi.85.79: the slingshot spawns facing its shot, as the held model does.
+		# the slingshot spawns facing its shot, as the held model does.
 		var paintball: PaintballEffect = def.effect as PaintballEffect
 		var down_direction: Vector3 = RocketEffect.sanitize_downward_direction(aim_direction)
 		if down_direction == Vector3.ZERO:
@@ -906,7 +905,7 @@ func _spawn_basis(gift_id: StringName, requested: Basis) -> Basis:
 	return Basis.IDENTITY if gift_id != &"" else requested
 
 
-## Bontago-mv0.11: `slot_id`'s own colour tints every mesh of the block it
+## `slot_id`'s own colour tints every mesh of the block it
 ## places.
 ##
 ## DECISION (autoload/Match.gd): the slot's own PlayerSlot.color, not a
@@ -917,7 +916,7 @@ func _spawn_basis(gift_id: StringName, requested: Basis) -> Basis:
 ## already *is* that slot's team colour. If team colours are ever
 ## disambiguated from per-slot colours, this is the one line that needs to
 ## change to a team-colour lookup instead.
-## Bontago-1pi.13 review fix: `is_player_placement` (default true, so
+## review fix: `is_player_placement` (default true, so
 ## request_place()/request_throw()'s own call sites below need no change)
 ## distinguishes a genuine player placement/auto-drop from
 ## spawn_special_projectile()'s own effect spawns -- that function's own call
@@ -937,13 +936,13 @@ func _spawn_block(
 	var color: Color = acting_slot.color if acting_slot != null else Color.WHITE
 	var block: Block = BlockFactory.build(shape, _match._physics_tuning, slot_id, color)
 	_match._blocks_parent.add_child(block)
-	# Bontago-1pi.85.16: a gift is never rotated by its owner (rotate actions are no-ops while
+	# a gift is never rotated by its owner (rotate actions are no-ops while
 	# one is held), so the host spawns it upright whatever pose the intent carried.
 	var pose_basis: Basis = _spawn_basis(gift_id, basis)
 	if faced_basis is Basis:
 		pose_basis = faced_basis as Basis
 	block.global_transform = Transform3D(pose_basis, world_origin)
-	# Bontago-t8x.1: a used gift is delivered as its gift model, not as a
+	# a used gift is delivered as its gift model, not as a
 	# plain block. The body keeps the held piece's collision (it is the
 	# gift's physical carrier) but shows the gift; the id rides the spawn RPC.
 	if gift_id != &"":
@@ -959,7 +958,7 @@ func _spawn_block(
 		_match._replicator.replicate_spawn(block, block.net_id)
 	# M4 P2c: unlike every earlier revision of this file, _spawn_block() does
 	# NOT itself pop/attach a pending special -- see _attach_pending_special()'s
-	# own doc comment (DECISION, Bontago-1en.13 review fix): a burned block
+	# own doc comment (DECISION review fix): a burned block
 	# must not consume the queue, and only the caller (request_place()/
 	# request_throw()) knows at this point whether the spawn it just asked for
 	# is going to be burned. Each call site calls _attach_pending_special()
@@ -977,8 +976,8 @@ func _spawn_block(
 ## placed special arms too, exactly like a thrown one, only the launch
 ## velocity differs.
 ##
-## DECISION (autoload/match/MatchPlacement.gd, Bontago-1en.13 review fix,
-## spec 2.5's OPEN "how expiry handles a held special"): this is
+## DECISION (autoload/match/MatchPlacement.gd review fix,
+## spec 1.4's OPEN "how expiry handles a held special"): this is
 ## deliberately NOT called from _spawn_block() itself any more -- popping the
 ## queue there ran unconditionally, before the caller knew whether the block
 ## it just spawned was about to be burned (a forced auto-drop with nowhere
@@ -1002,7 +1001,7 @@ func _attach_pending_special(block: Block, slot_id: int) -> void:
 	behavior.completed.connect(_on_gift_completed)
 
 
-## Bontago-t8x.5: host-only (behaviors only exist host-side). Removes a
+## host-only (behaviors only exist host-side). Removes a
 ## completed gift body through the normal block-removal bus: BlockRegistry
 ## drops it and bumps the territory revision, MatchNet replicates the despawn.
 ## DECISION: uses Events.REASON_GIFT_DESPAWN, which neither the kill-plane
@@ -1014,7 +1013,7 @@ func _on_gift_completed(block: Block) -> void:
 	block.queue_free()
 
 
-## Bontago-t8x.1: the held gift id `slot_id` would deliver if it spawned
+## the held gift id `slot_id` would deliver if it spawned
 ## now, or &"" for an ordinary piece or a gift that resolves to no real
 ## SpecialDef (those spawn as plain blocks, exactly as before). Read before
 ## the spawn so the visual and the spawn RPC carry the gift id.
@@ -1094,7 +1093,7 @@ func blocks_spawned() -> int:
 
 ## Keeps a burn's disk-local spawn point (x/z only, in Field's local space)
 ## inside Field's kill plane, so a body that gets thrown off never free-falls
-## past it (Bontago-mv0.1.11). Preserves direction and only shortens the
+## past it. Preserves direction and only shortens the
 ## vector, so an on-disk or near-disk burn (the overwhelming common case) is
 ## returned unchanged -- this only ever fires for the far-off-disk case a
 ## hostile or buggy client can still produce.
@@ -1116,8 +1115,8 @@ func _clamp_disk_origin_for_burn(disk_origin: Vector2) -> Vector2:
 	return disk_origin.limit_length(half_extent)
 
 
-## Spec 2.2: a rejected block "is thrown off the map with a visible reject
-## animation". Bontago-mv0.24 (owner test 2026-09-22): request_place() now
+## Spec 1.5: a rejected block "is thrown off the map with a visible reject
+## animation". request_place() now
 ## only reaches this for auto_drop == true (a forced release with no valid
 ## relocation point) -- a manual release is refused before a block is ever
 ## spawned. Impulse points radially outward from the disk center, blended
@@ -1144,7 +1143,7 @@ func default_ghost_origin(slot_id: int) -> Vector3:
 	var target: PlayerSlot = _match.slot(slot_id)
 	if target == null or _match._field == null:
 		return Vector3.ZERO
-	# Bontago-1pi.64: the first block starts back from the beacon (away from the
+	# the first block starts back from the beacon (away from the
 	# field centre, the camera's side), not on top of it. Shared by the player's
 	# first ghost (set_home_position) and the host's AFK auto-drop.
 	var local_home: Vector3 = Vector3(target.home_position.x, 0.0, target.home_position.y)
@@ -1153,7 +1152,7 @@ func default_ghost_origin(slot_id: int) -> Vector3:
 
 func _clear_blocks() -> void:
 	_aim_by_slot.clear()
-	# Bontago-1pi.85.24 review: in-place activation anchors (Earthquake etc.) are not
+	# review: in-place activation anchors (Earthquake etc.) are not
 	# under _blocks_parent; free them on every reset/abort too, not only via the lifetime backstop.
 	_activation.clear()
 	if _match._blocks_parent == null:
@@ -1162,7 +1161,7 @@ func _clear_blocks() -> void:
 		child.queue_free()
 
 
-## Bontago-1pi.126: this match's thrown-gift range scale (GiftAim.range_scale of the field radius);
+## this match's thrown-gift range scale (GiftAim.range_scale of the field radius);
 ## 1.0 while no field exists.
 func _throw_range_scale() -> float:
 	if _match._field == null or _match._field.map_def == null:

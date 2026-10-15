@@ -1,6 +1,6 @@
 class_name WireSchema
 extends RefCounted
-## One receive guard for flat network dictionaries (Bontago-fca.36.6). Pure
+## One receive guard for flat network dictionaries. Pure
 ## statics: no nodes, no engine state, so every net validates through the same
 ## code and the same unit tests.
 ##
