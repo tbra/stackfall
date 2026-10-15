@@ -161,6 +161,11 @@ static func make_render_viewport(parent: Node, fallback: Vector2i) -> SubViewpor
 	var size: Vector2i = parse_render_size(OS.get_cmdline_user_args())
 	if size == Vector2i.ZERO:
 		size = fallback
+	return make_viewport(parent, size)
+
+
+## A SubViewport of exactly `size` attached to `parent` (tools/shot.gd renders one per --render-size entry).
+static func make_viewport(parent: Node, size: Vector2i) -> SubViewport:
 	# One scaling rule (ui/theme/UiScale.gd): same stretch maths as a real window.
 	var vp: SubViewport = UiScale.make_viewport(size)
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
@@ -169,6 +174,61 @@ static func make_render_viewport(parent: Node, fallback: Vector2i) -> SubViewpor
 	vp.world_3d = parent.get_viewport().world_3d
 	parent.add_child(vp)
 	return vp
+
+
+# --- Capture setup hooks (tools/shot.gd) ---------------------------------------------------------
+# Debug-only: every hook is a no-op returning false unless probe mode is active, and reaches the game
+# through Object.get/set so this autoload-reachable file never pulls the camera, sky or menu graph in.
+
+const CAM_YAW_INDEX: int = 0
+const CAM_PITCH_INDEX: int = 1
+const CAM_DISTANCE_INDEX: int = 2
+const CAM_TARGET_X_INDEX: int = 3
+const CAM_POSE_PARTS: int = 3
+const CAM_POSE_TARGET_PARTS: int = 6
+
+## Presses and releases an Input Map action inside `viewport` (the overlays listen for
+## InputEventAction.is_action_pressed in _unhandled_input).
+static func press_action(viewport: Viewport, action: StringName) -> bool:
+	if not is_active() or not InputMap.has_action(action):
+		return false
+	for pressed: bool in [true, false]:
+		var event: InputEventAction = InputEventAction.new()
+		event.action = action
+		event.pressed = pressed
+		viewport.push_input(event)
+	return true
+
+
+## Puts Main's camera rig on a pose: yaw, pitch (degrees), orbit distance (m) and an optional target
+## x,y,z (6 values). Re-call it every frame while settling; the rig eases back otherwise.
+static func apply_camera_pose(main: Node, pose: PackedFloat32Array) -> bool:
+	if not is_active() or (pose.size() != CAM_POSE_PARTS and pose.size() != CAM_POSE_TARGET_PARTS):
+		return false
+	var rig: Object = main.get("_camera_rig") as Object
+	if rig == null:
+		return false
+	rig.set("_yaw", deg_to_rad(pose[CAM_YAW_INDEX]))
+	rig.set("_pitch", deg_to_rad(pose[CAM_PITCH_INDEX]))
+	rig.set("_distance", pose[CAM_DISTANCE_INDEX])
+	if pose.size() == CAM_POSE_TARGET_PARTS:
+		rig.set("_target", Vector3(pose[CAM_TARGET_X_INDEX], pose[CAM_TARGET_X_INDEX + 1], pose[CAM_TARGET_X_INDEX + 2]))
+	return true
+
+
+## Main's skybox: an optional theme id ("" keeps the current one) and an optional cycle phase in
+## [0, 1) (negative keeps the running clock). False when the sky is missing or the theme unknown.
+static func apply_sky(main: Node, theme_id: String, phase: float) -> bool:
+	if not is_active():
+		return false
+	var skybox: Object = main.get("_skybox") as Object
+	if skybox == null:
+		return false
+	if not theme_id.is_empty() and not bool(skybox.call(&"set_theme_by_id", theme_id)):
+		return false
+	if phase >= 0.0:
+		skybox.call(&"set_cycle_phase", phase)
+	return true
 
 
 ## True when the command line names an explicit --port=<n>.

@@ -1205,8 +1205,7 @@ func _on_steam_lobby_join_requested(lobby_id: int, _friend_id: int) -> void:
 ## Seconds --host-online's smoke test waits for Steam's async lobby_created
 ## before reporting the lobby id, and then for one requestLobbyList() round
 ## trip before reporting discovered_lobbies(). Diagnostic-only timing (not a
-## live gameplay knob — see tools/screenshot_main.gd's own local consts for
-## the same reasoning), so it stays a file const here rather than a NetConfig
+## live gameplay knob), so it stays a file const here rather than a NetConfig
 ## field.
 const _SMOKE_LOBBY_WAIT_S: float = 5.0
 const _SMOKE_LIST_WAIT_S: float = 6.0

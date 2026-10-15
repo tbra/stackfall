@@ -11,7 +11,7 @@ func test_detects_flag_in_user_args() -> void:
 
 
 func test_detects_tools_scene_path() -> void:
-	assert_true(AgentProbe.detect(PackedStringArray(["--path", ".", "res://tools/sandbox_shot.tscn"]), PackedStringArray()))
+	assert_true(AgentProbe.detect(PackedStringArray(["--path", ".", "res://tools/shot.tscn"]), PackedStringArray()))
 
 
 func test_game_scene_and_plain_launch_not_probe() -> void:
@@ -67,3 +67,46 @@ func test_quit_on_menu_flag_and_line() -> void:
 	assert_true(AgentProbe.wants_quit_on_menu(PackedStringArray(["--agent-probe", "--quit-on-menu"])))
 	assert_false(AgentProbe.wants_quit_on_menu(PackedStringArray(["--agent-probe"])))
 	assert_eq(AgentProbe.format_startup_line(120, -1), "AGENT_PROBE startup first_frame_ms=120 menu_ready_ms=-1")
+
+
+class FakeRig:
+	extends Node
+	var _yaw: float = 0.0
+	var _pitch: float = 0.0
+	var _distance: float = 0.0
+	var _target: Vector3 = Vector3.ZERO
+
+
+class FakeMain:
+	extends Node
+	var _camera_rig: FakeRig = FakeRig.new()
+
+
+func test_capture_hooks_are_noops_outside_probe_mode() -> void:
+	AgentProbe.set_forced_for_test(0)
+	var main: FakeMain = autofree(FakeMain.new())
+	assert_false(AgentProbe.apply_camera_pose(main, PackedFloat32Array([10.0, 20.0, 30.0])))
+	assert_false(AgentProbe.apply_sky(main, "cycle", 0.5))
+	assert_eq(main._camera_rig._distance, 0.0)
+	main._camera_rig.free()
+
+
+func test_camera_pose_hook_sets_the_rig() -> void:
+	AgentProbe.set_forced_for_test(1)
+	var main: FakeMain = autofree(FakeMain.new())
+	assert_true(AgentProbe.apply_camera_pose(main, PackedFloat32Array([90.0, -45.0, 12.0, 1.0, 2.0, 3.0])))
+	assert_almost_eq(main._camera_rig._yaw, deg_to_rad(90.0), 0.0001)
+	assert_almost_eq(main._camera_rig._pitch, deg_to_rad(-45.0), 0.0001)
+	assert_eq(main._camera_rig._distance, 12.0)
+	assert_eq(main._camera_rig._target, Vector3(1.0, 2.0, 3.0))
+	assert_false(AgentProbe.apply_camera_pose(main, PackedFloat32Array([1.0, 2.0])), "wrong part count")
+	assert_false(AgentProbe.apply_sky(main, "", -1.0), "no skybox on the fake main")
+	main._camera_rig.free()
+
+
+func test_press_action_hook_delivers_press_and_release() -> void:
+	AgentProbe.set_forced_for_test(1)
+	var vp: SubViewport = autofree(SubViewport.new())
+	add_child(vp)
+	assert_true(AgentProbe.press_action(vp, &"hud_toggle"))
+	assert_false(AgentProbe.press_action(vp, &"no_such_action"))
