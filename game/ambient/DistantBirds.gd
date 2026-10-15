@@ -142,13 +142,6 @@ func advance(delta: float) -> void:
 		_material.set_shader_parameter(CLOCK_PARAMETER, _clock)
 
 
-## Test/debug: launches slot `index` now (no-op while it is flying).
-func launch_now(index: int) -> void:
-	if index >= 0 and index < _slots.size() and not _slots[index].flying:
-		_launch(_slots[index])
-		_material.set_shader_parameter(CLOCK_PARAMETER, _clock)
-
-
 func _launch(slot: _Slot) -> void:
 	var count: int = FlockPlanner.pick_flock_size(_theme, _rng)
 	count = mini(count, _per_slot)
@@ -288,7 +281,3 @@ func birds_in_slot(index: int) -> int:
 ## Slot `index`'s current flight, or null.
 func flight_of(index: int) -> FlockPlanner.Flight:
 	return _slots[index].flight if index >= 0 and index < _slots.size() else null
-
-
-func flight_clock() -> float:
-	return _clock

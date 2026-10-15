@@ -1635,10 +1635,6 @@ func set_snow_brighten(amount: float) -> void:
 	_publish_cloud_lighting()
 
 
-func snow_brighten_amount() -> float:
-	return _snow_brighten
-
-
 ## The overcast the cloud layers are graded by (strongest of the sources).
 func cloud_overcast_amount() -> float:
 	return maxf(_overcast_amount, _weather_cloud_overcast)

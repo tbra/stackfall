@@ -475,10 +475,6 @@ func set_timer_counts_up(counts_up: bool) -> void:
 	_refresh_timer_text()
 
 
-func timer_counts_up() -> bool:
-	return _timer_counts_up
-
-
 ## Classic: the shared capture's team and 0..1 progress with the full hold time;
 ## the label counts down from what is left and is re-synced on every update.
 ## claim_color is the claimant team's colour (Field passes its slot colour); it tints
@@ -496,10 +492,6 @@ func set_countdown(team_id: int, progress: float, hold_seconds: float, claim_col
 func set_multiplier(held_count: int) -> void:
 	_multiplier = held_count
 	_refresh_timer_text()
-
-
-func held_seconds() -> float:
-	return _held_s
 
 
 func timer_text() -> String:

@@ -811,13 +811,6 @@ func _puff_cover(origin: Vector3, heading: Vector3, row: int, upper: bool, setti
 	return cover
 
 
-## The puff shader's TIME as GDScript can read it: seconds since start wrapped at the
-## project's time rollover (the engine default is 3600 s).
-static func shader_time_s() -> float:
-	var rollover: float = float(ProjectSettings.get_setting(SHADER_TIME_ROLLOVER_SETTING, SHADER_TIME_ROLLOVER_DEFAULT_S))
-	return fmod(float(Time.get_ticks_msec()) * 0.001, maxf(rollover, 1.0))
-
-
 ## Bontago-mp0.93: centre height of a body puff whose top would be `top`: its bottom plane (at
 ## `flat` of its radius below the centre) never goes under `base_y`, less `sink_m` (the upper
 ## layer lets round bottoms hang a little below the clump's level so they share no plane).
