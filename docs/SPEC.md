@@ -263,7 +263,7 @@ Target scenarios for rule tests; they are not a claim of passed tests.
 ### 3.2 Project layout
 ```
 res://
-  project.godot  export_presets.cfg  .gutconfig.json  README.md  AGENTS.md  CLAUDE.md
+  project.godot  export_presets.cfg  .gutconfig.json  README.md  CLAUDE.md
   addons/gut/                  test framework (vendored); GodotSteam installed locally (ignored)
   autoload/                    boot-time singletons (Events bus, Settings, Net, Match, Sfx, Rumble, ...)
     match/                     Match autoload's host state-machine parts
@@ -283,7 +283,7 @@ res://
   tests/                       unit/<feature>/ (mirrors game features)  bench/ (spec benches)
                                enet/ (scenario scenes + m2/m3a acceptance)  support/ (fakes, hooks, fixtures)
   tools/                       flat: gate, lints, baselines, agent CLIs, Godot tool scenes
-  docs/                        SPEC.md, AGENT_WORKFLOW.md (docs/archive is local-only)
+  docs/                        SPEC.md (docs/archive is local-only)
 ```
 Bontago-uwq reorganisation (P10): vfx/ and sfx/ dissolved into game/, shaders/ and assets/; `_vN` asset
 suffixes dropped; tests mirror the feature tree. Move map: `tools/reorg_move_map.tsv`; tool: `tools/reorg_move.py`.

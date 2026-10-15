@@ -105,7 +105,7 @@ def main():
         message = event.get("last_assistant_message", "")
         issue = problem(message) if message and message.strip() else "Missing worker handback."
         if issue:
-            print(json.dumps({"decision": "block", "reason": issue + " Return the compact JSON handback specified in docs/AGENT_WORKFLOW.md."}))
+            print(json.dumps({"decision": "block", "reason": issue + " Return the compact JSON handback specified in the stackfall-worker skill."}))
     return 0
 
 

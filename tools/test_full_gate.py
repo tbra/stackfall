@@ -46,6 +46,13 @@ class SerialSplitTest(unittest.TestCase):
         self.assertIn("layer_code == 0", src)
         self.assertIn("layer_lint=%s", src)
 
+    def test_instructions_lint_wired_into_gate(self):
+        # Bontago-tj6: the instruction drift guard gates like the other lints.
+        src = open(full_gate.__file__, encoding="utf-8").read()
+        self.assertIn('run_lint(path, "lint_instructions", lint_instructions)', src)
+        self.assertIn("instr_code == 0", src)
+        self.assertIn("instructions_lint=%s", src)
+
     def test_run_lint_uses_candidate_script_and_falls_back(self):
         with tempfile.TemporaryDirectory() as root:
             class Stub(object):

@@ -2,8 +2,8 @@
 
 Usage: python tools/lint_all.py [--path <checkout>] [-v]
 
-Runs lint_magic_numbers, lint_single_source, lint_ui_components, lint_layers and lint_dead against the
-checkout (each with --path), prints each lint's last line, then `LINT ALL GREEN|RED: ...`.
+Runs lint_magic_numbers, lint_single_source, lint_ui_components, lint_layers, lint_dead and
+lint_instructions against the checkout (each with --path), prints each lint's last line, then `LINT ALL GREEN|RED: ...`.
 Exit 0 only when every lint exits 0 and prints no RED. Name this command in briefs and handbacks
 instead of "lints GREEN".
 """
@@ -14,7 +14,8 @@ import sys
 
 TOOLS = os.path.dirname(os.path.abspath(__file__))
 LINT_TIMEOUT_S = 300
-LINTS = ("lint_magic_numbers", "lint_single_source", "lint_ui_components", "lint_layers", "lint_dead")
+LINTS = ("lint_magic_numbers", "lint_single_source", "lint_ui_components", "lint_layers", "lint_dead",
+         "lint_instructions")
 
 
 def run_lint(name, repo):

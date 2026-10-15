@@ -33,6 +33,7 @@ import lint_single_source  # noqa: E402
 import lint_layers  # noqa: E402
 import lint_ui_components  # noqa: E402
 import lint_dead  # noqa: E402
+import lint_instructions  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TIMINGS = os.path.join(ROOT, "tests", ".gut_targeted", "gate_timings.json")
@@ -333,6 +334,10 @@ def main(argv):
     dead_code = run_lint(path, "lint_dead", lint_dead)
     print("DEAD LINT %s" % ("GREEN" if dead_code == 0 else "RED"), flush=True)
 
+    # Instruction drift guard (Bontago-tj6): each agent rule has one home file; no Godot.
+    instr_code = run_lint(path, "lint_instructions", lint_instructions)
+    print("INSTRUCTIONS LINT %s" % ("GREEN" if instr_code == 0 else "RED"), flush=True)
+
     tests = collect(path)
     if not tests:
         print("FULL GATE ERROR: no tests found under", path)
@@ -388,20 +393,21 @@ def main(argv):
             ok = "Tests" in r["totals"] and r["totals"].get("Failing Tests", 0) == 0 and not r["failing"]
             (flaky if ok else confirmed).append(t)
 
-    verdict = "GREEN" if not confirmed and not harness and lint_code == 0 and ss_code == 0 and layer_code == 0 and ui_code == 0 and dead_code == 0 else "RED"
+    verdict = "GREEN" if not confirmed and not harness and lint_code == 0 and ss_code == 0 and layer_code == 0 and ui_code == 0 and dead_code == 0 and instr_code == 0 else "RED"
     result = {"verdict": verdict, "path": path, "shards": len(shards), "serial": serial, "serial_seconds": serial_seconds, "seconds": round(time.time() - t0, 1),
               "totals": sums, "failing": confirmed, "parallel_flaky": flaky, "failing_detail": _details_for(confirmed, results, retry_results), "flaky_detail": _details_for(flaky, results), "harness_errors": harness, "unloadable": unloadable, "magic_lint": "green" if lint_code == 0 else "red",
               "single_source_lint": "green" if ss_code == 0 else "red",
               "layer_lint": "green" if layer_code == 0 else "red",
               "ui_component_lint": "green" if ui_code == 0 else "red",
               "dead_lint": "green" if dead_code == 0 else "red",
+              "instructions_lint": "green" if instr_code == 0 else "red",
               "shard_seconds": {n: r["seconds"] for n, r in sorted(results.items())}, "out": out_dir}
     with open(os.path.join(out_dir, "result.json"), "w", encoding="utf-8") as fh:
         json.dump(result, fh, indent=1)
     sys.stdout.flush()
-    print("FULL GATE %s: %s/%s passing, %d shards, %.0fs, serial=%d scripts %.0fs; failing=%s parallel_flaky=%s harness=%s magic_lint=%s single_source_lint=%s layer_lint=%s ui_component_lint=%s dead_lint=%s; out=%s" % (
+    print("FULL GATE %s: %s/%s passing, %d shards, %.0fs, serial=%d scripts %.0fs; failing=%s parallel_flaky=%s harness=%s magic_lint=%s single_source_lint=%s layer_lint=%s ui_component_lint=%s dead_lint=%s instructions_lint=%s; out=%s" % (
         verdict, sums.get("Passing Tests", 0), sums.get("Tests", 0), result["shards"], result["seconds"], len(serial), serial_seconds,
-        confirmed or "none", flaky or "none", harness or "none", "green" if lint_code == 0 else "RED", "green" if ss_code == 0 else "RED", "green" if layer_code == 0 else "RED", "green" if ui_code == 0 else "RED", "green" if dead_code == 0 else "RED", out_dir), flush=True)
+        confirmed or "none", flaky or "none", harness or "none", "green" if lint_code == 0 else "RED", "green" if ss_code == 0 else "RED", "green" if layer_code == 0 else "RED", "green" if ui_code == 0 else "RED", "green" if dead_code == 0 else "RED", "green" if instr_code == 0 else "RED", out_dir), flush=True)
     if harness:
         return 2
     return 0 if verdict == "GREEN" else 1

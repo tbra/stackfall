@@ -6,7 +6,7 @@ extends Resource
 ##
 ## Not one of the F4 tuning panel's six resource classes (CameraTuning,
 ## GhostTuning, PhysicsTuning, TerritoryTuning, TerritoryVisuals,
-## BlockFeedConfig -- docs/AGENT_WORKFLOW.md's "New tunables" note), so these
+## BlockFeedConfig), so these
 ## exports do not need a config/ui/tuning_panel_hints.tres entry.
 
 ## Opaque overlay color while loading -- must fully hide the 3D disk/camera

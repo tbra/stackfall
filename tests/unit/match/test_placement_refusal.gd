@@ -1,7 +1,7 @@
 extends "res://tests/unit/match/match_world_test.gd"
 ## autoload/match/MatchPlacement.gd's request_place(): a manual (auto_drop ==
 ## false) release outside the placing player's own territory (spec 2.5's
-## contract; docs/AGENT_WORKFLOW.md Bontago-mv0.24, owner test 2026-09-22).
+## contract; Bontago-mv0.24, owner test 2026-09-22).
 
 const MatchNetScript := preload("res://net/MatchNet.gd")
 

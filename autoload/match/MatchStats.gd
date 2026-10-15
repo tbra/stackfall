@@ -6,8 +6,8 @@ extends RefCounted
 ## own or edit this file).
 ##
 ## Split out the same way MatchFeed/MatchPlacement/MatchTerritory/
-## MatchLifecycle/MatchGifts are (docs/AGENT_WORKFLOW.md "file ownership over
-## function ownership"): a RefCounted wired to autoload/Match.gd via
+## MatchLifecycle/MatchGifts are (file ownership over function ownership): a
+## RefCounted wired to autoload/Match.gd via
 ## setup(self) in Match's own _ready().
 ##
 ## **Host-only collection.** Every counter here only accumulates while
@@ -26,8 +26,7 @@ extends RefCounted
 ## carries the Block (whose owner_slot identifies the slot) and
 ## Events.gift_claimed/special_consumed already carry slot_id directly, so
 ## this file listens for those instead of adding hooks to files another
-## package edits concurrently (docs/AGENT_WORKFLOW.md "disjoint file
-## ownership"; this package's own brief flagged MatchGifts.gd's expiry logic
+## package edits concurrently (disjoint file ownership; this package's own brief flagged MatchGifts.gd's expiry logic
 ## as a concurrent edit to avoid colliding with).
 ##
 ## **blocks_placed is the one exception** (review fix, Bontago-1pi.13):

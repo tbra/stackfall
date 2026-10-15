@@ -117,7 +117,7 @@ extends Resource
 ## territory_visuals/block_feed_config); any new @export field there needs a
 ## config/ui/tuning_panel_hints.tres description or
 ## test_every_shown_field_has_a_non_empty_description fails, and a slider
-## range too if the default is outside [0, 4x default] (AGENT_WORKFLOW.md).
+## range too if the default is outside [0, 4x default].
 ## GiftConfig is not on that roster (grep confirms no "GiftConfig." key
 ## exists in tuning_panel_hints.tres) and is already the documented
 ## destination for exactly this kind of value — game/gifts/GiftCrate.gd's own

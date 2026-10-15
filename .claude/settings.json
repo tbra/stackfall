@@ -1,4 +1,10 @@
 {
+  "permissions": {
+    "additionalDirectories": [
+      "M:/Bontago-worktrees",
+      "M:/Bontago-tools"
+    ]
+  },
   "hooks": {
     "SessionStart": [
       {
@@ -33,8 +39,42 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python -I -S \"$CLAUDE_PROJECT_DIR/tools/guard_store_python.py\"",
+            "command": "python -I -S \"$CLAUDE_PROJECT_DIR/tools/guard_shell.py\"",
             "timeout": 3
+          }
+        ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -I -S \"$CLAUDE_PROJECT_DIR/tools/guard_dispatch.py\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -I -S \"$CLAUDE_PROJECT_DIR/tools/hook_lint_instructions.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/tools/owner_replies.py\" --rewake",
+            "asyncRewake": true,
+            "timeout": 60
           }
         ]
       }

@@ -126,11 +126,11 @@ class StalePathTest(unittest.TestCase):
                          ["tools/runner.py: docs/missing/", "tools/runner.py: tools/gone.py"])
 
     def test_only_named_markdown_files_are_scanned(self):
-        files = {"AGENTS.md": "see tools/gone.py\n", "docs/OTHER.md": "see tools/gone2.py\n"}
-        self.assertEqual(keys(files, "stale-path"), ["AGENTS.md: tools/gone.py"])
+        files = {"README.md": "see tools/gone.py\n", "docs/OTHER.md": "see tools/gone2.py\n"}
+        self.assertEqual(keys(files, "stale-path"), ["README.md: tools/gone.py"])
 
     def test_archive_and_generated_paths_are_skipped(self):
-        files = {"docs/archive/OLD.md": "tools/gone.py\n", "AGENTS.md": "addons/godotsteam/ and build_info.cfg\n"}
+        files = {"docs/archive/OLD.md": "tools/gone.py\n", "README.md": "addons/godotsteam/ and build_info.cfg\n"}
         self.assertEqual(keys(files, "stale-path"), [])
 
 

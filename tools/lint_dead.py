@@ -61,9 +61,10 @@ STALE_TOP = ("autoload", "config", "core", "game", "net", "ui", "shaders", "asse
 STALE_EXTS = (".gd", ".tscn", ".tres", ".gdshader", ".gdshaderinc", ".json", ".py", ".ps1", ".md", ".cfg",
               ".png", ".svg", ".wav", ".ogg", ".mp3", ".glb", ".ttf", ".txt", ".uid", ".res", ".import")
 PATH_RE = re.compile(r"(?<![\w./:-])(res://|(?:%s)/)([\w./-]*)" % "|".join(STALE_TOP))
-STALE_FILES = ("AGENTS.md", "CLAUDE.md", "README.md", "docs/SPEC.md", "docs/AGENT_WORKFLOW.md")
+STALE_FILES = ("CLAUDE.md", "README.md", "docs/SPEC.md")
 STALE_SUFFIX = (".gd", ".gdshader", ".gdshaderinc", ".tscn", ".tres", ".cfg", ".py", ".ps1")
-STALE_SKIP_DIRS = ("addons/", "docs/archive/", ".godot/", ".git/", "tools/test_")
+# .claude/worktrees holds agent isolation checkouts and old Codex checkouts, not this tree.
+STALE_SKIP_DIRS = ("addons/", "docs/archive/", ".godot/", ".git/", "tools/test_", ".claude/worktrees/")
 # Paths that legitimately do not exist in a checkout: per-developer addon, generated at build/run time.
 STALE_GENERATED = ("addons/godotsteam", "build_info.cfg", "tests/.gut_targeted")
 ENGINE_FUNC_PREFIX = ("_on_",)
@@ -249,6 +250,8 @@ def text_files(root, files):
         rel_dir = os.path.relpath(dirpath, root).replace("\\", "/")
         if rel_dir == ".":
             rel_dir = ""
+        if rel_dir == ".claude":
+            dirnames[:] = [d for d in dirnames if d != "worktrees"]
         for n in filenames:
             rel = (rel_dir + "/" + n) if rel_dir else n
             if rel.startswith(STALE_SKIP_DIRS):

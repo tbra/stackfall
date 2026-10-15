@@ -68,7 +68,7 @@ const PRESET_LABELS: Array[String] = GraphicsSettingsTab.PRESET_LABELS
 ## a K+M player a Rebind button and a raw "Joypad Motion on Axis N ..." string
 ## with nothing to actually remap for their device -- exactly the reported
 ## "not mapped to anything" rows. Removing them here is a display-only change
-## (docs/AGENT_WORKFLOW.md minor ambiguity: no gameplay rule or [ORIGINAL]
+## (a minor ambiguity per CLAUDE.md: no gameplay rule or [ORIGINAL]
 ## binding changes); the gamepad bindings themselves are untouched.
 ##
 ## Bontago-1pi.159.63 (owner decision 1pi.159.62): rotate_snap (B, 90 degree tap) and

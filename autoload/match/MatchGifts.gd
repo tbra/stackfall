@@ -4,7 +4,7 @@ extends RefCounted
 ## territory-tick claim/expire sweep, and one replaceable next gift per slot.
 ##
 ## Split out the same way MatchFeed/MatchPlacement/MatchTerritory/MatchLifecycle
-## are (docs/AGENT_WORKFLOW.md "file ownership over function ownership"): a
+## are (file ownership over function ownership): a
 ## RefCounted wired to autoload/Match.gd via setup(self) in Match's own
 ## _ready(), so it never walks the scene tree looking for its collaborators.
 ##

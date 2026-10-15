@@ -10,14 +10,20 @@ Usage:
   python tools/owner_replies.py          # print new replies, mark them seen
   python tools/owner_replies.py --peek   # print without marking seen
   python tools/owner_replies.py --since 2026-10-01T00:00:00Z --peek
+  python tools/owner_replies.py --rewake # UserPromptSubmit hook (asyncRewake): exit 2 with the
+                                         # replies wakes Claude; silent exit 0 otherwise
+
+Calls bd through tools/bd_cli.py (native binary when present).
 """
 
 import json
 import os
-import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from bd_cli import bd_executable  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATE = os.path.join(ROOT, ".claude", "owner_replies_state.json")
@@ -32,7 +38,7 @@ FIRST_RUN_LOOKBACK = "1970-01-01T00:00:00Z"
 def _export():
     """All issues with comments in one call (bd export; ~1-2 s)."""
     out = subprocess.run(
-        [shutil.which("bd.cmd") or shutil.which("bd") or "bd", "export"], cwd=ROOT,
+        [bd_executable(), "export"], cwd=ROOT,
         capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=40,
     )
     if out.returncode != 0:
@@ -84,12 +90,14 @@ def find_replies(since):
 
 def main(argv):
     peek = "--peek" in argv
+    rewake = "--rewake" in argv
     since = argv[argv.index("--since") + 1] if "--since" in argv else _load_since()
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     try:
         replies = find_replies(since)
     except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as exc:
-        print("owner_replies: could not query Beads (%s); check bd comments manually." % exc)
+        if not rewake:  # A background check stays silent; the next prompt retries.
+            print("owner_replies: could not query Beads (%s); check bd comments manually." % exc)
         return 0
     if replies:
         print("NEW OWNER REPLIES ON BEADS (%d) - act on these before other work:" % len(replies))
@@ -97,7 +105,7 @@ def main(argv):
             print("  %s [%s] %s (%s) %s: %s" % (issue_id, status, title, created[:16], author, text))
     if not peek:
         _save(now)
-    return 0
+    return 2 if rewake and replies else 0
 
 
 if __name__ == "__main__":

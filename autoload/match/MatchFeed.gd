@@ -7,8 +7,8 @@ extends RefCounted
 ## method here is the exact body that used to live on Match, with `_match`
 ## reads standing in for whatever another controller (or Match itself) now
 ## owns. See autoload/Match.gd's own header comment for the state machine
-## this feed serves, and docs/AGENT_WORKFLOW.md's "Package size, reports and
-## review scope" for why the split happened.
+## this feed serves. The split exists so parallel workers own separate files
+## rather than separate functions of one file.
 
 var _match: MatchAutoload = null
 

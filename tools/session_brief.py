@@ -11,6 +11,7 @@ import json
 import shutil
 import subprocess
 
+from bd_cli import native_or
 from skill_versions import list_versions
 
 HANDOVER_KEYS = ("stackfall-handoff", "stackfall-debrief")
@@ -20,7 +21,7 @@ MAX_MEMORY_CHARS = 2500
 
 def read_memory(key):
     """The memory's text, or a short UNAVAILABLE note (never raises)."""
-    bd = shutil.which("bd")  # bd.CMD on Windows (npm shim); a bare "bd" is not found there
+    bd = native_or(shutil.which("bd"))  # npm shim -> its native bd.exe; a bare "bd" is not found there
     if bd is None:
         return "UNAVAILABLE (bd not on PATH)"
     try:
