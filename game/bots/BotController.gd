@@ -101,15 +101,6 @@ var _column_query: PhysicsRayQueryParameters3D = null
 var _probe_space: PhysicsDirectSpaceState3D = null
 var _candidates: Array[BotCandidate] = []
 
-## Bontago-d5c.12 diagnostic: per-reason count of every non-OK
-## request_place()/request_throw() this bot has sent, keyed by
-## PlacementRules.REASON_* (never REASON_OK, which is never counted -- see
-## _apply_rejection_backoff()). Read-only outside this file; a bench/test
-## seam so tests/bench/bench_bot_vs_passive.gd can report *why* a bot's
-## requests were refused without this file exposing anything beyond a
-## snapshot count.
-var _rejection_counts: Dictionary = {}
-
 
 func _ready() -> void:
 	Events.feed_block_issued.connect(_on_feed_block_issued)
@@ -776,13 +767,6 @@ func _tick_acting() -> void:
 func _apply_rejection_backoff(reason: StringName) -> void:
 	if reason != PlacementRules.REASON_OK:
 		_countdown = tuning.rejection_backoff_s
-		_rejection_counts[reason] = int(_rejection_counts.get(reason, 0)) + 1
-
-
-## Bontago-d5c.12 diagnostic accessor: a duplicate (never the live
-## dictionary) so a caller cannot mutate this bot's own counters.
-func rejection_counts() -> Dictionary:
-	return _rejection_counts.duplicate()
 
 
 ## Bontago-1t5.55.1: the disk-local pose `request_place` is sent for a piece whose pivot (bottom_center) is
@@ -1027,8 +1011,3 @@ func _territory_sample_points() -> PackedVector2Array:
 	if points.is_empty():
 		points.append(_home_position())
 	return points
-
-
-## Bot slot this controller drives (-1 before setup()).
-func bound_slot() -> int:
-	return _slot_id

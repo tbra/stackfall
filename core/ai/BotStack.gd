@@ -123,7 +123,6 @@ var _patch_owner: Array[PackedInt32Array] = []  # per body: supporter index (or 
 var _patch_pts: Array[Array] = []  # per body: PackedVector2Array of each contact patch, parallel to _patch_owner
 var _cuts: Array[Cut] = []  # lazy, per body
 var _cube_cells: Dictionary = {}  # Vector2i -> PackedInt32Array of cube indices
-var _debris_cells: Dictionary = {}  # Vector2i -> PackedInt32Array of unsound cube indices
 var _body_cubes: Array[PackedInt32Array] = []
 var _down_cache: Dictionary = {}  # int key of a sorted support set -> [sorted set, closure down to the disc]
 var _load_state: PackedByteArray = PackedByteArray()
@@ -315,23 +314,6 @@ func has_unsettled(team: int) -> bool:
 ## Disk-local XZ of the body's centre of mass.
 func com_xz(body: int) -> Vector2:
 	return Vector2(body_com[body].x, body_com[body].z)
-
-
-## True when any cube of an unsound body lies within `radius` of `point` (disk-local XZ). Bontago-1t5.68: the
-## bot's site and base rules no longer keep a clearance from debris (see rest_margin); this stays a query.
-func debris_near(point: Vector2, radius: float) -> bool:
-	if not _done:
-		return false
-	var reach: int = int(ceil(radius / cube_size)) + _hash_reach
-	var cell: Vector2i = _cell_of(point)
-	for dx: int in range(-reach, reach + 1):
-		for dz: int in range(-reach, reach + 1):
-			var list: PackedInt32Array = _debris_cells.get(cell + Vector2i(dx, dz), PackedInt32Array())
-			for ci: int in list:
-				var p: Vector3 = cube_pos[ci]
-				if Vector2(p.x, p.z).distance_to(point) <= radius:
-					return true
-	return false
 
 
 ## The smallest signed distance (metres, positive inside) by which the centre of mass of the load stays inside the
@@ -739,7 +721,6 @@ func _prepare(t: BotStackTuning) -> void:
 	_cuts.clear()
 	_erode_memo.clear()
 	_cube_cells.clear()
-	_debris_cells.clear()
 	_on_disc = PackedByteArray()
 	_on_disc.resize(n)
 	_sound = PackedByteArray()
@@ -886,14 +867,6 @@ func _finish(t: BotStackTuning) -> void:
 		for s: int in _supporters[b]:
 			known = known and _known_chain[s] == 1
 		_known_chain[b] = 1 if known else 0
-	for b: int in n:
-		if _sound[b] == 1:
-			continue
-		for ci: int in _body_cubes[b]:
-			var key: Vector2i = _cell_of(Vector2(cube_pos[ci].x, cube_pos[ci].z))
-			var list: PackedInt32Array = _debris_cells.get(key, PackedInt32Array())
-			list.append(ci)
-			_debris_cells[key] = list
 
 
 ## Bodies (and the disc) carrying `b`: a body that also touches the disc is carried by the disc too.

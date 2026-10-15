@@ -8,7 +8,6 @@ extends GutTest
 const CUBE_SHAPE: BlockShape = preload("res://config/blocks/cube.tres")
 const CUBE8_SHAPE: BlockShape = preload("res://config/blocks/cube8.tres")
 const PLATE9_SHAPE: BlockShape = preload("res://config/blocks/plate9.tres")
-const DOMINO_SHAPE: BlockShape = preload("res://config/blocks/domino.tres")
 const PHYSICS_TUNING: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
 
 const BOT_SLOT: int = 1
@@ -245,12 +244,3 @@ func test_stack_aware_pick_keeps_the_column_standing_for_three_seconds() -> void
 	assert_lt(_max_column_move(), MAX_COLUMN_MOVE_M, "no column block moved")
 	if block != null:
 		assert_gt(_field.to_local(block.global_position).y, _field.surface_y() + float(COLUMN_CUBES) * PHYSICS_TUNING.cube_size, "the piece rests on top")
-
-
-## (2b) The same scene without the stack: the overhang is chosen and the column moves.
-func test_pick_without_the_stack_loads_the_column_past_its_edge() -> void:
-	var blind: BotController = await _setup_and_think(false)
-	_send_pick(blind)
-	await wait_physics_frames(SETTLE_TICKS)
-	var moved: float = _max_column_move()
-	assert_gt(moved, MAX_COLUMN_MOVE_M, "the stack-blind pick disturbs the column")

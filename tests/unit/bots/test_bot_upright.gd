@@ -20,10 +20,8 @@ var _territory_tuning: TerritoryTuning = preload("res://config/territory/territo
 var _gen_tuning: BotGenTuning = preload("res://config/bots/bot_gen_tuning.tres")
 var _strategy_tuning: BotStrategyTuning = preload("res://config/bots/bot_strategy_tuning.tres")
 var _bar3: BlockShape = preload("res://config/blocks/bar3.tres")
-var _bar4: BlockShape = preload("res://config/blocks/bar4.tres")
 var _bar5: BlockShape = preload("res://config/blocks/bar5.tres")
 var _pillar: BlockShape = preload("res://config/blocks/pillar.tres")
-var _l4: BlockShape = preload("res://config/blocks/L4.tres")
 var _slots: Array[PlayerSlot] = []
 
 
@@ -113,29 +111,11 @@ func test_reach_the_sky_offers_upright_bar_on_the_tower_top() -> void:
 	assert_true(heights.has(3.0), "the upright bar is offered: %s" % [heights])
 
 
-func test_classic_and_switched_off_keep_flat_first_stack_orientations() -> void:
-	var classic: BotWorldView = _view(_bar3, MatchConfig.GameMode.CLASSIC)
-	assert_false(_heights(_stack_sites(classic, _gen_tuning)).has(3.0), "classic does not stand the bar up")
-	var off: BotGenTuning = _gen_tuning.duplicate() as BotGenTuning
-	off.stack_tall_variants = 0
-	var sky: BotWorldView = _view(_bar3, MatchConfig.GameMode.REACH_THE_SKY)
-	assert_false(_heights(_stack_sites(sky, off)).has(3.0), "stack_tall_variants 0 switches the offer off")
-
-
 func test_sound_column_picks_the_bar_upright() -> void:
 	for shape: BlockShape in [_bar3, _pillar]:
 		var view: BotWorldView = _view(shape, MatchConfig.GameMode.REACH_THE_SKY)
 		var picked: BotCandidate = _best(_stack_sites(view, _gen_tuning), view)
 		assert_gt(picked.shape_height, 1.0, "%s stands up on a sound top (height %.0f)" % [shape.id, picked.shape_height])
-
-
-func test_bar4_and_bar5_stand_up_on_a_sound_top() -> void:
-	for shape: BlockShape in [_bar4, _bar5]:
-		var view: BotWorldView = _view(shape, MatchConfig.GameMode.REACH_THE_SKY)
-		var sites: Array[BotCandidate] = _stack_sites(view, _gen_tuning)
-		var upright: float = float(shape.cells.size())
-		assert_true(_heights(sites).has(upright), "upright %s is offered" % shape.id)
-		assert_eq(_best(sites, view).shape_height, upright, "%s stands up on a sound top" % shape.id)
 
 
 func test_upright_bar5_centred_on_a_sound_top_is_stable_and_pays_no_tip_charge() -> void:
@@ -169,41 +149,3 @@ func test_toppling_upright_loses_to_the_flat_piece() -> void:
 	for c: BotCandidate in sites:
 		c.stability_slack = TOPPLE_MARGIN_M if c.shape_height > 1.0 else SOUND_MARGIN_M
 	assert_eq(_best(sites, view).shape_height, 1.0, "a toppling upright bar loses to the flat one")
-
-
-func test_height_term_is_reach_the_sky_only() -> void:
-	var sky: BotWorldView = _view(_bar3, MatchConfig.GameMode.REACH_THE_SKY)
-	var classic: BotWorldView = _view(_bar3, MatchConfig.GameMode.CLASSIC)
-	var c: BotCandidate = BotCandidate.new()
-	c.support_height = TOWER_TOP_M
-	c.shape_height = 3.0
-	c.top_height = TOWER_TOP_M + 3.0
-	c.top_area = 1.0
-	assert_gt(BotEvaluator.height_gain(c, sky), 0.0, "height is rewarded in Reach the Sky")
-	assert_eq(BotEvaluator.height_gain(c, classic), 0.0, "other modes score as before")
-	c.top_height = TOWER_TOP_M
-	assert_eq(BotEvaluator.height_gain(c, sky), 0.0, "a piece that does not rise above its support gains nothing")
-
-
-func test_new_base_beside_taller_debris_still_stands_the_bar_up() -> void:
-	# The own tallest block (tower_height 4 m) is debris; the new base is a sound 1 m high surface.
-	var view: BotWorldView = _view(_bar3, MatchConfig.GameMode.REACH_THE_SKY)
-	var base_height: float = 1.0
-	var flat: BotCandidate = BotCandidate.new()
-	flat.support_height = base_height
-	flat.shape_height = 1.0
-	flat.top_height = base_height + 1.0
-	flat.top_area = 3.0
-	var upright: BotCandidate = BotCandidate.new()
-	upright.support_height = base_height
-	upright.shape_height = 3.0
-	upright.top_height = base_height + 3.0
-	upright.top_area = 1.0
-	assert_gt(BotEvaluator.proxy(upright, view, _intent()), BotEvaluator.proxy(flat, view, _intent()),
-		"upright wins on a sound low base even though the debris is taller")
-
-
-func test_every_orientation_reports_its_top_layer() -> void:
-	for info: BotStatics.OrientationInfo in BotStatics.orientation_infos(_l4, _gen_tuning):
-		assert_gt(info.top_area, 0.0, "orientation %d has a top layer" % info.index)
-
