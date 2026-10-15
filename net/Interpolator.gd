@@ -347,12 +347,6 @@ func render_lag_ms() -> float:
 	return float(_newest_host_time_ms) + _ms_since_newest - _render_time_ms
 
 
-## True once any sample has been accepted, so a caller can tell "nothing has
-## arrived yet" from "the body is at the origin".
-func has_stream() -> bool:
-	return _has_stream
-
-
 func _target_delay_ms() -> float:
 	return clampf(
 		_config.base_interp_delay_ms + _config.jitter_multiplier * _jitter_ms,
