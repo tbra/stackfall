@@ -193,7 +193,7 @@ func test_client_mirror_restores_scores_and_records() -> void:
 	host.record_height(0, 4.0)
 	host.record_height(3, 2.0)
 	var client: ReachSkyObjective = _objective([0, 1, 0, 1] as Array[int], 2, false)
-	client.apply_mode_state(ModeObjective.validate_state(host.mode_state()))
+	client.apply_mode_state(ResultsValidation.validate_mode_state(host.mode_state()))
 	assert_almost_eq(client.team_score(0), 4.0, 0.0001)
 	assert_almost_eq(client.record_of_slot(3), 2.0, 0.0001)
 	assert_true(client.sums_members())

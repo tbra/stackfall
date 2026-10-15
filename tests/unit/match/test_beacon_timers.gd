@@ -24,13 +24,6 @@ func test_clock_formats_minutes_and_clamps() -> void:
 	assert_eq(BeaconTimerText.clock(-5), "0:00")
 
 
-func test_classic_text_counts_down_and_hides_when_idle() -> void:
-	assert_eq(BeaconTimerText.classic_text(-1, 0.5, HOLD_S), "", "nobody claiming")
-	assert_eq(BeaconTimerText.classic_text(0, 0.0, HOLD_S), "", "no progress yet")
-	assert_eq(BeaconTimerText.classic_text(0, 0.25, HOLD_S), "0:15")
-	assert_eq(BeaconTimerText.classic_text(1, 0.99, HOLD_S), "0:01", "rounds up")
-
-
 func test_ctf_text_counts_up_for_holder_only() -> void:
 	assert_eq(BeaconTimerText.ctf_text(-1, 12.0), "")
 	assert_eq(BeaconTimerText.ctf_text(2, 0.0), "0:00")

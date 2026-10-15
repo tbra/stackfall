@@ -1,27 +1,13 @@
 class_name BotController
 extends Node
-## One AI-driven seat (spec 2.9): samples placement candidates inside its own
-## territory, scores them (core/ai/BotPlacementScorer.gd), decides what to do
-## with a held special (core/ai/BotSpecialPlanner.gd), and sends exactly one
-## Match.request_place()/request_throw() per completed think-cycle -- the
-## same authoritative entry points a human PlayerController uses, never a
-## shortcut into rules internals (docs/archive/M5_PLAN.md, "What the existing code
-## already gives this milestone").
+## One AI-driven seat (spec 2.9): each block it receives it builds a world snapshot, thinks
+## (core/ai/BotThink, spread over physics ticks), decides what to do with a held special
+## (core/ai/BotSpecialPlanner.plan_v2), and sends exactly one Match.request_place()/request_throw()
+## per think-cycle -- the same authoritative entry points a human PlayerController uses.
 ##
-## docs/archive/M5_PLAN.md P1 (Bontago-d5c): this is the interface-stub package.
-## `BotPlacementScorer`/`BotSpecialPlanner` still answer trivially (first
-## candidate, never throw) -- P2/P3 rewrite only their bodies. This file's
-## job is the real cadence/gating/candidate-generation machinery every later
-## package relies on: host-gated, time-sliced GENERATING (a bounded number of
-## support + stability raycasts per physics frame), a per-bot seeded RNG for
-## the reaction-delay jitter and the aim-noise perturbation, and one request
-## per cycle.
-##
-## Host-gated the same way every autoload/match/ controller already is (`if
-## not Net.is_host(): return`, true offline too), so a bare unit test or a
-## bench scene needs no networking to exercise this -- the same shape
-## game/main/HotSeat.gd already establishes for a human controller (one instance
-## per seat).
+## Host-gated like every autoload/match/ controller (`if not Net.is_host(): return`, true offline
+## too), so a bare unit test or a bench scene needs no networking to exercise this. One instance per
+## seat; a per-bot seeded RNG drives the reaction-delay jitter, the think and the aim noise.
 
 ## Bontago-d5c: a large odd offset distinct from MatchFeed._build_bags()'s own
 ## per-slot bag stride (1000003) and MatchGifts' two RNG offsets (999983,
@@ -39,17 +25,12 @@ const GUST_KEYS: Array[String] = ["x", "y", "z", "a", "r", "d", "s"]
 ## Bontago-1t5.46: the shipped Breeze response the V2 evaluator reads for live gusts (same resource BreezeEffect uses).
 const BREEZE_TUNING: BreezeTuning = preload("res://config/breeze/breeze.tres")
 
-enum State { IDLE, GENERATING, ACTING, THINKING, RELEASE_WAIT }
+enum State { IDLE, ACTING, THINKING, RELEASE_WAIT }
 
 ## Bontago-1pi.175: own seeded stream for the release-delay draw (a separate stream so the
 ## think/aim draws of _rng, and the decisions they make, are unchanged by the release timing).
 const RELEASE_RNG_OFFSET: int = RNG_OFFSET + 1
 const SLOT_SEED_STRIDE: int = 1000003
-
-## Bontago-1t5.19 (Bot V2 P1): which decision pipeline drives this seat. LEGACY is the
-## shipped sampler + scorer below, unchanged; V2 runs core/ai/BotThink (a legacy-equivalent
-## port today) in a budgeted THINKING state. The default stays LEGACY.
-enum Brain { LEGACY, V2 }
 
 ## Static per-physics-frame accounting of microseconds ALL V2 bots spent thinking, so eight
 ## bots cannot stack their budgets into one long frame (profile.think_frame_cap_us).
@@ -91,13 +72,11 @@ var _release_wait_s: float = 0.0
 ## on different frames (spec 2.9: "for multiple bots it spreads its thinking
 ## across several frames").
 var _think_delay_s: float = 0.0
-## Seconds left before this bot may start GENERATING again. Reset by
+## Seconds left before this bot may start thinking again. Reset by
 ## Events.feed_block_issued for this slot.
 var _countdown: float = 0.0
 
 var _state: State = State.IDLE
-# Bontago-1t5.38 (P7): V2 is the shipped default; Brain.LEGACY stays behind --bot-brain=legacy.
-var _brain: Brain = Brain.V2
 ## Bot V2: the snapshot the current think-cycle started from (read by the special planner).
 var _special_view: BotWorldView = null
 var _think: BotThink = null
@@ -121,7 +100,6 @@ var _think_ticks: int = 0
 var _column_query: PhysicsRayQueryParameters3D = null
 var _probe_space: PhysicsDirectSpaceState3D = null
 var _candidates: Array[BotCandidate] = []
-var _generation_frames_used: int = 0
 
 ## Bontago-d5c.12 diagnostic: per-reason count of every non-OK
 ## request_place()/request_throw() this bot has sent, keyed by
@@ -158,7 +136,6 @@ func setup(slot_id: int, difficulty: MatchConfig.AiDifficulty, field: Field, reg
 	_countdown = _think_delay_s
 	_state = State.IDLE
 	_candidates.clear()
-	_generation_frames_used = 0
 	_think = null
 	_think_last_frame = -1
 	# A new bot (match or test) never inherits a previous run's frame accounting.
@@ -166,24 +143,8 @@ func setup(slot_id: int, difficulty: MatchConfig.AiDifficulty, field: Field, reg
 	_think_frame_used_us = 0
 
 
-## Bot V2 P1: selects the decision pipeline. Safe at any time; an in-flight think is dropped.
-func set_brain(brain: Brain) -> void:
-	_brain = brain
-	# DECISION (Bontago-1t5.34): the V2 brain reads its own tier profiles; re-resolve because
-	# setup() usually runs before set_brain().
-	_profile = _resolve_profile()
-	_think = null
-	if _state == State.THINKING or _state == State.GENERATING:
-		_state = State.IDLE
-		_candidates.clear()
-
-
 func _resolve_profile() -> BotDifficultyProfile:
-	return tuning.profile_for_brain(_difficulty, _brain == Brain.V2)
-
-
-func brain() -> Brain:
-	return _brain
+	return tuning.profile_for(_difficulty)
 
 
 ## Bontago-1t5.13 (BT5): per-bot BotTuning override. `tuning_with_weights()` builds the copy, this
@@ -265,8 +226,6 @@ func _physics_process(delta: float) -> void:
 	match _state:
 		State.IDLE:
 			_tick_idle(delta)
-		State.GENERATING:
-			_tick_generating()
 		State.ACTING:
 			_tick_acting()
 		State.RELEASE_WAIT:
@@ -331,7 +290,7 @@ func _tick_idle(delta: float) -> void:
 		# DECISION (game/bots/BotController.gd): an eliminated slot may still be
 		# fed a block (MatchFeed does not itself stop on elimination), but
 		# request_place() always refuses it (home_flag_alive gate) -- skip
-		# the whole GENERATING/ACTING cycle rather than spend every frame
+		# the whole think/ACT cycle rather than spend every frame
 		# sampling candidates for a request that can never succeed.
 		return
 	if bool(match_ref.is_release_locked(_slot_id)):
@@ -344,11 +303,7 @@ func _tick_idle(delta: float) -> void:
 		if bool(match_ref.request_use_gift_slot(_slot_id)):
 			return
 	_candidates.clear()
-	_generation_frames_used = 0
-	if _brain == Brain.V2:
-		_begin_thinking(match_ref)
-		return
-	_state = State.GENERATING
+	_begin_thinking(match_ref)
 
 
 # --- THINKING (Bot V2): BotThink.step() slices spread over the ticks before the decision deadline ---
@@ -527,12 +482,10 @@ func _disk_heading(world_dir: Vector2) -> Vector2:
 	return Vector2(local.x, local.z).normalized()
 
 
-## Bontago-1t5.37: THINKING ticks after the release boundary by which a V2 think is decided: the
-## legacy brain's window for the same difficulty (its GENERATING ticks, BotDifficultyProfile.
-## generation_ticks), so V2 never decides later than legacy (docs/BOT_AI_REDESIGN.md 2.5 E6).
+## Bontago-1t5.37: THINKING ticks after the release boundary by which a think is decided
+## (BotDifficultyProfile.generation_ticks; every tier shares Hard's 14 ticks).
 func think_deadline_ticks() -> int:
-	# Bontago-1t5.57: the active profile (V2 tiers share Hard's 14 ticks); the tier's legacy profile
-	# only when no profile is resolved yet (a controller built without setup).
+	# The tier's profile when none is resolved yet (a controller built without setup).
 	var active: BotDifficultyProfile = _profile if _profile != null else tuning.profile_for(_difficulty)
 	var ticks: int = active.generation_ticks(tuning.max_generation_frames)
 	return clamp_think_ticks(
@@ -763,153 +716,6 @@ func _behavior_special_id(behavior: SpecialBehavior) -> StringName:
 	return def.id if def != null else &""
 
 
-# --- GENERATING: up to profile.candidates_per_frame candidates per frame ---
-
-func _tick_generating() -> void:
-	var match_ref: Variant = _match()
-	var shape: BlockShape = match_ref.held_shape(_slot_id)
-	if shape == null:
-		_state = State.IDLE
-		_candidates.clear()
-		return
-	var team_id: int = int(match_ref.team_of(_slot_id))
-	var orientations: Array[int] = BotPlacementScorer.flattest_orientations(shape, _profile.candidate_count)
-	if orientations.is_empty():
-		orientations = [0]
-	var budget: int = _profile.candidates_per_frame
-	for i: int in range(budget):
-		if _candidates.size() >= _profile.candidate_count:
-			break
-		var orientation_index: int = orientations[_candidates.size() % orientations.size()]
-		_generate_one_candidate(team_id, shape, orientation_index)
-	_generation_frames_used += 1
-	if _candidates.size() >= _profile.candidate_count or _generation_frames_used >= tuning.max_generation_frames:
-		_begin_release_wait()
-
-
-func _generate_one_candidate(team_id: int, shape: BlockShape, orientation_index: int) -> void:
-	var match_ref: Variant = _match()
-	var origin: Vector2 = _sample_territory_point(team_id)
-	var hit: Dictionary = _raycast_support_height(origin)
-	var candidate: BotCandidate = BotCandidate.new()
-	candidate.origin = origin
-	candidate.orientation_index = orientation_index
-	candidate.support_height = float(hit.get("height", 0.0))
-	var basis: Basis = BlockOrientations.get_basis(orientation_index)
-	# Bontago-d5c.8 (M5 P3b-ii, BotCandidate.shape_height producer): pure
-	# geometry off shape.cells/basis, independent of grid/terrain, so this is
-	# set regardless of whether a CellGrid is available below (a bare unit
-	# test with no cell_grid() still gets a real shape_height).
-	candidate.shape_height = _shape_height_cubes(shape.cells, basis)
-	var grid: CellGrid = match_ref.cell_grid()
-	if grid != null:
-		# Review fix (Bontago-d5c.2, nit): the real PhysicsTuning.cube_size,
-		# read off _field the same way BlockFactory/GhostPreview do (both
-		# take a PhysicsTuning and read .cube_size off it), not a duplicate
-		# local literal that could silently drift from the shipped value.
-		# Bontago-1t5.55.1: `origin` is the pivot; the cubes sit at B*(cell - pivot) around it.
-		var pivot_rotated: Vector3 = basis * shape.bottom_center()
-		candidate.footprint_cells = PlacementRules.footprint_cells(
-			shape.cells, basis,
-			origin - Vector2(pivot_rotated.x, pivot_rotated.z) * _field.tuning.cube_size,
-			_field.tuning.cube_size, grid
-		)
-		_fire_stability_raycasts(candidate, candidate.footprint_cells, grid)
-	candidate.on_top_of_own_stack = _is_own_block(hit.get("collider"), team_id, hit.get("position", Vector3.ZERO) as Vector3)
-	_candidates.append(candidate)
-
-
-## Bontago-d5c.8 (M5 P3b-ii): the oriented shape's own height above its own
-## pivot, in cube units -- e.g. a pillar lying flat is 1, standing on end is
-## 3 (BotCandidate.shape_height's own doc). `basis` is always one of
-## BlockOrientations' 24 axis-aligned rotations (same guarantee
-## BotPlacementScorer._flat_footprint_coverage() relies on), so every
-## transformed cell's own y lands on, or within float rounding of, an
-## integer -- round() before taking the span keeps that exact rather than
-## accumulating rotation error over repeated calls.
-func _shape_height_cubes(cells: Array[Vector3i], basis: Basis) -> float:
-	if cells.is_empty():
-		return 0.0
-	var min_height: float = INF
-	var max_height: float = -INF
-	for cell: Vector3i in cells:
-		var transformed_height: float = round((basis * Vector3(cell)).y)
-		min_height = minf(min_height, transformed_height)
-		max_height = maxf(max_height, transformed_height)
-	return max_height - min_height + 1.0
-
-
-## Disk-local point inside this bot's own territory (uniform-in-disk
-## sampling, Match.raster()/cell_grid() -- docs/archive/M5_PLAN.md P1), retried up to
-## tuning.max_territory_sample_attempts times before falling back to the
-## slot's own home position.
-##
-## Bontago-d5c.11 item 5 (review fix, MAJOR): a bare `raster.team_at(...) ==
-## team_id` check accepted goal-zone, contested and hole cells too (team_at()
-## only reads the ownership byte -- core/territory/TerritoryRaster.gd's own
-## doc), so a sampled origin could land somewhere request_place() would then
-## refuse every single time (the Hard bot's own P6 telemetry: goal-zone
-## rejections were the largest single failure bucket). PlacementRules.
-## validate_point() is the same one-point legality check MatchPlacement.
-## request_place() itself runs (core/rules/PlacementRules.gd's own header:
-## "the placement contract for every hole_mode"), so a candidate this
-## function returns is pre-validated against exactly the gate it will later
-## be asked to pass, not merely "owned".
-##
-## DECISION (game/bots/BotController.gd, Bontago-d5c.11 item 4): no fallback for
-## "territory never solved yet" is added here. autoload/Match.gd's own
-## _process() (see its header comment: "the 10 Hz territory solve ... runs
-## here and only on the host") only calls
-## autoload/match/MatchTerritory.gd's _tick_territory() under
-## State.PLAYING, at TerritoryTuning.solve_hz (20 Hz, config/territory_tuning.
-## tres -- a 0.05s step); a bot cannot reach GENERATING (and so this function)
-## before its own _think_delay_s has elapsed, and BotDifficultyProfile.hard's
-## reaction_delay_s (0.2s, config/bots/bot_tuning.tres) is already four solve
-## steps, so in practice a real match has at least one completed territory
-## solve by the time any bot's first candidate is sampled (the only gap is a
-## single-frame hitch >= reaction_delay_s right at setup(), since the bot
-## state machine runs in _physics_process and the solve in _process; the
-## solve then catches up on the next idle frame). An unsolved raster
-## (every cell at team -1, e.g. a bare unit test that never calls
-## TerritoryRaster.update()) still degrades safely to the home-position
-## fallback below, exactly as before.
-func _sample_territory_point(team_id: int) -> Vector2:
-	var match_ref: Variant = _match()
-	var raster: TerritoryRaster = match_ref.raster()
-	if raster != null:
-		var radius: float = _field_radius()
-		if radius > 0.0:
-			# Bontago-1t5.4 part 2: Elimination samples a share of candidates
-			# along the own-home -> target-home line (skewed to the far end).
-			var line: PackedVector2Array = _frontier_line(match_ref)
-			if line.size() == 2 and _rng.randf() < tuning.elim_frontier_sample_fraction:
-				for _attempt: int in range(tuning.max_territory_sample_attempts):
-					var t: float = 1.0 - _rng.randf() * _rng.randf()
-					var jitter: Vector2 = Vector2.from_angle(_rng.randf() * TAU) * (_rng.randf() * tuning.elim_frontier_jitter_m)
-					var biased_xz: Vector2 = line[0].lerp(line[1], t) + jitter
-					if biased_xz.length() <= radius and PlacementRules.validate_point(biased_xz, raster, team_id) == PlacementRules.Result.VALID:
-						return biased_xz
-			for _attempt: int in range(tuning.max_territory_sample_attempts):
-				var angle: float = _rng.randf() * TAU
-				var dist: float = sqrt(_rng.randf()) * radius
-				var candidate_xz: Vector2 = Vector2(cos(angle), sin(angle)) * dist
-				if PlacementRules.validate_point(candidate_xz, raster, team_id) == PlacementRules.Result.VALID:
-					return candidate_xz
-	return _home_position()
-
-
-## [own home, target enemy home] in Elimination (empty otherwise), the line
-## frontier-biased sampling follows.
-func _frontier_line(match_ref: Variant) -> PackedVector2Array:
-	var goal: BotModeGoal = _mode_goal(match_ref)
-	if goal == null or goal.mode != MatchConfig.GameMode.ELIMINATION or not goal.has_own_home:
-		return PackedVector2Array()
-	var index: int = BotPlacementScorer.target_home_index(goal, tuning)
-	if index < 0:
-		return PackedVector2Array()
-	return PackedVector2Array([goal.own_home_position, goal.enemy_home_positions[index]])
-
-
 func _field_radius() -> float:
 	if _field == null or _field.map_def == null:
 		return 0.0
@@ -921,28 +727,10 @@ func _home_position() -> Vector2:
 	return slot.home_position if slot != null else Vector2.ZERO
 
 
-## The same straight-down raycast Field.raycast_down_disk_local() already
-## uses (map_def.cell_wake_height down to tuning.kill_plane_y), except this
-## keeps the hit's disk-local height instead of discarding it
-## (docs/archive/M5_PLAN.md P1: "the same technique... just keeping the hit height").
-## Returns `{}` only when there is no Field/no physics world to query at all
-## (a bare unit test with no Field wired); a genuine miss (nothing directly
-## below, e.g. a hole or the rim) reports `"hit": false` alongside the same
-## disk-surface fallback height of 0.0 (kept for callers that only care about
-## a scoring reference height, e.g. `support_height`) -- this raycast is only
-## ever used for the bot's own scoring estimate, never the placement's actual
-## legality gate (MatchPlacement.request_place() runs its own
-## raycast_down_disk_local() and is the only authority on whether a point is
-## valid).
-##
-## Bontago-d5c.11 item 1 (review fix, MAJOR): before this, a genuine miss and
-## an actual raycast hit both reported the same `"height": 0.0`/no explicit
-## flag, so _fire_stability_raycasts() below could count a hole corner (a
-## miss straight through) as flush contact whenever `candidate.support_height`
-## itself happened to be near 0.0. `"hit"` is now the caller's only way to
-## tell "something is really there" from "nothing was hit, here's the safe
-## fallback" -- a caller that only reads `"height"` (support_height's own
-## producer, `_generate_one_candidate()`) is unaffected either way.
+## The straight-down raycast Field.raycast_down_disk_local() uses (map_def.cell_wake_height down to
+## tuning.kill_plane_y), keeping the hit's disk-local height. `{}` only with no Field or physics
+## world; a genuine miss reports `"hit": false` with the disk-surface fallback height 0.0. Only a
+## support estimate: MatchPlacement.request_place() is the sole authority on legality.
 func _raycast_support_height(local_xz: Vector2) -> Dictionary:
 	if _field == null:
 		return {}
@@ -954,43 +742,6 @@ func _raycast_support_height(local_xz: Vector2) -> Dictionary:
 		return {"height": 0.0, "collider": null, "hit": false}
 	var local_hit: Vector3 = _field.to_local(hit["position"] as Vector3)
 	return {"height": local_hit.y, "collider": hit.get("collider"), "hit": true, "position": hit["position"]}
-
-
-## Footprint-corner raycasts (spec 2.9's stability factor, P2's own scoring):
-## fires up to profile.stability_raycast_count of them -- sampled at the
-## footprint's own cell centers, since PlacementRules.footprint_cells()
-## already gives a pure, terrain-independent list of covered grid cells --
-## and tallies into `candidate.corner_support_hits` how many landed within
-## tuning.stability_contact_tolerance_m of `candidate.support_height` (the
-## same origin-point sample every candidate is scored against), i.e. how much
-## of the footprint is actually in flush contact rather than hovering over a
-## gap or a lower stack (core/ai/BotPlacementScorer.gd's own `_stability_
-## term()` is the consumer). Leaves `corner_support_hits` at its -1 ("not
-## measured") default only when `cells` is empty -- no ray is ever fired for
-## an empty footprint.
-func _fire_stability_raycasts(candidate: BotCandidate, cells: PackedInt32Array, grid: CellGrid) -> void:
-	var count: int = mini(_profile.stability_raycast_count, cells.size())
-	if count <= 0:
-		return
-	var hits: int = 0
-	for i: int in range(count):
-		# Holes are a visual void (the disc collision stays solid and
-		# HoleDissolver dissolves whatever touches an applied hole cell), so the
-		# ray below would hit the solid disc and score a hole corner as flush
-		# support. A corner over a hole cell gets no support credit.
-		if _field != null and _field.is_hole_cell(cells[i]):
-			continue
-		var hit: Dictionary = _raycast_support_height(grid.index_center(cells[i]))
-		# Bontago-d5c.11 item 1: a corner with nothing directly below it (a
-		# hole, the rim, open air) must never count as support, no matter how
-		# close its fallback height happens to sit to candidate.support_height
-		# -- only a real raycast hit (`"hit": true`) can be flush contact.
-		if not bool(hit.get("hit", false)):
-			continue
-		var height: float = float(hit.get("height", 0.0))
-		if absf(height - candidate.support_height) <= tuning.stability_contact_tolerance_m:
-			hits += 1
-	candidate.corner_support_hits = hits
 
 
 func _is_own_block(collider: Variant, team_id: int, hit_point: Vector3 = Vector3.ZERO) -> bool:
@@ -1042,90 +793,30 @@ func _tick_acting() -> void:
 	_state = State.IDLE
 	var match_ref: Variant = _match()
 	var held_special_id: StringName = StringName(match_ref.held_special(_slot_id))
-	if held_special_id != &"":
-		var action: BotSpecialPlanner.BotSpecialAction = null
-		if _brain == Brain.V2 and _special_view != null:
-			# Bot V2 (Bontago-1t5.24): chain-aware targeting; the LEGACY call below is unchanged.
-			action = _plan_special_v2(held_special_id)
-		else:
-			action = BotSpecialPlanner.plan(
-				held_special_id,
-				_home_position(),
-				_territory_sample_points(),
-				_enemy_circle_centers(),
-				_active_special_positions(),
-				_difficulty,
-				tuning,
-				[],
-				_throw_range_m(),
-				black_hole_pull_radius_m()
-			)
+	if held_special_id != &"" and _special_view != null:
+		# Bontago-1t5.24: chain-aware targeting off this think's snapshot.
+		var action: BotSpecialPlanner.BotSpecialAction = _plan_special_v2(held_special_id)
 		if action.should_throw:
 			_apply_rejection_backoff(_send_throw(action))
 			return
 		if not action.should_place_ordinarily:
-			# Neither throws nor places -- nothing to do this cycle. A default
-			# BotSpecialAction (e.g. an EASY profile's both-flags-false gate)
-			# never reaches this branch (should_place_ordinarily is always
-			# true then); core/ai/BotSpecialPlanner.gd's Bomb heuristic is the
-			# one path that does (should_throw already handled above, so this
-			# is reached only when a special neither throws nor places).
 			return
 		if action.has_place_target:
-			# Bontago-d5c.8 (M5 P3b-ii): a placed-special heuristic already
-			# picked an intended disk-local target (e.g. Rocket aiming near
-			# the densest enemy cluster) -- honour it by sending whichever
-			# already-generated candidate landed nearest that target, instead
-			# of BotPlacementScorer.pick_best()'s own general-purpose scoring
-			# (which would happily steer a Rocket away from the enemy risk it
-			# was aimed at). Aim noise, the noisy-point height resample and
-			# the request itself are unchanged -- only which candidate is
-			# chosen differs.
+			# A placed-special heuristic picked an intended disk-local target: send the think's
+			# candidate nearest to it (aim noise, height resample and the request are unchanged).
 			_apply_rejection_backoff(_send_best_placement(action.place_target))
 			return
-	# Bontago-1t5.2: claim a landed, unclaimed gift by growing territory over it.
-	# Bot V2 (Bontago-1t5.25): gifts are a BotThink score term; the legacy nearest-candidate
-	# override below applies to the LEGACY brain only.
-	var gift_target: Variant = _gift_claim_target() if _brain != Brain.V2 else null
-	if gift_target != null:
-		_apply_rejection_backoff(_send_best_placement(gift_target))
-		return
+	# Gifts are a BotThink score term (Bontago-1t5.25), so an ordinary placement follows.
 	_apply_rejection_backoff(_send_best_placement())
-
-
-## Bontago-1t5.2: claiming is host-side and territory-only (spec 2.6: a landed
-## gift goes to whoever owns its cell), so a bot "claims" by placing its piece
-## through the normal request_place() path on the generated candidate nearest
-## the nearest landed gift, provided one is within tuning.gift_claim_reach_m.
-## Returns that gift's disk-local position, or null (no landed gift in reach,
-## or already inside this team's own territory, which claims automatically).
-## DECISION: nearest-gift-first, ties by lowest gift id (gift_states() is
-## id-sorted) -- deterministic, no extra RNG draws.
-func _gift_claim_target() -> Variant:
-	var match_ref: Variant = _match()
-	if _candidates.is_empty() or not match_ref.has_method("gift_states"):
-		return null
-	var best: Variant = null
-	var best_dist: float = tuning.gift_claim_reach_m
-	for state: Dictionary in match_ref.gift_states():
-		if int(state.get("phase", -1)) != MatchGifts.LANDED:
-			continue
-		var pos: Vector2 = state.get("position", Vector2.ZERO)
-		var near: BotCandidate = _pick_candidate_nearest_to(pos)
-		var dist: float = near.origin.distance_to(pos)
-		if dist < best_dist:
-			best_dist = dist
-			best = pos
-	return best
 
 
 ## Review fix (Bontago-d5c.2, MINOR): an outright-rejected request_place()/
 ## request_throw() (anything but PlacementRules.REASON_OK -- e.g.
 ## REASON_CONTESTED after another block landed on the sampled spot between
-## GENERATING and ACTING) must not spend every following physics frame
+## THINKING and ACTING) must not spend every following physics frame
 ## retrying the exact same rejected cycle -- with no backoff, _tick_idle()'s
 ## own countdown gate reads 0.0 the very next frame (nothing resets it short
-## of a fresh Events.feed_block_issued) and GENERATING restarts immediately.
+## of a fresh Events.feed_block_issued) and thinking restarts immediately.
 ## `reason` is `PlacementRules.REASON_OK` (StringName "") both when a request
 ## actually succeeded and when `_send_best_placement()`/`_send_throw()` sent
 ## nothing at all (empty candidates, null best, null `_field`) -- neither
@@ -1187,40 +878,19 @@ static func highest_cube_support(
 	return highest
 
 
-## `place_target_override` is null for an ordinary think-cycle (score every
-## generated candidate with BotPlacementScorer.pick_best(), spec 2.9's normal
-## height/goal-progress/stability/risk formula); a Vector2 when a placed-
-## special heuristic already picked an intended disk-local target
-## (BotSpecialPlanner.BotSpecialAction.place_target, Bontago-d5c.8's own
-## _tick_acting DECISION) -- then the candidate whose own `origin` is nearest
-## that target is sent instead, honouring the special's own intent (e.g.
-## Rocket aiming at a cluster) over the general-purpose scorer, which would
-## otherwise steer away from exactly the risk the special was aimed at.
-## Everything past candidate selection (aim noise, the noisy-point height
-## resample, the request itself) is identical either way.
+## `place_target_override` is null for an ordinary think-cycle (the BotThink pick, revalidated); a
+## Vector2 when a placed-special heuristic picked an intended disk-local target
+## (BotSpecialAction.place_target): the think's candidate nearest to it is sent instead. Everything
+## past candidate selection (aim noise, the noisy-point height resample, the request) is identical.
 func _send_best_placement(place_target_override: Variant = null) -> StringName:
 	if _candidates.is_empty() or _field == null:
 		return PlacementRules.REASON_OK
 	var match_ref: Variant = _match()
-	var team_id: int = int(match_ref.team_of(_slot_id))
 	var best: BotCandidate = null
 	if place_target_override != null:
 		best = _pick_candidate_nearest_to(place_target_override as Vector2)
-	elif _brain == Brain.V2 and _think != null:
+	elif _think != null:
 		best = _think.revalidate()
-	else:
-		best = BotPlacementScorer.pick_best(
-			_candidates,
-			match_ref.raster(),
-			match_ref.cell_grid(),
-			team_id,
-			_goal_positions(),
-			_enemy_circle_centers(),
-			_active_special_positions(),
-			tuning,
-			_field_radius(),
-			_mode_goal(match_ref)
-		)
 	if best == null:
 		return PlacementRules.REASON_OK
 	var noisy_origin: Vector2 = best.origin + _aim_noise_offset()
@@ -1261,7 +931,7 @@ func set_recorder(recorder: BotDecisionRecorder) -> void:
 
 
 ## Read-only snapshot for the recorder, taken after the choice and before the request so the
-## re-scored terms see the same inputs pick_best() did. Draws no rng, mutates nothing.
+## re-scored terms see the same inputs the decision did. Draws no rng, mutates nothing.
 func _record_capture(best: BotCandidate, override_used: bool) -> Dictionary:
 	if _recorder == null or not _recorder.is_enabled():
 		return {}
@@ -1423,9 +1093,8 @@ func _enemy_circle_centers() -> PackedVector2Array:
 ## (`game/gifts/specials/SpecialBehavior.GROUP`, its own scene-tree group -- see
 ## that file's own header comment), converted to a disk-local point through
 ## `_field.disk_local_from_world()`, the same conversion Field's own
-## raycast_down_disk_local() uses. Fed to both BotSpecialPlanner.plan() and
-## BotPlacementScorer.pick_best() as `active_special_positions` (spec 2.9's
-## risk term: don't stack a new block, or aim a special, on top of one
+## raycast_down_disk_local() uses. Fed to the world snapshot and the recorder
+## (spec 2.9's risk term: don't stack a new block, or aim a special, on top of one
 ## already armed and ticking). A behaviour is always added as a child of its
 ## owning Block (autoload/match/MatchPlacement.gd's `_arm_special_behavior()`:
 ## `block.add_child(behavior)`) -- read generically as `Node3D` rather than
@@ -1444,8 +1113,7 @@ func _enemy_circle_centers() -> PackedVector2Array:
 ## not part of any contract (Godot's own docs: insertion order into the
 ## group's internal list, not spatial or otherwise stable across runs), so
 ## sorting the result removes any dependence on it for the consumer that
-## reads this list (BotPlacementScorer's risk term; BotSpecialPlanner.plan()
-## receives it but does not use it yet), so a bot's choices depend only on
+## reads this list (the snapshot and the recorder), so a bot's choices depend only on
 ## its own seeded RNG stream, not on however many other specials happened to
 ## spawn first. Vector2's own `<` (x, then y) is exactly sort()'s default
 ## ordering.

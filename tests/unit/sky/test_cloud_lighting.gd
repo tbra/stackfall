@@ -107,12 +107,6 @@ func test_publish_is_quiet_when_nothing_changed() -> void:
 
 
 const CEILING: WeatherCeilingTuning = preload("res://config/weather/ceiling.tres")
-const NIGHT_SHADOW: Color = Color(0.04, 0.06, 0.14)
-const NIGHT_LIT: Color = Color(0.4, 0.5, 0.7)
-
-
-func _floor(ratio: float) -> Color:
-	return CloudLighting.floor_for_tone(CEILING.puff_floor_tint, CEILING.puff_min_brightness, ratio)
 
 
 func test_night_storm_dim_is_capped_and_relieved() -> void:
@@ -122,20 +116,6 @@ func test_night_storm_dim_is_capped_and_relieved() -> void:
 		0.0, CEILING.night_dim_relief, CEILING.max_combined_dim)
 	assert_lt(stacked, day_storm, "night relieves the weather dim instead of stacking")
 	assert_lte(CloudLighting.combined_dim(1.0, 1.0, 1.0, 1.0, 0.0, 0.0, CEILING.max_combined_dim), CEILING.max_combined_dim)
-
-
-func test_night_storm_puff_base_never_below_minimum() -> void:
-	var dim: float = CloudLighting.combined_dim(CEILING.cloud_overcast_dim, CEILING.storm_darkness_add, 1.0, 1.0,
-		1.0, CEILING.night_dim_relief, CEILING.max_combined_dim)
-	var desaturate: float = CEILING.cloud_overcast_desaturate
-	var shadow: Color = CloudLighting.graded_floored(NIGHT_SHADOW, dim, desaturate, _floor(CEILING.puff_floor_shadow_ratio))
-	var lit: Color = CloudLighting.graded_floored(NIGHT_LIT, dim, desaturate, _floor(1.0))
-	assert_gte(shadow.get_luminance(), CEILING.puff_min_brightness * CEILING.puff_floor_shadow_ratio - EPS, "shadow tone keeps its floor")
-	assert_gte(lit.get_luminance(), CEILING.puff_min_brightness - EPS, "lit tone keeps the minimum brightness")
-	assert_gt(lit.get_luminance(), shadow.get_luminance(), "cel tones stay distinct")
-	# Even an absurd worst case (black palette, full dim) is lifted to the floor.
-	var black: Color = CloudLighting.graded_floored(Color.BLACK, 1.0, 1.0, _floor(1.0))
-	assert_gte(black.get_luminance(), CEILING.puff_min_brightness - EPS)
 
 
 func test_sun_effects_off_at_night_reduced_by_overcast() -> void:

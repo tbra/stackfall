@@ -282,44 +282,6 @@ func test_the_speed_clamp_scaling_is_limited_to_the_ballistic_throw() -> void:
 	assert_eq((_blocks_root.get_child(0) as Block).linear_velocity, Vector3.ZERO)
 
 
-func _bot_tuning() -> BotTuning:
-	var tuning: BotTuning = BotTuning.new()
-	var profile: BotDifficultyProfile = BotDifficultyProfile.new()
-	profile.uses_defensive_specials = true
-	profile.uses_offensive_specials = true
-	tuning.easy = profile
-	tuning.normal = profile
-	tuning.hard = profile
-	return tuning
-
-
-func test_bot_bomb_release_point_lands_within_tolerance_on_small_medium_and_large_maps() -> void:
-	var t: SpecialTuning = SpecialTuning.new()
-	var cluster: Vector2 = Vector2(-70.0, 0.0)
-	var points: PackedVector2Array = PackedVector2Array()
-	for step: int in range(-69, 71):
-		points.append(Vector2(float(step), 0.0))
-	var enemies: PackedVector2Array = PackedVector2Array([cluster])
-	for radius: float in [MapDef.RADIUS_MEDIUM * 0.75, MapDef.RADIUS_MEDIUM, MapDef.RADIUS_LARGE]:
-		var range_m: float = GiftAim.flat_range(t, GiftAim.range_scale(radius, t), GRAVITY)
-		var action: BotSpecialPlanner.BotSpecialAction = BotSpecialPlanner.plan(
-			&"bomb", Vector2.ZERO, points, enemies, PackedVector2Array(), MatchConfig.AiDifficulty.HARD,
-			_bot_tuning(), [], range_m
-		)
-		assert_true(action.should_throw, "radius %s" % radius)
-		var landing_error: float = absf(action.throw_origin.distance_to(cluster) - range_m)
-		assert_lte(landing_error, 1.0, "radius %s: landing %.1f m from the cluster" % [radius, landing_error])
-
-
-func test_bot_bomb_without_a_range_keeps_the_nearest_release_point() -> void:
-	var points: PackedVector2Array = PackedVector2Array([Vector2(0.0, 0.0), Vector2(-30.0, 0.0)])
-	var action: BotSpecialPlanner.BotSpecialAction = BotSpecialPlanner.plan(
-		&"bomb", Vector2.ZERO, points, PackedVector2Array([Vector2(-60.0, 0.0)]), PackedVector2Array(),
-		MatchConfig.AiDifficulty.HARD, _bot_tuning()
-	)
-	assert_eq(action.throw_origin, Vector2(-30.0, 0.0))
-
-
 func test_issuing_a_new_piece_clears_the_previous_pieces_aim() -> void:
 	_start_with(&"gift_bomb", GiftThrow.Mode.THROW)
 	Match.note_aim(0, AIM)

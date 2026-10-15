@@ -7,11 +7,6 @@ extends Resource
 @export var easy: BotDifficultyProfile
 @export var normal: BotDifficultyProfile
 @export var hard: BotDifficultyProfile
-## Bontago-1t5.34: the Bot V2 brain's own tier profiles (the legacy brain keeps easy/normal/hard).
-## A null entry falls back to the legacy profile.
-@export var easy_v2: BotDifficultyProfile
-@export var normal_v2: BotDifficultyProfile
-@export var hard_v2: BotDifficultyProfile
 
 ## Placement-candidate scoring weights (spec 2.9's candidate score formula;
 ## core/ai/BotPlacementScorer.gd applies these).
@@ -29,35 +24,21 @@ extends Resource
 ## frames").
 @export var think_phase_jitter_s: float = 0.4
 
-## Bontago-d5c (M5 P1, append-only per docs/archive/M5_PLAN.md's "if you need a new
-## numeric... add it as an @export on BotTuning, append-only"): a hard safety
-## bound on how many physics frames BotController's GENERATING state may run
-## for one think-cycle, in case territory sampling keeps missing (e.g. a
-## slot's whole territory is momentarily empty/contested) and the natural
-## ceiling of profile.candidate_count / profile.candidates_per_frame is never
-## reached by successful samples alone.
+## Hard bound on the physics ticks one think-cycle may run (BotController THINKING state), and the
+## ceiling of a tier's decision deadline (BotDifficultyProfile.generation_ticks).
 @export var max_generation_frames: int = 40
-## How many random points inside the field disk BotController samples,
-## per candidate, before giving up and falling back to the slot's own home
-## position (see BotController._sample_territory_point()).
-@export var max_territory_sample_attempts: int = 12
-
 ## Bontago-d5c.2 (review fix, append-only per docs/archive/M5_PLAN.md's "if you need
 ## a new numeric... add it as an @export on BotTuning, append-only"): seconds
 ## BotController._apply_rejection_backoff() holds a bot in IDLE after
 ## request_place()/request_throw() comes back with anything but
 ## PlacementRules.REASON_OK, so a rejected placement (e.g. another block
-## landed on the sampled spot between GENERATING and ACTING) doesn't spend
-## every following physics frame re-generating and re-sending the identical
+## landed on the chosen spot between THINKING and ACTING) doesn't spend
+## every following physics frame re-thinking and re-sending the identical
 ## rejected request.
 @export var rejection_backoff_s: float = 0.5
 
-## Bontago-1t5.2: furthest a landed gift may be from the nearest sampled
-## placement candidate (m) for the bot to aim its piece at it to claim it.
-@export var gift_claim_reach_m: float = 8.0
-## Bontago-1t5.2: reaction delay (s) for a piece carrying a held special.
+## Reaction delay (s) for a piece carrying a held special (Bontago-1t5.2).
 @export var gift_use_delay_s: float = 0.25
-
 
 ## P3 (Bontago-d5c.4, append-only per docs/archive/M5_PLAN.md's "if you need a new
 ## numeric... add it as an @export on BotTuning, append-only"): core/ai/
@@ -93,7 +74,7 @@ extends Resource
 
 ## Bontago-d5c.8 (M5 P3b-ii, append-only per docs/archive/M5_PLAN.md's "if you need a
 ## new numeric... add it as an @export on BotTuning, append-only"): how close
-## (meters) a game/bots/BotController.gd._fire_stability_raycasts() corner ray's
+## (meters) a BotThink cube probe's
 ## own hit height must land to that candidate's own `support_height` to count
 ## as "in contact" for BotCandidate.corner_support_hits -- a small slack
 ## rather than an exact float match, since a footprint corner one cube over
@@ -151,11 +132,6 @@ extends Resource
 @export var elim_approach_reach_cap_m: float = 3.0
 ## Approach fades by 1 / (1 + this * enemy circles near own home): defend wins when threatened.
 @export var elim_approach_threat_damp: float = 8.0
-## Fraction of Elimination candidates sampled along the own-home -> target line
-## (skewed to the far end, so the frontier) instead of uniformly in the disk,
-## and the random lateral jitter (m) applied to those samples.
-@export_range(0.0, 1.0) var elim_frontier_sample_fraction: float = 0.6
-@export var elim_frontier_jitter_m: float = 3.0
 ## OFF mode defend: extra defend weight scaled by how much of the home radius the
 ## candidate's own circle covers at the home point (0..1).
 @export var elim_off_defend_gain: float = 2.0
@@ -177,14 +153,8 @@ extends Resource
 @export var weight_goal_hold_reinforce: float = 3.0
 @export var goal_hold_reinforce_radius_m: float = 5.0
 
-## Bontago-8or.27 (append-only): Black hole heuristic. Pull radius comes from the
-## Black hole SpecialDef (Bontago-8or.28). Cap on block samples fed to the
-## planner, score per
-## enemy block caught, extra score per metre of that block's height, penalty per
-## own block caught, and the least net score worth spending the special on.
-@export var black_hole_max_samples: int = 96
-@export var black_hole_enemy_weight: float = 1.0
-@export var black_hole_enemy_height_weight: float = 0.5
+## Black hole (Bontago-8or.27, BotSpecialPlanner.plan_v2): penalty per own circle the pull radius
+## would drag in, and the least net score worth spending the special on.
 @export var black_hole_own_penalty: float = 1.5
 @export var black_hole_min_net_score: float = 1.0
 
@@ -217,9 +187,8 @@ extends Resource
 @export var timer_plan_margin_s: float = 0.5
 @export var timer_min_think_s: float = 0.1
 
-## Returns the profile for `difficulty`; NORMAL (and any out-of-range value)
-## falls back to `normal` rather than failing, so a stale/corrupt wire value
-## never leaves a bot with a null profile.
+## Returns the profile for `difficulty`; NORMAL (and any out-of-range value) falls back to `normal`
+## rather than failing, so a stale/corrupt wire value never leaves a bot with a null profile.
 func profile_for(difficulty: MatchConfig.AiDifficulty) -> BotDifficultyProfile:
 	match difficulty:
 		MatchConfig.AiDifficulty.EASY:
@@ -228,19 +197,3 @@ func profile_for(difficulty: MatchConfig.AiDifficulty) -> BotDifficultyProfile:
 			return hard
 		_:
 			return normal
-
-
-## Bontago-1t5.34: like profile_for(), but `v2` selects the Bot V2 tier profile (falls back to
-## the legacy profile when that tier has no V2 entry).
-func profile_for_brain(difficulty: MatchConfig.AiDifficulty, v2: bool) -> BotDifficultyProfile:
-	if not v2:
-		return profile_for(difficulty)
-	var picked: BotDifficultyProfile = null
-	match difficulty:
-		MatchConfig.AiDifficulty.EASY:
-			picked = easy_v2
-		MatchConfig.AiDifficulty.HARD:
-			picked = hard_v2
-		_:
-			picked = normal_v2
-	return picked if picked != null else profile_for(difficulty)

@@ -1,7 +1,7 @@
 class_name BotCandidateGen
 extends RefCounted
-## Bot V2 targeted site generator (docs/BOT_AI_REDESIGN.md 2.3 step 4). Replaces the
-## legacy uniform sampler: sites are built where territory is actually won.
+## Bot V2 targeted site generator (docs/BOT_AI_REDESIGN.md 2.3 step 4): sites are built where
+## territory is actually won, not sampled uniformly.
 ##   TIP    own circles' frontier points at r - inset toward the intent target (best
 ##          anchors plus lateral / depth offsets); orientation maximises reach subject
 ##          to BotStatics.
@@ -15,7 +15,7 @@ extends RefCounted
 ## Pure: no scene tree.
 
 const SHIPPED_TUNING: BotGenTuning = preload("res://config/bots/bot_gen_tuning.tres")
-## BotCandidate.site_kind values (0 = BotThink.SITE_LEGACY).
+## BotCandidate.site_kind values (0 = BotThink.SITE_NONE, unset).
 const SITE_TIP: int = 1
 const SITE_STACK: int = 2
 const SITE_STRIKE: int = 3
@@ -123,7 +123,7 @@ class SiteJob:
 		# picked a FILL site in the scripted tower scenes (24 of 24 thinks picked a TIP site), yet the
 		# top-up of every targeted shortfall (60-90 sites) cost ~15-24 % of a think in FILL plus the
 		# probe/rank of those sites. FILL is now only a fallback for ZERO targeted sites.
-		# fill_share > 0 (Easy / legacy) is unchanged.
+		# fill_share > 0 is unchanged.
 		if capped and not out.is_empty():
 			return
 		fallback_ran = capped

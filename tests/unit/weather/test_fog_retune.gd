@@ -24,16 +24,10 @@ func _rig(theme_id: String) -> Array:
 	return [skybox, environment]
 
 
-func test_exponential_keep_is_pure_and_monotonic() -> void:
-	assert_almost_eq(FogTuning.exponential_keep(0.0, 100.0), 1.0, 0.0001)
-	assert_almost_eq(FogTuning.exponential_keep(0.01, 0.0), 1.0, 0.0001)
-	assert_lt(FogTuning.exponential_keep(0.01, 100.0), FogTuning.exponential_keep(0.01, 50.0))
-
-
 func test_every_theme_keeps_the_far_rim_readable() -> void:
 	for theme_id: String in THEME_IDS:
 		var theme: SkyThemeDef = load("res://config/sky/themes/%s.tres" % theme_id) as SkyThemeDef
-		var keep: float = FogTuning.exponential_keep(theme.fog_density, _fog.arena_far_rim_m)
+		var keep: float = exp(-maxf(theme.fog_density, 0.0) * _fog.arena_far_rim_m)
 		assert_gte(keep, _fog.ambient_min_rim_keep, "%s keeps the far rim readable (keep %.3f)" % [theme_id, keep])
 		# Height fog is only dense below the arena: it must not start above the disc.
 		assert_lte(theme.fog_height_m, 0.0, "%s height fog stays below the disc" % theme_id)

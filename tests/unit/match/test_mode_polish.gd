@@ -177,17 +177,6 @@ func _assert_closed_loop(shown: Array[Control]) -> void:
 		assert_true(shown.has(up) and shown.has(down), "no orphaned neighbour on %s" % control.name)
 
 
-# --- 6fc.2 -------------------------------------------------------------------
-
-func test_objective_goal_flag_hook_per_mode() -> void:
-	var empty: PackedVector2Array = PackedVector2Array()
-	var teams: PackedInt32Array = PackedInt32Array([0, 1])
-	for mode: int in [MatchConfig.GameMode.CLASSIC, MatchConfig.GameMode.CAPTURE_THE_FLAG]:
-		assert_true(ModeObjective.create(mode, empty, 3.0, 2, 1.0, 1.0, teams).uses_goal_flags(), "mode %d" % mode)
-	for mode: int in [MatchConfig.GameMode.ELIMINATION, MatchConfig.GameMode.REACH_THE_SKY]:
-		assert_false(ModeObjective.create(mode, empty, 3.0, 2, 1.0, 1.0, teams).uses_goal_flags(), "mode %d" % mode)
-
-
 func test_goal_flag_nodes_and_zones_only_in_goal_modes() -> void:
 	for mode: int in [MatchConfig.GameMode.CLASSIC, MatchConfig.GameMode.CAPTURE_THE_FLAG]:
 		var config: MatchConfig = _config(mode)

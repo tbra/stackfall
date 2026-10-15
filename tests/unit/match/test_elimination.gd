@@ -135,7 +135,7 @@ func test_elimination_is_idempotent_and_ignores_unknown_slots() -> void:
 func test_state_round_trips_through_the_client_mirror() -> void:
 	var host: EliminationObjective = _objective([0, 1, 0, 1], 2)
 	host.slot_eliminated(2)
-	var wire: Dictionary = ModeObjective.validate_state(host.mode_state())
+	var wire: Dictionary = ResultsValidation.validate_mode_state(host.mode_state())
 	assert_false(wire.is_empty(), "the state passes strict wire validation")
 	var client: EliminationObjective = _objective([0, 1, 0, 1], 2)
 	client.apply_mode_state(wire)
@@ -248,7 +248,7 @@ func _lose_homes(slots: Array[int]) -> void:
 		_open_holes(slots)
 		Match._territory._tick_home_claims(Match._territory_tuning.capture_hold)
 		return
-	Match._check_home_flags(opened)
+	Match._territory._check_home_flags(opened)
 
 
 func _open_holes(slots: Array[int], permanent: bool = true) -> void:

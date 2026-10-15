@@ -152,8 +152,8 @@ const BOT_SLOT: int = 1
 const CLAIM_BOUND_S: float = 60.0
 const USE_BOUND_S: float = 90.0
 ## Disk-local distance beyond the bot's home flag: outside the 6 m home circle
-## (TerritoryTuning.home_radius) but inside BotTuning.gift_claim_reach_m of a
-## sampled candidate, so only a placed block can grow territory over it.
+## (TerritoryTuning.home_radius) but within reach of a placed block, so only
+## a placed block can grow territory over it.
 const CRATE_DISTANCE_M: float = 7.0
 
 
@@ -168,7 +168,6 @@ var _sim_s: float = 0.0
 func _make_bot() -> BotController:
 	var bot: BotController = BotController.new()
 	add_child_autofree(bot)
-	bot.set_brain(BotController.Brain.LEGACY)  # P7: legacy claim path; the V2 test opts in
 	bot.set_net_provider(HostNet.new())
 	bot.setup(BOT_SLOT, MatchConfig.AiDifficulty.NORMAL, _field, _registry)
 	return bot
@@ -193,57 +192,14 @@ func _crate_toward_center(from_slot: int, distance: float) -> int:
 	return _inject_crate(pos)
 
 
-func test_bot_claims_a_landed_gift_just_outside_its_territory() -> void:
-	var config: MatchConfig = _bot_match_config(2, 2)
-	config.block_timer = 6.0
-	_start_playing(config)
-	var bot: BotController = _make_bot()
-	# Advance past the countdown/first feed so the bot holds a shape.
-	var gift_id: int = _crate_toward_center(BOT_SLOT, CRATE_DISTANCE_M)
-	var claimed: Array = []
-	var on_claim: Callable = func(id: int, slot_id: int, _sp: StringName) -> void:
-		claimed.append([id, slot_id])
-	Events.gift_claimed.connect(on_claim)
-	var done: bool = await _run_sim(CLAIM_BOUND_S, func() -> bool: return not claimed.is_empty())
-	Events.gift_claimed.disconnect(on_claim)
-	gut.p("gift claim sim seconds: %.2f" % _sim_s)
-	assert_true(done, "bot must claim the landed gift within %s sim s" % CLAIM_BOUND_S)
-	if done:
-		assert_eq(claimed[0][0], gift_id)
-		assert_eq(Match.team_of(int(claimed[0][1])), Match.team_of(BOT_SLOT), "the bot's team owns the claim")
-	bot.queue_free()
-
-
-func test_bot_spends_a_held_defensive_special() -> void:
-	var config: MatchConfig = _bot_match_config(2, 2)
-	config.block_timer = 6.0
-	config.enabled_specials = [&"anvil"]
-	_start_playing(config)
-	var bot: BotController = _make_bot()
-	var home_id: int = _inject_crate(Match.slot(BOT_SLOT).home_position)
-	var consumed: Array = []
-	var on_used: Callable = func(slot_id: int, special_id: StringName) -> void:
-		consumed.append([slot_id, special_id])
-	Events.special_consumed.connect(on_used)
-	var done: bool = await _run_sim(USE_BOUND_S, func() -> bool: return not consumed.is_empty())
-	Events.special_consumed.disconnect(on_used)
-	gut.p("special use sim seconds: %.2f (home crate %d)" % [_sim_s, home_id])
-	assert_true(done, "bot must spend its held special within %s sim s" % USE_BOUND_S)
-	if done:
-		assert_eq(consumed[0][0], BOT_SLOT)
-		assert_eq(consumed[0][1], &"anvil")
-	bot.queue_free()
-
-
-## Bontago-1t5.25: the Bot V2 brain takes a landed gift just outside its territory through the
+## Bontago-1t5.25: the bot takes a landed gift just outside its territory through the
 ## BotThink gift term, holds the granted special, then spends it via BotSpecialPlanner.plan_v2.
-func test_v2_bot_claims_a_landed_gift_then_spends_the_special_via_plan_v2() -> void:
+func test_bot_claims_a_landed_gift_then_spends_the_special_via_plan_v2() -> void:
 	var config: MatchConfig = _bot_match_config(2, 2)
 	config.block_timer = 6.0
 	config.enabled_specials = [&"anvil"]
 	_start_playing(config)
 	var bot: BotController = _make_bot()
-	bot.set_brain(BotController.Brain.V2)
 	var gift_id: int = _crate_toward_center(BOT_SLOT, CRATE_DISTANCE_M)
 	var claimed: Array = []
 	var consumed: Array = []

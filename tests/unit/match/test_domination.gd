@@ -39,7 +39,6 @@ func test_no_win_before_the_timer_even_with_total_dominance() -> void:
 	assert_eq(objective.winner(), ModeObjective.NO_TEAM)
 	assert_gt(objective.team_score(0), 0.0)
 	assert_true(objective.is_timed())
-	assert_false(objective.uses_goal_flags())
 
 
 func test_largest_share_wins_at_the_timer() -> void:
@@ -96,7 +95,7 @@ func test_client_mirror_restores_scores() -> void:
 	host.set_shares(PackedFloat32Array([0.3, 0.1]))
 	var state: Dictionary = host.mode_state()
 	state["round_left"] = 42.0
-	var clean: Dictionary = ModeObjective.validate_state(state)
+	var clean: Dictionary = ResultsValidation.validate_mode_state(state)
 	assert_false(clean.is_empty())
 	assert_eq(clean["mode_id"], MatchConfig.GameMode.DOMINATION)
 	var client: DominationObjective = _objective()
@@ -113,7 +112,7 @@ func test_results_block_validates() -> void:
 	var block: Dictionary = host.results_fields()
 	block["mode_id"] = host.mode_id()
 	block["scores"] = Array(host.scores())
-	var clean: Dictionary = ModeObjective.validate_results_block(block)
+	var clean: Dictionary = ResultsPayload.validate_mode_block(block)
 	assert_eq(clean["winners"], "1")
 	assert_eq(clean["mode_id"], MatchConfig.GameMode.DOMINATION)
 

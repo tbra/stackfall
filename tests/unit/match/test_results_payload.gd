@@ -39,7 +39,7 @@ func test_wire_strings_are_unchanged() -> void:
 func test_valid_payload_passes_and_matches_match_stats_delegate() -> void:
 	var clean: Dictionary = ResultsPayload.validate(_valid_payload())
 	assert_false(clean.is_empty())
-	assert_eq(clean, MatchStats.validate_results_payload(_valid_payload()), "one validator behind both entry points")
+	assert_eq(clean, ResultsValidation.validate_results_payload(_valid_payload()), "one validator behind both entry points")
 	assert_eq(ResultsPayload.winner_name(clean), "Ann")
 	assert_eq(ResultsPayload.rows(clean).size(), 1)
 
@@ -62,7 +62,6 @@ func test_malformed_payloads_are_rejected_on_a_client() -> void:
 
 func test_mode_block_has_one_validator() -> void:
 	var block: Dictionary = {ResultsPayload.KEY_MODE_ID: MatchConfig.GameMode.CAPTURE_THE_FLAG, ResultsPayload.KEY_SCORES: [1, 2], ResultsPayload.KEY_WINNERS: "1"}
-	assert_eq(ModeObjective.validate_results_block(block), ResultsPayload.validate_mode_block(block))
 	var payload: Dictionary = _valid_payload()
 	payload[ResultsPayload.KEY_MODE] = block
 	assert_eq(ResultsPayload.mode_scores(ResultsPayload.validate(payload)), [1.0, 2.0])

@@ -279,11 +279,11 @@ func test_results_payload_validation_accepts_and_rejects_the_mode_block() -> voi
 	var payload: Dictionary = {
 		"winner_kind": "team", "winner_id": 0, "winner_name": "Team 1", "match_duration": 5.0, "rows": rows,
 	}
-	assert_false(MatchStats.validate_results_payload(payload).is_empty())
+	assert_false(ResultsValidation.validate_results_payload(payload).is_empty())
 	payload["mode"] = {"mode_id": 1, "scores": [1.0, 2.0], "note": "x"}
-	assert_eq(MatchStats.validate_results_payload(payload)["mode"]["scores"], [1.0, 2.0])
+	assert_eq(ResultsValidation.validate_results_payload(payload)["mode"]["scores"], [1.0, 2.0])
 	payload["mode"] = {"mode_id": 1, "scores": "bad"}
-	assert_true(MatchStats.validate_results_payload(payload).is_empty())
+	assert_true(ResultsValidation.validate_results_payload(payload).is_empty())
 
 
 # --- Lobby ---------------------------------------------------------------------------
