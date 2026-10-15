@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-"""Paired head-to-head driver: candidate bot weights vs the shipped ones (Bontago-1t5.12).
+"""Paired head-to-head driver: side A bots vs side B bots (Bontago-1t5.12).
 
-Ship gate (owner, decision Bontago-1t5.10): trained Hard weights need >= 75 %
+Ship gate (owner, decision Bontago-1t5.10): the candidate side needs >= 75 %
 win share over >= 100 paired head-to-head matches. For each seed this runs two
 8-bot headless matches with the same seed and swapped seats (candidate on the
 A seats, then on the B seats), as N parallel
@@ -15,7 +15,6 @@ clock): it counts as a draw and shows in the `timeouts=` part of the summary, se
 `failed` (no HEADLESS_MATCH line: launch failure, crash, kill).
 
 P1b options (Bontago-1t5.20; evaluation plan docs/BOT_AI_REDESIGN.md section 2.5):
-  --candidate is optional when the --godot-args template has no {weights_file}/{weights_json}.
   --players N      adds --players=N (passive human seats, e.g. E3/E4 vs passive).
   --no-swap        runs only the A-seat half of each seed and prints one `H2H seed=` line per
                    match. The gate verdict then reads INSUFFICIENT (under 100 matches) by design;
@@ -42,16 +41,11 @@ P1b options (Bontago-1t5.20; evaluation plan docs/BOT_AI_REDESIGN.md section 2.5
                        --bot-difficulty=hard --gifts=0"
   --battery E1..E5|all  only with --dry-run: prints the section 2.5 command lines.
 
-SEAM DEPENDENCY (plan BT5): the game has no per-slot weight override or match
-seed flag yet. Weight runs therefore need `--godot-args`, a template appended
-after `--` on the Godot command line, with the placeholders
-    {seed} {weights_file} {weights_json} {cand_slots}
-Without it a candidate run refuses to launch (use --dry-run to print the commands).
-No game file is touched here; when BT5 lands, pass e.g.
-    --godot-args "--match-seed={seed} --bot-weights={weights_file} --bot-weights-slots={cand_slots}"
+--godot-args is an optional template appended after `--` on the Godot command line, with the
+placeholders {seed} {cand_slots} (default: --match-seed={seed}). The sides differ by seat and by
+--difficulty-a/--difficulty-b.
 
-    python -I tools/bot_h2h.py --candidate proposal.txt --pairs 50 \\
-        --godot-args "..." [--dry-run]
+    python -I tools/bot_h2h.py --difficulty-a hard --difficulty-b normal --pairs 50 [--dry-run]
     python -I tools/bot_h2h.py --dry-run --battery E1 --bots 8
 
 Exit code: 0 PASS, 1 FAIL/INCONCLUSIVE/INSUFFICIENT, 2 usage or launch error.
@@ -61,7 +55,6 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
-import json
 import math
 import os
 import re
@@ -83,26 +76,6 @@ _MATCH_RE = re.compile(r"HEADLESS_MATCH\b.*?\bwinner_team=(-?\d+)")
 _TIMEOUT_RE = re.compile(r"HEADLESS_MATCH\b.*\btimeout=1\b")
 _DURATION_RE = re.compile(r"HEADLESS_MATCH\b.*?\bduration=(-?[0-9]+(?:\.[0-9]+)?)")
 _STATS_RE = re.compile(r"HEADLESS_MATCH\b.*?\bstats=(\S+)")
-_WEIGHT_LINE = re.compile(r"^\s*(weight_\w+)\s*=\s*(-?[0-9.eE+-]+)\s*$")
-_WEIGHT_PLACEHOLDER = re.compile(r"\{weights_file\}|\{weights_json\}")
-
-
-def parse_candidate(path: str) -> Dict[str, float]:
-    """Weights from an offline-fit proposal (`weight_x = v` lines) or a JSON object."""
-    with open(path, encoding="utf-8") as fh:
-        text = fh.read()
-    if text.lstrip().startswith("{"):
-        data = json.loads(text)
-        return {k: float(v) for k, v in data.items()}
-    out: Dict[str, float] = {}
-    for line in text.splitlines():
-        m = _WEIGHT_LINE.match(line)
-        if m:
-            out[m.group(1)] = float(m.group(2))
-    if not out:
-        raise ValueError("no weight_* entries found in %s" % path)
-    return out
-
 
 def parse_winner(output: str) -> Optional[int]:
     """winner_team of the LAST HEADLESS_MATCH line (loop runs print several), else None."""
@@ -240,13 +213,11 @@ H2H_PORT_SPAN = 256
 
 
 def build_cmd(godot: str, project: str, seconds: float, bots: int, godot_args: str,
-              seed: int, weights_file: str, weights_json: str, cand_slots: str, port: int = H2H_PORT_BASE,
+              seed: int, cand_slots: str, port: int = H2H_PORT_BASE,
               players: Optional[int] = None, mode: Optional[str] = None,
               round_timer: Optional[int] = None, difficulty_a: Optional[str] = None,
               difficulty_b: Optional[str] = None) -> List[str]:
-    weights_file = weights_file.replace("\\", "/")  # shlex.split would eat Windows backslashes
-    tail = godot_args.format(seed=seed, weights_file=weights_file, weights_json=weights_json,
-                             cand_slots=cand_slots)
+    tail = godot_args.format(seed=seed, cand_slots=cand_slots)
     cmd = [godot, "--headless", "--fixed-fps", "60", "--path", project, "--",
            "--headless-host", "--bots=%d" % bots, "--seconds=%s" % seconds,
            "--port=%d" % port]
@@ -405,8 +376,7 @@ class Preset:
     difficulty_b: Optional[str] = None
 
 
-# Section 2.5 battery (E1-E5). Candidate weights come in through --godot-args; the sides differ by seat
-# weights and, for the tier ladder, by --bot-difficulty-slots (Bontago-1t5.28; Preset difficulty_a/_b,
+# Section 2.5 battery (E1-E5). The sides differ by seat and, for the tier ladder, by --bot-difficulty-slots (Bontago-1t5.28; Preset difficulty_a/_b,
 # A = candidate seats). Preset slots are bot-relative.
 # DECISION (Bontago-1t5.20): section 2.5 gives no seconds for E2 and E5; they use 600 like E1.
 _HARD = "--match-seed={seed} --bot-difficulty=hard"
@@ -440,9 +410,6 @@ def battery_presets(name: str) -> List[Preset]:
 
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="Paired head-to-head runs against the owner's 75% gate.")
-    ap.add_argument("--candidate", default=None,
-                    help="proposal file (weight_x = v) or JSON weights; optional when --godot-args has no "
-                         "{weights_file}/{weights_json}")
     ap.add_argument("--pairs", type=int, default=50, help="seeds; each runs 2 matches (seats swapped)")
     ap.add_argument("--base-seed", type=int, default=1000)
     ap.add_argument("--parallel", type=int, default=1,
@@ -467,8 +434,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--path", default=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     ap.add_argument("--cand-slots-a", default="0,2,4,6", help="candidate seats in the first match (bot-relative; offset by --players)")
     ap.add_argument("--cand-slots-b", default="1,3,5,7", help="candidate seats in the swapped match")
-    ap.add_argument("--godot-args", default="", help="seam template appended after `--` (see docstring)")
-    ap.add_argument("--out-dir", default=".", help="where the candidate weights JSON is written")
+    ap.add_argument("--godot-args", default="", help="template appended after `--` (see docstring)")
+    ap.add_argument("--out-dir", default=".", help="where the per-match logs are written")
     ap.add_argument("--dry-run", action="store_true", help="print the commands and exit")
     return ap
 
@@ -486,7 +453,7 @@ def main(argv: Optional[List[str]] = None, runner: Callable[[Sequence[str], floa
         for preset in battery_presets(args.battery):
             jobs = plan_jobs(preset.pairs, args.base_seed, preset.slots_a, preset.slots_b, swap=preset.swap,
                              godot=args.godot, project=args.path, seconds=preset.seconds, bots=preset.bots,
-                             godot_args=preset.template, weights_file="", weights_json="{}",
+                             godot_args=preset.template,
                              players=preset.players, mode=preset.mode,
                              difficulty_a=preset.difficulty_a, difficulty_b=preset.difficulty_b)
             print("# %s %s" % (preset.label, preset.note))
@@ -497,29 +464,11 @@ def main(argv: Optional[List[str]] = None, runner: Callable[[Sequence[str], floa
         print("H2H DRY-RUN battery=%s matches=%d" % (args.battery, total))
         return 0
 
-    if not args.godot_args and not args.dry_run and args.candidate is not None:
-        print("bot_h2h: no --godot-args; the per-slot weight override + match seed seam (plan BT5 "
-              "--bot-weights) does not exist yet. Pass --godot-args or use --dry-run.", file=sys.stderr)
-        return 2
-    template = args.godot_args or ("{seed} {weights_file} {cand_slots}" if args.candidate is not None
-                                   else "--match-seed={seed}")
-    if args.candidate is None and _WEIGHT_PLACEHOLDER.search(template):
-        print("bot_h2h: --godot-args uses {weights_file}/{weights_json} but no --candidate was given.",
-              file=sys.stderr)
-        return 2
-    weights_file = ""
-    weights_json = "{}"
-    if args.candidate is not None:
-        weights = parse_candidate(args.candidate)
-        os.makedirs(args.out_dir, exist_ok=True)
-        weights_file = os.path.abspath(os.path.join(args.out_dir, "h2h_candidate_weights.json"))
-        with open(weights_file, "w", encoding="utf-8") as fh:
-            json.dump(weights, fh)
-        weights_json = json.dumps(weights)
+    template = args.godot_args or "--match-seed={seed}"
     jobs = plan_jobs(args.pairs, args.base_seed, args.cand_slots_a, args.cand_slots_b,
                      swap=not args.no_swap, godot=args.godot, project=args.path, seconds=args.seconds,
-                     bots=args.bots, godot_args=template, weights_file=weights_file,
-                     weights_json=weights_json, players=args.players, mode=args.mode,
+                     bots=args.bots, godot_args=template,
+                     players=args.players, mode=args.mode,
                      round_timer=args.round_timer, difficulty_a=args.difficulty_a,
                      difficulty_b=args.difficulty_b)
     if args.dry_run:

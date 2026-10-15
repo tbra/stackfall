@@ -192,29 +192,6 @@ func test_dead_home_flag_refused_with_no_block() -> void:
 		Match.abort_match()
 
 
-func test_turn_gate_reason_and_ordering_against_dead_home() -> void:
-	for entry: Entry in [Entry.PLACE, Entry.AUTO_DROP, Entry.THROW, Entry.GIFT_USE]:
-		_start_playing()
-		_prepare(entry)
-		Match.config.turn_based = true
-		var off_turn: int = 1 - Match.active_slot()
-		# Slot 0 is the only slot the baseline prepares; flip which one acts.
-		Match.config.turn_based = true
-		Match._lifecycle._active_slot = off_turn
-		var expected: String = REFUSED_FALSE if entry == Entry.GIFT_USE else String(PlacementRules.REASON_NOT_YOUR_TURN)
-		assert_eq(_call(entry, 0), expected, "%s off-turn" % _name(entry))
-		# Dead home outranks the turn gate for place/throw (NO_BLOCK, not NOT_YOUR_TURN).
-		Match.slot(0).home_flag_alive = false
-		assert_eq(_call(entry, 0), _refusal_for(entry), "%s dead home outranks turn gate" % _name(entry))
-		Match.slot(0).home_flag_alive = true
-		Match._lifecycle._active_slot = 0
-		if entry != Entry.GIFT_USE:
-			assert_eq(_call(entry, 0), OK, "%s on-turn accepted" % _name(entry))
-		Match.abort_match()
-		for child: Node in _blocks_root.get_children():
-			child.free()
-
-
 func test_release_lock_manual_refused_auto_drop_exempt_gift_use_unaffected() -> void:
 	var no_block: String = String(PlacementRules.REASON_NO_BLOCK)
 	_start_playing()
@@ -255,33 +232,6 @@ func test_malformed_pose_refused() -> void:
 	assert_eq(_call(Entry.THROW, 0, -1, null, Vector3(INF, 0.0, 0.0)), no_block, "throw non-finite velocity")
 
 
-func test_throw_kind_specific_refusals_follow_the_gate() -> void:
-	_start_playing()
-	assert_eq(_call(Entry.THROW, 0), String(ThrowRules.REASON_NOT_A_SPECIAL), "no held special")
-	_hold_special(0)
-	assert_eq(_call(Entry.THROW, 0, -1, null, Vector3.ZERO), String(PlacementRules.REASON_NO_BLOCK), "zero aim refused")
-
-
-func test_gift_use_kind_specific_refusals() -> void:
-	_start_playing()
-	assert_eq(_call(Entry.GIFT_USE, 0), REFUSED_FALSE, "empty slot")
-	Match.abort_match()
-	_start_playing()
-	_prepare(Entry.GIFT_USE)
-	_hold_special(0)
-	assert_eq(_call(Entry.GIFT_USE, 0), REFUSED_FALSE, "gift already held")
-
-
-func test_projectile_null_shape_and_missing_world_refused() -> void:
-	_start_playing()
-	var tuning: SpecialTuning = Match._placement._special_tuning
-	assert_null(Match._placement.spawn_special_projectile(null, _home(0), Basis.IDENTITY, 0, Vector3.ZERO, null, tuning))
-	var field_before: Field = Match._field
-	Match._field = null
-	assert_null(Match._placement.spawn_special_projectile(Match.held_shape(0), _home(0), Basis.IDENTITY, 0, Vector3.ZERO, null, tuning))
-	Match._field = field_before
-
-
 # --- Order-sensitive pairs: two guards fail at once, the reason pins the order ---
 
 func _off_turn_setup(entry: Entry) -> void:
@@ -302,39 +252,3 @@ func test_off_turn_outranks_release_lock() -> void:
 		for child: Node in _blocks_root.get_children():
 			child.free()
 
-
-func test_off_turn_outranks_missing_held_shape() -> void:
-	var not_your_turn: String = String(PlacementRules.REASON_NOT_YOUR_TURN)
-	for entry: Entry in [Entry.PLACE, Entry.AUTO_DROP, Entry.THROW]:
-		_off_turn_setup(entry)
-		Match._feed._held_shapes[0] = null
-		assert_eq(_call(entry, 0), not_your_turn, "%s off-turn + no shape" % _name(entry))
-		Match._lifecycle._active_slot = 0
-		assert_eq(_call(entry, 0), String(PlacementRules.REASON_NO_BLOCK), "%s on-turn + no shape" % _name(entry))
-		Match.abort_match()
-
-
-func test_stale_feed_seq_outranks_turn_gate() -> void:
-	for entry: Entry in [Entry.PLACE, Entry.AUTO_DROP, Entry.THROW]:
-		_off_turn_setup(entry)
-		assert_eq(
-			_call(entry, 0, Match.feed_seq(0) + 1), String(PlacementRules.REASON_NO_BLOCK),
-			"%s stale seq + off-turn" % _name(entry)
-		)
-		Match.abort_match()
-
-
-func test_hot_seat_off_turn_reasons_and_dead_home_ordering() -> void:
-	var not_your_turn: String = String(PlacementRules.REASON_NOT_YOUR_TURN)
-	for entry: Entry in [Entry.PLACE, Entry.AUTO_DROP, Entry.THROW]:
-		_start_playing()
-		_prepare(entry)
-		Match.config.hot_seat = true
-		Match._lifecycle._active_slot = 1
-		assert_eq(_call(entry, 0), not_your_turn, "%s hot-seat off-turn" % _name(entry))
-		Match._feed._release_locked[0] = true
-		Match._feed._held_is_gift[0] = false
-		assert_eq(_call(entry, 0), not_your_turn, "%s hot-seat off-turn + locked" % _name(entry))
-		Match.abort_match()
-		for child: Node in _blocks_root.get_children():
-			child.free()

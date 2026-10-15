@@ -130,21 +130,12 @@ func set_summary(text: String) -> void:
 		_summary_label.text = text
 
 
-func get_summary() -> String:
-	return _summary
-
-
 ## The section symbol drawn left of the caption (UiArtTable lobby icon).
 func set_header_icon(texture: Texture2D) -> void:
 	_icon_texture = texture
 	if _icon_rect != null:
 		_icon_rect.texture = texture
 		_icon_rect.visible = texture != null
-
-
-## The texture currently shown in the header (null when none).
-func header_icon() -> Texture2D:
-	return _icon_rect.texture if _icon_rect != null else null
 
 
 func is_advanced_open() -> bool:

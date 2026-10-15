@@ -124,7 +124,6 @@ func _site(view: BotWorldView, shape: BlockShape, com_xz: Vector2) -> BotCandida
 	candidate.origin = com_xz - info.com * PHYSICS_TUNING.cube_size
 	candidate.orientation_index = 0
 	candidate.site_kind = BotCandidateGen.SITE_STACK
-	candidate.on_top_of_own_stack = true
 	candidate.shape_height = info.height
 	candidate.footprint_cells = BotStatics.footprint_cells_of(view.held, info, candidate.origin, view.cube_size, view.grid)
 	return candidate

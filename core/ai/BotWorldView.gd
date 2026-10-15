@@ -306,13 +306,3 @@ func indices_of_team(team: int) -> PackedInt32Array:
 		if cteam[i] == team:
 			out.append(i)
 	return out
-
-
-## Enemy home flags plus every enemy block-circle centre: what BotPlacementScorer's
-## risk and elimination terms read as "where the enemy is".
-func enemy_circle_centers() -> PackedVector2Array:
-	var centers: PackedVector2Array = enemy_homes.duplicate()
-	for i: int in range(cteam.size()):
-		if cteam[i] != team_id:
-			centers.append(Vector2(cx[i], cz[i]))
-	return centers

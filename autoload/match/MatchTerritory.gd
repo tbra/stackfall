@@ -392,26 +392,14 @@ func bot_mode_goal(slot_id: int) -> BotModeGoal:
 		_fill_classic_goals(goal, slot_id)
 	if _objective is CaptureFlagObjective:
 		var own_team: int = _match.team_of(slot_id)
-		goal.beacon_score_rate = _match._territory_tuning.ctf_score_per_beacon_second
 		goal.beacon_positions = PlayerSlot.goal_positions_for(
 			_match.config.effective_goal_flag_count(), _match.config.map_def()
 		)
 		for point: Vector2 in goal.beacon_positions:
 			goal.beacon_held_by_own.append(_raster != null and WinChecker.goal_holder(_raster, point, _claim_radius()) == own_team)
 	elif _objective is EliminationObjective:
-		var own_team_e: int = _match.team_of(slot_id)
 		# Bontago-1t5.4: OFF mode flips a home only when an enemy radius beats the home circle.
 		goal.no_overlap_mode = _match.config.hole_mode == MatchConfig.HoleMode.OFF
-		goal.home_radius = _match._territory_tuning.home_radius
-		for slot_item: PlayerSlot in _match._lifecycle._slots:
-			if not slot_item.home_flag_alive:
-				continue
-			if slot_item.slot_id == slot_id:
-				goal.has_own_home = true
-				goal.own_home_position = slot_item.home_position
-			elif slot_item.team_id != own_team_e:
-				goal.enemy_home_positions.append(slot_item.home_position)
-				goal.enemy_home_shares.append(_raster.team_share(slot_item.team_id) if _raster != null else 0.0)
 	elif _objective is DominationObjective:
 		_fill_domination_goal(goal, _match.team_of(slot_id))
 	elif _objective is ReachSkyObjective:
@@ -421,7 +409,6 @@ func bot_mode_goal(slot_id: int) -> BotModeGoal:
 			if not tallest.is_empty():
 				goal.has_tower = true
 				goal.tower_origin = tallest["xz"] as Vector2
-				goal.tower_height = float(tallest["height"])
 	return goal
 
 
@@ -433,7 +420,7 @@ const BOT_TUNING: BotTuning = preload("res://config/bots/bot_tuning.tres")
 
 
 ## Domination (Bontago-1pi.25.1): flags whether `own_team` already leads and, when
-## it does not, samples (capped) cells of the first leading team for the scorer.
+## it does not, samples (capped) cells of the first leading team for the bot.
 func _fill_domination_goal(goal: BotModeGoal, own_team: int) -> void:
 	var leaders: PackedInt32Array = (_objective as DominationObjective).leading_teams()
 	goal.own_team_leads = leaders.has(own_team) or leaders.is_empty()
@@ -469,17 +456,18 @@ func _fill_classic_goals(goal: BotModeGoal, slot_id: int) -> void:
 			home = slot_item.home_position
 			has_home = true
 	goal.goal_positions = positions
-	if has_home:
-		goal.home_group = _raster.group_at_point(home)
+	var home_group: int = _raster.group_at_point(home) if has_home else -1
+	var component_points: PackedVector2Array = PackedVector2Array()
 	var grid: CellGrid = _raster.grid()
-	if goal.home_group >= 0:
+	if home_group >= 0:
 		for index: int in grid.in_disk_cells():
 			var cell: Vector2i = grid.cell_coords(index)
-			if _raster.group_at(cell.x, cell.y) == goal.home_group:
-				goal.component_points.append(grid.index_center(index))
+			if _raster.group_at(cell.x, cell.y) == home_group:
+				component_points.append(grid.index_center(index))
+	var in_home_group: Array[bool] = []
 	for point: Vector2 in positions:
-		goal.goal_in_home_group.append(goal.home_group >= 0 and _raster.group_at_point(point) == goal.home_group)
-	goal.target_goal_index = BotPlacementScorer.next_goal_index(positions, goal.goal_in_home_group, goal.component_points, home)
+		in_home_group.append(home_group >= 0 and _raster.group_at_point(point) == home_group)
+	goal.target_goal_index = BotModeGoal.next_goal_index(positions, in_home_group, component_points, home)
 
 
 ## Reach the Sky (Bontago-22y.9): team of every slot, index = slot id.

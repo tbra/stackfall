@@ -147,40 +147,6 @@ func _resolve_profile() -> BotDifficultyProfile:
 	return tuning.profile_for(_difficulty)
 
 
-## Bontago-1t5.13 (BT5): per-bot BotTuning override. `tuning_with_weights()` builds the copy, this
-## installs it (the shipped, shared resource is never touched). Null restores the shipped tuning.
-func set_tuning_override(override: BotTuning) -> void:
-	tuning = override if override != null else (load("res://config/bots/bot_tuning.tres") as BotTuning)
-	_profile = _resolve_profile()
-
-
-## Largest absolute value a trained weight override may take (anything beyond is clamped).
-const WEIGHT_OVERRIDE_LIMIT: float = 100.0
-
-
-## Duplicates `base` and applies only the known `weight_*` float fields of `weights` (name -> value).
-## Unknown keys, non-numeric and non-finite values are skipped with ONE combined warning; the rest are
-## clamped to +-WEIGHT_OVERRIDE_LIMIT. `base` is never modified.
-static func tuning_with_weights(base: BotTuning, weights: Dictionary) -> BotTuning:
-	var copy: BotTuning = base.duplicate() as BotTuning
-	var known: Dictionary = {}
-	for info: Dictionary in base.get_property_list():
-		var prop_name: String = String(info["name"])
-		if prop_name.begins_with("weight_") and int(info["type"]) == TYPE_FLOAT:
-			known[prop_name] = true
-	var rejected: PackedStringArray = PackedStringArray()
-	for key: Variant in weights:
-		var value: Variant = weights[key]
-		var is_number: bool = typeof(value) == TYPE_FLOAT or typeof(value) == TYPE_INT
-		if not known.has(String(key)) or not is_number or is_nan(float(value)) or is_inf(float(value)):
-			rejected.append(String(key))
-			continue
-		copy.set(String(key), clampf(float(value), -WEIGHT_OVERRIDE_LIMIT, WEIGHT_OVERRIDE_LIMIT))
-	if not rejected.is_empty():
-		push_warning("BotController: ignored unknown/invalid weight override key(s): %s" % ", ".join(rejected))
-	return copy
-
-
 ## Test seam for the Match autoload; null restores the real one.
 func set_match_provider(provider: Variant) -> void:
 	_match_provider = provider
@@ -601,19 +567,15 @@ func _think_slice_us(ticks_left: int) -> int:
 	return maxi(deadline_share_us, room_us)
 
 
-## BotThink's physics probe: {hit, height, own} straight down at a disk-local point.
+## BotThink's physics probe: {hit, height} straight down at a disk-local point.
 func _probe(xz: Vector2) -> Dictionary:
 	var hit: Dictionary = _column_hit(xz)
 	if hit.is_empty():
-		return {"hit": false, "height": 0.0, "own": false}
-	return {
-		"hit": true,
-		"height": _field.to_local(hit["position"] as Vector3).y,
-		"own": _is_own_block(hit.get("collider"), int(_match().team_of(_slot_id)), hit["position"] as Vector3),
-	}
+		return {"hit": false, "height": 0.0}
+	return {"hit": true, "height": _field.to_local(hit["position"] as Vector3).y}
 
 
-## The per-bottom-cube probe: like `_probe` without the own-block lookup (unused there), plus `body`, the
+## The per-bottom-cube probe: like `_probe` plus `body`, the
 ## instance id of the block collider hit (-1 for the disc or a miss; Bontago-1t5.55.2).
 func _probe_cell(xz: Vector2) -> Dictionary:
 	var hit: Dictionary = _column_hit(xz)
@@ -742,17 +704,6 @@ func _raycast_support_height(local_xz: Vector2) -> Dictionary:
 		return {"height": 0.0, "collider": null, "hit": false}
 	var local_hit: Vector3 = _field.to_local(hit["position"] as Vector3)
 	return {"height": local_hit.y, "collider": hit.get("collider"), "hit": true, "position": hit["position"]}
-
-
-func _is_own_block(collider: Variant, team_id: int, hit_point: Vector3 = Vector3.ZERO) -> bool:
-	var block: Block = collider as Block
-	if block == null:
-		return false
-	if block.has_method(&"owner_slot_at"):
-		# Glue fusion: the ray hit a FusedBody (duck-typed, layer lint); the owner is the
-		# nearest member's.
-		return int(_match().team_of(int(block.call(&"owner_slot_at", hit_point)))) == team_id
-	return int(_match().team_of(block.owner_slot)) == team_id
 
 
 # --- ACTING: one frame, exactly one request per completed think-cycle ------
@@ -912,50 +863,10 @@ func _send_best_placement(place_target_override: Variant = null) -> StringName:
 	if held != null:
 		var pose: Vector3 = spawn_pose(held, best.orientation_index, noisy_origin, support_y, _physics_tuning)
 		world_origin = _field.world_from_disk_local(Vector2(pose.x, pose.z), pose.y)
-	var recording: Dictionary = _record_capture(best, place_target_override != null)
 	var reason: StringName = StringName(match_ref.request_place(
 		_slot_id, world_origin, best.orientation_index, Quaternion.IDENTITY, false, int(match_ref.feed_seq(_slot_id))
 	))
-	if _recorder != null:
-		_recorder.on_decision(recording, int(match_ref.feed_seq(_slot_id)), noisy_origin, reason)
 	return reason
-
-
-## Bontago-1t5.11 (BT2): optional passive observer (game/bots/BotDecisionRecorder.gd). Null (the
-## default) means recording is off and nothing below runs.
-var _recorder: BotDecisionRecorder = null
-
-
-func set_recorder(recorder: BotDecisionRecorder) -> void:
-	_recorder = recorder
-
-
-## Read-only snapshot for the recorder, taken after the choice and before the request so the
-## re-scored terms see the same inputs the decision did. Draws no rng, mutates nothing.
-func _record_capture(best: BotCandidate, override_used: bool) -> Dictionary:
-	if _recorder == null or not _recorder.is_enabled():
-		return {}
-	var match_ref: Variant = _match()
-	var team_id: int = int(match_ref.team_of(_slot_id))
-	var goals: PackedVector2Array = _goal_positions()
-	var enemies: PackedVector2Array = _enemy_circle_centers()
-	var specials: PackedVector2Array = _active_special_positions()
-	var mode_goal: BotModeGoal = _mode_goal(match_ref)
-	var terms: Array[BotScoreTerms] = []
-	for candidate: BotCandidate in _candidates:
-		terms.append(BotPlacementScorer.score_terms(
-			candidate, match_ref.raster(), match_ref.cell_grid(), team_id, goals, enemies, specials,
-			tuning, _field_radius(), mode_goal
-		))
-	var held_special: bool = StringName(match_ref.held_special(_slot_id)) != &""
-	var shape: BlockShape = match_ref.held_shape(_slot_id)
-	var state: Dictionary = BotDecisionRecorder.build_state(
-		match_ref, _slot_id, team_id, enemies, specials.size(), mode_goal, tuning, _recorder.config.round_step
-	)
-	return _recorder.capture(
-		_slot_id, team_id, shape.id if shape != null else &"", _candidates, terms,
-		_candidates.find(best), override_used or held_special, state
-	)
 
 
 ## Bontago-d5c.8 (M5 P3b-ii): the already-generated candidate whose `origin`
@@ -1054,46 +965,11 @@ func _goal_positions() -> PackedVector2Array:
 	return PlayerSlot.goal_positions_for(config.effective_goal_flag_count(), config.map_def())
 
 
-## Bontago-d5c.10 (item F): "where the enemy is" -- every other team's home
-## flag, PLUS the disk-local center of every one of that team's own live
-## influence circles.
-##
-## DECISION (game/bots/BotController.gd, Bontago-d5c.10): the circle source is
-## `Match.circle_render_arrays()` (forwarded from autoload/match/
-## MatchTerritory.gd's own method of the same name), which already exists on
-## the autoload/ this package does not own -- no new accessor was added
-## there. It is the *render* list (home-anchored, connected-group circles
-## only, already capped at TerritoryTuning.max_circles, each tagged with its
-## own `teams[i]`), not every raw per-block circle MatchTerritory ever builds
-## internally, which is exactly "the centers of that team's live influence
-## circles" the brief asks for and cheap enough to call every ACTING tick (it
-## is already recomputed at most once per territory solve, not on demand).
-func _enemy_circle_centers() -> PackedVector2Array:
-	var match_ref: Variant = _match()
-	var own_team: int = int(match_ref.team_of(_slot_id))
-	var centers: PackedVector2Array = PackedVector2Array()
-	for i: int in range(int(match_ref.slot_count())):
-		if int(match_ref.team_of(i)) == own_team:
-			continue
-		var slot: PlayerSlot = match_ref.slot(i)
-		if slot != null:
-			centers.append(slot.home_position)
-	var circle_arrays: Dictionary = match_ref.circle_render_arrays()
-	var xs: PackedFloat32Array = circle_arrays.get("xs", PackedFloat32Array()) as PackedFloat32Array
-	var zs: PackedFloat32Array = circle_arrays.get("zs", PackedFloat32Array()) as PackedFloat32Array
-	var teams: PackedInt32Array = circle_arrays.get("teams", PackedInt32Array()) as PackedInt32Array
-	for i: int in range(teams.size()):
-		if teams[i] == own_team:
-			continue
-		centers.append(Vector2(xs[i], zs[i]))
-	return centers
-
-
 ## Bontago-d5c.10 (item F): every other special currently ticking on the disk
 ## (`game/gifts/specials/SpecialBehavior.GROUP`, its own scene-tree group -- see
 ## that file's own header comment), converted to a disk-local point through
 ## `_field.disk_local_from_world()`, the same conversion Field's own
-## raycast_down_disk_local() uses. Fed to the world snapshot and the recorder
+## raycast_down_disk_local() uses. Fed to the world snapshot
 ## (spec 2.9's risk term: don't stack a new block, or aim a special, on top of one
 ## already armed and ticking). A behaviour is always added as a child of its
 ## owning Block (autoload/match/MatchPlacement.gd's `_arm_special_behavior()`:
@@ -1113,7 +989,7 @@ func _enemy_circle_centers() -> PackedVector2Array:
 ## not part of any contract (Godot's own docs: insertion order into the
 ## group's internal list, not spatial or otherwise stable across runs), so
 ## sorting the result removes any dependence on it for the consumer that
-## reads this list (the snapshot and the recorder), so a bot's choices depend only on
+## reads this list (the snapshot), so a bot's choices depend only on
 ## its own seeded RNG stream, not on however many other specials happened to
 ## spawn first. Vector2's own `<` (x, then y) is exactly sort()'s default
 ## ordering.

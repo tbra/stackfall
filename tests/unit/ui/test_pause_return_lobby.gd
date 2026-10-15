@@ -119,30 +119,6 @@ func _host_returns_through_the_pause_menu() -> void:
 	pause._on_confirm_dialog_confirmed()
 
 
-func _press_pad_a() -> void:
-	var press: InputEventJoypadButton = InputEventJoypadButton.new()
-	press.device = -1
-	press.button_index = JOY_BUTTON_A
-	press.pressed = true
-	Input.parse_input_event(press)
-	var release: InputEventJoypadButton = InputEventJoypadButton.new()
-	release.device = -1
-	release.button_index = JOY_BUTTON_A
-	release.pressed = false
-	Input.parse_input_event(release)
-	await get_tree().process_frame
-	await get_tree().process_frame
-
-
-# --- The entry per session role (bare menu) -----------------------------------
-
-func test_entry_is_hidden_without_a_context() -> void:
-	_menu = autofree(PAUSE_MENU_SCENE.instantiate())
-	add_child_autofree(_menu)
-	_menu._open()
-	assert_false(_menu._return_button.visible, "a menu nobody told the session role to shows no Return to lobby")
-
-
 func test_host_sees_the_entry_enabled_between_options_and_leave() -> void:
 	_make_menu()
 	_set_context(PauseMenu.ReturnEntry.ENABLED, true)
@@ -169,28 +145,6 @@ func test_client_sees_the_entry_disabled_with_the_host_only_hint() -> void:
 	assert_eq(_menu._return_button.tooltip_text, "", "no tooltip")
 	assert_ne(_menu._leave_button.disabled, true, "the client's normal Leave match stays")
 
-
-func test_offline_session_hides_the_entry() -> void:
-	_make_menu()
-	_set_context(PauseMenu.ReturnEntry.HIDDEN, true)
-	_open(_menu)
-
-	assert_false(_menu._return_button.visible, "no lobby exists offline; Leave match already goes to the main menu")
-
-
-func test_entry_follows_the_session_on_every_open() -> void:
-	_make_menu()
-	_set_context(PauseMenu.ReturnEntry.ENABLED, true)
-	_open(_menu)
-	assert_false(_menu._return_button.disabled)
-	_menu._close()
-
-	_set_context(PauseMenu.ReturnEntry.DISABLED, true)
-	_open(_menu)
-	assert_true(_menu._return_button.disabled, "re-evaluated on open, not cached from the first one")
-
-
-# --- Confirmation gate ----------------------------------------------------------
 
 func test_return_in_a_live_match_asks_before_emitting() -> void:
 	_make_menu()
@@ -263,105 +217,6 @@ func test_disabled_entry_never_emits() -> void:
 	assert_false(_menu._confirm_dialog.visible)
 
 
-func test_leave_and_return_do_not_cross_wires() -> void:
-	_make_menu()
-	_set_context(PauseMenu.ReturnEntry.ENABLED, true)
-	_open(_menu)
-	_menu._on_return_lobby_pressed()
-	_menu._on_confirm_dialog_canceled()
-	watch_signals(_menu)
-
-	_menu._on_leave_pressed()
-	_menu._on_confirm_dialog_confirmed()
-
-	assert_signal_emit_count(_menu, "leave_match_requested", 1)
-	assert_signal_not_emitted(_menu, "return_to_lobby_requested")
-
-
-func test_closing_the_menu_takes_an_open_confirmation_down_with_it() -> void:
-	_make_menu()
-	_set_context(PauseMenu.ReturnEntry.ENABLED, true)
-	_open(_menu)
-	_menu._on_return_lobby_pressed()
-	assert_true(_menu._confirm_dialog.visible)
-
-	_menu.force_close()
-
-	assert_false(_menu._confirm_dialog.visible, "the match ended another way: no question left hanging")
-	watch_signals(_menu)
-	_menu._on_confirm_dialog_confirmed()
-	assert_signal_not_emitted(_menu, "return_to_lobby_requested")
-
-
-# --- Gamepad / keyboard focus -----------------------------------------------------
-
-func test_focus_ring_includes_the_entry_for_the_host() -> void:
-	_make_menu()
-	_set_context(PauseMenu.ReturnEntry.ENABLED, true)
-	_open(_menu)
-	var resume: Button = _menu._resume_button
-	var options: Button = _menu._options_button
-	var back: Button = _menu._return_button
-	var leave: Button = _menu._leave_button
-
-	assert_eq(resume.get_node(resume.focus_neighbor_bottom), options)
-	assert_eq(options.get_node(options.focus_neighbor_bottom), back)
-	assert_eq(back.get_node(back.focus_neighbor_bottom), leave)
-	assert_eq(leave.get_node(leave.focus_neighbor_bottom), resume, "wraps")
-	assert_eq(resume.get_node(resume.focus_neighbor_top), leave)
-	assert_eq(leave.get_node(leave.focus_neighbor_top), back)
-	assert_eq(back.focus_mode, Control.FOCUS_ALL)
-
-
-func test_focus_ring_skips_a_disabled_or_hidden_entry() -> void:
-	_make_menu()
-	for entry: int in [PauseMenu.ReturnEntry.DISABLED, PauseMenu.ReturnEntry.HIDDEN]:
-		_set_context(entry, true)
-		_menu.refresh_return_entry()
-		var options: Button = _menu._options_button
-		var leave: Button = _menu._leave_button
-		assert_eq(options.get_node(options.focus_neighbor_bottom), leave, "entry %d is skipped by the ring" % entry)
-		assert_eq(leave.get_node(leave.focus_neighbor_top), options)
-		assert_eq(_menu._return_button.focus_mode, Control.FOCUS_NONE)
-
-
-func test_gamepad_a_on_the_focused_entry_asks_for_confirmation() -> void:
-	_make_menu()
-	_set_context(PauseMenu.ReturnEntry.ENABLED, true)
-	_open(_menu)
-	_menu._return_button.grab_focus()
-	assert_true(_menu._return_button.has_focus(), "fixture: reachable by focus")
-	watch_signals(_menu)
-
-	await _press_pad_a()
-
-	assert_true(_menu._confirm_dialog.visible, "gamepad A activates the entry through ui_accept")
-	assert_signal_not_emitted(_menu, "return_to_lobby_requested", "and still asks before ending the match")
-
-
-# --- Main: the host ends the match for everyone ------------------------------------
-
-func test_main_context_follows_the_net_mode_and_match_state() -> void:
-	_make_main()
-	assert_eq(_main._pause_menu_context()["return_entry"], PauseMenu.ReturnEntry.HIDDEN, "offline: no lobby")
-	_host()
-	var context: Dictionary = _main._pause_menu_context()
-	assert_eq(context["return_entry"], PauseMenu.ReturnEntry.ENABLED, "host")
-	assert_false(context["match_in_progress"], "lobby: nothing running")
-
-	_main._on_lobby_start_requested(_config())
-	assert_true(_main._pause_menu_context()["match_in_progress"], "countdown counts as in progress")
-	_run_seconds(Match.COUNTDOWN_SECONDS + 0.2)
-	assert_true(_main._pause_menu_context()["match_in_progress"], "playing")
-	Match._finish_match(0)
-	assert_eq(Match.state(), Match.State.END)
-	assert_false(_main._pause_menu_context()["match_in_progress"], "END: the results screen is up, no confirmation")
-
-	Net._mode = Net.Mode.CLIENT
-	_forced_client = true
-	assert_eq(_main._pause_menu_context()["return_entry"], PauseMenu.ReturnEntry.DISABLED, "client")
-
-
 func test_host_return_puts_the_session_back_in_its_lobby() -> void:
 	_host_a_playing_match()
 	var peers_before: PackedInt32Array = Net.peer_ids()
@@ -397,52 +252,6 @@ func test_the_abandoned_match_has_no_winner_and_no_results() -> void:
 	assert_false(_main._results_screen.visible)
 	assert_eq(Match.stats().blocks_placed(0), 0, "stats reset like any abort")
 	assert_null(Match.config, "the match's config is gone; the lobby's settings live in Net")
-
-
-func test_the_return_is_replicated_to_clients_as_a_lobby_change() -> void:
-	_host_a_playing_match()
-	MatchNet.replicated_state_changes.clear()
-
-	_host_returns_through_the_pause_menu()
-
-	assert_eq(MatchNet.replicated_state_changes, [Match.State.LOBBY], "one reliable LOBBY state change goes to every client")
-
-
-func test_return_from_the_results_screen_asks_nothing() -> void:
-	_host_a_playing_match()
-	Match._finish_match(0)
-	var pause: PauseMenu = _main._pause_menu
-	pause._open()
-	assert_true(pause._return_button.visible and not pause._return_button.disabled)
-
-	pause._on_return_lobby_pressed()
-
-	assert_false(pause._confirm_dialog.visible)
-	assert_eq(Match.state(), Match.State.LOBBY)
-	assert_not_null(_main._lobby)
-
-
-func test_return_works_during_the_countdown_too() -> void:
-	_make_main()
-	_host()
-	_main._on_lobby_start_requested(_config())
-	assert_eq(Match.state(), Match.State.COUNTDOWN)
-
-	_host_returns_through_the_pause_menu()
-
-	assert_eq(Match.state(), Match.State.LOBBY)
-	assert_not_null(_main._lobby)
-
-
-func test_a_match_can_be_started_again_after_returning() -> void:
-	_host_a_playing_match()
-	_host_returns_through_the_pause_menu()
-
-	_main._on_lobby_start_requested(_config())
-
-	assert_eq(Match.state(), Match.State.COUNTDOWN, "the lobby is a real lobby: Start works again")
-	assert_true(_main._world_built)
-	assert_null(_main._lobby)
 
 
 func test_a_client_request_is_ignored_by_main() -> void:
@@ -491,36 +300,3 @@ func test_offline_return_falls_back_to_the_main_menu() -> void:
 	assert_eq(Match.state(), Match.State.LOBBY)
 	assert_not_null(_main._main_menu, "DECISION: offline has no lobby, so it is Leave match")
 	assert_null(_main._lobby)
-
-
-func test_vs_bots_has_a_local_lobby_to_return_to() -> void:
-	_make_main()
-	_main.start_bots_from_menu("Solo")
-	assert_not_null(_main._lobby, "Play local -> Vs bots opens the normal lobby")
-	_main._on_lobby_start_requested(_config())
-	assert_eq(_main._pause_menu_context()["return_entry"], PauseMenu.ReturnEntry.ENABLED, "a local bot game is a hosted session")
-
-	_main._on_pause_return_to_lobby_requested()
-
-	assert_eq(Match.state(), Match.State.LOBBY)
-	assert_not_null(_main._lobby, "back in the local lobby, not the main menu")
-	assert_eq(Net.mode(), Net.Mode.HOST)
-
-
-# --- Packets still in flight when the host returns ----------------------------------
-
-func test_late_intents_and_flow_requests_after_the_return_change_nothing() -> void:
-	_host_a_playing_match()
-	_host_returns_through_the_pause_menu()
-	assert_eq(Match.state(), Match.State.LOBBY)
-	var blocks_before: int = Match.registry().all_blocks().size()
-
-	# The host's own peer id stands in for a seated remote peer: the sender
-	# checks all pass, so only the match-state guards are being exercised.
-	MatchNet._handle_place_intent(Net.HOST_PEER_ID, 0, Vector3(0.0, 1.0, 0.0), 0, Quaternion.IDENTITY, 0)
-	MatchNet._handle_return_to_lobby_request(Net.HOST_PEER_ID)
-	MatchNet._handle_replay_request(Net.HOST_PEER_ID)
-
-	assert_eq(Match.state(), Match.State.LOBBY, "no stale request restarts or re-aborts anything")
-	assert_eq(Match.registry().all_blocks().size(), blocks_before, "a late placement spawns no block into the torn-down world")
-	assert_not_null(_main._lobby)

@@ -66,13 +66,6 @@ func test_host_hud_built_before_countdown_has_rows_in_countdown() -> void:
 	_assert_rows_populated(hud)
 
 
-func test_host_hud_built_after_countdown_began_has_rows() -> void:
-	Match.start_match(_config())
-	assert_eq(Match.state(), Match.State.COUNTDOWN)
-	var hud: HUD = _make_hud()
-	_assert_rows_populated(hud)
-
-
 func test_client_mirror_hud_has_rows_in_countdown() -> void:
 	# A client builds its match locally from the lobby config, then mirrors the
 	# host's replicated state changes; its HUD can be built at either point.

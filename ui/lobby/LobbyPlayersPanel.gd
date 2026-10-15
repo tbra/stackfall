@@ -336,11 +336,6 @@ func set_editable(is_host: bool) -> void:
 	_show_blocker()
 
 
-## What the Lobby last pushed through [method set_editable].
-func is_editable() -> bool:
-	return _is_editable
-
-
 ## Controls the Lobby adds to its focus loop, in visual order: the host's Teams toggle
 ## and Add bot button, then per row the colour box, the team button, a bot's difficulty
 ## dropdown and its remove button -- every row for the host, only its own row's colour
@@ -842,11 +837,6 @@ func set_row_style(style: int) -> void:
 		_style_selector.select(LobbySeatVariants.chosen)
 	if _roster_seen:
 		_render()
-
-
-## The debug switch (null while debug mode is off).
-func style_selector() -> UiDropdown:
-	return _style_selector
 
 
 ## DECISION (ui/lobby/Lobby.gd, Bontago-1pi.9b): "3 players" (plural handled),

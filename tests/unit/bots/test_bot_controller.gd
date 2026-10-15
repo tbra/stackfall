@@ -630,34 +630,7 @@ func test_send_throw_rotates_the_planners_velocity_through_the_field_basis() -> 
 	)
 
 
-# --- Bontago-d5c.10 (item F): real enemy circle centers + active specials ---
-
-## Bontago-d5c.10 (item F): _enemy_circle_centers() must include both a living
-## enemy's home flag AND the disk-local centers of that team's own live
-## (Match.circle_render_arrays()) influence circles -- and never an ally's
-## own circle (team 0, this bot's own team).
-func test_enemy_circle_centers_includes_home_flags_and_live_enemy_circles() -> void:
-	var field: Field = _make_field()
-	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
-	match_ref.slot_count_value = 2
-	match_ref.team_by_slot[1] = 1
-	match_ref.slots_by_id[1] = PlayerSlot.new(1, 1, "Enemy", Color.RED, Vector2(8.0, 0.0))
-	match_ref.circle_arrays_value = {
-		"xs": PackedFloat32Array([5.0, -3.0]),
-		"zs": PackedFloat32Array([2.0, 1.0]),
-		"radii": PackedFloat32Array([4.0, 6.0]),
-		"teams": PackedInt32Array([1, 0]),
-	}
-	var net_ref: BotControllerFakeNet = BotControllerFakeNet.new()
-	var controller: BotController = _make_controller(field, match_ref, net_ref)
-	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
-
-	var centers: PackedVector2Array = controller._enemy_circle_centers()
-
-	assert_true(centers.has(Vector2(8.0, 0.0)), "enemy slot 1's own home flag")
-	assert_true(centers.has(Vector2(5.0, 2.0)), "enemy team 1's own live circle center")
-	assert_false(centers.has(Vector2(-3.0, 1.0)), "this bot's own team (0) must never count as an enemy circle")
-
+# --- Bontago-d5c.10 (item F): active specials ---
 
 ## Bontago-d5c.10 (item F): every SpecialBehavior.GROUP node's parent's
 ## global_position, converted to disk-local through Field.disk_local_from_world().
@@ -707,8 +680,6 @@ func test_send_best_placement_asks_the_match_for_the_mode_goal_once() -> void:
 	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
 	var goal: BotModeGoal = BotModeGoal.new()
 	goal.mode = MatchConfig.GameMode.ELIMINATION
-	goal.enemy_home_positions = PackedVector2Array([Vector2(6.0, 0.0)])
-	goal.enemy_home_shares = PackedFloat32Array([0.2])
 	match_ref.mode_goal_factory = func(_slot: int) -> BotModeGoal: return goal
 	var net_ref: BotControllerFakeNet = BotControllerFakeNet.new()
 	var controller: BotController = _make_controller(field, match_ref, net_ref)

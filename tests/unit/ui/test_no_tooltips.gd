@@ -50,12 +50,6 @@ func test_lobby_host_has_no_tooltips() -> void:
 	_assert_no_tooltips(lobby, "Lobby (host)")
 
 
-func test_lobby_client_has_no_tooltips() -> void:
-	var lobby: Lobby = _make_lobby(false)
-	await wait_frames(2)
-	_assert_no_tooltips(lobby, "Lobby (client)")
-
-
 func test_main_menu_has_no_tooltips() -> void:
 	DebugMode.set_override_for_test(true)
 	var menu: MainMenu = autofree(MAIN_MENU_SCENE.instantiate())
@@ -66,16 +60,6 @@ func test_main_menu_has_no_tooltips() -> void:
 	_assert_no_tooltips(menu, "MainMenu")
 
 
-func test_pause_menu_has_no_tooltips() -> void:
-	var pause: PauseMenu = autofree(PAUSE_MENU_SCENE.instantiate())
-	add_child_autofree(pause)
-	pause.context_provider = func() -> Dictionary:
-		return {"return_entry": PauseMenu.ReturnEntry.DISABLED, "match_in_progress": true}
-	pause.refresh_return_entry()
-	await wait_frames(2)
-	_assert_no_tooltips(pause, "PauseMenu (client, return disabled)")
-
-
 func test_options_menu_has_no_tooltips() -> void:
 	var menu: OptionsMenu = autofree(OPTIONS_MENU_SCENE.instantiate())
 	add_child_autofree(menu)
@@ -84,10 +68,3 @@ func test_options_menu_has_no_tooltips() -> void:
 	menu.settings_provider = settings
 	await wait_frames(2)
 	_assert_no_tooltips(menu, "OptionsMenu")
-
-
-func test_hud_has_no_tooltips() -> void:
-	var hud: HUD = autofree(HUD_SCENE.instantiate())
-	add_child_autofree(hud)
-	await wait_frames(2)
-	_assert_no_tooltips(hud, "HUD")

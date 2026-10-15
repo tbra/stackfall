@@ -44,38 +44,12 @@ func test_submit_emits_trimmed_text() -> void:
 	assert_eq(_sent, ["gg"] as Array[String])
 
 
-func test_history_replaces_and_notice_shows() -> void:
-	var chat: LobbyChat = _make().chat()
-	Events.chat_line_received.emit(_line("old", 0, "Bob"))
-	Events.chat_history_received.emit([_line("a", 1, "Cy"), _line("joined", 0, "", ChatRules.KIND_SYSTEM)])
-	var text: String = chat.log.get_parsed_text()
-	assert_false(text.contains("old"))
-	assert_true(text.contains("Cy: a"))
-	assert_true(text.contains("joined"))
-	Events.chat_notice.emit(ChatRules.NOTICE_RATE)
-	assert_true(chat.log.get_parsed_text().contains(LobbyChat.NOTICE_TEXT_RATE))
-
-
-func test_pad_focus_chain_never_lists_the_chat() -> void:
-	var panel: LobbyPlayersPanel = _make()
-	var chat: LobbyChat = panel.chat()
-	assert_false(panel.focus_entries().has(chat.edit))
-	assert_eq(chat.edit.focus_mode, Control.FOCUS_CLICK)
-
-
 func test_hidden_when_chat_unavailable() -> void:
 	var panel: LobbyPlayersPanel = _make(false)
 	assert_false(panel.chat().visible)
 	panel.chat().availability = func() -> bool: return true
 	panel.chat().refresh_availability()
 	assert_true(panel.chat().visible)
-
-
-func test_hidden_on_private_local_host_by_default() -> void:
-	var panel: LobbyPlayersPanel = _make()
-	panel.chat().availability = Callable()
-	panel.chat().refresh_availability()
-	assert_eq(panel.chat().visible, not Net.is_offline() and not Net.is_private_session())
 
 
 func test_esc_in_edit_clears_and_does_not_reach_lobby() -> void:

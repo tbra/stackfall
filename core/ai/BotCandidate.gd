@@ -2,7 +2,7 @@ class_name BotCandidate
 extends RefCounted
 ## One sampled placement spot (spec 2.9): a disk-local origin, an
 ## orientation, and what BotController's own raycasts found there. Pure data
-## -- no scene-tree reference, so core/ai/ scorers can be unit-tested without
+## -- no scene-tree reference, so core/ai/ code can be unit-tested without
 ## a running Field.
 ##
 ## docs/archive/M5_PLAN.md P1 (Bontago-d5c): this is the interface-stub package's own
@@ -20,23 +20,19 @@ var orientation_index: int = 0
 ## height()'s own doc).
 var support_height: float = 0.0
 var footprint_cells: PackedInt32Array = PackedInt32Array()
-var on_top_of_own_stack: bool = false
 
 ## How many of the footprint's BotThink cube probes landed at essentially the same height as
 ## `support_height` -- i.e. how much of `footprint_cells` is in flush contact, not hovering over a gap
-## or a lower stack. -1 ("not measured") is the default; core/ai/BotPlacementScorer.gd then treats the
-## whole footprint as in contact.
+## or a lower stack. -1 ("not measured") is the default; BotThink fills it from its cube probes.
 var corner_support_hits: int = -1
 
 ## Bontago-d5c.9 (M5 P3b-i, append-only): the oriented shape's own height, in
 ## cube units, above its own pivot -- e.g. a pillar lying flat is 1, standing
 ## on end is 3. Producer is game/bots/BotController.gd (Bontago-d5c.8, a later
 ## package's own window); every candidate here defaults to 0.0 until that
-## package wires it in. core/ai/BotPlacementScorer.gd's goal-progress metric
-## adds this to `support_height` before estimating the candidate's own future
-## influence-circle radius (InfluenceCircle.radius_for_height()), since the
-## circle's radius formula is driven by the block's own highest point above
-## the disk, not merely where its pivot rests.
+## package wires it in. BotEvaluator adds this to `support_height`
+## (top_height) since a block's influence radius is driven by its own highest point above the
+## disk, not merely where its pivot rests.
 var shape_height: float = 0.0
 
 ## Bot V2 (Bontago-1t5.19, append-only): which generator produced the site

@@ -78,10 +78,6 @@ static func chosen_path() -> String:
 	return _chosen_path
 
 
-static func set_chosen_path_for_test(path: String) -> void:
-	_chosen_path = path
-
-
 func _enter_tree() -> void:
 	if _holds_budget:
 		return
@@ -118,10 +114,6 @@ static func set_dormant_world(nodes: Array[Node], world_live: Callable = Callabl
 static func _refresh_dormancy() -> void:
 	var live: bool = _world_live.is_valid() and bool(_world_live.call())
 	_set_world_dormant(_budget_holders > 0 and not live and _dormant_wanted)
-
-
-static func world_dormant() -> bool:
-	return _dormant_active
 
 
 static func _set_world_dormant(dormant: bool) -> void:

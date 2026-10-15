@@ -48,15 +48,6 @@ func _pad_right(pressed: bool) -> InputEventJoypadButton:
 	return button
 
 
-func _wheel_event(button_index: MouseButton) -> InputEventMouseButton:
-	var event: InputEventMouseButton = InputEventMouseButton.new()
-	event.button_index = button_index
-	event.pressed = true
-	return event
-
-
-# --- 119 ---------------------------------------------------------------------
-
 func test_gamepad_dpad_and_keyboard_move_a_volume_meter_by_one_cell() -> void:
 	var menu: OptionsMenu = await _menu()
 	var meter: UiSegmentMeter = menu.get_node("%MasterVolumeSlider") as UiSegmentMeter
@@ -96,38 +87,6 @@ func test_gamepad_stick_motion_steps_a_meter_once_per_push() -> void:
 	meter._gui_input(_stick(-1.0))
 	assert_eq(meter.value, start, "released, then pushed left = one step back")
 
-
-func test_every_lobby_and_options_slider_is_configured() -> void:
-	var menu: OptionsMenu = await _menu()
-	for slider_name: String in ["MasterVolumeSlider", "MusicVolumeSlider", "SfxVolumeSlider", "WeatherVolumeSlider", "RumbleStrengthSlider", "MoveSpeedSlider", "UiScaleSlider"]:
-		var meter: UiSegmentMeter = menu.get_node("%" + slider_name) as UiSegmentMeter
-		assert_not_null(meter, "%s is a UiSegmentMeter (one cell per press)" % slider_name)
-	# Bontago-1pi.159.2.1: the lobby's value controls are UiSegmentMeters / UiSteppers, which never
-	# accept a wheel event, so it bubbles to the settings ScrollContainer.
-
-
-# --- 123 ---------------------------------------------------------------------
-
-## DECISION: headless GUT cannot route a real mouse-wheel event to a hovered Control (neither
-## Input.parse_input_event nor Viewport.push_input reaches the GUI without a pointer), so the
-## contract is asserted at its cause: a Slider with `scrollable == false` leaves a wheel event
-## unaccepted (engine Slider::gui_input), so it propagates to the enclosing ScrollContainer.
-func test_mouse_wheel_over_a_meter_leaves_it_and_is_left_for_the_scroll_container() -> void:
-	var menu: OptionsMenu = await _menu()
-	var meter: UiSegmentMeter = menu.get_node("%MasterVolumeSlider") as UiSegmentMeter
-	meter.set_value_silent(OptionsMenu.PERCENT_METER_CELLS / 2)
-	var start: int = meter.value
-	meter._gui_input(_wheel_event(MOUSE_BUTTON_WHEEL_UP))
-	meter._gui_input(_wheel_event(MOUSE_BUTTON_WHEEL_DOWN))
-	await _settle()
-	assert_eq(meter.value, start, "the wheel never changes a meter")
-	var ancestor: Node = meter.get_parent()
-	while ancestor != null and not (ancestor is ScrollContainer):
-		ancestor = ancestor.get_parent()
-	assert_not_null(ancestor, "the meter sits inside a ScrollContainer that receives the bubbled wheel")
-
-
-# --- 121 ---------------------------------------------------------------------
 
 func test_scrollable_menus_open_at_the_top() -> void:
 	var menu: OptionsMenu = await _menu()

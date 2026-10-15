@@ -442,11 +442,6 @@ func _refresh_map_icon(config: MatchConfig) -> void:
 	_map_icon.custom_minimum_size = Vector2.ONE * float(art.loading_map_icon_px)
 
 
-## The pictogram currently shown on the card (null when hidden).
-func map_icon_texture() -> Texture2D:
-	return _map_icon.texture if _map_icon.visible else null
-
-
 ## Bontago-1pi.124 (owner: the ready screen's title should just be the game mode): the card
 ## title is the resolved game mode's display name only; the map pictogram stays beside it.
 func _map_display_name(config: MatchConfig) -> String:
@@ -734,15 +729,6 @@ func _refresh_prompt_glyph() -> void:
 	InputGlyph.build_for_action(_glyph_slot, READY_ACTION, tuning.ready_prompt_glyph_count)
 
 
-## Test seam: the labels of the glyphs currently in the prompt ("Enter", "A").
-func prompt_glyph_texts() -> PackedStringArray:
-	var texts: PackedStringArray = PackedStringArray()
-	for child: Node in _glyph_slot.get_children():
-		if child is InputGlyph:
-			texts.append((child as InputGlyph).label_text())
-	return texts
-
-
 ## One row per slot: colour swatch, name and the Ready / Not ready pill.
 func _rebuild_ready_rows(slots: Array[PlayerSlot]) -> void:
 	for child: Node in _player_list.get_children():
@@ -799,11 +785,6 @@ func player_row_names() -> PackedStringArray:
 	for row: Dictionary in _ready_rows:
 		names.append((row["name"] as Label).text)
 	return names
-
-
-## Test seam: whether the "Ready?" + glyph prompt is on screen.
-func ready_prompt_visible() -> bool:
-	return _ready_box.visible
 
 
 ## Test seam: the prompt's text line ("Ready?").

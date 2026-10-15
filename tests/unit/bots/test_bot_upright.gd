@@ -58,7 +58,6 @@ func _view(held: BlockShape, mode: int) -> BotWorldView:
 	goal.mode = mode
 	goal.has_tower = true
 	goal.tower_origin = TOWER_POS
-	goal.tower_height = TOWER_TOP_M
 	var view: BotWorldView = BotWorldView.build(
 		0, 0, arrays, _slots, raster, PackedVector2Array([Vector2.ZERO]), 0.0, held, held, goal,
 		PackedVector2Array(), PackedVector2Array()

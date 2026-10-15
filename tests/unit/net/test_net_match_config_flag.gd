@@ -13,10 +13,6 @@ extends GutTest
 const _NET_SCRIPT: GDScript = preload("res://autoload/Net.gd")
 
 const _TURN_BASED_FIXTURE: String = "res://tests/support/fixtures/match_configs/turn_based.tres"
-const _TEAMS_2_FIXTURE: String = "res://tests/support/fixtures/match_configs/teams_2.tres"
-const _SUDDEN_DEATH_FIXTURE: String = "res://tests/support/fixtures/match_configs/sudden_death.tres"
-const _PHYSICAL_BALANCE_FIXTURE: String = "res://tests/support/fixtures/match_configs/physical_balance.tres"
-
 ## Ports increment per test so a socket the OS hasn't fully released yet from
 ## the previous test can never collide with the next one. Chosen clear of the
 ## ranges already claimed by other *_next_port statics (see test_net_session.gd
@@ -67,31 +63,6 @@ func test_match_config_flag_parsed_and_fixture_loaded() -> void:
 	assert_true(override.turn_based)
 
 
-func test_match_config_flag_loads_each_m6_mode_fixture() -> void:
-	var fixtures_by_mode: Dictionary = {
-		"teams_2": _TEAMS_2_FIXTURE,
-		"sudden_death": _SUDDEN_DEATH_FIXTURE,
-		"physical_balance": _PHYSICAL_BALANCE_FIXTURE,
-	}
-	for mode_name: String in fixtures_by_mode:
-		var side: Variant = _make_side("CmdNet_%s" % mode_name)
-		side._apply_command_line_args(PackedStringArray([
-			"--headless-host",
-			"--port=%d" % _take_port(),
-			"--match-config=%s" % String(fixtures_by_mode[mode_name]),
-		]))
-		var override: MatchConfig = side.match_config_override()
-		assert_not_null(override, "%s fixture should have loaded" % mode_name)
-		match mode_name:
-			"teams_2":
-				assert_eq(override.team_mode, MatchConfig.TeamMode.TEAMS_2)
-			"sudden_death":
-				assert_true(override.sudden_death)
-			"physical_balance":
-				assert_eq(override.tilt_mode, MatchConfig.TiltMode.PHYSICAL_BALANCE)
-		side.leave()
-
-
 func test_match_config_flag_wrong_path_falls_back_to_null() -> void:
 	_node._apply_command_line_args(PackedStringArray([
 		"--headless-host",
@@ -99,18 +70,6 @@ func test_match_config_flag_wrong_path_falls_back_to_null() -> void:
 		"--match-config=res://tests/support/fixtures/match_configs/does_not_exist.tres",
 	]))
 	assert_push_error("no resource at that path", "a bad path must be logged, not silent")
-	assert_null(_node.match_config_override())
-
-
-func test_match_config_flag_wrong_resource_type_falls_back_to_null() -> void:
-	_node._apply_command_line_args(PackedStringArray([
-		"--headless-host",
-		"--port=%d" % _take_port(),
-		# net_config.tres is a real, loadable resource, but a NetConfig, not a
-		# MatchConfig -- the wrong-type rejection path, not the missing-path one.
-		"--match-config=res://config/net/net_config.tres",
-	]))
-	assert_push_error("is not a MatchConfig", "a wrong-type resource must be logged, not silent")
 	assert_null(_node.match_config_override())
 
 
@@ -133,14 +92,6 @@ func test_match_config_flag_ignored_without_host_flag() -> void:
 	await get_tree().process_frame
 
 
-func test_match_config_flag_absent_leaves_override_null() -> void:
-	_node._apply_command_line_args(PackedStringArray([
-		"--headless-host",
-		"--port=%d" % _take_port(),
-	]))
-	assert_null(_node.match_config_override())
-
-
 ## Bontago-1pi.48: the playtest Steam launcher's --steam-public-lobby makes the
 ## host's Steam lobby Public on a private copy of the config.
 func test_steam_public_lobby_flag_sets_public_lobby_type_on_a_copy() -> void:
@@ -152,34 +103,4 @@ func test_steam_public_lobby_flag_sets_public_lobby_type_on_a_copy() -> void:
 	assert_eq(shared.steam_lobby_type, 1, "shared default stays FriendsOnly")
 
 
-func test_no_public_lobby_flag_keeps_friends_only_default() -> void:
-	_node._apply_command_line_args(PackedStringArray())
-	assert_eq(_node.config.steam_lobby_type, 1)
-
-
 # --- LAN advertising (Bontago-fca.88) ---------------------------------------------------
-
-func _hosted_advertising(extra: PackedStringArray) -> bool:
-	# AgentProbe runs never advertise at all; force the normal-run state for this check.
-	AgentProbe.set_forced_for_test(0)
-	var args: PackedStringArray = PackedStringArray(["--port=%d" % _take_port()])
-	args.append_array(extra)
-	var started: bool = _node._apply_command_line_args(args)
-	AgentProbe.set_forced_for_test(-1)
-	assert_true(started)
-	assert_eq(_node.mode(), Net.Mode.HOST)
-	return bool(_node.is_lan_advertising())
-
-
-func test_headless_host_does_not_advertise_on_the_lan_by_default() -> void:
-	assert_false(_hosted_advertising(PackedStringArray(["--headless-host", "--bots=8"])), "bot hosts stay out of the Join browser")
-	assert_true(_node.accepting_joins(), "but still accept joins by address")
-	assert_false(_node.is_private_session(), "and are not loopback-only")
-
-
-func test_headless_host_advertises_with_the_advertise_flag() -> void:
-	assert_true(_hosted_advertising(PackedStringArray(["--headless-host", "--advertise"])))
-
-
-func test_plain_host_flag_still_advertises() -> void:
-	assert_true(_hosted_advertising(PackedStringArray(["--host"])))

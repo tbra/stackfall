@@ -216,14 +216,6 @@ var _impact_accept_ms: Array[int] = []
 ## in a unit test -- no reset hook of its own is needed.
 var _special_ids_by_id: Dictionary = {}
 var _special_ids_cached: bool = false
-## Test seam (mirrors set_providers()): overrides the roster
-## _known_special_ids() reads. res://config/gifts/specials/ is deliberately empty
-## until P3-P5 land a concrete special, so a test proving real
-## roster-membership gating (as opposed to "empty roster, only the
-## placeholder passes") needs a way to fake "some ids exist" without writing
-## a .tres resource under a directory this package does not own. null
-## (default) reads the real SpecialDef.load_all_specials().
-var _special_ids_override: Variant = null
 
 ## DECISION (net/MatchNet.gd): Net and Match are plain autoloads and GUT
 ## cannot double one (see game/player/PlayerController.gd's DECISION for the whole
@@ -461,15 +453,6 @@ func set_providers(net_provider: Variant, match_provider: Variant) -> void:
 		_weather_net.set_providers(net_provider, match_provider)
 	if _match_provider != null:
 		_match_provider.set_replicator(self)
-
-
-## Test seam; see _special_ids_override. `ids` is an Array of String/
-## StringName, or null to go back to the real SpecialDef.load_all_specials()
-## loader.
-func set_special_roster_for_test(ids: Variant) -> void:
-	_special_ids_override = ids
-	_special_ids_cached = false
-	_special_ids_by_id = {}
 
 
 func _session() -> Variant:
@@ -1387,14 +1370,10 @@ func _special_id_wire_ok(special_id: String) -> bool:
 func _known_special_ids() -> Dictionary:
 	if not _special_ids_cached:
 		_special_ids_by_id = {}
-		if _special_ids_override != null:
-			for raw_id: Variant in (_special_ids_override as Array):
-				_special_ids_by_id[String(raw_id)] = true
-		else:
-			# The typed Array[SpecialDef] result stays in an untyped Array (D8).
-			var defs: Array = LateScripts.script(LateScripts.SPECIAL_DEF).call(&"load_all_specials")
-			for def: Resource in defs:
-				_special_ids_by_id[String(def.get(&"id"))] = true
+		# The typed Array[SpecialDef] result stays in an untyped Array (D8).
+		var defs: Array = LateScripts.script(LateScripts.SPECIAL_DEF).call(&"load_all_specials")
+		for def: Resource in defs:
+			_special_ids_by_id[String(def.get(&"id"))] = true
 		_special_ids_cached = true
 	return _special_ids_by_id
 

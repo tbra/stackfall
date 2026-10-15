@@ -491,7 +491,6 @@ func _probe_one(probe: Callable) -> void:
 	_probe_index += 1
 	var hit: Dictionary = _call_probe(probe, candidate.origin)
 	candidate.support_height = float(hit.get("height", 0.0))
-	candidate.on_top_of_own_stack = bool(hit.get("own", false))
 	_fire_cell_probes(candidate, probe)
 	candidate.top_height = candidate.support_height + candidate.shape_height
 	_judge_stability(candidate)

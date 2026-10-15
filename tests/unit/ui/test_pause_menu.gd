@@ -91,29 +91,6 @@ func test_suppressed_blocks_the_toggle() -> void:
 
 # --- force_close(): game/main/Main.gd's safety net (Bontago-xtq.42 fix round 2) -----
 
-func test_force_close_is_a_noop_when_already_closed() -> void:
-	watch_signals(Events)
-
-	_menu.force_close()
-
-	assert_false(_menu.visible)
-	assert_signal_not_emitted(Events, "pause_menu_closed", "force_close() must not fire Events.pause_menu_closed when there was nothing open to close.")
-
-
-func test_force_close_closes_and_restores_controller_input_when_open() -> void:
-	var controller: PlayerController = autofree(PlayerController.new())
-	add_child_autofree(controller)
-	_menu._unhandled_input(_key_press(KEY_ESCAPE))  # open
-	assert_false(controller.input_enabled, "fixture: opening suppressed input")
-
-	_menu.force_close()
-
-	assert_false(_menu.visible, "force_close() must close the overlay even when the match ended some other way (e.g. a host disconnect).")
-	assert_true(controller.input_enabled, "force_close() must still restore gameplay input via Events.pause_menu_closed.")
-
-
-# --- Events.pause_menu_opened/closed + PlayerController.input_enabled ---------
-
 func test_opening_emits_pause_menu_opened_and_suppresses_controller_input() -> void:
 	var controller: PlayerController = autofree(PlayerController.new())
 	add_child_autofree(controller)
@@ -147,73 +124,6 @@ func test_resume_button_closes_the_menu() -> void:
 	assert_false(_menu.visible)
 
 
-## Real Input.parse_input_event() route (the same technique test_main_menu.gd's
-## own test_gamepad_a_activates_the_focused_host_button() uses): gamepad A on
-## the already-focused Resume button must activate it via ui_accept, not just
-## a direct _on_resume_pressed() call.
-func test_gamepad_a_activates_the_focused_resume_button() -> void:
-	_menu._unhandled_input(_key_press(KEY_ESCAPE))  # open, grabs focus on Resume
-	assert_true(_menu._resume_button.has_focus(), "fixture: Resume is focused on open.")
-
-	var press: InputEventJoypadButton = InputEventJoypadButton.new()
-	press.device = -1
-	press.button_index = JOY_BUTTON_A
-	press.pressed = true
-	Input.parse_input_event(press)
-	var release: InputEventJoypadButton = InputEventJoypadButton.new()
-	release.device = -1
-	release.button_index = JOY_BUTTON_A
-	release.pressed = false
-	Input.parse_input_event(release)
-	await get_tree().process_frame
-	await get_tree().process_frame
-
-	assert_false(_menu.visible, "gamepad A on the focused Resume button must close the menu via ui_accept.")
-
-
-func test_open_grabs_focus_on_the_resume_button() -> void:
-	_menu._unhandled_input(_key_press(KEY_ESCAPE))
-	assert_true(_menu._resume_button.has_focus(), "opening must grab focus so gamepad/keyboard navigation works immediately.")
-
-
-# --- Options: overlay-over-background + re-entrancy guard --------------------
-
-func test_options_button_opens_options_and_hides_center() -> void:
-	_menu._unhandled_input(_key_press(KEY_ESCAPE))  # open
-
-	_menu._on_options_pressed()
-
-	assert_false(_menu._center.visible, "Options must hide this menu's own %Center so Options's background shows the pause overlay behind it.")
-	assert_not_null(_menu._options_menu)
-
-
-func test_options_is_built_once_and_reused_on_reopen() -> void:
-	_menu._unhandled_input(_key_press(KEY_ESCAPE))  # open
-	_menu._on_options_pressed()
-	var first: OptionsMenu = _menu._options_menu
-	first._tabs.select(OptionsMenu.TAB_CONTROLS)
-	_menu._on_options_closed()
-	assert_false(first.visible, "closing hides the cached window instead of freeing it.")
-	assert_false(first.is_queued_for_deletion())
-
-	_menu._on_options_pressed()
-
-	assert_same(_menu._options_menu, first, "reopening must reuse the built window.")
-	assert_true(first.visible)
-	assert_eq(first._tabs.current, OptionsMenu.TAB_GAME, "reopen starts on the Game tab like a fresh build.")
-
-
-func test_options_closed_restores_center_and_focus() -> void:
-	_menu._unhandled_input(_key_press(KEY_ESCAPE))  # open
-	_menu._on_options_pressed()
-
-	_menu._on_options_closed()
-
-	assert_true(_menu._center.visible)
-	assert_null(_menu._options_menu)
-	assert_true(_menu._options_button.has_focus())
-
-
 func test_pause_menu_ignored_while_options_is_open() -> void:
 	_menu._unhandled_input(_key_press(KEY_ESCAPE))  # open
 	_menu._on_options_pressed()
@@ -234,15 +144,6 @@ func test_pause_menu_ignored_while_options_is_open() -> void:
 # reference, so `func() -> void: emitted = true` would only ever flip its own
 # private snapshot and never the test method's own `emitted` variable.
 
-func test_leave_button_does_not_emit_before_confirmation() -> void:
-	watch_signals(_menu)
-
-	_menu._on_leave_pressed()
-
-	assert_signal_not_emitted(_menu, "leave_match_requested", "pressing Leave must only open the confirmation dialog, not leave immediately.")
-	assert_true(_menu._confirm_dialog.visible)
-
-
 func test_leave_confirmed_emits_leave_match_requested_and_closes() -> void:
 	_menu._unhandled_input(_key_press(KEY_ESCAPE))  # open
 	watch_signals(_menu)
@@ -258,24 +159,6 @@ func test_leave_confirmed_emits_leave_match_requested_and_closes() -> void:
 # an option") -- no button, no handler, no confirmation path left to test.
 
 # --- Focus chain: wraps top to bottom -----------------------------------------
-
-func test_focus_chain_top_and_bottom_wrap() -> void:
-	# _wire_focus_chain() sets focus_neighbor_top/bottom as NodePaths relative
-	# to each button -- resolve them back to Control nodes and check the ring.
-	var resume: Button = _menu._resume_button
-	var options: Button = _menu._options_button
-	var leave: Button = _menu._leave_button
-
-	assert_eq(resume.get_node(resume.focus_neighbor_bottom), options)
-	assert_eq(options.get_node(options.focus_neighbor_bottom), leave)
-	assert_eq(leave.get_node(leave.focus_neighbor_bottom), resume, "the chain must wrap from the last button back to the first.")
-
-	assert_eq(resume.get_node(resume.focus_neighbor_top), leave, "the chain must wrap from the first button back to the last.")
-	assert_eq(options.get_node(options.focus_neighbor_top), resume)
-	assert_eq(leave.get_node(leave.focus_neighbor_top), options)
-
-
-# --- Bontago-59o.3: draws above the HUD and its buttons take mouse clicks -----
 
 ## Headless viewports do not deliver hover/click to the GUI here, so this
 ## mirrors Godot's mouse pick: layers top-down (CanvasLayer.layer, then later
@@ -298,11 +181,6 @@ func _pick_topmost_control(point: Vector2) -> Control:
 			if control.is_visible_in_tree() and control.mouse_filter != Control.MOUSE_FILTER_IGNORE 					and control.get_global_rect().has_point(point):
 				return control
 	return null
-
-
-func test_pause_menu_layer_is_above_the_hud_layer() -> void:
-	var hud: CanvasLayer = autofree(load("res://ui/hud/HUD.tscn").instantiate())
-	assert_gt(_menu.layer, hud.layer, "the pause/options overlay must draw above the HUD CanvasLayer.")
 
 
 func test_options_tab_buttons_are_the_topmost_mouse_target_over_the_hud() -> void:

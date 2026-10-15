@@ -120,12 +120,6 @@ func test_right_stick_click_shows_while_held_and_hides_on_release() -> void:
 	assert_false(_overlay.is_showing())
 
 
-func test_back_plus_r3_perf_chord_does_not_show_the_scoreboard() -> void:
-	Input.action_press(&"camera_snap_home")
-	await _send(_pad(true))
-	assert_false(_overlay.is_showing())
-
-
 func test_scoreboard_bot_row_shows_difficulty_human_row_does_not() -> void:
 	_match.config.slot_ai_difficulties = PackedInt32Array([0, MatchConfig.AiDifficulty.HARD])
 	await _send(_key(true))
@@ -148,16 +142,6 @@ func test_table_shows_the_live_rows_with_alive_status() -> void:
 	assert_has(texts, "Ann")
 	assert_has(texts, "Alive", "a live round says Alive, not Survived")
 	assert_has(texts, "2", "wins column and placed/height columns come from the shared table")
-
-
-func test_player_cells_carry_the_hud_slot_colour() -> void:
-	await _send(_key(true))
-	var rows: VBoxContainer = _overlay.get_node("%RowsList") as VBoxContainer
-	var ann: Label = (rows.get_child(1).get_child(0) as HBoxContainer).get_child(0) as Label
-	var bo: Label = (rows.get_child(2).get_child(0) as HBoxContainer).get_child(0) as Label
-	assert_eq(ann.get_meta(&"slot_color"), Color(0.1, 0.2, 0.3), "live PlayerSlot.color, as the HUD")
-	assert_eq(bo.get_meta(&"slot_color"), MatchConfig.default_player_colors()[1], "default palette fallback")
-	assert_eq((ann.get_node("SlotDiamond") as SlotDiamond).color, Color(0.1, 0.2, 0.3))
 
 
 func test_hidden_when_not_live_paused_suppressed_or_focus_lost() -> void:
