@@ -24,6 +24,5 @@ static func release_all() -> void:
 	DiscSizeTuning.release_shared()
 	UiScaleTuning.release_shared()
 	GhostPreview.release_statics()
-	MenuStyleFactory.release_statics()
 	SnowCaps.release_statics()
 	HoneyCoat.release_statics()

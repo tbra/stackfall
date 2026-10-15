@@ -20,21 +20,6 @@ static func wire(controls: Array[Control], loop: bool) -> void:
 			control.set_focus_neighbor(side, control.get_path_to(target))
 
 
-## The control whose rect intersects [param rect] and whose centre is nearest [param from]
-## (global coordinates), or null.
-static func nearest_in_rect(controls: Array[Control], rect: Rect2, from: Vector2) -> Control:
-	var best: Control = null
-	var best_distance: float = INF
-	for control: Control in controls:
-		if control == null or not rect.intersects(control.get_global_rect()):
-			continue
-		var distance: float = _center(control).distance_squared_to(from)
-		if distance < best_distance:
-			best_distance = distance
-			best = control
-	return best
-
-
 static func _pick(from: Control, controls: Array[Control], side: Side, loop: bool) -> Control:
 	var axis: Vector2 = _axis(side)
 	var origin: Vector2 = _center(from)

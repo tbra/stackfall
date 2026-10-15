@@ -62,15 +62,6 @@ func _init() -> void:
 	UiRowItem.apply(self, UiRowItem.Kind.METER, true)
 
 
-## Focus goes to the input (the container itself never takes it).
-func focus_input() -> void:
-	edit.grab_focus()
-
-
-func select_all() -> void:
-	edit.select_all()
-
-
 ## The disc-900 sunken look from tokens; focus turns the edge cream.
 static func _style_edit(line: LineEdit, arcade: ArcadeVisualTuning) -> void:
 	for state: String in ["normal", "read_only"]:

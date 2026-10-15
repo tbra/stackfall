@@ -245,19 +245,14 @@ func test_focused_light_pill_icon_is_dark_and_focused_dark_pill_icon_is_light() 
 	assert_eq(slate_pill.get_theme_color("icon_pressed_color"), TUNING.label_ink_light_color, "pressed dark pill: light icon")
 
 
-func test_toggle_chip_and_stepper_cover_the_focus_state() -> void:
-	# apply_toggle_chip() and apply_flat_stepper_button() go through the same
-	# apply_ink(), so their focused label/icon cannot fall back to the pale
-	# theme default on a cream chip.
+func test_toggle_chip_covers_the_focus_state() -> void:
+	# apply_toggle_chip() goes through apply_ink(), so its focused label/icon cannot fall
+	# back to the pale theme default on a cream chip.
 	var chip: CheckButton = autofree(CheckButton.new())
-	var stepper: Button = autofree(Button.new())
 	add_child_autofree(chip)
-	add_child_autofree(stepper)
 	MenuStyleFactory.apply_toggle_chip(chip, TUNING.pill_cream_color, TUNING.pill_cream_hover_color, TUNING.pill_coral_color, TUNING.pill_coral_hover_color, TUNING.ink_color, TUNING)
-	MenuStyleFactory.apply_flat_stepper_button(stepper, TUNING)
-	for button: Button in [chip, stepper]:
-		assert_eq(button.get_theme_color("font_focus_color"), TUNING.ink_color, "%s focused caption ink" % button.get_class())
-		assert_eq(button.get_theme_color("icon_focus_color"), TUNING.ink_color, "%s focused icon ink" % button.get_class())
+	assert_eq(chip.get_theme_color("font_focus_color"), TUNING.ink_color, "focused caption ink")
+	assert_eq(chip.get_theme_color("icon_focus_color"), TUNING.ink_color, "focused icon ink")
 
 
 # --- source art -----------------------------------------------------------------

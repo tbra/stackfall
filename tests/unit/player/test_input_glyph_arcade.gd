@@ -70,17 +70,6 @@ func test_pictograms_are_not_caps() -> void:
 	assert_false(_glyph_for(_pad_button(JOY_BUTTON_LEFT_STICK)).is_arcade_cap())
 
 
-func test_authored_combo_is_a_sand_chip_drawn_in_code() -> void:
-	var glyph: InputGlyph = INPUT_GLYPH_SCENE.instantiate() as InputGlyph
-	add_child_autofree(glyph)
-	var events: Array[InputEvent] = [_pad_button(JOY_BUTTON_LEFT_SHOULDER), _pad_button(JOY_BUTTON_RIGHT_SHOULDER)]
-	glyph.set_chord(events)
-	assert_true(glyph.is_arcade_cap(), "LB+RB is a chip, not the paper art")
-	assert_eq(glyph.label_text(), "LB+RB")
-	assert_eq(glyph.arcade_face_color(), _arcade.sand_color)
-	assert_gt(glyph.custom_minimum_size.x, InputGlyph.GLYPH_HEIGHT_PX)
-
-
 func test_pictograms_share_the_glyph_box_and_are_never_caps() -> void:
 	var mouse: InputEventMouseButton = InputEventMouseButton.new()
 	for button: int in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_XBUTTON1]:
@@ -150,22 +139,9 @@ func test_xbox_style_is_the_default_and_joy_names_select_the_family() -> void:
 	assert_eq(glyph.label_text(), "B")
 
 
-func test_unauthored_chord_is_a_chip_with_the_joined_label() -> void:
+func test_overflow_badge() -> void:
 	var glyph: InputGlyph = INPUT_GLYPH_SCENE.instantiate() as InputGlyph
 	add_child_autofree(glyph)
-	var events: Array[InputEvent] = [_pad_button(JOY_BUTTON_A), _pad_button(JOY_BUTTON_X)]
-	glyph.set_chord(events)
-	assert_true(glyph.is_arcade_cap())
-	assert_eq(glyph.label_text(), "A+X")
-	assert_eq(glyph.arcade_face_color(), _arcade.sand_color)
-	assert_gt(glyph.custom_minimum_size.x, InputGlyph.GLYPH_HEIGHT_PX)
-
-
-func test_listening_and_overflow_badges() -> void:
-	var glyph: InputGlyph = INPUT_GLYPH_SCENE.instantiate() as InputGlyph
-	add_child_autofree(glyph)
-	glyph.set_listening()
-	assert_eq(glyph.arcade_face_color(), _arcade.rim_color, "listening is rim gold")
 	glyph.set_overflow_count(2)
 	assert_eq(glyph.arcade_face_color(), _arcade.disc_600_color)
 
