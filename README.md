@@ -81,8 +81,8 @@ tower), F9 (force a special), F10 (slow motion) and F11 (pause physics).
 
 ## Requirements
 
-- Godot **4.6 or newer**, standard build (not .NET). The project is developed on 4.7.2 and
-  its `project.godot` lists the `4.7` and `Forward Plus` features.
+- Godot **4.7**, standard build (not .NET). The project is developed and tested on 4.7.2;
+  its `project.godot` declares the `4.7` and `Forward Plus` features.
 - Renderer: Forward+. Physics: **Jolt Physics** (`physics/3d/physics_engine`), 60 ticks per
   second with physics interpolation. These are set in `project.godot` and regenerated from
   `tools/bootstrap_project.gd`.
@@ -174,8 +174,8 @@ Windows:
 
 ## Development
 
-The spec is [docs/SPEC.md](docs/SPEC.md): game design (Part 2) and technical architecture
-(Part 3), including the project layout. Working rules for contributors are in
+The spec is [docs/SPEC.md](docs/SPEC.md): game design (Part 1) and technical architecture
+(Part 2), including the project layout. Working rules for contributors are in
 [CLAUDE.md](CLAUDE.md). Highlights: statically typed GDScript with untyped declarations as
 compile errors, tunables in `Resource` files under `config/`, pure rule logic in `core/`
 with no scene-tree dependency, and a global `Events` signal bus.

@@ -11,7 +11,7 @@
           },
           {
             "type": "command",
-            "command": "python \"$CLAUDE_PROJECT_DIR/tools/owner_replies.py\"",
+            "command": "python \"$CLAUDE_PROJECT_DIR/tools/user_replies.py\"",
             "timeout": 30
           }
         ]
@@ -66,7 +66,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"$CLAUDE_PROJECT_DIR/tools/owner_replies.py\" --rewake",
+            "command": "python \"$CLAUDE_PROJECT_DIR/tools/user_replies.py\" --rewake",
             "asyncRewake": true,
             "timeout": 60
           }

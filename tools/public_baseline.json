@@ -1,68 +1,14 @@
 {
  "findings": {
-  ".claude/agents/stackfall-designer.md": {
-   "owner": 2
-  },
-  ".claude/agents/stackfall-editor.md": {
-   "bead-id": 1,
-   "date": 2,
-   "drive-path": 5,
-   "owner": 8
-  },
-  ".claude/agents/stackfall-netcode.md": {
-   "drive-path": 1,
-   "owner": 3
-  },
-  ".claude/agents/stackfall-orchestrator.md": {
-   "bead-id": 1,
-   "date": 3,
-   "owner": 11
-  },
-  ".claude/agents/stackfall-planner.md": {
-   "owner": 1
-  },
-  ".claude/agents/stackfall-reviewer.md": {
-   "bead-id": 1,
-   "drive-path": 4,
-   "owner": 1
-  },
-  ".claude/settings.json": {
-   "drive-path": 3
-  },
-  ".claude/skills/stackfall-auto-run/SKILL.md": {
-   "owner": 7
-  },
-  ".claude/skills/stackfall-godot/SKILL.md": {
-   "drive-path": 1,
-   "owner": 3
-  },
-  ".claude/skills/stackfall-owner-questions/SKILL.md": {
-   "drive-path": 1,
-   "owner": 9,
-   "user-name": 1
-  },
   ".claude/skills/stackfall-session-close/SKILL.md": {
-   "debrief": 8,
-   "owner": 4
+   "debrief": 8
   },
   ".claude/skills/stackfall-session-resume/SKILL.md": {
-   "debrief": 6,
-   "owner": 9
-  },
-  ".claude/skills/stackfall-worker/SKILL.md": {
-   "drive-path": 2
+   "debrief": 6
   },
   ".gitignore": {
    "bead-id": 1,
-   "owner": 2
-  },
-  "CLAUDE.md": {
-   "drive-path": 3,
-   "owner": 7,
-   "user-name": 1
-  },
-  "README.md": {
-   "bead-id": 3
+   "owner": 1
   },
   "assets/textures/sky/horizon_storm_cell/storm_cell.gd": {
    "bead-id": 1
@@ -795,9 +741,7 @@
    "bead-id": 1
   },
   "docs/SPEC.md": {
-   "bead-id": 64,
-   "date": 55,
-   "owner": 66
+   "owner": 6
   },
   "game/ambient/DistantBirds.gd": {
    "bead-id": 1

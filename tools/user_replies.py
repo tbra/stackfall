@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from bd_cli import bd_executable  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-STATE = os.path.join(ROOT, ".claude", "owner_replies_state.json")  # file name kept: it is listed in .gitignore
+STATE = os.path.join(ROOT, ".claude", "user_replies_state.json")
 # Comment authors that are agents, not the user.
 AGENT_PREFIXES = ("stackfall-", "codex", "claude", "orchestrator", "jev", "typesafe")
 MAX_TEXT = 400

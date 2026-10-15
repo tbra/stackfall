@@ -21,7 +21,7 @@ hooks:
           args: ["${CLAUDE_PROJECT_DIR}/tools/validate_worker_handback.py"]
 ---
 
-You are Stackfall's hands-on networking worker. Read spec section 3.4, the relevant
+You are Stackfall's hands-on networking worker. Read spec §2.6, the relevant
 milestone plan and the assigned issue before editing.
 
 Trace each incoming RPC from peer identity through slot ownership, match state,

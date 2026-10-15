@@ -1,6 +1,6 @@
 # Stackfall — Design and Technical Spec
 
-Stackfall is a physics-based, competitive block-stacking territory game for 1 to 8 players, built in Godot 4.6+ (developed on 4.7) with Jolt physics. It plays online over Steam, over a LAN, or by direct IP. It was inspired by Bontãgo (Circular Logic).
+Stackfall is a physics-based, competitive block-stacking territory game for 1 to 8 players, built in Godot 4.7 (developed and tested on 4.7.2) with Jolt physics. It plays online over Steam, over a LAN, or by direct IP. It was inspired by Bontãgo (Circular Logic).
 
 This document describes the game as built. Part 1 is the game design (rules, controls, content, interface flow). Part 2 is the technical architecture (engine, code layout, networking, physics, configuration, tooling). Sections are numbered (§N.M) so other files can cite them.
 
@@ -298,7 +298,7 @@ Target scenarios for rule tests.
 
 ### 2.1 Engine and project settings
 
-- **Engine:** Godot 4.6 or newer (developed on 4.7), stable build. Renderer Forward+. Language GDScript with static typing everywhere: `debug/gdscript/warnings/untyped_declaration = 2` makes an untyped declaration a compile error (`res://addons` is exempt); `inferred_declaration = 1`.
+- **Engine:** Godot 4.7 (developed and tested on 4.7.2), stable build. Renderer Forward+. Language GDScript with static typing everywhere: `debug/gdscript/warnings/untyped_declaration = 2` makes an untyped declaration a compile error (`res://addons` is exempt); `inferred_declaration = 1`.
 - **Physics:** `physics/3d/physics_engine = Jolt Physics`, 60 physics ticks per second, physics interpolation on, `max_physics_steps_per_frame` = `PhysicsTuning.catchup_steps_capped` (2). Jolt: `velocity_steps` 192, `position_steps` 4, `sleep_velocity_threshold` 0.03, `sleep_time_threshold` 0.5 s, `body_pair_contact_cache_distance_threshold` 0.0001 (§2.7).
 - **Display:** 1280×720 logical canvas, `canvas_items` stretch with `expand` aspect, borderless fullscreen on a fresh launch (windowed in editor runs).
 - **Shader globals:** `sky_time`, `sky_sun_dir`, `sky_moon_dir`.

@@ -18,7 +18,9 @@ containing `lint-public: allow <reason>` is exempt (genuine fixtures only).
 from __future__ import annotations
 
 import io
+import os
 import re
+import subprocess
 import tokenize
 from typing import List, Tuple
 
@@ -33,10 +35,39 @@ OWNER_BEFORE = r"(?<!slot )(?<!file )(?<!single )(?<!exclusive )(?<!gate )(?<!so
 OWNER_AFTER = r"(?![ \t]+(?:pid|PID|api|API|file|files|token|info|consumers|class|index|env|path)\b)"
 OWNER = OWNER_BEFORE + r"\b[Oo]wner\b" + OWNER_AFTER
 
+PRIVATE_TERMS_ENV = "STACKFALL_PRIVATE_TERMS"
+# Words that are never personal names, so a generic home folder or git name cannot ban them.
+_NOT_NAMES = frozenset(("user", "users", "admin", "administrator", "runner", "root", "home", "owner",
+                        "default", "public", "guest", "claude", "stackfall"))
+
+
+def private_terms() -> List[str]:
+    """Personal names to keep out of tracked text, read from this machine so they are never written
+    in the repo: the home folder name, the words of git `user.name`, and STACKFALL_PRIVATE_TERMS
+    (comma-separated)."""
+    terms = {os.path.basename(os.path.expanduser("~").rstrip("/\\"))}
+    try:
+        name = subprocess.run(["git", "config", "user.name"], capture_output=True, text=True,
+                              timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):
+        name = ""
+    terms.update(name.split())
+    terms.update(t.strip() for t in os.environ.get(PRIVATE_TERMS_ENV, "").split(","))
+    return sorted(t for t in terms if len(t) >= 3 and t.lower() not in _NOT_NAMES)
+
+
+def _user_name_rule():
+    terms = private_terms()
+    if not terms:
+        return ()
+    pattern = r"\b(?:" + "|".join(re.escape(t) for t in terms) + r")\b"
+    return (("user-name", re.compile(pattern, re.IGNORECASE), "all"),)
+
+
 # (id, compiled regex, scope)
 RULES: Tuple[Tuple[str, "re.Pattern[str]", str], ...] = (
     ("drive-path", re.compile(r"\b[A-Za-z]:(?:/(?!/)|\\(?![nrt]\b))"), "all"),
-    ("user-name", re.compile(r"\b(?:tonyf|[Tt]ony)\b"), "all"),  # lint-public: allow fixture
+    *_user_name_rule(),
     ("bead-id", re.compile(BEAD_ID), "all"),
     ("date", re.compile(r"(?<!expires )" + DATE + r"(?!T\d)"), "all"),
     ("owner", re.compile(OWNER), "prose"),

@@ -9,6 +9,8 @@ import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Fixture name for the user-name rule (real names come from the machine, never the repo).
+os.environ.setdefault("STACKFALL_PRIVATE_TERMS", "Zebulon")
 import lint_public as lp  # noqa: E402
 
 
@@ -59,8 +61,8 @@ class LintPublicTest(unittest.TestCase):
 
     def test_skips_addons_binaries_beads_and_local_notes(self):
         for rel in ("addons/x/a.gd", ".beads/a.md", "CLAUDE.local.md"):
-            self.write(rel, "# Tony Bontago-abc.1\n")  # lint-public: allow fixture
-        self.write("img.png", "Tony\0")  # lint-public: allow fixture
+            self.write(rel, "# Zebulon Bontago-abc.1\n")  # lint-public: allow fixture
+        self.write("img.png", "Zebulon\0")  # lint-public: allow fixture
         self.write("tools/x_baseline.json", '{"k": "Bontago-abc.1"}\n')  # lint-public: allow fixture
         self.assertEqual(self.run_lint()[0], 0)
 
@@ -74,7 +76,7 @@ class LintPublicTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("(baseline 2)", out)
         # --update-baseline never raises or adds entries
-        self.write("docs/b.md", "Tony\n")  # lint-public: allow fixture
+        self.write("docs/b.md", "Zebulon\n")  # lint-public: allow fixture
         self.run_lint("--update-baseline")
         self.assertEqual(self.baseline(), {"docs/a.md": {"bead-id": 2}})
 
