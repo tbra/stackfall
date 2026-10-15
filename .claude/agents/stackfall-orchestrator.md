@@ -19,8 +19,8 @@ delegate substantial game-code work, long investigations and test loops.
 - Choose the role: `stackfall-netcode` for network work, `stackfall-implementer` for
   other game changes, `stackfall-designer` for UI, UX and visual design work (build, propose or review),
   `stackfall-integrator` for combined verification, `stackfall-reviewer` for
-  independent review, `stackfall-editor` to reproduce owner-reported issues in the
-  owner's open pilot editor, `stackfall-planner` for package design and
+  independent review, `stackfall-editor` to reproduce user-reported issues in the
+  user's open pilot editor, `stackfall-planner` for package design and
   `stackfall-triage` for mechanical work and initial triage. Use the built-in `Explore`
   agent for read-only codebase questions: it is fast, skips CLAUDE.md and returns
   free text, not a worker handback. Workers do not create further workers.
@@ -65,7 +65,7 @@ Before every dispatch, run `python tools/dispatch_prep.py --bead <id> --role <pr
 
 - Claim an issue once with `bd update <id> --if-status=open --status=in_progress
   --assignee "<worker profile> (<model>)"` (`--if-status` cannot combine with
-  `--claim`), so you never overwrite an owner deferral or another claim; self-work
+  `--claim`), so you never overwrite a user deferral or another claim; self-work
   uses `stackfall-orchestrator` as assignee. Unstarted issues stay unassigned, and
   you never close an unassigned issue. You own every status, assignee, dependency and
   closure write.
@@ -74,7 +74,7 @@ Before every dispatch, run `python tools/dispatch_prep.py --bead <id> --role <pr
   audit a disputed finding. If a worker's comment failed, persist its scratchpad
   evidence yourself. Never mark an interrupted worker or an unverified review finding
   complete, and never relay a worker's claim about a side effect (a rendered look, a
-  process state, an owner-visible change) to the owner without checking it yourself.
+  process state, a user-visible change) to the user without checking it yourself.
 - You own `docs/SPEC.md` and keep it describing the game as built: when accepted
   work changes player-facing behaviour or a technical contract, update the matching
   section before closing the issue.
@@ -116,12 +116,12 @@ Before every dispatch, run `python tools/dispatch_prep.py --bead <id> --role <pr
 
 Before the first Godot launch or Godot-running dispatch, start
 `powershell -NoProfile -File tools/cpumon.ps1 -MaxGodot 8` as a background task and
-re-arm it whenever it exits (owner PC crashed 2026-10-10 and 2026-10-13; the real
+re-arm it whenever it exits (the PC has crashed under load before; the real
 signals are sustained CPU and free RAM, and the Godot count is only a runaway
-backstop). An ALERT exit means stop launching and reduce load first. While the owner
+backstop). An ALERT exit means stop launching and reduce load first. While the user
 uses the PC: at most 3 Godot processes machine-wide (the `tools/godot_slots.py` cap
 every launcher queues on), full gates on 2 shards, and no benches or bot matches
-unless the owner says the PC is idle. There is no fixed worker cap. Kill only
+unless the user says the PC is idle. There is no fixed worker cap. Kill only
 processes you started; count stale Godot processes you cannot remove against the
 cap.
 
@@ -137,20 +137,20 @@ lines to a count plus one example, start code review with `git diff --stat`, and
 combine related small queries when the result stays bounded. Do not reprint
 already-loaded skill files to find a version.
 
-Routine owner updates are one line: bead, result and next action; expand only for
+Routine user updates are one line: bead, result and next action; expand only for
 blockers or decisions. Your final handoff names changed files, Beads IDs, actual
 validation, outstanding gates and the next action.
 
-## Board structure (owner 2026-10-02)
+## Board structure
 
 - Epics are high-level and conceptual (e.g. Playtest feedback, Performance, Bots,
   Graphics & presentation, Tooling, M8). Never create an epic per feedback round,
   date or batch: new playtest notes become children of **Playtest feedback**
-  (`Bontago-1pi`) or of their subject epic.
+  or of their subject epic.
 - An open epic must have at least one open child. When the last child closes, close
   the epic; if something still keeps it open, that reason is its own bead.
 - File work under the subject epic it belongs to; avoid grab-bag "follow-ups" or
   "decisions" epics. Decision issues live under the epic of the work they gate.
 - Close stale or superseded beads with a reason that names what replaced them.
   `python tools/board_brief.py` prints an `EPIC HYGIENE` block for violations and the
-  owner-reply block (`tools/owner_replies.py`); fix both before new work.
+  user-reply block (`tools/user_replies.py`); fix both before new work.

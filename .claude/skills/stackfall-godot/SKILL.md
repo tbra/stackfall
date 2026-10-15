@@ -7,7 +7,7 @@ description: How Stackfall workers run, test, lint, probe and measure the game i
 
 ## Checkout setup
 
-- Agent worktrees come from `python tools/new_worktree.py <name>`, which adds the untracked off-screen `override.cfg`. If it is missing, run `python tools/agent_worktree_setup.py <worktree>` before any windowed launch (never in M:/Bontago).
+- Agent worktrees come from `python tools/new_worktree.py <name>`, which adds the untracked off-screen `override.cfg`. If it is missing, run `python tools/agent_worktree_setup.py <worktree>` before any windowed launch (never in the main checkout).
 - In a fresh worktree run `godot --headless --editor --path <wt> --quit` twice before anything else: the first run builds `.godot` (it is not shared between checkouts) and a run without it hangs on parse errors. Never delete another checkout's `.godot`.
 
 ## Tests
@@ -30,9 +30,9 @@ description: How Stackfall workers run, test, lint, probe and measure the game i
 - Windowed launches follow the off-screen rule in CLAUDE.md §Environment. There is no probe-run cap: read code first, then probe as often as the problem needs and checkpoint progress on the Bead.
 - Take screenshots with `tools/shot` (flags in the header of `tools/shot.gd`; extend it, with a test in `tests/unit/main/test_shot.gd`, when it cannot capture what you need) and judge its contact sheet, not single PNGs.
 - `-s script.gd` runs a bare SceneTree without autoloads (Match, Net, Events). Throwaway probe scenes live under `res://tools/_scratch_<name>/` (deleted before handback) or your scratchpad and quit via `get_tree().quit()`. Never add `tools/screenshot_*`, `tools/capture_*` or `tools/*probe*` files: `tools/probe_lint.py` rejects them at integration.
-- In probe mode `Net.host_game()` picks a random free port and skips LAN advertising, so benches do not block the ENet harness or appear in the owner's LAN browser.
+- In probe mode `Net.host_game()` picks a random free port and skips LAN advertising, so benches do not block the ENet harness or appear in the user's LAN browser.
 - Visual/UI acceptance: your contact sheet shows that each player's colour stays identifiable on the changed object, validity colours (valid/invalid placement, claim states) stay distinct, nothing clips, overflows or misaligns at 1280x720 and 1920x1080, and before/after shots use the same camera and layout. Say so in the handback if the sheet cannot show one of these.
-- Synthetic OS keyboard injection does not reach the game window: drive `_unhandled_input` with `InputEventKey`/`InputEventJoypad*` in tests and leave real key presses to the owner's manual steps. Real mouse input can leak into a windowed run.
+- Synthetic OS keyboard injection does not reach the game window: drive `_unhandled_input` with `InputEventKey`/`InputEventJoypad*` in tests and leave real key presses to the user's manual steps. Real mouse input can leak into a windowed run.
 - Never write `Steam` or `SteamMultiplayerPeer` as a bare identifier or static type: the GodotSteam addon is untracked and absent on most checkouts. Go through `Engine.has_singleton`/`ClassDB`.
 
 ## Processes and machine load
@@ -43,6 +43,6 @@ description: How Stackfall workers run, test, lint, probe and measure the game i
 
 ## Measurements
 
-- Benchmarks only for physics, territory or wire changes, and only alone: `python tools/godot_slots.py run --exclusive -- <cmd>` (Python launchers: `with godot_slots.godot_exclusive("label"):`). Label a contended run invalid. Headless physics timing is not a GPU frame rate or a two-machine Steam test; real hardware stays unverified until the owner runs it.
+- Benchmarks only for physics, territory or wire changes, and only alone: `python tools/godot_slots.py run --exclusive -- <cmd>` (Python launchers: `with godot_slots.godot_exclusive("label"):`). Label a contended run invalid. Headless physics timing is not a GPU frame rate or a two-machine Steam test; real hardware stays unverified until the user runs it.
 - Startup timing: `python tools/measure_startup.py --path <checkout> [--runs 3]` (at least 3 off-screen real boots; AgentProbe `--quit-on-menu` quits when the main menu is ready), never `--quit-after` frames, which can exit mid-load.
 - GPU cost: the only accepted measurement is `python tools/measure_gpu_steady.py run <preset>[:<feature>...] --repeat N --out <scratch>/runs.jsonl`, then `report`. Do not use `viewport_get_measured_render_time_gpu` alone (it excludes probe/sky passes), a harness that leaves the main menu rendering, or single uncapped samples (GPU clock states make them bimodal). Serialize GPU runs against every windowed Godot process.

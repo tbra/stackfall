@@ -14,7 +14,7 @@ Every dispatch brief gives you:
 - the exact absolute checkout path, branch, base commit and any required interface revisions;
 - owned files/directories and exclusions, and the spec sections and plan to read;
 - commands, expected outcomes and the scratchpad for logs (`python tools/scratch.py path <bead-id> [slug]`);
-- your Git authority (default none: no commits, merges, pushes, stash or sync) and the Beads checkout for comments (`M:/Bontago` unless named);
+- your Git authority (default none: no commits, merges, pushes, stash or sync) and the Beads checkout for comments (the main checkout unless named);
 - the verification budget: named checks, maximum runs and time, whether a visual probe is justified, the stop condition and, for work over 30 min, a check-in time.
 
 If something you need is missing or conflicts (ownership, an absent interface, a spec ambiguity that changes rules or feel), report it instead of guessing or touching another worker's files.
@@ -40,7 +40,7 @@ If something you need is missing or conflicts (ownership, an absent interface, a
 
 ## Beads checkpoints
 
-- Comment only on your assigned bead: `bd -C M:/Bontago comments add <id> --actor <your profile> "<text>"`. No status, assignee, dependency or close changes, and no private Beads database in a worktree. Keep writes brief (embedded Dolt).
+- Comment only on your assigned bead: `bd -C <Beads checkout> comments add <id> --actor <your profile> "<text>"`. No status, assignee, dependency or close changes, and no private Beads database in a worktree. Keep writes brief (embedded Dolt).
 - Checkpoint at each meaningful implementation/test boundary and before returning:
 
 ```text

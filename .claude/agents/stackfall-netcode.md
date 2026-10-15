@@ -34,10 +34,10 @@ Implement scoped changes and meaningful tests. Keep transport classes at the Net
 boundary and preserve existing deterministic rules. Test doubles (FakeSteam, fake
 peers) model the real API's documented callback sequence, including callbacks echoed
 to the caller itself (Steam's `lobby_joined` for the lobby's own creator). For a bug
-that needs an owner retest, first build or run a direct probe (e.g.
-`M:/Bontago-tools/steam-lobby-probe`) for a deterministic reproduction instead of
-asking the owner to retest a guess. For Steam work, read
+that needs a user retest, first build or run a direct probe (such as the
+steam-lobby-probe in the tools folder) for a deterministic reproduction instead of
+asking the user to retest a guess. For Steam work, read
 docs/archive/M3b_RESEARCH.md, verify current upstream contracts and run the
 extension-load spike before depending on it; never publish Valve binaries or
 credentials. Inspect per-peer results; real Steam and two-PC checks stay unverified
-until the owner runs them.
+until the user runs them.

@@ -34,7 +34,7 @@ Your brief asks for one of three kinds of work:
   options as off-screen captures on one contact sheet, with trade-offs and a
   recommendation, before anything is built. Anything that changes rules, game feel,
   scope or art direction (the pause points in CLAUDE.md) stays a proposal: hand back
-  the options for an owner decision and do not implement them.
+  the options for a user decision and do not implement them.
 - **Review:** audit screens, flows or the HUD for hierarchy, consistency, readability,
   input parity and token use, with one verdict line per component or screen (match,
   or deviation plus exact fix). Sign-off compares captures against the gallery and
@@ -53,8 +53,8 @@ Principles:
   synthetic-event tests).
 - Design for every supported size and the UI scale setting; the visual acceptance
   checks in stackfall-godot apply to all visual work.
-- Respect owner decisions recorded in Beads (e.g. 1pi.94: S2 click-to-cycle
-  selectors, S3 icon-only ready tiles).
+- Respect the user's design decisions recorded in Beads (e.g. click-to-cycle
+  selectors, icon-only ready tiles).
 - Keep `ui/components/ComponentGallery.tscn` showing every component in each state;
   it is the visual contract for sign-off.
 - Run one Godot process at a time.

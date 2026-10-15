@@ -1,10 +1,4 @@
 {
-  "permissions": {
-    "additionalDirectories": [
-      "M:/Bontago-worktrees",
-      "M:/Bontago-tools"
-    ]
-  },
   "hooks": {
     "SessionStart": [
       {
@@ -79,20 +73,5 @@
         ]
       }
     ]
-  },
-  "enabledPlugins": {
-    "bead-board@claude-mods": true,
-    "human-desk@claude-mods": true,
-    "agent-floor@claude-mods": true,
-    "token-weather@claude-mods": true,
-    "image-panel@claude-mods": true
-  },
-  "extraKnownMarketplaces": {
-    "claude-mods": {
-      "source": {
-        "source": "directory",
-        "path": "M:\\claude-mods"
-      }
-    }
   }
 }

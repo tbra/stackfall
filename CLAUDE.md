@@ -11,12 +11,12 @@ Each rule has one home, and other files point to it instead of restating it (`to
 
 The three session skills (`stackfall-session-resume`, `stackfall-auto-run`, `stackfall-session-close`) are versioned: bump the `Version:` line for each behavior change.
 
-**Git authority:** the active profile is team-maintainer. After reviewing and validating a worker candidate, the orchestrator commits only owned changes and integrates them. After integrated checks pass, it pushes code immediately and verifies the remote revision; then it records evidence and closes the package issue. Run the full GUT suite once per integrated *game-code* batch before pushing; tooling and documentation changes get relevant focused checks. Beads has no configured remote: keep issue writes local and do not attempt `bd dolt push` or `bd dolt pull` unless the owner explicitly configures and requests Beads remote sync. Workers do not commit, merge, push or sync by default. Never force-push, rewrite shared history, discard work, or include unrelated dirty files. A current explicit user stop or no-push instruction wins.
+**Git authority:** the active profile is team-maintainer. After reviewing and validating a worker candidate, the orchestrator commits only owned changes and integrates them. After integrated checks pass, it pushes code immediately and verifies the remote revision; then it records evidence and closes the package issue. Run the full GUT suite once per integrated *game-code* batch before pushing; tooling and documentation changes get relevant focused checks. Beads has no configured remote: keep issue writes local and do not attempt `bd dolt push` or `bd dolt pull` unless the user explicitly configures and requests Beads remote sync. Workers do not commit, merge, push or sync by default. Never force-push, rewrite shared history, discard work, or include unrelated dirty files. A current explicit user stop or no-push instruction wins.
 
 **Beads:** the orchestrator owns claims, assignments, acceptance and closure; workers comment on their assigned issue only. Every Beads write passes `--actor <profile>`: `--actor stackfall-orchestrator` for the main session, the worker's own profile name for a worker (bd otherwise stamps the git user). Use `bd remember --key <stable-key>` only for reusable knowledge, not progress; no MEMORY.md files, native agent `memory:`, markdown TODO backlogs or second status ledgers. This project rule supersedes the generic `bd prime` and managed-block instructions below.
 
-Pause points — the only times the pipeline stops for the owner:
-- **Major ambiguity:** anything that changes rules, game feel, scope, or player-facing behaviour in a way the spec doesn't settle. Describe the options and ask **through a Beads decision** (the `stackfall-owner-questions` skill); workers report the ambiguity to the orchestrator. Do not guess; do not use interactive prompts.
+Pause points — the only times the pipeline stops for the user:
+- **Major ambiguity:** anything that changes rules, game feel, scope, or player-facing behaviour in a way the spec doesn't settle. Describe the options and ask **through a Beads decision** (the `stackfall-user-questions` skill); workers report the ambiguity to the orchestrator. Do not guess; do not use interactive prompts.
 - **Art direction:** propose it and wait for approval before writing code.
 
 Everything else is decided in place: for **minor ambiguity** (implementation detail with no gameplay impact) pick the simplest reasonable option, write a `# DECISION:` comment at that spot in the code, and list it in the summary.
@@ -31,11 +31,12 @@ Each milestone runs as a pipeline of agents, as parallel as the work allows:
 - Work in small steps that each leave the game runnable.
 - **Read before writing:** `CLAUDE.md`, the spec sections for the milestone, `README.md`, and the existing code the step touches.
 - Never rewrite something the previous step got right; extend it.
-- Hardware you can't use (a real gamepad, two PCs over Steam, a mid-range GPU for fps targets): verify what you can headlessly — synthetic `InputEventJoypad*` events through `Input.parse_input_event` in tests, ENet-only multiplayer, headless physics timing — then write **manual test steps** for the owner and continue.
+- **Public repository:** tracked files carry no provenance (who-and-when tags, dates, Beads ids) and no machine-specific paths or names; keep the reason, drop the who and when. Machine facts live in the untracked `CLAUDE.local.md`; `tools/lint_public.py` enforces this.
+- Hardware you can't use (a real gamepad, two PCs over Steam, a mid-range GPU for fps targets): verify what you can headlessly — synthetic `InputEventJoypad*` events through `Input.parse_input_event` in tests, ENet-only multiplayer, headless physics timing — then write **manual test steps** for the user and continue.
 - End every task with a summary covering what changed, how to test it by hand, every `DECISION`, and any open issues or questions.
 
 ## Tech rules
-- Godot **4.6+** (developed on **4.7.2**), Forward+ renderer, `physics/3d/physics_engine = Jolt Physics`, 60 physics ticks per second, physics interpolation on.
+- Godot **4.7** (developed and tested on **4.7.2**; `project.godot` declares the 4.7 feature), Forward+ renderer, `physics/3d/physics_engine = Jolt Physics`, 60 physics ticks per second, physics interpolation on.
 - GDScript with **static typing everywhere** (typed variables, parameters, and return values). Untyped declarations are **compile errors** in this project (`debug/gdscript/warnings/untyped_declaration = 2`); `res://addons` is exempt.
 - **No magic numbers.** Every tunable value belongs in a `Resource` under `res://config/`: `MatchConfig`, `PhysicsTuning`, `BlockShape`, `SpecialDef`, `MapDef`.
 - Keep pure rule logic (territory, connectivity, win check, block bag) in `res://core/` with no dependence on the scene tree, and cover it with unit tests.
@@ -51,9 +52,9 @@ Each milestone runs as a pipeline of agents, as parallel as the work allows:
 `tools/triage_log.py` turns a long headless run into a ranked summary: it strips Godot boilerplate, normalises ids out of error lines, groups duplicates, then asks TypeSafe/Jev to classify only the distinct signatures by subsystem and severity. It needs `TYPESAFE_API_KEY` (user environment variable) and degrades to the deterministic grouping without one. Exits non-zero on a confident likely-bug, so it can gate CI. Use it on the M5 bot matches and the M8 soak. For TypeSafe/Jev features or log-triage changes, use the `typesafe-ai` skill from the TypeSafe plugin and its live API guidance; keep credentials in environment variables, out of logs, issue bodies and commits.
 
 ## Environment
-- Engine source (read-only): `M:/Godot/godot-4.7.2-stable`, a detached `4.7.2-stable` worktree matching the runtime. Grep it for engine behaviour (Jolt in `modules/jolt_physics/`, `scene/`, `servers/`) instead of guessing; never edit or build it, and do not use the owner's `M:/Godot/godot` master clone for version-specific claims.
-- Godot 4.7.2 standard build. `godot` is on PATH via a shim in `C:\Users\tonyf\bin` (works in Git Bash and cmd/PowerShell). Full binary: `%LOCALAPPDATA%\Microsoft\WinGet\Packages\GodotEngine.GodotEngine_Microsoft.Winget.Source_8wekyb3d8bbwe\Godot_v4.7.2-stable_win64_console.exe`.
-- **Off-screen windowed runs:** every agent-launched windowed Godot run passes `--windowed --position 10000,10000 --resolution 320x180 --audio-driver Dummy` plus `-- --agent-probe` (and `--render-size=WxH` when it needs a real render resolution; AgentProbe renders into a SubViewport), never `--always-on-top`/`--maximized`/fullscreen, and quits right after its capture; use `--headless` when no screenshot is needed. Visible windows interrupt the owner on another monitor; `tools/guard_shell.py` refuses a launch that is neither headless nor off-screen. Screenshots come from `tools/shot`.
+- Engine source (read-only): a checkout of the exact Godot version the project runs, at the path in `CLAUDE.local.md`. Grep it for engine behaviour (Jolt in `modules/jolt_physics/`, `scene/`, `servers/`) instead of guessing; never edit or build it.
+- Godot 4.7.2 standard build; `godot` must be on PATH. Machine-specific setup (binary location, folders, the user's Beads name) is in the untracked `CLAUDE.local.md`.
+- **Off-screen windowed runs:** every agent-launched windowed Godot run passes `--windowed --position 10000,10000 --resolution 320x180 --audio-driver Dummy` plus `-- --agent-probe` (and `--render-size=WxH` when it needs a real render resolution; AgentProbe renders into a SubViewport), never `--always-on-top`/`--maximized`/fullscreen, and quits right after its capture; use `--headless` when no screenshot is needed. Visible windows interrupt the user on another monitor; `tools/guard_shell.py` refuses a launch that is neither headless nor off-screen. Screenshots come from `tools/shot`.
 
 ## Commands
 - Steam-online dev run: `godot --path . -- --steam-online` (test AppID 480's Steam Input intercepts controller events on this Windows setup, so the ordinary local run skips Steam init; `--host-online` also initializes Steam). A real AppID restores automatic Steam init.
@@ -71,7 +72,7 @@ Layout: layers at the top (`core/` pure logic, `config/` Resources by feature, `
 ## Definition of done (every task)
 - [ ] `godot --headless --editor --path . --quit` prints no errors and no new warnings.
 - [ ] Unit tests pass.
-- [ ] The feature works with mouse and keyboard **and** with a gamepad, where relevant (synthetic events in tests; manual steps for the owner).
+- [ ] The feature works with mouse and keyboard **and** with a gamepad, where relevant (synthetic events in tests; manual steps for the user).
 - [ ] It works for a client over ENet with simulated lag.
 - [ ] Beads records the candidate path/revision, completed work, validation and remaining risks; the orchestrator has committed and pushed accepted work, or recorded the exact failed delivery step.
 - [ ] The summary includes steps to test it by hand.

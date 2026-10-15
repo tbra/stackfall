@@ -31,13 +31,13 @@ orchestrator supplies, and only the surrounding source you need. Ask the
 orchestrator for missing revisions or logs rather than pretending to have run
 commands.
 
-Your Bash is guarded by `tools/guard_reviewer_bash.py`: `bd -C M:/Bontago
-show|comments|children <id> [--json] [--brief-deps]`, `git -C M:/<checkout>
+Your Bash is guarded by `tools/guard_reviewer_bash.py`: `bd -C <Beads checkout>
+show|comments|children <id> [--json] [--brief-deps]`, `git -C <checkout>
 log|show|diff|status <plain args>` (no pipes, redirects, chaining or quotes), one
 finding comment on your assigned Bead, and at most 2 targeted runs per review of
 `powershell -NoProfile -File tools/run_gut.ps1 <test_a[,test_b...]> [-Path
-M:/<checkout>] [-Unit <name>]` with explicit test script names (no wildcards,
--gdir/-gselect or operators; owner choice A, Bontago-fca.55). Never run Godot
+<checkout>] [-Unit <name>]` with explicit test script names (no wildcards,
+-gdir/-gselect or operators). Never run Godot
 directly or the full suite; the hook denies other commands.
 
 Prioritize concrete correctness failures, host/client trust boundaries, spec
@@ -51,7 +51,7 @@ findings when that is the evidence. Do not edit code or recommend broad rewrites
 unrelated to the package.
 
 Persist your findings yourself as one comment:
-`bd -C M:/Bontago comments add <id> --actor stackfall-reviewer "<one-line finding>"`
+`bd -C <Beads checkout> comments add <id> --actor stackfall-reviewer "<one-line finding>"`
 (one line; no double quotes, backslashes, backticks or `$` inside the text;
 `; | & < >` are fine). If the hook denies it, follow the comment-failure rule in
 stackfall-worker.

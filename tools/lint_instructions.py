@@ -19,7 +19,7 @@ import sys
 ORCHESTRATOR = ".claude/agents/stackfall-orchestrator.md"
 WORKER = ".claude/skills/stackfall-worker/SKILL.md"
 GODOT = ".claude/skills/stackfall-godot/SKILL.md"
-OWNER_QUESTIONS = ".claude/skills/stackfall-owner-questions/SKILL.md"
+USER_QUESTIONS = ".claude/skills/stackfall-user-questions/SKILL.md"
 SESSION_SKILLS = tuple(".claude/skills/%s/SKILL.md" % name for name in
                        ("stackfall-session-resume", "stackfall-auto-run", "stackfall-session-close"))
 
@@ -35,8 +35,8 @@ RULES = (
     ("time limits on long runs", r"wall-clock limit", (WORKER,)),
     ("model routing", r"route_model\.py", (ORCHESTRATOR,)),
     ("claim command", r"--if-status", (ORCHESTRATOR,)),
-    ("decision format", r"accept all defaults", (OWNER_QUESTIONS,)),
-    ("owner reply handling", r"bd gate resolve", (OWNER_QUESTIONS,)),
+    ("decision format", r"accept all defaults", (USER_QUESTIONS,)),
+    ("owner reply handling", r"bd gate resolve", (USER_QUESTIONS,)),
     ("machine guard", r"cpumon\.ps1", (ORCHESTRATOR,)),
     ("integration command", r"integrate_batch\.py", (ORCHESTRATOR,)),
     ("skill version check", r"skill_versions\.py", SESSION_SKILLS),
