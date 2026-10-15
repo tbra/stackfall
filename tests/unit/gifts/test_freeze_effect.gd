@@ -1,5 +1,5 @@
 extends GutTest
-## FreezeEffect (spec 2.6 "[NEW] (defensive, cuts down on luck)" row --
+## FreezeEffect (spec 1.6 "[NEW] (defensive, cuts down on luck)" row --
 ## "Makes your own blocks within 6 m static for 20 s"; docs/M8_PLAN.md's P2
 ## package). detonate() has no physics_tick()/wants_early_trigger() override
 ## -- every scenario below calls it directly against real Block bodies added
@@ -67,7 +67,7 @@ func _find_release_timer(block: Node) -> Timer:
 	return block.get_node_or_null(NodePath(FreezeEffect.TIMER_NAME)) as Timer
 
 
-# --- detonate(): own-owner blocks within radius are frozen ------------------
+# --- detonate(): blocks owned by the same slot within radius are frozen ------------------
 
 func test_detonate_freezes_own_owner_blocks_within_radius() -> void:
 	var host: Block = _make_block(Vector3.ZERO, 3)
@@ -97,7 +97,7 @@ func test_detonate_does_not_freeze_an_enemy_block_within_radius() -> void:
 	assert_null(_find_release_timer(enemy), "an untouched block gets no release Timer")
 
 
-# --- detonate(): an own-owner block outside radius is left untouched --------
+# --- detonate(): a block owned by the same slot outside radius is left untouched --------
 
 func test_detonate_does_not_freeze_an_own_owner_block_outside_radius() -> void:
 	var host: Block = _make_block(Vector3.ZERO, 3)
@@ -160,7 +160,7 @@ func test_release_timer_timeout_does_not_unfreeze_a_block_still_held_stable() ->
 	assert_false(host.is_freeze_static())
 
 
-# --- Bontago-8or.2 additions -------------------------------------------------
+# --- additions -------------------------------------------------
 
 func test_release_restores_prior_state_of_an_already_stable_frozen_block() -> void:
 	var stable: Block = _make_block(Vector3.ZERO, 3)
@@ -282,7 +282,7 @@ func test_freeze_tres_loads_with_expected_id_and_effect_defaults() -> void:
 	assert_eq(effect.freeze_duration_s, 20.0)
 
 
-# --- Bontago-8or.2 review: the hold rides the tilting Field ----------------
+# --- review: the hold rides the tilting Field ----------------
 
 func test_held_block_follows_a_tilted_field_transform() -> void:
 	var field: Node3D = Node3D.new()

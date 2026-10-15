@@ -1,8 +1,8 @@
 extends GutTest
-## Bontago-hfa.4 (UI reskin P2): the Stackfall Arcade look of Options, Pause and the rebinding rows
+## UI reskin P2: the Stackfall Arcade look of Options, Pause and the rebinding rows
 ## (docs/UI_RESKIN_PLAN.md P2). Look-only checks: tab rim notch, UiSegmentMeter cells, ON/OFF
 ## words, BindingRow listening state and a synthetic gamepad focus traversal of both screens, each
-## focus owner carrying a visible focus stylebox.
+## focused control carrying a visible focus stylebox.
 
 const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/menus/OptionsMenu.tscn")
 const PAUSE_MENU_SCENE: PackedScene = preload("res://ui/menus/PauseMenu.tscn")

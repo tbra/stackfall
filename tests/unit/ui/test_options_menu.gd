@@ -39,7 +39,7 @@ func before_each() -> void:
 ## trusting every test body to restore it, and other files in the same batch
 ## (test_main_menu, test_settings) never read the real Settings singleton.
 func after_each() -> void:
-	# Bontago-1pi.150 review: the published UI scale is static; never leak it into later tests.
+	# review: the published UI scale is static; never leak it into later tests.
 	UiScaleTuning.current_scale = -1.0
 	if InputMap.has_action(_test_action):
 		InputMap.erase_action(_test_action)
@@ -162,7 +162,7 @@ func test_rebindable_actions_exclude_every_debug_only_action() -> void:
 	assert_true(found_any_debug_action, "expected at least one debug-only action bound by tools/bootstrap_project.gd")
 
 
-## Bontago-8or.19 (owner playtest: "many of them not mapped to anything"): a
+## "many of them not mapped to anything": a
 ## row shown on the keyboard+mouse rebind screen must have a real
 ## keyboard/mouse binding to rebind. tests/unit/main/test_project_setup.gd's own
 ## DEVICE_EXCEPTIONS already names every action that is deliberately
@@ -179,7 +179,7 @@ func test_every_rebindable_action_has_a_keyboard_or_mouse_binding() -> void:
 		if not InputMap.has_action(action):
 			continue  # Reported by test_project_setup.gd's test_every_required_action_exists.
 		if KeyRebindRow.PAD_ONLY_ACTIONS.has(action):
-			continue  # Bontago-1pi.159.63: pad-only rows (B / RT) are listed on the gamepad page only.
+			continue  # pad-only rows (B / RT) are listed on the gamepad page only.
 		found_any = true
 		var has_desktop: bool = false
 		for event: InputEvent in InputMap.action_get_events(action):
@@ -190,8 +190,8 @@ func test_every_rebindable_action_has_a_keyboard_or_mouse_binding() -> void:
 	assert_true(found_any, "expected at least one real rebindable action to check")
 
 
-## Bontago-1pi.10 polish pass: rows now build in ui/menus/OptionsMenu.gd's own
-## SECTIONS grouping order (owner: "Keep action order sensible"), not
+## polish pass: rows now build in ui/menus/OptionsMenu.gd's own
+## SECTIONS grouping order ("Keep action order sensible"), not
 ## REBINDABLE_ACTIONS' own flat declaration order -- this only checks the
 ## built row set matches REBINDABLE_ACTIONS, not their relative order.
 func test_options_menu_builds_one_row_per_rebindable_action() -> void:
@@ -205,7 +205,7 @@ func test_options_menu_builds_one_row_per_rebindable_action() -> void:
 		assert_true(built_actions.has(action), "%s must have a built row" % action)
 
 
-## Owner: audio/rumble/move-speed rows are "reset by the Reset button" too.
+## Audio/rumble/move-speed rows are "reset by the Reset button" too.
 func test_reset_button_also_resets_audio_rumble_and_move_speed() -> void:
 	var menu: OptionsMenu = _make_menu()
 	var fresh: Node = _settings_of(menu)
@@ -227,7 +227,7 @@ func test_reset_button_also_resets_audio_rumble_and_move_speed() -> void:
 	assert_eq((menu.get_node("%MasterVolumeSlider") as UiSegmentMeter).value, OptionsMenu.PERCENT_METER_CELLS, "the UI must reload after a reset, not just the underlying Settings")
 
 
-# --- Settings/Controls tabs (Bontago-1pi.10) ----------------------------------------
+# --- Settings/Controls tabs ----------------------------------------
 
 func test_pressing_the_controls_tab_shows_the_controls_page_and_hides_settings() -> void:
 	var menu: OptionsMenu = _make_menu()
@@ -259,10 +259,10 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	# ui_down, which Godot's own Control focus-neighbor resolution consumes
 	# via these NodePaths -- there is no separate synthetic-input path to
 	# drive here).
-	# Bontago-1pi.150: UiScaleSlider sits between WindowModeOption and CameraShakeCheck.
+	# UiScaleSlider sits between WindowModeOption and CameraShakeCheck.
 	var ui_scale_slider: Control = menu.get_node("%UiScaleSlider") as Control
 	assert_eq(window_mode_option.get_node(window_mode_option.focus_neighbor_bottom), ui_scale_slider, "WindowModeOption must move focus down to UiScaleSlider")
-	# Bontago-1pi.191: HudScaleSlider and MinimapSizeOption follow the UI scale row.
+	# HudScaleSlider and MinimapSizeOption follow the UI scale row.
 	var hud_scale_slider: Control = menu.get_node("%HudScaleSlider") as Control
 	var minimap_option: Control = menu.get_node("%MinimapSizeOption") as Control
 	assert_eq(ui_scale_slider.get_node(ui_scale_slider.focus_neighbor_bottom), hud_scale_slider, "UiScaleSlider must move focus down to HudScaleSlider")
@@ -301,7 +301,7 @@ func test_ui_cancel_emits_closed_when_no_row_is_listening() -> void:
 	assert_signal_emitted(menu, "closed")
 
 
-# --- Gamepad parity (Bontago-1pi.15.1: "gamepad works in some menus but not
+# --- Gamepad parity ("gamepad works in some menus but not
 # all; B never goes back in any menu") ------------------------------------------
 #
 # Real InputEventJoypadButton, checked via the event's own is_action_pressed()

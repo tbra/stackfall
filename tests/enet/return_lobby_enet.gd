@@ -1,5 +1,5 @@
 extends Node
-## Bontago-1pi.50: host + one lagged client over real ENet, each running the real
+## host + one lagged client over real ENet, each running the real
 ## game/main/Main.tscn. The host plays a match, ends it through the pause menu's Return to
 ## lobby (open, press, confirm), and both peers must land in the session lobby with seats
 ## and the published lobby setting intact, the match scope reset fired exactly once per

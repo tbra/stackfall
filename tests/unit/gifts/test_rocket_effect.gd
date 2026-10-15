@@ -1,5 +1,5 @@
 extends GutTest
-## RocketEffect after the 2026-10-05 owner decision (Bontago-1pi.85.10, docs/SPEC.md 2.6,
+## RocketEffect after the (docs/SPEC.md 1.6,
 ## docs/GIFT_EFFECTS_PLAN.md section 3): on activation the Rocket flies a straight line along a
 ## host-side launch direction (camera direction, never upward) and explodes on the first contact
 ## with a block, the disc or the map; the safety fuel still fires. Fixtures:
@@ -167,7 +167,7 @@ func test_unusable_directions_are_rejected_and_keep_the_previous_one() -> void:
 
 
 func test_an_upward_aim_is_kept_and_normalised() -> void:
-	# Bontago-1pi.85.34 Q3: the Rocket flies exactly where the camera aims.
+	# Q3: the Rocket flies exactly where the camera aims.
 	var up: Vector3 = RocketEffect.sanitize_launch_direction(Vector3(3.0, 5.0, 4.0))
 	assert_almost_eq(up.length(), 1.0, 0.0001)
 	assert_true(up.is_equal_approx(Vector3(3.0, 5.0, 4.0).normalized()), "upward kept")
@@ -388,7 +388,7 @@ func test_explodes_on_the_first_contact_with_a_block_and_blows_it_away() -> void
 
 
 func test_own_blocks_near_the_launch_are_passed_through_but_an_enemy_is_not() -> void:
-	# Bontago-1pi.85.37: own blocks within the clear radius are collision exceptions (not an impact,
+	# own blocks within the clear radius are collision exceptions (not an impact,
 	# not shoved); an enemy block at the same spot is hit at once.
 	var ages: Array[float] = []
 	var own_speed: float = 0.0
@@ -454,7 +454,7 @@ func test_explodes_on_the_first_contact_with_the_disc() -> void:
 	assert_lt(behavior.age(), effect.fuel_duration_s, "an impact, not the safety fuel")
 
 
-## Bontago-1pi.85.16 (reviewer hypothesis from package C): a horizontal launch from rest on a
+## reviewer hypothesis from package C: a horizontal launch from rest on a
 ## floor, the carrier touching the surface, must not report the resting contact as an impact; it
 ## flies on to the wall ahead.
 func test_a_horizontal_launch_from_rest_on_a_floor_does_not_explode_on_the_resting_contact() -> void:

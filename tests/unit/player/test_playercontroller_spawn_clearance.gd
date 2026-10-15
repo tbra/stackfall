@@ -1,6 +1,6 @@
 extends GutTest
 ## game/player/PlayerController.gd's post-placement ghost-spawn displacement
-## (Bontago-mv0.30, owner test 2026-09-23: "when you place a block and the
+## (requirement "when you place a block and the
 ## next block loads it gets displaced so it doesn't spawn directly within the
 ## placed block"). Before this fix, the ghost issued right after a placement
 ## sat exactly where the old one was released -- overlapping it.
@@ -42,7 +42,7 @@ func before_each() -> void:
 func after_each() -> void:
 	Match.abort_match()
 	Match.set_process(true)
-	# Bontago-integ (2026-09-23 combined-run regression): before_each()'s own
+	# Bontago-integ (combined-run regression): before_each()'s own
 	# _field is autofree()'d at the end of this test, but Match._field is a
 	# plain autoload var nothing else resets (same DECISION as
 	# test_jumping_bean_effect.gd:251) -- left alone, the next script in a
@@ -76,7 +76,7 @@ func _run_countdown() -> void:
 ## Advances the host's own feed tick past a full block_timer interval
 ## (autoload/match/MatchFeed.gd's non-hot-seat _tick_feed()) so a slot that
 ## released early this same interval (_release_locked) crosses the boundary
-## and may release again -- spec 2.4's "[ORIGINAL target]" cadence, which two
+## and may release again -- spec 1.4's "[ORIGINAL target]" cadence, which two
 ## back-to-back manual placements in one test would otherwise trip on their
 ## own (a second _place_ghost_block() call inside the same interval is
 ## correctly refused with REASON_NO_BLOCK, exactly as real play would refuse
@@ -97,7 +97,7 @@ func _make_controller() -> PlayerController:
 	var ghost: GhostPreview = autofree(GhostPreview.new())
 	add_child_autofree(ghost)
 	var controller: PlayerController = autofree(PlayerController.new())
-	# Bontago-1pi.4: spawn clearance is off by default now; these tests cover
+	# spawn clearance is off by default now; these tests cover
 	# the feature itself, so enable it on a private copy of the tuning.
 	controller.ghost_tuning = controller.ghost_tuning.duplicate() as GhostTuning
 	controller.ghost_tuning.spawn_clearance_enabled = true
@@ -106,7 +106,7 @@ func _make_controller() -> PlayerController:
 	return controller
 
 
-## Bontago-mv0.33: game/player/PlayerController.gd's own _process() -- not
+## game/player/PlayerController.gd's own _process() -- not
 ## _on_feed_block_issued() anymore -- is what actually calls
 ## _apply_spawn_clearance() (see that function's own header DECISION): a
 ## physics query run in the same call that spawned a body cannot see that
@@ -182,7 +182,7 @@ func test_next_ghost_does_not_overlap_the_block_just_placed() -> void:
 	)
 
 
-# --- Bontago-1pi.14 round 2: minimal raise, camera follows, no compounding ---
+# --- round 2: minimal raise, camera follows, no compounding ---
 
 ## Ten drops onto the same spot of a growing tower: the ghost stays about one
 ## hover above the tower top instead of ratcheting upward (the 69 m report).

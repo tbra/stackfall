@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.11 C4a: UiText resolves font, size, colour and outline from the tokens per role.
+## C4a: UiText resolves font, size, colour and outline from the tokens per role.
 
 const ROLES: Array[UiText.Role] = [UiText.Role.TITLE, UiText.Role.HEADING, UiText.Role.BODY, UiText.Role.CAPTION, UiText.Role.VALUE]
 

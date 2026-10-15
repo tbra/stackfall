@@ -1,10 +1,10 @@
 extends Node
-## Bontago-1pi.46 R3 (docs/MATCH_RESET_AUDIT.md section 6, ENet variant): host + one lagged
+## R3 (docs/MATCH_RESET_AUDIT.md section 6, ENet variant): host + one lagged
 ## client over real ENet, each running the real game/main/Main.tscn. Two modes, each its own process
 ## pair (so "fresh" really is a fresh launch):
-##   fresh  the host starts match B; both peers fingerprint it at COUNTDOWN + 0.5 s and
+##   fresh the host starts match B; both peers fingerprint it at COUNTDOWN + 0.5 s and
 ##          PLAYING + 1 s and write the fingerprints to --out-dir.
-##   dirty  the host first plays match A (Night sky, storm, rain, gift crate, black hole,
+##   dirty the host first plays match A (Night sky, storm, rain, gift crate, black hole,
 ##          dirtied camera and sky on both peers, a tense music stem), replays it, then lets
 ##          the client leave and re-join the lobby, and only then starts the same B; each
 ##          peer compares its B fingerprints with the ones the fresh run wrote.

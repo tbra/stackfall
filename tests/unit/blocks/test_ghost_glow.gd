@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-sen.6: ghost rim glow and the pre-drop warning pulse (presentation
+## ghost rim glow and the pre-drop warning pulse (presentation
 ## only; GhostPreview never reads or changes the real block timer here).
 
 var _ghost: GhostPreview
@@ -76,7 +76,7 @@ func test_glow_follows_tint_colour_in_shader_albedo() -> void:
 	assert_almost_eq(tint.b, 0.9, 0.001, "shader derives the rim colour from albedo_color")
 
 
-## Bontago-1pi.85.77: a held gift carries no glow-rim or tint overlay at all (authored colours).
+## a held gift carries no glow-rim or tint overlay at all (authored colours).
 func test_held_gift_has_no_glow_overlay() -> void:
 	var shape: BlockShape = load("res://config/blocks/L3.tres") as BlockShape
 	_ghost.set_shape(shape)
@@ -88,7 +88,7 @@ func test_held_gift_has_no_glow_overlay() -> void:
 		assert_null((node as MeshInstance3D).material_overlay, "no overlay on a held gift mesh")
 
 
-## Bontago-sen.12: a locked (greyed, interval-locked) piece is never force
+## a locked (greyed, interval-locked) piece is never force
 ## dropped, so it must not pulse even when the timer is inside the lead.
 func test_locked_piece_never_pulses_inside_lead_time() -> void:
 	_ghost.set_drop_time_left(0.5)

@@ -1,6 +1,6 @@
 extends GutTest
-## Bontago-1pi.46 R3 (docs/MATCH_RESET_AUDIT.md sections 5-6): the acceptance test for the
-## owner requirement "after leaving a match and starting another (any mode, map,
+## R3 (docs/MATCH_RESET_AUDIT.md sections 5-6): the acceptance test for the
+## Requirement "after leaving a match and starting another (any mode, map,
 ## weather, sky), everything is as if freshly launched".
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
@@ -26,7 +26,7 @@ const CHECKPOINTS: PackedStringArray = ["menu", "countdown", "playing"]
 
 ## Real gaps this test found and that are still open: "<label substring>|<key prefix>" -> what /
 ## who owns the fix. A scenario whose only diffs match an entry ends pending instead of failing;
-## any other diff fails it. R4 (Bontago-1pi.46) fixed G7 (Field tilt after Replay), G8 (camera
+## any other diff fails it. R4 fixed G7 (Field tilt after Replay), G8 (camera
 ## after a sandbox Leave), G9 (ResultsScreen rows) and G10 (LoadingScreen rows), so those
 ## entries are gone and assert now. The one remaining gap, G11 (a client that leaves and
 ## re-joins gets seat 2, not 1), lives in the ENet harness (tests/enet/reset_enet.gd) and

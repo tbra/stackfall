@@ -1,5 +1,5 @@
 extends GutTest
-## game/debug/AgentProbe.gd (Bontago-fca.1): probe detection and mouse-capture gating.
+## game/debug/AgentProbe.gd: probe detection and mouse-capture gating.
 
 func after_each() -> void:
 	AgentProbe.set_forced_for_test(-1)

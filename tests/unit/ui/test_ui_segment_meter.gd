@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.7: UiSegmentMeter: clamped cell value, formatter, silent set, mouse click / drag,
+## UiSegmentMeter: clamped cell value, formatter, silent set, mouse click / drag,
 ## ui_left / ui_right (key and pad) steps, hold repeat and stick friction (SliderNavTuning numbers),
 ## muted = ignores input, row-item contract, legacy overlay still counts cells.
 

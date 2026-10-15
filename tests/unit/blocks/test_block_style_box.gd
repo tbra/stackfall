@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-hfa.2 (UI reskin P0a): ui/theme/BlockStyleBox.gd draws the block recipe (face, lit top,
+## UI reskin P0a: ui/theme/BlockStyleBox.gd draws the block recipe (face, lit top,
 ## lip, ledge; pressed and disabled variants) from ArcadeVisualTuning.
 
 const CONTROL_RECT: Rect2 = Rect2(0.0, 0.0, 200.0, 60.0)

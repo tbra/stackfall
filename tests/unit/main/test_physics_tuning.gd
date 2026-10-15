@@ -1,6 +1,6 @@
 extends GutTest
-## Bontago-xtq.17 (owner playtest 2026-09-23: "heavier and more bouncy, but a
-## dropped block shouldn't just bounce straight up again"): config/
+## "heavier and more bouncy, but a
+## dropped block shouldn't just bounce straight up again": config/
 ## PhysicsTuning.gd's new rebound_damping field, the shipped config/
 ## physics_presets/*.tres the owner can A/B from ui/debug/TuningPanel.gd's Physics
 ## tab (see test_tuning_panel.gd for the panel-level tests), and Block.

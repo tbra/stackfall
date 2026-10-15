@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.98: Enter / KP Enter / pad Start (lobby_confirm) start the match (host) or
+## Enter / KP Enter / pad Start (lobby_confirm) start the match (host) or
 ## toggle Ready (client) from any focus, except in a text field.
 
 

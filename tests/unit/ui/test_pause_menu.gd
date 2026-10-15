@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-xtq.42 (M7 P42, owner playtest: "there's no pause menu, I can't
+## (M7 P42, : "there's no pause menu, I can't
 ## abandon a game and go back to the main menu or quit the game").
 ##
 ## Same deterministic-equivalent-of-a-real-input technique
@@ -19,7 +19,7 @@ func before_each() -> void:
 
 func after_each() -> void:
 	Input.action_release(&"pause_menu")
-	# Bontago-1pi.15.1: the real gamepad-button tests below flip the Settings
+	# the real gamepad-button tests below flip the Settings
 	# autoload's own active_input_device() to DEVICE_GAMEPAD as a side effect
 	# of routing a real InputEventJoypadButton through Input.parse_input_event()
 	# -- reset it so a later test file in the same run (e.g. test_key_rebind_
@@ -67,7 +67,7 @@ func test_gamepad_start_toggles_visibility() -> void:
 	assert_true(_menu.visible)
 
 
-## Bontago-1pi.15.1 ("B never goes back in any menu"): gamepad B is
+## "B never goes back in any menu": gamepad B is
 ## ui_cancel's own binding now (tools/bootstrap_project.gd) -- proves the real
 ## InputMap route, not just a synthetic ui_cancel InputEventAction.
 func test_gamepad_b_closes_the_open_menu() -> void:
@@ -89,7 +89,7 @@ func test_suppressed_blocks_the_toggle() -> void:
 	assert_false(_menu.visible, "suppressed must block pause_menu entirely (Tutorial owns the scene).")
 
 
-# --- force_close(): game/main/Main.gd's safety net (Bontago-xtq.42 fix round 2) -----
+# --- force_close(): game/main/Main.gd's safety net (fix round 2) -----
 
 func test_opening_emits_pause_menu_opened_and_suppresses_controller_input() -> void:
 	var controller: PlayerController = autofree(PlayerController.new())
@@ -155,7 +155,7 @@ func test_leave_confirmed_emits_leave_match_requested_and_closes() -> void:
 	assert_false(_menu.visible, "confirming Leave must also close this overlay.")
 
 
-# --- Quit game: removed outright (Bontago-1pi.7, owner: "remove quit game as
+# --- Quit game: removed outright ("remove quit game as
 # an option") -- no button, no handler, no confirmation path left to test.
 
 # --- Focus chain: wraps top to bottom -----------------------------------------

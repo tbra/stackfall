@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1t5.68 (owner: "as long as the surface is horizontal (or perpendicular to the disc in case it tilts) it
+## ("as long as the surface is horizontal (or perpendicular to the disc in case it tilts) it
 ## should be fine"): after a collapse a bot may build beside the old pile and on its debris when every face under
 ## the piece lies flat against the disc. Tilted faces still reject, the centre of mass is still checked through the
 ## whole pile (the debris blocks as carriers), and flatness is judged against the disc normal, not world up.
@@ -162,7 +162,7 @@ func test_new_base_sites_rest_beside_and_on_flat_debris_but_never_on_tilted_debr
 	var view: BotWorldView = _view([FLAT_XZ, LEAN_XZ])
 	var stack: BotStack = _stack()
 	var flat: int = _disc_cube(stack, FLAT_XZ)
-	# Bontago-1t5.72 (H13): a tilted face is centred on the face, not the cube centre, so a cube leaning towards the
+	# H13: a tilted face is centred on the face, not the cube centre, so a cube leaning towards the
 	# home would overhang the foundation points; it leans away from them (the sign) and the sites beside it stay bare.
 	var lean: int = _disc_cube(stack, LEAN_XZ, -LEAN_DEG)
 	view.stack = _analysed(stack)
@@ -193,7 +193,7 @@ func test_new_base_sites_rest_beside_and_on_flat_debris_but_never_on_tilted_debr
 func test_the_new_base_may_sit_on_a_flat_fallen_block_but_not_on_a_flat_top_of_a_leaning_pile() -> void:
 	var first: Vector2 = _first_base_sample()
 	var far_base: Vector2 = HOME_A + Vector2(0.0, -_territory_tuning.home_radius)
-	# Bontago-1t5.70: the grace time has run out (sky_lost), so the fallen tower starts the new base at once.
+	# the grace time has run out (sky_lost), so the fallen tower starts the new base at once.
 	var memory: Dictionary = {
 		"sky_base": far_base, "sky_peak": 9.0, "sky_pending": false,
 		"sky_lost": BotStrategy.SHIPPED_TUNING.collapse_grace_thinks,

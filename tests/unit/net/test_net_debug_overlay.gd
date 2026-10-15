@@ -5,7 +5,7 @@ extends GutTest
 ## actions rather than one InputMap event), and its preset button applies
 ## NetConfig.sim_preset_lag_ms / sim_preset_loss.
 ##
-## Bontago-mv0.1.12: also covers the per-slot intents/cursors_refused rows,
+## also covers the per-slot intents/cursors_refused rows,
 ## through a small local double for net/MatchNet.gd's four counter getters
 ## (_FakeMatchNetCounters below) -- there is no shared FakeMatchNet fixture
 ## yet, and this package doesn't own tests/support/, so the double lives
@@ -105,4 +105,4 @@ func test_preset_button_applies_configured_lag_and_loss() -> void:
 	assert_almost_eq(float(calls[0].get("loss")), config.sim_preset_loss, 0.001)
 
 
-# --- Per-slot cursors_refused / intents rows (Bontago-mv0.1.12) -------------
+# --- Per-slot cursors_refused / intents rows -------------

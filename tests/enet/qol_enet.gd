@@ -1,18 +1,18 @@
 extends Node
-## Bontago-1pi.18.8 (QoL Q4): host + one lagged client over real ENet, the QoL
+## QoL Q4: host + one lagged client over real ENet, the QoL
 ## experiment matrix. One match per cell, restarted in place on the same
 ## session (a real start_match + net_match_start each time). Cells: every toggle
 ## OFF (control), each toggle ON alone, all four ON. Every cell runs the same
 ## phases, and each phase asserts the behaviour the cell's flags predict, so each
 ## toggle is exercised both on and off:
-##   config       the client received the same toggles and claim radius the host runs
-##   backlog      expiry: ON queues on the host and the client mirrors the count;
+##   config the client received the same toggles and claim radius the host runs
+##   backlog expiry: ON queues on the host and the client mirrors the count;
 ##                OFF the host force-drops the client's slot (auto_drops) and both
 ##                sides see feed_timer_expired
 ##   pause_topple host-only topple count (test seam) pauses one slot's timer; ON the
 ##                host freezes it and the client mirror/display agrees, OFF nothing
-##   pause_event  a replicated special trigger pauses every slot, same split
-##   gift_slot    a gift for each seat goes to the slot (ON) or the next-block queue
+##   pause_event a replicated special trigger pauses every slot, same split
+##   gift_slot a gift for each seat goes to the slot (ON) or the next-block queue
 ##                (OFF); the client's intent for the HOST'S seat is refused, its
 ##                own is honoured only when ON
 ## Host and client run in lock-step through two harness RPCs (h_begin / c_done) so
@@ -145,7 +145,7 @@ func _expected_ids(mask: int) -> PackedStringArray:
 
 func _run_host() -> void:
 	# Net.peer_ids() includes the host itself, so wait for host + one client
-	# (Bontago-1pi.18.8: `>= 1` was true at once and the first cell ran before the
+	# (`>= 1` was true at once and the first cell ran before the
 	# client joined).
 	await _until(func() -> bool: return Net.peer_ids().size() >= HOST_AND_CLIENT_PEERS, CONNECT_TIMEOUT)
 	if Net.peer_ids().size() < HOST_AND_CLIENT_PEERS:

@@ -1,5 +1,5 @@
 extends GutTest
-## Domination (Bontago-1pi.25): no early win; the largest territory share
+## Domination: no early win; the largest territory share
 ## (TerritoryRaster.team_share) wins at the round timer; equal shares are a
 ## shared win. Pure objective tests plus config / wire round trips.
 

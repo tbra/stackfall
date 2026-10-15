@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-8or.19: reproduces the owner's exported-build playtest finding
+## reproduces the user's exported-build playtest finding
 ## ("clicking a mapped row does not enter listening mode") by pushing
 ## synthetic input into a real, fixed-size SubViewport containing the real
 ## KeyRebindRow scene -- sidestepping two artifacts that made the earlier,
@@ -40,11 +40,11 @@ func before_each() -> void:
 	add_child_autofree(_sub_viewport)
 
 	# Stands in for ui/menus/OptionsMenu.tscn's own full-screen "Background" ColorRect
-	# (mouse_filter defaults to STOP for a Control): added *before* _row below,
+	# mouse_filter defaults to STOP for a Control: added *before* _row below,
 	# so it sits behind the row and never steals a click on the RebindButton
 	# itself, but still covers every other point in the viewport -- exactly the
 	# panel that swallowed a rebind-to-mouse-button click under the old
-	# _unhandled_input() capture (Bontago-8or.19).
+	# _unhandled_input() capture.
 	_cover = ColorRect.new()
 	_cover.size = Vector2(VIEWPORT_SIZE)
 	_cover.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -141,7 +141,7 @@ func test_the_click_that_starts_listening_is_not_itself_captured_as_the_new_bind
 	assert_eq(InputMap.action_get_events(_test_action).size(), 0, "the click that started listening must not itself become the new binding")
 
 
-## Bontago-8or.19 (owner playtest feedback/playtest.md: "no option to
+## (feedback/playtest.md: "no option to
 ## actually remap the ones that are mapped"). Each of these was, before the
 ## _input() fix, either swallowed by the still-focused RebindButton's own GUI
 ## accelerator/focus-navigation handling (Space, Enter, Left, Tab) or by the
@@ -169,7 +169,7 @@ func _assert_key_replaces_binding(keycode: Key, cfg_name: String) -> void:
 	assert_true(events[0] is InputEventKey)
 	assert_eq((events[0] as InputEventKey).keycode, keycode)
 
-	# Bontago-1pi.10 polish pass: the plain-text %BindingLabel is gone -- the
+	# polish pass: the plain-text %BindingLabel is gone -- the
 	# new binding now shows as a real InputGlyph icon in %GlyphRow instead.
 	var glyph_row: HBoxContainer = _row.get_node("%GlyphRow") as HBoxContainer
 	assert_eq(glyph_row.get_child_count(), 1, "the new binding must show exactly one glyph")

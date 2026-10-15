@@ -1,5 +1,5 @@
 extends GutTest
-## Wind weather (Bontago-22y.4): the pure height/gust/direction rules
+## Wind weather: the pure height/gust/direction rules
 ## (core/weather/WindField.gd), the host effect (autoload/match/StormEffect.gd) against
 ## real Jolt bodies, and the client presentation. Wind's shipped numbers come
 ## from config/weather/storm.tres.

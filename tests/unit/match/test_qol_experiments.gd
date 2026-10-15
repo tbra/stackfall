@@ -1,5 +1,5 @@
 extends "res://tests/unit/match/match_world_test.gd"
-## Bontago-1pi.18.1: QoL experiments A (timer pause, block backlog, goal radius).
+## QoL experiments A (timer pause, block backlog, goal radius).
 ## Every toggle defaults OFF; each is exercised on and off against the real Match.
 
 func after_each() -> void:
@@ -208,7 +208,7 @@ func _qol_replay_events(net: Node) -> Array:
 	return out
 
 
-# --- Toggle B: gift slot (Bontago-1pi.18.2) -----------------------------------
+# --- Toggle B: gift slot -----------------------------------
 
 func _slot_qol(enabled: bool, capacity: int = 1) -> QolExperiments:
 	var qol: QolExperiments = QolExperiments.new()

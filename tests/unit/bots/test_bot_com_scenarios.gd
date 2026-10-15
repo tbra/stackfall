@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1t5.59: end-to-end centre-of-mass picks on a real Field (docs/BOT_TOWER_PLAN.md C "1t5.53b").
+## end-to-end centre-of-mass picks on a real Field (docs/BOT_TOWER_PLAN.md C "1t5.53b").
 ## The V2 bot's real think (BotController._begin_thinking -> BotThink phases STACK/PROBE/RANK/MEASURE/PICK,
 ## zero aim noise, pick_pool 1) chooses among two hand-built sites on a scripted tower, once with the
 ## BotStack snapshot (BotStackProbe.build) and once with view.stack = null; the choice is then sent through
@@ -142,7 +142,7 @@ func _think_over(shape: BlockShape, com_targets: Array[Vector2], with_stack: boo
 			func(slot: int) -> int: return int(Match.team_of(slot))
 		)
 	var think: BotThink = bot._think
-	# Bontago-1t5.54: STACK now runs before PLAN, so the generated sites are swapped once FILL is over (PROBE next).
+	# STACK now runs before PLAN, so the generated sites are swapped once FILL is over (PROBE next).
 	while think._phase < BotThink.Phase.PROBE:
 		think.step(0, bot._probe)
 	think._candidates.clear()

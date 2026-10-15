@@ -1,5 +1,5 @@
 extends GutTest
-## Spec 3.3: "On the host, the cell under the ghost's footprint must be owned
+## Spec 2.5: "On the host, the cell under the ghost's footprint must be owned
 ## by the placing player's team and not contested or a hole." Every cell of the
 ## footprint has to pass, not just the one under the centre.
 
@@ -92,7 +92,7 @@ func test_crossing_the_rim_is_off_disk() -> void:
 
 ## -- v2: one point, no footprint (docs/TERRITORY_V2_PLAN.md) ------------------
 ##
-## Owner clarifications 2026-09-20: "Placement check: one raycast from the
+## Clarification: "Placement check: one raycast from the
 ## middle of the ghost block straight down; the hit point must be inside your
 ## own area and outside every goal flag's area. No cell footprint tests."
 ## Package B does the raycast; everything from the hit point on is here.
@@ -154,11 +154,11 @@ func test_an_invalid_point_snaps_to_the_nearest_valid_one() -> void:
 		+ "ring search must not overshoot it.")
 
 
-## DECISION (Bontago-cmc.7): validate_point() now also rejects a
+## DECISION: validate_point() now also rejects a
 ## contested/holed point, so every MatchConfig.HoleMode can validate placement
 ## through one raycast + validate_point() (autoload/Match.gd request_place()),
 ## without falling back to footprint_cells()/validate() for TEMPORARY/
-## PERMANENT. SPEC.md's 2026-09-20 audit, 3.3 "Placement validation": "one
+## PERMANENT. SPEC.md's audit, 3.3 "Placement validation": "one
 ## downward ray and the hit-point test... for the normal target rules."
 func test_the_point_api_also_rejects_a_contested_point_under_the_legacy_fill() -> void:
 	_rasterize([_home(-3.0, 0.0, 0), _home(3.0, 0.0, 1)] as Array[InfluenceCircle])

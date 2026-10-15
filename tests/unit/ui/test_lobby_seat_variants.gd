@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.43 (round 2): the lobby players row has switchable looks (Classic, Slot, Team groups, Seat
+## round 2: the lobby players row has switchable looks (Classic, Slot, Team groups, Seat
 ## cards), all built by ONE LobbySeatRow for the vs-bots and the hosted lobby. Every control of the requirement
 ## table exists, is operable (synthetic clicks, ui_accept from a pad press, dropdown picks), a client cannot use
 ## the host's controls, pad focus reaches every control and the footer, and the debug-only switch keeps seat state.

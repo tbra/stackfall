@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-xtq.17 review fix (SHOULD-FIX 1): Block._integrate_forces()'s
+## review fix (SHOULD-FIX 1): Block._integrate_forces()'s
 ## rebound-damping heuristic must scale a REAL bounce off something solid, but
 ## must NOT scale a special effect's own intentional velocity write (a Bean's
 ## hop, a Rocket's thrust, a Propeller's lift, an explosion's knockback) just
@@ -170,7 +170,7 @@ func test_kick_reaches_the_same_peak_regardless_of_rebound_damping() -> void:
 
 ## Spawns a fresh cube already in free-fall (no floor -- nothing here needs a
 ## real bounce, only a genuinely falling body to kick) with "a small downward
-## velocity" (Bontago-xtq.17's own bug report), then issues a Bean-style
+## velocity" ('s own bug report), then issues a Bean-style
 ## block.kick(UP * 6.0) and returns the committed vertical velocity for that
 ## exact step.
 ##

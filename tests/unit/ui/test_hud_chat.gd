@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.192.5 C4: HudChat (in-match chat), its gameplay-input gating and Options listing.
+## C4: HudChat (in-match chat), its gameplay-input gating and Options listing.
 
 class UnhandledProbe extends Node:
 	var seen: Array[InputEvent] = []

@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-59o.18 (C1b): core/sky/SkyPalette.gd, the dawn -> sunset day palette blend of the
+## C1b: core/sky/SkyPalette.gd, the dawn -> sunset day palette blend of the
 ## sky cycle (docs/SKY_CYCLE_DEFAULT_PLAN.md s2). Pure rules; the Skybox wiring
 ## (morning = dawn palette, sunset lock = sunset palette) is in test_sky_themes.gd.
 

@@ -1,5 +1,5 @@
 extends GutTest
-## Elimination mode (Bontago-22y.8): home loss decides who is out, the last team standing wins, a same-batch
+## Elimination mode: home loss decides who is out, the last team standing wins, a same-batch
 ## wipe-out goes to the larger territory share, plus its replication and bot/claim behaviour.
 
 const MatchNetScript := preload("res://net/MatchNet.gd")
@@ -122,7 +122,7 @@ func _home_cell(slot: int) -> int:
 	return Match.cell_grid().cell_index(coords.x, coords.y)
 
 
-## Bontago-1pi.185: in Elimination a home is knocked out only after the claim
+## in Elimination a home is knocked out only after the claim
 ## time, so this opens the holes and lets the whole claim time pass in one step.
 func _lose_homes(slots: Array[int]) -> void:
 	var opened: PackedInt32Array = PackedInt32Array()
@@ -220,7 +220,7 @@ func test_client_mirrors_host_state_for_display_only() -> void:
 	assert_eq(HUD.mode_score_text(shown[0]), "1: alive  2: out  3: alive")
 
 
-# --- Claim time (Bontago-1pi.185) --------------------------------------------------------
+# --- Claim time --------------------------------------------------------
 
 func test_claim_progress_resets_on_loss_and_completes_at_claim_time() -> void:
 	var objective: EliminationObjective = EliminationObjective.new(PackedInt32Array([0, 1]), 10.0)

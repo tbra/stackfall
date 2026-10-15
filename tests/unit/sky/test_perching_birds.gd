@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-adt.3: game/ambient/PerchingBirds.gd + game/ambient/Fireflies.gd -- landing, flee
+## game/ambient/PerchingBirds.gd + game/ambient/Fireflies.gd -- landing, flee
 ## triggers, tower perching, block-moved takeoff, theme gating and stable node
 ## counts over repeated theme switches.
 
@@ -78,7 +78,7 @@ func test_lands_on_the_disc_away_from_players_and_edge() -> void:
 	for home: Vector3 in _manager.home_points:
 		assert_gte(Vector2(spot.x - home.x, spot.z - home.z).length(), life.perch_min_player_distance_m - 0.01)
 	assert_gte(Vector2(spot.x, spot.z).length(), life.perch_min_goal_distance_m - 0.01)
-	# Bontago-fca.107: PerchPlanner.is_on_disc probes the margin ring at EDGE_PROBES fixed
+	# PerchPlanner.is_on_disc probes the margin ring at EDGE_PROBES fixed
 	# angles, so a spot between two probes may sit up to margin*(1-cos(pi/probes)) closer
 	# to the rim than the nominal margin (the landing spot is random per run).
 	var probe_gap_m: float = life.perch_edge_margin_m * (1.0 - cos(PI / float(PerchPlanner.EDGE_PROBES)))
@@ -178,7 +178,7 @@ func test_freed_block_never_reaches_typed_calls_during_polls() -> void:
 	assert_ne(bird.state, PerchingBird.State.PERCHED, "bird leaves its freed block")
 
 
-# --- Flocks (Bontago-6fc.3) ------------------------------------------------------------
+# --- Flocks ------------------------------------------------------------
 
 func _flock_life(cap: int, size_min: int, size_max: int) -> AmbientLifeConfig:
 	var life: AmbientLifeConfig = _life(cap)

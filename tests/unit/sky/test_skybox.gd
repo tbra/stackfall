@@ -1,9 +1,9 @@
 extends GutTest
-## game/sky/Skybox.gd (spec 2.10): theme, cycle, fog volume, reflection probe and SSR.
+## game/sky/Skybox.gd (spec 1.10): theme, cycle, fog volume, reflection probe and SSR.
 
 var _skybox: Skybox = null
 
-## Bontago-xtq.28: saved/restored the same way tests/unit/test_main_graphics_
+## saved/restored the same way tests/unit/test_main_graphics_
 ## preset.gd's own _original_preset_id does -- the real "Settings" autoload
 ## outlives this script, so a FogVolume-gating test that calls
 ## Settings.set_graphics_preset() must not leak a changed preset into whatever
@@ -66,7 +66,7 @@ func test_cycle_key_light_and_flare_follow_the_sun() -> void:
 			assert_false(flare.is_theme_enabled())
 
 
-## Bontago-59o.18: F4's "cycle" Theme entry persists as theme_name "cycle" and
+## F4's "cycle" Theme entry persists as theme_name "cycle" and
 ## _ready() runs the cycle from boot (it is not a theme file); any other name
 ## still loads its static theme.
 func test_ready_starts_the_cycle_for_theme_name_cycle() -> void:
@@ -95,7 +95,7 @@ func test_ready_starts_the_cycle_for_theme_name_cycle() -> void:
 	assert_eq(static_skybox.theme.resource_path, "res://config/sky/themes/night.tres")
 
 
-## Bontago-59o.18 (C1b follow-up): a running cycle sky configured from `config`, with
+## C1b follow-up: a running cycle sky configured from `config`, with
 ## the clock at `clock`; returns [exposure, cloud coverage, sea coverage] of its live
 ## sky material.
 func _cycle_look(config: MatchConfig, clock: float) -> Array[float]:
@@ -117,7 +117,7 @@ func _resolved_config(variation_seed: int) -> MatchConfig:
 	return config
 
 
-## Bontago-59o.18 (C1b follow-up): the host-rolled MatchConfig.sky_variation_seed drives
+## C1b follow-up: the host-rolled MatchConfig.sky_variation_seed drives
 ## the sky. Two skyboxes with the same resolved seed (the host's, and a client built from
 ## its wire dict) draw the same sky; a different seed draws a different one; the seed the
 ## skybox reports is the config's.
@@ -197,7 +197,7 @@ func test_fog_volume_is_created_but_hidden_on_low_preset() -> void:
 	assert_false(fog_volume.visible, "low preset must hide the cloud-deck FogVolume")
 
 
-## Bontago-59o.18 (C1a review fix): a graphics-preset change (the settings menu or the
+## C1a review fix: a graphics-preset change (the settings menu or the
 ## adaptive governor) rebuilds the cloud puffs and ambient life from the DAY
 ## palette. A running cycle heals on its next frame, but a locked cycle never
 ## re-runs set_cycle_phase() on its own, so the match stayed dressed as day inside

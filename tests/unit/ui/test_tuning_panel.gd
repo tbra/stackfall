@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mv0.18: ui/debug/TuningPanel.gd's reflection-built tabs (one control per
+## ui/debug/TuningPanel.gd's reflection-built tabs (one control per
 ## exported numeric/bool/Color field of the live tuning resources), the F4 /
 ## gamepad Start+X toggle (tools/bootstrap_project.gd's chord DECISION), the
 ## physics/territory-visuals live-apply hooks, and the Reset/Save/Copy
@@ -31,13 +31,13 @@ var _saved_max_cell_toggles: int
 var _saved_tint_color: Color
 var _saved_disk_metallic: float
 
-## Bontago-xtq.36: saved/restored the same way every other live singleton
+## saved/restored the same way every other live singleton
 ## field above is (this file's own header explains why) -- mutated by the
 ## new Sky-tab write-through test below.
 var _saved_sky_fog_density: float
 
 
-## Bontago-fca.38.1: the ~2900-node tab UI is built once per script, not once per
+## the ~2900-node tab UI is built once per script, not once per
 ## test. Tests that only read the panel or write resources/controls run against
 ## _shared; after_each repairs it (rebuild) if anything left it dirty (a "•"
 ## modified marker, open/hidden state, swapped providers or wiring). Tests that
@@ -163,7 +163,7 @@ func test_apply_physics_live_updates_an_existing_blocks_damping_material_and_gra
 	assert_almost_eq(block.gravity_scale, 1.9, 0.0001)
 
 
-# --- Bontago-xtq.17: Physics preset dropdown ---------------------------------
+# --- Physics preset dropdown ---------------------------------
 
 func test_apply_physics_preset_copies_values_and_reapplies_live() -> void:
 	var shape: BlockShape = load("res://config/blocks/cube.tres")
@@ -265,7 +265,7 @@ func test_weather_row_selection_forces_swaps_and_releases_on_the_host() -> void:
 	assert_eq(weather.debug_override(), &"")
 
 
-## Bontago-1pi.113: the 10-task-tab layout -- CLIENT_HIDDEN_TAB_FIRST is 7 (Bontago-1pi.211 added SFX), so
+## the 10-task-tab layout -- CLIENT_HIDDEN_TAB_FIRST is 7 (added SFX), so
 ## every look/feel tab (Camera ... SFX) stays visible to a client and only the
 ## host-only simulation tabs (Physics, Territory rules, Block bag, QoL) hide.
 func test_client_hides_the_simulation_tabs_but_not_the_visual_tabs() -> void:
@@ -284,7 +284,7 @@ func test_client_hides_the_simulation_tabs_but_not_the_visual_tabs() -> void:
 		assert_true(_panel._tab_container.is_tab_hidden(index), "tab %d (host-only simulation tab)" % index)
 
 
-# --- Bontago-xtq.36: M7 art-direction tabs (Blocks FX/Beacons/Camera FX/HUD/Sky) ---
+# --- M7 art-direction tabs (Blocks FX/Beacons/Camera FX/HUD/Sky) ---
 
 func _key_press(keycode: Key) -> InputEventKey:
 	var event: InputEventKey = InputEventKey.new()
@@ -324,7 +324,7 @@ func test_gamepad_start_plus_x_toggles() -> void:
 	assert_true(_panel.visible, "Start held + X pressed should toggle the panel.")
 
 
-# --- Bontago-xtq.13 (owner playtest 2026-09-23, "F4 should remember which
+# --- ("F4 should remember which
 # tab was active when reopened") ---------------------------------------------
 
 func test_persistence_disallowed_for_headless_non_gut_run() -> void:
@@ -334,7 +334,7 @@ func test_persistence_disallowed_for_headless_non_gut_run() -> void:
 	assert_true(UserPaths.persistence_allowed(), "GUT runs keep writing to the per-PID files.")
 
 
-# --- Bontago-mv0.21: owner-tuned defaults --------------------------------------
+# --- tuned defaults --------------------------------------
 
 func test_reset_restores_shipped_tres_and_default_label_and_highlight_agree() -> void:
 	var resources: Array[Resource] = [
@@ -343,7 +343,7 @@ func test_reset_restores_shipped_tres_and_default_label_and_highlight_agree() ->
 		_panel.skybox_config, _panel.sky_theme,
 	]
 	var differing: int = 0
-	# Bontago-fca.38.1: every differing field is edited first, then one reset_all()
+	# every differing field is edited first, then one reset_all()
 	# (a full ~2900-node rebuild) restores them all, then every field gets the same
 	# per-field assertions as before (was one reset_all() per field).
 	var edited: Array[Dictionary] = []
@@ -387,7 +387,7 @@ func test_m7_config_resources_have_complete_hints() -> void:
 		BlockEffectsConfig.new(),
 		HUDVisualTuning.new(),
 		SkyThemeDef.new(),
-		# Bontago-adt.2: the disc-top surface sets (texture and procedural).
+		# the disc-top surface sets (texture and procedural).
 		DiscSurfaceDef.new(),
 		AmbientLifeConfig.new(),
 		QualityGovernorConfig.new(),
@@ -426,7 +426,7 @@ func test_m7_config_resources_have_complete_hints() -> void:
 	assert_true(checked_any, "fixture: at least one M7 config field must exist to check.")
 
 
-# --- Bontago-adt: Sky tab Theme dropdown ----------------------------------------
+# --- Sky tab Theme dropdown ----------------------------------------
 
 func _find_option_named(node: Node, option_name: String) -> OptionButton:
 	if node is OptionButton and node.name == option_name:
@@ -553,7 +553,7 @@ func test_time_of_day_row_routes_every_choice_through_set_locked_phase() -> void
 	assert_false(_panel.apply_time_of_day("midnight"), "an unknown choice is rejected")
 
 
-## Bontago-1pi.21: a GUT run must never touch the owner's real overrides file.
+## a GUT run must never touch the owner's real overrides file.
 func test_gut_run_save_overrides_never_touches_real_file() -> void:
 	var real: String = TuningPanel.SAVE_PATH
 	var existed: bool = FileAccess.file_exists(real)
@@ -566,7 +566,7 @@ func test_gut_run_save_overrides_never_touches_real_file() -> void:
 		assert_eq(FileAccess.get_modified_time(real), mtime, "real file mtime unchanged")
 
 
-# --- Bontago-1pi.112: no unused rows, grouped and sorted ------------------------
+# --- no unused rows, grouped and sorted ------------------------
 
 ## Fields read only through an accessor method on their own config class: the
 ## accessor name must still appear in live game code outside config/ and the panel.

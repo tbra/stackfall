@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.19: the right stick scrolls a FocusScrollContainer, the next ui_up / ui_down
+## the right stick scrolls a FocusScrollContainer, the next ui_up / ui_down
 ## after a stick scroll jumps the selection into the visible viewport, and a held left stick / d-pad
 ## keeps moving the selection with the sliders' hysteresis (one move at the press threshold,
 ## repeat only at full deflection after the delay).

@@ -1,5 +1,5 @@
 extends "res://tests/unit/match/match_world_test.gd"
-## Bontago-mp0.27: the pre-match 3-2-1. Host side: COUNTDOWN refuses
+## the pre-match 3-2-1. Host side: COUNTDOWN refuses
 ## placement and does not run the block timer; seconds come from MatchConfig
 ## (sandbox / 0 skip it). Client side: the HUD label renders the host's
 ## remaining time, "Go!" after, and the camera entry point finds the beacon.

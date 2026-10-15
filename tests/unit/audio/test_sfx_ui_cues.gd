@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mp0.117: lobby/loading UI cues play on their events.
+## lobby/loading UI cues play on their events.
 
 var _config: AudioConfig
 

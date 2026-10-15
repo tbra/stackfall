@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mp0.95: the cloud puffs are shader-drawn instances, not physics bodies, so a physics
+## the cloud puffs are shader-drawn instances, not physics bodies, so a physics
 ## ray never sees them and the additive sun flare drew straight over every cloud. CloudSea now
 ## records bounds for every clump and puff when it builds and answers
 ## sun_ray_cloud_occlusion(from, dir) -> 0..1 (soft) from them, no physics. These tests build

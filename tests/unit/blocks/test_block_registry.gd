@@ -1,11 +1,11 @@
 extends GutTest
-## game/blocks/BlockRegistry.gd: tracks live blocks, the settled rule (spec 2.2), and
+## game/blocks/BlockRegistry.gd: tracks live blocks, the settled rule (spec 1.5), and
 ## net_id <-> Block.
 
 var _tuning: PhysicsTuning = load("res://config/physics/physics_tuning.tres")
 var _territory_tuning: TerritoryTuning = load("res://config/territory/territory_tuning.tres")
 
-## DECISION (Bontago-mv0.3): a duplicate of round_medium.tres shrunk to a 20 m
+## DECISION: a duplicate of round_medium.tres shrunk to a 20 m
 ## disk (~1250 cells, vs. round_medium's own ~6300), not the shared resource
 ## itself -- Field.new() defaults its own map_def export to that exact shared,
 ## cached round_medium.tres, and every test below built one, so the fixture
@@ -142,7 +142,7 @@ func test_client_owner_mirror_uses_net_id_and_refuses_unknown_or_duplicate() -> 
 
 
 func test_net_ids_walk_past_the_u16_boundary_without_reuse() -> void:
-	# Bontago-mv0.1.7: the counter is monotonic and never reused within a
+	# the counter is monotonic and never reused within a
 	# match, so it *will* pass 65535 in a long enough match. Every id it hands
 	# out past that point must still be its own body on the wire.
 	var field: Field = _make_field()
@@ -206,7 +206,7 @@ func test_debug_set_next_net_id_never_reaches_the_reserved_zero() -> void:
 
 
 func test_bind_net_id_refuses_ids_the_wire_cannot_carry() -> void:
-	# Bontago-mv0.1.7: bind_net_id() used to check only `net_id < 0`, so the
+	# bind_net_id() used to check only `net_id < 0`, so the
 	# client's own boundary would happily track a body under net_id == 0 (the
 	# wire's reserved "no body" id) or an id past Quantize.NET_ID_MAX -- either
 	# aliases a real body or a legitimate "nothing here" answer.
@@ -353,7 +353,7 @@ func test_all_settled_is_false_while_one_tracked_block_still_moves() -> void:
 	assert_false(registry.all_settled(), "one still-moving block keeps the whole registry unsettled")
 
 
-# --- Bontago-1pi.11.14: physics-driven territory_revision bumps ---------------
+# --- physics-driven territory_revision bumps ---------------
 
 
 func _settled_frozen_block(field: Field, registry: BlockRegistry, shape: BlockShape) -> Block:

@@ -1,6 +1,6 @@
 extends GutTest
 ## `godot --headless --path . -- --headless-host --bots=<n>` (docs/archive/M5_PLAN.md
-## P5, Bontago-d5c.6): the cmdline parsers (`_bots_arg()`/`_seconds_arg()`)
+## P5): the cmdline parsers (`_bots_arg()`/`_seconds_arg()`)
 ## and `_start_headless_bot_match_with_args()`'s own direct
 ## register_world()/start_match() build, which reuses the ordinary networked
 ## `_build_match_world()` (Events.match_state_changed is already connected by
@@ -13,7 +13,7 @@ extends GutTest
 ## `_host()` (a real Net.host_game() with an incrementing port, no clients):
 ## unlike this file's original version, `_start_headless_bot_match_with_args()`
 ## now refuses to build a match unless Net actually became the HOST (review
-## finding 1, Bontago-d5c.6) -- exactly what a real `--headless-host --bots=N`
+## finding 1) -- exactly what a real `--headless-host --bots=N`
 ## command line has already done, via Net.apply_command_line(), by the time
 ## `_ready()` reaches that call. `test_offline_with_bots_is_refused_and_logs_
 ## an_error()` below covers the case this guards against: --headless-host's

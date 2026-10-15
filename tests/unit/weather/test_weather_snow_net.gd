@@ -1,5 +1,5 @@
 extends GutTest
-## Snow (Bontago-22y.6): replication surface net/SnowNet.gd. A client draws
+## Snow: replication surface net/SnowNet.gd. A client draws
 ## caps from the host's compact state without ever building a collider,
 ## refuses malformed or out-of-event states, clears on every end path; the
 ## host throttles, flushes empty states at once and serves late joiners.

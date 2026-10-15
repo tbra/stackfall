@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1t5.72.5: the evaluator's TIP term reads BotStability.slack. test_bot_think_determinism has no
+## the evaluator's TIP term reads BotStability.slack. test_bot_think_determinism has no
 ## snapshot, so this pins one full Reach the Sky think over a scripted sound tower (a stacked-site decision), shows an
 ## unstable taller top losing to a stable one, and that the topple penalty outweighs the height bonus for every intent.
 

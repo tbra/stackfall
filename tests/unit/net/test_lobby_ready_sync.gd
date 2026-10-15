@@ -1,9 +1,9 @@
 extends GutTest
-## Bontago-1pi.89: Net's per-peer "ready" flag is the single source of truth; the Lobby's Ready
+## Net's per-peer "ready" flag is the single source of truth; the Lobby's Ready
 ## toggle and the seat badges are views of it. Every route that changes the flag (toggle press,
 ## reset_ready_flags, returning from a match, a rejoin) must leave the toggle, the local seat's
 ## badge and the Net flag equal -- for the host and for a client, on a FakeNet and on real ENet
-## sessions. Third report of the same desync (Bontago-1pi.67, 1pi.73): the toggle kept its own
+## sessions. Third report of the same desync: the toggle kept its own
 ## pressed state and nothing ever wrote Net's flag back into it.
 
 const LOBBY_SCENE: PackedScene = preload("res://ui/lobby/Lobby.tscn")
@@ -45,7 +45,7 @@ func _badges(lobby: Lobby) -> Dictionary:
 		var row: LobbySeatRow = node as LobbySeatRow
 		if row == null or row.is_bot or row.badge == null:
 			continue
-		# Bontago-1pi.106: the host's badge is a crown, so its ready state is read off the row flag.
+		# the host's badge is a crown, so its ready state is read off the row flag.
 		badges[row.display_name] = row.is_ready if row.is_host else (row.badge as Control).get_accessibility_name() == LobbySeatRow.ready_tooltip(true)
 	return badges
 

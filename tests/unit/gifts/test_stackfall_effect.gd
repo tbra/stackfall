@@ -173,7 +173,7 @@ func test_full_rain_spawns_every_block_from_height() -> void:
 	assert_gt(highest, effect.spawn_height_m * 0.8)
 
 
-## Bontago-1pi.85.24: only an in-place anchor makes Stackfall trigger on its own first tick; a
+## only an in-place anchor makes Stackfall trigger on its own first tick; a
 ## falling carrier still waits for its impact.
 func test_wants_early_trigger_only_for_an_in_place_anchor() -> void:
 	var effect: StackfallEffect = StackfallEffect.new()
@@ -183,7 +183,7 @@ func test_wants_early_trigger_only_for_an_in_place_anchor() -> void:
 	assert_true(effect.wants_early_trigger(carrier, null))
 
 
-## Bontago-1pi.85.31: the shipped rain mixes shapes (not only cubes), replicated as normal blocks.
+## the shipped rain mixes shapes (not only cubes), replicated as normal blocks.
 func test_shipped_rain_spawns_a_mix_of_shapes() -> void:
 	var seen: Dictionary = {}
 	for _run: int in range(2):

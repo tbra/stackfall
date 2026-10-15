@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.7 / 159.14: UiDropdown is a normal popup list (the click-to-cycle of decision
+## / 159.14: UiDropdown is a normal popup list (the click-to-cycle of decision
 ## 1pi.94 is gone; cycling options use UiCycler), OptionButton-parity API, ui_accept open / ui_down
 ## move / ui_accept pick / ui_cancel close through the Input Map, outside click closes, row-item contract.
 

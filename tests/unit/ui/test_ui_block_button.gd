@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.4: UiBlockButton (ui/components/UiBlockButton.gd): token faces per variant, the
+## UiBlockButton (ui/components/UiBlockButton.gd): token faces per variant, the
 ## five block states, row-height fit, focus + ui_accept / pad A through the Input Map.
 
 var _pressed: int = 0

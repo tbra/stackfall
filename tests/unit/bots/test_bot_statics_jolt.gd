@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1t5.72.3 (STATICS_DESIGN 6.1, cases A, D, E, F, G): single-level agreement between the bot's statics model
+## STATICS_DESIGN 6.1, cases A, D, E, F, G: single-level agreement between the bot's statics model
 ## (BotStability on a BotStackProbe snapshot) and real Jolt. Each case sits +-0.1 m around a centre-of-mass boundary
 ## (the boundary itself is chaotic); the scene settles behind a quiet gate; "stood" is the settled outcome.
 ## A mismatch is a finding about the model, never a reason to move a case.
@@ -124,7 +124,7 @@ func test_e_upright_bar3_with_its_com_outside_the_edge_falls() -> void:
 
 ## F: cube8 on cube8 offset 0.89 / 1.09.
 ## The piece's overhanging column overlaps the base by less than min_contact_overlap_m (0.1 m) at 0.89; the model
-## keeps that strip as a contact (Bontago-1t5.72.10, like the host's lift) and agrees with Jolt.
+## keeps that strip as a contact (like the host's lift) and agrees with Jolt.
 func test_f_cube8_on_cube8_inside_stands() -> void:
 	assert_true(await _base())
 	_agree("F- cube8 offset %.2f" % (EDGE_M - INSIDE_M), await _scene.trial(CUBE8_SHAPE, 0, _at(EDGE_M - INSIDE_M), 0.0), true)

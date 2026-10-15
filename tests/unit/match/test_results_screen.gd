@@ -1,5 +1,5 @@
 extends GutTest
-## ui/menus/ResultsScreen (Bontago-1pi.6): headline, rows, buttons and gamepad focus over match_results_ready.
+## ui/menus/ResultsScreen: headline, rows, buttons and gamepad focus over match_results_ready.
 
 const RESULTS_SCREEN_SCENE: PackedScene = preload("res://ui/menus/ResultsScreen.tscn")
 
@@ -38,7 +38,7 @@ func before_each() -> void:
 	_screen.match_provider = _fake_match
 
 
-## Bontago-1pi.15.1: this file's own gamepad D-pad/A/B tests route real
+## this file's own gamepad D-pad/A/B tests route real
 ## InputEventJoypadButton events through Input.parse_input_event(), which
 ## flips the Settings autoload's own active_input_device() to DEVICE_GAMEPAD
 ## as a side effect -- reset it so a later test file in the same run doesn't
@@ -117,7 +117,7 @@ func test_team_headline_uses_the_team_name() -> void:
 
 # --- Stats table: one row per player, sorted, winner highlighted -----------
 
-# Bontago-1t5.45: a bot row names its tier, a human row does not; a client's config
+# a bot row names its tier, a human row does not; a client's config
 # (round-tripped through to_dict/from_dict like the replicated one) shows the same tier.
 func _name_text_of_row(index: int) -> String:
 	var panel: PanelContainer = _screen._rows_list.get_child(index) as PanelContainer
@@ -169,7 +169,7 @@ func test_gamepad_dpad_down_moves_focus_to_the_next_button() -> void:
 	assert_true(_screen._lobby_button.has_focus(), "a synthetic gamepad D-pad-down press must move focus along the wired chain.")
 
 
-# --- Gamepad parity (Bontago-1pi.15.1: "gamepad works in some menus but not
+# --- Gamepad parity ("gamepad works in some menus but not
 # all; B never goes back in any menu") ------------------------------------------
 
 func test_gamepad_a_activates_the_focused_replay_button() -> void:
@@ -192,7 +192,7 @@ func test_gamepad_a_activates_the_focused_replay_button() -> void:
 	assert_eq(_fake_match_net.replay_calls, 1, "gamepad A on the focused Replay button must activate it via ui_accept.")
 
 
-# --- Bontago-1pi.72.1 --------------------------------------------------------
+# --- --------------------------------------------------------
 
 ## Pause menu open when the round ends: it closes itself, and once it is closed
 ## the results own the cursor and focus again.
@@ -224,7 +224,7 @@ func test_pause_menu_open_at_round_end_leaves_results_interactive() -> void:
 	assert_eq(_fake_match_net.replay_calls, 1, "gamepad A reaches the results after the pause menu closed")
 
 
-# --- Bontago-1pi.25.1 Domination ---------------------------------------------
+# --- Domination ---------------------------------------------
 
 func test_domination_results_show_shares_and_winners() -> void:
 	var results: Dictionary = _team_results()
@@ -235,4 +235,4 @@ func test_domination_results_show_shares_and_winners() -> void:
 	assert_eq(ResultsScreen.winner_ids(results), PackedInt32Array([1]))
 
 
-# --- Stackfall Arcade table (Bontago-hfa.7) ----------------------------------
+# --- Stackfall Arcade table ----------------------------------

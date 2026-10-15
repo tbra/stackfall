@@ -1,5 +1,5 @@
 extends GutTest
-## Capture the Flag (Bontago-22y.7, owner decision Bontago-pi8): beacons are the
+## Capture the Flag: beacons are the
 ## goal flags; each held beacon scores per elapsed second, the highest score at
 ## the round timer wins, a tie is shared. Raster-level tests use the real solver
 ## like test_win_checker.gd; the lifecycle and replication tests go through Match.

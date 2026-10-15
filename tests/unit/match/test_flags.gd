@@ -1,6 +1,6 @@
 extends GutTest
-## Home and goal flags: where they stand (spec 2.2) and the goal's capture ring
-## (spec 2.3).
+## Home and goal flags: where they stand (spec 1.5) and the goal's capture ring
+## (spec 1.5).
 
 const FIELD_RADIUS: float = 20.0
 
@@ -31,7 +31,7 @@ func _make_field() -> Field:
 	return field
 
 
-# --- Positions (spec 2.2) ---------------------------------------------------
+# --- Positions (spec 1.5) ---------------------------------------------------
 
 func test_two_home_flags_sit_opposite_each_other() -> void:
 	var field: Field = _make_field()
@@ -81,7 +81,7 @@ func test_place_flags_builds_a_flag_per_slot_and_goal() -> void:
 		)
 
 
-# --- Capture ring (spec 2.3) ------------------------------------------------
+# --- Capture ring (spec 1.5) ------------------------------------------------
 
 func test_capture_ring_appears_and_tracks_progress() -> void:
 	var field: Field = _make_field()
@@ -105,7 +105,7 @@ func test_capture_ring_hides_when_the_capture_breaks() -> void:
 	assert_eq(flag.capture_team(), -1)
 
 
-# --- Beacon visuals (M7 P8, Bontago-xtq.33) ----------------------------------
+# --- Beacon visuals (M7 P8) ----------------------------------
 
 func test_home_beacon_ring_and_crystal_follow_set_slots_color() -> void:
 	var field: Field = _make_field()
@@ -117,9 +117,9 @@ func test_home_beacon_ring_and_crystal_follow_set_slots_color() -> void:
 		var ring: MeshInstance3D = flag.get_node(^"Ring") as MeshInstance3D
 		var crystal: MeshInstance3D = flag.get_node(^"Crystal") as MeshInstance3D
 		var ring_material: StandardMaterial3D = ring.material_override as StandardMaterial3D
-		# Bontago-mp0.3.1: the crystal now draws with
+		# the crystal now draws with
 		# shaders/territory/beacon_crystal.gdshader (toon banding + a hard specular
-		# facet highlight, owner feedback: "Same for the beacons"), so its
+		# facet highlight, : "Same for the beacons"), so its
 		# colour lives in the "albedo_color" shader parameter instead of
 		# StandardMaterial3D's own `.albedo_color` -- see HomeFlag._build()'s
 		# own DECISION comment.
@@ -136,7 +136,7 @@ func test_home_beacon_ring_and_crystal_follow_set_slots_color() -> void:
 		)
 
 
-# --- Beacon size at gameplay scale (Bontago-xtq.41: owner playtest "the ------
+# --- Beacon size at gameplay scale ("the ------
 # beacons are way too small") -------------------------------------------------
 
 func test_goal_beacon_uses_the_neutral_color_not_a_slot_color() -> void:

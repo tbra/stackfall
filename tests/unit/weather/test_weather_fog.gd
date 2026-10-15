@@ -1,5 +1,5 @@
 extends GutTest
-## Fog weather (Bontago-470.3): data registration, the Skybox-owned apply /
+## Fog weather: data registration, the Skybox-owned apply /
 ## restore (including a live theme switch), the disc's own matching fog, the
 ## Low variant, and what stays visible. Fog is presentation only: no host effect.
 

@@ -1,6 +1,6 @@
 extends GutTest
 ## Checks BlockFactory's output shape (mass, collision/mesh count) against
-## the numbers in spec 2.4 and config/physics/physics_tuning.tres.
+## the numbers in spec 1.4 and config/physics/physics_tuning.tres.
 
 var _tuning: PhysicsTuning = load("res://config/physics/physics_tuning.tres")
 
@@ -11,7 +11,7 @@ func test_cube_mass_and_shape_count() -> void:
 	assert_eq(block.cube_count, 1)
 	assert_almost_eq(block.mass, _tuning.cube_mass * 1.0, 0.0001)
 	assert_eq(_count_children_of_type(block, "CollisionShape3D"), 1)
-	# Bontago-1pi.11.60: the outline is a next_pass on the BlockMesh material.
+	# the outline is a next_pass on the BlockMesh material.
 	assert_eq(_count_children_of_type(block, "MeshInstance3D"), 1)
 
 
@@ -21,18 +21,18 @@ func test_bar4_mass_and_shape_count() -> void:
 	assert_eq(block.cube_count, 4)
 	assert_almost_eq(block.mass, _tuning.cube_mass * 4.0, 0.0001)
 	assert_eq(_count_children_of_type(block, "CollisionShape3D"), 4)
-	# Bontago-xtq.3: one solid mesh for the whole shape, not one per cell --
+	# one solid mesh for the whole shape, not one per cell --
 	# see game/blocks/BlockFactory.gd's DECISION and core/blocks/BlockMeshBuilder.gd.
-	# Bontago-1pi.11.60: the outline is a next_pass on that mesh's material,
+	# the outline is a next_pass on that mesh's material,
 	# not a second MeshInstance3D.
 	assert_eq(_count_children_of_type(block, "MeshInstance3D"), 1)
 
 
-## Bontago-xtq.3 (owner feel report "our blocks are made up of many smaller
-## blocks, is that necessary? the original just has solid shapes"): every
+## Requirement: "our blocks are made up of many smaller
+## blocks, is that necessary? the original just has solid shapes": every
 ## multi-cube shape now renders as exactly one solid MeshInstance3D, whatever
 ## its cube_count, both for a spawned Block and for the ghost-only visual.
-## Bontago-xtq.27: a spawned Block's solid mesh additionally gets its own
+## a spawned Block's solid mesh additionally gets its own
 ## outline MeshInstance3D (sharing that same one solid ArrayMesh, see
 ## game/blocks/BlockFactory.gd's own DECISION comment) -- the ghost-only visual does
 ## not, so it stays at exactly one.
@@ -79,7 +79,7 @@ func test_physics_material_matches_tuning() -> void:
 	assert_almost_eq(block.physics_material_override.bounce, _tuning.block_bounce, 0.0001)
 
 
-# --- Bontago-mv0.18 (in-game tuning panel, spec 2.8 "Gravity 0.5x-2x") -------
+# --- (in-game tuning panel, spec 1.9 "Gravity 0.5x-2x") -------
 
 func test_gravity_scale_matches_the_shared_tunings_multiplier() -> void:
 	var shape: BlockShape = load("res://config/blocks/cube.tres")
@@ -87,7 +87,7 @@ func test_gravity_scale_matches_the_shared_tunings_multiplier() -> void:
 	assert_almost_eq(block.gravity_scale, _tuning.gravity_multiplier, 0.0001)
 
 
-# --- Bontago-xtq.17 (rebound damping): BlockFactory wires its own tuning ----
+# --- rebound damping: BlockFactory wires its own tuning ----
 
 ## Review fix (SHOULD-FIX 3): BlockFactory.build() sets `block.tuning =
 ## tuning` itself, so a non-singleton PhysicsTuning instance (not the shared
@@ -153,11 +153,11 @@ func _first_mesh_instance(node: Node) -> MeshInstance3D:
 	return null
 
 
-# --- Bontago-mv0.11 (owner-reported playability): owner-coloured blocks -----
+# --- player-coloured blocks -----
 
-## Bontago-xtq.27: the primary mesh's material_override is now a ShaderMaterial
+## the primary mesh's material_override is now a ShaderMaterial
 ## (shaders/blocks/block_cell_grid.gdshader) rather than a StandardMaterial3D, so the
-## owner colour lives in its "albedo_color" shader parameter instead of
+## The player colour lives in its "albedo_color" shader parameter instead of
 ## `.albedo_color` -- see game/blocks/BlockFactory.gd's `_material_for_color()`.
 func test_block_mesh_material_matches_the_requested_color() -> void:
 	var shape: BlockShape = load("res://config/blocks/cube.tres")
@@ -192,7 +192,7 @@ func test_two_blocks_of_the_same_slot_color_share_one_cached_material() -> void:
 	assert_eq(material_a, material_b, "one cached ShaderMaterial per colour, never one per block.")
 
 	# Every *solid* mesh within one multi-cube block shares it too, not just
-	# the first -- but Bontago-xtq.27's outline pass ("BlockOutline") is its
+	# the first -- but's outline pass ("BlockOutline") is its
 	# own separately-cached shared ShaderMaterial (never colour-keyed, see
 	# _outline_material_singleton()), so it is excluded here and checked on
 	# its own below instead.
@@ -214,7 +214,7 @@ func test_a_different_color_gets_its_own_material() -> void:
 	assert_ne(_first_mesh_instance(block_red).material_override, _first_mesh_instance(block_blue).material_override)
 
 
-# --- Bontago-xtq.27 fix round (review MAJOR): the "contributing to territory --
+# --- fix round (review MAJOR): the "contributing to territory --
 # --- influence" glow seam now lives on Block itself, not written directly ---
 # --- from inside BlockFactory.build() -----------------------------------------
 
@@ -267,7 +267,7 @@ func test_set_contributing_visual_is_a_public_seam_independent_of_the_sleeping_s
 	assert_eq(_first_mesh_instance(block).get_instance_shader_parameter(&"contributing"), false)
 
 
-# --- Bontago-mv0.12 (owner-reported playability): the pivot is the shape's --
+# --- pivot is the shape's --
 # --- geometric centre, not cell (0, 0, 0) ------------------------------------
 
 func _combined_local_aabb(root: Node3D) -> AABB:
@@ -289,11 +289,11 @@ func _combined_local_aabb(root: Node3D) -> AABB:
 
 ## Every BlockShape whose cells don't straddle the origin symmetrically (bar3,
 ## domino, L3, L4, T4, S4, pillar...) used to hang off the cursor and rotate
-## about the wrong point (Bontago-mv0.12), because build_visual_only() placed
+## about the wrong point, because build_visual_only() placed
 ## cell (0, 0, 0) at this node's own origin instead of the shape's centre.
 ##
-## Bontago-mv0.17 item 3: the pivot moved from the shape's geometric centre to
-## its bottom-centre (owner feel report: half the block used to sink below
+## The pivot moved from the shape's geometric centre to
+## its bottom-centre (half the block used to sink below
 ## the cursor point), so this node's own origin (0, 0, 0) must now be the
 ## visual AABB's x/z centre AND its bottom face -- not its full 3D centre.
 ## GhostPreview.update_placement() positions this node's origin at the
@@ -310,8 +310,8 @@ func test_ghost_visual_bottom_sits_at_this_nodes_own_origin_for_every_shape() ->
 			bottom_center_xz.is_equal_approx(Vector2.ZERO),
 			"%s's visual AABB should be x/z-centred on this node's own origin, got %s" % [shape.id, bottom_center_xz]
 		)
-		# Bontago-mv0.17: the collision/visual box is shrunk by cube_margin
-		# (spec 2.4's "so neighboring blocks don't jam"), so the bottom face
+		# the collision/visual box is shrunk by cube_margin
+		# (spec 1.4's "so neighboring blocks don't jam"), so the bottom face
 		# sits half that margin above y = 0, not exactly on it -- see
 		# BlockFactory.build()'s half_size math. The tolerance is exactly
 		# that half-margin, not a loose fudge factor.
@@ -332,7 +332,7 @@ func test_built_blocks_use_the_same_cell_offsets_as_their_ghost_visual() -> void
 
 		var block_positions: Array[Vector3] = []
 		for child: Node in block.get_children():
-			# Bontago-xtq.27: "BlockOutline" is excluded -- it is a rendering-
+			# "BlockOutline" is excluded -- it is a rendering-
 			# only outline pass sharing the exact same ArrayMesh (and the exact
 			# same node position) as "BlockMesh", not a distinct cell placement,
 			# so it must not be double-counted against the ghost's one entry.
@@ -350,7 +350,7 @@ func test_built_blocks_use_the_same_cell_offsets_as_their_ghost_visual() -> void
 			)
 
 
-## Bontago-mv0.17 item 3: autoload/Match.gd's request_place() spawns every
+## item 3: autoload/Match.gd's request_place() spawns every
 ## block with `block.global_transform = Transform3D(basis, world_origin)`,
 ## where world_origin is the ghost's own (bottom-pivoted) position -- so a
 ## real spawned body's AABB bottom must land at exactly that requested

@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.11.37: adaptive quality governor (core/perf/QualityGovernor.gd, the
+## adaptive quality governor (core/perf/QualityGovernor.gd, the
 ## Settings integration and game/debug/QualityGovernorDriver.gd).
 
 const SETTINGS_SCRIPT: GDScript = preload("res://autoload/Settings.gd")

@@ -1,5 +1,5 @@
 extends GutTest
-## net/MatchNet.gd: authority, intents and replication (spec 3.4,
+## net/MatchNet.gd: authority, intents and replication (spec 2.6,
 ## docs/archive/M3a_PLAN.md P3). This is where M3a's "placements are never duplicated
 ## or lost" is won or lost, so these tests drive the **real** Match with a
 ## faked Net rather than a fake authority: every assertion below is about what
@@ -22,7 +22,7 @@ var _registry: BlockRegistry
 var _net: MatchNetScript
 var _fake_net: FakeNet
 
-## DECISION (Bontago-mv0.3): see test_match_flow.gd's own `_tiny_map` comment
+## DECISION: see test_match_flow.gd's own `_tiny_map` comment
 ## for the full story -- this file builds a real Field/Match world in every
 ## test's before_each exactly the same way, so it paid the same ~11 s
 ## round_medium.tres (45 m, ~6300 cells) collision build per test. 20 m, the
@@ -112,7 +112,7 @@ func _block_count() -> int:
 	return _blocks_root.get_child_count()
 
 
-## Bontago-mv0.10 (spec 2.4 "[ORIGINAL target]" cadence): several tests below
+## spec 1.4 "[ORIGINAL target]" cadence: several tests below
 ## place more than once for the same slot with no frame between calls, the
 ## way this whole file's fixture (a unit test with no real peer, so every
 ## rpc() is a no-op) always has. Since a deliberate release now locks the
@@ -171,7 +171,7 @@ func test_submit_place_on_a_client_sends_without_touching_match() -> void:
 # --- Never duplicated, never lost -------------------------------------------
 
 
-## Bontago-mv0.10 (spec 2.4 "[ORIGINAL target]" cadence): a release attempted
+## spec 1.4 "[ORIGINAL target]" cadence: a release attempted
 ## while release-locked, over the wire, counts exactly like any other refused
 ## intent -- MatchNet._consumed_a_block() already treats REASON_NO_BLOCK as
 ## "nothing spent" (autoload/Match.gd's DECISION on reusing that reason), so
@@ -240,10 +240,10 @@ func test_a_client_never_acts_on_an_intent_it_receives() -> void:
 # --- The counters the acceptance harness asserts on -------------------------
 
 
-# --- Auto-drop never crosses the wire (spec 2.5, [ORIGINAL]) ----------------
+# --- Auto-drop never crosses the wire (spec 1.4, [ORIGINAL]) ----------------
 
 
-# --- Clients decide nothing (spec 3.4) --------------------------------------
+# --- Clients decide nothing (spec 2.6) --------------------------------------
 
 
 func test_a_client_runs_no_solve_no_feed_tick_and_no_win_check() -> void:
@@ -328,12 +328,12 @@ func test_an_intent_from_a_departed_peer_is_refused() -> void:
 	assert_eq(_block_count(), 0, "An intent already in flight when its sender vanished is dropped.")
 
 
-# --- Allocator exhaustion never reaches the wire (Bontago-mv0.1.7) ----------
+# --- Allocator exhaustion never reaches the wire ----------
 #
 # game/blocks/BlockRegistry.gd refuses to allocate past Quantize.NET_ID_MAX and
 # leaves the block with net_id == -1; the body still lives and simulates on
 # the host, but nothing about it may go out over replicate_spawn(), or a
-# client would build a phantom copy no despawn could ever address (spec 3.4:
+# client would build a phantom copy no despawn could ever address (spec 2.6:
 # the body "stays host-only"). A unit test has no live peer, so _can_send()
 # is already false and cannot by itself prove replicate_spawn() never handed
 # the rpc a bad id; invalid_spawn_refusal_count() is the seam that does.
@@ -415,13 +415,13 @@ func test_a_truncated_or_foreign_territory_payload_decodes_to_nothing() -> void:
 	)
 
 
-# --- Bontago-cmc.5: the replicated circle list ------------------------------
+# --- the replicated circle list ------------------------------
 
 
 # --- Replicated spawns and despawns on a client -----------------------------
 
 
-# --- Bontago-mv0.1.13: start_match()'s own transient states are not --------
+# --- start_match()'s own transient states are not --------
 # --- replicated a second time ------------------------------------------------
 #
 # Before the fix, _on_match_state_changed() replicated every state change,
@@ -511,7 +511,7 @@ func test_a_replicated_territory_packet_drives_the_mirror_and_the_hole_signal() 
 	assert_signal_emitted_with_parameters(Events, "goal_capture_progress", [1, 0.4])
 
 
-# --- Bontago-1pi.194: a decaying home claim reaches clients on a static board ---
+# --- a decaying home claim reaches clients on a static board ---
 
 func test_malformed_capture_progress_is_rejected() -> void:
 	Match.set_net_provider(FakeNet.host({}, [0, 1]))
@@ -630,7 +630,7 @@ func test_a_malformed_special_trigger_is_dropped_not_applied() -> void:
 	assert_signal_not_emitted(Events, "special_triggered", "a negative chain_depth must be dropped")
 
 
-# --- Bontago-1en.21: EVENT_SPECIAL_CONSUMED replication ---------------------
+# --- EVENT_SPECIAL_CONSUMED replication ---------------------
 
 
 func test_glue_charge_mirror_accepts_only_new_valid_absolute_updates() -> void:
@@ -654,7 +654,7 @@ func test_glue_charge_mirror_accepts_only_new_valid_absolute_updates() -> void:
 	assert_eq(get_signal_emit_count(Events, "glue_charges_changed"), 2)
 
 
-## DECISION (net/MatchNet.gd, Bontago-1en.21): the host must never apply this
+## DECISION (net/MatchNet.gd): the host must never apply this
 ## event to its own authoritative queue -- see net_match_event's own
 ## EVENT_SPECIAL_CONSUMED case comment. `net` here is a HOST-mode MatchNet
 ## (unlike every test above, which uses client_mode = true), simulating a

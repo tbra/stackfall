@@ -1,5 +1,5 @@
 extends Node3D
-## Spec 3.5 benchmark: 300 blocks falling at once, which must hold >= 120 fps
+## Spec 2.7 benchmark: 300 blocks falling at once, which must hold >= 120 fps
 ## on a mid-range PC (<= 8.3 ms average physics step). Run headless:
 ##   godot --headless --path . res://tests/bench/bench_rain.tscn
 ## Prints one machine-readable result line, then quits.
@@ -9,7 +9,7 @@ extends Node3D
 ## contention), so treat the printed number as a relative regression check
 ## rather than an absolute guarantee of 120 fps in the shipped game.
 ##
-## Add --preset=<id> (Bontago-xtq.17 review fix SHOULD-FIX 2; id = a file stem
+## Add --preset=<id> (review fix SHOULD-FIX 2; id = a file stem
 ## under config/physics/presets/, e.g. "heavy_bouncy") to run this bench
 ## against one of ui/debug/TuningPanel.gd's shipped presets instead of the default
 ## shipped config/physics/physics_tuning.tres:

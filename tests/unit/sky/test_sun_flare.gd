@@ -1,5 +1,5 @@
 extends GutTest
-## game/sky/SunFlare.gd (Bontago-mp0.3.4, Graphics pass 2): the screen-space lens
+## game/sky/SunFlare.gd (Graphics pass 2): the screen-space lens
 ## flare's pure-ish geometry/visibility helpers, driven directly without a
 ## real rendered frame (matching game/sky/Skybox.gd's/game/BlockEffectsManager.gd's
 ## own headless-test approach for their own visual systems).
@@ -25,7 +25,7 @@ func _make_flare() -> SunFlare:
 	return flare
 
 
-## Bontago-mp0.3.4 fix round: a freshly created, never-ticked Camera3D's
+## fix round: a freshly created, never-ticked Camera3D's
 ## rendering-side transform (what Camera3D.unproject_position() actually
 ## projects against) lags one physics tick behind a script's own
 ## global_position/look_at() write here, because "physics interpolation on"

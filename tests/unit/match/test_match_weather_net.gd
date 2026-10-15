@@ -1,5 +1,5 @@
 extends GutTest
-## Weather replication (Bontago-22y.10): the host records what it would rpc; a client is fed that payload
+## Weather replication: the host records what it would rpc; a client is fed that payload
 ## (or a hostile one) through the same net_weather_state() entry.
 
 const DELTA: float = 0.25

@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mp0.139: the procedural gift-crate parachute. Pure animation state
+## the procedural gift-crate parachute. Pure animation state
 ## (core/gifts/ParachuteAnim.gd), the generated geometry (game/gifts/ParachuteMesh.gd),
 ## the node that shows it (game/gifts/GiftParachute.gd) and how GiftCrate.set_falling()
 ## drives it. The host/client wiring through MatchGifts is covered in

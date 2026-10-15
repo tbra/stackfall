@@ -60,7 +60,7 @@ func test_gamepad_stick_moves_the_ghost_cursor() -> void:
 	controller._update_gamepad_cursor(1.0)
 
 	assert_true(controller._using_gamepad_cursor, "Pushing the left stick should switch input to the gamepad cursor.")
-	# Bontago-mv0.14: renamed from _gamepad_cursor to _cursor -- mouse motion
+	# renamed from _gamepad_cursor to _cursor -- mouse motion
 	# moves the same field now (see test_playercontroller_mouse.gd).
 	assert_gt(controller._cursor.x, 0.0, "ghost_move_right should move the cursor toward +X at camera yaw 0.")
 
@@ -74,10 +74,10 @@ func test_gamepad_stick_moves_the_ghost_cursor() -> void:
 	Input.flush_buffered_events()
 
 
-## Bontago-mv0.14: rotate_yaw_ccw/cw are pad DEVICE_EXCEPTIONs (keyboard A/S
+## rotate_yaw_ccw/cw are pad DEVICE_EXCEPTIONs (keyboard A/S
 ## only, tests/unit/main/test_project_setup.gd) -- B (rotate_snap) is the gamepad's
-## own 90 degree yaw tap. Owner controller update (feedback/controller-update.md,
-## re-confirmed 2026-09-28) reassigned the shoulder buttons to hover raise/
+## own 90 degree yaw tap. Controller update (re-confirmed)
+## reassigned the shoulder buttons to hover raise/
 ## lower (see test_gamepad_hover_raise_held_continuously_raises_the_ghost/
 ## test_gamepad_hover_lower_held_continuously_lowers_the_ghost below), so this
 ## exercises rotate_snap (B) instead of the shoulder-button binding this test
@@ -105,12 +105,12 @@ func test_gamepad_rotate_snap_button_steps_the_orientation_table() -> void:
 	assert_eq(ghost.orientation_index, BlockOrientations.step_yaw_cw(0))
 
 
-## Bontago-mv0.17 item 5 (owner feel report: "the block's height changes ONLY
+## Requirement: "the block's height changes ONLY
 ## via the wheel"): the gamepad's hover_raise/hover_lower bindings are the
 ## "wheel" for a gamepad player and must keep working exactly as before --
 ## held continuously, unlike the mouse wheel's one-notch-per-press.
-## Owner controller update (feedback/controller-update.md, re-confirmed
-## 2026-09-28: "RB = hover raise, LB = hover lower (held)") moved these off
+## Controller update (re-confirmed
+## "RB = hover raise, LB = hover lower (held)") moved these off
 ## RS click/X onto the shoulder buttons.
 func test_gamepad_hover_raise_held_continuously_raises_the_ghost() -> void:
 	var ghost: GhostPreview = autofree(GhostPreview.new())
@@ -149,8 +149,7 @@ func test_gamepad_hover_raise_held_continuously_raises_the_ghost() -> void:
 	Input.flush_buffered_events()
 
 
-## Owner controller update (feedback/controller-update.md, re-confirmed
-## 2026-09-28): "RT held + left stick = continuous free rotation of the held
+## Controller update: "RT held + left stick = continuous free rotation of the held
 ## block exactly like holding MMB and moving the mouse ... NOT the current
 ## rotation_mode 90-degree snap grid". Drives free_quaternion (not the
 ## orientation_index snap table), same direction convention rotate_drag's own

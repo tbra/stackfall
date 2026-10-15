@@ -1,5 +1,5 @@
 extends "res://tests/unit/match/match_world_test.gd"
-## Match.punch_special_hole (spec 2.6, Bontago-1en.20): HoleMode gating, home-flag elimination, no punch after END.
+## Match.punch_special_hole (spec 1.6): HoleMode gating, home-flag elimination, no punch after END.
 
 func _hotseat_config(hole_mode: MatchConfig.HoleMode) -> MatchConfig:
 	var config: MatchConfig = _tiny_map_config()
@@ -27,7 +27,7 @@ func test_punch_special_hole_is_a_noop_under_hole_mode_off() -> void:
 
 # --- Radius and the change-set (TEMPORARY) ----------------------------------
 
-# --- Home-flag elimination (Bontago-3td, orchestrator decision 2) -----------
+# --- Home-flag elimination (orchestrator decision 2) -----------
 
 func test_punch_special_hole_eliminates_a_home_flag_sitting_in_the_punched_disk() -> void:
 	Match.start_match(_hotseat_config(MatchConfig.HoleMode.TEMPORARY))
@@ -41,7 +41,7 @@ func test_punch_special_hole_eliminates_a_home_flag_sitting_in_the_punched_disk(
 	assert_signal_emitted_with_parameters(Events, "player_eliminated", [0, 0])
 
 
-# --- Match-state guard (SHOULD-FIX, review 2026-09-23) ----------------------
+# --- Match-state guard (SHOULD-FIX, review) ----------------------
 #
 # _finish_match() only sets State.END (autoload/match/MatchLifecycle.gd);
 # nothing tears the raster down or stops a SpecialEffect's physics_tick(), so

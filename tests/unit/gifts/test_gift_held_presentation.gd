@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-59o.13: while a claimed gift is the current piece the ghost shows a
+## while a claimed gift is the current piece the ghost shows a
 ## held-gift presentation instead of the plain block, and the HUD held/next
 ## previews draw the gift icon (or the generic fallback).
 
@@ -51,7 +51,7 @@ func test_held_scene_overrides_fallback() -> void:
 	packed.pack(node)
 	node.free()
 	var previous: PackedScene = def.held_scene
-	# Bontago-mp0.119: the GLB table wins when it has a row, so empty it here.
+	# the GLB table wins when it has a row, so empty it here.
 	var table: GiftModelTable = GiftModelTable.shared()
 	var saved_entries: Array[GiftModelEntry] = table.entries
 	table.entries = []
@@ -74,7 +74,7 @@ func test_preview_icon_falls_back_to_generic() -> void:
 	assert_eq(SpecialDef.preview_icon_for(&"no_such_gift"), SpecialDef.GENERIC_PREVIEW_ICON)
 	var def: SpecialDef = SpecialDef.find_by_id(&"rocket")
 	var baked: Texture2D = def.preview_icon
-	# Bontago-mp0.125: the model preview outranks the def icon, so hide it for this check.
+	# the model preview outranks the def icon, so hide it for this check.
 	var table: GiftIconTable = GiftIconTable.shared()
 	var model: Texture2D = table.model_previews[&"rocket"] as Texture2D
 	table.model_previews.erase(&"rocket")
@@ -111,7 +111,7 @@ func test_hud_uses_gift_icon_for_held_and_next() -> void:
 	assert_null(hud.next_gift_icon())
 
 
-## Bontago-1pi.85.77: gifts are never recoloured (owner 2026-10-05); no ghost state tints one.
+## gifts are never recoloured; no ghost state tints one.
 func test_held_gift_is_never_tinted_in_any_state() -> void:
 	var ghost: GhostPreview = _make_ghost()
 	ghost.set_held_gift(&"rocket")
@@ -133,7 +133,7 @@ func test_fallback_crate_is_not_tinted_either() -> void:
 	assert_null(mi.material_overlay)
 
 
-## Bontago-sen.9: a held gift shows no placement projection (footprint quad,
+## a held gift shows no placement projection (footprint quad,
 ## light-shaft prism, block decal); going back to a plain block restores it.
 func test_held_gift_hides_projection_visuals_and_plain_block_restores_them() -> void:
 	var ghost: GhostPreview = _make_ghost()

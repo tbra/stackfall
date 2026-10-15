@@ -26,7 +26,7 @@ class BotControllerFakeMatch:
 	var slot_count_value: int = 1
 	var raster_value: TerritoryRaster = null
 	var cell_grid_value: CellGrid = null
-	## Bontago-d5c.10 (item F): Match.circle_render_arrays()'s own shape
+	## item F: Match.circle_render_arrays()'s own shape
 	## (parallel xs/zs/teams, disk-local) -- empty by default, so every
 	## existing fixture that never sets this still gets the pre-existing
 	## home-flags-only behaviour of _enemy_circle_centers().
@@ -37,7 +37,7 @@ class BotControllerFakeMatch:
 		"teams": PackedInt32Array(),
 	}
 
-	## Bontago-1t5.2: Match.gift_states()'s shape (id/phase/position).
+	## Match.gift_states()'s shape (id/phase/position).
 	var gift_states_value: Array[Dictionary] = []
 
 	func gift_states() -> Array[Dictionary]:
@@ -45,7 +45,7 @@ class BotControllerFakeMatch:
 
 	var request_place_calls: Array[Dictionary] = []
 	var request_throw_calls: Array[Dictionary] = []
-	## Bontago-d5c.2 (review fix regression): lets a test make every
+	## review fix regression: lets a test make every
 	## request_place()/request_throw() come back rejected, the same shape a
 	## real MatchPlacement/ThrowRules refusal returns (any StringName other
 	## than PlacementRules.REASON_OK).
@@ -63,7 +63,7 @@ class BotControllerFakeMatch:
 	func held_special(slot_id: int) -> StringName:
 		return held_specials.get(slot_id, &"") as StringName
 
-	## Bontago-1pi.175: the slot's remaining block-timer seconds (large = never the limit).
+	## the slot's remaining block-timer seconds (large = never the limit).
 	var feed_time_left_value: float = 99.0
 
 	func feed_time_left(_slot_id: int) -> float:
@@ -90,7 +90,7 @@ class BotControllerFakeMatch:
 	func circle_render_arrays() -> Dictionary:
 		return circle_arrays_value
 
-	## Bontago-1t5.3: optional mode goal provider (a Callable slot -> BotModeGoal).
+	## optional mode goal provider (a Callable slot -> BotModeGoal).
 	var mode_goal_calls: Array[int] = []
 	var mode_goal_factory: Callable = Callable()
 
@@ -137,7 +137,7 @@ class BotControllerForcedNoise:
 		return forced_noise
 
 
-## Bontago-d5c.10 (item C): writes a known, fixed rotation onto a Field's own
+## item C: writes a known, fixed rotation onto a Field's own
 ## transform from inside a physics tick, then goes idle -- the memory'd
 ## convention for a Field write (game/field/Field.gd's own DECISION on
 ## sync_to_physics/AnimatableBody3D: a plain node keeps sync_to_physics false,
@@ -208,7 +208,7 @@ func _make_ready_match(slot_id: int) -> BotControllerFakeMatch:
 func _make_controller(field: Field, match_ref: BotControllerFakeMatch, net_ref: BotControllerFakeNet) -> BotController:
 	var controller: BotController = BotController.new()
 	add_child_autofree(controller)
-	# Bontago-1pi.175: these tests assert the decision pipeline, not the release hold.
+	# these tests assert the decision pipeline, not the release hold.
 	controller.tuning = _tuning_with_release_delay(0.0, 0.0)
 	controller.set_match_provider(match_ref)
 	controller.set_net_provider(net_ref)
@@ -341,7 +341,7 @@ func test_two_bots_with_different_jitter_draws_never_start_thinking_on_the_same_
 	assert_ne(frame_a, frame_b, "different per-slot jitter draws land on different frames")
 
 
-## Bontago-d5c.2 (review fix regression, MINOR): with no backoff, a rejected
+## review fix regression, MINOR: with no backoff, a rejected
 ## request_place() leaves _countdown at 0.0 and _tick_idle() re-enters
 ## thinking the very next frame, so an always-rejecting FakeMatch would
 ## retry roughly once per full think+ACTING cycle (~15 frames) forever. tuning.rejection_backoff_s (0.5 s = 30 frames) must hold
@@ -369,18 +369,18 @@ func test_rejected_request_backs_off_before_retrying() -> void:
 	)
 
 
-# --- Bontago-d5c.11 items 2/3: skip triggered specials, sort output ---------
+# --- items 2/3: skip triggered specials, sort output ---------
 
-# --- Bontago-d5c.8 (M5 P3b-ii item A): a placed special's own place_target --
+# --- M5 P3b-ii item A: a placed special's own place_target --
 
-# --- Bontago-d5c.10 (item C): _send_throw's world-space velocity ------------
+# --- item C: _send_throw's world-space velocity ------------
 
-# --- Bontago-d5c.10 (item F): active specials ---
+# --- item F: active specials ---
 
-# --- Bontago-1t5.2: claim landed gifts, use held gifts promptly -------------
+# --- claim landed gifts, use held gifts promptly -------------
 
 
-# --- Bontago-1pi.175: staggered release ---
+# --- staggered release ---
 
 
 func _tuning_with_release_delay(lo: float, hi: float) -> BotTuning:
@@ -436,7 +436,7 @@ func test_release_hold_is_cut_before_the_block_timer_expires() -> void:
 	assert_lt(held - free, 40, "hold capped by the timer")
 
 
-# --- Bontago-1t5.46: BotController._apply_weather (host live weather -> view) ---
+# --- BotController._apply_weather (host live weather -> view) ---
 
 class BotControllerFakeBreeze:
 	var gust_list: Array[Dictionary] = []
@@ -476,4 +476,4 @@ class BotControllerWeatherMatch:
 		return weather_ref
 
 
-# --- Bontago-1t5.47: _apply_incoming_specials scene path ---------------------
+# --- _apply_incoming_specials scene path ---------------------

@@ -1,5 +1,5 @@
 extends GutTest
-## game/main/Main.gd's Lobby "< Back" pill (Bontago-xtq.32 redo #3, review
+## game/main/Main.gd's Lobby "< Back" pill (redo #3, review
 ## finding #1): pressing it from a hosted lobby must tear the session down
 ## and land back on the main menu with Net offline, the same way
 ## ui/menus/PauseMenu.gd's own Leave button does from mid-match
@@ -39,7 +39,7 @@ func before_each() -> void:
 	assert_not_null(_main._main_menu, "fixture: Main boots to the main menu with no command-line flags")
 
 
-## Bontago-1pi.156: the menu hand-off (after the splash, or at once without one) starts the music.
+## the menu hand-off (after the splash, or at once without one) starts the music.
 func test_showing_the_main_menu_starts_menu_music() -> void:
 	Sfx._music_state = Sfx.MusicState.STOPPED
 	_main._show_main_menu()

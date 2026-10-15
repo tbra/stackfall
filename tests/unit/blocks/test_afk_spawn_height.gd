@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.40 (follow-up to Bontago-1pi.33, owner playtest 2026-10-03:
+## (follow-up to 
 ## "Start the first block higher up, it loads inside the home beacon").
 ##
 ## 1pi.33 raised the *player's* first-block hover above the home beacon, but the

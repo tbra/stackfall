@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.11.74 (G1): the sky radiance refreshes at SkyRadianceConfig.radiance_hz,
+## G1: the sky radiance refreshes at SkyRadianceConfig.radiance_hz,
 ## not every frame (shaders read the global sky_time, never TIME).
 
 func _make_skybox(cycle: bool) -> Skybox:

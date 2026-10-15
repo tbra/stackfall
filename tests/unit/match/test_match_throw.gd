@@ -1,5 +1,5 @@
 extends "res://tests/unit/match/match_world_test.gd"
-## MatchPlacement.request_throw and special attach (spec 2.5, 3.4, M4 P2c).
+## MatchPlacement.request_throw and special attach (spec 1.4, 3.4, M4 P2c).
 
 func after_each() -> void:
 	Match.set_net_provider(null)
@@ -83,7 +83,7 @@ func test_throw_with_no_pending_special_is_refused_and_nothing_is_consumed() -> 
 	assert_eq(Match.held_shape(slot_id), shape_before)
 
 
-# --- Held gifts waive territory (Bontago-sen.1) -------------------------------
+# --- Held gifts waive territory -------------------------------
 
 # --- Refusal (off the disk): never burned ------------------------------------
 
@@ -130,7 +130,7 @@ func test_throw_velocity_above_throw_max_speed_is_clamped_not_refused() -> void:
 		slot_id, _home_world_position(slot_id), 0, Quaternion.IDENTITY, huge
 	)
 
-	# Bontago-1pi.85.29: the `velocity` slot carries a unit camera aim; a speed-sized vector is
+	# the `velocity` slot carries a unit camera aim; a speed-sized vector is
 	# outside the accepted band and refused unconsumed (the host never trusts a client speed).
 	assert_eq(reason, PlacementRules.REASON_NO_BLOCK)
 	assert_eq(_blocks_root.get_child_count(), 0)
@@ -206,7 +206,7 @@ func test_accepted_throw_spawns_with_the_requested_velocity_and_continuous_cd() 
 	assert_eq(_blocks_root.get_child_count(), 1)
 	var block: Block = _blocks_root.get_child(0) as Block
 	var fixed: Vector3 = GiftAim.throw_velocity(velocity, Match._placement._special_tuning, Match._placement._throw_range_scale())
-	assert_true(block.linear_velocity.is_equal_approx(fixed), "Bontago-1pi.85.21: normalised, not the raw client velocity")
+	assert_true(block.linear_velocity.is_equal_approx(fixed), "Bontago-1pi.85.21: normalised, not the raw client velocity")  # lint-public: allow string literal kept verbatim (assertion message or fixture)
 	assert_true(block.continuous_cd, "spec 3.5: thrown specials always use continuous_cd")
 
 
@@ -233,9 +233,9 @@ func test_a_client_call_is_refused_exactly_like_request_place() -> void:
 
 # --- A placed (not thrown) special arms too ----------------------------------
 
-# --- Bontago-1en.13 review fix: a burn must never consume the queue ---------
+# --- review fix: a burn must never consume the queue ---------
 
-## spec 2.5's OPEN "how expiry handles a held special": a forced auto-drop
+## spec 1.4's OPEN "how expiry handles a held special": a forced auto-drop
 ## with nowhere valid to relocate to still spawns and burns a block (see
 ## test_placement_refusal.gd's own burn-path tests), but that must not also
 ## destroy whatever special the slot had queued -- the queue stays intact for
@@ -249,7 +249,7 @@ func test_auto_drop_burn_does_not_consume_the_pending_special() -> void:
 	_install_test_def(def)
 	assert_eq(Match.pending_special_count(slot_id), 1, "setup")
 
-	# Bontago-xtq.23: closest_valid_point() now falls back to a full-disk
+	# closest_valid_point() now falls back to a full-disk
 	# scan, so an origin merely far away no longer forces the burn path by
 	# itself -- the scan would still find slot_id's own territory and
 	# relocate there. Blanking its owned cells in the live raster first
@@ -268,4 +268,4 @@ func test_auto_drop_burn_does_not_consume_the_pending_special() -> void:
 		assert_false(child is SpecialBehavior, "a burned block must never arm a special")
 
 
-# --- Bontago-1en.21: Events.special_consumed must fire exactly on a real pop -
+# --- Events.special_consumed must fire exactly on a real pop -

@@ -1,6 +1,6 @@
 extends "res://tests/unit/match/match_world_test.gd"
-## Bontago-2lr: a voluntary placement after an unanswered feed-timer expiry must clear the
-## expired latch (spec 2.4), and an early release must not be force-released at the boundary.
+## a voluntary placement after an unanswered feed-timer expiry must clear the
+## expired latch (spec 1.4), and an early release must not be force-released at the boundary.
 
 func _free_for_all_config(player_count: int = 2, block_timer: float = 6.0) -> MatchConfig:
 	var config: MatchConfig = _tiny_map_config()
@@ -18,7 +18,7 @@ func _advance_one_interval(block_timer: float) -> void:
 
 func test_a_voluntary_placement_after_unanswered_expiry_unlatches_the_slot() -> void:
 	var block_timer: float = MatchConfig.BLOCK_TIMER_MIN
-	# Bontago-mv0.10's own precedent (test_match_flow.gd's
+	# 's own precedent (test_match_flow.gd's
 	# test_an_untouched_piece_auto_drops_at_the_interval_boundary): a manual
 	# collect array, not assert_signal_emitted_with_parameters, because two
 	# slots run concurrently outside hot-seat and both may expire at the same
@@ -54,14 +54,14 @@ func test_a_voluntary_placement_after_unanswered_expiry_unlatches_the_slot() -> 
 	var third: StringName = Match.request_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, false)
 	assert_eq(
 		third, PlacementRules.REASON_OK,
-		"Bontago-2lr: a full interval later, the slot must be able to place again, not latched shut."
+		"Bontago-2lr: a full interval later, the slot must be able to place again, not latched shut."  # lint-public: allow string literal kept verbatim (assertion message or fixture)
 	)
 	assert_eq(_blocks_root.get_child_count(), 2, "Both accepted placements spawned exactly one block each.")
 
 
 func test_boundary_crossing_does_not_auto_release_a_piece_already_released_early() -> void:
 	# Regression guard: the fix above must not touch the normal auto_drop
-	# cadence (spec 2.4 "[ORIGINAL target]") -- an early release stays
+	# cadence (spec 1.4 "[ORIGINAL target]") -- an early release stays
 	# release-locked until the interval boundary, and crossing that boundary
 	# must not force-release (auto-drop) a prepared piece merely because the
 	# previous one was placed early.

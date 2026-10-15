@@ -1,6 +1,6 @@
 extends GutTest
-## Bontago-1pi.53 (S1a/S1b, docs/LOBBY_REWORK_PLAN.md sections 2 and 4): the settings column
-## is a stack of UiSections (GAME, ROUND, GIFTS, EXPERIMENTS) with static headers (Bontago-1pi.61:
+## S1a/S1b, docs/LOBBY_REWORK_PLAN.md sections 2 and 4: the settings column
+## is a stack of UiSections (GAME, ROUND, GIFTS, EXPERIMENTS) with static headers (
 ## never collapsible), an optional collapsible Advanced block, a one-line summary each, and a focus
 ## loop that follows them.
 ## Host edits every setting from its section; a client reads them read-only; no
@@ -152,7 +152,7 @@ func test_collapsing_a_block_with_focus_inside_keeps_focus_on_a_visible_stop() -
 
 # --- Visibility rules ------------------------------------------------------------------------
 
-## Bontago-1pi.147 / 159.2.1: the block timer is a UiStepper (-/value/+ in a well), half a second a step.
+## / 159.2.1: the block timer is a UiStepper (-/value/+ in a well), half a second a step.
 func test_block_timer_is_a_stepper_with_the_old_range_and_step() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var stepper: UiStepper = lobby.get_node("%BlockTimerStepper") as UiStepper

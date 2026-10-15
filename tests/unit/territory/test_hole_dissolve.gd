@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.11.41 (owner decision Bontago-gdb, option A): the disc stays
+## option A: the disc stays
 ## solid under holes; game/field/HoleDissolver.gd (owned by BlockRegistry) dissolves
 ## a block that rests or lands on an applied hole cell and removes it through
 ## the edge-fall path. The first half drives a bare Field + BlockRegistry on a
@@ -12,7 +12,7 @@ const MatchNetScript := preload("res://net/MatchNet.gd")
 const SETTLE_FRAMES: int = 60
 ## Generous ceiling for one dissolve (0.35 s = 21 frames) to complete.
 const DISSOLVE_FRAMES: int = 60
-## Landing speed sqrt(2gh) matches the pre-2026-10-12 3.0 m drop at gravity 1.4 now that base gravity is 1.75 (3.0 * 1.4 / 1.75).
+## Landing speed sqrt(2gh) matches the pre- 3.0 m drop at gravity 1.4 now that base gravity is 1.75 (3.0 * 1.4 / 1.75).
 const LANDING_DROP_HEIGHT_M: float = 2.4
 ## A three-high stack: three dissolves plus two ~1 m falls, well inside 5 s.
 const STACK_TIMEOUT_FRAMES: int = 300
@@ -200,7 +200,7 @@ func test_a_block_bridging_a_hole_above_the_disc_is_unaffected() -> void:
 	assert_almost_eq(bar.global_position.y, bar_y, 0.05)
 
 
-## [OWNER decision 2026-10-12, Bontago-1pi.85.73]: a hole opening under a gift special's carrier
+## [OWNER decision]: a hole opening under a gift special's carrier
 ## block never starts a dissolve; a plain neighbour on the same hole still does.
 func test_a_hole_never_dissolves_a_gift_block_but_still_dissolves_a_plain_one() -> void:
 	_make_world()
@@ -228,7 +228,7 @@ func test_a_stack_over_a_hole_chain_dissolves_within_a_bounded_time() -> void:
 		stack.append(_spawn(_cube, cell, 0.02 + float(level) * _tuning.cube_size))
 		ids.append(stack[level].get_instance_id())
 		await wait_physics_frames(SETTLE_FRAMES)
-	# Stable-frozen (spec 3.5) as a long-settled tower would be.
+	# Stable-frozen (spec 2.7) as a long-settled tower would be.
 	for block: Block in stack:
 		block.request_freeze_static(Block.FREEZE_REASON_STABLE)
 	await wait_physics_frames(1)
@@ -437,7 +437,7 @@ func test_host_replicates_the_dissolve_start_and_the_despawn() -> void:
 	assert_false(net._spawned_net_ids.has(block.net_id), "The removal goes out as the ordinary despawn.")
 
 
-## Bontago-1pi.85.12: the Black hole captures through the same entry the holes use.
+## the Black hole captures through the same entry the holes use.
 func test_request_dissolve_is_the_shared_entry_and_removes_like_a_hole_dissolve() -> void:
 	Match.set_net_provider(FakeNet.host({}, [0, 1]))
 	_start_match(MatchConfig.HoleMode.OFF, false)

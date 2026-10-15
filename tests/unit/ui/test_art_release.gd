@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.11.63: splash, loading-screen and weather-loop art must not stay
+## splash, loading-screen and weather-loop art must not stay
 ## resident after their screen/effect ends, and must load again when needed.
 
 const LOAD_WAIT_S: float = 10.0

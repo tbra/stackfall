@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.37 (owner playtest 2026-10-12: "tooltips should be fully removed"): player-facing
+## "tooltips should be fully removed": player-facing
 ## screens explain themselves inline (UiHelpLine, labels, dialog text), never through tooltip_text.
 ## The developer F4 TuningPanel and the debug / sandbox panels are out of scope and may keep theirs.
 

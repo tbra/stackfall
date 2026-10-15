@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.11.48: menu/lobby screens cap the frame rate, skip the hidden
+## menu/lobby screens cap the frame rate, skip the hidden
 ## match world's 3D pass, and no hidden SubViewport keeps rendering.
 
 const TUNING: MenuVisualTuning = preload("res://config/ui/menu_visual_tuning.tres")

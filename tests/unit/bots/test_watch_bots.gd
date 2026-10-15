@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.212: the debug "Watch bots" match -- menu entry, picker, command line, the all-bot
+## the debug "Watch bots" match -- menu entry, picker, command line, the all-bot
 ## match with no local seat, and the spectator camera / follow / speed controls.
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")

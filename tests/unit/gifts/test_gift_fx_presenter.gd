@@ -1,5 +1,5 @@
 extends GutTest
-## GiftFxPresenter and GiftBlink (Bontago-1pi.85.8): dispatch by def id, once,
+## GiftFxPresenter and GiftBlink: dispatch by def id, once,
 ## ignoring unknown ids and non-finite positions; Match owns the live instance.
 
 const TEST_ID: StringName = &"test_gift_fx_id"
@@ -83,7 +83,7 @@ func test_blink_pure_helpers_and_driver() -> void:
 	GiftBlink.apply(null, 0.25, 1.0)
 
 
-# --- C2: client-derived visuals (Bontago-1pi.85.20) -------------------------
+# --- C2: client-derived visuals -------------------------
 
 func _gift_block(gift_id: StringName) -> Block:
 	var block: Block = autofree(Block.new())

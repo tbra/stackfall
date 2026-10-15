@@ -1,5 +1,5 @@
 extends "res://tests/unit/match/match_world_test.gd"
-## Match host state machine, feed timer/auto-drop and request_place accept/reject/burn (spec 2.4, 2.5, 3.7).
+## Match host state machine, feed timer/auto-drop and request_place accept/reject/burn (spec 1.4, 2.5, 3.7).
 
 func after_each() -> void:
 	Match._sandbox_territory_profile_enabled = false
@@ -28,7 +28,7 @@ func _hotseat_config(player_count: int = 2, block_timer: float = 6.0) -> MatchCo
 	return config
 
 
-## Bontago-mv0.10's per-player-timer path (spec 2.4's "[ORIGINAL target]"
+## 's per-player-timer path (spec 1.4's "[ORIGINAL target]"
 ## concurrent cadence, the normal non-hot-seat mode the interval lock
 ## targets): every slot's feed runs concurrently, so a lone slot can
 ## otherwise place blocks back to back with nothing to stop it.
@@ -43,7 +43,7 @@ func _free_for_all_config(player_count: int = 2, block_timer: float = 6.0) -> Ma
 
 func test_start_match_runs_lobby_to_playing_with_countdown_ticks() -> void:
 	# assert_signal_emitted_with_parameters only checks the LATEST emission,
-	# so the exact 3, 2, 1, 0 sequence (spec 3.7) is collected by hand instead.
+	# so the exact 3, 2, 1, 0 sequence (spec 2.4) is collected by hand instead.
 	var ticks: Array[int] = []
 	var collect: Callable = func(seconds_left: int) -> void: ticks.append(seconds_left)
 	Events.countdown_tick.connect(collect)
@@ -67,7 +67,7 @@ func test_start_match_runs_lobby_to_playing_with_countdown_ticks() -> void:
 	assert_eq(ticks, [3, 2, 1, 0] as Array[int])
 
 
-# --- Restart and teardown ordering (spec 3.7; Beads Bontago-mv0.1.9) --------
+# --- Restart and teardown ordering (spec 2.4; Beads) --------
 # game/main/Main.gd builds the match world synchronously inside the LOADING emit
 # and reads Match.raster()/slot()/registry() right there, so the world model
 # must be complete by then; and a start from a stale PLAYING/END (rehost
@@ -133,17 +133,17 @@ func test_start_match_from_playing_returns_through_lobby_with_a_fresh_world() ->
 	assert_ne(Match.raster(), old_raster, "A fresh raster")
 	assert_ne(Match.slot(0), old_slot, "Fresh slots")
 	assert_eq(Match.active_slot(), -1, "No turn is active before play begins")
-	# Bontago-1pi.79: the new match's own first block is issued when its countdown
+	# the new match's own first block is issued when its countdown
 	# exists (no carry-over: the old match's held shape was cleared by the restart).
 	assert_not_null(Match.held_shape(0), "The new match holds its own first block")
 	assert_eq(Match.feed_seq(0), 0, "A fresh feed sequence")
 	assert_eq(Match.blocks_spawned(), 0)
 
 
-# --- Hot-seat turn order and feed timer (spec 2.2, 2.4, 2.7) ----------------
+# --- Hot-seat turn order and feed timer (spec 1.5, 2.4, 2.7) ----------------
 
 func test_feed_timer_expires_exactly_at_block_timer() -> void:
-	# spec 2.8's block_timer range is 3-12 s; sanitize() (called by
+	# spec 1.9's block_timer range is 3-12 s; sanitize() (called by
 	# start_match) clamps to that, so the test uses the minimum rather than an
 	# arbitrary short value.
 	var block_timer: float = MatchConfig.BLOCK_TIMER_MIN
@@ -161,7 +161,7 @@ func test_feed_timer_expires_exactly_at_block_timer() -> void:
 	assert_signal_emitted_with_parameters(Events, "feed_timer_expired", [0])
 
 
-# --- Bontago-mv0.10 (spec 2.4 "[ORIGINAL target]"): the fixed-interval ------
+# --- spec 1.4 "[ORIGINAL target]": the fixed-interval ------
 # --- placement cadence, outside hot-seat -------------------------------------
 # Every fixed config.block_timer interval permits exactly one release. An
 # early release hands the slot its next piece to aim, but locked until the
@@ -207,20 +207,20 @@ func test_an_untouched_piece_auto_drops_at_the_interval_boundary() -> void:
 	assert_true(expired.has(0), "an unspent piece forces at the boundary")
 
 
-# --- Bontago-mv0.12 (owner-reported playability): the pivot is the shape's --
+# --- pivot is the shape's --
 # --- geometric centre, not cell (0, 0, 0) ------------------------------------
 
-# --- Bontago-mv0.17 item 3 (owner feel report: "the ghost/body pivot is the --
+# --- pivot (reported as "the ghost/body pivot is the --
 # --- block's middle"): the pivot is the shape's bottom-centre now ------------
 
-# --- Bontago-mv0.11 (owner-reported playability): placed blocks carry -------
+# --- placed blocks carry -------
 # --- their slot's colour ------------------------------------------------------
 
 # --- The authority's own guard against a pose it cannot evaluate -----------
 # net/MatchNet.gd refuses these at the wire (tests/unit/
 # test_remote_intent_validation.gd); Match refuses them too, from any caller,
 # so a bad index can never reach BlockOrientations.get_basis() and a NaN
-# origin can never reach the raster (Beads Bontago-mv0.1.5, .6).
+# origin can never reach the raster (Beads .6).
 
 func test_request_place_refuses_a_malformed_pose_without_spending_the_block() -> void:
 	Match.start_match(_hotseat_config(2))
@@ -247,9 +247,9 @@ func test_request_place_refuses_a_malformed_pose_without_spending_the_block() ->
 	assert_eq(Match.active_slot(), 0, "and the hot-seat turn does not pass")
 
 
-# --- REPRO (Bontago-mv0.1.11): far-off-disk burns must not spawn past the ---
+# --- REPRO: far-off-disk burns must not spawn past the ---
 # --- kill plane's area, or the burned body falls forever and leaks. --------
-# Bontago-mv0.24 (owner test 2026-09-22): a manual (auto_drop == false)
+# A manual (auto_drop == false)
 # release this far off-disk is refused outright now, spawning nothing -- see
 # test_a_manual_drop_outside_territory_is_refused_and_the_block_stays_held()
 # in tests/unit/match/test_placement_refusal.gd. The clamp this file's own repro
@@ -258,7 +258,7 @@ func test_request_place_refuses_a_malformed_pose_without_spending_the_block() ->
 # still be handed an arbitrarily far cursor by a hostile/buggy client), so
 # both tests below now drive request_place() with auto_drop == true.
 #
-# Bontago-xtq.23: closest_valid_point() now falls back to a full-disk scan
+# closest_valid_point() now falls back to a full-disk scan
 # when the ring search comes up empty, so an origin merely far away no
 # longer forces the burn path by itself -- the disk scan would still find
 # slot 0's own territory and relocate there instead. Both tests below
@@ -289,7 +289,7 @@ func test_repro_far_off_disk_burn_spawns_within_the_kill_plane_area() -> void:
 	)
 
 
-# --- Owner decision: home flag lost to a hole eliminates the slot ----------
+# --- : home flag lost to a hole eliminates the slot ----------
 
 func test_player_eliminated_when_holes_open_under_their_home_flag() -> void:
 	Match.start_match(_hotseat_config(2))
@@ -318,10 +318,10 @@ func test_match_ends_when_only_one_team_remains() -> void:
 
 
 # --- Point placement, goal zones, continuous elimination -------------------
-# (docs/TERRITORY_V2_PLAN.md package B, reconciled with SPEC.md's 2026-09-20
-# evidence audit by Bontago-cmc.7). The raycast + PlacementRules.validate_point
+# (docs/TERRITORY_V2_PLAN.md package B, reconciled with SPEC.md's
+# evidence audit by). The raycast + PlacementRules.validate_point
 # path these tests are named "_v2_" for was package B's v2-only behaviour when
-# they were written; Bontago-cmc.7 made it every MatchConfig.HoleMode's
+# they were written made it every MatchConfig.HoleMode's
 # placement contract (autoload/Match.gd request_place()/preview_placement()),
 # so config/match/match_defaults.tres's hole_mode no longer has to be OFF for these
 # to hold -- they now hold at whatever the default is
@@ -329,7 +329,7 @@ func test_match_ends_when_only_one_team_remains() -> void:
 # The names stay for git blame continuity; the assertions below no longer
 # check which mode is active because none of them depend on it any more.
 
-## Bontago-mv0.24 (owner test 2026-09-22): renamed from
+## Renamed from
 ## test_request_place_v2_burns_a_point_inside_another_teams_territory -- a
 ## manual release here is now refused, not burned (see
 ## tests/unit/match/test_placement_refusal.gd for the focused regression case; this
@@ -341,7 +341,7 @@ func test_request_place_v2_refuses_a_point_inside_another_teams_territory() -> v
 	var reason: StringName = Match.request_place(0, _home_world_position(1), 0, Quaternion.IDENTITY, false)
 
 	assert_eq(reason, PlacementRules.REASON_OUTSIDE_TERRITORY)
-	assert_eq(_blocks_root.get_child_count(), 0, "A refused manual release must not spawn anything (owner test 2026-09-22).")
+	assert_eq(_blocks_root.get_child_count(), 0, "A refused manual release must not spawn anything (owner test 2026-09-22).")  # lint-public: allow string literal kept verbatim (assertion message or fixture)
 
 
 ## Hand-crafted circles/raster state rather than a physically bridged tower:
@@ -393,7 +393,7 @@ func test_slow_frame_coalesces_due_territory_solves_and_keeps_fractional_time() 
 
 	var step: float = 1.0 / Match._territory_tuning.solve_hz
 	Match._territory._tick_territory(step * 3.5)
-	# Bontago-1pi.11.29: the first step consumes the only change, so the two
+	# the first step consumes the only change, so the two
 	# remaining catch-up steps advance time without a second solve/emission.
 	assert_eq(int(Match._territory.sandbox_profile()["steps"]), 1)
 	assert_eq(get_signal_emit_count(Events, "territory_updated"), 1)
@@ -463,7 +463,7 @@ func test_legacy_hole_mode_still_opens_holes_and_eliminates_through_run_territor
 
 	var home0: Vector2 = Match.slot(0).home_position
 	# Two different-team home circles overlapping slot 0's own home cell is
-	# spec 2.2's original contest trigger; the legacy fill still stamps it
+	# spec 1.5's original contest trigger; the legacy fill still stamps it
 	# CONTESTED, unchanged. Nudging the homes this close together is
 	# symmetric -- home 0 falls inside home 1's own circle exactly as home 1
 	# falls inside home 0's, both radius home_radius -- so both cells end up

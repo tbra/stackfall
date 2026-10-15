@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-470.7: goal controller derivation (GoalControl) and the goal
+## goal controller derivation (GoalControl) and the goal
 ## beacon's claimed / contested / neutral visuals.
 
 const MAP_RADIUS: float = 20.0

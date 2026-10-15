@@ -1,5 +1,5 @@
 extends GutTest
-## PlayerController sends exactly one placement intent to Match.request_place and reacts to the host's reply (spec 3.4).
+## PlayerController sends exactly one placement intent to Match.request_place and reacts to the host's reply (spec 2.6).
 
 func test_place_sends_the_ghost_transform_to_match_which_spawns_and_reports() -> void:
 	var blocks_root: Node3D = autofree(Node3D.new())
@@ -45,7 +45,7 @@ func test_place_sends_the_ghost_transform_to_match_which_spawns_and_reports() ->
 
 
 func test_a_rejected_placement_emits_the_event_and_spawns_nothing_locally() -> void:
-	# docs/archive/M2_PLAN.md owner decision 2: every invalid release burns the block
+	# docs/archive/M2_PLAN.md 2: every invalid release burns the block
 	# — decided inside Match.request_place, which the controller never
 	# second-guesses. From PlayerController's side a rejection only means
 	# Events.placement_rejected fires and the ghost plays its reject flash

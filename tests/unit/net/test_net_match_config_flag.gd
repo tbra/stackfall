@@ -1,6 +1,6 @@
 extends GutTest
-## autoload/Net.gd: `--match-config=<path>` command-line flag (Bontago-3k0,
-## deferred from Bontago-keo.19). Host-only override for the MatchConfig a
+## autoload/Net.gd: `--match-config=<path>` command-line flag (
+## deferred from). Host-only override for the MatchConfig a
 ## `--headless-host` match starts from; extends the existing
 ## `_apply_command_line_args` parser rather than a parallel path.
 ##
@@ -92,7 +92,7 @@ func test_match_config_flag_ignored_without_host_flag() -> void:
 	await get_tree().process_frame
 
 
-## Bontago-1pi.48: the playtest Steam launcher's --steam-public-lobby makes the
+## the playtest Steam launcher's --steam-public-lobby makes the
 ## host's Steam lobby Public on a private copy of the config.
 func test_steam_public_lobby_flag_sets_public_lobby_type_on_a_copy() -> void:
 	var shared: NetConfig = _node.config
@@ -103,4 +103,4 @@ func test_steam_public_lobby_flag_sets_public_lobby_type_on_a_copy() -> void:
 	assert_eq(shared.steam_lobby_type, 1, "shared default stays FriendsOnly")
 
 
-# --- LAN advertising (Bontago-fca.88) ---------------------------------------------------
+# --- LAN advertising ---------------------------------------------------

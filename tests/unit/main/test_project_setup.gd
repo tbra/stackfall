@@ -5,7 +5,7 @@ extends GutTest
 ## they get a test: if someone changes the physics engine, drops physics
 ## interpolation, or adds a control with no gamepad binding, this fails.
 
-## Spec 2.5, plus the pause action the shell needs. Every one of these must have
+## Spec 1.3, plus the pause action the shell needs. Every one of these must have
 ## a mouse/keyboard binding and a gamepad binding (CLAUDE.md, "Tech rules").
 const REQUIRED_ACTIONS: PackedStringArray = [
 	"ghost_move_left",
@@ -55,7 +55,7 @@ const REQUIRED_ACTIONS: PackedStringArray = [
 	"hud_toggle",
 	"sandbox_force_special",
 	"screenshot_capture",
-	# Bontago-1pi.15.1: menu accept/cancel need an explicit gamepad half too
+	# menu accept/cancel need an explicit gamepad half too
 	# (tools/bootstrap_project.gd's own "--- UI (menus) ---" block).
 	"ui_accept",
 	"ui_cancel",
@@ -64,7 +64,7 @@ const REQUIRED_ACTIONS: PackedStringArray = [
 ## Actions whose mouse or gamepad half is deliberately absent, with the reason.
 ## Anything not listed here must be bound on both devices.
 const DEVICE_EXCEPTIONS: Dictionary = {
-	# Owner: B owns the gamepad yaw snap; shoulders no longer rotate.
+	# B owns the gamepad yaw snap; shoulders no longer rotate.
 	"rotate_yaw_ccw": "pad",
 	"rotate_yaw_cw": "pad",
 	# Godot cannot bind InputEventMouseMotion to an action; the mouse drives the
@@ -78,13 +78,13 @@ const DEVICE_EXCEPTIONS: Dictionary = {
 	"camera_look_up": "mouse",
 	"camera_look_down": "mouse",
 	# The gamepad's right stick orbits directly, so it needs no hold modifier
-	# (Bontago-mv0.14: renamed from camera_orbit_hold).
+	# (renamed from camera_orbit_hold).
 	"camera_mode": "pad",
-	# Bontago-mv0.22: RMB is the primary orbit hold now (camera_mode/C stays a
+	# RMB is the primary orbit hold now (camera_mode/C stays a
 	# keyboard alias); the right stick orbits unconditionally on gamepad for
 	# the same reason camera_mode needs no hold there.
 	"camera_orbit": "pad",
-	# Bontago-mv0.22 fix (coordinator, 2026-09-22): MMB moved to rotate_drag's
+	# fix (coordinator): MMB moved to rotate_drag's
 	# continuous spin alone, so a single MMB press no longer also fires this
 	# action's old tap (that was firing both from one press -- every drag
 	# started with an unwanted 90 degree step). rotate_yaw_cw (KEY_S / RB)
@@ -100,8 +100,7 @@ const DEVICE_EXCEPTIONS: Dictionary = {
 	# The gamepad already keeps ghost movement (left stick) and height (RS
 	# click/X) on separate physical inputs, so there is nothing to lock.
 	"lock_vertical": "pad",
-	# Owner controller update (feedback/controller-update.md, re-confirmed
-	# 2026-09-28): RT held + left stick now free-rotates the block
+	# Controller update (re-confirmed): RT held + left stick now free-rotates the block
 	# continuously (rotate_drag's own gesture, mirrored for gamepad); the
 	# keyboard's R key stays rotation_mode's 90 degree snap grid unchanged, so
 	# rotation_mode itself carries no gamepad binding any more.
@@ -110,7 +109,7 @@ const DEVICE_EXCEPTIONS: Dictionary = {
 	# (MMB) is this gesture's mouse/keyboard half already; there is no separate
 	# desktop binding for this action itself.
 	"rotate_drag_pad": "mouse",
-	# Owner controller update: "Triggers alone must NEVER zoom" -- the trigger
+	# Triggers alone must NEVER zoom -- the trigger
 	# axes came off camera_zoom_in/out entirely; Z/X are keyboard-only now.
 	"camera_zoom_in": "pad",
 	"camera_zoom_out": "pad",

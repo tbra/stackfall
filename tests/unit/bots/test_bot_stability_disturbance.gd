@@ -1,5 +1,5 @@
 extends GutTest
-## BotStability disturbance allowance and tilted disc (Bontago-1t5.72.6, STATICS_DESIGN 2.6 and 3.1). Pure.
+## BotStability disturbance allowance and tilted disc (STATICS_DESIGN 2.6 and 3.1). Pure.
 
 const CUBE: float = 1.0
 const EPS: float = 0.001

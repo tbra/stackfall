@@ -1,5 +1,5 @@
 extends "res://tests/unit/match/match_world_test.gd"
-## Spec 2.7 turn-based: the next turn starts once every placed block has settled or after
+## Spec 1.2 turn-based: the next turn starts once every placed block has settled or after
 ## TerritoryTuning.turn_based_max_settle_s.
 
 func _turn_based_config(player_count: int = 2) -> MatchConfig:
@@ -73,7 +73,7 @@ func test_request_place_rejects_the_slot_whose_turn_it_isnt_under_turn_based() -
 	assert_eq(_blocks_root.get_child_count(), 0, "A not-your-turn request must not spawn anything under turn_based either.")
 
 
-# --- stackfall-reviewer findings (Bontago-keo.10, MatchFeed.gd review fix) --
+# --- stackfall-reviewer findings (MatchFeed.gd review fix) --
 # autoload/match/MatchFeed.gd's _tick_feed()/_consume_and_refeed() used to gate
 # only on config.hot_seat, so turn_based fell into the concurrent "every slot
 # ticks" branch instead of hot-seat's single-active-slot one.
@@ -109,7 +109,7 @@ func test_only_the_active_slots_timer_runs_under_turn_based() -> void:
 	# Mirrors test_match_flow.gd's own
 	# test_only_the_active_slot_timer_runs_in_hot_seat() -- turn_based shares
 	# hot-seat's single-active-slot feed branch (this package's fix), not the
-	# concurrent "every slot ticks" branch spec 2.4's free-for-all uses.
+	# concurrent "every slot ticks" branch spec 1.4's free-for-all uses.
 	Match.start_match(_turn_based_config(2))
 	_run_countdown()
 	assert_eq(Match.active_slot(), 0)

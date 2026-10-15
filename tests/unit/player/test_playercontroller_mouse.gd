@@ -1,5 +1,5 @@
 extends GutTest
-## PlayerController.gd mouse-input coverage (Bontago-mv0.14: original-style
+## PlayerController.gd mouse-input coverage (original-style
 ## block-locked controls -- spec 1.5/2.5, docs/ORIGINAL_BONTAGO_NOTES.md
 ## "Controls"). Mouse motion moves a world-space cursor directly (no more
 ## screen-space raycast), the wheel is block height, holding rotation_mode
@@ -8,25 +8,25 @@ extends GutTest
 ## follow-block mode is exercised here too, since PlayerController is what
 ## feeds it a position every frame (set_camera_rig()/set_follow_position()).
 ##
-## Bontago-mv0.14 replaced the old MMB tap/hold split
+## replaced the old MMB tap/hold split
 ## (rotate_pitch_fwd/camera_orbit_hold) this file used to pin: MMB is now
 ## rotate_snap (a plain 90 degree yaw tap) and camera_mode moved to its own
 ## key (C), so those two tests -- and camera_tuning.mmb_tap_max_duration,
 ## which they were the only reader of -- are gone.
 ##
-## Bontago-mv0.22 (spec 2.5, [ORIGINAL] rows re-tested by the owner
-## 2026-09-22): MMB gained a second, continuous job on top of rotate_snap's
+## spec 1.4, [ORIGINAL] rows re-tested by the owner
+## : MMB gained a second, continuous job on top of rotate_snap's
 ## tap -- holding it and dragging spins the ghost's free rotation
 ## (rotate_drag) -- and RMB became camera_orbit, a second hold that does the
 ## same thing camera_mode (C) already does, plus lets the wheel zoom the rig
 ## instead of raising the ghost while either is held.
 ##
-## Bontago-mv0.25 (docs/rotation-issue.png, owner test 2026-09-22): rotate_drag
+## Requirement: rotate_drag
 ## became full 3-DOF -- horizontal motion still yaws about world up, but
 ## vertical motion now pitches about the camera's current right axis instead
 ## of doing nothing.
 ##
-## Also carries a Bontago-mv0.7 regression pin (Part B, "the host cannot
+## Also carries a regression pin (Part B, "the host cannot
 ## place"): the real root cause turned out to be ui/lobby/Lobby.gd sending
 ## hot_seat = true (see tests/unit/ui/test_lobby.gd's
 ## test_default_lobby_data_is_never_hot_seat), but PlayerController's own
@@ -250,14 +250,14 @@ func test_wheel_while_camera_orbit_held_zooms_the_rig_not_the_ghost_height() -> 
 	)
 
 
-## Bontago-mv0.29 (owner: "the mmb rotation issue persists, can the camera
-## just be locked in place while mmb is pressed?" -- feedback/rotation-issue.png):
+## "the mmb rotation issue persists, can the camera
+## just be locked in place while mmb is pressed?" -- feedback/rotation-issue.png:
 ## mv0.28's rotated-centre follow target still made the camera visibly move
 ## *during* a drag -- only the settled end state ever matched the ghost's
 ## rotated centre exactly, not every frame in between (rotated_center_offset()'s
 ## own doc comment: a pitch component tips the vertical origin-to-centre
 ## offset sideways progressively as the drag accumulates). This pins the
-## actual owner complaint: the rig must not move at all, frame to frame, for
+## reported complaint: the rig must not move at all, frame to frame, for
 ## as long as rotate_drag stays held, and must resume immediately once it's
 ## released.
 func test_rotate_drag_freezes_the_camera_rig_for_the_whole_drag_then_resumes_on_release() -> void:

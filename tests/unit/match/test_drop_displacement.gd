@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.14: the host lifts or refuses a placement pose that overlaps an already placed block instead of
+## the host lifts or refuses a placement pose that overlaps an already placed block instead of
 ## shoving that block away.
 
 const REST_FRAMES: int = 240
@@ -31,7 +31,7 @@ func before_each() -> void:
 	add_child_autofree(_registry)
 	Match.register_world(_field, _registry, _blocks_root)
 
-## DECISION (Bontago-1pi.115): these tests aim at a placed block's origin or rely on the
+## DECISION: these tests aim at a placed block's origin or rely on the
 ## held piece being solid there, which fails for concave shapes (u5, arch5, corner4, stair6)
 ## now in the random feed. Pin the feed to the cube; the shape mix is not under test.
 func _pin_feed_to_convex_shape() -> void:

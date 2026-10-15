@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.65 (owner playtest 2026-10-04: "I can still move the camera with
+## ("I can still move the camera with
 ## the joystick while the round end screen shows"). The camera rig ignores
 ## orbit/zoom input while the results screen or pause menu is open.
 

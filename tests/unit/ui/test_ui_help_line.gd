@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.35: UiHelpLine shows the focused / hovered option's explanation (text from
+## UiHelpLine shows the focused / hovered option's explanation (text from
 ## config/ui/option_help_table.tres), for keyboard, pad and mouse, and stays empty for untagged rows.
 
 const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/menus/OptionsMenu.tscn")

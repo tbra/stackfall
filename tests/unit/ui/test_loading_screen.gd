@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.8 (owner playtest 2026-09-27: "add a proper loading screen
+## ("add a proper loading screen
 ## instead" of the idle centre-beacon camera shot between Start Match and the
 ## countdown). Drives ui/menus/LoadingScreen.gd's public API directly with a plain
 ## MatchConfig/PlayerSlot array -- the same dependency-injection shape
@@ -84,7 +84,7 @@ func test_cancel_stops_a_pending_fade_from_later_hiding_a_new_match() -> void:
 	assert_true(_screen.visible, "the stale fade_out() must not have hidden the new match's loading screen.")
 
 
-# --- Bontago-t8x.4: overlay ahead of the match start --------------------------
+# --- overlay ahead of the match start --------------------------
 
 func test_show_pending_is_visible_and_pending() -> void:
 	_screen.show_pending(null)
@@ -145,7 +145,7 @@ func _real_main() -> Node:
 	tiny.field_radius = 20.0
 	(main.get_node("Field") as Field).map_def = tiny
 	add_child_autofree(main)
-	# Bontago-fca.66: the real-time pending/ready timeouts (10 s / 20 s) are product
+	# the real-time pending/ready timeouts (10 s / 20 s) are product
 	# safety nets; a world build on a gate-loaded machine can outlast them and
 	# cancel the overlay mid-test. These flows assert hand-off order, not timeouts.
 	var overlay_tuning: LoadingScreenTuning = (main._loading_screen as LoadingScreen).tuning.duplicate() as LoadingScreenTuning # the preload is shared

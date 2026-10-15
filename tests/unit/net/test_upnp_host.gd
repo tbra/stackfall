@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.164: hosting with a FAKE UPnP backend (the real router is never touched), the lobby
+## hosting with a FAKE UPnP backend (the real router is never touched), the lobby
 ## join-code row, and joining over loopback ENet by decoded join code.
 
 const _NET_SCRIPT: GDScript = preload("res://autoload/Net.gd")

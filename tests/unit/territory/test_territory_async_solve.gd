@@ -1,10 +1,10 @@
 extends GutTest
-## Bontago-1pi.11.28 (P-ASYNC): the WorkerThreadPool territory solve must be
+## P-ASYNC: the WorkerThreadPool territory solve must be
 ## bit-identical to the synchronous one.
-##   A  raster split: update() == fill_ownership(shadow) + adopt_fill()
-##   B  TerritorySolveJob: inline run() == run() inside a WorkerThreadPool task
-##   C  end to end through MatchTerritory, every game mode, sync vs async
-##   D  lifecycle: abort / timer end with a job in flight
+##   A raster split: update() == fill_ownership(shadow) + adopt_fill()
+##   B TerritorySolveJob: inline run() == run() inside a WorkerThreadPool task
+##   C end to end through MatchTerritory, every game mode, sync vs async
+##   D lifecycle: abort / timer end with a job in flight
 
 const GRID_RADIUS: float = 16.0
 const GRID_CELL: float = 1.0
@@ -409,7 +409,7 @@ func test_round_timer_end_flushes_the_job_and_matches_sync() -> void:
 	assert_eq(sync_result[4], async_result[4], "same scores")
 
 
-# --- E: steady state (Bontago-1pi.11.28 fix pass) ---------------------------------------
+# --- E: steady state (fix pass) ---------------------------------------
 
 func _steady_state_check(holes: MatchConfig.HoleMode, label: String) -> void:
 	_start(MatchConfig.GameMode.CLASSIC, holes, 0, 1)
@@ -444,7 +444,7 @@ func test_no_job_at_rest_legacy() -> void:
 	_steady_state_check(MatchConfig.HoleMode.TEMPORARY, "legacy")
 
 
-# --- F: mid-flight events and authority loss (Bontago-1pi.11.28 review fixes) -------------
+# --- F: mid-flight events and authority loss (review fixes) -------------
 
 func _wait_pending() -> void:
 	if Match._territory.solve_pending():

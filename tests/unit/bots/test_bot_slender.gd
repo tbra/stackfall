@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1t5.71: real Jolt evidence for the upright-or-flat decision. A bar stands centred on a sound top
+## real Jolt evidence for the upright-or-flat decision. A bar stands centred on a sound top
 ## (a 1x1 cube column or a 2x2 block), settles, then the next piece lands on it with the bots' aim error.
 
 const CUBE_SHAPE: BlockShape = preload("res://config/blocks/cube.tres")
@@ -158,7 +158,7 @@ func _count(top: String, bar: BlockShape, next: BlockShape, noise: float) -> Vec
 	return Vector2i(stood, kept)
 
 
-## Evidence (6 seeds, Hard 0.05 m and Normal 0.25 m aim error; full table in the Bontago-1t5.71 bead):
+## Evidence (6 seeds, Hard 0.05 m and Normal 0.25 m aim error; full table in the bead):
 ## every upright bar stands on a sound wide top, whatever its height.
 func test_upright_bars_stand_on_a_wide_sound_top_whatever_their_height() -> void:
 	for top: String in ["2x2", "plate9"]:

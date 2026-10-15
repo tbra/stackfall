@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.11.55 slice A: StartupPump autoload helpers.
+## slice A: StartupPump autoload helpers.
 
 const PumpScript: GDScript = preload("res://autoload/StartupPump.gd")
 const SMALL_SCRIPT: String = "res://autoload/Rumble.gd"

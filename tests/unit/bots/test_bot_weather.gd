@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1t5.41: V2 bots read the active wind and avoid tall exposed placements in it.
+## V2 bots read the active wind and avoid tall exposed placements in it.
 
 const STORM: StormTuning = preload("res://config/weather/storm.tres")
 const TOLERANCE: float = 0.0001
@@ -50,7 +50,7 @@ func test_wind_prefers_low_over_tall_that_calm_preferred() -> void:
 	assert_gt(BotEvaluator.wind_tip(tall, storm), 0.0, "a tall stack is exposed")
 
 
-# --- Bontago-1t5.46: Breeze gusts and wind direction ---
+# --- Breeze gusts and wind direction ---
 
 const BREEZE: BreezeTuning = preload("res://config/breeze/breeze.tres")
 const GUST_CENTRE: Vector3 = Vector3(0.0, 6.0, 0.0)

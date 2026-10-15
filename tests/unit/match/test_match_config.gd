@@ -1,5 +1,5 @@
 extends GutTest
-## MatchConfig.sanitize()/to_dict()/from_dict() (spec 2.8, 3.6).
+## MatchConfig.sanitize()/to_dict()/from_dict() (spec 1.9, 3.6).
 
 
 func test_to_dict_from_dict_round_trips_every_field() -> void:
@@ -70,7 +70,7 @@ func test_sanitize_clamps_every_range() -> void:
 
 
 ## Bots don't need a connected peer behind them (M5): the requested ai_count
-## fills the remaining seats up to the spec 2.8 max instead of being zeroed.
+## fills the remaining seats up to the spec 1.9 max instead of being zeroed.
 func test_clamp_to_connected_peers_fills_remaining_seats_with_bots() -> void:
 	var config: MatchConfig = MatchConfig.new()
 	config.ai_count = 7
@@ -81,7 +81,7 @@ func test_clamp_to_connected_peers_fills_remaining_seats_with_bots() -> void:
 	assert_eq(config.ai_count, 7)
 
 
-## Spec 2.8 "Teams: Off / 2 / 3 / 4": every real team mode, for every
+## Spec 1.9 "Teams: Off / 2 / 3 / 4": every real team mode, for every
 ## player_count in 2..8. Assignment interleaves (slot_id % team_count),
 ## team_count() never exceeds player_count (mini() guard: TEAMS_4 with 2
 ## players still returns 2 teams, never 4 with two of them permanently
@@ -119,15 +119,15 @@ func test_team_of_slot_interleaves_for_every_team_mode_and_player_count() -> voi
 			)
 
 
-# --- HoleMode.TEMPORARY, the default again (Bontago-cmc.7) --------------------
+# --- HoleMode.TEMPORARY, the default again --------------------
 # docs/TERRITORY_V2_PLAN.md's HoleMode.OFF (the v2 no-overlap mode) was the
-# default for a while; SPEC.md's 2026-09-20 evidence audit ("Decisions made —
+# default for a while; SPEC.md's evidence audit ("Decisions made —
 # current target": "restore overlap holes as the fidelity target... The
 # no-overlap v2 mode is optional, not the default") reverted it back to
 # TEMPORARY, matching the installed original's own tutorial text
 # (docs/ORIGINAL_INSTALL_EVIDENCE.md: overlap sinking).
 
-## Bontago-59o.18: RANDOM picks one of the three locked skies for every roll
+## RANDOM picks one of the three locked skies for every roll
 ## (negative included) and never the running cycle; the result round-trips and
 ## every peer derives the same locked id from the replicated fields.
 func test_random_sky_resolves_to_a_locked_id_never_the_running_cycle() -> void:
@@ -151,7 +151,7 @@ func test_legacy_dict_gravity_is_rescaled_but_versioned_dict_is_not() -> void:
 	assert_eq(current.gravity_multiplier, 1.0)
 
 
-# --- Lobby rework: per-slot teams, per-bot difficulty (Bontago-1pi.53, P1) ----
+# --- Lobby rework: per-slot teams, per-bot difficulty (P1) ----
 
 ## A resolved three-team, six-seat config (lobby numbers 1/3/4): the shape the
 ## host's TeamAssigner writes at Start.

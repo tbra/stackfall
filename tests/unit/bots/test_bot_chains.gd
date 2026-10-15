@@ -1,5 +1,5 @@
 extends GutTest
-## core/ai/BotChains.gd (Bontago-1t5.22, Bot V2 P3): downstream counts, articulation
+## core/ai/BotChains.gd (Bot V2 P3): downstream counts, articulation
 ## flags, home-connectivity, gap_to and exact multi-cut loss on a hand-built fork.
 ## Pure: a BotWorldView filled by hand, no scene tree.
 

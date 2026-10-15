@@ -1,5 +1,5 @@
 extends GutTest
-## core/ai/BotStack.gd cut model + core/ai/BotGeom2D.gd (Bontago-1t5.72 P1a, STATICS_DESIGN 2.2-2.4): up-closure cuts,
+## core/ai/BotStack.gd cut model + core/ai/BotGeom2D.gd (P1a, STATICS_DESIGN 2.2-2.4): up-closure cuts,
 ## the piece cut, lower cuts, the memo, the int-keyed down-set and face-centred outlines. Pure, no scene tree.
 
 const CUBE: float = 1.0

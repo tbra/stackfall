@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.62: the owner's bot-name lists, the pure picking rules, the
+## the owner's bot-name lists, the pure picking rules, the
 ## MatchConfig wire round trip and the host's per-seat assignment.
 
 var _tiny_map: MapDef

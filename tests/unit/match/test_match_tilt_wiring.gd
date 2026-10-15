@@ -1,5 +1,5 @@
 extends "res://tests/unit/match/match_world_test.gd"
-## MatchConfig.tilt_mode wired into the registered Field (spec 2.6 / 2.8, Bontago-1en.23).
+## MatchConfig.tilt_mode wired into the registered Field (spec 1.6 / 2.8).
 
 const TICK: float = 1.0 / 60.0
 

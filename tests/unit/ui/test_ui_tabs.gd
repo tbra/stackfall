@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.5: UiTabs / UiTab: one active tab, rim notch on the active one (top when
+## UiTabs / UiTab: one active tab, rim notch on the active one (top when
 ## HORIZONTAL, left when VERTICAL), click / left-right / LB-RB selection, skipping hidden and
 ## disabled tabs, wrap-around index.
 
@@ -84,7 +84,7 @@ func test_hidden_and_disabled_tabs_are_skipped() -> void:
 	assert_eq(tabs.current, &"controls", "a hidden tab cannot be selected")
 
 
-## Bontago-1pi.159.13: a stick hovering around the ui deadzone stepped several tabs (each step moved
+## a stick hovering around the ui deadzone stepped several tabs (each step moved
 ## focus to the neighbour, which saw the still-held stick as a new push).
 const PAD_DEVICE: int = 0
 const FRAME: float = 1.0 / 60.0

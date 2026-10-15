@@ -127,7 +127,7 @@ func test_additive_top_variant_matches_current_territory_map_at_current_slope() 
 	assert_eq(experiment.state_bytes(), current.state_bytes())
 
 
-## Bontago-1pi.11.22: the pre-change algorithm, kept verbatim as the oracle.
+## the pre-change algorithm, kept verbatim as the oracle.
 static func _oracle_build(
 	circles: Array[InfluenceCircle],
 	heights: PackedFloat32Array,

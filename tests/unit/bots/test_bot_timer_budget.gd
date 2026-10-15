@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1t5.43: bots plan for short block timers. The reaction delay and the V2 think deadline are
+## bots plan for short block timers. The reaction delay and the V2 think deadline are
 ## clamped so the plan is ready before the auto-drop minus the margin, even with max jitter, and a
 ## normal timer leaves the schedule exactly as before.
 
@@ -52,7 +52,7 @@ func test_short_timers_plan_before_the_auto_drop_margin() -> void:
 
 
 func test_one_second_timer_actually_clamps_the_easy_delay() -> void:
-	# Bontago-1t5.57: Easy's reaction delay is Hard's 0.2 s now, so a 2 s timer no longer clamps it.
+	# Easy's reaction delay is Hard's 0.2 s now, so a 2 s timer no longer clamps it.
 	var fake: TimerFakeMatch = TimerFakeMatch.new()
 	var controller: BotController = _controller(MatchConfig.AiDifficulty.EASY, fake)
 	controller._think_delay_s = _max_jitter_delay(controller)

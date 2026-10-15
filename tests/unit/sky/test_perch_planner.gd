@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-adt.3: core/ambient/PerchPlanner.gd -- landing-spot selection respects
+## core/ambient/PerchPlanner.gd -- landing-spot selection respects
 ## distances, flee triggers, tower (block-top) selection and block-moved detection.
 
 const DISC_RADIUS: float = 30.0

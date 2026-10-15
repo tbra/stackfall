@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.102: the Tower topple preset builds settled cube towers clear of the beacons, and they stand.
+## the Tower topple preset builds settled cube towers clear of the beacons, and they stand.
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
 const TOPPLE_PRESET_PATH: String = "res://config/match/sandbox_tower_topple.tres"

@@ -1,5 +1,5 @@
 extends GutTest
-## Cat is a transient host body with a bounded owner-only laser target.
+## Cat is a transient host body with a bounded laser target limited to the owning slot.
 
 var _field: Field
 var _blocks_root: Node3D

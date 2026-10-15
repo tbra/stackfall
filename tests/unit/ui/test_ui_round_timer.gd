@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.34: UiRoundTimer (the match clock): m:ss format, hurry threshold from config, limited vs
+## UiRoundTimer (the match clock): m:ss format, hurry threshold from config, limited vs
 ## unlimited modes, sudden death, token colours, and the HUD wiring (a client shows the host's time).
 
 

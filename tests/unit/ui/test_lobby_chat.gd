@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.192.4 C3: the lobby chat adapter (LobbyChat inside LobbyPlayersPanel).
+## C3: the lobby chat adapter (LobbyChat inside LobbyPlayersPanel).
 
 const PANEL_SCENE: PackedScene = preload("res://ui/lobby/LobbyPlayersPanel.tscn")
 

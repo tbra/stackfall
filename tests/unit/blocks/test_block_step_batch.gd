@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-bth.1: Block's per-node physics hooks (_integrate_forces +
+## Block's per-node physics hooks (_integrate_forces +
 ## _physics_process per awake block per tick) became one batched pass
 ## (game/blocks/BlockStepBatch.gd) plus a one-shot first-sync callback for the release
 ## tilt. A/B: the same seeded scene runs side by side in separate physics worlds,

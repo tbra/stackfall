@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.11.77.3 (S2b): LateScripts path table and the activation hook.
+## S2b: LateScripts path table and the activation hook.
 
 class ActivationProbe:
 	extends Node

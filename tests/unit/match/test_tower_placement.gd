@@ -6,10 +6,10 @@ const SETTLE_SECONDS: float = 10.0
 const MAX_TOP_DRIFT: float = 2.0
 const TICKS_BETWEEN_PLACEMENTS: int = 30
 
-## DECISION (Bontago-1pi.45): the tower is built in a private World3D (fresh physics space) because
+## DECISION: the tower is built in a private World3D (fresh physics space) because
 ## earlier scripts leave run-varying Jolt state in the default space.
 ##
-## DECISION (Bontago-1pi.21): pin the shared physics_tuning.tres instance to its
+## DECISION: pin the shared physics_tuning.tres instance to its
 ## on-disk values for this test. Sharded gate processes share user://, and
 ## test_tuning_panel writes user://tuning_overrides.cfg (gravity +0.6 etc.)
 ## while another shard's Main boot (TuningPanel.apply_saved_overrides) can read
@@ -41,7 +41,7 @@ func after_all() -> void:
 
 
 func test_thirty_cube_tower_stands_and_sleeps() -> void:
-	# Bontago-1pi.45: a private World3D, i.e. a fresh physics space, so the tower
+	# a private World3D, i.e. a fresh physics space, so the tower
 	# never inherits body-id/broadphase history from scripts that ran before it.
 	var world_holder: SubViewport = SubViewport.new()
 	world_holder.world_3d = World3D.new()
@@ -50,7 +50,7 @@ func test_thirty_cube_tower_stands_and_sleeps() -> void:
 	add_child_autofree(world_holder)
 
 	var field: Field = autofree(Field.new())
-	# DECISION (Bontago-mv0.3): Field.new()'s default map_def is
+	# DECISION: Field.new()'s default map_def is
 	# round_medium.tres (45 m, ~6300 in-disk 1 m cells); building that
 	# collision once cost ~11 s by itself here (measured), on top of this
 	# test's genuinely-real ~1500 physics_frame settle waits it otherwise

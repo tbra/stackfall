@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mp0.19/mp0.29: the upper puff layer (the cloud sea's own puffs) stays on; the weather fades
+## /mp0.29: the upper puff layer (the cloud sea's own puffs) stays on; the weather fades
 ## with rain/snow/storm intensity, the Low preset is cheaper, rain/snow start at the ceiling and the storm sky
 ## blends in and restores the match theme.
 

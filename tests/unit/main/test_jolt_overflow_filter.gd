@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-fca.119: the suite-wide Jolt job-overflow handler (pre-run hook).
+## the suite-wide Jolt job-overflow handler (pre-run hook).
 
 const OVERFLOW: String = "Jolt Physics job system exceeded the maximum number of jobs. This should not happen. Please report this. Waiting for jobs to become available..."
 

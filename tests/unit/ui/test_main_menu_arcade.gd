@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-hfa.3 (UI reskin P1, docs/UI_RESKIN_PLAN.md): the Stackfall Arcade main menu - a left
+## UI reskin P1, docs/UI_RESKIN_PLAN.md: the Stackfall Arcade main menu - a left
 ## column of blocks over a scrim, with a slow orbit over a live (non-physics) arena behind it.
 
 const LAYOUT_SETTLE_FRAMES: int = 3

@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.37 (owner playtest 2026-10-03: "Some buttons have white icons,
+## ("Some buttons have white icons,
 ## others have black icons. When navigating with the controller the black
 ## icons turn white when the button is 'hovered' and the white icons do
 ## nothing. The ones that turn white are basically invisible if the button is
@@ -79,7 +79,7 @@ func _icon_buttons(root: Node) -> Array[Button]:
 func _box_color(box: StyleBox, label: String) -> Color:
 	var block: BlockStyleBox = box as BlockStyleBox
 	if block != null:
-		# Bontago-hfa.2: the Arcade block's face is what the icon sits on (disabled composites on the panel).
+		# the Arcade block's face is what the icon sits on (disabled composites on the panel).
 		if block.disabled:
 			return MenuStyleFactory.arcade_tuning().disc_800_color.lerp(block.face_color, block.disabled_alpha)
 		return Color(block.face_color.r, block.face_color.g, block.face_color.b, 1.0)

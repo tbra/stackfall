@@ -1,5 +1,5 @@
 extends GutTest
-## Home beacon collision (Bontago-6fc.4): static compound on the Field body.
+## Home beacon collision: static compound on the Field body.
 
 var _tiny_map: MapDef
 

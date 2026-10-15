@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.11.42 (owner decision Bontago-gdb): holes are a shader effect.
+## holes are a shader effect.
 ## Pins the wiring of the animated void (disc uniforms, minimap hole colour,
 ## graphics presets) and game/blocks/BlockDissolveFx.gd (per-block instance uniform,
 ## cleanup, shared materials untouched).
@@ -97,7 +97,7 @@ func test_minimap_shader_has_a_hole_colour() -> void:
 	assert_true(code.contains("uniform vec4 hole_color"))
 
 
-# --- Smooth void territory (Bontago-1pi.11.44) --------------------------------
+# --- Smooth void territory --------------------------------
 
 func _state_bytes(holes: Array[Vector2i]) -> PackedByteArray:
 	var bytes: PackedByteArray = PackedByteArray()

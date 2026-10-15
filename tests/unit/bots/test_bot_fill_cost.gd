@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1t5.66: with fill_share 0 the uniform FILL runs only when no targeted site exists;
+## with fill_share 0 the uniform FILL runs only when no targeted site exists;
 ## a profile that asks for FILL sites (fill_share > 0) is unchanged.
 
 const MAP_RADIUS: float = 20.0

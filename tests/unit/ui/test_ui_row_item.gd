@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.4: the row-item contract (ui/components/UiRowItem.gd, UiRow.gd). Every item in a
+## the row-item contract (ui/components/UiRowItem.gd, UiRow.gd). Every item in a
 ## row reports the same height, sizes to its content, never expands unless marked fill.
 
 var _metrics: ComponentMetrics = null

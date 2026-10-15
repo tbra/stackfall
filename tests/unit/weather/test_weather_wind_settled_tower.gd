@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mp0.36: wind and Breeze gusts must reach a SETTLED tall tower. In real
+## wind and Breeze gusts must reach a SETTLED tall tower. In real
 ## play a tower sleeps and, 20 s later, StableBlockManager freezes it STATIC; the
 ## wind effects used to skip frozen blocks, so nothing ever moved a settled
 ## stack. This builds a ~30 m 2x2 tower through the registry placement path,
@@ -79,7 +79,7 @@ func _surface() -> float:
 ## Max horizontal displacement of `top` while `step` runs for `seconds`. The
 ## displacement only ever grows as a running maximum, so a caller asserting
 ## "moved more than X" passes `stop_above = X` and the run ends the first tick it
-## is exceeded (Bontago-fca.38.1: same verdict, no waiting out the rest of the
+## is exceeded (same verdict, no waiting out the rest of the
 ## gust/storm). Tests asserting "stays below X" leave it at INF and run in full.
 func _measure(top: Block, seconds: float, step: Callable, stop_above: float = INF) -> float:
 	var start: Vector3 = top.global_position

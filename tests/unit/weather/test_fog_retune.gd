@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mp0.130: fog retune. Ambient theme fog params load, the Skybox applies
+## fog retune. Ambient theme fog params load, the Skybox applies
 ## aerial perspective / sun scatter / height fog, weather fog adds aerial
 ## perspective and restores it, and exponential fog density at the arena's far
 ## rim stays under the readability threshold (pure function).

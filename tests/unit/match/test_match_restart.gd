@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.46 (owner playtest 2026-10-03: "leaving match and starting a new
+## ("leaving match and starting a new
 ## match doesn't reset properly, when i tried it my camera and zoom level were
 ## the same as when i left the old match and the arena still had rain puddles").
 
@@ -169,7 +169,7 @@ func test_a_new_match_after_leaving_starts_from_the_launch_camera_and_a_dry_aren
 	assert_true(layer == null or layer.wetness() == 0.0, "and none appears while it stays clear")
 
 
-# --- Events.match_scope_reset hub (Bontago-1pi.46 R0) ---------------------------
+# --- Events.match_scope_reset hub (R0) ---------------------------
 
 const SCOPE_SIGNAL: String = "match_scope_reset"
 
@@ -207,7 +207,7 @@ func test_a_lobby_match_after_a_menu_sandbox_has_gamepad_home_focus_again() -> v
 	pad_back.pressed = true
 	assert_true(pad_back.is_action_pressed(&"camera_snap_home"), "fixture: Back is camera_snap_home")
 	rig.tuning = rig.tuning.duplicate() as CameraTuning
-	rig.tuning.snap_enabled = true  # snap ships disabled (Bontago-1pi.159.22); this covers the suppress flag.
+	rig.tuning.snap_enabled = true  # snap ships disabled; this covers the suppress flag.
 	rig._unhandled_input(pad_back)
 	assert_eq(rig._focus_action, &"camera_snap_home", "pad Back focuses home in the lobby match")
 

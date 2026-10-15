@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.48 (focus-move hover cue), .49 (d-pad glyph lit arms), .58 (hint glyph padding).
+## (focus-move hover cue), .49 (d-pad glyph lit arms), .58 (hint glyph padding).
 
 const SFX_SCRIPT: GDScript = preload("res://autoload/Sfx.gd")
 

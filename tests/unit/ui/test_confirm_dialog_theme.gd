@@ -1,6 +1,6 @@
 extends GutTest
-## Bontago-1pi.66: confirmation prompts must show the shared cream card behind
-## the shared dark ink Label colour (owner playtest: dark text on dark panel).
+## confirmation prompts must show the shared cream card behind
+## the shared dark ink Label colour (dark text on dark panel).
 
 const THEME_PATH: String = "res://ui/theme/stackfall_theme.tres"
 const MIN_CONTRAST: float = 4.5

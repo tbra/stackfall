@@ -1,7 +1,7 @@
 class_name MatchTestReset
 extends RefCounted
 ## Shared after_each() cleanup for tests that call Match.register_world()
-## with an autofree()d Field/BlockRegistry/blocks-parent (Bontago-bmh).
+## with an autofree()d Field/BlockRegistry/blocks-parent.
 ##
 ## autoload/Match.gd's `_field`/`_registry`/`_blocks_parent` are plain
 ## autoload vars: MatchLifecycle._reset_match_state() (run by
@@ -19,7 +19,7 @@ extends RefCounted
 ## gets a freed object and Godot's own argument type-check throws
 ## "previously freed" before the callee even runs -- reproduced by running
 ## any world-registering script immediately before test_throw_arc_preview.gd
-## (see Bontago-bmh).
+## (see).
 ##
 ## Call this from after_each(), after Match.abort_match(), in every test
 ## script that calls Match.register_world().

@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-sen.5: the minimap must follow the rendered camera every frame.
+## the minimap must follow the rendered camera every frame.
 
 
 func _make_minimap() -> Minimap:
@@ -35,7 +35,7 @@ func test_refresh_timer_rebuilds_when_ownership_or_colors_change() -> void:
 	assert_true(minimap._image_inputs_changed(), "team colors changed")
 
 
-## Bontago-1pi.11.11: the rebuild uploads the raster as native-copied textures
+## the rebuild uploads the raster as native-copied textures
 ## and the shader colours them; the per-pixel reference stays a test seam.
 func test_raster_images_match_team_hole_and_disk_lookups() -> void:
 	var map_def: MapDef = MapDef.new()

@@ -1,8 +1,8 @@
 extends Node
-## Bontago-8or.25: black hole activation over real ENet with simulated lag.
+## black hole activation over real ENet with simulated lag.
 ## The host emits the same Events.special_triggered a real impact would; the
 ## client must build a BlackHoleVisual from the replicated event.
-## Handshake (Bontago-fca.40, modelled on gift_fx_enet): the client attaches its
+## Handshake (modelled on gift_fx_enet): the client attaches its
 ## listener after PLAYING, then sends net_ready; the host fires only after that ack,
 ## and waits for the client's net_done before quitting. No fixed-timer race.
 ## Run via tools/run_black_hole_enet.ps1 (3 min deadline).

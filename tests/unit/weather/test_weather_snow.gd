@@ -1,5 +1,5 @@
 extends GutTest
-## Snow (Bontago-22y.6): the host effect on a real (tiny) Field with real
+## Snow: the host effect on a real (tiny) Field with real
 ## Jolt blocks. Growth, budgets, collider/visual correspondence (checked with
 ## rays against the live colliders), cleanup, melting, coverage, sleep
 ## preservation (no wake cascade), and the gameplay point: a block dropped on
@@ -244,7 +244,7 @@ func test_ramp_out_melts_in_steps_to_nothing() -> void:
 	assert_eq(float(_field.overlay().material().get_shader_parameter(&"snow_strength")), 0.0, "disc snow layer off after the melt")
 
 
-## Bontago-mp0.97: snowfall that stops dead (intensity straight to 0) used to
+## snowfall that stops dead (intensity straight to 0) used to
 ## drop every level at once; the melt clock now spreads it over the melt time.
 func test_snow_melts_gradually_within_the_melt_time_after_snowfall_stops() -> void:
 	var cube: Block = _cube(Vector3(0.0, 0.01, 0.0))

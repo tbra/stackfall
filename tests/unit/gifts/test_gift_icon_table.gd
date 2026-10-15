@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mp0.125: every gift resolves to UI art; weather options carry no icons (mp0.166) through
+## every gift resolves to UI art; weather options carry no icons (mp0.166) through
 ## config/gifts/gift_icon_table.tres, and the lobby/HUD widgets show it.
 
 

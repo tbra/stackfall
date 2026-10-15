@@ -1,5 +1,5 @@
 extends GutTest
-## Weather ambience loops and gust whoosh (Bontago-mp0.118).
+## Weather ambience loops and gust whoosh.
 
 var _amb: WeatherAmbience = null
 
@@ -74,7 +74,7 @@ func test_gust_event_plays_whoosh_matching_duration() -> void:
 	assert_eq(_amb.last_gust_stream.loop_mode, AudioStreamWAV.LOOP_DISABLED)
 
 
-## Bontago-1pi.77: loops and gust whoosh follow Master + Weather only, not SFX.
+## loops and gust whoosh follow Master + Weather only, not SFX.
 func test_weather_volume_follows_weather_channel_only() -> void:
 	var saved_weather: float = Settings.weather_volume_percent()
 	var saved_sfx: float = Settings.sfx_volume_percent()

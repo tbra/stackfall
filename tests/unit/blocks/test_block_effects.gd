@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-xtq.29 (M7 P4, spec 2.10 "effects + camera shake"):
+## M7 P4, spec 1.10 "effects + camera shake":
 ## game/blocks/BlockEffectsManager.gd's one-shot kill-plane burst and landing-dust/
 ## impact burst. Events.block_removed and Events.block_impacted_at are both
 ## global Events autoload signals, so this test connects a real
@@ -77,7 +77,7 @@ func test_impact_below_threshold_spawns_no_effect() -> void:
 
 
 func test_landing_burst_wraps_cubelet_and_dust_under_one_effect() -> void:
-	## Bontago-mp0.3.4: the landing burst now spawns a team-colored cubelet
+	## the landing burst now spawns a team-colored cubelet
 	## shower AND the original dust puff, but active_effect_count() (the
 	## manager's own child count) must still read one effect per impact.
 	var manager: BlockEffectsManager = _make_manager()
@@ -178,7 +178,7 @@ func test_falling_trail_caps_at_max_concurrent() -> void:
 	assert_eq(manager._trails.size(), 2, "trail_max_concurrent must cap the number of simultaneously active trails.")
 
 
-## Bontago-a3z (owner: the trail was "really small and sort of weirdly centred"): the
+## the trail was "really small and sort of weirdly centred": the
 ## ribbon is anchored at the block mesh's centre, not its pivot-cell origin, is as wide
 ## as the piece (within the configured clamp) and turns to face the camera.
 func test_falling_trail_is_centred_sized_and_faces_the_camera() -> void:

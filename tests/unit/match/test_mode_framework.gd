@@ -1,5 +1,5 @@
 extends "res://tests/unit/match/match_world_test.gd"
-## Game-mode framework (Bontago-22y.11): the ModeObjective seam in MatchTerritory/MatchLifecycle and its replication.
+## Game-mode framework: the ModeObjective seam in MatchTerritory/MatchLifecycle and its replication.
 
 const MatchNetScript := preload("res://net/MatchNet.gd")
 

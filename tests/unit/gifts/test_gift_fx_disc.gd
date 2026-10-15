@@ -1,5 +1,5 @@
 extends GutTest
-## DiscForce (Bontago-1pi.85.8): sign +1 dips the landing side, -1 raises it;
+## DiscForce: sign +1 dips the landing side, -1 raises it;
 ## shake sweeps and stops after the duration.
 
 var _field: Field

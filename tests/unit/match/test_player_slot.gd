@@ -1,5 +1,5 @@
 extends GutTest
-## PlayerSlot.home_position_for / goal_positions_for (spec 2.2): where the
+## PlayerSlot.home_position_for / goal_positions_for (spec 1.5): where the
 ## home and goal flags sit, disk-local.
 
 const EPS: float = 0.001

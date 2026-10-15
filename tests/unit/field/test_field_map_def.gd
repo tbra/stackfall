@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-keo.2 (docs/archive/M6_PLAN.md package A0): Field must bake the *match's*
+## docs/archive/M6_PLAN.md package A0: Field must bake the *match's*
 ## real MapDef, not whatever its own @export default happens to be.
 ## `game/field/Field.gd`'s `_build_cells()` (now `_rebuild_cells()`) used to run
 ## only once, from `_ready()`, against Field's own `@export var map_def`
@@ -34,7 +34,7 @@ func before_each() -> void:
 
 	# Field's own @export default, deliberately a different size and cell
 	# resolution than the match's own map below -- a test that passed before
-	# Bontago-keo.2's fix (Field baking this one forever, regardless of the
+	# 's fix (Field baking this one forever, regardless of the
 	# match's real config) would fail every assertion here.
 	_field_default_map = MapDef.new()
 	_field_default_map.id = &"field_default"

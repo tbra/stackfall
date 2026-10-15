@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-xtq.26 (M7 P1): game/main/Main.gd's _apply_graphics_preset() consumer --
+## M7 P1: game/main/Main.gd's _apply_graphics_preset() consumer --
 ## Settings.set_graphics_preset() must reach the real Viewport and the real
 ## WorldEnvironment's Environment resource once Main is in the tree. Drives
 ## the real Main scene, the same fixture shape as tests/unit/main/test_sandbox.gd,
@@ -80,7 +80,7 @@ func test_preset_change_reconfigures_the_reflection_probe() -> void:
 	assert_eq(skybox.probe_mode(), GraphicsPreset.ReflectionProbeMode.INTERVAL)
 
 
-## Bontago-1pi.11.49: drops the main menu so no MenuBackdrop holds the menu budget.
+## drops the main menu so no MenuBackdrop holds the menu budget.
 func _leave_menu() -> void:
 	var menu: Node = _main._main_menu
 	if menu != null and menu.is_inside_tree():
@@ -117,7 +117,6 @@ func test_frame_cap_fixed_and_uncapped_modes() -> void:
 	assert_eq(FrameCapRule.resolve(GraphicsPreset.FrameCap.DISPLAY_REFRESH, 90, -1.0, 75), 75)
 
 
-## Bontago-mp0.154
 func test_vsync_override_calls_window_set_vsync_mode_and_keeps_the_cap() -> void:
 	var before_fps: int = Engine.max_fps
 	_leave_menu()

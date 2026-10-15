@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.46 R2 (docs/MATCH_RESET_AUDIT.md G3, G6 + rumble): the rules and
+## R2 (docs/MATCH_RESET_AUDIT.md G3, G6 + rumble): the rules and
 ## autoload carry-overs behind "a new match after leaving is indistinguishable from
 ## a freshly launched one".
 

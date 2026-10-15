@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1t5.53b: BotStack wired into the bot think (docs/BOT_TOWER_PLAN.md C "1t5.53b"). The centre of
+## .53b: BotStack wired into the bot think (docs/BOT_TOWER_PLAN.md C "1t5.53b"). The centre of
 ## mass of the tower under a site decides how the site ranks: a sliced STACK phase analyses the snapshot,
 ## PROBE fills BotCandidate.stability_slack (BotStability), BotEvaluator.stability_risk adds the topple penalty to
 ## the TIP term. Pure tests use hand-built BotStack snapshots; the physics tests use a real Field with settled

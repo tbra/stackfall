@@ -1,5 +1,5 @@
 extends GutTest
-## core/rules/TeamAssigner.gd (Bontago-1pi.53): resolves per-seat lobby team picks
+## core/rules/TeamAssigner.gd: resolves per-seat lobby team picks
 ## (1..cap explicit, 0 = Random) into dense team ids at match start. Pure, so
 ## every test here is plain data in, data out.
 

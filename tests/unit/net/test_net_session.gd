@@ -1,6 +1,6 @@
 extends GutTest
 ## autoload/Net.gd: session lifecycle, handshake, roster, disconnect and
-## command-line parsing (spec 3.4, docs/archive/M3a_PLAN.md P1).
+## command-line parsing (spec 2.6, docs/archive/M3a_PLAN.md P1).
 ##
 ## Net.gd has no class_name (it must not collide with the `Net` autoload
 ## singleton), so a second, independent instance of the same script cannot be
@@ -70,7 +70,7 @@ func _take_port() -> int:
 ## once `frames` process frames AND `_WAIT_FLOOR_MSEC` of wall clock have both
 ## passed: headless frames are uncapped (200 can elapse in milliseconds), while
 ## an ENet handshake needs real time, so a frame-only deadline flaked when
-## parallel gate shards loaded the CPU (Bontago-fca.64). Returns success.
+## parallel gate shards loaded the CPU. Returns success.
 func _wait_until(condition: Callable, frames: int = 200) -> bool:
 	var deadline_msec: int = Time.get_ticks_msec() + _WAIT_FLOOR_MSEC
 	var spent: int = 0
@@ -83,7 +83,7 @@ func _wait_until(condition: Callable, frames: int = 200) -> bool:
 
 
 ## Hosts and joins on `port`, waits for the seated handshake, and returns the
-## port that worked. Bontago-3as: one gate run saw a loopback join never land in
+## port that worked. one gate run saw a loopback join never land in
 ## a sharded run (no log evidence of a collision; passes alone), so a pair that
 ## has not seated within `_PAIR_ATTEMPT_MSEC` is torn down and retried on a fresh
 ## OS-chosen port, up to `_PAIR_ATTEMPTS` times. The last attempt's state is left
@@ -152,7 +152,7 @@ func test_mismatched_build_version_is_refused_and_disconnected() -> void:
 	# into _host_build_version, instead of re-reading ProjectSettings live in
 	# _rpc_handshake — a host's advertised version cannot legitimately change
 	# mid-session anyway, and it is what makes the version bump below
-	# race-free to test in one process: it reproduces spec 3.4's "Compare the
+	# race-free to test in one process: it reproduces spec 2.6's "Compare the
 	# version ... during the ENet handshake" with no timing dependency on
 	# when either side's RPC actually runs.
 	#
@@ -180,16 +180,16 @@ func test_mismatched_build_version_is_refused_and_disconnected() -> void:
 	assert_eq(_client.mode(), Net.Mode.OFFLINE, "a refused client returns to OFFLINE")
 
 
-# --- Lobby-only joining (Bontago-mv0.1.8) ---------------------------------------
+# --- Lobby-only joining ---------------------------------------
 #
-# Spec 3.4: joining is lobby-only in M3a. Net does not know Match's state
+# Spec 2.6: joining is lobby-only in M3a. Net does not know Match's state
 # machine (docs/archive/M3a_PLAN.md P1: Net must not name a gameplay concept), so the
 # match flow flips set_accepting_joins(); these tests flip it directly. The
 # "not accepting" window stands in for COUNTDOWN, PLAYING, SUDDEN_DEATH and
 # END alike — Net treats every non-lobby state the same way.
 
 func test_joins_resume_once_the_match_returns_to_the_lobby() -> void:
-	# Bontago-5pk: under a loaded gate shard the loopback connect sometimes never
+	# under a loaded gate shard the loopback connect sometimes never
 	# landed within the wait (no refusal ever came, so the assert and the
 	# parameters read failed). Same remedy as _connect_host_and_client: bound
 	# each attempt, retry on a fresh port, and print the attempt on a miss.
@@ -260,7 +260,7 @@ func test_peer_disconnect_fires_net_peer_left_with_the_right_slot() -> void:
 	assert_true(still_two, "the host's roster must drop the departed peer")
 
 
-## Bontago-mv0.1.10: reproduces the teardown-ordering race in isolation.
+## reproduces the teardown-ordering race in isolation.
 ## Before the _can_send() guard, _broadcast_roster() called
 ## _rpc_roster_update.rpc(roster) unconditionally, and this exact sequence
 ## (peer_disconnected signal for a still-registered peer arriving after the
@@ -299,7 +299,7 @@ func test_broadcast_roster_after_transport_closed_does_not_rpc() -> void:
 ## the private _apply_command_line_args(args) it delegates to instead — the
 ## exact same parsing/dispatch code, with the argument list passed explicitly.
 
-# --- Steam session (spec 3.4, docs/archive/M3b_PLAN.md P1) --------------------------
+# --- Steam session (spec 2.6, docs/archive/M3b_PLAN.md P1) --------------------------
 #
 # Every test below drives Net through a FakeSteam, never the real Steam
 # singleton, so the suite is correct whether or not addons/godotsteam/ is
@@ -354,7 +354,7 @@ func test_lobby_created_tags_the_lobby_with_the_json_encoded_match_config() -> v
 	assert_eq(fake.get_lobby_data(lobby_id, String(SteamClient.KEY_GAME)), String(Net.DISCOVERY_MAGIC))
 	assert_eq(fake.get_lobby_data(lobby_id, String(SteamClient.KEY_VERSION)), _host.build_version())
 	assert_eq(fake.get_lobby_data(lobby_id, String(SteamClient.KEY_HOST_NAME)), "TestSteamUser")
-	assert_eq(fake.joinable_calls, [[lobby_id, true]], "host lobby is explicitly joinable (Bontago-1pi.48)")
+	assert_eq(fake.joinable_calls, [[lobby_id, true]], "host lobby is explicitly joinable (Bontago-1pi.48)")  # lint-public: allow string literal kept verbatim (assertion message or fixture)
 
 	var decoded: Dictionary = JSON.parse_string(
 		fake.get_lobby_data(lobby_id, String(SteamClient.KEY_MATCH_CONFIG))
@@ -394,14 +394,14 @@ func test_apply_connect_lobby_from_the_full_command_line_calls_join_lobby() -> v
 	assert_eq(fake.join_lobby_calls, [12345])
 
 
-# --- In-flight guard (Bontago-mv0.2.6 finding B) ----------------------------
+# --- In-flight guard (finding B) ----------------------------
 # host_online()/join_lobby() only kick off Steam's own async request; _mode
 # stays OFFLINE the whole time that answer is pending (every test above
 # already proves this). A second call in the meantime must not issue a
 # second Steam request -- there would be no way to tell the two requests'
 # eventual answers apart -- so it is refused with ERR_BUSY instead.
 
-## REPRO (Bontago-mv0.4): the case the test above does not cover -- a SECOND
+## REPRO: the case the test above does not cover -- a SECOND
 ## host_online() is issued (after leave() cancels the first) *before* the
 ## first attempt's own Steam answer has landed, so two requests are
 ## genuinely outstanding at once. A single shared pending bool cannot tell
@@ -451,15 +451,15 @@ func test_leave_then_host_online_before_either_answers_the_first_delivered_answe
 	assert_eq(fake.leave_lobby_calls, [111, 222])
 
 
-# --- Creator's own lobby_joined (Bontago-1pi.48) ------------------------------
+# --- Creator's own lobby_joined ------------------------------
 # Steamworks answers a successful CreateLobby with LobbyCreated_t AND a
 # LobbyEnter_t (GodotSteam's lobby_joined) for the creator; every probe log of
-# 2026-10-07 shows lobby_created then lobby_joined(response=1). Net used to take
+# shows lobby_created then lobby_joined(response=1). Net used to take
 # that second answer for a stray join: the pending queue was already empty, so
 # the "defensive" branch called leave_lobby() and the host left (destroyed) its
 # own fresh lobby, which is why no other account could ever find it.
 
-# --- Lobby seat preferences (Bontago-1pi.53) ------------------------------------
+# --- Lobby seat preferences ------------------------------------
 #
 # Net.request_seat_pref -> any_peer RPC -> host checks -> Events.net_seat_pref_requested.
 # Most cases drive the host-side handler directly (the transport-given sender id is
@@ -684,7 +684,7 @@ func test_a_lobby_leave_re_derives_the_auto_names_of_the_peers_that_move() -> vo
 
 # --- kick_peer announces the compacted table (N1 review F2) ----------------------
 
-## Bontago-1pi.57: kick_peer announced the new roster with a plain broadcast while
+## kick_peer announced the new roster with a plain broadcast while
 ## the kicked peer was still in get_peers() (ENet only drops it once its disconnect
 ## completes), which the engine reports as an error ("Unable to send packet on
 ## channel 0, max channels: 0"). Over a real ENet connection; GUT fails a test on an

@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-470.8: debug-mode gating, F1 overlay cycling, sampler, CSV logger and
+## debug-mode gating, F1 overlay cycling, sampler, CSV logger and
 ## the perf_log_summary.py tool.
 
 const TEST_LOG_DIR: String = "user://test_perf_logs"
@@ -148,4 +148,4 @@ func test_summary_tool_reports_percentiles_and_spikes() -> void:
 	assert_true(bool(summary["trends"]["node_count"]["warn"]), "growing node count flagged")
 
 
-# --- Bontago-1pi.11.36: physics steps per frame and effects child count -----------
+# --- physics steps per frame and effects child count -----------

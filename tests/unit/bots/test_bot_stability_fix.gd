@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1t5.72.10: the aim error erodes the merged support region once (not each cube top), and a contact the host
+## the aim error erodes the merged support region once (not each cube top), and a contact the host
 ## would lift on is never ignored. Pure, no scene tree.
 
 const CUBE: float = 1.0

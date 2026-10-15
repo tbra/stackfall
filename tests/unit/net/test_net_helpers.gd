@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-fca.36.5: NetFanout.can_send() / Net.can_send() are the single owner of
+## NetFanout.can_send() / Net.can_send() are the single owner of
 ## "is there a live peer to send to"; the net/ nodes no longer carry private copies.
 
 class FakeSession:

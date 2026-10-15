@@ -6,7 +6,7 @@ extends GutTest
 ## again after clear_arc()) that game/player/PlayerController.gd's
 ## _drive_throw_visuals() drives every frame.
 ##
-## Bontago-1en.25 (feedback/throw-arc.png, "arc leaves the screen while
+## (feedback/throw-arc.png, "arc leaves the screen while
 ## rising") adds the landing-cutoff coverage below: sample_arc()'s optional
 ## `field` argument stops the arc at the disc's own surface (or the floor
 ## below it once the throw has flown past the rim) instead of always
@@ -162,7 +162,7 @@ func test_rocket_arc_is_straight_gravity_free() -> void:
 		assert_true((points[i] - points[i - 1]).normalized().is_equal_approx(direction), "straight line, no gravity")
 
 
-# --- Landing-zone ring (Bontago-1pi.85.63) -----------------------------------
+# --- Landing-zone ring -----------------------------------
 
 func _ring_mesh_is_flat_annulus(ring: MeshInstance3D, outer: float, width: float) -> void:
 	var mesh: ArrayMesh = ring.mesh as ArrayMesh

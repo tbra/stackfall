@@ -1,11 +1,11 @@
 extends GutTest
-## Bontago-1pi.165: the network position band must reach the Reach the Sky
+## the network position band must reach the Reach the Sky
 ## target (100 m above the disc) plus a margin, so a held ghost, a host-accepted
 ## placement and a replicated body all work at 100+ m.
 
 const TARGET_M: float = 100.0
 const PROBE_ABOVE_TARGET_M: float = 5.0
-## Worst 3D error of an int16 axis over the ~200 m band (see SPEC 3.4).
+## Worst 3D error of an int16 axis over the ~200 m band (see SPEC 2.6).
 const POSITION_TOLERANCE_M: float = 0.0035
 
 var _net_config: NetConfig

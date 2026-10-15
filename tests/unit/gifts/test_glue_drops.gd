@@ -222,7 +222,7 @@ func test_accepted_drop_spends_charge_but_locked_or_burned_drop_does_not() -> vo
 
 
 func test_claimed_glue_refreshes_charges_and_is_never_held() -> void:
-	# Bontago-sen.3: Glue is a modifier, so a claim grants 5 charges and the
+	# Glue is a modifier, so a claim grants 5 charges and the
 	# next placed block is an ordinary piece that spends one.
 	assert_true(Match.grant_glue_drops(0, 2))
 	assert_true(Match.debug_queue_special(0, &"glue"))
@@ -259,7 +259,7 @@ func test_throw_does_not_spend_a_drop_charge() -> void:
 
 
 func test_elimination_clears_the_slots_glue_charges_and_publishes() -> void:
-	# Bontago-sen.8: an eliminated slot keeps no stale charges.
+	# an eliminated slot keeps no stale charges.
 	assert_true(Match.grant_glue_drops(0, 3))
 	assert_true(Match.grant_glue_drops(1, 4))
 	var seen: Array = []
@@ -272,14 +272,14 @@ func test_elimination_clears_the_slots_glue_charges_and_publishes() -> void:
 	assert_eq(seen, [[0, 0]])
 
 
-# --- Bontago-1pi.85.13: bonds that hold (docs/GIFT_EFFECTS_PLAN.md section 5 F) ---
+# --- bonds that hold (docs/GIFT_EFFECTS_PLAN.md section 5 F) ---
 
 const TILT_CYCLE_S: float = 10.0
 const TILT_FLIP_S: float = 2.0
 const TILT_KICK: float = 0.35
 const DROP_AT_S: float = 4.0
 ## Drop height above the pair. The glue shock threshold (4 m/s per tick) is tuned to an L4 landing
-## speed sqrt(2 * g * h); the base gravity went 1.4 -> 1.75 (x1.25, 2026-10-12), so the former 3.0 m
+## speed sqrt(2 * g * h); the base gravity went 1.4 -> 1.75 (x1.25), so the former 3.0 m
 ## becomes 3.0 * 1.4 / 1.75 = 2.4 m to keep the same impact speed. Real placements release from
 ## hover height (0.3 m), far gentler than this stress case.
 const DROP_HEIGHT_M: float = 2.4

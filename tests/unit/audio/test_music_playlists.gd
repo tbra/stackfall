@@ -39,7 +39,7 @@ func before_each() -> void:
 	_sfx.config = _config
 	add_child_autofree(_sfx)
 	_sfx.set_process(false) # Drive scheduling deterministically, no real waits.
-	_sfx.play_music() # Bontago-1pi.156: Sfx no longer self-starts; Main starts it after the splash.
+	_sfx.play_music() # Sfx no longer self-starts; Main starts it after the splash.
 
 
 func after_each() -> void:
@@ -121,7 +121,7 @@ func test_process_wait_and_switch_use_real_ticks_not_game_delta() -> void:
 	assert_almost_eq(_sfx._music_envelope, 0.8, 0.01, "context fade uses real seconds")
 
 
-# --- Lazy music loading (Bontago-1pi.11.61) ----------------------------------
+# --- Lazy music loading ----------------------------------
 
 const MENU_TRACK: String = "res://assets/audio/music/menu-theme.mp3"
 func _lazy_sfx() -> Node:
@@ -131,7 +131,7 @@ func _lazy_sfx() -> Node:
 	sfx.config = shipped
 	add_child_autofree(sfx)
 	sfx.set_process(false)
-	sfx.play_music() # Bontago-1pi.156: started by Main after the splash, not by _ready().
+	sfx.play_music() # started by Main after the splash, not by _ready().
 	return sfx
 
 

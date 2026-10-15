@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.213: hud_toggle (F8 / PADDLE4) shows and hides the whole in-match HUD,
+## hud_toggle (F8 / PADDLE4) shows and hides the whole in-match HUD,
 ## in every match and the sandbox, and a new match starts with it visible.
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")

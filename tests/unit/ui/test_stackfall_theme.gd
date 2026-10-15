@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-hfa.2 (UI reskin P0b): ui/theme/stackfall_theme.tres is the Stackfall Arcade theme.
+## UI reskin P0b: ui/theme/stackfall_theme.tres is the Stackfall Arcade theme.
 
 const THEME_PATH: String = "res://ui/theme/stackfall_theme.tres"
 

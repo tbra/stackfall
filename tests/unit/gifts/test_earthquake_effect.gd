@@ -1,5 +1,5 @@
 extends GutTest
-## EarthquakeEffect (spec 2.6, docs/archive/M4_SPECIALS_PACKAGES.md P5-EARTHQUAKE):
+## EarthquakeEffect (spec 1.6, docs/archive/M4_SPECIALS_PACKAGES.md P5-EARTHQUAKE):
 ## the shake-every-armed-tick + leveling-nudge timed effect, driven through a
 ## real, tiny Field registered via Match.register_world() -- same fixture
 ## shape as tests/unit/field/test_field_tilt.gd's own _make_field(), plus the
@@ -294,7 +294,7 @@ func test_the_tres_loads_via_load_all_specials_with_id_and_effect() -> void:
 	)
 
 
-# --- impact_triggers() veto (Bontago-1en.22) ---------------------------------
+# --- impact_triggers() veto ---------------------------------
 
 ## A hard deceleration past arm_impulse right on/after the arming tick must
 ## not detonate this timed effect -- its own end is entirely time-driven
@@ -315,7 +315,7 @@ func test_hard_impact_after_arming_does_not_prematurely_trigger_and_the_shake_st
 
 	assert_false(
 		behavior.is_triggered(),
-		"EarthquakeEffect must veto the decel-based impact trigger (Bontago-1en.22)."
+		"EarthquakeEffect must veto the decel-based impact trigger (Bontago-1en.22)."  # lint-public: allow string literal kept verbatim (assertion message or fixture)
 	)
 	assert_true(
 		block.has_meta(EarthquakeEffect.START_AGE_META),

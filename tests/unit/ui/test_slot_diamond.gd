@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.81 / 1pi.83: the colour diamond is ONE shared component used by the HUD
+## / 1pi.83: the colour diamond is ONE shared component used by the HUD
 ## share rows, the lobby seat rows and the round score table; plus the lobby's bot names,
 ## session badge, Advanced disclosure and one-row prompt.
 

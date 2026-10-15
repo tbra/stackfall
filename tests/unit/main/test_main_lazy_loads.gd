@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.11.62: game/main/Main.gd no longer preloads its rarely used scenes
+## game/main/Main.gd no longer preloads its rarely used scenes
 ## and presets at parse time; each loads on first use.
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")

@@ -1,5 +1,5 @@
 extends GutTest
-## Rain (Bontago-22y.5): wet-friction round trips, the intensity mapping, the
+## Rain: wet-friction round trips, the intensity mapping, the
 ## framework restore paths, host-only physics and the streak presentation.
 
 const DELTA: float = 0.25
@@ -12,7 +12,7 @@ var _disc: StaticBody3D = null
 var _rain: RainTuning = null
 ## Every MatchWeather a test built: the autoload WeatherPresenter listens to their Events, so one
 ## left running keeps its rain presenting (and storm-tinting every later Skybox) for the rest of
-## the process (Bontago-fca.39).
+## the process.
 var _weathers: Array[MatchWeather] = []
 
 

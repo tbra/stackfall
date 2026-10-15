@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mp0.124 part B: HUD feedback pictograms (HudFeedbackIconTable) and
+## part B: HUD feedback pictograms (HudFeedbackIconTable) and
 ## InputGlyph stick/chord glyphs are drawn.
 
 const INPUT_GLYPH_SCENE: PackedScene = preload("res://ui/hud/InputGlyph.tscn")

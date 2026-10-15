@@ -1,6 +1,6 @@
 extends GutTest
 ## CellGrid is the one disk-local coordinate convention the solver, the raster,
-## Field's collision cells and placement validation all share (spec 3.3,
+## Field's collision cells and placement validation all share (spec 2.5,
 ## docs/archive/M2_PLAN.md "Raster coordinates"). If these break, the three disagree
 ## about where a hole is.
 

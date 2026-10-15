@@ -1,6 +1,6 @@
 extends GutTest
 ## net/LanDiscovery.gd: advert payload round-trip and list expiry
-## (spec 3.4 "LAN discovery", docs/archive/M3a_PLAN.md P1).
+## (spec 2.6 "LAN discovery", docs/archive/M3a_PLAN.md P1).
 
 var _listener: LanDiscovery
 var _config: NetConfig
@@ -63,7 +63,7 @@ func _sample_info() -> Dictionary:
 	return {
 		"game": "stackfall",
 		"version": "0.3.0",
-		"name": "Tony's Game",
+		"name": "Tony's Game",  # lint-public: allow fixture value, not a user name
 		"players": 3,
 		"max": 8,
 		"map": "round",

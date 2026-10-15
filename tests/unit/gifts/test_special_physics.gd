@@ -1,9 +1,9 @@
 extends GutTest
-## SpecialPhysics.query_bodies_in_range() tests (spec 3.5 "Explosions";
+## SpecialPhysics.query_bodies_in_range() tests (spec 2.7 "Explosions";
 ## docs/M8_PLAN.md "Interface stubs" item 1). Real RigidBody3D/StaticBody3D
 ## bodies added directly to the test's own tree -- a physics smoke test, not
 ## a stubbed unit test -- proving the sphere-query, radius cutoff, exclude
-## list, owner filter and StaticBody3D skip this package's contract describes.
+## list, the filter on the owning node and StaticBody3D skip this package's contract describes.
 ##
 ## DECISION (tests/unit/gifts/test_special_physics.gd): builds bare RigidBody3D/
 ## StaticBody3D fixtures directly rather than a real Field + BlockFactory

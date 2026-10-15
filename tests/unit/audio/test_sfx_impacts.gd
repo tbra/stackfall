@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mp0.116: impact sample selection by strength tier x surface, variant
+## impact sample selection by strength tier x surface, variant
 ## rotation, and that every shipped variation wav loads headless.
 
 const SFX_SCRIPT: GDScript = preload("res://autoload/Sfx.gd")

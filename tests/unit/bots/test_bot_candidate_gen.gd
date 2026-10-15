@@ -1,5 +1,5 @@
 extends GutTest
-## core/ai/BotCandidateGen.gd (Bontago-1t5.21, Bot V2 P2): targeted TIP / STACK / STRIKE /
+## core/ai/BotCandidateGen.gd (Bot V2 P2): targeted TIP / STACK / STRIKE /
 ## FILL sites on a synthetic snake raster. Pure: real CellGrid + TerritoryRaster.
 
 const MAP_RADIUS: float = 20.0

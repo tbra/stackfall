@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.85.53: a thrown Rocket/Magnet carrier spawns already facing its flight line, so
+## a thrown Rocket/Magnet carrier spawns already facing its flight line, so
 ## the pose captured at block_placed (just before replicate_spawn) is never upright. Real host path
 ## (Match.request_throw), tiny-map fixture of test_gift_throw_origin.gd.
 
