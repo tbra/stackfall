@@ -53,7 +53,7 @@ godot-ai-pilot`) has the setup and known gotchas.
   after dispatch". `editor_screenshot` needs a 3D edited scene for the default
   viewport (the pilot opens `Boot`, a plain Node; viewport_2d returned a blank 2x2);
   prefer game captures. If a capture is too small to judge, say so and suggest the
-  off-screen `tools/sandbox_shot.gd` route.
+  off-screen `tools/shot.gd` capture tool.
 - Input: reproduce gamepad/keyboard issues only through what `game_manage` offers;
   never hand-edit input or simulate raw keycodes in project code.
 - Read code before probing; then iterate within the brief's budget (runs, captures,

@@ -335,12 +335,13 @@ convention `OS.get_cmdline_user_args()` uses:
 
 With no flag, `Main` shows the main menu and these are chosen through Host/Join instead.
 
-Save a screenshot of the M2 build to `user://m2_main.png`, with a few blocks placed by
-script:
+Off-screen screenshots of any screen (menus, lobby, sandbox, a match) at one or more sizes:
 
 ```bash
-godot --path . res://tools/screenshot_main.tscn
+godot --windowed --position 10000,10000 --resolution 320x180 --audio-driver Dummy --path . res://tools/shot.tscn -- --agent-probe --out=<dir> --render-size=1920x1080 --target=main_menu
 ```
+
+See `tools/shot.gd` for targets, setup keys and shot lists.
 
 Multiplayer testing (from M3a): in the editor, **Debug → Customize Run Instances**, 2–4
 instances.

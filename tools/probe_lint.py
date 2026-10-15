@@ -3,9 +3,11 @@
 Usage: python tools/probe_lint.py [--base main] [--head HEAD] [--path <checkout>] [--untracked]
 
 Default mode lists files ADDED between base and head (`git diff --diff-filter=A --name-only
-base...head`) that match tools/screenshot_*, tools/capture_*, tools/*probe* (any extension, incl.
-.gd/.tscn/.uid/.sh) or anything under tools/_scratch*/, minus the globs in tools/probe_allowlist.txt
-(one glob per line, # comments). Already tracked probes are grandfathered (not in the diff).
+base...head`) that match tools/screenshot_*, tools/capture_*, tools/*probe*, tools/*atlas*, tools/*_shot*,
+tools/*contact_sheet* (any extension, incl. .gd/.tscn/.uid/.sh) or anything under tools/_scratch*/, minus the
+globs in tools/probe_allowlist.txt (one glob per line, # comments). The one capture tool is tools/shot.gd +
+shot.tscn + shot_targets.gd (exempt, built in): extend it, with a test in tests/unit/main/test_shot.gd, when it
+cannot capture what you need. Already tracked probes are grandfathered (not in the diff).
 --untracked instead flags untracked (not ignored) files in the checkout matching the same
 patterns, for worker handbacks. Prints offenders; exit 1 if any, else 0.
 tools/integrate_batch.py runs this check on each branch before merging (escape: --allow-probes).
@@ -22,10 +24,14 @@ import sys
 
 GIT_TIMEOUT_S = 120
 ALLOWLIST = "tools/probe_allowlist.txt"
-PATTERNS = ("tools/screenshot_*", "tools/capture_*", "tools/*probe*", "tools/_scratch*/*")
+PATTERNS = ("tools/screenshot_*", "tools/capture_*", "tools/*probe*", "tools/*atlas*", "tools/*_shot*",
+            "tools/*contact_sheet*", "tools/_scratch*/*")
 # DECISION: this lint's own files contain "probe" in their names; exempt them built in so the
 # allowlist can stay header-only as specified.
 SELF_FILES = frozenset(("tools/probe_lint.py", "tools/test_probe_lint.py", ALLOWLIST))
+# The reusable capture tool (reorg P8): the only screenshot code allowed in tools/.
+SHOT_TOOL_FILES = frozenset(p + ext for p in ("tools/shot", "tools/shot_targets")
+                            for ext in (".gd", ".gd.uid", ".tscn"))
 
 
 def _git(repo, *a):
@@ -50,7 +56,7 @@ def read_allowlist(repo):
 
 def is_probe(path):
     p = path.replace("\\", "/")
-    if p in SELF_FILES:
+    if p in SELF_FILES or p in SHOT_TOOL_FILES:
         return False
     return any(fnmatch.fnmatchcase(p, pat) for pat in PATTERNS)
 

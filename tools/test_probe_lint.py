@@ -41,9 +41,12 @@ class ProbeLintTest(unittest.TestCase):
 
     def test_patterns(self):
         for ok in ("tools/screenshot_a.gd", "tools/capture_b.tscn", "tools/my_probe.gd.uid",
-                   "tools/foo_probe.sh", "tools/_scratch_bob/a.gd", "tools/_scratch/x/y.tscn"):
+                   "tools/foo_probe.sh", "tools/_scratch_bob/a.gd", "tools/_scratch/x/y.tscn",
+                   "tools/menu_atlas2.gd", "tools/sandbox_shot.tscn", "tools/contact_sheet.py", "tools/shot_probe.gd"):
             self.assertTrue(pl.is_probe(ok), ok)
-        for no in ("tools/probe_lint.py", "tools/integrate_batch.py", "core/probe_x.gd", "tests/x.gd"):
+        for no in ("tools/probe_lint.py", "tools/integrate_batch.py", "core/probe_x.gd", "tests/x.gd",
+                   "tools/shot.gd", "tools/shot.gd.uid", "tools/shot.tscn", "tools/shot_targets.gd",
+                   "tools/shot_targets.gd.uid"):
             self.assertFalse(pl.is_probe(no), no)
 
     def test_added_files_flagged_existing_grandfathered(self):
