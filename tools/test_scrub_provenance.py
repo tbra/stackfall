@@ -87,7 +87,8 @@ class ScrubTest(unittest.TestCase):
     def test_the_owner_becomes_the_user_and_residuals_are_reported(self):
         new, res = scrub("a.gd", "# the owner's monitor shows it\n# a debrief item\n")
         self.assertEqual(new.split("\n")[0], "# the user's monitor shows it")
-        self.assertEqual([r[1] for r in res], ["debrief"])
+        # A bare "debrief" is procedure, not provenance, so it is no residual.
+        self.assertEqual(res, [])
 
     def test_allow_marker_line_untouched(self):
         src = "# Bontago-abc.1 lint-public: allow fixture\n"

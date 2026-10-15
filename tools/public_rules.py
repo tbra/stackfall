@@ -71,8 +71,10 @@ RULES: Tuple[Tuple[str, "re.Pattern[str]", str], ...] = (
     ("bead-id", re.compile(BEAD_ID), "all"),
     ("date", re.compile(r"(?<!expires )" + DATE + r"(?!T\d)"), "all"),
     ("owner", re.compile(OWNER), "prose"),
-    ("debrief", re.compile(r"\b[Dd]ebrief\b"), "prose"),
-    ("incident", re.compile(r"\b[Ii]ncident\b"), "prose"),
+    # Only the provenance tag forms: the word inside a parenthesised note, or followed by a date.
+    # The session-close review step and its memory key are procedure, not provenance.
+    ("debrief", re.compile(r"\([^)\n]*(?<![-\w])[Dd]ebrief\b[^)\n]*\)|(?<![-\w])[Dd]ebrief,? " + DATE), "prose"),
+    ("incident", re.compile(r"\([^)\n]*(?<![-\w])[Ii]ncident\b[^)\n]*\)|(?<![-\w])[Ii]ncident,? " + DATE), "prose"),
 )
 
 

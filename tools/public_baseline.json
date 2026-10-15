@@ -1,15 +1,5 @@
 {
  "findings": {
-  ".claude/skills/stackfall-session-close/SKILL.md": {
-   "debrief": 8
-  },
-  ".claude/skills/stackfall-session-resume/SKILL.md": {
-   "debrief": 6
-  },
-  ".gitignore": {
-   "bead-id": 1,
-   "owner": 1
-  },
   "assets/textures/sky/horizon_storm_cell/storm_cell.gd": {
    "bead-id": 1
   },
@@ -739,9 +729,6 @@
   },
   "core/weather/WindField.gd": {
    "bead-id": 1
-  },
-  "docs/SPEC.md": {
-   "owner": 6
   },
   "game/ambient/DistantBirds.gd": {
    "bead-id": 1

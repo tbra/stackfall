@@ -10,7 +10,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # Fixture name for the user-name rule (real names come from the machine, never the repo).
-os.environ.setdefault("STACKFALL_PRIVATE_TERMS", "Zebulon")
+os.environ.setdefault("STACKFALL_PRIVATE_TERMS", "Zebulon")  # lint-public: allow fixture
 import lint_public as lp  # noqa: E402
 
 

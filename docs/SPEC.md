@@ -114,7 +114,7 @@ Notes:
 **Influence.** Each settled block of a player produces a circle centered on its center of mass, projected onto the disc plane. With `h` the height of the block's top above the disc along the disc normal, the radius is `r = min(influence_base + h * tan(40°), influence_max_fraction * field_radius)` with `influence_base` 1.5 and `influence_max_fraction` 0.6 (`TerritoryTuning`, `core/territory/InfluenceCircle.gd`). In `OFF` hole mode, a same-team circle completely inside a larger one is dropped before the circle budget (it cannot change the result). Moving the disc and a resting tower rigidly together does not change relative heights.
 - A block is **settled** when its linear speed is below 0.15 m/s and its angular speed below 0.3 rad/s for 0.5 s (`PhysicsTuning`).
 - Circles update continuously: the host re-solves at `solve_hz` = 20, so a collapse or removal changes territory without waiting for another placement.
-- A block's owner is its placer, permanently. A block placed on an opponent's tower gives influence to its placer.
+- A block belongs to the player who placed it, permanently. A block placed on an opponent's tower gives influence to its placer.
 
 **Home flags and homes.** Each player's home flag sits `MapDef.home_flag_edge_inset` = 6 m in from the rim, evenly spaced around the disc (slot 0 at +x, counter-clockwise). While the flag is alive it gives a circle of `home_radius` 6 m.
 
@@ -175,7 +175,7 @@ Black Hole, Earthquake, Propeller, Stackfall and Volcano activate in place at th
 | Freeze | Makes the activator's own blocks within 6 m static | 20 s |
 | Glue | Grants five future placements that fuse on contact (below) | 5 charges |
 | Stackfall | Rains ordinary blocks in the activator's color | 28 blocks, 9.5/s, 12 m radius, 30 m height, active-body cap 600 |
-| Paintball | Flies straight; splash converts the owner and color of nearby blocks | splash 3.5 m, 60 m/s |
+| Paintball | Flies straight; splash converts the owning slot and color of nearby blocks | splash 3.5 m, 60 m/s |
 | Cat | One per match; a newer activation replaces the old chase; the activator's cursor steers a laser the cat chases | 15 s, 9 m/s; disabled by default |
 | Black Hole | Pulls in blocks of all teams, then removes captured blocks | radius 7 m, 6 s |
 
@@ -183,11 +183,11 @@ Each special is a `SpecialDef` resource plus an effect script under `game/gifts/
 
 **Explosions** (`ExplosionTuning`): a sphere query applies a velocity change with falloff `(1 − d/r)^falloff_exponent` (1.5), an upward bias of 0.35 and a per-body clamp `max_delta_v_mps`, waking hit bodies.
 
-**Glue.** The Glue gift sets the activating slot to five drop charges (the activation does not spend one). Each later accepted placement spends one charge and fuses that block, on actual contact, with the disc or any block regardless of owner. Rejected actions, burned auto-drops, throws and effect-spawned projectiles spend nothing. A glued block fuses within `fuse_window_s` = 0.25 s of landing into one rigid group (`FusedBody`) with everything its faces touch; the group never breaks, has no size cap, ignores wind, and is moved by a blast as one body. Gift blocks never fuse. A black hole takes the whole group.
+**Glue.** The Glue gift sets the activating slot to five drop charges (the activation does not spend one). Each later accepted placement spends one charge and fuses that block, on actual contact, with the disc or any block, whoever placed it. Rejected actions, burned auto-drops, throws and effect-spawned projectiles spend nothing. A glued block fuses within `fuse_window_s` = 0.25 s of landing into one rigid group (`FusedBody`) with everything its faces touch; the group never breaks, has no size cap, ignores wind, and is moved by a blast as one body. Gift blocks never fuse. A black hole takes the whole group.
 
 **Stackfall.** The host spawns blocks at seeded positions on solid ground within the area, spaced apart, through the normal registry and snapshot path; drops stop at the active-body cap and do not count as placements.
 
-**Paintball.** After arming, impact or fuse triggers a splash; the host converts each tracked block whose collider overlaps the radius. Conversion changes owner slot, color and territory attribution without moving the block, and is replicated by net id (clients ignore unknown, invalid or repeated updates).
+**Paintball.** After arming, impact or fuse triggers a splash; the host converts each tracked block whose collider overlaps the radius. Conversion changes the owning slot, color and territory attribution without moving the block, and is replicated by net id (clients ignore unknown, invalid or repeated updates).
 
 **Cat.** The cat is a host-simulated body outside the block registry (no territory). The host checks peer ownership, clamps range and duration, and replicates start and end reliably and poses during the chase; client cats have no collision body.
 
@@ -383,7 +383,7 @@ Support scripts `autoload/UserPaths.gd` and `autoload/LateScripts.gd` are static
 
 - **Solver** (`core/territory/TerritorySolver.gd`): takes `(team, center2D, radius)` circles plus home circles and returns connected groups per team via union-find over overlapping circles, accelerated by a spatial hash. Union-find alone does not prove a continuous path once an opponent or contested region cuts a neck, so capture checks final owned-area connectivity.
 - **Rate:** the host solves at `solve_hz` = 20 independent of placement. While any block is still awake, scheduled solves are skipped up to `solve_defer_max_s` = 0.5 s; boards with at least `async_solve_min_circles` = 48 circles solve on a worker thread and apply one frame late. A settled block that moved less than `dirty_move_epsilon` = 5 mm does not dirty the board.
-- **Raster** (`core/territory/TerritoryRaster.gd`, `CellGrid.gd`): a square grid at `cell_size` = 1 m (one cell per metre), clipped to the disc. Each cell stores an owner byte and state bits (contested, hole, goal zone). Fills: the legacy fill stamps every circle of every home-anchored group (a cell hit by a second team becomes contested; contested time accumulates toward `hole_delay`); the `OFF` fill takes the largest `radius − distance`. Goal zones are stamped once per match. `MapDef.territory_res` (384 at 100%) is only the size of the overlay texture, not the rule resolution.
+- **Raster** (`core/territory/TerritoryRaster.gd`, `CellGrid.gd`): a square grid at `cell_size` = 1 m (one cell per metre), clipped to the disc. Each cell stores an owning-slot byte and state bits (contested, hole, goal zone). Fills: the legacy fill stamps every circle of every home-anchored group (a cell hit by a second team becomes contested; contested time accumulates toward `hole_delay`); the `OFF` fill takes the largest `radius − distance`. Goal zones are stamped once per match. `MapDef.territory_res` (384 at 100%) is only the size of the overlay texture, not the rule resolution.
 - **Rendering:** the overlay shader draws analytic circles (`game/field/TerritoryOverlay.gd`) so outlines are smooth; ownership drawn and ownership enforced come from the same data. Floor is discarded only for physical hole cells, never for goal zones.
 - **Disc collision:** one `ConcavePolygonShape3D` (a trimesh with one quad per in-disc cell plus rim walls), built once per map and never rebuilt on a hole change. Holes are applied through `Field.set_hole_cells` and announced; `game/field/HoleDissolver.gd` dissolves blocks on hole cells on the host.
 - **Win checking:** `core/rules/ModeObjective.gd` is the base class; `ClassicObjective` (wraps `WinChecker`), `CaptureFlagObjective`, `EliminationObjective`, `ReachSkyObjective` and `DominationObjective` implement the modes. `MatchTerritory` runs, in order, the objective update, then the home checks, then finishes the step. Everything is host-only and deterministic; clients mirror replicated state.
@@ -423,7 +423,7 @@ Support scripts `autoload/UserPaths.gd` and `autoload/LateScripts.gd` are static
 
 **Interpolation** (`net/Interpolator.gd`): render `base_interp_delay_ms` = 100 ms behind the host (adapting between 50 and 300 ms to jitter), interpolate between surrounding snapshots, extrapolate at most 100 ms. Clients write transforms in `_physics_process` so they do not fight physics interpolation.
 
-**Territory replication** (`net_territory`): the host sends the owner and state bytes of the raster (a full keyframe, or a diff when changed cells are under `raster_full_threshold_fraction` 0.35 of the grid; compressed) together with the analytic circle list (`core/net/CircleWire.gd`) and capture state, at `raster_diff_hz` = 5. A client's raster is a mirror: the win check is host-only.
+**Territory replication** (`net_territory`): the host sends the owning-slot and state bytes of the raster (a full keyframe, or a diff when changed cells are under `raster_full_threshold_fraction` 0.35 of the grid; compressed) together with the analytic circle list (`core/net/CircleWire.gd`) and capture state, at `raster_diff_hz` = 5. A client's raster is a mirror: the win check is host-only.
 
 **Impacts.** The host batches block impact events (`core/net/ImpactWire.gd`, `impact_batch_hz` 30, rate-limited) so clients can play impact sounds and puffs.
 
@@ -478,7 +478,7 @@ Every tunable lives in a typed `Resource` under `res://config/` (a script plus i
 - **Unit tests:** GUT under `tests/unit/<feature>/`, mirroring the feature tree; pure logic in `core/` is covered by unit tests. `.gutconfig.json` runs everything under `res://tests/`.
   - Targeted run: `powershell -NoProfile -File tools/run_gut.ps1 <script substrings>` (`-Unit <substring>` for one test, `-Path <checkout>` for another checkout).
   - Full run: `python tools/full_gate.py [--path <checkout>]` shards the whole suite across parallel headless Godot processes, re-runs failures alone once, and prints one `FULL GATE GREEN` or `RED` line. A plain serial run is `godot --headless --path . -s addons/gut/gut_cmdln.gd -gdir=res://tests -gexit`.
-- **Lints** (`python tools/lint_all.py` runs them all): `lint_magic_numbers` (literals must live in config), `lint_single_source` (each cross-cutting concept — names, slot colors, input glyphs, labels, gift names — has one owner), `lint_ui_components`, `lint_layers` (§2.2), `lint_dead` (unreferenced code) and `lint_instructions`.
+- **Lints** (`python tools/lint_all.py` runs them all): `lint_magic_numbers` (literals must live in config), `lint_single_source` (each cross-cutting concept — names, slot colors, input glyphs, labels, gift names — has one home), `lint_ui_components`, `lint_layers` (§2.2), `lint_dead` (unreferenced code) and `lint_instructions`.
 - **Project check:** `godot --headless --editor --path . --quit` must print no errors or new warnings.
 - **Network scenarios:** `tests/enet/` holds ENet scenario scenes (host plus client in one machine) driven by `tools/run_*_enet.ps1`; `tests/support/` holds fakes and hooks. Manual multiplayer testing uses the editor's Debug > Customize Run Instances (2 to 4 instances).
 - **Headless bot match:** `godot --headless --path . -- --headless-host --bots=8` (soak and balance runs); `tools/bot_h2h.py` compares bot tiers.
