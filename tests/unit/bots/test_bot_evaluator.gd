@@ -71,7 +71,6 @@ func _build(off_mode: bool) -> void:
 	if off_mode:
 		goal = BotModeGoal.new()
 		goal.no_overlap_mode = true
-		goal.home_radius = _tuning.home_radius
 	_view = BotWorldView.build(
 		0, 0, {"xs": xs, "zs": zs, "radii": radii, "teams": teams}, slots, raster,
 		PackedVector2Array([TARGET]), _tuning.goal_zone_radius, null, null, goal,

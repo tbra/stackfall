@@ -105,20 +105,6 @@ func members_in_sphere(center: Vector3, radius: float) -> Array[Block]:
 	return result
 
 
-## Owner slot of the member whose shape is nearest `world_point` (-1 for an empty body).
-func owner_slot_at(world_point: Vector3) -> int:
-	var best: int = -1
-	var best_distance: float = INF
-	for member: Block in members:
-		if not is_instance_valid(member):
-			continue
-		var distance: float = _member_distance(member, world_point)
-		if distance < best_distance:
-			best_distance = distance
-			best = member.owner_slot
-	return best
-
-
 func _member_distance(member: Block, world_point: Vector3) -> float:
 	var best: float = INF
 	for shape: CollisionShape3D in member_shapes(member):

@@ -152,7 +152,6 @@ func test_stack_tops_get_the_flattest_orientation() -> void:
 		if c.site_kind == BotCandidateGen.SITE_STACK:
 			stack_sites += 1
 			assert_almost_eq(c.shape_height, 1.0, 0.001, "flat on a stack")
-			assert_true(c.on_top_of_own_stack)
 			assert_true(c.support_height >= _tuning.stack_min_height_m)
 	assert_true(stack_sites > 0)
 
