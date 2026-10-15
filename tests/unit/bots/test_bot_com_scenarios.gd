@@ -78,12 +78,11 @@ func _start_match_holding(held: BlockShape) -> void:
 	await wait_physics_frames(2)
 
 
-## A V2-brain bot on copies of the shared profile (zero aim noise, argmax pick).
+## A bot on copies of the shared profile (zero aim noise, argmax pick).
 func _make_bot() -> BotController:
 	var bot: BotController = BotController.new()
 	add_child_autofree(bot)
 	bot.setup(BOT_SLOT, MatchConfig.AiDifficulty.HARD, _field, _registry)
-	bot.set_brain(BotController.Brain.V2)
 	bot._profile = bot._profile.duplicate() as BotDifficultyProfile
 	bot._profile.aim_noise_m = 0.0
 	bot._profile.pick_pool = 1

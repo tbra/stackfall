@@ -1,8 +1,6 @@
 extends GutTest
-## core/ai/BotPlacementScorer.gd (docs/archive/M5_PLAN.md P2, Bontago-d5c.3): real
-## placement scoring -- height gained, goal progress, stability, risk,
-## combined by BotTuning's four weights -- plus flattest_orientations()'s
-## pure geometry and pick_best()'s highest-scorer selection.
+## core/ai/BotPlacementScorer.gd: placement scoring -- height gained, goal progress, stability,
+## risk, combined by BotTuning's four weights, plus the per-mode terms.
 ##
 ## Fixture style mirrors tests/unit/match/test_placement_rules.gd (a real CellGrid/
 ## TerritoryRaster, no Field/scene tree): BotCandidate is pure data, so every
@@ -14,11 +12,6 @@ const CELL: float = 1.0
 
 var _territory_tuning: TerritoryTuning = preload("res://config/territory/territory_tuning.tres")
 var _bot_tuning: BotTuning = preload("res://config/bots/bot_tuning.tres")
-var _cube_shape: BlockShape = preload("res://config/blocks/cube.tres")
-var _bar4_shape: BlockShape = preload("res://config/blocks/bar4.tres")
-var _slab6_shape: BlockShape = preload("res://config/blocks/slab6.tres")
-var _pillar_shape: BlockShape = preload("res://config/blocks/pillar.tres")
-var _l4_shape: BlockShape = preload("res://config/blocks/L4.tres")
 
 ## A 2x2-cube footprint, like the first four cells of config/blocks/slab6.tres.
 var _two_by_two: Array[Vector3i] = [
@@ -183,94 +176,6 @@ func test_a_taller_candidate_scores_higher_all_else_equal() -> void:
 	assert_gt(_score(tall), _score(flat))
 
 
-## -- flattest_orientations -----------------------------------------------------
-
-func test_cube_flattest_orientation_is_the_identity() -> void:
-	var result: Array[int] = BotPlacementScorer.flattest_orientations(_cube_shape, 5)
-	assert_false(result.is_empty())
-	assert_eq(result[0], 0, "Any face of a cube is equally flat; the tie-break picks the identity first.")
-
-
-func _assert_flat(shape: BlockShape, orientation_index: int) -> void:
-	var basis: Basis = BlockOrientations.get_basis(orientation_index)
-	var min_height: float = INF
-	var max_height: float = -INF
-	for cell: Vector3i in shape.cells:
-		var height: float = (basis * Vector3(cell)).y
-		min_height = minf(min_height, height)
-		max_height = maxf(max_height, height)
-	assert_almost_eq(min_height, max_height, 0.01,
-		"Every cube of the flattest orientation must sit at the same height (lying flat, not standing on end).")
-
-
-func test_bar4_flattest_orientation_lies_flat_not_on_end() -> void:
-	var result: Array[int] = BotPlacementScorer.flattest_orientations(_bar4_shape, 5)
-	assert_false(result.is_empty())
-	_assert_flat(_bar4_shape, result[0])
-
-
-func test_slab6_flattest_orientation_lies_flat_not_on_end() -> void:
-	var result: Array[int] = BotPlacementScorer.flattest_orientations(_slab6_shape, 5)
-	assert_false(result.is_empty())
-	_assert_flat(_slab6_shape, result[0])
-
-
-func test_pillar_flattest_orientation_lies_flat_not_on_end() -> void:
-	# config/blocks/pillar.tres is a 3-cube vertical column
-	# (Vector3i(0,0,0),(0,1,0),(0,2,0)) -- orientation 0 (identity) stands it
-	# on end (heights 0/1/2, not flat), so the flattest lay must not be it.
-	var result: Array[int] = BotPlacementScorer.flattest_orientations(_pillar_shape, 5)
-	assert_false(result.is_empty())
-	assert_ne(result[0], 0, "orientation 0 stands the pillar on end; the flattest lay must not be the identity.")
-	_assert_flat(_pillar_shape, result[0])
-
-
-func test_l4_flattest_orientation_lies_flat_not_on_end() -> void:
-	# config/blocks/L4.tres's cells span y = 0..2 under the identity
-	# orientation (not flat), so its flattest lay must not be orientation 0.
-	var result: Array[int] = BotPlacementScorer.flattest_orientations(_l4_shape, 5)
-	assert_false(result.is_empty())
-	assert_ne(result[0], 0, "orientation 0 does not lay the L4 flat; the flattest lay must not be the identity.")
-	_assert_flat(_l4_shape, result[0])
-
-
-func test_flattest_orientations_returns_distinct_indices_up_to_max_count() -> void:
-	var result: Array[int] = BotPlacementScorer.flattest_orientations(_cube_shape, 6)
-	assert_eq(result.size(), 6)
-	var seen: Dictionary = {}
-	for index: int in result:
-		assert_false(seen.has(index), "flattest_orientations() must not repeat an index.")
-		seen[index] = true
-
-
-func test_flattest_orientations_is_empty_for_a_shapeless_block_or_zero_count() -> void:
-	var no_cells: BlockShape = BlockShape.new()
-	assert_true(BotPlacementScorer.flattest_orientations(no_cells, 5).is_empty())
-	assert_true(BotPlacementScorer.flattest_orientations(_cube_shape, 0).is_empty())
-
-
-## -- pick_best ------------------------------------------------------------------
-
-func test_pick_best_returns_null_on_an_empty_list() -> void:
-	var empty: Array[BotCandidate] = []
-	assert_null(BotPlacementScorer.pick_best(
-		empty, _raster, _grid, 0, PackedVector2Array(), PackedVector2Array(), PackedVector2Array(),
-		_bot_tuning, MAP_RADIUS
-	))
-
-
-func test_pick_best_returns_the_highest_scoring_candidate() -> void:
-	var low: BotCandidate = _candidate(Vector2.ZERO, 0.0)
-	var high: BotCandidate = _candidate(Vector2.ZERO, 5.0)
-	var mid: BotCandidate = _candidate(Vector2.ZERO, 2.0)
-	var candidates: Array[BotCandidate] = [low, high, mid]
-	var best: BotCandidate = BotPlacementScorer.pick_best(
-		candidates, _raster, _grid, 0, PackedVector2Array(), PackedVector2Array(), PackedVector2Array(),
-		_bot_tuning, MAP_RADIUS
-	)
-	assert_eq(best, high)
-
-
 ## -- Bontago-1t5.3 phase A: mode-aware scoring ------------------------------------
 
 ## A home circle (team 0) covering the middle of the field so candidates there
@@ -290,11 +195,19 @@ func _ctf_goal(held: Array[bool]) -> BotModeGoal:
 	return goal
 
 
+## The highest-scoring candidate (first on ties).
 func _pick(candidates: Array[BotCandidate], goal: BotModeGoal) -> BotCandidate:
-	return BotPlacementScorer.pick_best(
-		candidates, _raster, _grid, 0, PackedVector2Array(), PackedVector2Array(), PackedVector2Array(),
-		_bot_tuning, MAP_RADIUS, goal
-	)
+	var best: BotCandidate = null
+	var best_score: float = -INF
+	for candidate: BotCandidate in candidates:
+		var candidate_score: float = BotPlacementScorer.score(
+			candidate, _raster, _grid, 0, PackedVector2Array(), PackedVector2Array(), PackedVector2Array(),
+			_bot_tuning, MAP_RADIUS, goal
+		)
+		if best == null or candidate_score > best_score:
+			best = candidate
+			best_score = candidate_score
+	return best
 
 
 func test_ctf_extends_towards_an_unheld_beacon() -> void:

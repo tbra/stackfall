@@ -24,8 +24,8 @@ extends RefCounted
 ## sliced does not change what is chosen.
 
 const SHIPPED_TUNING: BotTuning = preload("res://config/bots/bot_tuning.tres")
-## BotCandidate.site_kind of a candidate from the retired legacy sampler (kept as the 0 default).
-const SITE_LEGACY: int = 0
+## BotCandidate.site_kind default: a candidate BotCandidateGen did not produce.
+const SITE_NONE: int = 0
 ## Support height recorded for a probe cell with no hit (hole, rim, open air).
 const NO_SUPPORT: float = -1.0
 ## `-- --bot-intent-log` prints one line per decision (smoke diagnostics).
@@ -534,7 +534,7 @@ func _orientation_info(orientation_index: int) -> BotStatics.OrientationInfo:
 ## (`support_height`) becomes the highest probed hit, which is where the host lift puts the piece; a
 ## cube is in contact when it is within stability_contact_tolerance_m of that plane. With no hit
 ## at all the pivot ray's height stays. DECISION (Bontago-1t5.19): holes are read off the raster's
-## hole state; the legacy bot reads the Field's applied-hole mask, which lags the raster.
+## hole state.
 ## DECISION (Bontago-1t5.55.2): a cube beyond the cap is not probed and counts as supported.
 func _fire_cell_probes(candidate: BotCandidate, probe: Callable) -> void:
 	var info: BotStatics.OrientationInfo = _orientation_info(candidate.orientation_index)

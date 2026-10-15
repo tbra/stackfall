@@ -7,13 +7,11 @@ extends Resource
 ## How many placement candidates a think-tick samples (spec 2.9's 40-120
 ## range).
 @export var candidate_count: int = 60
-## Time-slicing budget: how many candidates BotController scores per frame,
-## so an 8-bot match never stalls a single frame scoring all of them at once
-## (spec 2.9 "for multiple bots it spreads its thinking across several
-## frames").
+## With candidate_count, sets the think's decision deadline (generation_ticks): the think is spread
+## over ceil(candidate_count / candidates_per_frame) physics ticks (spec 2.9 "for multiple bots it
+## spreads its thinking across several frames").
 @export var candidates_per_frame: int = 8
-## Footprint-corner raycasts BotController fires per candidate to judge
-## landing stability.
+## Cube probes per site (stability and support), capped at the footprint.
 @export var stability_raycast_count: int = 4
 ## Random aiming error, in meters, applied to a candidate's chosen origin
 ## before it is committed as the actual drop point.
@@ -35,17 +33,16 @@ extends Resource
 ## physics frame; a bot over the cap still does its share of the work left before its
 ## decision deadline, but no work ahead of it (Bontago-1t5.37).
 @export var think_frame_cap_us: int = 2500
-## Bot V2 (Bontago-1t5.37): a think is decided by the legacy brain's window for the same
-## difficulty (generation_ticks of that tier's legacy profile); the work left is spread over
-## the ticks left and the deadline tick finishes it. The schedule plans to be done this many
+## Bot V2 (Bontago-1t5.37): a think is decided generation_ticks after the release boundary; the work
+## left is spread over the ticks left and the deadline tick finishes it. The schedule plans to be done this many
 ## ticks before the deadline; they stay in reserve for a think costlier than estimated (a
 ## smaller worst tick, at the price of a higher mean per tick). 0 = spread up to the deadline.
 @export var think_reserve_frames: int = 1
 ## Bot V2: how many top proxy-scored sites get the measured (territory gain) evaluation
-## (P3/P4; unused by the legacy-equivalent pipeline).
+## (P3/P4).
 @export var eval_top_k: int = 8
 ## Bot V2: softmax temperature when picking among the top sites; small = argmax
-## (P4; unused by the legacy-equivalent pipeline).
+## (P4).
 @export var pick_temperature: float = 0.5
 ## Bot V2: bit set of BotIntent.Kind values this tier may use (bit = enum value).
 @export_flags("Race", "Anchor", "Finish", "Hold", "Defend", "Strike", "Siege", "Area") var intent_mask: int = 255
@@ -62,10 +59,8 @@ extends Resource
 @export var gift_claim_scale: float = 1.0
 
 
-## Physics ticks the legacy brain's GENERATING state takes for this profile (BotController.
-## _tick_generating adds candidates_per_frame candidates per tick until candidate_count, at most
-## `max_ticks` = BotTuning.max_generation_frames): its decision-ready latency after the release
-## boundary. Bontago-1t5.37: the V2 decision deadline.
+## Physics ticks a think may take for this profile: ceil(candidate_count / candidates_per_frame), at
+## most `max_ticks` (BotTuning.max_generation_frames). Bontago-1t5.37: the V2 decision deadline.
 func generation_ticks(max_ticks: int) -> int:
 	var per_tick: int = maxi(candidates_per_frame, 1)
 	var ticks: int = ceili(float(maxi(candidate_count, 0)) / float(per_tick))

@@ -23,7 +23,6 @@ class TimerFakeMatch:
 func _controller(difficulty: MatchConfig.AiDifficulty, fake: TimerFakeMatch) -> BotController:
 	var controller: BotController = BotController.new()
 	add_child_autofree(controller)
-	controller.set_brain(BotController.Brain.V2)
 	controller.setup(SLOT, difficulty, null, null)
 	controller.set_match_provider(fake)
 	return controller
@@ -73,8 +72,8 @@ func test_default_timer_schedule_is_unchanged() -> void:
 		controller._on_feed_block_issued(SLOT, &"cube", &"cube")
 		assert_eq(controller._countdown, controller._think_delay_s, "reaction unchanged")
 		fake.time_left = timer_s - controller._countdown
-		var legacy_ticks: int = controller.tuning.profile_for(MatchConfig.AiDifficulty.HARD).generation_ticks(controller.tuning.max_generation_frames)
-		assert_eq(controller.think_deadline_ticks(), legacy_ticks, "think deadline unchanged (V2 tiers share Hard's window, Bontago-1t5.57)")
+		var hard_ticks: int = controller.tuning.profile_for(MatchConfig.AiDifficulty.HARD).generation_ticks(controller.tuning.max_generation_frames)
+		assert_eq(controller.think_deadline_ticks(), hard_ticks, "think deadline unchanged (every tier shares Hard's window, Bontago-1t5.57)")
 
 
 func test_unknown_timer_changes_nothing() -> void:

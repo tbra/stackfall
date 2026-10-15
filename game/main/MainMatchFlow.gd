@@ -379,21 +379,11 @@ func build_spectator(config: MatchConfig) -> void:
 ## sandbox and every older config keep the single shared difficulty).
 func spawn_bot_controllers(config: MatchConfig) -> void:
 	var first_bot_slot: int = config.player_count - config.ai_count
-	# Bontago-1t5.39: `--bot-brain=<legacy|v2>` dev flag for ordinary lobby matches; the headless
-	# flow re-applies its own per-slot brains afterwards (idempotent).
-	var brain: BotController.Brain = MainHeadlessBotsFlow.brain_from_args(OS.get_cmdline_user_args())
 	for slot_id: int in range(first_bot_slot, config.player_count):
 		var bot: BotController = BotController.new()
 		main_node.add_child(bot)
 		bot.setup(slot_id, config.ai_difficulty_for_slot(slot_id), _field, _registry)
-		bot.set_brain(brain)
 		main_node._bot_controllers.append(bot)
-	# Bontago-1t5.38: V2 is the default now, so the line prints only when the flag was given.
-	var flagged: bool = false
-	for raw: String in OS.get_cmdline_user_args():
-		flagged = flagged or raw.trim_prefix("--").begins_with("bot-brain=")
-	if flagged and brain == BotController.Brain.V2 and config.ai_count > 0:
-		print("bots: brain v2")
 
 
 ## Bontago-1pi.46 (owner playtest: "leaving match and starting a new match

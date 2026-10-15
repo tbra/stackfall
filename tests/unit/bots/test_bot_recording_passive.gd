@@ -1,7 +1,7 @@
 extends GutTest
 ## Bontago-1t5.11 (BT2): the recorder is a pure observer. The same seeded controller run
 ## with and without a recorder must send identical placement requests (same rng stream,
-## same chosen candidates), and the recorded `chosen` must agree with the live policy.
+## same chosen candidates).
 
 const ControllerTests := preload("res://tests/unit/bots/test_bot_controller.gd")
 const CUBE_SHAPE: BlockShape = preload("res://config/blocks/cube.tres")
@@ -63,7 +63,6 @@ func _run(record: bool) -> Dictionary:
 	var net_ref: ControllerTests.BotControllerFakeNet = ControllerTests.BotControllerFakeNet.new()
 	var controller: BotController = BotController.new()
 	add_child_autofree(controller)
-	controller.set_brain(BotController.Brain.LEGACY)  # P7: legacy-format recording
 	controller.set_match_provider(fake)
 	controller.set_net_provider(net_ref)
 	var recorder: BotDecisionRecorder = null
@@ -102,7 +101,7 @@ func test_recording_does_not_change_the_placements() -> void:
 		assert_eq((b[i] as Dictionary)["orientation_index"], (a[i] as Dictionary)["orientation_index"])
 
 
-func test_recorded_decisions_match_the_requests_and_score_policy() -> void:
+func test_recorded_decisions_match_the_requests() -> void:
 	var recorded: Dictionary = _run(true)
 	var calls: Array = recorded["calls"]
 	var file: FileAccess = FileAccess.open(_dir.path_join("match001_slot0.jsonl"), FileAccess.READ)
@@ -118,5 +117,3 @@ func test_recorded_decisions_match_the_requests_and_score_policy() -> void:
 	assert_eq(decisions.size(), calls.size(), "one decision line per request_place")
 	for record: Dictionary in decisions:
 		assert_eq(record["policy"], "score")
-		assert_eq(int(record["chosen"]), int(record["scored_best"]), "recorder terms agree with the live policy")
-	assert_eq(int((recorded["recorder"] as BotDecisionRecorder).stats()["mismatches"]), 0)

@@ -142,12 +142,12 @@ class P1bOptionTests(unittest.TestCase):
     def test_battery_dry_run_prints_e1_to_e5(self) -> None:
         rc, text = _run(["--dry-run", "--battery", "all"])
         self.assertEqual(rc, 0)
-        for label in ("E1", "E2", "E3", "E4", "E4-passive", "E5a", "E5b", "E5c", "E5d"):
+        for label in ("E1", "E2", "E3", "E4", "E4-passive", "E5a", "E5b", "E5d"):
             self.assertIn("# %s " % label, text)
         self.assertIn("H2H DRY-RUN label=E1 matches=100", text)  # 50 pairs, swapped
         self.assertIn("H2H DRY-RUN label=E3 matches=20", text)   # 20 seeds, no swap
         self.assertIn("H2H DRY-RUN label=E4-passive matches=10", text)
-        self.assertIn("--bot-brain=<v2>", text)
+        self.assertNotIn("bot-brain", text)
         self.assertIn("--players=4", text)
         self.assertIn("--mode=elimination", text)
         self.assertIn("H2H DRY-RUN battery=all matches=", text)
@@ -162,13 +162,6 @@ class P1bOptionTests(unittest.TestCase):
     def test_battery_refuses_real_launch(self) -> None:
         rc, _ = _run(["--battery", "E1"])
         self.assertEqual(rc, 2)
-
-    def test_real_launch_refuses_unfilled_placeholder(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            cand = _write_candidate(tmp)
-            rc, _ = _run(["--candidate", cand, "--out-dir", tmp,
-                          "--godot-args=--bot-brain=<v2> --match-seed={seed} {cand_slots}"])
-            self.assertEqual(rc, 2)
 
 
 class HarnessAOptionTests(unittest.TestCase):
@@ -198,8 +191,8 @@ class HarnessAOptionTests(unittest.TestCase):
 
     def test_passive_seats_map_cand_slots_to_bot_slots(self) -> None:
         line = self._lines(["--pairs", "1", "--no-swap", "--bots", "1", "--players", "5", "--cand-slots-a", "0",
-                            "--difficulty-a", "easy", "--godot-args=--bot-brain-slots={cand_slots}"])[0]
-        self.assertIn("--bot-brain-slots=4", line)
+                            "--difficulty-a", "easy", "--godot-args=--bot-weights-slots={cand_slots}"])[0]
+        self.assertIn("--bot-weights-slots=4", line)
         self.assertIn("--bot-difficulty-slots=4:easy", line)
         self.assertEqual(h2h.seat_offset(8, None), 0)
         self.assertEqual(h2h.seat_offset(1, 5), 4)
@@ -217,7 +210,6 @@ class HarnessAOptionTests(unittest.TestCase):
     def test_battery_e4_and_e5_use_new_flags(self) -> None:
         rc, text = _run(["--dry-run", "--battery", "E4"])
         self.assertIn("--round-timer=0", text)
-        self.assertIn("--bot-brain-slots=4", text)
         rc, text = _run(["--dry-run", "--battery", "E5"])
         self.assertIn("--bot-difficulty-slots=0:hard,1:normal", text)
         self.assertIn("--bot-difficulty-slots=1:easy", text)
@@ -253,11 +245,11 @@ class StatsTests(unittest.TestCase):
     def test_dry_run_gate_command_and_gifts(self) -> None:
         rc, text = _run(["--dry-run", "--stats", "--bots", "7", "--players", "8", "--mode", "sky", "--no-swap",
                          "--pairs", "10", "--seconds", "180", "--godot-args",
-                         "--match-seed={seed} --bot-difficulty=hard --bot-brain=v2 --gifts=0"])
+                         "--match-seed={seed} --bot-difficulty=hard --gifts=0"])
         self.assertEqual(rc, 0)
         lines = [ln for ln in text.splitlines() if "--headless-host" in ln]
         self.assertEqual(len(lines), 10)
-        for tok in ("--bots=7", "--players=8", "--seconds=180", "--mode=sky", "--gifts=0", "--bot-brain=v2"):
+        for tok in ("--bots=7", "--players=8", "--seconds=180", "--mode=sky", "--gifts=0"):
             self.assertIn(tok, lines[0])
 
 

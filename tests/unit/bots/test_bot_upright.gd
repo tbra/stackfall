@@ -157,7 +157,7 @@ func test_upright_bar5_centred_on_a_sound_top_is_stable_and_pays_no_tip_charge()
 	c.support_bodies.fill(-1)
 	var bot_tuning: BotTuning = load("res://config/bots/bot_tuning.tres") as BotTuning
 	var req: BotStability.Requirement = BotStability.requirement(
-		bot_tuning.hard_v2, view, BotEvaluator.stack_tuning, bot_tuning.stability_contact_tolerance_m
+		bot_tuning.hard, view, BotEvaluator.stack_tuning, bot_tuning.stability_contact_tolerance_m
 	)
 	c.stability_slack = BotStability.evaluate(c, info, view, req).slack
 	assert_gt(c.stability_slack, 0.0, "a centred upright bar5 stands")
