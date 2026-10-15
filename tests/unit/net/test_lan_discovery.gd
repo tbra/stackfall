@@ -63,7 +63,7 @@ func _sample_info() -> Dictionary:
 	return {
 		"game": "stackfall",
 		"version": "0.3.0",
-		"name": "Tony's Game",  # lint-public: allow fixture value, not a user name
+		"name": "Alex's Game",
 		"players": 3,
 		"max": 8,
 		"map": "round",

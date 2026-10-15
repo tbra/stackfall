@@ -183,7 +183,7 @@ func test_an_early_release_issues_the_next_piece_locked_without_restarting_the_i
 	assert_true(Match.is_release_locked(0), "but it may not be released again this interval.")
 	assert_almost_eq(
 		Match.feed_time_left(0), left_before, 0.05,
-		"Releasing early must not restart the interval (spec 2.4)."
+		"Releasing early must not restart the interval (spec 1.4)."
 	)
 
 

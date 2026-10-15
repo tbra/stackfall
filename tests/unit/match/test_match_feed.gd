@@ -81,7 +81,7 @@ func test_boundary_crossing_does_not_auto_release_a_piece_already_released_early
 
 	assert_false(
 		expired.has(0),
-		"Crossing the boundary for a slot that already released early must not force anything (spec 2.4)."
+		"Crossing the boundary for a slot that already released early must not force anything (spec 1.4)."
 	)
 	assert_false(Match.is_release_locked(0), "The boundary unlocked the prepared piece.")
 	assert_almost_eq(

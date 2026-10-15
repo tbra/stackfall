@@ -207,7 +207,7 @@ func test_accepted_throw_spawns_with_the_requested_velocity_and_continuous_cd() 
 	var block: Block = _blocks_root.get_child(0) as Block
 	var fixed: Vector3 = GiftAim.throw_velocity(velocity, Match._placement._special_tuning, Match._placement._throw_range_scale())
 	assert_true(block.linear_velocity.is_equal_approx(fixed), "Bontago-1pi.85.21: normalised, not the raw client velocity")  # lint-public: allow string literal kept verbatim (assertion message or fixture)
-	assert_true(block.continuous_cd, "spec 3.5: thrown specials always use continuous_cd")
+	assert_true(block.continuous_cd, "spec 2.7: thrown specials always use continuous_cd")
 
 
 # --- Client refusal mirrors request_place()'s own -----------------------------

@@ -73,7 +73,7 @@ func test_upload_is_territory_res_square() -> void:
 
 	var image: Image = overlay.last_image()
 	assert_not_null(image, "set_source uploads immediately.")
-	assert_eq(image.get_width(), UPLOAD_RES, "Spec 3.3: uploaded at territory_res.")
+	assert_eq(image.get_width(), UPLOAD_RES, "Spec 2.5: uploaded at territory_res.")
 	assert_eq(image.get_height(), UPLOAD_RES)
 	assert_eq(overlay.texture().get_width(), UPLOAD_RES)
 	assert_eq(overlay.cells_per_side(), CELLS_PER_SIDE, "The rules stay at cell resolution.")
@@ -286,7 +286,7 @@ func test_a_circle_list_over_the_shader_budget_falls_back_to_the_raster_path() -
 	assert_eq(overlay.circle_count(), 3, "The full list still uploads, for readback.")
 	assert_false(
 		bool(overlay.material().get_shader_parameter(&"circles_valid")),
-		"Over max_shader_circles: the shader must fall back to the raster path, spec 3.3 'Bounded cost'."
+		"Over max_shader_circles: the shader must fall back to the raster path, spec 2.5 'Bounded cost'."
 	)
 
 

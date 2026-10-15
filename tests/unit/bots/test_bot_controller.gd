@@ -257,7 +257,7 @@ func test_bot_still_places_in_sudden_death() -> void:
 	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
 	Events.feed_block_issued.emit(0, &"cube", &"")
 	_tick_until_request(controller, match_ref)
-	assert_eq(match_ref.request_place_calls.size(), 1, "spec 2.8: bots keep playing in sudden death")
+	assert_eq(match_ref.request_place_calls.size(), 1, "spec 1.9: bots keep playing in sudden death")
 
 
 func test_sends_nothing_while_release_locked() -> void:
