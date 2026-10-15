@@ -186,7 +186,7 @@ func _claim_radius() -> float:
 
 
 func _tick_territory(delta: float) -> void:
-	# Spec 2.6 / docs/archive/M3a_PLAN.md, "Clients never solve territory": on a
+	# Spec 2.6, "Clients never solve territory"
 	# client every body is frozen, so the settled rule would call the whole
 	# field settled instantly and the solve would invent a territory that
 	# disagrees with the host's. The mirror raster arrives over the wire
@@ -684,7 +684,7 @@ func _apply(job: TerritorySolveJob) -> void:
 		if _objective is EliminationObjective:
 			_tick_home_claims(job.delta)
 	else:
-		# docs/TERRITORY_V2_PLAN.md, "Home-flag elimination": v2 has no
+		# Home-flag elimination: v2 has no
 		# hole-opened event to drive off, so every step re-reads whether an
 		# enemy area has swallowed each living home flag directly.
 		_check_home_flags_v2(job.delta)
@@ -833,7 +833,7 @@ func circle_render_arrays() -> Dictionary:
 	}
 
 
-##  docs/archive/M2_PLAN.md, "Home flag lost to a hole": a hole
+##  "Home flag lost to a hole"
 ## opening under a slot's home flag eliminates it — home_flag_alive goes
 ## false, its circles unanchor (P1's TerritorySolver drops them next solve
 ## since they no longer connect to a home circle), it gets no more feed, and
@@ -861,7 +861,7 @@ func _check_home_flags(opened: PackedInt32Array) -> void:
 	_match._lifecycle._check_last_team_standing()
 
 
-## docs/TERRITORY_V2_PLAN.md, "Home-flag elimination (kept behavior, new
+## Home-flag elimination (kept behavior, new
 ## trigger)": the v2 counterpart of _check_home_flags(opened) above, run every
 ## v2 territory step rather than off a hole-opened event, since the default
 ## ruleset never opens one. The home circle is always one of the anchored

@@ -1,6 +1,6 @@
 class_name OptionsMenu
 extends Control
-## docs/archive/M6_PLAN.md package C2: the options menu opened from the Main Menu's
+## The options menu opened from the Main Menu's
 ## %OptionsButton (ui/menus/MainMenu.gd's own _on_options_pressed()) -- graphics
 ## preset picker, Master/Music/SFX volume sliders with mute toggles, rumble
 ## on/off + intensity, a device-aware mouse/stick move-speed slider (Controls
@@ -47,7 +47,7 @@ const _SHARED_CAMERA_TUNING: CameraTuning = preload("res://config/player/camera_
 const PRESET_IDS: Array[StringName] = GraphicsSettingsTab.PRESET_IDS
 const PRESET_LABELS: Array[String] = GraphicsSettingsTab.PRESET_LABELS
 
-## DECISION (ui/menus/OptionsMenu.gd, docs/archive/M6_PLAN.md package C2): an explicit
+## DECISION (ui/menus/OptionsMenu.gd): an explicit
 ## allow-list, not "every InputMap action minus a deny-list" -- so a future
 ## debug hotkey (tools/bootstrap_project.gd's own _actions()) never silently
 ## becomes player-rebindable just by existing. Excludes every debug-only/
@@ -71,7 +71,7 @@ const PRESET_LABELS: Array[String] = GraphicsSettingsTab.PRESET_LABELS
 ## (a minor ambiguity per CLAUDE.md: no gameplay rule or [ORIGINAL]
 ## binding changes); the gamepad bindings themselves are untouched.
 ##
-## 1pi.159.62: rotate_snap (B, 90 degree tap) and
+## rotate_snap
 ## rotate_drag_pad (RT held + left stick) are now listed too, as the gamepad page's own
 ## "Rotate 90 deg" / "Free rotate (hold)" rows; they carry no keyboard binding, so
 ## ui/menus/KeyRebindRow.gd PAD_ONLY_ACTIONS hides them on the mouse/keyboard page.
@@ -946,7 +946,7 @@ func _build_rebind_rows() -> void:
 	_refresh_row_bands()
 
 
-## Gamepad/keyboard navigability (docs/archive/M6_PLAN.md package C2: "fully
+## Gamepad/keyboard navigability ("fully
 ## navigable with gamepad and keyboard"): chains every focusable control top
 ## to bottom, in the same visual order the Settings tab actually lays rows
 ## out in (orchestrator review correction) -- PresetOption -> WindowModeOption

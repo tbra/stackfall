@@ -1,6 +1,6 @@
 class_name ChatConfig
 extends Resource
-## Tunables for player chat (docs/CHAT_PLAN.md sections 2, 3, 7).
+## Tunables for player chat.
 ## Defaults accepted.
 
 ## Master switch; the host refuses lines when false.

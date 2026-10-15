@@ -1,6 +1,6 @@
 class_name ComponentMetrics
 extends Resource
-## Sizes shared by every ui/components/ component (docs/UI_COMPONENTS_PLAN.md
+## Sizes shared by every ui/components/ component (the component spec
 ## section 3.1). Colours, radii, lips and the spacing scale (space-1..7) stay in
 ## config/ui/arcade_visual_tuning.tres (the design tokens); this resource only holds the sizes that
 ## the tokens do not name. Not an F4 tuning-panel class (no tuning_panel_hints entry needed).

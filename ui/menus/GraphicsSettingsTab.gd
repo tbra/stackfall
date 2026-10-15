@@ -1,6 +1,6 @@
 class_name GraphicsSettingsTab
 extends FocusScrollContainer
-## / 1pi.153: the Options "Graphics" page, built from design-system components
+## the Options "Graphics" page
 ## (UiSection / UiRow / UiDropdown / UiToggle / UiSegmentMeter).
 ##
 ## DECISION ("limit it to the options games usually include", research delegated to

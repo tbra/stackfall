@@ -1,6 +1,6 @@
 class_name UiScale
 extends RefCounted
-## / 1pi.26: the ONE UI scaling rule.
+## The ONE UI scaling rule.
 ##
 ## The project stretch (display/window/stretch/mode = canvas_items, aspect =
 ## expand, base size = display/window/size/viewport_width x _height, written

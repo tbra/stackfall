@@ -960,7 +960,7 @@ func preview_placement(
 
 ## Blocks this instance has spawned since the match started. The M3a
 ## acceptance harness asserts this equals the sum of accepted intents plus
-## auto-drops (docs/archive/M3a_PLAN.md).
+## auto-drops.
 func blocks_spawned() -> int:
 	if not _late_active:
 		return 0
@@ -969,7 +969,7 @@ func blocks_spawned() -> int:
 
 ## The value an intent for `slot_id` must quote to be accepted right now. It
 ## advances on every consumed block, so exactly one intent can spend any one
-## held block (docs/archive/M3a_PLAN.md, "Never duplicated, never lost").
+## held block ("Never duplicated, never lost").
 func feed_seq(slot_id: int) -> int:
 	if not _late_active:
 		return 0
@@ -992,7 +992,7 @@ func default_ghost_origin(slot_id: int) -> Vector3:
 	return _placement.default_ghost_origin(slot_id)
 
 
-# --- Disconnects (docs/archive/M3a_PLAN.md question 2) ------------------------------
+# --- Disconnects ------------------------------------------------------------------
 
 func on_peer_left(slot_id: int) -> void:
 	if not _late_active:

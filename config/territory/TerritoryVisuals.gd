@@ -413,7 +413,7 @@ extends Resource
 @export var ssr_depth_tolerance: float = 0.2
 
 ## -- Screen-space ambient occlusion (experiment for decision
-## 1pi.11.68: "SSR off looked dull") -----------------------------------------
+## "SSR off looked dull")
 ##
 ## Skybox.gd's configure_ssr() also writes these onto the wired Environment.
 ## Default OFF so the shipped look is unchanged; every tunable below defaults to

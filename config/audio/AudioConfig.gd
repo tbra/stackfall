@@ -86,7 +86,7 @@ func playlist_track_count(context: StringName) -> int:
 	return streams.size() if not streams.is_empty() else playlist_paths_for_context(context).size()
 
 ## Two-stem adaptive music (spec 1.10 "adaptive... more intense as someone
-## gets close to capturing"; docs/M7_PLAN.md P6). Sfx.gd crossfades between
+## gets close to capturing"). Sfx.gd crossfades between
 ## this and music_stem_tense_file as Events.goal_capture_progress moves past
 ## music_tense_progress_threshold. Defaults to the same file as music_file
 ## (still EVENT_MUSIC's own source below) so a checkout with no tense asset
@@ -94,7 +94,7 @@ func playlist_track_count(context: StringName) -> int:
 @export var music_stem_calm_file: String = "music_calm.mp3"
 
 ## DECISION (config/audio/AudioConfig.gd): no real "tense" mix of
-## the original score has shipped yet (docs/M7_PLAN.md P6's own asset-risk
+## the original score has shipped yet (asset risk:
 ## note) -- this points at a filename nothing installs today so
 ## Sfx.tense_stem_available() is false out of the box and the adaptive
 ## crossfade quietly does nothing until a real file lands here, the same
@@ -111,7 +111,7 @@ func playlist_track_count(context: StringName) -> int:
 ## a broken/reset capture reports -- see Events.gd's own doc comment).
 @export var music_tense_progress_threshold: float = 0.6
 
-## Hysteresis margin (docs/M7_PLAN.md P6 review) subtracted
+## Hysteresis margin subtracted
 ## from music_tense_progress_threshold to get the *release* point once the
 ## tense stem is active, so progress hovering right at the threshold doesn't
 ## flap the crossfade back and forth every frame. The *rising* edge (calm ->

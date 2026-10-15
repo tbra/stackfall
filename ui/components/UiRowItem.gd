@@ -1,6 +1,6 @@
 class_name UiRowItem
 extends RefCounted
-## The shared base of every row-capable component (docs/UI_COMPONENTS_PLAN.md section 3.1;
+## The shared base of every row-capable component (section 3.1;
 ## "every one of those items should use the same base component"). Godot cannot
 ## multi-inherit Button and Container, so the base is a contract every component applies to itself
 ## in _init: one row height (ComponentMetrics.row_height_px), centred vertically, sized to its

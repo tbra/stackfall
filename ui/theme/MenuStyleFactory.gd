@@ -1,5 +1,5 @@
 class_name MenuStyleFactory
-## M7 P7 (docs/M7_PLAN.md "P7 -- Main menu / lobby reskin"):
+## Main menu / lobby reskin:
 ## builds the varied pastel pill buttons, sunken "well" panels and offset
 ## shadow cards mockups 10/11 (docs/art_mockups/10-main-menu-layered-pastel.png,
 ## 11-lobby-layered-pastel.png) show, entirely from StyleBoxFlat -- no image
@@ -25,7 +25,7 @@ const BUTTON_ICON_COLOR_ITEMS: PackedStringArray = [
 ]
 
 
-## Paints [param button] as a Stackfall Arcade block (docs/UI_RESKIN_PLAN.md P0):
+## Paints [param button] as a Stackfall Arcade block:
 ## face [param face], a lit top, a dark lip and a solid ledge, drawn by ui/theme/BlockStyleBox.gd,
 ## with [param ink] as the label and icon colour in every draw state. The lip and top of the
 ## design's named faces (flare, rim, mint) come from the token table instead of a derived mix.

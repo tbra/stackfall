@@ -1,6 +1,6 @@
 class_name HUDVisualTuning
 extends Resource
-## Tunables for M7 P5 (docs/M7_PLAN.md, "P5 -- HUD minimap + reskin") and its
+## Tunables for the HUD minimap and reskin, and its
 ## restyle: the minimap's framing/refresh cadence and the
 ## layered-pastel/coral -> mockup-08 palette used to restyle ui/hud/HUD.tscn
 ## (docs/M7_ART_DIRECTION.md's HUD styling section). CLAUDE.md: "No magic
@@ -163,7 +163,7 @@ extends Resource
 @export var callout_icon_px: float = 24.0
 @export var callout_glyph_stroke_px: float = 3.0
 
-## -- Stackfall Arcade HUD (docs/UI_RESKIN_PLAN.md P4) --
+## -- Stackfall Arcade HUD --
 ## Seconds left on the block timer at or under which the ring and its number turn rim gold.
 @export var timer_hurry_seconds: float = 2.0
 ## Round timer (UiRoundTimer): the match clock in the top-right corner. Its last `round_timer_hurry_seconds` turn the plate edge and numerals rim gold; the

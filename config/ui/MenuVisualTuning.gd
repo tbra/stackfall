@@ -1,6 +1,6 @@
 class_name MenuVisualTuning
 extends Resource
-## M7 P7 (docs/M7_PLAN.md "P7 -- Main menu / lobby reskin"):
+## Main menu and lobby reskin:
 ## every tunable the menu's layered-pastel look draws from -- the 2D paper-cut
 ## backdrop (ui/menus/MenuBackdrop.gd)
 ## and the pastel pill/well Theme styles (ui/theme/MenuStyleFactory.gd) -- so no

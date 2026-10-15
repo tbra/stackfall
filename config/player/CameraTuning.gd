@@ -74,7 +74,7 @@ extends Resource
 ## begin_follow_transition() doc comment for the full writeup): every
 ## set_follow_position() update is hard-snapped when follow_lag_seconds == 0
 ## above -- correct for the small, continuous per-frame ghost motion that
-## reads as instant tracking (mv0.21), but wrong for the one genuinely
+## reads as instant tracking, but wrong
 ## discontinuous re-target game/player/PlayerController.gd's own
 ## _apply_spawn_clearance() produces: raising the newly issued ghost's
 ## manual_hover_offset (so its followed height) the instant the next piece

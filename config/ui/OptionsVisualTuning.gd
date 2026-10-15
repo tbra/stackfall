@@ -1,6 +1,6 @@
 class_name OptionsVisualTuning
 extends Resource
-## Stackfall Arcade look of the Options, Pause and rebinding screens (docs/UI_RESKIN_PLAN.md P2,
+## Stackfall Arcade look of the Options, Pause and rebinding screens,
 ## ). Colours and radii come from ArcadeVisualTuning; this resource only owns the
 ## sizes and counts that are specific to these three screens. Read by ui/menus/OptionsMenu.gd,
 ## ui/menus/KeyRebindRow.gd, and ui/menus/PauseMenu.gd. Not one of the F4 tuning panel's

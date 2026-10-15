@@ -166,7 +166,7 @@ const ENVIRONMENT_FIELDS: Array[StringName] = [
 	&"ambient_life_enabled", &"disc_fine_detail_enabled", &"hole_void_animated",
 	&"gift_idle_glow_enabled", &"block_dissolve_effect_enabled",
 ]
-## Reflections: Off / Low / High. DECISION (1pi.153): the presets cannot supply this (Medium and High
+## Reflections: Off / Low / High. DECISION:
 ## share one reflection setup), so the three tiers are fixed: Off = no probe and no SSR, Low = the
 ## interval-refreshed probe only, High = probe plus screen-space reflections.
 const REFLECTION_TIERS: Array[Dictionary] = [

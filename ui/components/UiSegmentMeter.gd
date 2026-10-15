@@ -139,7 +139,7 @@ func content_width() -> float:
 	return well_width() + (float(UiRowItem.metrics().row_value_cell_width_px) if show_value else 0.0)
 
 
-# DECISION (1pi.159.25): the meter's minimum is its cell geometry, not meter_min_width_px, so a
+# DECISION:
 # 10-cell meter hugs its content like every other row item instead of padding to 200 px.
 func _fit_width() -> void:
 	custom_minimum_size.x = content_width()

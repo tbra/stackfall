@@ -16,7 +16,7 @@ extends Resource
 ## Hard bound on the physics ticks one think-cycle may run (BotController THINKING state), and the
 ## ceiling of a tier's decision deadline (BotDifficultyProfile.generation_ticks).
 @export var max_generation_frames: int = 40
-## review fix, append-only per docs/archive/M5_PLAN.md's "if you need
+## append-only: "if you need
 ## a new numeric... add it as an @export on BotTuning, append-only": seconds
 ## BotController._apply_rejection_backoff() holds a bot in IDLE after
 ## request_place()/request_throw() comes back with anything but
@@ -29,7 +29,7 @@ extends Resource
 ## Reaction delay (s) for a piece carrying a held special.
 @export var gift_use_delay_s: float = 0.25
 
-## P3 (append-only per docs/archive/M5_PLAN.md's "if you need a new
+## append-only ("if you need a new
 ## numeric... add it as an @export on BotTuning, append-only"): core/ai/
 ## BotSpecialPlanner.gd's Bomb heuristic (a thrown special) needs its own
 ## pre-clamp launch-speed and loft tunables -- the planner is never handed a
@@ -50,7 +50,7 @@ extends Resource
 ## code with no SpecialTuning reference.
 @export var special_throw_loft_ratio: float = 0.6
 
-## M5 P3b-ii, append-only per docs/archive/M5_PLAN.md's "if you need a
+## append-only ("if you need a
 ## new numeric... add it as an @export on BotTuning, append-only": how close
 ## (meters) a BotThink cube probe's
 ## own hit height must land to that candidate's own `support_height` to count

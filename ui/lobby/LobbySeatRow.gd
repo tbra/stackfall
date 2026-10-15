@@ -1,7 +1,7 @@
 class_name LobbySeatRow
 extends PanelContainer
 ## One seat of the lobby's right-hand panel (package PL1a, docs/
-## LOBBY_REWORK_PLAN.md "Right panel"): the raised white pill the roster always drew,
+## the lobby layout's "Right panel"):
 ## now carrying the host's per-seat controls --
 ##   [colour box] [name / subtitle] [team number] [difficulty] [x] [ready badge]
 ## - the colour box is a Button: a click / ui_accept asks for the next palette colour,

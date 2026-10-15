@@ -4,7 +4,7 @@ extends VBoxContainer
 ## panel (the section's caption with an optional icon on the left, a dust one-line summary of the
 ## current values on the right, never collapsible) over a main body that is always shown, and an
 ## optional Advanced block behind a disclosure bar (rim caret + "ADVANCED"). Only the Advanced
-## block collapses. Moved here from the old lobby section block (/ .61 / .83 / mp0.124).
+## block collapses. Moved here from the old lobby section block.
 ##
 ## **Scene convention** (the section builds only its own header and bar; every setting control
 ## stays an authored node so its `%UniqueName` keeps resolving, and nothing is reparented at

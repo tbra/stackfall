@@ -31,7 +31,7 @@ extends CanvasLayer
 ## HUD-only test) behaves like real-time play, matching every other
 ## HUD codepath that reads Match's config the same way.
 ##
-## "Connects to Events only — no node paths out of ui/" (docs/archive/M2_PLAN.md): it
+## "Connects to Events only — no node paths out of ui/": it
 ## wires itself to the Events bus in _ready() and never walks the scene tree
 ## looking for collaborators. It reads the Match autoload for display data a
 ## signal payload doesn't carry (a slot's colour, name, or a shape id's
@@ -40,7 +40,7 @@ extends CanvasLayer
 ## all stay Match's job.
 ##
 ## DECISION (ui/hud/HUD.gd): every *gameplay-feel* number (durations, colors,
-## hatch scale) already lives in GhostTuning (docs/archive/M2_PLAN.md parks P4's HUD
+## hatch scale) already lives in GhostTuning (which parks the HUD
 ## tunables there too). Pure screen-space drawing geometry for this
 ## placeholder layout — ring line width, background alpha, the preview's
 ## cell size in pixels — stays inline: M7 replaces this whole visual with
@@ -85,7 +85,7 @@ const GIFT_CARD_ICON_GLYPH_GAP_PX: float = 2.0
 ## before it can load a .tres whose script is MatchConfig, which made the
 ## constant null and the parse fail.
 @export var default_palette: MatchConfig = preload("res://config/match/match_defaults.tres")
-## M7 P5 (docs/M7_PLAN.md): the minimap's camera framing and the reskinned
+## The minimap's camera framing and the reskinned
 ## panels' colours — see config/ui/HUDVisualTuning.gd's own class doc for why
 ## this is the one Resource this file adds (everything else here stays the
 ## pre-M7 "pure screen-space geometry is inline" DECISION above).
@@ -183,7 +183,7 @@ var _next_shape: BlockShape = null
 var _locked: bool = false
 var _capture_color: Color = Color.WHITE
 var _capture_progress: float = 0.0
-## Client-only smoothing between sparse goal_capture_progress updates (1pi.117).
+## Client-only smoothing between sparse goal_capture_progress updates.
 var _capture_ext: ClaimProgressExtrapolator = ClaimProgressExtrapolator.new()
 
 var _share_rows: Array = []
@@ -505,7 +505,7 @@ func timer_ring_bottom_px() -> float:
 	return _timer_ring.offset_bottom * _scale_root.scale.y
 
 
-# --- Public API (docs/archive/M2_PLAN.md — "implement exactly" adds
+# --- Public API ("implement exactly" adds
 # set_local_slot/set_held_shape/set_locked) -----------------------------------
 
 ## Hot-seat only: whoever's turn it is right now. Shows the "Player N's
@@ -832,7 +832,7 @@ static func mode_score_text(state: Dictionary, team_numbers: PackedInt32Array = 
 
 ## Domination territory race, "Leading: 2 (41%)" (ties list every leader). The
 ## per-team bars above already show each share, so this only adds the leader; the time left is the
-## UiRoundTimer's (1pi.159.34). Pure.
+## UiRoundTimer's. Pure.
 static func domination_text(state: Dictionary, team_numbers: PackedInt32Array = PackedInt32Array()) -> String:
 	var scores: Array = state.get("scores", []) as Array
 	if scores.is_empty():
@@ -864,7 +864,7 @@ static func row_value_text(state: Dictionary, team: int, share: float) -> String
 
 ## the line under the rows. CTF and Reach the Sky put their score in the rows, so
 ## nothing is left for them; Domination and Elimination keep their existing summary line. The round
-## clock is no longer part of it: UiRoundTimer in the top-right corner owns it (1pi.159.34). Pure.
+## clock is no longer part of it: UiRoundTimer in the top-right corner owns it. Pure.
 static func mode_status_text(state: Dictionary, team_numbers: PackedInt32Array = PackedInt32Array()) -> String:
 	var mode_id: int = int(state.get("mode_id", -1))
 	if mode_id != MatchConfig.GameMode.CAPTURE_THE_FLAG and mode_id != MatchConfig.GameMode.REACH_THE_SKY:
@@ -1010,7 +1010,7 @@ func _hot_seat_active() -> bool:
 	return running_config != null and bool(running_config.hot_seat)
 
 
-## M7 P5: forwards the running match's MapDef to the minimap (docs/M7_PLAN.md
+## Forwards the running match's MapDef to the minimap
 ## "P5 -- HUD minimap + reskin", "no new signal needed" — Events.
 ## territory_share_changed already fires once the match's territory state
 ## exists, which is after MatchConfig is set). Null-safe the same way
@@ -1375,7 +1375,7 @@ func _names() -> Variant:
 	return name_provider if name_provider != null else Net
 
 
-## docs/archive/M4_P2_PACKAGES.md P2b-ii: the pending-special queue
+## The pending-special queue
 ## indicator, next to the next-shape preview. Reads `_active_slot` the exact
 ## same way the previews do (set_active_slot/set_local_slot both drive it, so
 ## this follows hot-seat's acting slot or the local slot outside hot-seat,

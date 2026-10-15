@@ -84,7 +84,7 @@ extends Resource
 ## still far cheaper than all-pairs.
 ##
 ## Raised from the plan's starting 4.0 to 12.0 after measuring, which
-## docs/archive/M2_PLAN.md's P1 acceptance note explicitly allows ("raise
+## The P1 acceptance note explicitly allows
 ## hash_cell_size ... in the resource, never in code, and report the
 ## numbers").
 ##
@@ -137,7 +137,7 @@ extends Resource
 ## inside which PlacementRules.validate_point() refuses every placement.
 ## Ownership is deliberately unaffected: a player's area has to be able to
 ## reach through the zone, because winning means holding the flag's base
-## inside that area (docs/TERRITORY_V2_PLAN.md, "open questions").
+## inside that area ("open questions").
 ##
 ## DECISION (config/territory/TerritoryTuning.gd): 4.0 m to start with -- a couple of
 ## cube widths of clearance around the pole, big enough that a player cannot

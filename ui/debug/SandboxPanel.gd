@@ -8,7 +8,7 @@ extends CanvasLayer
 ## Reads only public Match/PlacementRules APIs, never a rule of its own — see
 ## game/player/GhostPreview.gd's apply_validity()/_apply_validity_material() for the
 ## same Match.preview_placement() call this panel's validity label reads —
-## so a Territory v2 rewrite (docs/TERRITORY_V2_PLAN.md) needs no change here
+## so a Territory v2 rewrite needs no change here
 ## beyond whatever new PlacementRules.Result cases land in _reason_text()'s
 ## fallback branch, and a new rules-mode field on MatchConfig only needs a
 ## line in _refresh_rules_mode(), not a redesign.
@@ -190,7 +190,7 @@ func _refresh_shares() -> void:
 
 ## DECISION (ui/debug/SandboxPanel.gd): the enum key's own name
 ## (MatchConfig.HoleMode.keys()[...]), not a hand-written per-case string, so
-## a Territory v2 addition to HoleMode (docs/TERRITORY_V2_PLAN.md mentions a
+## a Territory v2 addition to HoleMode (the v2 design mentions a
 ## new OFF value) shows up here for free instead of silently mislabeling it
 ## as "permanent" — the one place this panel would otherwise need a change
 ## for a rules rewrite it is meant to survive untouched.
@@ -274,7 +274,7 @@ func _on_block_picker_selected(index: int) -> void:
 
 ## "off" first (mirrors sandbox_force_special's own off/each-roster-id/off
 ## cycle), then SpecialDef.load_all_specials()'s own id order -- the UI-only
-## front end docs/archive/M6_PLAN.md's package B2 calls for over the existing F9
+## front end the sandbox rule calls for over the existing F9
 ## cycle/force_special_by_id().
 func _populate_special_picker() -> void:
 	_special_picker.clear()

@@ -15,7 +15,7 @@ enum AiDifficulty { EASY, NORMAL, HARD }
 enum TiltMode { SPECIALS_ONLY, PHYSICAL_BALANCE }
 ## Spec 1.5. TEMPORARY closes a hole hole_close_delay after the overlap ends;
 ## PERMANENT never closes it, so the board erodes over the match. OFF is the
-## no-overlap v2 mode (docs/TERRITORY_V2_PLAN.md): no floor holes at all,
+## no-overlap v2 mode: no floor holes at all,
 ## ownership decided by TerritoryRaster's argmax fill.
 ##
 ## DECISION (config/match/MatchConfig.gd): reverted to TEMPORARY as
@@ -47,7 +47,7 @@ enum HoleMode { TEMPORARY, PERMANENT, OFF }
 enum WeatherMode { OFF, STORM, RAIN, SNOW, FOG, RANDOM, CHANGING }
 
 ## Lobby "Map" time of day (reworked by
-## docs/SKY_CYCLE_DEFAULT_PLAN.md). CYCLE = the running
+## CYCLE = the running
 ## day/night cycle, the DEFAULT. DAY ("Sunset"), NIGHT and DAWN are that same
 ## cycle locked at a fixed phase (SkyThemeDef.locked_phase_for). RANDOM = the
 ## host picks one of the three locked ones at match start
@@ -123,7 +123,7 @@ const DISC_SIZE_STEP_DEFAULT: int = 2
 ## Default difficulty for every bot; slot_ai_difficulties overrides it per slot.
 @export var ai_difficulty: AiDifficulty = AiDifficulty.NORMAL
 @export var team_mode: TeamMode = TeamMode.OFF
-## Lobby rework (docs/LOBBY_REWORK_PLAN.md section 3). Per-seat
+## Lobby rework (section 3). Per-seat
 ## team picks live in the lobby seat table; at Start the host resolves them
 ## (core/rules/TeamAssigner.gd) and writes the result here. All three arrays are
 ## OPTIONAL and empty by default, which is exactly the legacy behaviour (teams

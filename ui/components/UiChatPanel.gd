@@ -1,6 +1,6 @@
 class_name UiChatPanel
 extends PanelContainer
-## The design system's chat panel (docs/CHAT_PLAN.md section 3, docs/ui_reskin/components.md): one
+## The design system's chat panel:
 ## component, two skins. LOBBY is a CHAT title row, a scrolling log and an always-visible input line; HUD shows the last
 ## [member ChatConfig.hud_lines] lines, fades out after [member ChatConfig.line_visible_s] and shows the
 ## input line only while typing. The lobby log sits in a sunken UiWell; the HUD skin has no box, border

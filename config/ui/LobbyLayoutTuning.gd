@@ -1,6 +1,6 @@
 class_name LobbyLayoutTuning
 extends Resource
-## Layout tunables for the lobby rework (docs/LOBBY_REWORK_PLAN.md,
+## Layout tunables for the lobby rework,
 ## D9): sizes and spacings that are new to the rework live here, so
 ## config/ui/menu_visual_tuning.tres (colours, pill shapes) is never touched. Read by
 ## ui/lobby/Lobby.gd and ui/lobby/LobbyPlayersPanel.gd.

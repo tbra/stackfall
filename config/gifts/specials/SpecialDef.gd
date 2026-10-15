@@ -7,7 +7,7 @@ extends Resource
 ## type) are P3-P5's responsibility. An empty res://config/gifts/specials/ (today,
 ## before those land) is a supported state: load_all_specials() returns an
 ## empty array and pick_weighted() returns null, so a spawn with no special
-## drawn behaves exactly like an ordinary block (see docs/archive/M4_P2_PACKAGES.md
+## drawn behaves exactly like an ordinary block (see the spawn rules
 ## P2c's "safe default").
 
 ## Unique identifier, e.g. &"rocket", &"volcano".
@@ -21,7 +21,7 @@ extends Resource
 ## Optional -- SpecialBehavior only needs `effect` below to arm and trigger.
 @export var scene: PackedScene = null
 
-## /.14 presentation interface (per-gift art is 59o.14; both
+## presentation interface (per-gift art is a later pass; both
 ## fields are optional and every gift already shows something sensible):
 ## `held_scene` is the model the local/remote ghost shows INSTEAD of the plain
 ## block ghost while this gift is the current piece. It is instanced under the
@@ -46,7 +46,7 @@ const GENERIC_PREVIEW_ICON: Texture2D = preload("res://assets/ui/icons/gift_gene
 ## does not filter on it itself.
 @export var enabled_by_default: bool = true
 
-## 1pi.85.1: whether this gift can be thrown on the fixed
+## whether this gift can be thrown on the fixed
 ## gift trajectory (Bomb, Magnet, Jumping Bean). Every other gift is only dropped in place.
 @export var throwable: bool = false
 
@@ -54,7 +54,7 @@ const GENERIC_PREVIEW_ICON: Texture2D = preload("res://assets/ui/icons/gift_gene
 ## along the activating player's camera forward (host-validated, see core/gifts/GiftThrow.gd).
 @export var aimed_launch: bool = false
 
-## gift playtest 2, docs/GIFT_PLAYTEST2_PLAN.md: true = releasing this gift
+## true = releasing this gift
 ## activates it at the cursor surface point with no physical carrier falling first
 ## (MatchGiftActivation.try_activate). SpecialBehavior then never waits for landing
 ## (needs_landing is ignored). False (default) keeps the falling carrier.
@@ -190,14 +190,14 @@ static func load_selectable_specials() -> Array[SpecialDef]:
 ## tests/unit/gifts/test_special_def.gd can exercise the loader's actual sort order
 ## against a hand-built, in-memory array of SpecialDef instances -- no need
 ## to write or clean up real/temporary .tres resources under
-## res://config/gifts/specials/ (which docs/archive/M4_P2_PACKAGES.md's P2a section wants
+## res://config/gifts/specials/ (the roster directory)
 ## to stay genuinely empty this package) or under user:// just to prove the
 ## comparator works.
 static func _sort_by_id(a: SpecialDef, b: SpecialDef) -> bool:
 	return String(a.id) < String(b.id)
 
 
-## Roulette-wheel pick over `.weight` (docs/archive/M4_P2_PACKAGES.md P2a: "roulette
+## Roulette-wheel pick over `.weight` (the roulette rule:
 ## pick over .weight"). Null on an empty array so a caller (P2c) can treat
 ## "nothing to draw" as a safe no-op instead of a crash.
 ##

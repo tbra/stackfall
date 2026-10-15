@@ -1,7 +1,7 @@
 class_name MatchContextLive
 extends MatchContext
 ## The live MatchContext: forwards every port method 1:1 to the Match / Net / SnapshotSync
-## autoloads (docs/AUTOLOAD_DECOUPLING_PLAN.md, S1b). Installed by Match._ready().
+## autoloads (the decoupling step S1b).
 ##
 ## DECISION (D5): values pass straight through (implicit, runtime-checked conversions) so this file
 ## names no game/ class outside game/world/. DECISION (D9): this and autoload/Match.gd are a

@@ -20,13 +20,13 @@ extends Resource
 ## only the socket ever stays a fixed size.
 ##
 ## Exposed on the F4 TuningPanel "Beacons" tab with ranges/descriptions in
-## config/ui/tuning_panel_hints.tres (/xtq.36; the original xtq.33
+## config/ui/tuning_panel_hints.tres (the original launch values
 ## package left the wiring to a follow-up).
 ##
 ## Loaded once as config/territory/beacon_visual_tuning.tres.
 ##
 ## DECISION ("the beacons are way too small"):
-## socket/ring/crystal dimensions scaled up 2.5x from the xtq.33/34 launch
+## socket/ring/crystal dimensions scaled up 2.5x from the launch
 ## defaults (socket_radius 0.4->1.0, socket_height 0.25->0.625,
 ## ring_outer_radius 0.55->1.375, ring_thickness 0.12->0.3, crystal_radius
 ## 0.22->0.55, crystal_height 0.75->1.875) so a HomeFlag's crystal reads as
@@ -227,7 +227,7 @@ extends Resource
 @export var claim_zone_rim_lighten: float = 0.45
 
 
-## -- Timer labels (/ 1pi.189) ---------------------------------
+## -- Timer labels ---------------------------------
 ## A camera-facing Label3D above each goal beacon: Classic counts down to the
 ## capture, CTF counts up the hold (with an "xN" chip when the holder controls
 ## several beacons). Colours are the Stackfall Arcade tokens (cream text, disc-950

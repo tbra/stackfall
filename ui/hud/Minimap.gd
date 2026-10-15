@@ -1,6 +1,6 @@
 class_name Minimap
 extends PanelContainer
-## Top-down minimap for M7 P5 (docs/M7_PLAN.md "P5 -- HUD minimap + reskin"),
+## Top-down minimap,
 ## rebuilt for (feedback/graphics_feedback.md:
 ## "the minimap especially has a bunch of graphical problems where it's
 ## reflecting the sky depending on the camera angle").
