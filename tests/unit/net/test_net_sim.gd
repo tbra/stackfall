@@ -1,5 +1,5 @@
 extends GutTest
-## core/net/NetSim.gd: clock-injected lag/loss determinism (docs/archive/M3a_PLAN.md P1).
+## core/net/NetSim.gd: clock-injected lag/loss determinism.
 
 
 func test_lag_delays_delivery_by_the_right_amount() -> void:

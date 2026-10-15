@@ -2,8 +2,7 @@ extends GutTest
 ## WinChecker.claim_at() reads the raster over a cached list of
 ## in-radius cells (ClaimCells) instead of rescanning the square around each beacon
 ## every solve. The cache must change cost, never results: every claim below is
-## compared with _reference_claim_at, a verbatim copy of the pre-cache implementation
-## (docs/QOL_EXPERIMENTS_PLAN.md section 5), on several grid sizes, radii, goal
+## compared with _reference_claim_at, a verbatim copy of the pre-cache implementation, on several grid sizes, radii, goal
 ## layouts and raster contents, including the invalidation cases (radius change, new
 ## grid geometry, new goal layout, new raster contents under a warm cache).
 

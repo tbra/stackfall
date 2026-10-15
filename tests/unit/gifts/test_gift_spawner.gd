@@ -1,7 +1,7 @@
 extends GutTest
 ## Spec 1.6 "Gift spawning [ORIGINAL target]": probability per placement
-## window, not the retired seconds-based interval (docs/archive/M4_PLAN.md header
-## amendment). Covers GiftSpawner's pure chance mapping and spawn-point pick.
+## window, not the retired seconds-based interval.
+## Covers GiftSpawner's pure chance mapping and spawn-point pick.
 
 const MAP_RADIUS: float = 20.0
 const CELL: float = 1.0

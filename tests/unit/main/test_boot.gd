@@ -18,7 +18,7 @@ func test_headless_boot_adds_main_to_root_and_frees_itself() -> void:
 	await get_tree().process_frame
 
 
-## Review of 1pi.11.53: a scene that cannot load must fail loudly (error + quit in the real
+## A scene that cannot load must fail loudly (error + quit in the real
 ## game), never leave a black window waiting forever.
 func test_missing_main_scene_fails_instead_of_hanging() -> void:
 	var boot: Boot = Boot.new()

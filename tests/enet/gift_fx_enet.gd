@@ -6,7 +6,7 @@ extends Node
 ##               the carrier despawns
 ##   black_hole: BlackHoleVisual appears, then goes away with the carrier
 ##   volcano: body-less VolcanoStructure visual appears, rises, erupts blocks, expires
-##   Round 2 (docs/GIFT_PLAYTEST2_PLAN.md PJ), all from replicated data:
+##   Round 2, all from replicated data:
 ##   volcano/stackfall/earthquake: in-place, so the effect happens and NO gift carrier (and,
 ##               for earthquake, no extra block at all) ever exists on a client
 ##   anvil: released carrier has the 5x activation scale (collider box and visual)
@@ -91,7 +91,7 @@ const ROCKET_AIM_MAX_DEG: float = 15.0
 const ROCKET_MIN_SAMPLES: int = 6
 const THROW_MIN_SPAN_S: float = 0.3
 const THROW_MAX_DEG: float = 15.0
-## DECISION (8or.31): the magnet re-faces its CURRENT velocity every tick (MagnetEffect._face_while_airborne), so by the
+## DECISION: the magnet re-faces its CURRENT velocity every tick (MagnetEffect._face_while_airborne), so by the
 ## first replicated pose gravity has bent the path off the launch vector (6.8 deg seen); the first pose is judged
 ## against the launch vector with the same slack as the whole-flight heading, not the rocket's straight-line 5 deg.
 const MAGNET_FIRST_POSE_MAX_DEG: float = THROW_MAX_DEG
@@ -638,7 +638,7 @@ func _watch_rocket() -> void:
 	var rocket_left_bounds: bool = false
 	var deadline: int = Time.get_ticks_msec() + int(ROCKET_WATCH_S * MSEC_PER_S)
 	# Samples are kept only while the rocket is inside the snapshot position bounds: the wire clamps
-	# a body that leaves them (finding on 1pi.85.36), which is a transport limit, not a facing bug.
+	# a body that leaves them, which is a transport limit, not a facing bug.
 	var inside: AABB = SnapshotSync._bounds.grow(-ROCKET_BOUNDS_MARGIN_M)
 	while Time.get_ticks_msec() < deadline and is_instance_valid(gift) and int(_trig.get(&"rocket", 0)) == 0:
 		if not inside.has_point(gift.global_position):

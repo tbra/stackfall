@@ -962,8 +962,7 @@ func _build_isolated_tower(
 ## (auto_drop = false) path. (SPEC.md
 ## 1.4 "Invalid actions and expiry") changed a
 ## *manual* release on an invalid spot from "spawns, burns, and hands the
-## turn on" (the old docs/archive/M2_PLAN.md 2 this comment used to
-## cite) to "refused outright: nothing spawns, nothing is consumed, feed_seq
+## turn on" to "refused outright: nothing spawns, nothing is consumed, feed_seq
 ## does not move" -- autoload/match/MatchPlacement.gd's request_place()
 ## returns before ever reaching _consume_and_refeed()/advance_turn() on that
 ## path now. An off-disk _release() (auto_drop = false) therefore no longer

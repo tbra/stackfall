@@ -174,7 +174,7 @@ func test_transparent_materials_are_left_alone() -> void:
 	assert_eq(toon.get_shader_parameter(&"albedo_color"), Color(0.2, 0.4, 0.8))
 
 
-## / mp0.162: the bomb spark and the rocket flame are baked looping clips
+## The bomb spark and the rocket flame are baked looping clips
 ## played through GiftModelEntry.loop_animation (the shared held-gift animation mechanism).
 func test_bomb_spark_and_rocket_flame_play_their_looping_clip() -> void:
 	var clips: Dictionary = {&"bomb": &"spark_flicker_1s", &"rocket": &"flame_flicker_1s"}
@@ -192,7 +192,7 @@ func test_bomb_spark_and_rocket_flame_play_their_looping_clip() -> void:
 			assert_true(player.is_playing(), "%s clip is playing" % id)
 
 
-## / mp0.165: the desk-fan rotor and the shaking miniature disc loop their baked clips.
+## The desk-fan rotor and the shaking miniature disc loop their baked clips.
 func test_fan_and_quake_disc_play_their_looping_clip() -> void:
 	var clips: Dictionary = {&"propeller": &"spin_1s", &"earthquake": &"quake_pulse_1s"}
 	for id: StringName in clips:

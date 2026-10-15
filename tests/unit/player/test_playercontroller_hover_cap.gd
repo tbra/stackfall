@@ -21,12 +21,12 @@ extends GutTest
 ##
 ## Regression report, "REGRESSION/UNFIXED --
 ## there is still a maximum height the block cannot be raised or placed
-## above", reproduced hovering a domino above a placed tower: mv0.34's fix
+## above", reproduced hovering a domino above a placed tower: the earlier fix
 ## above raised the configured *ceiling* (GhostTuning.hover_manual_max), but
 ## never exercised the hover-raise path against an actual placed block. The
 ## real remaining bug was in game/player/PlayerController.gd's ghost-vs-placed-block
 ## collision sweep -- _cast_one_box(): the ghost's own
-## baseline hover height (_update_ghost_transform(), mv0.17 item 5)
+## baseline hover height (_update_ghost_transform())
 ## deliberately ignores whatever tower sits under the cursor, so a ghost
 ## routinely starts a frame already embedded in a placed block; raising past
 ## it is the only way out, by design. cast_motion() called from an
@@ -123,8 +123,8 @@ func test_wheel_raises_the_ghost_past_the_old_30m_cap() -> void:
 ## Reproduces the owner's exact report: a real, physics-settled 4-cube tower
 ## (~3.4 m tall -- taller than one GhostTuning.hover_wheel_step notch, 0.4 m)
 ## directly under the cursor, then a domino wheeled straight up from its own
-## baseline (which starts embedded in the tower's bottom cube -- mv0.17 item
-## 5's own baseline ignores the tower). Before this package's fix this froze
+## baseline (which starts embedded in the tower's bottom cube -- the baseline
+## ignores the tower). Before this package's fix this froze
 ## partway up (observed: manual_hover_offset stuck at ~0.6 m, never reaching
 ## even the tower's own ~3.4 m top); after the fix it clears the tower
 ## entirely and reaches GhostTuning.hover_manual_max.

@@ -1,5 +1,5 @@
 extends GutTest
-## docs/BOT_TOWER_PLAN.md 55a: the bot models a piece where it actually spawns,
+## The bot models a piece where it actually spawns,
 ## cube at B*(cell - bottom_center()) around the pivot the host is given (BlockFactory.build parity).
 ## Pure geometry: no match, no physics stepping.
 

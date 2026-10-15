@@ -136,7 +136,7 @@ func test_the_capture_restarts_when_the_holder_changes() -> void:
 
 ## -- The win check against the v2 argmax field -------------------------------
 ##
-## docs/TERRITORY_V2_PLAN.md: WinChecker is unchanged; it keeps working once
+## WinChecker is unchanged in territory v2; it keeps working once
 ## the raster's fill produces v2's ownership groups instead of cell-stamped
 ## ones. These pin that, so a later change to the fill cannot quietly break
 ## the capture rule.

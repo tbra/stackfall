@@ -45,7 +45,7 @@ func test_place_sends_the_ghost_transform_to_match_which_spawns_and_reports() ->
 
 
 func test_a_rejected_placement_emits_the_event_and_spawns_nothing_locally() -> void:
-	# docs/archive/M2_PLAN.md 2: every invalid release burns the block
+	# Every invalid release burns the block
 	# — decided inside Match.request_place, which the controller never
 	# second-guesses. From PlayerController's side a rejection only means
 	# Events.placement_rejected fires and the ghost plays its reject flash

@@ -1,8 +1,7 @@
 extends Node
 ## End-to-end network acceptance for M3a (spec Part 4 M3a "4 local instances
 ## play a full match ... a client with 100 ms simulated lag and 2% packet
-## loss sees smooth towers; placements are never duplicated or lost";
-## docs/archive/M3a_PLAN.md P4).
+## loss sees smooth towers; placements are never duplicated or lost").
 ##
 ## Run with a role from the command line, exactly as Net.apply_command_line()
 ## parses it (spec 2.6 "Testing"):
@@ -39,10 +38,10 @@ extends Node
 ## lands in parallel with P1 (autoload/Net.gd, net/LanDiscovery.gd), P2
 ## (net/SnapshotSync.gd, net/Interpolator.gd) and P3 (autoload/Match.gd's
 ## host gates, net/MatchNet.gd's real RPC bodies), all against the interface
-## stubs docs/archive/M3a_PLAN.md committed. Two things are not real yet, and both
+## stubs committed first. Two things are not real yet, and both
 ## are checked explicitly rather than assumed:
-##   1. **MatchNet isn't a registered autoload yet.** docs/archive/M3a_PLAN.md's
-##      integration order step 5 has the integrator add `MatchNet=` to
+##   1. **MatchNet isn't a registered autoload yet.** The
+##      integration order has the integrator add `MatchNet=` to
 ##      project.godot's [autoload] *after* P1-P3 land — P4 must not touch
 ##      that section itself. So this script finds it dynamically at
 ##      /root/MatchNet and calls it through Object.call() rather than the
@@ -67,8 +66,8 @@ extends Node
 ## its own territory, so a refusal can only be a network-level one — wrong
 ## slot or a stale feed_seq — never a PlacementRules rejection) through
 ## MatchNet.submit_place(), exactly as PlayerController will once P3 lands.
-## The host then checks, per docs/archive/M3a_PLAN.md "Proving placements are never
-## duplicated or lost": per slot, intents_accepted + intents_refused ==
+## The host then checks that placements are never
+## duplicated or lost: per slot, intents_accepted + intents_refused ==
 ## intents_sent; and that the number of Events.block_placed spawns equals the
 ## sum of every slot's intents_accepted (auto_drops is always 0 here — see
 ## INTENT_SPACING_SECONDS' own comment). Every client checks that no
@@ -378,7 +377,7 @@ func _intents_refused(slot_id: int) -> int:
 	return int(_match_net.call(&"intents_refused", slot_id))
 
 
-## follow-up: docs/archive/M3a_PLAN.md's real invariant is
+## follow-up: the real invariant is
 ## "blocks_spawned == sum(intents_accepted) + auto_drops", not
 ## "== sum(intents_accepted)" -- the simpler form only held while block_timer
 ## was pinned at BLOCK_TIMER_MAX and nothing sent fast enough to ever reach a
@@ -459,7 +458,6 @@ func _run_host() -> void:
 	# release locks the slot until its interval boundary. auto_drops still
 	# never fires: every scripted release spends its interval's one piece
 	# long before the boundary, so nothing is ever left unspent to force
-	# (docs/archive/M3a_PLAN.md "Proving placements are never duplicated or lost").
 	config.block_timer = MatchConfig.BLOCK_TIMER_MIN
 	config.rng_seed = 20260918
 
@@ -518,7 +516,7 @@ func _run_host() -> void:
 			"per_slot_accept_refuse_%d" % slot_id, accepted + refused == sent,
 			"slot=%d accepted=%d refused=%d sent=%d auto_drops=%d" % [slot_id, accepted, refused, sent, auto_dropped]
 		)
-	# docs/archive/M3a_PLAN.md's full invariant, not the "auto_drops is always 0"
+	# The full invariant, not the "auto_drops is always 0"
 	# simplification this script used while block_timer sat at BLOCK_TIMER_MAX
 	# (see INTENT_SPACING_SECONDS' and _auto_drops()'s own comments on why
 	# that assumption no longer holds under the fixed-interval cadence).

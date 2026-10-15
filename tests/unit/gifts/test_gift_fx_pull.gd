@@ -1,5 +1,5 @@
 extends GutTest
-## RadialPull.pull (docs/GIFT_EFFECTS_PLAN.md section 5 A1): a block resting on a
+## RadialPull.pull: a block resting on a
 ## friction surface moves under the pull, filter respected.
 
 const FRAMES_PER_SECOND: int = 60

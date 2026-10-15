@@ -230,7 +230,7 @@ func test_footprint_has_exactly_one_quad_for_a_flat_multi_cell_shape() -> void:
 
 	assert_eq(
 		ghost.footprint_quad_count(), 1,
-		"Bontago-xtq.7: the footprint is the whole shape's own hull, not one quad per one of square4's 4 cells."  # lint-public: allow string literal kept verbatim (assertion message or fixture)
+		"the footprint is the whole shape's own hull, not one quad per one of square4's 4 cells."
 	)
 
 
@@ -254,7 +254,7 @@ func test_footprint_stays_one_quad_for_a_rotated_shape_spanning_many_columns() -
 
 	assert_eq(
 		ghost.footprint_quad_count(), 1,
-		"Bontago-xtq.7: tipped onto its side, pillar's 3 cells span 3 columns but still project one whole-shape hull."  # lint-public: allow string literal kept verbatim (assertion message or fixture)
+		"tipped onto its side, pillar's 3 cells span 3 columns but still project one whole-shape hull."
 	)
 
 
@@ -635,7 +635,7 @@ func test_pitched_bar3_over_a_placed_block_gets_one_disc_footprint_and_a_matchin
 	# _visual_world_top_y() tightly, not just within a cube_margin tolerance.
 	assert_almost_eq(
 		span.x, _visual_world_top_y(ghost), 0.01,
-		"Bontago-xtq.9: the prism's own top must reach the held shape's own current highest rendered point, not its lowest."  # lint-public: allow string literal kept verbatim (assertion message or fixture)
+		"the prism's own top must reach the held shape's own current highest rendered point, not its lowest."
 	)
 	assert_true(
 		span.x >= _visual_world_top_y(ghost) - 0.001,
@@ -1017,7 +1017,7 @@ func test_t_and_s_piece_silhouettes_are_single_outer_loops() -> void:
 
 
 ## 's own "single cube unchanged" case: the shaft's top is the
-## cube's own underside, never its top (the xtq.9 whole-shape cap attempt 3
+## cube's own underside, never its top (the earlier whole-shape cap attempt
 ## reverted to). Must fail against attempt 3.
 func test_single_cube_projection_walls_cap_at_its_own_underside_not_the_shapes_own_top() -> void:
 	var ghost: GhostPreview = _make_ghost()

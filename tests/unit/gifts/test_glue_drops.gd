@@ -272,7 +272,7 @@ func test_elimination_clears_the_slots_glue_charges_and_publishes() -> void:
 	assert_eq(seen, [[0, 0]])
 
 
-# --- bonds that hold (docs/GIFT_EFFECTS_PLAN.md section 5 F) ---
+# --- bonds that hold ---
 
 const TILT_CYCLE_S: float = 10.0
 const TILT_FLIP_S: float = 2.0

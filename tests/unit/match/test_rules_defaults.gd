@@ -1,5 +1,5 @@
 extends GutTest
-## / .178 / .179 / .180.
+## Default hole modes per game mode, and removed ids staying removed.
 
 const REMOVED_IDS: Array[StringName] = [&"bar4", &"bar5"]
 

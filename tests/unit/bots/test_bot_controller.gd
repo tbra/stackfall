@@ -303,7 +303,7 @@ func test_non_host_is_a_no_op_every_frame() -> void:
 	assert_eq(match_ref.request_place_calls.size(), 0, "a non-host controller never sends anything")
 
 
-## docs/archive/M5_PLAN.md P1: "two BotControllers with different think_phase_jitter_s
+## Design rule: "two BotControllers with different think_phase_jitter_s
 ## draws never fire their first think-tick on the identical physics frame --
 ## deterministic with a fixed seed." Each controller has its own FakeMatch
 ## (matching its own slot_id's seeded stride) so their countdowns run

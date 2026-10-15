@@ -107,7 +107,7 @@ func test_process_freezes_target_yaw_pitch_and_distance_while_rotate_drag_is_hel
 
 	Input.action_press(&"rotate_drag")
 	# A moving follow target -- the ghost's rotated centre sliding during the
-	# drag, mv0.28's own regression -- must not move the camera while frozen,
+	# drag, an earlier regression -- must not move the camera while frozen,
 	# and neither should the gamepad's always-on right-stick orbit strength
 	# left at zero here (asserted separately by the RMB+MMB test below).
 	for i: int in range(5):

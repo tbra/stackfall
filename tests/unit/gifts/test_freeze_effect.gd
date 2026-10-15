@@ -1,7 +1,6 @@
 extends GutTest
 ## FreezeEffect (spec 1.6 "[NEW] (defensive, cuts down on luck)" row --
-## "Makes your own blocks within 6 m static for 20 s"; docs/M8_PLAN.md's P2
-## package). detonate() has no physics_tick()/wants_early_trigger() override
+## "Makes your own blocks within 6 m static for 20 s"). detonate() has no physics_tick()/wants_early_trigger() override
 ## -- every scenario below calls it directly against real Block bodies added
 ## to the test's own tree, the same physics-smoke-test shape
 ## tests/unit/gifts/test_glue_effect.gd uses.
@@ -137,8 +136,8 @@ func test_release_timer_timeout_does_not_unfreeze_a_block_still_held_stable() ->
 	var effect: FreezeEffect = _make_effect()
 	await wait_physics_frames(2)
 
-	# A separate freeze source (StableBlockManager's own reason, per
-	# docs/M8_PLAN.md's P5 package) holds this block frozen independently of
+	# A separate freeze source (StableBlockManager's own reason)
+	# holds this block frozen independently of
 	# the Freeze special.
 	host.request_freeze_static(Block.FREEZE_REASON_STABLE)
 

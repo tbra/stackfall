@@ -1,6 +1,5 @@
 extends GutTest
-## MatchContext port (game/world/MatchContext.gd), MatchContextLive and FieldBody
-## (docs/AUTOLOAD_DECOUPLING_PLAN.md, S1b).
+## MatchContext port (game/world/MatchContext.gd), MatchContextLive and FieldBody.
 
 var _saved: MatchContext = null
 

@@ -1,5 +1,5 @@
 extends GutTest
-## / .59 / .60: the round-length row reads "Round length" in every game mode (no
+## The round-length row reads "Round length" in every game mode (no
 ## "required" wording anywhere), a gifts switch that is off hides Frequency and the GIFTS Advanced bar,
 ## the new Experiments master switch hides its Advanced bar and starts matches with no experiment
 ## active, and it replicates host -> client like the gifts switch.

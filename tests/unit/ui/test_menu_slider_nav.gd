@@ -1,5 +1,5 @@
 extends GutTest
-## / 1pi.121 / 1pi.123 (playtest): one-cell keyboard/gamepad meter steps, menus opening scrolled to the top, and the mouse wheel over a slider scrolling
+## One-cell keyboard/gamepad meter steps, menus opening scrolled to the top, and the mouse wheel over a slider scrolling
 ## the menu instead of changing the slider.
 
 const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/menus/OptionsMenu.tscn")

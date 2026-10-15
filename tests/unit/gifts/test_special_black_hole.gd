@@ -289,7 +289,7 @@ func test_cubes_piled_in_the_core_are_all_removed() -> void:
 		var angle: float = float(i) * TAU / 4.0
 		# Even cubes sit at +-PILE_CORE_M on x, odd ones on the PILE_RING_M ring on z: no two
 		# cubes of a layer coincide (coincident bodies made Jolt depenetrate violently and
-		# overflow its job system under CPU contention, fca.50).
+		# overflow its job system under CPU contention).
 		var radius: float = PILE_RING_M if i % 2 == 1 else PILE_CORE_M
 		var ring: Vector3 = Vector3(cos(angle), 0.0, sin(angle)) * radius
 		positions.append(ring + Vector3(0.0, disc.surface_y() + 0.6 + float(i / 4) * CUBE_COLUMN_SPACING_M, 0.0))
@@ -507,7 +507,7 @@ func test_vortex_disc_matches_pull_radius_and_low_preset_drops_streaks() -> void
 
 func test_shipped_black_hole_activates_in_place_and_fires_on_the_first_tick() -> void:
 	var def: SpecialDef = SpecialDef.find_by_id(&"black_hole")
-	assert_true(def.activates_in_place, "opens where the gift is dropped (Bontago-1pi.85.45)")  # lint-public: allow string literal kept verbatim (assertion message or fixture)
+	assert_true(def.activates_in_place, "opens where the gift is dropped")
 	assert_eq(def.arm_delay, 0.0)
 	assert_eq(def.fuse_timeout_s, 0.0, "no fuse wait: the hole opens at release")
 

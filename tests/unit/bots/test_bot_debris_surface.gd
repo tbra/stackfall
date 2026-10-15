@@ -10,7 +10,7 @@ const HALF: float = 0.5
 const MASS: float = 1.0
 const BAR_MASS: float = 3.0
 const EPS: float = 0.01
-## The 1t5.54 clearance these sites and bases used to keep from any unsound cube.
+## The clearance these sites and bases used to keep from any unsound cube.
 const OLD_CLEARANCE_M: float = 2.0
 const LEAN_DEG: float = 30.0
 const PILE_LEAN_DEG: float = 20.0

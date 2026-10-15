@@ -1,5 +1,5 @@
 extends GutTest
-## autoload/Net.gd chat relay (docs/CHAT_PLAN.md sections 2 and 6):
+## autoload/Net.gd chat relay:
 ## a real ENet host plus two clients (test_net_session.gd pattern), wall-clock
 ## deadlines. Each side is its own Net instance; they share the global Events bus,
 ## so lines are captured through the per-instance chat_line_accepted /

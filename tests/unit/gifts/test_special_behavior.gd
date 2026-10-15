@@ -1,10 +1,10 @@
 extends GutTest
-## SpecialBehavior checks (spec 1.6, docs/archive/M4_P2_PACKAGES.md P2a): arming,
+## SpecialBehavior checks (spec 1.6): arming,
 ## impact-triggered activation, the effect hooks, the fuse timeout, and the
 ## chain-cap semantics -- all pure logic, no physics simulation. Every test
 ## drives SpecialBehavior.advance(delta) directly (not _physics_process, and
 ## no scene-tree physics tick) with a stub Block whose linear_velocity/mass
-## the test sets by hand, exactly as docs/archive/M4_P2_PACKAGES.md P2a specifies.
+## the test sets by hand, exactly as the design specifies.
 
 var _tuning: SpecialTuning = null
 

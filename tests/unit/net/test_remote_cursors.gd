@@ -1,6 +1,6 @@
 extends GutTest
-## game/player/RemoteCursors.gd and PlayerController's networked half (spec 2.6,
-## docs/archive/M3a_PLAN.md P3): other players' ghosts, which slot a controller acts
+## game/player/RemoteCursors.gd and PlayerController's networked half (spec 2.6):
+## other players' ghosts, which slot a controller acts
 ## for once a session is running, and the ghost lock that stops a double click
 ## inside one round trip from spending two blocks.
 

@@ -1,6 +1,6 @@
 extends GutTest
 ## game/blocks/Block.gd's reason-tracked freeze API (spec 2.7 "Stable-block
-## optimization" [NEW], docs/M8_PLAN.md P5, Interface stubs item 2):
+## optimization" [NEW]):
 ## request_freeze_static()/release_freeze_static()/is_freeze_static()/
 ## wake_for_impulse(). A bare Block (no BlockFactory, no BlockRegistry, no
 ## real physics step) is enough here -- these are plain field/property writes,

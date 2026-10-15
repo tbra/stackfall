@@ -318,7 +318,7 @@ func test_match_ends_when_only_one_team_remains() -> void:
 
 
 # --- Point placement, goal zones, continuous elimination -------------------
-# (docs/TERRITORY_V2_PLAN.md package B, reconciled with SPEC.md's
+# (territory v2, reconciled with SPEC.md's
 # evidence audit by). The raycast + PlacementRules.validate_point
 # path these tests are named "_v2_" for was package B's v2-only behaviour when
 # they were written made it every MatchConfig.HoleMode's
@@ -341,11 +341,11 @@ func test_request_place_v2_refuses_a_point_inside_another_teams_territory() -> v
 	var reason: StringName = Match.request_place(0, _home_world_position(1), 0, Quaternion.IDENTITY, false)
 
 	assert_eq(reason, PlacementRules.REASON_OUTSIDE_TERRITORY)
-	assert_eq(_blocks_root.get_child_count(), 0, "A refused manual release must not spawn anything (owner test 2026-09-22).")  # lint-public: allow string literal kept verbatim (assertion message or fixture)
+	assert_eq(_blocks_root.get_child_count(), 0, "A refused manual release must not spawn anything.")
 
 
 ## Hand-crafted circles/raster state rather than a physically bridged tower:
-## docs/TERRITORY_V2_PLAN.md's connectivity rule means a home-anchored circle
+## the v2 connectivity rule means a home-anchored circle
 ## reaching from slot 1's home across a real match's 50+ m gap to slot 0's
 ## home is exactly what the headless Lobby-to-win acceptance drive exercises
 ## with real physics and real placements; this test isolates
@@ -448,7 +448,7 @@ func test_awake_block_defers_solves_until_cap_then_forces_one() -> void:
 	Match._sandbox_territory_profile_enabled = false
 
 
-## Legacy-mode regression (docs/TERRITORY_V2_PLAN.md package B): the pre-v2
+## Legacy-mode regression: the pre-v2
 ## contest -> hole_delay -> hole -> Events.hole_cells_changed ->
 ## _check_home_flags() chain, run through the real _run_territory_step() call
 ## site rather than the direct _check_home_flags() call

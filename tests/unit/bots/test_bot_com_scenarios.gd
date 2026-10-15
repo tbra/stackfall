@@ -1,5 +1,5 @@
 extends GutTest
-## end-to-end centre-of-mass picks on a real Field (docs/BOT_TOWER_PLAN.md C "1t5.53b").
+## end-to-end centre-of-mass picks on a real Field.
 ## The V2 bot's real think (BotController._begin_thinking -> BotThink phases STACK/PROBE/RANK/MEASURE/PICK,
 ## zero aim noise, pick_pool 1) chooses among two hand-built sites on a scripted tower, once with the
 ## BotStack snapshot (BotStackProbe.build) and once with view.stack = null; the choice is then sent through

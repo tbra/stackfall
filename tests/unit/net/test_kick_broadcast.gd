@@ -1,7 +1,7 @@
 extends GutTest
 ## a peer the host is kicking (Net.kick_peer) stays in
 ## multiplayer.get_peers() until ENet completes the disconnect, and a send that
-## addresses it logs an engine error. 1pi.57 filtered Net's own fan-outs; this
+## addresses it logs an engine error. Net's own fan-outs are already filtered; this
 ## covers every other host broadcast: MatchNet, SnapshotSync and the
 ## weather / snow / breeze relays. The only production kick is
 ## MatchNet._tick_replay_timeouts (a mid-match joiner that never acked its replay).

@@ -193,7 +193,7 @@ func test_one_bad_event_does_not_silence_the_rest_of_the_batch() -> void:
 
 # --- No client-side detection -------------------------------------------------
 
-## The 1pi.52 probe: a frozen kinematic replica moved by transform writes (the
+## The probe: a frozen kinematic replica moved by transform writes (the
 ## spawn teleport, then interpolated motion, then a stop) reported ~588 m/s and
 ## ~12 m/s "impacts". It must report none.
 func test_client_kinematic_replica_emits_no_impact() -> void:

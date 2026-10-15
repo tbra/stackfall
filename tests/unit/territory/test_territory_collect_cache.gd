@@ -1,6 +1,6 @@
 extends GutTest
 ## BlockRegistry's per-block geometry cache must return
-## exactly what the uncached path returns (docs/TERRITORY_PERF_PLAN.md 3.1).
+## exactly what the uncached path returns.
 
 const STEPS: int = 200
 const START_BLOCKS: int = 12

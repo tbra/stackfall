@@ -1,6 +1,6 @@
 extends GutTest
 ## net/LanDiscovery.gd: advert payload round-trip and list expiry
-## (spec 2.6 "LAN discovery", docs/archive/M3a_PLAN.md P1).
+## (spec 2.6 "LAN discovery").
 
 var _listener: LanDiscovery
 var _config: NetConfig

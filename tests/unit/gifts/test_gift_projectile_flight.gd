@@ -1,5 +1,5 @@
 extends GutTest
-## / .27 (docs/GIFT_PLAYTEST2_PLAN.md PA1): Rocket and Paintball fly a dead-straight,
+## Rocket and Paintball fly a dead-straight,
 ## fast line from the release tick (no free-fall arm delay, no gravity), the Rocket's nose follows
 ## its velocity every tick, and the Rocket blast is ~10x. Real bodies with NORMAL gravity: the old
 ## code dropped them during the 0.4 s arm delay and let gravity bend the flight.

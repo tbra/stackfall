@@ -1,7 +1,6 @@
 extends GutTest
 ## JumpingBeanEffect (spec 1.6, installed-tutorial evidence: "Jumping Bean
-## creates a hole between random hops"; docs/archive/M4_SPECIALS_PACKAGES.md's
-## P5-BEAN package). Two fixture shapes, matching this package's siblings:
+## creates a hole between random hops"). Two fixture shapes, matching this package's siblings:
 ##
 ## - A stub Block + real SpecialBehavior (no physics simulation) plus a
 ##   plain registered Field, for the settle-gated timed pattern itself --
@@ -154,7 +153,7 @@ func test_hard_impact_before_settling_does_not_prematurely_trigger() -> void:
 
 	assert_false(
 		behavior.is_triggered(),
-		"JumpingBeanEffect must veto the decel-based impact trigger (Bontago-1en.22)."  # lint-public: allow string literal kept verbatim (assertion message or fixture)
+		"JumpingBeanEffect must veto the decel-based impact trigger."
 	)
 
 
@@ -448,7 +447,7 @@ func test_hop_still_occurs_but_punches_no_hole_under_hole_mode_off() -> void:
 	behavior.advance(1.0)  # first hop fires
 
 	var cell: Vector2i = cell_grid.world_to_cell(Vector2(position.x, position.z))
-	assert_false(raster.is_hole(cell.x, cell.y), "HoleMode.OFF must never open a hole (Bontago-z4h).")  # lint-public: allow string literal kept verbatim (assertion message or fixture)
+	assert_false(raster.is_hole(cell.x, cell.y), "HoleMode.OFF must never open a hole.")
 	assert_almost_eq(
 		block.linear_velocity.y, effect.hop_impulse, 0.0001,
 		"the hop's own knockback must still happen under HoleMode.OFF -- only the hole is suppressed"
@@ -758,7 +757,7 @@ func test_awake_island_bean_hops_three_times_in_six_seconds_and_punches_a_hole_e
 func test_awake_island_bean_hops_but_opens_no_hole_under_hole_mode_off() -> void:
 	var result: Dictionary = await _awake_island_run(MatchConfig.HoleMode.OFF)
 	assert_gte(int(result["hops"]), MIN_ISLAND_HOPS, "hops are not gated on HoleMode")
-	assert_eq(int(result["holes"]), 0, "owner decision Bontago-z4h: no hole under OFF")  # lint-public: allow string literal kept verbatim (assertion message or fixture)
+	assert_eq(int(result["holes"]), 0, "no hole under OFF")
 
 
 # --- centre-weighted hop bearing --------------------------

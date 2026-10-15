@@ -1,5 +1,5 @@
 extends GutTest
-## docs/GIFT_PLAYTEST3_PLAN.md P1: the three new gift entrances.
+## The three new gift entrances.
 ## Propeller rises out of the disc at the drop point (PropellerStand, no carrier), the black
 ## hole opens up underneath it (core starts below the surface), the anvil is a physical
 ## carrier spawned sky_drop_height_m above the validated point that falls and tilts the disc

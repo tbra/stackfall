@@ -204,7 +204,7 @@ func test_gamepad_accept_opens_a_dropdown_list_and_flips_a_toggle() -> void:
 	var msaa: UiDropdown = _dd(&"msaa_3d")
 	msaa.grab_focus()
 	await _pad_accept()
-	assert_true(msaa.is_open(), "A opens the list (Bontago-1pi.159.14)")  # lint-public: allow string literal kept verbatim (assertion message or fixture)
+	assert_true(msaa.is_open(), "A opens the list")
 	assert_eq(_settings.current_graphics_preset().msaa_3d, 1, "opening changes nothing")
 	msaa.pick(msaa.selected + 1)
 	assert_eq(_settings.current_graphics_preset().msaa_3d, 2, "picking the next row sets MSAA 4x")

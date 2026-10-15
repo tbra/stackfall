@@ -301,7 +301,7 @@ func test_a_far_off_disk_remote_intent_is_refused_and_keeps_the_piece() -> void:
 	var held_before: BlockShape = Match.held_shape(REMOTE_SLOT)
 	for i: int in range(far_origins.size()):
 		_remote_place(net, far_origins[i], 0, Quaternion.IDENTITY, Match.feed_seq(REMOTE_SLOT))
-		assert_eq(net.intents_accepted(REMOTE_SLOT), 0, "A far-off-disk release is refused, not consumed (Bontago-mv0.24).")  # lint-public: allow string literal kept verbatim (assertion message or fixture)
+		assert_eq(net.intents_accepted(REMOTE_SLOT), 0, "A far-off-disk release is refused, not consumed.")
 		assert_eq(_block_count(), 0, "Nothing spawns for a refused release.")
 		assert_eq(Match.feed_seq(REMOTE_SLOT), seq_before, "A refusal never advances the cadence.")
 		assert_eq(Match.held_shape(REMOTE_SLOT), held_before, "The refused piece stays in hand.")

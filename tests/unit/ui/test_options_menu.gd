@@ -1,5 +1,5 @@
 extends GutTest
-## docs/archive/M6_PLAN.md package C2: ui/menus/OptionsMenu.gd (graphics preset picker,
+## ui/menus/OptionsMenu.gd (graphics preset picker,
 ## master volume slider, temporarily disabled custom music folder, one KeyRebindRow per
 ## rebindable Input Map action) and ui/menus/KeyRebindRow.gd (one row's own
 ## listen/capture state machine).
@@ -145,7 +145,7 @@ func test_move_speed_row_switches_to_stick_speed_on_gamepad_and_calls_stick_sett
 	assert_eq(_settings_of(menu).mouse_move_speed_scale(), 1.0, "the mouse scale must be untouched")
 
 
-## docs/archive/M6_PLAN.md package C2: an explicit allow-list must exclude every
+## An explicit allow-list must exclude every
 ## debug-only action tools/bootstrap_project.gd's own _actions() defines --
 ## scans the real InputMap (already populated by project.godot's committed
 ## [input] section) rather than a hand-copied list, so a newly added debug

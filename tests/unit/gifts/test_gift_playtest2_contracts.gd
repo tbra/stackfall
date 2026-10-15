@@ -1,5 +1,5 @@
 extends GutTest
-## docs/GIFT_PLAYTEST2_PLAN.md P0: shared contracts for gift playtest 2.
+## Shared contracts for gift playtest 2.
 ## Defaults, callable stubs, SpecialBehavior.activates_in_place / landed_tuning, and the single
 ## request_place hook (consumes the feed only when MatchGiftActivation.try_activate says so).
 ## Fixture copied from test_match_throw.gd.

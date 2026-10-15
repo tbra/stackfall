@@ -1,6 +1,5 @@
 extends GutTest
-## BombEffect after the (docs/SPEC.md 1.6,
-## docs/GIFT_EFFECTS_PLAN.md section 3): the Bomb blinks for blink_duration_s from the drop,
+## BombEffect (docs/SPEC.md 1.6): the Bomb blinks for blink_duration_s from the drop,
 ## then blasts with ExplosionFx, regardless of impacts; a chain trigger still sets it off
 ## early. Two fixture shapes:
 ##

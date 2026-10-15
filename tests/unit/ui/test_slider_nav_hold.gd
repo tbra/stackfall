@@ -1,5 +1,5 @@
 extends GutTest
-## / 159.10 (on the shared UiHoldRepeat, via UiSegmentMeter): one pad press / stick flick = one step, holding
+## On the shared UiHoldRepeat, via UiSegmentMeter: one pad press / stick flick = one step, holding
 ## repeats at the tuned rate after the initial delay, stick drift near the threshold never retriggers.
 
 const FRAME: float = 1.0 / 60.0

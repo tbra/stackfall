@@ -1,5 +1,5 @@
 extends GutTest
-## docs/archive/M6_PLAN.md package A0: Field must bake the *match's*
+## Field must bake the *match's*
 ## real MapDef, not whatever its own @export default happens to be.
 ## `game/field/Field.gd`'s `_build_cells()` (now `_rebuild_cells()`) used to run
 ## only once, from `_ready()`, against Field's own `@export var map_def`
@@ -43,7 +43,7 @@ func before_each() -> void:
 	(_main.get_node("Field") as Field).map_def = _field_default_map
 
 	# The match's real map: only reachable through MatchConfig.map_def() --
-	# exactly the seam keo.2's bug skipped.
+	# exactly the seam an earlier bug skipped.
 	_match_map = MapDef.new()
 	_match_map.id = &"match_real"
 	_match_map.field_radius = 12.0

@@ -1,6 +1,5 @@
 extends GutTest
-## core/net/Quantize.gd: the snapshot body record (spec 2.6 "Snapshots",
-## docs/archive/M3a_PLAN.md P2).
+## core/net/Quantize.gd: the snapshot body record (spec 2.6 "Snapshots").
 ##
 ## "Contents per body: net_id: u16, position quantized to int16 per axis over
 ## map bounds (≈1-2 mm precision), rotation as a 48-bit 'smallest three'
