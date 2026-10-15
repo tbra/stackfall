@@ -105,7 +105,7 @@ extends Resource
 ## effect off on the Low graphics preset).
 @export var max_intensity: float = 1.0
 
-@export_group("Occlusion (Bontago-mp0.95)")
+@export_group("Occlusion")
 ##  "sun is visible through the clouds and arena". ROOT CAUSE 1:
 ## the disc collider is a single-sided trimesh (game/field/Field.gd: faces only up and out of the
 ## rim), so the one camera-to-sun ray of game/sky/SunFlare.gd passes unhit through the disc seen
