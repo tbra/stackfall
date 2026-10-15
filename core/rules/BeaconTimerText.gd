@@ -1,6 +1,6 @@
 class_name BeaconTimerText
 extends RefCounted
-## / 1pi.189: the text shown above each goal beacon and the CTF
+## The text shown above each goal beacon and the CTF
 ## score-multiplier chip. Pure: no scene tree, so the host and every client
 ## format the same replicated claim/hold state identically and tests need no scene.
 ##

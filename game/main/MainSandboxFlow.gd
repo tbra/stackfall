@@ -1,7 +1,7 @@
 class_name MainSandboxFlow
 extends MainSandboxFlowPort
 ## MF1: the hot-seat, sandbox and tutorial entry points moved verbatim out of
-## game/main/Main.gd (docs/MENU_FIRST_PLAN.md 3.2) so Main.gd no longer compiles HotSeat/Sandbox/Tutorial.
+## game/main/Main.gd so Main.gd no longer compiles HotSeat/Sandbox/Tutorial.
 ## Main loads this script on demand through MenuPrewarmQueue.ensure_script() and keeps one-line
 ## forwarders for every old member name tests/tools call. DECISION: this file reads Main's
 ## underscore-prefixed state through `main_node` (one module split in two; tests already do).
@@ -108,7 +108,7 @@ func start_sandbox_match_with_args(args: PackedStringArray) -> void:
 		sandbox.force_special_by_id(StringName(forced))
 
 
-## The Main Menu's own entry point (docs/archive/M6_PLAN.md package B1; ui/MainMenu.
+## The Main Menu's entry point (ui/MainMenu.
 ## gd's %SandboxButton, wired to this signal in _show_main_menu() below),
 ## unlike _start_sandbox_match()'s CLI-only one above: reachable only once
 ## the ordinary menu/lobby path in _ready() has already connected Events.
@@ -225,7 +225,7 @@ func _sandbox_force_special_arg(args: PackedStringArray) -> String:
 	return ""
 
 
-# --- Tutorial: single-player onboarding (docs/archive/M6_PLAN.md package B3) --------
+# --- Tutorial: single-player onboarding ---------------------------------------
 #
 # Reachable only from the Main Menu's own %TutorialButton (ui/menus/MainMenu.gd's
 # tutorial_requested signal, the same direct child-signal convention

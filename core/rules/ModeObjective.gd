@@ -40,8 +40,8 @@ static func create(
 	sky_target_height: float = 0.0,
 	claim_decay_rate: float = 0.0
 ) -> ModeObjective:
-	# DECISION: every id resolves to CLASSIC until a mode package (22y.7/.8/.9)
-	# adds its `match` branch here and its id to SELECTABLE_GAME_MODES.
+	# DECISION: every id resolves to CLASSIC until its mode adds its `match` branch here
+	# and its id to SELECTABLE_GAME_MODES.
 	var objective: ModeObjective = null
 	match MatchConfig.resolve_game_mode(mode):
 		MatchConfig.GameMode.CAPTURE_THE_FLAG:

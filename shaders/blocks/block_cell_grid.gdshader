@@ -1,5 +1,5 @@
 shader_type spatial;
-// M7 P2, docs/M7_PLAN.md P2; spec 1.10 as amended Q1/Q2: the block mesh stays one merged
+// Spec 1.10: the block mesh stays one merged
 // solid shape -- this shader is what actually draws the
 // per-cell grid lines and the toon shading bands on its faces, it never
 // changes geometry/collision/connectivity.

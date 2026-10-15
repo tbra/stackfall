@@ -1,7 +1,7 @@
 class_name BlockBody
 extends RigidBody3D
-## The light base class of game/blocks/Block.gd (autoload decoupling S2a, docs/
-## AUTOLOAD_DECOUPLING_PLAN.md D1/D8). It carries the identity fields and the
+## The light base class of game/blocks/Block.gd (it lets the autoload facades name
+## the block without compiling the full Block). It carries the identity fields and the
 ## two audio statics that autoload facades (Match, MatchNet, Sfx, SnapshotSync)
 ## read and write, plus no-op virtual stubs for the Block methods those facades
 ## call, so they can name this type instead of the heavy Block script. It
@@ -63,7 +63,7 @@ func is_freeze_static() -> bool:
 	return false
 
 
-## Glue fusion (docs/GLUE_FUSION_PLAN.md WP0): the FusedBody this block belongs to,
+## Glue fusion: the FusedBody this block belongs to,
 ## or null. Block and FusedBody override; no behaviour yet.
 func fused_carrier() -> RigidBody3D:
 	return null

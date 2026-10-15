@@ -1,7 +1,7 @@
 class_name MenuPrewarmQueue
 extends RefCounted
 ## MF0: the single serial background loader behind the main menu
-## (docs/MENU_FIRST_PLAN.md 3.1). At most one threaded request is ever in flight (F1: overlapping
+## At most one threaded request is ever in flight (overlapping
 ## threaded loads of scripts with shared closures can hang), and every on-demand load goes through
 ## ensure() so a main-thread load never stalls behind a different chunk (F2). Never reuse Boot's
 ## own request: Boot frees itself at hand-over. Main owns the queue and drives poll() per frame.

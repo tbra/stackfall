@@ -1,6 +1,6 @@
 class_name GiftAim
 extends RefCounted
-## / 85.35 (docs/GIFT_PLAYTEST2_PLAN.md): pure camera-aimed gift launch maths,
+## Pure camera-aimed gift launch maths,
 ## no scene tree. Host and client preview both call these functions so the previewed arc equals
 ## the host's launch. The client's own speed is never an input; only a unit `forward`.
 
@@ -16,7 +16,7 @@ static func unit_forward(forward: Vector3) -> Vector3:
 const MIN_FORWARD_LENGTH: float = 0.001
 
 
-## World spawn point of a camera-aimed gift (1pi.85.47: gift_aim_back_m defaults to 0, so it is the
+## World spawn point of a camera-aimed gift (gift_aim_back_m defaults to 0, so it is the
 ## held gift / ghost pose itself): the cursor point moved back along the unit
 ## `forward` by SpecialTuning.gift_aim_back_m, clamped to at least gift_aim_min_height_m above
 ## `surface_y`, so the aim line passes through the cursor. An unusable forward returns `cursor`.

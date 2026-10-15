@@ -1,7 +1,7 @@
 class_name MagnetEffect
 extends SpecialEffect
-## Magnet special (docs/SPEC.md ~line 252: "Pulls enemy blocks within 8 m
-## toward itself for 3 s"; docs/M8_PLAN.md P1 package). Follows the
+## Magnet special (docs/SPEC.md: "Pulls enemy blocks within 8 m
+## toward itself for 3 s"). Follows the
 ## "timed-effect pattern" established by PropellerEffect.gd/VolcanoEffect.gd:
 ## physics_tick() runs the pull every armed tick from the moment it arms,
 ## before triggering; impact_triggers() vetoes the magnet's own landing
@@ -64,7 +64,7 @@ const _FACING_DONE_META: StringName = &"magnet_facing_done"
 ## Pulls every enemy Block within pull.radius_m toward this block's own
 ## position, every armed tick, for pull_duration_s seconds starting the very
 ## first tick this runs (no "settle" gate, unlike Propeller -- neither
-## docs/SPEC.md nor docs/M8_PLAN.md ask the magnet itself to land first, and
+## docs/SPEC.md does not ask the magnet itself to land first, and
 ## SpecialBehavior only calls physics_tick() once armed regardless).
 func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void:
 	if not block.has_meta(_START_AGE_META):

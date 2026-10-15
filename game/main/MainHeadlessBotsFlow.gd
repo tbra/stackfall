@@ -1,7 +1,7 @@
 class_name MainHeadlessBotsFlow
 extends MainHeadlessBotsFlowPort
 ## MF2: the `--headless-host --bots=<n>` flow moved verbatim out of game/main/Main.gd
-## (docs/MENU_FIRST_PLAN.md 3.2). Main loads this script on demand through MenuPrewarmQueue and keeps a
+## Main loads this script on demand through MenuPrewarmQueue and keeps a
 ## forwarder for every old member name; the state fields (_headless_*) stay on Main because tests
 ## and tools read them. DECISION: signal/timer callbacks connect to Main's forwarders so
 ## `Signal.is_connected(_main._on_headless_bots_block_placed)` keeps working.
@@ -30,7 +30,7 @@ var _headless_bots_start_physics_frame: int = 0
 # "wait for a human to press Start" step is skipped. This is deliberate: it
 # is what lets _build_match_world()'s own bot-controller wiring (below) serve
 # both this entry point and an ordinary mixed human+bot lobby match with one
-# piece of code (docs/archive/M5_PLAN.md P5 item 3), rather than a second, divergent
+# piece of code, rather than a second, divergent
 # world-build path. host_game() can still fail (its port already bound, say)
 # and leave Net at OFFLINE despite --headless-host being present on the
 # command line; _net_is_hosting()'s guard below refuses to build a match in
@@ -75,7 +75,7 @@ func start_match_with_args(args: PackedStringArray) -> void:
 
 	# `--seconds=<n>` bounds the run with a hard wall-clock quit: the
 	# acceptance command has no real win condition to end on within a CI
-	# harness's own patience (docs/archive/M5_PLAN.md P5).
+	# harness's patience.
 	var seconds: float = _seconds_arg(args)
 	if seconds > 0.0:
 		main_node.get_tree().create_timer(seconds).timeout.connect(main_node._on_headless_bots_seconds_elapsed)
@@ -274,8 +274,8 @@ func _seconds_arg(args: PackedStringArray) -> float:
 
 ## Same "players="-reading loop as _sandbox_player_count(), with a different
 ## absent-flag default (0, so `maxi(bots, ...)` below reduces to exactly
-## `bots` with no --players given -- docs/archive/M5_PLAN.md P5: "every seat a bot"
-## is the literal acceptance command's own shape) -- kept separate from
+## `bots` with no --players given -- every seat is a bot, the shape of the
+## headless acceptance command) -- kept separate from
 ## _sandbox_player_count() rather than reused, since that function's own
 ## absent-flag default (sandbox_config.default_player_count) is wrong here.
 func _headless_bot_players_arg(args: PackedStringArray) -> int:
@@ -291,9 +291,8 @@ func _headless_bot_players_arg(args: PackedStringArray) -> int:
 
 ## Same lobby-settings-minus-a-few-overrides shape as _build_hot_seat_config()/
 ## _build_sandbox_config() above: `config.player_count` may be raised past
-## `bots` by `--players=<n2>` to leave human seats idle (docs/archive/M5_PLAN.md P5:
-## "matching --sandbox's own --players= precedent, but is not required for
-## the acceptance criterion"); `config.sandbox` stays false (unlike
+## `bots` by `--players=<n2>` to leave human seats idle (the flag matches the
+## --sandbox --players= form but is not required for the acceptance criterion); `config.sandbox` stays false (unlike
 ## --sandbox's own config) -- this is a real match, real timers/cadence, the
 ## whole point being that the real feed/territory/win loop survives N
 ## concurrent bots, not sandbox's relaxed rules.

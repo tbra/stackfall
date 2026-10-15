@@ -1,17 +1,15 @@
 class_name SteamClient
 extends RefCounted
-## The Steam-facing half of the transport (spec 2.6, docs/archive/M3b_PLAN.md P1).
+## The Steam-facing half of the transport (spec 2.6).
 ##
 ## The only file besides autoload/Net.gd's _make_steam_host_peer() /
 ## _make_steam_client_peer() that may touch the Engine "Steam" singleton or a
 ## lobby-list/lobby-data call. Peer instantiation itself still stays inside
-## Net (docs/archive/M3a_PLAN.md's "no other file may name a concrete peer class"
-## rule) — this file only ever reaches Steam's matchmaking API, never
+## Net (no other file may name a concrete peer class) — this file only ever reaches Steam's matchmaking API, never
 ## SteamMultiplayerPeer.
 ##
-## Extension-optional static typing (docs/archive/M3b_PLAN.md "Design notes"): the
-## whole res://addons/godotsteam/ directory is gitignored (M3b research's
-## "Spike results"), so most checkouts have no `.gdextension` file and no
+## Extension-optional static typing: the
+## whole res://addons/godotsteam/ directory is gitignored, so most checkouts have no `.gdextension` file and no
 ## `Steam` class registered at all. This script must still parse cleanly
 ## there, so `Steam` is never written as a static type or bare identifier —
 ## only reached through Engine.get_singleton(&"Steam"), held as a plain
@@ -32,7 +30,7 @@ extends RefCounted
 ## STATUS_EXTENSION_NOT_INSTALLED, a sentinel this file adds so a caller can
 ## tell "the addon was never installed in this checkout" apart from "the
 ## addon loaded but Steam itself refused" — both collapse to
-## Net.steam_available() == false for every UI purpose, per docs/archive/M3b_PLAN.md.
+## Net.steam_available() == false for every UI purpose.
 signal init_result(status: int, verbal: String)
 ## Raw forward of Steam's own `lobby_created(connect, lobby_id)` signal.
 ## Despite the name GodotSteam gives the first argument, it is the
@@ -56,14 +54,13 @@ signal lobby_join_requested(lobby_id: int, friend_id: int)
 ## can, even though Net.steam_available() treats both the same.
 const STATUS_EXTENSION_NOT_INSTALLED: int = -1
 
-## Lobby-data key names (wire protocol, not a tunable — see
-## docs/archive/M3b_PLAN.md's tunables table). `KEY_MATCH_CONFIG`'s value is the
+## Lobby-data key names (wire protocol, not a tunable). `KEY_MATCH_CONFIG`'s value is the
 ## JSON string encode_match_config() produces; the other three are the flat
 ## preview fields a lobby-browser row needs before actually joining.
 const KEY_GAME: StringName = &"game"
 const KEY_VERSION: StringName = &"version"
 const KEY_MAP: StringName = &"map"
-## DECISION (deviation from docs/archive/M3b_PLAN.md's three-key list): a fourth key
+## DECISION (deviation from the three-key list): a fourth key
 ## for the host's display name. discovered_lobbies()'s documented return
 ## shape includes "name" for the list row, and Steam's lobby object itself
 ## has no host-display-name field the way it has a member count — the LAN
@@ -120,8 +117,7 @@ func is_available() -> bool:
 ## forwards (lobby_created, lobby_match_list, lobby_joined, lobby_data_update,
 ## join_requested) is queued internally and never actually fires unless this
 ## is called regularly, no matter how long a caller waits. Found empirically
-## while running this package's own windowed smoke test (docs/archive/M3b_PLAN.md P1
-## acceptance): host_online() reached a real Steam client (steamInitEx()
+## while running the windowed smoke test: host_online() reached a real Steam client (steamInitEx()
 ## already answered status 0, createLobby() returned no error), but
 ## lobby_created never arrived even after 15+ seconds — GodotSteam requires a
 ## periodic run_callbacks() call the same way any Steamworks integration does,
@@ -143,7 +139,7 @@ func init() -> void:
 		return
 	_steam = Engine.get_singleton(&"Steam")
 	_wire_signals()
-	# Never Steam.steamInit() — docs/archive/M3b_RESEARCH.md: the bare call is
+	# Never Steam.steamInit(): the bare call is
 	# reported to crash in-editor. steamInitEx() returns {"verbal", "status"};
 	# 0 ok, 1 other failure, 2 client not running, 3 client out of date.
 	var result: Dictionary = _steam.call("steamInitEx", NetIds.STEAM_APP_ID_EXPECTED, false)

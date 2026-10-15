@@ -141,9 +141,7 @@ static func build(shape: BlockShape, tuning: PhysicsTuning, owner_slot: int = -1
 
 	_add_shape_visual(block, shape, tuning, visual_material)
 
-	# M7 P2, docs/M7_PLAN.md P2's own DECISION: "contributing
-	# to territory influence" has no dedicated solver signal yet this
-	# milestone, so a settled/resting block reads as contributing and an
+	# "Contributing to territory influence" has no dedicated solver signal yet, so a settled/resting block reads as contributing and an
 	# in-flight one doesn't -- RigidBody3D's own built-in sleeping state is the
 	# proxy. Fix round (review MAJOR): this only ever reflects reality on
 	# whichever peer is this body's physics authority -- a client's synced

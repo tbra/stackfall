@@ -99,8 +99,7 @@ const NET_NODE_NAME: NodePath = ^"Net"
 ## instance id (int) -> Block, every body this instance has seen spawn.
 ##
 ## DECISION (net/SnapshotSync.gd): BlockRegistry exposes block_for_net_id() but
-## no "every live body" accessor, and P2 does not own that file (docs/archive/M3a_PLAN.md
-## file ownership). Mirroring the set from Events.block_placed /
+## no "every live body" accessor, and that registry file is not owned by this code path. Mirroring the set from Events.block_placed /
 ## Events.block_removed — the same bus BlockRegistry itself listens on — costs
 ## one Dictionary and keeps the package boundary intact. net_id is read at
 ## snapshot time, not at signal time, so the two handlers' order does not
@@ -384,8 +383,7 @@ func client_tick(delta: float) -> void:
 			continue
 		# Writing global_transform here and nowhere else is the whole trick:
 		# physics_interpolation smooths this 30 Hz stream up to the display rate
-		# by itself, and a write from _process would fight it (docs/archive/M3a_PLAN.md
-		# "Frozen bodies").
+		# by itself, and a write from _process would fight it.
 		block.global_transform = Transform3D(
 			Basis(pose["rotation"] as Quaternion), pose["position"] as Vector3
 		)
@@ -675,8 +673,7 @@ func _apply_packet(packet: PackedByteArray) -> void:
 
 ## The predicate Interpolator asks before buffering a sample: a net_id whose
 ## reliable spawn RPC has not landed yet is unknown, and its sample is dropped
-## and counted (docs/archive/M3a_PLAN.md "net_id allocation and the spawn/snapshot
-## race").
+## and counted (the spawn/snapshot race).
 func _is_spawned(net_id: int) -> bool:
 	if _registry == null:
 		return true

@@ -1,6 +1,6 @@
 class_name HotSeat
 extends Node
-## Self-contained hot-seat subtree (docs/archive/M2_PLAN.md P4, 1):
+## Self-contained hot-seat subtree:
 ## one PlayerController + GhostPreview + HUD, meant to be dropped into
 ## Main.tscn as a single instance. It decides no rules of its own — every
 ## placement still goes through Match.request_place() even though every slot
@@ -19,7 +19,7 @@ extends Node
 ## this same scene) -- with one wiring point, instead of two.
 @onready var _tuning_panel: TuningPanel = $TuningPanel
 ## HUD.gd self-wires to Events in its own _ready() ("connects to Events only
-## — no node paths out of ui/", docs/archive/M2_PLAN.md), and PlayerController's
+## — no node paths out of ui/"), and PlayerController's
 ## ghost_path is set inside this scene since both are HotSeat's own children.
 ## Only the camera rig and Field — owned by Main, outside this subtree — need
 ## the integrator's help; see set_camera_rig()/set_field() below.
@@ -37,9 +37,8 @@ func _ready() -> void:
 	_tuning_panel.set_controller(_controller)
 
 
-## Called once by the integrator after Main builds the shared CameraRig
-## (docs/archive/M2_PLAN.md: "the integrator wires Main.gd/tscn ... instance Field,
-## HotSeat.tscn, BlocksContainer, BlockRegistry"). HotSeat can't wire this by
+## Called once by Main after it builds the shared CameraRig. Main wires Field,
+## HotSeat.tscn, BlocksContainer and BlockRegistry together. HotSeat can't wire this by
 ## NodePath at scene-author time because CameraRig lives outside this
 ## subtree.
 func set_camera_rig(rig: CameraRig) -> void:
@@ -55,9 +54,8 @@ func set_field(field: Field) -> void:
 	_tuning_panel.set_field(field)
 
 
-## M3a: online there is no turn to take — every slot plays at once and this
-## instance drives exactly one of them (docs/archive/M3a_PLAN.md question 3, and the
-## integrator's step 4). PlayerController already resolves its own slot from
+## Online there is no turn to take: every slot plays at once and this
+## instance drives exactly one of them. PlayerController already resolves its own slot from
 ## Net when a session is running, so this only exists for the case where the
 ## integrator wants to pin it explicitly. Offline it is never called and
 ## Events.turn_changed still decides, so hot-seat is byte-identical to M2.

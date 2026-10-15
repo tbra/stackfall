@@ -1,5 +1,5 @@
 shader_type spatial;
-// M7 P2, docs/M7_PLAN.md P2: inverted-hull outline pass for
+// Inverted-hull outline pass for
 // a block's merged mesh. game/blocks/BlockFactory.gd adds this as a *second*
 // MeshInstance3D sharing the exact same ArrayMesh as the toon/cell-grid pass
 // (shaders/blocks/block_cell_grid.gdshader).

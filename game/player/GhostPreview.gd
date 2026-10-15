@@ -268,14 +268,14 @@ extends Node3D
 ## sets the index back to 0, so — unlike the original — rotation can never
 ## drift (spec 1.7, 1.4).
 ##
-## M2 (spec 1.5, 1.4, docs/archive/M2_PLAN.md P4) adds the placement-validity tint:
+## The placement-validity tint (spec 1.5, 1.4):
 ## player-colour when Match.preview_placement says VALID, red when it says
 ## OUTSIDE_TERRITORY/CONTESTED/OFF_DISK/EMPTY, and a hatched pattern over a
 ## HOLE. It also owns the visual side of a rejected placement (spec 1.5's
 ## "thrown off the map with a visible reject animation") and the auto-drop
 ## flash — both purely cosmetic; PlayerController decides *when* to play them.
 ##
-## Territory v2 (docs/TERRITORY_V2_PLAN.md package C): a goal flag's no-build
+## A goal flag's no-build
 ## zone (Result.GOAL_ZONE) reads the same as HOLE — hatched, hole_tint_color —
 ## reusing the existing "can't build here" visual language rather than adding
 ## a fourth tint state or a new GhostTuning field.
@@ -309,7 +309,7 @@ const STATE_VALID: StringName = &"valid"
 const STATE_INVALID: StringName = &"invalid"
 const STATE_HOLE: StringName = &"hole"
 const STATE_LOCKED: StringName = &"locked"
-## M4 P2e (docs/archive/M4_P2_PACKAGES.md P2e): shown while game/player/PlayerController.gd
+## Shown while game/player/PlayerController.gd
 ## reports is_aiming_throw() true (show_throw_hint()) -- a distinct state
 ## from the placement-validity ones above since it says nothing about where
 ## the block would land, only that the current gesture is a throw in
@@ -2052,7 +2052,7 @@ func set_locked(locked: bool) -> void:
 	_refresh_materials()
 
 
-## M4 P2e (docs/archive/M4_P2_PACKAGES.md P2e): called every frame by game/
+## Called every frame by game/
 ## PlayerController.gd's _drive_throw_visuals() with is_aiming_throw(), so the
 ## tint appears/disappears the same frame the drag starts/ends. Reuses
 ## _refresh_materials()'s existing dispatch (only _apply_validity_material()
@@ -2394,7 +2394,7 @@ func _apply_material_to_visual() -> void:
 # --- Reject / auto-drop animation (spec 1.5, 1.4) ---------------------------
 
 ## Spec 1.5: "released [in a contested area] ... is thrown off the map with a
-## visible reject animation" (docs/archive/M2_PLAN.md 2: every invalid
+## visible reject animation" (every invalid
 ## release burns the block, decided by Match.request_place — this is just the
 ## ghost-side cue: a bright flash plus a small arc kick on _reject_offset, a
 ## world-space position offset applied on top of update_placement()'s/

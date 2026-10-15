@@ -5,7 +5,7 @@ extends SpecialEffect
 ## blocks flying away from the centre of the explosion." Impacts never set it off; a
 ## chain trigger from a neighbouring blast still detonates it early.
 ##
-## Timeline (docs/GIFT_EFFECTS_PLAN.md section 3): the Bomb blinks for
+## Timeline: the Bomb blinks for
 ## `blink_duration_s` from the moment it is dropped, then ExplosionFx blasts. That is
 ## `behavior.age() >= blink_duration_s` on the host; the blink visual is derived from
 ## the same clock on every peer (GiftBlink.start_for_gift, no RPC).
