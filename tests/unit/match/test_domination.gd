@@ -82,7 +82,7 @@ func test_results_block_validates() -> void:
 	var block: Dictionary = host.results_fields()
 	block["mode_id"] = host.mode_id()
 	block["scores"] = Array(host.scores())
-	var clean: Dictionary = ModeObjective.validate_results_block(block)
+	var clean: Dictionary = ResultsPayload.validate_mode_block(block)
 	assert_eq(clean["winners"], "1")
 	assert_eq(clean["mode_id"], MatchConfig.GameMode.DOMINATION)
 

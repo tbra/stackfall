@@ -166,7 +166,7 @@ func apply_event(event: StringName, args: Array) -> void:
 			# Bontago-1pi.13: an input boundary exactly like every other wire
 			# payload in this dispatch -- a malformed or truncated args array
 			# (an older/ancient build) must not reach a results-screen
-			# consumer half-typed. See MatchStats.validate_results_payload()'s
+			# consumer half-typed. See ResultsValidation.validate_results_payload()'s
 			# own doc comment for why this rejects rather than defaults.
 			if args.size() < 1:
 				return

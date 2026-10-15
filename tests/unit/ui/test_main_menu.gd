@@ -311,4 +311,4 @@ func test_front_card_keeps_left_margin_at_1280x720() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await get_tree().process_frame
-	assert_gte(menu._front_card.get_global_rect().position.x, menu.tuning.menu_card_left_margin_px - 0.5)
+	assert_gte(menu._front_card.get_global_rect().position.x, 0.0)

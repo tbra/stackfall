@@ -191,30 +191,3 @@ func _declare_winner(team: int) -> void:
 
 const MAX_WIRE_KEYS: int = ResultsValidation.MAX_WIRE_KEYS
 const MAX_WIRE_STRING: int = ResultsValidation.MAX_WIRE_STRING
-
-
-## Strictly re-types a replicated mode state, or {} when malformed. The body
-## lives in core/rules/ResultsValidation.gd (autoload decoupling S2a).
-static func validate_state(raw: Variant) -> Dictionary:
-	return ResultsValidation.validate_mode_state(raw)
-
-
-## The results "mode" block validator lives in ResultsPayload (the one results
-## schema owner); kept as a delegate for existing callers.
-static func validate_results_block(raw: Variant) -> Dictionary:
-	return ResultsPayload.validate_mode_block(raw)
-
-
-static func is_known_mode(mode: int) -> bool:
-	return ResultsValidation.is_known_mode(mode)
-
-
-## Array of floats, or [null] as the malformed sentinel.
-static func clean_scores(raw: Variant) -> Array:
-	return ResultsValidation.clean_scores(raw)
-
-
-## A copy of `raw` when it is a small dictionary of String keys mapped to
-## int/float(finite)/bool/short String; null otherwise.
-static func clean_scalars(raw: Variant) -> Variant:
-	return ResultsValidation.clean_scalars(raw)

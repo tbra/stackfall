@@ -99,13 +99,6 @@ static func floor_for_tone(tint: Color, min_brightness: float, ratio: float) -> 
 	return Color(tint.r * scale, tint.g * scale, tint.b * scale, 1.0)
 
 
-## Weather grade followed by the per-channel brightness floor (the puff shader
-## mirrors it): the result never drops below `floor` in any channel.
-static func graded_floored(color: Color, dim_amount: float, desaturate_amount: float, floor: Color) -> Color:
-	var graded: Color = grade(color, dim_amount, desaturate_amount)
-	return Color(maxf(graded.r, floor.r), maxf(graded.g, floor.g), maxf(graded.b, floor.b), color.a)
-
-
 ## Share of the sun's effects (flare, god rays, halo) that survives the weather
 ## and the day/night cycle: 1 in clear daylight, 0 at night (moon has none),
 ## reduced by overcast and gone at full storm.

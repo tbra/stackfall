@@ -188,7 +188,7 @@ func _assert_team_arrays_dropped(config: MatchConfig, label: String) -> void:
 	assert_true(config.team_numbers.is_empty(), "%s: team_numbers dropped" % label)
 	assert_false(config.teams_resolved(), label)
 	# ...and the config is back on the legacy interleave.
-	assert_eq(config.team_count(), mini(config.team_pick_cap(), config.player_count) if config.teams_enabled() else config.player_count, label)
+	assert_eq(config.team_count(), mini(config.team_pick_cap(), config.player_count) if config.team_mode != MatchConfig.TeamMode.OFF else config.player_count, label)
 
 
 func test_sanitize_drops_inconsistent_team_arrays() -> void:

@@ -298,7 +298,7 @@ func test_player_eliminated_when_holes_open_under_their_home_flag() -> void:
 
 	var home_cell: Vector2i = Match.cell_grid().world_to_cell(Match.slot(0).home_position)
 	var index: int = Match.cell_grid().cell_index(home_cell.x, home_cell.y)
-	Match._check_home_flags(PackedInt32Array([index]))
+	Match._territory._check_home_flags(PackedInt32Array([index]))
 
 	assert_false(Match.slot(0).home_flag_alive)
 	assert_signal_emitted_with_parameters(Events, "player_eliminated", [0, 0])
@@ -311,7 +311,7 @@ func test_match_ends_when_only_one_team_remains() -> void:
 
 	var home_cell: Vector2i = Match.cell_grid().world_to_cell(Match.slot(0).home_position)
 	var index: int = Match.cell_grid().cell_index(home_cell.x, home_cell.y)
-	Match._check_home_flags(PackedInt32Array([index]))
+	Match._territory._check_home_flags(PackedInt32Array([index]))
 
 	assert_eq(Match.state(), Match.State.END)
 	assert_signal_emitted_with_parameters(Events, "match_won", [1])
@@ -365,12 +365,12 @@ func test_check_home_flags_v2_eliminates_a_slot_once_an_enemy_circle_outscores_i
 	var enemy_circle: InfluenceCircle = InfluenceCircle.new(
 		home0, Match._territory_tuning.home_radius + 4.0, Match.team_of(1), 1, false, 999
 	)
-	var circles: Array[InfluenceCircle] = Match._collect_circles()
+	var circles: Array[InfluenceCircle] = Match._territory._collect_circles()
 	circles.append(enemy_circle)
 	var groups: TerritoryGroups = Match._solver.solve(circles)
 	Match._raster.update(circles, groups, 1.0 / Match._territory_tuning.solve_hz, false, false)
 
-	Match._check_home_flags_v2()
+	Match._territory._check_home_flags_v2()
 
 	assert_false(Match.slot(0).home_flag_alive)
 	assert_signal_emitted_with_parameters(Events, "player_eliminated", [0, 0])

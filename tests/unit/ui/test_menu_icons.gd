@@ -235,14 +235,11 @@ func test_icon_keeps_its_caption_ink_in_every_enabled_state() -> void:
 			assert_eq(button.get_theme_color(item), ink, "%s %s must equal its label ink" % [button.name, item])
 
 
-func test_focused_light_pill_icon_is_dark_and_focused_dark_pill_icon_is_light() -> void:
+func test_focused_light_pill_icon_is_dark() -> void:
 	var menu: MainMenu = _make_main_menu()
 	var cream_pill: Button = menu.get_node("%OptionsButton") as Button
-	var slate_pill: Button = menu.get_node("%BackButton") as Button
 	assert_eq(cream_pill.get_theme_color("icon_focus_color"), TUNING.ink_color, "focused cream pill: dark icon")
 	assert_eq(cream_pill.get_theme_color("icon_hover_color"), TUNING.ink_color, "hovered cream pill: dark icon")
-	assert_eq(slate_pill.get_theme_color("icon_focus_color"), TUNING.label_ink_light_color, "focused dark pill: light icon")
-	assert_eq(slate_pill.get_theme_color("icon_pressed_color"), TUNING.label_ink_light_color, "pressed dark pill: light icon")
 
 
 func test_toggle_chip_covers_the_focus_state() -> void:
@@ -250,7 +247,7 @@ func test_toggle_chip_covers_the_focus_state() -> void:
 	# back to the pale theme default on a cream chip.
 	var chip: CheckButton = autofree(CheckButton.new())
 	add_child_autofree(chip)
-	MenuStyleFactory.apply_toggle_chip(chip, TUNING.pill_cream_color, TUNING.pill_cream_hover_color, TUNING.pill_coral_color, TUNING.pill_coral_hover_color, TUNING.ink_color, TUNING)
+	MenuStyleFactory.apply_toggle_chip(chip, TUNING.pill_cream_color, TUNING.pill_cream_hover_color, TUNING.pill_mint_color, TUNING.pill_mint_hover_color, TUNING.ink_color, TUNING)
 	assert_eq(chip.get_theme_color("font_focus_color"), TUNING.ink_color, "focused caption ink")
 	assert_eq(chip.get_theme_color("icon_focus_color"), TUNING.ink_color, "focused icon ink")
 

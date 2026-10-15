@@ -91,7 +91,6 @@ func _make_bot() -> BotController:
 	var bot: BotController = BotController.new()
 	add_child_autofree(bot)
 	bot.setup(BOT_SLOT, MatchConfig.AiDifficulty.HARD, _field, _registry)
-	bot.set_brain(BotController.Brain.LEGACY)
 	# The profile is the shared, cached tuning resource: mutate a copy only (gate leak 2026-10-14).
 	bot._profile = bot._profile.duplicate() as BotDifficultyProfile
 	bot._profile.aim_noise_m = 0.0
@@ -121,6 +120,26 @@ func _settle_stack() -> void:
 		_stack_start.append(block.global_position)
 
 
+## The orientation with the flattest base (most cells on the lowest layer; ties by index): for the
+## pillar, a lying one whose lowest point is far below its upright bottom-centre pivot.
+func _flat_orientation(shape: BlockShape) -> int:
+	var best_index: int = 0
+	var best_coverage: int = -1
+	for i: int in range(BlockOrientations.count()):
+		var basis: Basis = BlockOrientations.get_basis(i)
+		var low: int = 1000000
+		for cell: Vector3i in shape.cells:
+			low = mini(low, int(round((basis * Vector3(cell)).y)))
+		var coverage: int = 0
+		for cell: Vector3i in shape.cells:
+			if int(round((basis * Vector3(cell)).y)) == low:
+				coverage += 1
+		if coverage > best_coverage:
+			best_coverage = coverage
+			best_index = i
+	return best_index
+
+
 ## Drives the real send path with ONE hand-built candidate (origin = pivot). Returns the spawned block.
 func _place_via_bot(origin: Vector2, orientation_index: int) -> Block:
 	var bot: BotController = _make_bot()
@@ -130,7 +149,7 @@ func _place_via_bot(origin: Vector2, orientation_index: int) -> Block:
 	candidate.support_height = float(bot._raycast_support_height(origin).get("height", 0.0))
 	bot._candidates = [candidate] as Array[BotCandidate]
 	var before: int = _registry.all_blocks().size()
-	var reason: StringName = bot._send_best_placement()
+	var reason: StringName = bot._send_best_placement(origin)
 	assert_eq(reason, PlacementRules.REASON_OK, "the host accepts the bot's placement")
 	var blocks: Array[Block] = _registry.all_blocks()
 	assert_eq(blocks.size(), before + 1, "one block spawned")
@@ -250,9 +269,9 @@ func test_lying_pillar_on_a_block_top_stays() -> void:
 	var centre: Vector2 = _stack_centre()
 	_add_stack_block(SLAB6_SHAPE, centre)
 	await _settle_stack()
-	var flat: Array[int] = BotPlacementScorer.flattest_orientations(PILLAR_SHAPE, 1)
-	var block: Block = _place_via_bot(centre, flat[0])
-	await _assert_lands_and_stays(block, PILLAR_SHAPE, flat[0], centre, _field.surface_y() + PHYSICS_TUNING.cube_size)
+	var flat: int = _flat_orientation(PILLAR_SHAPE)
+	var block: Block = _place_via_bot(centre, flat)
+	await _assert_lands_and_stays(block, PILLAR_SHAPE, flat, centre, _field.surface_y() + PHYSICS_TUNING.cube_size)
 
 
 ## (4) A plate straddling a tall block (two columns of it) and a short one (one column, a cube lower).

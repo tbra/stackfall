@@ -297,7 +297,7 @@ func _scenario(mode: MatchConfig.GameMode, holes: MatchConfig.HoleMode, threshol
 			_place_blocks(8, 5)
 		if round_index == 8 and mode == MatchConfig.GameMode.ELIMINATION:
 			var coords: Vector2i = Match.cell_grid().world_to_cell(Match.slot(1).home_position)
-			Match._check_home_flags(PackedInt32Array([Match.cell_grid().cell_index(coords.x, coords.y)]))
+			Match._territory._check_home_flags(PackedInt32Array([Match.cell_grid().cell_index(coords.x, coords.y)]))
 		if round_index % 3 == 0:
 			(_registry as BlockRegistry).block_settled.emit(round_index % 3, 2.0 + float(round_index))
 		Match._territory._tick_territory(deltas[round_index % deltas.size()])
@@ -512,7 +512,7 @@ func _shrink_event() -> void:
 
 func _eliminate_event() -> void:
 	var coords: Vector2i = Match.cell_grid().world_to_cell(Match.slot(1).home_position)
-	Match._check_home_flags(PackedInt32Array([Match.cell_grid().cell_index(coords.x, coords.y)]))
+	Match._territory._check_home_flags(PackedInt32Array([Match.cell_grid().cell_index(coords.x, coords.y)]))
 
 
 func test_punch_during_flight_matches_sync() -> void:

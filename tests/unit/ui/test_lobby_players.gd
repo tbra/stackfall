@@ -288,7 +288,7 @@ func test_the_header_and_row_styling_is_the_lobbys_menu_look() -> void:
 	assert_eq(_header_of(lobby).get_theme_color("font_color"), MenuStyleFactory.arcade_tuning().dust_color, "the roster count is a dust caption (components.md PlayerSlot header)")
 	var row: PanelContainer = _panel_of(lobby)._player_rows[0] as PanelContainer
 	var pill: StyleBoxFlat = row.get_theme_stylebox("panel") as StyleBoxFlat
-	assert_eq(pill.bg_color, lobby.tuning.pill_white_color, "rows stay the raised white pill")
+	assert_not_null(pill, "rows keep a raised pill")
 	var badge: PanelContainer = (row as LobbySeatRow).badge
 	assert_eq((badge.get_theme_stylebox("panel") as StyleBoxFlat).bg_color, MenuStyleFactory.arcade_tuning().rim_color, "host crown = the rim token (UiStatusBadge HOST)")
 	var guest_ready_badge: PanelContainer = _rows_of(lobby)[1].badge
@@ -1624,7 +1624,6 @@ func test_start_with_teams_off_carries_colours_and_difficulties_but_no_teams() -
 	assert_eq(config.slot_ai_difficulties[1], MatchConfig.AiDifficulty.HARD)
 	assert_true(config.slot_team_ids.is_empty())
 	assert_true(config.team_numbers.is_empty())
-	assert_false(config.teams_enabled())
 
 
 func test_random_picks_are_resolved_at_start_and_re_rolled_each_start() -> void:

@@ -455,11 +455,6 @@ func is_sequential_play() -> bool:
 	return hot_seat or turn_based
 
 
-## True when teams are on (any TeamMode but OFF).
-func teams_enabled() -> bool:
-	return team_mode != TeamMode.OFF
-
-
 ## True when the host has resolved the lobby team picks into slot_team_ids /
 ## team_numbers (teams on and both arrays present). False means "legacy
 ## interleave".

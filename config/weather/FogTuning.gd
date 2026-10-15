@@ -46,9 +46,3 @@ extends WeatherTuning
 @export var arena_far_rim_m: float = 70.0
 @export_range(0.0, 1.0, 0.01) var ambient_min_rim_keep: float = 0.8
 @export_range(0.0, 1.0, 0.01) var far_min_visibility: float = 0.02
-
-
-## Pure: fraction of colour an exponential-fog (Environment fog_density) object
-## keeps at `distance_m`.
-static func exponential_keep(density: float, distance_m: float) -> float:
-	return exp(-maxf(density, 0.0) * maxf(distance_m, 0.0))

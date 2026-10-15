@@ -276,7 +276,7 @@ func test_client_receives_the_same_tally_over_the_results_event() -> void:
 
 	var bad: Dictionary = host_results.duplicate(true)
 	(bad["rows"] as Array)[0]["wins"] = -1
-	assert_true(MatchStats.validate_results_payload(bad).is_empty(), "a negative wins count is dropped")
+	assert_true(ResultsValidation.validate_results_payload(bad).is_empty(), "a negative wins count is dropped")
 
 
 # --- Bontago-1pi.69: live scoreboard snapshot ----------------------------------
