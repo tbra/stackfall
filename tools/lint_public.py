@@ -112,6 +112,8 @@ def shrink(counts: Findings, base: Findings) -> Findings:
 
 
 def main(argv: List[str]) -> int:
+    if hasattr(sys.stdout, "reconfigure"):  # Windows consoles default to a legacy code page
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--path", default=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     ap.add_argument("--report", action="store_true")
