@@ -108,7 +108,7 @@ var _target: Vector3 = Vector3.ZERO
 ## every frame. Only read when tuning.follow_block.
 var _follow_position: Vector3 = Vector3.ZERO
 
-## Bontago-pt-4 ("Camera always jumps up after block drops or
+## Camera-jump regression ("Camera always jumps up after block drops or
 ## when clicking the drop button"): true for as long as _process() is easing
 ## _target into _follow_position over tuning.drop_recover_seconds instead of
 ## hard-snapping to it -- see begin_follow_transition()'s own doc comment for
@@ -464,7 +464,7 @@ func set_spectator_pose(pivot: Vector3, distance: float, pitch_deg: float) -> vo
 	_update_transform()
 
 
-## Bontago-pt-4 ("Camera always jumps up after block drops or
+## Camera-jump regression ("Camera always jumps up after block drops or
 ## when clicking the drop button"). ROOT CAUSE: this rig's follow-block mode
 ## hard-snaps _target to whatever set_follow_position() reports every frame
 ## whenever tuning.follow_lag_seconds is 0 (the shipped default since ,

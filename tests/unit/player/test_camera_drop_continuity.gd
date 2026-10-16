@@ -1,5 +1,5 @@
 extends GutTest
-## Regression coverage for Bontago-pt-4 ("Camera always jumps
+## Regression coverage for the camera jump ("Camera always jumps
 ## up after block drops or when clicking the drop button").
 ##
 ## ROOT CAUSE (full writeup on game/player/PlayerController.gd's
@@ -51,7 +51,7 @@ func before_each() -> void:
 func after_each() -> void:
 	Match.abort_match()
 	Match.set_process(true)
-	# Bontago-integ (combined-run regression, same DECISION as
+	# Combined-run regression (same DECISION as
 	# test_playercontroller_spawn_clearance.gd's own after_each()): clears the
 	# throwaway Field this file registered so a later script's Match.field()
 	# read never sees a freed node.

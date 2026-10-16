@@ -291,7 +291,7 @@ func test_rotate_drag_freezes_the_camera_rig_for_the_whole_drag_then_resumes_on_
 	controller._process(1.0 / 60.0)
 	rig._process(1.0 / 60.0)
 
-	# Bontago-pt-4 (coordinator follow-up, shape-independent camera follow
+	# Camera follow (shape-independent camera follow
 	# anchor): only X/Z resume tracking the ghost's rotated centre -- Y now
 	# comes from PlayerController._camera_follow_anchor()'s shape-independent
 	# hover height instead (see that method's own doc comment), so it is
@@ -305,7 +305,7 @@ func test_rotate_drag_freezes_the_camera_rig_for_the_whole_drag_then_resumes_on_
 		target_after_release.z, controller._ghost.rotated_center_world().z, 0.0001,
 		"after release, the rig should resume following the ghost's rotated centre in Z."
 	)
-	# Bontago-pt-4: no longer asserts the target actually *moved* once resumed
+	# No longer asserts the target actually *moved* once resumed
 	# -- this fixture's rotation-only drag (no cursor motion, no hover change)
 	# now legitimately produces zero camera movement end to end, which is the
 	# whole point of the shape-independent anchor (see
