@@ -40,7 +40,7 @@ const SCAN_FACTOR: int = 4
 ## characters that print nothing or flip surrounding text and so make a name look
 ## empty or spoof another: soft hyphen, Arabic letter mark, zero-width space,
 ## the left/right marks, the line/paragraph separators and bidi embeddings, the
-## word joiner / invisible operators / deprecated format controls, Hangul filler,
+## word joiner / invisible operators / obsolete format controls, Hangul filler,
 ## braille blank and the byte-order mark. ZWNJ/ZWJ (U+200C/U+200D) are handled
 ## separately by clean(): scripts and emoji sequences need them between letters.
 const _STRIPPED_RANGES: Array[Vector2i] = [

@@ -8,7 +8,7 @@ extends ModeObjective
 ##  - the last team with a living player wins;
 ##  - when the eliminations of ONE batch (one territory step) leave nobody
 ##    alive, the teams that just went out are compared by territory share: the
-##    larger share wins and equal shares are a shared win (winners);
+##    larger share wins and equal shares are a shared win (results_fields "winners");
 ##  - the round timer is optional (round_timer_minutes 0 = off); when it expires
 ##    the surviving teams are ranked by territory share, highest wins, equal
 ##    shares share the win.
@@ -165,11 +165,6 @@ func capture_progress() -> float:
 	return clampf(float(_claim_held[slot]) / _claim_hold, 0.0, 1.0)
 
 
-## Seconds `slot`'s home flag has been held by its attacker (0 = none).
-func claim_held(slot: int) -> float:
-	return float(_claim_held.get(slot, 0.0))
-
-
 ## Host: `slot`'s home flag was lost. Idempotent. The match outcome is only
 ## evaluated by resolve(), so eliminations of one batch are judged together.
 func slot_eliminated(slot: int) -> void:
@@ -187,7 +182,7 @@ func slot_eliminated(slot: int) -> void:
 
 ## Host, after a batch of eliminations (a no-op without news). `shares` is the
 ## current territory share per team. Returns the winning team once the match is
-## decided (winners() lists all of them), else NO_TEAM.
+## decided (results_fields "winners" lists all of them), else NO_TEAM.
 func resolve(shares: PackedFloat32Array) -> int:
 	if _pending_teams.is_empty() or _winner != NO_TEAM:
 		return _winner
@@ -225,11 +220,6 @@ func on_round_timer_end() -> int:
 
 func is_slot_out(slot: int) -> bool:
 	return _out.has(slot)
-
-
-## Slot ids in elimination order (first out first).
-func winners() -> PackedInt32Array:
-	return _winners.duplicate()
 
 
 ## Out slots as a bitmask, so a reconnecting or late client can mirror who is

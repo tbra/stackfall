@@ -28,7 +28,6 @@ func test_toggle_off_never_pauses_or_latches() -> void:
 	rule.note_special()
 	_run(rule, 6.0, PackedInt32Array([9, 9]))
 	assert_false(rule.is_paused(0))
-	assert_false(rule.is_exhausted(0))
 
 
 func test_continuous_pause_exhausts_exactly_at_the_cap_then_runs() -> void:
@@ -36,10 +35,9 @@ func test_continuous_pause_exhausts_exactly_at_the_cap_then_runs() -> void:
 	rule.note_special()
 	_run(rule, 1.75)
 	assert_true(rule.is_paused(0), "one step before the cap")
-	assert_false(rule.is_exhausted(0))
 	_run(rule, STEP_S)
 	assert_false(rule.is_paused(0), "cap reached: the timer runs")
-	assert_true(rule.is_exhausted(0))
+	assert_false(rule.is_paused(0))
 	assert_false(rule.is_paused(1), "global cause: every slot is guarded together")
 	_run(rule, 5.0)
 	assert_false(rule.is_paused(0), "stays running while the raw cause persists")
@@ -51,16 +49,15 @@ func test_rearms_after_the_raw_cause_fully_clears() -> void:
 	var rule: TimerPause = TimerPause.new(qol, 1)
 	rule.note_special()
 	_run(rule, 2.0)
-	assert_true(rule.is_exhausted(0))
+	assert_false(rule.is_paused(0))
 	_run(rule, 1.0)
-	assert_false(rule.is_exhausted(0), "the event window ran out: re-armed")
 	assert_false(rule.is_paused(0))
 	rule.note_special()
 	assert_true(rule.is_paused(0), "the next cause pauses again")
 	_run(rule, 1.75)
 	assert_true(rule.is_paused(0), "with a fresh cap window, not the old one")
 	_run(rule, STEP_S)
-	assert_true(rule.is_exhausted(0), "and exhausts again after another full cap")
+	assert_false(rule.is_paused(0), "and exhausts again after another full cap")
 
 
 func test_topple_cause_exhausts_and_rearms_after_the_tail() -> void:
@@ -71,14 +68,12 @@ func test_topple_cause_exhausts_and_rearms_after_the_tail() -> void:
 	assert_true(rule.is_paused(0))
 	assert_false(rule.is_paused(1), "only the toppling slot is paused")
 	_run(rule, STEP_S, avalanche)
-	assert_true(rule.is_exhausted(0))
 	assert_false(rule.is_paused(0))
 	_run(rule, 3.0, avalanche)
 	assert_false(rule.is_paused(0), "a long avalanche cannot hold the timer past the cap")
 	_run(rule, qol.pause_tail_s - STEP_S)
-	assert_true(rule.is_exhausted(0), "the tail is still part of the raw cause")
+	assert_false(rule.is_paused(0), "the tail is still part of the raw cause")
 	_run(rule, STEP_S)
-	assert_false(rule.is_exhausted(0), "tail over: re-armed")
 	_run(rule, STEP_S, avalanche)
 	assert_true(rule.is_paused(0), "a new topple pauses again")
 

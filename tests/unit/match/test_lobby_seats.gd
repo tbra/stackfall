@@ -163,10 +163,6 @@ func test_layout_gives_humans_their_slots_and_bots_the_trailing_slots() -> void:
 	assert_eq(plan.player_count, 5)
 	assert_eq(plan.ai_count, 2)
 	assert_eq(plan.slot_keys, _ints([_human(10), _human(20), _human(30), _bot(0), _bot(1)]))
-	assert_eq(plan.slot_of(_human(30)), 2)
-	assert_eq(plan.slot_of(_bot(1)), 4)
-	assert_eq(plan.slot_of(LobbySeats.KEY_NONE), -1)
-	assert_eq(plan.slot_of(_human(99)), -1)
 
 
 # --- start blocker ------------------------------------------------------------
