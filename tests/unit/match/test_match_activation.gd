@@ -30,7 +30,6 @@ func test_context_answers_defaults_while_inactive() -> void:
 	assert_eq(context.active_slot(), -1)
 	assert_null(context.raster())
 	assert_null(context.cell_grid())
-	assert_eq(context.qol_claim_radius(), 0.0)
 	assert_eq(context.glue_drops_left(0), 0)
 	assert_false(context.feed_timer_enabled())
 	assert_eq(context.feed_time_left(0), 0.0)

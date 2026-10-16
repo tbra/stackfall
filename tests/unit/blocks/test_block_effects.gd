@@ -15,6 +15,15 @@ func _make_manager() -> BlockEffectsManager:
 	return manager
 
 
+## Pooled burst wrappers are the manager's plain children; a running burst is a visible one.
+func _active_bursts(manager: BlockEffectsManager) -> int:
+	var count: int = 0
+	for child: Node in manager.get_children():
+		if child is Node3D and (child as Node3D).visible:
+			count += 1
+	return count
+
+
 func _make_block() -> RigidBody3D:
 	var block: RigidBody3D = autofree(RigidBody3D.new())
 	add_child_autofree(block)
@@ -28,7 +37,7 @@ func test_kill_plane_removal_spawns_exactly_one_effect() -> void:
 
 	Events.block_removed.emit(block, String(Events.REASON_KILL_PLANE))
 
-	assert_eq(manager.active_effect_count(), 1, "a kill-plane removal should spawn exactly one burst effect.")
+	assert_eq(_active_bursts(manager), 1, "a kill-plane removal should spawn exactly one burst effect.")
 
 
 func test_a_non_kill_plane_removal_spawns_no_effect() -> void:
@@ -37,7 +46,7 @@ func test_a_non_kill_plane_removal_spawns_no_effect() -> void:
 
 	Events.block_removed.emit(block, "some_other_reason")
 
-	assert_eq(manager.active_effect_count(), 0, "only kill_plane removals should trigger a burst effect.")
+	assert_eq(_active_bursts(manager), 0, "only kill_plane removals should trigger a burst effect.")
 
 
 func test_impact_above_threshold_spawns_dust_at_position() -> void:
@@ -46,7 +55,7 @@ func test_impact_above_threshold_spawns_dust_at_position() -> void:
 
 	Events.block_impacted_at.emit(manager.config.dust_impact_speed_threshold * 3.0, position)
 
-	assert_eq(manager.active_effect_count(), 1, "an impact well above the dust threshold should spawn exactly one burst.")
+	assert_eq(_active_bursts(manager), 1, "an impact well above the dust threshold should spawn exactly one burst.")
 	var effect: Node3D = manager.get_child(0) as Node3D
 	assert_true(effect.global_position.is_equal_approx(position), "the landing-dust burst must spawn at the impact position the signal carried.")
 
@@ -56,7 +65,7 @@ func test_impact_below_threshold_spawns_no_effect() -> void:
 
 	Events.block_impacted_at.emit(manager.config.dust_impact_speed_threshold * 0.5, Vector3(1.0, 0.0, 1.0))
 
-	assert_eq(manager.active_effect_count(), 0, "a soft impact below the dust threshold must not spawn a burst.")
+	assert_eq(_active_bursts(manager), 0, "a soft impact below the dust threshold must not spawn a burst.")
 
 
 func test_find_block_at_resolves_the_impacting_blocks_owner() -> void:
@@ -117,8 +126,8 @@ func test_simultaneous_impacts_are_capped_by_the_per_frame_budget() -> void:
 		Events.block_impacted_at.emit(speed, Vector3(float(i), 0.0, 0.0))
 
 	var cap: int = mini(manager.config.burst_max_new_per_frame, manager.config.burst_max_active)
-	assert_eq(manager.active_effect_count(), cap, "50 same-frame impacts must start no more than the per-frame budget of bursts.")
-	assert_eq(manager.pooled_burst_count(), cap, "only budgeted bursts may allocate pooled nodes.")
+	assert_eq(_active_bursts(manager), cap, "50 same-frame impacts must start no more than the per-frame budget of bursts.")
+	assert_eq(manager.get_child_count(), cap, "only budgeted bursts may allocate pooled nodes.")
 
 
 func test_active_bursts_never_exceed_the_active_cap_across_frames() -> void:
@@ -133,6 +142,6 @@ func test_active_bursts_never_exceed_the_active_cap_across_frames() -> void:
 			Events.block_impacted_at.emit(speed, Vector3(float(i), 0.0, 0.0))
 		await wait_physics_frames(1)
 
-	assert_eq(manager.active_effect_count(), 3, "active bursts must stay at burst_max_active while earlier ones are alive.")
+	assert_eq(_active_bursts(manager), 3, "active bursts must stay at burst_max_active while earlier ones are alive.")
 
 

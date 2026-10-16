@@ -188,8 +188,8 @@ func test_black_hole_released_in_the_gift_demo_dissolves_the_blocks_it_pulls_in(
 				horizontal, offset.y, offset.length(), block.has_meta(RadialPull.CAPTURED_META),
 				dissolver.is_dissolving(block), block.sleeping, block.freeze, block.linear_velocity.length()
 			])
-		_note("f=%d age=%.2f centre_above_surface=%.2f pending=%d started=%d reg_phys=%s | %s" % [
-			frame, hole._age, hole.global_position.y - surface, dissolver.pending_count(),
+		_note("f=%d age=%.2f centre_above_surface=%.2f started=%d reg_phys=%s | %s" % [
+			frame, hole._age, hole.global_position.y - surface,
 			dissolver.dissolves_started, registry.is_physics_processing(), " ; ".join(lines)
 		])
 

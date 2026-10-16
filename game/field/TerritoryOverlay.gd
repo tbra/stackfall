@@ -147,6 +147,8 @@ var _raster: TerritoryRaster = null
 ## raster revision last pushed to the textures; -1 = none.
 var _pushed_revision: int = -1
 var _cells_per_side: int = 0
+## The last uploaded images, kept because ImageTexture.update() does not round-trip headless,
+## so tests cannot read them back from the textures.
 var _last_image: Image = null
 var _state_cell_image: Image = null
 var _upload_accumulator: float = 0.0
@@ -185,12 +187,10 @@ var _bake_wanted: bool = false
 ## TerritoryTuning.solve_defer_max_s, whichever comes first.
 var _churning: bool = false
 var _bake_pending: bool = false
-var _last_bake_msec: int = 0
 ## How long the solve behind the current upload already waited (set by the host
 ## with the churn flag); the bake only gets what is left of the shared cap.
 var _solve_waited_msec: int = 0
 var _bake_deadline_msec: int = 0
-var _bake_count: int = 0
 ## Tests/bench only: treat a headless run as bake-capable so the gating counts.
 var _bake_headless_ok: bool = false
 
@@ -316,26 +316,6 @@ func arena() -> ArenaMesh:
 
 func material() -> ShaderMaterial:
 	return _material
-
-
-func texture() -> ImageTexture:
-	return _texture
-
-
-func state_cell_image() -> Image:
-	return _state_cell_image
-
-
-## The exact Image of the last upload, upscaled. Kept because
-## ImageTexture.get_image() has to round-trip through the rendering server,
-## which a headless test has no renderer for.
-func last_image() -> Image:
-	return _last_image
-
-
-## Cells along one edge of the image before the upscale.
-func cells_per_side() -> int:
-	return _cells_per_side
 
 
 ## Hands the overlay the live raster to draw and the per-slot colors to draw it
@@ -518,16 +498,6 @@ func goal_count() -> int:
 	return _goal_count
 
 
-## the per-bin circle lists the shader reads (see
-## _pack_circle_bins()); null before the first set_circles().
-func circle_bin_image() -> Image:
-	return _circle_bin_image
-
-
-func circle_bins_valid() -> bool:
-	return _circle_bins_valid
-
-
 func circle_bin_half_extent() -> float:
 	return _map_def.field_radius + CIRCLE_BIN_EDGE_SLACK_M if _map_def != null else 1.0
 
@@ -665,14 +635,6 @@ func set_churning(churning: bool, solve_waited_s: float = 0.0) -> void:
 	_flush_pending_bake(false)
 
 
-func bake_count() -> int:
-	return _bake_count
-
-
-func bake_pending() -> bool:
-	return _bake_pending
-
-
 func _bake_age_cap_msec() -> int:
 	if _tuning == null:
 		return 0
@@ -686,10 +648,6 @@ func _flush_pending_bake(force: bool) -> void:
 		return
 	_bake_pending = false
 	_request_bake(_bake_wanted, true)
-
-
-func bake_valid() -> bool:
-	return _bake_viewport != null and bool(_material.get_shader_parameter(&"bake_valid"))
 
 
 func _bake_extent() -> Vector2:
@@ -735,8 +693,6 @@ func _request_bake(circles_ok: bool, flushing: bool = false) -> void:
 		_bake_pending = true
 		return
 	_bake_pending = false
-	_bake_count += 1
-	_last_bake_msec = Time.get_ticks_msec()
 	var first: bool = _bake_key.is_empty() or not bool(_material.get_shader_parameter(&"bake_valid"))
 	_bake_key = key
 	var edge_x: int = clampi(ceili(extent.x * 2.0 * _visuals.circle_bake_texels_per_m), BAKE_SIZE_MIN, BAKE_SIZE_MAX)
@@ -775,16 +731,6 @@ func _on_bake_frame_drawn() -> void:
 	if _bake_key.is_empty():
 		return
 	_material.set_shader_parameter(&"bake_valid", true)
-
-
-func circle_texture() -> ImageTexture:
-	return _circle_texture
-
-
-## The exact circle Image of the last upload, kept because a headless test has
-## no rendering server to read a texture back from.
-func circle_image() -> Image:
-	return _circle_image
 
 
 ## RGBAF, one texel per circle: (x, z, radius, team). Width is always at
@@ -887,12 +833,6 @@ func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 		_material.set_shader_parameter(&"void_animated", 1.0 if _void_animated else 0.0)
 		_material.set_shader_parameter(&"disc_fine_detail", _disc_fine_detail)
 		_sync_side_shell()
-
-
-## Whether the disc plating draws its rivets and brushed streaks (graphics
-## preset fix2b); tests read it.
-func disc_fine_detail() -> bool:
-	return _disc_fine_detail
 
 
 ## pushes HoleVisualTuning's void look onto the disc shader.
