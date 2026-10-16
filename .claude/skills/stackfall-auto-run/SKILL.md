@@ -5,13 +5,15 @@ description: Continue Stackfall's ready Beads work through bounded workers, inte
 
 # Auto-run Stackfall
 
-Version: 1.1.16
+Version: 1.1.17
 
 Before acting, run `python tools/skill_versions.py --check stackfall-auto-run <the Version line above>` and report its `Using ... (disk verified)` line to the user. If it reports `STALE`, stop using this loaded copy, re-invoke the on-disk skill once, and start a fresh Claude session if the mismatch persists. List the versions of all three project skills with `python tools/skill_versions.py` at the start of an unattended run.
 
 Use on the main orchestrator thread only after the user activates continued work. CLAUDE.md (Git authority, pause points) and the orchestrator definition (dispatch, model routing, acceptance, delivery, machine guard, context hygiene) still apply; this skill adds the unattended loop.
 
 Unattended context guard: keep working through ready, authorized packages; task counts and delivered batches are **not** stop conditions. Native compaction is the context backstop. At each delivered batch, leave a compact Bead checkpoint with the next exact action and active checkout/worker state, then continue. A context/compaction warning is a checkpoint signal, not a reason to end the session: secure in-flight work, let native compaction occur, reconcile from the checkpoint and live Git/Beads state, and continue. Use `stackfall-session-close` only when work is actually done or a real stop condition below prevents safe continuation. Do not claim that this skill can reset Claude's transcript or avoid the account's usage limit.
+
+Usage-window guard (the `5h: N%` notices): from 85% run one worker at a time, with a Bead checkpoint after each delivered package; at 95% stop the active worker, checkpoint its checkout, and close the session with `stackfall-session-close`.
 
 0. Handle any new user reply first, per `stackfall-user-questions` (it also says how to catch replies during long runs).
 1. Run `python tools/board_brief.py` for the bounded ready/in-progress overview; query individual beads only as needed. Reconcile existing worker/checkpoint state before taking new work. Prefer a ready package that unblocks dependent work; keep the user's current priority above stale handoff suggestions.
