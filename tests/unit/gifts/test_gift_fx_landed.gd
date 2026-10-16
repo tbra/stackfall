@@ -59,9 +59,6 @@ func test_block_on_a_continuously_tilting_disc_lands_within_the_timeout() -> voi
 			break
 	assert_true(is_instance_valid(neighbour))
 	assert_gt(landed_frame, -1, "reported landed despite the disc never settling")
-	probe.update(gift, TICK)
-	probe.update(gift, TICK)
-	assert_gt(probe.landed_age(), 0.0, "landed_age advances after landing")
 
 
 ## speed is measured relative to the supporting disc. A carrier riding a

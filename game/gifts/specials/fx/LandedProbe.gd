@@ -5,7 +5,7 @@ extends RefCounted
 ## Replaces the unreliable Jolt `sleeping` check with a velocity-based detector.
 ## A block is considered "landed" when linear speed falls below `t.landed_speed_mps`
 ## for `t.landed_hold_s` seconds, OR once `t.landed_timeout_s` has elapsed since the
-## first contact (whichever comes first). Tracks elapsed time since landing via `landed_age()`.
+## first contact (whichever comes first).
 ##
 ## Speed is measured RELATIVE to the supporting surface (the tilting disc's point velocity
 ## under the carrier, or the velocity of the block it rests on), so a gift riding a moving
@@ -17,7 +17,6 @@ extends RefCounted
 var tuning: LandedTuning = LandedTuning.new()
 
 var _landed: bool = false
-var _landed_age_s: float = 0.0
 var _slow_s: float = 0.0
 var _contact_s: float = -1.0
 ## Previous-tick global transforms of non-rigid supports, keyed by instance id.
@@ -32,7 +31,6 @@ func _init(landed_tuning: LandedTuning = null) -> void:
 ## Updates probe state each physics tick. Call once per tick while the block is active.
 func update(block: Block, delta: float) -> void:
 	if _landed:
-		_landed_age_s += delta
 		return
 	if block == null or not is_instance_valid(block) or not block.is_inside_tree():
 		return
@@ -53,18 +51,11 @@ func update(block: Block, delta: float) -> void:
 		_slow_s = 0.0
 	if _slow_s >= tuning.landed_hold_s or (_contact_s >= 0.0 and _contact_s >= tuning.landed_timeout_s):
 		_landed = true
-		_landed_age_s = 0.0
 
 
 ## Returns true if the block has landed according to the tuned criteria.
 func has_landed() -> bool:
 	return _landed
-
-
-## Returns seconds elapsed since the block was first detected as landed.
-## Returns 0.0 if not yet landed.
-func landed_age() -> float:
-	return _landed_age_s if _landed else 0.0
 
 
 ## Blocks run without contact_monitor (see Block.gd), so contact is a short downward
