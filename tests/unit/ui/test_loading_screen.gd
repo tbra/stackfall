@@ -71,6 +71,19 @@ func test_fade_out_eventually_hides_the_screen() -> void:
 	assert_false(_screen.visible, "fade_out() must have hidden the screen by now.")
 
 
+## The CanvasLayer neither follows the Control's visibility nor its modulate, so the
+## player-visible overlay is the layer's own visibility and the Content fade alpha.
+func test_overlay_is_opaque_while_up_and_gone_after_the_fade() -> void:
+	_screen.show_for_match(_config(), _slots(2))
+	assert_true(_screen._layer.visible, "the overlay layer is up for a gated match")
+	assert_eq(_screen._content.modulate.a, 1.0, "fully opaque until the fade starts")
+
+	_screen.fade_out()
+	await wait_seconds(0.3, "warmup frames + fade duration")
+	assert_false(_screen._layer.visible, "the layer hides with the screen")
+	assert_eq(_screen._content.modulate.a, 0.0, "the fade ended fully transparent")
+
+
 func test_a_scope_reset_clears_the_rows_of_a_hidden_overlay() -> void:
 	_screen.show_for_match(_config(), _slots(3))
 	assert_eq(_screen._player_list.get_child_count(), 3, "fixture: one row per slot.")

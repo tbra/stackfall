@@ -37,7 +37,7 @@ var local_slots: Array[int] = []
 var names_by_peer: Dictionary = {}
 ## peer_id -> ready flag, the fake's copy of Net's per-peer "ready". A peer
 ## with no entry reads ready (the fake's long-standing peer_info default), so tests that never
-## touch it see what they always saw; set_local_ready()/reset_ready_flags() write it the way
+## touch it see what they always saw; set_local_ready() writes it the way
 ## Net's host path does, and a test calls roster_payload() + emits it to play Net's broadcast.
 var ready_by_peer: Dictionary = {}
 
@@ -49,7 +49,6 @@ var all_peers_ready_value: bool = false
 var lobby_data_value: Dictionary = {}
 
 var stats_value: Dictionary = {}
-var simulation_enabled_value: bool = false
 var config: NetConfig = preload("res://config/net/net_config.tres")
 
 ## Every call this fake recorded, for "did the script ask for the right
@@ -215,17 +214,6 @@ func kick_peer(peer_id: int, reason: int = 0) -> void:
 	kick_peer_calls.append({"peer_id": peer_id, "reason": reason})
 
 
-var reset_ready_flags_calls: int = 0
-
-
-func reset_ready_flags() -> void:
-	reset_ready_flags_calls += 1
-	if not is_host_value:
-		return
-	for peer_id: Variant in slots_by_peer.keys():
-		ready_by_peer[int(peer_id)] = false
-
-
 func set_local_ready(ready: bool) -> void:
 	set_local_ready_calls.append(ready)
 	set_peer_ready(local_peer_id_value, ready)
@@ -276,14 +264,6 @@ func stop_discovery() -> void:
 
 func set_simulation(lag_ms: float, jitter_ms: float, loss: float) -> void:
 	set_simulation_calls.append({"lag_ms": lag_ms, "jitter_ms": jitter_ms, "loss": loss})
-
-
-func simulation() -> NetSim:
-	return null
-
-
-func simulation_enabled() -> bool:
-	return simulation_enabled_value
 
 
 func stats() -> Dictionary:
