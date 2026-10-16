@@ -4,8 +4,7 @@ extends Node3D
 ## theme / day-night cycle, fog, light, ambient life and the reflection probe.
 ## (The optional six-face texture skybox was removed in.)
 ##
-## M7 P3, docs/M7_ART_DIRECTION.md's sunset/atmosphere lines:
-## two pieces layer on top:
+## Two pieces layer on top of the sky:
 ##   - apply_theme() writes `theme`'s (config/sky/SkyThemeDef.gd) sky/ground
 ##     colours onto `_fallback_sky_material` *in place*, its fog colour/
 ##     density onto the wired Environment's basic depth fog, and its
@@ -19,7 +18,7 @@ extends Node3D
 ##     GraphicsPreset.volumetric_fog_enabled (Settings.graphics_preset_changed,
 ##     the same read-only-preset pattern Main.gd's own P1 package
 ##     establishes) -- dropped from view entirely on Low, present on
-##     Medium/High, per docs/M7_ART_DIRECTION.md's performance budget.
+##     Medium/High.
 
 @export var config: SkyboxConfig = preload("res://config/sky/skybox_config.tres")
 
@@ -150,7 +149,7 @@ var _cycle_locked_phase: float = -1.0
 ## a match (F4, boot) keeps the last one.
 var _variation_seed: int = SkyVariation.DEFAULT_SEED
 
-## match reset, docs/MATCH_RESET_AUDIT.md G1: what _ready() left
+## Match reset: what _ready() left
 ## behind, captured once, so reset_to_launch() can put this long-lived Skybox back
 ## exactly where a fresh launch starts (the next match's configure_match_sky() then
 ## sets its own mode). `_launch_theme` is the static theme _ready() applied and
@@ -211,7 +210,7 @@ func configure_match_sky(match_config: MatchConfig) -> void:
 	_start_cycle_at(0.0, locked, match_config.sky_start_phase)
 
 
-## docs/MATCH_RESET_AUDIT.md G1/G2; Events.match_scope_reset runs this
+## Events.match_scope_reset runs this
 ## at every world build and teardown: returns this long-lived Skybox to what a fresh
 ## launch looks like, so a match never inherits the previous one's sky. That is the
 ## launch theme and SkyboxConfig.theme_name, the cycle only if the launch config
@@ -925,10 +924,6 @@ static func effective_probe_mode(tuning: TerritoryVisuals, preset: GraphicsPrese
 	return preset.reflection_probe_mode
 
 
-func probe_mode() -> int:
-	return _probe_mode
-
-
 ## Re-renders the (UPDATE_ONCE) probe in place; see PROBE_RETRIGGER_NUDGE_M.
 func retrigger_reflection_probe() -> void:
 	if reflection_probe_path.is_empty():
@@ -1211,7 +1206,7 @@ func _apply_procedural_params(material: ShaderMaterial, applied_theme: SkyThemeD
 ## construct/destroy) with `theme`'s fog colour/density shared onto its
 ## FogMaterial, so the depth fog apply_theme() sets above and this volumetric
 ## deck read as one coherent colour instead of two independently tuned
-## effects. A no-op (no node created, get_fog_volume() stays null) when
+## effects. A no-op (no node created, no CloudDeck node exists) when
 ## `theme` is unset.
 func _spawn_fog_volume() -> void:
 	if theme == null:
@@ -1538,22 +1533,6 @@ static func _puff_color(material: ShaderMaterial, parameter: StringName, fallbac
 	return value as Color if value is Color else fallback
 
 
-func get_cloud_sea() -> CloudSea:
-	return _cloud_sea
-
-
-func get_birds() -> DistantBirds:
-	return _birds
-
-
-func get_perching_birds() -> PerchingBirds:
-	return _perching
-
-
-func get_fireflies() -> Fireflies:
-	return _fireflies
-
-
 ## the radius the cloud sea, its exclusion cylinder and the
 ## reflection probe must cover -- the bound Field's (disc-size scaled) radius,
 ## never below the largest shipped map.
@@ -1576,8 +1555,7 @@ func _disc_radius_for_ambient_life() -> float:
 
 
 ## the FogVolume's only gating -- `visible` alone, never
-## created/destroyed (see _spawn_fog_volume()'s own doc on why). Matches
-## docs/M7_ART_DIRECTION.md's performance budget: dropped from view entirely
+## created/destroyed (see _spawn_fog_volume()'s own doc on why). Dropped from view entirely
 ## on Low (config/graphics/presets/low.tres: volumetric_fog_enabled == false),
 ## present on Medium/High. A no-op when no FogVolume exists yet (`theme` was
 ## unset in _ready()) or `preset` is unset.
@@ -1585,12 +1563,6 @@ func _apply_fog_volume_visibility(preset: GraphicsPreset) -> void:
 	if _fog_volume == null or preset == null:
 		return
 	_fog_volume.visible = preset.volumetric_fog_enabled
-
-
-## Test/inspection seam: the FogVolume _spawn_fog_volume() created, or null if
-## `theme` was unset in _ready().
-func get_fog_volume() -> FogVolume:
-	return _fog_volume
 
 
 ## Weather overcast: `amount` 0..1 scales the theme's light and
@@ -1720,11 +1692,6 @@ func cloud_drift_speed_mps() -> float:
 	if live == null:
 		return 0.0
 	return absf(live.cloud_drift_speed_min_mps + live.cloud_drift_speed_max_mps) * 0.5 * _cloud_drift.speed_mult
-
-
-## the one cloud wind (puffs, sun occlusion and CloudShadows all read it).
-func cloud_drift() -> CloudDriftState:
-	return _cloud_drift
 
 
 ## Unit ground wind (x, z) the clouds currently drift along.

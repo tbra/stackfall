@@ -138,11 +138,18 @@ func _puff_centre(sea: CloudSea) -> Vector3:
 	return Vector3(sea._occ_puffs[0], sea._occ_puffs[1], sea._occ_puffs[2])
 
 
+## The visibility _process() last handed the flare shader, read off the rect's material.
+func _shown_visibility(flare: SunFlare) -> float:
+	var rect: ColorRect = flare.get_node("FlareRect") as ColorRect
+	return (rect.material as ShaderMaterial).get_shader_parameter(&"visibility") as float
+
+
 func test_flare_is_hidden_by_a_cloud_and_follows_the_cloud_strength() -> void:
 	var sea: CloudSea = _single_puff_sea()
 	var centre: Vector3 = _puff_centre(sea)
 	var sun: Vector3 = Vector3(1.0, 0.0, 0.0)
 	var flare: SunFlare = _flare_aimed(sun)
+	flare.config.cloud_occlusion_refresh_s = 0.0
 	var camera: Camera3D = await _camera_at(centre - sun * CLOUD_DISTANCE_M, sun)
 	flare._camera = camera
 	assert_eq(flare._occlusion_factor(sun), 1.0, "fixture: no physics body anywhere (puffs are not bodies)")
@@ -156,7 +163,6 @@ func test_flare_is_hidden_by_a_cloud_and_follows_the_cloud_strength() -> void:
 	flare.config.cloud_occlusion_strength = 1.0
 	var clear_camera: Camera3D = await _camera_at(centre - sun * CLOUD_DISTANCE_M + Vector3(0.0, 0.0, SIDEWAYS_M), sun)
 	flare._camera = clear_camera
-	flare.invalidate_cloud_query()
 	assert_gt(flare._compute_visibility(), 0.5, "a clear line to the sun leaves the flare visible")
 
 
@@ -165,18 +171,18 @@ func test_cloud_occlusion_fades_in_over_time_instead_of_popping() -> void:
 	var centre: Vector3 = _puff_centre(sea)
 	var sun: Vector3 = Vector3(1.0, 0.0, 0.0)
 	var flare: SunFlare = _flare_aimed(sun)
+	flare.config.cloud_occlusion_refresh_s = 0.0
 	var clear: Camera3D = await _camera_at(centre - sun * CLOUD_DISTANCE_M + Vector3(0.0, 0.0, SIDEWAYS_M), sun)
 	flare._camera = clear
 	flare._process(1.0)
-	var open_sky: float = flare.current_visibility()
+	var open_sky: float = _shown_visibility(flare)
 	assert_gt(open_sky, 0.5, "fixture: the flare settles visible in the clear")
 	var blocked: Camera3D = await _camera_at(centre - sun * CLOUD_DISTANCE_M, sun)
 	flare._camera = blocked
-	flare.invalidate_cloud_query()
 	flare._process(0.016)
-	var after_one_frame: float = flare.current_visibility()
+	var after_one_frame: float = _shown_visibility(flare)
 	assert_lt(after_one_frame, open_sky, "the cloud starts dimming the flare at once")
 	assert_gt(after_one_frame, open_sky * 0.5, "but one frame does not slam it off")
 	flare._process(2.0)
-	assert_lt(flare.current_visibility(), 0.01, "and given time it is gone behind the cloud")
+	assert_lt(_shown_visibility(flare), 0.01, "and given time it is gone behind the cloud")
 

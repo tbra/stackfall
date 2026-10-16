@@ -77,29 +77,29 @@ func test_live_theme_switch_is_stable_and_matches_the_theme() -> void:
 	assert_true(skybox.set_theme_by_id("night"))
 	await get_tree().process_frame
 	var baseline: int = _ambient_child_count(skybox)
-	var night_puffs: int = _puff_count(skybox.get_cloud_sea())
+	var night_puffs: int = _puff_count(skybox.get_node("CloudSea") as CloudSea)
 	assert_eq(night_puffs, (night.cloud_clump_count + night.cloud_bank_count) * night.cloud_puffs_per_clump
 		if Settings.current_graphics_preset() == null
-		else _puff_count(skybox.get_cloud_sea()))
+		else _puff_count(skybox.get_node("CloudSea") as CloudSea))
 	for cycle: int in range(4):
 		assert_true(skybox.set_theme_by_id("sunset"))
 		assert_eq(light.light_color, sunset.light_color)
 		assert_almost_eq(light.light_energy, sunset.light_energy, 0.0001)
 		assert_almost_eq(environment.ambient_light_energy, sunset.ambient_energy, 0.0001)
 		assert_almost_eq(environment.fog_density, sunset.fog_density, 0.000001)
-		assert_true(flare.is_theme_enabled())
+		assert_true(flare._theme_enabled)
 		assert_true(skybox.set_theme_by_id("night"))
 		assert_eq(light.light_color, night.light_color)
 		assert_almost_eq(light.light_energy, night.light_energy, 0.0001)
 		assert_almost_eq(light.rotation_degrees.x, night.light_rotation_deg.x, 0.001)
 		assert_almost_eq(environment.glow_hdr_threshold, night.glow_hdr_threshold, 0.0001)
 		assert_eq(environment.sky.sky_material, night.sky_material)
-		assert_false(flare.is_theme_enabled(), "night hides the sunset-aimed flare")
-		var fog: FogVolume = skybox.get_fog_volume()
+		assert_false(flare._theme_enabled, "night hides the sunset-aimed flare")
+		var fog: FogVolume = skybox.get_node_or_null("CloudDeck") as FogVolume
 		assert_eq(fog.size, night.cloud_deck_size_m)
 		assert_eq((fog.material as FogMaterial).albedo, night.fog_color)
 		await get_tree().process_frame
-		assert_eq(_puff_count(skybox.get_cloud_sea()), night_puffs, "same puff count each night switch")
+		assert_eq(_puff_count(skybox.get_node("CloudSea") as CloudSea), night_puffs, "same puff count each night switch")
 		assert_eq(_ambient_child_count(skybox), baseline, "no leaked or duplicated nodes")
 	assert_true(skybox.set_theme_by_id("sunset"))
 	assert_eq(environment.sky.sky_material, sunset.sky_material)
@@ -323,7 +323,7 @@ func test_the_sunset_lock_wears_exactly_the_sunset_palette() -> void:
 	assert_eq(skybox.theme.proc_horizon_color, sunset.proc_horizon_color)
 	assert_eq(skybox.theme.sky_top_color, sunset.sky_top_color)
 	_assert_day_palette(skybox, sunset, "locked Sunset")
-	var puffs: ShaderMaterial = skybox.get_cloud_sea().puff_material()
+	var puffs: ShaderMaterial = (skybox.get_node("CloudSea") as CloudSea).puff_material()
 	var night: float = _night_mix(skybox)
 	assert_lt(night, 0.01, "locked Sunset is a day sky")
 	var night_puffs: ShaderMaterial = Skybox.load_theme("night").cloud_puff_material as ShaderMaterial
@@ -373,7 +373,7 @@ func _variation_skybox(mode: MatchConfig.SkyThemeMode, rng_seed: int = VARIATION
 ## The live sky's three varying uniforms and the puff material's two, in one dictionary.
 func _look(skybox: Skybox) -> Dictionary:
 	var sky: ShaderMaterial = _live_sky(skybox)
-	var puffs: ShaderMaterial = skybox.get_cloud_sea().puff_material()
+	var puffs: ShaderMaterial = (skybox.get_node("CloudSea") as CloudSea).puff_material()
 	return {
 		"exposure": float(sky.get_shader_parameter(&"exposure")),
 		"cloud_coverage": float(sky.get_shader_parameter(&"cloud_coverage")),

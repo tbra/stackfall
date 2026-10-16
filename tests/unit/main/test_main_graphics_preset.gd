@@ -74,10 +74,12 @@ func test_high_preset_keeps_msaa_and_ssr_and_volumetric_fog() -> void:
 
 func test_preset_change_reconfigures_the_reflection_probe() -> void:
 	var skybox: Skybox = _main.get_node("Skybox") as Skybox
+	var probe: ReflectionProbe = skybox.get_node(skybox.reflection_probe_path) as ReflectionProbe
 	Settings.set_graphics_preset(&"low")
-	assert_eq(skybox.probe_mode(), GraphicsPreset.ReflectionProbeMode.OFF)
+	assert_false(probe.visible, "low preset switches the reflection probe off")
 	Settings.set_graphics_preset(&"high")
-	assert_eq(skybox.probe_mode(), GraphicsPreset.ReflectionProbeMode.INTERVAL)
+	assert_true(probe.visible, "high preset turns the reflection probe back on")
+	assert_eq(probe.update_mode, ReflectionProbe.UPDATE_ONCE, "interval mode re-captures in place, not every frame")
 
 
 ## drops the main menu so no MenuBackdrop holds the menu budget.

@@ -156,12 +156,12 @@ func test_birds_are_sunset_only_and_fireflies_night_only() -> void:
 	assert_not_null(sunset.ambient_life)
 	assert_not_null(night.ambient_life)
 	skybox.apply_theme(sunset)
-	assert_true(skybox.get_perching_birds().visible)
-	assert_null(skybox.get_fireflies().mote_instance())
+	assert_true((skybox.get_node("PerchingBirds") as PerchingBirds).visible)
+	assert_null(skybox.get_node("Fireflies").get_node_or_null("Motes"))
 	skybox.apply_theme(night)
-	assert_false(skybox.get_perching_birds().visible)
-	assert_not_null(skybox.get_fireflies().mote_instance())
-	assert_eq(skybox.get_fireflies().mote_instance().multimesh.instance_count, night.ambient_life.fireflies_count)
+	assert_false((skybox.get_node("PerchingBirds") as PerchingBirds).visible)
+	assert_not_null(skybox.get_node("Fireflies").get_node_or_null("Motes"))
+	assert_eq((skybox.get_node("Fireflies").get_node_or_null("Motes") as MultiMeshInstance3D).multimesh.instance_count, night.ambient_life.fireflies_count)
 
 
 func test_freed_block_never_reaches_typed_calls_during_polls() -> void:

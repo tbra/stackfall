@@ -51,7 +51,7 @@ func test_shadows_use_the_same_drift_vector_as_the_clouds() -> void:
 	add_child_autofree(skybox)
 	var wind: Vector2 = Vector2.from_angle(deg_to_rad(200.0))
 	skybox.set_cloud_storm_wind(wind)
-	var config: CloudDriftConfig = skybox.cloud_drift().config
+	var config: CloudDriftConfig = _config()
 	skybox.set_storm_sky(1.0, Skybox.load_theme("storm"))
 	for i: int in range(SETTLE_STEPS):
 		skybox._step_cloud_drift(STEP_S)
@@ -72,5 +72,7 @@ func test_shadows_use_the_same_drift_vector_as_the_clouds() -> void:
 	assert_gt(ground.dot(wind), 0.999, "shadows sweep along the clouds' wind, not the config heading")
 	assert_eq(shadows._wind, skybox.cloud_wind_dir(), "the node took the skybox's drift heading")
 	# The puffs read the same integral the skybox accumulated.
-	assert_gt(skybox.cloud_drift().offset.normalized().dot(wind), 0.0, "the shared integral points downwind")
+	var puffs: ShaderMaterial = (skybox.get_node("CloudSea") as CloudSea).puff_material()
+	var offset: Vector2 = puffs.get_shader_parameter(CloudSea.DRIFT_OFFSET_PARAMETER) as Vector2
+	assert_gt(offset.normalized().dot(wind), 0.0, "the shared integral points downwind")
 

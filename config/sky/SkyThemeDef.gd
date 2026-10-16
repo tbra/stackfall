@@ -122,14 +122,7 @@ extends Resource
 ## textured six-face set is loaded (game/sky/Skybox.gd's `fallback_active == true`
 ## -- see Skybox.apply_theme()).
 ##
-## M7 P3 ships exactly one instance,
-## config/sky/themes/sunset.tres, tuned against docs/art_mockups/
-## 04-sunset-signal.png and 07-sunset-signal-cel-shaded.png. M8 follow-up
-## do not build now: dawn/storm/night
-## instances, plus a theme-selection row in ui/debug/TuningPanel.gd (parallel to its
-## existing Skybox six-face-set dropdown, `_build_skybox_row()`) once there is
-## more than one instance for the owner to choose between -- a single theme
-## needs no picker of its own.
+## Instances live in config/sky/themes/.
 
 ## ProceduralSkyMaterial.sky_top_color / sky_horizon_color -- the upper
 ## hemisphere's zenith and near-horizon colour.

@@ -4,6 +4,8 @@ extends GutTest
 ## per slot, birds parked between flights).
 
 const SUNSET_PATH: String = "res://config/sky/themes/sunset.tres"
+## Upper bound on a flight's length in 1 s steps; a flock that never lands trips it.
+const MAX_FLIGHT_STEPS: int = 600
 
 
 func _theme() -> SkyThemeDef:
@@ -46,6 +48,20 @@ func test_flight_crosses_the_sky_past_the_disc() -> void:
 		assert_lt(nearest, theme.bird_distance_max_m + 20.0, "and passes through the sky it was asked for")
 
 
+## The flight clock the shader reads. The node only advances it while a flock is in the air, so
+## it moves exactly when something is flying and holds still while the sky is quiet.
+func _flight_clock(birds: DistantBirds) -> float:
+	var flocks: MultiMeshInstance3D = birds.get_node("Flocks") as MultiMeshInstance3D
+	return (flocks.material_override as ShaderMaterial).get_shader_parameter(DistantBirds.CLOCK_PARAMETER) as float
+
+
+## True when advancing `seconds` moved the flight clock, i.e. a flock was flying during it.
+func _flocks_fly_during(birds: DistantBirds, seconds: float) -> bool:
+	var before: float = _flight_clock(birds)
+	birds.advance(seconds)
+	return not is_equal_approx(_flight_clock(birds), before)
+
+
 func test_scheduler_launches_flies_and_goes_quiet_again() -> void:
 	var theme: SkyThemeDef = _theme().duplicate() as SkyThemeDef
 	theme.bird_seed = 5
@@ -56,22 +72,11 @@ func test_scheduler_launches_flies_and_goes_quiet_again() -> void:
 	var birds: DistantBirds = DistantBirds.new()
 	add_child_autofree(birds)
 	birds.configure(theme, true)
-	assert_eq(birds.active_flock_count(), 0)
-	birds.advance(4.0)
-	assert_eq(birds.active_flock_count(), 0, "quiet before the first delay")
-	birds.advance(1.5)
-	assert_eq(birds.active_flock_count(), theme.bird_flock_count, "each slot launches once its delay is up")
-	var flight: FlockPlanner.Flight = birds.flight_of(0)
-	assert_not_null(flight)
-	assert_gte(birds.birds_in_slot(0), 1)
-	assert_lte(birds.birds_in_slot(0), theme.bird_flock_size_max)
-	var longest: float = 0.0
-	for slot: int in range(birds.slot_count()):
-		longest = maxf(longest, birds.flight_of(slot).duration_s)
-	birds.advance(longest + 1.0)
-	assert_eq(birds.active_flock_count(), 0, "flocks leave and the sky goes quiet")
-	birds.advance(60.0)
-	assert_eq(birds.active_flock_count(), 0, "still inside the long gap")
-	birds.advance(60.0)
-	assert_gt(birds.active_flock_count(), 0, "another flock arrives after the gap")
-
+	assert_false(_flocks_fly_during(birds, 4.0), "quiet before the first delay")
+	assert_true(_flocks_fly_during(birds, 1.5), "flocks launch once the first delay is up")
+	var steps: int = 0
+	while _flocks_fly_during(birds, 1.0) and steps < MAX_FLIGHT_STEPS:
+		steps += 1
+	assert_lt(steps, MAX_FLIGHT_STEPS, "every flock lands and the sky goes quiet")
+	assert_false(_flocks_fly_during(birds, 60.0), "still quiet inside the long gap")
+	assert_true(_flocks_fly_during(birds, 60.0), "another flock arrives after the gap")

@@ -51,8 +51,6 @@ class _Slot:
 	var timer_s: float = 0.0
 	var end_clock: float = 0.0
 	var flying: bool = false
-	var birds: int = 0
-	var flight: FlockPlanner.Flight = null
 
 var _instance: MultiMeshInstance3D = null
 var _material: ShaderMaterial = null
@@ -162,8 +160,6 @@ func _launch(slot: _Slot) -> void:
 			_clock, _rng.randf(), flight.size_m * _rng.randf_range(0.92, 1.08),
 			_rng.randf_range(FLAP_RATE_MIN, FLAP_RATE_MAX)))
 	slot.flying = true
-	slot.birds = count
-	slot.flight = flight
 	slot.end_clock = _clock + flight.duration_s
 
 
@@ -171,8 +167,6 @@ func _finish(slot: _Slot) -> void:
 	for bird: int in range(_per_slot):
 		_park(_instance.multimesh, slot.first_index + bird)
 	slot.flying = false
-	slot.birds = 0
-	slot.flight = null
 	slot.timer_s = _rng.randf_range(_theme.bird_gap_min_s, maxf(_theme.bird_gap_max_s, _theme.bird_gap_min_s))
 
 
@@ -254,30 +248,3 @@ static func _add_quad(indices: PackedInt32Array, a: int, b: int, c: int, d: int)
 func refresh_weather_fog() -> void:
 	if _instance != null:
 		WeatherFogShader.apply(_instance.material_override as ShaderMaterial)
-
-
-func flock_instance() -> MultiMeshInstance3D:
-	return _instance
-
-
-func slot_count() -> int:
-	return _slots.size()
-
-
-## Flocks currently in flight.
-func active_flock_count() -> int:
-	var count: int = 0
-	for slot: _Slot in _slots:
-		if slot.flying:
-			count += 1
-	return count
-
-
-## Birds in slot `index`'s current flight (0 when it is quiet).
-func birds_in_slot(index: int) -> int:
-	return _slots[index].birds if index >= 0 and index < _slots.size() else 0
-
-
-## Slot `index`'s current flight, or null.
-func flight_of(index: int) -> FlockPlanner.Flight:
-	return _slots[index].flight if index >= 0 and index < _slots.size() else null
