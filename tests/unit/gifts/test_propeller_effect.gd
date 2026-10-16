@@ -98,7 +98,10 @@ func test_detonate_spawns_one_host_stand_with_no_carrier_in_the_registry() -> vo
 	effect.detonate(anchor, null, 0)
 	var stands: Array[Node] = field.find_children("*", "PropellerStand", true, false)
 	assert_eq(stands.size(), 1)
-	assert_true((stands[0] as PropellerStand).has_force(), "the host stand runs the blow")
+	var stand: PropellerStand = stands[0] as PropellerStand
+	stand.bind_to_match = false  # no live match in this unit test
+	stand.tick(0.1)
+	assert_eq(field.call_count, 1, "the host stand runs the blow")
 	assert_eq(_registry.tracked_block_count(), 0, "no carrier registered")
 	assert_eq(_blocks_root.get_child_count(), 0, "no carrier in the blocks root")
 

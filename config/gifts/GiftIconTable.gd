@@ -9,7 +9,7 @@ extends Resource
 
 const TABLE_PATH: String = "res://config/gifts/gift_icon_table.tres"
 
-## 4x4 gift atlas and its exact-id regions (assets/ui/gift_pictograms/regions.json).
+## 4x4 gift atlas and its exact-id regions (`gift_regions`, rects in the atlas).
 @export var gift_atlas: Texture2D = null
 @export var gift_regions: Dictionary = {}
 

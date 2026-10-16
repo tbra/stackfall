@@ -116,14 +116,17 @@ func test_propeller_rises_out_of_the_disc_at_the_drop_point_without_a_carrier() 
 	assert_not_null(stand, "the stand is spawned on the host at release")
 	if stand == null:
 		return
-	assert_true(stand.has_force(), "the host stand runs the disc blow")
 	var effect: PropellerEffect = SpecialDef.find_by_id(&"propeller").effect as PropellerEffect
 	var home: Vector2 = Match.slot(0).home_position
 	assert_lt(_field.disk_local_from_world(stand.global_position).distance_to(home), DROP_POINT_TOLERANCE_M, "at the drop point")
-	assert_lt(stand.visual().position.y, 0.0, "starts below the surface")
+	var visual: Node3D = stand.get_child(0) as Node3D
+	assert_not_null(visual, "the gift model is the stand's child")
+	if visual == null:
+		return
+	assert_lt(visual.position.y, 0.0, "starts below the surface")
 	stand.tick(effect.emerge_s)
-	assert_almost_eq(stand.visual().position.y, effect.emerge_height_m, HEIGHT_EPSILON_M, "risen to the emerge height")
-	assert_gt(stand.visual().get_child_count(), 0, "the gift model is built")
+	assert_almost_eq(visual.position.y, effect.emerge_height_m, HEIGHT_EPSILON_M, "risen to the emerge height")
+	assert_gt(visual.get_child_count(), 0, "the gift model is built")
 
 
 func test_black_hole_opens_up_underneath_the_drop_point_without_a_carrier() -> void:

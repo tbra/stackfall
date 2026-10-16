@@ -21,10 +21,6 @@ func configure(effect: BlackHoleEffect, exclude: Array[RID]) -> void:
 	_exclude = exclude
 
 
-func age() -> float:
-	return _age
-
-
 ## DECISION: the pull and capture reach grow with the visual (same
 ## curve, BlackHoleVisual.scale_at) so what you see is what pulls. The field's own age
 ## starts at the trigger; clients draw the visual from the same replicated trigger event.

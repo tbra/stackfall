@@ -69,14 +69,6 @@ func _ready() -> void:
 	_apply_height()
 
 
-func has_force() -> bool:
-	return _physics
-
-
-func visual() -> Node3D:
-	return _visual
-
-
 func is_expired() -> bool:
 	return _effect == null or _age >= _effect.disc_force.duration_s
 

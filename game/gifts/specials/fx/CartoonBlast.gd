@@ -80,10 +80,6 @@ func advance(delta: float) -> bool:
 	return _age_s < tuning.duration_s
 
 
-func puff_count() -> int:
-	return _puffs.size()
-
-
 func _process(delta: float) -> void:
 	if not advance(delta):
 		queue_free()
