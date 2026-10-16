@@ -5,8 +5,15 @@ const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
 const TOPPLE_PRESET_PATH: String = "res://config/match/sandbox_tower_topple.tres"
 const TEST_FIELD_RADIUS_M: float = 20.0
 const SETTLE_TICKS: int = 120
-## A standing tower may settle a hair; anything beyond this is a scatter.
+## Pre-placed blocks start asleep and exactly touching: the first ticks are a solver
+## transient (the stack compresses, overshoots and re-sleeps, ~30 ticks) whose size
+## varies a little run to run and under CPU load. The "stands" window starts after it.
+const WARMUP_TICKS: int = 60
+## Once warmed up, a standing tower does not move at all beyond a hair.
 const MAX_MOVE_M: float = 0.05
+## The transient may compress a tall stack by a couple of centimetres but never by
+## anything near a cube (edge ~1 m): that would be a collapse, not a settle.
+const MAX_SAG_FROM_BUILT_M: float = 0.25
 ## Boxes closer than (edge - this) on every axis count as interpenetrating.
 const OVERLAP_EPSILON_M: float = 0.02
 ## Clearance a block centre must keep from a beacon axis beyond the beacon's
@@ -74,9 +81,18 @@ func _assert_clear_of_beacons_and_each_other(blocks: Array[RigidBody3D]) -> void
 
 
 func _assert_towers_stand(blocks: Array[RigidBody3D]) -> void:
-	var before: Array[Vector3] = []
+	var built: Array[Vector3] = []
 	for block: RigidBody3D in blocks:
-		before.append(block.global_position)
+		built.append(block.global_position)
+	for _tick: int in range(WARMUP_TICKS):
+		await get_tree().physics_frame
+	var before: Array[Vector3] = []
+	var worst_sag: float = 0.0
+	for i: int in range(blocks.size()):
+		assert_true(is_instance_valid(blocks[i]), "block %d survives the settle" % i)
+		before.append(blocks[i].global_position)
+		worst_sag = maxf(worst_sag, blocks[i].global_position.distance_to(built[i]))
+	assert_lt(worst_sag, MAX_SAG_FROM_BUILT_M, "no block left its built spot by anything near a cube (no collapse)")
 	for _tick: int in range(SETTLE_TICKS):
 		await get_tree().physics_frame
 	var worst: float = 0.0
