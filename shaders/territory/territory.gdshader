@@ -494,7 +494,7 @@ float aa_stripes(float phase) {
 	return mix(stripes, 0.5, smoothstep(0.25, 0.5, fwidth(phase)));
 }
 
-// -- Bontago-part 2: cheap hash-based value noise for the top-surface
+// -- Part 2: cheap hash-based value noise for the top-surface
 // brushed/plank grain (see top_grain_* uniforms' own header comment). No
 // texture sampling: a single sin()/fract() hash plus a smoothstep-
 // interpolated lerp between two integer cells, same "cheap hash noise"
@@ -791,7 +791,7 @@ void fragment() {
 	// so this block only ever touches NORMAL/ROUGHNESS, run before the mirror
 	// fresnel and disk_sheen blocks below so both read the grained NORMAL.
 	//
-	// DECISION (shaders/territory/territory.gdshader, Bontago-part 2): builds its
+	// DECISION (shaders/territory/territory.gdshader, part 2): builds its
 	// own in-plane basis from MODEL_MATRIX/VIEW_MATRIX instead of the mesh's
 	// own TANGENT/BINORMAL -- this disc's CylinderMesh top cap's own
 	// generated UV/tangent direction is an implementation detail of Godot's
@@ -952,7 +952,7 @@ void fragment() {
 	SPECULAR = disk_specular;
 	AO = disk_ambient_scale;
 	AO_LIGHT_AFFECT = 0.0;
-	// Bontago-part 2: grain_h0 (the same coarse+fine grain height the
+	// Part 2: grain_h0 (the same coarse+fine grain height the
 	// NORMAL perturbation above used, in [-0.5, 0.5]) also nudges ROUGHNESS a
 	// little -- a purely additive, sign-symmetric variation so the grain
 	// reads as fine streaks in the reflection's sharpness, not a visible

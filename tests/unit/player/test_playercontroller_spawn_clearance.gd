@@ -42,7 +42,7 @@ func before_each() -> void:
 func after_each() -> void:
 	Match.abort_match()
 	Match.set_process(true)
-	# Bontago-integ (combined-run regression): before_each()'s own
+	# Combined-run regression: before_each()'s own
 	# _field is autofree()'d at the end of this test, but Match._field is a
 	# plain autoload var nothing else resets (same DECISION as
 	# test_jumping_bean_effect.gd:251) -- left alone, the next script in a

@@ -27,7 +27,12 @@ from typing import List, Tuple
 ALLOW_MARK = "lint-public: allow"
 CODE_EXTS = (".gd", ".gdshader", ".gdshaderinc", ".py", ".ps1")
 
-BEAD_ID = r"Bontago-(?!123\b)[a-z0-9]{3}(?:\.\d+)*\b"
+# DECISION: ids are two or three lowercase characters (older ids and "pt-4" style prefixes are two) plus
+# optional .N children; the scrub also left word fragments, listed by name because a generic word match
+# would hit the folder names Bontago-tools and Bontago-worktrees. Placeholders pass by pattern: Bontago-123,
+# Bontago-id and single characters; a genuine fixture line uses the allow marker instead.
+BEAD_ID = (r"Bontago-(?!(?:123|id)(?![a-z0-9]))(?:[a-z0-9]{2,3}(?![a-z0-9])(?:\.\d+)*"
+           r"|(?:part|integ|rename)(?![a-z0-9]))")
 DATE = r"\b20\d\d-\d\d-\d\d\b"
 # Only the person sense of the word is provenance: a parenthesised note that starts with it,
 # the word followed by one of OWNER_TAG_WORDS, or the word next to a verb of asking or

@@ -497,7 +497,7 @@ func _follow_held_piece() -> void:
 		_camera_rig.set_follow_position(_camera_follow_anchor())
 
 
-## Bontago-pt-4 ("Camera always jumps up after block drops or
+## Camera-jump regression ("Camera always jumps up after block drops or
 ## when clicking the drop button", coordinator follow-up: easing over
 ## CameraTuning.drop_recover_seconds still visibly moved the camera up on
 ## every new piece). ROOT CAUSE: GhostPreview.rotated_center_world()'s own Y

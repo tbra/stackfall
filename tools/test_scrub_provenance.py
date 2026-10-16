@@ -22,6 +22,15 @@ class RulesTest(unittest.TestCase):
         self.assertEqual(self.issues("a.md", "see Bontago-1pi.209 and Bontago-uwq")[0][0], "bead-id")  # lint-public: allow fixture
         self.assertEqual(self.issues("a.md", "Bontago-123 Bontago-<id> Bontago-ID Bontago-tools"), [])
 
+    def test_bead_id_widening(self):
+        bads = ("Bontago-pt-4 x", "Bontago-pt.12 x", "Bontago-ab x")  # lint-public: allow fixture
+        bads += ("Bontago-part 2", "Bontago-integ x", "Bontago-rename x")  # lint-public: allow fixture
+        for bad in bads:
+            self.assertEqual(self.issues("a.md", bad)[0][0], "bead-id", bad)
+        for ok in ("Bontago-1 Bontago-2 Bontago-9", "Bontago-id", "Bontago-123.4", "Bontago-tools", "Bontago-worktrees",
+                   "Bontago-aaaa.1"):
+            self.assertEqual(self.issues("a.md", ok), [], ok)
+
     def test_dates_functional_exceptions(self):
         self.assertEqual(self.issues("a.md", "on 2026-10-15 we")[0][0], "date")  # lint-public: allow fixture
         self.assertEqual(self.issues("a.md", "(expires 2026-10-15)"), [])
