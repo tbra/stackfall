@@ -67,7 +67,7 @@ func test_table_has_every_phase_row_numbers_and_highlight() -> void:
 		var base: int = (i + 1) * PerfBotCostOverlay.COLUMN_COUNT
 		assert_eq(cells[base].text, BotThinkCostReport.PHASE_NAMES[i])
 		var hot: bool = BotThinkCostReport.PHASE_NAMES[i] == "PROBE"
-		assert_eq(cells[base + 1].get_theme_color(&"font_color") == _overlay.hot_color(), hot, "highlight only PROBE (row %d)" % i)
+		assert_eq(cells[base + 1].get_theme_color(&"font_color") == _overlay.config.overlay_warn_color(), hot, "highlight only PROBE (row %d)" % i)
 	var probe_base: int = (BotThink.Phase.PROBE + 1) * PerfBotCostOverlay.COLUMN_COUNT
 	assert_eq(cells[probe_base + 1].text, "%.1f" % probe["mean_us"])
 	assert_eq(cells[probe_base + 1].text, "600.0")

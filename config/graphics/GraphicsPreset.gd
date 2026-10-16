@@ -8,9 +8,9 @@ extends Resource
 ##
 ## SSIL intentionally absent -- that render feature doesn't exist yet (a
 ## later M7 package adds it); a preset that named it today would be a promise
-## this milestone cannot keep. volumetric_fog_enabled below is the owner's M7
-## art-direction performance budget (docs/M7_ART_DIRECTION.md §3): Low drops the cloud-deck
-## FogVolume P3 adds to the field; Medium/High keep it.
+## this milestone cannot keep. volumetric_fog_enabled below is a
+## performance budget: Low drops the cloud-deck
+## FogVolume on the field; Medium/High keep it.
 
 @export var id: StringName
 @export var ssr_enabled: bool = true
@@ -93,7 +93,7 @@ enum FrameCap { DISPLAY_REFRESH, FIXED, UNCAPPED }
 @export_range(0.1, 10.0) var screen_check_interval_s: float = 1.0
 
 ## the fields below are all-default on every shipped preset; only
-## the adaptive quality governor (core/QualityGovernor.gd) lowers them, on a duplicate
+## the adaptive quality governor (core/perf/QualityGovernor.gd) lowers them, on a duplicate
 ## handed out by Settings.current_graphics_preset(). The stored .tres never changes.
 ## Multiplies the block-effect burst caps and particle amounts (1 = unchanged).
 @export_range(0.0, 1.0) var particle_budget_scale: float = 1.0

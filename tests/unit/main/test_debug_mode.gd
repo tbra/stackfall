@@ -57,7 +57,7 @@ func test_f3_f4_and_f1_ignored_when_debug_off() -> void:
 	assert_false(tuning.visible, "F4 ignored")
 	var overlay: PerfOverlay = _make_overlay()
 	overlay._unhandled_input(_key_press(KEY_F1))
-	assert_eq(overlay.mode(), PerfOverlay.Mode.HIDDEN, "F1 ignored")
+	assert_false(_overlay_panel(overlay).visible, "F1 ignored")
 
 	DebugMode.set_override_for_test(true)
 	net_overlay._unhandled_input(_key_press(KEY_F3))
@@ -94,6 +94,11 @@ func _make_overlay() -> PerfOverlay:
 	return overlay
 
 
+## The overlay's panel is its only child; it is visible exactly while the overlay is not HIDDEN.
+func _overlay_panel(overlay: PerfOverlay) -> PanelContainer:
+	return overlay.get_child(0) as PanelContainer
+
+
 func test_overlay_pad_press_needs_back_chord() -> void:
 	DebugMode.set_override_for_test(true)
 	var overlay: PerfOverlay = _make_overlay()
@@ -102,11 +107,11 @@ func test_overlay_pad_press_needs_back_chord() -> void:
 	pad.button_index = JOY_BUTTON_RIGHT_STICK
 	pad.pressed = true
 	overlay._unhandled_input(pad)
-	assert_eq(overlay.mode(), PerfOverlay.Mode.HIDDEN, "stick click alone does nothing")
+	assert_false(_overlay_panel(overlay).visible, "stick click alone does nothing")
 	Input.action_press(&"camera_snap_home")
 	overlay._unhandled_input(pad)
 	Input.action_release(&"camera_snap_home")
-	assert_eq(overlay.mode(), PerfOverlay.Mode.BASIC)
+	assert_true(_overlay_panel(overlay).visible)
 
 
 func _make_logger(sampler: PerfSampler) -> PerfLogger:

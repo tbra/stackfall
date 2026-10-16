@@ -12,7 +12,7 @@ const TICKS_BETWEEN_PLACEMENTS: int = 30
 ## DECISION: pin the shared physics_tuning.tres instance to its
 ## on-disk values for this test. Sharded gate processes share user://, and
 ## test_tuning_panel writes user://tuning_overrides.cfg (gravity +0.6 etc.)
-## while another shard's Main boot (TuningPanel.apply_saved_overrides) can read
+## while another shard's Main boot (TuningOverrides.apply_saved) can read
 ## it into the process-wide tuning singleton; a stronger-gravity tower is a
 ## plausible, load-timing-dependent failure of this test. Restored in after_all.
 var _saved_tuning_values: Dictionary = {}

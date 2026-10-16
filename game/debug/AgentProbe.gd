@@ -5,7 +5,7 @@ extends RefCounted
 ## focus, muted, and the mouse is never captured. Pure static
 ## helpers; Settings._ready() calls apply() once at startup.
 ##   godot --windowed --position 10000,10000 --resolution 320x180 --audio-driver Dummy \
-##     --path . res://tools/x.tscn -- --agent-probe [--render-size=1920x1080]
+##     --path . res://tools/shot.tscn -- --agent-probe [--render-size=1920x1080]
 
 const FLAG: String = "--agent-probe"
 const RENDER_SIZE_PREFIX: String = "--render-size="
@@ -32,7 +32,6 @@ const FREE_PORT_TRIES: int = 50
 ## make_render_viewport() instead of a big window.
 const WINDOW_SIZE: Vector2i = Vector2i(320, 180)
 
-static var _forced: int = -1  # test seam: -1 = detect, 0 = off, 1 = on
 static var _cached: int = -1
 static var _first_frame_ms: int = MENU_MISSING_MS
 static var _startup_done: bool = false
@@ -52,15 +51,9 @@ static func detect(cmdline_args: PackedStringArray, user_args: PackedStringArray
 
 
 static func is_active() -> bool:
-	if _forced >= 0:
-		return _forced == 1
 	if _cached < 0:
 		_cached = 1 if detect(OS.get_cmdline_args(), OS.get_cmdline_user_args()) else 0
 	return _cached == 1
-
-
-static func set_forced_for_test(state: int) -> void:
-	_forced = state
 
 
 ## Parses `--render-size=WxH` from the user args; (0, 0) when absent/invalid.
@@ -150,9 +143,14 @@ static func _finish_startup(menu_ms: int, exit_code: int) -> void:
 
 ## Mouse-capture gate: sets the mode unless probe mode forbids capture.
 static func set_mouse_mode(mode: Input.MouseMode) -> void:
-	if is_active() and mode != Input.MOUSE_MODE_VISIBLE:
-		mode = Input.MOUSE_MODE_VISIBLE
-	Input.mouse_mode = mode
+	Input.mouse_mode = mouse_mode_for(mode, is_active())
+
+
+## Pure gate behind set_mouse_mode(): probe mode never captures or confines the mouse.
+static func mouse_mode_for(mode: Input.MouseMode, probe_active: bool) -> Input.MouseMode:
+	if probe_active and mode != Input.MOUSE_MODE_VISIBLE:
+		return Input.MOUSE_MODE_VISIBLE
+	return mode
 
 
 ## A SubViewport of the --render-size (or fallback) attached to `parent`, so a
@@ -177,7 +175,7 @@ static func make_viewport(parent: Node, size: Vector2i) -> SubViewport:
 
 
 # --- Capture setup hooks (tools/shot.gd) ---------------------------------------------------------
-# Debug-only: every hook is a no-op returning false unless probe mode is active, and reaches the game
+# Called only by the capture tool, which always runs in probe mode; each hook reaches the game
 # through Object.get/set so this autoload-reachable file never pulls the camera, sky or menu graph in.
 
 const CAM_YAW_INDEX: int = 0
@@ -190,7 +188,7 @@ const CAM_POSE_TARGET_PARTS: int = 6
 ## Presses and releases an Input Map action inside `viewport` (the overlays listen for
 ## InputEventAction.is_action_pressed in _unhandled_input).
 static func press_action(viewport: Viewport, action: StringName) -> bool:
-	if not is_active() or not InputMap.has_action(action):
+	if not InputMap.has_action(action):
 		return false
 	for pressed: bool in [true, false]:
 		var event: InputEventAction = InputEventAction.new()
@@ -203,7 +201,7 @@ static func press_action(viewport: Viewport, action: StringName) -> bool:
 ## Puts Main's camera rig on a pose: yaw, pitch (degrees), orbit distance (m) and an optional target
 ## x,y,z (6 values). Re-call it every frame while settling; the rig eases back otherwise.
 static func apply_camera_pose(main: Node, pose: PackedFloat32Array) -> bool:
-	if not is_active() or (pose.size() != CAM_POSE_PARTS and pose.size() != CAM_POSE_TARGET_PARTS):
+	if pose.size() != CAM_POSE_PARTS and pose.size() != CAM_POSE_TARGET_PARTS:
 		return false
 	var rig: Object = main.get("_camera_rig") as Object
 	if rig == null:
@@ -219,8 +217,6 @@ static func apply_camera_pose(main: Node, pose: PackedFloat32Array) -> bool:
 ## Main's skybox: an optional theme id ("" keeps the current one) and an optional cycle phase in
 ## [0, 1) (negative keeps the running clock). False when the sky is missing or the theme unknown.
 static func apply_sky(main: Node, theme_id: String, phase: float) -> bool:
-	if not is_active():
-		return false
 	var skybox: Object = main.get("_skybox") as Object
 	if skybox == null:
 		return false

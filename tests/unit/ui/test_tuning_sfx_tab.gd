@@ -25,8 +25,16 @@ func after_each() -> void:
 
 
 func _option(prop_name: String) -> OptionButton:
-	var holder: Control = _panel.control_for(_panel.audio_config, prop_name)
+	var holder: Control = _row(_panel.audio_config, prop_name).get("control") as Control
 	return holder.get_node("SfxOption") as OptionButton if holder != null else null
+
+
+## The panel's row for one field ({} if none).
+func _row(resource: Resource, prop_name: String) -> Dictionary:
+	for row: Dictionary in _panel._rows:
+		if row.get("resource") == resource and row.get("property") == prop_name:
+			return row
+	return {}
 
 
 func _texts(option: OptionButton) -> PackedStringArray:
@@ -46,7 +54,7 @@ func _pick(option: OptionButton, filename: String) -> void:
 func test_picking_a_file_changes_what_the_next_drop_event_plays() -> void:
 	_pick(_option("drop_file"), PICKED_DROP)
 	assert_eq(Sfx.config.drop_file, PICKED_DROP)
-	assert_true(_panel.is_modified(Sfx.config, "drop_file"), "modified marker")
+	assert_true((_row(Sfx.config, "drop_file")["name_label"] as Label).text.begins_with(TuningPanel.MODIFIED_MARKER), "modified marker")
 	assert_same(Sfx._pick_stream(AudioConfig.EVENT_DROP), Sfx._load_stream(PICKED_DROP), "next drop resolves the picked stream")
 
 
@@ -54,7 +62,7 @@ func test_save_reload_and_reset_round_trip() -> void:
 	_pick(_option("drop_file"), PICKED_DROP)
 	assert_eq(_panel.save_overrides(), OK)
 	Sfx.config.drop_file = SHIPPED_DROP
-	TuningPanel.apply_saved_overrides()
+	TuningOverrides.apply_saved()
 	assert_eq(Sfx.config.drop_file, PICKED_DROP, "saved pick is restored")
 	_panel.reset_all()
 	assert_eq(Sfx.config.drop_file, SHIPPED_DROP, "reset restores the shipped value")
@@ -63,7 +71,10 @@ func test_save_reload_and_reset_round_trip() -> void:
 
 
 func test_no_music_field_has_a_row() -> void:
-	var shown: Array[String] = _panel.shown_fields_for(_panel.audio_config)
+	var shown: Array[String] = []
+	for row: Dictionary in _panel._rows:
+		if row.get("resource") == _panel.audio_config:
+			shown.append(String(row["property"]))
 	assert_gt(shown.size(), 5, "several effect fields")
 	for prop_name: String in shown:
 		assert_false(prop_name.begins_with("music_"), prop_name)

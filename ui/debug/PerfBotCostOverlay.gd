@@ -207,10 +207,6 @@ func grid_cells() -> Array[Label]:
 	return out
 
 
-func hot_color() -> Color:
-	return _hot_color
-
-
 func _fill_grid(rows: Array[Dictionary]) -> void:
 	var needed: int = (rows.size() + 1) * COLUMN_COUNT
 	var cells: Array[Label] = grid_cells()

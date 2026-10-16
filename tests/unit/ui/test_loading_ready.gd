@@ -51,7 +51,6 @@ func after_each() -> void:
 			wire_net.set_providers(null, null)
 	_wire_nets.clear()
 	Match.set_replicator(null)
-	AgentProbe.set_forced_for_test(-1)
 	Settings._input(InputEventKey.new())
 	Events.loading_ready_changed.disconnect(_on_changed)
 	Events.loading_gate_opened.disconnect(_on_opened)

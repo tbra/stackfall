@@ -1,7 +1,7 @@
 class_name QualityGovernorConfig
 extends Resource
 ## tunables of the opt-in adaptive quality governor
-## (core/QualityGovernor.gd, game/debug/QualityGovernorDriver.gd). Defaults live in
+## (core/perf/QualityGovernor.gd, game/debug/QualityGovernorDriver.gd). Defaults live in
 ## config/graphics/quality_governor.tres.
 
 ## Seconds between governor evaluations (the driver only accumulates frame time in between).

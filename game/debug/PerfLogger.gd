@@ -25,7 +25,6 @@ var auto_open: bool = true
 var _file: FileAccess = null
 var _since_log_s: float = 0.0
 var _rows_since_flush: int = 0
-var _rows_written: int = 0
 
 
 func _ready() -> void:
@@ -55,10 +54,6 @@ func _process(delta: float) -> void:
 
 func _exit_tree() -> void:
 	close_log()
-
-
-func rows_written() -> int:
-	return _rows_written
 
 
 ## Creates the session file (and log dir), prunes old logs and prints the path.
@@ -91,7 +86,6 @@ func write_row(m: Dictionary) -> void:
 	for column: String in COLUMNS:
 		cells.append(format_cell(m.get(column, "")))
 	_file.store_line(",".join(cells))
-	_rows_written += 1
 	_rows_since_flush += 1
 	if _rows_since_flush >= config.log_flush_every_rows:
 		_file.flush()

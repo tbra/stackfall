@@ -88,7 +88,7 @@ extends CanvasLayer
 ## edit still takes effect for anything built from here on (see
 ## _on_field_changed()'s own comment on this). DECISION: these
 ## five resources are likewise not added to reset_all()/save_overrides()/
-## build_copy_text()/apply_saved_overrides() below -- the brief asked only for
+## build_copy_text()/TuningOverrides.apply_saved() below -- the brief asked only for
 ## the tabs, the (for Sky) live-apply hook, and the three named tests; wiring
 ## Reset/Save/Copy for them is a reasonable small follow-up, not done here.
 ##
@@ -336,7 +336,7 @@ func _ready() -> void:
 	# here. rebuild() builds it on first open (or on an explicit call, which
 	# tests use) and _free_ui() frees it again on close, so a hidden panel
 	# costs no nodes. Saved overrides apply via the static
-	# apply_saved_overrides() at boot and never needed this UI.
+	# TuningOverrides.apply_saved() at boot and never needed this UI.
 	# the Sky tab's sliders edit whichever theme is active.
 	var boot_theme: SkyThemeDef = Skybox.load_theme(skybox_config.theme_name)
 	if boot_theme != null:
@@ -346,7 +346,7 @@ func _ready() -> void:
 
 # --- Wiring (game/main/Main.gd / HotSeat.gd / Sandbox.gd) -------------------------
 
-## Called once by game/main/HotSeat.gd/Sandbox.gd, whose $PlayerController this
+## Called once by game/main/HotSeat.gd, whose $PlayerController this
 ## panel's Controls/Physics tabs should read from (both fields already
 ## default to the same preloaded singletons a bare test constructs this panel
 ## with, so this only matters if a specific instance is ever wired to
@@ -359,7 +359,7 @@ func set_controller(controller: PlayerController) -> void:
 	_rebuild_if_built()
 
 
-## Called once by game/main/Main.gd (through HotSeat.gd/Sandbox.gd's own
+## Called once by game/main/HotSeat.gd and game/sandbox/Sandbox.gd (through their own
 ## set_camera_rig()), after Main builds the shared CameraRig -- the same
 ## hand-off HotSeat.gd's own set_camera_rig() already documents.
 func set_camera_rig(rig: CameraRig) -> void:
@@ -369,7 +369,7 @@ func set_camera_rig(rig: CameraRig) -> void:
 	_rebuild_if_built()
 
 
-## Called once by game/main/Main.gd/Sandbox.gd with the shared Field, for the
+## Called once by game/main/HotSeat.gd and game/sandbox/Sandbox.gd with the shared Field, for the
 ## Territory tab and refresh_territory_visuals_live()'s overlay push.
 func set_field(field: Field) -> void:
 	_field = field
@@ -1098,17 +1098,6 @@ func _register_row(frame: Dictionary, resource: Resource, prop_name: String, con
 	_refresh_row_marker(_rows[-1])
 
 
-## Outcome 3: whether a row's live value has drifted from its default -- used
-## both to decide the "•" marker's color/text and as this panel's own test
-## seam (tests/unit/ui/test_tuning_panel.gd checks this directly rather than
-## parsing a Label's text).
-func is_modified(resource: Resource, prop_name: String) -> bool:
-	for row: Dictionary in _rows:
-		if row.get("resource") == resource and row.get("property") == prop_name:
-			return not _values_equal(resource.get(prop_name), row.get("default"), int(row.get("type", TYPE_NIL)))
-	return false
-
-
 func _values_equal(current: Variant, default_value: Variant, type: int) -> bool:
 	match type:
 		TYPE_FLOAT:
@@ -1169,63 +1158,6 @@ func _fallback_range(current: float) -> Vector2:
 	elif current < 0.0:
 		return Vector2(current * 4.0, 0.0)
 	return Vector2(-1.0, 1.0)
-
-
-## Test/inspection seam: the control built for one resource field, or null if
-## no such row exists (an un-exported field, an unsupported type, or a
-## resource this panel doesn't currently reference).
-func control_for(resource: Resource, prop_name: String) -> Control:
-	for row: Dictionary in _rows:
-		if row.get("resource") == resource and row.get("property") == prop_name:
-			return row.get("control") as Control
-	return null
-
-
-## Test/inspection seam: the _rows entry for one field ({} if none).
-func _row_for(resource: Resource, prop_name: String) -> Dictionary:
-	for row: Dictionary in _rows:
-		if row.get("resource") == resource and row.get("property") == prop_name:
-			return row
-	return {}
-
-
-## Test/inspection seam: how many rows this panel built for `resource`.
-func row_count_for(resource: Resource) -> int:
-	var count: int = 0
-	for row: Dictionary in _rows:
-		if row.get("resource") == resource:
-			count += 1
-	return count
-
-
-## Test/inspection seam: every field name this panel built a row for on
-## `resource` (outcome 2's "walk them" -- a test uses this to check every
-## shown field has a description, without duplicating this file's own
-## reflection loop).
-func shown_fields_for(resource: Resource) -> Array[String]:
-	var names: Array[String] = []
-	for row: Dictionary in _rows:
-		if row.get("resource") == resource:
-			names.append(String(row.get("property")))
-	return names
-
-
-## Test/inspection seam: one field's row as text -- the modified marker, its
-## human label and its "(default ...)" annotation -- without reaching into a
-## Control tree.
-func label_text_for(resource: Resource, prop_name: String) -> String:
-	for row: Dictionary in _rows:
-		if row.get("resource") == resource and row.get("property") == prop_name:
-			return "%s (%s)" % [(row.get("name_label") as Label).text, (row.get("default_label") as Label).text]
-	return ""
-
-
-## Test/inspection seam: the default column's text for one field ("default 0.18 s").
-func default_text_for(resource: Resource, prop_name: String) -> String:
-	for row: Dictionary in _rows:
-		if row.get("resource") == resource and row.get("property") == prop_name:
-			return (row.get("default_label") as Label).text
-	return ""
 
 
 # --- Live-apply hooks (see class doc) ----------------------------------------
@@ -1655,11 +1587,6 @@ func apply_custom_time_of_day(phase: float) -> void:
 	_push_locked_phase(_time_of_day_custom_phase)
 
 
-## The Time-of-day choice currently selected (a TIME_OF_DAY_CHOICES entry).
-func time_of_day_choice() -> String:
-	return _time_of_day_choice
-
-
 ## The phase `choice` locks the cycle at; -1.0 for running (and for an
 ## unresolvable preset, which then leaves the cycle running).
 func _phase_for_time_choice(choice: String) -> float:
@@ -1853,9 +1780,9 @@ func reset_all() -> void:
 	# "Sky settings in F4 doesn't reset":
 	# sky_theme was the one preloaded tuning resource this loop never
 	# touched --'s own DECISION (this file's class doc)
-	# deliberately left it, along with Save/Copy/apply_saved_overrides, out
+	# deliberately left it, along with Save/Copy/TuningOverrides.apply_saved, out
 	# of this roster as "a reasonable small follow-up, not done here". Reset
-	# is that follow-up; Save/Copy/apply_saved_overrides are unaffected
+	# is that follow-up; Save/Copy/TuningOverrides.apply_saved are unaffected
 	# (still out of scope -- not what the user reported).
 	_reset_resource(sky_theme)
 	for theme_id: String in Skybox.list_available_themes():
@@ -1932,15 +1859,6 @@ func _write_overrides(config: ConfigFile, section: String, resource: Resource) -
 			continue
 		var prop_name: String = str(prop.get("name", ""))
 		config.set_value(section, prop_name, resource.get(prop_name))
-
-
-## Loads user://tuning_overrides.cfg (if any) onto the shared preloaded
-## tuning singletons, before anything else in the game reads them. Called
-## once by game/main/Main.gd's _ready(), first thing ('s boot hook).
-## Static and free of any node/scene-tree dependence, so it runs before a
-## TuningPanel -- or even a Field/CameraRig/PlayerController -- exists.
-static func apply_saved_overrides() -> void:
-	TuningOverrides.apply_saved()  # lives in game/main/TuningOverrides.gd
 
 
 func _on_copy_pressed() -> void:

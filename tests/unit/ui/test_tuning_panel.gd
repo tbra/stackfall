@@ -13,7 +13,7 @@ extends GutTest
 ## after_each() -- and any test that writes user://tuning_overrides.cfg
 ## removes it too, so a leftover file can't silently change
 ## config/*.tres-backed defaults for a later test file's Main.tscn boot
-## (game/main/Main.gd now calls TuningPanel.apply_saved_overrides() first thing).
+## (game/main/Main.gd calls TuningOverrides.apply_saved() first thing).
 
 var _panel: TuningPanel = null
 
@@ -71,6 +71,34 @@ func _own_panel(prebuild: bool) -> TuningPanel:
 	return own
 
 
+## The panel's row for one field ({} if none): the node tree holds the same controls and labels.
+func _row(panel: TuningPanel, resource: Resource, prop_name: String) -> Dictionary:
+	for row: Dictionary in panel._rows:
+		if row.get("resource") == resource and row.get("property") == prop_name:
+			return row
+	return {}
+
+
+func _control_for(panel: TuningPanel, resource: Resource, prop_name: String) -> Control:
+	return _row(panel, resource, prop_name).get("control") as Control
+
+
+func _shown_fields_for(panel: TuningPanel, resource: Resource) -> Array[String]:
+	var names: Array[String] = []
+	for row: Dictionary in panel._rows:
+		if row.get("resource") == resource:
+			names.append(String(row.get("property")))
+	return names
+
+
+## The row as text: the modified marker, the human label and the "(default ...)" annotation.
+func _label_text_for(panel: TuningPanel, resource: Resource, prop_name: String) -> String:
+	var row: Dictionary = _row(panel, resource, prop_name)
+	if row.is_empty():
+		return ""
+	return "%s (%s)" % [(row["name_label"] as Label).text, (row["default_label"] as Label).text]
+
+
 func _shared_is_dirty() -> bool:
 	if _shared._tab_container == null or _shared.visible:
 		return true
@@ -82,8 +110,8 @@ func _shared_is_dirty() -> bool:
 		_shared.sky_theme,
 	]
 	for resource: Resource in resources:
-		for prop_name: String in _shared.shown_fields_for(resource):
-			if _shared.label_text_for(resource, prop_name).begins_with("•"):
+		for prop_name: String in _shown_fields_for(_shared, resource):
+			if _label_text_for(_shared, resource, prop_name).begins_with("•"):
 				return true
 	return false
 
@@ -138,7 +166,7 @@ func after_each() -> void:
 # --- Reflection: one control per exported field ------------------------------
 
 func test_slider_change_writes_the_resource() -> void:
-	var slider: HSlider = _panel.control_for(_panel.physics_tuning, "gravity_multiplier") as HSlider
+	var slider: HSlider = _control_for(_panel, _panel.physics_tuning, "gravity_multiplier") as HSlider
 	slider.emit_signal("value_changed", 2.4)
 	assert_almost_eq(_panel.physics_tuning.gravity_multiplier, 2.4, 0.0001)
 
@@ -187,7 +215,7 @@ func test_a_slider_drag_reaches_an_already_placed_block_end_to_end() -> void:
 	var block: Block = BlockFactory.build(shape, _panel.physics_tuning)
 	add_child_autofree(block)
 
-	var slider: HSlider = _panel.control_for(_panel.physics_tuning, "block_linear_damp") as HSlider
+	var slider: HSlider = _control_for(_panel, _panel.physics_tuning, "block_linear_damp") as HSlider
 	slider.emit_signal("value_changed", 0.9)
 
 	assert_almost_eq(block.linear_damp, 0.9, 0.0001, "changing the field must push the live-apply hook too, not just write the Resource.")
@@ -220,7 +248,7 @@ func test_save_and_apply_saved_overrides_round_trip_via_user_dir() -> void:
 	_panel.physics_tuning.gravity_multiplier = original_gravity
 	_panel.camera_tuning.follow_distance = original_follow_distance
 
-	TuningPanel.apply_saved_overrides()
+	TuningOverrides.apply_saved()
 
 	assert_almost_eq(_panel.physics_tuning.gravity_multiplier, original_gravity + 0.6, 0.0001)
 	assert_almost_eq(_panel.camera_tuning.follow_distance, original_follow_distance + 3.0, 0.0001)
@@ -350,7 +378,7 @@ func test_reset_restores_shipped_tres_and_default_label_and_highlight_agree() ->
 	for resource: Resource in resources:
 		var shipped: Resource = ResourceLoader.load(resource.resource_path, "", ResourceLoader.CACHE_MODE_IGNORE)
 		var gd_default: Resource = (resource.get_script() as Script).new() as Resource
-		for prop_name: String in _panel.shown_fields_for(resource):
+		for prop_name: String in _shown_fields_for(_panel, resource):
 			var type: int = typeof(resource.get(prop_name))
 			if type != TYPE_FLOAT and type != TYPE_INT:
 				continue
@@ -367,11 +395,11 @@ func test_reset_restores_shipped_tres_and_default_label_and_highlight_agree() ->
 		var type: int = entry["type"] as int
 		var shipped_value: Variant = entry["shipped"]
 		assert_true(is_equal_approx(float(resource.get(prop_name)), float(shipped_value)), "%s.%s must return to the shipped .tres value." % [resource, prop_name])
-		assert_false(_panel.is_modified(resource, prop_name), "%s.%s must not be flagged modified after Reset." % [resource, prop_name])
-		var label: String = _panel.label_text_for(resource, prop_name)
+		var label: String = _label_text_for(_panel, resource, prop_name)
 		assert_false(label.begins_with("•"), "%s must not carry the modified marker after Reset." % label)
-		assert_true(label.contains(_panel.default_text_for(resource, prop_name)), "%s must carry its default column text." % label)
-		assert_true(is_equal_approx(float(_panel._row_for(resource, prop_name)["default"]), float(shipped_value)), "%s default must be the shipped value." % prop_name)
+		var row: Dictionary = _row(_panel, resource, prop_name)
+		assert_true(label.contains((row["default_label"] as Label).text), "%s must carry its default column text." % label)
+		assert_true(is_equal_approx(float(row["default"]), float(shipped_value)), "%s default must be the shipped value." % prop_name)
 	gut.p("fields whose .tres differs from .gd default: %d" % differing)
 
 
@@ -546,7 +574,7 @@ func test_time_of_day_row_routes_every_choice_through_set_locked_phase() -> void
 	assert_almost_eq(slider.value, spy.phase_now, 0.0001)
 	slider.value_changed.emit(0.6)
 	assert_almost_eq(spy.lock_calls[-1], 0.6, 0.0001, "the slider moves the lock")
-	assert_eq(_panel.time_of_day_choice(), "custom")
+	assert_eq(_panel._time_of_day_choice, TuningPanel.TIME_CUSTOM)
 	option.select(0)
 	option.item_selected.emit(0)
 	assert_almost_eq(spy.lock_calls[-1], -1.0, 0.0001, "Running unlocks")
