@@ -29,18 +29,15 @@ var delta: float = 0.0
 var sources: Dictionary = {}
 var kickoff_config: Dictionary = {}
 var alive_before: int = 0
-var step_ms: Dictionary = {}
 var task_id: int = -1
 
 # --- Outputs ---
 var out_circles: Array[InfluenceCircle] = []
 var groups: TerritoryGroups = null
 var render: Dictionary = {}
-var worker_usec: int = 0
 
 
 func run() -> void:
-	var start: int = Time.get_ticks_usec()
 	out_circles = circles
 	if cache_hit:
 		groups = cached_groups
@@ -61,7 +58,6 @@ func run() -> void:
 	fill_raster.fill_ownership(out_circles, groups, holes_enabled)
 	if not cache_hit:
 		render = build_render_list(out_circles, groups)
-	worker_usec = Time.get_ticks_usec() - start
 
 
 ## The analytic circle list the overlay and the replication wire use: only the

@@ -2,7 +2,6 @@ extends "res://tests/unit/match/match_world_test.gd"
 ## Match host state machine, feed timer/auto-drop and request_place accept/reject/burn (spec 1.4, 2.5, 3.7).
 
 func after_each() -> void:
-	Match._sandbox_territory_profile_enabled = false
 	Match.abort_match()
 	Match.set_process(true)
 	MatchTestReset.clear_world()

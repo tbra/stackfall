@@ -58,7 +58,7 @@ const STATE_GOAL_ZONE: int = 4
 ## Group id written into every owned cell of a *replicated* raster (M3a).
 ##
 ## A client's raster is a mirror, not a solve: the host ships one owner byte and one state byte per
-## cell, which is exactly the set PlacementRules.validate() reads, but real
+## cell, which is exactly the set PlacementRules.validate_point() reads, but real
 ## group indices cannot be reconstructed from them and are not needed — the
 ## win check is host-only. So on a mirror only three group values ever occur:
 ## NO_GROUP (unowned), CONTESTED, and this placeholder for "owned by
@@ -475,7 +475,7 @@ func reset() -> void:
 ## (STATE_CONTESTED | STATE_HOLE), both cell_count() long and row-major.
 ##
 ## After this call team_at(), is_contested(), is_hole_index() and therefore
-## PlacementRules.validate() answer exactly what the host's raster answered
+## PlacementRules.validate_point() answer exactly what the host's raster answered
 ## when the keyframe was built, and team_share() is rebuilt from the same
 ## bytes. holes_opened() / holes_closed() report the cells whose hole bit
 ## flipped, so the caller can re-emit Events.hole_cells_changed and Field

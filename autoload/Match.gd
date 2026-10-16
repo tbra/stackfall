@@ -123,7 +123,6 @@ var _sandbox_territory_mode: int = DEFAULT_TERRITORY_MODE
 var _sandbox_cone_angle: float = DEFAULT_CONE_ANGLE_DEGREES
 var _sandbox_cone_height_source: int = SandboxConeExperiment.HEIGHT_TOP
 var _sandbox_cone_base_mode: int = SandboxConeExperiment.BASE_ADDITIVE
-var _sandbox_territory_profile_enabled: bool = false
 var _territory_cache_enabled: bool = true
 
 ## The four controllers this file forwards to. Built and
@@ -519,14 +518,8 @@ func _process(delta: float) -> void:
 				_territory._tick_territory(delta)
 				PerfProbe.stop(&"territory", probe_territory)
 			_lifecycle._tick_match_timer(delta)
-			# DECISION (autoload/Match.gd, M6 B4): a no-op unless
-			# config.turn_based, so hot-seat and free-for-all matches pay
-			# nothing extra here (mirrors _tick_match_timer's own
-			# config.match_timer_minutes == 0 no-op).
+			# DECISION: _tick_turn_based is a no-op unless config.turn_based.
 			_lifecycle._tick_turn_based(delta)
-			# match_duration() accumulates only across the two
-			# "live" states (is_live()), mirroring every
-			# other per-state tick call above.
 			_stats._tick(delta)
 		State.SUDDEN_DEATH:
 			# Spec 1.9 sudden death (M6 A3): normal play continues -- the same
