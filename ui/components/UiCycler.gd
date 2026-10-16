@@ -46,7 +46,6 @@ var axis_reader: Callable = Input.get_joy_axis:
 
 var _texts: PackedStringArray = PackedStringArray()
 var _icons: Array[Texture2D] = []
-var _tooltips: PackedStringArray = PackedStringArray()
 var _disabled_items: Array[bool] = []
 var _selected: int = NONE
 ## The widest item (icon, gap, text) so far, kept as items are added so add_item stays O(1).
@@ -95,10 +94,9 @@ func _init() -> void:
 
 
 ## Appends an item and returns its index; the first item becomes the selection.
-func add_item(text: String, item_disabled: bool = false, icon: Texture2D = null, tooltip: String = "") -> int:
+func add_item(text: String, item_disabled: bool = false, icon: Texture2D = null) -> int:
 	_texts.append(text)
 	_icons.append(icon)
-	_tooltips.append(tooltip)
 	_disabled_items.append(item_disabled)
 	_widest_item_px = maxf(_widest_item_px, _item_width(_texts.size() - 1))
 	if _selected == NONE:
@@ -111,7 +109,6 @@ func clear() -> void:
 	release()
 	_texts.clear()
 	_icons.clear()
-	_tooltips.clear()
 	_disabled_items.clear()
 	_widest_item_px = 0.0
 	_selected = NONE
@@ -132,17 +129,8 @@ func set_item_disabled(index: int, item_disabled: bool) -> void:
 		_refresh()
 
 
-func is_item_disabled(index: int) -> bool:
-	return index >= 0 and index < _disabled_items.size() and _disabled_items[index]
-
-
 func get_item_icon(index: int) -> Texture2D:
 	return _icons[index] if index >= 0 and index < _icons.size() else null
-
-
-## The tooltip of an item (shown as the control's tooltip while it is selected, when set).
-func get_item_tooltip(index: int) -> String:
-	return _tooltips[index] if index >= 0 and index < _tooltips.size() else ""
 
 
 ## Selects [param index] without emitting `item_selected` (remote sync, initial value).
@@ -187,10 +175,6 @@ func nudge(direction: int) -> bool:
 	_refresh()
 	item_selected.emit(_selected)
 	return true
-
-
-func is_holding() -> bool:
-	return _hold.is_holding()
 
 
 func release() -> void:

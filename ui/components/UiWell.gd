@@ -1,6 +1,6 @@
 class_name UiWell
 extends PanelContainer
-## The design system's sunken well (docs/ui_reskin/components.md "Field": a disc-900 face with a 2px
+## The design system's sunken well (a disc-900 face with a 2px
 ## disc-400 edge, shadow-well and radius-block) as a container: the LAN / Steam game lists, a
 ## roster or any inset area. Screens add their content as children and never style the panel.
 ## The shadow-well is the darker band along the inside of the top edge, drawn over the face.

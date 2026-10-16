@@ -1,6 +1,6 @@
 class_name UiSegmentMeter
 extends Control
-## The design system's SegmentMeter (docs/ui_reskin/components.md "SegmentMeter"): a slider drawn
+## The design system's SegmentMeter: a slider drawn
 ## as voxel cells on a sunken ground (no border) with the value always shown to the right in Bungee.
 ## A UiRowItem (METER): one row height tall, hugs its content: every cell is
 ## ComponentMetrics.meter_cell_width_px wide, so the width follows the cell count and never the
@@ -115,10 +115,6 @@ func nudge(direction: int) -> bool:
 	var before: int = value
 	value = step_value(value, direction, step_count)
 	return value != before
-
-
-func is_holding() -> bool:
-	return _hold.is_holding()
 
 
 ## The ground's width: [param count] fixed-width cells, the gaps between them and the inset.

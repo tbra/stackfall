@@ -1,8 +1,7 @@
 class_name UiRow
 extends HBoxContainer
-## A settings row: a fixed-width label column plus the row items, `space-2` apart
-## (component layout, sections 3.1 and 4).
-## instead of aligning controls by hand; every item is a UiRowItem and so shares one height.
+## A settings row: a fixed-width label column plus the row items, `space-2` apart, so screens do not
+## align controls by hand; every item is a UiRowItem and so shares one height.
 
 var label: Label = null
 
@@ -30,11 +29,3 @@ func setup(label_text: String, control: Control = null) -> UiRow:
 func add_item(control: Control) -> void:
 	add_child(control)
 
-
-## The row items (every direct child in group `ui_row_item`), in order.
-func items() -> Array[Control]:
-	var found: Array[Control] = []
-	for child: Node in get_children():
-		if child is Control and child.is_in_group(UiRowItem.GROUP):
-			found.append(child as Control)
-	return found

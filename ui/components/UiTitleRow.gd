@@ -1,8 +1,8 @@
 class_name UiTitleRow
 extends HBoxContainer
-## A screen / panel title row (section 4,
-## voxel bullet and the uppercase heading on the left edge, then optional trailing items (a status
-## badge, a Back button) pushed right, all centred on one baseline. It owns the heading look so
+## A screen / panel title row: a
+## voxel bullet and the uppercase heading on the left edge, then a spacer that pushes any trailing
+## item (a status badge, a Back button) right, all centred on one baseline. It owns the heading look so
 ## every screen title lines up with its panel's inner padding. [UiPanel] uses one as its header.
 
 ## The heading text; shown in capitals.
@@ -41,6 +41,7 @@ func _init() -> void:
 	_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_spacer)
+
 
 
 ## Appends [param item] on the right (a badge, a Back button), vertically centred.

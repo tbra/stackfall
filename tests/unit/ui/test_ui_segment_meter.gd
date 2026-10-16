@@ -63,7 +63,7 @@ func test_ui_left_and_right_step_one_cell() -> void:
 	meter._gui_input(_action(&"ui_left"))
 	meter._gui_input(_action(&"ui_left", false))
 	assert_eq(meter.value, 5)
-	assert_false(meter.is_holding(), "released")
+	assert_false(meter.is_processing(), "released")
 
 
 func test_a_stuck_press_repeats_after_the_delay_while_held() -> void:
@@ -78,7 +78,7 @@ func test_a_stuck_press_repeats_after_the_delay_while_held() -> void:
 	assert_eq(meter.value, 7, "first repeat after the delay")
 	Input.action_release(&"ui_right")
 	meter.advance(UiHoldRepeat.TUNING.repeat_interval_sec)
-	assert_false(meter.is_holding(), "a missed release stops the repeat")
+	assert_false(meter.is_processing(), "a missed release stops the repeat")
 
 
 func test_stick_below_repeat_threshold_gives_one_step_only() -> void:

@@ -1,11 +1,10 @@
 class_name UiText
 extends Label
-## The design system's text roles (docs/ui_reskin/tokens.json "type"): a Label whose font, size,
+## The design system's text roles: a Label whose font, size,
 ## colour and outline come from the tokens, so a screen sets a [member role] instead of calling
 ## add_theme_*_override. TITLE is the Bungee display line, HEADING the 24px heavy uppercase panel
 ## heading, BODY the 16px sentence-case description, CAPTION the 13px dust hint, VALUE a Bungee
-## readout. [member tint] overrides the role colour (any token colour); [method set_face] picks
-## the ink that reads on a bright face instead. Sizes: ArcadeVisualTuning font_size_* and
+## readout. [member tint] overrides the role colour (any token colour). Sizes: ArcadeVisualTuning font_size_* and
 ## ComponentMetrics.text_*; colours: ArcadeVisualTuning; fonts: the shared Theme's variations.
 
 enum Role { TITLE, HEADING, BODY, CAPTION, VALUE, LABEL }

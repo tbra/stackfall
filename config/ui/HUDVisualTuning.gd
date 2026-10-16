@@ -3,7 +3,7 @@ extends Resource
 ## Tunables for the HUD minimap and reskin, and its
 ## restyle: the minimap's framing/refresh cadence and the
 ## layered-pastel/coral -> mockup-08 palette used to restyle ui/hud/HUD.tscn
-## (docs/M7_ART_DIRECTION.md's HUD styling section). CLAUDE.md: "No magic
+## CLAUDE.md: "No magic
 ## numbers... every tunable value belongs in a Resource under res://config/".
 ##
 ## This is presentation only, same split TerritoryVisuals.gd documents for
@@ -34,8 +34,7 @@ extends Resource
 ## image rebuild now instead of a render pass.
 @export var minimap_refresh_hz: float = 8.0
 ## Radius, in HUD pixels, of the small diamond beacon glyph the minimap
-## draws at each slot's home-flag position (docs/art_mockups/
-## 08-cel-shaded-home-beacons.png).
+## draws at each slot's home-flag position.
 @export var minimap_beacon_radius_px: float = 4.0
 ## Goal beacon glyph (filled circle, distinct from the home diamonds).
 @export var minimap_goal_radius_px: float = 5.0
@@ -57,8 +56,7 @@ extends Resource
 ## The local player's own beacon is drawn this many times the other beacons' size (their diamond marker).
 @export var minimap_local_beacon_scale: float = 1.7
 
-## -- HUD panel palette (docs/art_mockups/10-main-menu-layered-pastel.png,
-## docs/art_mockups/08-cel-shaded-home-beacons.png) -------------------------
+## -- HUD panel palette -------------------------
 ## Dark translucent panel fill behind the compact status readouts (turn/
 ## height/locked/special text) and the next-shape card. Alpha < 1 keeps the
 ## sunset field readable behind it.
@@ -98,8 +96,7 @@ extends Resource
 @export var hud_diamond_lit_amount: float = 0.35
 ## how much darker the shaded (right) half is,
 @export var hud_diamond_shade_amount: float = 0.3
-## and the ink (disc-900) frame around the faceted beacon marker (Stackfall Arcade, 
-## docs/ui_reskin/markers/), whose thickness is the width below.
+## and the ink (disc-900) frame around the faceted beacon marker (Stackfall Arcade), whose thickness is the width below.
 @export var hud_diamond_outline_color: Color = Color("#16121c")
 @export var hud_diamond_outline_width_px: float = 2.0
 ## Opacity of the top facet drawn in the slot colour over the two lit/shaded halves.

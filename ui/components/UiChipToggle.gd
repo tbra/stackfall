@@ -1,12 +1,11 @@
 class_name UiChipToggle
 extends Button
-## The design system's ChipToggle (docs/ui_reskin/components.md "ChipToggle"): a compact block for
+## The design system's ChipToggle: a compact block for
 ## the gift / special pool and the lobby's experiment flags. On = a `mint` block with ink text and
 ## icon; off = a `disc-700` block with cream text and icon. DECISION: the check box is gone, the block colour carries the state (mint vs disc-700
 ## differ strongly in luminance and in ink/cream label colour). The pictogram is always drawn as a
-## flat silhouette. A UiRowItem (BUTTON_SM height). Pad / keyboard: ui_accept toggles. A chip that
-## is switched off for the match (set_available(false), e.g. the Cat gift) is shown disabled; its
-## reason is read back with unavailable_reason() for inline help. The label is the Button's text, the optional pictogram its icon.
+## flat silhouette. A UiRowItem (BUTTON_SM height). Pad / keyboard: ui_accept toggles. A disabled
+## chip keeps its on/off face, dimmed. The label is the Button's text, the optional pictogram its icon.
 
 @export var label: String = "":
 	set(value):
@@ -17,8 +16,6 @@ extends Button
 		chip_icon = value
 		icon = silhouette_of(value)
 
-var _available: bool = true
-var _unavailable_reason: String = ""
 ## The shared look this chip last applied, and which face its "disabled" block currently shows.
 var _applied_generation: int = -1
 var _shown_pressed: bool = false
@@ -44,10 +41,6 @@ func _init() -> void:
 	UiRowItem.apply(self, UiRowItem.Kind.BUTTON_SM)
 
 
-func set_on(on: bool) -> void:
-	button_pressed = on
-
-
 ## Sets the state without emitting `toggled` (remote sync).
 func set_on_silent(on: bool) -> void:
 	set_pressed_no_signal(on)
@@ -58,21 +51,10 @@ func is_on() -> bool:
 	return button_pressed
 
 
-## Shows the chip disabled (e.g. a gift that is switched off); [param why] is its inline reason.
-func set_available(available: bool, why: String = "") -> void:
-	_available = available
-	_unavailable_reason = why if not available else ""
+## Shows the chip disabled (e.g. a gift that is switched off).
+func set_available(available: bool) -> void:
 	disabled = not available
 	_restyle()
-
-
-## The reason a chip is switched off ("" when available); shown as inline help, never as a tooltip.
-func unavailable_reason() -> String:
-	return _unavailable_reason
-
-
-func is_available() -> bool:
-	return _available
 
 
 ## The face of a chip: mint when on, disc-700 when off (tokens).

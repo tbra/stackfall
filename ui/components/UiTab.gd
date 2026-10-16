@@ -1,6 +1,6 @@
 class_name UiTab
 extends Button
-## One tab of a UiTabs bar (docs/ui_reskin/components.md "Tabs"): an uppercase label on a flat
+## One tab of a UiTabs bar: an uppercase label on a flat
 ## face. Idle = transparent with a sand label, hover = disc-700, active = disc-600 with a `rim`
 ## notch (top edge in a HORIZONTAL bar, left edge in a VERTICAL one). The theme's cream focus
 ## outline stays. Selected by UiTabs through a ButtonGroup, so exactly one tab is active.

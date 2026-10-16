@@ -2,7 +2,7 @@ class_name ComponentGallery
 extends Control
 ## The component gallery:
 ## component in each state on a disc-800 panel. It is the visual contract for sign-off: capture it
-## off-screen at 1280x720 and 1920x1080 and compare with docs/ui_reskin/components.md. C1b / C2 add
+## off-screen at 1280x720 and 1920x1080. C1b / C2 add
 ## their rows. States that need a pointer (hover, pressed) or focus are previewed by borrowing the
 ## button's own hover / pressed / focus style, so the picture is the component's real styling.
 
@@ -303,7 +303,7 @@ func _chip_rows() -> Array[Control]:
 				STATE_FOCUS:
 					show_state(chip, STATE_FOCUS)
 				STATE_DISABLED:
-					chip.set_available(false, "Switched off for this match")
+					chip.set_available(false)
 		rows.append(row)
 	return rows
 

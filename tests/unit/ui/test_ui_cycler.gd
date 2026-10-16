@@ -57,7 +57,7 @@ func test_ui_left_and_right_keys_step() -> void:
 	cycler._gui_input(_action(&"ui_right"))
 	assert_eq(cycler.selected(), 0)
 	cycler._gui_input(_action(&"ui_right", false))
-	assert_false(cycler.is_holding())
+	assert_false(cycler.is_processing())
 	assert_eq(_picked, [2, 0])
 
 
@@ -70,7 +70,7 @@ func test_clicking_the_buttons_cycles() -> void:
 	cycler.prev_button.button_down.emit()
 	assert_eq(cycler.selected(), 0)
 	cycler.prev_button.button_up.emit()
-	assert_false(cycler.is_holding())
+	assert_false(cycler.is_processing())
 
 
 func test_hold_repeats_after_the_delay() -> void:
@@ -86,7 +86,7 @@ func test_hold_repeats_after_the_delay() -> void:
 	assert_eq(cycler.selected(), 2)
 	Input.action_release(&"ui_right")
 	cycler.advance(tuning.repeat_interval_sec)
-	assert_false(cycler.is_holding())
+	assert_false(cycler.is_processing())
 
 
 func test_stick_around_the_deadzone_steps_exactly_once() -> void:
@@ -112,7 +112,7 @@ func test_stick_around_the_deadzone_steps_exactly_once() -> void:
 	axis[0] = tuning.stick_release_threshold - 0.05
 	push.axis_value = axis[0]
 	cycler._gui_input(push)
-	assert_false(cycler.is_holding())
+	assert_false(cycler.is_processing())
 
 
 func test_disabled_blocks_input() -> void:
