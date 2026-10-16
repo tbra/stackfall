@@ -10,7 +10,7 @@ func _make_ghost() -> GhostPreview:
 	return ghost
 
 
-# --- item 3: rotated-bottom pivot -----------------------------
+# --- rotated-bottom pivot -----------------------------
 
 ## The lowest world-space Y any corner of the ghost's own shape visual
 ## reaches -- the thing a player actually sees clip into the disk or float
@@ -106,30 +106,10 @@ func test_update_placement_keeps_a_rotated_talls_shapes_visual_bottom_at_the_rep
 	)
 
 
-# --- footprint projection ------------
-# the footprint is now
-# always the *whole* rotated shape's own silhouette -- one polygon, not one
-# per bottom cell -- so every case below that used to expect one quad per
-# distinct column now expects exactly 1.
-
-
-# --- out-of-territory tint
-# reads grey, not red -----------------------------------
-
-
-# --- "ghost block renders without any lines":
-# the held shape's own body must draw the same cell-grid lines a real placed
-# block does, via a dedicated shader that can never gain the settled-block
-# glow -------------------------------------------------------------------
-
-
-# --- docs/rotation-issue.png: the shadow blob is gone -------
-
-
-# --- docs/rotation-issue.png: reject kick is world-space ----
-
-
-# --- docs/rotation-issue.png: rotated footprint polygons ----
+# --- footprint projection: the whole rotated shape's silhouette ------------
+# The footprint is always the whole rotated shape's own silhouette -- one
+# polygon, not one per bottom cell -- so a case that used to expect one quad per
+# distinct column expects exactly 1.
 
 func _flat_l_shape() -> BlockShape:
 	var shape: BlockShape = BlockShape.new()
@@ -327,13 +307,9 @@ func test_projection_prism_spans_hover_height_plus_the_shapes_own_height_over_fl
 	)
 
 
-# --- (requirement "any surface that falls within
-# the projection should be a lot brighter (maybe emissive?)") ---------------
-
-
-# --- (screenshots of a tilted 4-long bar and a
-# T-piece both show dark vertical seams / overlapping stepped columns inside
-# the translucent prism) --------------------------------------------------------
+# --- projection walls: no dark seams or overlapping stepped columns -----------
+# A tilted 4-long bar and a T-piece used to show vertical seams inside the
+# translucent prism.
 # Attempt 3 walls the *merged rendered mesh's* own silhouette (game/
 # GhostPreview.gd's _shape_silhouette_loops(), Geometry2D.merge_polygons over
 # every triangle of the shape's own real visual shell) instead of the earlier
@@ -604,16 +580,3 @@ func test_tilted_bar_silhouette_stays_a_single_outer_loop_with_no_overlapping_wa
 		_max_wall_vertex_y(ghost) < _visual_world_top_y(ghost) - 0.01,
 		"the rolled bar's shaft must stay under the bar, never reach its own top."
 	)
-
-
-# --- ("the same white projection
-# that shows up on the disk should show up on the blocks as well, just a bit
-# fainter") -------------------------------------------------------------------
-
-
-# --- footprint speckle:
-# black/white speckle under the ghost; root cause was the block-projection
-# decal painting the disc with a box bottom exactly on the disc and 0.0
-# fades, i.e. pow(0, 0) = NaN per pixel) ------------------------------------
-
-

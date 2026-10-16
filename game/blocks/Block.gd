@@ -84,10 +84,6 @@ var _script_kick_pending: bool = false
 ## the mark; game/blocks/BlockStepBatch.gd runs after the whole sync phase, so a mark
 ## made during this frame's sync phase is only due from the next frame.
 var _kick_frame: int = -1
-## For tests: how many rebound passes (the old
-## _integrate_forces() calls, now _batch_tick()) ran the full
-## rebound path (awake, non-frozen body) rather than the early-out.
-var rebound_work_runs: int = 0
 var _release_checked: bool = false
 ## first physics frame at which Jolt has synced this body
 ## (state sync callback) since it last entered the awake set -- the frames
@@ -272,7 +268,6 @@ func _batch_tick(frame: int, physics_active: bool, damp_on: bool, damp: float, n
 	if synced:
 		# The old _integrate_forces() full path; `velocity` is what this tick's
 		# state sync just copied from the body.
-		rebound_work_runs += 1
 		if _script_kick_pending and _kick_frame < frame:
 			_script_kick_pending = false
 		elif damp_on and velocity.y > noise_floor and _prev_step_linear_velocity_y < -noise_floor:

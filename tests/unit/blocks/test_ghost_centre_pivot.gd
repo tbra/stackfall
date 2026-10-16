@@ -43,10 +43,7 @@ func _min_world_y(corners: Array[Vector3]) -> float:
 	return min_y
 
 
-# --- (c) unrotated shape: no regression --------------------------------------
-
-
-# --- (a)/(b): free-quaternion rotation (rotate_drag) --------------------------
+# --- free-quaternion rotation (rotate_drag) -----------------------------------
 
 func test_free_rotation_spins_the_centre_in_place_and_keeps_the_bottom_fix() -> void:
 	var ghost: GhostPreview = _make_ghost("res://config/blocks/bar4.tres")
@@ -69,19 +66,12 @@ func test_free_rotation_spins_the_centre_in_place_and_keeps_the_bottom_fix() -> 
 		"fixture: a pitched/yawed bar's own node origin should have swung off the cursor's XZ -- otherwise this test isn't exercising the bug."
 	)
 
-	# (b) the bottom-centre fix (item 3) must be untouched:
+	# (b) the bottom-centre fix must be untouched:
 	# the rotated shape's own lowest point still rests exactly at the
 	# reported hover height.
 	var expected_bottom: float = surface_point.y + ghost.tuning.hover_height
 	var actual_bottom: float = _min_world_y(_rotated_world_corners(ghost))
 	assert_almost_eq(actual_bottom, expected_bottom, 0.0001, "rotating must never move the shape's own rotated lowest point off the reported hover height.")
-
-
-# --- (a)/(b) again, via the discrete 90-degree orientation index ------------
-
-
-# --- Tall-pillar case (already covered for the bottom fix in
-# test_ghost_preview.gd; pinned here for the centre offset too) --------------
 
 
 # --- Spawn parity: the real placement path spawns exactly what the ghost

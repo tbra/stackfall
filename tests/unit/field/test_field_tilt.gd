@@ -157,15 +157,9 @@ func test_tilt_is_clamped_regardless_of_how_many_impulses_land_in_one_frame() ->
 		)
 
 
-# --- disk_local_from_world / world_from_disk_local round-trip at tilt ------
-
-
-# --- tilt disabled: nothing moves -------------------------------------------
-
-
 # --- sync_to_physics carries a resting block along --------------------------
 
-## Bontago M4 P0b: "a block resting on the disk at a fixed disk-local point
+## "a block resting on the disk at a fixed disk-local point
 ## stays at that point ... across several frames of a slow tilt change,
 ## proving sync_to_physics actually carries it." A modest impulse (peak well
 ## under max_tilt_deg) keeps the per-tick rotation small -- "slow" relative to

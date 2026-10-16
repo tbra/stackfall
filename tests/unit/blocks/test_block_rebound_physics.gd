@@ -1,18 +1,18 @@
 extends GutTest
-## review fix (SHOULD-FIX 1): Block._integrate_forces()'s
-## rebound-damping heuristic must scale a REAL bounce off something solid, but
-## must NOT scale a special effect's own intentional velocity write (a Bean's
-## hop, a Rocket's thrust, a Propeller's lift, an explosion's knockback) just
-## because that write also flips a falling block's vertical velocity to
-## rising. Real RigidBody3D/Block physics throughout -- a real floor, real
-## gravity, real awaited physics frames, synchronous free() in after_each() --
-## an end-to-end physics check rather than stubbing Block or PhysicsTuning.
+## Block's rebound-damping heuristic (run per tick by BlockStepBatch) must scale
+## a REAL bounce off something solid, but must NOT scale a special effect's own
+## intentional velocity write (a Bean's hop, a Rocket's thrust, a Propeller's
+## lift, an explosion's knockback) just because that write also flips a
+## falling block's vertical velocity to rising. Real RigidBody3D/Block physics
+## throughout -- a real floor, real gravity, real awaited physics frames,
+## synchronous free() in after_each() -- an end-to-end physics check rather
+## than stubbing Block or PhysicsTuning.
 ##
 ## DECISION (tests/unit/blocks/test_block_rebound_physics.gd): every "peak" measured
 ## below is the vertical velocity at the one physics step the bounce/kick/
 ## explosion itself lands on (read straight from `linear_velocity.y` after
 ## `await wait_physics_frames(1)`, so it reflects whatever Block.
-## _integrate_forces() actually committed for that step), not a position
+## _batch_tick() actually committed for that step), not a position
 ## traced over several later ticks. `_damp_rebound()` only ever touches that
 ## one step -- everything after is plain gravity acting on whatever velocity
 ## it left behind -- so this is the exact quantity the fix protects, and it
@@ -47,6 +47,12 @@ const PEAK_TOLERANCE_MPS: float = 0.3
 ## deliberately a fixed script write, not counted-out free-fall ticks; see
 ## their own DECISION.
 const FALLING_VELOCITY_MPS: float = -2.0
+## The explosion in (c): a 5 m blast peaking at 40 m/s delta-v with a squared
+## falloff, capped far above that so the cap never shapes the result.
+const BLAST_RADIUS_M: float = 5.0
+const BLAST_PEAK_SPEED_MPS: float = 40.0
+const BLAST_MAX_DELTA_V_MPS: float = 1000.0
+const BLAST_FALLOFF_EXPONENT: float = 2.0
 
 var _nodes: Array[Node3D] = []
 
@@ -82,7 +88,7 @@ func _build_block(tuning: PhysicsTuning) -> Block:
 	return block
 
 
-# --- (a) the wiring end-to-end: rebound_damping -> Block._integrate_forces() -
+# --- (a) the wiring end-to-end: rebound_damping -> Block._batch_tick() -
 # --- -> a real Jolt bounce off a real floor ----------------------------------
 
 ## A cube dropped from DROP_HEIGHT_M with heavy_bouncy's own rebound_damping
@@ -112,7 +118,7 @@ func test_heavy_bouncy_rebound_peak_is_lower_than_undamped() -> void:
 ## Drops a fresh cube from DROP_HEIGHT_M above a real floor and returns the
 ## vertical velocity at the exact physics step it first bounces (the
 ## falling-to-rising transition _damp_rebound() itself gates on) -- whatever
-## Block._integrate_forces() actually committed for that step, damped or not.
+## Block._batch_tick() actually committed for that step, damped or not.
 ## `offset_x` keeps this run's floor/block spatially separate from any other
 ## run already in the tree within the same test method.
 func _drop_and_measure_bounce_peak(tuning: PhysicsTuning, offset_x: float) -> float:
@@ -138,7 +144,7 @@ func _drop_and_measure_bounce_peak(tuning: PhysicsTuning, offset_x: float) -> fl
 # --- (b) a Bean-style kick must not be damped as if it were a bounce --------
 
 ## MUST FAIL before the fix: a bare `linear_velocity =` write (what
-## JumpingBeanEffect._hop() used to do) reads to _integrate_forces() as
+## JumpingBeanEffect._hop() used to do) reads to _batch_tick() as
 ## exactly the falling-to-rising transition a real bounce produces, so
 ## heavy_bouncy's own rebound_damping = 0.3 would scale the kick down to
 ## ~30% of its intended peak -- kick() marking its own step exempt fixes it.
@@ -186,10 +192,56 @@ func _drop_kick_and_measure_peak(tuning: PhysicsTuning, offset_x: float) -> floa
 	assert_lt(block.linear_velocity.y, 0.0, "fixture: the block must still be falling when kicked.")
 
 	block.kick(Vector3.UP * 6.0)
-	await wait_physics_frames(1)  # the flag is consumed by the very next _integrate_forces() step
+	await wait_physics_frames(1)  # the flag is consumed by the very next _batch_tick() step
 	return block.linear_velocity.y
 
 
 # --- (c) explosion knockback on an airborne block must not be damped --------
 
+## The blast's impulse goes through SpecialPhysics.wake_and_impulse(), which
+## calls mark_script_kick() on every Block it hits; without that mark an
+## airborne block's own knockback flips its vertical velocity exactly like a
+## real bounce and is scaled by rebound_damping on top of the blast's own
+## falloff, the same way (b) guards for kick().
+func test_explosion_reaches_the_same_peak_regardless_of_rebound_damping() -> void:
+	var damped_tuning: PhysicsTuning = load("res://config/physics/presets/heavy_bouncy.tres")
+	var undamped_tuning: PhysicsTuning = damped_tuning.duplicate() as PhysicsTuning
+	undamped_tuning.rebound_damping = 1.0
 
+	var undamped_peak: float = await _drop_explode_and_measure_peak(undamped_tuning, -35.0)
+	var damped_peak: float = await _drop_explode_and_measure_peak(damped_tuning, 35.0)
+
+	assert_gt(undamped_peak, 0.0, "fixture: the blast must push the block upward.")
+	assert_almost_eq(
+		damped_peak, undamped_peak, PEAK_TOLERANCE_MPS,
+		(
+			"an explosion's own knockback must reach the same peak velocity whether or not this "
+			+ "tuning's rebound_damping < 1 (damped=%.4f m/s, undamped=%.4f m/s)."
+		) % [damped_peak, undamped_peak]
+	)
+
+
+## Spawns a fresh cube already in free-fall with a genuine downward velocity
+## (see _drop_kick_and_measure_peak()'s own DECISION for why this is a fixed
+## script write, not counted-out ticks), then detonates an ExplosionFx.blast()
+## centred directly beneath it (a real PhysicsDirectSpaceState3D query;
+## upward_bias 0 keeps it a pure outward/upward push) and returns the committed
+## vertical velocity for that exact step.
+func _drop_explode_and_measure_peak(tuning: PhysicsTuning, offset_x: float) -> float:
+	var block: Block = _build_block(tuning)
+	block.global_position = Vector3(offset_x, 20.0, 0.0)
+	block.linear_velocity = Vector3(0.0, FALLING_VELOCITY_MPS, 0.0)
+	await wait_physics_frames(1)  # lets this land in _prev_step_linear_velocity_y as "falling"
+	assert_lt(block.linear_velocity.y, 0.0, "fixture: the block must still be falling when it explodes.")
+
+	var center: Vector3 = block.global_position - Vector3(0.0, 1.0, 0.0)
+	var blast_tuning: ExplosionTuning = ExplosionTuning.new()
+	blast_tuning.radius_m = BLAST_RADIUS_M
+	blast_tuning.peak_speed_mps = BLAST_PEAK_SPEED_MPS
+	blast_tuning.max_delta_v_mps = BLAST_MAX_DELTA_V_MPS
+	blast_tuning.falloff_exponent = BLAST_FALLOFF_EXPONENT
+	blast_tuning.upward_bias = 0.0
+	var no_exclude: Array[RID] = []
+	ExplosionFx.blast(get_viewport().world_3d.direct_space_state, center, blast_tuning, no_exclude)
+	await wait_physics_frames(1)  # the impulse reaches linear_velocity, and the flag is consumed
+	return block.linear_velocity.y

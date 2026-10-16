@@ -1,14 +1,13 @@
 extends GutTest
 ## Spec 1.5/2.5: the ghost is tinted in the player's colour when the spot is
 ## valid, red when outside territory/contested/off the disk, and hatched over
-## a hole. The design: "the ghost is the owner's color when
-## Match.preview_placement returns VALID, red for
-## OUTSIDE_TERRITORY/CONTESTED/OFF_DISK, hatched over HOLE."
+## a hole (the owner's colour when Match.preview_placement returns VALID, red
+## for OUTSIDE_TERRITORY/CONTESTED/OFF_DISK, hatched over HOLE).
 
 const PLAYER_COLOR: Color = Color(0.25, 0.55, 0.95, 1.0)
 
 
-## every tint colour's own stored
+## Every tint colour's own stored
 ## alpha channel is now dead weight -- game/player/GhostPreview.gd's
 ## _apply_validity_material() always overrides it with ghost_tuning.
 ## ghost_opacity -- so a test that used to compare a live tint straight
@@ -19,7 +18,7 @@ func _with_ghost_opacity(ghost: GhostPreview, color: Color) -> Color:
 	return Color(color.r, color.g, color.b, ghost.ghost_tuning.ghost_opacity)
 
 
-## ghost_tuning is the same process-wide preloaded singleton
+## The ghost_tuning resource is the same process-wide preloaded singleton
 ## every GhostPreview's own @export field resolves to (test_tuning_panel.gd's
 ## own class doc explains why) -- test_ghost_opacity_is_the_alpha_of_every_
 ## tint_state() below mutates its ghost_opacity, so it must be restored here
@@ -103,13 +102,3 @@ func test_controller_applies_preview_result_to_ghost_every_frame() -> void:
 	fake_match.next_preview_result = PlacementRules.Result.VALID
 	controller._update_ghost_tint()
 	assert_eq(ghost.current_state(), GhostPreview.STATE_VALID)
-
-
-# --- (requirement "the ghost block should be a bit
-# more opaque") --------------------------------------------------------------
-
-
-# --- ("ghost block should still be
-# less transparent -> add a slider for it in the F4 menu") ------------------
-
-

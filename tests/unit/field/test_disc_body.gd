@@ -1,16 +1,14 @@
 extends GutTest
-## game/field/ArenaMesh.gd: the disc's purely-visual thickness (
-## : "The disc is just a thin mirror currently, the mockup has
-## a much thicker metallic disc with a soft glowing border going round the
-## rim.") plus its Bontago-pt.12 chamfer/texture redesign ("the
-## glowing strip currently sits slightly outside the disc as its own
-## separate element ... the disc has a chamfered edge that makes up the
+## game/field/ArenaMesh.gd: the disc's purely-visual thickness ("The disc is
+## just a thin mirror currently, the mockup has a much thicker metallic disc
+## with a soft glowing border going round the rim.") plus its chamfer/texture
+## redesign ("the glowing strip currently sits slightly outside the disc as its
+## own separate element ... the disc has a chamfered edge that makes up the
 ## glowing strip", "it lacks the texture ... visible where it interacts with
 ## the sun"). These tests pin the band/chamfer mesh geometry -- height,
-## footprint, the chamfer's flush
-## no-gap seam with the true disc edge, and the shared procedural surface
-## texture -- without needing a live Field or a renderer (ArrayMesh geometry
-## is plain CPU data, readable headless).
+## footprint and the chamfer's flush no-gap seam with the true disc edge --
+## without needing a live Field or a renderer (ArrayMesh geometry is plain CPU
+## data, readable headless).
 
 const SEGMENTS: int = 24
 
@@ -114,7 +112,7 @@ func test_round_band_footprint_is_the_field_radius_circle() -> void:
 	assert_almost_eq(aabb.size.z, 24.0, 0.05, "z footprint spans 2 * field_radius (round).")
 
 
-## Bontago-pt.12 ("the glowing strip currently sits slightly outside
+## The chamfer redesign ("the glowing strip currently sits slightly outside
 ## the disc as its own separate element ... the disc has a chamfered edge
 ## that makes up the glowing strip"). The chamfer's own TOP ring must sit
 ## exactly at the true field_radius edge -- not band_radius_scale's proud
@@ -139,9 +137,3 @@ func test_chamfer_top_ring_is_flush_with_the_true_field_radius_edge() -> void:
 			assert_almost_eq(radius, 10.0, 0.02,
 				"the chamfer's own top ring must sit exactly at field_radius, flush with the overlay's own top-face boundary -- no proud/offset gap.")
 	assert_true(saw_top_vertex, "fixture: the chamfer mesh must carry at least one true top-edge (y == 0) vertex.")
-
-
-# ---/pt.12: chamfer screen-space-minimum-width shader wiring,
-# plus pt.12's shared procedural surface texture -----------------------------
-
-
