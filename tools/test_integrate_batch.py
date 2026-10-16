@@ -193,6 +193,13 @@ class Tests(unittest.TestCase):
         for bad in ("import", "gate", "ff", "push", "close_B-1"):
             self.assertNotIn(bad, fake.names())
         self.assertTrue([l for l in out if l.startswith("merge-only")])
+        self.assertIn("lint", fake.names())
+
+    def test_merge_only_lint_red_fails_step_lint(self):
+        fake = Fake({"lint": (1, "LINT ALL RED: lint_dead")})
+        err, out, _ = run(fake, merge_only=True)
+        self.assertEqual(err.step, "lint")
+        self.assertTrue([l for l in out if l.startswith("lint      FAIL LINT ALL RED")])
 
     def test_remote_mismatch_never_closes(self):
         fake = Fake({"remote": (0, "other999\n")})

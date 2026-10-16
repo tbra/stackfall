@@ -31,7 +31,7 @@ listing them. Non-sidecar and differing files are never deleted. --no-push / --d
 The temp worktree and branch are removed on every success (incl. --no-push) and kept on failure. --dry-run stops after step 5 (no ff/push/close),
 then removes the temp worktree and branch. NOTE: --dry-run still runs the full gate (step 5), so it
 must not run while a Godot worker is live; for a conflict-only precheck use --merge-only, which stops
-after step 2 (no import, no gate, no Godot) and removes the temp worktree. Exit 0 = success,
+after step 2 plus tools/lint_all.py on the merged tree (no import, no gate, no Godot) and removes the temp worktree. Exit 0 = success,
 1 = failed step (named).
 Probe lint: before merging, each branch's ADDED files are checked with
 tools/probe_lint.py (tools/screenshot_*, capture_*, *probe*, tools/_scratch*/; allowlist
@@ -571,6 +571,12 @@ def integrate(args, ctx, say, res):
     res["result"] = result
     say("merge     ok   %d branch(es) -> %s" % (len(args.branches), result[:9]))
     if getattr(args, "merge_only", False):
+        # Lints need no Godot, so a lint RED (e.g. a dropped dead_baseline edit) shows here, not after a gate.
+        code, text, log = run_cmd(ctx, "lint", [sys.executable, os.path.join(ROOT, "tools", "lint_all.py"), "--path", wt], wt, STEP_TIMEOUT_S)
+        lint_line = ([l for l in text.splitlines() if l.startswith("LINT ALL")] or ["no LINT ALL line"])[-1]
+        say("lint      %s %s" % ("ok  " if code == 0 else "FAIL", lint_line))
+        if code != 0:
+            raise StepFailed("lint", "lint_all RED on the merged tree; log %s" % log)
         say("merge-only stop before import/gate (no Godot started)")
         return
     # 3 import

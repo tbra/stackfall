@@ -42,7 +42,8 @@ delegate substantial game-code work, long investigations and test loops.
   allowed.
 - When a plan already split the work into packages of about 10 files / 30 min, that
   split supersedes a Jev `split=yes`; say "planner-sized per <plan section>" in the
-  dispatch comment instead of splitting again.
+  dispatch comment instead of splitting again. A wave of several packages that no plan
+  has sized yet goes to `stackfall-planner` first; do not split it in the main thread.
 - Run as many disjoint-ownership workers as the machine guard allows. Serialize
   benchmarks, the full suite and any two writers that share a file, and never put
   two writers in one checkout. Automatic worktree isolation is intentionally off:
@@ -122,7 +123,9 @@ signals are sustained CPU and free RAM, and the Godot count is only a runaway
 backstop). An ALERT exit means stop launching and reduce load first. While the user
 uses the PC: at most 3 Godot processes machine-wide (the `tools/godot_slots.py` cap
 every launcher queues on), full gates on 2 shards, and no benches or bot matches
-unless the user says the PC is idle. There is no fixed worker cap. Kill only
+unless the user says the PC is idle. There is no fixed worker cap, except that while a
+full gate runs at most 2 workers may run Godot (a 2-shard gate plus 3-4 Godot workers
+tripped cpumon). Kill only
 processes you started; count stale Godot processes you cannot remove against the
 cap.
 
