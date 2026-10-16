@@ -28,9 +28,9 @@ extends Resource
 ## sky tint the disc almost unopposed (see mirror_center_fraction/
 ## mirror_max_luminance below), but a neutral-to-warm base color compounded
 ## it instead of pushing back cool.
-## swappable texture set for the disc top (config/territory/disc_surfaces/*.tres,
+## Surface definition for the disc top (config/territory/disc_surfaces/*.tres,
 ## DiscSurfaceDef). null keeps the flat look. # DECISION: one Resource reference so
-## the owner switches sets from one place in the editor.
+## the owner switches surfaces from one place in the editor.
 @export var disc_surface: DiscSurfaceDef = null
 
 @export var disk_base_color: Color = Color(0.18, 0.23, 0.36)

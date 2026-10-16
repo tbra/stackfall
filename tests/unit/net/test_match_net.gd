@@ -112,18 +112,12 @@ func _block_count() -> int:
 	return _blocks_root.get_child_count()
 
 
-## spec 1.4 "[ORIGINAL target]" cadence: several tests below
-## place more than once for the same slot with no frame between calls, the
-## way this whole file's fixture (a unit test with no real peer, so every
-## rpc() is a no-op) always has. Since a deliberate release now locks the
-## slot until its fixed interval's boundary (Match._consume_and_refeed()), a
-## second call in the same frame would be refused with REASON_NO_BLOCK before
-## that boundary arrives. Match._feed.debug_unlock_slot() is the test-only seam
-## that resolves exactly `slot_id`'s lock immediately, the same thing
-## Match._tick_feed()'s own boundary-crossing branch would do -- rather than
-## ticking Match._process() for a block_timer's worth of frames, which would
-## also run every OTHER slot's independent interval down by that much and
-## risk an unrelated auto-drop in a test that isn't about auto-drop at all.
+## spec 1.4 cadence: several tests below place more than once for the same slot
+## in one frame. A deliberate release locks the slot until its fixed interval's
+## boundary, so a second call would be refused with REASON_NO_BLOCK. This
+## resolves that slot's lock immediately, as the feed's boundary branch would,
+## without ticking Match._process() (which would run every other slot's
+## interval down and risk an unrelated auto-drop).
 func _unlock_slot(slot_id: int) -> void:
 	Match._feed._release_locked[slot_id] = false
 	Match._feed._feed_time_left[slot_id] = Match.config.block_timer

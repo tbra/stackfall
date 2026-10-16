@@ -69,7 +69,6 @@ var _physics_paused: bool = false
 
 
 func _ready() -> void:
-	Match._sandbox_territory_profile_enabled = true
 	Events.turn_changed.connect(_on_turn_changed)
 	_panel.configure(self, _ghost)
 	# The sandbox controls remain available through their documented hotkeys,
@@ -105,7 +104,6 @@ func _exit_tree() -> void:
 		Events.pause_menu_opened.disconnect(_on_pause_menu_opened)
 		Events.pause_menu_closed.disconnect(_on_pause_menu_closed)
 	_set_block_physics_frozen(false)
-	Match._sandbox_territory_profile_enabled = false
 	Match._territory_cache_enabled = true
 	Match.set_sandbox_territory_mode(MatchAutoload.DEFAULT_TERRITORY_MODE)
 	Engine.time_scale = 1.0

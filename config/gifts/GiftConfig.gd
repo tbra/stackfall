@@ -101,7 +101,7 @@ extends Resource
 ## -- Claim feedback ("I grabbed a yellow cube but
 ## nothing seemed to happen"): spec 1.6's claim rule was never actually
 ## broken (a crate claims only when it lands inside the claiming slot's own
-## territory — see MatchGifts.claim_or_expire_gifts()'s own doc), but a
+## territory), but a
 ## successful claim had *no visible feedback at all*: _free_crate_visual()
 ## just queue_free()s the crate node the instant it is claimed, and the HUD
 ## only silently refreshed a small text counter. This section's tunables
