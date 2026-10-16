@@ -401,4 +401,3 @@ static func _release(held: Variant) -> void:
 	block.release_freeze_static(FREEZE_REASON)
 	if not block.freeze:
 		block.sleeping = true
-
