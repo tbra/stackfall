@@ -1,6 +1,6 @@
 class_name BotThink
 extends RefCounted
-## Bot V2 (docs/BOT_AI_REDESIGN.md 2.3): one resumable think-cycle for one piece. The
+## Bot V2: one resumable think-cycle for one piece. The
 ## assembled pipeline, each stage resumable under the caller's microsecond budget:
 ##   STACK BotStack.analyse_step over the snapshot of the towers (.53b; sliced, one unit
 ##            per body; skipped with no snapshot, which keeps the think exactly as before). 
@@ -10,7 +10,7 @@ extends RefCounted
 ##   FILL the uniform FILL draws, fill_chunk_attempts per step (sliced)
 ##   PROBE support ray + one ray per footprint cell, then BotStability: the placement's centre-of-mass
 ##            slack over the piece and every tower level below it (`stability_slack`)
-##   RANK BotEvaluator.proxy on every site, rank_chunk_sites per step, best first
+##   RANK BotEvaluator.proxy_terms on every site, rank_chunk_sites per step, best first
 ##   MEASURE BotEvaluator.measure on the top `eval_top_k` (skipped when 0) (per site)
 ##   PICK argmax, or a softmax sample from the best `pick_pool`; the origin is
 ##            re-validated against the live raster (state can move during the think)

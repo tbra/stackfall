@@ -278,7 +278,7 @@ func test_real_snapshot_reads_a_tilted_pile_as_debris_and_the_column_as_the_soun
 	while not stack.analyse_step(stack.body_count(), BotEvaluator.stack_tuning):
 		pass
 	assert_eq(stack.body_count(), COLUMN_BLOCKS + PILE_BLOCKS)
-	var tops: PackedInt32Array = stack.sound_tops(team)
+	var tops: PackedInt32Array = stack.standing_tops(team)
 	assert_eq(tops.size(), 1, "one sound top: the column's")
 	if tops.size() == 1:
 		assert_lt(stack.com_xz(tops[0]).distance_to(column_xz), 0.1)

@@ -43,9 +43,9 @@ func test_wind_prefers_low_over_tall_that_calm_preferred() -> void:
 	var tall: BotCandidate = _site(TALL_ORIGIN, TALL_TOP_M)
 	var low: BotCandidate = _site(LOW_ORIGIN, LOW_TOP_M)
 	var calm: BotWorldView = _view(false)
-	assert_gt(BotEvaluator.proxy(tall, calm, intent), BotEvaluator.proxy(low, calm, intent), "calm prefers tall")
+	assert_gt(BotEvaluator.score(BotEvaluator.proxy_terms(tall, calm, intent), intent), BotEvaluator.score(BotEvaluator.proxy_terms(low, calm, intent), intent), "calm prefers tall")
 	var storm: BotWorldView = _view(true)
-	assert_gt(BotEvaluator.proxy(low, storm, intent), BotEvaluator.proxy(tall, storm, intent), "storm prefers low")
+	assert_gt(BotEvaluator.score(BotEvaluator.proxy_terms(low, storm, intent), intent), BotEvaluator.score(BotEvaluator.proxy_terms(tall, storm, intent), intent), "storm prefers low")
 	assert_eq(BotEvaluator.wind_tip(low, storm), 0.0, "below the wind threshold nothing is added")
 	assert_gt(BotEvaluator.wind_tip(tall, storm), 0.0, "a tall stack is exposed")
 
@@ -84,7 +84,7 @@ func test_inside_gust_is_penalised_outside_is_not() -> void:
 	assert_gt(BotEvaluator.breeze_tip(inside, view), 0.0)
 	assert_eq(BotEvaluator.breeze_tip(outside, view), 0.0)
 	var intent: BotIntent = _intent()
-	assert_lt(BotEvaluator.proxy(inside, view, intent) - BotEvaluator.proxy(inside, _view(false), intent), 0.0)
+	assert_lt(BotEvaluator.score(BotEvaluator.proxy_terms(inside, view, intent), intent) - BotEvaluator.score(BotEvaluator.proxy_terms(inside, _view(false), intent), intent), 0.0)
 
 
 func test_storm_heading_grades_rim_side_only() -> void:

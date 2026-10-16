@@ -1,6 +1,6 @@
 class_name BotIntent
 extends RefCounted
-## Bot V2 strategy intent (docs/BOT_AI_REDESIGN.md 2.3): what the bot is trying
+## Bot V2 strategy intent: what the bot is trying
 ## to achieve with the current piece. Data only. P1 creates the shape; BotStrategy
 ## (P4) fills it. Kind values double as bit positions in
 ## BotDifficultyProfile.intent_mask.

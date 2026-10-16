@@ -135,7 +135,7 @@ func test_an_unstable_taller_top_loses_to_a_stable_one_in_every_intent() -> void
 		var stable: BotCandidate = _site(LOW_HEIGHT, STABLE_SLACK)
 		var unstable: BotCandidate = _site(TALL_HEIGHT, UNSTABLE_SLACK)
 		assert_gt(
-			BotEvaluator.proxy(stable, view, intent), BotEvaluator.proxy(unstable, view, intent),
+			BotEvaluator.score(BotEvaluator.proxy_terms(stable, view, intent), intent), BotEvaluator.score(BotEvaluator.proxy_terms(unstable, view, intent), intent),
 			"%s: the stable site outranks the taller unstable one" % BotIntent.Kind.keys()[kind]
 		)
 

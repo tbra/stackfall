@@ -105,8 +105,8 @@ func test_a_site_with_a_negative_slack_ranks_below_an_identical_safe_one() -> vo
 	risky.origin = TOWER
 	risky.top_height = 4.0
 	risky.stability_slack = -0.05
-	var safe_score: float = BotEvaluator.proxy(safe_site, view, intent)
-	var risky_score: float = BotEvaluator.proxy(risky, view, intent)
+	var safe_score: float = BotEvaluator.score(BotEvaluator.proxy_terms(safe_site, view, intent), intent)
+	var risky_score: float = BotEvaluator.score(BotEvaluator.proxy_terms(risky, view, intent), intent)
 	assert_lt(risky_score, safe_score, "proxy")
 	var tip: int = BotIntent.Term.TIP
 	var penalty_floor: float = BotEvaluator.tuning.topple_penalty * intent.weights[tip]

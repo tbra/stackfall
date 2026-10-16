@@ -1,7 +1,6 @@
 class_name BotGenTuning
 extends Resource
-## Bot V2 site generation tunables (docs/BOT_AI_REDESIGN.md 2.3
-## steps 4-5). Read by core/ai/BotCandidateGen.gd and core/ai/BotStatics.gd (orientation cap); the
+## Bot V2 site generation tunables. Read by core/ai/BotCandidateGen.gd and core/ai/BotStatics.gd (orientation cap); the
 ## shipped values live in config/bots/bot_gen_tuning.tres. Distances are metres unless a
 ## name says "cubes" (one cube is PhysicsTuning.cube_size).
 

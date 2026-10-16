@@ -214,7 +214,7 @@ func test_tower_top_sites_skip_the_leaning_pile_but_keep_the_sound_stack() -> vo
 	view.stack = _analysed(stack)
 	var intent: BotIntent = BotStrategy._make(_strategy_tuning, BotIntent.Kind.ANCHOR, STACK_XZ)
 	var on_stack: int = 0
-	for site: BotCandidate in BotCandidateGen.sites(view, intent, _profile(), _rng()):
+	for site: BotCandidate in _site_list(view, intent, _profile(), _rng()):
 		if site.site_kind != BotCandidateGen.SITE_STACK:
 			continue
 		var info: BotStatics.OrientationInfo = BotStatics.orientation_info(view.held, site.orientation_index)
@@ -317,7 +317,7 @@ func _pile_stack_sites(mode: int) -> int:
 	view.stack = _analysed(stack)
 	var intent: BotIntent = BotStrategy._make(_strategy_tuning, BotIntent.Kind.ANCHOR, PILE_ORIGIN)
 	var count: int = 0
-	for site: BotCandidate in BotCandidateGen.sites(view, intent, _profile(), _rng()):
+	for site: BotCandidate in _site_list(view, intent, _profile(), _rng()):
 		if site.site_kind == BotCandidateGen.SITE_STACK:
 			count += 1
 	return count
@@ -326,3 +326,14 @@ func _pile_stack_sites(mode: int) -> int:
 func test_only_reach_the_sky_skips_unsound_tops() -> void:
 	assert_gt(_pile_stack_sites(MatchConfig.GameMode.CLASSIC), 0, "Classic keeps the unsound top as a site")
 	assert_eq(_pile_stack_sites(MatchConfig.GameMode.REACH_THE_SKY), 0, "Reach the Sky skips it")
+
+
+## The sites `BotCandidateGen.begin` builds once its fill has run to the end.
+func _site_list(
+	view: BotWorldView, intent: BotIntent, profile: BotDifficultyProfile,
+	rng: RandomNumberGenerator, tuning: BotGenTuning = null
+) -> Array[BotCandidate]:
+	var job: BotCandidateGen.SiteJob = BotCandidateGen.begin(view, intent, profile, rng, tuning)
+	while not job.fill_step(job.attempts_left()):
+		pass
+	return job.out

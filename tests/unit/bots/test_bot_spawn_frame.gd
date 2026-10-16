@@ -73,7 +73,7 @@ func test_stack_sites_centre_the_footprint_on_the_tower() -> void:
 		var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 		rng.seed = SEED
 		var stacks: int = 0
-		for c: BotCandidate in BotCandidateGen.sites(view, intent, profile, rng, _tuning):
+		for c: BotCandidate in _site_list(view, intent, profile, rng, _tuning):
 			if c.site_kind != BotCandidateGen.SITE_STACK:
 				continue
 			stacks += 1
@@ -119,3 +119,14 @@ func _shape_by_id(id: String) -> BlockShape:
 		if String(shape.id) == id:
 			return shape
 	return null
+
+
+## The sites `BotCandidateGen.begin` builds once its fill has run to the end.
+func _site_list(
+	view: BotWorldView, intent: BotIntent, profile: BotDifficultyProfile,
+	rng: RandomNumberGenerator, tuning: BotGenTuning = null
+) -> Array[BotCandidate]:
+	var job: BotCandidateGen.SiteJob = BotCandidateGen.begin(view, intent, profile, rng, tuning)
+	while not job.fill_step(job.attempts_left()):
+		pass
+	return job.out

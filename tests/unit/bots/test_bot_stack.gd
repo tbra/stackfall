@@ -27,15 +27,16 @@ func _analyse() -> void:
 	_stack.analyse_step(_stack.body_count() + 1, _t)
 
 
-func _ids(id: int) -> PackedInt64Array:
-	return PackedInt64Array([id])
+## The margin of a piece whose bottom cube sits over `column_xz` and whose centre of mass is `com_xz`.
+func _rest_margin(column_xz: Vector2, com_xz: Vector2) -> float:
+	return _stack.rest_margin(PackedVector2Array([column_xz]), com_xz, MASS)
 
 
 func test_centred_two_cube_tower_has_half_cube_margin() -> void:
 	_cube(1, 0.0, 0)
 	_cube(2, 0.0, 1)
 	_analyse()
-	var m: float = _stack.load_margin(_ids(2), Vector3(0.0, 2.5, 0.0), MASS)
+	var m: float = _rest_margin(Vector2.ZERO, Vector2.ZERO)
 	assert_almost_eq(m, HALF, EPS)
 
 
@@ -43,14 +44,13 @@ func test_piece_beyond_top_edge_is_negative() -> void:
 	_cube(1, 0.0, 0)
 	_cube(2, 0.0, 1)
 	_analyse()
-	assert_lt(_stack.load_margin(_ids(2), Vector3(0.7, 2.5, 0.0), MASS), 0.0)
+	assert_lt(_rest_margin(Vector2.ZERO, Vector2(0.7, 0.0)), 0.0)
 
 
 func test_no_block_support_is_infinite() -> void:
 	_cube(1, 0.0, 0)
 	_analyse()
-	assert_eq(_stack.load_margin(PackedInt64Array(), Vector3.ZERO, MASS), INF)
-	assert_eq(_stack.load_margin(_ids(99), Vector3.ZERO, MASS), INF)
+	assert_eq(_rest_margin(Vector2(5.0, 0.0), Vector2(5.0, 0.0)), INF, "a column over the bare disc")
 
 
 func test_overhang_fails_at_a_lower_contact() -> void:
@@ -60,7 +60,7 @@ func test_overhang_fails_at_a_lower_contact() -> void:
 	_cube(2, 0.5, 1)
 	_cube(3, 1.0, 2)
 	_analyse()
-	var m: float = _stack.load_margin(_ids(3), Vector3(0.75, 3.5, 0.0), MASS)
+	var m: float = _rest_margin(Vector2(1.0, 0.0), Vector2(0.75, 0.0))
 	assert_lt(m, 0.0)
 	assert_almost_eq(m, -0.25, EPS)
 
@@ -73,7 +73,7 @@ func test_two_legs_bridge_com_between_them_is_inside_the_hull() -> void:
 	]
 	_body(3, bridge, 0, Basis.IDENTITY, 3.0 * MASS)
 	_analyse()
-	var m: float = _stack.load_margin(_ids(3), Vector3(0.0, 2.5, 0.0), MASS)
+	var m: float = _rest_margin(Vector2.ZERO, Vector2.ZERO)
 	assert_almost_eq(m, HALF, EPS)
 	assert_true(_stack.is_sound(_stack.index_of(3)), "the bridge is sound")
 	assert_true(_stack.is_sound(_stack.index_of(1)), "legs are not charged the whole bridge")
@@ -97,17 +97,17 @@ func test_cube_at_disc_level_rests_on_the_disc_and_floating_cube_does_not() -> v
 	assert_false(_stack.is_sound(_stack.index_of(2)), "floating: no support at all")
 
 
-func test_sound_tops_and_top_height() -> void:
+func test_standing_tops_and_top_height() -> void:
 	_cube(1, 0.0, 0, 0.0, 0)
 	_cube(2, 0.0, 1, 0.0, 0)
 	_cube(3, 3.0, 0, 0.0, 0)
 	_cube(4, 6.0, 0, 0.0, 1)
 	_analyse()
-	var tops: PackedInt32Array = _stack.sound_tops(0)
+	var tops: PackedInt32Array = _stack.standing_tops(0)
 	assert_eq(tops.size(), 2)
 	assert_eq(_stack.body_ids[tops[0]], 2, "tallest first")
 	assert_almost_eq(_stack.top_height(tops[0]), 2.0, EPS)
-	assert_eq(_stack.sound_tops(1).size(), 1)
+	assert_eq(_stack.standing_tops(1).size(), 1)
 
 
 func test_rolled_bars_are_sound_with_the_lying_footprint() -> void:

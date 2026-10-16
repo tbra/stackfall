@@ -2,8 +2,8 @@ extends GutTest
 ## ("they will occasionally just abandon a tower and start a new one").
 ## Every path in BotStrategy._plan_sound_tower that leaves the remembered tower for a new base is pinned here with a
 ## scripted snapshot. Triggers found (before the fix each started a new base at once):
-##  T1 an unsound block on top of the tower (a leaning piece, a stray) left sound_tops empty (a body with ANYTHING
-##     on it is no top);
+##  T1 an unsound block on top of the tower (a leaning piece, a stray) left the tops list empty (a body with ANYTHING
+##     on it was no top);
 ##  T2 the top moved more than base_match_radius_m from the remembered base (a long bar on a wide tower);
 ##  T3 one transient unsound frame (a block tilted past max_tilt_deg for a moment: sway, an impact) took the
 ##     whole chain above it out of the sound set;
@@ -117,7 +117,7 @@ func test_t1_an_unsound_block_on_top_does_not_abandon_the_tower() -> void:
 	var probe: BotStack = _stack()
 	_column(probe, BASE_XZ, 5, 4)
 	_analyse(probe)
-	assert_true(probe.sound_tops(TEAM).is_empty(), "the old list is empty: that was the abandon trigger")
+	assert_false(probe.standing_tops(TEAM).is_empty(), "the tower below the leaning block is still a top")
 	var stack: BotStack = _stack()
 	_column(stack, BASE_XZ, 5, 4)
 	var intent: BotIntent = _think(stack, [[BASE_XZ, 5.0]], memory)

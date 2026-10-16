@@ -1,6 +1,6 @@
 class_name BotEvalTuning
 extends Resource
-## Bot V2 evaluator tunables (docs/BOT_AI_REDESIGN.md 2.3 step 6):
+## Bot V2 evaluator tunables:
 ## the numbers core/ai/BotEvaluator.gd reads. Loaded as config/bots/bot_eval_tuning.tres.
 
 ## Sunflower samples of the future influence circle read against the raster

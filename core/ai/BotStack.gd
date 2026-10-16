@@ -31,7 +31,7 @@ extends RefCounted
 ## Support faces: soundness describes a TOWER (every body down to the disc upright). Where a
 ## piece may REST is a separate, looser rule (is_flat_support, rest_margin): the faces under the piece lie flat
 ## against the disc within support_face_tolerance_deg, and the body and every carrier below it are settled with a
-## known contact hull; a carrier may lean (debris), and whether the pile holds the piece is load_margin's call
+## known contact hull; a carrier may lean (debris), and whether the pile holds the piece is rest_margin's call
 ## through every carrier down to the disc. DECISION: "flat against the disc" is measured in this snapshot's frame,
 ## which is disc-local: game/BotStackProbe converts cube centres with Field.to_local and bases with the inverse
 ## field basis, and Field (game/field/Field.gd _apply_tilt_transform) carries the tilt in its own transform, so local y
@@ -205,9 +205,8 @@ func is_sound(body: int) -> bool:
 	return _done and body >= 0 and body < _sound.size() and _sound[body] == 1
 
 
-## sound bodies of `team` with no SOUND body resting on them, tallest first. Unlike sound_tops an
-## unsound block lying on the tower (a leaning top piece, a stray) does not take the tower below it out of the
-## list: the tower still stands, the plan keeps following it. DECISION: unsound bodies above are ignored here
+## sound bodies of `team` with no SOUND body resting on them, tallest first. An unsound block lying on
+## the tower (a leaning top piece, a stray) does not take the tower below it out of the list: the tower still stands, the plan keeps following it. DECISION: unsound bodies above are ignored here
 ## only; is_usable_top (the site filter) still refuses a top that carries one.
 func standing_tops(team: int) -> PackedInt32Array:
 	var tops: Array[int] = []
@@ -247,23 +246,6 @@ func top_height(body: int) -> float:
 	for ci: int in _body_cubes[body]:
 		top = maxf(top, cube_pos[ci].y)
 	return top + cube_size * _HALF
-
-
-## Sound bodies of `team` with nothing resting on them, tallest first.
-func sound_tops(team: int) -> PackedInt32Array:
-	var tops: Array[int] = []
-	if not _done:
-		return PackedInt32Array()
-	for i: int in body_ids.size():
-		if body_team[i] == team and _sound[i] == 1 and _above[i].is_empty():
-			tops.append(i)
-	tops.sort_custom(
-		func(a: int, b: int) -> bool:
-			var ha: float = top_height(a)
-			var hb: float = top_height(b)
-			return a < b if is_equal_approx(ha, hb) else ha > hb
-	)
-	return PackedInt32Array(tops)
 
 
 ## the body whose centre of mass lies within `radius` of `point` (disk-local XZ) and
@@ -315,24 +297,6 @@ func com_xz(body: int) -> Vector2:
 	return Vector2(body_com[body].x, body_com[body].z)
 
 
-## The smallest signed distance (metres, positive inside) by which the centre of mass of the load stays inside the
-## support region of the piece and of every body from `support_ids` down to the disc, with a piece of `piece_mass`
-## centred at `piece_com` added on top (the cut model, header). INF when no support id is known (no block support).
-## The piece is taken as one cube square centred under `piece_com`; its patch on the supports' top faces is the first
-## region (rule 1), each lower region is that body's external contact hull (rule 2).
-func load_margin(support_ids: PackedInt64Array, piece_com: Vector3, piece_mass: float) -> float:
-	var supports: PackedInt32Array = PackedInt32Array()
-	for id: int in support_ids:
-		var i: int = index_of(id)
-		if i >= 0:
-			supports.append(i)
-	if supports.is_empty() or not _done:
-		return INF
-	var bottom: PackedVector2Array = PackedVector2Array([Vector2(piece_com.x, piece_com.z)])
-	var pc: PieceCut = _piece_cut(bottom, cube_size * _HALF, ground_y, 0.0, PackedByteArray(), supports)
-	return _margin_with(pc, supports, piece_com, piece_mass)
-
-
 ## true when a piece may rest on `body`'s top faces: they lie within support_face_tolerance_deg
 ## of the disc plane (the body's tilt against the disc normal), and the body and every body carrying it are
 ## settled with a known contact hull. A carrier may lean or be unsound (fallen debris): whether the pile holds
@@ -354,8 +318,8 @@ func surface_at(point: Vector2) -> int:
 ## how a piece would rest with its bottom cubes over the disk-local `points` (the columns the
 ## bot's cube probes fire down). The highest face under them is the resting plane (the host lifts the piece onto
 ## it); the bodies whose faces lie on it within rest_tolerance_m carry the piece. INF when only the disc carries
-## it (no block support, as load_margin); -INF when a carrying face is not a flat support (is_flat_support:
-## tilted against the disc, unsettled or unverifiable); else the cut-model margin (load_margin) for a piece of
+## it (no block support); -INF when a carrying face is not a flat support (is_flat_support:
+## tilted against the disc, unsettled or unverifiable); else the cut-model margin for a piece of
 ## `piece_mass` centred at `piece_com_xz`, whose bottom is one cube square under each of `points`. Negative: the
 ## pile would not hold the piece.
 func rest_margin(points: PackedVector2Array, piece_com_xz: Vector2, piece_mass: float) -> float:
