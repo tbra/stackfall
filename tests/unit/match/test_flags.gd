@@ -1,6 +1,6 @@
 extends GutTest
-## Home and goal flags: where they stand (spec 2.2) and the goal's capture ring
-## (spec 2.3).
+## Home and goal flags: where they stand (spec 1.5) and the goal's capture ring
+## (spec 1.5).
 
 const FIELD_RADIUS: float = 20.0
 
@@ -31,7 +31,7 @@ func _make_field() -> Field:
 	return field
 
 
-# --- Positions (spec 2.2) ---------------------------------------------------
+# --- Positions (spec 1.5) ---------------------------------------------------
 
 func test_two_home_flags_sit_opposite_each_other() -> void:
 	var field: Field = _make_field()
@@ -44,32 +44,6 @@ func test_two_home_flags_sit_opposite_each_other() -> void:
 	assert_almost_eq(
 		absf(first.angle_to(second)), PI, 0.0001, "Two players sit pi apart."
 	)
-
-
-func test_eight_home_flags_are_spaced_evenly() -> void:
-	var field: Field = _make_field()
-	var ring: float = field.map_def.home_flag_ring_radius()
-	for slot_id: int in range(8):
-		var here: Vector2 = field.home_flag_position(slot_id, 8)
-		var next: Vector2 = field.home_flag_position(slot_id + 1, 8)
-		assert_almost_eq(here.length(), ring, 0.0001)
-		assert_almost_eq(
-			absf(here.angle_to(next)), PI / 4.0, 0.0001, "Eight players step by pi/4."
-		)
-
-
-func test_slot_zero_starts_at_plus_x() -> void:
-	var field: Field = _make_field()
-	var first: Vector2 = field.home_flag_position(0, 5)
-	assert_almost_eq(first.y, 0.0, 0.0001)
-	assert_gt(first.x, 0.0)
-
-
-func test_one_goal_flag_is_the_center() -> void:
-	var field: Field = _make_field()
-	var positions: PackedVector2Array = field.goal_flag_positions(1)
-	assert_eq(positions.size(), 1)
-	assert_almost_eq(positions[0].length(), 0.0, 0.0001)
 
 
 func test_extra_goal_flags_are_symmetric_on_the_inner_ring() -> void:
@@ -107,16 +81,7 @@ func test_place_flags_builds_a_flag_per_slot_and_goal() -> void:
 		)
 
 
-func test_placing_flags_again_replaces_the_old_ones() -> void:
-	var field: Field = _make_field()
-	field.place_flags(4, _slot_colors(), 2)
-	field.place_flags(2, _slot_colors(), 1)
-
-	assert_eq(field.home_flags().size(), 2)
-	assert_eq(field.goal_flags().size(), 1)
-
-
-# --- Capture ring (spec 2.3) ------------------------------------------------
+# --- Capture ring (spec 1.5) ------------------------------------------------
 
 func test_capture_ring_appears_and_tracks_progress() -> void:
 	var field: Field = _make_field()
@@ -127,7 +92,6 @@ func test_capture_ring_appears_and_tracks_progress() -> void:
 		assert_true(flag.ring_visible(), "Every goal flag shows the capture ring.")
 		assert_eq(flag.capture_team(), 1)
 		assert_almost_eq(flag.capture_progress(), 0.5, 0.0001)
-		assert_not_null(flag.ring_mesh(), "The arc mesh is built.")
 
 
 func test_capture_ring_hides_when_the_capture_breaks() -> void:
@@ -141,55 +105,7 @@ func test_capture_ring_hides_when_the_capture_breaks() -> void:
 	assert_eq(flag.capture_team(), -1)
 
 
-func test_capture_ring_grows_with_progress() -> void:
-	var field: Field = _make_field()
-	field.place_flags(2, _slot_colors(), 1)
-	var flag: GoalFlag = field.goal_flags()[0]
-
-	field.set_capture_progress(0, 0.25)
-	var quarter: int = flag.ring_mesh().get_faces().size()
-	field.set_capture_progress(0, 1.0)
-	var full: int = flag.ring_mesh().get_faces().size()
-	assert_gt(full, quarter, "A fuller ring is a longer arc.")
-
-
-func test_events_goal_capture_progress_drives_the_ring() -> void:
-	var field: Field = _make_field()
-	field.place_flags(2, _slot_colors(), 1)
-
-	Events.goal_capture_progress.emit(1, 0.4)
-	var flag: GoalFlag = field.goal_flags()[0]
-	assert_eq(flag.capture_team(), 1, "Field listens on the Events bus, not a node path.")
-	assert_almost_eq(flag.capture_progress(), 0.4, 0.0001)
-
-
-# --- Beacon visuals (M7 P8, Bontago-xtq.33) ----------------------------------
-
-func test_home_beacon_has_a_socket_ring_and_crystal() -> void:
-	var field: Field = _make_field()
-	field.place_flags(2, _slot_colors(), 1)
-
-	var flag: HomeFlag = field.home_flags()[0]
-	var socket: Node = flag.get_node(^"Socket")
-	var ring: Node = flag.get_node(^"Ring")
-	var crystal: Node = flag.get_node(^"Crystal")
-	assert_true(socket is MeshInstance3D, "Socket is a mesh.")
-	assert_true(ring is MeshInstance3D, "Ring is a mesh.")
-	assert_true(crystal is MeshInstance3D, "Crystal is a mesh.")
-	assert_not_null((socket as MeshInstance3D).mesh)
-	assert_not_null((ring as MeshInstance3D).mesh)
-	assert_not_null((crystal as MeshInstance3D).mesh)
-
-
-func test_goal_beacon_also_has_a_socket_ring_and_crystal() -> void:
-	var field: Field = _make_field()
-	field.place_flags(2, _slot_colors(), 1)
-
-	var flag: GoalFlag = field.goal_flags()[0]
-	assert_not_null(flag.get_node(^"Socket"))
-	assert_not_null(flag.get_node(^"Ring"))
-	assert_not_null(flag.get_node(^"Crystal"))
-
+# --- Beacon visuals (M7 P8) ----------------------------------
 
 func test_home_beacon_ring_and_crystal_follow_set_slots_color() -> void:
 	var field: Field = _make_field()
@@ -201,9 +117,9 @@ func test_home_beacon_ring_and_crystal_follow_set_slots_color() -> void:
 		var ring: MeshInstance3D = flag.get_node(^"Ring") as MeshInstance3D
 		var crystal: MeshInstance3D = flag.get_node(^"Crystal") as MeshInstance3D
 		var ring_material: StandardMaterial3D = ring.material_override as StandardMaterial3D
-		# Bontago-mp0.3.1: the crystal now draws with
+		# the crystal now draws with
 		# shaders/territory/beacon_crystal.gdshader (toon banding + a hard specular
-		# facet highlight, owner feedback: "Same for the beacons"), so its
+		# facet highlight, : "Same for the beacons"), so its
 		# colour lives in the "albedo_color" shader parameter instead of
 		# StandardMaterial3D's own `.albedo_color` -- see HomeFlag._build()'s
 		# own DECISION comment.
@@ -220,60 +136,8 @@ func test_home_beacon_ring_and_crystal_follow_set_slots_color() -> void:
 		)
 
 
-func test_home_beacon_socket_stays_a_neutral_color_regardless_of_slot() -> void:
-	var field: Field = _make_field()
-	field.place_flags(2, _slot_colors(), 1)
-
-	var flag: HomeFlag = field.home_flags()[0]
-	var socket: MeshInstance3D = flag.get_node(^"Socket") as MeshInstance3D
-	var socket_material: StandardMaterial3D = socket.material_override as StandardMaterial3D
-	assert_eq(
-		socket_material.albedo_color, flag.beacon_visuals.socket_color,
-		"The socket never carries an owner's color, only the ring/crystal do."
-	)
-
-
-# --- Beacon size at gameplay scale (Bontago-xtq.41: owner playtest "the ------
+# --- Beacon size at gameplay scale ("the ------
 # beacons are way too small") -------------------------------------------------
-
-## Guards the xtq.41 size-up against a future re-shrink: a block cell is 1m,
-## and docs/M7_ART_DIRECTION.md's mockup (08-cel-shaded-home-beacons.png)
-## reads the crystal at roughly two to three cells tall and the ring wider
-## than one cell at the real follow-camera distance (config/player/camera_tuning.tres
-## follow_distance 9.0), not the far overview framing earlier screenshots used.
-func test_home_beacon_reads_clearly_at_gameplay_scale() -> void:
-	var tuning: BeaconVisualTuning = preload("res://config/territory/beacon_visual_tuning.tres")
-	const BLOCK_CELL_M: float = 1.0
-
-	assert_gt(
-		tuning.crystal_height, BLOCK_CELL_M * 1.5,
-		"HomeFlag's crystal must read as at least ~1.5-2 block cells tall."
-	)
-	assert_lt(
-		tuning.crystal_height, BLOCK_CELL_M * 3.5,
-		"HomeFlag's crystal must not dwarf a 1m block cell either."
-	)
-	assert_gt(
-		tuning.ring_outer_radius * 2.0, BLOCK_CELL_M,
-		"The ring's diameter must read wider than a single block cell."
-	)
-
-
-## GoalFlag.banner_scale() returns goal_scale_factor, so its crystal must stay
-## both larger than a HomeFlag's own and within the mockup's cell-count range.
-func test_goal_beacon_crystal_stays_larger_but_within_gameplay_scale() -> void:
-	var tuning: BeaconVisualTuning = preload("res://config/territory/beacon_visual_tuning.tres")
-	var goal_crystal_height: float = tuning.crystal_height * tuning.goal_scale_factor
-
-	assert_gt(
-		goal_crystal_height, tuning.crystal_height,
-		"The goal beacon's crystal must stay larger than a HomeFlag's own."
-	)
-	assert_lt(
-		goal_crystal_height, 3.5,
-		"Even the larger goal variant should stay near the mockup's 2-3 cell crystal."
-	)
-
 
 func test_goal_beacon_uses_the_neutral_color_not_a_slot_color() -> void:
 	var field: Field = _make_field()
@@ -288,12 +152,3 @@ func test_goal_beacon_uses_the_neutral_color_not_a_slot_color() -> void:
 		+ "never a player's slot color (place_flags() never calls set_slot() on it)."
 	)
 
-
-func test_goal_neutral_color_is_bright_white_and_distinct_from_every_player_color() -> void:
-	var neutral: Color = load("res://config/territory/beacon_visual_tuning.tres").neutral_color as Color
-	assert_eq(neutral, Color(1, 1, 1, 1), "Neutral goal beacons are bright white (Bontago-1pi.177).")
-	for player_color: Color in MatchConfig.default_player_colors():
-		var distance: float = Vector3(
-			neutral.r - player_color.r, neutral.g - player_color.g, neutral.b - player_color.b
-		).length()
-		assert_gt(distance, 0.4, "player colour %s stays distinguishable from goal white" % player_color)

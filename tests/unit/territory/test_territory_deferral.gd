@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.11.8: while a block is unsettled MatchTerritory defers solves up
+## while a block is unsettled MatchTerritory defers solves up
 ## to TerritoryTuning.solve_defer_max_s; the forced solve must then apply the
 ## whole skipped time to the win checker exactly once (no loss, no double count),
 ## matching a run with deferral disabled.
@@ -102,7 +102,7 @@ func test_forced_solve_applies_deferred_time_exactly_once() -> void:
 	assert_lt(deferred[1] as float, step + 0.0001, "Only a sub-step remainder stays pending.")
 
 
-## Bontago-1pi.11.14: real host Match. Clean ticks skip the solve and leave the
+## real host Match. Clean ticks skip the solve and leave the
 ## raster bytes untouched (so replicate_territory() would send nothing), and the
 ## next real solve's changed cells, sent as a diff, bring a mirror level again.
 func test_clean_skips_send_nothing_then_a_real_solve_reaches_the_mirror() -> void:

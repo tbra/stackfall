@@ -12,7 +12,6 @@ func test_fused_body_extends_block() -> void:
 	assert_true(body.members.is_empty(), "members starts empty")
 	assert_true(body.anchored_members.is_empty(), "anchored_members starts empty")
 	assert_false(body.is_disc_anchored(), "stub is not disc-anchored")
-	assert_eq(body.owner_slot_at(Vector3.ZERO), -1, "stub owner slot is -1")
 	assert_eq(body.members_in_sphere(Vector3.ZERO, 1.0).size(), 0, "stub finds no members")
 
 

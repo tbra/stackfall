@@ -1,6 +1,6 @@
 class_name ModeObjective
 extends RefCounted
-## What decides a match (Bontago-22y.11). One objective is active per match;
+## What decides a match. One objective is active per match;
 ## MatchTerritory feeds it every territory solve and MatchLifecycle asks it
 ## about the round timer, so neither hard-codes the classic all-goal hold.
 ##
@@ -40,8 +40,8 @@ static func create(
 	sky_target_height: float = 0.0,
 	claim_decay_rate: float = 0.0
 ) -> ModeObjective:
-	# DECISION: every id resolves to CLASSIC until a mode package (22y.7/.8/.9)
-	# adds its `match` branch here and its id to SELECTABLE_GAME_MODES.
+	# DECISION: every id resolves to CLASSIC until its mode adds its `match` branch here
+	# and its id to SELECTABLE_GAME_MODES.
 	var objective: ModeObjective = null
 	match MatchConfig.resolve_game_mode(mode):
 		MatchConfig.GameMode.CAPTURE_THE_FLAG:
@@ -58,7 +58,7 @@ static func create(
 	return objective
 
 
-## Bontago-1pi.18.1: QoL claim radius (0 = the flag cell only). Objectives that
+## QoL claim radius (0 = the flag cell only). Objectives that
 ## read goal cells override this.
 func set_claim_radius(_radius: float) -> void:
 	pass
@@ -67,14 +67,6 @@ func set_claim_radius(_radius: float) -> void:
 ## The MatchConfig.GameMode this objective implements.
 func mode_id() -> int:
 	return MatchConfig.GameMode.CLASSIC
-
-
-## Bontago-6fc.2: whether the match spawns goal flags (nodes, no-build zones,
-## HUD/minimap markers, bot targets) for this mode. Classic (the goal hold) and
-## CTF (beacons are the goal flags) say true; Reach the Sky and Elimination
-## override to false. Mirrors MatchConfig.mode_uses_goal_flags().
-func uses_goal_flags() -> bool:
-	return MatchConfig.mode_uses_goal_flags(mode_id())
 
 
 ## True for a timed mode: MatchLifecycle then arms config.round_timer_minutes
@@ -199,30 +191,3 @@ func _declare_winner(team: int) -> void:
 
 const MAX_WIRE_KEYS: int = ResultsValidation.MAX_WIRE_KEYS
 const MAX_WIRE_STRING: int = ResultsValidation.MAX_WIRE_STRING
-
-
-## Strictly re-types a replicated mode state, or {} when malformed. The body
-## lives in core/rules/ResultsValidation.gd (autoload decoupling S2a).
-static func validate_state(raw: Variant) -> Dictionary:
-	return ResultsValidation.validate_mode_state(raw)
-
-
-## The results "mode" block validator lives in ResultsPayload (the one results
-## schema owner); kept as a delegate for existing callers.
-static func validate_results_block(raw: Variant) -> Dictionary:
-	return ResultsPayload.validate_mode_block(raw)
-
-
-static func is_known_mode(mode: int) -> bool:
-	return ResultsValidation.is_known_mode(mode)
-
-
-## Array of floats, or [null] as the malformed sentinel.
-static func clean_scores(raw: Variant) -> Array:
-	return ResultsValidation.clean_scores(raw)
-
-
-## A copy of `raw` when it is a small dictionary of String keys mapped to
-## int/float(finite)/bool/short String; null otherwise.
-static func clean_scalars(raw: Variant) -> Variant:
-	return ResultsValidation.clean_scalars(raw)

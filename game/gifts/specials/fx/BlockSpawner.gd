@@ -2,7 +2,7 @@ class_name BlockSpawner
 ## Projectile spawning module for continuous effects (Volcano, Stackfall).
 ##
 ## Wraps Match.spawn_special_projectile(): host only, no feed/rules check, not
-## counted as a placement (blocks_placed is untouched), owner-coloured, and
+## counted as a placement (blocks_placed is untouched), slot-coloured, and
 ## refused once the blocks root holds `cap` children (same convention as
 ## StackfallRain's body cap).
 ##

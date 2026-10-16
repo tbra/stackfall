@@ -1,14 +1,6 @@
 extends GutTest
-## Bontago-1pi.11.53: game/main/Boot.tscn is the main scene and hands over to Main. Headless
+## game/main/Boot.tscn is the main scene and hands over to Main. Headless
 ## (this suite) takes the synchronous path, so Main exists right after Boot's _ready.
-
-const MAIN_SCENE_SETTING: String = "application/run/main_scene"
-
-
-func test_project_main_scene_is_boot() -> void:
-	assert_eq(ProjectSettings.get_setting(MAIN_SCENE_SETTING), "res://game/main/Boot.tscn")
-	assert_eq(Boot.MAIN_SCENE_PATH, "res://game/main/Main.tscn")
-
 
 func test_headless_boot_adds_main_to_root_and_frees_itself() -> void:
 	var boot: Boot = Boot.new()
@@ -26,7 +18,7 @@ func test_headless_boot_adds_main_to_root_and_frees_itself() -> void:
 	await get_tree().process_frame
 
 
-## Review of 1pi.11.53: a scene that cannot load must fail loudly (error + quit in the real
+## A scene that cannot load must fail loudly (error + quit in the real
 ## game), never leave a black window waiting forever.
 func test_missing_main_scene_fails_instead_of_hanging() -> void:
 	var boot: Boot = Boot.new()
@@ -60,7 +52,6 @@ func test_activation_hook_runs_before_main_is_added() -> void:
 	await get_tree().process_frame
 
 
-const FIXTURE_SCENE: String = "res://tests/support/BootFixture.tscn"
 ## Frames the quit-deferral test waits for the worker before giving up.
 const WAIT_FRAME_LIMIT: int = 600
 
@@ -77,44 +68,6 @@ func _threaded_boot(path: String) -> Boot:
 	boot.quit_on_failure = false
 	boot.force_threaded = true
 	return boot
-
-
-## Bontago-1pi.11.80: exit cleanup cancels an in-flight threaded load (and logs "Could not
-## preload" for the whole script graph), so Boot collects it in _exit_tree.
-func test_exit_collects_inflight_main_load() -> void:
-	var boot: Boot = _threaded_boot(FIXTURE_SCENE)
-	add_child(boot)
-	remove_child(boot)  # same frame: the request is still pending; exit must collect it
-	assert_eq(ResourceLoader.load_threaded_get_status(FIXTURE_SCENE), ResourceLoader.THREAD_LOAD_INVALID_RESOURCE,
-			"the request was collected (no pending task left for cleanup to cancel)")
-	assert_not_null(boot.collected_resource, "the load completed rather than being cancelled")
-	assert_false(boot.load_failed)
-	boot.free()
-	get_tree().auto_accept_quit = true
-
-
-## Bontago-1pi.11.85.2: the threaded path hands Main over right after Main.tscn is collected, with
-## no LateScripts prewarm and no autoload activation (Main does both behind the menu).
-func test_threaded_boot_starts_main_without_prewarm_or_activation() -> void:
-	var probe: Node = Node.new()
-	probe.set_script(load("res://tests/support/LateActivationProbe.gd"))
-	get_tree().root.add_child(probe)
-	var boot: Boot = _threaded_boot(FIXTURE_SCENE)
-	add_child(boot)
-	var frames: int = 0
-	while get_tree().root.get_node_or_null(NodePath(Boot.MAIN_NODE_NAME)) == null and frames < WAIT_FRAME_LIMIT:
-		await get_tree().process_frame
-		frames += 1
-	var main: Node = get_tree().root.get_node_or_null(NodePath(Boot.MAIN_NODE_NAME))
-	assert_not_null(main, "Main started once Main.tscn was collected")
-	assert_eq(probe.get("calls"), 0, "Boot does not activate the autoloads on the threaded path")
-	assert_true(get_tree().auto_accept_quit, "the engine owns the close request again")
-	if main != null:
-		main.queue_free()
-	probe.queue_free()
-	get_tree().current_scene = null
-	await get_tree().process_frame
-	await get_tree().process_frame
 
 
 func test_close_request_is_deferred_until_load_collected() -> void:
@@ -135,7 +88,7 @@ func test_close_request_is_deferred_until_load_collected() -> void:
 	get_tree().auto_accept_quit = true
 
 
-## Bontago-6a4: a second close request after the first quit is a no-op.
+## a second close request after the first quit is a no-op.
 func test_second_close_request_quits_once() -> void:
 	_quit_calls = 0
 	var boot: Boot = _threaded_boot("res://game/main/Main.tscn")

@@ -2,7 +2,7 @@ class_name JoltOverflowErrorTracker
 extends GutErrorTracker
 ## GUT error tracker that treats Jolt's job-queue overflow warning as handled.
 ##
-## Bontago-fca.119 (memories jolt-job-limit-flakes, jolt-job-overflow-flake):
+## memories jolt-job-limit-flakes, jolt-job-overflow-flake:
 ## under CPU oversubscription in the parallel full gate, Jolt emits a
 ## WARN_PRINT_ONCE "job system exceeded the maximum number of jobs" that GUT
 ## counts as an unexpected engine error and attributes to whichever physics

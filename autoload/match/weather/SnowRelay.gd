@@ -1,6 +1,6 @@
 class_name SnowRelay
 extends RefCounted
-## Hand-off from the host's SnowEffect to net/SnowNet.gd (Bontago-22y.6).
+## Hand-off from the host's SnowEffect to net/SnowNet.gd.
 ##
 ## DECISION (autoload/match/weather/SnowRelay.gd): a tiny process-wide relay
 ## instead of a new Events signal, so the shared autoload/Events.gd (edited by

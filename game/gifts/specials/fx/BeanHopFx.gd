@@ -1,6 +1,6 @@
 class_name BeanHopFx
 extends Node
-## Bontago-a3z (owner: "the jumping beans jump" need an effect): a visual-only
+## "the jumping beans jump" need an effect: a visual-only
 ## driver on a Jumping Bean gift carrier that marks every hop with a spring ring
 ## and a dust kick where the bean left the ground (and Events.bean_hopped, which
 ## autoload/Sfx.gd turns into the hop sound), and every landing with a dust puff

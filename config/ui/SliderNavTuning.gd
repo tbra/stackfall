@@ -1,6 +1,6 @@
 class_name SliderNavTuning
 extends Resource
-## Bontago-1pi.119: keyboard/gamepad step size for fine-grained menu sliders (Options + Lobby).
+## keyboard/gamepad step size for fine-grained menu sliders (Options + Lobby).
 ## Read by ui/components/UiHoldRepeat.gd. Not one of the F4 tuning panel's resource classes, so no
 ## config/ui/tuning_panel_hints.tres entry is needed.
 
@@ -9,7 +9,7 @@ extends Resource
 ## coarser sliders (the minute timers, disc size) keep their own step.
 @export var steps_per_range: int = 20
 
-## Bontago-1pi.142: holding ui_left / ui_right (d-pad, stick or key) steps once at once, then
+## holding ui_left / ui_right (d-pad, stick or key) steps once at once, then
 ## repeats every repeat_interval_sec after repeat_delay_sec. Not the OS/engine echo.
 @export var repeat_delay_sec: float = 0.45
 @export var repeat_interval_sec: float = 0.15
@@ -17,7 +17,7 @@ extends Resource
 ## the ui press threshold is the input action's deadzone), so drift near it never retriggers.
 @export_range(0.0, 1.0, 0.01) var stick_release_threshold: float = 0.25
 
-## Bontago-1pi.152 stick friction. # DECISION: values chosen by the implementer.
+## stick friction. # DECISION: values chosen by the implementer.
 ## A stick must pass this to press a step (above stick_release_threshold, and above the ui action
 ## deadzone so a slow push cannot re-press from the deadzone band).
 @export_range(0.0, 1.0, 0.01) var stick_press_threshold: float = 0.5
@@ -28,7 +28,7 @@ extends Resource
 @export var stick_repeat_delay_sec: float = 0.6
 @export var stick_repeat_interval_sec: float = 0.2
 
-## Bontago-1pi.159.19 scrolling menus. # DECISION: values chosen by the implementer.
+## scrolling menus. # DECISION: values chosen by the implementer.
 ## The right stick scrolls a FocusScrollContainer when |axis| passes this deadzone ...
 @export_range(0.0, 1.0, 0.01) var scroll_stick_deadzone: float = 0.25
 ## ... at up to this many pixels per second at full deflection (scaled by the axis past the deadzone).

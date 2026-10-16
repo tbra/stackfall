@@ -1,7 +1,7 @@
 class_name UiRow
 extends HBoxContainer
 ## A settings row: a fixed-width label column plus the row items, `space-2` apart
-## (docs/UI_COMPONENTS_PLAN.md section 3.1 / 4). Screens build `UiRow.new().setup(label, control)`
+## (component layout, sections 3.1 and 4).
 ## instead of aligning controls by hand; every item is a UiRowItem and so shares one height.
 
 var label: Label = null

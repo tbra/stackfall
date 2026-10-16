@@ -1,8 +1,8 @@
-"""Claude PreToolUse hook (owner 2026-10-07): block shell commands that open the Microsoft Store.
+"""Claude PreToolUse hook: block shell commands that open the Microsoft Store.
 
-On this machine `python3` and `pip3` resolve to the WindowsApps App Execution Alias stubs
-(C:/Users/tonyf/AppData/Local/Microsoft/WindowsApps), which open the Store's "Python install
-manager" page instead of running Python. `python` (Python 3.8 first on PATH) and `py` work.
+On some Windows machines `python3` and `pip3` resolve to the WindowsApps App Execution Alias stubs
+(under the user's AppData/Local/Microsoft/WindowsApps), which open the Store's "Python install
+manager" page instead of running Python. `python` and `py` work where Python is first on PATH.
 Denies: python3 / python3.N / pip3 in command position, any path into WindowsApps/python*,
 and ms-windows-store: URLs. Everything else passes untouched.
 """
@@ -25,8 +25,8 @@ BLOCKED = re.compile(
 )
 
 REASON = (
-    "Blocked: `python3`/`pip3` on this machine are Microsoft Store aliases that open the Store "
-    "(owner 2026-10-07). Use `python` (or `py -3.13` / `python -m pip`) instead."
+    "Blocked: `python3`/`pip3` on this machine are Microsoft Store aliases that open the Store. "
+    "Use `python` (or `py -3.13` / `python -m pip`) instead."
 )
 
 

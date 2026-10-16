@@ -14,7 +14,7 @@ static func build(circles: Array[InfluenceCircle]) -> Dictionary:
 	# Largest first, so a discarded block cannot be needed to contain another.
 	# Prefer a home at equal radius; homes themselves are never removed.
 	# Native lexicographic sort on [-radius, not-home, index] (same order as the
-	# former lambda comparator; Bontago-1pi.11.33).
+	# former lambda comparator).
 	var keys: Array = []
 	keys.resize(circles.size())
 	for i: int in range(circles.size()):

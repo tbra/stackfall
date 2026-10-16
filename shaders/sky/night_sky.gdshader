@@ -1,7 +1,7 @@
 shader_type sky;
 #include "res://shaders/include/cloud_common.gdshaderinc"
 
-// Bontago-1pi.11.74 (G1): the sky must NOT read the built-in TIME. Any TIME use makes
+// G1: the sky must NOT read the built-in TIME. Any TIME use makes
 // the engine re-render the whole radiance octmap + filter every frame (sky.cpp:1033,
 // uses_time), and so does every material uniform write (sky.cpp:1044). `sky_time` is a
 // GLOBAL uniform (project.godot [shader_globals]): game/sky/Skybox.gd writes it each frame
@@ -12,7 +12,7 @@ global uniform float sky_time;
 uniform float radiance_tick = 0.0;
 
 
-// Bontago-adt.1: procedural night sky for config/sky/themes/night.tres --
+// procedural night sky for config/sky/themes/night.tres --
 // deep blue gradient, twinkling stars, a shaded moon with glow, and a
 // slowly drifting cel-banded moonlit cloud layer above the horizon. Below
 // the horizon the far cloud sea is the procedural sea (cloud_common procedural_sea_color),
@@ -57,7 +57,7 @@ uniform float grade_gamma = 1.2;
 // eyedir.y band over which the sky gradient hands over to the sea.
 uniform float sea_blend_top = 0.02;
 uniform float sea_blend_bottom = -0.03;
-// Bontago-59o.16 (procedural sky P4): procedural cloud sea (game/sky/Skybox.gd still writes
+// procedural sky P4: procedural cloud sea (game/sky/Skybox.gd still writes
 // procedural_sea_mix; since P6b it no longer gates the sea). Same palette-driven function as the
 // sunset sea, with the night cloud colours, then moonlit-graded. proc_sea_*
 // colours/fade come from the theme; the rest is set on this material.
@@ -82,7 +82,7 @@ uniform float twinkle_amount = 0.55;
 uniform vec3 star_tint_cool : source_color = vec3(0.7, 0.82, 1.0);
 uniform vec3 star_tint_warm : source_color = vec3(1.0, 0.9, 0.75);
 uniform float star_horizon_fade = 0.22;
-// Bontago-mp0.129: aurora borealis curtains (cloud_common aurora_borealis), drawn after the
+// aurora borealis curtains (cloud_common aurora_borealis), drawn after the
 // stars and before the moon and clouds so both sit in front of them. aurora_visibility is
 // 0..1 (game/sky/Skybox.gd: SkyThemeDef.aurora_always_on x weather keep x graphics preset);
 // the rest come from SkyThemeDef.aurora_*. Background pass only, like the stars.
@@ -225,7 +225,7 @@ void sky() {
 	// Far cloud sea below the horizon.
 	float sea = smoothstep(sea_blend_top, sea_blend_bottom, eyedir.y);
 	if (sea > 0.0) {
-		// DECISION (Bontago-59o.18 P6b): the panorama sea is gone; always the procedural sea.
+		// DECISION (P6b): the panorama sea is gone; always the procedural sea.
 		// Flat palette in the radiance pass (no noise taps there).
 		vec3 sea_col = mix(proc_sea_color_near.rgb, proc_sea_color_far.rgb, smoothstep(0.0, 1.0, -eyedir.y));
 		if (!AT_CUBEMAP_PASS) {

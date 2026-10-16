@@ -1,13 +1,13 @@
 class_name HomeFlag
 extends Node3D
-## A player's home flag (spec 2.2): "Each player's home flag sits at
+## A player's home flag (spec 1.5): "Each player's home flag sits at
 ## field_radius minus a fixed inset, spaced evenly around the edge."
 ##
 ## Visual only. The home *circle* the flag anchors is an InfluenceCircle built
 ## by the match from the same MapDef.home_flag_position(), and whether the
 ## flag is still standing is PlayerSlot.home_flag_alive -- no rule lives here.
 ##
-## M7 P8 (Bontago-xtq.33, docs/M7_ART_DIRECTION.md Q6): the flag is now a
+## M7 P8 (docs/M7_ART_DIRECTION.md Q6): the flag is now a
 ## procedural "beacon" -- a low neutral socket, a luminous ring in the
 ## owner's color, and a faceted crystal on top -- replacing the earlier
 ## pole-and-banner placeholder (M2, no art yet). All three pieces are built
@@ -19,8 +19,8 @@ extends Node3D
 ## GoalFlag's beacon reads as the same shape at a larger scale (see its own
 ## class doc) exactly like the old pole/banner did.
 ##
-## Bontago-mp0.3.1 (Graphics pass 2, owner feedback: "Same for the beacons"
-## [as the blocks' cel-shading detail], "pulsating glow from the beacons"):
+## Graphics pass 2, : "Same for the beacons"
+## [as the blocks' cel-shading detail], "pulsating glow from the beacons":
 ## the crystal now draws with shaders/territory/beacon_crystal.gdshader (toon banding +
 ## a hard specular facet highlight, matching the block shader's technique)
 ## instead of a plain StandardMaterial3D; the ring stays unshaded (it is
@@ -42,7 +42,7 @@ var _crystal: MeshInstance3D = null
 var _crystal_material: ShaderMaterial = null
 
 
-## Bontago-1pi.203: every beacon in the tree, so the F4 panel can rebuild them
+## every beacon in the tree, so the F4 panel can rebuild them
 ## after a BeaconVisualTuning edit (geometry/materials are baked in _build()).
 const TUNING_GROUP: StringName = &"tuning_beacons"
 
@@ -54,7 +54,7 @@ func _ready() -> void:
 	_apply_pulse(0.0)
 
 
-## Bontago-1pi.203: drops the baked socket/ring/crystal and builds them again from
+## drops the baked socket/ring/crystal and builds them again from
 ## the current BeaconVisualTuning (the live F4 edit seam). GoalFlag extends it.
 func rebuild_beacon() -> void:
 	for node: Node in [_socket, _beacon_ring, _crystal]:
@@ -67,7 +67,7 @@ func rebuild_beacon() -> void:
 
 
 ## Advances the shared pulse phase and pushes it onto the ring's own scale and
-## the ring/crystal emission energy every frame (owner feedback: "pulsating
+## the ring/crystal emission energy every frame ("pulsating
 ## glow from the beacons").
 func _process(delta: float) -> void:
 	_apply_pulse(delta)
@@ -138,8 +138,7 @@ func banner_scale() -> float:
 	return 1.0
 
 
-## Static collision approximating the beacon model (Bontago-6fc.4, owner:
-## "proper collision to the home beacons"): the socket cylinder plus the
+## Static collision approximating the beacon model ("proper collision to the home beacons"): the socket cylinder plus the
 ## crystal's convex hull (the same bipyramid the mesh draws), sized from
 ## BeaconVisualTuning only. The ring is a flat decoration and adds none.
 ## Shapes and their transforms are in this flag's local space; Field adds them
@@ -199,13 +198,13 @@ func _apply_color() -> void:
 	_crystal_material.set_shader_parameter(&"albedo_color", _color)
 	_crystal_material.set_shader_parameter(&"emission_color", _color)
 	# emission_energy_multiplier/emission_energy are owned by _apply_pulse()
-	# below (owner feedback: "pulsating glow from the beacons") -- it always
+	# below ("pulsating glow from the beacons") -- it always
 	# recomputes the full energy from BeaconVisualTuning's base value each
 	# frame, so setting it here would just be overwritten on the next
 	# _process() tick.
 
 
-## Bontago-mp0.3.1 (owner feedback: "pulsating glow from the beacons"): a
+## "pulsating glow from the beacons": a
 ## single sine wave, shared by the ring's own uniform XZ scale and the
 ## ring/crystal emission energy, so the whole beacon breathes together rather
 ## than the ring and crystal pulsing independently. `delta` is unused when

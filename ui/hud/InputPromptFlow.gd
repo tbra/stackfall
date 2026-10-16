@@ -1,6 +1,6 @@
 class_name InputPromptFlow
 extends UiFlow
-## Reusable "hint row"/prompt text control (Bontago-1pi.71): a template string where
+## Reusable "hint row"/prompt text control: a template string where
 ## `{action}` (or `{a|b|c}` for a group that shares one slot) is replaced by the
 ## InputGlyph of the BOUND Input Map action for the player's ACTIVE device
 ## (Settings.active_input_device()), and plain text between tokens is drawn as
@@ -31,12 +31,12 @@ const INPUT_GLYPH_SCENE: PackedScene = preload("res://ui/hud/InputGlyph.tscn")
 		if is_node_ready():
 			refresh()
 
-## Bontago-1pi.83: keep every token on one row. An HFlowContainer reports only its widest
+## keep every token on one row. An HFlowContainer reports only its widest
 ## child as minimum width, so inside a shrink-wrapped pill it wraps; with this on, the
 ## summed child width is pinned as the minimum after each rebuild.
 @export var single_row: bool = false
 
-## Bontago-1pi.145: the KeyPrompt footer style (components.md KeyPrompt: action words are `sand`,
+## the KeyPrompt footer style (components.md KeyPrompt: action words are `sand`,
 ## uppercase, in the `label` style). Off for sentences such as the tutorial tip.
 @export var label_style: bool = false
 
@@ -49,7 +49,7 @@ var _gap_pending: bool = false
 
 func _ready() -> void:
 	# Stackfall Arcade: a cap and its word read as one pair; pairs sit a peer-gap apart.
-	# DECISION (Bontago-hfa.12): word Labels carry their own trailing space (h_separation 0) so words
+	# DECISION: word Labels carry their own trailing space (h_separation 0) so words
 	# sit a normal font space apart; only keycap glyphs get a space_2 gap (_add_gap). Wrapped lines a
 	# space_1 apart, always start-aligned.
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()

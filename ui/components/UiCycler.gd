@@ -1,6 +1,6 @@
 class_name UiCycler
 extends HBoxContainer
-## The design system's Cycler (Bontago-1pi.159.28): the Stepper's sibling for options that cycle
+## The design system's Cycler: the Stepper's sibling for options that cycle
 ## through named choices. A "<" block, the value printed plainly (no well, no unit) and a ">" block,
 ## all one square-button row height tall; it hugs its content instead of filling the row. Unlike the
 ## stepper it has no limits: stepping past either end wraps around, and disabled items are skipped.

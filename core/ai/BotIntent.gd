@@ -6,15 +6,15 @@ extends RefCounted
 ## BotDifficultyProfile.intent_mask.
 
 enum Kind { RACE, ANCHOR, FINISH, HOLD, DEFEND, STRIKE, SIEGE, AREA }
-## Evaluation terms an intent weights (BotEvaluator, P3). HAZARD (Bontago-1t5.32) is the
+## Evaluation terms an intent weights (BotEvaluator, P3). HAZARD is the
 ## site's dissolve risk under the overlap-hole rule (BotEvaluator.hazard).
 enum Term { REACH, AREA, KILL, EXPOSURE, TIP, WASTE, HAZARD }
 
 var kind: Kind = Kind.RACE
 var target: Vector2 = Vector2.ZERO
 var focus_circle: int = -1
-## Bontago-1t5.54: the target is a new base after a collapse (BotCandidateGen offers FOUNDATION sites
-## there). Bontago-1t5.68: every site then rests on the disc or on flat block faces whose pile holds it
+## the target is a new base after a collapse (BotCandidateGen offers FOUNDATION sites
+## there). every site then rests on the disc or on flat block faces whose pile holds it
 ## (BotStack.rest_margin); the old debris clearance is gone.
 var new_base: bool = false
 ## Indexed by Term.

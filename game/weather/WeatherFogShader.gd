@@ -1,6 +1,6 @@
 class_name WeatherFogShader
 extends RefCounted
-## Bontago-470.3: the weather-fog state shared with every scenery shader that
+## the weather-fog state shared with every scenery shader that
 ## opts out of Environment fog (cloud puffs, distant birds, fireflies; the disc
 ## has its own TerritoryOverlay.set_weather_fog). FogPresentation calls
 ## set_state(); each such node joins GROUP, calls apply() on its material
@@ -22,7 +22,7 @@ static var strength: float = DEFAULT_STRENGTH
 static var begin_m: float = DEFAULT_BEGIN_M
 static var end_m: float = DEFAULT_END_M
 static var color: Color = DEFAULT_COLOR
-## Bontago-mp0.130: the theme's own ambient haze for the same shaders (far cloud
+## the theme's own ambient haze for the same shaders (far cloud
 ## layers melt into the fog colour even with no Fog weather). The weather values
 ## above blend in over it by the weather's ramped amount, so a fade-out settles
 ## on the ambient haze, not on nothing.
@@ -46,7 +46,7 @@ static func set_state(amount: float, max_strength: float, begin: float, end: flo
 	_blend(tree)
 
 
-## Bontago-mp0.130: the theme's ambient haze (Skybox.apply_theme).
+## the theme's ambient haze (Skybox.apply_theme).
 static func set_ambient(haze_strength: float, begin: float, end: float, haze_color: Color, tree: SceneTree) -> void:
 	ambient_strength = clampf(haze_strength, 0.0, 1.0)
 	ambient_begin_m = begin
@@ -68,7 +68,7 @@ static func _blend(tree: SceneTree) -> void:
 			node.call(&"refresh_weather_fog")
 
 
-## Bontago-1pi.46 (match reset parity): the state as at launch, group refreshed.
+## match reset parity: the state as at launch, group refreshed.
 ## FogPresentation leaves begin / end / color at its tuning values when it fades
 ## out; they are invisible at strength 0 but a fresh launch has the defaults.
 static func reset_to_launch(tree: SceneTree) -> void:

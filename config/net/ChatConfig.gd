@@ -1,7 +1,7 @@
 class_name ChatConfig
 extends Resource
-## Tunables for player chat (Bontago-1pi.192, docs/CHAT_PLAN.md sections 2, 3, 7).
-## Owner defaults accepted 2026-10-12 (Bontago-oov).
+## Tunables for player chat.
+## Defaults accepted.
 
 ## Master switch; the host refuses lines when false.
 @export var enabled: bool = true
@@ -21,7 +21,7 @@ extends Resource
 ## In-game: seconds a new line stays fully visible, then the fade length.
 @export var line_visible_s: float = 8.0
 @export var fade_s: float = 1.0
-## Dark text outline that keeps the plate-less HUD chat readable over the scene (Bontago-1pi.159.45).
+## Dark text outline that keeps the plate-less HUD chat readable over the scene.
 @export var hud_outline_px: int = 4
 
 ## Clamp every field into a usable range (called on any loaded resource).

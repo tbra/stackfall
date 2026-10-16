@@ -9,9 +9,9 @@
 #   tools/run_gut.ps1 test_net_session,test_steam_client
 #   tools/run_gut.ps1 test_match_net -Unit test_a_client_ignores   # one test by name substring
 #   tools/run_gut.ps1 -Dir res://tests/unit/net        # a directory instead of scripts
-#   tools/run_gut.ps1 test_field -Path M:/Bontago-worktrees/x      # another checkout
+#   tools/run_gut.ps1 test_field -Path <checkout>      # another checkout
 #
-# Exit code (Bontago-mv0.13): GUT 9.6.1's own -gexit path does set a non-zero
+# Exit code: GUT 9.6.1's own -gexit path does set a non-zero
 # process exit code when Gut.get_fail_count() > 0 (see
 # addons/gut/gui/GutRunner.gd _handle_quit/_end_run) -- that part works. But a
 # *fresh* checkout/worktree that hasn't had its global class_name cache built
@@ -30,7 +30,7 @@
 # throwaway, deleted after use) reproduced exit 0 on a stale cache and exit 1
 # once `godot --headless --editor --path . --quit` had primed the cache and
 # again after the fallback parsing below was added; a normal passing script
-# still exits 0. See the Bontago-mv0.13 checkpoint for the transcripts.
+# still exits 0. See the checkpoint for the transcripts.
 param(
 	[Parameter(Position = 0)][string[]]$Scripts = @(),
 	[string]$Dir = "",
@@ -40,7 +40,7 @@ param(
 	[int]$LogLevel = 1
 )
 
-# --fixed-fps 60 (Bontago-fca.38.7): no wall-clock pacing, physics ticks run as fast as the CPU allows.
+# --fixed-fps 60: no wall-clock pacing, physics ticks run as fast as the CPU allows.
 $ErrorActionPreference = "Stop"
 if ($Path -eq "") {
 	# $PSScriptRoot is not yet set while parameter defaults are evaluated
@@ -104,7 +104,7 @@ $outLog = Join-Path $configDir ("out_" + [guid]::NewGuid().ToString("N").Substri
 # call so stderr lines flow through and get captured like any other output.
 $prevEap = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
-# Takes a machine-wide Godot slot (tools/godot_slots.py, Bontago-fca.89); exit code is the child's.
+# Takes a machine-wide Godot slot (tools/godot_slots.py); exit code is the child's.
 $slotTool = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "godot_slots.py"
 & python $slotTool run --label gut -- $Godot --headless --log-file ($outLog + ".godot.log") --fixed-fps 60 --path $Path -s addons/gut/gut_cmdln.gd "-gconfig=$configRes" -gexit 2>&1 | Tee-Object -FilePath $outLog
 $code = $LASTEXITCODE

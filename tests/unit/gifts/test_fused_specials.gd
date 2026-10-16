@@ -1,6 +1,6 @@
 extends GutTest
-## Glue fusion WP4 (docs/GLUE_FUSION_PLAN.md section 4): weather, Paintball, Black hole, blast
-## and bot routing against a FusedBody built directly through GlueFusion.
+## Glue fusion: weather, Paintball, Black hole and blast against a FusedBody
+## built directly through GlueFusion.
 
 const DELTA: float = 1.0 / 60.0
 const HIGH_SURFACE_Y_M: float = -100.0
@@ -16,14 +16,6 @@ const SETTLE_FRAMES: int = 10
 var _field: Field
 var _blocks: Node3D
 var _registry: BlockRegistry
-
-
-## Minimal match provider for BotController._is_own_block: one team per slot.
-class TeamFake:
-	extends RefCounted
-
-	func team_of(slot_id: int) -> int:
-		return slot_id
 
 
 func before_each() -> void:

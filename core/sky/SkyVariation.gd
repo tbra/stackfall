@@ -1,7 +1,7 @@
 class_name SkyVariation
 extends RefCounted
-## Bontago-59o.18 (C1b variation, owner 2026-10-03: "lets add some variation and just
-## set a range so it can vary"): the cycle sky's exposure and cloud coverage wander
+## C1b variation, "lets add some variation and just
+## set a range so it can vary": the cycle sky's exposure and cloud coverage wander
 ## inside the SkyThemeDef.variation_* ranges. Pure rules, no scene tree, no RNG state
 ## and no clock: every value is a function of (match seed, cycle phase), so the host
 ## and every client compute the identical sky from the replicated match config and the
@@ -20,7 +20,7 @@ extends RefCounted
 const CHANNEL_EXPOSURE: int = 0
 const CHANNEL_CLOUD_COVERAGE: int = 1
 const CHANNEL_SEA_COVERAGE: int = 2
-## Bontago-1pi.131: the per-night aurora roll's own stream.
+## the per-night aurora roll's own stream.
 const CHANNEL_AURORA: int = 3
 ## A one-point lattice would be a constant; two is the least that can swing.
 const MIN_KNOTS: int = 2
@@ -77,7 +77,7 @@ static func hash_unit(seed_value: int, channel: int, index: int) -> float:
 	return float(mixed & HASH_VALUE_MASK) / HASH_RESOLUTION
 
 
-## Bontago-1pi.131: whether night number `night_index` of a match with `seed_value` shows the
+## whether night number `night_index` of a match with `seed_value` shows the
 ## aurora: an independent seeded roll per night against `chance` (0..1). Pure, so the host and
 ## every client agree from the replicated match seed alone.
 static func aurora_night_shown(seed_value: int, night_index: int, chance: float) -> bool:

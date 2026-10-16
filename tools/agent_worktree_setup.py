@@ -1,4 +1,4 @@
-"""Write an untracked override.cfg into an agent worktree (Bontago-fca.2).
+"""Write an untracked override.cfg into an agent worktree.
 
 Godot's --windowed flag does not override a project whose
 display/window/size/mode is fullscreen (main.cpp only skips the other
@@ -6,14 +6,17 @@ window flags), so agent runs flashed fullscreen before AgentProbe resized
 them. Godot loads res://override.cfg over project.godot at startup, so an
 agent-only override makes every window start tiny, windowed, off-screen,
 unfocused and muted from the first frame. Never write this into the
-owner's main checkout (M:/Bontago).
+main checkout.
 
 Usage: python tools/agent_worktree_setup.py <worktree> [<worktree> ...]
 """
 import pathlib
 import sys
 
-OVERRIDE = """; Agent-only (tools/agent_worktree_setup.py, Bontago-fca.2). Untracked.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import repo_paths  # noqa: E402
+
+OVERRIDE = """; Agent-only (tools/agent_worktree_setup.py). Untracked.
 [display]
 
 window/size/mode=0
@@ -29,7 +32,7 @@ window/size/initial_position=Vector2i(10000, 10000)
 driver/driver="Dummy"
 """
 
-MAIN_CHECKOUT = pathlib.Path("M:/Bontago").resolve()
+MAIN_CHECKOUT = pathlib.Path(repo_paths.repo_dir()).resolve()
 
 
 def main(argv: "list[str]") -> int:
@@ -39,7 +42,7 @@ def main(argv: "list[str]") -> int:
     for raw in argv[1:]:
         root = pathlib.Path(raw).resolve()
         if root == MAIN_CHECKOUT:
-            print(f"refusing to write override.cfg into the owner's main checkout {root}")
+            print(f"refusing to write override.cfg into the main checkout {root}")
             return 1
         if not (root / "project.godot").is_file():
             print(f"not a Godot project: {root}")

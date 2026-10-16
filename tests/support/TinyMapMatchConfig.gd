@@ -1,13 +1,13 @@
 class_name TinyMapMatchConfig
 extends MatchConfig
-## Test-only seam (Bontago-mv0.3): overrides map_def() so a duplicated
+## Test-only seam: overrides map_def() so a duplicated
 ## MatchConfig can be pointed at an arbitrarily small MapDef instead of one
 ## the real map (MapDef.base() is a shared .tres, scaled only by the
 ## disc-size steps -- there is no config-level seam for an arbitrary size). Tests build one MapDef, hand it to both this and
 ## the Field under test (see tests/unit/match/test_match_flow.gd's before_each), so
 ## Match's home-flag/kill-plane/cell-grid geometry and Field's physical
 ## collision always agree, without paying the real round_medium.tres map's
-## ~6300-cell collision build (see Bontago-mv0.3) in every test.
+## ~6300-cell collision build in every test.
 ##
 ## Built via `existing_config.duplicate(true)` then `set_script()` to this
 ## script -- in that order, and *before* any other field is set on the

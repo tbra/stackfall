@@ -1,6 +1,6 @@
 class_name CloudDriftConfig
 extends Resource
-## Bontago-mp0.92: tunables of the shared cloud drift (core/sky/CloudDriftMath.gd, core/sky/CloudDriftState.gd).
+## tunables of the shared cloud drift (core/sky/CloudDriftMath.gd, core/sky/CloudDriftState.gd).
 ## One wind drives every cloud layer (3D puffs, sun-occlusion bounds, cloud shadows): a calm
 ## per-match heading, swung to the storm wind heading and sped up as the storm fades in.
 ## Loaded from config/sky/cloud_drift.tres; hints in config/ui/tuning_panel_hints.tres.

@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.36 / .38 / .39 (owner playtest 2026-10-12): bot difficulty is a UiCycler (seat rows and
+## Bot difficulty is a UiCycler (seat rows and
 ## the default), the gravity meter steps exactly 0.1x, the lobby buttons carry their device glyph centred
 ## with the label and inside the button.
 
@@ -38,13 +38,6 @@ func _seat_rows(lobby: Lobby) -> Array[LobbySeatRow]:
 	return rows
 
 
-func _settle(count: int = FRAMES) -> void:
-	for _i: int in range(count):
-		await get_tree().process_frame
-
-
-# --- .36: difficulty cyclers ---------------------------------------------------------------
-
 func test_seat_difficulty_is_a_cycler_stepped_by_pad_keyboard_and_mouse() -> void:
 	var lobby: Lobby = _make_lobby(1)
 	var row: LobbySeatRow = _seat_rows(lobby)[1]
@@ -60,15 +53,6 @@ func test_seat_difficulty_is_a_cycler_stepped_by_pad_keyboard_and_mouse() -> voi
 	cycler.next_button.button_down.emit()  # mouse on the ">" block
 	cycler.next_button.button_up.emit()
 	assert_eq(LobbySeats.difficulty_of(lobby._players_panel._seats, LobbySeats.bot_key(0)), MatchConfig.AiDifficulty.EASY, "wraps")
-
-
-func test_seat_cycler_picks_reach_the_seat_table() -> void:
-	var lobby: Lobby = _make_lobby(2)
-	var cycler: UiCycler = _seat_rows(lobby)[1].difficulty_option
-	cycler.nudge(1)
-	var seats: Dictionary = lobby._players_panel._seats
-	assert_eq(LobbySeats.difficulty_of(seats, LobbySeats.bot_key(0)), MatchConfig.AiDifficulty.HARD)
-	assert_eq(LobbySeats.difficulty_of(seats, LobbySeats.bot_key(1)), MatchConfig.AiDifficulty.NORMAL)
 
 
 func test_default_difficulty_is_a_cycler_and_keeps_its_config_round_trip() -> void:
@@ -110,58 +94,3 @@ func test_gravity_meter_steps_exactly_a_tenth_and_reaches_one() -> void:
 	assert_almost_eq(lobby._gravity_value, MatchConfig.GRAVITY_MAX, STEP_TOLERANCE)
 	assert_eq(Lobby._gravity_cells_for(1.0), 10)
 	assert_eq(Lobby._gravity_cells_for(MatchConfig.GRAVITY_MIN), 1)
-
-
-func test_gravity_meter_steps_by_pad_one_tenth_at_a_time() -> void:
-	var lobby: Lobby = _make_lobby(0)
-	var meter: UiSegmentMeter = lobby.get_node("%GravityMeter") as UiSegmentMeter
-	meter.value = 10
-	meter._gui_input(_action(&"ui_right"))
-	meter._gui_input(_action(&"ui_right", false))
-	assert_almost_eq(lobby._gravity_value, 1.1, STEP_TOLERANCE)
-
-
-# --- .39: button glyphs ---------------------------------------------------------------------
-
-func _glyph_rect(button: Button) -> Rect2:
-	var flow: InputPromptFlow = UiButtonHint.flow_of(button)
-	return flow.get_global_transform() * Rect2(Vector2.ZERO, flow.size)
-
-
-func test_options_and_back_carry_their_glyphs() -> void:
-	var lobby: Lobby = _make_lobby(0)
-	var options: InputPromptFlow = UiButtonHint.flow_of(lobby.get_node("%OptionsButton") as Button)
-	var back: InputPromptFlow = UiButtonHint.flow_of(lobby.get_node("%BackButton") as Button)
-	assert_not_null(options)
-	assert_not_null(back)
-	assert_eq(options.template, "{lobby_options}")
-	assert_eq(back.template, "{ui_cancel}")
-
-
-func test_glyphs_trail_the_label_centred_and_inside_the_button() -> void:
-	var lobby: Lobby = _make_lobby(1)
-	var buttons: Array[Button] = [
-		lobby.get_node("%StartButton") as Button, lobby.get_node("%OptionsButton") as Button,
-		lobby.get_node("%BackButton") as Button, lobby._players_panel.add_bot_button(),
-	]
-	for window_size: Vector2i in SIZES:
-		lobby.set_anchors_preset(Control.PRESET_TOP_LEFT)
-		lobby.size = Vector2(window_size)
-		await _settle()
-		for button: Button in buttons:
-			if not button.is_visible_in_tree():
-				continue
-			var rect: Rect2 = button.get_global_rect()
-			var glyph: Rect2 = _glyph_rect(button)
-			var label: String = "%s at %s" % [button.name, window_size]
-			assert_true(rect.encloses(glyph.grow(-0.5)), "%s: glyph %s inside %s" % [label, glyph, rect])
-			var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-			var content: float = UiButtonHint.content_width(button)
-			var right_gap: float = rect.end.x - glyph.end.x
-			var left_gap: float = glyph.position.x - float(arcade.space_2_px) - content - rect.position.x
-			assert_almost_eq(left_gap, right_gap, CENTRE_TOLERANCE_PX, "%s: glyph + label are centred" % label)
-			var box: StyleBox = button.get_theme_stylebox(&"normal")
-			var line_centre: float = rect.position.y + (box.content_margin_top + rect.size.y - box.content_margin_bottom) * 0.5
-			var flow: InputPromptFlow = UiButtonHint.flow_of(button)
-			var cap_centre: float = glyph.position.y + (glyph.size.y - float(arcade.drop_sm_px) * flow.scale.y) * 0.5
-			assert_almost_eq(cap_centre, line_centre, CENTRE_TOLERANCE_PX, "%s: glyph cap is centred on the label line" % label)

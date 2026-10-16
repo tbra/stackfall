@@ -1,7 +1,7 @@
 class_name LobbySeatGroupHeader
 extends HBoxContainer
 ## The rule above one team's seats in the TEAM GROUPS look of the lobby players list
-## (Bontago-1pi.159.43): a band of the team colour on the left, the group name in caps and the
+## : a band of the team colour on the left, the group name in caps and the
 ## seat count on the right. Look only; the seats below it are ordinary LobbySeatRows.
 
 var band: ColorRect = null

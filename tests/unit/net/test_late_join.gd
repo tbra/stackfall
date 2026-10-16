@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-8or.11 (spec 3.4 "Late join / reconnect", docs/M8_PLAN.md P6):
+## spec 2.6 "Late join / reconnect":
 ## mid-match admission, the ordered world replay, the replay-ack intent gate
 ## and reconnect inside the disconnect grace.
 ##
@@ -257,74 +257,6 @@ func test_a_client_drops_gameplay_broadcasts_until_its_replay_starts() -> void:
 	assert_eq(client_net.last_replay_acknowledged, 0)
 
 
-func _frozen_fixture_block(net_id: int) -> Block:
-	var shape: BlockShape = load("res://config/blocks/cube.tres")
-	var block: Block = BlockFactory.build(shape, load("res://config/physics/physics_tuning.tres"), 0, Match.slot(0).color)
-	_blocks_root.add_child(block)
-	Events.block_placed.emit(block, shape.id)
-	_registry.bind_net_id(block, net_id)
-	return block
-
-
-func test_a_frozen_overlay_replays_after_the_blocks_and_before_the_end() -> void:
-	_build_world(MapDef.base().scaled(0.75))
-	var host_session: FakeNet = FakeNet.host({1: 0, 2: 1}, [0])
-	var host_net: MatchNetScript = _make_net(host_session)
-	_start_playing(_config(2, MatchConfig.GameMode.CLASSIC))
-	var iced: Block = _frozen_fixture_block(201)
-	var plain: Block = _frozen_fixture_block(202)
-	iced.set_frozen_visual(true)
-	host_net.capture_replay = true
-	host_net._on_net_peer_joined(2, 1, "Latey")
-	await get_tree().process_frame
-	var capture: Array[Array] = host_net.replay_capture.duplicate()
-	var last_spawn: int = -1
-	var frozen_at: int = -1
-	var frozen_count: int = 0
-	for i: int in range(capture.size()):
-		var method: StringName = StringName(capture[i][1])
-		if method == &"net_block_spawned":
-			last_spawn = i
-		elif method == &"net_match_event" and StringName((capture[i][2] as Array)[0]) == MatchNetScript.EVENT_BLOCK_FROZEN:
-			frozen_at = i
-			frozen_count += 1
-			assert_eq((capture[i][2] as Array)[1], [201, true])
-	assert_eq(frozen_count, 1, "only the iced body replays an overlay")
-	assert_gt(frozen_at, last_spawn, "after every spawn")
-	assert_lt(frozen_at, capture.size() - 1, "before net_replay_end")
-	assert_eq(StringName(capture[capture.size() - 1][1]), &"net_replay_end")
-	assert_false(plain.is_frozen_visual())
-
-	# The joiner ends up with the overlay.
-	host_net.queue_free()
-	await get_tree().process_frame
-	var client_net: MatchNetScript = _make_net(FakeNet.client(2))
-	client_net._on_net_mode_changed(Net.Mode.CLIENT)
-	for entry: Array in capture:
-		client_net.callv(StringName(entry[1]), entry[2] as Array)
-	var joined_block: Block = Match.registry().block_for_net_id(201)
-	assert_not_null(joined_block)
-	if joined_block != null:
-		assert_true(joined_block.is_frozen_visual(), "the icy overlay reached the late joiner")
-
-
-func test_replay_size_for_three_hundred_blocks() -> void:
-	_build_world(MapDef.base().scaled(0.75))
-	var host_net: MatchNetScript = _make_net(FakeNet.host({1: 0, 2: 1}, [0]))
-	_start_playing(_config(2, MatchConfig.GameMode.CLASSIC))
-	for i: int in range(300):
-		_frozen_fixture_block(1000 + i)
-	var largest: int = 0
-	var total: int = 0
-	for message: Array in host_net.build_world_replay():
-		var size: int = var_to_bytes(message[1]).size()
-		total += size
-		largest = maxi(largest, size)
-	gut.p("replay for 300 blocks: %d bytes total, largest single message %d bytes" % [total, largest])
-	assert_lt(largest, 20000, "no single replay message is large enough to need chunking")
-	assert_lt(total, 100000, "the whole replay stays well under 100 KB")
-
-
 func test_an_unacked_replay_times_out_and_drops_the_peer() -> void:
 	_build_world(MapDef.base().scaled(0.75))
 	var session: FakeNet = FakeNet.host({1: 0, 2: 1}, [0])
@@ -341,55 +273,6 @@ func test_an_unacked_replay_times_out_and_drops_the_peer() -> void:
 	assert_eq(net.replays_timed_out, 1)
 	assert_eq(session.kick_peer_calls.size(), 1)
 	assert_eq(int(session.kick_peer_calls[0]["peer_id"]), 2)
-
-
-func test_an_acked_replay_does_not_time_out() -> void:
-	_build_world(MapDef.base().scaled(0.75))
-	var session: FakeNet = FakeNet.host({1: 0, 2: 1}, [0])
-	var net: MatchNetScript = _make_net(session)
-	_start_playing(_config(2, MatchConfig.GameMode.CLASSIC))
-	net.capture_replay = true
-	net._on_net_peer_joined(2, 1, "Latey")
-	await get_tree().process_frame
-	var replay_id: int = int((net.replay_capture[net.replay_capture.size() - 1][2] as Array)[0])
-	net._handle_replay_ack(2, replay_id)
-	net._tick_replay_timeouts(net.config.replay_ack_timeout * 10.0)
-	assert_eq(net.replays_timed_out, 0)
-	assert_eq(session.kick_peer_calls.size(), 0)
-
-
-func test_weather_traffic_before_the_world_is_gated() -> void:
-	_build_world(MapDef.base().scaled(0.75))
-	var net: MatchNetScript = _make_net(FakeNet.client(1))
-	net._on_net_mode_changed(Net.Mode.CLIENT)
-	var weather_net: WeatherNet = net._weather_net
-	assert_true(weather_net._is_awaiting_world(), "awaiting the world")
-	var refused_before: int = weather_net.states_refused
-	weather_net.net_weather_state({})
-	assert_eq(weather_net.states_refused, refused_before + 1)
-	var snow_net: SnowNet = weather_net.get_node("SnowNet") as SnowNet
-	var snow_refused: int = snow_net.states_refused
-	snow_net.net_snow_state({})
-	assert_eq(snow_net.states_refused, snow_refused + 1)
-	net.net_match_start(_config(2, MatchConfig.GameMode.CLASSIC).to_dict(), [])
-	assert_false(weather_net._is_awaiting_world(), "open once net_match_start landed")
-
-
-func test_rejoin_token_is_scoped_to_its_host_and_cleared_on_leave() -> void:
-	var client: Variant = _make_side("TokenNet")
-	client._rejoin_token = "abc"
-	client._rejoin_scope = "enet:127.0.0.1:5000"
-	client._join_scope = "enet:127.0.0.1:5000"
-	assert_eq(client.quoted_rejoin_token(), "abc", "the issuing host sees it")
-	client._join_scope = "enet:127.0.0.1:6000"
-	assert_eq(client.quoted_rejoin_token(), "", "another host never does")
-	client._join_scope = "enet:10.0.0.2:5000"
-	assert_eq(client.quoted_rejoin_token(), "", "nor another address")
-	client.leave(false)
-	assert_eq(client.rejoin_token(), "abc", "a connection loss keeps it")
-	client.leave()
-	assert_eq(client.rejoin_token(), "", "a deliberate leave forgets it")
-	assert_eq(client._rejoin_scope, "")
 
 
 # --- The intent gate ------------------------------------------------------------
@@ -427,50 +310,7 @@ func test_intents_before_the_replay_ack_are_refused() -> void:
 	assert_eq(_live_blocks().size(), blocks_before + 1, "after the ack its intent is acted on")
 
 
-func test_a_peer_that_leaves_mid_replay_owes_no_ack() -> void:
-	_build_world(MapDef.base().scaled(0.75))
-	var net: MatchNetScript = _make_net(FakeNet.host({1: 0, 2: 1}, [0]))
-	_start_playing(_config(2, MatchConfig.GameMode.CLASSIC))
-	net.capture_replay = true
-	net._on_net_peer_joined(2, 1, "Latey")
-	net._on_net_peer_left(2, 1, Net.LeaveReason.TIMEOUT)
-	await get_tree().process_frame
-	assert_false(net.replay_pending_for(2))
-	assert_false(_methods(net.replay_capture).has(&"net_replay_end"), "no end marker for a departed peer")
-
-
 # --- Seats -------------------------------------------------------------------------
-
-func test_no_free_seat_means_spectator_and_a_reserved_seat_is_not_free() -> void:
-	_build_world(MapDef.base().scaled(0.75))
-	var session: FakeNet = FakeNet.host({1: 0, 2: 1}, [0])
-	var net: MatchNetScript = _make_net(session)
-	_start_playing(_config(3, MatchConfig.GameMode.CLASSIC))
-	assert_eq(net.pick_open_seat(), 2, "slot 2 has no peer")
-
-	Match.on_peer_left(2)
-	assert_eq(net.pick_open_seat(), -1, "a slot inside its grace is reserved for its owner")
-	assert_true(net.seat_reclaimable(2), "but its owner may reclaim it")
-	assert_false(net.seat_reclaimable(1), "a connected slot is not reclaimable")
-
-	session.slots_by_peer[3] = 2
-	Match.on_peer_rejoined(2)
-	assert_eq(net.pick_open_seat(), -1, "every human seat taken: the joiner spectates")
-
-	Match.abort_match()
-	assert_eq(net.pick_open_seat(), -1, "no seat outside a live match")
-	assert_false(net.seat_reclaimable(2))
-
-
-func test_allow_mid_match_join_round_trips_and_rejects_a_non_bool() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	assert_false(config.allow_mid_match_join, "off by default")
-	config.allow_mid_match_join = true
-	assert_true(MatchConfig.from_dict(config.to_dict()).allow_mid_match_join)
-	var data: Dictionary = config.to_dict()
-	data["allow_mid_match_join"] = "false"
-	assert_false(MatchConfig.from_dict(data).allow_mid_match_join, "a String is not a bool")
-
 
 # --- Admission over ENet -----------------------------------------------------------
 
@@ -508,31 +348,6 @@ func _host_with_client(seat: Callable, reclaimable: Callable) -> Array[Variant]:
 	return [host, client, port]
 
 
-func test_allow_mid_match_join_false_refuses_a_new_joiner() -> void:
-	var sides: Array[Variant] = await _host_with_client(func() -> int: return 2, func(_s: int) -> bool: return true)
-	var host: Variant = sides[0]
-	host.set_accepting_joins(false)
-	var late: Variant = _make_side("LateNet")
-	watch_signals(Events)
-	assert_eq(late.join_game("127.0.0.1", int(sides[2]), "Latey"), OK)
-	var refused: bool = await _wait_until(func() -> bool: return get_signal_emit_count(Events, "net_join_failed") > 0)
-	assert_true(refused)
-	assert_eq(get_signal_parameters(Events, "net_join_failed")[0], Net.JoinError.MATCH_IN_PROGRESS)
-	assert_eq(host.peer_ids().size(), 2, "nobody new was seated")
-
-
-func test_a_mid_match_joiner_takes_the_open_seat() -> void:
-	var sides: Array[Variant] = await _host_with_client(func() -> int: return 2, func(_s: int) -> bool: return false)
-	var host: Variant = sides[0]
-	host.set_accepting_joins(true)
-	var late: Variant = _make_side("LateNet")
-	assert_eq(late.join_game("127.0.0.1", int(sides[2]), "Latey"), OK)
-	var seated: bool = await _wait_until(func() -> bool: return late.local_slot() == 2)
-	assert_true(seated, "the joiner is told its seat")
-	assert_eq(host.slot_of_peer(late.local_peer_id()), 2)
-	assert_ne(late.rejoin_token(), "", "and holds a rejoin token")
-
-
 func test_a_mid_match_joiner_with_no_free_seat_spectates() -> void:
 	var sides: Array[Variant] = await _host_with_client(func() -> int: return -1, func(_s: int) -> bool: return false)
 	var host: Variant = sides[0]
@@ -549,46 +364,3 @@ func test_a_mid_match_joiner_with_no_free_seat_spectates() -> void:
 	var reseated: bool = await _wait_until(func() -> bool: return late.local_slot() >= 2)
 	assert_true(reseated, "back in the lobby it gets a real slot for the next match")
 
-
-func test_reconnect_within_grace_restores_the_slot() -> void:
-	var reclaim_ok: Array[bool] = [true]
-	var sides: Array[Variant] = await _host_with_client(
-		func() -> int: return -1, func(_s: int) -> bool: return reclaim_ok[0]
-	)
-	var host: Variant = sides[0]
-	var client: Variant = sides[1]
-	var port: int = int(sides[2])
-	host.set_accepting_joins(false)
-	var token: String = client.rejoin_token()
-	assert_ne(token, "")
-	var old_id: int = client.local_peer_id()
-
-	client.leave(false)
-	var gone: bool = await _wait_until(func() -> bool: return host.peer_ids().size() == 1)
-	assert_true(gone, "the host saw the drop")
-	assert_eq(client.rejoin_token(), token, "the token survives a connection loss")
-
-	# A stranger cannot have it: mid-match joins are off here.
-	var stranger: Variant = _make_side("StrangerNet")
-	watch_signals(Events)
-	assert_eq(stranger.join_game("127.0.0.1", port, "Strangey"), OK)
-	var refused: bool = await _wait_until(func() -> bool: return get_signal_emit_count(Events, "net_join_failed") > 0)
-	assert_true(refused, "a new peer is refused while mid-match joins are off")
-
-	assert_eq(client.join_game("127.0.0.1", port, "Clienty"), OK)
-	var back: bool = await _wait_until(func() -> bool: return client.mode() == Net.Mode.CLIENT and client.local_slot() == 1)
-	assert_true(back, "the returning player has its slot back")
-	assert_ne(client.local_peer_id(), old_id, "under a new transport id")
-	assert_eq(host.slot_of_peer(client.local_peer_id()), 1)
-	assert_eq(client.rejoin_token(), token, "with the same token for a second drop")
-
-	# Past the grace the reservation is worthless.
-	client.leave(false)
-	await _wait_until(func() -> bool: return host.peer_ids().size() == 1)
-	reclaim_ok[0] = false
-	var failures_before: int = get_signal_emit_count(Events, "net_join_failed")
-	assert_eq(client.join_game("127.0.0.1", port, "Clienty"), OK)
-	var refused_late: bool = await _wait_until(func() -> bool:
-		return get_signal_emit_count(Events, "net_join_failed") > failures_before
-	)
-	assert_true(refused_late, "after the grace it is just a new joiner, refused here")

@@ -1,7 +1,7 @@
 class_name MainHeadlessBotsFlow
 extends MainHeadlessBotsFlowPort
-## Bontago-1pi.11.84 (MF2): the `--headless-host --bots=<n>` flow moved verbatim out of game/main/Main.gd
-## (docs/MENU_FIRST_PLAN.md 3.2). Main loads this script on demand through MenuPrewarmQueue and keeps a
+## MF2: the `--headless-host --bots=<n>` flow moved verbatim out of game/main/Main.gd
+## Main loads this script on demand through MenuPrewarmQueue and keeps a
 ## forwarder for every old member name; the state fields (_headless_*) stay on Main because tests
 ## and tools read them. DECISION: signal/timer callbacks connect to Main's forwarders so
 ## `Signal.is_connected(_main._on_headless_bots_block_placed)` keeps working.
@@ -15,7 +15,7 @@ var main_node: Main:
 var _headless_bots_start_physics_frame: int = 0
 
 
-# --- Headless bot match: `--bots=<n>` (Bontago-d5c.6, M5 P5) -----------------
+# --- Headless bot match: `--bots=<n>` (M5 P5) -----------------
 #
 # `godot --headless --path . -- --headless-host --bots=<n> [--players=<n2>]
 # [--seconds=<n3>]` starts a **real** networked match (config.sandbox = false,
@@ -30,7 +30,7 @@ var _headless_bots_start_physics_frame: int = 0
 # "wait for a human to press Start" step is skipped. This is deliberate: it
 # is what lets _build_match_world()'s own bot-controller wiring (below) serve
 # both this entry point and an ordinary mixed human+bot lobby match with one
-# piece of code (docs/archive/M5_PLAN.md P5 item 3), rather than a second, divergent
+# piece of code, rather than a second, divergent
 # world-build path. host_game() can still fail (its port already bound, say)
 # and leave Net at OFFLINE despite --headless-host being present on the
 # command line; _net_is_hosting()'s guard below refuses to build a match in
@@ -45,7 +45,7 @@ func start_match_with_args(args: PackedStringArray) -> void:
 		# Lobby wait-for-Start path, unaffected.
 		return
 	if not _net_is_hosting():
-		# Bontago-d5c.6 review finding 1: --headless-host's own host_game()
+		# review finding 1: --headless-host's own host_game()
 		# call (Net.apply_command_line(), already run by the time _ready()
 		# reaches this branch -- see this function's own doc above) can fail
 		# to bind its port and leave Net at OFFLINE. Net.is_host() cannot see
@@ -66,11 +66,8 @@ func start_match_with_args(args: PackedStringArray) -> void:
 	main_node._headless_loop_index = 0
 	if main_node._headless_loop_enabled:
 		Events.match_state_changed.connect(main_node._on_headless_loop_state_changed)
-	_setup_bot_record(args)
-	_load_bot_weight_overrides(args, bots)
-	_load_bot_brains(args, bots)
 	if not main_node._headless_loop_enabled:
-		# DECISION (Bontago-1t5.13): a single (non-loop) match also prints its HEADLESS_MATCH line on
+		# DECISION: a single (non-loop) match also prints its HEADLESS_MATCH line on
 		# END, so tools/bot_h2h.py can parse winner_team without --loop-matches.
 		Events.match_state_changed.connect(_on_headless_single_state_changed)
 	_setup_think_cost(args, bots)
@@ -78,13 +75,13 @@ func start_match_with_args(args: PackedStringArray) -> void:
 
 	# `--seconds=<n>` bounds the run with a hard wall-clock quit: the
 	# acceptance command has no real win condition to end on within a CI
-	# harness's own patience (docs/archive/M5_PLAN.md P5).
+	# harness's patience.
 	var seconds: float = _seconds_arg(args)
 	if seconds > 0.0:
 		main_node.get_tree().create_timer(seconds).timeout.connect(main_node._on_headless_bots_seconds_elapsed)
 
 
-# --- Hard-bot think cost report: `--bot-think-cost=<file>` (Bontago-1t5.62) ---------------------
+# --- Hard-bot think cost report: `--bot-think-cost=<file>` ---------------------
 # Turns on BotThinkCostCollector (unbounded window), runs the match for `--bot-think-cost-seconds=<n>` match
 # seconds (default config/bots/bot_think_cost.tres default_duration_s), then prints the BOT_THINK_COST lines and a
 # table, writes them to <file> and quits. Combine with --mode=, --bot-difficulty=hard, --match-seed=.
@@ -137,10 +134,10 @@ func _start_headless_loop_match(bots: int, args: PackedStringArray) -> void:
 	main_node._headless_loop_index += 1
 	var has_match_seed: bool = _has_match_seed_arg(args)
 	if main_node._headless_loop_enabled:
-		# DECISION (Bontago-8or.21): match 1 keeps the configured seed when one is
+		# DECISION: match 1 keeps the configured seed when one is
 		# set; every later match draws a fresh positive seed so repeats differ.
 		if has_match_seed:
-			# DECISION (Bontago-1t5.13): with --match-seed the later loop matches derive their
+			# DECISION: with --match-seed the later loop matches derive their
 			# seeds deterministically from it instead of drawing fresh random ones.
 			config.rng_seed = _derived_loop_seed(_match_seed_arg(args), main_node._headless_loop_index)
 		elif main_node._headless_loop_index > 1 or config.rng_seed < 0:
@@ -149,9 +146,6 @@ func _start_headless_loop_match(bots: int, args: PackedStringArray) -> void:
 	else:
 		main_node._headless_loop_seed = config.rng_seed
 	Match.start_match(config)
-	_apply_bot_weight_overrides()
-	_apply_bot_brains()
-	_begin_bot_record(config)
 	_start_headless_bots_diagnostics()
 
 
@@ -166,7 +160,7 @@ func _has_loop_matches_arg(args: PackedStringArray) -> bool:
 	return false
 
 
-## Bontago-8or.21: on END print one compact `HEADLESS_MATCH` summary line and
+## on END print one compact `HEADLESS_MATCH` summary line and
 ## restart on the next frame (deferred, so the END emit finishes first; the
 ## restart goes END -> LOBBY -> LOADING, which tears the old world down).
 func _on_headless_loop_state_changed(_from_state: int, to_state: int) -> void:
@@ -189,7 +183,7 @@ func _restart_headless_loop_match() -> void:
 	_start_headless_loop_match(_bots_arg(main_node._headless_loop_args), main_node._headless_loop_args)
 
 
-## `timed_out` (Bontago-1t5.16): the --seconds cap hit with the match still PLAYING; the line then
+## `timed_out`: the --seconds cap hit with the match still PLAYING; the line then
 ## carries winner_team=-1 and a trailing `timeout=1` (tools/bot_h2h.py counts it as a draw).
 func _headless_match_summary_line(timed_out: bool = false) -> String:
 	var line: String = "HEADLESS_MATCH index=%d mode=%d seed=%d duration=%.1f winner_team=%d placements=%d homes_alive=%d teams=%s" % [
@@ -198,16 +192,15 @@ func _headless_match_summary_line(timed_out: bool = false) -> String:
 		main_node._headless_loop_seed, _headless_bots_elapsed_s(), -1 if timed_out else Match.winner_team(),
 		main_node._headless_bots_placements, _headless_bots_homes_alive(), _headless_slot_teams(),
 	]
-	# Bontago-1t5.19: appended after `teams=` so the bot_h2h.py regexes keep matching.
-	line += " brains=%s" % _headless_brains_string()
+	# Appended after `teams=` so the bot_h2h.py regexes keep matching.
 	line += " stats=%s" % _headless_stats_string()
 	return line + " timeout=1" if timed_out else line
 
 
-## Bontago-1t5.31: per-slot `slot:placed/lost/peak_height_m` (comma-separated), read from the live
+## per-slot `slot:placed/lost/peak_height_m` (comma-separated), read from the live
 ## MatchStats, so bot_h2h-style logs can show blocks lost per placement and tower height.
-## Appended after brains= so the existing regexes keep matching.
-## Bontago-1t5.35: a 4th field, peak180 = peak height reached by 180 s of match time (the E7 height
+## Appended after teams= so the existing regexes keep matching.
+## a 4th field, peak180 = peak height reached by 180 s of match time (the E7 height
 ## gate). DECISION: sampled on the 5 s report tick (so <=5 s late, peak is monotone); a match that
 ## ends before 180 s reports its final peak.
 const PEAK_SNAPSHOT_S: float = 180.0
@@ -241,7 +234,7 @@ func _headless_slot_teams() -> String:
 	return ",".join(parts)
 
 
-## Bontago-d5c.6 review finding 1: true only when Net actually became the
+## review finding 1: true only when Net actually became the
 ## HOST, unlike Net.is_host() (autoload/Net.gd: "True on the host **and
 ## offline**"), which cannot tell a genuine offline mode apart from
 ## --headless-host's own host_game() call having failed to bind. A private
@@ -281,8 +274,8 @@ func _seconds_arg(args: PackedStringArray) -> float:
 
 ## Same "players="-reading loop as _sandbox_player_count(), with a different
 ## absent-flag default (0, so `maxi(bots, ...)` below reduces to exactly
-## `bots` with no --players given -- docs/archive/M5_PLAN.md P5: "every seat a bot"
-## is the literal acceptance command's own shape) -- kept separate from
+## `bots` with no --players given -- every seat is a bot, the shape of the
+## headless acceptance command) -- kept separate from
 ## _sandbox_player_count() rather than reused, since that function's own
 ## absent-flag default (sandbox_config.default_player_count) is wrong here.
 func _headless_bot_players_arg(args: PackedStringArray) -> int:
@@ -298,14 +291,13 @@ func _headless_bot_players_arg(args: PackedStringArray) -> int:
 
 ## Same lobby-settings-minus-a-few-overrides shape as _build_hot_seat_config()/
 ## _build_sandbox_config() above: `config.player_count` may be raised past
-## `bots` by `--players=<n2>` to leave human seats idle (docs/archive/M5_PLAN.md P5:
-## "matching --sandbox's own --players= precedent, but is not required for
-## the acceptance criterion"); `config.sandbox` stays false (unlike
+## `bots` by `--players=<n2>` to leave human seats idle (the flag matches the
+## --sandbox --players= form but is not required for the acceptance criterion); `config.sandbox` stays false (unlike
 ## --sandbox's own config) -- this is a real match, real timers/cadence, the
 ## whole point being that the real feed/territory/win loop survives N
 ## concurrent bots, not sandbox's relaxed rules.
 func _build_headless_bot_config(bots: int, args: PackedStringArray) -> MatchConfig:
-	# DECISION (game/main/Main.gd, Bontago-3k0, deferred from Bontago-keo.19):
+	# DECISION (game/main/Main.gd, deferred from):
 	# Net.match_config_override() (set by --match-config=<path>, parsed inside
 	# Net's own host branch -- autoload/Net.gd's _apply_command_line_args())
 	# takes over `match_config`'s usual role as the duplication source here,
@@ -321,14 +313,14 @@ func _build_headless_bot_config(bots: int, args: PackedStringArray) -> MatchConf
 	config.player_count = maxi(bots, _headless_bot_players_arg(args))
 	config.hot_seat = false
 	config.sandbox = false
-	# DECISION (Bontago-mp0.27): headless bot matches have no human to wait for,
+	# DECISION: headless bot matches have no human to wait for,
 	# so they skip the 3-2-1 countdown (harnesses and loops stay fast).
 	config.countdown_seconds = 0.0
-	# DECISION (Bontago-1t5.3): `--mode=<classic|ctf|elimination|sky>` (or the
+	# DECISION: `--mode=<classic|ctf|elimination|sky>` (or the
 	# GameMode integer) picks the headless bot match's mode; absent keeps the
 	# config's own mode. resolve_game_mode() still falls back for unselectable ids.
-	# DECISION (Bontago-1t5.1): `--goals=<1..5>` overrides goal_flag_count for headless bot matches.
-	# Bontago-1pi.107: `--disc-size=<step>` picks the disc-size slider step (0 tiny .. 5 enormous).
+	# DECISION: `--goals=<1..5>` overrides goal_flag_count for headless bot matches.
+	# `--disc-size=<step>` picks the disc-size slider step (0 tiny .. 5 enormous).
 	var disc_step: int = _disc_size_arg(args)
 	if disc_step >= 0:
 		config.disc_size_step = DiscSizeTuning.shared().clamp_step(disc_step)
@@ -348,15 +340,15 @@ func _build_headless_bot_config(bots: int, args: PackedStringArray) -> MatchConf
 	if mode_override >= 0:
 		config.game_mode = MatchConfig.resolve_game_mode(mode_override)
 		config.round_timer_minutes = MatchConfig.clamp_round_timer(config.round_timer_minutes, config.game_mode)
-	# Bontago-1t5.28: `--round-timer=<minutes>` after the mode override (0 = no round timer, Elimination only;
+	# `--round-timer=<minutes>` after the mode override (0 = no round timer, Elimination only;
 	# other modes clamp to their minimum), so harness matches are not bound by the 5-minute default.
 	var timer_override: int = _round_timer_arg(args)
 	if timer_override >= 0:
 		config.round_timer_minutes = MatchConfig.clamp_round_timer(timer_override, config.game_mode)
-	# Bontago-1t5.56: `--gifts=0` turns gift spawns off (Reach the Sky height measurement); absent = unchanged.
+	# `--gifts=0` turns gift spawns off (Reach the Sky height measurement); absent = unchanged.
 	if _string_arg(args, "gifts=") == "0":
 		config.gifts_enabled = false
-	# Bontago-1t5.64: `--weather=0` turns weather off (WeatherMode.OFF); `--weather=1` turns it on (the
+	# `--weather=0` turns weather off (WeatherMode.OFF); `--weather=1` turns it on (the
 	# CHANGING schedule) only when the configured mode is OFF; absent = unchanged.
 	var weather_arg: String = _string_arg(args, "weather=")
 	if weather_arg == "0":
@@ -377,8 +369,8 @@ func _round_timer_arg(args: PackedStringArray) -> int:
 	return -1
 
 
-## Bontago-1t5.28: `--bot-difficulty-slots=<slot:level,...>` fills config.slot_ai_difficulties for the
-## named bot slots (absolute slot ids, like --bot-brain-slots); every other slot keeps its current
+## `--bot-difficulty-slots=<slot:level,...>` fills config.slot_ai_difficulties for the
+## named bot slots (absolute slot ids); every other slot keeps its current
 ## difficulty (--bot-difficulty / config default). Unknown slots or levels warn and are skipped.
 func _apply_bot_difficulty_slots(config: MatchConfig, args: PackedStringArray, bots: int) -> void:
 	var text: String = _string_arg(args, "bot-difficulty-slots=")
@@ -426,7 +418,7 @@ func _goals_arg(args: PackedStringArray) -> int:
 	return 0
 
 
-## Bontago-1t5.1 diagnostics: per team, the most goals it holds in one group, "tN:k/total".
+## diagnostics: per team, the most goals it holds in one group, "tN:k/total".
 func _headless_bots_goal_coverage() -> String:
 	var raster: TerritoryRaster = Match.raster()
 	if raster == null or Match.config == null:
@@ -480,7 +472,7 @@ func _mode_arg(args: PackedStringArray) -> int:
 	return -1
 
 
-# --- Headless bot match diagnostics (Bontago-d5c.6 review finding 2) ---------
+# --- Headless bot match diagnostics (review finding 2) ---------
 #
 # The literal acceptance command (`--headless-host --bots=8 --seconds=60`) has
 # no console to watch, so this prints one `HEADLESS_BOTS` line every
@@ -497,7 +489,7 @@ func _mode_arg(args: PackedStringArray) -> int:
 # file outside this package's ownership.
 
 func _start_headless_bots_diagnostics() -> void:
-	# Idempotent (Bontago-8or.21): a --loop-matches restart must not double-connect
+	# Idempotent: a --loop-matches restart must not double-connect
 	# block_placed or leak a second report Timer.
 	_stop_headless_bots_diagnostics()
 	main_node._headless_bots_start_msec = Time.get_ticks_msec()
@@ -542,7 +534,6 @@ func _on_headless_bots_seconds_elapsed() -> void:
 	print(_headless_bots_done_line())
 	if Match.state() == Match.State.PLAYING:
 		print(_headless_match_summary_line(true))
-	_finish_bot_record(-1)
 	await Sfx.drain_for_quit()
 	QuitFlag.mark()
 	main_node.get_tree().quit(0)
@@ -563,92 +554,7 @@ func _headless_bots_done_line() -> String:
 	]
 
 
-# --- Bot decision recording: `--bot-record=<dir>` (Bontago-1t5.11, BT3) -------
-#
-# docs/BOT_TRAINING_SOAK_PLAN.md: OFF unless the flag is given. One JSONL file per bot per
-# match (game/bots/BotDecisionRecorder.gd), rotated per --loop-matches match; the recorder is a
-# passive observer attached to every BotController. DECISION: the recorder and its state
-# live on this flow object (Main.gd is not part of this package), and END/--seconds close
-# the files so footers and truncated outcomes are always written.
-
-var _bot_record_dir: String = ""
-var _bot_recorder: BotDecisionRecorder = null
-var _bot_record_timeline_started: bool = false
-
-
-## `--bot-record=<dir>`, "" when absent.
-func _bot_record_arg(args: PackedStringArray) -> String:
-	const PREFIX: String = "bot-record="
-	for raw: String in args:
-		var text: String = raw
-		while text.begins_with("-"):
-			text = text.substr(1)
-		if text.begins_with(PREFIX):
-			return text.substr(PREFIX.length())
-	return ""
-
-
-func _setup_bot_record(args: PackedStringArray) -> void:
-	_bot_record_dir = _bot_record_arg(args)
-	if _bot_record_dir.is_empty() or _bot_recorder != null:
-		return
-	_bot_recorder = BotDecisionRecorder.new()
-	main_node.add_child(_bot_recorder)
-	if not _bot_recorder.configure(_bot_record_dir):
-		# The recorder already printed BOT_RECORD_ERROR; the match runs unrecorded.
-		return
-	Events.match_state_changed.connect(_on_bot_record_state_changed)
-
-
-func _begin_bot_record(config: MatchConfig) -> void:
-	if _bot_recorder == null or not _bot_recorder.is_enabled():
-		return
-	var slots: PackedInt32Array = PackedInt32Array()
-	var difficulties: Array = []
-	for slot_id: int in range(config.player_count - config.ai_count, config.player_count):
-		slots.append(slot_id)
-		difficulties.append(int(config.ai_difficulty_for_slot(slot_id)))
-	for override_slot: int in _bot_weight_tunings:
-		_bot_recorder.set_slot_tuning(override_slot, _bot_weight_tunings[override_slot] as BotTuning)
-	var map_def: MapDef = config.map_def()
-	var header: Dictionary = {
-		"seed": config.rng_seed,
-		"mode": int(config.game_mode),
-		"map_id": String(map_def.id) if map_def != null else "",
-		"bot_count": config.ai_count,
-		"difficulty": int(config.ai_difficulty),
-		"difficulties": difficulties,
-		"weight_overrides": _bot_weight_overrides_for_header(),
-		"brains": _headless_brains_string(),
-		"git_revision": BuildVersion.git_revision(),
-	}
-	_bot_record_timeline_started = false
-	_bot_recorder.begin_match(header, slots, main_node._headless_loop_index)
-
-
-func _on_bot_record_state_changed(_from_state: int, to_state: int) -> void:
-	if _bot_recorder == null or not is_instance_valid(_bot_recorder):
-		return
-	# Controllers are spawned while the world builds; attach (idempotent) on every transition.
-	for node: Node in main_node._bot_controllers:
-		var bot: BotController = node as BotController
-		if bot != null and is_instance_valid(bot):
-			bot.set_recorder(_bot_recorder)
-	if to_state == Match.State.PLAYING and not _bot_record_timeline_started:
-		_bot_record_timeline_started = true
-		_bot_recorder.on_tick(0.0)
-	elif to_state == Match.State.END:
-		_finish_bot_record(Match.winner_team())
-
-
-func _finish_bot_record(winner_team: int) -> void:
-	if _bot_recorder == null:
-		return
-	_bot_recorder.end_match(winner_team)
-	print("BOT_RECORD match=%d %s" % [main_node._headless_loop_index, JSON.stringify(_bot_recorder.stats())])
-
-
-## Bontago-1t5.4 diagnostics: smallest (distance to a living enemy home minus
+## diagnostics: smallest (distance to a living enemy home minus
 ## the circle's radius) over every circle, i.e. how close any team's influence
 ## frontier is to an enemy home (<= 0 means a circle covers one). -1 when n/a.
 func _headless_bots_frontier_gap() -> float:
@@ -678,7 +584,7 @@ func _headless_bots_homes_alive() -> int:
 	return alive
 
 
-## DECISION (Bontago-1t5.16): the `t=` / `duration=` fields are GAME time (physics ticks), the same
+## DECISION: the `t=` / `duration=` fields are GAME time (physics ticks), the same
 ## clock the --seconds SceneTree timer uses, so `done t=` matches the cap even under an unpaced
 ## `--fixed-fps 60` run; wall-clock seconds are printed as an extra `wall=` field.
 func _headless_bots_elapsed_s() -> float:
@@ -699,24 +605,15 @@ func _headless_bots_state_name() -> String:
 	return str(key) if key != null else "UNKNOWN"
 
 
-# --- Training overrides (Bontago-1t5.13, BT5) ---------------------------------
+# --- Training overrides (BT5) ---------------------------------
 #
 # `--bot-difficulty=<easy|normal|hard|0..2>` sets every bot slot; `--bot-difficulty-slots=<slot:level,...>`
 # (absolute slot ids; bots occupy the LAST `bots` of `--players` slots) overrides named bot slots only;
 # `--round-timer=<minutes>` (0 = off, Elimination only) overrides the round timer after --mode;
-# `--match-seed=<int>` is the first
-# match's rng_seed; `--bot-weights=<json file>` [+ `--bot-weights-slots=<csv>`] overrides BotTuning
-# weight_* fields for the named bot slots only. DECISION: the weights file is either ONE flat object
-# {"weight_x": v, ...} applied to --bot-weights-slots (default: every bot slot; this is what
-# tools/bot_h2h.py writes) or a slot map {"3": {"weight_x": v}, ...}. Bad JSON / unknown keys warn
-# and the bots keep the shipped weights.
+# `--match-seed=<int>` is the first match's rng_seed.
 
 const LOOP_SEED_STRIDE: int = 7919
 const LOOP_SEED_MAX: int = 2147483647
-
-var _bot_weight_overrides: Dictionary = {}  # slot_id -> weights Dictionary (raw, for the header)
-var _bot_weight_tunings: Dictionary = {}  # slot_id -> BotTuning copy
-
 
 func _string_arg(args: PackedStringArray, prefix: String) -> String:
 	for raw: String in args:
@@ -769,137 +666,3 @@ func _difficulty_level_from_text(value: String) -> int:
 		"hard", "2":
 			return MatchConfig.AiDifficulty.HARD
 	return -1
-
-
-## Parses --bot-weights[/-slots] into _bot_weight_overrides / _bot_weight_tunings. Never fatal.
-func _load_bot_weight_overrides(args: PackedStringArray, bots: int) -> void:
-	_bot_weight_overrides.clear()
-	_bot_weight_tunings.clear()
-	var path: String = _string_arg(args, "bot-weights=")
-	if path.is_empty():
-		return
-	var first_slot: int = maxi(bots, _headless_bot_players_arg(args)) - bots
-	var bot_slots: PackedInt32Array = PackedInt32Array()
-	for slot_id: int in range(first_slot, first_slot + bots):
-		bot_slots.append(slot_id)
-	var text: String = FileAccess.get_file_as_string(path)
-	var parser: JSON = JSON.new()  # not parse_string: that logs an engine error on bad input
-	var data: Variant = parser.data if not text.is_empty() and parser.parse(text) == OK else null
-	if typeof(data) != TYPE_DICTIONARY:
-		push_warning("--bot-weights=%s is missing or not a JSON object; bots keep the shipped weights" % path)
-		return
-	var table: Dictionary = data as Dictionary
-	var by_slot: bool = not table.is_empty()
-	for key: Variant in table:
-		if typeof(table[key]) != TYPE_DICTIONARY or not String(key).is_valid_int():
-			by_slot = false
-	if by_slot:
-		for key: Variant in table:
-			var keyed_slot: int = int(String(key))
-			if bot_slots.has(keyed_slot):
-				_bot_weight_overrides[keyed_slot] = table[key]
-			else:
-				push_warning("--bot-weights: slot %d is not a bot slot; ignored" % keyed_slot)
-	else:
-		var slots_text: String = _string_arg(args, "bot-weights-slots=")
-		var targets: PackedInt32Array = bot_slots
-		if not slots_text.is_empty():
-			targets = PackedInt32Array()
-			for part: String in slots_text.split(",", false):
-				if part.strip_edges().is_valid_int() and bot_slots.has(int(part)):
-					targets.append(int(part))
-				else:
-					push_warning("--bot-weights-slots: '%s' is not a bot slot; ignored" % part)
-		for target_slot: int in targets:
-			_bot_weight_overrides[target_slot] = table
-	var shipped: BotTuning = load("res://config/bots/bot_tuning.tres") as BotTuning
-	for override_slot: int in _bot_weight_overrides:
-		_bot_weight_tunings[override_slot] = BotController.tuning_with_weights(shipped, _bot_weight_overrides[override_slot] as Dictionary)
-
-
-## Installs each named slot's tuning copy on its controller (idempotent; other slots untouched).
-func _apply_bot_weight_overrides() -> void:
-	if _bot_weight_tunings.is_empty():
-		return
-	for node: Node in main_node._bot_controllers:
-		var bot: BotController = node as BotController
-		if bot != null and is_instance_valid(bot) and _bot_weight_tunings.has(bot.bound_slot()):
-			bot.set_tuning_override(_bot_weight_tunings[bot.bound_slot()] as BotTuning)
-
-
-func _bot_weight_overrides_for_header() -> Dictionary:
-	var out: Dictionary = {}
-	for slot_id: int in _bot_weight_overrides:
-		out[str(slot_id)] = _bot_weight_overrides[slot_id]
-	return out
-
-
-# --- Bot V2 brain selection (Bontago-1t5.19) ----------------------------------
-#
-# `--bot-brain=<legacy|v2>` picks the decision pipeline (default v2; legacy stays selectable for one release) and
-# `--bot-brain-slots=<csv>` limits it to the named bot slots; every other bot gets the legacy brain (the h2h baseline).
-# Without --bot-brain-slots the brain applies to every bot slot.
-
-var _bot_brain_by_slot: Dictionary = {}  # slot_id -> BotController.Brain (bot slots only)
-
-
-## `--bot-brain=`; V2 when absent (Bontago-1t5.38), and an unknown value warns and means V2.
-func _bot_brain_arg(args: PackedStringArray) -> BotController.Brain:
-	return brain_from_args(args)
-
-
-## Static so an ordinary lobby match (MainMatchFlow.spawn_bot_controllers) shares the one parser
-## (Bontago-1t5.39).
-static func brain_from_args(args: PackedStringArray) -> BotController.Brain:
-	var value: String = ""
-	for raw: String in args:
-		var text: String = raw
-		while text.begins_with("-"):
-			text = text.substr(1)
-		if text.begins_with("bot-brain="):
-			value = text.substr("bot-brain=".length()).to_lower()
-			break
-	match value:
-		"legacy":
-			return BotController.Brain.LEGACY
-		"", "v2":
-			return BotController.Brain.V2
-	push_warning("--bot-brain=%s is not legacy|v2; bots use the v2 brain" % value)
-	return BotController.Brain.V2
-
-
-func _load_bot_brains(args: PackedStringArray, bots: int) -> void:
-	_bot_brain_by_slot.clear()
-	var brain: BotController.Brain = _bot_brain_arg(args)
-	var first_slot: int = maxi(bots, _headless_bot_players_arg(args)) - bots
-	var slots_text: String = _string_arg(args, "bot-brain-slots=")
-	var named: PackedInt32Array = PackedInt32Array()
-	for part: String in slots_text.split(",", false):
-		if part.strip_edges().is_valid_int() and int(part) >= first_slot and int(part) < first_slot + bots:
-			named.append(int(part))
-		else:
-			push_warning("--bot-brain-slots: '%s' is not a bot slot; ignored" % part)
-	for slot_id: int in range(first_slot, first_slot + bots):
-		var selected: bool = slots_text.is_empty() or named.has(slot_id)
-		_bot_brain_by_slot[slot_id] = brain if selected else BotController.Brain.LEGACY
-
-
-## Installs each bot's brain on its controller (idempotent).
-func _apply_bot_brains() -> void:
-	for node: Node in main_node._bot_controllers:
-		var bot: BotController = node as BotController
-		if bot != null and is_instance_valid(bot) and _bot_brain_by_slot.has(bot.bound_slot()):
-			bot.set_brain(_bot_brain_by_slot[bot.bound_slot()] as BotController.Brain)
-
-
-## Per slot "legacy", "v2" or "-" (not a bot), comma-separated.
-func _headless_brains_string() -> String:
-	var parts: PackedStringArray = PackedStringArray()
-	for i: int in range(Match.slot_count()):
-		if not _bot_brain_by_slot.has(i):
-			parts.append("-")
-		elif int(_bot_brain_by_slot[i]) == BotController.Brain.V2:
-			parts.append("v2")
-		else:
-			parts.append("legacy")
-	return ",".join(parts)

@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.85.45 (docs/GIFT_PLAYTEST3_PLAN.md P1): the three new gift entrances.
+## The three new gift entrances.
 ## Propeller rises out of the disc at the drop point (PropellerStand, no carrier), the black
 ## hole opens up underneath it (core starts below the surface), the anvil is a physical
 ## carrier spawned sky_drop_height_m above the validated point that falls and tilts the disc
@@ -130,7 +130,7 @@ func test_black_hole_opens_up_underneath_the_drop_point_without_a_carrier() -> v
 	_start()
 	assert_eq(_release(0, &"black_hole"), PlacementRules.REASON_OK)
 	assert_eq(_registry.tracked_block_count(), 0, "nothing registered")
-	# Bontago-1pi.85.66: the vortex and pull field ride the disc, so they hang under the Field.
+	# the vortex and pull field ride the disc, so they hang under the Field.
 	var visuals: Array[Node] = _field.find_children("*", "BlackHoleVisual", true, false)
 	assert_eq(visuals.size(), 1, "the vortex is drawn at the release point")
 	assert_eq(_field.find_children("*", "BlackHoleField", true, false).size(), 1, "the pull field runs")

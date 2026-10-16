@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.85.32: a released gift swaps to its SpecialDef.activation_scale model (collider,
+## a released gift swaps to its SpecialDef.activation_scale model (collider,
 ## visual, mass); the held preview is untouched; the host lift check uses the scaled extent.
 
 const REST_FRAMES: int = 240

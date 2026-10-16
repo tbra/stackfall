@@ -1,14 +1,14 @@
 class_name MainMenuTuning
 extends Resource
-## Bontago-hfa.3 (UI reskin P1, docs/UI_RESKIN_PLAN.md): every tunable of the Stackfall Arcade
+## UI reskin P1:
 ## main menu that is not a shared design token (those live in config/ui/ArcadeVisualTuning.gd): the
 ## left column and scrim geometry (ui/menus/MainMenu.gd). The backdrop is a static image
-## (Bontago-1pi.144), set on the scene's BackdropImage node by MenuBackdrop; Bontago-1pi.154 picks one
+## , set on the scene's BackdropImage node by MenuBackdrop picks one
 ## of backdrop_paths at random per launch.
 
 ## -- Backdrop images -----------------------------------------------------------------------
 ## HUD-free in-game shots (assets/ui/menu_backdrops/); MenuBackdrop loads ONE of them, chosen at
-## random once per launch (the lobby shows the same one). DECISION (Bontago-1pi.154): 3840x2160
+## random once per launch (the lobby shows the same one). DECISION: 3840x2160
 ## JPG, quality ~88, so the repo and the time to menu stay small; add a path to add a backdrop.
 @export var backdrop_paths: PackedStringArray = PackedStringArray()
 

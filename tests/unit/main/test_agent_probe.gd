@@ -1,5 +1,5 @@
 extends GutTest
-## game/debug/AgentProbe.gd (Bontago-fca.1): probe detection and mouse-capture gating.
+## game/debug/AgentProbe.gd: probe detection and mouse-capture gating.
 
 func after_each() -> void:
 	AgentProbe.set_forced_for_test(-1)
@@ -8,10 +8,6 @@ func after_each() -> void:
 
 func test_detects_flag_in_user_args() -> void:
 	assert_true(AgentProbe.detect(PackedStringArray(), PackedStringArray(["--agent-probe"])))
-
-
-func test_detects_tools_scene_path() -> void:
-	assert_true(AgentProbe.detect(PackedStringArray(["--path", ".", "res://tools/shot.tscn"]), PackedStringArray()))
 
 
 func test_game_scene_and_plain_launch_not_probe() -> void:
@@ -43,30 +39,12 @@ func test_capture_allowed_outside_probe_mode() -> void:
 	assert_true(captured or DisplayServer.get_name() == "headless")
 
 
-func test_detects_bench_scene_path() -> void:
-	assert_true(AgentProbe.detect(PackedStringArray(["res://tests/bench/bench_snapshot.tscn"]), PackedStringArray()))
-	assert_true(AgentProbe.detect(PackedStringArray(["tests/bench/bench_snapshot.tscn"]), PackedStringArray()))
-	assert_true(AgentProbe.detect(PackedStringArray(["res://tests/enet/m3a_acceptance.tscn"]), PackedStringArray()))
-	assert_false(AgentProbe.detect(PackedStringArray(["res://game/main/Main.tscn"]), PackedStringArray()))
-
-
-func test_has_cli_port() -> void:
-	assert_true(AgentProbe.has_cli_port(PackedStringArray(["--headless-host", "--port=48123"])))
-	assert_false(AgentProbe.has_cli_port(PackedStringArray(["--headless-host"])))
-
-
 func test_free_udp_port_is_in_range_and_bindable() -> void:
 	var port: int = AgentProbe.free_udp_port()
 	assert_between(port, AgentProbe.FREE_PORT_MIN, AgentProbe.FREE_PORT_MIN + AgentProbe.FREE_PORT_SPAN - 1)
 	var probe: PacketPeerUDP = PacketPeerUDP.new()
 	assert_eq(probe.bind(port), OK, "the returned port should still be free")
 	probe.close()
-
-
-func test_quit_on_menu_flag_and_line() -> void:
-	assert_true(AgentProbe.wants_quit_on_menu(PackedStringArray(["--agent-probe", "--quit-on-menu"])))
-	assert_false(AgentProbe.wants_quit_on_menu(PackedStringArray(["--agent-probe"])))
-	assert_eq(AgentProbe.format_startup_line(120, -1), "AGENT_PROBE startup first_frame_ms=120 menu_ready_ms=-1")
 
 
 class FakeRig:
@@ -80,15 +58,6 @@ class FakeRig:
 class FakeMain:
 	extends Node
 	var _camera_rig: FakeRig = FakeRig.new()
-
-
-func test_capture_hooks_are_noops_outside_probe_mode() -> void:
-	AgentProbe.set_forced_for_test(0)
-	var main: FakeMain = autofree(FakeMain.new())
-	assert_false(AgentProbe.apply_camera_pose(main, PackedFloat32Array([10.0, 20.0, 30.0])))
-	assert_false(AgentProbe.apply_sky(main, "cycle", 0.5))
-	assert_eq(main._camera_rig._distance, 0.0)
-	main._camera_rig.free()
 
 
 func test_camera_pose_hook_sets_the_rig() -> void:

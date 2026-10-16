@@ -1,6 +1,6 @@
 class_name BotEvalTuning
 extends Resource
-## Bot V2 evaluator tunables (docs/BOT_AI_REDESIGN.md 2.3 step 6, Bontago-1t5.22):
+## Bot V2 evaluator tunables (docs/BOT_AI_REDESIGN.md 2.3 step 6):
 ## the numbers core/ai/BotEvaluator.gd reads. Loaded as config/bots/bot_eval_tuning.tres.
 
 ## Sunflower samples of the future influence circle read against the raster
@@ -21,16 +21,16 @@ extends Resource
 @export var exposure_allowance_m: float = 1.0
 ## EXPOSURE saturates at this many threatening circles.
 @export var exposure_cap: int = 4
-## HAZARD look-ahead (Bontago-1t5.32): one enemy placement can grow an enemy circle over a
+## HAZARD look-ahead: one enemy placement can grow an enemy circle over a
 ## base lying within InfluenceCircle.radius_for_height(this top height) of the circle's edge
 ## (a fresh piece set at the edge of the enemy land, or a stack raised by about this much).
 ## Bases closer than that are graded towards a certain dissolve.
 @export var hazard_lookahead_height_m: float = 6.0
-## Weather (Bontago-1t5.41): extra TIP risk of a placement under wind, added to the placement's
+## Weather: extra TIP risk of a placement under wind, added to the placement's
 ## TIP term as wind_tip_weight * weather intensity * WindField.height_factor(top height).
 ## 0 disables it; calm weather is unaffected whatever the value.
 @export var wind_tip_weight: float = 1.0
-## Weather (Bontago-1t5.46): extra TIP risk of a placement in an active Breeze gust, added as
+## Weather: extra TIP risk of a placement in an active Breeze gust, added as
 ## breeze_tip_weight * gust power * BreezeField.falloff(distance to the gust centre) *
 ## WindField.height_factor(top height). A gust is local and brief next to a Storm, so below
 ## wind_tip_weight. 0 disables the gust term; no live gust adds exactly 0.
@@ -43,7 +43,7 @@ extends Resource
 ## when the piece sits within rim_margin_m of the live disc edge measured along the wind (a shove
 ## downwind then takes it over the rim); an upwind or central placement is not changed. 0 disables.
 @export var wind_rim_gain: float = 1.0
-## Rim / shrink (Bontago-1t5.42): a footprint whose farthest cell lies within this many metres
+## Rim / shrink: a footprint whose farthest cell lies within this many metres
 ## of the live disc edge is graded 0..1 as fall-off risk (0 at this distance, 1 at the edge).
 @export var rim_margin_m: float = 3.0
 ## TIP-axis weight of that rim grade.
@@ -56,7 +56,7 @@ extends Resource
 ## A shrink counts as active only when the live radius is below the original by more than this.
 @export var shrink_epsilon_m: float = 0.01
 
-## Airborne gifts and enemy specials in flight (Bontago-1t5.44). A falling gift joins the bot's gift
+## Airborne gifts and enemy specials in flight. A falling gift joins the bot's gift
 ## list at its landing point only when it lands within this many seconds (earlier ones are too
 ## uncertain to pre-position for; the landing is fixed so this is just a planning horizon).
 @export var air_gift_horizon_s: float = 6.0
@@ -70,11 +70,11 @@ extends Resource
 ## Safety margin added to an incoming special's impact radius when grading a site.
 @export var incoming_margin_m: float = 1.0
 
-## TIP-axis penalty of a site whose placement is not stable under the two centre-of-mass rules (Bontago-1t5.72.5):
+## TIP-axis penalty of a site whose placement is not stable under the two centre-of-mass rules:
 ## its piece or a tower level below it would topple (BotStability slack <= 0).
 @export var topple_penalty: float = 10.0
 
-## Height gained (Bontago-1t5.69, Reach the Sky only): REACH-axis bonus per metre the placed piece's top
+## Height gained (Reach the Sky only): REACH-axis bonus per metre the placed piece's top
 ## rises above the own tallest block (0 when it does not raise the tower), so a bar stands up when the
 ## statics allow. 0 disables it (and the next term).
 @export var height_gain_weight: float = 1.0

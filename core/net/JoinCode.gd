@@ -1,6 +1,6 @@
 class_name JoinCode
 extends RefCounted
-## Join codes for internet play without Steam (Bontago-1pi.164): an IPv4 address and a UDP port
+## Join codes for internet play without Steam: an IPv4 address and a UDP port
 ## packed into 48 bits and written as ten base32 characters, "XXXXX-XXXXX".
 ##
 ## Alphabet is Crockford's with the look-alikes dropped rather than silently remapped: no I, L,

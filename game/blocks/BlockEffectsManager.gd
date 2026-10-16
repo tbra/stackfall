@@ -1,6 +1,6 @@
 class_name BlockEffectsManager
 extends Node3D
-## Bontago-xtq.29 (M7 P4, spec 2.10 "effects + camera shake"): visual effects
+## M7 P4, spec 1.10 "effects + camera shake": visual effects
 ## for block events. Purely additive/cosmetic -- never touches
 ## territory/physics/win-check state (core/ stays untouched), so it is safe to
 ## add as a child of game/field/Field.tscn without affecting any existing gameplay
@@ -10,7 +10,7 @@ extends Node3D
 ## Three effect kinds (config/blocks/tuning/BlockEffectsConfig.gd has every tunable):
 ## - landing burst: Events.block_impacted_at, whenever a block's own detected
 ##   impact speed reaches config.dust_impact_speed_threshold. Spawns a small
-##   team-colored cubelet shower (_find_block_at() resolves the owner by a
+##   team-colored cubelet shower (_find_block_at() resolves the owning slot by a
 ##   physics point query at the impact position -- Events.block_impacted_at
 ##   only carries speed/position, not the block itself) plus the original
 ##   softer dust puff, both under one wrapper Node3D so active_effect_count()
@@ -31,12 +31,12 @@ extends Node3D
 @export var config: BlockEffectsConfig = preload("res://config/blocks/tuning/block_effects.tres")
 
 ## Radius (meters) of the sphere shape query _find_block_at() uses to
-## resolve the impacting block's owner -- see that method's own DECISION for
+## resolve the impacting block's owning slot -- see that method's own DECISION for
 ## why a sphere, not a point. A query-robustness implementation detail, not
 ## a gameplay tunable (config/BlockShape.gd's own single-cube edge length is
 ## the real reference scale this only has to comfortably beat).
 const FIND_BLOCK_QUERY_RADIUS_M: float = 0.35
-## Reused by _find_block_at (Bontago-bth.3); built lazily.
+## Reused by _find_block_at; built lazily.
 var _find_params: PhysicsShapeQueryParameters3D = null
 
 const DUST_SHADER: Shader = preload("res://shaders/gifts/dust_puff.gdshader")
@@ -53,7 +53,7 @@ const TRAIL_SHADER: Shader = preload("res://shaders/gifts/trail_streak.gdshader"
 # use" leak on the open-project check). One manager per match, so cost is equal.
 var _fade_ramp: GradientTexture1D = null
 
-## Bontago-mp0.3.4: per-block previous global_position, keyed by
+## per-block previous global_position, keyed by
 ## Object.get_instance_id() -- the same idiom
 ## _schedule_cleanup_fallback()'s own DECISION already uses for a
 ## freed-object-safe key. Used only to measure each block's own fall speed
@@ -77,7 +77,7 @@ var _trails: Dictionary = {}
 ## before this package and are bounded, one-shot costs, not a new continuous
 ## per-frame one.
 var _trail_effects_enabled: bool = true
-## Bontago-1pi.11.37: GraphicsPreset.particle_budget_scale (adaptive quality governor).
+## GraphicsPreset.particle_budget_scale (adaptive quality governor).
 var _particle_budget_scale: float = 1.0
 
 
@@ -127,16 +127,16 @@ func _on_block_removed(block: RigidBody3D, reason: String) -> void:
 	_start_burst(burst, config.kill_lifetime_s)
 
 
-## Landing burst (Bontago-mp0.3.4): a team-colored cubelet shower plus the
+## Landing burst: a team-colored cubelet shower plus the
 ## original grey-brown dust puff, both scaled by _impact_intensity() and
 ## held by one pooled wrapper Node3D so active_effect_count() still reports
-## one effect per impact. Bontago-1pi.11.31: wrappers/particle systems come
+## one effect per impact. wrappers/particle systems come
 ## from a reuse pool and are restarted, meshes/materials are shared per
 ## colour/kind, and new bursts are budgeted (see _acquire_burst()).
 func _on_block_impacted_at(speed: float, position: Vector3) -> void:
 	if speed < config.dust_impact_speed_threshold:
 		return
-	# Budget check first: the owner physics query below is not free either.
+	# Budget check first: the slot physics query below is not free either.
 	_spawn_impact_puff(speed, position)
 	var burst: PooledBurst = _acquire_burst(_landing_pool, 2, false)
 	if burst == null:
@@ -166,7 +166,7 @@ func _on_block_impacted_at(speed: float, position: Vector3) -> void:
 	_start_burst(burst, maxf(config.cubelet_lifetime_s, config.dust_lifetime_s))
 
 
-## Bontago-mp0.120: pooled flipbook puff (game/blocks/ImpactPuff.gd) at the contact
+## pooled flipbook puff (game/blocks/ImpactPuff.gd) at the contact
 ## point. Cosmetic only, driven by the same replicated impact event on host and
 ## clients. Over-cap puffs are dropped (like bursts); the cap shrinks with the
 ## graphics preset's particle_budget_scale, so a Low preset thins/disables them.
@@ -250,7 +250,7 @@ func _impact_intensity(speed: float) -> float:
 ## origin can sit exactly on a shared edge/corner between cubes -- outside
 ## every individual cube's own box shape -- so a zero-radius point query
 ## there can miss the block entirely. Reproduced while capturing this
-## package's own removed capture probe (Bontago-dbn.1; see git history) evidence: a landing
+## package's own removed capture probe (see git history) evidence: a landing
 ## square4 (2x2) block's cubelet burst rendered in
 ## cubelet_fallback_color instead of its own team color. A small sphere
 ## (FIND_BLOCK_QUERY_RADIUS_M) reliably overlaps at least one of the
@@ -262,7 +262,7 @@ func _find_block_at(position: Vector3) -> Block:
 	var space_state: PhysicsDirectSpaceState3D = world.direct_space_state
 	if space_state == null:
 		return null
-	# Bontago-bth.3: query objects reused across impacts (same shape/radius/flags).
+	# query objects reused across impacts (same shape/radius/flags).
 	if _find_params == null:
 		var query_shape: SphereShape3D = SphereShape3D.new()
 		query_shape.radius = FIND_BLOCK_QUERY_RADIUS_M
@@ -292,7 +292,7 @@ func _color_for_owner_slot(slot_id: int, fallback: Color) -> Color:
 	return MatchContext.current().slot_color(slot_id, fallback)
 
 
-## Bontago-1pi.11.31 burst pool. One PooledBurst = one wrapper Node3D plus its
+## burst pool. One PooledBurst = one wrapper Node3D plus its
 ## particle systems, created lazily (up to config.burst_max_active active at a
 ## time), kept in the tree and restarted on reuse instead of re-instantiated.
 ## Each pooled particle system owns its ParticleProcessMaterial (built once,
@@ -316,7 +316,7 @@ var _new_bursts_this_frame: int = 0
 var _cubelet_meshes: Dictionary = {}
 var _kill_meshes: Dictionary = {}
 var _dust_mesh: Mesh = null
-## Bontago-mp0.120 flipbook puff pool (see _spawn_impact_puff()).
+## flipbook puff pool (see _spawn_impact_puff()).
 var _puffs: Array[ImpactPuff] = []
 var _puff_root: Node3D = null
 
@@ -463,7 +463,7 @@ func _get_dust_mesh() -> Mesh:
 	return _dust_mesh
 
 
-## Fix round (owner: "make them actual tiny 3D cubes... tumbling... a small
+## Fix round ("make them actual tiny 3D cubes... tumbling... a small
 ## bounce or just fall, shrinking/fading out"): a GPUParticles3D whose
 ## draw_pass_1 mesh/material give each cube shaders/gifts/cubelet.gdshader's cheap
 ## 2-tone cel look, random per-particle size (scale_min/max), tumbling
@@ -561,13 +561,13 @@ func _get_shrink_curve() -> CurveTexture:
 	return _shrink_curve
 
 
-## Bontago-mp0.3.4 (falling-block trail): every live Block adds itself to
+## falling-block trail: every live Block adds itself to
 ## Block.TUNING_GROUP in _ready() (that constant's own doc -- built for
 ## exactly this "reach every live block without a new coupling" case, already
 ## used by ui/debug/TuningPanel.gd's live-apply path). Measures each block's own
 ## fall velocity from its position delta this physics step, not
 ## RigidBody3D.linear_velocity: a client's synced blocks are frozen kinematic
-## (net/SnapshotSync.gd's freeze_body(), spec 3.4) and driven purely by
+## (net/SnapshotSync.gd's freeze_body(), spec 2.6) and driven purely by
 ## net/Interpolator.gd writing global_position directly, never by real
 ## physics integration, so linear_velocity would read as a false zero for
 ## every client-visible falling block. A position-delta measurement reads
@@ -575,7 +575,7 @@ func _get_shrink_curve() -> CurveTexture:
 ## position) with no freeze-state branch needed here at all -- exactly the
 ## "host/client both" visual-only contract this package's brief asks for.
 func _update_falling_trails(delta: float) -> void:
-	# Bontago-1pi.11.32: only awake blocks (Block.awake_blocks(), which also
+	# only awake blocks (Block.awake_blocks(), which also
 	# reports a block for a couple of frames after it sleeps) plus ids still
 	# holding a previous position, i.e. recently moving ones. A sleeping block
 	# has zero fall speed, so skipping it changes nothing; once a block is
@@ -619,7 +619,7 @@ func _update_block_trail(id: int, block: Block, inv_delta: float, threshold: flo
 		_prev_positions[id] = position
 
 
-## Fix round (owner: the previous particle-burst trail read as "dashed/
+## Fix round (the previous particle-burst trail read as "dashed/
 ## dotted... not attached to the falling piece" -- GPUParticles3D defaults
 ## to world-space simulation, so each already-emitted particle stayed fixed
 ## in place as the emitter/block kept falling past it, leaving a trail of
@@ -631,7 +631,7 @@ func _update_block_trail(id: int, block: Block, inv_delta: float, threshold: flo
 ## world-space particle could, and the block itself hides the ribbon's head.
 ## `wrapper`'s basis is re-derived every call: local -Z runs opposite the
 ## block's travel and local +Y (the quad's normal) turns about that axis
-## toward the camera (Bontago-a3z: a fixed flat strip went edge-on from many
+## toward the camera (a fixed flat strip went edge-on from many
 ## views). The ribbon's length follows `fall_speed` (trail_length_per_speed_s,
 ## clamped to [trail_min_length_m, trail_max_length_m]) -- "length
 ## proportional to speed"; its width is fixed per block at build time.
@@ -720,7 +720,7 @@ func _trail_basis(tail: Vector3, anchor: Vector3) -> Basis:
 	return Basis(normal.cross(z_axis), normal, z_axis)
 
 
-## One camera-facing ribbon (Bontago-a3z) on the shared unit quad
+## One camera-facing ribbon on the shared unit quad
 ## (_get_trail_unit_mesh(), scaled per frame by _ensure_trail() instead of
 ## rebuilt), tinted to `color`; shaders/gifts/trail_streak.gdshader draws a soft glow
 ## with config.trail_streak_count bright speed lines inside it.
@@ -801,7 +801,7 @@ func _release_trail(id: int) -> void:
 ## plain int and resolving it back through instance_from_id() at call time
 ## avoids that engine-level check entirely.
 ##
-## Bontago-mp0.3.4: `node` is now any Node (a bare GPUParticles3D for the
+## `node` is now any Node (a bare GPUParticles3D for the
 ## kill-plane path's own original shape and every falling trail, or a wrapper
 ## Node3D holding two GPUParticles3D children for a landing burst) -- freeing
 ## a wrapper frees its particle children too, so one fallback timer is enough

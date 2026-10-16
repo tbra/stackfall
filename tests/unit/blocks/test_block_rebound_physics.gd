@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-xtq.17 review fix (SHOULD-FIX 1): Block._integrate_forces()'s
+## review fix (SHOULD-FIX 1): Block._integrate_forces()'s
 ## rebound-damping heuristic must scale a REAL bounce off something solid, but
 ## must NOT scale a special effect's own intentional velocity write (a Bean's
 ## hop, a Rocket's thrust, a Propeller's lift, an explosion's knockback) just
@@ -170,7 +170,7 @@ func test_kick_reaches_the_same_peak_regardless_of_rebound_damping() -> void:
 
 ## Spawns a fresh cube already in free-fall (no floor -- nothing here needs a
 ## real bounce, only a genuinely falling body to kick) with "a small downward
-## velocity" (Bontago-xtq.17's own bug report), then issues a Bean-style
+## velocity" ('s own bug report), then issues a Bean-style
 ## block.kick(UP * 6.0) and returns the committed vertical velocity for that
 ## exact step.
 ##
@@ -180,10 +180,9 @@ func test_kick_reaches_the_same_peak_regardless_of_rebound_damping() -> void:
 ## gravity -- an earlier revision of this file did exactly that (6 ticks) and
 ## an early diagnostic run on this shared machine caught two otherwise-
 ## identical runs landing a whole physics tick apart (one run's "6 awaited
-## frames" apparently delivered 7 physics steps, not 6 -- see docs/
-## AGENT_WORKFLOW.md's own "benchmarks are unreliable on this busy machine"
-## caveat, which turns out to bite tick-counted fixtures too, not just timed
-## ones). One await (below) still carries that same small risk, but only
+## frames" apparently delivered 7 physics steps, not 6 -- the busy-machine
+## caveat that makes benchmarks unreliable turns out to bite tick-counted
+## fixtures too, not just timed ones). One await (below) still carries that same small risk, but only
 ## once, not accumulated over six chances -- combined with PEAK_TOLERANCE_MPS
 ## comfortably covering one stray tick's worth of gravity, this is stable in
 ## practice while a real rebound_damping bug (which misses by ~10x on these

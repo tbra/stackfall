@@ -1,6 +1,6 @@
 class_name RainPuddles
 extends Node3D
-## Bontago-mp0.21: rain puddles on the disc top, presentation only on every
+## rain puddles on the disc top, presentation only on every
 ## peer. A child of the Field, so the patches follow its tilt. One MultiMesh of
 ## flat quads drawn by shaders/weather/rain_puddles.gdshader; the script only integrates
 ## a `wetness` 0..1 (fills while it rains, dries after) and feeds the shader.
@@ -40,8 +40,8 @@ static func ensure_on(field_node: Node3D, map_def: MapDef, tuning: RainTuning, c
 	return puddles
 
 
-## Bontago-1pi.46 (owner playtest: "the arena still had rain puddles" in a new
-## match after leaving one): this layer lives on the persistent Field and dries
+## "the arena still had rain puddles" in a new
+## match after leaving one: this layer lives on the persistent Field and dries
 ## over RainTuning.puddle_dry_time_s, so a match left mid-rain and a new one
 ## started inside that window began wet -- and a new map kept the old map's patch
 ## layout. game/main/Main.gd calls this when a match world is built and torn down: the

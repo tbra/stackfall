@@ -1,8 +1,8 @@
 class_name SkyThemeDef
 extends Resource
-## DECISION (Bontago-mp0.13): the cycle length belongs to the theme resource,
+## DECISION: the cycle length belongs to the theme resource,
 ## so every peer receives the same authored duration with the shipped content.
-## Bontago-mp0.83 (owner playtest 2026-10-03): the full day/night cycle is 300 s
+## the full day/night cycle is 300 s
 ## (5 min), for every theme; no sky_themes/*.tres overrides it. The F4 Sky tab
 ## edits it live (60..1800 s) and Skybox keeps the phase continuous across the edit.
 @export_range(60.0, 1800.0, 1.0) var cycle_length_seconds: float = 300.0
@@ -13,7 +13,7 @@ extends Resource
 @export_range(0.0, 1.0, 0.01) var cycle_star_threshold: float = 0.92
 @export_range(0.01, 0.3, 0.01) var cycle_star_radius: float = 0.12
 @export_range(0.01, 0.5, 0.01) var cycle_star_horizon_fade: float = 0.22
-## Bontago-mp0.122: the moon_v1 disc + halo, opposite the sun. Angular radius of the
+## the moon_v1 disc + halo, opposite the sun. Angular radius of the
 ## visible disc and halo (degrees), halo strength, disc brightness, and the night mix
 ## (0..1) at which it is fully visible (it fades in from 0 at dusk, out at dawn).
 @export_range(0.5, 12.0, 0.1) var cycle_moon_angular_radius_deg: float = 3.2
@@ -21,7 +21,7 @@ extends Resource
 @export_range(0.0, 2.0, 0.05) var cycle_moon_halo_strength: float = 0.6
 @export_range(0.2, 3.0, 0.05) var cycle_moon_brightness: float = 1.0
 @export_range(0.05, 1.0, 0.01) var cycle_moon_full_night_mix: float = 0.8
-## Bontago-mp0.129 (owner playtest: "at night lets add an aurora borealis effect to the sky"):
+## "at night lets add an aurora borealis effect to the sky":
 ## soft green -> teal -> violet curtain bands in the night sky (cloud_common.gdshaderinc
 ## aurora_borealis, drawn by sunset_clouds' cycle night and night_sky), slowly drifting and
 ## rippling, behind the moon and clouds. Cosmetic only. game/sky/Skybox.gd writes the shader
@@ -45,11 +45,11 @@ extends Resource
 ## A static (non-cycle) theme has no night mix: true shows the aurora at full strength
 ## under it (config/sky/themes/night.tres), false never shows it. The cycle ignores this.
 @export var aurora_always_on: bool = false
-## Bontago-1pi.131 (owner playtest: the aurora should be rarer): the chance a cycle night shows
+## the aurora should be rarer: the chance a cycle night shows
 ## the aurora, rolled once per night from the match seed (SkyVariation.aurora_night_shown), so
 ## every peer agrees. 1 = every night; a locked Night sky is one night (night 0 of the seed).
 @export_range(0.0, 1.0, 0.01) var aurora_night_chance: float = 0.1
-## Bontago-mp0.127 (owner: "sun should affect light more"): in the cycle the direct sun is
+## "sun should affect light more": in the cycle the direct sun is
 ## multiplied by up to cycle_sun_energy_gain and the sky ambient by cycle_day_ambient_scale as
 ## the sun climbs (both identity at the horizon and at night), so lit vs shadowed block faces
 ## read clearly at midday and soften at dusk. cycle_sun_contrast_full_sin is the sun elevation
@@ -57,7 +57,7 @@ extends Resource
 @export_range(1.0, 3.0, 0.05) var cycle_sun_energy_gain: float = 1.7
 @export_range(0.2, 1.0, 0.01) var cycle_day_ambient_scale: float = 0.7
 @export_range(0.1, 1.0, 0.01) var cycle_sun_contrast_full_sin: float = 0.6
-## Bontago-59o.18 (docs/SKY_CYCLE_DEFAULT_PLAN.md): Cycle is the default sky and
+## Cycle is the default sky and
 ## the lobby's Sunset / Dawn / Night options become the same cycle locked at a
 ## fixed phase. Phase 0 = dawn horizon, 0.25 = noon, 0.5 = sunset horizon,
 ## 0.75 = midnight (Skybox.set_cycle_phase). All five values below are
@@ -65,7 +65,7 @@ extends Resource
 ## sky_theme_mode / sky_theme_resolved with no new wire field.
 ## Phase a running Cycle match opens at (0.10 = morning, sun ~38 degrees, full day).
 @export_range(0.0, 1.0, 0.01) var cycle_start_phase: float = 0.10
-## Bontago-1pi.75: a Cycle match opens at a random phase in [min, max] (host-rolled from
+## a Cycle match opens at a random phase in [min, max] (host-rolled from
 ## the match seed, MatchConfig.resolve_sky_start_phase). DECISION: 0.0..0.62 spans dawn,
 ## noon and the sunset into early dusk, avoiding the pitch-black midnight (0.75) as an
 ## opening; widen max toward 1.0 to allow night starts.
@@ -82,8 +82,8 @@ extends Resource
 ## smoothstep(a, b, phase) * (1 - smoothstep(c, d, phase)). Read by the palette
 ## blend package (C1b); not a slider row (the F4 panel builds no Vector4 rows).
 @export var cycle_dusk_weight_phases: Vector4 = Vector4(0.30, 0.46, 0.90, 0.98)
-## Bontago-59o.18 (C1b variation, owner 2026-10-03: "lets add some variation and just
-## set a range so it can vary"): the cycle's sky exposure and cloud coverage are not
+## C1b variation, "lets add some variation and just
+## set a range so it can vary": the cycle's sky exposure and cloud coverage are not
 ## fixed at one theme's values (Dawn 0.95 / 0.5, Sunset 0.8 / 0.68); each wanders
 ## between the min and max below as a smooth, low-frequency function of the match
 ## seed and the cycle phase (core/sky/SkyVariation.gd), so the host and every client
@@ -106,7 +106,7 @@ extends Resource
 ## times a day (the average swing lasts cycle_length_seconds / this; 3 = 100 s of a
 ## 300 s day). Fewer is slower and calmer, more is busier; always smooth.
 @export_range(2, 12, 1) var variation_knots_per_cycle: int = 3
-## Bontago-59o.16: opt-in procedural sky look (docs/SKY_PROCEDURAL_PLAN.md),
+## opt-in procedural sky look,
 ## declared first so it is the first row of the F4 Sky tab for the owner's
 ## painted-vs-procedural comparison. Skybox.apply_theme() writes
 ## procedural_sea_mix (0 while this is false) and the proc_* parameters.
@@ -122,10 +122,10 @@ extends Resource
 ## textured six-face set is loaded (game/sky/Skybox.gd's `fallback_active == true`
 ## -- see Skybox.apply_theme()).
 ##
-## M7 P3 (Bontago-xtq.28) ships exactly one instance,
+## M7 P3 ships exactly one instance,
 ## config/sky/themes/sunset.tres, tuned against docs/art_mockups/
 ## 04-sunset-signal.png and 07-sunset-signal-cel-shaded.png. M8 follow-up
-## (do not build now, per docs/M7_PLAN.md's P3 package): dawn/storm/night
+## do not build now: dawn/storm/night
 ## instances, plus a theme-selection row in ui/debug/TuningPanel.gd (parallel to its
 ## existing Skybox six-face-set dropdown, `_build_skybox_row()`) once there is
 ## more than one instance for the owner to choose between -- a single theme
@@ -158,14 +158,14 @@ extends Resource
 ## Environment.fog_sky_affect -- how much the basic depth fog tints the
 ## rendered sky background itself (0 == sky renders untouched past
 ## fog_depth_end, 1 == the engine's own default, which fully replaces the sky
-## with flat fog_light_color). Bontago-xtq.28's rejected candidate never set
+## with flat fog_light_color).'s rejected candidate never set
 ## this, so it silently sat at the engine default of 1.0 and masked the
 ## ProceduralSkyMaterial's orange-horizon/blue-zenith gradient behind a flat
 ## haze regardless of fog_density. Kept at 0.0 here so the sunset gradient at
 ## the horizon stays visible; a future stormier theme could raise it.
 @export var fog_sky_affect: float = 0.0
 
-## Bontago-mp0.130 (cosmic-map reference: sky-matched haze, strong sky affect):
+## cosmic-map reference: sky-matched haze, strong sky affect:
 ## the further Environment fog techniques. fog_aerial_perspective blends the fog
 ## colour toward the sky colour behind it with distance, so the far cloud sea
 ## melts into the horizon instead of a flat tint. fog_sun_scatter warms the haze
@@ -186,7 +186,7 @@ extends Resource
 ## Environment.volumetric_fog_density/volumetric_fog_albedo -- the global
 ## ambient volumetric-fog density/tint the render server applies across the
 ## *entire view frustum*, independent of any FogVolume box placed inside it.
-## Bontago-xtq.28 fix round 2 (decisive finding): this field defaults to 0.05
+## fix round 2 (decisive finding): this field defaults to 0.05
 ## on a fresh Environment and Skybox.apply_theme()'s previous candidate never
 ## wrote it, so every shot showed a uniform grey haze over the whole frame
 ## regardless of where _spawn_fog_volume()'s cloud-deck FogVolume box was
@@ -202,7 +202,7 @@ extends Resource
 ## floats above): world-space size and the y-height of its centre. World y ==
 ## 0 is the floating disk's top surface (see game/sky/Skybox.gd's
 ## PROBE_GROUND_CLEARANCE_M doc); NetConfig.pos_max_y (150.0, derived: target height + margin) is the highest a
-## stacked block may legally sit. Bontago-xtq.28's rejected candidate centred
+## stacked block may legally sit.'s rejected candidate centred
 ## this box at y 40 (spanning y 10..70), which swallowed the entire play
 ## volume and the gameplay camera in fog. Centring it well below the disk
 ## instead (top edge at y -10, i.e. at least 10 m of clearance under the
@@ -211,7 +211,7 @@ extends Resource
 @export var cloud_deck_size_m: Vector3 = Vector3(800.0, 60.0, 800.0)
 @export var cloud_deck_height_m: float = -40.0
 
-## Bontago-adt.1 (graphics pass): per-theme light and environment values that
+## graphics pass: per-theme light and environment values that
 ## Skybox.apply_theme() writes onto the scene's DirectionalLight3D (via
 ## Skybox.light_path) and the shared Environment. Defaults equal the values
 ## game/main/Main.tscn shipped with, so a theme that leaves them alone (sunset)
@@ -256,7 +256,7 @@ extends Resource
 @export var cloud_clump_radius_max_m: float = 36.0
 @export var cloud_clump_height_ratio: float = 0.65
 @export var cloud_flat_base: float = 0.15
-## Bontago-t8x.2 (owner 2026-10-01: "try moving the puff layer up a bit"): metres
+## "try moving the puff layer up a bit": metres
 ## the sea puff layer and the procedural far ring are raised (bases and tops
 ## together). game/sky/CloudSea.gd then clamps every puff that could reach the disc
 ## or the play volume back under the disc: the exclusion cylinder is the largest
@@ -271,7 +271,7 @@ extends Resource
 @export var cloud_drift_speed_min_mps: float = 0.8
 @export var cloud_drift_speed_max_mps: float = 1.8
 
-## Cloud banks (Bontago-470.5): a second, sparser set of big cumulus clumps far
+## Cloud banks: a second, sparser set of big cumulus clumps far
 ## out past the disc edge, standing higher than the sea (tops up to
 ## cloud_bank_top_max_m) so a camera looking outward sees them on the horizon.
 ## Their ring starts far beyond the largest disc, so they never cover the play
@@ -289,7 +289,7 @@ extends Resource
 @export var cloud_bank_radius_min_m: float = 30.0
 @export var cloud_bank_radius_max_m: float = 60.0
 
-## Distant bird flocks (game/ambient/DistantBirds.gd, Bontago-470.5): a ShaderMaterial
+## Distant bird flocks (game/ambient/DistantBirds.gd): a ShaderMaterial
 ## using shaders/ambient/distant_birds.gdshader. Flocks are a random occurrence, not a
 ## permanent fixture: up to bird_flock_count flocks may be in flight at once
 ## (each slot waits a random bird_gap_min_s..bird_gap_max_s between flights;
@@ -325,11 +325,11 @@ extends Resource
 @export var bird_spacing_m: float = 14.0
 @export var bird_v_chance: float = 0.55
 
-## Bontago-adt.3: cosmetic local ambient life (perching birds on sunset,
+## cosmetic local ambient life (perching birds on sunset,
 ## fireflies on night) -- see config/sky/AmbientLifeConfig.gd. Null means none.
 @export var ambient_life: AmbientLifeConfig = null
 
-## Bontago-59o.16 (procedural sky, docs/SKY_PROCEDURAL_PLAN.md): the proc_*
+## procedural sky: the proc_*
 ## parameters below drive the procedural branch of shaders/sky/sunset_clouds.gdshader
 ## (plus the puff far-fade and night sea) when sky_look_procedural is on.
 @export var procedural_sea_mix: float = 1.0
@@ -345,7 +345,7 @@ extends Resource
 @export var proc_sea_color_far: Color = Color(0.34, 0.27, 0.47)
 @export var proc_sea_horizon_fade: float = 0.12
 @export var proc_strata_scale: float = 1.0
-## Bontago-59o.19: far puff ring drawn only while sky_look_procedural is on --
+## far puff ring drawn only while sky_look_procedural is on --
 ## a third set of big cumulus clumps reaching toward the horizon so the cloud sea
 ## below it is real lit cumulus, not shader noise. proc_far_count 0 = none.
 ## proc_far_fade_cap (0..1) caps the puffs' distance fade into the sky colour so
@@ -361,13 +361,13 @@ extends Resource
 @export var proc_far_radius_max_m: float = 130.0
 @export var proc_far_fade_cap: float = 0.7
 
-## Bontago-t8x.2 (owner: "I'm not a huge fan of the above clouds"): master toggle
+## "I'm not a huge fan of the above clouds": master toggle
 ## for the procedural look's overhead cloud layers (the card atlas below or the
 ## noise strata it replaces). Off by default; the layers are kept, not deleted.
 ## Skybox writes it to the sky shader's proc_overhead_mix.
 @export var proc_overhead_clouds_enabled: bool = false
 
-## Bontago-59o.20: authored cloud-card overhead layer (procedural look only).
+## authored cloud-card overhead layer (procedural look only).
 ## proc_cards_enabled swaps the noise overhead layers for the Blender card
 ## atlas (assets/textures/sky/cloud_cards); density is the chance a grid cell holds a
 ## card, scale the plane scale (higher = more, smaller cards), opacity the
@@ -378,7 +378,7 @@ extends Resource
 @export var proc_cards_opacity: float = 0.95
 
 
-## Bontago-mp0.129: how much of the aurora the cycle shows at night mix `night` (0 = none,
+## how much of the aurora the cycle shows at night mix `night` (0 = none,
 ## 1 = full): a smoothstep across aurora_start_night_mix .. aurora_full_night_mix. The two edges
 ## are ordered first, so an F4 edit that drags the start above the full value still fades in
 ## with the night (a smoothstep with reversed edges would fade out instead); equal edges make

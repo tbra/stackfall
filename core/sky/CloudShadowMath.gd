@@ -1,6 +1,6 @@
 class_name CloudShadowMath
 extends RefCounted
-## Bontago-mp0.127: pure math of the arena cloud shadows (no scene tree). The sweep uses two
+## pure math of the arena cloud shadows (no scene tree). The sweep uses two
 ## shadow layers (different noise) that cross-fade as each travels `travel` metres, so a
 ## finite decal never shows its edge: weights sin^2 and cos^2 of the phase add up to 1.
 

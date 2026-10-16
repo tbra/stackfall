@@ -1,12 +1,11 @@
 class_name ResultsValidation
 extends RefCounted
 ## Pure wire validators for the two replicated match payloads (autoload
-## decoupling S2a, docs/archive/STARTUP_COMPILE_PLAN.md B0a): the results payload and the mode
+## decoupling): the results payload and the mode
 ## state. net/MatchNet.gd and autoload/match/MatchStats.gd call these instead
 ## of naming MatchStats/ModeObjective, whose scripts pull in the objective
-## subclasses. The old entry points (MatchStats.validate_results_payload,
-## ModeObjective.validate_state and its clean_* helpers) stay as one-line
-## forwards. The results schema itself is still owned by ResultsPayload.
+## subclasses. The old MatchStats.validate_results_payload entry point stays as a
+## one-line forward. The results schema itself is still owned by ResultsPayload.
 
 const MAX_WIRE_KEYS: int = 16
 const MAX_WIRE_STRING: int = 64

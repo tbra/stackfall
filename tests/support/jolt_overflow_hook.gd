@@ -2,7 +2,7 @@ extends GutHookScript
 ## GUT pre-run hook (configured as pre_run_script in .gutconfig.json,
 ## tools/run_gut.ps1 and tools/full_gate.py configs) that swaps GUT's error
 ## tracker for JoltOverflowErrorTracker, so the Jolt job-overflow warning is
-## handled in every test of every runner (Bontago-fca.119).
+## handled in every test of every runner.
 
 
 func run() -> void:

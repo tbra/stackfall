@@ -1,6 +1,6 @@
 class_name WeatherProbeEffect
 extends WeatherEffect
-## Test-only effect (Bontago-22y.10): scales a "friction" entry in a shared
+## Test-only effect: scales a "friction" entry in a shared
 ## Dictionary by the ramped intensity, so a test can prove apply()/restore()
 ## round-trip the baseline. Never referenced by shipped config.
 

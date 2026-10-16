@@ -2,7 +2,7 @@ class_name TerritoryTestHelpers
 extends RefCounted
 ## Test-only seam for forcing the genuine "this team owns zero valid cells"
 ## case PlacementRules.closest_valid_point() needs to return NO_ORIGIN
-## (core/rules/PlacementRules.gd, Bontago-xtq.23).
+## (core/rules/PlacementRules.gd).
 ##
 ## Before a0e9305, a desired point merely far from a team's territory forced
 ## the burn/throw path, because closest_valid_point()'s ring search gave up

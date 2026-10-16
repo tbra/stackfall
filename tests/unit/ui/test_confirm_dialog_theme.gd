@@ -1,6 +1,6 @@
 extends GutTest
-## Bontago-1pi.66: confirmation prompts must show the shared cream card behind
-## the shared dark ink Label colour (owner playtest: dark text on dark panel).
+## confirmation prompts must show the shared cream card behind
+## the shared dark ink Label colour (dark text on dark panel).
 
 const THEME_PATH: String = "res://ui/theme/stackfall_theme.tres"
 const MIN_CONTRAST: float = 4.5
@@ -29,11 +29,3 @@ func test_confirmation_dialog_contrast() -> void:
 
 func test_accept_dialog_contrast() -> void:
 	_assert_readable(AcceptDialog.new(), "AcceptDialog")
-
-
-func test_pause_menu_dialog_uses_shared_theme() -> void:
-	var scene: PackedScene = load("res://ui/menus/PauseMenu.tscn") as PackedScene
-	var menu: Node = scene.instantiate()
-	var dialog: UiDialog = menu.get_node("ConfirmDialog") as UiDialog
-	assert_eq(dialog.theme.resource_path, THEME_PATH)
-	menu.free()

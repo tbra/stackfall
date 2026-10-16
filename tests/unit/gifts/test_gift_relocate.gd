@@ -1,5 +1,5 @@
 extends GutTest
-## Owner playtest report (Bontago-1pi.2): "Unclaimed presents should respawn
+##  report: "Unclaimed presents should respawn
 ## in different places when unclaimed." Covers
 ## autoload/match/MatchGifts._relocate_after_expiry()/_pick_relocation_point():
 ## an expired (unclaimed) crate is immediately replaced by a fresh one at a

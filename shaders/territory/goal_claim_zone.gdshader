@@ -1,5 +1,5 @@
 shader_type spatial;
-// Bontago-mp0.147: the goal beacon's claim zone, one flat disc mesh drawn in one
+// the goal beacon's claim zone, one flat disc mesh drawn in one
 // pass. Cel-shaded to match the Sunset Signal look: a faint stepped fill that
 // brightens in hard bands toward the edge, slow rings drifting inward, and a crisp
 // rim made of a solid outer line plus a dashed inner line (so the edge still reads

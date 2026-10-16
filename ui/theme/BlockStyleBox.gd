@@ -1,6 +1,6 @@
 class_name BlockStyleBox
 extends StyleBox
-## The Stackfall Arcade "block" (docs/ui_reskin/components.md BlockButton; docs/UI_RESKIN_PLAN.md P0):
+## The Stackfall Arcade "block" (BlockButton):
 ## a face with a lit top edge, a dark lower lip and a solid ledge in disc-950 under it. A single
 ## StyleBoxFlat cannot draw it (one border colour for every side), so _draw() stacks four rounded
 ## rectangles. Pressed = no ledge, the face moves down by the drop and the lip is shallow;

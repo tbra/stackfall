@@ -1,6 +1,6 @@
 class_name WeatherNet
 extends Node
-## The weather replication surface (Bontago-22y.10), a child of the MatchNet
+## The weather replication surface, a child of the MatchNet
 ## autoload so its RPC path (/root/MatchNet/WeatherNet) is identical on every
 ## instance.
 ##
@@ -37,20 +37,20 @@ func _ready() -> void:
 	var presenter: WeatherPresenter = WeatherPresenter.new()
 	presenter.name = "WeatherPresenter"
 	add_child(presenter)
-	# Bontago-mp0.118: weather ambience loops and gust whoosh, also Events-only.
+	# weather ambience loops and gust whoosh, also Events-only.
 	var ambience: WeatherAmbience = WeatherAmbience.new()
 	ambience.name = "WeatherAmbience"
 	add_child(ambience)
 	Events.weather_state_changed.connect(_on_weather_state_changed)
 	Events.net_peer_joined.connect(_on_net_peer_joined)
-	# Bontago-22y.6: snow's patch replication and client caps (net/SnowNet.gd).
+	# snow's patch replication and client caps (net/SnowNet.gd).
 	# Added after the connections above so a late joiner gets the weather
 	# state before the snow state.
 	var snow_net: SnowNet = SnowNet.new()
 	snow_net.awaiting_world = _is_awaiting_world
 	snow_net.name = "SnowNet"
 	add_child(snow_net)
-	# Bontago-470.2: Breeze gust replication and visuals (net/BreezeNet.gd).
+	# Breeze gust replication and visuals (net/BreezeNet.gd).
 	var breeze_net: BreezeNet = BreezeNet.new()
 	breeze_net.awaiting_world = _is_awaiting_world
 	breeze_net.name = "BreezeNet"

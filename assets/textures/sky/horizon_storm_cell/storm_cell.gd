@@ -85,7 +85,7 @@ func _make_cloud_material() -> StandardMaterial3D:
 	material.roughness = 1.0
 	material.diffuse_mode = BaseMaterial3D.DIFFUSE_BURLEY
 	material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
-	# Bontago-mp0.126: the cell sits ~1 km out, where depth fog would swallow it whole.
+	# the cell sits ~1 km out, where depth fog would swallow it whole.
 	material.disable_fog = true
 	return material
 

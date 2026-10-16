@@ -1,4 +1,4 @@
-# Bontago-1t5.62: Hard-bot think cost breakdown. Runs four headless bot matches ALONE one after another
+# Hard-bot think cost breakdown. Runs four headless bot matches ALONE one after another
 # (Classic and Reach the Sky, 1 and 8 Hard bots; fixed seed) through the exclusive Godot slot and collects
 # the BOT_THINK_COST lines into one summary file. Run it on an idle PC (it takes ~4 x Seconds of match time).
 #
@@ -10,8 +10,10 @@ param(
 	[int]$Seconds = 180,
 	[int]$Seed = 1014,
 	[string]$Path = (Split-Path -Parent $PSScriptRoot),
-	[string]$OutDir = "M:/Bontago-tools/scratch/bot_think_cost"
+	[string]$OutDir = ""
 )
+. (Join-Path $PSScriptRoot "repo_paths.ps1")
+if ($OutDir -eq "") { $OutDir = Join-Path (Get-StackfallToolsRoot) "scratch/bot_think_cost" }
 $ErrorActionPreference = "Continue"
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $summary = Join-Path $OutDir "summary.txt"

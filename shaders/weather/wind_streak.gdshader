@@ -1,7 +1,7 @@
 shader_type spatial;
 render_mode unshaded, blend_mix, cull_disabled, depth_draw_never, skip_vertex_transform, shadows_disabled, fog_disabled;
 
-// Bontago-22y.4: soft wind wisps and drifting motes. Bontago-mp0.81 swapped the
+// soft wind wisps and drifting motes. swapped the
 // two wind looks: this WISP look (bowed, feathered, banded ribbons) is now a Breeze
 // GUST's look (game/weather/GustPresentation.gd, scattered in a heading-aligned box
 // around the gust via box_center/box_align); the ambient Storm wind uses the curled
@@ -14,7 +14,7 @@ render_mode unshaded, blend_mix, cull_disabled, depth_draw_never, skip_vertex_tr
 //   INSTANCE_CUSTOM.xyz = scatter in 0..1 across the box (x, height, z)
 //   INSTANCE_CUSTOM.w   = rank 0..1; shown while rank < density
 //
-// Bontago-mp0.35: storm streaks are wisps, not lines. Each is a curved tapered
+// storm streaks are wisps, not lines. Each is a curved tapered
 // ribbon (mesh built in StormPresentation) that, like a gust stroke, draws on
 // from its tail, holds, then erases, and respawns at a new hashed spot each
 // cycle. Length, opacity and bow vary per streak, and streaks within
@@ -103,7 +103,7 @@ void vertex() {
 	len *= 1.0 + height_length_gain * (high - 0.5);
 	len = mix(len, length_m, mote_mix);
 	vec4 view_pos = VIEW_MATRIX * vec4(p, 1.0);
-	// Bontago-mp0.28: the screen direction of the world heading must follow the
+	// the screen direction of the world heading must follow the
 	// perspective projection (strokes converge on the heading's vanishing
 	// point), not the camera-plane projection of the direction vector, or
 	// off-centre strokes visibly disagree with the way the wind moves.

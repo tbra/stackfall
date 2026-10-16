@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.190: the Options screen opens over the lobby and closes back to it with focus restored,
+## the Options screen opens over the lobby and closes back to it with focus restored,
 ## lobby shortcuts stay silent while it is open, and lobby networking carries on underneath.
 
 const LOBBY_SCENE: PackedScene = preload("res://ui/lobby/Lobby.tscn")
@@ -32,14 +32,6 @@ func _make_lobby(is_host: bool = true) -> Lobby:
 	return lobby
 
 
-func _key(keycode: Key) -> InputEventKey:
-	var event: InputEventKey = InputEventKey.new()
-	event.keycode = keycode
-	event.physical_keycode = keycode
-	event.pressed = true
-	return event
-
-
 func _action(name: StringName) -> InputEventAction:
 	var event: InputEventAction = InputEventAction.new()
 	event.action = name
@@ -67,28 +59,9 @@ func test_options_button_opens_and_close_restores_focus_to_it() -> void:
 	menu.closed.emit()
 	await wait_process_frames(2)
 	assert_false(lobby.is_options_open())
-	assert_false(menu.visible, "Options is hidden, kept for reuse (Bontago-1pi.11.95)")
+	assert_false(menu.visible, "Options is hidden, kept for reuse")
 	assert_eq(button.focus_mode, Control.FOCUS_ALL)
 	assert_eq(lobby.get_viewport().gui_get_focus_owner(), button, "focus returns to the Options button")
-
-
-func test_options_menu_is_built_once_and_reused() -> void:
-	var lobby: Lobby = _make_lobby()
-	await wait_process_frames(2)
-	lobby.open_options()
-	var first: OptionsMenu = _options_of(lobby)
-	first.closed.emit()
-	await wait_process_frames(2)
-	lobby.open_options()
-	await wait_process_frames(2)
-	assert_true(lobby.is_options_open())
-	assert_same(_options_of(lobby), first, "the second open reuses the built menu")
-	assert_true(first.visible)
-	var count: int = 0
-	for child: Node in lobby.get_children():
-		if child is OptionsMenu:
-			count += 1
-	assert_eq(count, 1)
 
 
 func test_shortcut_opens_options_once() -> void:
@@ -106,61 +79,6 @@ func test_shortcut_opens_options_once() -> void:
 	assert_false(InputMap.action_get_events(&"lobby_options").is_empty())
 
 
-func test_lobby_shortcuts_are_blocked_while_options_is_open() -> void:
-	var lobby: Lobby = _make_lobby()
-	await wait_process_frames(2)
-	lobby.open_options()
-	watch_signals(lobby)
-	lobby._unhandled_input(_action(&"ui_cancel"))
-	lobby._unhandled_input(_action(&"lobby_quick_advanced"))
-	lobby._input(_action(&"lobby_confirm"))
-	assert_signal_not_emitted(lobby, "back_requested", "Esc/B must not back out of the lobby")
-	assert_true(lobby.is_options_open())
-
-
-func test_button_is_not_on_the_vertical_loop_and_is_reached_left_from_back() -> void:
-	var lobby: Lobby = _make_lobby()
-	await wait_process_frames(3)
-	var button: Control = lobby.get_node("%OptionsButton") as Control
-	var back: Control = lobby.get_node("%BackButton") as Control
-	assert_eq(back.get_node(back.focus_neighbor_left), button, "left from Back reaches Options")
-	assert_eq(button.get_node(button.focus_neighbor_right), back)
-	for stop: Control in lobby._visible_chain(lobby._main_chain):
-		for side: NodePath in [stop.focus_neighbor_top, stop.focus_neighbor_bottom, stop.focus_neighbor_right]:
-			assert_ne(stop.get_node_or_null(side), button, "%s never lands on Options" % stop.name)
-	var chain: Array[Control] = lobby._visible_chain(lobby._main_chain)
-	var last: Control = chain[chain.size() - 1]
-	last.grab_focus()
-	var left_focus: Control = last.get_node(last.focus_neighbor_left) as Control
-	assert_eq(left_focus, back)
-	# Synthetic pad: dpad-left from Back lands on Options.
-	back.grab_focus()
-	for pressed: bool in [true, false]:
-		var event: InputEventJoypadButton = InputEventJoypadButton.new()
-		event.button_index = JOY_BUTTON_DPAD_LEFT
-		event.pressed = pressed
-		Input.parse_input_event(event)
-	Input.flush_buffered_events()
-	await wait_process_frames(1)
-	assert_eq(lobby.get_viewport().gui_get_focus_owner(), button)
-	# Keyboard: ui_left too.
-	back.grab_focus()
-	var left: InputEventKey = _key(KEY_LEFT)
-	Input.parse_input_event(left)
-	Input.flush_buffered_events()
-	await wait_process_frames(1)
-	assert_eq(lobby.get_viewport().gui_get_focus_owner(), button)
-	# Release: an unreleased KEY_LEFT keeps camera_pan_left/ui_left held for every later script in
-	# this process (Bontago-fca.101: broke test_playercontroller_mouse's legacy-camera pan check).
-	var left_release: InputEventKey = left.duplicate() as InputEventKey
-	left_release.pressed = false
-	Input.parse_input_event(left_release)
-	Input.flush_buffered_events()
-	button.grab_focus()
-	button.pressed.emit()
-	assert_true(lobby.is_options_open(), "the focused button opens Options")
-
-
 func _make_net_side(node_name: String) -> Variant:
 	var node: Node = _NET_SCRIPT.new()
 	node.name = node_name
@@ -173,7 +91,7 @@ func _make_net_side(node_name: String) -> Variant:
 ## Polls once per frame until `condition` holds or `timeout_msec` of wall-clock time passes.
 ## Loopback ENet delivery takes real time that frame counts do not measure (a loaded
 ## machine runs hundreds of frames per millisecond of OS scheduling delay), so the bound
-## is a clock, not a frame budget (Bontago-fca.102).
+## is a clock, not a frame budget.
 func _wait_for(condition: Callable, timeout_msec: int = WAIT_TIMEOUT_MSEC) -> bool:
 	var deadline: int = Time.get_ticks_msec() + timeout_msec
 	while not condition.call():

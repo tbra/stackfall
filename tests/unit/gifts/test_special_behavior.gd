@@ -1,10 +1,10 @@
 extends GutTest
-## SpecialBehavior checks (spec 2.6, docs/archive/M4_P2_PACKAGES.md P2a): arming,
+## SpecialBehavior checks (spec 1.6): arming,
 ## impact-triggered activation, the effect hooks, the fuse timeout, and the
 ## chain-cap semantics -- all pure logic, no physics simulation. Every test
 ## drives SpecialBehavior.advance(delta) directly (not _physics_process, and
 ## no scene-tree physics tick) with a stub Block whose linear_velocity/mass
-## the test sets by hand, exactly as docs/archive/M4_P2_PACKAGES.md P2a specifies.
+## the test sets by hand, exactly as the design specifies.
 
 var _tuning: SpecialTuning = null
 
@@ -92,7 +92,7 @@ func _make_behavior(block: Block, def: SpecialDef) -> SpecialBehavior:
 ## -- bind() / initial state ----------------------------------------------------
 
 ## A hard deceleration before arm_delay has elapsed must not trigger --
-## activation requires both the impact AND having already armed (spec 2.6).
+## activation requires both the impact AND having already armed (spec 1.6).
 func test_impact_before_arming_does_not_trigger() -> void:
 	var block: Block = _make_block(Vector3.ZERO, 1.0)
 	var def: SpecialDef = _make_def(1.0, 5.0, 999.0)
@@ -141,7 +141,7 @@ func test_impact_below_arm_impulse_after_arming_does_not_trigger() -> void:
 	assert_false(behavior.is_triggered())
 
 
-## Review fix (Bontago-1en.12): game/blocks/Block.gd:61-63 skips its own
+## Review fix: game/blocks/Block.gd:61-63 skips its own
 ## velocity-drop impact detection while `sleeping` because Jolt stops
 ## integrating a sleeping body -- without the matching guard here, a settled
 ## armed special that later gets bumped awake would read the wake-up itself
@@ -166,7 +166,7 @@ func test_impact_while_sleeping_does_not_trigger_even_with_a_large_velocity_drop
 
 
 ## A hard deceleration past arm_impulse must NOT call trigger() when the
-## effect vetoes it -- the arming-tick self-trigger bug (Bontago-1en.22) this
+## effect vetoes it -- the arming-tick self-trigger bug this
 ## hook exists to fix. physics_tick() must keep running regardless (the
 ## effect's own timed window is what SpecialBehavior must never cut short).
 func test_impact_does_not_trigger_when_the_effect_vetoes_it() -> void:

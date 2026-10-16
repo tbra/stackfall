@@ -1,12 +1,12 @@
 class_name TimerPause
 extends RefCounted
-## Pure rule for QoL experiment 1 (Bontago-1pi.18.1): when a slot's block timer
+## Pure rule for QoL experiment 1: when a slot's block timer
 ## should be frozen. Two causes: a special triggered (pauses everyone for
 ## pause_event_s) and a big topple (a slot with at least topple_moving_blocks_min
 ## own blocks above topple_speed_threshold_mps, plus pause_tail_s afterwards).
 ## No scene-tree access: the caller feeds in per-slot moving-block counts.
 ##
-## Stall guard (Bontago-1pi.18.4, QoL Q0): a cause that keeps refreshing itself
+## Stall guard (QoL Q0): a cause that keeps refreshing itself
 ## (specials chaining up to max_chain_depth, a long avalanche) must not freeze a
 ## slot's cadence forever. Once a slot has been continuously RAW-paused for
 ## QolExperiments.pause_max_s it latches "exhausted": is_paused() reports false

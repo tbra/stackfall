@@ -1,10 +1,9 @@
 extends GutTest
-## SpecialDef checks (spec 2.6, docs/archive/M4_P2_PACKAGES.md P2a): the roster
+## SpecialDef checks (spec 1.6): the roster
 ## loader and the weighted draw. config/gifts/specials/ started genuinely empty
 ## (P2a landed before P3-P5's concrete specials); as of P5-EARTHQUAKE it
 ## holds at least earthquake.tres, so the loader test below now asserts
-## against the real roster's contents instead of assuming it is empty
-## (docs/archive/M4_SPECIALS_PACKAGES.md orchestrator decision 4). Every other test
+## against the real roster's contents instead of assuming it is empty. Every other test
 ## here exercises pick_weighted()/the sort comparator against in-memory
 ## SpecialDef instances built by the test itself -- no disk writes needed,
 ## unaffected by what is or isn't under config/gifts/specials/.
@@ -59,7 +58,7 @@ func test_pick_weighted_favors_the_higher_weight_candidate() -> void:
 	assert_gt(heavy_count, light_count * 3, "A 9:1 weight ratio should show up clearly over %d draws." % draws)
 
 
-## Review fix (Bontago-1en.12): a zero-weight candidate sitting first in the
+## Review fix: a zero-weight candidate sitting first in the
 ## array must never be selectable via the roll (randf_range()'s range is
 ## inclusive at 0.0, so a roll of exactly 0.0 could otherwise satisfy
 ## `roll <= cursor` against a zero-weight entry's own unmoved cursor). Uses

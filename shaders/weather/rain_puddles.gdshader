@@ -1,7 +1,7 @@
 shader_type spatial;
 render_mode unshaded, blend_mix, cull_disabled, depth_draw_never, shadows_disabled, fog_disabled;
 
-// Bontago-mp0.21: cel puddles on the disc top (game/weather/RainPuddles.gd draws
+// cel puddles on the disc top (game/weather/RainPuddles.gd draws
 // one MultiMesh of flat quads). Presentation only. Per instance
 // INSTANCE_CUSTOM: x = appear threshold 0..1 (patches grow in at different
 // wetness), y = outline/ripple seed, z = darkness tint random, w = ripple phase.

@@ -1,7 +1,7 @@
 extends GutTest
 ## TerritoryRaster.apply_replicated_state / apply_replicated_diff — the
-## client's mirror raster (docs/archive/M3a_PLAN.md, "The client's raster is a mirror,
-## not a solve").
+## client's mirror raster (it is a mirror,
+## not a solve).
 ##
 ## The contract these tests defend: a mirror fed the host's owner_bytes() and
 ## state_bytes() answers team_at(), is_contested(), is_hole_index() and
@@ -237,7 +237,7 @@ func test_an_out_of_range_diff_cell_is_skipped_not_fatal() -> void:
 	assert_eq(mirror.team_at(coords.x, coords.y), 1, "the in-range cell still applies")
 
 
-# --- Bontago-cmc.5: the circle list rides alongside the raster mirror ------
+# --- the circle list rides alongside the raster mirror ------
 ##
 ## The mirror above never reconstructs group indices (this file's own class
 ## doc), so a client's *analytic* picture cannot come from the raster at all
@@ -308,7 +308,7 @@ func test_a_solved_fixtures_circles_survive_the_wire() -> void:
 	assert_eq(overlay.circle_count(), 2)
 
 
-## Bontago-1pi.11.14: the host skips solves on a clean board, so its raster bytes
+## the host skips solves on a clean board, so its raster bytes
 ## do not change and MatchNet.replicate_territory() finds no changed cells. The
 ## mirror must still pick up the next real change as a diff.
 func test_mirror_still_receives_updates_after_host_clean_ticks_skip() -> void:
@@ -349,7 +349,7 @@ func test_mirror_still_receives_updates_after_host_clean_ticks_skip() -> void:
 	_assert_mirrors(host, mirror)
 
 
-## Bontago-1pi.11.23: replicate_territory() returns before any rpc when the
+## replicate_territory() returns before any rpc when the
 ## bytes equal the last keyframe/diff sent (a real send would need a live peer).
 class FakeSession extends RefCounted:
 	func is_host() -> bool:

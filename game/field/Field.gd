@@ -1,28 +1,27 @@
 class_name Field
 extends FieldBody
-## The match field: a disk (spec 2.1). Plain StaticBody3D through M1/M2 (no
-## tilt). From M4 (Bontago M4 P0b) it is an AnimatableBody3D so the
-## SPECIALS_ONLY tilt (spec 2.1, 2.7, 3.5) can carry resting blocks along with
+## The match field: a disk (spec 1.7). Plain StaticBody3D through M1/M2 (no
+## tilt). From M4 it is an AnimatableBody3D so the
+## SPECIALS_ONLY tilt (spec 1.7, 1.2, 2.7) can carry resting blocks along with
 ## it; AnimatableBody3D is a kinematic special case of StaticBody3D (Jolt and
 ## Godot both treat it as static collision the physics step sees moved, not
-## simulated), so every existing shape-owner/collision API below keeps
-## working unchanged. `PHYSICAL_BALANCE` tilt (M6 B5, spec 2.1/2.7) is a
-## kinematic-torque approximation, not a real RigidBody3D on a joint (docs/
-## M6_PLAN.md DECISION, owner-approved Bontago-keo.16): settled blocks'
+## simulated), so every existing shape_owner/collision API below keeps
+## working unchanged. `PHYSICAL_BALANCE` tilt (M6 B5, spec 1.7/1.2) is a
+## kinematic-torque approximation, not a real RigidBody3D on a joint (a decided
+## approximation): settled blocks'
 ## aggregate mass * lever-arm torque (BlockRegistry.settled_torque_samples())
 ## feeds straight into the same _tilt_velocity a special's
 ## apply_tilt_impulse() drives, and the existing SPECIALS_ONLY spring/clamp/
 ## replication machinery below carries and mirrors it unchanged.
 ##
-## **Cells (spec 3.3).** The disk's collision is one ConcavePolygonShape3D on
-## one shape owner (Bontago-ruw, docs/archive/M4_PLAN.md P0a): a trimesh with one
+## **Cells (spec 2.5).** The disk's collision is one ConcavePolygonShape3D on
+## one shape_owner: a trimesh with one
 ## `map_def.cell_size` quad per in-disk cell of the square CellGrid, plus
 ## vertical walls at the rim. One cell is one CellGrid index is one pixel of
 ## the territory raster, so the rules and the picture never disagree about
 ## where a hole is.
 ##
-## **Holes do not touch collision (Bontago-1pi.11.41, owner decision
-## Bontago-gdb option A).** The trimesh is built once per map (and never
+## **Holes do not touch collision  (option A).** The trimesh is built once per map (and never
 ## rebuilt on a hole change: set_faces() cost ~13 ms per change on
 ## round_medium and woke every sleeping body on the disc). Applied hole state
 ## lives in _hole_applied, batched at `TerritoryTuning.max_cell_toggles_per_
@@ -36,7 +35,7 @@ extends FieldBody
 ## only ever through set_hole_cells(). Likewise the overlay draws the raster it
 ## is handed and never reads a rule.
 ##
-## Also owns the kill plane (spec 2.1): any body that falls below
+## Also owns the kill plane (spec 1.7): any body that falls below
 ## `tuning.kill_plane_y` is freed and reported on the Events bus.
 
 ## The kill plane only needs to catch blocks that fall off the disk, so it's
@@ -58,7 +57,7 @@ const NEIGHBOUR_DIRS: Array[Vector2i] = [
 ##   godot --headless --path . res://tests/bench/bench_tower.tscn -- --trace-disk=1
 const TRACE_ARG_PREFIX: String = "--trace-disk="
 
-## Bontago-1pi.11.41: a drained batch applied these cells as holes (opened
+## a drained batch applied these cells as holes (opened
 ## only; closing a hole needs no reaction). Emitted on host and client alike;
 ## game/field/HoleDissolver.gd ignores it off the host.
 signal hole_cells_applied(opened: PackedInt32Array)
@@ -67,25 +66,25 @@ signal hole_cells_applied(opened: PackedInt32Array)
 @export var tilt_tuning: TiltTuning = preload("res://config/physics/tilt_tuning.tres")
 @export var territory_tuning: TerritoryTuning = preload("res://config/territory/territory_tuning.tres")
 @export var visuals: TerritoryVisuals = preload("res://config/territory/territory_visuals.tres")
-## Bontago-mp0.3.2: the disc's purely-visual side band + glowing rim (see
+## the disc's purely-visual side band + glowing rim (see
 ## game/field/ArenaMesh.gd's own class doc). Owned by that same package.
 @export var disc_body_visuals: DiscBodyVisuals = preload("res://config/territory/disc_body_visuals.tres")
-## Bontago-mp0.150.2: which side/underside look the arena draws (default CURRENT).
+## which side/underside look the arena draws (default CURRENT).
 @export var arena_side_style: ArenaSideStyle = preload("res://config/territory/arena_side_style.tres")
 @export var home_flag_scene: PackedScene = preload("res://game/flags/HomeFlag.tscn")
 @export var goal_flag_scene: PackedScene = preload("res://game/flags/GoalFlag.tscn")
 
 var _grid: CellGrid = null
-## cell index -> the disk's shape owner id, or -1 for a cell outside the disk.
+## cell index -> the disk's shape_owner id, or -1 for a cell outside the disk.
 ##
-## DECISION (game/field/Field.gd, Bontago-ruw): cell_owner_id() keeps its contract
+## DECISION (game/field/Field.gd): cell_owner_id() keeps its contract
 ## ("-1 means no collision cell here"), but every in-disk cell now reports the
 ## same id, the one owner of the disk trimesh, because per-cell owners no
 ## longer exist. Nothing outside Field and its tests reads the id itself.
 var _cell_owner_ids: PackedInt32Array = PackedInt32Array()
 var _in_disk_cells: PackedInt32Array = PackedInt32Array()
 ## 1 where the cell is currently an applied hole (dissolve contact, not
-## collision: Bontago-1pi.11.41).
+## collision).
 var _hole_applied: PackedByteArray = PackedByteArray()
 ## 1 where the rules want the cell to be a hole; the backlog is the difference.
 var _hole_wanted: PackedByteArray = PackedByteArray()
@@ -95,7 +94,7 @@ var _toggle_cells: PackedInt32Array = PackedInt32Array()
 var _toggle_disabled: PackedByteArray = PackedByteArray()
 var _toggle_head: int = 0
 
-## The disk's one collision shape and the one shape owner carrying it.
+## The disk's one collision shape and the one shape_owner carrying it.
 var _disk_shape: ConcavePolygonShape3D = null
 var _disk_owner_id: int = -1
 ## The kill-plane Area3D _build_kill_plane() built last, so rebuild_for_map()
@@ -106,13 +105,13 @@ var _kill_plane_area: Area3D = null
 var _grid_lines: PackedFloat32Array = PackedFloat32Array()
 var _applied_hole_total: int = 0
 ## --trace-disk bookkeeping. _rebuild_count counts disk trimesh builds
-## (set_faces calls); Bontago-1pi.11.41 tests pin that a hole change never
+## (set_faces calls) tests pin that a hole change never
 ## bumps it.
 var _trace_every: int = 0
 var _rebuild_count: int = 0
 var _max_rebuild_usec: int = 0
 
-## SPECIALS_ONLY tilt (spec 2.1, 2.7, 3.5). Off by default so a Field nobody
+## SPECIALS_ONLY tilt (spec 1.7, 1.2, 2.7). Off by default so a Field nobody
 ## has called set_tilt_enabled(true) on -- every scene and test that predates
 ## this package -- behaves exactly as before: sync_to_physics carries no
 ## rotation because _physics_process() never writes one.
@@ -124,15 +123,15 @@ var _tilt_enabled: bool = false
 ## point.
 var _tilt: Vector2 = Vector2.ZERO
 var _tilt_velocity: Vector2 = Vector2.ZERO
-## Bontago-b0w rest deadband state (see TiltTuning.rest_*).
+## rest deadband state (see TiltTuning.rest_*).
 var _tilt_at_rest: bool = false
 var _tilt_rest_timer: float = 0.0
 ## Last _tilt written by _apply_tilt_transform(); see _update_tilt()'s
-## change gate (Bontago-keo.11).
+## change gate.
 var _last_applied_tilt: Vector2 = Vector2.ZERO
 
 ## True once apply_replicated_pose() has driven this disc at least once since
-## the last clear_match_state() (Bontago-1en.27). A client's own Field never
+## the last clear_match_state(). A client's own Field never
 ## gets an apply_tilt_impulse() call -- specials simulate host-side only, per
 ## CLAUDE.md's "clients are frozen mirrors" -- so autoload/match/
 ## MatchLifecycle.gd's _apply_tilt_mode() turning _tilt_enabled on for a
@@ -145,7 +144,7 @@ var _last_applied_tilt: Vector2 = Vector2.ZERO
 ## apply_replicated_pose() at all.
 var _mirrored: bool = false
 
-## PHYSICAL_BALANCE tilt (M6 B5, spec 2.1/2.7). Off by default, same as
+## PHYSICAL_BALANCE tilt (M6 B5, spec 1.7/1.2). Off by default, same as
 ## _tilt_enabled/_mirrored, so nothing about this package changes behaviour
 ## for a caller that never sets it. Only meaningful while _tilt_enabled is
 ## also true -- autoload/match/MatchLifecycle.gd's _apply_tilt_mode() always
@@ -158,7 +157,7 @@ var _physical_balance_enabled: bool = false
 ## contributes no torque.
 var _registry: BlockRegistry = null
 ## Latched torque input PHYSICAL_BALANCE last computed from a non-empty
-## BlockRegistry.settled_torque_samples() (Bontago-keo.11 follow-up; see the
+## BlockRegistry.settled_torque_samples() (follow-up; see the
 ## DECISION on _physical_balance_torque_accel() below). Holds through a
 ## momentary sample gap instead of decaying to zero, so a wake that
 ## PHYSICAL_BALANCE's own tilt causes cannot start a limit cycle that never
@@ -167,10 +166,10 @@ var _physical_balance_torque: Vector2 = Vector2.ZERO
 
 var _overlay: TerritoryOverlay = null
 var _home_flags: Array[HomeFlag] = []
-## slot id -> PackedInt32Array of shape owners holding that beacon's collision.
+## slot id -> PackedInt32Array of shape_owners holding that beacon's collision.
 var _flag_owner_ids: Dictionary = {}
 var _goal_flags: Array[GoalFlag] = []
-## Bontago-1pi.188/189: last capture event and CTF mode state, fed to each beacon's timer.
+##/189: last capture event and CTF mode state, fed to each beacon's timer.
 var _timer_capture_team: int = -1
 var _timer_capture_progress: float = 0.0
 var _timer_mode_state: Dictionary = {}
@@ -181,7 +180,7 @@ func _ready() -> void:
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with(TRACE_ARG_PREFIX):
 			_trace_every = maxi(arg.substr(TRACE_ARG_PREFIX.length()).to_int(), 0)
-	# DECISION (game/field/Field.gd, Bontago M4 P0b): AnimatableBody3D defaults
+	# DECISION (game/field/Field.gd): AnimatableBody3D defaults
 	# sync_to_physics to true (verified against this exact build, not assumed
 	# from the docs), which -- as test_field_cells.gd's
 	# test_coordinates_follow_the_field_transform demonstrated -- makes Godot
@@ -219,7 +218,7 @@ func grid() -> CellGrid:
 	return _grid
 
 
-# --- Tilt (SPECIALS_ONLY, spec 2.1, 2.7, 3.5) --------------------------------
+# --- Tilt (SPECIALS_ONLY, spec 1.7, 1.2, 2.7) --------------------------------
 #
 # Only PlayerSlot/Match-side wiring decides *when* this runs: Field itself
 # just carries the flag. Defaults to false so nothing about this package
@@ -234,7 +233,7 @@ func grid() -> CellGrid:
 ## since a mode switch that is not a fresh match should not leave stale
 ## rotation behind.
 ##
-## DECISION (game/field/Field.gd, Bontago M4 P0b): `sync_to_physics` (spec 3.5: "the
+## DECISION (game/field/Field.gd): `sync_to_physics` (spec 2.7: "the
 ## disk is an AnimatableBody3D with sync_to_physics = true") is flipped on
 ## here, not unconditionally in _ready(). Once it is true, Godot's kinematic
 ## body only accepts transform writes made through the physics step and
@@ -263,7 +262,7 @@ func tilt_enabled() -> bool:
 	return _tilt_enabled
 
 
-## PHYSICAL_BALANCE tilt (M6 B5, spec 2.1/2.7). autoload/match/MatchLifecycle.gd's
+## PHYSICAL_BALANCE tilt (M6 B5, spec 1.7/1.2). autoload/match/MatchLifecycle.gd's
 ## _apply_tilt_mode() is the only caller; a no-op combination with
 ## _tilt_enabled left false, same as apply_tilt_impulse() above.
 func set_physical_balance_enabled(enabled: bool) -> void:
@@ -297,7 +296,7 @@ func tilt_vector() -> Vector2:
 ## (or before any match wires tilt on at all) cannot leave Field with a
 ## velocity that only shows up the moment something else enables it later.
 ##
-## DECISION (game/field/Field.gd, Bontago M4 P0b): direction (dx, dz) is turned into
+## DECISION (game/field/Field.gd): direction (dx, dz) is turned into
 ## a velocity kick on (rotation about local X, rotation about local Z) via
 ## Vector2(dz, -dx) * magnitude. That is the unique small-angle decomposition
 ## whose combined rotation moves the disk surface point at unit offset
@@ -308,7 +307,7 @@ func tilt_vector() -> Vector2:
 ## one single-axis tilt) -- so "hit the disk over there" reads as "that side
 ## dips", the same intuition apply_tilt_impulse's own doc promises callers.
 func apply_tilt_impulse(direction: Vector2, magnitude: float) -> void:
-	# Review NIT (Bontago-1en.27): nothing calls this on a client's own,
+	# Review NIT: nothing calls this on a client's own,
 	# mirroring Field in real play (specials simulate host-side only, per
 	# CLAUDE.md's "clients are frozen mirrors"), but _update_tilt() already
 	# stops running the moment _mirrored is true (see _physics_process()), so
@@ -326,10 +325,10 @@ func apply_tilt_impulse(direction: Vector2, magnitude: float) -> void:
 
 
 ## The client-side entry point net/SnapshotSync.gd's client_tick() calls every
-## frame with the interpolated disk pose off the snapshot stream (spec 3.4
+## frame with the interpolated disk pose off the snapshot stream (spec 2.6
 ## "Disk state: tilt quaternion and position offset, sent every snapshot").
 ## Never called on the host -- SnapshotSync only calls it from client_tick(),
-## which is itself gated on Net.is_client() (Bontago-1en.27: before this,
+## which is itself gated on Net.is_client() (before this,
 ## nothing ever wrote the replicated pose into a client's Field, so the host's
 ## disc tilted under Anvil/Propeller/Earthquake while every client saw a level
 ## one). `offset`/`tilt` are world-space -- the same convention every synced
@@ -373,7 +372,7 @@ func _update_tilt(delta: float) -> void:
 	var forcing_accel: Vector2 = Vector2.ZERO
 	if _physical_balance_enabled:
 		forcing_accel = _physical_balance_torque_accel()
-	# Bontago-b0w: at rest the disc stays bit-static (no write) until the spring's
+	# at rest the disc stays bit-static (no write) until the spring's
 	# target moves clear of the tilt, so balance-torque noise cannot keep it moving.
 	var rest_target: Vector2 = Vector2.ZERO
 	if stiffness > 0.0:
@@ -384,7 +383,7 @@ func _update_tilt(delta: float) -> void:
 		_wake_tilt()
 	var accel: Vector2 = (-stiffness * _tilt) - (damping * _tilt_velocity) + forcing_accel
 	_tilt_velocity += accel * delta
-	# DECISION (game/field/Field.gd, M6 B5, Bontago-keo.11 follow-up 2): see
+	# DECISION (game/field/Field.gd, M6 B5 follow-up 2): see
 	# tilt_tuning.tilt_settle_relative_epsilon's own DECISION for why this is a
 	# ratio at all rather than a fixed rad/s floor. A critically damped
 	# spring's velocity only ever asymptotes toward zero, so without a snap
@@ -445,12 +444,12 @@ func _update_tilt(delta: float) -> void:
 		if _tilt_rest_timer >= tilt_tuning.rest_hold_s:
 			_tilt_velocity = Vector2.ZERO
 			_tilt_at_rest = true
-			# Bontago-b0w: a sync_to_physics kinematic body keeps resting blocks
+			# a sync_to_physics kinematic body keeps resting blocks
 			# awake even with no transform write; drop it while latched.
 			_set_sync(false)
 	else:
 		_tilt_rest_timer = 0.0
-	# Orchestrator fix (Bontago-keo.11 bench, 2026-09-25): once the snap above
+	# Orchestrator fix (bench): once the snap above
 	# has zeroed the velocity, _tilt is bit-for-bit unchanged, so re-submitting
 	# the same kinematic transform every tick only tells Jolt this body moved
 	# again and keeps every block resting on it awake. Write only on change.
@@ -470,9 +469,8 @@ func _wake_tilt() -> void:
 
 
 ## Sums settled blocks' mass * disk-local lever-arm into the same 2-axis
-## acceleration term the spring above integrates (M6 B5, spec 2.1/2.7;
-## kinematic-torque approximation, docs/archive/M6_PLAN.md DECISION, owner-approved
-## Bontago-keo.16 -- explicitly not a real RigidBody3D/joint coupling).
+## acceleration term the spring above integrates (a kinematic-torque approximation,
+## explicitly not a real RigidBody3D/joint coupling).
 ##
 ## DECISION (game/field/Field.gd, M6 B5): each sample packs (disk-local x offset,
 ## mass, disk-local z offset); Vector2(z, -x) * mass is the same small-angle
@@ -481,7 +479,7 @@ func _wake_tilt() -> void:
 ## so a settled tower's own weight reads on the identical two axes a special's
 ## impulse would.
 ##
-## DECISION (game/field/Field.gd, Bontago-keo.11 follow-up): _physical_balance_torque
+## DECISION (game/field/Field.gd follow-up): _physical_balance_torque
 ## latches the last non-empty sample sum instead of recomputing (and
 ## implicitly zeroing) it every tick. BlockRegistry.settled_torque_samples()
 ## only counts entries whose own is_settled accumulator has finished (game/
@@ -493,7 +491,7 @@ func _wake_tilt() -> void:
 ## to zero, the spring's restoring term (-stiffness * _tilt) pulls the disk
 ## back, the load resettles, the torque returns, and the disk tilts again -- a
 ## limit cycle that never lets the spring converge (bench evidence,
-## Bontago-keo.11: RUN_SECONDS=40, gain 2e-5, drift 0.555 m and tilt still
+## RUN_SECONDS=40, gain 2e-5, drift 0.555 m and tilt still
 ## creeping 1.06->1.14deg at the end, blocks never all asleep). Holding the
 ## last known value through a momentary empty-sample gap instead means the
 ## spring is driven by an input that itself settles (the load resettles at
@@ -511,7 +509,7 @@ func _physical_balance_torque_accel() -> Vector2:
 	if _registry.tracked_block_count() == 0:
 		_physical_balance_torque = Vector2.ZERO
 		return Vector2.ZERO
-	# Orchestrator fix (Bontago-keo.11 bench, 2026-09-25): recompute only when
+	# Orchestrator fix (bench): recompute only when
 	# the WHOLE stack is at rest. Recomputing on any partially-settled subset
 	# changed the target every time one block dozed off, the disk moved to
 	# chase it, that woke the rest, and the stack never slept. Holding the
@@ -531,8 +529,7 @@ func _physical_balance_torque_accel() -> Vector2:
 
 
 ## Read-only: the latched torque sum _physical_balance_torque_accel() above
-## last computed from a non-empty settled_torque_samples() (Bontago-keo.11
-## follow-up; see that function's DECISION). Tests use this to check the latch
+## last computed from a non-empty settled_torque_samples() (follow-up; see that function's DECISION). Tests use this to check the latch
 ## holds or zeroes without waiting out a real wake/resettle cycle; nothing in
 ## game code reads it -- Field's own spring already gets it, scaled by
 ## tilt_tuning.physical_balance_torque_gain, through
@@ -578,7 +575,7 @@ func _tilt_basis(tilt: Vector2) -> Basis:
 ## angle can take short of the +-90 degree gimbal-lock singularity where B's
 ## Z column (or X row) goes to zero and atan2's two arguments vanish
 ## together; it is not a small-angle approximation that only happens to hold
-## near zero. tilt_tuning.max_tilt_rad() (spec 3.5's 12 degrees) simply never
+## near zero. tilt_tuning.max_tilt_rad() (spec 2.7's 12 degrees) simply never
 ## asks this to extract anywhere near that singularity -- it does not make
 ## the extraction any more exact than it already is everywhere else.
 func _tilt_vector_from_quaternion(tilt: Quaternion) -> Vector2:
@@ -593,13 +590,13 @@ func _tilt_vector_from_quaternion(tilt: Quaternion) -> Vector2:
 ## so disk_local_from_world()/world_from_disk_local() -- already plain
 ## to_local()/to_global() -- pick it up through the live global_transform with
 ## no code change of their own, and so the rotation pivots on Field's own
-## origin (spec 2.1 "the disk pivots around its center").
+## origin (spec 1.7 "the disk pivots around its center").
 func _apply_tilt_transform() -> void:
 	_last_applied_tilt = _tilt
 	transform = Transform3D(_tilt_basis(_tilt), transform.origin)
 
 
-## Bontago-1pi.46 (G7, owner requirement "a new match is indistinguishable from a
+## (G7, owner requirement "a new match is indistinguishable from a
 ## freshly launched one"). ROOT CAUSE (reproduced on a bare Field, tilt applied through
 ## real physics steps): levelling the node with sync_to_physics off does not reach the
 ## server body before the next step. A Replay (END -> LOBBY -> LOADING, all in one frame)
@@ -620,12 +617,12 @@ func _push_level_pose_to_physics() -> void:
 
 
 ## Builds (or rebuilds) the disk's cell grid, collision trimesh and shape
-## owner from the current map_def. Callable more than once (Bontago-keo.2,
-## docs/archive/M6_PLAN.md package A0): create_shape_owner()'s own contract is that a
+## shape_owner from the current map_def. Callable more than once: create_shape_owner()'s
+## contract is that a
 ## caller frees what it creates, and _ready() previously called this exactly
-## once, so the owner it made was never freed by anything -- calling this
-## again (rebuild_for_map() below) would otherwise leak one shape-owner RID
-## per rebuild. Freeing the previous owner first, and resetting _grid so
+## once, so the shape_owner it made was never freed by anything -- calling this
+## again (rebuild_for_map() below) would otherwise leak one shape_owner RID
+## per rebuild. Freeing the previous shape_owner first, and resetting _grid so
 ## grid() below builds a fresh CellGrid against whatever map_def now is
 ## rather than returning the previous map's cached one, makes this safe to
 ## call as many times as a match's map ever changes.
@@ -646,7 +643,7 @@ func _rebuild_cells() -> void:
 	_in_disk_cells = _collect_in_disk_cells(cell_grid)
 	_applied_hole_total = 0
 
-	# DECISION (game/field/Field.gd, Bontago-ruw): quad corners come from shared grid
+	# DECISION (game/field/Field.gd): quad corners come from shared grid
 	# lines (i * cell_size - half_extent, CellGrid's own origin offset) rather
 	# than from index_center() +/- cell_size / 2 per cell. They are the same
 	# points (index_center() is the midpoint of two lines), but computed once
@@ -658,7 +655,7 @@ func _rebuild_cells() -> void:
 		_grid_lines[line] = float(line) * cell_grid.cell_size - cell_grid.half_extent
 
 	_disk_shape = ConcavePolygonShape3D.new()
-	# DECISION (game/field/Field.gd, Bontago-ruw): single-sided (backface_collision
+	# DECISION (game/field/Field.gd): single-sided (backface_collision
 	# off, the default). Every face points out of the disk slab (up, or out of
 	# a rim cell's side), so a block below the surface past the rim is never
 	# pushed back up by the underside of a top quad.
@@ -671,10 +668,10 @@ func _rebuild_cells() -> void:
 		_cell_owner_ids[cell] = _disk_owner_id
 		faces.append_array(_top_quad(coords.x, coords.y))
 
-	# DECISION (game/field/Field.gd, Bontago-ruw): the mesh also carries vertical
+	# DECISION (game/field/Field.gd): the mesh also carries vertical
 	# walls, disk_height deep, on every cell side that faces the rim, where the
 	# old boxes' sides stood, so a block sliding off the edge meets a side that
-	# pushes it off sideways rather than a bare triangle edge. Bontago-1pi.11.41:
+	# pushes it off sideways rather than a bare triangle edge. 
 	# holes no longer cut the mesh, so the rim is the only place walls stand.
 	for cell: int in _in_disk_cells:
 		var coords: Vector2i = cell_grid.cell_coords(cell)
@@ -683,7 +680,7 @@ func _rebuild_cells() -> void:
 			if not _cell_in_disk(next.x, next.y):
 				faces.append_array(_edge_wall(coords.x, coords.y, dir))
 
-	# Faces first, then the shape onto the owner, so Jolt never sees an empty mesh.
+	# Faces first, then the shape onto the shape_owner, so Jolt never sees an empty mesh.
 	_build_disk_mesh(faces)
 	shape_owner_add_shape(_disk_owner_id, _disk_shape)
 
@@ -692,12 +689,12 @@ func _rebuild_cells() -> void:
 	physics_material_override = material
 
 
-## Public entry point for Bontago-keo.2: rebuilds this Field for a different
-## MapDef (docs/archive/M6_PLAN.md package A0). game/main/Main.gd calls this at every site
+## Public entry point for rebuilds this Field for a different
+## MapDef. game/main/Main.gd calls this at every site
 ## that already calls place_flags()/set_overlay_source() together, right
 ## before place_flags() (which reads map_def-derived flag positions) -- so a
 ## match that picked a size/shape other than whatever map_def Field's own
-## @export last loaded (the actual keo.2 bug: Field baked its own default and
+## @export last loaded (the actual bug: Field baked its own default and
 ## was never told the match's real config) rebuilds its collision, kill plane
 ## and overlay to match before any flag or block ever needs them.
 func rebuild_for_map(new_map_def: MapDef) -> void:
@@ -736,7 +733,7 @@ func _cell_in_disk(cx: int, cy: int) -> bool:
 	return _cell_owner_ids[cell_grid.cell_index(cx, cy)] >= 0
 
 
-# --- Disk trimesh (Bontago-ruw) ---------------------------------------------
+# --- Disk trimesh ---------------------------------------------
 
 ## A quad as two triangles whose front faces point along `front`. Godot takes
 ## clockwise-wound triangles as front faces; the winding is picked from the
@@ -790,11 +787,11 @@ func _edge_wall(cx: int, cy: int, dir: Vector2i) -> PackedVector3Array:
 ## Puts the disk's faces on its one shape. set_faces() takes the whole face
 ## array and wakes every body resting on the disk, so this runs only when the
 ## map is built (_rebuild_cells(): _ready() and rebuild_for_map()), never on a
-## hole change (Bontago-1pi.11.41).
+## hole change.
 func _build_disk_mesh(faces: PackedVector3Array) -> void:
 	var started_usec: int = Time.get_ticks_usec()
-	# DECISION (game/field/Field.gd, Bontago-ruw): Jolt cannot build an empty mesh
-	# shape, so a degenerate map with no in-disk cell disables the owner instead.
+	# DECISION (game/field/Field.gd): Jolt cannot build an empty mesh
+	# shape, so a degenerate map with no in-disk cell disables the shape_owner instead.
 	var empty: bool = faces.is_empty()
 	if not empty:
 		_disk_shape.set_faces(faces)
@@ -814,7 +811,7 @@ func _build_disk_mesh(faces: PackedVector3Array) -> void:
 
 
 ## How many times the disk trimesh has been built (set_faces calls) since
-## this Field was created. Read by tests and a script removed in Bontago-dbn.1 (see git history).
+## this Field was created. Read by tests and a script removed in (see git history).
 func disk_mesh_build_count() -> int:
 	return _rebuild_count
 
@@ -834,7 +831,7 @@ func applied_hole_count() -> int:
 	return _applied_hole_total
 
 
-# --- Holes (spec 2.2, 3.3) --------------------------------------------------
+# --- Holes (spec 1.5, 2.5) --------------------------------------------------
 
 ## Applies the raster's last hole diff. Both arrays are row-major CellGrid
 ## indices. Nothing toggles here: the pairs go on the backlog and drain at
@@ -860,7 +857,7 @@ func _enqueue_toggle(cell: int, disabled: bool) -> void:
 
 
 ## True when this cell is currently an applied hole (dissolve contact; the
-## disk collision stays solid, Bontago-1pi.11.41).
+## disk collision stays solid).
 ##
 ## DECISION (game/field/Field.gd): the M2 plan does not say whether this reports the
 ## requested or the applied state. It reports the *applied* one — a cell the
@@ -901,7 +898,7 @@ func _drain_toggles() -> void:
 		_toggle_cells = PackedInt32Array()
 		_toggle_disabled = PackedByteArray()
 		_toggle_head = 0
-	# Bontago-1pi.11.41: no rebuild and no wake. The collision never changes,
+	# no rebuild and no wake. The collision never changes,
 	# so nothing resting on the disk needs waking; the host's HoleDissolver
 	# finds the blocks touching the newly opened cells instead.
 	if not opened.is_empty():
@@ -912,9 +909,9 @@ func _on_hole_cells_changed(opened: PackedInt32Array, closed: PackedInt32Array) 
 	set_hole_cells(opened, closed)
 
 
-# --- Placement validity raycast (docs/TERRITORY_V2_PLAN.md) -----------------
+# --- Placement validity raycast -----------------------------------------------
 
-## The v2 ruleset's one physics query (owner clarifications 2026-09-20): "just
+## The v2 ruleset's one physics query (user clarifications): "just
 ## do a raycast from the middle of the ghost block and straight down". Casts
 ## from `map_def.cell_wake_height` above the disk down to `tuning.kill_plane_y`
 ## against the live physics world (the disk's own cell collision and every
@@ -1001,7 +998,7 @@ static func raycast_disk_surface(
 
 
 ## Called by game/main/Main.gd's _end_match_world() when a match's world comes down
-## (Beads Bontago-mv0.1.9): drops every trace of the match that just ended --
+## Beads: drops every trace of the match that just ended --
 ## its flags, the overlay's reference to its raster, and every hole it opened
 ## -- so the field sitting behind the main menu (or a fresh rehosted match)
 ## starts from nothing left over. Field is a persistent node (unlike HotSeat,
@@ -1011,7 +1008,7 @@ static func raycast_disk_surface(
 ##
 ## DECISION (game/field/Field.gd): the hole backlog normally drains at
 ## TerritoryTuning.max_cell_toggles_per_frame per physics frame
-## (_drain_toggles(), spec 3.3) so opening many holes at once cannot spike one
+## (_drain_toggles(), spec 2.5) so opening many holes at once cannot spike one
 ## frame's physics cost during play. At teardown there is no future frame
 ## whose budget is worth protecting -- the field sits idle behind a menu until
 ## the next match -- and a hole left open, or a toggle left queued, until the
@@ -1028,18 +1025,18 @@ func clear_match_state() -> void:
 	_toggle_cells = PackedInt32Array()
 	_toggle_disabled = PackedByteArray()
 	_toggle_head = 0
-	# DECISION (game/field/Field.gd, Bontago-1pi.11.41): no mesh rebuild here any
+	# DECISION (game/field/Field.gd): no mesh rebuild here any
 	# more. Holes never cut the trimesh, so the one built for this map is
 	# already the solid disk the next match needs; rebuilding would only
 	# repeat set_faces() and wake whatever rests on the disk.
-	# Bontago-1en.9 review: the Field outlives a match, so a tilt (and its
+	# review: the Field outlives a match, so a tilt (and its
 	# velocity) left over from the previous match must not carry into the next
 	# one. Reset the spring state whether or not tilt is currently enabled;
 	# set_tilt_enabled() alone would no-op on an enabled -> enabled transition.
 	_tilt = Vector2.ZERO
 	_tilt_velocity = Vector2.ZERO
 	_wake_tilt()
-	# Bontago-1en.27: also drops mirror mode, so a Field that mirrored a
+	# also drops mirror mode, so a Field that mirrored a
 	# previous match's host (or is about to host a fresh one itself) starts
 	# the next match with its local spring live again until/unless
 	# apply_replicated_pose() ever calls again -- and so the disc actually
@@ -1058,7 +1055,7 @@ func clear_match_state() -> void:
 	_push_level_pose_to_physics()
 
 
-# --- Territory overlay (spec 2.10, 3.3) -------------------------------------
+# --- Territory overlay (spec 1.10, 2.5) -------------------------------------
 
 func _build_overlay() -> void:
 	_overlay = TerritoryOverlay.new()
@@ -1081,14 +1078,14 @@ func set_overlay_source(raster: TerritoryRaster, slot_colors: PackedColorArray) 
 		_overlay.set_source(raster, slot_colors)
 
 
-## Bontago-1pi.11.33: host-only "blocks are churning" flag; the overlay parks
+## host-only "blocks are churning" flag; the overlay parks
 ## its bake until settle (or the staleness cap). Clients never call it.
 func set_overlay_churning(churning: bool, solve_waited_s: float = 0.0) -> void:
 	if _overlay != null:
 		_overlay.set_churning(churning, solve_waited_s)
 
 
-## Routes the post-solve analytic circle list to the overlay (Bontago-cmc.5).
+## Routes the post-solve analytic circle list to the overlay.
 ## Field decides nothing here, same contract as set_overlay_source() above:
 ## autoload/Match.gd builds the list (host) or net/MatchNet.gd decodes it
 ## (client), and this is only the hand-off.
@@ -1105,7 +1102,7 @@ func set_overlay_circles(
 		_overlay.set_circles(xs, zs, radii, teams, goal_positions, goal_radii, argmax_mode)
 
 
-# --- Flags (spec 2.2, 2.3) --------------------------------------------------
+# --- Flags (spec 1.5, 1.5) --------------------------------------------------
 
 ## Disk-local position of a slot's home flag. Delegates to MapDef so that
 ## Field, PlayerSlot and the solver's home circles all read one definition.
@@ -1132,13 +1129,13 @@ func place_flags(slot_count: int, slot_colors: PackedColorArray, goal_count: int
 		flag.set_slot(slot_id, _color_for_index(slot_id))
 		_home_flags.append(flag)
 		_add_flag_collision(slot_id, flag)
-	# Bontago-6fc.2: goal_count 0 (Reach the Sky / Elimination) spawns no flag.
+	# goal_count 0 (Reach the Sky / Elimination) spawns no flag.
 	for local: Vector2 in PlayerSlot.goal_positions_for(goal_count, map_def):
 		var flag: GoalFlag = goal_flag_scene.instantiate() as GoalFlag
 		flag.visuals = visuals
 		flag.position = Vector3(local.x, 0.0, local.y)
 		add_child(flag)
-		flag.set_claim_ring(MatchContext.current().goal_zone_visual_radius())  # Bontago-mp0.152: always drawn (claim radius with the experiment on, else goal_zone_radius)
+		flag.set_claim_ring(MatchContext.current().goal_zone_visual_radius())  # always drawn (claim radius with the experiment on, else goal_zone_radius)
 		_configure_goal_timer(flag)
 		_goal_flags.append(flag)
 
@@ -1154,7 +1151,7 @@ func _clear_flags() -> void:
 	_goal_flags = []
 
 
-## Layer constants (Bontago-6fc.4). Everything else lives on layer 1. Beacon
+## Layer constants. Everything else lives on layer 1. Beacon
 ## collision sits on its own bit so blocks (mask includes it) rest on beacons
 ## while placement/ghost queries (PLACEMENT_QUERY_MASK) never see them.
 const BEACON_COLLISION_LAYER: int = 1 << 1
@@ -1164,7 +1161,7 @@ const PLACEMENT_QUERY_MASK: int = 1
 var _beacon_body: AnimatableBody3D = null
 
 
-## Bontago-6fc.4: a home beacon collides as extra shapes on a child
+## a home beacon collides as extra shapes on a child
 ## AnimatableBody3D of this field. DECISION: separate body on its own layer
 ## (BEACON_COLLISION_LAYER) rather than shape-index filtering: blocks collide
 ## with it via their mask, while the placement point-ray, ghost raise/shape
@@ -1198,8 +1195,8 @@ func _set_sync(enabled: bool) -> void:
 
 func _add_flag_collision(slot_id: int, flag: HomeFlag) -> void:
 	var body: AnimatableBody3D = _ensure_beacon_body()
-	# A shape owner has one transform for all its shapes, so each part of the
-	# compound gets its own owner.
+	# A shape_owner has one transform for all its shapes, so each part of the
+	# compound gets its own shape_owner.
 	var owners: PackedInt32Array = PackedInt32Array()
 	var shapes: Array[Shape3D] = flag.collision_shapes()
 	var transforms: Array[Transform3D] = flag.collision_transforms()
@@ -1224,7 +1221,7 @@ func _on_player_eliminated_for_flags(slot_id: int, _team_id: int) -> void:
 	_remove_flag_collision(slot_id)
 
 
-## Shape owner ids holding a slot's beacon collision (empty when none).
+## Shape_owner ids holding a slot's beacon collision (empty when none).
 func flag_collision_owners(slot_id: int) -> PackedInt32Array:
 	return _flag_owner_ids.get(slot_id, PackedInt32Array()) as PackedInt32Array
 
@@ -1237,7 +1234,7 @@ func goal_flags() -> Array[GoalFlag]:
 	return _goal_flags
 
 
-## Spec 2.3: "A radial progress ring appears on each goal flag while someone is
+## Spec 1.5: "A radial progress ring appears on each goal flag while someone is
 ## capturing it." `progress` runs 0..1 over TerritoryTuning.capture_hold;
 ## team_id -1 with progress 0 clears the ring.
 func set_capture_progress(team_id: int, progress: float) -> void:
@@ -1249,7 +1246,7 @@ func set_capture_progress(team_id: int, progress: float) -> void:
 		_feed_countdown(flag)
 
 
-## Bontago-1pi.188: Classic beacons count down the shared capture; CTF beacons
+## Classic beacons count down the shared capture; CTF beacons
 ## count up their hold. Both read the replicated state (capture progress event,
 ## raster control, mode-state held counts), so host and clients show the same.
 func _configure_goal_timer(flag: GoalFlag) -> void:
@@ -1285,7 +1282,7 @@ func _on_territory_updated_for_goals(raster: TerritoryRaster, _groups: Territory
 	refresh_goal_control(raster)
 
 
-## Bontago-470.7: pushes each goal's controller (GoalControl, derived from the
+## pushes each goal's controller (GoalControl, derived from the
 ## raster the host solved or the client mirrored) onto its beacon. Runs on
 ## host and client from the same raster data, so they always agree.
 func refresh_goal_control(raster: TerritoryRaster) -> void:
@@ -1313,10 +1310,10 @@ func _color_for_index(index: int) -> Color:
 	return _slot_colors[index]
 
 
-# --- Kill plane (spec 2.1) --------------------------------------------------
+# --- Kill plane (spec 1.7) --------------------------------------------------
 
 ## Builds (or rebuilds) the kill-plane trigger. Callable more than once
-## (rebuild_for_map() above, Bontago-keo.2): a previous call's Area3D is freed
+## (rebuild_for_map() above): a previous call's Area3D is freed
 ## first, so a map-shape/size change never leaves a stale kill plane, sized
 ## for the old map_def, sitting alongside the new one.
 func _build_kill_plane() -> void:
@@ -1338,8 +1335,8 @@ func _build_kill_plane() -> void:
 
 
 func _on_kill_plane_body_entered(body: Node3D) -> void:
-	# DECISION (M3a integration): a client's synced blocks are frozen-kinematic
-	# mirrors (docs/archive/M3a_PLAN.md "Frozen bodies") whose transforms SnapshotSync
+	# DECISION: a client's synced blocks are frozen-kinematic
+	# mirrors whose transforms SnapshotSync
 	# writes directly, so the kill-plane Area3D still overlaps and fires this
 	# callback there too even though only the host runs physics (CLAUDE.md).
 	# Only the host may decide a block is dead; a client learns about it from
@@ -1349,11 +1346,11 @@ func _on_kill_plane_body_entered(body: Node3D) -> void:
 	remove_fallen_block(body as RigidBody3D)
 
 
-## The one edge-fall removal (spec 2.1): reports `body` on the bus with
+## The one edge-fall removal (spec 1.7): reports `body` on the bus with
 ## REASON_KILL_PLANE (BlockRegistry forgets it, MatchStats counts a lost block,
 ## MatchNet replicates the despawn, BlockEffectsManager plays the burst) and
 ## frees it. Host only; a client learns of removals from the despawn RPC.
-## Bontago-1pi.11.41: game/field/HoleDissolver.gd removes a dissolved block through
+## game/field/HoleDissolver.gd removes a dissolved block through
 ## this same call, so a hole costs exactly what falling off the edge does.
 func remove_fallen_block(body: RigidBody3D) -> void:
 	if not MatchContext.current().net_is_host():

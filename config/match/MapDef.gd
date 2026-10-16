@@ -1,13 +1,13 @@
 class_name MapDef
 extends Resource
-## One map's size, shape and layout (spec 2.1, 2.2, 3.3). M1 only needed the
+## One map's size, shape and layout (spec 1.7, 1.5, 2.5). M1 only needed the
 ## round field and its radius; M2 adds the cell grid the holes are cut from,
 ## the territory texture resolution, and where the home and goal flags sit.
 
 const RADIUS_MEDIUM: float = 45.0
 const RADIUS_LARGE: float = 60.0
 
-## Spec 3.3: the territory texture is territory_res x territory_res (384 on the unscaled map).
+## Spec 2.5: the territory texture is territory_res x territory_res (384 on the unscaled map).
 const TERRITORY_RES_MEDIUM: int = 384
 
 ## The one round map; the lobby's disc-size step scales it (scaled()).
@@ -18,7 +18,7 @@ const BASE_PATH: String = "res://config/match/maps/round.tres"
 
 ## Thickness of the disk. Field builds its collision and mesh from this.
 ##
-## DECISION (config/match/MapDef.gd, Bontago-xtq.6, owner 2026-09-23: "the glass
+## DECISION (config/match/MapDef.gd, "the glass
 ## disk is quite thick... looks like the blocks are hovering"): lowered from
 ## 1.0 to 0.2 m -- a thin slab a 1 m block visibly rests ON rather than IN.
 ## Every reader of this field already scales with it (game/field/Field.gd's hole/
@@ -32,20 +32,20 @@ const BASE_PATH: String = "res://config/match/maps/round.tres"
 ## direction.
 @export var disk_height: float = 0.2
 
-## Spec 3.3: the disk's collision is a square grid of BoxShape3Ds of this
+## Spec 2.5: the disk's collision is a square grid of BoxShape3Ds of this
 ## edge length, clipped to the disk. One cell is also one pixel of the
-## authoritative territory raster (see docs/archive/M2_PLAN.md, "Raster resolution").
+## authoritative territory raster ("Raster resolution").
 @export var cell_size: float = 1.0
 
-## Spec 3.3: the size of the ImageTexture handed to territory.gdshader. The
+## Spec 2.5: the size of the ImageTexture handed to territory.gdshader. The
 ## cell-resolution raster is upscaled to this before upload, so the shader's
 ## bilinear sampling and smoothstep have something smooth to work with.
 @export var territory_res: int = TERRITORY_RES_MEDIUM
 
-## Spec 2.2: home flags are spaced evenly around the edge; extra goal flags
+## Spec 1.5: home flags are spaced evenly around the edge; extra goal flags
 ## are placed symmetrically at 0.4 * field_radius.
 ##
-## DECISION (Bontago-1pi.184, owner playtest 2026-10-12: home beacons "should
+## DECISION (home beacons "should
 ## always be a fixed distance from the edge"): a home flag sits at
 ## field_radius - home_flag_edge_inset, so the gap to the rim no longer grows
 ## with the map. 6.0 m is the old 0.85 fraction's inset on the default
@@ -57,7 +57,7 @@ const BASE_PATH: String = "res://config/match/maps/round.tres"
 @export var home_flag_edge_inset: float = 6.0
 @export var goal_flag_radius_fraction: float = 0.4
 
-## Spec 3.3: "Wake up any sleeping blocks above cells that change state."
+## Spec 2.5: "Wake up any sleeping blocks above cells that change state."
 ## How far above the disk surface Field's wake query reaches, in meters —
 ## tall enough to cover any tower this map can realistically carry. It is a
 ## physics-query extent rather than a rule number, so it lives with the map's
@@ -86,7 +86,7 @@ func shape_test() -> Callable:
 	return Callable()
 
 
-## Bontago-1pi.107: a uniformly scaled copy of this map (the lobby's disc-size
+## a uniformly scaled copy of this map (the lobby's disc-size
 ## slider, see config/match/DiscSizeTuning.gd for the DECISION on what scales). The
 ## radius and the territory texture resolution scale; the
 ## goal fraction-of-radius field follows the radius by itself (home flags keep their fixed edge inset) follows the radius by itself, and cell_size / disk_height / wake query extents stay as they are.
@@ -105,7 +105,7 @@ func cells_per_side() -> int:
 	return int(ceil(2.0 * field_radius / maxf(cell_size, 0.001)))
 
 
-## Spec 2.2: "Each player's home flag sits near the edge, spaced
+## Spec 1.5: "Each player's home flag sits near the edge, spaced
 ## evenly around the edge." Slot 0 sits at angle 0 (+x) and slots advance
 ## counter-clockwise, so a 2-player match puts the two players opposite each
 ## other and an 8-player match spaces them at pi/4.
@@ -127,7 +127,7 @@ func home_flag_ring_radius() -> float:
 	return maxf(field_radius - home_flag_edge_inset, 0.0)
 
 
-## Spec 2.2: "1 goal flag in the center by default. Setup allows 1-5. Extra
+## Spec 1.5: "1 goal flag in the center by default. Setup allows 1-5. Extra
 ## flags are placed symmetrically at 0.4 * field_radius."
 ##
 ## DECISION (config/match/MapDef.gd): the spec does not say whether a multi-flag

@@ -3,7 +3,7 @@ extends PanelContainer
 ## The design system's StatusBadge (docs/ui_reskin/components.md): a small flat label with an
 ## optional live mint dot, never focusable and never clickable. It is a UiRowItem (BADGE) and the
 ## single implementation of the lobby title badge, the Ready / Not ready tile (icon-only, the
-## owner's 1pi.94 S3 decision) and the all-ready rim form.
+## owner's S3 decision)
 ## Faces and sizes come from ArcadeVisualTuning and ComponentMetrics.
 
 enum Look { NEUTRAL, READY, ALL_READY, NOT_READY, HOST }
@@ -13,7 +13,7 @@ const TICK_START: Vector2 = Vector2(0.0, 0.55)
 const TICK_MID: Vector2 = Vector2(0.38, 0.95)
 const TICK_END: Vector2 = Vector2(1.0, 0.05)
 
-## The hourglass is one solid silhouette (Bontago-1pi.159.61): top and bottom bars, two bulbs meeting at
+## The hourglass is one solid silhouette: top and bottom bars, two bulbs meeting at
 ## a narrow neck, as fractions of the mark box (fixed glyph shape, not tunables). The empty upper bulb is
 ## cut out in the face colour, the lower bulb stays solid like the sand.
 const HG_BAR: float = 0.16

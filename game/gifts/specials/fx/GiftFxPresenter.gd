@@ -81,7 +81,7 @@ func _build_paintball(block: Block, _def: SpecialDef, position: Vector3) -> void
 	splash.setup(ctx.slot(block.owner_slot).color)
 
 
-## Black hole (Bontago-8or.25): every peer draws the placeholder disc; the
+## Black hole: every peer draws the placeholder disc; the
 ## pull itself is host-only physics.
 func _build_black_hole(_block: Block, def: SpecialDef, position: Vector3) -> void:
 	var parent: Node3D = MatchContext.current().blocks_parent()
@@ -94,7 +94,7 @@ func _build_black_hole(_block: Block, def: SpecialDef, position: Vector3) -> voi
 	visual.setup(effect.visual_radius_m, effect.lifetime_s)
 
 
-## Bomb and Rocket: a CartoonBlast (Bontago-a3z: flash, toon fireballs, shock ring,
+## Bomb and Rocket: a CartoonBlast (flash, toon fireballs, shock ring,
 ## debris, dust) sized by the blast radius. Rides the replicated special_triggered, so
 ## every peer sees it; hangs under the Field so it rides a tilt. Visual only, frees itself.
 func _build_explosion(_block: Block, def: SpecialDef, position: Vector3) -> void:
@@ -114,7 +114,7 @@ func _build_explosion(_block: Block, def: SpecialDef, position: Vector3) -> void
 	effect.setup(EXPLOSION_TUNING, blast.radius_m, hash(position))
 
 
-## Volcano (Bontago-1pi.85.14): clients draw the same cone without a physics body; the
+## Volcano: clients draw the same cone without a physics body; the
 ## host already has the real structure (build_client_visual returns null there).
 func _build_volcano(block: Block, def: SpecialDef, position: Vector3) -> void:
 	var effect: VolcanoEffect = def.effect as VolcanoEffect if def != null else null
@@ -123,7 +123,7 @@ func _build_volcano(block: Block, def: SpecialDef, position: Vector3) -> void:
 	VolcanoStructure.build_client_visual(effect, position, block.owner_slot if block != null else -1)
 
 
-## Propeller (Bontago-1pi.85.45): clients draw the stand rising out of the disc at the drop
+## Propeller: clients draw the stand rising out of the disc at the drop
 ## point without a carrier body; the host already has the real stand (build_client_visual
 ## returns null there).
 func _build_propeller(_block: Block, def: SpecialDef, position: Vector3) -> void:
@@ -133,7 +133,7 @@ func _build_propeller(_block: Block, def: SpecialDef, position: Vector3) -> void
 	PropellerStand.build_client_visual(effect, position)
 
 
-## Freeze (Bontago-a3z): an ice-shard burst with a frost ring grown to the freeze radius.
+## Freeze: an ice-shard burst with a frost ring grown to the freeze radius.
 ## Every peer draws it from the replicated trigger; the freeze itself is host physics.
 func _build_freeze(_block: Block, def: SpecialDef, position: Vector3) -> void:
 	var parent: Node3D = MatchContext.current().blocks_parent()

@@ -1,6 +1,6 @@
 extends GutTest
-## Bontago-1pi.11.22: BlockRegistry's per-block geometry cache must return
-## exactly what the uncached path returns (docs/TERRITORY_PERF_PLAN.md 3.1).
+## BlockRegistry's per-block geometry cache must return
+## exactly what the uncached path returns.
 
 const STEPS: int = 200
 const START_BLOCKS: int = 12
@@ -92,7 +92,7 @@ func _assert_equal(registry: BlockRegistry, slots: Array[PlayerSlot], label: Str
 	return _assert_adapter_equal(registry, cached, label)
 
 
-## Bontago-1pi.11.25: the adapter's registry-cached heights must equal heights
+## the adapter's registry-cached heights must equal heights
 ## measured straight from each body (the pre-pooling instance_from_id path).
 func _assert_adapter_equal(registry: BlockRegistry, circles: Array[InfluenceCircle], label: String) -> bool:
 	var field: Field = registry._field as Field

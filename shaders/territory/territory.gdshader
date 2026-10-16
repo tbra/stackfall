@@ -1,10 +1,10 @@
 shader_type spatial;
-// Bontago-xtq.4 (owner, 2026-09-22: "the map disc looks like glass: a bit
+// ("the map disc looks like glass: a bit
 // transparent and reflective") introduced a translucent, blend_mix disk so
 // ProceduralSky reflections (Main.tscn's WorldEnvironment) would show on it
 // via SPECULAR/METALLIC below.
 //
-// DECISION (shaders/territory/territory.gdshader, Bontago-xtq.11, owner 2026-09-23:
+// DECISION (shaders/territory/territory.gdshader, 
 // "I think the disc is a mirror-like surface and not glass, so it should be
 // reflective but not transparent"): retired that translucency entirely.
 // fragment() below no longer writes ALPHA at all, so this material is
@@ -15,7 +15,7 @@ shader_type spatial;
 // (blocks and the ghost footprint quad depth-testing correctly against the
 // disk) no longer applies once the disk itself is not in the transparent
 // queue.
-// DECISION (shaders/territory/territory.gdshader, Bontago-xtq.20, reproduced by
+// DECISION (shaders/territory/territory.gdshader, reproduced by
 // tools/screenshot_feel8b_disc_glare.gd): specular_disabled. The "main light
 // source glaringly visible in the disc reflection" was never in the mirror
 // texture -- it is the DirectionalLight3D's own GGX specular lobe on this
@@ -27,15 +27,15 @@ shader_type spatial;
 // light still shades blocks normally); the disc's reflection is the planar
 // mirror (EMISSION below) plus the ambient/probe/SSR reflection, which never
 // shows a hot spot for a sun the skybox does not paint.
-// Bontago-adt.2 DECISION: fog_disabled. The sunset depth/volumetric fog (warm
+// DECISION: fog_disabled. The sunset depth/volumetric fog (warm
 // albedo) was what turned the cool graphite disc top brown (verified: fog off
 // gives a neutral near-black surface); the disc keeps its own cool sky sheen
 // for atmosphere instead.
 render_mode cull_disabled, specular_disabled, fog_disabled;
 
-// Territory on the disk (spec 2.10, 3.3, Bontago-cmc.5).
+// Territory on the disk (spec 1.10, 2.5).
 //
-// **Two rendering paths.** Bontago-cmc.5 (owner requirement: "should look
+// **Two rendering paths.** (owner requirement: "should look
 // smooth... some kind of metaballs system") replaces the border itself —
 // smoothstepping a bilinearly-upscaled 1 m cell raster can only ever look
 // like a blurred grid, never a curve (game/field/TerritoryOverlay.gd's class doc
@@ -50,17 +50,17 @@ render_mode cull_disabled, specular_disabled, fog_disabled;
 //
 // game/field/TerritoryOverlay.gd uploads, per raster tick:
 //
-//   territory_tex          the owner grid (R = team_id + 1, 0 = unowned)
+//   territory_tex the slot grid (R = team_id + 1, 0 = unowned)
 //                          upscaled bilinearly to MapDef.territory_res and
 //                          sampled with filter_linear. Only read by the
 //                          raster (fallback) path.
-//   territory_cells        the same owner grid at cell resolution, unblended.
+//   territory_cells the same slot grid at cell resolution, unblended.
 //                          Only read by the raster (fallback) path.
-//   territory_state        STATE_CONTESTED (1) | STATE_HOLE (2) |
-//   territory_state_soft   STATE_GOAL_ZONE (4) per cell, at cell resolution,
+//   territory_state STATE_CONTESTED (1) | STATE_HOLE (2) |
+//   territory_state_soft STATE_GOAL_ZONE (4) per cell, at cell resolution,
 //                          bound twice. STATE_HOLE is read by *both* paths —
 //                          holes are TerritoryRaster's authority for
-//                          physical floor (spec 3.3: "Discard floor pixels
+//                          physical floor (spec 2.5: "Discard floor pixels
 //                          only for actual physical holes"), never an
 //                          analytic quantity, so the unfiltered sampler's
 //                          discard test below is common code. The rest of
@@ -69,15 +69,15 @@ render_mode cull_disabled, specular_disabled, fog_disabled;
 //                          raster (fallback) path; the analytic path derives
 //                          contested/goal-zone visuals straight from the
 //                          circle/goal lists instead.
-//   circle_tex             one texel per home-anchored circle (Bontago-
-//                          cmc.5): R/G = disk-local x/z, B = radius, A =
+//   circle_tex one texel per home-anchored circle (Bontago-
+//                          ): R/G = disk-local x/z, B = radius, A =
 //                          team id. filter_nearest, read with texelFetch()
 //                          so a filtered sample never blends two circles'
 //                          rows together.
-//   goal_tex               one texel per goal no-build disc: R/G = x/z,
+//   goal_tex one texel per goal no-build disc: R/G = x/z,
 //                          B = radius. Read the same way, independent of
 //                          circles_valid — the goal list is always small
-//                          (spec 2.2 allows 1-5) and never itself overflows.
+//                          (spec 1.5 allows 1-5) and never itself overflows.
 //
 // Disk-local (x, z) maps to UV with uv_scale / uv_offset, which carry
 // CellGrid's convention: cell (0, 0) is the -x/-z corner of the square that
@@ -91,20 +91,20 @@ const int STATE_CONTESTED = 1;
 const int STATE_HOLE = 2;
 const int STATE_GOAL_ZONE = 4;
 // Goal discs the analytic path loops; mirrors game/field/TerritoryOverlay.gd's
-// GOAL_TEXELS_MAX. Spec 2.2 allows only 1-5 goal flags, so this is a wire/
+// GOAL_TEXELS_MAX. Spec 1.5 allows only 1-5 goal flags, so this is a wire/
 // shader safety cap, not a rule.
 const int GOAL_MAX = 8;
 
-// Bontago-470.3: weather fog for a fog_disabled surface. Nothing closer than
+// weather fog for a fog_disabled surface. Nothing closer than
 // wfog_begin metres (view space), wfog_strength at wfog_end; 0 strength = off.
 uniform float wfog_strength : hint_range(0.0, 1.0) = 0.0;
 uniform float wfog_begin = 30.0;
 uniform float wfog_end = 110.0;
 
-// Bontago-mp0.140: rain wet look. Albedo is multiplied by (1 - wet_darken); 0 = off.
+// rain wet look. Albedo is multiplied by (1 - wet_darken); 0 = off.
 uniform float wet_darken : hint_range(0.0, 1.0) = 0.0;
 uniform vec4 wfog_color : source_color = vec4(0.72, 0.8, 0.88, 1.0);
-// Bontago-mp0.127: cloud shadows (game/sky/CloudShadows.gd). The disc is EMISSION-dominated (planar
+// cloud shadows (game/sky/CloudShadows.gd). The disc is EMISSION-dominated (planar
 // mirror), which a Decal cannot darken, so the same two cross-fading shadow layers are sampled
 // here. cshadow_*_m maps world position to the layer's unit box (-0.5..0.5 per axis, the Decal's
 // own mapping); cshadow_*_alpha is the layer's strength (0 = off); cshadow_color is the tint.
@@ -131,21 +131,21 @@ uniform sampler2D territory_cells : filter_nearest, repeat_disable;
 uniform sampler2D territory_state : filter_nearest, repeat_disable;
 uniform sampler2D territory_state_soft : filter_linear, repeat_disable;
 // Per-slot colors from MatchConfig.player_colors, already converted to linear
-// by TerritoryOverlay; indexed by the owner byte - 1 (raster path) or the
+// by TerritoryOverlay; indexed by the slot byte - 1 (raster path) or the
 // circle's own team id (analytic path).
 uniform vec4 slot_colors[SLOT_COLOR_MAX];
 
 uniform vec4 base_color : source_color = vec4(0.68, 0.70, 0.74, 1.0);
 // Defaults match TerritoryVisuals.gd's disk_metallic/disk_roughness
-// (Bontago-xtq.20: a glossy dielectric under the planar mirror); only used if TerritoryOverlay never pushes the real
+// (a glossy dielectric under the planar mirror); only used if TerritoryOverlay never pushes the real
 // resource values (it always does in practice -- see refresh_visual_uniforms()).
 uniform float base_metallic : hint_range(0.0, 1.0) = 0.1;
 uniform float base_roughness : hint_range(0.0, 1.0) = 0.3;
 
-// -- Sun-facing sheen / diffuse cooling (Bontago-mp0.3.8) --------------------
-// Owner report: "the disc top reads flat maroon-brown, mockup is dark cool
+// -- Sun-facing sheen / diffuse cooling --------------------
+// : "the disc top reads flat maroon-brown, mockup is dark cool
 // graphite/black lacquer with a warm gold sheen gradient toward the sun".
-// Main.tscn's DirectionalLight3D is warm (Bontago-mp0.3.6 look pass,
+// Main.tscn's DirectionalLight3D is warm (look pass,
 // light_color (1, 0.94, 0.85)) -- deliberately tuned for the blocks and out
 // of scope here ("fix in the disc shading ... don't touch game/main/Main.tscn").
 // Godot's default diffuse response multiplies ALBEDO by that warm
@@ -159,7 +159,7 @@ uniform float base_roughness : hint_range(0.0, 1.0) = 0.3;
 // the explicit sheen below stay the dominant read instead of a warm-lit
 // matte surface.
 //
-// DECISION (shaders/territory/territory.gdshader, Bontago-mp0.3.8 review pass): the
+// DECISION (shaders/territory/territory.gdshader review pass): the
 // first version of disk_sheen_* was a purely POSITION-based gradient
 // (disk-local direction from center, dotted with the sun's own horizontal
 // direction) -- camera-independent, so it painted the exact same half of the
@@ -189,7 +189,7 @@ uniform float disk_sheen_exponent : hint_range(0.5, 16.0) = 2.5;
 uniform float disk_diffuse_response : hint_range(0.0, 1.0) = 0.45;
 uniform float disk_diffuse_desaturate : hint_range(0.0, 1.0) = 0.85;
 
-// DECISION (shaders/territory/territory.gdshader, Bontago-xtq.11): the two disk-opacity
+// DECISION (shaders/territory/territory.gdshader): the two disk-opacity
 // uniforms that used to live here were removed -- fragment() no longer
 // writes ALPHA, so the disk is unconditionally opaque now (see the
 // render_mode comment above).
@@ -215,7 +215,7 @@ uniform vec4 hole_rim_color : source_color = vec4(1.0, 0.45, 0.12, 1.0);
 uniform float hole_rim_width : hint_range(0.001, 1.0) = 0.35;
 uniform float hole_rim_glow = 2.5;
 
-// Bontago-1pi.11.42: animated void drawn on hole cells (config/
+// animated void drawn on hole cells (config/
 // HoleVisualTuning.gd feeds every value; game/field/TerritoryOverlay.gd uploads).
 uniform vec4 void_deep_color : source_color = vec4(0.01, 0.005, 0.03, 1.0);
 uniform vec4 void_mid_color : source_color = vec4(0.12, 0.04, 0.3, 1.0);
@@ -232,11 +232,11 @@ uniform float void_mid_amount : hint_range(0.0, 1.0) = 0.6;
 uniform float void_animated : hint_range(0.0, 1.0) = 1.0;
 // One grid cell in territory UV units (1 / cells per side).
 uniform float hole_cell_uv = 0.05;
-// Bontago-1pi.11.44: the hole raster (R = 1 on hole cells, G = 1 on contested cells) at cell resolution,
+// the hole raster (R = 1 on hole cells, G = 1 on contested cells) at cell resolution,
 // sampled with a linear filter so the void follows a smooth field, not cell
 // squares. Bound by game/field/TerritoryOverlay.gd's push_cells().
 uniform sampler2D territory_hole : filter_linear, repeat_disable;
-// Bontago-1pi.11.67 fix2b: false only while the uploaded territory_hole has no
+// fix2b: false only while the uploaded territory_hole has no
 // hole cell (game/field/TerritoryOverlay.gd push_cells()); fragment() then skips the
 // void field entirely. True by default so an overlay that never uploaded keeps
 // the old always-evaluate behaviour.
@@ -248,19 +248,19 @@ uniform float void_overlap_mask_min = 0.2;
 // hole whose contest ended): the bilinear 0.5 iso-line, a rounded blob.
 uniform float void_blob_mask_min = 0.5;
 
-// -- Analytic circle path uniforms (Bontago-cmc.5) ---------------------------
+// -- Analytic circle path uniforms ---------------------------
 // False when circle_count is 0 (no solve yet, or a match just ended) or
-// exceeds max_shader_circles (spec 3.3, "Bounded cost"): the raster path
+// exceeds max_shader_circles (spec 2.5, "Bounded cost"): the raster path
 // below is drawn instead for that frame.
 uniform bool circles_valid = false;
-// MatchConfig.HoleMode.OFF: colour by a single-owner argmax over the circle
-// list (spec 3.3's v2 alternative) instead of a per-team union + contested
+// MatchConfig.HoleMode.OFF: colour by a single-slot argmax over the circle
+// list (spec 2.5's v2 alternative) instead of a per-team union + contested
 // test.
 uniform bool argmax_mode = false;
 uniform sampler2D goal_tex : filter_nearest, repeat_disable;
 uniform int goal_count = 0;
-// Bontago-1pi.11 (owner playtest: "the game slows down a lot after a
-// while"): a coarse spatial bin over the circle list, built on the CPU by
+// "the game slows down a lot after a
+// while": a coarse spatial bin over the circle list, built on the CPU by
 // game/field/TerritoryOverlay.gd's _pack_circle_bins(). Without it every disk pixel
 // fetched every circle (O(pixels x circles), measured ~95-120 ms/frame at
 // 60-160 live blocks against ~15-30 ms with the circle loop skipped). Texel k
@@ -272,8 +272,8 @@ uniform int goal_count = 0;
 // the skipped circles never change a drawn pixel. Points outside the grid,
 // or circle_bins_valid == false, loop the whole list exactly as before.
 uniform float rim_width : hint_range(0.001, 2.0) = 0.35;
-// Bontago-xtq.14 (owner: "the edge of the area is a bit blurry, sharpen
-// it"): the ownership TINT's own smoothstep used to share rim_soft_width
+// "the edge of the area is a bit blurry, sharpen
+// it": the ownership TINT's own smoothstep used to share rim_soft_width
 // with the glow band's coverage gate above -- crisp per the original game ("hard-edged shadows/edges"), the rim glow (rim_width/
 // rim_strength/rim_pulse_depth/rim_speed below, untouched) stays its own,
 // deliberately soft effect. See circle_path()'s own DECISION comment.
@@ -282,7 +282,7 @@ uniform float rim_strength = 1.4;
 uniform float rim_pulse_depth : hint_range(0.0, 1.0) = 0.45;
 uniform float rim_speed = 1.6;
 
-// -- Top-surface brushed/plank grain (Bontago-pt.12 part 2, owner: "the dark
+// -- Top-surface brushed/plank grain (owner: "the dark
 // graphite top shows fine plank/brush streaks ... where it interacts with
 // the sun (top-right and bottom-centre)"). Cheap hash-based value noise in
 // disk-local meters (v_local.xz below) -- no texture sampling, no extra
@@ -302,7 +302,7 @@ uniform float top_grain_scale : hint_range(0.01, 5.0) = 0.35;
 uniform float top_grain_fine_scale : hint_range(1.0, 30.0) = 6.0;
 uniform float top_grain_roughness_strength : hint_range(0.0, 1.0) = 0.12;
 
-// -- Bontago-adt.2: polished graphite look (roadmap "Textures/materials") ------
+// -- polished graphite look (roadmap "Textures/materials") ------
 // The flat brown read came from the warm sky ambient + reflection probe/SSR
 // lighting a dielectric surface at full default strength. disk_ambient_scale
 // scales the ambient diffuse term (AO built-in) and disk_specular the
@@ -333,7 +333,7 @@ uniform float panel_fade_px = 12.0;
 // the same strength in day and night themes.
 uniform float tint_fill_emission : hint_range(0.0, 1.0) = 0.12;
 
-// -- Bontago-adt.2: textured disc top (config/territory/DiscSurfaceDef.gd) -------------
+// -- textured disc top (config/territory/DiscSurfaceDef.gd) -------------
 // World-space planar UVs on the disc top. Color is sRGB; normal/roughness/
 // metalness are linear data. disc_textured false = the flat look above.
 uniform bool disc_textured = false;
@@ -357,7 +357,7 @@ uniform float disc_detail_fade_px = 96.0;
 
 varying vec3 v_local;
 
-// -- Weather snow (Bontago-22y.6) --------------------------------------------
+// -- Weather snow --------------------------------------------
 // Visual-only snow layer, driven by game/weather/SnowDiscCover.gd through this
 // material. snow_strength 0 (the default) leaves the disc exactly as it was.
 // Coverage is a soft low-frequency field (domain-warped gradient noise, wide
@@ -430,7 +430,7 @@ float snow_noise(vec2 p) {
 
 // Raw snow depth 0..1 at disc-local `point` (before snow_strength).
 float snow_coverage(vec2 point) {
-	// Bontago-mp0.32: partial, wind-stretched coverage. The base amount rises
+	// partial, wind-stretched coverage. The base amount rises
 	// with the snow level (gradual build-up); streak noise stretched along the
 	// wind leaves thinner patches, and the biases deepen it at seams, the rim
 	// and block bases. snow_strength is capped on the CPU so territory shows.
@@ -451,7 +451,7 @@ void vertex() {
 	v_local = VERTEX;
 }
 
-// Bontago-mp0.3.8 problem 1 (see the disk_diffuse_* uniforms' own DECISION
+// problem 1 (see the disk_diffuse_* uniforms' own DECISION
 // above): only replaces the DIRECT DirectionalLight3D contribution --
 // ambient/IBL and the planar mirror EMISSION added in fragment() below are
 // untouched by defining this. Desaturating LIGHT_COLOR toward its own
@@ -465,7 +465,7 @@ void light() {
 	vec3 cool_light = mix(LIGHT_COLOR.rgb, vec3(luma), disk_diffuse_desaturate);
 	vec3 disc_light = ALBEDO * cool_light * ATTENUATION * disk_diffuse_response;
 	if (v_snow > 0.0) {
-		// Bontago-22y.6: snow is cel-lit in three flat bands (cool lavender
+		// snow is cel-lit in three flat bands (cool lavender
 		// shadow, mid, lit) instead of the metal's damped response.
 		// Lit / shadowed only (the tone bands come from snow depth); NORMAL
 		// was flattened for snow in fragment(), so plate seams and grain do
@@ -480,12 +480,12 @@ void light() {
 	DIFFUSE_LIGHT += disc_light;
 }
 
-// The raster (fallback) path: exactly Bontago-cmc.7's shader, unchanged.
+// The raster (fallback) path: exactly's shader, unchanged.
 // Kept whole rather than folded into the analytic path below, because spec
 // 3.3's "Bounded cost" asks for a real fallback when the circle list
 // overflows, not a best-effort partial draw with some circles silently
 // missing.
-// Bontago-mp0.3.6: moving diagonal stripes for contested/goal areas, faded
+// moving diagonal stripes for contested/goal areas, faded
 // to their mean wherever a stripe gets narrower than ~2 px on screen. At
 // gameplay distance the raw 24-stripes-per-metre pattern aliased into a
 // zebra moire around the goal flag.
@@ -494,7 +494,7 @@ float aa_stripes(float phase) {
 	return mix(stripes, 0.5, smoothstep(0.25, 0.5, fwidth(phase)));
 }
 
-// -- Bontago-pt.12 part 2: cheap hash-based value noise for the top-surface
+// -- Bontago-part 2: cheap hash-based value noise for the top-surface
 // brushed/plank grain (see top_grain_* uniforms' own header comment). No
 // texture sampling: a single sin()/fract() hash plus a smoothstep-
 // interpolated lerp between two integer cells, same "cheap hash noise"
@@ -552,22 +552,22 @@ void raster_path(vec2 uv, vec3 base, out vec3 albedo, out vec3 emission) {
 		float(STATE_HOLE) - hole_rim_width * 2.0, float(STATE_HOLE), state_soft
 	);
 	emission += hole_rim_color.rgb * rim * hole_rim_glow;
-	// Bontago-xtq.11: no alpha_boost anymore -- the disk is opaque outright,
+	// no alpha_boost anymore -- the disk is opaque outright,
 	// so tint/band/shimmer/rim already read at full strength through ALBEDO/
 	// EMISSION with no opacity trick needed.
 }
 
-// DECISION (shaders/territory/territory.gdshader, Bontago-1pi.11.1): bake the circle loop.
-// Measured (a script removed in Bontago-dbn.1 (see git history), 300 asleep blocks): uploading only the 2
+// DECISION (shaders/territory/territory.gdshader): bake the circle loop.
+// Measured (a script removed in (see git history), 300 asleep blocks): uploading only the 2
 // home circles cut GPU 16.4 -> 7.6 ms, so the per-pixel circle loop (even
 // binned) dominated and scales with pixels (3440x1440 is 2.4x 1080p). The
-// loop's three outputs (best value, second-best team value, owner) are a pure
+// loop's three outputs (best value, second-best team value, slot) are a pure
 // function of the circle set, which changes at most ~5 Hz. game/
 // TerritoryOverlay.gd therefore renders them into a texture with
 // territory_circle_bake.gdshader only when the set changes, and this shader
 // does two texture reads per pixel. Edge quality: the baked values are the
 // continuous signed field (radius - distance, smooth-maxed), so the linear
-// filter gives a smooth sub-texel boundary; only the discrete owner is nearest.
+// filter gives a smooth sub-texel boundary; only the discrete slot is nearest.
 // Works identically on host and clients: both feed set_circles(). Pulse,
 // shimmer, rim band, goals and the hole discard stay per-pixel and live.
 // bake_valid is false (direct loop) until the first bake has rendered and
@@ -577,7 +577,7 @@ uniform vec2 bake_half_extent = vec2(45.0, 45.0);
 uniform sampler2D circle_bake_linear : filter_linear, repeat_disable;
 uniform sampler2D circle_bake_near : filter_nearest, repeat_disable;
 
-// The analytic path (Bontago-cmc.5). `point` is disk-local (x, z).
+// The analytic path. `point` is disk-local (x, z).
 //
 // DECISION (shaders/territory/territory.gdshader): cheap early-out, not a free one.
 // Circles are uploaded sorted by team, largest radius first within a team
@@ -590,16 +590,16 @@ uniform sampler2D circle_bake_near : filter_nearest, repeat_disable;
 // index per team, not just a sort) for no measured win at 400 texels, so it
 // was not built. Revisit with real profiling numbers if max_shader_circles
 // is ever raised well past 400.
-// void_g (Bontago-1pi.11.44): min(best, second-best team value) in metres, > 0
+// void_g: min(best, second-best team value) in metres, > 0
 // where two teams' influence circles overlap (the smooth contested field).
 void circle_path(vec2 point, vec3 base, out vec3 albedo, out vec3 emission, out float void_g) {
 	float best_overall = -1000000.0;
 	float second_best = -1000000.0;
 	int owner_team = -1;
 	if (bake_valid) {
-		// Bontago-1pi.11.1: the baked field (see the DECISION above); the
+		// the baked field (see the DECISION above); the
 		// linear sampler reconstructs the continuous values, the nearest one the
-		// discrete owner.
+		// discrete slot.
 		vec2 bake_uv = point / (2.0 * bake_half_extent) + vec2(0.5);
 		vec2 fields = texture(circle_bake_linear, bake_uv).rg;
 		best_overall = (fields.r - 0.5) * 2.0 * BAKE_VALUE_CLAMP_M;
@@ -612,7 +612,7 @@ void circle_path(vec2 point, vec3 base, out vec3 albedo, out vec3 emission, out 
 	void_g = argmax_mode ? -1000000.0 : min(best_overall, second_best);
 
 	// Default (overlap) mode: two or more teams' circles covering the same
-	// point is a contest (spec 2.2), drawn with no team tint at all, same as
+	// point is a contest (spec 1.5), drawn with no team tint at all, same as
 	// the raster path's CONTESTED cells. argmax_mode (v2, hole_mode == OFF)
 	// has no contested concept — TerritoryRaster._argmax() always picks
 	// exactly one owner — so it never sets this.
@@ -621,7 +621,7 @@ void circle_path(vec2 point, vec3 base, out vec3 albedo, out vec3 emission, out 
 	albedo = base;
 	emission = vec3(0.0);
 
-	// DECISION (shaders/territory/territory.gdshader, Bontago-xtq.14): the tint's own
+	// DECISION (shaders/territory/territory.gdshader): the tint's own
 	// coverage smoothstep now feathers over edge_softness_m (a few cm
 	// default), not rim_soft_width (still 0.25 m, the glow band's own
 	// property below) -- the two used to be the same value, which is what
@@ -654,7 +654,7 @@ void circle_path(vec2 point, vec3 base, out vec3 albedo, out vec3 emission, out 
 	}
 
 	// Goal no-build discs, drawn analytically regardless of team ownership —
-	// a goal zone blocks placement, not influence (spec 2.2) — and
+	// a goal zone blocks placement, not influence (spec 1.5) — and
 	// independent of circles_valid: the goal list is capped at GOAL_MAX and
 	// never itself the reason a frame would overflow.
 	bool in_goal_zone = false;
@@ -673,7 +673,7 @@ void circle_path(vec2 point, vec3 base, out vec3 albedo, out vec3 emission, out 
 		);
 		emission += contested_color.rgb * shimmer * contested_shimmer_strength;
 	}
-	// Bontago-xtq.11: no alpha_boost anymore -- the disk is opaque outright,
+	// no alpha_boost anymore -- the disk is opaque outright,
 	// so the tint, rim, contested shimmer and goal-zone shimmer above already
 	// read at full strength through ALBEDO/EMISSION with no opacity trick
 	// needed.
@@ -694,14 +694,14 @@ float void_noise(vec2 p) {
 		mix(void_hash(i + vec2(0.0, 1.0)), void_hash(i + vec2(1.0, 1.0)), f.x), f.y);
 }
 
-// Bontago-1pi.11.44 (owner: "i was picturing it more as its own territory"):
+// "i was picturing it more as its own territory":
 // the void's signed distance (metres, > 0 inside) is the smooth overlap field
 // of opposing teams' circles (void_g, the same union boundary the territory
 // tints use), cut to the hole cells the raster has actually activated
 // (hole_delay, TEMPORARY/PERMANENT/OFF, closing holes all live in that mask),
 // so no cell square shows: the edge is the circle boundary wherever it is
 // inside an activated cell.
-// DECISION (1pi.11.44): a pixel of a non-hole cell within ~0.3 cell of a hole
+// DECISION: a pixel of a non-hole cell within ~0.3 cell of a hole
 // cell may show void where the circles overlap (the smoothed mask threshold),
 // and a hole outside any overlap (Jumping Bean, or a permanent hole whose
 // contest ended) draws as the rounded bilinear blob of the mask; both stay
@@ -745,24 +745,24 @@ void hole_void(float depth, float cell_m, vec2 world_xz, out vec3 albedo, out ve
 void fragment() {
 	vec2 uv = v_local.xz * uv_scale + vec2(uv_offset);
 
-	// Spec 3.3: "discards pixels where holes are". Read unfiltered, so the
+	// Spec 2.5: "discards pixels where holes are". Read unfiltered, so the
 	// gap is exactly the cell whose collision Field switched off. Holes stay
 	// the raster's authority for physical floor in *both* paths — a hole is
 	// never an analytic quantity (design note above).
-	// Bontago-1pi.11.42 (owner decision Bontago-gdb): the disc collision is
+	// the disc collision is
 	// solid under a hole now, so the pixel is no longer discarded; it is drawn
 	// as an animated void at the very end of fragment() (see hole_void()).
 	float void_g = -1000000.0;
 
 	vec3 albedo;
 	vec3 emission;
-	// Bontago-22y.6: weather snow composites disc -> snow -> territory: the
+	// weather snow composites disc -> snow -> territory: the
 	// snow replaces the base albedo the territory tint is mixed onto, and the
 	// tint fill, contour, shimmer and hole rim (path emission) stay on top.
 	vec3 snow_flat_normal = NORMAL;
 	float snow = 0.0;
 	vec3 path_base = base_color.rgb;
-	// Bontago-1pi.11.67 fix2b: the whole snow block is skipped (uniform branch)
+	// fix2b: the whole snow block is skipped (uniform branch)
 	// when there is no snow; mix(base, tone, 0.0) == base, so dry pixels are
 	// bit-identical to the old always-on code.
 	if (snow_strength > 0.0) {
@@ -785,13 +785,13 @@ void fragment() {
 	vec3 path_albedo = albedo;
 	vec3 path_emission = emission;
 
-	// Bontago-pt.12 part 2: top-surface brushed/plank grain -- see the
+	// Top-surface brushed/plank grain -- see the
 	// top_grain_* uniforms' own header comment. ALBEDO/EMISSION above are
 	// already finalized (the territory tint/border/shimmer/hole-rim colors),
 	// so this block only ever touches NORMAL/ROUGHNESS, run before the mirror
 	// fresnel and disk_sheen blocks below so both read the grained NORMAL.
 	//
-	// DECISION (shaders/territory/territory.gdshader, Bontago-pt.12 part 2): builds its
+	// DECISION (shaders/territory/territory.gdshader, Bontago-part 2): builds its
 	// own in-plane basis from MODEL_MATRIX/VIEW_MATRIX instead of the mesh's
 	// own TANGENT/BINORMAL -- this disc's CylinderMesh top cap's own
 	// generated UV/tangent direction is an implementation detail of Godot's
@@ -805,7 +805,7 @@ void fragment() {
 	// final normalize() absorbs any residual scale) without needing a
 	// dedicated inverse-transpose normal matrix, which Godot only exposes in
 	// vertex(), not fragment().
-	// Bontago-adt.2: textured top (planar world-space UVs).
+	// textured top (planar world-space UVs).
 	vec3 tex_mod = vec3(1.0);
 	float tex_rough = -1.0;
 	float tex_metal = -1.0;
@@ -827,7 +827,7 @@ void fragment() {
 		vec3 local_n = normalize(vec3(grad_local.x, max(n_ts.z, 0.2), grad_local.y));
 		NORMAL = normalize(mat3(VIEW_MATRIX) * mat3(MODEL_MATRIX) * local_n);
 	}
-	// Bontago-adt.2: procedural cel plating (see proc_plating()). The plate
+	// procedural cel plating (see proc_plating()). The plate
 	// NORMAL itself stays flat (the planar mirror and SSR stay undistorted);
 	// only the banded sheen below reads the per-plate tilted normal.
 	float proc_seam_occ = 0.0;
@@ -849,8 +849,8 @@ void fragment() {
 		albedo *= tex_mod;
 	}
 
-	// Bontago-adt.2: machined panel seams + per-panel brightness (albedo only).
-	// Bontago-1pi.11.67 fix2b: skipped (uniform branch) when both strengths are
+	// machined panel seams + per-panel brightness (albedo only).
+	// fix2b: skipped (uniform branch) when both strengths are
 	// 0 -- the shipped look -- where every factor below is exactly 1.0.
 	if (panel_variation != 0.0 || panel_seam_strength != 0.0) {
 		vec2 panel_p = v_local.xz / max(panel_size_m, 0.01);
@@ -887,7 +887,7 @@ void fragment() {
 		}
 	}
 
-	// Bontago-mp0.3.8 problem 1: the explicit warm-gold sheen -- see the
+	// problem 1: the explicit warm-gold sheen -- see the
 	// disk_sheen_* uniforms' own DECISION above (view-dependent mirror-
 	// reflection term, not a fixed position mask). NORMAL/VIEW are both
 	// view-space here (same as the mirror fresnel block above); sun_view_dir
@@ -911,7 +911,7 @@ void fragment() {
 	float sky_fresnel = pow(1.0 - clamp(dot(sheen_normal, sheen_view), 0.0, 1.0), disk_sky_sheen_power);
 	emission += disk_sky_sheen_color * disk_sky_sheen_strength * sky_fresnel;
 	if (disc_procedural) {
-		// DECISION (Bontago-ual): keep the warm sun lobe continuous across
+		// DECISION: keep the warm sun lobe continuous across
 		// plates. Quantising a sun reflection using each plate's tilted normal
 		// paints large tan stair steps at grazing angles. The cool sky lobe still
 		// uses those normals and cel bands, preserving the machined facets.
@@ -941,8 +941,8 @@ void fragment() {
 	}
 	ALBEDO = albedo;
 	EMISSION = emission;
-	// Bontago-xtq.11 (owner, 2026-09-23: "the disc is a mirror-like surface
-	// and not glass, so it should be reflective but not transparent"): no
+	// "the disc is a mirror-like surface
+	// and not glass, so it should be reflective but not transparent": no
 	// ALPHA write at all -- the whole disk (including the CylinderMesh's
 	// vertical side wall, which shares this one ShaderMaterial) is
 	// unconditionally opaque, so every ownership indicator (tint/rim/
@@ -952,7 +952,7 @@ void fragment() {
 	SPECULAR = disk_specular;
 	AO = disk_ambient_scale;
 	AO_LIGHT_AFFECT = 0.0;
-	// Bontago-pt.12 part 2: grain_h0 (the same coarse+fine grain height the
+	// Bontago-part 2: grain_h0 (the same coarse+fine grain height the
 	// NORMAL perturbation above used, in [-0.5, 0.5]) also nudges ROUGHNESS a
 	// little -- a purely additive, sign-symmetric variation so the grain
 	// reads as fine streaks in the reflection's sharpness, not a visible
@@ -975,7 +975,7 @@ void fragment() {
 	float void_cell_m = 0.0;
 	float void_d = -1000000.0;
 	float void_cover = 0.0;
-	// Bontago-1pi.11.67 fix2b: void_present (uniform) is false while the
+	// fix2b: void_present (uniform) is false while the
 	// uploaded hole mask has no hole cell; the mask then samples 0 everywhere,
 	// void_d < 0 and void_cover == 0, so skipping the fetch changes no pixel.
 	if (void_present) {
@@ -984,7 +984,7 @@ void fragment() {
 		void_cover = smoothstep(0.0, max(fwidth(void_d), 0.0001), void_d);
 	}
 	if (void_cover > 0.0) {
-		// Bontago-1pi.11.42/44: the void replaces everything the bare disc
+		// /44: the void replaces everything the bare disc
 		// shows (plating, mirror, snow, tint): it must read as a gap.
 		vec3 void_albedo;
 		vec3 void_emission;

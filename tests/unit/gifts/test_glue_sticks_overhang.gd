@@ -1,5 +1,5 @@
 extends GutTest
-## Owner playtest 2026-10-08 (Bontago-1pi.85.65): a glued block dropped off the
+##  a glued block dropped off the
 ## side of another block must stick to it; it fails if it slides off and touches
 ## the disc. The control drops the same block without glue and must reach the disc.
 

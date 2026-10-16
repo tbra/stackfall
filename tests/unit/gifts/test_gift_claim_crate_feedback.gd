@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-d04: game/gifts/GiftCrate.gd's own claim-pop effect and not-claimable
+## game/gifts/GiftCrate.gd's own claim-pop effect and not-claimable
 ## hint pulse (see config/gifts/GiftConfig.gd's "-- Claim feedback --"/
 ## "-- Not-claimable hint --" sections for the tunables these read).
 ##
@@ -73,7 +73,7 @@ func _make_local_ghost() -> GhostPreview:
 
 # --- Claim pop ---------------------------------------------------------------
 
-## Bontago-mp0.139: a landing claimed the same tick frees the crate node at
+## a landing claimed the same tick frees the crate node at
 ## once, so its parachute is handed to the container and finishes collapsing.
 func test_a_landing_claim_leaves_the_parachute_collapsing_in_the_container() -> void:
 	_start_playing(_config())

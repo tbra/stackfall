@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-t8x.5: an activated gift's body despawns once its action completed.
+## an activated gift's body despawns once its action completed.
 ## Three categories: consumed instantly, survives its action then despawns,
 ## and an action that never completes (bounded timeout). Pure-logic cases
 ## drive SpecialBehavior.advance() on a stub Block.

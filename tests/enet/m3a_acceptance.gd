@@ -1,11 +1,10 @@
 extends Node
 ## End-to-end network acceptance for M3a (spec Part 4 M3a "4 local instances
 ## play a full match ... a client with 100 ms simulated lag and 2% packet
-## loss sees smooth towers; placements are never duplicated or lost";
-## docs/archive/M3a_PLAN.md P4).
+## loss sees smooth towers; placements are never duplicated or lost").
 ##
 ## Run with a role from the command line, exactly as Net.apply_command_line()
-## parses it (spec 3.4 "Testing"):
+## parses it (spec 2.6 "Testing"):
 ##   godot --headless --path . res://tests/enet/m3a_acceptance.tscn -- \
 ##       --headless-host --port=47778 --expect-peers=4
 ##   godot --headless --path . res://tests/enet/m3a_acceptance.tscn -- \
@@ -20,7 +19,7 @@ extends Node
 ## additional phase after the placement phase above, proving
 ## MatchNet.submit_throw()/net_request_throw() over a real ENet transport --
 ## an accepted throw for slot THROW_SLOT_ID (clamped speed, continuous_cd,
-## pending count back to zero on both the host AND, since Bontago-1en.21's
+## pending count back to zero on both the host AND, since's
 ## EVENT_SPECIAL_CONSUMED replication, the throwing client itself) and a
 ## refused one outside that slot's own territory. Off by default, so the
 ## existing placement-only regression's
@@ -39,10 +38,10 @@ extends Node
 ## lands in parallel with P1 (autoload/Net.gd, net/LanDiscovery.gd), P2
 ## (net/SnapshotSync.gd, net/Interpolator.gd) and P3 (autoload/Match.gd's
 ## host gates, net/MatchNet.gd's real RPC bodies), all against the interface
-## stubs docs/archive/M3a_PLAN.md committed. Two things are not real yet, and both
+## stubs committed first. Two things are not real yet, and both
 ## are checked explicitly rather than assumed:
-##   1. **MatchNet isn't a registered autoload yet.** docs/archive/M3a_PLAN.md's
-##      integration order step 5 has the integrator add `MatchNet=` to
+##   1. **MatchNet isn't a registered autoload yet.** The
+##      integration order has the integrator add `MatchNet=` to
 ##      project.godot's [autoload] *after* P1-P3 land — P4 must not touch
 ##      that section itself. So this script finds it dynamically at
 ##      /root/MatchNet and calls it through Object.call() rather than the
@@ -67,8 +66,8 @@ extends Node
 ## its own territory, so a refusal can only be a network-level one — wrong
 ## slot or a stale feed_seq — never a PlacementRules rejection) through
 ## MatchNet.submit_place(), exactly as PlayerController will once P3 lands.
-## The host then checks, per docs/archive/M3a_PLAN.md "Proving placements are never
-## duplicated or lost": per slot, intents_accepted + intents_refused ==
+## The host then checks that placements are never
+## duplicated or lost: per slot, intents_accepted + intents_refused ==
 ## intents_sent; and that the number of Events.block_placed spawns equals the
 ## sum of every slot's intents_accepted (auto_drops is always 0 here — see
 ## INTENT_SPACING_SECONDS' own comment). Every client checks that no
@@ -76,7 +75,7 @@ extends Node
 ## block, plus P2's Interpolator.dropped_unknown_count() opportunistically
 ## (only if that autoload exists yet — it isn't P4's package to gate on).
 ##
-## Bontago-mv0.10 follow-up (spec 2.4 "[ORIGINAL target]" fixed-interval
+## follow-up (spec 1.4 "[ORIGINAL target]" fixed-interval
 ## cadence): a deliberate release now locks the slot until its interval's
 ## boundary, so all INTENTS_PER_CLIENT scripted releases have to be spaced a
 ## full interval apart to land as genuine, individually-accepted releases
@@ -89,7 +88,7 @@ extends Node
 const CONNECT_TIMEOUT_SECONDS: float = 8.0
 const MATCHNET_PROBE_TIMEOUT_SECONDS: float = 2.0
 const INTENTS_PER_CLIENT: int = 6
-## Bontago-mv0.10: how long a released piece stays locked before the next one
+## how long a released piece stays locked before the next one
 ## may go out -- one full fixed interval (MatchConfig.BLOCK_TIMER_MIN, the
 ## host's own config below) plus a fixed margin for the send/settle/RTT time
 ## a real placement and (for a client) its SimLag/SimLoss round trip cost, so
@@ -126,9 +125,9 @@ const THROW_SLOT_ID: int = 1
 const THROW_GIFT_ID_ACCEPT: int = 900001
 const THROW_GIFT_ID_REJECT: int = 900002
 ## Comfortably above SpecialTuning.throw_max_speed (25 m/s) so the host's own
-## clamp (spec 3.4: "the host clamps velocity to throw_max_speed") is the
+## clamp (spec 2.6: "the host clamps velocity to throw_max_speed") is the
 ## thing actually under test, not merely "a velocity was accepted."
-const THROW_VELOCITY_SPEED: float = 1.0 # Bontago-1pi.85.29: the intent carries a unit camera aim; the host owns the speed
+const THROW_VELOCITY_SPEED: float = 1.0 # the intent carries a unit camera aim; the host owns the speed
 ## Review fix: offset from the slot's own home_position the accepted throw
 ## releases at (see _run_client_throw_phase()'s own comment). Unlike a unit
 ## test, this harness's host runs real Jolt physics continuously, and the
@@ -157,7 +156,7 @@ const THROW_SPEED_TOLERANCE_FRACTION: float = 0.05
 ## Review fix: the slot always holds *some* ordinary piece and MatchConfig.
 ## BLOCK_TIMER_MIN (3 s, held by _run_host()'s own config) keeps ticking
 ## throughout this multi-second phase's own claim/round-trip waits -- an
-## auto-drop (spec 2.5) for that ordinary piece is expected, unrelated
+## auto-drop (spec 1.4) for that ordinary piece is expected, unrelated
 ## background noise here, not a bug, and it always releases at rest (no
 ## velocity ever set on an ordinary placement or auto-drop). A thrown special
 ## never does: even after clamping it still leaves at throw_max_speed (25),
@@ -170,7 +169,7 @@ const THROW_SPEED_TOLERANCE_FRACTION: float = 0.05
 const THROW_MIN_SPEED_TO_COUNT_AS_THROWN: float = 5.0
 ## Point well outside any shipped map's field_radius (tens of meters), so a
 ## throw released there is unambiguously "outside your own territory"
-## (spec 2.5) rather than merely off this particular map's disk edge.
+## (spec 1.4) rather than merely off this particular map's disk edge.
 const THROW_OUTSIDE_TERRITORY_POINT: Vector2 = Vector2(500.0, 500.0)
 ## How long the client polls after a host-side claim before giving up on
 ## seeing it replicate (SimLag/SimLoss-tolerant; see _wait_for_condition()).
@@ -179,15 +178,15 @@ const THROW_CLAIM_WAIT_SECONDS: float = 4.0
 ## spawn/rejection back) to settle before checking results.
 const THROW_RESULT_WAIT_SECONDS: float = 3.0
 
-## Bontago-8or.11: how long to wait after a late joiner's replay ack before
+## how long to wait after a late joiner's replay ack before
 ## checking world state match.
 const LATE_JOIN_SETTLE_SECONDS: float = 1.0
 ## How long to wait for the late joiner to ack its replay.
 const LATE_JOIN_ACK_TIMEOUT_SECONDS: float = 8.0
 
-## Bontago-fca.30: --reconnect-pass. The client holding RECONNECT_SLOT_ID closes
+## --reconnect-pass. The client holding RECONNECT_SLOT_ID closes
 ## its ENet connection mid-match (Net.leave(false) keeps its rejoin token),
-## stays away RECONNECT_DOWN_SECONDS, then joins the same host again. Spec 3.4
+## stays away RECONNECT_DOWN_SECONDS, then joins the same host again. Spec 2.6
 ## "Late join / reconnect" + Net._handshake_mid_match: a returning peer quoting
 ## its token inside NetConfig.disconnect_grace gets its OWN slot back and a full
 ## world replay. Needs >= 2 players (slot 1 is a client).
@@ -202,7 +201,7 @@ var _reconnect_pass: bool = false
 ## Host: events recorded by Events.net_peer_left / net_peer_joined for the slot.
 var _rc_left: Dictionary = {}
 var _rc_joined: Dictionary = {}
-## Bontago-1pi.139: blocks the host world legitimately removed (kill plane: tumbling
+## blocks the host world legitimately removed (kill plane: tumbling
 ## auto-drops fall off the field) between the drop and the rejoin. Not a reconnect loss.
 var _rc_removed_during_drop: int = 0
 ## Host: the client report (from _rpc_reconnect_done), empty until it arrives.
@@ -241,7 +240,7 @@ var _last_thrown_block_by_slot: Dictionary = {}
 ## not.
 var _rejected_events: Array[Dictionary] = []
 
-## Bontago-1en.21, client only: every Events.special_consumed this instance's
+## client only: every Events.special_consumed this instance's
 ## own slot has seen since the last time the throw phase cleared it, mirroring
 ## _rejected_events' own pattern above -- {slot_id, special_id} dictionaries
 ## in order. Waiting for this event to arrive is the robust proof "the host's
@@ -252,7 +251,7 @@ var _rejected_events: Array[Dictionary] = []
 ## _run_client_throw_phase()'s own DECISION).
 var _consumed_events: Array[Dictionary] = []
 
-## Bontago-1en.21, client only: every Events.gift_claimed this instance's own
+## client only: every Events.gift_claimed this instance's own
 ## slot has seen, in order, since _ready() connected it -- an append-only log
 ## (unlike Match.pending_special_count(), which both a claim and a consumed
 ## pop can move in either direction), used to detect the throw phase's own
@@ -268,7 +267,7 @@ var _gift_flight_phases: Array[int] = []
 ## nothing here needs to change.
 var _match_net: Node = null
 
-## Bontago-8or.11: late-join scenario enabled via --late-join-after flag.
+## late-join scenario enabled via --late-join-after flag.
 var _late_join_after_seconds: int = 0
 ## True if this instance is the late-joining client.
 var _is_late_joiner: bool = false
@@ -296,7 +295,7 @@ func _ready() -> void:
 		get_tree().quit(2)
 		return
 
-	# Bontago-8or.11: detect late-join mode
+	# detect late-join mode
 	_late_join_after_seconds = _int_arg("--late-join-after=", 0)
 	_is_late_joiner = _late_join_flag_was_given()
 	_reconnect_pass = _flag_given("--reconnect-pass")
@@ -378,7 +377,7 @@ func _intents_refused(slot_id: int) -> int:
 	return int(_match_net.call(&"intents_refused", slot_id))
 
 
-## Bontago-mv0.10 follow-up: docs/archive/M3a_PLAN.md's real invariant is
+## follow-up: the real invariant is
 ## "blocks_spawned == sum(intents_accepted) + auto_drops", not
 ## "== sum(intents_accepted)" -- the simpler form only held while block_timer
 ## was pinned at BLOCK_TIMER_MAX and nothing sent fast enough to ever reach a
@@ -444,22 +443,21 @@ func _run_host() -> void:
 
 	var config: MatchConfig = (load("res://config/match/match_defaults.tres") as MatchConfig).duplicate(true) as MatchConfig
 	config.disc_size_step = 1
-	# Bontago-8or.11: reduce player_count by 1 if a late joiner will connect later
+	# reduce player_count by 1 if a late joiner will connect later
 	var initial_player_count: int = expected_peers
 	if _late_join_after_seconds > 0:
 		initial_player_count -= 1  # The late joiner is not counted in the initial config
 	config.player_count = initial_player_count
 	config.hot_seat = false
-	# Bontago-8or.11: enable mid-match join for late-join scenario
+	# enable mid-match join for late-join scenario
 	config.allow_mid_match_join = (_late_join_after_seconds > 0)
-	# Bontago-mv0.10: the shortest legal interval, not the longest (this
+	# the shortest legal interval, not the longest (this
 	# script's own pre-cadence choice) -- see INTENT_SPACING_SECONDS' comment
 	# on why a short interval, not a long one, is what keeps this harness's
 	# scripted releases inside the wrapper timeout now that a deliberate
 	# release locks the slot until its interval boundary. auto_drops still
 	# never fires: every scripted release spends its interval's one piece
 	# long before the boundary, so nothing is ever left unspent to force
-	# (docs/archive/M3a_PLAN.md "Proving placements are never duplicated or lost").
 	config.block_timer = MatchConfig.BLOCK_TIMER_MIN
 	config.rng_seed = 20260918
 
@@ -484,16 +482,16 @@ func _run_host() -> void:
 
 	await get_tree().create_timer(Match.COUNTDOWN_SECONDS + 0.5).timeout
 
-	# Bontago-mv0.10: one release per slot per round, not every one of a
+	# one release per slot per round, not every one of a
 	# slot's INTENTS_PER_CLIENT releases back to back before moving to the
-	# next slot. Spec 2.4 "[ORIGINAL target]": "players act concurrently" --
+	# next slot. Spec 1.4 "[ORIGINAL target]": "players act concurrently" --
 	# every slot's interval started at the same instant (Match._begin_
 	# playing() seeds them all together), so round-robining keeps that true
 	# here too, and keeps this loop's total wait at INTENTS_PER_CLIENT *
 	# INTENT_SPACING_SECONDS regardless of player_count, not that times
 	# player_count, which is what kept this harness inside
 	# tools/run_m3a_local.ps1's wrapper timeout at 4 peers.
-	# Bontago-8or.11: only place for initial players (not the late joiner).
+	# only place for initial players (not the late joiner).
 	for i: int in range(INTENTS_PER_CLIENT):
 		for slot_id: int in range(initial_player_count):
 			var home: Vector2 = Match.slot(slot_id).home_position
@@ -506,7 +504,7 @@ func _run_host() -> void:
 
 	var accepted_total: int = 0
 	var auto_drop_total: int = 0
-	# Bontago-8or.11: only check initial players; late joiner will be verified separately.
+	# only check initial players; late joiner will be verified separately.
 	for slot_id: int in range(initial_player_count):
 		var sent: int = _intents_sent(slot_id)
 		var accepted: int = _intents_accepted(slot_id)
@@ -518,7 +516,7 @@ func _run_host() -> void:
 			"per_slot_accept_refuse_%d" % slot_id, accepted + refused == sent,
 			"slot=%d accepted=%d refused=%d sent=%d auto_drops=%d" % [slot_id, accepted, refused, sent, auto_dropped]
 		)
-	# docs/archive/M3a_PLAN.md's full invariant, not the "auto_drops is always 0"
+	# The full invariant, not the "auto_drops is always 0"
 	# simplification this script used while block_timer sat at BLOCK_TIMER_MAX
 	# (see INTENT_SPACING_SECONDS' and _auto_drops()'s own comments on why
 	# that assumption no longer holds under the fixed-interval cadence).
@@ -527,7 +525,7 @@ func _run_host() -> void:
 		"blocks_spawned=%d accepted_total=%d auto_drop_total=%d" % [_blocks_spawned, accepted_total, auto_drop_total]
 	)
 
-	# Bontago-8or.11: if late-join is enabled, wait for the joiner and verify world state
+	# if late-join is enabled, wait for the joiner and verify world state
 	# This runs DURING the match, before clients exit, so we can compare states
 	if _late_join_after_seconds > 0:
 		await _run_host_late_join_and_reconnect(initial_player_count)
@@ -558,7 +556,7 @@ func _run_host_throw_phase() -> void:
 	# THROWN rather than merely "a new block for this slot" -- the slot's own
 	# feed timer (MatchConfig.BLOCK_TIMER_MIN, 3 s) keeps ticking throughout
 	# this phase's multi-second waits, so an unrelated auto-drop of the
-	# slot's ordinary held piece (spec 2.5, always released at rest) can and
+	# slot's ordinary held piece (spec 1.4, always released at rest) can and
 	# did interleave with the throw's own spawn in practice (reproduced: a
 	# second, unrelated block appeared while this phase was still waiting on
 	# the *next* claim to replicate). Only the throw itself ever leaves a
@@ -585,7 +583,7 @@ func _run_host_throw_phase() -> void:
 		)
 		return
 	var thrown_block: Block = _fast_block_for_slot(THROW_SLOT_ID)
-	# Bontago-mv0.32: capture net_id immediately before the block might be freed (kill/burn)
+	# capture net_id immediately before the block might be freed (kill/burn)
 	var thrown_net_id: int = thrown_block.net_id
 	var thrown_continuous_cd: bool = thrown_block.continuous_cd
 	_throw_check("throw_accepted_block_spawned", true, "net_id=%d" % thrown_net_id)
@@ -608,7 +606,7 @@ func _run_host_throw_phase() -> void:
 	)
 
 	# --- Negative: queue a second special so the coming refusal is genuinely
-	# ThrowRules' "outside your own territory" (spec 2.5), not merely "no
+	# ThrowRules' "outside your own territory" (spec 1.4), not merely "no
 	# special pending" (the first claim's was already spent above).
 	Match._gifts.apply_replicated_claim(THROW_GIFT_ID_REJECT, THROW_SLOT_ID, MatchGifts.PENDING_SPECIAL_ID)
 	Match._feed.replace_next_with_gift(THROW_SLOT_ID)
@@ -621,7 +619,7 @@ func _run_host_throw_phase() -> void:
 	# meantime -- see this function's own opening comment -- and is not
 	# itself a failure here).
 	await get_tree().create_timer(THROW_CLAIM_WAIT_SECONDS + THROW_RESULT_WAIT_SECONDS).timeout
-	# Bontago-fca.22: key on the throw's own identity, not "the last fast block
+	# key on the throw's own identity, not "the last fast block
 	# sampled". Only request_throw() sets continuous_cd at spawn (an auto-drop
 	# or placement starts at rest), and net_ids are monotonic, so any live block
 	# of this slot with continuous_cd and a net_id past the accepted throw's is a
@@ -636,7 +634,7 @@ func _run_host_throw_phase() -> void:
 	)
 
 
-## Bontago-fca.22: net_ids of live throw-spawned (continuous_cd) blocks owned by
+## net_ids of live throw-spawned (continuous_cd) blocks owned by
 ## `slot_id` that spawned after `after_net_id`.
 func _throw_spawns_for_slot_after(slot_id: int, after_net_id: int) -> Array[int]:
 	var found: Array[int] = []
@@ -688,7 +686,7 @@ func _run_client() -> void:
 		print("M3A_ACCEPT harness_blocked layer=Match reason=match_never_reached_playing")
 		get_tree().quit(2)
 		return
-	# Bontago-mv0.31: a baseline, not an assumed zero. _matchnet_is_wired()
+	# a baseline, not an assumed zero. _matchnet_is_wired()
 	# already sent one throwaway probe intent for this same slot before
 	# _run_client() ever started (see its own doc) -- reset_counters() above
 	# is expected to wipe it, but whether it actually lands before or after
@@ -705,7 +703,7 @@ func _run_client() -> void:
 		"client_baseline_sent_at_most_one", baseline_sent <= 1,
 		"baseline=%d" % baseline_sent
 	)
-	# Bontago-mv0.10: spaced the same one-interval-plus-margin apart as the
+	# spaced the same one-interval-plus-margin apart as the
 	# host's own script (INTENT_SPACING_SECONDS' comment), so this client's
 	# own releases land after its slot's interval boundary unlocks each one
 	# instead of being refused as locked.
@@ -740,7 +738,7 @@ func _run_client() -> void:
 			"dropped_unknown_count=%d" % dropped
 		)
 
-	# Bontago-8or.11: if late-join is enabled, stay alive longer so the host
+	# if late-join is enabled, stay alive longer so the host
 	# can verify the late joiner during the match (before clients exit).
 	# This allows the late-join check to run DURING the match, not after.
 	if _reconnect_pass and slot_id == RECONNECT_SLOT_ID:
@@ -786,7 +784,7 @@ func _run_client_throw_phase() -> void:
 		return
 	_throw_check("throw_client_activated_gift", true, "feed_seq=%d" % Match.feed_seq(slot_id))
 
-	# DECISION (tests/enet/m3a_acceptance.gd, Bontago-1en.21): captured here,
+	# DECISION (tests/enet/m3a_acceptance.gd): captured here,
 	# before the throw below is even submitted -- at this exact point exactly
 	# one claim (the accepted one) can possibly exist, since the host's own
 	# second claim is only ever queued after it independently confirms this
@@ -801,7 +799,7 @@ func _run_client_throw_phase() -> void:
 	_throw_check("gift_claim_removed_visual", Match.gift_state(THROW_GIFT_ID_ACCEPT).is_empty(), "host claim removes client gift")
 	var claims_before_throw: int = _claimed_events.size()
 
-	# Bontago-1en.21 (was a known limitation, now fixed): the host replicates
+	# was a known limitation, now fixed: the host replicates
 	# a "special consumed" event (Events.special_consumed / net/MatchNet.gd's
 	# EVENT_SPECIAL_CONSUMED) the moment it pops the queue for an accepted
 	# throw or placement, so this client eventually learns its own special
@@ -825,7 +823,7 @@ func _run_client_throw_phase() -> void:
 	_consumed_events.clear()
 	_submit_throw(slot_id, origin, Vector3(THROW_VELOCITY_SPEED, 0.0, 0.0))
 
-	# DECISION (tests/enet/m3a_acceptance.gd, Bontago-1en.21): waits for the
+	# DECISION (tests/enet/m3a_acceptance.gd): waits for the
 	# Events.special_consumed *event* to arrive (via _consumed_events, an
 	# _on_placement_rejected-style listener -- see its own field comment),
 	# not for Match.pending_special_count(slot_id) to read back down to zero.
@@ -959,11 +957,11 @@ func _on_block_placed(block: RigidBody3D, _shape_id: StringName) -> void:
 ## further happened to it.
 func _fast_block_for_slot(slot_id: int) -> Block:
 	var current: Block = _last_block_by_slot.get(slot_id) as Block
-	# Bontago-mv0.32: skip freed blocks before dereferencing
+	# skip freed blocks before dereferencing
 	if current != null and is_instance_valid(current) and current.linear_velocity.length() > THROW_MIN_SPEED_TO_COUNT_AS_THROWN:
 		_last_thrown_block_by_slot[slot_id] = current
 	var cached: Block = _last_thrown_block_by_slot.get(slot_id) as Block
-	# Bontago-mv0.32: skip freed cached blocks
+	# skip freed cached blocks
 	if cached != null and not is_instance_valid(cached):
 		_last_thrown_block_by_slot[slot_id] = null
 		return null
@@ -993,7 +991,7 @@ func _on_placement_rejected(slot_id: int, reason: StringName) -> void:
 	_rejected_events.append({"slot_id": slot_id, "reason": reason})
 
 
-## Bontago-1en.21: _on_placement_rejected's own twin for Events.special_
+## _on_placement_rejected's own twin for Events.special_
 ## consumed -- see _consumed_events' own field comment for why this is
 ## more reliable proof of arrival than polling pending_special_count().
 func _on_special_consumed(slot_id: int, special_id: StringName) -> void:
@@ -1002,7 +1000,7 @@ func _on_special_consumed(slot_id: int, special_id: StringName) -> void:
 	_consumed_events.append({"slot_id": slot_id, "special_id": special_id})
 
 
-## Bontago-1en.21: see _claimed_events' own field comment. Named _for_slot,
+## see _claimed_events' own field comment. Named _for_slot,
 ## not _on_gift_claimed, so it reads distinctly from net/MatchNet.gd's own
 ## same-named host-side handler in any shared log/backtrace.
 func _on_gift_claimed_for_slot(_gift_id: int, slot_id: int, special_id: StringName) -> void:
@@ -1079,7 +1077,7 @@ func _on_fixture_gift_landed(gift_id: int, _landing: Vector3) -> void:
 		_gift_flight_phases.append(int(Match.gift_state(gift_id).get("phase", -1)))
 
 
-# --- Bontago-8or.11: Late-join testing ----------------------------------------
+# --- Late-join testing ----------------------------------------
 
 func _flag_given(flag: String) -> bool:
 	return OS.get_cmdline_user_args().has(flag)
@@ -1134,7 +1132,7 @@ func _rpc_reconnect_done(ok: bool, detail: String) -> void:
 	_rc_client_done = {"ok": ok, "detail": detail}
 
 
-## Bontago-fca.30. Host half of the real drop + rejoin (see RECONNECT_SLOT_ID).
+##. Host half of the real drop + rejoin (see RECONNECT_SLOT_ID).
 func _run_host_reconnect_phase(initial_player_count: int) -> void:
 	if initial_player_count <= RECONNECT_SLOT_ID:
 		print("M3A_ACCEPT (reconnect_pass) skipped: no client at slot %d" % RECONNECT_SLOT_ID)
@@ -1156,7 +1154,7 @@ func _run_host_reconnect_phase(initial_player_count: int) -> void:
 	_check("reconnect_new_connection", int(_rc_joined["peer"]) != old_peer and int(_rc_joined["slot_peer"]) == int(_rc_joined["peer"]),
 		"old_peer=%d joined=%s" % [old_peer, _rc_joined])
 	_check("reconnect_grace_cleared", is_equal_approx(float(_rc_joined["grace"]), -1.0), "grace_left=%.2f" % float(_rc_joined["grace"]))
-	# Bontago-1pi.139: a removal the host itself announced (block_removed) is not a loss.
+	# a removal the host itself announced (block_removed) is not a loss.
 	_check("reconnect_no_block_lost_during_drop",
 		int(_rc_joined["blocks"]) + _rc_removed_during_drop >= int(_rc_left["blocks"]),
 		"blocks at drop=%d at rejoin=%d host_removals_during_drop=%d" % [
@@ -1169,7 +1167,7 @@ func _run_host_reconnect_phase(initial_player_count: int) -> void:
 	_check("reconnect_match_continues", Match.state() == Match.State.PLAYING, "state=%d" % Match.state())
 	var peer_now: int = int(_rc_joined["peer"])
 	if Net.peer_ids().has(peer_now):
-		# Bontago-1pi.139: the host count only falls while it settles (kill-plane
+		# the host count only falls while it settles (kill-plane
 		# removals), so the client's replay snapshot lies between the two samples.
 		var now_blocks: int = _live_blocks().size()
 		_rpc_reconnect_expect.rpc_id(peer_now, mini(int(_rc_joined["blocks"]), now_blocks),
@@ -1186,7 +1184,7 @@ func _run_host_reconnect_phase(initial_player_count: int) -> void:
 	print("M3A_ACCEPT (reconnect_pass) host done: left=%s joined=%s" % [_rc_left, _rc_joined])
 
 
-## Bontago-fca.30. Client half: only the RECONNECT_SLOT_ID client drops.
+##. Client half: only the RECONNECT_SLOT_ID client drops.
 func _run_client_reconnect_phase(slot_before: int) -> void:
 	var address: String = "127.0.0.1"
 	var port: int = 0
@@ -1321,7 +1319,7 @@ func _run_host_late_join_and_reconnect(initial_player_count: int) -> void:
 		"host_blocks=%d (placement phase had %d intents)" % [host_blocks, INTENTS_PER_CLIENT])
 	_check("late_joiner_match_running", Match.state() == Match.State.PLAYING,
 		"match state=%d" % Match.state())
-	# Bontago-fca.24: harness expectation, not a product bug. This harness's
+	# harness expectation, not a product bug. This harness's
 	# MatchConfig leaves match_timer_minutes at 0 (= off, untimed Classic), where
 	# match_timer_left() is correctly 0.0. Only a timed config must have time left.
 	var timed: bool = Match.config.match_timer_minutes > 0
@@ -1332,7 +1330,7 @@ func _run_host_late_join_and_reconnect(initial_player_count: int) -> void:
 		host_blocks, host_timer, host_eliminated
 	])
 
-	# Bontago-8or.11: Test reconnect by dropping and rejoining an initial client.
+	# Test reconnect by dropping and rejoining an initial client.
 	# This is a separate phase after late-join verification.
 	await _run_host_reconnect_test(1, initial_player_count)
 
@@ -1348,11 +1346,11 @@ func _run_host_reconnect_test(test_slot: int, initial_player_count: int) -> void
 	# Simulate a client disconnect by waiting a bit (in a real test, the client
 	# would intentionally disconnect via Net.close_peer()).
 	# For now, just verify the test setup is valid.
-	# Bontago-fca.24: Net.peer_ids() lists remote peers only (the host, id 1, is
+	# Net.peer_ids() lists remote peers only (the host, id 1, is
 	# not in it), so initial_player_count players = initial_player_count - 1
 	# remote peers; with the late joiner that is exactly initial_player_count.
 	# The old ">= 3" / "> initial_player_count" expected the host to be counted.
-	# NOTE: no drop/rejoin is actually exercised here (see Bontago-fca.24 follow-up).
+	# NOTE: no drop/rejoin is actually exercised here (see follow-up).
 	_check("reconnect_has_test_peers", peer_count_before >= initial_player_count,
 		"need >= %d remote peers (initial remotes + late joiner), have %d" % [initial_player_count, peer_count_before])
 	_check("reconnect_late_joiner_present", peer_count_before > initial_player_count - 1,

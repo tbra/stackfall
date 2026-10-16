@@ -1,6 +1,6 @@
 class_name BotStrategyTuning
 extends Resource
-## Bot V2 strategy tunables (docs/BOT_AI_REDESIGN.md 2.3 step 3, Bontago-1t5.23): the
+## Bot V2 strategy tunables (docs/BOT_AI_REDESIGN.md 2.3 step 3): the
 ## thresholds and intent weight vectors core/ai/BotStrategy.gd reads. Shipped values live
 ## in config/bots/bot_strategy_tuning.tres. Distances are metres.
 
@@ -34,13 +34,13 @@ extends Resource
 @export var elim_tie_epsilon_m: float = 0.5
 
 @export_group("Reach the Sky base")
-## Bontago-1t5.54: the bot abandons its base and starts a new one when the sound top that is left
+## the bot abandons its base and starts a new one when the sound top that is left
 ## stands this far below the highest it ever reached there (a collapse).
 @export var collapse_drop_m: float = 3.0
-## Bontago-1t5.70: ...and only when it also stands under this fraction of that peak (a tall tower that loses its
+## ...and only when it also stands under this fraction of that peak (a tall tower that loses its
 ## top few pieces is still a tower).
 @export var collapse_keep_fraction: float = 0.5
-## Bontago-1t5.70: a tower that looks lost (no standing sound top rooted at the base, or a collapse-sized loss) is
+## a tower that looks lost (no standing sound top rooted at the base, or a collapse-sized loss) is
 ## kept for this many consecutive plans before a new base starts.
 @export var collapse_grace_thinks: int = 2
 ## A sound top within this distance of the remembered base is the same tower.
@@ -51,7 +51,7 @@ extends Resource
 @export var base_extra_circles: int = 4
 
 @export_group("Gifts")
-## Gift claim (Bontago-1t5.25): score bonus per landed, unclaimed gift a site's new circle
+## Gift claim: score bonus per landed, unclaimed gift a site's new circle
 ## would cover. Added on top of the intent score (REACH is metres, so 4 = "worth a 4 m detour").
 @export var gift_claim_value: float = 4.0
 ## A gift counts as covered only when it lies this far inside the new circle's radius.

@@ -1,6 +1,6 @@
 extends GutTest
 ## TerritoryOverlay turns the cell raster into the ImageTexture the disk shader
-## samples (spec 2.10, 3.3, docs/archive/M2_PLAN.md "Raster resolution").
+## samples (spec 1.10, 3.3).
 ##
 ## The raster itself is P1's; these tests drive the overlay through a stand-in
 ## that answers owner_bytes()/state_bytes() with hand-built cells, so they pin
@@ -73,7 +73,7 @@ func test_upload_is_territory_res_square() -> void:
 
 	var image: Image = overlay.last_image()
 	assert_not_null(image, "set_source uploads immediately.")
-	assert_eq(image.get_width(), UPLOAD_RES, "Spec 3.3: uploaded at territory_res.")
+	assert_eq(image.get_width(), UPLOAD_RES, "Spec 2.5: uploaded at territory_res.")
 	assert_eq(image.get_height(), UPLOAD_RES)
 	assert_eq(overlay.texture().get_width(), UPLOAD_RES)
 	assert_eq(overlay.cells_per_side(), CELLS_PER_SIDE, "The rules stay at cell resolution.")
@@ -190,7 +190,7 @@ func test_slot_colors_reach_the_shader() -> void:
 
 
 func test_refresh_visual_uniforms_keeps_slot_colors() -> void:
-	# Bontago-sen.4: an F4 visuals refresh used to reset every slot to the
+	# an F4 visuals refresh used to reset every slot to the
 	# goal-flag color, so territories lost their team colors.
 	var overlay: TerritoryOverlay = _make_overlay(_map())
 	var colors: PackedColorArray = PackedColorArray([
@@ -220,7 +220,7 @@ func test_uv_uniforms_map_the_disk_onto_the_texture() -> void:
 	assert_almost_eq(half_extent * uv_scale + uv_offset, 1.0, 0.0001)
 
 
-# --- Bontago-cmc.5: the analytic circle list -------------------------------
+# --- the analytic circle list -------------------------------
 
 
 func _make_overlay_with_visuals(map_def: MapDef, visuals: TerritoryVisuals) -> TerritoryOverlay:
@@ -286,7 +286,7 @@ func test_a_circle_list_over_the_shader_budget_falls_back_to_the_raster_path() -
 	assert_eq(overlay.circle_count(), 3, "The full list still uploads, for readback.")
 	assert_false(
 		bool(overlay.material().get_shader_parameter(&"circles_valid")),
-		"Over max_shader_circles: the shader must fall back to the raster path, spec 3.3 'Bounded cost'."
+		"Over max_shader_circles: the shader must fall back to the raster path, spec 2.5 'Bounded cost'."
 	)
 
 
@@ -342,13 +342,13 @@ func test_field_hands_its_overlay_the_circle_list() -> void:
 	assert_almost_eq(texel.a, 1.0, 0.001, "Team id survives the hand-off.")
 
 
-# --- Bontago-mv0.20b: disk_mesh_segments live-apply --------------------------
+# ---.20b: disk_mesh_segments live-apply --------------------------
 
 
 func test_refresh_visual_uniforms_rebuilds_the_disk_mesh_when_segments_change() -> void:
 	var visuals: TerritoryVisuals = load("res://config/territory/territory_visuals.tres").duplicate() as TerritoryVisuals
 	var overlay: TerritoryOverlay = _make_overlay_with_visuals(_map(), visuals)
-	# Bontago-mp0.150.1: the arena is one ArrayMesh; surface 0 holds the cylinder arrays.
+	# the arena is one ArrayMesh; surface 0 holds the cylinder arrays.
 	var original_arrays: Array = (overlay.mesh as ArrayMesh).surface_get_arrays(0)
 	var original_count: int = (original_arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
 	var original_extent: float = _top_max_x(overlay)
@@ -369,10 +369,10 @@ func _top_max_x(overlay: TerritoryOverlay) -> float:
 	return best
 
 
-# --- Bontago-xtq.11: mirror-like opaque disk ---------------------------------
+# --- mirror-like opaque disk ---------------------------------
 #
-# Bontago-xtq.4's disk-opacity tunables and the shader uniforms they drove
-# are gone (owner, 2026-09-23: "the disc is a mirror-like surface and not
+# 's disk-opacity tunables and the shader uniforms they drove
+# are gone ("the disc is a mirror-like surface and not
 # glass, so it should be reflective but not transparent"); see
 # config/territory/TerritoryVisuals.gd and shaders/territory/territory.gdshader for the removal
 # DECISIONs.
@@ -392,7 +392,7 @@ func test_configure_pushes_the_default_metallic_and_roughness() -> void:
 	)
 
 
-## Bontago-pt.12 part 2 (owner: "the disc looks close to the mockup but it
+## Bontago-pt.12 part 2 ("the disc looks close to the mockup but it
 ## lacks the texture ... visible where it interacts with the sun"): the
 ## top-surface brushed/plank grain's own uniforms must reach the shader from
 ## TerritoryVisuals, the same way every other presentation number here does.
@@ -434,7 +434,7 @@ func _texture_surface() -> DiscSurfaceDef:
 	return surface
 
 
-## Bontago-adt.2: the swappable DiscSurfaceDef texture set reaches the shader,
+## the swappable DiscSurfaceDef texture set reaches the shader,
 ## and a null set leaves the flat look (disc_textured false).
 func test_disc_surface_pushes_texture_uniforms_and_null_disables_them() -> void:
 	var visuals: TerritoryVisuals = TerritoryVisuals.new()
@@ -455,7 +455,7 @@ func test_disc_surface_pushes_texture_uniforms_and_null_disables_them() -> void:
 
 
 
-## Bontago-adt.2: the procedural cel plating is the shipped default, and a
+## the procedural cel plating is the shipped default, and a
 ## PROCEDURAL DiscSurfaceDef turns the texture path off and pushes its own
 ## tunables (including the packed rivet-pattern weights).
 func test_procedural_disc_surface_is_default_and_pushes_its_uniforms() -> void:
@@ -529,7 +529,7 @@ func test_shader_top_grain_block_never_writes_albedo_or_emission() -> void:
 
 
 func test_disk_defaults_to_a_glossy_polished_plate() -> void:
-	# Owner 2026-10-07: the planar mirror pass is gone; the disc is a polished plate lit by
+	# the planar mirror pass is gone; the disc is a polished plate lit by
 	# the Environment sky and the reflection probe. Asserted as classifications and as the
 	# values the overlay actually pushes to its material, not as exact numbers.
 	var visuals: TerritoryVisuals = load("res://config/territory/territory_visuals.tres")
@@ -540,7 +540,7 @@ func test_disk_defaults_to_a_glossy_polished_plate() -> void:
 
 
 func test_territory_shader_never_blends_or_writes_alpha() -> void:
-	# Bontago-xtq.11: the earlier "glass" material queued the disk as
+	# the earlier "glass" material queued the disk as
 	# transparent (render_mode blend_mix + a written ALPHA) even once its
 	# runtime alpha value was tuned to fully opaque. Writing ALPHA at all,
 	# regardless of its value, keeps a Godot spatial shader in the transparent
@@ -587,9 +587,9 @@ func test_refresh_visual_uniforms_does_not_reallocate_the_mesh_when_segments_are
 	assert_eq(overlay.mesh, before, "the disk mesh instance must be reused when disk_mesh_segments has not changed.")
 
 
-# --- Bontago-xtq.14: crisp ownership edge, separate from the rim glow --------
+# --- crisp ownership edge, separate from the rim glow --------
 #
-# Owner playtest 2026-09-23: "the edge of the area is a bit blurry, sharpen
+#  "the edge of the area is a bit blurry, sharpen
 # it." shaders/territory/territory.gdshader's analytic circle_path() used to feather
 # the ownership TINT over rim_soft_width (0.25 m, the rim glow's own width) --
 # edge_softness_m below is now a separate, much smaller default so the
@@ -598,7 +598,7 @@ func test_refresh_visual_uniforms_does_not_reallocate_the_mesh_when_segments_are
 # edges").
 
 func test_edge_softness_m_default_is_crisp_relative_to_the_rim_glow() -> void:
-	# spec 2.10 / Bontago-xtq.14: a crisp ownership edge, much narrower than the rim glow it
+	# spec 1.10 / a crisp ownership edge, much narrower than the rim glow it
 	# used to share a feather width with (rim_soft_width).
 	var visuals: TerritoryVisuals = load("res://config/territory/territory_visuals.tres")
 	assert_gte(visuals.edge_softness_m, 0.0)
@@ -659,7 +659,7 @@ func _shader_source_without_comments(shader: Shader) -> String:
 	return "\n".join(code_lines)
 
 
-# --- Owner 2026-10-07: the disc mirror pass is removed -----------------------
+# --- the disc mirror pass is removed -----------------------
 
 
 func test_shader_and_overlay_have_no_planar_mirror_hooks() -> void:
@@ -671,7 +671,7 @@ func test_shader_and_overlay_have_no_planar_mirror_hooks() -> void:
 	assert_eq(overlay.layers, TerritoryOverlay.DISC_LAYER_BIT, "the disc keeps its own render layer.")
 
 
-# --- Bontago-1pi.11: spatial circle bins -------------------------------------
+# --- spatial circle bins -------------------------------------
 
 ## Reads bin k's (start, count) header and its circle indices back out of the
 ## flat RGF image, the same row-major walk the shader does.
@@ -807,7 +807,7 @@ func test_circle_bin_overflow_keeps_analytic_full_loop_and_recovers() -> void:
 
 
 func test_shader_declares_the_circle_bin_uniforms() -> void:
-	# Bontago-1pi.11.1: the circle/bin uniforms moved into the shared include.
+	# the circle/bin uniforms moved into the shared include.
 	var code: String = FileAccess.get_file_as_string("res://shaders/territory/territory_circle_field.gdshaderinc")
 	assert_true(code.contains("uniform sampler2D circle_bin_tex"), "Bin texture uniform.")
 	assert_true(code.contains("uniform bool circle_bins_valid"), "Bin enable uniform.")
@@ -817,7 +817,7 @@ func test_shader_declares_the_circle_bin_uniforms() -> void:
 	)
 
 
-# --- Bontago-1pi.11.1: baked circle field -----------------------------------
+# --- baked circle field -----------------------------------
 func test_bake_is_off_without_a_renderer_and_the_shaders_declare_it() -> void:
 	var overlay: TerritoryOverlay = _make_overlay(_map())
 	overlay.set_circles(
@@ -832,7 +832,7 @@ func test_bake_is_off_without_a_renderer_and_the_shaders_declare_it() -> void:
 	assert_true(bake.contains("circle_field("), "The bake runs the shared circle field.")
 
 
-## Bontago-1pi.11.23: an unchanged revision skips the texture upload.
+## an unchanged revision skips the texture upload.
 class CountingOverlay extends TerritoryOverlay:
 	var pushes: int = 0
 
@@ -865,7 +865,7 @@ func test_upload_now_skips_push_cells_until_the_raster_changes() -> void:
 	assert_eq(overlay.pushes, after_source + 2, "A re-set source always uploads.")
 
 
-# --- Bontago-1pi.11.67 fix2b: GPU cost of the disc shader ---------------------
+# --- fix2b: GPU cost of the disc shader ---------------------
 
 ## The void field is skipped while no cell is a hole; any hole cell turns it on.
 func test_void_present_follows_hole_cells_in_the_upload() -> void:
@@ -913,7 +913,7 @@ func test_shader_carries_the_fix2b_guards() -> void:
 	assert_true(code.contains("if (panel_variation != 0.0 || panel_seam_strength != 0.0)"))
 
 
-## Bontago-1pi.11.67 fix2b: a test that switches the graphics preset records the
+## fix2b: a test that switches the graphics preset records the
 ## original here; after_each puts it back even when an assert failed midway.
 var _restore_preset_id: StringName = &""
 

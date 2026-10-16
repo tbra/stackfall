@@ -1,10 +1,10 @@
 extends Node
-## Bontago-1pi.85.69: host + client over real ENet with the gift_queue_after_next trial on (default).
+## host + client over real ENet with the gift_queue_after_next trial on (default).
 ## The host claims a gift for the client's seat; the client must see it staged as the block AFTER next
 ## (the next piece stays ordinary), then next, then held, as the host issues two blocks. Run via
 ## tools/run_gift_after_next_enet.ps1. Host: --headless-host --expect-peers=2.
 
-## Net.peer_ids() counts the host too: one host + one client (Bontago-1pi.18.8).
+## Net.peer_ids() counts the host too: one host + one client.
 const HOST_AND_CLIENT_PEERS: int = 2
 const CONNECT_TIMEOUT: float = 20.0
 const STAGED_SPECIAL: StringName = &"anvil"

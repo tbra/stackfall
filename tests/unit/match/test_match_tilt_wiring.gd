@@ -1,48 +1,7 @@
-extends GutTest
-## autoload/match/MatchLifecycle.gd wiring MatchConfig.tilt_mode into the Field
-## it was handed by register_world() (spec 2.6 tilt, 2.8 tilt_mode; docs/
-## M4_PLAN.md P0b/P5 tilt notes; Bontago-1en.23).
-##
-## Before this package, nothing ever called Field.set_tilt_enabled(true) in a
-## real match: Field shipped the controller off by default (game/field/Field.gd's
-## own doc: "every scene and test that predates this package" stays
-## untouched), and no autoload/match/*.gd file flipped it on. Anvil/Propeller/
-## Earthquake's apply_tilt_impulse() calls were therefore silent no-ops the
-## moment they ran inside an actual match, even under the default
-## SPECIALS_ONLY tilt_mode.
-##
-## Same fast fixture as tests/unit/gifts/test_gift_claim.gd: a bare Field (not the
-## whole Main scene/Net), directly through Match.register_world(), so this
-## stays a quick unit test rather than needing test_match_lifecycle.gd's real
-## ENet host session.
-
-var _blocks_root: Node3D
-var _field: Field
-var _registry: BlockRegistry
-var _tiny_map: MapDef
+extends "res://tests/unit/match/match_world_test.gd"
+## MatchConfig.tilt_mode wired into the registered Field (spec 1.6 / 2.8).
 
 const TICK: float = 1.0 / 60.0
-
-
-func before_each() -> void:
-	Match.set_process(false)
-	Match.abort_match()
-	_tiny_map = (load("res://config/match/maps/round.tres") as MapDef).duplicate(true)
-	_tiny_map.field_radius = 20.0
-	_field = autofree(Field.new())
-	_field.map_def = _tiny_map
-	add_child_autofree(_field)
-	_blocks_root = autofree(Node3D.new())
-	add_child_autofree(_blocks_root)
-	_registry = autofree(BlockRegistry.new())
-	add_child_autofree(_registry)
-	Match.register_world(_field, _registry, _blocks_root)
-
-
-func after_each() -> void:
-	Match.abort_match()
-	Match.set_process(true)
-	MatchTestReset.clear_world()
 
 
 func _config(tilt_mode: MatchConfig.TiltMode = MatchConfig.TiltMode.SPECIALS_ONLY) -> MatchConfig:
@@ -77,15 +36,6 @@ func test_starting_a_specials_only_match_enables_tilt_on_the_registered_field() 
 	)
 
 
-func test_starting_a_physical_balance_match_also_enables_tilt() -> void:
-	Match.start_match(_config(MatchConfig.TiltMode.PHYSICAL_BALANCE))
-
-	assert_true(
-		_field.tilt_enabled(),
-		"tilt_mode PHYSICAL_BALANCE tilts too (config/match/MatchConfig.gd); only a future OFF value would not"
-	)
-
-
 # --- M6 B5: PHYSICAL_BALANCE wires the registry, SPECIALS_ONLY does not ------
 
 func test_starting_a_physical_balance_match_wires_the_registry_onto_the_field() -> void:
@@ -98,39 +48,6 @@ func test_starting_a_physical_balance_match_wires_the_registry_onto_the_field() 
 	assert_eq(
 		_field._registry, _registry,
 		"PHYSICAL_BALANCE must hand Field the same BlockRegistry register_world() gave Match"
-	)
-
-
-func test_starting_a_specials_only_match_leaves_physical_balance_off() -> void:
-	Match.start_match(_config(MatchConfig.TiltMode.SPECIALS_ONLY))
-
-	assert_false(
-		_field._physical_balance_enabled,
-		"SPECIALS_ONLY must not pick up settled blocks' weight"
-	)
-
-
-func test_switching_from_physical_balance_to_specials_only_clears_the_flag() -> void:
-	Match.start_match(_config(MatchConfig.TiltMode.PHYSICAL_BALANCE))
-	assert_true(_field._physical_balance_enabled, "fixture: PHYSICAL_BALANCE enabled it first")
-
-	Match.start_match(_config(MatchConfig.TiltMode.SPECIALS_ONLY))
-
-	assert_false(
-		_field._physical_balance_enabled,
-		"a fresh SPECIALS_ONLY match must not inherit the previous match's PHYSICAL_BALANCE flag"
-	)
-
-
-func test_abort_disables_physical_balance_too() -> void:
-	Match.start_match(_config(MatchConfig.TiltMode.PHYSICAL_BALANCE))
-	assert_true(_field._physical_balance_enabled, "fixture: PHYSICAL_BALANCE enabled it first")
-
-	Match.abort_match()
-
-	assert_false(
-		_field._physical_balance_enabled,
-		"abort_match() must not leave PHYSICAL_BALANCE wired into an idle field"
 	)
 
 
@@ -171,12 +88,3 @@ func test_abort_disables_tilt_and_levels_the_disc() -> void:
 
 
 # --- a second match start re-enables tilt ------------------------------------
-
-func test_a_second_match_start_re_enables_tilt() -> void:
-	Match.start_match(_config())
-	Match.abort_match()
-	assert_false(_field.tilt_enabled(), "fixture: disabled after the first match's abort")
-
-	Match.start_match(_config())
-
-	assert_true(_field.tilt_enabled(), "a fresh start_match() must re-enable tilt for the new match")

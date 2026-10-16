@@ -1,5 +1,5 @@
 extends Node
-## Bontago-1pi.85.80: host + one lagged client over real ENet. The host releases a held Rocket and
+## host + one lagged client over real ENet. The host releases a held Rocket and
 ## then a held Paintball through the real request_throw path; the model's pivot on the spawned body
 ## must sit at the held model's pivot (ghost pose + gift cell centre) on the host AND on the client,
 ## read from the client's replicated spawn transform. Run: tools/run_muzzle_spawn_enet.ps1.

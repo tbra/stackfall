@@ -1,6 +1,6 @@
 extends GutTest
-## Spec 2.2's influence rule: "r = influence_base + h * tan(40 deg) ... capped
-## at influence_max = 0.6 * field_radius", and spec 3.3's "two circles are
+## Spec 1.5's influence rule: "r = influence_base + h * tan(40 deg) ... capped
+## at influence_max = 0.6 * field_radius", and spec 2.5's "two circles are
 ## connected if they overlap".
 
 const MAP_RADIUS: float = 45.0
@@ -97,7 +97,7 @@ func test_for_home_uses_home_radius_and_anchors() -> void:
 
 
 func test_height_credit_keeps_the_placing_slot_not_the_tower_owner() -> void:
-	## Spec 2.2, "Height credit": one block on an enemy tower gives *you* a
+	## Spec 1.5, "Height credit": one block on an enemy tower gives *you* a
 	## circle at that height. The circle simply carries whatever slot/team it
 	## was built with; nothing about the tower below it enters here.
 	var mine: InfluenceCircle = InfluenceCircle.for_block(

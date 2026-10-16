@@ -1,6 +1,6 @@
 class_name StormTuning
 extends WeatherTuning
-## Wind's tunables (Bontago-22y.4): the height-weighted push the host applies
+## Wind's tunables: the height-weighted push the host applies
 ## to live blocks (autoload/match/StormEffect.gd) and the client-side streak
 ## look (game/weather/StormPresentation.gd). config/weather/storm.tres is the
 ## shipped instance. Rules live in core/weather/WindField.gd.
@@ -47,7 +47,7 @@ extends WeatherTuning
 @export var exposure_probe_m: float = 1.5
 
 @export_group("Presentation")
-## Bontago-mp0.81: the ambient wind draws curled swoosh strokes (swoosh_* below);
+## the ambient wind draws curled swoosh strokes (swoosh_* below);
 ## the soft bowed wisp look belongs to a Breeze gust now (BreezeTuning gust_*).
 ## Half-width of the square of sky the streaks and motes fill, centred on the
 ## disc (metres).
@@ -60,7 +60,7 @@ extends WeatherTuning
 @export var streak_length_m: float = 12.0
 ## Ribbon width at its thickest (m).
 @export var streak_width_m: float = 0.16
-## Bontago-mp0.131: strokes are brush strokes. Seconds the head sweeps along the wind drawing the stroke on.
+## strokes are brush strokes. Seconds the head sweeps along the wind drawing the stroke on.
 @export_range(0.1, 5.0, 0.05) var streak_draw_on_s: float = 0.9
 ## Seconds the finished stroke holds before it is wiped away.
 @export_range(0.0, 5.0, 0.05) var streak_hold_s: float = 0.6
@@ -74,7 +74,7 @@ extends WeatherTuning
 ## the end distance: a near streak would otherwise span the whole screen.
 @export var streak_near_fade_start_m: float = 14.0
 @export var streak_near_fade_end_m: float = 32.0
-## Drift (m/s) of a stroke along the wind (Bontago-mp0.134: raised from 3 so the trails travel faster).
+## Drift (m/s) of a stroke along the wind (raised from 3 so the trails travel faster).
 @export var streak_speed_ms: float = 7.0
 @export var streak_color: Color = Color(1.0, 1.0, 1.0, 0.7)
 @export var mote_count: int = 36

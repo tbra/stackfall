@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-59o.13: while a claimed gift is the current piece the ghost shows a
+## while a claimed gift is the current piece the ghost shows a
 ## held-gift presentation instead of the plain block, and the HUD held/next
 ## previews draw the gift icon (or the generic fallback).
 
@@ -33,7 +33,7 @@ func test_ghost_switches_to_gift_visual_and_back() -> void:
 	assert_true(_block_meshes_visible(ghost), "plain block ghost restored")
 
 
-## Bontago-1pi.85.77: gifts are never recoloured (owner 2026-10-05); no ghost state tints one.
+## gifts are never recoloured; no ghost state tints one.
 func test_held_gift_is_never_tinted_in_any_state() -> void:
 	var ghost: GhostPreview = _make_ghost()
 	ghost.set_held_gift(&"rocket")
@@ -47,7 +47,7 @@ func test_held_gift_is_never_tinted_in_any_state() -> void:
 	assert_null(mi.material_overlay, "invalid")
 
 
-## Bontago-sen.9: a held gift shows no placement projection (footprint quad,
+## a held gift shows no placement projection (footprint quad,
 ## light-shaft prism, block decal); going back to a plain block restores it.
 func test_held_gift_hides_projection_visuals_and_plain_block_restores_them() -> void:
 	var ghost: GhostPreview = _make_ghost()

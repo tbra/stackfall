@@ -58,7 +58,7 @@ func test_yaw_cw_undoes_yaw_ccw() -> void:
 func test_is_valid_index_accepts_exactly_the_24_table_indices() -> void:
 	# get_basis() indexes the table directly: a negative index silently wraps
 	# in GDScript (-1 is entry 23) and anything past the end is a script
-	# error, so untrusted callers must ask this first (Beads Bontago-mv0.1.5).
+	# error, so untrusted callers must ask this first (Beads).
 	for index: int in range(BlockOrientations.ORIENTATION_COUNT):
 		assert_true(BlockOrientations.is_valid_index(index), "Index %d is in the table." % index)
 	for bad: int in [-1, -25, BlockOrientations.ORIENTATION_COUNT, 25, 1 << 40, -(1 << 40)]:

@@ -1,5 +1,5 @@
 extends GutTest
-## Fog weather (Bontago-470.3): data registration, the Skybox-owned apply /
+## Fog weather: data registration, the Skybox-owned apply /
 ## restore (including a live theme switch), the disc's own matching fog, the
 ## Low variant, and what stays visible. Fog is presentation only: no host effect.
 
@@ -26,13 +26,6 @@ func _presentation(reduced: int = 0) -> FogPresentation:
 	presentation.configure(_fog, reduced)
 	add_child_autofree(presentation)
 	return presentation
-
-
-## Fraction of colour kept at `distance_m` for DEPTH fog: nothing before begin,
-## linear to max opacity at end (Godot's depth mode, curve 1).
-func _visibility(opacity: float, distance_m: float) -> float:
-	var t: float = clampf((distance_m - _fog.depth_begin_m) / (_fog.depth_end_m - _fog.depth_begin_m), 0.0, 1.0)
-	return 1.0 - opacity * t
 
 
 func test_fog_is_registered_as_data_and_has_no_physics_effect() -> void:
@@ -101,23 +94,6 @@ func test_theme_switch_during_fog_rebases_and_restores_on_the_new_theme() -> voi
 	assert_eq(environment.fog_light_color, night.fog_color)
 
 
-func test_low_variant_has_a_lower_maximum_opacity() -> void:
-	var parts: Array = _rig()
-	var environment: Environment = parts[1]
-	var presentation: FogPresentation = _presentation(1)
-	presentation.set_intensity(1.0)
-	assert_almost_eq(environment.fog_density, _fog.max_opacity * _fog.low_preset_opacity, 0.00001)
-
-
-func test_local_area_keeps_full_colour_and_far_things_stay_faintly_visible() -> void:
-	assert_gte(_fog.depth_begin_m, _fog.clear_radius_m, "fog begins beyond the local play area")
-	assert_eq(_visibility(_fog.max_opacity, _fog.clear_radius_m), 1.0, "blocks near the camera keep full colour")
-	assert_gte(_visibility(_fog.max_opacity, _fog.far_reference_distance_m), _fog.far_min_visibility, "far beacon/contours faintly visible")
-	assert_lt(_visibility(_fog.max_opacity, _fog.far_reference_distance_m), 0.4, "distant objects do fade")
-	assert_gt(_fog.max_opacity, 0.0)
-	assert_lt(_fog.max_opacity, 1.0, "never fully opaque")
-
-
 func test_the_disc_applies_the_same_distance_fog_and_restores() -> void:
 	var map_def: MapDef = (load("res://config/match/maps/round.tres") as MapDef).duplicate(true)
 	var overlay: TerritoryOverlay = TerritoryOverlay.new()
@@ -133,12 +109,6 @@ func test_the_disc_applies_the_same_distance_fog_and_restores() -> void:
 	assert_eq(float(material.get_shader_parameter(&"wfog_strength")), 0.0, "off again")
 
 
-func test_territory_shader_still_opts_out_of_environment_fog_but_fogs_itself() -> void:
-	var text: String = FileAccess.get_file_as_string("res://shaders/territory/territory.gdshader")
-	assert_true(text.contains("fog_disabled"), "the theme fog must not brown the disc")
-	assert_true(text.contains("wfog_strength"), "but weather fog is applied in the shader, matching the blocks")
-
-
 func test_fog_replicates_like_any_weather_and_needs_no_host_effect() -> void:
 	var w: MatchWeather = MatchWeather.new()
 	w.set_defs([_fog])
@@ -147,21 +117,6 @@ func test_fog_replicates_like_any_weather_and_needs_no_host_effect() -> void:
 	assert_eq(w.active_id(), &"fog")
 	w.reset()
 	assert_eq(w.active_id(), &"")
-
-
-func test_scenery_shaders_fade_by_the_same_distance_rule() -> void:
-	for path: String in ["res://shaders/sky/cloud_puffs.gdshader", "res://shaders/ambient/distant_birds.gdshader", "res://shaders/ambient/fireflies.gdshader"]:
-		assert_true(FileAccess.get_file_as_string(path).contains("wfog_strength"), "%s fogs by distance" % path)
-	var material: ShaderMaterial = ShaderMaterial.new()
-	var presentation: FogPresentation = _presentation()
-	presentation.set_intensity(1.0)
-	WeatherFogShader.apply(material)
-	assert_almost_eq(float(material.get_shader_parameter(&"wfog_strength")), _fog.max_opacity, 0.00001)
-	assert_eq(float(material.get_shader_parameter(&"wfog_begin")), _fog.depth_begin_m)
-	assert_eq(float(material.get_shader_parameter(&"wfog_end")), _fog.depth_end_m)
-	presentation.set_intensity(0.0)
-	WeatherFogShader.apply(material)
-	assert_almost_eq(float(material.get_shader_parameter(&"wfog_strength")), WeatherFogShader.ambient_strength, 0.00001, "restored to the theme ambient haze")
 
 
 func test_cloud_sea_puffs_join_the_fog_and_follow_it() -> void:

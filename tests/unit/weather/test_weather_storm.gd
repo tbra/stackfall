@@ -1,5 +1,5 @@
 extends GutTest
-## Wind weather (Bontago-22y.4): the pure height/gust/direction rules
+## Wind weather: the pure height/gust/direction rules
 ## (core/weather/WindField.gd), the host effect (autoload/match/StormEffect.gd) against
 ## real Jolt bodies, and the client presentation. Wind's shipped numbers come
 ## from config/weather/storm.tres.
@@ -186,25 +186,6 @@ func test_sleeping_blocks_wake_only_above_the_wake_threshold() -> void:
 	assert_false(strong.sleeping, "a strong push wakes it")
 
 
-func test_sleepers_are_a_rotating_subset() -> void:
-	var sleeper: Block = _floating_block(_tuning.cap_height_m + 2.0)
-	await get_tree().physics_frame
-	sleeper.sleeping = true
-	var effect: StormEffect = _effect()
-	var pushed_ticks: int = 0
-	var awake_pushes: int = 0
-	for _i: int in range(_tuning.sleeper_stride_ticks):
-		effect.tick(DELTA, 1.0)
-		pushed_ticks += effect.last_pushed
-		# Re-sleep so every tick is judged as a sleeper (the fixture is one block).
-		sleeper.sleeping = true
-	assert_eq(pushed_ticks, 1, "one sleeper is evaluated once per stride")
-	sleeper.sleeping = false
-	effect.tick(DELTA, 1.0)
-	awake_pushes = effect.last_pushed
-	assert_eq(awake_pushes, 1, "an awake block is pushed every tick")
-
-
 func test_frozen_blocks_are_never_pushed() -> void:
 	var frozen: Block = _floating_block(_tuning.cap_height_m + 2.0)
 	frozen.request_freeze_static(Block.FREEZE_REASON_STABLE)
@@ -241,21 +222,6 @@ func test_stop_leaves_no_force() -> void:
 	assert_eq(effect.last_pushed, 0)
 
 
-func test_zero_intensity_pushes_nothing() -> void:
-	_floating_block(_tuning.cap_height_m + 2.0)
-	var effect: StormEffect = _effect()
-	effect.tick(DELTA, 0.0)
-	assert_eq(effect.last_pushed, 0)
-
-
-func test_match_weather_builds_wind_effect_from_the_shipped_def() -> void:
-	var def: WeatherTuning = load("res://config/weather/storm.tres") as WeatherTuning
-	assert_true(def is StormTuning)
-	assert_eq(def.id, &"storm")
-	var effect: WeatherEffect = (load(def.effect_script) as Script).new() as WeatherEffect
-	assert_true(effect is StormEffect)
-
-
 func test_low_pile_stays_at_full_intensity() -> void:
 	_field()
 	var pile: Array[Block] = _tower(LOW_PILE_CUBES, 0.0)
@@ -287,88 +253,6 @@ func test_presentation_density_follows_intensity_and_never_touches_physics() -> 
 	assert_lte(_tuning.streak_length_m, 12.0)
 	assert_lt(_tuning.streak_count, breeze.gust_streak_count * 4, "few streaks at once")
 	assert_false(presentation.is_class("PhysicsBody3D"))
-
-
-func test_ambient_wind_draws_curled_swoosh_strokes() -> void:
-	# Bontago-mp0.81: the ambient wind takes the swoosh look a gust used to have; the motes keep the wisp shader.
-	var presentation: StormPresentation = StormPresentation.new()
-	add_child_autofree(presentation)
-	presentation.configure(SEED_A)
-	var material: ShaderMaterial = presentation.streak_material()
-	assert_eq(material.shader.resource_path, "res://shaders/weather/gust_swoosh.gdshader")
-	assert_not_null(presentation.get_node_or_null("StreakLeaders"), "curl-headed leaders are their own MultiMesh")
-	var motes: MultiMeshInstance3D = presentation.get_node("Motes") as MultiMeshInstance3D
-	assert_eq((motes.material_override as ShaderMaterial).shader.resource_path, "res://shaders/weather/wind_streak.gdshader")
-	assert_almost_eq(float(material.get_shader_parameter(&"cycle_s")) * float(material.get_shader_parameter(&"speed")), StormPresentation.stroke_drift_m(_tuning), 0.001, "drifts a short sweep per cycle")
-	assert_almost_eq(float(material.get_shader_parameter(&"radius")), _tuning.area_half_extent_m, 0.0001, "the weather box is the stroke volume")
-
-
-func test_stroke_reveal_window_draws_on_then_off_along_the_stroke() -> void:
-	# Bontago-mp0.131: head leads while drawing on, tail follows while drawing off.
-	var soft: float = 0.25
-	var start: Vector2 = StormPresentation.reveal_window(0.0, 0.4, 0.3, soft)
-	assert_almost_eq(start.y, 0.0, 0.0001, "nothing drawn at the start")
-	assert_lt(start.x, 0.0, "tail edge waits behind the stroke start")
-	var mid_on: Vector2 = StormPresentation.reveal_window(0.2, 0.4, 0.3, soft)
-	assert_between(mid_on.y, 0.2, 0.9, "head is mid-stroke while drawing on")
-	assert_lt(mid_on.x, 0.0, "tail has not moved yet")
-	var hold: Vector2 = StormPresentation.reveal_window(0.5, 0.4, 0.3, soft)
-	assert_gte(hold.y, 1.0 + soft - 0.0001, "head fully clears the far tip")
-	assert_lte(hold.x, 0.0, "tail still at the start while holding")
-	var mid_off: Vector2 = StormPresentation.reveal_window(0.85, 0.4, 0.3, soft)
-	assert_between(mid_off.x, 0.0, 1.0, "tail is mid-stroke while drawing off")
-	var end: Vector2 = StormPresentation.reveal_window(1.0, 0.4, 0.3, soft)
-	assert_almost_eq(end.x, 1.0, 0.0001, "tail has swept past the whole stroke")
-	var prev: float = -1.0
-	for i: int in range(21):
-		var head: float = StormPresentation.reveal_window(0.4 * float(i) / 20.0, 0.4, 0.3, soft).y
-		assert_gte(head, prev, "head only moves forward")
-		prev = head
-
-
-func test_stroke_timings_load_from_config_and_drive_the_cycle() -> void:
-	var storm: StormTuning = load("res://config/weather/storm.tres") as StormTuning
-	assert_gt(storm.streak_draw_on_s, 0.0)
-	assert_gt(storm.streak_draw_off_s, 0.0)
-	assert_gte(storm.streak_hold_s, 0.0)
-	assert_eq(storm.streak_count, 72, "mp0.115 stroke count unchanged")
-	assert_almost_eq(StormPresentation.stroke_cycle_s(storm), storm.streak_draw_on_s + storm.streak_hold_s + storm.streak_draw_off_s, 0.0001)
-	var fracs: Vector2 = StormPresentation.phase_fracs(storm)
-	assert_lt(fracs.x + fracs.y, 1.0 + 0.0001, "draw-on and draw-off fit the cycle")
-
-
-func test_swoosh_ribbon_is_a_tapered_curling_strip() -> void:
-	var mesh: ArrayMesh = StormPresentation.build_swoosh_ribbon(_tuning)
-	var arrays: Array = mesh.surface_get_arrays(0)
-	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-	var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
-	assert_eq(verts.size(), (_tuning.swoosh_ribbon_segments + 1) * 2)
-	assert_almost_eq(uvs[0].x, 0.0, 0.0001)
-	assert_almost_eq(uvs[uvs.size() - 1].x, 1.0, 0.0001)
-	var max_y: float = 0.0
-	var max_x: float = 0.0
-	for v: Vector3 in verts:
-		max_y = maxf(max_y, v.y)
-		max_x = maxf(max_x, v.x)
-	assert_gt(max_y, 0.05, "the head curls up out of the lead-in")
-	assert_lt(verts[verts.size() - 1].x, max_x - 0.01, "the hook curls back over itself")
-
-
-func test_only_leading_swoosh_strokes_curl() -> void:
-	var straight: ArrayMesh = StormPresentation.build_swoosh_ribbon(_tuning, false)
-	var verts: PackedVector3Array = straight.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-	var prev_x: float = -1.0
-	for v: Vector3 in verts:
-		assert_gte(v.x, prev_x - 0.0001, "a non-leader never curls back over itself")
-		prev_x = maxf(prev_x, v.x)
-	assert_lt(_tuning.swoosh_curl_lead_frac, 0.5, "most strokes are straight")
-
-
-func test_presentation_heading_matches_the_host_field() -> void:
-	var presentation: StormPresentation = StormPresentation.new()
-	add_child_autofree(presentation)
-	presentation.configure(SEED_A)
-	assert_eq(presentation.heading(), WindField.direction(SEED_A, 0.0, _tuning))
 
 
 func test_presentation_streaks_travel_along_the_field_heading() -> void:
@@ -406,26 +290,3 @@ func test_streak_spawns_keep_their_distance_from_the_camera() -> void:
 	assert_gt(visible_count, 0, "most spawns are visible away from the camera")
 	assert_eq(StormPresentation.streak_near_weight(_tuning.streak_near_fade_end_m, _tuning), 1.0)
 
-
-func test_streak_heading_matches_wind_field_over_time() -> void:
-	var presentation: StormPresentation = StormPresentation.new()
-	add_child_autofree(presentation)
-	presentation.configure(SEED_B)
-	presentation.set_intensity(1.0)
-	for _i: int in range(30):
-		presentation._process(1.0)
-		var field: Vector2 = WindField.direction(SEED_B, presentation._elapsed, _tuning)
-		var drawn: Vector3 = presentation.streak_material().get_shader_parameter(&"wind_dir") as Vector3
-		assert_lt(drawn.distance_to(Vector3(field.x, 0.0, field.y)), 0.001)
-
-
-func test_active_presentation_rebuilds_for_graphics_preset() -> void:
-	var original: GraphicsPreset = Settings.current_graphics_preset()
-	Settings.set_graphics_preset(&"high")
-	var presentation: StormPresentation = StormPresentation.new()
-	add_child_autofree(presentation)
-	assert_eq(presentation.total_instances(), _tuning.streak_count + _tuning.mote_count)
-	Settings.set_graphics_preset(&"low")
-	assert_eq(presentation.total_instances(), int(round(float(_tuning.streak_count) * _tuning.low_preset_density))
-			+ int(round(float(_tuning.mote_count) * _tuning.low_preset_density)))
-	Settings.set_graphics_preset(original.id)

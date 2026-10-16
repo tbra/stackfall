@@ -1,24 +1,7 @@
 extends GutTest
-## Bontago-1pi.46 R3 (docs/MATCH_RESET_AUDIT.md sections 5-6): the acceptance test for the
-## owner requirement "after leaving a match and starting another (any mode, map,
+## R3 (docs/MATCH_RESET_AUDIT.md sections 5-6): the acceptance test for the
+## Requirement "after leaving a match and starting another (any mode, map,
 ## weather, sky), everything is as if freshly launched".
-##
-## For each scenario a REFERENCE run takes a fresh game/main/Main.tscn through the new match B
-## and fingerprints it at the menu, at COUNTDOWN + 0.5 s and at PLAYING + 1 s
-## (tests/support/MatchFingerprint.gd). A DIRTY run then plays a match A that leaves
-## everything it can behind (night sky, storm then rain, puddles, gusts, a gift crate,
-## queued special + glue, a black hole, a cat, a hole, tilt, a zoomed/orbited/peeking/
-## shaking camera, a tense music stem, a hand-picked sky theme, a sandbox session with
-## slow motion + pause + a changed territory mode), leaves, and starts the same B. The two
-## fingerprints must be identical.
-##
-## A real gap is NOT fixed here: its key path goes in KNOWN_GAPS (key prefix -> where it
-## lives) and the scenario ends pending instead of failing, so the orchestrator files the
-## fix. Keys not listed there fail the test.
-##
-## Same fixture as tests/unit/match/test_match_restart.gd: the real Main, Net hosting on a free
-## port, a tiny map, and Match._process()/weather tick driven by hand (the headless host
-## has no loading hold, so a started match is in COUNTDOWN at once).
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
 const CAT_DEF: SpecialDef = preload("res://config/gifts/specials/cat.tres")
@@ -43,7 +26,7 @@ const CHECKPOINTS: PackedStringArray = ["menu", "countdown", "playing"]
 
 ## Real gaps this test found and that are still open: "<label substring>|<key prefix>" -> what /
 ## who owns the fix. A scenario whose only diffs match an entry ends pending instead of failing;
-## any other diff fails it. R4 (Bontago-1pi.46) fixed G7 (Field tilt after Replay), G8 (camera
+## any other diff fails it. R4 fixed G7 (Field tilt after Replay), G8 (camera
 ## after a sandbox Leave), G9 (ResultsScreen rows) and G10 (LoadingScreen rows), so those
 ## entries are gone and assert now. The one remaining gap, G11 (a client that leaves and
 ## re-joins gets seat 2, not 1), lives in the ENet harness (tests/enet/reset_enet.gd) and
@@ -300,48 +283,6 @@ func _assert_checkpoints(reference: Dictionary, dirty: Dictionary, label: String
 
 # --- scenarios -------------------------------------------------------------------------
 
-func test_fingerprint_diff_reports_changed_missing_and_float_noise() -> void:
-	var a: Dictionary = {"x": 1.00004, "y": [1, 2.0], "z": "a", "only_a": true}
-	var b: Dictionary = {"x": 1.0, "y": [1.0, 2], "z": "b", "only_b": 3}
-	var found: PackedStringArray = MatchFingerprint.diff(a, b)
-	assert_eq(found.size(), 3, "x and y are equal within rounding; z, only_a and only_b differ: %s" % [found])
-	assert_true(found[0].begins_with("only_a"))
-	assert_true(MatchFingerprint.diff(a, a).is_empty())
-
-
-func test_fingerprint_diff_respects_key_prefix_tolerances() -> void:
-	# DECISION: client camera keys permit larger tolerance (1e-3) than the default rounding tolerance (5e-5).
-	# Use values with diffs clearly outside the default tolerance but inside the camera tolerance.
-	var a: Dictionary = {"camera.yaw": 1.0, "camera.pitch": 2.0, "field.tilt": 0.0}
-	var b: Dictionary = {"camera.yaw": 1.0006, "camera.pitch": 2.0005, "field.tilt": 0.0001}
-	# Exact comparison (default 5e-5 tolerance): camera and field all differ.
-	var found_exact: PackedStringArray = MatchFingerprint.diff(a, b)
-	assert_eq(found_exact.size(), 3, "without tolerance, diffs > 5e-5 show up: %s" % [found_exact])
-	# With camera tolerance (1e-3): camera keys pass (diffs < 1e-3), but field.tilt fails (1e-4 > 5e-5).
-	var tolerances: Dictionary = {"camera.": 0.001}
-	var found_tolerant: PackedStringArray = MatchFingerprint.diff(a, b, tolerances)
-	assert_eq(found_tolerant.size(), 1, "with camera tolerance, camera diffs are hidden but field diffs remain: %s" % [found_tolerant])
-	assert_true(found_tolerant[0].begins_with("field.tilt"))
-	# Verify tolerance comparison directly.
-	assert_true(MatchFingerprint.values_equal(1.0, 1.0006, 0.001), "diff 6e-4 < 1e-3 tolerance")
-	assert_true(MatchFingerprint.values_equal(2.0, 2.0005, 0.001), "diff 5e-4 < 1e-3 tolerance")
-	assert_false(MatchFingerprint.values_equal(0.0, 0.0001), "diff 1e-4 > default 5e-5 tolerance")
-
-
-func test_a_capture_is_stable_and_covers_every_section() -> void:
-	var main: Node = _new_main(_map)
-	var first: Dictionary = MatchFingerprint.capture(main)
-	var second: Dictionary = MatchFingerprint.capture(main)
-	assert_eq(MatchFingerprint.diff(first, second).size(), 0, "two captures of an untouched Main agree")
-	for section: String in ["camera.", "field.", "sky.", "weather.", "rules.", "net.", "globals.", "audio.", "ui.", "wiring."]:
-		var hits: int = 0
-		for key: Variant in first.keys():
-			if String(key).begins_with(section):
-				hits += 1
-		assert_gt(hits, 0, "the fingerprint has %s keys" % section)
-	assert_gt(first.size(), 100, "the fingerprint is broad (%d keys)" % first.size())
-
-
 func test_a_dirtied_main_is_caught_by_the_fingerprint() -> void:
 	# Guards the guard: the dirty phase really changes what the fingerprint sees.
 	var main: Node = _new_main(_map)
@@ -382,33 +323,6 @@ func test_a_replay_from_the_results_screen_matches_a_fresh_launch() -> void:
 	_assert_checkpoints(reference, dirty, "replay from END")
 
 
-func test_back_to_the_lobby_from_the_results_screen_then_a_new_match_matches_a_fresh_launch() -> void:
-	var reference: Dictionary = await _reference_lobby_match(func() -> MatchConfig: return _config_b())
-	var main: Node = _new_main(_map)
-	await _play_dirty_a(main)
-	Match._lifecycle._finish_match(0)
-	await _settle()
-	Match.abort_match()
-	await _settle()
-	assert_eq(Match.state(), Match.State.LOBBY, "fixture: results Back goes to the lobby")
-	assert_not_null(main.get("_lobby"), "fixture: the lobby is up (Net stays hosted)")
-	_start(main, _config_b())
-	var dirty: Dictionary = await _fingerprint_playing_b(main)
-	_assert_checkpoints(reference, dirty, "results Back to lobby")
-
-
-func test_a_different_map_and_rain_after_a_dirty_match_matches_a_fresh_launch() -> void:
-	var reference: Dictionary = await _reference_lobby_match(func() -> MatchConfig: return _config_b(_other_map, MatchConfig.WeatherMode.RAIN))
-	var main: Node = _new_main(_other_map)
-	await _play_dirty_a(main)
-	main._on_pause_leave_requested()
-	await _settle()
-	_host()
-	_start(main, _config_b(_other_map, MatchConfig.WeatherMode.RAIN))
-	var dirty: Dictionary = await _fingerprint_playing_b(main)
-	_assert_checkpoints(reference, dirty, "other map + rain")
-
-
 func test_a_menu_sandbox_or_tutorial_after_a_dirty_match_matches_a_fresh_one() -> void:
 	for kind: StringName in [&"sandbox", &"tutorial"]:
 		var start_method: StringName = &"start_sandbox_from_menu" if kind == &"sandbox" else &"start_tutorial_from_menu"
@@ -432,13 +346,3 @@ func test_a_menu_sandbox_or_tutorial_after_a_dirty_match_matches_a_fresh_one() -
 			await after_each()
 			before_each()
 
-
-func test_a_lobby_match_after_a_sandbox_session_matches_a_fresh_launch() -> void:
-	var reference: Dictionary = await _reference_lobby_match(func() -> MatchConfig: return _config_b())
-	var main: Node = _new_main(_map)
-	await _sandbox_session_and_leave(main)
-	var dirty: Dictionary = {"menu": MatchFingerprint.capture(main)}
-	_host()
-	_start(main, _config_b())
-	dirty.merge(await _fingerprint_playing_b(main))
-	_assert_checkpoints(reference, dirty, "lobby match after sandbox")

@@ -1,12 +1,14 @@
 """Claude hook: reviewer Bash is read-only plus one assigned-issue Beads comment.
 
-Allowed (session debrief 2026-10-01: reviewers kept asking the orchestrator to
-export Beads/git data and to persist their findings for them):
-  - bd -C M:/Bontago comments add Bontago-ID --actor stackfall-reviewer "finding"
-  - bd -C M:/Bontago show|comments|children Bontago-ID [--json] [--brief-deps]
-  - git -C <M:/ path> log|show|diff|status [plain args]
-  - (Bontago-fca.55, owner choice A) powershell -NoProfile -File tools/run_gut.ps1
-    test_a[,test_b...] [-Path M:/<checkout>] [-Unit name]: explicit test_* script names only.
+Allowed (reviewers should not need the orchestrator to export Beads/git data or to
+persist their findings for them). <repo> is the main checkout and <worktrees> the
+worktrees root, both derived by repo_paths.py; paths must be the repo or live under
+one of those two roots and may not contain "..":
+  - bd -C <repo> comments add Bontago-ID --actor stackfall-reviewer "finding"
+  - bd -C <repo> show|comments|children Bontago-ID [--json] [--brief-deps]
+  - git -C <repo or worktrees path> log|show|diff|status [plain args]
+  - powershell -NoProfile -File tools/run_gut.ps1
+    test_a[,test_b...] [-Path <checkout>] [-Unit name]: explicit test_* script names only.
     Max 2 runs per review (RUN_CAP) is a profile rule; the hook also counts per subagent when
     the hook event carries an agent_id (no agent_id = not enforced, to avoid a shared session cap).
 Everything else (edits, other tests, commits, status changes, pipes, redirects,
@@ -19,31 +21,39 @@ import re
 import sys
 import tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import repo_paths  # noqa: E402
+
+# Path prefixes a reviewer may name: the main checkout or anything under the worktrees root.
+REPO = re.escape(repo_paths.repo_dir())
+WORKTREES = re.escape(repo_paths.worktrees_root())
+CHECKOUT = r"(?!\S*\.\.)(?:%s|%s)(?:/[A-Za-z0-9_./-]*)?" % (REPO, WORKTREES)
+
 # Inside double quotes bash only treats $ ` \ " as special, so ; | & < > are
 # literal there and allowed in finding text. One line, no quote/escape chars.
 COMMENT = re.compile(
-    r'^bd -C M:/Bontago comments add Bontago-[A-Za-z0-9.]+ '
+    r'^bd -C ' + REPO + r' comments add Bontago-[A-Za-z0-9.]+ '
     r'--actor stackfall-reviewer "[^"\\\r\n`$]{1,8000}"$'
 )
 BD_READ = re.compile(
-    r'^bd -C M:/Bontago (show|comments|children) Bontago-[A-Za-z0-9.]+'
+    r'^bd -C ' + REPO + r' (show|comments|children) Bontago-[A-Za-z0-9.]+'
     r'( --json| --brief-deps)*$'
 )
 # Plain tokens only: no shell metacharacters, quotes, spaces inside tokens.
 GIT_READ = re.compile(
-    r'^git -C M:/[A-Za-z0-9_./-]+ (log|show|diff|status)'
+    r'^git -C ' + CHECKOUT + r' (log|show|diff|status)'
     r'( [A-Za-z0-9_.:/=@^~%+,-]+)*$'
 )
 # Exact run_gut.ps1 form: explicit script names (no wildcards), optional -Path/-Unit once each.
 GUT_RUN = re.compile(
     r'^powershell -NoProfile -File tools/run_gut\.ps1 '
     r'test_[A-Za-z0-9_]+(,test_[A-Za-z0-9_]+)*'
-    r'( -Path M:/[A-Za-z0-9_./-]+)?( -Unit [A-Za-z0-9_]+)?$'
+    r'( -Path ' + CHECKOUT + r')?( -Unit [A-Za-z0-9_]+)?$'
 )
 GUT_RUN_ALT = re.compile(
     r'^powershell -NoProfile -File tools/run_gut\.ps1 '
     r'test_[A-Za-z0-9_]+(,test_[A-Za-z0-9_]+)*'
-    r'( -Unit [A-Za-z0-9_]+)( -Path M:/[A-Za-z0-9_./-]+)?$'
+    r'( -Unit [A-Za-z0-9_]+)( -Path ' + CHECKOUT + r')?$'
 )
 RUN_CAP = 2
 ALLOWED = (COMMENT, BD_READ, GIT_READ, GUT_RUN, GUT_RUN_ALT)
@@ -103,12 +113,12 @@ def main():
         return 0
     if not allowed(command):
         deny((
-                "Reviewer Bash allows only: bd -C M:/Bontago comments add Bontago-ID "
-                "--actor stackfall-reviewer \"one-line finding\"; bd -C M:/Bontago "
-                "show|comments|children Bontago-ID [--json] [--brief-deps]; git -C M:/<path> "
+                "Reviewer Bash allows only: bd -C <repo> comments add Bontago-ID "
+                "--actor stackfall-reviewer \"one-line finding\"; bd -C <repo> "
+                "show|comments|children Bontago-ID [--json] [--brief-deps]; git -C <checkout> "
                 "log|show|diff|status <plain args>. No pipes, redirects, chaining or quotes "
                 "in git args; powershell -NoProfile -File tools/run_gut.ps1 test_a,test_b "
-                "[-Path M:/<checkout>] [-Unit name] (max 2 runs). Use Read/Glob/Grep for files."
+                "[-Path <checkout>] [-Unit name] (max 2 runs). Use Read/Glob/Grep for files."
             ))
     return 0
 

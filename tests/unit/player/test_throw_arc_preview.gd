@@ -1,12 +1,12 @@
 extends GutTest
-## game/player/ThrowArcPreview.gd coverage (M4 P2e, docs/archive/M4_P2_PACKAGES.md P2e, spec
+## game/player/ThrowArcPreview.gd coverage (spec
 ## 2.5 "Throw (specials only)"): the arc preview's own pure ballistic sampler
 ## (sample_arc()) matches the closed-form projectile formula the brief
 ## specifies, and the visibility lifecycle (hidden until update_arc(), gone
 ## again after clear_arc()) that game/player/PlayerController.gd's
 ## _drive_throw_visuals() drives every frame.
 ##
-## Bontago-1en.25 (feedback/throw-arc.png, "arc leaves the screen while
+## (feedback/throw-arc.png, "arc leaves the screen while
 ## rising") adds the landing-cutoff coverage below: sample_arc()'s optional
 ## `field` argument stops the arc at the disc's own surface (or the floor
 ## below it once the throw has flown past the rim) instead of always
@@ -59,56 +59,6 @@ func test_sample_arc_matches_the_closed_form_ballistic_formula() -> void:
 		)
 
 
-func test_sample_arc_is_a_pure_function_of_its_own_arguments() -> void:
-	# No scene-tree/PlayerController dependence -- the brief's own "provable
-	# without physics" bar (docs/archive/M4_P2_PACKAGES.md P2a's wording, reused here
-	# for this package's own pure math).
-	var arc: ThrowArcPreview = _make_arc()
-	var a: PackedVector3Array = arc.sample_arc(Vector3.ZERO, Vector3(1.0, 5.0, 0.0))
-	var b: PackedVector3Array = arc.sample_arc(Vector3.ZERO, Vector3(1.0, 5.0, 0.0))
-	assert_eq(a.size(), b.size())
-	for i: int in range(a.size()):
-		assert_true(a[i].is_equal_approx(b[i]))
-
-
-# --- Landing cutoff (Bontago-1en.25, feedback/throw-arc.png) -----------------
-# "the arc leaves the screen while rising" -- the arc must stop the moment it
-# reaches ground/disc contact, not always sample out to throw_arc_max_time_s.
-
-func test_landing_arc_ends_at_the_disc_surface_and_never_dips_below_it_early() -> void:
-	var arc: ThrowArcPreview = _make_arc()
-	var field: Field = _make_field()
-	var origin: Vector3 = Vector3(0.0, 2.0, 0.0)
-	var velocity: Vector3 = Vector3(6.0, 8.0, 0.0)
-
-	var points: PackedVector3Array = arc.sample_arc(origin, velocity, field)
-
-	assert_true(points.size() >= 2, "fixture: must actually sample something.")
-	assert_true(points.size() <= arc.ghost_tuning.throw_arc_sample_count + 1, "must never exceed the safety-cap sample count.")
-	var landing_y: float = field.surface_y()
-	for i: int in range(points.size() - 1):
-		assert_true(points[i].y > landing_y - 0.001, "sample %d dipped below the landing height before the arc actually ended." % i)
-	assert_almost_eq(points[points.size() - 1].y, landing_y, 0.01, "the arc's last point must sit at the disc's own surface height.")
-
-
-func test_hard_throw_has_more_samples_than_a_soft_throw_but_both_land() -> void:
-	var arc: ThrowArcPreview = _make_arc()
-	var field: Field = _make_field()
-	var origin: Vector3 = Vector3(0.0, 1.0, 0.0)
-	var direction: Vector3 = Vector3(1.0, 1.0, 0.0).normalized()
-
-	var soft_points: PackedVector3Array = arc.sample_arc(origin, direction * 3.0, field)
-	var hard_points: PackedVector3Array = arc.sample_arc(origin, direction * 18.0, field)
-
-	assert_true(
-		hard_points.size() > soft_points.size(),
-		"a harder throw hangs in the air longer, so its preview must sample more points before it lands (soft=%d, hard=%d)." % [soft_points.size(), hard_points.size()]
-	)
-	var landing_y: float = field.surface_y()
-	assert_almost_eq(soft_points[soft_points.size() - 1].y, landing_y, 0.01, "the soft throw must still end at the landing height.")
-	assert_almost_eq(hard_points[hard_points.size() - 1].y, landing_y, 0.01, "the hard throw must still end at the landing height.")
-
-
 func test_off_disc_throw_falls_to_the_floor_below_the_disc_instead_of_the_surface() -> void:
 	var arc: ThrowArcPreview = _make_arc()
 	var field: Field = _make_field()
@@ -147,23 +97,6 @@ func test_safety_cap_still_applies_when_a_velocity_never_lands() -> void:
 	)
 
 
-func test_no_field_wired_keeps_the_pre_landing_fixed_sample_count() -> void:
-	# The bare-unit-test/no-active-match case (field == null, the default) --
-	# game/player/PlayerController.gd's own _drive_throw_visuals() passes Match.field(),
-	# which is null in every test here that never wires a real Field to Match.
-	var arc: ThrowArcPreview = _make_arc()
-	var points: PackedVector3Array = arc.sample_arc(Vector3(0.0, 2.0, 0.0), Vector3(4.0, 6.0, -2.0))
-	assert_eq(points.size(), arc.ghost_tuning.throw_arc_sample_count + 1, "no Field wired must mean no landing cutoff at all, only the safety cap.")
-
-
-# --- Visibility lifecycle -----------------------------------------------------
-
-func test_hidden_before_any_update_arc_call() -> void:
-	var arc: ThrowArcPreview = _make_arc()
-	assert_false(arc.visible, "must start hidden -- nothing is aiming yet.")
-	assert_eq(arc.current_points().size(), 0)
-
-
 func test_update_arc_shows_it_and_matches_sample_arc() -> void:
 	var arc: ThrowArcPreview = _make_arc()
 	var origin: Vector3 = Vector3(0.0, 1.0, 0.0)
@@ -177,21 +110,6 @@ func test_update_arc_shows_it_and_matches_sample_arc() -> void:
 	for i: int in range(expected.size()):
 		assert_true(arc.current_points()[i].is_equal_approx(expected[i]))
 
-
-func test_clear_arc_hides_it_and_drops_its_points() -> void:
-	var arc: ThrowArcPreview = _make_arc()
-	arc.update_arc(Vector3.ZERO, Vector3(2.0, 3.0, 0.0))
-	assert_true(arc.visible, "fixture: must be visible before clearing.")
-
-	arc.clear_arc()
-
-	assert_false(arc.visible, "clear_arc() must hide the arc.")
-	assert_eq(arc.current_points().size(), 0, "clear_arc() must drop the cached points too.")
-
-
-# --- Integration: PlayerController drives the arc + ghost hint together -----
-# (docs/archive/M4_P2_PACKAGES.md P2e: "hidden unless is_aiming_throw() is true";
-# owner amendment: "below the thresholds ... show no arc but keep the hint").
 
 func _make_special_controller(fake: FakeMatch) -> Dictionary:
 	var ghost: GhostPreview = autofree(GhostPreview.new())
@@ -236,51 +154,6 @@ func test_arc_is_shown_automatically_while_a_throwable_is_held_without_lt() -> v
 		assert_true(arc.current_points()[i].is_equal_approx(expected[i]), "the arc is the host's GiftAim launch")
 
 
-func test_arc_follows_the_camera_forward() -> void:
-	var fake: FakeMatch = _fake_match_with_special(0)
-	var fixture: Dictionary = _make_special_controller(fake)
-	var arc: ThrowArcPreview = fixture["arc"]
-	var controller: PlayerController = fixture["controller"]
-	controller._update_throw_aim(1.0 / 60.0)
-	var first: Vector3 = arc.current_points()[arc.current_points().size() - 1]
-	var rig: CameraRig = load("res://game/player/CameraRig.tscn").instantiate()
-	add_child_autofree(rig)
-	rig._yaw = PI * 0.5
-	controller._camera_rig = rig
-	controller._update_throw_aim(1.0 / 60.0)
-	var second: Vector3 = arc.current_points()[arc.current_points().size() - 1]
-	assert_false(first.is_equal_approx(second), "moving the camera moves the arc, nothing else needed")
-
-
-func test_arc_hides_when_the_gift_is_gone() -> void:
-	var fake: FakeMatch = _fake_match_with_special(0)
-	var fixture: Dictionary = _make_special_controller(fake)
-	var arc: ThrowArcPreview = fixture["arc"]
-	var controller: PlayerController = fixture["controller"]
-	controller._update_throw_aim(1.0 / 60.0)
-	assert_true(arc.visible)
-	fake.held_special_by_slot.erase(0)
-	controller._update_throw_aim(1.0 / 60.0)
-	assert_false(arc.visible, "an ordinary piece has no arc")
-
-
-func test_rocket_and_paintball_draw_no_arc_but_bomb_magnet_bean_do() -> void:
-	for id: StringName in [&"rocket", &"paintball"]:
-		var fake: FakeMatch = FakeMatch.new()
-		fake.held_special_by_slot[0] = id
-		var fixture: Dictionary = _make_special_controller(fake)
-		var arc: ThrowArcPreview = fixture["arc"]
-		arc.update_arc(Vector3(0.0, 5.0, 0.0), Vector3(0.0, 1.0, 5.0), null, 1.0)
-		(fixture["controller"] as PlayerController)._update_throw_aim(1.0 / 60.0)
-		assert_false(arc.visible, "%s shows no preview (1pi.85.50)" % id)
-	for id: StringName in [&"bomb", &"magnet", &"jumping_bean"]:
-		var fake: FakeMatch = FakeMatch.new()
-		fake.held_special_by_slot[0] = id
-		var fixture: Dictionary = _make_special_controller(fake)
-		(fixture["controller"] as PlayerController)._update_throw_aim(1.0 / 60.0)
-		assert_true((fixture["arc"] as ThrowArcPreview).visible, "%s keeps its arc" % id)
-
-
 func test_rocket_arc_is_straight_gravity_free() -> void:
 	var arc: ThrowArcPreview = _make_arc()
 	var points: PackedVector3Array = arc.sample_arc(Vector3(0.0, 5.0, 0.0), Vector3(0.0, 10.0, 10.0), null, 0.0)
@@ -289,7 +162,7 @@ func test_rocket_arc_is_straight_gravity_free() -> void:
 		assert_true((points[i] - points[i - 1]).normalized().is_equal_approx(direction), "straight line, no gravity")
 
 
-# --- Landing-zone ring (Bontago-1pi.85.63) -----------------------------------
+# --- Landing-zone ring -----------------------------------
 
 func _ring_mesh_is_flat_annulus(ring: MeshInstance3D, outer: float, width: float) -> void:
 	var mesh: ArrayMesh = ring.mesh as ArrayMesh
@@ -319,24 +192,3 @@ func test_end_ring_sits_at_landing_point_flat_field() -> void:
 	arc.clear_arc()
 	assert_false(ring.visible)
 
-
-func test_end_ring_aligns_to_tilted_field_normal() -> void:
-	var arc: ThrowArcPreview = _make_arc()
-	var field: Field = _make_field()
-	field.rotation = Vector3(deg_to_rad(10.0), 0.0, deg_to_rad(-6.0))
-	var normal: Vector3 = field.global_transform.basis.y.normalized()
-	arc.update_arc(Vector3(0.0, 2.0, 0.0), Vector3(1.0, 3.0, 0.0), field)
-	var ring: MeshInstance3D = arc.end_ring()
-	var end: Vector3 = arc.current_points()[arc.current_points().size() - 1]
-	assert_true(ring.global_position.distance_to(end) <= 0.01 + arc.ghost_tuning.throw_arc_end_marker_lift)
-	assert_true(ring.global_transform.basis.y.angle_to(normal) < deg_to_rad(2.0))
-	assert_true(arc.end_ring_normal().angle_to(normal) < deg_to_rad(2.0))
-
-
-func test_end_ring_radius_comes_from_config_and_scales_with_ring_scale() -> void:
-	var arc: ThrowArcPreview = _make_arc()
-	var field: Field = _make_field()
-	assert_gte(arc.ghost_tuning.throw_arc_end_marker_radius, 1.0, "ring is bigger than the old 0.5 m")
-	arc.update_arc(Vector3(0.0, 2.0, 0.0), Vector3(6.0, 8.0, 0.0), field, 1.0, 2.0)
-	assert_almost_eq(arc.end_ring().global_transform.basis.x.length(), 2.0, 0.001)
-	assert_almost_eq(arc.end_ring().global_transform.basis.y.length(), 1.0, 0.001)

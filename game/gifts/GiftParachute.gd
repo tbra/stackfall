@@ -1,6 +1,6 @@
 class_name GiftParachute
 extends Node3D
-## The parachute a gift crate wears while it descends (Bontago-mp0.139).
+## The parachute a gift crate wears while it descends.
 ## Cosmetic, client-side visuals only: GiftCrate.set_falling() -- which MatchGifts
 ## calls on the host when a crate spawns/lands and on a client when the
 ## replicated flight/landing events arrive -- starts deploy()/collapse(), and

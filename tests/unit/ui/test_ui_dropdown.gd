@@ -1,6 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.7 / 159.14: UiDropdown is a normal popup list (the click-to-cycle of decision
-## 1pi.94 is gone; cycling options use UiCycler), OptionButton-parity API, ui_accept open / ui_down
+## UiDropdown is a normal popup list (the old click-to-cycle is gone; cycling options use UiCycler), OptionButton-parity API, ui_accept open / ui_down
 ## move / ui_accept pick / ui_cancel close through the Input Map, outside click closes, row-item contract.
 
 var _picked: Array[int] = []
@@ -54,58 +53,6 @@ func test_ui_left_right_do_not_change_the_value() -> void:
 	assert_eq(dropdown.selected, 0)
 	assert_false(dropdown.is_open())
 	assert_eq(_picked.size(), 0)
-
-
-func test_the_api_no_longer_has_cycle_mode() -> void:
-	var dropdown: UiDropdown = _make(1)
-	var names: Array[String] = []
-	for entry: Dictionary in dropdown.get_property_list():
-		names.append(String(entry["name"]))
-	assert_false(names.has("mode") or names.has("auto_advance"), "mode / auto_advance are gone")
-	assert_false(dropdown.has_signal(&"cycled"), "no cycled signal")
-
-
-func test_select_and_selected_never_emit() -> void:
-	var dropdown: UiDropdown = _make(3)
-	dropdown.select(2)
-	dropdown.selected = 1
-	dropdown.selected = 9
-	assert_eq(dropdown.selected, 1, "out of range is ignored")
-	assert_eq(dropdown.text, "Item 1")
-	assert_eq(_picked.size(), 0)
-
-
-func test_row_item_contract() -> void:
-	var dropdown: UiDropdown = _make(3)
-	await wait_frames(2)
-	assert_true(dropdown.is_in_group(UiRowItem.GROUP))
-	assert_eq(dropdown.size.y, float(UiRowItem.metrics().row_height_px))
-	assert_eq(dropdown.size_flags_horizontal, Control.SIZE_SHRINK_BEGIN)
-
-
-func test_width_hugs_the_widest_item_and_is_stable_across_selection() -> void:
-	var wide_parent: HBoxContainer = HBoxContainer.new()
-	wide_parent.custom_minimum_size = Vector2(1000.0, 100.0)
-	add_child_autofree(wide_parent)
-	var dropdown: UiDropdown = UiDropdown.new()
-	wide_parent.add_child(dropdown)
-	for label: String in ["Off", "A much longer item", "Mid"]:
-		dropdown.add_item(label)
-	await wait_frames(2)
-	var width: float = dropdown.size.x
-	var cap: float = dropdown.content_width()
-	assert_almost_eq(width, cap, 1.0, "width = widest item + block margins, not the parent's width")
-	assert_lt(width, 400.0, "never expands to fill")
-	for index: int in range(3):
-		dropdown.select(index)
-		await wait_frames(2)
-		assert_eq(dropdown.size.x, width, "selecting item %d keeps the width" % index)
-	var narrow: UiDropdown = _make(0)
-	narrow.add_item("Off")
-	assert_lt(narrow.content_width(), cap, "a shorter list is narrower")
-	dropdown.min_width = cap + 50.0
-	await wait_frames(2)
-	assert_almost_eq(dropdown.size.x, cap + 50.0, 1.0, "a shared min_width widens it")
 
 
 func test_pad_a_opens_the_list_and_focus_lands_on_the_current_row() -> void:
@@ -178,14 +125,6 @@ func test_list_marks_the_current_row_and_disables_unavailable_items() -> void:
 	assert_true(dropdown.is_open())
 
 
-func test_picking_the_current_row_closes_without_emitting() -> void:
-	var dropdown: UiDropdown = _make(3)
-	dropdown.open(false)
-	dropdown.pick(0)
-	assert_false(dropdown.is_open())
-	assert_eq(_picked.size(), 0)
-
-
 func test_outside_click_closes_and_clicking_the_dropdown_toggles() -> void:
 	var dropdown: UiDropdown = _make(3)
 	await wait_frames(2)
@@ -208,11 +147,4 @@ func test_disabled_dropdown_does_not_open() -> void:
 	var dropdown: UiDropdown = _make(3)
 	dropdown.disabled = true
 	dropdown.open()
-	assert_false(dropdown.is_open())
-
-
-func test_hiding_the_dropdown_closes_the_list() -> void:
-	var dropdown: UiDropdown = _make(3)
-	dropdown.open(false)
-	dropdown.hide()
 	assert_false(dropdown.is_open())

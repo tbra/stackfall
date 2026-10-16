@@ -1,5 +1,5 @@
 extends SceneTree
-## Bontago-1pi.74: writes res://build_info.cfg (gitignored) with the short git
+## writes res://build_info.cfg (gitignored) with the short git
 ## revision so exported builds (no .git) can show it in the main menu.
 ## Run before exporting: godot --headless --path . -s tools/stamp_build_info.gd
 

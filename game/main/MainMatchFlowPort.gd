@@ -1,6 +1,6 @@
 class_name MainMatchFlowPort
 extends MainFlowPort
-## Bontago-1pi.11.84 (MF0): virtuals Main calls for the match world lifecycle. The bodies are
+## MF0: virtuals Main calls for the match world lifecycle. The bodies are
 ## empty; game/main/MainMatchFlow.gd (MF3) overrides them. MatchConfig is already in the autoload
 ## closure, so this port adds nothing heavy to Main's compile closure.
 

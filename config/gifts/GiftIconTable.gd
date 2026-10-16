@@ -1,6 +1,6 @@
 class_name GiftIconTable
 extends Resource
-## Maps gift ids to their UI art (Bontago-mp0.125):
+## Maps gift ids to their UI art:
 ## the compact pictogram atlases (assets/ui/gift_pictograms)
 ## for the lobby toggles/picker, and the rendered model previews
 ## (assets/ui/gift_previews, assets/ui/gift_model_previews) for the HUD gift cards. Loaded as
@@ -29,7 +29,7 @@ static func shared() -> GiftIconTable:
 	return _shared
 
 
-## Bontago-xtq.44: drops the shared instance on exit so its textures are freed with the tree.
+## drops the shared instance on exit so its textures are freed with the tree.
 static func release_shared() -> void:
 	_shared = null
 

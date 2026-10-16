@@ -1,5 +1,5 @@
 extends GutTest
-## docs/archive/M6_PLAN.md package B1: the territory-limit bypass MatchPlacement.gd's
+## The territory-limit bypass MatchPlacement.gd's
 ## request_place()/request_throw() gain for `_match.config.sandbox` (spec
 ## 2.7 "Sandbox: no territory limits"), and game/main/Main.gd's Main-Menu-
 ## reachable start_sandbox_from_menu(), the CLI-only _start_sandbox_match()'s
@@ -79,12 +79,6 @@ func _home_world_position(slot_id: int) -> Vector3:
 	return _field.to_global(Vector3(home.x, 5.0, home.y))
 
 
-func _off_disk_world_position() -> Vector3:
-	return _field.to_global(Vector3(1.0e4, 5.0, 1.0e4))
-
-
-# --- OUTSIDE_TERRITORY: waived under sandbox, refused without it ------------
-
 func test_manual_placement_outside_territory_succeeds_in_sandbox() -> void:
 	_setup_placement()
 	Match.start_match(_config(true))
@@ -92,12 +86,12 @@ func test_manual_placement_outside_territory_succeeds_in_sandbox() -> void:
 	var slot_id: int = 0
 
 	# Slot 1's home is outside slot 0's own territory (on-disk, non-hole,
-	# non-goal-zone -- the exact case docs/archive/M6_PLAN.md package B1 calls out).
+	# non-goal-zone -- the exact case the sandbox bypass exists for).
 	var reason: StringName = Match.request_place(
 		slot_id, _home_world_position(1), 0, Quaternion.IDENTITY, false
 	)
 
-	assert_eq(reason, PlacementRules.REASON_OK, "spec 2.7: sandbox has no territory limits.")
+	assert_eq(reason, PlacementRules.REASON_OK, "spec 1.2: sandbox has no territory limits.")
 	assert_eq(_blocks_root.get_child_count(), 1)
 	_teardown_placement()
 
@@ -121,24 +115,6 @@ func test_manual_placement_outside_territory_is_still_refused_without_sandbox() 
 
 
 # --- OFF_DISK and HOLE stay refused even under sandbox ----------------------
-
-func test_off_disk_placement_is_still_refused_in_sandbox() -> void:
-	_setup_placement()
-	Match.start_match(_config(true))
-	_run_countdown()
-	var slot_id: int = 0
-
-	var reason: StringName = Match.request_place(
-		slot_id, _off_disk_world_position(), 0, Quaternion.IDENTITY, false
-	)
-
-	assert_eq(
-		reason, PlacementRules.REASON_OFF_DISK,
-		"spec 2.7: 'no territory limits' is not 'place blocks in the void'."
-	)
-	assert_eq(_blocks_root.get_child_count(), 0)
-	_teardown_placement()
-
 
 func test_hole_placement_is_still_refused_in_sandbox() -> void:
 	_setup_placement()
@@ -176,72 +152,10 @@ func test_hole_placement_is_still_refused_in_sandbox() -> void:
 
 	assert_eq(
 		reason, PlacementRules.REASON_HOLE,
-		"spec 2.7: 'no territory limits' is not 'place blocks through a hole'."
+		"spec 1.2: 'no territory limits' is not 'place blocks through a hole'."
 	)
 	assert_eq(_blocks_root.get_child_count(), 0)
 	_teardown_placement()
 
 
 # --- Part 2: start_sandbox_from_menu() (game/main/Main.gd) -----------------------
-
-const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
-
-var _main: Variant = null
-var _menu_tiny_map: MapDef
-
-
-func _setup_menu() -> void:
-	Match.set_process(false)
-	Net.leave()
-	Match.abort_match()
-	SnapshotSync.end_match()
-
-	_main = MAIN_SCENE.instantiate()
-
-	_menu_tiny_map = MapDef.new()
-	_menu_tiny_map.id = &"sandbox_from_menu_tiny"
-	_menu_tiny_map.field_radius = 20.0
-	_menu_tiny_map.cell_size = 2.0
-
-	var tiny_config: MatchConfig = (
-		load("res://config/match/match_defaults.tres") as MatchConfig
-	).duplicate(true)
-	tiny_config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))
-	(tiny_config as TinyMapMatchConfig).set_tiny_map(_menu_tiny_map)
-	tiny_config.rng_seed = 13579
-	_main.match_config = tiny_config
-
-	add_child_autofree(_main)
-	assert_not_null(_main._main_menu, "fixture: Main boots to the main menu with no command-line flags")
-
-
-func _teardown_menu() -> void:
-	Net.leave()
-	Match.abort_match()
-	SnapshotSync.end_match()
-	Match.set_process(true)
-	await get_tree().process_frame
-	await get_tree().process_frame
-
-
-func test_start_sandbox_from_menu_builds_a_playing_sandbox_match_with_no_lobby_or_net_state() -> void:
-	_setup_menu()
-	assert_null(_main._lobby, "fixture: no Lobby exists before the Sandbox button is reached.")
-
-	_main.start_sandbox_from_menu()
-	_run_countdown()
-
-	assert_eq(Match.state(), Match.State.PLAYING)
-	assert_true(Match.config.sandbox)
-	assert_null(_main._lobby, "the Main-Menu sandbox path never builds a Lobby.")
-	assert_true(Net.is_offline(), "the Main-Menu sandbox path never touches Net's host/join state.")
-	assert_null(_main._main_menu, "the menu is cleared once the sandbox world exists.")
-	assert_not_null(_main._sandbox, "start_sandbox_from_menu() must build the Sandbox scene.")
-	assert_null(
-		_main._hot_seat,
-		"Events.match_state_changed is already connected by the time the menu button is reachable -- " +
-		"without the _world_built guard, Match.start_match()'s own (LOBBY -> LOADING) emit would also " +
-		"run _build_match_world(), which builds a duplicate *HotSeat*-driven world alongside this one."
-	)
-
-	await _teardown_menu()

@@ -1,7 +1,6 @@
 class_name TeamAssigner
 extends RefCounted
-## Pure team resolution for the lobby rework (Bontago-1pi.53, docs/LOBBY_REWORK_PLAN.md
-## section 3). Every seat carries a team pick: 1..cap = an explicit lobby team
+## Pure team resolution for the lobby. Every seat carries a team pick: 1..cap = an explicit lobby team
 ## number (same number = same team) or MatchConfig.TEAM_PICK_RANDOM. At match
 ## start the host turns the per-slot picks into dense team ids (0..n-1, what
 ## every downstream loop over range(team_count()) needs) plus the lobby number
@@ -11,7 +10,7 @@ extends RefCounted
 ## caller supplies (MatchConfig.rng_seed, or a host randi() when that is -1), so
 ## the same picks and seed always give the same teams and a test can pin them.
 ##
-## DECISION (owner question 2 of the plan, recommendation taken): Random is a
+## DECISION (open question 2 of the plan, recommendation taken): Random is a
 ## BALANCED FILL. K = clampi(max(2, highest explicit number), 2, cap); the Random
 ## seats, in a seeded shuffled order, each join the least-populated team of
 ## 1..K (ties broken by the seed). All-Random therefore gives an even split

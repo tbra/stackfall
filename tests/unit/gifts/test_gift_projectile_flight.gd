@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.85.25 / .27 (docs/GIFT_PLAYTEST2_PLAN.md PA1): Rocket and Paintball fly a dead-straight,
+## Rocket and Paintball fly a dead-straight,
 ## fast line from the release tick (no free-fall arm delay, no gravity), the Rocket's nose follows
 ## its velocity every tick, and the Rocket blast is ~10x. Real bodies with NORMAL gravity: the old
 ## code dropped them during the 0.4 s arm delay and let gravity bend the flight.
@@ -149,7 +149,7 @@ func test_own_block_beside_the_launch_does_not_detonate_it() -> void:
 	assert_lt(own.linear_velocity.length(), OWN_SHOVE_LIMIT_MPS, "own block not shoved")
 
 
-## Bontago-1pi.85.43: a rocket fired straight up is detonated by the host before it leaves the
+## a rocket fired straight up is detonated by the host before it leaves the
 ## volume snapshots quantize into (it used to climb past pos_max_y and render pinned at the clamp).
 func test_rocket_fired_straight_up_detonates_inside_the_replicable_bounds() -> void:
 	var bounds: AABB = RocketEffect.replicable_bounds()

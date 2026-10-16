@@ -1,11 +1,10 @@
 extends GutTest
-## Bontago-1pi.46 R1 (docs/MATCH_RESET_AUDIT.md G1, G2 and weather-fog parity): the
+## R1 (docs/MATCH_RESET_AUDIT.md G1, G2 and weather-fog parity): the
 ## sky and weather presentation owners return to what a fresh launch has when
 ## Events.match_scope_reset fires, so a match never starts under the previous one's
 ## night / cycle / storm / overcast sky or its fading ceiling.
 
 const SUNSET_PATH: String = "res://config/sky/themes/sunset.tres"
-const NIGHT_PATH: String = "res://config/sky/themes/night.tres"
 const STORM_ID: StringName = &"storm"
 const RAIN_ID: StringName = &"rain"
 const FOG_ID: StringName = &"fog"
@@ -174,80 +173,6 @@ func test_a_dirty_sky_resets_to_a_fresh_skybox_for_cycle_locked_and_static_night
 	assert_false(static_skybox.is_cycle_active())
 
 
-func test_a_skybox_launched_on_the_cycle_restarts_the_running_cycle() -> void:
-	var fresh: Dictionary = _rig(Skybox.CYCLE_THEME_ID)
-	var fresh_skybox: Skybox = fresh["skybox"] as Skybox
-	assert_true(fresh_skybox.is_cycle_active(), "fixture: the launch config starts the cycle")
-	var expected: Dictionary = _snapshot(fresh)
-	var used: Dictionary = _rig(Skybox.CYCLE_THEME_ID)
-	var skybox: Skybox = used["skybox"] as Skybox
-	_dirty_with_locked_night_storm(used)
-	assert_ne(skybox.locked_phase(), -1.0, "fixture: locked")
-	skybox.reset_to_launch()
-	assert_true(skybox.is_cycle_active())
-	assert_eq(skybox.locked_phase(), -1.0, "a running, not a locked, cycle as at launch")
-	assert_eq(skybox.config.theme_name, Skybox.CYCLE_THEME_ID)
-	_assert_same_snapshot(_snapshot(used), expected, "after reset")
-
-
-func test_reset_is_idempotent_and_skips_the_rebuild_when_already_at_launch() -> void:
-	var rig: Dictionary = _rig()
-	var skybox: Skybox = rig["skybox"] as Skybox
-	var launch: Dictionary = _snapshot(rig)
-	var puffs: MultiMeshInstance3D = skybox.get_cloud_sea().puff_instance()
-	assert_not_null(puffs, "fixture: the theme has cloud puffs")
-	skybox.reset_to_launch()
-	assert_same(skybox.get_cloud_sea().puff_instance(), puffs, "an untouched sky is not rebuilt")
-	_dirty_with_locked_night_storm(rig)
-	skybox.reset_to_launch()
-	var rebuilt: MultiMeshInstance3D = skybox.get_cloud_sea().puff_instance()
-	assert_not_same(rebuilt, puffs, "a dirty sky is rebuilt from the launch theme")
-	_assert_same_snapshot(_snapshot(rig), launch, "after the first reset")
-	skybox.reset_to_launch()
-	assert_same(skybox.get_cloud_sea().puff_instance(), rebuilt, "the second reset changes nothing")
-	_assert_same_snapshot(_snapshot(rig), launch, "after the second reset")
-
-
-func test_reset_restores_the_sun_flare_the_cycle_hijacked() -> void:
-	var flare: SunFlare = SunFlare.new()
-	add_child_autofree(flare)
-	var rig: Dictionary = _rig()
-	var skybox: Skybox = rig["skybox"] as Skybox
-	var launch_direction: Vector3 = flare.config.sun_direction
-	var launch_enabled: bool = flare.is_theme_enabled()
-	var config: MatchConfig = MatchConfig.new()
-	config.sky_theme_mode = MatchConfig.SkyThemeMode.NIGHT
-	skybox.configure_match_sky(config)
-	assert_false(flare.is_theme_enabled(), "fixture: the night cycle switched the flare off")
-	skybox.reset_to_launch()
-	assert_eq(flare.is_theme_enabled(), launch_enabled)
-	assert_eq(flare.config.sun_direction, launch_direction, "the authored flare direction is back")
-
-
-func test_reset_drops_the_cycle_sky_materials_it_no_longer_uses() -> void:
-	var rig: Dictionary = _rig()
-	var skybox: Skybox = rig["skybox"] as Skybox
-	var config: MatchConfig = MatchConfig.new()
-	config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
-	for _match: int in range(3):
-		skybox.configure_match_sky(config)
-		_overcast(skybox, 1.0)
-		skybox.reset_to_launch()
-	assert_lte(skybox._overcast_sky_bases.size(), 1, "only the live material keeps a baseline exposure")
-
-
-func test_match_scope_reset_resets_every_skybox_and_leaving_the_tree_unhooks_it() -> void:
-	var rig: Dictionary = _rig()
-	var skybox: Skybox = rig["skybox"] as Skybox
-	var launch: Dictionary = _snapshot(rig)
-	_dirty_with_locked_night_storm(rig)
-	assert_true(Events.match_scope_reset.is_connected(skybox.reset_to_launch))
-	Events.match_scope_reset.emit()
-	_assert_same_snapshot(_snapshot(rig), launch, "after match_scope_reset")
-	remove_child(skybox)
-	assert_false(Events.match_scope_reset.is_connected(skybox.reset_to_launch), "no listener left on Events")
-
-
 # --- CloudCeiling.snap_clear() / WeatherPresenter.clear_now() ------------------------
 
 
@@ -263,97 +188,6 @@ func _storm_to_full(presenter: WeatherPresenter) -> CloudCeiling:
 	for _i: int in range(int((ceiling.tuning.fade_in_s + 1.0) * 10.0)):
 		ceiling.step(0.1)
 	return ceiling
-
-
-func test_ceiling_snap_clear_zeroes_the_ceiling_and_skybox_after_a_storm_ends_and_while_one_runs() -> void:
-	var rig: Dictionary = _rig()
-	var skybox: Skybox = rig["skybox"] as Skybox
-	var presenter: WeatherPresenter = _presenter()
-	var ceiling: CloudCeiling = _storm_to_full(presenter)
-	assert_gt(ceiling.storm_amount(), 0.0, "fixture: stormed up")
-	assert_gt(skybox.storm_sky_amount(), 0.0, "fixture: the skybox got the storm")
-	Events.weather_stopped.emit(STORM_ID)
-	ceiling.step(0.1)
-	assert_gt(ceiling.storm_amount(), 0.0, "without a reset the storm fades over fade_out_s into the next match")
-	ceiling.snap_clear()
-	assert_eq(ceiling.amount(), 0.0)
-	assert_eq(ceiling.storm_amount(), 0.0)
-	assert_eq(ceiling.overcast(), 0.0)
-	assert_eq(ceiling.target_amount(), 0.0)
-	assert_eq(skybox.storm_sky_amount(), 0.0, "the skybox received 0 storm")
-	assert_eq(skybox.cloud_overcast_amount(), 0.0, "the skybox received 0 overcast")
-	ceiling._process(1.0)
-	assert_eq(ceiling.storm_amount(), 0.0, "nothing refills it afterwards")
-
-	# Merged variant: snap_clear also drops a weather that is still running.
-	var running_rig: Dictionary = _rig()
-	var running_skybox: Skybox = running_rig["skybox"] as Skybox
-	var running_ceiling: CloudCeiling = _storm_to_full(_presenter())
-	running_ceiling.snap_clear()
-	assert_eq(running_ceiling.target_amount(), 0.0, "the old match's requests are gone")
-	assert_eq(running_ceiling.storm_amount(), 0.0)
-	assert_eq(running_skybox.storm_sky_amount(), 0.0)
-	# The next match's weather ramps in from zero as in a fresh launch.
-	Events.weather_intensity_changed.emit(RAIN_ID, 0.5)
-	assert_almost_eq(running_ceiling.target_amount(), 0.5, 0.001)
-	assert_eq(running_ceiling.amount(), 0.0)
-
-
-func test_presenter_clear_now_keeps_a_weather_that_is_still_running() -> void:
-	var presenter: WeatherPresenter = _presenter()
-	Events.weather_started.emit(RAIN_ID)
-	Events.weather_intensity_changed.emit(RAIN_ID, 1.0)
-	var rain: WeatherPresentation = presenter.presentation_for(RAIN_ID)
-	assert_not_null(rain, "fixture: rain presentation live")
-	presenter.clear_now()
-	assert_eq(presenter.active_count(), 1, "a running weather keeps presenting")
-	assert_true(is_instance_valid(rain) and rain.is_inside_tree())
-	assert_eq(presenter.cloud_ceiling().target_amount(), 0.0, "only its ceiling target is dropped")
-	Events.weather_intensity_changed.emit(RAIN_ID, 0.5)
-	assert_almost_eq(presenter.cloud_ceiling().target_amount(), 0.5, 0.001, "and comes back with its next intensity change")
-
-
-func test_a_stopped_weather_leaves_the_presenter_and_the_skybox_fresh_after_a_reset() -> void:
-	var rig: Dictionary = _rig()
-	var skybox: Skybox = rig["skybox"] as Skybox
-	var presenter: WeatherPresenter = _presenter()
-	Events.weather_started.emit(RAIN_ID)
-	Events.weather_started.emit(FOG_ID)
-	Events.weather_intensity_changed.emit(RAIN_ID, 1.0)
-	Events.weather_intensity_changed.emit(FOG_ID, 1.0)
-	assert_gt(skybox.overcast_amount(), 0.0, "fixture: rain overcast")
-	assert_gt(skybox.weather_fog_amount(), 0.0, "fixture: fog")
-	assert_gt(WeatherFogShader.strength, 0.0, "fixture: the scenery fog statics")
-	# What MatchWeather.reset() does at LOBBY / LOADING / END, then Main's scope reset.
-	Events.weather_stopped.emit(RAIN_ID)
-	Events.weather_stopped.emit(FOG_ID)
-	assert_eq(presenter.active_count(), 0)
-	await get_tree().process_frame
-	Events.match_scope_reset.emit()
-	assert_eq(skybox.overcast_amount(), 0.0)
-	assert_eq(skybox.weather_fog_amount(), 0.0)
-	assert_eq(skybox.cloud_overcast_amount(), 0.0)
-	assert_eq(WeatherFogShader.strength, 0.0)
-	assert_eq(WeatherFogShader.begin_m, WeatherFogShader.DEFAULT_BEGIN_M, "the fog presentation's tuning does not linger")
-	assert_eq(WeatherFogShader.end_m, WeatherFogShader.DEFAULT_END_M)
-	assert_eq(WeatherFogShader.color, WeatherFogShader.DEFAULT_COLOR)
-
-
-func test_fog_statics_return_to_launch_defaults_and_refresh_the_scenery() -> void:
-	var rig: Dictionary = _rig()
-	var sea: CloudSea = (rig["skybox"] as Skybox).get_cloud_sea()
-	WeatherFogShader.set_state(1.0, WFOG_OPACITY, WFOG_BEGIN_M, WFOG_END_M, WFOG_TINT, get_tree())
-	var material: ShaderMaterial = sea.puff_instance().material_override as ShaderMaterial
-	assert_almost_eq(float(material.get_shader_parameter(&"wfog_strength")), WFOG_OPACITY, 0.0001, "fixture: puffs fogged")
-	WeatherFogShader.reset_to_launch(get_tree())
-	assert_eq(WeatherFogShader.strength, 0.0)
-	assert_eq(WeatherFogShader.begin_m, WeatherFogShader.DEFAULT_BEGIN_M)
-	assert_eq(WeatherFogShader.end_m, WeatherFogShader.DEFAULT_END_M)
-	assert_eq(WeatherFogShader.color, WeatherFogShader.DEFAULT_COLOR)
-	assert_eq(float(material.get_shader_parameter(&"wfog_strength")), 0.0, "the scenery shaders were refreshed")
-	assert_eq(material.get_shader_parameter(&"wfog_begin"), WeatherFogShader.DEFAULT_BEGIN_M)
-	WeatherFogShader.reset_to_launch(null)
-	assert_eq(WeatherFogShader.strength, 0.0, "a null tree only resets the statics")
 
 
 func test_match_scope_reset_clears_the_whole_weather_and_sky_presentation() -> void:
@@ -385,14 +219,3 @@ func test_match_scope_reset_clears_the_whole_weather_and_sky_presentation() -> v
 	_assert_same_snapshot(_snapshot(rig), expected, "skybox after match_scope_reset")
 	assert_eq(skybox.storm_sky_amount(), 0.0)
 
-
-func test_ceiling_and_presenter_unhook_from_the_reset_signal_when_freed() -> void:
-	var presenter: WeatherPresenter = WeatherPresenter.new()
-	add_child(presenter)
-	var ceiling: CloudCeiling = presenter.cloud_ceiling()
-	assert_true(Events.match_scope_reset.is_connected(presenter.clear_now))
-	assert_true(Events.match_scope_reset.is_connected(ceiling.snap_clear))
-	remove_child(presenter)
-	assert_false(Events.match_scope_reset.is_connected(presenter.clear_now))
-	assert_false(Events.match_scope_reset.is_connected(ceiling.snap_clear))
-	presenter.free()

@@ -1,5 +1,5 @@
 shader_type spatial;
-// Bontago-xtq.40 (owner playtest, "ghost block renders without any lines"):
+// "ghost block renders without any lines":
 // game/player/GhostPreview.gd's held-block body used a plain StandardMaterial3D with
 // no cell-grid lines at all -- shaders/blocks/block_cell_grid.gdshader (the real
 // placed-block shader) was never assigned to it, and GhostPreview's own
@@ -15,7 +15,7 @@ shader_type spatial;
 //     game/blocks/BlockFactory.gd's own shader, untouched).
 //   - deliberately has NO `contributing` instance uniform at all (contrast
 //     block_cell_grid.gdshader's own one) -- the settled/sleeping "resting =
-//     contributing to territory influence" glow (Bontago-xtq.27) is reserved
+//     contributing to territory influence" glow is reserved
 //     for real placed blocks; leaving the uniform out entirely, rather than
 //     just never setting it true, means the ghost structurally cannot ever
 //     receive that glow, not just that nothing currently requests it.
@@ -33,17 +33,17 @@ shader_type spatial;
 // (game/player/GhostPreview.gd's own VISUAL_TUNING const), so a real block and its
 // own ghost preview always draw identical grid lines.
 //
-// DECISION (shaders/blocks/ghost_cell_grid.gdshader, Bontago-xtq.40): translucency
+// DECISION (shaders/blocks/ghost_cell_grid.gdshader): translucency
 // comes from writing ALPHA alone, with no explicit `render_mode blend_mix`
 // keyword -- relying on the same Godot behaviour shaders/territory/territory.gdshader's
 // own header already documents for this project ("a shader that never writes
 // ALPHA is opaque by default and always depth-tests and depth-writes
 // normally"; the converse holds too: writing ALPHA switches the material
 // into the blended/transparent draw path). Confirmed visually via
-// a script removed in Bontago-dbn.1 (see git history).
+// a script removed in (see git history).
 //
-// DECISION (shaders/blocks/ghost_cell_grid.gdshader, Bontago-xtq.40): the hatch
-// overlay (HOLE/GOAL_ZONE state, spec 2.5 "hatched pattern when over a
+// DECISION (shaders/blocks/ghost_cell_grid.gdshader): the hatch
+// overlay (HOLE/GOAL_ZONE state, spec 1.4 "hatched pattern when over a
 // hole") is hand-rolled triplanar box-mapping (world position/normal, three
 // axis-projected samples blended by |normal|, normalized to sum 1) rather
 // than StandardMaterial3D.uv1_triplanar, which has no ShaderMaterial
@@ -54,7 +54,7 @@ shader_type spatial;
 // (uv1_triplanar + uv1_scale) did. This blend skips uv1_triplanar_sharpness'
 // own exponent (a plain linear normalize instead) -- close enough for a
 // translucent overlay pattern, not a lit surface material, and avoids a
-// magic-number sharpness constant this package has no owner feedback to tune
+// magic-number sharpness constant this package has no to tune
 // against.
 render_mode cull_back;
 
@@ -66,7 +66,7 @@ uniform vec4 grid_line_color : source_color = vec4(0.12, 0.1, 0.1, 1.0);
 // _apply_validity_material(), which is the only place any of these three
 // change together (use_hatch toggled with hatch_scale, hatch_texture bound
 // once in _ready()).
-// Bontago-adt.2: same bottom-of-cell contact shading and edge catch-light as
+// same bottom-of-cell contact shading and edge catch-light as
 // shaders/blocks/block_cell_grid.gdshader so the ghost matches the real block.
 uniform float cell_ao_strength : hint_range(0.0, 1.0) = 0.3;
 uniform float cell_ao_height : hint_range(0.05, 1.0) = 0.7;
@@ -74,7 +74,7 @@ uniform float bevel_highlight_strength : hint_range(0.0, 1.0) = 0.25;
 uniform float bevel_highlight_width_px = 2.4;
 uniform vec4 bevel_highlight_color : source_color = vec4(1.0, 0.93, 0.8, 1.0);
 
-// Bontago-sen.6: soft fresnel rim glow in the ghost's own tint colour
+// soft fresnel rim glow in the ghost's own tint colour
 // (albedo_color.rgb, so it follows valid/invalid/hole/locked/throw). Strength is
 // driven per frame by game/player/GhostPreview.gd (steady glow, pulsing near the forced
 // drop); rim power comes from GhostTuning.glow_rim_power.

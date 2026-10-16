@@ -141,7 +141,7 @@ func test_accepted_drop_spends_charge_but_locked_or_burned_drop_does_not() -> vo
 
 
 func test_claimed_glue_refreshes_charges_and_is_never_held() -> void:
-	# Bontago-sen.3: Glue is a modifier, so a claim grants 5 charges and the
+	# Glue is a modifier, so a claim grants 5 charges and the
 	# next placed block is an ordinary piece that spends one.
 	assert_true(Match.grant_glue_drops(0, 2))
 	assert_true(Match.debug_queue_special(0, &"glue"))

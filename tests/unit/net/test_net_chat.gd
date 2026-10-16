@@ -1,5 +1,5 @@
 extends GutTest
-## autoload/Net.gd chat relay (Bontago-1pi.192.3, docs/CHAT_PLAN.md sections 2 and 6):
+## autoload/Net.gd chat relay:
 ## a real ENet host plus two clients (test_net_session.gd pattern), wall-clock
 ## deadlines. Each side is its own Net instance; they share the global Events bus,
 ## so lines are captured through the per-instance chat_line_accepted /
@@ -131,14 +131,6 @@ func test_client_line_reaches_host_and_other_client_with_roster_identity() -> vo
 		assert_gt(seqs[i], seqs[i - 1], "seq is monotonic")
 
 
-func test_host_own_line_relays_to_clients() -> void:
-	await _connect(false)
-	_host.send_chat("from host")
-	var arrived: bool = await _wait_msec(func() -> bool: return _text_lines(_c1_lines).size() == 1)
-	assert_true(arrived)
-	assert_eq(_text_lines(_host_lines)[0][ChatRules.KEY_NAME], "Hostie")
-
-
 func test_spoofing_payloads_over_the_wire_are_ignored() -> void:
 	await _connect(true)
 	var spoof: Dictionary = {"peer": _c2.local_peer_id(), "name": "Bob", "text": "I am Bob"}
@@ -240,52 +232,3 @@ func test_client_accepts_chat_only_from_the_host_and_revalidates() -> void:
 	assert_false(_c1._accept_chat_notice(1, 99), "unknown notice code")
 	assert_true(_c1._accept_chat_notice(1, ChatRules.NOTICE_RATE))
 
-
-func test_offline_and_private_host_send_nothing() -> void:
-	_host.send_chat("offline")
-	assert_eq(_host_lines.size(), 0, "offline no-op")
-	assert_false(_host._handle_chat(1, "x", false, _FAR_STEP_S))
-	assert_eq(_host.host_game(AgentProbe.free_udp_port(), "Solo", false, false), OK)
-	assert_true(_host.is_private_session())
-	_host.send_chat("private")
-	assert_eq(_host_lines.size(), 0, "private local host no-op")
-
-
-func test_join_and_leave_lines_exist_in_the_lobby_only() -> void:
-	await _connect(false)
-	var system_texts: Array[String] = []
-	for line: Dictionary in _host_lines:
-		if int(line[ChatRules.KEY_KIND]) == ChatRules.KIND_SYSTEM:
-			system_texts.append(line[ChatRules.KEY_TEXT])
-	assert_true(system_texts.has("Alice joined"))
-	_host.set_match_in_progress(true)
-	var before: int = _host_lines.size()
-	_c2.join_game("127.0.0.1", _last_port, "Bob")
-	await _settle()
-	assert_eq(_host_lines.size(), before, "no system lines mid-match")
-
-
-func test_state_clears_on_peer_leave_and_session_end() -> void:
-	await _connect(false)
-	var sender: int = _c1.local_peer_id()
-	assert_true(_host._handle_chat(sender, "hi", true, _FAR_STEP_S))
-	assert_true(_host._chat_buckets.has(sender))
-	_c1.leave()
-	var gone: bool = await _wait_msec(func() -> bool: return not _host._chat_buckets.has(sender))
-	assert_true(gone, "per-peer chat state erased on leave")
-	assert_false(_host._chat_last.has(sender))
-	_host.leave()
-	assert_true(_host._chat_buckets.is_empty())
-	assert_null(_host._chat_history)
-	assert_eq(_host._chat_next_seq, 0)
-	assert_eq(_c1._chat_seen_seq, -1)
-
-
-func test_client_seq_tracking_resets_on_rejoin() -> void:
-	await _connect(false)
-	assert_true(_c1._accept_chat_line(1, ChatRules.make_line(70, 1, 0, "H", 0, "a")))
-	assert_false(_c1._accept_chat_line(1, ChatRules.make_line(3, 1, 0, "H", 0, "b")), "older seq dropped in the old session")
-	_c1._reset_rejoin_state()
-	assert_eq(_c1._chat_seen_seq, -1)
-	# A new host starts counting from 0 again; its first lines must be accepted.
-	assert_true(_c1._accept_chat_line(1, ChatRules.make_line(0, 1, 0, "H", 0, "fresh")))

@@ -1,4 +1,4 @@
-"""Tests for tools/lint_ui_components.py (Bontago-1pi.159.6). Run: python -I tools/test_lint_ui_components.py"""
+"""Tests for tools/lint_ui_components.py. Run: python -I tools/test_lint_ui_components.py"""
 import contextlib
 import io
 import json

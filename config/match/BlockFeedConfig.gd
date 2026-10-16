@@ -1,8 +1,8 @@
 class_name BlockFeedConfig
 extends Resource
-## Which shapes the feed hands out and how often (spec 2.4).
+## Which shapes the feed hands out and how often (spec 1.4).
 ##
-## Spec 2.4: "Weights are set per shape in BlockFeedConfig. Use a 'bag'
+## Spec 1.4: "Weights are set per shape in BlockFeedConfig. Use a 'bag'
 ## randomizer so no player goes long without getting a stabilizing shape."
 ## BlockShape already carries a `weight`; this resource lets the lobby
 ## override it per match without editing the shape resources, and names the
@@ -16,7 +16,7 @@ extends Resource
 ## shorter than `shapes`, the remaining shapes fall back to shape.weight.
 @export var weight_overrides: PackedFloat32Array = PackedFloat32Array()
 
-## Shapes that count as "stabilizing" (spec 2.4). Every bag is guaranteed to
+## Shapes that count as "stabilizing" (spec 1.4). Every bag is guaranteed to
 ## contain at least min_stabilizers_per_bag of them.
 @export var stabilizer_ids: Array[StringName] = [&"square4", &"slab6", &"cube"]
 @export var min_stabilizers_per_bag: int = 2

@@ -1,13 +1,13 @@
 class_name GhostPreview
 extends Node3D
-## The non-physics held block (spec 2.5): floats at a height PlayerController
+## The non-physics held block (spec 1.4): floats at a height PlayerController
 ## reports (the disk surface plus hover_height plus the wheel's manual
-## offset, Bontago-mv0.17 item 5 — never whatever is directly underneath the
+## offset item 5 — never whatever is directly underneath the
 ## cursor), with a projected footprint (one convex polygon for the *whole*
-## rotated held shape's silhouette, item 6, Bontago-xtq.7) showing exactly
+## rotated held shape's silhouette, item 6) showing exactly
 ## what it would land on.
 ##
-## Bontago-mv0.25 (docs/rotation-issue.png, owner test 2026-09-22): the old
+## user test: the old
 ## drop-shadow quad under the ghost is gone -- the footprint is now the only
 ## ground marker (see config/blocks/tuning/GhostTuning.gd's DECISION). The footprint quad
 ## used to always be an axis-aligned unit square whose *position* tracked the
@@ -15,14 +15,14 @@ extends Node3D
 ## built from the rotated shape's own corners projected to the XZ plane
 ## (Geometry2D.convex_hull), rebuilt every frame alongside its position.
 ##
-## Bontago-xtq.7 (docs/solid-blocks2-issue.png, owner test 2026-09-23, "the
+## user test "the
 ## ghost blocks are still clearly made up of smaller blocks ... I can see the
 ## internal dividers inside the ghost blocks and the preview is also clearly
 ## the smaller blocks footprints ... in the original the ghost block projects
-## its whole shape downwards to the disc"): two independent fixes.
+## its whole shape downwards to the disc": two independent fixes.
 ## (1) The "dividers" were never geometry -- BlockMeshBuilder already emits
 ## one seamless shell per shape with interior faces removed (game/
-## BlockFactory.gd, Bontago-xtq.3/xtq.5) -- they were this material's own
+## BlockFactory.gd/) -- they were this material's own
 ## CULL_DISABLED: with alpha blending (no depth write) and both faces drawn,
 ## every triangle on the *far* side of the shape bled through the near side
 ## in emission order (not camera depth order), so the far shell's own face
@@ -32,7 +32,7 @@ extends Node3D
 ## has nothing to bleed through, and no other project code ever relied on
 ## seeing the ghost's inside (the winding-order bug CULL_DISABLED used to
 ## paper over, BlockMeshBuilder's own header, was fixed independently at
-## Bontago-xtq.5).
+## ).
 ## (2) The footprint was one polygon *per bottom cell*, so a shape whose cells
 ## span different heights underneath it (e.g. a tilted bar with its middle
 ## cell over a placed tower and its ends over the bare disc) showed a broken-
@@ -44,14 +44,14 @@ extends Node3D
 ## flat on the disc surface exactly as before (landing_y from a disk-only
 ## raycast that skips placed blocks, matching PlayerController's own surface
 ## probe -- never a tower's top), and adds a second, separate mesh
-## (_projection_mesh): the same hull extruded as vertical walls from the
+## _projection_mesh: the same hull extruded as vertical walls from the
 ## ghost's own current lowest point down to that same disc height, so the
 ## whole rotated silhouette reads as one solid prism the way the original
 ## does, regardless of what is directly underneath any one part of it.
 ##
-## Bontago-xtq.9 (owner test 2026-09-23, "the ghost block should be a bit more
+## owner test "the ghost block should be a bit more
 ## opaque. the preview starts from the bottom of the ghost block which looks
-## a bit weird when it's angled."): two independent fixes on top of xtq.7's.
+## a bit weird when it's angled.": two independent fixes on top of 's.
 ## (1) Every valid/state tint's own alpha (tint_color, invalid_tint_color,
 ## hole_tint_color, locked_tint_color) raised from ~0.55-0.65 to 0.75 --
 ## config/blocks/tuning/GhostTuning.gd's own DECISIONs, not this file.
@@ -68,7 +68,7 @@ extends Node3D
 ## fully inside the column exactly like the original's own silhouette
 ## (reference screenshots of the original game), not
 ## just its lower half.
-## DECISION (game/player/GhostPreview.gd, Bontago-xtq.9): _rotated_top_offset() uses
+## DECISION (game/player/GhostPreview.gd): _rotated_top_offset() uses
 ## the *visual* mesh's own full cube_size (matching BlockMeshBuilder.
 ## build_mesh()'s own `half: float = cube_size * 0.5`, core/blocks/
 ## BlockMeshBuilder.gd), not _rotated_bottom_offset()'s cube_margin-shrunk
@@ -77,7 +77,7 @@ extends Node3D
 ## exactly rather than the (deliberately smaller, so blocks don't jam)
 ## physics box _rotated_bottom_offset() measures for placement.
 ##
-## Bontago-xtq.10 (owner test 2026-09-23, "the projection colour is right but
+## (owner test "the projection colour is right but
 ## any surface that falls within the projection should be a lot brighter
 ## (maybe emissive?), and the footprint on the disc should be almost white."):
 ## two more independent fixes, both purely visual.
@@ -95,14 +95,14 @@ extends Node3D
 ## instead of the usual alpha-over translucency -- a surface seen through the
 ## column now brightens instead of just being tinted over, matching the
 ## brief's own "a lot brighter (maybe emissive?)" wording. DECISION
-## (game/player/GhostPreview.gd, Bontago-xtq.10): a per-block emission hook on
+## game/player/GhostPreview.gd: a per-block emission hook on
 ## BlockFactory/Block.gd (outside this package's default ownership) was
 ## considered and rejected in favour of this material-only change -- it
 ## reaches the same brightening effect with no gameplay-code touch at all,
 ## confined entirely to this file/config/GhostTuning.gd.
 ##
-## Bontago-xtq.16 (owner playtest 2026-09-23, "the projection column [is]
-## visible above the actual cells (S-piece)"): xtq.9's single whole-hull prism
+## ("the projection column [is]
+## visible above the actual cells (S-piece)"): single whole-hull prism
 ## (capped at the whole shape's own *highest* point, walled by the whole
 ## shape's own *convex* hull) reads wrong for any non-convex shape -- config/
 ## blocks/S4.tres has a cell at (0, 1, 0) with nothing at (0, 0, 0) beneath it,
@@ -119,7 +119,7 @@ extends Node3D
 ## the *lowest* member's own underside, never a higher member's) and builds
 ## one prism wall per surviving column (_append_prism_walls(), appended into
 ## one shared mesh/surface since they all share _projection_material already).
-## DECISION (game/player/GhostPreview.gd, Bontago-xtq.16): a pitched/rolled shape's
+## DECISION (game/player/GhostPreview.gd): a pitched/rolled shape's
 ## cells generically rotate to distinct XZ centres (no merging occurs), so the
 ## same grouping code doubles as "one column per cell" for that case with no
 ## extra branch -- exactly the brief's own "for axis-aligned yaw this is per
@@ -135,16 +135,16 @@ extends Node3D
 ## contract for spawn clearance, unrelated to how the prism's own walls are
 ## now built.
 ##
-## Bontago-xtq.13 (owner playtest 2026-09-23, "ghost block should still be
-## less transparent -> add a slider for it in the F4 menu"): every state
+## "ghost block should still be
+## less transparent -> add a slider for it in the F4 menu": every state
 ## tint's own RGB is unchanged, but _apply_validity_material() now applies
 ## ghost_tuning.ghost_opacity as the material's alpha in every branch instead
 ## of each colour's own baked-in alpha channel, so one F4 slider (config/
 ## GhostTuning.gd) controls every state's opacity together.
 ##
-## Bontago-xtq.15 (owner playtest 2026-09-23, "the same white projection that
+## "the same white projection that
 ## shows up on the disk should show up on the blocks as well, just a bit
-## fainter"): a Decal (_block_projection_decal), sized/positioned over the
+## fainter": a Decal (_block_projection_decal), sized/positioned over the
 ## footprint hull's own world-space bounding box every frame
 ## (_update_block_projection_decal()), projects ghost_tuning.
 ## block_projection_color/_alpha straight down from the ghost's own current
@@ -153,11 +153,11 @@ extends Node3D
 ## footprint quad. See _update_block_projection_decal()'s own DECISION for why
 ## cull_mask is left at its default rather than restricted to placed blocks.
 ##
-## Bontago-xtq.18 attempt 3 (feel8a, feedback/owner-noise-footprint.png, owner
+## attempt 3 (feel8a, user report
 ## "none of the feel issues were fixed" on c50510c): the black/white speckle
 ## under the ghost was never the footprint quad, the hatch texture or the
 ## prism -- it was _block_projection_decal painting the *disc*.
-## a script removed in Bontago-dbn.1 (see git history) evidence: the speckle survives hiding
+## a script removed in (see git history) evidence: the speckle survives hiding
 ## the footprint quad, the prism, the planar mirror, SSR, the sun's shadows and
 ## the ReflectionProbe one at a time (feel8a-before_bisect-*.png), and vanishes
 ## (241 -> 0 near-black pixels) the moment the decal stops reaching the disc
@@ -170,15 +170,14 @@ extends Node3D
 ## footprint quad blended over it. Two fixes, _ready()/_update_block_
 ## projection_decal(): the decal's cull_mask drops TerritoryOverlay.DISC_LAYER_BIT
 ## (the disc already has its own footprint quad; the decal is for placed
-## blocks, xtq.15's own brief), and both fades are clamped above zero
+## blocks, own brief), and both fades are clamped above zero
 ## (ghost_tuning.block_projection_edge_fade) so no surface lying exactly on
 ## either box plane (a block face at the ghost's underside, the ghost's own
 ## lowest edge) can ever hit pow(0, 0) again.
 ##
-## Bontago-xtq.19 attempt 3 (owner screenshots 2026-09-24, screenshot_20260924_
-## 204137.png a tilted 4-long bar, screenshot_20260924_204154.png a T-piece:
+## attempt 3 (user screenshots: a tilted 4-long bar, a T-piece:
 ## "the segmented preview is not fixed" -- both show dark vertical seams/
-## overlapping stepped columns inside the translucent prism): xtq.16's column
+## overlapping stepped columns inside the translucent prism): column
 ## model was the root cause, not a rendering artefact -- it grouped
 ## `_shape.cells` by their own rotated XZ footprint *centre* and convex-hulled
 ## each group independently (_group_cells_by_footprint(), _rotated_cell_
@@ -196,7 +195,7 @@ extends Node3D
 ## actually *sees* instead of the cell grid underneath it.
 ## New model: _shape_silhouette_loops() reads the ghost's own rendered
 ## MeshInstance3D(s) (_shape_visual, the exact BlockMeshBuilder shell
-## BlockFactory already builds -- Bontago-xtq.3/xtq.5, no interior cell faces
+## BlockFactory already builds --/, no interior cell faces
 ## exist in it at all), transforms every triangle's local vertices by the
 ## ghost's current rotation `basis` (matching every other rotated-corner
 ## helper in this file), drops Y, and unions the resulting 2D triangles with
@@ -206,16 +205,16 @@ extends Node3D
 ## current orientation. _update_projection_mesh() then walls exactly those
 ## loops (_append_prism_walls(), now with no `columns`/`self_index` skip-list
 ## at all) from a single shared wall_bottom_y up to a single shared
-## whole-shape top (_rotated_top_offset(), xtq.9's own contract, unchanged) --
+## whole-shape top (_rotated_top_offset(), own contract, unchanged) --
 ## since every triangle of the real shell was unioned together first, there is
 ## no cell-grid seam left to double-blend, by construction, at any rotation.
 ## _group_cells_by_footprint()/_rotated_cell_footprint()/_shared_edge_exists()
 ## are deleted; the whole-prism span is projection_span_y().
-## DECISION (game/player/GhostPreview.gd, Bontago-xtq.19 attempt 3): xtq.16's own S4
+## DECISION (game/player/GhostPreview.gd attempt 3): own S4
 ## fix (never wall a column above the solid cell actually sitting in it, so an
 ## empty notch shows no shaft) is deliberately *not* preserved -- there is now
-## only one prism top for the whole shape, the same single value xtq.9 already
-## used before xtq.16 introduced per-column caps. The owner's own screenshots
+## only one prism top for the whole shape, the same single value already
+## used before introduced per-column caps. The owner's own screenshots
 ## for this attempt show the seam bug on ordinary (non-notched) shapes at
 ## everyday rotations, a strictly worse and more common problem than S4's own
 ## narrow notch case; this file's own header keeps that history rather than
@@ -227,7 +226,7 @@ extends Node3D
 ## edge_twice is kept (still true, now for a structural reason -- one merged
 ## outline has no internal seam to duplicate at all, rather than a dedupe
 ## pass trimming one).
-## DECISION (game/player/GhostPreview.gd, Bontago-xtq.19 attempt 3): the union only
+## DECISION (game/player/GhostPreview.gd attempt 3): the union only
 ## ever needs one candidate polygon growing against the rest of the pool per
 ## added triangle (_accumulate_union()), not a full pairwise fixed point over
 ## every existing loop pair -- every shipped BlockShape's own combined mesh is
@@ -239,8 +238,8 @@ extends Node3D
 ## exercised by neither this attempt's tests nor any real shape, and is called
 ## out here rather than silently assumed correct.
 ##
-## Bontago-xtq.19 attempt 4 (owner: "the prism must never rise above the lower
-## cells of an S/T piece" -- xtq.16's owner-verified rule, which attempt 3 above
+## attempt 4 ("the prism must never rise above the lower
+## cells of an S/T piece" -- owner-verified rule, which attempt 3 above
 ## reverted): the prism is the shaft *under* the shape, from the landing
 ## surface up to the shape's own underside, not a box around it. Attempt 3's
 ## silhouette union is kept (still one outline, no interior walls, no seams),
@@ -255,7 +254,7 @@ extends Node3D
 ## (_append_underside_wall()). Pieces and their heights, relative to the ghost
 ## origin, are cached with the outline on (shape, basis), so a frame that only
 ## moves the ghost just re-emits the cached quads at a new Y. This supersedes
-## attempt 3's two DECISIONs above about dropping xtq.16's per-column cap and
+## attempt 3's two DECISIONs above about dropping per-column cap and
 ## deleting its tests: the cap is back (exactly, per outline piece, rather than
 ## per cell column), and the S4/single-cube/pitched-bar tests are restored
 ## against the built mesh. There is still no top cap polygon (there never was
@@ -267,21 +266,21 @@ extends Node3D
 ## orientations (core/blocks/BlockOrientations.gd) plus a separate free-
 ## rotation quaternion layered on top. Resetting clears the quaternion and
 ## sets the index back to 0, so — unlike the original — rotation can never
-## drift (spec 1.7, 2.5).
+## drift (spec 1.7, 1.4).
 ##
-## M2 (spec 2.2, 2.5, docs/archive/M2_PLAN.md P4) adds the placement-validity tint:
+## The placement-validity tint (spec 1.5, 1.4):
 ## player-colour when Match.preview_placement says VALID, red when it says
 ## OUTSIDE_TERRITORY/CONTESTED/OFF_DISK/EMPTY, and a hatched pattern over a
-## HOLE. It also owns the visual side of a rejected placement (spec 2.2's
+## HOLE. It also owns the visual side of a rejected placement (spec 1.5's
 ## "thrown off the map with a visible reject animation") and the auto-drop
 ## flash — both purely cosmetic; PlayerController decides *when* to play them.
 ##
-## Territory v2 (docs/TERRITORY_V2_PLAN.md package C): a goal flag's no-build
+## A goal flag's no-build
 ## zone (Result.GOAL_ZONE) reads the same as HOLE — hatched, hole_tint_color —
 ## reusing the existing "can't build here" visual language rather than adding
 ## a fourth tint state or a new GhostTuning field.
 ##
-## DECISION (game/player/GhostPreview.gd, Bontago-mv0.17 item 3 -- owner feel report
+## DECISION (game/player/GhostPreview.gd item 3 -- owner feel report
 ## "the ghost/body pivot is the block's middle"): this node's own origin
 ## (0, 0, 0) is BlockShape.bottom_center() of the *unrotated* shape (matching
 ## game/blocks/BlockFactory.gd's cell offsets), but rotation still happens about
@@ -292,9 +291,9 @@ extends Node3D
 ## lowest point, per the spec audit's "simplest correct behaviour" note,
 ## never the original's own "keep the block where it is and let it fall".
 ##
-## Bontago-mv0.28 (owner test 2026-09-22, "when rotating the block the camera
+## owner test "when rotating the block the camera
 ## adjusts; lock the camera to the center of the box without messing up the
-## bottom center"): rotation still swings this node's own fixed local origin
+## bottom center": rotation still swings this node's own fixed local origin
 ## around, which used to be what game/player/CameraRig.gd followed -- so a pitch/
 ## roll visibly dragged the camera's framing sideways even though the block
 ## itself should just spin in place. update_placement() now also re-centres
@@ -310,7 +309,7 @@ const STATE_VALID: StringName = &"valid"
 const STATE_INVALID: StringName = &"invalid"
 const STATE_HOLE: StringName = &"hole"
 const STATE_LOCKED: StringName = &"locked"
-## M4 P2e (docs/archive/M4_P2_PACKAGES.md P2e): shown while game/player/PlayerController.gd
+## Shown while game/player/PlayerController.gd
 ## reports is_aiming_throw() true (show_throw_hint()) -- a distinct state
 ## from the placement-validity ones above since it says nothing about where
 ## the block would land, only that the current gesture is a throw in
@@ -319,31 +318,31 @@ const STATE_THROW: StringName = &"throw"
 
 const HATCH_TEXTURE_SIZE: int = 32
 
-## Bontago-xtq.40 (owner playtest, "ghost block renders without any lines"):
+## "ghost block renders without any lines":
 ## dedicated ghost variant of game/blocks/BlockFactory.gd's own CELL_GRID_SHADER
 ## const/preload pattern -- shaders/blocks/ghost_cell_grid.gdshader, not block_cell_
 ## grid.gdshader itself, because the ghost needs ALPHA (translucency) and a
 ## hatch overlay that shader structurally never supports (see that file's own
 ## header for why the shared block shader must not gain either). Deliberately
 ## has no `contributing` uniform at all, so the settled/sleeping glow
-## (Bontago-xtq.27) can never reach the ghost.
+##  can never reach the ghost.
 const GHOST_CELL_GRID_SHADER: Shader = preload("res://shaders/blocks/ghost_cell_grid.gdshader")
-## Bontago-xtq.40: same BlockVisualTuning resource game/blocks/BlockFactory.gd's own
+## same BlockVisualTuning resource game/blocks/BlockFactory.gd's own
 ## VISUAL_TUNING const reads, so a real block and its own ghost preview always
 ## draw identical grid_line_color/grid_line_width_px.
-# Bontago-1pi.203: a static var, not a const: GDScript folds `CONST.prop` reads of a const Resource
+# a static var, not a const: GDScript folds `CONST.prop` reads of a const Resource
 # at compile time, which left every F4 edit of this tuning dead.
 static var VISUAL_TUNING: BlockVisualTuning = preload("res://config/blocks/tuning/block_visual_tuning.tres")
 
-## Bontago-xtq.18 attempt 3 (this file's own header): the smallest decal fade
+## attempt 3 (this file's own header): the smallest decal fade
 ## exponent _update_block_projection_decal() ever applies. Not a look tunable
-## (ghost_tuning.block_projection_edge_fade is): a structural floor, because a
+## ghost_tuning.block_projection_edge_fade is: a structural floor, because a
 ## fade of exactly 0.0 makes Godot's pow(1 - |uv.y|, fade) evaluate pow(0, 0)
 ## (NaN, drawn black) on any surface lying exactly on the decal box's top or
 ## bottom plane.
 const _MIN_DECAL_FADE: float = 0.0001
 
-## Bontago-xtq.19 attempt 3 (this file's own header): the smallest projected
+## attempt 3 (this file's own header): the smallest projected
 ## (XZ) triangle area, in square meters, _collect_rotated_triangles() still
 ## unions rather than drops as degenerate -- a triangle from the shape's own
 ## rendered shell that is edge-on to straight-down (an unrotated shape's own
@@ -352,9 +351,9 @@ const _MIN_DECAL_FADE: float = 0.0001
 ## near-empty/self-intersecting polygon into Geometry2D.merge_polygons.
 const _MIN_SILHOUETTE_TRIANGLE_AREA: float = 1e-6
 
-## Bontago-xtq.19 attempt 4 (this file's own header): geometric tolerances for
+## attempt 4 (this file's own header): geometric tolerances for
 ## the underside-hugging prism walls, in meters. Structural float tolerances,
-## not look tunables -- DECISION (game/player/GhostPreview.gd, Bontago-xtq.19 attempt
+## not look tunables -- DECISION (game/player/GhostPreview.gd attempt
 ## 4): file consts rather than GhostTuning fields, the same call
 ## _MIN_DECAL_FADE makes; no value in these ranges changes how the prism looks,
 ## only whether rounding (Geometry2D.merge_polygons' own fixed-point output,
@@ -371,7 +370,7 @@ const _SILHOUETTE_PROBE_INSET: float = 1e-3
 ## How close the underside may come to the wall bottom before that stretch of
 ## wall is treated as "the shape sits on the ground here" and not drawn
 ## (_append_underside_wall()).
-## Bontago-1pi.129/132: how far below the disc-level wall bottom the per-piece
+## /132: how far below the disc-level wall bottom the per-piece
 ## floor probe ray reaches, so a hit exactly on the disc still registers.
 const _PIECE_FLOOR_RAY_MARGIN: float = 0.05
 const _FLOOR_RAY_MAX_SKIPS: int = 3
@@ -379,7 +378,7 @@ const _FLOORS_NEVER: int = -1000000
 const _FLOOR_RECAST_FRAMES: int = 12
 const MASK_CACHE_MAX_ENTRIES: int = 64
 const _MASK_KEY_SCALE: float = 1000.0
-## Bontago-1pi.132: resolution of the block-projection decal's footprint mask.
+## resolution of the block-projection decal's footprint mask.
 const FOOTPRINT_MASK_PIXELS_PER_METER: float = 8.0
 const FOOTPRINT_MASK_MAX_PIXELS: int = 96
 const _MIN_POLYGON_POINTS: int = 3
@@ -388,7 +387,7 @@ const _HEIGHTS_PROBE_X: int = 2
 const _HEIGHTS_PROBE_Y: int = 3
 const _UNDERSIDE_CONTACT_EPSILON: float = 1e-4
 
-## Bontago-mv0.35: the group game/player/PlayerController.gd puts its own (local,
+## the group game/player/PlayerController.gd puts its own (local,
 ## player-driven) ghost in, so ui/hud/HUD.gd can show that block's height
 ## (height_above_surface()) without a node path. Remote peers' ghosts
 ## (game/player/RemoteCursors.gd) are never in it.
@@ -408,7 +407,7 @@ var manual_hover_offset: float = 0.0
 
 var _shape: BlockShape = null
 var _shape_visual: Node3D = null
-## Bontago-xtq.7: at most one entry now (the whole rotated shape's own convex
+## at most one entry now (the whole rotated shape's own convex
 ## hull, not one per bottom cell -- see this file's own header). Kept as an
 ## Array (not a single nullable MeshInstance3D) so _set_footprint_quad_count()
 ## and the footprint_quad_count()/footprint_quad_position() test contracts
@@ -422,7 +421,7 @@ var _footprint_polygons: Array[PackedVector2Array] = []
 ## the held shape's own visual) so updating validity/lock state once repaints
 ## all of them.
 var _footprint_material: StandardMaterial3D
-## Bontago-xtq.7: the vertical prism connecting the held shape's own lowest
+## the vertical prism connecting the held shape's own lowest
 ## point down to the footprint on the disc (this file's own header, fix 2) --
 ## a single persistent node (unlike the footprint quads, its mesh is rebuilt
 ## in place every frame rather than pooled/recreated, since there is always
@@ -433,7 +432,7 @@ var _projection_material: StandardMaterial3D
 ## bottom) -- Vector2.ZERO (and no visible mesh) when nothing is held or the
 ## prism collapsed (top <= bottom; see _update_footprint()'s own guard).
 var _projection_span_y: Vector2 = Vector2.ZERO
-## Bontago-xtq.19 attempt 3 (this file's own header): the ghost-local (not
+## attempt 3 (this file's own header): the ghost-local (not
 ## world-translated -- like _rotated_shape_hull()'s own return value) XZ
 ## outline loop(s) _shape_silhouette_loops() built the projection prism's
 ## walls from last time, plus the exact (shape, basis) pair that produced
@@ -450,7 +449,7 @@ var _cached_silhouette_shape: BlockShape = null
 var _cached_silhouette_basis: Basis = Basis.IDENTITY
 var _cached_silhouette_loops: Array[PackedVector2Array] = []
 var _cached_silhouette_valid: bool = false
-## Bontago-xtq.19 attempt 4 (this file's own header): the underside-hugging
+## attempt 4 (this file's own header): the underside-hugging
 ## wall list built alongside _cached_silhouette_loops, same (shape, basis)
 ## cache key. _cached_wall_segments holds consecutive (a, b) ghost-local XZ
 ## pairs -- every outline edge split wherever a projected mesh triangle edge
@@ -461,7 +460,7 @@ var _cached_silhouette_valid: bool = false
 ## never re-walks the mesh.
 var _cached_wall_segments: PackedVector2Array = PackedVector2Array()
 var _cached_wall_heights: PackedVector2Array = PackedVector2Array()
-## Bontago-1pi.129/132: one ghost-local XZ point per cached wall piece, nudged
+## /132: one ghost-local XZ point per cached wall piece, nudged
 ## just inside the silhouette, where _update_projection_mesh() casts its
 ## straight-down probe so each wall stops on whatever (tower top or disc) lies
 ## under that piece instead of running through placed blocks.
@@ -472,7 +471,7 @@ var _floors_position: Vector3 = Vector3.ZERO
 var _floors_basis: Basis = Basis.IDENTITY
 var _floors_bottom: float = 0.0
 var _floors_frame: int = _FLOORS_NEVER
-## Bontago-xtq.7: the last disk-surface point PlayerController's own
+## the last disk-surface point PlayerController's own
 ## placed-block-skipping probe reported (update_placement()'s own
 ## `surface_point` argument), kept so _update_footprint()'s disk-under-the-
 ## hull-centre raycast has a same-frame fallback height (the ghost's own
@@ -489,7 +488,7 @@ var _material: ShaderMaterial
 var _hatch_texture: ImageTexture
 var _player_color: Color = Color.WHITE
 var _last_result: PlacementRules.Result = PlacementRules.Result.VALID
-## Bontago-mv0.10 (spec 2.4/2.5): whether this slot's held piece was released
+## spec 1.4/1.4: whether this slot's held piece was released
 ## early this interval and is now only being aimed/prepared -- see
 ## Match.is_release_locked(). Overrides the validity tint below whenever true,
 ## since the lock is about *when* the piece may drop, not *where* the ghost
@@ -501,9 +500,9 @@ var _locked: bool = false
 ## gesture, not the landing spot show_throw_hint()'s caller never queried.
 var _throw_hint_active: bool = false
 
-## Bontago-xtq.15 (owner playtest 2026-09-23, "the same white projection that
+## "the same white projection that
 ## shows up on the disk should show up on the blocks as well, just a bit
-## fainter"): projects ghost_tuning.block_projection_color downward over the
+## fainter": projects ghost_tuning.block_projection_color downward over the
 ## whole footprint hull, from the ghost's own current underside down to the
 ## disc, so a placed block sitting in that gap reads pale/whitish like the
 ## disc's own footprint marker (a reference screenshot of the original game). top_level
@@ -515,7 +514,7 @@ var _block_projection_decal: Decal
 
 var _flash_tween: Tween
 var _reject_tween: Tween
-## Bontago-mv0.25 (docs/rotation-issue.png): a world-space offset added on top
+## docs/rotation-issue.png: a world-space offset added on top
 ## of update_placement()/sync_remote_position()'s own computed position every
 ## frame, animated by play_reject_animation()'s kick tween. World-space (not
 ## a rotated local offset like the old _shape_visual.position kick) so the
@@ -523,13 +522,13 @@ var _reject_tween: Tween
 var _reject_offset: Vector3 = Vector3.ZERO
 
 
-## Bontago-59o.13: ribbon bands on the generic held crate sit 3% proud of the
+## ribbon bands on the generic held crate sit 3% proud of the
 ## box so they never z-fight with its faces (a draw constant, not a tunable).
 const HELD_GIFT_RIBBON_OVERHANG: float = 1.03
 
 func _ready() -> void:
-	# Bontago-xtq.40 (owner playtest, "ghost block renders without any
-	# lines"): a dedicated ShaderMaterial (shaders/blocks/ghost_cell_grid.gdshader),
+	# "ghost block renders without any
+	# lines": a dedicated ShaderMaterial (shaders/blocks/ghost_cell_grid.gdshader),
 	# not the plain StandardMaterial3D this replaces -- that material had no
 	# way to draw the same thin cell-grid lines real placed blocks show
 	# (game/blocks/BlockFactory.gd's own CELL_GRID_SHADER). CULL_BACK is unchanged
@@ -548,7 +547,7 @@ func _ready() -> void:
 	_footprint_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_footprint_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_footprint_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	# Bontago-xtq.18 (feedback/owner-noise-footprint.png): the footprint quad
+	# the footprint quad
 	# is a near-ground-parallel decal viewed at a shallow grazing angle from
 	# the match camera -- on top of _build_hatch_texture()'s own mipmap fix,
 	# anisotropic filtering keeps the HOLE/GOAL_ZONE hatch's diagonal stripes
@@ -557,7 +556,7 @@ func _ready() -> void:
 	# here at all (_apply_footprint_material()).
 	_footprint_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 
-	# Bontago-xtq.7 (this file's own header, fix (2)): the flat footprint
+	# (this file's own header, fix (2)): the flat footprint
 	# above stays CULL_DISABLED (a flat quad has no "back" a camera can't
 	# already see straight through from below the disk, and it's viewed from
 	# above), but the vertical prism's own walls are a convex hull's outer
@@ -571,7 +570,7 @@ func _ready() -> void:
 	_projection_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_projection_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_projection_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	# Bontago-xtq.10 (owner test 2026-09-23, "any surface that falls within
+	# (owner test "any surface that falls within
 	# the projection should be a lot brighter (maybe emissive?)"): additive
 	# blending sums the prism's own colour onto whatever already rendered
 	# behind it instead of the usual alpha-over mix, so a surface seen
@@ -588,7 +587,7 @@ func _ready() -> void:
 	_projection_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_projection_mesh)
 
-	# Bontago-xtq.15: a plain, fully-opaque white texture -- Decal has no
+	# a plain, fully-opaque white texture -- Decal has no
 	# "flat colour, no texture" mode, so this is the runtime-built equivalent
 	# of _footprint_material's own flat StandardMaterial3D.albedo_color,
 	# tinted/faded through `modulate` instead (see
@@ -599,7 +598,7 @@ func _ready() -> void:
 	_block_projection_decal.texture_albedo = _build_white_decal_texture()
 	_block_projection_decal.upper_fade = _decal_fade()
 	_block_projection_decal.lower_fade = _decal_fade()
-	# Bontago-xtq.18 attempt 3 (this file's own header): never paint the disc.
+	# attempt 3 (this file's own header): never paint the disc.
 	# TerritoryOverlay keeps the disc on DISC_LAYER_BIT alone, so removing that
 	# bit from Decal's own default (all 20 layers) leaves placed blocks
 	# (layer 1) painted and the disc -- whose box-bottom contact produced the
@@ -619,7 +618,7 @@ func set_shape(shape: BlockShape) -> void:
 	if _shape_visual != null:
 		_shape_visual.queue_free()
 		_shape_visual = null
-	# Bontago-xtq.19 attempt 3: a new shape invalidates the cached silhouette
+	# attempt 3: a new shape invalidates the cached silhouette
 	# outline unconditionally -- a stale _shape_visual reference would also
 	# leave _collect_rotated_triangles() reading freed nodes on the very next
 	# _shape_silhouette_loops() call otherwise.
@@ -632,7 +631,7 @@ func set_shape(shape: BlockShape) -> void:
 	_rebuild_gift_visual()
 
 
-## Bontago-59o.13: while the current piece is a gift the ghost shows a gift
+## while the current piece is a gift the ghost shows a gift
 ## presentation (SpecialDef.held_scene, else a generic crate) INSTEAD of the
 ## plain block mesh. The block meshes stay in _shape_visual (hidden) because
 ## the footprint/projection silhouette is built from them; only visibility
@@ -645,13 +644,13 @@ var _gift_visual: Node3D = null
 func set_held_gift(special_id: StringName) -> void:
 	_held_gift_id = special_id
 	if special_id != &"":
-		# Bontago-1pi.85.16: gifts always show and spawn upright.
+		# gifts always show and spawn upright.
 		reset_rotation()
 	_rebuild_gift_visual()
 	_apply_projection_visibility()
 
 
-## Bontago-sen.9 DECISION: a held gift is not a drop-and-stack block, so the
+## DECISION: a held gift is not a drop-and-stack block, so the
 ## placement projection (landing footprint, light-shaft prism, block decal) is
 ## hidden entirely -- no landing marker stays. Only visibility changes; the
 ## footprint/span bookkeeping PlayerController reads is untouched.
@@ -687,7 +686,7 @@ func _rebuild_gift_visual() -> void:
 				mesh_instance.visible = not show_gift
 	if not show_gift:
 		return
-	# Bontago-mp0.119: Codex GLB first, then the older held scene.
+	# Codex GLB first, then the older held scene.
 	_gift_visual = GiftModelTable.shared().build_gift_visual(_held_gift_id)
 	var def: SpecialDef = SpecialDef.find_by_id(_held_gift_id)
 	if _gift_visual == null and def != null and def.held_scene != null:
@@ -703,7 +702,7 @@ func _rebuild_gift_visual() -> void:
 	_setup_held_facing()
 
 
-## Bontago-1pi.85.61: a gift whose table row has a held_nose_axis (Rocket, Magnet) is shown with
+## a gift whose table row has a held_nose_axis (Rocket, Magnet) is shown with
 ## that axis pointing along the aim/launch direction, not standing upright. PlayerController
 ## pushes the real direction via set_held_aim(); with none (remote ghosts) the horizontal
 ## camera forward is used, refreshed every frame. The turn is applied to the gift visual only.
@@ -720,7 +719,7 @@ func set_held_aim(direction: Vector3) -> void:
 
 
 ## World AABB of the held gift model's meshes (zero-size AABB when no gift visual is shown):
-## the arc preview starts at its centre (Bontago-1pi.85.62).
+## the arc preview starts at its centre.
 func gift_visual_world_aabb() -> AABB:
 	var merged: AABB = AABB()
 	if _gift_visual == null or not _gift_visual.is_inside_tree():
@@ -776,7 +775,7 @@ func _refresh_held_facing() -> void:
 	_gift_visual.basis = global_basis.inverse() * facing
 
 
-## Bontago-1pi.85.77 (owner 2026-10-05 gift-wide decision + 2026-10-14 playtest): a held gift is
+## gift-wide decision + playtest: a held gift is
 ## shown exactly as authored, in every ghost state. No tint overlay and no glow-rim overlay is put
 ## on its meshes (the old translucent state wash and the additive white rim read as a white
 ## tint); validity/lock state is still shown by the footprint and the HUD, not by recolouring.
@@ -822,7 +821,7 @@ func get_shape() -> BlockShape:
 
 
 func set_orientation_index(index: int) -> void:
-	# Bontago-1pi.85.16: a held gift is never rotated by its owner.
+	# a held gift is never rotated by its owner.
 	if _held_gift_id != &"":
 		return
 	orientation_index = ((index % BlockOrientations.ORIENTATION_COUNT) + BlockOrientations.ORIENTATION_COUNT) % BlockOrientations.ORIENTATION_COUNT
@@ -835,14 +834,14 @@ func reset_rotation() -> void:
 	_apply_rotation()
 
 
-## Bontago-mv0.22 (spec 2.5 "Rotate block (hold + drag)" [ORIGINAL, owner test
-## 2026-09-22]): PlayerController calls this while rotate_drag (MMB) is held,
+## (spec 1.4 "Rotate block (hold + drag)" [ORIGINAL, owner test
+## ]): PlayerController calls this while rotate_drag (MMB) is held,
 ## driving free_quaternion continuously -- already the exact field
 ## submit_cursor/submit_place send unmodified over the wire, so no new
 ## replication path was needed.
 ##
-## Bontago-mv0.25 (docs/rotation-issue.png, owner test 2026-09-22, "like the
-## RMB orbit but for the block"): full 3-DOF now, not yaw-only -- `yaw` spins
+## user test "like the
+## RMB orbit but for the block": full 3-DOF now, not yaw-only -- `yaw` spins
 ## about world up (matching CameraRig's own orbit yaw), `pitch` spins about
 ## `pitch_axis` (PlayerController passes the camera's current world-space
 ## right axis, so pitching the block always matches "push the mouse forward
@@ -867,13 +866,13 @@ func _apply_rotation() -> void:
 
 
 ## Called every frame by PlayerController with the disk surface point/normal
-## straight under the cursor (Bontago-mv0.17 item 5: a raycast that skips
+## straight under the cursor (item 5: a raycast that skips
 ## over any placed block, so this is always the bare disk, tilt-ready via
 ## `hit_normal` for M4). Positions the ghost so the *rotated* held shape's
 ## lowest point sits at hover height above that surface (item 3's
-## rotated-bounds pivot, Y only -- unchanged by Bontago-mv0.28 below), and so
+## rotated-bounds pivot, Y only -- unchanged by below), and so
 ## the *rotated* shape's own geometric centre column sits over the cursor's
-## XZ (Bontago-mv0.28, owner report "lock the camera to the center of the box
+## XZ ("lock the camera to the center of the box
 ## without messing up the bottom center" -- see rotated_center_offset()'s own
 ## doc comment), then refreshes the footprint projection (item 6).
 func update_placement(surface_point: Vector3, surface_normal: Vector3) -> void:
@@ -888,7 +887,7 @@ func update_placement(surface_point: Vector3, surface_normal: Vector3) -> void:
 	_update_footprint()
 
 
-## Bontago-mv0.35: how high the held shape's own lowest point hovers above
+## how high the held shape's own lowest point hovers above
 ## the disk surface under it (the point update_placement() last received),
 ## in meters -- what the player is actually adjusting with the wheel. The
 ## HUD shows this next to the tower height, which alone never moved while
@@ -901,11 +900,11 @@ func height_above_surface() -> float:
 ## Positions this ghost at an already-fully-resolved world point, with no
 ## further hover/rotation-pivot math applied on top -- used by
 ## game/player/RemoteCursors.gd for a synced remote peer's ghost, whose `origin` is
-## that peer's own already-adjusted GhostPreview.global_position (spec 3.4's
+## that peer's own already-adjusted GhostPreview.global_position (spec 2.6's
 ## update_cursor carries a resolved pose, not a surface to re-derive one
 ## from). Re-running it through update_placement()'s hover/rotated-bottom
 ## math a second time would double-apply the correction for any slot whose
-## held shape isn't null (Bontago-mv0.17 items 3/5); this is the one-line fix
+## held shape isn't null (items 3/5); this is the one-line fix
 ## that keeps game/player/RemoteCursors.gd correct against the changed
 ## update_placement() contract above.
 func sync_remote_position(origin: Vector3) -> void:
@@ -913,7 +912,7 @@ func sync_remote_position(origin: Vector3) -> void:
 	_update_footprint()
 
 
-# --- Rotated-bottom pivot correction (spec 2.5, Bontago-mv0.17 item 3) ------
+# --- Rotated-bottom pivot correction (spec 1.4 item 3) ------
 
 ## How far below this node's own local origin (BlockShape.bottom_center() of
 ## the *unrotated* shape) the current, rotated shape's lowest point sits.
@@ -927,7 +926,7 @@ func _rotated_bottom_offset() -> float:
 	return _shape.rotated_bottom_offset(basis, tuning.cube_size, tuning.cube_margin)
 
 
-## Bontago-xtq.9 (this file's own header, fix (2)): the mirror image of
+## (this file's own header, fix (2)): the mirror image of
 ## _rotated_bottom_offset() above -- how far *above* this node's own local
 ## origin the current, rotated shape's *highest* point sits, so
 ## _update_projection_mesh() can cap the projection prism there instead of at
@@ -935,7 +934,7 @@ func _rotated_bottom_offset() -> float:
 ## pitched/yawed one -- this file's own header). Always >= 0 for the same
 ## reason _rotated_bottom_offset() is always <= 0: the origin itself is
 ## always a point on the shape's own surface.
-## DECISION (game/player/GhostPreview.gd, Bontago-xtq.9): uses the *visual* mesh's
+## DECISION (game/player/GhostPreview.gd): uses the *visual* mesh's
 ## own full cube_size (`half_size = tuning.cube_size * 0.5`, matching
 ## core/blocks/BlockMeshBuilder.gd's build_mesh()), not
 ## _rotated_bottom_offset()'s cube_margin-shrunk collision half_size -- the
@@ -957,9 +956,9 @@ func _rotated_top_offset() -> float:
 	return 0.0 if max_y == -INF else max_y
 
 
-## Bontago-mv0.28 (owner report 2026-09-22, "when rotating the block the
+## "when rotating the block the
 ## camera adjusts; lock the camera to the center of the box without messing
-## up the bottom center"): how far this node's own local origin (still
+## up the bottom center": how far this node's own local origin (still
 ## BlockShape.bottom_center() of the *unrotated* shape) sits from the
 ## *rotated* held shape's own geometric centre, in world space. The
 ## unrotated centre-to-origin vector is always purely vertical -- the AABB
@@ -999,14 +998,14 @@ func rotated_center_world() -> Vector3:
 	return global_position + rotated_center_offset()
 
 
-# --- Footprint projection (spec 2.5, Bontago-mv0.17 item 6, Bontago-xtq.7) --
+# --- Footprint projection (spec 1.4 item 6) --
 
 ## The *whole* rotated held shape's own convex hull, projected onto the XZ
 ## plane, ghost-local (not yet world-translated): every cell's own 8 corners
 ## (BlockFactory's own cube_size/cube_margin box, same pivot) go through the
 ## full rotation basis, get projected to (x, z), and the convex hull of *all*
 ## of them together becomes the one footprint/projection polygon -- not one
-## hull per cell (Bontago-xtq.7, docs/solid-blocks2-issue.png, this file's own
+## hull per cell (docs/solid-blocks2-issue.png, this file's own
 ## header fix (2)): a shape's silhouette from directly above is one shape,
 ## however many cells or landing heights are underneath different parts of
 ## it.
@@ -1026,10 +1025,10 @@ func _rotated_shape_hull() -> PackedVector2Array:
 
 ## Rebuilds the footprint quad (0 or 1 -- see _rotated_shape_hull()'s own
 ## comment) and the vertical projection prism to match the current shape/
-## rotation. Bontago-xtq.7: the footprint's own landing height now comes from
+## rotation. the footprint's own landing height now comes from
 ## a disk-only raycast (_raycast_disk_surface(), skipping any placed
 ## RigidBody3D -- the same technique game/player/PlayerController.gd's own surface
-## probe uses to keep the ghost's *own* height off of towers, Bontago-mv0.17
+## probe uses to keep the ghost's *own* height off of towers
 ## item 5) straight down from the hull's own centroid, so the marker always
 ## lands on the bare disc even when part of the held shape hovers over a
 ## placed block -- never that block's own top face, which the old per-cell
@@ -1065,7 +1064,7 @@ func _update_footprint() -> void:
 		landing_normal = hit["normal"] as Vector3
 
 	_footprint_quads[0].global_position = Vector3(world_x, landing_y, world_z) + landing_normal * ghost_tuning.footprint_offset
-	# Bontago-1pi.132: the quad follows the rendered silhouette (the union of
+	# the quad follows the rendered silhouette (the union of
 	# every cell's footprint), so concave shapes (plus5, u5, corner4...) no
 	# longer show their convex hull. The hull stays the bounding/test polygon.
 	var footprint_mesh: ArrayMesh = _build_loops_mesh(_shape_silhouette_loops(), centroid)
@@ -1080,7 +1079,7 @@ func _update_footprint() -> void:
 	_apply_projection_visibility()
 
 
-## Bontago-xtq.19 attempt 3/4 (this file's own header): `_projection_span_y`
+## attempt 3/4 (this file's own header): `_projection_span_y`
 ## stays the *whole* shape's own bookkeeping (top = _rotated_top_offset(),
 ## untouched -- game/player/PlayerController.gd's own spawn-clearance reads this
 ## contract), while the prism's actual mesh walls the *merged rendered
@@ -1118,20 +1117,20 @@ func _update_projection_mesh(landing_y: float) -> void:
 	var uvs: PackedVector2Array = PackedVector2Array()
 	var indices: PackedInt32Array = PackedInt32Array()
 
-	# Bontago-xtq.18 (feedback/owner-noise-footprint.png): every wall still
+	# every wall still
 	# bottoms out ghost_tuning.footprint_offset above `landing_y`, the same
 	# epsilon the footprint quad already uses above the disc, so the wall's own
 	# ground-contact edge never Z-fights the disc's own collision mesh sitting
 	# exactly at `landing_y`.
 	var wall_bottom_y: float = landing_y + ghost_tuning.footprint_offset
-	# Bontago-xtq.19 attempt 4: re-emit the cached underside walls at this
+	# attempt 4: re-emit the cached underside walls at this
 	# frame's own height -- the only per-frame work (see
 	# _cached_wall_heights' own doc comment).
 	var origin_y: float = global_position.y
 	var floors: PackedFloat64Array = _piece_floors(wall_bottom_y)
 	for i: int in range(_cached_wall_heights.size()):
 		var heights: Vector2 = _cached_wall_heights[i]
-		# Bontago-1pi.129/132: stop each piece on whatever is under it (a placed
+		# /132: stop each piece on whatever is under it (a placed
 		# tower's top face, which the block-projection decal paints), not the
 		# disc, so the additive wall never runs through placed blocks.
 		var piece_bottom_y: float = floors[i]
@@ -1142,7 +1141,7 @@ func _update_projection_mesh(landing_y: float) -> void:
 		)
 
 	if verts.is_empty():
-		# Bontago-xtq.19 attempt 4: the shape rests on the ground along its
+		# attempt 4: the shape rests on the ground along its
 		# whole outline -- no shaft to draw. _projection_span_y is kept (spawn
 		# clearance still needs the body's own top).
 		_projection_mesh.mesh = null
@@ -1159,7 +1158,7 @@ func _update_projection_mesh(landing_y: float) -> void:
 	_projection_mesh.mesh = built
 
 
-## Bontago-1pi.129/132: per-piece wall floors (world Y). Re-cast only when the
+## /132: per-piece wall floors (world Y). Re-cast only when the
 ## ghost pose, wall set or disc-level floor changed, or every
 ## _FLOOR_RECAST_FRAMES physics frames (a tower may have grown), so a held
 ## still ghost costs no rays.
@@ -1222,19 +1221,19 @@ func _clear_projection_mesh() -> void:
 		_projection_mesh.mesh = null
 
 
-# --- Block projection decal (spec 2.5, Bontago-xtq.15) ----------------------
+# --- Block projection decal (spec 1.4) ----------------------
 
-## Bontago-xtq.15 (owner playtest 2026-09-23, a reference screenshot of the original game:
-## a placed block inside the light shaft reads pale/whitish): sizes and
+## a reference screenshot of the original game:
+## a placed block inside the light shaft reads pale/whitish: sizes and
 ## positions `_block_projection_decal` over `world_hull`'s own bounding box
 ## (world-space X/Z, same hull _update_footprint() already built the flat
 ## footprint quad from), projecting straight down from the ghost's own
 ## current underside (_rotated_bottom_offset() -- deliberately *not* any
 ## higher, so the decal's own projection volume never overlaps the held
 ## ghost's own rendered body) down to `landing_y` (the footprint's own disc
-## height). Bontago-xtq.18 attempt 3 supersedes xtq.15's original "painting
+## height). attempt 3 supersedes original "painting
 ## the disc too is harmless" DECISION: it was not harmless (this file's own
-## header) -- the disc lives on TerritoryOverlay.DISC_LAYER_BIT since xtq.12, and
+## header) -- the disc lives on TerritoryOverlay.DISC_LAYER_BIT since , and
 ## _ready() now strips that bit from this decal's cull_mask.
 func _update_block_projection_decal(world_hull: PackedVector2Array, landing_y: float) -> void:
 	if _block_projection_decal == null:
@@ -1269,14 +1268,14 @@ func _update_block_projection_decal(world_hull: PackedVector2Array, landing_y: f
 	)
 
 
-## Bontago-xtq.18 attempt 3: ghost_tuning.block_projection_edge_fade, never
+## attempt 3: ghost_tuning.block_projection_edge_fade, never
 ## below _MIN_DECAL_FADE (see that constant for why zero is unsafe).
 func _decal_fade() -> float:
 	return maxf(ghost_tuning.block_projection_edge_fade, _MIN_DECAL_FADE)
 
 
 ## For tests: the decal's own cull mask and (upper, lower) fade exponents
-## (Bontago-xtq.18 attempt 3 -- the disc layer must be excluded and both
+## (attempt 3 -- the disc layer must be excluded and both
 ## fades must stay above zero).
 func block_projection_decal_cull_mask() -> int:
 	return _block_projection_decal.cull_mask if _block_projection_decal != null else 0
@@ -1331,13 +1330,13 @@ func _build_white_decal_texture() -> ImageTexture:
 	return _white_texture
 
 
-## Bontago-xtq.19 attempt 3 (this file's own header): the projection prism's
+## attempt 3 (this file's own header): the projection prism's
 ## outline loop(s) in ghost-local XZ -- the *rendered* shape's own true
 ## silhouette from directly above, at the current rotation, rather than a
 ## per-cell or per-column approximation of it. Cached on (`_shape`, `basis`);
 ## see _cached_silhouette_valid's own doc comment for why that is exact, not
 ## approximate, for every other input _update_projection_mesh() reads.
-## Bontago-xtq.19 attempt 4: the same cache fill also builds the underside
+## attempt 4: the same cache fill also builds the underside
 ## wall list (_build_underside_walls()), so a cache hit covers both.
 func _shape_silhouette_loops() -> Array[PackedVector2Array]:
 	if _shape == null or _shape_visual == null:
@@ -1361,7 +1360,7 @@ func _shape_silhouette_loops() -> Array[PackedVector2Array]:
 
 
 ## Every triangle of every MeshInstance3D under _shape_visual (in the common
-## case, BlockFactory's own single BlockMeshBuilder shell -- Bontago-xtq.3;
+## case, BlockFactory's own single BlockMeshBuilder shell -- 
 ## the sloped-cell/custom-mesh fallback path, used by no shipped shape today,
 ## is walked the same way since it is still one MeshInstance3D per cell with
 ## its own local `.position` offset), each vertex transformed by the ghost's
@@ -1455,7 +1454,7 @@ func _accumulate_union(
 	return remainder
 
 
-## Bontago-xtq.19 attempt 4 (this file's own header): fills
+## attempt 4 (this file's own header): fills
 ## _cached_wall_segments/_cached_wall_heights from the silhouette `loops` and
 ## the rotated mesh triangles that produced them. Step 1: every outline edge
 ## a->b is split at every parameter where a projected triangle edge crosses it
@@ -1614,18 +1613,18 @@ func _triangle_plane_y(triangle: PackedVector3Array, flat: PackedVector2Array, p
 	return triangle[0].y + weight_1 * (triangle[1].y - triangle[0].y) + weight_2 * (triangle[2].y - triangle[0].y)
 
 
-## Appends one underside wall (Bontago-xtq.19 attempt 4) into the caller's
+## Appends one underside wall (attempt 4) into the caller's
 ## shared mesh arrays: a vertical quad over ghost-local XZ segment a->b, from
 ## `bottom_y` up to the shape's own underside at each end (`top_a`/`top_b`,
 ## world Y -- the top edge may slope). Always exactly 4 vertices in
 ## (a_top, b_top, b_bottom, a_bottom) order, the layout tests/unit/
 ## test_ghost_preview.gd reconstructs walls from. Where the underside dips to
 ## within _UNDERSIDE_CONTACT_EPSILON of `bottom_y` (the shape sitting on the
-## landing surface there -- Bontago-xtq.16's "no shaft where the shape
+## landing surface there --'s "no shaft where the shape
 ## touches the ground") nothing is drawn; a piece crossing that level is
 ## clipped at the crossing point, so its low end collapses to a triangle
 ## (a_top == a_bottom) rather than dipping below the disc.
-## DECISION (game/player/GhostPreview.gd, Bontago-xtq.19 attempt 4): no extra
+## DECISION (game/player/GhostPreview.gd attempt 4): no extra
 ## vertical "step" face is emitted where two consecutive pieces meet at
 ## different heights -- both pieces lie on the same outline and each rises
 ## from the same bottom to its own top at the shared vertex, so they tile the
@@ -1723,7 +1722,7 @@ func _build_polygon_mesh(hull: PackedVector2Array, center: Vector2) -> ArrayMesh
 	return built
 
 
-## Bontago-1pi.132: flat triangle mesh of every silhouette loop (even-odd for
+## flat triangle mesh of every silhouette loop (even-odd for
 ## holes is not needed: shipped shapes have none, hole loops wind opposite to
 ## the largest loop and are skipped), recentred on `center`. Null when nothing
 ## triangulates, so the caller can fall back to the convex hull mesh.
@@ -1801,7 +1800,7 @@ func _point_in_loops(point: Vector2, loops: Array[PackedVector2Array]) -> bool:
 	return crossings % 2 == 1
 
 
-## Bontago-1pi.132: the decal used to paint the whole hull bounding box (a
+## the decal used to paint the whole hull bounding box (a
 ## solid rectangle over every placed block below a concave piece). Its albedo
 ## is now an alpha mask of the true footprint over [origin, origin + extent]
 ## (ghost-local XZ), rebuilt only when the shape/rotation/box changes.
@@ -1814,7 +1813,7 @@ var mask_rebuild_count: int = 0
 static var _white_texture: ImageTexture = null
 
 
-## Bontago-xtq.44: drops the static texture/material cache on exit (freed before the renderer shuts down).
+## drops the static texture/material cache on exit (freed before the renderer shuts down).
 static func release_statics() -> void:
 	_white_texture = null
 
@@ -1885,7 +1884,7 @@ func _rasterize_footprint_mask(loops: Array[PackedVector2Array], origin: Vector2
 
 ## Straight down from `origin`, skipping any RigidBody3D (a placed block) so
 ## the first hit reported is the disk's own collision -- never a tower
-## underneath the hull's own centroid (Bontago-xtq.7, this file's own header
+## underneath the hull's own centroid (this file's own header
 ## fix (2)). Mirrors game/player/PlayerController.gd's own _raycast_disk_surface()
 ## (both now call Field.raycast_disk_surface()), including its surface_probe_max_blocks bound
 ## against a very tall or adversarial stack.
@@ -1914,7 +1913,7 @@ func _set_footprint_quad_count(count: int) -> void:
 
 
 ## For tests: how many footprint quads are currently shown -- 0 with nothing
-## held, otherwise always 1 (Bontago-xtq.7: the whole rotated shape's own
+## held, otherwise always 1 (the whole rotated shape's own
 ## silhouette, not one per bottom cell -- see _rotated_shape_hull()'s own
 ## comment).
 func footprint_quad_count() -> int:
@@ -1936,9 +1935,9 @@ func footprint_polygon_world(index: int) -> PackedVector2Array:
 ## For tests: the world-space Y span (top, bottom) of the held shape's own
 ## whole bookkeeping -- Vector2.ZERO when nothing is held or the prism
 ## collapsed (see _update_projection_mesh()'s own guard). `top` is always the
-## held shape's own current *highest* point (Bontago-xtq.9: matches
+## held shape's own current *highest* point (matches
 ## _rotated_top_offset()'s own contract, not _rotated_bottom_offset()'s);
-## `bottom` is the footprint's own landing height. Bontago-xtq.19 attempt 4:
+## `bottom` is the footprint's own landing height. attempt 4:
 ## this is bookkeeping, not the mesh's own extent -- the walls stop at the
 ## shape's underside (projection_mesh_vertices_world() gives the real
 ## geometry).
@@ -1946,7 +1945,7 @@ func projection_span_y() -> Vector2:
 	return _projection_span_y
 
 
-## For tests (Bontago-xtq.19 attempt 3): how many separate outline loops the
+## For tests (attempt 3): how many separate outline loops the
 ## merged-mesh silhouette currently produced -- 1 for every shipped BlockShape
 ## at every rotation this package tests (a single connected rendered shell has
 ## no enclosed hole to split its outline into an outer + hole pair), 0 when
@@ -1993,7 +1992,7 @@ func has_projection_mesh() -> bool:
 	return _projection_mesh != null and _projection_mesh.mesh != null
 
 
-# --- Ghost-vs-placed-block collision (Bontago-mv0.23, spec 2.5) -------------
+# --- Ghost-vs-placed-block collision (spec 1.4) -------------
 
 ## Local (unrotated), cell-local centers of the held shape's own collision
 ## boxes -- matching game/blocks/BlockFactory.gd's build() exactly (same cube_size/
@@ -2018,14 +2017,14 @@ func collision_box_local_centers() -> Array[Vector3]:
 ## Half-extent of one collision box, matching game/blocks/BlockFactory.gd's own
 ## `half_size` (see collision_box_local_centers()'s DECISION above). A sloped
 ## cell (ConvexPolygonShape3D in BlockFactory) is approximated as a full box
-## here -- no shipped shape sets sloped_cells today (Bontago-mv0.17 removed
+## here -- no shipped shape sets sloped_cells today (removed
 ## the only one, config/blocks/wedge.tres), so this never runs against a
 ## shape it would misrepresent.
 func collision_half_size() -> float:
 	return (tuning.cube_size - tuning.cube_margin) * 0.5
 
 
-# --- Placement validity tint (spec 2.2, 2.5) --------------------------------
+# --- Placement validity tint (spec 1.5, 1.4) --------------------------------
 
 ## The active slot's colour, used for the VALID tint. Setting it re-applies
 ## the material immediately if the ghost is currently showing VALID, so a
@@ -2038,13 +2037,13 @@ func set_player_color(color: Color) -> void:
 
 
 ## Maps Match.preview_placement()'s advisory result onto the three tint
-## states spec 2.5 calls for. Safe to call every frame.
+## states spec 1.4 calls for. Safe to call every frame.
 func apply_validity(result: PlacementRules.Result) -> void:
 	_last_result = result
 	_refresh_materials()
 
 
-## Bontago-mv0.10 (spec 2.4/2.5's "distinct timer-locked state"): whether this
+## spec 1.4/1.4's "distinct timer-locked state": whether this
 ## slot's held piece may be released right now. Called every frame alongside
 ## apply_validity() by game/player/PlayerController.gd; the locked tint wins over
 ## whatever validity state was just applied.
@@ -2053,7 +2052,7 @@ func set_locked(locked: bool) -> void:
 	_refresh_materials()
 
 
-## M4 P2e (docs/archive/M4_P2_PACKAGES.md P2e): called every frame by game/
+## Called every frame by game/
 ## PlayerController.gd's _drive_throw_visuals() with is_aiming_throw(), so the
 ## tint appears/disappears the same frame the drag starts/ends. Reuses
 ## _refresh_materials()'s existing dispatch (only _apply_validity_material()
@@ -2091,8 +2090,8 @@ func current_tint_color() -> Color:
 	return _material.get_shader_parameter(&"albedo_color") as Color if _material != null else Color.WHITE
 
 
-## Bontago-xtq.13 (owner playtest 2026-09-23, "ghost block should still be
-## less transparent"): every branch below now applies ghost_tuning.
+## "ghost block should still be
+## less transparent": every branch below now applies ghost_tuning.
 ## ghost_opacity as the material's own alpha instead of whatever alpha the
 ## picked colour happens to carry (_with_alpha() below) -- one F4 slider then
 ## controls every state's own opacity together, rather than five separate
@@ -2133,10 +2132,10 @@ func _apply_validity_material() -> void:
 			)
 
 
-## Bontago-mv0.17 item 6: the footprint quads get a validity/lock cue tied to
+## item 6: the footprint quads get a validity/lock cue tied to
 ## the held shape's own body state (_apply_validity_material() above), at
 ## ghost_tuning.footprint_alpha -- every footprint quad shares this one
-## material. Bontago-xtq.10 (owner test 2026-09-23, "the footprint on the
+## material. (owner test "the footprint on the
 ## disc should be almost white"): that cue is now only a faint hue blended
 ## into a near-white base (_footprint_color_for_state()'s own doc), not the
 ## full state colour the held shape's own body still shows -- see this same
@@ -2161,7 +2160,7 @@ func current_footprint_tint_color() -> Color:
 	return _footprint_material.albedo_color if _footprint_material != null else Color.WHITE
 
 
-## Bontago-xtq.10 (owner test 2026-09-23, "the projection colour is right"):
+## user test "the projection colour is right":
 ## the raw, un-alpha'd, un-blended state colour -- valid/invalid/hole/locked,
 ## exactly what _apply_validity_material() picks for the held shape's own
 ## body -- factored out of the old _footprint_color_for_state() so both the
@@ -2180,8 +2179,8 @@ func _state_hue_color() -> Color:
 			return ghost_tuning.invalid_tint_color
 
 
-## Bontago-xtq.10 (owner test 2026-09-23, "the footprint on the disc should
-## be almost white"): the footprint decal is now ghost_tuning.
+## owner test "the footprint on the disc should
+## be almost white": the footprint decal is now ghost_tuning.
 ## footprint_base_color (near-white) with only a faint amount of the current
 ## state's own hue blended in (footprint_hue_strength), rather than the full
 ## state colour this used to return directly -- validity is still readable
@@ -2192,25 +2191,24 @@ func _footprint_color_for_state() -> Color:
 	return _with_alpha(blended, ghost_tuning.footprint_alpha)
 
 
-## Bontago-xtq.7 (this file's own header, fix (2)): the projection prism's own
+## (this file's own header, fix (2)): the projection prism's own
 ## walls, at ghost_tuning.projection_alpha instead of footprint_alpha -- the
 ## brief calls for a noticeably fainter volume marker than the flat footprint
 ## decal it stands on. DECISION (game/player/GhostPreview.gd): reuses
 ## _state_hue_color()'s own plain state colour when
-## ghost_tuning.projection_uses_state_tint is true (the default -- the owner
-## report's own reference screenshot, a reference screenshot of the original game, tints its
+## ghost_tuning.projection_uses_state_tint is true (the default -- the 's own reference screenshot, a reference screenshot of the original game, tints its
 ## silhouette prism the same as everything else the ghost shows), just at the
 ## prism's own alpha; false is kept as a tuning-panel escape hatch to compare
 ## a state-neutral prism (always the base tint_color) without a second
 ## migration, the same reasoning already used for several other GhostTuning
 ## fields' own master-switch DECISIONs in this file/config/GhostTuning.gd.
-## Bontago-xtq.10 (owner test 2026-09-23, "any surface that falls within the
+## (owner test "any surface that falls within the
 ## projection should be a lot brighter (maybe emissive?)"): the prism's own
 ## _projection_material now blends additively (BLEND_MODE_ADD, _ready())
 ## rather than the usual alpha-over compositing, and this also drives its
 ## emission colour at ghost_tuning.projection_emission_energy -- both make
 ## the column brighten whatever is behind/inside it instead of just tinting
-## over it. DECISION (game/player/GhostPreview.gd, Bontago-xtq.10): a per-block
+## over it. DECISION (game/player/GhostPreview.gd): a per-block
 ## emission hook on BlockFactory/Block.gd (outside this package's ownership)
 ## was considered and rejected -- the prism material approach here achieves
 ## the brief's own brightening effect with a purely visual, self-contained
@@ -2231,7 +2229,7 @@ func current_projection_tint_color() -> Color:
 
 
 ## For tests: the projection prism's own current emission colour
-## (Bontago-xtq.10 -- see ghost_tuning.projection_emission_energy for its
+## (-- see ghost_tuning.projection_emission_energy for its
 ## strength and projection_uses_additive_blend()/projection_emission_enabled()
 ## for the material settings that make it actually brighten what's behind it).
 func current_projection_emission_color() -> Color:
@@ -2240,23 +2238,23 @@ func current_projection_emission_color() -> Color:
 
 ## For tests: whether the projection prism material blends additively
 ## (BaseMaterial3D.BLEND_MODE_ADD) instead of the usual alpha-over
-## compositing (Bontago-xtq.10, owner test 2026-09-23: "any surface that
+## compositing (owner test "any surface that
 ## falls within the projection should be a lot brighter").
 func projection_uses_additive_blend() -> bool:
 	return _projection_material != null and _projection_material.blend_mode == BaseMaterial3D.BLEND_MODE_ADD
 
 
 ## For tests: whether the projection prism material emits its own light
-## (Bontago-xtq.10) on top of the additive blend above.
+##  on top of the additive blend above.
 func projection_emission_enabled() -> bool:
 	return _projection_material != null and _projection_material.emission_enabled
 
-# --- Glow (Bontago-sen.6) ----------------------------------------------------
+# --- Glow ----------------------------------------------------
 # Presentation only: a fresnel rim in the ghost's tint colour. Steady at
 # ghost_tuning.glow_strength; once the local block timer is within
 # glow_warning_lead_seconds of the forced drop it pulses, the rate ramping from
 # glow_pulse_start_hz to glow_pulse_end_hz. Nothing here touches timers or drops.
-# DECISION (Bontago-sen.6): remote ghosts get the steady glow (same material, so
+# DECISION: remote ghosts get the steady glow (same material, so
 # it is free and consistent) but never the warning pulse -- only the ghost in
 # LOCAL_HELD_GROUP polls the local slot's timer.
 
@@ -2272,7 +2270,7 @@ func _process(delta: float) -> void:
 	advance_glow(delta)
 
 
-## Bontago-sen.3: Glue is a charge modifier, not a held piece. While the
+## Glue is a charge modifier, not a held piece. While the
 ## local slot has charges the ghost's shape meshes get the translucent jelly shell.
 ## DECISION: look constants live here (GhostTuning is owned elsewhere this
 ## batch); remote ghosts can call set_glue_charges() once RemoteCursors
@@ -2338,7 +2336,7 @@ func set_drop_time_left(seconds: float) -> void:
 
 ## True while the forced drop is within glow_warning_lead_seconds.
 func is_pulse_active() -> bool:
-	# Bontago-sen.12: a locked (greyed, interval-locked) piece is not force-dropped.
+	# a locked (greyed, interval-locked) piece is not force-dropped.
 	return not _locked and _drop_time_left >= 0.0 and _drop_time_left <= ghost_tuning.glow_warning_lead_seconds
 
 
@@ -2386,23 +2384,23 @@ func _apply_material_to_visual() -> void:
 		if child is MeshInstance3D:
 			var mesh_instance: MeshInstance3D = child as MeshInstance3D
 			mesh_instance.material_override = _material
-			# DECISION (owner 2026-09-22, "the ghost has both the indicator and
+			# DECISION ("the ghost has both the indicator and
 			# a shadow"): the held block is a preview, so it casts no light
 			# shadow; the projected footprint is its only ground marker.
 			mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_apply_glue_overlay()
 
 
-# --- Reject / auto-drop animation (spec 2.2, 2.5) ---------------------------
+# --- Reject / auto-drop animation (spec 1.5, 1.4) ---------------------------
 
-## Spec 2.2: "released [in a contested area] ... is thrown off the map with a
-## visible reject animation" (docs/archive/M2_PLAN.md owner decision 2: every invalid
+## Spec 1.5: "released [in a contested area] ... is thrown off the map with a
+## visible reject animation" (every invalid
 ## release burns the block, decided by Match.request_place — this is just the
 ## ghost-side cue: a bright flash plus a small arc kick on _reject_offset, a
 ## world-space position offset applied on top of update_placement()'s/
 ## sync_remote_position()'s own computed position every frame.
 ##
-## Bontago-mv0.25 (docs/rotation-issue.png, owner test 2026-09-22): used to
+## user test: used to
 ## kick _shape_visual's own *local* position instead -- that offset rides
 ## along with the ghost's rotation basis (_shape_visual is a plain, non-
 ## top_level child), so a pitched or rolled held block's reject kick visibly
@@ -2432,7 +2430,7 @@ func reject_offset() -> Vector3:
 	return _reject_offset
 
 
-## Spec 2.5: "When the timer runs out, the held block drops from its current
+## Spec 1.4: "When the timer runs out, the held block drops from its current
 ## ghost position." A quick neutral flash tells the player the drop was
 ## automatic, not a click.
 func play_auto_drop_flash() -> void:
@@ -2447,7 +2445,7 @@ func _flash_material(color: Color, duration: float) -> void:
 	var restore_color: Color = _material.get_shader_parameter(&"albedo_color") as Color
 	_material.set_shader_parameter(&"albedo_color", color)
 	_flash_tween = create_tween()
-	# Bontago-xtq.40: ShaderMaterial uniforms are reachable as a dynamic
+	# ShaderMaterial uniforms are reachable as a dynamic
 	# "shader_parameter/<name>" property (Godot's own documented idiom for
 	# animating a shader uniform with a Tween), replacing the old direct
 	# `albedo_color` property path this tween used against the
@@ -2457,7 +2455,7 @@ func _flash_material(color: Color, duration: float) -> void:
 
 # --- Mesh / texture builders -------------------------------------------------
 
-## Bontago-mv0.17 item 6: one flat polygon per bottom cell of the rotated
+## item 6: one flat polygon per bottom cell of the rotated
 ## held shape (replaces _make_guide_mesh()'s old vertical line), tinted by the
 ## shared _footprint_material so every quad repaints together when validity/
 ## lock state changes. Starts meshless -- _update_footprint() assigns each
@@ -2470,10 +2468,10 @@ func _make_footprint_quad() -> MeshInstance3D:
 	return mesh_instance
 
 
-## A small diagonal-stripe pattern (spec 2.5: "hatched pattern when over a
+## A small diagonal-stripe pattern (spec 1.4: "hatched pattern when over a
 ## hole"), generated once instead of shipped as an art asset. Tiled across
 ## the flat footprint quad via ghost_tuning.hatch_scale (StandardMaterial3D.
-## uv1_scale) and, since Bontago-xtq.40, across the held shape's own body via
+## uv1_scale) and, since across the held shape's own body via
 ## the same hatch_scale read as a shaders/blocks/ghost_cell_grid.gdshader uniform
 ## (hand-rolled triplanar sampling there, not uv1_scale -- that shape's mesh
 ## has 0..1 UVs per cell face, not per whole shape).
@@ -2485,9 +2483,9 @@ func _build_hatch_texture() -> ImageTexture:
 			var phase: float = fmod(float(x + y), period) / period
 			var opaque: bool = phase < ghost_tuning.hatch_stripe_width
 			image.set_pixel(x, y, Color(1.0, 1.0, 1.0, 1.0 if opaque else 0.0))
-	# Bontago-xtq.18 (owner F12 2026-09-23, feedback/owner-noise-footprint.png:
+	# user F12 report:
 	# the footprint under the ghost read as black/white speckled noise instead
-	# of a flat pale quad/hatch pattern): the footprint quad's own diagonal
+	# of a flat pale quad/hatch pattern: the footprint quad's own diagonal
 	# stripe pattern is a HOLE/GOAL_ZONE-only visual (_apply_footprint_
 	# material()/_apply_validity_material() above) tiled several times across
 	# a small quad via ghost_tuning.hatch_scale -- with no mip chain, the GPU
@@ -2495,7 +2493,7 @@ func _build_hatch_texture() -> ImageTexture:
 	# or oblique ground-decal viewing angle, and linear-filtering a
 	# diagonal high-frequency stripe pattern down that hard aliases into the
 	# reported speckled noise (confirmed by reproducing the exact same
-	# artefact via a script removed in Bontago-dbn.1 (see git history) with the ghost
+	# artefact via a script removed in (see git history) with the ghost
 	# forced into PlacementRules.Result.HOLE, and by ruling out
 	# _block_projection_decal -- its own texture is a single flat colour
 	# with no frequency content to alias, and the artefact persisted with

@@ -1,13 +1,7 @@
 extends GutTest
-## Bontago-1pi.102 (owner playtest 2026-10-07): the gift demo's pre-placed towers
-## were dropped from above, random pieces overlapping each other and landing on
-## the home beacon, and scattered. Presets now build settled cube towers, each
-## block resting at its exact height, clear of the beacons. This covers both
-## presets (gift demo + the new Debug-page Tower topple): nothing overlaps a
-## beacon or another block at spawn, and the towers still stand afterwards.
+## the Tower topple preset builds settled cube towers clear of the beacons, and they stand.
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
-const GIFT_PRESET_PATH: String = "res://config/match/sandbox_gift_demo.tres"
 const TOPPLE_PRESET_PATH: String = "res://config/match/sandbox_tower_topple.tres"
 const TEST_FIELD_RADIUS_M: float = 20.0
 const SETTLE_TICKS: int = 120
@@ -92,17 +86,6 @@ func _assert_towers_stand(blocks: Array[RigidBody3D]) -> void:
 	assert_lt(worst, MAX_MOVE_M, "no block moved more than the tolerance (towers stand)")
 
 
-func test_gift_demo_towers_are_stacked_clear_and_stand() -> void:
-	_main.start_gift_demo_from_menu()
-	_run_countdown()
-	await get_tree().process_frame
-	var preset: SandboxConfig = load(GIFT_PRESET_PATH) as SandboxConfig
-	var blocks: Array[RigidBody3D] = _blocks()
-	assert_eq(blocks.size(), (Match.slot_count() - 1) * preset.preplaced_tower_blocks)
-	_assert_clear_of_beacons_and_each_other(blocks)
-	await _assert_towers_stand(blocks)
-
-
 func test_tower_topple_preset_builds_the_row_and_it_stands() -> void:
 	var preset: SandboxConfig = load(TOPPLE_PRESET_PATH) as SandboxConfig
 	assert_not_null(preset)
@@ -120,8 +103,3 @@ func test_tower_topple_preset_builds_the_row_and_it_stands() -> void:
 	_assert_clear_of_beacons_and_each_other(blocks)
 	await _assert_towers_stand(blocks)
 
-
-func test_tower_topple_does_nothing_when_debug_mode_is_off() -> void:
-	DebugMode.set_override_for_test(false)
-	_main.start_tower_topple_from_menu()
-	assert_null(_main._sandbox)

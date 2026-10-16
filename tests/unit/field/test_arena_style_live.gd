@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mp0.150.4: the F4 panel's Arena tab (ui/debug/TuningPanel.gd) switches the
+## the F4 panel's Arena tab (ui/debug/TuningPanel.gd) switches the
 ## wired Field's ArenaSideStyle and rebuilds the arena mesh live.
 
 var _panel: TuningPanel = null

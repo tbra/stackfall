@@ -1,6 +1,6 @@
 extends GutTest
-## game/blocks/StableBlockManager.gd (spec 3.5 "Stable-block optimization" [NEW],
-## docs/M8_PLAN.md P5): a block asleep past PhysicsTuning.stable_freeze_delay_s
+## game/blocks/StableBlockManager.gd (spec 2.7 "Stable-block optimization" [NEW]):
+## a block asleep past PhysicsTuning.stable_freeze_delay_s
 ## gets frozen static; waking releases it; below the threshold it's left
 ## alone. Drives the manager deterministically through its own _tick(delta)
 ## seam (see that function's own doc comment) instead of waiting real seconds
@@ -11,7 +11,7 @@ extends GutTest
 
 var _tuning: PhysicsTuning = load("res://config/physics/physics_tuning.tres")
 
-## Bontago-mv0.3's own DECISION (tests/unit/blocks/test_block_registry.gd): a
+## 's own DECISION (tests/unit/blocks/test_block_registry.gd): a
 ## shrunk-radius duplicate of round_medium.tres, not the shared resource
 ## itself, so this fixture doesn't pay round_medium's own ~11 s field-build
 ## cost per test.
@@ -148,7 +148,7 @@ func test_a_second_block_that_wakes_before_the_scan_interval_elapses_is_never_cr
 
 
 func test_tilting_field_releases_frozen_blocks_and_restarts_the_timer() -> void:
-	# Bontago-sen.11: a frozen-static block does not ride a moving disc.
+	# a frozen-static block does not ride a moving disc.
 	var field: Field = _make_field()
 	var registry: BlockRegistry = _make_registry(field)
 	var manager: StableBlockManager = _make_manager(registry)
@@ -175,7 +175,7 @@ func test_tilting_field_releases_frozen_blocks_and_restarts_the_timer() -> void:
 
 
 func test_a_wake_that_does_not_move_the_block_keeps_its_freeze_timer() -> void:
-	# Bontago-1pi.11.24: Jolt wakes a whole contact island on any landing; a
+	# Jolt wakes a whole contact island on any landing; a
 	# block that did not move must not lose its accumulated rest time.
 	var field: Field = _make_field()
 	var registry: BlockRegistry = _make_registry(field)
@@ -211,7 +211,7 @@ func test_a_wake_that_moves_the_block_restarts_its_freeze_timer() -> void:
 func test_real_physics_island_wakes_still_freeze_and_a_tilt_carries_the_released_pile() -> void:
 	# Real frames: a 3-cube tower (one Jolt island) is woken every 0.75 s, so it
 	# never sleeps a whole delay in a row, yet still freezes; a tilt impulse
-	# then releases every frozen block and the base rides the disc (sen.11).
+	# then releases every frozen block and the base rides the disc.
 	var tuning: PhysicsTuning = _tuning.duplicate() as PhysicsTuning
 	tuning.stable_freeze_delay_s = 1.5
 	tuning.stable_freeze_scan_interval_s = 0.25
@@ -247,7 +247,7 @@ func test_real_physics_island_wakes_still_freeze_and_a_tilt_carries_the_released
 	assert_almost_eq(after_y, before_y, 0.1, "the base block rode the disc, no clipping")
 
 
-# --- Settle freeze (Bontago-e7o B): awake-but-still blocks ----------------------
+# --- Settle freeze (B): awake-but-still blocks ----------------------
 
 func _awake_still_setup() -> Array:
 	var field: Field = _make_field()

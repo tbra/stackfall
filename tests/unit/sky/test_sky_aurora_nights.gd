@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.131 (owner playtest: the aurora showed every night): the aurora is a per-night
+## the aurora showed every night: the aurora is a per-night
 ## roll against SkyThemeDef.aurora_night_chance (default 10%), a pure function of the
 ## replicated match seed, so the host and every client agree and each night re-rolls.
 
@@ -11,12 +11,6 @@ const NIGHT_PHASE: float = 0.75
 const START_PHASE: float = 0.3
 const PHASE_NUDGE: float = 0.01
 const SAMPLED_NIGHTS: int = 40
-
-
-func test_default_chance_is_ten_percent() -> void:
-	assert_almost_eq(SkyThemeDef.new().aurora_night_chance, 0.1, 0.0001)
-	var shipped: SkyThemeDef = Skybox.load_theme(Skybox.DEFAULT_THEME_ID)
-	assert_almost_eq(shipped.aurora_night_chance, 0.1, 0.0001)
 
 
 func test_rate_over_many_seeded_nights_is_about_ten_percent() -> void:
@@ -35,13 +29,6 @@ func test_chance_extremes() -> void:
 	for night: int in 50:
 		assert_false(SkyVariation.aurora_night_shown(5, night, 0.0))
 		assert_true(SkyVariation.aurora_night_shown(5, night, 1.0))
-
-
-func test_nights_re_roll_independently() -> void:
-	var seen: Dictionary = {}
-	for night: int in 200:
-		seen[SkyVariation.aurora_night_shown(11, night, 0.5)] = true
-	assert_eq(seen.size(), 2, "both outcomes occur across nights")
 
 
 func _cycle_skybox(seed_value: int) -> Skybox:

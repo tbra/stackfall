@@ -1,6 +1,6 @@
 class_name FxEase
 extends RefCounted
-## Bontago-a3z: shared timing curves for the cartoon gift effects (CartoonBlast,
+## shared timing curves for the cartoon gift effects (CartoonBlast,
 ## FreezeBurst). Pure functions.
 
 

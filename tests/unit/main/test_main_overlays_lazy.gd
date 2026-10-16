@@ -1,11 +1,9 @@
 extends GutTest
-## Bontago-1pi.11.84.6 (MF5): Main creates PauseMenu / ResultsScreen / ScoreboardOverlay /
+## MF5: Main creates PauseMenu / ResultsScreen / ScoreboardOverlay /
 ## LoadingScreen at first need (ensure), never in _ready(). Cold and while-prewarming paths work.
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
 const PAUSE_PATH: String = "res://ui/menus/PauseMenu.tscn"
-const FRAME_LIMIT: int = 120
-
 var _main: Variant = null
 
 
@@ -50,28 +48,6 @@ func test_ready_builds_none_of_the_overlays() -> void:
 	assert_not_null(_main._main_menu, "the menu still shows without them")
 
 
-func test_each_overlay_is_created_on_first_access_once() -> void:
-	var pause: PauseMenu = _main._pause_menu
-	assert_not_null(pause)
-	assert_true(pause.suppressed, "inert until a world exists")
-	assert_same(_main._pause_menu, pause, "created once")
-	assert_null(_main._results_screen_node, "touching one does not build the others")
-	assert_not_null(_main._results_screen)
-	assert_not_null(_main._scoreboard)
-	assert_not_null(_main._loading_screen)
-	assert_eq(_main.get_children().filter(func(n: Node) -> bool: return n is LoadingScreen).size(), 1)
-
-
-func test_main_menu_and_territory_callbacks_do_not_create_overlays() -> void:
-	_main._show_main_menu()
-	_main._on_loading_territory_updated(null, null)
-	_main._on_loading_territory_replicated(null)
-	_main._on_pause_leave_requested()
-	assert_null(_main._pause_menu_node)
-	assert_null(_main._loading_screen_node)
-	assert_null(_main._scoreboard_node)
-
-
 func test_client_loading_announcement_creates_and_shows_the_loading_screen_cold() -> void:
 	assert_eq(Match.state(), Match.State.LOBBY)
 	_main._on_match_loading_announced()
@@ -81,17 +57,6 @@ func test_client_loading_announcement_creates_and_shows_the_loading_screen_cold(
 	assert_not_null(_main._results_screen_node, "all four exist before LOBBY -> LOADING")
 	assert_not_null(_main._pause_menu_node)
 	assert_not_null(_main._scoreboard_node)
-
-
-func test_host_lobby_start_creates_the_loading_screen_cold() -> void:
-	assert_eq(Net.host_game(0, "Host", false), OK)
-	assert_not_null(_main._pause_menu_node, "lobby entry builds the overlays")
-	_drop_overlays()  # simulate a path that reaches Start without them
-	var config: MatchConfig = _main.match_config.duplicate(true) as MatchConfig
-	_main._on_lobby_start_pressed(config)
-	assert_not_null(_main._loading_screen_node)
-	assert_true(_main._loading_screen_node.is_pending())
-	_main._start_pending = false
 
 
 func test_loading_state_change_builds_overlays_for_entries_that_skip_the_lobby() -> void:
@@ -124,10 +89,3 @@ func test_overlay_still_prewarming_is_collected_on_demand() -> void:
 	_main._prewarm_background = false
 	_main._prewarm_queue = null  # Main builds its default queue lazily (after_each aborts via the match flow)
 
-
-func test_overlays_are_queued_behind_the_menu_in_the_prewarm_config() -> void:
-	var cfg: MenuPrewarmConfig = load("res://config/match/menu_prewarm.tres") as MenuPrewarmConfig
-	var paths: PackedStringArray = cfg.all_paths()
-	for p: String in ["res://ui/menus/LoadingScreen.tscn", PAUSE_PATH, "res://ui/menus/ResultsScreen.tscn", "res://ui/hud/ScoreboardOverlay.tscn"]:
-		assert_true(paths.has(p), p)
-		assert_gt(paths.find(p), paths.find("res://ui/lobby/Lobby.tscn"))

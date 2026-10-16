@@ -2,10 +2,9 @@ class_name UiChipToggle
 extends Button
 ## The design system's ChipToggle (docs/ui_reskin/components.md "ChipToggle"): a compact block for
 ## the gift / special pool and the lobby's experiment flags. On = a `mint` block with ink text and
-## icon; off = a `disc-700` block with cream text and icon. DECISION (owner playtest 2026-10-14,
-## Bontago-1pi.159.55): the check box is gone, the block colour carries the state (mint vs disc-700
+## icon; off = a `disc-700` block with cream text and icon. DECISION: the check box is gone, the block colour carries the state (mint vs disc-700
 ## differ strongly in luminance and in ink/cream label colour). The pictogram is always drawn as a
-## flat silhouette (Bontago-1pi.159.54). A UiRowItem (BUTTON_SM height). Pad / keyboard: ui_accept toggles. A chip that
+## flat silhouette. A UiRowItem (BUTTON_SM height). Pad / keyboard: ui_accept toggles. A chip that
 ## is switched off for the match (set_available(false), e.g. the Cat gift) is shown disabled; its
 ## reason is read back with unavailable_reason() for inline help. The label is the Button's text, the optional pictogram its icon.
 

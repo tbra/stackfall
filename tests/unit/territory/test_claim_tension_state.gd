@@ -1,5 +1,5 @@
 extends GutTest
-## core/audio/ClaimTensionState.gd (Bontago-1pi.114): local-player-relative
+## core/audio/ClaimTensionState.gd: local-player-relative
 ## claim tension and interrupt detection.
 
 const MINE: int = 1

@@ -1,7 +1,7 @@
 class_name HUDVisualTuning
 extends Resource
-## Tunables for M7 P5 (docs/M7_PLAN.md, "P5 -- HUD minimap + reskin") and its
-## Bontago-mp0.3.3 restyle: the minimap's framing/refresh cadence and the
+## Tunables for the HUD minimap and reskin, and its
+## restyle: the minimap's framing/refresh cadence and the
 ## layered-pastel/coral -> mockup-08 palette used to restyle ui/hud/HUD.tscn
 ## (docs/M7_ART_DIRECTION.md's HUD styling section). CLAUDE.md: "No magic
 ## numbers... every tunable value belongs in a Resource under res://config/".
@@ -16,7 +16,7 @@ extends Resource
 ##
 ## Loaded once as config/ui/hud_visual_tuning.tres.
 
-## -- Minimap (Bontago-mp0.3.3, owner: minimap "reflecting the sky depending
+## -- Minimap (minimap "reflecting the sky depending
 ## on the camera angle" -- see ui/hud/Minimap.gd's own class doc DECISION for the
 ## fix: a 2D draw straight from the live TerritoryRaster, camera-relative, no
 ## SubViewport/Camera3D at all, so there is no camera angle for it to depend
@@ -47,10 +47,10 @@ extends Resource
 @export var minimap_gift_landed_color: Color = Color(1.0, 0.69, 0.27)
 @export var minimap_gift_outline_color: Color = Color(0.08, 0.09, 0.12, 0.95)
 ## Border stroke width, in pixels, of the minimap's own frame ring --
-## a thin rim (owner review 2026-09-26: "thin light-grey rim (~2px)", not a
+## a thin rim ("thin light-grey rim (~2px)", not a
 ## thick gold ring).
 @export var minimap_frame_border_width_px: float = 3.0
-## Stackfall Arcade (Bontago-hfa.6): the minimap's soft rim glow, the one place the HUD glows. Blur
+## Stackfall Arcade: the minimap's soft rim glow, the one place the HUD glows. Blur
 ## size in pixels and opacity of the glow cast by the gold rim ring.
 @export var minimap_glow_size_px: float = 10.0
 @export var minimap_glow_alpha: float = 0.35
@@ -68,14 +68,14 @@ extends Resource
 @export var panel_corner_radius_px: float = 16.0
 ## Border stroke width, in pixels, for every reskinned HUD panel.
 @export var panel_border_width_px: float = 2.0
-## Thin light-grey rim color framing the minimap (owner review 2026-09-26:
+## Thin light-grey rim color framing the minimap (
 ## replaces the earlier thick amber ring).
 @export var minimap_frame_color: Color = Color(0.85, 0.87, 0.90, 0.85)
 ## Dark, semi-translucent void behind the minimap's rendered disk, matching
 ## the disk's own base tone. Used both as the minimap panel's backdrop
 ## (before a match starts) and as the in-disk "unowned" fill once one is
 ## running, so an unclaimed cell reads as bare floor rather than a hole in
-## the image. Alpha < 1 (owner review 2026-09-26: "dark translucent disc").
+## the image. Alpha < 1 ("dark translucent disc").
 @export var minimap_backdrop_color: Color = Color(0.129, 0.153, 0.188, 0.82)
 ## Thin light stroke drawn at the disk's own field-radius edge (inside the
 ## zoom-margin padded frame), so the playable disc's true boundary reads
@@ -83,22 +83,22 @@ extends Resource
 @export var minimap_disc_outline_color: Color = Color(0.85, 0.87, 0.90, 0.55)
 ## How much brighter/more saturated a team's territory fill is drawn on the
 ## minimap than its own base color (HSV value/saturation multipliers), so
-## even a small owned patch reads clearly at minimap scale (owner review
-## 2026-09-26: "brighter/more saturated fill... so even small shares read").
+## even a small owned patch reads clearly at minimap scale (
+## "brighter/more saturated fill... so even small shares read").
 @export var minimap_territory_saturation_boost: float = 1.2
 @export var minimap_territory_value_boost: float = 1.15
 
 ## -- Top-left per-player rows (mockup 08: two-tone diamond glyph + slim
 ## share bar, no boxy panel) --------------------------------------------------
 ## Side length, in pixels, of the small faceted diamond glyph drawn beside
-## each player's territory-share bar (owner review 2026-09-26: "~20 px tall").
+## each player's territory-share bar ("~20 px tall").
 @export var hud_row_glyph_size_px: float = 20.0
-## Bontago-1pi.81 (ui/hud/SlotDiamond.gd, the one colour diamond used by the HUD, lobby seats and
-## round score table): how much lighter the lit (left) half is than the slot colour,
+## ui/hud/SlotDiamond.gd, the one colour diamond used by the HUD, lobby seats and
+## round score table: how much lighter the lit (left) half is than the slot colour,
 @export var hud_diamond_lit_amount: float = 0.35
 ## how much darker the shaded (right) half is,
 @export var hud_diamond_shade_amount: float = 0.3
-## and the ink (disc-900) frame around the faceted beacon marker (Stackfall Arcade, Bontago-hfa.6:
+## and the ink (disc-900) frame around the faceted beacon marker (Stackfall Arcade, 
 ## docs/ui_reskin/markers/), whose thickness is the width below.
 @export var hud_diamond_outline_color: Color = Color("#16121c")
 @export var hud_diamond_outline_width_px: float = 2.0
@@ -110,12 +110,11 @@ extends Resource
 ## Subtle light sheen drawn across the top of every share bar's track, for
 ## the same soft-highlight read the mockup's bars have.
 @export var hud_share_bar_highlight_color: Color = Color(1.0, 1.0, 1.0, 0.18)
-## Thin light inner border stroke around each share bar's track (owner
-## review 2026-09-26: "thin light inner border").
+## Thin light inner border stroke around each share bar's track ("thin light inner border").
 @export var hud_share_bar_border_color: Color = Color(1.0, 1.0, 1.0, 0.22)
 
-## Bontago-1pi.23: subdued, low-contrast dark-glass cards with light ink, so
-## the persistent HUD never competes with the 3D scene (owner: the bright
+## subdued, low-contrast dark-glass cards with light ink, so
+## the persistent HUD never competes with the 3D scene (the bright
 ## backgrounds behind previews and stats were distracting).
 @export var surface_color: Color = Color(0.04, 0.06, 0.09, 0.42)
 @export var surface_border_color: Color = Color(1.0, 1.0, 1.0, 0.12)
@@ -124,27 +123,27 @@ extends Resource
 @export var card_padding_px: float = 12.0
 @export var share_bar_width_px: float = 88.0
 ## Width in pixels of the player-name column beside each share bar; longer
-## names are ellipsized (Bontago-1pi.68).
+## names are ellipsized.
 @export var hud_row_name_width_px: float = 132.0
 @export var share_bar_height_px: float = 12.0
 ## Fraction of a share bar's height covered by the lighter highlight band on its fill.
 @export var share_bar_highlight_ratio: float = 0.35
 
-## Bontago-mp0.27: pre-match 3-2-1 label. "Go" stays this long after PLAYING starts.
+## pre-match 3-2-1 label. "Go" stays this long after PLAYING starts.
 @export var countdown_font_size: int = 128
 @export var countdown_go_text: String = "GO"
 @export var countdown_go_hold_s: float = 0.8
-## Bontago-1pi.186: the eliminated player's banner, in the countdown style.
+## the eliminated player's banner, in the countdown style.
 @export var eliminated_font_size: int = 96
 @export var eliminated_by_text: String = "Eliminated by %s"
 @export var eliminated_text: String = "Eliminated"
 
-## Bontago-mp0.145: the ONE style every transient HUD message (claim toast,
+## the ONE style every transient HUD message (claim toast,
 ## reject/relocated message, winner banner) shares: a dark-glass pill in the
 ## HUD card family, light ink, a readable text outline, and a border that
 ## carries the accent (the player's colour for a player message, the reject
 ## accent below for a refusal).
-## Stackfall Arcade (Bontago-hfa.6): the Callout's ink icon tile fill (the message face itself comes
+## Stackfall Arcade: the Callout's ink icon tile fill (the message face itself comes
 ## from the ArcadeVisualTuning alert/mint/rim tokens).
 @export var toast_fill_color: Color = Color(0.05, 0.07, 0.10, 0.82)
 @export var toast_border_width_px: float = 4.0
@@ -152,7 +151,7 @@ extends Resource
 @export var toast_padding_x_px: float = 12.0
 @export var toast_padding_y_px: float = 8.0
 @export var toast_font_size: int = 16
-## Bontago-1pi.159.12: the single bottom-centre ToastStack every transient message shares. It sits
+## the single bottom-centre ToastStack every transient message shares. It sits
 ## `toast_gap_above_cards_px` above the HELD/NEXT card row (so it never overlaps the cards, the gift
 ## card's key prompt or the minimap, at any UI scale), shows at most `toast_max_visible` at once
 ## (the rest queue) with `toast_row_gap_px` between them, and its width is capped at `toast_max_width_px`.
@@ -164,10 +163,10 @@ extends Resource
 @export var callout_icon_px: float = 24.0
 @export var callout_glyph_stroke_px: float = 3.0
 
-## -- Stackfall Arcade HUD (Bontago-hfa.6, docs/UI_RESKIN_PLAN.md P4) --
+## -- Stackfall Arcade HUD --
 ## Seconds left on the block timer at or under which the ring and its number turn rim gold.
 @export var timer_hurry_seconds: float = 2.0
-## Round timer (UiRoundTimer, owner 2026-10-12): the match clock in the top-right corner. Its last `round_timer_hurry_seconds` turn the plate edge and numerals rim gold; the
+## Round timer (UiRoundTimer): the match clock in the top-right corner. Its last `round_timer_hurry_seconds` turn the plate edge and numerals rim gold; the
 ## numerals use Bungee at `round_timer_font_px`. HUD.gd aligns it with the stats backplate top and the minimap's right edge.
 @export var round_timer_hurry_seconds: float = 30.0
 @export var round_timer_font_px: int = 48

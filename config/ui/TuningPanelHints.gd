@@ -1,7 +1,7 @@
 class_name TuningPanelHints
 extends Resource
 ## Per-property slider/spinbox ranges for ui/debug/TuningPanel.gd's reflection-built
-## tabs (Bontago-mv0.18, owner request: "add a settings menu with sliders").
+## tabs ("add a settings menu with sliders").
 ##
 ## Every numeric @export field TuningPanel finds gets a control regardless of
 ## whether it has an entry here: an unlisted field falls back to
@@ -24,7 +24,7 @@ extends Resource
 @export var ranges: Dictionary = {}
 
 ## "<script class name>.<property name>" -> one-sentence, plain-language
-## description of what the field controls (Bontago-mv0.21, owner request:
+## description of what the field controls (
 ## every row show "what it controls... visible without hovering"). Same
 ## keying scheme as `ranges` above. Populated for every numeric/bool/Color
 ## field ui/debug/TuningPanel.gd currently builds a row for, across all six tuning
@@ -51,7 +51,7 @@ func description_for(class_name_: String, property_name: String) -> String:
 		return String(descriptions[key])
 	return ""
 
-## Bontago-1pi.113 (F4 panel redo). "<script class name>.<property name>" ->
+## (F4 panel redo). "<script class name>.<property name>" ->
 ## section title: the panel shows a field under a foldable section header with
 ## this title (the `## -- Title --` comment above the field in its config
 ## script). Sections are ordered by first appearance in declaration order unless

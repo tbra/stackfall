@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1t5.70 (owner playtest 2026-10-14: "they will occasionally just abandon a tower and start a new one").
+## ("they will occasionally just abandon a tower and start a new one").
 ## Every path in BotStrategy._plan_sound_tower that leaves the remembered tower for a new base is pinned here with a
 ## scripted snapshot. Triggers found (before the fix each started a new base at once):
 ##  T1 an unsound block on top of the tower (a leaning piece, a stray) left sound_tops empty (a body with ANYTHING
@@ -9,7 +9,7 @@ extends GutTest
 ##     whole chain above it out of the sound set;
 ##  T4 any top loss of collapse_drop_m, however tall the tower still was.
 ## Not triggers (checked): another own tower becoming taller (the plan only follows tops near the base), unsettled
-## bodies (the last plan is reused), the 1t5.68 support-face rule (it only gates NEW bases).
+## bodies (the last plan is reused), the support-face rule (it only gates NEW bases).
 ## Pure: hand-built BotStack snapshots like test_bot_sound_base.
 
 const MAP_RADIUS: float = 20.0

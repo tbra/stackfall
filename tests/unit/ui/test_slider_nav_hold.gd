@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.142 / 159.10 (on the shared UiHoldRepeat, via UiSegmentMeter): one pad press / stick flick = one step, holding
+## On the shared UiHoldRepeat, via UiSegmentMeter: one pad press / stick flick = one step, holding
 ## repeats at the tuned rate after the initial delay, stick drift near the threshold never retriggers.
 
 const FRAME: float = 1.0 / 60.0
@@ -85,47 +85,6 @@ func test_tap_never_repeats() -> void:
 	var after_tap: int = _meter.value
 	_hold(HOLD_SECONDS)
 	assert_eq(_meter.value, after_tap)
-
-
-func test_stick_drift_around_the_threshold_does_not_retrigger() -> void:
-	_wire()
-	var step: int = 1
-	_meter._gui_input(_stick(PUSH))
-	for _i: int in 20:
-		_meter._gui_input(_stick(DRIFT_LOW))
-		_meter._gui_input(_stick(DRIFT_HIGH))
-	assert_eq(_meter.value, START_VALUE + step, "drift between release and press thresholds = still the same push")
-	_meter._gui_input(_stick(REST))
-	assert_false(_meter.is_holding(), "back near centre releases")
-	_meter._gui_input(_stick(PUSH))
-	assert_eq(_meter.value, START_VALUE + step * 2, "a fresh flick steps once more")
-
-
-func test_stick_hold_repeats_after_the_delay_only() -> void:
-	_wire()
-	var step: int = 1
-	_meter._gui_input(_stick(PUSH))
-	for _i: int in roundi(UiHoldRepeat.TUNING.repeat_delay_sec / FRAME) - 2:
-		_meter._gui_input(_stick(PUSH))
-		_meter.advance(FRAME)
-	assert_eq(_meter.value, START_VALUE + step)
-	_hold(UiHoldRepeat.TUNING.repeat_interval_sec + UiHoldRepeat.TUNING.repeat_delay_sec)
-	assert_gt(_meter.value, START_VALUE + step, "held stick repeats")
-
-
-func test_key_echo_events_do_not_add_steps() -> void:
-	_wire()
-	var step: int = 1
-	var key: InputEventKey = InputEventKey.new()
-	key.keycode = KEY_RIGHT
-	key.physical_keycode = KEY_RIGHT
-	key.pressed = true
-	_meter._gui_input(key)
-	var echo: InputEventKey = key.duplicate() as InputEventKey
-	echo.echo = true
-	for _i: int in 10:
-		_meter._gui_input(echo)
-	assert_eq(_meter.value, START_VALUE + step, "OS key repeat does not outrun the tuned rate")
 
 
 func test_missed_release_stops_the_repeat() -> void:

@@ -1,13 +1,12 @@
 class_name BotCandidate
 extends RefCounted
-## One sampled placement spot (spec 2.9): a disk-local origin, an
+## One sampled placement spot (spec 1.8): a disk-local origin, an
 ## orientation, and what BotController's own raycasts found there. Pure data
-## -- no scene-tree reference, so core/ai/ scorers can be unit-tested without
+## -- no scene-tree reference, so core/ai/ code can be unit-tested without
 ## a running Field.
 ##
-## docs/archive/M5_PLAN.md P1 (Bontago-d5c): this is the interface-stub package's own
-## data shape. P2 may append fields here if it needs a genuinely new fact
-## (flagged in its own package doc), but must not remove or retype any of the
+## This is the shared data shape of a bot candidate. Fields may be appended when a
+## genuinely new fact is needed (note the reason in the change), but must not remove or retype any of the
 ## five below.
 
 ## Disk-local (x, z), BlockShape.bottom_center() pivot.
@@ -20,36 +19,23 @@ var orientation_index: int = 0
 ## height()'s own doc).
 var support_height: float = 0.0
 var footprint_cells: PackedInt32Array = PackedInt32Array()
-var on_top_of_own_stack: bool = false
 
-## Bontago-d5c.3 (M5 P2, append-only): how many of game/bots/BotController.gd's own
-## footprint-corner raycasts (_fire_stability_raycasts(), spec 2.9's stability
-## factor) landed at essentially the same height as `support_height` -- i.e.
-## how much of `footprint_cells` is actually in flush contact, not hovering
-## over a gap or a lower stack. -1 ("not measured") is the default and is what
-## every real candidate reports today: BotController._fire_stability_raycasts()
-## still discards each raycast's own result (its own class doc: "P2 is the
-## package that stores and scores what each one finds"), and this package's
-## own brief was "Must NOT touch game/bots/BotController.gd" (owned by another
-## package's window at the time P2 landed). core/ai/BotPlacementScorer.gd
-## falls back to treating the whole footprint as in contact when this is -1;
-## wiring _fire_stability_raycasts() to set it for real is a follow-up for
-## whichever package next owns game/bots/BotController.gd.
+## How many of the footprint's BotThink cube probes landed at essentially the same height as
+## `support_height` -- i.e. how much of `footprint_cells` is in flush contact, not hovering over a gap
+## or a lower stack. -1 ("not measured") is the default; BotThink fills it from its cube probes.
 var corner_support_hits: int = -1
 
-## Bontago-d5c.9 (M5 P3b-i, append-only): the oriented shape's own height, in
+## M5 P3b-i, append-only: the oriented shape's own height, in
 ## cube units, above its own pivot -- e.g. a pillar lying flat is 1, standing
-## on end is 3. Producer is game/bots/BotController.gd (Bontago-d5c.8, a later
+## on end is 3. Producer is game/bots/BotController.gd (a later
 ## package's own window); every candidate here defaults to 0.0 until that
-## package wires it in. core/ai/BotPlacementScorer.gd's goal-progress metric
-## adds this to `support_height` before estimating the candidate's own future
-## influence-circle radius (InfluenceCircle.radius_for_height()), since the
-## circle's radius formula is driven by the block's own highest point above
-## the disk, not merely where its pivot rests.
+## package wires it in. BotEvaluator adds this to `support_height`
+## (top_height) since a block's influence radius is driven by its own highest point above the
+## disk, not merely where its pivot rests.
 var shape_height: float = 0.0
 
-## Bot V2 (Bontago-1t5.19, append-only): which generator produced the site
-## (BotThink.SITE_LEGACY = 0 until BotCandidateGen, P2, adds the targeted kinds).
+## Bot V2 (append-only): which generator produced the site
+## (BotThink.SITE_NONE = 0 until BotCandidateGen sets a targeted kind).
 var site_kind: int = 0
 ## Height above the disk of the highest point of the placed piece
 ## (support_height + shape_height); the influence-circle radius is driven by it.
@@ -58,17 +44,17 @@ var top_height: float = 0.0
 ## footprint order; empty until the footprint was probed.
 var cell_support: PackedFloat32Array = PackedFloat32Array()
 
-## Bontago-1t5.55.2 (append-only; stub for 1t5.53b): disk-local XZ of each probed bottom cube
+## append-only; stub for 1t5.53b: disk-local XZ of each probed bottom cube
 ## (BotStatics.contact_probe_points); `cell_support` is parallel to it once probed. Empty = the
 ## grid-cell probing of older candidates.
 var probe_points: PackedVector2Array = PackedVector2Array()
 ## Parallel to `probe_points`: instance id of the block collider the ray hit, -1 = disc / miss.
 var support_bodies: PackedInt64Array = PackedInt64Array()
-## Bontago-1t5.69 (append-only): cubes in the placed piece's top layer (BotStatics.OrientationInfo.top_area),
+## append-only: cubes in the placed piece's top layer (BotStatics.OrientationInfo.top_area),
 ## the landing area the next piece gets; 0 = unknown (older candidates).
 var top_area: float = 0.0
 
-## Bontago-1t5.72.4 (append-only): BotStability.evaluate's slack (min margin - required over the piece cut and
+## append-only: BotStability.evaluate's slack (min margin - required over the piece cut and
 ## every lower cut; stable iff > 0). INF = not evaluated.
 var stability_slack: float = INF
 ## The cut that binds the slack (BotStability.BINDING_PIECE, a lower cut's body index, or BINDING_NONE = -2).

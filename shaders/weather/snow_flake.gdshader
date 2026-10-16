@@ -1,7 +1,7 @@
 shader_type spatial;
-// Bontago-22y.6: one falling snowflake. Camera-facing particle quad drawn as
+// one falling snowflake. Camera-facing particle quad drawn as
 // a soft round dot (never a visible square), unshaded, no depth write.
-// Bontago-mp0.97 (playtest: too subtle): the on-screen size is clamped between
+// playtest: too subtle: the on-screen size is clamped between
 // min_angle and max_angle (radians), so a far flake never shrinks to a
 // sub-pixel speck and a near one never becomes a blob, and a cool outline
 // (edge_color from edge_start across the flake) keeps the white core readable
@@ -17,7 +17,7 @@ uniform float edge_blend = 0.25;
 uniform float flake_size = 0.18;
 uniform float min_angle = 0.006;
 uniform float max_angle = 0.03;
-// Bontago-mp0.121: optional cel snowflake atlas (columns x rows, row-major,
+// optional cel snowflake atlas (columns x rows, row-major,
 // top-left origin). Each particle slot keeps one random cell. Full-colour art
 // already has its own shading and outline, so the dot mask and edge tint are
 // skipped. No mipmaps (cells would bleed into each other).

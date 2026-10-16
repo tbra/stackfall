@@ -5,10 +5,10 @@ extends HBoxContainer
 ## stepper_width_units row heights wide, one row height tall, never expands. At a limit the matching
 ## block is disabled (dimmed). The stepper itself takes focus: ui_left / ui_right step it, holding
 ## repeats after SliderNavTuning.repeat_delay_sec every repeat_interval_sec; a stick follows the
-## same friction rules (UiHoldRepeat, Bontago-1pi.152): it presses past
+## same friction rules (UiHoldRepeat): it presses past
 ## stick_press_threshold, releases below stick_release_threshold, and auto-repeats only near full
 ## deflection. The -/+ blocks repeat while the mouse holds them.
-## The hold timer is the shared UiHoldRepeat (Bontago-1pi.159.10).
+## The hold timer is the shared UiHoldRepeat.
 
 signal value_changed(value: int)
 

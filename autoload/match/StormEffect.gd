@@ -1,6 +1,6 @@
 class_name StormEffect
 extends WindEffect
-## Host-side wind physics (Bontago-22y.4). Every physics tick pushes live
+## Host-side wind physics. Every physics tick pushes live
 ## blocks sideways with a force that is zero below StormTuning.threshold_height_m
 ## and rises to a maximum at cap_height_m, so tall thin stacks topple while low
 ## piles stay put. The push is mass-proportional (acceleration), clamped per

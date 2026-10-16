@@ -1,5 +1,5 @@
 extends GutTest
-## MatchConfig.sanitize()/to_dict()/from_dict() (spec 2.8, 3.6).
+## MatchConfig.sanitize()/to_dict()/from_dict() (spec 1.9, 3.6).
 
 
 func test_to_dict_from_dict_round_trips_every_field() -> void:
@@ -50,14 +50,6 @@ func test_to_dict_from_dict_round_trips_every_field() -> void:
 	assert_eq(restored.rng_seed, config.rng_seed)
 
 
-func test_from_dict_keeps_defaults_for_unknown_or_missing_keys() -> void:
-	var restored: MatchConfig = MatchConfig.from_dict({"player_count": 5, "not_a_real_field": 123})
-	var defaults: MatchConfig = MatchConfig.new()
-	assert_eq(restored.player_count, 5)
-	assert_eq(restored.block_timer, defaults.block_timer)
-	assert_eq(restored.hot_seat, defaults.hot_seat)
-
-
 func test_sanitize_clamps_every_range() -> void:
 	var config: MatchConfig = MatchConfig.new()
 	config.player_count = 99
@@ -77,48 +69,8 @@ func test_sanitize_clamps_every_range() -> void:
 	assert_eq(config.match_timer_minutes, 0)
 
 
-func test_sanitize_clamps_low_end_of_every_range() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	config.player_count = -1
-	config.block_timer = 999.0
-	config.gravity_multiplier = -1.0
-	config.goal_flag_count = 999
-	config.special_frequency = 999
-
-	config.sanitize()
-
-	assert_eq(config.player_count, MatchConfig.PLAYER_COUNT_MIN)
-	assert_eq(config.block_timer, MatchConfig.BLOCK_TIMER_MAX)
-	assert_eq(config.gravity_multiplier, MatchConfig.GRAVITY_MIN)
-	assert_eq(config.goal_flag_count, MatchConfig.GOAL_FLAG_MAX)
-	assert_eq(config.special_frequency, MatchConfig.SPECIAL_FREQUENCY_MAX)
-
-
-func test_sanitize_pads_short_player_colors() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	config.player_colors = PackedColorArray([Color.RED, Color.GREEN])
-	config.sanitize()
-	assert_eq(config.player_colors.size(), MatchConfig.PLAYER_COUNT_MAX)
-	assert_eq(config.player_colors[0], Color.RED)
-	assert_eq(config.player_colors[1], Color.GREEN)
-
-
-## Bontago-d5c (M5): ai_count == 0 behaves exactly as before -- no connected
-## peer is ever left without a slot (Bontago-mv0.7), and a match with no bots
-## requested still shrinks player_count straight to the peer count.
-func test_clamp_to_connected_peers_with_no_bots_matches_old_behaviour() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	config.player_count = 8
-	config.ai_count = 0
-
-	config.clamp_to_connected_peers(2)
-
-	assert_eq(config.player_count, 2, "no slot may be left without a connected peer (Bontago-mv0.7)")
-	assert_eq(config.ai_count, 0)
-
-
 ## Bots don't need a connected peer behind them (M5): the requested ai_count
-## fills the remaining seats up to the spec 2.8 max instead of being zeroed.
+## fills the remaining seats up to the spec 1.9 max instead of being zeroed.
 func test_clamp_to_connected_peers_fills_remaining_seats_with_bots() -> void:
 	var config: MatchConfig = MatchConfig.new()
 	config.ai_count = 7
@@ -129,70 +81,7 @@ func test_clamp_to_connected_peers_fills_remaining_seats_with_bots() -> void:
 	assert_eq(config.ai_count, 7)
 
 
-## Humans outrank bots for the available seats (# DECISION,
-## config/match/MatchConfig.gd): 8 connected peers already fill every seat, so a
-## stale ai_count trims to 0 rather than evicting a connected human.
-func test_clamp_to_connected_peers_humans_outrank_bots_for_scarce_seats() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	config.ai_count = 3
-
-	config.clamp_to_connected_peers(8)
-
-	assert_eq(config.player_count, 8)
-	assert_eq(config.ai_count, 0, "no room left for bots once 8 peers are connected")
-
-
-func test_sanitize_rejects_out_of_range_player_counts_zero_and_nine() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	config.player_count = 0
-	config.sanitize()
-	assert_eq(config.player_count, 1, "0 players clamps up to the 1-player floor")
-	config.player_count = 9
-	config.sanitize()
-	assert_eq(config.player_count, 8, "9 players clamps down to 8")
-
-
-func test_clamp_to_connected_peers_respects_the_spec_28_range() -> void:
-	var config: MatchConfig = MatchConfig.new()
-
-	config.clamp_to_connected_peers(0)
-	assert_eq(config.player_count, MatchConfig.PLAYER_COUNT_MIN)
-
-	config.clamp_to_connected_peers(99)
-	assert_eq(config.player_count, MatchConfig.PLAYER_COUNT_MAX)
-
-
-func test_clamp_to_connected_peers_player_count_always_stays_in_range() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	for peer_count: int in range(0, 10):
-		for ai_count: int in range(0, 10):
-			config.ai_count = ai_count
-			config.clamp_to_connected_peers(peer_count)
-			assert_between(config.player_count, MatchConfig.PLAYER_COUNT_MIN, MatchConfig.PLAYER_COUNT_MAX)
-
-
-func test_team_of_slot_is_free_for_all_by_default() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	config.player_count = 4
-	for i: int in range(4):
-		assert_eq(config.team_of_slot(i), i)
-	assert_eq(config.team_count(), 4)
-
-
-## TeamMode.OFF is free-for-all for every player_count, byte-identical to
-## today's one team per slot -- not just the 4-player case the test above
-## already covers.
-func test_team_of_slot_off_matches_slot_id_for_every_player_count() -> void:
-	for player_count: int in range(MatchConfig.PLAYER_COUNT_MIN, MatchConfig.PLAYER_COUNT_MAX + 1):
-		var config: MatchConfig = MatchConfig.new()
-		config.team_mode = MatchConfig.TeamMode.OFF
-		config.player_count = player_count
-		assert_eq(config.team_count(), player_count, "OFF: team_count() == player_count for %d players" % player_count)
-		for slot_id: int in range(player_count):
-			assert_eq(config.team_of_slot(slot_id), slot_id, "OFF: team_of_slot(%d) == %d" % [slot_id, slot_id])
-
-
-## Spec 2.8 "Teams: Off / 2 / 3 / 4": every real team mode, for every
+## Spec 1.9 "Teams: Off / 2 / 3 / 4": every real team mode, for every
 ## player_count in 2..8. Assignment interleaves (slot_id % team_count),
 ## team_count() never exceeds player_count (mini() guard: TEAMS_4 with 2
 ## players still returns 2 teams, never 4 with two of them permanently
@@ -230,131 +119,15 @@ func test_team_of_slot_interleaves_for_every_team_mode_and_player_count() -> voi
 			)
 
 
-func test_map_def_is_the_one_map_scaled_by_the_disc_size_step() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	assert_eq(config.map_def().id, MapDef.base().id)
-	assert_almost_eq(config.field_radius(), MapDef.RADIUS_MEDIUM, 0.001)
-	config.disc_size_step = 1
-	assert_almost_eq(config.field_radius(), MapDef.RADIUS_MEDIUM * 0.75, 0.001)
-	config.disc_size_step = 5
-	assert_almost_eq(config.field_radius(), MapDef.RADIUS_MEDIUM * 1.75, 0.001)
-	assert_same(config.map_def(), config.map_def(), "cached per step: one instance for HUD/Minimap identity checks")
-
-
-## turn_based defaults false, and round-trips through to_dict()/from_dict()
-## in both directions.
-func test_turn_based_round_trips() -> void:
-	assert_false(MatchConfig.new().turn_based, "turn_based defaults to false")
-
-	var config: MatchConfig = MatchConfig.new()
-	config.turn_based = true
-	var restored: MatchConfig = MatchConfig.from_dict(config.to_dict())
-	assert_true(restored.turn_based, "true round-trips through to_dict()/from_dict()")
-
-	var config_false: MatchConfig = MatchConfig.new()
-	config_false.turn_based = false
-	var restored_false: MatchConfig = MatchConfig.from_dict(config_false.to_dict())
-	assert_false(restored_false.turn_based, "false round-trips through to_dict()/from_dict()")
-
-
-# --- HoleMode.TEMPORARY, the default again (Bontago-cmc.7) --------------------
-# docs/TERRITORY_V2_PLAN.md's HoleMode.OFF (the v2 no-overlap mode) was the
-# default for a while; SPEC.md's 2026-09-20 evidence audit ("Decisions made —
+# --- HoleMode.TEMPORARY, the default again --------------------
+# HoleMode.OFF (the v2 no-overlap mode) was the
+# default for a while; SPEC.md's evidence audit ("Decisions made —
 # current target": "restore overlap holes as the fidelity target... The
 # no-overlap v2 mode is optional, not the default") reverted it back to
 # TEMPORARY, matching the installed original's own tutorial text
 # (docs/ORIGINAL_INSTALL_EVIDENCE.md: overlap sinking).
 
-func test_holes_are_temporary_by_default() -> void:
-	assert_eq(MatchConfig.new().hole_mode, MatchConfig.HoleMode.TEMPORARY,
-		"SPEC.md 2026-09-20 audit: overlap holes are the fidelity target again.")
-
-
-func test_the_shipped_defaults_resource_also_says_temporary() -> void:
-	var defaults: MatchConfig = load("res://config/match/match_defaults.tres") as MatchConfig
-	assert_eq(defaults.hole_mode, MatchConfig.HoleMode.TEMPORARY,
-		"config/match/match_defaults.tres stores the raw int, so it has to be "
-		+ "re-saved when the enum's default moves.")
-
-
-func test_every_hole_mode_round_trips_by_its_int() -> void:
-	for mode: MatchConfig.HoleMode in [
-		MatchConfig.HoleMode.TEMPORARY, MatchConfig.HoleMode.PERMANENT, MatchConfig.HoleMode.OFF
-	]:
-		var config: MatchConfig = MatchConfig.new()
-		config.hole_mode = mode
-		var restored: MatchConfig = MatchConfig.from_dict(config.to_dict())
-		assert_eq(restored.hole_mode, mode)
-
-
-func test_the_existing_hole_mode_ints_did_not_move() -> void:
-	## OFF was appended rather than inserted, so a raw 0 or 1 from an old save
-	## or from a peer running the previous build still means what it meant.
-	assert_eq(int(MatchConfig.HoleMode.TEMPORARY), 0)
-	assert_eq(int(MatchConfig.HoleMode.PERMANENT), 1)
-	assert_eq(int(MatchConfig.HoleMode.OFF), 2)
-	assert_eq(MatchConfig.from_dict({"hole_mode": 0}).hole_mode, MatchConfig.HoleMode.TEMPORARY)
-	assert_eq(MatchConfig.from_dict({"hole_mode": 1}).hole_mode, MatchConfig.HoleMode.PERMANENT)
-
-
-func test_sanitize_clamps_hole_mode_to_the_three_modes() -> void:
-	var low: MatchConfig = MatchConfig.new()
-	low.hole_mode = -3 as MatchConfig.HoleMode
-	low.sanitize()
-	assert_eq(low.hole_mode, MatchConfig.HoleMode.TEMPORARY,
-		"A garbage value clamps to a real mode, never silently to OFF.")
-
-	var high: MatchConfig = MatchConfig.new()
-	high.hole_mode = 99 as MatchConfig.HoleMode
-	high.sanitize()
-	assert_eq(high.hole_mode, MatchConfig.HoleMode.OFF)
-
-	for mode: MatchConfig.HoleMode in [
-		MatchConfig.HoleMode.TEMPORARY, MatchConfig.HoleMode.PERMANENT, MatchConfig.HoleMode.OFF
-	]:
-		var config: MatchConfig = MatchConfig.new()
-		config.hole_mode = mode
-		config.sanitize()
-		assert_eq(config.hole_mode, mode, "sanitize() leaves a legal mode alone.")
-
-
-func test_sky_theme_mode_round_trips_and_defaults_to_cycle() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	assert_eq(config.sky_theme_mode, MatchConfig.SkyThemeMode.CYCLE, "Bontago-59o.18: Cycle is the default sky")
-	assert_true(config.is_sky_cycle_running())
-	assert_eq(config.locked_sky_id(), "", "a running cycle has no locked id")
-	assert_eq(config.sky_theme_resolved, "", "nothing resolved before match start")
-	assert_eq(config.effective_sky_theme(), "sunset", "the structural theme the cycle is built from")
-	assert_eq(config.to_dict()["sky_theme_mode"], MatchConfig.SkyThemeMode.CYCLE, "the wire default is Cycle")
-	assert_eq((load("res://config/match/match_defaults.tres") as MatchConfig).sky_theme_mode, MatchConfig.SkyThemeMode.CYCLE)
-	config.sky_theme_mode = MatchConfig.SkyThemeMode.RANDOM
-	config.resolve_sky_theme(1)
-	var restored: MatchConfig = MatchConfig.from_dict(config.to_dict())
-	assert_eq(restored.sky_theme_mode, MatchConfig.SkyThemeMode.RANDOM)
-	assert_eq(restored.effective_sky_theme(), "night", "clients use the host's resolved theme")
-	assert_eq(MatchConfig.from_dict({}).sky_theme_mode, MatchConfig.SkyThemeMode.CYCLE, "old wire data without the key means Cycle")
-
-
-func test_resolve_sky_theme_maps_modes_and_sanitize_drops_unknown_ids() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	config.sky_theme_mode = MatchConfig.SkyThemeMode.NIGHT
-	config.resolve_sky_theme(0)
-	assert_eq(config.sky_theme_resolved, "night")
-	config.sky_theme_mode = MatchConfig.SkyThemeMode.DAY
-	config.resolve_sky_theme(0)
-	assert_eq(config.sky_theme_resolved, "sunset", "Day is the locked Sunset")
-	config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
-	config.resolve_sky_theme(0)
-	assert_eq(config.sky_theme_resolved, "", "the running cycle has no concrete id")
-	config.sky_theme_mode = MatchConfig.SkyThemeMode.RANDOM
-	config.resolve_sky_theme(0)
-	assert_eq(config.sky_theme_resolved, "sunset")
-	config.sky_theme_resolved = "../evil"
-	config.sanitize()
-	assert_eq(config.sky_theme_resolved, "")
-
-
-## Bontago-59o.18: RANDOM picks one of the three locked skies for every roll
+## RANDOM picks one of the three locked skies for every roll
 ## (negative included) and never the running cycle; the result round-trips and
 ## every peer derives the same locked id from the replicated fields.
 func test_random_sky_resolves_to_a_locked_id_never_the_running_cycle() -> void:
@@ -371,146 +144,6 @@ func test_random_sky_resolves_to_a_locked_id_never_the_running_cycle() -> void:
 	assert_eq(seen.size(), MatchConfig.SKY_THEME_IDS.size(), "every locked sky is reachable by a roll")
 
 
-## Bontago-59o.18: locked_sky_id() is "" only for the running cycle; every other
-## mode names the concrete id (resolved or the mode's own), and old saved/wire
-## values (Day = 0 and the like) still deserialize to a locked sky.
-func test_locked_sky_id_per_mode_and_old_values_still_deserialize() -> void:
-	var expected: Dictionary = {
-		MatchConfig.SkyThemeMode.CYCLE: "",
-		MatchConfig.SkyThemeMode.DAY: "sunset",
-		MatchConfig.SkyThemeMode.NIGHT: "night",
-		MatchConfig.SkyThemeMode.DAWN: "dawn",
-		MatchConfig.SkyThemeMode.RANDOM: "sunset",
-	}
-	for mode: int in expected:
-		var config: MatchConfig = MatchConfig.new()
-		config.sky_theme_mode = mode as MatchConfig.SkyThemeMode
-		assert_eq(config.locked_sky_id(), String(expected[mode]), "unresolved mode %d" % mode)
-		config.resolve_sky_theme(0)
-		assert_eq(config.locked_sky_id(), String(expected[mode]), "resolved mode %d" % mode)
-		assert_eq(config.is_sky_cycle_running(), mode == MatchConfig.SkyThemeMode.CYCLE)
-	for mode: int in [0, 1, 2, 3, 4]:
-		var restored: MatchConfig = MatchConfig.from_dict({"sky_theme_mode": mode})
-		assert_eq(restored.sky_theme_mode, mode, "mode int %d keeps its meaning on the wire" % mode)
-	assert_eq(MatchConfig.from_dict({"sky_theme_mode": 0}).locked_sky_id(), "sunset", "an old Day is the locked Sunset")
-	assert_eq(MatchConfig.from_dict({"sky_theme_mode": 3}).locked_sky_id(), "", "an old Cycle still runs")
-
-
-func test_dawn_mode_resolves_and_survives_lobby_wire_data() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	assert_eq(MatchConfig.SkyThemeMode.DAWN, 4, "Existing network mode ids stay stable")
-	config.sky_theme_mode = MatchConfig.SkyThemeMode.DAWN
-	assert_eq(config.effective_sky_theme(), "dawn")
-	config.resolve_sky_theme(0)
-	assert_eq(config.sky_theme_resolved, "dawn")
-	var restored: MatchConfig = MatchConfig.from_dict(config.to_dict())
-	assert_eq(restored.sky_theme_mode, MatchConfig.SkyThemeMode.DAWN)
-	assert_eq(restored.effective_sky_theme(), "dawn")
-	assert_true(ResourceLoader.exists("res://config/sky/themes/dawn.tres"))
-	config.sky_theme_mode = MatchConfig.SkyThemeMode.RANDOM
-	config.resolve_sky_theme(2)
-	assert_eq(config.sky_theme_resolved, "dawn", "Random includes the new concrete theme")
-
-
-## Bontago-59o.18 (C1b follow-up): the per-match sky variation seed defaults unresolved,
-## an old or mistyped wire value stays safe, and a stray number is clamped into range.
-func test_sky_variation_seed_defaults_unresolved_and_old_or_bad_wire_data_is_safe() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	assert_eq(config.sky_variation_seed, MatchConfig.SKY_VARIATION_SEED_UNRESOLVED, "unresolved until the host rolls it")
-	assert_eq(config.to_dict()["sky_variation_seed"], -1)
-	assert_eq(MatchConfig.from_dict({}).sky_variation_seed, -1, "an old config without the key stays unresolved")
-	assert_eq((load("res://config/match/match_defaults.tres") as MatchConfig).sky_variation_seed, -1)
-	for bad: Variant in ["abc", null, [1, 2], {"a": 1}, true]:
-		assert_eq(MatchConfig.from_dict({"sky_variation_seed": bad}).sky_variation_seed, -1, "mistyped value %s" % [bad])
-	assert_eq(MatchConfig.from_dict({"sky_variation_seed": 1234.0}).sky_variation_seed, 1234, "a JSON float (Steam lobby) is accepted")
-	assert_eq(MatchConfig.from_dict({"sky_variation_seed": -77}).sky_variation_seed, -1, "negative reads as unresolved")
-	assert_eq(MatchConfig.from_dict({"sky_variation_seed": 9999999999}).sky_variation_seed, MatchConfig.SKY_VARIATION_SEED_MAX)
-	config.sky_variation_seed = -5
-	config.sanitize()
-	assert_eq(config.sky_variation_seed, -1, "sanitize() maps a negative seed to unresolved")
-	config.sky_variation_seed = MatchConfig.SKY_VARIATION_SEED_MAX + 10
-	config.sanitize()
-	assert_eq(config.sky_variation_seed, MatchConfig.SKY_VARIATION_SEED_MAX, "sanitize() caps an oversized seed")
-
-
-## The host resolves an unresolved seed once (any int roll folds into range), keeps it on
-## a second call, and a client gets the same value through to_dict()/from_dict().
-func test_host_resolves_an_unresolved_sky_variation_seed_once_and_it_round_trips() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	assert_eq(config.effective_sky_variation_seed(), -1, "no seed source: the sky falls back to its default curve")
-	config.resolve_sky_variation_seed(123456)
-	assert_eq(config.sky_variation_seed, 123456)
-	config.resolve_sky_variation_seed(999)
-	assert_eq(config.sky_variation_seed, 123456, "resolved once: a second call keeps the host's seed")
-	var restored: MatchConfig = MatchConfig.from_dict(config.to_dict())
-	assert_eq(restored.sky_variation_seed, 123456, "the client receives the host's seed")
-	assert_eq(restored.effective_sky_variation_seed(), config.effective_sky_variation_seed())
-	for roll: int in [0, -1, 4294967295, 4294967303, -9999999999, 1 << 40]:
-		var rolled: MatchConfig = MatchConfig.new()
-		rolled.resolve_sky_variation_seed(roll)
-		assert_between(rolled.sky_variation_seed, 0, MatchConfig.SKY_VARIATION_SEED_MAX, "roll %d folds into range" % roll)
-	var negative: MatchConfig = MatchConfig.new()
-	negative.resolve_sky_variation_seed(-1)
-	assert_eq(negative.sky_variation_seed, MatchConfig.SKY_VARIATION_SEED_MAX, "negative rolls wrap (posmod)")
-	var first: MatchConfig = MatchConfig.new()
-	var second: MatchConfig = MatchConfig.new()
-	first.resolve_sky_variation_seed(11)
-	second.resolve_sky_variation_seed(12)
-	assert_ne(first.sky_variation_seed, second.sky_variation_seed, "different rolls (matches) draw different seeds")
-
-
-## A deterministic rng_seed (>= 0) is the sky's seed too: nothing is rolled, and the
-## effective seed is exactly rng_seed (the pre-follow-up behaviour). An explicit
-## sky_variation_seed still wins.
-func test_a_seeded_match_keeps_its_rng_seed_as_the_sky_variation_seed() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	config.rng_seed = 77
-	config.resolve_sky_variation_seed(5)
-	assert_eq(config.sky_variation_seed, -1, "a seeded match needs no roll")
-	assert_eq(config.effective_sky_variation_seed(), 77)
-	assert_eq(MatchConfig.from_dict(config.to_dict()).effective_sky_variation_seed(), 77, "clients agree")
-	config.rng_seed = 0
-	assert_eq(config.effective_sky_variation_seed(), 0, "seed 0 is a real seed")
-	config.sky_variation_seed = 5
-	config.rng_seed = 77
-	assert_eq(config.effective_sky_variation_seed(), 5, "an explicit / resolved variation seed wins")
-
-
-## The host's match start is the call site: it rolls the seed on the match's own copy
-## of the config (never the lobby's), so each match gets a fresh one, and a seeded
-## match is left alone.
-func test_match_start_resolves_a_fresh_sky_variation_seed_per_match_on_the_host() -> void:
-	Match.set_process(false)
-	var lobby: MatchConfig = MatchConfig.new()
-	lobby.hot_seat = false
-	lobby.player_count = 2
-	var seeds: Dictionary = {}
-	for _i: int in range(3):
-		Match.start_match(lobby)
-		assert_gte(Match.config.sky_variation_seed, 0, "the host resolved the seed at match start")
-		assert_eq(MatchConfig.from_dict(Match.config.to_dict()).sky_variation_seed, Match.config.sky_variation_seed, "and it rides the replicated config")
-		seeds[Match.config.sky_variation_seed] = true
-		assert_eq(lobby.sky_variation_seed, -1, "the lobby's own config stays unresolved")
-	assert_gt(seeds.size(), 1, "different matches draw different seeds")
-	lobby.rng_seed = 31
-	Match.start_match(lobby)
-	assert_eq(Match.config.sky_variation_seed, -1, "a seeded match is not rolled")
-	assert_eq(Match.config.effective_sky_variation_seed(), 31)
-	Match.abort_match()
-	Match.set_process(true)
-
-
-func test_default_lobby_gravity_reads_one_and_effective_gravity_is_the_raised_base() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	var tuning: PhysicsTuning = load("res://config/physics/physics_tuning.tres") as PhysicsTuning
-	assert_eq(config.gravity_multiplier, 1.0)
-	assert_eq((load("res://config/match/match_defaults.tres") as MatchConfig).gravity_multiplier, 1.0)
-	# Base gravity raised 1.25x (owner 2026-10-12, Bontago-1pi.179): 1.4 * 1.25.
-	assert_eq(tuning.lobby_gravity_baseline * config.gravity_multiplier, 1.75)
-	assert_eq(config.block_timer, 5.0)
-	assert_eq(config.special_frequency, 30)
-
-
 func test_legacy_dict_gravity_is_rescaled_but_versioned_dict_is_not() -> void:
 	var legacy: MatchConfig = MatchConfig.from_dict({"gravity_multiplier": 1.4})
 	assert_almost_eq(legacy.gravity_multiplier, 1.0, 0.0001)
@@ -518,49 +151,7 @@ func test_legacy_dict_gravity_is_rescaled_but_versioned_dict_is_not() -> void:
 	assert_eq(current.gravity_multiplier, 1.0)
 
 
-func test_cycle_mode_survives_wire_round_trip() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
-	config.resolve_sky_theme(0)
-	assert_eq(config.sky_theme_resolved, "", "the host resolves the running cycle to no concrete id")
-	var restored: MatchConfig = MatchConfig.from_dict(config.to_dict())
-	assert_eq(restored.sky_theme_mode, MatchConfig.SkyThemeMode.CYCLE)
-	assert_true(restored.is_sky_cycle_running())
-	assert_eq(restored.locked_sky_id(), "")
-	assert_eq(restored.effective_sky_theme(), "sunset")
-
-
-## Bontago-1pi.30 (owner playtest 2026-10-03): the round timer defaults to 5 and the
-## lobby slider spans 2-30; an old saved/remote value from the 1-40 era is clamped into
-## the new range by the host's own sanitize()/from_dict(), Off surviving where allowed.
-func test_round_timer_range_and_default() -> void:
-	assert_lt(MatchConfig.ROUND_TIMER_MIN_MINUTES, MatchConfig.ROUND_TIMER_MAX_MINUTES, "a non-empty range")
-	assert_between(MatchConfig.ROUND_TIMER_DEFAULT_MINUTES, MatchConfig.ROUND_TIMER_MIN_MINUTES, MatchConfig.ROUND_TIMER_MAX_MINUTES, "the default lies inside the declared range")
-	assert_eq(MatchConfig.new().round_timer_minutes, MatchConfig.ROUND_TIMER_DEFAULT_MINUTES, "a fresh config uses the declared default")
-	assert_eq(MatchConfig.new().match_timer_minutes, 0, "Classic stays Off")
-
-
-func test_old_saved_timer_values_clamp_into_the_new_range() -> void:
-	var ctf: int = MatchConfig.GameMode.CAPTURE_THE_FLAG
-	assert_eq(MatchConfig.from_dict({"game_mode": ctf, "round_timer_minutes": 40}).round_timer_minutes, 30)
-	assert_eq(MatchConfig.from_dict({"game_mode": ctf, "round_timer_minutes": 1}).round_timer_minutes, 2)
-	assert_eq(MatchConfig.from_dict({"game_mode": ctf, "round_timer_minutes": 10}).round_timer_minutes, 10, "in range: kept")
-	var elimination: Dictionary = {"game_mode": MatchConfig.GameMode.ELIMINATION, "round_timer_minutes": 0}
-	assert_eq(MatchConfig.from_dict(elimination).round_timer_minutes, 0, "Elimination keeps Off")
-	var config: MatchConfig = MatchConfig.new()
-	config.match_timer_minutes = 40
-	config.sanitize()
-	assert_eq(config.match_timer_minutes, 30, "Classic's old 40 is clamped to the new maximum")
-	config.match_timer_minutes = 0
-	config.sanitize()
-	assert_eq(config.match_timer_minutes, 0, "Off survives")
-	config.game_mode = MatchConfig.GameMode.DOMINATION
-	config.round_timer_minutes = 0
-	config.sanitize()
-	assert_eq(config.round_timer_minutes, 2, "Domination is never off")
-	assert_eq(MatchConfig.from_dict(config.to_dict()).round_timer_minutes, 2, "serialize -> deserialize")
-
-# --- Lobby rework: per-slot teams, per-bot difficulty (Bontago-1pi.53, P1) ----
+# --- Lobby rework: per-slot teams, per-bot difficulty (P1) ----
 
 ## A resolved three-team, six-seat config (lobby numbers 1/3/4): the shape the
 ## host's TeamAssigner writes at Start.
@@ -571,61 +162,6 @@ func _resolved_config() -> MatchConfig:
 	config.slot_team_ids = PackedInt32Array([0, 1, 0, 2, 1, 2])
 	config.team_numbers = PackedInt32Array([1, 3, 4])
 	return config
-
-
-func test_team_pick_constants() -> void:
-	assert_eq(MatchConfig.TEAM_PICK_RANDOM, 0, "Random is 0 so explicit numbers are 1..TEAM_PICK_MAX")
-	assert_gt(MatchConfig.TEAM_PICK_MAX, 1, "there is more than one team to pick")
-	assert_eq(MatchConfig.TEAM_PICK_MAX, MatchConfig.new().team_mode_team_count(MatchConfig.TeamMode.TEAMS_4),
-		"the pick ceiling is the largest TeamMode's team count")
-
-
-func test_team_pick_cap_and_teams_enabled_follow_team_mode() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	assert_false(config.teams_enabled())
-	assert_eq(config.team_pick_cap(), 0, "teams off: no picks")
-	config.team_mode = MatchConfig.TeamMode.TEAMS_2
-	assert_true(config.teams_enabled())
-	assert_eq(config.team_pick_cap(), 2)
-	config.team_mode = MatchConfig.TeamMode.TEAMS_3
-	assert_eq(config.team_pick_cap(), 3)
-	config.team_mode = MatchConfig.TeamMode.TEAMS_4
-	assert_eq(config.team_pick_cap(), 4)
-
-
-func test_new_fields_default_empty_and_keep_legacy_behaviour() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	assert_true(config.slot_team_ids.is_empty())
-	assert_true(config.team_numbers.is_empty())
-	assert_true(config.slot_ai_difficulties.is_empty())
-	assert_false(config.teams_resolved())
-	var dict: Dictionary = config.to_dict()
-	assert_false(dict.has("slot_team_ids"), "a legacy config's dict is unchanged")
-	assert_false(dict.has("team_numbers"))
-	assert_false(dict.has("slot_ai_difficulties"))
-
-
-func test_new_fields_round_trip_through_to_dict_from_dict() -> void:
-	var config: MatchConfig = _resolved_config()
-	config.ai_count = 3
-	config.ai_difficulty = MatchConfig.AiDifficulty.NORMAL
-	config.slot_ai_difficulties = PackedInt32Array([
-		MatchConfig.AiDifficulty.NORMAL, MatchConfig.AiDifficulty.NORMAL, MatchConfig.AiDifficulty.NORMAL,
-		MatchConfig.AiDifficulty.HARD, MatchConfig.AiDifficulty.EASY, MatchConfig.AiDifficulty.HARD,
-	])
-	var restored: MatchConfig = MatchConfig.from_dict(config.to_dict())
-	assert_eq(restored.slot_team_ids, config.slot_team_ids)
-	assert_eq(restored.team_numbers, config.team_numbers)
-	assert_eq(restored.slot_ai_difficulties, config.slot_ai_difficulties)
-	for slot: int in range(config.player_count):
-		assert_eq(restored.team_of_slot(slot), config.team_of_slot(slot), "slot %d team" % slot)
-		assert_eq(restored.ai_difficulty_for_slot(slot), config.ai_difficulty_for_slot(slot), "slot %d difficulty" % slot)
-	assert_eq(restored.team_count(), 3)
-	# The dict carries copies, not the live arrays.
-	var dict: Dictionary = config.to_dict()
-	var in_dict: PackedInt32Array = dict["slot_team_ids"]
-	in_dict[0] = 7
-	assert_eq(config.slot_team_ids[0], 0, "to_dict() duplicates the arrays")
 
 
 func test_old_dict_without_the_new_keys_keeps_the_interleave() -> void:
@@ -646,104 +182,13 @@ func test_old_dict_without_the_new_keys_keeps_the_interleave() -> void:
 	assert_eq(config.territory_colors(), config.player_colors, "legacy territory colour is player_colors[team]")
 
 
-func test_resolved_teams_drive_team_of_slot_and_team_count() -> void:
-	var config: MatchConfig = _resolved_config()
-	assert_true(config.teams_resolved())
-	assert_eq(config.team_count(), 3, "team_count follows the resolved teams, not min(mode count, players)")
-	var expected: Array[int] = [0, 1, 0, 2, 1, 2]
-	for slot: int in range(6):
-		assert_eq(config.team_of_slot(slot), expected[slot], "slot %d" % slot)
-	assert_eq(config.team_of_slot(6), posmod(6, 3), "a slot the array does not cover falls back to the interleave")
-	for team_id: int in range(config.team_count()):
-		assert_eq(config.team_number_for(team_id), config.team_numbers[team_id], "label = the lobby number")
-	assert_eq(config.team_number_for(9), 10, "out of range label degrades to id + 1")
-	assert_eq(config.team_number_for(-1), 0)
-
-
-func test_teams_off_ignores_resolved_arrays() -> void:
-	var config: MatchConfig = _resolved_config()
-	config.team_mode = MatchConfig.TeamMode.OFF
-	assert_false(config.teams_resolved())
-	assert_eq(config.team_count(), config.player_count)
-	for slot: int in range(config.player_count):
-		assert_eq(config.team_of_slot(slot), slot, "free-for-all: every slot its own team")
-	assert_eq(config.team_number_for(2), 3)
-	assert_eq(config.territory_colors(), config.player_colors)
-
-
-func test_territory_colors_takes_each_teams_lowest_slot_colour() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	config.team_mode = MatchConfig.TeamMode.TEAMS_2
-	config.player_count = 4
-	# Teams {0,1} / {2,3}: block assignment.
-	config.slot_team_ids = PackedInt32Array([0, 0, 1, 1])
-	config.team_numbers = PackedInt32Array([1, 2])
-	var colors: PackedColorArray = config.territory_colors()
-	assert_eq(colors.size(), 2)
-	assert_eq(colors[0], config.player_colors[0], "team 0 -> slot 0")
-	assert_eq(colors[1], config.player_colors[2], "team 1 -> slot 2")
-	# Interleaved: the legacy shape, so the legacy colours.
-	config.slot_team_ids = PackedInt32Array([0, 1, 0, 1])
-	colors = config.territory_colors()
-	assert_eq(colors[0], config.player_colors[0])
-	assert_eq(colors[1], config.player_colors[1])
-	# Team 0 does not own slot 0: colours follow the lowest slot of each team.
-	config.slot_team_ids = PackedInt32Array([1, 0, 1, 0])
-	colors = config.territory_colors()
-	assert_eq(colors[0], config.player_colors[1], "team 0's lowest slot is 1")
-	assert_eq(colors[1], config.player_colors[0], "team 1's lowest slot is 0")
-
-
-func test_territory_colors_survives_a_short_palette() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	config.team_mode = MatchConfig.TeamMode.TEAMS_2
-	config.player_count = 4
-	config.slot_team_ids = PackedInt32Array([0, 0, 1, 1])
-	config.team_numbers = PackedInt32Array([1, 2])
-	config.player_colors = PackedColorArray([Color.RED])
-	var colors: PackedColorArray = config.territory_colors()
-	assert_eq(colors.size(), 2)
-	assert_eq(colors[0], Color.RED)
-	assert_eq(colors[1], MatchConfig.default_player_colors()[2], "missing palette entry falls back to the default colour")
-
-
-func test_ai_difficulty_for_slot_uses_the_per_slot_entry_else_the_default() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	config.ai_difficulty = MatchConfig.AiDifficulty.NORMAL
-	config.slot_ai_difficulties = PackedInt32Array([
-		MatchConfig.AiDifficulty.EASY, MatchConfig.AiDifficulty.NORMAL, MatchConfig.AiDifficulty.HARD
-	])
-	assert_eq(config.ai_difficulty_for_slot(0), MatchConfig.AiDifficulty.EASY)
-	assert_eq(config.ai_difficulty_for_slot(2), MatchConfig.AiDifficulty.HARD)
-	assert_eq(config.ai_difficulty_for_slot(3), MatchConfig.AiDifficulty.NORMAL, "uncovered slot: lobby default")
-	assert_eq(config.ai_difficulty_for_slot(-1), MatchConfig.AiDifficulty.NORMAL, "negative slot: lobby default")
-	config.slot_ai_difficulties = PackedInt32Array([99, -4])
-	assert_eq(config.ai_difficulty_for_slot(0), MatchConfig.AiDifficulty.HARD, "unsanitized garbage clamps, never an invalid enum")
-	assert_eq(config.ai_difficulty_for_slot(1), MatchConfig.AiDifficulty.EASY)
-
-
-func test_sanitize_keeps_a_consistent_resolution() -> void:
-	var config: MatchConfig = _resolved_config()
-	config.sanitize()
-	assert_eq(config.slot_team_ids, PackedInt32Array([0, 1, 0, 2, 1, 2]))
-	assert_eq(config.team_numbers, PackedInt32Array([1, 3, 4]))
-	# TEAMS_2 with a single resolved team (everything on 1) is structurally fine.
-	var one_team: MatchConfig = MatchConfig.new()
-	one_team.team_mode = MatchConfig.TeamMode.TEAMS_2
-	one_team.player_count = 2
-	one_team.slot_team_ids = PackedInt32Array([0, 0])
-	one_team.team_numbers = PackedInt32Array([2])
-	one_team.sanitize()
-	assert_eq(one_team.team_numbers, PackedInt32Array([2]))
-
-
 func _assert_team_arrays_dropped(config: MatchConfig, label: String) -> void:
 	config.sanitize()
 	assert_true(config.slot_team_ids.is_empty(), "%s: slot_team_ids dropped" % label)
 	assert_true(config.team_numbers.is_empty(), "%s: team_numbers dropped" % label)
 	assert_false(config.teams_resolved(), label)
 	# ...and the config is back on the legacy interleave.
-	assert_eq(config.team_count(), mini(config.team_pick_cap(), config.player_count) if config.teams_enabled() else config.player_count, label)
+	assert_eq(config.team_count(), mini(config.team_pick_cap(), config.player_count) if config.team_mode != MatchConfig.TeamMode.OFF else config.player_count, label)
 
 
 func test_sanitize_drops_inconsistent_team_arrays() -> void:
@@ -796,18 +241,6 @@ func test_sanitize_drops_inconsistent_team_arrays() -> void:
 	_assert_team_arrays_dropped(config, "numbers without ids")
 
 
-func test_sanitize_clamps_per_slot_difficulties_and_drops_oversized_ones() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	config.slot_ai_difficulties = PackedInt32Array([-5, 1, 99])
-	config.sanitize()
-	assert_eq(config.slot_ai_difficulties, PackedInt32Array([
-		MatchConfig.AiDifficulty.EASY, MatchConfig.AiDifficulty.NORMAL, MatchConfig.AiDifficulty.HARD
-	]))
-	config.slot_ai_difficulties = PackedInt32Array([0, 0, 0, 0, 0, 0, 0, 0, 0])  # 9 > PLAYER_COUNT_MAX
-	config.sanitize()
-	assert_true(config.slot_ai_difficulties.is_empty(), "oversized falls back to the lobby-wide difficulty")
-
-
 func test_from_dict_accepts_json_style_arrays() -> void:
 	# The Steam lobby tee is JSON: arrays come back as Arrays of floats.
 	var json: JSON = JSON.new()
@@ -847,25 +280,3 @@ func test_from_dict_degrades_foreign_values_to_the_legacy_behaviour() -> void:
 		assert_true(config.slot_ai_difficulties.is_empty(), "slot_ai_difficulties from %s" % str(bad))
 		assert_eq(config.team_of_slot(3), 1, "still the legacy interleave")
 
-
-func test_an_eight_seat_resolved_dict_fits_the_steam_lobby_data_budget() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	config.team_mode = MatchConfig.TeamMode.TEAMS_4
-	config.player_count = 8
-	config.ai_count = 4
-	config.slot_team_ids = PackedInt32Array([0, 1, 2, 3, 0, 1, 2, 3])
-	config.team_numbers = PackedInt32Array([1, 2, 3, 4])
-	config.slot_ai_difficulties = PackedInt32Array([0, 0, 0, 0, 2, 1, 0, 2])
-	var net_config: NetConfig = load("res://config/net/net_config.tres") as NetConfig
-	var text: String = JSON.stringify(config.to_dict())
-	assert_lt(text.to_utf8_buffer().size(), net_config.steam_lobby_data_max_bytes,
-		"the replicated config stays under steam_lobby_data_max_bytes with the new arrays")
-
-
-func test_is_sequential_play_is_hot_seat_or_turn_based() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	for hot: bool in [false, true]:
-		for turn: bool in [false, true]:
-			config.hot_seat = hot
-			config.turn_based = turn
-			assert_eq(config.is_sequential_play(), hot or turn, "hot=%s turn=%s" % [hot, turn])

@@ -1,7 +1,7 @@
 shader_type spatial;
 render_mode unshaded, cull_disabled, skip_vertex_transform, shadows_disabled, fog_disabled;
 
-// Bontago-470.5: distant bird flocks that cross the sky. game/ambient/DistantBirds.gd
+// distant bird flocks that cross the sky. game/ambient/DistantBirds.gd
 // schedules flights and advances `flight_clock`; everything else (the path,
 // glide/flap bursts, bank, sway, formation breathing) is computed here.
 //
@@ -15,7 +15,7 @@ render_mode unshaded, cull_disabled, skip_vertex_transform, shadows_disabled, fo
 // The mesh is a bird silhouette (body, tail fan, swept wings) in the XZ plane, nose toward +X; UV.x is 0 at the body
 // and 1 at the wing tips, so the tips flap and the body stays put.
 
-// Bontago-470.3: weather fog for a fog_disabled shader (see
+// weather fog for a fog_disabled shader (see
 // game/weather/WeatherFogShader.gd). Nothing closer than wfog_begin metres from
 // the camera, wfog_strength at wfog_end; 0 strength = off.
 uniform float wfog_strength : hint_range(0.0, 1.0) = 0.0;

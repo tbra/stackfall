@@ -1,6 +1,6 @@
 class_name BotNames
 extends RefCounted
-## Bontago-1pi.62: the owner's themed bot-name lists plus pure picking rules (no
+## the owner's themed bot-name lists plus pure picking rules (no
 ## scene tree). The host assigns each bot seat one name, distinct from every other
 ## bot and from every human's name, and replicates it in MatchConfig.bot_names.
 

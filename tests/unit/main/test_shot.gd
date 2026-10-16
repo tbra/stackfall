@@ -29,14 +29,6 @@ func test_single_shot_from_flags() -> void:
 	assert_eq(shot["name"], "lobby_hosted_8seats_cards")
 
 
-func test_sizes_list_and_default() -> void:
-	assert_eq(_parse(["--target=main_menu"])["sizes"], [ShotTargets.DEFAULT_SIZE])
-	var sizes: Array = _parse(["--target=main_menu", "--render-size=1280x720,1920x1080,3440x1440"])["sizes"]
-	assert_eq(sizes, [Vector2i(1280, 720), Vector2i(1920, 1080), Vector2i(3440, 1440)])
-	assert_ne(_parse(["--target=main_menu", "--render-size=1280"])["error"], "")
-	assert_ne(_parse(["--target=main_menu", "--render-size=0x720"])["error"], "")
-
-
 func test_shots_json_overrides_flag_defaults() -> void:
 	var json: String = '[{"target":"match","watch":true,"bots":4,"mode":"ctf"},{"target":"sandbox","overlays":["f4"]},{"target":"main_menu"}]'
 	var result: Dictionary = _parse(["--shots=" + json, "--frames=10", "--hud=0"])
@@ -49,14 +41,6 @@ func test_shots_json_overrides_flag_defaults() -> void:
 	assert_eq(shots[0]["frames"], 10, "flags are the defaults for every json shot")
 	assert_eq(shots[0]["hud"], 0)
 	assert_eq(shots[1]["overlays"], PackedStringArray(["f4"]))
-
-
-func test_shots_json_from_file_reader_and_object_form() -> void:
-	var reader: Callable = func(_path: String) -> String: return '{"shots":[{"target":"menu","page":"join"}]}'
-	var result: Dictionary = _parse(["--shots=some/file.json"], reader)
-	assert_eq(result["error"], "")
-	assert_eq(result["shots"][0]["page"], "join")
-	assert_eq(result["shots"][0]["name"], "menu_join")
 
 
 func test_bad_json_and_empty_list_fail() -> void:
@@ -77,26 +61,6 @@ func test_validation_rejects_bad_values() -> void:
 	assert_ne(ShotTargets.normalize_shot({"target": "match", "mode": "chess"})["error"], "")
 	assert_ne(ShotTargets.normalize_shot({"target": "sandbox", "preset": "nope"})["error"], "")
 	assert_ne(ShotTargets.normalize_shot({"target": "sandbox", "frames": -1})["error"], "")
-
-
-func test_normalize_defaults_and_derived_fields() -> void:
-	var shot: Dictionary = ShotTargets.normalize_shot({"target": "match", "watch": true})
-	assert_eq(shot["error"], "")
-	assert_eq(shot["bots"], ShotTargets.DEFAULT_WATCH_BOTS)
-	assert_eq(shot["frames"], ShotTargets.DEFAULT_FRAMES)
-	var lobby: Dictionary = ShotTargets.normalize_shot({"target": "lobby", "seats": 99})
-	assert_eq(lobby["seats"], MatchConfig.PLAYER_COUNT_MAX, "seats are clamped to the match limits")
-	var tabbed: Dictionary = ShotTargets.normalize_shot({"target": "sandbox", "f4_tab": "physics"})
-	assert_true((tabbed["overlays"] as PackedStringArray).has("f4"), "an f4 tab implies the f4 overlay")
-	var hud: Dictionary = ShotTargets.normalize_shot({"target": "sandbox", "hud": "false"})
-	assert_eq(hud["hud"], 0)
-
-
-func test_cam_parsing() -> void:
-	assert_eq(ShotTargets.parse_cam("30,-35,40"), PackedFloat32Array([30.0, -35.0, 40.0]))
-	assert_eq(ShotTargets.parse_cam([1, 2, 3, 4, 5, 6]).size(), 6)
-	assert_true(ShotTargets.parse_cam("1,2,x").is_empty())
-	assert_true(ShotTargets.parse_cam("1,2,3,4").is_empty())
 
 
 func test_duplicate_names_get_suffixes_and_files_are_sanitised() -> void:

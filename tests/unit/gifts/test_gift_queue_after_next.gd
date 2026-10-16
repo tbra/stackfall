@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.85.69: a claimed gift joins the queue one block later (gift_queue_after_next
+## a claimed gift joins the queue one block later (gift_queue_after_next
 ## trial, on by default): the ordinary next piece stays and the gift is the block after next.
 const MatchNetScript := preload("res://net/MatchNet.gd")
 

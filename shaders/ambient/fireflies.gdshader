@@ -1,7 +1,7 @@
 shader_type spatial;
 render_mode unshaded, blend_add, cull_disabled, depth_draw_never, skip_vertex_transform, shadows_disabled, fog_disabled;
 
-// Bontago-adt.3: night-theme fireflies (game/ambient/Fireflies.gd builds one MultiMesh of
+// night-theme fireflies (game/ambient/Fireflies.gd builds one MultiMesh of
 // billboard quads; every bit of motion and blinking is computed here from TIME,
 // so there is no per-frame script and no CPU cost).
 //
@@ -13,7 +13,7 @@ render_mode unshaded, blend_add, cull_disabled, depth_draw_never, skip_vertex_tr
 //   INSTANCE_CUSTOM.z = height fraction 0..1 within the band
 //   INSTANCE_CUSTOM.w = per-mote random seed 0..1
 
-// Bontago-470.3: weather fog for a fog_disabled shader (see
+// weather fog for a fog_disabled shader (see
 // game/weather/WeatherFogShader.gd). Nothing closer than wfog_begin metres from
 // the camera, wfog_strength at wfog_end; 0 strength = off.
 uniform float wfog_strength : hint_range(0.0, 1.0) = 0.0;

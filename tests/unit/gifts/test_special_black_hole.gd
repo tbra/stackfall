@@ -1,5 +1,5 @@
 extends GutTest
-## Black hole special (Bontago-8or.25): pull inside the radius (all teams),
+## Black hole special: pull inside the radius (all teams),
 ## nothing outside, expiry after lifetime_s, optional core consumption, and a
 ## client building the visual from the replicated special_triggered.
 
@@ -12,7 +12,7 @@ var _bodies: Array[Node3D] = []
 
 
 func after_each() -> void:
-	# Bontago-fca.80: many tests here pause the shared Match autoload's _process and only one
+	# many tests here pause the shared Match autoload's _process and only one
 	# put it back; a paused Match left test_start_camera_flow stuck in LOADING (same batch).
 	Match.set_process(true)
 	for body: Node3D in _bodies:
@@ -46,7 +46,7 @@ func _make_block(position: Vector3, slot: int) -> Block:
 	return block
 
 
-## Skips the spawn growth (Bontago-1pi.85.56) so rule tests see the full-size hole.
+## Skips the spawn growth so rule tests see the full-size hole.
 func _grow_in(field: BlackHoleField) -> void:
 	field._age = (load("res://config/gifts/black_hole_visual.tres") as BlackHoleVisualTuning).grow_in_s
 
@@ -184,7 +184,7 @@ func test_real_disc_8kg_block_from_6m_reaches_the_core_within_lifetime() -> void
 	assert_false(heavy.has_meta(RadialPull.CAPTURED_META), "refused dissolve leaves no capture flag")
 
 
-# DECISION (Bontago-fca.83): 8 cubes, not 12. The gate's parallel shard still hit "Jolt Physics job
+# DECISION: 8 cubes, not 12. The gate's parallel shard still hit "Jolt Physics job
 # system exceeded the maximum number of jobs" in the pile test (an engine warning GUT counts as a
 # failure) when worker threads were starved: the pull funnels every cube into the 0.8 m core, so
 # the contact count per step is what exhausts the job pool. Two full layers of four still prove

@@ -1,6 +1,6 @@
 class_name RainEffect
 extends WeatherEffect
-## Host-side rain physics (Bontago-22y.5): wet friction on the disc and on every
+## Host-side rain physics: wet friction on the disc and on every
 ## block, existing and newly spawned, ramping with the framework intensity.
 ##
 ## Cost: no contact monitors, no per-frame work per body. Each body already owns
@@ -65,7 +65,7 @@ func tick(delta: float, intensity: float) -> void:
 		_write_all(intensity, rain)
 
 
-## DECISION (Bontago-mp0.21, round 2): the "negative friction" feel. Each awake
+## DECISION (round 2): the "negative friction" feel. Each awake
 ## block already sliding faster than RainTuning.wet_slide_min_speed_mps gets a
 ## force along its own horizontal velocity, scaled by the ramped intensity, and
 ## none once it is past wet_slide_max_speed_mps (the cap). Direction follows the

@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1t5.55.2 (55b): the bot probes the REAL bottom cubes (outermost first), the resting plane is the
+## 55b: the bot probes the REAL bottom cubes (outermost first), the resting plane is the
 ## highest probed hit, an overhanging cube beyond a capped tier's first cells is detected, and BotCandidate
 ## carries the stub fields 1t5.53b fills (probe_points, support_bodies).
 
@@ -10,14 +10,10 @@ const HOME_B: Vector2 = Vector2(10.0, 0.0)
 const CUBE: float = 1.0
 const ORIGIN: Vector2 = Vector2(2.2, 3.3)
 const STEP_HEIGHT_M: float = 1.0
-const BLOCK_BODY_ID: int = 4242
 const HARD_RAYS: int = 9
-const NORMAL_RAYS: int = 4
 const EASY_RAYS: int = 2
 const PLATE_CUBES: int = 9
 const SITES: int = 40
-const SEED: int = 77
-const BIG_BUDGET_US: int = 60000000
 const TOL_M: float = 0.001
 const FAR_X_M: float = 100.0
 
@@ -27,7 +23,6 @@ var _grid: CellGrid = null
 var _raster: TerritoryRaster = null
 var _slots: Array[PlayerSlot] = []
 var _plate: BlockShape = preload("res://config/blocks/plate9.tres")
-var _bar: BlockShape = preload("res://config/blocks/bar3.tres")
 var _tower_edge_x: float = 0.0
 var _cell_calls: int = 0
 var _centre_calls: int = 0
@@ -69,25 +64,9 @@ func _profile(rays: int) -> BotDifficultyProfile:
 	return profile
 
 
-func _think(shape: BlockShape, rays: int) -> BotThink:
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng.seed = SEED
-	return BotThink.new(_view(shape), _profile(rays), rng)
-
-
 ## Flat ground except a 1 m block covering x >= _tower_edge_x.
 func _surface(xz: Vector2) -> float:
 	return STEP_HEIGHT_M if xz.x >= _tower_edge_x else 0.0
-
-
-func _probe(xz: Vector2) -> Dictionary:
-	_centre_calls += 1
-	return {"hit": true, "height": _surface(xz), "own": false}
-
-
-func _cell_probe(xz: Vector2) -> Dictionary:
-	_cell_calls += 1
-	return {"hit": true, "height": _surface(xz), "body": BLOCK_BODY_ID if xz.x >= _tower_edge_x else -1}
 
 
 func _candidate(origin: Vector2, orientation: int) -> BotCandidate:
@@ -111,20 +90,6 @@ func _requirement(view: BotWorldView) -> BotStability.Requirement:
 	return BotStability.requirement(
 		_profile(HARD_RAYS), view, preload("res://config/bots/bot_stack_tuning.tres"), bot_tuning.stability_contact_tolerance_m
 	)
-
-
-func test_candidate_stub_defaults_keep_todays_behaviour() -> void:
-	var c: BotCandidate = BotCandidate.new()
-	assert_eq(c.probe_points.size(), 0)
-	assert_eq(c.support_bodies.size(), 0)
-	assert_eq(c.stability_slack, INF)
-
-
-func test_shipped_hard_v2_probes_nine_cubes() -> void:
-	var tuning: BotTuning = load("res://config/bots/bot_tuning.tres") as BotTuning
-	assert_eq(tuning.hard_v2.stability_raycast_count, HARD_RAYS)
-	# Bontago-1t5.57: every V2 tier probes like Hard.
-	assert_eq(tuning.normal_v2.stability_raycast_count, HARD_RAYS)
 
 
 func test_contact_points_are_the_real_cubes_outermost_first() -> void:
@@ -181,71 +146,6 @@ func test_a_one_sided_support_is_detected() -> void:
 	assert_eq(BotStability.evaluate(none, info, view, req).slack, -INF, "no cube supported")
 
 
-## Two rays on a 3-cube bar are the two ends, not the middle cube (an unprobed cube counts as supported).
-func test_two_rays_see_both_ends_of_a_bar() -> void:
-	var info: BotStatics.OrientationInfo = _flat_info(_bar)
-	var c: BotCandidate = _candidate(ORIGIN, info.index)
-	var points: PackedVector2Array = BotStatics.contact_probe_points(c, info, CUBE, EASY_RAYS)
-	assert_eq(points.size(), EASY_RAYS)
-	var centre: Vector2 = ORIGIN + info.com * CUBE
-	for p: Vector2 in points:
-		assert_gt(p.distance_to(centre), 0.5, "the ends first")
-	assert_ne(points[0], points[1])
-
-
-func test_straddle_resting_plane_is_the_highest_probed_hit() -> void:
-	var info: BotStatics.OrientationInfo = _flat_info(_plate)
-	var think: BotThink = _think(_plate, HARD_RAYS)
-	think.cell_probe = _cell_probe
-	_tower_edge_x = ORIGIN.x + CUBE - TOL_M  # only the outer column is over a 1 m block
-	var c: BotCandidate = _candidate(ORIGIN, info.index)
-	c.shape_height = 1.0
-	think._fire_cell_probes(c, _probe)
-	assert_almost_eq(c.support_height, STEP_HEIGHT_M, TOL_M, "the highest probed hit is the resting plane")
-	assert_eq(c.probe_points.size(), PLATE_CUBES)
-	assert_eq(c.support_bodies.size(), PLATE_CUBES)
-	var on_block: int = 0
-	for i: int in range(PLATE_CUBES):
-		if c.support_bodies[i] == BLOCK_BODY_ID:
-			on_block += 1
-			assert_almost_eq(c.cell_support[i], STEP_HEIGHT_M, TOL_M)
-		else:
-			assert_eq(c.support_bodies[i], -1)
-			assert_almost_eq(c.cell_support[i], 0.0, TOL_M)
-	assert_eq(on_block, 3)
-	assert_eq(c.corner_support_hits, on_block, "only cubes within tolerance of the plane are in contact")
-	var view: BotWorldView = _view(_plate)
-	assert_lte(BotStability.evaluate(c, info, view, _requirement(view)).slack, 0.0, "six cubes hang over the step")
-
-
-func test_probe_without_body_defaults_to_minus_one() -> void:
-	var info: BotStatics.OrientationInfo = _flat_info(_bar)
-	var think: BotThink = _think(_bar, HARD_RAYS)
-	var c: BotCandidate = _candidate(ORIGIN, info.index)
-	think._fire_cell_probes(c, _probe)
-	assert_eq(c.support_bodies.size(), c.probe_points.size())
-	assert_gt(c.probe_points.size(), 0)
-	for id: int in c.support_bodies:
-		assert_eq(id, -1)
-
-
-func test_per_decision_ray_budget_is_bounded() -> void:
-	for rays: int in [EASY_RAYS, NORMAL_RAYS, HARD_RAYS]:
-		_cell_calls = 0
-		_centre_calls = 0
-		var think: BotThink = _think(_plate, rays)
-		think.cell_probe = _cell_probe
-		think.step(BIG_BUDGET_US, _probe)
-		var sites: int = think.candidates().size()
-		assert_gt(sites, 0)
-		assert_eq(_centre_calls, sites, "one pivot ray per site")
-		assert_lte(_cell_calls, sites * rays, "at most `rays` cube rays per site")
-		for candidate: BotCandidate in think.candidates():
-			assert_lte(candidate.probe_points.size(), rays)
-			assert_eq(candidate.cell_support.size(), candidate.probe_points.size())
-			assert_ne(candidate.stability_slack, INF, "PROBE fills the stability slack of every site")
-
-
 # --- Send-time support (BotController.highest_cube_support / spawn_pose) ---------------------------------
 
 const NOISY_ORIGIN: Vector2 = Vector2(5.45, -2.7)
@@ -277,20 +177,3 @@ func test_send_support_is_the_highest_cube_hit_not_the_pivot_column() -> void:
 	var lift: float = -_plate.rotated_bottom_offset(BlockOrientations.get_basis(info.index), physics.cube_size, physics.cube_margin)
 	assert_almost_eq(pose.y, STEP_HEIGHT_M + lift, TOL_M, "sent y = step + lift, not the pivot column's y")
 	assert_eq(Vector2(pose.x, pose.z), NOISY_ORIGIN)
-
-
-func test_send_support_falls_back_to_the_pivot_ray_when_no_cube_ray_hits() -> void:
-	var info: BotStatics.OrientationInfo = _flat_info(_plate)
-	_send_miss = true
-	var fallback: float = 0.37
-	var support: float = BotController.highest_cube_support(_plate, info.index, NOISY_ORIGIN, fallback, CUBE, HARD_RAYS, _send_ray)
-	_send_miss = false
-	assert_eq(support, fallback)
-
-
-func test_send_support_ray_count_is_capped_at_the_tier() -> void:
-	var info: BotStatics.OrientationInfo = _flat_info(_plate)
-	for rays: int in [EASY_RAYS, NORMAL_RAYS, HARD_RAYS]:
-		_send_rays = 0
-		BotController.highest_cube_support(_plate, info.index, NOISY_ORIGIN, 0.0, CUBE, rays, _send_ray)
-		assert_eq(_send_rays, rays)

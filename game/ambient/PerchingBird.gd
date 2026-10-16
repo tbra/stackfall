@@ -1,6 +1,6 @@
 class_name PerchingBird
 extends Node3D
-## Bontago-adt.3: one cosmetic cel-shaded low-poly bird (procedurally lofted
+## one cosmetic cel-shaded low-poly bird (procedurally lofted
 ## meshes, see PerchingBirdModel; no assets). Owned and steered by game/ambient/PerchingBirds.gd, which decides
 ## when it spawns, where it lands and when it must flee; this class only knows
 ## how to fly a given path, land, idle and escape. Purely visual: no physics

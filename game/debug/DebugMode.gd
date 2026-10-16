@@ -1,13 +1,13 @@
 class_name DebugMode
 extends RefCounted
-## Bontago-470.8: the single "is debug mode on?" answer. Off for players; the
+## the single "is debug mode on?" answer. Off for players; the
 ## F1 perf overlay, F3 net overlay, F4 tuning panel,
 ## sandbox F5-F11 hotkeys, --force-special and the perf CSV logger all check
 ## is_enabled() first. F12 screenshots stay ungated.
 ##
-## DECISION (game/debug/DebugMode.gd, Bontago-470.8): sources, first match wins:
-##   1. CLI `-- --no-debug`            -> off
-##   2. CLI `-- --debug`               -> on
+## DECISION (game/debug/DebugMode.gd): sources, first match wins:
+##   1. CLI `-- --no-debug` -> off
+##   2. CLI `-- --debug` -> on
 ##   3. user://settings.cfg [debug] enabled = true/false (Settings)
 ##   4. ProjectSettings "stackfall/debug/enabled" = true (set it in
 ##      override.cfg, which is untracked, or project.godot)

@@ -1,6 +1,6 @@
 class_name ParachuteAnim
 extends RefCounted
-## Pure animation state of a gift crate's parachute (Bontago-mp0.139). No scene
+## Pure animation state of a gift crate's parachute. No scene
 ## tree, no autoloads, no randomness: the whole pose is a function of the phase
 ## and the seconds elapsed, so it is identical on host and client and can be
 ## unit-tested with plain numbers. COSMETIC ONLY -- the descent speed, landing

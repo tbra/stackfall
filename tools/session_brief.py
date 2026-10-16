@@ -1,8 +1,8 @@
 """Small Claude SessionStart pointer; live state is loaded by the resume skill.
 
-Also prints the two keyed memories the session skills hand over (owner 2026-10-07):
-`stackfall-handoff` (next work target) and `stackfall-debrief` (previous session's
-improvement items with reasoning), so they reach a new or compacted session even when
+Also prints the two keyed memories the session skills hand over:
+`stackfall-handoff` (next work target) and the previous session's
+improvement items with reasoning, so they reach a new or compacted session even when
 the resume skill is not invoked. The hook's `bd prime` runs with --no-memories; other
 memories are fetched by key on demand.
 """
@@ -11,6 +11,7 @@ import json
 import shutil
 import subprocess
 
+from bd_cli import native_or
 from skill_versions import list_versions
 
 HANDOVER_KEYS = ("stackfall-handoff", "stackfall-debrief")
@@ -20,7 +21,7 @@ MAX_MEMORY_CHARS = 2500
 
 def read_memory(key):
     """The memory's text, or a short UNAVAILABLE note (never raises)."""
-    bd = shutil.which("bd")  # bd.CMD on Windows (npm shim); a bare "bd" is not found there
+    bd = native_or(shutil.which("bd"))  # npm shim -> its native bd.exe; a bare "bd" is not found there
     if bd is None:
         return "UNAVAILABLE (bd not on PATH)"
     try:

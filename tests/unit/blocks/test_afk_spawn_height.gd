@@ -1,8 +1,7 @@
 extends GutTest
-## Bontago-1pi.40 (follow-up to Bontago-1pi.33, owner playtest 2026-10-03:
-## "Start the first block higher up, it loads inside the home beacon").
+## Follow-up to "Start the first block higher up, it loads inside the home beacon".
 ##
-## 1pi.33 raised the *player's* first-block hover above the home beacon, but the
+## An earlier change raised the *player's* first-block hover above the home beacon, but the
 ## host's AFK auto-drop (net/MatchNet.gd _on_feed_timer_expired) still fell back
 ## to Match.default_ghost_origin() -- the home flag at disc level -- for a remote
 ## slot that never sent a cursor, so that block spawned inside the beacon's

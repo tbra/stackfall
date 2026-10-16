@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.33 (owner playtest 2026-10-03: "Start the first block higher up,
+## ("Start the first block higher up,
 ## it loads inside the home beacon currently").
 ##
 ## The match's first held piece is seeded on the owner's home flag
@@ -223,8 +223,8 @@ func test_host_spawns_the_first_released_block_above_the_beacon() -> void:
 	)
 
 
-## Bontago-1pi.64 (owner playtest 2026-10-04: first block "right on top of the
-## home beacon"): the first block's start (shared by the player's first ghost
+## first block "right on top of the
+## home beacon": the first block's start (shared by the player's first ghost
 ## and the host's AFK auto-drop) is clear of the beacon top by the margin AND
 ## moved back, away from the field centre, by home_spawn_back_offset.
 func test_first_spawn_is_up_and_back_from_the_beacon_on_every_map() -> void:

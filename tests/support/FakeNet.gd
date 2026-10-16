@@ -1,6 +1,6 @@
 class_name FakeNet
 extends RefCounted
-## Test double for the Net autoload (docs/archive/M3a_PLAN.md).
+## Test double for the Net autoload.
 ##
 ## GUT cannot double a plain autoload — addons/gut/test.gd's double_singleton
 ## only recognises Godot's own engine singletons — so autoload/Match.gd and
@@ -35,7 +35,7 @@ var slots_by_peer: Dictionary = {}
 ## is what keeps M2's hot-seat working unchanged (see is_local_slot).
 var local_slots: Array[int] = []
 var names_by_peer: Dictionary = {}
-## peer_id -> ready flag, the fake's copy of Net's per-peer "ready" (Bontago-1pi.89). A peer
+## peer_id -> ready flag, the fake's copy of Net's per-peer "ready". A peer
 ## with no entry reads ready (the fake's long-standing peer_info default), so tests that never
 ## touch it see what they always saw; set_local_ready()/reset_ready_flags() write it the way
 ## Net's host path does, and a test calls roster_payload() + emits it to play Net's broadcast.
@@ -62,16 +62,16 @@ var set_simulation_calls: Array[Dictionary] = []
 var start_discovery_calls: int = 0
 var kick_peer_calls: Array[Dictionary] = []
 var stop_discovery_calls: int = 0
-## Bontago-1pi.53: Net.request_seat_pref() calls, {"color_index", "team_pick"}.
+## Net.request_seat_pref() calls, {"color_index", "team_pick"}.
 var request_seat_pref_calls: Array[Dictionary] = []
 
 ## What host_game()/join_game() return next; tests drive JoinError paths with it.
 var next_host_result: Error = OK
 var next_join_result: Error = OK
 
-# --- M3b: Steam session mirror (docs/archive/M3b_PLAN.md P1) -------------------
+# --- M3b: Steam session mirror -------------------
 #
-# Field names match what docs/archive/M3b_PLAN.md's P3 test bullets read directly
+# Field names match what the Steam lobby tests read directly
 # (`net_provider.steam_available_value = false`, `is_steam_session_value`,
 # `host_online_calls`, `join_lobby_calls`, `invite_friends_calls`) so
 # ui/menus/MainMenu.gd and ui/lobby/Lobby.gd's tests can drive this fake the same way
@@ -197,7 +197,7 @@ func peer_info(peer_id: int) -> Dictionary:
 	}
 
 
-## Bontago-1pi.49: Net.name_for_slot(). Only names a test set in names_by_peer
+## Net.name_for_slot(). Only names a test set in names_by_peer
 ## count; "" otherwise, exactly like a slot no peer holds.
 func name_for_slot(slot_id: int) -> String:
 	var peer_id: int = peer_of_slot(slot_id)
@@ -232,7 +232,7 @@ func set_local_ready(ready: bool) -> void:
 
 
 ## The roster payload Net's _broadcast_roster() emits on Events.net_roster_changed: every
-## peer's peer_info(), in slot order (Bontago-1pi.89).
+## peer's peer_info(), in slot order.
 func roster_payload() -> Array[Dictionary]:
 	var roster: Array[Dictionary] = []
 	for peer_id: int in peer_ids():
@@ -243,7 +243,7 @@ func roster_payload() -> Array[Dictionary]:
 	return roster
 
 
-## Bontago-1pi.53: records the call and does nothing else (no event, no seat table),
+## records the call and does nothing else (no event, no seat table),
 ## so a lobby UI test asserts what the script ASKED for. -1 = unchanged, as in Net.
 func request_seat_pref(color_index: int = -1, team_pick: int = -1) -> void:
 	request_seat_pref_calls.append({"color_index": color_index, "team_pick": team_pick})

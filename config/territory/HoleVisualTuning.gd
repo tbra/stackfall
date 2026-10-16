@@ -1,6 +1,6 @@
 class_name HoleVisualTuning
 extends Resource
-## Bontago-1pi.11.42 (owner decision Bontago-gdb, option A): holes are a shader
+## option A: holes are a shader
 ## effect on a solid disc. Hole cells read as an animated "void" in
 ## shaders/territory/territory.gdshader (game/field/TerritoryOverlay.gd uploads these) and a
 ## block touching one dissolves with a rim glow toward the void colour

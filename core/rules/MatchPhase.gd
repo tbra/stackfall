@@ -1,13 +1,13 @@
 class_name MatchPhase
 extends RefCounted
-## Pure match-phase rules (spec 3.7), moved from autoload/Match.gd (Bontago-1pi.11.77.1, D4).
+## Pure match-phase rules (spec 2.4), moved from autoload/Match.gd (D4).
 ## MatchAutoload keeps `const State = MatchPhase.State` and one-line forwarding statics.
 
-## Spec 3.7's states.
+## Spec 2.4's states.
 enum State { LOBBY, LOADING, COUNTDOWN, PLAYING, SUDDEN_DEATH, END }
 
 
-## Single source for the match-state sets (Bontago-fca.36.3; tools/lint_single_source.py
+## Single source for the match-state sets (tools/lint_single_source.py
 ## STATE_SET bans hand-written sets elsewhere).
 ## LIVE = PLAYING, SUDDEN_DEATH: the host simulates play (placement, throws, gifts,
 ## special spawns, bots, win checks, the match clock). COUNTDOWN is not live: nothing
@@ -18,7 +18,7 @@ static func is_live(state: int) -> bool:
 
 ## REPLICATING = COUNTDOWN, PLAYING, SUDDEN_DEATH: a match that has started and not
 ## ended. Clients accept replicated weather/world state and a mid-match joiner is
-## admitted and replayed into exactly these states (spec 3.7). Superset of is_live.
+## admitted and replayed into exactly these states (spec 2.4). Superset of is_live.
 static func is_replicating(state: int) -> bool:
 	return state == State.COUNTDOWN or state == State.PLAYING or state == State.SUDDEN_DEATH
 
@@ -31,7 +31,7 @@ static func is_resetting(state: int) -> bool:
 	return state == State.LOADING or state == State.LOBBY or state == State.END
 
 
-# DECISION (Bontago-fca.36.10): presentation sites whose sets match none of the three
+# DECISION: presentation sites whose sets match none of the three
 # above get narrowly named predicates here, so every site keeps its exact behaviour.
 ## IN_PROGRESS = LOADING, COUNTDOWN, PLAYING, SUDDEN_DEATH: everything but LOBBY and END
 ## (the pause menu's "match in progress"; spans the loading window).

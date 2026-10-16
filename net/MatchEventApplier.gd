@@ -1,5 +1,5 @@
 extends Node
-## Client-side apply of host -> client match events (Bontago-1pi.11.77.16, S3c-C1).
+## Client-side apply of host -> client match events (S3c-C1).
 ##
 ## A child of the MatchNet autoload, built by MatchNet.late_activate() so the
 ## ~400-line validation/dispatch below is compiled after the first frame instead
@@ -53,7 +53,7 @@ func apply_event(event: StringName, args: Array) -> void:
 			# DECISION (net/MatchNet.gd): offline and in hot-seat,
 			# Events.turn_changed means "it is this slot's turn". In real-time
 			# networked play there are no turns — every slot plays at once
-			# (owner decision, docs/archive/M3a_PLAN.md question 1) — and what the
+			# — and what the
 			# signal actually does on a receiving instance is point the HUD
 			# and the ghost at the controls that are live here, which is
 			# always your own slot. Mirroring the host's value verbatim would
@@ -109,7 +109,7 @@ func apply_event(event: StringName, args: Array) -> void:
 			_authority().apply_replicated_qol(args[0], args[1], args[2])
 			Events.qol_feed_changed.emit(args[0], args[1], args[2])
 		MatchNet.EVENT_PLACEMENT_REJECTED:
-			# Bontago-1pi.52: an input boundary like every other wire payload
+			# an input boundary like every other wire payload
 			# here, and a refusal is the refused player's own feedback: the
 			# host now sends it to the owning peer alone, so anything naming a
 			# slot this instance does not drive (an older host's broadcast, the
@@ -127,7 +127,7 @@ func apply_event(event: StringName, args: Array) -> void:
 				return
 			Events.placement_rejected.emit(rejected_slot, StringName(args[1]))
 		MatchNet.EVENT_PLACEMENT_RELOCATED:
-			# Bontago-1pi.52: an input boundary like the refusal above, with
+			# an input boundary like the refusal above, with
 			# the same own-seat-only rule: the host sends this to the owning
 			# peer alone, so another seat's relocation (an older host's
 			# broadcast) or a malformed or out-of-disk point never reaches
@@ -154,7 +154,7 @@ func apply_event(event: StringName, args: Array) -> void:
 		MatchNet.EVENT_MATCH_WON:
 			Events.match_won.emit(int(args[0]))
 		MatchNet.EVENT_MODE_STATE:
-			# Bontago-22y.11: display-only mirror; a client never derives an
+			# display-only mirror; a client never derives an
 			# outcome from it. Malformed payloads are dropped, not defaulted.
 			if args.size() < 1:
 				return
@@ -163,10 +163,10 @@ func apply_event(event: StringName, args: Array) -> void:
 				return
 			_authority().apply_replicated_mode_state(mode_state)
 		MatchNet.EVENT_MATCH_RESULTS:
-			# Bontago-1pi.13: an input boundary exactly like every other wire
+			# an input boundary exactly like every other wire
 			# payload in this dispatch -- a malformed or truncated args array
 			# (an older/ancient build) must not reach a results-screen
-			# consumer half-typed. See MatchStats.validate_results_payload()'s
+			# consumer half-typed. See ResultsValidation.validate_results_payload()'s
 			# own doc comment for why this rejects rather than defaults.
 			if args.size() < 1:
 				return
@@ -250,7 +250,7 @@ func apply_event(event: StringName, args: Array) -> void:
 				return
 			_net._set_gift_wire_phase(claimed_gift_id, MatchNet.GiftWirePhase.REMOVED)
 			if _authority().gift_slot_enabled():
-				# Bontago-1pi.18.2: the gift went to the slot (MatchNet.EVENT_GIFT_SLOT),
+				# the gift went to the slot (MatchNet.EVENT_GIFT_SLOT),
 				# not the block queue; only the crate visual is retired here.
 				_authority().apply_replicated_gift_expired(claimed_gift_id)
 			else:
@@ -301,7 +301,7 @@ func apply_event(event: StringName, args: Array) -> void:
 				return
 			Events.special_triggered.emit(triggered_net_id, triggered_def_id, triggered_position, chain_depth)
 		MatchNet.EVENT_SPECIAL_CONSUMED:
-			# DECISION (net/MatchNet.gd, Bontago-1en.21): unlike this match's
+			# DECISION (net/MatchNet.gd): unlike this match's
 			# other cases, this one guards `_session().is_host()` itself rather than
 			# relying only on net_match_event's own @rpc("authority", ...)
 			# annotation -- a well-behaved client never sends this RPC at all
@@ -315,7 +315,7 @@ func apply_event(event: StringName, args: Array) -> void:
 			# apply one to itself, belt-and-braces on top of the RPC config.
 			if _session().is_host():
 				return
-			# Bontago-1en.21: a short args array (an older or malformed
+			# a short args array (an older or malformed
 			# sender) is dropped before either arg is read, exactly
 			# MatchNet.EVENT_GIFT_CLAIMED's/MatchNet.EVENT_SPECIAL_TRIGGERED's own guard.
 			if args.size() < 2:
@@ -349,7 +349,7 @@ func apply_event(event: StringName, args: Array) -> void:
 				return
 			_authority().apply_replicated_glue_charges(glue_slot, charges, revision)
 		MatchNet.EVENT_BLOCK_DISSOLVE_STARTED:
-			# Bontago-1pi.11.41: presentation only. An unknown id (a spawn the
+			# presentation only. An unknown id (a spawn the
 			# client never built) or a malformed payload is dropped.
 			if _session().is_host() or args.size() != 1 or not args[0] is int:
 				return
@@ -373,7 +373,7 @@ func apply_event(event: StringName, args: Array) -> void:
 			var clock: float = float(args[0])
 			if not is_finite(clock) or clock < 0.0:
 				return
-			# DECISION (Bontago-8or.11): the client's read model of the match
+			# DECISION: the client's read model of the match
 			# timer is written directly, the way this file already reaches
 			# _lifecycle/_feed elsewhere -- autoload/Match.gd and
 			# MatchLifecycle.gd are outside this package. A client never
@@ -418,7 +418,7 @@ func apply_event(event: StringName, args: Array) -> void:
 			pass
 
 
-## Bontago-1pi.42, client: the replayed loading-gate snapshot [ready_ids,
+## client: the replayed loading-gate snapshot [ready_ids,
 ## required_ids, open], applied through the same Events a live broadcast uses (the
 ## lifecycle's mirror and the loading screen listen to those). Host-authored only;
 ## every field is validated like Net._rpc_loading_ready_state (wire limit, ids).

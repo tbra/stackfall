@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.85.49: the Rocket and Magnet MODEL nose (the GiftVisual child, not just the carrier
+## the Rocket and Magnet MODEL nose (the GiftVisual child, not just the carrier
 ## body) follows the velocity in flight, on the host and on a client reading the wire pose.
 
 const START: Vector3 = Vector3(0.0, 40.0, 0.0)

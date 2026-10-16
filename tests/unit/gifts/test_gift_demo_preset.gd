@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.70: the Debug page's Gift demo is the ordinary sandbox started
+## the Debug page's Gift demo is the ordinary sandbox started
 ## with config/match/sandbox_gift_demo.tres. The old tools/gift_demo.tscn nested a
 ## second Main under the demo; windowed (non-headless) that Main still ran its
 ## splash, whose finish handler then replaced the sandbox with the main menu,
@@ -70,7 +70,7 @@ func _record_silence(_block: RigidBody3D, _shape_id: StringName) -> void:
 	_silent_at_placement.append(Sfx._world_replay_silent)
 
 
-## Bontago-1pi.85.75: pre-placed scene blocks go through the ordinary placement path (their
+## pre-placed scene blocks go through the ordinary placement path (their
 ## block_placed would sound the local drop cue for every block at once); Sfx must be silenced
 ## for exactly that build, and a real drop afterwards must not be.
 func test_preplaced_blocks_are_silent_but_later_drops_are_not() -> void:

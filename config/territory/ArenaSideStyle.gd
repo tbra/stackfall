@@ -1,6 +1,6 @@
 class_name ArenaSideStyle
 extends Resource
-## Look of the arena's side and underside (Bontago-mp0.150.2, owner: "the side
+## Look of the arena's side and underside ("the side
 ## and bottom needs to be redone"). One enum picks between the shipped look
 ## (CURRENT: DiscBodyVisuals' metal band + glowing chamfer + flat bottom) and
 ## three alternative generated looks the owner can flip between. Every option is
@@ -8,18 +8,18 @@ extends Resource
 ## shaded, vertex-coloured, opaque, at most two materials (body + glow), no
 ## per-frame work. Loaded once as config/territory/arena_side_style.tres.
 
-## Round 2 (owner 2026-10-13: "d, machined, was most thematically correct but I
+## Round 2 ("d, machined, was most thematically correct but I
 ## didn't really like any of them") adds three refinements of the machined
 ## direction: MACHINED_STYLISED (bold cel bands), MACHINED_DETAILED (rivets,
 ## light strip, vents, thrusters) and MACHINED_HEAVY (bevelled rim, terraces).
-## Round 3 (owner 2026-10-13: "none of them fit with the top") stops decorating a
+## Round 3 ("none of them fit with the top") stops decorating a
 ## separate object and CONTINUES the top: the dark plated playing surface (plates
 ## ~5 m, hairline seams, small rivets) wraps over the edge under a gold lip and
 ## carries on down the side and underneath. MONOLITH (one plated slab, flat
 ## plated underside), TAPERED_STRATA (plated wall, then an inverted frustum in
 ## three strata of the top's own browns) and PLATED_DOME (two plate courses and a
 ## shallow dome of plate rings).
-## Round 4 (owner 2026-10-13: "try the shape of c but extend the shader down the
+## Round 4 ("try the shape of c but extend the shader down the
 ## side instead of the material it has now") adds SHADER_DOME: PLATED_DOME's
 ## silhouette with no modelled detail, shaded by the top's own plating shader
 ## (shaders/territory/arena_side_shell.gdshader, sharing shaders/include/disc_plating.gdshaderinc).

@@ -1,8 +1,8 @@
 class_name HoneyCoat
-## Honey coat on placed, glued blocks (Bontago-1pi.85.52). Reuses the 85.51
+## Honey coat on placed, glued blocks. Reuses the 85.51
 ## HoneyCoatTuning look. The coat is a child MeshInstance3D sharing each shape
 ## mesh (so it never fights Block's frozen overlay slot or BlockFactory.recolor())
-## and carries the generated jelly shell (Bontago-lv2; jelly is the only glue look, Bontago-1pi.85.71).
+## and carries the generated jelly shell (jelly is the only glue look).
 ## The material is built once and shared by every coated block.
 ##
 ## Depends on: HoneyCoatTuning
@@ -18,7 +18,7 @@ static var _coat_material: ShaderMaterial = null
 static var _blob_meshes: Dictionary = {}
 
 
-## Bontago-xtq.44: drops the static texture/material cache on exit (freed before the renderer shuts down).
+## drops the static texture/material cache on exit (freed before the renderer shuts down).
 static func release_statics() -> void:
 	_coat_material = null
 	_tuning = null

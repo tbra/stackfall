@@ -1,10 +1,10 @@
 class_name Skybox
 extends Node3D
-## Sky presentation (spec 2.10): owns the WorldEnvironment's sky material, the
+## Sky presentation (spec 1.10): owns the WorldEnvironment's sky material, the
 ## theme / day-night cycle, fog, light, ambient life and the reflection probe.
-## (The optional six-face texture skybox was removed in Bontago-uwq.5.)
+## (The optional six-face texture skybox was removed in.)
 ##
-## Bontago-xtq.28 (M7 P3, docs/M7_ART_DIRECTION.md's sunset/atmosphere lines):
+## M7 P3, docs/M7_ART_DIRECTION.md's sunset/atmosphere lines:
 ## two pieces layer on top:
 ##   - apply_theme() writes `theme`'s (config/sky/SkyThemeDef.gd) sky/ground
 ##     colours onto `_fallback_sky_material` *in place*, its fog colour/
@@ -23,7 +23,7 @@ extends Node3D
 
 @export var config: SkyboxConfig = preload("res://config/sky/skybox_config.tres")
 
-## Bontago-xtq.28 (M7 P3): the sky/ground/fog palette applied onto the
+## M7 P3: the sky/ground/fog palette applied onto the
 ## sky material -- see
 ## apply_theme() below and the class doc's new paragraph on it. Optional (null
 ## in a fixture that only cares about the sky state); the game
@@ -38,7 +38,7 @@ extends Node3D
 ## state, e.g. most of tests/unit/sky/test_skybox.gd): every sky-
 ## material write below is skipped when this or its .sky is unset.
 @export var environment: Environment = null
-## Bontago-adt.1: the scene's DirectionalLight3D (wired in Main.tscn, same
+## the scene's DirectionalLight3D (wired in Main.tscn, same
 ## NodePath convention as reflection_probe_path); apply_theme() writes the
 ## theme's light colour/energy/rotation onto it. Empty in fixtures: no-op.
 @export var light_path: NodePath = NodePath("")
@@ -48,21 +48,21 @@ extends Node3D
 const PROBE_CULL_MASK: int = 0xFFFFF & ~TerritoryOverlay.DISC_LAYER_BIT & ~CloudSea.RENDER_LAYER_BIT & ~RainPresentation.RENDER_LAYER_BIT
 const THEME_DIR: String = "res://config/sky/themes"
 const DEFAULT_THEME_ID: String = "sunset"
-## Bontago-59o.18: SkyboxConfig.theme_name value that means "the day/night cycle"
+## SkyboxConfig.theme_name value that means "the day/night cycle"
 ## (F4's leading Theme entry); not a file under THEME_DIR. _ready() starts the cycle for it.
 const CYCLE_THEME_ID: String = "cycle"
 ## The night palette the cycle fades toward (config/sky/themes/night.tres).
 const CYCLE_NIGHT_THEME_ID: String = "night"
-## Bontago-59o.18 (C1b): the palette of the cycle's morning and noon (config/sky/themes/
+## C1b: the palette of the cycle's morning and noon (config/sky/themes/
 ## dawn.tres); SkyPalette fades it into the sunset.tres palette on the setting side.
 const CYCLE_DAWN_THEME_ID: String = "dawn"
 var _cloud_sea: CloudSea = null
-## Bontago-mp0.92: the running cloud wind (calm per-match heading, storm wind, parallax integral).
+## the running cloud wind (calm per-match heading, storm wind, parallax integral).
 var _cloud_drift: CloudDriftState = CloudDriftState.new()
-## Bontago-mp0.29: the one lighting/weather/cycle state all cloud layers read.
+## the one lighting/weather/cycle state all cloud layers read.
 var _cloud_lighting: CloudLighting = CloudLighting.new()
 var _birds: DistantBirds = null
-## Bontago-adt.3: cosmetic local ambient life, gated by the theme's
+## cosmetic local ambient life, gated by the theme's
 ## AmbientLifeConfig (perching birds on sunset, fireflies on night) and the
 ## graphics preset's ambient_life_enabled. field_path / registry_path are wired
 ## in Main.tscn (same NodePath convention as light_path); empty in fixtures.
@@ -71,7 +71,7 @@ var _birds: DistantBirds = null
 var _perching: PerchingBirds = null
 var _fireflies: Fireflies = null
 
-## Bontago-xtq.12 (owner: "isn't very reflective, like at all"): Forward+
+## "isn't very reflective, like at all": Forward+
 ## never reflects dynamic scene geometry (the placed blocks) without a
 ## ReflectionProbe or SSR, so the disk's high metallic/low roughness
 ## (config/territory/TerritoryVisuals.gd) only ever showed the sky's own smooth
@@ -96,7 +96,7 @@ var _fireflies: Fireflies = null
 ## derived placement detail of reflection_probe_height_m right below, not an
 ## independent tunable a playtester would ever need to move on its own.
 const PROBE_GROUND_CLEARANCE_M: float = 4.0
-## Bontago-1pi.11.67: the probe is re-rendered by writing its transform, which marks the
+## the probe is re-rendered by writing its transform, which marks the
 ## engine's probe instance dirty while keeping the old atlas slot valid (no blank frame,
 ## unlike a visibility toggle). RenderingServer ignores a write equal to the current
 ## transform, so alternate a sub-millimetre nudge; a derived placement detail like the
@@ -110,10 +110,10 @@ var _probe_seen_revision: int = -1
 var _probe_nudged: bool = false
 var _probe_registry: BlockRegistry = null
 
-## Bontago-xtq.28 fix round: the cloud deck's box footprint/thickness/height
+## fix round: the cloud deck's box footprint/thickness/height
 ## are per-theme now (SkyThemeDef.cloud_deck_size_m/cloud_deck_height_m), not
 ## local constants here -- the previous candidate's centred-at-y40 box (y
-## 10..70) enclosed the entire play volume up to NetConfig.pos_max_y (150.0 since Bontago-1pi.165)
+## 10..70) enclosed the entire play volume up to NetConfig.pos_max_y (150.0 since)
 ## and the gameplay camera itself, which read as a uniform haze with no
 ## sunset gradient visible. See SkyThemeDef.gd's doc on those two fields for
 ## the corrected placement (well below the disk, clear of the stacking
@@ -126,31 +126,31 @@ var _fallback_sky_material: Material = null
 var _cycle_theme: SkyThemeDef = null
 var _cycle_day: SkyThemeDef = null
 var _cycle_night: SkyThemeDef = null
-## Bontago-59o.18 (C1b): `_cycle_day` (sunset.tres) is the cycle's structure and its
+## C1b: `_cycle_day` (sunset.tres) is the cycle's structure and its
 ## setting-side palette; `_cycle_dawn` (dawn.tres) is its morning/noon palette. Never
 ## written: SkyPalette.blend() mixes the two into `_cycle_theme` every phase tick.
 var _cycle_dawn: SkyThemeDef = null
 var _cycle_phase_last: float = -1.0
 var _cycle_life_is_night: bool = false
-## Bontago-mp0.83: the phase mapping is phase = fposmod(clock / length + offset,
+## the phase mapping is phase = fposmod(clock / length + offset,
 ## 1). `_cycle_length_s` is the length it is currently based on and
 ## `_cycle_phase_offset` is re-based whenever the live length changes (F4), so
 ## the time of day never jumps. `_cycle_clock_s` is the last shared clock seen.
 var _cycle_length_s: float = 1.0
 var _cycle_phase_offset: float = 0.0
 var _cycle_clock_s: float = 0.0
-## Bontago-59o.18: >= 0 freezes the cycle at that phase (the lobby's Sunset / Dawn /
+## >= 0 freezes the cycle at that phase (the lobby's Sunset / Dawn /
 ## Night options and F4's Time of day); -1 = running. Derived from replicated
 ## mode data and shipped SkyThemeDef content, never from the clock.
 var _cycle_locked_phase: float = -1.0
-## Bontago-59o.18 (C1b variation): the seed of the cycle's exposure / cloud-coverage
+## C1b variation: the seed of the cycle's exposure / cloud-coverage
 ## variation (SkyVariation). configure_match_sky() takes it from the replicated
 ## MatchConfig (the host-rolled sky_variation_seed, else a deterministic rng_seed),
 ## so every peer draws the same sky and each match its own; a cycle started outside
 ## a match (F4, boot) keeps the last one.
 var _variation_seed: int = SkyVariation.DEFAULT_SEED
 
-## Bontago-1pi.46 (match reset, docs/MATCH_RESET_AUDIT.md G1): what _ready() left
+## match reset, docs/MATCH_RESET_AUDIT.md G1: what _ready() left
 ## behind, captured once, so reset_to_launch() can put this long-lived Skybox back
 ## exactly where a fresh launch starts (the next match's configure_match_sky() then
 ## sets its own mode). `_launch_theme` is the static theme _ready() applied and
@@ -162,10 +162,10 @@ var _launch_theme_name: String = ""
 var _launch_cycle: bool = false
 var _launch_process_mode: Sky.ProcessMode = Sky.PROCESS_MODE_AUTOMATIC
 
-## Bontago-1pi.11.74 (G1): see _process. SKY_TIME_GLOBAL is registered in project.godot
+## G1: see _process. SKY_TIME_GLOBAL is registered in project.godot
 ## [shader_globals] (tools/bootstrap_project.gd).
 const SKY_TIME_GLOBAL: StringName = &"sky_time"
-## Bontago-mp0.153: global uniforms for the sun and moon disc directions (registered next to
+## global uniforms for the sun and moon disc directions (registered next to
 ## sky_time). Written every frame from the exact cycle phase, so the discs move smoothly
 ## while the light, palette and radiance step at radiance_hz. The cycle sky material opts in
 ## with its `use_global_dirs` uniform; static themes keep their own per-material directions.
@@ -174,7 +174,7 @@ const SKY_MOON_DIR_GLOBAL: StringName = &"sky_moon_dir"
 ## Counts disc writes and keeps the last sun direction written (tests / probes).
 var disc_publish_count: int = 0
 var last_disc_sun_direction: Vector3 = Vector3.ZERO
-## Bontago-1pi.167: the sky's own clock, advanced by _process delta (not the wall clock) so a
+## the sky's own clock, advanced by _process delta (not the wall clock) so a
 ## paused tree (offline pause menu) freezes cloud animation. Seeded from the wall clock once.
 var _sky_clock_s: float = float(Time.get_ticks_msec()) * SECONDS_PER_MSEC
 const RADIANCE_TICK_WRAP: int = 1024
@@ -187,32 +187,32 @@ var _radiance_ticks: int = 0
 
 ## The host-resolved mode is included in MatchConfig's normal match-start RPC.
 ## SnapshotSync supplies the shared clock; no peer's wall time enters the sky.
-## Bontago-59o.18 (owner decision: Cycle is the default sky): every mode is the
+## Cycle is the default sky: every mode is the
 ## day/night cycle. CYCLE runs it from SkyThemeDef.cycle_start_phase; Sunset,
 ## Night, Dawn (and the host's RANDOM roll of those) are the same cycle locked at
 ## SkyThemeDef.locked_phase_for(id). Nothing here reads a peer-local clock: the
 ## phase comes from the replicated mode/resolved id (locked) or from
 ## SnapshotSync's shared clock (running), so host and clients agree.
 func configure_match_sky(match_config: MatchConfig) -> void:
-	configure_reflection_probe()  # Bontago-1pi.107: the probe box follows the match's disc size
+	configure_reflection_probe()  # the probe box follows the match's disc size
 	var locked: float = -1.0
 	if not match_config.is_sky_cycle_running():
 		var source: SkyThemeDef = load_theme(DEFAULT_THEME_ID)
 		if source != null:
 			locked = source.locked_phase_for(match_config.locked_sky_id())
-	# DECISION (Bontago-59o.18, C1b variation): the replicated match seed drives the sky
+	# DECISION (C1b variation): the replicated match seed drives the sky
 	# variation. The host rolls MatchConfig.sky_variation_seed once per match (an
 	# unresolved config with no rng_seed shares SkyVariation's default curve).
 	_variation_seed = SkyVariation.seed_for(match_config.effective_sky_variation_seed())
 	_cloud_drift.reset(_variation_seed)
-	# DECISION (Bontago-59o.18): a match opens its sky at shared clock 0:
+	# DECISION: a match opens its sky at shared clock 0:
 	# SnapshotSync.begin_match() resets the clock right after this call, and a
 	# stale clock read here would make the start phase differ between peers.
 	_start_cycle_at(0.0, locked, match_config.sky_start_phase)
 
 
-## Bontago-1pi.46 (docs/MATCH_RESET_AUDIT.md G1/G2; Events.match_scope_reset runs this
-## at every world build and teardown): returns this long-lived Skybox to what a fresh
+## docs/MATCH_RESET_AUDIT.md G1/G2; Events.match_scope_reset runs this
+## at every world build and teardown: returns this long-lived Skybox to what a fresh
 ## launch looks like, so a match never inherits the previous one's sky. That is the
 ## launch theme and SkyboxConfig.theme_name, the cycle only if the launch config
 ## started it, no storm / overcast / weather-fog request, the
@@ -313,7 +313,7 @@ func _process(delta: float) -> void:
 	_publish_sky_time()
 	if _cycle_theme != null:
 		_publish_disc_directions(cycle_phase_at(MatchContext.current().shared_clock_seconds()))
-	# Bontago-1pi.11.74 (G1): the radiance octmap re-renders whenever the sky material
+	# G1: the radiance octmap re-renders whenever the sky material
 	# is written (sky.cpp:1044 uniform_set_updated) or the shader reads TIME (:1033;
 	# the sky shaders read the global `sky_time` instead, which neither flag sees, so
 	# the visible sky stays smooth). Material writes (the cycle's sun/palette and
@@ -339,7 +339,7 @@ func _publish_sky_time() -> void:
 		fposmod(_sky_clock_s, radiance_config.time_wrap_seconds))
 
 
-## Bontago-mp0.153: sun direction for cycle `phase`, from the day theme's sun azimuth.
+## sun direction for cycle `phase`, from the day theme's sun azimuth.
 func _cycle_sun_direction(phase: float) -> Vector3:
 	var sun_base: Vector3 = (_cycle_day.sky_material as ShaderMaterial).get_shader_parameter(&"sun_direction") as Vector3
 	var horizontal: Vector3 = Vector3(sun_base.x, 0.0, sun_base.z).normalized()
@@ -397,7 +397,7 @@ func cycle_phase_at(clock_seconds: float) -> float:
 	return fposmod(clock_seconds / _cycle_length_s + _cycle_phase_offset, 1.0)
 
 
-## Live cycle length (F4 Sky tab, Bontago-mp0.83): applies `seconds` to the
+## Live cycle length (F4 Sky tab): applies `seconds` to the
 ## running cycle and to the day theme the next match copies from. The time of
 ## day does not move; only its speed changes from now on (a locked cycle keeps
 ## its phase and runs at the new length once unlocked). Local dev tuning: the
@@ -417,7 +417,7 @@ func cycle_length_seconds() -> float:
 	return _cycle_length_s if _cycle_theme != null else 0.0
 
 
-## --- Bontago-59o.18 cycle-default API (docs/SKY_CYCLE_DEFAULT_PLAN.md s3) -----
+## --- cycle-default API -----------------------------------------
 
 ## Starts the day/night cycle now (F4's Theme "cycle" entry, boot theme_name
 ## "cycle"; configure_match_sky() uses the same builder at match start).
@@ -470,7 +470,7 @@ func current_cycle_phase() -> float:
 
 
 ## The seed the cycle's exposure / cloud-coverage variation currently draws from
-## (Bontago-59o.18, C1b follow-up): what configure_match_sky() took from the match
+## C1b follow-up: what configure_match_sky() took from the match
 ## config, or SkyVariation.DEFAULT_SEED outside a match.
 func variation_seed() -> int:
 	return _variation_seed
@@ -533,12 +533,12 @@ func _start_cycle_at(clock_seconds: float, lock_phase: float, start_phase: float
 	_cycle_night = load_theme(CYCLE_NIGHT_THEME_ID)
 	if _cycle_day == null or _cycle_night == null:
 		return
-	# DECISION (Bontago-59o.18, C1b): a build without dawn.tres degrades to the sunset
+	# DECISION (C1b): a build without dawn.tres degrades to the sunset
 	# palette all day (the blend then has the same palette at both ends).
 	_cycle_dawn = load_theme(CYCLE_DAWN_THEME_ID)
 	if _cycle_dawn == null:
 		_cycle_dawn = _cycle_day
-	# DECISION (Bontago-mp0.13): duplicate the authored resources once. Each
+	# DECISION: duplicate the authored resources once. Each
 	# frame changes only shader uniforms and Environment/light properties.
 	_cycle_theme = _cycle_day.duplicate(true) as SkyThemeDef
 	_cycle_theme.sky_material = _cycle_day.sky_material.duplicate() as Material
@@ -553,20 +553,20 @@ func _start_cycle_at(clock_seconds: float, lock_phase: float, start_phase: float
 	_cycle_length_s = maxf(_cycle_theme.cycle_length_seconds, 1.0)
 	_cycle_locked_phase = fposmod(lock_phase, 1.0) if lock_phase >= 0.0 else -1.0
 	var opening: float = start_phase if start_phase >= 0.0 else _cycle_theme.cycle_start_phase
-	# DECISION (Bontago-59o.18): the running phase is fposmod(clock / length +
+	# DECISION: the running phase is fposmod(clock / length +
 	# offset, 1); the offset puts `opening` at the start clock, so every peer
 	# opens identically and the shared clock alone then carries them forward.
 	_cycle_phase_offset = opening - clock_seconds / _cycle_length_s
 	_cycle_clock_s = clock_seconds
 	set_cycle_phase(cycle_phase_at(clock_seconds))
 	if _cycle_locked_phase >= 0.0:
-		# DECISION (Bontago-59o.18): a locked sky is written once, so the radiance
+		# DECISION: a locked sky is written once, so the radiance
 		# map is built to full quality after that write and then left alone
 		# (default matches must not pay incremental sky updates every frame).
 		_set_sky_process_mode(Sky.PROCESS_MODE_QUALITY)
 		refresh_reflection_capture()
 	else:
-		# DECISION (Bontago-1pi.11.74): REALTIME, not INCREMENTAL. The radiance now refreshes
+		# DECISION: REALTIME, not INCREMENTAL. The radiance now refreshes
 		# at radiance_hz; REALTIME does that as one octmap render + cheap fast filter,
 		# INCREMENTAL would spend ~7 frames of GGX layers per refresh.
 		_set_sky_process_mode(Sky.PROCESS_MODE_REALTIME)
@@ -577,7 +577,7 @@ func _set_sky_process_mode(mode: Sky.ProcessMode) -> void:
 		environment.sky.process_mode = mode
 
 
-## DECISION (Bontago-mp0.83): when the authored length changes mid-match, the
+## DECISION: when the authored length changes mid-match, the
 ## offset is chosen so the phase at the last clock equals the old phase (no
 ## jump in the time of day); only the rate changes afterwards.
 func _sync_cycle_length() -> void:
@@ -602,7 +602,7 @@ func set_cycle_phase(phase: float) -> void:
 	if is_equal_approx(phase, _cycle_phase_last):
 		return
 	_cycle_phase_last = phase
-	# Bontago-59o.18 (C1b): the day palette first (dawn by day, sunset on the setting
+	# C1b: the day palette first (dawn by day, sunset on the setting
 	# side), written onto the live theme and its materials; everything below mixes that
 	# toward the night palette, so `_cycle_theme`'s palette fields are day values here.
 	SkyPalette.blend(_cycle_theme, _cycle_dawn, _cycle_day,
@@ -630,13 +630,13 @@ func set_cycle_phase(phase: float) -> void:
 	_cycle_theme.volumetric_fog_density = lerpf(_cycle_theme.volumetric_fog_density, _cycle_night.volumetric_fog_density, night)
 	_cycle_theme.volumetric_fog_albedo = _cycle_theme.volumetric_fog_albedo.lerp(_cycle_night.volumetric_fog_albedo, night)
 	_cycle_theme.ambient_energy = lerpf(_cycle_theme.ambient_energy, _cycle_night.ambient_energy, night)
-	# Bontago-mp0.127: stronger sun, weaker sky ambient with the sun high (identity at the
+	# stronger sun, weaker sky ambient with the sun high (identity at the
 	# horizon and at night), so lit vs shadowed faces read clearly by day and soften at dusk.
 	_cycle_theme.ambient_energy *= SunContrast.ambient_scale(direction.y, _cycle_theme.cycle_day_ambient_scale,
 		_cycle_theme.cycle_sun_contrast_full_sin)
 	_sun_direction = direction
 	_daylight = daylight
-	# DECISION (Bontago-mp0.13): one key light serves sun by day and a dim
+	# DECISION: one key light serves sun by day and a dim
 	# authored night direction after sunset. Both fade to zero at the horizon.
 	var sun_key: float = smoothstep(0.0, 0.2, direction.y)
 	var moon_key: float = smoothstep(0.0, 0.2, -direction.y)
@@ -658,7 +658,7 @@ func set_cycle_phase(phase: float) -> void:
 		var fog_material: FogMaterial = _fog_volume.material as FogMaterial
 		if fog_material != null:
 			fog_material.density = _cycle_theme.fog_density
-	# DECISION (Bontago-mp0.13): stagger the ambient-life swap so its
+	# DECISION: stagger the ambient-life swap so its
 	# discrete configure calls happen in the dark, with hysteresis at twilight.
 	var life_is_night: bool = night > 0.85 if not _cycle_life_is_night else night > 0.15
 	if life_is_night != _cycle_life_is_night:
@@ -680,14 +680,14 @@ func set_cycle_phase(phase: float) -> void:
 		var flare: SunFlare = node as SunFlare
 		if flare != null:
 			flare.set_cycle_sun(direction, daylight)
-	# Bontago-mp0.19: the rewrites above are un-stormed; compose the storm blend
+	# the rewrites above are un-stormed; compose the storm blend
 	# on top so a running cycle never overwrites the storm sky.
 	if _storm_amount > 0.0:
 		_apply_storm_blend()
 	_publish_cloud_lighting()
 
 
-## Bontago-59o.18 (C1b variation): writes the cycle's sky exposure, cloud coverage and
+## C1b variation: writes the cycle's sky exposure, cloud coverage and
 ## cloud-floor (sea) coverage for `phase` onto the live sky material and the cloud
 ## puffs. The values are SkyVariation's pure function of (match seed, phase) inside the
 ## SkyThemeDef.variation_* ranges, or, with variation off, the day theme's own fixed
@@ -731,11 +731,11 @@ func _fixed_uniform(material: ShaderMaterial, uniform: StringName) -> float:
 	return float(value) if value is float else NAN
 
 
-## Bontago-xtq.28: the FogVolume _spawn_fog_volume() created, or null when
+## the FogVolume _spawn_fog_volume() created, or null when
 ## `theme` was unset in _ready() (see that method's own doc).
 var _fog_volume: FogVolume = null
 
-## Bontago-xtq.12 step 2 (F4 tuning panel live-apply, same idiom
+## step 2 (F4 tuning panel live-apply, same idiom
 ## game/player/CameraRig.gd's own TUNING_GROUP doc explains): every Skybox adds
 ## itself to this group in _ready() so ui/debug/TuningPanel.gd's
 ## refresh_territory_visuals_live() can push a live SSR/reflection-probe edit
@@ -743,7 +743,7 @@ var _fog_volume: FogVolume = null
 ## reaches every live CameraRig/Block, without needing its own reference to
 ## this node wired first.
 const TUNING_GROUP: StringName = &"tuning_skybox"
-## Weather overcast (Bontago-22y.5) finds the Skybox through this group.
+## Weather overcast finds the Skybox through this group.
 const OVERCAST_GROUP: StringName = &"weather_skybox"
 ## Weather overcast, presentation only. DECISION (Skybox.gd): the Skybox OWNS
 ## every value the overcast touches. set_overcast() only stores the request;
@@ -754,14 +754,14 @@ const OVERCAST_GROUP: StringName = &"weather_skybox"
 ## Environment or the light directly.
 var _overcast_amount: float = 0.0
 var _weather_cloud_overcast: float = 0.0
-## Bontago-mp0.128: snow brightening 0..1 (CloudCeiling); the gain/lift come from ceiling.tres.
+## snow brightening 0..1 (CloudCeiling); the gain/lift come from ceiling.tres.
 var _snow_brighten: float = 0.0
-## Bontago-mp0.19 storm sky blend state (see set_storm_sky()).
+## storm sky blend state (see set_storm_sky()).
 const MOON_DISC_TEXTURE: Texture2D = preload("res://assets/textures/sky/moon/moon_disc.png")
 const MOON_HALO_TEXTURE: Texture2D = preload("res://assets/textures/sky/moon/moon_halo.png")
 const CEILING_TUNING: WeatherCeilingTuning = preload("res://config/weather/ceiling.tres")
 var _storm_amount: float = 0.0
-## Bontago-mp0.129: aurora write cache (see _apply_aurora()). `_aurora_preset_on` is the graphics
+## aurora write cache (see _apply_aurora()). `_aurora_preset_on` is the graphics
 ## preset's aurora_enabled, kept from graphics_preset_changed instead of looked up every call;
 ## `_aurora_sky` is the sky material the uniforms were last written to, `_aurora_visibility_written`
 ## the visibility on it (-1 = nothing written yet) and `_aurora_look_written` its look values.
@@ -773,10 +773,10 @@ var _storm_target: SkyThemeDef = null
 var _storm_blend: SkyThemeDef = null
 var _storm_blend_base: SkyThemeDef = null
 var _overcast_light_scale: float = 1.0
-## Bontago-mp0.127: direct-sun scale from clouds covering the sun (game/sky/CloudShadows.gd),
+## direct-sun scale from clouds covering the sun (game/sky/CloudShadows.gd),
 ## 1 = clear. Part of the one light-energy writer, _apply_overcast().
 var _sun_cloud_scale: float = 1.0
-## Bontago-mp0.127: the cycle's last unit sun direction (ZERO before any cycle phase) and
+## the cycle's last unit sun direction (ZERO before any cycle phase) and
 ## daylight 0..1, read by game/sky/CloudShadows.gd.
 var _sun_direction: Vector3 = Vector3.ZERO
 var _daylight: float = 1.0
@@ -794,7 +794,7 @@ const SKY_EXPOSURE_UNIFORM: StringName = &"exposure"
 const CLOUD_COVERAGE_UNIFORM: StringName = &"cloud_coverage"
 const SEA_COVERAGE_UNIFORM: StringName = &"proc_sea_coverage"
 var _overcast_sky_bases: Dictionary = {}
-## Weather fog (Bontago-470.3), presentation only. DECISION (Skybox.gd): same
+## Weather fog, presentation only. DECISION (Skybox.gd): same
 ## ownership pattern as the overcast above -- set_weather_fog() stores the
 ## request and _apply_overcast() (which apply_theme() ends with) re-derives the
 ## Environment's fog (DEPTH mode from a begin distance) and a further fog tint;
@@ -822,7 +822,7 @@ func _ready() -> void:
 		_launch_process_mode = environment.sky.process_mode
 	configure_reflection_probe()
 	configure_ssr()
-	# Bontago-adt.1: SkyboxConfig.theme_name picks a non-default theme.
+	# SkyboxConfig.theme_name picks a non-default theme.
 	if config.theme_name != "" and config.theme_name != DEFAULT_THEME_ID and config.theme_name != CYCLE_THEME_ID:
 		var chosen: SkyThemeDef = load_theme(config.theme_name)
 		if chosen != null:
@@ -857,7 +857,7 @@ func _ready() -> void:
 	_apply_fog_volume_visibility(boot_preset)
 	Settings.graphics_preset_changed.connect(_on_graphics_preset_changed)
 	Events.match_scope_reset.connect(reset_to_launch)
-	# Bontago-59o.18: F4's persisted "cycle" Theme entry runs the cycle from boot
+	# F4's persisted "cycle" Theme entry runs the cycle from boot
 	# (after the cloud sea, fog volume and ambient life it drives exist).
 	if config.theme_name == CYCLE_THEME_ID:
 		start_cycle()
@@ -873,7 +873,7 @@ func _exit_tree() -> void:
 ## Public re-apply seam ui/debug/TuningPanel.gd calls (via TUNING_GROUP above)
 ## whenever the owner edits a reflection tunable live in the F4 panel --
 ## configure_reflection_probe()/configure_ssr() otherwise only ever run once,
-## at boot. Also the one place a script removed in Bontago-dbn.1 (see git history)'s
+## at boot. Also the one place a script removed in (see git history)'s
 ## `--mirror-mode=`/`--reflection-mode=` overrides re-apply their duplicated
 ## TerritoryVisuals after swapping `visuals` out from under an already-ready
 ## Skybox.
@@ -882,15 +882,15 @@ func refresh_from_visuals() -> void:
 	configure_ssr()
 
 
-## Bontago-xtq.12 step 2 (owner: "the disc isn't very reflective, like at
+## step 2 ("the disc isn't very reflective, like at
 ## all?" -- step 1's ReflectionProbe alone only ever showed a faint, blurred
 ## sky gradient): Forward+'s screen-space reflections trace the actual
 ## rendered depth/color buffer per pixel, so a block that is currently on
 ## screen shows up in the disk's reflection at roughly its true screen
 ## position -- the probe's own blurred, periodically-snapshotted cubemap
 ## cannot do that on its own. Written onto the wired Environment directly
-## (not the ReflectionProbe node): SSR is a WorldEnvironment-level effect,
-## the same as the sky/ambient the class doc's Bontago-xtq.8 DECISION
+## not the ReflectionProbe node: SSR is a WorldEnvironment-level effect,
+## the same as the sky/ambient the class doc's DECISION
 ## explains. A no-op when no `environment` was wired or `visuals` is unset,
 ## matching configure_reflection_probe()'s own contract.
 func configure_ssr() -> void:
@@ -912,7 +912,7 @@ func configure_ssr() -> void:
 	environment.ssao_ao_channel_affect = visuals.ssao_ao_channel_affect
 
 
-## Bontago-1pi.11.67: the probe strategy in force: OFF when the scene-level switch is off,
+## the probe strategy in force: OFF when the scene-level switch is off,
 ## ALWAYS when the dev override forces it, else the graphics preset's choice (INTERVAL when
 ## no preset is known). Pure, so tests can assert the mapping.
 static func effective_probe_mode(tuning: TerritoryVisuals, preset: GraphicsPreset) -> int:
@@ -956,7 +956,7 @@ func _step_probe_interval(delta: float) -> void:
 	retrigger_reflection_probe()
 
 
-## Bontago-xtq.12: sizes and enables the ReflectionProbe wired via
+## sizes and enables the ReflectionProbe wired via
 ## reflection_probe_path (Main.tscn), once at boot -- not per-match, unlike
 ## TerritoryOverlay's own configure() (see reflection_probe_margin_m's
 ## DECISION comment in config/territory/TerritoryVisuals.gd for why). A no-op when
@@ -993,7 +993,7 @@ func configure_reflection_probe() -> void:
 	probe.cull_mask = PROBE_CULL_MASK
 
 
-## Bontago-xtq.28: applies `applied_theme`'s sky/ground colours onto
+## applies `applied_theme`'s sky/ground colours onto
 ## `_fallback_sky_material` *in place*## _restore_fallback_sky() restores the themed colours, not the material's own
 ## untouched defaults) and its fog colour/density onto the wired Environment's
 ## basic depth fog. A no-op when `applied_theme` is unset or no
@@ -1002,17 +1002,17 @@ func configure_reflection_probe() -> void:
 func apply_theme(applied_theme: SkyThemeDef) -> void:
 	if applied_theme == null or environment == null or environment.sky == null:
 		return
-	# Bontago-59o.18: while the cycle runs, a source theme it was built from
+	# while the cycle runs, a source theme it was built from
 	# (F4's live edit of sunset.tres / night.tres) must reach the live duplicate,
 	# never swap its own static sky material in.
 	if _cycle_theme != null and (applied_theme == _cycle_day or applied_theme == _cycle_night or applied_theme == _cycle_dawn):
 		refresh_cycle_sources()
 		return
 	_apply_theme_parameters(applied_theme)
-	# Bontago-adt.1: the cloud puffs and birds are rebuilt from the applied
+	# the cloud puffs and birds are rebuilt from the applied
 	# theme too, so a live F4 edit or theme switch reaches them.
 	_apply_ambient_life(Settings.current_graphics_preset(), applied_theme)
-	# Bontago-mp0.19: a live theme switch during a storm re-bases the blend.
+	# a live theme switch during a storm re-bases the blend.
 	if _storm_amount > 0.0 and applied_theme != _storm_blend:
 		_apply_storm_blend()
 	_publish_cloud_lighting()
@@ -1035,7 +1035,7 @@ func _apply_theme_parameters(applied_theme: SkyThemeDef) -> void:
 		procedural.sky_horizon_color = applied_theme.sky_horizon_color
 		procedural.ground_bottom_color = applied_theme.ground_bottom_color
 		procedural.ground_horizon_color = applied_theme.ground_horizon_color
-		# DECISION (game/sky/Skybox.gd, Bontago-xtq.28): ProceduralSkyMaterial only
+		# DECISION (game/sky/Skybox.gd): ProceduralSkyMaterial only
 		# exposes one sun_angle_max float, not a min/max pair -- write the
 		# wider/softer glow edge (sun_angle_min_max.y) since that is the value
 		# that actually controls the visible glow size onscreen; .x is kept on
@@ -1045,13 +1045,13 @@ func _apply_theme_parameters(applied_theme: SkyThemeDef) -> void:
 	environment.fog_enabled = true
 	environment.fog_light_color = applied_theme.fog_color
 	environment.fog_density = applied_theme.fog_density
-	# Bontago-xtq.28 fix round: the previous candidate never set this, so it
+	# fix round: the previous candidate never set this, so it
 	# silently sat at the Environment engine default (1.0), which fully
 	# replaces the rendered sky background with flat fog_light_color and
 	# masked the ProceduralSkyMaterial's sunset gradient regardless of
 	# fog_density. See SkyThemeDef.fog_sky_affect's own doc.
 	environment.fog_sky_affect = applied_theme.fog_sky_affect
-	# Bontago-xtq.28 fix round 2 (decisive finding): Environment.volumetric_fog_
+	# fix round 2 (decisive finding): Environment.volumetric_fog_
 	# density defaults to 0.05 on a fresh Environment and was never written
 	# here, so the whole frustum showed a uniform grey haze regardless of
 	# _spawn_fog_volume()'s FogVolume placement -- a FogVolume only adds density
@@ -1065,7 +1065,7 @@ func _apply_theme_parameters(applied_theme: SkyThemeDef) -> void:
 	_apply_sun_flare(applied_theme)
 
 
-## Bontago-mp0.19 (storm sky, owner decision Bontago-048 option C): blends the
+## storm sky option C: blends the
 ## active theme toward `storm_theme` by `amount` 0..1 through the same writers
 ## apply_theme() uses (procedural sky uniforms, fog, light, ambient, overcast).
 ## DECISION: the two themes own different sky materials, so the blend lerps the
@@ -1172,7 +1172,7 @@ func _apply_storm_blend() -> void:
 	_publish_cloud_lighting()
 
 
-## Bontago-59o.16 (procedural sky P1): writes the opt-in procedural-look uniforms
+## procedural sky P1: writes the opt-in procedural-look uniforms
 ## onto the theme's sky ShaderMaterial. The mix is always the theme's procedural_sea_mix (the
 ## painted panorama is gone, so 0 would be a black sky; sky_look_procedural no longer gates it).
 ## Shaders that lack a uniform ignore the write.
@@ -1201,9 +1201,9 @@ func _apply_procedural_params(material: ShaderMaterial, applied_theme: SkyThemeD
 			applied_theme.proc_cards_scale, cards_layout.y, applied_theme.proc_cards_density, cards_layout.w))
 
 
-## Bontago-xtq.28: creates this Skybox's own FogVolume "cloud deck" child --
+## creates this Skybox's own FogVolume "cloud deck" child --
 ## Skybox and Field are sibling nodes under Main.tscn (game/sky/Skybox.gd's
-## Bontago-xtq.28 class-doc paragraph), so this is the only owned-file path to
+## class-doc paragraph), so this is the only owned-file path to
 ## add it; game/field/Field.tscn itself is left untouched (DECISION, this method):
 ## a NodePath from Field to a Skybox-owned node, or vice versa, would need a
 ## wire in Main.tscn, which this package does not own. Always created (so
@@ -1231,19 +1231,19 @@ func _spawn_fog_volume() -> void:
 ## autoload/Settings.gd's graphics_preset_changed handler, connected in
 ## _ready() and disconnected in _exit_tree() above.
 func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
-	# Bontago-mp0.129: the aurora reads this cached flag, never the Settings lookup.
+	# the aurora reads this cached flag, never the Settings lookup.
 	_aurora_preset_on = preset == null or preset.aurora_enabled
 	_apply_fog_volume_visibility(preset)
-	configure_reflection_probe()  # Bontago-1pi.11.67: probe mode follows the preset
+	configure_reflection_probe()  # probe mode follows the preset
 	_apply_ambient_life(preset, theme)
-	# Bontago-59o.18: the rebuild above is day-configured (puff palette, light
+	# the rebuild above is day-configured (puff palette, light
 	# direction, birds, perching, fireflies); put the cycle's current phase back on
 	# top. A locked Night / Dawn / Sunset match never self-heals otherwise.
 	_reapply_cycle_phase(true)
 	_publish_cloud_lighting()
 
 
-## Bontago-adt.1: loads res://config/sky/themes/<id>.tres, or null if missing.
+## loads res://config/sky/themes/<id>.tres, or null if missing.
 static func load_theme(theme_id: String) -> SkyThemeDef:
 	var path: String = "%s/%s.tres" % [THEME_DIR, theme_id]
 	if not ResourceLoader.exists(path):
@@ -1251,10 +1251,10 @@ static func load_theme(theme_id: String) -> SkyThemeDef:
 	return load(path) as SkyThemeDef
 
 
-## Bontago-adt.1: live theme switch (sky, light, environment, cloud sea, birds,
+## live theme switch (sky, light, environment, cloud sea, birds,
 ## cloud-deck fog volume, sun flare, reflection probe re-capture).
 func set_theme_by_id(theme_id: String) -> bool:
-	# Bontago-59o.18: "cycle" is not a theme file; it (re)starts the running cycle
+	# "cycle" is not a theme file; it (re)starts the running cycle
 	# and is remembered like any theme pick (re-applied by _ready()).
 	if theme_id == CYCLE_THEME_ID:
 		start_cycle()
@@ -1331,7 +1331,7 @@ func _apply_sun_flare(applied_theme: SkyThemeDef) -> void:
 			flare.set_weather_scale(_cloud_lighting.sun_scale)
 
 
-## Bontago-adt.1: cloud puffs and birds follow the graphics preset (Low:
+## cloud puffs and birds follow the graphics preset (Low:
 ## sparse puffs, no birds). A null preset means full quality. The puffs copy
 ## the theme's sky material uniforms so their far fade matches the sky.
 func _apply_ambient_life(preset: GraphicsPreset, applied_theme: SkyThemeDef) -> void:
@@ -1344,12 +1344,12 @@ func _apply_ambient_life(preset: GraphicsPreset, applied_theme: SkyThemeDef) -> 
 		_cloud_sea.disc_radius_m = _largest_disc_radius()
 		var billboard_m: float = preset.cloud_billboard_distance_m if preset != null else 0.0
 		_cloud_sea.configure(applied_theme, density, sky_material, subdivisions, billboard_m)
-		# Bontago-mp0.19: configure() resets the puff palette; keep the storm tint.
+		# configure() resets the puff palette; keep the storm tint.
 		if _storm_amount > 0.0 and _storm_target != null and applied_theme != null and applied_theme == theme:
 			_cloud_sea.apply_storm_tint(applied_theme, _storm_target, _storm_amount, applied_theme.sky_material)
 	if _birds != null:
 		_birds.configure(applied_theme, birds)
-	# Bontago-adt.3: perching birds / fireflies, rebuilt (never duplicated) on
+	# perching birds / fireflies, rebuilt (never duplicated) on
 	# every theme apply, live switch and preset change.
 	var life: AmbientLifeConfig = applied_theme.ambient_life if applied_theme != null else null
 	var life_enabled: bool = preset == null or preset.ambient_life_enabled
@@ -1359,7 +1359,7 @@ func _apply_ambient_life(preset: GraphicsPreset, applied_theme: SkyThemeDef) -> 
 		_fireflies.configure(life, life_enabled, _disc_radius_for_ambient_life())
 
 
-## Bontago-adt.1: writes the theme's light and glow/ambient values onto the
+## writes the theme's light and glow/ambient values onto the
 ## wired DirectionalLight3D and Environment.
 func _apply_light_and_environment(applied_theme: SkyThemeDef, write_rotation: bool = true) -> void:
 	environment.ambient_light_energy = applied_theme.ambient_energy
@@ -1376,7 +1376,7 @@ func _apply_light_and_environment(applied_theme: SkyThemeDef, write_rotation: bo
 		light.rotation_degrees = applied_theme.light_rotation_deg
 
 
-## Bontago-mp0.29: the shared cloud lighting (never null; layers connect to
+## the shared cloud lighting (never null; layers connect to
 ## its `changed` signal and read it).
 func cloud_lighting() -> CloudLighting:
 	return _cloud_lighting
@@ -1396,7 +1396,7 @@ func _publish_cloud_lighting() -> void:
 	if sky != null and _cycle_theme != null:
 		var mixed: Variant = sky.get_shader_parameter(&"cycle_night_mix")
 		night = float(mixed) if mixed is float else 0.0
-	# Bontago-mp0.129: the aurora follows the same night / weather / preset inputs, and does
+	# the aurora follows the same night / weather / preset inputs, and does
 	# not need the puff material, so it is written before the puff-less early return.
 	_apply_aurora(night)
 	if puff == null:
@@ -1412,7 +1412,7 @@ func _publish_cloud_lighting() -> void:
 	var weather: float = maxf(cloud_overcast, _storm_amount)
 	var dim: float = CloudLighting.combined_dim(CEILING_TUNING.cloud_overcast_dim, CEILING_TUNING.storm_darkness_add,
 		cloud_overcast, _storm_amount, night, CEILING_TUNING.night_dim_relief, CEILING_TUNING.max_combined_dim)
-	# Bontago-mp0.128: snow lifts the clouds (a negative dim brightens), not at night.
+	# snow lifts the clouds (a negative dim brightens), not at night.
 	dim -= CEILING_TUNING.snow_cloud_brighten * _snow_brighten * (1.0 - clampf(night, 0.0, 1.0))
 	var changed: bool = _cloud_lighting.publish(
 		_puff_color(puff, &"shadow_color", _cloud_lighting.shadow_color),
@@ -1433,7 +1433,7 @@ func _publish_cloud_lighting() -> void:
 		_apply_sun_effect_scale(sun_effects)
 
 
-## Bontago-mp0.122: writes the moon_v1 disc/halo uniforms on the live cycle sky. The moon
+## writes the moon_v1 disc/halo uniforms on the live cycle sky. The moon
 ## sits opposite the sun, fades in with the night mix and is hidden by overcast/storm
 ## exactly as far as the sun's own weather keep (CloudLighting.sun_weather_keep).
 func _apply_moon(night: float) -> void:
@@ -1457,8 +1457,8 @@ func _apply_moon(night: float) -> void:
 	sky.set_shader_parameter(&"moon_brightness", _cycle_theme.cycle_moon_brightness)
 
 
-## Bontago-1pi.131: the cycle's night number (integer cycle count; a locked sky is night 0).
-## Bontago-mp0.129 (owner playtest: "at night lets add an aurora borealis effect to the sky"):
+## the cycle's night number (integer cycle count; a locked sky is night 0).
+## "at night lets add an aurora borealis effect to the sky":
 ## writes the aurora uniforms on the live sky material (the cycle's sunset_clouds, or a static
 ## theme's own sky such as night_sky). `night` is the cycle's night mix 0..1 (0 outside the
 ## cycle). The shaders only read `aurora_visibility`, so the day / night / weather / preset
@@ -1489,7 +1489,7 @@ func _apply_aurora(night: float) -> void:
 	var strength: float = 0.0
 	if active.aurora_enabled and _aurora_preset_on:
 		if _cycle_theme != null:
-			# DECISION (Bontago-1pi.131): one seeded roll per night; a night spans phase 0.5..1
+			# DECISION: one seeded roll per night; a night spans phase 0.5..1
 			# and its aurora is 0 at both edges, so the integer cycle count is the night id.
 			if SkyVariation.aurora_night_shown(_variation_seed, _cycle_night_index(), active.aurora_night_chance):
 				strength = active.aurora_night_strength(night)
@@ -1518,7 +1518,7 @@ func _apply_aurora(night: float) -> void:
 	sky.set_shader_parameter(&"aurora_curtain_height", active.aurora_curtain_height)
 
 
-## Bontago-mp0.34: scales the sky shader's god rays / sun glow and the screen
+## scales the sky shader's god rays / sun glow and the screen
 ## flare by the weather + night sun scale (host and client compute it the same).
 func _apply_sun_effect_scale(sun_effects: float) -> void:
 	var active: SkyThemeDef = _cycle_theme if _cycle_theme != null else theme
@@ -1554,7 +1554,7 @@ func get_fireflies() -> Fireflies:
 	return _fireflies
 
 
-## Bontago-1pi.107: the radius the cloud sea, its exclusion cylinder and the
+## the radius the cloud sea, its exclusion cylinder and the
 ## reflection probe must cover -- the bound Field's (disc-size scaled) radius,
 ## never below the largest shipped map.
 func _largest_disc_radius() -> float:
@@ -1575,7 +1575,7 @@ func _disc_radius_for_ambient_life() -> float:
 	return MapDef.RADIUS_MEDIUM
 
 
-## Bontago-xtq.28: the FogVolume's only gating -- `visible` alone, never
+## the FogVolume's only gating -- `visible` alone, never
 ## created/destroyed (see _spawn_fog_volume()'s own doc on why). Matches
 ## docs/M7_ART_DIRECTION.md's performance budget: dropped from view entirely
 ## on Low (config/graphics/presets/low.tres: volumetric_fog_enabled == false),
@@ -1593,7 +1593,7 @@ func get_fog_volume() -> FogVolume:
 	return _fog_volume
 
 
-## Weather overcast (Bontago-22y.5): `amount` 0..1 scales the theme's light and
+## Weather overcast: `amount` 0..1 scales the theme's light and
 ## ambient energy, the sky exposure and tints the fog toward `fog_tint`. The
 ## *_scale values are the factors reached at amount 1. Amount 0 restores the
 ## theme exactly.
@@ -1612,7 +1612,7 @@ func overcast_amount() -> float:
 	return _overcast_amount
 
 
-## Bontago-mp0.29: the overcast every weather (rain, snow, storm; CloudCeiling) asks
+## the overcast every weather (rain, snow, storm; CloudCeiling) asks
 ## of the cloud layers. Grades the shared CloudLighting only; the light, ambient
 ## and fog overcast above stay RainPresentation's.
 func set_weather_cloud_overcast(amount: float) -> void:
@@ -1623,7 +1623,7 @@ func set_weather_cloud_overcast(amount: float) -> void:
 	_publish_cloud_lighting()
 
 
-## Bontago-mp0.128: snow brightens the sky (background exposure) and the clouds
+## snow brightens the sky (background exposure) and the clouds
 ## (negative weather dim) by `amount` 0..1; 0 restores exactly.
 func set_snow_brighten(amount: float) -> void:
 	var clamped: float = clampf(amount, 0.0, 1.0)
@@ -1640,7 +1640,7 @@ func cloud_overcast_amount() -> float:
 	return maxf(_overcast_amount, _weather_cloud_overcast)
 
 
-## Weather fog (Bontago-470.3): `amount` 0..1 switches the Environment to DEPTH
+## Weather fog: `amount` 0..1 switches the Environment to DEPTH
 ## fog that starts `depth_begin_m` from the camera (so nearby blocks keep their
 ## full colour) and reaches `max_opacity * amount` at `depth_end_m`, tints the
 ## fog toward `tint` and lets it wash the sky/horizon by `sky_affect_add` more.
@@ -1690,7 +1690,7 @@ func _apply_overcast(applied_theme: SkyThemeDef) -> void:
 		light.light_energy = applied_theme.light_energy * lerpf(1.0, _overcast_light_scale, amount) * _sun_cloud_scale
 
 
-## Bontago-mp0.127: the sun scale clouds cover it by (1 = clear). Rewrites only the light.
+## the sun scale clouds cover it by (1 = clear). Rewrites only the light.
 func set_sun_cloud_scale(scale: float) -> void:
 	scale = clampf(scale, 0.0, 1.0)
 	if is_equal_approx(scale, _sun_cloud_scale):
@@ -1722,7 +1722,7 @@ func cloud_drift_speed_mps() -> float:
 	return absf(live.cloud_drift_speed_min_mps + live.cloud_drift_speed_max_mps) * 0.5 * _cloud_drift.speed_mult
 
 
-## Bontago-mp0.92: the one cloud wind (puffs, sun occlusion and CloudShadows all read it).
+## the one cloud wind (puffs, sun occlusion and CloudShadows all read it).
 func cloud_drift() -> CloudDriftState:
 	return _cloud_drift
 
@@ -1745,12 +1745,12 @@ func _step_cloud_drift(delta: float) -> void:
 		_cloud_sea.set_drift_offset(_cloud_drift.offset)
 
 
-## Bontago-mp0.130: aerial perspective, sun scatter and height fog from the theme.
+## aerial perspective, sun scatter and height fog from the theme.
 func _apply_fog_extras(applied_theme: SkyThemeDef) -> void:
 	if is_inside_tree():
 		WeatherFogShader.set_ambient(applied_theme.haze_strength, applied_theme.haze_begin_m,
 			applied_theme.haze_end_m, environment.fog_light_color, get_tree())
-	# Bontago-1pi.130: aerial perspective blends the fog toward the SKY colour, which
+	# aerial perspective blends the fog toward the SKY colour, which
 	# at night is near black, so distant blocks read as black silhouettes against the
 	# light-grey fogged disc (the disc/clouds use the flat fog colour). Weather fog
 	# therefore fades the theme's aerial perspective OUT (flat colour = the disc's).

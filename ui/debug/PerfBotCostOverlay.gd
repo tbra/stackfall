@@ -1,6 +1,6 @@
 class_name PerfBotCostOverlay
 extends CanvasLayer
-## Bontago-1t5.63: debug-only live Hard-bot think cost overlay. `bot_cost_overlay_toggle` (F2, gamepad
+## debug-only live Hard-bot think cost overlay. `bot_cost_overlay_toggle` (F2, gamepad
 ## Back + left-stick click) shows or hides it, gated by game/debug/DebugMode.gd like F1. While visible it keeps
 ## core/ai/BotThinkCostCollector enabled (the bots then take their clock reads); hidden = disabled = zero
 ## cost. Reads the collector only: local, never networked, never writes game state. Bots run on the host,
@@ -192,7 +192,7 @@ static func footer_lines(report: BotThinkCostReport) -> PackedStringArray:
 	])
 
 
-## Pure (Bontago-1t5.67): how often the zero-targeted FILL fallback ran in the window.
+## Pure: how often the zero-targeted FILL fallback ran in the window.
 static func fill_fallback_line(report: BotThinkCostReport) -> String:
 	var ff: Dictionary = report.fill_fallback_stats()
 	return "FILL fallback: %d of %d thinks (%.1f%%, %d sites)" % [ff["count"], ff["thinks"], ff["share_pct"], ff["sites"]]

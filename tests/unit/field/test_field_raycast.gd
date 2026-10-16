@@ -1,5 +1,5 @@
 extends GutTest
-## Field.raycast_down_disk_local() (docs/TERRITORY_V2_PLAN.md, "Placement
+## Field.raycast_down_disk_local() ("Placement
 ## validity"): the v2 ruleset's one physics query, straight down from
 ## map_def.cell_wake_height to tuning.kill_plane_y in world space, converted
 ## back to disk-local (x, z) through Field's own convention.
@@ -64,7 +64,7 @@ func test_hits_the_bare_disk_at_its_own_xz_when_nothing_is_stacked() -> void:
 
 func test_ignores_world_origins_own_height_and_always_looks_straight_down() -> void:
 	# Deliberately independent of however the caller's own ray got here
-	# (docs/TERRITORY_V2_PLAN.md): only (x, z) should matter.
+	# only (x, z) should matter.
 	var field: Field = _make_field()
 
 	var low: Variant = field.raycast_down_disk_local(Vector3(1.5, -3.0, -0.5))

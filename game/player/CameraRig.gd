@@ -1,11 +1,11 @@
 class_name CameraRig
 extends Node3D
-## Orbit/zoom/pan/snap camera rig (spec 2.5 camera row), driven only by the
+## Orbit/zoom/pan/snap camera rig (spec 1.3 camera row), driven only by the
 ## Input Map actions bootstrap_project.gd defines. CLAUDE.md: no raw keycodes
 ## and no deep node paths — this rig only ever reaches its own Camera3D child.
 ##
-## Bontago-mv0.14 (original-style block-locked camera, spec 1.5,
-## docs/ORIGINAL_BONTAGO_NOTES.md "Controls"): the original's camera is
+## original-style block-locked camera, spec 1.5,
+## docs/ORIGINAL_BONTAGO_NOTES.md "Controls": the original's camera is
 ## attached to the held block, so by default (CameraTuning.follow_block) this
 ## rig's pivot (_target) tracks whatever position PlayerController reports
 ## through set_follow_position() every frame, smoothed by
@@ -14,12 +14,12 @@ extends Node3D
 ## zoom still work the same as before; pan and the snap-to-home/goal actions
 ## are no-ops in follow mode, since there is no free target to move -- see
 ## the DECISION comments below. Setting follow_block = false on the
-## CameraTuning resource restores the exact pre-mv0.14 free-orbit behaviour
+## CameraTuning resource restores the exact pre-free-orbit behaviour
 ## (manual pan, snap-to actions), so a test can still pin it deliberately.
 ##
-## Bontago-mv0.29 (owner: "the mmb rotation issue persists, can the camera
-## just be locked in place while mmb is pressed?" -- feedback/rotation-issue.png):
-## mv0.28 made the follow target track the held ghost's rotated geometric
+## "the mmb rotation issue persists, can the camera
+## just be locked in place while mmb is pressed?" -- feedback/rotation-issue.png:
+## made the follow target track the held ghost's rotated geometric
 ## centre instead of its node origin, but any shape whose mass isn't
 ## symmetric about its own rotation axis still slides that centre while
 ## rotate_drag (MMB) spins it, so the camera still visibly moved. This rig
@@ -31,21 +31,21 @@ extends Node3D
 @export var tuning: CameraTuning = preload("res://config/player/camera_tuning.tres")
 @export var map_def: MapDef = preload("res://config/match/maps/round.tres")
 
-## Bontago-xtq.29 (M7 P4, spec 2.10 "camera shake"): tunables for the decaying
+## M7 P4, spec 1.10 "camera shake": tunables for the decaying
 ## offset _update_transform() adds on top of the normal orbit position
 ## whenever Events.block_impacted fires hard enough. See shake_offset().
 @export var shake_config: CameraShakeConfig = preload("res://config/physics/camera_shake.tres")
-## Bontago-1pi.110: which specials trigger a shake (disc-shaking/toppling only).
+## which specials trigger a shake (disc-shaking/toppling only).
 @export var disc_shake: DiscShakeConfig = preload("res://config/physics/disc_shake.tres")
 
-## Bontago-mv0.20b (F4 tuning panel live-apply): every CameraRig adds itself
+## .20b (F4 tuning panel live-apply): every CameraRig adds itself
 ## to this group in _ready(), the same idea as game/blocks/Block.gd's TUNING_GROUP,
 ## so ui/debug/TuningPanel.gd can push a live camera_tuning edit onto whichever rig
 ## is actually in the tree (get_tree().get_nodes_in_group(TUNING_GROUP))
 ## without needing its own set_camera_rig() wiring to have run first.
 const TUNING_GROUP: StringName = &"tuning_camera"
 
-## Bontago-mv0.26 (owner test 2026-09-22: "the ghost block is a bit jittery
+## (owner test "the ghost block is a bit jittery
 ## when I'm moving around and especially when scrolling and it moves up and
 ## down"). ROOT CAUSE: this rig is a static child of game/main/Main.tscn (created
 ## before HotSeat/Sandbox, whose PlayerController is add_child()'d afterward
@@ -74,7 +74,7 @@ const TUNING_GROUP: StringName = &"tuning_camera"
 ## regardless of where either node sits in the tree.
 const _PROCESS_PRIORITY_AFTER_GHOST: int = 1
 
-## Bontago-pt-4: how close (meters) _target must get to _follow_position
+## how close (meters) _target must get to _follow_position
 ## before begin_follow_transition()'s easing is considered finished (see
 ## _process()'s own use of this below). Not a gameplay tunable in the
 ## CameraTuning sense -- CLAUDE.md's Resource/no-magic-numbers rule is about
@@ -84,7 +84,7 @@ const _PROCESS_PRIORITY_AFTER_GHOST: int = 1
 ## rather than a unit amplitude fraction.
 const _DROP_RECOVER_CONVERGED_M: float = 0.001
 
-## Bontago-b7r (owner decision 2026-09-28, Bontago-aem): game/sandbox/Sandbox.gd's own
+## game/sandbox/Sandbox.gd's own
 ## sandbox_next_slot hotkey is gamepad Back, which camera_snap_home also binds.
 ## DECISION (game/player/CameraRig.gd, orchestrator review): game/sandbox/Sandbox.gd sets this
 ## true so a *gamepad* Back press there stays next-slot only; keyboard 1/2 and
@@ -94,7 +94,7 @@ const _DROP_RECOVER_CONVERGED_M: float = 0.001
 @export var suppress_pad_home_focus: bool = false
 
 ## Set by PlayerController each frame: true while the player holds a ghost
-## block. Spec 2.5 scopes trigger zoom to "while not holding a block"; the
+## block. Spec 1.4 scopes trigger zoom to "while not holding a block"; the
 ## dedicated Z/X keys always zoom regardless (see _unhandled_input).
 var block_held: bool = false
 
@@ -103,12 +103,12 @@ var _pitch: float = 0.0
 var _distance: float = 0.0
 var _target: Vector3 = Vector3.ZERO
 ## Where PlayerController says the held ghost's own rotated centre is
-## (Bontago-mv0.28: GhostPreview.rotated_center_world(), not its node
+## (GhostPreview.rotated_center_world(), not its node
 ## origin -- see that method's doc comment), updated by set_follow_position()
 ## every frame. Only read when tuning.follow_block.
 var _follow_position: Vector3 = Vector3.ZERO
 
-## Bontago-pt-4 (owner playtest: "Camera always jumps up after block drops or
+## Bontago-pt-4 ("Camera always jumps up after block drops or
 ## when clicking the drop button"): true for as long as _process() is easing
 ## _target into _follow_position over tuning.drop_recover_seconds instead of
 ## hard-snapping to it -- see begin_follow_transition()'s own doc comment for
@@ -117,10 +117,10 @@ var _follow_position: Vector3 = Vector3.ZERO
 ## flips back to hard-snap mode with a residual gap still showing).
 var _drop_recovering: bool = false
 
-## Bontago-xtq.29 (camera shake): the amplitude (meters) of the shake impulse
+## camera shake: the amplitude (meters) of the shake impulse
 ## currently decaying, and how long it has been decaying for. A fresh, harder
 ## Events.block_impacted while one is still decaying replaces the amplitude
-## outright rather than stacking (spec 2.10 asks for a shake reaction per
+## outright rather than stacking (spec 1.10 asks for a shake reaction per
 ## impact, not compounding shakes from a rapid string of small settling
 ## impacts) and restarts the decay clock, so the strongest recent hit always
 ## governs.
@@ -133,7 +133,7 @@ var _disc_sample_elapsed_s: float = 0.0
 var _sampled_field: Field = null
 var _decay_elapsed_s: float = 0.0
 
-## Bontago-b7r: which slot's home beacon Focus home should target -- pushed
+## which slot's home beacon Focus home should target -- pushed
 ## every frame by game/player/PlayerController.gd's own _acting_slot() (the same
 ## "local/acting slot" HotSeat/Sandbox already resolve for it), never read
 ## from here. -1 (the default) means "no local slot known yet"; _resolve_
@@ -142,7 +142,7 @@ var _decay_elapsed_s: float = 0.0
 var _local_slot: int = -1
 
 
-## Bontago-b7r: camera_snap_home/camera_snap_goal's tap-vs-hold state, tracked
+## camera_snap_home/camera_snap_goal's tap-vs-hold state, tracked
 ## only while tuning.follow_block (the legacy free camera keeps its old
 ## single-press _snap_to() below, unchanged). `_focus_action` is `&""` when
 ## neither is currently held, or the StringName of whichever Input Map action
@@ -159,27 +159,26 @@ var _focus_hold_elapsed_s: float = 0.0
 ## True for exactly as long as PEEK is actively holding the camera on
 ## _focus_target_point (past tuning.focus_hold_threshold_s, still held).
 ## game/player/PlayerController.gd reads this through is_peeking() to suppress
-## ghost-cursor movement and placement while it's true (owner decision:
-## "the ghost/cursor never moves during peek").
+## ghost-cursor movement and placement while it's true ("the ghost/cursor never moves during peek").
 var _peek_active: bool = false
 ## True while _process() is gliding _target/_distance/_pitch back to the
 ## normal follow framing after a PEEK release, until it converges (the same
 ## _DROP_RECOVER_CONVERGED_M-gated pattern _drop_recovering already uses).
 var _peek_returning: bool = false
-## Bontago-b7r ("each new goal press/tap cycles to the next goal"): advanced
+## "each new goal press/tap cycles to the next goal": advanced
 ## once per fresh camera_snap_goal press by _resolve_goal_target() below, not
 ## every frame -- so holding through a PEEK doesn't itself keep cycling.
 var _goal_cycle_index: int = 0
-## Bontago-1pi.46: the in-flight _snap_to()/_turn_to_face() tweens, so reset_view()
+## the in-flight _snap_to()/_turn_to_face() tweens, so reset_view()
 ## can stop one before it keeps writing _yaw/_target/_distance/_pitch into the
 ## next match.
 var _view_tweens: Array[Tween] = []
-## Bontago-1pi.90: returns the held piece's camera anchor at its spawn pose
+## returns the held piece's camera anchor at its spawn pose
 ## (game/player/PlayerController.gd spawn_camera_anchor(), registered through
 ## set_camera_rig()). begin_start_framing() pivots on it; empty means "no
 ## controller", and the home beacon is used instead.
 var _start_anchor_source: Callable = Callable()
-## Bontago-1pi.187: the match-start pose (yaw/pitch/distance/target) recorded by
+## the match-start pose (yaw/pitch/distance/target) recorded by
 ## begin_start_framing(), which camera_reset restores. Cleared by reset_view().
 var _has_start_pose: bool = false
 var _start_yaw: float = 0.0
@@ -192,7 +191,7 @@ var _start_target: Vector3 = Vector3.ZERO
 
 var _pause_open: bool = false
 var _results_open: bool = false
-## Bontago-1pi.192.5: the chat input line owns the keyboard.
+## the chat input line owns the keyboard.
 var _chat_open: bool = false
 
 
@@ -206,9 +205,9 @@ func _ready() -> void:
 	Events.match_results_ready.connect(_on_match_results_ready)
 	Events.match_scope_reset.connect(_on_match_scope_reset)
 	process_priority = _PROCESS_PRIORITY_AFTER_GHOST
-	# Bontago-1bt (owner log: "Interpolated Camera3D triggered from outside
+	# owner log: "Interpolated Camera3D triggered from outside
 	# physics process" -- the same warning the removed DiscMirror's own class doc
-	# already root-caused and fixed for its mirror camera, xtq.21): this rig's
+	# already root-caused and fixed for its mirror camera, : this rig's
 	# own global_position (_update_transform() below sets it every frame via
 	# `global_position = _target`) and its Camera3D child's position/rotation
 	# (_camera.look_at()) are both fully re-derived every rendered _process()
@@ -246,7 +245,7 @@ func _apply_default_view() -> void:
 		_update_transform()
 
 
-## Bontago-1pi.65 (owner playtest 2026-10-04: "I can still move the camera with
+## ("I can still move the camera with
 ## the joystick while the round end screen shows"). True while the pause menu or
 ## the results screen is open: orbit, pan, zoom and snap input are all ignored.
 ## Driven only by the Events bus (pause_menu_*, match_results_ready; cleared by
@@ -285,7 +284,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if is_input_blocked():
 		return
 	if _rotate_drag_frozen():
-		# Bontago-mv0.29: freeze consumes every camera input this rig would
+		# freeze consumes every camera input this rig would
 		# otherwise react to (orbit motion, pan motion, zoom keys, snap
 		# actions) while rotate_drag is held -- see this method's own
 		# doc comment on _rotate_drag_frozen() for why. PlayerController has
@@ -296,8 +295,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		var motion: InputEventMouseMotion = event
 		if Input.is_action_pressed(&"camera_mode") or Input.is_action_pressed(&"camera_orbit"):
-			# Bontago-mv0.22 (spec 2.5 "Camera orbit (hold + drag)" [ORIGINAL,
-			# owner test 2026-09-22]): camera_orbit (RMB) is now the primary
+			# (spec 1.3 "Camera orbit (hold + drag)" [ORIGINAL,
+			# owner test]): camera_orbit (RMB) is now the primary
 			# hold; camera_mode (C) stays wired as the keyboard alias for the
 			# exact same gesture.
 			_yaw -= motion.relative.x * tuning.mouse_orbit_speed
@@ -313,24 +312,24 @@ func _unhandled_input(event: InputEvent) -> void:
 			_update_transform()
 		return
 
-	# Owner controller update (feedback/controller-update.md, re-confirmed
-	# 2026-09-28): camera_zoom_in/out are keyboard-only now (Z/X) -- the
+	# Owner controller update (re-confirmed
+	# ): camera_zoom_in/out are keyboard-only now (Z/X) -- the
 	# gamepad triggers no longer fire them at all (tools/bootstrap_project.gd),
 	# so both always zoom regardless of block_held; the old "trigger zoom only
 	# while free" scoping is moot now that no trigger binds these actions.
 	# The gamepad's own zoom gesture (LT + left stick, continuous) is
 	# PlayerController._drive_gamepad_zoom() -> zoom_continuous() below, driven
 	# every frame rather than through this event handler.
-	# Bontago-mv0.14: the wheel used to double as zoom too; it is now block
+	# the wheel used to double as zoom too; it is now block
 	# height only (ghost_tuning's hover_raise/hover_lower), so it is out of
 	# this action entirely (see tools/bootstrap_project.gd).
 	if event.is_action_pressed(&"camera_zoom_in"):
 		_zoom(-1.0)
 	elif event.is_action_pressed(&"camera_zoom_out"):
 		_zoom(1.0)
-	# Owner 2026-10-11: snap is off while tuning.snap_enabled is false (Bontago-1pi.170).
+	# snap is off while tuning.snap_enabled is false.
 	elif tuning.snap_enabled and event.is_action_pressed(&"camera_snap_home"):
-		# Bontago-b7r: camera_snap_goal no longer shares B with rotate_snap
+		# camera_snap_goal no longer shares B with rotate_snap
 		# (tools/bootstrap_project.gd), so camera_snap_home's own press/release
 		# needs no block_held gate either -- see _on_focus_pressed()'s own
 		# DECISION for the one gate that IS still needed (goal's shared X).
@@ -343,7 +342,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_released(&"camera_snap_goal") and _focus_action == &"camera_snap_goal":
 		_on_focus_released()
 	elif event.is_action_pressed(&"camera_reset"):
-		# Bontago-1pi.187: Back is shared with camera_snap_home (see
+		# Back is shared with camera_snap_home (see
 		# tools/bootstrap_project.gd). Snap owns the pad press while enabled, and
 		# the sandbox uses Back for its own chords.
 		if not (event is InputEventJoypadButton and (tuning.snap_enabled or suppress_pad_home_focus)):
@@ -352,14 +351,14 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	if _rotate_drag_frozen():
-		# Bontago-mv0.29 (owner: "the mmb rotation issue persists, can the
-		# camera just be locked in place while mmb is pressed?"): returning
+		# "the mmb rotation issue persists, can the
+		# camera just be locked in place while mmb is pressed?": returning
 		# here before touching _target/_yaw/_pitch/_distance or calling
 		# _update_transform() leaves global_transform bit-for-bit whatever it
 		# was last frame, regardless of what PlayerController's own
 		# set_follow_position() reports this frame (the ghost's rotated
 		# centre moves during a drag whenever the held shape isn't symmetric
-		# about its rotation axis -- mv0.28 alone did not stop that) or what
+		# about its rotation axis -- alone did not stop that) or what
 		# the height wheel/gamepad stick/right-stick orbit did. Releasing
 		# rotate_drag needs no special "resume" code: the very next
 		# non-frozen _process() lerps _target toward whatever
@@ -368,9 +367,9 @@ func _process(delta: float) -> void:
 		# shipped default) -- exactly the same path every other frame already
 		# takes.
 		return
-	# The gamepad's right stick always free-orbits (spec 2.5's camera row has
+	# The gamepad's right stick always free-orbits (spec 1.3's camera row has
 	# no gamepad hold requirement; see test_project_setup.gd's DEVICE_EXCEPTIONS
-	# for camera_mode). Bontago-mv0.14 removed the previous rotate_free_hold
+	# for camera_mode). removed the previous rotate_free_hold
 	# conflict here: that action is now rotation_mode, which reuses the *left*
 	# stick (PlayerController._accumulate_rotation_drag), so the right stick no
 	# longer has a second job to gate against.
@@ -385,17 +384,17 @@ func _process(delta: float) -> void:
 		_clamp_pitch()
 
 	if tuning.follow_block:
-		# Bontago-mv0.14 (spec 1.5, "the camera is attached to the held
-		# block"): smoothly close the distance to wherever PlayerController
+		# spec 1.5, "the camera is attached to the held
+		# block": smoothly close the distance to wherever PlayerController
 		# last reported the ghost, rather than a hard snap -- an exponential
 		# approach so a sudden large motion (e.g. a mode switch) doesn't jerk
 		# the camera. follow_lag_seconds == 0 degrades to an exact snap.
-		# Bontago-pt-4: while _drop_recovering (see begin_follow_transition()),
+		# while _drop_recovering (see begin_follow_transition()),
 		# use tuning.drop_recover_seconds as the approach's time constant
 		# instead of follow_lag_seconds, even when the latter is 0 -- the one
 		# discontinuous re-target this eases into must not hard-snap just
 		# because ordinary movement is tuned to.
-		# Bontago-b7r: PEEK and its own return glide own _target/_distance/
+		# PEEK and its own return glide own _target/_distance/
 		# _pitch outright while either is active -- the ordinary follow lerp
 		# below (and _drop_recovering, a discontinuous re-target of the same
 		# kind PEEK's own return glide already handles) must not fight them
@@ -416,7 +415,7 @@ func _process(delta: float) -> void:
 				weight = 1.0 - exp(-delta / lag_seconds)
 			_target = _target.lerp(_follow_position, clampf(weight, 0.0, 1.0))
 			if _drop_recovering and _target.distance_to(_follow_position) <= _DROP_RECOVER_CONVERGED_M:
-				# Bontago-pt-4: clears itself the moment _target has actually
+				# clears itself the moment _target has actually
 				# caught up, rather than on a fixed timer -- so flipping back to
 				# hard-snap mode (follow_lag_seconds, usually 0) never leaves a
 				# visible residual gap to snap across.
@@ -432,7 +431,7 @@ func _process(delta: float) -> void:
 		var pan_x: float = Input.get_action_strength(&"camera_pan_right") - Input.get_action_strength(&"camera_pan_left")
 		var pan_z: float = Input.get_action_strength(&"camera_pan_back") - Input.get_action_strength(&"camera_pan_forward")
 		if _chat_open:
-			# Bontago-1pi.192.5: typed W/A/S/D must not pan the legacy free camera.
+			# typed W/A/S/D must not pan the free-orbit camera.
 			pan_x = 0.0
 			pan_z = 0.0
 		if pan_x != 0.0 or pan_z != 0.0:
@@ -442,8 +441,8 @@ func _process(delta: float) -> void:
 	_update_transform()
 
 
-## Bontago-mv0.14: called by PlayerController every frame with the held
-## ghost's world position (Bontago-mv0.28: its rotated geometric centre, not
+## called by PlayerController every frame with the held
+## ghost's world position (its rotated geometric centre, not
 ## its node origin, so a pitch/roll spins the block in place instead of
 ## dragging the camera's framing). Only used while tuning.follow_block is
 ## true; the legacy free-orbit camera ignores it.
@@ -451,7 +450,7 @@ func set_follow_position(pos: Vector3) -> void:
 	_follow_position = pos
 
 
-## Bontago-1pi.212 (debug Watch bots): puts the rig on a spectator pose -- the pivot, distance and
+## debug Watch bots: puts the rig on a spectator pose -- the pivot, distance and
 ## pitch (clamped like the orbit/zoom input) -- without touching the yaw, so the spectator controller
 ## (game/player/SpectatorController.gd) can frame the arena overview or a followed bot. Follow-mode rigs keep
 ## easing onto set_follow_position() afterwards, which is how that controller pans and follows.
@@ -465,13 +464,13 @@ func set_spectator_pose(pivot: Vector3, distance: float, pitch_deg: float) -> vo
 	_update_transform()
 
 
-## Bontago-pt-4 (owner playtest: "Camera always jumps up after block drops or
+## Bontago-pt-4 ("Camera always jumps up after block drops or
 ## when clicking the drop button"). ROOT CAUSE: this rig's follow-block mode
 ## hard-snaps _target to whatever set_follow_position() reports every frame
-## whenever tuning.follow_lag_seconds is 0 (the shipped default since mv0.21,
+## whenever tuning.follow_lag_seconds is 0 (the shipped default since ,
 ## "matches the original's feel best" for ordinary, small, continuous
 ## per-frame ghost motion). game/player/PlayerController.gd's own
-## _apply_spawn_clearance() (Bontago-mv0.30/mv0.33) raises the newly issued
+## _apply_spawn_clearance() (/) raises the newly issued
 ## ghost's manual_hover_offset -- and so its followed rotated_center_world()
 ## height -- in one single frame, the instant the next piece would otherwise
 ## spawn inside the block just placed: the ordinary case of building on your
@@ -493,7 +492,7 @@ func begin_follow_transition() -> void:
 	_drop_recovering = true
 
 
-## Bontago-mv0.17 item 4 (owner feel report: match start should look from the
+## item 4 (owner feel report: match start should look from the
 ## player's home flag toward the disk centre, not the generic yaw = 0
 ## default): called once by PlayerController.set_home_position() when a
 ## controller binds to a real slot. Points this rig's yaw so its offset (see
@@ -512,7 +511,7 @@ func set_home_view(home_position: Vector3, look_at_position: Vector3 = Vector3.Z
 	_update_transform()
 
 
-## Bontago-1pi.46 (owner playtest: "leaving match and starting a new match
+## ("leaving match and starting a new match
 ## doesn't reset properly ... my camera and zoom level were the same as when i
 ## left the old match"). ROOT CAUSE: this rig is a static child of game/main/Main.tscn
 ## that outlives every match, and a match start only re-aimed yaw/target
@@ -520,7 +519,7 @@ func set_home_view(home_position: Vector3, look_at_position: Vector3 = Vector3.Z
 ## distance, pitch, peek/focus state, shake and queued snap/turn tweens carried
 ## over. game/main/Main.gd calls this when a match world is built and torn down; it
 ## puts every field back to what _ready() leaves on a fresh launch.
-## Bontago-1pi.46 (G4): that includes suppress_pad_home_focus, which only
+## G4: that includes suppress_pad_home_focus, which only
 ## game/sandbox/Sandbox.gd sets (and re-sets in its own set_camera_rig() on the next
 ## sandbox start), so a lobby match after a sandbox session has gamepad Back =
 ## focus home again.
@@ -555,7 +554,7 @@ func reset_view() -> void:
 	_apply_default_view()
 
 
-## Bontago-mp0.27: match-start entry point. Puts the camera at `slot_id`'s own
+## match-start entry point. Puts the camera at `slot_id`'s own
 ## home beacon looking at the disc centre (set_home_view's framing). Returns
 ## false, leaving the camera alone, when that slot has no beacon in the Field.
 func place_at_home_beacon(slot_id: int) -> bool:
@@ -567,14 +566,14 @@ func place_at_home_beacon(slot_id: int) -> bool:
 	return true
 
 
-## Bontago-1pi.84 (owner playtest 2026-10-05, feedback/051026/3.png): match-start
+## feedback/051026/3.png: match-start
 ## entry point, called when the ready gate opens. There is no separate countdown
 ## camera: this sets the FINAL gameplay view at once -- yaw from the home beacon
 ## (set_home_view()), pitch and distance from CameraTuning's start_* values (the
-## low, wide angle the owner prefers, feedback/051026/3.png) -- and the ordinary ghost-follow takes
+## low, wide angle the user prefers, feedback/051026/3.png) -- and the ordinary ghost-follow takes
 ## over from the first frame, so nothing eases or shifts at GO. Player orbit
 ## and zoom work as normal afterwards.
-## Bontago-1pi.90 (owner 2026-10-06, "START CAMERA STILL NOT FIXED"): the pivot
+## "START CAMERA STILL NOT FIXED": the pivot
 ## is the held piece's follow anchor at its spawn pose (_start_pivot()), the
 ## point the follow tracks on the first PLAYING frame -- not the bare beacon,
 ## which sits ~2 m nearer the centre and ~3.5 m lower, so the view used to jump
@@ -591,7 +590,7 @@ func begin_start_framing(slot_id: int) -> bool:
 	_target = pivot
 	_follow_position = pivot
 	_drop_recovering = false
-	# Owner 2026-10-06: "3 is the preferred view" (feedback/051026/3.png, the low
+	# "3 is the preferred view" (feedback/051026/3.png, the low
 	# wide start angle) -- CameraTuning's start_* pitch/distance, held from the
 	# ready gate through PLAYING with no shift; the follow keeps it until the
 	# player moves the camera.
@@ -606,7 +605,7 @@ func begin_start_framing(slot_id: int) -> bool:
 	return true
 
 
-## Bontago-1pi.187 (camera_reset): puts the camera back on the match-start pose
+## camera_reset: puts the camera back on the match-start pose
 ## recorded by begin_start_framing(). In follow mode the target keeps tracking
 ## the held block (only yaw/pitch/distance are restored); the free camera also
 ## gets its start target back. Before any match start (no recorded pose) it
@@ -631,7 +630,7 @@ func reset_to_start_pose() -> void:
 	_update_transform()
 
 
-## Bontago-1pi.90: registered by PlayerController.set_camera_rig(); see
+## registered by PlayerController.set_camera_rig(); see
 ## _start_anchor_source. Cleared by reset_view().
 func set_start_anchor_source(source: Callable) -> void:
 	_start_anchor_source = source
@@ -647,7 +646,7 @@ func _start_pivot(home: Vector3) -> Vector3:
 	return home
 
 
-## Bontago-b7r: pushed every frame by game/player/PlayerController.gd's own
+## pushed every frame by game/player/PlayerController.gd's own
 ## _acting_slot() (the same "local/acting slot" HotSeat.bind_local_slot()/
 ## Sandbox's own active-slot cycling already resolve) so Focus home can find
 ## the right beacon among Field.home_flags() without this rig needing its own
@@ -661,13 +660,13 @@ func set_local_slot(slot_id: int) -> void:
 ## tuning.focus_hold_threshold_s, camera_snap_home/goal still held) -- not
 ## during the brief return glide after release. game/player/PlayerController.gd
 ## reads this every frame to suppress ghost-cursor movement and placement
-## (owner decision 2026-09-28, Bontago-aem: "the ghost/cursor never moves
+## ("the ghost/cursor never moves
 ## during peek").
 func is_peeking() -> bool:
 	return _peek_active
 
 
-## Bontago-1pi.204: the lens in use: the player's Options value when set, else CameraTuning.fov_deg.
+## the lens in use: the player's Options value when set, else CameraTuning.fov_deg.
 func effective_fov_deg() -> float:
 	var chosen: float = Settings.fov_override_deg()
 	if chosen > 0.0:
@@ -679,7 +678,7 @@ func _on_fov_override_changed(_degrees: float) -> void:
 	_camera.fov = effective_fov_deg()
 
 
-## Bontago-mv0.20b (F4 tuning panel live-apply): re-snapshots _distance/_pitch
+## .20b (F4 tuning panel live-apply): re-snapshots _distance/_pitch
 ## from tuning.follow_distance/follow_pitch_deg, clamped exactly as _ready()
 ## does. Called once by _ready() and again by ui/debug/TuningPanel.gd's
 ## apply_camera_tuning_live() whenever camera_tuning changes on the F4 panel
@@ -702,18 +701,18 @@ func apply_follow_tuning() -> void:
 
 
 ## Used by PlayerController to scale gamepad ghost-cursor speed with zoom
-## (spec 2.5: "speed scales with camera zoom").
+## (spec 1.3: "speed scales with camera zoom").
 func get_distance() -> float:
 	return _distance
 
 
 ## Used by PlayerController to move the ghost cursor relative to the
-## camera's current facing (both mouse and gamepad -- Bontago-mv0.14).
+## camera's current facing (both mouse and gamepad).
 func get_yaw() -> float:
 	return _yaw
 
 
-## Test/inspection seam (Bontago-mv0.20b): the rig's current pitch, in
+## Test/inspection seam (.20b): the rig's current pitch, in
 ## radians, the same units get_yaw() already uses.
 func get_pitch() -> float:
 	return _pitch
@@ -728,7 +727,7 @@ func get_target() -> Vector3:
 	return _target
 
 
-## Bontago-xtq.29 (M7 P4, spec 2.10 "camera shake"): the current shake offset
+## M7 P4, spec 1.10 "camera shake": the current shake offset
 ## _update_transform() adds to the camera's local position, in meters -- zero
 ## when no impact has happened yet, when the last shake has fully decayed, or
 ## when Settings.camera_shake_enabled() is false. Exposed as its own getter
@@ -758,8 +757,8 @@ func _clamp_pitch() -> void:
 	_pitch = clampf(_pitch, deg_to_rad(tuning.min_pitch_deg), deg_to_rad(tuning.max_pitch_deg))
 
 
-## Bontago-mv0.29 (owner: "the mmb rotation issue persists, can the camera
-## just be locked in place while mmb is pressed?"): true for exactly as long
+## "the mmb rotation issue persists, can the camera
+## just be locked in place while mmb is pressed?": true for exactly as long
 ## as rotate_drag is held, on whichever device -- Input.is_action_pressed()
 ## already reads every binding the Input Map has for the action (mouse and
 ## gamepad alike; tools/bootstrap_project.gd), so a pad binding added there
@@ -781,7 +780,7 @@ func _rotate_drag_frozen() -> bool:
 	return Input.is_action_pressed(&"rotate_drag")
 
 
-## Bontago-1pi.107: the match's own (possibly disc-size scaled) map; the rig frames and
+## the match's own (possibly disc-size scaled) map; the rig frames and
 ## zooms relative to it. Called by Main whenever the field is rebuilt.
 func set_map_def(new_map_def: MapDef) -> void:
 	if new_map_def != null:
@@ -799,15 +798,15 @@ func _zoom(direction: float) -> void:
 	_distance = clampf(_distance + direction * tuning.zoom_step, tuning.zoom_min, _zoom_max())
 
 
-## Bontago-mv0.22 (spec 2.5 "mouse wheel zooms while held" [ORIGINAL, owner
-## test 2026-09-22]): called by PlayerController when the wheel fires while
+## spec 1.4 "mouse wheel zooms while held" [ORIGINAL, owner
+## test]: called by PlayerController when the wheel fires while
 ## camera_mode/camera_orbit is held, using its own tunable (orbit_zoom_step)
 ## instead of zoom_step, which the dedicated Z/X zoom keys and gamepad
 ## triggers already use via _zoom() -- letting the held-orbit wheel feel be
 ## tuned independently.
 func zoom_by_orbit_step(direction: float) -> void:
 	if _rotate_drag_frozen():
-		# Bontago-mv0.29: PlayerController calls this directly (not through
+		# PlayerController calls this directly (not through
 		# this rig's own _unhandled_input, which already guards itself above)
 		# whenever camera_orbit/camera_mode is held and the wheel fires; if
 		# the player also holds rotate_drag at the same time, freeze wins --
@@ -816,8 +815,8 @@ func zoom_by_orbit_step(direction: float) -> void:
 	_distance = clampf(_distance + direction * tuning.orbit_zoom_step, tuning.zoom_min, _zoom_max())
 
 
-## Owner controller update (feedback/controller-update.md, re-confirmed
-## 2026-09-28: "LT held + left stick up/down = zoom camera in/out,
+## Owner controller update (re-confirmed
+## "LT held + left stick up/down = zoom camera in/out,
 ## continuous"): called every frame by PlayerController._drive_gamepad_zoom()
 ## while camera_zoom_modifier (LT) is held and not aiming a throw, with
 ## `amount` already scaled by tuning.gamepad_trigger_zoom_speed and the
@@ -854,7 +853,7 @@ func _snap_to(point: Vector3) -> void:
 	tween.tween_property(self, ^"_pitch", deg_to_rad(tuning.snap_pitch_deg), tuning.snap_duration)
 
 
-# --- Bontago-b7r (owner decision 2026-09-28, Bontago-aem): Focus home/goal's
+# --- Focus home/goal's
 # tap-to-TURN / hold-to-PEEK gesture --------------------------------------
 
 ## Handles a fresh camera_snap_home/camera_snap_goal press: resolves the real
@@ -903,7 +902,7 @@ func _on_focus_released() -> void:
 	_turn_to_face(target)
 
 
-## Bontago-b7r: advances _focus_hold_elapsed_s while camera_snap_home/goal is
+## advances _focus_hold_elapsed_s while camera_snap_home/goal is
 ## still held and flips into PEEK the frame it crosses tuning.focus_hold_
 ## threshold_s. Polls Input.is_action_pressed() rather than waiting only for
 ## the matching is_action_released() event in _unhandled_input() -- a
@@ -936,7 +935,7 @@ func _approach_focus(target_point: Vector3, distance_val: float, pitch_deg: floa
 	_pitch = lerpf(_pitch, deg_to_rad(pitch_deg), weight)
 
 
-## TURN (owner decision: "tween camera yaw so the target lies straight ahead
+## TURN ("tween camera yaw so the target lies straight ahead
 ## of the held block"): the same away-vector convention set_home_view() uses
 ## (home/block on one side, look-at target on the other) with the held
 ## block's own followed position standing in for "home" -- so the camera ends
@@ -954,7 +953,7 @@ func _turn_to_face(target: Vector3) -> void:
 	tween.tween_property(self, ^"_yaw", target_yaw, tuning.focus_turn_duration_s)
 
 
-## Focus home's real target (owner decision 2026-09-28, Bontago-aem): the
+## Focus home's real target: the
 ## local/acting slot's own home beacon, resolved from the live Field's
 ## Field.home_flags() (see set_local_slot()'s own doc comment for how this
 ## rig learns the slot). Falls back to the disk center -- gracefully, not an
@@ -973,7 +972,7 @@ func _resolve_home_target() -> Vector3:
 
 
 ## Focus goal's real target: the live Field's Field.goal_flags(), cycling to
-## the next one on every fresh press (owner decision: "each new goal press/
+## the next one on every fresh press ("each new goal press/
 ## tap cycles to the next goal") -- called exactly once per press by
 ## _on_focus_pressed() above, never per frame, so holding through a PEEK
 ## doesn't itself keep advancing the cycle. Falls back to the disk center
@@ -991,7 +990,7 @@ func _resolve_goal_target() -> Vector3:
 	return target
 
 
-## Bontago-1pi.110: the camera shakes only for gift specials that shake the
+## the camera shakes only for gift specials that shake the
 ## disc or risk toppling towers (DiscShakeConfig). Rides the replicated
 ## special_triggered, so every peer shakes. Block landings, volcano spew and
 ## other cosmetic events no longer shake it.

@@ -1,5 +1,5 @@
 shader_type spatial;
-// Bontago-mp0.123: horizon-island cel look, self-lit. Root cause of the flat
+// horizon-island cel look, self-lit. Root cause of the flat
 // read: with the scene's sky ambient (AMBIENT_SOURCE_SKY) every facet received
 // the same bright ambient, so the asset's narrow COLOR_0 range and its light
 // bands washed out to one tone. This shader is unshaded: HorizonIslands.gd

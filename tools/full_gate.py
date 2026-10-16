@@ -1,4 +1,4 @@
-"""Sharded full GUT gate (owner 2026-10-02: the full suite was too slow and
+"""Sharded full GUT gate (the full suite was too slow and
 blocked progress).
 
 Splits every tests/**/test_*.gd script across N headless Godot processes that
@@ -10,7 +10,7 @@ a script that fails both times does.
 Run it in the background from Claude (Bash run_in_background) and keep
 working; the last line is the verdict:
   python tools/full_gate.py                      # main checkout, auto shards
-  python tools/full_gate.py --path M:/Bontago-worktrees/x --shards 4
+  python tools/full_gate.py --path <checkout> --shards 4
 Exit status: 0 green, 1 failures, 2 harness error. Logs and result.json go to
 --out (default: <checkout>/tests/.gut_targeted/gate_<time>/).
 """
@@ -32,6 +32,9 @@ import lint_magic_numbers  # noqa: E402
 import lint_single_source  # noqa: E402
 import lint_layers  # noqa: E402
 import lint_ui_components  # noqa: E402
+import lint_dead  # noqa: E402
+import lint_instructions  # noqa: E402
+import lint_public  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TIMINGS = os.path.join(ROOT, "tests", ".gut_targeted", "gate_timings.json")
@@ -40,26 +43,26 @@ SCRIPT_RE = re.compile(r"^(?:\x1b\[[0-9;]*m)*(res://tests/\S+\.gd)", re.M)
 FAILED_RE = re.compile(r"\[Failed\]")
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 TEST_RE = re.compile(r"^\*\s*test_\w+")
-# Bontago-fca.116: failure evidence kept per failing script in result.json.
+# failure evidence kept per failing script in result.json.
 DETAIL_LINES_AFTER = 3
 DETAIL_MAX_LINES = 8
 DETAIL_MAX_CHARS = 400
 DEFAULT_TIMEOUT_S = 1200
-# Bontago-fca.120: GUT drops a test script it cannot load and its totals simply omit it, so the
+# GUT drops a test script it cannot load and its totals simply omit it, so the
 # gate cross-checks every scheduled script against the per-script result headers and these lines.
 LOAD_FAIL_RE = re.compile(r'Failed to load script "(res://tests/\S+?\.gd)" with error "([^"]*)"')
 IGNORED_RE = re.compile(r"Ignoring script (res://tests/\S+?\.gd) because")
 MISSING_ERROR = "no results in GUT output (script dropped, load error or shard died)"
 
 
-# Bontago-fca.38.7: --fixed-fps disables wall-clock pacing, so physics ticks
+# --fixed-fps disables wall-clock pacing, so physics ticks
 # (one per frame at 60) run as fast as the CPU allows instead of 60 Hz real time.
 FIXED_FPS = "60"
 
 
 def run_lint(path, name, fallback_module):
     """Run the candidate tree's own lint (its rules and reviewed allowances travel with the
-    change; 2026-10-07: a branch that moved an allowance was judged by main's stale copy).
+    change; a branch that moved an allowance was judged by main's stale copy).
     Falls back to this checkout's module when the candidate has no such script."""
     script = os.path.join(path, "tools", name + ".py")
     if not os.path.isfile(script):
@@ -69,7 +72,7 @@ def run_lint(path, name, fallback_module):
 
 
 def godot_exe():
-    return godot_exe_mod.resolve()  # real .exe behind PATH shims (Bontago-fca.93)
+    return godot_exe_mod.resolve()  # real .exe behind PATH shims
 
 
 def collect(path):
@@ -98,7 +101,7 @@ SERIAL_LIST = os.path.join(os.path.dirname(os.path.abspath(__file__)), "full_gat
 
 
 def load_serial_list(list_path, tests):
-    """Heavy scripts to run alone after the shards (Bontago-fca.56); entries not in `tests` are skipped."""
+    """Heavy scripts to run alone after the shards; entries not in `tests` are skipped."""
     try:
         with open(list_path, encoding="utf-8") as fh:
             lines = [l.split("#")[0].strip() for l in fh]
@@ -151,7 +154,7 @@ def parse(log_path):
 
 def parse_detail(log_path):
     """Totals, failing scripts and, per failing script, the failing test name plus the
-    [Failed] line and the assertion lines after it (Bontago-fca.116: the shard log is
+    [Failed] line and the assertion lines after it (the shard log is
     deleted with the temp integrate worktree, so result.json must keep the evidence)."""
     with open(log_path, encoding="utf-8", errors="replace") as fh:
         text = fh.read()
@@ -186,7 +189,7 @@ def parse_detail(log_path):
 
 
 def find_unloadable(scheduled, log_path):
-    """Scheduled scripts GUT dropped: [{script, error}] (Bontago-fca.120). The error text is the
+    """Scheduled scripts GUT dropped: [{script, error}]. The error text is the
     parse/load lines naming the script when GUT logged any, else MISSING_ERROR."""
     try:
         with open(log_path, encoding="utf-8", errors="replace") as fh:
@@ -277,7 +280,7 @@ def run_batch(path, out_dir, batches, timeout_s):
                 continue
             code = proc.poll()
             if code is None and time.time() - t_start[name] > timeout_s:
-                # 2026-10-14: the console Godot wrapper spawns the real Godot as a child;
+                # the console Godot wrapper spawns the real Godot as a child;
                 # proc.kill() only ended the wrapper and left a hung shard running.
                 _kill_tree(proc)
                 code = "timeout"
@@ -313,20 +316,30 @@ def main(argv):
     except (OSError, ValueError):
         timings = {}
 
-    # Magic-number ratchet (Bontago-fca.35): <2 s, runs before the shards.
+    # Magic-number ratchet: <2 s, runs before the shards.
     lint_code = run_lint(path, "lint_magic_numbers", lint_magic_numbers)
     print("MAGIC LINT %s" % ("GREEN" if lint_code == 0 else "RED"), flush=True)
-    # Single-source ratchet (Bontago-1pi.86.1): same cost, same position.
+    # Single-source ratchet: same cost, same position.
     ss_code = run_lint(path, "lint_single_source", lint_single_source)
     print("SINGLE-SOURCE LINT %s" % ("GREEN" if ss_code == 0 else "RED"), flush=True)
 
-    # Layer / SCC / autoload-closure ratchet (Bontago-1pi.11.77.15, S4b): ~10 s, no Godot.
+    # Layer / SCC / autoload-closure ratchet (S4b): ~10 s, no Godot.
     layer_code = run_lint(path, "lint_layers", lint_layers)
     print("LAYER LINT %s" % ("GREEN" if layer_code == 0 else "RED"), flush=True)
 
-    # UI component ratchet (Bontago-1pi.159.6): same cost, no Godot.
+    # UI component ratchet: same cost, no Godot.
     ui_code = run_lint(path, "lint_ui_components", lint_ui_components)
     print("UI COMPONENT LINT %s" % ("GREEN" if ui_code == 0 else "RED"), flush=True)
+
+    # Dead-weight guard: dep_graph based, ~15 s, no Godot.
+    dead_code = run_lint(path, "lint_dead", lint_dead)
+    print("DEAD LINT %s" % ("GREEN" if dead_code == 0 else "RED"), flush=True)
+
+    # Instruction drift guard: each agent rule has one home file; no Godot.
+    instr_code = run_lint(path, "lint_instructions", lint_instructions)
+    print("INSTRUCTIONS LINT %s" % ("GREEN" if instr_code == 0 else "RED"), flush=True)
+    public_code = run_lint(path, "lint_public", lint_public)
+    print("PUBLIC LINT %s" % ("GREEN" if public_code == 0 else "RED"), flush=True)
 
     tests = collect(path)
     if not tests:
@@ -383,19 +396,22 @@ def main(argv):
             ok = "Tests" in r["totals"] and r["totals"].get("Failing Tests", 0) == 0 and not r["failing"]
             (flaky if ok else confirmed).append(t)
 
-    verdict = "GREEN" if not confirmed and not harness and lint_code == 0 and ss_code == 0 and layer_code == 0 and ui_code == 0 else "RED"
+    verdict = "GREEN" if not confirmed and not harness and lint_code == 0 and ss_code == 0 and layer_code == 0 and ui_code == 0 and dead_code == 0 and instr_code == 0 and public_code == 0 else "RED"
     result = {"verdict": verdict, "path": path, "shards": len(shards), "serial": serial, "serial_seconds": serial_seconds, "seconds": round(time.time() - t0, 1),
               "totals": sums, "failing": confirmed, "parallel_flaky": flaky, "failing_detail": _details_for(confirmed, results, retry_results), "flaky_detail": _details_for(flaky, results), "harness_errors": harness, "unloadable": unloadable, "magic_lint": "green" if lint_code == 0 else "red",
               "single_source_lint": "green" if ss_code == 0 else "red",
               "layer_lint": "green" if layer_code == 0 else "red",
               "ui_component_lint": "green" if ui_code == 0 else "red",
+              "dead_lint": "green" if dead_code == 0 else "red",
+              "instructions_lint": "green" if instr_code == 0 else "red",
+              "public_lint": "green" if public_code == 0 else "red",
               "shard_seconds": {n: r["seconds"] for n, r in sorted(results.items())}, "out": out_dir}
     with open(os.path.join(out_dir, "result.json"), "w", encoding="utf-8") as fh:
         json.dump(result, fh, indent=1)
     sys.stdout.flush()
-    print("FULL GATE %s: %s/%s passing, %d shards, %.0fs, serial=%d scripts %.0fs; failing=%s parallel_flaky=%s harness=%s magic_lint=%s single_source_lint=%s layer_lint=%s ui_component_lint=%s; out=%s" % (
+    print("FULL GATE %s: %s/%s passing, %d shards, %.0fs, serial=%d scripts %.0fs; failing=%s parallel_flaky=%s harness=%s magic_lint=%s single_source_lint=%s layer_lint=%s ui_component_lint=%s dead_lint=%s instructions_lint=%s public_lint=%s; out=%s" % (
         verdict, sums.get("Passing Tests", 0), sums.get("Tests", 0), result["shards"], result["seconds"], len(serial), serial_seconds,
-        confirmed or "none", flaky or "none", harness or "none", "green" if lint_code == 0 else "RED", "green" if ss_code == 0 else "RED", "green" if layer_code == 0 else "RED", "green" if ui_code == 0 else "RED", out_dir), flush=True)
+        confirmed or "none", flaky or "none", harness or "none", "green" if lint_code == 0 else "RED", "green" if ss_code == 0 else "RED", "green" if layer_code == 0 else "RED", "green" if ui_code == 0 else "RED", "green" if dead_code == 0 else "RED", "green" if instr_code == 0 else "RED", "green" if public_code == 0 else "RED", out_dir), flush=True)
     if harness:
         return 2
     return 0 if verdict == "GREEN" else 1

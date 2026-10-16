@@ -3,7 +3,7 @@ extends SpecialEffect
 ## The gift is the host-simulated glob. Its impact/fuse splashes a
 ## bounded sphere of real block colliders and converts each by net ID.
 ##
-## Bontago-1pi.85.16 (owner answer 1pi.85.1): a Paintball is not thrown. When the intent carried
+## : a Paintball is not thrown. When the intent carried
 ## a validated camera forward (MatchPlacement -> set_launch_direction) the glob flies a straight
 ## line along it at `flight_speed_mps` once armed and splashes on its first contact (probe, as
 ## RocketEffect). Without a direction (bots, plain drop) it behaves exactly as before: velocity
@@ -14,12 +14,12 @@ extends SpecialEffect
 ## Speed (m/s) of the aimed flight.
 @export var flight_speed_mps: float = 60.0
 
-## Gravity scale while in flight (Bontago-1pi.85.25: 0, straight line); the carrier's own scale
+## Gravity scale while in flight (0, straight line); the carrier's own scale
 ## is restored at the splash.
 @export var flight_gravity_scale: float = 0.0
 
-## Seconds after the launch during which the owner's own blocks within `own_block_clear_radius_m`
-## of the launch point are collision exceptions (Bontago-1pi.85.37; see RocketEffect).
+## Seconds after the launch during which the player's own blocks within `own_block_clear_radius_m`
+## of the launch point are collision exceptions (see RocketEffect).
 @export var own_block_grace_s: float = 0.4
 
 ## Radius (m) around the launch point whose own blocks the glob may leave through.
@@ -30,7 +30,7 @@ extends SpecialEffect
 
 ## The slingshot model's firing axis in the carrier's local frame (paintball_v3.glb: pouch drawn
 ## back toward -Z, so it fires along +Z). The held model and the spawned body both turn it onto the
-## aim (Bontago-1pi.85.79), the same way the Rocket does with its nose.
+## aim, the same way the Rocket does with its nose.
 @export var model_nose_axis: Vector3 = Vector3(0.0, 0.0, 1.0)
 
 ## Smallest direction length treated as a direction at all.

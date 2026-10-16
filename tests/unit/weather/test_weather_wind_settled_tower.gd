@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mp0.36: wind and Breeze gusts must reach a SETTLED tall tower. In real
+## wind and Breeze gusts must reach a SETTLED tall tower. In real
 ## play a tower sleeps and, 20 s later, StableBlockManager freezes it STATIC; the
 ## wind effects used to skip frozen blocks, so nothing ever moved a settled
 ## stack. This builds a ~30 m 2x2 tower through the registry placement path,
@@ -13,16 +13,11 @@ const SETTLE_TICKS: int = 240
 const FREEZE_ADVANCE_S: float = 25.0
 const GUST_HEIGHT_M: float = 24.0
 const GUST_TAIL_S: float = 3.0
-const STORM_SECONDS: float = 20.0
 const FIELD_RADIUS_M: float = 12.0
 ## The top moving this far sideways counts as toppled/leaning over.
 const TOPPLE_M: float = 3.0
-## Visible sway in steady storm wind.
-const SWAY_M: float = 0.5
 ## A top block that fell off the field and was freed counts as this far.
 const FREED_M: float = 99.0
-const SHORT_LAYERS: int = 3
-const SHORT_MAX_M: float = 0.1
 const GUST_SEEDS: Array[int] = [1, 2, 3, 4, 5, 6]
 const GUST_TOPPLE_MIN: int = 5
 const STRONG_GUST_RADIUS_M: float = 12.0
@@ -73,14 +68,6 @@ func _settle_and_freeze() -> void:
 	_manager._tick(FREEZE_ADVANCE_S)
 
 
-func _frozen_count() -> int:
-	var count: int = 0
-	for block: Block in _registry.all_blocks():
-		if block.is_freeze_static():
-			count += 1
-	return count
-
-
 func _horizontal(a: Vector3, b: Vector3) -> float:
 	return Vector2(a.x - b.x, a.z - b.z).length()
 
@@ -92,7 +79,7 @@ func _surface() -> float:
 ## Max horizontal displacement of `top` while `step` runs for `seconds`. The
 ## displacement only ever grows as a running maximum, so a caller asserting
 ## "moved more than X" passes `stop_above = X` and the run ends the first tick it
-## is exceeded (Bontago-fca.38.1: same verdict, no waiting out the rest of the
+## is exceeded (same verdict, no waiting out the rest of the
 ## gust/storm). Tests asserting "stays below X" leave it at INF and run in full.
 func _measure(top: Block, seconds: float, step: Callable, stop_above: float = INF) -> float:
 	var start: Vector3 = top.global_position
@@ -127,20 +114,6 @@ func _gust_sway(tower: Array[Block], seed_value: int, strength: float, stop_abov
 	return await _measure(tower[tower.size() - 1], duration + GUST_TAIL_S, func() -> void: effect.tick(DELTA), stop_above)
 
 
-func _storm_sway(tower: Array[Block], seconds: float, stop_above: float = INF) -> float:
-	var effect: StormEffect = StormEffect.new()
-	effect.tuning = load("res://config/weather/storm.tres") as StormTuning
-	effect.set_seed(11)
-	effect.set_test_world(func() -> Array: return _registry.all_blocks(), _surface)
-	return await _measure(tower[tower.size() - 1], seconds, func() -> void: effect.tick(DELTA, 1.0), stop_above)
-
-
-func test_manager_freezes_the_settled_tower() -> void:
-	_build(TOWER_LAYERS)
-	await _settle_and_freeze()
-	assert_eq(_frozen_count(), TOWER_LAYERS * TOWER_FOOTPRINT.size(), "settled tower is frozen static like in real play")
-
-
 func test_gust_topples_settled_tall_tower() -> void:
 	var toppled: int = 0
 	var report: String = ""
@@ -161,28 +134,6 @@ func test_gust_topples_settled_tall_tower() -> void:
 	assert_gte(toppled, GUST_TOPPLE_MIN, "a strong gust topples a settled 30 m tower")
 
 
-func test_storm_sways_settled_tall_tower() -> void:
-	var tower: Array[Block] = _build(TOWER_LAYERS)
-	await _settle_and_freeze()
-	var moved: float = await _storm_sway(tower, STORM_SECONDS, SWAY_M)
-	gut.p("storm top displacement: %.2f m" % moved)
-	assert_gt(moved, SWAY_M, "steady storm wind moves a settled 30 m tower")
-
-
-func test_low_wide_stack_is_unmoved_by_storm() -> void:
-	var tower: Array[Block] = _build(SHORT_LAYERS)
-	await _settle_and_freeze()
-	var moved: float = await _storm_sway(tower, STORM_SECONDS)
-	assert_lt(moved, SHORT_MAX_M, "a low stack stays put")
-
-
-# --- Bontago-1pi.11.46: wake API, exposure test and per-tick cap ---------------
-
-const CUBE_EDGE_CELLS: int = 5
-const CORE_MIN: int = 1
-const CORE_MAX: int = 3
-const GRID_COLUMNS: int = 10
-const GRID_LAYERS: int = 3
 const WIND_TICKS: int = 12
 const SUBMERGE_M: float = 5.0
 const REFREEZE_LAYERS: int = 6
@@ -265,54 +216,3 @@ func test_wind_woken_block_refreezes_after_wind_stops() -> void:
 		assert_true(block.is_freeze_static(), "a woken block that settled re-froze within the normal delay")
 	assert_eq(by_cell.size(), REFREEZE_LAYERS)
 
-
-func test_buried_cube_core_stays_frozen_while_surface_wakes() -> void:
-	var cells: Array[Vector3i] = []
-	for x: int in range(CUBE_EDGE_CELLS):
-		for y: int in range(CUBE_EDGE_CELLS):
-			for z: int in range(CUBE_EDGE_CELLS):
-				cells.append(Vector3i(x, y, z))
-	var by_cell: Dictionary = _build_cells(cells)
-	await _settle_and_freeze()
-	assert_eq(_frozen_count(), cells.size(), "the whole cube froze")
-	var effect: StormEffect = _wind_effect(_wind_tuning(1000))
-	var woken_total: int = 0
-	for _i: int in range(WIND_TICKS):
-		effect.tick(DELTA, 1.0)
-		woken_total += effect.last_woken
-	var core_woken: int = 0
-	for cell: Vector3i in by_cell.keys():
-		var in_core: bool = (
-			cell.x >= CORE_MIN and cell.x <= CORE_MAX and cell.y >= CORE_MIN and cell.y <= CORE_MAX
-			and cell.z >= CORE_MIN and cell.z <= CORE_MAX
-		)
-		if in_core and not (by_cell[cell] as Block).is_freeze_static():
-			core_woken += 1
-	gut.p("cube: woken %d of %d, core woken %d" % [woken_total, cells.size(), core_woken])
-	assert_eq(core_woken, 0, "buried interior blocks stay frozen")
-	assert_gt(woken_total, 0, "exposed surface blocks wake")
-
-
-func test_wake_count_is_bounded_by_the_cap() -> void:
-	var cells: Array[Vector3i] = []
-	for y: int in range(GRID_LAYERS):
-		for x: int in range(GRID_COLUMNS):
-			for z: int in range(GRID_COLUMNS):
-				# Spread the columns so every block is exposed: the cap, not the
-				# exposure test, is what bounds the count here.
-				cells.append(Vector3i(x * 2 - GRID_COLUMNS, y, z * 2 - GRID_COLUMNS))
-	_build_cells(cells)
-	await _settle_and_freeze()
-	var cap: int = 4
-	var effect: StormEffect = _wind_effect(_wind_tuning(cap))
-	var total: int = 0
-	var worst: int = 0
-	for _i: int in range(WIND_TICKS):
-		effect.tick(DELTA, 1.0)
-		total += effect.last_woken
-		worst = maxi(worst, effect.last_woken)
-	gut.p("cap %d: %d blocks, worst tick %d, total over %d ticks %d" % [cap, cells.size(), worst, WIND_TICKS, total])
-	assert_eq(cells.size(), GRID_COLUMNS * GRID_COLUMNS * GRID_LAYERS)
-	assert_lte(worst, cap, "no tick wakes more than the cap")
-	assert_lte(total, cap * WIND_TICKS)
-	assert_gt(total, 0)

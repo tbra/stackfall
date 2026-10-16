@@ -1,8 +1,8 @@
 extends GutTest
-## MagnetEffect (docs/SPEC.md ~line 252 "Pulls enemy blocks within 8 m toward
-## itself for 3 s"; docs/M8_PLAN.md P1 package). Real Block bodies added
+## MagnetEffect (docs/SPEC.md: "Pulls enemy blocks within 8 m toward
+## itself for 3 s"). Real Block bodies added
 ## directly to the test's own tree -- a physics smoke test, same shape as
-## tests/unit/gifts/test_bomb_effect.gd/tests/unit/test_special_physics.gd --
+## tests/unit/gifts/test_bomb_effect.gd --
 ## proving MagnetEffect.physics_tick() actually needs a real
 ## PhysicsDirectSpaceState3D (SpecialPhysics.query_bodies_in_range()'s own
 ## contract), so a bare stub Block with no collider would never be found by
@@ -40,8 +40,7 @@ func _make_block(position: Vector3) -> Block:
 	shape.radius = 0.3
 	collision.shape = shape
 	block.add_child(collision)
-	# DECISION (tests/unit/gifts/test_magnet_effect.gd, matches
-	# tests/unit/gifts/test_special_physics.gd's own DECISION): add_child() before
+	# DECISION (tests/unit/gifts/test_magnet_effect.gd): add_child() before
 	# setting global_position -- Node3D.global_position needs is_inside_tree()
 	# to resolve a global transform.
 	add_child(block)
@@ -107,7 +106,7 @@ func test_enemy_block_gets_pulled_toward_the_magnet() -> void:
 
 
 # --- (a2) a frozen (stable-block-optimized) enemy block still gets pulled
-# (Bontago-8or.16 P5b) --------------------------------------------------------
+# (P5b) --------------------------------------------------------
 
 func test_pull_stops_once_pull_duration_elapses() -> void:
 	var magnet_block: Block = _make_block(Vector3.ZERO)

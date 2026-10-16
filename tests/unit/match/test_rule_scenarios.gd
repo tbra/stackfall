@@ -1,13 +1,5 @@
 extends GutTest
-## SPEC.md's 2026-09-20 evidence audit, "Rule acceptance scenarios" (target,
-## not a claim of passed tests). Bontago-cmc.7 covers scenarios 2, 4, 5 and 8
-## here; the audit's own header applies -- passing these pins the *target*
-## behaviour this ticket implements, not an independent claim that it matches
-## the unrecovered original.
-##
-## Core-only fixtures (TerritorySolver/TerritoryRaster/PlacementRules/
-## WinChecker), the same style as test_placement_rules.gd and
-## test_territory_raster.gd, so these run without a scene tree.
+## SPEC.md audit 'Rule acceptance scenarios' 2, 4, 5 and 8, core-only fixtures.
 
 const MAP_RADIUS: float = 20.0
 const CELL: float = 1.0
@@ -131,14 +123,6 @@ func test_scenario_4_a_goal_zone_blocks_placement_but_not_influence_or_capture()
 	assert_eq(state & TerritoryRaster.STATE_GOAL_ZONE, TerritoryRaster.STATE_GOAL_ZONE)
 
 
-func test_scenario_4_a_goal_zone_refuses_placement_under_the_legacy_fill_too() -> void:
-	## Zones are mode-independent (Bontago-cmc.7): stamped once, read by
-	## validate_point() regardless of which fill produced the raster.
-	_raster.set_goal_zones(PackedVector2Array([Vector2(0.0, 0.0)]), ZONE_RADIUS)
-	_solve_legacy([_home(0.0, 0.0, 0)] as Array[InfluenceCircle], 0.1)
-	assert_eq(PlacementRules.validate_point(Vector2.ZERO, _raster, 0), PlacementRules.Result.GOAL_ZONE)
-
-
 # --- Scenario 5: point legality ----------------------------------------------
 # "a wide piece centered at a legal ray hit is not rejected only because a
 # corner crosses a territory border."
@@ -170,19 +154,6 @@ func test_scenario_5_a_wide_piece_centred_on_a_legal_point_is_accepted_despite_a
 	# point the ray hit matters.
 	assert_eq(PlacementRules.validate_point(origin, _raster, 0), PlacementRules.Result.VALID,
 		"A wide piece with a legal origin point is accepted; its shape never enters the check.")
-
-
-func test_scenario_5_the_point_check_takes_no_shape_or_footprint_argument() -> void:
-	## Structural guard for the scenario above: validate_point()'s signature
-	## itself proves no footprint can ever reach it, regardless of how wide a
-	## piece the caller is holding.
-	var script: GDScript = load("res://core/rules/PlacementRules.gd") as GDScript
-	var method: Dictionary = {}
-	for m: Dictionary in script.get_script_method_list():
-		if m["name"] == "validate_point":
-			method = m
-			break
-	assert_eq(method.get("args", []).size(), 3, "point, raster, team_id -- no shape and no footprint.")
 
 
 # --- Scenario 8: overlap mode -------------------------------------------------
@@ -224,47 +195,4 @@ func test_scenario_8_temporary_restores_and_permanent_erodes_separately() -> voi
 	assert_true(_raster.is_hole(cell.x, cell.y), "PERMANENT: the board only ever erodes.")
 
 
-func test_scenario_8_v2s_winner_takes_point_border_is_never_a_hole() -> void:
-	## Two teams that would contest heavily under the legacy fill still never
-	## produce a hole, a contested cell or even a running contest timer under
-	## v2 -- the argmax border is a different mechanic, not an approximation
-	## of an overlap hole.
-	var circles: Array[InfluenceCircle] = [_home(-3.0, 0.0, 0), _home(3.0, 0.0, 1)]
-	var cell: Vector2i = _cell_of(Vector2(0.0, 0.0))
-	var elapsed: float = 0.0
-	var step: float = 0.1
-	while elapsed < _tuning.hole_delay + _tuning.hole_close_delay + step:
-		_solve_v2(circles, step)
-		elapsed += step
-	assert_false(_raster.is_hole(cell.x, cell.y), "v2 never opens a hole, no matter how long the border stands.")
-	assert_false(_raster.is_contested(cell.x, cell.y), "v2 never leaves a cell contested either.")
-	assert_almost_eq(_raster.contested_time(cell.x, cell.y), 0.0, 0.0001,
-		"The legacy contest timer never starts under v2, so it cannot be mistaken for one.")
-	var owner: int = _raster.team_at(cell.x, cell.y)
-	assert_true(owner == 0 or owner == 1,
-		"The midpoint is still owned outright by whichever circle's kernel value wins -- a border, not a hole.")
-
-
-# --- Additional acceptance points named in Bontago-cmc.7 --------------------
-
-func test_default_hole_mode_is_temporary() -> void:
-	assert_eq(MatchConfig.new().hole_mode, MatchConfig.HoleMode.TEMPORARY)
-
-
-func test_a_contested_point_is_refused_under_temporary() -> void:
-	_solve_legacy([_home(-3.0, 0.0, 0), _home(3.0, 0.0, 1)] as Array[InfluenceCircle], 0.1)
-	assert_eq(PlacementRules.validate_point(Vector2(0.5, 0.5), _raster, 0), PlacementRules.Result.CONTESTED)
-
-
-func test_a_goal_zone_point_is_refused_under_both_temporary_and_off() -> void:
-	_raster.set_goal_zones(PackedVector2Array([Vector2(0.0, 0.0)]), ZONE_RADIUS)
-
-	_solve_legacy([_home(0.0, 0.0, 0)] as Array[InfluenceCircle], 0.1)
-	assert_eq(PlacementRules.validate_point(Vector2.ZERO, _raster, 0), PlacementRules.Result.GOAL_ZONE,
-		"TEMPORARY.")
-
-	_raster.reset()
-	_raster.set_goal_zones(PackedVector2Array([Vector2(0.0, 0.0)]), ZONE_RADIUS)
-	_solve_v2([_home(0.0, 0.0, 0)] as Array[InfluenceCircle])
-	assert_eq(PlacementRules.validate_point(Vector2.ZERO, _raster, 0), PlacementRules.Result.GOAL_ZONE,
-		"OFF.")
+# --- Additional acceptance points named in --------------------

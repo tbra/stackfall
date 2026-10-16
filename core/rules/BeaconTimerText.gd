@@ -1,6 +1,6 @@
 class_name BeaconTimerText
 extends RefCounted
-## Bontago-1pi.188 / 1pi.189: the text shown above each goal beacon and the CTF
+## The text shown above each goal beacon and the CTF
 ## score-multiplier chip. Pure: no scene tree, so the host and every client
 ## format the same replicated claim/hold state identically and tests need no scene.
 ##
@@ -19,14 +19,6 @@ const SECONDS_PER_MINUTE: int = 60
 static func clock(seconds: int) -> String:
 	var whole: int = maxi(seconds, 0)
 	return "%d:%02d" % [whole / SECONDS_PER_MINUTE, whole % SECONDS_PER_MINUTE]
-
-
-## Classic countdown: seconds left until `team` captures, rounded up so it reads
-## 0:01 until the instant of capture. "" when nobody is capturing.
-static func classic_text(team: int, progress: float, hold_seconds: float) -> String:
-	if team < 0 or progress <= 0.0 or hold_seconds <= 0.0:
-		return ""
-	return clock(int(ceil(remaining_seconds(progress, hold_seconds))))
 
 
 static func remaining_seconds(progress: float, hold_seconds: float) -> float:

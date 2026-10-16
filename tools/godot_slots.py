@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Machine-wide counting semaphore for Godot launches (Bontago-fca.89).
+"""Machine-wide counting semaphore for Godot launches.
 
-Too many concurrent Godot processes crashed the owner's PC, so every launcher
+Too many concurrent Godot processes crashed the user's PC, so every launcher
 (full_gate, bot_h2h, run_gut.ps1, ...) takes one slot first. A slot is a lock
 file (slot_<n>.json: owner pid, command label, start time) created atomically
 (O_EXCL) in a fixed machine-wide directory, never inside a checkout. A slot whose
@@ -9,7 +9,7 @@ owner PID is dead is reclaimed. Waiting polls and prints one
 'waiting for Godot slot (n/cap busy)' line.
 
 Env: STACKFALL_GODOT_SLOTS (cap, default 3), STACKFALL_GODOT_SLOTS_DIR (state dir,
-default M:/Bontago-tools/locks/godot_slots, else %TEMP%/stackfall_godot_slots),
+default <tools root>/locks/godot_slots, else %TEMP%/stackfall_godot_slots),
 STACKFALL_GODOT_SLOTS_WAIT (max wait seconds, default 3600).
 
 CLI:
@@ -21,14 +21,14 @@ CLI:
 Exit codes: 75 = timed out waiting for a slot / for exclusivity.
 API: `with godot_slot("label"): ...`, `with godot_exclusive("label", wait_s=...): ...`
 
-Exclusive mode (Bontago-fca.95): a single gate file exclusive.json (O_EXCL, owner pid,
+Exclusive mode: a single gate file exclusive.json (O_EXCL, owner pid,
 state waiting|running, same PID-liveness stale reclaim as slots). While a live gate exists
 no other process takes a slot (writer preference: a queued exclusive cannot starve); the
 exclusive owner waits for current holders to drain, runs, then deletes the gate. Normal
 acquirers re-check the gate after taking a slot and back off if it appeared meanwhile.
 Re-entrant: the exclusive owner exports STACKFALL_GODOT_EXCLUSIVE_OWNER=<token> (also in
 its own process); an acquire whose env token matches the live gate token is granted at once
-(normal: index -1, no slot; exclusive: returns False = not owner). Stale/unknown tokens are
+(normal: index -1, no slot; exclusive: returns False = not the gate holder). Stale/unknown tokens are
 ignored. Several exclusive requests serialize on the gate. Nothing is ever killed.
 """
 import argparse
@@ -42,15 +42,16 @@ import tempfile
 import uuid
 import time
 
-import godot_exe  # Bontago-fca.93: real Godot .exe behind PATH shims
+import repo_paths
+import godot_exe  # real Godot .exe behind PATH shims
 
-DEFAULT_CAP = 3  # owner 2026-10-13 after the crash: 3 Godot processes OK with the watchdog running
+DEFAULT_CAP = 3  # after the crash: 3 Godot processes OK with the watchdog running
 DEFAULT_MAX_WAIT_S = 3600.0
 POLL_S = 0.5
 FRESH_FILE_S = 5.0
 TIMEOUT_EXIT = 75
 NOT_FOUND_EXIT = 127
-SHARED_DIR = "M:/Bontago-tools/locks/godot_slots"
+SHARED_DIR = repo_paths.locks_dir()
 OWNER_ENV = "STACKFALL_GODOT_EXCLUSIVE_OWNER"
 REENTRANT = -1  # slot index returned to a process nested under a live exclusive run
 STILL_ACTIVE = 259
@@ -135,7 +136,7 @@ def _try_take(d, i, pid, label):
                 return False
         elif pid_alive(int(info.get("pid", 0))):
             return False
-        # Stale: re-check the owner is unchanged, remove, retry once.
+        # Stale: re-check the user is unchanged, remove, retry once.
         if _read(p) != info:
             return False
         try:
@@ -201,7 +202,7 @@ def busy_count(d=None):
 
 def godot_process_count():
     """Live real Godot processes machine-wide (console wrappers and godot-ai
-    excluded); opt-in with STACKFALL_GODOT_SLOTS_EXTERNAL=1, else 0. Owner 2026-10-13: process count is not the load signal (the game spawns nested processes, many are idle); cpumon watches CPU and RAM."""
+    excluded); opt-in with STACKFALL_GODOT_SLOTS_EXTERNAL=1, else 0. process count is not the load signal (the game spawns nested processes, many are idle); cpumon watches CPU and RAM."""
     if os.environ.get("STACKFALL_GODOT_SLOTS_EXTERNAL", "0") != "1" or os.name != "nt":
         return 0
     try:
@@ -217,8 +218,8 @@ def godot_process_count():
 
 
 def external_count(d=None):
-    """Godot processes not holding a slot (the owner's game/editor, unslotted
-    launches). Owner PC crash 2026-10-13: these count against the cap too."""
+    """Godot processes not holding a slot (the user's game/editor, unslotted
+    launches). These count against the cap too."""
     return max(0, godot_process_count() - busy_count(d))
 
 
@@ -258,7 +259,7 @@ def try_acquire(label="godot", pid=None):
         return None
     if busy_count(d) + external_count(d) >= cap():
         return None
-    # Owner 2026-10-13: load, not process count, is the signal; a new Godot waits
+    # load, not process count, is the signal; a new Godot waits
     # while the machine is busy (the watchdog alerted at >=90% for a minute).
     if busy_count(d) > 0 and cpu_load_pct() >= CPU_BUSY_PCT:
         return None
@@ -462,7 +463,7 @@ def main(argv=None):
         else:
             print("godot slot %d/%d taken (%s)" % (i + 1, cap(), a.label), file=sys.stderr, flush=True)
         if os.path.basename(child[0]).lower().startswith("godot"):
-            child[0] = godot_exe.resolve(child[0])  # real .exe, not the godot.cmd shim (Bontago-fca.93)
+            child[0] = godot_exe.resolve(child[0])  # real .exe, not the godot.cmd shim
         return subprocess.call(child)
     except OSError as e:
         print("godot_slots: cannot launch %s: %s" % (child[0], e), file=sys.stderr)

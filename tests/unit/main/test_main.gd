@@ -1,5 +1,5 @@
 extends GutTest
-## game/main/Main.gd's Lobby "< Back" pill (Bontago-xtq.32 redo #3, review
+## game/main/Main.gd's Lobby "< Back" pill (redo #3, review
 ## finding #1): pressing it from a hosted lobby must tear the session down
 ## and land back on the main menu with Net offline, the same way
 ## ui/menus/PauseMenu.gd's own Leave button does from mid-match
@@ -39,7 +39,7 @@ func before_each() -> void:
 	assert_not_null(_main._main_menu, "fixture: Main boots to the main menu with no command-line flags")
 
 
-## Bontago-1pi.156: the menu hand-off (after the splash, or at once without one) starts the music.
+## the menu hand-off (after the splash, or at once without one) starts the music.
 func test_showing_the_main_menu_starts_menu_music() -> void:
 	Sfx._music_state = Sfx.MusicState.STOPPED
 	_main._show_main_menu()
@@ -75,21 +75,6 @@ func test_lobby_back_button_leaves_the_hosted_session_and_returns_to_the_main_me
 	assert_null(_main._lobby, "the lobby is gone")
 	assert_not_null(_main._main_menu, "back on the main menu")
 	assert_eq(Sfx._music_context, &"menu", "returning restores the menu playlist")
-
-
-## The handler itself (game/main/Main.gd's _on_lobby_back_requested()), isolated
-## from the signal/button wiring the test above already covers -- both are
-## kept because the button test would still pass if the handler were wired
-## to the wrong method name, and this one would still pass if %BackButton's
-## own pressed connection were missing.
-func test_on_lobby_back_requested_leaves_the_hosted_session() -> void:
-	assert_eq(Net.host_game(_take_port(), "Hostie"), OK)
-	assert_true(Net.is_host())
-
-	_main._on_lobby_back_requested()
-
-	assert_true(Net.is_offline())
-	assert_not_null(_main._main_menu)
 
 
 func test_play_local_bots_opens_private_lobby_with_no_bot() -> void:

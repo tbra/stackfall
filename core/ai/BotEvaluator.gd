@@ -1,6 +1,6 @@
 class_name BotEvaluator
 extends RefCounted
-## Bot V2 (docs/BOT_AI_REDESIGN.md 2.3 step 6, Bontago-1t5.22): scores a placement
+## Bot V2 (docs/BOT_AI_REDESIGN.md 2.3 step 6): scores a placement
 ## site on the BotIntent.Term axes. proxy() is the cheap stage run on every site;
 ## measure() is the costlier stage (64-sample territory read, chain cuts) run on the
 ## top-k by proxy. Pure: reads a BotWorldView, BotChains and a BotCandidate only.
@@ -8,7 +8,7 @@ extends RefCounted
 ## Term units (raw magnitudes, higher = more of that thing; penalties are applied
 ## by score()): REACH metres, AREA in BotEvalTuning.area_unit_m2 units, KILL circles
 ## lost by the enemy, EXPOSURE threatening-circle count, TIP risk 0..1, WASTE 0..1,
-## HAZARD dissolve risk 0..1 (Bontago-1t5.32, see hazard()).
+## HAZARD dissolve risk 0..1 (see hazard()).
 ## score() adds REACH/AREA/KILL and subtracts EXPOSURE/TIP/WASTE/HAZARD, each times the
 ## intent weight.
 ##
@@ -18,7 +18,7 @@ extends RefCounted
 const SHIPPED_TUNING: BotEvalTuning = preload("res://config/bots/bot_eval_tuning.tres")
 ## Tests (and the tuning tools) may swap this; it is read-only in play.
 static var tuning: BotEvalTuning = SHIPPED_TUNING
-## Bontago-1t5.53b: the tower-statics tunables (aim share, tolerance, analysis slice); tests may swap it.
+##.53b: the tower-statics tunables (aim share, tolerance, analysis slice); tests may swap it.
 const SHIPPED_STACK_TUNING: BotStackTuning = preload("res://config/bots/bot_stack_tuning.tres")
 static var stack_tuning: BotStackTuning = SHIPPED_STACK_TUNING
 ## Sunflower spiral step, pi * (3 - sqrt(5)) radians.
@@ -96,16 +96,16 @@ static func score(terms: PackedFloat32Array, intent: BotIntent) -> float:
 	return total
 
 
-## Bontago-1t5.72.5: TIP risk of the site's statics: topple_penalty when the probed placement is not stable under
+## TIP risk of the site's statics: topple_penalty when the probed placement is not stable under
 ## the owner's two centre-of-mass rules (BotStability slack <= 0), else 0. An unevaluated site has slack INF.
 ## DECISION: binary, no soft headroom band; the required margin already holds the aim error and the tolerance.
 static func stability_risk(c: BotCandidate) -> float:
 	return tuning.topple_penalty if c.stability_slack <= 0.0 else 0.0
 
 
-## Bontago-1t5.41: extra TIP risk from the active wind: grows with the weather intensity and
+## extra TIP risk from the active wind: grows with the weather intensity and
 ## the wind's height response at the piece's top; exactly 0 in calm weather or without wind.
-## Bontago-1t5.46: scaled by 1 + wind_rim_gain * downwind_rim_factor along the Storm heading
+## scaled by 1 + wind_rim_gain * downwind_rim_factor along the Storm heading
 ## (view.wind_dir), so a site with the rim close downwind scores worse than an upwind one; the
 ## factor is 0 (the old value, bit for bit) while the heading is unknown.
 static func wind_tip(c: BotCandidate, view: BotWorldView) -> float:
@@ -118,7 +118,7 @@ static func wind_tip(c: BotCandidate, view: BotWorldView) -> float:
 	return sway * (1.0 + tuning.wind_rim_gain * downwind_rim_factor(c.origin, view.wind_dir, view))
 
 
-## Bontago-1t5.44: risk 0..1 of a site lying in the impact zone of an enemy special in flight: the
+## risk 0..1 of a site lying in the impact zone of an enemy special in flight: the
 ## worst zone's linear proximity (1 at the predicted impact point, 0 at radius + incoming_margin_m),
 ## times incoming_special_weight. Exactly 0 with none in flight.
 static func incoming_special_risk(c: BotCandidate, view: BotWorldView) -> float:
@@ -133,7 +133,7 @@ static func incoming_special_risk(c: BotCandidate, view: BotWorldView) -> float:
 	return clampf(worst, 0.0, 1.0) * tuning.incoming_special_weight
 
 
-## Bontago-1t5.46: extra TIP risk from the live Breeze gusts. Each gust adds its power times the
+## extra TIP risk from the live Breeze gusts. Each gust adds its power times the
 ## smooth falloff of the piece's distance to the gust centre (the host's BreezeField.falloff), times
 ## the Breeze height response at the piece's top, times 1 + wind_rim_gain * downwind_rim_factor along
 ## the gust heading. Distance is 3D: the vertical part is the gap between the gust centre height
@@ -165,7 +165,7 @@ static func breeze_tip(c: BotCandidate, view: BotWorldView) -> float:
 	return tuning.breeze_tip_weight * total * response
 
 
-## Bontago-1t5.46: 0..1 how close `origin` is to the live disc edge measured along `heading` (the way
+## 0..1 how close `origin` is to the live disc edge measured along `heading` (the way
 ## the wind shoves a piece): 1 at or beyond the edge, falling linearly to 0 once BotEvalTuning.rim_margin_m
 ## or more of disc lies downwind. 0 while the heading or the live radius is unknown. Origin only (the
 ## footprint is not sampled), which keeps it cheap enough for the proxy stage.
@@ -178,7 +178,7 @@ static func downwind_rim_factor(origin: Vector2, heading: Vector2, view: BotWorl
 	return clampf(1.0 - run / tuning.rim_margin_m, 0.0, 1.0)
 
 
-## Bontago-1t5.42: fall-off risk near the live disc edge plus the pull towards the surviving
+## fall-off risk near the live disc edge plus the pull towards the surviving
 ## centre after a shrink (TIP axis). Exactly 0 when the footprint stays rim_margin_m inside the
 ## disc and no shrink is active, so central placements on a full-size disc score as before.
 static func rim_risk(c: BotCandidate, view: BotWorldView) -> float:
@@ -204,7 +204,7 @@ static func rim_risk(c: BotCandidate, view: BotWorldView) -> float:
 	return risk
 
 
-## Bontago-1t5.69: Reach the Sky only (else 0): height_gain_weight times the metres this placement raises the
+## Reach the Sky only (else 0): height_gain_weight times the metres this placement raises the
 ## column it rests on (top height minus the support height under the site, from the probe), plus
 ## height_top_area_weight per cube of its top layer (capped). DECISION (review): the baseline is the surface
 ## the piece lands on, not the tallest own block, so a bar still stands up on a new base beside tall debris.
@@ -225,19 +225,19 @@ static func future_radius(c: BotCandidate, view: BotWorldView) -> float:
 	return InfluenceCircle.radius_for_height(top, view.territory_tuning, view.field_radius)
 
 
-## Bontago-1t5.32: dissolve risk (0 safe .. 1 doomed) of the site's base under the overlap-hole
+## dissolve risk (0 safe .. 1 doomed) of the site's base under the overlap-hole
 ## rule; 0 under HoleMode.OFF, where nothing dissolves. The legacy fill turns every cell that
 ## home-connected circles of two teams cover CONTESTED, opens a hole there after
 ## TerritoryTuning.hole_delay, and game/field/HoleDissolver.gd dissolves a disc-level block touching
 ## the hole together with everything stacked on it. A block's own circle always covers its
 ## footprint, so the piece is lost as soon as an enemy circle covers any footprint cell:
-##   1     a footprint cell is already enemy-held, contested or a hole (a raster read);
-##   else  the look-ahead: an enemy block circle whose edge lies within hazard_lookahead() of
+##   1 a footprint cell is already enemy-held, contested or a hole (a raster read);
+##   else the look-ahead: an enemy block circle whose edge lies within hazard_lookahead() of
 ##         the base can grow over it with one placement (bots place on a shared cadence, so the
 ##         enemy's next piece can land before this one's circle keeps it out), graded linearly
 ##         from 1 at the circle's edge to 0 at the look-ahead distance.
 ## `chains` null (the proxy) counts every enemy circle, otherwise home-connected ones only.
-## DECISION (Bontago-1t5.32): one placement of look-ahead, graded linearly, nearest enemy edge
+## DECISION: one placement of look-ahead, graded linearly, nearest enemy edge
 ## only (not a per-circle sum): the 4-bot measurements showed the nearest circle decides. An
 ## enemy circle whose base the new circle covers from outside it is struck first (it dissolves
 ## before its next placement can grow it) and is skipped. Home
@@ -460,7 +460,7 @@ static func _sample_fractions(c: BotCandidate, view: BotWorldView, radius: float
 	return Vector2(float(gains) / float(samples), float(owned) / float(samples))
 
 
-## Unit directions and radial scales of the `samples`-point sunflower spiral (Bontago-1t5.30:
+## Unit directions and radial scales of the `samples`-point sunflower spiral (
 ## computed once per sample count; the same values the per-call cos/sin/sqrt produced).
 static var _spiral_dirs: Dictionary = {}
 static var _spiral_scales: Dictionary = {}

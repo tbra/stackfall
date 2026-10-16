@@ -1,7 +1,7 @@
 extends GutTest
 ## autoload/match/MatchGifts.gd: spawn rolls, the territory-tick claim/expire
 ## sweep, the pending-special array, and the three replicated gift events
-## (spec 2.6, docs/archive/M4_PLAN.md P1).
+## (spec 1.6).
 ##
 ## Same tiny-map fixture as test_match_flow.gd/test_match_net.gd, and the same
 ## Match._gifts direct-access convention Match.gd's own header documents for
@@ -64,8 +64,8 @@ func _config(player_count: int = 2, gifts_enabled: bool = true) -> MatchConfig:
 	config.block_timer = 6.0
 	config.rng_seed = 4242
 	config.gifts_enabled = gifts_enabled
-	# These tests cover the 2026-09-29 rule (a claim replaces the next piece); the
-	# after-next trial (Bontago-1pi.85.69, default on) is in test_gift_queue_after_next.gd.
+	# These tests cover the rule (a claim replaces the next piece); the
+	# after-next trial (default on) is in test_gift_queue_after_next.gd.
 	config.qol = QolExperiments.new()
 	config.qol.gift_queue_after_next = false
 	return config
@@ -211,7 +211,7 @@ func test_pop_pending_special_consumes_only_the_held_gift() -> void:
 	assert_eq(Match.pop_pending_special(0), &"", "an empty queue pops to the blank sentinel")
 	assert_eq(Match.held_special(0), &"")
 
-	# Bontago-1en.21: a real pop emits Events.special_consumed with the id it
+	# a real pop emits Events.special_consumed with the id it
 	# actually popped; popping an already-empty queue (the third call above)
 	# must not emit a third, empty-id event.
 	assert_signal_emit_count(Events, "special_consumed", 1, "only the held gift is consumed")
@@ -221,7 +221,7 @@ func test_pop_pending_special_consumes_only_the_held_gift() -> void:
 	assert_signal_emitted_with_parameters(Events, "special_consumed", [0, &"special_a"], 0)
 
 
-## Bontago-sen.3: a claimed Glue gift grants charges at once and never
+## a claimed Glue gift grants charges at once and never
 ## becomes the held or next piece; an already queued gift survives.
 func test_claimed_glue_grants_charges_without_queueing_or_changing_held_piece() -> void:
 	_start_playing(_config_with_no_real_specials())
@@ -248,7 +248,7 @@ func test_replicated_glue_claim_does_not_queue_on_client() -> void:
 	assert_eq(Match.pending_special_count(0), 0)
 
 
-## M6 A4 (docs/archive/M6_PLAN.md "A4 -- Enabled-specials checklist"): ui/lobby/Lobby.gd
+## Enabled-specials checklist: ui/lobby/Lobby.gd
 ## publishes MatchGifts.ALL_DISABLED_SENTINEL as enabled_specials' sole entry
 ## when the host unchecks every special checkbox. Distinct from
 ## test_installing_the_real_drawer_with_an_empty_filtered_roster_keeps_the_
@@ -273,7 +273,7 @@ func test_all_disabled_sentinel_never_draws_a_real_special() -> void:
 	assert_true(Match._gifts._special_roster.is_empty())
 
 
-## Review fix #2 (Bontago-4fa): outside hot-seat every slot's own feed window
+## Review fix #2: outside hot-seat every slot's own feed window
 ## fires on_feed_block_issued() independently, so an unconditional roll would
 ## have given a 3-player match ~3 rolls per window. Only the lowest-indexed
 ## alive slot (0, since all three are alive) actually rolls.
@@ -345,7 +345,7 @@ func test_replicated_claim_with_a_garbage_slot_id_is_ignored() -> void:
 	net.set_providers(null, null)
 
 
-# --- debug_queue_special (Bontago-1en.24, game/sandbox/Sandbox.gd's F9 hotkey) -------
+# --- debug_queue_special (game/sandbox/Sandbox.gd's F9 hotkey) -------
 
 func test_debug_queue_special_refused_outside_sandbox() -> void:
 	_start_playing(_config_with_no_real_specials())
@@ -359,8 +359,8 @@ func test_debug_queue_special_refused_outside_sandbox() -> void:
 	assert_signal_not_emitted(Events, "gift_claimed")
 
 
-## Bontago-keo.17 (owner decision "b" on docs/archive/M6_PLAN.md's Owner Q1)
-## supersedes the old M6 A1 "shared team queue" contract below: a crate
+## (chosen option "b")
+## supersedes the old "shared team queue" contract below: a crate
 ## claimed in a team's territory is offered to the ONE teammate whose home
 ## circle is nearest the crate (MatchGifts._resolve_recipient_slot()), never
 ## to a queue shared by the whole team. _inject_crate(0) places the crate
@@ -385,7 +385,7 @@ func test_only_the_nearest_teammate_holds_the_special_after_a_claim() -> void:
 	assert_signal_emitted_with_parameters(Events, "gift_claimed", [gift_id, 0, MatchGifts.PENDING_SPECIAL_ID])
 
 
-## Bontago-8or.30: a forced drawer left by Sandbox must not survive into a
+## a forced drawer left by Sandbox must not survive into a
 ## normal match.
 func test_start_match_restores_default_drawer_after_forced_one() -> void:
 	Match._gifts.set_special_drawer(func() -> StringName: return &"forced_id")
@@ -393,7 +393,7 @@ func test_start_match_restores_default_drawer_after_forced_one() -> void:
 	assert_ne(Match._gifts._special_drawer.call(), &"forced_id", "normal start drops the forced drawer")
 
 
-## Bontago-1pi.85.68: no spawn roll before first_gift_delay_s of host play; the
+## no spawn roll before first_gift_delay_s of host play; the
 ## skipped roll is not queued, and the usual chance applies afterwards.
 func test_no_gift_spawns_before_first_gift_delay() -> void:
 	_start_playing(_config())

@@ -1,6 +1,6 @@
 class_name BreezeField
 extends RefCounted
-## Pure Breeze rules (Bontago-470.2): where and how strongly gusts spawn, a
+## Pure Breeze rules: where and how strongly gusts spawn, a
 ## gust's envelope and falloff, and the acceleration it applies to one block.
 ## No scene tree. Reuses core/weather/WindField.gd's height response and dv clamp
 ## through BreezeTuning (a StormTuning).

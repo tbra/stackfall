@@ -1,6 +1,6 @@
 class_name GlueEffect
 extends SpecialEffect
-## Impact/fuse activation grants the owner a fixed number of future glue
+## Impact/fuse activation grants its owner a fixed number of future glue
 ## drops. The shared SpecialDef resource holds tuning only; MatchGifts owns
 ## each slot's mutable charge count.
 

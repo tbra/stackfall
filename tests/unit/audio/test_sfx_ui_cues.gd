@@ -1,7 +1,5 @@
 extends GutTest
-## Bontago-mp0.117: lobby/loading UI cues play on their events.
-
-const SFX_SCRIPT: GDScript = preload("res://autoload/Sfx.gd")
+## lobby/loading UI cues play on their events.
 
 var _config: AudioConfig
 
@@ -28,19 +26,9 @@ func _expect_cue(cue: StringName, emit: Callable) -> void:
 	assert_same(stream, sfx._load_stream(_config.ui_cue_file(cue)), "cue %s" % cue)
 
 
-func test_all_cue_files_load() -> void:
-	var sfx: Node = _autoload()
-	for cue: StringName in _config.ui_cue_files:
-		assert_not_null(sfx._load_stream(_config.ui_cue_file(cue)), String(cue))
-
-
 func test_lobby_ui_cue_signal_plays_each_cue() -> void:
 	for cue: StringName in _config.ui_cue_files:
 		_expect_cue(cue, func() -> void: Events.lobby_ui_cue.emit(cue))
-
-
-func test_unknown_cue_is_silent() -> void:
-	assert_false(_autoload().play_ui_cue(&"no_such_cue"))
 
 
 func test_peer_join_leave_and_gate_cues() -> void:

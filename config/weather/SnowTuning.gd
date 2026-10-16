@@ -1,6 +1,6 @@
 class_name SnowTuning
 extends WeatherTuning
-## Snow's tunables (Bontago-22y.6), loaded as config/weather/snow.tres. The
+## Snow's tunables, loaded as config/weather/snow.tres. The
 ## base WeatherTuning fields drive the framework's schedule and ramp; the
 ## fields below drive accumulation (host physics), its replication and the
 ## visuals every peer draws.
@@ -17,7 +17,7 @@ extends WeatherTuning
 ## drawn by the disc shader) that spreads from a frosting to soft drifts
 ## with the cover level. It has no collider and no height, so it cannot mislead.
 ##
-## Melting (Bontago-mp0.97): once snowfall stops (the intensity first falls
+## Melting: once snowfall stops (the intensity first falls
 ## below its peak: the event's ramp-out) a melt clock runs for melt_time_s().
 ## Every patch, and the disc cover level, is capped at
 ## ceil(depth_levels * remaining melt fraction), so all snow is gone when the
@@ -187,7 +187,7 @@ const MAX_STOP: float = 0.99
 ## the bottom of the fall (the camera) rather than at the far cloud ceiling, so
 ## the same flake count is packed close to the view.
 @export var flake_max_column_m: float = 30.0
-## Bontago-mp0.155: the box also reaches the point the camera looks at. That
+## the box also reaches the point the camera looks at. That
 ## point is where the view ray meets the plane at flake_focus_plane_y_m (the
 ## arena), at most flake_focus_max_m away. The box is centred flake_focus_blend
 ## of the way there and grows by that share of the distance on each side, with

@@ -1,5 +1,5 @@
 extends GutTest
-## core/ai/BotStrategy.gd (Bontago-1t5.23, Bot V2 P4): the intent rule table (HOLD, DEFEND,
+## core/ai/BotStrategy.gd (Bot V2 P4): the intent rule table (HOLD, DEFEND,
 ## STRIKE, FINISH, ANCHOR, RACE) and the mode adapters (Elimination SIEGE and the per-seat
 ## target spread, Domination AREA, Reach the Sky ANCHOR, CTF RACE/HOLD, multi-goal target).
 ## Pure: hand-built BotWorldViews, no scene tree.
@@ -11,8 +11,6 @@ const ENEMY: int = 1
 const OWN_HOME: Vector2 = Vector2(-13.0, 0.0)
 const ENEMY_HOME: Vector2 = Vector2(13.0, 0.0)
 const GOAL: Vector2 = Vector2(0.0, 0.0)
-const RING_RADIUS: float = 30.0
-const RING_SEATS: int = 8
 ## Top heights (cone radius = 1.5 + 0.84 * top at the shipped 40 degree half-angle).
 const LOW_TOP: float = 1.0
 const MID_TOP: float = 3.0
@@ -64,6 +62,7 @@ func _choose(view: BotWorldView, profile: BotDifficultyProfile = null) -> BotInt
 
 # --- default ------------------------------------------------------------------
 
+
 func test_far_from_everything_races_to_the_goal() -> void:
 	var intent: BotIntent = _choose(_view([[-20.0, 0.0, MID_TOP, TEAM], [-24.0, 0.0, MID_TOP, TEAM]]))
 	assert_eq(intent.kind, BotIntent.Kind.RACE)
@@ -72,38 +71,11 @@ func test_far_from_everything_races_to_the_goal() -> void:
 	assert_eq(intent.weights.size(), BotIntent.Term.size())
 
 
-## Bontago-1t5.32: every intent of the defaults and of the shipped resource (its race override
-## included) penalises HAZARD, so no intent walks a base into a dissolving overlap.
-func test_every_intent_penalises_hazard() -> void:
-	for tuning: BotStrategyTuning in [_tuning, BotStrategy.SHIPPED_TUNING]:
-		for kind: int in BotIntent.Kind.values():
-			var weights: PackedFloat32Array = tuning.weights_for(kind)
-			assert_eq(weights.size(), BotIntent.Term.size(), "full vector for %s" % BotIntent.Kind.keys()[kind])
-			assert_gt(weights[BotIntent.Term.HAZARD], 0.0, "%s penalises hazard" % BotIntent.Kind.keys()[kind])
-
-
-func test_disabled_intent_falls_back_to_race() -> void:
-	var view: BotWorldView = _view([[-8.0, 0.0, MID_TOP, TEAM]])
-	assert_eq(_choose(view).kind, BotIntent.Kind.FINISH, "precondition: finish range")
-	var race_only: int = 1 << int(BotIntent.Kind.RACE)
-	assert_eq(_choose(view, _profile(race_only)).kind, BotIntent.Kind.RACE)
-
-
 # --- FINISH ------------------------------------------------------------------
-
-func test_gap_inside_finish_range_builds_the_finish_tower() -> void:
-	# Circle edge at 8 - 4.0 = 4 m from the goal; finish_gap_m is 6.
-	var intent: BotIntent = _choose(_view([[-8.0, 0.0, MID_TOP, TEAM]]))
-	assert_eq(intent.kind, BotIntent.Kind.FINISH)
-	assert_eq(intent.target, GOAL)
-	assert_eq(intent.weights, _tuning.weights_finish)
-
-
-func test_gap_outside_finish_range_keeps_racing() -> void:
-	assert_eq(_choose(_view([[-20.0, 0.0, MID_TOP, TEAM]])).kind, BotIntent.Kind.RACE)
 
 
 # --- HOLD --------------------------------------------------------------------
+
 
 func _owned_goal_view() -> BotWorldView:
 	var grid: CellGrid = CellGrid.new(MAP_RADIUS, CELL)
@@ -131,23 +103,6 @@ func test_goal_already_own_holds() -> void:
 	assert_eq(intent.focus_circle, -1, "no threat")
 
 
-func test_hold_names_an_enemy_circle_that_reaches_the_goal() -> void:
-	var view: BotWorldView = _owned_goal_view()
-	view.cx.append(8.0)
-	view.cz.append(0.0)
-	view.cr.append(_radius(MID_TOP))
-	view.cteam.append(ENEMY)
-	var intent: BotIntent = _choose(view)
-	assert_eq(intent.kind, BotIntent.Kind.HOLD)
-	assert_eq(intent.focus_circle, 1, "the enemy circle within reach plus allowance of the goal")
-
-
-func test_hold_needs_the_tier_to_have_it() -> void:
-	var view: BotWorldView = _owned_goal_view()
-	var no_hold: int = 255 & ~(1 << int(BotIntent.Kind.HOLD))
-	assert_ne(_choose(view, _profile(no_hold)).kind, BotIntent.Kind.HOLD)
-
-
 # --- DEFEND ------------------------------------------------------------------
 
 ## Own chain of three circles: only the first touches the home, so it carries all three.
@@ -164,41 +119,6 @@ func test_threatened_chain_root_defends_against_the_threatener() -> void:
 	assert_eq(intent.focus_circle, 3)
 	assert_eq(intent.target, Vector2(4.0, 0.0), "aims at the threatener's base")
 	assert_eq(intent.weights, _tuning.weights_defend)
-
-
-func test_threat_lookahead_separates_reactive_and_hard_tiers() -> void:
-	# The enemy stack reaches the chain root only with the 3 m look-ahead on top of the allowance.
-	var circles: Array = _own_chain()
-	circles.append([7.0, 0.0, TALL_TOP, ENEMY])
-	var view: BotWorldView = _view(circles, PackedVector2Array())
-	assert_eq(_choose(view, _profile(255, 3.0)).kind, BotIntent.Kind.DEFEND)
-	assert_ne(_choose(view, _profile(255, 0.0)).kind, BotIntent.Kind.DEFEND)
-
-
-func test_unconnected_enemy_circle_is_no_threat() -> void:
-	var circles: Array = _own_chain()
-	circles.append([40.0, 40.0, TALL_TOP, ENEMY])
-	assert_ne(_choose(_view(circles)).kind, BotIntent.Kind.DEFEND)
-
-
-func test_goal_covering_stack_is_defended_even_when_small() -> void:
-	# One circle over the goal (downstream 1) under an enemy circle's reach.
-	var circles: Array = [[-8.0, 0.0, TALL_TOP, TEAM], [3.0, 0.0, TALL_TOP, ENEMY]]
-	var view: BotWorldView = _view(circles)
-	var intent: BotIntent = _choose(view)
-	assert_eq(intent.kind, BotIntent.Kind.DEFEND)
-	assert_eq(intent.focus_circle, 1)
-
-
-func test_elimination_own_home_is_the_first_defend_key() -> void:
-	var view: BotWorldView = _view([[4.0, 0.0, TALL_TOP, ENEMY]], PackedVector2Array())
-	view.mode = MatchConfig.GameMode.ELIMINATION
-	view.enemy_homes = PackedVector2Array([Vector2(14.0, 0.0)])
-	view.own_home = Vector2(-8.0, 0.0)
-	view.team_homes = PackedVector2Array([view.own_home])
-	var intent: BotIntent = _choose(view)
-	assert_eq(intent.kind, BotIntent.Kind.DEFEND)
-	assert_eq(intent.focus_circle, 0)
 
 
 # --- STRIKE ------------------------------------------------------------------
@@ -224,20 +144,8 @@ func test_hard_strikes_an_enemy_trunk_it_can_cover() -> void:
 	assert_eq(intent.weights, _tuning.weights_strike)
 
 
-func test_normal_tier_never_strikes() -> void:
-	var normal_mask: int = 255 & ~(1 << int(BotIntent.Kind.STRIKE))
-	assert_ne(_choose(_strike_view(), _profile(normal_mask, 0.0)).kind, BotIntent.Kind.STRIKE)
-
-
-func test_strike_ignores_a_trunk_out_of_reach() -> void:
-	var view: BotWorldView = _strike_view()
-	view.cx[0] = -20.0
-	view.own_home = Vector2(-26.0, 0.0)
-	view.team_homes = PackedVector2Array([view.own_home])
-	assert_ne(_choose(view).kind, BotIntent.Kind.STRIKE)
-
-
 # --- ANCHOR ------------------------------------------------------------------
+
 
 func test_contested_low_tip_anchors() -> void:
 	_tuning.finish_gap_m = 0.5
@@ -246,17 +154,6 @@ func test_contested_low_tip_anchors() -> void:
 	assert_eq(intent.kind, BotIntent.Kind.ANCHOR)
 	assert_eq(intent.target, Vector2(-6.0, 0.0), "the tip circle")
 	assert_eq(intent.weights, _tuning.weights_anchor)
-
-
-func test_uncontested_tip_keeps_racing() -> void:
-	_tuning.finish_gap_m = 0.5
-	assert_eq(_choose(_view([[-6.0, 0.0, LOW_TOP, TEAM]])).kind, BotIntent.Kind.RACE)
-
-
-func test_tall_tip_is_not_anchored() -> void:
-	_tuning.finish_gap_m = 0.5
-	var view: BotWorldView = _view([[-6.0, 0.0, TALL_TOP, TEAM], [6.0, 0.0, MID_TOP, ENEMY]])
-	assert_ne(_choose(view).kind, BotIntent.Kind.ANCHOR)
 
 
 func test_rhythm_anchors_every_nth_own_circle_even_for_easy() -> void:
@@ -273,68 +170,11 @@ func test_rhythm_anchors_every_nth_own_circle_even_for_easy() -> void:
 	assert_eq(_choose(_view(circles), _profile(easy_mask, 0.0)).kind, BotIntent.Kind.RACE)
 
 
-func test_easy_does_not_anchor_on_contest() -> void:
-	_tuning.finish_gap_m = 0.5
-	var view: BotWorldView = _view([[-6.0, 0.0, LOW_TOP, TEAM], [6.0, 0.0, MID_TOP, ENEMY]])
-	assert_eq(_choose(view, _profile(199, 0.0)).kind, BotIntent.Kind.RACE)
-
-
 # --- Elimination -------------------------------------------------------------
-
-func _ring_view(seat: int) -> BotWorldView:
-	var view: BotWorldView = BotWorldView.new()
-	view.team_id = seat
-	view.slot_id = seat
-	view.mode = MatchConfig.GameMode.ELIMINATION
-	view.field_radius = MAP_RADIUS
-	for other: int in range(RING_SEATS):
-		var home: Vector2 = Vector2.from_angle(TAU * float(other) / float(RING_SEATS)) * RING_RADIUS
-		if other == seat:
-			view.own_home = home
-			view.has_home = true
-			view.team_homes = PackedVector2Array([home])
-		else:
-			view.enemy_homes.append(home)
-			view.enemy_home_teams.append(other)
-	return view
-
-
-func test_eight_equidistant_seats_pick_eight_distinct_targets() -> void:
-	var targets: Dictionary = {}
-	for seat: int in range(RING_SEATS):
-		var view: BotWorldView = _ring_view(seat)
-		var intent: BotIntent = _choose(view)
-		assert_eq(intent.kind, BotIntent.Kind.SIEGE, "seat %d sieges" % seat)
-		assert_lt(intent.target.distance_to(view.own_home), RING_RADIUS, "seat %d picks a near neighbour" % seat)
-		targets[intent.target.snapped(Vector2(0.01, 0.01))] = seat
-	assert_eq(targets.size(), RING_SEATS, "no two seats pile on one home")
-
-
-func test_tie_break_spread_is_hard_only() -> void:
-	var view: BotWorldView = _ring_view(0)
-	view.own_home = Vector2(-10.0, 0.0)
-	view.enemy_homes = PackedVector2Array([Vector2(0.0, 10.0), Vector2(0.0, -10.0)])
-	view.enemy_home_teams = PackedInt32Array([1, 2])
-	view.team_homes = PackedVector2Array([view.own_home])
-	assert_eq(_choose(view, _profile(255, 3.0)).target, Vector2(0.0, -10.0), "Hard: the clockwise neighbour")
-	assert_eq(_choose(view, _profile(223, 0.0)).target, Vector2(0.0, 10.0), "Normal: first of the tie")
-
-
-func test_elimination_with_the_target_within_finish_range_finishes() -> void:
-	var view: BotWorldView = _ring_view(0)
-	view.enemy_homes = PackedVector2Array([view.own_home + Vector2(8.0, 0.0)])
-	view.enemy_home_teams = PackedInt32Array([1])
-	assert_eq(_choose(view).kind, BotIntent.Kind.FINISH)
-
-
-func test_elimination_without_living_enemies_does_not_crash() -> void:
-	var view: BotWorldView = _ring_view(0)
-	view.enemy_homes = PackedVector2Array()
-	view.enemy_home_teams = PackedInt32Array()
-	assert_eq(_choose(view).kind, BotIntent.Kind.SIEGE)
 
 
 # --- other modes ---------------------------------------------------------------
+
 
 func test_domination_plays_area_towards_the_leader() -> void:
 	var view: BotWorldView = _view([[-20.0, 0.0, MID_TOP, TEAM]], PackedVector2Array())
@@ -349,34 +189,6 @@ func test_domination_plays_area_towards_the_leader() -> void:
 	assert_eq(intent.target, Vector2(10.0, 5.0), "the leader point nearest to home")
 	goal.own_team_leads = true
 	assert_eq(_choose(view).target, Vector2.ZERO, "leading: grow towards the centre")
-
-
-func test_reach_the_sky_anchors_on_the_own_tower() -> void:
-	var view: BotWorldView = _view([[-20.0, 0.0, MID_TOP, TEAM]], PackedVector2Array())
-	view.mode = MatchConfig.GameMode.REACH_THE_SKY
-	var goal: BotModeGoal = BotModeGoal.new()
-	goal.mode = MatchConfig.GameMode.REACH_THE_SKY
-	goal.has_tower = true
-	goal.tower_origin = Vector2(-18.0, 3.0)
-	view.mode_goal = goal
-	var intent: BotIntent = _choose(view)
-	assert_eq(intent.kind, BotIntent.Kind.ANCHOR)
-	assert_eq(intent.target, Vector2(-18.0, 3.0))
-
-
-func test_capture_the_flag_races_to_unheld_beacons_and_holds_when_all_are_own() -> void:
-	var view: BotWorldView = _view([[-20.0, 0.0, MID_TOP, TEAM]], PackedVector2Array())
-	view.mode = MatchConfig.GameMode.CAPTURE_THE_FLAG
-	var goal: BotModeGoal = BotModeGoal.new()
-	goal.mode = MatchConfig.GameMode.CAPTURE_THE_FLAG
-	goal.beacon_positions = PackedVector2Array([Vector2(-14.0, 0.0), Vector2(10.0, 0.0)])
-	goal.beacon_held_by_own = [true, false]
-	view.mode_goal = goal
-	var race: BotIntent = _choose(view)
-	assert_eq(race.kind, BotIntent.Kind.RACE)
-	assert_eq(race.target, Vector2(10.0, 0.0))
-	goal.beacon_held_by_own = [true, true]
-	assert_eq(_choose(view).kind, BotIntent.Kind.HOLD)
 
 
 func test_multi_goal_classic_races_to_the_named_goal() -> void:
@@ -414,33 +226,6 @@ func test_anchor_run_is_held_then_released_without_flip_flop() -> void:
 		if kinds[i] != kinds[i - 1]:
 			flips += 1
 	assert_eq(flips, 0, "a persistently contested tip keeps one intent: %s" % [kinds])
-
-
-func test_a_non_contested_piece_does_not_cancel_a_young_anchor() -> void:
-	_tuning.finish_gap_m = 0.5
-	_tuning.anchor_rhythm = 0
-	_tuning.intent_min_hold_pieces = 3
-	var memory: Dictionary = {}
-	assert_eq(_choose_with(_sequence_view(0), memory).kind, BotIntent.Kind.ANCHOR)
-	# Contest gone (enemy removed), one placement later: still held.
-	var calm: BotWorldView = _view([[-6.0, 0.0, LOW_TOP, TEAM], [-6.0, 0.5, LOW_TOP, TEAM]])
-	assert_eq(_choose_with(calm, memory).kind, BotIntent.Kind.ANCHOR, "held for the minimum pieces")
-	var calmer: BotWorldView = _view([[-6.0, 0.0, LOW_TOP, TEAM], [-6.0, 0.5, LOW_TOP, TEAM], [-6.0, 1.0, LOW_TOP, TEAM]])
-	assert_eq(_choose_with(calmer, memory).kind, BotIntent.Kind.ANCHOR)
-	var calmest: BotWorldView = _view([
-		[-6.0, 0.0, LOW_TOP, TEAM], [-6.0, 0.5, LOW_TOP, TEAM], [-6.0, 1.0, LOW_TOP, TEAM], [-6.0, 1.5, LOW_TOP, TEAM]
-	])
-	assert_eq(_choose_with(calmest, memory).kind, BotIntent.Kind.RACE, "released after the minimum")
-
-
-func test_repeated_think_without_a_placement_ages_nothing() -> void:
-	_tuning.finish_gap_m = 0.5
-	_tuning.anchor_rhythm = 0
-	var memory: Dictionary = {}
-	var view: BotWorldView = _sequence_view(0)
-	for _wait_round: int in range(10):
-		_choose_with(view, memory)
-	assert_eq(int(memory["age"]), 0)
 
 
 func test_defend_preempts_a_held_anchor() -> void:

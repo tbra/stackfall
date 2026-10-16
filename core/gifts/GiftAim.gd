@@ -1,6 +1,6 @@
 class_name GiftAim
 extends RefCounted
-## Bontago-1pi.85.29 / 85.35 (docs/GIFT_PLAYTEST2_PLAN.md): pure camera-aimed gift launch maths,
+## Pure camera-aimed gift launch maths,
 ## no scene tree. Host and client preview both call these functions so the previewed arc equals
 ## the host's launch. The client's own speed is never an input; only a unit `forward`.
 
@@ -16,7 +16,7 @@ static func unit_forward(forward: Vector3) -> Vector3:
 const MIN_FORWARD_LENGTH: float = 0.001
 
 
-## World spawn point of a camera-aimed gift (1pi.85.47: gift_aim_back_m defaults to 0, so it is the
+## World spawn point of a camera-aimed gift (gift_aim_back_m defaults to 0, so it is the
 ## held gift / ghost pose itself): the cursor point moved back along the unit
 ## `forward` by SpecialTuning.gift_aim_back_m, clamped to at least gift_aim_min_height_m above
 ## `surface_y`, so the aim line passes through the cursor. An unusable forward returns `cursor`.
@@ -48,7 +48,7 @@ static func throw_velocity(forward: Vector3, t: SpecialTuning, range_scale: floa
 	return lifted.normalized() * t.gift_throw_speed_mps * speed_factor(range_scale)
 
 
-## Bontago-1pi.126: how much a thrown gift's range grows for a field of `field_radius`:
+## how much a thrown gift's range grows for a field of `field_radius`:
 ## field_radius / SpecialTuning.gift_throw_reference_radius, clamped to the tuning's min/max.
 ## A non-positive radius or reference gives 1.0 (no scaling). Host and client preview both use
 ## it, so the previewed arc equals the host's launch.
@@ -58,7 +58,7 @@ static func range_scale(field_radius: float, t: SpecialTuning) -> float:
 	return clampf(field_radius / t.gift_throw_reference_radius, t.gift_throw_range_scale_min, t.gift_throw_range_scale_max)
 
 
-## Bontago-1pi.135: flat-ground range in metres of a ballistic THROW launched from ground level
+## flat-ground range in metres of a ballistic THROW launched from ground level
 ## (2 * horizontal speed * vertical speed / gravity of the same launch the host derives, so it
 ## includes `range_scale`). 0 for a non-positive gravity. Bots use it to pick a release point.
 static func flat_range(t: SpecialTuning, range_scale: float, gravity: float) -> float:

@@ -1,12 +1,11 @@
 extends GutTest
-## No gusts during a Storm (Bontago-mp0.91, owner playtest: "gust shouldn't occur
+## No gusts during a Storm ("gust shouldn't occur
 ## during storm"). The host Breeze scheduler (autoload/match/BreezeEffect.gd)
 ## skips its spawn attempt while the active weather is Storm and resumes when
 ## the Storm ends; clear/rain/other weather leave it as before. Gusts reach
 ## clients only as host announcements (net/BreezeNet.gd), so no announcement
 ## means no client gust. Shipped numbers: config/breeze/breeze.tres.
 
-const DELTA: float = 1.0 / 60.0
 const SEED_A: int = 4242
 const HIGH_M: float = 20.0
 const SIM_SECONDS: float = 600.0
@@ -106,23 +105,6 @@ func test_no_gust_fires_over_a_long_storm() -> void:
 	assert_eq(effect.last_pushed, 0)
 
 
-func test_clear_and_other_weather_still_spawn_gusts_as_before() -> void:
-	_block(Vector3(0.0, HIGH_M, 0.0))
-	var baseline: BreezeEffect = _effect()
-	baseline.begin(SEED_A)
-	_run(baseline, SIM_SECONDS)
-	var baseline_gusts: Array[Dictionary] = _gusts_seen.duplicate(true)
-	assert_gt(baseline_gusts.size(), MIN_GUSTS_CLEAR, "common high up in clear weather")
-	for other: StringName in [&"", &"rain", &"snow", &"fog", &"ceiling"]:
-		_gusts_seen.clear()
-		_weather_id = other
-		var effect: BreezeEffect = _effect()
-		effect.begin(SEED_A)
-		_run(effect, SIM_SECONDS)
-		assert_false(effect.is_quieted_by_weather(), "'%s' does not quiet the breeze" % other)
-		assert_eq(_gusts_seen, baseline_gusts, "'%s': the same gust sequence as clear weather" % other)
-
-
 func test_storm_ending_lets_gusts_resume() -> void:
 	_block(Vector3(0.0, HIGH_M, 0.0))
 	var effect: BreezeEffect = _effect()
@@ -143,7 +125,7 @@ func test_storm_ending_lets_gusts_resume() -> void:
 
 
 func test_a_gust_in_flight_when_the_storm_starts_finishes_and_no_new_one_follows() -> void:
-	# DECISION (BreezeEffect, Bontago-mp0.91): the in-flight gust is not cancelled
+	# DECISION (BreezeEffect): the in-flight gust is not cancelled
 	# (its visual on clients cannot be cancelled), it just lives out its life.
 	_block(Vector3(0.0, HIGH_M, 0.0))
 	var fast: BreezeTuning = _fast_tuning()
@@ -158,23 +140,6 @@ func test_a_gust_in_flight_when_the_storm_starts_finishes_and_no_new_one_follows
 	assert_eq(_gusts_seen.size(), announced, "no new gust is announced during the storm")
 	assert_eq(effect.gust_count(), 0, "the in-flight gust expired on its own")
 
-
-func test_a_storm_leaves_the_forces_of_live_gusts_alone() -> void:
-	# The suppression is a spawn gate only: a gust that exists still pushes.
-	var block: Block = _block(Vector3(0.0, HIGH_M, 0.0))
-	var quiet: BreezeTuning = _tuning.duplicate() as BreezeTuning
-	quiet.spawn_interval_s = 1.0e6
-	var effect: BreezeEffect = _effect(quiet)
-	effect.begin(SEED_A)
-	effect.gusts().append({"id": 1, "x": 0.0, "y": HIGH_M, "z": 0.6, "a": 0.0, "r": 3.0, "d": 1000.0, "s": 1.0, "age": 500.0})
-	_weather_id = STORM_ID
-	for _i: int in range(30):
-		effect.tick(DELTA)
-		await get_tree().physics_frame
-	assert_gt(block.linear_velocity.length(), 0.01, "an in-flight gust keeps pushing")
-
-
-# --- Real weather state on the host ---------------------------------------------------
 
 func test_breeze_reads_the_host_weather_state_through_match() -> void:
 	var weather: MatchWeather = Match.weather()

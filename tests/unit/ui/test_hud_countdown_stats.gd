@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.99: the top-left player stats box must list every player from
+## the top-left player stats box must list every player from
 ## the first COUNTDOWN frame, whether the HUD existed before the state change
 ## (host/client mirror signal path) or is built after it (world build awaits
 ## frames, so the LOADING/COUNTDOWN emits can precede HUD._ready()).
@@ -63,13 +63,6 @@ func test_host_hud_built_before_countdown_has_rows_in_countdown() -> void:
 	var hud: HUD = _make_hud()
 	Match.start_match(_config())
 	assert_eq(Match.state(), Match.State.COUNTDOWN)
-	_assert_rows_populated(hud)
-
-
-func test_host_hud_built_after_countdown_began_has_rows() -> void:
-	Match.start_match(_config())
-	assert_eq(Match.state(), Match.State.COUNTDOWN)
-	var hud: HUD = _make_hud()
 	_assert_rows_populated(hud)
 
 

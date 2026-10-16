@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.85.52: placed glued blocks wear the honey coat on host and clients.
+## placed glued blocks wear the honey coat on host and clients.
 
 const MatchNetScript := preload("res://net/MatchNet.gd")
 
@@ -127,7 +127,7 @@ func test_client_mirror_applies_event_late_join_replay_and_removal() -> void:
 	assert_not_null(bond)
 
 
-## Bontago-1pi.85.72: a charged drop is coated at spawn (before any bond), replicated,
+## a charged drop is coated at spawn (before any bond), replicated,
 ## and replayed to late joiners; it uncoats only once a bond it formed ends.
 func test_charged_drop_is_coated_at_spawn_and_replayed_to_late_joiners() -> void:
 	var host: MatchNetScript = _make_net(false)

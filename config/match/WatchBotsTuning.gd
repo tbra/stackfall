@@ -1,6 +1,6 @@
 class_name WatchBotsTuning
 extends Resource
-## Bontago-1pi.212: tunables of the debug "Watch bots" match (game/player/SpectatorController.gd,
+## tunables of the debug "Watch bots" match (game/player/SpectatorController.gd,
 ## game/main/WatchBotsOptions.gd, ui/menus/WatchBotsDialog.gd). Debug-only, not shown in the F4 tuning panel,
 ## so no config/ui/tuning_panel_hints.tres entries are needed.
 

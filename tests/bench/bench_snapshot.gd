@@ -1,5 +1,5 @@
 extends Node3D
-## docs/archive/M3a_PLAN.md, P2 acceptance: "bench_snapshot.gd packs 300 awake bodies
+## Acceptance: "bench_snapshot.gd packs 300 awake bodies
 ## and reports bytes and pack time — budget <= 2 ms per snapshot at 30 Hz and
 ## <= 4.5 KB total. Miss it and raise max_packet_bytes or lower snapshot_hz
 ## **in the resource**, never in code."
@@ -9,7 +9,7 @@ extends Node3D
 ## Prints one machine-readable row per body count, then quits non-zero if the
 ## graded row missed either budget.
 ##
-## Spec 3.4 sets the numbers this checks: "300 awake bodies x ~13 bytes ≈ 4 KB
+## Spec 2.6 sets the numbers this checks: "300 awake bodies x ~13 bytes ≈ 4 KB
 ## per packet. Split into several packets if needed to stay under ~1200 bytes
 ## each" and "Rate: 30 Hz". Packing is pure, so there is no physics to step and
 ## everything happens in _ready.
@@ -18,11 +18,11 @@ extends Node3D
 ## rate the host pays encode and it is the half that runs on the machine with
 ## less headroom.
 
-## The graded configuration (spec 3.4's headline case).
+## The graded configuration (spec 2.6's headline case).
 const GRADED_BODIES: int = 300
-## docs/archive/M3a_PLAN.md: 2 ms of the 33.3 ms available at snapshot_hz = 30.
+## 2 ms of the 33.3 ms available at snapshot_hz = 30.
 const ENCODE_BUDGET_MS: float = 2.0
-## docs/archive/M3a_PLAN.md: "<= 4.5 KB total".
+## Budget: "<= 4.5 KB total".
 const BYTES_BUDGET: int = 4608
 ## Extra rows for context only, not graded: a full eight-player late game and
 ## PhysicsTuning's max_active_blocks ceiling.
@@ -132,7 +132,7 @@ func _measure(count: int, graded: bool) -> bool:
 
 
 ## Reports what the wire costs in precision, so the size numbers above are
-## always read next to what was traded for them (spec 3.4: "≈1-2 mm").
+## always read next to what was traded for them (spec 2.6: "≈1-2 mm").
 func _report_quantization_error() -> void:
 	var samples: int = 50000
 	var data: PackedByteArray = PackedByteArray()

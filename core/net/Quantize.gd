@@ -1,6 +1,6 @@
 class_name Quantize
 extends RefCounted
-## Wire packing for snapshot body records (spec 3.4 "Snapshots"). Pure static
+## Wire packing for snapshot body records (spec 2.6 "Snapshots"). Pure static
 ## functions over PackedByteArray — no nodes, no signals, no engine state — so
 ## the whole wire format is unit-testable without a peer (CLAUDE.md: core/
 ## holds pure logic with no scene-tree dependence).
@@ -13,17 +13,17 @@ extends RefCounted
 ## | 3 | 6 | position, three u16 axes over the match's position AABB |
 ## | 9 | 6 | rotation, 48-bit smallest-three quaternion + sleeping flag |
 ##
-## Spec 3.4 quotes "~13 bytes" and a u16 id; 15 is what a u24 id plus 6+6
+## Spec 2.6 quotes "~13 bytes" and a u16 id; 15 is what a u24 id plus 6+6
 ## costs once the sleeping flag is folded into the rotation's spare bit (see
 ## the DECISION at pack_net_id() for why the id is 24 bits, not 16). At 300
-## awake bodies that is 4500 B, still spec 3.4's "≈4 KB per packet" before
+## awake bodies that is 4500 B, still spec 2.6's "≈4 KB per packet" before
 ## fragmentation, and still four fragments of at most 1200 bytes.
 ##
 ## **Position precision.** Each axis maps its NetConfig.position_bounds()
 ## span linearly onto 0..65535. On map M (field_radius 45) with
 ## pos_xz_margin 1.5 the X/Z span is 135 m, so one step is 135/65535 =
 ## **2.06 mm**; the Y span (pos_min_y .. disc + Reach the Sky target +
-## margin = -48 .. 150 m, Bontago-1pi.165) of 198 m gives **3.02 mm**. Spec 3.4
+## margin = -48 .. 150 m) of 198 m gives **3.02 mm**. Spec 2.6
 ## accepts ~2-3 mm for that taller Y axis. Map L (radius 60) widens X/Z to
 ## 180 m and 2.75 mm — acceptable, and the way to tighten it is
 ## NetConfig.pos_xz_margin, never a literal here. Values outside the AABB are
@@ -297,10 +297,10 @@ static func is_wire_id(net_id: int) -> bool:
 ## a truncated id would silently name a *different* body, while "no body" is
 ## dropped and counted on the client (Interpolator.dropped_unknown_count).
 static func pack_net_id(out: PackedByteArray, offset: int, net_id: int) -> int:
-	# DECISION (core/net/Quantize.gd, Bontago-mv0.1.7): the wire net_id is u24,
-	# not spec 3.4's u16. game/blocks/BlockRegistry.gd allocates ids monotonically and
-	# never reuses one within a match (docs/archive/M3a_PLAN.md, "net_id allocation and
-	# the spawn/snapshot race"), so a u16 field would pack the 65536th block of
+	# DECISION (core/net/Quantize.gd): the wire net_id is u24,
+	# not spec 2.6's u16. game/blocks/BlockRegistry.gd allocates ids monotonically and
+	# never reuses one within a match (see the net_id allocation note in the spawn/snapshot
+	# race handling), so a u16 field would pack the 65536th block of
 	# a match as 0 ("no body", dropped) and the 65537th as 1 — the first block
 	# of the match — and a snapshot would silently move the wrong body. 65535
 	# ids is reachable: eight players on MatchConfig's 3 s block timer with the
@@ -311,8 +311,8 @@ static func pack_net_id(out: PackedByteArray, offset: int, net_id: int) -> int:
 	# record puts 300 bodies at 4860 B in five fragments, over the plan's
 	# 4.5 KB budget, and would not fit the PackedInt32Array that
 	# Interpolator.tracked_ids() returns. u24 keeps four fragments (78 bodies
-	# each) and 4560 B, a 7% cost. Spec 3.4 is a technical section, not an
-	# [ORIGINAL] rule; the deviation is recorded in docs/archive/M3a_PLAN.md.
+	# each) and 4560 B, a 7% cost. Spec 2.6 is a technical section, not an
+	# [ORIGINAL] rule; the deviation is explained in the comment above.
 	var wire: int = net_id if is_wire_id(net_id) else NET_ID_NONE
 	out.encode_u16(offset, wire & 0xFFFF)
 	out[offset + 2] = (wire >> 16) & 0xFF

@@ -1,5 +1,5 @@
 extends GutTest
-## PropellerEffect (spec 2.6; Bontago-1pi.85.45): the Anvil in reverse, activated in
+## PropellerEffect (spec 1.6): the Anvil in reverse, activated in
 ## place (no carrier). The effect triggers at once and spawns a PropellerStand that runs
 ## DiscForce.apply(sign -1) every tick for `disc_force.duration_s` on the host and only
 ## draws on a client. Tilt is compared with an Anvil at the same point on a real Field.

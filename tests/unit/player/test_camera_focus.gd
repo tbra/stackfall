@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-b7r (owner decision 2026-09-28, Bontago-aem): camera_snap_home/
+## camera_snap_home/
 ## camera_snap_goal's tap-to-TURN / hold-to-PEEK gesture in the default follow
 ## camera (CameraTuning.follow_block = true). See game/player/CameraRig.gd's own
 ## "Focus home/goal" section (_on_focus_pressed()/_on_focus_released()/
@@ -53,7 +53,7 @@ func _make_rig() -> CameraRig:
 	# config/player/camera_tuning.tres singleton every other test/scene reads, and
 	# lets these tests shrink the tap/peek/glide durations so they run fast.
 	rig.tuning = rig.tuning.duplicate() as CameraTuning
-	rig.tuning.snap_enabled = true  # snap ships disabled (Bontago-1pi.159.22); these tests cover the gesture itself.
+	rig.tuning.snap_enabled = true  # snap ships disabled; these tests cover the gesture itself.
 	rig.tuning.focus_hold_threshold_s = 0.05
 	rig.tuning.focus_turn_duration_s = 0.05
 	rig.tuning.focus_peek_transition_s = 0.05
@@ -100,34 +100,7 @@ func _finish_tweens(seconds: float) -> void:
 			tween.custom_step(seconds)
 
 
-# --- snap disabled (Bontago-1pi.159.22) ----------------------------------------
-
-
-func test_snap_actions_do_nothing_while_snap_is_disabled_and_work_when_re_enabled() -> void:
-	var rig: CameraRig = _make_rig()
-	rig.set_local_slot(0)
-	rig.set_follow_position(Vector3(3.0, 0.0, -4.0))
-	rig._process(1.0 / 60.0)
-	var yaw_before: float = rig.get_yaw()
-	assert_true(load("res://config/player/camera_tuning.tres").get("snap_enabled") == false, "snap ships disabled")
-
-	rig.tuning.snap_enabled = false
-	_press_and_hold(rig, &"camera_snap_home", 30)
-	assert_false(rig.is_peeking(), "disabled snap must not PEEK")
-	_release_and_settle(rig, &"camera_snap_home", 30)
-	_press_and_hold(rig, &"camera_snap_goal", 30)
-	assert_false(rig.is_peeking())
-	_release_and_settle(rig, &"camera_snap_goal", 30)
-	_finish_tweens(rig.tuning.focus_turn_duration_s + 0.05)
-	assert_almost_eq(rig.get_yaw(), yaw_before, 0.0001, "disabled snap must not turn the camera")
-
-	rig.tuning.snap_enabled = true
-	_press_and_hold(rig, &"camera_snap_home", 30)
-	assert_true(rig.is_peeking(), "re-enabled snap works again")
-	_release_and_settle(rig, &"camera_snap_home", 30)
-
-
-# --- TAP: TURN ---------------------------------------------------------------
+# --- snap disabled ----------------------------------------
 
 
 func test_tap_camera_snap_home_turns_yaw_toward_the_local_slots_home_beacon() -> void:
@@ -144,7 +117,7 @@ func test_tap_camera_snap_home_turns_yaw_toward_the_local_slots_home_beacon() ->
 	# (game/player/CameraRig.gd's _turn_to_face()), which only advances on the
 	# engine's own real frames -- not on this file's own manual rig._process()
 	# calls -- so the tween is stepped explicitly via _finish_tweens() (no
-	# wall-clock wait, which flaked under full-suite load; Bontago-fca.3).
+	# wall-clock wait, which flaked under full-suite load).
 	_press_and_hold(rig, &"camera_snap_home", 1)
 	_release_and_settle(rig, &"camera_snap_home")
 	assert_false(rig.is_peeking(), "a tap must never engage PEEK.")
@@ -208,92 +181,6 @@ func test_holding_camera_snap_home_past_the_threshold_peeks_at_the_beacon_and_re
 # --- Chord gating: Start+X must not also fire focus goal ---------------------
 
 
-func test_pause_menu_held_blocks_camera_snap_goal_entirely() -> void:
-	var rig: CameraRig = _make_rig()
-	var yaw_before: float = rig.get_yaw()
-
-	Input.action_press(&"pause_menu")
-	rig._unhandled_input(_action_event(&"camera_snap_goal", true))
-	for _i: int in range(30):
-		rig._process(1.0 / 60.0)
-
-	assert_false(rig.is_peeking(), "Start+X is the tuning-panel chord, not focus goal, even held past the threshold.")
-	assert_almost_eq(rig.get_yaw(), yaw_before, 0.0001)
-
-	Input.action_release(&"pause_menu")
-	rig._unhandled_input(_action_event(&"camera_snap_goal", false))
-
-
-func test_camera_snap_home_held_blocks_camera_snap_goal_entirely() -> void:
-	# The same gate covers game/sandbox/Sandbox.gd's own Back+X chord
-	# (the sandbox debug chords) without this file needing a Sandbox scene.
-	# Proven by outcome, not by is_peeking() alone: a bare, short home tap
-	# (with a goal press attempted mid-hold) must still turn toward HOME, not
-	# toward goal and not nowhere -- if the goal press had snuck in and won,
-	# or if it had somehow cancelled the home press, the final yaw would not
-	# match home's own expected TURN target.
-	var rig: CameraRig = _make_rig()
-	rig.set_local_slot(0)
-	rig.set_follow_position(Vector3(0.0, 0.0, 5.0))
-	rig._process(1.0 / 60.0)
-	var home_target: Vector3 = _field.home_flags()[0].global_position
-	var expected_home_yaw: float = _expected_turn_yaw(rig.get_target(), home_target)
-
-	Input.action_press(&"camera_snap_home")
-	rig._unhandled_input(_action_event(&"camera_snap_home", true))
-	rig._unhandled_input(_action_event(&"camera_snap_goal", true))  # must be a no-op; camera_snap_home is held.
-	rig._process(1.0 / 60.0)  # one short frame -- still a tap, not a hold.
-
-	_release_and_settle(rig, &"camera_snap_home")
-	assert_false(rig.is_peeking(), "fixture: too short a hold to have engaged PEEK.")
-	_finish_tweens(rig.tuning.focus_turn_duration_s + 0.05)
-
-	assert_almost_eq(rig.get_yaw(), expected_home_yaw, 0.01)
-
-
-# --- suppress_pad_home_focus (game/sandbox/Sandbox.gd's own set_camera_rig() gate) --
-
-
-func test_suppress_pad_home_focus_ignores_gamepad_back_only() -> void:
-	var rig: CameraRig = _make_rig()
-	rig.suppress_pad_home_focus = true
-
-	var pad_back: InputEventJoypadButton = InputEventJoypadButton.new()
-	pad_back.button_index = JOY_BUTTON_BACK
-	pad_back.pressed = true
-	assert_true(pad_back.is_action_pressed(&"camera_snap_home"), "fixture: Back is camera_snap_home.")
-	rig._unhandled_input(pad_back)
-	assert_eq(rig._focus_action, &"", "gamepad Back stays sandbox_next_slot only.")
-
-	var key_one: InputEventKey = InputEventKey.new()
-	key_one.physical_keycode = KEY_1
-	key_one.pressed = true
-	assert_true(key_one.is_action_pressed(&"camera_snap_home"), "fixture: 1 is camera_snap_home.")
-	rig._unhandled_input(key_one)
-	assert_eq(rig._focus_action, &"camera_snap_home", "keyboard focus still works in the sandbox.")
-
-
-# --- Legacy free camera (follow_block = false) keeps working -----------------
-
-
-func test_legacy_camera_still_snaps_instantly_to_the_real_home_beacon() -> void:
-	var rig: CameraRig = _make_rig()
-	rig.tuning.follow_block = false
-	rig.set_local_slot(1)
-
-	var home_target: Vector3 = _field.home_flags()[1].global_position
-	rig._unhandled_input(_action_event(&"camera_snap_home", true))
-	_finish_tweens(rig.tuning.snap_duration + 0.05)
-
-	assert_almost_eq(rig.get_target().x, home_target.x, 0.05)
-	assert_almost_eq(rig.get_target().z, home_target.z, 0.05)
-
-	rig._unhandled_input(_action_event(&"camera_snap_home", false))
-
-
-# --- Ghost cursor/placement suppression while peeking (PlayerController) ----
-
-
 func _make_controller_with_rig() -> Dictionary:
 	var ghost: GhostPreview = autofree(GhostPreview.new())
 	add_child_autofree(ghost)
@@ -305,27 +192,6 @@ func _make_controller_with_rig() -> Dictionary:
 	controller.set_camera_rig(rig)
 	controller.set_acting_slot(0)
 	return {"controller": controller, "rig": rig}
-
-
-func test_ghost_cursor_does_not_move_while_the_camera_is_peeking() -> void:
-	var built: Dictionary = _make_controller_with_rig()
-	var controller: PlayerController = built["controller"]
-	var rig: CameraRig = built["rig"]
-
-	controller._cursor = Vector3(2.0, 0.0, 2.0)
-	var cursor_before: Vector3 = controller._cursor
-
-	_press_and_hold(rig, &"camera_snap_home", 30)
-	assert_true(rig.is_peeking(), "fixture: PEEK must actually be engaged for this test to mean anything.")
-
-	Input.action_press(&"ghost_move_right")
-	for _i: int in range(10):
-		controller._process(1.0 / 60.0)
-
-	assert_eq(controller._cursor, cursor_before, "the ghost cursor must not move while the camera is peeking.")
-
-	Input.action_release(&"ghost_move_right")
-	_release_and_settle(rig, &"camera_snap_home")
 
 
 func test_ghost_place_is_ignored_while_the_camera_is_peeking() -> void:

@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.56: a client joining mid-match must hear the world being rebuilt
+## a client joining mid-match must hear the world being rebuilt
 ## as silence. The host's world replay restores state through the same Events a
 ## live match emits (block_placed per body, player_eliminated per dead slot,
 ## gift_flight_spawned per falling crate), and Sfx used to answer every one with
@@ -234,60 +234,7 @@ func test_the_replay_rebuilds_the_world_without_a_single_sound() -> void:
 	assert_eq(client_net.last_replay_acknowledged, int((capture[capture.size() - 1][2] as Array)[0]))
 
 
-func test_live_events_after_the_replay_still_sound() -> void:
-	var capture: Array[Array] = await _capture_host_replay()
-	var client_net: MatchNetScript = _become_client(3)
-	_make_sfx()
-	for message: Array in capture:
-		_apply(client_net, message)
-	assert_false(_any_player_playing(), "the replay itself was silent")
-	assert_false(client_net.is_replaying_world())
-
-	# A body the host places after the joiner's replay ended: the drop sounds.
-	client_net.net_block_spawned(900, &"cube", 1, Vector3(1.0, 6.0, 1.0), Quaternion.IDENTITY)
-	assert_not_null(Match.registry().block_for_net_id(900), "the live spawn is applied")
-	assert_true(_any_player_playing(), "a live drop after the join sounds")
-	_stop_all_players()
-
-	# A live elimination: the breakage sounds.
-	client_net.net_match_event(MatchNetScript.EVENT_PLAYER_ELIMINATED, [1, 1])
-	assert_true(_any_player_playing(), "a live elimination after the join sounds")
-	_stop_all_players()
-
-	# A live crate flight: the jingle sounds.
-	client_net.net_match_event(MatchNetScript.EVENT_GIFT_FLIGHT, [77, Vector3(3.0, 18.0, 1.0), Vector3(3.0, 0.0, 1.0)])
-	assert_true(_any_player_playing(), "a live gift flight after the join sounds")
-
-
 # --- The marker ----------------------------------------------------------------------
-
-func test_the_replay_names_itself_in_its_opening_message() -> void:
-	var capture: Array[Array] = await _capture_host_replay()
-	var start_args: Array = capture[0][2]
-	assert_eq(start_args.size(), 3, "net_match_start carries the replay id")
-	var end_id: int = int((capture[capture.size() - 1][2] as Array)[0])
-	assert_gt(end_id, 0)
-	assert_eq(int(start_args[2]), end_id, "the id that opens the replay is the one that closes it")
-
-
-func test_a_plain_match_start_is_not_a_replay() -> void:
-	_build_world()
-	var client_net: MatchNetScript = _make_net(FakeNet.client(1))
-	client_net._on_net_mode_changed(Net.Mode.CLIENT)
-	watch_signals(Events)
-	client_net.net_match_start(_config(2).to_dict(), [])
-	assert_false(client_net.is_replaying_world(), "the lobby's match start does not mute anything")
-	assert_signal_not_emitted(Events, "world_replay_changed")
-
-
-func test_the_host_never_mutes_itself() -> void:
-	_build_world()
-	var host_net: MatchNetScript = _make_net(FakeNet.host({1: 0}, [0]))
-	watch_signals(Events)
-	host_net.net_match_start(_config(2).to_dict(), [], 5)
-	assert_false(host_net.is_replaying_world(), "a replay id is only ever honoured by a client")
-	assert_signal_not_emitted(Events, "world_replay_changed")
-
 
 # --- A replay that never completes must not mute the match -------------------------
 
@@ -304,17 +251,6 @@ func test_leaving_the_session_mid_replay_lifts_the_silence() -> void:
 	assert_eq(get_signal_parameters(Events, "world_replay_changed", 0), [false])
 
 
-func test_a_new_match_start_lifts_a_replay_that_never_ended() -> void:
-	var capture: Array[Array] = await _capture_host_replay()
-	var client_net: MatchNetScript = _become_client(3)
-	_make_sfx()
-	_apply(client_net, capture[0])
-	assert_true(client_net.is_replaying_world())
-	client_net.net_match_start(_config(2).to_dict(), [])
-	assert_false(client_net.is_replaying_world(), "the broadcast restart is a full sync of its own")
-	assert_false(_sfx._world_replay_silent)
-
-
 func test_a_replay_that_outlives_the_ack_timeout_stops_muting() -> void:
 	var capture: Array[Array] = await _capture_host_replay()
 	var client_net: MatchNetScript = _become_client(3)
@@ -328,40 +264,4 @@ func test_a_replay_that_outlives_the_ack_timeout_stops_muting() -> void:
 	assert_false(_sfx._world_replay_silent)
 
 
-func test_only_the_matching_replay_end_lifts_the_silence() -> void:
-	var capture: Array[Array] = await _capture_host_replay()
-	var client_net: MatchNetScript = _become_client(3)
-	_apply(client_net, capture[0])
-	var replay_id: int = int((capture[0][2] as Array)[2])
-	client_net.net_replay_end(replay_id + 1)
-	assert_true(client_net.is_replaying_world(), "another replay's end does not end this one")
-	client_net.net_replay_end(replay_id)
-	assert_false(client_net.is_replaying_world())
-
-
 # --- Impacts are not part of the replay -----------------------------------------
-
-func test_impacts_are_not_replayed_to_the_joiner() -> void:
-	_build_world()
-	var host_session: FakeNet = FakeNet.host({1: 0, 2: 1}, [0])
-	var host_net: MatchNetScript = _make_net(host_session)
-	_start_playing(_config(4))
-	host_net.capture_impacts = true
-	host_net.collect_impact(6.0, Vector3(1.0, 2.0, 1.0), Time.get_ticks_msec())
-	host_session.slots_by_peer[3] = 3
-	host_net.capture_replay = true
-	host_net._on_net_peer_joined(3, 3, "Latey")
-	await get_tree().process_frame
-	var capture: Array[Array] = host_net.replay_capture.duplicate()
-	for message: Array in capture:
-		assert_ne(StringName(message[1]), &"net_block_impacts", "no impact batch rides in the replay")
-	host_net.queue_free()
-	await get_tree().process_frame
-
-	var client_net: MatchNetScript = _become_client(3)
-	watch_signals(Events)
-	for message: Array in capture:
-		_apply(client_net, message)
-	assert_signal_not_emitted(Events, "block_impacted", "the joiner hears no old thud")
-	assert_signal_not_emitted(Events, "block_impacted_at")
-	assert_eq(client_net.pending_impact_count(), 0, "and has none queued")

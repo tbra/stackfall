@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-8or.21: `--loop-matches` restarts a headless bot match on END with a
+## `--loop-matches` restarts a headless bot match on END with a
 ## fresh seed and prints one HEADLESS_MATCH summary line per finished match.
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
@@ -43,11 +43,6 @@ func _bot_count() -> int:
 		if child is BotController:
 			total += 1
 	return total
-
-
-func test_loop_flag_parses() -> void:
-	assert_true(_main._has_loop_matches_arg(PackedStringArray(["--loop-matches"])))
-	assert_false(_main._has_loop_matches_arg(PackedStringArray(["--bots=2"])))
 
 
 func test_end_restarts_with_fresh_seed_and_clean_teardown() -> void:

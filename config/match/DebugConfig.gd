@@ -1,6 +1,6 @@
 class_name DebugConfig
 extends Resource
-## Tunables for debug mode (Bontago-470.8): the debug-mode gate itself
+## Tunables for debug mode: the debug-mode gate itself
 ## (game/debug/DebugMode.gd), the F1 performance overlay (ui/debug/PerfOverlay.gd), its
 ## sampler (game/debug/PerfSampler.gd) and the per-session CSV logger
 ## (game/debug/PerfLogger.gd). Nothing here touches match rules.
@@ -40,13 +40,13 @@ extends Resource
 @export var overlay_margin: Vector2 = Vector2(12.0, 12.0)
 @export var overlay_font_size: int = 13
 
-## Bot think cost overlay (ui/BotCostOverlay.gd, F2, Bontago-1t5.63): seconds between table refreshes
+## Bot think cost overlay (ui/BotCostOverlay.gd, F2): seconds between table refreshes
 ## (the report maths sorts the window, so it does not run every frame) and the table's column gap.
 @export_range(0.05, 5.0, 0.05) var bot_cost_refresh_s: float = 0.5
 @export var bot_cost_column_gap_px: int = 12
-## Overlay colours (Bontago-hfa.10): by default sourced from the ArcadeVisualTuning tokens so the
+## Overlay colours: by default sourced from the ArcadeVisualTuning tokens so the
 ## dev overlay follows the Stackfall Arcade palette. Each *_override colour with alpha > 0 replaces
-## its token (owner-tunable); leave it fully transparent to follow the token. Read them through the
+## its token (tunable); leave it fully transparent to follow the token. Read them through the
 ## *_color() getters below, never the raw overrides.
 @export var overlay_background_override: Color = Color(0.0, 0.0, 0.0, 0.0)
 @export var overlay_text_override: Color = Color(0.0, 0.0, 0.0, 0.0)
@@ -90,7 +90,7 @@ func graph_budget_color() -> Color:
 	return _resolve(graph_budget_override, _arcade().cream_color, graph_budget_alpha)
 
 
-## DECISION (Bontago-hfa.10): config/ must not depend on ui/, so this loads the same
+## DECISION: config/ must not depend on ui/, so this loads the same
 ## config/ui/arcade_visual_tuning.tres MenuStyleFactory.arcade_tuning() loads, directly.
 const ARCADE_TUNING_PATH: String = "res://config/ui/arcade_visual_tuning.tres"
 static var _arcade_cache: ArcadeVisualTuning = null

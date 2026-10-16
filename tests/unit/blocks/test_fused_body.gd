@@ -1,5 +1,5 @@
 extends GutTest
-## Glue fusion WP1 (docs/GLUE_FUSION_PLAN.md): the FusedBody carrier itself.
+## Glue fusion: the FusedBody carrier itself.
 ## Real Jolt physics on a tiny disc; the carrier is built through GlueFusion.fuse().
 
 const CUBE_SIDE_M: float = 1.2
@@ -342,7 +342,7 @@ func test_carrier_is_in_the_tuning_group() -> void:
 	assert_true(carrier.is_in_group(Block.TUNING_GROUP))
 
 
-# --- Composition review fixes (Bontago-1pi.85.74) ---
+# --- Composition review fixes ---
 
 const FREEZE_TEST_S: float = 0.25
 const FREEZE_WAIT_FRAMES: int = 40
@@ -429,7 +429,7 @@ func test_kill_plane_style_removal_keeps_shapes_until_the_body_is_freed() -> voi
 	assert_false(is_instance_valid(carrier))
 
 
-# --- Carry fixes (Bontago-1pi.85.74.8) ---
+# --- Carry fixes ---
 
 func test_resting_anchored_group_reports_sleeping_and_a_tilt_wakes_it() -> void:
 	var setup: Dictionary = _anchored_stack(2)

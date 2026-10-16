@@ -1,5 +1,5 @@
 extends GutTest
-## core/ai/BotStability.gd + the OrientationInfo additions (Bontago-1t5.72 P1b, STATICS_DESIGN 2.3 and 3): the piece cut
+## core/ai/BotStability.gd + the OrientationInfo additions (P1b, STATICS_DESIGN 2.3 and 3): the piece cut
 ## with aim erosion, the lower cuts, the unknown-block and probe-only paths, the calm requirement. Pure, no scene tree.
 
 const CUBE: float = 1.0

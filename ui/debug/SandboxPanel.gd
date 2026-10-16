@@ -1,6 +1,6 @@
 class_name SandboxPanel
 extends CanvasLayer
-## Bontago-mv0.8's sandbox debug panel: active slot + colour, block held/next,
+## 's sandbox debug panel: active slot + colour, block held/next,
 ## timer state, the ghost's placement-validity reason under the cursor and
 ## territory share per slot. Block count and physics step time live in the F1
 ## PerfOverlay (ui/debug/PerfOverlay.gd), not here.
@@ -8,7 +8,7 @@ extends CanvasLayer
 ## Reads only public Match/PlacementRules APIs, never a rule of its own — see
 ## game/player/GhostPreview.gd's apply_validity()/_apply_validity_material() for the
 ## same Match.preview_placement() call this panel's validity label reads —
-## so a Territory v2 rewrite (docs/TERRITORY_V2_PLAN.md) needs no change here
+## so a Territory v2 rewrite needs no change here
 ## beyond whatever new PlacementRules.Result cases land in _reason_text()'s
 ## fallback branch, and a new rules-mode field on MatchConfig only needs a
 ## line in _refresh_rules_mode(), not a redesign.
@@ -51,7 +51,7 @@ var _ghost: GhostPreview = null
 @onready var _validity_label: Label = %ValidityLabel
 @onready var _shares_label: Label = %SharesLabel
 @onready var _rules_label: Label = %RulesLabel
-## Bontago-1en.24: game/sandbox/Sandbox.gd's F9 sandbox_force_special hotkey.
+## game/sandbox/Sandbox.gd's F9 sandbox_force_special hotkey.
 @onready var _forced_special_label: Label = %ForcedSpecialLabel
 ## M6 B2: game/sandbox/Sandbox.gd's F10/F11 hotkeys and the height record.
 @onready var _slow_motion_label: Label = %SlowMotionLabel
@@ -125,7 +125,7 @@ func _refresh_active_slot(slot_id: int) -> void:
 		_active_slot_label.modulate = slot.color
 	else:
 		_active_slot_label.text = "Active: -"
-		# DECISION (Bontago-hfa.9): no-slot label uses the arcade cream token, not raw white.
+		# DECISION: no-slot label uses the arcade cream token, not raw white.
 		_active_slot_label.modulate = MenuStyleFactory.arcade_tuning().cream_color
 
 
@@ -138,7 +138,7 @@ func _refresh_held_block(slot_id: int) -> void:
 	]
 
 
-## Bontago-mv0.10 (spec 2.4/2.5 "[ORIGINAL target]" fixed-interval cadence):
+## spec 1.4 "[ORIGINAL target]" fixed-interval cadence:
 ## "locked"/"unlocked" alongside the timer, the same distinction
 ## game/player/GhostPreview.gd's grey tint draws for the held ghost -- Match.
 ## is_release_locked() is the one source of truth both read.
@@ -151,7 +151,7 @@ func _refresh_timer(slot_id: int) -> void:
 	]
 
 
-## Bontago-1en.24: game/player/GhostPreview.gd's own current_state() already
+## game/player/GhostPreview.gd's own current_state() already
 ## distinguishes STATE_THROW (M4 P2e's throw-aim tint, set by show_throw_hint()
 ## while a held special is being dragged for a throw) from the ordinary
 ## valid/hole/invalid tints this label used to show exclusively via a fresh
@@ -190,7 +190,7 @@ func _refresh_shares() -> void:
 
 ## DECISION (ui/debug/SandboxPanel.gd): the enum key's own name
 ## (MatchConfig.HoleMode.keys()[...]), not a hand-written per-case string, so
-## a Territory v2 addition to HoleMode (docs/TERRITORY_V2_PLAN.md mentions a
+## a Territory v2 addition to HoleMode (the v2 design mentions a
 ## new OFF value) shows up here for free instead of silently mislabeling it
 ## as "permanent" — the one place this panel would otherwise need a change
 ## for a rules rewrite it is meant to survive untouched.
@@ -206,7 +206,7 @@ func _refresh_rules_mode() -> void:
 	_rules_label.text = "Rules: holes %s" % hole_mode_name
 
 
-## Bontago-1en.24: game/sandbox/Sandbox.gd's F9 sandbox_force_special hotkey (and
+## game/sandbox/Sandbox.gd's F9 sandbox_force_special hotkey (and
 ## `--force-special=`). _sandbox is the same Variant test seam active_slot()
 ## already reads through (see this file's own DECISION on why it isn't a
 ## typed Sandbox); forced_special()/forced_special_queue_full() are the two
@@ -274,7 +274,7 @@ func _on_block_picker_selected(index: int) -> void:
 
 ## "off" first (mirrors sandbox_force_special's own off/each-roster-id/off
 ## cycle), then SpecialDef.load_all_specials()'s own id order -- the UI-only
-## front end docs/archive/M6_PLAN.md's package B2 calls for over the existing F9
+## front end the sandbox rule calls for over the existing F9
 ## cycle/force_special_by_id().
 func _populate_special_picker() -> void:
 	_special_picker.clear()

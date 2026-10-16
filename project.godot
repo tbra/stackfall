@@ -15,7 +15,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="Stackfall"
-config/description="Physics-based competitive block-stacking territory game. Remake of Bontago (2003)."
+config/description="Physics-based competitive block-stacking territory game."
 config/version="0.0.3"
 run/main_scene="res://game/main/Boot.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")

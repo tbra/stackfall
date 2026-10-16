@@ -1,6 +1,6 @@
 class_name RumbleConfig
 extends Resource
-## Controller rumble tunables (spec 2.5 gamepad parity), driven by
+## Controller rumble tunables (spec 1.3 gamepad parity), driven by
 ## autoload/Rumble.gd's Events listeners. Keeps Rumble.gd free of magic
 ## numbers per CLAUDE.md, the same role config/physics/CameraShakeConfig.gd plays for
 ## game/player/CameraRig.gd's own Events.block_impacted reaction.
@@ -14,7 +14,7 @@ extends Resource
 ## persisted value wins on every later boot; this file is never re-read for
 ## that after the first run.
 
-## DECISION (config/player/RumbleConfig.gd, Bontago-1pi.29): owner playtest "Rumble
+## DECISION (config/player/RumbleConfig.gd): "Rumble
 ## at 100 is still pretty weak". The Options slider is already 0..1 and
 ## Rumble._trigger() multiplies by it, so 100% was never capped by Settings;
 ## the weakness was the per-event magnitudes below. The loudest event

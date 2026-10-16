@@ -5,7 +5,7 @@ extends RefCounted
 ## same field-local frame as BlockRegistry's current influence circles.
 
 
-## Bontago-1pi.11.28: the scene-reading half of project(): one field-local
+## the scene-reading half of project(): one field-local
 ## height per circle, measured on the main thread. {"heights"} or {"error"}.
 static func measure_heights(
 	circles: Array[InfluenceCircle],
@@ -19,7 +19,7 @@ static func measure_heights(
 		return {"error": "Unknown cone height source."}
 	var heights: PackedFloat32Array = PackedFloat32Array()
 	heights.resize(circles.size())
-	# Bontago-1pi.11.25: the registry's cached field-local COM height replaces
+	# the registry's cached field-local COM height replaces
 	# instance_from_id + to_local per body when it shares this field.
 	var use_registry: bool = height_source == SandboxConeExperiment.HEIGHT_CENTER and registry.uses_field(field)
 	var field_xform: Transform3D = registry.field_global_transform() if use_registry else Transform3D.IDENTITY

@@ -1,10 +1,10 @@
 class_name BlackHoleVisualTuning
 extends Resource
-## Presentation tunables for the black hole vortex (Bontago-8or.26). Presentation
+## Presentation tunables for the black hole vortex. Presentation
 ## only; the pull radius and lifetime come from BlackHoleEffect.
 
 ## Seconds the vortex takes to grow from grow_start_fraction to full size after the
-## special triggers (Bontago-1pi.85.56). The pull and capture radius follow the same
+## special triggers. The pull and capture radius follow the same
 ## curve (BlackHoleField), so what you see is what pulls.
 @export var grow_in_s: float = 1.5
 
@@ -19,7 +19,7 @@ extends Resource
 @export var collapse_out_s: float = 0.6
 
 ## Depth (m) below the surface the core starts at; it rises to the surface over
-## grow_in_s so the hole "opens up underneath" the drop point (Bontago-1pi.85.45).
+## grow_in_s so the hole "opens up underneath" the drop point.
 @export var core_emerge_depth_m: float = 0.7
 
 ## Height (m) of the vortex disc above the trigger point, to avoid z-fighting.

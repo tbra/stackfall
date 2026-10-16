@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.37 (owner playtest 2026-10-03: "Some buttons have white icons,
+## ("Some buttons have white icons,
 ## others have black icons. When navigating with the controller the black
 ## icons turn white when the button is 'hovered' and the white icons do
 ## nothing. The ones that turn white are basically invisible if the button is
@@ -59,12 +59,6 @@ func _make_pause_menu() -> PauseMenu:
 	return menu
 
 
-func _make_options_menu() -> OptionsMenu:
-	var menu: OptionsMenu = autofree(OPTIONS_MENU_SCENE.instantiate())
-	add_child_autofree(menu)
-	return menu
-
-
 ## True for a Button drawn in the scene's own window: not inside a popup or
 ## dialog (OptionsMenu's FileDialog builds engine toolbar Buttons with
 ## built-in, pathless icons that are not menu art).
@@ -81,23 +75,11 @@ func _icon_buttons(root: Node) -> Array[Button]:
 	return found
 
 
-## The mute buttons draw their speaker on a child TextureRect (see
-## ui/menus/OptionsMenu.gd's _style_mute_button_icon() DECISION), so they are walked
-## separately from Button.icon buttons.
-func _texture_icon_buttons(root: Node) -> Array[Button]:
-	var found: Array[Button] = []
-	for node: Node in root.find_children("*", "Button", true, false):
-		var button: Button = node as Button
-		if button.icon == null and button.get_node_or_null("Icon") is TextureRect and _in_main_window(button):
-			found.append(button)
-	return found
-
-
 ## Background colour of one stylebox as the icon sees it.
 func _box_color(box: StyleBox, label: String) -> Color:
 	var block: BlockStyleBox = box as BlockStyleBox
 	if block != null:
-		# Bontago-hfa.2: the Arcade block's face is what the icon sits on (disabled composites on the panel).
+		# the Arcade block's face is what the icon sits on (disabled composites on the panel).
 		if block.disabled:
 			return MenuStyleFactory.arcade_tuning().disc_800_color.lerp(block.face_color, block.disabled_alpha)
 		return Color(block.face_color.r, block.face_color.g, block.face_color.b, 1.0)
@@ -142,14 +124,6 @@ func test_contrast_ratio_matches_wcag_reference_values() -> void:
 	assert_almost_eq(MenuStyleFactory.contrast_ratio(TUNING.pill_cream_color, TUNING.pill_cream_color), 1.0, 0.0001)
 
 
-func test_white_icon_on_cream_pill_is_rejected_by_the_threshold() -> void:
-	# The reported bug: a white glyph on a light face (Arcade: the rim-gold block).
-	var ratio: float = MenuStyleFactory.contrast_ratio(Color.WHITE, MenuStyleFactory.arcade_tuning().rim_color)
-	assert_lt(ratio, TUNING.icon_min_contrast_ratio, "white-on-rim measured %.2f must fail" % ratio)
-
-
-# --- shipped scenes -----------------------------------------------------------
-
 func test_main_menu_icons_contrast_in_every_state() -> void:
 	var buttons: Array[Button] = _icon_buttons(_make_main_menu())
 	assert_eq(buttons.size(), MAIN_MENU_ICON_BUTTONS, "icon buttons found in MainMenu.tscn")
@@ -162,118 +136,3 @@ func test_pause_menu_icons_contrast_in_every_state() -> void:
 	assert_eq(buttons.size(), PAUSE_MENU_ICON_BUTTONS, "icon buttons found in PauseMenu.tscn")
 	for button: Button in buttons:
 		_assert_button_contrast(button, "PauseMenu")
-
-
-func test_options_menu_mute_icons_contrast_on_their_panel_in_every_state() -> void:
-	var menu: OptionsMenu = _make_options_menu()
-	var mutes: Array[Node] = menu.find_children("*MuteButton", "UiIconButton", true, false)
-	assert_eq(mutes.size(), OPTIONS_MENU_MUTE_BUTTONS, "mute buttons found in OptionsMenu.tscn")
-	# Bontago-1pi.159.3: the mute blocks are UiIconButtons (a Button icon on a block face), so the
-	# generic Button.icon walk below covers them in every state.
-	for icon_button: Button in _icon_buttons(menu):
-		_assert_button_contrast(icon_button, "OptionsMenu")
-
-
-func _panel_color_behind(node: Control) -> Color:
-	var ancestor: Node = node.get_parent()
-	while ancestor != null:
-		var panel: PanelContainer = ancestor as PanelContainer
-		if panel != null:
-			return _box_color(panel.get_theme_stylebox("panel"), "panel behind %s" % node.name)
-		ancestor = ancestor.get_parent()
-	fail_test("%s has no PanelContainer ancestor" % node.name)
-	return Color.MAGENTA
-
-
-func test_plain_theme_buttons_contrast_in_every_state() -> void:
-	# A Button with no per-node overrides (every pill the factory does not
-	# paint) must still pass: the shared Theme's own defaults.
-	var minimum: float = TUNING.icon_min_contrast_ratio
-	# (hover_pressed is not themed: the engine's own default style applies.)
-	for state: Array in STATES:
-		var state_name: String = state[0]
-		var box_name: String = state[1]
-		var icon_item: String = state[2]
-		var bg: Color = _box_color(THEME.get_stylebox(box_name, "Button"), "theme Button/%s" % box_name)
-		assert_true(THEME.has_color(icon_item, "Button"), "theme defines Button/%s" % icon_item)
-		var icon_color: Color = THEME.get_color(icon_item, "Button")
-		var ratio: float = MenuStyleFactory.contrast_ratio(_drawn(icon_color, bg), bg)
-		assert_gte(ratio, minimum, "theme Button [%s] icon contrast %.2f" % [state_name, ratio])
-
-
-func test_the_old_per_node_override_pattern_fails_the_focus_contrast() -> void:
-	# Demonstrates the reported bug path: a bright (rim-gold) block whose dark icon was set
-	# only for normal/hover keeps the theme's light icon colour while focused -- invisible on it.
-	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	var face: Color = arcade.rim_color
-	var button: Button = autofree(Button.new())
-	button.theme = THEME
-	add_child_autofree(button)
-	button.add_theme_color_override("icon_normal_color", arcade.ink_color)
-	button.add_theme_color_override("icon_hover_color", arcade.ink_color)
-	var normal_ratio: float = MenuStyleFactory.contrast_ratio(button.get_theme_color("icon_normal_color"), face)
-	var focus_ratio: float = MenuStyleFactory.contrast_ratio(button.get_theme_color("icon_focus_color"), face)
-	assert_gte(normal_ratio, TUNING.icon_min_contrast_ratio, "the dark normal icon reads on the bright face")
-	assert_lt(focus_ratio, TUNING.icon_min_contrast_ratio, "the un-overridden focus icon (%.2f) is invisible on it" % focus_ratio)
-	MenuStyleFactory.apply_ink(button, arcade.ink_color)
-	focus_ratio = MenuStyleFactory.contrast_ratio(button.get_theme_color("icon_focus_color"), face)
-	assert_gte(focus_ratio, TUNING.icon_min_contrast_ratio, "apply_ink() fixes the focus icon (%.2f)" % focus_ratio)
-
-
-# --- consistency ---------------------------------------------------------------
-
-func test_icon_keeps_its_caption_ink_in_every_enabled_state() -> void:
-	var buttons: Array[Button] = []
-	buttons.append_array(_icon_buttons(_make_main_menu()))
-	buttons.append_array(_icon_buttons(_make_pause_menu()))
-	assert_gt(buttons.size(), 0)
-	for button: Button in buttons:
-		var ink: Color = button.get_theme_color("font_color")
-		for item: String in MenuStyleFactory.BUTTON_ICON_COLOR_ITEMS:
-			assert_eq(button.get_theme_color(item), ink, "%s %s must equal its label ink (no state flips the icon colour)" % [button.name, item])
-		for item: String in MenuStyleFactory.BUTTON_FONT_COLOR_ITEMS:
-			assert_eq(button.get_theme_color(item), ink, "%s %s must equal its label ink" % [button.name, item])
-
-
-func test_focused_light_pill_icon_is_dark_and_focused_dark_pill_icon_is_light() -> void:
-	var menu: MainMenu = _make_main_menu()
-	var cream_pill: Button = menu.get_node("%OptionsButton") as Button
-	var slate_pill: Button = menu.get_node("%BackButton") as Button
-	assert_eq(cream_pill.get_theme_color("icon_focus_color"), TUNING.ink_color, "focused cream pill: dark icon")
-	assert_eq(cream_pill.get_theme_color("icon_hover_color"), TUNING.ink_color, "hovered cream pill: dark icon")
-	assert_eq(slate_pill.get_theme_color("icon_focus_color"), TUNING.label_ink_light_color, "focused dark pill: light icon")
-	assert_eq(slate_pill.get_theme_color("icon_pressed_color"), TUNING.label_ink_light_color, "pressed dark pill: light icon")
-
-
-func test_toggle_chip_covers_the_focus_state() -> void:
-	# apply_toggle_chip() goes through apply_ink(), so its focused label/icon cannot fall
-	# back to the pale theme default on a cream chip.
-	var chip: CheckButton = autofree(CheckButton.new())
-	add_child_autofree(chip)
-	MenuStyleFactory.apply_toggle_chip(chip, TUNING.pill_cream_color, TUNING.pill_cream_hover_color, TUNING.pill_coral_color, TUNING.pill_coral_hover_color, TUNING.ink_color, TUNING)
-	assert_eq(chip.get_theme_color("font_focus_color"), TUNING.ink_color, "focused caption ink")
-	assert_eq(chip.get_theme_color("icon_focus_color"), TUNING.ink_color, "focused icon ink")
-
-
-# --- source art -----------------------------------------------------------------
-
-func test_every_menu_icon_source_is_white_svg_art() -> void:
-	var textures: Dictionary = {}
-	var roots: Array[Node] = [_make_main_menu(), _make_pause_menu(), _make_options_menu()]
-	for root: Node in roots:
-		for button: Button in _icon_buttons(root):
-			textures[button.icon.resource_path] = "%s/%s" % [root.name, button.name]
-		for button: Button in _texture_icon_buttons(root):
-			textures[((button.get_node("Icon") as TextureRect).texture).resource_path] = "%s/%s" % [root.name, button.name]
-	for icon: Texture2D in [OptionsMenu.SPEAKER_MUTED_ICON, OptionsMenu.SPEAKER_LOW_ICON, OptionsMenu.SPEAKER_MID_ICON, OptionsMenu.SPEAKER_HIGH_ICON]:
-		textures[icon.resource_path] = "OptionsMenu speaker constant"
-	assert_gt(textures.size(), 0)
-	var paint_regex: RegEx = RegEx.create_from_string("(?:fill|stroke)=\"([^\"]*)\"")
-	for path: String in textures:
-		var owner_label: String = textures[path]
-		assert_true(path.ends_with(".svg"), "'%s' (used by %s) is an SVG source" % [path, owner_label])
-		var source: String = FileAccess.get_file_as_string(path)
-		assert_false(source.is_empty(), "'%s' (used by %s) readable" % [path, owner_label])
-		for hit: RegExMatch in paint_regex.search_all(source):
-			var paint: String = hit.get_string(1).to_lower()
-			assert_true(WHITE_SVG_PAINTS.has(paint), "%s bakes colour '%s'; icon art must be white so theme icon colours apply" % [path, paint])

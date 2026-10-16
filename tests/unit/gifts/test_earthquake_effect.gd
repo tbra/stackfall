@@ -1,5 +1,5 @@
 extends GutTest
-## EarthquakeEffect (spec 2.6, docs/archive/M4_SPECIALS_PACKAGES.md P5-EARTHQUAKE):
+## EarthquakeEffect (spec 1.6):
 ## the shake-every-armed-tick + leveling-nudge timed effect, driven through a
 ## real, tiny Field registered via Match.register_world() -- same fixture
 ## shape as tests/unit/field/test_field_tilt.gd's own _make_field(), plus the
@@ -108,7 +108,7 @@ func test_an_armed_ticks_calls_apply_tilt_impulse_and_moves_the_tilt_vector() ->
 ## arm_delay is set to the same step size used below (0.25 s, exact in binary
 ## floating point) so the tick that arms is also the tick that seeds the
 ## effect's `<key>_start_age` meta at an age exactly equal to arm_delay --
-## docs/archive/M4_SPECIALS_PACKAGES.md's timed-effect pattern samples
+## the timed-effect pattern samples
 ## `behavior.age()` (already incremented for the current tick) on that first
 ## armed tick, so "elapsed" only reads exactly shake_duration_s once total
 ## age reaches arm_delay + shake_duration_s.
@@ -125,22 +125,6 @@ func test_wants_early_trigger_flips_at_shake_duration_s() -> void:
 
 	_tick(behavior, 0.25)  # age reaches 1.25 == arm_delay + shake_duration_s
 	assert_true(behavior.is_triggered(), "must trigger once shake_duration_s elapses")
-
-
-## Counts physics_tick() calls -- the only place this effect ever calls
-## apply_tilt_impulse() -- so "no further impulses after trigger" can be
-## proven directly rather than through a physical proxy (a residual
-## pre-trigger spring velocity can legitimately keep moving the tilt vector
-## for a while with zero further impulses, a critically damped spring is not
-## guaranteed monotonic the instant its forcing stops, so tilt magnitude
-## alone is not a reliable witness here).
-class _CountingEarthquakeEffect:
-	extends EarthquakeEffect
-	var physics_tick_calls: int = 0
-
-	func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void:
-		physics_tick_calls += 1
-		super.physics_tick(block, behavior, delta)
 
 
 func test_the_shake_kick_comes_from_disc_force_and_stops_after_the_duration() -> void:

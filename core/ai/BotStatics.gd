@@ -4,9 +4,9 @@ extends RefCounted
 ## pieces. Which site is stable is decided by BotStability (the owner's two centre-of-mass rules); what is
 ## left here is each orientation's own rule 1 (self_margin), eligibility by it, and the probe layout.
 ##
-## DECISION (Bontago-1t5.55.1): cube offsets are in the SPAWN frame, B*(cell - bottom_center()),
+## DECISION: cube offsets are in the SPAWN frame, B*(cell - bottom_center()),
 ## exactly where BlockFactory puts the collision cubes around the pivot the host is given
-## (`candidate.origin` is that pivot). Before 1t5.55.1 they were B*cell, shifted by B*pivot
+## (`candidate.origin` is that pivot). An earlier version placed them at B*cell, shifted by B*pivot
 ## (up to 1.4 m), so probes looked at the wrong patch. `cell_support` entries
 ## still line up with the cubes they were measured under (footprint_cells_of).
 
@@ -42,13 +42,13 @@ class OrientationInfo:
 	var center_shift: Vector2 = Vector2.ZERO
 	## Number of bottom cubes (grip area in cubes).
 	var contact_area: float = 0.0
-	## Bontago-1t5.69: number of cubes in the top layer (the landing area the next piece gets).
+	## number of cubes in the top layer (the landing area the next piece gets).
 	var top_area: float = 0.0
-	## Bontago-1t5.72: rule 1 of the owner's statics on the flat disc, in cube units: the signed distance of the
+	## rule 1 of the owner's statics on the flat disc, in cube units: the signed distance of the
 	## centre of mass inside the hull of the bottom cubes' contact squares (face half (cube - cube_margin) / 2),
 	## positive inside. A property of the orientation alone; the stability model (BotStability) judges real sites.
 	var self_margin: float = 0.0
-	## Bontago-1t5.72: the centre of mass above the bottom face, cube units (cubes are uniform).
+	## the centre of mass above the bottom face, cube units (cubes are uniform).
 	var com_height: float = 0.5
 
 
@@ -103,7 +103,7 @@ static func _self_margin(info: OrientationInfo) -> float:
 	return BotGeom2D.signed_inside_hull(BotGeom2D.hull(corners), info.com)
 
 
-## Bontago-1t5.55.2: disk-local xz of the real bottom-cube centres of `c` (its pivot `c.origin` plus the
+## disk-local xz of the real bottom-cube centres of `c` (its pivot `c.origin` plus the
 ## spawn-frame contact offsets), ordered from the outermost inward (descending distance from the contact
 ## centroid, ties in contact order) and cut to `max_count`: a capped tier still probes the cubes that decide
 ## an overhang. Deterministic; empty for no contact cubes or a non-positive `max_count`.
@@ -165,7 +165,7 @@ static func orientation_infos(shape: BlockShape, tuning: BotGenTuning = null) ->
 			continue
 		seen[info.signature] = true
 		distinct.append(info)
-	# Bontago-1t5.72 (P4): an orientation is offered only when its own centre of mass is inside the hull of its
+	# P4: an orientation is offered only when its own centre of mass is inside the hull of its
 	# bottom contact squares by more than the numeric tolerance (rule 1 on flat ground). Filtering happens
 	# before the cap, so an ineligible orientation never takes a round-robin slot.
 	var cube: float = SHIPPED_PHYSICS_TUNING.cube_size

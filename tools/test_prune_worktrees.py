@@ -52,7 +52,7 @@ class PruneTest(unittest.TestCase):
         return pw.prune(self.repo, apply=apply, say=lambda s: None, **kw)
 
     def test_fresh_uncommitted_branch_kept(self):
-        # Bontago-fca.57: a just-created agent worktree looks merged and clean.
+        # a just-created agent worktree looks merged and clean.
         p = self.add_wt("wt/fresh")
         c = self.run_prune(keep_fresh=True)
         self.assertEqual(c["removed"], 0)
@@ -94,7 +94,7 @@ class PruneTest(unittest.TestCase):
         self.assertIn("wt/a", self.branches())
 
     def test_protected_kept(self):
-        p = self.add_wt("codex/job")
+        p = self.add_wt("integrate/job")
         c = self.run_prune()
         self.assertEqual((c["removed"], c["protected"]), (0, 1))
         self.assertTrue(os.path.exists(p))

@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-d04 (P2 bug report: "I grabbed a yellow cube but nothing seemed to
+## (P2 bug report: "I grabbed a yellow cube but nothing seemed to
 ## happen", windowed `godot --path . -- --headless-host --bots=3 --players=4`,
 ## human is slot 0).
 ##
@@ -18,7 +18,7 @@ extends GutTest
 ## 1. The claim path is not broken: a crate landing inside slot 0's own
 ##    territory in a bot-hosted match is claimed and fires Events.gift_claimed
 ##    (test_crate_inside_the_human_slots_territory_is_claimed_in_a_bot_hosted_match).
-## 2. Spec 2.6's claim rule really is territory-only [ORIGINAL]: a crate that
+## 2. Spec 1.6's claim rule really is territory-only [ORIGINAL]: a crate that
 ##    is not inside anyone's territory is not claimed just because it exists
 ##    on the field (test_crate_outside_every_slots_territory_is_not_claimed_
 ##    in_a_bot_hosted_match) -- "nothing happened" for that crate is the
@@ -28,7 +28,7 @@ extends GutTest
 ## a successful claim simply had no visible feedback at all (the claimed
 ## crate's node was queue_free()d the same frame with no animation, and the
 ## HUD only silently refreshed a small text counter). game/gifts/GiftCrate.gd's and
-## ui/hud/HUD.gd's own Bontago-d04 changes address that half; this file only
+## ui/hud/HUD.gd's own changes address that half; this file only
 ## re-confirms the claim mechanics themselves are sound end to end through
 ## the exact config shape the bug was reported against.
 
@@ -125,7 +125,7 @@ func test_crate_outside_every_slots_territory_is_not_claimed_in_a_bot_hosted_mat
 	# Off every home flag and off-center (the same off-territory position
 	# test_gift_claim.gd's own test_crate_expires_after_life_s_without_being_
 	# claimed uses) -- nobody's raster cell claims it, so "driving a held
-	# block/ghost over this crate" does nothing, by spec 2.6's own claim rule
+	# block/ghost over this crate" does nothing, by spec 1.6's own claim rule
 	# [ORIGINAL], not because anything is broken.
 	var gift_id: int = _inject_crate(Vector2(19.0, 19.0))
 	watch_signals(Events)
@@ -134,10 +134,3 @@ func test_crate_outside_every_slots_territory_is_not_claimed_in_a_bot_hosted_mat
 
 	assert_true(Match._gifts._crates.has(gift_id), "a crate outside every slot's territory must not be claimed")
 	assert_signal_not_emitted(Events, "gift_claimed")
-
-
-# --- Bontago-1t5.2: a real BotController claims landed gifts / spends specials ---
-
-class HostNet:
-	func is_host() -> bool:
-		return true

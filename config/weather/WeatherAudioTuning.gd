@@ -1,6 +1,6 @@
 class_name WeatherAudioTuning
 extends Resource
-## Weather ambience tunables (Bontago-mp0.118). Which loop belongs to which
+## Weather ambience tunables. Which loop belongs to which
 ## weather lives on WeatherTuning (ambience_loop); this resource carries the
 ## shared mixing numbers for autoload/match/weather/WeatherAmbience.gd.
 ## config/weather/weather_audio.tres is the shipped instance.

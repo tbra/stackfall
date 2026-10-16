@@ -1,9 +1,9 @@
 extends GutTest
-## Data checks for every BlockShape resource under config/blocks/ (spec 2.4).
+## Data checks for every BlockShape resource under config/blocks/ (spec 1.4).
 
 const BLOCKS_DIR: String = "res://config/blocks/"
 
-## id -> expected cube count, from the spec 2.4 table.
+## id -> expected cube count, from the spec 1.4 table.
 const EXPECTED_CELL_COUNTS: Dictionary = {
 	&"cube": 1,
 	&"domino": 2,
@@ -82,7 +82,7 @@ func test_sloped_cells_are_a_subset_of_cells() -> void:
 			assert_true(shape.cells.has(cell), "%s sloped_cells must all be in cells." % shape.id)
 
 
-# --- Bontago-mv0.17 item 3 (was Bontago-mv0.12): BlockShape.bottom_center() --
+# --- item 3 (was): BlockShape.bottom_center() --
 
 ## bottom_center() must be the cells' bounding-box x/z midpoint, but the
 ## *bottom* face in y (half a cube below the lowest cell's own centre), for
@@ -102,7 +102,7 @@ func test_bottom_center_is_the_bounding_box_bottom_face_for_every_shape() -> voi
 		)
 
 
-## Spot checks against the spec 2.4 table's own cell layouts, so a future
+## Spot checks against the spec 1.4 table's own cell layouts, so a future
 ## change to a specific shape's cells is caught by name, not just by the
 ## generic bounding-box check above.
 func test_bottom_center_of_a_flat_symmetric_shape_is_below_the_origin() -> void:
@@ -126,7 +126,7 @@ func test_bottom_center_of_an_off_origin_shape_is_not_the_origin() -> void:
 
 
 ## The shape that actually distinguishes bottom_center() from the old
-## mv0.12 geometric centre: pillar stacks three cells in y (0..2), so its
+## geometric centre: pillar stacks three cells in y (0..2), so its
 ## true vertical midpoint would be y = 1.0, but the bottom face of its lowest
 ## cell is y = -0.5.
 func test_bottom_center_of_a_tall_shape_is_its_lowest_face_not_its_midpoint() -> void:

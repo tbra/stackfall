@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Bontago-1pi.11.67: steady-state whole-GPU measurement driver.
+"""steady-state whole-GPU measurement driver.
 
 Runs res://tests/bench/bench_gpu_frame.tscn in --steady mode (one configuration per
 process, Engine.max_fps capped, vsync off, 3440x1440 off-screen render viewport) while
@@ -11,7 +11,7 @@ util * clock / max_clock, plus the bench's own fps and viewport-timer GPU ms.
   python tools/measure_gpu_steady.py run low --uncapped --repeat 1 --out runs.jsonl
   python tools/measure_gpu_steady.py report runs.jsonl
 
-A plan item is <preset>[:<feature>[+<feature>...]]. Refuses to run while the owner's
+A plan item is <preset>[:<feature>[+<feature>...]]. Refuses to run while the user's
 windowed Godot (Godot_v4.7.2-stable_win64) is alive. Not part of the shipped game.
 """
 import argparse
@@ -25,14 +25,15 @@ import signal
 import threading
 import time
 
-GODOT_CONSOLE = os.path.expandvars(
-    r"%LOCALAPPDATA%\Microsoft\WinGet\Packages\GodotEngine.GodotEngine_Microsoft.Winget.Source_8wekyb3d8bbwe"
-    r"\Godot_v4.7.2-stable_win64_console.exe"
-)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import godot_exe  # noqa: E402
+import repo_paths  # noqa: E402
+
+GODOT_CONSOLE = godot_exe.resolve()
 SMI_QUERY = "utilization.gpu,clocks.gr,clocks.max.gr,power.draw"
 SMI_PERIOD_MS = "250"
 RUN_TIMEOUT_S = 280
-DEFAULT_CHECKOUT = r"M:\Bontago-worktrees\gpu-audit"
+DEFAULT_CHECKOUT = repo_paths.worktrees_root() + "/gpu-audit"
 SCENE = "res://tests/bench/bench_gpu_frame.tscn"
 
 
@@ -57,8 +58,8 @@ for _sig in (getattr(signal, "SIGTERM", None), getattr(signal, "SIGBREAK", None)
 
 
 def kill_stale_samplers():
-    """Kills nvidia-smi samplers started by this tool whose parent process is gone (2026-10-09:
-    four orphans from killed runs kept polling the GPU every 250 ms overnight)."""
+    """Kills nvidia-smi samplers started by this tool whose parent process is gone:
+    orphans from killed runs kept polling the GPU every 250 ms overnight."""
     cmd = ("Get-CimInstance Win32_Process -Filter \"Name='nvidia-smi.exe'\" | "
            "Where-Object { $_.CommandLine -match 'utilization.gpu,clocks.gr' -and "
            "-not (Get-Process -Id $_.ParentProcessId -ErrorAction SilentlyContinue) } | "
@@ -82,7 +83,7 @@ def owner_game_running():
 
 def run_once(preset, off, checkout, max_fps, warmup, steady, profile, log_path):
     waited = 0
-    while owner_game_running():  # owner's game shares the GPU: wait it out (up to ~10 min), then give up
+    while owner_game_running():  # the user's game shares the GPU: wait it out (up to ~10 min), then give up
         waited += 1
         if waited > 40:
             raise SystemExit("owner's Godot_v4.7.2-stable_win64 is running; refusing to measure")
@@ -230,7 +231,7 @@ def main():
     r = sub.add_parser("run")
     r.add_argument("plan", nargs="+")
     r.add_argument("--repeat", type=int, default=1)
-    r.add_argument("--out", default=r"M:\Bontago-tools\scratch\gpu\runs.jsonl")
+    r.add_argument("--out", default=repo_paths.scratch_root() + "/gpu/runs.jsonl")
     r.add_argument("--checkout", default=DEFAULT_CHECKOUT)
     r.add_argument("--max-fps", type=int, default=144)
     r.add_argument("--uncapped", action="store_true")

@@ -1,11 +1,10 @@
 class_name VolcanoStructure
 extends Node3D
-## The Volcano's standalone world object (Bontago-1pi.85.14; plan section 3, owner
-## answer 1pi.85.4 (a)). A child of the Field, so it rides the tilting disc.
+## The Volcano's standalone world object (plan section 3, (a)). A child of the Field, so it rides the tilting disc.
 ##
 ## Host (physics = true): carries an AnimatableBody3D with a convex cone hull that
 ## grows over rise_s, pushes blocks in its footprint outward while it rises (bounded
-## scan, push_max_bodies per tick) and, once risen, spawns 1-3 owner-coloured
+## scan, push_max_bodies per tick) and, once risen, spawns 1-3 slot-coloured
 ## blocks of random shape (GiftShapePicker, shared weights) per burst through BlockSpawner (not counted as placements, stops at the
 ## cap). Client (physics = false): the same placeholder cone visual and clock, no
 ## collision body and no spawning. The node frees itself after rise_s +
@@ -30,7 +29,7 @@ const SEQ_SEED_MIX: int = 40503
 const MIN_RING_SEGMENTS: int = 3
 const HEIGHT_EPSILON: float = 0.0001
 
-## Bontago-mp0.163: the model's animated smoke puffs ("Smoke N") rise out of the crater
+## the model's animated smoke puffs ("Smoke N") rise out of the crater
 ## and must not count towards the footprint/height fit, so the cone keeps its size.
 const SMOKE_NODE_PREFIX: String = "Smoke"
 ## Looping smoke clip baked into the volcano GLB (same clip as the held gift).
@@ -82,7 +81,7 @@ static func _spawn(effect: VolcanoEffect, world_position: Vector3, owner_slot: i
 	var structure: VolcanoStructure = VolcanoStructure.new()
 	structure.configure(effect, owner_slot, physics, exclude)
 	if physics:
-		# Host-deterministic eruption stream: match seed, owner slot and spawn counter.
+		# Host-deterministic eruption stream: match seed, slot and spawn counter.
 		_spawn_seq += 1
 		var base_seed: int = int(ctx.config().rng_seed) if ctx.config() != null else 0
 		structure._rng.seed = base_seed ^ ((owner_slot + 1) * SLOT_SEED_MIX) ^ (_spawn_seq * SEQ_SEED_MIX)
@@ -361,7 +360,7 @@ func _erupt(delta: float) -> void:
 			return
 
 
-## Launch velocity of block `index` of a `count`-block burst (Bontago-1pi.85.46). Evenly spaced
+## Launch velocity of block `index` of a `count`-block burst. Evenly spaced
 ## azimuths from the burst `phase` (when azimuth_even), a polar angle kept off the axis for a
 ## multi-block burst, and a per-block speed drawn from [1 - j, 1 + j] times the base.
 func _launch_velocity(index: int = 0, count: int = 1, phase: float = 0.0) -> Vector3:

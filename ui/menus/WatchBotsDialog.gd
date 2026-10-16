@@ -1,6 +1,6 @@
 class_name WatchBotsDialog
 extends UiDialog
-## Bontago-1pi.212: the debug-only "Watch bots" picker (main menu, Debug page). Mode, number of bots,
+## the debug-only "Watch bots" picker (main menu, Debug page). Mode, number of bots,
 ## difficulty (all one level or mixed), gifts and weather; Start emits `confirmed` with the choices as a
 ## WatchBotsOptions (game/main/WatchBotsOptions.gd, which also builds the MatchConfig and remembers the last
 ## values). Built from ui/components only; the match itself is started by game/main/Main.gd.

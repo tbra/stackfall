@@ -1,7 +1,6 @@
 class_name ResultsPayload
 extends RefCounted
-## The one owner of the match-results payload schema (Bontago-fca.36.8, audit
-## fca.36 finding [13]; docs/SINGLE_SOURCE_PLAN.md section 2). The payload is
+## The one owner of the match-results payload schema. The payload is
 ## built by MatchStats.build_results_payload()/build_live_payload(), shipped as
 ## EVENT_MATCH_RESULTS / the live snapshot (net/MatchNet.gd), re-typed here on
 ## receipt and read by ResultsScreen, ScoreTable and ScoreboardOverlay.
@@ -9,7 +8,7 @@ extends RefCounted
 ## DECISION (minor): a small core/ class rather than MatchStats, because the
 ## readers are pure UI/rule helpers that should not depend on an autoload-side
 ## script, and core/ has no scene-tree dependence (unit-testable). MatchStats
-## stays the builder and keeps validate_results_payload() as a thin delegate.
+## stays the builder.
 ## The wire format and every string value are unchanged.
 ##
 ## Shape: {winner_kind, winner_id, winner_name, match_duration, rows[, mode][, live]};
@@ -203,7 +202,7 @@ static func _validate_row(raw_row: Variant) -> Dictionary:
 	var specials: Variant = row.get(KEY_SPECIALS_USED)
 	var share: Variant = row.get(KEY_TERRITORY_SHARE)
 	var eliminated: Variant = row.get(KEY_ELIMINATED_AT)
-	# Bontago-1pi.72.2: optional (an older payload lacks them) but typed when present.
+	# optional (an older payload lacks them) but typed when present.
 	var height: Variant = row.get(KEY_HEIGHT, 0.0)
 	var peak: Variant = row.get(KEY_PEAK_TERRITORY, 0.0)
 	var wins: Variant = row.get(KEY_WINS, 0)

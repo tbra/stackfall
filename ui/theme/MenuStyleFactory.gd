@@ -1,5 +1,5 @@
 class_name MenuStyleFactory
-## M7 P7 (docs/M7_PLAN.md "P7 -- Main menu / lobby reskin", Bontago-xtq.32):
+## Main menu / lobby reskin:
 ## builds the varied pastel pill buttons, sunken "well" panels and offset
 ## shadow cards mockups 10/11 (docs/art_mockups/10-main-menu-layered-pastel.png,
 ## 11-lobby-layered-pastel.png) show, entirely from StyleBoxFlat -- no image
@@ -14,7 +14,7 @@ class_name MenuStyleFactory
 ## (a Theme resource cannot vary style per node of the same control type).
 extends RefCounted
 
-## Bontago-1pi.37: the Button theme items apply_ink() paints, one per
+## the Button theme items apply_ink() paints, one per
 ## non-disabled draw state (the engine names the plain font state "font_color"
 ## but the plain icon state "icon_normal_color").
 const BUTTON_FONT_COLOR_ITEMS: PackedStringArray = [
@@ -25,7 +25,7 @@ const BUTTON_ICON_COLOR_ITEMS: PackedStringArray = [
 ]
 
 
-## Paints [param button] as a Stackfall Arcade block (docs/UI_RESKIN_PLAN.md P0, Bontago-hfa.2):
+## Paints [param button] as a Stackfall Arcade block:
 ## face [param face], a lit top, a dark lip and a solid ledge, drawn by ui/theme/BlockStyleBox.gd,
 ## with [param ink] as the label and icon colour in every draw state. The lip and top of the
 ## design's named faces (flare, rim, mint) come from the token table instead of a derived mix.
@@ -107,7 +107,7 @@ static func _hover_face(face: Color) -> Color:
 	return face.lerp(Color.WHITE, arcade_tuning().block_hover_light_mix)
 
 
-## Bontago-1pi.37: the single place a Button's label and icon colours are set.
+## the single place a Button's label and icon colours are set.
 ## Every non-disabled draw state (normal, focus, hover, pressed, hover_pressed)
 ## gets [param ink] for both the font_*color and icon_*_color theme items:
 ## icons are white-source SVGs (assets/ui/icons/*.svg, tinted by
@@ -121,13 +121,13 @@ static func apply_ink(button: Button, ink: Color) -> void:
 		button.add_theme_color_override(item, ink)
 
 
-## Bontago-1pi.37: WCAG relative luminance of an sRGB [param color]
+## WCAG relative luminance of an sRGB [param color]
 ## (0.0 black .. 1.0 white); alpha is ignored.
 static func relative_luminance(color: Color) -> float:
 	return 0.2126 * _linear_channel(color.r) + 0.7152 * _linear_channel(color.g) + 0.0722 * _linear_channel(color.b)
 
 
-## Bontago-1pi.37: WCAG contrast ratio of two colours, symmetric, 1.0 (same
+## WCAG contrast ratio of two colours, symmetric, 1.0 (same
 ## colour) .. 21.0 (black on white). tests/unit/ui/test_menu_icons.gd asserts
 ## every menu icon stays above MenuVisualTuning.icon_min_contrast_ratio.
 static func contrast_ratio(a: Color, b: Color) -> float:
@@ -151,7 +151,7 @@ static func _linear_channel(channel: float) -> float:
 	return pow((channel + SRGB_GAMMA_OFFSET) / SRGB_GAMMA_SCALE, SRGB_GAMMA_EXPONENT)
 
 
-## Bontago-mp0.3.5 (review r1, item 5): a borderless white list panel for a
+## review r1, item 5: a borderless white list panel for a
 ## server/lobby row list that already sits inside its own well card
 ## (ui/menus/MainMenu.tscn's %LanGamesWell) -- avoids stacking two sunken borders.
 static func make_flat_list(tuning: MenuVisualTuning) -> StyleBoxFlat:

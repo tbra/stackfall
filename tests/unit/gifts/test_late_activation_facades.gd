@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.11.85.1: every Match facade getter/command that Main, the menu, the lobby, the
+## every Match facade getter/command that Main, the menu, the lobby, the
 ## browsers or the HUD can reach before late_activate() answers an idle default and never errors;
 ## state-building mutators activate lazily. MatchNet's own getters are plain lookups.
 
@@ -14,7 +14,7 @@ func after_each() -> void:
 	MatchContext.install(_previous_context)
 
 
-## Bontago-6a4 (review follow-up of 1pi.11.85.2): Net.host_game() emits net_mode_changed; Main's
+## Net.host_game() emits net_mode_changed; Main's
 ## handler (connected first, in _ready) must activate Match + MatchNet before any later listener
 ## or poll runs. The real autoloads are put back into the pre-activation state first.
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")

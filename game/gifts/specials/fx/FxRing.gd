@@ -1,9 +1,9 @@
 class_name FxRing
 extends MeshInstance3D
-## Bontago-a3z: a flat ring (shaders/gifts/fx_ring.gdshader) that grows from nothing to
+## a flat ring (shaders/gifts/fx_ring.gdshader) that grows from nothing to
 ## `radius_m` with an ease-out while it fades over `lifetime_s`. Shared by the
 ## cartoon blast's shock ring, the Freeze frost ring and the Jumping Bean hop ring.
-## Visual only. An owner either drives advance() itself, or calls play() and the
+## Visual only. A caller either drives advance() itself, or calls play() and the
 ## ring runs on its own _process and frees itself when done.
 
 const SHADER: Shader = preload("res://shaders/gifts/fx_ring.gdshader")

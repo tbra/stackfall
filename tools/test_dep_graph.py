@@ -1,4 +1,4 @@
-"""Unit tests for tools/dep_graph.py (Bontago-fca.52) on a tiny synthetic project.
+"""Unit tests for tools/dep_graph.py on a tiny synthetic project.
 
 Run: python -m unittest tools.test_dep_graph   (from the repo root)
 """
@@ -263,7 +263,7 @@ class DepGraphTest(unittest.TestCase):
 
 
 class GraphViewerPayloadTest(DepGraphTest):
-    """graph.html payload and template (Bontago-fca.117). Reuses the DepGraphTest fixture graph."""
+    """graph.html payload and template. Reuses the DepGraphTest fixture graph."""
 
     @classmethod
     def setUpClass(cls):
@@ -328,7 +328,7 @@ class GraphViewerPayloadTest(DepGraphTest):
             self.assertTrue(by_path[path][6] & dep_graph.FLAG_AUTOLOAD)
             self.assertEqual(by_path[path][11], name)
 
-    # ---- function call view payload (Bontago-fca.118) ----
+    # ---- function call view payload ----
     def fv_rows(self, path):
         pl = self.pl
         idx = [f[0] for f in pl["files"]].index(path)
@@ -469,7 +469,7 @@ FIXTURE_FP = {
 
 
 class FalsePositiveFixesTest(unittest.TestCase):
-    """Bontago-fca.73: one fixture assertion per fixed false-positive pattern."""
+    """one fixture assertion per fixed false-positive pattern."""
 
     @classmethod
     def setUpClass(cls):

@@ -40,7 +40,7 @@ static func build(
 		candidates.append(i)
 	# Largest projected radius first; original index breaks ties deterministically.
 	# Native lexicographic Array sort on [-radius, index] (64-bit, no rounding)
-	# replaces a GDScript lambda comparator (Bontago-1pi.11.22).
+	# replaces a GDScript lambda comparator.
 	var sort_keys: Array = []
 	sort_keys.resize(candidates.size())
 	for k: int in range(candidates.size()):

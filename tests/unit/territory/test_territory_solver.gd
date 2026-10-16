@@ -1,5 +1,5 @@
 extends GutTest
-## Spec 2.2's connected-territory rule and spec 3.3's union-find-over-a-spatial-
+## Spec 1.5's connected-territory rule and spec 2.5's union-find-over-a-spatial-
 ## hash implementation.
 ##
 ## "Your territory is the union of all circles connected, directly or through

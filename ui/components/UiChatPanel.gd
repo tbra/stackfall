@@ -1,10 +1,10 @@
 class_name UiChatPanel
 extends PanelContainer
-## The design system's chat panel (docs/CHAT_PLAN.md section 3, docs/ui_reskin/components.md): one
+## The design system's chat panel:
 ## component, two skins. LOBBY is a CHAT title row, a scrolling log and an always-visible input line; HUD shows the last
 ## [member ChatConfig.hud_lines] lines, fades out after [member ChatConfig.line_visible_s] and shows the
-## input line only while typing. The lobby log sits in a sunken UiWell (Bontago-1pi.159.57); the HUD skin has no box, border
-## or background (Bontago-1pi.159.45), its log kept readable by a text outline. The log is a plain-text RichTextLabel (bbcode off; the sender name is
+## input line only while typing. The lobby log sits in a sunken UiWell; the HUD skin has no box, border
+## or background, its log kept readable by a text outline. The log is a plain-text RichTextLabel (bbcode off; the sender name is
 ## tinted with push_color / add_text, user text is never parsed). The panel never touches Net or Events:
 ## screens connect [signal submit_requested], [signal input_opened] / [signal input_closed] and feed
 ## [method append_line] / [method replace_history].
@@ -66,7 +66,7 @@ func _init() -> void:
 	_title_row = UiTitleRow.new()
 	_title_row.title = TITLE
 	_column.add_child(_title_row)
-	# Bontago-1pi.159.57: the lobby log sits in a sunken well again (the owner wants the message
+	# the lobby log sits in a sunken well again (the user wants the message
 	# window's background back); the HUD skin keeps no box (159.45) and hides the well.
 	_well = UiWell.new()
 	_well.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -218,7 +218,7 @@ func _apply_skin() -> void:
 	if log.get_parent() != null:
 		log.get_parent().remove_child(log)
 	if hud:
-		# Bontago-1pi.159.45: no box, border or background; outlined text sits straight on the scene.
+		# no box, border or background; outlined text sits straight on the scene.
 		add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 		log.add_theme_color_override("font_outline_color", arcade.ink_color)
 		log.add_theme_constant_override("outline_size", config.hud_outline_px)

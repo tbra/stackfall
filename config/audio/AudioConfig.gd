@@ -15,10 +15,10 @@ extends Resource
 	"thud1.wav", "thud2.wav", "thud3.wav", "thud4.wav",
 ]
 @export var rejected_file: String = "placement_rejected_pcm.wav"
-## Menu select/hover (Bontago-eq0, a script removed in Bontago-dbn.1 (see git history)) replace select.wav
+## Menu select/hover (a script removed in (see git history)) replace select.wav
 ## and button_hover_pcm.wav. The drop cue replaced block_placed.wav (a sustained
-## tone that read as a sharp note over the music); after owner feedback the
-## round-two candidates block_drop_a/b.wav (a script removed in Bontago-dbn.1 (see git history)) replace
+## tone that read as a sharp note over the music); after the
+## round-two candidates block_drop_a/b.wav (a script removed in (see git history)) replace
 ## block_release.wav. Unused candidates stay in assets/audio/sfx for A/B.
 @export var click_file: String = "ui_select.wav"
 @export var start_game_file: String = "start_game.mp3"
@@ -35,7 +35,7 @@ extends Resource
 
 ## Contextual tracks play once, with silence between songs instead of looping.
 @export var contextual_music_enabled: bool = true
-## Shipped playlists are path lists (Bontago-1pi.11.61): Sfx loads only the one
+## Shipped playlists are path lists: Sfx loads only the one
 ## track it is about to play (threaded prefetch, released afterwards) instead of
 ## every MP3 being resident from boot. The AudioStream arrays below are an
 ## optional pre-resolved override (tests, custom builds); when non-empty for a
@@ -85,16 +85,16 @@ func playlist_track_count(context: StringName) -> int:
 	var streams: Array[AudioStream] = playlist_for_context(context)
 	return streams.size() if not streams.is_empty() else playlist_paths_for_context(context).size()
 
-## Two-stem adaptive music (spec 2.10 "adaptive... more intense as someone
-## gets close to capturing"; docs/M7_PLAN.md P6). Sfx.gd crossfades between
+## Two-stem adaptive music (spec 1.10 "adaptive... more intense as someone
+## gets close to capturing"). Sfx.gd crossfades between
 ## this and music_stem_tense_file as Events.goal_capture_progress moves past
 ## music_tense_progress_threshold. Defaults to the same file as music_file
 ## (still EVENT_MUSIC's own source below) so a checkout with no tense asset
 ## installed sounds identical to before this field existed.
 @export var music_stem_calm_file: String = "music_calm.mp3"
 
-## DECISION (config/audio/AudioConfig.gd, Bontago-xtq.31): no real "tense" mix of
-## the original score has shipped yet (docs/M7_PLAN.md P6's own asset-risk
+## DECISION (config/audio/AudioConfig.gd): no real "tense" mix of
+## the original score has shipped yet (asset risk:
 ## note) -- this points at a filename nothing installs today so
 ## Sfx.tense_stem_available() is false out of the box and the adaptive
 ## crossfade quietly does nothing until a real file lands here, the same
@@ -111,7 +111,7 @@ func playlist_track_count(context: StringName) -> int:
 ## a broken/reset capture reports -- see Events.gd's own doc comment).
 @export var music_tense_progress_threshold: float = 0.6
 
-## Hysteresis margin (docs/M7_PLAN.md P6 review, Bontago-xtq.31) subtracted
+## Hysteresis margin subtracted
 ## from music_tense_progress_threshold to get the *release* point once the
 ## tense stem is active, so progress hovering right at the threshold doesn't
 ## flap the crossfade back and forth every frame. The *rising* edge (calm ->
@@ -120,8 +120,8 @@ func playlist_track_count(context: StringName) -> int:
 ## single-threshold behaviour exactly.
 @export var music_tense_release_margin: float = 0.1
 
-## DECISION (config/audio/AudioConfig.gd, Bontago-6y2): the local slot's own gift
-## claim (spec 2.6, Events.gift_claimed). No dedicated original asset for
+## DECISION (config/audio/AudioConfig.gd): the local slot's own gift
+## claim (spec 1.6, Events.gift_claimed). No dedicated original asset for
 ## "you got a reward" exists in the SoundFX pack, and EVENT_BOUNCE/bounce_file
 ## already registers "boing.wav" as an upbeat, positive bloop with no consumer
 ## wired to it yet (nothing calls Sfx.play(EVENT_BOUNCE)) -- reusing that same
@@ -135,7 +135,7 @@ func playlist_track_count(context: StringName) -> int:
 ## Minimum seconds between gift-spawn jingles (spam limit).
 @export var gift_spawn_min_interval_s: float = 2.0
 
-## Beacon-claim tension layer (Bontago-1pi.114). A looped bed rises with the
+## Beacon-claim tension layer. A looped bed rises with the
 ## Classic hold's progress (Events.goal_capture_progress), ducks the music, and a
 ## sting plays when a hold that got far enough breaks. Files live in
 ## assets/audio/sfx; a missing file is a silent no-op.
@@ -166,7 +166,7 @@ func playlist_track_count(context: StringName) -> int:
 ## Pitch multiplier while a RIVAL holds (<1 = lower, darker).
 @export_range(0.5, 1.0) var claim_rival_pitch_scale: float = 0.9
 
-## M4 specials (spec 2.6): registered now so the event map is complete, no
+## M4 specials (spec 1.6): registered now so the event map is complete, no
 ## hooks call these yet -- the specials themselves aren't implemented.
 @export var bomb_file: String = "bomb.wav"
 @export var rocket_file: String = "rocket.wav"
@@ -176,14 +176,14 @@ func playlist_track_count(context: StringName) -> int:
 @export var breakage_file: String = "eliminated.wav"
 @export var creak_file: String = "creak.wav"
 
-## Special activation cues (spec 2.10 "Specials have distinct warning sounds",
-## Bontago-eq0): SpecialDef.id -> filename in assets/audio/sfx, played on
+## Special activation cues (spec 1.10 "Specials have distinct warning sounds",
+## ): SpecialDef.id -> filename in assets/audio/sfx, played on
 ## Events.special_triggered on the host and on every client. An id with no
-## entry, or a missing file, is silent. Rendered by a script removed in Bontago-dbn.1 (see git history).
-## DECISION (Bontago-eq0): special_triggered fires on the Rocket's detonation,
+## entry, or a missing file, is silent. Rendered by a script removed in (see git history).
+## DECISION: special_triggered fires on the Rocket's detonation,
 ## not its launch, so the Rocket gets a blast cue; rocket.wav (a launch
 ## whistle) stays registered under EVENT_ROCKET with no caller.
-## DECISION (Bontago-eq0, owner feedback): Earthquake, Magnet and Jumping Bean are
+## DECISION: Earthquake, Magnet and Jumping Bean are
 ## timed specials whose special_triggered marks the END of their window, so they
 ## have no entry here: Earthquake and Magnet loop for the whole window
 ## (special_loop_files) and the bean sounds on every hop (bean_hop_file).
@@ -220,10 +220,10 @@ func playlist_track_count(context: StringName) -> int:
 @export var special_loop_fade_out_s: float = 0.6
 ## Most loops of any kind playing at once; the oldest is dropped past this.
 @export var special_loop_max: int = 3
-## Glue (owner feedback): a squelch whenever an impact involves a glue-coated block.
+## Glue: a squelch whenever an impact involves a glue-coated block.
 @export var glue_hit_file: String = "glue_squelch.wav"
 @export var glue_hit_min_interval_s: float = 0.12
-## Jumping Bean (owner feedback): a boing on every hop (Events.bean_hopped).
+## Jumping Bean: a boing on every hop (Events.bean_hopped).
 @export var bean_hop_file: String = "bean_hop_a.wav"
 @export var bean_hop_min_interval_s: float = 0.1
 
@@ -236,9 +236,9 @@ func playlist_track_count(context: StringName) -> int:
 ## Decibel offset applied to a thud at or above impact_speed_loud.
 @export var impact_loud_db_offset: float = 0.0
 
-## DECISION (Bontago-1pi.28): effects were near-inaudible because the bundled
+## DECISION: effects were near-inaudible because the bundled
 ## wavs sat at -29..-12 dBFS window-RMS AND this baseline was -16 dB (6 dB
-## below the music's). a script removed in Bontago-dbn.1 (see git history) --normalize now brings every
+## below the music's). a script removed in (see git history) --normalize now brings every
 ## bundled wav to -16 dBFS short-window RMS (peak <= -1 dBFS); with this -3 dB
 ## baseline a full-scale cue lands near -19 dBFS RMS, ~5 dB above the music bed
 ## (music_volume_db below on ~-14 dBFS-RMS mastered tracks, never measured:
@@ -247,7 +247,7 @@ func playlist_track_count(context: StringName) -> int:
 @export var sfx_volume_db: float = -3.0
 @export var music_volume_db: float = -10.0
 
-## Block impact variation set (Bontago-mp0.116, assets/audio/sfx/impact_variation_v1).
+## Block impact variation set (assets/audio/sfx/impact_variation_v1).
 ## Folder under assets/audio/sfx holding the soft/medium/hard x block/disc wavs.
 @export var impact_variation_dir: String = "impact_variation_v1"
 ## Normalized impact strength t = clamp((speed - impact_speed_min) /
@@ -272,7 +272,7 @@ func playlist_track_count(context: StringName) -> int:
 @export var impact_surface_query_radius_m: float = 0.75
 @export var impact_block_surface_min_blocks: int = 2
 
-## Lobby/loading UI cues (Bontago-mp0.117, assets/audio/sfx/lobby_ui_cues_v1).
+## Lobby/loading UI cues (assets/audio/sfx/lobby_ui_cues_v1).
 @export var ui_cue_dir: String = "lobby_ui_cues_v1"
 @export var ui_cue_files: Dictionary[StringName, String] = {
 	&"player_joined": "player_joined.wav",

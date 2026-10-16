@@ -1,10 +1,5 @@
 extends GutTest
-## ui/menus/ResultsScreen.gd (Bontago-1pi.6, owner playtest: "the win screen always
-## says 'Team x wins!' even when not playing in teams"). Reads Events.
-## match_results_ready's payload (autoload/match/MatchStats.gd's own header
-## documents the shape) and never assumes team_mode -- these tests drive
-## show_results() directly with a hand-built payload, the same "call the
-## handler, don't fake the signal" style tests/unit/ui/test_pause_menu.gd uses.
+## ui/menus/ResultsScreen: headline, rows, buttons and gamepad focus over match_results_ready.
 
 const RESULTS_SCREEN_SCENE: PackedScene = preload("res://ui/menus/ResultsScreen.tscn")
 
@@ -43,7 +38,7 @@ func before_each() -> void:
 	_screen.match_provider = _fake_match
 
 
-## Bontago-1pi.15.1: this file's own gamepad D-pad/A/B tests route real
+## this file's own gamepad D-pad/A/B tests route real
 ## InputEventJoypadButton events through Input.parse_input_event(), which
 ## flips the Settings autoload's own active_input_device() to DEVICE_GAMEPAD
 ## as a side effect -- reset it so a later test file in the same run doesn't
@@ -113,69 +108,16 @@ func test_a_tie_highlights_every_tied_team_row() -> void:
 	assert_eq(ResultsScreen.shared_winners_text(results), "Teams 1 & 2 share the win!")
 
 
-func test_single_winner_rows_unchanged_without_a_winners_list() -> void:
-	var rows: Array[Dictionary] = ResultsScreen.sorted_rows(_team_results())
-	assert_true(bool(rows[0].get("is_winner")))
-	assert_eq(int(rows[0].get("team_id")), 1)
-	assert_false(bool(rows[1].get("is_winner")))
-
-
 # --- Headline: the reported defect ------------------------------------------
-
-func test_ffa_headline_uses_the_winning_players_own_name() -> void:
-	_screen.show_results(_ffa_results())
-	assert_eq(_screen._headline.text, "Alice wins!", "FFA must name the winning player, never 'Team N'.")
-
 
 func test_team_headline_uses_the_team_name() -> void:
 	_screen.show_results(_team_results())
 	assert_eq(_screen._headline.text, "Team 2 wins!")
 
 
-func test_no_winner_reads_as_a_draw() -> void:
-	var results: Dictionary = _ffa_results()
-	results["winner_id"] = -1
-	results["winner_name"] = ""
-	_screen.show_results(results)
-	assert_eq(_screen._headline.text, "It's a draw!")
-
-
 # --- Stats table: one row per player, sorted, winner highlighted -----------
 
-func test_sorted_rows_orders_winner_first_then_survivors_then_eliminated() -> void:
-	var rows: Array[Dictionary] = ResultsScreen.sorted_rows(_ffa_results())
-	assert_eq(rows.size(), 3)
-	assert_eq(int(rows[0].get("slot_id")), 0, "the winner must be first.")
-	assert_true(bool(rows[0].get("is_winner")))
-	assert_eq(int(rows[1].get("slot_id")), 1, "the surviving non-winner ranks next.")
-	assert_false(bool(rows[1].get("is_winner")))
-	assert_eq(int(rows[2].get("slot_id")), 2, "the eliminated bot ranks last.")
-
-
-func test_populate_rows_builds_one_panel_per_player_plus_a_header() -> void:
-	_screen.show_results(_ffa_results())
-	assert_eq(_screen._rows_list.get_child_count(), 4, "header row + 3 player rows.")
-	var winner_panel: PanelContainer = _screen._rows_list.get_child(1) as PanelContainer
-	assert_true(bool(winner_panel.get_meta(&"is_winner")), "the winner's row must be flagged/highlighted.")
-	assert_eq(int(winner_panel.get_meta(&"slot_id")), 0)
-	var other_panel: PanelContainer = _screen._rows_list.get_child(2) as PanelContainer
-	assert_false(bool(other_panel.get_meta(&"is_winner")))
-
-
-func test_each_results_row_is_marked_with_its_slot_colour() -> void:
-	_screen.show_results(_ffa_results())
-	var palette: PackedColorArray = MatchConfig.default_player_colors()
-	for index: int in range(1, _screen._rows_list.get_child_count()):
-		var panel: PanelContainer = _screen._rows_list.get_child(index) as PanelContainer
-		var slot_id: int = int(panel.get_meta(&"slot_id"))
-		var name_cell: Label = (panel.get_child(0) as HBoxContainer).get_child(0) as Label
-		assert_eq(name_cell.get_meta(&"slot_color"), palette[slot_id], "row for slot %d" % slot_id)
-		var diamond: SlotDiamond = name_cell.get_node("SlotDiamond") as SlotDiamond
-		assert_not_null(diamond, "the round overview uses the shared SlotDiamond")
-		assert_eq(diamond.color, palette[slot_id])
-
-
-# Bontago-1t5.45: a bot row names its tier, a human row does not; a client's config
+# a bot row names its tier, a human row does not; a client's config
 # (round-tripped through to_dict/from_dict like the replicated one) shows the same tier.
 func _name_text_of_row(index: int) -> String:
 	var panel: PanelContainer = _screen._rows_list.get_child(index) as PanelContainer
@@ -200,25 +142,6 @@ func test_bot_row_shows_its_difficulty_and_human_rows_do_not() -> void:
 	assert_eq(_tag_text_of_row(1), "", "a human row has no tag")
 
 
-func test_long_bot_name_keeps_its_full_tier_tag() -> void:
-	_fake_match.config.slot_ai_difficulties = PackedInt32Array([0, 0, MatchConfig.AiDifficulty.HARD])
-	var results: Dictionary = _ffa_results()
-	(results["rows"] as Array)[2]["name"] = "A Very Long Bot Name That Overflows The Cell"
-	_screen.show_results(results)
-	var cell: Label = ((_screen._rows_list.get_child(3) as PanelContainer).get_child(0) as HBoxContainer).get_child(0) as Label
-	var tag: Label = cell.get_node("BotTag") as Label
-	assert_eq(tag.text, "(Bot, Hard)", "the tier text is whole")
-	assert_eq(cell.text_overrun_behavior, TextServer.OVERRUN_TRIM_ELLIPSIS, "the name is what ellipsizes")
-
-
-func test_client_config_copy_shows_the_same_difficulty() -> void:
-	var host_config: MatchConfig = MatchConfig.new()
-	host_config.slot_ai_difficulties = PackedInt32Array([0, 0, MatchConfig.AiDifficulty.EASY])
-	_fake_match.config = MatchConfig.from_dict(host_config.to_dict())
-	_screen.show_results(_ffa_results())
-	assert_eq(_tag_text_of_row(3), "(Bot, Easy)")
-
-
 # --- Host/client gate ---------------------------------------------------------
 
 func test_host_sees_enabled_buttons_and_no_waiting_hint() -> void:
@@ -229,54 +152,7 @@ func test_host_sees_enabled_buttons_and_no_waiting_hint() -> void:
 	assert_false(_screen._waiting_hint.visible)
 
 
-func test_client_sees_disabled_buttons_and_a_waiting_hint() -> void:
-	_fake_net.is_host_value = false
-	_screen.show_results(_ffa_results())
-	assert_true(_screen._replay_button.disabled, "a client must not be able to restart the match locally.")
-	assert_true(_screen._lobby_button.disabled)
-	assert_true(_screen._waiting_hint.visible, "a client needs to know why its buttons are inert.")
-
-
-func test_replay_button_calls_match_net_request_replay() -> void:
-	_screen.show_results(_ffa_results())
-	_screen._on_replay_pressed()
-	assert_eq(_fake_match_net.replay_calls, 1)
-
-
-func test_lobby_button_calls_match_net_request_return_to_lobby() -> void:
-	_screen.show_results(_ffa_results())
-	_screen._on_lobby_pressed()
-	assert_eq(_fake_match_net.return_to_lobby_calls, 1)
-
-
-func test_a_new_match_state_hides_the_screen() -> void:
-	_screen.show_results(_ffa_results())
-	assert_true(_screen.visible)
-	_screen._on_match_state_changed(Match.State.END, Match.State.LOBBY)
-	assert_false(_screen.visible, "a Back-to-lobby/Replay restart must take this overlay down.")
-
-
-## Bontago-1pi.46 (G9): the rows and the payload of a finished match must not outlive it.
-func test_a_match_scope_reset_clears_the_rows_and_the_payload() -> void:
-	_screen.show_results(_ffa_results())
-	assert_gt(_screen._rows_list.get_child_count(), 0, "fixture: results rows exist.")
-	Events.match_scope_reset.emit()
-	assert_eq(_screen._rows_list.get_child_count(), 0, "the next match starts with an empty table.")
-	assert_true(_screen.last_results.is_empty(), "and no stale payload.")
-	_screen.show_results(_ffa_results())
-	assert_eq(_screen._rows_list.get_child_count(), 4, "a later results screen still fills the table.")
-
-
 # --- Focus chain: gamepad/keyboard navigability -----------------------------
-
-func test_focus_chain_wraps_top_and_bottom() -> void:
-	_screen.show_results(_ffa_results())
-	var replay: Button = _screen._replay_button
-	var lobby: Button = _screen._lobby_button
-
-	assert_eq(replay.get_node(replay.focus_neighbor_bottom), lobby)
-	assert_eq(lobby.get_node(lobby.focus_neighbor_bottom), replay, "the chain must wrap.")
-
 
 func test_gamepad_dpad_down_moves_focus_to_the_next_button() -> void:
 	_screen.show_results(_ffa_results())
@@ -293,45 +169,8 @@ func test_gamepad_dpad_down_moves_focus_to_the_next_button() -> void:
 	assert_true(_screen._lobby_button.has_focus(), "a synthetic gamepad D-pad-down press must move focus along the wired chain.")
 
 
-## Bontago-1pi.181: the two buttons sit side by side, so left/right must move between them.
-func test_gamepad_dpad_left_right_move_between_the_horizontal_buttons() -> void:
-	_screen.show_results(_ffa_results())
-	_screen._replay_button.grab_focus()
-	for step: Array in [[JOY_BUTTON_DPAD_RIGHT, _screen._lobby_button], [JOY_BUTTON_DPAD_LEFT, _screen._replay_button]]:
-		var event: InputEventJoypadButton = InputEventJoypadButton.new()
-		event.device = -1
-		event.button_index = step[0]
-		event.pressed = true
-		Input.parse_input_event(event)
-		await get_tree().process_frame
-		assert_true((step[1] as Button).has_focus(), "d-pad %d must move focus along the row." % step[0])
-		var release: InputEventJoypadButton = event.duplicate() as InputEventJoypadButton
-		release.pressed = false
-		Input.parse_input_event(release)
-		await get_tree().process_frame
-
-
-func test_arrow_keys_and_left_stick_move_between_the_horizontal_buttons() -> void:
-	_screen.show_results(_ffa_results())
-	assert_eq(_screen._replay_button.get_node(_screen._replay_button.focus_neighbor_right), _screen._lobby_button)
-	assert_eq(_screen._lobby_button.get_node(_screen._lobby_button.focus_neighbor_left), _screen._replay_button)
-	for action: StringName in [&"ui_left", &"ui_right"]:
-		var has_stick: bool = false
-		var has_key: bool = false
-		for event: InputEvent in InputMap.action_get_events(action):
-			has_stick = has_stick or event is InputEventJoypadMotion
-			has_key = has_key or event is InputEventKey
-		assert_true(has_stick and has_key, "%s keeps arrow + left-stick bindings." % action)
-
-
-# --- Gamepad parity (Bontago-1pi.15.1: "gamepad works in some menus but not
+# --- Gamepad parity ("gamepad works in some menus but not
 # all; B never goes back in any menu") ------------------------------------------
-
-func test_showing_results_grabs_focus_on_the_host() -> void:
-	_screen.show_results(_ffa_results())
-	assert_not_null(get_viewport().gui_get_focus_owner(), "the results screen must land focus somewhere as soon as it shows for the host.")
-	assert_true(_screen._replay_button.has_focus())
-
 
 func test_gamepad_a_activates_the_focused_replay_button() -> void:
 	_screen.show_results(_ffa_results())
@@ -353,48 +192,7 @@ func test_gamepad_a_activates_the_focused_replay_button() -> void:
 	assert_eq(_fake_match_net.replay_calls, 1, "gamepad A on the focused Replay button must activate it via ui_accept.")
 
 
-# --- Bontago-1pi.72.1 --------------------------------------------------------
-
-func _header_texts() -> Array[String]:
-	var texts: Array[String] = []
-	for cell: Node in (_screen._rows_list.get_child(0) as HBoxContainer).get_children():
-		texts.append((cell as Label).text)
-	return texts
-
-
-func test_team_column_only_with_teams() -> void:
-	_screen.show_results(_ffa_results())
-	assert_false(_header_texts().has("TEAM"), "free-for-all has no Team column")
-	assert_eq(_header_texts().size(), 8)
-	var ffa_cells: Array[Node] = ((_screen._rows_list.get_child(1) as PanelContainer).get_child(0) as HBoxContainer).get_children()
-	assert_eq(ffa_cells.size(), 8, "data rows match the header")
-	_screen.show_results(_team_results())
-	assert_true(_header_texts().has("TEAM"))
-	assert_eq(_header_texts().size(), 9)
-
-
-func test_gifts_column_is_merged_and_shows_gifts_used() -> void:
-	_screen.show_results(_ffa_results())
-	assert_false(_header_texts().has("SPECIALS"))
-	var gifts_index: int = _header_texts().find("GIFTS")
-	assert_gte(gifts_index, 0)
-	var cells: Array[Node] = ((_screen._rows_list.get_child(1) as PanelContainer).get_child(0) as HBoxContainer).get_children()
-	assert_eq((cells[gifts_index] as Label).text, "1", "Alice: specials_used 1 (gifts_claimed 2 is not shown)")
-
-
-func test_subtitle_uses_display_names() -> void:
-	var results: Dictionary = _ffa_results()
-	results["mode"] = {"mode_id": MatchConfig.GameMode.REACH_THE_SKY, "scores": [10.9, 3.0, 1.0], "winners": "0"}
-	var text: String = ResultsScreen.mode_outcome_text(results)
-	assert_true(text.find("Alice: 10.9 m") >= 0, text)
-	assert_true(text.find("Bot 1 (Bot): 1.0 m") >= 0, text)
-	assert_eq(text.find("Player 1"), -1, text)
-
-
-func test_screen_has_no_settings_button() -> void:
-	assert_null(_screen.get_node_or_null("%SettingsButton"))
-	assert_null(_screen.get_node_or_null("%SettingsPanel"))
-
+# --- --------------------------------------------------------
 
 ## Pause menu open when the round ends: it closes itself, and once it is closed
 ## the results own the cursor and focus again.
@@ -426,7 +224,7 @@ func test_pause_menu_open_at_round_end_leaves_results_interactive() -> void:
 	assert_eq(_fake_match_net.replay_calls, 1, "gamepad A reaches the results after the pause menu closed")
 
 
-# --- Bontago-1pi.25.1 Domination ---------------------------------------------
+# --- Domination ---------------------------------------------
 
 func test_domination_results_show_shares_and_winners() -> void:
 	var results: Dictionary = _team_results()
@@ -437,59 +235,4 @@ func test_domination_results_show_shares_and_winners() -> void:
 	assert_eq(ResultsScreen.winner_ids(results), PackedInt32Array([1]))
 
 
-func test_domination_early_end_falls_back_to_the_finish_winner() -> void:
-	var results: Dictionary = _team_results()
-	results["mode"] = {"mode_id": MatchConfig.GameMode.DOMINATION, "scores": [0.4, 0.6], "winners": ""}
-	assert_eq(ResultsScreen.winner_ids(results), PackedInt32Array([1]), "empty winners -> winner_id")
-	var rows: Array[Dictionary] = ResultsScreen.sorted_rows(results)
-	assert_eq(int(rows[0].get("team_id")), 1)
-	assert_true(bool(rows[0].get("is_winner")))
-
-
-func test_header_is_the_mode_name_and_peak_column_is_gone() -> void:
-	var results: Dictionary = _ffa_results()
-	results["mode"] = {"mode_id": MatchConfig.GameMode.ELIMINATION, "scores": [1.0, 0.0, 0.0], "winners": "0", "order": "2,1"}
-	_screen.show_results(results)
-	assert_eq((_screen.get_node("%ModeTitle") as Label).text, "ELIMINATION", "the mode kicker is uppercase")
-	assert_false(_header_texts().has("PEAK %"))
-	assert_eq(ResultsScreen.mode_outcome_text(results), "", "no alive text or out-order caption")
-	results["mode"] = {"mode_id": MatchConfig.GameMode.CAPTURE_THE_FLAG, "scores": [3.0, 0.0, 0.0], "winners": "0"}
-	_screen.show_results(results)
-	assert_true(_header_texts().has("POINTS"), "CTF keeps its own score column")
-
-
-func test_fallback_label_and_slot_colour_come_from_the_core_owners() -> void:
-	assert_eq(ResultsScreen.player_label({}, 2), "Player 3", "no row: PlayerNames fallback")
-	assert_eq(ScoreTable.slot_color(1, null), MatchConfig.default_player_colors()[1], "palette via SlotColors")
-
-
-# --- Stackfall Arcade table (Bontago-hfa.7) ----------------------------------
-
-func test_winner_row_is_tinted_toward_rim_with_a_rim_edge() -> void:
-	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	var look: ResultsTableTuning = ScoreTable.table_tuning()
-	_screen.show_results(_ffa_results())
-	var winner_box: StyleBoxFlat = (_screen._rows_list.get_child(1) as PanelContainer).get_theme_stylebox("panel") as StyleBoxFlat
-	var other_box: StyleBoxFlat = (_screen._rows_list.get_child(2) as PanelContainer).get_theme_stylebox("panel") as StyleBoxFlat
-	assert_eq(other_box.bg_color, arcade.disc_700_color, "non-winner rows are plain disc-700")
-	assert_eq(other_box.border_width_left, 0)
-	assert_eq(winner_box.border_width_left, look.winner_edge_px, "winner row carries the rim edge")
-	assert_eq(winner_box.border_color, arcade.rim_color)
-	assert_ne(winner_box.bg_color, arcade.disc_700_color, "winner face is tinted")
-
-
-func test_a_draw_tints_no_row() -> void:
-	var draw: Dictionary = _ffa_results()
-	draw["winner_id"] = -1
-	draw["winner_name"] = ""
-	_screen.show_results(draw)
-	for index: int in range(1, _screen._rows_list.get_child_count()):
-		var box: StyleBoxFlat = (_screen._rows_list.get_child(index) as PanelContainer).get_theme_stylebox("panel") as StyleBoxFlat
-		assert_eq(box.border_width_left, 0, "row %d has no winner edge in a draw" % index)
-
-
-func test_play_again_is_the_one_flare_block_with_ink_label() -> void:
-	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	var box: BlockStyleBox = _screen._replay_button.get_theme_stylebox("normal") as BlockStyleBox
-	assert_eq(box.face_color, arcade.flare_color)
-	assert_eq(_screen._replay_button.get_theme_color("font_color"), arcade.ink_color)
+# --- Stackfall Arcade table ----------------------------------

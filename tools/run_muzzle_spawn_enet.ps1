@@ -1,4 +1,4 @@
-# Bontago-1pi.85.80: host + 1 lagged client over loopback ENet, hard wall-clock deadline.
+# host + 1 lagged client over loopback ENet, hard wall-clock deadline.
 param(
 	[string]$Path = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
 	[int]$Port = 47813,

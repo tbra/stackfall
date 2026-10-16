@@ -1,6 +1,6 @@
 class_name FogTuning
 extends WeatherTuning
-## Fog's tunables (Bontago-470.3). Fog is presentation only: the host sets
+## Fog's tunables. Fog is presentation only: the host sets
 ## nothing physical (no effect_script), every peer draws it from the replicated
 ## weather state through game/weather/FogPresentation.gd, which asks the Skybox
 ## (game/sky/Skybox.gd set_weather_fog) and the disc overlay
@@ -16,7 +16,7 @@ extends WeatherTuning
 ## far beacon and the territory contours on the disc stay faintly visible. The
 ## disc shader opts out of Environment fog, so it applies this same fog itself.
 
-## Bontago-mp0.135 (owner playtest 2026-10-05): retuned denser (24-64 m, 0.98) so the
+## retuned denser (24-64 m, 0.98) so the
 ## far side of the arena from the default camera is mostly hidden.
 ## Fog starts this far from the camera (metres) and is at full max_opacity at
 ## depth_end_m.
@@ -46,9 +46,3 @@ extends WeatherTuning
 @export var arena_far_rim_m: float = 70.0
 @export_range(0.0, 1.0, 0.01) var ambient_min_rim_keep: float = 0.8
 @export_range(0.0, 1.0, 0.01) var far_min_visibility: float = 0.02
-
-
-## Pure: fraction of colour an exponential-fog (Environment fog_density) object
-## keeps at `distance_m`.
-static func exponential_keep(density: float, distance_m: float) -> float:
-	return exp(-maxf(density, 0.0) * maxf(distance_m, 0.0))

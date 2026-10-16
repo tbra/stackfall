@@ -1,19 +1,19 @@
 class_name SpecialDef
 extends Resource
-## One special block type (spec 2.6, 1.3): the seven evidenced types are
+## One special block type (spec 1.6, 1.3): the seven evidenced types are
 ## DaBomb/Bomb, Volcano, Earthquake, Propeller, Anvil, Rocket and Jumping
 ## Bean. This package (M4 P2a) defines only the shared interface, roster
 ## loader and weighted draw; concrete specials (a scene + SpecialEffect per
 ## type) are P3-P5's responsibility. An empty res://config/gifts/specials/ (today,
 ## before those land) is a supported state: load_all_specials() returns an
 ## empty array and pick_weighted() returns null, so a spawn with no special
-## drawn behaves exactly like an ordinary block (see docs/archive/M4_P2_PACKAGES.md
+## drawn behaves exactly like an ordinary block (see the spawn rules
 ## P2c's "safe default").
 
 ## Unique identifier, e.g. &"rocket", &"volcano".
 @export var id: StringName = &""
 
-## Player-facing name (Bontago-1pi.86 Q1). Empty falls back to the capitalised id
+## Player-facing name (Q1). Empty falls back to the capitalised id
 ## through get_display_name(); read it through DisplayNames.special(), not directly.
 @export var display_name: String = ""
 
@@ -21,7 +21,7 @@ extends Resource
 ## Optional -- SpecialBehavior only needs `effect` below to arm and trigger.
 @export var scene: PackedScene = null
 
-## Bontago-59o.13/.14 presentation interface (per-gift art is 59o.14; both
+## presentation interface (per-gift art is a later pass; both
 ## fields are optional and every gift already shows something sensible):
 ## `held_scene` is the model the local/remote ghost shows INSTEAD of the plain
 ## block ghost while this gift is the current piece. It is instanced under the
@@ -46,26 +46,26 @@ const GENERIC_PREVIEW_ICON: Texture2D = preload("res://assets/ui/icons/gift_gene
 ## does not filter on it itself.
 @export var enabled_by_default: bool = true
 
-## Bontago-1pi.85.16 (owner answer 1pi.85.1): whether this gift can be thrown on the fixed
+## whether this gift can be thrown on the fixed
 ## gift trajectory (Bomb, Magnet, Jumping Bean). Every other gift is only dropped in place.
 @export var throwable: bool = false
 
-## Bontago-1pi.85.16: Rocket/Paintball are not thrown; on release they fire in a straight line
+## Rocket/Paintball are not thrown; on release they fire in a straight line
 ## along the activating player's camera forward (host-validated, see core/gifts/GiftThrow.gd).
 @export var aimed_launch: bool = false
 
-## Bontago-1pi.85.35 (gift playtest 2, docs/GIFT_PLAYTEST2_PLAN.md): true = releasing this gift
+## true = releasing this gift
 ## activates it at the cursor surface point with no physical carrier falling first
 ## (MatchGiftActivation.try_activate). SpecialBehavior then never waits for landing
 ## (needs_landing is ignored). False (default) keeps the falling carrier.
 @export var activates_in_place: bool = false
 
-## Bontago-1pi.85.45: metres above the validated release point the physical carrier spawns
+## metres above the validated release point the physical carrier spawns
 ## and falls from (Anvil: "falls from the sky"). 0 = off (spawn at the point). Host-only;
 ## clients see the fall through the normal body snapshots.
 @export_range(0.0, 60.0, 0.5) var sky_drop_height_m: float = 0.0
 
-## Bontago-1pi.85.35: uniform size multiplier of the gift carrier from release on (visual and
+## uniform size multiplier of the gift carrier from release on (visual and
 ## collider, mass via SpecialTuning.activation_mass_exponent). 1.0 = today's size.
 @export_range(0.1, 10.0, 0.1) var activation_scale: float = 1.0
 
@@ -75,7 +75,7 @@ const GENERIC_PREVIEW_ICON: Texture2D = preload("res://assets/ui/icons/gift_gene
 
 ## Minimum `mass * (prev_speed - now_speed)` -- an impulse-like deceleration
 ## measure, kg*m/s, the same shape as game/blocks/Block.gd's own impact detection --
-## to trigger on impact once armed (spec 2.6: "[ORIGINAL] substantial impact
+## to trigger on impact once armed (spec 1.6: "[ORIGINAL] substantial impact
 ## activates a special").
 @export var arm_impulse: float = 5.0
 
@@ -108,7 +108,7 @@ static func name_from_id(special_id: StringName) -> String:
 static var _by_id_cache: Dictionary = {}
 
 
-## Bontago-xtq.44: drops the id cache on exit (it pins every def and its held-gift scene).
+## drops the id cache on exit (it pins every def and its held-gift scene).
 static func release_cache() -> void:
 	_by_id_cache.clear()
 
@@ -124,7 +124,7 @@ static func find_by_id(special_id: StringName) -> SpecialDef:
 
 ## The HUD icon for `special_id`: its own preview_icon or the generic one.
 static func preview_icon_for(special_id: StringName) -> Texture2D:
-	# Bontago-mp0.125: the rendered model preview (config/gifts/gift_icon_table.tres) wins so
+	# the rendered model preview (config/gifts/gift_icon_table.tres) wins so
 	# the HUD card agrees with the held GLB; then the def's own icon, then the generic one.
 	var table: GiftIconTable = GiftIconTable.shared()
 	if table != null:
@@ -160,7 +160,7 @@ static func load_all_specials() -> Array[SpecialDef]:
 		# convert-text-resources-to-binary step); load() resolves the original
 		# path through that remap, so only the listing suffix needs stripping.
 		# Without this no shape/special ever loads in an exported build
-		# (feedback/playtest.md 2026-09-26: "no block ever spawns").
+		# (feedback/playtest.md "no block ever spawns").
 		if file_name.ends_with(".remap"):
 			file_name = file_name.trim_suffix(".remap")
 		if file_name.ends_with(".tres"):
@@ -174,7 +174,7 @@ static func load_all_specials() -> Array[SpecialDef]:
 
 
 ## The roster a match may draw from: load_all_specials() minus defs with
-## `enabled_by_default == false` (Bontago-1pi.85.9: Cat is disabled but its
+## `enabled_by_default == false` (Cat is disabled but its
 ## code and resource stay). Same id order. load_all_specials() stays the full
 ## catalogue (find_by_id, icon table, net id tables must still resolve Cat).
 static func load_selectable_specials() -> Array[SpecialDef]:
@@ -190,14 +190,14 @@ static func load_selectable_specials() -> Array[SpecialDef]:
 ## tests/unit/gifts/test_special_def.gd can exercise the loader's actual sort order
 ## against a hand-built, in-memory array of SpecialDef instances -- no need
 ## to write or clean up real/temporary .tres resources under
-## res://config/gifts/specials/ (which docs/archive/M4_P2_PACKAGES.md's P2a section wants
+## res://config/gifts/specials/ (the roster directory)
 ## to stay genuinely empty this package) or under user:// just to prove the
 ## comparator works.
 static func _sort_by_id(a: SpecialDef, b: SpecialDef) -> bool:
 	return String(a.id) < String(b.id)
 
 
-## Roulette-wheel pick over `.weight` (docs/archive/M4_P2_PACKAGES.md P2a: "roulette
+## Roulette-wheel pick over `.weight` (the roulette rule:
 ## pick over .weight"). Null on an empty array so a caller (P2c) can treat
 ## "nothing to draw" as a safe no-op instead of a crash.
 ##
@@ -219,7 +219,7 @@ static func pick_weighted(candidates: Array[SpecialDef], rng: RandomNumberGenera
 	var cursor: float = 0.0
 	for candidate: SpecialDef in candidates:
 		var candidate_weight: float = maxf(candidate.weight, 0.0)
-		# Review fix (Bontago-1en.12): a zero-weight candidate must never be
+		# Review fix: a zero-weight candidate must never be
 		# selectable via the roll, not even when `roll` lands exactly on 0.0
 		# (randf_range()'s range is inclusive at both ends) and a zero-weight
 		# candidate sits first in the array -- skipping it here instead of

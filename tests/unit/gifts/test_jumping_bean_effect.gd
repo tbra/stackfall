@@ -1,21 +1,19 @@
 extends GutTest
-## JumpingBeanEffect (spec 2.6, installed-tutorial evidence: "Jumping Bean
-## creates a hole between random hops"; docs/archive/M4_SPECIALS_PACKAGES.md's
-## P5-BEAN package). Two fixture shapes, matching this package's siblings:
+## JumpingBeanEffect (spec 1.6, installed-tutorial evidence: "Jumping Bean
+## creates a hole between random hops"). Two fixture shapes, matching this package's siblings:
 ##
 ## - A stub Block + real SpecialBehavior (no physics simulation) plus a
 ##   plain registered Field, for the settle-gated timed pattern itself --
 ##   inertness, hop cadence/frame-rate independence, the velocity-kick-not-
 ##   teleport shape, self-trigger at lifetime_s, two beans' independent
-##   timers, and the null-Field guard -- mirrors test_propeller_effect.gd's/
-##   test_volcano_effect.gd's own fixture.
+##   timers, and the null-Field guard -- mirrors test_propeller_effect.gd's own fixture.
 ## - A real host Match fixture with a raster (mirrors
 ##   test_match_territory_punch.gd's own before_each exactly: TinyMapMatchConfig,
 ##   a hot-seat match run through countdown into State.PLAYING), for the two
 ##   tests that actually need Match.punch_special_hole()'s real effect on
 ##   TerritoryRaster: a hop opens the expected hole under HoleMode.TEMPORARY,
 ##   and HoleMode.OFF suppresses the hole but not the hop's own knockback
-##   (Bontago-z4h, enforced inside punch_special_hole() itself, not trusted
+##   (enforced inside punch_special_hole() itself, not trusted
 ##   to this effect).
 
 const TICK: float = 1.0 / 60.0
@@ -113,12 +111,12 @@ func test_inert_until_landed_no_hop_no_velocity_change() -> void:
 	assert_false(behavior.is_triggered())
 
 
-# --- impact_triggers() veto (Bontago-1en.22) ---------------------------------
+# --- impact_triggers() veto ---------------------------------
 
 ## Counts _hop() calls (not just physics_tick() calls) -- proves the
 ## settle-then-hop-on-schedule pattern actually fires the hop itself the
 ## right number of times, mirroring test_propeller_effect.gd's own
-## _CountingPropellerEffect/test_volcano_effect.gd's spawn-counting shape.
+## _CountingPropellerEffect.
 class _CountingBeanEffect:
 	extends JumpingBeanEffect
 	var hop_calls: int = 0
@@ -250,7 +248,7 @@ func _make_match_block(position: Vector3) -> Block:
 	return _make_block(position)
 
 
-## Proves spec 2.6's "a hole between hops" at the level that matters: each
+## Proves spec 1.6's "a hole between hops" at the level that matters: each
 ## hop punches at wherever the bean actually IS at that hop's own tick, not a
 ## stale/first-settle position. The stub block is moved by hand between the
 ## two hops to stand in for whatever real physics carried it there since the
@@ -300,7 +298,7 @@ func test_each_hop_punches_a_hole_at_the_bean_current_position_under_temporary()
 	)
 
 
-## Review finding (Bontago-1en.8, SHOULD-FIX): a hop's own landing carries
+## Review finding (SHOULD-FIX): a hop's own landing carries
 ## roughly sqrt(hop_impulse^2 + hop_horizontal_speed^2) = sqrt(6.0^2 + 3.0^2)
 ## ~= 6.7 m/s of speed on a level landing (energy-conserving projectile arc
 ## back to the same ground height) -- close to (and, measured below, over)
@@ -407,21 +405,3 @@ func test_real_physics_hop_landing_does_not_prematurely_impact_trigger() -> void
 		"a hop's own landing must not prematurely impact-trigger the bean (arm_impulse=%.1f)"
 			% found.arm_impulse
 	)
-
-
-# --- acceptance (plan section 5 E): real physics, awake neighbour island -------
-
-## Records, per hop, whether a hole stood open at the pre-hop cell right after it.
-class _HoleSpyBean:
-	extends JumpingBeanEffect
-	var hops: int = 0
-	var holes_after_hop: int = 0
-
-	func _hop(block: Block) -> void:
-		var grid: CellGrid = Match.cell_grid()
-		var local: Vector2 = Match.field().disk_local_from_world(block.global_position)
-		var cell: Vector2i = grid.world_to_cell(local)
-		super._hop(block)
-		hops += 1
-		if Match.raster().is_hole(cell.x, cell.y):
-			holes_after_hop += 1

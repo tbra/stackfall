@@ -1,9 +1,9 @@
 class_name StableBlockManager
 extends Node
-## Stable-block optimization (spec 3.5 [NEW]: "If a block has been asleep for
+## Stable-block optimization (spec 2.7 [NEW]: "If a block has been asleep for
 ## more than 20 s and isn't touching any awake body, the host switches it to
 ## freeze_mode = STATIC. It goes back to normal the moment any impulse,
-## tilt, or change in the cells under it happens."), docs/M8_PLAN.md P5.
+## tilt, or change in the cells under it happens.").
 ##
 ## Host-gated the same way every autoload/match/ controller already is (`if
 ## not Net.is_host(): return`, true offline too, matching
@@ -33,14 +33,14 @@ extends Node
 var _registry: BlockRegistry = null
 
 ## The live manager (the match builds one). Weather effects reach it through
-## this instead of touching Block's private freeze bookkeeping (Bontago-1pi.11.46).
+## this instead of touching Block's private freeze bookkeeping.
 static var active: StableBlockManager = null
 
 ## instance id (int) -> continuous seconds this block has read as sleeping
 ## across consecutive scans. Reset to 0 the moment a scan finds it awake.
 var _asleep_elapsed: Dictionary = {}
 ## instance id (int) -> Transform3D the block had when its current rest run
-## started (Bontago-1pi.11.24). A wake that leaves the block within
+## started. A wake that leaves the block within
 ## tuning.stable_freeze_rest_epsilon_m of this pose keeps the run's timer.
 var _rest_anchor: Dictionary = {}
 ## instance id (int) -> true while this manager itself holds
@@ -55,9 +55,9 @@ var _settle_frozen: Dictionary = {}
 ## Real-time accumulator gating how often _tick() below actually scans,
 ## consumed by _tick() itself -- see that function's own doc comment.
 var _scan_accumulator: float = 0.0
-## Field pose seen on the previous physics tick (Bontago-sen.11).
+## Field pose seen on the previous physics tick.
 var _last_field_transform: Transform3D = Transform3D.IDENTITY
-## Awake-but-still tracking (Bontago-e7o B; see _settle_awake()).
+## Awake-but-still tracking (B; see _settle_awake()).
 var _settle: SettleTracker = SettleTracker.new()
 ## Catch-up cap state last pushed to Engine (the project setting starts capped).
 var _catchup_cap_applied: bool = true
@@ -107,7 +107,7 @@ func _physics_process(delta: float) -> void:
 	_tick(delta)
 
 
-## Bontago-e7o D: pushes the F4 catch-up toggle to the engine when it changes
+## D: pushes the F4 catch-up toggle to the engine when it changes
 ## (every peer: it is per-process frame pacing, not game state). Applied only on a
 ## change so a bench that raises Engine.max_physics_steps_per_frame itself is not
 ## overridden every tick; the project setting already starts it capped.
@@ -119,14 +119,14 @@ func apply_catchup_cap() -> void:
 	Engine.max_physics_steps_per_frame = tuning.catchup_steps_capped if want_capped else tuning.catchup_steps_default
 
 
-## Bontago-sen.11 (owner: "gifts that cause tilting lead to settled blocks
-## clipping through the disc"): a STATIC-frozen block does not ride a
+## "gifts that cause tilting lead to settled blocks
+## clipping through the disc": a STATIC-frozen block does not ride a
 ## kinematic disc, so a tilting Field swept through every long-stable block.
 ## The scan below only releases a block once it reads awake, which a frozen
 ## body never does, and only every scan interval. So the moment the disc pose
 ## changes, release every block this manager froze and wake it, and restart
 ## its asleep timer; the blocks then ride the disc (awake while it moves,
-## Bontago-b0w) and re-freeze after the normal delay once it stops.
+## ) and re-freeze after the normal delay once it stops.
 func check_field_motion() -> void:
 	if _registry == null:
 		return
@@ -178,7 +178,7 @@ func _scan(scan_delta: float) -> void:
 		var id: int = block.get_instance_id()
 		live_ids[id] = true
 		# A disc-anchored carrier rides the Field as a kinematic body and is never
-		# freeze-static (a STATIC body would not follow a tilting disc, sen.11).
+		# freeze-static (a STATIC body would not follow a tilting disc).
 		var fused: FusedBody = block as FusedBody
 		if fused != null and fused.is_disc_anchored():
 			continue
@@ -192,7 +192,7 @@ func _scan(scan_delta: float) -> void:
 				block.request_freeze_static(Block.FREEZE_REASON_STABLE)
 				_frozen_by_this[id] = true
 		else:
-			# Spec 3.5: "goes back to normal the moment any impulse, tilt, or
+			# Spec 2.7: "goes back to normal the moment any impulse, tilt, or
 			# change in the cells under it happens" -- any of those wakes the
 			# body (RigidBody3D.sleeping reads false again the very next
 			# scan), so releasing here on the plain wake-read covers all
@@ -206,7 +206,7 @@ func _scan(scan_delta: float) -> void:
 				_settle_awake(block, id, scan_delta, fast_positions)
 			else:
 				_settle.reset(id)
-			# DECISION (game/blocks/StableBlockManager.gd, Bontago-1pi.11.24): Jolt
+			# DECISION (game/blocks/StableBlockManager.gd): Jolt
 			# wakes a whole contact island when one member is touched, so in a
 			# bot match the unfrozen top layer (~65 blocks, one island) woke
 			# on every landing, never slept 20 s in a row, and freezing capped
@@ -256,7 +256,7 @@ func _fast_positions(blocks: Array[Block]) -> PackedVector3Array:
 	return out
 
 
-## Bontago-e7o B (spec 3.5): an awake block that stayed still for the whole window
+## B (spec 2.7): an awake block that stayed still for the whole window
 ## and has no fast neighbour freezes exactly like an asleep one (request_freeze_static
 ## puts it to sleep, so the sleeping branch of _scan() then owns it, and every
 ## release path -- tilt, impulse, wind, glue -- applies unchanged). DECISION: the

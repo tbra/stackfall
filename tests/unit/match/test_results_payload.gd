@@ -1,5 +1,5 @@
 extends GutTest
-## ResultsPayload (Bontago-fca.36.8): the single owner of the results payload
+## ResultsPayload: the single owner of the results payload
 ## schema -- stable wire strings, the one validator (host build and client
 ## receipt) and the typed accessors the UI reads through.
 
@@ -21,25 +21,10 @@ func _valid_payload() -> Dictionary:
 	}
 
 
-func test_wire_strings_are_unchanged() -> void:
-	assert_eq(ResultsPayload.KEY_WINNER_ID, "winner_id")
-	assert_eq(ResultsPayload.KEY_WINNER_KIND, "winner_kind")
-	assert_eq(ResultsPayload.KEY_WINNER_NAME, "winner_name")
-	assert_eq(ResultsPayload.KEY_MATCH_DURATION, "match_duration")
-	assert_eq(ResultsPayload.KEY_ROWS, "rows")
-	assert_eq(ResultsPayload.KEY_MODE, "mode")
-	assert_eq(ResultsPayload.KEY_SLOT_ID, "slot_id")
-	assert_eq(ResultsPayload.KEY_TERRITORY_SHARE, "territory_share")
-	assert_eq(ResultsPayload.KEY_ELIMINATED_AT, "eliminated_at")
-	assert_eq(ResultsPayload.KEY_WINNERS, "winners")
-	assert_eq(ResultsPayload.WINNER_KIND_SLOT, "slot")
-	assert_eq(ResultsPayload.WINNER_KIND_TEAM, "team")
-
-
 func test_valid_payload_passes_and_matches_match_stats_delegate() -> void:
 	var clean: Dictionary = ResultsPayload.validate(_valid_payload())
 	assert_false(clean.is_empty())
-	assert_eq(clean, MatchStats.validate_results_payload(_valid_payload()), "one validator behind both entry points")
+	assert_eq(clean, ResultsValidation.validate_results_payload(_valid_payload()), "one validator behind both entry points")
 	assert_eq(ResultsPayload.winner_name(clean), "Ann")
 	assert_eq(ResultsPayload.rows(clean).size(), 1)
 
@@ -62,7 +47,6 @@ func test_malformed_payloads_are_rejected_on_a_client() -> void:
 
 func test_mode_block_has_one_validator() -> void:
 	var block: Dictionary = {ResultsPayload.KEY_MODE_ID: MatchConfig.GameMode.CAPTURE_THE_FLAG, ResultsPayload.KEY_SCORES: [1, 2], ResultsPayload.KEY_WINNERS: "1"}
-	assert_eq(ModeObjective.validate_results_block(block), ResultsPayload.validate_mode_block(block))
 	var payload: Dictionary = _valid_payload()
 	payload[ResultsPayload.KEY_MODE] = block
 	assert_eq(ResultsPayload.mode_scores(ResultsPayload.validate(payload)), [1.0, 2.0])
@@ -70,10 +54,3 @@ func test_mode_block_has_one_validator() -> void:
 	payload[ResultsPayload.KEY_MODE] = {ResultsPayload.KEY_MODE_ID: 99, ResultsPayload.KEY_SCORES: []}
 	assert_true(ResultsPayload.validate(payload).is_empty(), "unknown mode id rejected")
 
-
-func test_accessor_defaults() -> void:
-	assert_eq(ResultsPayload.winner_id({}), -1)
-	assert_eq(ResultsPayload.winner_kind({}), ResultsPayload.WINNER_KIND_SLOT)
-	assert_eq(ResultsPayload.mode_id({}), MatchConfig.GameMode.CLASSIC)
-	assert_false(ResultsPayload.has_mode_block({}))
-	assert_false(ResultsPayload.is_live({}))

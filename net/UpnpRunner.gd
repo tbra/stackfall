@@ -1,7 +1,7 @@
 class_name UpnpRunner
 extends RefCounted
 ## Runs UpnpBackend jobs on a worker thread so a ~2 s router discovery never stalls a frame
-## (Bontago-1pi.164). Jobs run strictly one at a time and in order, so a new host's OPEN can never
+## . Jobs run strictly one at a time and in order, so a new host's OPEN can never
 ## be undone by the previous host's late CLOSE. Net calls start()/stop() and polls poll() each frame;
 ## shutdown() is the blocking quit-time variant.
 

@@ -1,7 +1,7 @@
 extends GutTest
-## Bontago-1pi.85.16/85.29: gift throw policy. Bomb/Magnet/Jumping Bean are thrown along GiftAim's
+## /85.29: gift throw policy. Bomb/Magnet/Jumping Bean are thrown along GiftAim's
 ## host-computed ballistic velocity from the camera forward (client speed is ignored), Rocket/Paintball
-## fly along that forward (Rocket at any pitch, 1pi.85.34 Q3), every other gift refuses a throw.
+## fly along that forward (Rocket at any pitch), every other gift refuses a throw.
 ## Fixture family of test_match_throw.gd (tiny map, real Field, injected SpecialDefs).
 
 var _blocks_root: Node3D
@@ -140,7 +140,7 @@ func test_aimed_gift_refuses_malformed_directions_and_stays_held() -> void:
 	assert_eq(Match.held_special(0), &"gift_rocket")
 
 
-# --- Bontago-1pi.85.21: host validation findings -----------------------------------
+# --- host validation findings -----------------------------------
 
 func test_paintball_with_a_straight_up_aim_is_refused_and_stays_held() -> void:
 	var def: SpecialDef = _make_def(&"gift_paintball", GiftThrow.Mode.AIMED)

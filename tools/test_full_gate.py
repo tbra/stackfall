@@ -46,6 +46,21 @@ class SerialSplitTest(unittest.TestCase):
         self.assertIn("layer_code == 0", src)
         self.assertIn("layer_lint=%s", src)
 
+    def test_instructions_lint_wired_into_gate(self):
+        # the instruction drift guard gates like the other lints.
+        src = open(full_gate.__file__, encoding="utf-8").read()
+        self.assertIn('run_lint(path, "lint_instructions", lint_instructions)', src)
+        self.assertIn("instr_code == 0", src)
+        self.assertIn("instructions_lint=%s", src)
+
+    def test_public_lint_wired_into_gate(self):
+        # the public-repository guard gates like the other lints.
+        src = open(full_gate.__file__, encoding="utf-8").read()
+        self.assertIn('run_lint(path, "lint_public", lint_public)', src)
+        self.assertIn("public_code == 0", src)
+        self.assertIn("public_lint=%s", src)
+        self.assertIn('"public_lint"', src)
+
     def test_run_lint_uses_candidate_script_and_falls_back(self):
         with tempfile.TemporaryDirectory() as root:
             class Stub(object):
@@ -63,7 +78,7 @@ class SerialSplitTest(unittest.TestCase):
 
 
 class FailureDetailTest(unittest.TestCase):
-    """Bontago-fca.116: failing assertion text survives in result.json."""
+    """failing assertion text survives in result.json."""
 
     ESC = chr(27)
     LOG = "\n".join([
@@ -109,7 +124,7 @@ class FailureDetailTest(unittest.TestCase):
         self.assertEqual(out["res://none.gd"], [])
 
 class UnloadableScriptTest(unittest.TestCase):
-    """Bontago-fca.120: a scheduled script GUT dropped must surface, not vanish from the totals."""
+    """a scheduled script GUT dropped must surface, not vanish from the totals."""
 
     GOOD = "res://tests/unit/test_good.gd"
     BAD = "res://tests/unit/test_bad.gd"

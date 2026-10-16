@@ -1,6 +1,6 @@
 class_name GiftShapeWeights
 extends Resource
-## Bontago-1pi.85.31: pick weights for the blocks Stackfall and Volcano spawn. The shape set is the
+## pick weights for the blocks Stackfall and Volcano spawn. The shape set is the
 ## block set itself (BlockShape.load_all_shapes()); this resource only OVERRIDES the weight of the
 ## ids it lists (parallel arrays, same index). Unlisted shapes keep their own BlockShape.weight, so
 ## a new shape joins the rain without editing this file. A weight of 0 excludes a shape.

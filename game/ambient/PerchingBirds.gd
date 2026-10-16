@@ -1,6 +1,6 @@
 class_name PerchingBirds
 extends Node3D
-## Bontago-adt.3: a few cosmetic cel-shaded birds that circle far off, glide in,
+## a few cosmetic cel-shaded birds that circle far off, glide in,
 ## perch on the open disc or on top of settled blocks, idle, and fly away when
 ## anything comes near; new ones return later. Purely local and visual: nothing
 ## here is networked, touches physics or feeds back into gameplay. It only reads
@@ -12,7 +12,7 @@ extends Node3D
 ## preset's ambient-life switch. All tunables live in config/sky/AmbientLifeConfig.gd;
 ## the pure selection/flee rules are in core/ambient/PerchPlanner.gd.
 ##
-## Bontago-6fc.3: birds are social. They arrive in flocks (a random size within
+## birds are social. They arrive in flocks (a random size within
 ## AmbientLifeConfig.flock_size_min..max, capped in total by perch_bird_count):
 ## members join the same arrival circle with loose spacing and jitter, perch near
 ## the flock's first landing spot (same block top or nearby block tops, or the
@@ -20,7 +20,7 @@ extends Node3D
 ## chase flights) and leave together: when one is spooked the rest follow after a
 ## short random stagger, and when the flock's stay ends it takes off as one.
 ##
-## DECISION (owner 2026-09-30, replaces the disc-only note): birds may perch on the
+## DECISION (replaces the disc-only note): birds may perch on the
 ## top faces of settled blocks. Tower spots need a block that has been motionless
 ## for AmbientLifeConfig.perch_tower_min_settle_s, a wide-enough top face and
 ## clear space above; a bird on a block leaves the moment that block moves, is

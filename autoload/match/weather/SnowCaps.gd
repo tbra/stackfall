@@ -1,6 +1,6 @@
 class_name SnowCaps
 extends RefCounted
-## Scene side of snow geometry (Bontago-22y.6): the node helpers the
+## Scene side of snow geometry: the node helpers the
 ## SnowCapBuilder commits through, on the host (with colliders) and on
 ## clients (without).
 ##
@@ -19,7 +19,7 @@ const CAP_MESH_NAME: StringName = &"SnowCapMesh"
 const DISC_CAP_PREFIX: String = "SnowDiscCap"
 const DISC_BODY_PREFIX: String = "SnowDiscBody"
 const DISC_COVER_NAME: StringName = &"SnowDiscCover"
-## A cover set to level 0 keeps drawing while it fades out (Bontago-mp0.97)
+## A cover set to level 0 keeps drawing while it fades out
 ## under this name, so disc_cover() no longer reports it.
 const DISC_COVER_FADING_NAME: StringName = &"SnowDiscCoverFading"
 const LUMP_META: StringName = &"snow_lump"
@@ -36,7 +36,7 @@ static var _disc_material: ShaderMaterial = null
 static var _disc_material_tuning: SnowTuning = null
 
 
-## Bontago-xtq.44: drops the static texture/material cache on exit (freed before the renderer shuts down).
+## drops the static texture/material cache on exit (freed before the renderer shuts down).
 static func release_statics() -> void:
 	_material = null
 	_material_tuning = null
@@ -172,7 +172,7 @@ static func _match_disc_lighting(material: ShaderMaterial, holder: Node3D, tunin
 		material.set_shader_parameter(&"ambient_ao", float(ambient) * tuning.cover_ambient_factor)
 
 
-## Makes `owner`'s snow colliders exactly `hulls` (one convex shape each,
+## Makes this owning item's snow colliders exactly `hulls` (one convex shape each,
 ## reusing existing shapes). Returns the collider count.
 static func apply_colliders(owner: Node, hulls: Array[PackedVector3Array], margin: float = DEFAULT_MARGIN_M) -> int:
 	var existing: Array[CollisionShape3D] = lump_colliders(owner)
@@ -237,7 +237,7 @@ static func clear_disc(field: Node3D) -> void:
 			child.free()
 
 
-## The snow colliders currently on `owner` (in order).
+## The snow colliders currently on this owning item (in order).
 static func lump_colliders(owner: Node) -> Array[CollisionShape3D]:
 	var out: Array[CollisionShape3D] = []
 	if not is_instance_valid(owner):

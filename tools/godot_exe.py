@@ -1,6 +1,6 @@
-"""Resolve the Godot executable for the Python launchers (Bontago-fca.93).
+"""Resolve the Godot executable for the Python launchers.
 
-A PATH shim such as C:/Users/<you>/bin/godot.cmd cannot be exec'd by subprocess
+A PATH shim such as <user bin>/godot.cmd cannot be exec'd by subprocess
 without cmd.exe in between, and a timeout kill then orphans the real Godot. This
 resolver returns the real .exe the shim points at.
 

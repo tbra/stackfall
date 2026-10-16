@@ -1,19 +1,19 @@
 class_name UiScaleTuning
 extends Resource
-## Bontago-1pi.150: the player-facing UI scale (Options > Settings > Display). The stored setting is
+## the player-facing UI scale (Options > Settings > Display). The stored setting is
 ## RELATIVE: 1.0 (100%) is base_scale times the project stretch (1280x720 base). Applied by autoload/Settings.gd as
 ## Window.content_scale_factor on the root window; the pure rules (sanitize, effective factor)
 ## are statics here so Settings (autoload) and ui/theme/UiScale.gd share them without a ui/ dependency.
 ## Not one of the F4 tuning panel's resource classes, so no config/ui/tuning_panel_hints.tres entry.
 
-## content_scale_factor at 100%. 2026-10-10 owner (Bontago-1pi.151): half the old mockup scale
+## content_scale_factor at 100%. Half the old mockup scale
 ## (1280 / 960 = 1.3333), i.e. 0.6666667.
 @export var base_scale: float = 0.6666667
 ## The stored value a fresh install gets: 100%.
 @export var default_scale: float = 1.0
 ## Smallest stored value: 0.75 x base = 0.5 effective factor.
 @export var min_scale: float = 0.75
-## Largest stored value. DECISION (owner 2026-10-11, Bontago-1pi.159.16): 200% (2.0 x base = ~1.333 effective, logical canvas 960x540 at 1280x720); the old 220% went too big. Saved values above it clamp via sanitize().
+## Largest stored value. DECISION: 200% (2.0 x base = ~1.333 effective, logical canvas 960x540 at 1280x720); the old 220% went too big. Saved values above it clamp via sanitize().
 @export var max_scale: float = 2.0
 ## Slider step; stored values are snapped to it on set and load.
 @export var step: float = 0.05
@@ -22,12 +22,12 @@ extends Resource
 ## (UI-scaled) canvas would make them touch.
 @export var hud_timer_clearance_px: int = 12
 
-## Bontago-1pi.191: the in-match HUD scale shares the UI scale's range and step (min_scale..max_scale,
+## the in-match HUD scale shares the UI scale's range and step (min_scale..max_scale,
 ## step); its default is default_scale (100%), so a fresh install looks as before.
 ## DECISION: minimap size is three presets (small / medium / large) in square HUD pixels; medium is the
 ## original 168 px. Index 1 is the default.
 @export var minimap_size_presets_px: PackedInt32Array = PackedInt32Array([128, 168, 224])
-## Option-list label for each preset, same order and length as minimap_size_presets_px (Bontago-1pi.193).
+## Option-list label for each preset, same order and length as minimap_size_presets_px.
 @export var minimap_size_labels: PackedStringArray = PackedStringArray(["Small", "Medium", "Large"])
 @export var minimap_default_preset: int = 1
 
@@ -36,7 +36,7 @@ static var _shared: UiScaleTuning = null
 ## Runtime mirror of Settings' value (set by Settings on load/change) so ui/theme/UiScale.gd, the
 ## AgentProbe viewport emulation and layout tests use the same factor as the real window.
 static var current_scale: float = -1.0
-## Same, for the HUD scale (Bontago-1pi.191); -1 until Settings publishes it.
+## Same, for the HUD scale; -1 until Settings publishes it.
 static var current_hud_scale: float = -1.0
 ## Same, for the minimap preset index; -1 until Settings publishes it.
 static var current_minimap_preset: int = -1
@@ -48,7 +48,7 @@ static func shared() -> UiScaleTuning:
 	return _shared
 
 
-## Bontago-xtq.44: drops the shared instance on exit so its textures are freed with the tree.
+## drops the shared instance on exit so its textures are freed with the tree.
 static func release_shared() -> void:
 	_shared = null
 

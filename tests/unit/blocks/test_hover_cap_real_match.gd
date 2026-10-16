@@ -1,6 +1,6 @@
 extends GutTest
-## Bontago-mv0.35 (second pass): "there is still a maximum height the block
-## cannot be raised or placed above", owner on main c50510c in a real
+## "there is still a maximum height the block
+## cannot be raised or placed above", seen in a real
 ## `--headless-host --bots=3 --players=4` match. These drive the *real* match
 ## path, not the bare sandbox fixture: the real Main scene, a real
 ## Net.host_game() listen server, Match started through Main's own
@@ -19,7 +19,7 @@ extends GutTest
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
 const HOST_SLOT: int = 0
-## The owner's report and this package's brief: raising must reach at least
+## The and this package's brief: raising must reach at least
 ## this far above the disk, and a placement there must be accepted.
 const REQUIRED_RAISE_M: float = 50.0
 ## How far under the band's ceiling a pose may stop and still count as

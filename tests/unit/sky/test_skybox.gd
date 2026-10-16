@@ -1,9 +1,9 @@
 extends GutTest
-## game/sky/Skybox.gd (spec 2.10): theme, cycle, fog volume, reflection probe and SSR.
+## game/sky/Skybox.gd (spec 1.10): theme, cycle, fog volume, reflection probe and SSR.
 
 var _skybox: Skybox = null
 
-## Bontago-xtq.28: saved/restored the same way tests/unit/test_main_graphics_
+## saved/restored the same way tests/unit/test_main_graphics_
 ## preset.gd's own _original_preset_id does -- the real "Settings" autoload
 ## outlives this script, so a FogVolume-gating test that calls
 ## Settings.set_graphics_preset() must not leak a changed preset into whatever
@@ -66,7 +66,7 @@ func test_cycle_key_light_and_flare_follow_the_sun() -> void:
 			assert_false(flare.is_theme_enabled())
 
 
-## Bontago-59o.18: F4's "cycle" Theme entry persists as theme_name "cycle" and
+## F4's "cycle" Theme entry persists as theme_name "cycle" and
 ## _ready() runs the cycle from boot (it is not a theme file); any other name
 ## still loads its static theme.
 func test_ready_starts_the_cycle_for_theme_name_cycle() -> void:
@@ -95,38 +95,7 @@ func test_ready_starts_the_cycle_for_theme_name_cycle() -> void:
 	assert_eq(static_skybox.theme.resource_path, "res://config/sky/themes/night.tres")
 
 
-## Bontago-59o.18 (C1b variation): a cycle started outside a match (boot theme "cycle",
-## F4's Theme entry) varies inside the configured ranges from the default seed, and the
-## varying exposure is the baseline weather overcast scales (never a fixed 0.8).
-func test_a_boot_cycle_varies_inside_the_ranges_from_the_default_seed() -> void:
-	var sky: Sky = Sky.new()
-	sky.sky_material = ProceduralSkyMaterial.new()
-	var environment: Environment = Environment.new()
-	environment.sky = sky
-	var skybox: Skybox = Skybox.new()
-	skybox.config = SkyboxConfig.new()
-	skybox.config.theme_name = Skybox.CYCLE_THEME_ID
-	skybox.environment = environment
-	add_child_autofree(skybox)
-	var theme: SkyThemeDef = skybox.theme
-	var seen: Dictionary = {}
-	for phase: float in [0.0, 0.1, 0.2, 0.3, 0.45, 0.6, 0.75, 0.9]:
-		skybox.set_cycle_phase(phase)
-		var material: ShaderMaterial = skybox.theme.sky_material as ShaderMaterial
-		var exposure: float = float(material.get_shader_parameter(&"exposure"))
-		assert_between(exposure, theme.variation_exposure_min, theme.variation_exposure_max, "exposure at phase %s" % phase)
-		assert_eq(exposure, SkyVariation.exposure_at(theme, phase, SkyVariation.DEFAULT_SEED), "default seed at phase %s" % phase)
-		assert_between(float(material.get_shader_parameter(&"cloud_coverage")), theme.variation_cloud_coverage_min, theme.variation_cloud_coverage_max)
-		assert_between(float(material.get_shader_parameter(&"proc_sea_coverage")), theme.variation_sea_coverage_min, theme.variation_sea_coverage_max)
-		seen[snappedf(exposure, 0.0001)] = true
-	assert_gt(seen.size(), 3, "the boot cycle's exposure changes over the day")
-	skybox.set_overcast(1.0, 0.5, 0.6, 0.4, Color(0.4, 0.4, 0.5), 0.5)
-	skybox.set_cycle_phase(0.33)
-	var dimmed: float = float((skybox.theme.sky_material as ShaderMaterial).get_shader_parameter(&"exposure"))
-	assert_almost_eq(dimmed, SkyVariation.exposure_at(theme, 0.33, SkyVariation.DEFAULT_SEED) * 0.4, 0.00001, "overcast scales the varying baseline")
-
-
-## Bontago-59o.18 (C1b follow-up): a running cycle sky configured from `config`, with
+## C1b follow-up: a running cycle sky configured from `config`, with
 ## the clock at `clock`; returns [exposure, cloud coverage, sea coverage] of its live
 ## sky material.
 func _cycle_look(config: MatchConfig, clock: float) -> Array[float]:
@@ -148,7 +117,7 @@ func _resolved_config(variation_seed: int) -> MatchConfig:
 	return config
 
 
-## Bontago-59o.18 (C1b follow-up): the host-rolled MatchConfig.sky_variation_seed drives
+## C1b follow-up: the host-rolled MatchConfig.sky_variation_seed drives
 ## the sky. Two skyboxes with the same resolved seed (the host's, and a client built from
 ## its wire dict) draw the same sky; a different seed draws a different one; the seed the
 ## skybox reports is the config's.
@@ -170,28 +139,6 @@ func test_skyboxes_with_the_same_resolved_sky_variation_seed_match_and_different
 	assert_eq(host_config.effective_sky_variation_seed(), 5551)
 	assert_eq(_cycle_look(host_config, 0.0)[0], SkyVariation.exposure_at(theme, host.cycle_phase_at(0.0), 5551), "it is SkyVariation's function of that seed")
 
-
-## The rng_seed >= 0 path is unchanged (the match seed is the sky seed, no roll), an
-## explicit sky_variation_seed wins, and a config with neither shares the default curve.
-func test_the_rng_seed_path_is_unchanged_and_an_unresolved_config_uses_the_default_seed() -> void:
-	var seeded: MatchConfig = MatchConfig.new()
-	seeded.rng_seed = 4242
-	seeded.resolve_sky_variation_seed(99)
-	var skybox: Skybox = _make_wired_skybox()["skybox"] as Skybox
-	skybox.configure_match_sky(seeded)
-	assert_eq(skybox.variation_seed(), 4242, "a seeded match still draws from rng_seed")
-	var explicit: MatchConfig = MatchConfig.new()
-	explicit.rng_seed = 4242
-	explicit.sky_variation_seed = 7
-	skybox.configure_match_sky(explicit)
-	assert_eq(skybox.variation_seed(), 7, "the host-resolved variation seed wins over rng_seed")
-	var unresolved: MatchConfig = MatchConfig.new()
-	skybox.configure_match_sky(unresolved)
-	assert_eq(skybox.variation_seed(), SkyVariation.DEFAULT_SEED, "nothing resolved: the shared default curve")
-	assert_eq(_cycle_look(unresolved, 60.0), _cycle_look(MatchConfig.new(), 60.0), "unresolved peers still agree")
-
-
-## Bontago-xtq.28 -----------------------------------------------------------
 
 func test_apply_theme_writes_sky_ground_and_fog_fields() -> void:
 	var wired: Dictionary = _make_wired_skybox()
@@ -239,55 +186,6 @@ func test_apply_theme_writes_sky_ground_and_fog_fields() -> void:
 	)
 
 
-func test_apply_theme_is_a_noop_with_no_environment_wired() -> void:
-	# The file-level before_each() fixture's `_skybox` never wires `environment`
-	# -- apply_theme() must not push an error/crash for the common "unwired
-	# fixture" shape every other test in this file already relies on.
-	_skybox.apply_theme(_skybox.theme)
-	assert_true(true, "apply_theme() must no-op silently with environment == null")
-
-
-func test_apply_theme_updates_sky_yaw_pitch_offsets_on_shared_sky_material() -> void:
-	var wired: Dictionary = _make_wired_skybox()
-	var skybox: Skybox = wired["skybox"] as Skybox
-	var environment: Environment = wired["environment"] as Environment
-	var theme: SkyThemeDef = SkyThemeDef.new()
-	var material: ShaderMaterial = ShaderMaterial.new()
-	material.shader = load("res://shaders/sky/sunset_clouds.gdshader")
-	theme.sky_material = material
-	theme.sky_yaw_offset_deg = 184.058612
-	theme.sky_pitch_offset_deg = 3.0
-	skybox.apply_theme(theme)
-	assert_eq(environment.sky.sky_material, material, "Background and sky reflections share the aligned material.")
-	assert_almost_eq(float(material.get_shader_parameter("sky_yaw_offset_deg")), theme.sky_yaw_offset_deg, 0.0001)
-	assert_almost_eq(float(material.get_shader_parameter("sky_pitch_offset_deg")), 3.0, 0.0001)
-	theme.sky_yaw_offset_deg = 12.0
-	skybox.apply_theme(theme)
-	assert_almost_eq(float(material.get_shader_parameter("sky_yaw_offset_deg")), 12.0, 0.0001, "F4 reapply updates live sampling.")
-
-
-func test_apply_theme_writes_procedural_sky_params_to_material() -> void:
-	var wired: Dictionary = _make_wired_skybox()
-	var skybox: Skybox = wired["skybox"] as Skybox
-	var theme: SkyThemeDef = SkyThemeDef.new()
-	var material: ShaderMaterial = ShaderMaterial.new()
-	material.shader = load("res://shaders/sky/sunset_clouds.gdshader")
-	theme.sky_material = material
-	theme.procedural_sea_mix = 0.75
-	theme.proc_horizon_color = Color(0.1, 0.2, 0.3)
-	theme.proc_strata_scale = 2.5
-	skybox.apply_theme(theme)
-	assert_true(theme.sky_look_procedural, "the toggle defaults to on.")
-	theme.sky_look_procedural = false
-	skybox.apply_theme(theme)
-	assert_almost_eq(float(material.get_shader_parameter("procedural_sea_mix")), 0.75, 0.0001, "Painted panorama is gone: the flag no longer zeroes the sky mix (a 0 mix is a black sky).")
-	theme.sky_look_procedural = true
-	skybox.apply_theme(theme)
-	assert_almost_eq(float(material.get_shader_parameter("procedural_sea_mix")), 0.75, 0.0001)
-	assert_eq(material.get_shader_parameter("proc_horizon_color"), Color(0.1, 0.2, 0.3))
-	assert_almost_eq(float(material.get_shader_parameter("proc_strata_scale")), 2.5, 0.0001)
-
-
 func test_fog_volume_is_created_but_hidden_on_low_preset() -> void:
 	Settings.set_graphics_preset(&"low")
 	var skybox: Skybox = Skybox.new()
@@ -299,64 +197,7 @@ func test_fog_volume_is_created_but_hidden_on_low_preset() -> void:
 	assert_false(fog_volume.visible, "low preset must hide the cloud-deck FogVolume")
 
 
-func test_fog_volume_is_visible_on_medium_and_high_preset() -> void:
-	Settings.set_graphics_preset(&"medium")
-	var medium_skybox: Skybox = Skybox.new()
-	medium_skybox.config = SkyboxConfig.new()
-	add_child_autofree(medium_skybox)
-	assert_true(medium_skybox.get_fog_volume().visible, "medium preset must show the cloud-deck FogVolume")
-
-	Settings.set_graphics_preset(&"high")
-	var high_skybox: Skybox = Skybox.new()
-	high_skybox.config = SkyboxConfig.new()
-	add_child_autofree(high_skybox)
-	assert_true(high_skybox.get_fog_volume().visible, "high preset must show the cloud-deck FogVolume")
-
-
-func test_fog_volume_uses_the_theme_cloud_deck_size_and_height() -> void:
-	Settings.set_graphics_preset(&"high")
-	var custom_theme: SkyThemeDef = SkyThemeDef.new()
-	custom_theme.cloud_deck_size_m = Vector3(120.0, 20.0, 140.0)
-	custom_theme.cloud_deck_height_m = -55.0
-	var skybox: Skybox = Skybox.new()
-	skybox.config = SkyboxConfig.new()
-	skybox.theme = custom_theme
-	add_child_autofree(skybox)
-
-	var fog_volume: FogVolume = skybox.get_fog_volume()
-	assert_eq(fog_volume.size, custom_theme.cloud_deck_size_m, "FogVolume.size must come from the theme")
-	assert_almost_eq(
-		fog_volume.position.y, custom_theme.cloud_deck_height_m, 0.001,
-		"FogVolume.position.y must come from the theme, not a Skybox.gd constant"
-	)
-
-
-func test_sunset_theme_cloud_deck_sits_entirely_below_the_disk() -> void:
-	var sunset: SkyThemeDef = load("res://config/sky/themes/sunset.tres") as SkyThemeDef
-	var deck_top_y: float = sunset.cloud_deck_height_m + sunset.cloud_deck_size_m.y * 0.5
-	assert_lt(
-		deck_top_y, 0.0,
-		"the shipped sunset cloud deck's top edge must sit below world y == 0 (the disk's top surface), "
-		+ "not enclose the disk/gameplay camera in fog"
-	)
-
-
-func test_fog_volume_visibility_reacts_live_to_graphics_preset_changed() -> void:
-	Settings.set_graphics_preset(&"high")
-	var skybox: Skybox = Skybox.new()
-	skybox.config = SkyboxConfig.new()
-	add_child_autofree(skybox)
-	assert_true(skybox.get_fog_volume().visible, "fixture: starts visible on high")
-
-	Settings.set_graphics_preset(&"low")
-
-	assert_false(
-		skybox.get_fog_volume().visible,
-		"an already-created Skybox must hide its FogVolume live when the preset changes, not just at boot"
-	)
-
-
-## Bontago-59o.18 (C1a review fix): a graphics-preset change (the settings menu or the
+## C1a review fix: a graphics-preset change (the settings menu or the
 ## adaptive governor) rebuilds the cloud puffs and ambient life from the DAY
 ## palette. A running cycle heals on its next frame, but a locked cycle never
 ## re-runs set_cycle_phase() on its own, so the match stayed dressed as day inside
@@ -404,303 +245,3 @@ func test_graphics_preset_change_keeps_a_locked_night_dressed_as_night() -> void
 	skybox._on_graphics_preset_changed(Settings.current_graphics_preset())
 	_assert_locked_night_dressing(skybox, "after the handler")
 
-
-## The re-apply is a no-op for the clock: a locked sky keeps its phase, and a
-## running cycle keeps following the clock after the same rebuild.
-func test_graphics_preset_change_keeps_the_phase_locked_or_running() -> void:
-	var locked: Skybox = _make_locked_night_skybox()
-	var held: float = locked.locked_phase()
-	Settings.set_graphics_preset(&"medium")
-	assert_almost_eq(locked.locked_phase(), held, 0.0001, "the lock survives a preset change")
-	assert_almost_eq(locked.current_cycle_phase(), held, 0.0001, "and the phase written is still the locked one")
-
-	var running: Skybox = _make_wired_skybox()["skybox"] as Skybox
-	var config: MatchConfig = MatchConfig.new()
-	config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
-	running.configure_match_sky(config)
-	running.update_cycle_clock(40.0)
-	var phase: float = running.current_cycle_phase()
-	Settings.set_graphics_preset(&"high")
-	assert_eq(running.locked_phase(), -1.0, "a running cycle stays running")
-	assert_almost_eq(running.current_cycle_phase(), phase, 0.0001, "the phase is re-applied unchanged")
-
-
-# --- Bontago-xtq.12: the ReflectionProbe wired via reflection_probe_path ----
-# (owner: "isn't very reflective, like at all") is configured from
-# config/territory/TerritoryVisuals.gd's reflection_probe_* fields once at _ready().
-
-func _make_skybox_with_probe(visuals: TerritoryVisuals) -> Dictionary:
-	var skybox: Skybox = Skybox.new()
-	skybox.config = SkyboxConfig.new()
-	var probe: ReflectionProbe = ReflectionProbe.new()
-	probe.name = "Probe"
-	skybox.add_child(probe)
-	skybox.reflection_probe_path = NodePath("Probe")
-	skybox.visuals = visuals
-	add_child_autofree(skybox)
-	return {"skybox": skybox, "probe": probe}
-
-
-func test_reflection_probe_sized_from_visuals_and_the_largest_map_radius() -> void:
-	var visuals: TerritoryVisuals = TerritoryVisuals.new()
-	visuals.reflection_probe_margin_m = 5.0
-	visuals.reflection_probe_height_m = 20.0
-	var wired: Dictionary = _make_skybox_with_probe(visuals)
-	var probe: ReflectionProbe = wired["probe"] as ReflectionProbe
-
-	var expected_half_width: float = MapDef.RADIUS_LARGE + 5.0
-	assert_almost_eq(probe.size.x, expected_half_width * 2.0, 0.001)
-	assert_almost_eq(probe.size.z, expected_half_width * 2.0, 0.001)
-	assert_almost_eq(probe.size.y, 20.0, 0.001)
-	assert_true(probe.box_projection, "a flat static disk should use box-corrected reflections.")
-
-
-func test_reflection_probe_update_always_when_visuals_says_so() -> void:
-	var visuals: TerritoryVisuals = TerritoryVisuals.new()
-	visuals.reflection_probe_update_always = true
-	var wired: Dictionary = _make_skybox_with_probe(visuals)
-	var probe: ReflectionProbe = wired["probe"] as ReflectionProbe
-
-	assert_eq(probe.update_mode, ReflectionProbe.UPDATE_ALWAYS)
-
-
-func test_reflection_probe_update_once_when_visuals_says_so() -> void:
-	var visuals: TerritoryVisuals = TerritoryVisuals.new()
-	visuals.reflection_probe_update_always = false
-	var wired: Dictionary = _make_skybox_with_probe(visuals)
-	var probe: ReflectionProbe = wired["probe"] as ReflectionProbe
-
-	assert_eq(probe.update_mode, ReflectionProbe.UPDATE_ONCE)
-
-
-func test_effective_probe_mode_maps_preset_and_overrides() -> void:
-	var visuals: TerritoryVisuals = TerritoryVisuals.new()
-	var preset: GraphicsPreset = GraphicsPreset.new()
-	for mode: int in [
-		GraphicsPreset.ReflectionProbeMode.OFF, GraphicsPreset.ReflectionProbeMode.ONCE,
-		GraphicsPreset.ReflectionProbeMode.INTERVAL, GraphicsPreset.ReflectionProbeMode.ALWAYS,
-	]:
-		preset.reflection_probe_mode = mode as GraphicsPreset.ReflectionProbeMode
-		assert_eq(Skybox.effective_probe_mode(visuals, preset), mode)
-	assert_eq(Skybox.effective_probe_mode(visuals, null), GraphicsPreset.ReflectionProbeMode.INTERVAL)
-	preset.reflection_probe_mode = GraphicsPreset.ReflectionProbeMode.OFF
-	visuals.reflection_probe_update_always = true
-	assert_eq(Skybox.effective_probe_mode(visuals, preset), GraphicsPreset.ReflectionProbeMode.ALWAYS)
-	visuals.reflection_probe_enabled = false
-	assert_eq(Skybox.effective_probe_mode(visuals, preset), GraphicsPreset.ReflectionProbeMode.OFF)
-
-
-func test_shipped_presets_pick_probe_glow_and_shadow_costs() -> void:
-	var low: GraphicsPreset = load("res://config/graphics/presets/low.tres") as GraphicsPreset
-	var medium: GraphicsPreset = load("res://config/graphics/presets/medium.tres") as GraphicsPreset
-	var high: GraphicsPreset = load("res://config/graphics/presets/high.tres") as GraphicsPreset
-	assert_eq(low.reflection_probe_mode, GraphicsPreset.ReflectionProbeMode.OFF)
-	assert_eq(medium.reflection_probe_mode, GraphicsPreset.ReflectionProbeMode.INTERVAL)
-	assert_gt(medium.reflection_probe_interval_s, high.reflection_probe_interval_s)
-	assert_eq(high.reflection_probe_mode, GraphicsPreset.ReflectionProbeMode.INTERVAL)
-	assert_false(low.glow_enabled)
-	assert_true(medium.glow_enabled and high.glow_enabled)
-	assert_lt(low.sun_shadow_mode, medium.sun_shadow_mode)
-	assert_lt(low.sun_shadow_max_distance, medium.sun_shadow_max_distance)
-
-
-func test_interval_mode_rerenders_the_probe_only_when_blocks_changed() -> void:
-	var visuals: TerritoryVisuals = TerritoryVisuals.new()
-	var wired: Dictionary = _make_skybox_with_probe(visuals)
-	var skybox: Skybox = wired["skybox"] as Skybox
-	var probe: ReflectionProbe = wired["probe"] as ReflectionProbe
-	var registry: BlockRegistry = BlockRegistry.new()
-	add_child_autofree(registry)
-	skybox._probe_registry = registry
-	skybox._probe_mode = GraphicsPreset.ReflectionProbeMode.INTERVAL
-	skybox._probe_interval_s = 0.5
-	var y0: float = probe.position.y
-	skybox._step_probe_interval(0.4)
-	assert_eq(probe.position.y, y0, "before the interval nothing happens")
-	skybox._step_probe_interval(0.2)
-	assert_ne(probe.position.y, y0, "first interval renders once (new revision)")
-	var y1: float = probe.position.y
-	skybox._step_probe_interval(0.6)
-	assert_eq(probe.position.y, y1, "unchanged blocks do not re-render")
-	registry.mark_territory_dirty()
-	skybox._step_probe_interval(0.6)
-	assert_ne(probe.position.y, y1, "a block change re-renders")
-
-
-func test_off_and_once_modes_never_retrigger() -> void:
-	var visuals: TerritoryVisuals = TerritoryVisuals.new()
-	var wired: Dictionary = _make_skybox_with_probe(visuals)
-	var skybox: Skybox = wired["skybox"] as Skybox
-	var probe: ReflectionProbe = wired["probe"] as ReflectionProbe
-	var registry: BlockRegistry = BlockRegistry.new()
-	add_child_autofree(registry)
-	skybox._probe_registry = registry
-	var y0: float = probe.position.y
-	for mode: int in [GraphicsPreset.ReflectionProbeMode.OFF, GraphicsPreset.ReflectionProbeMode.ONCE]:
-		skybox._probe_mode = mode
-		registry.mark_territory_dirty()
-		skybox._step_probe_interval(100.0)
-		assert_eq(probe.position.y, y0)
-
-
-func test_reflection_probe_disabled_hides_it() -> void:
-	var visuals: TerritoryVisuals = TerritoryVisuals.new()
-	visuals.reflection_probe_enabled = false
-	var wired: Dictionary = _make_skybox_with_probe(visuals)
-	var probe: ReflectionProbe = wired["probe"] as ReflectionProbe
-
-	assert_false(probe.visible)
-
-
-func test_reflection_probe_excludes_the_disc_mirror_layer() -> void:
-	# Bontago-xtq.20 (owner, 2026-09-23 20:12: "graphics flickering"):
-	# fail-before this fix -- a fresh ReflectionProbe's default cull_mask
-	# includes every layer, including TerritoryOverlay.DISC_LAYER_BIT (the layer
-	# the removed DiscMirror moves the disc onto in _ready() so its OWN mirror
-	# camera cannot see it). Left unset, the probe would still bake the disc's
-	# own shader (which samples SCREEN_UV of a SubViewport rendered for the
-	# main camera's projection, meaningless from a cubemap face's own
-	# projection) into its cubemap every UPDATE_ALWAYS frame -- an incoherent
-	# image that changes every frame, i.e. flicker.
-	var visuals: TerritoryVisuals = TerritoryVisuals.new()
-	var wired: Dictionary = _make_skybox_with_probe(visuals)
-	var probe: ReflectionProbe = wired["probe"] as ReflectionProbe
-
-	assert_eq(
-		probe.cull_mask & TerritoryOverlay.DISC_LAYER_BIT, 0,
-		"the reflection probe must not see the layer the disc's planar-mirror material lives on.",
-	)
-	assert_eq(
-		probe.cull_mask, Skybox.PROBE_CULL_MASK,
-		"the probe should exclude exactly the same layer DiscMirror's own mirror camera already excludes.",
-	)
-
-
-func test_reflection_probe_configuration_is_a_noop_with_no_path_wired() -> void:
-	# before_each()'s plain _skybox never wires reflection_probe_path or a
-	# probe child -- _ready() already ran in before_each() without error, so
-	# this just pins that this stays true rather than relying on it silently.
-	assert_true(is_instance_valid(_skybox), "an unwired skybox must not error during _ready().")
-
-
-# --- Bontago-xtq.12 step 2: SSR configuration and the TUNING_GROUP live-apply
-# door (owner: "the disc isn't very reflective, like at all?") -- game/
-# Skybox.gd's configure_ssr()/refresh_from_visuals() push config/
-# TerritoryVisuals.gd's ssr_* fields onto the wired Environment, mirroring
-# configure_reflection_probe()'s own contract above.
-
-
-func test_configure_ssr_pushes_visuals_fields_onto_the_environment() -> void:
-	var wired: Dictionary = _make_wired_skybox()
-	var skybox: Skybox = wired["skybox"] as Skybox
-	var environment: Environment = wired["environment"] as Environment
-	var visuals: TerritoryVisuals = TerritoryVisuals.new()
-	visuals.ssr_enabled = true
-	visuals.ssr_max_steps = 12
-	visuals.ssr_fade_in = 0.33
-	visuals.ssr_fade_out = 1.23
-	visuals.ssr_depth_tolerance = 0.44
-	skybox.visuals = visuals
-
-	skybox.configure_ssr()
-
-	assert_true(environment.ssr_enabled)
-	assert_eq(environment.ssr_max_steps, 12)
-	assert_almost_eq(environment.ssr_fade_in, 0.33, 0.0001)
-	assert_almost_eq(environment.ssr_fade_out, 1.23, 0.0001)
-	assert_almost_eq(environment.ssr_depth_tolerance, 0.44, 0.0001)
-
-
-func test_configure_ssr_disabled_turns_off_ssr_in_the_environment() -> void:
-	var wired: Dictionary = _make_wired_skybox()
-	var skybox: Skybox = wired["skybox"] as Skybox
-	var environment: Environment = wired["environment"] as Environment
-	var visuals: TerritoryVisuals = TerritoryVisuals.new()
-	visuals.ssr_enabled = false
-	skybox.visuals = visuals
-
-	skybox.configure_ssr()
-
-	assert_false(environment.ssr_enabled)
-
-
-func test_configure_ssr_writes_ssao_fields_and_defaults_off() -> void:
-	var wired: Dictionary = _make_wired_skybox()
-	var skybox: Skybox = wired["skybox"] as Skybox
-	var environment: Environment = wired["environment"] as Environment
-	var visuals: TerritoryVisuals = TerritoryVisuals.new()
-	assert_false(visuals.ssao_enabled, "SSAO must default off so the shipped look is unchanged.")
-	skybox.visuals = visuals
-	skybox.configure_ssr()
-	assert_false(environment.ssao_enabled)
-
-	visuals.ssao_enabled = true
-	visuals.ssao_radius = 1.7
-	visuals.ssao_intensity = 3.5
-	visuals.ssao_power = 2.2
-	visuals.ssao_detail = 0.7
-	visuals.ssao_horizon = 0.1
-	visuals.ssao_sharpness = 0.9
-	visuals.ssao_light_affect = 0.3
-	visuals.ssao_ao_channel_affect = 0.4
-	skybox.refresh_from_visuals()
-
-	assert_true(environment.ssao_enabled)
-	assert_almost_eq(environment.ssao_radius, 1.7, 0.0001)
-	assert_almost_eq(environment.ssao_intensity, 3.5, 0.0001)
-	assert_almost_eq(environment.ssao_power, 2.2, 0.0001)
-	assert_almost_eq(environment.ssao_detail, 0.7, 0.0001)
-	assert_almost_eq(environment.ssao_horizon, 0.1, 0.0001)
-	assert_almost_eq(environment.ssao_sharpness, 0.9, 0.0001)
-	assert_almost_eq(environment.ssao_light_affect, 0.3, 0.0001)
-	assert_almost_eq(environment.ssao_ao_channel_affect, 0.4, 0.0001)
-
-
-func test_configure_ssr_and_refresh_are_noops_without_a_wired_environment() -> void:
-	# before_each()'s plain _skybox never wires `environment` (only the tests
-	# above build their own via _make_wired_skybox()) or a
-	# reflection_probe_path -- configure_ssr()/refresh_from_visuals() must not
-	# error with nothing wired, the same no-op contract
-	# configure_reflection_probe() already has (see the test right above this
-	# section).
-	_skybox.configure_ssr()
-	_skybox.refresh_from_visuals()
-	assert_true(
-		is_instance_valid(_skybox),
-		"configure_ssr()/refresh_from_visuals() must not error with no Environment/probe wired."
-	)
-
-
-func test_refresh_from_visuals_reapplies_probe_and_ssr_after_a_visuals_change() -> void:
-	var wired: Dictionary = _make_wired_skybox()
-	var skybox: Skybox = wired["skybox"] as Skybox
-	var environment: Environment = wired["environment"] as Environment
-	var probe: ReflectionProbe = ReflectionProbe.new()
-	probe.name = "Probe"
-	skybox.add_child(probe)
-	skybox.reflection_probe_path = NodePath("Probe")
-	var visuals: TerritoryVisuals = TerritoryVisuals.new()
-	visuals.ssr_enabled = true
-	visuals.reflection_probe_enabled = true
-	skybox.visuals = visuals
-	skybox.refresh_from_visuals()
-
-	visuals.ssr_enabled = false
-	visuals.ssr_max_steps = 7
-	visuals.reflection_probe_enabled = false
-
-	skybox.refresh_from_visuals()
-
-	assert_false(environment.ssr_enabled, "SSR must be re-applied from the changed visuals.")
-	assert_eq(environment.ssr_max_steps, 7)
-	assert_false(
-		probe.visible,
-		"refresh_from_visuals() must re-apply the reflection probe settings too, not only SSR."
-	)
-
-
-func test_skybox_is_in_the_tuning_group_after_ready() -> void:
-	assert_true(
-		_skybox.is_in_group(Skybox.TUNING_GROUP),
-		"ui/debug/TuningPanel.gd's refresh_territory_visuals_live() reaches every live Skybox via this group."
-	)

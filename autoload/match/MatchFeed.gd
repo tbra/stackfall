@@ -7,8 +7,8 @@ extends RefCounted
 ## method here is the exact body that used to live on Match, with `_match`
 ## reads standing in for whatever another controller (or Match itself) now
 ## owns. See autoload/Match.gd's own header comment for the state machine
-## this feed serves, and docs/AGENT_WORKFLOW.md's "Package size, reports and
-## review scope" for why the split happened.
+## this feed serves. The split exists so parallel workers own separate files
+## rather than separate functions of one file.
 
 var _match: MatchAutoload = null
 
@@ -17,7 +17,7 @@ var _held_shapes: Array[BlockShape] = []
 var _feed_time_left: Array[float] = []
 var _feed_expired: Array[bool] = []
 
-## Bontago-1pi.18.1 (QoL experiments 1 and 2; see config/match/QolExperiments.gd).
+## (QoL experiments 1 and 2; see config/match/QolExperiments.gd).
 ## _backlog[slot] holds blocks queued instead of force-dropped (host only);
 ## _backlog_mirror/_paused_mirror are what a client displays, kept by
 ## apply_replicated_qol(). _timer_pause is null unless the toggle is on.
@@ -33,15 +33,15 @@ var _qol_paused_before: Array[bool] = []
 ## Test seam: Callable() -> PackedInt32Array replaces the block-velocity scan.
 var _qol_moving_counts_source: Callable = Callable()
 
-## Spec 3.4 / docs/archive/M3a_PLAN.md, "Never duplicated, never lost": one counter
+## Spec 2.6, "Never duplicated, never lost"
 ## per slot, advanced every time the slot's held block is consumed. An intent
 ## carries the value its sender last saw; the host refuses one that is no
 ## longer current, so a replayed, doubled or raced intent is a no-op instead
 ## of silently spending the next block.
 var _feed_seq: Array[int] = []
 
-## Bontago-mv0.10 (spec 2.4 "[ORIGINAL target]" placement cadence, restored
-## after the M2 hot-seat prototype): whether the slot's currently held piece
+## spec 1.4 "[ORIGINAL target]" placement cadence, restored
+## after the M2 hot-seat prototype: whether the slot's currently held piece
 ## may be released right now. Every fixed `config.block_timer` interval
 ## permits exactly one release; placing early does not restart the interval
 ## -- it hands the slot its next piece to aim/prepare immediately, but that
@@ -54,7 +54,7 @@ var _release_locked: Array[bool] = []
 ## These dictionaries are cleared when a new bag is built or a match resets.
 var _next_gift_shapes: Dictionary = {}
 var _held_is_gift: Dictionary = {}
-## Bontago-1pi.85.69 (gift_queue_after_next trial): slot -> carrier BlockShape of a
+## gift_queue_after_next trial: slot -> carrier BlockShape of a
 ## claimed gift that is the block AFTER next. It becomes _next_gift_shapes[slot] as
 ## soon as the ordinary next piece is issued. Empty with the trial off.
 var _staged_gift_shapes: Dictionary = {}
@@ -63,7 +63,7 @@ var _suppress_gift_roll: bool = false
 ## Lazily built id -> BlockShape index, used only by the client read model.
 var _shapes_by_id: Dictionary = {}
 
-## Whether _tick_feed() decrements anything this frame (Bontago-mv0.8).
+## Whether _tick_feed() decrements anything this frame.
 ## True for every real match; a sandbox match (config.sandbox) starts it
 ## false, so feed_time_left never counts down and no slot ever auto-drops —
 ## game/sandbox/Sandbox.gd's sandbox_toggle_timer hotkey flips it back on to
@@ -111,7 +111,7 @@ func next_shape(slot_id: int) -> BlockShape:
 	return preview[0] if preview.size() > 0 else null
 
 
-## Seconds left on the slot's block timer (spec 2.8: 3-12 s, default 6).
+## Seconds left on the slot's block timer (spec 1.9: 3-12 s, default 6).
 func feed_time_left(slot_id: int) -> float:
 	if slot_id < 0 or slot_id >= _feed_time_left.size():
 		return 0.0
@@ -125,7 +125,7 @@ func feed_progress(slot_id: int) -> float:
 	return clampf(feed_time_left(slot_id) / _match.config.block_timer, 0.0, 1.0)
 
 
-## Whether _tick_feed() is currently decrementing timers (Bontago-mv0.8:
+## Whether _tick_feed() is currently decrementing timers (
 ## true for every real match). ui/debug/SandboxPanel.gd shows this as the timer's
 ## "running"/"paused" state.
 func feed_timer_enabled() -> bool:
@@ -141,7 +141,7 @@ func set_feed_timer_enabled(enabled: bool) -> void:
 	_feed_timer_enabled = enabled
 
 
-## Bontago-1pi.18.1: blocks the slot has queued (host: the real backlog; client:
+## blocks the slot has queued (host: the real backlog; client:
 ## the replicated mirror). Always 0 with the backlog toggle off.
 func backlog_count(slot_id: int) -> int:
 	if _match._is_host():
@@ -153,7 +153,7 @@ func backlog_count(slot_id: int) -> int:
 	return _backlog_mirror[slot_id]
 
 
-## Bontago-1pi.18.1: whether the slot's block timer is frozen by the pause toggle.
+## whether the slot's block timer is frozen by the pause toggle.
 func timer_paused(slot_id: int) -> bool:
 	if _match._is_host():
 		return _timer_pause != null and _timer_pause.is_paused(slot_id)
@@ -176,7 +176,7 @@ func _issue_next_block(slot_id: int, from_backlog: bool = true) -> void:
 	var is_gift: bool = false
 	var popped: bool = false
 	if from_backlog and slot_id < _backlog.size() and not _backlog[slot_id].is_empty():
-		# DECISION (Bontago-1pi.18.1): a queued block is handed out before the
+		# DECISION: a queued block is handed out before the
 		# bag is touched, so placing "takes from the backlog first"; a pending
 		# gift carrier stays pending for the first bag draw after the backlog.
 		shape = _backlog[slot_id].pop_front() as BlockShape
@@ -187,7 +187,7 @@ func _issue_next_block(slot_id: int, from_backlog: bool = true) -> void:
 		_next_gift_shapes.erase(slot_id)
 		_promote_staged_gift(slot_id)
 	_held_is_gift[slot_id] = is_gift
-	# Bontago-1pi.134 review: an aim noted for the previous piece never carries over to this one.
+	# review: an aim noted for the previous piece never carries over to this one.
 	_match._placement.forget_aim(slot_id)
 	if is_gift:
 		_match._gifts.activate_next_special(slot_id)
@@ -206,7 +206,7 @@ func _issue_next_block(slot_id: int, from_backlog: bool = true) -> void:
 		_emit_qol_state(slot_id)
 
 
-## Bontago-1pi.186: an eliminated slot holds nothing - the held and next block,
+## an eliminated slot holds nothing - the held and next block,
 ## its backlog, a pending gift carrier and the held special are all dropped, and
 ## held_shape()/next_shape() answer null so no intent or preview can use them.
 func clear_slot_blocks(slot_id: int) -> void:
@@ -229,10 +229,10 @@ func _tick_feed(delta: float) -> void:
 	if not _match._is_host():
 		return
 	if not _feed_timer_enabled:
-		# Bontago-mv0.8: sandbox's default state (and sandbox_toggle_timer's
+		# sandbox's default state (and sandbox_toggle_timer's
 		# "off" position) — feed_time_left is left exactly where it is, so
 		# ui/debug/SandboxPanel.gd reads a paused timer, not a frozen countdown
-		# drifting toward zero. Bontago-mv0.10: this also means the
+		# drifting toward zero. this also means the
 		# placement-interval lock below never engages while the timer is
 		# paused -- sandbox's own "unlimited blocks" with the timer disabled
 		# gets no lock either, by the same reasoning _consume_and_refeed()'s
@@ -240,14 +240,14 @@ func _tick_feed(delta: float) -> void:
 		return
 	_tick_qol_pause(delta)
 	if _match.config.is_sequential_play():
-		# stackfall-reviewer finding (Bontago-keo.10, M6 B4 turn-based review):
+		# stackfall-reviewer finding (M6 B4 turn-based review):
 		# turn_based used to fall into the concurrent `else` branch below,
 		# which ticked down EVERY slot's timer regardless of whose turn it
 		# was -- a non-active slot could expire and auto-drop, and
 		# net/MatchNet.gd's host-side check refuses that placement as
-		# NOT_YOUR_TURN (docs/archive/M6_PLAN.md B4: only the active slot may act).
-		# turn_based shares hot-seat's one-actor-at-a-time shape (spec 2.7 vs.
-		# spec 2.4's concurrent "[ORIGINAL target]"), so it takes the same
+		# NOT_YOUR_TURN (only the active slot may act).
+		# turn_based shares hot-seat's one-actor-at-a-time shape (spec 1.2 vs.
+		# spec 1.4's concurrent "[ORIGINAL target]"), so it takes the same
 		# single-slot branch, including the recovery just below.
 		var active_slot: int = _match.active_slot()
 		if active_slot == -1:
@@ -261,7 +261,7 @@ func _tick_feed(delta: float) -> void:
 			# Mirrors hot-seat's own pre-existing recovery exactly.
 			#
 			# DECISION (autoload/match/MatchFeed.gd, not settled by docs/
-			# M6_PLAN.md's B4 section): this call is a no-op whenever a
+			# the turn-lock rule): this call is a no-op whenever a
 			# settle-wait IS currently running (the active slot placed, then
 			# died before its blocks finished settling) -- advance_turn()
 			# itself doesn't touch MatchLifecycle._turn_settle_wait_left, so a
@@ -270,7 +270,7 @@ func _tick_feed(delta: float) -> void:
 			# slot needs to lose its home flag strictly between placing and
 			# settling, e.g. a special detonating mid-fall) and
 			# MatchLifecycle.gd is out of this package's owned files; flagged
-			# for the MatchLifecycle owner rather than fixed here. The
+			# for the MatchLifecycle slot owner rather than fixed here. The
 			# reported deadlock this package fixes is the more common case --
 			# eliminated BEFORE ever placing, when no wait is running yet, so
 			# this call is exactly the hot-seat recovery it mirrors.
@@ -283,7 +283,7 @@ func _tick_feed(delta: float) -> void:
 			_feed_expired[active_slot] = true
 			Events.feed_timer_expired.emit(active_slot)
 	else:
-		# Spec 2.4 "[ORIGINAL target]": "players act concurrently, each
+		# Spec 1.4 "[ORIGINAL target]": "players act concurrently, each
 		# handling their own supplied piece". Every slot's fixed-interval
 		# timer runs at once and several blocks may land in the same second;
 		# nothing here serialises them. Neither hot_seat nor turn_based ever
@@ -293,18 +293,18 @@ func _tick_feed(delta: float) -> void:
 				continue
 			if _match._lifecycle._disconnect_grace_left[i] >= 0.0:
 				# The peer vanished: its feed stops the moment it does
-				# (docs/archive/M3a_PLAN.md, "Disconnects and the in-flight held
+				# ("Disconnects and the in-flight held
 				# block") so a player who reconnects inside the grace period
 				# has not been auto-dropped a tower's worth of blocks.
 				continue
 			if timer_paused(i):
-				# Bontago-1pi.18.1 (QoL 1): frozen by an event or a topple.
+				# QoL 1: frozen by an event or a topple.
 				continue
 			_feed_time_left[i] = maxf(_feed_time_left[i] - delta, 0.0)
 			if _feed_time_left[i] > 0.0 or _feed_expired[i]:
 				continue
 			if _release_locked[i]:
-				# Bontago-mv0.10 (spec 2.4): this interval's one release
+				# spec 1.4: this interval's one release
 				# already happened early -- the slot has been aiming its next
 				# piece, locked, since then. The boundary just unlocks it and
 				# starts a fresh interval for it; nothing needs forcing, so no
@@ -313,18 +313,18 @@ func _tick_feed(delta: float) -> void:
 				_release_locked[i] = false
 				_feed_time_left[i] = _match.config.block_timer
 			elif _try_backlog_push(i):
-				# Bontago-1pi.18.1 (QoL 2): queued instead of forced.
+				# QoL 2: queued instead of forced.
 				pass
 			else:
 				# This interval's piece is still unspent: force it, exactly
-				# as spec 2.5's [ORIGINAL] auto-drop always has. _feed_expired
+				# as spec 1.4's [ORIGINAL] auto-drop always has. _feed_expired
 				# latches until _consume_and_refeed(auto_drop = true) resolves
 				# the forced placement and starts the next interval.
 				_feed_expired[i] = true
 				Events.feed_timer_expired.emit(i)
 
 
-## DECISION (autoload/Match.gd): docs/archive/M3a_PLAN.md says a client runs "no feed
+## DECISION (autoload/Match.gd): the design says a client runs
 ## tick", meaning it decides nothing — but with no local decrement at all the
 ## HUD's timer ring would sit frozen between the host's 1-per-block feed
 ## events, which reads as a bug. So a client counts the same timers down for
@@ -343,7 +343,7 @@ func _tick_client_display(delta: float) -> void:
 		_feed_time_left[i] = maxf(_feed_time_left[i] - delta, 0.0)
 
 
-## Bontago-1pi.18.1 (QoL 2): at expiry, if the backlog toggle is on and has room,
+## QoL 2: at expiry, if the backlog toggle is on and has room,
 ## queue the held block and hand the slot a fresh one with a new interval
 ## instead of force-dropping. Returns false (caller force-drops) when the toggle
 ## is off, the backlog is full, or the held block is a gift.
@@ -379,7 +379,7 @@ func _emit_qol_state(slot_id: int) -> void:
 	Events.qol_feed_changed.emit(slot_id, backlog_count(slot_id), timer_paused(slot_id))
 
 
-## Bontago-1pi.18.1 (QoL 1): feeds the pause rule (topple scan on an interval)
+## QoL 1: feeds the pause rule (topple scan on an interval)
 ## and announces per-slot pause changes.
 func _tick_qol_pause(delta: float) -> void:
 	if _timer_pause == null:
@@ -444,7 +444,7 @@ func _build_bags() -> void:
 		# whole match; each slot's bag needs its own seed so slots don't deal
 		# identical sequences. Spread deterministically from the match seed
 		# with a large odd stride so per-slot seeds don't collide for any
-		# player_count in spec 2.8's 2-8 range.
+		# player_count in spec 1.9's 2-8 range.
 		var seed: int = -1
 		if _match.config.rng_seed >= 0:
 			seed = _match.config.rng_seed + i * 1000003
@@ -454,7 +454,7 @@ func _build_bags() -> void:
 		_paused_mirror.append(false)
 
 
-## Bontago-mv0.10 (spec 2.4 "[ORIGINAL target]" placement cadence): "Each
+## spec 1.4 "[ORIGINAL target]" placement cadence: "Each
 ## fixed interval permits one release. Releasing early does not restart the
 ## interval: the next piece can be positioned but remains release-locked
 ## until the interval boundary. At expiry, force release only if that
@@ -465,16 +465,16 @@ func _build_bags() -> void:
 ##
 ## DECISION (autoload/Match.gd): hot-seat is exempt -- its turn already passes
 ## to a *different* player's controls the instant a block lands
-## (docs/archive/M2_PLAN.md owner decision 1: strict alternation), so the same slot
+## (strict alternation)
 ## can never place twice in a row and there is nothing for a release lock to
 ## prevent. Spec Part 4 M2 itself calls the hot-seat build a historical test
 ## harness, not the target cadence ("A separate hot-seat/turn-based test mode
 ## must not become normal play"), so this keeps hot-seat exactly as M2 shipped
 ## it rather than growing it a lock it was never meant to need.
 ##
-## stackfall-reviewer finding (Bontago-keo.10, M6 B4 turn-based review):
+## stackfall-reviewer finding (M6 B4 turn-based review):
 ## turn_based shares the same exemption -- its turn also passes to a
-## different slot's controls once the settle-wait ends (docs/archive/M6_PLAN.md B4),
+## different slot's controls once the settle-wait ends (the turn-lock rule),
 ## just not the instant a block lands, so the same slot likewise never places
 ## twice in the same turn and never needs a release lock either.
 func _consume_and_refeed(slot_id: int, auto_drop: bool) -> void:
@@ -500,16 +500,16 @@ func _consume_and_refeed(slot_id: int, auto_drop: bool) -> void:
 		# The interval's own piece was just forced out at the boundary: the
 		# new one starts fresh, unlocked, for a brand new interval.
 		#
-		# Bontago-2lr: `_feed_expired[slot_id]` can be true here with
+		# `_feed_expired[slot_id]` can be true here with
 		# `auto_drop == false` -- the interval's piece was still unspent when
 		# `_tick_feed()` latched `_feed_expired` true and fired
 		# `feed_timer_expired` (see that function's own comment), but nobody
 		# answered it with the host's own forced auto_drop placement before
-		# the slot's owner placed voluntarily instead (a fixture/test with no
+		# the slot itself placed voluntarily instead (a fixture/test with no
 		# controller listening; in the real game PlayerController/MatchNet
 		# always auto-drop unconditionally on that signal, so this race does
 		# not arise there -- see their own `_on_feed_timer_expired()`).
-		# Spec 2.4 "[ORIGINAL target]": "At expiry, force release only if
+		# Spec 1.4 "[ORIGINAL target]": "At expiry, force release only if
 		# that interval's piece is still unspent" -- this placement is
 		# exactly the piece becoming spent, so it resolves the expiry the
 		# same way the host's own forced release would have. Without this,
@@ -527,7 +527,7 @@ func _consume_and_refeed(slot_id: int, auto_drop: bool) -> void:
 		# Released early, with the real cadence running: the new piece may be
 		# aimed but not released until this same interval's boundary -- do
 		# NOT touch _feed_time_left, which keeps counting down from when the
-		# interval actually started (spec 2.4: "does not restart the
+		# interval actually started (spec 1.4: "does not restart the
 		# interval").
 		_release_locked[slot_id] = true
 	# else: _feed_timer_enabled is false (sandbox's default, "unlimited
@@ -538,7 +538,7 @@ func _consume_and_refeed(slot_id: int, auto_drop: bool) -> void:
 	# "sandbox with the timer disabled has no lock" means: every placement
 	# reissues immediately, exactly like M2's original feed did.
 	#
-	# Bontago-mv0.10 follow-up: every branch above updates _release_locked/
+	# follow-up: every branch above updates _release_locked/
 	# _feed_time_left *before* this call, not after -- _issue_next_block()
 	# emits Events.feed_block_issued synchronously, and net/MatchNet.gd's
 	# handler reads is_release_locked()/feed_time_left() at that exact
@@ -549,18 +549,18 @@ func _consume_and_refeed(slot_id: int, auto_drop: bool) -> void:
 
 ## The value an intent for `slot_id` must quote to be accepted right now. It
 ## advances on every consumed block, so exactly one intent can spend any one
-## held block (docs/archive/M3a_PLAN.md, "Never duplicated, never lost").
+## held block ("Never duplicated, never lost").
 func feed_seq(slot_id: int) -> int:
 	if slot_id < 0 or slot_id >= _feed_seq.size():
 		return -1
 	return _feed_seq[slot_id]
 
 
-## Bontago-mv0.10 (spec 2.4 "[ORIGINAL target]" cadence): whether `slot_id`'s
+## spec 1.4 "[ORIGINAL target]" cadence: whether `slot_id`'s
 ## currently held piece may be released right now. game/player/PlayerController.gd
 ## reads this every frame to tint the ghost distinctly from the normal
 ## valid/invalid/hole states -- "a location-valid ghost does not imply that
-## the current interval permits release" (spec 2.5). Always false in
+## the current interval permits release" (spec 1.4). Always false in
 ## hot-seat and whenever the feed timer is disabled (sandbox's default), for
 ## the same reasons _consume_and_refeed() never sets it in those cases. On a
 ## client this is a mirror, kept accurate by apply_replicated_feed()'s
@@ -652,7 +652,7 @@ func replace_next_with_gift(slot_id: int) -> StringName:
 	return preview[0].id
 
 
-## Bontago-1pi.18.2: hands `slot_id` its pending gift carrier right now (the
+## hands `slot_id` its pending gift carrier right now (the
 ## gift slot's use), in place of the piece in hand. The block timer keeps
 ## running its current window, but never below `min_window_s` so a gift
 ## activated just before the boundary is not auto-dropped at once; the sequence
@@ -675,7 +675,7 @@ func apply_replicated_next_gift(slot_id: int, shape_id: StringName) -> void:
 ## and starts a fresh one for it, exactly what _tick_feed()'s own boundary-
 ## crossing branch does once `config.block_timer` really elapses. Lets a
 ## unit test place a slot's held shape more than once in the same frame --
-## Bontago-mv0.10's fixed-interval cadence otherwise refuses every deliberate
+## 's fixed-interval cadence otherwise refuses every deliberate
 ## release after the first with REASON_NO_BLOCK until that many real
 ## _process() ticks run. Game code never calls this; it exists so tests don't
 ## have to reach into _release_locked/_feed_time_left/_feed_expired directly.
@@ -688,7 +688,7 @@ func debug_unlock_slot(slot_id: int) -> void:
 	_feed_expired[slot_id] = false
 
 
-# --- The client's read model (spec 3.4) -------------------------------------
+# --- The client's read model (spec 2.6) -------------------------------------
 
 ## The host issued `slot_id` a block. Sets the held shape the ghost and the
 ## HUD read, resets the slot's display timer — which is what keeps the
@@ -700,7 +700,7 @@ func debug_unlock_slot(slot_id: int) -> void:
 ## which issues without consuming, while a client never runs that at all. A
 ## client that counted its own would quote a sequence one ahead for the rest
 ## of the match and have every intent refused.
-## Bontago-mv0.10 follow-up: `host_feed_time_left` and `host_is_locked` mirror
+## follow-up: `host_feed_time_left` and `host_is_locked` mirror
 ## Match.feed_time_left()/is_release_locked() for this slot at the instant
 ## the host issued this event (net/MatchNet.gd's _on_feed_block_issued reads
 ## them synchronously off the same emit that carries shape_id/feed_seq -- see
@@ -708,7 +708,7 @@ func debug_unlock_slot(slot_id: int) -> void:
 ## state update there happens before _issue_next_block()). Without this a
 ## client's mirror always reset the ring to a full config.block_timer on
 ## every feed event, which is wrong exactly on an early release: the host's
-## real interval did not restart, only the held shape did (spec 2.4 "does not
+## real interval did not restart, only the held shape did (spec 1.4 "does not
 ## restart the interval").
 ##
 ## `host_feed_time_left < 0.0` is the sentinel for "not sent" -- kept so an
@@ -727,7 +727,7 @@ func apply_replicated_feed(
 		return
 	if host_feed_seq >= 0 and host_feed_seq < _feed_seq[slot_id]:
 		return
-	# Bontago-1pi.186: a late feed for a slot already eliminated must not hand it a block.
+	# a late feed for a slot already eliminated must not hand it a block.
 	var seat: PlayerSlot = _match._lifecycle.slot(slot_id)
 	if seat != null and not seat.home_flag_alive:
 		return
@@ -767,7 +767,7 @@ func apply_replicated_feed(
 ## DECISION (autoload/match/MatchFeed.gd): game/sandbox/Sandbox.gd calls this
 ## directly as `Match._feed.debug_force_next_shape(...)` rather than through a
 ## new one-line Match wrapper (the shape debug_queue_special/set_special_
-## drawer/etc. all have on autoload/Match.gd) -- docs/archive/M6_PLAN.md's package B2
+## drawer/etc. all have on autoload/Match.gd) -- the sandbox rule
 ## explicitly counts this file as the *only* autoload/match/ append this
 ## package owns; autoload/Match.gd itself is out of this package's file list.
 func debug_force_next_shape(slot_id: int, shape_id: StringName) -> void:

@@ -1,5 +1,5 @@
 extends GutTest
-## VolcanoStructure (Bontago-1pi.85.14): rise, footprint push, 20 s+ eruption through
+## VolcanoStructure: rise, footprint push, 20 s+ eruption through
 ## BlockSpawner, cap, match reset, client visual without a body.
 ## Field is an AnimatableBody3D with sync_to_physics: the tilt test writes its pose from a PhysicsCallDriver.
 
@@ -122,7 +122,7 @@ func test_erupts_for_at_least_20_s_of_sim_time_with_owner_cubes_and_no_stat_bump
 	assert_true(structure.is_expired())
 
 
-## Bontago-1pi.85.46: a 3-block burst launches along distinct directions at jittered speeds, spawns
+## a 3-block burst launches along distinct directions at jittered speeds, spawns
 ## apart, and the blocks stay more than one cube width apart through the first half second.
 const MIN_VELOCITY_DIFF_MPS: float = 2.0
 const SEPARATION_FRAMES: int = 30

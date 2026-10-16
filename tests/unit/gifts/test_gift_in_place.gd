@@ -1,8 +1,7 @@
 extends GutTest
-## Bontago-1pi.85.24 (docs/GIFT_PLAYTEST2_PLAN.md PB): releasing a held Stackfall, Volcano or
+## Releasing a held Stackfall, Volcano or
 ## Earthquake activates it in place through MatchGiftActivation: no carrier body, the effect
-## starts at the release point, the held gift is consumed once. Fixture from
-## test_gift_playtest2_contracts.gd.
+## starts at the release point, the held gift is consumed once.
 
 var _blocks_root: Node3D
 var _field: Field
@@ -13,12 +12,12 @@ var _tiny_map: MapDef
 func before_each() -> void:
 	Match.set_process(false)
 	Match.abort_match()
-	# Bontago-fca.79: an earlier script in the shard may have left a test double in place of
+	# an earlier script in the shard may have left a test double in place of
 	# the real activation; this script needs the real one.
 	if Match._placement._activation.get_script() != MatchGiftActivation:
 		Match._placement._activation = MatchGiftActivation.new()
 		Match._placement._activation.setup(Match)
-	# Bontago-fca.61: the shared Match autoload may still hold rain/anchors from an
+	# the shared Match autoload may still hold rain/anchors from an
 	# earlier script in the same shard; start from none so _rain()/anchor lookups and
 	# the live-anchor count only see this test's effects.
 	Match._placement._activation.clear()
@@ -187,7 +186,7 @@ func test_rejected_release_keeps_the_gift_queued() -> void:
 	assert_eq(_anchor_count(), 0)
 
 
-## Review of 1pi.85.24: an abort (or a restart) frees live anchors through the shared
+## An abort (or a restart) frees live anchors through the shared
 ## match reset, not only through the lifetime backstop.
 func test_abort_match_frees_live_anchors() -> void:
 	_start()
@@ -198,7 +197,7 @@ func test_abort_match_frees_live_anchors() -> void:
 	assert_eq(_anchor_count(), 0)
 
 
-## Bontago-1pi.85.44: an ordinary piece (held id &"") must never query the special roster, so
+## an ordinary piece (held id &"") must never query the special roster, so
 ## neither a manual release nor a feed auto-drop may log the "unknown special id" warning.
 func test_ordinary_piece_never_queries_specials_on_place_or_auto_drop() -> void:
 	_start()

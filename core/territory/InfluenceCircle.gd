@@ -1,15 +1,15 @@
 class_name InfluenceCircle
 extends RefCounted
-## One node of the territory graph (spec 2.2, 3.3): a circle on the disk that
+## One node of the territory graph (spec 1.5, 2.5): a circle on the disk that
 ## a settled block, or a home flag, projects.
 ##
-## Spec 2.2, [RECONSTRUCTED]: "Each of your blocks that is settled produces an
+## Spec 1.5, [RECONSTRUCTED]: "Each of your blocks that is settled produces an
 ## influence circle... centered on the block's center of mass, projected onto
 ## the disk plane... r = influence_base + h * tan(40 deg), where h is the
 ## height of the block's highest point above the disk surface, measured along
 ## the disk's normal", capped at influence_max_fraction * field_radius.
-## (The former linear per-block slope was removed by owner decision
-## 2026-10-08, Bontago-1pi.111; the 40-degree cone slope is the one model.)
+## (The former linear per-block slope was removed by 
+## the 40-degree cone slope is the one model.)
 ##
 ## Spec "Still open" 3 records that it is unknown whether the original drew a
 ## circle per block or one circle per player; the spec's stated default, and
@@ -17,20 +17,20 @@ extends RefCounted
 ##
 ## Pure logic: no scene tree (CLAUDE.md).
 
-## Half-angle of the territory cone (SPEC 2.2); the radius grows by
+## Half-angle of the territory cone (SPEC 1.5); the radius grows by
 ## tan(this) metres per metre of block height.
 const CONE_HALF_ANGLE_DEGREES: float = 40.0
 
 ## Disk-local (x, z) center, see CellGrid for the convention.
 var center: Vector2 = Vector2.ZERO
 var radius: float = 0.0
-## Circles only ever connect to circles of the same team (spec 2.2, "Teams").
+## Circles only ever connect to circles of the same team (spec 1.5, "Teams").
 var team_id: int = -1
 ## Which player placed the block. Kept for HUD attribution and the M5 bot's
 ## "which enemy tower contributes most influence" query; connectivity ignores
 ## it, because teammates' circles do connect.
 var slot_id: int = -1
-## Home circles anchor a connected group (spec 2.2: "Your territory is the
+## Home circles anchor a connected group (spec 1.5: "Your territory is the
 ## union of all circles connected... to your home circle").
 var is_home: bool = false
 ## Physics id of the block this came from, or -1 for a home circle. Lets the
@@ -65,7 +65,7 @@ static func cone_slope() -> float:
 	return tan(deg_to_rad(CONE_HALF_ANGLE_DEGREES))
 
 
-## Spec 2.2's radius formula. `height` is the block's highest point above the
+## Spec 1.5's radius formula. `height` is the block's highest point above the
 ## disk surface along the disk normal; `field_radius` supplies the cap.
 static func radius_for_height(
 	height: float, tuning: TerritoryTuning, field_radius: float
@@ -96,7 +96,7 @@ static func for_block(
 	)
 
 
-## Builds a home flag's circle (spec 2.2: "Home circle: radius home_radius = 6.
+## Builds a home flag's circle (spec 1.5: "Home circle: radius home_radius = 6.
 ## It always exists while the flag is on the disk").
 static func for_home(
 	flag_position: Vector2, team_id: int, slot_id: int, tuning: TerritoryTuning
@@ -106,7 +106,7 @@ static func for_home(
 	)
 
 
-## Spec 3.3: "two circles are connected if they overlap". Touching exactly
+## Spec 2.5: "two circles are connected if they overlap". Touching exactly
 ## counts as overlapping, so a hand-built test case sitting at r1 + r2 apart
 ## is connected rather than sitting on a floating-point knife edge.
 func overlaps(other: InfluenceCircle) -> bool:

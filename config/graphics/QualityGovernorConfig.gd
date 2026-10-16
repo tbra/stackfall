@@ -1,6 +1,6 @@
 class_name QualityGovernorConfig
 extends Resource
-## Bontago-1pi.11.37: tunables of the opt-in adaptive quality governor
+## tunables of the opt-in adaptive quality governor
 ## (core/QualityGovernor.gd, game/debug/QualityGovernorDriver.gd). Defaults live in
 ## config/graphics/quality_governor.tres.
 

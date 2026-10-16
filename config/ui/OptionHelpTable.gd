@@ -1,7 +1,7 @@
 class_name OptionHelpTable
 extends Resource
-## The explanation shown in a UiHelpLine for each unclear lobby / Options row (Bontago-1pi.159.35,
-## owner 2026-10-12: "explanation of options next to them when unclear ... instead of tooltips").
+## The explanation shown in a UiHelpLine for each unclear lobby / Options row (
+## "explanation of options next to them when unclear ... instead of tooltips").
 ## Screens only tag a row with a key ([method UiHelpLine.tag]); every sentence lives in
 ## config/ui/option_help_table.tres. A row with no entry shows no help. Keys are the row's node name
 ## (lobby), its unique name (Options Game / Controls), or the GraphicsPreset field (Graphics).
@@ -28,10 +28,6 @@ static func shared() -> OptionHelpTable:
 	return _shared
 
 
-static func release_shared() -> void:
-	_shared = null
-
-
 static func gift_key(special_id: StringName) -> String:
 	return GIFT_KEY_PREFIX + String(special_id)
 
@@ -44,7 +40,3 @@ func text_for(key: String, item: int = -1) -> String:
 		if entries.has(item_key):
 			return entries[item_key]
 	return entries.get(key, "")
-
-
-func has_text(key: String) -> bool:
-	return entries.has(key)

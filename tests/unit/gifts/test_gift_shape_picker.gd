@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.85.31: weighted, deterministic shape pick shared by Stackfall and Volcano.
+## weighted, deterministic shape pick shared by Stackfall and Volcano.
 
 const PICKS: int = 4000
 

@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.85.58: several gift crates live at once. Pure cap/spacing rules
+## several gift crates live at once. Pure cap/spacing rules
 ## plus per-crate claim, expiry and bot targeting through Match._gifts.
 
 var _blocks_root: Node3D

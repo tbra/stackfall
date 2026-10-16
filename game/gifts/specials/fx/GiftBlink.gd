@@ -10,7 +10,7 @@ class_name GiftBlink
 ## client needs nothing but the replicated spawn.
 ##
 ## Colour, peak opacity and the end-period ratio are GiftBlinkTuning (moved out of
-## consts, Bontago-1pi.85.10); a null tuning means the shipped
+## consts); a null tuning means the shipped
 ## config/gifts/specials/fx/gift_blink_tuning.tres.
 ##
 ## Depends on: Block, BlockFactory.GIFT_VISUAL_NODE, GiftBlinkTuning, SpecialDef, BombEffect
