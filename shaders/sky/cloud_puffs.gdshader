@@ -193,8 +193,8 @@ uniform vec2 drift_offset = vec2(0.0);
 uniform float drift_edge_fade_m = 120.0;
 uniform float drift_exclusion_fade_m = 60.0;
 
-// weather grade shared with the weather cloud ceiling
-// CloudLighting.grade: desaturate toward luminance, then darken.
+// weather grade shared with the weather cloud ceiling (CloudLighting.dim / .desaturate):
+// desaturate toward luminance, then darken.
 uniform float weather_dim : hint_range(-1.0, 1.0) = 0.0;
 uniform float weather_desaturate : hint_range(0.0, 1.0) = 0.0;
 

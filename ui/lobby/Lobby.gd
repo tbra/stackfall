@@ -174,7 +174,7 @@ var _special_frequency_value: int = 0
 ## the gift-after-next TRIAL (QolExperiments.gift_queue_after_next, on by default).
 ## DECISION: it sits in the same chip group (focus loop, host-only gating, replication) but is a rule
 ## variant rather than an opt-in experiment, so it is not part of the with_toggles() flags and the
-## section's "n on" count skips it (QolExperiments.any_enabled() ignores it too).
+## section's "n on" count skips it.
 @onready var _qol_gift_after_next_check: UiChipToggle = %QolGiftAfterNextCheck
 @onready var _qol_checks: Array[UiChipToggle] = [
 	_qol_timer_pause_check, _qol_backlog_check, _qol_goal_radius_check, _qol_gift_slot_check,
