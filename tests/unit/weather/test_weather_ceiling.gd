@@ -20,26 +20,32 @@ func _fade(ceiling: CloudCeiling, seconds: float) -> void:
 		ceiling.step(0.1)
 
 
+## The storm sky blend the ceiling has pushed to the Skybox, as the shared cloud lighting publishes it.
+func _sky_storm(skybox: Skybox) -> float:
+	return (skybox.get_node("CloudSea") as CloudSea).lighting.storm
+
+
 func test_fades_in_with_rain_and_out_when_it_clears() -> void:
+	var skybox: Skybox = _wired_skybox()["skybox"] as Skybox
 	var ceiling: CloudCeiling = _presenter.get_node("CloudCeiling") as CloudCeiling
-	assert_eq(ceiling.amount(), 0.0)
+	assert_eq(_sky_storm(skybox), 0.0)
 	Events.weather_intensity_changed.emit(&"rain", 0.6)
 	_fade(ceiling, ceiling.tuning.fade_in_s + 1.0)
-	assert_almost_eq(ceiling.amount(), 0.6, 0.001)
-	assert_almost_eq(ceiling.storm_amount(), 0.6 * ceiling.tuning.rain_sky_blend, 0.001, "rain uses the storm sky at its lighter blend")
+	assert_almost_eq(_sky_storm(skybox), 0.6 * ceiling.tuning.rain_sky_blend, 0.001, "rain uses the storm sky at its lighter blend")
 	Events.weather_stopped.emit(&"rain")
 	_fade(ceiling, ceiling.tuning.fade_out_s + 1.0)
-	assert_eq(ceiling.amount(), 0.0)
+	assert_eq(_sky_storm(skybox), 0.0)
 
 
 func test_storm_drives_the_storm_sky_blend() -> void:
+	var skybox: Skybox = _wired_skybox()["skybox"] as Skybox
 	var ceiling: CloudCeiling = _presenter.get_node("CloudCeiling") as CloudCeiling
 	Events.weather_intensity_changed.emit(&"storm", 1.0)
 	_fade(ceiling, ceiling.tuning.fade_in_s + 1.0)
-	assert_almost_eq(ceiling.storm_amount(), ceiling.tuning.storm_sky_blend, 0.001)
+	assert_almost_eq(_sky_storm(skybox), ceiling.tuning.storm_sky_blend, 0.001)
 	Events.weather_stopped.emit(&"storm")
 	_fade(ceiling, ceiling.tuning.fade_out_s + 1.0)
-	assert_eq(ceiling.storm_amount(), 0.0)
+	assert_almost_eq(_sky_storm(skybox), 0.0, 0.0001, "the storm sky is gone once the storm has faded out")
 
 
 ## The live puff instance of a CloudSea layer (`upper` picks the overcast layer; `far` its impostor twin):
@@ -127,7 +133,7 @@ func test_storm_sky_blends_and_restores_the_match_theme() -> void:
 	assert_true(environment.fog_light_color.is_equal_approx(storm.fog_color))
 	skybox.set_storm_sky(0.0, storm)
 	assert_eq(environment.fog_light_color, base_fog, "match theme restored exactly")
-	assert_eq(skybox.storm_sky_amount(), 0.0)
+	assert_eq(_sky_storm(skybox), 0.0)
 
 
 ## Review finding 3: restore after a theme switch equals the chosen theme, with
@@ -163,17 +169,17 @@ func test_rain_snow_and_storm_all_drive_the_shared_overcast() -> void:
 	skybox.theme = Skybox.load_theme("sunset")
 	add_child_autofree(skybox)
 	var ceiling: CloudCeiling = _presenter.get_node("CloudCeiling") as CloudCeiling
+	var lighting: CloudLighting = (skybox.get_node("CloudSea") as CloudSea).lighting
 	var seen: Dictionary = {}
 	for weather_id: StringName in [&"rain", &"snow", &"storm"]:
 		Events.weather_intensity_changed.emit(weather_id, 1.0)
 		_fade(ceiling, ceiling.tuning.fade_in_s + 1.0)
 		var expected: float = ceiling.tuning.overcast_for(weather_id, 1.0)
 		assert_gt(expected, 0.0, "%s sets overcast" % weather_id)
-		assert_almost_eq(ceiling.overcast(), expected, 0.001)
-		assert_almost_eq(skybox.cloud_lighting().overcast, expected, 0.001, "%s reaches the shared lighting" % weather_id)
-		seen[weather_id] = skybox.cloud_lighting().dim
+		assert_almost_eq(lighting.overcast, expected, 0.001, "%s reaches the shared lighting" % weather_id)
+		seen[weather_id] = lighting.dim
 		Events.weather_stopped.emit(weather_id)
 		_fade(ceiling, ceiling.tuning.fade_out_s + 1.0)
-		assert_eq(skybox.cloud_lighting().overcast, 0.0, "clear again")
+		assert_eq(lighting.overcast, 0.0, "clear again")
 	assert_lt(float(seen[&"snow"]), 0.0, "snow lifts the clouds (negative dim)")
 

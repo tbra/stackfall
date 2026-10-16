@@ -33,9 +33,14 @@ func _puffs(sea: CloudSea, upper: bool, far: bool = false) -> MultiMeshInstance3
 	return null
 
 
+## The shared cloud lighting, read from the CloudSea layer that draws with it.
+func _lighting(skybox: Skybox) -> CloudLighting:
+	return (skybox.get_node("CloudSea") as CloudSea).lighting
+
+
 ## The puff material equals the shared state, and the upper layer draws with it.
 func _assert_layers_match(skybox: Skybox, label: String) -> void:
-	var l: CloudLighting = skybox.cloud_lighting()
+	var l: CloudLighting = _lighting(skybox)
 	var sea: CloudSea = skybox.get_node("CloudSea") as CloudSea
 	var puff: ShaderMaterial = sea.puff_material()
 	assert_true((puff.get_shader_parameter(&"light_direction") as Vector3).normalized().is_equal_approx(l.light_direction), "%s puff light" % label)
@@ -54,9 +59,9 @@ func _assert_layers_match(skybox: Skybox, label: String) -> void:
 func test_theme_change_reaches_every_layer() -> void:
 	var skybox: Skybox = _wired_skybox()
 	skybox.apply_theme(skybox.theme)
-	var lit_before: Color = skybox.cloud_lighting().lit_color
+	var lit_before: Color = _lighting(skybox).lit_color
 	skybox.set_theme_by_id("night")
-	assert_false(skybox.cloud_lighting().lit_color.is_equal_approx(lit_before), "palette changed with the theme")
+	assert_false(_lighting(skybox).lit_color.is_equal_approx(lit_before), "palette changed with the theme")
 	_assert_layers_match(skybox, "night theme")
 
 
@@ -68,7 +73,7 @@ func test_storm_and_overcast_reach_every_layer() -> void:
 	skybox.set_cycle_phase(0.3)
 	skybox.set_overcast(0.6, 0.5, 0.6, 0.7, Color(0.6, 0.65, 0.7), 0.4)
 	skybox.set_storm_sky(0.7, Skybox.load_theme("storm"))
-	var l: CloudLighting = skybox.cloud_lighting()
+	var l: CloudLighting = _lighting(skybox)
 	assert_almost_eq(l.storm, 0.7, EPS)
 	assert_almost_eq(l.overcast, 0.6, EPS)
 	assert_gt(l.dim, 0.0)
@@ -78,8 +83,8 @@ func test_storm_and_overcast_reach_every_layer() -> void:
 	_assert_layers_match(skybox, "storm then phase")
 	skybox.set_storm_sky(0.0, Skybox.load_theme("storm"))
 	skybox.set_overcast(0.0, 1.0, 1.0, 1.0, Color.WHITE, 0.0)
-	assert_eq(skybox.cloud_lighting().storm, 0.0)
-	assert_eq(skybox.cloud_lighting().dim, 0.0)
+	assert_eq(_lighting(skybox).storm, 0.0)
+	assert_eq(_lighting(skybox).dim, 0.0)
 	_assert_layers_match(skybox, "cleared")
 
 
