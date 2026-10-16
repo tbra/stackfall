@@ -27,7 +27,7 @@ const MAX_GLYPHS: int = 2
 const INPUT_GLYPH_SCENE: PackedScene = preload("res://ui/hud/InputGlyph.tscn")
 
 ## UI reskin P2: the BindingRow listening prompt, shown in rim in place of the
-## glyphs (docs/ui_reskin/components.md "BindingRow"). The gamepad page asks for a button.
+## glyphs. The gamepad page asks for a button.
 const LISTENING_TEXT_KEYBOARD: String = "PRESS A KEY\u2026"
 const LISTENING_TEXT_GAMEPAD: String = "PRESS A BUTTON\u2026"
 const LISTENING_LABEL_NAME: String = "ListeningLabel"
@@ -155,7 +155,7 @@ func _sync_content_minimum_size() -> void:
 
 ## BindingRow look. Alternate rows are lightly banded (disc-700), the hovered row is
 ## disc-700, the focused row is disc-600 inside the theme's 3 px cream outline, and a listening row
-## swaps all of that for a rim edge (docs/ui_reskin/components.md "BindingRow").
+## swaps all of that for a rim edge.
 func _apply_row_style() -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	var normal: StyleBox = StyleBoxEmpty.new()
@@ -206,10 +206,6 @@ func setup(action: StringName) -> void:
 	_action = action
 	_action_label.text = _display_name(action)
 	_refresh_glyphs()
-
-
-func action_name() -> StringName:
-	return _action
 
 
 ## Test seam (tests/unit/ui/test_options_menu.gd): whether this row is currently

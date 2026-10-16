@@ -151,7 +151,7 @@ func test_moving_up_into_a_section_start_keeps_its_caption_visible() -> void:
 	await _settle()
 	var target: int = 0
 	for i: int in range(rows.size()):
-		if rows[i].action_name() == &"rotate_yaw_ccw":
+		if rows[i]._action == &"rotate_yaw_ccw":
 			target = i
 	for _step: int in range(start - target):
 		await _tap(false, false)

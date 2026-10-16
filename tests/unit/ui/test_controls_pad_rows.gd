@@ -34,7 +34,7 @@ func _make_menu() -> OptionsMenu:
 
 func _row(menu: OptionsMenu, action: StringName) -> KeyRebindRow:
 	for row: KeyRebindRow in menu._rows:
-		if row.action_name() == action:
+		if row._action == action:
 			return row
 	return null
 
@@ -91,7 +91,7 @@ func test_pad_focus_walks_every_row_to_reset_and_back_with_no_dead_end() -> void
 	assert_true(shown[0].has_focus())
 	for i: int in range(1, shown.size()):
 		await _pad_press(JOY_BUTTON_DPAD_DOWN)
-		assert_true(shown[i].has_focus(), "ui_down reaches %s after %s" % [shown[i].action_name(), shown[i - 1].action_name()])
+		assert_true(shown[i].has_focus(), "ui_down reaches %s after %s" % [shown[i]._action, shown[i - 1]._action])
 	var reset: Button = menu.get_node("%ResetButton") as Button
 	var back: Button = menu.get_node("%BackButton") as Button
 	var steps: int = 0
@@ -110,4 +110,4 @@ func test_pad_focus_walks_every_row_to_reset_and_back_with_no_dead_end() -> void
 	assert_true(shown[shown.size() - 1].has_focus(), "ui_up from Reset climbs back to the last row")
 	for i: int in range(shown.size() - 2, -1, -1):
 		await _pad_press(JOY_BUTTON_DPAD_UP)
-		assert_true(shown[i].has_focus(), "ui_up reaches %s" % shown[i].action_name())
+		assert_true(shown[i].has_focus(), "ui_up reaches %s" % shown[i]._action)

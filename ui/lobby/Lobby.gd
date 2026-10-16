@@ -539,7 +539,7 @@ func _populate_options() -> void:
 	# appended after TEMPORARY/PERMANENT) as the optional no-overlap mode.
 	# "Off" must still be the option list's third item, at the same index as
 	# the enum value, or OptionButton.selected = 2 on a 2-item list is
-	# silently ignored and a config asking for OFF is stuck on legacy holes
+	# silently ignored and a config asking for OFF is stuck on the old holes
 	# (found by package A). MatchConfig.hole_mode's own default
 	# reverted to TEMPORARY (SPEC.md's evidence
 	# audit); the lobby shows whatever config/match/match_defaults.tres stores
@@ -998,8 +998,7 @@ func _on_sound_button_hovered() -> void:
 
 
 ## redo: mirrors ui/menus/MainMenu.gd's _apply_visual_style() -- the
-## same cream-card + pastel-pill language (docs/art_mockups/
-## 11-lobby-layered-pastel.png), built entirely from ui/theme/
+## same cream-card + pastel-pill language, built entirely from ui/theme/
 ## MenuStyleFactory.gd's StyleBoxFlat helpers on top of the shared
 ## ui/theme/stackfall_theme.tres Theme (no image assets, per the brief).
 ##
@@ -1194,10 +1193,6 @@ func open_options() -> void:
 	_restore_focus = UiFocusTrap.suspend_outside(_options_menu, self)
 	if not _options_menu.closed.is_connected(_on_options_closed):
 		_options_menu.closed.connect(_on_options_closed)
-
-
-func is_options_open() -> bool:
-	return _options_menu != null
 
 
 func _on_options_closed() -> void:
@@ -1631,7 +1626,7 @@ func _on_seats_changed() -> void:
 
 ## The Teams toggle. DECISION (ui/lobby/Lobby.gd, E1, plan D8): the toggle writes only
 ## OFF or TEAMS_4 ("on, up to 4 teams") into the hidden %TeamModeOption, the
-## source of truth for config.team_mode; legacy TEAMS_2/3 data stays valid when it
+## source of truth for config.team_mode; older TEAMS_2/3 data stays valid when it
 ## arrives. Host only: a client's controls are read-only.
 ## PL1b: the panel's Teams toggle emits teams_toggled (it re-seeded its team picks first);
 ## %TeamModeOption stays hidden-but-functional (see the %HiddenSources DECISION above), so

@@ -34,8 +34,8 @@ func test_toggle_and_hides_rules() -> void:
 func test_lobby_log_hides_muted_live_and_history_and_unmute_restores() -> void:
 	var panel: LobbyPlayersPanel = PANEL_SCENE.instantiate() as LobbyPlayersPanel
 	add_child_autofree(panel)
-	panel.chat().availability = func() -> bool: return true
-	var chat: LobbyChat = panel.chat()
+	panel._chat.availability = func() -> bool: return true
+	var chat: LobbyChat = panel._chat
 	ChatMute.set_muted(PEER_A, true)
 	Events.chat_line_received.emit(_line("spam", PEER_A))
 	Events.chat_line_received.emit(_line("fine", PEER_B))

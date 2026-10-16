@@ -200,7 +200,7 @@ func test_options_menu_builds_one_row_per_rebindable_action() -> void:
 	assert_eq(rows.size(), OptionsMenu.REBINDABLE_ACTIONS.size())
 	var built_actions: Array[StringName] = []
 	for row: KeyRebindRow in rows:
-		built_actions.append(row.action_name())
+		built_actions.append(row._action)
 	for action: StringName in OptionsMenu.REBINDABLE_ACTIONS:
 		assert_true(built_actions.has(action), "%s must have a built row" % action)
 
@@ -287,8 +287,8 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 		if not row.is_available_on_active_device():
 			continue  # hidden rows (snap while disabled) are not focus stops.
 		var button: Control = row.rebind_button()
-		assert_ne(button.focus_neighbor_top, NodePath(""), "%s's rebind button must have an up neighbor" % row.action_name())
-		assert_ne(button.focus_neighbor_bottom, NodePath(""), "%s's rebind button must have a down neighbor" % row.action_name())
+		assert_ne(button.focus_neighbor_top, NodePath(""), "%s's rebind button must have an up neighbor" % row._action)
+		assert_ne(button.focus_neighbor_bottom, NodePath(""), "%s's rebind button must have a down neighbor" % row._action)
 
 
 func test_ui_cancel_emits_closed_when_no_row_is_listening() -> void:

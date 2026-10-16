@@ -52,13 +52,13 @@ func test_options_button_opens_and_close_restores_focus_to_it() -> void:
 	var button: Button = lobby.get_node("%OptionsButton") as Button
 	button.pressed.emit()
 	await wait_process_frames(2)
-	assert_true(lobby.is_options_open())
+	assert_true(lobby._options_menu != null)
 	var menu: OptionsMenu = _options_of(lobby)
 	assert_not_null(menu)
 	assert_eq(button.focus_mode, Control.FOCUS_NONE, "lobby controls are suspended")
 	menu.closed.emit()
 	await wait_process_frames(2)
-	assert_false(lobby.is_options_open())
+	assert_false(lobby._options_menu != null)
 	assert_false(menu.visible, "Options is hidden, kept for reuse")
 	assert_eq(button.focus_mode, Control.FOCUS_ALL)
 	assert_eq(lobby.get_viewport().gui_get_focus_owner(), button, "focus returns to the Options button")
@@ -68,7 +68,7 @@ func test_shortcut_opens_options_once() -> void:
 	var lobby: Lobby = _make_lobby()
 	await wait_process_frames(2)
 	lobby._unhandled_input(_action(&"lobby_options"))
-	assert_true(lobby.is_options_open())
+	assert_true(lobby._options_menu != null)
 	lobby.open_options()
 	var count: int = 0
 	for child: Node in lobby.get_children():
@@ -119,7 +119,7 @@ func test_enet_client_stays_connected_and_host_keeps_accepting_while_options_ope
 	add_child_autofree(client_lobby)
 	await wait_process_frames(3)
 	client_lobby.open_options()
-	assert_true(client_lobby.is_options_open())
+	assert_true(client_lobby._options_menu != null)
 	# The host changes ready state while the client's Options is open; the client still hears it.
 	_host_net.set_local_ready(true)
 	var client_id: int = _client_net.local_peer_id()

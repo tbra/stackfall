@@ -68,7 +68,7 @@ func _start_tutorial() -> void:
 ## only cares about a later step doesn't have to repeat both drives itself.
 func _advance_to_territory_step() -> void:
 	Events.block_placed.emit(null, &"cube")
-	_tutorial.ghost().set_orientation_index(1)
+	_tutorial._ghost.set_orientation_index(1)
 	_tutorial._process(0.016)
 
 
@@ -97,7 +97,7 @@ func test_start_tutorial_from_menu_builds_a_playing_one_player_sandbox_match() -
 	assert_true(Net.is_offline(), "the Main-Menu tutorial path never touches Net's host/join state.")
 	assert_null(_main._main_menu, "the menu is cleared once the tutorial world exists.")
 	assert_not_null(_tutorial, "start_tutorial_from_menu() must build the Tutorial scene.")
-	assert_eq(_tutorial.current_step_id(), &"placing", "the tutorial always begins on step 1.")
+	assert_eq(_tutorial._current_step().id, &"placing", "the tutorial always begins on step 1.")
 
 	await _teardown_menu()
 
@@ -109,14 +109,14 @@ func test_step_placing_advances_exactly_once_on_block_placed() -> void:
 	_start_tutorial()
 
 	Events.block_placed.emit(null, &"cube")
-	assert_eq(_tutorial.current_step_id(), &"rotating", "step 1 advances on Events.block_placed.")
+	assert_eq(_tutorial._current_step().id, &"rotating", "step 1 advances on Events.block_placed.")
 
 	# A second block_placed while "rotating" is current must not also fire
 	# that step's own advance a second time (it isn't listening for this
 	# signal any more) -- proves the completion check is scoped to the
 	# *current* step, not "any step this signal could ever complete".
 	Events.block_placed.emit(null, &"cube")
-	assert_eq(_tutorial.current_step_id(), &"rotating", "a second block_placed must not skip past step 2.")
+	assert_eq(_tutorial._current_step().id, &"rotating", "a second block_placed must not skip past step 2.")
 
 	await _teardown_menu()
 
@@ -127,7 +127,7 @@ func test_step_specials_queues_the_demo_special_and_advances_on_special_consumed
 	_setup_menu()
 	_start_tutorial()
 	_advance_to_specials_step()
-	assert_eq(_tutorial.current_step_id(), &"specials", "fixture: must reach step 4 first.")
+	assert_eq(_tutorial._current_step().id, &"specials", "fixture: must reach step 4 first.")
 	assert_eq(
 		Match.pending_special_count(0), 1,
 		"step 4 must force-queue tutorial_config.demo_special_id via Match.debug_queue_special()."
@@ -137,10 +137,10 @@ func test_step_specials_queues_the_demo_special_and_advances_on_special_consumed
 	# advance (defensive -- there is only ever slot 0 here, but this pins the
 	# guard rather than assuming it is dead code).
 	Events.special_consumed.emit(1, _tutorial.tutorial_config.demo_special_id)
-	assert_eq(_tutorial.current_step_id(), &"specials", "a different slot's special_consumed must not complete this step.")
+	assert_eq(_tutorial._current_step().id, &"specials", "a different slot's special_consumed must not complete this step.")
 
 	Events.special_consumed.emit(0, _tutorial.tutorial_config.demo_special_id)
-	assert_eq(_tutorial.current_step_id(), &"camera", "step 4 advances once the tutorial slot's special is consumed.")
+	assert_eq(_tutorial._current_step().id, &"camera", "step 4 advances once the tutorial slot's special is consumed.")
 
 	await _teardown_menu()
 
@@ -151,12 +151,12 @@ func test_step_camera_advances_after_the_configured_hold_and_ends_the_tutorial()
 	_setup_menu()
 	_start_tutorial()
 	_advance_to_camera_step()
-	assert_eq(_tutorial.current_step_id(), &"camera", "fixture: must reach step 5 first.")
+	assert_eq(_tutorial._current_step().id, &"camera", "fixture: must reach step 5 first.")
 
 	Input.action_press(&"camera_orbit")
 	_tutorial._process(1.0)
 	assert_eq(
-		_tutorial.current_step_id(), &"camera",
+		_tutorial._current_step().id, &"camera",
 		"1s of a %.1fs hold must not finish the tutorial yet." % [_tutorial.tutorial_config.camera_hold_seconds]
 	)
 

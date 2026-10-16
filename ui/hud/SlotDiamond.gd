@@ -60,7 +60,7 @@ func _apply_size() -> void:
 
 
 func _draw() -> void:
-	# Stackfall Arcade beacon marker (docs/ui_reskin/markers/): an ink diamond frame,
+	# Stackfall Arcade beacon marker: an ink diamond frame,
 	# the inner diamond split into a lit left and shaded right half, and the slot colour over its top facet.
 	var center: Vector2 = size * 0.5
 	var half: float = diamond_size_px() * 0.5

@@ -9,8 +9,8 @@ var _sent: Array[String] = []
 func _make(available: bool = true) -> LobbyPlayersPanel:
 	var panel: LobbyPlayersPanel = PANEL_SCENE.instantiate() as LobbyPlayersPanel
 	add_child_autofree(panel)
-	panel.chat().availability = func() -> bool: return available
-	panel.chat().refresh_availability()
+	panel._chat.availability = func() -> bool: return available
+	panel._chat.refresh_availability()
 	_sent.clear()
 	Events.chat_send_requested.connect(_collect)
 	return panel
@@ -30,14 +30,14 @@ func _line(text: String, slot: int, who: String, kind: int = ChatRules.KIND_TEXT
 
 
 func test_line_from_events_shows_with_tinted_name() -> void:
-	var chat: LobbyChat = _make().chat()
+	var chat: LobbyChat = _make()._chat
 	Events.chat_line_received.emit(_line("hello", 2, "Ann"))
 	assert_true(chat.log.get_parsed_text().contains("Ann: hello"))
 	assert_eq(UiChatPanel.name_color(_line("x", 2, "Ann")), Match.slot_color(2))
 
 
 func test_submit_emits_trimmed_text() -> void:
-	var chat: LobbyChat = _make().chat()
+	var chat: LobbyChat = _make()._chat
 	chat.open_input()
 	chat.edit.text = "  gg  "
 	chat.edit.text_submitted.emit(chat.edit.text)
@@ -46,14 +46,14 @@ func test_submit_emits_trimmed_text() -> void:
 
 func test_hidden_when_chat_unavailable() -> void:
 	var panel: LobbyPlayersPanel = _make(false)
-	assert_false(panel.chat().visible)
-	panel.chat().availability = func() -> bool: return true
-	panel.chat().refresh_availability()
-	assert_true(panel.chat().visible)
+	assert_false(panel._chat.visible)
+	panel._chat.availability = func() -> bool: return true
+	panel._chat.refresh_availability()
+	assert_true(panel._chat.visible)
 
 
 func test_esc_in_edit_clears_and_does_not_reach_lobby() -> void:
-	var chat: LobbyChat = _make().chat()
+	var chat: LobbyChat = _make()._chat
 	chat.open_input()
 	chat.edit.text = "draft"
 	var esc: InputEventAction = InputEventAction.new()

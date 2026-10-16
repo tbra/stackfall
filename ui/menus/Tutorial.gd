@@ -1,7 +1,7 @@
 class_name Tutorial
 extends Node
 ## Spec 1.2 "Tutorial":
-## match built the same way game/sandbox/Sandbox.gd/game/HotSeat.gd already are (one
+## match built the same way Sandbox.gd and HotSeat.gd already are (one
 ## PlayerController + GhostPreview + HUD subtree, wired the same way, driving
 ## the one slot config.player_count = 1 gives it -- game/main/Main.gd's own
 ## start_tutorial_from_menu()), plus a five-step scripted sequence
@@ -103,7 +103,7 @@ func set_camera_rig(rig: CameraRig) -> void:
 	_controller.set_camera_rig(rig)
 
 
-## Stackfall Arcade TipBanner (docs/ui_reskin/components.md): a HUD plate with a rim step block
+## Stackfall Arcade TipBanner: a HUD plate with a rim step block
 ## ("1/5") and the sentence in cream, centred directly under the timer ring and never over it,
 ## at most tip_max_width_px wide.
 func _style_tip_banner() -> void:
@@ -154,25 +154,6 @@ func _place_tip_banner() -> void:
 
 func _on_hud_scale_changed(_value: float) -> void:
 	_place_tip_banner()
-
-
-func controller() -> PlayerController:
-	return _controller
-
-
-func ghost() -> GhostPreview:
-	return _ghost
-
-
-func hud() -> HUD:
-	return _hud
-
-
-## The step currently shown/checked, for a test to assert against without
-## reaching into `tutorial_config.steps` and `_step_index` separately.
-func current_step_id() -> StringName:
-	var step: TutorialStep = _current_step()
-	return step.id if step != null else &""
 
 
 func _process(delta: float) -> void:

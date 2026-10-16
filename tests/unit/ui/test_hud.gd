@@ -246,9 +246,9 @@ func test_glue_overlay_clears_on_match_end_and_lobby() -> void:
 		hud.set_local_slot(0)
 		fake_match.glue_drops_by_slot[0] = 5
 		hud._refresh_special_indicator()
-		assert_true(hud.glue_preview_active())
+		assert_true(hud._glue_active)
 		Events.match_state_changed.emit(Match.State.PLAYING, to_state)
-		assert_false(hud.glue_preview_active())
+		assert_false(hud._glue_active)
 
 
 func test_special_indicator_shows_special_after_a_claim_for_the_local_slot() -> void:
