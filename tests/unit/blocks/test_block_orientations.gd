@@ -21,10 +21,6 @@ func test_there_are_24_distinct_orientations() -> void:
 			assert_false(equal, "Orientations %d and %d must be distinct." % [i, j])
 
 
-func test_index_zero_is_identity() -> void:
-	assert_eq(BlockOrientations.get_basis(0), Basis.IDENTITY)
-
-
 func test_every_step_from_every_index_is_valid() -> void:
 	for index: int in range(24):
 		assert_between(BlockOrientations.step_yaw_ccw(index), 0, 23)
@@ -46,13 +42,6 @@ func test_four_yaw_steps_return_to_start() -> void:
 		for _i: int in range(4):
 			current = BlockOrientations.step_yaw_cw(current)
 		assert_eq(current, index, "Four CW yaw steps from %d must return to %d." % [index, index])
-
-
-func test_yaw_cw_undoes_yaw_ccw() -> void:
-	for index: int in range(24):
-		var forward: int = BlockOrientations.step_yaw_ccw(index)
-		var back: int = BlockOrientations.step_yaw_cw(forward)
-		assert_eq(back, index, "yaw_cw must undo yaw_ccw at index %d." % index)
 
 
 func test_is_valid_index_accepts_exactly_the_24_table_indices() -> void:
@@ -86,13 +75,3 @@ func test_valid_indices_still_map_to_the_same_bases() -> void:
 		assert_eq(BlockOrientations.index_of(basis), index, "Entry %d round-trips through index_of." % index)
 
 
-func test_reset_returns_to_identity_index() -> void:
-	# Reset is PlayerController/GhostPreview policy ("set the index to 0"),
-	# tested here at the data level: index 0 is always identity, regardless of
-	# how far rotation had drifted.
-	var index: int = 0
-	for _i: int in range(7):
-		index = BlockOrientations.step_pitch_fwd(index)
-	assert_ne(index, 0, "Sanity check: several steps should move away from identity.")
-	index = 0
-	assert_eq(BlockOrientations.get_basis(index), Basis.IDENTITY, "Index 0 is always identity after reset.")

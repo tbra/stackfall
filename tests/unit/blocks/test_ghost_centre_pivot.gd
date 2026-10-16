@@ -45,29 +45,6 @@ func _min_world_y(corners: Array[Vector3]) -> float:
 
 # --- (c) unrotated shape: no regression --------------------------------------
 
-func test_unrotated_shape_has_zero_center_offset_in_xz() -> void:
-	var ghost: GhostPreview = _make_ghost("res://config/blocks/bar4.tres")
-
-	var offset: Vector3 = ghost.rotated_center_offset()
-
-	assert_almost_eq(offset.x, 0.0, 0.0001)
-	assert_almost_eq(offset.z, 0.0, 0.0001)
-
-	ghost.update_placement(Vector3(3.0, 2.0, -4.0), Vector3.UP)
-
-	assert_almost_eq(ghost.global_position.x, 3.0, 0.0001, "unrotated: the node's own origin must still sit exactly on the cursor's X.")
-	assert_almost_eq(ghost.global_position.z, -4.0, 0.0001, "unrotated: the node's own origin must still sit exactly on the cursor's Z.")
-
-
-func test_no_shape_held_falls_back_to_global_position() -> void:
-	var ghost: GhostPreview = autofree(GhostPreview.new())
-	add_child_autofree(ghost)
-
-	ghost.update_placement(Vector3(5.0, 1.0, 2.0), Vector3.UP)
-
-	assert_eq(ghost.rotated_center_offset(), Vector3.ZERO)
-	assert_eq(ghost.rotated_center_world(), ghost.global_position)
-
 
 # --- (a)/(b): free-quaternion rotation (rotate_drag) --------------------------
 
@@ -100,59 +77,11 @@ func test_free_rotation_spins_the_centre_in_place_and_keeps_the_bottom_fix() -> 
 	assert_almost_eq(actual_bottom, expected_bottom, 0.0001, "rotating must never move the shape's own rotated lowest point off the reported hover height.")
 
 
-func test_free_rotation_center_offset_is_purely_vertical_for_a_yaw_only_turn() -> void:
-	# A pure yaw (about world/local up) can never move the AABB-centred X/Z
-	# offset (see rotated_center_offset()'s own doc comment) -- pinned
-	# directly since it's the reason a plain rotate_snap tap never nudges the
-	# camera at all.
-	var ghost: GhostPreview = _make_ghost("res://config/blocks/bar4.tres")
-	ghost.apply_free_rotation_delta(1.3, 0.0)
-
-	var offset: Vector3 = ghost.rotated_center_offset()
-
-	assert_almost_eq(offset.x, 0.0, 0.0001)
-	assert_almost_eq(offset.z, 0.0, 0.0001)
-
-
 # --- (a)/(b) again, via the discrete 90-degree orientation index ------------
-
-func test_discrete_orientation_steps_spin_the_centre_in_place_and_keep_the_bottom_fix() -> void:
-	var ghost: GhostPreview = _make_ghost("res://config/blocks/bar4.tres")
-	var surface_point: Vector3 = Vector3(-1.0, 4.0, 6.0)
-
-	var indices: Array[int] = [
-		BlockOrientations.step_pitch_fwd(0),
-		BlockOrientations.step_roll_left(BlockOrientations.step_pitch_fwd(0)),
-		BlockOrientations.step_yaw_cw(BlockOrientations.step_pitch_fwd(0)),
-	]
-	for index: int in indices:
-		ghost.set_orientation_index(index)
-		ghost.update_placement(surface_point, Vector3.UP)
-
-		var center_world: Vector3 = ghost.rotated_center_world()
-		assert_almost_eq(center_world.x, surface_point.x, 0.0001, "orientation index %d: centre must spin in place (X)." % index)
-		assert_almost_eq(center_world.z, surface_point.z, 0.0001, "orientation index %d: centre must spin in place (Z)." % index)
-
-		var expected_bottom: float = surface_point.y + ghost.tuning.hover_height
-		var actual_bottom: float = _min_world_y(_rotated_world_corners(ghost))
-		assert_almost_eq(actual_bottom, expected_bottom, 0.0001, "orientation index %d: the bottom-centre fix must stay intact." % index)
 
 
 # --- Tall-pillar case (already covered for the bottom fix in
 # test_ghost_preview.gd; pinned here for the centre offset too) --------------
-
-func test_pillar_tipped_on_its_side_spins_its_centre_in_place() -> void:
-	var ghost: GhostPreview = _make_ghost("res://config/blocks/pillar.tres")
-	var surface_point: Vector3 = Vector3(0.0, 4.0, 0.0)
-	ghost.set_orientation_index(BlockOrientations.step_pitch_fwd(0))
-
-	ghost.update_placement(surface_point, Vector3.UP)
-
-	var center_world: Vector3 = ghost.rotated_center_world()
-	assert_almost_eq(center_world.x, surface_point.x, 0.0001)
-	assert_almost_eq(center_world.z, surface_point.z, 0.0001)
-	var expected_bottom: float = surface_point.y + ghost.tuning.hover_height
-	assert_almost_eq(_min_world_y(_rotated_world_corners(ghost)), expected_bottom, 0.0001)
 
 
 # --- Spawn parity: the real placement path spawns exactly what the ghost

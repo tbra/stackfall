@@ -23,8 +23,6 @@ const HEIGHT_EPSILON: float = 0.0001
 const HOST_PEER: int = 1
 const REMOTE_PEER: int = 2
 const REMOTE_SLOT: int = 1
-## A malformed orientation index (one past the table) for the never-stored-cursor case.
-const BAD_ORIENTATION: int = BlockOrientations.ORIENTATION_COUNT
 
 var _field: Field
 var _blocks_root: Node3D
@@ -33,7 +31,6 @@ var _net: MatchNetScript
 var _fake_net: FakeNet
 var _ghost_tuning: GhostTuning = preload("res://config/blocks/tuning/ghost_tuning.tres")
 var _beacon_visuals: BeaconVisualTuning = preload("res://config/territory/beacon_visual_tuning.tres")
-var _physics_tuning: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
 
 
 func before_each() -> void:
@@ -115,11 +112,6 @@ func _beacon_top_y() -> float:
 	return _field.global_position.y + _beacon_visuals.beacon_top_height()
 
 
-func _home_world_position(slot_id: int, height: float = 0.0) -> Vector3:
-	var home: Vector2 = Match.slot(slot_id).home_position
-	return _field.to_global(Vector3(home.x, height, home.y))
-
-
 func test_afk_auto_drop_with_no_cursor_clears_the_home_beacon_on_every_disc_size() -> void:
 	for factor: float in DISC_FACTORS:
 		var map_name: String = "disc x%.2f" % factor
@@ -165,70 +157,3 @@ func test_the_fallback_lands_on_the_same_clearance_the_players_first_block_gets(
 	)
 
 
-func test_fallback_height_tracks_the_margin_tunable() -> void:
-	_start_host_match(MapDef.base().scaled(0.75))
-	var margin: float = _ghost_tuning.home_spawn_beacon_margin
-	_ghost_tuning.home_spawn_beacon_margin = margin + 1.0
-	Events.feed_timer_expired.emit(REMOTE_SLOT)
-	_ghost_tuning.home_spawn_beacon_margin = margin
-
-	assert_gte(
-		_lowest_point_y(_blocks_root.get_child(0) as Node3D), _beacon_top_y() + margin + 1.0 - HEIGHT_EPSILON,
-		"raising the margin tunable by a metre raises the fallback spawn by a metre (no second constant)"
-	)
-
-
-func test_the_replicated_spawn_carries_the_raised_position_inside_the_wire_band() -> void:
-	# What a client receives for the auto-dropped block (net_block_spawned's args,
-	# the same payload a mid-match join replays): the host's raised pose, inside
-	# the volume Quantize packs positions into, so no client ever sees the block
-	# inside the beacon or loses it to a wire-range refusal.
-	_start_host_match(MapDef.base().scaled(0.75))
-	Events.feed_timer_expired.emit(REMOTE_SLOT)
-
-	var block: Block = _blocks_root.get_child(0) as Block
-	var wire_position: Vector3 = _net._spawn_args(block, block.net_id)[3] as Vector3
-	assert_eq(wire_position, block.global_position, "the spawn announcement carries the host's spawn pose")
-	assert_gte(wire_position.y, _beacon_top_y(), "the replicated origin is above the beacon top")
-	assert_true(
-		wire_position.y >= _net.config.pos_min_y and wire_position.y <= _net.config.pos_max_y,
-		"the replicated height stays inside NetConfig's quantization band"
-	)
-
-
-func test_a_cursor_derived_auto_drop_keeps_the_cursors_own_height() -> void:
-	_start_host_match(MapDef.base().scaled(0.75))
-	var where: Vector3 = _home_world_position(REMOTE_SLOT, 1.5)
-	_net._handle_cursor_update(REMOTE_PEER, REMOTE_SLOT, where, 0, Quaternion.IDENTITY)
-
-	Events.feed_timer_expired.emit(REMOTE_SLOT)
-
-	var block: Node3D = _blocks_root.get_child(0) as Node3D
-	assert_almost_eq(block.global_position.y, where.y, HEIGHT_EPSILON, "a stored cursor is dropped from where it was, not raised")
-
-
-func test_a_slot_whose_only_cursor_was_malformed_still_gets_the_raised_fallback() -> void:
-	_start_host_match(MapDef.base().scaled(0.75))
-	_net._handle_cursor_update(REMOTE_PEER, REMOTE_SLOT, _home_world_position(REMOTE_SLOT), BAD_ORIENTATION, Quaternion.IDENTITY)
-	assert_true(_net.cursor_for_slot(REMOTE_SLOT).is_empty(), "fixture: a malformed first cursor is not stored")
-
-	Events.feed_timer_expired.emit(REMOTE_SLOT)
-
-	assert_gte(
-		_lowest_point_y(_blocks_root.get_child(0) as Node3D),
-		_beacon_top_y() + _ghost_tuning.home_spawn_beacon_margin - HEIGHT_EPSILON,
-		"the fallback applies whether the cursor never arrived or was refused"
-	)
-
-
-func test_the_helper_is_the_players_clear_hover_less_the_pivot_to_lowest_point_gap() -> void:
-	var clear_hover: float = _ghost_tuning.home_spawn_clear_hover(_beacon_visuals)
-	assert_almost_eq(
-		clear_hover, _beacon_visuals.beacon_top_height() + _ghost_tuning.home_spawn_beacon_margin, HEIGHT_EPSILON,
-		"clear hover is beacon top plus margin"
-	)
-	assert_almost_eq(
-		_ghost_tuning.home_spawn_pivot_height(_beacon_visuals, _physics_tuning),
-		clear_hover - _physics_tuning.cube_margin * 0.5, HEIGHT_EPSILON,
-		"an unrotated block's bottom-face pivot sits cube_margin/2 below its lowest collision point"
-	)

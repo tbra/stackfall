@@ -46,10 +46,6 @@ func _exit_tree() -> void:
 		Events.block_removed.disconnect(_on_block_removed)
 
 
-func is_effect_enabled() -> bool:
-	return _enabled
-
-
 func active_count() -> int:
 	return _entries.size()
 

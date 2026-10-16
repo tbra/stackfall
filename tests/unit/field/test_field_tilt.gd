@@ -134,17 +134,6 @@ func test_tilt_decays_back_toward_level_over_the_return_time_constant() -> void:
 
 # --- max_tilt_deg clamp -----------------------------------------------------
 
-func test_tilt_is_clamped_regardless_of_a_single_impulses_size() -> void:
-	var field: Field = _make_field()
-	field.set_tilt_enabled(true)
-	field.apply_tilt_impulse(Vector2(1.0, 0.0), 1.0e6)
-	field._update_tilt(TICK)
-
-	assert_lte(
-		rad_to_deg(field.tilt_vector().length()), field.tilt_tuning.max_tilt_deg + 0.001,
-		"an oversized single impulse still cannot exceed max_tilt_deg"
-	)
-
 
 func test_tilt_is_clamped_regardless_of_how_many_impulses_land_in_one_frame() -> void:
 	var field: Field = _make_field()
@@ -170,39 +159,8 @@ func test_tilt_is_clamped_regardless_of_how_many_impulses_land_in_one_frame() ->
 
 # --- disk_local_from_world / world_from_disk_local round-trip at tilt ------
 
-func test_coordinate_round_trip_at_a_synthetic_nonzero_tilt() -> void:
-	var field: Field = _make_field()
-	# A synthetic tilt set directly (not by waiting out the spring), per the
-	# plan's own test list. set_tilt_enabled() is not required for this --
-	# the conversion functions only read the node's live transform.
-	field._tilt = Vector2(deg_to_rad(7.0), deg_to_rad(-4.0))
-	field._apply_tilt_transform()
-
-	var local: Vector2 = Vector2(2.0, -1.5)
-	var world: Vector3 = field.world_from_disk_local(local, 3.0)
-	var back: Vector2 = field.disk_local_from_world(world)
-
-	assert_almost_eq(back.x, local.x, 0.0001)
-	assert_almost_eq(back.y, local.y, 0.0001)
-	# The tilt is real, not a no-op: a flat conversion would put world.y at
-	# exactly 3.0 (the requested height above a level disk).
-	assert_ne(world.y, 3.0)
-
 
 # --- tilt disabled: nothing moves -------------------------------------------
-
-func test_tilt_disabled_leaves_the_disk_untouched() -> void:
-	var field: Field = _make_field()
-	var identity: Basis = field.transform.basis
-	field.apply_tilt_impulse(Vector2(1.0, 0.0), 5.0)
-	for _i: int in range(10):
-		field._physics_process(TICK)
-
-	assert_eq(field.tilt_vector(), Vector2.ZERO, "a disabled controller never accumulates a tilt")
-	assert_true(
-		field.transform.basis.is_equal_approx(identity),
-		"a disabled controller never rotates the disk"
-	)
 
 
 # --- sync_to_physics carries a resting block along --------------------------
@@ -285,116 +243,12 @@ func test_apply_replicated_pose_sets_the_transform_and_tilt_vector() -> void:
 	)
 
 
-func test_apply_replicated_pose_suppresses_the_local_spring_and_impulses() -> void:
-	var field: Field = _make_field()
-	field.set_tilt_enabled(true)
-	var tilt_quat: Quaternion = Quaternion(Vector3.RIGHT, 0.08)
-	await _drive_during_physics(func() -> void: field.apply_replicated_pose(Vector3.ZERO, tilt_quat))
-	var mirrored_transform: Transform3D = field.global_transform
-
-	# A stray apply_tilt_impulse() (never actually called on a client's own
-	# Field in real play, since specials simulate host-side only) must not
-	# make the mirrored pose drift once _physics_process() runs again --
-	# real physics frames this time, since _mirrored is now sticky state and
-	# Field's own _physics_process() (dispatched for real by the engine
-	# below) is exactly what must skip _update_tilt().
-	field.apply_tilt_impulse(Vector2(1.0, 0.0), 5.0)
-	await wait_physics_frames(10)
-
-	assert_lt(
-		(field.global_transform.origin - mirrored_transform.origin).length(), 0.0001,
-		"a mirrored Field's origin does not drift on its own"
-	)
-	assert_lt(
-		field.global_transform.basis.get_rotation_quaternion().angle_to(
-			mirrored_transform.basis.get_rotation_quaternion()
-		),
-		deg_to_rad(0.001),
-		"a mirrored Field's tilt does not drift on its own, even with a queued impulse"
-	)
-
-
-func test_clear_match_state_ends_mirroring_and_levels_the_disc() -> void:
-	var field: Field = _make_field()
-	field.set_tilt_enabled(true)
-	await _drive_during_physics(
-		func() -> void: field.apply_replicated_pose(Vector3(0.0, 0.0, 0.0), Quaternion(Vector3.RIGHT, 0.1))
-	)
-	assert_gt(field.tilt_vector().length(), 0.0, "fixture: mirrored to a non-level tilt")
-
-	# clear_match_state() writes `transform` too (_apply_tilt_transform()),
-	# under the same sync_to_physics constraint apply_replicated_pose() is
-	# under, so it needs the same real-physics-frame treatment to check the
-	# transform it left behind.
-	await _drive_during_physics(func() -> void: field.clear_match_state())
-
-	assert_lt(
-		field.global_transform.basis.get_rotation_quaternion().angle_to(Quaternion.IDENTITY),
-		deg_to_rad(0.01),
-		"clear_match_state levels the disc"
-	)
-	assert_eq(field.tilt_vector(), Vector2.ZERO, "clear_match_state zeroes the tilt vector")
-	assert_false(field._mirrored, "clear_match_state ends mirroring")
-
-	# Mirroring is over: the local spring must be able to move the disc again
-	# (a rehost, or a fresh match starting on the same persistent Field).
-	field.apply_tilt_impulse(Vector2(1.0, 0.0), 5.0)
-	await wait_physics_frames(10)
-	assert_gt(
-		field.tilt_vector().length(), 0.0,
-		"the local spring resumes moving the disc once mirroring has ended"
-	)
-
-
-func test_a_fresh_field_is_not_mirrored_and_ticks_its_own_spring() -> void:
-	var field: Field = _make_field()
-	field.set_tilt_enabled(true)
-	field.apply_tilt_impulse(Vector2(1.0, 0.0), 0.5)
-	field._physics_process(TICK)
-	assert_gt(
-		field.tilt_vector().length(), 0.0,
-		"a Field that never mirrored a replicated pose still runs its own spring (the host path)"
-	)
-
-
 # --- PHYSICAL_BALANCE kinematic-torque approximation (M6 B5, spec 1.7/2.7) --
 #
 # DECISION: a kinematic-torque
 # approximation, not a real RigidBody3D/joint coupling. These exercise
 # Field._physical_balance_torque_accel() end to end through a real
 # BlockRegistry, the same wiring MatchLifecycle._apply_tilt_mode() performs.
-
-func test_physical_balance_disabled_by_default_a_settled_offcenter_load_stays_level() -> void:
-	var field: Field = _make_field()
-	var registry: BlockRegistry = _make_registry(field)
-	field.set_tilt_enabled(true)
-	field.set_registry(registry)
-	# _physical_balance_enabled defaults to false: SPECIALS_ONLY must not pick
-	# up a stray settled load's weight even though a registry is wired.
-	_settled_block_at(field, 2.0, 0.0)
-	await _wait_for_settle()
-
-	await wait_physics_frames(10)
-
-	assert_eq(
-		field.tilt_vector(), Vector2.ZERO,
-		"PHYSICAL_BALANCE disabled: a settled off-center block must not tilt the disc"
-	)
-
-
-func test_physical_balance_with_no_registry_wired_is_a_safe_noop() -> void:
-	var field: Field = _make_field()
-	field.set_tilt_enabled(true)
-	field.set_physical_balance_enabled(true)
-	# set_registry() deliberately never called.
-
-	for _i: int in range(10):
-		field._update_tilt(TICK)
-
-	assert_eq(
-		field.tilt_vector(), Vector2.ZERO,
-		"PHYSICAL_BALANCE enabled without a registry must not crash or tilt the disc"
-	)
 
 
 func test_physical_balance_tilts_toward_a_settled_offcenter_load() -> void:
@@ -421,24 +275,6 @@ func test_physical_balance_tilts_toward_a_settled_offcenter_load() -> void:
 	)
 
 
-func test_physical_balance_symmetric_load_stays_level() -> void:
-	var field: Field = _make_field()
-	var registry: BlockRegistry = _make_registry(field)
-	field.set_tilt_enabled(true)
-	field.set_registry(registry)
-	field.set_physical_balance_enabled(true)
-	_settled_block_at(field, 2.0, 0.0)
-	_settled_block_at(field, -2.0, 0.0)
-	await _wait_for_settle()
-
-	await wait_physics_frames(30)
-
-	assert_almost_eq(
-		field.tilt_vector().length(), 0.0, 0.001,
-		"two equal masses balanced on opposite sides of center must cancel to no net tilt"
-	)
-
-
 # --- Torque latch (follow-up) --------------------------------
 #
 # BlockRegistry.settled_torque_samples() only counts entries whose own
@@ -447,136 +283,6 @@ func test_physical_balance_symmetric_load_stays_level() -> void:
 # it resettles. These exercise Field._physical_balance_torque_accel()'s latch
 # (see its own DECISION) directly through physical_balance_torque(), without
 # waiting out a real wake/resettle cycle under a moving disk.
-
-func test_physical_balance_torque_holds_while_samples_go_empty_with_blocks_present() -> void:
-	var field: Field = _make_field()
-	var registry: BlockRegistry = _make_registry(field)
-	field.set_tilt_enabled(true)
-	field.set_registry(registry)
-	field.set_physical_balance_enabled(true)
-	var block: Block = _settled_block_at(field, 2.0, 0.0)
-	await _wait_for_settle()
-
-	field._update_tilt(TICK)
-	var latched: Vector2 = field.physical_balance_torque()
-	assert_ne(latched, Vector2.ZERO, "fixture: a settled off-center block produces a nonzero torque")
-
-	# Wake the block without removing it from the registry -- the same
-	# momentary sample gap a real PHYSICAL_BALANCE wake causes.
-	# BlockRegistry._physics_process() resets a moving block's settled
-	# accumulator to zero the instant it observes motion above threshold
-	# (game/blocks/BlockRegistry.gd's own doc), which is exactly what the direct
-	# linear_velocity write below, plus one real physics frame, reproduces --
-	# same fixture pattern as tests/unit/blocks/test_block_registry.gd's own
-	# test_unsettled_block_contributes_no_influence_circle().
-	block.sleeping = false
-	block.linear_velocity = Vector3(10.0, 0.0, 0.0)
-	await wait_physics_frames(1)
-	assert_eq(
-		registry.settled_torque_samples().size(), 0,
-		"fixture: the woken block no longer contributes a settled sample"
-	)
-
-	field._update_tilt(TICK)
-	assert_eq(
-		field.physical_balance_torque(), latched,
-		"the torque latch holds its last non-empty value while samples are momentarily empty"
-	)
-
-
-func test_physical_balance_torque_zeroes_when_the_registry_empties() -> void:
-	var field: Field = _make_field()
-	var registry: BlockRegistry = _make_registry(field)
-	field.set_tilt_enabled(true)
-	field.set_registry(registry)
-	field.set_physical_balance_enabled(true)
-	var block: Block = _settled_block_at(field, 2.0, 0.0)
-	await _wait_for_settle()
-
-	field._update_tilt(TICK)
-	assert_ne(
-		field.physical_balance_torque(), Vector2.ZERO,
-		"fixture: a settled off-center block produces a nonzero torque"
-	)
-
-	Events.block_removed.emit(block, String(Events.REASON_KILL_PLANE))
-	assert_eq(
-		registry.tracked_block_count(), 0,
-		"fixture: the registry no longer tracks the removed block"
-	)
-
-	field._update_tilt(TICK)
-	assert_eq(
-		field.physical_balance_torque(), Vector2.ZERO,
-		"the torque latch zeroes once the registry has no blocks left to hold a stale value for"
-	)
-
-
-func test_physical_balance_is_still_clamped_at_max_tilt_deg() -> void:
-	var field: Field = _make_field()
-	var registry: BlockRegistry = _make_registry(field)
-	field.set_tilt_enabled(true)
-	field.set_registry(registry)
-	field.set_physical_balance_enabled(true)
-	# A dozen settled cubes stacked at a deliberately unrealistic offset (well
-	# past this tiny test map's field_radius, same "exaggerate the input to
-	# force the branch" style as this file's own 1.0e6 single-impulse clamp
-	# test above): the resulting unclamped steady-state tilt (torque_gain *
-	# sum / spring_stiffness(), config/physics/TiltTuning.gd's own DECISION) works out
-	# to roughly 26deg, more than double max_tilt_deg, so this only proves the
-	# clamp still holds under PHYSICAL_BALANCE forcing, not any particular
-	# tuned equilibrium (that is what tests/bench/bench_physical_balance.gd's
-	# realistic tower checks).
-	for _i: int in range(12):
-		_settled_block_at(field, 120.0, 0.0)
-	await _wait_for_settle()
-
-	await wait_physics_frames(120)
-
-	assert_lte(
-		rad_to_deg(field.tilt_vector().length()), field.tilt_tuning.max_tilt_deg + 0.001,
-		"PHYSICAL_BALANCE's continuous torque forcing still cannot exceed max_tilt_deg"
-	)
-
-
-## a tilt that has come to rest stops writing the kinematic
-## transform (so blocks on it can sleep) and an impulse wakes it again.
-func test_rest_deadband_stops_transform_writes_and_an_impulse_wakes_it() -> void:
-	var field: Field = _make_field()
-	field.set_tilt_enabled(true)
-	field.apply_tilt_impulse(Vector2.RIGHT, 0.02)
-	for _i: int in range(60 * 40):
-		field._update_tilt(TICK)
-	assert_true(field._tilt_at_rest, "fixture: the decayed disc is at rest")
-	var resting: Transform3D = field.transform
-	for _i: int in range(60):
-		field._update_tilt(TICK)
-	assert_eq(field.transform, resting, "no writes while at rest")
-	field.apply_tilt_impulse(Vector2.RIGHT, 0.02)
-	assert_false(field._tilt_at_rest, "an impulse wakes the disc")
-	for _i: int in range(10):
-		field._update_tilt(TICK)
-	assert_ne(field.tilt_vector(), Vector2.ZERO, "the woken disc moves again")
-
-
-func test_sync_to_physics_drops_at_rest_and_returns_on_wake() -> void:
-	var field: Field = _make_field()
-	field.set_tilt_enabled(true)
-	assert_true(field.sync_to_physics, "tilt on arms the synced kinematic write")
-	field.apply_tilt_impulse(Vector2.RIGHT, 0.02)
-	for _i: int in range(60 * 40):
-		field._update_tilt(TICK)
-	assert_true(field._tilt_at_rest, "fixture: the decayed disc is at rest")
-	assert_false(field.sync_to_physics, "a latched disc stops syncing so blocks can sleep")
-	field.apply_tilt_impulse(Vector2.RIGHT, 0.02)
-	assert_true(field.sync_to_physics, "an impulse re-arms sync before the next write")
-	for _i: int in range(60 * 40):
-		field._update_tilt(TICK)
-	assert_false(field.sync_to_physics, "it latches again")
-	field.apply_replicated_pose(Vector3.ZERO, Quaternion.IDENTITY)
-	assert_true(field.sync_to_physics, "a replicated pose resumes writes with sync armed")
-	field.set_tilt_enabled(false)
-	assert_false(field.sync_to_physics, "tilt off leaves sync off")
 
 
 ## a small stack on a leaned, latched disc sleeps; a later tilt

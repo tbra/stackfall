@@ -149,7 +149,6 @@ var _raster: TerritoryRaster = null
 var _pushed_revision: int = -1
 var _cells_per_side: int = 0
 var _last_image: Image = null
-var _owner_cell_image: Image = null
 var _state_cell_image: Image = null
 var _upload_accumulator: float = 0.0
 ## The disk_mesh_segments value baked into the current CylinderMesh, so
@@ -163,9 +162,7 @@ var _arena: ArenaMesh = null
 var _body_visuals: DiscBodyVisuals = null
 var _side_style: ArenaSideStyle = null
 
-## the analytic circle list (see set_circles()'s doc). Kept
-## the same way _owner_cell_image is — a headless test has no rendering
-## server to read a texture back from.
+## the analytic circle list (see set_circles()'s doc).
 var _circle_texture: ImageTexture = null
 var _goal_texture: ImageTexture = null
 var _circle_image: Image = null
@@ -326,22 +323,6 @@ func texture() -> ImageTexture:
 	return _texture
 
 
-## The cell-resolution texture the shader reads team ids from, unblended.
-func cell_texture() -> ImageTexture:
-	return _cell_texture
-
-
-## The cell-resolution texture carrying TerritoryRaster.state_bytes() verbatim.
-func state_texture() -> ImageTexture:
-	return _state_texture
-
-
-## The exact cell images of the last upload, for the same reason last_image()
-## exists: a headless test has no rendering server to read a texture back from.
-func owner_cell_image() -> Image:
-	return _owner_cell_image
-
-
 func state_cell_image() -> Image:
 	return _state_cell_image
 
@@ -420,7 +401,6 @@ func push_cells(
 	var state_image: Image = Image.create_from_data(
 		side, side, false, Image.FORMAT_R8, _sized(state_bytes, cell_total)
 	)
-	_owner_cell_image = owner_image
 	_state_cell_image = state_image
 	_cell_texture = _store(_cell_texture, owner_image)
 	_state_texture = _store(_state_texture, state_image)
@@ -813,18 +793,10 @@ func circle_texture() -> ImageTexture:
 	return _circle_texture
 
 
-func goal_texture() -> ImageTexture:
-	return _goal_texture
-
-
-## The exact circle/goal Images of the last upload, for the same headless-
-## test reason owner_cell_image() exists.
+## The exact circle Image of the last upload, kept because a headless test has
+## no rendering server to read a texture back from.
 func circle_image() -> Image:
 	return _circle_image
-
-
-func goal_image() -> Image:
-	return _goal_image
 
 
 ## RGBAF, one texel per circle: (x, z, radius, team). Width is always at

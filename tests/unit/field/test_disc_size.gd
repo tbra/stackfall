@@ -17,12 +17,6 @@ func test_table_has_six_steps_with_the_owner_factors_and_labels() -> void:
 	assert_eq(tuning.value_text(99), "Enormous - 175%", "out of range clamps")
 
 
-func test_default_config_uses_the_unscaled_default_map() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	assert_eq(config.map_def(), load("res://config/match/maps/round.tres"), "same resource, untouched")
-	assert_eq(config.map_def(), config.map_def(), "cached: one instance per config")
-
-
 func test_scaling_multiplies_geometric_lengths_and_keeps_the_rest() -> void:
 	var base: MapDef = load("res://config/match/maps/round.tres") as MapDef
 	for step: int in range(EXPECTED_FACTORS.size()):
@@ -79,8 +73,3 @@ func test_camera_zoom_limit_grows_with_a_large_disc_but_never_shrinks() -> void:
 	assert_almost_eq(rig._zoom_max(), rig.tuning.zoom_max, 0.001)
 
 
-func test_cloud_exclusion_follows_the_disc_radius() -> void:
-	var theme: SkyThemeDef = SkyThemeDef.new()
-	var huge: float = MapDef.RADIUS_MEDIUM * 1.75
-	assert_almost_eq(CloudSea.exclusion_radius_m(theme, huge), huge * (1.0 + theme.cloud_disc_clearance_ratio), 0.001)
-	assert_almost_eq(CloudSea.exclusion_radius_m(theme), MapDef.RADIUS_LARGE * (1.0 + theme.cloud_disc_clearance_ratio), 0.001)

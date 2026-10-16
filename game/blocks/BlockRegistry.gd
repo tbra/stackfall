@@ -628,16 +628,6 @@ func center_height_for_body_id(body_id: int, field_xform: Transform3D) -> float:
 	return maxf(entry.geom_com_y, 0.0)
 
 
-## Drops the cached geometry of `block` (call after swapping a live block's
-## mesh in place; nothing does today).
-func invalidate_geometry(block: Block) -> void:
-	if block == null:
-		return
-	var entry: _Entry = _entries.get(block.get_instance_id()) as _Entry
-	if entry != null:
-		entry.geom_valid = false
-
-
 ## Recomputes entry.geom_* unless the exact inputs (block transform, field
 ## transform, child count) are unchanged; Transform3D == is componentwise, so a
 ## hit is bit-identical to a recompute.

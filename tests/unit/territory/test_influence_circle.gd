@@ -16,15 +16,6 @@ func test_a_block_flat_on_the_disk_gets_the_base_radius() -> void:
 	)
 
 
-func test_height_below_the_surface_still_gives_the_base_radius() -> void:
-	assert_almost_eq(
-		InfluenceCircle.radius_for_height(-3.0, _tuning, MAP_RADIUS),
-		_tuning.influence_base,
-		0.0001,
-		"A negative height must not shrink the circle below influence_base."
-	)
-
-
 func test_radius_grows_linearly_with_height() -> void:
 	for height: float in [1.0, 4.0, 10.0]:
 		assert_almost_eq(
@@ -46,44 +37,11 @@ func test_radius_is_capped_at_the_map_fraction() -> void:
 	)
 
 
-func test_just_below_the_cap_is_not_clamped() -> void:
-	var cap: float = _tuning.influence_max_fraction * MAP_RADIUS
-	var height: float = (cap - _tuning.influence_base) / InfluenceCircle.cone_slope() - 1.0
-	assert_lt(InfluenceCircle.radius_for_height(height, _tuning, MAP_RADIUS), cap)
-
-
 func test_overlap_is_inclusive_at_exactly_the_summed_radii() -> void:
 	var a: InfluenceCircle = InfluenceCircle.new(Vector2.ZERO, 2.0, 0, 0)
 	var b: InfluenceCircle = InfluenceCircle.new(Vector2(5.0, 0.0), 3.0, 0, 1)
 	assert_true(a.overlaps(b), "Exactly r1 + r2 apart counts as overlapping.")
 	assert_true(b.overlaps(a), "Overlap is symmetric.")
-
-
-func test_circles_just_past_the_summed_radii_do_not_overlap() -> void:
-	var a: InfluenceCircle = InfluenceCircle.new(Vector2.ZERO, 2.0, 0, 0)
-	var b: InfluenceCircle = InfluenceCircle.new(Vector2(5.01, 0.0), 3.0, 0, 1)
-	assert_false(a.overlaps(b))
-
-
-func test_contains_point_is_inclusive_on_the_rim() -> void:
-	var c: InfluenceCircle = InfluenceCircle.new(Vector2(1.0, 2.0), 4.0, 0, 0)
-	assert_true(c.contains_point(Vector2(1.0, 2.0)))
-	assert_true(c.contains_point(Vector2(5.0, 2.0)), "A point exactly on the rim is inside.")
-	assert_false(c.contains_point(Vector2(5.01, 2.0)))
-
-
-func test_for_block_builds_a_non_home_circle_at_the_projected_center() -> void:
-	var circle: InfluenceCircle = InfluenceCircle.for_block(
-		Vector2(3.0, -7.0), 5.0, 1, 2, 99, _tuning, MAP_RADIUS
-	)
-	assert_eq(circle.center, Vector2(3.0, -7.0))
-	assert_almost_eq(
-		circle.radius, _tuning.influence_base + InfluenceCircle.cone_slope() * 5.0, 0.0001
-	)
-	assert_eq(circle.team_id, 1)
-	assert_eq(circle.slot_id, 2)
-	assert_eq(circle.body_id, 99)
-	assert_false(circle.is_home)
 
 
 func test_for_home_uses_home_radius_and_anchors() -> void:

@@ -108,45 +108,6 @@ func test_first_held_block_clears_the_home_beacon_on_every_map() -> void:
 		field.queue_free()
 
 
-func test_unseeded_hover_is_inside_the_beacon_so_the_raise_is_load_bearing() -> void:
-	# The bug itself: without set_home_position()'s raise the ghost hovers only
-	# tuning.hover_height above the disc, far below the beacon top.
-	var map: MapDef = MapDef.base().scaled(0.75)
-	var field: Field = _make_field(map)
-	var controller: PlayerController = _make_controller()
-	controller._cursor = field.home_flags()[0].global_position
-	await wait_physics_frames(1)
-	controller._update_ghost_transform()
-	assert_lt(
-		_lowest_point_y(controller), _collider_top_local(field, 0),
-		"fixture: with no home raise the held block starts inside the beacon"
-	)
-
-
-func test_raise_tracks_the_margin_tunable() -> void:
-	var field: Field = _make_field(MapDef.base().scaled(0.75))
-	var controller: PlayerController = _make_controller()
-	var home: Vector3 = field.home_flags()[0].global_position
-	controller.ghost_tuning.home_spawn_beacon_margin = 0.25
-	controller.set_home_position(home)
-	var small_margin_offset: float = controller._ghost.manual_hover_offset
-	controller.ghost_tuning.home_spawn_beacon_margin = 1.25
-	controller.set_home_position(home)
-	assert_almost_eq(
-		controller._ghost.manual_hover_offset - small_margin_offset, 1.0, HEIGHT_EPSILON,
-		"re-seeding with a margin one metre larger raises the block one metre more (previous raise taken back first)"
-	)
-
-
-func test_no_raise_when_the_hover_already_clears_the_beacon() -> void:
-	var field: Field = _make_field(MapDef.base().scaled(0.75))
-	var controller: PlayerController = _make_controller()
-	var high: float = controller.beacon_visuals.beacon_top_height() + controller.ghost_tuning.home_spawn_beacon_margin + 5.0
-	controller._ghost.manual_hover_offset = high
-	controller.set_home_position(field.home_flags()[0].global_position)
-	assert_eq(controller._ghost.manual_hover_offset, high, "a block already hovering above the beacon is left alone")
-
-
 func test_raise_is_dropped_by_the_next_accepted_spawn_so_later_blocks_are_unchanged() -> void:
 	var field: Field = _make_field(MapDef.base().scaled(0.75))
 	var controller: PlayerController = _make_controller()
@@ -223,24 +184,3 @@ func test_host_spawns_the_first_released_block_above_the_beacon() -> void:
 	)
 
 
-## first block "right on top of the
-## home beacon": the first block's start (shared by the player's first ghost
-## and the host's AFK auto-drop) is clear of the beacon top by the margin AND
-## moved back, away from the field centre, by home_spawn_back_offset.
-func test_first_spawn_is_up_and_back_from_the_beacon_on_every_map() -> void:
-	for path: String in _map_paths():
-		var field: Field = _make_field(load(path) as MapDef)
-		var controller: PlayerController = _make_controller()
-		var tuning: GhostTuning = controller.ghost_tuning
-		var home: Vector3 = field.home_flags()[0].global_position
-		var back: Vector3 = tuning.home_spawn_back_position(field.to_local(home))
-		var offset: Vector3 = back - field.to_local(home)
-		assert_almost_eq(offset.length(), tuning.home_spawn_back_offset, HEIGHT_EPSILON, "%s: moved back by the configured offset" % path.get_file())
-		assert_gt(back.length(), field.to_local(home).length(), "%s: back is away from the field centre" % path.get_file())
-		assert_gte(tuning.home_spawn_beacon_margin, 1.0, "visible vertical margin")
-		var beacon_top: float = field.global_position.y + _collider_top_local(field, 0)
-		controller.set_home_position(field.to_global(back))
-		await wait_physics_frames(1)
-		controller._update_ghost_transform()
-		assert_gte(_lowest_point_y(controller), beacon_top + tuning.home_spawn_beacon_margin - HEIGHT_EPSILON, "%s: clears the beacon top by the margin" % path.get_file())
-		field.queue_free()

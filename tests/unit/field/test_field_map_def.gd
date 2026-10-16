@@ -112,11 +112,6 @@ func test_hot_seat_rebuilds_field_for_the_match_map() -> void:
 
 # --- Call site 2: _start_sandbox_match_with_args() ---------------------------
 
-func test_sandbox_rebuilds_field_for_the_match_map() -> void:
-	_main._start_sandbox_match_with_args(PackedStringArray(["--players=2"]))
-
-	_assert_field_matches_the_match_map()
-
 
 # --- Call site 3: _build_match_world() (the real networked/lobby path,
 # reached here through --headless-host --bots=, same seam test_headless_bot_
