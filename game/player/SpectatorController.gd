@@ -94,13 +94,6 @@ func _exit_tree() -> void:
 
 # --- Follow ------------------------------------------------------------------
 
-func follow_slot() -> int:
-	return _follow_slot
-
-
-func is_following() -> bool:
-	return _follow_slot != OVERVIEW
-
 
 func follow_next() -> void:
 	_step_follow(1)
@@ -193,10 +186,6 @@ func toggle_pause() -> void:
 ## The speed the match runs at right now (0.0 while paused).
 func time_scale() -> float:
 	return 0.0 if _paused else tuning.speeds[_speed_index]
-
-
-func is_paused() -> bool:
-	return _paused
 
 
 ## Back to normal speed, un-paused; the engine scale returns to 1.0.

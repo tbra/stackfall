@@ -34,6 +34,29 @@ func _make_field() -> Field:
 	return field
 
 
+## The ribbon's centreline as drawn: the ImmediateMesh strip holds a left/right vertex pair per sample
+## point, so the midpoint of each pair is the sample.
+func _drawn_points(arc: ThrowArcPreview) -> PackedVector3Array:
+	var points: PackedVector3Array = PackedVector3Array()
+	for child: Node in arc.get_children():
+		var instance: MeshInstance3D = child as MeshInstance3D
+		if instance == null or not instance.mesh is ImmediateMesh or instance.mesh.get_surface_count() == 0:
+			continue
+		var verts: PackedVector3Array = instance.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+		for i: int in range(0, verts.size() - 1, 2):
+			points.append((verts[i] + verts[i + 1]) * 0.5)
+	return points
+
+
+## The landing-zone ring node: the arc's MeshInstance3D child that is not the ribbon.
+func _end_ring(arc: ThrowArcPreview) -> MeshInstance3D:
+	for child: Node in arc.get_children():
+		var instance: MeshInstance3D = child as MeshInstance3D
+		if instance != null and not instance.mesh is ImmediateMesh:
+			return instance
+	return null
+
+
 func _expected_gravity(arc: ThrowArcPreview) -> Vector3:
 	return Vector3.DOWN * float(ProjectSettings.get_setting("physics/3d/default_gravity")) * arc.physics_tuning.gravity_multiplier
 
@@ -106,9 +129,9 @@ func test_update_arc_shows_it_and_matches_sample_arc() -> void:
 
 	assert_true(arc.visible, "update_arc() must show the arc.")
 	var expected: PackedVector3Array = arc.sample_arc(origin, velocity)
-	assert_eq(arc.current_points().size(), expected.size())
+	assert_eq(_drawn_points(arc).size(), expected.size())
 	for i: int in range(expected.size()):
-		assert_true(arc.current_points()[i].is_equal_approx(expected[i]))
+		assert_true(_drawn_points(arc)[i].is_equal_approx(expected[i]))
 
 
 func _make_special_controller(fake: FakeMatch) -> Dictionary:
@@ -149,9 +172,9 @@ func test_arc_is_shown_automatically_while_a_throwable_is_held_without_lt() -> v
 	var expected: PackedVector3Array = arc.sample_arc(
 		preview["origin"] as Vector3, preview["velocity"] as Vector3, Match.field(), float(preview["gravity_scale"])
 	)
-	assert_eq(arc.current_points().size(), expected.size())
+	assert_eq(_drawn_points(arc).size(), expected.size())
 	for i: int in range(expected.size()):
-		assert_true(arc.current_points()[i].is_equal_approx(expected[i]), "the arc is the host's GiftAim launch")
+		assert_true(_drawn_points(arc)[i].is_equal_approx(expected[i]), "the arc is the host's GiftAim launch")
 
 
 func test_rocket_arc_is_straight_gravity_free() -> void:
@@ -182,9 +205,9 @@ func test_end_ring_sits_at_landing_point_flat_field() -> void:
 	var arc: ThrowArcPreview = _make_arc()
 	var field: Field = _make_field()
 	arc.update_arc(Vector3(0.0, 2.0, 0.0), Vector3(6.0, 8.0, 0.0), field)
-	var ring: MeshInstance3D = arc.end_ring()
+	var ring: MeshInstance3D = _end_ring(arc)
 	assert_true(ring.visible)
-	var end: Vector3 = arc.current_points()[arc.current_points().size() - 1]
+	var end: Vector3 = _drawn_points(arc)[_drawn_points(arc).size() - 1]
 	var lift: float = arc.ghost_tuning.throw_arc_end_marker_lift
 	assert_true(ring.global_position.distance_to(end) <= 0.01 + lift)
 	assert_true(ring.global_transform.basis.y.angle_to(Vector3.UP) < deg_to_rad(2.0))

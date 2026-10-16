@@ -410,13 +410,8 @@ var _shape_visual: Node3D = null
 ## at most one entry now (the whole rotated shape's own convex
 ## hull, not one per bottom cell -- see this file's own header). Kept as an
 ## Array (not a single nullable MeshInstance3D) so _set_footprint_quad_count()
-## and the footprint_quad_count()/footprint_quad_position() test contracts
-## below stay unchanged in shape, just always 0 or 1 long now.
+## stays unchanged in shape, just always 0 or 1 long now.
 var _footprint_quads: Array[MeshInstance3D] = []
-## World-space XZ polygon currently shown by the footprint quad at the same
-## index -- kept alongside _footprint_quads so tests can check the actual
-## projected shape, not just where its center landed.
-var _footprint_polygons: Array[PackedVector2Array] = []
 ## Shared by every footprint quad (like _material is shared by every mesh of
 ## the held shape's own visual) so updating validity/lock state once repaints
 ## all of them.
@@ -514,7 +509,7 @@ var _block_projection_decal: Decal
 
 var _flash_tween: Tween
 var _reject_tween: Tween
-## docs/rotation-issue.png: a world-space offset added on top
+## A world-space offset added on top
 ## of update_placement()/sync_remote_position()'s own computed position every
 ## frame, animated by play_reject_animation()'s kick tween. World-space (not
 ## a rotated local offset like the old _shape_visual.position kick) so the
@@ -662,14 +657,6 @@ func _apply_projection_visibility() -> void:
 		_projection_mesh.visible = show_projection
 	if _block_projection_decal != null and not show_projection:
 		_block_projection_decal.visible = false
-
-
-func held_gift_id() -> StringName:
-	return _held_gift_id
-
-
-func gift_visual() -> Node3D:
-	return _gift_visual
 
 
 func _rebuild_gift_visual() -> void:
@@ -1005,7 +992,7 @@ func rotated_center_world() -> Vector3:
 ## (BlockFactory's own cube_size/cube_margin box, same pivot) go through the
 ## full rotation basis, get projected to (x, z), and the convex hull of *all*
 ## of them together becomes the one footprint/projection polygon -- not one
-## hull per cell (docs/solid-blocks2-issue.png, this file's own
+## hull per cell (this file's own
 ## header fix (2)): a shape's silhouette from directly above is one shape,
 ## however many cells or landing heights are underneath different parts of
 ## it.
@@ -1041,13 +1028,11 @@ func _update_footprint() -> void:
 	var hull: PackedVector2Array = _rotated_shape_hull()
 	if hull.size() < 3:
 		_set_footprint_quad_count(0)
-		_footprint_polygons.clear()
 		_clear_projection_mesh()
 		_hide_block_projection_decal()
 		return
 
 	_set_footprint_quad_count(1)
-	_footprint_polygons.resize(1)
 
 	var centroid: Vector2 = _polygon_centroid(hull)
 	var world_x: float = global_position.x + centroid.x
@@ -1072,7 +1057,6 @@ func _update_footprint() -> void:
 	var world_hull: PackedVector2Array = PackedVector2Array()
 	for point: Vector2 in hull:
 		world_hull.append(Vector2(global_position.x + point.x, global_position.z + point.y))
-	_footprint_polygons[0] = world_hull
 
 	_update_projection_mesh(landing_y)
 	_update_block_projection_decal(world_hull, landing_y)
@@ -1274,47 +1258,12 @@ func _decal_fade() -> float:
 	return maxf(ghost_tuning.block_projection_edge_fade, _MIN_DECAL_FADE)
 
 
-## For tests: the decal's own cull mask and (upper, lower) fade exponents
-## (attempt 3 -- the disc layer must be excluded and both
-## fades must stay above zero).
-func block_projection_decal_cull_mask() -> int:
-	return _block_projection_decal.cull_mask if _block_projection_decal != null else 0
-
-
-func block_projection_decal_fades() -> Vector2:
-	if _block_projection_decal == null:
-		return Vector2.ZERO
-	return Vector2(_block_projection_decal.upper_fade, _block_projection_decal.lower_fade)
-
-
 ## Hides the block-projection decal (nothing held, or the gap collapsed --
 ## see _update_block_projection_decal()'s own guard) without freeing the
 ## persistent node -- same idea as _clear_projection_mesh() just above.
 func _hide_block_projection_decal() -> void:
 	if _block_projection_decal != null:
 		_block_projection_decal.visible = false
-
-
-## For tests: whether the block-projection decal is currently shown.
-func block_projection_decal_visible() -> bool:
-	return _block_projection_decal != null and _block_projection_decal.visible
-
-
-## For tests: the block-projection decal's own current world-space size
-## (width, height, depth -- Decal.size's own axis order) and position.
-func block_projection_decal_size() -> Vector3:
-	return _block_projection_decal.size if _block_projection_decal != null else Vector3.ZERO
-
-
-func block_projection_decal_position() -> Vector3:
-	return _block_projection_decal.global_position if _block_projection_decal != null else Vector3.ZERO
-
-
-## For tests: the block-projection decal's own current modulate colour (RGB
-## from ghost_tuning.block_projection_color, alpha from
-## ghost_tuning.block_projection_alpha -- see _update_block_projection_decal()).
-func block_projection_decal_color() -> Color:
-	return _block_projection_decal.modulate if _block_projection_decal != null else Color.WHITE
 
 
 ## A plain, fully-opaque white 2x2 texture -- Decal.texture_albedo needs a
@@ -1775,31 +1724,6 @@ func _largest_loop(loops: Array[PackedVector2Array]) -> PackedVector2Array:
 	return best
 
 
-## For tests: the silhouette outline loops (ghost-local XZ) the footprint quad
-## and decal mask are built from -- empty when nothing is held.
-func footprint_loops_local() -> Array[PackedVector2Array]:
-	return _shape_silhouette_loops()
-
-
-## For tests: whether ghost-local XZ point `point` lies inside the projected
-## footprint (union of the silhouette loops, even-odd).
-func footprint_contains_local(point: Vector2) -> bool:
-	return _point_in_loops(point, _shape_silhouette_loops())
-
-
-func _point_in_loops(point: Vector2, loops: Array[PackedVector2Array]) -> bool:
-	if loops.is_empty():
-		return false
-	# Same rule as the footprint mesh: only outer-wound loops fill (a hole loop
-	# winds the other way and is not triangulated), so the mask matches it.
-	var outer_clockwise: bool = Geometry2D.is_polygon_clockwise(_largest_loop(loops))
-	var crossings: int = 0
-	for loop: PackedVector2Array in loops:
-		if Geometry2D.is_polygon_clockwise(loop) == outer_clockwise and Geometry2D.is_point_in_polygon(point, loop):
-			crossings += 1
-	return crossings % 2 == 1
-
-
 ## the decal used to paint the whole hull bounding box (a
 ## solid rectangle over every placed block below a concave piece). Its albedo
 ## is now an alpha mask of the true footprint over [origin, origin + extent]
@@ -1910,26 +1834,6 @@ func _set_footprint_quad_count(count: int) -> void:
 		extra.queue_free()
 
 
-## For tests: how many footprint quads are currently shown -- 0 with nothing
-## held, otherwise always 1 (the whole rotated shape's own
-## silhouette, not one per bottom cell -- see _rotated_shape_hull()'s own
-## comment).
-func footprint_quad_count() -> int:
-	return _footprint_quads.size()
-
-
-## For tests: where footprint quad `index` currently sits.
-func footprint_quad_position(index: int) -> Vector3:
-	return _footprint_quads[index].global_position
-
-
-## For tests: the world-space (X, Z) convex polygon footprint quad `index` is
-## currently showing -- the exact rotated silhouette of the whole held shape,
-## not just its center point (see footprint_quad_position()).
-func footprint_polygon_world(index: int) -> PackedVector2Array:
-	return _footprint_polygons[index]
-
-
 ## For tests: the world-space Y span (top, bottom) of the held shape's own
 ## whole bookkeeping -- Vector2.ZERO when nothing is held or the prism
 ## collapsed (see _update_projection_mesh()'s own guard). `top` is always the
@@ -1937,57 +1841,10 @@ func footprint_polygon_world(index: int) -> PackedVector2Array:
 ## _rotated_top_offset()'s own contract, not _rotated_bottom_offset()'s);
 ## `bottom` is the footprint's own landing height. attempt 4:
 ## this is bookkeeping, not the mesh's own extent -- the walls stop at the
-## shape's underside (projection_mesh_vertices_world() gives the real
+## shape's underside (the built mesh is the real
 ## geometry).
 func projection_span_y() -> Vector2:
 	return _projection_span_y
-
-
-## For tests (attempt 3): how many separate outline loops the
-## merged-mesh silhouette currently produced -- 1 for every shipped BlockShape
-## at every rotation this package tests (a single connected rendered shell has
-## no enclosed hole to split its outline into an outer + hole pair), 0 when
-## nothing is held. See this file's own header DECISION for the one
-## unexercised case (an O-ring-shaped BlockShape, none shipped today) this
-## would report 2 for instead.
-func projection_outline_loop_count() -> int:
-	return _shape_silhouette_loops().size()
-
-
-## For tests: outline loop `index` (see projection_outline_loop_count()),
-## translated into world-space XZ the same way footprint_polygon_world()
-## already exposes the flat footprint hull -- lets a test measure the actual
-## rendered prism's own footprint area/shape directly, not just its vertex
-## count.
-func projection_outline_polygon_world(index: int) -> PackedVector2Array:
-	var loop: PackedVector2Array = _shape_silhouette_loops()[index]
-	var world_loop: PackedVector2Array = PackedVector2Array()
-	for point: Vector2 in loop:
-		world_loop.append(Vector2(global_position.x + point.x, global_position.z + point.y))
-	return world_loop
-
-
-## For tests: every world-space vertex of the projection prism mesh currently
-## built, flattened across every outline loop's own walls.
-func projection_mesh_vertices_world() -> PackedVector3Array:
-	var result: PackedVector3Array = PackedVector3Array()
-	if _projection_mesh == null or _projection_mesh.mesh == null:
-		return result
-	var mesh: ArrayMesh = _projection_mesh.mesh as ArrayMesh
-	var offset: Vector3 = _projection_mesh.global_position
-	for surface: int in range(mesh.get_surface_count()):
-		var arrays: Array = mesh.surface_get_arrays(surface)
-		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-		for v: Vector3 in verts:
-			result.append(Vector3(v.x + offset.x, v.y, v.z + offset.z))
-	return result
-
-
-## For tests: whether the projection prism mesh is currently visible (has a
-## non-null mesh assigned) -- distinct from footprint_quad_count() > 0, since
-## a collapsed (top <= bottom) prism still has a footprint quad but no prism.
-func has_projection_mesh() -> bool:
-	return _projection_mesh != null and _projection_mesh.mesh != null
 
 
 # --- Ghost-vs-placed-block collision (spec 1.4) -------------
@@ -2015,8 +1872,7 @@ func collision_box_local_centers() -> Array[Vector3]:
 ## Half-extent of one collision box, matching game/blocks/BlockFactory.gd's own
 ## `half_size` (see collision_box_local_centers()'s DECISION above). A sloped
 ## cell (ConvexPolygonShape3D in BlockFactory) is approximated as a full box
-## here -- no shipped shape sets sloped_cells today (removed
-## the only one, config/blocks/wedge.tres), so this never runs against a
+## here -- no shipped shape sets sloped_cells today, so this never runs against a
 ## shape it would misrepresent.
 func collision_half_size() -> float:
 	return (tuning.cube_size - tuning.cube_margin) * 0.5
@@ -2083,11 +1939,6 @@ func current_state() -> StringName:
 			return STATE_INVALID
 
 
-## For tests: the material colour currently applied to the held shape.
-func current_tint_color() -> Color:
-	return _material.get_shader_parameter(&"albedo_color") as Color if _material != null else Color.WHITE
-
-
 ## "ghost block should still be
 ## less transparent": every branch below now applies ghost_tuning.
 ## ghost_opacity as the material's own alpha instead of whatever alpha the
@@ -2152,12 +2003,6 @@ func _apply_footprint_material() -> void:
 		_footprint_material.albedo_texture = null
 
 
-## For tests: the footprint's own current tint colour (see current_tint_color()
-## for the held shape's own body colour).
-func current_footprint_tint_color() -> Color:
-	return _footprint_material.albedo_color if _footprint_material != null else Color.WHITE
-
-
 ## user test "the projection colour is right":
 ## the raw, un-alpha'd, un-blended state colour -- valid/invalid/hole/locked,
 ## exactly what _apply_validity_material() picks for the held shape's own
@@ -2220,33 +2065,6 @@ func _apply_projection_material() -> void:
 	_projection_material.emission_energy_multiplier = ghost_tuning.projection_emission_energy
 
 
-## For tests: the projection prism's own current tint colour (see
-## current_footprint_tint_color() for the flat footprint decal's own colour).
-func current_projection_tint_color() -> Color:
-	return _projection_material.albedo_color if _projection_material != null else Color.WHITE
-
-
-## For tests: the projection prism's own current emission colour
-## (-- see ghost_tuning.projection_emission_energy for its
-## strength and projection_uses_additive_blend()/projection_emission_enabled()
-## for the material settings that make it actually brighten what's behind it).
-func current_projection_emission_color() -> Color:
-	return _projection_material.emission if _projection_material != null else Color.BLACK
-
-
-## For tests: whether the projection prism material blends additively
-## (BaseMaterial3D.BLEND_MODE_ADD) instead of the usual alpha-over
-## compositing (owner test "any surface that
-## falls within the projection should be a lot brighter").
-func projection_uses_additive_blend() -> bool:
-	return _projection_material != null and _projection_material.blend_mode == BaseMaterial3D.BLEND_MODE_ADD
-
-
-## For tests: whether the projection prism material emits its own light
-##  on top of the additive blend above.
-func projection_emission_enabled() -> bool:
-	return _projection_material != null and _projection_material.emission_enabled
-
 # --- Glow ----------------------------------------------------
 # Presentation only: a fresnel rim in the ghost's tint colour. Steady at
 # ghost_tuning.glow_strength; once the local block timer is within
@@ -2281,14 +2099,6 @@ func set_glue_charges(charges: int) -> void:
 	_glue_charges = maxi(charges, 0)
 	if was_glued != (_glue_charges > 0):
 		_apply_glue_overlay()
-
-
-func glue_charges() -> int:
-	return _glue_charges
-
-
-func is_glue_overlay_active() -> bool:
-	return _glue_charges > 0
 
 
 func _apply_glue_overlay() -> void:
@@ -2420,12 +2230,6 @@ func play_reject_animation() -> void:
 		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	_reject_tween.tween_property(self, ^"_reject_offset", Vector3.ZERO, half_duration) \
 		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-
-
-## For tests: the reject arc's current world-space position offset (zero
-## outside a reject animation).
-func reject_offset() -> Vector3:
-	return _reject_offset
 
 
 ## Spec 1.4: "When the timer runs out, the held block drops from its current

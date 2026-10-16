@@ -55,10 +55,6 @@ func ghost_for_slot(slot_id: int) -> GhostPreview:
 	return _ghosts.get(slot_id) as GhostPreview
 
 
-func tracked_slot_count() -> int:
-	return _ghosts.size()
-
-
 ## Drops every remote ghost. Called when a match ends.
 func clear() -> void:
 	for slot_id: Variant in _ghosts.keys():

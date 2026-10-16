@@ -10,6 +10,43 @@ func _make_ghost() -> GhostPreview:
 	return ghost
 
 
+## Footprint quad bookkeeping read off the ghost's own child nodes.
+func _footprint_quad_count(ghost: GhostPreview) -> int:
+	return ghost._footprint_quads.size()
+
+
+## The world-space XZ convex hull the footprint quad is built from.
+func _footprint_polygon_world(ghost: GhostPreview) -> PackedVector2Array:
+	var world: PackedVector2Array = PackedVector2Array()
+	for point: Vector2 in ghost._rotated_shape_hull():
+		world.append(Vector2(ghost.global_position.x + point.x, ghost.global_position.z + point.y))
+	return world
+
+
+## Whether the projection prism mesh is currently built (a collapsed prism has a footprint quad but no mesh).
+func _has_projection_mesh(ghost: GhostPreview) -> bool:
+	return ghost._projection_mesh != null and ghost._projection_mesh.mesh != null
+
+
+## Every world-space vertex of the projection prism mesh.
+func _prism_vertices(ghost: GhostPreview) -> PackedVector3Array:
+	var result: PackedVector3Array = PackedVector3Array()
+	if not _has_projection_mesh(ghost):
+		return result
+	var mesh: ArrayMesh = ghost._projection_mesh.mesh as ArrayMesh
+	var offset: Vector3 = ghost._projection_mesh.global_position
+	for surface: int in range(mesh.get_surface_count()):
+		var verts: PackedVector3Array = mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]
+		for v: Vector3 in verts:
+			result.append(Vector3(v.x + offset.x, v.y, v.z + offset.z))
+	return result
+
+
+## The silhouette outline loops (ghost-local XZ) the prism walls are built from.
+func _outline_loops(ghost: GhostPreview) -> Array[PackedVector2Array]:
+	return ghost._shape_silhouette_loops()
+
+
 # --- rotated-bottom pivot -----------------------------
 
 ## The lowest world-space Y any corner of the ghost's own shape visual
@@ -186,8 +223,8 @@ func test_footprint_polygon_matches_the_whole_rotated_shapes_projected_corners()
 		var expected_bbox: Rect2 = _bbox_of(expected_hull)
 		var expected_area: float = _polygon_area(expected_hull)
 
-		assert_eq(ghost.footprint_quad_count(), 1, "the whole L-shape must still show exactly one footprint polygon.")
-		var actual_polygon: PackedVector2Array = ghost.footprint_polygon_world(0)
+		assert_eq(_footprint_quad_count(ghost), 1, "the whole L-shape must still show exactly one footprint polygon.")
+		var actual_polygon: PackedVector2Array = _footprint_polygon_world(ghost)
 		var actual_bbox: Rect2 = _bbox_of(actual_polygon)
 		assert_true(
 			actual_bbox.position.is_equal_approx(expected_bbox.position),
@@ -254,13 +291,13 @@ func test_pitched_bar3_over_a_placed_block_gets_one_disc_footprint_and_a_matchin
 	var disk_surface_point: Vector3 = Vector3.ZERO
 	ghost.update_placement(disk_surface_point, Vector3.UP)
 
-	assert_eq(ghost.footprint_quad_count(), 1, "one whole-shape footprint, not one per cell.")
+	assert_eq(_footprint_quad_count(ghost), 1, "one whole-shape footprint, not one per cell.")
 	assert_almost_eq(
-		ghost.footprint_quad_position(0).y, disk_surface_point.y + ghost.ghost_tuning.footprint_offset, 0.01,
+		ghost._footprint_quads[0].global_position.y, disk_surface_point.y + ghost.ghost_tuning.footprint_offset, 0.01,
 		"the footprint must land on the bare disc, never the placed pillar's own top face."
 	)
 
-	assert_true(ghost.has_projection_mesh(), "a real gap between the shape and the disc must show a projection prism.")
+	assert_true(_has_projection_mesh(ghost), "a real gap between the shape and the disc must show a projection prism.")
 	var span: Vector2 = ghost.projection_span_y()
 	# unlike _rotated_bottom_offset() (deliberately the
 	# cube_margin-shrunk *collision* half_size, so placed blocks don't jam --
@@ -290,7 +327,7 @@ func test_projection_prism_spans_hover_height_plus_the_shapes_own_height_over_fl
 
 	ghost.update_placement(Vector3.ZERO, Vector3.UP)
 
-	assert_true(ghost.has_projection_mesh(), "hover_height alone should still show a prism.")
+	assert_true(_has_projection_mesh(ghost), "hover_height alone should still show a prism.")
 	var span: Vector2 = ghost.projection_span_y()
 	# the prism's own top is now the shape's own highest
 	# point, not its lowest -- for an unrotated cube resting hover_height
@@ -319,7 +356,7 @@ func test_projection_prism_spans_hover_height_plus_the_shapes_own_height_over_fl
 # the outline (sloped for a tilted shape, stepped where an overhang begins),
 # never the whole shape's top. projection_span_y() stays
 # the whole-shape bookkeeping game/player/PlayerController.gd reads; the tests
-# below check the built mesh itself (projection_mesh_vertices_world()).
+# below check the built mesh itself (_prism_vertices()).
 
 ## The same 8 corner signs _CORNER_SIGNS declares (game/player/GhostPreview.gd),
 ## independently re-declared here so the per-cell expectations below are a real
@@ -402,7 +439,7 @@ func _probe_underside_y(triangles: Array[PackedVector3Array], point: Vector2) ->
 ## against attempt 3 (every wall capped at the whole shape's own top).
 func _assert_wall_tops_follow_the_underside(ghost: GhostPreview) -> void:
 	var triangles: Array[PackedVector3Array] = _world_shell_triangles(ghost)
-	var vertices: PackedVector3Array = ghost.projection_mesh_vertices_world()
+	var vertices: PackedVector3Array = _prism_vertices(ghost)
 	assert_false(vertices.is_empty(), "fixture: a real gap between the shape and the disc must show prism geometry.")
 	for wall_index: int in range(vertices.size() / 4):
 		var top_a: Vector3 = vertices[wall_index * 4]
@@ -465,13 +502,15 @@ func _assert_no_duplicate_wall_edges(vertices: PackedVector3Array) -> void:
 func _assert_walls_tile_the_outline(ghost: GhostPreview) -> void:
 	var edges: Array[PackedVector2Array] = []
 	var perimeter: float = 0.0
-	for loop_index: int in range(ghost.projection_outline_loop_count()):
-		var loop: PackedVector2Array = ghost.projection_outline_polygon_world(loop_index)
+	for loop_index: int in range(_outline_loops(ghost).size()):
+		var loop: PackedVector2Array = PackedVector2Array()
+		for local_point: Vector2 in _outline_loops(ghost)[loop_index]:
+			loop.append(Vector2(ghost.global_position.x + local_point.x, ghost.global_position.z + local_point.y))
 		for i: int in range(loop.size()):
 			var edge: PackedVector2Array = PackedVector2Array([loop[i], loop[(i + 1) % loop.size()]])
 			edges.append(edge)
 			perimeter += edge[0].distance_to(edge[1])
-	var vertices: PackedVector3Array = ghost.projection_mesh_vertices_world()
+	var vertices: PackedVector3Array = _prism_vertices(ghost)
 	var wall_length: float = 0.0
 	for wall_index: int in range(vertices.size() / 4):
 		var a: Vector2 = Vector2(vertices[wall_index * 4].x, vertices[wall_index * 4].z)
@@ -490,7 +529,7 @@ func _assert_walls_tile_the_outline(ghost: GhostPreview) -> void:
 
 func _max_wall_vertex_y(ghost: GhostPreview) -> float:
 	var highest: float = -INF
-	for vertex: Vector3 in ghost.projection_mesh_vertices_world():
+	for vertex: Vector3 in _prism_vertices(ghost):
 		highest = maxf(highest, vertex.y)
 	return highest
 
@@ -512,7 +551,7 @@ func test_single_cube_projection_walls_cap_at_its_own_underside_not_the_shapes_o
 	var ghost: GhostPreview = _make_ghost()
 	ghost.update_placement(Vector3.ZERO, Vector3.UP)
 
-	assert_true(ghost.has_projection_mesh(), "fixture: hover_height alone leaves a real gap under the cube.")
+	assert_true(_has_projection_mesh(ghost), "fixture: hover_height alone leaves a real gap under the cube.")
 	assert_almost_eq(
 		_max_wall_vertex_y(ghost), _visual_world_bottom_y(ghost), 0.001,
 		"the walls' own top must be the cube's own underside, not its top."
@@ -539,7 +578,7 @@ func test_s4_at_identity_rotation_never_projects_above_the_lower_cells_own_top()
 	var lower_cell_top_y: float = lower_cell_underside_y + ghost.tuning.cube_size
 	assert_almost_eq(overhang_underside_y, lower_cell_top_y, 0.001, "fixture: the overhang sits on the lower row's top level.")
 
-	var vertices: PackedVector3Array = ghost.projection_mesh_vertices_world()
+	var vertices: PackedVector3Array = _prism_vertices(ghost)
 	assert_false(vertices.is_empty(), "fixture: a real gap between the shape and the disc must show prism geometry.")
 	var min_x: float = INF
 	var max_x: float = -INF
@@ -570,11 +609,11 @@ func test_tilted_bar_silhouette_stays_a_single_outer_loop_with_no_overlapping_wa
 	var ghost: GhostPreview = _held_ghost("res://config/blocks/bar4.tres", 30.0)
 
 	assert_eq(
-		ghost.projection_outline_loop_count(), 1,
+		_outline_loops(ghost).size(), 1,
 		"a rolled bar's 4 cells project to overlapping quads, but the true rendered silhouette is one outer loop."
 	)
 	_assert_walls_tile_the_outline(ghost)
-	_assert_no_duplicate_wall_edges(ghost.projection_mesh_vertices_world())
+	_assert_no_duplicate_wall_edges(_prism_vertices(ghost))
 	_assert_wall_tops_follow_the_underside(ghost)
 	assert_true(
 		_max_wall_vertex_y(ghost) < _visual_world_top_y(ghost) - 0.01,

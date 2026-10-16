@@ -14,6 +14,42 @@ func _ghost_with(shape_id: String) -> GhostPreview:
 	return ghost
 
 
+## Whether ghost-local XZ `point` lies inside the footprint outline (even-odd over the silhouette loops; only
+## outer-wound loops fill, as in the footprint mesh).
+func _footprint_contains(ghost: GhostPreview, point: Vector2) -> bool:
+	var loops: Array[PackedVector2Array] = ghost._shape_silhouette_loops()
+	if loops.is_empty():
+		return false
+	var outer_clockwise: bool = Geometry2D.is_polygon_clockwise(ghost._largest_loop(loops))
+	var crossings: int = 0
+	for loop: PackedVector2Array in loops:
+		if Geometry2D.is_polygon_clockwise(loop) == outer_clockwise and Geometry2D.is_point_in_polygon(point, loop):
+			crossings += 1
+	return crossings % 2 == 1
+
+
+## World-space XZ of the footprint hull the quad is built from.
+func _hull_world(ghost: GhostPreview) -> PackedVector2Array:
+	var world: PackedVector2Array = PackedVector2Array()
+	for point: Vector2 in ghost._rotated_shape_hull():
+		world.append(Vector2(ghost.global_position.x + point.x, ghost.global_position.z + point.y))
+	return world
+
+
+## Every world-space vertex of the projection prism mesh.
+func _prism_vertices(ghost: GhostPreview) -> PackedVector3Array:
+	var result: PackedVector3Array = PackedVector3Array()
+	if ghost._projection_mesh == null or ghost._projection_mesh.mesh == null:
+		return result
+	var mesh: ArrayMesh = ghost._projection_mesh.mesh as ArrayMesh
+	var offset: Vector3 = ghost._projection_mesh.global_position
+	for surface: int in range(mesh.get_surface_count()):
+		var verts: PackedVector3Array = mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]
+		for v: Vector3 in verts:
+			result.append(Vector3(v.x + offset.x, v.y, v.z + offset.z))
+	return result
+
+
 func _column_key(ghost: GhostPreview, cell: Vector3) -> Vector2i:
 	var pivot: Vector3 = ghost.get_shape().bottom_center()
 	var rotated: Vector3 = ghost.basis * ((cell - pivot) * ghost.tuning.cube_size)
@@ -33,7 +69,7 @@ func _check_footprint(ghost: GhostPreview, label: String) -> void:
 				var cell: Vector3 = Vector3(x, y, z)
 				var rotated: Vector3 = ghost.basis * ((cell - pivot) * cube)
 				var key: Vector2i = _column_key(ghost, cell)
-				var inside: bool = ghost.footprint_contains_local(Vector2(rotated.x, rotated.z))
+				var inside: bool = _footprint_contains(ghost, Vector2(rotated.x, rotated.z))
 				if y == 0 or shape.cells.has(Vector3i(x, y, z)):
 					# Only test columns that hold a cell at this height, and
 					# empty columns at y == 0 (a cell above an empty column
@@ -57,9 +93,9 @@ func test_footprint_matches_cells_for_four_yaws() -> void:
 func test_plus5_footprint_is_not_its_convex_hull() -> void:
 	var ghost: GhostPreview = _ghost_with("plus5")
 	ghost.update_placement(Vector3.ZERO, Vector3.UP)
-	var hull_area: float = _area(ghost.footprint_polygon_world(0))
+	var hull_area: float = _area(_hull_world(ghost))
 	var loops_area: float = 0.0
-	for loop: PackedVector2Array in ghost.footprint_loops_local():
+	for loop: PackedVector2Array in ghost._shape_silhouette_loops():
 		loops_area += _area(loop)
 	assert_lt(loops_area, hull_area * 0.9, "plus footprint must be the five cells, not its octagonal hull")
 	var mesh: ArrayMesh = ghost._footprint_quads[0].mesh as ArrayMesh
@@ -117,7 +153,7 @@ func test_walls_stop_on_a_block_under_the_ghost() -> void:
 	ghost.global_position = Vector3(0.0, 5.0, 0.0)
 	ghost._update_footprint()
 	var lowest: float = INF
-	for vertex: Vector3 in ghost.projection_mesh_vertices_world():
+	for vertex: Vector3 in _prism_vertices(ghost):
 		lowest = minf(lowest, vertex.y)
 	assert_almost_eq(lowest, 2.0, 0.05, "wall bottoms on the tower top (y=2), not the disc")
 
