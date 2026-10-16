@@ -114,7 +114,8 @@ func hole_dissolver() -> HoleDissolver:
 ## keeps the call sites' shape).
 func configure(field: Node3D, _map_def: MapDef) -> void:
 	_field = field
-	_ensure_dissolver().set_field(field)
+	var dissolver: HoleDissolver = _ensure_dissolver()
+	dissolver.set_field(field)
 
 
 ## Drops every tracked block (but does not free the bodies themselves — the
@@ -126,7 +127,8 @@ func reset() -> void:
 	_carriers.clear()
 	_net_id_to_block.clear()
 	_next_net_id = 1
-	_ensure_dissolver().reset()
+	var dissolver: HoleDissolver = _ensure_dissolver()
+	dissolver.reset()
 
 
 ## Monotonic counter of territory-relevant changes (see _territory_revision).
