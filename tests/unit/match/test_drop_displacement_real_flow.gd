@@ -154,7 +154,7 @@ func _stack_drop_trace() -> Dictionary:
 	await _wait_settled(a)
 	for _i: int in range(10):
 		await _frame()
-	Match.debug_unlock_slot(HOST_SLOT)
+	Match._feed.debug_unlock_slot(HOST_SLOT)
 	# The player wheels the held piece up so it hangs DROP_GAP_M above A.
 	var player_offset: float = maxf(_top_y(a) - controller._last_hit_point.y - controller.tuning.hover_height, 0.0) + DROP_GAP_M
 	ghost.manual_hover_offset = player_offset

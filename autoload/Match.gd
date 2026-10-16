@@ -96,7 +96,7 @@ var _net_config: NetConfig = preload("res://config/net/net_config.tres")
 ## double one (see game/player/PlayerController.gd's matching DECISION), so every
 ## host gate below reads through this seam instead of naming `Net` directly.
 ## null means "the real Net", which is what every shipped build uses; a test
-## injects a double with set_net_provider(). Net.is_host() is true offline
+## assigns a double to this variable. Net.is_host() is true offline
 ## too, so `if not _is_host(): return` changes nothing about M2's hot-seat.
 var _net_provider: Variant = null
 
@@ -336,20 +336,6 @@ var _solver: TerritorySolver:
 	get: return _territory._solver if _late_active else null
 
 
-func _finish_match(winning_team: int) -> void:
-	_lifecycle._finish_match(winning_team)
-
-
-## M4 P1b: MatchGifts.claim_or_expire_gifts() runs right after the raster
-## updates (the plan's own "hooked into the existing _run_territory_step(),
-## right after the raster updates"), by appending it to this forward rather
-## than editing autoload/match/MatchTerritory.gd, which this package does not
-## own.
-func _run_territory_step(delta: float) -> void:
-	_territory._run_territory_step(delta)
-	_gifts.claim_or_expire_gifts(delta)
-
-
 ## Gift flight and landed expiry use physics time, independent of territory solve cadence.
 func _physics_process(delta: float) -> void:
 	if not _late_active:
@@ -364,12 +350,6 @@ func _physics_process(delta: float) -> void:
 	var probe_weather: int = PerfProbe.start()
 	_weather.tick(delta)
 	PerfProbe.stop(&"weather", probe_weather)
-
-
-func debug_unlock_slot(slot_id: int) -> void:
-	if not _late_active:
-		return
-	_feed.debug_unlock_slot(slot_id)
 
 
 # --- Lifecycle --------------------------------------------------------------
@@ -419,12 +399,6 @@ func blocks_parent() -> Node3D:
 ## ui/debug/SandboxPanel.gd and game/player/PlayerController.gd read them from _ready()).
 func field() -> FieldBody:
 	return _field if is_instance_valid(_field) else null
-
-
-## Test seam for the Net autoload (see _net_provider). Passing null restores
-## the real Net.
-func set_net_provider(provider: Variant) -> void:
-	_net_provider = provider
 
 
 ## Installed by net/MatchNet.gd. `replicator` must answer replicate_spawn(),
@@ -869,10 +843,6 @@ func set_sandbox_territory_mode(
 	_sandbox_cone_base_mode = base_mode
 
 
-func sandbox_territory_mode() -> int:
-	return _sandbox_territory_mode
-
-
 
 # --- The one authoritative entry point (spec 2.6) ---------------------------
 
@@ -918,12 +888,6 @@ func note_aim(slot_id: int, forward: Vector3) -> void:
 	_placement.note_aim(slot_id, forward)
 
 
-func noted_aim(slot_id: int) -> Vector3:
-	if not _late_active:
-		return Vector3.ZERO
-	return _placement.noted_aim(slot_id)
-
-
 ## M4 P4-SPAWN: a special effect's own runtime projectile spawn (e.g.
 ## Volcano's lava orbs), not a player intent. See
 ## MatchPlacement.spawn_special_projectile() for the full contract
@@ -956,15 +920,6 @@ func preview_placement(
 	if not _late_active:
 		return PlacementRules.Result.EMPTY
 	return _placement.preview_placement(slot_id, origin, orientation_index, free_quat)
-
-
-## Blocks this instance has spawned since the match started. The M3a
-## acceptance harness asserts this equals the sum of accepted intents plus
-## auto-drops.
-func blocks_spawned() -> int:
-	if not _late_active:
-		return 0
-	return _placement.blocks_spawned()
 
 
 ## The value an intent for `slot_id` must quote to be accepted right now. It
@@ -1021,13 +976,6 @@ func raster() -> TerritoryRaster:
 	if not _late_active:
 		return null
 	return _territory.raster()
-
-
-## The groups from the last solve, parallel to the raster.
-func groups() -> TerritoryGroups:
-	if not _late_active:
-		return null
-	return _territory.groups()
 
 
 ## mode goal context for a bot slot (see MatchTerritory.bot_mode_goal()).

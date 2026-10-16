@@ -15,7 +15,7 @@ func after_each() -> void:
 	if _net != null and is_instance_valid(_net):
 		_net.set_providers(null, null)
 	_net = null
-	Match.set_net_provider(null)
+	Match._net_provider = null
 	Match.set_replicator(null)
 	Match.abort_match()
 	for child: Node in _blocks_root.get_children():
@@ -117,7 +117,7 @@ func _make_host_net() -> MatchNetScript:
 	var peer_slots: Dictionary = {1: 0, REMOTE_PEER: REMOTE_SLOT}
 	var fake: FakeNet = FakeNet.host(peer_slots, [0])
 	fake.slots_by_peer = peer_slots
-	Match.set_net_provider(fake)
+	Match._net_provider = fake
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)
@@ -152,7 +152,7 @@ func test_another_peers_cursor_cannot_set_this_slots_aim() -> void:
 	var net: MatchNetScript = _make_host_net()
 	_start_with(&"gift_bomb", GiftThrow.Mode.THROW, REMOTE_SLOT)
 	net._handle_cursor_update(REMOTE_PEER, 0, _home_world_position(0), 0, Quaternion.IDENTITY, AIM)
-	assert_eq(Match.noted_aim(0), Vector3.ZERO, "slot/peer mismatch is dropped before the aim is read")
+	assert_eq(Match._placement.noted_aim(0), Vector3.ZERO, "slot/peer mismatch is dropped before the aim is read")
 
 
 # --- clamp and bot range -----------------------------------------------------

@@ -61,7 +61,7 @@ func after_each() -> void:
 	if _net != null and is_instance_valid(_net):
 		_net.set_providers(null, null)
 	_net = null
-	Match.set_net_provider(null)
+	Match._net_provider = null
 	Match.set_replicator(null)
 	Match.abort_match()
 	Match.set_process(true)
@@ -74,7 +74,7 @@ func _make_host_net() -> MatchNetScript:
 	var peer_slots: Dictionary = {HOST_PEER: 0, REMOTE_PEER: REMOTE_SLOT}
 	_fake_net = FakeNet.host(peer_slots, [0])
 	_fake_net.slots_by_peer = peer_slots
-	Match.set_net_provider(_fake_net)
+	Match._net_provider = _fake_net
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)

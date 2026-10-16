@@ -53,7 +53,7 @@ func test_start_match_runs_lobby_to_playing_with_countdown_ticks() -> void:
 		SandboxConeExperiment.HEIGHT_CENTER, SandboxConeExperiment.BASE_NONE
 	)
 	Match.start_match(_hotseat_config())
-	assert_eq(Match.sandbox_territory_mode(), MatchAutoload.DEFAULT_TERRITORY_MODE)
+	assert_eq(Match._sandbox_territory_mode, MatchAutoload.DEFAULT_TERRITORY_MODE)
 	assert_almost_eq(Match._sandbox_cone_angle, MatchAutoload.DEFAULT_CONE_ANGLE_DEGREES, 0.001)
 	assert_eq(Match._sandbox_cone_height_source, SandboxConeExperiment.HEIGHT_TOP)
 	assert_eq(Match._sandbox_cone_base_mode, SandboxConeExperiment.BASE_ADDITIVE)
@@ -137,7 +137,7 @@ func test_start_match_from_playing_returns_through_lobby_with_a_fresh_world() ->
 	# exists (no carry-over: the old match's held shape was cleared by the restart).
 	assert_not_null(Match.held_shape(0), "The new match holds its own first block")
 	assert_eq(Match.feed_seq(0), 0, "A fresh feed sequence")
-	assert_eq(Match.blocks_spawned(), 0)
+	assert_eq(Match._placement.blocks_spawned(), 0)
 
 
 # --- Hot-seat turn order and feed timer (spec 1.5, 2.4, 2.7) ----------------
@@ -479,7 +479,7 @@ func test_legacy_hole_mode_still_opens_holes_and_eliminates_through_run_territor
 	var step: float = 1.0 / Match._territory_tuning.solve_hz
 	var elapsed: float = 0.0
 	while elapsed < Match._territory_tuning.hole_delay + step:
-		Match._run_territory_step(step)
+		Match._territory._run_territory_step(step)
 		elapsed += step
 
 	assert_false(Match.slot(0).home_flag_alive, "The legacy hole-opened path must still eliminate a home flag.")

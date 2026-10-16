@@ -88,7 +88,8 @@ func _start_playing(config: MatchConfig) -> void:
 func _step_territory(times: int = 1) -> void:
 	var step: float = 1.0 / Match._territory_tuning.solve_hz
 	for _i: int in range(times):
-		Match._run_territory_step(step)
+		Match._territory._run_territory_step(step)
+		Match._gifts.claim_or_expire_gifts(step)
 
 
 ## Same direct-injection seam test_gift_claim.gd's own _inject_crate() uses

@@ -51,7 +51,7 @@ func after_each() -> void:
 	if _net != null and is_instance_valid(_net):
 		_net.set_providers(null, null)
 	_net = null
-	Match.set_net_provider(null)
+	Match._net_provider = null
 	Match.set_replicator(null)
 	Match.abort_match()
 	Match.set_process(true)
@@ -64,7 +64,7 @@ func after_each() -> void:
 func _make_net(peer_slots: Dictionary, local: Array[int], client_mode: bool = false) -> MatchNetScript:
 	_fake_net = FakeNet.host(peer_slots, local) if not client_mode else FakeNet.client(local[0])
 	_fake_net.slots_by_peer = peer_slots
-	Match.set_net_provider(_fake_net)
+	Match._net_provider = _fake_net
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)
@@ -118,14 +118,14 @@ func _block_count() -> int:
 ## rpc() is a no-op) always has. Since a deliberate release now locks the
 ## slot until its fixed interval's boundary (Match._consume_and_refeed()), a
 ## second call in the same frame would be refused with REASON_NO_BLOCK before
-## that boundary arrives. Match.debug_unlock_slot() is the test-only seam
+## that boundary arrives. Match._feed.debug_unlock_slot() is the test-only seam
 ## that resolves exactly `slot_id`'s lock immediately, the same thing
 ## Match._tick_feed()'s own boundary-crossing branch would do -- rather than
 ## ticking Match._process() for a block_timer's worth of frames, which would
 ## also run every OTHER slot's independent interval down by that much and
 ## risk an unrelated auto-drop in a test that isn't about auto-drop at all.
 func _unlock_slot(slot_id: int) -> void:
-	Match.debug_unlock_slot(slot_id)
+	Match._feed.debug_unlock_slot(slot_id)
 
 
 # --- The host's local player never round-trips ------------------------------
@@ -149,9 +149,9 @@ func test_submit_place_on_the_host_reaches_match_in_the_same_frame() -> void:
 func test_submit_place_on_a_client_sends_without_touching_match() -> void:
 	var net: MatchNetScript = _make_net({}, [1], true)
 	# The client still built the world from the host's match start.
-	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	Match._net_provider = FakeNet.host({}, [0, 1])
 	_start_playing()
-	Match.set_net_provider(_fake_net)
+	Match._net_provider = _fake_net
 
 	var before: int = _block_count()
 	var reason: StringName = net.submit_place(
@@ -228,9 +228,9 @@ func test_an_intent_for_someone_elses_slot_is_refused() -> void:
 
 func test_a_client_never_acts_on_an_intent_it_receives() -> void:
 	var net: MatchNetScript = _make_net({}, [1], true)
-	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	Match._net_provider = FakeNet.host({}, [0, 1])
 	_start_playing()
-	Match.set_net_provider(_fake_net)
+	Match._net_provider = _fake_net
 
 	net._handle_place_intent(1, 0, _home_world_position(0), 0, Quaternion.IDENTITY, 0)
 
@@ -247,13 +247,13 @@ func test_a_client_never_acts_on_an_intent_it_receives() -> void:
 
 
 func test_a_client_runs_no_solve_no_feed_tick_and_no_win_check() -> void:
-	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	Match._net_provider = FakeNet.host({}, [0, 1])
 	_start_playing(2, 6.0)
 	var timer_before: float = Match.feed_time_left(0)
 	var seq_before: int = Match.feed_seq(0)
 	watch_signals(Events)
 
-	Match.set_net_provider(FakeNet.client(1))
+	Match._net_provider = FakeNet.client(1)
 	for _i: int in range(120):
 		Match._process(1.0 / 60.0)
 
@@ -435,7 +435,7 @@ func test_a_truncated_or_foreign_territory_payload_decodes_to_nothing() -> void:
 
 
 func test_start_match_from_lobby_does_not_replicate_its_own_transient_states() -> void:
-	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	Match._net_provider = FakeNet.host({}, [0, 1])
 	var host_net: MatchNetScript = _make_net({}, [0, 1])
 	watch_signals(Events)
 
@@ -456,7 +456,7 @@ func test_start_match_from_lobby_does_not_replicate_its_own_transient_states() -
 
 
 func test_a_replicated_feed_event_sets_the_held_shape_and_resets_the_timer() -> void:
-	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	Match._net_provider = FakeNet.host({}, [0, 1])
 	_start_playing(2, 6.0)
 	var net: MatchNetScript = _make_net({}, [1], true)
 	for _i: int in range(60):
@@ -473,7 +473,7 @@ func test_a_replicated_feed_event_sets_the_held_shape_and_resets_the_timer() -> 
 
 
 func test_a_replicated_turn_points_a_client_at_its_own_slot() -> void:
-	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	Match._net_provider = FakeNet.host({}, [0, 1])
 	_start_playing()
 	var net: MatchNetScript = _make_net({}, [1], true)
 	watch_signals(Events)
@@ -488,7 +488,7 @@ func test_a_replicated_turn_points_a_client_at_its_own_slot() -> void:
 
 
 func test_a_replicated_territory_packet_drives_the_mirror_and_the_hole_signal() -> void:
-	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	Match._net_provider = FakeNet.host({}, [0, 1])
 	_start_playing()
 	var net: MatchNetScript = _make_net({}, [1], true)
 	var raster: TerritoryRaster = Match.raster()
@@ -514,7 +514,7 @@ func test_a_replicated_territory_packet_drives_the_mirror_and_the_hole_signal() 
 # --- a decaying home claim reaches clients on a static board ---
 
 func test_malformed_capture_progress_is_rejected() -> void:
-	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	Match._net_provider = FakeNet.host({}, [0, 1])
 	_start_playing()
 	var host_net: MatchNetScript = _make_net({}, [0])
 	var raster: TerritoryRaster = Match.raster()
@@ -542,7 +542,7 @@ func test_malformed_capture_progress_is_rejected() -> void:
 ## test_gift_claim.gd's test_gift_wire_rejects_malformed_payloads for
 ## EVENT_GIFT_SPAWNED's own position check.
 func test_a_malformed_special_id_is_dropped_not_applied() -> void:
-	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	Match._net_provider = FakeNet.host({}, [0, 1])
 	_start_playing()
 	var net: MatchNetScript = _make_net({}, [1], true)
 	watch_signals(Events)
@@ -604,7 +604,7 @@ func test_a_negative_feed_seq_on_a_throw_intent_is_refused_at_the_wire_like_plac
 
 
 func test_a_malformed_special_trigger_is_dropped_not_applied() -> void:
-	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	Match._net_provider = FakeNet.host({}, [0, 1])
 	_start_playing()
 	var net: MatchNetScript = _make_net({}, [1], true)
 	watch_signals(Events)
@@ -634,7 +634,7 @@ func test_a_malformed_special_trigger_is_dropped_not_applied() -> void:
 
 
 func test_glue_charge_mirror_accepts_only_new_valid_absolute_updates() -> void:
-	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	Match._net_provider = FakeNet.host({}, [0, 1])
 	_start_playing()
 	var net: MatchNetScript = _make_net({}, [1], true)
 	watch_signals(Events)
@@ -675,7 +675,7 @@ func test_host_ignores_a_spoofed_special_consumed_event() -> void:
 
 
 func _gift_client_fixture() -> MatchNetScript:
-	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	Match._net_provider = FakeNet.host({}, [0, 1])
 	_start_playing()
 	Match._gifts.reset()
 	return _make_net({}, [1], true)

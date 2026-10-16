@@ -28,7 +28,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	Match.set_net_provider(null)
+	Match._net_provider = null
 	Match.set_replicator(null)
 	Match._gifts._gift_config = load("res://config/gifts/gift_config.tres") as GiftConfig
 	Match.abort_match()

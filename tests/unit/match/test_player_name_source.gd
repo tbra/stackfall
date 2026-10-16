@@ -14,7 +14,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	Match.set_net_provider(null)
+	Match._net_provider = null
 	if _net != null and is_instance_valid(_net):
 		_net.leave()
 

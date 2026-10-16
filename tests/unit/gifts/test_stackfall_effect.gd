@@ -33,7 +33,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	Match.set_net_provider(null)
+	Match._net_provider = null
 	Match.abort_match()
 	for child: Node in Match.get_children():
 		if child is StackfallRain:
@@ -113,7 +113,7 @@ func test_body_cap_skips_excess_without_affecting_player_placement_stats() -> vo
 
 func test_off_host_does_not_start_rain() -> void:
 	var activation: Block = _activation()
-	Match.set_net_provider(FakeNet.client(0))
+	Match._net_provider = FakeNet.client(0)
 	var effect: StackfallEffect = StackfallEffect.new()
 	effect.detonate(activation, null, 0)
 	assert_null(_rain())

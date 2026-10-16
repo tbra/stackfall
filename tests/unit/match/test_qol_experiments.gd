@@ -179,7 +179,7 @@ func test_claim_radius_captures_when_territory_reaches_radius_not_flag_cell() ->
 
 func test_late_join_replay_carries_qol_feed_state_only_when_set() -> void:
 	var fake: FakeNet = FakeNet.host({}, [0, 1])
-	Match.set_net_provider(fake)
+	Match._net_provider = fake
 	var net: Node = (load("res://net/MatchNet.gd") as GDScript).new() as Node
 	net.set_process(false)
 	add_child_autofree(net)
@@ -194,7 +194,7 @@ func test_late_join_replay_carries_qol_feed_state_only_when_set() -> void:
 	var events: Array = _qol_replay_events(net)
 	assert_true(events.has([0, 1, false]) or events.has([1, 1, false]), "slot with a queued block replays its backlog")
 	Match.abort_match()
-	Match.set_net_provider(null)
+	Match._net_provider = null
 
 
 func _qol_replay_events(net: Node) -> Array:

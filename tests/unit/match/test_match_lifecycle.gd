@@ -211,7 +211,7 @@ func test_rehost_after_the_match_ended_and_the_session_closed_builds_a_fresh_wor
 	_host()
 	_start(2)
 	_run_countdown()
-	Match._finish_match(0)
+	Match._lifecycle._finish_match(0)
 	assert_eq(Match.state(), Match.State.END, "fixture reaches END")
 	var old_raster: TerritoryRaster = Match.raster()
 	await _settle()

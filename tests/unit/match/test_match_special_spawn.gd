@@ -25,7 +25,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	Match.set_net_provider(null)
+	Match._net_provider = null
 	Match.abort_match()
 	# See test_match_throw.gd's own after_each() comment: free synchronously
 	# here rather than relying on abort_match()'s deferred queue_free(), since
@@ -76,7 +76,7 @@ func _cube_shape() -> BlockShape:
 func test_off_host_returns_null_and_spawns_nothing() -> void:
 	Match.start_match(_config())
 	_run_countdown()
-	Match.set_net_provider(FakeNet.client(0))
+	Match._net_provider = FakeNet.client(0)
 	watch_signals(Events)
 
 	var result: Block = Match.spawn_special_projectile(

@@ -31,7 +31,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	Match.set_net_provider(null)
+	Match._net_provider = null
 	Match.abort_match()
 	for child: Node in _blocks_root.get_children():
 		child.free()
@@ -97,7 +97,7 @@ func test_host_body_pushes_a_physics_obstacle() -> void:
 
 func test_client_mirror_has_no_physical_collisions() -> void:
 	var block: Block = _activation()
-	Match.set_net_provider(FakeNet.client(0))
+	Match._net_provider = FakeNet.client(0)
 	var effect: CatEffect = CatEffect.new()
 	effect.detonate(block, null, 0)
 	assert_null(Match.active_cat())

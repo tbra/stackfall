@@ -54,7 +54,7 @@ func test_punch_special_hole_is_a_noop_after_the_match_has_ended() -> void:
 	_run_countdown()
 	assert_true(Match.slot(1).home_flag_alive, "Setup: slot 1 is still alive.")
 
-	Match._finish_match(0)
+	Match._lifecycle._finish_match(0)
 	assert_eq(Match.state(), Match.State.END, "Setup: the match already has a winner.")
 	watch_signals(Events)
 

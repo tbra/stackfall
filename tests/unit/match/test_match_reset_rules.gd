@@ -42,7 +42,7 @@ func after_each() -> void:
 	if _net != null and is_instance_valid(_net):
 		_net.set_providers(null, null)
 	_net = null
-	Match.set_net_provider(null)
+	Match._net_provider = null
 	Match.set_replicator(null)
 	Match.abort_match()
 	Match.set_process(true)
@@ -89,7 +89,7 @@ func _circle_count() -> int:
 
 func _make_host_net() -> MatchNetScript:
 	var fake: FakeNet = FakeNet.host({1: 0}, [0])
-	Match.set_net_provider(fake)
+	Match._net_provider = fake
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)

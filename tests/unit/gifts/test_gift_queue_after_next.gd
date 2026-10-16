@@ -38,7 +38,7 @@ func _start(qol: QolExperiments = null) -> void:
 
 
 func after_each() -> void:
-	Match.set_net_provider(null)
+	Match._net_provider = null
 	Match.abort_match()
 	Match.set_process(true)
 	MatchTestReset.clear_world()
@@ -117,7 +117,7 @@ func test_claim_while_a_gift_is_next_queues_behind_it() -> void:
 func test_client_mirrors_staged_then_next_then_held() -> void:
 	_start()
 	var fake: FakeNet = FakeNet.client(0)
-	Match.set_net_provider(fake)
+	Match._net_provider = fake
 	var net: MatchNetScript = MatchNetScript.new()
 	net.set_process(false)
 	add_child_autofree(net)
@@ -151,7 +151,7 @@ func test_slot_replay_carries_the_staged_gift() -> void:
 	assert_eq(args[9], Match._feed.staged_gift_shape_id(0))
 	Match._feed._staged_gift_shapes.clear()
 	Match._gifts._pending_queues[0].clear()
-	Match.set_net_provider(fake)
+	Match._net_provider = fake
 	net._apply_slot_replay(args)
 	assert_eq(Match.after_next_special(0), &"anvil")
 	assert_eq(Match.next_special(0), &"")

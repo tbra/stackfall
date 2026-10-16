@@ -55,7 +55,7 @@ func test_end_restarts_with_fresh_seed_and_clean_teardown() -> void:
 	assert_eq(_main._headless_bots_placements, 1)
 	var orphans_before: int = Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT) as int
 
-	Match._finish_match(0)
+	Match._lifecycle._finish_match(0)
 	assert_true(_main._headless_loop_restart_pending, "END schedules a restart")
 	assert_true(_main._headless_match_summary_line().begins_with("HEADLESS_MATCH index=1 "))
 	await _settle()
@@ -87,7 +87,7 @@ func test_without_flag_end_does_not_restart() -> void:
 	assert_eq(Net.host_game(AgentProbe.free_udp_port(), "Hostie"), OK)
 	_main._start_headless_bot_match_with_args(PackedStringArray(["--bots=2"]))
 	await _settle()
-	Match._finish_match(0)
+	Match._lifecycle._finish_match(0)
 	await _settle()
 	assert_eq(Match.state(), Match.State.END)
 	assert_eq(_main._headless_loop_index, 1)

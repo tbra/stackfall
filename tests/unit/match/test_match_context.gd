@@ -10,7 +10,7 @@ func before_each() -> void:
 
 func after_each() -> void:
 	MatchContext.install(_saved)
-	Match.set_net_provider(null)
+	Match._net_provider = null
 	Match.abort_match()
 	MatchTestReset.clear_world()
 
@@ -58,12 +58,12 @@ func test_null_object_defaults() -> void:
 
 func test_authority_follows_provider_while_net_reads_stay_real() -> void:
 	var ctx: MatchContext = Match.context()
-	Match.set_net_provider(FakeNet.client(1))
-	assert_false(ctx.has_authority(), "has_authority honours Match.set_net_provider (D3)")
+	Match._net_provider = FakeNet.client(1)
+	assert_false(ctx.has_authority(), "has_authority honours the injected net provider (D3)")
 	assert_eq(ctx.net_is_host(), Net.is_host(), "net_is_host ignores it (D3)")
 	assert_eq(ctx.net_is_client(), Net.is_client())
 	assert_eq(ctx.net_local_slot(), Net.local_slot())
-	Match.set_net_provider(null)
+	Match._net_provider = null
 	assert_true(ctx.has_authority())
 
 

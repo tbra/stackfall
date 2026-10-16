@@ -24,7 +24,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	Match.set_net_provider(null)
+	Match._net_provider = null
 	Match.abort_match()
 	for child: Node in _blocks_root.get_children():
 		child.free()
@@ -101,7 +101,7 @@ func test_mutation_is_host_only_and_slot_bounds_checked() -> void:
 	assert_false(Match.grant_glue_drops(0, 101))
 	assert_false(Match.consume_glue_drop(2))
 	assert_true(Match.grant_glue_drops(0, 3))
-	Match.set_net_provider(FakeNet.client(0))
+	Match._net_provider = FakeNet.client(0)
 	assert_false(Match.grant_glue_drops(0, 4))
 	assert_false(Match.consume_glue_drop(0))
 	assert_eq(Match.glue_drops_left(0), 3)

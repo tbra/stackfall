@@ -187,7 +187,7 @@ func test_placements_never_lock_while_the_feed_timer_is_paused() -> void:
 		assert_false(Match.is_release_locked(0), "no lock while the timer is paused")
 		assert_not_null(Match.held_shape(0), "the next piece is issued immediately every time")
 
-	assert_eq(Match.blocks_spawned(), 3)
+	assert_eq(Match._placement.blocks_spawned(), 3)
 
 
 func test_sandbox_reset_field_clears_blocks_and_rebuilds_for_the_same_config() -> void:
@@ -197,7 +197,7 @@ func test_sandbox_reset_field_clears_blocks_and_rebuilds_for_the_same_config() -
 
 	var reason: StringName = Match.request_place(0, Match.default_ghost_origin(0), 0, Quaternion.IDENTITY, false)
 	assert_eq(reason, PlacementRules.REASON_OK, "fixture: a block actually lands before the reset")
-	assert_gt(Match.blocks_spawned(), 0)
+	assert_gt(Match._placement.blocks_spawned(), 0)
 	sandbox._cycle_active_slot()
 	assert_eq(sandbox.active_slot(), 1, "fixture: move off slot 0 so the reset's re-seed is visible")
 
@@ -205,7 +205,7 @@ func test_sandbox_reset_field_clears_blocks_and_rebuilds_for_the_same_config() -
 	assert_true(event.is_action_pressed(&"sandbox_reset_field"), "F5 should map to sandbox_reset_field")
 	sandbox._unhandled_input(event)
 
-	assert_eq(Match.blocks_spawned(), 0, "a freshly reset match has spawned nothing yet")
+	assert_eq(Match._placement.blocks_spawned(), 0, "a freshly reset match has spawned nothing yet")
 	assert_eq(Match.slot_count(), 2, "the same config's player count survives the reset")
 	assert_eq(sandbox.active_slot(), 0, "reset re-seeds the active slot")
 	assert_eq(_main._field._home_flags.size(), 2, "flags are rebuilt for the same config")
