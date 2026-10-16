@@ -30,7 +30,8 @@ func _home(x: float, z: float, team: int, slot: int) -> InfluenceCircle:
 
 func _raster_for(field_radius: float, cell_size: float, circles: Array[InfluenceCircle]) -> TerritoryRaster:
 	var raster: TerritoryRaster = TerritoryRaster.new(CellGrid.new(field_radius, cell_size), _tuning)
-	raster.update(circles, TerritorySolver.new(_tuning).solve(circles), 0.1, true, false)
+	raster.fill_ownership(circles, TerritorySolver.new(_tuning).solve(circles), true)
+	raster.adopt_fill(raster, 0.1, true, false)
 	return raster
 
 
@@ -177,7 +178,8 @@ func test_changing_raster_contents_under_a_warm_cache_is_never_stale() -> void:
 		var circles: Array[InfluenceCircle] = []
 		for circle: Variant in layout:
 			circles.append(circle as InfluenceCircle)
-		raster.update(circles, solver.solve(circles), 0.1, true, false)
+		raster.fill_ownership(circles, solver.solve(circles), true)
+		raster.adopt_fill(raster, 0.1, true, false)
 		for radius: float in [3.0, 6.0, 12.0]:
 			var want: Vector2i = _reference_claim_at(raster, point, radius)
 			assert_eq(WinChecker.claim_at(raster, point, radius), want)
@@ -197,7 +199,8 @@ func _punch_holes(raster: TerritoryRaster, circles: Array[InfluenceCircle]) -> v
 		raster.force_hole_cell(cell.x, cell.y, 1.0, true)
 	var groups: TerritoryGroups = TerritorySolver.new(_tuning).solve(circles)
 	for _step: int in range(40):
-		raster.update(circles, groups, 0.1, true, true)
+		raster.fill_ownership(circles, groups, true)
+		raster.adopt_fill(raster, 0.1, true, true)
 
 
 func test_claims_stay_exact_with_holes_inside_the_radius() -> void:

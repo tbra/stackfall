@@ -1,61 +1,14 @@
 class_name DiscSurfaceDef
 extends Resource
-## One swappable surface for the disc top: an image texture set
-## (mode TEXTURE) or the procedural cel plating (mode PROCEDURAL). Referenced from
-## TerritoryVisuals.disc_surface (config/territory/territory_visuals.tres); switch sets by
-## pointing that field at another config/territory/disc_surfaces/*.tres in the editor.
-## TerritoryVisuals.disc_surface = null keeps the flat/procedural look.
-##
-## Maps are ambientCG CC0 PBR sets under assets/disc/<id>/ (see LICENSE.md
-## there). Color is sampled as sRGB; NormalGL, Roughness and Metalness are
-## linear data (no source_color hint in shaders/territory/territory.gdshader).
-## UVs are world-space planar on the disc top, so the pattern never depends on
-## the mesh's own UVs.
-
-@export var albedo_texture: Texture2D
-@export var normal_texture: Texture2D
-@export var roughness_texture: Texture2D
-@export var metalness_texture: Texture2D
-
-## Edge length in meters of one texture tile on the disc top.
-@export var tile_size_m: float = 6.0
-## Rotation of the texture on the disc, in degrees.
-@export var rotation_deg: float = 0.0
-## How much of the albedo map's detail modulates the disc base colour (0 = flat
-## base colour, 1 = full map).
-@export var albedo_strength: float = 0.5
-## Brightness multiplier on the albedo map before it modulates the base colour.
-@export var albedo_gain: float = 1.0
-## Exponent applied to the albedo map before use; above 1 deepens dark detail
-## (scratches, rivets, seams) so it reads at a glance.
-@export var albedo_contrast: float = 1.0
-## Strength of the normal map's bump; shows mainly in sun/sky reflections.
-@export var normal_strength: float = 1.0
-## The roughness map (0..1) is remapped into this range.
-@export var roughness_min: float = 0.2
-@export var roughness_max: float = 0.5
-## Blend between the scalar disk_metallic (0) and the metalness map (1).
-@export var metalness_map_mix: float = 0.0
-## Multiplier on the metalness map when it is used.
-@export var metalness_scale: float = 1.0
-## On-screen tile size in pixels below which normal/roughness detail fades to
-## its average, so distant views never show moire.
-@export var detail_fade_px: float = 96.0
-
-
-## -- procedural cel-styled plating ---------------------------
-## TEXTURE draws the image maps above; PROCEDURAL draws the analytic plating
-## below in shaders/territory/territory.gdshader (no textures, no tiling, so it never
-## repeats, and every detail fades out with the camera height above the disc).
-enum Mode { TEXTURE, PROCEDURAL }
-
-## Which disc-top look this set uses.
-@export var mode: Mode = Mode.TEXTURE
+## The procedural cel plating of the disc top. Referenced from
+## TerritoryVisuals.disc_surface (config/territory/territory_visuals.tres); the
+## analytic plating is drawn in shaders/territory/territory.gdshader (no textures,
+## no tiling, so it never repeats, and every detail fades out with the camera
+## height above the disc). TerritoryVisuals.disc_surface = null keeps the flat look.
 
 @export_group("Procedural layout")
 ## Per-channel multiplier of the plating on the disc's base colour and fill:
-## the gunmetal level and hue (the texture sets reach theirs through the albedo
-## map's gain/contrast).
+## the gunmetal level and hue.
 @export var proc_base_tint: Color = Color(0.14, 0.155, 0.25)
 ## Radius in meters of the round centre plate.
 @export var proc_hub_radius_m: float = 3.5

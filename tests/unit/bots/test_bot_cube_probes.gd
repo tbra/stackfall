@@ -36,7 +36,8 @@ func before_each() -> void:
 		InfluenceCircle.for_home(HOME_A, 0, 0, _territory_tuning),
 		InfluenceCircle.for_home(HOME_B, 1, 1, _territory_tuning),
 	]
-	_raster.update(circles, TerritorySolver.new(_territory_tuning).solve(circles), 0.1, false, false)
+	_raster.fill_ownership(circles, TerritorySolver.new(_territory_tuning).solve(circles), false)
+	_raster.adopt_fill(_raster, 0.1, false, false)
 	_cell_calls = 0
 	_centre_calls = 0
 	_tower_edge_x = FAR_X_M

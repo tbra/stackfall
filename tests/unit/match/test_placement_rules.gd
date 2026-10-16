@@ -27,7 +27,8 @@ func _home(x: float, z: float, team: int, slot: int = -1) -> InfluenceCircle:
 
 
 func _rasterize(circles: Array[InfluenceCircle], delta: float = 0.1) -> void:
-	_raster.update(circles, _solver.solve(circles), delta, true, false)
+	_raster.fill_ownership(circles, _solver.solve(circles), true)
+	_raster.adopt_fill(_raster, delta, true, false)
 
 
 func _footprint(origin: Vector2, cells: Array[Vector3i] = [], basis: Basis = Basis.IDENTITY
@@ -86,7 +87,8 @@ const ZONE_RADIUS: float = 3.0
 
 ## Solves and rasterizes through the v2 (holes_enabled = false) path.
 func _rasterize_v2(circles: Array[InfluenceCircle]) -> void:
-	_raster.update(circles, _solver.solve(circles), 0.1, false, false)
+	_raster.fill_ownership(circles, _solver.solve(circles), false)
+	_raster.adopt_fill(_raster, 0.1, false, false)
 
 
 ## A team-0 home circle at the disk centre under v2 rules.

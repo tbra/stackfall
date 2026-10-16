@@ -28,7 +28,8 @@ func _home(x: float, z: float, team: int, slot: int = -1) -> InfluenceCircle:
 
 
 func _rasterize(circles: Array[InfluenceCircle]) -> void:
-	_raster.update(circles, _solver.solve(circles), 0.1, true, false)
+	_raster.fill_ownership(circles, _solver.solve(circles), true)
+	_raster.adopt_fill(_raster, 0.1, true, false)
 
 
 ## Rasterizes `circles`, then advances the win check `ticks` times by `delta`.
@@ -142,7 +143,8 @@ func test_the_capture_restarts_when_the_holder_changes() -> void:
 ## the capture rule.
 
 func _rasterize_v2(circles: Array[InfluenceCircle]) -> void:
-	_raster.update(circles, _solver.solve(circles), 0.1, false, false)
+	_raster.fill_ownership(circles, _solver.solve(circles), false)
+	_raster.adopt_fill(_raster, 0.1, false, false)
 
 
 func _run_v2(

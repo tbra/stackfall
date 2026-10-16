@@ -34,9 +34,9 @@ func _circles() -> Array[InfluenceCircle]:
 		InfluenceCircle.for_home(ENEMY_HOME, 1, 1, _tuning),
 	]
 	for x: float in OWN_X:
-		out.append(InfluenceCircle.for_block(Vector2(x, 0.0), BLOCK_TOP_M, 0, 0, 1, _tuning, MAP_RADIUS))
+		out.append(InfluenceCircle.new(Vector2(x, 0.0), InfluenceCircle.radius_for_height(BLOCK_TOP_M, _tuning, MAP_RADIUS), 0, 0, false, 1, BLOCK_TOP_M))
 	for x: float in ENEMY_X:
-		out.append(InfluenceCircle.for_block(Vector2(x, 0.0), BLOCK_TOP_M, 1, 1, 2, _tuning, MAP_RADIUS))
+		out.append(InfluenceCircle.new(Vector2(x, 0.0), InfluenceCircle.radius_for_height(BLOCK_TOP_M, _tuning, MAP_RADIUS), 1, 1, false, 2, BLOCK_TOP_M))
 	return out
 
 
@@ -45,7 +45,8 @@ func _build(off_mode: bool) -> void:
 	var grid: CellGrid = CellGrid.new(MAP_RADIUS, 1.0)
 	var raster: TerritoryRaster = TerritoryRaster.new(grid, _tuning)
 	var circles: Array[InfluenceCircle] = _circles()
-	raster.update(circles, TerritorySolver.new(_tuning).solve(circles), 0.1, not off_mode, false)
+	raster.fill_ownership(circles, TerritorySolver.new(_tuning).solve(circles), not off_mode)
+	raster.adopt_fill(raster, 0.1, not off_mode, false)
 	var xs: PackedFloat32Array = PackedFloat32Array()
 	var zs: PackedFloat32Array = PackedFloat32Array()
 	var radii: PackedFloat32Array = PackedFloat32Array()

@@ -41,12 +41,12 @@ func _circles(with_tower: bool, with_enemy: bool = false) -> Array[InfluenceCirc
 	]
 	var body: int = 1
 	for x: float in SNAKE_XS:
-		list.append(InfluenceCircle.for_block(Vector2(x, 0.0), SNAKE_TOP_M, 0, 0, body, _territory_tuning, MAP_RADIUS))
+		list.append(InfluenceCircle.new(Vector2(x, 0.0), InfluenceCircle.radius_for_height(SNAKE_TOP_M, _territory_tuning, MAP_RADIUS), 0, 0, false, body, SNAKE_TOP_M))
 		body += 1
 	if with_tower:
-		list.append(InfluenceCircle.for_block(TOWER_POS, TOWER_TOP_M, 0, 0, body, _territory_tuning, MAP_RADIUS))
+		list.append(InfluenceCircle.new(TOWER_POS, InfluenceCircle.radius_for_height(TOWER_TOP_M, _territory_tuning, MAP_RADIUS), 0, 0, false, body, TOWER_TOP_M))
 	if with_enemy:
-		list.append(InfluenceCircle.for_block(ENEMY_POS, ENEMY_TOP_M, 1, 1, 99, _territory_tuning, MAP_RADIUS))
+		list.append(InfluenceCircle.new(ENEMY_POS, InfluenceCircle.radius_for_height(ENEMY_TOP_M, _territory_tuning, MAP_RADIUS), 1, 1, false, 99, ENEMY_TOP_M))
 	return list
 
 
@@ -57,9 +57,11 @@ func _view(held: BlockShape, with_tower: bool = false, with_enemy: bool = false,
 	var solver: TerritorySolver = TerritorySolver.new(_territory_tuning)
 	if goal_zone:
 		raster.set_goal_zones(PackedVector2Array([GOAL_POS]), GOAL_ZONE_M)
-	raster.update(circles, solver.solve(circles), 0.1, with_enemy, false)
+	raster.fill_ownership(circles, solver.solve(circles), with_enemy)
+	raster.adopt_fill(raster, 0.1, with_enemy, false)
 	if with_enemy:
-		raster.update(circles, solver.solve(circles), HOLE_STEP_S, true, false)
+		raster.fill_ownership(circles, solver.solve(circles), true)
+		raster.adopt_fill(raster, HOLE_STEP_S, true, false)
 	var xs: PackedFloat32Array = PackedFloat32Array()
 	var zs: PackedFloat32Array = PackedFloat32Array()
 	var radii: PackedFloat32Array = PackedFloat32Array()

@@ -214,7 +214,8 @@ func _make_ready_match(slot_id: int) -> BotControllerFakeMatch:
 	fake.raster_value = TerritoryRaster.new(CellGrid.new(20.0, 1.0), territory)
 	fake.cell_grid_value = fake.raster_value.grid()
 	var home: Array[InfluenceCircle] = [InfluenceCircle.for_home(Vector2(1.0, 0.0), slot_id, slot_id, territory)]
-	fake.raster_value.update(home, TerritorySolver.new(territory).solve(home), 0.1, false, false)
+	fake.raster_value.fill_ownership(home, TerritorySolver.new(territory).solve(home), false)
+	fake.raster_value.adopt_fill(fake.raster_value, 0.1, false, false)
 	return fake
 
 

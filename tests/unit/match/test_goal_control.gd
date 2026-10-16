@@ -25,7 +25,8 @@ func _block(x: float, z: float, radius: float, team: int) -> InfluenceCircle:
 
 
 func _step(circles: Array[InfluenceCircle]) -> void:
-	_raster.update(circles, _solver.solve(circles), 0.1, true, false)
+	_raster.fill_ownership(circles, _solver.solve(circles), true)
+	_raster.adopt_fill(_raster, 0.1, true, false)
 
 
 func _goal(x: float, z: float) -> PackedVector2Array:

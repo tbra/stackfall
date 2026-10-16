@@ -25,7 +25,8 @@ func test_refresh_timer_rebuilds_when_ownership_or_colors_change() -> void:
 	var circles: Array[InfluenceCircle] = [
 		InfluenceCircle.new(Vector2.ZERO, tuning.home_radius, 0, 0, true, -1)
 	]
-	raster.update(circles, TerritorySolver.new(tuning).solve(circles), 0.1, true, false)
+	raster.fill_ownership(circles, TerritorySolver.new(tuning).solve(circles), true)
+	raster.adopt_fill(raster, 0.1, true, false)
 	assert_true(minimap._image_inputs_changed(), "owner ids changed")
 	minimap.set_camera_basis(Vector2(0.0, -1.0), Vector2(1.0, 0.0))
 	minimap._on_refresh_timeout()
@@ -45,7 +46,8 @@ func test_raster_images_match_team_hole_and_disk_lookups() -> void:
 	var circles: Array[InfluenceCircle] = [
 		InfluenceCircle.new(Vector2.ZERO, tuning.home_radius, 1, 1, true, -1)
 	]
-	raster.update(circles, solver.solve(circles), 0.1, true, false)
+	raster.fill_ownership(circles, solver.solve(circles), true)
+	raster.adopt_fill(raster, 0.1, true, false)
 	var grid: CellGrid = raster.grid()
 	var team_image: Image = raster.team_id_image()
 	var hole_image: Image = raster.hole_image()

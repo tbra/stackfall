@@ -1,6 +1,6 @@
 shader_type spatial;
 // (graphics roadmap "Textures/materials (disc/emissive)"):
-// additive overlay drawn as the `next_pass` of game/DiscBody.gd's band
+// additive overlay drawn as the `next_pass` of the disc body's band
 // StandardMaterial3D. It gives the plain graphite side wall its "banded body"
 // read from mockup 08 without replacing that material: a thin dim gold inlay
 // line just under the glowing chamfer, a second faint line near the bottom

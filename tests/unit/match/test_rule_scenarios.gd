@@ -32,12 +32,14 @@ func _cell_of(point: Vector2) -> Vector2i:
 
 ## One v2 (holes_enabled = false) solve+rasterize.
 func _solve_v2(circles: Array[InfluenceCircle], delta: float = 0.1) -> void:
-	_raster.update(circles, _solver.solve(circles), delta, false, false)
+	_raster.fill_ownership(circles, _solver.solve(circles), false)
+	_raster.adopt_fill(_raster, delta, false, false)
 
 
 ## One legacy (holes_enabled = true) solve+rasterize.
 func _solve_legacy(circles: Array[InfluenceCircle], delta: float, permanent: bool = false) -> void:
-	_raster.update(circles, _solver.solve(circles), delta, true, permanent)
+	_raster.fill_ownership(circles, _solver.solve(circles), true)
+	_raster.adopt_fill(_raster, delta, true, permanent)
 
 
 # --- Scenario 2: collapse without input --------------------------------------

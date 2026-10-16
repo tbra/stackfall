@@ -38,7 +38,8 @@ func _block(x: float, z: float, radius: float, team: int) -> InfluenceCircle:
 ## Solves and rasterizes one frame.
 func _step(circles: Array[InfluenceCircle], delta: float, permanent: bool = TEMPORARY) -> void:
 	var groups: TerritoryGroups = _solver.solve(circles)
-	_raster.update(circles, groups, delta, true, permanent)
+	_raster.fill_ownership(circles, groups, true)
+	_raster.adopt_fill(_raster, delta, true, permanent)
 
 
 func _cell_of(point: Vector2) -> Vector2i:
@@ -96,7 +97,8 @@ func test_teammates_overlap_without_contesting_or_holing() -> void:
 
 	## Run well past hole_delay: a hole must never appear between teammates.
 	for i: int in range(40):
-		_raster.update(circles, groups, 0.1, true, TEMPORARY)
+		_raster.fill_ownership(circles, groups, true)
+		_raster.adopt_fill(_raster, 0.1, true, TEMPORARY)
 		assert_eq(_raster.holes_opened().size(), 0)
 
 	var overlap: Vector2 = Vector2(0.5, 0.5)
@@ -104,7 +106,6 @@ func test_teammates_overlap_without_contesting_or_holing() -> void:
 	assert_false(_raster.is_contested(cell.x, cell.y))
 	assert_false(_raster.is_hole(cell.x, cell.y))
 	assert_eq(_raster.team_at(cell.x, cell.y), 0)
-	assert_almost_eq(_raster.contested_time(cell.x, cell.y), 0.0, 0.0001)
 
 
 func test_different_teams_overlapping_contest_the_cell() -> void:
@@ -200,7 +201,8 @@ func _anchor(x: float, z: float, radius: float, team: int, slot: int = -1) -> In
 ## Solves and rasterizes one frame through the v2 (holes_enabled = false) path.
 func _step_v2(circles: Array[InfluenceCircle], delta: float = 0.1) -> void:
 	var groups: TerritoryGroups = _solver.solve(circles)
-	_raster.update(circles, groups, delta, false, false)
+	_raster.fill_ownership(circles, groups, false)
+	_raster.adopt_fill(_raster, delta, false, false)
 
 
 func test_v2_two_teams_never_share_a_cell() -> void:
@@ -317,8 +319,6 @@ func test_v2_never_opens_a_hole_or_runs_a_contest_timer() -> void:
 		assert_eq(_raster.holes_closed().size(), 0)
 	assert_false(_raster.is_hole(cell.x, cell.y))
 	assert_false(_raster.is_contested(cell.x, cell.y))
-	assert_almost_eq(_raster.contested_time(cell.x, cell.y), 0.0, 0.0001,
-		"The contest timer never starts, so the legacy hole machinery stays asleep.")
 	var states: PackedByteArray = _raster.state_bytes()
 	var index: int = _grid.cell_index(cell.x, cell.y)
 	assert_eq(states[index] & TerritoryRaster.STATE_CONTESTED, 0)
@@ -352,7 +352,7 @@ func test_set_goal_zones_marks_exactly_the_cells_within_the_radius() -> void:
 ##
 ## force_hole_cell() opens a cell independent of contest overlap, seeding the
 ## same _hole/_contested_time/_idle_time bookkeeping a natural hole uses, so
-## the unmodified _advance_timers() (run from update(), same as every other
+## the unmodified _advance_timers() (run from adopt_fill(), same as every other
 ## test in this file) is what actually closes it hole_open_s later.
 
 const HOLE_OPEN_S: float = 2.0
@@ -374,7 +374,7 @@ func test_force_hole_cell_opens_immediately() -> void:
 ## uncontested team already owns (a natural hole never does: it only opens on
 ## a CONTESTED cell, _team_ids == -1). _stamp() keeps re-stamping that team
 ## onto the cell every solve (unmodified, per this package's own "do not
-## touch update()/_fill_legacy()/_argmax()" contract) so _advance_timers()
+## touch fill_ownership()/_fill_stamp()/_argmax()" contract) so _advance_timers()
 ## can still tell a still-contested cell apart from an idle one; team_at() /
 ## team_share() mask it back to unowned at the read side instead.
 

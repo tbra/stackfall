@@ -31,7 +31,8 @@ func _home(x: float, z: float, team: int) -> InfluenceCircle:
 ## Legacy (holes_enabled = true) fill, the ruleset that ever sets
 ## is_contested()/is_hole() (TerritoryRaster class comment).
 func _rasterize_legacy(circles: Array[InfluenceCircle], delta: float = 0.1) -> void:
-	_raster.update(circles, _solver.solve(circles), delta, true, false)
+	_raster.fill_ownership(circles, _solver.solve(circles), true)
+	_raster.adopt_fill(_raster, delta, true, false)
 
 
 ## A contested strip between two adjacent home circles, leaving most of the
