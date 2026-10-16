@@ -52,16 +52,36 @@ func test_volcano_spew_and_block_landings_do_not_shake() -> void:
 
 
 func test_explosion_far_from_the_disc_does_not_shake() -> void:
+	Match.set_process(false)
+	Match.abort_match()
+	var map_def: MapDef = MapDef.new()
+	map_def.id = &"test_camera_far_blast"
+	map_def.field_radius = 6.0
+	map_def.cell_size = 1.0
+	map_def.disk_height = 1.0
+	map_def.territory_res = 32
+	var field: Field = autofree(Field.new())
+	field.map_def = map_def
+	add_child_autofree(field)
+	var blocks_root: Node3D = autofree(Node3D.new())
+	add_child_autofree(blocks_root)
+	var registry: BlockRegistry = autofree(BlockRegistry.new())
+	add_child_autofree(registry)
+	Match.register_world(field, registry, blocks_root)
 	var rig: CameraRig = _make_rig()
-	var far: Vector3 = Vector3(100000.0, 0.0, 0.0)
-	var field: Field = Match.field()
-	if field != null:
-		far = field.global_position + Vector3(field.map_def.field_radius * 100.0, 0.0, 0.0)
-	else:
-		pending("no Match field in this fixture; range check is skipped by design.")
-		return
+	# Control: the same special on the disc shakes, so the far case below is
+	# only quiet because of the range check.
+	_fire(&"bomb", field.global_position)
+	assert_gt(rig.shake_offset().length(), 0.0, "fixture: a blast on the disc must shake.")
+	var settled: CameraRig = _make_rig()
+	var far: Vector3 = field.global_position + Vector3(map_def.field_radius * 100.0, 0.0, 0.0)
+	var far_rig_before: Vector3 = settled.shake_offset()
 	_fire(&"bomb", far)
-	assert_true(rig.shake_offset().is_equal_approx(Vector3.ZERO))
+	assert_true(far_rig_before.is_equal_approx(Vector3.ZERO), "fixture: fresh rig starts unshaken.")
+	assert_true(settled.shake_offset().is_equal_approx(Vector3.ZERO), "a blast far outside the disc must not shake.")
+	Match.abort_match()
+	Match.set_process(true)
+	MatchTestReset.clear_world()
 
 
 func test_earthquake_shakes_while_the_disc_shakes_and_not_after() -> void:
