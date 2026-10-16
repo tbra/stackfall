@@ -71,18 +71,20 @@ func _upload(overlay: TerritoryOverlay, radius: float) -> void:
 	)
 
 
+## A bake that ran stores the circle set it rendered as `_bake_key`; a deferred one leaves the old key.
 func test_bake_is_deferred_during_churn_and_runs_once_on_settle() -> void:
 	var overlay: TerritoryOverlay = _overlay_with_bake()
 	_upload(overlay, 5.0)
-	assert_eq(overlay.bake_count(), 1, "first bake is immediate")
+	var first_key: Array = overlay._bake_key.duplicate()
+	assert_false(first_key.is_empty(), "first bake is immediate")
 	overlay.set_churning(true)
 	for i: int in range(6):
 		_upload(overlay, 6.0 + float(i))
-	assert_eq(overlay.bake_count(), 1, "no bake while churning")
-	assert_true(overlay.bake_pending())
+	assert_eq(overlay._bake_key, first_key, "no bake while churning")
+	assert_true(overlay._bake_pending)
 	overlay.set_churning(false)
-	assert_eq(overlay.bake_count(), 2, "one bake on settle")
-	assert_false(overlay.bake_pending())
+	assert_ne(overlay._bake_key, first_key, "one bake on settle")
+	assert_false(overlay._bake_pending)
 
 
 func test_deferred_bake_is_flushed_at_the_staleness_cap() -> void:
@@ -90,10 +92,10 @@ func test_deferred_bake_is_flushed_at_the_staleness_cap() -> void:
 	_upload(overlay, 5.0)
 	overlay.set_churning(true)
 	_upload(overlay, 7.0)
-	assert_eq(overlay.bake_count(), 1)
+	var first_key: Array = overlay._bake_key.duplicate()
 	overlay._bake_deadline_msec -= 600
 	overlay._process(0.016)
-	assert_eq(overlay.bake_count(), 2, "cap reached while still churning")
+	assert_ne(overlay._bake_key, first_key, "cap reached while still churning")
 
 
 func _group_signature(circles: Array[InfluenceCircle], groups: TerritoryGroups, keep: Dictionary) -> Array:

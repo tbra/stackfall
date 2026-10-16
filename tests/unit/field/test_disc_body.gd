@@ -54,7 +54,7 @@ class Body:
 			return _parts[kind]
 		var out: Part = Part.new()
 		out.name = part_name
-		var index: int = arena.surface_index(kind)
+		var index: int = int(arena._surface_of.get(kind, -1))
 		out.mesh = ArrayMesh.new()
 		out.mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, merged.surface_get_arrays(index))
 		out.material_override = arena.material_for_surface(index)

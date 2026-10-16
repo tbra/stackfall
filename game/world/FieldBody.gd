@@ -1,7 +1,7 @@
 class_name FieldBody
 extends AnimatableBody3D
 ## Light base of game/field/Field.gd: the geometry members
-## world code reads, plus virtual stubs Field overrides with identical signatures. Lets MatchContext
+## world code reads, plus virtual stubs (tilt) Field overrides with identical signatures. Lets MatchContext
 ## and the specials name the field without compiling the whole Field scene closure.
 
 @export var map_def: MapDef = preload("res://config/match/maps/round.tres")
@@ -33,10 +33,6 @@ func world_from_disk_local(local: Vector2, height: float) -> Vector3:
 
 # --- virtual stubs (Field overrides each with the same signature) ---------------
 
-func grid() -> CellGrid:
-	return null
-
-
 func tilt_vector() -> Vector2:
 	return Vector2.ZERO
 
@@ -46,12 +42,4 @@ func apply_tilt_impulse(_direction: Vector2, _magnitude: float) -> void:
 
 
 func apply_replicated_pose(_offset: Vector3, _tilt: Quaternion) -> void:
-	pass
-
-
-func is_hole_cell(_index: int) -> bool:
-	return false
-
-
-func remove_fallen_block(_body: RigidBody3D) -> void:
 	pass

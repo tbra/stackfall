@@ -38,7 +38,6 @@ func test_null_object_defaults() -> void:
 	assert_null(ctx.blocks_parent())
 	assert_null(ctx.raster())
 	assert_null(ctx.cell_grid())
-	assert_eq(ctx.qol_claim_radius(), 0.0)
 	assert_eq(ctx.glue_drops_left(0), 0)
 	assert_false(ctx.feed_timer_enabled())
 	assert_eq(ctx.feed_time_left(0), 0.0)
@@ -78,5 +77,4 @@ func test_field_is_a_field_body_and_round_trips_disk_local() -> void:
 	var world: Vector3 = fb.world_from_disk_local(local, 0.25)
 	assert_almost_eq(fb.disk_local_from_world(world), local, Vector2(0.0001, 0.0001))
 	assert_almost_eq(fb.surface_y(), 0.5, 0.0001)
-	assert_not_null(fb.grid(), "Field overrides the grid() stub")
 

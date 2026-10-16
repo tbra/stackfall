@@ -3,19 +3,14 @@ extends RefCounted
 ## The arena's generated SIDE surfaces: the glowing chamfer,
 ## the metal side band and the bottom cap, appended as extra surfaces to the ONE
 ## ArrayMesh that game/field/TerritoryOverlay.gd draws the whole arena with (top =
-## surface 0, territory shader). Formerly game/DiscBody.gd drew these as two
-## separate MeshInstance3D children (Band, Chamfer) of a Node3D.
-##
-## Every vertex, UV, tangent, gradient colour, material and shader parameter is
-## exactly what DiscBody produced; only the nodes are gone. The band and its
+## surface 0, territory shader), so the sides are surfaces, not extra nodes. The band and its
 ## bottom cap are generated as one smooth-shaded SurfaceTool mesh (so the seam
 ## normals are unchanged) and then split into two surfaces so the side and the
 ## bottom each carry their own material slot (the next package restyles them).
 ##
 ## Shape support: the round disc only (removed the other shapes).
 ##
-## DECISION (game/field/ArenaMesh.gd): the side materials keep cull_mode
-## CULL_DISABLED rather than hand-verified winding, as DiscBody did.
+## DECISION: the side materials use cull_mode CULL_DISABLED rather than hand-verified winding.
 
 ## GLOW is the emissive part of the alternative looks (ArenaSideStyle); the
 ## values of BAND/BOTTOM/GLOW match game/field/ArenaSideBuilder.gd's KIND_* constants.
@@ -53,11 +48,6 @@ var _surface_of: Dictionary = {}
 var _materials: Dictionary = {}
 ## SHADER_DOME's shared side/underside material (null for every other look).
 var _shell_material: ShaderMaterial = null
-
-
-## Surface index of `kind` in the mesh last built, or -1 when it has none.
-func surface_index(kind: Kind) -> int:
-	return int(_surface_of.get(kind, -1))
 
 
 ## Material of the surface at `surface`, or null.
@@ -101,7 +91,7 @@ func append_side_surfaces(
 	var diameter: float = _DIAMETER_FACTOR * map_def.field_radius
 	var band_height: float = maxf(diameter * visuals.band_height_fraction, 0.0)
 	var chamfer_height: float = band_height * clampf(visuals.chamfer_height_fraction, 0.0, 1.0)
-	# Same anchors as DiscBody: world y = 0 is the playing surface, the band spans
+	# World y = 0 is the playing surface, the band spans
 	# [-disk_height - band_height, -chamfer_height], the chamfer [-chamfer_height, 0].
 	var band_bottom_y: float = -map_def.disk_height - band_height + y_shift
 	var band_top_y: float = -chamfer_height + y_shift

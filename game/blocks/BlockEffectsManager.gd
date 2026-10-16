@@ -13,8 +13,8 @@ extends Node3D
 ##   team-colored cubelet shower (_find_block_at() resolves the owning slot by a
 ##   physics point query at the impact position -- Events.block_impacted_at
 ##   only carries speed/position, not the block itself) plus the original
-##   softer dust puff, both under one wrapper Node3D so active_effect_count()
-##   still reads it as a single effect. Events.block_impacted_at is additive
+##   softer dust puff, both under one wrapper Node3D so one impact is a single
+##   effect. Events.block_impacted_at is additive
 ##   alongside the pre-existing Events.block_impacted (autoload/Sfx.gd's own
 ##   listener, untouched).
 ## - falling-block trail: a continuous, team-tinted luminous streak behind any
@@ -33,7 +33,7 @@ extends Node3D
 ## Radius (meters) of the sphere shape query _find_block_at() uses to
 ## resolve the impacting block's owning slot -- see that method's own DECISION for
 ## why a sphere, not a point. A query-robustness implementation detail, not
-## a gameplay tunable (config/BlockShape.gd's own single-cube edge length is
+## a gameplay tunable (a BlockShape's own single-cube edge length is
 ## the real reference scale this only has to comfortably beat).
 const FIND_BLOCK_QUERY_RADIUS_M: float = 0.35
 ## Reused by _find_block_at; built lazily.
@@ -70,8 +70,7 @@ var _trails: Dictionary = {}
 ## Settings.graphics_preset_changed-driven (see _on_graphics_preset_changed()):
 ## gates only the falling trail, the one continuous per-frame effect this
 ## package adds -- matches game/sky/Skybox.gd's own volumetric_fog_enabled gate
-## for its FogVolume cloud deck (docs/M7_ART_DIRECTION.md's Low-preset
-## performance budget), reusing that same flag as "heavy atmospheric/ambient
+## for its FogVolume cloud deck (the Low-preset performance budget), reusing that same flag as "heavy atmospheric/ambient
 ## effects" rather than inventing a second graphics-preset field. The
 ## one-shot landing/kill bursts stay on every preset -- they already existed
 ## before this package and are bounded, one-shot costs, not a new continuous
@@ -129,8 +128,7 @@ func _on_block_removed(block: RigidBody3D, reason: String) -> void:
 
 ## Landing burst: a team-colored cubelet shower plus the
 ## original grey-brown dust puff, both scaled by _impact_intensity() and
-## held by one pooled wrapper Node3D so active_effect_count() still reports
-## one effect per impact. wrappers/particle systems come
+## held by one pooled wrapper Node3D, one effect per impact. wrappers/particle systems come
 ## from a reuse pool and are restarted, meshes/materials are shared per
 ## colour/kind, and new bursts are budgeted (see _acquire_burst()).
 func _on_block_impacted_at(speed: float, position: Vector3) -> void:
@@ -209,20 +207,6 @@ func _spawn_impact_puff(speed: float, position: Vector3) -> void:
 	)
 
 
-## Test seam: puffs currently playing.
-func active_puff_count() -> int:
-	var count: int = 0
-	for puff: ImpactPuff in _puffs:
-		if puff.active:
-			count += 1
-	return count
-
-
-## Test seam: the pooled puffs.
-func puffs() -> Array[ImpactPuff]:
-	return _puffs
-
-
 ## impact speed / dust_impact_speed_threshold, clamped to [1, impact_intensity_
 ## max] -- 1.0 at exactly the threshold (no scale-up for a barely-qualifying
 ## impact), growing for a harder one. Shared by both the cubelet and dust
@@ -289,7 +273,8 @@ func _find_block_at(position: Vector3) -> Block:
 func _color_for_owner_slot(slot_id: int, fallback: Color) -> Color:
 	if slot_id < 0:
 		return fallback
-	return MatchContext.current().slot_color(slot_id, fallback)
+	var context: MatchContext = MatchContext.current()
+	return context.slot_color(slot_id, fallback)
 
 
 ## burst pool. One PooledBurst = one wrapper Node3D plus its
@@ -841,14 +826,3 @@ func _build_process_material(spread_deg: float, initial_speed: float, gravity: V
 	material.scale_min = 1.0
 	material.scale_max = 1.0
 	return material
-
-
-## Test/inspection seam: how many pooled burst effects are currently active
-## (still inside their lifetime).
-func active_effect_count() -> int:
-	return _active_bursts
-
-
-## Test seam: total pooled burst wrappers ever created (pool reuse check).
-func pooled_burst_count() -> int:
-	return _landing_pool.size() + _kill_pool.size()

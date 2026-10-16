@@ -8,15 +8,9 @@ extends RefCounted
 ## (RigidBody3D, CollisionShape3D, MeshInstance3D); CLAUDE.md keeps core/free
 ## of scene-tree dependence.
 ##
-## DECISION (game/blocks/BlockFactory.gd item 2 -- owner feel report
-## "remove the wedge block"): config/blocks/wedge.tres is deleted (it was the
-## only shape ever setting `sloped_cells`), but the sloped-cell branch below
-## (`_make_collision_shape`/`_make_visual_mesh`) stays. It is dead code today,
-## not load-bearing for anything shipped, but it is generic per-cell geometry
-## with no wedge-specific assumptions baked in, so keeping it costs nothing
-## and preserves the ramp capability for a future shape/special without
-## redoing this convex-hull math. Deleting it was not required to remove the
-## wedge shape itself.
+## DECISION: the sloped-cell branch (`_make_collision_shape`/`_make_visual_mesh`) stays although
+## no shipped shape sets `sloped_cells`: it is generic per-cell geometry that keeps the ramp
+## capability without redoing the convex-hull math.
 ##
 ## owner feel report "our blocks are made up of many smaller
 ## blocks, is that necessary? the original just has solid shapes": the
@@ -38,17 +32,10 @@ extends RefCounted
 ## build_visual_only(), are unchanged -- see _add_shape_visual()'s own
 ## DECISION comment for why the outline is gated to real blocks only.
 ##
-## Graphics pass 2, on docs/art_mockups/
-## 08-cel-shaded-home-beacons.png: "Blocks only have the black borders, the
-## mockup shows much more detailed cel-shading with highlights and shadows
-## affected by the light source... restrained... a dark tinted version of the
-## block color rather than pure black": `_material_for_color()` and
-## `_outline_material_singleton()` below now also wire shadow-tint/specular/
-## bevel-highlight/outline-tint tunables (all new config/blocks/tuning/BlockVisualTuning.gd
-## fields; shaders/blocks/block_cell_grid.gdshader and shaders/blocks/block_outline.gdshader
-## own DECISION comments carry the shading math itself) -- no material/mesh
-## architecture changed, only the parameter list each already-cached
-## ShaderMaterial receives.
+## Cel shading: `_material_for_color()` and `_outline_material_singleton()` wire the
+## shadow-tint/specular/bevel-highlight/outline-tint tunables (config/blocks/tuning/BlockVisualTuning.gd;
+## the shading math lives in shaders/blocks/block_cell_grid.gdshader and block_outline.gdshader).
+## The outline is a dark tinted version of the block colour rather than pure black.
 
 const BLOCK_SCENE: PackedScene = preload("res://game/blocks/Block.tscn")
 const CELL_GRID_SHADER: Shader = preload("res://shaders/blocks/block_cell_grid.gdshader")
@@ -328,11 +315,6 @@ static func _material_for_color(color: Color) -> ShaderMaterial:
 	material.next_pass = _outline_material_for_color(color) if _outline_enabled else null
 	_materials_by_color[color] = material
 	return material
-
-
-## fix2b: whether block materials currently chain the outline pass.
-static func outline_enabled() -> bool:
-	return _outline_enabled
 
 
 ## fix2b: attaches (true) or detaches (false) the inverted-hull

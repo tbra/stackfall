@@ -7,7 +7,7 @@ extends RefCounted
 ## forwards each method 1:1 to the real autoloads and is installed by Match._ready(). Tests install
 ## a FakeMatchContext and restore the previous one.
 ##
-## DECISION (D3): has_authority() mirrors Match._is_host() (honours Match.set_net_provider) while
+## DECISION (D3): has_authority() mirrors Match._is_host() (honours the injected net provider, Match._net_provider) while
 ## net_*() mirror the real Net autoload (they ignore that provider), exactly as each call site
 ## behaved before. Never merge the two.
 
@@ -109,10 +109,6 @@ func raster() -> TerritoryRaster:
 
 func cell_grid() -> CellGrid:
 	return null
-
-
-func qol_claim_radius() -> float:
-	return 0.0
 
 
 ## radius of the zone every goal beacon draws (null object: nothing).

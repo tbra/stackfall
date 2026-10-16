@@ -7,26 +7,20 @@ extends Node3D
 ## by the match from the same MapDef.home_flag_position(), and whether the
 ## flag is still standing is PlayerSlot.home_flag_alive -- no rule lives here.
 ##
-## M7 P8 (docs/M7_ART_DIRECTION.md Q6): the flag is now a
-## procedural "beacon" -- a low neutral socket, a luminous ring in the
-## owner's color, and a faceted crystal on top -- replacing the earlier
-## pole-and-banner placeholder (M2, no art yet). All three pieces are built
-## from primitives/an ArrayMesh here, no imported assets, no shader (P2 owns
-## toon shading; materials stay plain StandardMaterial3D). Sizes, colors and
+## The flag is a procedural "beacon": a low neutral socket, a luminous ring in the
+## owner's color, and a faceted crystal on top. All three pieces are built
+## from primitives/an ArrayMesh here, no imported assets. Sizes, colors and
 ## emission strengths live in BeaconVisualTuning
 ## (config/territory/beacon_visual_tuning.tres). Only the socket ever stays a fixed
 ## size across every flag; the ring and crystal scale with banner_scale(), so
 ## GoalFlag's beacon reads as the same shape at a larger scale (see its own
-## class doc) exactly like the old pole/banner did.
+## class doc).
 ##
-## Graphics pass 2, : "Same for the beacons"
-## [as the blocks' cel-shading detail], "pulsating glow from the beacons":
-## the crystal now draws with shaders/territory/beacon_crystal.gdshader (toon banding +
-## a hard specular facet highlight, matching the block shader's technique)
-## instead of a plain StandardMaterial3D; the ring stays unshaded (it is
-## meant to read as constantly luminous, not lit). Both the ring's scale and
-## the ring/crystal emission energy are animated every frame by
-## _apply_pulse(), driven by BeaconVisualTuning's pulse_* tunables -- no
+## The crystal draws with shaders/territory/beacon_crystal.gdshader (toon banding +
+## a hard specular facet highlight, matching the block shader's technique); the
+## ring stays unshaded (it is meant to read as constantly luminous, not lit).
+## Both the ring's scale and the ring/crystal emission energy are animated every
+## frame by _apply_pulse(), driven by BeaconVisualTuning's pulse_* tunables -- no
 ## per-flag phase offset, so every beacon on the disk pulses in lockstep.
 
 const CRYSTAL_SHADER: Shader = preload("res://shaders/territory/beacon_crystal.gdshader")

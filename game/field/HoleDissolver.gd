@@ -57,10 +57,8 @@ var _footprints: Dictionary = {}
 var _slab: BoxShape3D = null
 var _slab_query: PhysicsShapeQueryParameters3D = null
 
-## Diagnostics / tests: dissolves started and hole-open queries run since the
-## last reset().
+## Dissolves started since the last reset().
 var dissolves_started: int = 0
-var open_queries: int = 0
 
 
 func _ready() -> void:
@@ -92,7 +90,6 @@ func reset() -> void:
 	_pending_blocks.clear()
 	_footprints.clear()
 	dissolves_started = 0
-	open_queries = 0
 
 
 func _is_host() -> bool:
@@ -111,10 +108,6 @@ func wants_candidates() -> bool:
 
 func is_dissolving(block: Block) -> bool:
 	return block != null and _pending.has(block.get_instance_id())
-
-
-func pending_count() -> int:
-	return _pending.size()
 
 
 ## One host tick: contact-tests `candidates` (moving blocks; may be empty),
@@ -160,7 +153,8 @@ func physics_tick(delta: float, candidates: Array[Block]) -> void:
 static func request_dissolve(block: Block) -> bool:
 	if block == null or not is_instance_valid(block):
 		return false
-	var registry: BlockRegistry = MatchContext.current().registry() as BlockRegistry
+	var context: MatchContext = MatchContext.current()
+	var registry: BlockRegistry = context.registry() as BlockRegistry
 	if registry == null or not registry.is_host_authority():
 		return false
 	registry.hole_dissolver().start_dissolve(block)
@@ -356,7 +350,6 @@ func _on_hole_cells_applied(opened: PackedInt32Array) -> void:
 	var seen: Dictionary = {}
 	for cell: int in opened:
 		query.transform = Transform3D(basis, _field.world_from_disk_local(grid.index_center(cell), half_height))
-		open_queries += 1
 		for hit: Dictionary in space.intersect_shape(query, tuning.open_query_max_bodies):
 			var block: Block = hit.get("collider") as Block
 			if block == null:

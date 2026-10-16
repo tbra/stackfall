@@ -79,7 +79,7 @@ func test_owner_bytes_survive_the_upscale() -> void:
 			raster.set_cell(grid.cell_index(cx, cy), owner_byte, 0)
 	overlay.set_source(raster, PackedColorArray())
 
-	var image: Image = overlay.last_image()
+	var image: Image = overlay._last_image
 	var left: Color = _sample(image, 2, 6)
 	var right: Color = _sample(image, 9, 6)
 	assert_eq(left.r8, 1, "Team 0's cells read back as R = team_id + 1.")
@@ -104,7 +104,7 @@ func test_state_bytes_go_up_verbatim() -> void:
 	# The state grid goes up unblended at cell resolution: the shader's hole
 	# discard has to land on exactly the cell whose collision Field switched
 	# off, and an interpolated bit field cannot answer that.
-	var states: Image = overlay.state_cell_image()
+	var states: Image = overlay._state_cell_image
 	assert_eq(states.get_width(), CELLS_PER_SIDE)
 	assert_eq(states.get_pixel(3, 3).r8, TerritoryRaster.STATE_CONTESTED)
 	assert_eq(states.get_pixel(8, 8).r8, TerritoryRaster.STATE_HOLE)
@@ -135,11 +135,6 @@ func test_the_shader_reads_owner_ids_from_the_unblended_cell_grid() -> void:
 	var states: ImageTexture = overlay.material().get_shader_parameter(&"territory_state") as ImageTexture
 	assert_not_null(states, "And the state grid beside it.")
 	assert_eq(states.get_width(), CELLS_PER_SIDE)
-	assert_eq(
-		overlay.texture().get_width(),
-		UPLOAD_RES,
-		"The filtered texture is still the territory_res upload."
-	)
 	assert_eq(
 		(overlay.material().get_shader_parameter(&"territory_tex") as ImageTexture).get_width(),
 		UPLOAD_RES,
@@ -201,8 +196,8 @@ func test_set_circles_uploads_one_texel_per_circle() -> void:
 	)
 
 	assert_eq(overlay.circle_count(), 3, "The shader's circle_count uniform.")
-	assert_eq(overlay.circle_texture().get_width(), 3, "One texel per circle, RGBAF.")
-	var texel: Color = overlay.circle_image().get_pixel(1, 0)
+	assert_eq((overlay.material().get_shader_parameter(&"circle_tex") as ImageTexture).get_width(), 3, "One texel per circle, RGBAF.")
+	var texel: Color = overlay._circle_image.get_pixel(1, 0)
 	assert_almost_eq(texel.r, xs[1], 0.001, "R = disk-local x")
 	assert_almost_eq(texel.g, zs[1], 0.001, "G = disk-local z")
 	assert_almost_eq(texel.b, radii[1], 0.001, "B = radius")
@@ -295,7 +290,7 @@ func test_field_hands_its_overlay_the_source() -> void:
 	var colors: PackedColorArray = PackedColorArray([Color.RED, Color.BLUE])
 	field.set_overlay_source(raster, colors)
 
-	var image: Image = field.overlay().last_image()
+	var image: Image = field.overlay()._last_image
 	assert_not_null(image, "Field.set_overlay_source uploads through the overlay.")
 	assert_eq(_sample(image, 6, 6).r8, 2)
 	var stored: Array = field.overlay().material().get_shader_parameter(&"slot_colors") as Array
@@ -314,7 +309,7 @@ func test_field_hands_its_overlay_the_circle_list() -> void:
 	)
 
 	assert_eq(field.overlay().circle_count(), 1, "Field.set_overlay_circles routes to the overlay.")
-	var texel: Color = field.overlay().circle_image().get_pixel(0, 0)
+	var texel: Color = field.overlay()._circle_image.get_pixel(0, 0)
 	assert_almost_eq(texel.a, 1.0, 0.001, "Team id survives the hand-off.")
 
 
@@ -353,12 +348,11 @@ func test_circle_bins_list_every_circle_that_can_reach_a_pixel() -> void:
 
 	overlay.set_circles(xs, zs, radii, teams, PackedVector2Array(), PackedFloat32Array(), false)
 
-	assert_true(overlay.circle_bins_valid(), "A normal circle list is binned.")
 	assert_true(
 		bool(overlay.material().get_shader_parameter(&"circle_bins_valid")),
-		"The shader is told to use the bins."
+		"A normal circle list is binned and the shader is told to use the bins."
 	)
-	var image: Image = overlay.circle_bin_image()
+	var image: Image = overlay._circle_bin_image
 	var grid: int = TerritoryOverlay.CIRCLE_BIN_GRID
 	var half: float = overlay.circle_bin_half_extent()
 	var margin: float = overlay.circle_bin_margin()

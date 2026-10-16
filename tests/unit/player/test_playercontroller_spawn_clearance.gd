@@ -124,7 +124,7 @@ func _resolve_pending_spawn_clearance(controller: PlayerController) -> void:
 
 
 ## The world-space AABB `shape` occupies at `transform`, built exactly the way
-## game/blocks/BlockFactory.gd/game/GhostPreview.gd both do (same cube_size/
+## game/blocks/BlockFactory.gd and game/player/GhostPreview.gd both do (same cube_size/
 ## cube_margin, same BlockShape.bottom_center() pivot) so this matches what
 ## the real spawned Block's own collision boxes -- and the ghost's own
 ## collision_box_local_centers()/collision_half_size() -- actually occupy.
