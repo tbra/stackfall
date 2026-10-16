@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Remove provenance (see public_rules.py) from comments and docstrings.
 
-Usage: python tools/scrub_provenance.py [--path <checkout>] [--apply] [--quiet] [paths...]
+Usage: python tools/scrub_provenance.py [--path <checkout>] [--apply] [--all] [--quiet] [paths...]
 
 Works on .gd .gdshader .gdshaderinc .py .ps1 files (tracked ones under the given paths, default the
 whole checkout). Only comment text and docstrings are edited; code tokens and other string literals are
@@ -238,8 +238,15 @@ def main(argv: List[str]) -> int:
     ap.add_argument("--path", default=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     ap.add_argument("--apply", action="store_true", help="write the cleaned files (default: dry-run)")
     ap.add_argument("--quiet", action="store_true", help="print only residuals and the summary")
+    ap.add_argument("--all", action="store_true", help="allow --apply over the whole checkout (no paths given)")
     ap.add_argument("paths", nargs="*", help="files or folders relative to --path")
     args = ap.parse_args(argv)
+    # A repo-wide apply once rewrote the game's own vocabulary across hundreds of files before anyone
+    # read a sample, so writing everything needs an explicit --all after a dry-run on one folder.
+    if args.apply and not args.paths and not args.all:
+        print("SCRUB refused: --apply without paths writes the whole checkout. Dry-run one folder, read "
+              "about 30 changed lines, then --apply that folder; pass --all only after that.")
+        return 2
     root = os.path.abspath(args.path)
     n_files = n_lines = n_res = 0
     for rel in tracked_files(root, [p.replace("\\", "/") for p in args.paths]):

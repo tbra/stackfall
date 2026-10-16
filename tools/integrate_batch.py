@@ -748,6 +748,10 @@ def main(argv):
     except StepFailed as e:
         say("FAILED step=%s: %s" % (e.step, e.detail[:500]))
         say("INTEGRATE FAILED at %s; worktree kept: %s; logs: %s" % (e.step, res.get("worktree"), log_dir))
+        if res.get("worktree"):
+            # The temp worktree stays for diagnosis; print the exact cleanup so its branch never lingers.
+            say("cleanup after diagnosis: git -C %s worktree remove --force %s && git -C %s branch -D %s" % (
+                args.repo, res["worktree"], args.repo, res["branch"]))
         return 1
     cleanup(args, ctx, res)  # success (dry-run, --no-push or full): drop temp worktree + branch
     say("INTEGRATE OK%s commit=%s gate=%s logs=%s" % (

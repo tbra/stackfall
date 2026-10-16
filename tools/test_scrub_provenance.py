@@ -110,6 +110,14 @@ class ScrubTest(unittest.TestCase):
             self.assertEqual(sp.main(["--path", d, "--quiet", "--apply", "a.gd"]), 0)
             self.assertEqual(open(p, encoding="utf-8").read(), "# note\n")
 
+    def test_cli_apply_without_paths_needs_all(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "a.gd")
+            with open(p, "w", encoding="utf-8", newline="") as fh:
+                fh.write("# Bontago-abc.1: note\n")  # lint-public: allow fixture
+            self.assertEqual(sp.main(["--path", d, "--quiet", "--apply"]), 2)
+            self.assertIn("Bontago", open(p, encoding="utf-8").read())
+
 
 if __name__ == "__main__":
     unittest.main()

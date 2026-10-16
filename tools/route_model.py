@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Ask TypeSafe/Jev which Claude model a Stackfall work package should run on.
 
- consult Jev before every dispatch instead of guessing.
+Consult Jev before every dispatch instead of guessing.
 Jev is a System One model: it returns a typed Choice with a probability per
 option and a confidence, not prose. Code owns the policy (thresholds below);
 Jev supplies the judgement about the brief.
@@ -61,6 +61,10 @@ MODELS: Dict[str, str] = {
 }
 
 CORE_PATH_PREFIXES = ("core/", "net/", "autoload/", "shaders/")
+# Known-recipe kinds skip Jev. Comment and prose rewriting ("prose") is one of them but runs on
+# Sonnet: Haiku workers garbled or skipped reworded comments on every such package tried.
+FAST_PATH_KINDS = ("gate", "triage", "mechanical", "docs", "documentation", "prose")
+QUICK_TIER_KINDS = ("docs", "documentation", "prose")
 SPECIALIZED_PATH_PREFIXES = ("net/", "autoload/", "core/territory", "tests/bench/", "tests/enet/")
 VERIFICATION_TIERS = {
     "quick": "Documentation, generated files or mechanical edits: inspect the diff or run one quick check; no game launch.",
@@ -167,12 +171,12 @@ def _request(payload: Dict[str, Any], api_key: str) -> Dict[str, Any]:
 
 def _fallback(files: List[str], kind: str, brief: str) -> Dict[str, Any]:
     touches_core = any(f.startswith(CORE_PATH_PREFIXES) for f in files)
-    mechanical = kind in ("gate", "triage", "mechanical", "docs", "documentation")
+    mechanical = kind in FAST_PATH_KINDS and kind != "prose"
     hard_words = ("wire", "replicat", "byte-identical", "argmax", "invariant", "collision", "trimesh")
     hard = touches_core and any(w in brief.lower() for w in hard_words)
-    model = "haiku" if mechanical else ("opus" if hard else "sonnet")
+    model = "haiku" if mechanical else ("opus" if hard and kind != "prose" else "sonnet")
     specialized = any(f.startswith(SPECIALIZED_PATH_PREFIXES) for f in files)
-    tier = "quick" if mechanical or kind in ("docs", "documentation") else ("specialized" if specialized else "targeted")
+    tier = "quick" if mechanical or kind in QUICK_TIER_KINDS else ("specialized" if specialized else "targeted")
     visual = tier != "quick" and any(f.startswith(("ui/", "scenes/", "shaders/")) for f in files)
     return {
         "source": "fallback-rules",
@@ -190,7 +194,7 @@ def _fallback(files: List[str], kind: str, brief: str) -> Dict[str, Any]:
 
 
 def route(title: str, brief: str, files: List[str], kind: str, prior_attempts: int) -> Dict[str, Any]:
-    if kind in ("gate", "triage", "mechanical", "docs", "documentation") and prior_attempts == 0:
+    if kind in FAST_PATH_KINDS and prior_attempts == 0:
         result = _fallback(files, kind, brief)
         result["reason"] = "Deterministic fast path for known or mechanical work"
         return result
@@ -314,7 +318,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--title", required=True)
     ap.add_argument("--files", default="", help="comma-separated owned files")
-    ap.add_argument("--kind", default="feature", help="feature|bugfix|refactor|review|gate|triage|mechanical|plan")
+    ap.add_argument("--kind", default="feature", help="feature|bugfix|refactor|review|gate|triage|mechanical|prose|plan")
     ap.add_argument("--prior-attempts", type=int, default=0)
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--no-memories", action="store_true", help="skip the bd memories lookup (offline/tests)")

@@ -19,6 +19,12 @@ class RoutePolicyTests(unittest.TestCase):
         self.assertEqual((result["model"], result["verification_tier"]), ("haiku", "quick"))
         self.assertIsNone(result["max_windowed_probes"])
 
+    def test_prose_rewriting_skips_network_on_sonnet(self):
+        with patch.dict(os.environ, {"TYPESAFE_API_KEY": "test"}), patch.object(router, "_request") as request:
+            result = router.route("Reword comments", "Rewrite each listed comment", ["core/a.gd"], "prose", 0)
+        request.assert_not_called()
+        self.assertEqual((result["model"], result["verification_tier"]), ("sonnet", "quick"))
+
     def test_core_review_and_specialized_gate_cannot_be_waived_by_jev(self):
         reply = {
             "answers": {

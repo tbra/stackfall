@@ -78,7 +78,7 @@ def main(argv):
     ap.add_argument("--role", required=True, help="worker profile, e.g. stackfall-implementer")
     ap.add_argument("--title", required=True)
     ap.add_argument("--files", default="", help="comma-separated owned files")
-    ap.add_argument("--kind", default="feature", help="feature|bugfix|refactor|review|gate|triage|mechanical|plan")
+    ap.add_argument("--kind", default="feature", help="feature|bugfix|refactor|review|gate|triage|mechanical|prose|plan")
     ap.add_argument("--prior-attempts", type=int, default=0)
     ap.add_argument("--model", default="", help="override the routed model (needs --reason)")
     ap.add_argument("--reason", default="", help="why the routed model is overridden")
