@@ -101,7 +101,7 @@ func test_no_gust_fires_over_a_long_storm() -> void:
 	_run(effect, SIM_SECONDS)
 	assert_true(effect.is_quieted_by_weather())
 	assert_eq(_gusts_seen.size(), 0, "no gust is announced during a storm")
-	assert_eq(effect.gust_count(), 0, "and none lives on the host")
+	assert_eq(effect.gusts().size(), 0, "and none lives on the host")
 	assert_eq(effect.last_pushed, 0)
 
 
@@ -121,7 +121,7 @@ func test_storm_ending_lets_gusts_resume() -> void:
 	var settled: int = _gusts_seen.size()
 	_run(effect, SIM_SECONDS * 0.25)
 	assert_eq(_gusts_seen.size(), settled, "a second storm quiets it again")
-	assert_eq(effect.gust_count(), 0, "once the last in-flight gust has expired")
+	assert_eq(effect.gusts().size(), 0, "once the last in-flight gust has expired")
 
 
 func test_a_gust_in_flight_when_the_storm_starts_finishes_and_no_new_one_follows() -> void:
@@ -132,13 +132,13 @@ func test_a_gust_in_flight_when_the_storm_starts_finishes_and_no_new_one_follows
 	var effect: BreezeEffect = _effect(fast)
 	effect.begin(SEED_A)
 	_run(effect, fast.duration_max_s)
-	assert_gt(effect.gust_count(), 0, "a gust is in flight")
+	assert_gt(effect.gusts().size(), 0, "a gust is in flight")
 	var announced: int = _gusts_seen.size()
 	_weather_id = STORM_ID
-	assert_gt(effect.gust_count(), 0, "the storm starting does not cancel it")
+	assert_gt(effect.gusts().size(), 0, "the storm starting does not cancel it")
 	_run(effect, fast.duration_max_s + DURATION_MARGIN_S)
 	assert_eq(_gusts_seen.size(), announced, "no new gust is announced during the storm")
-	assert_eq(effect.gust_count(), 0, "the in-flight gust expired on its own")
+	assert_eq(effect.gusts().size(), 0, "the in-flight gust expired on its own")
 
 
 func test_breeze_reads_the_host_weather_state_through_match() -> void:

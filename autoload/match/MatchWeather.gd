@@ -148,14 +148,6 @@ func is_running() -> bool:
 	return _running
 
 
-func mode() -> int:
-	return _mode
-
-
-func schedule_phase() -> int:
-	return _sched
-
-
 func active_id() -> StringName:
 	return _active_id
 
@@ -191,11 +183,6 @@ static func mode_labels() -> Array:
 	for index: int in MatchConfig.WeatherMode.size():
 		labels.append(DisplayNames.weather(index))
 	return labels
-
-
-## True while the active weather never ends by itself.
-func is_constant() -> bool:
-	return _constant
 
 
 func debug_override() -> StringName:
@@ -407,15 +394,6 @@ func set_debug_override(value: StringName) -> bool:
 		return true
 	_constant = true
 	return start_event(value)
-
-
-## Ramps the current event out early (host). The calm gap follows.
-func end_event() -> void:
-	if _active_id != &"" and _is_host() and _phase != WeatherTuning.Phase.RAMP_OUT:
-		_phase = WeatherTuning.Phase.RAMP_OUT
-		_phase_t = 0.0
-		_left = _current_def().ramp_out_s
-		_announce()
 
 
 func _defs_ready_for(weather_id: StringName) -> bool:

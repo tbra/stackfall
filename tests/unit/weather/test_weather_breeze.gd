@@ -111,14 +111,14 @@ func test_at_most_one_gust_is_active_and_it_expires() -> void:
 	var saw_gust: bool = false
 	for _i: int in range(300):
 		effect.tick(SIM_STEP)
-		assert_lte(effect.gust_count(), 1)
-		saw_gust = saw_gust or effect.gust_count() == 1
+		assert_lte(effect.gusts().size(), 1)
+		saw_gust = saw_gust or effect.gusts().size() == 1
 	assert_true(saw_gust, "a gust did spawn")
 	effect.set_enabled(false)
-	assert_eq(effect.gust_count(), 0, "the F4 toggle ends every gust")
+	assert_eq(effect.gusts().size(), 0, "the F4 toggle ends every gust")
 	for _i: int in range(100):
 		effect.tick(SIM_STEP)
-	assert_eq(effect.gust_count(), 0, "and none spawn while off")
+	assert_eq(effect.gusts().size(), 0, "and none spawn while off")
 
 
 # --- Host effect on real bodies ------------------------------------------------------
@@ -194,7 +194,7 @@ func test_breeze_runs_with_weather_off_and_stops_on_reset_and_is_host_only_toggl
 	assert_false(w.breeze_enabled())
 	w.reset()
 	assert_false(w.breeze().is_running())
-	assert_eq(w.breeze().gust_count(), 0)
+	assert_eq(w.breeze().gusts().size(), 0)
 	var client: MatchWeather = MatchWeather.new()
 	client.set_host_override(false)
 	assert_false(client.set_breeze_enabled(false))

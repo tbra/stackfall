@@ -151,7 +151,6 @@ func test_client_reproduces_the_hosts_event_from_the_payload() -> void:
 	# The client never simulates weather: ticking presents intensity only.
 	client_weather.tick(1.0)
 	assert_gte(client_weather.active_intensity(), 0.0)
-	assert_eq(client_weather.mode(), MatchConfig.WeatherMode.CHANGING)
 
 
 # --- Rejection -----------------------------------------------------------------------

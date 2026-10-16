@@ -117,10 +117,6 @@ func is_quieted_by_weather() -> bool:
 	return _active_weather_id() == QUIET_WEATHER_ID
 
 
-func gust_count() -> int:
-	return _gusts.size()
-
-
 func gusts() -> Array[Dictionary]:
 	return _gusts
 
