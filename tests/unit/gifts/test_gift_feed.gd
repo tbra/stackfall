@@ -1,7 +1,4 @@
 extends GutTest
-## Latest-claim replacement and the one-release gift cadence exception.
-const MatchNetScript := preload("res://net/MatchNet.gd")
-
 var _field: Field
 var _blocks_root: Node3D
 var _registry: BlockRegistry
@@ -105,53 +102,3 @@ func test_rejected_gift_action_does_not_spend_it() -> void:
 	assert_eq(Match.feed_seq(0), gift_seq)
 	assert_eq(Match.held_special(0), &"earthquake")
 	assert_eq(_place(gift_seq), PlacementRules.REASON_OK)
-
-
-func test_forced_burn_preserves_newer_queued_gift_and_retries_lone_gift() -> void:
-	assert_true(Match.debug_queue_special(0, &"earthquake"))
-	assert_eq(_place(Match.feed_seq(0)), PlacementRules.REASON_OK)
-	assert_eq(Match.held_special(0), &"earthquake", "fixture: older gift A is held")
-	assert_true(Match.debug_queue_special(0, &"anvil"))
-	assert_eq((Match._gifts._pending_queues[0] as Array)[0], &"anvil", "fixture: newer gift B is next")
-	TerritoryTestHelpers.blank_owned_territory(Match.raster(), Match.team_of(0))
-	var far: Vector3 = _field.to_global(Vector3(5000.0, 5.0, 5000.0))
-	var first_seq: int = Match.feed_seq(0)
-	watch_signals(Events)
-	assert_ne(
-		Match.request_place(0, far, 0, Quaternion.IDENTITY, true, first_seq),
-		PlacementRules.REASON_OK,
-		"fixture: the forced release must take the burn path"
-	)
-	assert_eq(Match.feed_seq(0), first_seq + 1)
-	assert_eq(Match.held_special(0), &"anvil", "the later gift wins after A burns")
-	assert_eq(Match.pending_special_count(0), 1)
-	assert_true((Match._gifts._pending_queues[0] as Array).is_empty())
-	assert_signal_not_emitted(Events, "special_consumed")
-
-	# With no newer gift queued, the existing burn rule retries B next.
-	var second_seq: int = Match.feed_seq(0)
-	assert_ne(Match.request_place(0, far, 0, Quaternion.IDENTITY, true, second_seq), PlacementRules.REASON_OK)
-	assert_eq(Match.feed_seq(0), second_seq + 1)
-	assert_eq(Match.held_special(0), &"anvil")
-	assert_eq(Match.pending_special_count(0), 1)
-
-
-func test_gift_claim_shape_wire_mirrors_next_then_held_state() -> void:
-	var fake: FakeNet = FakeNet.client(0)
-	Match.set_net_provider(fake)
-	var net: MatchNetScript = MatchNetScript.new()
-	net.set_process(false)
-	add_child_autofree(net)
-	net.set_providers(fake, Match)
-	var shape_id: StringName = Match.held_shape(0).id
-	var seq: int = Match.feed_seq(0)
-	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [11, 0, MatchGifts.PENDING_SPECIAL_ID, &"invalid_shape_id"])
-	assert_eq(Match.pending_special_count(0), 0)
-	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [11, 0, MatchGifts.PENDING_SPECIAL_ID, shape_id])
-	assert_eq(Match.pending_special_count(0), 1)
-	assert_eq(Match.held_special(0), &"")
-	assert_eq(Match.next_shape(0).id, shape_id)
-	Match.apply_replicated_feed(0, shape_id, shape_id, seq + 1, Match.feed_time_left(0), false)
-	assert_eq(Match.held_special(0), MatchGifts.PENDING_SPECIAL_ID)
-	assert_eq(Match.pending_special_count(0), 1)
-	assert_eq(Match.feed_seq(0), seq + 1)

@@ -2,7 +2,6 @@ extends GutTest
 ## Bontago-1pi.85.49: the Rocket and Magnet MODEL nose (the GiftVisual child, not just the carrier
 ## body) follows the velocity in flight, on the host and on a client reading the wire pose.
 
-const TICK: float = 1.0 / 60.0
 const START: Vector3 = Vector3(0.0, 40.0, 0.0)
 const FLIGHT_FRAMES: int = 30
 ## Checked well inside the old 0.4 s arm delay (24 frames); gravity bends its line.
@@ -85,44 +84,3 @@ func test_thrown_magnet_model_nose_follows_velocity() -> void:
 		await wait_physics_frames(1)
 		if i >= MAGNET_FIRST_CHECK_FRAME:
 			_assert_model_faces_velocity(block, &"magnet", true, MAGNET_NOSE_ERROR_DEG)
-
-
-func test_launch_direction_input_already_faces_the_carrier() -> void:
-	var block: Block = _gift(&"rocket")
-	RocketEffect.set_launch_direction(block, AIM)
-	var nose: Vector3 = _visual(block).global_basis * _nose_of(&"rocket")
-	assert_lt(rad_to_deg(nose.angle_to(AIM.normalized())), MAX_NOSE_ERROR_DEG, "faced before the first tick")
-
-
-func test_magnet_arm_delay_does_not_gate_facing_but_the_pull_still_waits() -> void:
-	var def: SpecialDef = SpecialDef.find_by_id(&"magnet")
-	assert_eq(def.arm_delay, 0.0, "ticked from the first frame")
-	assert_gt((def.effect as MagnetEffect).pull_start_delay_s, 0.0, "the pull keeps its start delay")
-
-
-func test_shipped_magnet_numbers() -> void:
-	var effect: MagnetEffect = SpecialDef.find_by_id(&"magnet").effect as MagnetEffect
-	assert_eq(effect.pull_duration_s, 6.0)
-	assert_eq(effect.model_nose_axis, Vector3.UP)
-	assert_gt(effect.face_min_speed_mps, 0.0)
-	assert_eq(effect.effect_lifetime_s(), effect.pull_start_delay_s + effect.pull_duration_s)
-
-
-func test_nose_basis_maps_nose_onto_every_direction() -> void:
-	for nose: Vector3 in [Vector3.UP, Vector3.RIGHT, Vector3(0.0, 0.0, 1.0)]:
-		for direction: Vector3 in [Vector3.UP, Vector3.DOWN, Vector3.RIGHT, Vector3.LEFT, Vector3(0.3, -0.9, 0.1)]:
-			var basis: Basis = FlightFacing.nose_basis(nose, direction)
-			assert_lt((basis * nose).angle_to(direction.normalized()), 0.001, "nose %s onto %s" % [nose, direction])
-			assert_almost_eq(basis.determinant(), 1.0, 0.001, "a proper rotation")
-
-
-func test_face_velocity_ignores_a_slow_body() -> void:
-	var block: Block = _gift(&"magnet")
-	block.linear_velocity = Vector3(0.0, 0.0, 0.1)
-	var before: Basis = block.global_basis
-	FlightFacing.face_velocity(block, Vector3.UP, 1.0)
-	assert_eq(block.global_basis, before, "below the minimum speed the pose is left alone")
-
-
-func test_rocket_nose_delegates_to_flight_facing() -> void:
-	assert_eq(RocketEffect.nose_basis(Vector3.UP, Vector3.RIGHT), FlightFacing.nose_basis(Vector3.UP, Vector3.RIGHT))

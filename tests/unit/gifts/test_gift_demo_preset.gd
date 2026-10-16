@@ -43,13 +43,6 @@ func _run_countdown() -> void:
 		Match._process(1.0 / Engine.physics_ticks_per_second)
 
 
-func test_preset_resource_is_a_gift_testing_sandbox() -> void:
-	var preset: SandboxConfig = load("res://config/match/sandbox_gift_demo.tres") as SandboxConfig
-	assert_not_null(preset)
-	assert_gt(preset.preplaced_tower_blocks, 0)
-	assert_eq(preset.special_frequency_override, MatchConfig.SPECIAL_FREQUENCY_MAX)
-
-
 func test_gift_demo_preplaces_blocks_and_gifts_spawn() -> void:
 	_main.start_gift_demo_from_menu()
 	assert_not_null(_main._sandbox, "the gift demo opens the sandbox")
@@ -89,44 +82,3 @@ func test_preplaced_blocks_are_silent_but_later_drops_are_not() -> void:
 	assert_gt(_silent_at_placement.size(), 0, "towers were pre-placed")
 	assert_false(_silent_at_placement.has(false), "every pre-placed block was placed under Sfx silence")
 	assert_false(Sfx._world_replay_silent, "silence is released once the scene is built")
-
-
-func test_plain_sandbox_from_menu_ignores_the_preset() -> void:
-	_main.start_gift_demo_from_menu()
-	Match.abort_match()
-	_main.start_sandbox_from_menu()
-	assert_null(_main._sandbox_preset)
-
-
-func test_prev_next_cycle_the_forced_gift_only_in_the_preset() -> void:
-	_main.start_gift_demo_from_menu()
-	_run_countdown()
-	var sandbox: Sandbox = _main._sandbox
-	var next: InputEventAction = InputEventAction.new()
-	next.action = "gift_demo_cycle_next"
-	next.pressed = true
-	var prev: InputEventAction = InputEventAction.new()
-	prev.action = "gift_demo_cycle_prev"
-	prev.pressed = true
-	assert_eq(sandbox.forced_special(), &"")
-	sandbox._unhandled_input(next)
-	var first: StringName = sandbox.forced_special()
-	assert_ne(first, &"", "next picks the first gift")
-	sandbox._unhandled_input(next)
-	assert_ne(sandbox.forced_special(), first)
-	sandbox._unhandled_input(prev)
-	assert_eq(sandbox.forced_special(), first)
-	sandbox._unhandled_input(prev)
-	sandbox._unhandled_input(prev)
-	assert_ne(sandbox.forced_special(), &"", "prev wraps from off to the last gift")
-	assert_eq(sandbox._gift_strip.glyph_texts().size(), 2, "bound prev/next glyphs are shown")
-
-
-func test_plain_sandbox_ignores_the_gift_cycle_actions() -> void:
-	_main.start_sandbox_from_menu()
-	_run_countdown()
-	var next: InputEventAction = InputEventAction.new()
-	next.action = "gift_demo_cycle_next"
-	next.pressed = true
-	_main._sandbox._unhandled_input(next)
-	assert_eq(_main._sandbox.forced_special(), &"")

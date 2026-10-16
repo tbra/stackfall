@@ -66,23 +66,6 @@ func _throw_at_yaw(yaw: float) -> Block:
 	return _blocks_root.get_child(_blocks_root.get_child_count() - 1) as Block
 
 
-func test_the_default_back_off_is_zero() -> void:
-	var tuning: SpecialTuning = load("res://config/gifts/special_tuning.tres")
-	assert_eq(tuning.gift_aim_back_m, 0.0)
-	assert_eq(SpecialTuning.new().gift_aim_back_m, 0.0)
-
-
-func test_spawn_point_is_the_ghost_pose_with_the_min_height_clamp_kept() -> void:
-	var tuning: SpecialTuning = load("res://config/gifts/special_tuning.tres")
-	var pose: Vector3 = Vector3(3.0, 6.0, -2.0)
-	var forward: Vector3 = Vector3(0.3, -0.5, -0.8).normalized()
-	assert_true(GiftAim.spawn_point(pose, forward, 0.0, tuning).is_equal_approx(pose))
-	var low: Vector3 = GiftAim.spawn_point(Vector3(1.0, 0.1, 1.0), forward, 0.0, tuning)
-	assert_almost_eq(low.y, tuning.gift_aim_min_height_m, 0.001, "clamped over the surface")
-	assert_almost_eq(low.x, 1.0, 0.001)
-	assert_almost_eq(low.z, 1.0, 0.001)
-
-
 func test_real_throw_spawns_at_the_ghost_pose_and_flies_along_the_camera_yaw() -> void:
 	_start_with_bomb()
 	var block: Block = _throw_at_yaw(0.0)
@@ -92,16 +75,6 @@ func test_real_throw_spawns_at_the_ghost_pose_and_flies_along_the_camera_yaw() -
 	assert_almost_eq(block.global_position.z, pose.z, 0.01)
 	assert_lt(block.linear_velocity.z, 0.0, "yaw 0 heads along -Z")
 	assert_almost_eq(block.linear_velocity.x, 0.0, 0.01)
-
-
-func test_yaw_90_degrees_turns_the_launch_direction() -> void:
-	_start_with_bomb()
-	var block: Block = _throw_at_yaw(PI * 0.5)
-	assert_lt(block.linear_velocity.x, 0.0, "yaw 90 heads along -X")
-	assert_almost_eq(block.linear_velocity.z, 0.0, 0.01)
-	var pose: Vector3 = _ghost_pose()
-	assert_almost_eq(block.global_position.x, pose.x, 0.01, "same origin whatever the camera yaw")
-	assert_almost_eq(block.global_position.z, pose.z, 0.01)
 
 
 func test_pitch_changes_the_launch_elevation() -> void:

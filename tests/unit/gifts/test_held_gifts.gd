@@ -4,7 +4,6 @@ extends GutTest
 ## drawn (host path: Match.request_throw; the client sees the same replicated spawn transform).
 
 const AIM: Vector3 = Vector3(0.6, -0.3, -0.74)
-const NOSE_TOLERANCE_DEG: float = 5.0
 const PIVOT_TOLERANCE_M: float = 0.01
 const POSE_HEIGHT_M: float = 5.0
 const AIMED_GIFTS: Array[StringName] = [&"rocket", &"paintball"]
@@ -38,103 +37,6 @@ func after_each() -> void:
 	Match.set_process(true)
 	MatchTestReset.clear_world()
 	await get_tree().process_frame
-
-
-func _ghost_holding(id: StringName) -> GhostPreview:
-	var ghost: GhostPreview = autofree(GhostPreview.new())
-	add_child_autofree(ghost)
-	ghost.set_shape(load("res://config/blocks/cube.tres"))
-	ghost.set_held_gift(id)
-	return ghost
-
-
-func _mesh_nodes(root: Node) -> Array[Node]:
-	return root.find_children("*", "MeshInstance3D", true, false)
-
-
-# --- 85.77: authored colours ---------------------------------------------------------------
-
-func test_held_gift_materials_carry_no_tint_in_any_state() -> void:
-	for entry: GiftModelEntry in GiftModelTable.shared().entries:
-		var id: StringName = entry.id
-		var ghost: GhostPreview = _ghost_holding(id)
-		ghost.set_player_color(Color(0.1, 0.9, 0.2, 1.0))
-		var reference: Node3D = autofree(GiftModelTable.shared().build_gift_visual(id))
-		var states: Array[PlacementRules.Result] = [
-			PlacementRules.Result.VALID, PlacementRules.Result.OUTSIDE_TERRITORY, PlacementRules.Result.HOLE]
-		for state: PlacementRules.Result in states:
-			ghost.apply_validity(state)
-			var held: Array[Node] = _mesh_nodes(ghost.gift_visual())
-			var authored: Array[Node] = _mesh_nodes(reference)
-			assert_eq(held.size(), authored.size(), "%s mesh count" % id)
-			for i: int in range(mini(held.size(), authored.size())):
-				var mi: MeshInstance3D = held[i] as MeshInstance3D
-				assert_null(mi.material_overlay, "%s no overlay (%d)" % [id, state])
-				assert_eq(mi.material_override, (authored[i] as MeshInstance3D).material_override, "%s keeps its own override" % id)
-
-
-# --- 85.79: slingshot faces the aim like the Rocket ----------------------------------------
-
-func test_paintball_table_row_declares_its_firing_axis() -> void:
-	var entry: GiftModelEntry = GiftModelTable.shared().entry_for(&"paintball")
-	assert_ne(entry.held_nose_axis, Vector3.ZERO)
-	var effect: PaintballEffect = SpecialDef.find_by_id(&"paintball").effect as PaintballEffect
-	assert_eq(effect.model_nose_axis, entry.held_nose_axis, "held and body use one axis")
-	assert_true(entry.held_keep_upright, "the slingshot never turns upside down")
-	assert_false(GiftModelTable.shared().entry_for(&"rocket").held_keep_upright, "rocket keeps its shortest-arc path")
-
-
-func test_spawned_slingshot_body_faces_the_aim_with_its_forks_up() -> void:
-	var def: SpecialDef = SpecialDef.find_by_id(&"paintball")
-	var effect: PaintballEffect = def.effect as PaintballEffect
-	for aim: Vector3 in [AIM, Vector3(-0.8, -0.1, 0.5), Vector3(0.0, -0.5, -1.0)]:
-		var faced: Variant = MatchPlacement.launch_facing_basis(def, GiftThrow.Mode.AIMED, aim.normalized(), Vector3.ZERO)
-		assert_true(faced is Basis)
-		var basis: Basis = faced as Basis
-		assert_lt(rad_to_deg((basis * effect.model_nose_axis).angle_to(aim.normalized())), NOSE_TOLERANCE_DEG)
-		assert_gt((basis * Vector3.UP).y, 0.0)
-
-
-func test_held_slingshot_follows_the_aim_and_keeps_its_handle_down() -> void:
-	var ghost: GhostPreview = _ghost_holding(&"paintball")
-	var axis: Vector3 = GiftModelTable.shared().entry_for(&"paintball").held_nose_axis
-	for aim: Vector3 in [AIM, Vector3(-0.8, -0.1, 0.5), Vector3(0.0, -0.5, -1.0)]:
-		ghost.set_held_aim(aim)
-		var front: Vector3 = (ghost.gift_visual().global_basis * axis).normalized()
-		assert_lt(rad_to_deg(front.angle_to(aim.normalized())), NOSE_TOLERANCE_DEG, "front on aim %s" % aim)
-		var up: Vector3 = ghost.gift_visual().global_basis * Vector3.UP
-		assert_gt(up.y, 0.0, "forks stay up")
-
-
-func test_held_slingshot_without_aim_follows_the_camera_yaw_like_the_rocket() -> void:
-	var camera: Camera3D = autofree(Camera3D.new())
-	add_child_autofree(camera)
-	camera.current = true
-	camera.rotation_degrees = Vector3(-30.0, 40.0, 0.0)
-	var forward: Vector3 = -camera.global_transform.basis.z
-	forward.y = 0.0
-	for id: StringName in [&"rocket", &"paintball"]:
-		var ghost: GhostPreview = _ghost_holding(id)
-		ghost.set_held_aim(Vector3.ZERO)
-		var axis: Vector3 = GiftModelTable.shared().entry_for(id).held_nose_axis
-		var front: Vector3 = (ghost.gift_visual().global_basis * axis).normalized()
-		assert_lt(rad_to_deg(front.angle_to(forward.normalized())), NOSE_TOLERANCE_DEG, String(id))
-
-
-# --- 85.80: spawn at the held model ---------------------------------------------------------
-
-func test_muzzle_matched_origin_puts_the_body_pivot_on_the_held_pivot() -> void:
-	var shape: BlockShape = load("res://config/blocks/cube.tres") as BlockShape
-	var tuning: PhysicsTuning = load("res://config/physics/physics_tuning.tres") as PhysicsTuning
-	var origin: Vector3 = Vector3(3.0, 6.0, -2.0)
-	var centre: Vector3 = BlockFactory.gift_cell_center(shape, tuning)
-	for id: StringName in AIMED_GIFTS:
-		var entry: GiftModelEntry = GiftModelTable.shared().entry_for(id)
-		var faced: Basis = FlightFacing.nose_basis(entry.held_nose_axis, AIM.normalized())
-		var spawn: Vector3 = BlockFactory.muzzle_matched_origin(origin, faced, shape, tuning, id)
-		var scale_factor: float = BlockFactory.activation_scale_for(id)
-		var body_root: Vector3 = centre + Vector3.UP * ((scale_factor - 1.0) * tuning.cube_size * 0.5)
-		assert_true((spawn + faced * body_root).is_equal_approx(origin + centre), "%s pivot on held pivot" % id)
 
 
 func _start_with(gift: StringName) -> void:

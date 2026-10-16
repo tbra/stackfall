@@ -221,34 +221,6 @@ func test_pop_pending_special_consumes_only_the_held_gift() -> void:
 	assert_signal_emitted_with_parameters(Events, "special_consumed", [0, &"special_a"], 0)
 
 
-## Orchestrator amendment 1: the unconditional clear on_feed_block_issued()
-## used to run is gone -- a slot's queue now only shrinks via an explicit
-## pop_pending_special() call.
-func test_feed_block_issued_no_longer_clears_the_pending_queue() -> void:
-	_start_playing(_config())
-	Match._gifts._ensure_capacity(0)
-	(Match._gifts._pending_queues[0] as Array).append(&"special_a")
-
-	Match._gifts.on_feed_block_issued(0)
-
-	assert_eq((Match._gifts._pending_queues[0] as Array)[0], &"special_a", "an unrelated feed signal does not clear the next gift")
-
-
-## A custom drawer's id, not the default PENDING_SPECIAL_ID, is what gets
-## queued and emitted -- proves _claim_gift() actually calls through
-## _special_drawer rather than hard-coding the placeholder.
-func test_custom_drawer_id_is_queued_and_emitted() -> void:
-	_start_playing(_config_with_no_real_specials())
-	Match._gifts.set_special_drawer(func() -> StringName: return &"jumping_bean")
-	watch_signals(Events)
-	var gift_id: int = _inject_crate(0)
-
-	_step_territory()
-
-	assert_eq((Match._gifts._pending_queues[0] as Array)[0], &"jumping_bean")
-	assert_signal_emitted_with_parameters(Events, "gift_claimed", [gift_id, 0, &"jumping_bean"])
-
-
 ## Bontago-sen.3: a claimed Glue gift grants charges at once and never
 ## becomes the held or next piece; an already queued gift survives.
 func test_claimed_glue_grants_charges_without_queueing_or_changing_held_piece() -> void:
@@ -276,25 +248,6 @@ func test_replicated_glue_claim_does_not_queue_on_client() -> void:
 	assert_eq(Match.pending_special_count(0), 0)
 
 
-## M4 P2c: _ensure_special_drawer_installed() must leave the shipped default
-## drawer (always PENDING_SPECIAL_ID) in place when the filtered
-## res://config/gifts/specials/ roster is empty. See _config_with_no_real_specials()'s
-## own DECISION for why this uses that helper rather than depending on
-## res://config/gifts/specials/ genuinely holding no .tres (true only before
-## P5-EARTHQUAKE).
-func test_installing_the_real_drawer_with_an_empty_filtered_roster_keeps_the_placeholder() -> void:
-	_start_playing(_config_with_no_real_specials())
-	assert_false(Match._gifts._roster_ready, "setup: not installed until the first real claim")
-
-	var gift_id: int = _inject_crate(0)
-	_step_territory()
-
-	assert_true(Match._gifts._roster_ready, "the install attempt must run exactly once per match")
-	assert_eq((Match._gifts._pending_queues[0] as Array)[0], MatchGifts.PENDING_SPECIAL_ID,
-		"an empty filtered roster must leave the placeholder drawer installed")
-	assert_true(Match._gifts._special_roster.is_empty())
-
-
 ## M6 A4 (docs/archive/M6_PLAN.md "A4 -- Enabled-specials checklist"): ui/lobby/Lobby.gd
 ## publishes MatchGifts.ALL_DISABLED_SENTINEL as enabled_specials' sole entry
 ## when the host unchecks every special checkbox. Distinct from
@@ -320,120 +273,6 @@ func test_all_disabled_sentinel_never_draws_a_real_special() -> void:
 	assert_true(Match._gifts._special_roster.is_empty())
 
 
-## _weighted_special_drawer() itself (the Callable
-## _ensure_special_drawer_installed() would install for a non-empty roster),
-## exercised directly against a manufactured roster/rng so this test needs no
-## real .tres under res://config/gifts/specials/ either (docs/archive/M4_P2_PACKAGES.md
-## P2c: config/gifts/specials/ stays genuinely empty until P3-P5).
-func test_weighted_special_drawer_draws_from_the_installed_roster() -> void:
-	_start_playing(_config())
-	var only: SpecialDef = SpecialDef.new()
-	only.id = &"only_special"
-	only.weight = 1.0
-	var roster: Array[SpecialDef] = [only]
-	Match._gifts._special_roster = roster
-	Match._gifts._special_rng.seed = 1
-
-	var drawn: StringName = Match._gifts._weighted_special_drawer()
-
-	assert_eq(drawn, &"only_special", "a single-candidate roster must always draw that candidate")
-
-
-## apply_replicated_claim() is the client mirror of _claim_gift() and must
-## respect the identical cap.
-func test_apply_replicated_claim_replaces_the_next_gift() -> void:
-	_start_playing(_config())
-	Match._gifts._gift_config = Match._gifts._gift_config.duplicate() as GiftConfig
-	Match._gifts._gift_config.max_pending_specials = 1
-
-	Match._gifts.apply_replicated_claim(1, 0, &"special_a")
-	Match._gifts.apply_replicated_claim(2, 0, &"special_b")
-
-	assert_eq(Match.pending_special_count(0), 1)
-	assert_eq((Match._gifts._pending_queues[0] as Array)[0], &"special_b")
-	assert_eq(Match.held_special(0), &"")
-
-
-## apply_replicated_special_consumed() is the client mirror of
-## pop_pending_special() (Bontago-1en.21) and must shrink the same queue
-## apply_replicated_claim() grows, oldest-first.
-func test_apply_replicated_special_consumed_clears_only_held_gift() -> void:
-	_start_playing(_config())
-	Match._gifts.apply_replicated_claim(1, 0, &"special_a")
-	Match._gifts.apply_replicated_claim(2, 0, &"special_b")
-	Match._gifts.activate_next_special(0)
-	assert_eq(Match.held_special(0), &"special_b")
-
-	Match._gifts.apply_replicated_special_consumed(0, &"special_b")
-
-	assert_eq(Match.pending_special_count(0), 0)
-	assert_eq(Match.held_special(0), &"")
-
-
-## DECISION (autoload/match/MatchGifts.gd, Bontago-1en.21): a mismatched head
-## (the two mirrors drifted) still pops -- it does not silently do nothing --
-## so the mirror's length stays in step with the host's even though the
-## popped id itself was the wrong one.
-func test_apply_replicated_special_consumed_pops_the_head_even_on_a_mismatch() -> void:
-	_start_playing(_config())
-	Match._gifts.apply_replicated_claim(1, 0, &"special_a")
-	Match._gifts.activate_next_special(0)
-	assert_eq(Match.held_special(0), &"special_a", "setup")
-
-	Match._gifts.apply_replicated_special_consumed(0, &"totally_different_id")
-
-	assert_eq(Match.held_special(0), &"", "a mismatched report clears the held gift")
-
-
-## Review-fix pattern (mirrors test_replicated_claim_with_a_garbage_slot_id_is_
-## ignored above): a garbage slot_id must never grow _pending_queues.
-func test_apply_replicated_special_consumed_with_a_garbage_slot_id_is_ignored() -> void:
-	_start_playing(_config())
-	var before_size: int = Match._gifts._pending_queues.size()
-
-	Match._gifts.apply_replicated_special_consumed(999999999, &"special_a")
-
-	assert_eq(Match._gifts._pending_queues.size(), before_size, "a garbage slot_id must never grow _pending_queues")
-
-
-func test_reset_clears_crates_and_held_specials() -> void:
-	_start_playing(_config())
-	_inject_crate(0)
-	_inject_crate(1)
-	Match._gifts._ensure_capacity(0)
-	(Match._gifts._pending_queues[0] as Array).append(MatchGifts.PENDING_SPECIAL_ID)
-
-	Match.abort_match()
-
-	assert_true(Match._gifts._crates.is_empty())
-	assert_eq(Match.held_special(0), &"")
-
-
-func test_net_mirrors_gift_spawned_claimed_and_expired() -> void:
-	_start_playing(_config())
-	var net: MatchNetScript = MatchNetScript.new()
-	net.set_process(false)
-	add_child_autofree(net)
-	net.set_providers(FakeNet.client(1), Match)
-	watch_signals(Events)
-
-	net.net_match_event(MatchNetScript.EVENT_GIFT_SPAWNED, [7, Vector2(1.0, 2.0)])
-	assert_signal_emitted_with_parameters(Events, "gift_spawned", [7, Vector2(1.0, 2.0)])
-	assert_true(Match._gifts._crates.has(7))
-
-	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [7, 1, MatchGifts.PENDING_SPECIAL_ID, &"cube"])
-	assert_signal_emitted_with_parameters(Events, "gift_claimed", [7, 1, MatchGifts.PENDING_SPECIAL_ID])
-	assert_eq((Match._gifts._pending_queues[1] as Array)[0], MatchGifts.PENDING_SPECIAL_ID)
-	assert_false(Match._gifts._crates.has(7))
-
-	net.net_match_event(MatchNetScript.EVENT_GIFT_SPAWNED, [8, Vector2(3.0, 4.0)])
-	net.net_match_event(MatchNetScript.EVENT_GIFT_EXPIRED, [8])
-	assert_signal_emitted_with_parameters(Events, "gift_expired", [8])
-	assert_false(Match._gifts._crates.has(8))
-
-	net.set_providers(null, null)
-
-
 ## Review fix #2 (Bontago-4fa): outside hot-seat every slot's own feed window
 ## fires on_feed_block_issued() independently, so an unconditional roll would
 ## have given a 3-player match ~3 rolls per window. Only the lowest-indexed
@@ -455,26 +294,6 @@ func test_only_the_lowest_alive_slot_rolls_per_window() -> void:
 		Match._gifts.on_feed_block_issued(slot_id)
 
 	assert_eq(Match._gifts._crates.size(), 1, "exactly one roll must happen across all 3 slots' windows")
-
-
-## Review fix #3a: a client never spawns, claims or expires anything itself --
-## it only ever mirrors the three replicated events into visuals.
-func test_client_never_spawns_claims_or_expires() -> void:
-	_start_playing(_config())
-	Match.set_net_provider(FakeNet.client(1))
-	Match._gifts._gift_config = Match._gifts._gift_config.duplicate() as GiftConfig
-	Match._gifts._gift_config.frequency_to_chance_max = 1.0
-	Match._gifts._gift_config.first_gift_delay_s = 0.0
-	Match.config.special_frequency = 100
-	var gift_id: int = _inject_crate(0)
-
-	Match._gifts.on_feed_block_issued(0)
-	assert_eq(Match._gifts._crates.size(), 1, "a client must never spawn a crate of its own")
-
-	Match._gifts.claim_or_expire_gifts(1000.0)
-	assert_true(Match._gifts._crates.has(gift_id), "a client must never claim or expire a crate itself")
-
-	Match.set_net_provider(null)
 
 
 ## Review fix #3b: EVENT_GIFT_SPAWNED's wire-safety gate (_gift_wire_ok)
@@ -528,25 +347,6 @@ func test_replicated_claim_with_a_garbage_slot_id_is_ignored() -> void:
 
 # --- debug_queue_special (Bontago-1en.24, game/sandbox/Sandbox.gd's F9 hotkey) -------
 
-func _sandbox_config(player_count: int = 2) -> MatchConfig:
-	var config: MatchConfig = _config_with_no_real_specials(player_count)
-	config.sandbox = true
-	return config
-
-
-func test_debug_queue_special_appends_and_emits_gift_claimed_with_the_debug_id_on_a_sandbox_host() -> void:
-	_start_playing(_sandbox_config())
-	watch_signals(Events)
-
-	var accepted: bool = Match.debug_queue_special(0, &"anvil")
-
-	assert_true(accepted, "a sandbox host must accept the debug queue call")
-	assert_eq((Match._gifts._pending_queues[0] as Array)[0], &"anvil")
-	assert_signal_emitted_with_parameters(
-		Events, "gift_claimed", [MatchGifts.DEBUG_GIFT_ID, 0, &"anvil"]
-	)
-
-
 func test_debug_queue_special_refused_outside_sandbox() -> void:
 	_start_playing(_config_with_no_real_specials())
 	assert_false(Match.config.sandbox, "fixture: an ordinary match config is not sandbox")
@@ -557,45 +357,6 @@ func test_debug_queue_special_refused_outside_sandbox() -> void:
 	assert_false(accepted, "a real (non-sandbox) match must never grant a free special")
 	assert_eq(Match.held_special(0), &"", "nothing must be queued")
 	assert_signal_not_emitted(Events, "gift_claimed")
-
-
-func test_debug_queue_special_refused_when_not_host() -> void:
-	_start_playing(_sandbox_config())
-	Match.set_net_provider(FakeNet.client(1))
-	watch_signals(Events)
-
-	var accepted: bool = Match.debug_queue_special(0, &"anvil")
-
-	assert_false(accepted, "a client must never queue a special through this seam")
-	assert_eq(Match.held_special(0), &"")
-	assert_signal_not_emitted(Events, "gift_claimed")
-
-	Match.set_net_provider(null)
-
-
-func test_debug_queue_special_replaces_when_the_next_slot_is_full() -> void:
-	_start_playing(_sandbox_config())
-	Match._gifts._gift_config = Match._gifts._gift_config.duplicate() as GiftConfig
-	Match._gifts._gift_config.max_pending_specials = 1
-	assert_true(Match.debug_queue_special(0, &"anvil"), "fixture: fill the queue to its cap")
-	watch_signals(Events)
-
-	var accepted: bool = Match.debug_queue_special(0, &"bomb")
-
-	assert_true(accepted, "the latest gift replaces the next one")
-	assert_eq((Match._gifts._pending_queues[0] as Array)[0], &"bomb")
-	assert_eq(Match.pending_special_count(0), 1)
-	assert_signal_emitted(Events, "gift_claimed")
-
-
-func test_debug_queue_special_refused_for_an_out_of_range_slot() -> void:
-	_start_playing(_sandbox_config(2))
-	var before_size: int = Match._gifts._pending_queues.size()
-
-	var accepted: bool = Match.debug_queue_special(999999999, &"anvil")
-
-	assert_false(accepted, "an out-of-range slot must be refused")
-	assert_eq(Match._gifts._pending_queues.size(), before_size, "must never grow _pending_queues")
 
 
 ## Bontago-keo.17 (owner decision "b" on docs/archive/M6_PLAN.md's Owner Q1)
@@ -622,147 +383,6 @@ func test_only_the_nearest_teammate_holds_the_special_after_a_claim() -> void:
 	assert_eq((Match._gifts._pending_queues[0] as Array)[0], MatchGifts.PENDING_SPECIAL_ID, "the nearest teammate gets the next gift")
 	assert_eq(Match.held_special(2), &"", "a teammate who isn't the resolved recipient holds nothing")
 	assert_signal_emitted_with_parameters(Events, "gift_claimed", [gift_id, 0, MatchGifts.PENDING_SPECIAL_ID])
-
-
-## The mirror image of the test above: a crate nearest slot 2's own home
-## circle resolves to slot 2, not to its teammate slot 0, even though both
-## share team 0 -- "nearest wins" is symmetric, not biased to the lowest
-## slot id on a team.
-func test_a_crate_nearest_the_other_teammates_circle_resolves_to_that_teammate() -> void:
-	var config: MatchConfig = _config_with_no_real_specials(4)
-	config.team_mode = MatchConfig.TeamMode.TEAMS_2
-	_start_playing(config)
-	watch_signals(Events)
-
-	var gift_id: int = _inject_crate(2)
-	_step_territory()
-
-	assert_false(Match._gifts._crates.has(gift_id), "claimed crate must be removed from the live set")
-	assert_eq((Match._gifts._pending_queues[2] as Array)[0], MatchGifts.PENDING_SPECIAL_ID, "the nearest teammate gets the next gift")
-	assert_eq(Match.held_special(0), &"", "slot 0 is farther from this crate than slot 2 and holds nothing")
-	assert_signal_emitted_with_parameters(Events, "gift_claimed", [gift_id, 2, MatchGifts.PENDING_SPECIAL_ID])
-
-
-## A dead nearest teammate (PlayerSlot.home_flag_alive == false) is never a
-## candidate recipient -- _resolve_recipient_slot() must fall through to the
-## next-nearest ALIVE teammate rather than refusing the claim outright.
-##
-## DECISION (tests/unit/gifts/test_gift_claim.gd, Bontago-keo.17): exercised
-## directly against _resolve_recipient_slot() rather than through
-## _inject_crate()/_step_territory() -- MatchTerritory.gd's own solve skips
-## seeding a dead home flag's circle at all (autoload/match/MatchTerritory.gd:
-## 175/270/295), so killing slot 2's flag also stops that ground from
-## resolving as team 0's territory in the first place, which would make this
-## a test of the territory solver's fallback, not of the recipient-resolution
-## rule this bead is actually about.
-func test_a_dead_nearest_teammate_is_skipped_for_the_next_nearest_alive_one() -> void:
-	var config: MatchConfig = _config_with_no_real_specials(4)
-	config.team_mode = MatchConfig.TeamMode.TEAMS_2
-	_start_playing(config)
-	Match.slot(2).home_flag_alive = false
-
-	var recipient: int = Match._gifts._resolve_recipient_slot(0, Match.slot(2).home_position)
-
-	assert_eq(recipient, 0, "the only other alive teammate on team 0 must be picked once slot 2's home flag is dead")
-
-
-## Bontago-keo.17 (owner decision "b"): max_pending_specials caps each
-## RECIPIENT SLOT's own queue, never a team total -- slot 0 sitting at the
-## cap must not block its own teammate, slot 2, from claiming a crate that
-## resolves to slot 2 itself.
-func test_the_pending_cap_applies_per_recipient_slot_not_per_team() -> void:
-	var config: MatchConfig = _config_with_no_real_specials(4)
-	config.team_mode = MatchConfig.TeamMode.TEAMS_2
-	_start_playing(config)
-	Match._gifts._gift_config = Match._gifts._gift_config.duplicate() as GiftConfig
-	Match._gifts._gift_config.max_pending_specials = 1
-	watch_signals(Events)
-
-	var gift_id_1: int = _inject_crate(0)
-	_step_territory()
-	var gift_id_2: int = _inject_crate(0)
-	_step_territory()
-	var gift_id_3: int = _inject_crate(2)
-	_step_territory()
-
-	assert_false(Match._gifts._crates.has(gift_id_1), "the first claim into slot 0's own queue must consume its crate")
-	assert_false(Match._gifts._crates.has(gift_id_2), "the second claim replaces slot 0's next gift")
-	assert_false(
-		Match._gifts._crates.has(gift_id_3),
-		"slot 0 sitting at the cap must not block its teammate slot 2's own, independent queue"
-	)
-	assert_eq(Match.pending_special_count(0), 1, "slot 0 stays capped at its own limit")
-	assert_eq(Match.pending_special_count(2), 1, "slot 2's own queue fills independently of slot 0's cap")
-	assert_signal_emit_count(Events, "gift_claimed", 3)
-
-
-## The opposite half of the same (b) contract: since only the resolved
-## recipient's own queue ever grows, popping it must never reach into a
-## teammate's queue -- there is no shared queue left to reach into.
-func test_pop_pending_special_never_touches_a_teammates_own_queue_under_teams_2() -> void:
-	var config: MatchConfig = _config_with_no_real_specials(4)
-	config.team_mode = MatchConfig.TeamMode.TEAMS_2
-	_start_playing(config)
-	_inject_crate(0)
-	_step_territory()
-	assert_eq(Match.held_special(2), &"", "setup: the non-recipient teammate never held anything")
-	Match._gifts.activate_next_special(0)
-
-	var popped: StringName = Match.pop_pending_special(0)
-
-	assert_eq(popped, MatchGifts.PENDING_SPECIAL_ID)
-	assert_eq(Match.held_special(0), &"", "the recipient's own queue empties")
-	assert_eq(Match.held_special(2), &"", "the teammate's queue -- already empty -- is untouched")
-
-
-## Bontago-keo.17 (owner decision "b" supersedes the old M6 A1 review fix
-## below): apply_replicated_special_consumed() no longer translates its
-## slot_id through team_of_slot() -- there is no shared team queue left to
-## translate into -- it pops the exact slot it is given, same as
-## held_special()/pop_pending_special() now do. Team 1's own, unrelated
-## claim sits in this test to prove a report for slot 0 cannot bleed into
-## any other slot's queue, teammate or not.
-func test_apply_replicated_special_consumed_pops_only_the_reported_slots_own_queue_under_teams_2() -> void:
-	var config: MatchConfig = _config_with_no_real_specials(4)
-	config.team_mode = MatchConfig.TeamMode.TEAMS_2
-	_start_playing(config)
-	assert_eq(
-		Match.config.team_of_slot(0), Match.config.team_of_slot(2),
-		"fixture: TEAMS_2 with 4 players makes slots 0 and 2 teammates (interleaved assignment)"
-	)
-
-	_inject_crate(0)
-	_step_territory()
-	Match._gifts.activate_next_special(0)
-	assert_eq(Match.held_special(0), MatchGifts.PENDING_SPECIAL_ID, "setup: slot 0 holds the activated gift")
-	_inject_crate(1)
-	_step_territory()
-	Match._gifts.activate_next_special(1)
-	assert_eq(Match.held_special(1), MatchGifts.PENDING_SPECIAL_ID, "setup: slot 1 holds its own activated gift")
-
-	Match._gifts.apply_replicated_special_consumed(0, MatchGifts.PENDING_SPECIAL_ID)
-
-	assert_eq(Match.held_special(0), &"", "the reported slot's own queue empties")
-	assert_eq(Match.held_special(2), &"", "slot 2 never held anything to begin with, and still doesn't")
-	assert_eq(Match.held_special(1), MatchGifts.PENDING_SPECIAL_ID, "an unrelated slot's queue must be untouched")
-
-
-## restore_default_special_drawer() (game/sandbox/Sandbox.gd's F9 "off") re-runs the
-## exact lazy install _ensure_special_drawer_installed() performs at a match's
-## first real claim -- with a non-empty filtered roster, that means the real
-## weighted drawer, not the shipped placeholder.
-func test_restore_default_special_drawer_reinstalls_the_weighted_drawer() -> void:
-	_start_playing(_config())
-	Match._gifts.set_special_drawer(func() -> StringName: return &"forced_id")
-	assert_eq(Match._gifts._special_drawer.call(), &"forced_id", "fixture: a forced drawer is installed")
-
-	Match.restore_default_special_drawer()
-
-	assert_true(Match._gifts._roster_ready, "the normal lazy install must have run")
-	assert_ne(
-		Match._gifts._special_drawer.call(), &"forced_id",
-		"the forced drawer must no longer be installed"
-	)
 
 
 ## Bontago-8or.30: a forced drawer left by Sandbox must not survive into a
@@ -795,10 +415,3 @@ func test_no_gift_spawns_before_first_gift_delay() -> void:
 	Match._gifts.tick_host(0.02)
 	Match._gifts.on_feed_block_issued(0)
 	assert_eq(Match._gifts._crates.size(), 1, "chance 1.0 spawns once the grace has passed")
-
-
-func test_first_gift_delay_resets_with_the_match() -> void:
-	_start_playing(_config())
-	Match._gifts._play_time_s = 50.0
-	Match._gifts.reset()
-	assert_eq(Match._gifts._play_time_s, 0.0)

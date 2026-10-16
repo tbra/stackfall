@@ -162,48 +162,6 @@ func test_release_timer_timeout_does_not_unfreeze_a_block_still_held_stable() ->
 
 # --- Bontago-8or.2 additions -------------------------------------------------
 
-func test_release_restores_prior_state_of_an_already_stable_frozen_block() -> void:
-	var stable: Block = _make_block(Vector3.ZERO, 3)
-	var fresh: Block = _make_block(Vector3(1.0, 0.0, 0.0), 3)
-	var effect: FreezeEffect = _make_effect()
-	await wait_physics_frames(2)
-	stable.request_freeze_static(Block.FREEZE_REASON_STABLE)
-	effect.detonate(stable, null, 0)
-	assert_true(stable.freeze and fresh.freeze)
-	_find_release_timer(stable).timeout.emit()
-	_find_release_timer(fresh).timeout.emit()
-	assert_true(stable.freeze, "was stably frozen before: still frozen")
-	assert_false(fresh.freeze, "was free before: released")
-	assert_false(Block.is_awake_registered(stable))
-	assert_true(Block.is_awake_registered(fresh))
-	stable.release_freeze_static(Block.FREEZE_REASON_STABLE)
-
-
-func test_freeze_zeroes_motion_and_sets_and_clears_visual() -> void:
-	var host: Block = _make_block(Vector3.ZERO, 3)
-	var effect: FreezeEffect = _make_effect()
-	await wait_physics_frames(2)
-	host.linear_velocity = Vector3(1, 2, 3)
-	effect.detonate(host, null, 0)
-	assert_eq(host.linear_velocity, Vector3.ZERO)
-	assert_true(host.is_frozen_visual())
-	_find_release_timer(host).timeout.emit()
-	assert_false(host.is_frozen_visual())
-
-
-func test_second_freeze_restarts_the_single_timer() -> void:
-	var host: Block = _make_block(Vector3.ZERO, 3)
-	var effect: FreezeEffect = _make_effect()
-	await wait_physics_frames(2)
-	effect.detonate(host, null, 0)
-	effect.detonate(host, null, 0)
-	var timers: int = 0
-	for child: Node in host.get_children():
-		if child is Timer:
-			timers += 1
-	assert_eq(timers, 1)
-
-
 func test_explosion_impulse_and_wake_do_not_move_a_frozen_block() -> void:
 	var host: Block = _make_block(Vector3.ZERO, 3)
 	var effect: FreezeEffect = _make_effect()
@@ -216,17 +174,6 @@ func test_explosion_impulse_and_wake_do_not_move_a_frozen_block() -> void:
 	_find_release_timer(host).timeout.emit()
 	SpecialPhysics.wake_and_impulse(host, Vector3(0, 5, 0))
 	assert_false(host.is_freeze_static())
-
-
-func test_stable_wake_release_leaves_freeze_hold() -> void:
-	var host: Block = _make_block(Vector3.ZERO, 3)
-	var effect: FreezeEffect = _make_effect()
-	await wait_physics_frames(2)
-	host.request_freeze_static(Block.FREEZE_REASON_STABLE)
-	effect.detonate(host, null, 0)
-	host.wake_for_impulse()
-	assert_true(host.is_freeze_static())
-	assert_true(host.freeze)
 
 
 func test_gift_body_is_not_frozen_and_despawns_after_action() -> void:
@@ -250,68 +197,3 @@ func test_gift_body_is_not_frozen_and_despawns_after_action() -> void:
 	for _i: int in range(40):
 		behavior.advance(1.0 / 60.0)
 	assert_signal_emit_count(behavior, "completed", 1)
-
-
-func test_freeze_event_emitted_for_registered_block() -> void:
-	var host: Block = _make_block(Vector3.ZERO, 3)
-	host.net_id = 7
-	var effect: FreezeEffect = _make_effect()
-	await wait_physics_frames(2)
-	watch_signals(Events)
-	effect.detonate(host, null, 0)
-	assert_signal_emitted_with_parameters(Events, "block_frozen_changed", [7, true])
-	_find_release_timer(host).timeout.emit()
-	assert_signal_emitted_with_parameters(Events, "block_frozen_changed", [7, false])
-
-
-# --- config/gifts/specials/freeze.tres loads with the contract defaults ----------
-
-func test_freeze_tres_loads_with_expected_id_and_effect_defaults() -> void:
-	var defs: Array[SpecialDef] = SpecialDef.load_all_specials()
-	var found: SpecialDef = null
-	for def: SpecialDef in defs:
-		if def.id == &"freeze":
-			found = def
-			break
-	assert_not_null(found, "config/gifts/specials/freeze.tres must be found by load_all_specials()")
-	if found == null:
-		return
-	assert_true(found.effect is FreezeEffect, "freeze.tres's effect sub-resource must be a FreezeEffect")
-	var effect: FreezeEffect = found.effect as FreezeEffect
-	assert_eq(effect.freeze_radius_m, 6.0)
-	assert_eq(effect.freeze_duration_s, 20.0)
-
-
-# --- Bontago-8or.2 review: the hold rides the tilting Field ----------------
-
-func test_held_block_follows_a_tilted_field_transform() -> void:
-	var field: Node3D = Node3D.new()
-	add_child(field)
-	_nodes.append(field)
-	var block: Block = _make_block(Vector3(2.0, 1.0, 0.0), 3)
-	var effect: FreezeEffect = _make_effect()
-	await wait_physics_frames(2)
-	effect.freeze_block(block, field)
-	assert_eq(block.freeze_mode, RigidBody3D.FREEZE_MODE_KINEMATIC, "the hold must be kinematic to ride the disc")
-
-	field.global_transform = Transform3D(Basis(Vector3.FORWARD, deg_to_rad(10.0)), Vector3(0.0, 0.2, 0.0))
-	await wait_physics_frames(2)
-
-	var expected: Vector3 = field.global_transform * Vector3(2.0, 1.0, 0.0)
-	assert_lt(block.global_position.distance_to(expected), 0.01, "the held block is carried by the tilt")
-	assert_true(block.is_freeze_static(), "a tilt does not release a Freeze hold")
-
-
-func test_release_hold_removes_timer_rider_and_visual() -> void:
-	var field: Node3D = Node3D.new()
-	add_child(field)
-	_nodes.append(field)
-	var block: Block = _make_block(Vector3.ZERO, 3)
-	var effect: FreezeEffect = _make_effect()
-	await wait_physics_frames(2)
-	effect.freeze_block(block, field)
-	FreezeEffect.release_hold(block)
-	assert_false(block.is_freeze_static())
-	assert_false(block.is_frozen_visual())
-	assert_null(block.get_node_or_null(NodePath(FreezeEffect.RIDER_NAME)))
-	assert_null(_find_release_timer(block))

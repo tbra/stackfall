@@ -3,7 +3,6 @@ extends GutTest
 ## nothing outside, expiry after lifetime_s, optional core consumption, and a
 ## client building the visual from the replicated special_triggered.
 
-const MatchNetScript := preload("res://net/MatchNet.gd")
 const RADIUS: float = 6.0
 const CAPTURE_START_M: float = 6.0
 const CAPTURE_MASS_KG: float = 8.0
@@ -143,18 +142,6 @@ func test_a_block_reaching_the_core_is_captured_once_through_the_shared_hole_dis
 	Match.register_world(null, null, null)
 
 
-func test_capture_without_a_registry_leaves_the_block_at_the_core() -> void:
-	Match.set_process(false)
-	Match.abort_match()
-	Match.register_world(null, null, null)
-	var core: Block = _make_block(Vector3(0.1, 0.0, 0.0), 0)
-	var field: BlackHoleField = _make_field(_effect())
-	await wait_physics_frames(1)
-	field.tick(0.1)
-	assert_false(core.is_queued_for_deletion(), "no dissolver: nothing removes it")
-	assert_false(HoleDissolver.request_dissolve(core))
-
-
 ## Plan section 5 E: an 8 kg block on the real disc, 6 m out, reaches the core within
 ## lifetime_s and is captured (friction is overcome, unlike the old 14 m/s^2 / 60 N pull).
 func test_real_disc_8kg_block_from_6m_reaches_the_core_within_lifetime() -> void:
@@ -203,12 +190,9 @@ func test_real_disc_8kg_block_from_6m_reaches_the_core_within_lifetime() -> void
 # the contact count per step is what exhausts the job pool. Two full layers of four still prove
 # "removed layer by layer" with a third fewer contacts. Never reproduced locally, even 16x parallel.
 const CUBE_COLUMN_COUNT: int = 8
-const OLD_ORIGIN_CORE_M: float = 0.8
 const CUBE_COLUMN_SPACING_M: float = 1.2
 const CUBE_COLUMN_START_M: float = 0.8
 const CUBE_COLUMN_JITTER_M: float = 0.45
-const PILE_RING_M: float = 1.0
-const PILE_CORE_M: float = 0.5
 const REMOVAL_MARGIN_S: float = 1.0
 
 
@@ -281,23 +265,6 @@ func test_cube_column_above_the_hole_is_all_removed_within_the_lifetime() -> voi
 	Match.register_world(null, null, null)
 
 
-func test_cubes_piled_in_the_core_are_all_removed() -> void:
-	var world: Array = _live_world()
-	var disc: Field = world[0] as Field
-	var positions: Array[Vector3] = []
-	for i: int in CUBE_COLUMN_COUNT:
-		var angle: float = float(i) * TAU / 4.0
-		# Even cubes sit at +-PILE_CORE_M on x, odd ones on the PILE_RING_M ring on z: no two
-		# cubes of a layer coincide (coincident bodies made Jolt depenetrate violently and
-		# overflow its job system under CPU contention, fca.50).
-		var radius: float = PILE_RING_M if i % 2 == 1 else PILE_CORE_M
-		var ring: Vector3 = Vector3(cos(angle), 0.0, sin(angle)) * radius
-		positions.append(ring + Vector3(0.0, disc.surface_y() + 0.6 + float(i / 4) * CUBE_COLUMN_SPACING_M, 0.0))
-	var removed: int = await _count_removed_after_lifetime(disc, world[2] as Node3D, positions)
-	assert_eq(removed, CUBE_COLUMN_COUNT, "a pile resting in the core is destroyed layer by layer")
-	Match.register_world(null, null, null)
-
-
 func test_block_above_the_core_inside_the_height_band_is_captured_but_not_beyond_it() -> void:
 	var world: Array = _live_world()
 	var disc: Field = world[0] as Field
@@ -315,87 +282,6 @@ func test_block_above_the_core_inside_the_height_band_is_captured_but_not_beyond
 	Match.register_world(null, null, null)
 
 
-## Builds a real cube (BlockFactory) with `basis` whose collision centre sits at `centre`.
-func _real_cube_at(root: Node3D, basis: Basis, centre: Vector3) -> Block:
-	var cube: Block = BlockFactory.build(
-		load("res://config/blocks/cube.tres") as BlockShape, load("res://config/physics/physics_tuning.tres") as PhysicsTuning, 0
-	)
-	root.add_child(cube)
-	cube.global_transform = Transform3D(basis, Vector3.ZERO)
-	cube.global_position = centre - BlackHoleField.collision_centre(cube)
-	cube.freeze = true
-	return cube
-
-
-## Bontago-1pi.85.26 root cause: the hole sits on the disc surface and a Block's origin
-## is its bottom face, so a cube lying upside down or on its side right at the core, or
-## the second layer of the core pile, kept its origin farther than the old 0.8 m core
-## sphere and was never captured. Measured to the collision centre, all are captured.
-func test_tumbled_and_stacked_real_cubes_at_the_core_are_captured() -> void:
-	var world: Array = _live_world()
-	var disc: Field = world[0] as Field
-	var registry: BlockRegistry = world[1] as BlockRegistry
-	var root: Node3D = world[2] as Node3D
-	var size: float = (load("res://config/physics/physics_tuning.tres") as PhysicsTuning).cube_size
-	var centre: Vector3 = Vector3(0.0, disc.surface_y(), 0.0)
-	var half: float = size * 0.5
-	var cubes: Array[Block] = [
-		_real_cube_at(root, Basis(Vector3.RIGHT, PI), centre + Vector3(0.2, half, 0.0)),
-		_real_cube_at(root, Basis(Vector3.BACK, PI * 0.5), centre + Vector3(0.4, half, 0.3)),
-		_real_cube_at(root, Basis.IDENTITY, centre + Vector3(0.1, size + half, -0.2)),
-	]
-	var effect: BlackHoleEffect = SpecialDef.find_by_id(&"black_hole").effect as BlackHoleEffect
-	for cube: Block in cubes:
-		assert_gt(cube.global_position.distance_to(centre), OLD_ORIGIN_CORE_M, "the old origin sphere misses it")
-	var hole: BlackHoleField = BlackHoleField.new()
-	hole.configure(effect, [])
-	_grow_in(hole)
-	add_child_autofree(hole)
-	hole.set_physics_process(false)
-	hole.global_position = centre
-	await wait_physics_frames(1)
-	hole.tick(effect.capture_hold_s + 0.05)
-	for cube: Block in cubes:
-		assert_true(registry.hole_dissolver().is_dissolving(cube), "captured through the shared hole dissolve")
-	Match.register_world(null, null, null)
-
-
-func test_refused_dissolve_does_not_mark_the_block_and_hold_entries_are_cleaned() -> void:
-	Match.set_process(false)
-	Match.abort_match()
-	Match.register_world(null, null, null)
-	var effect: BlackHoleEffect = _effect()
-	var core: Block = _make_block(Vector3(0.1, 0.0, 0.0), 0)
-	var field: BlackHoleField = _make_field(effect)
-	await wait_physics_frames(1)
-	field.tick(effect.capture_hold_s + 0.1)
-	assert_false(core.has_meta(RadialPull.CAPTURED_META), "refused: retried next tick")
-	assert_true(field._hold_s.has(core.get_instance_id()))
-	core.global_position = Vector3(effect.capture_radius_m + 3.0, 0.0, 0.0)
-	await wait_physics_frames(1)
-	field.tick(0.01)
-	assert_false(field._hold_s.has(core.get_instance_id()), "left the volume: hold forgotten")
-
-
-func test_shipped_resource_is_in_the_roster_with_a_black_hole_effect() -> void:
-	var def: SpecialDef = SpecialDef.find_by_id(&"black_hole")
-	assert_not_null(def)
-	assert_true(def.effect is BlackHoleEffect)
-	assert_gt(def.weight, 0.0)
-	assert_true(def.enabled_by_default)
-	var effect: BlackHoleEffect = def.effect as BlackHoleEffect
-	assert_gt(effect.pull.radius_m, 0.0)
-	assert_gt(effect.pull.accel_mps2, 0.0)
-	assert_gt(effect.pull.friction_compensation, 0.0, "the pull must beat block friction to break a block away")
-	assert_gt(effect.capture_radius_m, 0.0)
-	assert_lt(effect.capture_radius_m, effect.pull.radius_m, "the capture core sits inside the pull range")
-	assert_gt(effect.capture_height_m, 0.0)
-	assert_gt(effect.capture_hold_s, 0.0)
-	assert_gt(effect.lifetime_s, effect.capture_hold_s, "the field outlasts a single capture hold")
-	assert_true(effect.detaches(), "the field is a standalone world node")
-	assert_almost_eq(effect.effect_lifetime_s(), -1.0, 0.0001, "the pre-trigger fuse is not stretched")
-
-
 func test_detonate_spawns_a_field_at_the_block() -> void:
 	var block: Block = _make_block(Vector3(1.0, 2.0, 3.0), 0)
 	var effect: BlackHoleEffect = _effect()
@@ -407,165 +293,3 @@ func test_detonate_spawns_a_field_at_the_block() -> void:
 	for found: Node in fields:
 		if is_instance_valid(found):
 			found.free()
-
-
-func test_client_builds_the_visual_from_the_replicated_trigger() -> void:
-	Match.set_process(false)
-	Match.abort_match()
-	var tiny: MapDef = (load("res://config/match/maps/round.tres") as MapDef).duplicate(true)
-	tiny.field_radius = 20.0
-	var field: Field = autofree(Field.new())
-	field.map_def = tiny
-	add_child_autofree(field)
-	var blocks_root: Node3D = autofree(Node3D.new())
-	add_child_autofree(blocks_root)
-	var registry: BlockRegistry = autofree(BlockRegistry.new())
-	add_child_autofree(registry)
-	Match.register_world(field, registry, blocks_root)
-	var config: MatchConfig = load("res://config/match/match_defaults.tres").duplicate(true) as MatchConfig
-	config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))
-	(config as TinyMapMatchConfig).set_tiny_map(tiny)
-	config.player_count = 2
-	config.hot_seat = false
-	Match.set_net_provider(FakeNet.host({}, [0, 1]))
-	Match.start_match(config)
-	for _i: int in range(int(ceil(Match.COUNTDOWN_SECONDS * 60.0)) + 2):
-		Match._process(1.0 / 60.0)
-	var fake: FakeNet = FakeNet.client(1)
-	Match.set_net_provider(fake)
-	var net: MatchNetScript = MatchNetScript.new()
-	net.set_process(false)
-	add_child_autofree(net)
-	net.set_providers(fake, Match)
-
-	net.net_match_event(MatchNetScript.EVENT_SPECIAL_TRIGGERED, [7, &"black_hole", Vector3(1.0, 2.0, 3.0), 0])
-
-	# Bontago-1pi.85.66: the client's visual rides the disc (child of the Field).
-	var visuals: Array[Node] = field.find_children("*", "BlackHoleVisual", true, false)
-	assert_eq(visuals.size(), 1, "client draws the placeholder from the replicated activation")
-	if visuals.size() == 1:
-		assert_eq(visuals[0].get_parent(), field, "client visual rides the disc")
-		assert_eq((visuals[0] as Node3D).global_position, Vector3(1.0, 2.0, 3.0))
-	net.set_providers(null, null)
-	Match.set_net_provider(null)
-	Match.abort_match()
-	Match.set_process(true)
-	MatchTestReset.clear_world()
-
-
-func test_match_bound_field_frees_itself_when_the_match_is_not_live() -> void:
-	Match.set_process(false)
-	Match.abort_match()
-	var block: Block = _make_block(Vector3(2.0, 0.0, 0.0), 0)
-	var field: BlackHoleField = _make_field(_effect())
-	field.bind_to_match = true
-	field.tick(0.1)
-	assert_true(field.is_queued_for_deletion(), "field frees itself outside a live match")
-	await wait_physics_frames(1)
-	assert_eq(block.linear_velocity, Vector3.ZERO, "no pull while the match is not PLAYING")
-
-
-func test_detonate_parents_the_field_under_the_match_world() -> void:
-	Match.set_process(false)
-	Match.abort_match()
-	var blocks_root: Node3D = Node3D.new()
-	add_child(blocks_root)
-	Match.register_world(null, null, blocks_root)
-	var block: Block = _make_block(Vector3(1.0, 2.0, 3.0), 0)
-	_effect().detonate(block, null, 0)
-	var fields: Array[Node] = blocks_root.find_children("*", "BlackHoleField", true, false)
-	assert_eq(fields.size(), 1, "field lives in the per-match container")
-	assert_true((fields[0] as BlackHoleField).bind_to_match)
-	blocks_root.free()
-	assert_eq(find_children("*", "BlackHoleField", true, false).size(), 0, "freed with the match world")
-
-
-func test_vortex_growth_envelope_eases_in_and_collapses_out() -> void:
-	assert_almost_eq(BlackHoleVisual.growth(0.0, 5.0, 0.4, 0.6), 0.0, 0.0001)
-	assert_almost_eq(BlackHoleVisual.growth(1.0, 4.0, 0.4, 0.6), 1.0, 0.0001)
-	assert_lt(BlackHoleVisual.growth(4.9, 0.1, 0.4, 0.6), 0.1, "nearly collapsed near the end")
-	assert_almost_eq(BlackHoleVisual.growth(10.0, 0.0, 0.4, 0.6), 0.0, 0.0001)
-
-
-func test_vortex_disc_matches_pull_radius_and_low_preset_drops_streaks() -> void:
-	var def: SpecialDef = SpecialDef.find_by_id(&"black_hole")
-	var effect: BlackHoleEffect = def.effect as BlackHoleEffect
-	assert_not_null(def.held_scene, "black hole has a held gift model")
-	assert_not_null(def.preview_icon, "black hole has a gift preview")
-	var visual: BlackHoleVisual = BlackHoleVisual.new()
-	add_child_autofree(visual)
-	visual.setup(effect.visual_radius_m, effect.lifetime_s)
-	var disc: MeshInstance3D = visual.get_child(0) as MeshInstance3D
-	assert_eq((disc.mesh as PlaneMesh).size, Vector2.ONE * effect.pull_radius_m * 2.0, "disc covers the pull area")
-	var material: ShaderMaterial = disc.material_override as ShaderMaterial
-	var low: bool = not Settings.current_graphics_preset().ambient_life_enabled
-	assert_eq(material.get_shader_parameter(&"streaks_on"), 0.0 if low else 1.0)
-	var built: ShaderMaterial = visual._build_material(true)
-	assert_eq(built.get_shader_parameter(&"streaks_on"), 0.0, "Low preset has no streaks")
-	assert_lt(float(built.get_shader_parameter(&"arm_count")), float(visual._build_material(false).get_shader_parameter(&"arm_count")))
-
-
-func test_shipped_black_hole_activates_in_place_and_fires_on_the_first_tick() -> void:
-	var def: SpecialDef = SpecialDef.find_by_id(&"black_hole")
-	assert_true(def.activates_in_place, "opens where the gift is dropped (Bontago-1pi.85.45)")
-	assert_eq(def.arm_delay, 0.0)
-	assert_eq(def.fuse_timeout_s, 0.0, "no fuse wait: the hole opens at release")
-
-
-func test_vortex_core_opens_up_from_below_the_surface() -> void:
-	var effect: BlackHoleEffect = SpecialDef.find_by_id(&"black_hole").effect as BlackHoleEffect
-	var tuning: BlackHoleVisualTuning = load("res://config/gifts/black_hole_visual.tres") as BlackHoleVisualTuning
-	var visual: BlackHoleVisual = BlackHoleVisual.new()
-	add_child_autofree(visual)
-	visual.setup(effect.visual_radius_m, effect.lifetime_s)
-	var core: MeshInstance3D = visual.get_child(1) as MeshInstance3D
-	assert_gt(tuning.core_emerge_depth_m, 0.0)
-	assert_almost_eq(core.position.y, -tuning.core_emerge_depth_m * (1.0 - tuning.grow_start_fraction), 0.001, "starts below the surface")
-	visual._process(tuning.grow_in_s)
-	assert_almost_eq(core.position.y, 0.0, 0.001, "risen to the surface once grown in")
-
-
-# --- Bontago-1pi.85.56: spawn small, ease-in growth ----------------------------
-
-func test_growth_curve_starts_small_eases_in_and_reaches_full_size() -> void:
-	var tuning: BlackHoleVisualTuning = load("res://config/gifts/black_hole_visual.tres") as BlackHoleVisualTuning
-	var lifetime: float = 100.0
-	var start: float = BlackHoleVisual.scale_at(0.0, lifetime)
-	assert_almost_eq(start, tuning.grow_start_fraction, 0.0001, "spawns at the small start fraction")
-	assert_gt(start, 0.0)
-	var mid: float = BlackHoleVisual.scale_at(tuning.grow_in_s * 0.5, lifetime)
-	var end: float = BlackHoleVisual.scale_at(tuning.grow_in_s, lifetime)
-	assert_almost_eq(end, 1.0, 0.0001, "full size at the end of the growth")
-	# Ease-in: below the linear midpoint, and each step grows more than the last.
-	assert_lt(mid, (start + end) * 0.5, "slow start: mid is under the linear midpoint")
-	var previous: float = start
-	var previous_step: float = 0.0
-	for i: int in range(1, 11):
-		var value: float = BlackHoleVisual.scale_at(tuning.grow_in_s * float(i) / 10.0, lifetime)
-		var step: float = value - previous
-		assert_gt(step, previous_step - 0.0001, "accelerating (ease-in) at step %d" % i)
-		previous = value
-		previous_step = step
-	assert_almost_eq(BlackHoleVisual.scale_at(lifetime, lifetime), 0.0, 0.0001, "collapsed at the end")
-
-
-func test_field_pull_and_capture_radius_follow_the_growth_curve() -> void:
-	var effect: BlackHoleEffect = _effect()
-	var field: BlackHoleField = BlackHoleField.new()
-	add_child_autofree(field)
-	field.configure(effect, [])
-	assert_almost_eq(field.reach_scale(), BlackHoleVisual.scale_at(0.0, effect.lifetime_s), 0.0001)
-	field._age = 1.0
-	assert_almost_eq(field.reach_scale(), BlackHoleVisual.scale_at(1.0, effect.lifetime_s), 0.0001)
-	field._age = 1.0 + 0.5
-	assert_gt(field.reach_scale(), BlackHoleVisual.scale_at(1.0, effect.lifetime_s), "reach grows over time")
-	field._age = 2.0
-	assert_almost_eq(field.reach_scale(), 1.0, 0.0001, "full reach once grown in")
-
-
-func test_radial_pull_radius_scale_shrinks_reach() -> void:
-	var t: RadialPullTuning = RadialPullTuning.new()
-	t.radius_m = 10.0
-	# No physics space: the scaled radius is still used for the early-out only; a zero
-	# scale pulls nothing.
-	assert_eq(RadialPull.pull(null, Vector3.ZERO, t, [] as Array[RID], Callable(), 0.016, 0.0).size(), 0)

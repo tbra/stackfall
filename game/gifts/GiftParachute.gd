@@ -95,15 +95,6 @@ func is_active() -> bool:
 	return _anim.is_visible()
 
 
-func anim() -> ParachuteAnim:
-	return _anim
-
-
-## Whether the fade-out material mode (alpha) is currently on; tests read it.
-func is_fading() -> bool:
-	return _fade_mode
-
-
 ## Detaches this parachute from its crate, keeps its world pose, starts the
 ## collapse if it was still falling, and frees it once it has fully faded.
 ## Call this from a claim handler, before the crate node is freed.

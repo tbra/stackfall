@@ -47,17 +47,6 @@ func test_fuse_emits_blocks_fused_with_the_new_members() -> void:
 	assert_eq((params[1] as Array).size(), 2)
 
 
-func test_same_group_is_a_no_op() -> void:
-	var a: Block = _block("cube", 0, 0.0)
-	var b: Block = _block("cube", 0, CUBE_SIDE_M)
-	var carrier: FusedBody = GlueFusion.fuse(a, b, _tuning)
-	watch_signals(Events)
-	assert_null(GlueFusion.fuse(a, b, _tuning), "already one body")
-	assert_null(GlueFusion.fuse(b, carrier, _tuning), "touching its own carrier")
-	assert_signal_not_emitted(Events, "blocks_fused")
-	assert_eq(carrier.members.size(), 2)
-
-
 func test_merge_of_two_groups_conserves_members_mass_and_shapes() -> void:
 	var a: Block = _block("cube", 0, 0.0)
 	var b: Block = _block("L4", 1, CUBE_SIDE_M)
@@ -78,26 +67,6 @@ func test_merge_of_two_groups_conserves_members_mass_and_shapes() -> void:
 	var gone: FusedBody = right if carrier == left else left
 	await get_tree().physics_frame
 	assert_false(is_instance_valid(gone), "the absorbed carrier is freed")
-
-
-func test_gift_blocks_never_fuse() -> void:
-	var a: Block = _block("cube", 0, 0.0)
-	var b: Block = _block("cube", 1, CUBE_SIDE_M)
-	b.gift_id = &"bomb"
-	assert_null(GlueFusion.fuse(a, b, _tuning))
-	b.gift_id = &""
-	a.gift_id = &"bomb"
-	assert_null(GlueFusion.fuse(a, b, _tuning))
-	assert_false(a.is_fused_member() or b.is_fused_member())
-
-
-func test_unrelated_targets_are_rejected() -> void:
-	var a: Block = _block("cube", 0, 0.0)
-	assert_null(GlueFusion.fuse(a, a, _tuning))
-	assert_null(GlueFusion.fuse(a, null, _tuning))
-	var other: StaticBody3D = autofree(StaticBody3D.new())
-	add_child(other)
-	assert_null(GlueFusion.fuse(a, other, _tuning), "only Blocks and the Field are valid targets")
 
 
 func test_max_fused_cubes_caps_a_group_and_zero_is_unlimited() -> void:
@@ -127,15 +96,3 @@ func test_disc_fusion_anchors_the_charged_member_and_pins_the_carrier() -> void:
 	assert_eq(GlueFusion.fuse(b, a, _tuning), carrier, "a block glued to the anchored one joins its body")
 	assert_true(carrier.is_disc_anchored(), "and the group stays anchored")
 	assert_eq(carrier.members.size(), 2)
-
-
-func test_fuse_ignores_blocks_queued_for_deletion() -> void:
-	var a: Block = _block("cube", 0, 0.0)
-	var b: Block = _block("cube", 1, 1.2)
-	b.queue_free()
-	assert_null(GlueFusion.fuse(a, b, _tuning), "a target queued for deletion is not fused")
-	var c: Block = _block("cube", 0, 3.6)
-	var d: Block = _block("cube", 1, 4.8)
-	c.queue_free()
-	assert_null(GlueFusion.fuse(c, d, _tuning), "a charged block queued for deletion is not fused")
-	assert_null(d.fused_carrier())

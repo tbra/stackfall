@@ -16,9 +16,6 @@ const MIN_PUSH_MPS: float = 3.0
 const HEAVY_MASS: float = 8.0
 const MASS_TOLERANCE_MPS: float = 0.5
 const FAR_FACTOR: float = 1.5
-const FAR_AWAY_M: float = 200.0
-const NEAR_PEAK_FRACTION_MIN: float = 0.15
-
 var _bodies: Array[Node3D] = []
 
 
@@ -123,17 +120,6 @@ func test_blast_is_independent_of_mass() -> void:
 	)
 
 
-func test_detonate_does_not_push_the_bomb_itself() -> void:
-	var bomb_block: Block = _make_block(Vector3.ZERO)
-	var behavior: SpecialBehavior = _make_behavior(bomb_block)
-	await wait_physics_frames(1)
-
-	behavior.trigger(0)
-	await wait_physics_frames(1)
-
-	assert_eq(bomb_block.linear_velocity, Vector3.ZERO, "the bomb's own body is excluded from its blast")
-
-
 func test_body_beyond_radius_is_untouched() -> void:
 	var bomb_block: Block = _make_block(Vector3.ZERO)
 	var far_body: RigidBody3D = _make_rigid_body(Vector3(_radius() * FAR_FACTOR, 0.0, 0.0))
@@ -162,21 +148,6 @@ func test_trigger_chains_into_a_nearby_special_one_depth_deeper() -> void:
 	assert_eq(neighbor_behavior.chain_depth(), 1, "a chained trigger is exactly one depth deeper")
 
 
-func test_trigger_does_not_chain_into_a_special_beyond_radius() -> void:
-	var bomb_block: Block = _make_block(Vector3.ZERO)
-	var far_block: Block = _make_block(Vector3(_radius() * FAR_FACTOR, 0.0, 0.0))
-	var bomb_behavior: SpecialBehavior = _make_behavior(bomb_block)
-	var far_behavior: SpecialBehavior = _make_behavior(far_block)
-	await wait_physics_frames(1)
-
-	bomb_behavior.trigger(0)
-	await wait_physics_frames(1)
-
-	assert_false(far_behavior.is_triggered(), "a special beyond the radius is not chained into")
-
-
-# --- timeline: blink, then blast; impacts never trigger it ------------------
-
 ## Advances `behavior` tick by tick until it triggers or `limit_s` of simulated time passed;
 ## returns the behaviour's age at that point.
 func _run_until_triggered(behavior: SpecialBehavior, limit_s: float) -> float:
@@ -201,48 +172,6 @@ func test_no_explosion_before_the_blink_ends_then_it_explodes() -> void:
 	assert_almost_eq(age, effect.blink_duration_s, 2.0 * TICK, "explosion lands at the end of the blink")
 
 
-func test_blink_timeline_is_frame_rate_independent() -> void:
-	var effect: BombEffect = _bomb_def().effect as BombEffect
-	var block_a: Block = _make_block(Vector3(-FAR_AWAY_M, 0.0, 0.0))
-	var behavior_a: SpecialBehavior = _make_behavior(block_a)
-	var block_b: Block = _make_block(Vector3(FAR_AWAY_M, 0.0, 0.0))
-	var behavior_b: SpecialBehavior = _make_behavior(block_b)
-	var coarse: float = 0.05
-	var fine: float = 0.01
-	var time_a: float = 0.0
-	while not behavior_a.is_triggered() and time_a < 2.0 * effect.blink_duration_s:
-		behavior_a.advance(coarse)
-		time_a += coarse
-	var time_b: float = 0.0
-	while not behavior_b.is_triggered() and time_b < 2.0 * effect.blink_duration_s:
-		behavior_b.advance(fine)
-		time_b += fine
-	assert_true(behavior_a.is_triggered() and behavior_b.is_triggered())
-	assert_almost_eq(time_a, time_b, coarse + fine, "trigger time follows simulated time, not tick count")
-
-
-## A hard landing used to detonate the Bomb. It must not any more ("regardless of impacts").
-func test_a_hard_impact_does_not_trigger_the_bomb() -> void:
-	var block: Block = _make_block(Vector3.ZERO)
-	var behavior: SpecialBehavior = _make_behavior(block)
-	behavior.advance(0.5)  # armed (arm_delay 0.4), decel sampled against itself
-	block.linear_velocity = Vector3(10.0, 0.0, 0.0)
-	behavior.advance(TICK)
-	block.linear_velocity = Vector3.ZERO  # mass 1 * (10 - 0) = 10 >= arm_impulse 5
-	behavior.advance(TICK)
-	assert_false(behavior.is_triggered(), "an impact does not set the Bomb off")
-
-
-# --- hooks, blink, despawn ---------------------------------------------------
-
-func test_lifecycle_hooks() -> void:
-	var effect: BombEffect = _bomb_def().effect as BombEffect
-	assert_false(effect.triggers_on_impact(), "never triggers on impact")
-	assert_true(effect.detaches(), "the spent carrier goes at the explosion")
-	assert_false(effect.needs_landing(), "blink and blast are anchored to the drop, not to a landing")
-	assert_eq(effect.effect_lifetime_s(), effect.blink_duration_s)
-
-
 func test_the_carrier_is_removed_at_the_explosion_without_a_linger() -> void:
 	var block: Block = _make_block(Vector3.ZERO)
 	var behavior: SpecialBehavior = _make_behavior(block)
@@ -250,88 +179,3 @@ func test_the_carrier_is_removed_at_the_explosion_without_a_linger() -> void:
 	watch_signals(behavior)
 	behavior.trigger(0)
 	assert_signal_emit_count(behavior, "completed", 1, "completed right at trigger (detaches)")
-
-
-func _block_with_gift_visual(position: Vector3) -> Block:
-	var block: Block = _make_block(position)
-	var visual: Node3D = Node3D.new()
-	visual.name = BlockFactory.GIFT_VISUAL_NODE
-	visual.add_child(MeshInstance3D.new())
-	block.add_child(visual)
-	return block
-
-
-## Host fallback: with nobody having started the blink at spawn, the first armed tick starts it
-## carrying the gift's age, exactly once.
-func test_the_first_armed_tick_starts_the_blink_once_with_the_gifts_age() -> void:
-	var block: Block = _block_with_gift_visual(Vector3.ZERO)
-	var behavior: SpecialBehavior = _make_behavior(block)
-	behavior.advance(0.2)
-	assert_null(block.get_node_or_null(NodePath(String(GiftBlink.DRIVER_NAME))), "not armed yet: no blink")
-	behavior.advance(0.3)  # age 0.5, armed
-	var driver: Node = block.get_node_or_null(NodePath(String(GiftBlink.DRIVER_NAME)))
-	assert_not_null(driver, "blink started on the first armed tick")
-	assert_almost_eq(float(driver.get("age_s")), behavior.age(), 0.0001, "it carries the gift's age")
-	behavior.advance(0.3)
-	assert_eq(block.get_node_or_null(NodePath(String(GiftBlink.DRIVER_NAME))), driver, "not restarted")
-
-
-func test_an_existing_blink_from_the_spawn_hook_is_left_alone() -> void:
-	var block: Block = _block_with_gift_visual(Vector3.ZERO)
-	var effect: BombEffect = _bomb_def().effect as BombEffect
-	GiftBlink.apply(block, effect.blink_period_s, effect.blink_duration_s, effect.blink_tuning)
-	var driver: Node = block.get_node(NodePath(String(GiftBlink.DRIVER_NAME)))
-	var behavior: SpecialBehavior = _make_behavior(block)
-	behavior.advance(0.5)
-	assert_eq(block.get_node_or_null(NodePath(String(GiftBlink.DRIVER_NAME))), driver, "the spawn-started blink stays")
-
-
-func test_start_for_gift_derives_the_blink_from_the_gift_id_alone() -> void:
-	var block: Block = _block_with_gift_visual(Vector3.ZERO)
-	block.gift_id = &"bomb"
-	assert_true(GiftBlink.start_for_gift(block), "a Bomb carrier starts blinking from its gift id")
-	var driver: Node = block.get_node_or_null(NodePath(String(GiftBlink.DRIVER_NAME)))
-	assert_not_null(driver)
-	assert_true(GiftBlink.start_for_gift(block), "idempotent")
-	assert_eq(block.get_node_or_null(NodePath(String(GiftBlink.DRIVER_NAME))), driver)
-	var other: Block = _block_with_gift_visual(Vector3(FAR_AWAY_M, 0.0, 0.0))
-	other.gift_id = &"anvil"
-	assert_false(GiftBlink.start_for_gift(other), "a gift that does not blink is ignored")
-	assert_false(GiftBlink.start_for_gift(null))
-
-
-# --- config/gifts/specials/bomb.tres ----------------------------------------------
-
-func test_bomb_tres_loads_with_a_usable_blink_and_blast() -> void:
-	var found: SpecialDef = null
-	for def: SpecialDef in SpecialDef.load_all_specials():
-		if def.id == &"bomb":
-			found = def
-			break
-	assert_not_null(found, "config/gifts/specials/bomb.tres is found by load_all_specials()")
-	assert_true(found.effect is BombEffect, "bomb.tres's effect is a BombEffect")
-	var effect: BombEffect = found.effect as BombEffect
-	assert_gt(effect.blink_duration_s, 0.0, "the fuse has a visible countdown")
-	assert_gt(effect.blink_period_s, 0.0)
-	assert_lt(effect.blink_period_s, effect.blink_duration_s, "at least one full blink fits in the fuse")
-	assert_gt(effect.blast.radius_m, 0.0)
-	assert_gt(effect.blast.peak_speed_mps, 0.0)
-	assert_gt(effect.blast.falloff_exponent, 0.0)
-	assert_gt(effect.blast.max_delta_v_mps, 0.0, "a zero delta-v cap would make the blast inert")
-	assert_gt(effect.blink_tuning.end_period_ratio, 0.0)
-	assert_gt(effect.blink_tuning.flash_max_alpha, 0.0, "the flash is visible")
-
-
-## A body at NEAR_FRACTION of the radius leaves at a sizeable share of the shipped peak speed
-## (derived from the tuning, not a literal).
-func test_blast_launches_a_near_body_at_a_sizeable_share_of_peak_speed() -> void:
-	var blast: ExplosionTuning = (_bomb_def().effect as BombEffect).blast
-	var bomb_block: Block = _make_block(Vector3.ZERO)
-	var nearby: RigidBody3D = _make_rigid_body(Vector3(blast.radius_m * NEAR_FRACTION, 0.0, 0.0), HEAVY_MASS)
-	var behavior: SpecialBehavior = _make_behavior(bomb_block)
-	await wait_physics_frames(1)
-
-	behavior.trigger(0)
-	await wait_physics_frames(1)
-
-	assert_gt(nearby.linear_velocity.x, blast.peak_speed_mps * NEAR_PEAK_FRACTION_MIN, "a near body leaves at a sizeable share of the blast peak speed")

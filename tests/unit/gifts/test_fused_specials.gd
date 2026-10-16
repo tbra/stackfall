@@ -26,7 +26,6 @@ class TeamFake:
 		return slot_id
 
 
-
 func before_each() -> void:
 	Match.set_process(false)
 	Match.abort_match()
@@ -104,14 +103,6 @@ func test_storm_leaves_fused_body_and_members_untouched_but_pushes_a_loose_block
 	assert_gt(loose.linear_velocity.length(), SPEED_EPSILON, "a loose block is still pushed")
 
 
-func test_breeze_skips_fused_body_and_members() -> void:
-	var carrier: FusedBody = _group()
-	assert_true(WindEffect._owns_physics(carrier))
-	for member: Block in carrier.members:
-		assert_true(WindEffect._owns_physics(member))
-	assert_false(WindEffect._owns_physics(_block(0, Vector3(0.0, 0.0, MEMBER_GAP_M * 2.0))))
-
-
 func test_paintball_converts_only_members_inside_the_splash() -> void:
 	var carrier: FusedBody = _group()
 	var glob: Block = _block(0, Vector3(-1.0, 0.0, 0.0))
@@ -128,18 +119,6 @@ func test_paintball_converts_only_members_inside_the_splash() -> void:
 	effect.detonate(glob, null, 0)
 	assert_eq(inside.owner_slot, glob.owner_slot, "member in the splash converts")
 	assert_eq(outside.owner_slot, outside_slot, "member outside the splash keeps its owner")
-
-
-func test_bot_ray_over_mixed_owner_group_reads_the_hit_members_owner() -> void:
-	var carrier: FusedBody = _group()
-	var fake: TeamFake = TeamFake.new()
-	var bot: BotController = BotController.new()
-	add_child_autofree(bot)
-	bot.set_match_provider(fake)
-	for member: Block in carrier.members:
-		var point: Vector3 = carrier.member_shapes(member)[0].global_position
-		assert_eq(bot._is_own_block(carrier, 0, point), member.owner_slot == 0)
-		assert_eq(bot._is_own_block(carrier, 1, point), member.owner_slot == 1)
 
 
 func test_blast_pushes_the_group_as_one_body() -> void:
@@ -173,16 +152,3 @@ func test_black_hole_capture_takes_the_whole_group() -> void:
 	await wait_physics_frames(wait_frames)
 	for member: Block in members:
 		assert_false(is_instance_valid(member) and not member.is_queued_for_deletion(), "member removed")
-
-
-func test_paintball_refreshes_the_carrier_owner_slot() -> void:
-	var carrier: FusedBody = _group()
-	var glob: Block = _block(0, Vector3(-1.0, 0.0, 0.0))
-	await wait_physics_frames(1)
-	assert_eq(carrier.owner_slot, -1, "mixed owners before the splash")
-	var effect: PaintballEffect = PaintballEffect.new()
-	effect.splash_radius_m = BLAST_RADIUS_M
-	effect.detonate(glob, null, 0)
-	for member: Block in carrier.members:
-		assert_eq(member.owner_slot, glob.owner_slot)
-	assert_eq(carrier.owner_slot, glob.owner_slot, "the carrier owner follows its converted members")

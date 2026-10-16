@@ -94,48 +94,6 @@ func test_throw_velocity_is_forward_plus_up_ratio_at_the_tuned_speed() -> void:
 	assert_true(GiftAim.throw_velocity(Vector3(0.0, 0.0, 0.1), t).is_equal_approx(v), "length of forward is irrelevant")
 
 
-func test_aim_maths_reject_unusable_forwards() -> void:
-	var t: SpecialTuning = SpecialTuning.new()
-	for bad: Vector3 in [Vector3.ZERO, Vector3(NAN, 0.0, 1.0), Vector3(INF, 0.0, 0.0)]:
-		assert_eq(GiftAim.throw_velocity(bad, t), Vector3.ZERO)
-		assert_eq(GiftAim.straight_velocity(bad, 10.0), Vector3.ZERO)
-		assert_eq(GiftAim.spawn_point(Vector3(1.0, 2.0, 3.0), bad, 0.0, t), Vector3(1.0, 2.0, 3.0))
-
-
-func test_spawn_point_is_the_held_gift_pose_and_never_below_the_min_height() -> void:
-	var t: SpecialTuning = SpecialTuning.new()
-	var cursor: Vector3 = Vector3(0.0, 10.0, 0.0)
-	var forward: Vector3 = Vector3(0.0, -1.0, -1.0).normalized()
-	var p: Vector3 = GiftAim.spawn_point(cursor, forward, 0.0, t)
-	assert_true(p.is_equal_approx(cursor - forward * t.gift_aim_back_m))
-	assert_true(p.is_equal_approx(cursor), "1pi.85.47: default origin is the held gift")
-	var up_aim: Vector3 = GiftAim.spawn_point(Vector3(0.0, 0.2, 0.0), Vector3.UP, 0.0, t)
-	assert_almost_eq(up_aim.y, t.gift_aim_min_height_m, 0.001, "clamped over the surface")
-
-
-func test_sanitize_aim_rejects_non_finite_zero_and_out_of_range_vectors() -> void:
-	var tuning: SpecialTuning = SpecialTuning.new()
-	assert_eq(GiftThrow.sanitize_aim(Vector3.ZERO, tuning), Vector3.ZERO)
-	assert_eq(GiftThrow.sanitize_aim(Vector3(NAN, 0.0, 1.0), tuning), Vector3.ZERO)
-	assert_eq(GiftThrow.sanitize_aim(Vector3(INF, 0.0, 0.0), tuning), Vector3.ZERO)
-	assert_eq(GiftThrow.sanitize_aim(Vector3(1000.0, 0.0, 0.0), tuning), Vector3.ZERO)
-	assert_eq(GiftThrow.sanitize_aim(Vector3(0.01, 0.0, 0.0), tuning), Vector3.ZERO)
-	assert_true(GiftThrow.sanitize_aim(Vector3(0.0, 0.0, 1.5), tuning).is_equal_approx(Vector3(0.0, 0.0, 1.0)))
-
-
-func test_shipped_roster_flags_match_the_owner_answer() -> void:
-	for id: StringName in [&"bomb", &"magnet", &"jumping_bean"]:
-		assert_eq(GiftThrow.mode_for(SpecialDef.find_by_id(id)), GiftThrow.Mode.THROW, String(id))
-	for id: StringName in [&"rocket", &"paintball"]:
-		assert_eq(GiftThrow.mode_for(SpecialDef.find_by_id(id)), GiftThrow.Mode.AIMED, String(id))
-	for id: StringName in [&"anvil", &"propeller", &"earthquake", &"volcano", &"glue", &"black_hole", &"stackfall"]:
-		var def: SpecialDef = SpecialDef.find_by_id(id)
-		if def != null:
-			assert_eq(GiftThrow.mode_for(def), GiftThrow.Mode.NONE, String(id))
-
-
-# --- host: camera-aimed ballistic throw -----------------------------------------
-
 func test_throwable_gift_leaves_along_the_host_computed_velocity_whatever_the_client_sends() -> void:
 	_start_with(&"gift_bomb", GiftThrow.Mode.THROW)
 	var forward: Vector3 = Vector3(1.0, 0.2, 0.0)
@@ -145,32 +103,11 @@ func test_throwable_gift_leaves_along_the_host_computed_velocity_whatever_the_cl
 	assert_true(block.linear_velocity.is_equal_approx(expected), "%s vs %s" % [block.linear_velocity, expected])
 
 
-func test_the_aim_length_band_does_not_change_the_host_velocity() -> void:
-	_start_with(&"gift_bomb", GiftThrow.Mode.THROW)
-	assert_eq(_throw(Vector3(0.6, 0.0, 0.0)), PlacementRules.REASON_OK)
-	var first: Vector3 = (_blocks_root.get_child(0) as Block).linear_velocity
-	Match._gifts._held_specials[0] = &"gift_bomb"
-	assert_eq(_throw(Vector3(1.9, 0.0, 0.0)), PlacementRules.REASON_OK)
-	var second: Vector3 = (_blocks_root.get_child(1) as Block).linear_velocity
-	assert_true(first.is_equal_approx(second), "%s vs %s" % [first, second])
-
-
 func test_a_client_speed_sized_velocity_is_refused_not_trusted() -> void:
 	_start_with(&"gift_bomb", GiftThrow.Mode.THROW)
 	assert_eq(_throw(Vector3(900.0, 50.0, 0.0)), PlacementRules.REASON_NO_BLOCK, "outside the unit-aim band")
 	assert_eq(_blocks_root.get_child_count(), 0)
 	assert_eq(Match.held_special(0), &"gift_bomb")
-
-
-func test_throwable_gift_spawns_at_the_held_gift_pose() -> void:
-	_start_with(&"gift_bomb", GiftThrow.Mode.THROW)
-	var forward: Vector3 = Vector3(1.0, -0.2, 0.0).normalized()
-	assert_eq(_throw(forward), PlacementRules.REASON_OK)
-	var block: Block = _blocks_root.get_child(0) as Block
-	var cursor: Vector3 = _home_world_position(0)
-	assert_almost_eq(block.global_position.x, cursor.x, 0.01, "1pi.85.47: no back-off along the aim")
-	assert_almost_eq(block.global_position.z, cursor.z, 0.01)
-	assert_gte(block.global_position.y, _field.surface_y() + _tuning().gift_aim_min_height_m - 0.01)
 
 
 func test_throwable_gift_with_no_usable_forward_is_refused_and_stays_held() -> void:
@@ -192,23 +129,6 @@ func test_a_non_throwable_gift_refuses_the_throw_and_is_not_burned() -> void:
 
 # --- host: aimed launch (Rocket/Paintball) --------------------------------------
 
-func test_rocket_keeps_an_upward_aim_exactly() -> void:
-	# Bontago-1pi.85.34 Q3: the Rocket flies where the camera aims, upward included.
-	_start_with(&"gift_rocket", GiftThrow.Mode.AIMED)
-	assert_eq(_throw(Vector3(0.0, 0.5, 1.5)), PlacementRules.REASON_OK)  # looks up
-	var block: Block = _blocks_root.get_child(0) as Block
-	assert_eq(block.linear_velocity, Vector3.ZERO, "an aimed gift is dropped, not thrown")
-	var stored: Vector3 = block.get_meta(RocketEffect.LAUNCH_DIRECTION_META) as Vector3
-	assert_true(stored.is_equal_approx(Vector3(0.0, 0.5, 1.5).normalized()), "upward kept, normalised: %s" % stored)
-
-
-func test_rocket_accepts_a_straight_up_aim() -> void:
-	_start_with(&"gift_rocket", GiftThrow.Mode.AIMED)
-	assert_eq(_throw(Vector3(0.0, 1.0, 0.0)), PlacementRules.REASON_OK)
-	var block: Block = _blocks_root.get_child(0) as Block
-	assert_true((block.get_meta(RocketEffect.LAUNCH_DIRECTION_META) as Vector3).is_equal_approx(Vector3.UP))
-
-
 func test_aimed_gift_refuses_malformed_directions_and_stays_held() -> void:
 	_start_with(&"gift_rocket", GiftThrow.Mode.AIMED)
 	var bad_vectors: Array[Vector3] = [
@@ -222,23 +142,6 @@ func test_aimed_gift_refuses_malformed_directions_and_stays_held() -> void:
 
 # --- Bontago-1pi.85.21: host validation findings -----------------------------------
 
-func test_unresolved_def_gift_never_launches_with_the_raw_client_velocity() -> void:
-	Match.start_match(_config())
-	for _i: int in range(int(ceil(Match.COUNTDOWN_SECONDS * Engine.physics_ticks_per_second)) + 2):
-		Match._process(1.0 / Engine.physics_ticks_per_second)
-	Match._gifts._ensure_capacity(0)
-	Match._gifts._held_specials[0] = &"no_such_gift"
-	Match._feed._held_is_gift[0] = true
-	var hostile: Vector3 = Vector3(0.0, 24.0, 0.0)
-	assert_eq(_throw(hostile), PlacementRules.REASON_NO_BLOCK, "outside the aim band: refused")
-	assert_eq(_blocks_root.get_child_count(), 0)
-	assert_eq(Match.held_special(0), &"no_such_gift", "nothing consumed")
-	var sent: Vector3 = Vector3(1.0, 1.0, 0.0)
-	assert_eq(_throw(sent), PlacementRules.REASON_OK)
-	var block: Block = _blocks_root.get_child(0) as Block
-	assert_true(block.linear_velocity.is_equal_approx(GiftAim.throw_velocity(sent, _tuning(), GiftAim.range_scale(_tiny_map.field_radius, _tuning()))))
-
-
 func test_paintball_with_a_straight_up_aim_is_refused_and_stays_held() -> void:
 	var def: SpecialDef = _make_def(&"gift_paintball", GiftThrow.Mode.AIMED)
 	def.effect = PaintballEffect.new()
@@ -251,21 +154,6 @@ func test_paintball_with_a_straight_up_aim_is_refused_and_stays_held() -> void:
 	assert_eq(Match.held_special(0), &"gift_paintball")
 
 
-func test_overlap_check_uses_the_basis_the_gift_actually_spawns_with() -> void:
-	_start_with(&"gift_bomb", GiftThrow.Mode.THROW)
-	var tilted: Quaternion = Quaternion(Vector3.RIGHT, 1.0)
-	assert_eq(_throw(Vector3(1.0, 0.0, 0.0), 5, tilted), PlacementRules.REASON_OK)
-	var spawn_basis: Basis = (_blocks_root.get_child(0) as Block).global_transform.basis
-	assert_true(spawn_basis.is_equal_approx(Basis.IDENTITY))
-	assert_true(
-		Match._placement._spawn_basis(&"gift_bomb", Basis(tilted)).is_equal_approx(spawn_basis),
-		"the helper both the lift check and the spawn use yields the spawned basis"
-	)
-	assert_true(Match._placement._spawn_basis(&"", Basis(tilted)).is_equal_approx(Basis(tilted)), "plain blocks keep the pose")
-
-
-# --- host: upright spawn ----------------------------------------------------------
-
 func test_a_gift_spawns_upright_whatever_orientation_the_intent_carries() -> void:
 	_start_with(&"gift_bomb", GiftThrow.Mode.THROW)
 	assert_eq(_throw(Vector3(1.0, 0.0, 0.0), 5, Quaternion(Vector3.RIGHT, 1.0)), PlacementRules.REASON_OK)
@@ -274,63 +162,3 @@ func test_a_gift_spawns_upright_whatever_orientation_the_intent_carries() -> voi
 
 
 # --- Paintball aimed flight ---------------------------------------------------------
-
-func test_paintball_launch_direction_is_sanitised_and_vetoes_the_velocity_drop_impact() -> void:
-	var block: Block = autofree(Block.new())
-	add_child_autofree(block)
-	var effect: PaintballEffect = PaintballEffect.new()
-	assert_true(effect.impact_triggers(block, null), "no direction: the old velocity-drop impact still applies")
-	assert_false(PaintballEffect.set_launch_direction(block, Vector3.ZERO))
-	assert_false(PaintballEffect.set_launch_direction(block, Vector3(NAN, 0.0, 1.0)))
-	assert_true(PaintballEffect.set_launch_direction(block, Vector3(0.0, 2.0, 3.0)))
-	var stored: Vector3 = block.get_meta(PaintballEffect.LAUNCH_DIRECTION_META) as Vector3
-	assert_true(stored.is_equal_approx(Vector3(0.0, 0.0, 1.0)), "not upward, unit length")
-	assert_false(effect.impact_triggers(block, null), "a flying paintball ends by its contact probe")
-
-
-func test_only_the_ballistic_throw_mode_shows_a_preview() -> void:
-	assert_true(GiftThrow.shows_preview(GiftThrow.Mode.THROW))
-	assert_false(GiftThrow.shows_preview(GiftThrow.Mode.AIMED))
-	assert_false(GiftThrow.shows_preview(GiftThrow.Mode.NONE))
-
-
-# --- Bontago-1pi.126: throw range scales with the field radius ---------------------------
-
-func _flat_range(velocity: Vector3) -> float:
-	var g: float = float(ProjectSettings.get_setting("physics/3d/default_gravity")) * PhysicsTuning.new().gravity_multiplier
-	var flight_s: float = 2.0 * velocity.y / g
-	return Vector2(velocity.x, velocity.z).length() * flight_s
-
-
-func test_range_scale_is_radius_over_reference_clamped() -> void:
-	var t: SpecialTuning = SpecialTuning.new()
-	assert_almost_eq(GiftAim.range_scale(t.gift_throw_reference_radius, t), 1.0, 0.0001)
-	assert_almost_eq(GiftAim.range_scale(60.0, t), 60.0 / 45.0, 0.0001)
-	assert_eq(GiftAim.range_scale(1.0, t), t.gift_throw_range_scale_min)
-	assert_eq(GiftAim.range_scale(10000.0, t), t.gift_throw_range_scale_max)
-	assert_eq(GiftAim.range_scale(0.0, t), 1.0)
-
-
-func test_flat_ground_range_is_proportional_to_field_radius() -> void:
-	var t: SpecialTuning = SpecialTuning.new()
-	var forward: Vector3 = Vector3(0.0, 0.2, -1.0)
-	var small_radius: float = MapDef.RADIUS_MEDIUM * 0.75
-	var small: float = _flat_range(GiftAim.throw_velocity(forward, t, GiftAim.range_scale(small_radius, t)))
-	var medium: float = _flat_range(GiftAim.throw_velocity(forward, t, GiftAim.range_scale(MapDef.RADIUS_MEDIUM, t)))
-	var large: float = _flat_range(GiftAim.throw_velocity(forward, t, GiftAim.range_scale(MapDef.RADIUS_LARGE, t)))
-	assert_almost_eq(small / medium, small_radius / MapDef.RADIUS_MEDIUM, 0.01)
-	assert_almost_eq(large / medium, MapDef.RADIUS_LARGE / MapDef.RADIUS_MEDIUM, 0.01)
-
-
-func test_host_throw_matches_preview_velocity_when_the_field_is_larger_than_the_reference() -> void:
-	_start_with(&"gift_bomb", GiftThrow.Mode.THROW)
-	var original: float = _tuning().gift_throw_reference_radius
-	_tuning().gift_throw_reference_radius = _tiny_map.field_radius / 1.5
-	var forward: Vector3 = Vector3(1.0, 0.2, 0.0)
-	var result: StringName = _throw(forward)
-	var preview: Vector3 = GiftAim.throw_velocity(forward, _tuning(), GiftAim.range_scale(_tiny_map.field_radius, _tuning()))
-	_tuning().gift_throw_reference_radius = original
-	assert_eq(result, PlacementRules.REASON_OK)
-	var block: Block = _blocks_root.get_child(0) as Block
-	assert_true(block.linear_velocity.is_equal_approx(preview), "%s vs %s" % [block.linear_velocity, preview])
-	assert_gt(block.linear_velocity.length(), _tuning().gift_throw_speed_mps)

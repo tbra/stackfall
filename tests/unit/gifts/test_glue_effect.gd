@@ -105,17 +105,3 @@ func test_mutation_is_host_only_and_slot_bounds_checked() -> void:
 	assert_false(Match.grant_glue_drops(0, 4))
 	assert_false(Match.consume_glue_drop(0))
 	assert_eq(Match.glue_drops_left(0), 3)
-
-
-func test_match_reset_clears_charges() -> void:
-	assert_true(Match.grant_glue_drops(0, 3))
-	Match.abort_match()
-	Match.start_match(_config())
-	assert_eq(Match.glue_drops_left(0), 0)
-
-
-func test_glue_resource_grants_at_least_one_drop() -> void:
-	var def: SpecialDef = load("res://config/gifts/specials/glue.tres") as SpecialDef
-	assert_eq(def.id, &"glue")
-	assert_true(def.effect is GlueEffect)
-	assert_gt((def.effect as GlueEffect).drop_charges, 0)

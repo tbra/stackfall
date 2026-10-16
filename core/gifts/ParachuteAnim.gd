@@ -86,11 +86,6 @@ func is_visible() -> bool:
 	return phase != Phase.HIDDEN
 
 
-## True from deploy() until collapse() (the crate is airborne).
-func is_falling() -> bool:
-	return phase == Phase.DEPLOYING or phase == Phase.DESCENDING
-
-
 ## Opening shock: the canopy streams out slowly, snaps open, overshoots past 1
 ## when `overshoot` > 0 and settles (ease-out-back on a squared time, so the
 ## first moments are slow). 0 at t=0, 1 at t=1; `t` is clamped to [0, 1].

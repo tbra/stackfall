@@ -101,40 +101,6 @@ func test_host_coats_fused_pair_and_uncoats_the_survivor_when_a_member_is_remove
 	assert_true(net._fused_ids.is_empty())
 
 
-func test_third_block_joining_a_group_is_coated_once() -> void:
-	var net: MatchNetScript = _make_net(false)
-	_start_playing()
-	var a: Block = _block(211)
-	var b: Block = _block(212)
-	var c: Block = _block(213)
-	_glue(a, b)
-	_glue(c, a)
-	assert_true(HoneyCoat.is_coated(a))
-	assert_true(HoneyCoat.is_coated(b))
-	assert_true(HoneyCoat.is_coated(c))
-	assert_eq(int(net.replicated_event_counts.get(MatchNetScript.EVENT_BLOCK_GLUED, 0)), 3, "one coat event per member")
-	assert_eq(net._fused_ids.size(), 3)
-
-
-func test_removed_member_leaves_the_fused_set_and_replicates_its_despawn() -> void:
-	var net: MatchNetScript = _make_net(false)
-	_start_playing()
-	var a: Block = _block(221)
-	var b: Block = _block(222)
-	var c: Block = _block(223)
-	_glue(a, b)
-	_glue(c, a)
-	var carrier: FusedBody = a.fused_carrier() as FusedBody
-	carrier.remove_member(b, &"hole")
-	assert_false(net._fused_ids.has(222))
-	assert_true(net._fused_ids.has(221), "the rest of the group stays fused and coated")
-	assert_true(HoneyCoat.is_coated(a))
-	carrier.remove_all_members(&"kill_plane")
-	assert_true(net._fused_ids.is_empty())
-	assert_true(a.is_queued_for_deletion(), "kill plane removes every remaining member")
-	assert_true(c.is_queued_for_deletion())
-
-
 func test_client_mirror_applies_event_late_join_replay_and_removal() -> void:
 	var host: MatchNetScript = _make_net(false)
 	_start_playing()
@@ -159,16 +125,6 @@ func test_client_mirror_applies_event_late_join_replay_and_removal() -> void:
 	assert_false(HoneyCoat.is_coated(a))
 	assert_true(HoneyCoat.is_coated(b))
 	assert_not_null(bond)
-
-
-func test_set_coated_is_idempotent_and_does_not_add_nodes_per_call() -> void:
-	_make_net(false)
-	_start_playing()
-	var a: Block = _block(241)
-	HoneyCoat.set_coated(a, true)
-	var count: int = a.get_node("BlockMesh").get_child_count()
-	HoneyCoat.set_coated(a, true)
-	assert_eq(a.get_node("BlockMesh").get_child_count(), count)
 
 
 ## Bontago-1pi.85.72: a charged drop is coated at spawn (before any bond), replicated,

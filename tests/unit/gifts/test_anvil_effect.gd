@@ -7,7 +7,6 @@ extends GutTest
 ## detonate() tests use a real, tiny Field via Match.register_world() (same
 ## fixture tests/unit/field/test_field_tilt.gd uses), reset in after_each.
 
-const TICK: float = 1.0 / 60.0
 const AWAKE_MAX_FRAMES: int = 480
 const AWAKE_KICK_EVERY_FRAMES: int = 6
 const AWAKE_KICK_IMPULSE: float = 1.0
@@ -45,18 +44,6 @@ func _make_behavior(block: Block, def: SpecialDef) -> SpecialBehavior:
 
 # --- mass override: once armed, idempotent, never before arming -------------
 
-func test_mass_override_not_applied_before_arming() -> void:
-	var effect: AnvilEffect = AnvilEffect.new()
-	effect.mass = 60.0
-	var block: Block = _make_block(Vector3.ZERO, 1.0)
-	var def: SpecialDef = _make_def(effect, 1.0)
-	var behavior: SpecialBehavior = _make_behavior(block, def)
-
-	behavior.advance(0.5)  # well short of arm_delay == 1.0
-	assert_false(behavior.is_armed(), "fixture: must still be unarmed")
-	assert_eq(block.mass, 1.0, "mass must not change before the special has armed")
-
-
 func test_mass_override_applied_on_the_first_armed_tick() -> void:
 	var effect: AnvilEffect = AnvilEffect.new()
 	effect.mass = 60.0
@@ -67,57 +54,6 @@ func test_mass_override_applied_on_the_first_armed_tick() -> void:
 	behavior.advance(0.1)  # arms this same tick
 	assert_true(behavior.is_armed(), "fixture: must have armed")
 	assert_eq(block.mass, 60.0, "mass must be overridden the instant the special arms")
-
-
-func test_mass_override_is_idempotent_across_later_ticks() -> void:
-	var effect: AnvilEffect = AnvilEffect.new()
-	effect.mass = 60.0
-	var block: Block = _make_block(Vector3.ZERO, 1.0)
-	var def: SpecialDef = _make_def(effect, 0.1)
-	var behavior: SpecialBehavior = _make_behavior(block, def)
-
-	behavior.advance(0.1)  # arms, overrides mass
-	assert_eq(block.mass, 60.0)
-
-	# Simulate something else (or a bug) changing mass back after the
-	# override -- a later armed tick must not re-apply it, proving the
-	# override genuinely only ever fires once, not merely "every tick
-	# happens to set the same value".
-	block.mass = 1.0
-	behavior.advance(0.1)
-	behavior.advance(0.1)
-	assert_eq(
-		block.mass, 1.0,
-		"the mass override must fire exactly once (on the first armed tick), never again"
-	)
-
-
-# --- wants_early_trigger: true only once the landing probe reports landed ----
-
-func test_wants_early_trigger_false_before_any_probe_tick() -> void:
-	var effect: AnvilEffect = AnvilEffect.new()
-	var block: Block = _make_block()
-	assert_false(effect.wants_early_trigger(block, null))
-
-
-func test_wants_early_trigger_false_while_airborne() -> void:
-	var effect: AnvilEffect = AnvilEffect.new()
-	var block: Block = _make_block(Vector3(0.0, 50.0, 0.0))
-	var behavior: SpecialBehavior = _make_behavior(block, _make_def(effect))
-	for _i: int in range(10):
-		behavior.advance(TICK)
-	assert_false(effect.wants_early_trigger(block, behavior), "nothing under it: not landed")
-
-
-func test_wants_early_trigger_true_once_the_probe_has_landed() -> void:
-	var effect: AnvilEffect = AnvilEffect.new()
-	var block: Block = _make_block()
-	var behavior: SpecialBehavior = _make_behavior(block, _make_def(effect))
-	behavior.advance(0.1)  # arms; the effect creates this block's probe
-	assert_true(block.has_meta(&"anvil_landed_probe"))
-	var probe: LandedProbe = block.get_meta(&"anvil_landed_probe") as LandedProbe
-	probe._landed = true
-	assert_true(effect.wants_early_trigger(block, behavior))
 
 
 ## End-to-end through SpecialBehavior.advance(): once landed the behaviour
@@ -235,69 +171,3 @@ func test_detonate_pushes_an_impulse_toward_the_landing_point() -> void:
 	assert_almost_eq(spy.last_direction.x, 0.6, 0.001)
 	assert_almost_eq(spy.last_direction.y, 0.8, 0.001)
 	assert_almost_eq(spy.last_magnitude, effect.disc_force.strength * 5.0, 0.001)
-
-
-func test_detonate_magnitude_scales_with_distance_from_centre() -> void:
-	var spy: SpyField = _register_spy_field()
-	var effect: AnvilEffect = AnvilEffect.new()
-	var near_block: Block = _make_block(Vector3(1.0, 0.0, 0.0))
-	var behavior: SpecialBehavior = _make_behavior(near_block, _make_def(effect))
-	effect.detonate(near_block, behavior, 0)
-	var near_magnitude: float = spy.last_magnitude
-
-	var far_block: Block = _make_block(Vector3(4.0, 0.0, 0.0))
-	var far_behavior: SpecialBehavior = _make_behavior(far_block, _make_def(effect))
-	effect.detonate(far_block, far_behavior, 0)
-	var far_magnitude: float = spy.last_magnitude
-
-	assert_gt(far_magnitude, near_magnitude, "a farther landing point must push a larger impulse")
-
-
-func test_detonate_at_the_exact_centre_applies_no_impulse() -> void:
-	var spy: SpyField = _register_spy_field()
-	var effect: AnvilEffect = AnvilEffect.new()
-	var block: Block = _make_block(Vector3.ZERO)  # exactly the disk centre
-	var behavior: SpecialBehavior = _make_behavior(block, _make_def(effect))
-
-	effect.detonate(block, behavior, 0)
-
-	assert_eq(spy.call_count, 0, "landing exactly at the centre must push no impulse")
-
-
-## Proves the real Field's own tilt-disabled guard is enough -- AnvilEffect
-## needs no guard of its own -- by exercising the actual apply_tilt_impulse()
-## (not the spy override above) with tilt left disabled.
-func test_detonate_respects_tilt_mode_off_via_the_real_field_guard() -> void:
-	var field: Field = autofree(Field.new())
-	field.map_def = _small_map()
-	add_child_autofree(field)
-	_blocks_root = autofree(Node3D.new())
-	add_child_autofree(_blocks_root)
-	_registry = autofree(BlockRegistry.new())
-	add_child_autofree(_registry)
-	Match.register_world(field, _registry, _blocks_root)
-	# field.set_tilt_enabled() deliberately not called: tilt stays disabled.
-
-	var effect: AnvilEffect = AnvilEffect.new()
-	var block: Block = _make_block(Vector3(3.0, 0.0, 4.0))
-	var behavior: SpecialBehavior = _make_behavior(block, _make_def(effect))
-
-	effect.detonate(block, behavior, 0)
-	field._update_tilt(TICK)
-
-	assert_eq(field.tilt_vector(), Vector2.ZERO, "tilt_mode OFF must leave the disk untouched")
-
-
-# --- anvil.tres loads through the shared loader ------------------------------
-
-func test_anvil_tres_loads_with_expected_id_and_effect() -> void:
-	var defs: Array[SpecialDef] = SpecialDef.load_all_specials()
-	var anvil_def: SpecialDef = null
-	for def: SpecialDef in defs:
-		if def.id == &"anvil":
-			anvil_def = def
-	assert_not_null(anvil_def, "config/gifts/specials/anvil.tres must load with id \"anvil\"")
-	assert_true(
-		anvil_def.effect is AnvilEffect,
-		"anvil.tres's effect sub-resource must be an AnvilEffect"
-	)

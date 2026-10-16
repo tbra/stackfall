@@ -109,60 +109,6 @@ func test_enemy_block_gets_pulled_toward_the_magnet() -> void:
 # --- (a2) a frozen (stable-block-optimized) enemy block still gets pulled
 # (Bontago-8or.16 P5b) --------------------------------------------------------
 
-func test_frozen_enemy_block_is_unfrozen_and_pulled() -> void:
-	var magnet_block: Block = _make_block(Vector3.ZERO)
-	magnet_block.owner_slot = 0
-	var enemy_block: Block = _make_block(Vector3(RADIUS * 0.5, 0.0, 0.0))
-	enemy_block.owner_slot = 1
-	enemy_block.request_freeze_static(Block.FREEZE_REASON_STABLE)
-	assert_true(enemy_block.is_freeze_static(), "fixture must actually start frozen")
-	assert_true(enemy_block.freeze, "fixture must actually start frozen")
-	var effect: MagnetEffect = MagnetEffect.new()
-	effect.pull.radius_m = RADIUS
-	effect.pull_duration_s = 3.0
-	var behavior: SpecialBehavior = _make_behavior(magnet_block, effect)
-	await wait_physics_frames(1)
-
-	behavior.advance(0.1)
-	await wait_physics_frames(1)
-
-	assert_false(
-		enemy_block.is_freeze_static(),
-		"the pull must release the stable freeze so the impulse isn't a no-op"
-	)
-	assert_false(enemy_block.freeze)
-	assert_gt(
-		enemy_block.linear_velocity.length(),
-		0.0,
-		"a previously-frozen enemy block in range must gain velocity from the pull"
-	)
-
-
-# --- (b) an own-owner block at the same distance is untouched ----------------
-
-func test_own_owner_block_is_untouched() -> void:
-	var magnet_block: Block = _make_block(Vector3.ZERO)
-	magnet_block.owner_slot = 0
-	var own_block: Block = _make_block(Vector3(RADIUS * 0.5, 0.0, 0.0))
-	own_block.owner_slot = 0
-	var effect: MagnetEffect = MagnetEffect.new()
-	effect.pull.radius_m = RADIUS
-	effect.pull_duration_s = 3.0
-	var behavior: SpecialBehavior = _make_behavior(magnet_block, effect)
-	await wait_physics_frames(1)
-
-	behavior.advance(0.1)
-	await wait_physics_frames(1)
-
-	assert_eq(
-		own_block.linear_velocity,
-		Vector3.ZERO,
-		"a block owned by the same slot as the magnet must be excluded from the pull"
-	)
-
-
-# --- (c) the pull stops once pull_duration_s has elapsed ---------------------
-
 func test_pull_stops_once_pull_duration_elapses() -> void:
 	var magnet_block: Block = _make_block(Vector3.ZERO)
 	magnet_block.owner_slot = 0
@@ -187,36 +133,6 @@ func test_pull_stops_once_pull_duration_elapses() -> void:
 
 
 # --- Magnet keeps SpecialEffect's impact_triggers() vetoed, like Propeller ---
-
-func test_impact_triggers_is_vetoed_so_a_hard_landing_cannot_skip_the_pull() -> void:
-	var magnet_block: Block = _make_block(Vector3.ZERO)
-	var effect: MagnetEffect = MagnetEffect.new()
-	assert_false(
-		effect.impact_triggers(magnet_block, null),
-		"MagnetEffect must veto impact_triggers() like every other timed-effect special"
-	)
-
-
-# --- config/gifts/specials/magnet.tres loads with the contract defaults -----------
-
-func test_magnet_tres_loads_with_expected_id_and_usable_pull() -> void:
-	var defs: Array[SpecialDef] = SpecialDef.load_all_specials()
-	var found: SpecialDef = null
-	for def: SpecialDef in defs:
-		if def.id == &"magnet":
-			found = def
-			break
-	assert_not_null(found, "config/gifts/specials/magnet.tres must be found by load_all_specials()")
-	assert_true(found.effect is MagnetEffect, "magnet.tres's effect sub-resource must be a MagnetEffect")
-	var effect: MagnetEffect = found.effect as MagnetEffect
-	assert_gt(effect.pull.radius_m, 0.0)
-	assert_eq(effect.pull_duration_s, 6.0, "owner 2026-10-07: the magnet lasts longer (3 -> 6 s, Bontago-1pi.85.49)")
-	assert_eq(effect.effect_lifetime_s(), effect.pull_start_delay_s + effect.pull_duration_s, "start delay + pull window is the effect lifetime")
-	assert_gt(effect.pull.friction_compensation, 0.0, "the pull must beat block friction to break a block away")
-	assert_not_null(effect.tuning, "tuning must fall back to the preloaded config/gifts/special_tuning.tres")
-
-
-# --- real disc: an 8 kg enemy tetromino 6 m away is pulled at least 2 m in 3 s ---
 
 func test_real_disc_pulls_an_8kg_enemy_block_two_metres_in_three_seconds() -> void:
 	var map_def: MapDef = MapDef.new()

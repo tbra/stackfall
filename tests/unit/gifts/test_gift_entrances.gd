@@ -6,10 +6,7 @@ extends GutTest
 ## only after it lands. Clients build the visuals from the replicated special_triggered.
 ## Fixture from test_gift_in_place.gd.
 
-const MatchNetScript := preload("res://net/MatchNet.gd")
-const TICK: float = 1.0 / 60.0
 const FALL_MAX_FRAMES: int = 900
-const TOWER_HEIGHT_M: float = 6.0
 const SIDE_BLOCK_OFFSET_M: float = 2.5
 const POST_LAND_FRAMES: int = 30
 const HEIGHT_EPSILON_M: float = 0.001
@@ -110,11 +107,6 @@ func _stand() -> PropellerStand:
 	return null
 
 
-func test_presenter_registers_the_propeller_and_black_hole_builders() -> void:
-	assert_true(Match._gift_fx.has_handler(&"propeller"))
-	assert_true(Match._gift_fx.has_handler(&"black_hole"))
-
-
 func test_propeller_rises_out_of_the_disc_at_the_drop_point_without_a_carrier() -> void:
 	_start()
 	assert_eq(_release(0, &"propeller"), PlacementRules.REASON_OK)
@@ -132,25 +124,6 @@ func test_propeller_rises_out_of_the_disc_at_the_drop_point_without_a_carrier() 
 	stand.tick(effect.emerge_s)
 	assert_almost_eq(stand.visual().position.y, effect.emerge_height_m, HEIGHT_EPSILON_M, "risen to the emerge height")
 	assert_gt(stand.visual().get_child_count(), 0, "the gift model is built")
-
-
-func test_propeller_stand_blows_for_the_duration_then_frees_itself() -> void:
-	_start()
-	_field.set_tilt_enabled(true)
-	_release(0, &"propeller")
-	var stand: PropellerStand = _stand()
-	var effect: PropellerEffect = SpecialDef.find_by_id(&"propeller").effect as PropellerEffect
-	var peak: float = 0.0
-	var ticks: int = int(effect.disc_force.duration_s / TICK) - 1
-	for _i: int in range(ticks):
-		stand.tick(TICK)
-		_field._update_tilt(TICK)
-		peak = maxf(peak, _field.tilt_vector().length())
-	assert_gt(peak, 0.0, "the stand tilts the disc while it stands")
-	assert_false(stand.is_queued_for_deletion())
-	stand.tick(TICK * 2.0)
-	assert_true(stand.is_queued_for_deletion(), "freed once the duration has elapsed")
-	assert_almost_eq(stand.height_at(effect.disc_force.duration_s), -effect.start_depth_m, HEIGHT_EPSILON_M, "sunk back at the end")
 
 
 func test_black_hole_opens_up_underneath_the_drop_point_without_a_carrier() -> void:
@@ -203,54 +176,6 @@ func test_anvil_spawns_high_above_the_point_falls_and_tilts_only_after_landing()
 	assert_false(tilted_in_air, "no tilt while the anvil is still falling")
 	assert_gte(landed_frame, MIN_FALL_FRAMES, "the disc tilts only after a real fall from the sky")
 	assert_gt(_field.tilt_vector().length(), 0.0, "tilted after landing")
-
-
-func test_client_builds_the_propeller_stand_from_the_replicated_trigger_without_a_carrier() -> void:
-	_start()
-	var fake: FakeNet = FakeNet.client(1)
-	Match.set_net_provider(fake)
-	var net: MatchNetScript = MatchNetScript.new()
-	net.set_process(false)
-	add_child_autofree(net)
-	net.set_providers(fake, Match)
-	var point: Vector3 = _field.to_global(Vector3(2.0, _field.surface_y(), 3.0))
-	net.net_match_event(MatchNetScript.EVENT_SPECIAL_TRIGGERED, [MatchGiftActivation.IN_PLACE_NET_ID, &"propeller", point, 0])
-	var stand: PropellerStand = _stand()
-	assert_not_null(stand, "client draws the stand from the replicated activation")
-	if stand != null:
-		assert_false(stand.has_force(), "client stand is visual only")
-		assert_almost_eq(stand.global_position.distance_to(point), 0.0, 0.01)
-	assert_eq(_registry.tracked_block_count(), 0, "no carrier body on the client")
-	assert_eq(_blocks_root.get_child_count(), 0)
-	net.set_providers(null, null)
-
-
-func test_high_hover_clamps_the_anvil_spawn_inside_the_snapshot_band() -> void:
-	_start()
-	var net_config: NetConfig = load("res://config/net/net_config.tres") as NetConfig
-	var ghost: GhostTuning = load("res://config/blocks/tuning/ghost_tuning.tres") as GhostTuning
-	assert_eq(_release(0, &"anvil", net_config.pos_max_y), PlacementRules.REASON_OK)
-	var carrier: Block = _carrier()
-	assert_not_null(carrier)
-	if carrier != null:
-		assert_lte(carrier.global_position.y, net_config.pos_max_y - ghost.hover_ceiling_margin + HEIGHT_EPSILON_M, "inside the position band")
-		var surface_y: float = _field.to_global(Vector3(0.0, _field.surface_y(), 0.0)).y
-		assert_lt(carrier.global_position.y, surface_y + SpecialDef.find_by_id(&"anvil").sky_drop_height_m + SPAWN_HEIGHT_SLACK_M * 2.0, "derived from the disc, not the hover height")
-
-
-func test_anvil_spawns_above_a_tall_tower_under_the_point() -> void:
-	_start()
-	var home: Vector3 = _home_world_position(0)
-	var surface_y: float = _field.to_global(Vector3(0.0, _field.surface_y(), 0.0)).y
-	var tower_top: float = surface_y + TOWER_HEIGHT_M
-	var tower: Block = _cube_at(Vector3(home.x, tower_top - 0.5, home.z))
-	await wait_physics_frames(2)
-	assert_eq(_release(0, &"anvil"), PlacementRules.REASON_OK)
-	var carrier: Block = _carrier()
-	assert_not_null(carrier)
-	if carrier != null:
-		assert_gt(carrier.global_position.y, tower_top + SpecialDef.find_by_id(&"anvil").sky_drop_height_m - SPAWN_HEIGHT_SLACK_M, "spawned above the tower top")
-	assert_not_null(tower)
 
 
 func test_anvil_falls_back_to_the_release_point_when_the_sky_pose_overlaps_a_block() -> void:

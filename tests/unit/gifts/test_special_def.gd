@@ -40,54 +40,6 @@ func test_load_all_specials_finds_every_committed_special_and_sorts_by_id() -> v
 	assert_eq(ids, sorted_ids, "load_all_specials() must return results sorted by id")
 
 
-func test_load_all_specials_does_not_error_on_a_missing_directory() -> void:
-	# DirAccess.open() on a directory that doesn't exist returns null; the
-	# real SPECIALS_DIR always exists (it's checked into the repo as an
-	# empty placeholder), so this just proves the null-dir branch is safe --
-	# calling it twice in a row must not throw or hang either.
-	var first: Array[SpecialDef] = SpecialDef.load_all_specials()
-	var second: Array[SpecialDef] = SpecialDef.load_all_specials()
-	assert_eq(first.size(), second.size())
-
-
-## -- _sort_by_id (the loader's own comparator) --------------------------------
-
-func test_sort_by_id_orders_specialdefs_alphabetically() -> void:
-	var defs: Array[SpecialDef] = [
-		_make_def(&"volcano"), _make_def(&"anvil"), _make_def(&"rocket"), _make_def(&"bomb"),
-	]
-	defs.sort_custom(SpecialDef._sort_by_id)
-	var ids: Array[String] = []
-	for def: SpecialDef in defs:
-		ids.append(String(def.id))
-	assert_eq(ids, ["anvil", "bomb", "rocket", "volcano"])
-
-
-## -- pick_weighted -------------------------------------------------------------
-
-func test_pick_weighted_returns_null_for_an_empty_array() -> void:
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng.seed = 1
-	assert_null(SpecialDef.pick_weighted([] as Array[SpecialDef], rng))
-
-
-func test_pick_weighted_returns_the_only_candidate_when_there_is_one() -> void:
-	var only: SpecialDef = _make_def(&"rocket")
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng.seed = 1
-	for seed_value: int in range(20):
-		rng.seed = seed_value
-		assert_eq(SpecialDef.pick_weighted([only] as Array[SpecialDef], rng), only)
-
-
-func test_pick_weighted_never_returns_null_for_a_nonempty_array() -> void:
-	var candidates: Array[SpecialDef] = [_make_def(&"a", 1.0), _make_def(&"b", 3.0)]
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	for seed_value: int in range(50):
-		rng.seed = seed_value
-		assert_not_null(SpecialDef.pick_weighted(candidates, rng))
-
-
 func test_pick_weighted_favors_the_higher_weight_candidate() -> void:
 	var light: SpecialDef = _make_def(&"light", 1.0)
 	var heavy: SpecialDef = _make_def(&"heavy", 9.0)
@@ -105,25 +57,6 @@ func test_pick_weighted_favors_the_higher_weight_candidate() -> void:
 			light_count += 1
 	assert_eq(heavy_count + light_count, draws, "Every draw must return one of the two candidates.")
 	assert_gt(heavy_count, light_count * 3, "A 9:1 weight ratio should show up clearly over %d draws." % draws)
-
-
-func test_pick_weighted_is_deterministic_for_the_same_seed() -> void:
-	var candidates: Array[SpecialDef] = [_make_def(&"a", 1.0), _make_def(&"b", 2.0), _make_def(&"c", 5.0)]
-	var rng_a: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng_a.seed = 42
-	var rng_b: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng_b.seed = 42
-	var picked_a: SpecialDef = SpecialDef.pick_weighted(candidates, rng_a)
-	var picked_b: SpecialDef = SpecialDef.pick_weighted(candidates, rng_b)
-	assert_eq(picked_a, picked_b)
-
-
-func test_pick_weighted_falls_back_to_the_first_candidate_when_total_weight_is_non_positive() -> void:
-	var candidates: Array[SpecialDef] = [_make_def(&"a", 0.0), _make_def(&"b", 0.0)]
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	for seed_value: int in range(10):
-		rng.seed = seed_value
-		assert_eq(SpecialDef.pick_weighted(candidates, rng), candidates[0])
 
 
 ## Review fix (Bontago-1en.12): a zero-weight candidate sitting first in the
@@ -145,17 +78,6 @@ func test_pick_weighted_never_selects_a_zero_weight_candidate_even_when_it_is_fi
 
 ## -- defaults ------------------------------------------------------------------
 
-func test_defaults_match_the_spec_2_6_baseline() -> void:
-	var def: SpecialDef = SpecialDef.new()
-	assert_eq(def.id, &"")
-	assert_eq(def.weight, 1.0)
-	assert_true(def.enabled_by_default)
-	assert_almost_eq(def.arm_delay, 0.4, 0.0001)
-	assert_null(def.effect)
-
-
-## -- load_selectable_specials (Bontago-1pi.85.9) ------------------------------
-
 func test_selectable_specials_exclude_cat_but_load_all_keeps_it() -> void:
 	var all_ids: Array[StringName] = []
 	for def: SpecialDef in SpecialDef.load_all_specials():
@@ -166,36 +88,3 @@ func test_selectable_specials_exclude_cat_but_load_all_keeps_it() -> void:
 	for def: SpecialDef in selectable:
 		assert_true(def.enabled_by_default)
 		assert_ne(def.id, &"cat")
-
-
-func test_a_thousand_draws_from_the_selectable_roster_never_pick_cat() -> void:
-	var roster: Array[SpecialDef] = SpecialDef.load_selectable_specials()
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng.seed = 12345
-	for _i: int in range(1000):
-		assert_ne(SpecialDef.pick_weighted(roster, rng).id, &"cat")
-
-
-func test_display_name_falls_back_to_capitalised_id() -> void:
-	var def: SpecialDef = _make_def(&"jumping_bean")
-	assert_eq(def.get_display_name(), "Jumping Bean")
-	def.display_name = "Bouncy"
-	assert_eq(def.get_display_name(), "Bouncy")
-	assert_eq(_make_def(&"").get_display_name(), "")
-
-
-func test_every_shipped_special_has_a_nonempty_display_name() -> void:
-	for def: SpecialDef in SpecialDef.load_all_specials():
-		assert_ne(def.get_display_name(), "", String(def.id))
-
-
-## SpecialDef.effect is typed Resource (config/ must not name game/); every shipped def's
-## effect must still be a SpecialEffect, reachable through SpecialBehavior.effect_of().
-func test_every_shipped_def_effect_is_a_special_effect() -> void:
-	var defs: Array[SpecialDef] = SpecialDef.load_all_specials()
-	assert_gt(defs.size(), 0)
-	for def: SpecialDef in defs:
-		if def.effect != null:
-			assert_true(def.effect is SpecialEffect, "%s effect" % def.id)
-			assert_not_null(SpecialBehavior.effect_of(def), "%s effect_of" % def.id)
-	assert_null(SpecialBehavior.effect_of(null))

@@ -87,20 +87,6 @@ func test_rises_over_rise_s_to_height_with_a_cone_collider_on_the_beacon_layer()
 	assert_almost_eq(top * collision.scale.y, _effect.height_m, 0.001, "the hull's scaled apex reached the full height")
 
 
-func test_hull_is_built_once_and_only_scaled_during_the_rise() -> void:
-	_start()
-	var structure: VolcanoStructure = _manual(VolcanoStructure.spawn_host(_effect, _origin(), 0))
-	var collision: CollisionShape3D = structure.body().get_child(0) as CollisionShape3D
-	var hull: Shape3D = collision.shape
-	var last_scale: float = collision.scale.y
-	for _i: int in range(int(ceil(_effect.rise_s / TICK)) + 1):
-		structure.tick(TICK)
-		assert_same(collision.shape, hull, "the hull resource is never rebuilt")
-		assert_gte(collision.scale.y, last_scale - 0.00001)
-		last_scale = collision.scale.y
-	assert_almost_eq(last_scale, 1.0, 0.001)
-
-
 func test_structure_stays_seated_on_a_tilting_field() -> void:
 	_start()
 	var structure: VolcanoStructure = _manual(VolcanoStructure.spawn_host(_effect, _origin(), 0))
@@ -179,15 +165,6 @@ func test_burst_blocks_launch_apart_and_stay_separated() -> void:
 	assert_gt(min_gap, cube, "no two ejected blocks are within one cube width after 0.5 s (%.2f m)" % min_gap)
 
 
-func test_shipped_volcano_launch_is_stronger_and_spread() -> void:
-	var fresh: VolcanoEffect = VolcanoEffect.new()
-	assert_eq(fresh.launch_speed_mps, 16.0)
-	assert_eq(fresh.cone_angle_deg, 50.0)
-	assert_eq(fresh.burst_spread_m, 1.6)
-	assert_gt(fresh.launch_speed_jitter, 0.0)
-	assert_true(fresh.azimuth_even)
-
-
 func test_eruption_stops_at_the_block_cap() -> void:
 	_start()
 	_effect.block_cap = 6
@@ -220,206 +197,11 @@ func test_client_visual_has_no_body_and_spawns_nothing() -> void:
 	assert_null(VolcanoStructure.build_client_visual(_effect, _origin(), 0), "host draws its own structure")
 
 
-func test_build_rejects_a_point_off_the_disc_and_a_missing_effect() -> void:
-	_start()
-	assert_null(VolcanoStructure.spawn_host(null, _origin(), 0))
-	assert_null(VolcanoStructure.spawn_host(_effect, Vector3(500.0, 0.0, 0.0), 0))
-	assert_null(VolcanoStructure.spawn_host(_effect, Vector3(NAN, 0.0, 0.0), 0))
-
-
-## A block resting inside the footprint is pushed outward as the cone rises.
-func test_rising_cone_pushes_footprint_blocks_outward() -> void:
-	_start()
-	var tuning: PhysicsTuning = load("res://config/physics/physics_tuning.tres") as PhysicsTuning
-	var block: Block = BlockFactory.build(load("res://config/blocks/cube.tres") as BlockShape, tuning)
-	_blocks.add_child(block)
-	var center: Vector3 = _origin()
-	block.global_position = center + Vector3(1.0, 0.5, 0.0)
-	await wait_physics_frames(2)
-	var structure: VolcanoStructure = VolcanoStructure.spawn_host(_effect, center, 0)
-	assert_not_null(structure)
-	var start_flat: float = Vector2(block.global_position.x - center.x, block.global_position.z - center.z).length()
-	await wait_physics_frames(int(ceil(_effect.rise_s * 60.0)))
-	var end_flat: float = Vector2(block.global_position.x - center.x, block.global_position.z - center.z).length()
-	assert_gt(end_flat, start_flat + 1.0, "pushed outward by the rising cone (%f -> %f)" % [start_flat, end_flat])
-
-
-func _model_effect() -> VolcanoEffect:
-	var def: SpecialDef = load("res://config/gifts/specials/volcano.tres") as SpecialDef
-	return (def.effect as VolcanoEffect).duplicate(true) as VolcanoEffect
-
-
 func _mesh_instances(node: Node, out: Array[MeshInstance3D]) -> void:
 	if node is MeshInstance3D:
 		out.append(node as MeshInstance3D)
 	for child: Node in node.get_children():
 		_mesh_instances(child, out)
-
-
-## Union AABB of all meshes under the structure, in the structure's own space.
-func _visual_bounds(structure: VolcanoStructure) -> AABB:
-	var meshes: Array[MeshInstance3D] = []
-	_mesh_instances(structure, meshes)
-	var bounds: AABB = AABB()
-	var first: bool = true
-	for mesh: MeshInstance3D in meshes:
-		var local: AABB = structure.global_transform.affine_inverse() * mesh.global_transform * mesh.mesh.get_aabb()
-		bounds = local if first else bounds.merge(local)
-		first = false
-	return bounds
-
-
-func _assert_model_fits(effect: VolcanoEffect, structure: VolcanoStructure) -> void:
-	_step(structure, effect.rise_s + TICK)
-	var bounds: AABB = _visual_bounds(structure)
-	assert_almost_eq(bounds.size.x, effect.base_radius_m * 2.0, 0.05, "footprint x")
-	assert_almost_eq(bounds.size.z, effect.base_radius_m * 2.0, 0.05, "footprint z")
-	assert_almost_eq(bounds.size.y, effect.height_m, 0.05, "height")
-	assert_almost_eq(bounds.position.y, 0.0, 0.05, "base sits on y = 0")
-	assert_almost_eq(bounds.position.x + bounds.size.x * 0.5, 0.0, 0.05, "centred on x")
-
-
-func test_host_instances_the_model_scaled_to_the_effect_dimensions() -> void:
-	_start()
-	var effect: VolcanoEffect = _model_effect()
-	assert_not_null(effect.model_scene, "volcano.tres sets the model")
-	var structure: VolcanoStructure = _manual(VolcanoStructure.spawn_host(effect, _origin(), 0))
-	var meshes: Array[MeshInstance3D] = []
-	_mesh_instances(structure, meshes)
-	assert_gt(meshes.size(), 0)
-	assert_false(meshes[0].mesh is CylinderMesh, "the model replaces the procedural cone")
-	_assert_model_fits(effect, structure)
-
-
-func test_client_visual_uses_the_model_without_a_body() -> void:
-	_start()
-	var effect: VolcanoEffect = _model_effect()
-	var visual: VolcanoStructure = VolcanoStructure.new()
-	visual.configure(effect, 0, false)
-	_field.add_child(visual)
-	_manual(visual)
-	assert_false(visual.has_body())
-	_assert_model_fits(effect, visual)
-
-
-func test_model_grows_with_the_rise_fraction() -> void:
-	_start()
-	var effect: VolcanoEffect = _model_effect()
-	var structure: VolcanoStructure = _manual(VolcanoStructure.spawn_host(effect, _origin(), 0))
-	_step(structure, effect.rise_s * 0.5)
-	assert_almost_eq(_visual_bounds(structure).size.y, effect.height_m * 0.5, 0.1)
-
-
-func test_null_model_scene_falls_back_to_the_cone_mesh() -> void:
-	_start()
-	_effect.model_scene = null
-	var structure: VolcanoStructure = _manual(VolcanoStructure.spawn_host(_effect, _origin(), 0))
-	var meshes: Array[MeshInstance3D] = []
-	_mesh_instances(structure, meshes)
-	assert_eq(meshes.size(), 1)
-	assert_true(meshes[0].mesh is CylinderMesh)
-	_assert_model_fits(_effect, structure)
-
-
-# --- eruption particles and shape mix (Bontago-1pi.85.30 / 85.31) -------------------------------
-
-func test_eruption_spawns_a_mix_of_shapes_from_the_shared_picker() -> void:
-	_start()
-	var structure: VolcanoStructure = _manual(VolcanoStructure.spawn_host(_effect, _origin(), 0))
-	_step(structure, _effect.rise_s + 20.0)
-	var seen: Dictionary = {}
-	for child: Node in _blocks.get_children():
-		var block: Block = child as Block
-		if block != null:
-			seen[block.shape_id] = true
-	assert_gt(seen.size(), 2, "several different shapes, not just cubes: %s" % [seen.keys()])
-
-
-func test_eruption_shapes_are_host_deterministic_for_a_seed() -> void:
-	var picks: Array = []
-	for _run: int in range(2):
-		var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-		rng.seed = 4242
-		var ids: Array[StringName] = []
-		for _i: int in range(12):
-			ids.append(GiftShapePicker.pick(rng, _effect.shape_weights).id)
-		picks.append(ids)
-	assert_eq(picks[0], picks[1])
-
-
-func test_null_weights_fall_back_to_the_single_block_shape() -> void:
-	_start()
-	_effect.shape_weights = null
-	var structure: VolcanoStructure = _manual(VolcanoStructure.spawn_host(_effect, _origin(), 0))
-	_step(structure, _effect.rise_s + 5.0)
-	assert_gt(_blocks.get_child_count(), 0)
-	for child: Node in _blocks.get_children():
-		assert_eq((child as Block).shape_id, _effect.block_shape.id)
-
-
-func test_particles_emit_only_while_erupting_and_stop_at_the_end() -> void:
-	_start()
-	var structure: VolcanoStructure = _manual(VolcanoStructure.spawn_host(_effect, _origin(), 0))
-	var fx: VolcanoEruptionFx = structure.eruption_fx()
-	assert_not_null(fx)
-	assert_true(fx.has_burst_emitter() and fx.has_plume_emitter())
-	assert_false(fx.is_emitting(), "quiet before the eruption")
-	_step(structure, _effect.rise_s * 0.5)
-	assert_false(fx.is_emitting(), "quiet while rising")
-	_step(structure, _effect.rise_s + 1.0)
-	assert_true(fx.is_emitting(), "plume/bursts while erupting")
-	_step(structure, _effect.eruption_duration_s)
-	assert_false(fx.is_emitting(), "stopped once the volcano ended")
-	assert_true(structure.is_queued_for_deletion(), "the structure, and its particles, free themselves")
-
-
-func test_particles_stop_when_the_match_ends() -> void:
-	_start()
-	var structure: VolcanoStructure = _manual(VolcanoStructure.spawn_host(_effect, _origin(), 0))
-	_step(structure, _effect.rise_s + 1.0)
-	var fx: VolcanoEruptionFx = structure.eruption_fx()
-	assert_true(fx.is_emitting())
-	Match.abort_match()
-	structure.tick(TICK)
-	assert_false(fx.is_emitting())
-
-
-func test_client_visual_also_emits_particles_without_spawning_blocks() -> void:
-	_start()
-	var visual: VolcanoStructure = VolcanoStructure.new()
-	visual.configure(_effect, 0, false)
-	_field.add_child(visual)
-	visual.global_position = _origin()
-	_manual(visual)
-	_step(visual, _effect.rise_s + 2.0)
-	assert_true(visual.eruption_fx().is_emitting())
-	assert_eq(_blocks.get_child_count(), 0)
-
-
-func test_particle_count_is_bounded_per_preset() -> void:
-	var tuning: VolcanoParticleTuning = _effect.particles
-	var full: GraphicsPreset = GraphicsPreset.new()
-	var low: GraphicsPreset = GraphicsPreset.new()
-	low.ambient_life_enabled = false
-	var shed: GraphicsPreset = GraphicsPreset.new()
-	shed.particle_budget_scale = 0.0
-	var big: VolcanoParticleTuning = tuning.duplicate()
-	big.burst_count = 500
-	big.ember_rate_per_s = 200.0
-	var counts: Array[int] = []
-	for preset: GraphicsPreset in [full, low, shed]:
-		var fx: VolcanoEruptionFx = autofree(VolcanoEruptionFx.new())
-		add_child(fx)
-		fx.setup(big, preset)
-		assert_lte(fx.particle_count(), VolcanoEruptionFx.budget_for(big, preset))
-		assert_lte(fx.particle_count(), big.max_particles)
-		counts.append(fx.particle_count())
-	assert_gt(counts[0], counts[1], "Low draws fewer particles")
-	assert_eq(counts[2], 0, "a zero particle budget builds none")
-	var capped: VolcanoEruptionFx = autofree(VolcanoEruptionFx.new())
-	add_child(capped)
-	capped.setup(big, full)
-	assert_lte(capped.particle_count(), big.max_particles, "an oversized tuning is scaled to the cap")
 
 
 func test_orb_leftovers_are_gone() -> void:

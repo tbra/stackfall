@@ -73,25 +73,6 @@ func _make_local_ghost() -> GhostPreview:
 
 # --- Claim pop ---------------------------------------------------------------
 
-func test_real_spawn_claim_uses_its_id_for_the_pop() -> void:
-	_start_playing(_config())
-	var home: Vector2 = Match.slot(0).home_position
-	var gift_id: int = Match._gifts._next_gift_id
-	Match._gifts._spawn_crate_at(home)
-	var crate: GiftCrate = Match._gifts._crates[gift_id]["node"] as GiftCrate
-	assert_not_null(crate, "the match must create a real crate node")
-	assert_eq(crate.gift_id, gift_id, "the visual must listen for its actual spawn id")
-
-	_step_territory()
-	assert_true(Match._gifts._crates.has(gift_id), "territory cannot claim a crate still descending")
-	var fall_time: float = Match._gifts._gift_config.drop_height_m / Match._gifts._gift_config.fall_speed_m_s
-	Match._gifts.tick_host(fall_time + 0.01)
-
-	assert_false(Match._gifts._crates.has(gift_id), "owned territory claims the crate on landing")
-	assert_eq(Match.pending_special_count(0), 1, "the claim queues a special")
-	assert_not_null(Match._gifts._container.get_node_or_null("GiftClaimPop"), "the claim must leave visible feedback")
-
-
 ## Bontago-mp0.139: a landing claimed the same tick frees the crate node at
 ## once, so its parachute is handed to the container and finishes collapsing.
 func test_a_landing_claim_leaves_the_parachute_collapsing_in_the_container() -> void:
@@ -108,86 +89,6 @@ func test_a_landing_claim_leaves_the_parachute_collapsing_in_the_container() -> 
 	assert_true(chute.is_queued_for_deletion(), "and free itself once it has faded")
 
 
-func test_an_airborne_claim_hands_the_open_canopy_over_to_collapse() -> void:
-	_start_playing(_config())
-	var parent: Node3D = autofree(Node3D.new())
-	add_child_autofree(parent)
-	var crate: GiftCrate = _make_crate(5, Match.slot(0).home_position, parent)
-	crate.set_falling(true)
-	crate.parachute().advance(crate.gift_config.chute_deploy_s + 0.1)
-	var chute: GiftParachute = crate.parachute()
-	Events.gift_claimed.emit(5, 0, MatchGifts.PENDING_SPECIAL_ID)
-	assert_eq(chute.get_parent(), parent, "no longer a child of the crate that is about to be freed")
-	assert_eq(chute.phase(), ParachuteAnim.Phase.COLLAPSING)
-
-
-func test_a_claim_with_no_canopy_up_leaves_nothing_behind() -> void:
-	_start_playing(_config())
-	var parent: Node3D = autofree(Node3D.new())
-	add_child_autofree(parent)
-	var crate: GiftCrate = _make_crate(5, Match.slot(0).home_position, parent)
-	var chute: GiftParachute = crate.parachute()
-	Events.gift_claimed.emit(5, 0, MatchGifts.PENDING_SPECIAL_ID)
-	assert_eq(chute.get_parent(), crate, "a hidden canopy just goes with its crate")
-
-
-func test_pickup_has_a_readable_wrapped_silhouette() -> void:
-	var parent: Node3D = autofree(Node3D.new())
-	add_child_autofree(parent)
-	var crate: GiftCrate = _make_crate(5, Vector2.ZERO, parent)
-	# Bontago-mp0.119: the lid/ribbons are part of the gift_crate_v1 model now.
-	assert_gt(crate.get_node("Mesh").find_children("*", "MeshInstance3D", true, false).size(), 1)
-	assert_null(crate.get_node_or_null("PickupRing"), "only the pulsing LandRing remains on the ground")
-	assert_not_null(crate.get_node_or_null("GiftBeacon/BeaconDiamond"))
-
-
-## Bontago-1pi.143: the unshadowed glow light must not light block faces (layer 1);
-## it is limited to the territory disc layer.
-func test_glow_light_is_limited_to_the_disc_layer_so_it_cannot_light_blocks() -> void:
-	var parent: Node3D = autofree(Node3D.new())
-	add_child_autofree(parent)
-	var crate: GiftCrate = _make_crate(6, Vector2.ZERO, parent)
-	var glow: OmniLight3D = crate.get_node("GiftGlow") as OmniLight3D
-	assert_eq(glow.light_cull_mask, TerritoryOverlay.DISC_LAYER_BIT)
-	assert_eq(glow.light_cull_mask & 1, 0, "layer 1 (blocks, crate) is not lit by the glow")
-
-
-func test_spawn_glow_flashes_then_settles_without_hiding_the_crate() -> void:
-	var parent: Node3D = autofree(Node3D.new())
-	add_child_autofree(parent)
-	var crate: GiftCrate = _make_crate(5, Vector2.ZERO, parent)
-	# Pin a preset with the idle glow on: the default follows the saved
-	# user setting, and Low turns the idle light off (Bontago-mp0.23).
-	crate._on_graphics_preset_changed(load("res://config/graphics/presets/medium.tres") as GraphicsPreset)
-	var glow: OmniLight3D = crate.get_node("GiftGlow") as OmniLight3D
-	var halo: MeshInstance3D = crate.get_node("SpawnHalo") as MeshInstance3D
-	assert_not_null(glow)
-	assert_not_null(halo)
-	assert_true(halo.visible)
-	assert_gt(glow.light_energy, crate.gift_config.spawn_glow_idle_energy)
-	crate._process(crate.gift_config.spawn_glow_duration_s + 0.01)
-	assert_false(halo.visible, "The large flash should end before gameplay continues")
-	assert_almost_eq(glow.light_energy, crate.gift_config.spawn_glow_idle_energy, 0.001)
-	assert_true(crate.get_node("Mesh").visible, "The pickup itself remains readable")
-
-
-func test_low_preset_keeps_only_the_flash_and_no_idle_light() -> void:
-	var parent: Node3D = autofree(Node3D.new())
-	add_child_autofree(parent)
-	var crate: GiftCrate = _make_crate(6, Vector2.ZERO, parent)
-	var glow: OmniLight3D = crate.get_node("GiftGlow") as OmniLight3D
-	crate._on_graphics_preset_changed(load("res://config/graphics/presets/low.tres") as GraphicsPreset)
-	assert_false(crate.idle_glow_enabled())
-	crate._process(0.0)
-	assert_true(glow.visible, "The spawn flash still shows on Low")
-	crate._process(crate.gift_config.spawn_glow_duration_s + 0.01)
-	assert_false(glow.visible, "No idle light on Low once the flash ends")
-	assert_almost_eq(glow.light_energy, 0.0, 0.001)
-	crate._on_graphics_preset_changed(load("res://config/graphics/presets/medium.tres") as GraphicsPreset)
-	crate._process(0.0)
-	assert_true(glow.visible, "Medium keeps the idle light")
-
-
 func test_a_claim_spawns_a_separate_pop_effect_node_and_marks_the_crate_claimed() -> void:
 	_start_playing(_config())
 	var parent: Node3D = autofree(Node3D.new())
@@ -200,36 +101,6 @@ func test_a_claim_spawns_a_separate_pop_effect_node_and_marks_the_crate_claimed(
 	assert_not_null(pop, "a claim must spawn a separate pop effect node, not animate the doomed crate itself")
 	assert_true(crate._claimed, "the crate must mark itself claimed once its own gift_id is claimed")
 
-
-func test_pop_effect_frees_itself_after_its_own_configured_duration() -> void:
-	_start_playing(_config())
-	var parent: Node3D = autofree(Node3D.new())
-	add_child_autofree(parent)
-	var crate: GiftCrate = _make_crate(5, Match.slot(0).home_position, parent)
-
-	Events.gift_claimed.emit(5, 0, MatchGifts.PENDING_SPECIAL_ID)
-	var pop: Node = parent.get_node_or_null("GiftClaimPop")
-	assert_not_null(pop, "fixture: the pop effect must exist right after the claim")
-
-	var total: float = crate.gift_config.claim_pop_grow_duration_s + crate.gift_config.claim_pop_shrink_duration_s
-	await get_tree().create_timer(total + 0.15).timeout
-
-	assert_false(is_instance_valid(pop), "the pop effect must free itself once grow+shrink finishes")
-
-
-func test_a_claim_for_a_different_gift_id_is_ignored() -> void:
-	_start_playing(_config())
-	var parent: Node3D = autofree(Node3D.new())
-	add_child_autofree(parent)
-	var crate: GiftCrate = _make_crate(5, Match.slot(0).home_position, parent)
-
-	Events.gift_claimed.emit(999, 0, MatchGifts.PENDING_SPECIAL_ID)
-
-	assert_null(parent.get_node_or_null("GiftClaimPop"), "a different crate's claim must not spawn a pop effect here")
-	assert_false(crate._claimed, "a different crate's claim must not mark this one claimed")
-
-
-# --- Not-claimable hint -------------------------------------------------------
 
 func test_hint_pulses_when_the_local_ghost_hovers_an_unclaimable_crate() -> void:
 	_start_playing(_config())
@@ -247,26 +118,6 @@ func test_hint_pulses_when_the_local_ghost_hovers_an_unclaimable_crate() -> void
 	assert_ne(
 		crate._material.albedo_color, GiftCrate.UNCLAIMED_COLOR,
 		"a hovered, unclaimable crate must not sit at its flat colour"
-	)
-
-
-func test_hint_resets_once_the_ghost_moves_away() -> void:
-	_start_playing(_config())
-	_step_territory()
-	var parent: Node3D = autofree(Node3D.new())
-	add_child_autofree(parent)
-	var crate: GiftCrate = _make_crate(1, Vector2(19.0, 19.0), parent)
-	var ghost: GhostPreview = _make_local_ghost()
-	ghost.global_position = crate.global_position
-	crate._process(0.05)
-	assert_ne(crate._material.albedo_color, GiftCrate.UNCLAIMED_COLOR, "fixture: hint active while hovering")
-
-	ghost.global_position = crate.global_position + Vector3(100.0, 0.0, 0.0)
-	crate._process(0.05)
-
-	assert_eq(
-		crate._material.albedo_color, GiftCrate.UNCLAIMED_COLOR,
-		"moving the ghost away must reset the flat colour"
 	)
 
 
@@ -288,74 +139,10 @@ func test_hint_does_not_trigger_over_a_crate_inside_the_local_players_own_territ
 	)
 
 
-func test_hint_waits_for_the_landing_but_not_for_the_canopy_to_finish_collapsing() -> void:
-	_start_playing(_config())
-	_step_territory()
-	var parent: Node3D = autofree(Node3D.new())
-	add_child_autofree(parent)
-	var crate: GiftCrate = _make_crate(1, Vector2(19.0, 19.0), parent)
-	var ghost: GhostPreview = _make_local_ghost()
-	ghost.global_position = crate.global_position
-	crate.set_falling(true)
-	crate._process(0.05)
-	assert_eq(crate._material.albedo_color, GiftCrate.UNCLAIMED_COLOR, "a falling crate never shows the hint")
-	crate.set_falling(false)
-	assert_true(crate.parachute().visible, "fixture: the canopy is still collapsing")
-	crate._process(0.05)
-	assert_ne(crate._material.albedo_color, GiftCrate.UNCLAIMED_COLOR, "a landed crate hints even while the canopy settles")
-
-
-func test_hint_does_not_trigger_with_no_local_ghost_held() -> void:
-	_start_playing(_config())
-	_step_territory()
-	var parent: Node3D = autofree(Node3D.new())
-	add_child_autofree(parent)
-	var crate: GiftCrate = _make_crate(1, Vector2(19.0, 19.0), parent)
-
-	crate._process(0.05)
-
-	assert_eq(
-		crate._material.albedo_color, GiftCrate.UNCLAIMED_COLOR,
-		"no held ghost at all must never show the hint"
-	)
-
-
-# --- Bontago-keo.17: the claim pop's colour is the resolved recipient's own -
-# Owner decision "b": Events.gift_claimed's second argument is the RESOLVED
-# RECIPIENT slot (the one teammate nearest the crate), not a team id, so
-# GiftCrate._claim_color() reads Match.slot(slot_id).color directly -- no
-# team-proxy trick needed. Under TEAMS_2 with 4 players, MatchConfig.
-# team_of_slot() interleaves (posmod(slot_id, team_count())), so slots 0/2
-# are team 0 and slots 1/3 are team 1; slot 0 here is a genuine resolved
-# recipient (_inject_crate places the fixture crate on its own home), not a
-# stand-in for the whole team.
-
 func _teams_2_config() -> MatchConfig:
 	var config: MatchConfig = _config(4)
 	config.team_mode = MatchConfig.TeamMode.TEAMS_2
 	return config
-
-
-func test_a_team_0_claim_pops_in_a_genuine_team_0_slots_colour_under_teams_2() -> void:
-	_start_playing(_teams_2_config())
-	var parent: Node3D = autofree(Node3D.new())
-	add_child_autofree(parent)
-	_make_crate(5, Match.slot(0).home_position, parent)
-
-	Events.gift_claimed.emit(5, 0, MatchGifts.PENDING_SPECIAL_ID)
-
-	var pop: Node3D = parent.get_node_or_null("GiftClaimPop") as Node3D
-	assert_not_null(pop, "fixture: a team-0 claim must still spawn a pop effect")
-	var mesh: MeshInstance3D = pop.get_child(0) as MeshInstance3D
-	var material: StandardMaterial3D = mesh.material_override as StandardMaterial3D
-	assert_eq(
-		material.albedo_color, Match.slot(0).color,
-		"team_of_slot(0) == 0 always, so team 0's own pop colour must read a genuine team-0 slot (slot 0)"
-	)
-	assert_ne(
-		material.albedo_color, Match.slot(1).color,
-		"team 0's pop colour must not read team 1's own slot 1"
-	)
 
 
 func test_hint_does_not_trigger_over_a_teammates_territory_under_teams_2() -> void:

@@ -53,24 +53,6 @@ func setup(tuning: VolcanoParticleTuning, preset: GraphicsPreset) -> void:
 		add_child(_plume)
 
 
-## Total particle slots the node can have alive at once.
-func particle_count() -> int:
-	return _burst_amount + _plume_amount
-
-
-func has_burst_emitter() -> bool:
-	return _burst != null
-
-
-func has_plume_emitter() -> bool:
-	return _plume != null
-
-
-## True while any emitter is emitting.
-func is_emitting() -> bool:
-	return (_burst != null and _burst.emitting) or (_plume != null and _plume.emitting)
-
-
 ## One ember burst (one block shot).
 func burst() -> void:
 	if _burst == null:

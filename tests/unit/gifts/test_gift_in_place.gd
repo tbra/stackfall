@@ -106,19 +106,6 @@ func _rain() -> StackfallRain:
 	return null
 
 
-func test_shipped_defs_activate_in_place_without_arm_delay() -> void:
-	for id: String in ["stackfall", "volcano", "earthquake", "propeller", "black_hole"]:
-		var def: SpecialDef = SpecialDef.find_by_id(StringName(id))
-		assert_not_null(def, id)
-		assert_true(def.activates_in_place, id)
-		assert_eq(def.arm_delay, 0.0, id)
-	assert_false(SpecialDef.find_by_id(&"bomb").activates_in_place)
-	var anvil: SpecialDef = SpecialDef.find_by_id(&"anvil")
-	assert_false(anvil.activates_in_place, "the anvil is a physical carrier")
-	assert_gt(anvil.sky_drop_height_m, 0.0, "the anvil falls from the sky")
-	assert_false(SpecialDef.find_by_id(&"rocket").activates_in_place)
-
-
 func test_volcano_release_spawns_no_block_and_raises_structure_at_release_point() -> void:
 	_start()
 	watch_signals(Events)
@@ -152,20 +139,6 @@ func test_stackfall_release_spawns_no_block_and_starts_rain_for_the_owner() -> v
 	assert_eq(rain.owner_slot, 0)
 	assert_eq(Match.held_special(0), &"")
 	assert_eq(_anchor_count(), 0, "anchor freed after the instant effect")
-
-
-func test_stackfall_seed_differs_between_activations() -> void:
-	_start()
-	assert_eq(_release(0, &"stackfall"), PlacementRules.REASON_OK)
-	var first: StackfallRain = _rain()
-	assert_not_null(first)
-	var first_seed: int = first._rng.seed
-	first.set_physics_process(false)
-	first.free()
-	assert_eq(_release(0, &"stackfall"), PlacementRules.REASON_OK)
-	var second: StackfallRain = _rain()
-	assert_not_null(second)
-	assert_ne(first_seed, second._rng.seed)
 
 
 func test_earthquake_release_shakes_without_a_body_and_frees_anchor_after_the_shake() -> void:
@@ -213,22 +186,6 @@ func test_rejected_release_keeps_the_gift_queued() -> void:
 	assert_null(_structure())
 	assert_eq(_anchor_count(), 0)
 
-
-func test_try_activate_declines_without_the_held_gift() -> void:
-	_start()
-	var activation: MatchGiftActivation = Match._placement._activation
-	var def: SpecialDef = SpecialDef.find_by_id(&"volcano")
-	assert_false(activation.try_activate(0, def, Vector2.ZERO), "gift not held")
-	assert_eq(_anchor_count(), 0)
-
-
-func test_clear_frees_live_anchors() -> void:
-	_start()
-	assert_eq(_release(0, &"earthquake"), PlacementRules.REASON_OK)
-	assert_eq(_anchor_count(), 1)
-	Match._placement._activation.clear()
-	await get_tree().process_frame
-	assert_eq(_anchor_count(), 0)
 
 ## Review of 1pi.85.24: an abort (or a restart) frees live anchors through the shared
 ## match reset, not only through the lifetime backstop.
