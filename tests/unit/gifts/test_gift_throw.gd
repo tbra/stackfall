@@ -1,7 +1,7 @@
 extends GutTest
-## Bontago-1pi.85.16/85.29: gift throw policy. Bomb/Magnet/Jumping Bean are thrown along GiftAim's
+## /85.29: gift throw policy. Bomb/Magnet/Jumping Bean are thrown along GiftAim's
 ## host-computed ballistic velocity from the camera forward (client speed is ignored), Rocket/Paintball
-## fly along that forward (Rocket at any pitch, 1pi.85.34 Q3), every other gift refuses a throw.
+## fly along that forward (Rocket at any pitch), every other gift refuses a throw.
 ## Fixture family of test_match_throw.gd (tiny map, real Field, injected SpecialDefs).
 
 var _blocks_root: Node3D
@@ -193,7 +193,7 @@ func test_a_non_throwable_gift_refuses_the_throw_and_is_not_burned() -> void:
 # --- host: aimed launch (Rocket/Paintball) --------------------------------------
 
 func test_rocket_keeps_an_upward_aim_exactly() -> void:
-	# Bontago-1pi.85.34 Q3: the Rocket flies where the camera aims, upward included.
+	# Q3: the Rocket flies where the camera aims, upward included.
 	_start_with(&"gift_rocket", GiftThrow.Mode.AIMED)
 	assert_eq(_throw(Vector3(0.0, 0.5, 1.5)), PlacementRules.REASON_OK)  # looks up
 	var block: Block = _blocks_root.get_child(0) as Block
@@ -220,7 +220,7 @@ func test_aimed_gift_refuses_malformed_directions_and_stays_held() -> void:
 	assert_eq(Match.held_special(0), &"gift_rocket")
 
 
-# --- Bontago-1pi.85.21: host validation findings -----------------------------------
+# --- host validation findings -----------------------------------
 
 func test_unresolved_def_gift_never_launches_with_the_raw_client_velocity() -> void:
 	Match.start_match(_config())
@@ -294,7 +294,7 @@ func test_only_the_ballistic_throw_mode_shows_a_preview() -> void:
 	assert_false(GiftThrow.shows_preview(GiftThrow.Mode.NONE))
 
 
-# --- Bontago-1pi.126: throw range scales with the field radius ---------------------------
+# --- throw range scales with the field radius ---------------------------
 
 func _flat_range(velocity: Vector3) -> float:
 	var g: float = float(ProjectSettings.get_setting("physics/3d/default_gravity")) * PhysicsTuning.new().gravity_multiplier

@@ -1,6 +1,6 @@
 class_name PerfProbe
 extends RefCounted
-## Bontago-470.8: additive microsecond probes for the F1 detailed overlay and
+## additive microsecond probes for the F1 detailed overlay and
 ## the perf CSV. Wrap an existing call:
 ##   var t: int = PerfProbe.start()
 ##   thing.tick(delta)

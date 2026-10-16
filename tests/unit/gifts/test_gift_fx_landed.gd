@@ -1,5 +1,5 @@
 extends GutTest
-## LandedProbe (docs/GIFT_EFFECTS_PLAN.md section 5 A1): velocity/hold/timeout
+## LandedProbe: velocity/hold/timeout
 ## detection instead of Jolt sleeping. The disc keeps tilting so the island never sleeps.
 
 const TICK: float = 1.0 / 60.0
@@ -99,7 +99,7 @@ func test_tumbling_block_is_not_landed() -> void:
 	assert_false(probe.has_landed(), "fast-moving block does not report landed before the timeout")
 
 
-## Bontago-1pi.85.67: speed is measured relative to the supporting disc. A carrier riding a
+## speed is measured relative to the supporting disc. A carrier riding a
 ## disc that moves at a steady rate (faster than landed_speed_mps) lands by the speed/hold
 ## rule well before the timeout. The carrier is slaved to the disc each tick (the stand-in
 ## for friction carrying it).

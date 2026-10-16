@@ -1672,7 +1672,7 @@ descriptions = {
 "HUDVisualTuning.hud_diamond_outline_color": "Stroke color around the colour diamond.",
 "HUDVisualTuning.hud_diamond_outline_width_px": "Stroke width in pixels around the colour diamond.",
 "HUDVisualTuning.hud_row_glyph_size_px": "Side length in pixels of the diamond glyph beside each player's territory-share bar.",
-"HUDVisualTuning.surface_color": "Cream card fill behind the HUD readouts (mp0.15).",
+"HUDVisualTuning.surface_color": "Cream card fill behind the HUD readouts.",
 "HUDVisualTuning.surface_border_color": "Ink outline color of the HUD cards.",
 "HUDVisualTuning.ink_color": "Primary text and glyph color on HUD cards.",
 "HUDVisualTuning.muted_ink_color": "Secondary/label text color on HUD cards.",

@@ -1,6 +1,6 @@
 class_name ExitRelease
 extends RefCounted
-## Bontago-xtq.44: drops the process-wide static caches (shared config tables, the special
+## drops the process-wide static caches (shared config tables, the special
 ## roster, block meshes and materials) when the game scene leaves the tree on quit. Static
 ## variables outlive the scene tree, so every Texture/Mesh/Material they held was reported
 ## by the engine as a leaked RID / ObjectDB instance at exit. Called only on exit; nothing

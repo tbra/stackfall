@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.60: every shipped map must build a visible mesh and
+## every shipped map must build a visible mesh and
 ## collider that match its cells. Compares Field's collision trimesh, the
 ## TerritoryOverlay's visible mesh and the MapDef's cell coverage.
 
@@ -49,7 +49,7 @@ func test_collision_and_visible_mesh_match_map_def_for_every_disc_size() -> void
 
 		var mesh: Mesh = field.overlay().mesh
 		assert_not_null(mesh, "%s: overlay mesh" % label)
-		# Bontago-mp0.150.1: surface 0 is the playing slab; later surfaces are the rim.
+		# surface 0 is the playing slab; later surfaces are the rim.
 		var top_arrays: Array = (mesh as ArrayMesh).surface_get_arrays(0)
 		var box: AABB = AABB()
 		var first: bool = true

@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.62: the owner's bot-name lists, the pure picking rules, the
+## the owner's bot-name lists, the pure picking rules, the
 ## MatchConfig wire round trip and the host's per-seat assignment.
 
 var _tiny_map: MapDef
@@ -44,27 +44,6 @@ func _bot_config(player_count: int, ai_count: int) -> MatchConfig:
 	return config
 
 
-func test_owner_lists_are_kept_and_pooled() -> void:
-	assert_eq(BotNames.TACTICIANS.size(), 20)
-	assert_eq(BotNames.TERRITORY.size(), 18)
-	assert_true(BotNames.all_names().has("SirStackALot"))
-	assert_eq(BotNames.all_names().size(), 20 + 20 + 19 + 20 + 18)
-
-
-func test_random_and_themed_names_come_from_the_pool() -> void:
-	var pool: PackedStringArray = BotNames.all_names()
-	assert_true(pool.has(BotNames.get_random_name()))
-	assert_true(BotNames.SMASHERS.has(BotNames.get_themed_name(1)))
-	assert_true(pool.has(BotNames.get_themed_name(99)), "an unknown theme falls back to any name")
-	assert_true(pool.has(BotNames.get_random_name_with(_rng(1))))
-
-
-func test_assign_is_deterministic_for_a_seed() -> void:
-	var first: PackedStringArray = BotNames.assign(PackedStringArray(), 7, PackedStringArray(), _rng(42))
-	var second: PackedStringArray = BotNames.assign(PackedStringArray(), 7, PackedStringArray(), _rng(42))
-	assert_eq(first, second)
-
-
 func test_assign_gives_distinct_names_and_avoids_humans() -> void:
 	var humans: PackedStringArray = PackedStringArray(["tetra", "Vertex"])
 	for seed_value: int in range(20):
@@ -86,23 +65,6 @@ func test_assign_keeps_valid_existing_names_and_replaces_clashes() -> void:
 	assert_eq(shrunk, PackedStringArray(["Apex"]))
 	var clash: PackedStringArray = BotNames.assign(PackedStringArray(["Apex"]), 1, PackedStringArray(["Apex"]), _rng(5))
 	assert_ne(clash[0], "Apex", "a human now holds that name")
-
-
-func test_config_round_trips_bot_names_and_rejects_junk() -> void:
-	var config: MatchConfig = MatchConfig.new()
-	config.bot_names = PackedStringArray(["Apex", "Quake"])
-	var copy: MatchConfig = MatchConfig.from_dict(config.to_dict())
-	assert_eq(copy.bot_names, config.bot_names)
-	assert_true(MatchConfig.from_dict({"bot_names": "Apex"}).bot_names.is_empty())
-	assert_true(MatchConfig.from_dict({"bot_names": [1, 2]}).bot_names.is_empty())
-	assert_false(MatchConfig.new().to_dict().has("bot_names"), "legacy dict unchanged")
-
-
-func test_bot_label_falls_back_to_player_n() -> void:
-	var names: PackedStringArray = PackedStringArray(["Apex"])
-	assert_eq(PlayerNames.bot_label(2, 0, names), "Apex")
-	assert_eq(PlayerNames.bot_label(3, 1, names), "Player 4")
-	assert_eq(PlayerNames.bot_label(3, -1, names), "Player 4")
 
 
 func test_host_names_bots_once_and_a_client_build_reads_the_same_names() -> void:

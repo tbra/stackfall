@@ -1,6 +1,6 @@
 class_name CloudSea
 extends Node3D
-## Bontago-adt.1: the near/mid-field cloud sea below the floating disc --
+## the near/mid-field cloud sea below the floating disc --
 ## real 3D stylized cumulus. One MultiMeshInstance3D draws flat-bottomed
 ## low-poly spheres ("puffs") clustered into cumulus clumps scattered on a
 ## ring around and below the disc; shaders/sky/cloud_puffs.gdshader toon-shades
@@ -23,7 +23,7 @@ const RENDER_LAYER_BIT: int = 1 << 18
 const SHARED_SKY_PARAMETERS: Array[StringName] = [
 	&"exposure", &"grade_amount", &"grade_dark", &"grade_mid",
 	&"grade_light", &"grade_gamma",
-	# Bontago-59o.16 P4: procedural sea/gradient the far fade targets.
+	# P4: procedural sea/gradient the far fade targets.
 	&"procedural_sea_mix", &"noise_tex", &"sun_direction", &"proc_zenith_color", &"proc_mid_color",
 	&"proc_horizon_color", &"proc_gradient_mid_height", &"proc_gradient_power", &"proc_gradient_bands",
 	&"proc_gradient_band_edge", &"proc_horizon_glow_color", &"proc_horizon_glow_width",
@@ -33,7 +33,7 @@ const SHARED_SKY_PARAMETERS: Array[StringName] = [
 	&"cloud_shadow_color", &"cloud_mid_color", &"cloud_lit_color", &"cloud_rim_color",
 ]
 const FLAT_BASE_PARAMETER: StringName = &"flat_base"
-## Bontago-mp0.93 per-instance / material parameters of the upper layer (see
+## per-instance / material parameters of the upper layer (see
 ## shaders/sky/cloud_puffs.gdshader): its own base plane height, and the camera-clearance fade.
 const FLAT_BASE_OVERRIDE_PARAMETER: StringName = &"flat_base_override"
 const CLEAR_FADE_START_PARAMETER: StringName = &"base_clear_start_m"
@@ -61,14 +61,14 @@ const SIZE_JITTER: float = 0.15
 const TOP_JITTER_MIN: float = 0.82
 const STRETCH_MAX: float = 1.2
 
-## Bontago-1pi.11.67 (fix 2a): per-instance shader flag marking the hexagon-impostor instances.
+## fix 2a: per-instance shader flag marking the hexagon-impostor instances.
 const BILLBOARD_PARAMETER: StringName = &"billboard"
 ## Hexagon impostor (UV = corner): circumradius over inradius 1 is 2 / sqrt(3), so the polygon
 ## contains the unit circle the shader sizes to the puff silhouette (1 / cos(PI / corners)).
 const BILLBOARD_CORNERS: int = 6
 const INDICES_PER_TRIANGLE: int = 3
 
-## Bontago-mp0.95: group the live CloudSea joins so game/sky/SunFlare.gd can ask it whether the
+## group the live CloudSea joins so game/sky/SunFlare.gd can ask it whether the
 ## puffs hide the sun without a node path.
 const GROUP: StringName = &"cloud_sea"
 ## Sun-occlusion records (see sun_ray_cloud_occlusion()): one row per puff in _occ_puffs.
@@ -104,12 +104,12 @@ class _Layer:
 	var top_max_m: float = 0.0
 	var radius_min_m: float = 1.0
 	var radius_max_m: float = 1.0
-	## Bontago-mp0.29: the weather-driven layer above the disc; it skips the
+	## the weather-driven layer above the disc; it skips the
 	## under-disc exclusion clamp and the sea's highest-top bookkeeping.
 	var is_upper: bool = false
-	## Bontago-mp0.92: depth class (CloudDriftMath.KIND_*) picking the layer's parallax rate.
+	## depth class (CloudDriftMath.KIND_*) picking the layer's parallax rate.
 	var kind: StringName = CloudDriftMath.KIND_SEA
-	## Bontago-mp0.93 (upper layer, seen from below): the puffs' base plane in unit-sphere
+	## upper layer, seen from below: the puffs' base plane in unit-sphere
 	## space (1 = round bottoms), how far a puff may hang below its clump's base level,
 	## and how far down the small detail puffs may sit on the big ones. Left at the
 	## sea's behaviour (the theme's flat base, no sink, upper half only) elsewhere.
@@ -131,21 +131,21 @@ class _Stage:
 
 
 var _instance: MultiMeshInstance3D = null
-## Bontago-1pi.11.67: the impostor twins of _instance / _upper (null when no clump is that far).
+## the impostor twins of _instance / _upper (null when no clump is that far).
 var _far: MultiMeshInstance3D = null
 var _upper_far: MultiMeshInstance3D = null
 ## GraphicsPreset.cloud_billboard_distance_m of the last configure() (0 = hulls only).
 var _billboard_distance_m: float = 0.0
 var _material: ShaderMaterial = null
-## Bontago-mp0.26: the cycle-mixed cloud colours last written by
+## the cycle-mixed cloud colours last written by
 ## set_cycle_appearance(), keyed by shader parameter. apply_storm_tint() lerps
 ## from these (the colours in effect) instead of the DAY theme. Empty outside
 ## CYCLE (configure() clears it); keys are reused so no per-frame allocation.
 var _cycle_base: Dictionary[StringName, Color] = {}
-## Bontago-mp0.29: the shared cloud lighting (owned by Skybox). configure()
+## the shared cloud lighting (owned by Skybox). configure()
 ## re-applies its weather grade to the fresh puff material.
 var lighting: CloudLighting = null
-## Bontago-mp0.29: tuning of the upper (overcast) puff layer and whether the Low
+## tuning of the upper (overcast) puff layer and whether the Low
 ## preset is active; Skybox sets both before configure().
 var upper_tuning: WeatherCeilingTuning = null
 var upper_low: bool = false
@@ -188,17 +188,17 @@ func set_cycle_appearance(day: SkyThemeDef, night_theme: SkyThemeDef, weight: fl
 ## Highest puff top written by the last configure() (tracked here because a
 ## headless RenderingServer does not keep MultiMesh instance data).
 var _highest_top: float = -INF
-## Bontago-t8x.2: set by configure() -- the shader's radius inflation (lumps +
+## set by configure() -- the shader's radius inflation (lumps +
 ## billow + hull margin, fraction of radius) and the disc exclusion volume.
 var _inflate: float = 0.0
 ## Highest inflated puff top among puffs whose footprint enters the exclusion cylinder.
 var _highest_top_near_disc: float = -INF
-## Bontago-1pi.107: the largest disc radius (m) the clouds must clear -- the active
+## the largest disc radius (m) the clouds must clear -- the active
 ## (disc-size scaled) field radius; never below the largest shipped map.
 var disc_radius_m: float = MapDef.RADIUS_LARGE
 var _exclusion_radius_m: float = 0.0
 var _disc_ceiling_m: float = 0.0
-## Bontago-mp0.95 sun-occlusion bounds, recorded by configure() for every clump of both
+## sun-occlusion bounds, recorded by configure() for every clump of both
 ## instances (bounds only; no physics body exists for the puffs). Clump arrays share one
 ## index; a clump's puffs are rows first..first+count of _occ_puffs. Positions are in the
 ## clump's rest frame: the shader slides each clump by drift_offset * its speed (wrapped), so
@@ -207,7 +207,7 @@ var _occ_puffs: PackedFloat32Array = PackedFloat32Array()
 var _occ_centre: PackedVector3Array = PackedVector3Array()
 var _occ_radius: PackedFloat32Array = PackedFloat32Array()
 var _occ_speed: PackedFloat32Array = PackedFloat32Array()
-## Bontago-mp0.92: per clump, its rest (x, z), wrap domain half-side and exclusion radius (0 =
+## per clump, its rest (x, z), wrap domain half-side and exclusion radius (0 =
 ## none), the same numbers the shader reads from the instance colour.
 var _occ_rest: PackedVector2Array = PackedVector2Array()
 var _occ_domain: PackedFloat32Array = PackedFloat32Array()
@@ -225,7 +225,7 @@ var _occ_clear_start_m: float = 0.0
 var _occ_clear_end_m: float = 0.0
 
 
-## Bontago-mp0.19: storm tint. Re-bases the live puff material on `base` (the
+## storm tint. Re-bases the live puff material on `base` (the
 ## match theme) blended toward `storm` by `amount` 0..1: puff cel colours and
 ## the sky cloud colours lerp between the two themes, then the shared sky
 ## uniforms (procedural sea colours the far fade targets) are re-copied from
@@ -256,7 +256,7 @@ func _lerp_colors(from: ShaderMaterial, to: ShaderMaterial, parameters: Array[St
 			_material.set_shader_parameter(parameter, (a as Color).lerp(b as Color, weight))
 
 
-## Bontago-mp0.29: the weather grade (overcast dim + desaturate) of the shared
+## the weather grade (overcast dim + desaturate) of the shared
 ## CloudLighting reaches the puffs as shader uniforms; their palette and light
 ## direction already arrive through set_cycle_appearance()/apply_storm_tint().
 func apply_lighting(state: CloudLighting) -> void:
@@ -278,7 +278,7 @@ func refresh_weather_fog() -> void:
 ## Rebuilds the puffs from `theme`. `density` (GraphicsPreset.cloud_puff_density,
 ## 0..1) scales the theme's clump count; 0 hides the cloud sea. `sky_material`
 ## is the active sky material whose grade/procedural uniforms the puffs copy.
-## Bontago-mp0.92: pushes the shared integrated cloud wind (CloudDriftState.offset) to the
+## pushes the shared integrated cloud wind (CloudDriftState.offset) to the
 ## puff shader and the sun-occlusion bounds.
 func set_drift_offset(offset: Vector2) -> void:
 	_drift_offset = offset
@@ -348,7 +348,7 @@ func configure(theme: SkyThemeDef, density: float, sky_material: Material = null
 	add_child(_instance)
 	if _far != null:
 		add_child(_far)
-	# Bontago-mp0.29: the same puffs, shader, material and lighting again above
+	# the same puffs, shader, material and lighting again above
 	# the disc, always present (weather only changes its lighting).
 	var upper_layers: Array[_Layer] = _upper_layers_for(theme, density)
 	if not upper_layers.is_empty():
@@ -431,7 +431,7 @@ func _apply_upper_parameters_to(node: MultiMeshInstance3D) -> void:
 	node.set_instance_shader_parameter(&"edge_soft_px", upper_tuning.upper_edge_softness_px if upper_tuning != null else 0.0)
 	if upper_tuning == null:
 		return
-	# Bontago-mp0.93: the layer's own base plane (the shader reads it per instance, the
+	# the layer's own base plane (the shader reads it per instance, the
 	# sea keeps the material's flat_base), and the camera-clearance dither fade. The
 	# fade uniforms live on the shared material but only the floor_on layer applies them.
 	node.set_instance_shader_parameter(FLAT_BASE_OVERRIDE_PARAMETER, upper_tuning.upper_flat_base)
@@ -480,7 +480,7 @@ static func disc_ceiling_m(theme: SkyThemeDef, radius_m: float = MapDef.RADIUS_L
 	return -MapDef.new().disk_height - disc_clearance_m(theme, radius_m)
 
 
-## Bontago-mp0.29: the overcast layer above the disc -- clumps over a disc of
+## the overcast layer above the disc -- clumps over a disc of
 ## upper_ring_outer_m around the axis, flat bases from height_m up, scaled by the
 ## density preset like the sea (Low also uses upper_clump_count_low).
 func _upper_layers_for(theme: SkyThemeDef, density: float) -> Array[_Layer]:
@@ -497,7 +497,7 @@ func _upper_layers_for(theme: SkyThemeDef, density: float) -> Array[_Layer]:
 	upper.ring_inner_m = 0.0
 	upper.ring_outer_m = upper_tuning.upper_ring_outer_m
 	upper.radial_bias = 1.0
-	# Bontago-mp0.93: round bottoms hang up to upper_base_sink_m under their clump's
+	# round bottoms hang up to upper_base_sink_m under their clump's
 	# base level, so the clumps start that much higher and nothing hangs below height_m.
 	upper.flat_base = upper_tuning.upper_flat_base
 	upper.sink_m = upper_tuning.upper_base_sink_m
@@ -526,7 +526,7 @@ static func _layers_for(theme: SkyThemeDef, density: float) -> Array[_Layer]:
 	sea.radial_bias = theme.cloud_radial_bias
 	sea.base_min_m = theme.cloud_base_min_m
 	sea.base_max_m = theme.cloud_base_max_m
-	# Bontago-t8x.2: the sea layer rides cloud_puff_raise_m higher; the disc
+	# the sea layer rides cloud_puff_raise_m higher; the disc
 	# clearance clamp in _write_puff() keeps it clear of the disc and play volume.
 	sea.base_min_m += theme.cloud_puff_raise_m
 	sea.base_max_m += theme.cloud_puff_raise_m
@@ -546,7 +546,7 @@ static func _layers_for(theme: SkyThemeDef, density: float) -> Array[_Layer]:
 	banks.radius_min_m = theme.cloud_bank_radius_min_m
 	banks.radius_max_m = theme.cloud_bank_radius_max_m
 	layers.append(banks)
-	# DECISION (Bontago-59o.19): the below-horizon cloud sea of the procedural
+	# DECISION: the below-horizon cloud sea of the procedural
 	# look is a far ring of the same 3D puffs (they already read well and need no
 	# new art) rather than a shader-only height field; the sky shader keeps only a
 	# flat violet cloud floor and haze between them. Gated on the toggle so the
@@ -582,7 +582,7 @@ func _add_clump(near: _Stage, far: _Stage, theme: SkyThemeDef, layer: _Layer, rn
 	var clump_height: float = clump_radius * theme.cloud_clump_height_ratio * rng.randf_range(1.0 - SIZE_JITTER, 1.0 + SIZE_JITTER)
 	var base_y: float = rng.randf_range(layer.base_min_m, layer.base_max_m)
 	base_y = minf(base_y, layer.top_max_m - clump_height)
-	# Bontago-mp0.92: the clump's own speed times its layer's depth rate (near layers slide
+	# the clump's own speed times its layer's depth rate (near layers slide
 	# faster: parallax). The shader moves it along the shared wind by drift_offset * speed.
 	var speed: float = rng.randf_range(theme.cloud_drift_speed_min_mps, theme.cloud_drift_speed_max_mps)
 	var angular_speed: float = speed * CloudDriftMath.layer_rate(layer.kind, drift_config)
@@ -599,7 +599,7 @@ func _add_clump(near: _Stage, far: _Stage, theme: SkyThemeDef, layer: _Layer, rn
 	var flat: float = layer.flat_base if layer.is_upper else theme.cloud_flat_base
 	var total: int = theme.cloud_puffs_per_clump
 	var detail_count: int = int(float(total) * DETAIL_SHARE) if total > 2 else 0
-	# DECISION (Bontago-1pi.11.67): an impostor clump is far away, where the small cauliflower
+	# DECISION: an impostor clump is far away, where the small cauliflower
 	# puffs sitting on the big ones are a few pixels at most: it draws its body puffs only.
 	var distant: bool = stage == far
 	if distant:
@@ -640,9 +640,9 @@ func _write_puff(stage: _Stage, at: Vector3, radius: float, layer: _Layer,
 	var height: float = radius * layer.vertical_scale
 	at.y = minf(at.y, layer.top_max_m - height)
 	var stretch: float = rng.randf_range(1.0, STRETCH_MAX)
-	# Bontago-t8x.2: a puff that could reach the disc or the play volume (its
+	# a puff that could reach the disc or the play volume (its
 	# footprint, inflated by the shader's lumps/billow, enters the exclusion
-	# cylinder) is held under the disc by the clearance. Bontago-mp0.92: the
+	# cylinder) is held under the disc by the clearance. the
 	# shader now slides clumps along the wind, so a below-disc clump drifting inside the
 	# exclusion radius dissolves instead (drift_vis); this clamp holds for the rest position.
 	var inflated: float = radius * (1.0 + _inflate)
@@ -662,7 +662,7 @@ func _write_puff(stage: _Stage, at: Vector3, radius: float, layer: _Layer,
 	stage.colors.append(rest)
 
 
-## Bontago-mp0.95: appends one puff's occlusion row (a spheroid: horizontal radius
+## appends one puff's occlusion row (a spheroid: horizontal radius
 ## `horizontal`, vertical radius `vertical`, both grown by the shader's hull inflation).
 func _record_puff(at: Vector3, horizontal: float, vertical: float, flat: float) -> void:
 	var grow: float = 1.0 + _inflate
@@ -670,7 +670,7 @@ func _record_puff(at: Vector3, horizontal: float, vertical: float, flat: float) 
 	_occ_puffs.append_array(PackedFloat32Array([at.x, at.y, at.z, horizontal * grow, vertical * grow, cut]))
 
 
-## Bontago-mp0.95: closes the clump whose puffs start at row `first_puff`: its bounding sphere
+## closes the clump whose puffs start at row `first_puff`: its bounding sphere
 ## (rest frame), height slab and drift speed.
 func _record_clump_bounds(first_puff: int, angular_speed: float, is_upper: bool, rest: Color) -> void:
 	var rows: int = _occ_puffs.size() / OCC_PUFF_STRIDE
@@ -727,7 +727,7 @@ func occlusion_puff_count() -> int:
 	return _occ_puffs.size() / OCC_PUFF_STRIDE
 
 
-## Bontago-mp0.95: how much the puffs hide the sun seen along the ray from `from` toward the
+## how much the puffs hide the sun seen along the ray from `from` toward the
 ## unit-ish `dir`, 0 (clear sky) .. 1 (fully hidden). The sun is at infinity, so the ray is a
 ## half-line. Cheap bounds test, no physics: clumps first by a height slab and a bounding
 ## sphere (each clump's wind shift undone on the ray: the shader moves clumps by
@@ -811,7 +811,7 @@ func _puff_cover(origin: Vector3, heading: Vector3, row: int, upper: bool, setti
 	return cover
 
 
-## Bontago-mp0.93: centre height of a body puff whose top would be `top`: its bottom plane (at
+## centre height of a body puff whose top would be `top`: its bottom plane (at
 ## `flat` of its radius below the centre) never goes under `base_y`, less `sink_m` (the upper
 ## layer lets round bottoms hang a little below the clump's level so they share no plane).
 ## With flat = 1 the puff just rests on base_y.
@@ -921,8 +921,8 @@ static func build_puff_mesh(flat_base: float, subdivisions: int = PUFF_SUBDIVISI
 	return mesh
 
 
-## Bontago-1pi.11.67: the impostor polygon, a hexagon in the XY plane whose UV is its corner
-## (inradius 1): 4 triangles. The vertex stage places it facing the camera; see the shader.
+## the impostor polygon, a hexagon in the XY plane whose UV is its corner
+## inradius 1: 4 triangles. The vertex stage places it facing the camera; see the shader.
 static func build_billboard_mesh() -> ArrayMesh:
 	var positions: PackedVector3Array = PackedVector3Array()
 	var uvs: PackedVector2Array = PackedVector2Array()

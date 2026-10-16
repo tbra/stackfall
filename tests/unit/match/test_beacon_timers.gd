@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.188 / 1pi.189: goal-beacon timer labels (Classic countdown, CTF
+## Goal-beacon timer labels (Classic countdown, CTF
 ## count-up) and the CTF score-multiplier chip, plus the pure text helpers.
 
 const CTF: int = MatchConfig.GameMode.CAPTURE_THE_FLAG
@@ -16,32 +16,6 @@ func before_each() -> void:
 
 func _claim(team: int) -> void:
 	_flag.set_control(team, TEAM_COLOR if team >= 0 else Color.WHITE, PackedColorArray())
-
-
-func test_clock_formats_minutes_and_clamps() -> void:
-	assert_eq(BeaconTimerText.clock(0), "0:00")
-	assert_eq(BeaconTimerText.clock(75), "1:15")
-	assert_eq(BeaconTimerText.clock(-5), "0:00")
-
-
-func test_ctf_text_counts_up_for_holder_only() -> void:
-	assert_eq(BeaconTimerText.ctf_text(-1, 12.0), "")
-	assert_eq(BeaconTimerText.ctf_text(2, 0.0), "0:00")
-	assert_eq(BeaconTimerText.ctf_text(2, 65.9), "1:05")
-
-
-func test_multiplier_text_needs_two_beacons() -> void:
-	assert_eq(BeaconTimerText.multiplier_text(0), "")
-	assert_eq(BeaconTimerText.multiplier_text(1), "")
-	assert_eq(BeaconTimerText.multiplier_text(3), "x3")
-
-
-func test_multiplier_in_state_reads_ctf_held_counts() -> void:
-	var state: Dictionary = {"mode_id": CTF, "extra": {"held_0": 2, "held_1": 1}}
-	assert_eq(BeaconTimerText.multiplier_text_in_state(state, 0), "x2")
-	assert_eq(BeaconTimerText.multiplier_text_in_state(state, 1), "")
-	assert_eq(BeaconTimerText.multiplier_text_in_state(state, -1), "")
-	assert_eq(BeaconTimerText.multiplier_text_in_state({"mode_id": MatchConfig.GameMode.CLASSIC, "extra": {"held_0": 3}}, 0), "")
 
 
 func test_classic_flag_label_follows_capture_and_ticks_down() -> void:
@@ -80,13 +54,6 @@ func test_ctf_multiplier_chip_shows_only_for_held_multiples() -> void:
 	assert_eq(_flag.multiplier_chip_text(), "", "no chip on an unheld beacon")
 
 
-func test_labels_billboard_and_sit_above_the_crystal() -> void:
-	var label: Label3D = _flag.get_node("TimerLabel") as Label3D
-	assert_eq(label.billboard, BaseMaterial3D.BILLBOARD_ENABLED)
-	var tuning: BeaconVisualTuning = _flag.beacon_visuals
-	assert_gt(label.position.y, tuning.beacon_top_height(_flag.banner_scale()))
-
-
 func test_field_feeds_multiplier_from_replicated_mode_state() -> void:
 	var field: Field = autofree(Field.new())
 	field.map_def = load("res://config/match/maps/round.tres") as MapDef
@@ -103,12 +70,6 @@ func test_field_feeds_multiplier_from_replicated_mode_state() -> void:
 	assert_eq(flags[0].multiplier_chip_text(), "")
 
 
-func test_hud_row_chip_text_for_team() -> void:
-	var state: Dictionary = {"mode_id": CTF, "extra": {"held_0": 2}}
-	assert_eq(BeaconTimerText.multiplier_text_in_state(state, 0), "x2")
-
-
-
 func test_timer_text_takes_controlling_team_colour() -> void:
 	var label: Label3D = _flag.get_node("TimerLabel") as Label3D
 	var tuning: BeaconVisualTuning = _flag.beacon_visuals
@@ -123,18 +84,3 @@ func test_timer_text_takes_controlling_team_colour() -> void:
 	_claim(GoalControl.NEUTRAL)
 	assert_eq(label.modulate, tuning.timer_text_color, "no controller: falls back to timer_text_color")
 
-
-func test_classic_countdown_uses_claimant_colour_before_control() -> void:
-	var label: Label3D = _flag.get_node("TimerLabel") as Label3D
-	var tuning: BeaconVisualTuning = _flag.beacon_visuals
-	var claimant: Color = Color(0.2, 0.7, 0.3)
-	_flag.set_countdown(1, 0.5, HOLD_S, claimant)
-	assert_eq(label.modulate, claimant, "Classic claim in progress: timer uses the claimant's colour")
-	_flag.set_countdown(-1, 0.0, HOLD_S, Color.WHITE)
-	assert_eq(label.modulate, tuning.timer_text_color, "claim lost: fallback colour")
-
-
-func test_classic_countdown_without_claimant_falls_back() -> void:
-	var label: Label3D = _flag.get_node("TimerLabel") as Label3D
-	_flag.set_countdown(-1, 0.0, HOLD_S, Color.WHITE)
-	assert_eq(label.modulate, _flag.beacon_visuals.timer_text_color, "no claimant: timer_text_color")

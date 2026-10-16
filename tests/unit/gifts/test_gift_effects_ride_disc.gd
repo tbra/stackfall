@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.85.66: persistent gift nodes (black hole field + visual, paintball splash,
+## persistent gift nodes (black hole field + visual, paintball splash,
 ## blast puff) hang under the Field, so they keep their disc-local transform when the
 ## disc tilts or shakes, like the volcano and propeller stand do.
 

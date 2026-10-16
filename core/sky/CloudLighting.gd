@@ -1,6 +1,6 @@
 class_name CloudLighting
 extends RefCounted
-## Bontago-mp0.29: the one lighting/weather/cycle state every cloud layer reads
+## the one lighting/weather/cycle state every cloud layer reads
 ## (the sea below the disc, the puffs, the weather ceiling above it). game/sky/Skybox.gd
 ## owns the single instance and publishes it whenever the theme, the day/night
 ## cycle phase, the overcast or the storm blend change; layers never derive their
@@ -26,7 +26,7 @@ var storm: float = 0.0
 ## darkens by `dim` and moves toward grey by `desaturate`.
 var dim: float = 0.0
 var desaturate: float = 0.0
-## Bontago-mp0.34: brightness floor of the graded puff tones (a deep slate
+## brightness floor of the graded puff tones (a deep slate
 ## colour scaled to `min_brightness` luminance; the shadow and mid tones sit at
 ## the given ratios of it) and the sun-effect scale (flare, rays, sun glow).
 var floor_color: Color = Color(0.0, 0.0, 0.0)
@@ -60,7 +60,7 @@ func publish(shadow: Color, mid: Color, lit: Color, rim: Color, direction: Vecto
 	return true
 
 
-## Bontago-mp0.34: floor colour (lit tone), its shadow/mid ratios and the sun
+## floor colour (lit tone), its shadow/mid ratios and the sun
 ## scale. Emits `changed` and returns true only if something differs.
 func publish_floor(floor: Color, shadow_ratio: float, mid_ratio: float, sun_effects: float) -> bool:
 	if floor == floor_color and shadow_ratio == floor_shadow_ratio and mid_ratio == floor_mid_ratio 			and sun_effects == sun_scale:
@@ -82,7 +82,7 @@ static func grade(color: Color, dim_amount: float, desaturate_amount: float) -> 
 	return Color(greyed.r * (1.0 - dim_amount), greyed.g * (1.0 - dim_amount), greyed.b * (1.0 - dim_amount), color.a)
 
 
-## Bontago-mp0.34: the brightest the combined weather darkening may get, with the
+## the brightest the combined weather darkening may get, with the
 ## night palette already dark: weather dim is relieved by `night_relief` * night
 ## so storm and night never stack into black, then capped at `max_dim`.
 static func combined_dim(overcast_dim: float, storm_add: float, overcast_amount: float, storm_amount: float,
@@ -108,7 +108,7 @@ static func sun_effect_scale(night: float, night_fade_end: float, overcast_amoun
 	return day * sun_weather_keep(overcast_amount, overcast_attenuation, storm_amount, storm_attenuation)
 
 
-## Bontago-mp0.94: the weather-only part of sun_effect_scale (1 in clear weather).
+## the weather-only part of sun_effect_scale (1 in clear weather).
 ## The storm part is linear in the storm amount, exactly like the sky shader's sun disc
 ## glow (Skybox lerps proc_sun_glow_strength toward the storm theme's 0), so with a storm
 ## attenuation of 1 the rays, halo and flare are always at most the disc's own fade and

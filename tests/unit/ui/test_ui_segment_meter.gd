@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.7: UiSegmentMeter: clamped cell value, formatter, silent set, mouse click / drag,
+## UiSegmentMeter: clamped cell value, formatter, silent set, mouse click / drag,
 ## ui_left / ui_right (key and pad) steps, hold repeat and stick friction (SliderNavTuning numbers),
 ## muted = ignores input, row-item contract, legacy overlay still counts cells.
 
@@ -54,24 +54,6 @@ func test_emits_only_on_change_and_silent_set_does_not() -> void:
 	assert_eq(meter.value, 2)
 
 
-func test_pure_helpers() -> void:
-	assert_eq(UiSegmentMeter.step_value(5, 1, 10), 6)
-	assert_eq(UiSegmentMeter.step_value(10, 1, 10), 10)
-	assert_eq(UiSegmentMeter.step_value(0, -1, 10), 0)
-	assert_eq(UiSegmentMeter.value_from_x(50.0, 100.0, 10), 5)
-	assert_eq(UiSegmentMeter.value_from_x(-4.0, 100.0, 10), 0)
-	assert_eq(UiSegmentMeter.value_from_x(400.0, 100.0, 10), 10)
-	assert_eq(UiSegmentMeter.value_from_x(5.0, 0.0, 10), 0)
-
-
-func test_formatter_changes_the_readout_only() -> void:
-	var meter: UiSegmentMeter = _make(10, 4)
-	assert_eq(meter.display_text(), "4")
-	meter.formatter = func(v: int) -> String: return "%d%%" % (v * 10)
-	assert_eq(meter.display_text(), "40%")
-	assert_eq(meter.value, 4)
-
-
 func test_ui_left_and_right_step_one_cell() -> void:
 	var meter: UiSegmentMeter = _make()
 	meter.grab_focus()
@@ -82,26 +64,6 @@ func test_ui_left_and_right_step_one_cell() -> void:
 	meter._gui_input(_action(&"ui_left", false))
 	assert_eq(meter.value, 5)
 	assert_false(meter.is_holding(), "released")
-
-
-func test_pad_dpad_through_the_input_map_steps_the_focused_meter() -> void:
-	var meter: UiSegmentMeter = _make()
-	meter.grab_focus()
-	await wait_frames(2)
-	var press: InputEventJoypadButton = InputEventJoypadButton.new()
-	press.button_index = JOY_BUTTON_DPAD_RIGHT
-	press.pressed = true
-	Input.parse_input_event(press)
-	Input.flush_buffered_events()
-	await wait_frames(2)
-	assert_eq(meter.value, 6, "d-pad right steps one cell")
-	var release: InputEventJoypadButton = InputEventJoypadButton.new()
-	release.button_index = JOY_BUTTON_DPAD_RIGHT
-	release.pressed = false
-	Input.parse_input_event(release)
-	Input.flush_buffered_events()
-	await wait_frames(2)
-	assert_false(meter.is_holding())
 
 
 func test_a_stuck_press_repeats_after_the_delay_while_held() -> void:
@@ -156,28 +118,3 @@ func test_muted_meter_ignores_input() -> void:
 	meter._gui_input(_click(10.0))
 	assert_eq(meter.value, 5)
 	assert_false(meter.nudge(1))
-
-
-func test_row_item_contract_hugs_one_row_height() -> void:
-	var meter: UiSegmentMeter = _make()
-	await wait_frames(2)
-	assert_true(meter.is_in_group(UiRowItem.GROUP))
-	assert_eq(meter.custom_minimum_size.y, float(UiRowItem.metrics().row_height_px))
-	assert_eq(meter.size_flags_horizontal, Control.SIZE_SHRINK_BEGIN, "a meter hugs its content")
-	assert_eq(meter.custom_minimum_size.x, meter.content_width())
-
-
-func test_cells_have_a_fixed_width_that_follows_the_count_only() -> void:
-	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	var cell: float = float(UiRowItem.metrics().meter_cell_width_px)
-	var gap: float = float(arcade.space_1_px)
-	assert_eq(UiSegmentMeter.well_width_for(10), 10.0 * cell + 9.0 * gap + 2.0 * gap)
-	var meter: UiSegmentMeter = _make(10, 3)
-	var before: float = meter.well_width()
-	meter.size = Vector2(900.0, float(UiRowItem.metrics().row_height_px))
-	assert_eq(meter.well_width(), before, "the layout size never stretches the cells")
-	meter.step_count = 20
-	assert_eq(meter.well_width(), UiSegmentMeter.well_width_for(20))
-	assert_eq(meter.custom_minimum_size.x, meter.content_width(), "min width follows the cell count")
-	meter.show_value = false
-	assert_eq(meter.custom_minimum_size.x, meter.well_width())

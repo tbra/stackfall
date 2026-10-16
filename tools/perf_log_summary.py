@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Summarise a Stackfall perf log (Bontago-470.8).
+"""Summarise a Stackfall perf log.
 
 Usage:
     python tools/perf_log_summary.py [log.csv]        # default: newest log

@@ -1,7 +1,7 @@
 extends GutTest
 ## core/blocks/BlockMeshBuilder.gd is pure geometry (no scene tree): checks
 ## interior-face culling, vertex bounds relative to BlockShape.bottom_center(),
-## and the per-(shape, cube_size, cube_margin) cache (Bontago-xtq.3).
+## and the per-(shape, cube_size, cube_margin) cache.
 
 const CUBE_SIZE: float = 1.0
 const CUBE_MARGIN: float = 0.02
@@ -52,7 +52,7 @@ func test_sloped_cells_fall_back_to_null_so_the_caller_can_use_its_own_path() ->
 	assert_null(mesh, "a sloped cell has no wedge face in this builder; the caller must fall back.")
 
 
-## Bontago-xtq.5 (owner screenshot, docs/solid-blocks-issue.png: placed blocks
+## (regression: placed blocks
 ## render inside-out -- faces missing/looks hollow). Rather than trust the
 ## file's own comment claiming CCW-from-outside is Godot's front-face
 ## convention, derive the convention empirically from a Godot primitive

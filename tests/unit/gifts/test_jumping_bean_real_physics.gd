@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.85.28 (docs/GIFT_PLAYTEST2_PLAN.md section 1): the Jumping Bean sat idle for
+## The Jumping Bean used to sit idle for
 ## ~5 s, hopped once, tiny and straight up, and dissolved in its own hole. Real physics: the
 ## shipped jumping_bean.tres def on a live Match field with a tilting disc and a live
 ## registry (so HoleDissolver is active), a bean thrown onto the disc on an arc.
@@ -10,7 +10,7 @@ const DROP_HEIGHT_M: float = 1.2
 const THROW_SPEED_MPS: float = 5.0
 const TILT_IMPULSE: float = 0.05
 const CONTACT_HEIGHT_M: float = 0.7
-## Upper bound (s) from first contact to the first hop (owner: ~1.5 s, was ~5 s).
+## Upper bound (s) from first contact to the first hop (~1.5 s, was ~5 s).
 const MAX_FIRST_HOP_S: float = 1.5
 ## A hop must carry the bean this fraction of one hop's nominal horizontal reach.
 const MIN_REACH_FRACTION: float = 0.5

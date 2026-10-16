@@ -1,7 +1,7 @@
 class_name BotSpecialPlanner
 extends RefCounted
 ## Pure (CLAUDE.md "core/ ... no dependence on the scene tree"). Decides what a bot does with a held
-## special (spec 2.6, 2.9): place it, or throw it at a target. `plan_v2` reads the world snapshot and
+## special (spec 1.6, 1.8): place it, or throw it at a target. `plan_v2` reads the world snapshot and
 ## chain graph; gated by the tier's `uses_defensive_specials` / `uses_offensive_specials` flags.
 ## `BotSpecialAction.place_target` / `has_place_target` carry a placed special's intended disk-local
 ## point; `throw_origin` / `throw_velocity` are set only on a genuine `should_throw` action (Bomb).
@@ -23,8 +23,8 @@ class BotSpecialAction:
 	var place_target: Vector2 = Vector2.ZERO
 
 
-## Bot V2 (docs/BOT_AI_REDESIGN.md 2.3 step 7, Bontago-1t5.24): the per-type effect
-## contract (spec 2.6: Rocket does not home, Propeller does not blow sideways,
+## Bot V2 (docs/BOT_AI_REDESIGN.md 2.3 step 7): the per-type effect
+## contract (spec 1.6: Rocket does not home, Propeller does not blow sideways,
 ## Bomb is the only thrown one), but targets read the chain graph instead of enemy circle
 ## centres. Offensive area specials aim at the enemy circle whose removal costs its team the
 ## most (BotChains.downstream: a joint or tower base); Paintball at the tallest enemy
@@ -269,7 +269,7 @@ static func _plan_tilt(
 	return action
 
 
-## A simple, non-time-of-flight-solved launch estimate (spec 2.9 does not
+## A simple, non-time-of-flight-solved launch estimate (spec 1.8 does not
 ## demand an exact ballistic solve; the deep-dive is `MatchPlacement.
 ## request_throw()`'s own clamp/validate, the real safety net): aim the
 ## horizontal component straight at `target`, add a fixed vertical lift ratio

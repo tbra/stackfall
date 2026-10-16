@@ -1,7 +1,7 @@
 class_name LobbyPlayersPanel
 extends VBoxContainer
-## The lobby's right-hand roster (Bontago-1pi.53, packages E1 + PL1a, docs/
-## LOBBY_REWORK_PLAN.md "Right panel"): the "Players" title row with its
+## The lobby's right-hand roster (packages E1 + PL1a, docs/
+## the lobby layout's "Right panel"):
 ## "N players · M bots · K/S seats" header, and one LobbySeatRow per seat (the humans
 ## from the roster in slot order, then one row per bot). Extracted 1:1 from ui/lobby/Lobby.gd
 ## in E1 so the seat-row package could grow it without touching the Lobby again.
@@ -85,7 +85,7 @@ signal roster_rendered(ready_count: int, row_count: int)
 
 ## Difficulty labels for the synthetic bot roster entries [method bot_roster_entries]
 ## builds, in MatchConfig.AiDifficulty enum order (EASY, NORMAL, HARD) -- the same order
-## the Lobby fills %AiDifficultyOption with (P4, Bontago-d5c.5).
+## the Lobby fills %AiDifficultyOption with (P4).
 const TEAMS_LABEL: String = "TEAMS"
 const _AI_DIFFICULTY_LABELS: Array[String] = LobbySeatRow.DIFFICULTY_LABELS
 
@@ -110,7 +110,7 @@ var palette: PackedColorArray = PackedColorArray()
 @onready var _start_blocker_label: Label = %StartBlockerLabel
 @onready var _chat: LobbyChat = %LobbyChat
 
-## Bontago-hfa.11: the dashed open-seat row after the seat rows (host only, while a seat is free). It holds
+## the dashed open-seat row after the seat rows (host only, while a seat is free). It holds
 ## %AddBotButton, so it is not one of _player_rows.
 var _open_seat_row: LobbyOpenSeatRow = null
 
@@ -143,7 +143,7 @@ var _blocker_known: bool = false
 ## Which header controls were focus stops at the last _refresh_header() (-1 = never): a change
 ## tells the Lobby to rewire its loop even when no row was redrawn.
 var _header_focus_state: int = -1
-## Bontago-1pi.159.43: group headers / the card grid of the non-classic looks (rebuilt with the rows).
+## group headers / the card grid of the non-classic looks (rebuilt with the rows).
 var _extras: Array[Node] = []
 ## The debug-only "Row style" dropdown at the top of the panel (null with debug mode off).
 var _style_selector: UiDropdown = null
@@ -175,7 +175,7 @@ func _ready() -> void:
 ## Styling that used to live in the Lobby's _apply_visual_style().
 func apply_visual_style() -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	# Bontago-1pi.145: the roster count is a `dust` caption (components.md PlayerSlot header), not a title.
+	# the roster count is a `dust` caption (components.md PlayerSlot header), not a title.
 	_player_count_label.theme_type_variation = &"CaptionLabel"
 	_player_count_label.add_theme_font_size_override("font_size", arcade.font_size_caption_px)
 	_player_count_label.add_theme_color_override("font_color", arcade.dust_color)
@@ -201,7 +201,7 @@ func apply(config: MatchConfig, roster: Variant, seats: Dictionary) -> void:
 		_refresh_header()
 
 
-## DECISION (ui/lobby/Lobby.gd, Bontago-mv0.6): Events.net_roster_changed's payload is the
+## DECISION (ui/lobby/Lobby.gd): Events.net_roster_changed's payload is the
 ## roster Net just built, so it goes straight to the rows rather than being re-derived
 ## from net_provider.peer_ids()/peer_info() the way [method build_roster] does for a
 ## host's own outbound publish.
@@ -233,7 +233,7 @@ func build_roster(config: MatchConfig) -> Array[Dictionary]:
 	return roster
 
 
-## M5 P4 (docs/archive/M5_PLAN.md): one synthetic row per bot seat, slot_id running
+## One synthetic row
 ## from player_count - ai_count to player_count - 1 -- the same formula
 ## autoload/match/MatchLifecycle.gd's _build_slots() uses for
 ## PlayerSlot.is_bot, so the lobby preview and the real match slots never
@@ -242,7 +242,7 @@ func build_roster(config: MatchConfig) -> Array[Dictionary]:
 ## iterates real peers (its own header), so this can never let an unready
 ## human's Start gate open.
 ##
-## Split out of the roster build (Bontago-1pi.9b) so a render can re-derive "how
+## Split out of the roster build (.9b) so a render can re-derive "how
 ## many bots exist right now" from the config alone, instead of trusting an
 ## incoming roster's own bot rows -- a live Events.net_roster_changed payload
 ## (autoload/Net.gd's _broadcast_roster()) never includes them, only a host's own
@@ -265,7 +265,7 @@ func bot_roster_entries(config: MatchConfig) -> Array[Dictionary]:
 	return bots
 
 
-## Bontago-1pi.62: the host-assigned name of bot `ordinal` (MatchConfig.bot_names), or
+## the host-assigned name of bot `ordinal` (MatchConfig.bot_names), or
 ## "Bot n" before any was assigned (an older host).
 func _bot_name(config: MatchConfig, ordinal: int) -> String:
 	if config != null and ordinal < config.bot_names.size() and config.bot_names[ordinal] != "":
@@ -336,16 +336,11 @@ func set_editable(is_host: bool) -> void:
 	_show_blocker()
 
 
-## What the Lobby last pushed through [method set_editable].
-func is_editable() -> bool:
-	return _is_editable
-
-
 ## Controls the Lobby adds to its focus loop, in visual order: the host's Teams toggle
 ## and Add bot button, then per row the colour box, the team button, a bot's difficulty
 ## dropdown and its remove button -- every row for the host, only its own row's colour
 ## box and team button for a client. A disabled header control is no focus stop.
-## The chat edit (and its log) are deliberately NOT listed (docs/CHAT_PLAN.md section 4): chat input is
+## The chat edit (and its log) are deliberately NOT listed:
 ## keyboard/mouse only, so a pad can never be trapped in the text field.
 func focus_entries() -> Array[Control]:
 	var entries: Array[Control] = []
@@ -624,7 +619,7 @@ func _live_table(config: MatchConfig, slot_map: Dictionary) -> Dictionary:
 
 # --- Rendering -------------------------------------------------------------------
 
-## DECISION (ui/lobby/Lobby.gd, Bontago-1pi.9b): owner playtest -- "the right panel
+## DECISION (ui/lobby/Lobby.gd.9b): -- "the right panel
 ## lists 'players+bots'/'players', I can add bots up to the player limit" --
 ## traced to two different roster payload shapes landing here: Net's own
 ## live roster events (autoload/Net.gd's _broadcast_roster(), reached via
@@ -645,9 +640,9 @@ func _render() -> void:
 	# config's player_count; the Lobby used to read its %PlayerCountSpin, which
 	# _apply_data() writes from that same sanitized value (and every host edit
 	# republishes), so the two agree whenever the Lobby is shown.
-	# Bontago-1pi.106: the player/bot count controls are gone, so the denominator is always the maximum.
+	# the player/bot count controls are gone, so the denominator is always the maximum.
 	var seat_count: int = MatchConfig.PLAYER_COUNT_MAX
-	# Bontago-1pi.95: the label clips (never widens the card); no tooltip (inline help only).
+	# the label clips (never widens the card); no tooltip (inline help only).
 	_player_count_label.text = format_roster_header(_humans.size(), bot_total, seat_count)
 
 	var focus_memory: Dictionary = _remember_focus()
@@ -668,9 +663,9 @@ func _render() -> void:
 	_align_bot_columns = bot_total > 0
 	for entry: Dictionary in _humans:
 		var human_row: LobbySeatRow = _build_human_row(entry)
-		# DECISION (Bontago-1pi.122): the pill read "1 of 2 ready" with the host plus one ready
+		# DECISION: the pill read "1 of 2 ready" with the host plus one ready
 		# client because the host's row is never "ready" (its seat shows the crown and Start is
-		# its consent, Bontago-1pi.95), so the host was in the denominator but never the count.
+		# its consent), so the host was in the denominator but never the count.
 		# The host counts as ready; a seat is only waited on if it can still become ready.
 		if human_row.is_ready or human_row.is_host:
 			ready_count += 1
@@ -694,7 +689,7 @@ func _connect_row(row: LobbySeatRow) -> void:
 	row.remove_requested.connect(_on_remove_requested)
 
 
-## Puts the built rows in the list the way the current look wants them (Bontago-1pi.159.43): one per
+## Puts the built rows in the list the way the current look wants them: one per
 ## line (CLASSIC / SLOT), under team headers (GROUPED, rows ordered by group so the focus loop reads
 ## top to bottom) or in a card grid (CARDS, row-major). _player_rows is always the visual order.
 func _place_rows(built: Array[LobbySeatRow]) -> void:
@@ -811,9 +806,9 @@ func _wire_card_columns(columns: int) -> void:
 		right.front().focus_neighbor_left = right.front().get_path_to(left.back())
 
 
-# --- The debug-only look switch (Bontago-1pi.159.43) -------------------------------------
+# --- The debug-only look switch -------------------------------------
 
-## DECISION (Bontago-1pi.159.43): the owner switches the row look live from a dropdown under the panel
+## DECISION: the owner switches the row look live from a dropdown under the panel
 ## title, shown only with DebugMode on (like F4's tabs; F4 itself is a bottom dock that does not
 ## exist in the lobby). The choice is session-static (LobbySeatVariants.chosen); CLASSIC ships.
 func _build_style_selector() -> void:
@@ -844,12 +839,7 @@ func set_row_style(style: int) -> void:
 		_render()
 
 
-## The debug switch (null while debug mode is off).
-func style_selector() -> UiDropdown:
-	return _style_selector
-
-
-## DECISION (ui/lobby/Lobby.gd, Bontago-1pi.9b): "3 players" (plural handled),
+## DECISION (ui/lobby/Lobby.gd.9b): "3 players" (plural handled),
 ## "2 bots" only appended when there are any (a 0-bot lobby doesn't need to
 ## announce that), then the seat fraction against [param seats] -- how many seats
 ## this lobby is configured for, not a hardcoded MatchConfig.PLAYER_COUNT_MAX.
@@ -861,7 +851,7 @@ static func format_roster_header(humans: int, bots: int, seats: int) -> String:
 	return "%d %s · %d %s · %d/%d seats" % [humans, human_word, bots, bot_word, humans + bots, seats]
 
 
-## Bontago-mp0.3.5 (review r2, item 4): one white pill row per roster entry -- a
+## review r2, item 4: one white pill row per roster entry -- a
 ## colour box in the seat's colour, bold name, a small muted subtitle ("Host · you" /
 ## "LAN · <ping> ms"), and a Ready (mint)/Not ready (peach) badge on the right.
 ## PL1a adds the per-seat controls (see LobbySeatRow).

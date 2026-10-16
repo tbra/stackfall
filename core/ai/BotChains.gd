@@ -1,6 +1,6 @@
 class_name BotChains
 extends RefCounted
-## Bot V2 (docs/BOT_AI_REDESIGN.md 2.3 step 2, Bontago-1t5.22): the per-team overlap
+## Bot V2 (docs/BOT_AI_REDESIGN.md 2.3 step 2): the per-team overlap
 ## graph of influence circles, rooted at the team's living home flag(s). Answers
 ## "how much does a cut here remove" (downstream, articulation) and "how far is
 ## this team's home-connected land from a point" (gap_to). Pure: reads a
@@ -40,19 +40,9 @@ func downstream(i: int) -> int:
 	return _downstream[i]
 
 
-## True when removing circle `i` disconnects at least one other circle from home.
-func is_articulation(i: int) -> bool:
-	return downstream(i) > 1
-
-
 ## True when circle `i` is linked to a home of its team.
 func connected(i: int) -> bool:
 	return i >= 0 and i < _count and _connected[i] == 1
-
-
-## Number of home-connected block circles of `team`.
-func connected_count(team: int) -> int:
-	return _team_connected.get(team, 0)
 
 
 ## Minimum over the team's home-connected circles (and its home circles) of

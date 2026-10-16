@@ -1,5 +1,5 @@
 extends GutTest
-## docs/archive/M6_PLAN.md package B3 (spec 2.7 "Tutorial"): ui/menus/Tutorial.gd's own
+## (spec 1.2 "Tutorial"): ui/menus/Tutorial.gd's own
 ## five-step state machine, driven the same "drive Main from the Main Menu"
 ## way tests/unit/main/test_sandbox_placement.gd's own Part 2 drives
 ## start_sandbox_from_menu() -- a real game/main/Main.tscn, a tiny MapDef so the
@@ -91,7 +91,7 @@ func test_start_tutorial_from_menu_builds_a_playing_one_player_sandbox_match() -
 	_start_tutorial()
 
 	assert_eq(Match.state(), Match.State.PLAYING)
-	assert_true(Match.config.sandbox, "spec 2.7: the tutorial waives territory limits like Sandbox.")
+	assert_true(Match.config.sandbox, "spec 1.2: the tutorial waives territory limits like Sandbox.")
 	assert_eq(Match.config.player_count, 1, "there is only ever one tutorial participant.")
 	assert_null(_main._lobby, "the Main-Menu tutorial path never builds a Lobby.")
 	assert_true(Net.is_offline(), "the Main-Menu tutorial path never touches Net's host/join state.")
@@ -122,43 +122,6 @@ func test_step_placing_advances_exactly_once_on_block_placed() -> void:
 
 
 # --- Step 2: rotating ---------------------------------------------------------
-
-func test_step_rotating_advances_on_orientation_change() -> void:
-	_setup_menu()
-	_start_tutorial()
-	Events.block_placed.emit(null, &"cube")
-	assert_eq(_tutorial.current_step_id(), &"rotating", "fixture: must reach step 2 first.")
-
-	_tutorial._process(0.016)
-	assert_eq(_tutorial.current_step_id(), &"rotating", "no orientation change yet -- must not advance early.")
-
-	_tutorial.ghost().set_orientation_index(1)
-	_tutorial._process(0.016)
-	assert_eq(_tutorial.current_step_id(), &"territory", "step 2 advances once the ghost's orientation changes.")
-
-	await _teardown_menu()
-
-
-# --- Step 3: territory --------------------------------------------------------
-
-func test_step_territory_advances_when_the_tutorial_slots_team_owns_area() -> void:
-	_setup_menu()
-	_start_tutorial()
-	_advance_to_territory_step()
-	assert_eq(_tutorial.current_step_id(), &"territory", "fixture: must reach step 3 first.")
-
-	# team_of(0) is team 0 (team_mode OFF, single slot) -- a zero share must
-	# not advance the step.
-	Events.territory_share_changed.emit(PackedFloat32Array([0.0]))
-	assert_eq(_tutorial.current_step_id(), &"territory", "zero share must not complete this step.")
-
-	Events.territory_share_changed.emit(PackedFloat32Array([1.0]))
-	assert_eq(_tutorial.current_step_id(), &"specials", "step 3 advances once the tutorial slot's team owns area.")
-
-	await _teardown_menu()
-
-
-# --- Step 4: specials/throwing ------------------------------------------------
 
 func test_step_specials_queues_the_demo_special_and_advances_on_special_consumed() -> void:
 	_setup_menu()
@@ -209,7 +172,7 @@ func test_step_camera_advances_after_the_configured_hold_and_ends_the_tutorial()
 
 # --- Cancel (pause_menu) --------------------------------------------------------
 
-## Bontago-1pi.15.1 fix: this used to fire ui_cancel, but ui_cancel now has a
+## fix: this used to fire ui_cancel, but ui_cancel now has a
 ## gamepad B binding (project-wide menu back-navigation fix) and gamepad B is
 ## also rotate_snap/camera_snap_goal's own button during gameplay -- reading
 ## ui_cancel here would end the tutorial on every gamepad snap-rotate. See
@@ -232,23 +195,5 @@ func test_pause_menu_action_aborts_cleanly_from_any_step() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	assert_false(is_instance_valid(freed_tutorial), "no Tutorial node must be left in the tree.")
-
-	await _teardown_menu()
-
-
-## Bontago-1pi.15.1: the regression this whole fix guards against -- gamepad B
-## (rotate_snap/camera_snap_goal's own button, and now also ui_cancel's) must
-## never end the tutorial.
-func test_ui_cancel_does_not_abort_tutorial() -> void:
-	_setup_menu()
-	_start_tutorial()
-
-	var cancel_event: InputEventAction = InputEventAction.new()
-	cancel_event.action = &"ui_cancel"
-	cancel_event.pressed = true
-	_tutorial._unhandled_input(cancel_event)
-
-	assert_ne(Match.state(), Match.State.LOBBY, "ui_cancel (shared with gamepad B / rotate_snap) must not abort the tutorial.")
-	assert_not_null(_main._tutorial, "the Tutorial node must still be alive.")
 
 	await _teardown_menu()

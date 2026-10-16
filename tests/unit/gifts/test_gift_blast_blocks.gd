@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.85.10 (docs/GIFT_EFFECTS_PLAN.md section 5 C), real physics on a real
+## Gift blasts: real physics on a real
 ## Field (concave disc floor, resting cube blocks):
 ##
 ## - SpecialPhysics' sphere query must find blocks lying on the disc floor. The disc is one

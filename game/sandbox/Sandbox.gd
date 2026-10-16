@@ -1,7 +1,7 @@
 class_name Sandbox
 extends Node
 ## The unlisted `godot --path . -- --sandbox [--players=N]` debug entry point
-## (Bontago-mv0.8): a HotSeat-shaped controller/ghost/HUD subtree (same shape
+## : a HotSeat-shaped controller/ghost/HUD subtree (same shape
 ## as game/main/HotSeat.tscn, reused rather than duplicated) plus the extra
 ## hotkeys and the debug panel a manual rules/physics tester needs.
 ##
@@ -12,7 +12,7 @@ extends Node
 ## about the rules itself — sandbox_spawn_tower still goes through
 ## Match.request_place() like every other placement, and sandbox_reset_field
 ## goes through Match.start_match() — so it survives a rules rewrite
-## (docs/TERRITORY_V2_PLAN.md) untouched.
+## untouched by territory rule changes.
 
 @export var sandbox_config: SandboxConfig = preload("res://config/match/sandbox.tres")
 
@@ -20,7 +20,7 @@ extends Node
 @onready var _ghost: GhostPreview = $GhostPreview
 @onready var _hud: HUD = $HUDLayer
 @onready var _panel: SandboxPanel = $SandboxPanel
-## Bontago-mv0.18: the in-game tuning panel (F4), self-contained here the
+## the in-game tuning panel (F4), self-contained here the
 ## same way SandboxPanel is above -- see game/main/HotSeat.gd's matching field for
 ## why this lives inside the subtree rather than being instanced separately
 ## by game/main/Main.gd.
@@ -32,7 +32,7 @@ var _frozen_block_states: Dictionary = {}
 var _block_physics_frozen: bool = false
 var _registry_physics_was_enabled: bool = false
 
-## Bontago-1en.24: SpecialDef.load_all_specials()'s own id order, cached once
+## SpecialDef.load_all_specials()'s own id order, cached once
 ## at _ready() rather than re-scanning res://config/gifts/specials/ on every F9
 ## press -- a plain Array[SpecialDef] there is the roster's authority; this
 ## file only needs the ids, and only ever reads them (never mutates the
@@ -57,7 +57,7 @@ var _forced_special_queue_full: bool = false
 ## sandbox_config.slow_motion_scale. ui/debug/SandboxPanel.gd reads this every
 ## refresh.
 var _slow_motion_active: bool = false
-## Bontago-1pi.70: the gift-demo preset (null for a plain sandbox) and a
+## the gift-demo preset (null for a plain sandbox) and a
 ## counter that cancels a pending pre-placement when the field resets again.
 var _preset: SandboxConfig = null
 var _gift_strip: GiftDemoStrip = null
@@ -79,7 +79,7 @@ func _ready() -> void:
 	_panel.visible = OS.get_cmdline_args().has("--debug-ui")
 	_tuning_panel.set_controller(_controller)
 	_special_roster_ids = _load_special_roster_ids()
-	# Bontago-mv0.14 (spec 1.5): see HotSeat.gd's matching _ready() comment --
+	# spec 1.5: see HotSeat.gd's matching _ready() comment --
 	# safe headless (a silent no-op with no window to capture).
 	_controller.enable_mouse_capture()
 	add_child(SandboxHintBar.new())
@@ -114,7 +114,7 @@ func _exit_tree() -> void:
 
 func _load_special_roster_ids() -> Array[StringName]:
 	var ids: Array[StringName] = []
-	# Bontago-1pi.160 (owner): disabled gifts (Cat) are not offered anywhere.
+	# disabled gifts (Cat) are not offered anywhere.
 	for def: SpecialDef in SpecialDef.load_selectable_specials():
 		ids.append(def.id)
 	return ids
@@ -123,7 +123,7 @@ func _load_special_roster_ids() -> Array[StringName]:
 ## Called once by game/main/Main.gd, the same way HotSeat.set_camera_rig() is —
 ## CameraRig lives outside this subtree.
 func set_camera_rig(rig: CameraRig) -> void:
-	# Bontago-b7r: gamepad Back is sandbox_next_slot here, so it must not also
+	# gamepad Back is sandbox_next_slot here, so it must not also
 	# focus home; see CameraRig.suppress_pad_home_focus.
 	rig.suppress_pad_home_focus = true
 	_controller.set_camera_rig(rig)
@@ -133,7 +133,7 @@ func set_camera_rig(rig: CameraRig) -> void:
 ## Called once by game/main/Main.gd. Only sandbox_reset_field/sandbox_spawn_tower
 ## need it (Field.place_flags()/set_overlay_source() after a reset; the
 ## ghost already gets its own placement ray from PlayerController without
-## this) -- and, from Bontago-mv0.18, the tuning panel's Territory tab.
+## this) -- and, from the tuning panel's Territory tab.
 func set_field(field: Field) -> void:
 	_field = field
 	_tuning_panel.set_field(field)
@@ -175,7 +175,7 @@ func forced_special_queue_full() -> bool:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	# Bontago-1pi.70: gift-demo preset only. DECISION: the old demo's cursor
+	# gift-demo preset only. DECISION: the old demo's cursor
 	# toggle is dropped (pause menu frees the cursor) and its reset is F5, which
 	# re-places the preset towers.
 	if _preset != null:
@@ -187,7 +187,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			_cycle_forced_special(1)
 			get_viewport().set_input_as_handled()
 			return
-	# Bontago-470.8: every sandbox hotkey but slot switching (Tab / pad Back, a
+	# every sandbox hotkey but slot switching (Tab / pad Back, a
 	# play feature, not a debug tool) is debug-only.
 	if not DebugMode.is_enabled() and not event.is_action_pressed(&"sandbox_next_slot"):
 		return
@@ -277,7 +277,7 @@ func _on_pause_menu_closed() -> void:
 ## the standard Godot mechanism -- see this node's own _ready() for why the
 ## sandbox subtree stays responsive (PROCESS_MODE_ALWAYS) while this is true.
 func _toggle_physics_paused() -> void:
-	# Bontago-1pi.167: the pause menu owns the tree pause while it is open; F11 must not unfreeze
+	# the pause menu owns the tree pause while it is open; F11 must not unfreeze
 	# the world behind it (the menu releases only a freeze it claimed itself).
 	if _pause_menu_open:
 		return
@@ -326,7 +326,7 @@ func _cycle_active_slot() -> void:
 func _set_active_slot(slot_id: int) -> void:
 	_active_slot = slot_id
 	_controller.set_sandbox_slot(slot_id)
-	# Bontago-mv0.9: the HUD only re-reads Events.turn_changed's slot, which
+	# the HUD only re-reads Events.turn_changed's slot, which
 	# in sandbox (config.hot_seat == false) fires exactly once at match start
 	# (autoload/Match.gd's advance_turn() no-ops outside hot-seat) -- without
 	# this, cycling which slot this instance drives would leave the HUD
@@ -335,7 +335,7 @@ func _set_active_slot(slot_id: int) -> void:
 
 
 ## sandbox_reset_field (F5): "clear blocks, rebuild territory/flags for the
-## same config" (Bontago-mv0.8) — Match.start_match() already does exactly
+## same config" — Match.start_match() already does exactly
 ## that for any config, including a repeat of the one currently running (see
 ## its own doc comment on a start from any state), so this only has to
 ## replay the two calls game/main/Main.gd makes right after start_match() for
@@ -424,7 +424,7 @@ func _freeze_diagnostic_block(block: Block) -> void:
 ## practice this builds a tower of whatever the bag deals next, not
 ## literally N cubes — the debugging value (a fast physical stack to test
 ## territory/physics against) is the same either way.
-## Bontago-1pi.70: arms the gift-demo preset; its towers drop once the match
+## arms the gift-demo preset; its towers drop once the match
 ## countdown ends and again after every field reset.
 func apply_preset(preset: SandboxConfig) -> void:
 	_preset = preset
@@ -452,7 +452,7 @@ func _preplace_preset_blocks() -> void:
 		await get_tree().process_frame
 	if generation != _preplace_generation or _field == null:
 		return
-	# Bontago-1pi.85.75: pre-placed scene blocks are state, not drops: the build below is
+	# pre-placed scene blocks are state, not drops: the build below is
 	# synchronous, so bracket it with the same silence the late-join replay uses (Sfx
 	# ignores block_placed meanwhile). Real drops after this still sound.
 	Events.world_replay_changed.emit(true)
@@ -506,9 +506,9 @@ func _spawn_tower() -> void:
 
 # --- sandbox_force_special: F9 -----------------------------------------------
 #
-# Bontago-1en.24: forces the next drawn special to a fixed id so a tester can
+# forces the next drawn special to a fixed id so a tester can
 # exercise each of the seven specials on demand instead of waiting on the
-# crate roll's RNG (spec 2.6/2.8). F9 cycles off -> each SpecialDef.
+# crate roll's RNG (spec 1.6/1.9). F9 cycles off -> each SpecialDef.
 # load_all_specials() id, in that order -> off; `--force-special=<id>`
 # (game/main/Main.gd) sets the same state at startup. Both converge on
 # _apply_forced_special() below, so the hotkey and the CLI flag can never
@@ -572,7 +572,7 @@ func _on_turn_changed(slot_id: int) -> void:
 	# that (config.hot_seat is false), so this only sets the initial active
 	# slot. sandbox_next_slot/_reset_field() own every change after this.
 	_active_slot = slot_id
-	# Bontago-mv0.17 item 4: this is sandbox's equivalent of HotSeat.
+	# item 4: this is sandbox's equivalent of HotSeat.
 	# bind_local_slot() -- the one-time "a controller is now bound to a real
 	# slot" moment -- so the very first frame looks from that slot's home
 	# flag toward the disk centre instead of the generic yaw = 0 default.

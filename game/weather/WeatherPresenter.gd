@@ -1,6 +1,6 @@
 class_name WeatherPresenter
 extends Node3D
-## Client/host presentation of the active weather set (Bontago-22y.10):
+## Client/host presentation of the active weather set:
 ## instances each active weather's presentation scene and feeds it the ramped
 ## intensity, purely from Events. It owns no physics and no authority; it is
 ## fed identically on the host and on a client.
@@ -8,7 +8,7 @@ extends Node3D
 var _instances: Dictionary = {}
 var _defs: Dictionary = {}
 var _scene_cache: Dictionary = {}
-## Bontago-mp0.19: overhead cloud layer (and storm sky) driven by the same
+## overhead cloud layer (and storm sky) driven by the same
 ## replicated intensities as the per-weather presentations.
 var _ceiling: CloudCeiling = null
 
@@ -89,11 +89,11 @@ func _on_intensity_changed(weather_id: StringName, intensity: float) -> void:
 		presentation.set_intensity(intensity)
 
 
-## Bontago-1pi.46 (docs/MATCH_RESET_AUDIT.md G2 and weather-fog parity; also run by
-## Events.match_scope_reset at every world build and teardown): back to a freshly
+## docs/MATCH_RESET_AUDIT.md G2 and weather-fog parity; also run by
+## Events.match_scope_reset at every world build and teardown: back to a freshly
 ## launched presenter. The cloud ceiling snaps clear (no fade into the next match)
 ## and the shared weather-fog statics return to their launch defaults. Idempotent.
-## DECISION (Bontago-1pi.46): live presentations are left alone. MatchWeather.reset()
+## DECISION: live presentations are left alone. MatchWeather.reset()
 ## ends the event on every state change that precedes a reset, and weather_stopped
 ## (_on_stopped) releases it; a weather the authority still runs at a reset (the
 ## tests/unit/match/test_match_restart.gd rain case) keeps presenting instead of vanishing

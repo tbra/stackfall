@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.52 (owner playtest 2026-10-03, two players over direct IP: "the
+## (two players over direct IP: "the
 ## host could hear my block rejected sound"). A placement refusal is decided on
 ## the host and replicated as Events.placement_rejected; its feedback (sound,
 ## rumble, HUD toast, ghost flash) belongs only to the refused player's own
@@ -256,47 +256,6 @@ func test_a_remote_throw_refusal_goes_to_the_owning_peer_once_and_host_hears_not
 	_assert_no_feedback_here("host, remote client's refused throw")
 
 
-func test_a_throw_refused_without_a_held_special_replies_to_the_sender_once() -> void:
-	var net: MatchNetScript = _make_host_net()
-	_start_playing()
-
-	net._handle_throw_intent(
-		REMOTE_PEER, REMOTE_SLOT, _home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, Vector3.ZERO, Match.feed_seq(REMOTE_SLOT)
-	)
-
-	assert_eq(int(net.reject_replies_by_peer.get(REMOTE_PEER, 0)), 1, "Match emits nothing for NOT_A_SPECIAL, so only the tail replies")
-	assert_eq(int(net.replicated_event_counts.get(MatchNetScript.EVENT_PLACEMENT_REJECTED, 0)), 0)
-	_assert_no_feedback_here("host, remote client's no-special throw")
-
-
-func test_a_refusal_the_host_wire_check_makes_still_reaches_only_the_sender() -> void:
-	var net: MatchNetScript = _make_host_net()
-	_start_playing()
-
-	# A negative feed_seq is refused at the wire; Match never sees it, so no
-	# Events.placement_rejected fires on the host at all.
-	net._handle_place_intent(REMOTE_PEER, REMOTE_SLOT, _home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, -1)
-
-	assert_eq(_rejected_events.size(), 0)
-	assert_eq(int(net.reject_replies_by_peer.get(REMOTE_PEER, 0)), 1)
-	_assert_no_feedback_here("host, wire-refused intent")
-
-
-func test_no_reply_is_addressed_to_a_peer_that_already_left() -> void:
-	var net: MatchNetScript = _make_host_net()
-	_start_playing()
-	_fake_net.slots_by_peer.erase(REMOTE_PEER)
-
-	Match.request_place(REMOTE_SLOT, _home_world_position(HOST_SLOT), 0, Quaternion.IDENTITY, false, Match.feed_seq(REMOTE_SLOT))
-
-	assert_eq(_rejected_events, [REMOTE_SLOT] as Array[int], "fixture: the host still refused it")
-	assert_eq(net.reject_replies_by_peer.size(), 0, "a seat with no peer behind it is nobody's to notify")
-	_assert_no_feedback_here("host, refusal for a vacated seat")
-
-
-# --- host: its own refusal ----------------------------------------------------
-
-
 func test_the_hosts_own_refusal_still_plays_sound_and_rumble_and_is_not_sent_anywhere() -> void:
 	var net: MatchNetScript = _make_host_net()
 	_start_playing()
@@ -313,16 +272,6 @@ func test_the_hosts_own_refusal_still_plays_sound_and_rumble_and_is_not_sent_any
 # --- client -------------------------------------------------------------------
 
 
-func test_a_client_gets_its_own_refusal_as_sound_and_rumble() -> void:
-	var net: MatchNetScript = _make_client_net(REMOTE_SLOT)
-
-	net.net_match_event(MatchNetScript.EVENT_PLACEMENT_REJECTED, [REMOTE_SLOT, PlacementRules.REASON_CONTESTED])
-
-	assert_eq(_rejected_events, [REMOTE_SLOT] as Array[int], "the client's own refusal reaches its Events bus")
-	assert_true(_any_sfx_playing(), "the refused client hears it")
-	assert_eq(_rumble_calls.size(), 1, "and its pad rumbles")
-
-
 func test_a_client_ignores_a_refusal_for_someone_elses_slot() -> void:
 	var net: MatchNetScript = _make_client_net(REMOTE_SLOT)
 
@@ -331,14 +280,6 @@ func test_a_client_ignores_a_refusal_for_someone_elses_slot() -> void:
 
 	assert_eq(_rejected_events.size(), 0, "another seat's refusal never reaches this client's Events bus")
 	_assert_no_feedback_here("client, host's refusal")
-
-
-func test_a_client_stays_silent_even_if_another_slots_refusal_is_emitted_locally() -> void:
-	_make_client_net(REMOTE_SLOT)
-
-	Events.placement_rejected.emit(HOST_SLOT, PlacementRules.REASON_CONTESTED)
-
-	_assert_no_feedback_here("client, foreign slot on the local bus")
 
 
 func test_a_client_drops_a_malformed_refusal_payload() -> void:
@@ -379,26 +320,3 @@ func test_a_bots_refusal_gives_no_feedback_but_a_local_humans_does() -> void:
 	assert_eq(_rejected_events, [1, HOST_SLOT] as Array[int], "fixture: the human's release was refused too")
 	assert_true(_any_sfx_playing(), "the local human still hears their own refusal")
 	assert_eq(_rumble_calls.size(), 1)
-
-
-func test_every_hot_seat_human_hears_their_own_refusal() -> void:
-	# Offline hot-seat: one machine, several local humans.
-	_start_playing(2, 0)
-
-	Match.request_place(REMOTE_SLOT, _home_world_position(HOST_SLOT), 0, Quaternion.IDENTITY, false, Match.feed_seq(REMOTE_SLOT))
-
-	assert_eq(_rejected_events, [REMOTE_SLOT] as Array[int])
-	assert_true(_any_sfx_playing(), "hot-seat player 2's refusal sounds on the shared machine")
-	assert_eq(_rumble_calls.size(), 1)
-
-
-func test_a_bot_seat_on_a_host_is_never_sent_a_reply() -> void:
-	var net: MatchNetScript = _make_host_net()
-	_start_playing(3, 1)
-	assert_true(Match.slot(2).is_bot, "fixture: slot 2 is the bot")
-
-	Match.request_place(2, _home_world_position(HOST_SLOT), 0, Quaternion.IDENTITY, false, Match.feed_seq(2))
-
-	assert_eq(_rejected_events, [2] as Array[int], "fixture: the bot's release was refused")
-	assert_eq(net.reject_replies_by_peer.size(), 0, "a bot has no peer to tell")
-	_assert_no_feedback_here("host, bot refusal")

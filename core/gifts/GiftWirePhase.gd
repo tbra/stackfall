@@ -1,7 +1,6 @@
 class_name GiftWirePhase
 extends RefCounted
-## The one numbering of a gift crate's wire phase (autoload decoupling S2a,
-## docs/archive/STARTUP_COMPILE_PLAN.md B0a). Pure and dependency-free so net/MatchNet.gd and
+## The one numbering of a gift crate's wire phase. Pure and dependency-free so net/MatchNet.gd and
 ## world code can name the phases without loading autoload/match/MatchGifts.gd.
 ## MatchGifts re-exports these constants, so existing callers are unchanged.
 

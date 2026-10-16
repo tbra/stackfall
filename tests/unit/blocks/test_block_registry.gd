@@ -1,11 +1,11 @@
 extends GutTest
-## game/blocks/BlockRegistry.gd: tracks live blocks, the settled rule (spec 2.2), and
+## game/blocks/BlockRegistry.gd: tracks live blocks, the settled rule (spec 1.5), and
 ## net_id <-> Block.
 
 var _tuning: PhysicsTuning = load("res://config/physics/physics_tuning.tres")
 var _territory_tuning: TerritoryTuning = load("res://config/territory/territory_tuning.tres")
 
-## DECISION (Bontago-mv0.3): a duplicate of round_medium.tres shrunk to a 20 m
+## DECISION: a duplicate of round_medium.tres shrunk to a 20 m
 ## disk (~1250 cells, vs. round_medium's own ~6300), not the shared resource
 ## itself -- Field.new() defaults its own map_def export to that exact shared,
 ## cached round_medium.tres, and every test below built one, so the fixture
@@ -223,7 +223,7 @@ func test_all_settled_is_false_while_one_tracked_block_still_moves() -> void:
 	assert_false(registry.all_settled(), "one still-moving block keeps the whole registry unsettled")
 
 
-# --- Bontago-1pi.11.14: physics-driven territory_revision bumps ---------------
+# --- physics-driven territory_revision bumps ---------------
 
 
 func test_physics_settle_flip_bumps_territory_revision() -> void:

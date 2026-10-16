@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-xtq.29 (M7 P4, spec 2.10 "effects + camera shake"):
+## M7 P4, spec 1.10 "effects + camera shake":
 ## game/blocks/BlockEffectsManager.gd's one-shot kill-plane burst and landing-dust/
 ## impact burst. Events.block_removed and Events.block_impacted_at are both
 ## global Events autoload signals, so this test connects a real

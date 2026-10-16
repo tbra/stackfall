@@ -1,6 +1,6 @@
 class_name BreezePresenter
 extends Node3D
-## Bontago-470.2: draws each Breeze gust as a brief local swirl of cel streaks
+## draws each Breeze gust as a brief local swirl of cel streaks
 ## (GustPresentation) from Events.breeze_gust_started, identically on the host
 ## and on clients. Bounded: at most BreezeTuning.max_presented_gusts alive; a
 ## new gust beyond that is dropped. Presentation only.

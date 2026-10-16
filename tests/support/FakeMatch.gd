@@ -1,6 +1,6 @@
 class_name FakeMatch
 extends RefCounted
-## Test double for the Match autoload (docs/archive/M2_PLAN.md P4).
+## Test double for the Match autoload.
 ##
 ## autoload/Match.gd has since landed for real, but this fake still exists to
 ## isolate the P4 controller/HUD unit tests from it: the real Match drives
@@ -19,7 +19,7 @@ var tuning: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
 ## what the real Match will eventually do via Match.register_world().
 var spawn_parent: Node = null
 
-## Bontago-mv0.9: mirrors the real Match's public `config` field (null until
+## mirrors the real Match's public `config` field (null until
 ## a match starts). ui/hud/HUD.gd reads `match_provider.config.hot_seat` to gate
 ## its "Player N's turn" wording; tests that care set this to a MatchConfig
 ## with hot_seat true/false, everything else leaves it null (real-time
@@ -47,7 +47,7 @@ var spawn_on_ok: bool = false
 var request_place_calls: Array[Dictionary] = []
 var preview_placement_calls: Array[Dictionary] = []
 
-## Bontago-1en.14 (M4 P2d): request_throw()'s own call log, exactly
+## request_throw()'s own call log, exactly
 ## request_place_calls' own pattern -- PlayerController._request_throw()
 ## reaches this fake the same way _request_place() does (the membrane==null
 ## branch, since a FakeMatch is never the real `Match` singleton
@@ -57,7 +57,7 @@ var preview_placement_calls: Array[Dictionary] = []
 var request_throw_calls: Array[Dictionary] = []
 
 
-## Bontago-1pi.186: the eliminator every slot reports (-1 = unknown).
+## the eliminator every slot reports (-1 = unknown).
 var eliminated_by_slot: int = -1
 
 
@@ -92,7 +92,7 @@ func feed_seq(slot_id: int) -> int:
 	return int(feed_seq_by_slot.get(slot_id, 0))
 
 
-## Bontago-mv0.10 (spec 2.4 "[ORIGINAL target]" cadence): game/PlayerController.
+## spec 1.4 "[ORIGINAL target]" cadence: game/PlayerController.
 ## gd's _update_ghost_tint() calls this every frame regardless of which Match
 ## it is bound to (see its own DECISION on the Variant seam), so this fake
 ## needs the method to exist even though none of the P4 controller/HUD tests
@@ -105,7 +105,7 @@ func is_release_locked(slot_id: int) -> bool:
 	return bool(release_locked_by_slot.get(slot_id, false))
 
 
-## Bontago-1en.16: ui/hud/HUD.gd's _process() polls these every frame regardless
+## ui/hud/HUD.gd's _process() polls these every frame regardless
 ## of which double it is bound to (same reasoning as is_release_locked's own
 ## comment above) -- test_hud.gd's other _process() tests use this fake
 ## without caring about specials, so both default to "nothing pending"
@@ -127,8 +127,8 @@ func glue_drops_left(slot_id: int) -> int:
 	return int(glue_drops_by_slot.get(slot_id, 0))
 
 
-## M3a adds the trailing feed_seq the real Match takes (docs/archive/M3a_PLAN.md,
-## "Never duplicated, never lost"). It is defaulted here exactly as it is
+## M3a adds the trailing feed_seq the real Match takes (placements are
+## never duplicated, never lost). It is defaulted here exactly as it is
 ## there, so every M2 call site and every M2 test still compiles unchanged;
 ## the fake records it but never enforces it, since idempotence is the real
 ## Match's job and tests/unit/net/test_match_net.gd is where it is proved.
@@ -156,7 +156,7 @@ func request_place(
 	return next_request_result
 
 
-## Bontago-1en.14 (M4 P2d): request_throw()'s own fake, exactly request_place()
+## request_throw()'s own fake, exactly request_place()
 ## above's shape (same defaulted trailing feed_seq, same call log instead of
 ## enforcement) but with no spawn_on_ok/auto_drop path -- a throw never burns
 ## a rejected piece and this fake's callers only ever assert on the recorded

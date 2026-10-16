@@ -1,19 +1,19 @@
 class_name BlackHoleEffect
 extends SpecialEffect
-## Black hole gift (docs/SPEC.md 2.6; owner 2026-10-02, replaces Gravity well):
+## Black hole gift (docs/SPEC.md 2.6; replaces Gravity well):
 ## "Spawns a black hole that pulls in nearby blocks" of ALL teams. Ordinary
 ## impact/fuse special: the gift's own impact (or fuse) triggers it, and
 ## detonate() spawns a BlackHoleField at that point that runs the pull for
 ## lifetime_s on the host. Clients/host draw the placeholder BlackHoleVisual
 ## from the already replicated Events.special_triggered (GiftFxPresenter).
 ##
-## Bontago-1pi.85.12: strength and capture. The pull is RadialPull (mass-independent
+## strength and capture. The pull is RadialPull (mass-independent
 ## acceleration plus friction compensation, so an 8 kg block really slides across the
 ## disc; the old 14 m/s^2 capped at 60 N was below friction). A block whose collision
-## centre stays inside the capture volume below (Bontago-1pi.85.26) is captured and
+## centre stays inside the capture volume below is captured and
 ## removed through the SAME removal as a territory hole (HoleDissolver.request_dissolve;
-## owner resolution Bontago-1pi.85.2). No territory hole is punched (owner resolution
-## Bontago-1pi.85.3).
+## slot resolution). No territory hole is punched (slot resolution
+## ).
 ##
 ## DECISION: a SpecialDef's `effect` is one shared Resource, so it keeps no
 ## per-activation state; the BlackHoleField node owns the timer.
@@ -23,7 +23,7 @@ extends SpecialEffect
 ## RadialPullTuning). Capture is the volume below (capture_radius_m).
 @export var pull: RadialPullTuning = RadialPullTuning.new()
 
-## Capture volume (Bontago-1pi.85.26): horizontal radius (m) and vertical half-height
+## Capture volume: horizontal radius (m) and vertical half-height
 ## (m) around the centre, measured to each block's collision centre; a block must stay
 ## inside for capture_hold_s seconds. Replaced RadialPull's 0.8 m origin sphere, which
 ## was measured to the block's bottom-face origin: the hole sits on the disc surface,
@@ -57,7 +57,7 @@ func detaches() -> bool:
 func detonate(block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> void:
 	if block == null or not block.is_inside_tree():
 		return
-	# Bontago-1pi.85.66: parented under the Field (DiscAnchor) so the hole rides the
+	# parented under the Field (DiscAnchor) so the hole rides the
 	# tilting/shaking disc like the volcano; BlackHoleField.tick() reads global_position
 	# every physics tick, so the pull centre follows. Falls back to the blocks container
 	# (then the carrier's parent) without a live Field.

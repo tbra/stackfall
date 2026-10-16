@@ -1,361 +1,202 @@
 # Stackfall
 
-A physics-based, competitive block-stacking territory game for 1–8 players, online over
-Steam and on LAN. It began as a remake of **Bontãgo** (Circular Logic, 2003); that phase is complete and
-Stackfall is now developed as its own game (working title; the original name and assets
-belong to DigiPen and Circular Logic).
+A physics-based, competitive block-stacking territory game for 1–8 players, built in Godot
+with Jolt physics. Inspired by Bontãgo (Circular Logic).
 
-Built in Godot 4.7 (Forward+, Jolt physics). The full design and technical spec is
-[docs/SPEC.md](docs/SPEC.md); working rules for the project are in [CLAUDE.md](CLAUDE.md).
+Everyone drops blocks at the same time. Each block claims territory around it, towers
+reach further the taller they get, and where two players' territory overlaps the floor
+opens into holes. Build toward the goal in the middle, knock out your rivals' towers, and
+watch the whole thing wobble.
 
 ## Status
 
-**M3a — multiplayer over ENet.** `godot --path .` opens a main menu: **Host** a game (LAN
-advertising plus direct IP), **Join** one from the LAN list or a typed address, or **Quit**.
-The lobby that follows exposes every §2.8 match setting, a ready-up roster and a host-only
-Start button; once the match starts, every peer plays in real time — no more turn order,
-each player has their own feed timer. Each screen's own HUD shows only that player's status:
-their colour and name, their held- and next-block previews, their timer ring (greyed out and
-labelled LOCKED while the fixed-interval release lock holds), and their territory share — the
-old hot-seat "Player N's turn" banner is hot-seat-only now. A block you place goes through
-the host before it spawns anywhere, so a placement is never duplicated or lost, even doubled
-clicks or a lossy link. `F3` (or gamepad Back+Y) opens a debug overlay with ping, snapshot size, interpolation
-delay and measured loss, plus sliders to simulate lag and packet loss yourself. M2's hot-seat
-build is still there, unlisted: `godot --path . -- --hot-seat` starts the old two-player,
-one-PC, turn-by-turn match unchanged. Steam is M3b.
+Playable and under active development. Online play over Steam is a development setup (see
+[Multiplayer](#multiplayer)); there is no packaged release yet.
 
-## Playing the networked build by hand
+## Features
 
-Start it with `godot --path .`. The steps below are for one machine hosting and one or more
-others (or other instances on the same machine — see "Local multiplayer without a second
-PC" below) joining it; hot-seat's controls are unchanged from M2 and are described further
-down.
+- Physics-driven block stacking: a wide range of block shapes, fed from a bag so nobody goes long
+  without a stabilizing piece.
+- Territory from every settled block, connected back to your home flag. Overlapping claims
+  open temporary or permanent holes in the disc.
+- Five game modes: Classic (capture every goal flag), Capture the Flag, Elimination,
+  Reach the Sky and Domination.
+- Free-for-all or teams of 2–4, with humans and bots (Easy, Normal, Hard) mixed freely.
+- Gifts that parachute onto the field: Rocket, Bomb, Volcano, Earthquake, Anvil,
+  Propeller, Jumping Bean, Magnet, Freeze, Glue, Stackfall, Paintball and Black Hole.
+- Online play over LAN, direct IP or Steam, with a host-authoritative simulation.
+- Keyboard and mouse or gamepad, with equal priority; all bindings are rebindable.
+- Offline Tutorial, Vs Bots and Sandbox modes.
 
-1. On the host's machine, click **Host**. The lobby opens with every §2.8 setting
-   (map, player/AI count, block timer, gravity, goals, gifts, specials, tilt, holes, match
-   timer, sudden death) live-editable; a client sees the same settings greyed out and
-   updating as the host changes them.
-2. On each other machine (or instance), click **Join**: pick the host from the LAN list
-   (same subnet, UDP broadcast) or type its address as `1.2.3.4` or `1.2.3.4:47999` under
-   direct IP.
-3. Every joined player ticks **Ready**. The host's **Start** button lights up once everyone
-   has; press it to begin the 3-second countdown.
-4. Placement, rotation, hover and camera controls are exactly the hot-seat build's (see the
-   gamepad/mouse list further down) — the only difference online is that every player's
-   timer runs at once, not in turn.
-5. `F3` (gamepad: hold **Back** and press **Y**) toggles the debug overlay: ping, snapshot
-   bytes/sec, interpolation delay and measured packet loss, with sliders to dial in your own
-   simulated lag/loss (or the one-button preset for the spec's acceptance condition, 100 ms /
-   2%) to see how your own connection would feel.
-6. A fast double-click sends only one intent — the second is refused as a duplicate, not
-   spent as your next block (test this: only one block should ever land per double-click,
-   on every screen). If a client's connection drops mid-match, that slot's timer stops
-   immediately; after a 10-second grace period it is eliminated and its towers unanchor,
-   exactly as a lost home flag would (verify: the remaining players keep playing without the
-   host or match hanging). If the *host* leaves or crashes, every client drops back to the
-   main menu rather than sitting in a dead match.
+## How to play
 
-### Local multiplayer without a second PC
+Choose a mode from the main menu: **Host** or **Join** for multiplayer, **Play Offline**
+and **Vs Bots** for a local match, **Sandbox** for free experimenting, or **Tutorial** for
+a short guided introduction. The host sets map, game mode, block timer, gravity, goal
+flags, gifts, hole mode and more in the lobby; every player readies up and the host
+starts the match.
 
-`tools/run_m3a_local.ps1` (PowerShell) launches one
-headless host and N−1 headless clients from a single command, all on `127.0.0.1`, run a
-scripted match end to end, and exit non-zero if anything failed:
+**The goal.** In Classic, hold every goal flag with one connected stretch of your team's
+territory, linked to a living home flag, for the full capture hold. Losing your home flag
+eliminates you. The other modes score by flag holding, last team standing, height, or
+territory share when the round timer ends. Design details are in [docs/SPEC.md](docs/SPEC.md).
 
-```powershell
-tools/run_m3a_local.ps1 -Peers 4                       # 1 host + 3 clients
-tools/run_m3a_local.ps1 -Peers 4 -SimLag 100 -SimLoss 0.02   # client 1 gets the acceptance condition
-```
+**Turn structure.** There are no turns. Each player has their own timer and may release
+one block per interval; a block you do not drop in time is dropped for you.
 
-For a windowed feel-test instead of a scripted one, use the editor's **Debug → Customize
-Run Instances** with 2–4 instances (`--hot-seat` is a per-instance argument there too, if
-you want one of them running the old build). Only one process per machine can listen on the
-LAN discovery port, so local multi-instance testing always joins by direct IP
-(`127.0.0.1:<port>`), never the LAN list.
+### Controls
 
-## Playing the hot-seat build by hand
+All input goes through the Input Map, which is defined in `tools/bootstrap_project.gd`.
+You can rebind in Options > Controls.
 
-Start it with `godot --path . -- --hot-seat`. After a 3-second countdown, player 1 is up;
-the turn passes on every release, valid or not.
+| Action | Keyboard and mouse | Gamepad |
+| --- | --- | --- |
+| Move the held block | Mouse | Left stick |
+| Place the block | Left click | A |
+| Raise or lower the block | Mouse wheel, Page Up / Page Down | RB / LB |
+| Lock to vertical movement | Ctrl (held) | none |
+| Yaw 90° | A (counter-clockwise), S (clockwise) | B |
+| Pitch | W, D | D-pad up, D-pad down |
+| Roll | `[`, `]` | D-pad left, D-pad right |
+| Free-rotate | R (held) and move the mouse, or middle mouse drag | RT (held) and left stick |
+| Reset rotation | Home, F or Q | Y |
+| Throw a throwable special | Left click and drag, then release | A |
+| Orbit the camera | Right mouse drag, or C (held) and move the mouse | Right stick |
+| Zoom the camera | Z / X | LT (held) and left stick up or down |
+| Reset the camera | V | Back |
+| Scoreboard | Tab (held) | Right stick click |
+| Use a slotted gift (experimental option) | G | X |
+| Chat | Enter or T | none |
+| Pause menu | Esc | Start |
+| Net debug overlay | F3 | Y |
+| Tuning panel | F4 | X |
+| Performance overlay | F1 | Right stick click |
+| Screenshot | F12 | Misc1 |
 
-**Bontago-mv0.14: original-style block-locked controls.** The camera is attached to the
-held block and follows it, the way the original's tutorial describes ("the mouse positions
-the block" and the camera moves with it) — the mouse no longer projects a screen cursor
-onto the field. The game captures the OS mouse cursor while playing (there is no pause menu
-yet to release it into; see below). At match start the cursor and camera both start at your
-own home flag, with the camera already looking from there toward the disk's centre.
+Some gamepad actions share a physical button and are told apart by context or by a held
+chord; the Options screen lists every binding.
 
-**Mouse and keyboard**
-
-1. Move the mouse to move the ghost block in the field plane, relative to the camera, which
-   follows a step behind it. It is tinted your colour where you may drop it, red outside
-   your territory, over a contested cell or off the disk, and hatched over a hole. A
-   footprint — one tinted quad per cell of the block's own footprint, rotation included —
-   projects straight down onto whatever is directly beneath it (the disk, or the top of a
-   tower), so you can see exactly what it will land on before you release.
-2. The **mouse wheel** raises and lowers the block's height. This is the only thing that
-   changes it — moving the cursor over a tower does not lift the block to clear it; raise it
-   yourself with the wheel first.
-3. Hold **`R`** (Rotation Mode) and move the mouse to snap the block's yaw/pitch by 90°
-   per drag threshold, the same table `A`/`S`/`W`/`D`/`[`/`]` step one tap at a time.
-   Middle-click (**rotate_snap**) yaws 90° in one tap; `Home` or `F` resets the rotation.
-4. Hold **`Ctrl`** (`lock_vertical`) to ignore the mouse's left/right and forward/back
-   motion — only the wheel changes height while it's held.
-5. **Left click** to release. Inside your territory the block lands and the turn passes.
-   Outside it, the block is thrown off the map and you lose it anyway — the HUD names the
-   reason.
-6. **Throwing a special:** when the held piece is a claimed special, left click instead holds
-   and aims it — drag to build up a launch vector, then release (flick). A negligible drag
-   (barely moved, or released slowly) still just places it in the usual spot; a real drag
-   throws it, launch speed scaling with drag distance up to `SpecialTuning.throw_max_speed`.
-   Right click stays the camera orbit and is never part of this gesture.
-7. Hold **`C`** (Camera Mode) and move the mouse to orbit the camera around the held block
-   instead of moving it; `Z` / `X` zoom while no block is held.
-8. Let the timer ring in the top-left run out to watch the auto-drop relocate the block to
-   the nearest valid spot, or burn it if there isn't one.
-9. Build toward the other player. Where your territories overlap, the cells shimmer, then
-   open into holes after about a second; a block that touches a hole dissolves away and is removed (the disk itself stays solid).
-10. Cut a tower off from your home flag — knock out the blocks between — and watch its
-    patch of territory disappear from the overlay and from the share bars.
-11. Surround the goal flag in the middle with one connected territory. Its ring fills over
-    three seconds and you win.
-
-**Gamepad** (same order, Xbox layout)
-
-1. Left stick moves the ghost; **A** releases it.
-2. **RS click** / **X** raise and lower the hover.
-3. Hold **RT** (Rotation Mode) and use the left stick to snap yaw/pitch the same way the
-   mouse does; **LB** / **RB** yaw, the **D-pad** pitches and rolls one tap at a time, **Y**
-   resets the rotation.
-4. Right stick always orbits the camera around the held block (no hold needed — the stick
-   has no other job).
-5. **Throwing a special:** hold **LT** (`throw_aim`) while holding a claimed special and use
-   the right stick to aim/drag; release LT to throw (or place, for a negligible drag), same
-   thresholds as mouse. **A** still places a held special immediately if you tap it without
-   ever holding LT — the two gestures use different physical inputs, so they don't conflict.
-6. The triggers otherwise zoom while no block is held (they double as rotation_mode/throw_aim
-   while one is); **Back** snaps to your home flag, **B** to the goal (both only apply to the
-   legacy free-orbit camera, off by default — see `CameraTuning.follow_block`).
-
-There is no dedicated `lock_vertical` gamepad binding: the stick (movement) and the hover
-buttons (height) are already on separate physical inputs, so there's nothing to lock.
-
-There is no pause menu yet — `pause_menu` is bound and toggles the mouse capture on/off
-(Esc, or gamepad Start) but opens no menu until M6. Close the window to quit.
-
-Everything above is bound through the Input Map (`tools/bootstrap_project.gd`), so
-rebinding is a change there rather than in gameplay code.
-
-## Sandbox mode
-
-`godot --path . -- --sandbox [--players=N]` is a second unlisted debug build, like
-`--hot-seat`: an offline match with every slot locally controllable, no feed timer (so
-nothing auto-drops), and a fresh block issued the instant the last one lands. `N` defaults
-to 2 (`config/match/sandbox.tres`); sandbox is the one place a 1-player match is allowed, for
-solo rules testing. Placement, rotation, hover and camera controls are the hot-seat build's
-(above); one extra set of hotkeys switches who you're playing and pokes at the match
-directly:
-
-| Action | Keyboard | Gamepad |
-|---|---|---|
-| Switch active slot | `Tab` | Back |
-| Reset the field (same config) | `F5` | Paddle 1 |
-| Toggle the feed timer (off by default) | `F6` | Paddle 3 |
-| Spawn a tower of blocks at the cursor | `F7` | Paddle 2 |
-| Toggle the territory overlay | `F8` | Paddle 4 |
-
-A debug panel in the top-right shows the active slot and its colour, the block held and up
-next, whether the timer is running or paused, why the ghost is (in)valid right where it's
-aimed (the same `PlacementRules` reason the HUD's reject message uses), territory share per
-slot, blocks spawned so far and the physics step time. `F3`'s net debug overlay works here
-too (it just reports Offline/0 peers).
-
-Every hotkey still goes through `Match.request_place()`/`Match.start_match()` like a real
-click would — sandbox decides no rules of its own, so a territory rewrite only ever changes
-what the panel's validity label prints, never this file.
-
-## Tuning panel (F4)
-
-Press **F4** (gamepad: hold **Start** and press **X**) at any time — sandbox, hot-seat, or a
-real networked match — to open an in-game panel of sliders/spinboxes/checkboxes/color
-pickers for every tunable in `config/player/CameraTuning.gd`, `GhostTuning.gd`, `PhysicsTuning.gd`,
-`TerritoryTuning.gd`/`TerritoryVisuals.gd` and `BlockFeedConfig.gd`, one control per exported
-field, built automatically by reflection: add a new `@export` to any of those resources and
-it gets a control here for free, no panel code change required. The mouse is released and
-gameplay input (moving/rotating/dropping the ghost) is suppressed while it's open; closing it
-re-hides the mouse and hands control back.
-
-Five tabs: **Camera**, **Controls** (ghost/placement feel), **Physics** (gravity, damping,
-friction, bounce, the kill plane...), **Territory** (rule numbers plus the overlay's look),
-**Feed** (the block bag). A client in a networked match only sees **Camera**/**Controls** —
-editing physics or territory locally on a client would be inert anyway, since only the host
-runs physics (`net/SnapshotSync.gd` freezes and moves a client's bodies for it).
-
-Every control writes straight onto the same live resource instance the rest of the game
-already reads, so most fields take effect on their very next read (next frame, for almost
-everything). A few are pushed explicitly the moment you change them: a **Physics** edit
-(damping, friction, bounce, gravity) re-applies to every block already standing, not just the
-next one spawned; a **Territory** visuals edit (colors, outline, shimmer, rim) refreshes the
-disk's shader uniforms immediately. Two fields are **not** live: `CameraTuning.follow_distance`
-/ `follow_pitch_deg` are only read once, when the camera rig is built, so a change shows up
-next match/scene reload; `TerritoryVisuals.disk_mesh_segments` is baked into the disk mesh the
-same way.
-
-Buttons at the bottom:
-
-- **Reset** — reloads every resource's fields from its `.tres` on disk (discards unsaved
-  edits, does not touch a saved override file).
-- **Save override** — writes every field to `user://tuning_overrides.cfg`. `game/main/Main.gd`
-  applies this file to the shared tuning resources first thing at boot, before anything else
-  in the game reads them, so a saved tweak survives a restart without editing a `.tres`.
-- **Copy** — copies every field's current value to the clipboard as `name = value` lines
-  (`Color(r, g, b, a)` for colours), grouped under a `# ClassName` header per resource, ready
-  to paste straight into the matching `config/*.tres` file to make a tweak permanent in the
-  repo.
+Sandbox adds hotkeys: Tab (next slot), F5 (reset field), F6 (toggle timer), F7 (spawn
+tower), F9 (force a special), F10 (slow motion) and F11 (pause physics).
 
 ## Requirements
 
-- Godot **4.6+**, standard build (not .NET). Developed against 4.7.2.
-- Steam, for the online transport from M3b onward. M3a plays over ENet — LAN, direct IP,
-  or 127.0.0.1 for local multi-instance testing — with no Steam dependency.
-- A gamepad. Gamepad support has equal priority with mouse and keyboard.
+- Godot **4.7**, standard build (not .NET). The project is developed and tested on 4.7.2;
+  its `project.godot` declares the `4.7` and `Forward Plus` features.
+- Renderer: Forward+. Physics: **Jolt Physics** (`physics/3d/physics_engine`), 60 ticks per
+  second with physics interpolation. These are set in `project.godot` and regenerated from
+  `tools/bootstrap_project.gd`.
+- A desktop GPU that supports Forward+; a Low graphics preset is available.
+- Optional: a gamepad, and the Steam client plus the GodotSteam addon for online play.
 
-## Steam setup (development)
-
-M3b's Steam transport (`SteamMultiplayerPeer`, via the GodotSteam GDExtension) is not part
-of a fresh clone. `res://addons/godotsteam/` is **entirely untracked, by design** — see the
-spike results in `docs/archive/M3b_RESEARCH.md` (Bontago-mv0.2.1). Godot only tries to load a
-`.gdextension` file if one actually exists on disk, so skipping this step gives a perfectly
-clean `godot --headless --editor --path . --quit` and full LAN/ENet/`--hot-seat` play; a
-**half**-installed addon (the `.gdextension` present without its platform library or Valve's
-`steam_api64.dll`) is the one state that prints `ERROR` lines from Godot's
-`GDExtensionManager` on every project open, so always install everything below in one pass,
-never partially.
-
-None of this is required to build, run, or test Stackfall over LAN, direct IP, or hot-seat.
-
-To develop or test the Steam transport locally (Windows):
-
-1. Download the current GodotSteam **GDExtension** release (not the precompiled editor
-   build, which replaces the Godot binary and conflicts with this project's pinned 4.7.2
-   shim) from https://codeberg.org/godotsteam/godotsteam/releases — the `*-gde` tag, asset
-   named `godotsteam-<version>-gdextension-plugin-4.4.zip`. As of this writing that's
-   v4.22.1-gde (Steamworks SDK 1.65).
-2. Unzip it and copy into `res://addons/godotsteam/` in this repo:
-   - `godotsteam.gdextension` and `license.md`
-   - `win64/libgodotsteam.windows.template_debug.x86_64.dll`
-   - `win64/libgodotsteam.windows.template_release.x86_64.dll`
-   - `win64/steam_api64.dll` — this **is** Valve's redistributable; GodotSteam's zip ships
-     it alongside its own binaries, so no separate partner.steamgames.com download is
-     needed for Windows development.
-3. Run `tools/check_steam_setup.ps1` to confirm the install is complete, or
-   `godot --headless --path . -s res://tools/steam_probe.gd` to confirm
-   `Steam.steamInitEx()` actually initializes — status `0` if the Steam client is running
-   and logged in, `2` if it isn't; both are fine for local testing.
-4. `godot --headless --editor --path . --quit` should still print nothing.
-
-## Commands
-
-Run the editor:
+## Running and building
 
 ```bash
-godot --editor --path .
+godot --editor --path .      # open the editor
+godot --path .               # run the game (main menu)
 ```
 
-Run the game (main menu; see "Command-line flags" below for the other entry points):
+Open the project in the editor once (or run `godot --headless --editor --path . --quit`)
+before running scripts headlessly, so Godot builds its class cache. That command should
+print no errors or warnings.
 
-```bash
-godot --path .
-```
-
-Profile a running game (Bontago-1pi.11.90). Two options:
-
-1. In-game overlay: press **F1** (gamepad Back + right-stick click) to cycle hidden, basic
-   (fps, frame/physics ms, block counts) and detailed (draw calls, memory, node counts,
-   physics-step split, rolling graph).
-2. Godot's own profiler on a game run outside the editor: open the project in the editor
-   (`godot --editor --path .`), choose **Debug > Keep Debug Server Open**, open the bottom
-   **Debugger** panel, then launch the game with `godot --path . --remote-debug tcp://127.0.0.1:6007`. Pick the **Profiler** tab
-   (script functions), **Visual Profiler** (CPU/GPU frame) or **Monitors**, and press Start.
-   Debug builds only (not exported release builds).
-
-Run the unit tests (GUT, headless):
-
-```bash
-godot --headless --path . -s addons/gut/gut_cmdln.gd -gdir=res://tests -gexit
-```
-
-Rewrite project settings and the Input Map from source, after editing
-`tools/bootstrap_project.gd`:
+If you edit `tools/bootstrap_project.gd`, regenerate the project settings and the Input
+Map. Do not edit the `[input]` section of `project.godot` by hand.
 
 ```bash
 godot --headless --path . -s tools/bootstrap_project.gd
 ```
 
-Run the M2 end-to-end acceptance scenario (~120 s, exits non-zero on failure). Most
-criteria run a scripted hot-seat match -- a single-process scripting convenience, not a
-turn-taking rule claim -- except the placement-cadence criterion, which needs
-`hot_seat = false` to exercise the real fixed-interval release lock:
+### Exporting (Windows)
 
-```bash
-godot --headless --path . res://tests/enet/m2_acceptance.tscn
+`export_presets.cfg` defines a Windows Desktop preset that writes `build/windows/Stackfall.exe`.
+With the Godot export templates for your engine version installed:
+
+```powershell
+tools/export_windows.ps1              # release export
+tools/export_windows.ps1 -Debug       # debug export with visible script errors
+tools/export_windows.ps1 -SkipSmoke   # skip the exported-build bot-match smoke test
 ```
 
-Run the M3a end-to-end acceptance scenario (1 headless host + N-1 headless clients play a
-scripted match over ENet; see "Local multiplayer without a second PC" above):
-
-```bash
-tools/run_m3a_local.ps1 -Peers 4 -SimLag 100 -SimLoss 0.02
-```
-
-Run the physics, territory and networking benchmarks:
-
-```bash
-godot --headless --path . res://tests/bench/bench_tower.tscn
-godot --headless --path . res://tests/bench/bench_rain.tscn
-godot --headless --path . res://tests/bench/bench_territory.tscn
-godot --headless --path . res://tests/bench/bench_snapshot.tscn
-```
+The export also writes a development `steam_appid.txt` next to the executable.
 
 ### Command-line flags
 
-`game/main/Main.gd` reads these after `--` (`godot --path . -- --host`, etc.), the same
-convention `OS.get_cmdline_user_args()` uses:
+Pass these after `--`, for example `godot --path . -- --host`.
 
 | Flag | Effect |
-|---|---|
-| `--hot-seat` | Skips the menu and lobby entirely; starts M2's two-player, one-PC build. |
-| `--host` | Hosts on `net_config.tres`'s `game_port` (or `--port=`) and opens the lobby. |
-| `--headless-host` | Same as `--host`, for a dedicated/scripted host with no window. Not shown in LAN Join browsers (clients still join by address) unless `--advertise` is also passed. |
-| `--advertise` | With `--headless-host`: broadcast the session on the LAN like an ordinary host. |
-| `--join=<ip[:port]>` | Joins that address and opens the lobby. |
-| `--port=<n>` | Overrides the port for `--host`/`--headless-host`/`--join`. |
-| `--match-config=<res path>` | Loads that `MatchConfig` `.tres` as the base for the bot match `--headless-host --bots=<n>` starts (fixtures: `tests/support/fixtures/match_configs/`). Ignored on `--join`, and a no-op for a plain `--host`/`--headless-host` lobby, whose match still takes the lobby's settings. Falls back to the default on a bad path or wrong resource type. |
-| `--sim-lag=<ms>` / `--sim-loss=<0..1>` | Simulated one-way lag / packet loss from launch, the same sliders the F3 overlay controls. |
+| --- | --- |
+| `--host` | Host on the default port and open the lobby. |
+| `--join=<ip[:port]>` | Join that address and open the lobby. |
+| `--port=<n>` | Override the port for `--host`, `--headless-host` and `--join`. |
+| `--headless-host` | Host with no window, for a dedicated or scripted host. Add `--advertise` to show it in LAN browsers, and `--bots=<n>` to start a bot match. |
+| `--sandbox [--players=N]` | Offline sandbox: every slot locally controllable, no feed timer. |
+| `--hot-seat` | Skip the menu and start a two-player match on one PC. |
+| `--sim-lag=<ms>`, `--sim-loss=<0..1>` | Simulate one-way lag and packet loss from launch. |
+| `--steam-online`, `--host-online` | Initialize Steam (see below); `--host-online` also hosts a Steam lobby. |
 
-With no flag, `Main` shows the main menu and these are chosen through Host/Join instead.
+## Multiplayer
 
-Off-screen screenshots of any screen (menus, lobby, sandbox, a match) at one or more sizes:
+The host is authoritative and the only peer that runs physics. Clients send intents that
+the host validates. Gameplay code uses Godot's `MultiplayerAPI` only, so the transport is
+swappable: ENet for LAN, direct IP and tests, and Steam for online play.
 
-```bash
-godot --windowed --position 10000,10000 --resolution 320x180 --audio-driver Dummy --path . res://tools/shot.tscn -- --agent-probe --out=<dir> --render-size=1920x1080 --target=main_menu
+**LAN and direct IP.** No extra setup is needed.
+
+1. One player chooses **Host**. The lobby opens with every match setting.
+2. Everyone else chooses **Join** and picks the host from the LAN list (same subnet), or
+   types the host's address as `1.2.3.4` or `1.2.3.4:47778` under **Join IP**. Forward
+   the game port (default UDP 47778) if you are playing across the internet.
+3. Each player readies up; the host starts the match.
+
+To test several instances on one machine, use the editor's **Debug > Customize Run
+Instances** (2–4 instances). Only one process per machine can listen for LAN discovery,
+so join the other instances by direct IP (`127.0.0.1:<port>`). `tools/run_m3a_local.ps1
+-Peers 4` runs a scripted headless match with one host and three clients on the local
+machine, and exits non-zero on failure.
+
+**Steam (development setup).** The GodotSteam addon is not part of a fresh clone
+(`addons/godotsteam/` is untracked on purpose), and nothing else needs it. A fresh clone
+runs LAN, direct IP and offline modes with no setup. To work on the Steam transport on
+Windows:
+
+1. Download the GodotSteam **GDExtension** release (not the precompiled editor build, which
+   replaces the Godot binary) from the GodotSteam project's releases page.
+2. Copy into `addons/godotsteam/`: `godotsteam.gdextension`, `license.md`, the two
+   `libgodotsteam.windows.*.x86_64.dll` files, and `steam_api64.dll` from the same archive.
+   Install all of them in one pass. A half-installed addon prints errors on every project
+   open.
+3. Run `tools/check_steam_setup.ps1` to confirm the install is complete, and
+   `godot --headless --path . -s res://tools/steam_probe.gd` to confirm Steam initializes.
+4. Start the game with `godot --path . -- --steam-online`. Development uses Steam's test
+   app ID 480. The ordinary run skips Steam initialization because that test app's Steam
+   Input intercepts controller events.
+
+## Development
+
+The spec is [docs/SPEC.md](docs/SPEC.md): game design (Part 1) and technical architecture
+(Part 2), including the project layout. Working rules for contributors are in
+[CLAUDE.md](CLAUDE.md). Highlights: statically typed GDScript with untyped declarations as
+compile errors, tunables in `Resource` files under `config/`, pure rule logic in `core/`
+with no scene-tree dependency, and a global `Events` signal bus.
+
+Tests use [GUT](https://github.com/bitwes/Gut) and are headless.
+
+```powershell
+tools/run_gut.ps1 test_net_session,test_steam_client   # targeted: named scripts, seconds
+tools/run_gut.ps1 test_match_net -Unit test_a_client   # one test by name substring
 ```
 
-See `tools/shot.gd` for targets, setup keys and shot lists.
+```bash
+python tools/full_gate.py          # whole suite, sharded; prints FULL GATE GREEN or RED
+godot --headless --path . -s addons/gut/gut_cmdln.gd -gdir=res://tests -gexit   # plain serial run
+python tools/lint_all.py           # every gate lint; prints LINT ALL GREEN or RED
+```
 
-Multiplayer testing (from M3a): in the editor, **Debug → Customize Run Instances**, 2–4
-instances.
+Benchmarks live in `tests/bench/`, for example
+`godot --headless --path . res://tests/bench/bench_tower.tscn`.
 
-## Layout
+Off-screen screenshots of any screen are produced by `tools/shot.tscn`; see
+`tools/shot.gd` for targets and options.
 
-Follows spec §3.2.
-
-| Path | What lives there |
-|---|---|
-| `autoload/` | `Events` signal bus, `Settings`, `Net`, `Match`, `SnapshotSync`, `MatchNet` singletons |
-| `config/` | Tunable values as `Resource` files — no magic numbers in code |
-| `core/` | Pure rule logic (territory, feed, win check, net wire packing), no scene tree, unit-tested |
-| `game/` | Scenes and scripts for the field, blocks, specials, controllers, `Main` (the router) |
-| `net/` | `SnapshotSync`, `Interpolator`, `MatchNet` (RPCs), `LanDiscovery` |
-| `ui/`, `vfx/`, `sfx/`, `shaders/` | Presentation — `MainMenu`, `Lobby`, `NetDebugOverlay` live in `ui/` |
-| `tests/unit/`, `tests/bench/` | Unit tests and physics benchmark scenes |
-| `tools/` | Build-time scripts that are not part of the running game |
+Only GodotSteam and GUT are used as third-party addons; ask before adding another.

@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.33 (owner playtest 2026-10-03: "Start the first block higher up,
+## ("Start the first block higher up,
 ## it loads inside the home beacon currently").
 ##
 ## The match's first held piece is seeded on the owner's home flag

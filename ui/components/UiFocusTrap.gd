@@ -1,6 +1,6 @@
 class_name UiFocusTrap
 extends RefCounted
-## Keeps controller / keyboard focus inside one screen (Bontago-1pi.159.15, N1).
+## Keeps controller / keyboard focus inside one screen (N1).
 ##
 ## Godot resolves an unset focus_neighbor_* by a spatial search over the WHOLE viewport, so a
 ## stick or arrow press on a control with no neighbour on that side (a dropdown's left / right)

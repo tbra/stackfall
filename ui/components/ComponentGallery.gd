@@ -1,6 +1,6 @@
 class_name ComponentGallery
 extends Control
-## The component gallery (docs/UI_COMPONENTS_PLAN.md section 3.3): every built ui/components/
+## The component gallery:
 ## component in each state on a disc-800 panel. It is the visual contract for sign-off: capture it
 ## off-screen at 1280x720 and 1920x1080 and compare with docs/ui_reskin/components.md. C1b / C2 add
 ## their rows. States that need a pointer (hover, pressed) or focus are previewed by borrowing the

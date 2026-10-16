@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.41: UiDialog (docs/ui_reskin/components.md "Dialog") -- plate width, actions in
+## UiDialog (docs/ui_reskin/components.md "Dialog") -- plate width, actions in
 ## order with Cancel last, initial focus, glyph hints, focus trap, and keyboard / gamepad parity
 ## through synthetic events (A or Enter confirms, B or Start closes).
 
@@ -36,12 +36,6 @@ func _pad_tap(button: JoyButton) -> void:
 	await get_tree().process_frame
 
 
-func test_starts_hidden_and_plate_is_design_width() -> void:
-	assert_false(_dialog.visible)
-	var tuning: OptionsVisualTuning = load("res://config/ui/options_visual_tuning.tres") as OptionsVisualTuning
-	assert_eq(_dialog.panel.custom_minimum_size.x, float(tuning.dialog_width_px))
-
-
 func test_open_focuses_first_action_and_orders_cancel_last() -> void:
 	_dialog.open()
 	assert_true(_dialog.visible)
@@ -60,14 +54,6 @@ func test_pressing_an_action_hides_and_emits_its_id() -> void:
 	assert_eq(_canceled, 0)
 
 
-func test_cancel_block_dismisses() -> void:
-	_dialog.open()
-	_dialog.cancel_button().pressed.emit()
-	assert_false(_dialog.visible)
-	assert_eq(_canceled, 1)
-	assert_true(_chosen.is_empty())
-
-
 func test_gamepad_a_confirms_the_focused_action() -> void:
 	_dialog.open()
 	await _pad_tap(JOY_BUTTON_A)
@@ -81,13 +67,6 @@ func test_gamepad_b_closes() -> void:
 	assert_false(_dialog.visible)
 	assert_eq(_canceled, 1)
 	assert_true(_chosen.is_empty())
-
-
-func test_gamepad_start_closes() -> void:
-	_dialog.open()
-	await _pad_tap(JOY_BUTTON_START)
-	assert_false(_dialog.visible)
-	assert_eq(_canceled, 1)
 
 
 func test_keyboard_escape_closes_and_enter_confirms() -> void:

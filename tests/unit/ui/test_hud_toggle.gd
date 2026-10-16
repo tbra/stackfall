@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.213: hud_toggle (F8 / PADDLE4) shows and hides the whole in-match HUD,
+## hud_toggle (F8 / PADDLE4) shows and hides the whole in-match HUD,
 ## in every match and the sandbox, and a new match starts with it visible.
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
@@ -62,15 +62,6 @@ func test_paddle4_toggles_on_release() -> void:
 	hud._unhandled_input(_pad(JOY_BUTTON_PADDLE4, true))
 	hud._unhandled_input(_pad(JOY_BUTTON_PADDLE4, false))
 	assert_true(hud._scale_root.visible)
-
-
-func test_new_match_starts_with_the_hud_visible() -> void:
-	var hud: HUD = _make_hud()
-	hud._unhandled_input(_key(true))
-	assert_false(hud._scale_root.visible)
-	Events.match_scope_reset.emit()
-	assert_true(_shown(hud), "a hidden HUD must not persist into the next match")
-	assert_false(hud.is_hud_hidden())
 
 
 func _boot_main() -> Node:

@@ -1,4 +1,4 @@
-# Bontago-1pi.32: loading-ready gate, host + one client on loopback under a hard wall-clock deadline.
+# loading-ready gate, host + one client on loopback under a hard wall-clock deadline.
 # Follows tools/run_m3a_local.ps1: Process.Kill($true) ends the whole process
 # tree (the godot shim spawns the real console exe), and a finally block does it
 # again so an error or Ctrl+C cannot orphan a child.
@@ -24,7 +24,7 @@ try {
 	$null = $c.Handle
 	$procs += $c
 	if ($Late) {
-		# Bontago-1pi.42: a third peer joins while the host's gate is still closed (the
+		# a third peer joins while the host's gate is still closed (the
 		# host holds its own ready press until that peer is seated).
 		Start-Sleep 5
 		$l = Start-Process godot -ArgumentList @("--headless","--log-file","${Out}\godot_$([guid]::NewGuid().ToString('N').Substring(0,6)).log","--path",$Path,$scene,"--","--join=127.0.0.1:$Port","--sim-lag=$Lag","--late-joiner") -PassThru -NoNewWindow -RedirectStandardOutput "$Out\lr_late.log" -RedirectStandardError "$Out\lr_late.err"

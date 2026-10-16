@@ -1,6 +1,6 @@
 class_name StaticsJoltScene
 extends RefCounted
-## Bontago-1t5.72.3 (STATICS_DESIGN 6.1): the real-Jolt harness of the statics agreement suite. A scripted stack of
+## STATICS_DESIGN 6.1: the real-Jolt harness of the statics agreement suite. A scripted stack of
 ## real blocks settles on a real Field behind a quiet gate; the bot's model (BotStackProbe snapshot + BotStability)
 ## predicts whether one more piece, probed with the real column ray, would stand; the piece is then dropped through
 ## the bot's spawn pose and the settled outcome is compared with the prediction. Test-only support.

@@ -1,7 +1,7 @@
 extends GutTest
-## Field's SPECIALS_ONLY tilt controller (spec 2.1, 2.7, 3.5): the
+## Field's SPECIALS_ONLY tilt controller (spec 1.7, 2.7, 3.5): the
 ## critically damped spring on Field._tilt, its max_tilt_deg clamp, and the
-## AnimatableBody3D conversion (docs/archive/M4_PLAN.md P0b).
+## AnimatableBody3D conversion.
 ##
 ## A deliberately tiny disk, same pattern test_field_cells.gd already uses:
 ## small enough that a real physics settle (the one test here that needs one)
@@ -21,7 +21,7 @@ extends GutTest
 ## SceneTree really ticks (await wait_physics_frames(1) below) is the same
 ## fix test_a_resting_block_stays_at_its_disk_local_point_during_a_slow_tilt()
 ## already relies on for its own tilt-driven physics. Review NIT
-## (Bontago-1en.27): shared with tests/unit/net/test_snapshot_sync.gd, which
+## : shared with tests/unit/net/test_snapshot_sync.gd, which
 ## previously carried an identical inner class of its own.
 func _drive_during_physics(callable: Callable) -> void:
 	var driver: PhysicsCallDriver = PhysicsCallDriver.new()
@@ -54,7 +54,7 @@ func _make_field() -> Field:
 	return field
 
 
-## PHYSICAL_BALANCE tests below (M6 B5, spec 2.1/2.7) need a real BlockRegistry
+## PHYSICAL_BALANCE tests below (M6 B5, spec 1.7/2.7) need a real BlockRegistry
 ## wired the same way MatchLifecycle._apply_tilt_mode() wires one -- same
 ## configure()/settled-timer fixture pattern as
 ## tests/unit/blocks/test_block_registry.gd's test_settled_block_produces_a_circle_after_settle_time().
@@ -206,7 +206,7 @@ func test_a_resting_block_stays_at_its_disk_local_point_during_a_slow_tilt() -> 
 	)
 
 
-# --- apply_replicated_pose (Bontago-1en.27: a client's mirror) --------------
+# --- apply_replicated_pose (a client's mirror) --------------
 #
 # net/SnapshotSync.gd calls this on a client's Field once per client_tick(),
 # never on a host's -- these tests exercise Field's own contract directly, at
@@ -243,9 +243,9 @@ func test_apply_replicated_pose_sets_the_transform_and_tilt_vector() -> void:
 	)
 
 
-# --- PHYSICAL_BALANCE kinematic-torque approximation (M6 B5, spec 2.1/2.7) --
+# --- PHYSICAL_BALANCE kinematic-torque approximation (M6 B5, spec 1.7/2.7) --
 #
-# docs/archive/M6_PLAN.md DECISION, owner-approved Bontago-keo.16: a kinematic-torque
+# DECISION: a kinematic-torque
 # approximation, not a real RigidBody3D/joint coupling. These exercise
 # Field._physical_balance_torque_accel() end to end through a real
 # BlockRegistry, the same wiring MatchLifecycle._apply_tilt_mode() performs.
@@ -275,7 +275,7 @@ func test_physical_balance_tilts_toward_a_settled_offcenter_load() -> void:
 	)
 
 
-# --- Torque latch (Bontago-keo.11 follow-up) --------------------------------
+# --- Torque latch (follow-up) --------------------------------
 #
 # BlockRegistry.settled_torque_samples() only counts entries whose own
 # is_settled accumulator is currently true; a real match's own tilt can wake
@@ -285,7 +285,7 @@ func test_physical_balance_tilts_toward_a_settled_offcenter_load() -> void:
 # waiting out a real wake/resettle cycle under a moving disk.
 
 
-## Bontago-b0w: a small stack on a leaned, latched disc sleeps; a later tilt
+## a small stack on a leaned, latched disc sleeps; a later tilt
 ## impulse still carries it (sync re-armed), with no clipping through the top.
 func test_stack_on_a_latched_leaned_disc_sleeps_and_is_carried_when_woken() -> void:
 	var field: Field = _make_field()
@@ -327,7 +327,7 @@ func test_stack_on_a_latched_leaned_disc_sleeps_and_is_carried_when_woken() -> v
 	assert_almost_eq(after_y, before_y, 0.1, "the base block did not sink into or lift off the disc")
 
 
-## Bontago-1pi.46 (G7): a Replay runs set_tilt_enabled(false) -> clear_match_state() ->
+## G7: a Replay runs set_tilt_enabled(false) -> clear_match_state() ->
 ## set_tilt_enabled(true) inside one frame, before any physics step. The disc must come
 ## out level in the physics server too, not re-synced to the old match's tilted pose.
 func test_a_same_frame_disable_clear_enable_leaves_the_disc_level() -> void:

@@ -1,6 +1,6 @@
 class_name ResultsScreen
 extends Control
-## Bontago-1pi.6 (owner playtest: "the win screen always says 'Team x wins!'
+## ("the win screen always says 'Team x wins!'
 ## even when not playing in teams, let's add a proper win screen with stats
 ## and options to replay, go back to lobby and change some settings").
 ##
@@ -24,11 +24,11 @@ extends Control
 ##
 ## **Host-only actions.** Replay/Back to lobby call net/MatchNet.gd's
 ## request_replay()/request_return_to_lobby() directly (both already handle
-## the local-host-vs-remote-RPC split themselves, spec 3.4 "the host checks
+## the local-host-vs-remote-RPC split themselves, spec 2.6 "the host checks
 ## every intent"); on a client both buttons are disabled with a "waiting for
 ## host" hint instead.
 ##
-## Bontago-1pi.72.1: the quick Settings panel (owner: "get rid of the quick
+## the quick Settings panel ("get rid of the quick
 ## settings option") is gone; Play again / Back to lobby are the only actions.
 
 ## Test seams (Variant, not a static type): ui/hud/HUD.gd's own match_provider and
@@ -48,7 +48,7 @@ var last_results: Dictionary = {}
 
 @onready var _mode_title: UiText = %ModeTitle
 @onready var _headline: UiText = %Headline
-## Bontago-1pi.23: mode scores sit in their own small label; they used to be
+## mode scores sit in their own small label; they used to be
 ## appended to the 28pt headline and spilled over the table header.
 @onready var _mode_outcome: UiText = %ModeOutcome
 @onready var _rows_list: VBoxContainer = %RowsList
@@ -57,7 +57,7 @@ var last_results: Dictionary = {}
 @onready var _lobby_button: UiBlockButton = %LobbyButton
 @onready var _card: UiPanel = %Card
 
-## DECISION (Bontago-mp0.11): keep the stats table scrollable within the
+## DECISION: keep the stats table scrollable within the
 ## viewport so eight player rows remain reachable.
 func _refresh_layout() -> void:
 	var available: Vector2 = get_viewport_rect().size - Vector2.ONE * tuning.menu_edge_margin_px * 2.0
@@ -103,7 +103,7 @@ func _on_match_state_changed(_from_state: int, to_state: int) -> void:
 		hide()
 
 
-## Bontago-1pi.46 (G9; Events.match_scope_reset runs this). ROOT CAUSE: the screen is a
+## (G9; Events.match_scope_reset runs this). ROOT CAUSE: the screen is a
 ## persistent Main child that only ever replaced its stats rows when the NEXT results
 ## arrived, so after Replay / Back to lobby / Leave the previous match's table (header
 ## row, one row per player) stayed in the hidden tree and `last_results` kept its
@@ -116,7 +116,7 @@ func clear_results() -> void:
 		child.queue_free()
 
 
-## Bontago-1pi.72.1 (owner playtest: pause menu open when the round ended, then
+## (pause menu open when the round ended, then
 ## the results could not be used after unpausing). ROOT CAUSE: PlayerController
 ## re-captures the mouse on Events.pause_menu_closed, and the focused Resume
 ## button vanished with the menu, so nothing on this screen had focus or a
@@ -176,7 +176,7 @@ func _headline_text(results: Dictionary) -> String:
 
 
 ## Every winning id: mode.winners when a mode payload lists it (a CTF tie is a
-## shared win), else just winner_id. Empty when nobody won. Bontago-1pi.25.1:
+## shared win), else just winner_id. Empty when nobody won. 
 ## a Domination match that ended early (home elimination) has an empty
 ## winners list, so it falls back to the finish winner_id the same way.
 static func winner_ids(results: Dictionary) -> PackedInt32Array:
@@ -188,7 +188,7 @@ static func winner_ids(results: Dictionary) -> PackedInt32Array:
 	return out
 
 
-## Bontago-22y.7: a tied timed mode lists every top team in mode.winners
+## a tied timed mode lists every top team in mode.winners
 ## ("0,2"); returns "Teams 1 & 3 share the win!" for two or more, else "".
 static func shared_winners_text(results: Dictionary, team_numbers: PackedInt32Array = PackedInt32Array()) -> String:
 	if not ResultsPayload.has_mode_block(results):
@@ -203,7 +203,7 @@ static func shared_winners_text(results: Dictionary, team_numbers: PackedInt32Ar
 	return "%s %s share the win!" % ["Players" if ffa else "Teams", " & ".join(names)]
 
 
-## Bontago-22y.11: a non-classic results payload carries a "mode" block (mode
+## a non-classic results payload carries a "mode" block (mode
 ## id + per-team scores); this renders it as extra headline lines. Classic has
 ## no block, so this returns "" and its headline is unchanged.
 ## DECISION: the outcome shares the headline Label (no new scene node) so the
@@ -228,7 +228,7 @@ static func mode_outcome_text(results: Dictionary, team_numbers: PackedInt32Arra
 		elif domination:
 			value_text = "%d%%" % int(round(float(scores[team]) * 100.0))
 		parts.append("%s: %s" % [player_label(results, team) if ffa else PlayerNames.team_label(team_number_in(team_numbers, team)), value_text])
-	# Bontago-1pi.82: the mode name is the card header (mode_title()); Elimination's
+	# the mode name is the card header (mode_title()); Elimination's
 	# alive/out text and "out first to last" order are gone (the Status column and
 	# row order say it), so only modes with a score of their own keep this line.
 	if elimination:
@@ -236,7 +236,7 @@ static func mode_outcome_text(results: Dictionary, team_numbers: PackedInt32Arra
 	return ", ".join(parts)
 
 
-## Bontago-1pi.82: the score card header, the mode's own name ("Classic" when the
+## the score card header, the mode's own name ("Classic" when the
 ## payload has no mode block).
 static func mode_title(results: Dictionary) -> String:
 	var mode_id: int = _results_mode_id(results)
@@ -245,13 +245,13 @@ static func mode_title(results: Dictionary) -> String:
 	return MatchConfig.GAME_MODE_LABELS[mode_id]
 
 
-## Bontago-1pi.82: only Capture the Flag and Reach the Sky carry a mode column.
+## only Capture the Flag and Reach the Sky carry a mode column.
 static func has_mode_stat(results: Dictionary) -> bool:
 	var mode_id: int = _results_mode_id(results)
 	return mode_id == MatchConfig.GameMode.CAPTURE_THE_FLAG or mode_id == MatchConfig.GameMode.REACH_THE_SKY
 
 
-## Bontago-1pi.72.1: a slot's name exactly as its table row shows it (display name,
+## a slot's name exactly as its table row shows it (display name,
 ## " (Bot)" suffix), so the subtitle and the table agree. Falls back to
 ## "Player N" for a slot with no row (an old/short payload).
 static func player_label(results: Dictionary, slot_id: int) -> String:
@@ -269,7 +269,7 @@ static func row_name_text(row: Dictionary, difficulty_label: String = "") -> Str
 	return name_text
 
 
-## Lobby rework (Bontago-1pi.53): the label number of dense team `team_id` --
+## Lobby rework: the label number of dense team `team_id` --
 ## `team_numbers` (MatchConfig.team_numbers of a host-resolved lobby) maps it to
 ## the number the team had in the lobby; empty or short (legacy configs, FFA, an
 ## unresolved TEAMS_N) falls back to team id + 1, the old numbering.
@@ -340,7 +340,7 @@ func _populate_rows(results: Dictionary) -> void:
 	ScoreTable.populate(_rows_list, results, tuning, _resolved_team_numbers(), match_provider)
 
 
-## Bontago-1pi.72.2: the one mode column. # DECISION: Capture the Flag shows the
+## the one mode column. # DECISION: Capture the Flag shows the
 ## team's beacon points (mode.scores), Reach the Sky the team's record in metres
 ## (mode.scores; Height is the player's own best), every other mode (Classic,
 ## Elimination, Domination) the team's peak territory share during the round.
@@ -394,7 +394,7 @@ func _current_config() -> MatchConfig:
 
 # --- Visual style + focus chain -------------------------------------------------
 
-## Stackfall Arcade (docs/UI_RESKIN_PLAN.md P5, Bontago-hfa.7): a disc-800 plate on a disc-950
+## Stackfall Arcade:
 ## scrim, the mode as a rim kicker, the outcome in Bungee, PLAY AGAIN as the one flare block.
 func _apply_visual_style() -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
@@ -421,12 +421,12 @@ func _wire_focus_chain() -> void:
 		var next: Control = chain[(i + 1) % chain.size()]
 		current.focus_neighbor_top = current.get_path_to(prev)
 		current.focus_neighbor_bottom = current.get_path_to(next)
-		# Bontago-1pi.181 (owner: "can't move left/right even though the buttons are laid
-		# out horizontally"): the two buttons sit side by side in ButtonsRow, so left /
+		# "can't move left/right even though the buttons are laid
+		# out horizontally": the two buttons sit side by side in ButtonsRow, so left /
 		# right walk the same wrapped chain. Without these the focus trap below pinned
 		# both sides to the button itself.
 		current.focus_neighbor_left = current.get_path_to(prev)
 		current.focus_neighbor_right = current.get_path_to(next)
 		current.focus_mode = Control.FOCUS_ALL
-	# Bontago-1pi.159.15: any side still unset must not leave this screen.
+	# any side still unset must not leave this screen.
 	UiFocusTrap.trap(self)

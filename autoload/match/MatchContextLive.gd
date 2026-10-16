@@ -1,7 +1,7 @@
 class_name MatchContextLive
 extends MatchContext
 ## The live MatchContext: forwards every port method 1:1 to the Match / Net / SnapshotSync
-## autoloads (docs/AUTOLOAD_DECOUPLING_PLAN.md, S1b). Installed by Match._ready().
+## autoloads (the decoupling step S1b).
 ##
 ## DECISION (D5): values pass straight through (implicit, runtime-checked conversions) so this file
 ## names no game/ class outside game/world/. DECISION (D9): this and autoload/Match.gd are a
@@ -112,7 +112,7 @@ func qol_claim_radius() -> float:
 	return _match.qol_claim_radius()
 
 
-## Bontago-mp0.152: not gated on _active(): the zone radius is static tuning, so a flag placed
+## not gated on _active(): the zone radius is static tuning, so a flag placed
 ## before late activation still draws its beacon zone.
 func goal_zone_visual_radius() -> float:
 	return _match.goal_zone_visual_radius()

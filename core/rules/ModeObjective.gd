@@ -1,6 +1,6 @@
 class_name ModeObjective
 extends RefCounted
-## What decides a match (Bontago-22y.11). One objective is active per match;
+## What decides a match. One objective is active per match;
 ## MatchTerritory feeds it every territory solve and MatchLifecycle asks it
 ## about the round timer, so neither hard-codes the classic all-goal hold.
 ##
@@ -40,8 +40,8 @@ static func create(
 	sky_target_height: float = 0.0,
 	claim_decay_rate: float = 0.0
 ) -> ModeObjective:
-	# DECISION: every id resolves to CLASSIC until a mode package (22y.7/.8/.9)
-	# adds its `match` branch here and its id to SELECTABLE_GAME_MODES.
+	# DECISION: every id resolves to CLASSIC until its mode adds its `match` branch here
+	# and its id to SELECTABLE_GAME_MODES.
 	var objective: ModeObjective = null
 	match MatchConfig.resolve_game_mode(mode):
 		MatchConfig.GameMode.CAPTURE_THE_FLAG:
@@ -58,7 +58,7 @@ static func create(
 	return objective
 
 
-## Bontago-1pi.18.1: QoL claim radius (0 = the flag cell only). Objectives that
+## QoL claim radius (0 = the flag cell only). Objectives that
 ## read goal cells override this.
 func set_claim_radius(_radius: float) -> void:
 	pass

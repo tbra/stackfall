@@ -1,5 +1,5 @@
 extends GutTest
-## Field.raycast_down_disk_local() (docs/TERRITORY_V2_PLAN.md, "Placement
+## Field.raycast_down_disk_local() ("Placement
 ## validity"): the v2 ruleset's one physics query, straight down from
 ## map_def.cell_wake_height to tuning.kill_plane_y in world space, converted
 ## back to disk-local (x, z) through Field's own convention.

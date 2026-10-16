@@ -1,6 +1,6 @@
 class_name PauseMenu
 extends CanvasLayer
-## Bontago-xtq.42 (M7 P42, owner playtest: "there's no pause menu, I can't
+## (M7 P42, : "there's no pause menu, I can't
 ## abandon a game and go back to the main menu or quit the game").
 ## Instantiated once by game/main/Main.gd (kept alive for the whole session, unlike
 ## ui/menus/OptionsMenu.gd which MainMenu/this menu build and free on demand) so it
@@ -17,7 +17,7 @@ extends CanvasLayer
 ## contract ui/debug/TuningPanel.gd's own F4 toggle already established) and
 ## releases the mouse so the overlay's own buttons are reachable.
 ##
-## DECISION (ui/menus/PauseMenu.gd, Bontago-1pi.7, owner: "In-game pause menu
+## DECISION (ui/menus/PauseMenu.gd, requirement: "In-game pause menu
 ## doesn't match the rest of the menu graphically, also remove quit game as
 ## an option"): restyled to the same cream-card/pastel-pill/airy-spacing look
 ## ui/menus/MainMenu.gd and ui/lobby/Lobby.gd already use (ui/theme/stackfall_theme.tres,
@@ -29,7 +29,7 @@ extends CanvasLayer
 ## by a Leave-or-Quit choice) collapses to a single path, so the dialog now
 ## exists solely to confirm Leave match.
 ##
-## Bontago-1pi.50 (owner playtest: "return to lobby option from pause menu"):
+## "return to lobby option from pause menu":
 ## that one dialog now serves two destructive entries, Leave match and Return to
 ## lobby (host only, between Options and Leave); `_pending_action` says which one
 ## a confirm answers. Which entries a session gets is decided by game/main/Main.gd
@@ -38,7 +38,7 @@ extends CanvasLayer
 const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/menus/OptionsMenu.tscn")
 const OPTIONS_TUNING: OptionsVisualTuning = preload("res://config/ui/options_visual_tuning.tres")
 
-## M7 P7 look (Bontago-1pi.7): every pastel pill/well/card color this menu's
+## M7 P7 look: every pastel pill/well/card color this menu's
 ## restyle draws from, so none of the styling in _apply_visual_style() below
 ## is a magic number (CLAUDE.md "No magic numbers"). Owned by another
 ## package (config/ui/MenuVisualTuning.gd) -- this file only reads it, the same
@@ -59,7 +59,7 @@ const OPTIONS_TUNING: OptionsVisualTuning = preload("res://config/ui/options_vis
 ## Escape-to-quit keeps working unmodified.
 var suppressed: bool = false
 
-## Bontago-59o.3: the menu is a CanvasLayer (was a plain Control at layer 0),
+## the menu is a CanvasLayer (was a plain Control at layer 0),
 ## so it and the Options menu it hosts draw above ui/hud/HUD.gd (CanvasLayer 1)
 ## and swallow mouse clicks that used to fall through to HUD controls.
 ## DECISION: 100 leaves room for debug overlays below and stays a script
@@ -75,13 +75,13 @@ const OVERLAY_LAYER: int = 100
 ## there, not here.
 signal leave_match_requested
 
-## Bontago-1pi.50 (owner playtest 2026-10-03: "return to lobby option from
-## pause menu"): emitted once Return to lobby is confirmed (or at once when no
+## "return to lobby option from
+## pause menu": emitted once Return to lobby is confirmed (or at once when no
 ## match is in progress, so nothing is lost). game/main/Main.gd is the one listener;
 ## it re-checks that this peer is the host before ending the match for everyone.
 signal return_to_lobby_requested
 
-## Bontago-1pi.50. What the Return to lobby entry shows, decided by whoever owns
+## . What the Return to lobby entry shows, decided by whoever owns
 ## the session (game/main/Main.gd), never by this menu: HIDDEN where no lobby exists
 ## to return to (offline sandbox/hot-seat -- Leave match already goes to the main
 ## menu there), ENABLED for the host (a hosted session always has a lobby, local
@@ -92,7 +92,7 @@ enum ReturnEntry { HIDDEN, ENABLED, DISABLED }
 ## about; NONE while it is closed.
 enum PendingAction { NONE, LEAVE, RETURN_TO_LOBBY }
 
-## DECISION (Bontago-1pi.50): a client sees the entry disabled rather than a
+## DECISION: a client sees the entry disabled rather than a
 ## "leave to the host's lobby" variant (keep it simple; a client's own way out
 ## stays Leave match). The inline hint under the entry explains why (no tooltips).
 const RETURN_CLIENT_HINT: String = "Only the host can return everyone to the lobby"
@@ -104,7 +104,7 @@ const CONFIRM_ACTION_ID: StringName = &"confirm"
 const LEAVE_CONFIRM_TEXT: String = "Leave this match and return to the main menu?"
 const LEAVE_CONFIRM_OK_TEXT: String = "Leave match"
 
-## Bontago-1pi.50: () -> Dictionary, read each time the menu opens (and by the
+## () -> Dictionary, read each time the menu opens (and by the
 ## confirm step). {"return_entry": ReturnEntry, "match_in_progress": bool}.
 ## game/main/Main.gd assigns it; with none set the entry stays hidden (the scene's
 ## default, so the pre-existing 3-button focus ring is untouched) and a press
@@ -115,7 +115,7 @@ var context_provider: Callable = Callable()
 
 var _froze_tree: bool = false
 var _options_menu: OptionsMenu = null
-## Bontago-1pi.11.92: the built-once Options window, hidden between opens (see OptionsMenu.present()).
+## the built-once Options window, hidden between opens (see OptionsMenu.present()).
 var _options_cache: OptionsMenu = null
 var _pending_action: PendingAction = PendingAction.NONE
 var _confirm_origin: UiBlockButton = null
@@ -136,7 +136,7 @@ var return_hint: UiText = null
 
 
 func _ready() -> void:
-	# Bontago-1pi.167: this menu (and Options/confirm dialog beneath it) must keep running while
+	# this menu (and Options/confirm dialog beneath it) must keep running while
 	# it has paused the tree.
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	Events.net_peer_joined.connect(_on_peer_joined_while_open)
@@ -158,7 +158,7 @@ func _ready() -> void:
 	_wire_focus_chain()
 
 
-## Bontago-hfa.4 (UI reskin P2): the Stackfall Arcade Dialog -- a centred 340 px disc-800 plate on a
+## UI reskin P2: the Stackfall Arcade Dialog -- a centred 340 px disc-800 plate on a
 ## disc-900 scrim, a centred uppercase heading, stacked full-width blocks. Resume is the one primary
 ## (flare face, ink label); Options and Return to lobby are secondary disc-600 blocks; Leave match is
 ## a secondary block with a flare label (destructive, always followed by a confirm). Look only.
@@ -172,7 +172,7 @@ func _apply_visual_style() -> void:
 	# are UiBlockButtons (Resume primary, the rest secondary). Leave match is the DANGER look
 	# (a secondary block with an alert label).
 	_leave_button.variant = UiBlockButton.Look.DANGER
-	# DECISION (Bontago-1pi.37): every block's icon follows its label ink in all draw states
+	# DECISION: every block's icon follows its label ink in all draw states
 	# (apply_ink covers both), so no per-node icon overrides here.
 
 
@@ -215,7 +215,7 @@ func _exit_tree() -> void:
 	_release_freeze()
 
 
-## Bontago-1pi.167: freezes the whole tree while open iff the session context says no remote
+## freezes the whole tree while open iff the session context says no remote
 ## human is connected (context key "freeze_tree"; absent = never, so a bare menu is inert).
 func _apply_freeze() -> void:
 	# Only claim a freeze nobody else holds (Sandbox F11 may already have paused the tree), so
@@ -231,7 +231,7 @@ func _release_freeze() -> void:
 		get_tree().paused = false
 
 
-## DECISION (Bontago-1pi.167): a human joining while the menu is open unfreezes the world at once
+## DECISION: a human joining while the menu is open unfreezes the world at once
 ## (the menu stays open, input still gated); the simplest safe rule, no join blocking needed.
 func _on_peer_joined_while_open(_peer_id: int, _slot_id: int, _player_name: String) -> void:
 	if _froze_tree and not bool(_context().get("freeze_tree", false)):
@@ -239,7 +239,7 @@ func _on_peer_joined_while_open(_peer_id: int, _slot_id: int, _player_name: Stri
 
 
 func _close() -> void:
-	# Bontago-1pi.50: a confirmation left up behind a closed menu (the match ended
+	# a confirmation left up behind a closed menu (the match ended
 	# some other way while it was asked) must not outlive it.
 	_pending_action = PendingAction.NONE
 	_confirm_dialog.hide()
@@ -249,7 +249,7 @@ func _close() -> void:
 	Events.pause_menu_closed.emit()
 
 
-## Bontago-xtq.42 fix round 2 (orchestrator review finding 3): game/main/Main.gd's
+## fix round 2 (orchestrator review finding 3): game/main/Main.gd's
 ## own suppress-on-menu/lobby hooks (see `suppressed`'s own doc above) call
 ## this, unconditionally, every time they make this menu inert -- a match can
 ## end some way other than this menu's own Leave button (the host
@@ -264,7 +264,7 @@ func force_close() -> void:
 		_close()
 
 
-## Bontago-1pi.72.1 (owner playtest: pause menu open when the round ended left the
+## (pause menu open when the round ended left the
 ## results unusable). DECISION: the menu closes itself when results arrive, so it
 ## never covers the results screen and Events.pause_menu_closed fires once;
 ## ui/menus/ResultsScreen.gd then claims cursor and focus.
@@ -312,7 +312,7 @@ func _on_leave_pressed() -> void:
 	_ask_confirmation(PendingAction.LEAVE, LEAVE_CONFIRM_TITLE, LEAVE_CONFIRM_TEXT, LEAVE_CONFIRM_OK_TEXT, _leave_button)
 
 
-## Bontago-1pi.50. A match in progress asks first (it ends for everyone); with
+## . A match in progress asks first (it ends for everyone); with
 ## none running (the results screen is up) there is nothing to lose, so it goes
 ## straight through. A disabled entry (client) is inert even if something calls
 ## this directly.
@@ -379,7 +379,7 @@ func _build_return_hint() -> void:
 	column.move_child(return_hint, _return_button.get_index() + 1)
 
 
-## Bontago-1pi.50: applies the session context to the Return to lobby entry and
+## applies the session context to the Return to lobby entry and
 ## rebuilds the focus ring around the entries a player can actually reach (a
 ## hidden or disabled entry is skipped, so neither stick nor Tab lands on it).
 ## Called on every open, so the entry always reflects the session as it is now.
@@ -411,5 +411,5 @@ func _wire_focus_chain() -> void:
 		current.focus_mode = Control.FOCUS_ALL
 	if not chain.has(_return_button):
 		_return_button.focus_mode = Control.FOCUS_NONE
-	# Bontago-1pi.159.15: left / right (no neighbour set) must not leave the pause panel.
+	# left / right (no neighbour set) must not leave the pause panel.
 	UiFocusTrap.trap(_resume_button.get_parent() as Control)

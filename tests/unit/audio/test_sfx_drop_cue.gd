@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.174: the block-release cue (Sfx EVENT_DROP, Events.block_placed) sounds only for a
+## the block-release cue (Sfx EVENT_DROP, Events.block_placed) sounds only for a
 ## block the local human seat dropped. The host sees every slot's placement (bots, remote clients)
 ## and a client sees every replicated spawn; none of those may play the local player's cue.
 

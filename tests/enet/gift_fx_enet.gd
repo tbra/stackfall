@@ -1,22 +1,22 @@
 extends Node
-## Bontago-1pi.85.17 (Gift fx J): host + THREE clients over real ENet, real physics,
+## Gift fx J: host + THREE clients over real ENet, real physics,
 ## snapshots on. Scripted gifts are placed through the real held-gift path
 ## (gift slot -> request_place) and each client verifies, from replicated data only:
-##   bomb:       blink visible and age-derived; the explosion moves replicated blocks;
+##   bomb: blink visible and age-derived; the explosion moves replicated blocks;
 ##               the carrier despawns
 ##   black_hole: BlackHoleVisual appears, then goes away with the carrier
-##   volcano:    body-less VolcanoStructure visual appears, rises, erupts blocks, expires
-##   Round 2 (Bontago-1pi.85.36, docs/GIFT_PLAYTEST2_PLAN.md PJ), all from replicated data:
+##   volcano: body-less VolcanoStructure visual appears, rises, erupts blocks, expires
+##   Round 2, all from replicated data:
 ##   volcano/stackfall/earthquake: in-place, so the effect happens and NO gift carrier (and,
 ##               for earthquake, no extra block at all) ever exists on a client
-##   anvil:      released carrier has the 5x activation scale (collider box and visual)
-##   rocket:     fired upward, keeps rising, nose (model_nose_axis) along its velocity
+##   anvil: released carrier has the 5x activation scale (collider box and visual)
+##   rocket: fired upward, keeps rising, nose (model_nose_axis) along its velocity
 ##   black_hole: cubes beside the hole are captured and removed on clients
-##   magnet:     thrown throwable leaves with the host-computed velocity (GiftAim)
-##   Bontago-1pi.85.53: first received Rocket/Magnet pose already faced; Propeller stand and
+##   magnet: thrown throwable leaves with the host-computed velocity (GiftAim)
+##   first received Rocket/Magnet pose already faced; Propeller stand and
 ##               Black-hole visual exist with no carrier body
-##   final:      host/client block counts converge, no gift carriers left, no duplicate ids
-## Handshake (no fixed-timer races, Bontago-fca.40): every phase is announced to the
+##   final: host/client block counts converge, no gift carriers left, no duplicate ids
+## Handshake (no fixed-timer races): every phase is announced to the
 ## clients, the host fires only after all clients ack "armed", and a phase ends when
 ## all clients ack "done" (or the per-phase timeout, which is a failure).
 ## Run via tools/run_gift_fx_enet.ps1. Host: --headless-host --expect-peers=4.
@@ -59,7 +59,7 @@ const PHASES: Array[StringName] = [
 	&"bomb", &"black_hole", &"volcano", &"anvil", &"rocket", &"magnet", &"earthquake", &"stackfall", &"propeller"]
 const ANVIL_SLOT: int = 1
 const ROCKET_SLOT: int = 2
-## Bontago-1pi.85.54: after the earlier phases several floor columns around slot 2's home have no
+## after the earlier phases several floor columns around slot 2's home have no
 ## collider (the cursor ray misses: a throw there is refused as off_disk, not outside_territory), so
 ## the Rocket is released from a cursor point this far toward the disk centre, where the floor is intact.
 const ROCKET_CURSOR_OFFSET_M: float = 20.0
@@ -68,7 +68,7 @@ const QUAKE_SLOT: int = 1
 const STACKFALL_SLOT: int = 2
 const PROPELLER_SLOT: int = 3
 const PROPELLER_OBSERVE_S: float = 3.0
-## Bontago-1pi.85.53: the FIRST replicated pose of a thrown Rocket/Magnet is already faced.
+## the FIRST replicated pose of a thrown Rocket/Magnet is already faced.
 const FIRST_POSE_MAX_DEG: float = 5.0
 const ROCKET_AIM: Vector3 = Vector3(0.3, 1.0, 0.2)
 const MAGNET_AIM: Vector3 = Vector3(0.8, 0.1, 0.6)
@@ -91,7 +91,7 @@ const ROCKET_AIM_MAX_DEG: float = 15.0
 const ROCKET_MIN_SAMPLES: int = 6
 const THROW_MIN_SPAN_S: float = 0.3
 const THROW_MAX_DEG: float = 15.0
-## DECISION (8or.31): the magnet re-faces its CURRENT velocity every tick (MagnetEffect._face_while_airborne), so by the
+## DECISION: the magnet re-faces its CURRENT velocity every tick (MagnetEffect._face_while_airborne), so by the
 ## first replicated pose gravity has bent the path off the launch vector (6.8 deg seen); the first pose is judged
 ## against the launch vector with the same slack as the whole-flight heading, not the rocket's straight-line 5 deg.
 const MAGNET_FIRST_POSE_MAX_DEG: float = THROW_MAX_DEG
@@ -214,7 +214,7 @@ func _run_host() -> void:
 		config.weather_mode = MatchConfig.WeatherMode.OFF
 	Match._lifecycle.set_loading_gate_forced(true)
 	var field: Field = _build_world()
-	# Bontago-1pi.126: this harness checks replication timing, not throw scaling; pin the throw
+	# this harness checks replication timing, not throw scaling; pin the throw
 	# reference radius to the harness map so thrown gifts keep their unscaled flight (scale 1.0).
 	(load("res://config/gifts/special_tuning.tres") as SpecialTuning).gift_throw_reference_radius = field.map_def.field_radius
 	Match.start_match(config)
@@ -544,7 +544,7 @@ func _watch_volcano() -> void:
 	_ack(&"volcano", "done", true)
 
 
-# --- Round 2 watchers (Bontago-1pi.85.36) -------------------------------------------
+# --- Round 2 watchers -------------------------------------------
 
 ## In-place gifts (Stackfall, Earthquake): the effect event reaches the client and no gift
 ## carrier is ever replicated. `rains` = the effect legitimately adds blocks (Stackfall);
@@ -571,7 +571,7 @@ func _watch_in_place(gift: StringName, observe_s: float, rains: bool) -> void:
 	_ack(gift, "done", true)
 
 
-## Bontago-1pi.85.53: the Propeller is in-place; a client builds the stand visual (under the Field)
+## the Propeller is in-place; a client builds the stand visual (under the Field)
 ## from the effect event and never receives a carrier body.
 func _watch_propeller() -> void:
 	var saw_carrier: bool = _gift_block(&"propeller") != null
@@ -630,7 +630,7 @@ func _watch_rocket() -> void:
 	var net_id: int = gift.net_id
 	var def: SpecialDef = SpecialDef.find_by_id(&"rocket")
 	var nose: Vector3 = (def.effect as RocketEffect).model_nose_axis.normalized()
-	# Bontago-1pi.85.53: the pose the client holds the moment the carrier first exists.
+	# the pose the client holds the moment the carrier first exists.
 	var first_off_deg: float = rad_to_deg((gift.global_basis * nose).normalized().angle_to(ROCKET_AIM.normalized()))
 	_ack(&"rocket", "first_pose_faced", first_off_deg <= FIRST_POSE_MAX_DEG, "first_nose_off_aim_deg=%.1f" % first_off_deg)
 	var points: Array[Vector3] = []
@@ -638,7 +638,7 @@ func _watch_rocket() -> void:
 	var rocket_left_bounds: bool = false
 	var deadline: int = Time.get_ticks_msec() + int(ROCKET_WATCH_S * MSEC_PER_S)
 	# Samples are kept only while the rocket is inside the snapshot position bounds: the wire clamps
-	# a body that leaves them (finding on 1pi.85.36), which is a transport limit, not a facing bug.
+	# a body that leaves them, which is a transport limit, not a facing bug.
 	var inside: AABB = SnapshotSync._bounds.grow(-ROCKET_BOUNDS_MARGIN_M)
 	while Time.get_ticks_msec() < deadline and is_instance_valid(gift) and int(_trig.get(&"rocket", 0)) == 0:
 		if not inside.has_point(gift.global_position):

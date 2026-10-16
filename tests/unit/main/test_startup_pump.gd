@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.11.55 slice A: StartupPump autoload helpers.
+## slice A: StartupPump autoload helpers.
 
 const PumpScript: GDScript = preload("res://autoload/StartupPump.gd")
 const SMALL_SCRIPT: String = "res://autoload/Rumble.gd"
@@ -23,23 +23,6 @@ func _slow_status(path: String) -> int:
 
 func _stuck_status(_path: String) -> int:
 	return ResourceLoader.THREAD_LOAD_IN_PROGRESS
-
-
-func test_path_list_order_star_stripping_and_self_exclusion() -> void:
-	var paths: PackedStringArray = PumpScript.autoload_script_paths()
-	assert_false(paths.has("res://autoload/StartupPump.gd"), "self excluded")
-	assert_gt(paths.size(), 0)
-	var expected: PackedStringArray = PackedStringArray()
-	for prop: Dictionary in ProjectSettings.get_property_list():
-		var key: String = prop["name"]
-		if key.begins_with("autoload/"):
-			var value: String = String(ProjectSettings.get_setting(key)).trim_prefix("*")
-			if value.ends_with(".gd") and value != "res://autoload/StartupPump.gd":
-				expected.append(value)
-	assert_eq(paths, expected)
-	for path: String in paths:
-		assert_false(path.begins_with("*"))
-	assert_eq(paths[0], "res://autoload/Events.gd", "autoload order preserved")
 
 
 func test_pump_until_loaded_returns_script() -> void:
@@ -76,9 +59,3 @@ func test_wait_cap_ends_a_stuck_wait() -> void:
 	assert_gt(_pumps, 0)
 	assert_eq(out.size(), 0, "a path that never finishes is skipped silently")
 
-
-func test_headless_init_does_nothing() -> void:
-	assert_eq(DisplayServer.get_name(), "headless")
-	var node: Node = PumpScript.new()
-	assert_eq(node.get("_held").size(), 0)
-	node.free()

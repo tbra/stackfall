@@ -1,8 +1,8 @@
 extends GutTest
-## game/field/ArenaMesh.gd (formerly game/field/ArenaMesh.gd): the disc's purely-visual thickness (Bontago-mp0.3.2,
-## owner feedback: "The disc is just a thin mirror currently, the mockup has
+## game/field/ArenaMesh.gd: the disc's purely-visual thickness (
+## : "The disc is just a thin mirror currently, the mockup has
 ## a much thicker metallic disc with a soft glowing border going round the
-## rim.") plus its Bontago-pt.12 chamfer/texture redesign (owner: "the
+## rim.") plus its Bontago-pt.12 chamfer/texture redesign ("the
 ## glowing strip currently sits slightly outside the disc as its own
 ## separate element ... the disc has a chamfered edge that makes up the
 ## glowing strip", "it lacks the texture ... visible where it interacts with
@@ -114,7 +114,7 @@ func test_round_band_footprint_is_the_field_radius_circle() -> void:
 	assert_almost_eq(aabb.size.z, 24.0, 0.05, "z footprint spans 2 * field_radius (round).")
 
 
-## Bontago-pt.12 (owner: "the glowing strip currently sits slightly outside
+## Bontago-pt.12 ("the glowing strip currently sits slightly outside
 ## the disc as its own separate element ... the disc has a chamfered edge
 ## that makes up the glowing strip"). The chamfer's own TOP ring must sit
 ## exactly at the true field_radius edge -- not band_radius_scale's proud
@@ -141,7 +141,7 @@ func test_chamfer_top_ring_is_flush_with_the_true_field_radius_edge() -> void:
 	assert_true(saw_top_vertex, "fixture: the chamfer mesh must carry at least one true top-edge (y == 0) vertex.")
 
 
-# --- Bontago-mp0.3.8/pt.12: chamfer screen-space-minimum-width shader wiring,
+# ---/pt.12: chamfer screen-space-minimum-width shader wiring,
 # plus pt.12's shared procedural surface texture -----------------------------
 
 

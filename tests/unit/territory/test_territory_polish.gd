@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.11.33: packed-key render sort, circle-mode containment cull before
+## packed-key render sort, circle-mode containment cull before
 ## the budget, and bake-on-settle.
 
 const FIELD_RADIUS: float = 20.0

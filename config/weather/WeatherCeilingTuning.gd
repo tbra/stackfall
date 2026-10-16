@@ -1,6 +1,6 @@
 class_name WeatherCeilingTuning
 extends Resource
-## Bontago-mp0.19: the overhead puff layer that rain, snow and storm fall
+## the overhead puff layer that rain, snow and storm fall
 ## from, and the storm sky blend. One instance: config/weather/ceiling.tres
 ## (not a WeatherTuning: it is never scheduled, only fed by the active weather
 ## intensities). Presentation only, identical on host and client.
@@ -13,7 +13,7 @@ extends Resource
 @export var min_clearance_above_camera_m: float = 30.0
 
 @export_group("Upper puffs")
-## Bontago-mp0.29: the overcast layer is the cloud sea's own puff field (same
+## the overcast layer is the cloud sea's own puff field (same
 ## mesh, shader, noise and CloudLighting) duplicated above the disc. Clump count
 ## (before GraphicsPreset.cloud_puff_density) on Medium/High and on Low.
 @export var upper_clump_count: int = 70
@@ -25,7 +25,7 @@ extends Resource
 @export var upper_clump_radius_max_m: float = 110.0
 ## Bases are spread this far above height_m.
 @export var upper_base_spread_m: float = 24.0
-## Bontago-mp0.93: the overcast clumps are seen from below, where a flat base is one
+## the overcast clumps are seen from below, where a flat base is one
 ## huge featureless slab. This is the base plane's height in each puff's unit-sphere
 ## space below its centre: 0.15 = the sea's flat-bottomed cumulus, 1 = a fully round
 ## bottom (the underside is the lumpy lower half of the puffs, no plane at all).
@@ -53,7 +53,7 @@ extends Resource
 @export_group("Look")
 ## Extra darkness at full storm intensity (shared with the puffs through CloudLighting.dim).
 @export_range(0.0, 1.0, 0.01) var storm_darkness_add: float = 0.35
-## Bontago-mp0.29 shared weather grade (CloudLighting): overcast 1 darkens the
+## shared weather grade (CloudLighting): overcast 1 darkens the
 ## puffs by this share and moves their colours this far toward grey
 ## (storm counts as overcast for the desaturation).
 @export_range(0.0, 1.0, 0.01) var cloud_overcast_dim: float = 0.2
@@ -65,7 +65,7 @@ extends Resource
 @export_range(0.0, 1.0, 0.01) var overcast_storm: float = 1.0
 
 @export_group("Night and storm floor")
-## Bontago-mp0.34: the combined weather darkening never exceeds this.
+## the combined weather darkening never exceeds this.
 @export_range(0.0, 1.0, 0.01) var max_combined_dim: float = 0.5
 ## Share of the weather darkening removed at full night (the night palette is already dark).
 @export_range(0.0, 1.0, 0.01) var night_dim_relief: float = 0.7
@@ -81,7 +81,7 @@ extends Resource
 
 @export_group("Sun effects")
 ## Share of the sun flare, god rays and sun glow removed at full overcast / storm.
-## Bontago-mp0.94: the storm share is 1.0 (nothing left at full storm) because the
+## the storm share is 1.0 (nothing left at full storm) because the
 ## sky shader's sun disc glow fades to exactly 0 at full storm (Skybox storm blend); a
 ## residue here (0.97 left a faint ray fan under the dark clouds) outlives the hidden disc.
 ## Below 1 the storm keeps (1 - attenuation * storm) of the rays/halo/flare, which can
@@ -102,9 +102,9 @@ extends Resource
 @export var storm_theme_id: String = "storm"
 ## Blend toward the storm SkyThemeDef at full storm intensity.
 @export_range(0.0, 1.0, 0.01) var storm_sky_blend: float = 1.0
-## Bontago-mp0.128: rain uses the same storm sky at this lighter strength (storm 1.0 is darker).
+## rain uses the same storm sky at this lighter strength (storm 1.0 is darker).
 @export_range(0.0, 1.0, 0.01) var rain_sky_blend: float = 0.85
-## Bontago-mp0.128: at full snow the sky's exposure is multiplied by this gain and the
+## at full snow the sky's exposure is multiplied by this gain and the
 ## clouds are lifted by this share (negative weather dim); 1 / 0 = no brightening.
 @export_range(1.0, 3.0, 0.01) var snow_sky_exposure_gain: float = 1.35
 @export_range(0.0, 0.8, 0.01) var snow_cloud_brighten: float = 0.3

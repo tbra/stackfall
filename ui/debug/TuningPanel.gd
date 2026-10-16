@@ -1,6 +1,6 @@
 class_name TuningPanel
 extends CanvasLayer
-## In-game tuning panel (Bontago-mv0.18, owner request: "add a settings menu
+## In-game tuning panel ("add a settings menu
 ## with sliders so I can play around and adjust the camera in-game? same for
 ## physics properties like gravity, damping, bouncing, etc.").
 ##
@@ -24,7 +24,7 @@ extends CanvasLayer
 ##                a Resource by path within one process), so no line there is
 ##                actually required for this field to be editable here.
 ##
-## Bontago-xtq.36 (M7 art direction): five more tabs, over the M7 config
+## M7 art direction: five more tabs, over the M7 config
 ## Resources, all preloaded the same "identical cached path" way Feed's own
 ## paragraph above documents -- none of these five needs a line anywhere else
 ## in the project either. MenuVisualTuning is not merged yet and has no tab.
@@ -60,7 +60,7 @@ extends CanvasLayer
 ##     refresh_visual_uniforms() also rebuilds the disk's CylinderMesh
 ##     (game/field/TerritoryOverlay.gd's own rebuild_disk_mesh()) whenever
 ##     disk_mesh_segments itself changed, so that field is live too now.
-##     Bontago-xtq.12 step 2: the same function also calls
+##  step 2: the same function also calls
 ##     Skybox.refresh_from_visuals() on every rig in Skybox.TUNING_GROUP, so
 ##     the reflection probe/SSR fields (also on TerritoryVisuals) update live
 ##     too instead of only ever applying once at boot.
@@ -70,10 +70,10 @@ extends CanvasLayer
 ##     does) without disturbing a manual orbit/zoom the player already did.
 ##   - SkyThemeDef: apply_sky_theme_live() calls Skybox.apply_theme() on every
 ##     rig in Skybox.TUNING_GROUP (see that function's own doc for a known
-##     partial-live gap around the FogVolume child). Bontago-59o.18 (U1): a rig
+##     partial-live gap around the FogVolume child). (U1): a rig
 ##     running the day/night cycle gets refresh_cycle_sources() instead, so an
 ##     edit never swaps the live cycle for the static theme material.
-##   - Cycle sky (Bontago-59o.18, U1): the Sky tab's Theme dropdown leads with a
+##   - Cycle sky (U1): the Sky tab's Theme dropdown leads with a
 ##     "cycle" entry (Skybox.start_cycle(), persisted as
 ##     skybox_config.theme_name = "cycle") and a Time-of-day row (Running /
 ##     Sunset / Dawn / Night / Custom + a 0..1 phase slider) locks it through
@@ -86,7 +86,7 @@ extends CanvasLayer
 ## construction time (a block's toon material, a beacon's geometry, a HUD
 ## panel's StyleBoxFlat) with no existing re-push seam on that consumer -- an
 ## edit still takes effect for anything built from here on (see
-## _on_field_changed()'s own comment on this). DECISION (Bontago-xtq.36): these
+## _on_field_changed()'s own comment on this). DECISION: these
 ## five resources are likewise not added to reset_all()/save_overrides()/
 ## build_copy_text()/apply_saved_overrides() below -- the brief asked only for
 ## the tabs, the (for Sky) live-apply hook, and the three named tests; wiring
@@ -99,7 +99,7 @@ extends CanvasLayer
 ## ui/debug/NetDebugOverlay.gd's F3 overlay, but this one also has to stop the game
 ## from reacting to clicks and drags meant for its own controls.
 ##
-## Availability (owner: adjust the camera/physics "in-game"): open offline
+## Availability (adjust the camera/physics "in-game"): open offline
 ## (sandbox, hot-seat) and by the host in a networked match; a client only
 ## ever sees Camera/Controls -- Net.is_host() is already true offline
 ## (autoload/Net.gd's own doc comment), so this is the one predicate to gate
@@ -111,13 +111,13 @@ const SAVE_PATH: String = TuningOverrides.SAVE_PATH
 
 
 ## The file actually read/written: SAVE_PATH, or a per-PID file in a GUT run so
-## tests never touch the owner's real F4 overrides (Bontago-1pi.21).
+## tests never touch the owner's real F4 overrides.
 static func save_path() -> String:
 	return TuningOverrides.save_path()
 
 const VALUE_WIDTH: float = 110.0
 
-## Bontago-1pi.201: the F4 panel is a bottom dock. It takes this fraction of the logical viewport
+## the F4 panel is a bottom dock. It takes this fraction of the logical viewport
 ## height (the arena centre stays visible above it at any resolution; the project stretch rule
 ## keeps the logical viewport 1280x720 or wider), inset by DOCK_MARGIN_PX, on the same plate
 ## alpha and shared theme the old F2 hint plate used.
@@ -126,18 +126,18 @@ const DOCK_MARGIN_PX: float = 8.0
 const DOCK_PLATE_ALPHA: float = 0.9
 const DOCK_THEME: Theme = preload("res://ui/theme/stackfall_theme.tres")
 
-## Bontago-xtq.13: the selected-tab memory shares SAVE_PATH with every tuning
+## the selected-tab memory shares SAVE_PATH with every tuning
 ## resource's own override section (one ConfigFile, one section per concern)
 ## rather than a second settings file.
 const SELECTED_TAB_SECTION: String = "TuningPanel"
 const SELECTED_TAB_KEY: String = "selected_tab"
 
-## DECISION (ui/debug/TuningPanel.gd, Bontago-mv0.21): row name/description column
+## DECISION (ui/debug/TuningPanel.gd): row name/description column
 ## widened from the bare label's old 260px width so a whole one-sentence
 ## description can sit under the field name without wrapping to more than a
 ## couple of lines at 1080p.
 const NAME_COLUMN_WIDTH: float = 380.0
-## DECISION (Bontago-hfa.9, P7 token swap): description and default-value labels use the
+## DECISION (P7 token swap): description and default-value labels use the
 ## theme's CaptionLabel variation (dust ink at caption size, 13 px) instead of a private colour
 ## and a smaller font, so the sentence reads as a sub-label and the name stays the primary line.
 const CAPTION_THEME_VARIATION: StringName = &"CaptionLabel"
@@ -152,7 +152,7 @@ const MODIFIED_MARKER: String = "• "
 ## itself.
 const EXPORT_USAGE_MASK: int = PROPERTY_USAGE_STORAGE | PROPERTY_USAGE_EDITOR | PROPERTY_USAGE_SCRIPT_VARIABLE
 
-## Bontago-1pi.211: the SFX tab (audio is local) sits after Sky, so it stays client-visible.
+## the SFX tab (audio is local) sits after Sky, so it stays client-visible.
 ## Tabs whose content is hidden from a client (see class doc "Availability").
 ## Indices match the order rebuild() adds tabs in -- rebuild() adds every
 ## client-visible tab first (Camera, Controls, then the M7 visual tabs: Blocks
@@ -160,19 +160,19 @@ const EXPORT_USAGE_MASK: int = PROPERTY_USAGE_STORAGE | PROPERTY_USAGE_EDITOR | 
 ## Territory/Feed (host-only: they tune the physics/territory simulation
 ## itself, not just how it looks) always come last.
 const CLIENT_HIDDEN_TAB_FIRST: int = 7
-## Bontago-mp0.150.4: the Field-only arena look tab, inserted after Territory look.
+## the Field-only arena look tab, inserted after Territory look.
 const ARENA_TAB: String = "Arena"
 const ARENA_TAB_INDEX: int = 4
 const ARENA_STYLE_PROP: String = "style"
 ## Dropdown labels, indexed by ArenaSideStyle.Style.
 const ARENA_STYLE_NAMES: PackedStringArray = ["Current", "Layered plates", "Rocky island", "Machined disc", "Stylised machined", "Detailed machined", "Heavy machined", "Monolith", "Tapered strata", "Plated dome", "Shader dome"]
 
-## Bontago-xtq.17 (owner playtest 2026-09-23: "heavier and more bouncy, but a
+## "heavier and more bouncy, but a
 ## dropped block shouldn't just bounce straight up again" -- research +
-## A/B presets): the Physics tab's preset dropdown copies one of these
+## A/B presets: the Physics tab's preset dropdown copies one of these
 ## PhysicsTuning resources' every exported field onto the live physics_tuning
 ## instance (apply_physics_preset() below). "heavy_bouncy" is byte-identical to
-## config/physics/physics_tuning.tres's own defaults (owner 2026-09-30: Heavy &
+## config/physics/physics_tuning.tres's own defaults (Heavy &
 ## Bouncy is the shipped default), so picking it is a no-op; "current" keeps
 ## the OLD default numbers, labelled "Previous default"; "heavy_bouncy"/"heavy_damped" both raise
 ## cube_mass and gravity_multiplier
@@ -192,7 +192,7 @@ const PHYSICS_PRESETS: Array[Dictionary] = [
 	{"id": "original_feel", "label": "Original feel (experimental)", "path": "res://config/physics/presets/original_feel.tres"},
 ]
 
-## Bontago-59o.18 (U1): the Theme dropdown's leading entry. It is not a file under
+## U1: the Theme dropdown's leading entry. It is not a file under
 ## config/sky/themes/; it is persisted on skybox_config.theme_name and handled by
 ## game/sky/Skybox.gd (start_cycle()). The cycle's day half is the sunset.tres
 ## duplicate (Skybox.configure_match_sky), so the Sky tab's sliders edit that one.
@@ -211,7 +211,7 @@ const TIME_OF_DAY_DEFAULT_CUSTOM_PHASE: float = 0.25
 const TIME_OF_DAY_SLIDER_MIN_WIDTH: float = 160.0
 const TIME_OF_DAY_VALUE_FORMAT: String = "%.3f"
 
-## Bontago-1pi.113 (panel redo): rows sit in foldable sections (hints.sections);
+## panel redo: rows sit in foldable sections (hints.sections);
 ## a section is open by default only when it is the first one on its tab, and
 ## the open/closed choice survives rebuild() (see _fold_open).
 const SECTION_OPEN_MARK: String = "▾ "
@@ -249,7 +249,7 @@ var territory_tuning: TerritoryTuning = preload("res://config/territory/territor
 var territory_visuals: TerritoryVisuals = preload("res://config/territory/territory_visuals.tres")
 var block_feed_config: BlockFeedConfig = preload("res://config/match/block_feed.tres")
 
-## Bontago-xtq.22: the same preloaded singleton game/sky/Skybox.gd's own `config`
+## the same preloaded singleton game/sky/Skybox.gd's own `config`
 ## field defaults to (Main.tscn's Skybox node never overrides it -- see
 ## config/sky/SkyboxConfig.gd's own DECISION on why one field/one path is enough
 ## to keep this panel and every live Skybox reading/writing the identical
@@ -257,7 +257,7 @@ var block_feed_config: BlockFeedConfig = preload("res://config/match/block_feed.
 ## documents right above).
 var skybox_config: SkyboxConfig = preload("res://config/sky/skybox_config.tres")
 
-## Bontago-xtq.36: M7's art-direction tunables, added to the same preload
+## M7's art-direction tunables, added to the same preload
 ## roster above -- each preloads the identical path its own consumer already
 ## preloads/exports (BlockFactory.gd's VISUAL_TUNING const, BlockEffectsManager.
 ## config, HomeFlag.beacon_visuals, CameraRig.shake_config, Skybox.theme), so
@@ -268,13 +268,13 @@ var block_effects_config: BlockEffectsConfig = preload("res://config/blocks/tuni
 var beacon_visual_tuning: BeaconVisualTuning = preload("res://config/territory/beacon_visual_tuning.tres")
 var camera_shake_config: CameraShakeConfig = preload("res://config/physics/camera_shake.tres")
 var hud_visual_tuning: HUDVisualTuning = preload("res://config/ui/hud_visual_tuning.tres")
-## Bontago-1pi.18.1: opt-in QoL experiments (host snapshots them at match start).
-## Bontago-mp0.150.4: the arena side/underside look. set_field() swaps it for the
+## opt-in QoL experiments (host snapshots them at match start).
+## the arena side/underside look. set_field() swaps it for the
 ## wired Field's own instance (the one TerritoryOverlay builds from); the Arena
 ## tab only exists while a Field is wired.
 var arena_side_style: ArenaSideStyle = preload("res://config/territory/arena_side_style.tres")
 var qol_experiments: QolExperiments = preload("res://config/match/qol_experiments.tres")
-## Bontago-1pi.211: the SFX tab edits the live AudioConfig autoload/Sfx.gd reads (the same cached
+## the SFX tab edits the live AudioConfig autoload/Sfx.gd reads (the same cached
 ## preload instance, so no copy step; Reset/tests restore the shipped file values).
 var audio_config: AudioConfig = preload("res://config/audio/audio_config.tres")
 var sky_theme: SkyThemeDef = preload("res://config/sky/themes/sunset.tres")
@@ -296,7 +296,7 @@ var _field: Field = null
 ## for a given resource field without walking the tree.
 var _rows: Array[Dictionary] = []
 
-## One {"resource", "title"} per section built (Bontago-1pi.112/113).
+## One {"resource", "title"} per section built (/113).
 var _group_titles: Array[Dictionary] = []
 
 ## Open/closed state of each foldable section ("Class/Title" -> bool), kept
@@ -306,15 +306,15 @@ static var _fold_open: Dictionary = {}
 var _tab_container: TabContainer = null
 var _status_label: Label = null
 
-## Bontago-xtq.13 (owner playtest 2026-09-23, "F4 should remember which tab
-## was active when reopened"): the last tab index the owner picked, restored
+## "F4 should remember which tab
+## was active when reopened": the last tab index the owner picked, restored
 ## onto _tab_container every rebuild() (rebuild() replaces every tab page,
 ## which would otherwise silently reset TabContainer.current_tab to 0) and
 ## persisted into SAVE_PATH's own ConfigFile so it survives a full app
 ## restart too, not just a close/reopen in the same session.
 var _selected_tab_index: int = 0
 
-## Bontago-xtq.13: true only while rebuild() is (re)populating _tab_container.
+## true only while rebuild() is (re)populating _tab_container.
 ## Adding the *first* child tab to an emptied TabContainer auto-selects it and
 ## fires tab_changed(0) synchronously (unlike a plain property assignment on
 ## an already-populated container) -- without this guard, that spurious event
@@ -322,7 +322,7 @@ var _selected_tab_index: int = 0
 ## before rebuild()'s own explicit restore below even ran.
 var _rebuilding_tabs: bool = false
 
-## Bontago-59o.18 (U1): the Sky tab's Time-of-day row state (TIME_OF_DAY_CHOICES
+## U1: the Sky tab's Time-of-day row state (TIME_OF_DAY_CHOICES
 ## entry, and the phase the Custom slider holds). Session-local: only
 ## skybox_config.theme_name = "cycle" persists.
 var _time_of_day_choice: String = TIME_RUNNING
@@ -332,12 +332,12 @@ var _time_of_day_custom_phase: float = TIME_OF_DAY_DEFAULT_CUSTOM_PHASE
 func _ready() -> void:
 	visible = false
 	net_provider = Net
-	# DECISION (Bontago-1pi.11.5): the ~2900-node tab UI is no longer built
+	# DECISION: the ~2900-node tab UI is no longer built
 	# here. rebuild() builds it on first open (or on an explicit call, which
 	# tests use) and _free_ui() frees it again on close, so a hidden panel
 	# costs no nodes. Saved overrides apply via the static
 	# apply_saved_overrides() at boot and never needed this UI.
-	# Bontago-adt: the Sky tab's sliders edit whichever theme is active.
+	# the Sky tab's sliders edit whichever theme is active.
 	var boot_theme: SkyThemeDef = Skybox.load_theme(skybox_config.theme_name)
 	if boot_theme != null:
 		sky_theme = boot_theme
@@ -386,7 +386,7 @@ func set_field(field: Field) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed(&"tuning_panel_toggle"):
 		return
-	# Bontago-470.8: the F4 panel is debug-only (game/debug/DebugMode.gd).
+	# the F4 panel is debug-only (game/debug/DebugMode.gd).
 	if not DebugMode.is_enabled():
 		return
 	# See tools/bootstrap_project.gd's DECISION: the gamepad half of this
@@ -413,13 +413,13 @@ func _toggle_panel() -> void:
 		# since this panel last opened (a match restart's fresh MatchConfig,
 		# another peer... in practice nothing else writes these fields today,
 		# but rebuilding is cheap and this is the one moment it's worth it).
-		# Bontago-xtq.13: also restores _selected_tab_index (below), so a
+		# also restores _selected_tab_index (below), so a
 		# close/reopen in the same session lands back on whichever tab was
 		# open, not tab 0.
 		rebuild()
 
 
-# --- Tab memory (F4 remembers the last active tab, Bontago-xtq.13) ----------
+# --- Tab memory (F4 remembers the last active tab) ----------
 
 ## TabContainer.tab_changed fires both for a real click and for rebuild()'s
 ## own programmatic current_tab restore -- either way this is "the tab the
@@ -431,7 +431,7 @@ func _on_tab_changed(index: int) -> void:
 	_selected_tab_index = index
 
 
-## Bontago-1pi.22: TabContainer.tab_clicked fires only for a user click
+## TabContainer.tab_clicked fires only for a user click
 ## on the tab bar, never for programmatic current_tab sets or
 ## child add/remove, so this is the only place the tab index is persisted.
 func _on_tab_selected(index: int) -> void:
@@ -475,7 +475,7 @@ func _save_selected_tab_index() -> void:
 func _build_ui() -> void:
 	var panel: PanelContainer = PanelContainer.new()
 	panel.name = "Panel"
-	# Bontago-1pi.201: a docked bottom plate in the old F2 panel's style (disc-900 plate, theme
+	# a docked bottom plate in the old F2 panel's style (disc-900 plate, theme
 	# fonts) rather than a near-fullscreen sheet, so the arena above it stays visible while a
 	# value is dragged. The tab pages scroll inside the remaining height.
 	panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
@@ -506,7 +506,7 @@ func _build_ui() -> void:
 
 	_tab_container = TabContainer.new()
 	_tab_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	# Bontago-xtq.13: fires for both a real click *and* rebuild()'s own
+	# fires for both a real click *and* rebuild()'s own
 	# programmatic restore below -- either way, "whatever tab is now showing"
 	# is exactly what the next close/reopen (or app restart) should return to.
 	_tab_container.tab_changed.connect(_on_tab_changed)
@@ -543,7 +543,7 @@ func _rebuild_if_built() -> void:
 		rebuild()
 
 
-## Frees the whole tab UI (Bontago-1pi.11.5). _rows is cleared with it so no
+## Frees the whole tab UI. _rows is cleared with it so no
 ## stale control references survive; the selected tab index is already
 ## persisted by _on_tab_changed().
 func _free_ui() -> void:
@@ -582,7 +582,7 @@ func rebuild() -> void:
 
 	_apply_availability()
 
-	# Bontago-xtq.13: rebuild() just replaced every tab page (a fresh
+	# rebuild() just replaced every tab page (a fresh
 	# TabContainer would otherwise land back on tab 0) -- restore whatever
 	# tab the owner last had open, clamped in case a stale saved index no
 	# longer fits (e.g. a client's hidden-tab availability changed the count).
@@ -591,7 +591,7 @@ func rebuild() -> void:
 	_rebuilding_tabs = false
 
 
-## Bontago-1pi.113: tabs follow what a tuner thinks about, not which Resource a
+## tabs follow what a tuner thinks about, not which Resource a
 ## field lives in. Client-visible (look/feel) tabs first, host-only simulation
 ## tabs last (CLIENT_HIDDEN_TAB_FIRST). A resource listed on two tabs (Ghost)
 ## splits by section: hints.section_tabs names the sections that move to the
@@ -601,7 +601,7 @@ func rebuild() -> void:
 func _tab_plan() -> Array[Dictionary]:
 	var plan: Array[Dictionary] = _base_tab_plan()
 	if _field != null and arena_side_style != null:
-		# Bontago-mp0.150.4: client-visible look tab, right after Territory look.
+		# client-visible look tab, right after Territory look.
 		plan.insert(ARENA_TAB_INDEX, {"name": ARENA_TAB, "resources": [arena_side_style]})
 	return plan
 
@@ -648,7 +648,7 @@ func _add_tab(tab_name: String, resources: Array) -> void:
 		list.add_child(_build_section(HAND_BUILT_CLASS, PRESET_SECTION_TITLE, preset_rows, true))
 		first_section = false
 	if tab_name == "Sky":
-		# Bontago-1pi.113: Theme/Time/Weather/Breeze are one ordinary
+		# Theme/Time/Weather/Breeze are one ordinary
 		# foldable section in the same grid as every reflected row.
 		var scene_rows: Array[Control] = [
 			_build_theme_row(), _build_time_of_day_row(),
@@ -764,7 +764,7 @@ func _build_section(class_label: String, title: String, rows: Array[Control], de
 	header.name = "Header"
 	header.flat = true
 	header.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	# DECISION (Bontago-hfa.9): section headers take the arcade cream token (primary text).
+	# DECISION: section headers take the arcade cream token (primary text).
 	var header_ink: Color = MenuStyleFactory.arcade_tuning().cream_color
 	header.add_theme_color_override("font_color", header_ink)
 	header.add_theme_color_override("font_hover_color", header_ink)
@@ -793,7 +793,7 @@ func _section_header_text(title: String, count: int, is_open: bool) -> String:
 
 
 ## The baseline a row's "(default X)" label and yellow modified-highlight
-## compare against (outcome 2, Bontago-sen.7). It is exactly what Reset
+## compare against (outcome 2). It is exactly what Reset
 ## restores: the shipped .tres loaded fresh (CACHE_MODE_IGNORE, never the
 ## cached live instance) when `resource` has a resource_path, so the label and
 ## highlight can never disagree with _reset_resource(). Only a path-less
@@ -928,7 +928,7 @@ func _format_shown(value: Variant, type: int, unit: String, decimals: int) -> St
 
 
 func _build_bool_row(resource: Resource, prop_name: String, class_label: String, default_value: Variant) -> Control:
-	# Bontago-1pi.113: a text toggle ("On"/"Off", pressed = lit) instead of a
+	# a text toggle ("On"/"Off", pressed = lit) instead of a
 	# CheckButton whose off state was a nearly invisible dot.
 	var check: Button = Button.new()
 	check.toggle_mode = true
@@ -948,7 +948,7 @@ func _build_bool_row(resource: Resource, prop_name: String, class_label: String,
 	return frame["row"] as Control
 
 
-## Bontago-mp0.150.4: the arena style enum as a dropdown (CURRENT, LAYERED_PLATES,
+## the arena style enum as a dropdown (CURRENT, LAYERED_PLATES,
 ## ROCKY_ISLAND, MACHINED_DISC); picking one rebuilds the arena mesh live.
 func _build_arena_style_row(resource: Resource, prop_name: String, class_label: String, default_value: Variant) -> Control:
 	var option: OptionButton = OptionButton.new()
@@ -971,7 +971,7 @@ func _build_arena_style_row(resource: Resource, prop_name: String, class_label: 
 	return frame["row"] as Control
 
 
-## Bontago-1pi.211: the SFX tab's one section: a dropdown + Play row per AudioConfig effect-file
+## the SFX tab's one section: a dropdown + Play row per AudioConfig effect-file
 ## field (TuningSfxTab.sfx_fields). Registered in _rows like a reflected row, so the modified marker,
 ## default column, Reset and Save all work on it; the live config is what Sfx reads on the next event.
 func _build_sfx_section() -> Control:
@@ -1140,7 +1140,7 @@ func _refresh_row_marker(row: Dictionary) -> void:
 	var base_text: String = _display_name(_class_label_for(resource), prop_name)
 	name_label.text = (MODIFIED_MARKER + base_text) if modified else base_text
 	if modified:
-		# DECISION (Bontago-hfa.9): the owner-adjusted highlight is the arcade rim gold, so an
+		# DECISION: the owner-adjusted highlight is the arcade rim gold, so an
 		# adjusted field stays unmistakable against the cream names and dust captions.
 		name_label.add_theme_color_override("font_color", MenuStyleFactory.arcade_tuning().rim_color)
 	else:
@@ -1179,15 +1179,6 @@ func control_for(resource: Resource, prop_name: String) -> Control:
 		if row.get("resource") == resource and row.get("property") == prop_name:
 			return row.get("control") as Control
 	return null
-
-
-## Test/inspection seam: the section titles built for `resource`, in order.
-func section_titles_for(resource: Resource) -> Array[String]:
-	var titles: Array[String] = []
-	for entry: Dictionary in _group_titles:
-		if entry.get("resource") == resource:
-			titles.append(String(entry.get("title")))
-	return titles
 
 
 ## Test/inspection seam: the _rows entry for one field ({} if none).
@@ -1257,23 +1248,23 @@ func _on_field_changed(resource: Resource, _prop_name: String) -> void:
 	elif resource == beacon_visual_tuning:
 		apply_beacon_tuning_live()
 	elif resource == sky_theme:
-		# Bontago-mp0.83: the day/night cycle length is a rate, not a look; it
+		# the day/night cycle length is a rate, not a look; it
 		# goes through its own seam so the time of day stays put and the theme
 		# is not re-applied over a running cycle.
 		if _prop_name == "cycle_length_seconds":
 			apply_cycle_length_live()
 		else:
 			apply_sky_theme_live()
-			# Bontago-59o.18 (U1): editing a preset's locked phase moves the
+			# U1: editing a preset's locked phase moves the
 			# sky now when that preset is the selected time of day.
 			if _prop_name.begins_with("cycle_locked_phase") and _time_of_day_choice != TIME_CUSTOM:
 				_push_locked_phase(_phase_for_time_choice(_time_of_day_choice))
-	# Bontago-1pi.203: BlockVisualTuning (BlockFactory.refresh_visual_tuning()) and
+	# BlockVisualTuning (BlockFactory.refresh_visual_tuning()) and
 	# BeaconVisualTuning (apply_beacon_tuning_live()) are live now; HUDVisualTuning
 	# is still baked at HUD build (follow-up).
 	# ghost_tuning / territory_tuning / block_feed_config are already read
 	# live by whatever consumes them each frame/tick -- see this file's class
-	# doc for the live-apply hooks the other resources need. Bontago-xtq.36:
+	# doc for the live-apply hooks the other resources need. 
 	# block_visual_tuning/block_effects_config/beacon_visual_tuning/
 	# camera_shake_config/hud_visual_tuning need no hook either -- each is
 	# either read live per-frame/per-event already (CameraShakeConfig,
@@ -1285,7 +1276,7 @@ func _on_field_changed(resource: Resource, _prop_name: String) -> void:
 	# from here on, matching the brief's "otherwise a value write is enough".
 
 
-## Bontago-xtq.17: the Physics tab's own preset row, built the same way every
+## the Physics tab's own preset row, built the same way every
 ## other row here is (a plain Control returned to _add_tab's caller) but not
 ## reflection-built and not registered in _rows -- it doesn't belong to one
 ## resource field, it writes every field of physics_tuning at once.
@@ -1299,7 +1290,7 @@ func _build_physics_preset_row() -> Control:
 	row.add_child(label)
 
 	var option: OptionButton = OptionButton.new()
-	# Review fix (Bontago-xtq.17): cube_mass only feeds BlockFactory.build()'s
+	# Review fix: cube_mass only feeds BlockFactory.build()'s
 	# `mass = tuning.cube_mass * cube_count` at spawn time (game/blocks/BlockFactory.gd)
 	# -- Block.apply_physics_tuning(), the live-apply path a preset pick also
 	# runs (apply_physics_preset() below), never touches an existing body's
@@ -1344,9 +1335,9 @@ func apply_physics_preset(preset_id: String) -> void:
 	rebuild()
 
 
-## Bontago-adt: the Sky tab's "Theme" dropdown (sunset / night / any future
+## the Sky tab's "Theme" dropdown (sunset / night / any future
 ## config/sky/themes/*.tres SkyThemeDef, discovered by
-## Skybox.list_available_themes()), led by Bontago-59o.18's "cycle" entry (the
+## Skybox.list_available_themes()), led by's "cycle" entry (the
 ## default match sky: Skybox.start_cycle(); the Time-of-day row below locks it).
 ## Persists on skybox_config.theme_name (saved by Save override).
 func _build_theme_row() -> Control:
@@ -1379,7 +1370,7 @@ func _build_theme_row() -> Control:
 	return row
 
 
-## Bontago-470.1: the Sky tab's "Weather" dropdown -- "Schedule" (follow the
+## the Sky tab's "Weather" dropdown -- "Schedule" (follow the
 ## lobby mode) / "Off" / every config/weather/*.tres by display name (new
 ## types appear automatically). Host-only effect via
 ## MatchWeather.set_debug_override(); switching ends the previous weather
@@ -1426,7 +1417,7 @@ func _build_weather_row() -> Control:
 	return row
 
 
-## Bontago-470.2: F4 toggle for the always-on Breeze gust layer (host only, for
+## F4 toggle for the always-on Breeze gust layer (host only, for
 ## testing; strength lives in config/breeze/breeze.tres). Clients see gusts through
 ## replication, so the box is disabled with a hint on a client.
 func _build_breeze_row() -> Control:
@@ -1485,7 +1476,7 @@ func _weather_display_name(weather_id: StringName) -> String:
 	return DisplayNames.weather_id_label(weather_id)
 
 
-## Bontago-adt: selects theme `theme_id` -- writes skybox_config.theme_name,
+## selects theme `theme_id` -- writes skybox_config.theme_name,
 ## rebinds sky_theme (the Sky tab's sliders' resource) and re-applies
 ## everything theme-driven on every live Skybox. False for an unknown id.
 ## The Sky tab rows are rebuilt by the caller (rebuild()).
@@ -1504,7 +1495,7 @@ func apply_sky_theme_id(theme_id: String) -> bool:
 	return true
 
 
-## Bontago-59o.18 (U1): the Theme dropdown's ids: the leading "cycle" entry,
+## U1: the Theme dropdown's ids: the leading "cycle" entry,
 ## then every static theme file (Skybox.list_available_themes()).
 func theme_ids() -> PackedStringArray:
 	var ids: PackedStringArray = PackedStringArray([CYCLE_THEME_ID])
@@ -1569,7 +1560,7 @@ func _apply_cycle_theme() -> bool:
 	return true
 
 
-## Bontago-59o.18 (U1): the Sky tab's "Time of day" row. Running / Sunset / Dawn /
+## U1: the Sky tab's "Time of day" row. Running / Sunset / Dawn /
 ## Night / Custom (a 0..1 phase slider, editable for Custom only) drive the
 ## cycle through Skybox.set_locked_phase(); the row is disabled while a static
 ## theme is shown (nothing to lock). Local dev tuning like the cycle length:
@@ -1748,7 +1739,7 @@ func apply_physics_live() -> void:
 
 
 ## Pushes camera_tuning's follow_distance/follow_pitch_deg onto every live
-## CameraRig immediately (Bontago-mv0.20b). Iterates CameraRig.TUNING_GROUP --
+## CameraRig immediately (.20b). Iterates CameraRig.TUNING_GROUP --
 ## the same "every live instance already in the tree" idiom apply_physics_
 ## live() uses for Block.TUNING_GROUP -- rather than this panel's own
 ## _camera_rig reference, so the push still reaches a rig in a bare-panel
@@ -1763,7 +1754,7 @@ func apply_camera_tuning_live() -> void:
 
 ## Pushes territory_visuals onto the wired Field's TerritoryOverlay shader
 ## immediately, and re-applies the same resource's reflection-probe/SSR
-## fields onto every live Skybox (Bontago-xtq.12 step 2: those two only ever
+## fields onto every live Skybox (step 2: those two only ever
 ## ran once at boot otherwise -- see game/sky/Skybox.gd's refresh_from_visuals()
 ## doc). Iterates Skybox.TUNING_GROUP the same "every live instance already
 ## in the tree" idiom apply_camera_tuning_live()/apply_physics_live() use
@@ -1782,7 +1773,7 @@ func refresh_territory_visuals_live() -> void:
 			skybox.refresh_from_visuals()
 
 
-## Bontago-1pi.203: rebuilds every HomeFlag/GoalFlag beacon in the tree from the
+## rebuilds every HomeFlag/GoalFlag beacon in the tree from the
 ## edited beacon_visual_tuning (their geometry and materials are baked in _build()).
 func apply_beacon_tuning_live() -> void:
 	for node: Node in get_tree().get_nodes_in_group(HomeFlag.TUNING_GROUP):
@@ -1791,7 +1782,7 @@ func apply_beacon_tuning_live() -> void:
 			flag.rebuild_beacon()
 
 
-## Bontago-mp0.150.4: rebuilds the wired Field's arena mesh (top slab + side
+## rebuilds the wired Field's arena mesh (top slab + side
 ## surfaces) from arena_side_style. Collision is a separate Field shape and is
 ## untouched; the territory material and its uniforms are kept by
 ## TerritoryOverlay.rebuild_disk_mesh(). No-op without a Field.
@@ -1803,7 +1794,7 @@ func apply_arena_style_live() -> void:
 		overlay.rebuild_disk_mesh()
 
 
-## Bontago-xtq.36: pushes sky_theme onto every live Skybox's own public
+## pushes sky_theme onto every live Skybox's own public
 ## re-apply method (game/sky/Skybox.gd's apply_theme(); see its own doc). Iterates Skybox.TUNING_GROUP, the same
 ## "every live instance already in the tree" idiom apply_camera_tuning_live()/
 ## refresh_territory_visuals_live() use, so this reaches a Skybox even in a
@@ -1815,7 +1806,7 @@ func apply_arena_style_live() -> void:
 ## only affects a Skybox that hasn't spawned its FogVolume yet.
 func apply_sky_theme_live() -> void:
 	for skybox: Skybox in _live_skyboxes():
-		# Bontago-59o.18 (U1): a running cycle owns a live duplicate of the
+		# U1: a running cycle owns a live duplicate of the
 		# source themes; apply_theme(sky_theme) would swap it for the static
 		# material, so the edit is re-copied into the duplicate instead.
 		if skybox.is_cycle_active():
@@ -1824,7 +1815,7 @@ func apply_sky_theme_live() -> void:
 			skybox.apply_theme(sky_theme)
 
 
-## Bontago-mp0.83 (owner playtest 2026-10-03: "control day/night length in F4"):
+## "control day/night length in F4":
 ## pushes the Sky tab's cycle_length_seconds onto every live Skybox running a
 ## CYCLE match. Skybox re-bases its phase so the time of day does not jump.
 ## Local dev tuning only: nothing is replicated.
@@ -1847,7 +1838,7 @@ func _on_reset_pressed() -> void:
 ## already holds -- see ResourceLoader.CACHE_MODE_IGNORE's use in
 ## _reset_resource()). Public so a test can call it without a real Button.
 func reset_all() -> void:
-	# Bontago-59o.18 (U1): the shipped theme_name is the static "sunset"; applying
+	# U1: the shipped theme_name is the static "sunset"; applying
 	# it would turn a running cycle (the default sky) into the static theme.
 	var cycle_was_active: bool = _any_cycle_active()
 	_reset_resource(camera_tuning)
@@ -1859,13 +1850,13 @@ func reset_all() -> void:
 	_reset_resource(block_feed_config)
 	_reset_resource(skybox_config)
 	TuningSfxTab.reset_fields(audio_config)
-	# Bontago-1pi.1 (owner playtest: "Sky settings in F4 doesn't reset"):
+	# "Sky settings in F4 doesn't reset":
 	# sky_theme was the one preloaded tuning resource this loop never
-	# touched -- Bontago-xtq.36's own DECISION (this file's class doc)
+	# touched --'s own DECISION (this file's class doc)
 	# deliberately left it, along with Save/Copy/apply_saved_overrides, out
 	# of this roster as "a reasonable small follow-up, not done here". Reset
 	# is that follow-up; Save/Copy/apply_saved_overrides are unaffected
-	# (still out of scope -- not what the owner reported).
+	# (still out of scope -- not what the user reported).
 	_reset_resource(sky_theme)
 	for theme_id: String in Skybox.list_available_themes():
 		_reset_resource(Skybox.load_theme(theme_id))
@@ -1900,7 +1891,7 @@ func _on_save_pressed() -> void:
 ## Writes every exported float/int/bool/Color field of every tuning resource
 ## into user://tuning_overrides.cfg (one ConfigFile section per resource
 ## class). Public so a test can drive/verify it without a real Button.
-## Bontago-xtq.13: loads whatever is already on disk first -- a fresh
+## loads whatever is already on disk first -- a fresh
 ## ConfigFile here would silently drop the selected-tab section
 ## _save_selected_tab_index() writes on its own, independent schedule.
 func save_overrides() -> Error:
@@ -1920,7 +1911,7 @@ func save_overrides() -> Error:
 	return config.save(save_path())
 
 
-## Bontago-xtq.22: TYPE_STRING joins the allowed set here (and in
+## TYPE_STRING joins the allowed set here (and in
 ## _copy_section() below) so config/sky/SkyboxConfig.gd's `theme_name` --
 ## the F4 Theme row's own value, not reflection-built and so never reaching
 ## either function through a Control -- still round-trips through Save
@@ -1945,11 +1936,11 @@ func _write_overrides(config: ConfigFile, section: String, resource: Resource) -
 
 ## Loads user://tuning_overrides.cfg (if any) onto the shared preloaded
 ## tuning singletons, before anything else in the game reads them. Called
-## once by game/main/Main.gd's _ready(), first thing (Bontago-mv0.18's boot hook).
+## once by game/main/Main.gd's _ready(), first thing ('s boot hook).
 ## Static and free of any node/scene-tree dependence, so it runs before a
 ## TuningPanel -- or even a Field/CameraRig/PlayerController -- exists.
 static func apply_saved_overrides() -> void:
-	TuningOverrides.apply_saved()  # Bontago-1pi.11.84: lives in game/main/TuningOverrides.gd
+	TuningOverrides.apply_saved()  # lives in game/main/TuningOverrides.gd
 
 
 func _on_copy_pressed() -> void:

@@ -1,6 +1,6 @@
 class_name MainSandboxFlowPort
 extends MainFlowPort
-## Bontago-1pi.11.84 (MF0): virtuals Main calls for the hot-seat, sandbox and tutorial flows.
+## MF0: virtuals Main calls for the hot-seat, sandbox and tutorial flows.
 ## The bodies are empty; game/main/MainSandboxFlow.gd (MF1) overrides them.
 
 

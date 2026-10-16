@@ -1,16 +1,16 @@
 class_name TerritoryOverlay
 extends MeshInstance3D
 ## The disk's visible surface and the territory picture painted on it
-## (spec 2.10, 3.3).
+## (spec 1.10, 2.5).
 ##
-## This node is both the disk mesh and the overlay, deliberately: spec 3.3 asks
+## This node is both the disk mesh and the overlay, deliberately: spec 2.5 asks
 ## the shader to discard hole pixels, and a discard only reads as a hole in the
 ## ground if what it discards *is* the ground. A separate quad hovering over an
 ## intact disk would just reveal the disk underneath.
 ##
-## **The upload.** TerritoryRaster is authoritative at *cell* resolution (see
-## docs/archive/M2_PLAN.md, "Raster resolution"): 90x90 on map M, which is also the
-## collision grid and the hole granularity. Spec 3.3's territory_res texture is
+## **The upload.** TerritoryRaster is authoritative at *cell* resolution (the rules
+## run per cell): 90x90 on map M, which is also the
+## collision grid and the hole granularity. Spec 2.5's territory_res texture is
 ## the *upload* size, so the cell image is upscaled with
 ## Image.resize(INTERPOLATE_BILINEAR) — one C++ call — and that is what the
 ## shader samples and smoothsteps. Rebuilt at TerritoryTuning.raster_upload_hz
@@ -21,11 +21,11 @@ extends MeshInstance3D
 ## state_bytes() are already exactly the buffers Image.create_from_data() wants,
 ## so the upload does no per-cell work in GDScript at all.
 ##
-##   territory_tex    territory_res, filter_linear  -- the owner ramp spec 3.3
+##   territory_tex territory_res, filter_linear -- the slot ramp spec 2.5
 ##                                                     asks for, bilinearly
 ##                                                     upscaled; the soft edge
 ##                                                     and the outline read it.
-##   territory_cells  cell res, filter_nearest      -- owner_bytes() unblended:
+##   territory_cells cell res, filter_nearest -- owner_bytes() unblended:
 ##                                                     R = team_id + 1, 0 =
 ##                                                     unowned. *Which* team
 ##                                                     owns a pixel must come
@@ -37,7 +37,7 @@ extends MeshInstance3D
 ##                                                     team 1, which rings
 ##                                                     every border in a third
 ##                                                     player's color.
-##   territory_state  cell res, both filters        -- state_bytes() verbatim,
+##   territory_state cell res, both filters -- state_bytes() verbatim,
 ##                                                     STATE_CONTESTED |
 ##                                                     STATE_HOLE. The crisp
 ##                                                     sampler answers "is this
@@ -48,7 +48,7 @@ extends MeshInstance3D
 ##                                                     gives the rim its glow.
 ##
 ## DECISION (game/field/TerritoryOverlay.gd): the M2 plan describes one texture with
-## R = owner and G = the state bits. Splitting them into their own textures
+## R = slot and G = the state bits. Splitting them into their own textures
 ## keeps exactly those two channels and those two meanings, and was taken for
 ## cost: interleaving 14400 cells into RGBA in GDScript and upscaling four
 ## channels measured 11 ms per upload on map L, which is a dropped frame five
@@ -60,7 +60,7 @@ const STATE_HOLE: int = TerritoryRaster.STATE_HOLE
 
 ## Render layer the disc (overlay top + ArenaMesh side surfaces) lives on alone, so the disc
 ## ReflectionProbe (Skybox.PROBE_CULL_MASK) and the decals skip it. Moved here from
-## the removed DiscMirror (owner 2026-10-07).
+## the removed DiscMirror.
 const DISC_LAYER_BIT: int = 1 << 19
 const TERRITORY_SHADER: Shader = preload("res://shaders/territory/territory.gdshader")
 const CIRCLE_BAKE_SHADER: Shader = preload("res://shaders/territory/territory_circle_bake.gdshader")
@@ -74,7 +74,7 @@ const BAKE_SIZE_MIN: int = 16
 const BAKE_SIZE_MAX: int = 2048
 ## Slot colors the shader's uniform array holds; MatchConfig ships eight.
 const SLOT_COLOR_MAX: int = 8
-## Weather wetness (Bontago-22y.5) finds the overlay through this group.
+## Weather wetness finds the overlay through this group.
 const WET_GROUP: StringName = &"weather_territory"
 ## Wet-disc request, presentation only: extra sheen and a roughness factor
 ## layered over TerritoryVisuals. _apply_visual_uniforms() re-applies it, so a
@@ -83,7 +83,7 @@ var _wet_amount: float = 0.0
 var _wet_sheen_add: float = 0.0
 var _wet_roughness_scale: float = 1.0
 var _wet_darken: float = 0.0
-## Last per-slot colors handed in (Bontago-sen.4). _apply_visual_uniforms()
+## Last per-slot colors handed in. _apply_visual_uniforms()
 ## re-pushes these; it used to reset every slot to goal_flag_color, wiping the
 ## team colors whenever the F4 panel / a graphics refresh called
 ## refresh_visual_uniforms() mid-match.
@@ -93,12 +93,12 @@ var _slot_colors: PackedColorArray = PackedColorArray()
 const UV_CENTER: float = 0.5
 
 ## Goal records the shader loops per pixel; a wire safety cap mirroring
-## core/net/CircleWire.gd's GOAL_COUNT_MAX, and far above spec 2.2's 1-5
+## core/net/CircleWire.gd's GOAL_COUNT_MAX, and far above spec 1.5's 1-5
 ## goal flags.
 const GOAL_TEXELS_MAX: int = 8
 
-## Bontago-1pi.11 (owner playtest: "the game slows down a lot after a
-## while"): the analytic circle path used to loop every circle for every disk
+## "the game slows down a lot after a
+## while": the analytic circle path used to loop every circle for every disk
 ## pixel, so its GPU cost grew with the live block count (windowed probe,
 ## 1920x1080: ~95-120 ms/frame at 60-160 blocks, ~15-30 ms with the loop
 ## skipped). _pack_circle_bins() buckets the list into a coarse square grid
@@ -124,37 +124,36 @@ const CIRCLE_BIN_BLEND_MARGIN_FACTOR: float = 4.0
 
 var _map_def: MapDef = null
 var _visuals: TerritoryVisuals = null
-## Bontago-1pi.11.42: look of the animated void on hole cells (the disc stays
+## look of the animated void on hole cells (the disc stays
 ## solid; the shader draws the hole). Pushed by _apply_hole_void_uniforms().
 @export var hole_visuals: HoleVisualTuning = preload("res://config/territory/hole_visual_tuning.tres")
 ## GraphicsPreset.hole_void_animated: false = flat void + rim (Low).
 var _void_animated: bool = true
 ## GraphicsPreset.disc_fine_detail_enabled: false = plating without rivets and
-## brushed streaks (Low; Bontago-1pi.11.67 fix2b).
+## brushed streaks (Low fix2b).
 var _disc_fine_detail: bool = true
 var _tuning: TerritoryTuning = null
 var _material: ShaderMaterial = null
 var _texture: ImageTexture = null
 var _cell_texture: ImageTexture = null
 var _state_texture: ImageTexture = null
-## Bontago-1pi.11.44: hole + contested bits as an RG8 mask (0/255), bound
+## hole + contested bits as an RG8 mask (0/255), bound
 ## linear-filtered so the void shader reads a smooth hole field.
 var _hole_texture: ImageTexture = null
 var _hole_cell_image: Image = null
-## Bontago-1pi.11.67 fix2b: whether the last uploaded hole mask has any hole cell
+## fix2b: whether the last uploaded hole mask has any hole cell
 ## (the shader's void_present uniform).
 var _hole_any: bool = false
 var _raster: TerritoryRaster = null
-## Bontago-1pi.11.23: raster revision last pushed to the textures; -1 = none.
+## raster revision last pushed to the textures; -1 = none.
 var _pushed_revision: int = -1
 var _cells_per_side: int = 0
 var _last_image: Image = null
-var _owner_cell_image: Image = null
 var _state_cell_image: Image = null
 var _upload_accumulator: float = 0.0
 ## The disk_mesh_segments value baked into the current CylinderMesh, so
 ## refresh_visual_uniforms() only calls rebuild_disk_mesh() when it actually
-## changed (Bontago-mv0.20b) -- an unrelated visuals field (color, tint,
+## changed (.20b) -- an unrelated visuals field (color, tint,
 ## outline...) must not reallocate a mesh at raster_upload_hz. -1 before
 ## configure() ever runs.
 var _baked_mesh_segments: int = -1
@@ -163,9 +162,7 @@ var _arena: ArenaMesh = null
 var _body_visuals: DiscBodyVisuals = null
 var _side_style: ArenaSideStyle = null
 
-## Bontago-cmc.5: the analytic circle list (see set_circles()'s doc). Kept
-## the same way _owner_cell_image is — a headless test has no rendering
-## server to read a texture back from.
+## the analytic circle list (see set_circles()'s doc).
 var _circle_texture: ImageTexture = null
 var _goal_texture: ImageTexture = null
 var _circle_image: Image = null
@@ -176,14 +173,14 @@ var _circle_bin_image: Image = null
 var _circle_bins_valid: bool = false
 var _circle_bin_baked_margin: float = 0.0
 var _goal_count: int = 0
-## Bontago-1pi.11.1 circle-field bake (see _request_bake()).
+## circle-field bake (see _request_bake()).
 var _bake_viewport: SubViewport = null
 var _bake_rect: ColorRect = null
 var _bake_material: ShaderMaterial = null
 var _bake_key: Array = []
 var _bake_settle_left: int = 0
 var _bake_wanted: bool = false
-## Bontago-1pi.11.33: bake-on-settle. While blocks churn, a changed circle field
+## bake-on-settle. While blocks churn, a changed circle field
 ## is parked (_bake_pending) and baked once on settle, or at a deadline shared
 ## with the solve deferral: solve wait + bake wait never exceeds
 ## TerritoryTuning.solve_defer_max_s, whichever comes first.
@@ -247,12 +244,12 @@ func configure(
 	_assign_surface_materials()
 
 
-## Rebuilds THE arena mesh (Bontago-mp0.150.1): one ArrayMesh whose surface 0 is
+## Rebuilds THE arena mesh: one ArrayMesh whose surface 0 is
 ## the playing-surface slab (territory shader; the CylinderMesh arrays) and
 ## whose further surfaces are ArenaMesh's chamfer / band / bottom (only when a
 ## DiscBodyVisuals was passed to configure()). Uses the current
 ## _visuals.disk_mesh_segments, keeping the same radius/height configure() built
-## it with (Bontago-mv0.20b, F4 tuning panel live-apply). Public so configure()
+## it with (.20b, F4 tuning panel live-apply). Public so configure()
 ## and refresh_visual_uniforms() share one place that knows the disk's actual
 ## dimensions; a no-op-safe call before configure() simply does nothing.
 func rebuild_disk_mesh() -> void:
@@ -297,7 +294,7 @@ func _assign_surface_materials() -> void:
 	_sync_side_shell()
 
 
-## SHADER_DOME (Bontago-mp0.150.2 r4): copies every uniform the territory material
+## SHADER_DOME (r4): copies every uniform the territory material
 ## has set onto the side shell material wherever the shell shader declares the same
 ## name, so the side is shaded by the very same plating and sheen settings as the top.
 func _sync_side_shell() -> void:
@@ -326,22 +323,6 @@ func texture() -> ImageTexture:
 	return _texture
 
 
-## The cell-resolution texture the shader reads team ids from, unblended.
-func cell_texture() -> ImageTexture:
-	return _cell_texture
-
-
-## The cell-resolution texture carrying TerritoryRaster.state_bytes() verbatim.
-func state_texture() -> ImageTexture:
-	return _state_texture
-
-
-## The exact cell images of the last upload, for the same reason last_image()
-## exists: a headless test has no rendering server to read a texture back from.
-func owner_cell_image() -> Image:
-	return _owner_cell_image
-
-
 func state_cell_image() -> Image:
 	return _state_cell_image
 
@@ -361,11 +342,11 @@ func cells_per_side() -> int:
 ## Hands the overlay the live raster to draw and the per-slot colors to draw it
 ## in. The raster is read, never mutated.
 ##
-## A null raster (Field.clear_match_state(), spec 3.7's End -> Lobby) also
+## A null raster (Field.clear_match_state(), spec 2.4's End -> Lobby) also
 ## drops whatever circle list the last match left uploaded — otherwise the
 ## disk sitting idle behind the main menu would keep showing the previous
 ## match's last analytic frame, the one part of the overlay upload_now() by
-## itself never touches (Bontago-cmc.5).
+## itself never touches.
 func set_source(raster: TerritoryRaster, slot_colors: PackedColorArray) -> void:
 	_raster = raster
 	_pushed_revision = -1
@@ -404,7 +385,7 @@ func upload_now() -> void:
 	_pushed_revision = revision
 
 
-## The low-level entry: one byte of owner and one of state per cell, row-major,
+## The low-level entry: one byte of slot id and one of state per cell, row-major,
 ## `side` to a row -- the two arrays TerritoryRaster hands out. Field's raster
 ## path goes through upload_now(); tests push bytes straight in.
 func push_cells(
@@ -420,14 +401,13 @@ func push_cells(
 	var state_image: Image = Image.create_from_data(
 		side, side, false, Image.FORMAT_R8, _sized(state_bytes, cell_total)
 	)
-	_owner_cell_image = owner_image
 	_state_cell_image = state_image
 	_cell_texture = _store(_cell_texture, owner_image)
 	_state_texture = _store(_state_texture, state_image)
 	_hole_cell_image = _hole_mask_image(state_image.get_data(), side)
 	_hole_texture = _store(_hole_texture, _hole_cell_image)
 	_material.set_shader_parameter(&"territory_hole", _hole_texture)
-	# Bontago-1pi.11.67 fix2b: lets the shader skip the void field (a texture
+	# fix2b: lets the shader skip the void field (a texture
 	# fetch + fwidth per disc pixel) while no cell is a hole.
 	_material.set_shader_parameter(&"void_present", _hole_any)
 	_material.set_shader_parameter(&"territory_cells", _cell_texture)
@@ -437,7 +417,7 @@ func push_cells(
 	_apply_uv_uniforms(side)
 
 
-## Bontago-1pi.11.44: R = STATE_HOLE, G = STATE_CONTESTED of each state byte
+## R = STATE_HOLE, G = STATE_CONTESTED of each state byte
 ## (0/255), the texture shaders/territory/territory.gdshader's void samples with a
 ## linear filter (G tells a hole inside an overlap from one outside any).
 func _hole_mask_image(state_bytes: PackedByteArray, side: int) -> Image:
@@ -463,7 +443,7 @@ func hole_mask_image() -> Image:
 	return _hole_cell_image
 
 
-## Bontago-cmc.5: the analytic circle list a solve step just produced —
+## the analytic circle list a solve step just produced —
 ## autoload/Match.gd's home-anchored circles (the same ones TerritoryGroups
 ## kept, already capped at TerritoryTuning.max_circles) plus the goal
 ## no-build discs, so shaders/territory/territory.gdshader can draw the territory
@@ -472,15 +452,15 @@ func hole_mask_image() -> Image:
 ## same length (a caller that built them any other way gets a texture sized
 ## to the shortest of the four, matching push_cells()'s own
 ## "never half-crash" style); `argmax_mode` is MatchConfig.HoleMode.OFF,
-## which the shader must colour with a single-owner argmax instead of a
-## union + contested test (spec 3.3's v2 alternative).
+## which the shader must colour with a single-slot argmax instead of a
+## union + contested test (spec 2.5's v2 alternative).
 ##
 ## Circles are packed one per texel of an RGBAF image — R/G = disk-local
 ## x/z, B = radius, A = team id — rather than a shader array uniform: a
 ## uniform array needs a compile-time size and a second cap to keep in sync
 ## with TerritoryTuning.max_circles, where a sampler2D's width is just
-## however many texels this call uploads (docs/TERRITORY_V2_PLAN.md's
-## rendering section rejected this shape for the *raster* renderer on cost
+## however many texels this call uploads (the rendering design rejected this shape
+## for the *raster* renderer on cost
 ## grounds that do not apply here: 400 texels is a few KB, not a resize()).
 ## texelFetch(), not a filtered sample, reads them back exactly.
 func set_circles(
@@ -509,7 +489,7 @@ func set_circles(
 	# max_shader_circles, independently tunable below TerritoryTuning.
 	# max_circles for a weaker GPU) falls back to the cell-raster path for
 	# that frame rather than silently truncating the circle list and
-	# drawing a wrong boundary (spec 3.3, "Bounded cost").
+	# drawing a wrong boundary (spec 2.5, "Bounded cost").
 	var valid: bool = count > 0 and count <= _visuals.max_shader_circles
 	_material.set_shader_parameter(&"circle_tex", _circle_texture)
 	_material.set_shader_parameter(&"circle_count", count)
@@ -550,7 +530,7 @@ func goal_count() -> int:
 	return _goal_count
 
 
-## Bontago-1pi.11: the per-bin circle lists the shader reads (see
+## the per-bin circle lists the shader reads (see
 ## _pack_circle_bins()); null before the first set_circles().
 func circle_bin_image() -> Image:
 	return _circle_bin_image
@@ -661,7 +641,7 @@ func _pack_circle_bins(
 	return null
 
 
-## Bontago-1pi.11.1 DECISION (game/field/TerritoryOverlay.gd): the circle loop that
+## DECISION (game/field/TerritoryOverlay.gd): the circle loop that
 ## dominated the disc's GPU time (home-only circles: 16.4 -> 7.6 ms at 300
 ## blocks) is baked into a render texture only when the circle set changes,
 ## via a SubViewport + ColorRect running territory_circle_bake.gdshader. A
@@ -752,11 +732,11 @@ func _request_bake(circles_ok: bool, flushing: bool = false) -> void:
 	if key == _bake_key:
 		_bake_pending = false
 		return
-	# DECISION (Bontago-1pi.11.33): skip the re-bake while blocks churn and bake
+	# DECISION: skip the re-bake while blocks churn and bake
 	# once on settle. The previous bake stays visible meanwhile, never longer
 	# than solve_defer_max_s (0.5 s), so the visible cadence is unchanged in the
 	# worst case. The very first bake (nothing valid yet) is never deferred.
-	# DECISION (Bontago-1pi.11.33 review F4): the bake shares the solve's 0.5 s
+	# DECISION (review F4): the bake shares the solve's 0.5 s
 	# cap. A solve applied after waiting W seconds may park the bake for at most
 	# cap - W, so the visible territory delay stays <= solve_defer_max_s; a solve
 	# that already waited the full cap bakes right away.
@@ -813,18 +793,10 @@ func circle_texture() -> ImageTexture:
 	return _circle_texture
 
 
-func goal_texture() -> ImageTexture:
-	return _goal_texture
-
-
-## The exact circle/goal Images of the last upload, for the same headless-
-## test reason owner_cell_image() exists.
+## The exact circle Image of the last upload, kept because a headless test has
+## no rendering server to read a texture back from.
 func circle_image() -> Image:
 	return _circle_image
-
-
-func goal_image() -> Image:
-	return _goal_image
 
 
 ## RGBAF, one texel per circle: (x, z, radius, team). Width is always at
@@ -880,7 +852,7 @@ func _sized(bytes: PackedByteArray, cell_total: int) -> PackedByteArray:
 	return padded
 
 
-## The owner cell image blown up to MapDef.territory_res. Image.resize mutates
+## The slot cell image blown up to MapDef.territory_res. Image.resize mutates
 ## in place, so it is duplicated first — the shader needs both sizes.
 func _upscaled(cell_image: Image, side: int) -> Image:
 	var upload_res: int = maxi(_map_def.territory_res, side)
@@ -930,7 +902,7 @@ func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 
 
 ## Whether the disc plating draws its rivets and brushed streaks (graphics
-## preset, Bontago-1pi.11.67 fix2b); tests read it.
+## preset fix2b); tests read it.
 func disc_fine_detail() -> bool:
 	return _disc_fine_detail
 
@@ -940,7 +912,7 @@ func void_animated() -> bool:
 	return _void_animated
 
 
-## Bontago-1pi.11.42: pushes HoleVisualTuning's void look onto the disc shader.
+## pushes HoleVisualTuning's void look onto the disc shader.
 func _apply_hole_void_uniforms() -> void:
 	var hv: HoleVisualTuning = hole_visuals
 	if hv == null:
@@ -966,7 +938,7 @@ func _apply_uv_uniforms(side: int) -> void:
 	_material.set_shader_parameter(&"uv_offset", UV_CENTER)
 
 
-## Bontago-mv0.18 (in-game tuning panel): the public door ui/debug/TuningPanel.gd
+## in-game tuning panel: the public door ui/debug/TuningPanel.gd
 ## uses to push a live TerritoryVisuals edit onto the shader immediately,
 ## instead of waiting for the next set_circles() upload (which only ever
 ## rewrites the analytic-circle-path uniforms, not these -- see that
@@ -976,7 +948,7 @@ func _apply_uv_uniforms(side: int) -> void:
 ## calling it again mid-match is always safe. A no-op before configure() has
 ## built _material (there is nothing yet to refresh).
 ##
-## Bontago-mv0.20b: disk_mesh_segments is baked into the CylinderMesh, not a
+## .20b: disk_mesh_segments is baked into the CylinderMesh, not a
 ## shader uniform, so it needs its own rebuild -- but only when the segment
 ## count actually changed from what's currently baked (_baked_mesh_segments),
 ## so an unrelated visuals edit (color, tint, outline...) does not reallocate
@@ -1000,7 +972,7 @@ func _apply_visual_uniforms() -> void:
 	_material.set_shader_parameter(&"base_color", _visuals.disk_base_color)
 	_material.set_shader_parameter(&"base_metallic", _visuals.disk_metallic)
 	_material.set_shader_parameter(&"base_roughness", _visuals.disk_roughness)
-	# Bontago-pt.12 part 2: top-surface brushed/plank grain -- see
+	# Top-surface brushed/plank grain -- see
 	# shaders/territory/territory.gdshader's own top_grain_* uniform DECISION.
 	_material.set_shader_parameter(&"top_grain_strength", _visuals.top_grain_strength)
 	_material.set_shader_parameter(&"top_grain_scale", _visuals.top_grain_scale)
@@ -1008,7 +980,7 @@ func _apply_visual_uniforms() -> void:
 	_material.set_shader_parameter(
 		&"top_grain_roughness_strength", _visuals.top_grain_roughness_strength
 	)
-	# Bontago-mp0.3.8: disc top color/sheen fix -- see shaders/territory.
+	# disc top color/sheen fix -- see shaders/territory.
 	# gdshader's own disk_sheen_*/disk_diffuse_* uniform DECISION.
 	_material.set_shader_parameter(&"disk_ambient_scale", _visuals.disk_ambient_scale)
 	_material.set_shader_parameter(&"disk_specular", _visuals.disk_specular)
@@ -1028,7 +1000,7 @@ func _apply_visual_uniforms() -> void:
 	_material.set_shader_parameter(&"disk_diffuse_response", _visuals.disk_diffuse_response)
 	_material.set_shader_parameter(&"disk_diffuse_desaturate", _visuals.disk_diffuse_desaturate)
 	_material.set_shader_parameter(&"edge_softness", _visuals.edge_softness)
-	# Bontago-xtq.14: pushed here (configure()/refresh_visual_uniforms()),
+	# pushed here (configure()/refresh_visual_uniforms()),
 	# not alongside rim_soft_width/rim_width in set_circles() below, so a
 	# freshly configured overlay already renders a crisp boundary before the
 	# first 5 Hz circle upload ever runs, exactly like edge_softness (raster)
@@ -1058,7 +1030,7 @@ func _apply_visual_uniforms() -> void:
 	_sync_side_shell()
 
 
-## Bontago-adt.2: pushes the DiscSurfaceDef texture set (or clears it).
+## pushes the DiscSurfaceDef texture set (or clears it).
 func _apply_disc_surface() -> void:
 	var surface: DiscSurfaceDef = _visuals.disc_surface
 	var procedural: bool = surface != null and surface.mode == DiscSurfaceDef.Mode.PROCEDURAL
@@ -1087,7 +1059,7 @@ func _apply_disc_surface() -> void:
 	_material.set_shader_parameter(&"disc_detail_fade_px", surface.detail_fade_px)
 
 
-## Bontago-adt.2: pushes DiscSurfaceDef's procedural cel-plating tunables
+## pushes DiscSurfaceDef's procedural cel-plating tunables
 ## (shaders/territory/territory.gdshader disc_proc_* uniforms, see proc_plating()).
 func _apply_procedural_disc(surface: DiscSurfaceDef) -> void:
 	var params: Dictionary = {
@@ -1144,7 +1116,7 @@ func _apply_procedural_disc(surface: DiscSurfaceDef) -> void:
 		_material.set_shader_parameter(key, params[key])
 
 
-## Weather wetness (Bontago-22y.5): `amount` 0..1 adds `sheen_add` to the disc's
+## Weather wetness: `amount` 0..1 adds `sheen_add` to the disc's
 ## sheen strength and scales its roughness by `roughness_scale` at amount 1.
 ## Amount 0 is exactly TerritoryVisuals' own values.
 func set_wet(amount: float, sheen_add: float, roughness_scale: float, darken: float = 0.0) -> void:
@@ -1158,7 +1130,7 @@ func set_wet(amount: float, sheen_add: float, roughness_scale: float, darken: fl
 	_apply_wet()
 
 
-## Bontago-mp0.127: the cloud shadow layers on the disc (game/sky/CloudShadows.gd). `to_unit_*` map
+## the cloud shadow layers on the disc (game/sky/CloudShadows.gd). `to_unit_*` map
 ## world to the layer's unit box, `alpha_*` is its strength; both 0 turns the term off.
 func set_cloud_shadows(texture_a: Texture2D, texture_b: Texture2D, to_unit_a: Transform3D, to_unit_b: Transform3D,
 		alpha_a: float, alpha_b: float, color: Color) -> void:
@@ -1173,7 +1145,7 @@ func set_cloud_shadows(texture_a: Texture2D, texture_b: Texture2D, to_unit_a: Tr
 	_material.set_shader_parameter(&"cshadow_color", Vector3(color.r, color.g, color.b))
 
 
-## Weather fog (Bontago-470.3): the disc shader is `fog_disabled` (the warm
+## Weather fog: the disc shader is `fog_disabled` (the warm
 ## theme fog once browned the graphite), so it applies the SAME distance fog as
 ## the Environment itself -- nothing within `begin_m`, `max_strength` at `end_m`,
 ## toward `color` -- to match the blocks. Amount 0 turns it off exactly.

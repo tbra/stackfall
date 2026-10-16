@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.11.29: a catch-up window of several solve steps with one change
+## a catch-up window of several solve steps with one change
 ## emits territory_updated once and solves once; weather changes never dirty the
 ## territory solve.
 

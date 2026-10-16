@@ -1,5 +1,5 @@
 extends GutTest
-## The weighted bag randomizer (spec 2.4): core/blocks/BlockBag.gd.
+## The weighted bag randomizer (spec 1.4): core/blocks/BlockBag.gd.
 
 
 func _config() -> BlockFeedConfig:
@@ -21,7 +21,7 @@ func test_deals_every_shape_under_config_blocks() -> void:
 		assert_true(seen.has(shape.id), "%s should show up in 500 draws." % shape.id)
 
 
-## Bag copies per shape: round(weight * multiplier), at least 1 (spec 2.4).
+## Bag copies per shape: round(weight * multiplier), at least 1 (spec 1.4).
 ## The bag quantises weights, so rare shapes (e.g. cube8 0.25 -> 1 copy) land
 ## above their nominal share; compare against the quantised share.
 func _copies(bag: BlockBag, shape: BlockShape, config: BlockFeedConfig) -> float:
@@ -71,7 +71,7 @@ func test_every_bag_carries_the_minimum_stabilizers() -> void:
 		if bag.remaining() > before:
 			if seen_first_bag:
 				# Refilled after this draw: the bag that just finished had at
-				# least min_stabilizers_per_bag (spec 2.4).
+				# least min_stabilizers_per_bag (spec 1.4).
 				assert_gte(
 					stabilizers_in_bag, config.min_stabilizers_per_bag,
 					"A bag had only %d stabilizer(s)." % stabilizers_in_bag

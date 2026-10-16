@@ -1,5 +1,5 @@
 extends GutTest
-## Glue fusion WP3 (docs/GLUE_FUSION_PLAN.md sections 4 and 6): a FusedBody carrier
+## Glue fusion: a FusedBody carrier
 ## against BlockRegistry (territory circles, settled flags, physics_bodies()),
 ## StableBlockManager (one freeze per carrier, disc-anchored carriers never static),
 ## the kill plane and HoleDissolver (one member dissolves, the rest stays, exactly one

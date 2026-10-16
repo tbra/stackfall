@@ -1,7 +1,7 @@
 extends GutTest
-## Bontago-mv0.28 (owner test 2026-09-22, "when rotating the block the camera
+## Requirement: "when rotating the block the camera
 ## adjusts; lock the camera to the center of the box without messing up the
-## bottom center"): GhostPreview.rotated_center_offset()/rotated_center_world()
+## bottom center": GhostPreview.rotated_center_offset()/rotated_center_world()
 ## must keep the *rotated* held shape's own geometric centre over the cursor
 ## as it spins -- the thing game/player/CameraRig.gd's follow target now tracks --
 ## while _rotated_bottom_offset()'s existing bottom-centre fix (the shape's
@@ -63,13 +63,13 @@ func test_free_rotation_spins_the_centre_in_place_and_keeps_the_bottom_fix() -> 
 
 	# Regression proof this isn't vacuous: the node's own origin (still the
 	# unrotated bottom-centre pivot) really did move off the cursor once
-	# rotated -- that's the swing the owner reported the camera following.
+	# rotated -- that's the swing the user reported the camera following.
 	assert_true(
 		not is_equal_approx(ghost.global_position.x, surface_point.x) or not is_equal_approx(ghost.global_position.z, surface_point.z),
 		"fixture: a pitched/yawed bar's own node origin should have swung off the cursor's XZ -- otherwise this test isn't exercising the bug."
 	)
 
-	# (b) the bottom-centre fix (Bontago-mv0.17 item 3) must be untouched:
+	# (b) the bottom-centre fix (item 3) must be untouched:
 	# the rotated shape's own lowest point still rests exactly at the
 	# reported hover height.
 	var expected_bottom: float = surface_point.y + ghost.tuning.hover_height
@@ -100,7 +100,7 @@ func test_spawned_block_matches_the_rotated_ghosts_own_geometry() -> void:
 	var ghost: GhostPreview = autofree(GhostPreview.new())
 	add_child_autofree(ghost)
 	ghost.set_shape(shape)
-	ghost.set_orientation_index(BlockOrientations.step_pitch_fwd(0))  # "pitch a bar 90 degrees" (owner manual step)
+	ghost.set_orientation_index(BlockOrientations.step_pitch_fwd(0))  # "pitch a bar 90 degrees" (manual step)
 
 	var controller: PlayerController = autofree(PlayerController.new())
 	add_child_autofree(controller)
@@ -158,7 +158,7 @@ func test_spawned_block_matches_the_rotated_ghosts_own_geometry() -> void:
 
 # --- Collision sweep must target the same point update_placement() will
 # actually render (game/player/PlayerController.gd's _clamp_cursor_collision(),
-# Bontago-mv0.28 point 3: "confirm nothing else assumed origin == cursor")
+# point 3: "confirm nothing else assumed origin == cursor")
 # -------------------------------------------------------------------------
 
 func _small_map() -> MapDef:

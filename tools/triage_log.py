@@ -181,7 +181,7 @@ def _restore_refs(text: str, saved: Sequence[str]) -> str:
 
 
 _NORMALIZERS: List[Tuple[re.Pattern, str]] = [
-    # ISO-ish timestamps: 2026-09-18 12:34:56(.789)
+    # ISO-ish timestamps: 12:34:56(.789)
     (re.compile(r"\b\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?\b"), "<TS>"),
     # Bracketed clock timestamps: [12:34:56] or [12:34:56.789]
     (re.compile(r"\[\d{1,2}:\d{2}:\d{2}(?:\.\d+)?\]"), "<TS>"),
@@ -326,7 +326,7 @@ class KnownLimitation:
 
 def load_known_limitations(plan_path: str) -> List[KnownLimitation]:
     """Parse the "## Known limitations (...)" section of a milestone plan doc
-    (e.g. docs/archive/M2_PLAN.md) into paragraphs, and pull out any `backticked`
+    (e.g. a plan document) into paragraphs, and pull out any `backticked`
     identifiers as cheap deterministic match keywords."""
     try:
         with open(plan_path, "r", encoding="utf-8") as f:

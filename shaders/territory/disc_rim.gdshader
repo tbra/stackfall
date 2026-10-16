@@ -1,8 +1,8 @@
 shader_type spatial;
 render_mode cull_disabled;
 
-// The disc's glowing CHAMFER face (Bontago-pt.12 rename/redesign of the
-// mp0.3.8 "rim" strip -- see config/territory/DiscBodyVisuals.gd's own chamfer_*
+// The disc's glowing CHAMFER face (Bontago-rename/redesign of the
+// "rim" strip -- see config/territory/DiscBodyVisuals.gd's own chamfer_*
 // fields and game/DiscBody.gd's class doc for the full picture). This mesh
 // is now a sloped ring frustum whose TOP edge is exactly flush (same radius
 // AND same y) with game/field/TerritoryOverlay.gd's own CylinderMesh top-face
@@ -13,16 +13,16 @@ render_mode cull_disabled;
 // radius vertical wall), so they only ever touch along a zero-width shared
 // edge, not over a coincident area -- unlike the OLD rim (a second vertical
 // strip sitting at almost the same radius AND y as the overlay's own top
-// edge over its whole height), this does not reproduce the mp0.3.8
+// edge over its whole height), this does not reproduce the 
 // "dashes at distance" z-fight.
 //
 // min_screen_width_factor below is kept as the same secondary safety net
-// mp0.3.8 already validated (see config/territory/DiscBodyVisuals.gd's own doc): it
+// already validated (see config/territory/DiscBodyVisuals.gd's own doc): it
 // pushes the chamfer's BOTTOM edge (never the shared top edge) down a little
 // further per meter of camera distance, so its screen-space coverage never
 // drops below roughly a pixel at long range on any map radius.
 //
-// Surface texture (Bontago-pt.12, owner: "it lacks the texture ... visible
+// Surface texture (owner: "it lacks the texture ... visible
 // where it interacts with the sun"): surface_noise is a procedurally
 // generated (FastNoiseLite-backed NoiseTexture2D, no third-party asset)
 // tangent-space normal map, built by game/DiscBody.gd and shared with the

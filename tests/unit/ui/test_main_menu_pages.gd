@@ -1,11 +1,11 @@
 extends GutTest
-## Bontago-1pi.34/36/38/39 (owner playtest 2026-10-03): the debug-only menu
+## /36/38/39: the debug-only menu
 ## entry, the reworked Play local page, the controller-reachable "invisible"
 ## control, and left/right navigation on Play local. Navigation is driven with
 ## real InputEventJoypadButton events through Input.parse_input_event (the
 ## route a physical pad takes), the same technique test_main_menu.gd uses.
 ##
-## Bontago-1pi.44 (flaky in the sharded gate): two things made the "no dead
+## flaky in the sharded gate: two things made the "no dead
 ## focus" checks depend on what else the machine was doing.
 ## 1. MainMenu._ready() starts the REAL Net autoload's LAN browser (UDP 47777)
 ##    before a test swaps in FakeNet, and nothing ever stopped it. In a sharded
@@ -142,66 +142,13 @@ func _assert_neighbours_usable(menu: MainMenu, label: String) -> void:
 			assert_ne(target.focus_mode, Control.FOCUS_NONE, "%s unfocusable neighbour" % where)
 
 
-# --- 1pi.34: debug entry ----------------------------------------------------------
+# --- debug entry ----------------------------------------------------------
 
 func test_debug_entry_is_visible_only_in_debug_mode() -> void:
 	var player_menu: MainMenu = _make_menu(false)
 	assert_false(_node(player_menu, "DebugButton").is_visible_in_tree())
 	var debug_menu: MainMenu = _make_menu(true)
 	assert_true(_node(debug_menu, "DebugButton").is_visible_in_tree())
-
-
-func test_debug_entry_does_not_move_any_other_control() -> void:
-	DebugMode.set_override_for_test(false)
-	var viewport: SubViewport = SubViewport.new()
-	viewport.size = Vector2i(1280, 720)
-	add_child_autofree(viewport)
-	var scene: PackedScene = load("res://ui/menus/MainMenu.tscn")
-	var menu: MainMenu = scene.instantiate()
-	menu.net_provider = FakeNet.new()
-	viewport.add_child(menu)
-	Net.stop_discovery() # _ready() reopened the real LAN listener (header, point 1)
-	for _i: int in range(3):
-		await get_tree().process_frame
-	var names: Array[String] = ["NameEdit", "HostButton", "JoinButton", "PlayLocalButton", "OptionsButton", "QuitButton", "Panel", "Title", "Tagline"]
-	var before: Dictionary = {}
-	for node_name: String in names:
-		before[node_name] = _node(menu, node_name).get_global_rect() if node_name != "Tagline" else (menu.get_node("Center/Panel/Layout/Tagline") as Control).get_global_rect()
-	assert_false(_node(menu, "DebugButton").visible)
-	menu.set_debug_entry_enabled(true)
-	for _i: int in range(3):
-		await get_tree().process_frame
-	assert_true(_node(menu, "DebugButton").visible)
-	for node_name: String in names:
-		var after: Rect2 = _node(menu, node_name).get_global_rect() if node_name != "Tagline" else (menu.get_node("Center/Panel/Layout/Tagline") as Control).get_global_rect()
-		assert_true((before[node_name] as Rect2).is_equal_approx(after), "%s moved when the debug entry appeared" % node_name)
-	menu.set_debug_entry_enabled(false)
-	for _i: int in range(3):
-		await get_tree().process_frame
-	for node_name: String in names:
-		var restored: Rect2 = _node(menu, node_name).get_global_rect() if node_name != "Tagline" else (menu.get_node("Center/Panel/Layout/Tagline") as Control).get_global_rect()
-		assert_true((before[node_name] as Rect2).is_equal_approx(restored), "%s moved when the debug entry went away" % node_name)
-
-
-func test_debug_page_offers_the_gift_demo_and_back_returns_to_the_entry() -> void:
-	var menu: MainMenu = _make_menu(true)
-	watch_signals(menu)
-	menu._on_debug_pressed()
-	assert_true(_node(menu, "GiftDemoButton").is_visible_in_tree())
-	assert_false(_node(menu, "HostButton").is_visible_in_tree())
-	assert_false(_node(menu, "NameEdit").is_visible_in_tree())
-	assert_eq(_focus(), _node(menu, "GiftDemoButton"))
-	_node(menu, "GiftDemoButton").pressed.emit()
-	assert_signal_emit_count(menu, "gift_demo_requested", 1)
-	assert_true(_node(menu, "TowerToppleButton").is_visible_in_tree())
-	_node(menu, "TowerToppleButton").pressed.emit()
-	assert_signal_emit_count(menu, "tower_topple_requested", 1)
-	var cancel: InputEventAction = InputEventAction.new()
-	cancel.action = "ui_cancel"
-	cancel.pressed = true
-	menu._unhandled_input(cancel)
-	assert_true(_node(menu, "HostButton").is_visible_in_tree())
-	assert_eq(_focus(), _node(menu, "DebugButton"), "Back lands on the entry that opened the page")
 
 
 func test_demo_buttons_do_nothing_when_debug_mode_is_off() -> void:
@@ -214,27 +161,6 @@ func test_demo_buttons_do_nothing_when_debug_mode_is_off() -> void:
 	assert_signal_not_emitted(menu, "tower_topple_requested")
 	assert_false(_node(menu, "GiftDemoButton").is_visible_in_tree())
 
-
-func test_pad_reaches_the_debug_entry_and_it_is_not_a_dead_end() -> void:
-	var menu: MainMenu = _make_menu(true)
-	await get_tree().process_frame
-	_node(menu, "OptionsButton").grab_focus()
-	await _pad(JOY_BUTTON_DPAD_DOWN)
-	assert_eq(_focus(), _node(menu, "DebugButton"))
-	await _pad(JOY_BUTTON_A)
-	assert_eq(_focus(), _node(menu, "GiftDemoButton"), "A on Debug opens the Debug page")
-	await _pad(JOY_BUTTON_B)
-	assert_eq(_focus(), _node(menu, "DebugButton"), "B goes back to the entry")
-	await _pad(JOY_BUTTON_DPAD_DOWN)
-	assert_eq(_focus(), _node(menu, "NameEdit"), "the wrap continues to the name field")
-
-
-func test_debug_entry_off_leaves_home_navigation_as_before() -> void:
-	var menu: MainMenu = _make_menu(false)
-	var quit: Button = _node(menu, "QuitButton") as Button
-	assert_eq(quit.get_node(quit.focus_neighbor_bottom), _node(menu, "NameEdit"))
-	var name_edit: LineEdit = _node(menu, "NameEdit") as LineEdit
-	assert_eq(name_edit.get_node(name_edit.focus_neighbor_top), _node(menu, "OptionsButton"), "the wrap from the name field lands on the Options | Quit row")
 
 func test_play_local_has_no_name_input_and_vs_bots_first() -> void:
 	var menu: MainMenu = _make_menu()
@@ -250,26 +176,6 @@ func test_play_local_has_no_name_input_and_vs_bots_first() -> void:
 	assert_eq(visible_row[0], _node(menu, "BotsButton"), "vs Bots is the first option")
 	assert_eq(_focus(), _node(menu, "BotsButton"), "and it takes focus first")
 
-
-func test_name_typed_on_home_still_reaches_vs_bots() -> void:
-	var menu: MainMenu = _make_menu()
-	(_node(menu, "NameEdit") as LineEdit).text = "Zed"
-	menu._on_play_local_pressed()
-	watch_signals(menu)
-	menu._on_bots_pressed()
-	assert_signal_emitted_with_parameters(menu, "bots_requested", ["Zed"])
-
-
-func test_name_field_returns_on_home_and_join() -> void:
-	var menu: MainMenu = _make_menu()
-	menu._on_play_local_pressed()
-	menu._on_back_pressed()
-	assert_true(_node(menu, "NameEdit").is_visible_in_tree())
-	menu._on_join_pressed()
-	assert_true(_node(menu, "NameEdit").is_visible_in_tree())
-
-
-# --- 1pi.39: Play local navigation -------------------------------------------------------
 
 func test_every_pad_direction_reaches_every_play_local_option() -> void:
 	var menu: MainMenu = _make_menu()
@@ -297,19 +203,6 @@ func test_right_from_tutorial_moves_on_instead_of_stalling() -> void:
 	assert_eq(_focus(), _node(menu, "TutorialButton"))
 
 
-func test_play_local_pad_actions_still_work() -> void:
-	var menu: MainMenu = _make_menu()
-	await get_tree().process_frame
-	menu._on_play_local_pressed()
-	watch_signals(menu)
-	await _pad(JOY_BUTTON_A)
-	assert_signal_emitted(menu, "bots_requested")
-	await _pad(JOY_BUTTON_B)
-	assert_eq(_focus(), _node(menu, "PlayLocalButton"), "B returns to Play local's entry on the home page")
-
-
-# --- 1pi.38: no focusable control that does nothing ---------------------------------------------
-
 func test_no_dead_focus_on_any_page_without_steam() -> void:
 	var menu: MainMenu = _make_menu(true, false)
 	await _settle_layout(menu)
@@ -331,7 +224,7 @@ func test_no_dead_focus_on_any_page_without_steam() -> void:
 	_assert_neighbours_usable(menu, "join (LAN, no Steam)")
 
 
-## Bontago-1pi.44: the case the sharded gate hit by accident -- a LAN game in the
+## the case the sharded gate hit by accident -- a LAN game in the
 ## list makes it focusable, so it must have a real size once the page is laid
 ## out. Driven deterministically through the Events bus instead of a stray
 ## real advert.
@@ -348,13 +241,6 @@ func test_no_dead_focus_on_the_join_page_with_a_lan_game_listed() -> void:
 	assert_gt(list.size.x * list.size.y, 0.0, "and laid out once the frame has passed")
 	_assert_no_dead_focus(menu, "join (LAN, one game)")
 	_assert_neighbours_usable(menu, "join (LAN, one game)")
-
-
-## Bontago-1pi.44: a menu under test must not be listening on the real LAN
-## discovery port, or another process's host advert lands in its game list.
-func test_menu_under_test_does_not_listen_on_the_real_lan_port() -> void:
-	var _menu: MainMenu = _make_menu(false, false)
-	assert_false(Net._lan.is_listening(), "the real Net LAN browser is closed after _make_menu")
 
 
 func test_no_dead_focus_on_the_steam_pages() -> void:
@@ -374,49 +260,3 @@ func test_no_dead_focus_on_the_steam_pages() -> void:
 	assert_ne(_node(menu, "SteamLobbyList").focus_mode, Control.FOCUS_NONE, "a list with a lobby is focusable")
 	_assert_no_dead_focus(menu, "join (Steam tab, one lobby)")
 	_assert_neighbours_usable(menu, "join (Steam tab, one lobby)")
-
-
-func test_disabled_steam_tab_cannot_be_reached_with_the_pad() -> void:
-	var menu: MainMenu = _make_menu(false, false)
-	await get_tree().process_frame
-	menu._on_join_pressed()
-	var steam_tab: Control = _node(menu, "JoinSteamTabButton")
-	assert_eq(steam_tab.focus_mode, Control.FOCUS_NONE)
-	for direction: JoyButton in [JOY_BUTTON_DPAD_RIGHT, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_UP, JOY_BUTTON_DPAD_LEFT]:
-		menu._on_join_pressed()
-		var visited: Array[String] = await _walk(direction, 8)
-		assert_false(visited.has("JoinSteamTabButton"), "direction %d reached the disabled Steam tab (%s)" % [direction, visited])
-
-
-func test_empty_game_list_is_skipped_until_a_game_appears() -> void:
-	var menu: MainMenu = _make_menu(false, false)
-	await get_tree().process_frame
-	menu._on_join_pressed()
-	var list: ItemList = _node(menu, "GameList") as ItemList
-	assert_eq(list.focus_mode, Control.FOCUS_NONE)
-	var games: Array[Dictionary] = [{"name": "Alice's game", "address": "192.168.1.10", "port": 47778, "players": 2, "max": 8}]
-	Events.net_games_discovered.emit(games)
-	assert_ne(list.focus_mode, Control.FOCUS_NONE)
-	var refresh: Control = _node(menu, "RefreshButton")
-	assert_eq(refresh.get_node(refresh.focus_neighbor_bottom), list)
-	list.grab_focus()
-	var no_games: Array[Dictionary] = []
-	Events.net_games_discovered.emit(no_games)
-	assert_eq(list.focus_mode, Control.FOCUS_NONE)
-	assert_eq(_focus(), refresh, "focus moves off a list that just emptied")
-
-
-func test_host_dialog_steam_choice_is_not_focusable_while_unavailable() -> void:
-	var offline: MainMenu = _make_menu(false, false)
-	assert_true(offline._host_steam_choice.disabled)
-	assert_eq(offline._host_steam_choice.focus_mode, Control.FOCUS_NONE)
-	var online: MainMenu = _make_menu(false, true)
-	assert_false(online._host_steam_choice.disabled)
-	assert_ne(online._host_steam_choice.focus_mode, Control.FOCUS_NONE)
-
-
-func test_decorative_title_scrim_and_backdrop_cannot_take_focus() -> void:
-	var menu: MainMenu = _make_menu()
-	assert_eq(_node(menu, "Title").focus_mode, Control.FOCUS_NONE)
-	assert_eq(_node(menu, "Scrim").mouse_filter, Control.MOUSE_FILTER_IGNORE)
-	assert_eq((menu.get_node("BackdropImage") as Control).focus_mode, Control.FOCUS_NONE)

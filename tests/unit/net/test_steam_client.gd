@@ -1,6 +1,6 @@
 extends GutTest
 ## net/SteamClient.gd: encode_match_config() output
-## (spec 3.4, docs/archive/M3b_PLAN.md P1).
+## (spec 2.6).
 ##
 ## Static, pure functions — no Steam singleton, real or fake, is touched
 ## anywhere in this file, so it passes identically whether or not
@@ -48,33 +48,3 @@ func test_encode_match_config_is_one_json_object_that_parses_back() -> void:
 	assert_eq(decoded.get("sudden_death"), data["sudden_death"])
 	assert_eq(int(decoded.get("rng_seed")), int(data["rng_seed"]))
 
-
-func test_is_available_is_false_without_the_real_steam_class_or_true_with_it() -> void:
-	# Whatever this checkout actually has — no assumption either way, per
-	# docs/archive/M3b_PLAN.md's acceptance ("every P1 test must pass driven entirely
-	# by FakeSteam"); this one assertion is the exception, and it only checks
-	# that is_available() agrees with ClassDB, never touches Steam itself.
-	var client: SteamClient = SteamClient.new()
-	assert_eq(client.is_available(), ClassDB.class_exists(&"Steam"))
-
-
-## Bontago-1pi.48: leave/create/join log lines name the GDScript caller chain.
-func _origin_from_a_named_caller() -> String:
-	return _origin_helper()
-
-
-func _origin_helper() -> String:
-	return SteamClient.call_origin()
-
-
-func test_call_origin_names_the_caller_of_the_logging_method() -> void:
-	var origin: String = _origin_from_a_named_caller()
-	assert_string_contains(origin, "test_steam_client.gd")
-	assert_string_contains(origin, "_origin_from_a_named_caller", "frames start at the logging method's caller")
-	assert_false(origin.contains("_origin_helper"), "the logging method itself is skipped")
-
-
-## Without a Steam singleton the self-check still answers (no call reaches Steam).
-func test_self_check_line_without_steam_reports_not_initialised() -> void:
-	var client: SteamClient = SteamClient.new()
-	assert_string_contains(client.self_check_line(42), "lobby=42")

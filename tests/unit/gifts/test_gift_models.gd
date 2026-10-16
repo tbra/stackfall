@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mp0.119: the Codex 3D gift models are loaded through
+## the Codex 3D gift models are loaded through
 ## config/gifts/gift_model_table.tres and actually instanced by the crate, its
 ## claim reveal, the held ghost and the cat.
 
@@ -28,7 +28,7 @@ func _bounds(root: Node3D) -> AABB:
 			xform = (walker as Node3D).transform * xform
 			is_flame = is_flame or String(walker.name).to_lower().contains("flame")
 			walker = walker.get_parent()
-		# Bontago-mp0.162: the rocket's exhaust flame is a transient effect that may trail past the cell.
+		# the rocket's exhaust flame is a transient effect that may trail past the cell.
 		if is_flame:
 			continue
 		var box: AABB = xform * mi.mesh.get_aabb()
@@ -135,7 +135,7 @@ func test_cat_controller_uses_the_cat_model() -> void:
 	assert_not_null(cat.get_node_or_null("CatModel"))
 
 
-## Bontago-9cv: every built gift/crate visual is cel-shaded (gift_toon + ink outline),
+## every built gift/crate visual is cel-shaded (gift_toon + ink outline),
 ## and the copies are shared per source material rather than made per visual.
 func test_built_visuals_are_cel_shaded_with_the_ink_outline() -> void:
 	var table: GiftModelTable = GiftModelTable.shared()
@@ -174,7 +174,7 @@ func test_transparent_materials_are_left_alone() -> void:
 	assert_eq(toon.get_shader_parameter(&"albedo_color"), Color(0.2, 0.4, 0.8))
 
 
-## Bontago-mp0.156 / mp0.162: the bomb spark and the rocket flame are baked looping clips
+## The bomb spark and the rocket flame are baked looping clips
 ## played through GiftModelEntry.loop_animation (the shared held-gift animation mechanism).
 func test_bomb_spark_and_rocket_flame_play_their_looping_clip() -> void:
 	var clips: Dictionary = {&"bomb": &"spark_flicker_1s", &"rocket": &"flame_flicker_1s"}
@@ -192,7 +192,7 @@ func test_bomb_spark_and_rocket_flame_play_their_looping_clip() -> void:
 			assert_true(player.is_playing(), "%s clip is playing" % id)
 
 
-## Bontago-mp0.161 / mp0.165: the desk-fan rotor and the shaking miniature disc loop their baked clips.
+## The desk-fan rotor and the shaking miniature disc loop their baked clips.
 func test_fan_and_quake_disc_play_their_looping_clip() -> void:
 	var clips: Dictionary = {&"propeller": &"spin_1s", &"earthquake": &"quake_pulse_1s"}
 	for id: StringName in clips:

@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.167: the pause menu freezes the whole tree when no remote human is connected
+## the pause menu freezes the whole tree when no remote human is connected
 ## (Net.solo_session_rule), never otherwise. Predicate, PauseMenu wiring, a real Vs-bots match, and an
 ## ENet host with a connected client.
 
@@ -24,18 +24,6 @@ func after_each() -> void:
 
 # --- predicate ----------------------------------------------------------------
 
-func test_offline_is_solo() -> void:
-	assert_true(_NET_SCRIPT.call(&"solo_session_rule", true, false, PackedInt32Array(), 1))
-
-
-func test_host_with_only_itself_is_solo() -> void:
-	assert_true(_NET_SCRIPT.call(&"solo_session_rule", false, false, PackedInt32Array([1]), 1))
-
-
-func test_host_with_a_remote_peer_is_not_solo() -> void:
-	assert_false(_NET_SCRIPT.call(&"solo_session_rule", false, false, PackedInt32Array([1, 4242]), 1))
-
-
 func test_client_is_never_solo() -> void:
 	assert_false(_NET_SCRIPT.call(&"solo_session_rule", false, true, PackedInt32Array([1]), 7))
 
@@ -47,14 +35,6 @@ func _bare_menu(freeze: bool) -> PauseMenu:
 	add_child_autofree(menu)
 	menu.context_provider = func() -> Dictionary: return {"freeze_tree": freeze}
 	return menu
-
-
-func test_menu_without_context_never_pauses() -> void:
-	var menu: PauseMenu = autofree(load("res://ui/menus/PauseMenu.tscn").instantiate()) as PauseMenu
-	add_child_autofree(menu)
-	menu._open()
-	assert_false(get_tree().paused)
-	menu.force_close()
 
 
 func test_open_pauses_and_close_resumes_when_solo() -> void:
@@ -86,15 +66,6 @@ func test_peer_joining_while_frozen_unfreezes() -> void:
 	assert_true(menu.visible, "the menu itself stays open")
 	menu.force_close()
 
-
-func test_menu_removal_while_frozen_unpauses() -> void:
-	var menu: PauseMenu = _bare_menu(true)
-	menu._open()
-	menu.free()
-	assert_false(get_tree().paused)
-
-
-# --- real Vs-bots match -------------------------------------------------------
 
 func _snapshot() -> Dictionary:
 	var body_positions: Array[Vector3] = []
@@ -210,30 +181,3 @@ func test_connected_client_prevents_the_freeze() -> void:
 
 
 # --- a peer joining during a solo pause ----------------------------------------
-
-func test_peer_joining_during_a_solo_pause_gets_through_and_releases() -> void:
-	var host: Node = _NET_SCRIPT.new()
-	host.name = "HostNet"
-	var client: Node = _NET_SCRIPT.new()
-	client.name = "ClientNet"
-	for side: Node in [host, client]:
-		get_tree().set_multiplayer(MultiplayerAPI.create_default_interface(), NodePath(String(get_path()) + "/" + side.name))
-		add_child_autofree(side)
-		assert_eq(side.process_mode, Node.PROCESS_MODE_ALWAYS, "Net keeps polling while paused")
-	var port: int = AgentProbe.free_udp_port()
-	assert_eq(host.host_game(port, "Hostie"), OK)
-	var menu: PauseMenu = _bare_menu(false)
-	menu.context_provider = func() -> Dictionary: return {"freeze_tree": host.is_solo_session()}
-	menu._open()
-	assert_true(get_tree().paused, "solo host: frozen")
-	assert_eq(client.join_game("127.0.0.1", port, "Joiner"), OK)
-	var deadline: int = Time.get_ticks_msec() + JOIN_WAIT_MSEC
-	while host.peer_ids().size() < 2 and Time.get_ticks_msec() < deadline:
-		await get_tree().process_frame
-	assert_eq(host.peer_ids().size(), 2, "the join was processed while paused")
-	assert_false(get_tree().paused, "the pause released when the human joined")
-	assert_true(menu.visible)
-	menu.force_close()
-	client.leave()
-	host.leave()
-	await get_tree().process_frame

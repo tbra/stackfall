@@ -1,9 +1,9 @@
 extends GutTest
-## SpecialPhysics.query_bodies_in_range() tests (spec 3.5 "Explosions";
-## docs/M8_PLAN.md "Interface stubs" item 1). Real RigidBody3D/StaticBody3D
+## SpecialPhysics.query_bodies_in_range() tests (spec 2.7 "Explosions").
+## Real RigidBody3D/StaticBody3D
 ## bodies added directly to the test's own tree -- a physics smoke test, not
 ## a stubbed unit test -- proving the sphere-query, radius cutoff, exclude
-## list, owner filter and StaticBody3D skip this package's contract describes.
+## list, the filter on the owning node and StaticBody3D skip this package's contract describes.
 ##
 ## DECISION (tests/unit/gifts/test_special_physics.gd): builds bare RigidBody3D/
 ## StaticBody3D fixtures directly rather than a real Field + BlockFactory
@@ -113,7 +113,7 @@ func _make_static_body(position: Vector3) -> StaticBody3D:
 
 
 # --- query_bodies_in_range() ---------------------------------------------------
-## Query-only sibling of ExplosionFx.blast() (docs/M8_PLAN.md "Interface stubs" item 1):
+## Query-only sibling of ExplosionFx.blast():
 ## same sphere-query + dedupe, no impulse/wake/mark_script_kick.
 
 func test_query_returns_multi_shape_body_exactly_once() -> void:

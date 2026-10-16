@@ -1,16 +1,16 @@
 class_name BombEffect
 extends SpecialEffect
-## Bomb / DaBomb special. OWNER decision 2026-10-05 (docs/SPEC.md 2.6, Bontago-1pi.85):
+## Bomb / DaBomb special. OWNER decision (docs/SPEC.md 2.6):
 ## "When dropped the Bomb blinks for a few seconds, then explodes, sending nearby
 ## blocks flying away from the centre of the explosion." Impacts never set it off; a
 ## chain trigger from a neighbouring blast still detonates it early.
 ##
-## Timeline (docs/GIFT_EFFECTS_PLAN.md section 3): the Bomb blinks for
+## Timeline: the Bomb blinks for
 ## `blink_duration_s` from the moment it is dropped, then ExplosionFx blasts. That is
 ## `behavior.age() >= blink_duration_s` on the host; the blink visual is derived from
 ## the same clock on every peer (GiftBlink.start_for_gift, no RPC).
 ##
-## DECISION (Bontago-1pi.85.10): the clock starts at the drop (spawn), not at landing.
+## DECISION: the clock starts at the drop (spawn), not at landing.
 ## Clients cannot see a landing (their copy of the body is frozen kinematic and reports
 ## no velocity) and plan section 7 forbids a new RPC, so a landing-anchored timeline
 ## would leave the client's blink ending before the host's explosion by the fall time.
@@ -51,7 +51,7 @@ func effect_lifetime_s() -> float:
 	return blink_duration_s
 
 
-## DECISION (Bontago-1pi.85.10): the spent carrier is removed at the explosion, with no
+## DECISION: the spent carrier is removed at the explosion, with no
 ## 0.75 s linger (SpecialBehavior.trigger -> completed). Nothing of the bomb is left to
 ## show, and a lingering collider would keep shoving the blown-away blocks.
 func detaches() -> bool:

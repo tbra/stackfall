@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.85.26: the owner's report "black hole correctly pulls in blocks,
+## the "black hole correctly pulls in blocks,
 ## none of them are destroyed", reproduced through the REAL gift demo flow
 ## (game/main/Main.tscn -> Main.start_gift_demo_from_menu() -> config/match/sandbox_gift_demo.tres),
 ## not a hand-built field: the player's own cubes are placed through
@@ -71,7 +71,7 @@ func _note(line: String) -> void:
 
 
 func _black_hole_field() -> BlackHoleField:
-	# Bontago-1pi.85.66: the field rides the disc, so it is a child of the Field.
+	# the field rides the disc, so it is a child of the Field.
 	var parent: Node3D = Match.field()
 	if parent == null:
 		return null

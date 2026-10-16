@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.194 (owner decision Bontago-9s9 b): a lapsed home claim fades
+## b: a lapsed home claim fades
 ## slowly instead of resetting.
 
 const HOLD: float = 20.0

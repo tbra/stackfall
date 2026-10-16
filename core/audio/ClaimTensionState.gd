@@ -1,6 +1,6 @@
 class_name ClaimTensionState
 extends RefCounted
-## Local-player-relative beacon-claim tension (Bontago-1pi.114). Pure rules, no
+## Local-player-relative beacon-claim tension. Pure rules, no
 ## scene tree: Sfx feeds it the already-replicated Events.goal_capture_progress
 ## (team, progress) plus "which team am I" and "is the match live"; it answers
 ## how tense the bed should be and whether a hold just broke. Nothing here is

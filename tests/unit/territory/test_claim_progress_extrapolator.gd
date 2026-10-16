@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.117: the shared client-side hold extrapolation (Sfx + HUD).
+## the shared client-side hold extrapolation (Sfx + HUD).
 
 const HOLD_S: float = 20.0
 

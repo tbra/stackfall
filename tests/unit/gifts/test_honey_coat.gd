@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.85.51: honey-coat tuning, shader and ghost overlay wiring.
+## honey-coat tuning, shader and ghost overlay wiring.
 
 const TUNING_PATH: String = "res://config/gifts/honey_coat_tuning.tres"
 
@@ -30,7 +30,7 @@ func after_each() -> void:
 	HoneyCoat.release_statics()
 
 
-## Bontago-1pi.85.71: jelly is the only glue look.
+## jelly is the only glue look.
 func test_jelly_material_uses_the_jelly_shader_and_ghost_is_fainter() -> void:
 	var tuning: HoneyCoatTuning = load(TUNING_PATH) as HoneyCoatTuning
 	var material: ShaderMaterial = tuning.build_jelly_material()

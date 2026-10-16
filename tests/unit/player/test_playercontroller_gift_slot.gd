@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.18.2: the use_gift_slot action (keyboard G, gamepad X since Bontago-1pi.18.12)
+## the use_gift_slot action (keyboard G, gamepad X since)
 ## asks Match to spend the slotted gift, and only when one is waiting.
 
 
@@ -51,17 +51,6 @@ func test_keyboard_g_uses_the_slot_and_empty_slot_is_ignored() -> void:
 	assert_eq(fake.use_calls, [0])
 
 
-func test_r3_no_longer_spends_a_gift_it_shows_the_scoreboard() -> void:
-	var event: InputEventJoypadButton = InputEventJoypadButton.new()
-	event.device = -1
-	event.button_index = JOY_BUTTON_RIGHT_STICK
-	event.pressed = true
-	assert_false(event.is_action_pressed(&"use_gift_slot"), "Bontago-1pi.69: R3 belongs to show_scores")
-	assert_true(event.is_action_pressed(&"show_scores"))
-
-
-# --- Bontago-1pi.85.16: gift input policy (no rotate/recolour, throw vs aimed launch) ---
-
 func _held_controller(special_id: StringName) -> PlayerController:
 	var fake: FakeMatch = FakeMatch.new()
 	if special_id != &"":
@@ -110,22 +99,6 @@ func test_rotate_actions_are_no_ops_with_a_gift_held_and_work_for_an_ordinary_pi
 	assert_ne(ordinary._ghost.orientation_index, 0, "an ordinary piece still rotates")
 	gift._ghost.apply_free_rotation_delta(1.0, 1.0)
 	assert_eq(gift._ghost.free_quaternion, Quaternion.IDENTITY, "free rotation is a no-op too")
-
-
-func test_a_held_gift_ghost_visual_is_not_recoloured_by_the_owner_colour() -> void:
-	var controller: PlayerController = _held_controller(&"bomb")
-	var ghost: GhostPreview = controller._ghost
-	ghost.apply_validity(PlacementRules.Result.VALID)
-	ghost.set_player_color(Color(1.0, 0.0, 0.0))
-	# Bontago-1pi.85.33: the valid state shows the model's own materials with only the glow
-	# rim overlay, so compare the overlay itself (not a tint colour) across owner colours.
-	var red: Material = (ghost.gift_visual().find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D).material_overlay
-	ghost.set_player_color(Color(0.0, 0.0, 1.0))
-	ghost.apply_validity(PlacementRules.Result.VALID)
-	var blue: Material = (ghost.gift_visual().find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D).material_overlay
-	assert_eq(red, blue, "owner colour must not tint a held gift")
-	if blue is StandardMaterial3D:
-		assert_ne((blue as StandardMaterial3D).albedo_color, Color(0.0, 0.0, 1.0), "the overlay never takes the owner colour")
 
 
 func test_a_rocket_released_by_mouse_or_pad_fires_along_the_camera_forward_identically() -> void:

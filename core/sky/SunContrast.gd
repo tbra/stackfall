@@ -1,6 +1,6 @@
 class_name SunContrast
 extends RefCounted
-## Bontago-mp0.127: how much stronger the direct sun and how much weaker the sky ambient
+## how much stronger the direct sun and how much weaker the sky ambient
 ## are as the sun climbs, so lit and shadowed block faces read clearly at midday and soften
 ## at dusk (identity at the horizon and at night). Pure; Skybox applies it in the cycle.
 

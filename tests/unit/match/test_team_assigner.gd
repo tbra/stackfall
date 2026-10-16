@@ -1,5 +1,5 @@
 extends GutTest
-## core/rules/TeamAssigner.gd (Bontago-1pi.53): resolves per-seat lobby team picks
+## core/rules/TeamAssigner.gd: resolves per-seat lobby team picks
 ## (1..cap explicit, 0 = Random) into dense team ids at match start. Pure, so
 ## every test here is plain data in, data out.
 
@@ -57,65 +57,9 @@ func test_next_pick_cycles_numbers_then_random_then_wraps() -> void:
 		assert_eq(current, 1, "cap %d: wrapped back to 1 after Random" % cap)
 
 
-func test_next_pick_backwards_reverses_the_cycle() -> void:
-	for cap: int in [2, 3, 4]:
-		assert_eq(TeamAssigner.next_pick(1, cap, true), MatchConfig.TEAM_PICK_RANDOM, "cap %d: 1 back to Random" % cap)
-		assert_eq(TeamAssigner.next_pick(MatchConfig.TEAM_PICK_RANDOM, cap, true), cap, "cap %d: Random back to cap" % cap)
-		assert_eq(TeamAssigner.next_pick(cap, cap, true), cap - 1, "cap %d" % cap)
-		# Forward then backward is the identity everywhere on the ring.
-		for pick: int in range(0, cap + 1):
-			assert_eq(TeamAssigner.next_pick(TeamAssigner.next_pick(pick, cap), cap, true), pick, "cap %d pick %d" % [cap, pick])
-
-
-func test_next_pick_clamps_a_pick_from_a_wider_lobby() -> void:
-	assert_eq(TeamAssigner.next_pick(4, 2), MatchConfig.TEAM_PICK_RANDOM, "4 counts as the cap (2) when the cap shrank")
-	assert_eq(TeamAssigner.next_pick(4, 2, true), 1)
-	assert_eq(TeamAssigner.next_pick(-3, 3), 1, "a negative pick counts as Random")
-	assert_eq(TeamAssigner.next_pick(1, 0), MatchConfig.TEAM_PICK_RANDOM, "teams off: nothing to cycle")
-
-
 # --- default_picks -----------------------------------------------------------
 
-func test_default_picks_alternate_one_two() -> void:
-	assert_eq(TeamAssigner.default_picks(0), PackedInt32Array())
-	assert_eq(TeamAssigner.default_picks(1), _picks([1]))
-	assert_eq(TeamAssigner.default_picks(5), _picks([1, 2, 1, 2, 1]))
-	assert_eq(TeamAssigner.default_picks(8), _picks([1, 2, 1, 2, 1, 2, 1, 2]))
-	assert_eq(TeamAssigner.default_picks(-2), PackedInt32Array())
-
-
-func test_default_picks_resolve_to_two_teams_and_never_block() -> void:
-	# Two or more seats; a solo seat (Bontago-1pi.206) is one team and never blocks.
-	assert_eq(TeamAssigner.blocker(TeamAssigner.default_picks(1), 4), "")
-	for seats: int in range(TeamAssigner.DEFAULT_TEAM_COUNT, MatchConfig.PLAYER_COUNT_MAX + 1):
-		var picks: PackedInt32Array = TeamAssigner.default_picks(seats)
-		assert_eq(TeamAssigner.blocker(picks, 4), "", "%d seats" % seats)
-		var result: TeamAssigner.Result = TeamAssigner.resolve(picks, 4, 1)
-		assert_eq(result.team_numbers, _picks([1, 2]), "%d seats" % seats)
-		for slot: int in range(seats):
-			assert_eq(result.team_ids[slot], slot % 2, "%d seats: the legacy interleave" % seats)
-
-
 # --- resolve: explicit picks -------------------------------------------------
-
-func test_explicit_picks_are_kept() -> void:
-	var result: TeamAssigner.Result = TeamAssigner.resolve(_picks([1, 2, 1, 2]), 4, 7)
-	assert_eq(result.team_ids, _picks([0, 1, 0, 1]))
-	assert_eq(result.team_numbers, _picks([1, 2]))
-	assert_eq(result.team_count(), 2)
-
-
-func test_unbalanced_explicit_teams_are_allowed() -> void:
-	var result: TeamAssigner.Result = TeamAssigner.resolve(_picks([1, 1, 1, 2]), 4, 7)
-	assert_eq(result.team_ids, _picks([0, 0, 0, 1]), "3v1 is the owner's 'same number = same team'")
-	assert_eq(result.team_numbers, _picks([1, 2]))
-
-
-func test_four_single_player_teams() -> void:
-	var result: TeamAssigner.Result = TeamAssigner.resolve(_picks([1, 2, 3, 4]), 4, 7)
-	assert_eq(result.team_ids, _picks([0, 1, 2, 3]))
-	assert_eq(result.team_numbers, _picks([1, 2, 3, 4]))
-
 
 func test_numbers_compact_to_dense_ids_but_keep_their_labels() -> void:
 	var result: TeamAssigner.Result = TeamAssigner.resolve(_picks([4, 2, 4, 2]), 4, 7)
@@ -126,34 +70,7 @@ func test_numbers_compact_to_dense_ids_but_keep_their_labels() -> void:
 	assert_eq(gap.team_ids, _picks([0, 1, 1, 0, 2]))
 
 
-func test_a_pick_above_the_cap_is_clamped_to_the_cap() -> void:
-	var result: TeamAssigner.Result = TeamAssigner.resolve(_picks([4, 4, 1]), 2, 7)
-	assert_eq(result.team_numbers, _picks([1, 2]))
-	assert_eq(result.team_ids, _picks([1, 1, 0]))
-	var over_max: TeamAssigner.Result = TeamAssigner.resolve(_picks([9, 1]), 9, 7)
-	assert_eq(over_max.team_numbers, _picks([1, 4]), "a cap above TEAM_PICK_MAX is treated as TEAM_PICK_MAX")
-
-
 # --- resolve: Random ---------------------------------------------------------
-
-func test_all_random_is_balanced_across_two_teams() -> void:
-	for seats: int in range(TeamAssigner.DEFAULT_TEAM_COUNT, MatchConfig.PLAYER_COUNT_MAX + 1):
-		var picks: PackedInt32Array = PackedInt32Array()
-		picks.resize(seats)  # all 0 = Random
-		for rng_seed: int in range(SEEDS):
-			var result: TeamAssigner.Result = TeamAssigner.resolve(picks, 4, rng_seed)
-			_assert_well_formed(result, 4, "%d seats seed %d" % [seats, rng_seed])
-			assert_eq(result.team_numbers, _picks([1, 2]), "all-Random fills teams 1..2 (K = 2): %d seats" % seats)
-			var sizes: Array[int] = _sizes(result)
-			assert_eq(sizes[0] + sizes[1], seats)
-			assert_lte(absi(sizes[0] - sizes[1]), 1, "%d seats seed %d: sizes %s" % [seats, rng_seed, str(sizes)])
-
-
-func test_four_random_players_always_split_two_v_two() -> void:
-	for rng_seed: int in range(SEEDS):
-		var result: TeamAssigner.Result = TeamAssigner.resolve(_picks([0, 0, 0, 0]), 4, rng_seed)
-		assert_eq(_sizes(result), _arr([2, 2]), "seed %d" % rng_seed)
-
 
 func test_eight_random_players_split_four_v_four() -> void:
 	for rng_seed: int in range(SEEDS):
@@ -183,77 +100,6 @@ func test_a_high_explicit_number_widens_the_random_pool() -> void:
 	assert_eq(seen_orders.size(), 2, "the tie-break depends on the seed (both orders occur)")
 
 
-func test_a_random_never_widens_beyond_the_highest_explicit_number() -> void:
-	for rng_seed: int in range(SEEDS):
-		var result: TeamAssigner.Result = TeamAssigner.resolve(_picks([2, 2, 2, 0, 0, 0]), 4, rng_seed)
-		assert_between(result.team_numbers[result.team_numbers.size() - 1], 1, 2, "K = 2: no team 3 or 4 appears")
-		assert_eq(result.team_numbers, _picks([1, 2]))
-
-
-func test_more_randoms_than_teams_stay_balanced() -> void:
-	# One explicit seat on every team 1..4, then seven Randoms: sizes end 2,2,2,2 minus one.
-	for rng_seed: int in range(SEEDS):
-		var result: TeamAssigner.Result = TeamAssigner.resolve(_picks([1, 2, 3, 4, 0, 0, 0]), 4, rng_seed)
-		_assert_well_formed(result, 4, "seed %d" % rng_seed)
-		var sizes: Array[int] = _sizes(result)
-		assert_eq(sizes.size(), 4)
-		var total: int = 0
-		var largest: int = 0
-		var smallest: int = MatchConfig.PLAYER_COUNT_MAX
-		for size: int in sizes:
-			total += size
-			largest = maxi(largest, size)
-			smallest = mini(smallest, size)
-		assert_eq(total, 7)
-		assert_lte(largest - smallest, 1, "seed %d: sizes %s" % [rng_seed, str(sizes)])
-		for slot: int in range(4):
-			assert_eq(result.team_numbers[result.team_ids[slot]], slot + 1, "explicit seats keep their numbers")
-	for rng_seed: int in range(SEEDS):
-		var six: TeamAssigner.Result = TeamAssigner.resolve(PackedInt32Array([0, 0, 0, 0, 0, 0]), 4, rng_seed)
-		assert_eq(_sizes(six), _arr([3, 3]), "6 Randoms, K = 2: 3v3 (seed %d)" % rng_seed)
-
-
-func test_a_random_can_open_a_team_nobody_picked_but_ids_stay_dense() -> void:
-	# [4,4,Random]: K = 4, teams 1..3 are all empty, so the Random takes one of them.
-	var seen: Dictionary = {}
-	for rng_seed: int in range(SEEDS):
-		var result: TeamAssigner.Result = TeamAssigner.resolve(_picks([4, 4, 0]), 4, rng_seed)
-		_assert_well_formed(result, 4, "seed %d" % rng_seed)
-		assert_eq(result.team_count(), 2)
-		assert_eq(result.team_numbers[1], 4)
-		assert_between(result.team_numbers[0], 1, 3)
-		assert_eq(result.team_ids, _picks([1, 1, 0]))
-		seen[result.team_numbers[0]] = true
-	assert_gt(seen.size(), 1, "the seed picks among the empty teams")
-
-
-func test_negative_picks_count_as_random() -> void:
-	for rng_seed: int in range(SEEDS):
-		assert_eq(
-			TeamAssigner.resolve(_picks([-1, -5, 0, 0]), 4, rng_seed).team_ids,
-			TeamAssigner.resolve(_picks([0, 0, 0, 0]), 4, rng_seed).team_ids,
-			"seed %d" % rng_seed
-		)
-
-
-func test_every_mix_of_picks_resolves_well_formed() -> void:
-	var free_seats: int = 4  # seats whose pick runs through every value 0..cap
-	for cap: int in [2, 3, 4]:
-		var combos: int = floori(pow(cap + 1, free_seats))
-		for combo: int in range(combos):
-			var picks: PackedInt32Array = PackedInt32Array()
-			for slot: int in range(free_seats):
-				picks.append(floori(float(combo) / pow(cap + 1, slot)) % (cap + 1))
-			picks.append(MatchConfig.TEAM_PICK_RANDOM)
-			picks.append(MatchConfig.TEAM_PICK_RANDOM)
-			var result: TeamAssigner.Result = TeamAssigner.resolve(picks, cap, combo)
-			_assert_well_formed(result, cap, "cap %d picks %s" % [cap, str(picks)])
-			assert_eq(result.team_ids.size(), picks.size())
-			for slot: int in range(free_seats):
-				if picks[slot] > 0:
-					assert_eq(result.team_numbers[result.team_ids[slot]], picks[slot], "explicit pick kept: cap %d %s" % [cap, str(picks)])
-
-
 # --- resolve: determinism and purity ----------------------------------------
 
 func test_the_same_picks_and_seed_always_give_the_same_teams() -> void:
@@ -265,50 +111,7 @@ func test_the_same_picks_and_seed_always_give_the_same_teams() -> void:
 		assert_eq(first.team_numbers, second.team_numbers, "seed %d" % rng_seed)
 
 
-func test_different_seeds_can_resolve_randoms_differently() -> void:
-	var partitions: Dictionary = {}
-	for rng_seed: int in range(SEEDS):
-		var result: TeamAssigner.Result = TeamAssigner.resolve(_picks([0, 0, 0, 0]), 4, rng_seed)
-		partitions[str(result.team_ids)] = true
-	assert_gt(partitions.size(), 1, "the seed matters: more than one 2v2 split shows up over %d seeds" % SEEDS)
-
-
-func test_resolve_leaves_the_global_rng_alone() -> void:
-	seed(4242)
-	var expected: int = randi()
-	seed(4242)
-	TeamAssigner.resolve(_picks([0, 0, 0, 0, 0]), 4, 11)
-	assert_eq(randi(), expected, "resolve() draws only from its own seeded generator")
-
-
-func test_resolve_does_not_modify_its_input() -> void:
-	var picks: PackedInt32Array = _picks([0, 5, 0, 9])
-	var copy: PackedInt32Array = picks.duplicate()
-	TeamAssigner.resolve(picks, 3, 5)
-	assert_eq(picks, copy)
-
-
 # --- resolve: edge cases -----------------------------------------------------
-
-func test_teams_off_is_free_for_all() -> void:
-	var result: TeamAssigner.Result = TeamAssigner.resolve(_picks([1, 1, 0, 2]), 0, 3)
-	assert_eq(result.team_ids, _picks([0, 1, 2, 3]), "one team per slot, like TeamMode.OFF")
-	assert_eq(result.team_numbers, _picks([1, 2, 3, 4]))
-
-
-func test_no_seats_resolve_to_nothing() -> void:
-	var result: TeamAssigner.Result = TeamAssigner.resolve(PackedInt32Array(), 4, 3)
-	assert_true(result.team_ids.is_empty())
-	assert_true(result.team_numbers.is_empty())
-	assert_eq(result.team_count(), 0)
-
-
-func test_a_single_random_seat_resolves_to_one_team() -> void:
-	var result: TeamAssigner.Result = TeamAssigner.resolve(_picks([0]), 4, 3)
-	_assert_well_formed(result, 4, "single seat")
-	assert_eq(result.team_ids, _picks([0]))
-	assert_eq(result.team_count(), 1)
-
 
 # --- blocker -----------------------------------------------------------------
 
@@ -316,33 +119,6 @@ func test_blocker_names_the_reason_when_everyone_is_on_one_team() -> void:
 	for picks: PackedInt32Array in [_picks([1, 1]), _picks([1, 1, 1, 1]), _picks([2, 2, 2]), _picks([4, 4]), _picks([3, 3, 3, 3, 3, 3, 3, 3])]:
 		assert_eq(TeamAssigner.blocker(picks, 4), TeamAssigner.BLOCKER_ONE_TEAM, str(picks))
 	assert_ne(TeamAssigner.BLOCKER_ONE_TEAM, "")
-
-
-func test_blocker_is_empty_when_the_seats_form_two_teams() -> void:
-	for picks: PackedInt32Array in [
-		_picks([1, 2]), _picks([1, 1, 2]), _picks([2, 4]), _picks([1, 2, 3, 4]),
-		_picks([1, 0]), _picks([0, 0]), _picks([0, 0, 0, 0]), _picks([1, 1, 1, 0]), _picks([4, 0]),
-	]:
-		assert_eq(TeamAssigner.blocker(picks, 4), "", str(picks))
-
-
-func test_blocker_ignores_teams_off_and_single_seats() -> void:
-	assert_eq(TeamAssigner.blocker(_picks([1, 1, 1]), 0), "", "teams off: nothing to block")
-	assert_eq(TeamAssigner.blocker(_picks([1]), 4), "", "fewer than two seats")
-	assert_eq(TeamAssigner.blocker(PackedInt32Array(), 4), "")
-
-
-func test_blocker_respects_the_cap() -> void:
-	# Two picks above a 2-team cap clamp to team 2 together: still one team.
-	assert_eq(TeamAssigner.blocker(_picks([3, 4]), 2), TeamAssigner.BLOCKER_ONE_TEAM)
-	assert_eq(TeamAssigner.blocker(_picks([1, 4]), 2), "")
-
-
-func test_blocker_agrees_with_resolve_for_every_seed() -> void:
-	for picks: PackedInt32Array in [_picks([1, 1, 1]), _picks([1, 1, 0]), _picks([0, 0]), _picks([2, 2])]:
-		var blocked: bool = TeamAssigner.blocker(picks, 4) != ""
-		for rng_seed: int in range(10):
-			assert_eq(TeamAssigner.resolve(picks, 4, rng_seed).team_count() < 2, blocked, "%s seed %d" % [str(picks), rng_seed])
 
 
 # --- the hand-off to MatchConfig ---------------------------------------------

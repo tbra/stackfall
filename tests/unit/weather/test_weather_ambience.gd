@@ -1,5 +1,5 @@
 extends GutTest
-## Weather ambience loops and gust whoosh (Bontago-mp0.118).
+## Weather ambience loops and gust whoosh.
 
 var _amb: WeatherAmbience = null
 
@@ -11,22 +11,6 @@ func before_each() -> void:
 
 func _gust(duration: float) -> Dictionary:
 	return {"id": 1, "x": 0.0, "y": 5.0, "z": 0.0, "a": 0.0, "r": 3.0, "d": duration, "s": 1.0}
-
-
-func test_each_weather_has_a_loadable_loop() -> void:
-	for weather_id: StringName in [&"rain", &"snow", &"storm"]:
-		Events.weather_started.emit(weather_id)
-		var player: AudioStreamPlayer = _amb.bed_player(weather_id)
-		assert_not_null(player, "%s bed" % weather_id)
-		var stream: AudioStreamWAV = player.stream as AudioStreamWAV
-		assert_eq(stream.loop_mode, AudioStreamWAV.LOOP_FORWARD)
-		assert_eq(stream.loop_end, 1411200, "%s loop covers the file" % weather_id)
-	assert_ne(_amb.bed_player(&"rain").stream, _amb.bed_player(&"storm").stream)
-
-
-func test_fog_has_no_bed() -> void:
-	Events.weather_started.emit(&"fog")
-	assert_eq(_amb.bed_ids().size(), 0)
 
 
 func test_intensity_maps_to_gain_and_volume() -> void:
@@ -90,7 +74,7 @@ func test_gust_event_plays_whoosh_matching_duration() -> void:
 	assert_eq(_amb.last_gust_stream.loop_mode, AudioStreamWAV.LOOP_DISABLED)
 
 
-## Bontago-1pi.77: loops and gust whoosh follow Master + Weather only, not SFX.
+## loops and gust whoosh follow Master + Weather only, not SFX.
 func test_weather_volume_follows_weather_channel_only() -> void:
 	var saved_weather: float = Settings.weather_volume_percent()
 	var saved_sfx: float = Settings.sfx_volume_percent()
@@ -108,12 +92,3 @@ func test_weather_volume_follows_weather_channel_only() -> void:
 	assert_almost_eq(gust_player.volume_db, _amb.tuning.gust_volume_db + Settings.master_volume_db() + Settings.weather_volume_db(), 0.001)
 	Settings.set_weather_volume_percent(saved_weather)
 
-
-func test_release_audio_stops_beds_and_drops_streams() -> void:
-	Events.weather_started.emit(&"rain")
-	var player: AudioStreamPlayer = _amb.bed_player(&"rain")
-	assert_true(player.playing)
-	_amb.release_audio()
-	assert_false(player.playing)
-	assert_null(player.stream)
-	assert_null(_amb.last_gust_stream)

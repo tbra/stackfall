@@ -1,6 +1,6 @@
 class_name FlightFacing
 extends RefCounted
-## Bontago-1pi.85.49: turns a flying gift carrier so its model's nose axis points along its
+## turns a flying gift carrier so its model's nose axis points along its
 ## velocity. Shared by Rocket (every flight tick) and Magnet (while thrown). Pure helper plus one
 ## write; no state of its own beyond a block-meta flag marking the first write.
 
@@ -29,7 +29,7 @@ static func nose_basis(nose: Vector3, direction: Vector3) -> Basis:
 ## Like nose_basis(), but the model keeps its world up (a yaw then a pitch, never a roll): the
 ## unit `nose` axis (horizontal in the model) points along `direction` and the model's +Y stays
 ## pointing up. For a model with a fixed "front" that must not turn upside down, e.g. the
-## slingshot (Bontago-1pi.85.79). A vertical direction falls back to the world Z as its up hint.
+## slingshot. A vertical direction falls back to the world Z as its up hint.
 static func upright_nose_basis(nose: Vector3, direction: Vector3) -> Basis:
 	var to: Vector3 = direction.normalized()
 	var up_hint: Vector3 = Vector3.UP

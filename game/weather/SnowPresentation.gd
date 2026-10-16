@@ -1,10 +1,10 @@
 class_name SnowPresentation
 extends WeatherPresentation
-## Falling snow (Bontago-22y.6): one GPUParticles3D box that follows the active
+## Falling snow: one GPUParticles3D box that follows the active
 ## camera, flakes falling in world space, density scaled by the ramped
 ## intensity. Presentation only; the colliding snow is SnowEffect/SnowCaps.
 ##
-## Bontago-mp0.97 (playtest: too subtle): flakes are bigger and denser, never
+## playtest: too subtle: flakes are bigger and denser, never
 ## smaller than flake_min_angle on screen (shader), drawn white with a cool
 ## outline so they read against the bright sky, and they thin out and stop
 ## early in the ramp-out (SnowTuning.flake_density) so the melt that follows
@@ -27,14 +27,14 @@ const HORIZONTAL_EPS: float = 0.0001
 var tuning: SnowTuning = preload("res://config/weather/snow.tres") as SnowTuning
 
 var _particles: GPUParticles3D = null
-## Bontago-1pi.11.37: GraphicsPreset.weather_density_scale, applied through amount_ratio.
+## GraphicsPreset.weather_density_scale, applied through amount_ratio.
 var _density_scale: float = 1.0
-## Bontago-mp0.19: fall distance now emitted (quantised) and its ratio to the
+## fall distance now emitted (quantised) and its ratio to the
 ## tuned fall; the flake lifetime and amount scale with it so the snow starts
 ## at the cloud ceiling at unchanged density.
 var _fall_m: float = 0.0
 var _fall_ratio: float = 1.0
-## Bontago-mp0.155: quantised half extent (metres) the flake box now spans and
+## quantised half extent (metres) the flake box now spans and
 ## the amount multiplier it brings, so the box reaches the arena the camera looks
 ## at instead of a puff in front of the camera.
 var _half_m: float = 0.0

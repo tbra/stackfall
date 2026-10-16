@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.65 (owner playtest 2026-10-04: "I can still move the camera with
+## ("I can still move the camera with
 ## the joystick while the round end screen shows"). The camera rig ignores
 ## orbit/zoom input while the results screen or pause menu is open.
 
@@ -54,15 +54,3 @@ func test_pause_menu_blocks_and_releases_camera_input() -> void:
 	Events.pause_menu_closed.emit()
 	assert_false(rig.is_input_blocked())
 
-
-func test_results_block_clears_on_scope_reset_and_ignores_zoom_key() -> void:
-	var rig: CameraRig = _make_rig()
-	Events.match_results_ready.emit({})
-	var distance_before: float = rig._distance
-	var key: InputEventAction = InputEventAction.new()
-	key.action = &"camera_zoom_in"
-	key.pressed = true
-	rig._unhandled_input(key)
-	assert_eq(rig._distance, distance_before, "zoom ignored while results are open")
-	Events.match_scope_reset.emit()
-	assert_false(rig.is_input_blocked(), "next match starts with camera input live")

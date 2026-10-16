@@ -1,6 +1,6 @@
 class_name CloudDriftMath
 extends RefCounted
-## Bontago-mp0.92: pure rules of the shared cloud drift (no scene tree). Every cloud layer's
+## pure rules of the shared cloud drift (no scene tree). Every cloud layer's
 ## motion is the integrated wind (CloudDriftState.offset) times the clump's own rate, so
 ## layers at different depths slide at different speeds and the cloud shadows follow the
 ## very same vector.

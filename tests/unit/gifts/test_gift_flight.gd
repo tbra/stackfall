@@ -76,7 +76,7 @@ func test_flight_lands_then_expires_at_exact_configured_life_boundary() -> void:
 	assert_false(Match._gifts._crates.has(gift_id))
 
 
-## Bontago-mp0.139: the parachute visuals follow the falling/landed state and
+## the parachute visuals follow the falling/landed state and
 ## change nothing about the descent itself (positions, phases, timing).
 func test_host_crate_parachute_deploys_on_spawn_and_collapses_on_landing() -> void:
 	_start()

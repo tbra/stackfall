@@ -10,10 +10,10 @@ func _make_ghost() -> GhostPreview:
 	return ghost
 
 
-# --- Bontago-mv0.17 item 3: rotated-bottom pivot -----------------------------
+# --- item 3: rotated-bottom pivot -----------------------------
 
 ## The lowest world-space Y any corner of the ghost's own shape visual
-## reaches -- the thing an owner actually sees clip into the disk or float
+## reaches -- the thing a player actually sees clip into the disk or float
 ## above the cursor if the pivot math is wrong. Each mesh's local box corners
 ## have to go through `ghost.basis` (not just a Y-translation) to land in
 ## world space correctly once the ghost itself is rotated -- a MeshInstance3D
@@ -43,8 +43,8 @@ func _visual_world_bottom_y(ghost: GhostPreview) -> float:
 	return min_world_y
 
 
-## Bontago-xtq.9 (owner test 2026-09-23, "the preview starts from the bottom
-## of the ghost block which looks a bit weird when it's angled"): the mirror
+## Requirement "the preview starts from the bottom
+## of the ghost block which looks a bit weird when it's angled": the mirror
 ## image of _visual_world_bottom_y() above -- the highest world-space Y any
 ## corner of the ghost's own shape visual reaches, used to check the
 ## projection prism's own new top-of-column cap.
@@ -106,30 +106,30 @@ func test_update_placement_keeps_a_rotated_talls_shapes_visual_bottom_at_the_rep
 	)
 
 
-# --- Bontago-mv0.17 item 6 / Bontago-xtq.7: footprint projection ------------
-# (docs/solid-blocks2-issue.png, owner test 2026-09-23): the footprint is now
+# --- footprint projection ------------
+# the footprint is now
 # always the *whole* rotated shape's own silhouette -- one polygon, not one
 # per bottom cell -- so every case below that used to expect one quad per
 # distinct column now expects exactly 1.
 
 
-# --- Bontago-mv0.25 (docs/rotation-issue.png, owner test 2026-09-22): the
-# out-of-territory tint reads grey, not red -----------------------------------
+# --- out-of-territory tint
+# reads grey, not red -----------------------------------
 
 
-# --- Bontago-xtq.40 (owner playtest, "ghost block renders without any lines"):
+# --- "ghost block renders without any lines":
 # the held shape's own body must draw the same cell-grid lines a real placed
 # block does, via a dedicated shader that can never gain the settled-block
 # glow -------------------------------------------------------------------
 
 
-# --- Bontago-mv0.25 (docs/rotation-issue.png): the shadow blob is gone -------
+# --- docs/rotation-issue.png: the shadow blob is gone -------
 
 
-# --- Bontago-mv0.25 (docs/rotation-issue.png): reject kick is world-space ----
+# --- docs/rotation-issue.png: reject kick is world-space ----
 
 
-# --- Bontago-mv0.25 (docs/rotation-issue.png): rotated footprint polygons ----
+# --- docs/rotation-issue.png: rotated footprint polygons ----
 
 func _flat_l_shape() -> BlockShape:
 	var shape: BlockShape = BlockShape.new()
@@ -157,7 +157,7 @@ func _polygon_area(points: PackedVector2Array) -> float:
 	return absf(area) * 0.5
 
 
-## The regression this pins: before Bontago-mv0.25, every footprint quad was a
+## The regression this pins: before every footprint quad was a
 ## fixed axis-aligned unit square whose *position* (not shape) tracked the
 ## rotated shape (docs/rotation-issue.png: a rotated block with unrotated,
 ## overlapping footprint squares). At a 90-degree yaw a square's own bounding
@@ -166,13 +166,13 @@ func _polygon_area(points: PackedVector2Array) -> float:
 ## left the bounding box at the original axis-aligned size would be caught by
 ## the 45-degree case's larger, non-axis-aligned bounding box.
 ##
-## Bontago-xtq.7: updated for the whole-shape hull contract -- there is now
+## updated for the whole-shape hull contract -- there is now
 ## exactly one footprint polygon (index 0) covering every cell's own rotated
 ## corners together, not one polygon per cell, so the expected points below
 ## are gathered across all of the L-shape's 3 cells before taking their own
 ## convex hull (the same primitive the implementation calls, but the corner
 ## *rotation* math is still independently hand-expanded, which is the part
-## Bontago-mv0.25's regression was actually in).
+## 's regression was actually in).
 func test_footprint_polygon_matches_the_whole_rotated_shapes_projected_corners() -> void:
 	var shape: BlockShape = _flat_l_shape()
 	var ghost: GhostPreview = autofree(GhostPreview.new())
@@ -223,8 +223,7 @@ func test_footprint_polygon_matches_the_whole_rotated_shapes_projected_corners()
 		)
 
 
-# --- Bontago-xtq.7: the whole-shape projection prism -------------------------
-# (docs/solid-blocks2-issue.png, owner test 2026-09-23) -----------------------
+# --- the whole-shape projection prism -------------------------
 
 func _footprint_test_map() -> MapDef:
 	var map_def: MapDef = MapDef.new()
@@ -244,7 +243,7 @@ func _footprint_test_map() -> MapDef:
 ## (never the pillar's own top face -- the old per-cell raycast against the
 ## unfiltered world happily landed there), plus a projection prism reaching
 ## from that same disc height up to the held shape's own current highest
-## point (Bontago-xtq.9: the column now caps at the shape's top, not its
+## point (the column now caps at the shape's top, not its
 ## bottom, so a pitched/yawed ghost sits fully inside it).
 func test_pitched_bar3_over_a_placed_block_gets_one_disc_footprint_and_a_matching_prism() -> void:
 	var field: Field = autofree(Field.new())
@@ -269,7 +268,7 @@ func test_pitched_bar3_over_a_placed_block_gets_one_disc_footprint_and_a_matchin
 	# rotate-drag gesture.
 	ghost.apply_free_rotation_delta(0.0, deg_to_rad(20.0), Vector3.RIGHT)
 
-	# The disk-only probe (Bontago-mv0.17 item 5) reports the bare disk
+	# The disk-only probe (item 5) reports the bare disk
 	# surface at the field's own origin regardless of the pillar sitting
 	# there -- same surface_point PlayerController's own probe would report.
 	var disk_surface_point: Vector3 = Vector3.ZERO
@@ -283,7 +282,7 @@ func test_pitched_bar3_over_a_placed_block_gets_one_disc_footprint_and_a_matchin
 
 	assert_true(ghost.has_projection_mesh(), "a real gap between the shape and the disc must show a projection prism.")
 	var span: Vector2 = ghost.projection_span_y()
-	# Bontago-xtq.9: unlike _rotated_bottom_offset() (deliberately the
+	# unlike _rotated_bottom_offset() (deliberately the
 	# cube_margin-shrunk *collision* half_size, so placed blocks don't jam --
 	# this file's own DECISION on collision_box_local_centers()),
 	# _rotated_top_offset() uses the same full cube_size the *visual* mesh
@@ -292,7 +291,7 @@ func test_pitched_bar3_over_a_placed_block_gets_one_disc_footprint_and_a_matchin
 	# _visual_world_top_y() tightly, not just within a cube_margin tolerance.
 	assert_almost_eq(
 		span.x, _visual_world_top_y(ghost), 0.01,
-		"Bontago-xtq.9: the prism's own top must reach the held shape's own current highest rendered point, not its lowest."
+		"the prism's own top must reach the held shape's own current highest rendered point, not its lowest."
 	)
 	assert_true(
 		span.x >= _visual_world_top_y(ghost) - 0.001,
@@ -304,7 +303,7 @@ func test_pitched_bar3_over_a_placed_block_gets_one_disc_footprint_and_a_matchin
 	)
 
 
-## hover_height alone (spec 2.5's default lift) is a real, known gap -- proof
+## hover_height alone (spec 1.4's default lift) is a real, known gap -- proof
 ## the collapse guard above isn't just always true.
 func test_projection_prism_spans_hover_height_plus_the_shapes_own_height_over_flat_ground() -> void:
 	var ghost: GhostPreview = _make_ghost()
@@ -313,7 +312,7 @@ func test_projection_prism_spans_hover_height_plus_the_shapes_own_height_over_fl
 
 	assert_true(ghost.has_projection_mesh(), "hover_height alone should still show a prism.")
 	var span: Vector2 = ghost.projection_span_y()
-	# Bontago-xtq.9: the prism's own top is now the shape's own highest
+	# the prism's own top is now the shape's own highest
 	# point, not its lowest -- for an unrotated cube resting hover_height
 	# above the ground, that adds the collision half-extent (how far the
 	# node's own origin sits above the ground, _rotated_bottom_offset()) plus
@@ -328,18 +327,18 @@ func test_projection_prism_spans_hover_height_plus_the_shapes_own_height_over_fl
 	)
 
 
-# --- Bontago-xtq.10 (owner test 2026-09-23, "any surface that falls within
+# --- (requirement "any surface that falls within
 # the projection should be a lot brighter (maybe emissive?)") ---------------
 
 
-# --- Bontago-xtq.19 (owner screenshots 2026-09-24: a tilted 4-long bar and a
+# --- (screenshots of a tilted 4-long bar and a
 # T-piece both show dark vertical seams / overlapping stepped columns inside
 # the translucent prism) --------------------------------------------------------
 # Attempt 3 walls the *merged rendered mesh's* own silhouette (game/
 # GhostPreview.gd's _shape_silhouette_loops(), Geometry2D.merge_polygons over
-# every triangle of the shape's own real visual shell) instead of xtq.16's
+# every triangle of the shape's own real visual shell) instead of the earlier
 # per-column hulls, so no interior wall is left to double-blend. Attempt 4
-# restores xtq.16's owner-verified rule on top of that: the prism is the shaft
+# restores the per-column hull rule on top of that: the prism is the shaft
 # *under* the shape -- every wall's top follows the shape's own underside along
 # the outline (sloped for a tilted shape, stepped where an overhang begins),
 # never the whole shape's top. projection_span_y() stays
@@ -530,8 +529,8 @@ func _held_ghost(shape_path: String, roll_degrees: float) -> GhostPreview:
 	return ghost
 
 
-## Bontago-xtq.16's own "single cube unchanged" case: the shaft's top is the
-## cube's own underside, never its top (the xtq.9 whole-shape cap attempt 3
+## 's own "single cube unchanged" case: the shaft's top is the
+## cube's own underside, never its top (the earlier whole-shape cap attempt
 ## reverted to). Must fail against attempt 3.
 func test_single_cube_projection_walls_cap_at_its_own_underside_not_the_shapes_own_top() -> void:
 	var ghost: GhostPreview = _make_ghost()
@@ -549,7 +548,7 @@ func test_single_cube_projection_walls_cap_at_its_own_underside_not_the_shapes_o
 	_assert_walls_tile_the_outline(ghost)
 
 
-## The literal Bontago-xtq.16 S4 repro, restored: config/blocks/S4.tres has
+## The literal S4 repro, restored: config/blocks/S4.tres has
 ## cells (1,0,0)/(2,0,0) in a bottom row and (0,1,0)/(1,1,0) directly above,
 ## offset one column left. No wall vertex may rise above the lower cells' own
 ## top (a full cube_size below the shape's own top), the x=0 end (under the
@@ -589,7 +588,7 @@ func test_s4_at_identity_rotation_never_projects_above_the_lower_cells_own_top()
 ## The owner's own literal repro shape/gesture: a 1x4 bar rolled 30 degrees
 ## about its own long axis (screenshot_20260924_204137.png) sends every one of
 ## its 4 cells to a distinct, overlapping rotated footprint -- exactly the case
-## xtq.16's per-column model could not merge or dedupe. One outer loop, no
+## The per-column model could not merge or dedupe. One outer loop, no
 ## overlapping walls, and every wall top on the bar's own sloped underside.
 func test_tilted_bar_silhouette_stays_a_single_outer_loop_with_no_overlapping_walls() -> void:
 	var ghost: GhostPreview = _held_ghost("res://config/blocks/bar4.tres", 30.0)
@@ -607,12 +606,12 @@ func test_tilted_bar_silhouette_stays_a_single_outer_loop_with_no_overlapping_wa
 	)
 
 
-# --- Bontago-xtq.15 (owner playtest 2026-09-23, "the same white projection
+# --- ("the same white projection
 # that shows up on the disk should show up on the blocks as well, just a bit
 # fainter") -------------------------------------------------------------------
 
 
-# --- Bontago-xtq.18 attempt 3 (feel8a, feedback/owner-noise-footprint.png:
+# --- footprint speckle:
 # black/white speckle under the ghost; root cause was the block-projection
 # decal painting the disc with a box bottom exactly on the disc and 0.0
 # fades, i.e. pow(0, 0) = NaN per pixel) ------------------------------------

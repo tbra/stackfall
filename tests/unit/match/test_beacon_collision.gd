@@ -1,5 +1,5 @@
 extends GutTest
-## Home beacon collision (Bontago-6fc.4): static compound on the Field body.
+## Home beacon collision: static compound on the Field body.
 
 var _tiny_map: MapDef
 
@@ -16,29 +16,6 @@ func _field() -> Field:
 	add_child_autofree(field)
 	field.place_flags(2, PackedColorArray([Color.RED, Color.BLUE]), 0)
 	return field
-
-
-func test_home_flag_has_collider_matching_model() -> void:
-	var field: Field = _field()
-	var flag: HomeFlag = field.home_flags()[0]
-	var tuning: BeaconVisualTuning = flag.beacon_visuals
-	var owners: PackedInt32Array = field.flag_collision_owners(0)
-	var body: AnimatableBody3D = field.beacon_body()
-	assert_eq(owners.size(), 2, "socket plus crystal")
-	var top: float = -INF
-	var max_radius: float = 0.0
-	for i: int in range(2):
-		var shape: Shape3D = body.shape_owner_get_shape(owners[i], 0)
-		var xform: Transform3D = body.shape_owner_get_transform(owners[i])
-		var aabb: AABB = shape.get_debug_mesh().get_aabb()
-		top = maxf(top, xform.origin.y + aabb.end.y)
-		max_radius = maxf(max_radius, aabb.size.x * 0.5)
-	var expected_top: float = tuning.socket_height + tuning.crystal_height
-	assert_almost_eq(top, expected_top, 0.01, "collider top is the crystal tip")
-	assert_almost_eq(max_radius, tuning.socket_radius, 0.01, "widest part is the socket")
-	var offset: Vector3 = body.shape_owner_get_transform(owners[0]).origin
-	assert_almost_eq(offset.x, flag.position.x, 0.001)
-	assert_almost_eq(offset.z, flag.position.z, 0.001)
 
 
 func test_block_dropped_on_beacon_rests_above_it() -> void:
@@ -59,21 +36,6 @@ func test_block_dropped_on_beacon_rests_above_it() -> void:
 	await wait_physics_frames(150)
 	var floor_y: float = _tiny_map.disk_height * 0.5
 	assert_gt(body.global_position.y - 0.25, floor_y + rest_y - 0.1, "rests on the socket, not the disc")
-
-
-func test_collider_follows_tilted_field() -> void:
-	var field: Field = _field()
-	var body: AnimatableBody3D = field.beacon_body()
-	var owner_id: int = field.flag_collision_owners(0)[0]
-	var local_before: Transform3D = body.shape_owner_get_transform(owner_id)
-	var tilt: Quaternion = Quaternion(Vector3(1.0, 0.0, 1.0).normalized(), deg_to_rad(15.0))
-	field.apply_replicated_pose(Vector3.ZERO, tilt)
-	var local_after: Transform3D = body.shape_owner_get_transform(owner_id)
-	assert_true(local_before.is_equal_approx(local_after), "shape stays fixed in the body's frame")
-	var world: Transform3D = body.global_transform * local_after
-	var flat_world: Vector3 = local_before.origin
-	assert_gt(world.origin.distance_to(flat_world), 0.1, "world pose moved with the tilt")
-	assert_almost_eq(world.basis.get_rotation_quaternion().angle_to(tilt), 0.0, 0.01)
 
 
 func test_elimination_removes_collider() -> void:

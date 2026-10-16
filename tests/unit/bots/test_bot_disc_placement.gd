@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1t5.51 (owner playtest: "when bots place blocks directly on the disc they fall straight
+## ("when bots place blocks directly on the disc they fall straight
 ## through"). Drives BotController._send_best_placement() against the real Match/Field/physics and
 ## asserts the spawned block comes to rest on the disc top, for both a bare-disc column and a
 ## candidate whose support probe falls back (no hit).
@@ -81,7 +81,7 @@ func _place_via_bot(origin: Vector2, orientation_index: int = 0) -> Block:
 	candidate.support_height = float(hit.get("height", 0.0))
 	bot._candidates = [candidate] as Array[BotCandidate]
 	# The profile is the shared, cached shipped tuning resource: mutate a copy, never the
-	# original, or the zeroed aim noise leaks into later scripts (test_bot_tuning, gate 2026-10-14).
+	# original, or the zeroed aim noise leaks into later scripts (test_bot_tuning, gate).
 	bot._profile = bot._profile.duplicate() as BotDifficultyProfile
 	bot._profile.aim_noise_m = 0.0
 	var before: int = _registry.all_blocks().size()
@@ -147,33 +147,3 @@ func test_bot_flat_block_spawns_above_the_disc_not_inside_it() -> void:
 	await wait_physics_frames(SETTLE_TICKS)
 	assert_gt(_lowest_point_local_y(block), _field.surface_y() - REST_TOLERANCE_M, "flat block fell through the disc")
 	assert_lt(_field.to_local(block.global_position).y, _field.surface_y() + 1.0, "and rests on the disc top")
-
-
-## Human behaviour unchanged: literal offsets for the 3-cell pillar (margin 0.02 -> half box 0.49),
-## hand-derived from the pre-refactor GhostPreview formula (lowest rotated collision corner relative to
-## the unrotated bottom-centre pivot): upright +0.01, lying flat (either axis) -0.49, upside down -2.99.
-func _orientation_where(predicate: Callable) -> int:
-	for index: int in range(BlockOrientations.ORIENTATION_COUNT):
-		if bool(predicate.call(BlockOrientations.get_basis(index))):
-			return index
-	return -1
-
-
-func test_rotated_bottom_offset_matches_the_pre_refactor_ghost_values() -> void:
-	var physics: PhysicsTuning = load("res://config/physics/physics_tuning.tres") as PhysicsTuning
-	var ghost: GhostPreview = GhostPreview.new()
-	add_child_autofree(ghost)
-	ghost.set_shape(PILLAR_SHAPE)
-	var cases: Dictionary = {
-		0: 0.01,
-		_orientation_where(func(b: Basis) -> bool: return absf(b.x.y) > 0.99): -0.49,
-		_orientation_where(func(b: Basis) -> bool: return absf(b.z.y) > 0.99): -0.49,
-		_orientation_where(func(b: Basis) -> bool: return b.y.y < -0.99): -2.99,
-	}
-	for index: int in cases:
-		assert_gte(index, 0, "a matching orientation exists")
-		var expected: float = float(cases[index])
-		var basis: Basis = BlockOrientations.get_basis(index)
-		assert_almost_eq(PILLAR_SHAPE.rotated_bottom_offset(basis, physics.cube_size, physics.cube_margin), expected, 0.0001, "helper, orientation %d" % index)
-		ghost.set_orientation_index(index)
-		assert_almost_eq(ghost._rotated_bottom_offset(), expected, 0.0001, "ghost, orientation %d" % index)

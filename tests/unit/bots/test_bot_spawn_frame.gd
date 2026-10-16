@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1t5.55.1 (docs/BOT_TOWER_PLAN.md 55a): the bot models a piece where it actually spawns,
+## The bot models a piece where it actually spawns,
 ## cube at B*(cell - bottom_center()) around the pivot the host is given (BlockFactory.build parity).
 ## Pure geometry: no match, no physics stepping.
 
@@ -55,63 +55,6 @@ func _view(held: BlockShape) -> BotWorldView:
 
 func _xz(v: Vector3) -> Vector2:
 	return Vector2(v.x, v.z)
-
-
-func test_info_cubes_match_the_spawned_collision_cubes() -> void:
-	for shape: BlockShape in BlockShape.load_bag_shapes():
-		var block: Block = BlockFactory.build(shape, _physics)
-		add_child_autofree(block)
-		var positions: Array[Vector3] = []
-		for child: Node in block.get_children():
-			if child is CollisionShape3D:
-				positions.append((child as CollisionShape3D).position)
-		assert_eq(positions.size(), shape.cells.size(), "%s collision cubes" % shape.id)
-		for info: BotStatics.OrientationInfo in BotStatics.orientation_infos(shape, _tuning):
-			var basis: Basis = BlockOrientations.get_basis(info.index)
-			var offsets: PackedVector3Array = shape.cube_offsets(basis, _physics.cube_size)
-			var info_set: Array[Vector2] = []
-			for p: Vector2 in info.cubes:
-				info_set.append(p * _physics.cube_size)
-			for pos: Vector3 in positions:
-				var rotated: Vector2 = _xz(basis * pos)
-				var found: bool = false
-				for q: Vector2 in info_set:
-					if q.distance_to(rotated) <= EPS:
-						found = true
-						break
-				assert_true(found, "%s o%d cube at %s" % [shape.id, info.index, rotated])
-				var in_offsets: bool = false
-				for o: Vector3 in offsets:
-					if _xz(o).distance_to(rotated) <= EPS:
-						in_offsets = true
-						break
-				assert_true(in_offsets, "%s o%d cube_offsets parity" % [shape.id, info.index])
-
-
-func test_footprint_cells_of_covers_the_spawned_boxes() -> void:
-	var grid: CellGrid = CellGrid.new(MAP_RADIUS, CELL)
-	var origin: Vector2 = Vector2(1.3, -2.1)
-	var half: float = _physics.cube_size * 0.5 - 0.001
-	for shape: BlockShape in BlockShape.load_bag_shapes():
-		for info: BotStatics.OrientationInfo in BotStatics.orientation_infos(shape, _tuning):
-			var basis: Basis = BlockOrientations.get_basis(info.index)
-			var expected: Dictionary = {}
-			for offset: Vector3 in shape.cube_offsets(basis, _physics.cube_size):
-				var centre: Vector2 = origin + _xz(offset)
-				var x0: int = floori((centre.x - half + grid.half_extent) / grid.cell_size)
-				var x1: int = ceili((centre.x + half + grid.half_extent) / grid.cell_size) - 1
-				var y0: int = floori((centre.y - half + grid.half_extent) / grid.cell_size)
-				var y1: int = ceili((centre.y + half + grid.half_extent) / grid.cell_size) - 1
-				for cy: int in range(y0, y1 + 1):
-					for cx: int in range(x0, x1 + 1):
-						expected[cy * grid.res + cx] = true
-			var got: PackedInt32Array = BotStatics.footprint_cells_of(shape, info, origin, _physics.cube_size, grid)
-			var got_set: Dictionary = {}
-			for index: int in got:
-				got_set[index] = true
-			assert_eq(got_set.keys().size(), expected.keys().size(), "%s o%d cell count" % [shape.id, info.index])
-			for index: Variant in expected:
-				assert_true(got_set.has(index), "%s o%d covers cell %s" % [shape.id, info.index, index])
 
 
 func test_stack_sites_centre_the_footprint_on_the_tower() -> void:

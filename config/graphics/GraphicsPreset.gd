@@ -1,9 +1,9 @@
 class_name GraphicsPreset
 extends Resource
-## One selectable graphics quality tier (spec 3.1). autoload/Settings.gd
+## One selectable graphics quality tier (spec 2.1). autoload/Settings.gd
 ## loads one of config/graphics/presets/{low,medium,high}.tres by id;
 ## Settings itself never applies these fields to a Viewport/Environment --
-## that's game/main/Main.gd's job (Bontago-xtq.26, M7 P1): Settings only persists
+## that's game/main/Main.gd's job (M7 P1): Settings only persists
 ## the choice and emits graphics_preset_changed so a consumer can react.
 ##
 ## SSIL intentionally absent -- that render feature doesn't exist yet (a
@@ -17,30 +17,30 @@ extends Resource
 @export var msaa_3d: Viewport.MSAA = Viewport.MSAA_2X
 @export var shadow_atlas_size: int = 4096
 @export var volumetric_fog_enabled: bool = true
-## Bontago-adt.1: fraction (0..1) of the theme's 3D cloud-puff clumps
+## fraction (0..1) of the theme's 3D cloud-puff clumps
 ## (game/sky/CloudSea.gd) to draw; 0 hides them and leaves only the sky panorama's
 ## far cloud sea. Low draws a sparse set.
 @export var cloud_puff_density: float = 1.0
-## Bontago-1pi.11.6: icosphere subdivisions of each cloud puff hull (1 = 80 tris, 2 = 320).
+## icosphere subdivisions of each cloud puff hull (1 = 80 tris, 2 = 320).
 ## The shader carves the silhouette per pixel, so 1 looks the same at a quarter of the
 ## ~1.2M-primitive cloud-sea cost.
 @export_range(1, 2) var cloud_puff_subdivisions: int = 2
-## Bontago-1pi.11.67 (fix 2a): cloud clumps whose rest position lies at least this far (m) from the
+## fix 2a: cloud clumps whose rest position lies at least this far (m) from the
 ## disc axis draw as camera-facing hexagon impostors (4 triangles) instead of 80-triangle hulls; the
 ## puff shader carves the same lumpy silhouette on either. 0 = every puff keeps its hull.
 @export var cloud_billboard_distance_m: float = 0.0
-## Bontago-adt.1: distant animated bird flocks (game/ambient/DistantBirds.gd); off on Low.
+## distant animated bird flocks (game/ambient/DistantBirds.gd); off on Low.
 @export var birds_enabled: bool = true
-## Bontago-adt.3: cosmetic ambient life (perching birds, fireflies); off on Low.
+## cosmetic ambient life (perching birds, fireflies); off on Low.
 @export var ambient_life_enabled: bool = true
-## Bontago-1pi.11.2: sun DirectionalLight3D cascade count (DirectionalLight3D.ShadowMode;
+## sun DirectionalLight3D cascade count (DirectionalLight3D.ShadowMode;
 ## 2 = 4 splits, 1 = 2 splits, 0 = one orthogonal split). Shadow pass cost grows with
 ## block count.
 @export_enum("Orthogonal:0", "PSSM 2 Splits:1", "PSSM 4 Splits:2") var sun_shadow_mode: int = 2
-## Bontago-1pi.11.2: sun shadow max distance in metres (engine default 100).
+## sun shadow max distance in metres (engine default 100).
 @export var sun_shadow_max_distance: float = 100.0
 
-## Bontago-1pi.11.67: how the ReflectionProbe over the disc is refreshed (game/sky/Skybox.gd).
+## how the ReflectionProbe over the disc is refreshed (game/sky/Skybox.gd).
 ## OFF hides it (the disc then mirrors only the sky radiance); ONCE renders at match start
 ## and after a sky/theme/time-of-day/map change; INTERVAL also re-renders every
 ## reflection_probe_interval_s while blocks moved; ALWAYS is the engine's UPDATE_ALWAYS
@@ -49,39 +49,39 @@ enum ReflectionProbeMode { OFF, ONCE, INTERVAL, ALWAYS }
 @export var reflection_probe_mode: ReflectionProbeMode = ReflectionProbeMode.INTERVAL
 ## Seconds between INTERVAL re-renders (only when the block layout changed).
 @export_range(0.1, 60.0) var reflection_probe_interval_s: float = 0.5
-## Bontago-1pi.11.67: Environment glow (bloom) pass; off on Low.
+## Environment glow (bloom) pass; off on Low.
 @export var glow_enabled: bool = true
 
-## Bontago-1pi.11.42: the swirl animation (noise, per-pixel) of the hole void
+## the swirl animation (noise, per-pixel) of the hole void
 ## on the disc. Off on Low: the void is then a flat deep colour with its rim.
 @export var hole_void_animated: bool = true
-## Bontago-1pi.11.67 fix2b: the rivets and brushed streaks of the procedural disc
+## fix2b: the rivets and brushed streaks of the procedural disc
 ## plating (shaders/territory/territory.gdshader disc_fine_detail), its two costliest per-pixel
 ## details. Off on Low: plates, seams, lips, hatches and the sheen stay.
 @export var disc_fine_detail_enabled: bool = true
-## Bontago-1pi.11.67 fix2b: the inverted-hull block outline (shaders/blocks/block_outline.gdshader,
+## fix2b: the inverted-hull block outline (shaders/blocks/block_outline.gdshader,
 ## the next_pass of every block material; game/blocks/BlockFactory.gd). Off on Low.
 @export var block_outline_enabled: bool = true
-## Bontago-1pi.11.42: the noise dissolve + rim glow on a block eaten by a hole
+## the noise dissolve + rim glow on a block eaten by a hole
 ## (game/blocks/BlockDissolveFx.gd). Off on Low: the block simply vanishes on time.
 @export var block_dissolve_effect_enabled: bool = true
-## Bontago-mp0.23: the persistent per-crate OmniLight3D on a landed gift
+## the persistent per-crate OmniLight3D on a landed gift
 ## (game/gifts/GiftCrate.gd). Off on Low: only the brief spawn flash remains.
 @export var gift_idle_glow_enabled: bool = true
-## Bontago-mp0.127: moving cloud shadows on the arena and the sun dimming under clouds
+## moving cloud shadows on the arena and the sun dimming under clouds
 ## (game/sky/CloudShadows.gd). Off on Low.
 @export var cloud_shadows_enabled: bool = true
-## Bontago-mp0.129: the night-sky aurora borealis curtains (shaders/include/cloud_common.gdshaderinc,
+## the night-sky aurora borealis curtains (shaders/include/cloud_common.gdshaderinc,
 ## game/sky/Skybox.gd). Off on Low: the sky keeps its stars and moon.
 @export var aurora_enabled: bool = true
-## Bontago-1pi.11.49: how Engine.max_fps is chosen while a match runs (core/perf/FrameCapRule.gd).
-## DECISION (owner/orchestrator 2026-10-07): the default on every preset is the display's
+## how Engine.max_fps is chosen while a match runs (core/perf/FrameCapRule.gd).
+## DECISION: the default on every preset is the display's
 ## refresh rate, so a 144 Hz monitor still gets 144 fps but nothing renders uncapped
 ## (a 245 fps uncapped match held a 3060 at ~60% at 4K; 144 = 39%, 60 = 28%).
 enum FrameCap { DISPLAY_REFRESH, FIXED, UNCAPPED }
 @export var frame_cap_mode: FrameCap = FrameCap.DISPLAY_REFRESH
-## Bontago-mp0.154: display vsync (DisplayServer.window_set_vsync_mode).
-## DECISION (orchestrator 2026-10-12): default ON on every preset because project.godot sets no
+## display vsync (DisplayServer.window_set_vsync_mode).
+## DECISION (orchestrator): default ON on every preset because project.godot sets no
 ## vsync_mode, so Godot's default (Enabled) is what the game runs with today. Engine.max_fps
 ## is honoured alongside vsync, so the frame-cap settings stay active in both states.
 @export var vsync_enabled: bool = true
@@ -89,10 +89,10 @@ enum FrameCap { DISPLAY_REFRESH, FIXED, UNCAPPED }
 @export_range(1, 360) var fixed_fps: int = 60
 ## Used by DISPLAY_REFRESH when the display reports no refresh rate (<= 0).
 @export_range(1, 360) var fallback_fps: int = 60
-## Bontago-1pi.11.51: seconds between checks that the window's screen/refresh changed.
+## seconds between checks that the window's screen/refresh changed.
 @export_range(0.1, 10.0) var screen_check_interval_s: float = 1.0
 
-## Bontago-1pi.11.37: the fields below are all-default on every shipped preset; only
+## the fields below are all-default on every shipped preset; only
 ## the adaptive quality governor (core/QualityGovernor.gd) lowers them, on a duplicate
 ## handed out by Settings.current_graphics_preset(). The stored .tres never changes.
 ## Multiplies the block-effect burst caps and particle amounts (1 = unchanged).
@@ -101,12 +101,12 @@ enum FrameCap { DISPLAY_REFRESH, FIXED, UNCAPPED }
 @export_range(0.0, 1.0) var weather_density_scale: float = 1.0
 ## Viewport.scaling_3d_scale (1 = native resolution).
 @export_range(0.25, 1.0) var render_scale_3d: float = 1.0
-## Bontago-1pi.11.67 (fix 2a): Viewport.Scaling3DMode used while render_scale_3d < 1 (0 bilinear,
+## fix 2a: Viewport.Scaling3DMode used while render_scale_3d < 1 (0 bilinear,
 ## 1 FSR 1.0, 2 FSR 2.2). Ignored at native resolution.
 @export_range(0, 2) var render_scale_3d_mode: int = 0
 
 
-## Bontago-1pi.11.86: the one table of what each user-editable field may be set to. The Options
+## the one table of what each user-editable field may be set to. The Options
 ## Graphics tab builds its option lists / slider ranges from LIMITS and Settings sanitizes every
 ## override (live edit and load from a hand-edited settings.cfg) against it. Bools: no entry.
 const MSAA_3D: Dictionary = {"values": [0, 1, 2]}
@@ -151,7 +151,7 @@ static func sanitize(field: StringName, value: Variant) -> Variant:
 	return value
 
 
-## Bontago-1pi.153: the Graphics tab's combined rows (Shadows, Reflections, Environment detail) write
+## the Graphics tab's combined rows (Shadows, Reflections, Environment detail) write
 ## several fields at once from a tier. The tier list is the shipped presets, in this order.
 const TIER_PRESET_PATHS: Array[String] = [
 	"res://config/graphics/presets/low.tres",
@@ -166,7 +166,7 @@ const ENVIRONMENT_FIELDS: Array[StringName] = [
 	&"ambient_life_enabled", &"disc_fine_detail_enabled", &"hole_void_animated",
 	&"gift_idle_glow_enabled", &"block_dissolve_effect_enabled",
 ]
-## Reflections: Off / Low / High. DECISION (1pi.153): the presets cannot supply this (Medium and High
+## Reflections: Off / Low / High. DECISION:
 ## share one reflection setup), so the three tiers are fixed: Off = no probe and no SSR, Low = the
 ## interval-refreshed probe only, High = probe plus screen-space reflections.
 const REFLECTION_TIERS: Array[Dictionary] = [

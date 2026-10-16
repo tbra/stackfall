@@ -1,9 +1,9 @@
 extends GutTest
-## Data checks for every BlockShape resource under config/blocks/ (spec 2.4).
+## Data checks for every BlockShape resource under config/blocks/ (spec 1.4).
 
 const BLOCKS_DIR: String = "res://config/blocks/"
 
-## id -> expected cube count, from the spec 2.4 table.
+## id -> expected cube count, from the spec 1.4 table.
 const EXPECTED_CELL_COUNTS: Dictionary = {
 	&"cube": 1,
 	&"domino": 2,
@@ -71,7 +71,7 @@ func test_no_duplicate_cells() -> void:
 			seen[cell] = true
 
 
-# --- Bontago-mv0.17 item 3 (was Bontago-mv0.12): BlockShape.bottom_center() --
+# --- item 3 (was): BlockShape.bottom_center() --
 
 ## bottom_center() must be the cells' bounding-box x/z midpoint, but the
 ## *bottom* face in y (half a cube below the lowest cell's own centre), for

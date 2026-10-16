@@ -1,16 +1,16 @@
 class_name Lobby
 extends Control
-## Every spec 2.8 match setting as a control, synced as lobby data so every
-## client sees the host's settings (spec 3.4 "Steam lobbies store match
-## settings as lobby data"; docs/archive/M3a_PLAN.md P4).
+## Every spec 1.9 match setting as a control, synced as lobby data so every
+## client sees the host's settings (spec 2.6 "Steam lobbies store match
+## settings as lobby data").
 ##
 ## **The round trip.** The host builds a MatchConfig from its controls,
 ## serializes it with to_dict(), merges in the roster, and calls
 ## Net.set_lobby_data(). Every instance — including the host itself, so its
 ## own UI never waits on an echo that may not arrive over a stub or a lossy
 ## transport — applies the same Dictionary through _apply_data(): from_dict(),
-## then sanitize() so a value that arrived out of its spec 2.8 range is
-## clamped rather than trusted (docs/archive/M3a_PLAN.md P4 "Tests first"). A guard
+## then sanitize() so a value that arrived out of its spec 1.9 range is
+## clamped rather than trusted ("Tests first").
 ## flag stops that inbound apply from re-triggering another outbound publish.
 ##
 ## **Host-only editing.** Net.is_host() is true on the host and offline
@@ -21,13 +21,13 @@ extends Control
 ## Connects to Events and Net only — no node paths into game/main/Main.gd. Start
 ## is a signal for whoever owns scene-building (the integrator's Main) to
 ## react to; this script never calls Match.start_match() itself, on the host
-## or (per docs/archive/M3a_PLAN.md P4 "Must NOT") on a client.
+## or ("Must NOT") on a client.
 
 ## Emitted when the host presses Start with every peer ready. `config` is the
 ## sanitized MatchConfig the lobby is currently showing.
 signal start_requested(config: MatchConfig)
 
-## Emitted when the player presses the header's Back pill (Bontago-xtq.32
+## Emitted when the player presses the header's Back pill (
 ## redo #3, mockup 11's top-right "< Back"). Whoever owns scene transitions
 ## (game/main/Main.gd) is the only listener this package expects; see this file's
 ## own header docstring, "no node paths into game/main/Main.gd" -- a signal keeps
@@ -36,13 +36,13 @@ signal back_requested
 
 @export var default_config: MatchConfig = preload("res://config/match/match_defaults.tres")
 
-## Bontago-xtq.32 redo: same layered-pastel tunable set ui/menus/MainMenu.gd draws
+## redo: same layered-pastel tunable set ui/menus/MainMenu.gd draws
 ## its visual style from (config/ui/MenuVisualTuning.gd), so the Lobby matches
 ## the Main Menu's look with zero magic numbers here (CLAUDE.md "No magic
 ## numbers").
 @export var tuning: MenuVisualTuning = preload("res://config/ui/menu_visual_tuning.tres")
 
-## Bontago-1pi.159.2.1: the settings column is composed of ui/components (UiSection, UiRow, UiToggle,
+## the settings column is composed of ui/components (UiSection, UiRow, UiToggle,
 ## UiStepper, UiSegmentMeter, UiDropdown, UiChipToggle). Each UiRow node in Lobby.tscn carries its label
 ## text as this metadata key (read once by _prepare_rows()); every VBox of rows is in STACK_GROUP and
 ## gets the design-system row gap.
@@ -51,12 +51,12 @@ const CARD_PLAYERS: String = "PlayersCard"
 const ROW_LABEL_META: StringName = &"row_label"
 const STACK_GROUP: StringName = &"lobby_stack"
 
-## Bontago-1pi.53 (E1): sizes and spacings new to the lobby rework (section
+## E1: sizes and spacings new to the lobby rework (section
 ## spacing, seat colour box, row height, advanced indent); also handed to the
 ## players panel. Never touches the MenuVisualTuning look above.
 @export var layout_tuning: LobbyLayoutTuning = preload("res://config/ui/lobby_layout_tuning.tres")
 
-## Bontago-1pi.53 (PL1b): the lobby-data key of the seat table (LobbySeats: humans + bots
+## PL1b: the lobby-data key of the seat table (LobbySeats: humans + bots
 ## with colour / team / difficulty), next to "roster". Published by _publish_lobby_data,
 ## read by _apply_data, and carried across the results screen's republish
 ## (ResultsScreen.LOBBY_SEATS_KEY points here).
@@ -75,17 +75,17 @@ const SPATIAL_HEIGHT_WEIGHT: float = 4.0
 ## matching DECISION comment pointing back here.
 const ALL_DISABLED_SENTINEL: StringName = &"__none__"
 
-## Bontago-1pi.18.5 (docs/QOL_EXPERIMENTS_PLAN.md, Q1): the shared experiments
+## Shared experiments:
 ## resource the F4 panel edits. The four enable flags come from the lobby's
 ## "Experiments" checkboxes; every numeric parameter (pause_event_s,
 ## backlog_max, goal_radius_multiplier, ...) is copied from here, so those stay
 ## F4-tunable. Never modified: QolExperiments.with_toggles() works on a copy.
-# Bontago-1pi.203: a static var, not a const: GDScript folds `CONST.prop` reads of a const Resource
+# a static var, not a const: GDScript folds `CONST.prop` reads of a const Resource
 # at compile time, which left every F4 edit of this tuning dead.
 static var QOL_SHARED: QolExperiments = preload("res://config/match/qol_experiments.tres")
 
 ## DECISION (ui/lobby/Lobby.gd): same `Variant` test seam as ui/menus/MainMenu.gd and
-## ui/hud/HUD.gd's match_provider. Bontago-1pi.53 (E1): the players panel reads the
+## ui/hud/HUD.gd's match_provider. (E1): the players panel reads the
 ## same seam (peer ids/info for the roster, local peer id for the "you" subtitle),
 ## so a swap here is forwarded to it -- tests assign this after _ready().
 var net_provider: Variant = null:
@@ -95,25 +95,25 @@ var net_provider: Variant = null:
 			_players_panel.net_provider = value
 
 ## %MapThumbnail is the (hidden) pictogram of the one map; it lives under %HiddenSources.
-## Bontago-1pi.107 (owner 2026-10-07): the disc size is the one visible map control, six steps into
-## config/match/disc_size_tuning.tres (tiny 50% .. enormous 175%). Bontago-1pi.159.2.1: a UiSegmentMeter whose
+## the disc size is the one visible map control, six steps into
+## config/match/disc_size_tuning.tres (tiny 50% .. enormous 175%). a UiSegmentMeter whose
 ## value is the step + 1 (cells lit), never 0 (see _disc_size_step()).
 @onready var _disc_size_meter: UiSegmentMeter = %DiscSizeMeter
-## Bontago-1pi.121: the settings column; _scroll_settings_to_top() resets it when the lobby opens.
+## the settings column; _scroll_settings_to_top() resets it when the lobby opens.
 @onready var _settings_scroll: ScrollContainer = %SettingsScroll
 @onready var _help_line: UiHelpLine = %HelpLine
 @onready var _map_thumbnail: PanelContainer = %MapThumbnail
 var _map_thumbnail_icon: TextureRect = null
-## Bontago-1pi.53 (S1b): the Players/AI steppers, the default-difficulty dropdown and the
+## S1b: the Players/AI steppers, the default-difficulty dropdown and the
 ## segmented Teams control left the settings card -- seats, bots and teams are managed in
-## the players panel (docs/LOBBY_REWORK_PLAN.md section 2). These four stay as HIDDEN
+## the players panel (section 2 of the lobby layout).
 ## sources of truth under %HiddenSources (the pattern the map combo already uses): every
 ## read and write of `.value` / `.selected`, the host-only gating, the bot clamp and
 ## the round trip are unchanged, and the panel drives them (_on_teams_toggled,
 ## _set_bot_count). They are never focus stops.
 ## DECISION (ui/lobby/Lobby.gd, PL1b): with the panel's Teams toggle and "+ Add bot" button now
 ## the only way to change them (PL1b), they are no longer a temporary fallback but the
-## state holders docs/LOBBY_REWORK_PLAN.md D6 chose: _config_from_controls() /
+## state holders chosen for the lobby rework:
 ## _apply_data() / _clamp_ai_count_to_seats() and every existing lobby test read and
 ## write them, so removing them would rewrite the whole config round trip (and
 ## tests/unit/ui/test_lobby.gd's 31 references) for no player-visible change.
@@ -121,7 +121,7 @@ var _map_thumbnail_icon: TextureRect = null
 @onready var _ai_count_spin: SpinBox = %AiCountSpin
 @onready var _ai_difficulty_option: UiCycler = %AiDifficultyOption
 @onready var _team_mode_option: OptionButton = %TeamModeOption
-## Bontago-1pi.159.2.1: the block timer (3.0 .. 12.0 s) and the goal flags are UiSteppers; the block
+## the block timer (3.0 .. 12.0 s) and the goal flags are UiSteppers; the block
 ## timer counts BLOCK_TIMER_STEP_S per stepper step.
 @onready var _block_timer_stepper: UiStepper = %BlockTimerStepper
 @onready var _goal_flag_stepper: UiStepper = %GoalFlagStepper
@@ -133,45 +133,45 @@ var _map_thumbnail_icon: TextureRect = null
 var _gravity_value: float = MatchConfig.GRAVITY_DEFAULT
 var _special_frequency_value: int = 0
 @onready var _gifts_check: UiToggle = %GiftsCheck
-## Bontago-1pi.159.59: the Frequency row, hidden with the gifts switch off (with the Advanced bar).
+## the Frequency row, hidden with the gifts switch off (with the Advanced bar).
 @onready var _special_freq_group: Control = %SpecialFreqGroup
-## Bontago-1pi.159.60: the Experiments master switch (host-editable, replicated as MatchConfig.experiments_enabled).
+## the Experiments master switch (host-editable, replicated as MatchConfig.experiments_enabled).
 @onready var _experiments_check: UiToggle = %ExperimentsCheck
 @onready var _tilt_mode_option: UiCycler = %TiltModeOption
 @onready var _hole_mode_option: UiCycler = %HoleModeOption
 @onready var _weather_option: UiCycler = %WeatherOption
 @onready var _game_mode_option: UiCycler = %GameModeOption
-## Bontago-6fc.1: ONE timer control is shown. Classic shows the match-timer
+## ONE timer control is shown. Classic shows the match-timer
 ## row (+ sudden death); every other mode shows the round-length row.
-## Bontago-1pi.159.2.1: both are UiSteppers in whole minutes (Off at 0 for the match timer); each
+## both are UiSteppers in whole minutes (Off at 0 for the match timer); each
 ## keeps mapping its own MatchConfig field.
 @onready var _match_timer_stepper: UiStepper = %MatchTimerStepper
 @onready var _round_timer_stepper: UiStepper = %RoundTimerStepper
 @onready var _match_timer_col: Control = %MatchTimerCol
 @onready var _round_timer_col: Control = %RoundTimerCol
 @onready var _sudden_death_col: Control = %SuddenDeathCol
-## Reach the Sky only (Bontago-22y.9): shown while that mode is selected.
+## Reach the Sky only: shown while that mode is selected.
 @onready var _sky_team_col: Control = %SkyTeamCol
 @onready var _sky_team_sum_check: UiToggle = %SkyTeamSumCheck
-## Bontago-470.4: the "Map" time-of-day dropdown (MatchConfig.SkyThemeMode).
+## the "Map" time-of-day dropdown (MatchConfig.SkyThemeMode).
 @onready var _sky_theme_option: UiCycler = %SkyThemeOption
 @onready var _sudden_death_check: UiToggle = %SuddenDeathCheck
 @onready var _turn_based_check: UiToggle = %TurnBasedCheck
-## Bontago-8or.20: host-only toggle for MatchConfig.allow_mid_match_join.
+## host-only toggle for MatchConfig.allow_mid_match_join.
 @onready var _mid_join_check: UiToggle = %MidJoinCheck
-## Bontago-1pi.53 (S1b): the per-gift checklist is the GIFTS section's Advanced block, a grid of
+## S1b: the per-gift checklist is the GIFTS section's Advanced block, a grid of
 ## UiChipToggles built by _build_specials_checklist().
 @onready var _specials_checklist: GridContainer = %SpecialsChecklist
 @onready var _experiments_checklist: GridContainer = %ExperimentsChecklist
-## Bontago-1pi.18.5: the Experiments chips, in QolExperiments.with_toggles()
-## argument order (timer pause, backlog, goal radius, gift slot). Bontago-1pi.53 (S1b):
+## the Experiments chips, in QolExperiments.with_toggles()
+## argument order (timer pause, backlog, goal radius, gift slot). (S1b):
 ## they are the EXPERIMENTS section's Advanced block (plan D2). Host-editable,
 ## read-only for a client (_settings_controls).
 @onready var _qol_timer_pause_check: UiChipToggle = %QolTimerPauseCheck
 @onready var _qol_backlog_check: UiChipToggle = %QolBacklogCheck
 @onready var _qol_goal_radius_check: UiChipToggle = %QolGoalRadiusCheck
 @onready var _qol_gift_slot_check: UiChipToggle = %QolGiftSlotCheck
-## Bontago-1pi.159.29: the gift-after-next TRIAL (QolExperiments.gift_queue_after_next, on by default).
+## the gift-after-next TRIAL (QolExperiments.gift_queue_after_next, on by default).
 ## DECISION: it sits in the same chip group (focus loop, host-only gating, replication) but is a rule
 ## variant rather than an opt-in experiment, so it is not part of the with_toggles() flags and the
 ## section's "n on" count skips it (QolExperiments.any_enabled() ignores it too).
@@ -181,7 +181,7 @@ var _special_frequency_value: int = 0
 	_qol_gift_after_next_check,
 ]
 
-## Bontago-1pi.53 (S1a/S1b): the settings column is a stack of UiSections: GAME (mode, disc size,
+## S1a/S1b: the settings column is a stack of UiSections: GAME (mode, disc size,
 ## time of day, weather; Advanced: gravity, tilt, holes, turn-based, mid-match join), ROUND (round
 ## length / match timer, sudden death, block timer, goal flags, Reach the Sky team height), GIFTS
 ## (on/off, frequency; Advanced: the per-gift checklist) and EXPERIMENTS (the opt-in
@@ -194,7 +194,7 @@ var _special_frequency_value: int = 0
 ## Goal flags apply only to the modes MatchConfig.mode_uses_goal_flags() names.
 @onready var _goal_flag_col: Control = %GoalFlagCol
 
-## Bontago-1pi.53 (E1): the right-hand roster (title row, header text, seat rows)
+## E1: the right-hand roster (title row, header text, seat rows)
 ## lives in ui/lobby/LobbyPlayersPanel.gd; this script keeps only the hooks
 ## (_publish_lobby_data/_apply_data/_on_roster_changed/_on_start_pressed/
 ## _update_host_only_state) that feed it. %PlayerList and %PlayerCountLabel are
@@ -206,21 +206,21 @@ var _special_frequency_value: int = 0
 
 @onready var _settings_card: UiPanel = %SettingsCard
 @onready var _players_card: UiPanel = %PlayersCard
-## Bontago-1pi.159.2.1: the title row is a UiTitleRow (eyebrow, LOBBY, status badge left; Back right,
+## the title row is a UiTitleRow (eyebrow, LOBBY, status badge left; Back right,
 ## all centred on one line, left edge on the card padding); the badge is a UiStatusBadge.
 @onready var _header_row: UiTitleRow = %Header
 @onready var _status_badge: UiStatusBadge = %StatusBadge
 @onready var _header_eyebrow: Label = %Eyebrow
 @onready var _back_button: UiBlockButton = %BackButton
-## Bontago-1pi.190: opens the Options overlay. DECISION: it sits in the header beside Back, outside the
-## vertical focus loop (like Back, 1pi.182) so no stray up/down lands on it; reached with left from Back
+## opens the Options overlay. DECISION: it sits in the header beside Back, outside the
+## vertical focus loop (like Back)
 ## (left from Start/Ready, then left again) or the lobby_options shortcut (O / pad Select).
 @onready var _options_button: UiBlockButton = %OptionsButton
-## Bontago-1pi.149 (components.md footer chip): an uppercase label chip, "3 OF 4 READY".
+## components.md footer chip: an uppercase label chip, "3 OF 4 READY".
 const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/menus/OptionsMenu.tscn")
 const ALL_READY_TEXT: String = "ALL READY"
 const READY_COUNT_FORMAT: String = "%d OF %d READY"
-## Bontago-mp0.3.5 (review r1, item 13): mockup 11's bottom-left "Waiting for
+## review r1, item 13: mockup 11's bottom-left "Waiting for
 ## players * X of Y ready" pill, updated every time the players panel rebuilds its rows (_on_roster_rendered()).
 @onready var _waiting_status_pill: UiStatusBadge = %WaitingStatusPill
 
@@ -239,22 +239,22 @@ var _special_ids: Array[StringName] = []
 ## controls, so the value-changed signals that causes fire without
 ## re-publishing what was just received (an infinite echo).
 var _applying_remote_data: bool = false
-## Bontago-59o.18 (U1): the time-of-day dropdown. Index == MatchConfig.SkyThemeMode
+## U1: the time-of-day dropdown. Index == MatchConfig.SkyThemeMode
 ## (DAY, NIGHT, RANDOM, CYCLE, DAWN), so the stored ints and the wire format are
 ## unchanged; DAY is relabelled "Sunset" because it is now the day/night cycle
 ## locked at a sunset time, not a separate painted sky.
-## Bontago-1pi.159.35: the help-line key the round-length row is explained under in Domination
+## the help-line key the round-length row is explained under in Domination
 ## (any other mode uses the row's own name); the sentences live in config/ui/option_help_table.tres.
 const ROUND_HELP_KEY_DOMINATION: String = "RoundTimerDominationCol"
 const SKY_THEME_LABELS: PackedStringArray = ["Sunset", "Night", "Random", "Cycle", "Dawn"]
-## Bontago-1pi.30: the timer sliders' value text. DECISION: the leftmost stop of a
+## the timer sliders' value text. DECISION: the leftmost stop of a
 ## slider whose mode may switch its timer off (Classic, Elimination) reads "Off"
 ## (Elimination used to read "No limit"); every other value reads "<n> min".
 const TIMER_OFF_TEXT: String = "Off"
 const TIMER_VALUE_FORMAT: String = "%d min"
-## Bontago-1pi.159.26: a stepper shows the bare number; the unit lives in the row label (the summary keeps its units).
+## a stepper shows the bare number; the unit lives in the row label (the summary keeps its units).
 const TIMER_STEPPER_FORMAT: String = "%d"
-## Bontago-1pi.159.2.1: one stepper step is half a second of block timer; gravity and gift
+## one stepper step is half a second of block timer; gravity and gift
 ## frequency meters have GRAVITY_CELLS / FREQUENCY_CELLS lit steps between their MatchConfig bounds.
 const BLOCK_TIMER_STEP_S: float = 0.5
 const GRAVITY_CELLS: int = 20  # = roundi(MatchConfig.GRAVITY_MAX / MatchConfig.GRAVITY_STEP), asserted in tests
@@ -264,7 +264,7 @@ const FREQUENCY_READOUT_FORMAT: String = "%d"
 ## The step a player-picked gravity snaps to.
 const GRAVITY_SNAP: float = MatchConfig.GRAVITY_STEP
 const DISC_SIZE_READOUT_FORMAT: String = "%d%%"
-## Bontago-1pi.53 (S1a): the one-line section summaries shown on each UiSection header.
+## S1a: the one-line section summaries shown on each UiSection header.
 const SUMMARY_SEPARATOR: String = " · "
 const SUMMARY_BLOCK_TIMER_FORMAT: String = "Block %.1f s"
 const BLOCK_TIMER_VALUE_FORMAT: String = "%.1f"
@@ -281,23 +281,23 @@ var _timer_mode: int = MatchConfig.GameMode.CLASSIC
 ## knows which way it was moving (_on_timer_stepper_changed()).
 var _timer_previous_minutes: Dictionary[UiStepper, int] = {}
 var _last_config: MatchConfig = null
-## The live OptionsMenu overlay while open (Bontago-1pi.190), else null; and the callable that
+## The live OptionsMenu overlay while open, else null; and the callable that
 ## restores the focus modes UiFocusTrap cleared for it.
 var _options_menu: OptionsMenu = null
-## Bontago-1pi.11.95: the built-once Options window, hidden between opens (see OptionsMenu.present()).
+## the built-once Options window, hidden between opens (see OptionsMenu.present()).
 var _options_cache: OptionsMenu = null
 var _restore_focus: Callable = Callable()
 ## Footer buttons' visibility the focus loop was last wired for (_update_host_only_state()).
 var _start_was_shown: bool = false
 var _ready_was_shown: bool = true
 var _invite_was_shown: bool = false
-## Bontago-1pi.11.93: how many lobby-data applies ran, so a publish can tell its own signal echo.
+## how many lobby-data applies ran, so a publish can tell its own signal echo.
 var _apply_count: int = 0
-## Bontago-1pi.164: the non-Steam internet join-code row (isolated in ui/menus/JoinCodeRow.gd).
+## the non-Steam internet join-code row (isolated in ui/menus/JoinCodeRow.gd).
 var _join_code_row: JoinCodeRow = null
 
 
-## Bontago-1pi.159.26: the two cards are design-system [UiPanel]s (plate, lip, padding; no clip, so the
+## the two cards are design-system [UiPanel]s (plate, lip, padding; no clip, so the
 ## ledge shows like the Options window). The scene authors each card's rows as direct children; they
 ## move into the panel's content column before any @onready lookup runs.
 func _enter_tree() -> void:
@@ -316,7 +316,7 @@ func _enter_tree() -> void:
 
 
 func _ready() -> void:
-	# DECISION (Bontago-1pi.89): a provider assigned before the node enters the tree is kept,
+	# DECISION: a provider assigned before the node enters the tree is kept,
 	# so a test can seat a Lobby on a second real Net instance and drive the real entry path.
 	if net_provider == null:
 		net_provider = Net
@@ -341,7 +341,7 @@ func _ready() -> void:
 	_connect_control_signals()
 	for section: UiSection in _sections():
 		section.advanced_changed.connect(_on_section_toggled)
-	# Bontago-mp0.124: each section header carries its UiArtTable symbol.
+	# each section header carries its UiArtTable symbol.
 	var art: UiArtTable = UiArtTable.shared()
 	_game_section.set_header_icon(art.lobby_icon(UiArtTable.KEY_SECTION_GAME))
 	_round_section.set_header_icon(art.lobby_icon(UiArtTable.KEY_SECTION_ROUND))
@@ -364,11 +364,11 @@ func _ready() -> void:
 	# reflected by the controls and the next Start action.
 	var initial_data: Dictionary = net_provider.lobby_data()
 	_apply_data(initial_data if not initial_data.is_empty() else default_config.to_dict())
-	# Bontago-1pi.89: the roster and the Ready toggle are views of Net's live state, drawn
+	# the roster and the Ready toggle are views of Net's live state, drawn
 	# before anything else can look at them (a cached lobby snapshot is from before the match).
 	_show_live_roster()
 	_sync_ready_toggle_from_net()
-	# Bontago-mp0.3.5 (review r1, item 12): Net.host_game() populates its own
+	# review r1, item 12: Net.host_game() populates its own
 	# HOST_PEER_ID roster entry directly and only emits net_mode_changed, not
 	# net_roster_changed / a lobby-data publish -- so a Lobby scene opened
 	# straight after hosting never received the host's own row until a second
@@ -387,12 +387,12 @@ func _ready() -> void:
 	_wire_focus_chain()
 	_settings_scroll.get_v_scroll_bar().value_changed.connect(func(_value: float) -> void: _schedule_spatial_rewire())
 	_disc_size_meter.grab_focus()
-	# Bontago-1pi.121: the first focus above may have scrolled the column; open at the top.
+	# the first focus above may have scrolled the column; open at the top.
 	_scroll_settings_to_top()
 	visibility_changed.connect(_on_lobby_visibility_changed)
 
 
-## Bontago-1pi.121 (owner playtest: menus with scrollbars don't start at the top): deferred so it
+## menus with scrollbars don't start at the top: deferred so it
 ## lands after the layout pass and any focus-follow scroll that the opening focus triggered.
 func _scroll_settings_to_top() -> void:
 	_settings_scroll.set_deferred(&"scroll_vertical", 0)
@@ -404,7 +404,7 @@ func _on_lobby_visibility_changed() -> void:
 
 
 func _process(_delta: float) -> void:
-	# DECISION (ui/lobby/Lobby.gd, Bontago-mv0.6): Events.net_roster_changed (added
+	# DECISION (ui/lobby/Lobby.gd): Events.net_roster_changed (added
 	# below) tells this screen a peer's ready flag flipped, but Net's
 	# aggregate all_peers_ready() is still just a plain method, and deriving
 	# the same bool from the roster payload here would duplicate Net's own
@@ -415,7 +415,7 @@ func _process(_delta: float) -> void:
 	_update_host_only_state()
 
 
-## Bontago-1pi.53 (E1): hands the players panel everything it renders from (the
+## E1: hands the players panel everything it renders from (the
 ## Lobby's own tunables, the per-slot palette, the net seam) and connects its
 ## signals -- the narrow Lobby <-> panel contract documented in
 ## ui/lobby/LobbyPlayersPanel.gd. Runs before the first _apply_data() so even the
@@ -436,7 +436,7 @@ func _configure_players_panel() -> void:
 
 # --- Building settings controls ----------------------------------------------
 
-## Bontago-1pi.30: range and step of both timer steppers come from MatchConfig, so
+## range and step of both timer steppers come from MatchConfig, so
 ## the .tscn's authored numbers can never drift from the clamp the host applies.
 ## The match stepper runs Off (0) to the maximum; the round stepper's minimum is
 ## retargeted per mode by _refresh_timer_control().
@@ -454,7 +454,7 @@ func _configure_timer_steppers() -> void:
 	_timer_previous_minutes[_round_timer_stepper] = _round_timer_stepper.value
 
 
-## Bontago-1pi.159.2.1: block timer (half-second steps between MatchConfig's bounds), goal flags,
+## block timer (half-second steps between MatchConfig's bounds), goal flags,
 ## disc size, gravity and gift-frequency meters: ranges and readouts come from MatchConfig and
 ## DiscSizeTuning, never from the scene's authored numbers.
 func _configure_value_controls() -> void:
@@ -500,7 +500,7 @@ func _prepare_rows() -> void:
 
 ## The title row: STACKFALL eyebrow, LOBBY and the status badge on the left, Back on the right, all
 ## centred on one line (UiTitleRow.add_trailing's rule), so the wordmark sits on the card's left edge
-## and no item floats above or below the others (owner 2026-10-10: "Stackfall not aligned top-left").
+## and no item floats above or below the others ("Stackfall not aligned top-left").
 func _arrange_header() -> void:
 	_header_row.move_child(_header_eyebrow, 0)
 	_header_row.move_child(_status_badge, _header_row.label.get_index() + 1)
@@ -523,9 +523,9 @@ func _expose(node: Node, unique_name: String) -> void:
 	node.unique_name_in_owner = true
 
 
-## DECISION (Bontago-1pi.159.14, reversing 1pi.94): game mode, time of day, weather, tilt and hole mode
+## DECISION (reversing the earlier decision):
 ## are UiCyclers ("<" value ">" blocks, wrapping, ui_left / ui_right step); each bot's difficulty in
-## LobbySeatRow is a UiCycler too (Bontago-1pi.159.36); only its team pill is a popup UiDropdown.
+## LobbySeatRow is a UiCycler too; only its team pill is a popup UiDropdown.
 ## %TeamModeOption is a hidden sources of truth that nobody
 ## clicks, so they stay plain OptionButtons; %AiDifficultyOption (default difficulty) is a UiCycler.
 func _populate_options() -> void:
@@ -535,30 +535,30 @@ func _populate_options() -> void:
 	_fill_cycle(_ai_difficulty_option, ["Easy", "Normal", "Hard"])
 	_fill_option(_team_mode_option, ["Off", "2 teams", "3 teams", "4 teams"])
 	_fill_cycle(_tilt_mode_option, ["Specials only", "Physical balance"])
-	# Territory v2 (docs/TERRITORY_V2_PLAN.md) added HoleMode.OFF (= 2,
+	# Territory v2 added HoleMode.OFF
 	# appended after TEMPORARY/PERMANENT) as the optional no-overlap mode.
 	# "Off" must still be the option list's third item, at the same index as
 	# the enum value, or OptionButton.selected = 2 on a 2-item list is
 	# silently ignored and a config asking for OFF is stuck on legacy holes
-	# (found by package A, Bontago-cmc.4). MatchConfig.hole_mode's own default
-	# reverted to TEMPORARY (Bontago-cmc.7, SPEC.md's 2026-09-20 evidence
+	# (found by package A). MatchConfig.hole_mode's own default
+	# reverted to TEMPORARY (SPEC.md's evidence
 	# audit); the lobby shows whatever config/match/match_defaults.tres stores
 	# (_ready()'s _apply_data(default_config.to_dict())), so no lobby-side
 	# default needs to move separately.
 	_fill_cycle(_hole_mode_option, ["Temporary", "Permanent", "Off"])
-	# Bontago-22y.10: order must match MatchConfig.WeatherMode.
+	# order must match MatchConfig.WeatherMode.
 	# Labels come from the enum names, so a new weather type needs no edit here.
 	var weather_labels: Array = MatchWeather.mode_labels()
 	for weather_index: int in range(weather_labels.size()):
 		_weather_option.add_item(weather_labels[weather_index] as String)
-	# Bontago-470.4: order must match MatchConfig.SkyThemeMode.
-	# Bontago-59o.18 (U1): the DAY entry is the cycle locked at sunset, so it
+	# order must match MatchConfig.SkyThemeMode.
+	# U1: the DAY entry is the cycle locked at sunset, so it
 	# reads "Sunset"; Cycle is the default through MatchConfig.sky_theme_mode.
 	_fill_cycle(_sky_theme_option, Array(SKY_THEME_LABELS))
-	# Bontago-22y.11: order must match MatchConfig.GameMode. Reserved modes are
+	# order must match MatchConfig.GameMode. Reserved modes are
 	# listed but disabled, so neither the mouse nor the gamepad popup can pick
 	# one; MatchConfig.resolve_game_mode() also rejects them on the wire.
-	# DECISION (Bontago-6fc.1): one timer control per mode (_refresh_timer_control).
+	# DECISION: one timer control per mode (_refresh_timer_control).
 	_fill_cycle(_game_mode_option, Array(MatchConfig.GAME_MODE_LABELS))
 	for mode_index: int in range(_game_mode_option.get_item_count()):
 		_game_mode_option.set_item_disabled(mode_index, not MatchConfig.is_game_mode_selectable(mode_index))
@@ -567,7 +567,7 @@ func _populate_options() -> void:
 
 
 ## Every cycler of the GAME section (main rows and Advanced) shares the widest value area, so the
-## "<" / ">" blocks line up from row to row (Bontago-1pi.159.14).
+## "<" / ">" blocks line up from row to row.
 func _align_cyclers() -> void:
 	var cyclers: Array[UiCycler] = [
 		_game_mode_option, _sky_theme_option, _weather_option, _tilt_mode_option, _hole_mode_option,
@@ -579,7 +579,7 @@ func _align_cyclers() -> void:
 		cycler.min_value_width = widest
 
 
-## Bontago-mp0.124: every map combo row shows its variant's pictogram (UiArtTable) and
+## every map combo row shows its variant's pictogram (UiArtTable) and
 ## the thumbnail beside the picker shows the selected one. Reads only the selected
 ## index, so host and client (replicated config) agree.
 func _decorate_map_picker() -> void:
@@ -595,11 +595,6 @@ func _decorate_map_picker() -> void:
 	_refresh_map_thumbnail()
 
 
-## The pictogram of the currently selected map variant, or null.
-func map_thumbnail_texture() -> Texture2D:
-	return _map_thumbnail_icon.texture if _map_thumbnail_icon != null else null
-
-
 func _refresh_map_thumbnail() -> void:
 	if _map_thumbnail_icon != null:
 		_map_thumbnail_icon.texture = UiArtTable.shared().map_pictogram()
@@ -611,16 +606,16 @@ func _fill_option(option: OptionButton, labels: Array) -> void:
 		option.add_item(label)
 
 
-## The UiCycler twin of _fill_option() (Bontago-1pi.159.14): same index order, same stored ints.
+## The UiCycler twin of _fill_option(): same index order, same stored ints.
 func _fill_cycle(selector: UiCycler, labels: Array) -> void:
 	selector.clear()
 	for label: String in labels:
 		selector.add_item(label)
 
 
-## M6 A4 (docs/archive/M6_PLAN.md "A4 -- Enabled-specials checklist"): one CheckBox per
+## Enabled-specials checklist:
 ## config/gifts/specials/*.tres with enabled_by_default (SpecialDef.load_selectable_specials(),
-## Bontago-1pi.160), in id order (the same sorted, deterministic order every peer's own load produces, so the
+## ), in id order (the same sorted, deterministic order every peer's own load produces, so the
 ## checklist never shows two peers a differently-ordered list). Checked =
 ## enabled, mirroring MatchConfig.enabled_specials's own "empty = all enabled"
 ## default (every box starts checked here; _apply_data() below is the only
@@ -635,7 +630,7 @@ func _build_specials_checklist() -> void:
 	_special_checkboxes.clear()
 	_special_ids.clear()
 
-	# Bontago-1pi.160 (owner 2026-10-10): disabled gifts (Cat) are not listed at
+	# disabled gifts (Cat) are not listed at
 	# all -- the checklist walks the selectable roster, the same roster the match
 	# draws from (MatchGifts._ensure_special_drawer_installed). The full catalogue
 	# stays for find_by_id / icon / net id tables.
@@ -654,7 +649,7 @@ func _build_specials_checklist() -> void:
 		_special_ids.append(special.id)
 
 
-## DECISION (ui/lobby/Lobby.gd, Bontago-xtq.32): ui/lobby/Lobby.tscn carries zero static
+## DECISION (ui/lobby/Lobby.gd): ui/lobby/Lobby.tscn carries zero static
 ## focus_neighbor_* NodePaths (unlike ui/menus/MainMenu.tscn's authored chain) --
 ## the specials checklist is built dynamically by _build_specials_checklist()
 ## and doesn't exist yet when the scene file is authored, so any chain
@@ -664,7 +659,7 @@ func _build_specials_checklist() -> void:
 ## (rebuilt by the players panel on every roster change) enter the chain through
 ## the panel's focus_entries().
 ##
-## Bontago-1pi.53 (S1a/S1b): ONE closed loop in visual order. Each UiSection
+## S1a/S1b: ONE closed loop in visual order. Each UiSection
 ## contributes its main controls, its Advanced chip and (when open) its
 ## Advanced controls -- GAME, ROUND, GIFTS (Advanced: the per-gift checklist), EXPERIMENTS
 ## (chip opens its checks) -- then the players panel's entries and the footer. The
@@ -690,7 +685,7 @@ func _wire_focus_chain() -> void:
 	var experiments_advanced: Array[Control] = []
 	experiments_advanced.append_array(_qol_checks)
 	chain.append_array(_section_chain(_experiments_section, [_experiments_check], experiments_advanced))
-	# Bontago-1pi.53 (E1): the players panel's own focusable controls sit between the
+	# E1: the players panel's own focusable controls sit between the
 	# settings and the footer, in visual order; the panel asks for a rewire through
 	# focus_entries_changed.
 	_settings_stops = chain.duplicate()
@@ -704,7 +699,7 @@ func _wire_focus_chain() -> void:
 
 
 ## One section's focus stops in visual order: main controls, Advanced chip, Advanced
-## controls (the header is static and not a stop; Bontago-1pi.61).
+## controls (the header is static and not a stop).
 func _section_chain(section: UiSection, main_controls: Array[Control], advanced_controls: Array[Control]) -> Array[Control]:
 	var out: Array[Control] = []
 	out.append_array(main_controls)
@@ -731,7 +726,7 @@ func _rewire_focus() -> void:
 	_schedule_spatial_rewire()
 
 
-## Bontago-1pi.159.23 (L3): the loop above is vertical list order; this pass overrides the neighbours
+## L3: the loop above is vertical list order; this pass overrides the neighbours
 ## that must follow the DRAWN layout, from the real global rects: the gift / experiment chip grids
 ## move in 2D, the players panel's rows move by column (down from a colour diamond = the diamond
 ## below, the last row = Add bot, up reverses) and the settings column <-> players panel hops are
@@ -886,7 +881,7 @@ var _settings_stops: Array[Control] = []
 var _spatial_pending: bool = false
 
 
-## Bontago-1pi.53 (S1a): a control is a focus stop only while it and every ancestor up to
+## S1a: a control is a focus stop only while it and every ancestor up to
 ## this screen are visible -- a collapsed section or Advanced block, a hidden
 ## conditional column (the Reach the Sky toggle outside its mode, the timer column
 ## the mode does not use, goal flags in a mode without them) and the hidden
@@ -923,8 +918,8 @@ func _wire_loop(chain: Array[Control]) -> void:
 		current.focus_mode = Control.FOCUS_ALL
 
 
-## Bontago-1pi.182 (owner playtest: down from Add bot reached Back, so players backed out of the
-## lobby by accident): Back is NOT a stop of the vertical loop. It is reached deliberately: left from
+## down from Add bot reached Back, so players backed out of the
+## lobby by accident: Back is NOT a stop of the vertical loop. It is reached deliberately: left from
 ## the loop's last stop (Start for the host, Ready for a client) or B / Esc. From Back, up / down /
 ## left / right return to the top of the settings column, so nothing wraps into it.
 func _wire_back_button(chain: Array[Control]) -> void:
@@ -952,7 +947,7 @@ func _connect_control_signals() -> void:
 	_tilt_mode_option.item_selected.connect(_on_option_changed)
 	_hole_mode_option.item_selected.connect(_on_option_changed)
 	_weather_option.item_selected.connect(_on_option_changed)
-	# Bontago-6fc.1: retarget the timer control before the publish below reads it.
+	# retarget the timer control before the publish below reads it.
 	_game_mode_option.item_selected.connect(_on_game_mode_picked)
 	_game_mode_option.item_selected.connect(_on_option_changed)
 	_round_timer_stepper.value_changed.connect(_on_timer_stepper_changed.bind(_round_timer_stepper))
@@ -960,7 +955,7 @@ func _connect_control_signals() -> void:
 	_game_mode_option.item_selected.connect(_refresh_sky_controls)
 	_sky_theme_option.item_selected.connect(_on_option_changed)
 	_player_count_spin.value_changed.connect(_on_value_changed)
-	# Bontago-1pi.9b: a seat-count edit can shrink the room left for bots, so
+	# .9b: a seat-count edit can shrink the room left for bots, so
 	# this recomputes %AiCountSpin's own max_value on every host edit too, not
 	# only on a roster event (_on_roster_changed already covers "a human
 	# joined/left"; this covers "the host changed the seat count").
@@ -985,7 +980,7 @@ func _connect_control_signals() -> void:
 ## own (it isn't gameplay), so this calls Sfx directly -- the one named
 ## exception to "Sfx listens, nothing calls it" (autoload/Sfx.gd's header).
 ## Scoped to actual buttons, not every settings control, so dragging a
-## slider doesn't spam hover sounds. DECISION (Bontago-mp0.117): the ready toggle
+## slider doesn't spam hover sounds. DECISION: the ready toggle
 ## is not here -- it has its own ready_on/ready_off cue (no double click).
 func _connect_click_and_hover_sounds() -> void:
 	var buttons: Array[BaseButton] = [_start_button, _invite_friends_button, _options_button, _back_button]
@@ -1002,13 +997,13 @@ func _on_sound_button_hovered() -> void:
 	Sfx.play(AudioConfig.EVENT_HOVER)
 
 
-## Bontago-xtq.32 redo: mirrors ui/menus/MainMenu.gd's _apply_visual_style() -- the
+## redo: mirrors ui/menus/MainMenu.gd's _apply_visual_style() -- the
 ## same cream-card + pastel-pill language (docs/art_mockups/
 ## 11-lobby-layered-pastel.png), built entirely from ui/theme/
 ## MenuStyleFactory.gd's StyleBoxFlat helpers on top of the shared
 ## ui/theme/stackfall_theme.tres Theme (no image assets, per the brief).
 ##
-## DECISION (ui/lobby/Lobby.gd, Bontago-xtq.32): mockup 11 shows each column as a
+## DECISION (ui/lobby/Lobby.gd): mockup 11 shows each column as a
 ## front card with two peeking mint/apricot "shadow" cards behind it, the
 ## same triple-stack ui/menus/MainMenu.gd's %ShadowApricot/%ShadowMint achieve via
 ## a CenterContainer sized to each child's own minimum size. ui/lobby/Lobby.tscn's
@@ -1020,7 +1015,7 @@ func _on_sound_button_hovered() -> void:
 ## remaining verification budget. Reported as a known simplification versus
 ## the mockup in the handback.
 ##
-## DECISION (ui/lobby/Lobby.gd + ui/lobby/Lobby.tscn, Bontago-xtq.32 redo #3): the redo #2
+## DECISION (ui/lobby/Lobby.gd + ui/lobby/Lobby.tscn redo #3): the redo #2
 ## DECISION directly above this one shipped without a Back button, reasoning
 ## a decorative button with no listener was worse than none. The redo #3
 ## brief now explicitly requires one, so %BackButton emits back_requested
@@ -1032,7 +1027,7 @@ func _apply_visual_style() -> void:
 	# Hierarchy (UI_COMPONENTS_PLAN section 4): the card heading, then sections one section_gap apart,
 	# then rows one space-3 apart (_prepare_rows); everything else is the component's own look.
 	_settings_column.add_theme_constant_override("separation", arcade.section_gap_px)
-	# Bontago-mp0.124: each section header carries its UiArtTable symbol.
+	# each section header carries its UiArtTable symbol.
 	var art: UiArtTable = UiArtTable.shared()
 	_game_section.set_header_icon(art.lobby_icon(UiArtTable.KEY_SECTION_GAME))
 	_round_section.set_header_icon(art.lobby_icon(UiArtTable.KEY_SECTION_ROUND))
@@ -1045,7 +1040,7 @@ func _apply_visual_style() -> void:
 	)
 	# A full-size UiBlockButton fills its cell; START MATCH keeps its own height in the bar.
 	_start_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	# Arcade (Bontago-1pi.145): the lobby sits on the same arena image as the main menu under a
+	# Arcade: the lobby sits on the same arena image as the main menu under a
 	# full-screen disc-900 scrim (components.md Screens: "over the scrimmed arena"), so the title
 	# row is plain cream text and the StatusBadge a flat disc-700 label with a live mint dot.
 	(%Scrim as ColorRect).color = Color(arcade.disc_900_color, arcade.scrim_alpha)
@@ -1055,14 +1050,14 @@ func _apply_visual_style() -> void:
 	_update_status_badge()
 
 
-## Gamepad/keyboard shortcuts and back-out (Bontago-1pi.53, S1b; the Advanced rules popup is
+## Gamepad/keyboard shortcuts and back-out (S1b; the Advanced rules popup is
 ## gone):
 ## - lobby_quick_advanced (Y) opens/closes the Advanced block of the section holding focus
 ##   (the first section with one when focus is elsewhere or in a section without one);
 ## - lobby_add_bot (X) adds a bot (host, a seat free); Start / Enter (lobby_confirm) starts or toggles Ready;
 ## - ui_cancel (Esc / gamepad B) backs out of the lobby, same as %BackButton. (An open
 ##   OptionButton popup consumes its own ui_cancel before this runs.)
-## Bontago-1pi.15.1 fix: B used to do nothing here unless the popup was open, the reported
+## fix: B used to do nothing here unless the popup was open, the reported
 ## "B never goes back in any menu" gap.
 func _unhandled_input(event: InputEvent) -> void:
 	if _options_menu != null:
@@ -1076,7 +1071,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if event.is_action_pressed(&"lobby_add_bot"):
-		# DECISION (Bontago-1pi.159.27): X / keyboard X adds a bot -- host only, only while a seat is free.
+		# DECISION: X / keyboard X adds a bot -- host only, only while a seat is free.
 		_run_add_bot_shortcut()
 		get_viewport().set_input_as_handled()
 		return
@@ -1086,7 +1081,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	get_viewport().set_input_as_handled()
 
 
-## Bontago-1pi.98: Enter / KP Enter / pad Start (lobby_confirm) act from any focus, so it is
+## Enter / KP Enter / pad Start (lobby_confirm) act from any focus, so it is
 ## taken in _input, before the focused Button's ui_accept. Left alone while a text field has
 ## focus or an OptionButton popup is open. Space still activates the focused control.
 func _input(event: InputEvent) -> void:
@@ -1112,7 +1107,7 @@ func _run_add_bot_shortcut() -> void:
 
 
 ## Host: start when usable (same gate as _on_start_pressed), otherwise nothing.
-## DECISION (Bontago-1pi.98): a client's Start/Enter toggles its own Ready, the same path
+## DECISION: a client's Start/Enter toggles its own Ready, the same path
 ## as the ReadyCheck button, so the one shortcut is the lobby's "confirm" for every seat.
 func _run_start_shortcut() -> void:
 	if _ready_check.visible:
@@ -1139,7 +1134,7 @@ func toggle_focused_advanced() -> void:
 		target.toggle_advanced()
 
 
-## Bontago-1pi.53 (S1a/S1b): the one-line summary on each section header, read straight off
+## S1a/S1b: the one-line summary on each section header, read straight off
 ## the same controls _config_from_controls() reads (and the timer value labels). Called
 ## from _apply_data(), i.e. after every lobby-data apply, so a host edit and a remote
 ## update both refresh it. Replaces the old Advanced rules bar's live chips.
@@ -1182,7 +1177,7 @@ func _cycle_text(selector: UiCycler) -> String:
 	return selector.selected_text()
 
 
-## Bontago-1pi.190: shows the Options screen over the lobby (same build/free pattern as MainMenu).
+## shows the Options screen over the lobby (same build/free pattern as MainMenu).
 ## Lobby networking keeps running (this node keeps processing); focus outside the overlay is
 ## suspended so pad / arrows never reach the lobby, and returns to the Options button on close.
 func open_options() -> void:
@@ -1223,8 +1218,8 @@ func _on_option_changed(_index: int) -> void:
 	_on_setting_changed()
 
 
-## Bontago-1pi.107: the disc-size meter moved; republish like any host edit.
-## DECISION (Bontago-1pi.159.2.1): the meter lights step + 1 cells (Tiny = one cell), so an empty meter
+## the disc-size meter moved; republish like any host edit.
+## DECISION: the meter lights step + 1 cells (Tiny = one cell), so an empty meter
 ## is not a size: a click on its far left edge (0 cells) settles on the smallest size.
 func _on_disc_size_changed(cells: int) -> void:
 	if cells < 1:
@@ -1283,7 +1278,7 @@ func _on_value_changed(_value: float) -> void:
 
 
 ## The team-aggregation toggle exists only for Reach the Sky.
-## Bontago-6fc.1: a host picked a mode. Moving between timer families (classic
+## a host picked a mode. Moving between timer families (classic
 ## <-> timed, Elimination <-> CTF/Sky) resets the control to the new mode's
 ## default; CTF <-> Reach the Sky keeps the chosen length.
 func _on_game_mode_picked(index: int) -> void:
@@ -1320,7 +1315,7 @@ func _refresh_timer_control(mode: int) -> void:
 	_rewire_focus()
 
 
-## DECISION (Bontago-1pi.159.26): the timer stepper reads a bare number; the match timer's lowest stop stays the word "Off".
+## DECISION: the timer stepper reads a bare number; the match timer's lowest stop stays the word "Off".
 static func _timer_stepper_text(minutes: int) -> String:
 	if minutes <= MatchConfig.ROUND_TIMER_OFF_MINUTES:
 		return TIMER_OFF_TEXT
@@ -1359,8 +1354,8 @@ func _on_toggled(_pressed: bool) -> void:
 	_on_setting_changed()
 
 
-## Bontago-1pi.159.59 / .60: a master switch that is off hides what it governs and focus skips it
-## (_visible_chain drops hidden stops): gifts off -> the Frequency row and the GIFTS Advanced bar;
+## / .60: a master switch that is off hides what it governs and focus skips it
+## _visible_chain drops hidden stops: gifts off -> the Frequency row and the GIFTS Advanced bar;
 ## experiments off -> the EXPERIMENTS Advanced bar. Turning it back on restores the bar closed; the
 ## chip selections themselves are untouched. Runs on a local toggle and after a remote apply.
 func _refresh_master_toggles() -> void:
@@ -1378,7 +1373,7 @@ func _set_advanced_available(section: UiSection, available: bool) -> void:
 	section.advanced_button.visible = available
 
 
-## The one place a host's edit turns into a publish (docs/archive/M3a_PLAN.md P4
+## The one place a host's edit turns into a publish
 ## "Tests first": "every setting round-trips through ... Net.set_lobby_data").
 func _on_setting_changed() -> void:
 	if _applying_remote_data:
@@ -1392,7 +1387,7 @@ func _publish_lobby_data(config: MatchConfig) -> void:
 	config.sanitize()
 	var data: Dictionary = config.to_dict()
 	data["roster"] = _players_panel.build_roster(config)
-	# Bontago-1pi.53 (E1): the seat table (per-seat colour/team/difficulty) is
+	# E1: the seat table (per-seat colour/team/difficulty) is
 	# lobby data next to the roster, not a MatchConfig field; an empty table writes no
 	# key, so a lobby without one publishes the exact dict it always did.
 	var seats: Dictionary = _players_panel.seats_data()
@@ -1400,7 +1395,7 @@ func _publish_lobby_data(config: MatchConfig) -> void:
 		data[SEATS_KEY] = seats
 	var applies_before: int = _apply_count
 	net_provider.set_lobby_data(data)
-	# DECISION (Bontago-1pi.11.93): the host's Net emits net_lobby_data_changed from set_lobby_data(),
+	# DECISION: the host's Net emits net_lobby_data_changed from set_lobby_data(),
 	# which _on_lobby_data_changed() already applied (the same dictionary); applying it a second time
 	# only rebuilt the rows again. A provider that does not emit (a test double) still gets its apply.
 	if _apply_count == applies_before:
@@ -1414,10 +1409,10 @@ func _config_from_controls() -> MatchConfig:
 	# forces Match's strict-alternation single-timer branch (autoload/Match.gd
 	# _tick_feed and friends). The lobby is reachable only for networked play —
 	# hot-seat stays a separate, unlisted `--hot-seat` path straight to
-	# game/main/HotSeat.tscn (docs/archive/M3a_PLAN.md question 3) — so every config this
+	# game/main/HotSeat.tscn
 	# screen builds must run the real-time per-player-timer branch instead.
 	config.hot_seat = false
-	# Bontago-1pi.107: there is one map; the disc size is the choice.
+	# there is one map; the disc size is the choice.
 	config.disc_size_step = _disc_size_step()
 	config.player_count = int(_player_count_spin.value)
 	config.ai_count = int(_ai_count_spin.value)
@@ -1441,7 +1436,7 @@ func _config_from_controls() -> MatchConfig:
 	config.turn_based = _turn_based_check.button_pressed
 	config.allow_mid_match_join = _mid_join_check.button_pressed
 	config.enabled_specials = _enabled_specials_from_checkboxes()
-	# DECISION (ui/lobby/Lobby.gd, Bontago-1pi.18.5): always publish an explicit qol
+	# DECISION (ui/lobby/Lobby.gd): always publish an explicit qol
 	# (never null) so the four checkboxes are the single source of the enable
 	# flags -- a toggle left on in the F4 panel cannot leak into a lobby match
 	# the host sees as "all off". Numeric parameters stay in the shared resource.
@@ -1450,7 +1445,7 @@ func _config_from_controls() -> MatchConfig:
 	return config
 
 
-## Bontago-1pi.62: the host's bot names, by bot ordinal. Assigned the moment a bot
+## the host's bot names, by bot ordinal. Assigned the moment a bot
 ## seat exists (so the lobby and the match show the same name), replicated in the
 ## published MatchConfig.bot_names, and reused by Match.start_match.
 var _bot_names: PackedStringArray = PackedStringArray()
@@ -1501,13 +1496,13 @@ func _enabled_specials_from_checkboxes() -> Array[StringName]:
 
 ## Applies a Dictionary from Events.net_lobby_data_changed (or the initial
 ## default) to every control. Always goes through MatchConfig.from_dict() and
-## sanitize(), so a value outside its spec 2.8 range is clamped rather than
+## sanitize(), so a value outside its spec 1.9 range is clamped rather than
 ## trusted, whether it came from the wire or from this instance's own publish.
 func _apply_data(data: Dictionary) -> void:
 	_apply_count += 1
 	var config: MatchConfig = MatchConfig.from_dict(data)
 	config.sanitize()
-	# DECISION (ui/lobby/Lobby.gd, Bontago-mv0.7 root cause): this screen is
+	# DECISION (ui/lobby/Lobby.gd root cause): this screen is
 	# reachable only for networked play (see _config_from_controls()'s own
 	# matching DECISION), but that hot_seat=false override only ever ran
 	# through _config_from_controls() -- reached the *first* time only when a
@@ -1553,7 +1548,7 @@ func _apply_data(data: Dictionary) -> void:
 	_hole_mode_option.select(config.hole_mode)
 	_weather_option.select(config.weather_mode)
 	_sky_theme_option.select(config.sky_theme_mode)
-	# Bontago-6fc.1: the timer control's minimum follows the mode, so it is
+	# the timer control's minimum follows the mode, so it is
 	# retargeted before either value is written (Elimination may hold 0).
 	_game_mode_option.select(config.game_mode)
 	_refresh_timer_control(config.game_mode)
@@ -1565,7 +1560,7 @@ func _apply_data(data: Dictionary) -> void:
 	_toggle_silent(_turn_based_check, config.turn_based)
 	_toggle_silent(_mid_join_check, config.allow_mid_match_join)
 	_apply_enabled_specials_to_checkboxes(config.enabled_specials)
-	# Bontago-1pi.18.5: a null qol (an older host, or config/match/match_defaults.tres)
+	# a null qol (an older host, or config/match/match_defaults.tres)
 	# reads as every experiment off. Inside the guard, so a client mirrors the
 	# host without re-publishing.
 	var qol: QolExperiments = config.qol
@@ -1578,13 +1573,13 @@ func _apply_data(data: Dictionary) -> void:
 	_applying_remote_data = false
 	_refresh_master_toggles()
 	_update_section_summaries()
-	# Bontago-1pi.9b: re-bound %AiCountSpin's max after every value assignment
+	# .9b: re-bound %AiCountSpin's max after every value assignment
 	# above (player_count and ai_count both just moved, possibly from a wire
 	# value that predates this clamp) -- see _clamp_ai_count_to_seats()'s own
 	# header for why this can't just live in _mirror_player_count_to_peers().
 	_clamp_ai_count_to_seats()
 
-	# Bontago-1pi.53 (E1): the panel gets the applied config, the dict's roster (null
+	# E1: the panel gets the applied config, the dict's roster (null
 	# when it carried none: the rows stay) and its seat table ({} when absent or not a
 	# Dictionary off the wire).
 	var seats_variant: Variant = data.get(SEATS_KEY, {})
@@ -1592,7 +1587,7 @@ func _apply_data(data: Dictionary) -> void:
 	_players_panel.apply(config, data["roster"] if data.has("roster") else null, seats)
 
 
-## DECISION (Bontago-1pi.11.93): a remote apply runs 3-4 times per lobby open and every
+## DECISION: a remote apply runs 3-4 times per lobby open and every
 ## set_on_silent() rebuilds the chip's five block styleboxes (~1 ms each, ~20 chips), even when the
 ## state is already right. Writing only a changed state keeps the view identical and skips that.
 func _chip_silent(chip: UiChipToggle, on: bool) -> void:
@@ -1627,7 +1622,7 @@ func _on_lobby_data_changed(data: Dictionary) -> void:
 	_apply_data(data)
 
 
-## Bontago-1pi.53 (E1): the panel's seat table changed (colour, team pick, bot
+## E1: the panel's seat table changed (colour, team pick, bot
 ## difficulty). Republishes like any other host edit, so the dict carries
 ## _players_panel.seats_data(); a client's edit travels as an intent instead.
 func _on_seats_changed() -> void:
@@ -1656,7 +1651,7 @@ func _on_add_bot_requested() -> void:
 
 
 func _on_remove_bot_requested(ordinal: int) -> void:
-	# Bontago-1pi.62: the removed bot's name is freed; later bots keep theirs.
+	# the removed bot's name is freed; later bots keep theirs.
 	if ordinal >= 0 and ordinal < _bot_names.size():
 		_bot_names.remove_at(ordinal)
 	var before: int = int(_ai_count_spin.value)
@@ -1690,7 +1685,7 @@ func _set_bot_count(new_ai_count: int) -> void:
 ## 3 of 4 ready" pill, derived from the exact rows just drawn rather than a second
 ## net_provider query.
 func _on_roster_rendered(ready_count: int, row_count: int) -> void:
-	# DECISION (Bontago-1pi.122): the host counts as ready (see LobbyPlayersPanel._render), and once
+	# DECISION: the host counts as ready (see LobbyPlayersPanel._render), and once
 	# every seat is ready the pill says so instead of "Waiting for players * 2 of 2 ready".
 	if row_count > 0 and ready_count >= row_count:
 		_waiting_status_pill.text = ALL_READY_TEXT
@@ -1711,7 +1706,7 @@ func _is_host_session() -> bool:
 
 # --- Player list / ready / start --------------------------------------------
 
-## DECISION (ui/lobby/Lobby.gd, Bontago-mv0.6): Events.net_roster_changed's payload
+## DECISION (ui/lobby/Lobby.gd): Events.net_roster_changed's payload
 ## is the roster Net just built (autoload/Net.gd's _broadcast_roster() /
 ## _rpc_roster_update()), so this applies it straight to the rows rather than
 ## re-deriving one from net_provider.peer_ids()/peer_info() the way
@@ -1719,11 +1714,11 @@ func _is_host_session() -> bool:
 ## trip, and it is the single source of truth for "what does the list show
 ## right now" (net_lobby_data_changed's own embedded roster only matters for
 ## the late-joiner snapshot _apply_data() already handles).
-## Bontago-1pi.53 (E1): the rows themselves are the players panel's
+## E1: the rows themselves are the players panel's
 ## (on_roster_changed); the spin mirror and the bot clamp stay here.
 func _on_roster_changed(roster: Array[Dictionary]) -> void:
 	_mirror_player_count_to_peers(roster.size())
-	# Bontago-1pi.9b: a human joining/leaving changes how many seats are left
+	# .9b: a human joining/leaving changes how many seats are left
 	# for bots even when the host never touches %PlayerCountSpin itself (e.g.
 	# player_count already sits above the connected-peer count to leave bot
 	# headroom) -- _mirror_player_count_to_peers() above only republishes the
@@ -1745,20 +1740,20 @@ func _on_peer_left(_peer_id: int, _slot_id: int, _reason: int) -> void:
 func _republish_roster_if_host() -> void:
 	if net_provider != null and bool(net_provider.is_host()):
 		var republish: MatchConfig = _last_config if _last_config != null else _config_from_controls()
-		# Bontago-1pi.83: bots seeded before the lobby opened (Vs bots) carry no names yet;
+		# bots seeded before the lobby opened (Vs bots) carry no names yet;
 		# name them here so the first roster never falls back to "Bot n".
 		republish.bot_names = _reconciled_bot_names(republish.ai_count)
 		_publish_lobby_data(republish)
 
 
-## Bontago-mv0.7: player_count above the number of connected peers leaves a
+## player_count above the number of connected peers leaves a
 ## slot nobody holds (see MatchConfig.clamp_to_connected_peers()'s matching
 ## DECISION); _on_start_pressed() below is the authoritative clamp (it runs
 ## even if a roster event was somehow missed), so this is display-only —
 ## keeping the spin from ever *showing* a count the match is about to
 ## override the moment Start is pressed.
 ##
-## DECISION (ui/lobby/Lobby.gd, Bontago-1pi.9b): this used to force
+## DECISION (ui/lobby/Lobby.gd.9b): this used to force
 ## `_player_count_spin.value = peer_count` outright ("Bots don't exist until
 ## M5, so ... the spin simply tracks the peer count exactly" -- true when it
 ## was written, false now that M5 shipped ai_count). Left as-is, every human
@@ -1778,7 +1773,7 @@ func _mirror_player_count_to_peers(peer_count: int) -> void:
 		_player_count_spin.value = target
 
 
-## Bontago-1pi.9b: owner playtest ("I can add bots up to the player limit")
+## .9b: ("I can add bots up to the player limit")
 ## found the bot count could silently exceed the number of empty seats --
 ## nothing stopped ai_count + connected humans from exceeding player_count.
 ## Recomputes %AiCountSpin's own max_value from the current seat count minus
@@ -1799,10 +1794,10 @@ func _clamp_ai_count_to_seats() -> void:
 	_ai_count_spin.max_value = maxi(0, seats - humans)
 
 
-## Bontago-1pi.89: the Ready toggle is a VIEW of Net's per-peer ready flag, never a second copy
+## the Ready toggle is a VIEW of Net's per-peer ready flag, never a second copy
 ## of it. Net owns the flag (host: set_peer_ready(); client: the host's roster) and the rule that
 ## clears it when the session returns to the lobby (Net.set_match_in_progress(false), replacing
-## the lobby-entry reset Bontago-1pi.73 added here); this only reads it -- on entry and on every
+## the lobby-entry reset added here); this only reads it -- on entry and on every
 ## roster refresh, host and client alike -- and draws it with set_pressed_no_signal(), so a view
 ## update is neither a press (no cue) nor a write back into Net (no echo).
 ## DECISION: the flag read is Net's own peer_info() of the local peer, not the roster payload, so
@@ -1816,7 +1811,7 @@ func _sync_ready_toggle_from_net() -> void:
 	_ready_check.set_pressed_no_signal(bool(own.get(LobbySeats.FIELD_READY, false)))
 
 
-## Bontago-1pi.89: draws Net's live roster into the players panel on entry. A client's cached
+## draws Net's live roster into the players panel on entry. A client's cached
 ## lobby data (Net.lobby_data()) embeds the roster as it was when the host last published --
 ## before a match, with that match's ready flags -- and nothing redraws it until the next roster
 ## event; Net's own peers are never older than that snapshot. Nothing is drawn while Net holds no
@@ -1840,7 +1835,7 @@ func _on_ready_toggled(pressed: bool) -> void:
 func _on_start_pressed() -> void:
 	if net_provider == null or not bool(net_provider.is_host()) or not bool(net_provider.all_peers_ready()):
 		return
-	# Bontago-1pi.53 (E1, P1 review F4): the Start button is already disabled while
+	# E1, P1 review F4: the Start button is already disabled while
 	# the panel names a blocker, but the X shortcut and a direct call skip the
 	# button -- so the gate is rechecked here.
 	if _players_panel.start_blocker() != "":
@@ -1848,13 +1843,13 @@ func _on_start_pressed() -> void:
 	var config: MatchConfig = (
 		_last_config if _last_config != null else _config_from_controls()
 	).duplicate(true) as MatchConfig
-	# DECISION (ui/lobby/Lobby.gd, Bontago-1pi.18.5): the numeric experiment parameters
+	# DECISION (ui/lobby/Lobby.gd): the numeric experiment parameters
 	# in _last_config.qol were copied at the last publish; re-fold the toggles onto
 	# the shared resource now so an F4 edit made while the lobby was open takes
 	# effect. The start config always carries a non-null qol, so
 	# MatchLifecycle keeps the lobby's choice instead of snapshotting F4.
 	config.qol = _qol_from_controls()
-	# DECISION (ui/lobby/Lobby.gd, Bontago-mv0.7): the authoritative peer-count
+	# DECISION (ui/lobby/Lobby.gd): the authoritative peer-count
 	# clamp lives here rather than in autoload/Match.gd's start_match() (the
 	# spec/plan's stated preference) because Match.start_match() is also the
 	# exact call tests/unit/match/test_match_lifecycle.gd drives through
@@ -1868,7 +1863,7 @@ func _on_start_pressed() -> void:
 	# how many peers are actually connected, so the clamp runs here and
 	# Match.start_match() is left exactly as it was.
 	config.clamp_to_connected_peers(net_provider.peer_ids().size())
-	# Bontago-1pi.53 (E1, P1 review F1): the panel resolves/flattens its seat picks
+	# E1, P1 review F1: the panel resolves/flattens its seat picks
 	# into the start config only AFTER the clamp above -- MatchConfig.sanitize()
 	# silently drops team arrays whose length differs from player_count, and the
 	# clamp is what settles player_count/ai_count. PL1b: it reconciles the seat table with
@@ -1881,7 +1876,7 @@ func _on_start_pressed() -> void:
 	start_requested.emit(config)
 
 
-## M3b (docs/archive/M3b_PLAN.md P3): opens the Steam overlay's invite dialog. Only
+## Opens the Steam overlay's invite dialog.
 ## `net_provider.invite_friends()` is called here — never a raw Steam call —
 ## the same discipline every other button handler in this file keeps.
 func _on_invite_friends_pressed() -> void:
@@ -1889,7 +1884,7 @@ func _on_invite_friends_pressed() -> void:
 		net_provider.invite_friends()
 
 
-## Bontago-1pi.164: appends the join-code row under the footer buttons (the footer stays directly under the panel).
+## appends the join-code row under the footer buttons (the footer stays directly under the panel).
 func _build_join_code_row() -> void:
 	var footer: Node = _invite_friends_button.get_parent()
 	var column: Node = footer.get_parent()
@@ -1906,12 +1901,12 @@ func _update_host_only_state() -> void:
 	for control: Control in _settings_controls:
 		_set_control_editable(control, is_host)
 	_players_panel.set_editable(is_host)
-	# Bontago-1pi.53 (E1, P1 review F4): a start blocker (e.g. teams on and every
+	# E1, P1 review F4: a start blocker (e.g. teams on and every
 	# seat on one team) disables Start and is shown under the rows (LobbyPlayersPanel); "" when
 	# nothing blocks.
 	var start_blocker: String = _players_panel.start_blocker() if is_host else ""
 	_start_button.visible = is_host
-	# DECISION (Bontago-1pi.95): the host's Start button is its consent -- Net.all_peers_ready()
+	# DECISION: the host's Start button is its consent -- Net.all_peers_ready()
 	# already waits for every OTHER peer only -- so the host's own Ready toggle is redundant and
 	# hidden; a client keeps its toggle. Start itself still goes out through start_requested.
 	_ready_check.visible = not is_host
@@ -1921,7 +1916,7 @@ func _update_host_only_state() -> void:
 	_invite_friends_button.visible = is_host and net_provider != null and bool(net_provider.is_steam_session())
 	if _join_code_row != null:
 		_join_code_row.refresh(net_provider, is_host)
-	# Bontago-1pi.53 (S1a): Start and Invite Friends are focus stops only while shown, so
+	# S1a: Start and Invite Friends are focus stops only while shown, so
 	# the loop is rewired when their visibility flips (a role or transport change), not
 	# every frame.
 	if (
@@ -1959,7 +1954,7 @@ func _set_control_editable(control: Control, editable: bool) -> void:
 		(control as BaseButton).disabled = not editable
 
 
-## Header badge (Bontago-xtq.32 redo, mockup 11's top-right "Hosting * LAN"
+## Header badge (redo, mockup 11's top-right "Hosting * LAN"
 ## pill): reads the same net_provider calls _update_host_only_state() above
 ## already gates on, so it never assumes a transport (CLAUDE.md
 ## "Multiplayer"). Runs every _update_host_only_state() call (once per

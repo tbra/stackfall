@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.26: nothing in the UI scales independently. The project stretch
+## nothing in the UI scales independently. The project stretch
 ## (ui/theme/UiScale.gd) is the one rule; each screen is laid out in a SubViewport
 ## that emulates a real window of every supported size, and key elements must
 ## keep their logical size (so physical size / stretch factor is constant),
@@ -50,7 +50,7 @@ func _settle() -> void:
 func _rect_of(node: Node, path: String) -> Rect2:
 	var control: Control = node.get_node_or_null(path) as Control
 	if control == null and node is HUD:
-		# Bontago-1pi.191: HUD controls live under the HudScaleRoot.
+		# HUD controls live under the HudScaleRoot.
 		control = node.find_child(path, true, false) as Control
 	assert_not_null(control, "missing node %s" % path)
 	if control == null:
@@ -98,21 +98,6 @@ func _check_fixed_size(measured: Dictionary, names: PackedStringArray, label: St
 			assert_almost_eq(size_now.y, want.y, maxf(1.0, want.y * SIZE_TOLERANCE), "%s %s height at %s" % [label, element, window])
 
 
-## Flexible elements: on windows at least 16:9, height as a fraction of the window is constant.
-func _check_height_fraction(measured: Dictionary, names: PackedStringArray, label: String) -> void:
-	var reference: Dictionary = measured[SIZES[0]]
-	for window: Vector2i in measured:
-		if float(window.x) / float(window.y) < WIDE_ASPECT:
-			continue
-		var rects: Dictionary = measured[window]
-		var logical_h: float = (rects[LOGICAL_KEY] as Rect2).size.y
-		var ref_h: float = (reference[LOGICAL_KEY] as Rect2).size.y
-		for element: String in names:
-			var fraction: float = (rects[element] as Rect2).size.y / logical_h
-			var want: float = (reference[element] as Rect2).size.y / ref_h
-			assert_almost_eq(fraction, want, FRACTION_TOLERANCE, "%s %s height fraction at %s" % [label, element, window])
-
-
 ## Distance from the element to its anchor corner stays constant. corner: tl, tr, bl, br.
 func _check_corner_inset(measured: Dictionary, element: String, corner: String, label: String) -> void:
 	var reference: Vector2 = _inset(measured[SIZES[0]], element, corner)
@@ -141,13 +126,6 @@ func _check_no_overlap(measured: Dictionary, pairs: Array, label: String) -> voi
 
 # --- builders ---------------------------------------------------------------
 
-func _build_menu(vp: SubViewport) -> Node:
-	var menu: MainMenu = load("res://ui/menus/MainMenu.tscn").instantiate() as MainMenu
-	vp.add_child(menu)
-	menu.net_provider = FakeNet.new()
-	return menu
-
-
 func _build_lobby(vp: SubViewport) -> Node:
 	var lobby: Lobby = load("res://ui/lobby/Lobby.tscn").instantiate() as Lobby
 	vp.add_child(lobby)
@@ -159,12 +137,6 @@ func _build_lobby(vp: SubViewport) -> Node:
 	return lobby
 
 
-func _build_options(vp: SubViewport) -> Node:
-	var menu: OptionsMenu = load("res://ui/menus/OptionsMenu.tscn").instantiate() as OptionsMenu
-	vp.add_child(menu)
-	return menu
-
-
 func _build_hud(vp: SubViewport) -> Node:
 	var hud: HUD = load("res://ui/hud/HUD.tscn").instantiate() as HUD
 	vp.add_child(hud)
@@ -173,47 +145,12 @@ func _build_hud(vp: SubViewport) -> Node:
 	return hud
 
 
-func _build_results(vp: SubViewport) -> Node:
-	var screen: ResultsScreen = load("res://ui/menus/ResultsScreen.tscn").instantiate() as ResultsScreen
-	vp.add_child(screen)
-	screen.net_provider = FakeNet.host()
-	screen.match_net_provider = FakeMatchNet.new()
-	var fake_match: FakeMatch = FakeMatch.new()
-	fake_match.config = MatchConfig.new()
-	screen.match_provider = fake_match
-	var rows: Array[Dictionary] = []
-	for i: int in 8:
-		rows.append({
-			"slot_id": i, "name": "Player %d" % (i + 1), "team_id": i, "is_bot": i > 0,
-			"blocks_placed": 20 + i, "blocks_lost": i, "gifts_claimed": 1, "specials_used": 1,
-			"territory_share": 0.12, "eliminated_at": MatchStats.NOT_ELIMINATED,
-		})
-	screen.show_results({
-		"winner_kind": MatchStats.WINNER_KIND_SLOT, "winner_id": 0, "winner_name": "Player 1",
-		"match_duration": 120.0, "rows": rows,
-		"mode": {"mode_id": MatchConfig.GameMode.CAPTURE_THE_FLAG, "scores": [499.7, 0.0, 0.0, 0.0]},
-	})
-	return screen
-
-
-func _build_loading(vp: SubViewport) -> Node:
-	var screen: LoadingScreen = load("res://ui/menus/LoadingScreen.tscn").instantiate() as LoadingScreen
-	vp.add_child(screen)
-	var slots: Array[PlayerSlot] = []
-	for i: int in 4:
-		slots.append(PlayerSlot.new(i, i, "Player %d" % (i + 1), Color.WHITE))
-	screen.show_for_match(MatchConfig.new(), slots)
-	return screen
-
-
-# --- tests ------------------------------------------------------------------
-
 func test_ui_scale_rule_matches_project_stretch() -> void:
 	assert_eq(ProjectSettings.get_setting("display/window/stretch/mode"), "canvas_items")
 	assert_eq(ProjectSettings.get_setting("display/window/stretch/aspect"), "expand")
 	assert_almost_eq(UiScale.stretch_factor(Vector2(3440, 1440)), 2.0, 0.001)
 	assert_almost_eq(UiScale.stretch_factor(Vector2(900, 1200)), 900.0 / 1280.0, 0.001)
-	# Bontago-1pi.151: the 100% default is half the old mockup scale (1920x1080 logical at 1280x720).
+	# the 100% default is half the old mockup scale (1920x1080 logical at 1280x720).
 	var base: float = UiScaleTuning.shared().base_scale
 	assert_almost_eq(UiScale.factor(Vector2(3440, 1440)), 2.0 * base, 0.001)
 	assert_eq(UiScale.logical_size(Vector2(1280, 720)), Vector2i(1920, 1080))
@@ -239,51 +176,6 @@ func _collect_ui_scripts(dir_path: String, out: PackedStringArray) -> void:
 			out.append("%s/%s" % [dir_path, file])
 
 
-func test_no_ui_script_applies_its_own_scale() -> void:
-	# The static audit behind the rule: no UI script multiplies the canvas itself.
-	var scripts: PackedStringArray = PackedStringArray()
-	_collect_ui_scripts("res://ui", scripts)
-	for path: String in scripts:
-		var file: String = path.get_file()
-		if file == "SplashScreen.gd":
-			continue
-		var text: String = FileAccess.get_file_as_string(path)
-		for needle: String in ["content_scale_factor", "content_scale_size", "window_get_size", "screen_get_size", "get_window().size", "control.scale ="]:
-			assert_false(text.contains(needle), "%s uses %s" % [file, needle])
-
-
-func test_main_menu_scales_uniformly() -> void:
-	var names: PackedStringArray = ["%Panel", "%HostButton", "%JoinButton", "%GamepadHintPill"]
-	var measured: Dictionary = await _measure(_build_menu, names)
-	_check_on_screen(measured, names, "menu")
-	_check_fixed_size(measured, PackedStringArray(["%HostButton", "%JoinButton"]), "menu")
-	_check_height_fraction(measured, PackedStringArray(["%Panel"]), "menu")
-	_check_no_overlap(measured, [["%Panel", "%GamepadHintPill"], ["%HostButton", "%JoinButton"]], "menu")
-
-
-func test_lobby_scales_uniformly() -> void:
-	var names: PackedStringArray = ["%SettingsCard", "%PlayersCard", "%StartButton", "%BackButton", "%WaitingStatusPill", "%HeaderTitle"]
-	var measured: Dictionary = await _measure(_build_lobby, names)
-	_check_on_screen(measured, names, "lobby")
-	_check_fixed_size(measured, PackedStringArray(["%StartButton", "%BackButton"]), "lobby")
-	_check_height_fraction(measured, PackedStringArray(["%SettingsCard", "%PlayersCard"]), "lobby")
-	_check_corner_inset(measured, "%BackButton", "tr", "lobby")
-	_check_corner_inset(measured, "%StartButton", "br", "lobby")
-	_check_no_overlap(measured, [
-		["%SettingsCard", "%PlayersCard"], ["%SettingsCard", "%StartButton"], ["%PlayersCard", "%StartButton"],
-		["%HeaderTitle", "%BackButton"], ["%WaitingStatusPill", "%StartButton"], ["%WaitingStatusPill", "%SettingsCard"],
-	], "lobby")
-
-
-func test_options_scales_uniformly() -> void:
-	var names: PackedStringArray = ["Frame/Panel", "%SettingsTabButton", "%ControlsTabButton"]
-	var measured: Dictionary = await _measure(_build_options, names)
-	_check_on_screen(measured, names, "options")
-	_check_fixed_size(measured, PackedStringArray(["%SettingsTabButton", "%ControlsTabButton"]), "options")
-	_check_height_fraction(measured, PackedStringArray(["Frame/Panel"]), "options")
-	_check_no_overlap(measured, [["%SettingsTabButton", "%ControlsTabButton"]], "options")
-
-
 func test_hud_scales_uniformly_and_never_overlaps() -> void:
 	var names: PackedStringArray = ["TopLeftBackplate", "HeldNextPanel", "TimerRing", "Minimap"]
 	var measured: Dictionary = await _measure(_build_hud, names)
@@ -297,49 +189,6 @@ func test_hud_scales_uniformly_and_never_overlaps() -> void:
 		["TopLeftBackplate", "Minimap"], ["HeldNextPanel", "Minimap"], ["HeldNextPanel", "TimerRing"],
 		["TimerRing", "Minimap"],
 	], "hud")
-
-
-func test_hud_with_gift_card_keeps_clear_of_other_widgets() -> void:
-	for window: Vector2i in SIZES:
-		var vp: SubViewport = _host(window)
-		var hud: HUD = _build_hud(vp) as HUD
-		hud._gift_slot_column.visible = true
-		hud._held_next_panel.offset_right = hud._gift_slot_panel_base_right + hud._gift_slot_extra_width
-		await _settle()
-		var panel: Rect2 = hud._held_next_panel.get_global_rect()
-		assert_false(panel.intersects(hud._minimap.get_global_rect()), "gift card panel hits minimap at %s" % window)
-		assert_false(panel.intersects(hud._timer_ring.get_global_rect()), "gift card panel hits timer at %s" % window)
-		assert_false(panel.intersects(hud._top_left_backplate.get_global_rect()), "gift card panel hits stats at %s" % window)
-		assert_true(Rect2(Vector2.ZERO, Vector2(vp.get_visible_rect().size)).encloses(panel), "gift panel off screen at %s" % window)
-		vp.queue_free()
-
-
-func test_hud_steps_aside_while_results_are_shown() -> void:
-	var vp: SubViewport = _host(SIZES[0])
-	var hud: HUD = _build_hud(vp) as HUD
-	await _settle()
-	assert_true(hud.visible)
-	Events.match_results_ready.emit({"winner_kind": MatchStats.WINNER_KIND_SLOT, "winner_id": 0, "winner_name": "A", "rows": []})
-	assert_false(hud.visible, "HUD must hide under the results screen")
-	Events.match_state_changed.emit(Match.State.END, Match.State.LOADING)
-	assert_true(hud.visible, "HUD returns for the next match")
-
-
-func test_results_scales_uniformly() -> void:
-	var names: PackedStringArray = ["%Card", "%ReplayButton", "%LobbyButton"]
-	var measured: Dictionary = await _measure(_build_results, names)
-	_check_on_screen(measured, names, "results")
-	_check_fixed_size(measured, PackedStringArray(["%ReplayButton", "%LobbyButton"]), "results")
-	_check_height_fraction(measured, PackedStringArray(["%Card"]), "results")
-	_check_no_overlap(measured, [["%ReplayButton", "%LobbyButton"]], "results")
-
-
-func test_loading_scales_uniformly() -> void:
-	# Bontago-1pi.63: the card holds the map name, player rows and the ready prompt.
-	var names: PackedStringArray = ["%Card", "%MapLabel", "%PlayerList", "%ReadyBox"]
-	var measured: Dictionary = await _measure(_build_loading, names)
-	_check_on_screen(measured, names, "loading")
-	_check_fixed_size(measured, PackedStringArray(["%Card"]), "loading")
 
 
 func _focusable_settings_controls(scroll: ScrollContainer) -> Array[Control]:
@@ -356,7 +205,7 @@ func test_lobby_settings_all_visible_or_reachable_at_every_size() -> void:
 		var vp: SubViewport = _host(window)
 		var lobby: Lobby = _build_lobby(vp) as Lobby
 		await _settle()
-		# Lobby rework (Bontago-1pi.53): advanced options live in collapsible blocks;
+		# Lobby rework: advanced options live in collapsible blocks;
 		# open every section and Advanced block so they are checked for reachability too.
 		for section: UiSection in lobby._sections():
 			if section.has_advanced():

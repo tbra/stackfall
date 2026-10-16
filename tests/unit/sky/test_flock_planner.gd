@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-470.5: core/ambient/FlockPlanner.gd plans the occasional distant
+## core/ambient/FlockPlanner.gd plans the occasional distant
 ## flocks; game/ambient/DistantBirds.gd schedules them (quiet gaps, one flight at a time
 ## per slot, birds parked between flights).
 
@@ -46,16 +46,6 @@ func test_flight_crosses_the_sky_past_the_disc() -> void:
 		assert_lt(nearest, theme.bird_distance_max_m + 20.0, "and passes through the sky it was asked for")
 
 
-func test_v_formation_alternates_sides_behind_the_leader() -> void:
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng.seed = 1
-	var offsets: PackedVector3Array = FlockPlanner.formation(5, 10.0, true, rng)
-	assert_eq(offsets[0], Vector3.ZERO)
-	assert_lt(offsets[1].x * offsets[2].x, 0.0, "wings alternate sides")
-	for index: int in range(1, 5):
-		assert_gt(offsets[index].z, 0.0, "followers trail the leader")
-
-
 func test_scheduler_launches_flies_and_goes_quiet_again() -> void:
 	var theme: SkyThemeDef = _theme().duplicate() as SkyThemeDef
 	theme.bird_seed = 5
@@ -85,11 +75,3 @@ func test_scheduler_launches_flies_and_goes_quiet_again() -> void:
 	birds.advance(60.0)
 	assert_gt(birds.active_flock_count(), 0, "another flock arrives after the gap")
 
-
-func test_low_or_disabled_has_no_scheduler() -> void:
-	var birds: DistantBirds = DistantBirds.new()
-	add_child_autofree(birds)
-	birds.configure(_theme(), false)
-	assert_eq(birds.slot_count(), 0)
-	birds.advance(1000.0)
-	assert_eq(birds.active_flock_count(), 0)

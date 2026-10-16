@@ -2,12 +2,12 @@ class_name UiToggle
 extends Button
 ## The design system's Toggle (docs/ui_reskin/components.md "Toggle"): a knob block sliding in a
 ## sunken disc-900 well, mint when on, with the ON / OFF word beside it (the word is required;
-## owner 2026-10-10: one toggle look everywhere). A UiRowItem (TOGGLE): one row height, sized to
+## one toggle look everywhere). A UiRowItem (TOGGLE): one row height, sized to
 ## its content, never expands. Keyboard / pad: ui_accept toggles, ui_left switches off and
 ## ui_right switches on (like the other value controls). The well and knob are drawn here from
 ## ArcadeVisualTuning + ComponentMetrics; the word is the Button's own text. Disabled keeps showing
 ## its state, dimmed by `disabled_alpha`.
-## DECISION (1pi.159.5): the knob jumps between its two ends (no slide tween); the design's motion
+## DECISION:
 ## tokens are not wired into any component yet.
 
 const WORD_ON: String = "ON"

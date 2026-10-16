@@ -1,5 +1,5 @@
 extends GutTest
-## Glue fusion WP1 (docs/GLUE_FUSION_PLAN.md): the FusedBody carrier itself.
+## Glue fusion: the FusedBody carrier itself.
 ## Real Jolt physics on a tiny disc; the carrier is built through GlueFusion.fuse().
 
 const CUBE_SIDE_M: float = 1.2
@@ -272,9 +272,9 @@ func test_centre_of_mass_uses_member_mass_not_shape_volume() -> void:
 	assert_lt(after_com.distance_to(_world_com(members)), COM_TOLERANCE, "updated COM is mass-weighted")
 
 
-# --- Composition review fixes (Bontago-1pi.85.74) ---
+# --- Composition review fixes ---
 
 
-# --- Carry fixes (Bontago-1pi.85.74.8) ---
+# --- Carry fixes ---
 
 

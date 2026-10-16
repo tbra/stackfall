@@ -1,10 +1,10 @@
 extends GutTest
-## Bontago-1pi.11.28 (P-ASYNC): the WorkerThreadPool territory solve must be
+## P-ASYNC: the WorkerThreadPool territory solve must be
 ## bit-identical to the synchronous one.
-##   A  raster split: update() == fill_ownership(shadow) + adopt_fill()
-##   B  TerritorySolveJob: inline run() == run() inside a WorkerThreadPool task
-##   C  end to end through MatchTerritory, every game mode, sync vs async
-##   D  lifecycle: abort / timer end with a job in flight
+##   A raster split: update() == fill_ownership(shadow) + adopt_fill()
+##   B TerritorySolveJob: inline run() == run() inside a WorkerThreadPool task
+##   C end to end through MatchTerritory, every game mode, sync vs async
+##   D lifecycle: abort / timer end with a job in flight
 
 const GRID_RADIUS: float = 16.0
 const GRID_CELL: float = 1.0
@@ -308,10 +308,10 @@ func test_abort_and_restart_with_a_job_in_flight_leave_nothing_pending() -> void
 	assert_false(Match._territory.solve_pending(), "A new match cancels the old job.")
 
 
-# --- E: steady state (Bontago-1pi.11.28 fix pass) ---------------------------------------
+# --- E: steady state (fix pass) ---------------------------------------
 
 
-# --- F: mid-flight events and authority loss (Bontago-1pi.11.28 review fixes) -------------
+# --- F: mid-flight events and authority loss (review fixes) -------------
 
 func _wait_pending() -> void:
 	if Match._territory.solve_pending():

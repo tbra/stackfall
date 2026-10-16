@@ -1,6 +1,6 @@
 class_name PulseRing
 extends MeshInstance3D
-## Shared pulsing ground ring (Bontago-1pi.85.57): the flat, unshaded, emissive
+## Shared pulsing ground ring: the flat, unshaded, emissive
 ## annulus whose radius and emission breathe on one sine wave. HomeFlag's beacon ring
 ## and the landed gift crate's ring are both this node; each caller passes its own
 ## period/amplitudes from its own tuning Resource. Presentation only.

@@ -1,6 +1,6 @@
 shader_type spatial;
 render_mode unshaded, cull_back, shadows_disabled;
-// Bontago-a3z: one cartoon-blast fireball puff or debris chunk (game/gifts/specials/fx/
+// one cartoon-blast fireball puff or debris chunk (game/gifts/specials/fx/
 // CartoonBlast.gd). Flat cel bands from a fixed view-space key light, a dark rim
 // outline, and a per-instance `heat` (1 white-hot, 0.5 flame, 0 smoke) that
 // CartoonBlast lowers as the puff cools. Hot puffs push past 1.0 so they bloom.

@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1t5.72.5: the evaluator's TIP term reads BotStability.slack. test_bot_think_determinism has no
+## the evaluator's TIP term reads BotStability.slack. test_bot_think_determinism has no
 ## snapshot, so this pins one full Reach the Sky think over a scripted sound tower (a stacked-site decision), shows an
 ## unstable taller top losing to a stable one, and that the topple penalty outweighs the height bonus for every intent.
 
@@ -25,7 +25,6 @@ const UNSTABLE_SLACK: float = -0.1
 const LOW_HEIGHT: float = 1.0
 const TALL_HEIGHT: float = 3.0
 const MAX_PIECE_HEIGHT_M: float = 5.0
-const TOL: float = 0.001
 
 var _territory_tuning: TerritoryTuning = preload("res://config/territory/territory_tuning.tres")
 var _physics: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")

@@ -1,6 +1,6 @@
 extends GutTest
 ## TerritoryOverlay turns the cell raster into the ImageTexture the disk shader
-## samples (spec 2.10, 3.3, docs/archive/M2_PLAN.md "Raster resolution").
+## samples (spec 1.10, 3.3).
 ##
 ## The raster itself is P1's; these tests drive the overlay through a stand-in
 ## that answers owner_bytes()/state_bytes() with hand-built cells, so they pin
@@ -115,7 +115,7 @@ func test_state_bytes_go_up_verbatim() -> void:
 	assert_eq(states.get_pixel(0, 0).r8, 0, "An untouched cell carries no state.")
 
 
-# --- Bontago-cmc.5: the analytic circle list -------------------------------
+# --- the analytic circle list -------------------------------
 
 
 func test_set_circles_uploads_one_texel_per_circle() -> void:
@@ -142,21 +142,21 @@ func test_set_circles_uploads_one_texel_per_circle() -> void:
 	)
 
 
-# --- Bontago-mv0.20b: disk_mesh_segments live-apply --------------------------
+# ---.20b: disk_mesh_segments live-apply --------------------------
 
 
-# --- Bontago-xtq.11: mirror-like opaque disk ---------------------------------
+# --- mirror-like opaque disk ---------------------------------
 #
-# Bontago-xtq.4's disk-opacity tunables and the shader uniforms they drove
-# are gone (owner, 2026-09-23: "the disc is a mirror-like surface and not
+# 's disk-opacity tunables and the shader uniforms they drove
+# are gone ("the disc is a mirror-like surface and not
 # glass, so it should be reflective but not transparent"); see
 # config/territory/TerritoryVisuals.gd and shaders/territory/territory.gdshader for the removal
 # DECISIONs.
 
 
-# --- Bontago-xtq.14: crisp ownership edge, separate from the rim glow --------
+# --- crisp ownership edge, separate from the rim glow --------
 #
-# Owner playtest 2026-09-23: "the edge of the area is a bit blurry, sharpen
+#  "the edge of the area is a bit blurry, sharpen
 # it." shaders/territory/territory.gdshader's analytic circle_path() used to feather
 # the ownership TINT over rim_soft_width (0.25 m, the rim glow's own width) --
 # edge_softness_m below is now a separate, much smaller default so the
@@ -165,10 +165,10 @@ func test_set_circles_uploads_one_texel_per_circle() -> void:
 # edges").
 
 
-# --- Owner 2026-10-07: the disc mirror pass is removed -----------------------
+# --- the disc mirror pass is removed -----------------------
 
 
-# --- Bontago-1pi.11: spatial circle bins -------------------------------------
+# --- spatial circle bins -------------------------------------
 
 ## Reads bin k's (start, count) header and its circle indices back out of the
 ## flat RGF image, the same row-major walk the shader does.
@@ -236,7 +236,7 @@ func test_circle_bins_list_every_circle_that_can_reach_a_pixel() -> void:
 	assert_eq(unordered, 0, "Bin lists keep circle_tex's ascending (team-sorted) order.")
 
 
-## Bontago-1pi.11.23: an unchanged revision skips the texture upload.
+## an unchanged revision skips the texture upload.
 class CountingOverlay extends TerritoryOverlay:
 	var pushes: int = 0
 
@@ -245,7 +245,7 @@ class CountingOverlay extends TerritoryOverlay:
 		super(owner_bytes, state_bytes, side)
 
 
-# --- Bontago-1pi.11.67 fix2b: GPU cost of the disc shader ---------------------
+# --- fix2b: GPU cost of the disc shader ---------------------
 
 ## The void field is skipped while no cell is a hole; any hole cell turns it on.
 func test_void_present_follows_hole_cells_in_the_upload() -> void:
@@ -267,7 +267,7 @@ func test_void_present_follows_hole_cells_in_the_upload() -> void:
 	assert_false(bool(overlay.material().get_shader_parameter(&"void_present")), "a closed hole drops it again.")
 
 
-## Bontago-1pi.11.67 fix2b: a test that switches the graphics preset records the
+## fix2b: a test that switches the graphics preset records the
 ## original here; after_each puts it back even when an assert failed midway.
 var _restore_preset_id: StringName = &""
 

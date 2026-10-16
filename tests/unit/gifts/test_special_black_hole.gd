@@ -1,5 +1,5 @@
 extends GutTest
-## Black hole special (Bontago-8or.25): pull inside the radius (all teams),
+## Black hole special: pull inside the radius (all teams),
 ## nothing outside, expiry after lifetime_s, optional core consumption, and a
 ## client building the visual from the replicated special_triggered.
 
@@ -13,7 +13,7 @@ var _bodies: Array[Node3D] = []
 
 
 func after_each() -> void:
-	# Bontago-fca.80: many tests here pause the shared Match autoload's _process and only one
+	# many tests here pause the shared Match autoload's _process and only one
 	# put it back; a paused Match left test_start_camera_flow stuck in LOADING (same batch).
 	Match.set_process(true)
 	for body: Node3D in _bodies:
@@ -47,7 +47,7 @@ func _make_block(position: Vector3, slot: int) -> Block:
 	return block
 
 
-## Skips the spawn growth (Bontago-1pi.85.56) so rule tests see the full-size hole.
+## Skips the spawn growth so rule tests see the full-size hole.
 func _grow_in(field: BlackHoleField) -> void:
 	field._age = (load("res://config/gifts/black_hole_visual.tres") as BlackHoleVisualTuning).grow_in_s
 
@@ -197,7 +197,7 @@ func test_real_disc_8kg_block_from_6m_reaches_the_core_within_lifetime() -> void
 	assert_false(heavy.has_meta(RadialPull.CAPTURED_META), "refused dissolve leaves no capture flag")
 
 
-# DECISION (Bontago-fca.83): 8 cubes, not 12. The gate's parallel shard still hit "Jolt Physics job
+# DECISION: 8 cubes, not 12. The gate's parallel shard still hit "Jolt Physics job
 # system exceeded the maximum number of jobs" in the pile test (an engine warning GUT counts as a
 # failure) when worker threads were starved: the pull funnels every cube into the 0.8 m core, so
 # the contact count per step is what exhausts the job pool. Two full layers of four still prove
@@ -289,7 +289,7 @@ func test_cubes_piled_in_the_core_are_all_removed() -> void:
 		var angle: float = float(i) * TAU / 4.0
 		# Even cubes sit at +-PILE_CORE_M on x, odd ones on the PILE_RING_M ring on z: no two
 		# cubes of a layer coincide (coincident bodies made Jolt depenetrate violently and
-		# overflow its job system under CPU contention, fca.50).
+		# overflow its job system under CPU contention).
 		var radius: float = PILE_RING_M if i % 2 == 1 else PILE_CORE_M
 		var ring: Vector3 = Vector3(cos(angle), 0.0, sin(angle)) * radius
 		positions.append(ring + Vector3(0.0, disc.surface_y() + 0.6 + float(i / 4) * CUBE_COLUMN_SPACING_M, 0.0))
@@ -327,7 +327,7 @@ func _real_cube_at(root: Node3D, basis: Basis, centre: Vector3) -> Block:
 	return cube
 
 
-## Bontago-1pi.85.26 root cause: the hole sits on the disc surface and a Block's origin
+## root cause: the hole sits on the disc surface and a Block's origin
 ## is its bottom face, so a cube lying upside down or on its side right at the core, or
 ## the second layer of the core pile, kept its origin farther than the old 0.8 m core
 ## sphere and was never captured. Measured to the collision centre, all are captured.
@@ -440,7 +440,7 @@ func test_client_builds_the_visual_from_the_replicated_trigger() -> void:
 
 	net.net_match_event(MatchNetScript.EVENT_SPECIAL_TRIGGERED, [7, &"black_hole", Vector3(1.0, 2.0, 3.0), 0])
 
-	# Bontago-1pi.85.66: the client's visual rides the disc (child of the Field).
+	# the client's visual rides the disc (child of the Field).
 	var visuals: Array[Node] = field.find_children("*", "BlackHoleVisual", true, false)
 	assert_eq(visuals.size(), 1, "client draws the placeholder from the replicated activation")
 	if visuals.size() == 1:
@@ -507,7 +507,7 @@ func test_vortex_disc_matches_pull_radius_and_low_preset_drops_streaks() -> void
 
 func test_shipped_black_hole_activates_in_place_and_fires_on_the_first_tick() -> void:
 	var def: SpecialDef = SpecialDef.find_by_id(&"black_hole")
-	assert_true(def.activates_in_place, "opens where the gift is dropped (Bontago-1pi.85.45)")
+	assert_true(def.activates_in_place, "opens where the gift is dropped")
 	assert_eq(def.arm_delay, 0.0)
 	assert_eq(def.fuse_timeout_s, 0.0, "no fuse wait: the hole opens at release")
 
@@ -525,7 +525,7 @@ func test_vortex_core_opens_up_from_below_the_surface() -> void:
 	assert_almost_eq(core.position.y, 0.0, 0.001, "risen to the surface once grown in")
 
 
-# --- Bontago-1pi.85.56: spawn small, ease-in growth ----------------------------
+# --- spawn small, ease-in growth ----------------------------
 
 func test_growth_curve_starts_small_eases_in_and_reaches_full_size() -> void:
 	var tuning: BlackHoleVisualTuning = load("res://config/gifts/black_hole_visual.tres") as BlackHoleVisualTuning

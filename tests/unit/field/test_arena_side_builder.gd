@@ -1,6 +1,6 @@
 extends GutTest
 ## game/field/ArenaSideBuilder.gd + the ArenaSideStyle switch in game/field/ArenaMesh.gd
-## (Bontago-mp0.150.2): every alternative side/underside look is static CPU
+## : every alternative side/underside look is static CPU
 ## geometry that must hang from the slab edge, stay inside the map's outline,
 ## carry unit normals that point away from the solid, and work for every MapDef
 ## shape. Plain ArrayMesh data, readable headless.

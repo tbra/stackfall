@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.11.87: the crate model table/GLB is built before the first gift spawn, so the
+## the crate model table/GLB is built before the first gift spawn, so the
 ## first GiftCrate no longer costs a 40+ ms hitch inside a placement frame.
 
 

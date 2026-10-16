@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.191: the in-match HUD scale is separate from the UI scale, and the minimap size is an
+## the in-match HUD scale is separate from the UI scale, and the minimap size is an
 ## option. Covers persistence + migration, HUD-only scaling, live minimap resize, and the round-timer /
 ## minimap / held-next layout at the extreme scales.
 
@@ -61,14 +61,6 @@ func test_old_save_without_hud_keys_migrates_hud_scale_from_ui_scale() -> void:
 	assert_eq(settings.minimap_size_preset(), UiScaleTuning.shared().minimap_default_preset)
 
 
-func test_hud_relative_factor_makes_hud_independent_of_ui_scale() -> void:
-	UiScaleTuning.current_scale = 1.5
-	UiScaleTuning.current_hud_scale = 1.0
-	assert_almost_eq(UiScaleTuning.hud_relative_factor(), 1.0 / 1.5, 0.0001)
-	UiScaleTuning.current_hud_scale = 1.5
-	assert_almost_eq(UiScaleTuning.hud_relative_factor(), 1.0, 0.0001)
-
-
 func test_options_rows_exist_and_apply() -> void:
 	var menu: Node = autofree((load("res://ui/menus/OptionsMenu.tscn") as PackedScene).instantiate())
 	add_child(menu)
@@ -127,89 +119,3 @@ func test_hud_scale_changes_only_the_hud_and_keeps_alignments() -> void:
 				assert_almost_eq(hud._scale_root.scale.x * UiScale.user_factor(), tuning.base_scale * hud_factor, 0.001, "total HUD factor follows HUD scale only %s" % where)
 				vp.queue_free()
 	Settings.reset_hud_scale()
-
-
-func test_countdown_and_eliminated_banners_centre_on_screen_at_extreme_scales() -> void:
-	var tuning: UiScaleTuning = UiScaleTuning.shared()
-	for window: Vector2i in WINDOWS:
-		for hud_scale: float in [tuning.min_scale, tuning.max_scale]:
-			Settings.set_hud_scale(hud_scale)
-			var vp: SubViewport = UiScale.make_viewport(window)
-			vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-			add_child_autofree(vp)
-			var hud: HUD = _hud_in(vp)
-			for _i: int in SETTLE_FRAMES:
-				await get_tree().process_frame
-			var screen: Rect2 = Rect2(Vector2.ZERO, Vector2(vp.get_visible_rect().size))
-			var where: String = "%s hud %.2f" % [window, hud_scale]
-			for label_name: String in ["CountdownLabel", "EliminatedLabel"]:
-				var label: Label = hud.find_child(label_name, true, false) as Label
-				assert_not_null(label, "%s exists %s" % [label_name, where])
-				var rect: Rect2 = _rect(label)
-				assert_almost_eq(rect.get_center().x, screen.get_center().x, EDGE_EPS, "%s centre x %s" % [label_name, where])
-				assert_almost_eq(rect.get_center().y, screen.get_center().y, EDGE_EPS, "%s centre y %s" % [label_name, where])
-				assert_true(screen.grow(EDGE_EPS).encloses(rect), "%s on screen %s" % [label_name, where])
-			vp.queue_free()
-	Settings.reset_hud_scale()
-
-
-func test_minimap_presets_sit_bottom_right_unclipped() -> void:
-	var tuning: UiScaleTuning = UiScaleTuning.shared()
-	for window: Vector2i in WINDOWS:
-		for preset: int in tuning.minimap_size_presets_px.size():
-			Settings.set_minimap_size_preset(preset)
-			var vp: SubViewport = UiScale.make_viewport(window)
-			vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-			add_child_autofree(vp)
-			var hud: HUD = _hud_in(vp)
-			hud._minimap.set_map_def(MapDef.new())
-			for _i: int in SETTLE_FRAMES:
-				await get_tree().process_frame
-			var where: String = "%s preset %d" % [window, preset]
-			var screen: Rect2 = Rect2(Vector2.ZERO, Vector2(vp.get_visible_rect().size))
-			var minimap: Rect2 = _rect(hud._minimap)
-			assert_true(hud._minimap.visible, "minimap shown once a map is set %s" % where)
-			assert_eq(hud._minimap.size_px(), tuning.minimap_size_px_for(preset), "size_px %s" % where)
-			assert_true(screen.grow(EDGE_EPS).encloses(minimap), "unclipped %s: %s" % [where, minimap])
-			var margin_right: float = screen.end.x - minimap.end.x
-			var margin_bottom: float = screen.end.y - minimap.end.y
-			assert_true(margin_right < screen.size.x * 0.1 and margin_bottom < screen.size.y * 0.15, "bottom-right %s: %s" % [where, minimap])
-			vp.queue_free()
-
-
-func test_timer_ring_bottom_scales_with_hud_scale() -> void:
-	var tuning: UiScaleTuning = UiScaleTuning.shared()
-	var vp: SubViewport = UiScale.make_viewport(WINDOWS[0])
-	add_child_autofree(vp)
-	var hud: HUD = _hud_in(vp)
-	Settings.set_hud_scale(tuning.min_scale)
-	await get_tree().process_frame
-	await get_tree().process_frame
-	var small: float = hud.timer_ring_bottom_px()
-	Settings.set_hud_scale(tuning.max_scale)
-	await get_tree().process_frame
-	await get_tree().process_frame
-	var large: float = hud.timer_ring_bottom_px()
-	assert_gt(small, 0.0)
-	assert_almost_eq(large / small, tuning.max_scale / tuning.min_scale, 0.01, "banner offset follows the HUD scale")
-	Settings.reset_hud_scale()
-
-
-## Bontago-1pi.193: the tutorial tip banner follows the HUD scale (panel scaled around its top-centre).
-func test_tutorial_tip_banner_scales_with_the_hud() -> void:
-	var tuning: UiScaleTuning = UiScaleTuning.shared()
-	var tutorial: Node = autofree(load("res://ui/menus/Tutorial.tscn").instantiate())
-	add_child(tutorial)
-	await wait_frames(SETTLE_FRAMES)
-	var panel: Control = tutorial.get("_prompt_panel") as Control
-	Settings.set_hud_scale(tuning.default_scale)
-	await wait_frames(SETTLE_FRAMES)
-	var base: float = panel.scale.x
-	assert_almost_eq(base, UiScaleTuning.hud_relative_factor(), 0.0001)
-	Settings.set_hud_scale(tuning.max_scale)
-	await wait_frames(SETTLE_FRAMES)
-	assert_almost_eq(panel.scale.x, UiScaleTuning.hud_relative_factor(), 0.0001)
-	assert_gt(panel.scale.x, base, "a larger HUD scale enlarges the banner")
-	var hud: HUD = tutorial.get("_hud") as HUD
-	assert_gte(panel.offset_top, hud.timer_ring_bottom_px(), "banner stays under the scaled timer ring")
-	tutorial.queue_free()

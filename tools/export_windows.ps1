@@ -8,10 +8,10 @@
 #   tools/export_windows.ps1                 # release export
 #   tools/export_windows.ps1 -Debug          # debug export (script errors visible)
 #   tools/export_windows.ps1 -SkipSmoke      # skip the exported-exe bot-match smoke gate (default: 1200 frames, -SmokeFrames N)
-#   tools/export_windows.ps1 -Path M:/some/worktree
-#   tools/export_windows.ps1 -Path M:/clean/worktree -AssetsFrom M:/Bontago
+#   tools/export_windows.ps1 -Path <worktree>
+#   tools/export_windows.ps1 -Path <clean worktree> -AssetsFrom <main checkout>
 #       # copy the gitignored addons/godotsteam from the main checkout into the worktree first
-#   tools/export_windows.ps1 -OutDir C:/scratch/out   # export somewhere other than <Path>/build/windows
+#   tools/export_windows.ps1 -OutDir <dir>   # export somewhere other than <Path>/build/windows
 param(
 	[switch]$Debug,
 	[string]$Path = "",
@@ -64,7 +64,7 @@ if (-not (Test-Path $steamDll)) {
 	Write-Warning "GodotSteam addon not installed in $Path; the build will run LAN/direct IP only."
 }
 
-# Bontago-1pi.74: bake the git revision into res://build_info.cfg for the menu label.
+# bake the git revision into res://build_info.cfg for the menu label.
 & $Godot --headless --path $Path -s tools/stamp_build_info.gd
 if ($LASTEXITCODE -ne 0) {
 	Write-Warning "stamp_build_info failed; the build label will show the version only."
@@ -74,7 +74,7 @@ $mode = if ($Debug) { "--export-debug" } else { "--export-release" }
 Write-Host "Exporting ($mode) from $Path to $exe"
 & $Godot --headless --path $Path $mode "Windows Desktop" $exe
 $exportCode = $LASTEXITCODE
-# Bontago-1pi.136: the stamp is packed into the export; drop it from the
+# the stamp is packed into the export; drop it from the
 # checkout so later dev runs never show this export's revision.
 Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $Path "build_info.cfg")
 if ($exportCode -ne 0) {
@@ -98,7 +98,7 @@ foreach ($dll in @("libgodotsteam.windows.template_release.x86_64.dll", "libgodo
 # build that was not started by the Steam client itself.
 Set-Content -Path (Join-Path $outDir "steam_appid.txt") -Value "480" -Encoding ascii -NoNewline
 
-# Playtest share (owner 2026-10-01): with the 480 test AppID a plain launch
+# Playtest share: with the 480 test AppID a plain launch
 # skips Steam init (game/main/Main.gd), so testers get a launcher that opts in.
 $launcher = "@echo off`r`nstart `"`" `"%~dp0Stackfall.exe`" -- --steam-online --steam-public-lobby`r`n"
 Set-Content -Path (Join-Path $outDir "Play Online (Steam).bat") -Value $launcher -Encoding ascii -NoNewline
@@ -137,9 +137,9 @@ if (Test-Path $effectAssets) {
 	Write-Warning "assets/audio/sfx/ not found in $Path; the exported build will have no effects."
 }
 
-# Smoke gate (Bontago-8or.18): GUT runs from source, never from the PCK, so
+# Smoke gate: GUT runs from source, never from the PCK, so
 # export-only regressions (e.g. .tres listed as .tres.remap, which once left the
-# block bag empty -- feedback/playtest.md 2026-09-26) are invisible to the unit
+# block bag empty -- feedback/playtest.md) are invisible to the unit
 # suite. Run a short headless bot match on the exported exe and require that
 # blocks were actually placed. -SkipSmoke bypasses it for debug/iteration builds.
 if (-not $SkipSmoke) {

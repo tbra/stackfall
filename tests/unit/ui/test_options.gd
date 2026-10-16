@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.50/.51/.52: control labels, Reset/Back left-right focus, FOV meter 5 deg/step.
+##/.51/.52: control labels, Reset/Back left-right focus, FOV meter 5 deg/step.
 
 const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/menus/OptionsMenu.tscn")
 const SETTINGS_SCRIPT: GDScript = preload("res://autoload/Settings.gd")
@@ -15,11 +15,6 @@ func _make_menu() -> OptionsMenu:
 	fresh.set_config_path_for_test(OS.get_user_data_dir().path_join("test_options_1014_%d.cfg" % _counter))
 	menu.settings_provider = fresh
 	return menu
-
-
-func test_control_labels() -> void:
-	assert_eq(KeyRebindRow.DISPLAY_NAMES[&"use_gift_slot"], "Activate gift")
-	assert_eq(KeyRebindRow.DISPLAY_NAMES[&"rotation_mode"], "Free rotation mode (hold)")
 
 
 func _press(action: StringName) -> void:

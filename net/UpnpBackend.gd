@@ -1,6 +1,6 @@
 class_name UpnpBackend
 extends RefCounted
-## One router-port-mapping attempt (Bontago-1pi.164). The base class is the "unsupported" backend and
+## One router-port-mapping attempt. The base class is the "unsupported" backend and
 ## the interface tests fake. Both methods run on UpnpRunner's worker thread and may block.
 
 

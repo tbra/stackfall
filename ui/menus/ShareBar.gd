@@ -1,6 +1,6 @@
 class_name ShareBar
 extends Control
-## Bontago-1pi.80: one HUD territory/score bar as a single control. Stackfall Arcade (Bontago-hfa.6):
+## one HUD territory/score bar as a single control. Stackfall Arcade:
 ## a disc-700 well track with the player's colour as the fill and a cut every 10 % (disc-900), so
 ## 5 % and 12 % compare at a glance without the bar looking empty. The track, fill, sheen and cuts
 ## are all drawn by this control, the fill inset inside the track border. Sizes and colours come

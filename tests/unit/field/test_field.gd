@@ -1,14 +1,14 @@
 extends GutTest
 ## Field builds its disk from MapDef/PhysicsTuning and frees anything that
-## reaches the kill plane (spec 2.1).
+## reaches the kill plane (spec 1.7).
 ##
-## M2 replaced the single cylinder collision with the cell grid spec 3.3 asks
+## M2 replaced the single cylinder collision with the cell grid spec 2.5 asks
 ## for; the grid itself is covered by test_field_cells.gd, so what is left here
 ## is the disk's size, its material and the kill plane.
 
-## DECISION (Bontago-mv0.3): none of this file's assertions depend on the
+## DECISION: none of this file's assertions depend on the
 ## map's actual scale (mesh radius tracks whatever map_def says; cell_count()
-## just has to be positive, under one trimesh owner; friction and the
+## just has to be positive, under one trimesh shape; friction and the
 ## kill plane are size-independent) -- only a couple of tests already used
 ## a scaled round_medium.tres; the ones that instead built a plain
 ## Field.new() (round_medium.tres, ~6300 cells) or explicitly loaded
@@ -27,7 +27,7 @@ func test_disk_collision_covers_the_disk() -> void:
 	field.map_def = _tiny_map
 	add_child_autofree(field)
 
-	# Bontago-ruw: one trimesh on one shape owner, a quad per in-disk cell;
+	# one trimesh on one collision shape, a quad per in-disk cell;
 	# this small a disk at cell_size 1 is still a bit over a hundred cells.
 	assert_gt(field.cell_count(), 0, "The disk collides as a grid of cells.")
 	assert_eq(field.get_shape_owners().size(), 1, "The disk is one shape owner.")
@@ -58,7 +58,7 @@ func test_kill_plane_frees_the_body_and_emits_event() -> void:
 	assert_true(body.is_queued_for_deletion(), "The body should be freed once it hits the kill plane.")
 
 
-# --- clear_match_state() (Beads Bontago-mv0.1.9) -----------------------------
+# --- clear_match_state() -----------------------------
 #
 # Field is a persistent node -- Main never frees or rebuilds it between
 # matches -- so nothing else resets its flags, its overlay's raster reference

@@ -1,10 +1,10 @@
 class_name DiscSizeTuning
 extends Resource
-## The lobby's disc-size slider (Bontago-1pi.107, owner 2026-10-07): six steps,
+## The lobby's disc-size slider: six steps,
 ## each a uniform scale of the default (round, medium) map. Step labels and
 ## factors live in config/match/disc_size_tuning.tres so no number is baked into code.
 ##
-## DECISION (Bontago-1pi.107): a step scales MapDef's geometric lengths
+## DECISION: a step scales MapDef's geometric lengths
 ## (field_radius, so the home/goal flags, spawn area, kill plane, camera framing
 ## and the influence cap, which are all fractions of it; the territory texture
 ## resolution; the Ring/Twin bridge widths) uniformly. It does NOT scale block
@@ -31,7 +31,7 @@ static func shared() -> DiscSizeTuning:
 	return _shared
 
 
-## Bontago-xtq.44: drops the shared instance on exit so its textures are freed with the tree.
+## drops the shared instance on exit so its textures are freed with the tree.
 static func release_shared() -> void:
 	_shared = null
 

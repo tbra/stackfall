@@ -1,6 +1,6 @@
 class_name LanDiscovery
 extends Node
-## LAN game advertising and browsing over UDP broadcast (spec 3.4 "LAN
+## LAN game advertising and browsing over UDP broadcast (spec 2.6 "LAN
 ## discovery"): the host broadcasts `{game, version, name, players, max, map,
 ## port}` once per second to 255.255.255.255 on NetConfig.discovery_port
 ## (47777); clients listen and show a list.
@@ -13,7 +13,7 @@ extends Node
 ## SO_REUSEADDR, so only one process per machine can listen on 47777. Two
 ## headless clients on one PC therefore cannot both browse; the multi-instance
 ## test harness joins by direct IP (127.0.0.1) instead, which is the path spec
-## 3.4 calls "available as a fallback". Documented in docs/archive/M3a_PLAN.md.
+## calls "available as a fallback".
 
 const _BROADCAST_ADDRESS: String = "255.255.255.255"
 ## Longest UTF-8 byte length accepted for any single string field of an

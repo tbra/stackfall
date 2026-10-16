@@ -1,6 +1,6 @@
 class_name UiTitleRow
 extends HBoxContainer
-## A screen / panel title row (docs/UI_COMPONENTS_PLAN.md section 4, "Title alignment"): the flare
+## A screen / panel title row (section 4,
 ## voxel bullet and the uppercase heading on the left edge, then optional trailing items (a status
 ## badge, a Back button) pushed right, all centred on one baseline. It owns the heading look so
 ## every screen title lines up with its panel's inner padding. [UiPanel] uses one as its header.

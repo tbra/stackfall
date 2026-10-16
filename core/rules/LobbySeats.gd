@@ -1,7 +1,6 @@
 class_name LobbySeats
 extends RefCounted
-## Pure lobby seat model for the lobby rework (Bontago-1pi.53, docs/LOBBY_REWORK_PLAN.md
-## section 3). The lobby keeps ONE seat table, next to "roster" in the lobby data:
+## Pure lobby seat model. The lobby keeps ONE seat table, next to "roster" in the lobby data:
 ##
 ##   { "humans": [ {"peer_id": int, "color": int, "team": int} ],
 ##     "bots":   [ {"color": int, "team": int, "difficulty": int} ] }
@@ -394,7 +393,7 @@ static func apply_human_pref(seats: Dictionary, peer_id: int, color_index: int, 
 ## peer missing from it, or with a negative slot, is a spectator and holds no seat);
 ## an EMPTY dictionary means "no Net": humans take slots 0.. in seat order (tests,
 ## offline). The slot count is the seated humans + bots, at least
-## MatchConfig.PLAYER_COUNT_MIN (1, owner decision Bontago-1pi.206): a solo lobby
+## MatchConfig.PLAYER_COUNT_MIN (1): a solo lobby
 ## forms exactly one slot and no vacant one. Reports an error instead of a
 ## layout when there are more than 8 seats or a human's real slot is not below the
 ## trailing bot slots (two seats in one slot: Net reuses the lowest free slot for a
@@ -432,16 +431,6 @@ static func layout(seats: Dictionary, slot_of_peer: Dictionary = {}) -> Layout:
 	for ordinal: int in range(bots_total):
 		plan.slot_keys[bot_start + ordinal] = bot_key(ordinal)
 	return plan
-
-
-## Team pick of every slot (size = layout().player_count): the seat's pick, Random
-## for a vacant slot. Empty when layout() reports an error.
-static func team_picks_by_slot(seats: Dictionary, slot_of_peer: Dictionary = {}) -> PackedInt32Array:
-	var data: Dictionary = _prepared(seats, MatchConfig.AiDifficulty.NORMAL, 0)
-	var plan: Layout = layout(data, slot_of_peer)
-	if not plan.is_valid():
-		return PackedInt32Array()
-	return _slot_picks(data, plan)
 
 
 ## "" when the lobby may start, else the reason Start must be disabled with: a seat

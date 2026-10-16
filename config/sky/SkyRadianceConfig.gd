@@ -1,6 +1,6 @@
 class_name SkyRadianceConfig
 extends Resource
-## Bontago-1pi.11.74 (G1): cadence of the sky's radiance (ambient + reflection) refresh.
+## G1: cadence of the sky's radiance (ambient + reflection) refresh.
 ## game/sky/Skybox.gd drives the shaders' global `sky_time` every frame (smooth visible
 ## sky) but only dirties the material, and so the radiance octmap, this often.
 

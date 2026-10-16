@@ -1,6 +1,6 @@
 class_name BlockDissolveFx
 extends Node
-## Bontago-1pi.11.42 (owner decision Bontago-gdb): the visual half of a hole
+## the visual half of a hole
 ## dissolve. On Events.block_dissolve_started (emitted by HoleDissolver on the
 ## host and by MatchNet for the clients' copy) this drives the block's
 ## `dissolve_amount` *instance* shader parameter from 0 to 1 over the event's
@@ -44,10 +44,6 @@ func _exit_tree() -> void:
 		Events.block_dissolve_started.disconnect(_on_dissolve_started)
 	if Events.block_removed.is_connected(_on_block_removed):
 		Events.block_removed.disconnect(_on_block_removed)
-
-
-func is_effect_enabled() -> bool:
-	return _enabled
 
 
 func active_count() -> int:

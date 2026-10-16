@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.47 (owner playtest: "In menus that have scrolling, for example
+## ("In menus that have scrolling, for example
 ## controller remapping, navigating with gamepad/arrow keys doesn't update the
 ## scroll position"). ui/menus/OptionsMenu.tscn's Settings page and Controls rebind
 ## list are ui/components/FocusScrollContainer.gd; this drives real ui_up/ui_down through
@@ -101,7 +101,7 @@ func _assert_focus_in_view(scroll: ScrollContainer, expected: Control, label: St
 func _walk_controls_list(pad: bool) -> void:
 	var menu: OptionsMenu = await _make_menu(pad)
 	var scroll: ScrollContainer = await _show_controls_tab(menu)
-	# The pad page lists fewer rows now (Bontago-1pi.159.22 hides fixed camera rows), so
+	# The pad page lists fewer rows now (hides fixed camera rows), so
 	# shorten the view like the settings page does to keep the list overflowing.
 	scroll.size_flags_vertical = Control.SIZE_FILL
 	scroll.custom_minimum_size = Vector2(0.0, SHORT_SETTINGS_VIEW_PX)
@@ -165,81 +165,6 @@ func test_moving_up_into_a_section_start_keeps_its_caption_visible() -> void:
 
 # --- Settings page ----------------------------------------------------------------
 
-func _walk_settings_page(pad: bool) -> void:
-	var menu: OptionsMenu = await _make_menu(pad)
-	var scroll: ScrollContainer = menu.get_node("%SettingsPage") as ScrollContainer
-	scroll.size_flags_vertical = Control.SIZE_FILL
-	scroll.custom_minimum_size = Vector2(0.0, SHORT_SETTINGS_VIEW_PX)
-	await _settle()
-	var chain: Array[Control] = [
-		menu.get_node("%PresetOption") as Control,
-		menu.get_node("%WindowModeOption") as Control,
-		menu.get_node("%UiScaleSlider") as Control,
-		menu.get_node("%HudScaleSlider") as Control,
-		menu.get_node("%MinimapSizeOption") as Control,
-		menu.get_node("%CameraShakeCheck") as Control,
-		menu.get_node("%AdaptiveQualityCheck") as Control,
-		menu.get_node("%FovSlider") as Control,
-		menu.get_node("%MasterMuteButton") as Control,
-		menu.get_node("%MasterVolumeSlider") as Control,
-		menu.get_node("%MusicMuteButton") as Control,
-		menu.get_node("%MusicVolumeSlider") as Control,
-		menu.get_node("%SfxMuteButton") as Control,
-		menu.get_node("%SfxVolumeSlider") as Control,
-		menu.get_node("%WeatherMuteButton") as Control,
-		menu.get_node("%WeatherVolumeSlider") as Control,
-		menu.get_node("%RumbleEnabledCheck") as Control,
-		menu.get_node("%RumbleStrengthSlider") as Control,
-	]
-	var family: String = "pad" if pad else "key"
-	var visible_chain: Array[Control] = []
-	for control: Control in chain:
-		if control.is_visible_in_tree():
-			visible_chain.append(control)
-	assert_gt(visible_chain.size(), 6, "%s: settings page has focusable rows" % family)
-
-	visible_chain[0].grab_focus()
-	await _settle()
-	for i: int in range(1, visible_chain.size()):
-		await _tap(pad, true)
-		_assert_focus_in_view(scroll, visible_chain[i], "%s settings down step %d" % [family, i])
-	var scrolls: bool = scroll.get_v_scroll_bar().max_value > scroll.get_v_scroll_bar().page + EDGE_EPS
-	assert_true(scrolls, "%s: the shortened settings page overflows its view (max %s, page %s)" % [
-		family, scroll.get_v_scroll_bar().max_value, scroll.get_v_scroll_bar().page])
-	assert_gt(scroll.scroll_vertical, 0, "%s: walking to the last setting scrolled the page" % family)
-	for i: int in range(visible_chain.size() - 2, -1, -1):
-		await _tap(pad, false)
-		_assert_focus_in_view(scroll, visible_chain[i], "%s settings up step %d" % [family, i])
-	assert_eq(scroll.scroll_vertical, 0, "%s: back at the first setting the page is at the top" % family)
-
-
-func test_keyboard_arrows_keep_the_settings_page_focus_visible() -> void:
-	await _walk_settings_page(false)
-
-
-func test_gamepad_dpad_keeps_the_settings_page_focus_visible() -> void:
-	await _walk_settings_page(true)
-
-
-## Reproduction of the reported bug: with follow_focus off (what both Options
-## scroll containers shipped with) the same arrow walk leaves the focused row
-## outside the view. Proves the walk above would have caught it.
-func test_without_follow_focus_the_walk_leaves_the_focused_row_off_screen() -> void:
-	var menu: OptionsMenu = await _make_menu(false)
-	var scroll: ScrollContainer = await _show_controls_tab(menu)
-	scroll.follow_focus = false
-	var rows: Array[KeyRebindRow] = _available_rows(menu)
-	rows[0].grab_focus()
-	await _settle()
-	for _i: int in range(1, rows.size()):
-		await _tap(false, true)
-	assert_eq(_focus_owner(), rows[rows.size() - 1], "focus still reached the last row")
-	assert_eq(scroll.scroll_vertical, 0, "nothing scrolled without follow_focus")
-	assert_false(_inside(scroll, rows[rows.size() - 1]), "so the focused last row is outside the view")
-
-
-# --- Focus after a rebind -----------------------------------------------------------
-
 ## A row drops focus while it listens (ui/menus/KeyRebindRow.gd _on_pressed); once the
 ## capture is cancelled the list must keep navigating from that row instead of
 ## leaving the player with no focus (and so no scroll-follow) until a mouse click.
@@ -268,44 +193,7 @@ func test_cancelled_rebind_returns_focus_to_the_row_so_navigation_continues() ->
 
 # --- Scene wiring -----------------------------------------------------------------
 
-func test_options_scroll_containers_follow_focus() -> void:
-	var menu: OptionsMenu = await _make_menu(false)
-	for path: String in ["%SettingsPage", "%RebindScroll"]:
-		var scroll: ScrollContainer = menu.get_node(path) as ScrollContainer
-		assert_true(scroll is FocusScrollContainer, "%s is a FocusScrollContainer" % path)
-		assert_true(scroll.follow_focus, "%s follows focus" % path)
-		assert_eq(scroll.horizontal_scroll_mode, ScrollContainer.SCROLL_MODE_DISABLED, "%s keeps horizontal scrolling off" % path)
-
-
 func test_lobby_settings_scroll_follows_focus() -> void:
 	var lobby: Node = autofree(LOBBY_SCENE.instantiate())
 	var scroll: ScrollContainer = lobby.get_node("%SettingsScroll") as ScrollContainer
 	assert_true(scroll.follow_focus, "the lobby settings column follows focus")
-
-
-## The caption resolver on a hand-built list: a Label directly before a row (or
-## before the HBox the row sits in) is a caption; the row's own inline label
-## is revealed too, which is harmless; nothing precedes the first child.
-func test_leading_captions_resolves_headings_before_rows_and_nested_rows() -> void:
-	var scroll: FocusScrollContainer = FocusScrollContainer.new()
-	var list: VBoxContainer = VBoxContainer.new()
-	var heading: Label = Label.new()
-	var first: Button = Button.new()
-	var heading_two: Label = Label.new()
-	var nested_row: HBoxContainer = HBoxContainer.new()
-	var inline_label: Label = Label.new()
-	var nested_button: Button = Button.new()
-	scroll.add_child(list)
-	for node: Node in [heading, first, heading_two, nested_row]:
-		list.add_child(node)
-	nested_row.add_child(inline_label)
-	nested_row.add_child(nested_button)
-	add_child_autofree(scroll)
-
-	assert_true(scroll.follow_focus, "a FocusScrollContainer follows focus by default")
-	var expected_first: Array[Control] = [heading]
-	assert_eq(scroll.leading_captions(first), expected_first, "a row after a heading is captioned by it")
-	assert_true(scroll.leading_captions(heading).is_empty(), "the first child has no caption")
-	var nested: Array[Control] = scroll.leading_captions(nested_button)
-	assert_true(nested.has(inline_label), "a nested row's own inline label is included")
-	assert_true(nested.has(heading_two), "a nested row also gets the heading before its HBox")

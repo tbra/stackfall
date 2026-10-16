@@ -1,8 +1,8 @@
 shader_type canvas_item;
 render_mode blend_add, unshaded;
-// Bontago-mp0.3.4 (Graphics pass 2, owner feedback "lens flare from the
+// Graphics pass 2, "lens flare from the
 // sun"; fix round "move god rays into the sky, keep only the true lens
-// artifact here"): the big warm halo/god-ray beams now live in
+// artifact here": the big warm halo/god-ray beams now live in
 // shaders/sky/sunset_clouds.gdshader (drawn as part of the sky pass, so they sit
 // behind every opaque object for free). This screen-space layer keeps only
 // the camera-lens artifacts: a small, tight starburst sparkle directly on
@@ -100,9 +100,9 @@ void fragment() {
 			if (i < count && positions[i] >= 0.0) {
 				vec2 ghost_center = sun_p + axis * positions[i];
 				float size = ghost_base_size * pow(ghost_size_falloff, float(i));
-				// DECISION (Bontago-t8x.3): a hollow ring, not a solid disc. A solid warm
+				// DECISION: a hollow ring, not a solid disc. A solid warm
 				// disc a third of the way toward screen centre read as a second sun
-				// whenever the real sun sat off-axis (owner 2026-10-01).
+				// whenever the real sun sat off-axis.
 				float ghost = soft_disc(p, ghost_center, size);
 				ghost = max(ghost - soft_disc(p, ghost_center, size * (1.0 - clamp(ghost_ring_width, 0.0, 1.0))), 0.0) * ghost_alpha;
 				vec3 tint = mix(sun_color.rgb, ghost_color_b.rgb, mod(float(i), 2.0));

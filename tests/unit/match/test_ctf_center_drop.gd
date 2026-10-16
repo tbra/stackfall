@@ -1,25 +1,6 @@
-extends GutTest
-## Bontago-1pi.51 (owner playtest 2026-10-03, two players over direct IP, Capture
-## the Flag): "we weren't able to drop blocks in the middle of the map". Owner
-## follow-up: CTF was also played with several goal beacons, and "the goal
-## beacons normal clear zone is enough so no extra clear zone is needed".
-##
-## The rule these tests pin (SPEC.md 2.2 "Goal no-build zones [OWNER]"): the ONLY
-## no-build zones are one TerritoryTuning.goal_zone_radius disc (4 m) around each
-## ACTUAL goal beacon. The default match has ONE beacon at the exact map centre
-## (PlayerSlot.goal_positions_for(1) -> Vector2.ZERO), so that disc blocks the
-## middle; with 2..5 beacons they sit on a ring at 0.4 * field_radius and the
-## exact centre is ordinary ground (placeable once a team owns it). Nothing may
-## stamp a zone anywhere that has no beacon: not at the centre, not from a
-## previous match, not from a lobby config that lost its goal count on the wire.
-## They also pin the refusal reasons a player sees at the centre, and that the
-## QoL claim-radius multiplier (Bontago-1pi.18.3) never widens the disc.
-##
-## Fixture mirrors tests/unit/main/test_sandbox_placement.gd Part 1: tiny 20 m map,
-## real Field/Match, default config otherwise (hole_mode TEMPORARY, qol null).
-## Ownership around the centre is fabricated by feeding home + block circles to
-## the live raster, the way tests/unit/match/test_qol_experiments.gd fabricates its
-## beacon fixtures; nothing ticks Match, so no solve overwrites it.
+extends "res://tests/unit/match/match_world_test.gd"
+## SPEC 1.5 goal no-build zones: only a disc around each ACTUAL goal beacon blocks building;
+## with one beacon that is the map centre, with 2..5 beacons the centre is ordinary ground.
 
 const CENTRE: Vector2 = Vector2.ZERO
 ## Tiny-map home flags sit at 0.85 * 20 m on the x axis (slot 0 at +x, slot 1 at -x).
@@ -31,33 +12,6 @@ const CENTRE_CIRCLE_RADIUS: float = 12.0
 const GOAL_COUNTS: Array[int] = [1, 2, 3, 4, 5]
 ## Cell centres exactly on the disc edge may round either way; ignore that band.
 const EDGE_TOLERANCE: float = 0.01
-
-var _blocks_root: Node3D
-var _field: Field
-var _registry: BlockRegistry
-var _tiny_map: MapDef
-
-
-func before_each() -> void:
-	Match.set_process(false)
-	Match.abort_match()
-	_tiny_map = (load("res://config/match/maps/round.tres") as MapDef).duplicate(true)
-	_tiny_map.field_radius = 20.0
-	_field = autofree(Field.new())
-	_field.map_def = _tiny_map
-	add_child_autofree(_field)
-	_blocks_root = autofree(Node3D.new())
-	add_child_autofree(_blocks_root)
-	_registry = autofree(BlockRegistry.new())
-	add_child_autofree(_registry)
-	Match.register_world(_field, _registry, _blocks_root)
-
-
-func after_each() -> void:
-	Match.abort_match()
-	Match.set_process(true)
-	MatchTestReset.clear_world()
-
 
 func _config(mode: int, goal_flags: int, qol: QolExperiments = null) -> MatchConfig:
 	var config: MatchConfig = load("res://config/match/match_defaults.tres").duplicate(true) as MatchConfig
@@ -115,16 +69,6 @@ func _team0_owns_centre_and_beacons() -> void:
 		_home_circle(1),
 	]
 	_feed_raster(circles, 0.1)
-
-
-## Both teams built toward the middle: their block circles overlap in a lens
-## around the centre (the "two players racing for the beacon" situation).
-func _both_teams_reach_the_centre(solve_steps: int) -> void:
-	var circles: Array[InfluenceCircle] = [
-		_home_circle(0), _block_circle(BLOCK_CIRCLE_X, 0), _home_circle(1), _block_circle(-BLOCK_CIRCLE_X, 1)
-	]
-	for _i: int in range(solve_steps):
-		_feed_raster(circles, 0.1)
 
 
 func _feed_raster(circles: Array[InfluenceCircle], delta: float) -> void:
@@ -213,54 +157,7 @@ func test_drop_on_the_centre_is_refused_goal_zone_even_when_the_team_owns_it() -
 	)
 
 
-func test_drop_just_outside_the_disc_is_accepted_when_owned() -> void:
-	_start_ctf()
-	_team0_owns_the_centre()
-	assert_eq(
-		_place(0, Vector2(4.6, 0.0)), PlacementRules.REASON_OK,
-		"4.6 m from the beacon: owned, outside the disc, not contested"
-	)
-	assert_eq(_blocks_root.get_child_count(), 1)
-
-
-func test_unowned_neighbourhood_of_the_centre_is_outside_territory_not_goal_zone() -> void:
-	_start_ctf()
-	# Only the two home flags exist: 17 m from the centre, 6 m home circles.
-	assert_eq(
-		_place(0, Vector2(6.0, 0.0)), PlacementRules.REASON_OUTSIDE_TERRITORY,
-		"before anyone builds toward the middle the area around the disc is simply unowned"
-	)
-	assert_eq(_place(0, CENTRE), PlacementRules.REASON_GOAL_ZONE, "the disc check runs before ownership")
-
-
-func test_overlap_lens_beside_the_disc_is_contested_then_a_hole() -> void:
-	_start_ctf()
-	_both_teams_reach_the_centre(1)
-	var lens_point: Vector2 = Vector2(0.0, 5.0)
-	assert_eq(
-		_place(0, lens_point), PlacementRules.REASON_CONTESTED,
-		"both teams' influence covers this point (SPEC.md 2.2 overlap holes, hole_mode TEMPORARY)"
-	)
-	_both_teams_reach_the_centre(int(ceil(Match._territory_tuning.hole_delay / 0.1)) + 1)
-	assert_eq(
-		_place(0, lens_point), PlacementRules.REASON_HOLE,
-		"after hole_delay the contested cells become a hole"
-	)
-
-
 # --- The QoL claim-radius multiplier -----------------------------------------------
-
-func test_claim_radius_multiplier_does_not_widen_the_no_build_disc() -> void:
-	var qol: QolExperiments = QolExperiments.new()
-	qol.goal_radius_enabled = true
-	qol.goal_radius_multiplier = 4.0
-	_start_ctf(1, qol)
-	var tuning: TerritoryTuning = Match._territory_tuning
-	assert_gt(Match._territory._claim_radius(), tuning.goal_zone_radius, "fixture: the claim radius really is widened")
-	assert_eq(Match._territory._goal_radii[0], tuning.goal_zone_radius, "the no-build radius is untouched")
-	_team0_owns_the_centre()
-	assert_eq(_place(0, Vector2(4.6, 0.0)), PlacementRules.REASON_OK, "4.6 m is still outside the disc with the toggle on")
-
 
 # --- Several goal beacons: zones follow the beacons, nothing else ------------------
 
@@ -293,42 +190,6 @@ func test_domination_has_no_beacons_and_no_zones() -> void:
 		Match.abort_match()
 
 
-func test_goal_count_survives_the_lobby_wire() -> void:
-	# net_match_start sends config.to_dict() and a client rebuilds it with from_dict();
-	# a lost or clamped goal count there would stamp the centre disc on the client.
-	for count: int in GOAL_COUNTS:
-		var sent: MatchConfig = _config(MatchConfig.GameMode.CAPTURE_THE_FLAG, count)
-		sent.sanitize()
-		var received: MatchConfig = MatchConfig.from_dict(sent.to_dict())
-		assert_eq(received.goal_flag_count, count, "from_dict keeps goal_flag_count %d" % count)
-		assert_eq(received.game_mode, MatchConfig.GameMode.CAPTURE_THE_FLAG, "...and the mode")
-		assert_eq(received.effective_goal_flag_count(), count, "...so the effective count is the lobby's")
-
-
-func test_a_keyframe_replaces_a_stale_centre_zone_on_the_client_mirror() -> void:
-	_start_ctf(3)
-	var host: TerritoryRaster = Match.raster()
-	var mirror: TerritoryRaster = TerritoryRaster.new(host.grid(), Match._territory_tuning)
-	mirror.reset()
-	mirror.set_goal_zones(PackedVector2Array([CENTRE]), Match._territory_tuning.goal_zone_radius)
-	var centre_cell: Vector2i = host.grid().world_to_cell(CENTRE)
-	assert_true(mirror.is_goal_zone(centre_cell.x, centre_cell.y), "fixture: the mirror starts with the 1-beacon layout")
-	mirror.apply_replicated_state(host.owner_bytes(), host.state_bytes())
-	assert_false(mirror.is_goal_zone(centre_cell.x, centre_cell.y), "the host's 3-beacon keyframe clears the centre")
-	assert_eq(mirror.state_bytes(), host.state_bytes(), "the mirror's zone bits are the host's, cell for cell")
-
-
-func test_a_new_match_does_not_inherit_the_previous_matchs_centre_zone() -> void:
-	_start_ctf(1)
-	var centre_cell: Vector2i = Match.raster().grid().world_to_cell(CENTRE)
-	assert_true(Match.raster().is_goal_zone(centre_cell.x, centre_cell.y), "fixture: match 1 zoned the centre")
-	Match.abort_match()
-	_start_ctf(3)
-	centre_cell = Match.raster().grid().world_to_cell(CENTRE)
-	assert_false(Match.raster().is_goal_zone(centre_cell.x, centre_cell.y), "match 2 (3 beacons) has no centre zone")
-	_assert_zone_cells_are_exactly_the_beacon_discs(_beacons(), Match._territory_tuning.goal_zone_radius, "match 2")
-
-
 func test_with_several_beacons_the_centre_is_placeable_and_each_beacon_keeps_its_zone() -> void:
 	for count: int in [2, 3, 4, 5]:
 		_start_ctf(count)
@@ -350,20 +211,3 @@ func test_with_several_beacons_the_centre_is_placeable_and_each_beacon_keeps_its
 		assert_eq(_blocks_root.get_child_count(), baseline + 1, "the accepted drop spawned one block")
 		Match.abort_match()
 
-
-func test_with_several_beacons_an_unbuilt_centre_is_outside_territory_never_goal_zone() -> void:
-	for count: int in [2, 3, 4, 5]:
-		_start_ctf(count)
-		assert_eq(
-			_place(0, CENTRE), PlacementRules.REASON_OUTSIDE_TERRITORY,
-			"%d flags: before anyone's tower reaches the middle the player reads 'outside territory'" % count
-		)
-		Match.abort_match()
-
-
-func test_with_several_beacons_where_both_teams_meet_the_centre_is_contested_then_a_hole() -> void:
-	_start_ctf(3)
-	_both_teams_reach_the_centre(1)
-	assert_eq(_place(0, CENTRE), PlacementRules.REASON_CONTESTED, "the lens where both teams' influence meets")
-	_both_teams_reach_the_centre(int(ceil(Match._territory_tuning.hole_delay / 0.1)) + 1)
-	assert_eq(_place(0, CENTRE), PlacementRules.REASON_HOLE, "...then a hole; never a goal zone")

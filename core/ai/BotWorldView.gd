@@ -22,7 +22,7 @@ var slot_id: int = -1
 var team_id: int = -1
 var mode: int = MatchConfig.GameMode.CLASSIC
 var field_radius: float = 0.0
-## Bontago-1t5.42: radius of the still-solid disc (field_radius until a sudden-death shrink).
+## radius of the still-solid disc (field_radius until a sudden-death shrink).
 ## field_radius stays the original so influence-circle caps are unchanged.
 var live_radius: float = 0.0
 var raster: TerritoryRaster = null
@@ -48,7 +48,7 @@ var next_shape: BlockShape = null
 var mode_goal: BotModeGoal = null
 var specials: PackedVector2Array = PackedVector2Array()
 var gifts: PackedVector2Array = PackedVector2Array()
-## Bontago-1t5.44: enemy specials in flight, as predicted impact points (disk-local x/z) and their
+## enemy specials in flight, as predicted impact points (disk-local x/z) and their
 ## effect radii (m). Landed/armed specials stay in `specials`; these are risk terms only.
 var incoming_points: PackedVector2Array = PackedVector2Array()
 var incoming_radii: PackedFloat32Array = PackedFloat32Array()
@@ -57,7 +57,7 @@ var weather_id: StringName = &""
 var weather_intensity: float = 0.0
 ## Height response of the active wind (WindField.height_factor); null when no wind blows
 ## (calm, rain, snow, ...), which keeps every wind term at exactly 0.
-# DECISION (Bontago-1t5.46, replaces the 1t5.41 "direction and gusts ignored" note): the height
+# DECISION (replaces the earlier "direction and gusts ignored" note): the height
 # response still decides how tip-prone a tall stack is, and the wind HEADING now only grades the
 # fall-off-the-rim part of it (BotEvaluator.downwind_rim_factor): a piece with open disc downwind
 # of it is unchanged, one near the rim on the downwind side is graded worse. The Storm heading is
@@ -66,7 +66,7 @@ var weather_intensity: float = 0.0
 var wind_tuning: StormTuning = null
 ## Storm heading as a unit vector in disk-local x/z; ZERO when no Storm blows or it is unknown.
 var wind_dir: Vector2 = Vector2.ZERO
-## Bontago-1t5.46: the live Breeze gusts (host list, BreezeEffect.gusts()) as plain parallel data in
+## the live Breeze gusts (host list, BreezeEffect.gusts()) as plain parallel data in
 ## disk-local space; empty when none blows. `gust_center` is (disk x, height above the disc
 ## surface, disk z), `gust_heading` a unit vector, `gust_power` 0..1 (see gust_power()).
 ## `breeze_tuning` is the height response the gust pushes with; null while no gust is listed.
@@ -75,12 +75,12 @@ var gust_center: PackedVector3Array = PackedVector3Array()
 var gust_radius: PackedFloat32Array = PackedFloat32Array()
 var gust_heading: PackedVector2Array = PackedVector2Array()
 var gust_power_values: PackedFloat32Array = PackedFloat32Array()
-## Bontago-1t5.53b: snapshot of the cubes near the own towers (game/bots/BotStackProbe.gd); BotThink's STACK
+## .53b: snapshot of the cubes near the own towers (game/bots/BotStackProbe.gd); BotThink's STACK
 ## phase analyses it. null = no tower statics: every site keeps its old score.
 var stack: BotStack = null
-## Bontago-1t5.72.6: live gravity in the disc frame (magnitude = g * gravity_multiplier); DOWN = a level disc.
+## live gravity in the disc frame (magnitude = g * gravity_multiplier); DOWN = a level disc.
 var gravity_local: Vector3 = Vector3.DOWN * DEFAULT_GRAVITY
-## Bontago-1t5.72.6: gifts are on in this match (BotStability adds BotStackTuning.gift_disturbance_m).
+## gifts are on in this match (BotStability adds BotStackTuning.gift_disturbance_m).
 var gifts_enabled: bool = false
 
 
@@ -135,7 +135,7 @@ static func build(
 	return view
 
 
-## Bontago-1t5.44: records one enemy special in flight by its predicted impact point.
+## records one enemy special in flight by its predicted impact point.
 func add_incoming_special(impact: Vector2, radius: float) -> void:
 	if radius <= 0.0:
 		return
@@ -143,7 +143,7 @@ func add_incoming_special(impact: Vector2, radius: float) -> void:
 	incoming_radii.append(radius)
 
 
-## Bontago-1t5.44: ballistic landing of a body at disk-local `pos` / `height` above the disc
+## ballistic landing of a body at disk-local `pos` / `height` above the disc
 ## surface moving at `vel` (x/z) and `vy`, under `gravity` (m/s^2, > 0). Returns (x, z, seconds to
 ## impact). A non-positive gravity or a body already at/below the surface returns its own point at 0.
 static func ballistic_impact(pos: Vector2, height: float, vel: Vector2, vy: float, gravity: float) -> Vector3:
@@ -154,7 +154,7 @@ static func ballistic_impact(pos: Vector2, height: float, vel: Vector2, vy: floa
 	return Vector3(hit.x, hit.y, t)
 
 
-## Bontago-1t5.46: records one live Breeze gust (disk-local `center` = x, height above the disc
+## records one live Breeze gust (disk-local `center` = x, height above the disc
 ## surface, z; `heading` a unit x/z vector). Gusts with no power are skipped.
 func add_gust(center: Vector3, radius: float, heading: Vector2, power: float) -> void:
 	if power <= 0.0 or radius <= 0.0:
@@ -165,7 +165,7 @@ func add_gust(center: Vector3, radius: float, heading: Vector2, power: float) ->
 	gust_power_values.append(power)
 
 
-## Bontago-1t5.46: how hard a gust can still push a piece that lands later, 0..1. Its envelope
+## how hard a gust can still push a piece that lands later, 0..1. Its envelope
 ## rises to a peak at half its life, so a young gust counts as its peak (it is about to blow
 ## hardest) and an old one as its current, fading envelope; an expired gust counts as 0.
 static func gust_power(strength: float, age_s: float, duration_s: float) -> float:
@@ -206,7 +206,7 @@ func _strip_as_home(point: Vector2, radius: float, living_homes: PackedVector2Ar
 	return false
 
 
-## Bontago-1t5.42: live playable radius from the raster (no Match accessor exposes the shrink
+## live playable radius from the raster (no Match accessor exposes the shrink
 ## radius). MatchTerritory.shrink_to_radius punches every cell whose centre lies beyond the radius
 ## as a permanent hole, so the farthest non-hole in-disk cell centre is the live radius
 ## (cell-quantised; a natural hole on the rim only makes it smaller, i.e. conservative).
@@ -306,13 +306,3 @@ func indices_of_team(team: int) -> PackedInt32Array:
 		if cteam[i] == team:
 			out.append(i)
 	return out
-
-
-## Enemy home flags plus every enemy block-circle centre: what BotPlacementScorer's
-## risk and elimination terms read as "where the enemy is".
-func enemy_circle_centers() -> PackedVector2Array:
-	var centers: PackedVector2Array = enemy_homes.duplicate()
-	for i: int in range(cteam.size()):
-		if cteam[i] != team_id:
-			centers.append(Vector2(cx[i], cz[i]))
-	return centers

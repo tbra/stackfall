@@ -1,6 +1,6 @@
 class_name Tutorial
 extends Node
-## docs/archive/M6_PLAN.md package B3 (spec 2.7 "Tutorial"): a single-player, offline
+## Spec 1.2 "Tutorial":
 ## match built the same way game/sandbox/Sandbox.gd/game/HotSeat.gd already are (one
 ## PlayerController + GhostPreview + HUD subtree, wired the same way, driving
 ## the one slot config.player_count = 1 gives it -- game/main/Main.gd's own
@@ -20,7 +20,7 @@ extends Node
 ## later step firing early (nothing does this today, but Events.block_placed/
 ## special_consumed/territory_share_changed are global bus signals, not
 ## scoped to "the step that is listening") can never skip or repeat a step --
-## see docs/archive/M6_PLAN.md package B3's own test list.
+## see the tutorial test list.
 
 signal finished
 
@@ -32,7 +32,7 @@ signal finished
 @onready var _prompt_label: InputPromptFlow = %PromptLabel
 @onready var _prompt_panel: PanelContainer = %PromptLabel.get_parent().get_parent() as PanelContainer
 @onready var _step_label: Label = %StepLabel
-## Stackfall Arcade (Bontago-hfa.6): the tip banner's look comes from these tokens.
+## Stackfall Arcade: the tip banner's look comes from these tokens.
 @export var hud_visual_tuning: HUDVisualTuning = preload("res://config/ui/hud_visual_tuning.tres")
 
 ## -1 before the first _begin_step() call (never observed once _ready() has
@@ -87,7 +87,7 @@ func _ready() -> void:
 	Events.block_placed.connect(_on_block_placed)
 	Events.territory_share_changed.connect(_on_territory_share_changed)
 	Events.special_consumed.connect(_on_special_consumed)
-	# Bontago-mv0.14 (spec 1.5): same reasoning as HotSeat.gd/Sandbox.gd's own
+	# Same reasoning as HotSeat.gd/Sandbox.gd's own
 	# _ready() -- a silent no-op headless, so every test that builds this
 	# scene without a display keeps working.
 	_controller.enable_mouse_capture()
@@ -139,7 +139,7 @@ func _style_tip_banner() -> void:
 	_place_tip_banner()
 
 
-## DECISION (Bontago-1pi.193): the banner lives in its own CanvasLayer, outside the HUD's scale root, so it
+## DECISION: the banner lives in its own CanvasLayer, outside the HUD's scale root, so it
 ## follows the HUD scale by scaling the panel itself (same factor as the scale root) around its top-centre
 ## pivot; the ring gap scales too, so the banner stays centred directly under the (scaled) timer ring.
 func _place_tip_banner() -> void:
@@ -189,14 +189,14 @@ func _process(delta: float) -> void:
 				_advance()
 
 
-## Bontago-1pi.15.1 fix: this used to read ui_cancel (Escape / gamepad B), but
-## Bontago-1pi.15.1 gave ui_cancel a gamepad B binding to fix menu back
+## fix: this used to read ui_cancel (Escape / gamepad B), but
+## gave ui_cancel a gamepad B binding to fix menu back
 ## navigation project-wide -- and gamepad B is also rotate_snap (and
 ## camera_snap_goal)'s own button during actual gameplay (tools/
 ## bootstrap_project.gd), which this tutorial's own PlayerController is live
 ## for. Reading ui_cancel here would have ended the tutorial every time a
 ## gamepad player tried to snap-rotate their held block, exactly the "ui_cancel
-## must not do anything else in-game" regression the owner's report flagged.
+## must not do anything else in-game" regression the flagged.
 ##
 ## pause_menu (Escape / gamepad Start) is the fix: it's already bound on both
 ## devices (tools/bootstrap_project.gd), doesn't collide with any gameplay
@@ -242,7 +242,7 @@ func _begin_step(index: int) -> void:
 
 ## Every completion handler below funnels here: advances exactly once per
 ## call, and step 5 completing ends the tutorial the same way ui_cancel does
-## (docs/archive/M6_PLAN.md package B3: "step 5 completion ends the tutorial").
+## ("step 5 completion ends the tutorial").
 func _advance() -> void:
 	if _step_index + 1 >= tutorial_config.steps.size():
 		_end_tutorial()
@@ -265,7 +265,7 @@ func _end_tutorial() -> void:
 
 
 func _on_turn_changed(slot_id: int) -> void:
-	# Bontago-mv0.17 item 4 / game/sandbox/Sandbox.gd's own matching _on_turn_changed()
+	# item 4 / game/sandbox/Sandbox.gd's own matching _on_turn_changed()
 	# doc comment: the one-time "a controller is now bound to a real slot"
 	# moment, so the first frame looks from the tutorial slot's home flag
 	# toward the disk centre instead of the generic yaw = 0 default.

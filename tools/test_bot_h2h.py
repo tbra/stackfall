@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Tests for bot_h2h.py (Bontago-1t5.12 gate tool; P1b options Bontago-1t5.20).
+"""Tests for bot_h2h.py (gate tool; P1b options).
 
 Fake runner only: no Godot is launched. Run with:
     python -I tools/test_bot_h2h.py
@@ -18,13 +18,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bot_h2h as h2h  # noqa: E402
 
 LINE_TMPL = "HEADLESS_MATCH index=0 mode=0 seed=1 duration=%s winner_team=%d placements=9 homes_alive=2"
-
-
-def _write_candidate(tmp: str) -> str:
-    cand = os.path.join(tmp, "c.txt")
-    with open(cand, "w", encoding="utf-8") as fh:
-        fh.write("weight_height = 1.2\n")
-    return cand
 
 
 def _run(argv: list, runner=None) -> tuple:
@@ -65,28 +58,22 @@ class H2HTests(unittest.TestCase):
                       [0], [1])
         self.assertEqual((t["draws"], t["timeouts"], t["failed"], t["wins"]), (1, 1, 1, 1))
 
-    def test_refuses_without_seam_and_dry_run(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            cand = _write_candidate(tmp)
-            with contextlib.redirect_stderr(io.StringIO()):
-                self.assertEqual(h2h.main(["--candidate", cand, "--out-dir", tmp]), 2)
-            with contextlib.redirect_stdout(io.StringIO()) as out:
-                self.assertEqual(h2h.main(["--candidate", cand, "--out-dir", tmp, "--pairs", "2",
-                                           "--dry-run"]), 0)
-            self.assertIn("H2H DRY-RUN matches=4", out.getvalue())
+    def test_dry_run_prints_one_command_per_match(self) -> None:
+        rc, text = _run(["--pairs", "2", "--dry-run"])
+        self.assertEqual(rc, 0)
+        self.assertIn("H2H DRY-RUN matches=4", text)
+        self.assertIn("--match-seed=1000", text.splitlines()[0])
 
     def test_paired_run_with_fake_runner(self) -> None:
-        # Candidate (teams 0,2,4,6 in match A, 1,3,5,7 in B) wins every match.
+        # Side A (teams 0,2,4,6 in match A, 1,3,5,7 in B) wins every match.
         def runner(cmd, timeout):
-            swapped = any("slots=1,3,5,7" in c for c in cmd)
+            swapped = any(c.startswith("--bot-difficulty-slots=") and "1:hard" in c for c in cmd)
             winner = 1 if swapped else 0
             return "HEADLESS_MATCH index=0 mode=0 seed=1 duration=1.0 winner_team=%d placements=1 homes_alive=1" % winner
 
         with tempfile.TemporaryDirectory() as tmp:
-            cand = _write_candidate(tmp)
-            rc, text = _run(["--candidate", cand, "--out-dir", tmp, "--pairs", "50", "--parallel", "4",
-                             "--godot-args=--match-seed={seed} --bot-weights-slots={cand_slots}"],
-                            runner=runner)
+            rc, text = _run(["--out-dir", tmp, "--pairs", "50", "--parallel", "4",
+                             "--difficulty-a", "hard", "--difficulty-b", "normal"], runner=runner)
             self.assertEqual(rc, 0)
             self.assertIn("H2H RESULT PASS", text)
             self.assertIn("matches=100 wins=100", text)
@@ -95,16 +82,6 @@ class H2HTests(unittest.TestCase):
 class P1bOptionTests(unittest.TestCase):
     def test_default_parallel_is_one(self) -> None:
         self.assertEqual(h2h.build_parser().parse_args([]).parallel, 1)
-
-    def test_candidate_optional_without_weight_placeholder(self) -> None:
-        rc, text = _run(["--dry-run", "--pairs", "2", "--godot-args=--match-seed={seed}"])
-        self.assertEqual(rc, 0)
-        self.assertIn("H2H DRY-RUN matches=4", text)
-        self.assertNotIn("weights", text)
-
-    def test_candidate_missing_with_weight_placeholder_refuses(self) -> None:
-        rc, _ = _run(["--dry-run", "--pairs", "2", "--godot-args=--w={weights_json}"])
-        self.assertEqual(rc, 2)
 
     def test_players_mode_and_no_swap_in_command(self) -> None:
         rc, text = _run(["--dry-run", "--pairs", "3", "--no-swap", "--bots", "1", "--players", "4",
@@ -165,7 +142,7 @@ class P1bOptionTests(unittest.TestCase):
 
 
 class HarnessAOptionTests(unittest.TestCase):
-    """Bontago-1t5.28: round timer default, per-side difficulty, passive-seat slot mapping."""
+    """round timer default, per-side difficulty, passive-seat slot mapping."""
 
     def _lines(self, argv: list) -> list:
         rc, text = _run(["--dry-run"] + argv)
@@ -191,8 +168,8 @@ class HarnessAOptionTests(unittest.TestCase):
 
     def test_passive_seats_map_cand_slots_to_bot_slots(self) -> None:
         line = self._lines(["--pairs", "1", "--no-swap", "--bots", "1", "--players", "5", "--cand-slots-a", "0",
-                            "--difficulty-a", "easy", "--godot-args=--bot-weights-slots={cand_slots}"])[0]
-        self.assertIn("--bot-weights-slots=4", line)
+                            "--difficulty-a", "easy", "--godot-args=--cand-slots={cand_slots}"])[0]
+        self.assertIn("--cand-slots=4", line)
         self.assertIn("--bot-difficulty-slots=4:easy", line)
         self.assertEqual(h2h.seat_offset(8, None), 0)
         self.assertEqual(h2h.seat_offset(1, 5), 4)
@@ -216,7 +193,7 @@ class HarnessAOptionTests(unittest.TestCase):
 
 
 class StatsTests(unittest.TestCase):
-    """Bontago-1t5.56: --stats parses stats= (slot:placed/lost/peak/peak180)."""
+    """--stats parses stats= (slot:placed/lost/peak/peak180)."""
 
     LINE = ("HEADLESS_MATCH index=0 mode=3 seed=1 duration=180.0 winner_team=-1 timeout=1 "
             "stats=0:40/0/22.0/20.0,1:30/3/10.0/8.0,2:30/1/14.0/12.0,3:20/0/18.0/16.0")

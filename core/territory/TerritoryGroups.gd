@@ -1,6 +1,6 @@
 class_name TerritoryGroups
 extends RefCounted
-## TerritorySolver's output: the connected, home-anchored groups (spec 2.2,
+## TerritorySolver's output: the connected, home-anchored groups (spec 1.5,
 ## 3.3). One group is one "single continuous controlled area" in the win
 ## condition's words, so both the raster and WinChecker read it.
 ##
@@ -13,7 +13,7 @@ extends RefCounted
 ## Written into a raster cell that no group covers.
 const NO_GROUP: int = -1
 ## Written into a raster cell covered by groups of two or more teams
-## (spec 2.2, "Contested zones").
+## (spec 1.5, "Contested zones").
 const CONTESTED: int = -2
 
 ## team_ids[g] is the team that owns group g.

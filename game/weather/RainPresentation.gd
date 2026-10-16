@@ -1,6 +1,6 @@
 class_name RainPresentation
 extends WeatherPresentation
-## Cel-styled rain streaks (Bontago-22y.5), presentation only on every peer. One
+## Cel-styled rain streaks, presentation only on every peer. One
 ## MultiMeshInstance3D of quads animated in shaders/weather/rain_streaks.gdshader; the
 ## script only feeds the camera position (the rain volume follows the view, not
 ## the whole map) and the ramped intensity as density. Tunables:
@@ -21,13 +21,13 @@ var _tuning: RainTuning = TUNING
 var _density_scale: float = 1.0
 ## Governor share (GraphicsPreset.weather_density_scale) of the visible streaks.
 var _governor_scale: float = 1.0
-## Bontago-mp0.21: puddle layer living under the Field; outlives this node.
+## puddle layer living under the Field; outlives this node.
 var _puddles: RainPuddles = null
 
 
 func _ready() -> void:
 	_build()
-	# Bontago-1pi.11.37: the adaptive governor thins the rain without a rebuild.
+	# the adaptive governor thins the rain without a rebuild.
 	Settings.graphics_preset_changed.connect(_on_graphics_preset_changed)
 
 
@@ -64,7 +64,7 @@ func _build() -> void:
 		remove_child(_instance)
 		_instance.free()
 		_instance = null
-	# DECISION (Bontago-mp0.19 fix round 3): the volume can grow up to
+	# DECISION (fix round 3): the volume can grow up to
 	# _max_height() to reach the cloud ceiling, so allocate streaks for that
 	# height and show only the share matching the current height (_apply_visible)
 	# to keep streaks per cubic metre equal to the unlifted volume.
@@ -131,7 +131,7 @@ func _apply_visible(height: float) -> void:
 		multimesh.visible_instance_count = visible_count
 
 
-## Bontago-mp0.19: the rain volume reaches up to the cloud ceiling. The box
+## the rain volume reaches up to the cloud ceiling. The box
 ## stays anchored below the camera and grows upward (capped), so the streaks
 ## visibly start at the cloud layer; the shader's height follows.
 func _volume_center(camera_pos: Vector3) -> Vector3:
@@ -149,7 +149,7 @@ func set_intensity(value: float) -> void:
 	if _material != null:
 		_material.set_shader_parameter(&"density", value)
 	_apply_mood(value)
-	# Bontago-1pi.46: Main drops the puddle layer between matches, so a layer
+	# Main drops the puddle layer between matches, so a layer
 	# freed under a live presentation is rebuilt rather than kept as a stale ref.
 	if value > 0.0 and (_puddles == null or not is_instance_valid(_puddles)) and is_inside_tree():
 		_puddles = _make_puddles()

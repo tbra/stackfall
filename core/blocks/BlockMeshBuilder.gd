@@ -1,9 +1,9 @@
 class_name BlockMeshBuilder
 extends RefCounted
-## Pure geometry (spec 3.2 "core/ has no scene-tree dependence"): turns a
+## Pure geometry (spec 2.2 "core/ has no scene-tree dependence"): turns a
 ## BlockShape's integer cell offsets into a single ArrayMesh with every
 ## interior face removed, so a multi-cube shape reads as one solid piece
-## instead of a visible seam grid (Bontago-xtq.3, owner feel report "our
+## instead of a visible seam grid (feel report "our
 ## blocks are made up of many smaller blocks, is that necessary? the original
 ## just has solid shapes"). ArrayMesh is a rendering Resource, not a scene
 ## node, so building/caching it here has no scene-tree dependency; only the
@@ -22,7 +22,7 @@ const _FACE_DIRECTIONS: Array[Vector3i] = [
 ## (0, 2, 1) and (0, 3, 2) -- clockwise as seen from outside the cube, which
 ## is Godot's actual front-face convention (verified empirically against
 ## BoxMesh's own winding by tests/unit/blocks/test_block_mesh_builder.gd,
-## Bontago-xtq.5: a prior version of this comment claimed counter-clockwise
+## a prior version of this comment claimed counter-clockwise
 ## was the convention and the triangle indices were wound accordingly, which
 ## put every face backwards -- every placed/ghost block rendered inside-out,
 ## only hidden on the ghost by its culling-off material) -- for all 6
@@ -53,7 +53,7 @@ static var _mesh_cache: Dictionary = {}
 ## instead of drawing (and z-fighting on) two coincident faces. Each face
 ## spans the full nominal `cube_size` per cell -- not shrunk by `cube_margin`
 ## like the collision boxes built separately in game/blocks/BlockFactory.gd -- so
-## neighbouring cells' visuals touch with no gap. DECISION (Bontago-xtq.3):
+## neighbouring cells' visuals touch with no gap. DECISION:
 ## the visual is intentionally a hair larger than the collision hull (which
 ## keeps its `cube_margin` shrink so blocks don't jam on landing) -- this
 ## already was true per-cell before this change (the old per-cell visual
@@ -62,7 +62,7 @@ static var _mesh_cache: Dictionary = {}
 ## invisible collision hull keeps the placement gap).
 ##
 ## Returns null if `shape.sloped_cells` is non-empty or `shape.mesh` is set:
-## no shipped shape does either today (Bontago-mv0.17 removed the only
+## no shipped shape does either today (removed the only
 ## sloped shape, config/blocks/wedge.tres; no .tres sets `mesh`), and this
 ## builder has no wedge-face case and isn't meant to duplicate a custom mesh
 ## across every cell -- game/blocks/BlockFactory.gd falls back to its own
@@ -143,7 +143,7 @@ static func _append_face(
 		normals.append(normal)
 		uvs.append(uv_corners[i])
 
-	# DECISION (Bontago-xtq.5): (0, 2, 1) / (0, 3, 2), not (0, 1, 2) / (0, 2, 3)
+	# DECISION: (0, 2, 1) / (0, 3, 2), not (0, 1, 2) / (0, 2, 3)
 	# -- see the _FACE_TANGENTS doc comment above for why this order (not the
 	# corners or normals) is the fix.
 	indices.append(base_index)

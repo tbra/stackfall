@@ -1,6 +1,6 @@
 class_name Fireflies
 extends Node3D
-## Bontago-adt.3: night-theme fireflies -- soft glowing warm yellow-green motes
+## night-theme fireflies -- soft glowing warm yellow-green motes
 ## drifting and blinking around the disc rim, over the cloud sea just below it
 ## and, sparsely, above the outer band of the disc. One MultiMeshInstance3D of
 ## billboard quads; all motion and blinking is computed in shaders/fireflies

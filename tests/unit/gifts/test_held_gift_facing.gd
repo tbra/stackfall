@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.85.61 / 85.62: the held Rocket and Magnet point their nose along the aim (not
+## The held Rocket and Magnet point their nose along the aim (not
 ## upright), and every throwable's arc preview starts inside the held model's world AABB.
 
 const NOSE_TOLERANCE_DEG: float = 5.0

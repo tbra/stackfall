@@ -1,7 +1,7 @@
 class_name ArenaSideBuilder
 extends RefCounted
 ## Generates the static side and underside geometry of the arena's alternative
-## looks (Bontago-mp0.150.2; see config/territory/ArenaSideStyle.gd). Pure geometry, no
+## looks (see config/territory/ArenaSideStyle.gd). Pure geometry, no
 ## scene tree: build() returns per-surface mesh arrays that game/field/ArenaMesh.gd
 ## appends to the one arena ArrayMesh.
 ##

@@ -1,6 +1,6 @@
 class_name OptionsMenu
 extends Control
-## docs/archive/M6_PLAN.md package C2: the options menu opened from the Main Menu's
+## The options menu opened from the Main Menu's
 ## %OptionsButton (ui/menus/MainMenu.gd's own _on_options_pressed()) -- graphics
 ## preset picker, Master/Music/SFX volume sliders with mute toggles, rumble
 ## on/off + intensity, a device-aware mouse/stick move-speed slider (Controls
@@ -11,9 +11,9 @@ extends Control
 ## documents): MainMenu instances this scene directly and listens for
 ## `closed` to hide it again, rather than routing through Main.
 ##
-## Bontago-1pi.10 (owner: "too big and crammed ... the controls section where
-## you have to scroll both horizontally and vertically"): category tabs replace
-## the single ever-growing scrolling panel (Bontago-1pi.159.3: now a horizontal
+## "too big and crammed ... the controls section where
+## you have to scroll both horizontally and vertically": category tabs replace
+## the single ever-growing scrolling panel (now a horizontal
 ## UiTabs strip, Game / Graphics / Controls, and the pages are built from the
 ## ui/components rows), and the Controls page shows only the active input device's
 ## bindings (ui/menus/KeyRebindRow.gd's own glyph row, autoload/Settings.gd's
@@ -42,12 +42,12 @@ var settings_provider: Variant = null
 ## presets/*.tres: high, low, medium) would scramble the intended quality
 ## ladder, so this is a literal list, the same way Settings.DEFAULT_PRESET_ID
 ## is a literal "medium" rather than a directory scan.
-## Bontago-1pi.204 review: the shared camera tuning the game uses, so F4 edits and .tres changes show here.
+## review: the shared camera tuning the game uses, so F4 edits and .tres changes show here.
 const _SHARED_CAMERA_TUNING: CameraTuning = preload("res://config/player/camera_tuning.tres")
 const PRESET_IDS: Array[StringName] = GraphicsSettingsTab.PRESET_IDS
 const PRESET_LABELS: Array[String] = GraphicsSettingsTab.PRESET_LABELS
 
-## DECISION (ui/menus/OptionsMenu.gd, docs/archive/M6_PLAN.md package C2): an explicit
+## DECISION (ui/menus/OptionsMenu.gd): an explicit
 ## allow-list, not "every InputMap action minus a deny-list" -- so a future
 ## debug hotkey (tools/bootstrap_project.gd's own _actions()) never silently
 ## becomes player-rebindable just by existing. Excludes every debug-only/
@@ -57,21 +57,21 @@ const PRESET_LABELS: Array[String] = GraphicsSettingsTab.PRESET_LABELS
 ## not by a separate Input Map action -- rebinding it alone would desync that
 ## pairing).
 ##
-## DECISION (Bontago-8or.19, owner playtest feedback/playtest.md: "many of
+## DECISION (feedback/playtest.md: "many of
 ## them not mapped to anything"): also excludes ghost_move_left/right/
 ## forward/back and camera_look_left/right/up/down. Those 8 actions are
 ## gamepad-axis-only by design (tools/bootstrap_project.gd's own DECISION
 ## comments; game/player/PlayerController.gd:824 and game/player/CameraRig.gd read them via
 ## Input.get_action_strength() purely for a connected stick -- mouse+keyboard
 ## ghost movement/look reads raw mouse motion directly instead, which cannot
-## be bound to an Input Map action at all, spec 2.5). Listing them here showed
+## be bound to an Input Map action at all, spec 1.3). Listing them here showed
 ## a K+M player a Rebind button and a raw "Joypad Motion on Axis N ..." string
 ## with nothing to actually remap for their device -- exactly the reported
 ## "not mapped to anything" rows. Removing them here is a display-only change
-## (docs/AGENT_WORKFLOW.md minor ambiguity: no gameplay rule or [ORIGINAL]
+## (a minor ambiguity per CLAUDE.md: no gameplay rule or [ORIGINAL]
 ## binding changes); the gamepad bindings themselves are untouched.
 ##
-## Bontago-1pi.159.63 (owner decision 1pi.159.62): rotate_snap (B, 90 degree tap) and
+## rotate_snap
 ## rotate_drag_pad (RT held + left stick) are now listed too, as the gamepad page's own
 ## "Rotate 90 deg" / "Free rotate (hold)" rows; they carry no keyboard binding, so
 ## ui/menus/KeyRebindRow.gd PAD_ONLY_ACTIONS hides them on the mouse/keyboard page.
@@ -90,7 +90,7 @@ const REBINDABLE_ACTIONS: Array[StringName] = [
 	&"chat_open",
 ]
 
-## Bontago-1pi.10 polish pass (owner: "Friendly action names and grouping:
+## polish pass ("Friendly action names and grouping:
 ## section headers ... Keep action order sensible"): the Controls list is
 ## built from this grouping rather than REBINDABLE_ACTIONS' own flat order --
 ## each entry is one section header + the actions shown under it, in build
@@ -126,7 +126,7 @@ const SECTIONS: Array[Dictionary] = [
 	},
 ]
 
-## Bontago-1pi.159.3: the category tabs. Owner 2026-10-10: the first one reads "Game" (it was
+## the category tabs. the first one reads "Game" (it was
 ## "Settings"); ids, node names and every stored settings key are unchanged.
 const TAB_GAME: StringName = &"game"
 const TAB_GRAPHICS: StringName = &"graphics"
@@ -156,7 +156,7 @@ const ROW_RUMBLE_INTENSITY: String = "Rumble intensity"
 
 const KEY_REBIND_ROW_SCENE: PackedScene = preload("res://ui/menus/KeyRebindRow.tscn")
 
-## Bontago-hfa.4 (UI reskin P2): sizes specific to the Options/Pause/rebinding screens; every
+## UI reskin P2: sizes specific to the Options/Pause/rebinding screens; every
 ## colour and radius comes from ArcadeVisualTuning through MenuStyleFactory.arcade_tuning().
 const OPTIONS_TUNING: OptionsVisualTuning = preload("res://config/ui/options_visual_tuning.tres")
 const ON_WORD: String = "ON"
@@ -166,7 +166,7 @@ const THEME_VARIATION_DISPLAY: StringName = &"DisplayLabel"
 const THEME_VARIATION_CAPTION: StringName = &"CaptionLabel"
 const THEME_VARIATION_FIELD: StringName = &"FieldLabel"
 
-## DECISION (Bontago-1pi.10 polish pass, time-budgeted worker package): the
+## DECISION (polish pass, time-budgeted worker package): the
 ## owner's brief also asks to "combine paired actions on one row where
 ## natural (e.g. 'Raise / lower block — Wheel')". Deferred for this package
 ## (not implemented) -- merging two Input Map actions into a single
@@ -178,18 +178,18 @@ const THEME_VARIATION_FIELD: StringName = &"FieldLabel"
 ## section (e.g. Placement's "Raise block" / "Lower block" sit adjacently) --
 ## a real, disclosed scope reduction, not a silent drop.
 
-## Bontago-1pi.10: reused only for the two tab buttons' pastel pill styling
+## reused only for the two tab buttons' pastel pill styling
 ## (ui/theme/MenuStyleFactory.gd, config/ui/menu_visual_tuning.tres already
 ## shipped by the just-merged main menu/lobby reskin) -- everything else on
 ## this menu keeps the shared stackfall_theme.tres Button/OptionButton look.
 @export var tuning: MenuVisualTuning = preload("res://config/ui/menu_visual_tuning.tres")
 
-## Footer device hint text (owner: "show a device hint in the footer ...
+## Footer device hint text ("show a device hint in the footer ...
 ## matching the active device") and the Controls page's own device caption --
 ## plain literals rather than a config/*.tres Resource, since these are
 ## display-only strings, not gameplay/physics tuning (CLAUDE.md's
 ## no-magic-numbers rule targets those).
-## Bontago-1pi.71: InputPromptFlow templates -- `{action}` renders the bound
+## InputPromptFlow templates -- `{action}` renders the bound
 ## action's glyph for the active device, so no key or button name is typed here.
 const FOOTER_HINT_KEYBOARD_MOUSE: String = "{ui_accept} Select   {ui_cancel} Back"
 const FOOTER_HINT_GAMEPAD: String = "{ui_accept} Select   {ui_cancel} Back   {menu_tab_previous} {menu_tab_next} Tabs"
@@ -202,9 +202,9 @@ const CONTROLS_LABEL_GAMEPAD: String = "Showing gamepad bindings"
 ## targets gameplay/physics tuning that changes game feel; a UI slider's own
 ## bounds don't (Settings.gd itself owns each field's real default and
 ## clamps it to a generic safety floor -- see Settings.set_mouse_move_speed_
-## scale()'s own DECISION). Owner request: 0-100% for every volume/rumble
+## scale()'s own DECISION). : 0-100% for every volume/rumble
 ## slider, 50%-200% for the move-speed sliders (default 100%).
-## Bontago-1pi.159.3: the Game / Controls meters are UiSegmentMeters (cells, not a continuous slider).
+## the Game / Controls meters are UiSegmentMeters (cells, not a continuous slider).
 ## DECISION: volume and rumble use 20 cells (5% per cell), the move-speed scale 15 cells (0.1x per cell,
 ## so 100% sits exactly on a cell); the UI-scale meter has one cell per UiScaleTuning step. The readout
 ## of volume / rumble shows the stored value, so a saved 73% still reads 73% until it is edited.
@@ -229,7 +229,7 @@ const SPEAKER_LOW_ICON: Texture2D = preload("res://assets/ui/icons/speaker_low.s
 const SPEAKER_MID_ICON: Texture2D = preload("res://assets/ui/icons/speaker_mid.svg")
 const SPEAKER_HIGH_ICON: Texture2D = preload("res://assets/ui/icons/speaker_high.svg")
 
-## Owner correction (options package, mid-review): "Mouse speed"/"Stick
+## Correction: "Mouse speed"/"Stick
 ## speed" labels for the single device-aware MoveSpeedRow on the Controls tab
 ## (see _refresh_move_speed_row()).
 ## Help-line key of the Mouse / Stick speed row (text in config/ui/option_help_table.tres).
@@ -237,7 +237,7 @@ const MOVE_SPEED_HELP_KEY: String = "MoveSpeedSlider"
 const MOVE_SPEED_LABEL_MOUSE: String = "Mouse speed"
 const MOVE_SPEED_LABEL_STICK: String = "Stick speed"
 
-## Bontago-1pi.11.86: the Graphics page (preset picker + per-setting controls), built in code.
+## the Graphics page (preset picker + per-setting controls), built in code.
 @onready var _graphics_page: GraphicsSettingsTab = %GraphicsPage
 @onready var _rebind_list: VBoxContainer = %RebindList
 @onready var _back_button: Button = %BackButton
@@ -250,7 +250,7 @@ const MOVE_SPEED_LABEL_STICK: String = "Stick speed"
 @onready var _controls_device_label: Label = %ControlsDeviceLabel
 @onready var _footer_hint_label: InputPromptFlow = %FooterHintLabel
 
-## Bontago-1pi.159.3: the Game and Controls pages are built from design-system components
+## the Game and Controls pages are built from design-system components
 ## (UiRow / UiSection / UiToggle / UiDropdown / UiSegmentMeter / UiIconButton), so their controls are
 ## plain members assigned by _build_game_page() / _build_move_speed_row(), each registered under its
 ## old %UniqueName (probes, tests and the focus chain keep resolving the same names).
@@ -275,7 +275,7 @@ var _move_speed_label: Label = null
 var _move_speed_slider: UiSegmentMeter = null
 
 var _rows: Array[KeyRebindRow] = []
-## Bontago-1pi.150: a mouse drag on the UI-scale meter previews the % and applies on release
+## a mouse drag on the UI-scale meter previews the % and applies on release
 ## (rescaling the canvas under the cursor mid-drag would make the pointer run away).
 var _dragging_meter: UiSegmentMeter = null
 ## Each component meter's value range, so its cell count maps to the setting's own unit.
@@ -334,7 +334,7 @@ func _ready() -> void:
 	_window_mode_option.grab_focus()
 
 
-## DECISION (Bontago-1pi.11.92): the opener (MainMenu / PauseMenu) builds this menu once and
+## DECISION: the opener (MainMenu / PauseMenu) builds this menu once and
 ## keeps it hidden between opens instead of freeing it (the ~390 ms rebuild per open).
 ## dismiss() hides it and stops its back-gesture input; present() shows it again exactly as a
 ## fresh _ready() left it: Game tab, values re-read from Settings, window-mode row focused.
@@ -522,7 +522,7 @@ static func ui_scale_cell_count() -> int:
 
 ## The three category tabs (UiTabs, LB / RB cycle them). The node names stay the same
 ## `%SettingsTabButton` / `%GraphicsTabButton` / `%ControlsTabButton` ids that tests and probes
-## use; the first tab's label is "Game" (owner 2026-10-10), its stored settings keys are unchanged.
+## use; the first tab's label is "Game", its stored settings keys are unchanged.
 func _build_tabs() -> void:
 	# Shoulder handling stays here: it must not fire while a binding row is listening.
 	_tabs.handle_shoulders = false
@@ -535,7 +535,7 @@ func _build_tabs() -> void:
 	_tabs.tab_changed.connect(_on_tab_changed)
 
 
-## DECISION (Bontago-mp0.11): the panel follows the usable viewport instead
+## DECISION: the panel follows the usable viewport instead
 ## of demanding a desktop sized minimum; the settings page scrolls vertically.
 func _refresh_layout() -> void:
 	var available: Vector2 = get_viewport_rect().size - Vector2.ONE * tuning.menu_edge_margin_px * 2.0
@@ -543,7 +543,7 @@ func _refresh_layout() -> void:
 	panel.custom_minimum_size = Vector2(minf(available.x, tuning.menu_max_width_px), available.y)
 
 
-## A category tab became active (click, LB / RB, or code): show only its page. Owner: "switch to
+## A category tab became active (click, LB / RB, or code): show only its page. Requirement: "switch to
 ## only gamepad options on gamepad input and switch back on mouse/keyboard input".
 func _on_tab_changed(id: StringName) -> void:
 	_settings_page.visible = id == TAB_GAME
@@ -562,7 +562,7 @@ func _on_tab_toggled(pressed: bool, id: StringName) -> void:
 		_tabs.select(id)
 
 
-## Bontago-1pi.71: a rebind of ui_accept/ui_cancel/menu_tab_* must show in the footer glyphs.
+## a rebind of ui_accept/ui_cancel/menu_tab_* must show in the footer glyphs.
 func _on_row_rebind_captured(_action: StringName, _event: InputEvent) -> void:
 	_footer_hint_label.refresh()
 
@@ -576,13 +576,13 @@ func _refresh_device_dependent_ui() -> void:
 	_footer_hint_label.set_template(FOOTER_HINT_GAMEPAD if gamepad else FOOTER_HINT_KEYBOARD_MOUSE)
 	_controls_device_label.text = CONTROLS_LABEL_GAMEPAD if gamepad else CONTROLS_LABEL_KEYBOARD_MOUSE
 	_refresh_move_speed_row()
-	# Bontago-1pi.41: which rows exist on the page depends on the device (rows
+	# which rows exist on the page depends on the device (rows
 	# with no gamepad function hide), so the focus chain follows it.
 	_wire_focus_chain()
 	_refresh_row_bands()
 
 
-## Bontago-hfa.4: alternate (lightly banded) binding rows, counted over the rows the active
+## alternate (lightly banded) binding rows, counted over the rows the active
 ## device page actually shows so a hidden row never breaks the rhythm.
 func _refresh_row_bands() -> void:
 	var shown: int = 0
@@ -593,7 +593,7 @@ func _refresh_row_bands() -> void:
 		shown += 1
 
 
-## Owner correction (options package, mid-review): one device-aware row on
+## Correction: one device-aware row on
 ## the Controls tab rebinds itself to whichever scale the active device
 ## actually drives -- "Mouse speed" / Settings.mouse_move_speed_scale() on
 ## keyboard/mouse, "Stick speed" / Settings.stick_move_speed_scale() on
@@ -614,7 +614,7 @@ func _active_move_speed() -> float:
 	return float(settings_provider.mouse_move_speed_scale())
 
 
-## ui_cancel (Escape / gamepad B, spec 2.10) backs out -- the same
+## ui_cancel (Escape / gamepad B, spec 1.10) backs out -- the same
 ## _unhandled_input()/set_input_as_handled() pattern ui/menus/Tutorial.gd's own
 ## header documents. A listening KeyRebindRow consumes ui_cancel first
 ## (Godot delivers _unhandled_input to the deepest node in a branch before its
@@ -636,7 +636,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-## Bontago-xtq.45 (M7 P4): reads Settings.WINDOW_MODE_IDS/window_mode_label()
+## M7 P4: reads Settings.WINDOW_MODE_IDS/window_mode_label()
 ## directly (a fixed, script-level constant/lookup, not per-provider state)
 ## rather than duplicating PRESET_LABELS' own hand-written parallel-array
 ## pattern -- the ids and their display order already live in one place.
@@ -770,7 +770,7 @@ func _on_weather_mute_pressed() -> void:
 	_load_channel_row(_weather_mute_button, _weather_volume_slider, settings_provider.weather_muted(), settings_provider.weather_volume_percent())
 
 
-## Bontago-1pi.11.37: opt-in governor; the stored preset is never touched.
+## opt-in governor; the stored preset is never touched.
 func _on_adaptive_quality_toggled(enabled: bool) -> void:
 	settings_provider.set_adaptive_quality_enabled(enabled)
 
@@ -787,7 +787,7 @@ func _on_camera_shake_toggled(enabled: bool) -> void:
 
 # --- Rumble --------------------------------------------------------------------
 
-## Owner: "an on/off toggle ... slider disabled/greyed when rumble is off" and
+## "an on/off toggle ... slider disabled/greyed when rumble is off" and
 ## "Nudge a short test rumble ... when the toggle turned on". Rumble.
 ## trigger_test_pulse() itself is a no-op unless Settings.rumble_enabled() is
 ## already true and a gamepad is the active device, so this call is safe to
@@ -813,8 +813,8 @@ func _on_ui_scale_changed(value: float) -> void:
 		settings_provider.set_ui_scale(value)
 
 
-## A mouse drag on the UI-scale meter previews and applies on release (Bontago-1pi.150); on the HUD-scale
-## meter it applies live but saves once on release (Bontago-1pi.193). The press marks the dragged meter before
+## A mouse drag on the UI-scale meter previews and applies on release; on the HUD-scale
+## meter it applies live but saves once on release. The press marks the dragged meter before
 ## the meter's own handler sets the value, the release commits it.
 func _on_scale_meter_gui_input(event: InputEvent, meter: UiSegmentMeter) -> void:
 	var click: InputEventMouseButton = event as InputEventMouseButton
@@ -835,7 +835,7 @@ func _on_rumble_strength_changed(value: float) -> void:
 	settings_provider.set_rumble_strength(value)
 
 
-## Owner: "Nudge a short test rumble when the slider is released" (mouse release only, like the
+## "Nudge a short test rumble when the slider is released" (mouse release only, like the
 ## HSlider's drag_ended it replaces).
 func _on_rumble_strength_gui_input(event: InputEvent) -> void:
 	var click: InputEventMouseButton = event as InputEventMouseButton
@@ -852,7 +852,7 @@ func _on_move_speed_changed(value: float) -> void:
 		settings_provider.set_mouse_move_speed_scale(value)
 
 
-## Bontago-xtq.45 (M7 P4): unlike every other setter this menu calls,
+## M7 P4: unlike every other setter this menu calls,
 ## Settings.set_window_mode() already applies the change itself (its own doc
 ## comment: "applies it immediately via apply_window_mode()") -- calling
 ## apply_window_mode() again here would just be a redundant, no-observable-
@@ -868,9 +868,9 @@ func _on_back_pressed() -> void:
 	closed.emit()
 
 
-## Owner: "Add one 'Reset to defaults' action in the footer" -- now also
+## "Add one 'Reset to defaults' action in the footer" -- now also
 ## resets every audio channel, rumble, and the mouse/stick move-speed scales
-## this package adds (owner: "reset by the Reset button"). Reloads the
+## this package adds ("reset by the Reset button"). Reloads the
 ## InputMap straight from project.godot (Settings.reset_key_overrides()),
 ## then tells every already-built row to redraw its own glyphs from that
 ## fresh InputMap state -- cheaper than _build_rebind_rows() rebuilding the
@@ -896,7 +896,7 @@ func rebind_rows() -> Array[KeyRebindRow]:
 
 
 ## One Label per SECTIONS entry, styled as a small muted section header
-## (owner: "section headers (Placement, Rotation, Camera, ... Menu/System)").
+## (requirement: "section headers (Placement, Rotation, Camera, ... Menu/System)").
 func _build_section_header(name: String) -> Label:
 	var header: Label = Label.new()
 	header.text = name
@@ -904,7 +904,7 @@ func _build_section_header(name: String) -> Label:
 	return header
 
 
-## Owner (audio/rumble package): "Group rows under section headers (Audio,
+## Requirement: "Group rows under section headers (Audio,
 ## Controller/Controls feel) matching existing style" -- the Settings tab's
 ## AudioSectionHeader/RumbleSectionHeader are static .tscn Labels (unlike the
 ## Controls tab's dynamically-built SECTIONS headers above), so this applies
@@ -916,7 +916,7 @@ func _style_section_header(header: Label) -> void:
 	header.theme_type_variation = THEME_VARIATION_FIELD
 	header.add_theme_font_size_override("font_size", arcade.font_size_label_px)
 	header.add_theme_color_override("font_color", arcade.sand_color)
-	# Bontago-hfa.4: a .sa-group rule header -- the label sits above a disc-600 rule.
+	# a .sa-group rule header -- the label sits above a disc-600 rule.
 	var spacing: StyleBoxEmpty = StyleBoxEmpty.new()
 	spacing.content_margin_bottom = float(arcade.space_2_px + OPTIONS_TUNING.group_rule_px)
 	header.add_theme_stylebox_override("normal", spacing)
@@ -946,13 +946,13 @@ func _build_rebind_rows() -> void:
 	_refresh_row_bands()
 
 
-## Gamepad/keyboard navigability (docs/archive/M6_PLAN.md package C2: "fully
+## Gamepad/keyboard navigability ("fully
 ## navigable with gamepad and keyboard"): chains every focusable control top
 ## to bottom, in the same visual order the Settings tab actually lays rows
 ## out in (orchestrator review correction) -- PresetOption -> WindowModeOption
 ## -> CameraShakeCheck -> Master/Music/SFX mute+volume -> Rumble
 ## toggle+intensity -> MoveSpeedSlider (Controls tab) -> each rebind row (a
-## row IS its own Button now, Bontago-1pi.10 polish pass -- no separate child
+## row IS its own Button now polish pass -- no separate child
 ## RebindButton) in section/build order -> ResetButton -> BackButton -> back
 ## up to PresetOption. Computed at runtime (control.get_path_to()) rather than
 ## static NodePaths in the .tscn, the same reason ui/menus/MainMenu.gd's own
@@ -960,7 +960,7 @@ func _build_rebind_rows() -> void:
 ## the rebind rows are built dynamically and don't exist yet when the scene
 ## file is authored.
 ##
-## DECISION (Bontago-1pi.159.3): the tab strip is horizontal above the pages, so the tabs are not in
+## DECISION: the tab strip is horizontal above the pages, so the tabs are not in
 ## this chain; _wire_tab_focus() links the visible page's first control and the tabs both ways.
 ## (Before this the tabs were a left column reached by the engine's automatic ui_left resolution.)
 func _wire_focus_chain() -> void:
@@ -974,7 +974,7 @@ func _wire_focus_chain() -> void:
 		_move_speed_slider,
 	]
 	for row: KeyRebindRow in _rows:
-		# Bontago-1pi.41: a row hidden on the gamepad page (no pad function,
+		# a row hidden on the gamepad page (no pad function,
 		# KeyRebindRow.PAD_NOT_APPLICABLE) must not be a focus-chain stop.
 		if row.is_available_on_active_device():
 			chain.append(row.rebind_button())
@@ -989,7 +989,7 @@ func _wire_focus_chain() -> void:
 		current.focus_neighbor_top = current.get_path_to(prev)
 		current.focus_neighbor_bottom = current.get_path_to(next)
 		current.focus_mode = Control.FOCUS_ALL
-	# Bontago-1pi.159.50/.51: the footer pair is a row, so ui_left / ui_right swap between them.
+	#/.51: the footer pair is a row, so ui_left / ui_right swap between them.
 	_reset_button.focus_neighbor_right = _reset_button.get_path_to(_back_button)
 	_back_button.focus_neighbor_left = _back_button.get_path_to(_reset_button)
 	_reset_button.focus_neighbor_left = _reset_button.get_path_to(_back_button)
@@ -998,7 +998,7 @@ func _wire_focus_chain() -> void:
 	_trap_focus()
 
 
-## Bontago-1pi.159.15: no control inside the Options window may have a neighbour (or next /
+## no control inside the Options window may have a neighbour (or next /
 ## previous) outside it, or a dropdown's ui_left / ui_right jumps to the screen underneath.
 ## Re-run after every chain re-wire (device change) and tab switch; pages are built once in
 ## _ready, so these two call sites cover lazily-changed page content.
@@ -1006,7 +1006,7 @@ func _trap_focus() -> void:
 	UiFocusTrap.trap(self)
 
 
-## Bontago-1pi.159.3: the tab strip sits above the pages. ui_up from the visible page's first control
+## the tab strip sits above the pages. ui_up from the visible page's first control
 ## reaches the active tab, ui_down from any tab reaches that first control (ui_left / ui_right on a
 ## tab step to its neighbour tab inside UiTabs), and ui_up from a tab wraps to Back.
 func _wire_tab_focus() -> void:

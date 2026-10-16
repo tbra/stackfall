@@ -1,20 +1,20 @@
 class_name MenuVisualTuning
 extends Resource
-## M7 P7 (docs/M7_PLAN.md "P7 -- Main menu / lobby reskin", Bontago-xtq.32):
+## Main menu and lobby reskin:
 ## every tunable the menu's layered-pastel look draws from -- the 2D paper-cut
 ## backdrop (ui/menus/MenuBackdrop.gd)
 ## and the pastel pill/well Theme styles (ui/theme/MenuStyleFactory.gd) -- so no
 ## menu-facing color or size is a magic number in script (CLAUDE.md "No magic
 ## numbers"). Redone against docs/art_mockups/10-main-menu-layered-pastel.png
 ## and 11-lobby-layered-pastel.png after the owner rejected the first pass
-## (Bontago-xtq.32: "absolutely not, it looks awful and nothing like the mockup").
+## ("absolutely not, it looks awful and nothing like the mockup").
 
-## -- Menu render budget (Bontago-1pi.11.48): while a menu/lobby backdrop is in
+## -- Menu render budget: while a menu/lobby backdrop is in
 ## the tree the full-screen opaque backdrop hides the match world, so the root
 ## viewport skips its 3D pass and the frame rate is capped (0 = no cap). Never
 ## applied in a match; the player's vsync choice is untouched. --------------
-## DECISION (Bontago-1pi.11.52, owner: ~25% GPU idling in the menu): 60 -> 30. The
-## menu is a static paper-cut backdrop, UI cards and ; 30 fps
+## DECISION (~25% GPU idling in the menu): 60 -> 30. The
+## menu is a static paper-cut backdrop, UI cards and; 30 fps
 ## halves every idle GPU/CPU cost (present, UI redraw) with no visible change.
 @export var menu_max_fps: int = 30
 @export var menu_disable_world_3d: bool = true
@@ -24,7 +24,7 @@ extends Resource
 @export var backdrop_sky_top_color: Color = Color(0.62, 0.80, 0.90, 1.0)
 @export var backdrop_sky_horizon_color: Color = Color(0.88, 0.92, 0.90, 1.0)
 ## Number of horizontal gradient bands ui/menus/MenuBackdrop.gd's _draw_sky() lerps
-## between the two sky colors across -- review finding #4 (Bontago-xtq.32
+## between the two sky colors across -- review finding #4 (
 ## redo #3): this used to be a bare `const SKY_BAND_COUNT` in MenuBackdrop.gd
 ## itself, contradicting that file's own "every color, count and layout
 ## fraction it draws from is a MenuVisualTuning export" docstring.
@@ -57,7 +57,7 @@ extends Resource
 @export var card_offset_px: float = 14.0
 @export var card_shadow_size_px: float = 6.0
 
-## DECISION (Bontago-mp0.11): viewport limits keep menu cards inside short
+## DECISION: viewport limits keep menu cards inside short
 ## windows while preserving readable type and the same control focus chain.
 @export var menu_edge_margin_px: float = 18.0
 @export var menu_max_width_px: float = 960.0
@@ -71,20 +71,20 @@ extends Resource
 @export var pill_cream_hover_color: Color = Color(0.97, 0.94, 0.87, 1.0)
 @export var pill_mint_color: Color = Color(0.62, 0.82, 0.66, 1.0)
 @export var pill_mint_hover_color: Color = Color(0.72, 0.88, 0.75, 1.0)
-## DECISION (config/ui/MenuVisualTuning.gd, Bontago-1pi.9a): 8 -> 10, the same
+## DECISION (config/ui/MenuVisualTuning.gd.9a): 8 -> 10, the same
 ## "airier, calmer" pass as card_content_margin_px above -- make_well()/
 ## make_flat_list() read this for every sunken list/field's own inner padding
 ## (the LAN/Steam game lists, the direct-IP field, the block-timer/gravity/
 ## special-frequency slider tracks).
 @export var well_content_margin_px: float = 10.0
-## Bontago-1pi.37: the minimum WCAG-style contrast ratio (1.0 = identical,
+## the minimum WCAG-style contrast ratio (1.0 = identical,
 ## 21.0 = black on white; MenuStyleFactory.contrast_ratio()) between a menu
 ## button's icon colour and the stylebox it is drawn on, in every draw state
 ## (normal, focus, hover, pressed, disabled). tests/unit/ui/test_menu_icons.gd
 ## walks the menu scenes against it. Icons are white-source SVGs tinted by the
 ## Button icon_*_color theme items MenuStyleFactory sets to the pill's label
 ## ink, so an icon always follows its caption colour.
-## DECISION (Bontago-1pi.37): 2.0, not WCAG's 3.0 for graphics. The shipped
+## DECISION: 2.0, not WCAG's 3.0 for graphics. The shipped
 ## light-ink-on-coral pairing (Host/Bots/Resume) measures 2.1..2.8 across its
 ## states (dark ink would give 4.2..5.5); 2.0 rejects the reported bug class
 ## (white/light icon on a cream/mint/blue pill = 1.0..1.9) without restyling
@@ -95,4 +95,4 @@ extends Resource
 @export var focus_outline_color: Color = Color(0.149, 0.196, 0.227, 1.0)
 @export var ink_color: Color = Color(0.149, 0.196, 0.227, 1.0)
 
-## -- Title treatment (Bontago-mp0.3.5 review r1): a soft offset shadow copy
+## -- Title treatment (review r1): a soft offset shadow copy

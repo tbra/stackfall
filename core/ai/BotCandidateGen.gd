@@ -20,7 +20,7 @@ const SITE_TIP: int = 1
 const SITE_STACK: int = 2
 const SITE_STRIKE: int = 3
 const SITE_FILL: int = 4
-## Bontago-1t5.54: a wide, flat piece on the ground at a new base after a collapse.
+## a wide, flat piece on the ground at a new base after a collapse.
 const SITE_FOUNDATION: int = 5
 
 
@@ -35,7 +35,7 @@ static func sites(
 	return job.out
 
 
-## Resumable form of `sites` (Bontago-1t5.30): the targeted TIP / STACK sites are built here;
+## Resumable form of `sites`: the targeted TIP / STACK sites are built here;
 ## the uniform FILL (the costly part: hundreds of rejected validate_point draws) is then run in
 ## `SiteJob.fill_step` slices. The RNG draw order is identical to `sites`, so a fixed seed gives
 ## the same sites whatever the slice size.
@@ -65,7 +65,7 @@ static func begin(
 			stack_share = t.area_stack_share
 	var targeted_scale: float = 1.0
 	if profile.fill_share > 0.0 and tip_share + stack_share > 0.0:
-		# DECISION (Bontago-1t5.23): a tier with a FILL share (Easy) scales the targeted
+		# DECISION: a tier with a FILL share (Easy) scales the targeted
 		# quotas so the uniform FILL sites fill exactly that share of the budget.
 		targeted_scale = (1.0 - clampf(profile.fill_share, 0.0, 1.0)) / (tip_share + stack_share)
 	var tip_quota: int = roundi(tip_share * targeted_scale * float(total))
@@ -77,8 +77,8 @@ static func begin(
 	)
 	var tip_kind: int = SITE_STRIKE if threat_kind else SITE_TIP
 	if intent.new_base:
-		# Bontago-1t5.54: after a collapse the share of the stack sites goes to the new base's
-		# foundation. Bontago-1t5.68 (owner): a site may sit beside or on the old tower's debris, but
+		# after a collapse the share of the stack sites goes to the new base's
+		# foundation. a site may sit beside or on the old tower's debris, but
 		# only on the disc or on faces flat against it whose pile holds the piece (no clearance).
 		gen.flat_supports_only = true
 		gen.add_foundation_sites(intent.target, mini(t.foundation_site_count, total))
@@ -108,7 +108,7 @@ class SiteJob:
 	var _attempts: int = 0
 	## Site count at which the fill stops (the budget).
 	var _stop_at: int = 0
-	## Bontago-1t5.67: true when this job is the zero-targeted-sites FILL fallback (a capped profile that
+	## true when this job is the zero-targeted-sites FILL fallback (a capped profile that
 	## found no targeted site), so the cost report can count how often the fallback runs.
 	var fallback_ran: bool = false
 
@@ -119,7 +119,7 @@ class SiteJob:
 		if needed <= 0:
 			return
 		_stop_at = budget
-		# DECISION (Bontago-1t5.66, option d): a profile with no FILL share (every V2 tier) never
+		# DECISION (option d): a profile with no FILL share (every V2 tier) never
 		# picked a FILL site in the scripted tower scenes (24 of 24 thinks picked a TIP site), yet the
 		# top-up of every targeted shortfall (60-90 sites) cost ~15-24 % of a think in FILL plus the
 		# probe/rank of those sites. FILL is now only a fallback for ZERO targeted sites.
@@ -162,7 +162,7 @@ class _Gen:
 	var _own_index: PackedInt32Array = PackedInt32Array()
 	var _tip_orientations: Array[BotStatics.OrientationInfo] = []
 	var _stack_orientations: Array[BotStatics.OrientationInfo] = []
-	## Bontago-1t5.68 (replaces the 1t5.54 debris clearance): a site must rest on the disc or on block faces
+	## Replaces the older debris clearance: a site must rest on the disc or on block faces
 	## flat against it whose pile holds the piece in the analysed snapshot (_rests_flat).
 	var flat_supports_only: bool = false
 
@@ -188,7 +188,7 @@ class _Gen:
 			_own_radii.append(view.cr[i])
 			_own_index.append(i)
 
-	## Bontago-1t5.72 (P4): `infos` already holds only orientations whose own centre of mass stands on their contact
+	## P4: `infos` already holds only orientations whose own centre of mass stands on their contact
 	## squares (BotStatics.orientation_infos); the stability model judges each site in PROBE, so generation only
 	## offers a spread. Tip: highest reach, then widest own margin, then largest grip. Stack: flattest first.
 	func _rank_orientations() -> void:
@@ -218,7 +218,7 @@ class _Gen:
 		_stack_orientations = stack.slice(0, maxi(t.stack_orientation_variants, 1))
 		_add_tall_stack_orientations()
 
-	## Bontago-1t5.69 (owner playtest 2026-10-14: bots always laid bars flat): Reach the Sky also offers the
+	## bots always laid bars flat: Reach the Sky also offers the
 	## tallest orientations after the flattest ones; any eligible orientation may stand on a sound top.
 	## DECISION: Reach the Sky only; other modes keep their flat-first stack orientations (and candidate sets).
 	func _add_tall_stack_orientations() -> void:
@@ -337,7 +337,7 @@ class _Gen:
 		return PlacementRules.NO_ORIGIN
 
 	func _placeable(point: Vector2) -> bool:
-		# Bontago-1t5.42: a site beyond the shrunk disc would fall; drop it (no-op unshrunk).
+		# a site beyond the shrunk disc would fall; drop it (no-op unshrunk).
 		if view.is_shrunk() and point.length() > view.live_radius:
 			return false
 		return PlacementRules.validate_point(point, view.raster, view.team_id) == PlacementRules.Result.VALID
@@ -368,12 +368,12 @@ class _Gen:
 					var point: Vector2 = (entry["center"] as Vector2) + jitter * t.stack_jitter_m
 					_try_add(point, orientation, SITE_STACK, true, entry["top"] as float)
 
-	## Bontago-1t5.54: false when the snapshot knows circle `i`'s block and it is unsound (a leaning
+	## false when the snapshot knows circle `i`'s block and it is unsound (a leaning
 	## block, or one carrying such a block); an unmatched circle or no snapshot keeps the old behaviour.
 	func _usable_top(i: int, top: float) -> bool:
 		var stack: BotStack = view.stack
-		# DECISION (1t5.54 review): only Reach the Sky skips unsound tops; the other modes keep the old
-		# sites until the E3 Classic screen says otherwise.
+		# DECISION: only Reach the Sky skips unsound tops; the other modes keep the old
+		# sites until the Classic mode's screen decides otherwise.
 		if view.mode != MatchConfig.GameMode.REACH_THE_SKY or stack == null or not stack.is_analysed():
 			return true
 		var body: int = stack.body_near(
@@ -381,7 +381,7 @@ class _Gen:
 		)
 		return body < 0 or stack.is_usable_top(body)
 
-	## Bontago-1t5.54: FOUNDATION sites at the new base and around it (jitter in the eight directions),
+	## FOUNDATION sites at the new base and around it (jitter in the eight directions),
 	## widest contact area first, then widest own margin, then lowest height.
 	func add_foundation_sites(base: Vector2, quota: int) -> void:
 		var start: int = out.size()
@@ -415,9 +415,9 @@ class _Gen:
 		var dist: float = sqrt(rng.randf()) * view.field_radius
 		var point: Vector2 = Vector2(cos(angle), sin(angle)) * dist
 		var orientation: BotStatics.OrientationInfo = allowed[rng.randi() % allowed.size()]
-		# Cheap reject first (Bontago-1t5.30): a draw outside the team's own territory can never
+		# Cheap reject first: a draw outside the team's own territory can never
 		# be VALID, and most draws are, so the full validate_point chain runs only for the rest.
-		# Inlined CellGrid.world_to_cell (identical arithmetic; Bontago-1t5.37: ~1000 draws a think).
+		# Inlined CellGrid.world_to_cell (identical arithmetic; ~1000 draws a think).
 		var grid: CellGrid = view.grid
 		var cell: Vector2i = Vector2i(
 			floori((point.x + grid.half_extent) / grid.cell_size),
@@ -427,7 +427,7 @@ class _Gen:
 			return
 		_try_add(point, orientation, SITE_FILL, false, 0.0)
 
-	## Bontago-1t5.68: true when the piece with its pivot at `origin` rests on the disc, or on block faces flat
+	## true when the piece with its pivot at `origin` rests on the disc, or on block faces flat
 	## against it whose pile keeps the centre of mass inside every support (BotStack.rest_margin >= 0); true
 	## without an analysed snapshot. DECISION: the model probes every bottom cube, not the tier's
 	## stability_raycast_count (that cap limits real rays; a snapshot lookup is cheap), and the piece's mass is
@@ -446,7 +446,7 @@ class _Gen:
 	func _try_add(
 		point: Vector2, orientation: BotStatics.OrientationInfo, kind: int, on_stack: bool, stack_top: float
 	) -> bool:
-		# Bontago-1t5.55.1: `point` is where the piece's footprint centre should land; the origin is
+		# `point` is where the piece's footprint centre should land; the origin is
 		# the pivot the host tests (centre_shift is 0 for yaw-only orientations).
 		var origin: Vector2 = point - orientation.center_shift * view.cube_size
 		if not _placeable(origin):
@@ -464,7 +464,6 @@ class _Gen:
 		candidate.orientation_index = orientation.index
 		candidate.site_kind = kind
 		candidate.support_height = stack_top if on_stack else 0.0
-		candidate.on_top_of_own_stack = on_stack
 		candidate.shape_height = orientation.height
 		candidate.top_height = candidate.support_height + candidate.shape_height
 		candidate.top_area = orientation.top_area

@@ -52,7 +52,7 @@ func _ready() -> void:
 	Events.player_eliminated.connect(_on_player_eliminated)
 	Events.match_won.connect(_on_match_won)
 	Events.pause_menu_opened.connect(_on_pause_menu_opened)
-	# Bontago-1pi.46: a world build/teardown never leaves a pad buzzing into the next match.
+	# a world build/teardown never leaves a pad buzzing into the next match.
 	Events.match_scope_reset.connect(stop_all)
 
 
@@ -98,7 +98,7 @@ func _on_block_impacted(speed: float) -> void:
 	_trigger(config.impact_weak_magnitude * t, config.impact_strong_magnitude * t, config.impact_duration_s)
 
 
-## Bontago-1pi.52: also silent for a bot seat -- offline, Net.is_local_slot() is
+## also silent for a bot seat -- offline, Net.is_local_slot() is
 ## true for every slot, bots included (autoload/match/LocalFeedback.gd).
 func _on_placement_rejected(slot_id: int, _reason: StringName) -> void:
 	if not LocalFeedback.is_own_human_slot(slot_id):
@@ -123,7 +123,7 @@ func _on_placement_rejected(slot_id: int, _reason: StringName) -> void:
 ## reasonable option per CLAUDE.md's minor-ambiguity rule (a "new block
 ## ready" light tick reads fine even at match start).
 ##
-## Bontago-1pi.52: personal feedback, so only a human seat driven from this
+## personal feedback, so only a human seat driven from this
 ## machine (autoload/match/LocalFeedback.gd) -- offline Net.is_local_slot() is
 ## true for every slot, so without the bot check each bot's feed buzzed the pad.
 func _on_feed_block_issued(slot_id: int, _shape_id: StringName, _next_shape_id: StringName) -> void:
@@ -147,7 +147,7 @@ func _on_special_triggered(_net_id: int, _def_id: StringName, _position: Vector3
 	)
 
 
-## Bontago-1pi.52: only the eliminated player's own pad (a human seat on this
+## only the eliminated player's own pad (a human seat on this
 ## machine), never a bot's or another peer's elimination.
 func _on_player_eliminated(slot_id: int, _team_id: int) -> void:
 	if not LocalFeedback.is_own_human_slot(slot_id):
@@ -171,7 +171,7 @@ func _on_match_won(team_id: int) -> void:
 	stop_all()
 	var slot_count: int = maxi(Match.slot_count(), team_id + 1)
 	for slot_id: int in range(slot_count):
-		# Bontago-1pi.52: the first HUMAN seat on this machine decides win or
+		# the first HUMAN seat on this machine decides win or
 		# loss; a bot seat (every slot is local offline) never does.
 		if not LocalFeedback.is_own_human_slot(slot_id):
 			continue

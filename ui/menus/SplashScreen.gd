@@ -19,7 +19,7 @@ const BLOCK_SCALE: float = 0.45
 const WORDMARK_SCALE: float = 0.34
 const DROP_SECONDS: float = 0.46
 const WORDMARK_DROP_SECONDS: float = 0.48
-## The 8.81-second owner jingle has a regular pulse and a stronger middle.
+## The 8.81-second jingle has a regular pulse and a stronger middle.
 ## Contacts land on audible accents; the last five hits keep the mark alive.
 const BLOCK_CONTACTS: Array[float] = [0.78, 1.58, 2.38, 3.18]
 const WORDMARK_CONTACT: float = 3.70

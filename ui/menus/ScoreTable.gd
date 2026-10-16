@@ -1,6 +1,6 @@
 class_name ScoreTable
 extends RefCounted
-## Bontago-1pi.69: the stats table shared by ui/menus/ResultsScreen.gd (end of round)
+## the stats table shared by ui/menus/ResultsScreen.gd (end of round)
 ## and ui/hud/ScoreboardOverlay.gd (hold-to-show, live round). Extracted from the
 ## results screen unchanged so both render the same columns from the same
 ## payload shape (autoload/match/MatchStats.gd: results/live payload).
@@ -37,9 +37,9 @@ static func populate(
 		rows_list.add_child(build_data_row(row, show_team, tuning, team_numbers, results, match_provider, show_mode_stat))
 
 
-## Bontago-1pi.72.1: the Team column exists only when the match played in teams
+## the Team column exists only when the match played in teams
 ## (payload winner_kind == team); in free-for-all every slot is its own team.
-## Bontago-1pi.82: the mode column (CTF points, Reach the Sky team best) exists only
+## the mode column (CTF points, Reach the Sky team best) exists only
 ## for modes that have a score of their own; the old "Peak %" column is gone.
 static func columns(show_team: bool, show_mode_stat: bool = false) -> Array[int]:
 	var columns: Array[int] = [Column.PLAYER]
@@ -83,7 +83,7 @@ static func build_header_row(show_team: bool, mode_header: String, _tuning: Menu
 	header.add_theme_constant_override("separation", 0)
 	for column: int in columns(show_team, show_mode_stat):
 		var header_text: String = mode_header if column == Column.MODE_STAT else String(_COLUMN_HEADERS[column])
-		# Bontago-1pi.145: table headers are `dust` labels (components.md ResultsTable): 13/800, uppercase, tracked.
+		# table headers are `dust` labels (components.md ResultsTable): 13/800, uppercase, tracked.
 		var cell: Label = make_cell(header_text.to_upper(), float(_COLUMN_RATIOS[column]))
 		cell.theme_type_variation = &"FieldLabel"
 		cell.add_theme_color_override("font_color", arcade.dust_color)
@@ -115,13 +115,13 @@ static func build_data_row(
 	panel.add_child(box)
 
 	var eliminated_at: float = ResultsPayload.float_of(row, ResultsPayload.KEY_ELIMINATED_AT, ResultsPayload.NOT_ELIMINATED)
-	# DECISION (Bontago-1pi.69): a live snapshot says "Alive", not "Survived".
+	# DECISION: a live snapshot says "Alive", not "Survived".
 	var alive_text: String = "Alive" if ResultsPayload.is_live(results) else "Survived"
 	var status_text: String = alive_text if eliminated_at < 0.0 else "Out @ %ds" % int(round(eliminated_at))
 	var territory_text: String = "%d%%" % int(round(ResultsPayload.float_of(row, ResultsPayload.KEY_TERRITORY_SHARE) * 100.0))
 
 	var tier_text: String = bot_difficulty_label(row, match_provider)
-	# DECISION (Bontago-1pi.72.1, orchestrator): one "Gifts" column showing gifts
+	# DECISION (orchestrator): one "Gifts" column showing gifts
 	# USED (specials_used); gifts_claimed stays in the stats payload untouched.
 	var cell_text_by_column: Dictionary = {
 		Column.PLAYER: ResultsScreen.row_name_text(row) if tier_text.is_empty() else ResultsPayload.string_of(row, ResultsPayload.KEY_NAME),
@@ -157,7 +157,7 @@ static func build_data_row(
 	return panel
 
 
-## Bontago-1t5.45: "Easy" / "Normal" / "Hard" for a bot row, "" for a human row or when no
+## "Easy" / "Normal" / "Hard" for a bot row, "" for a human row or when no
 ## config is reachable. Read from the (replicated) MatchConfig, never host-only state, so a
 ## client shows the same tier. `match_provider` is the test seam; null = the Match autoload.
 # DECISION: the tier rides in the name cell's existing "(Bot)" suffix, "(Bot, Hard)", so
@@ -197,7 +197,7 @@ static func row_style(is_winner: bool) -> StyleBoxFlat:
 	return box
 
 
-## Bontago-1pi.78: the HUD's colour source (ui/hud/HUD.gd _color_for_slot): the live
+## the HUD's colour source (ui/hud/HUD.gd _color_for_slot): the live
 ## PlayerSlot.color from Match, else MatchConfig's default palette. `match_provider`
 ## is a test seam; null means the Match autoload when it exists.
 static func slot_color(slot_id: int, match_provider: Variant = null) -> Color:
@@ -216,7 +216,7 @@ static func slot_color(slot_id: int, match_provider: Variant = null) -> Color:
 	return SlotColors.resolve(slot_id, slot.color if slot != null else null, palette)
 
 
-## Bontago-1pi.81: the shared SlotDiamond (ui/hud/SlotDiamond.tscn) at the left of the name
+## the shared SlotDiamond (ui/hud/SlotDiamond.tscn) at the left of the name
 ## cell, which stays a plain Label whose left margin leaves room for it.
 static func _mark_with_slot_colour(cell: Label, color: Color, _tuning: MenuVisualTuning) -> void:
 	var diamond: SlotDiamond = SlotDiamond.create(color, table_tuning().marker_size_px)
@@ -235,7 +235,7 @@ static func _mark_with_slot_colour(cell: Label, color: Color, _tuning: MenuVisua
 	cell.set_meta(&"slot_color", color)
 
 
-## Bontago-1t5.45: the "(Bot, Hard)" tag is its own label pinned to the right edge of the
+## the "(Bot, Hard)" tag is its own label pinned to the right edge of the
 ## name cell at its natural width; the cell's right margin tracks the tag, so the NAME
 ## ellipsizes and the tier always stays visible. Column widths are unchanged.
 static func _add_bot_tag(cell: Label, tag_text: String) -> void:

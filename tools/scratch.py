@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Organise and prune the agent scratch directory (default M:/Bontago-tools/scratch).
+"""Organise and prune the agent scratch directory (default <tools root>/scratch).
 
 Usage:
   python tools/scratch.py path <bead-id> [slug]      create + print root/<bead-id>[/<slug>]
@@ -7,7 +7,7 @@ Usage:
   python tools/scratch.py prune [--apply] [--keep-days N]   dry-run by default
   python tools/scratch.py selftest                   run the built-in temp-root test
 
-Global option: --root DIR (must resolve inside M:/Bontago-tools).
+Global option: --root DIR (must resolve inside the tools root).
 Prune candidates: top-level entries whose newest inner mtime is older than keep-days
 AND (a bead dir whose bead is closed, OR a legacy non-bead entry). Always kept:
 live git worktree names, non-closed or unknown-status bead dirs, recent entries.
@@ -29,9 +29,12 @@ import time
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Set, Tuple
 
-DEFAULT_ROOT = "M:/Bontago-tools/scratch"
-SAFE_PARENT = "M:/Bontago-tools"
-REPO = "M:/Bontago"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import repo_paths  # noqa: E402
+
+DEFAULT_ROOT = repo_paths.scratch_root()
+SAFE_PARENT = repo_paths.tools_root()
+REPO = repo_paths.repo_dir()
 BEAD_RE = re.compile(r"^Bontago-[a-z0-9]+(?:\.[a-z0-9]+)*$")
 BEAD_PREFIX_RE = re.compile(r"^(Bontago-[a-z0-9]+(?:\.[a-z0-9]+)*)")
 CONTAINERS = {"_orchestrator", "editor"}
@@ -109,7 +112,7 @@ def bd_statuses(ids: List[str]) -> Dict[str, str]:
 
 
 _SEP = r"(?:/|\\)+"
-REF_RE = re.compile(r"Bontago-tools" + _SEP + "scratch" + _SEP + r"([A-Za-z0-9._-]+)(?:" + _SEP
+REF_RE = re.compile(re.escape(os.path.basename(SAFE_PARENT)) + _SEP + "scratch" + _SEP + r"([A-Za-z0-9._-]+)(?:" + _SEP
                     + r"([A-Za-z0-9._-]+))?")
 
 
@@ -321,13 +324,13 @@ def selftest() -> int:
             os.utime(p, (mt, mt))
             os.utime(p.parent, (mt, mt))
 
-        mk("Bontago-aaa.1/log.txt", old)          # closed + old -> delete
-        mk("Bontago-bbb.2/log.txt", old)          # open + old -> keep
-        mk("Bontago-ccc.3/log.txt", new)          # closed + new -> keep
+        mk("Bontago-aaaa.1/log.txt", old)          # closed + old -> delete
+        mk("Bontago-bbbb.2/log.txt", old)          # open + old -> keep
+        mk("Bontago-cccc.3/log.txt", new)          # closed + new -> keep
         mk("legacy-old/f.txt", old)               # legacy old -> delete
         mk("legacy-new/f.txt", new)               # legacy new -> keep
         mk("wt-live/f.txt", old)                  # live worktree -> keep
-        mk("Bontago-ddd.4/f.txt", old)            # unknown status -> keep
+        mk("Bontago-dddd.4/f.txt", old)            # unknown status -> keep
         mk("_orchestrator/oldchild/f.txt", old)   # child old -> delete
         mk("_orchestrator/newchild/f.txt", new)   # child new -> keep
         mk("INDEX.md", old)                       # keep
@@ -344,7 +347,7 @@ def selftest() -> int:
             pass
 
         def sfn(ids: List[str]) -> Dict[str, str]:
-            return {"Bontago-aaa.1": "closed", "Bontago-bbb.2": "open", "Bontago-ccc.3": "closed"}
+            return {"Bontago-aaaa.1": "closed", "Bontago-bbbb.2": "open", "Bontago-cccc.3": "closed"}
 
         mk("legacy-ref/f.txt", old)               # referenced by open bead -> keep
         mk("_orchestrator/refchild/f.txt", old)   # container child referenced -> keep
@@ -357,10 +360,12 @@ def selftest() -> int:
         # export failure (refs None) keeps every legacy entry, still prunes closed bead dir
         failsafe = {Path(p).relative_to(root).as_posix()
                     for p, _, _ in candidates(root, 3, sfn, live, None)}
-        assert failsafe == {"Bontago-aaa.1"}, failsafe
-        m = REF_RE.search(json.dumps({"c": r"M:\Bontago-tools\scratch\_orchestrator\x-1 and M:/Bontago-tools/scratch/dropsound/a"}))
+        assert failsafe == {"Bontago-aaaa.1"}, failsafe
+        td = os.path.basename(SAFE_PARENT)
+        ref_text = "/%s/scratch/_orchestrator/x-1 and /%s/scratch/dropsound/a" % (td, td)
+        m = REF_RE.search(json.dumps({"c": ref_text.replace("/", chr(92), 4)}))
         assert m and m.group(1) == "_orchestrator" and m.group(2) == "x-1", m
-        expect = {"Bontago-aaa.1", "legacy-old", "_orchestrator/oldchild"}
+        expect = {"Bontago-aaaa.1", "legacy-old", "_orchestrator/oldchild"}
         cands.discard("legacy-link")  # link mtime is "now" or platform-specific
         assert cands == expect, cands
         cmd_prune(root, False, 3, sfn, live, refs)
@@ -368,7 +373,7 @@ def selftest() -> int:
         cmd_prune(root, True, 3, sfn, live, refs)
         for gone in expect:
             assert not (root / gone).exists(), gone
-        for kept in ("Bontago-bbb.2", "Bontago-ccc.3", "legacy-new", "wt-live", "Bontago-ddd.4",
+        for kept in ("Bontago-bbbb.2", "Bontago-cccc.3", "legacy-new", "wt-live", "Bontago-dddd.4",
                      "_orchestrator/newchild", "legacy-ref", "_orchestrator/refchild", "INDEX.md", "_orchestrator"):
             assert (root / kept).exists(), kept
         assert (outside / "keep.txt").exists(), "followed link"

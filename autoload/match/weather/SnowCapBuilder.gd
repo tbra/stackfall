@@ -1,9 +1,9 @@
 class_name SnowCapBuilder
 extends RefCounted
-## Amortised snow geometry (Bontago-22y.6). Callers set patch levels (cheap);
+## Amortised snow geometry. Callers set patch levels (cheap);
 ## step() computes at most `budget` dome meshes/hulls per frame, and once
-## every changed patch of an owner (a block, or a disc region) is ready it
-## commits that owner in one go: its mesh and its colliders swap together,
+## every changed patch of an owning item (a block, or a disc region) is ready it
+## commits that owning item in one go: its mesh and its colliders swap together,
 ## so a block never shows half-updated snow or a collider without its mesh.
 ## The host uses it with colliders, clients without, with the same geometry.
 ##
@@ -63,7 +63,7 @@ var _queue: Array[String] = []
 ## Blocks held frozen (Variant: one may be freed while held).
 var _thaw: Array = []
 var _thaw_frames: PackedInt32Array = PackedInt32Array()
-## Round-robin list of owner keys for the cross-block neighbour refresh;
+## Round-robin list of owning keys for the cross-block neighbour refresh;
 ## rebuilt only when the owner set changes (no per-frame allocation).
 var _refresh_keys: Array[String] = []
 var _refresh_dirty: bool = true
@@ -76,7 +76,7 @@ func _init(snow_tuning: SnowTuning, colliders: bool) -> void:
 	with_colliders = colliders
 
 
-## Records `patch_key`'s level on owner `key`; the rebuild happens in step().
+## Records `patch_key`'s level on owning `key`; the rebuild happens in step().
 func set_patch(key: String, node: Node3D, region: int, patch_key: int, xform: Transform3D, edge: float, seed_value: int, level: int) -> void:
 	var owner: CapOwner = _owners.get(key) as CapOwner
 	if owner == null:
@@ -114,7 +114,7 @@ func set_patch(key: String, node: Node3D, region: int, patch_key: int, xform: Tr
 		_queue.append(key)
 
 
-## Removes an owner's snow at once (a despawned or tipped block).
+## Removes an an owner's snow at once (a despawned or tipped block).
 func drop_owner(key: String) -> void:
 	var owner: CapOwner = _owners.get(key) as CapOwner
 	if owner == null:
@@ -138,7 +138,7 @@ func is_idle() -> bool:
 	return _queue.is_empty()
 
 
-## Builds up to `budget` domes; commits every owner that became complete.
+## Builds up to `budget` domes; commits every owning item that became complete.
 func step(budget: int) -> void:
 	_advance_thaws()
 	_refresh_cross(tuning.cross_merge_checks_per_frame)
@@ -180,7 +180,7 @@ func _build_patch(patch: Patch, owner: CapOwner) -> void:
 			points[k] = Vector3(pt.x * tuning.disc_drift_stretch, tuning.cap_lift_m + (pt.y - tuning.cap_lift_m) * tuning.disc_drift_height_scale, pt.z)
 		patch.hull = patch.xform * points
 	else:
-		# DECISION (Bontago-mp0.31): a per-patch geometry (not a world-space
+		# DECISION: a per-patch geometry (not a world-space
 		# shader term) so the host collider is the same convex hull of the
 		# same points the client draws; the patch treats its top face and
 		# snowy neighbour cells as one plateau with rounded rims only.
@@ -195,7 +195,7 @@ func _build_patch(patch: Patch, owner: CapOwner) -> void:
 		if not patch.cross_valid:
 			_compute_cross(owner, patch)
 		var cross_any: bool = patch.cross[0] > 0 or patch.cross[1] > 0 or patch.cross[2] > 0 or patch.cross[3] > 0
-		# DECISION (Bontago-mp0.32): touching same-height tops of DIFFERENT
+		# DECISION: touching same-height tops of DIFFERENT
 		# blocks merge in the drawn mesh only (no rim at the shared edge). The
 		# collider hull is built from this block's own cells alone: blocks move
 		# independently, so a hull that followed a neighbour would swap (and

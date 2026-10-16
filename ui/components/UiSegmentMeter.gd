@@ -4,13 +4,13 @@ extends Control
 ## as voxel cells on a sunken ground (no border) with the value always shown to the right in Bungee.
 ## A UiRowItem (METER): one row height tall, hugs its content: every cell is
 ## ComponentMetrics.meter_cell_width_px wide, so the width follows the cell count and never the
-## layout (owner 2026-10-11). [member value] counts filled cells
+## layout. [member value] counts filled cells
 ## (0..[member step_count], never fewer than MIN_STEP_COUNT cells); consumers map it to their own
 ## range and give [member formatter] to turn it into the readout ("100%", "5.0 s", "Medium").
 ## Mouse: click or drag sets the cell under the pointer. Keyboard / pad: ui_left / ui_right step one
 ## cell (held: repeats after SliderNavTuning.repeat_delay_sec, a stick only auto-repeats near full
 ## deflection, like UiStepper). A muted or non-editable meter shows dust cells.
-## The hold timer is the shared UiHoldRepeat (Bontago-1pi.159.10).
+## The hold timer is the shared UiHoldRepeat.
 
 signal value_changed(value: int)
 
@@ -139,7 +139,7 @@ func content_width() -> float:
 	return well_width() + (float(UiRowItem.metrics().row_value_cell_width_px) if show_value else 0.0)
 
 
-# DECISION (1pi.159.25): the meter's minimum is its cell geometry, not meter_min_width_px, so a
+# DECISION:
 # 10-cell meter hugs its content like every other row item instead of padding to 200 px.
 func _fit_width() -> void:
 	custom_minimum_size.x = content_width()

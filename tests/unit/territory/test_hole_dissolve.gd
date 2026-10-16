@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.11.41 (owner decision Bontago-gdb, option A): the disc stays
+## option A: the disc stays
 ## solid under holes; game/field/HoleDissolver.gd (owned by BlockRegistry) dissolves
 ## a block that rests or lands on an applied hole cell and removes it through
 ## the edge-fall path. The first half drives a bare Field + BlockRegistry on a
@@ -157,7 +157,7 @@ func test_a_dissolve_overrides_a_freeze_hold_and_releases_the_tower_above() -> v
 	assert_false(top.is_frozen_visual())
 
 
-## [OWNER decision 2026-10-12, Bontago-1pi.85.73]: a hole opening under a gift special's carrier
+## [OWNER decision]: a hole opening under a gift special's carrier
 ## block never starts a dissolve; a plain neighbour on the same hole still does.
 func test_a_hole_never_dissolves_a_gift_block_but_still_dissolves_a_plain_one() -> void:
 	_make_world()

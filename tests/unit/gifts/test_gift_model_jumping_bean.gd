@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mp0.158: the Jumping Bean gift is a jelly blob on a coil spring (not a bean),
+## the Jumping Bean gift is a jelly blob on a coil spring (not a bean),
 ## keeps its face, its gameplay id and its idle hop loop.
 
 

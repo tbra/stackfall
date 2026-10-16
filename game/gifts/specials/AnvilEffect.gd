@@ -1,13 +1,13 @@
 class_name AnvilEffect
 extends SpecialEffect
-## Anvil (spec 2.6: "applies weight to tilt the field", the JayIsGames review's
+## Anvil (spec 1.6: "applies weight to tilt the field", the JayIsGames review's
 ## "a tilting anvil" -- lands heavy, tilts the field toward where it lands).
-## docs/GIFT_EFFECTS_PLAN.md package D: the tilt now goes through DiscForce
+## The tilt goes through DiscForce
 ## (sign +1 dips the landing side) and "has it landed" is a LandedProbe, not
 ## Jolt's `sleeping` flag (an anvil on an awake island never slept, so the
 ## special only ever fired from the silent fuse).
 
-## Mass this special's block is set to once armed (spec 2.6: mass 60,
+## Mass this special's block is set to once armed (spec 1.6: mass 60,
 ## provisional -- the number itself is OPEN, only that it is heavy). Higher
 ## than any ordinary block's mass so the anvil's own weight, not an
 ## incidental knock from something else, is what settles it and what a

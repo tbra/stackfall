@@ -1,10 +1,10 @@
 class_name BlockOrientations
 extends RefCounted
-## Pure logic: the 24 axis-aligned rotations of a cube (spec 2.5).
+## Pure logic: the 24 axis-aligned rotations of a cube (spec 1.4).
 ##
 ## No dependence on the scene tree, per CLAUDE.md ("core/" holds pure rule
 ## logic). A block's rotation is stored as an integer index into this table so
-## it can never drift the way the original's free rotation did (spec 1.7):
+## it can never drift the way a free quaternion rotation does:
 ## every step below maps one valid index to another valid index, and four yaw
 ## steps always return to the start.
 ##

@@ -1,6 +1,6 @@
 class_name BotStackProbe
 extends RefCounted
-## Bontago-1t5.53b (docs/BOT_TOWER_PLAN.md C "1t5.53b"): collects the bodies the bot's tower statics
+## Collects the bodies the bot's tower statics
 ## model (core/ai/BotStack.gd) analyses. Scene-facing, hence in game/ and not in core/ai/.
 ##
 ## build() snapshots every simulating body (unfused blocks and one FusedBody carrier per group) of ANY
@@ -16,8 +16,8 @@ extends RefCounted
 static var _cache: Dictionary = {}
 
 
-## `registry` and `field` null (or no `centres`) give null: no tower statics. `team_of` maps an owner
-## slot to its team (Callable(int) -> int; slots < 0 get team -1).
+## `registry` and `field` null (or no `centres`) give null: no tower statics. `team_of` maps a slot
+## to its team (Callable(int) -> int; slots < 0 get team -1).
 static func build(
 	registry: BlockRegistry, field: Node3D, centres: PackedVector2Array, tuning: BotStackTuning,
 	cube_size: float, team_of: Callable

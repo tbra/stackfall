@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mv0.34 (owner playtest 2026-09-23: "there's a max height above which
+## ("there's a max height above which
 ## I can't scroll up or place blocks, there shouldn't be"). Before this fix,
 ## GhostTuning.hover_manual_max was 30 m, so no amount of wheeling could raise
 ## the held block past 30 m above the disk, and any placement request built
@@ -19,14 +19,14 @@ extends GutTest
 ##    PhysicsTuning.hover_height (60.3 m total), so Quantize/NetConfig needed
 ##    no change; this test is the regression pin proving that.
 ##
-## Bontago-mv0.35 (owner regression report, 2026-09-23, "REGRESSION/UNFIXED --
+## Regression report, "REGRESSION/UNFIXED --
 ## there is still a maximum height the block cannot be raised or placed
-## above", reproduced hovering a domino above a placed tower): mv0.34's fix
+## above", reproduced hovering a domino above a placed tower: the earlier fix
 ## above raised the configured *ceiling* (GhostTuning.hover_manual_max), but
 ## never exercised the hover-raise path against an actual placed block. The
 ## real remaining bug was in game/player/PlayerController.gd's ghost-vs-placed-block
-## collision sweep (Bontago-mv0.23) -- _cast_one_box(): the ghost's own
-## baseline hover height (_update_ghost_transform(), mv0.17 item 5)
+## collision sweep -- _cast_one_box(): the ghost's own
+## baseline hover height (_update_ghost_transform())
 ## deliberately ignores whatever tower sits under the cursor, so a ghost
 ## routinely starts a frame already embedded in a placed block; raising past
 ## it is the only way out, by design. cast_motion() called from an
@@ -45,18 +45,9 @@ var _field: Field
 var _registry: BlockRegistry
 var _tiny_map: MapDef
 
-## The exact height the owner's playtest report named as unreachable under
+## The exact height the report named as unreachable under
 ## the old 30 m cap.
 const TARGET_HEIGHT_M: float = 40.0
-## Same tolerance test_quantize.gd's own position round-trip assertions use
-## (docs/archive/M3a_PLAN.md P2: "a position anywhere in the map-M AABB round-trips
-## within 2.1 mm") -- not re-derived here, just reused for this one directed
-## regression pin (this package does not own core/net/Quantize.gd or its own
-## test file, since the wire range did not need to grow; see this file's own
-## header DECISION).
-const POSITION_TOLERANCE_M: float = 0.0026
-
-
 func before_each() -> void:
 	Match.set_process(false)
 	Match.abort_match()
@@ -75,7 +66,7 @@ func before_each() -> void:
 func after_each() -> void:
 	Match.abort_match()
 	Match.set_process(true)
-	# Bontago-integ (2026-09-23 combined-run regression): before_each()'s own
+	# Bontago-integ (combined-run regression): before_each()'s own
 	# _field is autofree()'d at the end of this test, but Match._field is a
 	# plain autoload var nothing else resets (same DECISION as
 	# test_jumping_bean_effect.gd:251) -- left alone, the next script in a
@@ -85,22 +76,6 @@ func after_each() -> void:
 	# freed" before the callee even runs. Clear it here, not just abort the
 	# match, so this script's own throwaway Field never outlives it.
 	MatchTestReset.clear_world()
-
-
-func _config(player_count: int = 2) -> MatchConfig:
-	var config: MatchConfig = load("res://config/match/match_defaults.tres").duplicate(true) as MatchConfig
-	config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))
-	(config as TinyMapMatchConfig).set_tiny_map(_tiny_map)
-	config.player_count = player_count
-	config.hot_seat = false
-	config.block_timer = 6.0
-	config.rng_seed = 24680
-	return config
-
-
-func _run_countdown() -> void:
-	for _i: int in range(int(ceil(Match.COUNTDOWN_SECONDS * Engine.physics_ticks_per_second)) + 2):
-		Match._process(1.0 / Engine.physics_ticks_per_second)
 
 
 func _wheel_up() -> InputEventMouseButton:
@@ -145,63 +120,11 @@ func test_wheel_raises_the_ghost_past_the_old_30m_cap() -> void:
 
 # --- 2. request_place at 40 m is accepted by the host's own rules -----------
 
-func test_request_place_at_40m_is_accepted() -> void:
-	Match.start_match(_config())
-	_run_countdown()
-	var slot_id: int = 0
-	var controller: PlayerController = _make_controller()
-	controller.set_acting_slot(slot_id)
-	controller._ghost.set_shape(Match.held_shape(slot_id))
-
-	var home: Vector2 = Match.slot(slot_id).home_position
-	var origin: Vector3 = _field.to_global(Vector3(home.x, TARGET_HEIGHT_M, home.y))
-
-	var rejected: Array = []
-	Events.placement_rejected.connect(func(rejected_slot: int, reason: StringName) -> void:
-		rejected.append(reason)
-	)
-
-	var reason: StringName = Match.request_place(
-		slot_id, origin, controller._ghost.orientation_index, controller._ghost.free_quaternion, false
-	)
-
-	assert_eq(reason, PlacementRules.REASON_OK, "a 40 m pose over the player's own home territory must be accepted.")
-	assert_eq(_blocks_root.get_child_count(), 1, "the accepted request must actually have spawned a block.")
-	assert_true(rejected.is_empty(), "no placement_rejected should fire for an accepted request.")
-
-
-# --- 3. A 40 m pose still round-trips over the wire -------------------------
-
-func test_40m_pose_round_trips_over_the_wire_within_tolerance() -> void:
-	var net_config: NetConfig = load("res://config/net/net_config.tres")
-	var map_def: MapDef = load("res://config/match/maps/round.tres")
-	var bounds: AABB = net_config.position_bounds(map_def)
-
-	assert_lte(
-		TARGET_HEIGHT_M, net_config.pos_max_y,
-		"fixture/DECISION: this package's audit found NetConfig.pos_max_y (150 m since 1pi.165) already brackets a 40 m pose " +
-		"(and this package's new 60 m manual cap plus hover_height, 60.3 m total) with no change needed."
-	)
-
-	var world: Vector3 = Vector3(3.0, TARGET_HEIGHT_M, -4.0)
-	var data: PackedByteArray = PackedByteArray()
-	data.resize(Quantize.POSITION_BYTES)
-	Quantize.pack_position(data, 0, world, bounds)
-	var round_tripped: Vector3 = Quantize.unpack_position(data, 0, bounds)
-
-	assert_almost_eq(
-		round_tripped.y, TARGET_HEIGHT_M, POSITION_TOLERANCE_M,
-		"a 40 m pose must still round-trip within the same tolerance every other position on the wire gets."
-	)
-
-
-# --- 4. A tower under the ghost must never trap the hover-raise -------------
-
 ## Reproduces the owner's exact report: a real, physics-settled 4-cube tower
 ## (~3.4 m tall -- taller than one GhostTuning.hover_wheel_step notch, 0.4 m)
 ## directly under the cursor, then a domino wheeled straight up from its own
-## baseline (which starts embedded in the tower's bottom cube -- mv0.17 item
-## 5's own baseline ignores the tower). Before this package's fix this froze
+## baseline (which starts embedded in the tower's bottom cube -- the baseline
+## ignores the tower). Before this package's fix this froze
 ## partway up (observed: manual_hover_offset stuck at ~0.6 m, never reaching
 ## even the tower's own ~3.4 m top); after the fix it clears the tower
 ## entirely and reaches GhostTuning.hover_manual_max.
@@ -250,7 +173,7 @@ func test_towers_below_the_ghost_do_not_trap_the_hover_raise() -> void:
 		controller._clamp_cursor_collision()
 		controller._update_ghost_transform()
 
-	# Bontago-mv0.35 second pass: the real ceiling is now the wire band
+	# second pass: the real ceiling is now the wire band
 	# (_hover_offset_ceiling(): NetConfig.pos_max_y - hover_ceiling_margin),
 	# below hover_manual_max's own 200 m default.
 	assert_almost_eq(

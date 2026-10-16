@@ -1,6 +1,6 @@
 class_name DominationObjective
 extends ModeObjective
-## Domination (Bontago-1pi.25, owner roadmap: "control the biggest territory
+## Domination (roadmap: "control the biggest territory
 ## when the round ends"). There is no early win: update() only tracks each
 ## team's territory share (TerritoryRaster.team_share, the figure the HUD
 ## percentages show, 0..1) and never declares a winner. The round timer

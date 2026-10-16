@@ -5,11 +5,11 @@ extends Node
 ##
 ## Listens to Events.block_placed / Events.block_removed instead of walking
 ## the scene tree (CLAUDE.md's global signal bus), and runs the settled rule
-## every physics frame: spec 2.2, "A block counts as settled when its linear
+## every physics frame: spec 1.5, "A block counts as settled when its linear
 ## speed is below sleep_linear_threshold and its angular speed below
 ## sleep_angular_threshold for sleep_settle_time. One frame above either
 ## threshold resets the accumulator to zero" — not a decay, so a falling
-## block never flashes influence on the way down (docs/archive/M2_PLAN.md).
+## block never flashes influence on the way down.
 ##
 ## Lives in game/, not core/, because it watches live RigidBody3D nodes;
 ## everything it hands back to Match (InfluenceCircle, floats, RigidBody3D
@@ -23,7 +23,7 @@ class _Entry:
 	var is_settled: bool = false
 	## Transform last reported to the territory dirty state (settled only).
 	var marked_transform: Transform3D = Transform3D.IDENTITY
-	## Bontago-1pi.11.22: cached pure geometry, keyed on exact inputs.
+	## cached pure geometry, keyed on exact inputs.
 	var geom_valid: bool = false
 	var geom_block_xform: Transform3D = Transform3D.IDENTITY
 	var geom_field_xform: Transform3D = Transform3D.IDENTITY
@@ -31,7 +31,7 @@ class _Entry:
 	var geom_com_xz: Vector2 = Vector2.ZERO
 	var geom_top: float = 0.0
 	var geom_com_y: float = 0.0
-	## Bontago-1pi.11.25: the last circle handed out. Circles are never mutated
+	## the last circle handed out. Circles are never mutated
 	## after creation, so an identical one is reused (same object) instead of
 	## allocating; any changed field allocates a fresh circle.
 	var circle: InfluenceCircle = null
@@ -40,20 +40,20 @@ class _Entry:
 
 ## Host: a block just became settled (the sleep rule above); `height` is its top
 ## above the disk along the disk normal, the HUD's tower measure. Reach the Sky
-## (Bontago-22y.9) records its players' heights from this, so a block that is
+##  records its players' heights from this, so a block that is
 ## still falling or balancing never counts.
 signal block_settled(owner_slot: int, height: float)
 
 var _entries: Dictionary = {}          ## instance id (int) -> _Entry
 var _net_id_to_block: Dictionary = {}  ## net_id (int) -> Block
 var _next_net_id: int = 1
-## Bontago-1pi.11.32: instance ids of entries not yet settled. Together with
+## instance ids of entries not yet settled. Together with
 ## Block's awake set (Block.awake_blocks()) this is everything the per-tick
 ## settle loop must visit: an awake body, or a body still accumulating
 ## settled_time (it may have gone to sleep before sleep_settle_time elapsed).
 ## A settled, sleeping or statically frozen block needs no per-tick work.
 var _unsettled: Dictionary = {}
-## Glue fusion (docs/GLUE_FUSION_PLAN.md section 4): instance id -> FusedBody whose
+## Glue fusion: instance id -> FusedBody whose
 ## members must be settle-stepped this tick. Per-tick scratch, rebuilt in
 ## _physics_process: a follower's own velocity is mirrored, so the carrier's is the
 ## one the settled rule reads, and the result is written to every member entry.
@@ -62,16 +62,16 @@ var _carriers: Dictionary = {}
 ## is pruned by a periodic sweep over every entry.
 const STALE_SWEEP_TICKS: int = 60
 var _sweep_ticks: int = 0
-## Bontago-1pi.11.10: bumped by anything that can change territory influence
+## bumped by anything that can change territory influence
 ## (block placed/removed, settled flag flips, a settled block moving beyond
-## TerritoryTuning.dirty_move_epsilon, owner change). MatchTerritory compares it
+## TerritoryTuning.dirty_move_epsilon, slot change). MatchTerritory compares it
 ## to skip solves on an unchanged board.
 var _territory_revision: int = 0
 var _move_epsilon: float = 0.005
 
 ## Set by Match.start_match() via configure(). Used only for the disk-local
 ## projection (Field.to_local/to_global are plain Node3D methods, not part of
-## Field's not-yet-landed M2 API — see docs/archive/M2_PLAN.md's Field contract) and
+## Field's projection API, which is a plain Node3D conversion) and
 ## for bodies_over_cells()'s cell lookup.
 var _field: Node3D = null
 ## Test seam: false recomputes every block's geometry (the oracle path).
@@ -82,11 +82,10 @@ var _grid: CellGrid = null
 ## single-PC behaviour is the default and nothing had to change for it.
 ## A client allocates no net_ids — the host's are the only ones a snapshot can
 ## name — and runs no settled rule, because every one of its bodies is frozen
-## and would read as settled the instant it spawned (docs/archive/M3a_PLAN.md, "two
-## kinds of asleep").
+## and would read as settled the instant it spawned. The two kinds of asleep are kept apart.
 var _host_authority: bool = true
 
-## Bontago-1pi.11.41: host-side hole contact and dissolve (game/
+## host-side hole contact and dissolve (game/
 ## HoleDissolver.gd). Built by _ensure_dissolver(); fed this registry's moving
 ## blocks every physics tick.
 var _dissolver: HoleDissolver = null
@@ -107,7 +106,7 @@ func _ensure_dissolver() -> HoleDissolver:
 	return _dissolver
 
 
-## The host's hole dissolver (Bontago-1pi.11.41); never null.
+## The host's hole dissolver; never null.
 func hole_dissolver() -> HoleDissolver:
 	return _ensure_dissolver()
 
@@ -200,8 +199,7 @@ func _on_block_placed(block: RigidBody3D, _shape_id: StringName) -> void:
 		return
 
 	# Monotonic and never reused within a match: reusing an id would let a
-	# snapshot still in flight move the wrong body (docs/archive/M3a_PLAN.md,
-	# "net_id allocation and the spawn/snapshot race").
+	# snapshot still in flight move the wrong body (the spawn/snapshot race).
 	var net_id: int = _next_net_id
 	if not Quantize.is_wire_id(net_id):
 		# The wire carries a u24 id (core/net/Quantize.gd's DECISION: 72 days
@@ -244,7 +242,7 @@ func _physics_process(delta: float) -> void:
 	var ang_sq: float = tuning.sleep_angular_threshold * tuning.sleep_angular_threshold
 	var settle_time: float = tuning.sleep_settle_time
 	var stale: Array = []
-	# Bontago-1pi.11.41: blocks that moved this tick (unsettled, just settled or
+	# blocks that moved this tick (unsettled, just settled or
 	# settled-but-shifted), collected only while the field has a hole, so the
 	# dissolver tests just those instead of every block.
 	var dissolver: HoleDissolver = _ensure_dissolver()
@@ -370,7 +368,7 @@ func _moved_beyond_epsilon(entry: _Entry) -> bool:
 	)
 
 
-## One InfluenceCircle per settled, still-owned block (spec 2.2). Home circles
+## One InfluenceCircle per settled, still-owned block (spec 1.5). Home circles
 ## are Match's job, not this one — this only ever returns block circles.
 func influence_circles(
 	slots: Array[PlayerSlot], territory_tuning: TerritoryTuning, map_def: MapDef
@@ -426,7 +424,7 @@ func max_height_for_slot(slot_id: int) -> float:
 	return highest
 
 
-## Bontago-1t5.3: `slot_id`'s tallest settled block as {"height": top above the
+## `slot_id`'s tallest settled block as {"height": top above the
 ## disk, "xz": disk-local centre of mass}, or {} with none (the bot's Reach the
 ## Sky tower target). Read-only; same geometry as max_height_for_slot().
 func tallest_settled_for_slot(slot_id: int) -> Dictionary:
@@ -446,7 +444,7 @@ func tallest_settled_for_slot(slot_id: int) -> Dictionary:
 
 ## Every live body (settled or not) whose disk-local projection falls in one
 ## of `cells` (CellGrid row-major indices). Field uses this to wake bodies
-## above a cell that just changed hole state (spec 3.3).
+## above a cell that just changed hole state (spec 2.5).
 func bodies_over_cells(cells: PackedInt32Array) -> Array[RigidBody3D]:
 	var result: Array[RigidBody3D] = []
 	if _grid == null:
@@ -522,22 +520,21 @@ func is_tracked(block: Block) -> bool:
 	return block != null and _entries.has(block.get_instance_id())
 
 
-## Every live tracked Block, host or client alike (M8 P5,
-## docs/M8_PLAN.md's own Interface stub) -- game/blocks/StableBlockManager.gd's only
-## consumer this milestone, so it can scan for asleep-past-threshold blocks
+## Every live tracked Block, host or client alike. The stable-block manager is its
+## only consumer, so it can scan for asleep-past-threshold blocks
 ## without this class needing to know anything about freezing. Filters out
 ## any entry whose Block was freed without going through
 ## Events.block_removed first, the same defensive is_instance_valid() check
 ## bodies_over_cells() above already makes.
 ## The field's current global transform (identity with no field). Lets
-## StableBlockManager notice a tilting/moving disc (Bontago-sen.11).
+## StableBlockManager notice a tilting/moving disc.
 func field_global_transform() -> Transform3D:
 	if _field == null or not is_instance_valid(_field):
 		return Transform3D.IDENTITY
 	return _field.global_transform
 
 
-## Bontago-1pi.18.1: adds, per owner slot, the blocks faster than sqrt(limit_sq)
+## adds, per slot, the blocks faster than sqrt(limit_sq)
 ## into `counts` (pre-sized by the caller). Allocation-free, unlike all_blocks().
 func count_fast_blocks_by_owner(limit_sq: float, counts: PackedInt32Array) -> void:
 	for id: Variant in _entries:
@@ -579,7 +576,7 @@ func all_blocks() -> Array[Block]:
 ## True once every tracked block's own settled flag (the per-block accumulator
 ## _physics_process() above maintains from PhysicsTuning.sleep_linear_threshold
 ## / sleep_angular_threshold / sleep_settle_time) is true. Used by
-## MatchLifecycle._tick_turn_based() (M6 B4, spec 2.7) to decide when to hand
+## MatchLifecycle._tick_turn_based() (M6 B4, spec 1.2) to decide when to hand
 ## the turn to the next player. An empty registry (no blocks placed yet) is
 ## vacuously settled, matching the "nothing left to wait for" case.
 func all_settled() -> bool:
@@ -593,9 +590,8 @@ func all_settled() -> bool:
 ## One Vector3 per settled block, packed as (disk-local x offset from
 ## center, mass, disk-local z offset) -- the same "a spare component carries a
 ## second scalar" packing this codebase already uses to avoid a per-frame
-## Array[Object] allocation. game/field/Field.gd's PHYSICAL_BALANCE tilt (M6 B5,
-## spec 2.1/2.7; kinematic-torque approximation, docs/archive/M6_PLAN.md DECISION,
-## owner-approved Bontago-keo.16) sums mass * lever-arm across these to drive
+## Array[Object] allocation. game/field/Field.gd's PHYSICAL_BALANCE tilt (a
+## kinematic-torque approximation, not a joint coupling) sums mass * lever-arm across these to drive
 ## its tilt spring every physics tick.
 ##
 ## Host-authority gated exactly like influence_circles(): every body on a
@@ -630,16 +626,6 @@ func center_height_for_body_id(body_id: int, field_xform: Transform3D) -> float:
 		return -1.0
 	_refresh_geometry(entry, field_xform)
 	return maxf(entry.geom_com_y, 0.0)
-
-
-## Drops the cached geometry of `block` (call after swapping a live block's
-## mesh in place; nothing does today).
-func invalidate_geometry(block: Block) -> void:
-	if block == null:
-		return
-	var entry: _Entry = _entries.get(block.get_instance_id()) as _Entry
-	if entry != null:
-		entry.geom_valid = false
 
 
 ## Recomputes entry.geom_* unless the exact inputs (block transform, field
@@ -678,7 +664,7 @@ func top_height_for_block(block: Block) -> float:
 
 
 ## Highest point of `block`'s visual meshes above the disk surface, along the
-## disk normal (spec 2.2). Reads mesh AABBs rather than collision shapes so
+## disk normal (spec 1.5). Reads mesh AABBs rather than collision shapes so
 ## the wedge's sloped visual, not its convex collision hull, decides the
 ## reported height.
 func _top_height_local(block: Block) -> float:

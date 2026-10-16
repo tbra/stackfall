@@ -1,6 +1,6 @@
 class_name Interpolator
 extends RefCounted
-## Client-side snapshot buffering and playback (spec 3.4 "Client
+## Client-side snapshot buffering and playback (spec 2.6 "Client
 ## interpolation": render 100 ms behind the host, the delay adapting to
 ## measured jitter, interpolating between the two surrounding snapshots, and
 ## extrapolating for at most 100 ms when they are late).
@@ -30,7 +30,7 @@ extends RefCounted
 ## side table keyed by ids that may never arrive (a despawned body's id can
 ## appear in a snapshot already in flight). Dropping costs at most one snapshot
 ## interval — 33 ms — before the next one carries the body again, by which
-## time the reliable spawn has certainly landed. See docs/archive/M3a_PLAN.md.
+## time the reliable spawn has certainly landed.
 ##
 ## The "has this body spawned?" question belongs to SnapshotSync, which owns
 ## the BlockRegistry; it is injected as a Callable through
@@ -213,7 +213,7 @@ func advance(delta: float) -> void:
 ## is frozen at the cap the host keeps simulating, so the first sample that
 ## ends the stall names a pose the body never travelled to. Rather than
 ## teleporting there, the gap is captured as a convergence offset and decayed
-## out over max_extrapolation_ms — the same window that opened it (spec 3.4's
+## out over max_extrapolation_ms — the same window that opened it (spec 2.6's
 ## "extrapolate for at most 100 ms" says nothing about the way back, and a
 ## teleport is exactly the artefact the acceptance criterion tests for).
 func sample_at_render_time(net_id: int) -> Dictionary:
@@ -260,7 +260,7 @@ func sample_at_render_time(net_id: int) -> Dictionary:
 	track.last_position = raw_position + track.error_position
 	track.last_rotation = (track.error_rotation * raw_rotation).normalized()
 	track.has_last = true
-	# Fix round (Bontago-xtq.27 review MAJOR): the newest buffered sample's
+	# Fix round (review MAJOR): the newest buffered sample's
 	# own sleeping flag, not an interpolated/blended one -- a boolean can't be
 	# blended, and "is the body currently settled" is a property of the most
 	# recent state the host reported, regardless of which branch above
@@ -345,12 +345,6 @@ func render_lag_ms() -> float:
 	if not _has_stream:
 		return 0.0
 	return float(_newest_host_time_ms) + _ms_since_newest - _render_time_ms
-
-
-## True once any sample has been accepted, so a caller can tell "nothing has
-## arrived yet" from "the body is at the origin".
-func has_stream() -> bool:
-	return _has_stream
 
 
 func _target_delay_ms() -> float:

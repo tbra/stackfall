@@ -1,5 +1,5 @@
 extends GutTest
-## core/physics/SettleTracker.gd (Bontago-e7o B): pure still-window accounting.
+## core/physics/SettleTracker.gd (B): pure still-window accounting.
 
 var _tracker: SettleTracker
 

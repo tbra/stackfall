@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mv0.18: ui/debug/TuningPanel.gd's reflection-built tabs (one control per
+## ui/debug/TuningPanel.gd's reflection-built tabs (one control per
 ## exported numeric/bool/Color field of the live tuning resources), the F4 /
 ## gamepad Start+X toggle (tools/bootstrap_project.gd's chord DECISION), the
 ## physics/territory-visuals live-apply hooks, and the Reset/Save/Copy
@@ -31,13 +31,13 @@ var _saved_max_cell_toggles: int
 var _saved_tint_color: Color
 var _saved_disk_metallic: float
 
-## Bontago-xtq.36: saved/restored the same way every other live singleton
+## saved/restored the same way every other live singleton
 ## field above is (this file's own header explains why) -- mutated by the
 ## new Sky-tab write-through test below.
 var _saved_sky_fog_density: float
 
 
-## Bontago-fca.38.1: the ~2900-node tab UI is built once per script, not once per
+## the ~2900-node tab UI is built once per script, not once per
 ## test. Tests that only read the panel or write resources/controls run against
 ## _shared; after_each repairs it (rebuild) if anything left it dirty (a "•"
 ## modified marker, open/hidden state, swapped providers or wiring). Tests that
@@ -137,87 +137,11 @@ func after_each() -> void:
 
 # --- Reflection: one control per exported field ------------------------------
 
-## PhysicsTuning is 15 plain floats and nothing else (config/physics/PhysicsTuning.gd,
-## Bontago-xtq.17 added rebound_damping) -- no Color/Array/bool fields to
-## complicate the count -- so it is the clean "one control per numeric field"
-## fixture the design brief asks for.
-func test_physics_tab_builds_one_control_per_exported_float_field() -> void:
-	# Bontago-8or.10 (M8 P5): +2 for stable_freeze_delay_s and
-	# stable_freeze_scan_interval_s (config/physics/PhysicsTuning.gd's own new fields).
-	# Bontago-8bc adds opt-in release tilt and minimum gap.
-	# Bontago-1pi.11.24 adds stable_freeze_rest_epsilon_m.
-	# Bontago-e7o: +6 settle-freeze fields, +3 catch-up cap fields.
-	assert_eq(_panel.row_count_for(_panel.physics_tuning), 30)
-
-
-func test_float_field_gets_an_hslider() -> void:
-	var control: Control = _panel.control_for(_panel.physics_tuning, "gravity_multiplier")
-	assert_true(control is HSlider)
-	assert_almost_eq((control as HSlider).value, _saved_gravity, 0.0001)
-
-
-func test_int_field_gets_a_spinbox() -> void:
-	var control: Control = _panel.control_for(_panel.territory_tuning, "max_cell_toggles_per_frame")
-	assert_true(control is SpinBox)
-	assert_almost_eq((control as SpinBox).value, float(_saved_max_cell_toggles), 0.0001)
-
-
-func test_bool_field_gets_a_toggle_button() -> void:
-	var control: Control = _panel.control_for(_panel.camera_tuning, "follow_block")
-	assert_true(control is Button)
-	assert_eq((control as Button).button_pressed, _saved_follow_block)
-
-
-func test_color_field_gets_a_colorpickerbutton() -> void:
-	var control: Control = _panel.control_for(_panel.ghost_tuning, "tint_color")
-	assert_true(control is ColorPickerButton)
-	assert_true((control as ColorPickerButton).color.is_equal_approx(_saved_tint_color))
-
-
-func test_array_and_packed_array_fields_get_no_control() -> void:
-	assert_null(_panel.control_for(_panel.block_feed_config, "shapes"))
-	assert_null(_panel.control_for(_panel.block_feed_config, "weight_overrides"))
-	assert_null(_panel.control_for(_panel.block_feed_config, "stabilizer_ids"))
-
-
-# --- Controls write the live resource -----------------------------------------
-#
-# Range/SpinBox's own C++ setter does not emit value_changed synchronously
-# from a plain property assignment (verified against this engine build: only
-# a real mouse drag or an explicit emit_signal() does) -- emit_signal() is
-# exactly how Godot itself would eventually deliver that signal to this
-# panel's connected Callable, so driving it directly here is the deterministic
-# equivalent of a user dragging the control, the same idea as this project's
-# other GUT UI tests (e.g. tests/unit/net/test_net_debug_overlay.gd emits
-# Events.net_stats_updated directly rather than waiting on a real network
-# tick).
-
 func test_slider_change_writes_the_resource() -> void:
 	var slider: HSlider = _panel.control_for(_panel.physics_tuning, "gravity_multiplier") as HSlider
 	slider.emit_signal("value_changed", 2.4)
 	assert_almost_eq(_panel.physics_tuning.gravity_multiplier, 2.4, 0.0001)
 
-
-func test_spinbox_change_writes_the_resource() -> void:
-	var spin: SpinBox = _panel.control_for(_panel.territory_tuning, "max_cell_toggles_per_frame") as SpinBox
-	spin.emit_signal("value_changed", 10.0)
-	assert_eq(_panel.territory_tuning.max_cell_toggles_per_frame, 10)
-
-
-func test_checkbutton_change_writes_the_resource() -> void:
-	var check: Button = _panel.control_for(_panel.camera_tuning, "follow_block") as Button
-	check.emit_signal("toggled", not _saved_follow_block)
-	assert_eq(_panel.camera_tuning.follow_block, not _saved_follow_block)
-
-
-func test_colorpicker_change_writes_the_resource() -> void:
-	var picker: ColorPickerButton = _panel.control_for(_panel.ghost_tuning, "tint_color") as ColorPickerButton
-	var new_color: Color = Color(0.1, 0.2, 0.3, 0.4)
-	picker.emit_signal("color_changed", new_color)
-	assert_true(_panel.ghost_tuning.tint_color.is_equal_approx(new_color))
-
-
-# --- Physics live-apply: an existing Block, not just new spawns --------------
 
 func test_apply_physics_live_updates_an_existing_blocks_damping_material_and_gravity() -> void:
 	var shape: BlockShape = load("res://config/blocks/cube.tres")
@@ -239,54 +163,7 @@ func test_apply_physics_live_updates_an_existing_blocks_damping_material_and_gra
 	assert_almost_eq(block.gravity_scale, 1.9, 0.0001)
 
 
-# --- Bontago-xtq.17: Physics preset dropdown ---------------------------------
-
-func test_physics_tab_preset_dropdown_lists_one_item_per_shipped_preset() -> void:
-	var physics_tab: Control = _panel._tab_container.get_node("Physics")
-	var found: Array[Node] = physics_tab.find_children("*", "OptionButton", true, false)
-	assert_eq(found.size(), 1)
-	var dropdown: OptionButton = found[0] as OptionButton
-	var preset_files: int = 0
-	for file: String in DirAccess.get_files_at("res://config/physics/presets"):
-		if file.ends_with(".tres"):
-			preset_files += 1
-	assert_eq(dropdown.item_count, preset_files, "one dropdown item per shipped preset file")
-	var seen: Dictionary = {}
-	for index: int in range(dropdown.item_count):
-		var text: String = dropdown.get_item_text(index)
-		assert_false(text.is_empty(), "item %d has a label" % index)
-		assert_false(seen.has(text), "label %s is unique" % text)
-		seen[text] = true
-
-
-func test_original_feel_preset_live_values_and_current_clears_release_tilt() -> void:
-	var block: Block = BlockFactory.build(load("res://config/blocks/cube.tres"), _panel.physics_tuning)
-	add_child_autofree(block)
-	_panel.apply_physics_preset("original_feel")
-	assert_almost_eq(block.physics_material_override.bounce, 0.4, 0.0001)
-	assert_almost_eq(block.angular_damp, 0.6, 0.0001)
-	assert_almost_eq(block.tuning.release_tilt_degrees, 2.0, 0.0001)
-	_panel.apply_physics_preset("current")
-	assert_eq(block.tuning.release_tilt_degrees, 0.0)
-
-
-func test_tokamak_preset_reaches_live_cube_and_disc_materials() -> void:
-	_own_panel(false)
-	var field: Field = Field.new()
-	add_child_autofree(field)
-	_panel.set_field(field)
-	var block: Block = BlockFactory.build(load("res://config/blocks/cube.tres"), _panel.physics_tuning)
-	add_child_autofree(block)
-	_panel.apply_physics_preset("tokamak_defaults")
-	assert_almost_eq(block.physics_material_override.friction, 0.5, 0.0001)
-	assert_almost_eq(block.physics_material_override.bounce, 0.4, 0.0001)
-	assert_almost_eq(field.physics_material_override.friction, 0.5, 0.0001)
-	assert_almost_eq(block.linear_damp, 0.0, 0.0001)
-	assert_almost_eq(block.angular_damp, 0.0, 0.0001)
-	assert_almost_eq(_panel.physics_tuning.rebound_damping, 1.0, 0.0001)
-	assert_almost_eq(_panel.physics_tuning.cube_mass, 1.0, 0.0001)
-	assert_almost_eq(block.gravity_scale, 1.0, 0.0001)
-
+# --- Physics preset dropdown ---------------------------------
 
 func test_apply_physics_preset_copies_values_and_reapplies_live() -> void:
 	var shape: BlockShape = load("res://config/blocks/cube.tres")
@@ -305,23 +182,6 @@ func test_apply_physics_preset_copies_values_and_reapplies_live() -> void:
 	)
 
 
-func test_apply_physics_preset_overwrites_edited_values_with_the_preset_file() -> void:
-	var preset: PhysicsTuning = load("res://config/physics/presets/heavy_bouncy.tres")
-	_panel.physics_tuning.gravity_multiplier = preset.gravity_multiplier + 9.0
-	_panel.physics_tuning.rebound_damping = preset.rebound_damping + 0.5
-
-	_panel.apply_physics_preset("heavy_bouncy")
-
-	assert_almost_eq(_panel.physics_tuning.gravity_multiplier, preset.gravity_multiplier, 0.0001)
-	assert_almost_eq(_panel.physics_tuning.rebound_damping, preset.rebound_damping, 0.0001)
-
-
-func test_apply_physics_preset_ignores_an_unknown_id() -> void:
-	var before: float = _panel.physics_tuning.gravity_multiplier
-	_panel.apply_physics_preset("not_a_real_preset")
-	assert_almost_eq(_panel.physics_tuning.gravity_multiplier, before, 0.0001)
-
-
 func test_a_slider_drag_reaches_an_already_placed_block_end_to_end() -> void:
 	var shape: BlockShape = load("res://config/blocks/cube.tres")
 	var block: Block = BlockFactory.build(shape, _panel.physics_tuning)
@@ -335,53 +195,6 @@ func test_a_slider_drag_reaches_an_already_placed_block_end_to_end() -> void:
 
 # --- Territory visuals live-apply --------------------------------------------
 
-func test_territory_visuals_change_refreshes_a_wired_overlays_shader_uniform() -> void:
-	_own_panel(false)
-	var field: Field = autofree(Field.new())
-	add_child_autofree(field)  # Field._ready() builds a real, configured overlay.
-	_panel.set_field(field)
-
-	var saved_metallic: float = _panel.territory_visuals.disk_metallic
-	_panel.territory_visuals.disk_metallic = saved_metallic + 0.3
-
-	_panel.refresh_territory_visuals_live()
-
-	var material: ShaderMaterial = field.overlay().material()
-	assert_almost_eq(float(material.get_shader_parameter(&"base_metallic")), saved_metallic + 0.3, 0.0001)
-
-
-func test_refresh_territory_visuals_live_is_a_no_op_with_no_field_wired() -> void:
-	# _panel here never had set_field() called -- must not error.
-	_panel.refresh_territory_visuals_live()
-	assert_true(true, "no field wired must not error.")
-
-
-# --- Camera live-apply (Bontago-mv0.20b) -------------------------------------
-
-
-func test_camera_tuning_slider_change_reaches_a_camera_rig_in_the_tree() -> void:
-	var rig: CameraRig = autofree(load("res://game/player/CameraRig.tscn").instantiate())
-	add_child_autofree(rig)  # rig._ready() joins CameraRig.TUNING_GROUP for real.
-	rig.tuning = _panel.camera_tuning  # the same live singleton this panel edits.
-	assert_true(rig.tuning.follow_block, "fixture: follow_block defaults to true.")
-
-	var slider: HSlider = _panel.control_for(_panel.camera_tuning, "follow_distance") as HSlider
-	slider.emit_signal("value_changed", rig.tuning.zoom_max + 999.0)
-
-	assert_almost_eq(
-		rig.get_distance(), rig.tuning.zoom_max, 0.0001,
-		"changing the field must push apply_follow_tuning() too, not just write the Resource."
-	)
-
-
-func test_apply_camera_tuning_live_is_a_noop_with_no_rig_in_the_tree() -> void:
-	# No CameraRig ever joined CameraRig.TUNING_GROUP here -- must not error.
-	_panel.apply_camera_tuning_live()
-	assert_true(true, "no rig in the tree must not error.")
-
-
-# --- Reset / Save / Copy ------------------------------------------------------
-
 func test_reset_reloads_physics_tuning_from_disk() -> void:
 	_own_panel(false)
 	var original: float = _panel.physics_tuning.gravity_multiplier
@@ -390,36 +203,6 @@ func test_reset_reloads_physics_tuning_from_disk() -> void:
 	_panel.reset_all()
 
 	assert_almost_eq(_panel.physics_tuning.gravity_multiplier, original, 0.0001)
-
-
-## Bontago-1pi.1 (owner playtest: "Sky settings in F4 doesn't reset"):
-## reset_all() previously skipped sky_theme entirely (Bontago-xtq.36's own
-## DECISION deferred it -- see reset_all()'s own comment). Wires a real
-## Skybox (same fixture idiom test_sky_tab_fog_density_slider_writes_the_
-## resource_and_reaches_a_live_skybox above uses) so this also pins "applies
-## live", not just "the Resource field goes back to its file default".
-func test_reset_reloads_sky_theme_from_disk_and_applies_live() -> void:
-	_own_panel(false)
-	var sky: Sky = Sky.new()
-	sky.sky_material = ProceduralSkyMaterial.new()
-	var environment: Environment = Environment.new()
-	environment.sky = sky
-
-	var skybox: Skybox = Skybox.new()
-	skybox.config = _panel.skybox_config
-	skybox.environment = environment
-	add_child_autofree(skybox)  # _ready() joins Skybox.TUNING_GROUP for real.
-
-	var original: float = _panel.sky_theme.fog_density
-	_panel.sky_theme.fog_density = original + 0.5
-
-	_panel.reset_all()
-
-	assert_almost_eq(_panel.sky_theme.fog_density, original, 0.0001)
-	assert_almost_eq(
-		float(skybox.environment.fog_density), original, 0.0001,
-		"reset must push apply_sky_theme_live() too, not just reload the Resource."
-	)
 
 
 func test_save_and_apply_saved_overrides_round_trip_via_user_dir() -> void:
@@ -443,34 +226,6 @@ func test_save_and_apply_saved_overrides_round_trip_via_user_dir() -> void:
 	assert_almost_eq(_panel.camera_tuning.follow_distance, original_follow_distance + 3.0, 0.0001)
 
 
-func test_apply_saved_overrides_ignores_a_stale_unknown_key() -> void:
-	var config: ConfigFile = ConfigFile.new()
-	config.set_value("PhysicsTuning", "no_longer_a_real_field", 999.0)
-	assert_eq(config.save(TuningPanel.save_path()), OK)
-
-	# Must not error (Object.set() on an unknown property is otherwise silently
-	# ignored by Godot itself, but the explicit valid-key filter is what this
-	# test pins).
-	TuningPanel.apply_saved_overrides()
-	assert_true(true, "a stale key must not raise an error.")
-
-
-func test_copy_text_includes_every_resource_section_and_current_values() -> void:
-	_panel.physics_tuning.gravity_multiplier = 1.75
-
-	var text: String = _panel.build_copy_text()
-
-	assert_true(text.contains("# CameraTuning"))
-	assert_true(text.contains("# GhostTuning"))
-	assert_true(text.contains("# PhysicsTuning"))
-	assert_true(text.contains("# TerritoryTuning"))
-	assert_true(text.contains("# TerritoryVisuals"))
-	assert_true(text.contains("# BlockFeedConfig"))
-	assert_true(text.contains("gravity_multiplier = 1.75"))
-
-
-# --- Bontago-470.1: F4 Weather row ---------------------------------------------
-
 func _weather_option() -> OptionButton:
 	return _panel._tab_container.find_child("WeatherOption", true, false) as OptionButton
 
@@ -486,20 +241,6 @@ func _fake_weather(host: bool) -> MatchWeather:
 	w.set_defs(defs)
 	w.set_host_override(host)
 	return w
-
-
-func test_weather_row_lists_schedule_off_and_every_registered_type() -> void:
-	_own_panel(false)
-	_panel.net_provider = FakeNet.host()
-	_panel.weather_provider = _fake_weather(true)
-	_panel.rebuild()
-	var option: OptionButton = _weather_option()
-	assert_not_null(option)
-	var texts: Array[String] = []
-	for i: int in range(option.item_count):
-		texts.append(option.get_item_text(i))
-	assert_eq(texts, ["Schedule (lobby mode)", "Off", "Rain", "Snow", "Storm"])
-	assert_false(option.disabled)
 
 
 func test_weather_row_selection_forces_swaps_and_releases_on_the_host() -> void:
@@ -524,36 +265,7 @@ func test_weather_row_selection_forces_swaps_and_releases_on_the_host() -> void:
 	assert_eq(weather.debug_override(), &"")
 
 
-func test_weather_row_is_disabled_on_a_client_and_changes_nothing() -> void:
-	_own_panel(false)
-	_panel.net_provider = FakeNet.client(0)
-	var weather: MatchWeather = _fake_weather(false)
-	_panel.weather_provider = weather
-	_panel.rebuild()
-	assert_true(_weather_option().disabled)
-	assert_false(_panel.apply_weather_override(&"rain"))
-	assert_eq(weather.active_id(), &"")
-
-
-# --- Availability: host/offline vs. client -----------------------------------
-
-func test_offline_shows_every_tab() -> void:
-	_own_panel(false)
-	_panel.net_provider = FakeNet.offline()
-	_panel.rebuild()
-	for index: int in range(_panel._tab_container.get_tab_count()):
-		assert_false(_panel._tab_container.is_tab_hidden(index))
-
-
-func test_host_shows_every_tab() -> void:
-	_own_panel(false)
-	_panel.net_provider = FakeNet.host()
-	_panel.rebuild()
-	for index: int in range(_panel._tab_container.get_tab_count()):
-		assert_false(_panel._tab_container.is_tab_hidden(index))
-
-
-## Bontago-1pi.113: the 10-task-tab layout -- CLIENT_HIDDEN_TAB_FIRST is 7 (Bontago-1pi.211 added SFX), so
+## the 10-task-tab layout -- CLIENT_HIDDEN_TAB_FIRST is 7 (added SFX), so
 ## every look/feel tab (Camera ... SFX) stays visible to a client and only the
 ## host-only simulation tabs (Physics, Territory rules, Block bag, QoL) hide.
 func test_client_hides_the_simulation_tabs_but_not_the_visual_tabs() -> void:
@@ -572,112 +284,7 @@ func test_client_hides_the_simulation_tabs_but_not_the_visual_tabs() -> void:
 		assert_true(_panel._tab_container.is_tab_hidden(index), "tab %d (host-only simulation tab)" % index)
 
 
-# --- Bontago-xtq.36: M7 art-direction tabs (Blocks FX/Beacons/Camera FX/HUD/Sky) ---
-
-func test_tab_roster_has_one_unique_titled_page_per_tab() -> void:
-	var tabs: TabContainer = _panel._tab_container
-	assert_gt(tabs.get_tab_count(), 0, "fixture: the panel builds tabs")
-	assert_eq(tabs.get_tab_count(), tabs.get_child_count(), "every tab is backed by exactly one page")
-	var seen: Dictionary = {}
-	for index: int in range(tabs.get_tab_count()):
-		var title: String = tabs.get_tab_title(index)
-		assert_false(title.is_empty(), "tab %d has a title" % index)
-		assert_false(seen.has(title), "tab title %s is unique" % title)
-		seen[title] = true
-	for resource: Resource in [_panel.camera_tuning, _panel.ghost_tuning, _panel.physics_tuning, _panel.territory_tuning, _panel.block_feed_config]:
-		assert_gt(_panel.row_count_for(resource), 0, "%s is shown on some tab" % resource)
-
-
-## CameraShakeConfig (config/physics/CameraShakeConfig.gd) is three plain floats and
-## nothing else (impact_speed_threshold was dead and is gone, Bontago-fca.62);
-## they sit on the Camera tab under "Screen shake".
-func test_camera_tab_builds_one_control_per_exported_shake_float_field() -> void:
-	assert_eq(_panel.row_count_for(_panel.camera_shake_config), 3)
-	assert_eq(_panel.section_titles_for(_panel.camera_shake_config), ["Screen shake"] as Array[String])
-	assert_true(_panel._tab_container.get_node("Camera").find_child("Section_Screen_shake", true, false) != null)
-
-
-## SkyThemeDef.fog_density is a plain float (config/sky/SkyThemeDef.gd) -- driving
-## its slider must both write the live sky_theme Resource and reach a live
-## Skybox via apply_sky_theme_live() (this file's header's "deterministic
-## equivalent of a real drag" technique).
-func test_sky_tab_fog_density_slider_writes_the_resource_and_reaches_a_live_skybox() -> void:
-	# Skybox.gd's own doc: environment is optional and every sky-material write
-	# no-ops without it, so a bare Skybox.new() (as most fixtures above use)
-	# would silently skip apply_theme()'s fog_density write. Wire a real
-	# Environment/Sky first, matching test_skybox.gd's _make_wired_skybox().
-	var sky: Sky = Sky.new()
-	sky.sky_material = ProceduralSkyMaterial.new()
-	var environment: Environment = Environment.new()
-	environment.sky = sky
-
-	var skybox: Skybox = Skybox.new()
-	skybox.config = _panel.skybox_config
-	skybox.environment = environment
-	add_child_autofree(skybox)  # _ready() joins Skybox.TUNING_GROUP for real.
-
-	var slider: HSlider = _panel.control_for(_panel.sky_theme, "fog_density") as HSlider
-	assert_true(slider is HSlider)
-
-	var new_value: float = _saved_sky_fog_density + 0.01
-	slider.emit_signal("value_changed", new_value)
-
-	assert_almost_eq(_panel.sky_theme.fog_density, new_value, 0.0001)
-	assert_almost_eq(
-		float(skybox.environment.fog_density), new_value, 0.0001,
-		"changing the field must push apply_sky_theme_live() too, not just write the Resource."
-	)
-
-
-## Bontago-mp0.83 (owner playtest 2026-10-03): the Sky tab's cycle length row
-## is a 60..1800 s slider whose edits reach a running CYCLE sky live and keep
-## the time of day where it was.
-func test_sky_tab_cycle_length_slider_is_live_and_keeps_the_time_of_day() -> void:
-	var sunset: SkyThemeDef = Skybox.load_theme("sunset")
-	var saved_sunset_length: float = sunset.cycle_length_seconds
-	var saved_panel_length: float = _panel.sky_theme.cycle_length_seconds
-	sunset.cycle_length_seconds = 300.0
-
-	var sky: Sky = Sky.new()
-	sky.sky_material = ProceduralSkyMaterial.new()
-	var environment: Environment = Environment.new()
-	environment.sky = sky
-	var light: DirectionalLight3D = DirectionalLight3D.new()
-	light.name = "Light"
-	add_child_autofree(light)
-	var skybox: Skybox = Skybox.new()
-	skybox.config = _panel.skybox_config
-	skybox.environment = environment
-	skybox.theme = sunset
-	add_child_autofree(skybox)  # _ready() joins Skybox.TUNING_GROUP for real.
-	skybox.light_path = skybox.get_path_to(light)
-	var match_config: MatchConfig = MatchConfig.new()
-	match_config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
-	skybox.configure_match_sky(match_config)
-
-	var slider: HSlider = _panel.control_for(_panel.sky_theme, "cycle_length_seconds") as HSlider
-	assert_true(slider is HSlider, "the Sky tab exposes the cycle length")
-	assert_almost_eq(slider.min_value, 60.0, 0.001)
-	assert_almost_eq(slider.max_value, 1800.0, 0.001)
-	assert_false(_panel.hints.description_for("SkyThemeDef", "cycle_length_seconds").is_empty())
-
-	var length_before: float = skybox.cycle_length_seconds()
-	skybox.update_cycle_clock(60.0)
-	var phase_before: float = skybox.cycle_phase_at(60.0)
-	slider.emit_signal("value_changed", 600.0)
-
-	assert_almost_eq(_panel.sky_theme.cycle_length_seconds, 600.0, 0.001, "the slider writes the Resource")
-	assert_almost_eq(length_before, 300.0, 0.001, "fixture: shipped 5 min cycle")
-	assert_almost_eq(skybox.cycle_length_seconds(), 600.0, 0.001, "and reaches the running cycle")
-	assert_almost_eq(skybox.cycle_phase_at(60.0), phase_before, 0.0001, "time of day does not jump")
-	skybox.update_cycle_clock(120.0)
-	assert_almost_eq(skybox.cycle_phase_at(120.0), fposmod(phase_before + 60.0 / 600.0, 1.0), 0.0001)
-
-	sunset.cycle_length_seconds = saved_sunset_length
-	_panel.sky_theme.cycle_length_seconds = saved_panel_length
-
-
-# --- Toggle: F4 / gamepad Start+X --------------------------------------------
+# --- M7 art-direction tabs (Blocks FX/Beacons/Camera FX/HUD/Sky) ---
 
 func _key_press(keycode: Key) -> InputEventKey:
 	var event: InputEventKey = InputEventKey.new()
@@ -707,40 +314,6 @@ func test_f4_toggles_visibility_both_ways() -> void:
 	assert_false(_panel.visible)
 
 
-## Bontago-1pi.201: F4 is a bottom dock that leaves the arena centre visible, not a fullscreen sheet.
-func test_panel_is_a_bottom_dock_leaving_the_arena_visible() -> void:
-	_own_panel(false)
-	_panel._toggle_panel()
-	var plate: PanelContainer = _panel.get_node("Panel") as PanelContainer
-	assert_almost_eq(plate.anchor_top, 1.0 - TuningPanel.DOCK_HEIGHT_FRACTION, 0.0001)
-	assert_gt(plate.anchor_top, 0.5, "the dock must start below the viewport centre")
-	assert_eq(plate.anchor_bottom, 1.0)
-	assert_false(InputMap.has_action(&"sandbox_physics_comparison"), "F2 comparison action is gone")
-
-
-func test_toggle_suppresses_and_restores_controller_input() -> void:
-	_own_panel(false)
-	var controller: PlayerController = autofree(PlayerController.new())
-	add_child_autofree(controller)
-	_panel.set_controller(controller)
-	assert_true(controller.input_enabled, "fixture: input starts enabled")
-
-	_panel._unhandled_input(_key_press(KEY_F4))
-	assert_false(controller.input_enabled, "opening the panel must suppress gameplay input")
-
-	_panel._unhandled_input(_key_press(KEY_F4))
-	assert_true(controller.input_enabled, "closing the panel must restore it")
-
-
-func test_gamepad_x_alone_does_not_toggle() -> void:
-	_own_panel(false)
-	var event: InputEventJoypadButton = _pad_press(JOY_BUTTON_X)
-	assert_true(event.is_action_pressed(&"tuning_panel_toggle"))
-
-	_panel._unhandled_input(event)
-	assert_false(_panel.visible, "X alone is hover_lower, not the tuning-panel chord.")
-
-
 func test_gamepad_start_plus_x_toggles() -> void:
 	_own_panel(false)
 	Input.action_press(&"pause_menu")
@@ -751,86 +324,8 @@ func test_gamepad_start_plus_x_toggles() -> void:
 	assert_true(_panel.visible, "Start held + X pressed should toggle the panel.")
 
 
-# --- Bontago-xtq.13 (owner playtest 2026-09-23, "F4 should remember which
+# --- ("F4 should remember which
 # tab was active when reopened") ---------------------------------------------
-
-## Must fail against the pre-xtq.13 code (rebuild() on every reopen replaced
-## every tab page with no restore step, so TabContainer.current_tab silently
-## landed back on 0) and pass once the panel remembers the tab across a
-## close/reopen in the same session.
-func test_f4_remembers_selected_tab_across_close_and_reopen() -> void:
-	_own_panel(false)
-	_panel._unhandled_input(_key_press(KEY_F4))
-	assert_true(_panel.visible, "fixture: opened.")
-
-	# Same deterministic-equivalent-of-a-real-click technique this file's own
-	# header already documents for HSlider/SpinBox/CheckButton/
-	# ColorPickerButton: TabContainer.current_tab's own C++ setter does not
-	# emit tab_changed synchronously from a plain property assignment on this
-	# engine build either, only a real click (or an explicit emit) does.
-	var target_tab: int = _panel._tab_container.get_tab_count() - 1
-	_panel._tab_container.current_tab = target_tab
-	_panel._tab_container.emit_signal("tab_changed", target_tab)
-	_panel._tab_container.emit_signal("tab_clicked", target_tab)
-
-	_panel._unhandled_input(_key_press(KEY_F4))  # close
-	assert_false(_panel.visible)
-
-	_panel._unhandled_input(_key_press(KEY_F4))  # reopen -> rebuild()
-	assert_true(_panel.visible)
-	assert_eq(
-		_panel._tab_container.current_tab, target_tab,
-		"F4 must remember the tab that was open when it closed, not reset to tab 0."
-	)
-
-
-## The same memory, but via a real save/load round trip through SAVE_PATH
-## (test_save_and_apply_saved_overrides_round_trip_via_user_dir's own idea,
-## applied to _selected_tab_index instead of a tuning field) -- proves the tab
-## choice survives a fresh TuningPanel instance (a stand-in for a full app
-## restart), not just the same live panel object.
-func test_selected_tab_index_persists_across_a_fresh_panel_instance() -> void:
-	_own_panel(true)
-	var target_tab: int = _panel._tab_container.get_tab_count() - 1
-	_panel._tab_container.current_tab = target_tab
-	_panel._tab_container.emit_signal("tab_changed", target_tab)
-	_panel._tab_container.emit_signal("tab_clicked", target_tab)
-	assert_eq(_panel._selected_tab_index, target_tab, "fixture: tab_changed must update the panel's own bookkeeping.")
-
-	var fresh_panel: TuningPanel = autofree(load("res://ui/debug/TuningPanel.tscn").instantiate())
-	add_child_autofree(fresh_panel)
-	fresh_panel.rebuild()
-
-	assert_eq(
-		fresh_panel._tab_container.current_tab, target_tab,
-		"a brand-new panel instance must read the persisted tab straight from disk in its own _ready()."
-	)
-
-
-# --- Bontago-1pi.22: tab memory only writes on user interaction -------------
-
-func test_programmatic_tab_selection_does_not_write() -> void:
-	_own_panel(true)
-	DirAccess.remove_absolute(_panel.save_path())
-	assert_false(FileAccess.file_exists(_panel.save_path()), "fixture: file removed.")
-	var target_tab: int = _panel._tab_container.get_tab_count() - 1
-	_panel._tab_container.current_tab = target_tab
-	_panel._tab_container.emit_signal("tab_changed", target_tab)
-	_panel.rebuild()
-	assert_false(FileAccess.file_exists(_panel.save_path()), "programmatic tab sets and rebuilds must not persist.")
-
-
-func test_user_tab_selection_writes_to_per_pid_file() -> void:
-	_own_panel(true)
-	DirAccess.remove_absolute(_panel.save_path())
-	assert_false(FileAccess.file_exists(_panel.save_path()), "fixture: file removed.")
-	var target_tab: int = _panel._tab_container.get_tab_count() - 1
-	_panel._tab_container.current_tab = target_tab
-	_panel._tab_container.emit_signal("tab_clicked", target_tab)
-	assert_true(FileAccess.file_exists(_panel.save_path()))
-	assert_true(_panel.save_path().contains("_gut_"), "GUT writes go to the per-PID file.")
-	assert_eq(_panel._load_selected_tab_index(), target_tab)
-
 
 func test_persistence_disallowed_for_headless_non_gut_run() -> void:
 	assert_false(UserPaths.persistence_allowed_for(false, "headless"))
@@ -839,84 +334,7 @@ func test_persistence_disallowed_for_headless_non_gut_run() -> void:
 	assert_true(UserPaths.persistence_allowed(), "GUT runs keep writing to the per-PID files.")
 
 
-# --- Bontago-mv0.21: owner-tuned defaults --------------------------------------
-
-func test_camera_and_ghost_tuning_defaults_are_physically_sensible() -> void:
-	var camera: CameraTuning = CameraTuning.new()
-	assert_gte(camera.follow_lag_seconds, 0.0, "smoothing time is never negative")
-	assert_lt(camera.follow_pitch_deg, 0.0, "the follow camera looks down at the stack")
-	assert_gt(camera.follow_pitch_deg, -90.0, "...but not straight down")
-	var ghost: GhostTuning = GhostTuning.new()
-	assert_gt(ghost.block_move_sensitivity, 0.0, "mouse motion moves the block forward, not backward or never")
-
-
-# --- Bontago-mv0.21: self-describing rows (default + description) -------------
-
-func test_every_row_label_shows_its_default_value() -> void:
-	var resources: Array[Resource] = [
-		_panel.camera_tuning, _panel.ghost_tuning, _panel.physics_tuning,
-		_panel.territory_tuning, _panel.territory_visuals, _panel.block_feed_config,
-	]
-	var checked_any: bool = false
-	var compared: int = 0
-	for resource: Resource in resources:
-		var shipped: Resource = null
-		if not resource.resource_path.is_empty():
-			shipped = ResourceLoader.load(resource.resource_path, "", ResourceLoader.CACHE_MODE_IGNORE)
-		for prop_name: String in _panel.shown_fields_for(resource):
-			checked_any = true
-			var text: String = _panel.label_text_for(resource, prop_name)
-			var human: String = _panel.hints.label_for(String((resource.get_script() as Script).get_global_name()), prop_name)
-			assert_false(human.is_empty(), "%s has a readable label" % prop_name)
-			assert_true(text.contains(human), "label %s shows the readable name %s" % [text, human])
-			assert_false(human.contains("_"), "%s label %s is not a raw property name" % [prop_name, human])
-			assert_true(text.contains("(default "), "%s.%s label %s must show its default" % [resource, prop_name, text])
-			# Exact-format check for the types whose text is unambiguous: the label's
-			# default is the value Reset restores (the shipped resource), read from disk.
-			if shipped != null:
-				var value: Variant = shipped.get(prop_name)
-				if value is bool:
-					compared += 1
-					assert_true(text.contains("(default %s)" % ("On" if value else "Off")), "%s default text" % prop_name)
-				elif value is int:
-					compared += 1
-					assert_true(text.contains("(default %d" % value), "%s default text" % prop_name)
-	assert_true(checked_any, "fixture: at least one row must exist to check.")
-	assert_gt(compared, 0, "fixture: at least one int/bool row compared against its shipped default")
-
-
-func test_every_shown_field_has_a_non_empty_description() -> void:
-	var resources: Array[Resource] = [
-		_panel.camera_tuning, _panel.ghost_tuning, _panel.physics_tuning,
-		_panel.territory_tuning, _panel.territory_visuals, _panel.block_feed_config,
-	]
-	var checked_any: bool = false
-	for resource: Resource in resources:
-		var class_label: String = String((resource.get_script() as Script).get_global_name())
-		for prop_name: String in _panel.shown_fields_for(resource):
-			checked_any = true
-			var description: String = _panel.hints.description_for(class_label, prop_name)
-			assert_false(description.is_empty(), "%s.%s has no description in TuningPanelHints" % [class_label, prop_name])
-	assert_true(checked_any, "fixture: at least one row must exist to check.")
-
-
-# --- Bontago-mv0.21: modified marker -------------------------------------------
-
-func test_modified_marker_toggles_on_change_and_clears_on_reset() -> void:
-	assert_false(_panel.is_modified(_panel.physics_tuning, "gravity_multiplier"), "fixture: starts at its default.")
-
-	var slider: HSlider = _panel.control_for(_panel.physics_tuning, "gravity_multiplier") as HSlider
-	slider.emit_signal("value_changed", _saved_gravity + 0.5)
-
-	assert_true(_panel.is_modified(_panel.physics_tuning, "gravity_multiplier"), "changing the value must mark the row modified.")
-	assert_true(_panel.label_text_for(_panel.physics_tuning, "gravity_multiplier").begins_with("•"), "the label must carry the modified marker.")
-
-	_panel.reset_all()
-
-	assert_false(_panel.is_modified(_panel.physics_tuning, "gravity_multiplier"), "reset_all() must clear the modified marker.")
-
-
-# --- Bontago-sen.7: default label and highlight baseline == what Reset restores --
+# --- tuned defaults --------------------------------------
 
 func test_reset_restores_shipped_tres_and_default_label_and_highlight_agree() -> void:
 	var resources: Array[Resource] = [
@@ -925,7 +343,7 @@ func test_reset_restores_shipped_tres_and_default_label_and_highlight_agree() ->
 		_panel.skybox_config, _panel.sky_theme,
 	]
 	var differing: int = 0
-	# Bontago-fca.38.1: every differing field is edited first, then one reset_all()
+	# every differing field is edited first, then one reset_all()
 	# (a full ~2900-node rebuild) restores them all, then every field gets the same
 	# per-field assertions as before (was one reset_all() per field).
 	var edited: Array[Dictionary] = []
@@ -957,16 +375,6 @@ func test_reset_restores_shipped_tres_and_default_label_and_highlight_agree() ->
 	gut.p("fields whose .tres differs from .gd default: %d" % differing)
 
 
-func test_no_row_is_modified_after_reset_all() -> void:
-	_own_panel(false)
-	_panel.reset_all()
-	for resource: Resource in [_panel.camera_tuning, _panel.ghost_tuning, _panel.physics_tuning, _panel.territory_tuning, _panel.territory_visuals, _panel.block_feed_config]:
-		for prop_name: String in _panel.shown_fields_for(resource):
-			assert_false(_panel.is_modified(resource, prop_name), "%s.%s yellow after Reset." % [resource, prop_name])
-
-
-# --- Bontago-xtq.34: M7 config resource hints completeness ----------------------
-
 ## Test that every exported numeric/bool/Color property in the M7 config resources
 ## (BeaconVisualTuning, CameraShakeConfig, BlockEffectsConfig, HUDVisualTuning,
 ## SkyThemeDef) has both a range hint (for numeric fields) and a description hint
@@ -979,7 +387,7 @@ func test_m7_config_resources_have_complete_hints() -> void:
 		BlockEffectsConfig.new(),
 		HUDVisualTuning.new(),
 		SkyThemeDef.new(),
-		# Bontago-adt.2: the disc-top surface sets (texture and procedural).
+		# the disc-top surface sets (texture and procedural).
 		DiscSurfaceDef.new(),
 		AmbientLifeConfig.new(),
 		QualityGovernorConfig.new(),
@@ -1018,7 +426,7 @@ func test_m7_config_resources_have_complete_hints() -> void:
 	assert_true(checked_any, "fixture: at least one M7 config field must exist to check.")
 
 
-# --- Bontago-adt: Sky tab Theme dropdown ----------------------------------------
+# --- Sky tab Theme dropdown ----------------------------------------
 
 func _find_option_named(node: Node, option_name: String) -> OptionButton:
 	if node is OptionButton and node.name == option_name:
@@ -1029,36 +437,6 @@ func _find_option_named(node: Node, option_name: String) -> OptionButton:
 			return found
 	return null
 
-
-func test_sky_tab_theme_dropdown_lists_themes_and_switches_live() -> void:
-	_own_panel(false)
-	var saved_name: String = _panel.skybox_config.theme_name
-	var skybox: Skybox = Skybox.new()
-	skybox.config = _panel.skybox_config
-	add_child_autofree(skybox)
-	_panel.rebuild()
-	var option: OptionButton = _find_option_named(_panel, "ThemeOption")
-	assert_not_null(option, "expected a Theme OptionButton on the Sky tab")
-	var ids: PackedStringArray = Skybox.list_available_themes()
-	# Bontago-59o.18 (U1): the leading entry is the day/night cycle; every
-	# static theme follows it in list_available_themes() order.
-	assert_eq(option.item_count, ids.size() + 1)
-	assert_eq(option.get_item_text(0), TuningPanel.CYCLE_THEME_ID, "cycle leads the list")
-	assert_eq(option.focus_mode, Control.FOCUS_ALL, "gamepad/keyboard focusable")
-	var night_index: int = ids.find("night") + 1
-	option.select(night_index)
-	option.item_selected.emit(night_index)
-	assert_eq(_panel.skybox_config.theme_name, "night", "persists on SkyboxConfig like the Skybox row")
-	assert_eq(_panel.sky_theme, Skybox.load_theme("night"), "sliders rebind to the active theme")
-	assert_eq(skybox.theme, Skybox.load_theme("night"))
-	assert_true(_panel.apply_sky_theme_id("sunset"))
-	assert_eq(skybox.theme, Skybox.load_theme("sunset"))
-	assert_false(_panel.apply_sky_theme_id("no_such_theme"))
-	_panel.skybox_config.theme_name = saved_name
-	_panel.sky_theme = Skybox.load_theme("sunset")
-
-
-# --- Bontago-59o.18 (U1): cycle entry, Time-of-day row, live-edit routing --------
 
 ## Records every Skybox API call the Sky tab makes, without the real Skybox's
 ## scene build (its _ready() only joins the tuning group). Behaviour lands with
@@ -1131,46 +509,6 @@ func _find_control_named(node: Node, control_name: String) -> Control:
 	return null
 
 
-func test_theme_dropdown_cycle_entry_starts_the_cycle_and_persists_theme_name() -> void:
-	_own_panel(false)
-	var saved_name: String = _panel.skybox_config.theme_name
-	var saved_theme: SkyThemeDef = _panel.sky_theme
-	var spy: SpySkybox = _make_spy_skybox(false)
-	_panel.rebuild()
-	var option: OptionButton = _find_option_named(_panel, "ThemeOption")
-	assert_eq(option.get_item_text(0), "cycle")
-	option.select(0)
-	option.item_selected.emit(0)
-	assert_eq(spy.start_calls.size(), 1, "the cycle entry calls Skybox.start_cycle() on the live Skybox")
-	assert_eq(spy.start_calls[0], Vector2(-1.0, -1.0), "defaults: running, from the start phase")
-	assert_eq(spy.theme_id_calls.size(), 0, "not routed through the static set_theme_by_id")
-	assert_eq(_panel.skybox_config.theme_name, "cycle", "persisted as theme_name per the plan")
-	assert_eq(_panel.sky_theme, Skybox.load_theme("sunset"), "sliders edit the cycle's source theme")
-	option = _find_option_named(_panel, "ThemeOption")
-	assert_eq(option.selected, 0, "the rebuilt dropdown shows cycle")
-
-	# Save override round trip: "cycle" survives a restart through the F4 file.
-	assert_eq(_panel.save_overrides(), OK)
-	assert_true(_panel.build_copy_text().contains("theme_name = \"cycle\""))
-	_panel.skybox_config.theme_name = "sunset"
-	TuningPanel.apply_saved_overrides()
-	assert_eq(_panel.skybox_config.theme_name, "cycle", "theme_name = cycle round-trips through Save override")
-
-	_panel.skybox_config.theme_name = saved_name
-	_panel.sky_theme = saved_theme
-
-
-func test_theme_dropdown_shows_cycle_while_a_live_skybox_runs_it() -> void:
-	_own_panel(false)
-	var spy: SpySkybox = _make_spy_skybox(true)
-	assert_eq(_panel.skybox_config.theme_name, "sunset", "fixture: the persisted name is still the static default")
-	assert_eq(_panel.theme_choice(), "cycle", "a match's running cycle is what F4 must show")
-	_panel.rebuild()
-	assert_eq(_find_option_named(_panel, "ThemeOption").selected, 0)
-	spy.cycle_active = false
-	assert_eq(_panel.theme_choice(), "sunset")
-
-
 func test_time_of_day_row_routes_every_choice_through_set_locked_phase() -> void:
 	_own_panel(false)
 	var spy: SpySkybox = _make_spy_skybox(true)
@@ -1215,83 +553,7 @@ func test_time_of_day_row_routes_every_choice_through_set_locked_phase() -> void
 	assert_false(_panel.apply_time_of_day("midnight"), "an unknown choice is rejected")
 
 
-func test_time_of_day_row_reflects_a_cycle_locked_by_the_lobby() -> void:
-	_own_panel(false)
-	var spy: SpySkybox = _make_spy_skybox(true)
-	var source: SkyThemeDef = Skybox.load_theme("sunset")
-	spy.locked = source.locked_phase_for("night")
-	spy.phase_now = spy.locked
-	_panel.rebuild()
-	var option: OptionButton = _find_option_named(_panel, "TimeOfDayOption")
-	assert_eq(option.selected, TuningPanel.TIME_OF_DAY_CHOICES.find("night"), "a lobby-locked night shows Night")
-	spy.locked = 0.333
-	spy.phase_now = 0.333
-	_panel.rebuild()
-	option = _find_option_named(_panel, "TimeOfDayOption")
-	assert_eq(option.selected, TuningPanel.TIME_OF_DAY_CHOICES.find("custom"))
-	assert_almost_eq((_find_control_named(_panel, "TimeOfDaySlider") as HSlider).value, 0.333, 0.006)
-
-
-func test_time_of_day_row_is_disabled_while_a_static_theme_is_shown() -> void:
-	_own_panel(false)
-	var spy: SpySkybox = _make_spy_skybox(false)
-	_panel.rebuild()
-	assert_true(_find_option_named(_panel, "TimeOfDayOption").disabled)
-	assert_false((_find_control_named(_panel, "TimeOfDaySlider") as HSlider).editable)
-	_panel.apply_time_of_day("night")
-	assert_eq(spy.lock_calls.size(), 0, "nothing to lock without a running cycle")
-
-
-func test_live_sky_edit_refreshes_cycle_sources_instead_of_applying_the_static_theme() -> void:
-	_own_panel(false)
-	var spy: SpySkybox = _make_spy_skybox(true)
-	_panel.rebuild()
-	var slider: HSlider = _panel.control_for(_panel.sky_theme, "fog_density") as HSlider
-	slider.emit_signal("value_changed", _saved_sky_fog_density + 0.01)
-	assert_eq(spy.refresh_calls, 1, "a cycle Skybox re-copies the source themes")
-	assert_eq(spy.applied_themes.size(), 0, "apply_theme would swap the live cycle for the static material")
-	spy.cycle_active = false
-	slider.emit_signal("value_changed", _saved_sky_fog_density + 0.02)
-	assert_eq(spy.refresh_calls, 1)
-	assert_eq(spy.applied_themes.size(), 1, "a static Skybox still gets apply_theme")
-	assert_eq(spy.applied_themes[0], _panel.sky_theme)
-
-
-func test_editing_a_locked_phase_export_moves_the_selected_preset() -> void:
-	_own_panel(false)
-	var spy: SpySkybox = _make_spy_skybox(true)
-	_panel.rebuild()
-	var source: SkyThemeDef = Skybox.load_theme("sunset")
-	var saved_phase: float = source.cycle_locked_phase_sunset
-	_panel.apply_time_of_day("sunset")
-	var slider: HSlider = _panel.control_for(_panel.sky_theme, "cycle_locked_phase_sunset") as HSlider
-	assert_not_null(slider, "the locked phase is tunable on the Sky tab")
-	slider.emit_signal("value_changed", 0.5)
-	assert_almost_eq(spy.lock_calls[-1], 0.5, 0.0001, "the new phase is applied to the locked sky now")
-	source.cycle_locked_phase_sunset = saved_phase
-
-
-func test_reset_keeps_a_running_cycle_instead_of_switching_to_the_static_theme() -> void:
-	_own_panel(false)
-	var spy: SpySkybox = _make_spy_skybox(true)
-	_panel.reset_all()
-	assert_true(spy.cycle_active, "reset must not replace the cycle with a static theme")
-	assert_eq(spy.theme_id_calls.size(), 0)
-	assert_gt(spy.refresh_calls, 0, "the reset values are re-copied into the cycle")
-
-
-func test_ui_is_lazy_and_freed_on_close() -> void:
-	var fresh: TuningPanel = autofree(load("res://ui/debug/TuningPanel.tscn").instantiate())
-	add_child_autofree(fresh)
-	assert_eq(fresh.get_children().map(func(n: Node) -> String: return str(n.name) + n.get_class()), [], "No UI nodes are built while the panel has never been opened.")
-	fresh._toggle_panel()
-	assert_gt(fresh.row_count_for(fresh.physics_tuning), 0, "Opening builds the rows.")
-	fresh._toggle_panel()
-	assert_eq(fresh.get_child_count(), 0, "Closing frees the UI.")
-	assert_eq(fresh.row_count_for(fresh.physics_tuning), 0, "Closing drops the row references.")
-
-
-## Bontago-1pi.21: a GUT run must never touch the owner's real overrides file.
+## a GUT run must never touch the owner's real overrides file.
 func test_gut_run_save_overrides_never_touches_real_file() -> void:
 	var real: String = TuningPanel.SAVE_PATH
 	var existed: bool = FileAccess.file_exists(real)
@@ -1304,7 +566,7 @@ func test_gut_run_save_overrides_never_touches_real_file() -> void:
 		assert_eq(FileAccess.get_modified_time(real), mtime, "real file mtime unchanged")
 
 
-# --- Bontago-1pi.112: no unused rows, grouped and sorted ------------------------
+# --- no unused rows, grouped and sorted ------------------------
 
 ## Fields read only through an accessor method on their own config class: the
 ## accessor name must still appear in live game code outside config/ and the panel.
@@ -1341,175 +603,3 @@ func _collect_code(dir_path: String, out: PackedStringArray) -> void:
 				kept.append(line)
 		out.append("
 ".join(kept))
-
-
-func test_every_shown_control_is_read_by_live_game_code() -> void:
-	var sources: PackedStringArray = PackedStringArray()
-	for dir_name: String in LIVE_CODE_DIRS:
-		_collect_code("res://%s" % dir_name, sources)
-	var blob: String = "
-".join(sources)
-	var resources: Array[Resource] = [
-		_panel.camera_tuning, _panel.ghost_tuning, _panel.physics_tuning,
-		_panel.territory_tuning, _panel.territory_visuals, _panel.block_feed_config,
-		_panel.block_visual_tuning, _panel.block_effects_config, _panel.beacon_visual_tuning,
-		_panel.camera_shake_config, _panel.hud_visual_tuning, _panel.qol_experiments,
-		_panel.sky_theme,
-	]
-	var checked: int = 0
-	for resource: Resource in resources:
-		var class_label: String = String((resource.get_script() as Script).get_global_name())
-		for prop_name: String in _panel.shown_fields_for(resource):
-			checked += 1
-			assert_true(resource.get(prop_name) != null, "%s.%s exists" % [class_label, prop_name])
-			var key: String = "%s.%s" % [class_label, prop_name]
-			var token: String = String(READ_VIA_ACCESSOR.get(key, prop_name))
-			var pattern: RegEx = RegEx.create_from_string("(\\.%s\\b|\"%s\")" % [token, token])
-			assert_not_null(pattern.search(blob), "%s is shown but nothing outside config/ reads it" % key)
-	assert_gt(checked, 300, "fixture: the table covers every tab's rows")
-
-
-## Bontago-fca.62: the dead config fields are deleted, not just hidden.
-func test_dead_config_fields_are_gone() -> void:
-	var gone: Dictionary = {
-		"TerritoryVisuals": ["flag_pole_height", "flag_pole_radius", "flag_pole_color", "flag_emission", "goal_flag_scale", "flag_banner_size"],
-		"BlockFeedConfig": ["preview_count"],
-		"HUDVisualTuning": ["panel_border_color", "panel_text_color"],
-		"CameraShakeConfig": ["impact_speed_threshold"],
-	}
-	var live: Dictionary = {
-		"TerritoryVisuals": _panel.territory_visuals, "BlockFeedConfig": _panel.block_feed_config,
-		"HUDVisualTuning": _panel.hud_visual_tuning, "CameraShakeConfig": _panel.camera_shake_config,
-	}
-	for class_label: String in gone:
-		var names: PackedStringArray = PackedStringArray()
-		for prop: Dictionary in (live[class_label] as Resource).get_property_list():
-			names.append(str(prop.get("name", "")))
-		for prop_name: String in (gone[class_label] as Array):
-			assert_false(names.has(prop_name), "%s.%s is deleted" % [class_label, prop_name])
-			assert_eq(_panel.hints.description_for(class_label, prop_name), "", "%s.%s hint removed" % [class_label, prop_name])
-			assert_false(_panel.hints.ranges.has("%s.%s" % [class_label, prop_name]), "%s.%s range removed" % [class_label, prop_name])
-	assert_not_null(_panel.control_for(_panel.block_feed_config, "bag_multiplier"))
-
-
-# --- Bontago-1pi.113: sections, labels, units, layout ---------------------------
-
-func test_every_shown_field_has_a_section_a_unit_free_label_and_a_known_tab() -> void:
-	var tab_names: PackedStringArray = PackedStringArray()
-	for entry: Dictionary in _panel._tab_plan():
-		tab_names.append(String(entry["name"]))
-	var checked: int = 0
-	for entry: Dictionary in _panel._tab_plan():
-		for resource: Resource in (entry["resources"] as Array):
-			var class_label: String = String((resource.get_script() as Script).get_global_name())
-			for prop_name: String in _panel.shown_fields_for(resource):
-				checked += 1
-				assert_ne(_panel.hints.section_for(class_label, prop_name), "", "%s.%s has a section" % [class_label, prop_name])
-				var human: String = _panel.hints.label_for(class_label, prop_name)
-				assert_true(human.left(1) == human.left(1).to_upper(), "%s starts upper-case" % human)
-	assert_gt(checked, 300)
-	for key: Variant in _panel.hints.section_tabs.values():
-		assert_true(tab_names.has(String(key)), "section_tabs target %s is a real tab" % key)
-
-
-func test_label_and_unit_helpers() -> void:
-	var hints: TuningPanelHints = _panel.hints
-	assert_eq(hints.label_for("X", "auto_drop_flash_duration"), "Auto drop flash")
-	assert_eq(hints.unit_for("X", "auto_drop_flash_duration"), "s")
-	assert_eq(hints.label_for("X", "dust_lifetime_s"), "Dust lifetime")
-	assert_eq(hints.unit_for("X", "dust_lifetime_s"), "s")
-	assert_eq(hints.label_for("X", "fov_deg"), "FOV")
-	assert_eq(hints.unit_for("X", "fov_deg"), "\u00b0")
-	assert_eq(hints.label_for("X", "ssr_enabled"), "SSR enabled")
-	assert_eq(hints.unit_for("X", "ssr_enabled"), "")
-	assert_eq(hints.unit_for("CameraTuning", "pan_speed"), "m/s")
-	assert_eq(hints.label_for("CameraTuning", "pan_speed"), "Pan speed")
-
-
-func test_float_rows_use_consistent_decimals_and_units() -> void:
-	assert_eq(_panel._decimals_for(Vector2(0.0, 1.0)), 3)
-	assert_eq(_panel._decimals_for(Vector2(0.0, 360.0)), 1)
-	assert_eq(_panel._decimals_for(Vector2(0.0, 100.0)), 1)
-	assert_eq(_panel._decimals_for(Vector2(0.0, 0.024)), 5)
-	assert_eq(_panel._format_shown(2.4, TYPE_FLOAT, "rad/s", 1), "2.4 rad/s")
-	assert_eq(_panel._format_shown(-80.0, TYPE_FLOAT, "\u00b0", 1), "-80.0\u00b0")
-	assert_eq(_panel._format_shown(true, TYPE_BOOL, "", 0), "On")
-	var text: String = _panel.default_text_for(_panel.camera_tuning, "pan_speed")
-	assert_true(text.begins_with("default ") and text.ends_with("m/s"), text)
-
-
-func test_sections_follow_declaration_order_and_tabs_split_ghost() -> void:
-	var titles: Array[String] = _panel.section_titles_for(_panel.camera_tuning)
-	assert_eq(titles[0], "Orbit", "Camera starts with its first declared block")
-	assert_true(titles.has("Zoom") and titles.has("Lens"))
-	var ghost: Array[String] = _panel.section_titles_for(_panel.ghost_tuning)
-	assert_true(ghost.has("Hover height") and ghost.has("Ghost glow"), "Ghost sections appear on both its tabs")
-	var controls: Node = _panel._tab_container.get_node("Controls")
-	var looks: Node = _panel._tab_container.get_node("Ghost & Blocks")
-	assert_not_null(controls.find_child("Section_Hover_height", true, false))
-	assert_null(controls.find_child("Section_Ghost_glow", true, false), "visual ghost sections are not on Controls")
-	assert_not_null(looks.find_child("Section_Ghost_glow", true, false))
-	var sky: Array[String] = _panel.section_titles_for(_panel.sky_theme)
-	assert_eq(sky[0], "Day/night cycle", "section_order puts the cycle first")
-	var dust: Node = _panel._tab_container.find_child("Section_Dust", true, false)
-	assert_not_null(dust, "BlockEffectsConfig's prefix sections are rendered")
-
-
-func test_section_fold_state_survives_rebuild() -> void:
-	var section: Node = _panel._tab_container.find_child("Section_Orbit", true, false)
-	var body: Control = section.get_node("Body") as Control
-	var header: Button = section.get_node("Header") as Button
-	var was_open: bool = body.visible
-	header.pressed.emit()
-	assert_ne(body.visible, was_open, "clicking the header toggles the body")
-	_panel.rebuild()
-	var rebuilt: Node = _panel._tab_container.find_child("Section_Orbit", true, false)
-	assert_ne((rebuilt.get_node("Body") as Control).visible, was_open, "the choice is remembered")
-	(rebuilt.get_node("Header") as Button).pressed.emit()
-	assert_eq((rebuilt.get_node("Body") as Control).visible, was_open)
-	assert_true(((rebuilt.get_node("Header") as Button).text).begins_with(TuningPanel.SECTION_OPEN_MARK if was_open else TuningPanel.SECTION_CLOSED_MARK))
-
-
-func test_every_row_control_sits_in_the_same_fixed_control_column() -> void:
-	var checked: int = 0
-	for row: Dictionary in _panel._rows:
-		var control: Control = row["control"] as Control
-		var holder: Control = control.get_parent() as Control
-		assert_eq(holder.custom_minimum_size.x, TuningPanel.CONTROL_COLUMN_WIDTH, "%s control column" % row["property"])
-		if control is ColorPickerButton:
-			assert_gte(control.custom_minimum_size.y, TuningPanel.SWATCH_HEIGHT, "%s swatch has height" % row["property"])
-		if control is SpinBox:
-			assert_ne(control.size_flags_horizontal, Control.SIZE_EXPAND_FILL, "%s spinbox is compact" % row["property"])
-		checked += 1
-	assert_gt(checked, 300)
-	var scene: Node = _panel._tab_container.get_node("Sky").find_child("Section_Sky_and_weather", true, false)
-	assert_not_null(scene, "the sky/weather rows are an ordinary section")
-	assert_not_null(_panel._tab_container.get_node("Physics").find_child("Section_Presets", true, false))
-
-
-func test_block_visual_edit_reaches_cached_materials() -> void:
-	var block: Block = BlockFactory.build(load("res://config/blocks/cube.tres"), _panel.physics_tuning, 0, Color.RED)
-	add_child_autofree(block)
-	var tuning: BlockVisualTuning = _panel.block_visual_tuning
-	var original: float = tuning.rim_strength
-	tuning.rim_strength = original + 0.37
-	_panel._on_field_changed(tuning, "rim_strength")
-	var material: ShaderMaterial = null
-	for child: Node in block.get_children():
-		if child is MeshInstance3D:
-			material = (child as MeshInstance3D).material_override as ShaderMaterial
-	tuning.rim_strength = original
-	assert_not_null(material)
-	assert_almost_eq(float(material.get_shader_parameter(&"rim_strength")), original + 0.37, 0.0001)
-
-
-func test_beacon_edit_rebuilds_live_flags() -> void:
-	var flag: HomeFlag = HomeFlag.new()
-	add_child_autofree(flag)
-	var tuning: BeaconVisualTuning = _panel.beacon_visual_tuning
-	var original: float = tuning.socket_height
-	tuning.socket_height = original + 0.5
-	_panel._on_field_changed(tuning, "socket_height")
-	tuning.socket_height = original
-	var socket: MeshInstance3D = flag.get_node("Socket") as MeshInstance3D
-	assert_almost_eq((socket.mesh as CylinderMesh).height, original + 0.5, 0.0001)

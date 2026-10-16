@@ -47,7 +47,7 @@ func _ready() -> void:
 	var collider: CollisionShape3D = CollisionShape3D.new()
 	collider.shape = shape
 	add_child(collider)
-	# Bontago-mp0.119: the cat_v1 GLB (tail-sway loop) replaces the primitive
+	# the cat_v1 GLB (tail-sway loop) replaces the primitive
 	# cat; the primitive build stays as the fallback if the table lacks it.
 	var cat_visual: Node3D = GiftModelTable.shared().build_gift_visual(&"cat", true)
 	if cat_visual != null:

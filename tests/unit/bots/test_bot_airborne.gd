@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1t5.44: pure rules for airborne gifts / incoming enemy specials in the bot world view.
+## pure rules for airborne gifts / incoming enemy specials in the bot world view.
 
 
 func test_ballistic_impact_drop_and_throw() -> void:

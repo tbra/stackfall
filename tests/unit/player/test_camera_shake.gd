@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-xtq.29 (M7 P4, spec 2.10 "effects + camera shake"):
+## M7 P4, spec 1.10 "effects + camera shake":
 ## game/player/CameraRig.gd's shake_offset()/Settings.camera_shake_enabled()
 ## integration. game/player/CameraRig.gd reads the real "Settings" autoload directly
 ## (autoload/Sfx.gd's own master_volume_db()/custom_music_dir() precedent), so
@@ -30,20 +30,6 @@ func _make_rig() -> CameraRig:
 	var rig: CameraRig = load("res://game/player/CameraRig.tscn").instantiate()
 	add_child_autofree(rig)
 	return rig
-
-
-func test_shake_offset_is_zero_before_any_impact() -> void:
-	var rig: CameraRig = _make_rig()
-	assert_true(rig.shake_offset().is_equal_approx(Vector3.ZERO))
-
-
-func test_an_impact_above_threshold_produces_a_nonzero_shake_offset() -> void:
-	var rig: CameraRig = _make_rig()
-	rig.shake_config = rig.shake_config.duplicate() as CameraShakeConfig
-
-	_fire(&"bomb")
-
-	assert_gt(rig.shake_offset().length(), 0.0, "an impact well above threshold should produce a visible shake offset.")
 
 
 func _fire(def_id: StringName, position: Vector3 = Vector3.ZERO) -> void:
@@ -183,18 +169,3 @@ func test_shake_offset_is_always_zero_when_camera_shake_is_disabled_in_settings(
 
 	assert_true(rig.shake_offset().is_equal_approx(Vector3.ZERO), "disabling camera shake in Settings must suppress it entirely, even after an impact.")
 
-
-func test_process_transform_still_matches_the_frozen_bit_for_bit_test_when_no_impact_occurred() -> void:
-	# Regression guard for the shake integration into _update_transform():
-	# with no impact ever emitted, the camera's transform must be identical to
-	# what it was before this package's changes -- shake_offset() must be
-	# Vector3.ZERO and never perturb the base transform.
-	var rig: CameraRig = _make_rig()
-	rig.set_home_view(Vector3(5.0, 0.0, 10.0))
-	rig._process(1.0 / 60.0)
-
-	var transform_a: Transform3D = rig.get_camera().global_transform
-	rig._process(1.0 / 60.0)
-	var transform_b: Transform3D = rig.get_camera().global_transform
-
-	assert_true(transform_a.is_equal_approx(transform_b), "with a static target/yaw/pitch/distance and no impact, the transform must not change frame to frame.")

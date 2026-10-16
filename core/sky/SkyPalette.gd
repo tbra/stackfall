@@ -1,6 +1,6 @@
 class_name SkyPalette
 extends RefCounted
-## Bontago-59o.18 (C1b, docs/SKY_CYCLE_DEFAULT_PLAN.md s2 "Day palette"): the day half
+## The day half
 ## of the sky cycle is not one palette. Morning and noon use the dawn.tres palette
 ## and it fades into the sunset.tres palette on the setting side, by the dusk weight
 ## below (a smoothstep window per SkyThemeDef.cycle_dusk_weight_phases). Pure rules,

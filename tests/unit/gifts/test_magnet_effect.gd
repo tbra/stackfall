@@ -1,6 +1,6 @@
 extends GutTest
-## MagnetEffect (docs/SPEC.md ~line 252 "Pulls enemy blocks within 8 m toward
-## itself for 3 s"; docs/M8_PLAN.md P1 package). Real Block bodies added
+## MagnetEffect (docs/SPEC.md: "Pulls enemy blocks within 8 m toward
+## itself for 3 s"). Real Block bodies added
 ## directly to the test's own tree -- a physics smoke test, same shape as
 ## tests/unit/gifts/test_bomb_effect.gd/tests/unit/test_special_physics.gd --
 ## proving MagnetEffect.physics_tick() actually needs a real
@@ -107,7 +107,7 @@ func test_enemy_block_gets_pulled_toward_the_magnet() -> void:
 
 
 # --- (a2) a frozen (stable-block-optimized) enemy block still gets pulled
-# (Bontago-8or.16 P5b) --------------------------------------------------------
+# (P5b) --------------------------------------------------------
 
 func test_frozen_enemy_block_is_unfrozen_and_pulled() -> void:
 	var magnet_block: Block = _make_block(Vector3.ZERO)
@@ -138,7 +138,7 @@ func test_frozen_enemy_block_is_unfrozen_and_pulled() -> void:
 	)
 
 
-# --- (b) an own-owner block at the same distance is untouched ----------------
+# --- (b) a block owned by the same slot at the same distance is untouched ----------------
 
 func test_own_owner_block_is_untouched() -> void:
 	var magnet_block: Block = _make_block(Vector3.ZERO)
@@ -210,7 +210,7 @@ func test_magnet_tres_loads_with_expected_id_and_usable_pull() -> void:
 	assert_true(found.effect is MagnetEffect, "magnet.tres's effect sub-resource must be a MagnetEffect")
 	var effect: MagnetEffect = found.effect as MagnetEffect
 	assert_gt(effect.pull.radius_m, 0.0)
-	assert_eq(effect.pull_duration_s, 6.0, "owner 2026-10-07: the magnet lasts longer (3 -> 6 s, Bontago-1pi.85.49)")
+	assert_eq(effect.pull_duration_s, 6.0, "the magnet lasts longer (3 -> 6 s)")
 	assert_eq(effect.effect_lifetime_s(), effect.pull_start_delay_s + effect.pull_duration_s, "start delay + pull window is the effect lifetime")
 	assert_gt(effect.pull.friction_compensation, 0.0, "the pull must beat block friction to break a block away")
 	assert_not_null(effect.tuning, "tuning must fall back to the preloaded config/gifts/special_tuning.tres")

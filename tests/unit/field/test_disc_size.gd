@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.107: the disc-size slider's factor table, the scaled MapDef and
+## the disc-size slider's factor table, the scaled MapDef and
 ## the match_config round trip (with and without the field).
 
 const EXPECTED_FACTORS: Array[float] = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75]
@@ -28,7 +28,7 @@ func test_scaling_multiplies_geometric_lengths_and_keeps_the_rest() -> void:
 		assert_eq(map.territory_res, roundi(base.territory_res * factor))
 		assert_eq(map.cell_size, base.cell_size, "one cell stays one metre")
 		assert_eq(map.disk_height, base.disk_height)
-		# Bontago-1pi.184: homes keep a fixed inset from the rim instead of scaling.
+		# homes keep a fixed inset from the rim instead of scaling.
 		assert_almost_eq(map.home_flag_position(0, 4).length(), map.field_radius - map.home_flag_edge_inset, 0.001)
 		var goals: PackedVector2Array = map.goal_flag_positions(3)
 		assert_almost_eq(goals[0].x, base.goal_flag_positions(3)[0].x * factor, 0.001)

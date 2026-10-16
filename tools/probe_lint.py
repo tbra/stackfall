@@ -1,4 +1,4 @@
-"""Probe-file lint (Bontago-fca.63): keep throwaway probe/capture files out of main.
+"""Probe-file lint: keep throwaway probe/capture files out of main.
 
 Usage: python tools/probe_lint.py [--base main] [--head HEAD] [--path <checkout>] [--untracked]
 
@@ -11,7 +11,7 @@ cannot capture what you need. Already tracked probes are grandfathered (not in t
 --untracked instead flags untracked (not ignored) files in the checkout matching the same
 patterns, for worker handbacks. Prints offenders; exit 1 if any, else 0.
 tools/integrate_batch.py runs this check on each branch before merging (escape: --allow-probes).
-Second rule (Bontago-fca.91): a branch that ADDS a *.gd/*.gdshader/*.gdshaderinc without also adding
+Second rule: a branch that ADDS a *.gd/*.gdshader/*.gdshaderinc without also adding
 the sibling `<file>.uid` is flagged (a missing sidecar makes Godot generate a fresh uid on main).
 In --untracked mode the same rule applies to a worktree: a new (untracked or staged-added) script
 with no .uid on disk, or whose .uid is still untracked while the script is staged.

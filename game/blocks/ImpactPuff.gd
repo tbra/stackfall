@@ -1,6 +1,6 @@
 class_name ImpactPuff
 extends MeshInstance3D
-## Bontago-mp0.120: one pooled, billboarded cel dust-puff flipbook
+## one pooled, billboarded cel dust-puff flipbook
 ## (assets/textures/fx/impact_puff). Purely cosmetic. game/blocks/BlockEffectsManager.gd
 ## owns the pool and calls play(); the puff advances itself in _process() and
 ## hides when the flipbook ends (terminal frame is fully transparent), after

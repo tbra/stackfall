@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.132: the landing projection (footprint quad outline + decal mask)
+## the landing projection (footprint quad outline + decal mask)
 ## follows the union of the cell footprints, never the convex hull, for concave
 ## shapes at every rotation.
 

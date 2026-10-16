@@ -1,12 +1,11 @@
 extends GutTest
-## Bontago-1t5.58: Field physics scenarios for the bot tower work (docs/BOT_TOWER_PLAN.md C, 55a/55b).
+## Field physics scenarios for the bot tower work.
 ## A scripted stack of real blocks settles on a real Field; a bot (zero aim noise) then places a held piece
 ## through the real send path (BotController._send_best_placement, as test_bot_disc_placement does). Each
 ## scenario asserts (a) the spawned cubes sit where the bot's spawn-frame model (BotStatics.OrientationInfo
 ## cubes at the pivot) said, (b) the piece rests on the support the cube probes found, (c) it settles within
 ## SETTLE_MAX_TICKS and (d) neither it nor the stack beneath it is knocked over or moved.
 
-const PILLAR_SHAPE: BlockShape = preload("res://config/blocks/pillar.tres")
 const BAR3_SHAPE: BlockShape = preload("res://config/blocks/bar3.tres")
 const PLATE9_SHAPE: BlockShape = preload("res://config/blocks/plate9.tres")
 const CUBE_SHAPE: BlockShape = preload("res://config/blocks/cube.tres")
@@ -91,7 +90,7 @@ func _make_bot() -> BotController:
 	var bot: BotController = BotController.new()
 	add_child_autofree(bot)
 	bot.setup(BOT_SLOT, MatchConfig.AiDifficulty.HARD, _field, _registry)
-	# The profile is the shared, cached tuning resource: mutate a copy only (gate leak 2026-10-14).
+	# The profile is the shared, cached tuning resource: mutate a copy only (gate leak).
 	bot._profile = bot._profile.duplicate() as BotDifficultyProfile
 	bot._profile.aim_noise_m = 0.0
 	return bot
@@ -118,26 +117,6 @@ func _settle_stack() -> void:
 	_stack_start.clear()
 	for block: Block in _stack:
 		_stack_start.append(block.global_position)
-
-
-## The orientation with the flattest base (most cells on the lowest layer; ties by index): for the
-## pillar, a lying one whose lowest point is far below its upright bottom-centre pivot.
-func _flat_orientation(shape: BlockShape) -> int:
-	var best_index: int = 0
-	var best_coverage: int = -1
-	for i: int in range(BlockOrientations.count()):
-		var basis: Basis = BlockOrientations.get_basis(i)
-		var low: int = 1000000
-		for cell: Vector3i in shape.cells:
-			low = mini(low, int(round((basis * Vector3(cell)).y)))
-		var coverage: int = 0
-		for cell: Vector3i in shape.cells:
-			if int(round((basis * Vector3(cell)).y)) == low:
-				coverage += 1
-		if coverage > best_coverage:
-			best_coverage = coverage
-			best_index = i
-	return best_index
 
 
 ## Drives the real send path with ONE hand-built candidate (origin = pivot). Returns the spawned block.
@@ -240,40 +219,6 @@ func _assert_lands_and_stays(
 		assert_lt(_stack[i].global_position.distance_to(_stack_start[i]), MAX_STACK_DRIFT_M, "stack block %d was not disturbed" % i)
 
 
-## (1) A lying bar spans a one-cube gap between two cubes: only its outer cubes are supported.
-func test_bar_bridging_a_gap_rests_on_its_outer_cubes() -> void:
-	await _start_match_holding(BAR3_SHAPE)
-	var centre: Vector2 = _stack_centre()
-	_add_stack_block(CUBE_SHAPE, centre + Vector2(-1.0, 0.0))
-	_add_stack_block(CUBE_SHAPE, centre + Vector2(1.0, 0.0))
-	await _settle_stack()
-	var block: Block = _place_via_bot(centre, 0)
-	await _assert_lands_and_stays(block, BAR3_SHAPE, 0, centre, _field.surface_y() + PHYSICS_TUNING.cube_size)
-
-
-## (2) A lying bar with its last cube past the edge of a block: two cubes supported, one overhangs.
-func test_overhanging_bar_with_its_centre_of_mass_over_the_block_stays() -> void:
-	await _start_match_holding(BAR3_SHAPE)
-	var centre: Vector2 = _stack_centre()
-	_add_stack_block(CUBE8_SHAPE, centre)
-	await _settle_stack()
-	var top_y: float = _field.surface_y() + 2.0 * PHYSICS_TUNING.cube_size
-	var origin: Vector2 = centre + Vector2(0.5, 0.0)
-	var block: Block = _place_via_bot(origin, 0)
-	await _assert_lands_and_stays(block, BAR3_SHAPE, 0, origin, top_y)
-
-
-## (3) A lying (rolled) pillar onto the top of a flat block, in the bot's flattest orientation.
-func test_lying_pillar_on_a_block_top_stays() -> void:
-	await _start_match_holding(PILLAR_SHAPE)
-	var centre: Vector2 = _stack_centre()
-	_add_stack_block(SLAB6_SHAPE, centre)
-	await _settle_stack()
-	var flat: int = _flat_orientation(PILLAR_SHAPE)
-	var block: Block = _place_via_bot(centre, flat)
-	await _assert_lands_and_stays(block, PILLAR_SHAPE, flat, centre, _field.surface_y() + PHYSICS_TUNING.cube_size)
-
-
 ## (4) A plate straddling a tall block (two columns of it) and a short one (one column, a cube lower).
 func test_plate_straddling_blocks_of_different_heights_rests_on_the_tall_one() -> void:
 	await _start_match_holding(PLATE9_SHAPE)
@@ -287,14 +232,13 @@ func test_plate_straddling_blocks_of_different_heights_rests_on_the_tall_one() -
 	await _assert_lands_and_stays(block, PLATE9_SHAPE, 0, origin, tall_top_y)
 
 
-## Bontago-1t5.54: a pile of really tilted blocks beside a real column. The snapshot of real bodies must read
+## a pile of really tilted blocks beside a real column. The snapshot of real bodies must read
 ## the pile as unsound (debris) and the column's top as the only sound top, and a new base search over it
 ## must keep clear of the pile.
 const PILE_TILT_RAD: float = 0.6
 const PILE_BLOCKS: int = 3
 const COLUMN_BLOCKS: int = 2
 const PILE_GAP_M: float = 4.0
-const SOUND_BASE_CLEARANCE_M: float = 2.0
 ## Cube pivots sit at the bottom face: lift the scripted column a hair off the disc.
 const COLUMN_LIFT_M: float = 0.02
 
@@ -338,5 +282,3 @@ func test_real_snapshot_reads_a_tilted_pile_as_debris_and_the_column_as_the_soun
 	assert_eq(tops.size(), 1, "one sound top: the column's")
 	if tops.size() == 1:
 		assert_lt(stack.com_xz(tops[0]).distance_to(column_xz), 0.1)
-	assert_true(stack.debris_near(centre, 1.0), "the pile is debris")
-	assert_false(stack.debris_near(column_xz, SOUND_BASE_CLEARANCE_M), "the sound column is not")

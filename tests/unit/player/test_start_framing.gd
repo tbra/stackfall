@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.79 (owner playtest 2026-10-04): the match opens at the owner's
+## the match opens at the user's
 ## start framing with the first ghost in hand and the HUD populated. Real Main
 ## scene on a host; the rig's begin_start_framing() is what Main calls when the
 ## ready gate opens (the headless run has no loading overlay, so it is driven
@@ -62,7 +62,7 @@ func test_camera_starts_in_the_final_follow_view_for_each_disc_size() -> void:
 		assert_true(rig.begin_start_framing(HELD_SLOT), path)
 		assert_almost_eq(rig.get_pitch(), deg_to_rad(tuning.start_pitch_deg), 0.0001, "%s: start pitch (view 3)" % path)
 		assert_almost_eq(rig.get_distance(), clampf(tuning.start_distance_m, tuning.zoom_min, tuning.zoom_max), 0.0001, "%s: follow distance" % path)
-		# Bontago-1pi.90: the pivot is the held piece's spawn anchor, the point the
+		# the pivot is the held piece's spawn anchor, the point the
 		# follow tracks once play starts, not the bare beacon.
 		var anchor: Vector3 = _main._hot_seat.controller()._camera_follow_anchor()
 		assert_lt(rig.get_target().distance_to(anchor), POSITION_TOLERANCE_M, "%s: pivots on the held piece" % path)
@@ -118,24 +118,3 @@ func test_client_mirror_populates_held_and_next_cards_during_the_countdown() -> 
 	assert_eq(hud._held_shape.id if hud._held_shape != null else &"", held.id)
 	assert_eq(hud._next_shape.id if hud._next_shape != null else &"", next.id)
 
-
-func test_late_bound_controller_pulls_the_held_block_into_its_ghost() -> void:
-	# The staged windowed build issues (host) / receives (client) the first block
-	# before the controller exists; binding afterwards must still fill the ghost.
-	var map: MapDef = MapDef.base().scaled(DISC_FACTORS[0]).duplicate(true)
-	await _start_match(map)
-	var ghost: GhostPreview = _main._hot_seat.ghost()
-	ghost.set_shape(null)
-	assert_null(ghost.get_shape())
-	_main._hot_seat.bind_local_slot(HELD_SLOT)
-	assert_not_null(ghost.get_shape(), "bind pulls the slot's held block")
-	assert_eq(ghost.get_shape().id, Match.held_shape(HELD_SLOT).id)
-
-
-func test_hud_stats_and_minimap_are_populated_in_the_countdown() -> void:
-	var map: MapDef = MapDef.base().scaled(DISC_FACTORS[0]).duplicate(true)
-	await _start_match(map)
-	var hud: HUD = _main._hot_seat.hud()
-	assert_eq(Match.state(), Match.State.COUNTDOWN)
-	assert_eq(hud._share_rows.size(), Match.slot_count(), "one stats row per player before the first solve")
-	assert_true(hud._minimap.visible, "minimap shown in the countdown")

@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-d04: game/gifts/GiftCrate.gd's own claim-pop effect and not-claimable
+## game/gifts/GiftCrate.gd's own claim-pop effect and not-claimable
 ## hint pulse (see config/gifts/GiftConfig.gd's "-- Claim feedback --"/
 ## "-- Not-claimable hint --" sections for the tunables these read).
 ##
@@ -92,7 +92,7 @@ func test_real_spawn_claim_uses_its_id_for_the_pop() -> void:
 	assert_not_null(Match._gifts._container.get_node_or_null("GiftClaimPop"), "the claim must leave visible feedback")
 
 
-## Bontago-mp0.139: a landing claimed the same tick frees the crate node at
+## a landing claimed the same tick frees the crate node at
 ## once, so its parachute is handed to the container and finishes collapsing.
 func test_a_landing_claim_leaves_the_parachute_collapsing_in_the_container() -> void:
 	_start_playing(_config())
@@ -135,13 +135,13 @@ func test_pickup_has_a_readable_wrapped_silhouette() -> void:
 	var parent: Node3D = autofree(Node3D.new())
 	add_child_autofree(parent)
 	var crate: GiftCrate = _make_crate(5, Vector2.ZERO, parent)
-	# Bontago-mp0.119: the lid/ribbons are part of the gift_crate_v1 model now.
+	# the lid/ribbons are part of the gift_crate_v1 model now.
 	assert_gt(crate.get_node("Mesh").find_children("*", "MeshInstance3D", true, false).size(), 1)
 	assert_null(crate.get_node_or_null("PickupRing"), "only the pulsing LandRing remains on the ground")
 	assert_not_null(crate.get_node_or_null("GiftBeacon/BeaconDiamond"))
 
 
-## Bontago-1pi.143: the unshadowed glow light must not light block faces (layer 1);
+## the unshadowed glow light must not light block faces (layer 1);
 ## it is limited to the territory disc layer.
 func test_glow_light_is_limited_to_the_disc_layer_so_it_cannot_light_blocks() -> void:
 	var parent: Node3D = autofree(Node3D.new())
@@ -157,7 +157,7 @@ func test_spawn_glow_flashes_then_settles_without_hiding_the_crate() -> void:
 	add_child_autofree(parent)
 	var crate: GiftCrate = _make_crate(5, Vector2.ZERO, parent)
 	# Pin a preset with the idle glow on: the default follows the saved
-	# user setting, and Low turns the idle light off (Bontago-mp0.23).
+	# user setting, and Low turns the idle light off.
 	crate._on_graphics_preset_changed(load("res://config/graphics/presets/medium.tres") as GraphicsPreset)
 	var glow: OmniLight3D = crate.get_node("GiftGlow") as OmniLight3D
 	var halo: MeshInstance3D = crate.get_node("SpawnHalo") as MeshInstance3D
@@ -320,8 +320,8 @@ func test_hint_does_not_trigger_with_no_local_ghost_held() -> void:
 	)
 
 
-# --- Bontago-keo.17: the claim pop's colour is the resolved recipient's own -
-# Owner decision "b": Events.gift_claimed's second argument is the RESOLVED
+# --- the claim pop's colour is the resolved recipient's own -
+#  "b": Events.gift_claimed's second argument is the RESOLVED
 # RECIPIENT slot (the one teammate nearest the crate), not a team id, so
 # GiftCrate._claim_color() reads Match.slot(slot_id).color directly -- no
 # team-proxy trick needed. Under TEAMS_2 with 4 players, MatchConfig.

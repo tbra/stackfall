@@ -63,7 +63,7 @@ vec3 flow_phases(float time, float period, float jitter) {
 	return vec3(a - 0.5, b - 0.5, abs(1.0 - 2.0 * a));
 }
 
-// Bontago-59o.16 (procedural sky P2): pure helpers for the procedural
+// procedural sky P2: pure helpers for the procedural
 // sunset. No texture taps, so they are safe in the radiance (cubemap) pass and
 // never divide by eyedir.y (no NaN at the horizon).
 
@@ -93,7 +93,7 @@ vec2 sun_disc(float cos_angle, float core_deg, float edge_deg, float halo_deg, f
 	return vec2(disc, halo);
 }
 
-// Bontago-mp0.29: the one cel cloud body shared by the far sea stratum and the
+// the one cel cloud body shared by the far sea stratum and the
 // upper puff layer (the same puff shader), so every
 // layer has the same noise character, banding and shade/highlight relation.
 // `q` is the noise coordinate. Shade = thickness blended with how much the
@@ -115,7 +115,7 @@ vec4 cloud_cel_layer(sampler2D noise_tex, vec2 q, vec2 to_sun, float coverage, f
 	return vec4(mix(col, rim_color, rim * 0.6), body);
 }
 
-// Bontago-59o.16 (procedural sky P3): one plane-projected cel cloud stratum
+// procedural sky P3: one plane-projected cel cloud stratum
 // seen from above (dir.y < 0). `height` is the camera height above the stratum
 // plane, so a smaller height is a nearer, faster-parallaxing sheet. Four noise
 // taps (3 for the lumps, 1 for the sun-facing probe). Returns rgb + coverage
@@ -143,7 +143,7 @@ vec3 procedural_sea_color(sampler2D noise_tex, vec3 dir, vec3 sun_dir, float tim
 	float fade = 1.0 - smoothstep(0.0, max(horizon_fade, 0.001), depth);
 	vec3 col = mix(base_near, base_far, smoothstep(0.0, 1.0, depth));
 	if (fade < 0.999) {
-		// DECISION (Bontago-59o.19): the 3D puffs (incl. the far ring added for the
+		// DECISION: the 3D puffs (incl. the far ring added for the
 		// procedural look) carry the bright lit cumulus tops; this shader deck is
 		// only the violet-rose cloud floor between them, so its ramp tops out just
 		// above `mid` and never paints flat white puddles.
@@ -159,7 +159,7 @@ vec3 procedural_sea_color(sampler2D noise_tex, vec3 dir, vec3 sun_dir, float tim
 	return mix(col, haze, fade);
 }
 
-// Bontago-59o.19 (procedural sky pass 2): one upper cloud layer for the
+// procedural sky pass 2: one upper cloud layer for the
 // procedural look. Replaces the old stretched fbm strata, whose per-axis stretch
 // read as radial streaks/spirals. The view direction is projected onto a high
 // plane with a horizon lift (no divide by zero), rotated by `rot` radians
@@ -192,7 +192,7 @@ vec4 procedural_upper_clouds(sampler2D noise_tex, vec3 dir, vec2 to_sun, float t
 	return vec4(mix(col, rim_color, rim * 0.6), body);
 }
 
-// Bontago-59o.20: authored cloud-card layer. `atlas` is the 4x2 Blender card
+// authored cloud-card layer. `atlas` is the 4x2 Blender card
 // atlas (tools/blender/make_cloud_cards.py): rg = camera-space normal xy,
 // b = openness (AO), a = coverage. The view ray is projected onto a high plane
 // (horizon lift avoids a divide by zero), jittered per grid cell, and each
@@ -258,8 +258,8 @@ vec4 sky_cloud_cards(sampler2D atlas, vec3 dir, vec3 sun_dir, float time, vec4 l
 	return vec4(acc / max(acc_a, 0.0001), acc_a);
 }
 
-// Bontago-mp0.129 (owner playtest: "at night lets add an aurora borealis effect to the
-// sky"): soft aurora curtains for the night sky, shared by sunset_clouds (the
+// "at night lets add an aurora borealis effect to the
+// sky": soft aurora curtains for the night sky, shared by sunset_clouds (the
 // day/night cycle's night) and night_sky (the static night theme). Drawn in
 // view-direction space, azimuth around the horizon x elevation (dir.y), so the bands
 // wrap the whole sky and any camera orbit sees some of them. Every texture tap is a
@@ -267,7 +267,7 @@ vec4 sky_cloud_cards(sampler2D atlas, vec3 dir, vec3 sun_dir, float time, vec4 l
 // horizon, and every sine has an integer frequency, so the atan() wrap leaves neither a
 // seam nor a mip-selection line. Background pass only (callers skip the radiance pass);
 // two curtain layers of three taps each, nothing at all below the horizon or when the
-// caller's visibility is 0. Look constants below; the owner-facing tunables (intensity,
+// caller's visibility is 0. Look constants below; the player-facing tunables (intensity,
 // colours, speed, base height, curtain height) are SkyThemeDef.aurora_*.
 const float AURORA_TIME_RATE = 0.04;        // seconds -> animation time at speed 1
 const float AURORA_PATCH_TILES = 3.0;       // noise repeats around the horizon: slow arcs and the gaps between

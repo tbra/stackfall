@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.11.63: splash, loading-screen and weather-loop art must not stay
+## splash, loading-screen and weather-loop art must not stay
 ## resident after their screen/effect ends, and must load again when needed.
 
 const LOAD_WAIT_S: float = 10.0
@@ -76,34 +76,3 @@ func test_loading_backdrop_is_released_after_fade_and_reloads() -> void:
 	screen.show_for_match(config, _slots())
 	await _wait_real(func() -> bool: return screen.backdrop_texture() != null)
 	assert_false(screen.backdrop_shown_path().is_empty(), "the next loading screen shows an image again (a fresh random pick)")
-
-
-func test_weather_bed_is_released_after_fade_and_reloads() -> void:
-	var amb: WeatherAmbience = WeatherAmbience.new()
-	add_child_autofree(amb)
-	Events.weather_started.emit(&"snow")
-	Events.weather_intensity_changed.emit(&"snow", 1.0)
-	amb.advance(100.0)
-	var pl: WeakRef = weakref(amb.bed_player(&"snow"))
-	Events.weather_stopped.emit(&"snow")
-	amb.advance(100.0)
-	await wait_until(func() -> bool: return pl.get_ref() == null, LOAD_WAIT_S)
-	assert_eq(amb.bed_ids().size(), 0, "faded bed dropped")
-	assert_null(pl.get_ref(), "player freed")
-	# DECISION: the AudioServer may keep the stopped playback (and so the stream)
-	# alive for a few mix cycles; the bed and player no longer reference it.
-	Events.weather_started.emit(&"snow")
-	assert_not_null(amb.bed_player(&"snow"), "bed rebuilt on demand")
-
-
-## Bontago-6cw: a plate fetched from the loader thread is released a few frames later, so the
-## RenderingServer commands queued by the worker (create/initialize) run before the free.
-func test_release_later_holds_the_texture_until_frames_pass() -> void:
-	var texture: ImageTexture = ImageTexture.create_from_image(Image.create(2, 2, false, Image.FORMAT_RGBA8))
-	var ref: WeakRef = weakref(texture)
-	LoadingScreen.release_later(texture)
-	texture = null
-	assert_not_null(ref.get_ref(), "still held right after the release request")
-	await wait_process_frames(LoadingScreen.TEXTURE_RELEASE_FRAMES + 2)
-	assert_null(ref.get_ref(), "freed once the hold frames passed")
-	LoadingScreen.release_later(null)

@@ -1,4 +1,4 @@
-# Bontago-fca.69: shared final verdict for the tools/run_*_enet.ps1 harnesses (dot-source it).
+# shared final verdict for the tools/run_*_enet.ps1 harnesses (dot-source it).
 # Write-EnetResult prints exactly one line, `ENET RESULT PASS` or `ENET RESULT FAIL: <reason>`,
 # and returns 0 / 1 for the caller to `exit` with. PASS needs: no hard-deadline kill, every log
 # present, every log's pass marker matched, and no log holding a fail marker.

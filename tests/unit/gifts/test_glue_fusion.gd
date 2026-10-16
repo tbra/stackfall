@@ -1,5 +1,5 @@
 extends GutTest
-## Glue fusion WP1: GlueFusion.fuse() rules (docs/GLUE_FUSION_PLAN.md section 5).
+## Glue fusion WP1: GlueFusion.fuse() rules.
 
 const CUBE_SIDE_M: float = 1.2
 const AIR_Y_M: float = 6.0

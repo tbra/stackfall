@@ -1,4 +1,4 @@
-"""List the tests that reference identifiers your change touched (Bontago-fca.45).
+"""List the tests that reference identifiers your change touched.
 
 Usage: python tools/affected_tests.py [--path <checkout>] [--base <rev>] [--json]
 
@@ -11,7 +11,7 @@ line is unchanged), drops noise (under 4 chars, common GDScript words), and sear
 tests/**/*.gd for whole-word references (string literals such as find_children("*", "Foo") count). Tests that are part of the diff are listed and marked
 [changed]. Prints a compact list, a totals line and a ready-to-run tools/run_gut.ps1 line.
 Changes under ui/components/**, ui/Lobby*, ui/lobby/**, ui/MainMenu* or ui/HUD* also add the
-cross-screen UI suites (CROSS_RULES; Bontago-fca.94), whatever identifiers matched, and the
+cross-screen UI suites (CROSS_RULES), whatever identifiers matched, and the
 output reminds you to run `python tools/lint_all.py` (includes lint_ui_components).
 Exit 0 unless git fails.
 """
@@ -42,7 +42,7 @@ after_each before_all after_all assert_eq assert_true assert_false assert_not_nu
 get_tree get_node add_child queue_free emit connect
 """.split())
 
-# Named cross-suite rules (Bontago-fca.94, fca.100): changed path prefix -> suites that assert on
+# Named cross-suite rules: changed path prefix -> suites that assert on
 # behaviour the identifier search cannot see. Missing suite files are skipped silently.
 UI_CROSS_NAME = "ui-cross-screen"
 CROSS_RULES = (

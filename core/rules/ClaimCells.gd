@@ -1,6 +1,6 @@
 class_name ClaimCells
 extends RefCounted
-## Bontago-1pi.18.11: the cells a goal's claim radius covers, computed once.
+## the cells a goal's claim radius covers, computed once.
 ##
 ## WinChecker.claim_at() decides a goal over every cell whose centre lies within
 ## the claim radius of the beacon (the QoL "bigger goal radius" toggle). Which

@@ -1,5 +1,5 @@
 extends GutTest
-## ExplosionFx.blast (docs/GIFT_EFFECTS_PLAN.md section 2/5 A1): mass-independent
+## ExplosionFx.blast: mass-independent
 ## delta-v, distance falloff, radius cutoff, STATIC-frozen STABLE block is woken.
 ## Real Blocks on a real (flat, resting) Field.
 

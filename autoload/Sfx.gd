@@ -17,11 +17,11 @@ extends Node
 ## Settings, Net and Match have none -- see autoload/Net.gd's header).
 ##
 ## Music uses bundled context playlists; custom folder preferences are
-## temporarily ignored by owner direction. SFX stay on the folder above.
+## temporarily ignored on request. SFX stay on the folder above.
 ## Every play()/play_music()/impact-thud
 ## volume_db also adds Settings.master_volume_db() on top of this file's own
 ## AudioConfig.sfx_volume_db/music_volume_db baseline, live-updated via
-## Settings.audio_settings_changed (docs/archive/M6_PLAN.md package C3). Bontago
+## Settings.audio_settings_changed (the options audio settings). Bontago
 ## (options package): SFX playback additionally adds Settings.sfx_volume_db(),
 ## music playback additionally adds Settings.music_volume_db() -- master
 ## multiplies every channel, the music/SFX sliders only ever scale their own.
@@ -31,7 +31,7 @@ const LocalFeedback := preload("res://autoload/match/LocalFeedback.gd")
 const AUDIO_SUBDIR: String = "assets/audio/sfx"
 
 ## Effectively-silent volume_db floor for whichever music stem is faded out
-## of the adaptive crossfade (docs/M7_PLAN.md P6). Not a tunable -- it is an
+## of the adaptive crossfade.
 ## engineering constant matching AudioServer's own convention that -80 dB
 ## reads as inaudible on any reasonable output device -- so it stays a local
 ## const rather than another AudioConfig field (CLAUDE.md "no magic numbers"
@@ -39,7 +39,7 @@ const AUDIO_SUBDIR: String = "assets/audio/sfx"
 ## something anyone would want to retune).
 const MUSIC_STEM_MUTE_DB: float = -80.0
 
-## DECISION (Bontago-fca.49): engine constant, not designer-facing. AudioServer
+## DECISION: engine constant, not designer-facing. AudioServer
 ## only frees a stopped playback after one mix cycle plus a main-thread cleanup,
 ## so anything stopped/replaced within this window of get_tree().quit() is
 ## still listed (and reported as leaked) at exit. Long enough for several
@@ -57,11 +57,11 @@ var _music_root_dir: String = ""
 var _music_available: bool = false
 var _music_streams_by_filename: Dictionary = {}
 var _sfx_players: Array[AudioStreamPlayer] = []
-## Bontago-1pi.167: pause-proof pool for menu cues (see _build_player_pool).
+## pause-proof pool for menu cues (see _build_player_pool).
 const UI_PLAYER_COUNT: int = 4
 var _ui_players: Array[AudioStreamPlayer] = []
 var _next_ui_player_index: int = 0
-## Focus-move hover cue (Bontago-1pi.159.48): one central hook for every menu. Menu navigation
+## Focus-move hover cue: one central hook for every menu. Menu navigation
 ## actions that press this frame arm it; a gui_focus_changed in the same frame plays one hover.
 ## Mouse focus (click/hover grab) and programmatic focus (a screen opening) arm nothing, so
 ## they stay silent here and mouse hover keeps its own mouse_entered cue.
@@ -77,7 +77,7 @@ var _music_player: AudioStreamPlayer
 var _music_enabled: bool = true
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
-## Adaptive music (docs/M7_PLAN.md P6): a second AudioStreamPlayer for the
+## Adaptive music:
 ## tense stem, on the same bus as _music_player, started in sync with it
 ## whenever both config.music_stem_calm_file and config.music_stem_tense_file
 ## resolve to real files under _music_root_dir. Missing tense file: this
@@ -102,29 +102,29 @@ var _music_envelope: float = 0.0
 var _switch_start_envelope: float = 0.0
 var _switch_elapsed: float = 0.0
 var _last_track_by_context: Dictionary = {}
-## Lazy music (Bontago-1pi.11.61): the track chosen for the next start, the
+## Lazy music: the track chosen for the next start, the
 ## path-playlist requests still outstanding (path -> true) and loaded-but-not-yet
 ## started streams (path -> AudioStream). Only the upcoming track is ever held.
 var _next_track_context: StringName = &""
 var _next_track_index: int = -1
 var _music_requested: Dictionary = {}
 var _last_gift_spawn_msec: int = -1
-## Bontago-eq0: last special cue time per SpecialDef id (special_cue_min_interval_s).
+## last special cue time per SpecialDef id (special_cue_min_interval_s).
 var _last_special_cue_msec: Dictionary[StringName, int] = {}
-## Bontago-eq0: live timed-special loops, oldest first: {player, def_id}.
+## live timed-special loops, oldest first: {player, def_id}.
 var _special_loops: Array[Dictionary] = []
 var _last_glue_hit_msec: int = -1
 var _last_bean_hop_msec: int = -1
-## Bontago-1pi.56: true while a late joiner's world replay is being applied
+## true while a late joiner's world replay is being applied
 ## (Events.world_replay_changed). The replay re-emits block_placed per body, the
 ## elimination of every dead slot and every falling crate's flight so the world
 ## rebuilds; those are state, not news, and must not sound. Not cleared by
 ## match_scope_reset: the client's world build fires that mid-replay.
 var _world_replay_silent: bool = false
 var _last_music_tick_usec: int = Time.get_ticks_usec()
-## Bontago-mp0.116: last variant index played per "<surface>_<tier>" key.
+## last variant index played per "<surface>_<tier>" key.
 var _last_impact_variant: Dictionary = {}
-## Bontago-bth.3: resolved impact streams per surface x tier (int key from
+## resolved impact streams per surface x tier (int key from
 ## _impact_cache_key), so a hit does no string building or file-exists stat. Only
 ## filled when every variation resolved; dropped when config/root/variation set change.
 const IMPACT_SURFACES: Array[StringName] = [AudioConfig.SURFACE_BLOCK, AudioConfig.SURFACE_DISC]
@@ -133,12 +133,12 @@ var _impact_stream_cache: Dictionary = {}
 var _impact_cache_config: AudioConfig = null
 var _impact_cache_root: String = ""
 var _impact_cache_files: Dictionary = {}
-## Bontago-bth.3: reused surface-query objects (radius refreshed per call).
+## reused surface-query objects (radius refreshed per call).
 var _surface_shape: SphereShape3D = SphereShape3D.new()
 var _surface_params: PhysicsShapeQueryParameters3D = _make_surface_params()
 var _surface_ids: PackedInt64Array = PackedInt64Array()
 
-## Beacon-claim tension layer (Bontago-1pi.114); see the section near the end.
+## Beacon-claim tension layer; see the section near the end.
 var _claim_state: ClaimTensionState
 var _claim_player: AudioStreamPlayer
 var _claim_tween: Tween
@@ -191,11 +191,11 @@ func _ready() -> void:
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
 	Events.goal_capture_progress.connect(_on_claim_progress)
 	Events.match_won.connect(_on_claim_match_won)
-	# Bontago-1pi.46 (G6): a new match must not inherit the previous match's tense stem.
+	# G6: a new match must not inherit the previous match's tense stem.
 	Events.match_scope_reset.connect(reset_match_audio)
 	Events.match_scope_reset.connect(reset_claim_tension)
 	Settings.audio_settings_changed.connect(_on_audio_settings_changed)
-	# Bontago-1pi.156: music is NOT started here; Main._show_main_menu() calls
+	# music is NOT started here; Main._show_main_menu() calls
 	# play_music() once the splash intro is over (or at once when there is none).
 
 
@@ -208,7 +208,7 @@ func _resolve_root_dir() -> String:
 ## Legacy fallback stays on the original bundled root. Custom folders are
 ## ignored even when a saved preference points at an existing directory.
 func _refresh_music_root_dir() -> void:
-	# Owner request: ignore persisted custom-folder overrides for now, even
+	# : ignore persisted custom-folder overrides for now, even
 	# on the legacy fallback path. Keep the preference for future restoration.
 	_music_root_dir = _root_dir
 	_music_available = DirAccess.dir_exists_absolute(_music_root_dir)
@@ -217,7 +217,7 @@ func _refresh_music_root_dir() -> void:
 
 ## Settings.audio_settings_changed fires for both a master-volume change and a
 ## custom-music-dir change (autoload/Settings.gd), so this re-resolves the
-## music folder and, per docs/archive/M6_PLAN.md package C3, re-applies the volume to
+## music folder and re-applies
 ## whatever is already playing -- no restart needed to hear a slider move.
 func _on_audio_settings_changed() -> void:
 	if config.contextual_music_enabled:
@@ -271,7 +271,7 @@ func _build_player_pool() -> void:
 		var player: AudioStreamPlayer = AudioStreamPlayer.new()
 		add_child(player)
 		_sfx_players.append(player)
-	# DECISION (Bontago-1pi.167): menu cues (click, hover, start, lobby UI cues) use their own
+	# DECISION: menu cues (click, hover, start, lobby UI cues) use their own
 	# small pool that keeps playing while the offline pause menu has paused the tree; match SFX,
 	# ambience and music stay on the pausable pool above and freeze with the world.
 	for _i: int in range(UI_PLAYER_COUNT):
@@ -362,7 +362,7 @@ func _pick_stream(event: StringName) -> AudioStream:
 			return bundled
 		if not _music_available:
 			return null
-		# DECISION (autoload/Sfx.gd, Bontago-xtq.31 review, MEDIUM): only steer
+		# DECISION (autoload/Sfx.gd review, MEDIUM): only steer
 		# music_file's own EVENT_MUSIC selection toward music_stem_calm_file
 		# once a real tense partner exists (_tense_stem_available) -- with no
 		# tense asset installed there is nothing to be "calm" relative to, so
@@ -444,7 +444,7 @@ func set_root_dir_for_test(path: String) -> void:
 	_refresh_tense_stem()
 
 
-# --- Adaptive music (docs/M7_PLAN.md P6) -------------------------------------
+# --- Adaptive music -------------------------------------------------------------
 
 ## Re-derives _tense_stem_available against the current _music_root_dir.
 ## Requires BOTH config.music_stem_calm_file and config.music_stem_tense_file
@@ -513,7 +513,7 @@ func tense_stem_available() -> bool:
 ## assert the intended crossfade direction without waiting for a live Tween
 ## or touching audio hardware.
 ##
-## DECISION (autoload/Sfx.gd, Bontago-xtq.31 review, HIGH): never mute unless
+## DECISION (autoload/Sfx.gd review, HIGH): never mute unless
 ## the tense stem is actually available -- _tense_stem_is_active alone isn't
 ## enough to gate this, because it can flip true from a plain
 ## Events.goal_capture_progress reading (no asset needed) even in the shipped
@@ -541,7 +541,7 @@ func tense_stem_target_volume_db() -> float:
 	return baseline_db if _tense_stem_is_active else MUSIC_STEM_MUTE_DB
 
 
-## Events.goal_capture_progress (spec 2.10's adaptive music, docs/M7_PLAN.md
+## Events.goal_capture_progress (spec 1.10's adaptive music, the crossfade
 ## P6): the crossfade only cares how close ANY team is to capturing, not
 ## which one, so team_id is unused here -- underscore-prefixed to match this
 ## file's own convention for an unused handler parameter (e.g.
@@ -554,7 +554,7 @@ func tense_stem_target_volume_db() -> float:
 func _on_goal_capture_progress(_team_id: int, progress: float) -> void:
 	if config.contextual_music_enabled:
 		return
-	# Hysteresis (docs/M7_PLAN.md P6 review, MINOR, Bontago-xtq.31): the rising
+	# Hysteresis: the rising
 	# edge (calm -> tense) always uses the plain threshold; the falling edge
 	# (tense -> calm) only fires music_tense_release_margin below it, so
 	# progress hovering right at the threshold doesn't flap the crossfade
@@ -583,7 +583,7 @@ func _on_goal_capture_progress(_team_id: int, progress: float) -> void:
 	)
 
 
-## Bontago-1pi.46 (G6): Events.match_scope_reset. A match left while the tense stem
+## G6: Events.match_scope_reset. A match left while the tense stem
 ## was up (contextual music off: only a later goal_capture_progress clears it) must
 ## not start the next match tense. Returns the stems to calm exactly as _ready() leaves
 ## them: tense flag off, an in-flight crossfade killed, each stem at its calm target.
@@ -639,7 +639,7 @@ func _process(delta: float) -> void:
 		_reap_music_requests()
 
 
-## Quit-time release (Bontago-fca.49): stop every player and drop stream refs
+## Quit-time release: stop every player and drop stream refs
 ## (and the filename caches) so AudioServer playbacks and the loaded MP3/WAV
 ## resources are not still referenced when the engine reports leaks at exit.
 func _exit_tree() -> void:
@@ -659,11 +659,11 @@ var _quit_started: bool = false
 var quit_override: Callable = Callable()
 
 
-## The one quit helper (Bontago-xtq.47): marks the quit, drains audio, then quits the tree.
+## The one quit helper: marks the quit, drains audio, then quits the tree.
 ## Every real quit path (Main close, Boot close, AgentProbe --quit-on-menu) goes through it so
 ## none skips drain_for_quit. Safe to call without awaiting.
 func quit_tree(exit_code: int = 0) -> void:
-	if _quit_started:  # a second request during the drain is a no-op (Bontago-6a4); first exit code wins
+	if _quit_started:  # a second request during the drain is a no-op; first exit code wins
 		return
 	_quit_started = true
 	QuitFlag.mark()
@@ -881,9 +881,9 @@ func _on_music_finished() -> void:
 # --- Events hooks -------------------------------------------------------------
 
 ## Host and client both reach this: Block.gd emits it on the host's own detection
-## and MatchNet re-emits it from the replicated impact batch (Bontago-1pi.55).
+## and MatchNet re-emits it from the replicated impact batch.
 func _on_block_impacted_at(speed: float, position: Vector3) -> void:
-	# Bontago-bth.3: with no sample root nothing can play (the picks below return
+	# with no sample root nothing can play (the picks below return
 	# null), so skip the physics surface query too.
 	if speed < config.impact_speed_min or not _available:
 		return
@@ -901,7 +901,7 @@ func _on_block_impacted(speed: float) -> void:
 
 ## Block-on-block when the impact point overlaps at least
 ## config.impact_block_surface_min_blocks distinct Blocks (the faller plus what
-## it hit); otherwise the disc. DECISION (Bontago-mp0.116): the impact event
+## it hit); otherwise the disc. DECISION: the impact event
 ## carries no surface, so it is derived from a physics query (the same approach
 ## as BlockEffectsManager._find_block_at) -- works on clients too, whose frozen
 ## replicas still collide, and needs no wire change.
@@ -921,7 +921,7 @@ func _classify_surface(position: Vector3) -> StringName:
 	_surface_params.transform = Transform3D(Basis(), position)
 	var min_blocks: int = config.impact_block_surface_min_blocks
 	_surface_ids.clear()
-	# Bontago-eq0: every block in the query is kept (no early return at
+	# every block in the query is kept (no early return at
 	# min_blocks), so _impact_touches_glue() can look at all of them.
 	for result: Dictionary in world.direct_space_state.intersect_shape(_surface_params, 8):
 		if result.get("collider") is BlockBody:
@@ -1017,7 +1017,7 @@ func play_ui_cue(cue: StringName) -> bool:
 
 
 ## net_peer_joined fires for a remote peer on the host and for the local peer on
-## a client once accepted. DECISION (Bontago-mp0.117): both chime; a late-joiner
+## a client once accepted. DECISION: both chime; a late-joiner
 ## world replay stays silent.
 func _on_net_peer_joined(_peer_id: int, _slot_id: int, _player_name: String) -> void:
 	if _world_replay_silent:
@@ -1025,7 +1025,7 @@ func _on_net_peer_joined(_peer_id: int, _slot_id: int, _player_name: String) -> 
 	play_ui_cue(&"player_joined")
 
 
-## DECISION (Bontago-mp0.117): the local peer's own departure (host shutdown or
+## DECISION: the local peer's own departure (host shutdown or
 ## leaving) does not play player_left; kick/error have no dedicated cue.
 func _on_net_peer_left(peer_id: int, _slot_id: int, _reason: int) -> void:
 	if _world_replay_silent or peer_id == Net.local_peer_id():
@@ -1041,7 +1041,7 @@ func _on_loading_gate_opened() -> void:
 	play_ui_cue(&"all_players_ready")
 
 
-## Bontago-1pi.52: the refusal sound is the refused player's own feedback. The
+## the refusal sound is the refused player's own feedback. The
 ## host sees every slot's refusals on its bus, so a remote client's (or a bot's)
 ## must stay silent here -- see autoload/match/LocalFeedback.gd.
 func _on_placement_rejected(slot_id: int, _reason: StringName) -> void:
@@ -1054,7 +1054,7 @@ func _on_world_replay_changed(active: bool) -> void:
 	_world_replay_silent = active
 
 
-## Bontago-1pi.174: the release cue is the dropping player's own feedback. The
+## the release cue is the dropping player's own feedback. The
 ## host sees every slot's placements (bots, remote clients) and a client sees
 ## every replicated spawn, so only a block owned by this machine's human seat
 ## sounds it; impact sounds are separate and unaffected.
@@ -1092,7 +1092,7 @@ func _on_gift_flight_spawned(_gift_id: int, _origin: Vector3, _landing: Vector3)
 		_last_gift_spawn_msec = now_msec
 
 
-## Bontago-eq0 (spec 2.10 "Specials have distinct warning sounds"): a special
+## spec 1.10 "Specials have distinct warning sounds": a special
 ## going off is a world event like an impact, so every instance hears every
 ## special -- the host on its own trigger, a client on the replicated one.
 ## Chained triggers of the same special inside special_cue_min_interval_s sound once.
@@ -1118,12 +1118,12 @@ func _on_special_triggered(_net_id: int, def_id: StringName, _position: Vector3,
 	player.play()
 
 
-# --- Timed-special loops, Glue hits, Jumping Bean hops (Bontago-eq0) ----------
+# --- Timed-special loops, Glue hits, Jumping Bean hops ----------
 
 ## A timed special (Earthquake, Magnet) was used: loop its bed for the effect's
 ## whole window. special_consumed is the one start signal every peer gets (an
 ## in-place Earthquake has no carrier on a client).
-## DECISION (Bontago-eq0): the window length is the effect's own
+## DECISION: the window length is the effect's own
 ## effect_lifetime_s(), read dynamically so this autoload gains no compile edge
 ## to SpecialEffect (tools/lint_layers.py L3). Magnet's pull_start_delay_s (0 by
 ## default) is inside that lifetime, so a delayed pull would hum early.
@@ -1255,7 +1255,7 @@ func _play_cue_file(filename: String) -> bool:
 	return true
 
 
-## Bontago-1pi.211: the F4 SFX tab's file list: the loadable (.wav/.mp3, what _load_stream reads)
+## the F4 SFX tab's file list: the loadable (.wav/.mp3, what _load_stream reads)
 ## files directly inside the effects folder, lowercase, alphabetical. Empty with no assets.
 func effect_files() -> PackedStringArray:
 	var found: PackedStringArray = PackedStringArray()
@@ -1269,7 +1269,7 @@ func effect_files() -> PackedStringArray:
 	return found
 
 
-## Bontago-1pi.211: plays one effects-folder file once on the same pool and volume a real event
+## plays one effects-folder file once on the same pool and volume a real event
 ## uses (the F4 SFX tab's Play button). False when the file is missing or not loadable.
 func preview_file(filename: String) -> bool:
 	return _play_cue_file(filename)
@@ -1288,16 +1288,16 @@ func _looped_copy(source: AudioStream) -> AudioStream:
 	return stream
 
 
-## DECISION (autoload/Sfx.gd, Bontago-6y2): unlike the world hooks above (a
+## DECISION (autoload/Sfx.gd): unlike the world hooks above (a
 ## block drop/thud/breakage is a physical event any nearby player would
 ## actually hear happen, so those play for every slot; the rejection sound is
-## personal and gated to the refused local human since Bontago-1pi.52), a gift claim queues a special for the whole claiming team -- it is
+## personal and gated to the refused local human since), a gift claim queues a special for the whole claiming team -- it is
 ## personal feedback, not a world event. Gating on "any locally-driven slot on
 ## the claiming team" mirrors game/gifts/GiftCrate.gd's own "_local_watch_slot()"
-## comment and ui/hud/HUD.gd's gift toast (Bontago-1en.16), both already
+## comment and ui/hud/HUD.gd's gift toast, both already
 ## local-only; a global "someone somewhere claimed a gift" chime would be
 ## noise in an 8-player match with crates spawning continuously. The loop gates
-## on LocalFeedback.is_own_human_slot() (Bontago-1pi.52): a human seat driven
+## on LocalFeedback.is_own_human_slot(): a human seat driven
 ## on this machine, so hot-seat humans still hear their claims while offline
 ## bots (including bot teammates) never chime.
 ##
@@ -1306,7 +1306,7 @@ func _looped_copy(source: AudioStream) -> AudioStream:
 ## either, so this just stays silent for them rather than inventing a new
 ## tunable with no other precedent to match.
 ##
-## Bontago-keo.17 (owner decision "b"): `recipient_slot` is the RESOLVED
+## "b": `recipient_slot` is the RESOLVED
 ## RECIPIENT -- the one teammate nearest the crate, not every teammate -- but
 ## this sound is still a team-wide notification (a teammate should hear
 ## "your team claimed a special" even on the claim that doesn't land in their
@@ -1326,7 +1326,7 @@ func _looped_copy(source: AudioStream) -> AudioStream:
 ## single-slot check this handler used before real teams existed.
 func _on_gift_claimed(_gift_id: int, recipient_slot: int, _special_id: StringName) -> void:
 	for slot_id: int in range(maxi(Match.slot_count(), recipient_slot + 1)):
-		# Bontago-1pi.52: a human seat on this machine only -- offline every slot
+		# a human seat on this machine only -- offline every slot
 		# is local, so a bot claiming on its own team (or a bot teammate) would
 		# otherwise chime for a player who has nothing to do with it.
 		if not LocalFeedback.is_own_human_slot(slot_id):
@@ -1346,7 +1346,7 @@ func _team_of_slot(slot_id: int) -> int:
 	return Match.config.team_of_slot(slot_id)
 
 
-# --- Beacon-claim tension layer (Bontago-1pi.114) ------------------------------
+# --- Beacon-claim tension layer ------------------------------
 #
 # Derived locally from Events.goal_capture_progress, which every machine already
 # receives (MatchTerritory emits it on host and clients alike; Classic keeps its

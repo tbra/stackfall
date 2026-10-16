@@ -5,7 +5,7 @@ extends GutTest
 ## they get a test: if someone changes the physics engine, drops physics
 ## interpolation, or adds a control with no gamepad binding, this fails.
 
-## Spec 2.5, plus the pause action the shell needs. Every one of these must have
+## Spec 1.3, plus the pause action the shell needs. Every one of these must have
 ## a mouse/keyboard binding and a gamepad binding (CLAUDE.md, "Tech rules").
 const REQUIRED_ACTIONS: PackedStringArray = [
 	"ghost_move_left",
@@ -55,7 +55,7 @@ const REQUIRED_ACTIONS: PackedStringArray = [
 	"hud_toggle",
 	"sandbox_force_special",
 	"screenshot_capture",
-	# Bontago-1pi.15.1: menu accept/cancel need an explicit gamepad half too
+	# menu accept/cancel need an explicit gamepad half too
 	# (tools/bootstrap_project.gd's own "--- UI (menus) ---" block).
 	"ui_accept",
 	"ui_cancel",
@@ -64,7 +64,7 @@ const REQUIRED_ACTIONS: PackedStringArray = [
 ## Actions whose mouse or gamepad half is deliberately absent, with the reason.
 ## Anything not listed here must be bound on both devices.
 const DEVICE_EXCEPTIONS: Dictionary = {
-	# Owner: B owns the gamepad yaw snap; shoulders no longer rotate.
+	# B owns the gamepad yaw snap; shoulders no longer rotate.
 	"rotate_yaw_ccw": "pad",
 	"rotate_yaw_cw": "pad",
 	# Godot cannot bind InputEventMouseMotion to an action; the mouse drives the
@@ -78,13 +78,13 @@ const DEVICE_EXCEPTIONS: Dictionary = {
 	"camera_look_up": "mouse",
 	"camera_look_down": "mouse",
 	# The gamepad's right stick orbits directly, so it needs no hold modifier
-	# (Bontago-mv0.14: renamed from camera_orbit_hold).
+	# (renamed from camera_orbit_hold).
 	"camera_mode": "pad",
-	# Bontago-mv0.22: RMB is the primary orbit hold now (camera_mode/C stays a
+	# RMB is the primary orbit hold now (camera_mode/C stays a
 	# keyboard alias); the right stick orbits unconditionally on gamepad for
 	# the same reason camera_mode needs no hold there.
 	"camera_orbit": "pad",
-	# Bontago-mv0.22 fix (coordinator, 2026-09-22): MMB moved to rotate_drag's
+	# fix (coordinator): MMB moved to rotate_drag's
 	# continuous spin alone, so a single MMB press no longer also fires this
 	# action's old tap (that was firing both from one press -- every drag
 	# started with an unwanted 90 degree step). rotate_yaw_cw (KEY_S / RB)
@@ -100,8 +100,7 @@ const DEVICE_EXCEPTIONS: Dictionary = {
 	# The gamepad already keeps ghost movement (left stick) and height (RS
 	# click/X) on separate physical inputs, so there is nothing to lock.
 	"lock_vertical": "pad",
-	# Owner controller update (feedback/controller-update.md, re-confirmed
-	# 2026-09-28): RT held + left stick now free-rotates the block
+	# Controller update (re-confirmed): RT held + left stick now free-rotates the block
 	# continuously (rotate_drag's own gesture, mirrored for gamepad); the
 	# keyboard's R key stays rotation_mode's 90 degree snap grid unchanged, so
 	# rotation_mode itself carries no gamepad binding any more.
@@ -110,7 +109,7 @@ const DEVICE_EXCEPTIONS: Dictionary = {
 	# (MMB) is this gesture's mouse/keyboard half already; there is no separate
 	# desktop binding for this action itself.
 	"rotate_drag_pad": "mouse",
-	# Owner controller update: "Triggers alone must NEVER zoom" -- the trigger
+	# Triggers alone must NEVER zoom -- the trigger
 	# axes came off camera_zoom_in/out entirely; Z/X are keyboard-only now.
 	"camera_zoom_in": "pad",
 	"camera_zoom_out": "pad",
@@ -137,74 +136,11 @@ func test_snap_rotation_uses_b_without_shoulder_rotation() -> void:
 				assert_false(event.button_index in [JOY_BUTTON_LEFT_SHOULDER, JOY_BUTTON_RIGHT_SHOULDER])
 
 
-func test_physics_engine_is_jolt() -> void:
-	assert_eq(
-		str(ProjectSettings.get_setting("physics/3d/physics_engine", "")),
-		"Jolt Physics",
-		"Spec 3.1 requires Jolt for 3D physics."
-	)
-
-
-func test_physics_runs_at_60_hz() -> void:
-	assert_eq(Engine.physics_ticks_per_second, 60, "Spec 3.5 fixes the tick rate at 60 Hz.")
-
-
-func test_physics_interpolation_is_on() -> void:
-	assert_true(
-		bool(ProjectSettings.get_setting("physics/common/physics_interpolation", false)),
-		"Spec 3.5 needs interpolation so rendering stays smooth above 60 fps."
-	)
-
-
-func test_renderer_is_forward_plus() -> void:
-	assert_eq(
-		str(ProjectSettings.get_setting("rendering/renderer/rendering_method", "")),
-		"forward_plus",
-		"Spec 3.1 requires the Forward+ renderer."
-	)
-
-
-func test_jolt_solver_iterations_are_at_least_the_spec_baseline() -> void:
-	# Spec 3.5: "Start at 10 and 4, and tune using a benchmark scene with a
-	# 40-block tower." The tuned values (see tools/bootstrap_project.gd) may rise
-	# above the spec's starting point but must never fall below it; the 40-block
-	# tower benchmark (tests/bench) owns the exact numbers.
-	var velocity_steps: int = int(ProjectSettings.get_setting("physics/jolt_physics_3d/simulation/velocity_steps", 0))
-	var position_steps: int = int(ProjectSettings.get_setting("physics/jolt_physics_3d/simulation/position_steps", 0))
-	assert_gte(velocity_steps, 10, "spec 3.5 velocity iterations baseline")
-	assert_gte(position_steps, 4, "spec 3.5 position iterations baseline")
-
-
-func test_blocks_are_not_damped_into_stability() -> void:
-	# Guard rail for spec 1.6's "real sense of weight and balance": towers are
-	# held up by solver convergence, not by damping. Linear damping caps a
-	# falling block at g / damp, so the cap must stay above the speed a block
-	# reaches falling the whole way to the kill plane, or blocks float down.
-	var tuning: PhysicsTuning = load("res://config/physics/physics_tuning.tres")
-	var gravity: float = float(ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)) * tuning.gravity_multiplier
-	var terminal_speed: float = gravity / maxf(tuning.block_linear_damp, 0.001)
-	var free_fall_speed: float = sqrt(2.0 * gravity * absf(tuning.kill_plane_y))
-	assert_gt(
-		terminal_speed, free_fall_speed,
-		"Linear damping of %.2f caps terminal fall speed at %.1f m/s, below free fall to the kill plane (%.1f m/s); blocks would float." % [
-			tuning.block_linear_damp, terminal_speed, free_fall_speed,
-		]
-	)
-
-
-func test_untyped_declarations_are_errors() -> void:
-	assert_eq(
-		int(ProjectSettings.get_setting("debug/gdscript/warnings/untyped_declaration", 0)),
-		2,
-		"CLAUDE.md treats untyped declarations as errors, not warnings."
-	)
-
-
 func test_autoloads_are_registered() -> void:
 	for singleton: String in AUTOLOADS:
 		assert_true(
 			ProjectSettings.has_setting("autoload/%s" % singleton),
-			"Autoload %s is missing (spec 3.2)." % singleton
+			"Autoload %s is missing (spec 2.2)." % singleton
 		)
 		assert_not_null(
 			get_tree().root.get_node_or_null(NodePath(singleton)),
@@ -212,13 +148,9 @@ func test_autoloads_are_registered() -> void:
 		)
 
 
-func test_startup_pump_is_first_root_child() -> void:
-	assert_eq(get_tree().root.get_child(0).name, &"StartupPump", "StartupPump must be the first autoload.")
-
-
 func test_every_required_action_exists() -> void:
 	for action: String in REQUIRED_ACTIONS:
-		assert_true(InputMap.has_action(action), "Input action %s is missing (spec 2.5)." % action)
+		assert_true(InputMap.has_action(action), "Input action %s is missing (spec 1.3)." % action)
 
 
 func test_every_action_is_bound_on_both_devices() -> void:

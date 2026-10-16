@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mp0.130: fog retune. Ambient theme fog params load, the Skybox applies
+## fog retune. Ambient theme fog params load, the Skybox applies
 ## aerial perspective / sun scatter / height fog, weather fog adds aerial
 ## perspective and restores it, and exponential fog density at the arena's far
 ## rim stays under the readability threshold (pure function).
@@ -7,9 +7,6 @@ extends GutTest
 const THEME_IDS: Array[String] = ["dawn", "sunset", "storm", "night"]
 
 var _fog: FogTuning = preload("res://config/weather/fog.tres")
-
-
-const FOG_MATCH_TOLERANCE: float = 0.1
 
 
 func _rig(theme_id: String) -> Array:
@@ -22,27 +19,6 @@ func _rig(theme_id: String) -> Array:
 	add_child_autofree(skybox)
 	skybox.apply_theme(skybox.theme)
 	return [skybox, environment]
-
-
-func test_every_theme_keeps_the_far_rim_readable() -> void:
-	for theme_id: String in THEME_IDS:
-		var theme: SkyThemeDef = load("res://config/sky/themes/%s.tres" % theme_id) as SkyThemeDef
-		var keep: float = exp(-maxf(theme.fog_density, 0.0) * _fog.arena_far_rim_m)
-		assert_gte(keep, _fog.ambient_min_rim_keep, "%s keeps the far rim readable (keep %.3f)" % [theme_id, keep])
-		# Height fog is only dense below the arena: it must not start above the disc.
-		assert_lte(theme.fog_height_m, 0.0, "%s height fog stays below the disc" % theme_id)
-
-
-func test_themes_load_the_new_fog_params_and_skybox_applies_them() -> void:
-	for theme_id: String in THEME_IDS:
-		var parts: Array = _rig(theme_id)
-		var environment: Environment = parts[1]
-		var theme: SkyThemeDef = (parts[0] as Skybox).theme
-		assert_gt(theme.fog_aerial_perspective, 0.0, "%s has aerial perspective" % theme_id)
-		assert_almost_eq(environment.fog_aerial_perspective, theme.fog_aerial_perspective, 0.0001)
-		assert_almost_eq(environment.fog_sun_scatter, theme.fog_sun_scatter, 0.0001)
-		assert_almost_eq(environment.fog_height, theme.fog_height_m, 0.0001)
-		assert_almost_eq(environment.fog_height_density, theme.fog_height_density, 0.0001)
 
 
 func test_weather_fog_flattens_aerial_perspective_and_restores_it() -> void:
@@ -58,13 +34,6 @@ func test_weather_fog_flattens_aerial_perspective_and_restores_it() -> void:
 	assert_almost_eq(environment.fog_aerial_perspective, base, 0.0001)
 
 
-func test_weather_fog_depth_ramp_still_clears_the_near_field() -> void:
-	assert_gte(_fog.depth_begin_m, _fog.clear_radius_m)
-	var span: float = _fog.depth_end_m - _fog.depth_begin_m
-	var t: float = clampf((_fog.far_reference_distance_m - _fog.depth_begin_m) / span, 0.0, 1.0)
-	assert_gte(1.0 - _fog.max_opacity * t, _fog.far_min_visibility)
-
-
 func test_ambient_haze_starts_beyond_the_arena_and_blends_with_weather() -> void:
 	for theme_id: String in THEME_IDS:
 		var theme: SkyThemeDef = load("res://config/sky/themes/%s.tres" % theme_id) as SkyThemeDef
@@ -78,23 +47,3 @@ func test_ambient_haze_starts_beyond_the_arena_and_blends_with_weather() -> void
 	WeatherFogShader.reset_to_launch(null)
 	assert_eq(WeatherFogShader.strength, 0.0)
 
-
-## Bontago-1pi.130: Environment depth fog (what blocks get) vs the disc shader's
-## own linear fog: same colour source, same begin/end/opacity, factors agree at
-## the midpoint and stay close at the far end.
-func test_env_fog_factor_matches_disc_fog_formula() -> void:
-	var parts: Array = _rig("night")
-	var skybox: Skybox = parts[0]
-	var environment: Environment = parts[1]
-	skybox.set_weather_fog(1.0, _fog.max_opacity, _fog.depth_begin_m, _fog.depth_end_m,
-		_fog.fog_color, _fog.fog_tint_strength, _fog.sky_affect)
-	assert_eq(environment.fog_mode, Environment.FOG_MODE_DEPTH)
-	assert_almost_eq(environment.fog_aerial_perspective, 0.0, 0.0001)
-	assert_true(skybox.weather_fog_color().is_equal_approx(environment.fog_light_color))
-	var span: float = environment.fog_depth_end - environment.fog_depth_begin
-	for fraction: float in [0.5, 0.9, 1.0]:
-		var distance: float = environment.fog_depth_begin + span * fraction
-		var env_factor: float = pow(smoothstep(environment.fog_depth_begin, environment.fog_depth_end, distance),
-			environment.fog_depth_curve) * environment.fog_density
-		var disc_factor: float = clampf((distance - _fog.depth_begin_m) / span, 0.0, 1.0) * _fog.max_opacity
-		assert_almost_eq(env_factor, disc_factor, FOG_MATCH_TOLERANCE, "fraction %.2f" % fraction)

@@ -1,6 +1,6 @@
 class_name SpecialEffect
 extends Resource
-## Base class for a special's own behavior (spec 2.6: "Every special is its
+## Base class for a special's own behavior (spec 1.6: "Every special is its
 ## own SpecialDef resource plus a script"). One concrete subclass per special
 ## type (RocketEffect.gd, VolcanoEffect.gd, ...) lands in P3-P5; this package
 ## (M4 P2a) only defines the shared no-op interface `game/gifts/specials/
@@ -8,8 +8,8 @@ extends Resource
 ##
 ## Every concrete subclass declares its own typed `@export` tunables (speed,
 ## radius, impulse, ...) rather than an untyped `params: Dictionary`
-## (docs/archive/M4_PLAN.md's own DECISION, restated here since this is the base
-## class those subclasses extend) -- CLAUDE.md's static-typing rule applies
+## (restated here because this is the base class those subclasses extend) -- the
+## project's static-typing rule applies
 ## to those exports too.
 
 ## Runs once per physics tick while the owning SpecialBehavior is armed and
@@ -25,9 +25,8 @@ func physics_tick(_block: Block, _behavior: SpecialBehavior, _delta: float) -> v
 ## impact/fuse special (Bomb, Rocket, Anvil) activates on its own hard
 ## landing or the fuse timeout, nothing else needed.
 ##
-## FIX (game/gifts/specials/SpecialEffect.gd, Bontago-1en.22): a "timed-effect
-## pattern" special (Propeller, Jumping Bean, Earthquake, Volcano -- see
-## docs/archive/M4_SPECIALS_PACKAGES.md's timed-effect pattern) overrides this to
+## FIX (game/gifts/specials/SpecialEffect.gd): a "timed-effect
+## pattern" special (Propeller, Jumping Bean, Earthquake, Volcano) overrides this to
 ## false. Those effects already run physics_tick() every armed tick
 ## regardless of impact, and their own end is entirely time-driven
 ## (wants_early_trigger()/the fuse) -- without this veto, a block thrown or
@@ -60,7 +59,7 @@ func detonate(_block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> v
 	pass
 
 
-## Bontago-1pi.85.9 lifecycle hooks (docs/GIFT_EFFECTS_PLAN.md section 2). Every
+## lifecycle hooks. Every
 ## default below preserves the pre-rework behaviour, so an effect opts in
 ## individually.
 
@@ -71,7 +70,7 @@ func needs_landing() -> bool:
 	return false
 
 
-## Bontago-1pi.85.35: landing-probe thresholds for this effect's carrier. null (default) =
+## landing-probe thresholds for this effect's carrier. null (default) =
 ## LandedProbe's own LandedTuning defaults, i.e. today's behaviour. SpecialBehavior builds
 ## its LandedProbe from this once, in bind().
 func landed_tuning() -> LandedTuning:

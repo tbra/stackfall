@@ -1,6 +1,6 @@
 class_name ChatMute
 extends RefCounted
-## Per-session, client-side chat mute list (Bontago-1pi.192.6, docs/CHAT_PLAN.md C5). Pure: no scene
+## Per-session, client-side chat mute list. Pure: no scene
 ## tree. Muting only hides a player's lines on this machine (the host still relays them); system
 ## lines are never muted. Keyed by peer id.
 ## DECISION: peer id, not slot or roster id. A line carries the sender's peer id, and a peer keeps

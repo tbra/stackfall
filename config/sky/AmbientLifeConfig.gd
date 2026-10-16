@@ -1,6 +1,6 @@
 class_name AmbientLifeConfig
 extends Resource
-## Bontago-adt.3: tunables for the purely cosmetic, local-only ambient life
+## tunables for the purely cosmetic, local-only ambient life
 ## (perching birds, game/ambient/PerchingBirds.gd; fireflies, game/ambient/Fireflies.gd). One
 ## instance is referenced from each config/sky/SkyThemeDef.gd (`ambient_life`), so
 ## the effects are theme-gated: sunset ships birds (fireflies_count 0), night
@@ -14,7 +14,7 @@ extends Resource
 ## for this theme.
 @export var perch_bird_count: int = 8
 ## Bird body length (m), picked per bird, then multiplied by perch_bird_scale
-## (owner 2026-09-30: the disc birds read too small, so they are drawn ~1.5x
+## (the disc birds read too small, so they are drawn ~1.5x
 ## with proportions unchanged). The default clearances below are sized for
 ## the scaled bird; raise them with the scale.
 @export var perch_bird_length_min_m: float = 0.25
@@ -62,7 +62,7 @@ extends Resource
 ## How often (s) the birds re-check their surroundings.
 @export var threat_poll_interval_s: float = 0.12
 
-# --- Flocks (Bontago-6fc.3) ----------------------------------------------------
+# --- Flocks ----------------------------------------------------
 
 ## Birds arrive in flocks of a random size in this range (clamped by the total
 ## cap, perch_bird_count, and by the free slots).

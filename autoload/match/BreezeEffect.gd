@@ -1,9 +1,9 @@
 class_name BreezeEffect
 extends WindEffect
-## Host-side Breeze (Bontago-470.2): an always-on weak wind made of short
+## Host-side Breeze: an always-on weak wind made of short
 ## local GUSTS, layered independently of the weather mode and of any active
 ## weather, except Storm: no NEW gust spawns while a Storm event is active
-## (Bontago-mp0.91, owner playtest "gust shouldn't occur during storm"); they
+## ("gust shouldn't occur during storm"); they
 ## resume when it ends. Rules: core/weather/BreezeField.gd; numbers: config/breeze/breeze.tres
 ## (BreezeTuning).
 ##
@@ -18,7 +18,7 @@ extends WindEffect
 ## DECISION (BreezeEffect): forces are applied per tick with
 ## apply_central_force, exactly like StormEffect, so they SUM with a Storm's
 ## push in the physics step. Each is clamped on its own (per-tick dv and an
-## along-heading speed cap: Breeze's is small). Since Bontago-mp0.91 no new
+## along-heading speed cap: Breeze's is small). Since no new
 ## gust spawns while a Storm is active, so the overlap is limited to a gust
 ## already in flight at storm start; stopping the tick is a complete undo.
 ## DECISION (BreezeEffect): sleeping blocks are scanned on a rotating stride and
@@ -26,7 +26,7 @@ extends WindEffect
 ## physics (Freeze, SpecialBehavior) are skipped, as in Storm.
 ## DECISION (BreezeEffect): the gust list is authoritative host state; a peer
 ## joining mid-gust simply misses that gust's visual (transient, seconds).
-## DECISION (BreezeEffect, Bontago-mp0.91): the host scheduler skips the spawn
+## DECISION (BreezeEffect): the host scheduler skips the spawn
 ## attempt while the active weather id is Storm (any phase: ramp-in, hold,
 ## ramp-out; the F4 forced storm too). Clients need no logic: they only draw the
 ## gusts the host announces, so no announcement means no gust. A gust already in
@@ -154,7 +154,7 @@ func _eligible(block: Block) -> bool:
 	if not is_instance_valid(block) or not block.is_inside_tree():
 		return false
 	# A settled tower is stable-frozen STATIC after 20 s asleep; gusts wake it
-	# (Bontago-mp0.36). Any other freeze (Freeze special) still blocks the push.
+	# . Any other freeze (Freeze special) still blocks the push.
 	if WindEffect.is_stable_frozen(block):
 		return true
 	return not block.freeze and not block.is_freeze_static()
@@ -162,7 +162,7 @@ func _eligible(block: Block) -> bool:
 
 ## One seeded attempt. The random draws are always consumed in the same order so
 ## the sequence depends only on the seed and the block list (no draws are made
-## while a Storm suppresses spawning, Bontago-mp0.91).
+## while a Storm suppresses spawning).
 func _try_spawn() -> void:
 	var blocks: Array[Block] = _blocks()
 	var pick: float = _rng.randf()
@@ -173,7 +173,7 @@ func _try_spawn() -> void:
 	var angle: float = _rng.randf() * TAU
 	var radius: float = _rng.randf_range(_bt.radius_min_m, maxf(_bt.radius_min_m, _bt.radius_max_m))
 	var duration: float = _rng.randf_range(_bt.duration_min_s, maxf(_bt.duration_min_s, _bt.duration_max_s))
-	# Bontago-1pi.76: at most ONE gust alive at a time (a sporadic single gust).
+	# at most ONE gust alive at a time (a sporadic single gust).
 	if blocks.is_empty() or not _gusts.is_empty():
 		return
 	var block: Block = blocks[mini(int(pick * float(blocks.size())), blocks.size() - 1)]

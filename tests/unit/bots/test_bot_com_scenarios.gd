@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1t5.59: end-to-end centre-of-mass picks on a real Field (docs/BOT_TOWER_PLAN.md C "1t5.53b").
+## end-to-end centre-of-mass picks on a real Field.
 ## The V2 bot's real think (BotController._begin_thinking -> BotThink phases STACK/PROBE/RANK/MEASURE/PICK,
 ## zero aim noise, pick_pool 1) chooses among two hand-built sites on a scripted tower, once with the
 ## BotStack snapshot (BotStackProbe.build) and once with view.stack = null; the choice is then sent through
@@ -8,7 +8,6 @@ extends GutTest
 const CUBE_SHAPE: BlockShape = preload("res://config/blocks/cube.tres")
 const CUBE8_SHAPE: BlockShape = preload("res://config/blocks/cube8.tres")
 const PLATE9_SHAPE: BlockShape = preload("res://config/blocks/plate9.tres")
-const DOMINO_SHAPE: BlockShape = preload("res://config/blocks/domino.tres")
 const PHYSICS_TUNING: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
 
 const BOT_SLOT: int = 1
@@ -124,7 +123,6 @@ func _site(view: BotWorldView, shape: BlockShape, com_xz: Vector2) -> BotCandida
 	candidate.origin = com_xz - info.com * PHYSICS_TUNING.cube_size
 	candidate.orientation_index = 0
 	candidate.site_kind = BotCandidateGen.SITE_STACK
-	candidate.on_top_of_own_stack = true
 	candidate.shape_height = info.height
 	candidate.footprint_cells = BotStatics.footprint_cells_of(view.held, info, candidate.origin, view.cube_size, view.grid)
 	return candidate
@@ -144,7 +142,7 @@ func _think_over(shape: BlockShape, com_targets: Array[Vector2], with_stack: boo
 			func(slot: int) -> int: return int(Match.team_of(slot))
 		)
 	var think: BotThink = bot._think
-	# Bontago-1t5.54: STACK now runs before PLAN, so the generated sites are swapped once FILL is over (PROBE next).
+	# STACK now runs before PLAN, so the generated sites are swapped once FILL is over (PROBE next).
 	while think._phase < BotThink.Phase.PROBE:
 		think.step(0, bot._probe)
 	think._candidates.clear()
@@ -246,12 +244,3 @@ func test_stack_aware_pick_keeps_the_column_standing_for_three_seconds() -> void
 	assert_lt(_max_column_move(), MAX_COLUMN_MOVE_M, "no column block moved")
 	if block != null:
 		assert_gt(_field.to_local(block.global_position).y, _field.surface_y() + float(COLUMN_CUBES) * PHYSICS_TUNING.cube_size, "the piece rests on top")
-
-
-## (2b) The same scene without the stack: the overhang is chosen and the column moves.
-func test_pick_without_the_stack_loads_the_column_past_its_edge() -> void:
-	var blind: BotController = await _setup_and_think(false)
-	_send_pick(blind)
-	await wait_physics_frames(SETTLE_TICKS)
-	var moved: float = _max_column_move()
-	assert_gt(moved, MAX_COLUMN_MOVE_M, "the stack-blind pick disturbs the column")

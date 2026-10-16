@@ -1,6 +1,6 @@
 class_name QualityGovernorDriver
 extends Node
-## Bontago-1pi.11.37: feeds core/QualityGovernor.gd at a low rate and hands the level
+## feeds core/QualityGovernor.gd at a low rate and hands the level
 ## to Settings, which resolves the effective preset (stored settings never change).
 ## Per frame it only adds the frame time; the awake-block walk and the evaluation run
 ## once per config.sample_interval_s. Idle (process off) while the option is off.

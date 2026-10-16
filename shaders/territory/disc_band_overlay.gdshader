@@ -1,5 +1,5 @@
 shader_type spatial;
-// Bontago-adt.2 (graphics roadmap "Textures/materials (disc/emissive)"):
+// (graphics roadmap "Textures/materials (disc/emissive)"):
 // additive overlay drawn as the `next_pass` of game/DiscBody.gd's band
 // StandardMaterial3D. It gives the plain graphite side wall its "banded body"
 // read from mockup 08 without replacing that material: a thin dim gold inlay

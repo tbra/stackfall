@@ -1,6 +1,6 @@
 class_name ScoreboardOverlay
 extends CanvasLayer
-## Bontago-1pi.69 (owner playtest: "a glanceable score tracker players can bring
+## (: "a glanceable score tracker players can bring
 ## up during the game ... tab / r-stick click by default (shows while held down)").
 ##
 ## Shown while the `show_scores` action is held during a live round, hidden on
@@ -18,14 +18,14 @@ const SCOREBOARD_LAYER: int = 20
 ## (with live_payload()) and `config`.
 var match_provider: Variant = null
 ## game/main/Main.gd sets this true while a sandbox is running: there Tab keeps its
-## sandbox_next_slot meaning and no scoreboard exists (DECISION, Bontago-1pi.69).
+## sandbox_next_slot meaning and no scoreboard exists (DECISION).
 var suppressed: bool = false
 
 var _holding: bool = false
 var _paused: bool = false
 var _last_rows: Array = []
 var _last_mode: Variant = null
-## Chat mute strip (Bontago-1pi.192.6): one toggle per remote player, built while a chat session runs.
+## Chat mute strip: one toggle per remote player, built while a chat session runs.
 var _mute_box: HFlowContainer = null
 var _mute_peers: PackedInt32Array = PackedInt32Array()
 var _mute_buttons: Dictionary = {}
@@ -56,7 +56,7 @@ func _ready() -> void:
 	Events.match_scope_reset.connect(release)
 
 
-## Stackfall Arcade (Bontago-hfa.7): the same disc-800 plate and rim kicker as the results
+## Stackfall Arcade: the same disc-800 plate and rim kicker as the results
 ## card, on a lighter disc-950 scrim so the match stays visible behind the held table.
 func _apply_visual_style() -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()

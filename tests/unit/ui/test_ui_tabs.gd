@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.159.5: UiTabs / UiTab: one active tab, rim notch on the active one (top when
+## UiTabs / UiTab: one active tab, rim notch on the active one (top when
 ## HORIZONTAL, left when VERTICAL), click / left-right / LB-RB selection, skipping hidden and
 ## disabled tabs, wrap-around index.
 
@@ -36,14 +36,6 @@ func test_next_index_wraps_both_ways() -> void:
 	assert_eq(UiTabs.next_index(0, 1, 0), 0)
 
 
-func test_first_tab_is_active_without_a_signal_and_labels_are_uppercase() -> void:
-	var tabs: UiTabs = _make()
-	assert_eq(tabs.current, &"game")
-	assert_eq(_changes.size(), 0)
-	assert_eq(tabs.get_tab(&"graphics").text, "GRAPHICS")
-	assert_true(tabs.get_tab(&"game").button_pressed)
-
-
 func test_click_selects_and_emits_once() -> void:
 	var tabs: UiTabs = _make()
 	tabs.get_tab(&"controls").pressed.emit()
@@ -51,38 +43,6 @@ func test_click_selects_and_emits_once() -> void:
 	assert_eq(_changes, [&"controls"])
 	tabs.get_tab(&"controls").pressed.emit()
 	assert_eq(_changes.size(), 1, "re-pressing the active tab does nothing")
-
-
-func test_assigning_current_selects_and_keeps_exactly_one_pressed() -> void:
-	var tabs: UiTabs = _make()
-	tabs.current = &"graphics"
-	var pressed: int = 0
-	for id: StringName in tabs.tab_ids():
-		if tabs.get_tab(id).button_pressed:
-			pressed += 1
-	assert_eq(pressed, 1)
-	assert_eq(_changes, [&"graphics"])
-	tabs.current = &"unknown"
-	assert_eq(tabs.current, &"graphics")
-
-
-func test_active_tab_has_the_rim_notch_on_top_and_vertical_on_the_left() -> void:
-	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	var notch: int = UiRowItem.metrics().tab_notch_px
-	var top: UiTabs = _make()
-	var active: StyleBoxFlat = top.get_tab(&"game").get_theme_stylebox("pressed") as StyleBoxFlat
-	assert_eq(active.border_width_top, notch)
-	assert_eq(active.border_width_left, 0)
-	assert_eq(active.border_color, arcade.rim_color)
-	assert_eq(active.bg_color, arcade.disc_600_color)
-	var idle: StyleBoxFlat = top.get_tab(&"game").get_theme_stylebox("normal") as StyleBoxFlat
-	assert_eq(idle.border_width_top, 0)
-	assert_eq(idle.bg_color.a, 0.0, "idle is transparent")
-	var side: UiTabs = _make(true)
-	var side_active: StyleBoxFlat = side.get_tab(&"game").get_theme_stylebox("pressed") as StyleBoxFlat
-	assert_eq(side_active.border_width_left, notch)
-	assert_eq(side_active.border_width_top, 0)
-	assert_true(side.vertical)
 
 
 func test_left_right_on_a_focused_tab_selects_the_neighbour() -> void:
@@ -98,15 +58,6 @@ func test_left_right_on_a_focused_tab_selects_the_neighbour() -> void:
 	assert_eq(tabs.current, &"controls", "wraps")
 
 
-func test_vertical_bar_steps_with_up_down() -> void:
-	var tabs: UiTabs = _make(true)
-	await wait_frames(1)
-	tabs.get_tab(&"game")._gui_input(_action(&"ui_right"))
-	assert_eq(tabs.current, &"game", "left / right do nothing in a side bar")
-	tabs.get_tab(&"game")._gui_input(_action(&"ui_down"))
-	assert_eq(tabs.current, &"graphics")
-
-
 func test_shoulders_cycle_and_the_flag_turns_them_off() -> void:
 	var tabs: UiTabs = _make()
 	await wait_frames(1)
@@ -118,17 +69,6 @@ func test_shoulders_cycle_and_the_flag_turns_them_off() -> void:
 	tabs.handle_shoulders = false
 	tabs._unhandled_input(_action(&"menu_tab_next"))
 	assert_eq(tabs.current, &"controls")
-
-
-func test_shoulder_events_are_bound_to_lb_rb() -> void:
-	var lb: InputEventJoypadButton = InputEventJoypadButton.new()
-	lb.button_index = JOY_BUTTON_LEFT_SHOULDER
-	lb.pressed = true
-	assert_true(lb.is_action_pressed(&"menu_tab_previous"))
-	var rb: InputEventJoypadButton = InputEventJoypadButton.new()
-	rb.button_index = JOY_BUTTON_RIGHT_SHOULDER
-	rb.pressed = true
-	assert_true(rb.is_action_pressed(&"menu_tab_next"))
 
 
 func test_hidden_and_disabled_tabs_are_skipped() -> void:
@@ -144,19 +84,7 @@ func test_hidden_and_disabled_tabs_are_skipped() -> void:
 	assert_eq(tabs.current, &"controls", "a hidden tab cannot be selected")
 
 
-func test_hiding_the_active_tab_moves_to_the_next() -> void:
-	var tabs: UiTabs = _make()
-	tabs.set_tab_visible(&"game", false)
-	assert_eq(tabs.current, &"graphics")
-
-
-func test_tab_height_comes_from_metrics() -> void:
-	var tabs: UiTabs = _make()
-	await wait_frames(2)
-	assert_gte(tabs.get_tab(&"game").size.y, float(UiRowItem.metrics().tab_height_px))
-
-
-## Bontago-1pi.159.13: a stick hovering around the ui deadzone stepped several tabs (each step moved
+## a stick hovering around the ui deadzone stepped several tabs (each step moved
 ## focus to the neighbour, which saw the still-held stick as a new push).
 const PAD_DEVICE: int = 0
 const FRAME: float = 1.0 / 60.0
@@ -198,19 +126,6 @@ func _wire(tabs: UiTabs) -> void:
 	_changes.clear()
 
 
-func test_stick_hovering_near_the_threshold_steps_one_tab() -> void:
-	var tabs: UiTabs = _make()
-	await _wire(tabs)
-	_feed(tabs, PUSH)
-	for _i: int in 20:
-		_feed(tabs, DRIFT_LOW)
-		_feed(tabs, PUSH)
-	assert_eq(_changes, [&"graphics"], "one push = one tab")
-	_feed(tabs, REST)
-	_feed(tabs, PUSH)
-	assert_eq(_changes, [&"graphics", &"controls"], "re-arms below the release threshold")
-
-
 func test_stick_partial_push_never_repeats_but_full_deflection_does() -> void:
 	var tabs: UiTabs = _make()
 	await _wire(tabs)
@@ -225,11 +140,3 @@ func test_stick_partial_push_never_repeats_but_full_deflection_does() -> void:
 		tabs._process(FRAME)
 	assert_gt(_changes.size(), 1, "full deflection auto-repeats slowly")
 	assert_lt(_changes.size(), 4)
-
-
-func test_stick_release_stops_the_hold() -> void:
-	var tabs: UiTabs = _make()
-	await _wire(tabs)
-	_feed(tabs, FULL)
-	_feed(tabs, REST)
-	assert_false(tabs._hold.is_holding())

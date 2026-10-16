@@ -1,6 +1,6 @@
 class_name KeyRebindRow
 extends Button
-## docs/archive/M6_PLAN.md package C2: one row per rebindable Input Map action, built
+## One row per rebindable
 ## dynamically by ui/menus/OptionsMenu.gd's _build_rebind_rows() (one instance of
 ## this scene per OptionsMenu.REBINDABLE_ACTIONS entry). Shows the action's
 ## current binding(s) as InputGlyph icons (InputMap.action_get_events(),
@@ -9,7 +9,7 @@ extends Button
 ## autoload/Settings.gd's own doc) and captures the next InputEventKey/
 ## InputEventMouseButton/InputEventJoypadButton while "listening".
 ##
-## Bontago-1pi.10 polish pass (owner: "Remove the per-row 'Rebind' buttons.
+## polish pass ("Remove the per-row 'Rebind' buttons.
 ## The whole row is the focusable/clickable target"): this scene's own root
 ## is now the Button (extends Button, not HBoxContainer) -- a click or
 ## Space/Enter anywhere on the row starts listening, exactly like the old
@@ -21,19 +21,19 @@ extends Button
 
 signal rebind_captured(action: StringName, event: InputEvent)
 
-## Owner: "max two glyphs per row, extra bindings hidden behind '+1'".
+## Requirement: "max two glyphs per row, extra bindings hidden behind '+1'".
 const MAX_GLYPHS: int = 2
 
 const INPUT_GLYPH_SCENE: PackedScene = preload("res://ui/hud/InputGlyph.tscn")
 
-## Bontago-hfa.4 (UI reskin P2): the BindingRow listening prompt, shown in rim in place of the
+## UI reskin P2: the BindingRow listening prompt, shown in rim in place of the
 ## glyphs (docs/ui_reskin/components.md "BindingRow"). The gamepad page asks for a button.
 const LISTENING_TEXT_KEYBOARD: String = "PRESS A KEY\u2026"
 const LISTENING_TEXT_GAMEPAD: String = "PRESS A BUTTON\u2026"
 const LISTENING_LABEL_NAME: String = "ListeningLabel"
 const OPTIONS_TUNING: OptionsVisualTuning = preload("res://config/ui/options_visual_tuning.tres")
 
-## Friendly, player-facing action names (owner: "Friendly action names and
+## Friendly, player-facing action names ("Friendly action names and
 ## grouping ... human labels"). Deliberately only covers
 ## OptionsMenu.REBINDABLE_ACTIONS -- anything missing here falls back to
 ## _display_name()'s old auto-titlecase, so a future rebindable action never
@@ -72,7 +72,7 @@ const DISPLAY_NAMES: Dictionary[StringName, String] = {
 	&"chat_open": "Chat",
 }
 
-## Bontago-1pi.159.63 (owner decision 1pi.159.62, option A): the gamepad page lists only
+## The gamepad page lists only
 ## the pad's real controls. The pad rotates with B (rotate_snap, a 90 degree tap) and with
 ## RT held + left stick (rotate_drag_pad, free rotation), so those two have their own rows
 ## ("Rotate 90 deg", "Free rotate (hold)") and the keyboard rows that used to show them as
@@ -83,20 +83,20 @@ const DISPLAY_NAMES: Dictionary[StringName, String] = {
 ## their rows exist on the gamepad page only.
 const PAD_ONLY_ACTIONS: Array[StringName] = [&"rotate_snap", &"rotate_drag_pad"]
 
-## DECISION (Bontago-1pi.41): actions with no gamepad function at all are hidden
+## DECISION: actions with no gamepad function at all are hidden
 ## from the gamepad page instead of showing a blank row. lock_vertical: spec
 ## 2.5 "Lock to vertical" gamepad cell is "(stick and height are already
 ## separate)" -- left stick moves X/Z, LB/RB move height, so there is nothing to
 ## lock. They stay listed (and rebindable) on the keyboard/mouse page.
 ##
-## DECISION (Bontago-1pi.159.22, owner 2026-10-11: most camera controls make no
+## DECISION (most camera controls make no
 ## sense to remap on a pad): the gamepad page also hides the camera rows that
 ## are fixed gestures rather than choices -- camera mode, the four pans (only
 ## live in the unused free camera, left stick + modifier), the pan modifier,
 ## and zoom in/out (the pad zooms with LT + left stick). "Orbit camera" (right
 ## stick) stays as the one camera row a pad player may want to read.
 ##
-## Bontago-1pi.159.63 (owner decision 1pi.159.62): also hidden on the pad page are the rows that
+## Also hidden on the pad page
 ## only ever showed a stand-in (Rotate left/right, Free rotation mode, Free rotate (drag)) and
 ## Orbit camera (the right stick always orbits and is not rebindable). "Orbit camera" stays on
 ## the mouse/keyboard page (right mouse button).
@@ -107,12 +107,12 @@ const PAD_NOT_APPLICABLE: Array[StringName] = [
 	&"camera_mode", &"camera_modifier",
 	&"camera_pan_left", &"camera_pan_right", &"camera_pan_forward", &"camera_pan_back",
 	&"camera_zoom_in", &"camera_zoom_out",
-	# Bontago-1pi.192.5: chat is keyboard only (docs/CHAT_PLAN.md section 4), no pad function.
+	# chat is keyboard only, no pad function.
 	&"chat_open",
 ]
 
 ## Rows hidden on both pages while CameraTuning.snap_enabled is false
-## (owner 2026-10-11; follow-up Bontago-1pi.170).
+## (follow-up).
 const SNAP_ACTIONS: Array[StringName] = [&"camera_snap_home", &"camera_snap_goal"]
 
 ## Read for snap_enabled only (a const Resource would be a private copy in GDScript).
@@ -136,8 +136,8 @@ var _idle_s: float = 0.0
 var _blocked_axes: Dictionary[int, bool] = {}
 
 
-## Bontago-1pi.10 (owner: "default to only showing mouse/keyboard, switch to
-## showing only gamepad options on gamepad input"): live-refreshes this row's
+## "default to only showing mouse/keyboard, switch to
+## showing only gamepad options on gamepad input": live-refreshes this row's
 ## glyphs whenever the player's last-used device changes, without the
 ## OptionsMenu that built this row needing to rebuild the whole list.
 func _ready() -> void:
@@ -153,7 +153,7 @@ func _sync_content_minimum_size() -> void:
 	custom_minimum_size = Vector2(needed.x, maxf(float(OPTIONS_TUNING.binding_row_min_height_px), needed.y))
 
 
-## Bontago-hfa.4: BindingRow look. Alternate rows are lightly banded (disc-700), the hovered row is
+## BindingRow look. Alternate rows are lightly banded (disc-700), the hovered row is
 ## disc-700, the focused row is disc-600 inside the theme's 3 px cream outline, and a listening row
 ## swaps all of that for a rim edge (docs/ui_reskin/components.md "BindingRow").
 func _apply_row_style() -> void:
@@ -235,7 +235,7 @@ func refresh() -> void:
 	_refresh_glyphs()
 
 
-## Drops keyboard focus from this row (Bontago-8or.19, owner playtest
+## Drops keyboard focus from this row (
 ## feedback/playtest.md: "no option to actually remap the ones that are
 ## mapped") -- while this row stays focused, Godot's own GUI layer treats
 ## Space/Enter as *this Button's* activate accelerator and arrows/Tab as
@@ -259,7 +259,7 @@ func _collect_blocked_axes() -> void:
 				_blocked_axes[axis] = true
 
 
-## Owner: "activating it enters 'press a key/button…' state shown in the
+## "activating it enters 'press a key/button…' state shown in the
 ## glyph slot" -- replaces the glyph row with one placeholder InputGlyph
 ## rather than a separate text label, so the listening state lives in
 ## exactly the same visual slot the real bindings occupy.
@@ -277,13 +277,12 @@ func _show_listening_glyph() -> void:
 
 
 ## Captures the very next real input while listening -- InputEventKey,
-## InputEventMouseButton or InputEventJoypadButton (docs/archive/M6_PLAN.md package
-## C2's own list) or, since Bontago-1pi.159.20, an InputEventJoypadMotion past
+## InputEventMouseButton or InputEventJoypadButton (the rebinding rule
+## C2's own list) or, since an InputEventJoypadMotion past
 ## OptionsVisualTuning.rebind_axis_threshold (triggers and stick directions, stored as axis +
 ## sign; _handle_motion). Pad B binds instead of cancelling.
 ##
-## Captured in Node._input() rather than Node._unhandled_input() (Bontago-
-## 8or.19, owner playtest feedback/playtest.md: "no option to actually remap
+## Captured in Node._input() rather than Node._unhandled_input() (feedback/playtest.md: "no option to actually remap
 ## the ones that are mapped"). Godot's own input pipeline runs, in order,
 ## Node._input() -> Control GUI dispatch (focus navigation, button
 ## accelerators, mouse_filter consumption) -> Node._unhandled_input(); as
@@ -310,7 +309,7 @@ func _input(event: InputEvent) -> void:
 	# The idle timer is NOT reset here: stick drift or mouse motion must not postpone the cancel
 	# (review note); every event that matters ends listening by capturing or cancelling.
 	if event is InputEventJoypadButton:
-		# Bontago-1pi.159.20: B (ui_cancel's pad button) is a valid binding while listening;
+		# B (ui_cancel's pad button) is a valid binding while listening;
 		# the pad player cancels with the idle timeout, Esc or a mouse click.
 		if event.is_pressed():
 			_capture(event)
@@ -327,7 +326,7 @@ func _input(event: InputEvent) -> void:
 		if not event.is_pressed() or event.is_echo():
 			return
 		if event is InputEventMouseButton and Settings.active_input_device() == Settings.DEVICE_GAMEPAD:
-			# DECISION (Bontago-1pi.159.20): a pad page has nothing to bind a mouse click to,
+			# DECISION: a pad page has nothing to bind a mouse click to,
 			# so a click cancels instead of leaving the row armed.
 			_cancel_listening()
 			get_viewport().set_input_as_handled()
@@ -336,7 +335,7 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-## Idle timeout for a listening row (Bontago-1pi.159.20), so a pad player who armed a row
+## Idle timeout for a listening row, so a pad player who armed a row
 ## by accident is not stuck now that B binds rather than cancels.
 func _process(delta: float) -> void:
 	if not _listening:
@@ -380,7 +379,7 @@ func _cancel_listening() -> void:
 	_restore_focus()
 
 
-## Bontago-1pi.47: _on_pressed() drops focus for the duration of a capture; once
+## _on_pressed() drops focus for the duration of a capture; once
 ## the capture ends the row takes it back, so a keyboard/gamepad player keeps
 ## navigating (and the enclosing FocusScrollContainer keeps following) from the
 ## row they just remapped instead of landing on no focus at all until the next
@@ -396,16 +395,16 @@ func _clear_glyphs() -> void:
 		child.queue_free()
 
 
-## Bontago-1pi.10: rebuilds %GlyphRow from only the events of the active
+## rebuilds %GlyphRow from only the events of the active
 ## device family (autoload/Settings.gd's own active_input_device()) -- the
 ## "only showing mouse/keyboard, switch to showing only gamepad" behavior the
-## owner asked for. Bontago-1pi.41: on the gamepad page an action without its
+## user asked for. on the gamepad page an action without its
 ## own pad event shows no glyph, an action with no pad function at all
 ## (PAD_NOT_APPLICABLE) hides the row on the pad page and a pad-only action
 ## (PAD_ONLY_ACTIONS) hides it on the mouse/keyboard page. Any
 ## other row with no binding for the active family is left visible with an
 ## empty glyph row -- still a real, rebindable row for that device.
-## Owner: "max two glyphs per row, extra bindings hidden behind '+1'" -- a
+## "max two glyphs per row, extra bindings hidden behind '+1'" -- a
 ## third InputGlyph shows "+N" instead of a third real icon.
 func _refresh_glyphs() -> void:
 	_clear_glyphs()
@@ -452,7 +451,7 @@ static func events_of_family(action: StringName, gamepad: bool) -> Array[InputEv
 	return InputGlyph.events_of_family(action, gamepad)
 
 
-## Friendly label for `action` (owner: "Friendly action names ... human
+## Friendly label for `action` ("Friendly action names ... human
 ## labels") -- falls back to the old cosmetic auto-titlecase
 ## ("ghost_move_left" -> "Ghost Move Left") for anything DISPLAY_NAMES
 ## doesn't cover, so a fresh action added to REBINDABLE_ACTIONS never shows

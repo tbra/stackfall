@@ -1,7 +1,7 @@
 class_name BlockBody
 extends RigidBody3D
-## The light base class of game/blocks/Block.gd (autoload decoupling S2a, docs/
-## AUTOLOAD_DECOUPLING_PLAN.md D1/D8). It carries the identity fields and the
+## The light base class of game/blocks/Block.gd (it lets the autoload facades name
+## the block without compiling the full Block). It carries the identity fields and the
 ## two audio statics that autoload facades (Match, MatchNet, Sfx, SnapshotSync)
 ## read and write, plus no-op virtual stubs for the Block methods those facades
 ## call, so they can name this type instead of the heavy Block script. It
@@ -11,12 +11,12 @@ extends RigidBody3D
 ## Which BlockShape this block was built from (BlockFactory sets it).
 @export var shape_id: StringName = &""
 
-## M2 (spec 2.2 "height credit", 3.4): which PlayerSlot placed this block,
+## M2 (spec 1.5 "height credit", 3.4): which PlayerSlot placed this block,
 ## permanently -- territory influence and multiplayer attribution both key off
-## this. -1 means "no owner", e.g. M1's placements before slots existed.
+## this. -1 means no slot, e.g. placements made before slots existed.
 @export var owner_slot: int = -1
 
-## Bontago-t8x.1: the gift this body delivers (set by BlockFactory.
+## the gift this body delivers (set by BlockFactory.
 ## apply_gift_visual() on the host and, from the spawn RPC, on clients), or
 ## &"" for an ordinary block. Presentation only; the effect is SpecialBehavior.
 var gift_id: StringName = &""
@@ -63,7 +63,7 @@ func is_freeze_static() -> bool:
 	return false
 
 
-## Glue fusion (docs/GLUE_FUSION_PLAN.md WP0): the FusedBody this block belongs to,
+## Glue fusion: the FusedBody this block belongs to,
 ## or null. Block and FusedBody override; no behaviour yet.
 func fused_carrier() -> RigidBody3D:
 	return null

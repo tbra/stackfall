@@ -1,7 +1,7 @@
 class_name PlayerSlot
 extends RefCounted
 ## One seat in a match: who they are, which team they are on, where their home
-## flag stands (spec 2.2, 2.8).
+## flag stands (spec 1.5, 1.9).
 ##
 ## M2 fills these from MatchConfig in hot-seat; M3a fills `peer_id` from the
 ## MultiplayerAPI and M5 sets `is_bot`. Nothing here assumes a transport or a
@@ -14,7 +14,7 @@ var team_id: int = -1
 var display_name: String = ""
 var color: Color = Color.WHITE
 ## Disk-local (x, z) of the home flag, at field_radius - home_flag_edge_inset,
-## evenly spaced around the disk (spec 2.2).
+## evenly spaced around the disk (spec 1.5).
 var home_position: Vector2 = Vector2.ZERO
 ## True for the player sitting at this PC. In hot-seat every slot is local.
 var is_local: bool = true
@@ -22,7 +22,7 @@ var is_bot: bool = false
 ## MultiplayerAPI peer id, or 0 in hot-seat. Set in M3a.
 var peer_id: int = 0
 ## False once the home flag has left the disk; its home circle stops existing
-## (spec 2.2: "It always exists while the flag is on the disk").
+## (spec 1.5: "It always exists while the flag is on the disk").
 var home_flag_alive: bool = true
 
 
@@ -40,7 +40,7 @@ func _init(
 	home_position = p_home_position
 
 
-## Spec 2.2: home flags sit at field_radius - home_flag_edge_inset, field_radius,
+## Spec 1.5: home flags sit at field_radius - home_flag_edge_inset, field_radius,
 ## spaced evenly around the edge. Slot 0 sits at angle 0 (+x), and slots go
 ## counter-clockwise from there, so a 2-player match puts the two players
 ## opposite each other.
@@ -53,7 +53,7 @@ static func home_position_for(slot_id: int, slot_count: int, map_def: MapDef) ->
 	return map_def.home_flag_position(slot_id, slot_count)
 
 
-## Spec 2.2: one goal flag in the center by default; 2-5 are placed
+## Spec 1.5: one goal flag in the center by default; 2-5 are placed
 ## symmetrically at goal_flag_radius_fraction * field_radius. Returns
 ## disk-local positions, `count` long.
 ## Delegates to MapDef for the same reason as home_position_for; the one

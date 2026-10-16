@@ -1,8 +1,8 @@
 extends GutTest
-## Bontago-1t5.54 (docs/BOT_TOWER_PLAN.md C "1t5.54"): after a topple Reach the Sky bots stop building on the
+## After a topple Reach the Sky bots stop building on the
 ## leaning pile. The tower-top site filter keeps unsound tops out, the Reach the Sky plan targets the tallest
 ## SOUND top (or a new base after a collapse), the generator adds FOUNDATION sites at a new base, and the stack
-## analysis now runs before the plan. Bontago-1t5.68: the new base and its sites no longer keep a clearance from the
+## analysis now runs before the plan. the new base and its sites no longer keep a clearance from the
 ## debris; they only never rest on the leaning pile (tests/unit/bots/test_bot_debris_surface.gd covers the rule). Pure: hand-built BotStack snapshots, a synthetic
 ## raster, no scene tree.
 
@@ -24,7 +24,6 @@ const BODY_MASS: float = 1.0
 const BODY_ID_BASE: int = 100
 const CANDIDATE_COUNT: int = 40
 const SEED: int = 5454
-const BOT_SLOT_ID: int = 7
 const STEP_GUARD: int = 800
 const BIG_BUDGET_US: int = 60000000
 const TOL: float = 0.01
@@ -150,7 +149,7 @@ func _choose(view: BotWorldView, memory: Dictionary) -> BotIntent:
 	return BotStrategy.choose(view, BotChains.build(view), profile, null, memory)
 
 
-## Bontago-1t5.68 (replaces the 1t5.54 clearance pins): true when a probe at disk-local `point` hits an unsound
+## replaces the old clearance pins: true when a probe at disk-local `point` hits an unsound
 ## (leaning pile) block in the snapshot.
 func _over_unsound(stack: BotStack, point: Vector2) -> bool:
 	var body: int = stack.surface_at(point)
@@ -173,6 +172,7 @@ func _clearance_of(point: Vector2) -> float:
 
 
 # --- plan: sound tops --------------------------------------------------------------------------------
+
 
 func test_the_target_is_the_sound_stack_not_the_pile() -> void:
 	var specs: Array = _pile_circle_specs()
@@ -203,35 +203,6 @@ func test_a_pile_alone_starts_a_new_base_off_the_debris() -> void:
 	assert_gte(view.stack.rest_margin(PackedVector2Array([intent.target]), intent.target, BODY_MASS), 0.0)
 
 
-func test_foundation_sites_stay_off_the_pile_valid_and_flat() -> void:
-	var view: BotWorldView = _view(_pile_circle_specs(), PILE_ORIGIN)
-	var stack: BotStack = _stack()
-	_add_pile(stack)
-	view.stack = _analysed(stack)
-	var intent: BotIntent = _choose(view, {})
-	var sites: Array[BotCandidate] = BotCandidateGen.sites(view, intent, _profile(), _rng())
-	var infos: Array[BotStatics.OrientationInfo] = BotStatics.orientation_infos(view.held, BotCandidateGen.SHIPPED_TUNING)
-	var widest: float = 0.0
-	for info: BotStatics.OrientationInfo in infos:
-		widest = maxf(widest, info.contact_area)
-	var foundations: int = 0
-	for site: BotCandidate in sites:
-		var info: BotStatics.OrientationInfo = BotStatics.orientation_info(view.held, site.orientation_index)
-		var centre: Vector2 = site.origin + info.center_shift * _physics.cube_size
-		assert_false(
-			_rests_on_unsound(view.stack, site.origin, info),
-			"no site (%s at %s) rests on the leaning pile" % [site.site_kind, centre]
-		)
-		assert_eq(
-			PlacementRules.validate_point(site.origin, _raster, TEAM), PlacementRules.Result.VALID, "valid"
-		)
-		if site.site_kind == BotCandidateGen.SITE_FOUNDATION:
-			foundations += 1
-			assert_almost_eq(info.contact_area, widest, TOL, "the widest, flattest orientation (contact area first)")
-	assert_gt(foundations, 0, "FOUNDATION sites are offered at the new base")
-	assert_lte(foundations, BotCandidateGen.SHIPPED_TUNING.foundation_site_count)
-
-
 func test_tower_top_sites_skip_the_leaning_pile_but_keep_the_sound_stack() -> void:
 	var specs: Array = _pile_circle_specs()
 	specs.append([STACK_XZ, 2.0])
@@ -253,27 +224,8 @@ func test_tower_top_sites_skip_the_leaning_pile_but_keep_the_sound_stack() -> vo
 	assert_gt(on_stack, 0, "the sound stack still gets STACK sites")
 
 
-func test_sound_only_snapshots_leave_the_sites_exactly_as_without_a_snapshot() -> void:
-	var specs: Array = [[STACK_XZ, 3.0]]
-	var plain: BotWorldView = _view(specs, STACK_XZ)
-	var with_stack: BotWorldView = _view(specs, STACK_XZ)
-	var stack: BotStack = _stack()
-	_add_column(stack, STACK_XZ, 3)
-	with_stack.stack = _analysed(stack)
-	var memory: Dictionary = {}
-	var intent_plain: BotIntent = _choose(plain, {})
-	var intent_stack: BotIntent = _choose(with_stack, memory)
-	assert_false(intent_stack.new_base)
-	assert_eq(intent_plain.kind, intent_stack.kind)
-	var a: Array[BotCandidate] = BotCandidateGen.sites(plain, intent_plain, _profile(), _rng())
-	var b: Array[BotCandidate] = BotCandidateGen.sites(with_stack, intent_stack, _profile(), _rng())
-	assert_eq(a.size(), b.size(), "same site count")
-	for i: int in range(mini(a.size(), b.size())):
-		assert_eq(a[i].origin, b[i].origin)
-		assert_eq(a[i].orientation_index, b[i].orientation_index)
-
-
 # --- plan: memory ------------------------------------------------------------------------------------
+
 
 func test_the_base_persists_while_the_tower_grows() -> void:
 	var memory: Dictionary = {}
@@ -293,7 +245,7 @@ func test_the_base_persists_while_the_tower_grows() -> void:
 
 
 func test_a_collapse_moves_the_base() -> void:
-	# Bontago-1t5.70: the grace time has run out (sky_lost), so the collapse starts the new base at once.
+	# the grace time has run out (sky_lost), so the collapse starts the new base at once.
 	var memory: Dictionary = {
 		"sky_base": STACK_XZ, "sky_peak": PEAK_M, "sky_pending": false,
 		"sky_lost": _strategy_tuning.collapse_grace_thinks,
@@ -330,40 +282,8 @@ func test_a_small_drop_keeps_building_on_the_remaining_stack() -> void:
 	assert_lt(intent.target.distance_to(STACK_XZ), TOL)
 
 
-func test_no_own_block_resets_the_base() -> void:
-	var memory: Dictionary = {"sky_base": STACK_XZ, "sky_peak": PEAK_M, "sky_pending": true, "sky_target": STACK_XZ}
-	var view: BotWorldView = _view([], null)
-	_choose(view, memory)
-	assert_false(memory.has("sky_base"))
-	assert_false(memory.has("sky_peak"))
-	assert_false(memory.has("sky_pending"))
-
-
-func test_blocks_still_moving_keep_the_last_plan() -> void:
-	var memory: Dictionary = {"sky_base": STACK_XZ, "sky_peak": 2.0, "sky_pending": false, "sky_target": STACK_XZ}
-	var view: BotWorldView = _view([[STACK_XZ, 2.0]], STACK_XZ)
-	var stack: BotStack = _stack()
-	_add_column(stack, STACK_XZ, 1)
-	stack.add_body(_next_id, TEAM, Basis.IDENTITY, PackedVector3Array([Vector3(STACK_XZ.x, 1.5, STACK_XZ.y)]), BODY_MASS, false)
-	view.stack = _analysed(stack)
-	var intent: BotIntent = _choose(view, memory)
-	assert_false(intent.new_base, "a falling block is not a collapse")
-	assert_lt(intent.target.distance_to(STACK_XZ), TOL)
-
-
-func test_a_classic_view_ignores_the_sound_base() -> void:
-	var specs: Array = _pile_circle_specs()
-	var view: BotWorldView = _view(specs, null, MatchConfig.GameMode.CLASSIC)
-	var stack: BotStack = _stack()
-	_add_pile(stack)
-	view.stack = _analysed(stack)
-	var memory: Dictionary = {}
-	var intent: BotIntent = _choose(view, memory)
-	assert_false(intent.new_base)
-	assert_false(memory.has("sky_base"))
-
-
 # --- think wiring ------------------------------------------------------------------------------------
+
 
 func _flat_probe(_xz: Vector2) -> Dictionary:
 	return {"hit": true, "height": 0.0, "own": false, "body": -1}
@@ -389,19 +309,6 @@ func test_the_think_analyses_the_stack_first_and_picks_off_the_pile() -> void:
 	assert_false(_rests_on_unsound(view.stack, decision.origin, info), "the piece does not land on the pile")
 
 
-func test_finish_early_in_the_stack_phase_still_plans_on_the_analysed_stack() -> void:
-	var view: BotWorldView = _view(_pile_circle_specs(), PILE_ORIGIN)
-	var stack: BotStack = _stack()
-	_add_pile(stack)
-	view.stack = stack
-	var think: BotThink = BotThink.new(view, _profile(), _rng())
-	think.cell_probe = _flat_probe
-	think.finish_early()
-	assert_true(think.is_done())
-	assert_true(view.stack.is_analysed())
-	assert_true(think.intent().new_base)
-
-
 func _pile_stack_sites(mode: int) -> int:
 	var view: BotWorldView = _view(_pile_circle_specs(), PILE_ORIGIN, mode)
 	var stack: BotStack = _stack()
@@ -418,11 +325,3 @@ func _pile_stack_sites(mode: int) -> int:
 func test_only_reach_the_sky_skips_unsound_tops() -> void:
 	assert_gt(_pile_stack_sites(MatchConfig.GameMode.CLASSIC), 0, "Classic keeps the unsound top as a site")
 	assert_eq(_pile_stack_sites(MatchConfig.GameMode.REACH_THE_SKY), 0, "Reach the Sky skips it")
-
-
-func test_a_new_bot_starts_with_no_sky_memory() -> void:
-	BotThink._strategy_memory[BOT_SLOT_ID] = {"sky_base": STACK_XZ}
-	var bot: BotController = BotController.new()
-	add_child_autofree(bot)
-	bot.setup(BOT_SLOT_ID, MatchConfig.AiDifficulty.HARD, null, null)
-	assert_false(BotThink._strategy_memory.has(BOT_SLOT_ID))

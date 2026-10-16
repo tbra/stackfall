@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.198: an eliminated local player's held ghost is hidden at once
+## an eliminated local player's held ghost is hidden at once
 ## (host and ENet client both read the replicated PlayerSlot.home_flag_alive and
 ## Events.player_eliminated); other slots are unaffected and a new match
 ## shows the ghost again.
@@ -12,7 +12,7 @@ func before_each() -> void:
 
 func after_each() -> void:
 	# Leave the Match autoload idle: a match left in COUNTDOWN makes every later
-	# PlayerController ignore input (Bontago-fca.101: sharded gate failures in test_playercontroller_gamepad).
+	# PlayerController ignore input (sharded gate failures in test_playercontroller_gamepad).
 	Match.abort_match()
 	Match.set_process(true)
 	MatchTestReset.clear_world()

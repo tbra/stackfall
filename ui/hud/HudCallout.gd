@@ -1,6 +1,6 @@
 class_name HudCallout
 extends Control
-## Stackfall Arcade Callout icon tile (Bontago-hfa.6, docs/ui_reskin/components.md "Callout"): a
+## Stackfall Arcade Callout icon tile (docs/ui_reskin/components.md "Callout"): a
 ## small ink square holding a cream cross, check, star or "!" glyph, drawn as lines/polygons so the
 ## message carries its meaning without relying on colour or on a font having the symbol. It sits at
 ## the left edge of the toast Label that styles itself as the Callout face (ui/hud/HUD.gd).

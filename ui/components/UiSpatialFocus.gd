@@ -1,6 +1,6 @@
 class_name UiSpatialFocus
 extends RefCounted
-## Pure spatial focus wiring from on-screen rects (Bontago-1pi.159.15, N1).
+## Pure spatial focus wiring from on-screen rects (N1).
 ##
 ## [method wire] gives every control left / right / up / down neighbours chosen by where the
 ## controls are drawn, so a screen needs no hand-authored chain. The result never leaves the

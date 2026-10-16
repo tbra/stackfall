@@ -1,7 +1,6 @@
 extends GutTest
-## JumpingBeanEffect (spec 2.6, installed-tutorial evidence: "Jumping Bean
-## creates a hole between random hops"; docs/archive/M4_SPECIALS_PACKAGES.md's
-## P5-BEAN package). Two fixture shapes, matching this package's siblings:
+## JumpingBeanEffect (spec 1.6, installed-tutorial evidence: "Jumping Bean
+## creates a hole between random hops"). Two fixture shapes, matching this package's siblings:
 ##
 ## - A stub Block + real SpecialBehavior (no physics simulation) plus a
 ##   plain registered Field, for the settle-gated timed pattern itself --
@@ -15,7 +14,7 @@ extends GutTest
 ##   tests that actually need Match.punch_special_hole()'s real effect on
 ##   TerritoryRaster: a hop opens the expected hole under HoleMode.TEMPORARY,
 ##   and HoleMode.OFF suppresses the hole but not the hop's own knockback
-##   (Bontago-z4h, enforced inside punch_special_hole() itself, not trusted
+##   (enforced inside punch_special_hole() itself, not trusted
 ##   to this effect).
 
 const TICK: float = 1.0 / 60.0
@@ -126,7 +125,7 @@ func test_inert_until_landed_no_hop_no_velocity_change() -> void:
 	assert_false(behavior.is_triggered())
 
 
-# --- impact_triggers() veto (Bontago-1en.22) ---------------------------------
+# --- impact_triggers() veto ---------------------------------
 
 ## A hard deceleration past arm_impulse while still airborne (mirroring the
 ## reported bug: a hard-thrown/dropped block lands right as it arms, before
@@ -154,7 +153,7 @@ func test_hard_impact_before_settling_does_not_prematurely_trigger() -> void:
 
 	assert_false(
 		behavior.is_triggered(),
-		"JumpingBeanEffect must veto the decel-based impact trigger (Bontago-1en.22)."
+		"JumpingBeanEffect must veto the decel-based impact trigger."
 	)
 
 
@@ -375,7 +374,7 @@ func _make_match_block(position: Vector3) -> Block:
 	return _make_block(position)
 
 
-## Proves spec 2.6's "a hole between hops" at the level that matters: each
+## Proves spec 1.6's "a hole between hops" at the level that matters: each
 ## hop punches at wherever the bean actually IS at that hop's own tick, not a
 ## stale/first-settle position. The stub block is moved by hand between the
 ## two hops to stand in for whatever real physics carried it there since the
@@ -425,7 +424,7 @@ func test_each_hop_punches_a_hole_at_the_bean_current_position_under_temporary()
 	)
 
 
-## Bontago-z4h: under HoleMode.OFF, Match.punch_special_hole() itself no-ops
+## under HoleMode.OFF, Match.punch_special_hole() itself no-ops
 ## (enforced there, not by this effect -- see autoload/match/MatchTerritory.gd),
 ## but the hop's own knockback still happens.
 func test_hop_still_occurs_but_punches_no_hole_under_hole_mode_off() -> void:
@@ -448,7 +447,7 @@ func test_hop_still_occurs_but_punches_no_hole_under_hole_mode_off() -> void:
 	behavior.advance(1.0)  # first hop fires
 
 	var cell: Vector2i = cell_grid.world_to_cell(Vector2(position.x, position.z))
-	assert_false(raster.is_hole(cell.x, cell.y), "HoleMode.OFF must never open a hole (Bontago-z4h).")
+	assert_false(raster.is_hole(cell.x, cell.y), "HoleMode.OFF must never open a hole.")
 	assert_almost_eq(
 		block.linear_velocity.y, effect.hop_impulse, 0.0001,
 		"the hop's own knockback must still happen under HoleMode.OFF -- only the hole is suppressed"
@@ -457,7 +456,7 @@ func test_hop_still_occurs_but_punches_no_hole_under_hole_mode_off() -> void:
 
 # --- the real jumping_bean.tres def must not fuse-trigger before lifetime_s -
 
-## Review finding (Bontago-1en.8): jumping_bean.tres used to copy its
+## Review finding: jumping_bean.tres used to copy its
 ## siblings' fuse_timeout_s = 6.0, but SpecialBehavior.advance() force-
 ## triggers ANY special at `arm_delay + fuse_timeout_s` regardless of its own
 ## effect (SpecialBehavior.gd's last line) -- 0.4 + 6.0 = 6.4s of age, well
@@ -549,7 +548,7 @@ func test_jumping_bean_tres_loads_with_a_usable_hop_cycle() -> void:
 
 # --- physics smoke: a real hop landing must not prematurely impact-trigger --
 
-## Review finding (Bontago-1en.8, SHOULD-FIX): a hop's own landing carries
+## Review finding (SHOULD-FIX): a hop's own landing carries
 ## roughly sqrt(hop_impulse^2 + hop_horizontal_speed^2) = sqrt(6.0^2 + 3.0^2)
 ## ~= 6.7 m/s of speed on a level landing (energy-conserving projectile arc
 ## back to the same ground height) -- close to (and, measured below, over)
@@ -713,7 +712,7 @@ func _awake_island_run(hole_mode: MatchConfig.HoleMode) -> Dictionary:
 	var behavior: SpecialBehavior = SpecialBehavior.new()
 	bean.add_child(behavior)
 	behavior.bind(bean, def, SpecialTuning.new())
-	# DECISION (Bontago-fca.96): everything is driven per PHYSICS TICK via the physics_frame
+	# DECISION: everything is driven per PHYSICS TICK via the physics_frame
 	# signal. Under CPU load one engine frame can run several ticks, so a loop that awaits
 	# wait_physics_frames(1) kicked the neighbours less often per simulated second (different
 	# island dynamics, bean knocked off the disc, fewer hops) and mis-counted landed time.
@@ -758,10 +757,10 @@ func test_awake_island_bean_hops_three_times_in_six_seconds_and_punches_a_hole_e
 func test_awake_island_bean_hops_but_opens_no_hole_under_hole_mode_off() -> void:
 	var result: Dictionary = await _awake_island_run(MatchConfig.HoleMode.OFF)
 	assert_gte(int(result["hops"]), MIN_ISLAND_HOPS, "hops are not gated on HoleMode")
-	assert_eq(int(result["holes"]), 0, "owner decision Bontago-z4h: no hole under OFF")
+	assert_eq(int(result["holes"]), 0, "no hole under OFF")
 
 
-# --- centre-weighted hop bearing (Bontago-1pi.85.48) --------------------------
+# --- centre-weighted hop bearing --------------------------
 
 func test_hop_direction_is_biased_toward_centre_yet_can_leave_the_rim() -> void:
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()

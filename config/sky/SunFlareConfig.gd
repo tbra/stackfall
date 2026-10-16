@@ -1,13 +1,13 @@
 class_name SunFlareConfig
 extends Resource
-## Tunables for game/sky/SunFlare.gd's screen-space lens flare (Bontago-mp0.3.4,
-## "Graphics pass 2" -- owner feedback feedback/graphics_feedback.md: "lens
+## Tunables for game/sky/SunFlare.gd's screen-space lens flare (
+## "Graphics pass 2" -- feedback/graphics_feedback.md: "lens
 ## flare from the sun"). Every number the shader (shaders/sky/sun_flare.gdshader)
 ## and the driving script read lives here, following the same "no magic
 ## numbers" pattern config/physics/CameraShakeConfig.gd already uses for
 ## game/player/CameraRig.gd.
 ##
-## # DECISION (config/sky/SunFlareConfig.gd, Bontago-mp0.3.4): this Resource is
+## # DECISION (config/sky/SunFlareConfig.gd): this Resource is
 ## not yet wired into ui/debug/TuningPanel.gd -- that file is out of this package's
 ## owned-file scope (CLAUDE.md pause-point discipline: do not touch another
 ## worker's owned files) and TuningPanel.gd hardcodes one `preload()`'d var
@@ -18,11 +18,11 @@ extends Resource
 ## live-editable from the in-game F4 panel.
 
 ## World-space direction from the field's center toward the sun (normalized).
-## # DECISION (Bontago-1pi.1 v2): preserve the original flare axis and scene
+## # DECISION (v2): preserve the original flare axis and scene
 ## light rotation. sunset.tres rotates panorama sampling to place its painted
 ## sun on this axis; changing the light instead caused a grazing hotspot and
 ## moved the sun away from the default home view. See sunset_clouds.gdshader
-## for the measured panorama centre and a script removed in Bontago-dbn.1 (see git history) for QA.
+## for the measured panorama centre and a script removed in (see git history) for QA.
 @export var sun_direction: Vector3 = Vector3(0.963087, 0.069011, -0.260192)
 
 ## Warm tint applied to every flare element (core, rays, ghosts) before
@@ -31,7 +31,7 @@ extends Resource
 
 ## Bright core disc radius/softness, in normalized screen-diagonal units
 ## (see shaders/sky/sun_flare.gdshader's own doc for the exact unit conversion). Fix
-## round (owner: "reduce the hard white clipped look"): the painted panorama
+## round ("reduce the hard white clipped look"): the painted panorama
 ## supplies the sun disc behind all geometry; this is a small sparkle on
 ## top of it, so it stays low-intensity rather than re-blowing-out the disc.
 @export var core_radius: float = 0.022
@@ -52,8 +52,8 @@ extends Resource
 
 ## Ghost ("ghost ring") ghost discs sampled along the sun-to-screen-center
 ## axis, alternating between sun_color (warm) and ghost_color_b (teal) --
-## fix round (owner: "make them visible but subtle, like a camera flare").
-## # DECISION (config/sky/SunFlareConfig.gd, Bontago-1pi.1): ghost_base_size and
+## fix round ("make them visible but subtle, like a camera flare").
+## # DECISION (config/sky/SunFlareConfig.gd): ghost_base_size and
 ## ghost_alpha both trimmed down from this fix round's own earlier values
 ## (0.06/0.65 before) -- this package's brief asks for ghost discs subtle
 ## enough that none of them reads as a second sun on its own; now that
@@ -71,8 +71,8 @@ extends Resource
 @export var ghost_base_size: float = 0.03
 @export var ghost_size_falloff: float = 0.72
 @export var ghost_alpha: float = 0.22
-## Bontago-t8x.3 (owner 2026-10-01: "from an angle it looks like there are 2
-## suns"): ROOT CAUSE -- the first ghost sits ghost_positions[0] of the way from
+## "from an angle it looks like there are 2
+## suns": ROOT CAUSE -- the first ghost sits ghost_positions[0] of the way from
 ## the sun to screen centre as a solid sun-coloured disc. Straight on the sun is
 ## at centre so every ghost collapses onto it; from the side the ghost separates
 ## and reads as a second sun. Ghosts are now hollow rings (this fraction of the
@@ -105,8 +105,8 @@ extends Resource
 ## effect off on the Low graphics preset).
 @export var max_intensity: float = 1.0
 
-@export_group("Occlusion (Bontago-mp0.95)")
-## Owner playtest 2026-10-03: "sun is visible through the clouds and arena". ROOT CAUSE 1:
+@export_group("Occlusion")
+##  "sun is visible through the clouds and arena". ROOT CAUSE 1:
 ## the disc collider is a single-sided trimesh (game/field/Field.gd: faces only up and out of the
 ## rim), so the one camera-to-sun ray of game/sky/SunFlare.gd passes unhit through the disc seen
 ## from below or edge-on. With this on, a second ray from the sun back to the camera is cast

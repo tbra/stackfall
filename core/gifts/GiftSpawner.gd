@@ -1,12 +1,12 @@
 class_name GiftSpawner
 extends RefCounted
-## Pure gift-crate spawning logic (spec 2.6): whether a crate should spawn
+## Pure gift-crate spawning logic (spec 1.6): whether a crate should spawn
 ## this placement window, and where. No scene tree, no autoloads (CLAUDE.md).
 ##
 ## SPEC.md 2.6 "Gift spawning [ORIGINAL target]": probability per placement
 ## turn/window, not the earlier reconstructed seconds-based interval with
-## jitter -- docs/archive/M4_PLAN.md's own header amendment retires that mapping
-## explicitly. This file implements only the probability form.
+## jitter. That mapping was retired in favour of the probability form, which is the only
+## form this file implements.
 
 ## Sentinel returned by pick_spawn_point() when every attempt failed, mirroring
 ## PlacementRules.NO_ORIGIN's convention (an unmistakable, non-finite point
@@ -41,7 +41,7 @@ static func live_cap(config: GiftConfig, player_count: int) -> int:
 ## One Bernoulli roll. Pure logic: it has no idea how many players there are
 ## or how often it gets called, so the "for the whole match (not per player)"
 ## contract is the *caller's* job -- autoload/match/MatchGifts.gd (M4 P1b
-## review fix, Bontago-4fa) calls this exactly once per placement window by
+## review fix) calls this exactly once per placement window by
 ## rolling only when the issuing slot is the lowest-indexed one still alive,
 ## not once per slot's own feed event. Always false once max_live_crates are
 ## already live, regardless of chance, so a caller never has to check
@@ -62,10 +62,10 @@ static func should_spawn(
 ## Samples up to config.spawn_max_attempts random in-disk points (disk-local
 ## XZ, uniform over the disk's area), accepting the first whose cell is
 ## neither contested nor a hole and that stays spawn_edge_margin_m clear of
-## the rim (spec 2.6: "at a random uncontested point"). Returns
+## the rim (spec 1.6: "at a random uncontested point"). Returns
 ## NO_SPAWN_POINT when every attempt failed; the caller just waits for the
 ## next window rather than treating that as an error (mirrors
-## PlacementRules.closest_valid_origin()'s NO_ORIGIN contract).
+## PlacementRules.closest_valid_point()'s NO_ORIGIN contract).
 ##
 ## `avoid` lists the positions of crates already live; a candidate closer than
 ## config.crate_min_separation_m to any of them is skipped.

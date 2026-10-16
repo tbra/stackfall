@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.85.47: a throw (and its preview) starts at the held gift (ghost pose), the aim
+## a throw (and its preview) starts at the held gift (ghost pose), the aim
 ## direction still follows the camera. Real host path (Match.request_throw), tiny-map fixture
 ## of test_match_throw.gd.
 

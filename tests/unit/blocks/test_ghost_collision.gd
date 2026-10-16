@@ -1,6 +1,6 @@
 extends GutTest
-## Ghost-vs-placed-block collision (Bontago-mv0.23, spec 2.5 "Held-block
-## behaviour" [ORIGINAL], owner test 2026-09-22): the held ghost must collide
+## Ghost-vs-placed-block collision (spec 1.4 "Held-block
+## behaviour"): the held ghost must collide
 ## with an already placed block -- it cannot pass through a tower -- but must
 ## never push or knock one. Drives real BlockFactory-built blocks through
 ## real physics (see tests/unit/field/test_field_cells.gd's drop-and-settle
@@ -204,7 +204,7 @@ func test_lowering_onto_a_block_stops_on_top_of_it() -> void:
 	assert_true(block.sleeping, "the placed block must never wake from the ghost's shape queries.")
 
 
-# --- Bontago-mv0.25 (docs/rotation-issue.png): 3-DOF rotate_drag must not
+# --- docs/rotation-issue.png: 3-DOF rotate_drag must not
 # break the box sweep --------------------------------------------------------
 
 

@@ -1,6 +1,6 @@
 extends GutTest
-## Spec 2.2's contested zones and holes, on the authoritative cell grid
-## (spec 3.3, docs/archive/M2_PLAN.md "Raster resolution").
+## Spec 1.5's contested zones and holes, on the authoritative cell grid
+## (spec 2.5).
 ##
 ## "Areas where two or more territories from different teams overlap are
 ## contested. Contested cells become holes after hole_delay = 0.75 s."
@@ -82,7 +82,7 @@ func test_a_cut_off_tower_loses_its_cells() -> void:
 	var cut: Array[InfluenceCircle] = [linked[0], linked[2]]
 	_step(cut, 0.1)
 	assert_eq(_team_at_point(probe), -1,
-		"Spec 2.2: if a tower is cut off, its influence is gone.")
+		"Spec 1.5: if a tower is cut off, its influence is gone.")
 
 
 ## -- Teams -------------------------------------------------------------------
@@ -185,9 +185,9 @@ func test_permanent_holes_never_close() -> void:
 ## -- Lifecycle ---------------------------------------------------------------
 
 
-## -- v2 fill: the argmax field (docs/TERRITORY_V2_PLAN.md, "The formula") -----
+## -- v2 fill: the argmax field -----
 ##
-## Owner clarifications 2026-09-20: "Areas of different players never overlap.
+## Clarification: "Areas of different players never overlap.
 ## Where they meet, the border is pushed by the heights of the stacks producing
 ## the contested area: the taller local stack gets more of the shared region,
 ## but not all of it, and it is the individual contesting stacks that count,
@@ -291,7 +291,7 @@ func test_v2_individual_stacks_count_never_a_team_sum() -> void:
 
 func test_v2_a_cut_off_tower_loses_its_area_not_just_the_win_check() -> void:
 	## Mirrors tests/unit/territory/test_territory_solver.gd's cut-off case, asserting on
-	## the raster's owner instead of group membership: home(-10, r6) --
+	## the raster's team instead of group membership: home(-10, r6) --
 	## A(-2, r3) -- B(4, r7), with B the tall one, plus a rival whose circle
 	## reaches B's outskirts. B does not reach home on its own (14 > 6 + 7),
 	## so removing A really does cut it off.
@@ -308,7 +308,7 @@ func test_v2_a_cut_off_tower_loses_its_area_not_just_the_win_check() -> void:
 
 	_step_v2([home, b, rival] as Array[InfluenceCircle])
 	assert_eq(_team_at_point(Vector2(4.0, 0.0)), -1,
-		"Spec 2.2: a cut-off tower's influence is gone from the field, not just "
+		"Spec 1.5: a cut-off tower's influence is gone from the field, not just "
 		+ "from the win check.")
 	assert_eq(_team_at_point(Vector2(9.0, 0.0)), 1,
 		"And the ground it held falls to whoever else reaches it.")
@@ -334,9 +334,9 @@ func test_v2_never_opens_a_hole_or_runs_a_contest_timer() -> void:
 
 ## -- Goal-flag no-build zones ------------------------------------------------
 ##
-## Owner clarifications 2026-09-20: "Goal flags have their own area of
+## Clarification: "Goal flags have their own area of
 ## influence in which no player may place a block." Orchestrator decision
-## 2026-09-20: the zone blocks placement only, never ownership.
+## the zone blocks placement only, never ownership.
 
 const ZONE_RADIUS: float = 3.0
 
@@ -356,7 +356,7 @@ func test_set_goal_zones_marks_exactly_the_cells_within_the_radius() -> void:
 	assert_gt(marked, 0, "Setup: the zone covers some cells.")
 
 
-## -- Forced holes (M4 P5-HOLE, Bontago-1en.20) -------------------------------
+## -- Forced holes (M4 P5-HOLE) -------------------------------
 ##
 ## force_hole_cell() opens a cell independent of contest overlap, seeding the
 ## same _hole/_contested_time/_idle_time bookkeeping a natural hole uses, so
@@ -377,7 +377,7 @@ func test_force_hole_cell_opens_immediately() -> void:
 
 
 ## -- A punched hole inside a single team's own circle (SHOULD-FIX, review
-## 2026-09-23) --------------------------------------------------------------
+## ) --------------------------------------------------------------
 ##
 ## Unlike the tests above, force_hole_cell() here lands on a cell a single
 ## uncontested team already owns (a natural hole never does: it only opens on
@@ -416,7 +416,7 @@ func test_a_punched_hole_inside_a_single_teams_circle_reads_as_unowned() -> void
 		"owner_bytes() draws it unowned too -- no team tint over a hole.")
 
 
-## -- tally_owned_cells (Bontago-1pi.18.11) ------------------------------------
+## -- tally_owned_cells ------------------------------------
 ##
 ## The one-pass, by-index vote WinChecker.claim_at() reads over its cached claim
 ## cells. It must count exactly the cells the per-cell coordinate readers count

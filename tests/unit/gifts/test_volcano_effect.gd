@@ -1,6 +1,6 @@
 extends GutTest
 ## VolcanoEffect (lifecycle hooks, config, landing -> structure)
-## (Bontago-1pi.85.14). The structure itself is covered by
+## . The structure itself is covered by
 ## test_volcano_structure.gd. Uses a real started host Match on a tiny map.
 
 var _blocks_root: Node3D
@@ -149,7 +149,7 @@ func test_volcano_tres_loads_with_a_usable_eruption() -> void:
 	assert_gt(effect.height_m, 0.0)
 	assert_gt(effect.base_radius_m, 0.0)
 	assert_gt(effect.cone_angle_deg, 0.0)
-	assert_eq(effect.launch_speed_mps, 16.0, "Bontago-1pi.85.46: harder launch")
+	assert_eq(effect.launch_speed_mps, 16.0, "harder launch")
 	assert_eq(effect.cone_angle_deg, 50.0)
 	assert_eq(effect.burst_spread_m, 1.6)
 	assert_gt(effect.launch_speed_jitter, 0.0)

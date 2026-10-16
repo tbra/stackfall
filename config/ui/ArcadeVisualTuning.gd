@@ -1,6 +1,6 @@
 class_name ArcadeVisualTuning
 extends Resource
-## Stackfall Arcade design tokens (docs/UI_RESKIN_PLAN.md P0, Bontago-hfa.2): every token of
+## Stackfall Arcade design tokens:
 ## docs/ui_reskin/tokens.json as an export, plus the few derived recipe numbers (top/lip mix, well
 ## shadow...) that ui/theme/BlockStyleBox.gd and ui/theme/MenuStyleFactory.gd need. Loaded from
 ## config/ui/arcade_visual_tuning.tres; no UI script should carry a literal colour or size of its own.

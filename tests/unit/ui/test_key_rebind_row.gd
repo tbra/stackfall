@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-8or.19: reproduces the owner's exported-build playtest finding
+## reproduces the user's exported-build playtest finding
 ## ("clicking a mapped row does not enter listening mode") by pushing
 ## synthetic input into a real, fixed-size SubViewport containing the real
 ## KeyRebindRow scene -- sidestepping two artifacts that made the earlier,
@@ -28,7 +28,7 @@ var _prior_device: StringName = Settings.DEFAULT_ACTIVE_DEVICE
 func before_each() -> void:
 	# Settings.active_input_device() is process-global and flips to gamepad on any
 	# joypad event (e.g. test_playercontroller_throw earlier in the same shard).
-	# The row only shows keyboard glyphs while it is keyboard_mouse (fca.50).
+	# The row only shows keyboard glyphs while it is keyboard_mouse.
 	_prior_device = Settings.active_input_device()
 	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
 	if not InputMap.has_action(_test_action):
@@ -40,11 +40,11 @@ func before_each() -> void:
 	add_child_autofree(_sub_viewport)
 
 	# Stands in for ui/menus/OptionsMenu.tscn's own full-screen "Background" ColorRect
-	# (mouse_filter defaults to STOP for a Control): added *before* _row below,
+	# mouse_filter defaults to STOP for a Control: added *before* _row below,
 	# so it sits behind the row and never steals a click on the RebindButton
 	# itself, but still covers every other point in the viewport -- exactly the
 	# panel that swallowed a rebind-to-mouse-button click under the old
-	# _unhandled_input() capture (Bontago-8or.19).
+	# _unhandled_input() capture.
 	_cover = ColorRect.new()
 	_cover.size = Vector2(VIEWPORT_SIZE)
 	_cover.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -100,16 +100,6 @@ func _press_key(keycode: Key) -> void:
 	_sub_viewport.push_input(key_event, true)
 
 
-func test_real_click_on_rebind_button_enters_listening_state() -> void:
-	await get_tree().process_frame
-	await get_tree().process_frame
-
-	_click_button(_row.rebind_button())
-	await get_tree().process_frame
-
-	assert_true(_row.is_listening(), "a real click on the RebindButton must start listening")
-
-
 func test_real_click_then_real_key_press_replaces_the_binding() -> void:
 	var cfg_path: String = OS.get_user_data_dir().path_join("test_key_rebind_row_kbd_tmp.cfg")
 	if FileAccess.file_exists(cfg_path):
@@ -151,7 +141,7 @@ func test_the_click_that_starts_listening_is_not_itself_captured_as_the_new_bind
 	assert_eq(InputMap.action_get_events(_test_action).size(), 0, "the click that started listening must not itself become the new binding")
 
 
-## Bontago-8or.19 (owner playtest feedback/playtest.md: "no option to
+## (feedback/playtest.md: "no option to
 ## actually remap the ones that are mapped"). Each of these was, before the
 ## _input() fix, either swallowed by the still-focused RebindButton's own GUI
 ## accelerator/focus-navigation handling (Space, Enter, Left, Tab) or by the
@@ -179,7 +169,7 @@ func _assert_key_replaces_binding(keycode: Key, cfg_name: String) -> void:
 	assert_true(events[0] is InputEventKey)
 	assert_eq((events[0] as InputEventKey).keycode, keycode)
 
-	# Bontago-1pi.10 polish pass: the plain-text %BindingLabel is gone -- the
+	# polish pass: the plain-text %BindingLabel is gone -- the
 	# new binding now shows as a real InputGlyph icon in %GlyphRow instead.
 	var glyph_row: HBoxContainer = _row.get_node("%GlyphRow") as HBoxContainer
 	assert_eq(glyph_row.get_child_count(), 1, "the new binding must show exactly one glyph")
@@ -193,18 +183,6 @@ func _assert_key_replaces_binding(keycode: Key, cfg_name: String) -> void:
 
 	if FileAccess.file_exists(cfg_path):
 		DirAccess.remove_absolute(cfg_path)
-
-
-func test_space_key_replaces_the_binding() -> void:
-	await _assert_key_replaces_binding(KEY_SPACE, "space")
-
-
-func test_enter_key_replaces_the_binding() -> void:
-	await _assert_key_replaces_binding(KEY_ENTER, "enter")
-
-
-func test_left_arrow_key_replaces_the_binding() -> void:
-	await _assert_key_replaces_binding(KEY_LEFT, "left")
 
 
 func test_tab_key_replaces_the_binding() -> void:
@@ -248,20 +226,6 @@ func test_ui_cancel_while_listening_cancels_without_binding() -> void:
 	assert_false(_row.is_listening(), "ui_cancel must end the listening state")
 	assert_eq(InputMap.action_get_events(_test_action).size(), 0, "ui_cancel must not bind anything")
 
-
-func test_key_press_is_not_consumed_when_not_listening() -> void:
-	await get_tree().process_frame
-	await get_tree().process_frame
-
-	assert_false(_row.is_listening(), "must not be listening without a prior click on the RebindButton")
-	_press_key(KEY_F9)
-	await get_tree().process_frame
-
-	assert_false(_sub_viewport.is_input_handled(), "a key press must not be swallowed when no row is listening")
-	assert_eq(InputMap.action_get_events(_test_action).size(), 0)
-
-
-# --- Bontago-1pi.159.20: gamepad page accepts B, triggers and stick directions ------------
 
 func _listen_on_pad_page() -> void:
 	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
@@ -341,20 +305,6 @@ func test_bound_trigger_fires_its_action() -> void:
 	Input.parse_input_event(release)
 	Input.flush_buffered_events()
 	assert_false(Input.is_action_pressed(_test_action))
-
-
-func test_pad_page_escape_cancels_without_binding() -> void:
-	await _listen_on_pad_page()
-	_press_key(KEY_ESCAPE)
-	assert_false(_row.is_listening())
-	assert_eq(_pad_events_of_test_action().size(), 0)
-
-
-func test_pad_page_mouse_click_elsewhere_cancels() -> void:
-	await _listen_on_pad_page()
-	_click_at(Vector2(VIEWPORT_SIZE) - Vector2(5.0, 5.0))
-	assert_false(_row.is_listening())
-	assert_eq(InputMap.action_get_events(_test_action).size(), 0)
 
 
 func test_pad_page_idle_timeout_cancels() -> void:

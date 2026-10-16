@@ -1,17 +1,17 @@
 class_name LoadingScreen
 extends Control
 signal readiness_timed_out
-## Bontago-1pi.32: loading finished on this instance and the ready prompt is shown
+## loading finished on this instance and the ready prompt is shown
 ## (ui_accept: Enter or gamepad A sends the ready intent). The "Ready?" + glyph prompt
 ## and per-player ready list are driven by accepts_ready_input(), the lifecycle's gate
-## sets and Events.loading_ready_changed / loading_gate_opened. Bontago-1pi.63: no
+## sets and Events.loading_ready_changed / loading_gate_opened. no
 ## loading text/bar, status line, button, timer or minimum display time.
 signal ready_prompt_opened
-## Bontago-1pi.8 (owner playtest 2026-09-27: "When a game round starts it
+## ("When a game round starts it
 ## centers around the center goal beacon for a little while before actually
 ## starting, let's add a proper loading screen instead.").
 ##
-## Spec 3.7's state machine has a real LOADING state between LOBBY and
+## Spec 2.4's state machine has a real LOADING state between LOBBY and
 ## COUNTDOWN, but autoload/match/MatchLifecycle.gd's start_match() fires
 ## LOBBY -> LOADING and LOADING -> COUNTDOWN synchronously, back to back, with
 ## no yield in between (that file's own doc: "this function runs
@@ -33,11 +33,11 @@ signal ready_prompt_opened
 
 @export var tuning: LoadingScreenTuning = preload("res://config/ui/loading_screen_tuning.tres")
 @export var menu_visual_tuning: MenuVisualTuning = preload("res://config/ui/menu_visual_tuning.tres")
-## Bontago-1pi.49 test seam: anything answering name_for_slot(slot_id) -> String
+## test seam: anything answering name_for_slot(slot_id) -> String
 ## (Net does). Null means the real Net autoload.
 var name_provider: Variant = null
 
-## Bontago-1pi.32 L3: the overlay's content sits on its own CanvasLayer so it covers
+## L3: the overlay's content sits on its own CanvasLayer so it covers
 ## the HUD (CanvasLayer 1) and its countdown digit. DECISION: layer, not hiding the
 ## HUD -- ui/hud/HUD.gd and game/main/Main.gd stay untouched and the countdown simply is not
 ## visible until the fade starts, which only happens once the gate has opened. A
@@ -46,7 +46,7 @@ var name_provider: Variant = null
 @onready var _layer: CanvasLayer = %Layer
 @onready var _content: Control = %Content
 @onready var _background: ColorRect = %Background
-## Bontago-mp0.96: the prerendered arena plate (cover-cropped), the flat darkening and
+## the prerendered arena plate (cover-cropped), the flat darkening and
 ## the vignette drawn over it. Dim and Vignette are children of the Backdrop, so they
 ## fade in and out with the plate.
 @onready var _backdrop: TextureRect = %Backdrop
@@ -54,9 +54,9 @@ var name_provider: Variant = null
 @onready var _vignette: TextureRect = %Vignette
 @onready var _card: PanelContainer = %Card
 @onready var _map_label: Label = %MapLabel
-## Bontago-mp0.124: the map pictogram above the name (UiArtTable); hidden without a config.
+## the map pictogram above the name (UiArtTable); hidden without a config.
 @onready var _map_icon: TextureRect = %MapIcon
-## Bontago-1pi.32 L2 (ready prompt + player ready list; presentation only).
+## L2 (ready prompt + player ready list; presentation only).
 @onready var _player_list: VBoxContainer = %PlayerList
 @onready var _ready_box: VBoxContainer = %ReadyBox
 @onready var _prompt_content: VBoxContainer = %PromptContent
@@ -68,14 +68,14 @@ const READY_ACTION: StringName = &"ui_accept"
 ## Accessible tooltips of a player row's ready mark (the mark itself shows only its icon).
 const READY_TEXT: String = "Ready"
 const NOT_READY_TEXT: String = "Not ready"
-## Bontago-1pi.157: the loading backdrop is one of the main menu's images (MainMenuTuning.backdrop_paths).
+## the loading backdrop is one of the main menu's images (MainMenuTuning.backdrop_paths).
 const MENU_TUNING_PATH: String = "res://config/ui/main_menu_tuning.tres"
-## Frames a fetched plate stays referenced so queued RenderingServer commands drain (Bontago-6cw).
+## Frames a fetched plate stays referenced so queued RenderingServer commands drain.
 const TEXTURE_RELEASE_FRAMES: int = 3
-## DisplayServer.get_name() of a --headless run, which renders with the dummy rasterizer (Bontago-8xf).
+## DisplayServer.get_name() of a --headless run, which renders with the dummy rasterizer.
 const HEADLESS_DISPLAY: String = "headless"
 
-## Bontago-1pi.63: the loading bar is gone; the stage fraction is only kept for
+## the loading bar is gone; the stage fraction is only kept for
 ## progress() (game/main/Main.gd still reports it).
 var _progress: float = 0.0
 var _is_fading: bool = false
@@ -86,25 +86,25 @@ var _fade_tween: Tween = null
 ## instead of hiding -- or later re-hiding -- a screen it no longer owns. See
 ## fade_out()'s own doc.
 var _fade_token: int = 0
-## Bontago-t8x.4: true between show_pending() and show_for_match()/cancel().
+## true between show_pending() and show_for_match()/cancel().
 var _is_pending: bool = false
 var _pending_elapsed_s: float = 0.0
 var _loading_elapsed_s: float = 0.0
 var _timed_out: bool = false
 var _warm_viewport: SubViewport = null
-## Bontago-1pi.32: the ready gate is armed for this match (see
+## the ready gate is armed for this match (see
 ## MatchLifecycle.arm_loading_ready_gate()), the ready input is live, and how
 ## long this overlay has been up for the minimum display time.
 var _ready_gate_armed: bool = false
 var _ready_input_enabled: bool = false
-## Bontago-1pi.32 L2: the local player pressed ready on this overlay (the host's
+## L2: the local player pressed ready on this overlay (the host's
 ## echo can lag behind by a round trip). One press is ever sent.
 var _local_pressed: bool = false
 ## ready_prompt_opened fired for this match (it fires when the prompt first shows).
 var _prompt_announced: bool = false
 ## One entry per player-list row: {slot_id: int, is_bot: bool, mark: Control}.
 var _ready_rows: Array[Dictionary] = []
-## Bontago-mp0.96 backdrop state. _backdrop_path is the plate chosen for the current
+## backdrop state. _backdrop_path is the plate chosen for the current
 ## match ("" = none: no config yet, or no plate on disk); _backdrop_shown_path is the
 ## plate whose texture the rect holds. _backdrop_requested: a threaded load of
 ## _backdrop_path is in flight. _backdrop_orphans: superseded requests, still to be
@@ -163,7 +163,7 @@ func show_for_match(config: MatchConfig, slots: Array[PlayerSlot]) -> void:
 		_fade_tween.kill()
 	_fade_tween = null
 	_is_fading = false
-	# Bontago-1pi.32: only the LOADING-state call arms (show_pending() runs in the
+	# only the LOADING-state call arms (show_pending() runs in the
 	# lobby state and is a no-op here), and never headless.
 	# DECISION: reaches Match._lifecycle directly (like net/MatchNet.gd's own
 	# _authority()._lifecycle) because autoload/Match.gd is not in this package's
@@ -182,7 +182,7 @@ func show_for_match(config: MatchConfig, slots: Array[PlayerSlot]) -> void:
 	_refresh_ready_ui()
 
 
-## Bontago-t8x.4: the overlay before the match exists yet (host: Start was just
+## the overlay before the match exists yet (host: Start was just
 ## pressed; client: net_match_loading arrived). `config` may be null (client).
 ## Hides itself after tuning.pending_timeout_s if no start follows.
 func show_pending(config: MatchConfig) -> void:
@@ -194,7 +194,7 @@ func show_pending(config: MatchConfig) -> void:
 
 func set_stage(_stage: String, fraction: float) -> void:
 	_progress = clampf(fraction, 0.0, 1.0)
-	# Bontago-1pi.158: the rows show a Ready / Not ready pill, not stage progress.
+	# the rows show a Ready / Not ready pill, not stage progress.
 
 
 func progress() -> float:
@@ -243,7 +243,7 @@ func is_pending() -> bool:
 	return _is_pending
 
 
-## Bontago-1pi.32 (ready gate, L1 API for the L2 prompt). True from the moment
+## (ready gate, L1 API for the L2 prompt). True from the moment
 ## loading finished on this instance until the overlay is fading, but only while the
 ## gate is actually blocking AND the host waits for the local peer (L3, review: a
 ## spectator, a mid-match joiner or a client of an ungated host has nothing to
@@ -319,7 +319,7 @@ func _process(delta: float) -> void:
 
 ## Called once game/main/Main.gd has passed every readiness stage.
 ##
-## DECISION (ui/menus/LoadingScreen.gd, Bontago-1pi.8): holds the overlay up for
+## DECISION (ui/menus/LoadingScreen.gd): holds the overlay up for
 ## `tuning.warmup_frames` more rendered frames before starting the actual
 ## fade, rather than hiding on this same synchronous call. MatchLifecycle
 ## emits LOADING and COUNTDOWN back to back with no yield (see this class's
@@ -354,7 +354,7 @@ func fade_out() -> void:
 	_is_fading = false
 	_finish_backdrop_fade()
 	_drain_backdrop_orphans()
-	# Bontago-1pi.11.63: the plate is only needed while the screen is up; drop the
+	# the plate is only needed while the screen is up; drop the
 	# texture so the 1920x1080 art leaves memory once the match is visible. The next
 	# show_for_match() re-requests it (threaded) because the shown path is cleared.
 	_clear_backdrop()
@@ -364,9 +364,9 @@ func fade_out() -> void:
 		_warm_viewport = null
 
 
-## Bontago-1pi.32: loading is done here; hold the overlay (and accept ready
+## loading is done here; hold the overlay (and accept ready
 ## presses) until the host's gate opens and the minimum display time has elapsed
-## locally. There is no time cap (Bontago-1pi.125): a client is released by the host's
+## locally. There is no time cap: a client is released by the host's
 ## open message, the match moving past the countdown, or a disconnect. Returns
 ## immediately when no gate is armed (headless, sandbox).
 func _wait_for_ready_gate(token: int) -> void:
@@ -376,7 +376,7 @@ func _wait_for_ready_gate(token: int) -> void:
 	# _refresh_ready_ui() announces the prompt once accepts_ready_input() holds (at
 	# once for a required human; a client when the host's mirror arrives).
 	_refresh_ready_ui()
-	# DECISION (Bontago-1pi.125): no wait cap -- the overlay stays until the host's gate opens
+	# DECISION: no wait cap -- the overlay stays until the host's gate opens
 	# (everyone ready), the match leaves the pre-play window, or cancel() bumps the token.
 	while Match._lifecycle.loading_gate_blocking():
 		await get_tree().process_frame
@@ -416,7 +416,7 @@ func cancel() -> void:
 		_warm_viewport = null
 
 
-## Bontago-1pi.46 (G10; Events.match_scope_reset). ROOT CAUSE: show_for_match() rebuilds
+## (G10; Events.match_scope_reset). ROOT CAUSE: show_for_match() rebuilds
 ## the player rows, but nothing took them down when the overlay faded out, so every
 ## finished match left its swatch/name/mark rows in the hidden PlayerList until the next
 ## show. Main emits the reset while the overlay is UP for the new match too (LOADING
@@ -442,12 +442,7 @@ func _refresh_map_icon(config: MatchConfig) -> void:
 	_map_icon.custom_minimum_size = Vector2.ONE * float(art.loading_map_icon_px)
 
 
-## The pictogram currently shown on the card (null when hidden).
-func map_icon_texture() -> Texture2D:
-	return _map_icon.texture if _map_icon.visible else null
-
-
-## Bontago-1pi.124 (owner: the ready screen's title should just be the game mode): the card
+## the ready screen's title should just be the game mode: the card
 ## title is the resolved game mode's display name only; the map pictogram stays beside it.
 func _map_display_name(config: MatchConfig) -> String:
 	if config == null:
@@ -455,7 +450,7 @@ func _map_display_name(config: MatchConfig) -> String:
 	return DisplayNames.mode(MatchConfig.resolve_game_mode(config.game_mode))
 
 
-## Bontago-1pi.49: a human seat shows the name its player typed (the host's
+## a human seat shows the name its player typed (the host's
 ## replicated roster, which both ends hold by the time LOADING starts); a bot
 ## keeps its slot label plus tuning.bot_suffix; an unnamed seat stays "Player N".
 func _slot_label_text(slot_item: PlayerSlot) -> String:
@@ -470,7 +465,7 @@ func _names() -> Variant:
 	return name_provider if name_provider != null else Net
 
 
-# --- Bontago-mp0.96: prerendered arena backdrop -----------------------------------
+# --- prerendered arena backdrop -----------------------------------
 
 ## Colours and the vignette gradient come from LoadingScreenTuning.
 func _apply_backdrop_styles() -> void:
@@ -492,7 +487,7 @@ func _apply_backdrop_styles() -> void:
 ## The backdrop for this match: one of the main menu's images (MainMenuTuning.backdrop_paths,
 ## the single list), chosen at random once per loading screen. "" when there is no config yet
 ## (a client's pending overlay: show_for_match() runs again with it) or no image is listed.
-## DECISION (Bontago-1pi.157): the pick may differ from the main menu's.
+## DECISION: the pick may differ from the main menu's.
 func backdrop_path_for(config: MatchConfig) -> String:
 	if config == null:
 		return ""
@@ -547,9 +542,9 @@ func _poll_backdrop(animate: bool) -> void:
 	_show_backdrop(ResourceLoader.load_threaded_get(_backdrop_path) as Texture2D, animate)
 
 
-## Bontago-8xf. ROOT CAUSE of the flaky dummy-renderer 'Parameter "t" is null'
-## (texture_storage.h:85): Godot's dummy rasterizer keeps texture RIDs in a RID_PtrOwner
-## without a lock (RD/GLES3 use a thread-safe owner), and RenderingServer allocates a
+## . ROOT CAUSE of the flaky dummy-renderer 'Parameter "t" is null'
+## texture_storage.h:85: Godot's dummy rasterizer keeps texture RIDs in a RID_PtrOwner
+## without a lock (RD/GLES3 use a thread-safe owning handle), and RenderingServer allocates a
 ## texture's RID on the calling thread. A plate decoded on a loader thread allocated its RID
 ## while the main thread created or freed textures; both threads took the same slot and one
 ## texture lost it. A sequential load has no second thread, so headless (the dummy
@@ -627,9 +622,9 @@ func _exit_tree() -> void:
 	_backdrop_orphans = PackedStringArray()
 
 
-## Bontago-6cw: holds the last reference to a just-fetched plate for a few frames so the
+## holds the last reference to a just-fetched plate for a few frames so the
 ## RenderingServer commands its loader thread queued drain before the texture is freed.
-## (Bontago-8xf: a main-thread free flushes that queue first in 4.7.2, so this was not the
+## (a main-thread free flushes that queue first in 4.7.2, so this was not the
 ## cause of the 'Parameter "t" is null' flake; see threaded_texture_loads_safe(). Kept as a
 ## cheap guard.) A static coroutine: it outlives the node that called it.
 static func release_later(resource: Resource) -> void:
@@ -656,7 +651,7 @@ func backdrop_texture() -> Texture2D:
 	return _backdrop.texture
 
 
-# --- Bontago-1pi.32 L3: the overlay's own CanvasLayer ------------------------------
+# --- L3: the overlay's own CanvasLayer ------------------------------
 
 ## The layer follows this node's visibility in the tree (a hidden parent, cancel(),
 ## a test or Main setting `visible` directly).
@@ -686,7 +681,7 @@ func overlay_layer_visible() -> bool:
 	return _layer.visible
 
 
-# --- Bontago-1pi.32 L2: ready prompt, status line, player ready list ------------
+# --- L2: ready prompt, status line, player ready list ------------
 
 ## Colours come from the menu palette (the card is the same cream pill card as the
 ## rest of the menus); sizes and wording from LoadingScreenTuning.
@@ -700,7 +695,7 @@ func _apply_ready_styles() -> void:
 	_prompt_text.add_theme_color_override("font_color", arcade.cream_color)
 
 
-## Stackfall Arcade LoadingCard (docs/UI_RESKIN_PLAN.md P5, Bontago-hfa.7): the disc-800 plate, the
+## Stackfall Arcade LoadingCard:
 ## mode name in Bungee, one diamond + progress-cell row per player. No spinners.
 func _apply_card_style() -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
@@ -734,15 +729,6 @@ func _refresh_prompt_glyph() -> void:
 	InputGlyph.build_for_action(_glyph_slot, READY_ACTION, tuning.ready_prompt_glyph_count)
 
 
-## Test seam: the labels of the glyphs currently in the prompt ("Enter", "A").
-func prompt_glyph_texts() -> PackedStringArray:
-	var texts: PackedStringArray = PackedStringArray()
-	for child: Node in _glyph_slot.get_children():
-		if child is InputGlyph:
-			texts.append((child as InputGlyph).label_text())
-	return texts
-
-
 ## One row per slot: colour swatch, name and the Ready / Not ready pill.
 func _rebuild_ready_rows(slots: Array[PlayerSlot]) -> void:
 	for child: Node in _player_list.get_children():
@@ -761,7 +747,7 @@ func _rebuild_ready_rows(slots: Array[PlayerSlot]) -> void:
 		name_label.add_theme_font_size_override("font_size", tuning.loading_name_font_size_px)
 		name_label.add_theme_color_override("font_color", MenuStyleFactory.arcade_tuning().cream_color)
 		name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		# Bontago-1pi.158 (owner: the four-cell bar "makes no sense"): the lobby's Ready / Not ready pill.
+		# the four-cell bar "makes no sense": the lobby's Ready / Not ready pill.
 		var mark: UiStatusBadge = _make_ready_mark(slot_item.is_bot)
 		mark.visible = _ready_gate_armed
 		row.add_child(marker)
@@ -801,11 +787,6 @@ func player_row_names() -> PackedStringArray:
 	return names
 
 
-## Test seam: whether the "Ready?" + glyph prompt is on screen.
-func ready_prompt_visible() -> bool:
-	return _ready_box.visible
-
-
 ## Test seam: the prompt's text line ("Ready?").
 func ready_prompt_text() -> String:
 	return _prompt_text.text
@@ -822,7 +803,7 @@ func player_row_ready(slot_id: int) -> bool:
 ## Re-derives everything the ready gate shows from the host's state (the lifecycle
 ## mirrors it on clients) and the local press. Cheap; runs every frame while armed
 ## and on every ready/gate/device signal. Nothing here decides anything: the host
-## still owns the gate. Bontago-1pi.63: only the player list (name + tick/ring) and
+## still owns the gate. only the player list (name + tick/ring) and
 ## the "Ready?" + device glyph prompt remain.
 func _refresh_ready_ui() -> void:
 	_player_list.visible = not _ready_rows.is_empty()

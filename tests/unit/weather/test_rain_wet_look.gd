@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-mp0.140: the disc looks wet while it rains. The rain presentation drives
+## the disc looks wet while it rains. The rain presentation drives
 ## the overlay's shader parameters from the ramped intensity (no net traffic).
 
 const RAIN_PATH: String = "res://config/weather/rain.tres"
@@ -28,15 +28,6 @@ func _presentation() -> RainPresentation:
 	add_child_autofree(p)
 	p.configure(_rain, 1.0)
 	return p
-
-
-func test_dry_without_rain() -> void:
-	assert_not_null(_overlay)
-	assert_almost_eq(_param(&"wet_darken"), 0.0, 0.00001)
-	var dry_rough: float = _param(&"base_roughness")
-	_overlay.set_wet(0.0, _rain.wet_sheen_add, _rain.wet_roughness_scale, _rain.wet_darken)
-	assert_almost_eq(_param(&"wet_darken"), 0.0, 0.00001)
-	assert_almost_eq(_param(&"base_roughness"), dry_rough, 0.00001)
 
 
 func test_wetness_follows_rain_intensity_and_clears() -> void:

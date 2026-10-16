@@ -1,14 +1,14 @@
 class_name SandboxConfig
 extends Resource
 ## Tunables for the unlisted `godot --path . -- --sandbox` debug entry point
-## (Bontago-mv0.8). Nothing here changes match rules — see config/match/MatchConfig.gd
+## . Nothing here changes match rules — see config/match/MatchConfig.gd
 ## for those, config/physics/PhysicsTuning.gd for physics — this only tunes how the
 ## sandbox scaffold itself behaves (CLAUDE.md: no magic numbers).
 ##
 ## Loaded once as config/match/sandbox.tres, exactly like every other config/*.tres.
 
 ## `--sandbox` with no `--players=` starts with this many slots.
-## MatchConfig.PLAYER_COUNT_MIN is 1 (spec 2.8, owner decision Bontago-1pi.206),
+## MatchConfig.PLAYER_COUNT_MIN is 1 (spec 1.9),
 ## so solo rules testing is an ordinary 1-player config.
 @export var default_player_count: int = 2
 
@@ -39,7 +39,7 @@ extends Resource
 ## value here would still be in effect for the next match).
 @export var slow_motion_scale: float = 0.25
 
-## Bontago-1pi.70 (gift demo preset, config/match/sandbox_gift_demo.tres). Every
+## (gift demo preset, config/match/sandbox_gift_demo.tres). Every
 ## opponent slot (all but slot 0) gets a tower of this many blocks dropped at
 ## its home position when the sandbox starts and after each field reset. 0 = none.
 @export var preplaced_tower_blocks: int = 0
@@ -58,7 +58,7 @@ extends Resource
 ## BlockShape id every pre-placed block uses (a stacked tower of cubes).
 @export var preplaced_shape_id: StringName = &"cube"
 
-## Tower-topple layout (Bontago-1pi.102). When non-empty this replaces the
+## Tower-topple layout. When non-empty this replaces the
 ## per-opponent towers: one tower per entry, that many cubes tall, in a row
 ## along the field's x axis centred on the origin, owned round-robin by the
 ## slots. Mirrors the tower tests (a few heights plus the 30- and 40-block

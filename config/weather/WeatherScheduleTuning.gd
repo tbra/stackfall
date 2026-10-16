@@ -1,7 +1,7 @@
 class_name WeatherScheduleTuning
 extends Resource
-## Host schedule numbers for weather events (Bontago-22y.10, owner decision
-## Bontago-22y.14: weather is a random EVENT, calm most of the time, one
+## Host schedule numbers for weather events (
+## weather is a random EVENT, calm most of the time, one
 ## weather at a time). Loaded as config/weather/weather_schedule.tres.
 ##
 ## Timeline per match: initial calm -> [ramp-in, hold, ramp-out] event ->

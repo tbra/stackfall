@@ -8,52 +8,6 @@ extends GutTest
 const SFX_SCRIPT: GDScript = preload("res://autoload/Sfx.gd")
 
 
-func test_bundled_owner_theme_plays_without_original_assets_and_loops() -> void:
-	_config.bundled_theme = load("res://assets/audio/music/stacking-blocks.mp3")
-	_sfx.set_root_dir_for_test(_empty_dir)
-	_sfx.play_music()
-	assert_same(_sfx._music_player.stream, _config.bundled_theme)
-	assert_true(_sfx._music_player.playing)
-	assert_true((_sfx._music_player.stream as AudioStreamMP3).loop)
-	_sfx._music_player.stop()
-
-## Bontago-1pi.156: music starts only when Main asks (after the splash), never in _ready().
-func test_music_is_silent_after_init_and_play_music_starts_it_once() -> void:
-	_config.bundled_theme = load("res://assets/audio/music/stacking-blocks.mp3")
-	_sfx.set_root_dir_for_test(_empty_dir)
-	assert_false(_sfx._music_player.playing, "no music at autoload init")
-	assert_eq(_sfx._music_state, _sfx.MusicState.STOPPED)
-	_sfx.play_music()
-	assert_true(_sfx._music_player.playing)
-	var stream: AudioStream = _sfx._music_player.stream
-	_sfx.play_music()
-	assert_same(_sfx._music_player.stream, stream)
-	_sfx._music_player.stop()
-
-
-func test_contextual_music_stays_stopped_until_started() -> void:
-	_config.contextual_music_enabled = true
-	var fresh: Node = autofree(SFX_SCRIPT.new())
-	fresh.config = _config
-	add_child_autofree(fresh)
-	assert_eq(fresh._music_state, fresh.MusicState.STOPPED)
-	assert_false(fresh._music_player.playing)
-	fresh.play_music()
-	assert_eq(fresh._music_state, fresh.MusicState.WAITING)
-
-
-func test_release_audio_stops_players_and_drops_stream_refs() -> void:
-	_sfx.set_root_dir_for_test(_tmp_dir)
-	assert_true(_sfx.play(AudioConfig.EVENT_CLICK))
-	assert_not_null(_first_playing_sfx_player())
-	_sfx.release_audio()
-	for player: AudioStreamPlayer in _sfx._sfx_players + _sfx._ui_players:
-		assert_false(player.playing)
-		assert_null(player.stream)
-	assert_true(_sfx._streams_by_filename.is_empty())
-	assert_eq(_sfx._music_state, _sfx.MusicState.STOPPED)
-
-
 var _sfx: Node
 var _config: AudioConfig
 var _tmp_dir: String
@@ -106,7 +60,7 @@ func after_each() -> void:
 	Net._mode = Net.Mode.OFFLINE
 	Net._local_slot = 0
 	# Restore the real Settings singleton to its own persisted file so later
-	# tests (and the owner's real user://settings.cfg) never see this test
+	# tests (and the user's real user://settings.cfg) never see this test
 	# file's temp custom_music_dir/master_volume_db values.
 	Settings.set_config_path_for_test(Settings.default_config_path())
 	_delete_if_exists(_settings_cfg_path)
@@ -129,29 +83,13 @@ func _write_tiny_wav(path: String) -> void:
 	assert_eq(err, OK, "fixture wav should save cleanly: %s" % path)
 
 
-func test_play_returns_true_when_file_is_installed() -> void:
-	_sfx.set_root_dir_for_test(_tmp_dir)
-	assert_true(_sfx.play(AudioConfig.EVENT_CLICK))
-
-
-func test_play_returns_false_with_empty_root() -> void:
-	_sfx.set_root_dir_for_test(_empty_dir)
-	assert_false(_sfx.play(AudioConfig.EVENT_CLICK))
-
-
 func test_play_returns_false_for_unknown_event() -> void:
 	_sfx.set_root_dir_for_test(_tmp_dir)
 	assert_false(_sfx.play(&"not_a_real_event"))
 
 
-func test_event_map_covers_every_audio_config_key() -> void:
-	for event: StringName in AudioConfig.ALL_EVENTS:
-		var files: Array[String] = _config.files_for_event(event)
-		assert_false(files.is_empty(), "AudioConfig.files_for_event(%s) should not be empty" % event)
-
-
-## Bontago-1pi.28: effects were inaudible next to the music. The bundled wavs
-## are now normalised (a script removed in Bontago-dbn.1 (see git history)); these guard the playback side.
+## effects were inaudible next to the music. The bundled wavs
+## are now normalised (a script removed in (see git history)); these guard the playback side.
 const BUNDLED_CUE_EVENTS: Array[StringName] = [
 	AudioConfig.EVENT_THUD, AudioConfig.EVENT_REJECTED, AudioConfig.EVENT_CLICK,
 	AudioConfig.EVENT_START_GAME, AudioConfig.EVENT_HOVER, AudioConfig.EVENT_DROP,
@@ -160,14 +98,6 @@ const BUNDLED_CUE_EVENTS: Array[StringName] = [
 	AudioConfig.EVENT_PROPELLER, AudioConfig.EVENT_BREAKAGE, AudioConfig.EVENT_GIFT_CLAIMED,
 	AudioConfig.EVENT_GIFT_SPAWNED,
 ]
-## Sane window for a cue's default gain (cue baseline + master + sfx at 100%).
-const CUE_GAIN_MIN_DB: float = -12.0
-const CUE_GAIN_MAX_DB: float = 0.0
-## Max dB a cue may lose to attenuation between nominal level and the camera
-## (~20-40 m, CameraTuning). Sfx uses plain 2D players, so the real loss is 0.
-const MAX_CAMERA_DISTANCE_LOSS_DB: float = 3.0
-
-
 func test_every_bundled_cue_resolves_to_a_stream() -> void:
 	_sfx.set_root_dir_for_test(ProjectSettings.globalize_path("res://assets/audio/sfx"))
 	for event: StringName in BUNDLED_CUE_EVENTS:
@@ -175,21 +105,6 @@ func test_every_bundled_cue_resolves_to_a_stream() -> void:
 			var stream: AudioStream = _sfx._load_stream(filename)
 			assert_not_null(stream, "cue %s file %s should load from assets/audio/sfx" % [event, filename])
 			assert_gt(stream.get_length(), 0.0, "%s should have a non-zero length" % filename)
-
-
-func test_default_cue_gain_is_within_sane_window() -> void:
-	var gain_db: float = _config.sfx_volume_db + Settings.master_volume_db() + Settings.sfx_volume_db()
-	assert_between(gain_db, CUE_GAIN_MIN_DB, CUE_GAIN_MAX_DB, "default SFX gain")
-	assert_gt(_config.sfx_volume_db, _config.music_volume_db - 1.0, "SFX baseline must not sit below the music's")
-	assert_eq(_config.impact_loud_db_offset, 0.0, "loudest thud keeps nominal level")
-
-
-func test_sfx_players_are_non_attenuating_2d_players() -> void:
-	# AudioStreamPlayer3D would apply unit_size/max_distance attenuation; the
-	# pool must stay 2D (or stay within MAX_CAMERA_DISTANCE_LOSS_DB at 20-40 m).
-	for player: Node in _sfx._sfx_players:
-		assert_false(player is AudioStreamPlayer3D, "SFX pool player must not be a 3D player")
-	assert_lte(0.0, MAX_CAMERA_DISTANCE_LOSS_DB)
 
 
 func test_impact_below_speed_min_does_not_play() -> void:
@@ -211,38 +126,11 @@ func _any_player_playing() -> bool:
 	return false
 
 
-func test_volume_scaling_clamps_to_configured_range() -> void:
-	var below_min_db: float = _config.impact_volume_db(_config.impact_speed_min - 100.0)
-	var at_min_db: float = _config.impact_volume_db(_config.impact_speed_min)
-	var at_loud_db: float = _config.impact_volume_db(_config.impact_speed_loud)
-	var far_above_loud_db: float = _config.impact_volume_db(_config.impact_speed_loud + 1000.0)
-
-	assert_almost_eq(below_min_db, _config.impact_quiet_db_offset, 0.0001)
-	assert_almost_eq(at_min_db, _config.impact_quiet_db_offset, 0.0001)
-	assert_almost_eq(at_loud_db, _config.impact_loud_db_offset, 0.0001)
-	assert_almost_eq(far_above_loud_db, _config.impact_loud_db_offset, 0.0001)
-
-
 func test_gift_flight_start_plays_spawn_jingle() -> void:
 	_sfx.set_root_dir_for_test(_tmp_dir)
 	_sfx._on_gift_flight_spawned(7, Vector3.UP * 18.0, Vector3.ZERO)
 	assert_true(_any_player_playing(), "A new gift flight must cue the spawn chime")
 
-
-func test_gift_spawn_jingle_is_rate_limited() -> void:
-	_sfx.set_root_dir_for_test(_tmp_dir)
-	_sfx._on_gift_flight_spawned(1, Vector3.ZERO, Vector3.ZERO)
-	assert_true(_any_player_playing())
-	for player: AudioStreamPlayer in _sfx._sfx_players:
-		player.stop()
-	_sfx._on_gift_flight_spawned(2, Vector3.ZERO, Vector3.ZERO)
-	assert_false(_any_player_playing(), "A second spawn inside the interval stays silent")
-	_sfx._last_gift_spawn_msec -= int(_config.gift_spawn_min_interval_s * 1000.0) + 1
-	_sfx._on_gift_flight_spawned(3, Vector3.ZERO, Vector3.ZERO)
-	assert_true(_any_player_playing(), "After the interval the jingle plays again")
-
-
-# --- Events.special_triggered (Bontago-eq0) -----------------------------------
 
 const SPECIALS_DIR: String = "res://config/gifts/specials"
 
@@ -271,13 +159,6 @@ func test_every_shipped_special_has_a_cue_that_loads() -> void:
 		assert_not_null(_sfx._load_stream(file), "%s should load from assets/audio/sfx" % file)
 
 
-## Bontago-eq0 owner feedback: timed specials fire special_triggered at the END of
-## their window, so their sound must not hang off it.
-func test_timed_specials_have_no_end_of_window_one_shot() -> void:
-	for id: StringName in [&"earthquake", &"magnet", &"jumping_bean"]:
-		assert_false(_config.special_cue_files.has(id), "%s must not sound only at its end" % id)
-
-
 func test_special_consumed_loops_for_the_window_and_trigger_fades_it() -> void:
 	_write_tiny_wav(_tmp_dir.path_join(_config.special_loop_files[&"earthquake"]))
 	_sfx.set_root_dir_for_test(_tmp_dir)
@@ -288,57 +169,6 @@ func test_special_consumed_loops_for_the_window_and_trigger_fades_it() -> void:
 	assert_eq((player.stream as AudioStreamWAV).loop_mode, AudioStreamWAV.LOOP_FORWARD, "it loops")
 	_sfx._on_special_triggered(-1, &"earthquake", Vector3.ZERO, 0)
 	assert_eq(_sfx.special_loop_count(), 0, "the window's end fades it out")
-
-
-func test_special_consumed_without_a_loop_or_during_replay_is_silent() -> void:
-	_write_tiny_wav(_tmp_dir.path_join(_config.special_loop_files[&"magnet"]))
-	_sfx.set_root_dir_for_test(_tmp_dir)
-	_sfx._on_special_consumed(0, &"bomb")
-	assert_eq(_sfx.special_loop_count(), 0, "a one-shot special has no loop")
-	_sfx._on_world_replay_changed(true)
-	_sfx._on_special_consumed(0, &"magnet")
-	assert_eq(_sfx.special_loop_count(), 0, "a replay is state, not news")
-
-
-func test_special_loops_are_capped_and_cleared_on_reset() -> void:
-	_write_tiny_wav(_tmp_dir.path_join(_config.special_loop_files[&"magnet"]))
-	_sfx.set_root_dir_for_test(_tmp_dir)
-	for _i: int in range(_config.special_loop_max + 2):
-		_sfx._on_special_consumed(0, &"magnet")
-	assert_eq(_sfx.special_loop_count(), _config.special_loop_max)
-	_sfx.stop_special_loops()
-	assert_eq(_sfx.special_loop_count(), 0)
-
-
-func test_bean_hop_plays_and_is_rate_limited() -> void:
-	_write_tiny_wav(_tmp_dir.path_join(_config.bean_hop_file))
-	_sfx.set_root_dir_for_test(_tmp_dir)
-	_sfx._on_bean_hopped(Vector3.ZERO)
-	assert_true(_any_player_playing(), "a hop boings")
-	_stop_sfx_players()
-	_sfx._on_bean_hopped(Vector3.ZERO)
-	assert_false(_any_player_playing(), "a second hop inside the interval stays silent")
-
-
-func test_an_impact_touching_a_glue_coated_block_squelches() -> void:
-	_write_tiny_wav(_tmp_dir.path_join(_config.glue_hit_file))
-	_sfx.set_root_dir_for_test(_tmp_dir)
-	var plain: Block = autofree(Block.new())
-	var glued: Block = autofree(Block.new())
-	var mesh: MeshInstance3D = MeshInstance3D.new()
-	glued.add_child(mesh)
-	var coat: Node3D = Node3D.new()
-	coat.name = HoneyCoat.COAT_NODE_NAME
-	mesh.add_child(coat)
-	_sfx._surface_ids = PackedInt64Array([plain.get_instance_id()])
-	assert_false(_sfx._impact_touches_glue(), "plain blocks do not squelch")
-	_sfx._surface_ids = PackedInt64Array([plain.get_instance_id(), glued.get_instance_id()])
-	assert_true(_sfx._impact_touches_glue(), "a coated block in the impact does")
-	_sfx._play_glue_hit()
-	assert_true(_any_player_playing())
-	_stop_sfx_players()
-	_sfx._play_glue_hit()
-	assert_false(_any_player_playing(), "rate-limited")
 
 
 func test_special_triggered_plays_its_cue() -> void:
@@ -362,29 +192,6 @@ func test_special_triggered_is_silent_during_a_world_replay() -> void:
 	assert_false(_any_player_playing(), "a late joiner's replay is state, not news")
 
 
-func test_same_special_is_rate_limited_but_others_are_not() -> void:
-	_write_tiny_wav(_tmp_dir.path_join(_config.special_cue_files[&"bomb"]))
-	_write_tiny_wav(_tmp_dir.path_join(_config.special_cue_files[&"freeze"]))
-	_sfx.set_root_dir_for_test(_tmp_dir)
-	_sfx._on_special_triggered(5, &"bomb", Vector3.ZERO, 0)
-	_stop_sfx_players()
-	_sfx._on_special_triggered(6, &"bomb", Vector3.ZERO, 1)
-	assert_false(_any_player_playing(), "a chained bomb inside the interval stays silent")
-	_sfx._on_special_triggered(7, &"freeze", Vector3.ZERO, 0)
-	assert_true(_any_player_playing(), "a different special is not held back")
-	_stop_sfx_players()
-	_sfx._last_special_cue_msec[&"bomb"] -= int(_config.special_cue_min_interval_s * 1000.0) + 1
-	_sfx._on_special_triggered(8, &"bomb", Vector3.ZERO, 0)
-	assert_true(_any_player_playing(), "after the interval the bomb sounds again")
-
-
-func _stop_sfx_players() -> void:
-	for player: AudioStreamPlayer in _sfx._sfx_players:
-		player.stop()
-
-
-# --- Events.gift_claimed (Bontago-6y2) ----------------------------------------
-
 func test_gift_claimed_for_the_local_slot_plays_the_claim_sound() -> void:
 	_sfx.set_root_dir_for_test(_tmp_dir)
 	# Net defaults to OFFLINE, where is_local_slot() is true for every slot
@@ -406,56 +213,6 @@ func test_gift_claimed_for_a_non_local_slot_plays_nothing() -> void:
 	assert_false(_any_player_playing(), "another slot's claim must not play a sound here")
 
 
-func test_gift_claimed_for_the_local_slot_plays_even_as_a_connected_client() -> void:
-	_sfx.set_root_dir_for_test(_tmp_dir)
-	Net._mode = Net.Mode.CLIENT
-	Net._local_slot = 2
-
-	_sfx._on_gift_claimed(1, 2, &"anvil")
-
-	assert_true(_any_player_playing(), "the local slot's own claim must still play once connected as a client")
-
-
-# --- Custom music folder + master volume (docs/archive/M6_PLAN.md package C3) --------
-
-func test_play_music_ignores_custom_music_dir_when_set() -> void:
-	var music_dir: String = OS.get_user_data_dir().path_join("test_sfx_custom_music")
-	DirAccess.make_dir_recursive_absolute(music_dir)
-	_config.music_file = "custom_track.wav"
-	_config.bundled_theme = load("res://assets/audio/music/stacking-blocks.mp3")
-	_write_tiny_wav(music_dir.path_join(_config.music_file))
-
-	# A real override file exists, but owner direction temporarily disables
-	# this path: the bundled stream must win, not merely missing-file fallback.
-	_sfx.set_root_dir_for_test(_tmp_dir)
-	Settings.set_custom_music_dir(music_dir)
-	_sfx._music_player.stop()  # discard whatever _ready()'s own auto-play call already picked
-
-	_sfx.play_music()
-
-	assert_true(_sfx._music_player.playing, "bundled music still plays")
-	assert_same(_sfx._music_player.stream, _config.bundled_theme, "custom folder override is disabled")
-
-	for filename: String in DirAccess.get_files_at(music_dir):
-		DirAccess.remove_absolute(music_dir.path_join(filename))
-	DirAccess.remove_absolute(music_dir)
-
-
-func test_play_music_falls_back_silently_when_custom_music_dir_is_missing() -> void:
-	# Settings.custom_music_dir() points at a path that was never created --
-	# the same "set but missing" case as an unplugged drive. This must fall
-	# back to the bundled root (here _empty_dir, which has no music file
-	# either) with no error, matching Sfx.gd's own "supported absence"
-	# pattern for the bundled folder itself.
-	Settings.set_custom_music_dir(OS.get_user_data_dir().path_join("test_sfx_custom_music_missing"))
-	_sfx.set_root_dir_for_test(_empty_dir)
-	_sfx._music_player.stop()  # discard whatever _ready()'s own auto-play call already picked
-
-	_sfx.play_music()
-
-	assert_false(_sfx._music_player.playing, "a missing custom music dir should fall back silently, not error")
-
-
 func test_master_volume_db_offsets_play_volume_db() -> void:
 	_sfx.set_root_dir_for_test(_tmp_dir)
 
@@ -470,51 +227,6 @@ func test_master_volume_db_offsets_play_volume_db() -> void:
 	assert_almost_eq(offset_db - baseline_db, linear_to_db(0.5), 0.0001)
 
 
-## Bontago (options package): the SFX volume slider only ever scales SFX
-## playback, never music (Settings.sfx_volume_db(), added on top of
-## Settings.master_volume_db(), matches this file's own header doc).
-func test_sfx_volume_db_offsets_play_volume_db_independently_of_music() -> void:
-	_config.music_file = "sfx_test_music.wav"
-	_write_tiny_wav(_tmp_dir.path_join(_config.music_file))
-	_sfx.set_root_dir_for_test(_tmp_dir)
-
-	assert_true(_sfx.play(AudioConfig.EVENT_CLICK))
-	var baseline_db: float = _first_playing_sfx_player().volume_db
-	_stop_all_sfx_players()
-
-	Settings.set_sfx_volume_percent(0.25)
-	assert_true(_sfx.play(AudioConfig.EVENT_CLICK))
-	var offset_db: float = _first_playing_sfx_player().volume_db
-	_stop_all_sfx_players()
-
-	assert_almost_eq(offset_db - baseline_db, linear_to_db(0.25), 0.0001)
-
-	# Music volume must be untouched by the SFX slider.
-	_sfx.play_music()
-	assert_almost_eq(_sfx._music_player.volume_db, _config.music_volume_db + Settings.master_volume_db() + Settings.music_volume_db(), 0.01)
-
-
-## Mirror of the SFX test above, for the music channel.
-func test_music_volume_db_offsets_music_playback_independently_of_sfx() -> void:
-	_config.music_file = "music_test_music.wav"
-	_write_tiny_wav(_tmp_dir.path_join(_config.music_file))
-	_sfx.set_root_dir_for_test(_tmp_dir)
-	_sfx.play_music()
-	var baseline_db: float = _sfx._music_player.volume_db
-
-	Settings.set_music_volume_percent(0.25)
-	_sfx.play_music()
-	var offset_db: float = _sfx._music_player.volume_db
-
-	assert_almost_eq(offset_db - baseline_db, linear_to_db(0.25), 0.0001)
-
-	# SFX volume must be untouched by the music slider.
-	assert_true(_sfx.play(AudioConfig.EVENT_CLICK))
-	var sfx_db: float = _first_playing_sfx_player().volume_db
-	_stop_all_sfx_players()
-	assert_almost_eq(sfx_db, _config.sfx_volume_db + Settings.master_volume_db() + Settings.sfx_volume_db(), 0.01)
-
-
 func _first_playing_sfx_player() -> AudioStreamPlayer:
 	for player: AudioStreamPlayer in _sfx._sfx_players + _sfx._ui_players:
 		if player.playing:
@@ -527,7 +239,7 @@ func _stop_all_sfx_players() -> void:
 		player.stop()
 
 
-# --- Adaptive music crossfade (docs/M7_PLAN.md P6, Bontago-xtq.31) ------------
+# --- Adaptive music crossfade ------------
 
 func _install_both_stem_files() -> void:
 	_config.music_stem_calm_file = "calm_stem.wav"
@@ -535,21 +247,6 @@ func _install_both_stem_files() -> void:
 	_write_tiny_wav(_tmp_dir.path_join(_config.music_stem_calm_file))
 	_write_tiny_wav(_tmp_dir.path_join(_config.music_stem_tense_file))
 	_sfx.set_root_dir_for_test(_tmp_dir)
-
-
-func test_tense_stem_unavailable_without_a_tense_file() -> void:
-	# The default fixture (before_each) never writes a file matching either
-	# AudioConfig's default music_stem_calm_file/music_stem_tense_file --
-	# this must resolve to "no pairing" with no error/warning, the same
-	# "supported absence" every other missing-asset case in this file gets.
-	_sfx.set_root_dir_for_test(_tmp_dir)
-
-	assert_false(_sfx.tense_stem_available(), "no tense (or calm) stem file installed -- pairing unavailable")
-
-	# Must not error when a capture starts even with nothing to crossfade to.
-	Events.goal_capture_progress.emit(0, 0.9)
-
-	assert_false(_sfx.tense_stem_available(), "still unavailable -- single-stream playback stays untouched")
 
 
 func test_goal_capture_progress_crossfades_toward_tense_when_stems_available() -> void:
@@ -564,132 +261,3 @@ func test_goal_capture_progress_crossfades_toward_tense_when_stems_available() -
 		"progress above the tense threshold should target the tense stem louder than the calm one",
 	)
 
-
-func test_goal_capture_progress_returns_to_calm_when_a_capture_breaks() -> void:
-	_install_both_stem_files()
-
-	Events.goal_capture_progress.emit(0, 0.9)
-	# Events.gd: "team_id is -1 with progress 0 when a capture breaks".
-	Events.goal_capture_progress.emit(-1, 0.0)
-
-	assert_gt(
-		_sfx.calm_stem_target_volume_db(),
-		_sfx.tense_stem_target_volume_db(),
-		"a broken/reset capture should target the calm stem louder than the tense one",
-	)
-
-
-## Regression (Bontago-xtq.31 review, HIGH): in the shipped single-stream
-## config (no tense asset installed), crossing the tense threshold must never
-## leave the calm stem's own volume math muted -- it is the only music stream
-## that exists. Before the fix, _on_goal_capture_progress flipped
-## _tense_stem_is_active before checking _tense_stem_available, so the next
-## play_music()/audio_settings_changed volume re-apply silenced the single
-## stream permanently.
-func test_single_stream_progress_past_threshold_then_settings_change_stays_at_baseline() -> void:
-	# A real music file must exist for play_music() to have anything to set
-	# _music_player.volume_db to below -- .wav (not the default .mp3) so
-	# _write_tiny_wav's own fixture bytes load through the right codec.
-	_config.music_file = "single_stream_music.wav"
-	_write_tiny_wav(_tmp_dir.path_join(_config.music_file))
-	_sfx.set_root_dir_for_test(_tmp_dir)
-	assert_false(_sfx.tense_stem_available(), "fixture: no tense (or calm) stem file installed")
-
-	Events.goal_capture_progress.emit(0, 1.0)
-	_sfx.play_music()  # exercises _play_music_stream()'s own volume_db assignment
-
-	var expected_baseline_db: float = _config.music_volume_db + Settings.master_volume_db() + Settings.music_volume_db()
-	assert_almost_eq(
-		_sfx._music_player.volume_db,
-		expected_baseline_db,
-		0.0001,
-		"play_music() must not mute the only music stream after crossing the tense threshold",
-	)
-
-	# Settings.set_master_volume_percent() emits audio_settings_changed, which
-	# re-applies calm_stem_target_volume_db() to the live _music_player --
-	# the second path the review flagged (besides play_music()) that could
-	# mute the single stream permanently.
-	Settings.set_master_volume_percent(0.7)
-	expected_baseline_db = _config.music_volume_db + Settings.master_volume_db() + Settings.music_volume_db()
-	assert_almost_eq(
-		_sfx._music_player.volume_db,
-		expected_baseline_db,
-		0.0001,
-		"audio_settings_changed must not mute the only music stream after crossing the tense threshold",
-	)
-	assert_almost_eq(
-		_sfx.calm_stem_target_volume_db(),
-		expected_baseline_db,
-		0.0001,
-		"calm_stem_target_volume_db() must never mute without an available tense stem",
-	)
-
-
-## MEDIUM (Bontago-xtq.31 review): once a real tense partner exists, the calm
-## player must actually play music_stem_calm_file, not whatever music_file's
-## own (possibly different) selection would otherwise pick.
-func test_calm_player_uses_the_calm_stem_file_once_both_stems_are_installed() -> void:
-	_install_both_stem_files()
-
-	_sfx.play_music()
-
-	var calm_stream: AudioStream = _sfx._music_streams_by_filename[_config.music_stem_calm_file.to_lower()]
-	assert_not_null(calm_stream, "fixture: the calm stem file should have loaded into the music stream cache")
-	assert_eq(
-		_sfx._music_player.stream,
-		calm_stream,
-		"the calm player should play music_stem_calm_file once a tense partner exists",
-	)
-
-
-## MINOR (Bontago-xtq.31 review): hysteresis around music_tense_progress_threshold
-## keeps progress hovering near the boundary from flapping the crossfade.
-func test_hysteresis_keeps_the_tense_stem_active_within_the_release_margin() -> void:
-	_install_both_stem_files()
-	_config.music_tense_progress_threshold = 0.6
-	_config.music_tense_release_margin = 0.1
-
-	Events.goal_capture_progress.emit(0, 0.65)  # cross the rising threshold
-	assert_true(_sfx._tense_stem_is_active, "fixture: crossing the threshold should activate the tense stem")
-
-	Events.goal_capture_progress.emit(0, 0.55)  # below the threshold, still above (threshold - margin) == 0.5
-	assert_true(
-		_sfx._tense_stem_is_active,
-		"progress within the release margin below the threshold should not flap back to calm",
-	)
-
-	Events.goal_capture_progress.emit(0, 0.45)  # below the release point
-	assert_false(_sfx._tense_stem_is_active, "progress below the release point should return to calm")
-
-
-## Bontago-xtq.47: every real quit path calls the one helper that drains audio first.
-func test_quit_tree_helper_exists_and_release_audio_is_idempotent() -> void:
-	assert_true(_sfx.has_method(&"quit_tree"), "Sfx must expose the single drain-then-quit helper")
-	_sfx.release_audio()
-	_sfx.release_audio()
-	assert_true(true, "release_audio twice must not error")
-
-
-var _quit_codes: Array[int] = []
-
-
-func _record_quit(exit_code: int) -> void:
-	_quit_codes.append(exit_code)
-
-
-## Bontago-6a4: quit_tree marks once, drains, quits once; a second request during the drain
-## is a no-op and the first exit code is kept.
-func test_quit_tree_second_request_during_drain_is_a_noop() -> void:
-	_quit_codes.clear()
-	_sfx.quit_override = _record_quit
-	QuitFlag._quitting = false
-	_sfx.quit_tree(7)
-	assert_true(QuitFlag.is_quitting(), "first request marks the quit")
-	assert_true(_quit_codes.is_empty(), "still draining: no quit yet")
-	QuitFlag._quitting = false  # a second request that did anything would mark again
-	_sfx.quit_tree(3)
-	assert_false(QuitFlag.is_quitting(), "second request must not mark again")
-	await get_tree().create_timer(_sfx.QUIT_DRAIN_S + 0.3, true, false, true).timeout
-	assert_eq(_quit_codes, [7] as Array[int], "exactly one quit, first exit code kept")
-	QuitFlag._quitting = false

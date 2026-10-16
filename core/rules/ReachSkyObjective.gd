@@ -1,6 +1,6 @@
 class_name ReachSkyObjective
 extends ModeObjective
-## Reach the Sky (Bontago-22y.9, owner decision Bontago-0tn). Each player's
+## Reach the Sky. Each player's
 ## record is the highest top of one of their own blocks, measured along the
 ## disk normal and sampled when that block SETTLES after placement (the
 ## BlockRegistry sleep rule), so a block balanced for an instant and then
@@ -8,12 +8,12 @@ extends ModeObjective
 ## lower it. The highest team record at the round timer wins; a team's value is
 ## its best member's or the sum of its members' (sum_members). Ties go to the
 ## team that reached its final value first. Classic all-goal victory is not
-## used. Bontago-1pi.166: the first team whose settled block reaches
+## used. the first team whose settled block reaches
 ## `target_height` wins at once (record_height() latches the winner, which the
 ## existing mode-objective winner path in MatchTerritory turns into the match
 ## end); if the timer ends first the highest record wins as above.
 ##
-## DECISION (Bontago-1pi.166, single source of truth): the target is owned by
+## DECISION (single source of truth): the target is owned by
 ## NetConfig.build_height_target_m (the same number the network position band is
 ## derived from, so the band top is always >= target + margin). This pure class
 ## takes it as a constructor argument; MatchTerritory passes the NetConfig value,
@@ -109,16 +109,8 @@ func record_height(slot: int, height: float) -> void:
 		_publish_pending = true
 
 
-func record_of_slot(slot: int) -> float:
-	return _records[slot] if slot >= 0 and slot < _records.size() else 0.0
-
-
 func target_height() -> float:
 	return _target_height
-
-
-func sums_members() -> bool:
-	return _sum_members
 
 
 ## Highest record wins; the earlier to reach it breaks a tie. A tie that

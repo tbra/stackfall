@@ -1,5 +1,5 @@
 extends Node
-## Bontago-1pi.11.67: off-screen GPU frame-cost harness. Loads the real Main scene
+## off-screen GPU frame-cost harness. Loads the real Main scene
 ## into a SubViewport of --render-size (default 3440x1440), starts the sandbox with
 ## territory active and --blocks placed blocks, then reports the median GPU ms of that
 ## viewport (RenderingServer.viewport_get_measured_render_time_gpu) per configuration.
@@ -189,7 +189,7 @@ func _steady(preset_id: StringName, off: PackedStringArray, max_fps: int, warmup
 ## the scene, with triangles per submission, how many passes can draw it (main + shadow splits +
 ## probe faces by cull mask) and flags, sorted by triangles x passes.
 func _prims_audit() -> void:
-	# Menu leftovers after the real menu -> sandbox flow (Bontago-1pi.127 question).
+	# Menu leftovers after the real menu -> sandbox flow (question).
 	for node: Node in get_tree().root.find_children("*", "SubViewport", true, false):
 		var sv: SubViewport = node as SubViewport
 		print("TREE_AUDIT subviewport=%s size=%s update=%d visible_in_tree=%s" % [str(sv.get_path()), sv.size, sv.render_target_update_mode, sv.is_inside_tree()])
@@ -309,11 +309,11 @@ func _set_feature(feature: String, on: bool) -> void:
 		"ssao":
 			_toggle(feature, _env, "ssao_enabled", false, on)
 		"ssao_on":
-			# Meaning inverted (Bontago-1pi.11.70): listing it in the off set ENABLES SSAO;
+			# Meaning inverted: listing it in the off set ENABLES SSAO;
 			# restoring (on = true) puts the saved value back (false by default).
 			_toggle(feature, _env, "ssao_enabled", true, on)
 		"ssr_steps32":
-			# Pseudo-feature (Bontago-1pi.11.71): listing it sets ssr_max_steps to 32.
+			# Pseudo-feature: listing it sets ssr_max_steps to 32.
 			_toggle(feature, _env, "ssr_max_steps", SSR_STEPS_HALF, on)
 		"ssr_steps16":
 			_toggle(feature, _env, "ssr_max_steps", SSR_STEPS_QUARTER, on)
@@ -327,7 +327,7 @@ func _set_feature(feature: String, on: bool) -> void:
 			_toggle_all(feature, OmniLight3D, "visible", false, on)
 			_toggle_all(feature + "_spot", SpotLight3D, "visible", false, on)
 		"overlay":
-			# Bontago-mp0.150.1: the arena is one mesh node, so this hides the
+			# the arena is one mesh node, so this hides the
 			# whole arena (top, chamfer, band, bottom), not just the top surface.
 			_toggle(feature, _field.overlay(), "visible", false, on)
 		"blocks":

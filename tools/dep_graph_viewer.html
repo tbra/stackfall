@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <title>Stackfall dependency map</title>
-<!-- Template for tools/dep_graph.py (Bontago-fca.117): the payload placeholder below is replaced by JSON.
+<!-- Template for tools/dep_graph.py: the payload placeholder below is replaced by JSON.
      Self-contained: no network, no libraries. Canvas + a small force simulation (Barnes-Hut repulsion). -->
 <style>
 *{box-sizing:border-box}
@@ -754,7 +754,7 @@ canvas.addEventListener("wheel", (e) => {
 }, {passive: false});
 window.addEventListener("resize", () => { resize(); });
 
-// ---------------------------------------------------------------- function view (Bontago-fca.118)
+// ---------------------------------------------------------------- function view
 const FVD = D.fv, fnRows = FVD.fn, fstart = FVD.fstart, ce = FVD.ce, kindName = FVD.ckinds;
 const FN = {NAME: 0, LINE: 1, END: 2, FLAGS: 3, LIVE: 4};
 const FB_STATIC = 1, FB_RPC = 2, FB_ENGINE = 4, FB_TEST = 8, FB_OVERRIDE = 16, FB_CYCLE = 32;

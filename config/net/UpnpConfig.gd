@@ -1,6 +1,6 @@
 class_name UpnpConfig
 extends Resource
-## Tunables for opening the host's UDP port on the home router (Bontago-1pi.164, net/UpnpRunner.gd).
+## Tunables for opening the host's UDP port on the home router (net/UpnpRunner.gd).
 
 ## Milliseconds the discovery broadcast waits for a router (blocks the worker thread, never a frame).
 @export var discover_timeout_ms: int = 2000

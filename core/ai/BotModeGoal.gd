@@ -1,54 +1,37 @@
 class_name BotModeGoal
 extends RefCounted
-## Bontago-1t5.3 phase A: the per-mode goal context BotPlacementScorer reads.
+## phase A: the per-mode goal context BotStrategy and BotController read.
 ## Pure data, built on the host from the active ModeObjective (see
-## MatchTerritory.bot_mode_goal()) and handed to the scorer; null or a CLASSIC
-## context means "score exactly as before" (classic bot behaviour is unchanged).
+## MatchTerritory.bot_mode_goal()) and handed to the bot through BotWorldView; null or a CLASSIC
+## context means the ordinary classic behaviour.
 
 ## MatchConfig.GameMode of the match this context was built for.
 var mode: int = MatchConfig.GameMode.CLASSIC
 
 ## Capture the Flag: every beacon (disk-local), whether the bot's own team
-## currently holds it (parallel array, true = held by own team), and the
-## points a held beacon scores per second (the scoring-rate weight).
+## currently holds it (parallel array, true = held by own team).
 var beacon_positions: PackedVector2Array = PackedVector2Array()
 var beacon_held_by_own: Array[bool] = []
-var beacon_score_rate: float = 1.0
 
 ## Reach the Sky: the bot's own tallest settled block's disk-local position and
 ## top height (meters above the disk). `has_tower` is false until one settles.
 var has_tower: bool = false
 var tower_origin: Vector2 = Vector2.ZERO
-var tower_height: float = 0.0
 
-## Elimination (phase B): living opponent homes (disk-local) with their team's
-## territory share (parallel array; larger = stronger), and the bot's own home.
-var enemy_home_positions: PackedVector2Array = PackedVector2Array()
-var enemy_home_shares: PackedFloat32Array = PackedFloat32Array()
-var has_own_home: bool = false
-var own_home_position: Vector2 = Vector2.ZERO
-## Bontago-1t5.4: true under HoleMode.OFF, where a home only falls when an enemy
-## radius at the home point exceeds `home_radius` (else an overlap opens a hole).
-var no_overlap_mode: bool = false
-var home_radius: float = 0.0
-
-
-## Domination (Bontago-1pi.25.1): sample points (disk-local) of the leading
+## Domination: sample points (disk-local) of the leading
 ## enemy team's territory, and whether the bot's own team already holds (or
 ## shares) the largest share. Empty / true means "just grow own territory".
 var leader_points: PackedVector2Array = PackedVector2Array()
 var own_team_leads: bool = true
 
-## Bontago-1t5.1 (Classic with several goal flags): every goal flag, whether it
-## sits in the bot's own home-connected component (parallel array), that
-## component's group id (-1 when the bot's home has none) and sample points of
-## its cells (disk-local). `target_goal_index` is the unheld goal nearest to the
-## component (-1 when every goal is already held). Only filled when the match
-## has more than one goal; a single goal keeps the legacy nearest-goal scoring.
+## Elimination: true under HoleMode.OFF, where a home only falls when an enemy radius exceeds the
+## home radius (else an overlap opens a hole). BotEvaluator reads it.
+var no_overlap_mode: bool = false
+
+## Classic with several goal flags: every goal flag and `target_goal_index`, the
+## unheld goal nearest to the bot's home-connected component (-1 when every goal is already held).
+## Only filled when the match has more than one goal.
 var goal_positions: PackedVector2Array = PackedVector2Array()
-var goal_in_home_group: Array[bool] = []
-var home_group: int = -1
-var component_points: PackedVector2Array = PackedVector2Array()
 var target_goal_index: int = -1
 
 
@@ -57,5 +40,26 @@ func is_multi_goal() -> bool:
 	return mode == MatchConfig.GameMode.CLASSIC and goal_positions.size() > 1
 
 
-func is_neutral() -> bool:
-	return mode == MatchConfig.GameMode.CLASSIC and not is_multi_goal()
+## Index of the unheld goal nearest to the home-connected component (`component_points`); -1 when
+## every goal is held or there are no goals. The anchor falls back to `fallback` when the component
+## has no sample points.
+static func next_goal_index(
+	goal_positions_in: PackedVector2Array,
+	held: Array[bool],
+	component_points: PackedVector2Array,
+	fallback: Vector2
+) -> int:
+	var best: int = -1
+	var best_distance: float = INF
+	for i: int in range(goal_positions_in.size()):
+		if i < held.size() and held[i]:
+			continue
+		var distance: float = INF
+		for point: Vector2 in component_points:
+			distance = minf(distance, point.distance_squared_to(goal_positions_in[i]))
+		if component_points.is_empty():
+			distance = fallback.distance_squared_to(goal_positions_in[i])
+		if distance < best_distance:
+			best_distance = distance
+			best = i
+	return best

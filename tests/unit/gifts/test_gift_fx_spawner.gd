@@ -1,5 +1,5 @@
 extends GutTest
-## BlockSpawner and HolePunch (Bontago-1pi.85.8) against a real started match.
+## BlockSpawner and HolePunch against a real started match.
 
 var _field: Field
 var _blocks: Node3D

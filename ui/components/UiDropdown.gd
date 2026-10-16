@@ -2,8 +2,8 @@ class_name UiDropdown
 extends Button
 ## The design system's Dropdown (docs/ui_reskin/components.md "Dropdown"): a raised disc-700 block
 ## with a disc-400 edge, the value in cream and a sand chevron. It replaces every OptionButton and
-## always behaves like a normal dropdown (owner 2026-10-11, reversing the click-to-cycle of
-## Bontago-1pi.94; options that cycle use UiCycler): a click or ui_accept opens a disc-800 list of
+## always behaves like a normal dropdown (reversing the click-to-cycle of
+## options that cycle use UiCycler): a click or ui_accept opens a disc-800 list of
 ## rows, the current row disc-600 with a check; ui_up / ui_down move, ui_accept picks, ui_cancel (B)
 ## or a click outside closes it and hands focus back. Focus navigation (ui_left / ui_right /
 ## ui_up / ui_down, held, echoed or from a pad) is never consumed while closed and never changes
@@ -179,7 +179,7 @@ func is_open() -> bool:
 
 
 ## Opens the list (a no-op for an empty or disabled dropdown). [param take_focus] false leaves
-## focus where it is (the gallery shows the open state without a focus owner).
+## focus where it is (the gallery shows the open state without a focused control).
 func open(take_focus: bool = true) -> void:
 	if _list != null or disabled or _labels.is_empty():
 		return
@@ -418,7 +418,7 @@ class DropdownList extends PanelContainer:
 			_dropdown = dropdown
 			pressed.connect(dropdown.pick.bind(row_index))
 
-		## Key events reach only the focus owner, so each row handles B (ui_cancel) itself.
+		## Key events reach only the focused control, so each row handles B (ui_cancel) itself.
 		func _gui_input(event: InputEvent) -> void:
 			if event.is_action_pressed(&"ui_cancel"):
 				accept_event()

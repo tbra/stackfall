@@ -1,7 +1,7 @@
 class_name BlockEffectsConfig
 extends Resource
-## Tunables for game/blocks/BlockEffectsManager.gd's particle effects (Bontago-xtq.29,
-## M7 P4, spec 2.10 "effects + camera shake"; extended Bontago-mp0.3.4, M7 art
+## Tunables for game/blocks/BlockEffectsManager.gd's particle effects (
+## M7 P4, spec 1.10 "effects + camera shake"; extended M7 art
 ## direction pass 2 -- docs/art_mockups/08-cel-shaded-home-beacons.png). Three
 ## effect kinds, following the same "no magic numbers" pattern
 ## config/physics/CameraShakeConfig.gd already uses for game/player/CameraRig.gd:
@@ -26,7 +26,7 @@ extends Resource
 ## burst at all -- a soft landing/settle should not visibly puff dust.
 @export var dust_impact_speed_threshold: float = 4.0
 
-## Fix round (owner: dust rendered as "huge flat hard-edged blown-out yellow
+## Fix round (dust rendered as "huge flat hard-edged blown-out yellow
 ## rectangles" -- billboarded unshaded BoxMesh cubes overlapping into one
 ## blob): dust is now a soft round billboarded quad (shaders/gifts/dust_puff.gdshader,
 ## a procedural radial alpha falloff, no texture asset needed) emitted on a
@@ -69,7 +69,7 @@ extends Resource
 ## cubelet_max_particle_amount for the scaled-up cap.
 @export var cubelet_particle_amount: int = 10
 @export var cubelet_max_particle_amount: int = 24
-## Fix round (owner: "make them actual tiny 3D cubes... shrinking/fading out
+## Fix round ("make them actual tiny 3D cubes... shrinking/fading out
 ## over ~0.8 s"): bumped from 0.45 s so the shrink+fade is actually visible,
 ## not gone before it registers.
 @export var cubelet_lifetime_s: float = 0.8
@@ -91,7 +91,7 @@ extends Resource
 ## How much darker shaders/gifts/cubelet.gdshader's faux-lit "shadow" faces are than
 ## its "lit" faces (0 = no shading at all, 1 = shadow faces fully black).
 @export var cubelet_shade_mix: float = 0.35
-## Used only when the impacting block's owner (resolved via a physics shape
+## Used only when the impacting block's owning slot (resolved via a physics shape
 ## query at the impact position, BlockEffectsManager._find_block_at()) cannot
 ## be found -- e.g. an impacting body with no owner_slot set, or a test that
 ## emits Events.block_impacted_at directly with no real Block in the world.
@@ -99,11 +99,11 @@ extends Resource
 
 # --- Falling-block trail (continuous, not an Events burst) ------------------
 
-## Fix round (owner: the previous particle-burst trail read as "dashed/
+## Fix round (the previous particle-burst trail read as "dashed/
 ## dotted... not attached to the falling piece"): one continuous stretched
 ## quad (shaders/gifts/trail_streak.gdshader) re-oriented and re-scaled every physics
 ## step, so it has no gaps by construction and never detaches.
-## Bontago-a3z (owner: "really small and sort of weirdly centred"): the three
+## "really small and sort of weirdly centred": the three
 ## 7 cm flat strips anchored 0.3 m above the body origin became one ribbon
 ## as wide as the block, anchored at the block mesh's own centre and turned
 ## about its travel axis to face the camera (a flat strip went edge-on from
@@ -156,7 +156,7 @@ extends Resource
 @export var kill_scale: float = 0.08
 @export var kill_color: Color = Color(0.82, 0.78, 0.68)
 
-# --- Cel dust-puff flipbook (Bontago-mp0.120, assets/textures/fx/impact_puff) -----
+# --- Cel dust-puff flipbook (assets/textures/fx/impact_puff) -----
 
 ## Master switch for the flipbook puff at impact points.
 @export var puff_enabled: bool = true
@@ -178,7 +178,7 @@ extends Resource
 ## particle_budget_scale); extra puffs are dropped.
 @export var puff_max_active: int = 12
 
-# --- Burst pool and budget (Bontago-1pi.11.31) -------------------------------
+# --- Burst pool and budget -------------------------------
 
 ## Hard cap on simultaneously active one-shot bursts (landing + kill-plane
 ## together). This is also the pool size: nodes are created lazily up to this

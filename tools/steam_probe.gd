@@ -1,9 +1,9 @@
 extends SceneTree
-## Headless spike probe for Bontago-mv0.2.1 (docs/archive/M3b_RESEARCH.md, CLAUDE.md Steam rows).
+## Headless probe for the GodotSteam GDExtension setup.
 ##
 ## Confirms the GodotSteam GDExtension classes are registered and exercises
 ## Steam.steamInitEx() without assuming a running Steam client. Never calls the
-## bare Steam.steamInit() (docs/archive/M3b_RESEARCH.md warns it can crash in-editor).
+## bare Steam.steamInit() (it can crash in the editor).
 ##
 ## Run with:
 ##   godot --headless --path . -s res://tools/steam_probe.gd
@@ -24,7 +24,7 @@ func _initialize() -> void:
 		quit(0)
 		return
 
-	# Extension-optional pattern (docs/archive/M3b_PLAN.md "Design notes"): reach the
+	# Extension-optional pattern: reach the
 	# singleton as Object through Engine.get_singleton() and call through .call()
 	# rather than a bare Steam. identifier to keep the script parseable when the
 	# addon is absent, matching net/SteamClient.gd's own pattern.

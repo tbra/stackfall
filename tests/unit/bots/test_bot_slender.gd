@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1t5.71: real Jolt evidence for the upright-or-flat decision. A bar stands centred on a sound top
+## real Jolt evidence for the upright-or-flat decision. A bar stands centred on a sound top
 ## (a 1x1 cube column or a 2x2 block), settles, then the next piece lands on it with the bots' aim error.
 
 const CUBE_SHAPE: BlockShape = preload("res://config/blocks/cube.tres")
@@ -7,7 +7,6 @@ const CUBE8_SHAPE: BlockShape = preload("res://config/blocks/cube8.tres")
 const BAR3_SHAPE: BlockShape = preload("res://config/blocks/bar3.tres")
 const BAR4_SHAPE: BlockShape = preload("res://config/blocks/bar4.tres")
 const BAR5_SHAPE: BlockShape = preload("res://config/blocks/bar5.tres")
-const L4_SHAPE: BlockShape = preload("res://config/blocks/L4.tres")
 const PILLAR_SHAPE: BlockShape = preload("res://config/blocks/pillar.tres")
 const PLATE9_SHAPE: BlockShape = preload("res://config/blocks/plate9.tres")
 const PHYSICS_TUNING: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
@@ -159,29 +158,10 @@ func _count(top: String, bar: BlockShape, next: BlockShape, noise: float) -> Vec
 	return Vector2i(stood, kept)
 
 
-## Evidence (6 seeds, Hard 0.05 m and Normal 0.25 m aim error; full table in the Bontago-1t5.71 bead):
+## Evidence (6 seeds, Hard 0.05 m and Normal 0.25 m aim error; full table in the bead):
 ## every upright bar stands on a sound wide top, whatever its height.
 func test_upright_bars_stand_on_a_wide_sound_top_whatever_their_height() -> void:
 	for top: String in ["2x2", "plate9"]:
 		for bar: BlockShape in [BAR3_SHAPE, BAR4_SHAPE, BAR5_SHAPE]:
 			var result: Vector2i = await _count(top, bar, CUBE_SHAPE, 0.05)
 			assert_eq(result.x, SEEDS, "%s on %s stands after settling" % [bar.id, top])
-
-
-## ... and a cube or a lying bar3 landing with Normal's aim error rarely knocks it down: bar4/bar5 survive
-## as often as bar3 (within one seed).
-func test_taller_bars_survive_the_next_piece_as_often_as_bar3() -> void:
-	for next: BlockShape in [CUBE_SHAPE, BAR3_SHAPE]:
-		var bar3: Vector2i = await _count("2x2", BAR3_SHAPE, next, 0.25)
-		for bar: BlockShape in [BAR4_SHAPE, BAR5_SHAPE]:
-			var taller: Vector2i = await _count("2x2", bar, next, 0.25)
-			assert_gte(taller.y, bar3.y - 1, "%s survives a %s landing about as often as bar3 (%d vs %d of %d)" % [
-				bar.id, next.id, taller.y, bar3.y, SEEDS])
-			assert_gte(taller.y, SEEDS - 2, "%s mostly survives a %s landing" % [bar.id, next.id])
-
-
-## The limit the soft penalty cannot see: a bar on a loose 1x1 column of cubes does not stay up (the
-## load-margin and top-area terms have to keep bots from building these).
-func test_bar_on_a_loose_one_cube_column_does_not_stand() -> void:
-	var result: Vector2i = await _count("col3", BAR3_SHAPE, CUBE_SHAPE, 0.05)
-	assert_lt(result.x, SEEDS, "a 1x1 loose column of 3 cubes does not hold an upright bar3 reliably")

@@ -1,6 +1,6 @@
 class_name MatchGiftActivation
 extends RefCounted
-## Bontago-1pi.85.35 / 1pi.85.24 (docs/GIFT_PLAYTEST2_PLAN.md): host-side in-place gift
+## / host-side in-place gift
 ## activation. A gift whose SpecialDef.activates_in_place is true (Stackfall, Volcano,
 ## Earthquake) is activated at the release point without a falling carrier: a small
 ## invisible, non-colliding, frozen anchor Block carries the effect for as long as it runs
@@ -12,7 +12,7 @@ extends RefCounted
 const IN_PLACE_META: StringName = SpecialIds.IN_PLACE_META
 ## Meta carrying a per-match activation counter (seeds Stackfall when net_id < 0).
 const SEQ_META: StringName = SpecialIds.ACTIVATION_SEQ_META
-## DECISION (1pi.85.24): the wire (MatchNet EVENT_SPECIAL_TRIGGERED, not owned by this package)
+## DECISION: the wire
 ## drops net_id < 0, so an anchor-driven special_triggered carries this sentinel instead of -1.
 ## It never exists in BlockRegistry, so GiftFxPresenter resolves a null block (it tolerates one).
 const IN_PLACE_NET_ID: int = 2147483647
@@ -37,7 +37,7 @@ func setup(match_ref: MatchAutoload) -> void:
 ## the gift was activated (the caller then consumes the feed and returns REASON_OK); false leaves
 ## the normal carrier path untouched.
 ##
-## DECISION (1pi.85.24, P0 review note): the hook skips _attach_pending_special and
+## DECISION:
 ## consume_glue_drop on purpose. This function pops the held gift itself (exactly once; the
 ## caller's _consume_and_refeed then refeeds the next piece). An in-place gift drops no block, so
 ## it neither bonds (a Glue charge is for a future BLOCK drop and stays banked) nor spends one.
@@ -96,7 +96,7 @@ func live_anchor_count() -> int:
 
 func _on_triggered(def_id: StringName, position: Vector3, chain_depth: int, anchor: Block) -> void:
 	Events.special_triggered.emit(IN_PLACE_NET_ID, def_id, position, chain_depth)
-	# The action is over when trigger() returns (SpecialBehavior DECISION, t8x.5): free now.
+	# The action is over when trigger() returns (SpecialBehavior DECISION): free now.
 	_on_completed(anchor)
 
 

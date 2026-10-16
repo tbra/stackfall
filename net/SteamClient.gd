@@ -1,17 +1,15 @@
 class_name SteamClient
 extends RefCounted
-## The Steam-facing half of the transport (spec 3.4, docs/archive/M3b_PLAN.md P1).
+## The Steam-facing half of the transport (spec 2.6).
 ##
 ## The only file besides autoload/Net.gd's _make_steam_host_peer() /
 ## _make_steam_client_peer() that may touch the Engine "Steam" singleton or a
 ## lobby-list/lobby-data call. Peer instantiation itself still stays inside
-## Net (docs/archive/M3a_PLAN.md's "no other file may name a concrete peer class"
-## rule) — this file only ever reaches Steam's matchmaking API, never
+## Net (no other file may name a concrete peer class) — this file only ever reaches Steam's matchmaking API, never
 ## SteamMultiplayerPeer.
 ##
-## Extension-optional static typing (docs/archive/M3b_PLAN.md "Design notes"): the
-## whole res://addons/godotsteam/ directory is gitignored (M3b research's
-## "Spike results"), so most checkouts have no `.gdextension` file and no
+## Extension-optional static typing: the
+## whole res://addons/godotsteam/ directory is gitignored, so most checkouts have no `.gdextension` file and no
 ## `Steam` class registered at all. This script must still parse cleanly
 ## there, so `Steam` is never written as a static type or bare identifier —
 ## only reached through Engine.get_singleton(&"Steam"), held as a plain
@@ -20,7 +18,7 @@ extends RefCounted
 ## ENetPacketPeer one file over. `ClassDB.class_exists(&"Steam")` is the gate.
 ##
 ## Every method call and signal name here was verified against the actual
-## GodotSteam 4.22.1 addon installed on this machine (Bontago-mv0.2.1's
+## GodotSteam 4.22.1 addon installed on this machine ('s
 ## spike), not guessed from documentation alone — see
 ## netcode-F-probe_methods.log, netcode-F-probe_signals2.log,
 ## netcode-F-probe_method_sigs.log and netcode-F-probe_comp.log in the
@@ -32,7 +30,7 @@ extends RefCounted
 ## STATUS_EXTENSION_NOT_INSTALLED, a sentinel this file adds so a caller can
 ## tell "the addon was never installed in this checkout" apart from "the
 ## addon loaded but Steam itself refused" — both collapse to
-## Net.steam_available() == false for every UI purpose, per docs/archive/M3b_PLAN.md.
+## Net.steam_available() == false for every UI purpose.
 signal init_result(status: int, verbal: String)
 ## Raw forward of Steam's own `lobby_created(connect, lobby_id)` signal.
 ## Despite the name GodotSteam gives the first argument, it is the
@@ -56,14 +54,13 @@ signal lobby_join_requested(lobby_id: int, friend_id: int)
 ## can, even though Net.steam_available() treats both the same.
 const STATUS_EXTENSION_NOT_INSTALLED: int = -1
 
-## Lobby-data key names (wire protocol, not a tunable — see
-## docs/archive/M3b_PLAN.md's tunables table). `KEY_MATCH_CONFIG`'s value is the
+## Lobby-data key names (wire protocol, not a tunable). `KEY_MATCH_CONFIG`'s value is the
 ## JSON string encode_match_config() produces; the other three are the flat
 ## preview fields a lobby-browser row needs before actually joining.
 const KEY_GAME: StringName = &"game"
 const KEY_VERSION: StringName = &"version"
 const KEY_MAP: StringName = &"map"
-## DECISION (deviation from docs/archive/M3b_PLAN.md's three-key list): a fourth key
+## DECISION (deviation from the three-key list): a fourth key
 ## for the host's display name. discovered_lobbies()'s documented return
 ## shape includes "name" for the list row, and Steam's lobby object itself
 ## has no host-display-name field the way it has a member count — the LAN
@@ -81,16 +78,16 @@ const _LOBBY_COMPARISON_EQUAL: int = 0
 var _steam: Object = null
 
 
-## Bontago-1pi.48: lobby data values are truncated to this many characters in the diagnostic log.
+## lobby data values are truncated to this many characters in the diagnostic log.
 const LOG_VALUE_MAX_CHARS: int = 40
-## Bontago-1pi.48: the SELFCHECK line's all-lobby-data dump is cut to this many characters.
+## the SELFCHECK line's all-lobby-data dump is cut to this many characters.
 const SELFCHECK_DATA_MAX_CHARS: int = 400
-## Bontago-1pi.48: call_origin() lists at most this many script frames.
+## call_origin() lists at most this many script frames.
 const ORIGIN_MAX_FRAMES: int = 6
 const _MSEC_PER_SEC: float = 1000.0
 
 
-## Bontago-1pi.48: every Steam diagnostic line is `STEAM [HH:MM:SS.mmm] text`
+## every Steam diagnostic line is `STEAM [HH:MM:SS.mmm] text`
 ## (local wall clock), so a host log can be lined up against another PC's log.
 static func log_line(text: String) -> void:
 	var now: float = Time.get_unix_time_from_system()
@@ -98,7 +95,7 @@ static func log_line(text: String) -> void:
 	print("STEAM [%s.%03d] %s" % [Time.get_time_string_from_system(), msec, text])
 
 
-## Bontago-1pi.48: the GDScript caller chain of the current call (innermost
+## the GDScript caller chain of the current call (innermost
 ## first, this helper and its direct caller skipped), e.g.
 ## "Net.gd:1023 _on_steam_lobby_joined < SteamClient.gd:290 _on_lobby_joined".
 ## get_stack() is empty in release exports; debug exports track it.
@@ -120,8 +117,7 @@ func is_available() -> bool:
 ## forwards (lobby_created, lobby_match_list, lobby_joined, lobby_data_update,
 ## join_requested) is queued internally and never actually fires unless this
 ## is called regularly, no matter how long a caller waits. Found empirically
-## while running this package's own windowed smoke test (docs/archive/M3b_PLAN.md P1
-## acceptance): host_online() reached a real Steam client (steamInitEx()
+## while running the windowed smoke test: host_online() reached a real Steam client (steamInitEx()
 ## already answered status 0, createLobby() returned no error), but
 ## lobby_created never arrived even after 15+ seconds — GodotSteam requires a
 ## periodic run_callbacks() call the same way any Steamworks integration does,
@@ -143,7 +139,7 @@ func init() -> void:
 		return
 	_steam = Engine.get_singleton(&"Steam")
 	_wire_signals()
-	# Never Steam.steamInit() — docs/archive/M3b_RESEARCH.md: the bare call is
+	# Never Steam.steamInit(): the bare call is
 	# reported to crash in-editor. steamInitEx() returns {"verbal", "status"};
 	# 0 ok, 1 other failure, 2 client not running, 3 client out of date.
 	var result: Dictionary = _steam.call("steamInitEx", NetIds.STEAM_APP_ID_EXPECTED, false)
@@ -178,7 +174,7 @@ func set_lobby_data(lobby_id: int, key: String, value: String) -> void:
 	log_line("setLobbyData lobby=%d %s=%s -> %s" % [lobby_id, key, value.left(LOG_VALUE_MAX_CHARS), str(ok)])
 
 
-## Bontago-1pi.48 diagnostics: explicitly marks the lobby joinable and logs the result.
+## diagnostics: explicitly marks the lobby joinable and logs the result.
 func set_lobby_joinable(lobby_id: int, joinable: bool) -> void:
 	if _steam == null:
 		return
@@ -233,7 +229,7 @@ func join_lobby(lobby_id: int) -> void:
 	_steam.call("joinLobby", lobby_id)
 
 
-## `reason` names the Net path that gave up the lobby (Bontago-1pi.48: a host
+## `reason` names the Net path that gave up the lobby (a host
 ## leaving its own lobby must always be visible in the log).
 func leave_lobby(lobby_id: int, reason: String = "") -> void:
 	if _steam == null:
@@ -242,8 +238,8 @@ func leave_lobby(lobby_id: int, reason: String = "") -> void:
 	_steam.call("leaveLobby", lobby_id)
 
 
-## Bontago-1pi.48 diagnostics: one line describing what Steam itself reports for
-## `lobby_id` (membership, owner vs this account, member limit, all lobby data).
+## diagnostics: one line describing what Steam itself reports for
+## `lobby_id` (membership, host vs this account, member limit, all lobby data).
 func self_check_line(lobby_id: int) -> String:
 	if _steam == null:
 		return "lobby=%d (Steam not initialised)" % lobby_id
@@ -260,7 +256,7 @@ func self_check_line(lobby_id: int) -> String:
 ## Steam's own request_lobby_list(); applied fresh before every call since
 ## Steamworks does not persist filters between requests.
 ## Valve ELobbyDistanceFilter ordinal (Close=0, Default=1, Far=2, Worldwide=3).
-## Bontago-1pi.48: Steam's default distance filter only returns lobbies in the
+## Steam's default distance filter only returns lobbies in the
 ## searcher's own/nearby region, so a friend elsewhere never saw the host's
 ## lobby; search worldwide (results stay filtered to this game + version).
 const LOBBY_DISTANCE_FILTER_WORLDWIDE: int = 3

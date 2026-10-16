@@ -1,5 +1,5 @@
 extends GutTest
-## Bontago-1pi.85.35 (docs/GIFT_PLAYTEST2_PLAN.md P0): shared contracts for gift playtest 2.
+## Shared contracts for gift playtest 2.
 ## Defaults, callable stubs, SpecialBehavior.activates_in_place / landed_tuning, and the single
 ## request_place hook (consumes the feed only when MatchGiftActivation.try_activate says so).
 ## Fixture copied from test_match_throw.gd.
@@ -8,7 +8,7 @@ var _blocks_root: Node3D
 var _field: Field
 var _registry: BlockRegistry
 var _tiny_map: MapDef
-## Bontago-fca.79: the real activation, put back after a test swaps in an ActivationDouble.
+## the real activation, put back after a test swaps in an ActivationDouble.
 var _real_activation: MatchGiftActivation
 
 
@@ -29,7 +29,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	# Bontago-fca.79: the shared Match autoload outlives this script; a leaked double made
+	# the shared Match autoload outlives this script; a leaked double made
 	# test_gift_in_place (same shard) activate nothing.
 	Match._placement._activation = _real_activation
 	Match.set_net_provider(null)
@@ -151,7 +151,7 @@ func test_gift_aim_signatures_are_callable() -> void:
 	assert_almost_eq(GiftAim.throw_velocity(Vector3.FORWARD, t).length(), t.gift_throw_speed_mps, 0.001)
 
 
-## PG (Bontago-1pi.85.31) implemented the P0 stub: with no weights the picker falls back
+## PG implemented the P0 stub: with no weights the picker falls back
 ## to the shapes' own weights, so the contract is "always a real block shape".
 func test_shape_picker_returns_a_real_block_shape() -> void:
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()

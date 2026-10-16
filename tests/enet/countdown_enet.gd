@@ -1,5 +1,5 @@
 extends Node
-## Bontago-mp0.27: host + one lagged client over real ENet. Both sides log the
+## host + one lagged client over real ENet. Both sides log the
 ## 3-2-1 countdown ticks with a local timestamp; the client submits a placement
 ## intent mid-countdown, which the host must reject (no block spawned).
 ## Run via tools/run_countdown_enet.ps1. Host: --headless-host --expect-peers=2.
@@ -68,7 +68,7 @@ func _run_host() -> void:
 	_match_net.call(&"replicate_match_start", Match.config)
 	field.place_flags(Match.config.player_count, Match.config.player_colors, Match.config.goal_flag_count)
 	await _wait(INTENT_DELAY_S + 1.0)
-	# Bontago-1pi.79: every slot already holds its first block during the countdown.
+	# every slot already holds its first block during the countdown.
 	print("CDENET host held_in_countdown=%s" % [Match.held_shape(0) != null and Match.held_shape(CLIENT_SLOT) != null])
 	print("CDENET host state=%d blocks_during_countdown=%d rejects=%d" % [Match.state(), _blocks.get_child_count(), _rejects])
 	await _wait(Match.COUNTDOWN_SECONDS + 1.5)

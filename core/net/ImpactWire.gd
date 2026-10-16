@@ -1,7 +1,7 @@
 class_name ImpactWire
 extends RefCounted
 ## Wire packing and host-side selection for replicated block impacts
-## (Bontago-1pi.55). Only the host runs physics, so only the host's
+## . Only the host runs physics, so only the host's
 ## game/blocks/Block.gd ever detects a real landing; net/MatchNet.gd collects those
 ## detections, coalesces and caps them, and ships them to clients as one small
 ## unreliable batch per NetConfig.impact_batch_hz, where they are re-emitted on

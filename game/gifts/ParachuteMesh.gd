@@ -1,6 +1,6 @@
 class_name ParachuteMesh
 extends RefCounted
-## Procedural low-poly parachute for a falling gift crate (Bontago-mp0.139).
+## Procedural low-poly parachute for a falling gift crate.
 ## Static builders only; every dimension comes from GiftConfig's "-- Parachute"
 ## section. Three small ArrayMeshes, all in a frame whose origin is the RISER
 ## point (where the suspension lines converge) with +Y up:

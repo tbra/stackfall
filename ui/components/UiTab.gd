@@ -12,7 +12,7 @@ signal step_requested(direction: int)
 var id: StringName = &""
 ## The bar's shared stick hold (set by UiTabs). Shared because a step moves focus to the
 ## neighbour tab, and a per-tab hold would let the neighbour treat the still-held stick as a
-## new push (the "super sensitive" bug, Bontago-1pi.159.13).
+## new push (the "super sensitive" bug).
 var stick_hold: UiHoldRepeat = null
 var vertical: bool = false:
 	set(value):
