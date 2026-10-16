@@ -169,7 +169,7 @@ func test_new_base_sites_rest_beside_and_on_flat_debris_but_never_on_tilted_debr
 	view.stack = _analysed(stack)
 	var intent: BotIntent = BotStrategy._make(_strategy_tuning, BotIntent.Kind.ANCHOR, HOME_A)
 	intent.new_base = true
-	var sites: Array[BotCandidate] = BotCandidateGen.sites(view, intent, _profile(), _rng())
+	var sites: Array[BotCandidate] = _site_list(view, intent, _profile(), _rng())
 	var on_flat: int = 0
 	var beside: int = 0
 	for site: BotCandidate in sites:
@@ -226,3 +226,14 @@ func test_the_new_base_may_sit_on_a_flat_fallen_block_but_not_on_a_flat_top_of_a
 func _first_base_sample() -> Vector2:
 	var samples: int = maxi(_strategy_tuning.base_samples, 1)
 	return HOME_A + Vector2.from_angle(0.0) * (_territory_tuning.home_radius * sqrt(0.5 / float(samples)))
+
+
+## The sites `BotCandidateGen.begin` builds once its fill has run to the end.
+func _site_list(
+	view: BotWorldView, intent: BotIntent, profile: BotDifficultyProfile,
+	rng: RandomNumberGenerator, tuning: BotGenTuning = null
+) -> Array[BotCandidate]:
+	var job: BotCandidateGen.SiteJob = BotCandidateGen.begin(view, intent, profile, rng, tuning)
+	while not job.fill_step(job.attempts_left()):
+		pass
+	return job.out

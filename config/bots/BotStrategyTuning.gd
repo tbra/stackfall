@@ -1,6 +1,6 @@
 class_name BotStrategyTuning
 extends Resource
-## Bot V2 strategy tunables (docs/BOT_AI_REDESIGN.md 2.3 step 3): the
+## Bot V2 strategy tunables: the
 ## thresholds and intent weight vectors core/ai/BotStrategy.gd reads. Shipped values live
 ## in config/bots/bot_strategy_tuning.tres. Distances are metres.
 

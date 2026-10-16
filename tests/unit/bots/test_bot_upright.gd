@@ -79,7 +79,7 @@ func _stack_sites(view: BotWorldView, tuning: BotGenTuning) -> Array[BotCandidat
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = SEED
 	var out: Array[BotCandidate] = []
-	for c: BotCandidate in BotCandidateGen.sites(view, _intent(), profile, rng, tuning):
+	for c: BotCandidate in _site_list(view, _intent(), profile, rng, tuning):
 		if c.site_kind == BotCandidateGen.SITE_STACK:
 			out.append(c)
 	return out
@@ -89,7 +89,7 @@ func _best(sites: Array[BotCandidate], view: BotWorldView) -> BotCandidate:
 	var best: BotCandidate = null
 	var best_score: float = -INF
 	for c: BotCandidate in sites:
-		var s: float = BotEvaluator.proxy(c, view, _intent())
+		var s: float = BotEvaluator.score(BotEvaluator.proxy_terms(c, view, _intent()), _intent())
 		if s > best_score:
 			best_score = s
 			best = c
@@ -150,3 +150,14 @@ func test_toppling_upright_loses_to_the_flat_piece() -> void:
 	for c: BotCandidate in sites:
 		c.stability_slack = TOPPLE_MARGIN_M if c.shape_height > 1.0 else SOUND_MARGIN_M
 	assert_eq(_best(sites, view).shape_height, 1.0, "a toppling upright bar loses to the flat one")
+
+
+## The sites `BotCandidateGen.begin` builds once its fill has run to the end.
+func _site_list(
+	view: BotWorldView, intent: BotIntent, profile: BotDifficultyProfile,
+	rng: RandomNumberGenerator, tuning: BotGenTuning = null
+) -> Array[BotCandidate]:
+	var job: BotCandidateGen.SiteJob = BotCandidateGen.begin(view, intent, profile, rng, tuning)
+	while not job.fill_step(job.attempts_left()):
+		pass
+	return job.out

@@ -38,7 +38,7 @@ const TERRITORY: Array[String] = [
 	"Spectrum", "Prism", "Beacon", "Aura"
 ]
 
-## Theme arrays in the owner's order (get_themed_name's theme_index).
+## Theme arrays in the owner's order.
 static func themes() -> Array[Array]:
 	return [TACTICIANS, SMASHERS, BALANCERS, ARCADE, TERRITORY]
 
@@ -50,24 +50,6 @@ static func all_names() -> PackedStringArray:
 		for entry: Variant in theme:
 			result.append(String(entry))
 	return result
-
-
-static func get_random_name() -> String:
-	return get_random_name_with(_shared_rng())
-
-
-static func get_themed_name(theme_index: int) -> String:
-	var all_themes: Array[Array] = themes()
-	if theme_index < 0 or theme_index >= all_themes.size():
-		return get_random_name()
-	var theme: Array = all_themes[theme_index]
-	return String(theme[_shared_rng().randi_range(0, theme.size() - 1)])
-
-
-## One name from the whole pool using `rng` (deterministic for a seeded rng).
-static func get_random_name_with(rng: RandomNumberGenerator) -> String:
-	var pool: PackedStringArray = all_names()
-	return pool[rng.randi_range(0, pool.size() - 1)]
 
 
 ## `count` bot names. `existing` entries are kept in place while still valid (not
@@ -99,9 +81,3 @@ static func assign(existing: PackedStringArray, count: int, taken: PackedStringA
 		result[index] = free[pick]
 		free.remove_at(pick)
 	return result
-
-
-static func _shared_rng() -> RandomNumberGenerator:
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng.randomize()
-	return rng

@@ -118,7 +118,7 @@ func test_deep_inside_own_land_is_waste_with_no_area() -> void:
 	assert_gt(_measured(open, intent, BotIntent.Term.AREA), 0.0, "open field adds area")
 	assert_almost_eq(_measured(open, intent, BotIntent.Term.WASTE), 0.0, TOLERANCE, "open field is not waste")
 	assert_almost_eq(_proxied(buried, intent, BotIntent.Term.WASTE), 1.0, TOLERANCE, "proxy flags waste")
-	assert_lt(BotEvaluator.proxy(buried, _view, intent), BotEvaluator.proxy(open, _view, intent), "score prefers the open field")
+	assert_lt(BotEvaluator.score(BotEvaluator.proxy_terms(buried, _view, intent), intent), BotEvaluator.score(BotEvaluator.proxy_terms(open, _view, intent), intent), "score prefers the open field")
 
 
 func test_unstable_site_pays_the_topple_penalty() -> void:
@@ -126,7 +126,7 @@ func test_unstable_site_pays_the_topple_penalty() -> void:
 	var intent: BotIntent = _intent({BotIntent.Term.TIP: 2.0})
 	var steady: BotCandidate = _site(OPEN_FIELD, BLOCK_TOP_M, 0.3)
 	var unstable: BotCandidate = _site(OPEN_FIELD, BLOCK_TOP_M, UNSTABLE_SLACK)
-	assert_lt(BotEvaluator.proxy(unstable, _view, intent), BotEvaluator.proxy(steady, _view, intent), "instability subtracts")
+	assert_lt(BotEvaluator.score(BotEvaluator.proxy_terms(unstable, _view, intent), intent), BotEvaluator.score(BotEvaluator.proxy_terms(steady, _view, intent), intent), "instability subtracts")
 	assert_almost_eq(_proxied(unstable, intent, BotIntent.Term.TIP), BotEvaluator.tuning.topple_penalty, TOLERANCE)
 	assert_almost_eq(_measured(steady, intent, BotIntent.Term.TIP), 0.0, TOLERANCE)
 

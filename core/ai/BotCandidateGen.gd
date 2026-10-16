@@ -1,6 +1,6 @@
 class_name BotCandidateGen
 extends RefCounted
-## Bot V2 targeted site generator (docs/BOT_AI_REDESIGN.md 2.3 step 4): sites are built where
+## Bot V2 targeted site generator: sites are built where
 ## territory is actually won, not sampled uniformly.
 ##   TIP    own circles' frontier points at r - inset toward the intent target (best
 ##          anchors plus lateral / depth offsets); orientation maximises reach subject
@@ -24,21 +24,10 @@ const SITE_FILL: int = 4
 const SITE_FOUNDATION: int = 5
 
 
-## Sites for the held piece under `intent`, at most `profile.candidate_count`.
-static func sites(
-	view: BotWorldView, intent: BotIntent, profile: BotDifficultyProfile,
-	rng: RandomNumberGenerator, tuning: BotGenTuning = null
-) -> Array[BotCandidate]:
-	var job: SiteJob = begin(view, intent, profile, rng, tuning)
-	while not job.fill_step(job.attempts_left()):
-		pass
-	return job.out
-
-
-## Resumable form of `sites`: the targeted TIP / STACK sites are built here;
-## the uniform FILL (the costly part: hundreds of rejected validate_point draws) is then run in
-## `SiteJob.fill_step` slices. The RNG draw order is identical to `sites`, so a fixed seed gives
-## the same sites whatever the slice size.
+## Sites for the held piece under `intent`, at most `profile.candidate_count`: the targeted TIP /
+## STACK sites are built here; the uniform FILL (the costly part: hundreds of rejected
+## validate_point draws) is then run in `SiteJob.fill_step` slices. A fixed seed gives the same
+## sites whatever the slice size.
 static func begin(
 	view: BotWorldView, intent: BotIntent, profile: BotDifficultyProfile,
 	rng: RandomNumberGenerator, tuning: BotGenTuning = null

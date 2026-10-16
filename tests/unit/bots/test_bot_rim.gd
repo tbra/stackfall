@@ -39,7 +39,7 @@ func _intent() -> BotIntent:
 func test_rim_candidate_scores_below_central() -> void:
 	var intent: BotIntent = _intent()
 	var shrunk: BotWorldView = _view(SHRUNK_RADIUS_M)
-	assert_lt(BotEvaluator.proxy(_site(RIM), shrunk, intent), BotEvaluator.proxy(_site(CENTRAL), shrunk, intent))
+	assert_lt(BotEvaluator.score(BotEvaluator.proxy_terms(_site(RIM), shrunk, intent), intent), BotEvaluator.score(BotEvaluator.proxy_terms(_site(CENTRAL), shrunk, intent), intent))
 	var full: BotWorldView = _view(FULL_RADIUS_M)
 	assert_lt(BotEvaluator.rim_risk(_site(Vector2(FULL_RADIUS_M - 0.5, 0.0)), full), BotEvaluator.tuning.rim_outside_penalty)
 	assert_gt(BotEvaluator.rim_risk(_site(Vector2(FULL_RADIUS_M - 0.5, 0.0)), full), 0.0, "full-size rim also graded")
@@ -53,7 +53,7 @@ func test_beyond_live_radius_never_chosen() -> void:
 	# The outside site sits nearer the target direction weight-wise only if the rim is ignored.
 	intent.target = OUTSIDE
 	for c: BotCandidate in [_site(CENTRAL), _site(RIM), _site(OUTSIDE)]:
-		var s: float = BotEvaluator.proxy(c, shrunk, intent)
+		var s: float = BotEvaluator.score(BotEvaluator.proxy_terms(c, shrunk, intent), intent)
 		if s > best_score:
 			best_score = s
 			best = c

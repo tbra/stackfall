@@ -1,6 +1,6 @@
 class_name BotWorldView
 extends RefCounted
-## Bot V2 (docs/BOT_AI_REDESIGN.md 2.3 step 1): one pure snapshot of everything a
+## Bot V2: one pure snapshot of everything a
 ## think-cycle reads, built once per piece from host state. No scene-tree access.
 ## The circle list comes from Match.circle_render_arrays(), which also contains
 ## every living home circle; those are stripped here (matched by home position

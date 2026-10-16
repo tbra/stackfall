@@ -1,7 +1,7 @@
 class_name BotEvaluator
 extends RefCounted
-## Bot V2 (docs/BOT_AI_REDESIGN.md 2.3 step 6): scores a placement
-## site on the BotIntent.Term axes. proxy() is the cheap stage run on every site;
+## Bot V2: scores a placement
+## site on the BotIntent.Term axes. proxy_terms() is the cheap stage run on every site;
 ## measure() is the costlier stage (64-sample territory read, chain cuts) run on the
 ## top-k by proxy. Pure: reads a BotWorldView, BotChains and a BotCandidate only.
 ##
@@ -25,14 +25,10 @@ static var stack_tuning: BotStackTuning = SHIPPED_STACK_TUNING
 const GOLDEN_ANGLE: float = 2.39996323
 
 
-## Cheap score for ranking every site: weighted terms that need no raster read and
+## Cheap terms for ranking every site: weighted terms that need no raster read and
 ## no chains. REACH is the negated new gap (r - distance to target), KILL the number
 ## of enemy circles under the new circle (0 in HoleMode.OFF), AREA a containment estimate.
-static func proxy(c: BotCandidate, view: BotWorldView, intent: BotIntent) -> float:
-	return score(proxy_terms(c, view, intent), intent)
-
-
-## The proxy's per-term magnitudes (size BotIntent.Term.size()).
+## Per-term magnitudes (size BotIntent.Term.size()).
 static func proxy_terms(c: BotCandidate, view: BotWorldView, intent: BotIntent) -> PackedFloat32Array:
 	var terms: PackedFloat32Array = PackedFloat32Array()
 	terms.resize(BotIntent.Term.size())
@@ -226,7 +222,7 @@ static func future_radius(c: BotCandidate, view: BotWorldView) -> float:
 
 
 ## dissolve risk (0 safe .. 1 doomed) of the site's base under the overlap-hole
-## rule; 0 under HoleMode.OFF, where nothing dissolves. The legacy fill turns every cell that
+## rule; 0 under HoleMode.OFF, where nothing dissolves. The hole-mode fill turns every cell that
 ## home-connected circles of two teams cover CONTESTED, opens a hole there after
 ## TerritoryTuning.hole_delay, and game/field/HoleDissolver.gd dissolves a disc-level block touching
 ## the hole together with everything stacked on it. A block's own circle always covers its
@@ -413,7 +409,7 @@ static func _holder(view: BotWorldView, point: Vector2) -> int:
 
 
 ## (gain fraction, own fraction) over `area_samples` sunflower points of the new circle.
-## Legacy fill: a gain is an unowned, uncontested, non-hole in-disk cell. HoleMode.OFF
+## Hole-mode fill: a gain is an unowned, uncontested, non-hole in-disk cell. HoleMode.OFF
 ## (argmax fill): a gain is any non-own cell where the new kernel (radius - distance)
 ## beats every enemy kernel there. Own fraction is the share of cells already own.
 static func _sample_fractions(c: BotCandidate, view: BotWorldView, radius: float) -> Vector2:

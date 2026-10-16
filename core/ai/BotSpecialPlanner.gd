@@ -23,7 +23,7 @@ class BotSpecialAction:
 	var place_target: Vector2 = Vector2.ZERO
 
 
-## Bot V2 (docs/BOT_AI_REDESIGN.md 2.3 step 7): the per-type effect
+## Bot V2: the per-type effect
 ## contract (spec 1.6: Rocket does not home, Propeller does not blow sideways,
 ## Bomb is the only thrown one), but targets read the chain graph instead of enemy circle
 ## centres. Offensive area specials aim at the enemy circle whose removal costs its team the

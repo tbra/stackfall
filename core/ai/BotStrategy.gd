@@ -1,6 +1,6 @@
 class_name BotStrategy
 extends RefCounted
-## Bot V2 strategy layer (docs/BOT_AI_REDESIGN.md 2.3 step 3): picks the
+## Bot V2 strategy layer: picks the
 ## BotIntent for one piece from a BotWorldView and its BotChains. First match wins:
 ##   HOLD every goal / beacon is already own: raise the covering stack, strike a
 ##           threatening enemy circle (focus_circle)

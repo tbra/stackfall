@@ -48,7 +48,7 @@ var _profile: BotDifficultyProfile = null
 var _field: Field = null
 var _registry: BlockRegistry = null
 
-## DECISION (game/bots/BotController.gd): Match/Net are plain autoloads, and GUT
+## DECISION: Match/Net are plain autoloads, and GUT
 ## cannot double one (see game/player/PlayerController.gd's matching DECISION), so
 ## every host/state read below goes through these seams instead of naming
 ## `Match`/`Net` directly. null means "the real one", which is what every

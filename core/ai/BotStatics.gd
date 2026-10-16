@@ -1,6 +1,6 @@
 class_name BotStatics
 extends RefCounted
-## Bot V2 orientation statics (docs/BOT_AI_REDESIGN.md 2.2, 2.3 step 4): pure geometry for the oriented
+## Bot V2 orientation statics: pure geometry for the oriented
 ## pieces. Which site is stable is decided by BotStability (the owner's two centre-of-mass rules); what is
 ## left here is each orientation's own rule 1 (self_margin), eligibility by it, and the probe layout.
 ##
