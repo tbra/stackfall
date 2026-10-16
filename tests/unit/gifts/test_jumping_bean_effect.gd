@@ -111,7 +111,7 @@ func test_inert_until_landed_no_hop_no_velocity_change() -> void:
 	assert_false(behavior.is_triggered())
 
 
-# --- impact_triggers() veto ---------------------------------
+# --- hop cadence: exactly one hop per hop_interval_s, frame-rate independent -
 
 ## Counts _hop() calls (not just physics_tick() calls) -- proves the
 ## settle-then-hop-on-schedule pattern actually fires the hop itself the
@@ -155,6 +155,8 @@ func test_hops_exactly_once_per_hop_interval_s_frame_rate_independent() -> void:
 	assert_eq(hops_fine, 3, "3 full hop_interval_s windows must have elapsed by 3.5x")
 	assert_eq(hops_coarse, 3, "must match regardless of the caller's step size")
 
+
+# --- a hop is a velocity kick, never a position teleport --------------------
 
 func test_hop_kicks_velocity_up_and_horizontal_never_teleports_position() -> void:
 	_register_field()
@@ -206,7 +208,7 @@ func test_self_triggers_once_elapsed_since_settle_reaches_lifetime_s() -> void:
 	assert_true(behavior.is_triggered(), "must trigger once lifetime_s elapses after landing")
 
 
-# --- two beans sharing the effect keep independent timers -------------------
+# --- real Match+territory fixture: the actual hole-punch contract ----------
 
 func _start_hole_match(hole_mode: MatchConfig.HoleMode) -> void:
 	Match.set_process(false)
@@ -405,3 +407,22 @@ func test_real_physics_hop_landing_does_not_prematurely_impact_trigger() -> void
 		"a hop's own landing must not prematurely impact-trigger the bean (arm_impulse=%.1f)"
 			% found.arm_impulse
 	)
+
+
+# --- centre-weighted hop bearing --------------------------
+
+func test_hop_direction_is_biased_toward_centre_yet_can_leave_the_rim() -> void:
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = 4807
+	var rim: Vector2 = Vector2(10.0, 0.0)  # inward bearing is -x
+	var samples: int = 2000
+	var inward_sum: float = 0.0
+	var outward_hops: int = 0
+	for _i: int in range(samples):
+		var dir: Vector2 = JumpingBeanEffect.hop_direction(rim, rng, 0.65, 70.0)
+		assert_almost_eq(dir.length(), 1.0, 0.0001)
+		inward_sum += -dir.x
+		if dir.x > 0.0:
+			outward_hops += 1
+	assert_gt(inward_sum / float(samples), 0.3, "mean bearing leans toward the disc centre")
+	assert_gt(outward_hops, 0, "an off-disc hop stays possible from the rim")

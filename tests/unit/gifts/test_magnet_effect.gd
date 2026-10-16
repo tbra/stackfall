@@ -105,8 +105,30 @@ func test_enemy_block_gets_pulled_toward_the_magnet() -> void:
 	)
 
 
-# --- (a2) a frozen (stable-block-optimized) enemy block still gets pulled
-# (P5b) --------------------------------------------------------
+# --- (b) a block owned by the same slot as the magnet is untouched ---------------
+
+func test_own_owner_block_is_untouched() -> void:
+	var magnet_block: Block = _make_block(Vector3.ZERO)
+	magnet_block.owner_slot = 0
+	var own_block: Block = _make_block(Vector3(RADIUS * 0.5, 0.0, 0.0))
+	own_block.owner_slot = 0
+	var effect: MagnetEffect = MagnetEffect.new()
+	effect.pull.radius_m = RADIUS
+	effect.pull_duration_s = 3.0
+	var behavior: SpecialBehavior = _make_behavior(magnet_block, effect)
+	await wait_physics_frames(1)
+
+	behavior.advance(0.1)
+	await wait_physics_frames(1)
+
+	assert_eq(
+		own_block.linear_velocity,
+		Vector3.ZERO,
+		"a block owned by the same slot as the magnet must be excluded from the pull"
+	)
+
+
+# --- (c) the pull stops once pull_duration_s has elapsed ---------------------
 
 func test_pull_stops_once_pull_duration_elapses() -> void:
 	var magnet_block: Block = _make_block(Vector3.ZERO)
@@ -131,7 +153,7 @@ func test_pull_stops_once_pull_duration_elapses() -> void:
 	)
 
 
-# --- Magnet keeps SpecialEffect's impact_triggers() vetoed, like Propeller ---
+# --- the shipped magnet.tres pulls a real 8 kg enemy block across the disc ---
 
 func test_real_disc_pulls_an_8kg_enemy_block_two_metres_in_three_seconds() -> void:
 	var map_def: MapDef = MapDef.new()
