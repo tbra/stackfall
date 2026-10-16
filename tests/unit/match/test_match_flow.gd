@@ -386,23 +386,19 @@ func test_slow_frame_coalesces_due_territory_solves_and_keeps_fractional_time() 
 	Match.start_match(config)
 	_run_countdown()
 	Match._territory._solve_accum = 0.0
-	Match._territory.mark_dirty()
-	Match._sandbox_territory_profile_enabled = true
+	Match._territory._force_dirty = true
 	watch_signals(Events)
 
 	var step: float = 1.0 / Match._territory_tuning.solve_hz
 	Match._territory._tick_territory(step * 3.5)
 	# the first step consumes the only change, so the two
 	# remaining catch-up steps advance time without a second solve/emission.
-	assert_eq(int(Match._territory.sandbox_profile()["steps"]), 1)
 	assert_eq(get_signal_emit_count(Events, "territory_updated"), 1)
 	assert_almost_eq(Match._territory._solve_accum, step * 0.5, 0.001)
-	Match._territory.mark_dirty()
+	Match._territory._force_dirty = true
 	Match._territory._tick_territory(step * 0.51)
-	assert_eq(int(Match._territory.sandbox_profile()["steps"]), 1)
 	assert_eq(get_signal_emit_count(Events, "territory_updated"), 2)
 	assert_almost_eq(Match._territory._solve_accum, step * 0.01, 0.001)
-	Match._sandbox_territory_profile_enabled = false
 
 
 ## Adds a tracked block that counts as awake (unsettled) to the registry.
@@ -432,7 +428,6 @@ func test_awake_block_defers_solves_until_cap_then_forces_one() -> void:
 	Match.start_match(config)
 	_run_countdown()
 	Match._territory._solve_accum = 0.0
-	Match._sandbox_territory_profile_enabled = true
 	var cap: float = Match._territory_tuning.solve_defer_max_s
 	var step: float = 1.0 / Match._territory_tuning.solve_hz
 	_add_awake_block()
@@ -444,7 +439,6 @@ func test_awake_block_defers_solves_until_cap_then_forces_one() -> void:
 	assert_eq(get_signal_emit_count(Events, "territory_updated"), 0, "Still deferred just under the cap.")
 	Match._territory._tick_territory(0.02)
 	assert_gt(get_signal_emit_count(Events, "territory_updated"), 0, "The staleness cap forces a solve.")
-	Match._sandbox_territory_profile_enabled = false
 
 
 ## Legacy-mode regression: the pre-v2

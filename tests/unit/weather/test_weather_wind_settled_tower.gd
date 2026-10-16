@@ -155,8 +155,10 @@ func _wind_tuning(max_wakes: int) -> StormTuning:
 
 func _wind_effect(tuning: StormTuning) -> StormEffect:
 	var effect: StormEffect = StormEffect.new()
-	effect.tuning = tuning
-	effect.set_seed(11)
+	var context: FakeMatchContext = FakeMatchContext.new()
+	context.has_weather_value = true
+	context.weather_seed_value = 11
+	effect.bind(context, tuning)
 	effect.set_test_world(func() -> Array: return _registry.all_blocks(), _raised_surface)
 	return effect
 

@@ -35,8 +35,10 @@ func after_each() -> void:
 
 func _effect(seed_value: int = SEED_A) -> StormEffect:
 	var effect: StormEffect = StormEffect.new()
-	effect.tuning = _tuning
-	effect.set_seed(seed_value)
+	var context: FakeMatchContext = FakeMatchContext.new()
+	context.has_weather_value = true
+	context.weather_seed_value = seed_value
+	effect.bind(context, _tuning)
 	effect.set_test_world(func() -> Array: return _blocks, func() -> float: return 0.0)
 	return effect
 

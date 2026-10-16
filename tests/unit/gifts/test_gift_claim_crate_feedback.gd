@@ -52,7 +52,7 @@ func _step_territory(times: int = 1) -> void:
 	var step: float = 1.0 / Match._territory_tuning.solve_hz
 	for _i: int in range(times):
 		Match._territory._run_territory_step(step)
-		Match._gifts.claim_or_expire_gifts(step)
+		Match._gifts.tick_host(step)
 
 
 func _make_crate(gift_id: int, disk_point: Vector2, parent: Node3D) -> GiftCrate:

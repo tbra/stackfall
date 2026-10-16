@@ -104,7 +104,7 @@ func _step_territory(times: int = 1) -> void:
 	var step: float = 1.0 / Match._territory_tuning.solve_hz
 	for _i: int in range(times):
 		Match._territory._run_territory_step(step)
-		Match._gifts.claim_or_expire_gifts(step)
+		Match._gifts.tick_host(step)
 
 
 ## A crate placed exactly on a slot's own home flag is on ground that slot
@@ -321,7 +321,7 @@ func test_client_never_spawns_claims_or_expires() -> void:
 	Match._gifts.on_feed_block_issued(0)
 	assert_eq(Match._gifts._crates.size(), 1, "a client must never spawn a crate of its own")
 
-	Match._gifts.claim_or_expire_gifts(1000.0)
+	Match._gifts.tick_host(1000.0)
 	assert_true(Match._gifts._crates.has(gift_id), "a client must never claim or expire a crate itself")
 
 	Match._net_provider = null

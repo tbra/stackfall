@@ -3,7 +3,7 @@ extends GutTest
 ## happen", windowed `godot --path . -- --headless-host --bots=3 --players=4`,
 ## human is slot 0).
 ##
-## Verifies MatchGifts.claim_or_expire_gifts() end to end through a
+## Verifies MatchGifts.tick_host() claiming end to end through a
 ## MatchConfig built the way game/main/Main.gd's `--headless-host --bots=<n>`
 ## entry point builds it (_bot_match_config() below mirrors its
 ## _build_headless_bot_config()). The tiny-map override (TinyMapMatchConfig,
@@ -89,11 +89,11 @@ func _step_territory(times: int = 1) -> void:
 	var step: float = 1.0 / Match._territory_tuning.solve_hz
 	for _i: int in range(times):
 		Match._territory._run_territory_step(step)
-		Match._gifts.claim_or_expire_gifts(step)
+		Match._gifts.tick_host(step)
 
 
 ## Same direct-injection seam test_gift_claim.gd's own _inject_crate() uses
-## (a real crate node is not needed to exercise claim_or_expire_gifts() --
+## (a real crate node is not needed to exercise tick_host() claiming --
 ## only its {"position", "age", "node"} entry in MatchGifts._crates).
 func _inject_crate(position: Vector2) -> int:
 	var gift_id: int = Match._gifts._next_gift_id
