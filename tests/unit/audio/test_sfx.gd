@@ -17,7 +17,7 @@ var _settings_cfg_path: String
 
 func before_each() -> void:
 	# Sfx.gd talks to the real "Settings" autoload singleton directly
-	# (Settings.custom_music_dir()/master_volume_db()), so isolating this
+	# (Settings.master_volume_db()), so isolating this
 	# file's Settings state means redirecting that singleton itself to a
 	# temp cfg (set_config_path_for_test), not creating a second instance --
 	# restored to user://settings.cfg in after_each so nothing leaks into the
@@ -61,8 +61,8 @@ func after_each() -> void:
 	Net._local_slot = 0
 	# Restore the real Settings singleton to its own persisted file so later
 	# tests (and the user's real user://settings.cfg) never see this test
-	# file's temp custom_music_dir/master_volume_db values.
-	Settings.set_config_path_for_test(Settings.default_config_path())
+	# file's temp master_volume_db values.
+	Settings.set_config_path_for_test(Settings.REAL_CONFIG_PATH)
 	_delete_if_exists(_settings_cfg_path)
 
 
@@ -163,12 +163,12 @@ func test_special_consumed_loops_for_the_window_and_trigger_fades_it() -> void:
 	_write_tiny_wav(_tmp_dir.path_join(_config.special_loop_files[&"earthquake"]))
 	_sfx.set_root_dir_for_test(_tmp_dir)
 	_sfx._on_special_consumed(0, &"earthquake")
-	assert_eq(_sfx.special_loop_count(), 1, "the rumble starts when the gift is used")
+	assert_eq(_sfx._special_loops.size(), 1, "the rumble starts when the gift is used")
 	var player: AudioStreamPlayer = _sfx._special_loops[0]["player"] as AudioStreamPlayer
 	assert_true(player.playing)
 	assert_eq((player.stream as AudioStreamWAV).loop_mode, AudioStreamWAV.LOOP_FORWARD, "it loops")
 	_sfx._on_special_triggered(-1, &"earthquake", Vector3.ZERO, 0)
-	assert_eq(_sfx.special_loop_count(), 0, "the window's end fades it out")
+	assert_eq(_sfx._special_loops.size(), 0, "the window's end fades it out")
 
 
 func test_special_triggered_plays_its_cue() -> void:
@@ -251,7 +251,7 @@ func _install_both_stem_files() -> void:
 
 func test_goal_capture_progress_crossfades_toward_tense_when_stems_available() -> void:
 	_install_both_stem_files()
-	assert_true(_sfx.tense_stem_available(), "both stem files installed -- pairing should be available")
+	assert_true(_sfx._tense_stem_available, "both stem files installed -- pairing should be available")
 
 	Events.goal_capture_progress.emit(0, 0.9)
 

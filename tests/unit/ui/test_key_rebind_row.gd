@@ -15,7 +15,7 @@ extends GutTest
 ## Control/Button layout with neither artifact, fully headlessly.
 
 const KEY_REBIND_ROW_SCENE: PackedScene = preload("res://ui/menus/KeyRebindRow.tscn")
-var DEFAULT_SETTINGS_CFG_PATH: String = Settings.default_config_path()
+var DEFAULT_SETTINGS_CFG_PATH: String = Settings.REAL_CONFIG_PATH
 const VIEWPORT_SIZE: Vector2i = Vector2i(1280, 720)
 
 var _test_action: StringName = &"key_rebind_row_test_action"
@@ -30,7 +30,7 @@ func before_each() -> void:
 	# joypad event (e.g. test_playercontroller_throw earlier in the same shard).
 	# The row only shows keyboard glyphs while it is keyboard_mouse.
 	_prior_device = Settings.active_input_device()
-	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
+	Settings._input(InputEventKey.new())
 	if not InputMap.has_action(_test_action):
 		InputMap.add_action(_test_action)
 	_sub_viewport = SubViewport.new()
@@ -59,7 +59,7 @@ func after_each() -> void:
 	if InputMap.has_action(_test_action):
 		InputMap.erase_action(_test_action)
 	Settings.set_config_path_for_test(DEFAULT_SETTINGS_CFG_PATH)
-	Settings.set_active_input_device_for_test(_prior_device)
+	Settings._input(InputEventJoypadButton.new() if _prior_device == Settings.DEVICE_GAMEPAD else InputEventKey.new())
 	_row = null
 	_sub_viewport = null
 	_cover = null
@@ -176,7 +176,7 @@ func _assert_key_replaces_binding(keycode: Key, cfg_name: String) -> void:
 	var glyph: InputGlyph = glyph_row.get_child(0) as InputGlyph
 	assert_eq(glyph.label_text(), events[0].as_text(), "the glyph must reflect the new binding")
 
-	var persisted: Array[InputEvent] = Settings.key_override_events(_test_action)
+	var persisted: Array = Settings._key_overrides.get(_test_action, [])
 	assert_eq(persisted.size(), 1)
 	assert_true(persisted[0] is InputEventKey)
 	assert_eq((persisted[0] as InputEventKey).keycode, keycode, "the new binding must persist through Settings")
@@ -228,7 +228,7 @@ func test_ui_cancel_while_listening_cancels_without_binding() -> void:
 
 
 func _listen_on_pad_page() -> void:
-	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
+	Settings._input(InputEventJoypadButton.new())
 	_row.refresh()
 	await get_tree().process_frame
 	await get_tree().process_frame

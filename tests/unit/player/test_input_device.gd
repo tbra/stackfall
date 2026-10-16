@@ -13,15 +13,15 @@ extends GutTest
 # other files sharing a gate shard can leave the device on
 # gamepad, so start every test from the default too, not just restore after.
 func before_each() -> void:
-	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+	Settings._input(InputEventKey.new())
 
 
 func after_each() -> void:
-	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+	Settings._input(InputEventKey.new())
 
 
 func test_a_real_keyboard_event_switches_from_gamepad_to_keyboard_mouse() -> void:
-	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
+	Settings._input(InputEventJoypadButton.new())
 
 	var key_event: InputEventKey = InputEventKey.new()
 	key_event.keycode = KEY_W
@@ -53,7 +53,7 @@ func test_a_real_gamepad_button_switches_to_gamepad() -> void:
 ## about, the same "call the callback directly for a unit-level check"
 ## convention ui/menus/KeyRebindRow.gd's own tests already use for row._input().
 func test_tiny_mouse_motion_does_not_switch_from_gamepad() -> void:
-	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
+	Settings._input(InputEventJoypadButton.new())
 
 	var motion: InputEventMouseMotion = InputEventMouseMotion.new()
 	motion.relative = Vector2(0.2, 0.1)
@@ -73,7 +73,7 @@ func test_large_joypad_motion_switches_to_gamepad() -> void:
 
 
 func test_input_device_changed_signal_emits_only_on_an_actual_change() -> void:
-	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
+	Settings._input(InputEventKey.new())
 	watch_signals(Events)
 
 	var key_event: InputEventKey = InputEventKey.new()

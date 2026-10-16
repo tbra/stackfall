@@ -508,14 +508,6 @@ func is_host() -> bool:
 	return _mode == Mode.HOST or _mode == Mode.OFFLINE
 
 
-## True when this session may send RPCs: not offline and the multiplayer peer is
-## a connected, non-offline one. The single owner is NetFanout.can_send(); Net's
-## private _can_send() below is a different, host-only question (are there
-## connected remote peers to broadcast to).
-func can_send() -> bool:
-	return NetFanout.can_send(multiplayer, self)
-
-
 func is_client() -> bool:
 	return _mode == Mode.CLIENT
 
@@ -649,16 +641,9 @@ func set_peer_ready(peer_id: int, ready: bool) -> void:
 	_broadcast_roster()
 
 
-## Host only: clears every peer's ready flag (host included) and republishes the roster.
-## Net owns this rule -- the session returning to the lobby calls it (through
-## set_match_in_progress(false)) -- and the Lobby's Ready toggle only shows the result; it no
-## longer resets the flags itself on entry ('s workaround).
-func reset_ready_flags() -> void:
-	if _clear_ready_flags():
-		_broadcast_roster()
-
-
-## Host only: clears every ready flag without broadcasting; whether any flag changed.
+## Host only: clears every peer's ready flag (host included) without broadcasting; whether any
+## flag changed. Net owns this rule -- the session returning to the lobby applies it (through
+## set_match_in_progress(false)) -- and the Lobby's Ready toggle only shows the result.
 func _clear_ready_flags() -> bool:
 	if not is_host():
 		return false
@@ -1271,16 +1256,6 @@ func stop_discovery() -> void:
 func set_simulation(lag_ms: float, jitter_ms: float, loss: float) -> void:
 	_sim.configure(lag_ms, jitter_ms, loss)
 	SnapshotSync.set_simulation(lag_ms, jitter_ms, loss)
-
-
-## The live simulator, so SnapshotSync and the debug overlay share one set of
-## settings and one set of counters.
-func simulation() -> NetSim:
-	return _sim
-
-
-func simulation_enabled() -> bool:
-	return not _sim.is_idle()
 
 
 # --- Debug stats (spec Part 4 M3's overlay) ---------------------------------
@@ -2573,10 +2548,6 @@ func upnp_join_code() -> String:
 	if _upnp.state != UpnpRunner.State.OPENED:
 		return ""
 	return JoinCode.encode(_upnp.external_address, _host_port)
-
-
-func upnp_failure_reason() -> String:
-	return _upnp.reason
 
 
 ## The UDP port a manual router forward must target (the fallback hint).

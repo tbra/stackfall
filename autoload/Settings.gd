@@ -83,10 +83,6 @@ const GRAPHICS_OVERRIDE_FIELDS: Array[StringName] = [
 	&"block_dissolve_effect_enabled", &"gift_idle_glow_enabled", &"cloud_shadows_enabled",
 	&"aurora_enabled", &"vsync_enabled", &"frame_cap_mode", &"fixed_fps", &"render_scale_3d", &"render_scale_3d_mode",
 ]
-## Legacy pre-options-package key: a single dB value (-40..6). Only ever read
-## now, as a one-time migration source for KEY_MASTER_VOLUME_PERCENT below
-## (see _load()'s own DECISION) -- never written again.
-const KEY_MASTER_DB: String = "master_db"
 const KEY_MASTER_VOLUME_PERCENT: String = "master_volume_percent"
 const KEY_MASTER_MUTED: String = "master_muted"
 const KEY_MUSIC_VOLUME_PERCENT: String = "music_volume_percent"
@@ -95,7 +91,6 @@ const KEY_SFX_VOLUME_PERCENT: String = "sfx_volume_percent"
 const KEY_SFX_MUTED: String = "sfx_muted"
 const KEY_WEATHER_VOLUME_PERCENT: String = "weather_volume_percent"
 const KEY_WEATHER_MUTED: String = "weather_muted"
-const KEY_CUSTOM_MUSIC_DIR: String = "custom_music_dir"
 const KEY_CAMERA_SHAKE_ENABLED: String = "camera_shake_enabled"
 const KEY_FOV_OVERRIDE_DEG: String = "fov_override_deg"
 const KEY_WINDOW_MODE: String = "window_mode"
@@ -219,7 +214,6 @@ var _channel_muted: Dictionary[int, bool] = {
 	AudioChannel.WEATHER: false,
 }
 
-var _custom_music_dir: String = ""
 ## the name the local player typed, "" until they type one (the
 ## host then seats them as "Player N"). Length cap: NetConfig.max_player_name_length.
 var _player_name: String = ""
@@ -238,13 +232,12 @@ var _mouse_move_speed_scale: float = DEFAULT_MOUSE_MOVE_SPEED_SCALE
 var _stick_move_speed_scale: float = DEFAULT_STICK_MOVE_SPEED_SCALE
 
 ## action -> Array of persisted InputEvent overrides for that action (never
-## the full InputMap default set -- key_override_events() answers "what has
-## the user overridden", not "what is bound").
+## the full InputMap default set).
 var _key_overrides: Dictionary[StringName, Array] = {}
 ## user-level debug-mode switch (game/debug/DebugMode.gd's source 3).
 ## -1 = never set (fall through to the other sources), 0 = off, 1 = on. Edited
-## by hand in user://settings.cfg ([debug] enabled=true) or via
-## set_debug_setting(); there is no in-game menu entry on purpose.
+## by hand in user://settings.cfg ([debug] enabled=true); there is no in-game
+## menu entry on purpose.
 var _debug_setting: int = -1
 
 
@@ -297,16 +290,6 @@ func _classify_device(event: InputEvent) -> StringName:
 			return DEVICE_GAMEPAD
 		return &""
 	return &""
-
-
-## Test seam: forces the active device without pushing a real InputEvent
-## through Input.parse_input_event() (the same "inject state GUT can't
-## otherwise reach" role set_config_path_for_test() plays below).
-func set_active_input_device_for_test(family: StringName) -> void:
-	if family == _active_device:
-		return
-	_active_device = family
-	Events.input_device_changed.emit(_active_device)
 
 
 ## The preset consumers should apply: the stored one, with the governor's temporary
@@ -406,10 +389,6 @@ func set_adaptive_quality_enabled(enabled: bool) -> void:
 	adaptive_quality_setting_changed.emit(enabled)
 
 
-func governor_level() -> int:
-	return _governor_level
-
-
 ## Runtime-only; ignored (forced to 0) while the option is off.
 func set_governor_level(level: int) -> void:
 	var clamped: int = clampi(level, 0, QualityGovernor.LEVEL_RENDER_SCALE) if _adaptive_quality else 0
@@ -446,9 +425,8 @@ func set_master_volume_percent(percent: float) -> void:
 	_set_channel_volume_percent(AudioChannel.MASTER, percent)
 
 
-## Legacy name kept for autoload/Sfx.gd (and any other pre-existing caller):
-## computed from master_volume_percent()/master_muted() now, rather than
-## stored directly -- see SILENT_VOLUME_DB's own doc for the muted/0% case.
+## Computed from master_volume_percent()/master_muted() rather than stored
+## directly -- see SILENT_VOLUME_DB's own doc for the muted/0% case.
 func master_volume_db() -> float:
 	return _channel_volume_db(AudioChannel.MASTER)
 
@@ -579,17 +557,6 @@ func _channel_volume_db(channel: AudioChannel) -> float:
 	return linear_to_db(percent)
 
 
-## "" means: use the bundled folder (no custom override).
-func custom_music_dir() -> String:
-	return _custom_music_dir
-
-
-func set_custom_music_dir(path: String) -> void:
-	_custom_music_dir = path
-	_save()
-	audio_settings_changed.emit()
-
-
 ## the local player's saved display name, "" when never set.
 ## ui/menus/MainMenu.gd prefills its name field from this and writes every edit back,
 ## so the name survives page changes, a rebuilt menu and a restart.
@@ -608,9 +575,8 @@ func set_player_name(typed: String) -> void:
 
 
 ## M7 P4, spec 1.10 "camera shake": read directly by
-## game/player/CameraRig.gd (autoload/Sfx.gd's own master_volume_db()/
-## custom_music_dir() precedent -- a plain-bool feel setting, not something
-## that needs a per-test provider seam the way ui/menus/OptionsMenu.gd's InputMap
+## game/player/CameraRig.gd (a plain-bool feel setting, not something that
+## needs a per-test provider seam the way ui/menus/OptionsMenu.gd's InputMap
 ## rebinding does).
 func camera_shake_enabled() -> bool:
 	return _camera_shake_enabled
@@ -884,18 +850,6 @@ func _restore_windowed_size_and_center() -> void:
 	window.move_to_center()
 
 
-## Persisted overrides only, not the InputMap's full current binding set.
-func key_override_events(action: StringName) -> Array[InputEvent]:
-	var events: Array[InputEvent] = []
-	if not _key_overrides.has(action):
-		return events
-	var stored: Array = _key_overrides[action]
-	for item: Variant in stored:
-		if item is InputEvent:
-			events.append(item)
-	return events
-
-
 ## DECISION: overrides are device-class aware (keyboard/mouse vs. gamepad) so
 ## that remapping one class never deletes the other's bootstrap default --
 ## CLAUDE.md requires every action to keep both a keyboard/mouse and a
@@ -962,13 +916,6 @@ func _is_gamepad_event(event: InputEvent) -> bool:
 	return event is InputEventJoypadButton or event is InputEventJoypadMotion
 
 
-# --- Test seam ---------------------------------------------------------------
-
-## Points a fresh Settings instance at a temp settings.cfg path instead of
-## user://settings.cfg and immediately (re)loads from it, reapplying any
-## persisted key overrides just like _ready() would -- the same
-## Variant/path seam pattern autoload/Sfx.gd's set_root_dir_for_test() uses
-## for a value GUT can't otherwise inject into the real singleton.
 ## The one path every settings read/write/delete uses. In a GUT run the real
 ## player file is unreachable: REAL_CONFIG_PATH maps to the per-PID GUT file.
 func effective_path() -> String:
@@ -977,11 +924,9 @@ func effective_path() -> String:
 	return _config_path
 
 
-## What tests restore after a temp-path override (per-PID file in a GUT run).
-func default_config_path() -> String:
-	return UserPaths.gut_path(REAL_CONFIG_PATH) if _gut_run else REAL_CONFIG_PATH
-
-
+## Points Settings at a temp settings.cfg path instead of user://settings.cfg and
+## immediately (re)loads from it, reapplying any persisted key overrides just
+## like _ready() would.
 func set_config_path_for_test(path: String) -> void:
 	_config_path = path
 	_load()
@@ -994,11 +939,6 @@ func set_config_path_for_test(path: String) -> void:
 ## see _debug_setting. -1 when the user never set it.
 func debug_setting() -> int:
 	return _debug_setting
-
-
-func set_debug_setting(value: int) -> void:
-	_debug_setting = clampi(value, -1, 1)
-	_save()
 
 
 func _load() -> void:
@@ -1019,7 +959,6 @@ func _load() -> void:
 		AudioChannel.SFX: false,
 		AudioChannel.WEATHER: false,
 	}
-	_custom_music_dir = ""
 	_player_name = ""
 	_camera_shake_enabled = DEFAULT_CAMERA_SHAKE_ENABLED
 	_fov_override_deg = 0.0
@@ -1046,14 +985,6 @@ func _load() -> void:
 		_channel_volume_percent[AudioChannel.MASTER] = clampf(
 			float(cfg.get_value(SECTION_AUDIO, KEY_MASTER_VOLUME_PERCENT, DEFAULT_VOLUME_PERCENT)), 0.0, 1.0
 		)
-	elif cfg.has_section_key(SECTION_AUDIO, KEY_MASTER_DB):
-		# DECISION (autoload/Settings.gd): migrate a pre-options-package
-		# master_volume_db save to the new 0..1 percent slider by converting
-		# it straight through db_to_linear() -- the same loudness, expressed
-		# as a percent instead of dB, clamped into the slider's own range.
-		_channel_volume_percent[AudioChannel.MASTER] = clampf(
-			db_to_linear(float(cfg.get_value(SECTION_AUDIO, KEY_MASTER_DB, 0.0))), 0.0, 1.0
-		)
 	_channel_muted[AudioChannel.MASTER] = bool(cfg.get_value(SECTION_AUDIO, KEY_MASTER_MUTED, false))
 	_channel_volume_percent[AudioChannel.MUSIC] = clampf(
 		float(cfg.get_value(SECTION_AUDIO, KEY_MUSIC_VOLUME_PERCENT, DEFAULT_VOLUME_PERCENT)), 0.0, 1.0
@@ -1068,7 +999,6 @@ func _load() -> void:
 		float(cfg.get_value(SECTION_AUDIO, KEY_WEATHER_VOLUME_PERCENT, DEFAULT_VOLUME_PERCENT)), 0.0, 1.0
 	)
 	_channel_muted[AudioChannel.WEATHER] = bool(cfg.get_value(SECTION_AUDIO, KEY_WEATHER_MUTED, false))
-	_custom_music_dir = String(cfg.get_value(SECTION_AUDIO, KEY_CUSTOM_MUSIC_DIR, ""))
 	_player_name = PlayerNames.clean(
 		String(cfg.get_value(SECTION_PLAYER, KEY_PLAYER_NAME, "")), _net_config.max_player_name_length
 	)
@@ -1137,7 +1067,6 @@ func _save() -> void:
 	cfg.set_value(SECTION_AUDIO, KEY_SFX_MUTED, _channel_muted[AudioChannel.SFX])
 	cfg.set_value(SECTION_AUDIO, KEY_WEATHER_VOLUME_PERCENT, _channel_volume_percent[AudioChannel.WEATHER])
 	cfg.set_value(SECTION_AUDIO, KEY_WEATHER_MUTED, _channel_muted[AudioChannel.WEATHER])
-	cfg.set_value(SECTION_AUDIO, KEY_CUSTOM_MUSIC_DIR, _custom_music_dir)
 	cfg.set_value(SECTION_PLAYER, KEY_PLAYER_NAME, _player_name)
 	cfg.set_value(SECTION_CONTROLS, KEY_MOUSE_MOVE_SPEED_SCALE, _mouse_move_speed_scale)
 	cfg.set_value(SECTION_CONTROLS, KEY_STICK_MOVE_SPEED_SCALE, _stick_move_speed_scale)

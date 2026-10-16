@@ -42,7 +42,7 @@ func after_each() -> void:
 	SnapshotSync.end_match()
 	Match.set_process(true)
 	(load("res://config/physics/physics_tuning.tres") as PhysicsTuning).gravity_multiplier = _saved_gravity_multiplier
-	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+	Settings._input(InputEventKey.new())
 	await get_tree().process_frame
 	await get_tree().process_frame
 

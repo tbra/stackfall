@@ -35,11 +35,7 @@ var _last_device_id: int = DEVICE_NONE
 ## pair of StringName constants reused for DRY).
 var _last_family: StringName = &""
 
-## Test seam (tests/unit/player/test_rumble.gd): swaps the real Input calls for a
-## Callable that records what was asked for instead of touching hardware --
-## the same Variant/Callable seam idea autoload/Sfx.gd's set_root_dir_for_test()
-## uses for a value GUT can't otherwise inject into the real singleton, except
-## here the seam is a whole function rather than a value.
+## Swappable vibration calls (tests record them instead of touching hardware).
 var start_vibration_fn: Callable = Callable(self, "_start_vibration_real")
 var stop_vibration_fn: Callable = Callable(self, "_stop_vibration_real")
 
@@ -225,15 +221,3 @@ func _start_vibration_real(device: int, weak_magnitude: float, strong_magnitude:
 
 func _stop_vibration_real(device: int) -> void:
 	Input.stop_joy_vibration(device)
-
-
-# --- Test seam -----------------------------------------------------------
-
-## tests/unit/player/test_rumble.gd injects the last-seen device/family directly,
-## the same "inject state GUT can't otherwise reach" role
-## Settings.set_active_input_device_for_test() plays for its own tracker --
-## real hardware never delivers a synthetic InputEventJoypadButton/Motion to
-## a headless test run's window.
-func set_last_device_for_test(device_id: int, family: StringName) -> void:
-	_last_device_id = device_id
-	_last_family = family

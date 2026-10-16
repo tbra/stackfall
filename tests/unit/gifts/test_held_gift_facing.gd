@@ -5,7 +5,7 @@ extends GutTest
 const NOSE_TOLERANCE_DEG: float = 5.0
 const AIM: Vector3 = Vector3(0.6, 0.3, -0.74)
 func after_each() -> void:
-	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+	Settings._input(InputEventKey.new())
 
 
 func _ghost_holding(id: StringName) -> GhostPreview:

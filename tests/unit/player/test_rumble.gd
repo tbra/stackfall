@@ -1,12 +1,9 @@
 extends GutTest
 ## autoload/Rumble.gd: Events -> Input.start_joy_vibration()/stop_joy_vibration()
-## reactions. Real hardware never delivers a synthetic InputEventJoypadButton/
-## Motion to a headless test run (this project's own operating notes), so
-## every test here drives Rumble.set_last_device_for_test() (the device/family
-## tracker) directly, and swaps Rumble.start_vibration_fn/stop_vibration_fn
-## for a recording Callable instead of touching the real Input singleton --
-## the same Variant/Callable seam idea autoload/Sfx.gd's set_root_dir_for_test()
-## uses for a value GUT can't otherwise inject into the real singleton.
+## reactions. The tests feed synthetic InputEventJoypadButton/InputEventKey events
+## to Rumble._input() to set the last-used device, and swap
+## Rumble.start_vibration_fn/stop_vibration_fn for a recording Callable instead
+## of touching the real Input singleton.
 ##
 ## Settings is redirected to a temp cfg (Settings.set_config_path_for_test),
 ## restored in after_each -- the same pattern tests/unit/player/test_camera_shake.gd
@@ -28,14 +25,16 @@ func before_each() -> void:
 	_stop_calls = []
 	Rumble.start_vibration_fn = Callable(self, "_record_start")
 	Rumble.stop_vibration_fn = Callable(self, "_record_stop")
-	Rumble.set_last_device_for_test(Rumble.DEVICE_NONE, &"")
+	Rumble._last_device_id = Rumble.DEVICE_NONE
+	Rumble._last_family = &""
 
 
 func after_each() -> void:
 	Rumble.start_vibration_fn = Callable(Rumble, "_start_vibration_real")
 	Rumble.stop_vibration_fn = Callable(Rumble, "_stop_vibration_real")
-	Rumble.set_last_device_for_test(Rumble.DEVICE_NONE, &"")
-	Settings.set_config_path_for_test(Settings.default_config_path())
+	Rumble._last_device_id = Rumble.DEVICE_NONE
+	Rumble._last_family = &""
+	Settings.set_config_path_for_test(Settings.REAL_CONFIG_PATH)
 	_delete_if_exists(_settings_cfg_path)
 
 
@@ -58,7 +57,9 @@ func _record_stop(device: int) -> void:
 
 
 func _use_gamepad(device_id: int = 0) -> void:
-	Rumble.set_last_device_for_test(device_id, Settings.DEVICE_GAMEPAD)
+	var press: InputEventJoypadButton = InputEventJoypadButton.new()
+	press.device = device_id
+	Rumble._input(press)
 
 
 func test_block_impact_above_threshold_rumbles_the_last_gamepad() -> void:
@@ -91,7 +92,7 @@ func test_disabled_setting_suppresses_every_rumble() -> void:
 
 
 func test_last_device_keyboard_suppresses_rumble() -> void:
-	Rumble.set_last_device_for_test(Rumble.DEVICE_NONE, Settings.DEVICE_KEYBOARD_MOUSE)
+	Rumble._input(InputEventKey.new())
 
 	Events.block_impacted.emit(Rumble.config.impact_speed_max)
 

@@ -1,5 +1,5 @@
 extends GutTest
-## NetFanout.can_send() / Net.can_send() are the single owner of
+## NetFanout.can_send() is the single owner of
 ## "is there a live peer to send to"; the net/ nodes no longer carry private copies.
 
 class FakeSession:

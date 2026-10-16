@@ -41,7 +41,7 @@ func _make_menu(debug_enabled: bool = false, steam_available: bool = false) -> M
 
 func after_each() -> void:
 	DebugMode.clear_override_for_test()
-	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+	Settings._input(InputEventKey.new())
 
 
 func _pad(button: JoyButton) -> void:

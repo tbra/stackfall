@@ -52,7 +52,7 @@ func after_each() -> void:
 	_wire_nets.clear()
 	Match.set_replicator(null)
 	AgentProbe.set_forced_for_test(-1)
-	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
+	Settings._input(InputEventKey.new())
 	Events.loading_ready_changed.disconnect(_on_changed)
 	Events.loading_gate_opened.disconnect(_on_opened)
 	Match._lifecycle.set_loading_gate_forced(false)

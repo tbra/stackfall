@@ -26,8 +26,8 @@ func before_each() -> void:
 
 func after_each() -> void:
 	_delete_if_exists(_cfg_path)
-	Settings.set_config_path_for_test(Settings.default_config_path())
-	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+	Settings.set_config_path_for_test(Settings.REAL_CONFIG_PATH)
+	Settings._input(InputEventKey.new())
 
 
 func _delete_if_exists(path: String) -> void:
@@ -198,7 +198,7 @@ func _pad_accept() -> void:
 
 
 func test_gamepad_accept_opens_a_dropdown_list_and_flips_a_toggle() -> void:
-	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
+	Settings._input(InputEventJoypadButton.new())
 	(_menu.get_node("%GraphicsTabButton") as Button).button_pressed = true
 	await get_tree().process_frame
 	var msaa: UiDropdown = _dd(&"msaa_3d")

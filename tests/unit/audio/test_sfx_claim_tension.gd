@@ -30,7 +30,7 @@ func before_each() -> void:
 func after_each() -> void:
 	for filename: String in DirAccess.get_files_at(_dir):
 		DirAccess.remove_absolute(_dir.path_join(filename))
-	Settings.set_config_path_for_test(Settings.default_config_path())
+	Settings.set_config_path_for_test(Settings.REAL_CONFIG_PATH)
 	if FileAccess.file_exists(_settings_path):
 		DirAccess.remove_absolute(_settings_path)
 
@@ -133,7 +133,7 @@ func test_scope_reset_clears_layer() -> void:
 	assert_true(_sfx._claim_player.playing)
 	Events.match_scope_reset.emit()
 	assert_eq(_sfx.claim_tension_level(), 0.0)
-	assert_eq(_sfx.claim_duck_applied_db(), 0.0)
+	assert_eq(_sfx._claim_duck_db, 0.0)
 	assert_false(_sfx._claim_player.playing)
 	assert_eq(_sfx._claim_player.volume_db, SFX_SCRIPT.MUSIC_STEM_MUTE_DB)
 

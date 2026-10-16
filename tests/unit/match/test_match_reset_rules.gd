@@ -47,7 +47,7 @@ func after_each() -> void:
 	Match.abort_match()
 	Match.set_process(true)
 	MatchTestReset.clear_world()
-	Settings.set_config_path_for_test(Settings.default_config_path())
+	Settings.set_config_path_for_test(Settings.REAL_CONFIG_PATH)
 	_delete_if_exists(_settings_cfg_path)
 	if _tmp_dir != "" and DirAccess.dir_exists_absolute(_tmp_dir):
 		for filename: String in DirAccess.get_files_at(_tmp_dir):
@@ -196,7 +196,7 @@ func _install_both_stem_files() -> void:
 func test_match_scope_reset_returns_the_tense_stem_to_calm() -> void:
 	_make_sfx(false)
 	_install_both_stem_files()
-	assert_true(_sfx.tense_stem_available(), "fixture: both stems installed")
+	assert_true(_sfx._tense_stem_available, "fixture: both stems installed")
 	Events.goal_capture_progress.emit(0, 0.9)
 	assert_true(_sfx._tense_stem_is_active, "fixture: tense is up at the end of match A")
 	assert_gt(_sfx.tense_stem_target_volume_db(), _sfx.calm_stem_target_volume_db(), "fixture: tense is the louder target")

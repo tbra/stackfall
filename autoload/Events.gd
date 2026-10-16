@@ -41,7 +41,7 @@ signal fused_member_released(member: Node)
 ## The host's state machine moved. Both arguments are Match.State values.
 signal match_state_changed(from_state: int, to_state: int)
 
-## docs/MATCH_RESET_AUDIT.md section 4: a match world is about to
+## A match world is about to
 ## be built, or was just torn down (host, client, sandbox and tutorial alike;
 ## game/main/Main.gd's _reset_match_scope() is the only emitter). Persistent owners
 ## that Main cannot name (sky, weather ceiling, audio, rumble) connect here and

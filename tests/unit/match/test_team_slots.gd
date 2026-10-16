@@ -54,7 +54,7 @@ func after_each() -> void:
 	Match.abort_match()
 	SnapshotSync.end_match()
 	Match.set_process(true)
-	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+	Settings._input(InputEventKey.new())
 	await get_tree().process_frame
 	await get_tree().process_frame
 

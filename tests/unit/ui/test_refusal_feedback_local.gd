@@ -76,7 +76,9 @@ func before_each() -> void:
 
 	_rumble_calls = []
 	Rumble.start_vibration_fn = Callable(self, "_record_rumble")
-	Rumble.set_last_device_for_test(GAMEPAD_DEVICE, Settings.DEVICE_GAMEPAD)
+	var press: InputEventJoypadButton = InputEventJoypadButton.new()
+	press.device = GAMEPAD_DEVICE
+	Rumble._input(press)
 
 	_rejected_events = []
 	_rejected_listener = func(slot_id: int, _reason: StringName) -> void:
@@ -98,10 +100,11 @@ func after_each() -> void:
 	Match.set_process(true)
 	MatchTestReset.clear_world()
 	Rumble.start_vibration_fn = Callable(Rumble, "_start_vibration_real")
-	Rumble.set_last_device_for_test(Rumble.DEVICE_NONE, &"")
+	Rumble._last_device_id = Rumble.DEVICE_NONE
+	Rumble._last_family = &""
 	for filename: String in DirAccess.get_files_at(_tmp_dir):
 		DirAccess.remove_absolute(_tmp_dir.path_join(filename))
-	Settings.set_config_path_for_test(Settings.default_config_path())
+	Settings.set_config_path_for_test(Settings.REAL_CONFIG_PATH)
 	_delete_if_exists(_settings_cfg_path)
 
 

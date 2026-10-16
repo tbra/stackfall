@@ -99,7 +99,7 @@ func test_driver_sheds_through_settings_and_user_settings_are_untouched() -> voi
 	var cfg: QualityGovernorConfig = driver.config
 	for i: int in range(int(cfg.shed_delay_s / cfg.sample_interval_s) + 1):
 		driver.sample(cfg.target_frame_ms * 2.0, 0, cfg.sample_interval_s)
-	assert_eq(settings.governor_level(), 1)
+	assert_eq(settings._governor_level, 1)
 	assert_lt(settings.current_graphics_preset().particle_budget_scale, 1.0)
 	assert_eq(settings.stored_graphics_preset().particle_budget_scale, 1.0)
 	settings.set_governor_level(4)
@@ -111,7 +111,7 @@ func test_driver_sheds_through_settings_and_user_settings_are_untouched() -> voi
 	assert_eq(cfg_file.get_value("graphics", "preset"), "high", "saved preset id is the user choice")
 	assert_false(cfg_file.has_section_key("graphics", "governor_level"), "level is never persisted")
 	settings.set_adaptive_quality_enabled(false)
-	assert_eq(settings.governor_level(), 0)
+	assert_eq(settings._governor_level, 0)
 	var restored: GraphicsPreset = settings.current_graphics_preset()
 	assert_eq(restored.particle_budget_scale, 1.0)
 	assert_true(restored.volumetric_fog_enabled)

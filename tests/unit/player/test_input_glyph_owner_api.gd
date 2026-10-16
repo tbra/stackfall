@@ -11,12 +11,12 @@ func before_each() -> void:
 	var pad: InputEventJoypadButton = InputEventJoypadButton.new()
 	pad.button_index = JOY_BUTTON_A
 	InputMap.action_add_event(ACTION, pad)
-	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
+	Settings._input(InputEventKey.new())
 
 
 func after_each() -> void:
 	InputMap.erase_action(ACTION)
-	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+	Settings._input(InputEventKey.new())
 
 
 func test_events_filtered_by_device() -> void:
@@ -30,9 +30,9 @@ func test_events_filtered_by_device() -> void:
 
 func test_signature_changes_with_device_and_rebind() -> void:
 	var before: String = InputGlyph.signature_for_action(ACTION)
-	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
+	Settings._input(InputEventJoypadButton.new())
 	assert_ne(InputGlyph.signature_for_action(ACTION), before)
-	Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
+	Settings._input(InputEventKey.new())
 	InputMap.action_erase_events(ACTION)
 	var key: InputEventKey = InputEventKey.new()
 	key.physical_keycode = KEY_SPACE

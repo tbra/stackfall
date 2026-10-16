@@ -26,7 +26,7 @@ func before_each() -> void:
 
 func after_each() -> void:
 	Match.abort_match()
-	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+	Settings._input(InputEventKey.new())
 
 
 ## the eliminated local player gets the big red banner, naming

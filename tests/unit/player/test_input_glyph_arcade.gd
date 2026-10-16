@@ -10,7 +10,7 @@ var _arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 
 func after_each() -> void:
 	# The focus test sends a synthetic pad press; do not leak the gamepad device into later scripts.
-	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+	Settings._input(InputEventKey.new())
 
 
 func _glyph_for(event: InputEvent) -> InputGlyph:
