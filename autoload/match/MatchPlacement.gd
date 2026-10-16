@@ -36,9 +36,6 @@ const _BURN_CLAMP_MARGIN: float = 0.5
 
 var _match: MatchAutoload = null
 
-## Blocks _spawn_block() has built since the match started (reset by MatchLifecycle).
-var _blocks_spawned: int = 0
-
 ## M4 P2c: request_throw()'s own tunable (throw_max_speed) -- preloaded here
 ## rather than added to autoload/Match.gd's field set (that file, per this
 ## package's own file ownership, gets only a one-line forward), the same way
@@ -945,7 +942,6 @@ func _spawn_block(
 	Events.block_placed.emit(block, shape.id)
 	if is_player_placement:
 		_match._stats.record_block_placed(slot_id)
-	_blocks_spawned += 1
 	if _match._replicator != null:
 		_match._replicator.replicate_spawn(block, block.net_id)
 	# M4 P2c: unlike every earlier revision of this file, _spawn_block() does

@@ -122,8 +122,7 @@ var _peak_share: Array[float] = []
 var _session_wins: Dictionary = {}
 
 ## Seconds accumulated by _tick() while the match is live (State.PLAYING or
-## State.SUDDEN_DEATH). Reset to 0.0 by reset(); read by match_duration() and
-## snapshotted into build_results_payload()'s "match_duration" field.
+## State.SUDDEN_DEATH). Reset to 0.0 by reset(); snapshotted into build_results_payload()'s "match_duration" field.
 var _elapsed: float = 0.0
 ## client copy of the host's last live snapshot; cleared by reset().
 var _remote_live: Dictionary = {}
@@ -192,10 +191,6 @@ func _tick(delta: float) -> void:
 	_elapsed += delta
 	for team: int in range(_peak_share.size()):
 		_peak_share[team] = maxf(_peak_share[team], _match.territory_share(team))
-
-
-func match_duration() -> float:
-	return _elapsed
 
 
 ## Called directly by MatchPlacement._spawn_block() (this file's header

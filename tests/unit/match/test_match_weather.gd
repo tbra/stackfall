@@ -115,12 +115,11 @@ func test_off_never_runs_a_schedule() -> void:
 func test_changing_mode_repeats_events_one_at_a_time_with_calm_between() -> void:
 	var w: MatchWeather = _make(_abc(), _schedule())
 	w.begin_match(_cfg(MatchConfig.WeatherMode.CHANGING))
-	assert_eq(w.schedule_phase(), MatchWeather.Sched.CALM)
+	assert_eq(w.active_id(), &"")
 	_run(w, 4.5)
 	assert_eq(_log.size(), 0, "calm through the initial delay")
 	_run(w, 1.0)
 	assert_ne(w.active_id(), &"")
-	assert_eq(w.schedule_phase(), MatchWeather.Sched.EVENT)
 	_run(w, 200.0)
 	var starts: int = 0
 	for entry: Array in _log:
@@ -135,7 +134,6 @@ func test_type_mode_is_constant_after_the_start_delay_with_no_calm_gaps() -> voi
 	sched.constant_start_delay_s = 3.0
 	var w: MatchWeather = _make(_abc(), sched)
 	w.begin_match(_cfg(MatchConfig.WeatherMode.RAIN))
-	assert_true(w.is_constant())
 	_run(w, 2.5)
 	assert_eq(_log.size(), 0, "calm through the short start delay")
 	_run(w, 1.0)

@@ -73,7 +73,7 @@ func test_two_crates_live_claim_one_and_expire_other_independently() -> void:
 	var claimed: int = _inject(home)
 	var far: int = _inject(Vector2(0.0, 15.0), 9.5)
 	assert_eq(Match.gift_states().size(), 2, "both live together")
-	Match._gifts.claim_or_expire_gifts(0.0)
+	Match._gifts.tick_host(0.001)
 	assert_false(Match._gifts._crates.has(claimed), "crate in own territory is claimed")
 	assert_true(Match._gifts._crates.has(far), "the other crate is untouched")
 	Match._gifts.tick_host(1.0)

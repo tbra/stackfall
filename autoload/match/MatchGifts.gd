@@ -21,11 +21,6 @@ var _play_time_s: float = 0.0
 const GIFT_CRATE_SCENE: PackedScene = preload("res://game/gifts/GiftCrate.tscn")
 const FALLING: int = GiftWirePhase.FALLING
 const LANDED: int = GiftWirePhase.LANDED
-## Client-side wire-tracking only states (net/MatchNet.gd GiftWirePhase aliases
-## these; core/gifts/GiftWirePhase.gd is the single numbering source and these
-## constants re-export it). Never stored in a crate.
-const WIRE_LEGACY: int = GiftWirePhase.WIRE_LEGACY
-const WIRE_REMOVED: int = GiftWirePhase.WIRE_REMOVED
 
 
 ## The id MatchGifts.PENDING_SPECIAL_ID's default drawer hands out until P2c
@@ -484,7 +479,7 @@ func pop_pending_special(slot_id: int) -> StringName:
 	return popped
 
 
-## Count the held gift and the one queued behind it for HUD compatibility.
+## Count the held gift and the one queued behind it for the HUD.
 func pending_special_count(slot_id: int) -> int:
 	if slot_id < 0 or slot_id >= _pending_queues.size():
 		return 1 if held_special(slot_id) != &"" else 0
@@ -508,7 +503,7 @@ const DEBUG_GIFT_ID: int = -1
 ## second code path to keep in sync. Skips the crate roll and the
 ## territory-tick claim sweep entirely -- there is no crate to free.
 ##
-## Gated the same way _claim_gift()/claim_or_expire_gifts() already are
+## Gated the same way _claim_gift()/tick_host() already are
 ## (`if not _match._is_host(): return`) plus one more check this package adds
 ## on top: `_match.config.sandbox` must also be true, so a real match can
 ## never be handed a free special through this seam even if something
@@ -827,15 +822,6 @@ func tick_host(delta: float) -> void:
 			entry["age"] = float(entry.get("age", 0.0)) + delta
 			if float(entry["age"]) >= _gift_config.life_s:
 				_expire_gift(gift_id)
-
-
-## Territory can change between physics ticks; this hook follows each solve.
-func claim_or_expire_gifts(_delta: float) -> void:
-	if not _match._is_host():
-		return
-	for gift_id: int in _crates.keys():
-		if _crates.has(gift_id) and int(_crates[gift_id].get("phase", LANDED)) == LANDED:
-			_claim_landed(gift_id)
 
 
 func _claim_landed(gift_id: int) -> void:

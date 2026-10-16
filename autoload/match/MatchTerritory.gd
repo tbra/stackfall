@@ -28,23 +28,15 @@ var _solve_accum: float = 0.0
 ## Time the solve being applied waited since the previous one (F4: the overlay
 ## bake shares the staleness cap with it).
 var _solve_waited_s: float = 0.0
-## Sandbox diagnostics: measured on the real live path, not the one-shot
-## comparison. The most recent process tick may contain multiple solve steps.
-var _sandbox_tick_ms: float = 0.0
-var _sandbox_tick_steps: int = 0
-var _sandbox_step_ms: Dictionary = {}
-var _sandbox_cache_hits: int = 0
 var _cached_sources: Dictionary = {}
 var _cached_circles: Array[InfluenceCircle] = []
 var _cached_groups: TerritoryGroups = null
 ## dirty state. The board is clean when no block event bumped
 ## the registry revision, the small non-block config signature is unchanged and
-## nobody called mark_dirty() since the last real solve step.
+## nothing forced a re-solve since the last real solve step.
 var _seen_revision: int = -1
 var _seen_config: Dictionary = {}
 var _force_dirty: bool = true
-var _clean_skips: int = 0
-var _solve_steps: int = 0
 
 ## P-ASYNC: the in-flight WorkerThreadPool solve, if any.
 ## DECISION: one job at a time, applied on the first frame it is seen complete
@@ -88,11 +80,6 @@ func setup(match_ref: MatchAutoload) -> void:
 ## The live raster. Never mutate it from outside Match.
 func raster() -> TerritoryRaster:
 	return _raster
-
-
-## The groups from the last solve, parallel to the raster.
-func groups() -> TerritoryGroups:
-	return _last_groups
 
 
 func cell_grid() -> CellGrid:
@@ -158,7 +145,6 @@ func _build_territory() -> void:
 	_cached_sources.clear()
 	_cached_circles.clear()
 	_cached_groups = null
-	_sandbox_cache_hits = 0
 	_force_dirty = true
 
 	# the same goal list, cached for the analytic shader and
@@ -198,23 +184,17 @@ func _tick_territory(delta: float) -> void:
 		return
 	if _raster == null or _solver == null:
 		return
-	var profile_enabled: bool = _match._sandbox_territory_profile_enabled
-	var tick_start: int = Time.get_ticks_usec() if profile_enabled else 0
-	if profile_enabled:
-		_sandbox_tick_steps = 0
 	_solve_accum += delta
 	if _pending != null:
 		# DECISION: apply one frame after kickoff at the
 		# earliest, and never kick off again on the apply frame.
 		if WorkerThreadPool.is_task_completed(_pending.task_id):
 			_complete_pending()
-		if profile_enabled:
-			_sandbox_tick_ms = float(Time.get_ticks_usec() - tick_start) / 1000.0
 		return
 	var step: float = 1.0 / maxf(_match._territory_tuning.solve_hz, 0.001)
 	var due_steps: int = int(floorf(_solve_accum / step))
-	var legacy: bool = _match.config.hole_mode != MatchConfig.HoleMode.OFF
-	if due_steps > 0 and not legacy and _is_clean():
+	var holes_on: bool = _match.config.hole_mode != MatchConfig.HoleMode.OFF
+	if due_steps > 0 and not holes_on and _is_clean():
 		# Nothing that feeds the result changed: only time-based state moves.
 		var clean_time: float = float(due_steps) * step
 		_solve_accum = maxf(_solve_accum - clean_time, 0.0)
@@ -231,30 +211,22 @@ func _tick_territory(delta: float) -> void:
 		_solve_waited_s = _solve_accum
 		var due_time: float = float(due_steps) * step
 		_solve_accum = maxf(_solve_accum - due_time, 0.0)
-		# Legacy holes can open, eliminate a home, then close again within a
+		# Overlap-mode holes can open, eliminate a home, then close again within a
 		# catch-up window. Preserve each timer transition in those modes.
-		if legacy:
+		if holes_on:
 			for i: int in range(due_steps):
 				if _is_clean():
-					_run_clean_legacy_step(step)
+					_run_clean_hole_step(step)
 				elif _step_maybe_async(step, due_steps - i - 1, step, 0):
-					if profile_enabled:
-						_sandbox_tick_steps += 1
 					break
-				if profile_enabled:
-					_sandbox_tick_steps += 1
 		else:
 			# V2 ownership is independent of elapsed time. An elimination can
 			# happen on the first solve, so resolve that step before coalescing
 			# the remaining identical body snapshot and advancing capture time.
 			var alive_before: int = _alive_home_count()
 			var went_async: bool = _step_maybe_async(step, due_steps - 1, step, alive_before)
-			if profile_enabled:
-				_sandbox_tick_steps += 1
 			if not went_async:
 				_continue_v2(due_steps - 1, step, alive_before, _seen_config, false)
-	if profile_enabled:
-		_sandbox_tick_ms = float(Time.get_ticks_usec() - tick_start) / 1000.0
 
 
 ## Remaining v2 catch-up after the first step of a tick was applied. `config`
@@ -286,16 +258,12 @@ func _continue_v2(
 					return
 			else:
 				_run_territory_step(float(remaining) * step)
-			if _match._sandbox_territory_profile_enabled:
-				_sandbox_tick_steps += 1
 	# A source-list change on the last solve needs a zero-time redraw,
 	# even if the match entered END and will never tick again.
 	var alive_after: int = _alive_home_count()
 	while alive_after < alive_before:
 		alive_before = alive_after
 		_run_territory_step(0.0)
-		if _match._sandbox_territory_profile_enabled:
-			_sandbox_tick_steps += 1
 		alive_after = _alive_home_count()
 
 
@@ -306,19 +274,6 @@ func _should_defer_solve() -> bool:
 	if cap <= 0.0 or _solve_accum >= cap or _match._registry == null:
 		return false
 	return not _match._registry.all_settled()
-
-
-## Forces the next due tick to re-solve (external raster edits, tests).
-func mark_dirty() -> void:
-	_force_dirty = true
-
-
-func clean_skip_count() -> int:
-	return _clean_skips
-
-
-func solve_step_count() -> int:
-	return _solve_steps
 
 
 ## True when nothing that feeds the solve changed since the last real step.
@@ -336,18 +291,16 @@ func _is_clean() -> bool:
 ## Time-only work for an unchanged v2 board: the win checker's hold timer and the
 ## capture-progress event still advance; ownership, overlay and events are as before.
 func _advance_clean(delta: float) -> void:
-	_clean_skips += 1
 	_objective.update(_raster, delta)
 	if _objective is EliminationObjective:
 		_tick_home_claims(delta)
 	_finish_objective_step()
 
 
-## Legacy hole modes on an unchanged board: the stamp would reproduce the same
+## Overlap hole modes (temporary/permanent) on an unchanged board: the stamp would reproduce the same
 ## group/team ids, so only the contest/hole timers advance (by `delta`, exactly as
 ## update() would) and the hole events, home check and capture hold follow.
-func _run_clean_legacy_step(delta: float) -> void:
-	_clean_skips += 1
+func _run_clean_hole_step(delta: float) -> void:
 	_raster.advance_time(delta, _match.config.hole_mode == MatchConfig.HoleMode.PERMANENT)
 	_objective.update(_raster, delta)
 	var opened: PackedInt32Array = _raster.holes_opened()
@@ -512,11 +465,6 @@ func _run_territory_step(delta: float) -> void:
 	_apply(job)
 
 
-## True when an async solve is in flight (no result applied yet).
-func solve_pending() -> bool:
-	return _pending != null
-
-
 ## Waits for the in-flight solve and applies it (plus its owed catch-up steps)
 ## now. No-op when idle. Re-entrant-safe: the pending slot is cleared first.
 func flush_pending() -> void:
@@ -584,9 +532,7 @@ func _complete_pending() -> void:
 			if _force_dirty or _territory_config_signature() != job.kickoff_config:
 				_solve_accum += float(left) * step
 				break
-			_run_clean_legacy_step(step)
-			if _match._sandbox_territory_profile_enabled:
-				_sandbox_tick_steps += 1
+			_run_clean_hole_step(step)
 			left -= 1
 	else:
 		_continue_v2(remaining, step, job.alive_before, job.kickoff_config, true)
@@ -595,13 +541,10 @@ func _complete_pending() -> void:
 ## Main-thread half of a solve step: every scene read (source signature,
 ## collect, cone heights) happens here, so the job is pure data.
 func _kickoff(delta: float) -> TerritorySolveJob:
-	_solve_steps += 1
 	if _match._registry != null:
 		_seen_revision = _match._registry.territory_revision()
 	_seen_config = _territory_config_signature()
 	_force_dirty = false
-	var profile_enabled: bool = _match._sandbox_territory_profile_enabled
-	var t0: int = Time.get_ticks_usec() if profile_enabled else 0
 	var cache_enabled: bool = _match._territory_cache_enabled
 	var job: TerritorySolveJob = TerritorySolveJob.new()
 	job.delta = delta
@@ -612,7 +555,6 @@ func _kickoff(delta: float) -> TerritorySolveJob:
 	if job.cache_hit:
 		job.circles = _cached_circles
 		job.cached_groups = _cached_groups
-		_sandbox_cache_hits += 1
 	else:
 		job.circles = _collect_circles()
 		# a field/registry freed by scene teardown can still be
@@ -631,16 +573,12 @@ func _kickoff(delta: float) -> TerritorySolveJob:
 				job.cone_max_radius = (
 					_match._territory_tuning.influence_max_fraction * _match.config.map_def().field_radius
 				)
-	if profile_enabled:
-		job.step_ms = {"t0": t0, "t1": Time.get_ticks_usec()}
 	return job
 
 
 ## Main-thread half of a solve step, in the exact order the old single-pass
 ## step used: cache store, groups, raster, objective, overlay, events.
 func _apply(job: TerritorySolveJob) -> void:
-	var profile_enabled: bool = _match._sandbox_territory_profile_enabled
-	var t2: int = Time.get_ticks_usec() if profile_enabled else 0
 	var groups: TerritoryGroups = job.groups
 	var circles: Array[InfluenceCircle] = job.out_circles
 	var cache_hit: bool = job.cache_hit
@@ -652,11 +590,9 @@ func _apply(job: TerritorySolveJob) -> void:
 	var holes_enabled: bool = job.holes_enabled
 	var permanent_holes: bool = _match.config.hole_mode == MatchConfig.HoleMode.PERMANENT
 	_raster.adopt_fill(job.fill_raster, job.delta, holes_enabled, permanent_holes)
-	var t3: int = Time.get_ticks_usec() if profile_enabled else 0
 	_objective.update(_raster, job.delta)
 	if not cache_hit:
 		_apply_circle_render(job.render)
-	var t4: int = Time.get_ticks_usec() if profile_enabled else 0
 
 	Events.territory_updated.emit(_raster, groups)
 
@@ -695,23 +631,7 @@ func _apply(job: TerritorySolveJob) -> void:
 	Events.territory_share_changed.emit(shares)
 
 	_finish_objective_step()
-	if profile_enabled:
-		var t5: int = Time.get_ticks_usec()
-		var t0: int = int(job.step_ms.get("t0", t2))
-		var t1: int = int(job.step_ms.get("t1", t2))
-		_sandbox_step_ms = {
-			"collect": float(t1 - t0) / 1000.0,
-			"solve": float(job.worker_usec) / 1000.0,
-			"raster": float(t3 - t2) / 1000.0,
-			"overlay": float(t4 - t3) / 1000.0,
-			"other": float(t5 - t4) / 1000.0,
-			"worker": float(job.worker_usec) / 1000.0,
-			"total": float(t5 - t0) / 1000.0,
-		}
 
-
-func sandbox_profile() -> Dictionary:
-	return {"tick_ms": _sandbox_tick_ms, "steps": _sandbox_tick_steps, "step_ms": _sandbox_step_ms, "cache_hits": _sandbox_cache_hits}
 
 
 ## Include every settled block, not just a tower's top: an obscured block can
@@ -869,7 +789,7 @@ func _check_home_flags(opened: PackedInt32Array) -> void:
 ## at its own center (kernel value home_radius, distance 0) -- unless an
 ## enemy circle is both close enough and tall enough to outscore it there. If
 ## raster.team_at() at a living slot's home cell answers anyone else, that
-## enemy area has swallowed the flag: eliminate it exactly as the legacy
+## enemy area has swallowed the flag: eliminate it exactly as the overlap-mode
 ## trigger does, through the one shared _eliminate_slot().
 func _check_home_flags_v2(delta: float = 0.0) -> void:
 	if not _match._is_host():

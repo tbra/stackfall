@@ -37,10 +37,6 @@ func bind(match_context: MatchContext, weather_tuning: WeatherTuning) -> void:
 		_seed = WindField.event_seed(match_context.weather_seed(), match_context.weather_event_index())
 
 
-func set_seed(seed_value: int) -> void:
-	_seed = seed_value
-
-
 func tick(delta: float, intensity: float) -> void:
 	last_pushed = 0
 	last_woken = 0

@@ -239,7 +239,6 @@ func start_match(match_config: MatchConfig) -> void:
 	_build_slots()
 	_match._feed._build_bags()
 	_match._territory._build_territory()
-	_match._placement._blocks_spawned = 0
 	if _match._registry != null:
 		_match._registry.set_host_authority(_match._is_host())
 		_match._registry.configure(_match._field, _match.config.map_def())
@@ -296,7 +295,6 @@ func _reset_match_state() -> void:
 	_match._feed._release_locked.clear()
 	_disconnect_grace_left.clear()
 	_eliminated_by.clear()
-	_match._placement._blocks_spawned = 0
 	_active_slot = -1
 	_countdown_remaining = 0.0
 	_countdown_last_whole = 0
@@ -485,10 +483,6 @@ func arm_loading_ready_gate() -> bool:
 ## staged-build condition.
 static func gate_suppressed_for_environment(display_name: String, probe_active: bool) -> bool:
 	return display_name == "headless" or probe_active
-
-
-func is_loading_gate_armed() -> bool:
-	return _gate_armed
 
 
 ## True while an armed gate has not opened yet -- on the host from its own rule,

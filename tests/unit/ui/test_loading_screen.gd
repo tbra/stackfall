@@ -185,7 +185,7 @@ func test_host_start_shows_overlay_before_the_match_starts() -> void:
 	assert_true(overlay.visible, "overlay stays up through the build until fade_out")
 	await wait_process_frames(overlay.tuning.stable_frames + overlay.tuning.warmup_frames + 2)
 	assert_true(overlay.visible, "host waits for the first applied territory result")
-	Events.territory_updated.emit(Match.raster(), Match._territory.groups())
+	Events.territory_updated.emit(Match.raster(), null)
 	await wait_until(_progress_is(overlay, 1.0), FLOW_TIMEOUT_S, "readiness completes")
 	assert_almost_eq(overlay.progress(), 1.0, 0.001)
 	Events.match_state_changed.disconnect(on_state)

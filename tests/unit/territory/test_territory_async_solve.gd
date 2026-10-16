@@ -280,9 +280,6 @@ func _on_holes(opened: PackedInt32Array, closed: PackedInt32Array) -> void:
 func _scenario(mode: MatchConfig.GameMode, holes: MatchConfig.HoleMode, threshold: int) -> Dictionary:
 	_start(mode, holes, 0, threshold)
 	_spy_records = []
-	# The step counters live on the Match autoload and survive start_match().
-	var solves_base: int = Match._territory.solve_step_count()
-	var skips_base: int = Match._territory.clean_skip_count()
 	var spy: _TimeSpyChecker = null
 	if mode == MatchConfig.GameMode.CLASSIC:
 		spy = _TimeSpyChecker.new(Match._territory._goal_positions, 100.0)
@@ -303,7 +300,7 @@ func _scenario(mode: MatchConfig.GameMode, holes: MatchConfig.HoleMode, threshol
 		if round_index % 3 == 0:
 			(_registry as BlockRegistry).block_settled.emit(round_index % 3, 2.0 + float(round_index))
 		Match._territory._tick_territory(deltas[round_index % deltas.size()])
-		if Match._territory.solve_pending():
+		if _solve_pending():
 			async_kickoffs += 1
 			var start: int = Time.get_ticks_msec()
 			while not WorkerThreadPool.is_task_completed(Match._territory._pending.task_id) and Time.get_ticks_msec() - start < WAIT_TIMEOUT_MS:
@@ -319,14 +316,12 @@ func _scenario(mode: MatchConfig.GameMode, holes: MatchConfig.HoleMode, threshol
 	return {
 		"records": _spy_records.duplicate(true),
 		"accum": step_log,
-		"solves": Match._territory.solve_step_count() - solves_base,
-		"skips": Match._territory.clean_skip_count() - skips_base,
 		"checker_total": spy.total if spy != null else -1.0,
 		"scores": objective.scores(),
 		"extra": objective.extra_state(),
 		"winner": Match.winner_team(),
 		"state": Match.state(),
-		"pending": Match._territory.solve_pending(),
+		"pending": _solve_pending(),
 		"async_kickoffs": async_kickoffs,
 	}
 
@@ -342,7 +337,7 @@ func _assert_scenario_equal(sync_result: Dictionary, async_result: Dictionary, l
 	if a.size() == b.size():
 		for i: int in range(a.size()):
 			assert_eq(a[i], b[i], "%s: event %d" % [label, i])
-	for key: String in ["accum", "solves", "skips", "checker_total", "scores", "extra", "winner", "state"]:
+	for key: String in ["accum", "checker_total", "scores", "extra", "winner", "state"]:
 		assert_eq(sync_result[key], async_result[key], "%s: %s" % [label, key])
 
 
@@ -378,25 +373,25 @@ func test_abort_and_restart_with_a_job_in_flight_leave_nothing_pending() -> void
 	_start(MatchConfig.GameMode.CLASSIC, MatchConfig.HoleMode.TEMPORARY, 0, 1)
 	_place_blocks(0, 6)
 	Match._territory._tick_territory(0.1)
-	assert_true(Match._territory.solve_pending(), "fixture: a solve is in flight")
+	assert_true(_solve_pending(), "fixture: a solve is in flight")
 	Match.abort_match()
-	assert_false(Match._territory.solve_pending())
+	assert_false(_solve_pending())
 	_start(MatchConfig.GameMode.CLASSIC, MatchConfig.HoleMode.TEMPORARY, 0, 1)
 	_place_blocks(0, 6)
 	Match._territory._tick_territory(0.1)
-	assert_true(Match._territory.solve_pending())
+	assert_true(_solve_pending())
 	Match.start_match(_config(MatchConfig.GameMode.CLASSIC, MatchConfig.HoleMode.TEMPORARY, 0))
-	assert_false(Match._territory.solve_pending(), "A new match cancels the old job.")
+	assert_false(_solve_pending(), "A new match cancels the old job.")
 
 
 func _timer_end_winner(threshold: int) -> Array:
 	_start(MatchConfig.GameMode.CAPTURE_THE_FLAG, MatchConfig.HoleMode.OFF, 1, threshold)
 	_place_blocks(0, 8)
 	Match._territory._tick_territory(0.1)
-	var pending_before: bool = Match._territory.solve_pending()
+	var pending_before: bool = _solve_pending()
 	Match._lifecycle._match_timer_left = 0.01
 	Match._lifecycle._tick_match_timer(0.02)
-	return [Match.state(), Match.winner_team(), Match._territory.solve_pending(), pending_before,
+	return [Match.state(), Match.winner_team(), _solve_pending(), pending_before,
 		Match._territory._objective.scores()]
 
 
@@ -413,8 +408,12 @@ func test_round_timer_end_flushes_the_job_and_matches_sync() -> void:
 
 # --- E: mid-flight events and authority loss -------------------------------------------
 
+func _solve_pending() -> bool:
+	return Match._territory._pending != null
+
+
 func _wait_pending() -> void:
-	if Match._territory.solve_pending():
+	if _solve_pending():
 		var start: int = Time.get_ticks_msec()
 		while not WorkerThreadPool.is_task_completed(Match._territory._pending.task_id) and Time.get_ticks_msec() - start < WAIT_TIMEOUT_MS:
 			OS.delay_msec(1)
@@ -436,7 +435,7 @@ func _midflight_outcome(
 	_place_blocks(0, 8)
 	Match._territory._tick_territory(0.5)
 	if threshold > 0:
-		assert_true(Match._territory.solve_pending(), "fixture: a solve is in flight")
+		assert_true(_solve_pending(), "fixture: a solve is in flight")
 	event.call()
 	_wait_pending()
 	Match._territory._tick_territory(0.0)
@@ -455,7 +454,7 @@ func _midflight_outcome(
 		"scores": Match._territory._objective.scores(),
 		"winner": Match.winner_team(),
 		"state": Match.state(),
-		"pending": Match._territory.solve_pending(),
+		"pending": _solve_pending(),
 	}
 
 
@@ -491,28 +490,28 @@ func test_forced_dirty_apply_reruns_through_the_worker_not_inline() -> void:
 	_start(MatchConfig.GameMode.CLASSIC, MatchConfig.HoleMode.OFF, 0, 1)
 	_place_blocks(0, 8)
 	Match._territory._tick_territory(0.5)
-	assert_true(Match._territory.solve_pending(), "fixture: first job in flight")
-	var solves_after_kickoff: int = Match._territory.solve_step_count()
-	Match._territory.mark_dirty()
+	assert_true(_solve_pending(), "fixture: first job in flight")
+	watch_signals(Events)
+	Match._territory._force_dirty = true
 	_wait_pending()
 	Match._territory._tick_territory(0.0)
-	assert_true(Match._territory.solve_pending(), "The forced re-solve is a new worker job.")
-	assert_eq(Match._territory.solve_step_count(), solves_after_kickoff + 1, "exactly one kickoff, no inline solve")
+	assert_true(_solve_pending(), "The forced re-solve is a new worker job.")
+	assert_signal_emit_count(Events, "territory_updated", 1, "only the first job applied: no inline solve")
 	_wait_pending()
 	Match._territory._tick_territory(0.0)
-	assert_false(Match._territory.solve_pending())
+	assert_false(_solve_pending())
 
 
 func test_job_pending_across_demotion_is_cancelled() -> void:
 	_start(MatchConfig.GameMode.CLASSIC, MatchConfig.HoleMode.OFF, 0, 1)
 	_place_blocks(0, 8)
 	Match._territory._tick_territory(0.1)
-	assert_true(Match._territory.solve_pending(), "fixture: a solve is in flight")
+	assert_true(_solve_pending(), "fixture: a solve is in flight")
 	var provider: _NotHostProvider = _NotHostProvider.new()
 	Match._net_provider = provider
 	Match._territory._tick_territory(0.1)
 	Match._net_provider = null
-	assert_false(Match._territory.solve_pending(), "Losing authority cancels the in-flight job.")
+	assert_false(_solve_pending(), "Losing authority cancels the in-flight job.")
 
 
 class _NotHostProvider:

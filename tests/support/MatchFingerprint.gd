@@ -326,15 +326,12 @@ static func _capture_weather(out: Dictionary) -> void:
 	out["weather.running"] = weather.is_running()
 	out["weather.active_id"] = str(weather.active_id())
 	out["weather.intensity"] = _r(weather.active_intensity())
-	out["weather.mode"] = weather.mode()
-	out["weather.schedule_phase"] = weather.schedule_phase()
-	out["weather.constant"] = weather.is_constant()
 	out["weather.debug_override"] = str(weather.debug_override())
 	out["weather.event_index"] = weather.event_index()
 	var breeze: BreezeEffect = weather.breeze()
 	out["weather.breeze_running"] = breeze.is_running()
 	out["weather.breeze_enabled"] = breeze.is_enabled()
-	out["weather.breeze_gusts"] = breeze.gust_count()
+	out["weather.breeze_gusts"] = breeze.gusts().size()
 	var presenter: WeatherPresenter = MatchNet.get_node_or_null(WEATHER_PRESENTER_PATH) as WeatherPresenter
 	out["weather.presenter_present"] = presenter != null
 	if presenter != null:

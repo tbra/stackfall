@@ -116,12 +116,10 @@ func test_clean_skips_send_nothing_then_a_real_solve_reaches_the_mirror() -> voi
 	var sent_owners: PackedByteArray = raster.owner_bytes().duplicate()
 	var sent_states: PackedByteArray = raster.state_bytes().duplicate()
 
-	var skips: int = Match._territory.clean_skip_count()
-	var solves: int = Match._territory.solve_step_count()
+	watch_signals(Events)
 	for _i: int in range(6):
 		Match._territory._tick_territory(step)
-	assert_eq(Match._territory.solve_step_count(), solves, "fixture: the board is clean.")
-	assert_gt(Match._territory.clean_skip_count(), skips)
+	assert_signal_not_emitted(Events, "territory_updated", "fixture: the board is clean.")
 	assert_eq(raster.owner_bytes(), sent_owners, "Clean ticks leave nothing to replicate.")
 	assert_eq(raster.state_bytes(), sent_states)
 
@@ -138,7 +136,7 @@ func test_clean_skips_send_nothing_then_a_real_solve_reaches_the_mirror() -> voi
 	_registry._entries[block.get_instance_id()].is_settled = true
 	Match._territory._tick_territory(step)
 	Match._territory._tick_territory(step)
-	assert_gt(Match._territory.solve_step_count(), solves, "The dirty board solved.")
+	assert_signal_emitted(Events, "territory_updated", "The dirty board solved.")
 
 	var owners: PackedByteArray = raster.owner_bytes()
 	var states: PackedByteArray = raster.state_bytes()

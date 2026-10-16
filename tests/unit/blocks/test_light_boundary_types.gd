@@ -26,8 +26,6 @@ func _collect_class_names(dir_path: String, out: Dictionary) -> void:
 func test_gift_wire_phase_numbering_and_reexport() -> void:
 	assert_eq(MatchGifts.FALLING, GiftWirePhase.FALLING)
 	assert_eq(MatchGifts.LANDED, GiftWirePhase.LANDED)
-	assert_eq(MatchGifts.WIRE_LEGACY, GiftWirePhase.WIRE_LEGACY)
-	assert_eq(MatchGifts.WIRE_REMOVED, GiftWirePhase.WIRE_REMOVED)
 	assert_true(GiftWirePhase.is_valid_wire_phase(GiftWirePhase.WIRE_REMOVED))
 	assert_false(GiftWirePhase.is_valid_wire_phase(-1))
 	assert_false(GiftWirePhase.is_valid_wire_phase(GiftWirePhase.WIRE_REMOVED + 1))

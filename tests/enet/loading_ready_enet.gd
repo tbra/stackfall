@@ -122,7 +122,7 @@ func _run_host() -> void:
 	Match.start_match(config)
 	_match_net.call(&"replicate_match_start", Match.config)
 	field.place_flags(Match.config.player_count, Match.config.player_colors, Match.config.goal_flag_count)
-	print("LRENET host started required=%s armed=%s" % [str(Match._lifecycle.loading_required_peers()), str(Match._lifecycle.is_loading_gate_armed())])
+	print("LRENET host started required=%s" % [str(Match._lifecycle.loading_required_peers())])
 	await _wait(HOST_READY_AFTER_S)
 	if _late_step:
 		await _host_wait_for_late_joiner()
@@ -156,7 +156,7 @@ func _run_client() -> void:
 		print("LRENET client result=FAIL reason=no_match_start")
 		get_tree().quit(2)
 		return
-	print("LRENET client saw_start armed=%s blocking=%s" % [str(Match._lifecycle.is_loading_gate_armed()), str(Match._lifecycle.loading_gate_blocking())])
+	print("LRENET client saw_start blocking=%s" % [str(Match._lifecycle.loading_gate_blocking())])
 	await _wait(CLIENT_READY_AFTER_S)
 	print("LRENET client pressing_ready t=%.2f blocking=%s" % [_now_s(), str(Match._lifecycle.loading_gate_blocking())])
 	Net.request_loading_ready()
