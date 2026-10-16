@@ -1631,10 +1631,6 @@ var _held_gift_id: StringName = &""
 var _next_gift_id: StringName = &""
 
 
-func held_gift_icon() -> Texture2D:
-	return SpecialDef.preview_icon_for(_held_gift_id) if _held_gift_id != &"" else null
-
-
 func next_gift_icon() -> Texture2D:
 	return SpecialDef.preview_icon_for(_next_gift_id) if _next_gift_id != &"" else null
 

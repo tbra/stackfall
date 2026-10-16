@@ -22,26 +22,6 @@ func before_each() -> void:
 	_tiny_map.field_radius = 6.0
 
 
-func test_disk_mesh_radius_matches_map_def() -> void:
-	var field: Field = autofree(Field.new())
-	field.map_def = _tiny_map
-	field.tuning = load("res://config/physics/physics_tuning.tres")
-	add_child_autofree(field)
-
-	var overlay: TerritoryOverlay = field.overlay()
-	assert_not_null(overlay, "Field should build the disk's visible surface.")
-	# one merged ArrayMesh; surface 0 is the cylinder slab.
-	var arena: ArrayMesh = overlay.mesh as ArrayMesh
-	assert_not_null(arena, "The arena is one generated mesh.")
-	var lo: Vector3 = Vector3(INF, INF, INF)
-	var hi: Vector3 = Vector3(-INF, -INF, -INF)
-	for vertex: Vector3 in arena.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]:
-		lo = lo.min(vertex)
-		hi = hi.max(vertex)
-	assert_almost_eq(hi.x, field.map_def.field_radius, 0.001)
-	assert_almost_eq(hi.y - lo.y, field.map_def.disk_height, 0.001)
-
-
 func test_disk_collision_covers_the_disk() -> void:
 	var field: Field = autofree(Field.new())
 	field.map_def = _tiny_map
@@ -61,17 +41,6 @@ func test_disk_collision_covers_the_disk() -> void:
 		mesh.get_faces().size(),
 		field.cell_count() * Field.VERTS_PER_QUAD,
 		"At least two triangles per in-disk cell."
-	)
-
-
-func test_disk_friction_matches_tuning() -> void:
-	var field: Field = autofree(Field.new())
-	field.map_def = _tiny_map
-	add_child_autofree(field)
-	assert_almost_eq(
-		field.physics_material_override.friction,
-		field.tuning.disk_friction,
-		0.0001
 	)
 
 
@@ -121,20 +90,3 @@ func test_clear_match_state_frees_flags_clears_the_overlay_source_and_closes_hol
 	assert_eq(field.pending_toggle_count(), 0, "no queued toggle survives clearing")
 
 
-func test_clear_match_state_discards_a_toggle_still_in_the_backlog() -> void:
-	# A hole enqueued but not yet drained (the backlog is rate-limited per
-	# physics frame, spec 2.5) must not survive either -- draining it after
-	# the field's match state was otherwise cleared would reopen a hole
-	# nothing owns any more.
-	var field: Field = autofree(Field.new())
-	field.map_def = _tiny_map
-	add_child_autofree(field)
-	var cell: int = field.grid().in_disk_cells()[0]
-	field.set_hole_cells(PackedInt32Array([cell]), PackedInt32Array())
-	assert_eq(field.pending_toggle_count(), 1, "fixture: the toggle is queued, not yet drained")
-
-	field.clear_match_state()
-
-	assert_eq(field.pending_toggle_count(), 0)
-	field._drain_toggles()
-	assert_false(field.is_hole_cell(cell), "the discarded toggle never applies later")

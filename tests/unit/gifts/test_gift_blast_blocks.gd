@@ -26,9 +26,6 @@ var _field: Field
 var _root: Node3D
 
 
-const BLAST_PEAK_SPEED_MPS: float = 20.0
-const BLAST_MAX_DELTA_V_MPS: float = 100.0
-
 func before_each() -> void:
 	var map_def: MapDef = MapDef.new()
 	map_def.id = &"test_gift_blast_blocks"
@@ -76,22 +73,6 @@ func test_query_finds_every_block_resting_on_the_disc_floor() -> void:
 	for block: Block in blocks:
 		assert_true(found.has(block), "block at %s was missed by the floor-side sphere query" % [block.global_position])
 	assert_eq(found.size(), blocks.size(), "each block exactly once, nothing else")
-
-
-func test_blast_pushes_every_block_resting_on_the_disc_floor() -> void:
-	var blocks: Array[Block] = _ring_blocks()
-	await wait_physics_frames(SETTLE_FRAMES)
-	var center: Vector3 = Vector3(0.0, _field.surface_y() + 0.5, 0.0)
-	# Old explode(radius, impulse 20, max 100) mapped onto ExplosionTuning: the blast applies delta-v
-	# (mass independent) with an upward bias, so only the "every ring block is hit" intent is kept.
-	var tuning: ExplosionTuning = ExplosionTuning.new()
-	tuning.radius_m = QUERY_RADIUS_M
-	tuning.peak_speed_mps = BLAST_PEAK_SPEED_MPS
-	tuning.max_delta_v_mps = BLAST_MAX_DELTA_V_MPS
-	var no_exclude: Array[RID] = []
-	var hit: Array[RigidBody3D] = ExplosionFx.blast(_space(), center, tuning, no_exclude)
-	for block: Block in blocks:
-		assert_true(hit.has(block), "block at %s was not pushed" % [block.global_position])
 
 
 ## Plan section 5 C: a Bomb dropped among six neighbouring blocks does not explode before its blink

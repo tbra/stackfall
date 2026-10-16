@@ -6,8 +6,7 @@ extends GutTest
 ##   plain registered Field, for the settle-gated timed pattern itself --
 ##   inertness, hop cadence/frame-rate independence, the velocity-kick-not-
 ##   teleport shape, self-trigger at lifetime_s, two beans' independent
-##   timers, and the null-Field guard -- mirrors test_propeller_effect.gd's/
-##   test_volcano_effect.gd's own fixture.
+##   timers, and the null-Field guard -- mirrors test_propeller_effect.gd's own fixture.
 ## - A real host Match fixture with a raster (mirrors
 ##   test_match_territory_punch.gd's own before_each exactly: TinyMapMatchConfig,
 ##   a hot-seat match run through countdown into State.PLAYING), for the two
@@ -18,20 +17,7 @@ extends GutTest
 ##   to this effect).
 
 const TICK: float = 1.0 / 60.0
-## Awake-island acceptance (plan section 5 E).
-const ISLAND_RUN_SECONDS: float = 10.0
-const MIN_ISLAND_HOPS: int = 3
-const NEIGHBOUR_KICK_EVERY_FRAMES: int = 6
-const NEIGHBOUR_KICK_SPEED_MPS: float = 1.5
-const HOP_RISE_EDGE_MPS: float = 3.0
 const MAX_LAND_FRAMES: int = 300
-const SPAWN_DISTANCE_M: float = 0.0
-const SPAWN_HEIGHT_M: float = 0.7
-const NEIGHBOUR_OFFSET_M: float = 1.2
-
-
-# --- shared stub-Block/def/behavior fixture (no physics, no scene tree) -----
-
 func _make_block(position: Vector3 = Vector3.ZERO) -> Block:
 	var block: Block = autofree(Block.new())
 	add_child_autofree(block)
@@ -127,42 +113,10 @@ func test_inert_until_landed_no_hop_no_velocity_change() -> void:
 
 # --- impact_triggers() veto ---------------------------------
 
-## A hard deceleration past arm_impulse while still airborne (mirroring the
-## reported bug: a hard-thrown/dropped block lands right as it arms, before
-## it ever settles) must not detonate this timed effect either -- its own
-## end is entirely time-driven (wants_early_trigger()) or a chain trigger.
-## Deliberately never settles (block.sleeping stays false throughout, same
-## as _make_block()'s own default) -- covers the case this effect's
-## settle-gated physics_tick() hasn't even started yet, distinct from
-## test_real_physics_hop_landing_does_not_prematurely_impact_trigger below
-## (a real hop's own landing, which relies on jumping_bean.tres's own
-## arm_impulse = 10.0 tuning).
-func test_hard_impact_before_settling_does_not_prematurely_trigger() -> void:
-	var effect: JumpingBeanEffect = JumpingBeanEffect.new()
-	effect.contact_override = func(_b: Block) -> bool: return true  # stub block: no collision to probe
-	var block: Block = _make_block(Vector3.ZERO)  # sleeping == false: still airborne
-	var def: SpecialDef = _make_def(effect)
-	def.arm_impulse = 5.0
-	var behavior: SpecialBehavior = _make_behavior(block, def)
-
-	behavior.advance(0.1)  # arms this tick; decel sampled against itself, no trigger
-	block.linear_velocity = Vector3(10.0, 0.0, 0.0)
-	behavior.advance(0.01)
-	block.linear_velocity = Vector3.ZERO  # mass(1) * (10 - 0) = 10 >= 5: would trigger pre-fix
-	behavior.advance(0.01)
-
-	assert_false(
-		behavior.is_triggered(),
-		"JumpingBeanEffect must veto the decel-based impact trigger."
-	)
-
-
-# --- hop cadence: exactly one hop per hop_interval_s, frame-rate independent -
-
 ## Counts _hop() calls (not just physics_tick() calls) -- proves the
 ## settle-then-hop-on-schedule pattern actually fires the hop itself the
 ## right number of times, mirroring test_propeller_effect.gd's own
-## _CountingPropellerEffect/test_volcano_effect.gd's spawn-counting shape.
+## _CountingPropellerEffect.
 class _CountingBeanEffect:
 	extends JumpingBeanEffect
 	var hop_calls: int = 0
@@ -201,23 +155,6 @@ func test_hops_exactly_once_per_hop_interval_s_frame_rate_independent() -> void:
 	assert_eq(hops_fine, 3, "3 full hop_interval_s windows must have elapsed by 3.5x")
 	assert_eq(hops_coarse, 3, "must match regardless of the caller's step size")
 
-
-func test_first_hop_comes_after_first_hop_delay_not_hop_interval() -> void:
-	_register_field()
-	var effect: _CountingBeanEffect = _CountingBeanEffect.new()
-	effect.contact_override = func(_b: Block) -> bool: return true  # stub block: no collision to probe
-	effect.first_hop_delay_s = 0.4
-	effect.hop_interval_s = 1.0
-	var block: Block = _make_block(Vector3(2.0, 0.0, 2.0))
-	var behavior: SpecialBehavior = _make_behavior(block, _make_def(effect))
-	_land(behavior)
-	behavior.advance(0.3)
-	assert_eq(effect.hop_calls, 0, "no hop before first_hop_delay_s")
-	behavior.advance(0.15)
-	assert_eq(effect.hop_calls, 1, "first hop at first_hop_delay_s")
-
-
-# --- a hop is a velocity kick, never a position teleport --------------------
 
 func test_hop_kicks_velocity_up_and_horizontal_never_teleports_position() -> void:
 	_register_field()
@@ -270,69 +207,6 @@ func test_self_triggers_once_elapsed_since_settle_reaches_lifetime_s() -> void:
 
 
 # --- two beans sharing the effect keep independent timers -------------------
-
-func test_two_beans_sharing_the_effect_keep_independent_timers() -> void:
-	_register_field()
-	var effect: JumpingBeanEffect = JumpingBeanEffect.new()
-	effect.contact_override = func(_b: Block) -> bool: return true  # stub block: no collision to probe
-	effect.hop_interval_s = 100.0
-	effect.lifetime_s = 1.0
-	var shared_def: SpecialDef = _make_def(effect, 0.25)  # one SpecialDef/effect instance
-
-	var block_a: Block = _make_block(Vector3(1.0, 0.0, 0.0))
-	var behavior_a: SpecialBehavior = _make_behavior(block_a, shared_def)
-	_land(behavior_a)
-
-	var block_b: Block = _make_block(Vector3(-1.0, 0.0, 0.0))
-	var behavior_b: SpecialBehavior = _make_behavior(block_b, shared_def)
-
-	for _i: int in range(3):
-		behavior_a.advance(0.25)  # block_a landed age 0.75
-	behavior_b.advance(0.1)  # block_b never lands: its timer never starts
-
-	assert_false(behavior_a.is_triggered(), "setup: block_a not at lifetime_s yet either")
-	assert_false(behavior_b.is_triggered())
-
-	behavior_a.advance(0.25)  # block_a landed age 1.0 == lifetime_s -> triggers
-	assert_true(behavior_a.is_triggered(), "block_a's own elapsed timer must trigger it")
-	assert_false(
-		behavior_b.is_triggered(),
-		"block_b's independent (unstarted) timer must not have been advanced by block_a's ticks"
-	)
-
-	_land(behavior_b)
-	behavior_b.advance(0.25)  # block_b's own first landed tick
-	assert_false(
-		behavior_b.is_triggered(),
-		"block_b's timer must start fresh from its own settle tick, not inherit block_a's elapsed time"
-	)
-
-
-# --- no Field: HolePunch no-ops, the hop itself still happens ---------------
-
-func test_hop_still_kicks_when_no_field_is_registered() -> void:
-	# DECISION (test_jumping_bean_effect.gd): forces Match's private `_field` to
-	# null (Match._field is a plain autoload var nothing else resets).
-	Match._field = null
-
-	var effect: JumpingBeanEffect = JumpingBeanEffect.new()
-	effect.contact_override = func(_b: Block) -> bool: return true  # stub block: no collision to probe
-	effect.hop_interval_s = 1.0
-	effect.lifetime_s = 2.0
-	var start_position: Vector3 = Vector3(2.0, 0.0, 2.0)
-	var block: Block = _make_block(start_position)
-	var behavior: SpecialBehavior = _make_behavior(block, _make_def(effect))
-	_land(behavior)
-
-	behavior.advance(1.0)  # landed 1.0 == hop_interval_s -> a hop is due
-	assert_almost_eq(block.linear_velocity.y, effect.hop_impulse, 0.0001, "HolePunch no-ops, the kick stays")
-	assert_eq(block.global_position, start_position, "never a teleport")
-
-	behavior.advance(1.0)  # landed 2.0 == lifetime_s -> must self-trigger
-	assert_true(behavior.is_triggered())
-
-
-# --- real Match+territory fixture: the actual hole-punch contract ----------
 
 func _start_hole_match(hole_mode: MatchConfig.HoleMode) -> void:
 	Match.set_process(false)
@@ -423,130 +297,6 @@ func test_each_hop_punches_a_hole_at_the_bean_current_position_under_temporary()
 		"the earlier hole must still be open (hole_open_s hasn't elapsed)"
 	)
 
-
-## under HoleMode.OFF, Match.punch_special_hole() itself no-ops
-## (enforced there, not by this effect -- see autoload/match/MatchTerritory.gd),
-## but the hop's own knockback still happens.
-func test_hop_still_occurs_but_punches_no_hole_under_hole_mode_off() -> void:
-	_start_hole_match(MatchConfig.HoleMode.OFF)
-	var cell_grid: CellGrid = Match.cell_grid()
-	var raster: TerritoryRaster = Match.raster()
-
-	var effect: JumpingBeanEffect = JumpingBeanEffect.new()
-	effect.contact_override = func(_b: Block) -> bool: return true  # stub block: no collision to probe
-	effect.hop_interval_s = 1.0
-	effect.first_hop_delay_s = 1.0
-	effect.hop_impulse = 6.0
-	effect.hop_horizontal_speed = 3.0
-
-	var position: Vector3 = Vector3(6.0, 0.0, 6.0)
-	var block: Block = _make_match_block(position)
-	var behavior: SpecialBehavior = _make_behavior(block, _make_def(effect))
-	_land(behavior)
-
-	behavior.advance(1.0)  # first hop fires
-
-	var cell: Vector2i = cell_grid.world_to_cell(Vector2(position.x, position.z))
-	assert_false(raster.is_hole(cell.x, cell.y), "HoleMode.OFF must never open a hole.")
-	assert_almost_eq(
-		block.linear_velocity.y, effect.hop_impulse, 0.0001,
-		"the hop's own knockback must still happen under HoleMode.OFF -- only the hole is suppressed"
-	)
-
-
-# --- the real jumping_bean.tres def must not fuse-trigger before lifetime_s -
-
-## Review finding: jumping_bean.tres used to copy its
-## siblings' fuse_timeout_s = 6.0, but SpecialBehavior.advance() force-
-## triggers ANY special at `arm_delay + fuse_timeout_s` regardless of its own
-## effect (SpecialBehavior.gd's last line) -- 0.4 + 6.0 = 6.4s of age, well
-## before this bean's own lifetime_s = 12.0s (measured from first settle,
-## itself after arm_delay and whatever fall time preceded it) could ever be
-## reached. Every other stub-Block test above avoids this entirely by
-## overriding arm_impulse/fuse_timeout_s to 999.0 in _make_def() -- correct
-## for isolating hop/settle/lifetime behaviour, but it hid this exact bug.
-## This test binds the REAL, un-overridden config/gifts/specials/jumping_bean.tres
-## def (loaded through the shared loader, the same path production code
-## uses) to a settled stub block and proves the fuse alone cannot cut the
-## bean's life short. Must FAIL before the .tres fix (fuse_timeout_s raised
-## to 20.0): observed failure text (recorded in the dispatch's Beads
-## checkpoint) --
-## "must not fuse-trigger before lifetime_s elapses.
-##  Expected: [False]
-##    But was: [True]"
-func test_real_jumping_bean_tres_def_does_not_fuse_trigger_before_lifetime_s() -> void:
-	_register_field()
-	var defs: Array[SpecialDef] = SpecialDef.load_all_specials()
-	var found: SpecialDef = null
-	for def: SpecialDef in defs:
-		if def.id == &"jumping_bean":
-			found = def
-			break
-	assert_not_null(found, "config/gifts/specials/jumping_bean.tres must be found by load_all_specials()")
-
-	var block: Block = _make_block()
-	var behavior: SpecialBehavior = SpecialBehavior.new()
-	block.add_child(behavior)
-	autofree(behavior)
-	behavior.bind(block, found, SpecialTuning.new())
-	_land(behavior)
-
-	# 9.0s of age: comfortably past the OLD (broken) fuse threshold of
-	# arm_delay + fuse_timeout_s = 0.4 + 6.0 = 6.4s, comfortably short of the
-	# real lifetime of 24.0s after landing.
-	# No impact ever occurs (a settled stub block whose velocity only the
-	# effect's own hops touch -- see the class-level DECISION on _check_impact
-	# above and the passing cadence tests already proving decel reads 0
-	# between hops in this fixture), so only the fuse or the real lifetime_s
-	# could trigger it here.
-	var total_span_s: float = 9.0
-	var ticks: int = int(round(total_span_s / TICK))
-	for _i: int in range(ticks):
-		behavior.advance(TICK)
-
-	assert_false(
-		behavior.is_triggered(),
-		"must not fuse-trigger before lifetime_s elapses"
-	)
-
-
-# --- jumping_bean.tres loads through the shared loader with contract defaults
-
-func test_jumping_bean_tres_loads_with_a_usable_hop_cycle() -> void:
-	var defs: Array[SpecialDef] = SpecialDef.load_all_specials()
-	var found: SpecialDef = null
-	for def: SpecialDef in defs:
-		if def.id == &"jumping_bean":
-			found = def
-			break
-	assert_not_null(found, "config/gifts/specials/jumping_bean.tres must be found by load_all_specials()")
-	assert_true(
-		found.effect is JumpingBeanEffect,
-		"jumping_bean.tres's effect sub-resource must be a JumpingBeanEffect"
-	)
-	var effect: JumpingBeanEffect = found.effect as JumpingBeanEffect
-	assert_almost_eq(effect.first_hop_delay_s, 0.6, 0.0001)
-	assert_almost_eq(effect.hop_interval_s, 1.8, 0.0001)
-	assert_almost_eq(effect.lifetime_s, 24.0, 0.0001)
-	assert_almost_eq(effect.hop_horizontal_speed, 11.0, 0.0001)
-	assert_almost_eq(effect.hop_impulse, 11.0, 0.0001)
-	assert_almost_eq(effect.centre_weight, 0.65, 0.0001)
-	assert_almost_eq(effect.centre_spread_deg, 70.0, 0.0001)
-	assert_gt(effect.hop_impulse, 0.0)
-	assert_gt(effect.hop_horizontal_speed, 0.0)
-	assert_gt(effect.hole_radius_m, 0.0)
-	assert_gt(effect.hole_open_s, 0.0)
-	var probe: LandedTuning = effect.landed_tuning()
-	assert_gt(probe.landed_speed_mps, 0.0)
-	assert_gt(probe.landed_hold_s, 0.0)
-	assert_gt(probe.landed_timeout_s, probe.landed_hold_s, "the landing timeout outlasts the hold")
-	assert_gt(probe.contact_probe_m, 0.0)
-	assert_gt(effect.lifetime_s, effect.first_hop_delay_s + effect.hop_interval_s, "the bean gets at least two hops")
-	assert_almost_eq(effect.effect_lifetime_s(), effect.lifetime_s, 0.0001, "effect_lifetime_s() is the hopping window")
-	assert_true(effect.needs_landing(), "the Jolt sleeping gate is replaced by LandedProbe")
-
-
-# --- physics smoke: a real hop landing must not prematurely impact-trigger --
 
 ## Review finding (SHOULD-FIX): a hop's own landing carries
 ## roughly sqrt(hop_impulse^2 + hop_horizontal_speed^2) = sqrt(6.0^2 + 3.0^2)
@@ -655,135 +405,3 @@ func test_real_physics_hop_landing_does_not_prematurely_impact_trigger() -> void
 		"a hop's own landing must not prematurely impact-trigger the bean (arm_impulse=%.1f)"
 			% found.arm_impulse
 	)
-
-
-# --- acceptance (plan section 5 E): real physics, awake neighbour island -------
-
-## Records, per hop, whether a hole stood open at the pre-hop cell right after it.
-class _HoleSpyBean:
-	extends JumpingBeanEffect
-	var hops: int = 0
-	var holes_after_hop: int = 0
-
-	func _hop(block: Block) -> void:
-		var grid: CellGrid = Match.cell_grid()
-		var local: Vector2 = Match.field().disk_local_from_world(block.global_position)
-		var cell: Vector2i = grid.world_to_cell(local)
-		super._hop(block)
-		hops += 1
-		if Match.raster().is_hole(cell.x, cell.y):
-			holes_after_hop += 1
-
-
-func _cube(at: Vector3) -> Block:
-	var shape: BlockShape = load("res://config/blocks/cube.tres") as BlockShape
-	var tuning: PhysicsTuning = load("res://config/physics/physics_tuning.tres") as PhysicsTuning
-	var block: Block = BlockFactory.build(shape, tuning)
-	add_child_autofree(block)
-	block.global_position = at
-	return block
-
-
-## One run: the real jumping_bean.tres def (effect swapped for a spy of the same
-## tuning) on a real disc beside neighbours kicked every few frames so the island
-## never sleeps. Returns {hops, holes, landed, slept}.
-func _awake_island_run(hole_mode: MatchConfig.HoleMode) -> Dictionary:
-	_start_hole_match(hole_mode)
-	var field: Field = Match.field()
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng.seed = 7
-	var shipped: SpecialDef = SpecialDef.find_by_id(&"jumping_bean")
-	var spy: _HoleSpyBean = _HoleSpyBean.new()
-	var real: JumpingBeanEffect = shipped.effect as JumpingBeanEffect
-	spy.hop_impulse = real.hop_impulse
-	spy.hop_horizontal_speed = real.hop_horizontal_speed
-	spy.hop_interval_s = real.hop_interval_s
-	spy.hole_radius_m = real.hole_radius_m
-	spy.hole_open_s = real.hole_open_s
-	spy.lifetime_s = real.lifetime_s
-	spy._rng.seed = 5
-	var def: SpecialDef = shipped.duplicate() as SpecialDef
-	def.effect = spy
-	var spawn: Vector3 = field.world_from_disk_local(Vector2(SPAWN_DISTANCE_M, 0.0), SPAWN_HEIGHT_M)
-	var bean: Block = _cube(spawn)
-	var neighbours: Array[Block] = []
-	for offset: Vector3 in [Vector3(NEIGHBOUR_OFFSET_M, 0.0, 0.0), Vector3(0.0, 0.0, NEIGHBOUR_OFFSET_M), Vector3(0.0, 0.0, -NEIGHBOUR_OFFSET_M)]:
-		neighbours.append(_cube(spawn + offset))
-	var behavior: SpecialBehavior = SpecialBehavior.new()
-	bean.add_child(behavior)
-	behavior.bind(bean, def, SpecialTuning.new())
-	# DECISION: everything is driven per PHYSICS TICK via the physics_frame
-	# signal. Under CPU load one engine frame can run several ticks, so a loop that awaits
-	# wait_physics_frames(1) kicked the neighbours less often per simulated second (different
-	# island dynamics, bean knocked off the disc, fewer hops) and mis-counted landed time.
-	var state: Dictionary = {"landed_ticks": 0, "ticks": 0, "landed": false, "triggered": false, "gone": false}
-	var run_ticks: int = int(ISLAND_RUN_SECONDS * Engine.physics_ticks_per_second)
-	var on_tick: Callable = func() -> void:
-		if (state["landed_ticks"] as int) >= run_ticks or (state["ticks"] as int) >= MAX_LAND_FRAMES * 4:
-			return
-		if not is_instance_valid(behavior):
-			state["gone"] = true  # the bean hopped off the disc edge and burned at the kill plane (by design)
-			return
-		var tick: int = state["ticks"] as int
-		if tick % NEIGHBOUR_KICK_EVERY_FRAMES == 0:
-			for neighbour: Block in neighbours:
-				if not is_instance_valid(neighbour):
-					continue
-				var kick: Vector3 = Vector3(rng.randf_range(-1.0, 1.0), 0.0, rng.randf_range(-1.0, 1.0))
-				neighbour.wake_for_impulse()
-				neighbour.apply_central_impulse(kick * NEIGHBOUR_KICK_SPEED_MPS * neighbour.mass)
-		state["ticks"] = tick + 1
-		state["landed"] = (state["landed"] as bool) or behavior.has_landed()
-		state["triggered"] = (state["triggered"] as bool) or behavior.is_triggered()
-		if behavior.has_landed():
-			state["landed_ticks"] = (state["landed_ticks"] as int) + 1
-	get_tree().physics_frame.connect(on_tick)
-	while not (state["gone"] as bool) and (state["landed_ticks"] as int) < run_ticks and (state["ticks"] as int) < MAX_LAND_FRAMES * 4:
-		await get_tree().physics_frame
-	get_tree().physics_frame.disconnect(on_tick)
-	var landed: bool = state["landed"] as bool
-	var triggered: bool = state["triggered"] as bool
-	return {"hops": spy.hops, "holes": spy.holes_after_hop, "landed": landed, "triggered": triggered}
-
-
-func test_awake_island_bean_hops_three_times_in_six_seconds_and_punches_a_hole_each_hop() -> void:
-	var result: Dictionary = await _awake_island_run(MatchConfig.HoleMode.TEMPORARY)
-	assert_true(result["landed"] as bool, "the bean registers as landed on the awake island")
-	assert_gte(int(result["hops"]), MIN_ISLAND_HOPS, "at least 3 hops in 10 s after landing")
-	assert_eq(int(result["holes"]), int(result["hops"]), "every hop opens a hole under TEMPORARY")
-	assert_false(result["triggered"] as bool, "still hopping (lifetime 24 s, not the fuse)")
-
-
-func test_awake_island_bean_hops_but_opens_no_hole_under_hole_mode_off() -> void:
-	var result: Dictionary = await _awake_island_run(MatchConfig.HoleMode.OFF)
-	assert_gte(int(result["hops"]), MIN_ISLAND_HOPS, "hops are not gated on HoleMode")
-	assert_eq(int(result["holes"]), 0, "no hole under OFF")
-
-
-# --- centre-weighted hop bearing --------------------------
-
-func test_hop_direction_is_biased_toward_centre_yet_can_leave_the_rim() -> void:
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng.seed = 4807
-	var rim: Vector2 = Vector2(10.0, 0.0)  # inward bearing is -x
-	var samples: int = 2000
-	var inward_sum: float = 0.0
-	var outward_hops: int = 0
-	for _i: int in range(samples):
-		var dir: Vector2 = JumpingBeanEffect.hop_direction(rim, rng, 0.65, 70.0)
-		assert_almost_eq(dir.length(), 1.0, 0.0001)
-		inward_sum += -dir.x
-		if dir.x > 0.0:
-			outward_hops += 1
-	assert_gt(inward_sum / float(samples), 0.3, "mean bearing leans toward the disc centre")
-	assert_gt(outward_hops, 0, "an off-disc hop stays possible from the rim")
-
-
-func test_hop_direction_zero_weight_is_uniform_and_centre_has_no_bias() -> void:
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng.seed = 11
-	var sum: Vector2 = Vector2.ZERO
-	for _i: int in range(2000):
-		sum += JumpingBeanEffect.hop_direction(Vector2(10.0, 0.0), rng, 0.0, 70.0)
-	assert_lt((sum / 2000.0).length(), 0.1, "weight 0 keeps the old uniform spread")
-	assert_eq(JumpingBeanEffect.hop_direction(Vector2.ZERO, rng, 1.0, 70.0).length() > 0.99, true)

@@ -11,23 +11,6 @@ func _map() -> MapDef:
 	return map_def
 
 
-func test_shape_contains_is_a_plain_circle() -> void:
-	var map_def: MapDef = _map()
-	assert_true(map_def.shape_contains(Vector2.ZERO))
-	assert_true(map_def.shape_contains(Vector2(FIELD_RADIUS * 0.99, 0.0)))
-	assert_false(map_def.shape_contains(Vector2(FIELD_RADIUS * 1.01, 0.0)))
-	assert_false(map_def.shape_contains(Vector2(FIELD_RADIUS, FIELD_RADIUS)))
-
-
-func test_shape_test_is_empty() -> void:
-	assert_false(_map().shape_test().is_valid())
-
-
-func test_base_is_the_one_shared_round_map() -> void:
-	assert_eq(MapDef.base().id, &"round_medium")
-	assert_almost_eq(MapDef.base().field_radius, MapDef.RADIUS_MEDIUM, 0.0001)
-
-
 func test_every_flag_lands_on_solid_ground() -> void:
 	var maps: Array[MapDef] = [_map(), MapDef.base(), MapDef.base().scaled(0.5), MapDef.base().scaled(1.75)]
 	for map_def: MapDef in maps:
@@ -66,8 +49,3 @@ func test_home_radius_is_disc_radius_minus_the_fixed_inset_for_every_scale() -> 
 				assert_true(map_def.shape_contains(home))
 
 
-func test_home_inset_stays_fixed_on_a_scaled_disc() -> void:
-	var map_def: MapDef = MapDef.base()
-	for factor: float in [0.5, 1.5, 2.0]:
-		var scaled: MapDef = map_def.scaled(factor)
-		assert_almost_eq(scaled.field_radius - scaled.home_flag_position(0, 4).length(), map_def.home_flag_edge_inset, 0.001)

@@ -55,14 +55,6 @@ func register(def_id: StringName, handler: Callable) -> void:
 	_handlers[def_id] = handler
 
 
-func unregister(def_id: StringName) -> void:
-	_handlers.erase(def_id)
-
-
-func has_handler(def_id: StringName) -> bool:
-	return _handlers.has(def_id)
-
-
 ## Receives special_triggered events and dispatches to the handler for `def_id`.
 func on_special_triggered(net_id: int, def_id: StringName, position: Vector3, _chain_depth: int) -> void:
 	if not position.is_finite() or not _handlers.has(def_id):

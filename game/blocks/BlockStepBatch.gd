@@ -72,10 +72,6 @@ static func install() -> void:
 	_instance = batch
 
 
-static func is_installed() -> bool:
-	return _instance != null
-
-
 func _on_physics_frame() -> void:
 	hook_runs += 1
 	var frame: int = Engine.get_physics_frames()

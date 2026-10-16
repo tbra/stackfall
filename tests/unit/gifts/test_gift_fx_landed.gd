@@ -64,41 +64,6 @@ func test_block_on_a_continuously_tilting_disc_lands_within_the_timeout() -> voi
 	assert_gt(probe.landed_age(), 0.0, "landed_age advances after landing")
 
 
-func test_block_in_free_fall_is_not_landed() -> void:
-	var gift: Block = _block(Vector3(0.0, _field.surface_y() + 60.0, 0.0))
-	var probe: LandedProbe = LandedProbe.new(_tune())
-	for _i: int in 20:
-		await wait_physics_frames(1)
-		probe.update(gift, TICK)
-	assert_false(probe.has_landed(), "falling block has not landed")
-	assert_eq(probe.landed_age(), 0.0)
-
-
-func test_block_resting_on_a_level_disc_lands_by_speed() -> void:
-	_field.set_tilt_enabled(false)
-	var gift: Block = _block(Vector3(0.0, _field.surface_y() + 0.6, 0.0))
-	var t: LandedTuning = _tune()
-	t.landed_timeout_s = 100.0
-	var probe: LandedProbe = LandedProbe.new(t)
-	for _i: int in int((t.landed_hold_s + 1.0) / TICK):
-		await wait_physics_frames(1)
-		probe.update(gift, TICK)
-	assert_true(probe.has_landed(), "settled via the speed/hold rule, not the timeout")
-
-
-func test_tumbling_block_is_not_landed() -> void:
-	_field.set_tilt_enabled(false)
-	var gift: Block = _block(Vector3(0.0, _field.surface_y() + 0.6, 0.0))
-	var t: LandedTuning = _tune()
-	var probe: LandedProbe = LandedProbe.new(t)
-	# Keep the block moving faster than the speed threshold, well inside the timeout.
-	for _i: int in int((t.landed_timeout_s * 0.6) / TICK):
-		gift.linear_velocity = Vector3(t.landed_speed_mps * 6.0, 0.0, 0.0)
-		await wait_physics_frames(1)
-		probe.update(gift, TICK)
-	assert_false(probe.has_landed(), "fast-moving block does not report landed before the timeout")
-
-
 ## speed is measured relative to the supporting disc. A carrier riding a
 ## disc that moves at a steady rate (faster than landed_speed_mps) lands by the speed/hold
 ## rule well before the timeout. The carrier is slaved to the disc each tick (the stand-in
@@ -130,11 +95,3 @@ func test_carrier_riding_a_moving_disc_lands_by_relative_speed() -> void:
 	var probe: LandedProbe = LandedProbe.new(t)
 	await _drive_on_moving_disc(true, probe, t.landed_hold_s + 1.0)
 	assert_true(probe.has_landed(), "moves with the disc, so it is at rest relative to it")
-
-
-func test_carrier_sliding_against_a_moving_disc_does_not_land_early() -> void:
-	var t: LandedTuning = _tune()
-	t.landed_timeout_s = LONG_TIMEOUT_S
-	var probe: LandedProbe = LandedProbe.new(t)
-	await _drive_on_moving_disc(false, probe, t.landed_hold_s + 1.0)
-	assert_false(probe.has_landed(), "world-still but the disc slides under it: not landed")

@@ -158,10 +158,6 @@ func prewarm_crate_assets() -> void:
 		visual.free()
 
 
-func crate_prewarmed() -> bool:
-	return _crate_prewarmed
-
-
 ## DECISION: an eliminated slot can never drop again, so the
 ## host zeroes its Glue charges (harmless to rules) and publishes the change,
 ## which hides the glue presentation everywhere. Clients ignore it: they get

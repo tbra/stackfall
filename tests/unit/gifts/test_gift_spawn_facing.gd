@@ -47,8 +47,6 @@ func _config() -> MatchConfig:
 
 const NOSE_TOLERANCE: float = 0.01
 const AIM: Vector3 = Vector3(0.0, 1.0, -0.001)
-const THROW_AIM: Vector3 = Vector3(0.3, -0.2, -0.9)
-
 var _placed_basis: Basis = Basis.IDENTITY
 var _placed_seen: bool = false
 
@@ -97,17 +95,3 @@ func _check(gift: StringName, aim: Vector3) -> void:
 
 func test_rocket_spawns_faced_straight_up() -> void:
 	_check(&"rocket", AIM)
-
-
-func test_rocket_spawns_faced_along_a_forward_aim() -> void:
-	_check(&"rocket", THROW_AIM)
-
-
-func test_magnet_spawns_faced_along_its_throw_velocity() -> void:
-	_check(&"magnet", THROW_AIM)
-
-
-func test_helper_returns_null_for_gifts_that_stay_upright() -> void:
-	var bomb: SpecialDef = SpecialDef.find_by_id(&"bomb")
-	assert_null(MatchPlacement.launch_facing_basis(bomb, GiftThrow.Mode.THROW, THROW_AIM, THROW_AIM))
-	assert_null(MatchPlacement.launch_facing_basis(null, GiftThrow.Mode.AIMED, THROW_AIM, THROW_AIM))

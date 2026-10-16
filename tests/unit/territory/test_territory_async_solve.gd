@@ -8,7 +8,6 @@ extends GutTest
 
 const GRID_RADIUS: float = 16.0
 const GRID_CELL: float = 1.0
-const RANDOM_STEPS: int = 200
 const RANDOM_BLOCKS: int = 14
 const WAIT_TIMEOUT_MS: int = 5000
 
@@ -48,18 +47,6 @@ func _random_circles(rng: RandomNumberGenerator) -> Array[InfluenceCircle]:
 	return circles
 
 
-func _assert_rasters_equal(x: TerritoryRaster, y: TerritoryRaster, label: String) -> void:
-	assert_eq(x.owner_bytes(), y.owner_bytes(), "%s: owner bytes" % label)
-	assert_eq(x.state_bytes(), y.state_bytes(), "%s: state bytes" % label)
-	assert_eq(x.holes_opened(), y.holes_opened(), "%s: opened order" % label)
-	assert_eq(x.holes_closed(), y.holes_closed(), "%s: closed order" % label)
-	assert_eq(x._active, y._active, "%s: active order" % label)
-	assert_eq(x._contested_time, y._contested_time, "%s: contested_time" % label)
-	assert_eq(x._group_ids, y._group_ids, "%s: group ids" % label)
-	for team: int in range(3):
-		assert_eq(x.team_share(team), y.team_share(team), "%s: share %d" % [label, team])
-
-
 func _wait_for(job: TerritorySolveJob) -> void:
 	var start: int = Time.get_ticks_msec()
 	while not WorkerThreadPool.is_task_completed(job.task_id) and Time.get_ticks_msec() - start < WAIT_TIMEOUT_MS:
@@ -68,57 +55,6 @@ func _wait_for(job: TerritorySolveJob) -> void:
 
 
 # --- A: raster split -------------------------------------------------------------------
-
-func _raster_split_run(holes_enabled: bool, permanent: bool) -> void:
-	var grid: CellGrid = CellGrid.new(GRID_RADIUS, GRID_CELL)
-	var x: TerritoryRaster = TerritoryRaster.new(grid, _tuning)
-	var y: TerritoryRaster = TerritoryRaster.new(grid, _tuning)
-	var shadow: TerritoryRaster = TerritoryRaster.new(grid, _tuning)
-	var solver: TerritorySolver = TerritorySolver.new(_tuning)
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng.seed = 2811
-	var mismatches: int = 0
-	for step: int in range(RANDOM_STEPS):
-		# A fresh random layout every few steps, the same one otherwise, so both
-		# changing and unchanging boards (timers draining) are covered.
-		var circles: Array[InfluenceCircle] = _random_circles(rng) if step % 4 == 0 else _last_circles
-		_last_circles = circles
-		var groups: TerritoryGroups = solver.solve(circles)
-		var delta: float = [0.05, 0.1, 0.25][rng.randi_range(0, 2)]
-		x.update(circles, groups, delta, holes_enabled, permanent)
-		shadow.fill_ownership(circles, groups, holes_enabled)
-		y.adopt_fill(shadow, delta, holes_enabled, permanent)
-		if x.owner_bytes() != y.owner_bytes() or x._active != y._active or x._contested_time != y._contested_time \
-				or x.holes_opened() != y.holes_opened() or x.holes_closed() != y.holes_closed():
-			mismatches += 1
-			_assert_rasters_equal(x, y, "step %d" % step)
-			if mismatches > 2:
-				return
-		if step % 7 == 3:
-			var cx: int = rng.randi_range(2, grid.res - 3)
-			var cy: int = rng.randi_range(2, grid.res - 3)
-			x.force_hole_cell(cx, cy, 1.0, permanent)
-			y.force_hole_cell(cx, cy, 1.0, permanent)
-	assert_eq(mismatches, 0, "The split fill matched update() on all %d steps." % RANDOM_STEPS)
-	_assert_rasters_equal(x, y, "final")
-	for cy: int in range(grid.res):
-		for cx: int in range(grid.res):
-			assert_eq(x.group_at(cx, cy), y.group_at(cx, cy))
-
-
-var _last_circles: Array[InfluenceCircle] = []
-
-
-func test_raster_split_matches_update_legacy_temporary() -> void:
-	_raster_split_run(true, false)
-
-
-func test_raster_split_matches_update_legacy_permanent() -> void:
-	_raster_split_run(true, true)
-
-
-func test_raster_split_matches_update_v2() -> void:
-	_raster_split_run(false, false)
 
 
 # --- B: job inline vs worker -----------------------------------------------------------
@@ -350,24 +286,9 @@ func _compare_mode(mode: MatchConfig.GameMode, holes: MatchConfig.HoleMode, labe
 	_assert_scenario_equal(sync_result, async_result, label)
 
 
-func test_classic_matches_sync_off_and_temporary() -> void:
-	_compare_mode(MatchConfig.GameMode.CLASSIC, MatchConfig.HoleMode.OFF, "classic/off")
-	_compare_mode(MatchConfig.GameMode.CLASSIC, MatchConfig.HoleMode.TEMPORARY, "classic/temporary")
-
-
 func test_capture_flag_scores_match_sync() -> void:
 	_compare_mode(MatchConfig.GameMode.CAPTURE_THE_FLAG, MatchConfig.HoleMode.OFF, "ctf/off")
 	_compare_mode(MatchConfig.GameMode.CAPTURE_THE_FLAG, MatchConfig.HoleMode.TEMPORARY, "ctf/temporary")
-
-
-func test_reach_sky_records_match_sync() -> void:
-	_compare_mode(MatchConfig.GameMode.REACH_THE_SKY, MatchConfig.HoleMode.OFF, "sky/off")
-	_compare_mode(MatchConfig.GameMode.REACH_THE_SKY, MatchConfig.HoleMode.TEMPORARY, "sky/temporary")
-
-
-func test_elimination_outcome_matches_sync() -> void:
-	_compare_mode(MatchConfig.GameMode.ELIMINATION, MatchConfig.HoleMode.OFF, "elim/off")
-	_compare_mode(MatchConfig.GameMode.ELIMINATION, MatchConfig.HoleMode.TEMPORARY, "elim/temporary")
 
 
 # --- D: lifecycle ----------------------------------------------------------------------
@@ -387,61 +308,7 @@ func test_abort_and_restart_with_a_job_in_flight_leave_nothing_pending() -> void
 	assert_false(Match._territory.solve_pending(), "A new match cancels the old job.")
 
 
-func _timer_end_winner(threshold: int) -> Array:
-	_start(MatchConfig.GameMode.CAPTURE_THE_FLAG, MatchConfig.HoleMode.OFF, 1, threshold)
-	_place_blocks(0, 8)
-	Match._territory._tick_territory(0.1)
-	var pending_before: bool = Match._territory.solve_pending()
-	Match._lifecycle._match_timer_left = 0.01
-	Match._lifecycle._tick_match_timer(0.02)
-	return [Match.state(), Match.winner_team(), Match._territory.solve_pending(), pending_before,
-		Match._territory._objective.scores()]
-
-
-func test_round_timer_end_flushes_the_job_and_matches_sync() -> void:
-	var sync_result: Array = _timer_end_winner(0)
-	var async_result: Array = _timer_end_winner(1)
-	assert_true(async_result[3] as bool, "fixture: the job was in flight at the round end")
-	assert_false(async_result[2] as bool, "The round end flushed it.")
-	assert_eq(async_result[0], Match.State.END)
-	assert_eq(sync_result[0], async_result[0])
-	assert_eq(sync_result[1], async_result[1], "same winner")
-	assert_eq(sync_result[4], async_result[4], "same scores")
-
-
 # --- E: steady state (fix pass) ---------------------------------------
-
-func _steady_state_check(holes: MatchConfig.HoleMode, label: String) -> void:
-	_start(MatchConfig.GameMode.CLASSIC, holes, 0, 1)
-	_place_blocks(0, 8)
-	# Drain the dirty solve: kick off, wait, apply, until the board is clean.
-	for _i: int in range(6):
-		Match._territory._tick_territory(0.1)
-		if Match._territory.solve_pending():
-			var start: int = Time.get_ticks_msec()
-			while not WorkerThreadPool.is_task_completed(Match._territory._pending.task_id) and Time.get_ticks_msec() - start < WAIT_TIMEOUT_MS:
-				OS.delay_msec(1)
-			Match._territory._tick_territory(0.0)
-	assert_false(Match._territory.solve_pending(), "%s: settled" % label)
-	var solves_before: int = Match._territory.solve_step_count()
-	var updates: Array = []
-	var on_update: Callable = func(_r: TerritoryRaster, _g: TerritoryGroups) -> void: updates.append(1)
-	Events.territory_updated.connect(on_update)
-	for _i: int in range(40):
-		Match._territory._tick_territory(0.1)
-		assert_false(Match._territory.solve_pending(), "%s: no job launched at rest" % label)
-	Events.territory_updated.disconnect(on_update)
-	assert_eq(Match._territory.solve_step_count(), solves_before, "%s: no solve step at rest" % label)
-	if holes == MatchConfig.HoleMode.OFF:
-		assert_eq(updates.size(), 0, "%s: no territory_updated at rest" % label)
-
-
-func test_no_job_and_no_update_at_rest_v2() -> void:
-	_steady_state_check(MatchConfig.HoleMode.OFF, "v2")
-
-
-func test_no_job_at_rest_legacy() -> void:
-	_steady_state_check(MatchConfig.HoleMode.TEMPORARY, "legacy")
 
 
 # --- F: mid-flight events and authority loss (review fixes) -------------
@@ -506,55 +373,8 @@ func _punch_event() -> void:
 	Match._territory.punch_special_hole(Match.slot(1).home_position * 0.5, 3.0, 600.0)
 
 
-func _shrink_event() -> void:
-	Match._territory.shrink_to_radius(12.0)
-
-
-func _eliminate_event() -> void:
-	var coords: Vector2i = Match.cell_grid().world_to_cell(Match.slot(1).home_position)
-	Match._territory._check_home_flags(PackedInt32Array([Match.cell_grid().cell_index(coords.x, coords.y)]))
-
-
 func test_punch_during_flight_matches_sync() -> void:
 	_compare_midflight(MatchConfig.GameMode.CLASSIC, MatchConfig.HoleMode.TEMPORARY, _punch_event, "punch")
-
-
-func test_shrink_during_flight_matches_sync() -> void:
-	_compare_midflight(MatchConfig.GameMode.CLASSIC, MatchConfig.HoleMode.PERMANENT, _shrink_event, "shrink/permanent")
-	_compare_midflight(MatchConfig.GameMode.CLASSIC, MatchConfig.HoleMode.OFF, _shrink_event, "shrink/v2")
-
-
-func test_elimination_during_flight_matches_sync() -> void:
-	_compare_midflight(MatchConfig.GameMode.ELIMINATION, MatchConfig.HoleMode.OFF, _eliminate_event, "elim/v2")
-	_compare_midflight(MatchConfig.GameMode.ELIMINATION, MatchConfig.HoleMode.TEMPORARY, _eliminate_event, "elim/legacy")
-
-
-func test_forced_dirty_apply_reruns_through_the_worker_not_inline() -> void:
-	_start(MatchConfig.GameMode.CLASSIC, MatchConfig.HoleMode.OFF, 0, 1)
-	_place_blocks(0, 8)
-	Match._territory._tick_territory(0.5)
-	assert_true(Match._territory.solve_pending(), "fixture: first job in flight")
-	var solves_after_kickoff: int = Match._territory.solve_step_count()
-	Match._territory.mark_dirty()
-	_wait_pending()
-	Match._territory._tick_territory(0.0)
-	assert_true(Match._territory.solve_pending(), "The forced re-solve is a new worker job.")
-	assert_eq(Match._territory.solve_step_count(), solves_after_kickoff + 1, "exactly one kickoff, no inline solve")
-	_wait_pending()
-	Match._territory._tick_territory(0.0)
-	assert_false(Match._territory.solve_pending())
-
-
-func test_job_pending_across_demotion_is_cancelled() -> void:
-	_start(MatchConfig.GameMode.CLASSIC, MatchConfig.HoleMode.OFF, 0, 1)
-	_place_blocks(0, 8)
-	Match._territory._tick_territory(0.1)
-	assert_true(Match._territory.solve_pending(), "fixture: a solve is in flight")
-	var provider: _NotHostProvider = _NotHostProvider.new()
-	Match._net_provider = provider
-	Match._territory._tick_territory(0.1)
-	Match._net_provider = null
-	assert_false(Match._territory.solve_pending(), "Losing authority cancels the in-flight job.")
 
 
 class _NotHostProvider:

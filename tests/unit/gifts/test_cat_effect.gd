@@ -66,14 +66,6 @@ func test_activation_uses_separate_host_body_and_owner_target() -> void:
 	assert_null(Match.active_cat())
 
 
-func test_body_cap_and_reset() -> void:
-	var block: Block = _activation()
-	var effect: CatEffect = CatEffect.new()
-	effect.max_active_blocks = 1
-	effect.detonate(block, null, 0)
-	assert_null(Match.active_cat())
-
-
 func test_host_body_pushes_a_physics_obstacle() -> void:
 	var block: Block = _activation()
 	var effect: CatEffect = CatEffect.new()

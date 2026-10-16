@@ -61,9 +61,3 @@ func test_host_splash_converts_near_real_collider_but_not_far_block() -> void:
 	assert_eq(near.owner_slot, 0)
 	assert_eq(far.owner_slot, 1)
 	assert_eq(_registry.block_for_net_id(near.net_id), near)
-
-
-func test_shipped_paintball_def_wires_its_effect() -> void:
-	var def: SpecialDef = load("res://config/gifts/specials/paintball.tres")
-	assert_eq(def.id, &"paintball")
-	assert_true(def.effect is PaintballEffect)

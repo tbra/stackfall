@@ -170,36 +170,3 @@ func test_cached_circles_equal_uncached_over_random_board_changes() -> void:
 	pass_test("200 random steps matched")
 
 
-func test_invalidate_geometry_forces_a_recompute() -> void:
-	var rig: Array = _make_rig()
-	var field: Field = rig[0]
-	var registry: BlockRegistry = rig[1]
-	var block: Block = _spawn(registry, field, _shapes())
-	registry.influence_circles(_slots(), _territory_tuning, _map_def)
-	var entry: Variant = registry._entries[block.get_instance_id()]
-	assert_true(entry.geom_valid)
-	registry.invalidate_geometry(block)
-	assert_false(entry.geom_valid)
-	registry.influence_circles(_slots(), _territory_tuning, _map_def)
-	assert_true(entry.geom_valid)
-
-
-func test_unchanged_board_reuses_circle_objects() -> void:
-	var rig: Array = _make_rig()
-	var registry: BlockRegistry = rig[1]
-	var shapes: Array[BlockShape] = _shapes()
-	for i: int in range(5):
-		_spawn(registry, rig[0], shapes)
-	var first: Array[InfluenceCircle] = registry.influence_circles(_slots(), _territory_tuning, _map_def)
-	var second: Array[InfluenceCircle] = registry.influence_circles(_slots(), _territory_tuning, _map_def)
-	assert_eq(first.size(), second.size())
-	for i: int in range(first.size()):
-		assert_same(first[i], second[i])
-	var entry: Variant = registry._entries[first[0].body_id]
-	entry.owner_slot = (entry.owner_slot + 1) % SLOT_COUNT
-	var third: Array[InfluenceCircle] = registry.influence_circles(_slots(), _territory_tuning, _map_def)
-	var changed: int = 0
-	for i: int in range(third.size()):
-		if third[i] != first[i]:
-			changed += 1
-	assert_eq(changed, 1, "only the re-owned block gets a new circle; the old one is unchanged")

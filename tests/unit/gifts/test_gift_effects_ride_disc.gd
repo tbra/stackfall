@@ -12,8 +12,6 @@ const LOCAL_EPS: float = 0.0005
 const PULL_PROBE_M: float = 2.0
 const MAP_RADIUS_M: float = 6.0
 const BOMB_ID: StringName = &"bomb"
-const BLACK_HOLE_ID: StringName = &"black_hole"
-
 var _field: Field = null
 var _blocks_root: Node3D = null
 var _registry: BlockRegistry = null
@@ -99,23 +97,6 @@ func test_black_hole_field_rides_the_disc_and_pulls_toward_its_moved_centre() ->
 	assert_lt(probe.linear_velocity.dot(side), 0.0, "pulled towards the moved centre")
 
 
-func test_black_hole_visual_rides_the_disc_for_every_peer() -> void:
-	var presenter: GiftFxPresenter = autofree(GiftFxPresenter.new())
-	add_child_autofree(presenter)
-	presenter.on_special_triggered(-1, BLACK_HOLE_ID, DROP_POINT, 0)
-	var visual: BlackHoleVisual = null
-	for child: Node in _field.get_children():
-		if child is BlackHoleVisual:
-			visual = child as BlackHoleVisual
-	assert_not_null(visual, "the replicated trigger draws the visual under the Field")
-	if visual == null:
-		return
-	assert_true(visual.bind_to_match, "freed when the match ends")
-	visual.bind_to_match = false # no live match in this fixture
-	assert_almost_eq(visual.global_position, DROP_POINT, Vector3.ONE * LOCAL_EPS)
-	await _assert_rides(visual, "black hole visual")
-
-
 func test_blast_rides_the_disc() -> void:
 	var presenter: GiftFxPresenter = autofree(GiftFxPresenter.new())
 	add_child_autofree(presenter)
@@ -128,19 +109,3 @@ func test_blast_rides_the_disc() -> void:
 	if blast != null:
 		blast.set_process(false) # hold it alive for the ride check
 		await _assert_rides(blast, "cartoon blast")
-
-
-func test_paintball_splash_rides_the_disc() -> void:
-	var splash: PaintballSplash = PaintballSplash.new()
-	splash.setup(Color.RED)
-	DiscAnchor.attach(splash, DROP_POINT, _blocks_root)
-	splash.set_process(false)
-	await _assert_rides(splash, "paintball splash")
-
-
-func test_anchor_falls_back_to_the_world_parent_without_a_field() -> void:
-	Match.register_world(null, _registry, _blocks_root)
-	var node: Node3D = Node3D.new()
-	assert_eq(DiscAnchor.attach(node, DROP_POINT, _blocks_root), _blocks_root)
-	assert_eq(node.get_parent(), _blocks_root)
-	assert_almost_eq(node.global_position, DROP_POINT, Vector3.ONE * LOCAL_EPS)

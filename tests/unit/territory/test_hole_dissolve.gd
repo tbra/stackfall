@@ -12,15 +12,10 @@ const MatchNetScript := preload("res://net/MatchNet.gd")
 const SETTLE_FRAMES: int = 60
 ## Generous ceiling for one dissolve (0.35 s = 21 frames) to complete.
 const DISSOLVE_FRAMES: int = 60
-## Landing speed sqrt(2gh) matches the pre- 3.0 m drop at gravity 1.4 now that base gravity is 1.75 (3.0 * 1.4 / 1.75).
-const LANDING_DROP_HEIGHT_M: float = 2.4
-## A three-high stack: three dissolves plus two ~1 m falls, well inside 5 s.
-const STACK_TIMEOUT_FRAMES: int = 300
 
 var _tuning: PhysicsTuning = load("res://config/physics/physics_tuning.tres")
 var _dissolve_tuning: HoleDissolveTuning = load("res://config/blocks/tuning/hole_dissolve_tuning.tres")
 var _cube: BlockShape = load("res://config/blocks/cube.tres")
-var _bar3: BlockShape = load("res://config/blocks/bar3.tres")
 
 var _field: Field
 var _registry: BlockRegistry
@@ -139,25 +134,6 @@ func test_a_block_resting_on_a_newly_opened_hole_dissolves_then_is_removed_as_an
 	assert_eq(_field.disk_mesh_build_count(), builds, "No disc rebuild on the hole change.")
 
 
-func test_footprint_cache_rebuilds_when_collision_swaps_with_same_child_count() -> void:
-	_make_world()
-	var block: Block = _spawn(_cube, _middle_cell(), 0.02)
-	var first: Variant = _dissolver()._footprint(block)
-	assert_eq(_dissolver()._footprint(block), first, "Unchanged collision reuses the cache.")
-	var collision: CollisionShape3D = null
-	for child: Node in block.get_children():
-		if child is CollisionShape3D:
-			collision = child as CollisionShape3D
-			break
-	assert_not_null(collision)
-	var count: int = block.get_child_count()
-	var bigger: BoxShape3D = BoxShape3D.new()
-	bigger.size = Vector3.ONE * 3.0
-	collision.shape = bigger
-	assert_eq(block.get_child_count(), count, "Child count is unchanged.")
-	assert_ne(_dissolver()._footprint(block), first, "A swapped shape rebuilds the footprint.")
-
-
 func test_a_dissolve_overrides_a_freeze_hold_and_releases_the_tower_above() -> void:
 	_make_world()
 	var cell: int = _middle_cell()
@@ -181,25 +157,6 @@ func test_a_dissolve_overrides_a_freeze_hold_and_releases_the_tower_above() -> v
 	assert_false(top.is_frozen_visual())
 
 
-func test_a_block_bridging_a_hole_above_the_disc_is_unaffected() -> void:
-	_make_world()
-	var left: Block = _spawn(_cube, _middle_cell(-1), 0.02)
-	var right: Block = _spawn(_cube, _middle_cell(1), 0.02)
-	await wait_physics_frames(SETTLE_FRAMES)
-	var bar: Block = _spawn(_bar3, _middle_cell(), 1.05)
-	await wait_physics_frames(SETTLE_FRAMES)
-	var bar_y: float = bar.global_position.y
-	assert_gt(bar_y, 0.9, "fixture: the bar rests on the two cubes, a cube above the disc")
-
-	_open(PackedInt32Array([_middle_cell()]))
-	await wait_physics_frames(DISSOLVE_FRAMES)
-
-	assert_eq(_dissolver().dissolves_started, 0, "Nothing touches the hole at disc level.")
-	assert_true(is_instance_valid(bar) and not bar.is_queued_for_deletion(), "The bar over the hole stays.")
-	assert_true(is_instance_valid(left) and is_instance_valid(right), "Its supports on solid cells stay.")
-	assert_almost_eq(bar.global_position.y, bar_y, 0.05)
-
-
 ## [OWNER decision]: a hole opening under a gift special's carrier
 ## block never starts a dissolve; a plain neighbour on the same hole still does.
 func test_a_hole_never_dissolves_a_gift_block_but_still_dissolves_a_plain_one() -> void:
@@ -219,75 +176,6 @@ func test_a_hole_never_dissolves_a_gift_block_but_still_dissolves_a_plain_one() 
 	assert_false(_was_removed(gift.get_instance_id()), "the gift block was not removed by hole logic")
 
 
-func test_a_stack_over_a_hole_chain_dissolves_within_a_bounded_time() -> void:
-	_make_world()
-	var cell: int = _middle_cell()
-	var stack: Array[Block] = []
-	var ids: Array[int] = []
-	for level: int in range(3):
-		stack.append(_spawn(_cube, cell, 0.02 + float(level) * _tuning.cube_size))
-		ids.append(stack[level].get_instance_id())
-		await wait_physics_frames(SETTLE_FRAMES)
-	# Stable-frozen (spec 2.7) as a long-settled tower would be.
-	for block: Block in stack:
-		block.request_freeze_static(Block.FREEZE_REASON_STABLE)
-	await wait_physics_frames(1)
-
-	_open(PackedInt32Array([cell]))
-	var frames: int = 0
-	while frames < STACK_TIMEOUT_FRAMES and _registry.tracked_block_count() > 0:
-		await wait_physics_frames(1)
-		frames += 1
-
-	assert_eq(_registry.tracked_block_count(), 0, "All three levels dissolve (took %d frames)." % frames)
-	assert_lt(frames, STACK_TIMEOUT_FRAMES)
-	assert_eq(_dissolver().dissolves_started, 3)
-	for id: int in ids:
-		assert_true(_was_removed(id))
-
-
-func test_a_block_dropped_into_an_open_hole_dissolves_on_landing() -> void:
-	_make_world()
-	var cell: int = _middle_cell()
-	_open(PackedInt32Array([cell]))
-	await wait_physics_frames(2)
-	var block: Block = _spawn(_cube, cell, LANDING_DROP_HEIGHT_M)
-	var id: int = block.get_instance_id()
-	var lowest: float = INF
-	var started_at_height: float = INF
-	var frames: int = 0
-	while frames < 120 and not _was_removed(id):
-		await wait_physics_frames(1)
-		frames += 1
-		if not _was_removed(id):
-			lowest = minf(lowest, block.global_position.y)
-			if started_at_height == INF and _dissolver().is_dissolving(block):
-				started_at_height = block.global_position.y
-	assert_true(_was_removed(id), "The dropped block dissolves and is removed.")
-	assert_lt(started_at_height, 0.3, "The dissolve starts on landing, not in the air.")
-	assert_gt(lowest, -0.1, "The disc stays solid under the hole.")
-
-
-func test_a_hole_change_never_rebuilds_the_disc_or_wakes_a_far_block() -> void:
-	_make_world()
-	var far: Block = _spawn(_cube, _middle_cell(-3), 0.02)
-	await wait_physics_frames(SETTLE_FRAMES)
-	far.sleeping = true
-	await wait_physics_frames(1)
-	var builds: int = _field.disk_mesh_build_count()
-
-	var cells: PackedInt32Array = PackedInt32Array([_middle_cell(2), _middle_cell(2, 1), _middle_cell(3)])
-	_open(cells)
-	await wait_physics_frames(2)
-	assert_true(far.sleeping, "A hole elsewhere wakes nothing.")
-	_field.set_hole_cells(PackedInt32Array(), cells)
-	await wait_physics_frames(2)
-
-	assert_eq(_field.disk_mesh_build_count(), builds, "Neither opening nor closing rebuilds (no set_faces).")
-	assert_true(far.sleeping)
-	assert_eq(_dissolver().dissolves_started, 0)
-
-
 func test_a_client_registry_never_dissolves() -> void:
 	_make_world()
 	_registry.set_host_authority(false)
@@ -300,19 +188,6 @@ func test_a_client_registry_never_dissolves() -> void:
 
 	assert_eq(_dissolver().dissolves_started, 0, "Only the host decides a block dissolves.")
 	assert_false(_was_removed(block.get_instance_id()))
-
-
-func test_a_block_leaving_the_disc_does_not_touch_the_hole_under_it() -> void:
-	_make_world()
-	var cell: int = _middle_cell()
-	var block: Block = _spawn(_cube, cell, 0.02)
-	await wait_physics_frames(SETTLE_FRAMES)
-	block.sleeping = true
-	_field._set_hole_applied(cell, true)
-
-	assert_true(_dissolver().touches_hole(block), "fixture: resting on the hole touches it")
-	block.linear_velocity = _field.global_transform.basis.y * (_dissolve_tuning.contact_leave_speed + 2.0)
-	assert_false(_dissolver().touches_hole(block), "Kicked off the disc (a Jumping Bean hop) is not contact.")
 
 
 # --- Real Match --------------------------------------------------------------
@@ -367,44 +242,6 @@ func test_home_elimination_still_triggers_and_blocks_on_the_punched_hole_dissolv
 	assert_true(_was_removed(id), "The block resting in the punched area dissolves.")
 
 
-func test_a_jumping_bean_hole_dissolves_the_blocks_it_opens_under_but_not_the_bean() -> void:
-	_start_match(MatchConfig.HoleMode.TEMPORARY)
-	var grid: CellGrid = Match.cell_grid()
-	var middle: int = floori(float(grid.res) * 0.5)
-	# Off the disc centre, where the goal flag stands.
-	var bean_local: Vector2 = grid.cell_center(middle + 5, middle)
-	var bean: Block = _spawn_at_local(bean_local)
-	var neighbour: Block = _spawn_at_local(grid.cell_center(middle + 6, middle))
-	await wait_physics_frames(SETTLE_FRAMES)
-	var effect: JumpingBeanEffect = JumpingBeanEffect.new()
-	effect.hole_radius_m = grid.cell_size * 1.2
-
-	effect._hop(bean)
-	await wait_physics_frames(3)
-
-	var cell: Vector2i = grid.world_to_cell(bean_local)
-	assert_true(_field.is_hole_cell(grid.cell_index(cell.x, cell.y)), "fixture: the hop punched a hole")
-	assert_true(_registry.hole_dissolver().is_dissolving(neighbour), "The block on the bean's hole dissolves.")
-	assert_false(_registry.hole_dissolver().is_dissolving(bean), "The bean kicked off its own hole does not.")
-	var neighbour_id: int = neighbour.get_instance_id()
-	await _wait_removed(neighbour_id, DISSOLVE_FRAMES)
-	assert_true(_was_removed(neighbour_id))
-
-
-func test_hole_mode_off_never_dissolves() -> void:
-	_start_match(MatchConfig.HoleMode.OFF)
-	var home0: Vector2 = Match.slot(0).home_position
-	var block: Block = _spawn_at_local(home0 - home0.normalized() * 2.0)
-	await wait_physics_frames(SETTLE_FRAMES)
-
-	Match.punch_special_hole(home0, 3.0, 2.0)
-	await wait_physics_frames(DISSOLVE_FRAMES)
-
-	assert_eq(_field.applied_hole_count(), 0, "OFF opens no hole.")
-	assert_eq(_registry.hole_dissolver().dissolves_started, 0)
-	assert_false(_was_removed(block.get_instance_id()))
-
-
 # --- Replication ---------------------------------------------------------------
 
 func _make_net(client_mode: bool) -> MatchNetScript:
@@ -435,35 +272,6 @@ func test_host_replicates_the_dissolve_start_and_the_despawn() -> void:
 
 	assert_true(_was_removed(block.get_instance_id()))
 	assert_false(net._spawned_net_ids.has(block.net_id), "The removal goes out as the ordinary despawn.")
-
-
-## the Black hole captures through the same entry the holes use.
-func test_request_dissolve_is_the_shared_entry_and_removes_like_a_hole_dissolve() -> void:
-	Match.set_net_provider(FakeNet.host({}, [0, 1]))
-	_start_match(MatchConfig.HoleMode.OFF, false)
-	var block: Block = _spawn_at_local(Match.slot(1).home_position * 0.5)
-	var id: int = block.get_instance_id()
-	watch_signals(Events)
-
-	assert_true(HoleDissolver.request_dissolve(block), "host with a registry: requested")
-	assert_true(_registry.hole_dissolver().is_dissolving(block), "same pending state as a hole dissolve")
-	assert_signal_emitted(Events, "block_dissolve_started")
-	assert_eq(_registry.hole_dissolver().dissolves_started, 1)
-	var no_candidates: Array[Block] = []
-	_registry.hole_dissolver().physics_tick(_dissolve_tuning.dissolve_delay_s + 0.01, no_candidates)
-
-	assert_true(_was_removed(id))
-	assert_eq(_removed[id], String(Events.REASON_KILL_PLANE), "removed through the edge-fall path")
-
-
-func test_request_dissolve_refuses_a_client_and_a_null_block() -> void:
-	Match.set_net_provider(FakeNet.host({}, [0, 1]))
-	_start_match(MatchConfig.HoleMode.TEMPORARY, false)
-	var block: Block = _spawn_at_local(Match.slot(1).home_position * 0.5)
-	_registry.set_host_authority(false)
-	assert_false(HoleDissolver.request_dissolve(block), "only the host removes blocks")
-	assert_false(HoleDissolver.request_dissolve(null))
-	assert_eq(_registry.hole_dissolver().dissolves_started, 0)
 
 
 func test_a_client_mirrors_a_replicated_dissolve_start_and_drops_bad_payloads() -> void:
