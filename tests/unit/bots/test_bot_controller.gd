@@ -43,6 +43,19 @@ class BotControllerFakeMatch:
 	func gift_states() -> Array[Dictionary]:
 		return gift_states_value
 
+	## Match.gift_slot_head()/request_use_gift_slot(): the QoL gift slot a bot
+	## spends from. A spend empties the slot, like the real one.
+	var gift_slot_heads: Dictionary = {}
+	var use_gift_slot_calls: Array[int] = []
+
+	func gift_slot_head(slot_id: int) -> StringName:
+		return gift_slot_heads.get(slot_id, &"") as StringName
+
+	func request_use_gift_slot(slot_id: int) -> bool:
+		use_gift_slot_calls.append(slot_id)
+		gift_slot_heads.erase(slot_id)
+		return true
+
 	var request_place_calls: Array[Dictionary] = []
 	var request_throw_calls: Array[Dictionary] = []
 	## review fix regression: lets a test make every
@@ -369,15 +382,78 @@ func test_rejected_request_backs_off_before_retrying() -> void:
 	)
 
 
-# --- items 2/3: skip triggered specials, sort output ---------
-
-# --- M5 P3b-ii item A: a placed special's own place_target --
-
-# --- item C: _send_throw's world-space velocity ------------
-
-# --- item F: active specials ---
-
 # --- claim landed gifts, use held gifts promptly -------------
+
+## Only a landed gift, or a falling one that lands within
+## BotEvalTuning.air_gift_horizon_s, reaches the think's world view.
+func test_landed_and_imminent_gifts_reach_the_think_world_view() -> void:
+	var field: Field = _make_field()
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	var landed_at: Vector2 = Vector2(3.0, 4.0)
+	var landing_soon_at: Vector2 = Vector2(-5.0, 2.0)
+	var landing_late_at: Vector2 = Vector2(6.0, -6.0)
+	var states: Array[Dictionary] = [
+		{"id": 1, "phase": MatchGifts.LANDED, "position": landed_at},
+		{
+			"id": 2, "phase": MatchGifts.FALLING, "position": landing_soon_at,
+			"origin": Vector3(-5.0, 10.0, 2.0), "landing": Vector3(-5.0, 0.0, 2.0), "elapsed": 100.0,
+		},
+		{
+			"id": 3, "phase": MatchGifts.FALLING, "position": landing_late_at,
+			"origin": Vector3(6.0, 500.0, -6.0), "landing": Vector3(6.0, 0.0, -6.0), "elapsed": 0.0,
+		},
+	]
+	match_ref.gift_states_value = states
+	var controller: BotController = _make_controller(field, match_ref, BotControllerFakeNet.new())
+	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
+	Events.feed_block_issued.emit(0, &"cube", &"")
+
+	_tick_until_request(controller, match_ref)
+
+	var gifts: PackedVector2Array = controller._special_view.gifts
+	assert_eq(gifts.size(), 2, "the landed gift and the one about to land, not the one minutes from landing")
+	assert_true(gifts.has(landed_at), "a landed gift is a target")
+	assert_true(gifts.has(landing_soon_at), "a gift landing within the horizon is a target")
+	assert_false(gifts.has(landing_late_at), "a gift still far from landing is not")
+
+
+## A freshly fed gift piece is spent after gift_use_delay_s, not the full
+## reaction delay.
+func test_a_held_special_shortens_the_reaction_delay_to_gift_use_delay_s() -> void:
+	var field: Field = _make_field()
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	var controller: BotController = _make_controller(field, match_ref, BotControllerFakeNet.new())
+	controller.tuning.gift_use_delay_s = 0.05
+	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
+
+	Events.feed_block_issued.emit(0, &"cube", &"")
+	assert_gt(controller._countdown, controller.tuning.gift_use_delay_s, "fixture: an ordinary piece waits the full reaction delay")
+
+	match_ref.held_specials[0] = &"anvil"
+	Events.feed_block_issued.emit(0, &"cube", &"")
+	assert_almost_eq(controller._countdown, controller.tuning.gift_use_delay_s, 0.0001, "a held gift waits only gift_use_delay_s")
+
+
+## A gift sitting in the gift slot is spent through request_use_gift_slot once
+## the reaction delay has run, instead of thinking about an ordinary placement.
+func test_a_slotted_gift_is_spent_through_request_use_gift_slot_not_placed() -> void:
+	var field: Field = _make_field()
+	var match_ref: BotControllerFakeMatch = _make_ready_match(0)
+	match_ref.gift_slot_heads[0] = &"anvil"
+	var controller: BotController = _make_controller(field, match_ref, BotControllerFakeNet.new())
+	controller.setup(0, MatchConfig.AiDifficulty.NORMAL, field, null)
+	Events.feed_block_issued.emit(0, &"cube", &"")
+
+	_tick(controller, 5)
+	assert_eq(match_ref.use_gift_slot_calls.size(), 0, "not before the reaction delay has run")
+
+	var frames: int = 5
+	while match_ref.use_gift_slot_calls.is_empty() and frames < 200:
+		controller._physics_process(1.0 / 60.0)
+		frames += 1
+
+	assert_eq(match_ref.use_gift_slot_calls, [0], "the bot spends its slotted gift exactly once, for its own slot")
+	assert_eq(match_ref.request_place_calls.size(), 0, "and places nothing in the frame it spent it")
 
 
 # --- staggered release ---

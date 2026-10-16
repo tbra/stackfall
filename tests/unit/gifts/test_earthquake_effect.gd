@@ -3,8 +3,8 @@ extends GutTest
 ## the shake-every-armed-tick + leveling-nudge timed effect, driven through a
 ## real, tiny Field registered via Match.register_world() -- same fixture
 ## shape as tests/unit/field/test_field_tilt.gd's own _make_field(), plus the
-## Match.register_world()/after_each() convention tests/unit/
-## test_gift_claim.gd already uses.
+## Match.register_world()/after_each() convention
+## tests/unit/gifts/test_gift_claim.gd already uses.
 ##
 ## NOTE ON TICK HELPERS: Field.apply_tilt_impulse() only adds to the tilt
 ## spring's *velocity* (game/field/Field.gd:260-266) -- the tilt vector itself only
@@ -104,6 +104,50 @@ func test_an_armed_ticks_calls_apply_tilt_impulse_and_moves_the_tilt_vector() ->
 
 
 # --- leveling shrinks an existing tilt faster than natural decay alone ------
+
+## Compares against a second, otherwise-identical Field that gets the exact
+## same initial kick and its own natural critically damped spring decay --
+## proven by tests/unit/field/test_field_tilt.gd -- but no earthquake leveling, so
+## this isolates leveling's own contribution rather than re-proving the
+## spring decays on its own. The initial kick (0.05) is small enough to stay
+## well clear of TiltTuning.max_tilt_deg's clamp (game/field/Field.gd's
+## _clamp_tilt(), 12 deg here) even at the critically damped impulse
+## response's own peak (occurring at t == return_time_constant_s, 4 s here
+## per config/physics/tilt_tuning.tres) -- a saturated clamp would make both fields
+## read the same value and hide leveling's effect entirely.
+func test_with_zero_shake_magnitude_leveling_shrinks_tilt_faster_than_natural_decay_alone() -> void:
+	var effect: EarthquakeEffect = EarthquakeEffect.new()
+	effect.disc_force.shake_amplitude_m = 0.0
+	effect.leveling_strength = 0.5
+	var block: Block = _make_block()
+	var def: SpecialDef = _make_def(effect)
+	var behavior: SpecialBehavior = _make_behavior(block, def)
+
+	var control_field: Field = autofree(Field.new())
+	control_field.map_def = _field.map_def
+	add_child_autofree(control_field)
+	control_field.set_tilt_enabled(true)
+
+	var kick: Vector2 = Vector2(1.0, 0.0)
+	var kick_magnitude: float = 0.05
+	_field.apply_tilt_impulse(kick, kick_magnitude)
+	control_field.apply_tilt_impulse(kick, kick_magnitude)
+
+	for _i: int in range(180):  # 3 s of ticks, still well inside the rising phase
+		_tick(behavior, TICK)
+		control_field._update_tilt(TICK)
+
+	assert_gt(
+		control_field.tilt_vector().length(), 0.0,
+		"fixture: the control field is genuinely tilted, not clamped to zero"
+	)
+	assert_lt(
+		_field.tilt_vector().length(), control_field.tilt_vector().length(),
+		"leveling, isolated from the (zeroed) shake, must shrink tilt faster than natural decay alone"
+	)
+
+
+# --- wants_early_trigger flips at shake_duration_s ---------------------------
 
 ## arm_delay is set to the same step size used below (0.25 s, exact in binary
 ## floating point) so the tick that arms is also the tick that seeds the

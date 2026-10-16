@@ -3,12 +3,10 @@ extends GutTest
 ## happen", windowed `godot --path . -- --headless-host --bots=3 --players=4`,
 ## human is slot 0).
 ##
-## Verifies MatchGifts.claim_or_expire_gifts() end to end through the *same*
-## MatchConfig shape game/main/Main.gd's `--headless-host --bots=<n>` entry point
-## builds (game/main/Main.gd's own _build_headless_bot_config(): match_defaults.tres
-## duplicated, ai_count set, player_count = maxi(bots, --players=),
-## hot_seat/sandbox forced false) -- not a hand-rolled fixture config that
-## only happens to also work. The tiny-map override below (TinyMapMatchConfig,
+## Verifies MatchGifts.claim_or_expire_gifts() end to end through a
+## MatchConfig built the way game/main/Main.gd's `--headless-host --bots=<n>`
+## entry point builds it (_bot_match_config() below mirrors its
+## _build_headless_bot_config()). The tiny-map override (TinyMapMatchConfig,
 ## the same seam test_gift_claim.gd's own _config() uses) is the one addition
 ## Main.gd's real builder does not make -- needed here only so the territory
 ## solve is fast and deterministic in a unit test, per this project's existing
@@ -75,9 +73,9 @@ func _bot_match_config(bots: int = 3, players: int = 4) -> MatchConfig:
 	config.hot_seat = false
 	config.sandbox = false
 	config.rng_seed = 4242
-	# gifts_enabled deliberately NOT set here: it must come from
-	# match_defaults.tres, exactly as game/main/Main.gd's _build_headless_bot_config()
-	# leaves it.
+	# gifts_enabled deliberately NOT set here: it comes from match_defaults.tres,
+	# exactly as game/main/Main.gd's _build_headless_bot_config() leaves it, so
+	# the claim tests below run with the gifts setting a bot-hosted match has.
 	return config
 
 

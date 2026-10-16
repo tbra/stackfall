@@ -39,16 +39,12 @@ func after_each() -> void:
 	# drawer (whose closure may capture a now-out-of-scope index array) would
 	# corrupt every later test's claims. Always restore the shipped default.
 	Match._gifts.set_special_drawer(Match._gifts._default_special_drawer)
-	# Regression found while validating this change: test_apply_replicated_
-	# claim_respects_the_cap (and, less harmfully, a couple of pre-existing
-	# tests above) duplicate-and-mutate Match._gifts._gift_config without
-	# ever restoring it. Match is a singleton that outlives this whole
-	# script, so a max_pending_specials = 1 left behind silently broke
-	# test_match_net.gd's gift-claim replication tests (a false cap on a
-	# fresh GiftConfig.tres value) the moment they ran later in the same
-	# process. Reload the real resource here so every test in this file
-	# starts the next one -- in this script or any other -- with the
-	# shipped default.
+	# Tests here duplicate-and-mutate Match._gifts._gift_config without
+	# restoring it. Match is a singleton that outlives this whole script, so
+	# a leftover max_pending_specials or life_s would silently break the
+	# gift-claim tests that run later in the same process. Reload the real
+	# resource here so every test, in this script or any other, starts with
+	# the shipped default.
 	Match._gifts._gift_config = load("res://config/gifts/gift_config.tres") as GiftConfig
 	Match.abort_match()
 	Match.set_process(true)
@@ -248,15 +244,29 @@ func test_replicated_glue_claim_does_not_queue_on_client() -> void:
 	assert_eq(Match.pending_special_count(0), 0)
 
 
+## apply_replicated_special_consumed() is the client mirror of
+## pop_pending_special(): it empties the held gift and leaves the next queued
+## gift alone.
+func test_apply_replicated_special_consumed_clears_only_held_gift() -> void:
+	_start_playing(_config())
+	Match._gifts.apply_replicated_claim(1, 0, &"special_a")
+	Match._gifts.activate_next_special(0)
+	Match._gifts.apply_replicated_claim(2, 0, &"special_b")
+	assert_eq(Match.held_special(0), &"special_a", "setup: a is held, b is the next gift")
+
+	Match._gifts.apply_replicated_special_consumed(0, &"special_a")
+
+	assert_eq(Match.held_special(0), &"", "the spent held gift must be cleared")
+	assert_eq(Match.next_special(0), &"special_b", "the next queued gift must survive the spend")
+
+
 ## Enabled-specials checklist: ui/lobby/Lobby.gd
 ## publishes MatchGifts.ALL_DISABLED_SENTINEL as enabled_specials' sole entry
-## when the host unchecks every special checkbox. Distinct from
-## test_installing_the_real_drawer_with_an_empty_filtered_roster_keeps_the_
-## placeholder() above (which already proves a bogus, non-matching id yields
-## the same "keep the placeholder" outcome): this pins the actual sentinel
-## constant both files share, and _ensure_special_drawer_installed()'s
-## explicit `enabled.has(ALL_DISABLED_SENTINEL)` guard specifically (rather
-## than relying on the sentinel merely never matching a real SpecialDef.id on
+## when the host unchecks every special checkbox. This pins the actual
+## sentinel constant both files share, and
+## _ensure_special_drawer_installed()'s explicit
+## `enabled.has(ALL_DISABLED_SENTINEL)` guard specifically (rather than
+## relying on the sentinel merely never matching a real SpecialDef.id on
 ## disk today).
 func test_all_disabled_sentinel_never_draws_a_real_special() -> void:
 	var config: MatchConfig = _config()
@@ -294,6 +304,94 @@ func test_only_the_lowest_alive_slot_rolls_per_window() -> void:
 		Match._gifts.on_feed_block_issued(slot_id)
 
 	assert_eq(Match._gifts._crates.size(), 1, "exactly one roll must happen across all 3 slots' windows")
+
+
+## A client never spawns, claims or expires anything itself -- it only ever
+## mirrors the replicated events into visuals.
+func test_client_never_spawns_claims_or_expires() -> void:
+	_start_playing(_config())
+	Match.set_net_provider(FakeNet.client(1))
+	Match._gifts._gift_config = Match._gifts._gift_config.duplicate() as GiftConfig
+	Match._gifts._gift_config.frequency_to_chance_max = 1.0
+	Match._gifts._gift_config.first_gift_delay_s = 0.0
+	Match.config.special_frequency = 100
+	var gift_id: int = _inject_crate(0)
+
+	Match._gifts.on_feed_block_issued(0)
+	assert_eq(Match._gifts._crates.size(), 1, "a client must never spawn a crate of its own")
+
+	Match._gifts.claim_or_expire_gifts(1000.0)
+	assert_true(Match._gifts._crates.has(gift_id), "a client must never claim or expire a crate itself")
+
+	Match.set_net_provider(null)
+
+
+func test_net_mirrors_gift_spawned_claimed_and_expired() -> void:
+	_start_playing(_config())
+	var net: MatchNetScript = MatchNetScript.new()
+	net.set_process(false)
+	add_child_autofree(net)
+	net.set_providers(FakeNet.client(1), Match)
+	watch_signals(Events)
+
+	net.net_match_event(MatchNetScript.EVENT_GIFT_SPAWNED, [7, Vector2(1.0, 2.0)])
+	assert_signal_emitted_with_parameters(Events, "gift_spawned", [7, Vector2(1.0, 2.0)])
+	assert_true(Match._gifts._crates.has(7))
+
+	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [7, 1, MatchGifts.PENDING_SPECIAL_ID, &"cube"])
+	assert_signal_emitted_with_parameters(Events, "gift_claimed", [7, 1, MatchGifts.PENDING_SPECIAL_ID])
+	assert_eq((Match._gifts._pending_queues[1] as Array)[0], MatchGifts.PENDING_SPECIAL_ID)
+	assert_false(Match._gifts._crates.has(7))
+
+	net.net_match_event(MatchNetScript.EVENT_GIFT_SPAWNED, [8, Vector2(3.0, 4.0)])
+	net.net_match_event(MatchNetScript.EVENT_GIFT_EXPIRED, [8])
+	assert_signal_emitted_with_parameters(Events, "gift_expired", [8])
+	assert_false(Match._gifts._crates.has(8))
+
+	net.set_providers(null, null)
+
+
+## EVENT_SPECIAL_CONSUMED on a client: the host's spend empties the client's
+## mirror of the held gift and re-emits Events.special_consumed.
+func test_a_replicated_special_consumed_clears_the_clients_held_gift_and_reemits() -> void:
+	_start_playing(_config())
+	var net: MatchNetScript = MatchNetScript.new()
+	net.set_process(false)
+	add_child_autofree(net)
+	net.set_providers(FakeNet.client(1), Match)
+	Match._gifts.apply_replicated_claim(1, 1, MatchGifts.PENDING_SPECIAL_ID)
+	Match._gifts.activate_next_special(1)
+	assert_eq(Match.pending_special_count(1), 1, "setup: the client's mirror holds the claimed special")
+	watch_signals(Events)
+
+	net.net_match_event(MatchNetScript.EVENT_SPECIAL_CONSUMED, [1, MatchGifts.PENDING_SPECIAL_ID])
+
+	assert_eq(Match.pending_special_count(1), 0, "the mirror must shrink in step with the host's own pop")
+	assert_signal_emitted_with_parameters(Events, "special_consumed", [1, MatchGifts.PENDING_SPECIAL_ID])
+
+	net.set_providers(null, null)
+
+
+## An out-of-range slot_id, a malformed special_id shape and a short args
+## array are all dropped without touching the mirror or re-emitting.
+func test_a_malformed_special_consumed_is_dropped_not_applied() -> void:
+	_start_playing(_config())
+	var net: MatchNetScript = MatchNetScript.new()
+	net.set_process(false)
+	add_child_autofree(net)
+	net.set_providers(FakeNet.client(1), Match)
+	Match._gifts.apply_replicated_claim(1, 1, MatchGifts.PENDING_SPECIAL_ID)
+	Match._gifts.activate_next_special(1)
+	watch_signals(Events)
+
+	net.net_match_event(MatchNetScript.EVENT_SPECIAL_CONSUMED, [999999999, MatchGifts.PENDING_SPECIAL_ID])
+	net.net_match_event(MatchNetScript.EVENT_SPECIAL_CONSUMED, [1, &"has space"])
+	net.net_match_event(MatchNetScript.EVENT_SPECIAL_CONSUMED, [1])
+
+	assert_signal_not_emitted(Events, "special_consumed", "no malformed payload may re-emit")
+	assert_eq(Match.pending_special_count(1), 1, "and the mirror must be untouched")
+
+	net.set_providers(null, null)
 
 
 ## Review fix #3b: EVENT_GIFT_SPAWNED's wire-safety gate (_gift_wire_ok)
@@ -359,6 +457,22 @@ func test_debug_queue_special_refused_outside_sandbox() -> void:
 	assert_signal_not_emitted(Events, "gift_claimed")
 
 
+func test_debug_queue_special_refused_when_not_host() -> void:
+	var config: MatchConfig = _config_with_no_real_specials()
+	config.sandbox = true
+	_start_playing(config)
+	Match.set_net_provider(FakeNet.client(1))
+	watch_signals(Events)
+
+	var accepted: bool = Match.debug_queue_special(0, &"anvil")
+
+	assert_false(accepted, "a client must never queue a special through this seam")
+	assert_eq(Match.held_special(0), &"")
+	assert_signal_not_emitted(Events, "gift_claimed")
+
+	Match.set_net_provider(null)
+
+
 ## (chosen option "b")
 ## supersedes the old "shared team queue" contract below: a crate
 ## claimed in a team's territory is offered to the ONE teammate whose home
@@ -383,6 +497,28 @@ func test_only_the_nearest_teammate_holds_the_special_after_a_claim() -> void:
 	assert_eq((Match._gifts._pending_queues[0] as Array)[0], MatchGifts.PENDING_SPECIAL_ID, "the nearest teammate gets the next gift")
 	assert_eq(Match.held_special(2), &"", "a teammate who isn't the resolved recipient holds nothing")
 	assert_signal_emitted_with_parameters(Events, "gift_claimed", [gift_id, 0, MatchGifts.PENDING_SPECIAL_ID])
+
+
+## A dead nearest teammate (PlayerSlot.home_flag_alive == false) is never a
+## candidate recipient -- _resolve_recipient_slot() must fall through to the
+## next-nearest ALIVE teammate rather than refusing the claim outright.
+##
+## DECISION (tests/unit/gifts/test_gift_claim.gd): exercised
+## directly against _resolve_recipient_slot() rather than through
+## _inject_crate()/_step_territory() -- MatchTerritory.gd's own solve skips
+## seeding a dead home flag's circle at all, so killing slot 2's flag also
+## stops that ground from resolving as team 0's territory in the first place,
+## which would make this a test of the territory solver's fallback, not of
+## the recipient-resolution rule.
+func test_a_dead_nearest_teammate_is_skipped_for_the_next_nearest_alive_one() -> void:
+	var config: MatchConfig = _config_with_no_real_specials(4)
+	config.team_mode = MatchConfig.TeamMode.TEAMS_2
+	_start_playing(config)
+	Match.slot(2).home_flag_alive = false
+
+	var recipient: int = Match._gifts._resolve_recipient_slot(0, Match.slot(2).home_position)
+
+	assert_eq(recipient, 0, "the only other alive teammate on team 0 must be picked once slot 2's home flag is dead")
 
 
 ## a forced drawer left by Sandbox must not survive into a
