@@ -206,6 +206,8 @@ const MATCH_CONTROLLER_FIELDS: PackedStringArray = [
 var _saved_match: Dictionary = {}
 var _saved_gift_fx: Node = null
 var _saved_weather_net: Node = null
+## Events subscriptions of the subtrees taken out of the tree, as {signal, callable}.
+var _saved_subscriptions: Array[Dictionary] = []
 
 
 ## Puts the live autoloads in the pre-activation state, keeping the old controllers aside so
@@ -215,9 +217,10 @@ func _unactivate_live_autoloads() -> void:
 	for field: String in MATCH_CONTROLLER_FIELDS:
 		_saved_match[field] = Match.get(field)
 	_saved_gift_fx = Match.get_node_or_null("GiftFxPresenter")
+	_saved_weather_net = MatchNet.get_node_or_null("WeatherNet")
+	_remember_subscriptions([_saved_gift_fx, _saved_weather_net])
 	if _saved_gift_fx != null:
 		Match.remove_child(_saved_gift_fx)
-	_saved_weather_net = MatchNet.get_node_or_null("WeatherNet")
 	if _saved_weather_net != null:
 		MatchNet.remove_child(_saved_weather_net)
 	Events.feed_block_issued.disconnect(Match._on_feed_block_issued)
@@ -257,11 +260,38 @@ func _restore_live_autoloads() -> void:
 	if _saved_weather_net != null:
 		MatchNet.add_child(_saved_weather_net)
 		MatchNet.set("_weather_net", _saved_weather_net)
+	_reinstate_subscriptions()
 	for node: Node in [fresh_gift_fx, fresh_weather]:
 		if node != null:
 			node.free()
 	Match._late_active = true
 	MatchNet._late_active = true
+
+
+## Notes every Events subscription held by a node of `roots`. Taking a subtree out of the tree
+## runs its _exit_tree, which drops subscriptions made in _ready (WeatherPresenter and
+## CloudCeiling on match_scope_reset); putting it back does not run _ready again, so the live
+## autoloads would stay deaf to the match-scope reset for every later script in the process.
+func _remember_subscriptions(roots: Array[Node]) -> void:
+	_saved_subscriptions.clear()
+	for sig: Dictionary in Events.get_signal_list():
+		var signal_name: StringName = StringName(String(sig["name"]))
+		for conn: Dictionary in Events.get_signal_connection_list(signal_name):
+			var callable: Callable = conn["callable"]
+			var target: Object = callable.get_object()
+			for root: Node in roots:
+				if root != null and target is Node and (target == root or root.is_ancestor_of(target as Node)):
+					_saved_subscriptions.append({"signal": signal_name, "callable": callable})
+
+
+## Re-connects the remembered subscriptions that the round trip dropped.
+func _reinstate_subscriptions() -> void:
+	for saved: Dictionary in _saved_subscriptions:
+		var signal_name: StringName = saved["signal"]
+		var callable: Callable = saved["callable"]
+		if not Events.is_connected(signal_name, callable):
+			Events.connect(signal_name, callable)
+	_saved_subscriptions.clear()
 
 
 func _disconnect_targets(source: Object, targets: Array[Object]) -> void:
