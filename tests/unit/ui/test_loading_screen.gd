@@ -204,7 +204,7 @@ func test_early_client_territory_completes_readiness_after_build() -> void:
 	overlay.show_for_match(_flow_config(main), _slots(2))
 	Events.territory_replicated.emit(null)
 	assert_true(main._first_territory_ready, "late join keyframe is latched before world build")
-	main._finish_loading_when_ready(main._loading_generation)
+	main._match_flow_port().call(&"_finish_loading_when_ready", main._loading_generation)
 	await wait_process_frames(2)
 	assert_lt(overlay.progress(), overlay.tuning.complete_progress)
 	main._world_built = true
@@ -240,7 +240,7 @@ func test_client_waits_for_replicated_territory_before_ready() -> void:
 	Events.match_loading_announced.emit()
 	overlay.show_for_match(_flow_config(main), _slots(2))
 	main._world_built = true
-	main._finish_loading_when_ready(main._loading_generation)
+	main._match_flow_port().call(&"_finish_loading_when_ready", main._loading_generation)
 	await wait_process_frames(overlay.tuning.stable_frames + 2)
 	assert_true(overlay.visible)
 	assert_lt(overlay.progress(), 1.0)

@@ -19,7 +19,7 @@ func test_turn_changed_switches_the_active_slot() -> void:
 	Events.turn_changed.emit(1)
 
 	assert_eq(hot_seat.controller()._active_slot, 1)
-	assert_eq(hot_seat.hud()._active_slot, 1)
+	assert_eq((hot_seat.get_node("HUDLayer") as HUD)._active_slot, 1)
 
 
 func test_only_the_active_slots_press_reaches_request_place() -> void:
@@ -29,7 +29,7 @@ func test_only_the_active_slots_press_reaches_request_place() -> void:
 	fake_match.held_shapes[0] = cube
 	fake_match.held_shapes[1] = cube
 	hot_seat.controller()._match = fake_match
-	hot_seat.ghost().set_shape(cube)
+	(hot_seat.get_node("GhostPreview") as GhostPreview).set_shape(cube)
 
 	# Slot 0's turn: a press should reach Match.
 	Events.turn_changed.emit(0)
@@ -52,7 +52,7 @@ func test_eliminated_slot_cannot_place() -> void:
 	fake_match.slots_by_id[0] = eliminated_slot
 	fake_match.held_shapes[0] = load("res://config/blocks/cube.tres")
 	hot_seat.controller()._match = fake_match
-	hot_seat.ghost().set_shape(fake_match.held_shapes[0])
+	(hot_seat.get_node("GhostPreview") as GhostPreview).set_shape(fake_match.held_shapes[0])
 
 	Events.turn_changed.emit(0)
 	hot_seat.controller()._place_ghost_block()

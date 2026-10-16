@@ -56,7 +56,7 @@ func test_lobby_is_built_on_demand() -> void:
 
 func test_headless_bots_flow_loads_on_first_use_through_the_queue() -> void:
 	assert_null(_main._headless_bots_flow, "no flow before the first bots use")
-	assert_eq(_main._bots_arg(PackedStringArray(["--bots=3"])), 3)
+	assert_eq(_main._headless_bots_flow_port().call(&"_bots_arg", PackedStringArray(["--bots=3"])), 3)
 	assert_true(_main._headless_bots_flow is MainHeadlessBotsFlowPort)
 	assert_eq((_main._headless_bots_flow as RefCounted).get_script().resource_path, "res://game/main/MainHeadlessBotsFlow.gd")
 	assert_true(_main._prewarm_queue.is_ready("res://game/main/MainHeadlessBotsFlow.gd"))

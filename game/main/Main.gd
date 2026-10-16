@@ -435,7 +435,7 @@ func _ready() -> void:
 
 	# M7 P1: connected before the hot-seat/sandbox early
 	# returns below so those offline entry points get the current graphics
-	# preset applied too, even though they skip ui/menus/MainMenu.tscn/ui/Lobby.tscn
+	# preset applied too, even though they skip the main menu and lobby
 	# entirely. current_graphics_preset() never returns null (Settings loads
 	# a default at its own _ready()), so the initial call always has a preset
 	# to apply.
@@ -644,42 +644,44 @@ func _apply_graphics_preset(preset: GraphicsPreset) -> void:
 # --- Hot-seat / sandbox / tutorial: forwarders (MF1) -------
 #
 # The bodies live in game/main/MainSandboxFlow.gd, loaded on demand through the prewarm queue
-# (the menu-first flow split). Every old member name stays here for tests and tools.
+# (the menu-first flow split).
 
 func _start_hot_seat_match() -> void:
-	_sandbox_flow_port().start_hot_seat_match()
+	var sandbox_flow: MainSandboxFlowPort = _sandbox_flow_port()
+	sandbox_flow.start_hot_seat_match()
 
 
 func _start_sandbox_match() -> void:
-	_sandbox_flow_port().start_sandbox_match()
-
-
-func _start_sandbox_match_with_args(args: PackedStringArray) -> void:
-	_sandbox_flow_port().start_sandbox_match_with_args(args)
+	var sandbox_flow: MainSandboxFlowPort = _sandbox_flow_port()
+	sandbox_flow.start_sandbox_match()
 
 
 func start_sandbox_from_menu() -> void:
 	if not await _await_prewarmed(PackedStringArray([SANDBOX_FLOW_SCRIPT_PATH, SANDBOX_SCENE_PATH])):
 		return
-	_sandbox_flow_port().start_sandbox_from_menu()
+	var sandbox_flow: MainSandboxFlowPort = _sandbox_flow_port()
+	sandbox_flow.start_sandbox_from_menu()
 
 
 func start_gift_demo_from_menu() -> void:
 	if not await _await_prewarmed(PackedStringArray([SANDBOX_FLOW_SCRIPT_PATH, SANDBOX_SCENE_PATH])):
 		return
-	_sandbox_flow_port().start_gift_demo_from_menu()
+	var sandbox_flow: MainSandboxFlowPort = _sandbox_flow_port()
+	sandbox_flow.start_gift_demo_from_menu()
 
 
 func start_tower_topple_from_menu() -> void:
 	if not await _await_prewarmed(PackedStringArray([SANDBOX_FLOW_SCRIPT_PATH, SANDBOX_SCENE_PATH])):
 		return
-	_sandbox_flow_port().start_tower_topple_from_menu()
+	var sandbox_flow: MainSandboxFlowPort = _sandbox_flow_port()
+	sandbox_flow.start_tower_topple_from_menu()
 
 
 func start_tutorial_from_menu() -> void:
 	if not await _await_prewarmed(PackedStringArray([SANDBOX_FLOW_SCRIPT_PATH, TUTORIAL_SCENE_PATH])):
 		return
-	_sandbox_flow_port().start_tutorial_from_menu()
+	var sandbox_flow: MainSandboxFlowPort = _sandbox_flow_port()
+	sandbox_flow.start_tutorial_from_menu()
 
 
 ## The sandbox flow, loaded through the serial prewarm queue on first use. DECISION: the queue
@@ -707,36 +709,12 @@ func _start_headless_bot_match_with_args(args: PackedStringArray) -> void:
 	_headless_bots_flow_port().start_match_with_args(args)
 
 
-func _has_loop_matches_arg(args: PackedStringArray) -> bool:
-	return _headless_bots_flow_port().call(&"_has_loop_matches_arg", args) as bool
-
-
 func _on_headless_loop_state_changed(_from_state: int, to_state: int) -> void:
 	_headless_bots_flow_port().call(&"_on_headless_loop_state_changed", _from_state, to_state)
 
 
 func _restart_headless_loop_match() -> void:
 	_headless_bots_flow_port().call(&"_restart_headless_loop_match")
-
-
-func _headless_match_summary_line() -> String:
-	return _headless_bots_flow_port().call(&"_headless_match_summary_line") as String
-
-
-func _net_is_hosting() -> bool:
-	return _headless_bots_flow_port().call(&"_net_is_hosting") as bool
-
-
-func _bots_arg(args: PackedStringArray) -> int:
-	return _headless_bots_flow_port().call(&"_bots_arg", args) as int
-
-
-func _seconds_arg(args: PackedStringArray) -> float:
-	return _headless_bots_flow_port().call(&"_seconds_arg", args) as float
-
-
-func _build_headless_bot_config(bots: int, args: PackedStringArray) -> MatchConfig:
-	return _headless_bots_flow_port().call(&"_build_headless_bot_config", bots, args) as MatchConfig
 
 
 ## Only a loaded flow can have started diagnostics, so teardown never loads it.
@@ -755,22 +733,6 @@ func _on_headless_bots_report_tick() -> void:
 
 func _on_headless_bots_seconds_elapsed() -> void:
 	_headless_bots_flow_port().call(&"_on_headless_bots_seconds_elapsed")
-
-
-func _headless_bots_periodic_line() -> String:
-	return _headless_bots_flow_port().call(&"_headless_bots_periodic_line") as String
-
-
-func _headless_bots_done_line() -> String:
-	return _headless_bots_flow_port().call(&"_headless_bots_done_line") as String
-
-
-func _headless_bots_elapsed_s() -> float:
-	return _headless_bots_flow_port().call(&"_headless_bots_elapsed_s") as float
-
-
-func _headless_bots_state_name() -> String:
-	return _headless_bots_flow_port().call(&"_headless_bots_state_name") as String
 
 
 ## The headless bots flow, loaded through the serial prewarm queue on first use.
@@ -1204,23 +1166,12 @@ func _loading_screen_slots() -> Array[PlayerSlot]:
 func _on_match_state_changed(from_state: int, to_state: int) -> void:
 	if to_state == Match.State.LOADING:
 		_ensure_overlays()  # MF5: sandbox/bots/test entries never pass the lobby
-	_match_flow_port().on_match_state_changed(from_state, to_state)
-
-
-func _finish_loading_when_ready(generation: int) -> void:
-	await _match_flow_port().call(&"_finish_loading_when_ready", generation)
+	var match_flow: MainMatchFlowPort = _match_flow_port()
+	match_flow.on_match_state_changed(from_state, to_state)
 
 
 func _release_countdown_hold(generation: int) -> void:
 	_match_flow_port().call(&"_release_countdown_hold", generation)
-
-
-func _build_match_world(force_staging_for_test: bool = false) -> void:
-	await _match_flow_port().call(&"build_match_world", force_staging_for_test)
-
-
-func _spawn_bot_controllers(config: MatchConfig) -> void:
-	_match_flow_port().spawn_bot_controllers(config)
 
 
 func _reset_match_scope(reset_camera: bool = true) -> void:
@@ -1228,7 +1179,8 @@ func _reset_match_scope(reset_camera: bool = true) -> void:
 
 
 func _end_match_world() -> void:
-	_match_flow_port().end_match_world()
+	var match_flow: MainMatchFlowPort = _match_flow_port()
+	match_flow.end_match_world()
 
 
 ## The match flow, loaded through the serial prewarm queue on first use (synchronous path).

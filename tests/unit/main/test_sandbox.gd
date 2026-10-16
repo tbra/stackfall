@@ -65,7 +65,7 @@ func _run_countdown() -> void:
 ## a manufactured argument list, the same seam autoload/Net.gd's
 ## _apply_command_line_args() uses for the same reason.
 func _start_sandbox(player_count: int) -> void:
-	_main._start_sandbox_match_with_args(PackedStringArray(["sandbox", "players=%d" % player_count]))
+	_main._sandbox_flow_port().call(&"start_sandbox_match_with_args", PackedStringArray(["sandbox", "players=%d" % player_count]))
 
 
 func _key_press(keycode: Key) -> InputEventKey:

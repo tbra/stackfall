@@ -12,10 +12,6 @@ func start_sandbox_match() -> void:
 	pass
 
 
-func start_sandbox_match_with_args(_args: PackedStringArray) -> void:
-	pass
-
-
 func start_sandbox_from_menu() -> void:
 	pass
 
@@ -29,8 +25,4 @@ func start_tower_topple_from_menu() -> void:
 
 
 func start_tutorial_from_menu() -> void:
-	pass
-
-
-func on_tutorial_finished() -> void:
 	pass

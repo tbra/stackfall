@@ -1,12 +1,11 @@
 class_name SandboxConeAdapter
 extends RefCounted
-## The one scene-side bridge used by both sandbox snapshots and live solving.
+## The scene-side height measurement for the sandbox cone solve.
 ## Core/SandboxConeExperiment remains pure; this measures block height in the
 ## same field-local frame as BlockRegistry's current influence circles.
 
 
-## the scene-reading half of project(): one field-local
-## height per circle, measured on the main thread. {"heights"} or {"error"}.
+## One field-local height per circle, measured on the main thread. {"heights"} or {"error"}.
 static func measure_heights(
 	circles: Array[InfluenceCircle],
 	field: Field,
@@ -47,22 +46,3 @@ static func measure_heights(
 			heights[index] = maxf(local_com.y, 0.0)
 	return {"heights": heights}
 
-
-static func project(
-	circles: Array[InfluenceCircle],
-	field: Field,
-	registry: BlockRegistry,
-	angle_degrees: float,
-	height_source: int,
-	base_mode: int,
-	tuning: TerritoryTuning,
-	field_radius: float
-) -> Dictionary:
-	var measured: Dictionary = measure_heights(circles, field, registry, height_source)
-	if measured.has("error"):
-		return measured
-	var heights: PackedFloat32Array = measured["heights"]
-	return SandboxConeExperiment.build(
-		circles, heights, angle_degrees, base_mode, tuning.influence_base,
-		tuning.influence_max_fraction * field_radius
-	)
