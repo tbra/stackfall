@@ -65,6 +65,19 @@ func _run(objective: CaptureFlagObjective, circles: Array[InfluenceCircle], seco
 
 # --- Beacons ---------------------------------------------------------------------
 
+func test_extra_state_carries_held_counts_and_round_trips_to_a_client() -> void:
+	var host: CaptureFlagObjective = _objective([Vector2.ZERO])
+	_run(host, [_home(0.0, 0.0, 0)] as Array[InfluenceCircle], 0.1)
+	var extra: Dictionary = host.extra_state()
+	assert_eq(extra["beacons"], 1)
+	assert_eq(extra["held_0"], 1)
+	assert_eq(extra["held_1"], 0)
+	var client: CaptureFlagObjective = _objective([Vector2.ZERO])
+	client.apply_mode_state(host.mode_state())
+	assert_eq(client.extra_state()["held_0"], 1)
+	assert_eq(client.extra_state()["held_1"], 0)
+
+
 func test_one_beacon_scores_immediately_at_the_rate() -> void:
 	var objective: CaptureFlagObjective = _objective([Vector2.ZERO])
 	_run(objective, [_home(0.0, 0.0, 0)] as Array[InfluenceCircle], 0.1)
