@@ -7,6 +7,16 @@ const SUNSET_PATH: String = "res://config/sky/themes/sunset.tres"
 const NIGHT_PATH: String = "res://config/sky/themes/night.tres"
 
 var _fog: FogTuning = preload("res://config/weather/fog.tres")
+var _original_preset_id: StringName = &""
+
+
+func before_each() -> void:
+	_original_preset_id = Settings.graphics_base_preset_id()
+	Settings.set_graphics_preset(&"high")
+
+
+func after_each() -> void:
+	Settings.set_graphics_preset(_original_preset_id)
 
 
 func _rig() -> Array:
@@ -61,6 +71,15 @@ func test_fog_uses_depth_mode_from_a_begin_distance_and_restores_the_theme_exact
 	assert_almost_eq(environment.fog_density, sunset.fog_density, 0.00001)
 	assert_eq(environment.fog_light_color, sunset.fog_color)
 	assert_almost_eq(environment.fog_sky_affect, sunset.fog_sky_affect, 0.00001)
+
+
+func test_the_low_preset_caps_the_fog_opacity() -> void:
+	var parts: Array = _rig()
+	var environment: Environment = parts[1]
+	Settings.set_graphics_preset(&"low")
+	var presentation: FogPresentation = _presentation()
+	presentation.set_intensity(1.0)
+	assert_almost_eq(environment.fog_density, _fog.max_opacity * _fog.low_preset_opacity, 0.00001)
 
 
 func test_removing_the_presentation_restores_the_fog() -> void:
