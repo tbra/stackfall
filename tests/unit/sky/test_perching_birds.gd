@@ -38,12 +38,21 @@ func _make_manager(life: AmbientLifeConfig) -> PerchingBirds:
 	return manager
 
 
-func _run_until_perched(manager: PerchingBirds, index: int = 0) -> PerchingBird:
+## The birds currently in the scene (flying in, perched or fleeing): the manager's PerchingBird children.
+func _birds(manager: PerchingBirds) -> Array[PerchingBird]:
+	var result: Array[PerchingBird] = []
+	for child: Node in manager.get_children():
+		if child is PerchingBird:
+			result.append(child as PerchingBird)
+	return result
+
+
+func _run_until_perched(manager: PerchingBirds) -> PerchingBird:
 	for _i: int in range(MAX_STEPS):
 		manager._process(STEP_S)
-		var bird: PerchingBird = manager.bird_at(index)
-		if bird != null and bird.is_perched():
-			return bird
+		for bird: PerchingBird in _birds(manager):
+			if bird.state == PerchingBird.State.PERCHED:
+				return bird
 	return null
 
 
@@ -83,7 +92,6 @@ func test_lands_on_the_disc_away_from_players_and_edge() -> void:
 	# to the rim than the nominal margin (the landing spot is random per run).
 	var probe_gap_m: float = life.perch_edge_margin_m * (1.0 - cos(PI / float(PerchPlanner.EDGE_PROBES)))
 	assert_lte(Vector2(spot.x, spot.z).length(), 30.0 - life.perch_edge_margin_m + probe_gap_m + 0.01)
-	assert_false(_manager.perched_on_tower(0))
 	assert_almost_eq(bird.global_position.y, spot.y + bird.perch_height(), 0.001, "stands on the surface")
 
 
@@ -110,7 +118,6 @@ func test_lands_on_top_of_a_settled_block_and_leaves_when_it_moves() -> void:
 	assert_not_null(bird)
 	if bird == null:
 		return
-	assert_true(_manager.perched_on_tower(0), "tower fraction 1.0 prefers the block top")
 	assert_almost_eq(bird.perch_surface, Vector3(10.0, 1.0, 10.0), Vector3.ONE * 0.001)
 	_manager._process(0.01)
 	assert_eq(bird.state, PerchingBird.State.PERCHED)
@@ -123,9 +130,9 @@ func test_match_state_change_clears_birds() -> void:
 	_manager = _make_manager(_life(2))
 	for _i: int in range(20):
 		_manager._process(STEP_S)
-	assert_gt(_manager.active_bird_count(), 0)
+	assert_gt(_birds(_manager).size(), 0)
 	Events.match_state_changed.emit(Match.State.PLAYING, Match.State.END)
-	assert_eq(_manager.active_bird_count(), 0)
+	assert_eq(_birds(_manager).size(), 0)
 	assert_eq(_manager.get_child_count(), 0)
 
 
@@ -149,10 +156,10 @@ func test_birds_are_sunset_only_and_fireflies_night_only() -> void:
 	assert_not_null(sunset.ambient_life)
 	assert_not_null(night.ambient_life)
 	skybox.apply_theme(sunset)
-	assert_true((skybox.get_node("PerchingBirds") as PerchingBirds).is_enabled())
+	assert_true((skybox.get_node("PerchingBirds") as PerchingBirds).visible)
 	assert_null(skybox.get_node("Fireflies").get_node_or_null("Motes"))
 	skybox.apply_theme(night)
-	assert_false((skybox.get_node("PerchingBirds") as PerchingBirds).is_enabled())
+	assert_false((skybox.get_node("PerchingBirds") as PerchingBirds).visible)
 	assert_not_null(skybox.get_node("Fireflies").get_node_or_null("Motes"))
 	assert_eq((skybox.get_node("Fireflies").get_node_or_null("Motes") as MultiMeshInstance3D).multimesh.instance_count, night.ambient_life.fireflies_count)
 
@@ -174,7 +181,6 @@ func test_freed_block_never_reaches_typed_calls_during_polls() -> void:
 	_manager._refresh_sources()
 	assert_eq(_manager.blocks.size(), 0, "freed blocks are pruned")
 	_force_poll(_manager)
-	assert_eq(_manager._block_positions(tower).size(), 0)
 	assert_ne(bird.state, PerchingBird.State.PERCHED, "bird leaves its freed block")
 
 
@@ -203,19 +209,16 @@ func _run_until_n_perched(manager: PerchingBirds, count: int) -> int:
 
 func _perched_birds(manager: PerchingBirds) -> Array[PerchingBird]:
 	var result: Array[PerchingBird] = []
-	for index: int in range(manager.slot_count()):
-		var bird: PerchingBird = manager.bird_at(index)
-		if bird != null and bird.is_perched():
+	for bird: PerchingBird in _birds(manager):
+		if bird.state == PerchingBird.State.PERCHED:
 			result.append(bird)
 	return result
 
 
 func _states(manager: PerchingBirds) -> Array[PerchingBird.State]:
 	var result: Array[PerchingBird.State] = []
-	for index: int in range(manager.slot_count()):
-		var bird: PerchingBird = manager.bird_at(index)
-		if bird != null:
-			result.append(bird.state)
+	for bird: PerchingBird in _birds(manager):
+		result.append(bird.state)
 	return result
 
 

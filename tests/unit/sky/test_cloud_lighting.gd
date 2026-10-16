@@ -19,6 +19,20 @@ func _wired_skybox() -> Skybox:
 	return skybox
 
 
+## The live puff instance of a CloudSea layer (`upper` picks the overcast layer; `far` its impostor twin):
+## a child of the sea told apart by its per-instance shader flags (a rebuild renames nodes), skipping
+## instances a rebuild has queued for deletion.
+func _puffs(sea: CloudSea, upper: bool, far: bool = false) -> MultiMeshInstance3D:
+	for child: Node in sea.get_children():
+		if not child is MultiMeshInstance3D or child.is_queued_for_deletion():
+			continue
+		var node: MultiMeshInstance3D = child as MultiMeshInstance3D
+		if (node.get_instance_shader_parameter(&"floor_on") != null) == upper \
+				and (node.get_instance_shader_parameter(&"billboard") != null) == far:
+			return node
+	return null
+
+
 ## The puff material equals the shared state, and the upper layer draws with it.
 func _assert_layers_match(skybox: Skybox, label: String) -> void:
 	var l: CloudLighting = skybox.cloud_lighting()
@@ -28,9 +42,9 @@ func _assert_layers_match(skybox: Skybox, label: String) -> void:
 	assert_true((puff.get_shader_parameter(&"lit_color") as Color).is_equal_approx(l.lit_color), "%s puff palette" % label)
 	assert_almost_eq(float(puff.get_shader_parameter(&"weather_dim")), l.dim, EPS, "%s puff dim" % label)
 	assert_almost_eq(float(puff.get_shader_parameter(&"weather_desaturate")), l.desaturate, EPS, "%s puff desaturate" % label)
-	assert_not_null(sea.upper_instance(), "%s upper layer exists" % label)
-	assert_same(sea.upper_instance().material_override, puff, "%s upper layer shares the puff material" % label)
-	assert_same(sea.puff_instance().material_override, puff, "%s sea uses it too" % label)
+	assert_not_null(_puffs(sea, true), "%s upper layer exists" % label)
+	assert_same(_puffs(sea, true).material_override, puff, "%s upper layer shares the puff material" % label)
+	assert_same(_puffs(sea, false).material_override, puff, "%s sea uses it too" % label)
 	var sky: ShaderMaterial = skybox.theme.sky_material as ShaderMaterial
 	if sky != null and sky.get_shader_parameter(&"sun_direction") is Vector3 and sky.get_shader_parameter(&"cycle_night_mix") is float:
 		assert_true((sky.get_shader_parameter(&"sun_direction") as Vector3).is_equal_approx(l.light_direction), "%s sea light" % label)

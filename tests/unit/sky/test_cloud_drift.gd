@@ -64,9 +64,9 @@ func test_shadows_use_the_same_drift_vector_as_the_clouds() -> void:
 	var noon: Vector3 = Vector3(0.0, 1.0, 0.0)
 	shadows.step(STEP_S, noon, 1.0, skybox.cloud_drift_speed_mps(), skybox.cloud_wind_dir())
 	var along: Vector3 = Vector3.ZERO
-	for decal: Decal in shadows.decals():
-		if decal.visible:
-			along = decal.global_transform.basis.x
+	for child: Node in shadows.get_children():
+		if child is Decal and (child as Decal).visible:
+			along = (child as Decal).global_transform.basis.x
 	assert_gt(along.length(), 0.5, "fixture: a shadow layer is shown")
 	var ground: Vector2 = Vector2(along.x, along.z).normalized()
 	assert_gt(ground.dot(wind), 0.999, "shadows sweep along the clouds' wind, not the config heading")

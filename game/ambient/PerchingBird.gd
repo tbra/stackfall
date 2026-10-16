@@ -140,10 +140,6 @@ func perch_height() -> float:
 	return PerchingBirdModel.STAND_HEIGHT * length_m
 
 
-func is_perched() -> bool:
-	return state == State.PERCHED
-
-
 ## The world point the bird is heading to / standing on (perch surface point).
 func target_surface() -> Vector3:
 	return perch_surface

@@ -42,25 +42,39 @@ func test_storm_drives_the_storm_sky_blend() -> void:
 	assert_eq(ceiling.storm_amount(), 0.0)
 
 
+## The live puff instance of a CloudSea layer (`upper` picks the overcast layer; `far` its impostor twin):
+## a child of the sea told apart by its per-instance shader flags (a rebuild renames nodes), skipping
+## instances a rebuild has queued for deletion.
+func _puffs(sea: CloudSea, upper: bool, far: bool = false) -> MultiMeshInstance3D:
+	for child: Node in sea.get_children():
+		if not child is MultiMeshInstance3D or child.is_queued_for_deletion():
+			continue
+		var node: MultiMeshInstance3D = child as MultiMeshInstance3D
+		if (node.get_instance_shader_parameter(&"floor_on") != null) == upper \
+				and (node.get_instance_shader_parameter(&"billboard") != null) == far:
+			return node
+	return null
+
+
 func test_upper_layer_is_the_sea_puff_field_and_always_present() -> void:
 	Settings.set_graphics_preset(&"high")
 	var skybox: Skybox = _wired_skybox()["skybox"] as Skybox
 	skybox.apply_theme(skybox.theme)
 	var sea: CloudSea = skybox.get_node("CloudSea") as CloudSea
-	var upper: MultiMeshInstance3D = sea.upper_instance()
+	var upper: MultiMeshInstance3D = _puffs(sea, true)
 	assert_not_null(upper)
 	assert_true(upper.visible, "clear weather: the upper layer is already there")
 	var clear_count: int = upper.multimesh.instance_count
-	assert_same(upper.material_override, sea.puff_instance().material_override, "same shader material")
-	assert_same(upper.multimesh.mesh.get_class(), sea.puff_instance().multimesh.mesh.get_class())
-	assert_eq(upper.layers, sea.puff_instance().layers)
+	assert_same(upper.material_override, _puffs(sea, false).material_override, "same shader material")
+	assert_same(upper.multimesh.mesh.get_class(), _puffs(sea, false).multimesh.mesh.get_class())
+	assert_eq(upper.layers, _puffs(sea, false).layers)
 	var ceiling: CloudCeiling = _presenter.get_node("CloudCeiling") as CloudCeiling
 	Events.weather_intensity_changed.emit(&"rain", 0.5)
 	_fade(ceiling, ceiling.tuning.fade_in_s + 1.0)
 	assert_true(upper.visible, "weather never changes presence")
 	assert_eq(upper.multimesh.instance_count, clear_count, "constant coverage")
 	assert_almost_eq(float(upper.get_instance_shader_parameter(&"floor_on")), 1.0, 0.001)
-	assert_null(sea.puff_instance().get_instance_shader_parameter(&"floor_on"), "sea puffs keep the shader default (0)")
+	assert_null(_puffs(sea, false).get_instance_shader_parameter(&"floor_on"), "sea puffs keep the shader default (0)")
 	# The layer sits above the play volume and the rain starts beneath it.
 	var tuning: WeatherCeilingTuning = ceiling.tuning
 	assert_gte(upper.custom_aabb.position.y, tuning.height_m - tuning.upper_clump_radius_max_m - 0.01)
@@ -69,7 +83,7 @@ func test_upper_layer_is_the_sea_puff_field_and_always_present() -> void:
 	_fade(ceiling, ceiling.tuning.fade_out_s + 1.0)
 	assert_true(upper.visible)
 	sea.configure(skybox.theme, 1.0, skybox.theme.sky_material)
-	assert_true(sea.upper_instance().visible, "a rebuild keeps the layer")
+	assert_true(_puffs(sea, true).visible, "a rebuild keeps the layer")
 
 
 func test_ceiling_clears_the_camera_and_rain_reaches_it() -> void:
@@ -126,9 +140,9 @@ func test_storm_end_restores_the_switched_theme_without_a_rebuild() -> void:
 	skybox.set_storm_sky(1.0, storm)
 	assert_true(skybox.set_theme_by_id("night"))
 	var chosen: SkyThemeDef = Skybox.load_theme("night")
-	var puffs: MultiMeshInstance3D = (skybox.get_node("CloudSea") as CloudSea).puff_instance()
+	var puffs: MultiMeshInstance3D = _puffs(skybox.get_node("CloudSea") as CloudSea, false)
 	skybox.set_storm_sky(0.0, storm)
-	assert_same((skybox.get_node("CloudSea") as CloudSea).puff_instance(), puffs, "no puff rebuild on restore")
+	assert_same(_puffs(skybox.get_node("CloudSea") as CloudSea, false), puffs, "no puff rebuild on restore")
 	assert_true(environment.fog_light_color.is_equal_approx(chosen.fog_color))
 	assert_almost_eq(environment.fog_density, chosen.fog_density, 0.0001)
 	assert_almost_eq(environment.fog_sky_affect, chosen.fog_sky_affect, 0.0001)

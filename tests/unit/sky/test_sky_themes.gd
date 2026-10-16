@@ -53,6 +53,17 @@ func _ambient_child_count(skybox: Skybox) -> int:
 	return total
 
 
+## Puffs of the sea layers: the hull instance plus its impostor twin, when present. The overcast layer
+## carries the per-instance floor_on flag and is left out (a rebuild renames nodes, so names are no guide).
+func _puff_count(sea: CloudSea) -> int:
+	var total: int = 0
+	for child: Node in sea.get_children():
+		if child is MultiMeshInstance3D and not child.is_queued_for_deletion() \
+				and (child as MultiMeshInstance3D).get_instance_shader_parameter(&"floor_on") == null:
+			total += (child as MultiMeshInstance3D).multimesh.instance_count
+	return total
+
+
 func test_live_theme_switch_is_stable_and_matches_the_theme() -> void:
 	var parts: Array = _make_skybox(load(SUNSET_PATH) as SkyThemeDef)
 	var skybox: Skybox = parts[0]
@@ -66,10 +77,10 @@ func test_live_theme_switch_is_stable_and_matches_the_theme() -> void:
 	assert_true(skybox.set_theme_by_id("night"))
 	await get_tree().process_frame
 	var baseline: int = _ambient_child_count(skybox)
-	var night_puffs: int = (skybox.get_node("CloudSea") as CloudSea).puff_count()
+	var night_puffs: int = _puff_count(skybox.get_node("CloudSea") as CloudSea)
 	assert_eq(night_puffs, (night.cloud_clump_count + night.cloud_bank_count) * night.cloud_puffs_per_clump
 		if Settings.current_graphics_preset() == null
-		else (skybox.get_node("CloudSea") as CloudSea).puff_count())
+		else _puff_count(skybox.get_node("CloudSea") as CloudSea))
 	for cycle: int in range(4):
 		assert_true(skybox.set_theme_by_id("sunset"))
 		assert_eq(light.light_color, sunset.light_color)
@@ -88,7 +99,7 @@ func test_live_theme_switch_is_stable_and_matches_the_theme() -> void:
 		assert_eq(fog.size, night.cloud_deck_size_m)
 		assert_eq((fog.material as FogMaterial).albedo, night.fog_color)
 		await get_tree().process_frame
-		assert_eq((skybox.get_node("CloudSea") as CloudSea).puff_count(), night_puffs, "same puff count each night switch")
+		assert_eq(_puff_count(skybox.get_node("CloudSea") as CloudSea), night_puffs, "same puff count each night switch")
 		assert_eq(_ambient_child_count(skybox), baseline, "no leaked or duplicated nodes")
 	assert_true(skybox.set_theme_by_id("sunset"))
 	assert_eq(environment.sky.sky_material, sunset.sky_material)

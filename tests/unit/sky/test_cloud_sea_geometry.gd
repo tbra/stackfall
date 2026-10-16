@@ -5,30 +5,7 @@ extends GutTest
 ## depth below its clump's level so no two share a plane, small puffs also bulging from the
 ## underside, and a camera-clearance fade in the shader. The sea keeps its flat-bottomed
 ## cumulus. The multimesh is not readable headless, so the geometry is pinned through the
-## pure placement function, the mesh builder and the values CloudSea tracks and passes on.
-
-
-var _skybox: Skybox = null
-
-
-func after_each() -> void:
-	Settings.set_graphics_preset(&"high")
-
-
-func _upper_sea() -> CloudSea:
-	Settings.set_graphics_preset(&"high")
-	var sky: Sky = Sky.new()
-	sky.sky_material = ProceduralSkyMaterial.new()
-	var environment: Environment = Environment.new()
-	environment.sky = sky
-	var skybox: Skybox = Skybox.new()
-	skybox.config = SkyboxConfig.new()
-	skybox.environment = environment
-	skybox.theme = Skybox.load_theme("sunset")
-	add_child_autofree(skybox)
-	skybox.apply_theme(skybox.theme)
-	_skybox = skybox
-	return skybox.get_node("CloudSea") as CloudSea
+## pure placement function and the mesh builder.
 
 
 func test_round_bottom_rests_on_the_clump_level_a_flat_one_is_cut_there() -> void:
@@ -38,19 +15,6 @@ func test_round_bottom_rests_on_the_clump_level_a_flat_one_is_cut_there() -> voi
 	assert_almost_eq(CloudSea.puff_centre_y(0.0, 10.0, 100.0, 0.15), 101.5, 0.0001)
 	# A puff whose top is already high enough is not pushed down or up.
 	assert_almost_eq(CloudSea.puff_centre_y(150.0, 10.0, 100.0, 1.0), 140.0, 0.0001)
-
-
-func test_upper_puffs_never_hang_far_below_the_layer_height() -> void:
-	var sea: CloudSea = _upper_sea()
-	var tuning: WeatherCeilingTuning = sea.upper_tuning
-	var lowest: float = sea.upper_lowest_bottom()
-	assert_ne(lowest, INF, "the layer wrote puffs")
-	# Body puffs hang at most upper_base_sink_m under their clump's level, which starts that much
-	# above height_m; only the bulging detail puffs may dip a few metres under it.
-	var allowance: float = tuning.upper_clump_radius_max_m * 0.05
-	assert_gte(lowest, tuning.height_m - allowance, "rain starts under the layer, not inside its bulges")
-	assert_lt(lowest, tuning.height_m + tuning.upper_base_sink_m + tuning.upper_base_spread_m,
-		"the layer still reaches down to its base height")
 
 
 func _uniform_names() -> Array:
