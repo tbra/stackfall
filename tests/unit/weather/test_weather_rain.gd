@@ -243,15 +243,23 @@ func _puddle_field() -> Array:
 
 func test_puddles_fill_in_rain_and_dry_after() -> void:
 	var puddles: RainPuddles = _puddle_field()[0]
-	assert_gt(puddles.patch_count(), 0)
+	assert_gt((puddles.get_node("Patches") as MultiMeshInstance3D).multimesh.instance_count, 0)
 	puddles.set_rain(1.0)
 	puddles.advance(_rain.puddle_fill_time_s * 0.5)
-	assert_almost_eq(puddles.wetness(), 0.5, 0.001)
+	assert_almost_eq(_wetness(puddles), 0.5, 0.001)
 	puddles.advance(_rain.puddle_fill_time_s)
-	assert_eq(puddles.wetness(), 1.0)
+	assert_eq(_wetness(puddles), 1.0)
 	puddles.set_rain(0.0)
 	puddles.advance(_rain.puddle_dry_time_s * 0.5)
-	assert_almost_eq(puddles.wetness(), 0.5, 0.001)
+	assert_almost_eq(_wetness(puddles), 0.5, 0.001)
 	puddles.advance(_rain.puddle_dry_time_s)
-	assert_eq(puddles.wetness(), 0.0)
+	assert_eq(_wetness(puddles), 0.0)
 
+
+## The wetness the puddle shader is fed (0 when no layer or no patches exist).
+func _wetness(puddles: RainPuddles) -> float:
+	var patches: MultiMeshInstance3D = puddles.get_node_or_null("Patches") as MultiMeshInstance3D if puddles != null else null
+	if patches == null:
+		return 0.0
+	var value: Variant = (patches.material_override as ShaderMaterial).get_shader_parameter(&"wetness")
+	return float(value) if value != null else 0.0

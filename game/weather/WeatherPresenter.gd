@@ -30,24 +30,9 @@ func _exit_tree() -> void:
 		Events.match_scope_reset.disconnect(clear_now)
 
 
-## Test seam: replace the registry the presenter resolves scenes from.
-func set_defs(defs: Array[WeatherTuning]) -> void:
-	_defs.clear()
-	for def: WeatherTuning in defs:
-		_defs[def.id] = def
-
-
 func presentation_for(weather_id: StringName) -> WeatherPresentation:
 	var node: Variant = _instances.get(weather_id)
 	return node as WeatherPresentation if is_instance_valid(node) else null
-
-
-func cloud_ceiling() -> CloudCeiling:
-	return _ceiling
-
-
-func active_count() -> int:
-	return _instances.size()
 
 
 func _on_started(weather_id: StringName) -> void:
@@ -89,8 +74,7 @@ func _on_intensity_changed(weather_id: StringName, intensity: float) -> void:
 		presentation.set_intensity(intensity)
 
 
-## docs/MATCH_RESET_AUDIT.md G2 and weather-fog parity; also run by
-## Events.match_scope_reset at every world build and teardown: back to a freshly
+## Also run by Events.match_scope_reset at every world build and teardown: back to a freshly
 ## launched presenter. The cloud ceiling snaps clear (no fade into the next match)
 ## and the shared weather-fog statics return to their launch defaults. Idempotent.
 ## DECISION: live presentations are left alone. MatchWeather.reset()

@@ -81,14 +81,6 @@ func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 		build(_map_def, _tuning, count_scale_for(preset, _tuning))
 
 
-func wetness() -> float:
-	return _wetness
-
-
-func patch_count() -> int:
-	return _instance.multimesh.instance_count if _instance != null else 0
-
-
 func set_rain(intensity: float) -> void:
 	_rain = clampf(intensity, 0.0, 1.0)
 	set_process(true)

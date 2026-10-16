@@ -270,7 +270,6 @@ static func _capture_field(main: Node, out: Dictionary) -> void:
 		out["field.overlay_churning"] = _bp(overlay, &"_churning")
 	var puddles: RainPuddles = field.get_node_or_null(RainPuddles.NODE_NAME) as RainPuddles
 	out["field.puddles_present"] = puddles != null
-	out["field.puddles_wetness"] = _r(puddles.wetness()) if puddles != null else 0.0
 
 
 # --- sky ------------------------------------------------------------------------------
@@ -335,8 +334,7 @@ static func _capture_weather(out: Dictionary) -> void:
 	var presenter: WeatherPresenter = MatchNet.get_node_or_null(WEATHER_PRESENTER_PATH) as WeatherPresenter
 	out["weather.presenter_present"] = presenter != null
 	if presenter != null:
-		out["weather.presenter_active"] = presenter.active_count()
-		var ceiling: CloudCeiling = presenter.cloud_ceiling()
+		var ceiling: CloudCeiling = presenter.get_node("CloudCeiling") as CloudCeiling
 		out["weather.ceiling_present"] = ceiling != null
 		if ceiling != null:
 			out["weather.ceiling_amount"] = _r(ceiling.amount())

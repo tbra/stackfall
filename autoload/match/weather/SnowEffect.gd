@@ -81,8 +81,6 @@ class BlockSnow:
 var _snow: SnowTuning = null
 var _seed: int = 0
 var _field: Field = null
-var _blocks_source: Callable = Callable()
-var _world_overridden: bool = false
 var _blocks: Dictionary = {}
 var _disc: Dictionary = {}
 var _disc_prepared: bool = false
@@ -107,10 +105,6 @@ var _query_box: BoxShape3D = BoxShape3D.new()
 var _builder: SnowCapBuilder = null
 var _restored: bool = false
 
-## Counters for tests and the bench.
-var queries_run: int = 0
-var states_published: int = 0
-
 
 func bind(match_context: MatchContext, weather_tuning: WeatherTuning) -> void:
 	super.bind(match_context, weather_tuning)
@@ -126,18 +120,6 @@ func bind(match_context: MatchContext, weather_tuning: WeatherTuning) -> void:
 		_seed = match_context.weather_seed()
 	if not Events.block_removed.is_connected(_on_block_removed):
 		Events.block_removed.connect(_on_block_removed)
-
-
-## Test seam: the field and a Callable returning Array[Block] replace Match's
-## field()/registry().all_blocks().
-func set_world(field: Field, blocks_source: Callable) -> void:
-	_field = field
-	_blocks_source = blocks_source
-	_world_overridden = true
-
-
-func set_seed(seed_value: int) -> void:
-	_seed = seed_value
 
 
 func tick(delta: float, current_intensity: float) -> void:
@@ -193,58 +175,6 @@ func restore() -> void:
 	_publish()
 
 
-# --- Queries (tests, bench, debug) ---------------------------------------------------
-
-func is_melting() -> bool:
-	return _melting
-
-
-## Seconds the current melt has run (0 when not melting).
-func melt_elapsed() -> float:
-	return _melt_t if _melting else 0.0
-
-
-func active_block_patches() -> int:
-	return _active_block_patches
-
-
-func tracked_block_count() -> int:
-	return _blocks.size()
-
-
-func cover_level() -> int:
-	return _cover
-
-
-func builder() -> SnowCapBuilder:
-	return _builder
-
-
-## Levels per exposed patch of `block` (empty when it is not tracked).
-func block_levels(block: Block) -> PackedInt32Array:
-	var entry: BlockSnow = _blocks.get(block.get_instance_id()) as BlockSnow
-	return entry.levels.duplicate() if entry != null else PackedInt32Array()
-
-
-func block_axis(block: Block) -> int:
-	var entry: BlockSnow = _blocks.get(block.get_instance_id()) as BlockSnow
-	return entry.axis if entry != null else -1
-
-
-## Disc cell index -> level for every chosen disc drift (level 0 = not yet).
-func disc_levels() -> Dictionary:
-	return _disc.duplicate()
-
-
-## Snow colliders on every tracked block plus the disc bodies.
-func collider_count() -> int:
-	var total: int = 0
-	for key: Variant in _blocks.keys():
-		var entry: BlockSnow = _blocks[key]
-		total += SnowCaps.lump_colliders(entry.block).size()
-	return total + SnowCaps.disc_collider_count(_field)
-
-
 func pending_work() -> int:
 	return (_queue.size() - _queue_head) / WORK_STRIDE
 
@@ -281,17 +211,13 @@ func state() -> Dictionary:
 # --- World ------------------------------------------------------------------------------
 
 func _resolve_world() -> void:
-	if _world_overridden or context == null:
+	if context == null:
 		return
 	if not is_instance_valid(_field):
 		_field = context.field() as Field
 
 
 func _live_blocks() -> Array[Block]:
-	if _blocks_source.is_valid():
-		var result: Array[Block] = []
-		result.assign(_blocks_source.call())
-		return result
 	if context != null and context.registry() != null:
 		return (context.registry() as BlockRegistry).all_blocks()
 	var none: Array[Block] = []
@@ -759,7 +685,6 @@ func _occupied(patch_world: Transform3D, edge: float, level: int, exclude: Array
 	if space == null:
 		return true
 	_prepare_query(patch_world, edge, SnowGeometry.dome_max_height(level, _snow), exclude, stretch)
-	queries_run += 1
 	return not space.intersect_shape(_query, COVER_QUERY_RESULTS).is_empty()
 
 
@@ -771,7 +696,6 @@ func _wake_above(patch_world: Transform3D, edge: float, level: int, exclude: Arr
 	if space == null:
 		return
 	_prepare_query(patch_world, edge, SnowGeometry.dome_max_height(level, _snow), exclude, stretch)
-	queries_run += 1
 	for hit: Dictionary in space.intersect_shape(_query, WAKE_QUERY_RESULTS):
 		var body: RigidBody3D = hit.get("collider") as RigidBody3D
 		if body == null:
@@ -786,5 +710,4 @@ func _wake_above(patch_world: Transform3D, edge: float, level: int, exclude: Arr
 
 
 func _publish() -> void:
-	states_published += 1
 	SnowRelay.instance().publish(state())

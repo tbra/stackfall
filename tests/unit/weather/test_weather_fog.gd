@@ -21,9 +21,8 @@ func _rig() -> Array:
 	return [skybox, environment]
 
 
-func _presentation(reduced: int = 0) -> FogPresentation:
+func _presentation() -> FogPresentation:
 	var presentation: FogPresentation = load("res://game/weather/fog_presentation.tscn").instantiate() as FogPresentation
-	presentation.configure(_fog, reduced)
 	add_child_autofree(presentation)
 	return presentation
 

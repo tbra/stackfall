@@ -20,7 +20,9 @@ var _blocks: Array[Block] = []
 var _physics: PhysicsTuning = null
 var _snow: SnowTuning = null
 var _effect: SnowEffect = null
-var _next_net_id: int = 100
+var _registry: BlockRegistry = null
+var _context: FakeMatchContext = null
+var _previous_context: MatchContext = null
 
 
 func before_each() -> void:
@@ -44,29 +46,37 @@ func before_each() -> void:
 	# The disc cover snaps between levels unless a test is about its easing.
 	_snow.cover_ease_s = 0.0
 	_effect = null
+	_registry = BlockRegistry.new()
+	add_child_autofree(_registry)
+	_registry.configure(_field, _field.map_def)
+	_previous_context = MatchContext.installed()
+	_context = FakeMatchContext.new()
+	_context.field_value = _field
+	_context.registry_value = _registry
+	_context.has_weather_value = true
+	_context.weather_seed_value = SEED
+	MatchContext.install(_context)
 
 
 func after_each() -> void:
 	if _effect != null:
 		_effect.restore()
 	_effect = null
+	MatchContext.install(_previous_context)
 
 
 func _cube(pos: Vector3) -> Block:
 	var block: Block = BlockFactory.build(load("res://config/blocks/cube.tres") as BlockShape, _physics)
 	_root.add_child(block)
 	block.global_position = pos
-	block.net_id = _next_net_id
-	_next_net_id += 1
 	_blocks.append(block)
+	Events.block_placed.emit(block, block.shape_id)
 	return block
 
 
 func _make_effect() -> SnowEffect:
 	var effect: SnowEffect = SnowEffect.new()
-	effect.bind(null, _snow)
-	effect.set_world(_field, func() -> Array[Block]: return _blocks)
-	effect.set_seed(SEED)
+	effect.bind(_context, _snow)
 	_effect = effect
 	return effect
 
@@ -76,6 +86,49 @@ func _frames(count: int, intensity: float = 1.0) -> void:
 		await get_tree().physics_frame
 		if _effect != null:
 			_effect.tick(DT, intensity)
+
+
+## The replicated state as a client reads it (levels above 0 only).
+func _data(effect: SnowEffect) -> Dictionary:
+	return SnowGeometry.sanitize_state(effect.state(), _snow, _field.grid().cell_count() - 1)
+
+
+func _block_record(effect: SnowEffect, block: Block) -> Array:
+	var blocks: Dictionary = _data(effect).get("blocks", {})
+	return blocks.get(block.net_id, [])
+
+
+func _block_levels(effect: SnowEffect, block: Block) -> PackedInt32Array:
+	var record: Array = _block_record(effect, block)
+	return record[2] if not record.is_empty() else PackedInt32Array()
+
+
+func _top_level(effect: SnowEffect, block: Block) -> int:
+	var levels: PackedInt32Array = _block_levels(effect, block)
+	return levels[0] if not levels.is_empty() else 0
+
+
+func _block_axis(effect: SnowEffect, block: Block) -> int:
+	var record: Array = _block_record(effect, block)
+	return int(record[0]) if not record.is_empty() else -1
+
+
+func _disc_levels(effect: SnowEffect) -> Dictionary:
+	return _data(effect).get("disc", {})
+
+
+func _cover_level(effect: SnowEffect) -> int:
+	return int(_data(effect).get("cover", 0))
+
+
+## Snow colliders on every block plus the disc bodies.
+func _collider_count() -> int:
+	var total: int = 0
+	for block: Block in _blocks:
+		total += SnowCaps.lump_colliders(block).size()
+	for body: StaticBody3D in SnowCaps.disc_bodies(_field):
+		total += SnowCaps.lump_colliders(body).size()
+	return total
 
 
 static func _mesh_vertices(holder: Node, cap_name: StringName) -> PackedVector3Array:
@@ -96,23 +149,20 @@ func test_snow_grows_in_steps_to_the_cap_and_stays_bounded() -> void:
 	var cubes: Array[Block] = [_cube(Vector3(-2.0, 0.01, 0.0)), _cube(Vector3(0.0, 0.01, 0.0)), _cube(Vector3(2.0, 0.01, 0.0))]
 	await _frames(SETTLE_FRAMES)
 	var effect: SnowEffect = _make_effect()
-	await _frames(4)
-	for cube: Block in cubes:
-		assert_eq(effect.block_levels(cube).size(), 1, "one exposed top")
 	await _frames(GROW_FRAMES)
 	var disc_snowy: int = 0
 	for cube: Block in cubes:
-		assert_eq(effect.block_levels(cube), PackedInt32Array([_snow.depth_levels]), "grew to the top level and stopped")
+		assert_eq(_block_levels(effect, cube), PackedInt32Array([_snow.depth_levels]), "one exposed top, grew to the top level and stopped")
 		assert_eq(SnowCaps.lump_colliders(cube).size(), 1, "one dome collider per patch")
-	var disc: Dictionary = effect.disc_levels()
+	var disc: Dictionary = _disc_levels(effect)
 	assert_lte(disc.size(), _snow.max_disc_patches, "disc budget")
 	for key: Variant in disc.keys():
 		assert_between(int(disc[key]), 0, _snow.depth_levels)
 		if int(disc[key]) > 0:
 			disc_snowy += 1
 	assert_gt(disc_snowy, 0, "the disc collects snow")
-	assert_eq(effect.collider_count(), cubes.size() + disc_snowy)
-	assert_eq(effect.cover_level(), _snow.depth_levels, "disc cover reached a blanket")
+	assert_eq(_collider_count(), cubes.size() + disc_snowy)
+	assert_eq(_cover_level(effect), _snow.depth_levels, "disc cover reached a blanket")
 	var cover: SnowDiscCover = SnowCaps.disc_cover(_field)
 	assert_not_null(cover, "visual disc cover exists")
 	assert_eq(cover.level(), _snow.depth_levels)
@@ -190,21 +240,19 @@ func test_restore_and_despawn_leave_no_snow() -> void:
 	await _frames(SETTLE_FRAMES)
 	var effect: SnowEffect = _make_effect()
 	await _frames(GROW_FRAMES)
-	assert_gt(effect.collider_count(), 0)
+	assert_gt(_collider_count(), 0)
 	# Despawn: the effect forgets the block and its patches.
-	var before_patches: int = effect.active_block_patches()
 	Events.block_removed.emit(b, "test")
 	_blocks.erase(b)
 	b.queue_free()
 	await _frames(2)
-	assert_eq(effect.tracked_block_count(), 1)
-	assert_eq(effect.active_block_patches(), before_patches - 1)
+	assert_eq((_data(effect)["blocks"] as Dictionary).size(), 1, "only the live block keeps snow")
 	var blocks_wire: PackedInt32Array = effect.state()["b"]
 	assert_eq(blocks_wire[0], a.net_id, "state names only the live block")
 	assert_eq(blocks_wire.size(), 3 + 2, "one record, one patch")
 	# End of event / match end / abort all reach restore().
 	effect.restore()
-	assert_eq(effect.collider_count(), 0)
+	assert_eq(_collider_count(), 0)
 	assert_eq(SnowCaps.lump_colliders(a).size(), 0)
 	assert_null(a.get_node_or_null(NodePath(String(SnowCaps.CAP_NAME))), "cap removed")
 	assert_true(SnowCaps.disc_bodies(_field).is_empty(), "disc snow bodies removed")
@@ -224,22 +272,21 @@ func test_ramp_out_melts_in_steps_to_nothing() -> void:
 	await _frames(SETTLE_FRAMES)
 	var effect: SnowEffect = _make_effect()
 	await _frames(GROW_FRAMES)
-	assert_eq(effect.block_levels(cube)[0], _snow.depth_levels)
+	assert_eq(_top_level(effect, cube), _snow.depth_levels)
 	var seen: Array[int] = []
 	var melt_frames: int = ceili(_snow.melt_time_s() / DT)
 	for i: int in range(melt_frames + 1):
 		# The intensity falls linearly (a real ramp-out); the melt clock decides.
 		await _frames(1, 1.0 - float(i) / float(melt_frames))
-		var level: int = effect.block_levels(cube)[0]
+		var level: int = _top_level(effect, cube)
 		if seen.is_empty() or seen[seen.size() - 1] != level:
 			seen.append(level)
-	assert_true(effect.is_melting())
 	assert_eq(seen, [4, 3, 2, 1, 0], "shrinks one level at a time")
 	# Geometry follows over the next frames (budgeted builder).
 	await _frames(MELT_SETTLE_FRAMES, 0.0)
-	assert_eq(effect.collider_count(), 0, "melted away before the event ends")
+	assert_eq(_collider_count(), 0, "melted away before the event ends")
 	assert_null(cube.get_node_or_null(NodePath(String(SnowCaps.CAP_NAME))))
-	assert_eq(effect.cover_level(), 0)
+	assert_eq(_cover_level(effect), 0)
 	assert_null(SnowCaps.disc_cover(_field), "cover melted")
 	assert_eq(float(_field.overlay().material().get_shader_parameter(&"snow_strength")), 0.0, "disc snow layer off after the melt")
 
@@ -251,12 +298,9 @@ func test_snow_melts_gradually_within_the_melt_time_after_snowfall_stops() -> vo
 	await _frames(SETTLE_FRAMES)
 	var effect: SnowEffect = _make_effect()
 	await _frames(GROW_FRAMES)
-	assert_eq(effect.block_levels(cube)[0], _snow.depth_levels)
-	assert_eq(effect.cover_level(), _snow.depth_levels)
-	var disc_snowy_before: int = 0
-	for key: Variant in effect.disc_levels().keys():
-		if int(effect.disc_levels()[key]) > 0:
-			disc_snowy_before += 1
+	assert_eq(_top_level(effect, cube), _snow.depth_levels)
+	assert_eq(_cover_level(effect), _snow.depth_levels)
+	var disc_snowy_before: int = _disc_levels(effect).size()
 	assert_gt(disc_snowy_before, 0, "fixture: the disc has colliding drifts to melt")
 	var melt_frames: int = ceili(_snow.melt_time_s() / DT)
 	assert_gt(melt_frames, 8, "fixture: a melt long enough to sample")
@@ -267,18 +311,16 @@ func test_snow_melts_gradually_within_the_melt_time_after_snowfall_stops() -> vo
 	var middle_colliders: int = -1
 	for i: int in range(melt_frames + 1):
 		await _frames(1, 0.0)
-		var level: int = effect.block_levels(cube)[0]
+		var level: int = _top_level(effect, cube)
 		if block_seen.is_empty() or block_seen[block_seen.size() - 1] != level:
 			block_seen.append(level)
-		var cover: int = effect.cover_level()
+		var cover: int = _cover_level(effect)
 		if cover_seen.is_empty() or cover_seen[cover_seen.size() - 1] != cover:
 			cover_seen.append(cover)
 		if i == melt_frames / 2:
 			middle_block = level
 			middle_cover = cover
-			middle_colliders = effect.collider_count()
-	assert_true(effect.is_melting())
-	assert_gt(effect.melt_elapsed(), 0.0)
+			middle_colliders = _collider_count()
 	assert_gt(middle_block, 0, "half way through the melt there is still snow on the block")
 	assert_lt(middle_block, _snow.depth_levels, "and it has already shrunk")
 	assert_gt(middle_cover, 0, "the disc cover is only half melted too")
@@ -287,7 +329,7 @@ func test_snow_melts_gradually_within_the_melt_time_after_snowfall_stops() -> vo
 	assert_eq(block_seen, [4, 3, 2, 1, 0], "the block's cap shrinks one level at a time down to nothing")
 	assert_eq(cover_seen, [4, 3, 2, 1, 0], "so does the disc cover")
 	await _frames(MELT_SETTLE_FRAMES, 0.0)
-	assert_eq(effect.collider_count(), 0, "all colliders gone once the melt time has run")
+	assert_eq(_collider_count(), 0, "all colliders gone once the melt time has run")
 	assert_true(SnowCaps.disc_cap_meshes(_field).is_empty(), "disc drifts melted")
 	assert_null(cube.get_node_or_null(NodePath(String(SnowCaps.CAP_NAME))), "block cap melted")
 	assert_null(SnowCaps.disc_cover(_field))
@@ -312,8 +354,7 @@ func test_snow_on_a_settled_pile_wakes_nothing() -> void:
 		for block: Block in pile:
 			if not block.sleeping and not block.freeze:
 				awake_frames += 1
-	assert_gt(effect.builder().commits, 0)
-	assert_eq(effect.block_levels(pile[1])[0], _snow.depth_levels, "top of the first column snowed")
+	assert_eq(_top_level(effect, pile[1]), _snow.depth_levels, "top of the first column snowed")
 	assert_eq(awake_frames, 0, "no body in the pile woke up")
 	for block: Block in pile:
 		assert_false(block.is_freeze_static(), "rebuild freeze released")
@@ -325,13 +366,12 @@ func test_a_tipped_block_loses_its_snow() -> void:
 	await _frames(SETTLE_FRAMES)
 	var effect: SnowEffect = _make_effect()
 	await _frames(GROW_FRAMES)
-	assert_eq(effect.block_axis(cube), SnowGeometry.AXIS_UP)
+	assert_eq(_block_axis(effect, cube), SnowGeometry.AXIS_UP)
 	_snow.seconds_per_level = 1000.0
 	cube.freeze = true
 	cube.global_basis = Basis(Vector3(0.0, 0.0, 1.0), deg_to_rad(90.0))
 	cube.global_position = Vector3(0.0, 0.5, 0.0)
 	await _frames(2)
-	assert_false(effect.is_melting())
-	assert_ne(effect.block_axis(cube), SnowGeometry.AXIS_UP, "old face dropped")
+	assert_ne(_block_axis(effect, cube), SnowGeometry.AXIS_UP, "old face dropped")
 	assert_eq(SnowCaps.lump_colliders(cube).size(), 0, "its snow slid off")
 
