@@ -116,7 +116,7 @@ func test_hot_seat_rebuilds_field_for_the_match_map() -> void:
 
 func test_networked_match_world_rebuilds_field_for_the_match_map() -> void:
 	assert_eq(Net.host_game(_take_port(), "Hostie"), OK)
-	assert_true(_main._net_is_hosting())
+	assert_true(_main._headless_bots_flow_port().call(&"_net_is_hosting"))
 
 	_main._start_headless_bot_match_with_args(PackedStringArray(["--bots=2"]))
 	await get_tree().process_frame

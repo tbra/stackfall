@@ -75,7 +75,7 @@ func _boot_main() -> Node:
 
 func test_works_in_the_sandbox_and_chord_does_not_toggle() -> void:
 	var main: Node = _boot_main()
-	main._start_sandbox_match_with_args(PackedStringArray(["sandbox", "players=2"]))
+	main._sandbox_flow_port().call(&"start_sandbox_match_with_args", PackedStringArray(["sandbox", "players=2"]))
 	var sandbox: Sandbox = main._sandbox
 	var hud: HUD = sandbox.hud()
 	var overlay: TerritoryOverlay = main._field.overlay()

@@ -176,7 +176,7 @@ func _bot_difficulties() -> Array[int]:
 
 func test_each_bot_controller_gets_its_own_seats_difficulty() -> void:
 	_make_main()
-	_main._spawn_bot_controllers(_resolved_config())
+	_main._match_flow_port().call(&"spawn_bot_controllers", _resolved_config())
 
 	assert_eq(_main._bot_controllers.size(), BOT_COUNT, "one controller per trailing bot slot")
 	assert_eq(

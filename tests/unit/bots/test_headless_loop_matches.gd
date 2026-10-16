@@ -57,7 +57,7 @@ func test_end_restarts_with_fresh_seed_and_clean_teardown() -> void:
 
 	Match._lifecycle._finish_match(0)
 	assert_true(_main._headless_loop_restart_pending, "END schedules a restart")
-	assert_true(_main._headless_match_summary_line().begins_with("HEADLESS_MATCH index=1 "))
+	assert_true((_main._headless_bots_flow_port().call(&"_headless_match_summary_line") as String).begins_with("HEADLESS_MATCH index=1 "))
 	await _settle()
 
 	assert_eq(_main._headless_loop_index, 2, "a second match started")
@@ -76,7 +76,7 @@ func test_end_restarts_with_fresh_seed_and_clean_teardown() -> void:
 			timers += 1
 	assert_eq(timers, 1, "exactly one report timer")
 	assert_eq(_main._headless_bots_placements, 0, "placements reset")
-	assert_lt(_main._headless_bots_elapsed_s(), 5.0, "elapsed reset")
+	assert_lt(_main._headless_bots_flow_port().call(&"_headless_bots_elapsed_s"), 5.0, "elapsed reset")
 	assert_eq(
 		Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT) as int, orphans_before,
 		"restart leaves no orphan nodes"

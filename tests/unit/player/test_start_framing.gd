@@ -87,8 +87,8 @@ func test_camera_starts_in_the_final_follow_view_for_each_disc_size() -> void:
 func test_first_gameplay_frame_has_ghost_hud_cards_and_rows() -> void:
 	var map: MapDef = MapDef.base().scaled(DISC_FACTORS[0]).duplicate(true)
 	await _start_match(map)
-	var hud: HUD = _main._hot_seat.hud()
-	var ghost: GhostPreview = _main._hot_seat.ghost()
+	var hud: HUD = (_main._hot_seat.get_node("HUDLayer") as HUD)
+	var ghost: GhostPreview = (_main._hot_seat.get_node("GhostPreview") as GhostPreview)
 	# Gate-open moment (COUNTDOWN): already populated.
 	assert_eq(Match.state(), Match.State.COUNTDOWN)
 	assert_not_null(Match.held_shape(HELD_SLOT), "first block issued when the countdown exists")
@@ -108,7 +108,7 @@ func test_first_gameplay_frame_has_ghost_hud_cards_and_rows() -> void:
 func test_client_mirror_populates_held_and_next_cards_during_the_countdown() -> void:
 	var map: MapDef = MapDef.base().scaled(DISC_FACTORS[0]).duplicate(true)
 	await _start_match(map)
-	var hud: HUD = _main._hot_seat.hud()
+	var hud: HUD = (_main._hot_seat.get_node("HUDLayer") as HUD)
 	hud.set_held_shape(null)
 	hud.set_next_shape(null)
 	var held: BlockShape = Match.held_shape(HELD_SLOT)

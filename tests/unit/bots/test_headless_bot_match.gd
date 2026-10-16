@@ -75,7 +75,7 @@ func _take_port() -> int:
 ## touches the network beyond binding a port.
 func _host() -> void:
 	assert_eq(Net.host_game(_take_port(), "Hostie"), OK)
-	assert_true(_main._net_is_hosting())
+	assert_true(_main._headless_bots_flow_port().call(&"_net_is_hosting"))
 
 
 func _bot_controller_count() -> int:

@@ -10,7 +10,6 @@ extends Node
 ## the lobby, and M3 replaces one-mouse hot-seat with one controller per peer.
 
 @onready var _controller: PlayerController = $PlayerController
-@onready var _ghost: GhostPreview = $GhostPreview
 @onready var _hud: HUD = $HUDLayer
 ## the in-game tuning panel (F4). Self-contained here (like
 ## _hud above) rather than instanced separately by game/main/Main.gd, so it exists
@@ -79,10 +78,3 @@ func bind_local_slot(slot_id: int) -> void:
 func controller() -> PlayerController:
 	return _controller
 
-
-func ghost() -> GhostPreview:
-	return _ghost
-
-
-func hud() -> HUD:
-	return _hud

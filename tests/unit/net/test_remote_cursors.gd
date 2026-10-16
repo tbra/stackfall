@@ -75,7 +75,7 @@ func _make_controller(session: FakeNet, fake_match: FakeMatch) -> PlayerControll
 	var controller: PlayerController = hot_seat.controller()
 	controller._match = fake_match
 	controller.set_session_provider(session)
-	hot_seat.ghost().set_shape(load("res://config/blocks/cube.tres"))
+	(hot_seat.get_node("GhostPreview") as GhostPreview).set_shape(load("res://config/blocks/cube.tres"))
 	return controller
 
 

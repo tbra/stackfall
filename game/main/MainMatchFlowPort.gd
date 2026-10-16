@@ -5,16 +5,7 @@ extends MainFlowPort
 ## closure, so this port adds nothing heavy to Main's compile closure.
 
 
-## Awaits internally; Main forwards without await.
-func build_match_world(_force_staging_for_test: bool = false) -> void:
-	pass
-
-
 func end_match_world() -> void:
-	pass
-
-
-func spawn_bot_controllers(_config: MatchConfig) -> void:
 	pass
 
 

@@ -12,8 +12,3 @@ var main: Node3D = null
 
 func bind(main_node: Node3D) -> void:
 	main = main_node
-
-
-## Drops state held for a torn-down world.
-func release() -> void:
-	pass

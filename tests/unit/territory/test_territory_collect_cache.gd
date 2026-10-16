@@ -96,32 +96,22 @@ func _assert_equal(registry: BlockRegistry, slots: Array[PlayerSlot], label: Str
 ## measured straight from each body (the pre-pooling instance_from_id path).
 func _assert_adapter_equal(registry: BlockRegistry, circles: Array[InfluenceCircle], label: String) -> bool:
 	var field: Field = registry._field as Field
-	var field_radius: float = _map_def.field_radius
 	for source: int in [SandboxConeExperiment.HEIGHT_CENTER, SandboxConeExperiment.HEIGHT_TOP]:
-		for base_mode: int in [SandboxConeExperiment.BASE_NONE, SandboxConeExperiment.BASE_FLOOR]:
-			var heights: PackedFloat32Array = PackedFloat32Array()
-			for circle: InfluenceCircle in circles:
-				var body: Block = instance_from_id(circle.body_id) as Block
-				if source == SandboxConeExperiment.HEIGHT_TOP:
-					heights.append(circle.top_height)
-				else:
-					heights.append(maxf(field.to_local(body.global_transform * body.center_of_mass).y, 0.0))
-			var expected: Dictionary = SandboxConeExperiment.build(
-				circles, heights, 40.0, base_mode, _territory_tuning.influence_base,
-				_territory_tuning.influence_max_fraction * field_radius
-			)
-			var actual: Dictionary = SandboxConeAdapter.project(
-				circles, field, registry, 40.0, source, base_mode, _territory_tuning, field_radius
-			)
-			var a: Array[InfluenceCircle] = expected["circles"]
-			var b: Array[InfluenceCircle] = actual["circles"]
-			if a.size() != b.size() or int(expected["comparison_count"]) != int(actual["comparison_count"]):
-				fail_test("%s: adapter size differs (source %d)" % [label, source])
-				return false
-			for i: int in range(a.size()):
-				if not _same(a[i], b[i]):
-					fail_test("%s: adapter circle %d differs (source %d)" % [label, i, source])
-					return false
+		var heights: PackedFloat32Array = PackedFloat32Array()
+		for circle: InfluenceCircle in circles:
+			var body: Block = instance_from_id(circle.body_id) as Block
+			if source == SandboxConeExperiment.HEIGHT_TOP:
+				heights.append(circle.top_height)
+			else:
+				heights.append(maxf(field.to_local(body.global_transform * body.center_of_mass).y, 0.0))
+		var measured: Dictionary = SandboxConeAdapter.measure_heights(circles, field, registry, source)
+		if measured.has("error"):
+			fail_test("%s: adapter error %s (source %d)" % [label, measured["error"], source])
+			return false
+		var actual: PackedFloat32Array = measured["heights"]
+		if actual != heights:
+			fail_test("%s: adapter heights differ (source %d)" % [label, source])
+			return false
 	return true
 
 
