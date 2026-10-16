@@ -292,7 +292,6 @@ func test_synthetic_ui_accept_presses_once_for_key_and_gamepad_a() -> void:
 	Input.parse_input_event(_accept_key())
 	Input.flush_buffered_events()
 	assert_eq(counter[0], 1, "the Enter key readies through the Input Map")
-	assert_true(screen.local_pressed())
 	Input.parse_input_event(_accept_pad())
 	Input.flush_buffered_events()
 	screen._input(_accept_pad())

@@ -76,10 +76,6 @@ func _refresh_layout() -> void:
 	_card.custom_minimum_size.x = minf(available.x, tuning.menu_max_width_px)
 
 
-func is_showing() -> bool:
-	return _root.visible
-
-
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed(&"show_scores", false, true):
 		# tools/bootstrap_project.gd: the pad half is R3, which also completes the

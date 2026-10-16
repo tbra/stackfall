@@ -1,6 +1,6 @@
 class_name LobbyOpenSeatRow
 extends PanelContainer
-## The Players column's open seat (Stackfall Arcade, docs/ui_reskin/components.md "PlayerSlot"): a dashed
+## The Players column's open seat (Stackfall Arcade "PlayerSlot"): a dashed
 ## outline holding a dimmed diamond in the next free colour, the words "Open seat" and the host's
 ## "+ Add bot" button. Look only: the button is the panel's own %AddBotButton (a UiBlockButton, so
 ## it is a row item as tall as the filled rows' controls), reparented here.

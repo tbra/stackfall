@@ -197,14 +197,6 @@ func set_stage(_stage: String, fraction: float) -> void:
 	# the rows show a Ready / Not ready pill, not stage progress.
 
 
-func progress() -> float:
-	return _progress
-
-
-func timed_out() -> bool:
-	return _timed_out
-
-
 ## DECISION: draw representative materials in a private viewport for one frame.
 ## The real field remains covered while its map-specific variants also render.
 func warm_common_materials() -> void:
@@ -265,11 +257,6 @@ func ready_gate_armed() -> bool:
 	return _ready_gate_armed
 
 
-## True once the host reports this instance's peer as ready.
-func local_ready() -> bool:
-	return Match._lifecycle.loading_ready_peers().has(Net.local_peer_id())
-
-
 ## Sends the ready intent (host-validated, idempotent). A no-op until loading has
 ## finished here, so nobody can ready before their own world is built. L2: only the
 ## first press is sent (a held A, Enter then a click, ... never re-sends the RPC);
@@ -281,11 +268,6 @@ func press_ready() -> bool:
 	Net.request_loading_ready()
 	_refresh_ready_ui()
 	return true
-
-
-## True once this overlay sent the local player's ready intent.
-func local_pressed() -> bool:
-	return _local_pressed
 
 
 ## ui_accept (Enter/Space/gamepad A through the Input Map) is the ready button.
@@ -637,20 +619,6 @@ static func release_later(resource: Resource) -> void:
 		await tree.process_frame
 
 
-## Test seams: the plate chosen for this match ("" = none), the plate the rect shows
-## ("" = none yet), and the texture it holds.
-func backdrop_path() -> String:
-	return _backdrop_path
-
-
-func backdrop_shown_path() -> String:
-	return _backdrop_shown_path
-
-
-func backdrop_texture() -> Texture2D:
-	return _backdrop.texture
-
-
 # --- L3: the overlay's own CanvasLayer ------------------------------
 
 ## The layer follows this node's visibility in the tree (a hidden parent, cancel(),
@@ -664,21 +632,6 @@ func _sync_layer_visibility() -> void:
 func _set_opacity(alpha: float) -> void:
 	modulate.a = alpha
 	_content.modulate.a = alpha
-
-
-## Test seam: the overlay's current opacity as drawn.
-func overlay_opacity() -> float:
-	return _content.modulate.a
-
-
-## Test seam: the CanvasLayer index the overlay draws on (the HUD is 1).
-func overlay_canvas_layer() -> int:
-	return _layer.layer
-
-
-## Test seam: whether the overlay's CanvasLayer is shown.
-func overlay_layer_visible() -> bool:
-	return _layer.visible
 
 
 # --- L2: ready prompt, status line, player ready list ------------
@@ -777,27 +730,6 @@ static func _set_ready_mark(mark: UiStatusBadge, slot_ready: bool) -> void:
 ## The pill's size (LoadingScreenTuning): the lobby's pill, a little smaller so eight rows fit.
 func _pill_size() -> Vector2:
 	return Vector2(float(tuning.loading_pill_width_px), float(tuning.loading_pill_height_px))
-
-
-## Test seam: the name shown on each player row, in order.
-func player_row_names() -> PackedStringArray:
-	var names: PackedStringArray = PackedStringArray()
-	for row: Dictionary in _ready_rows:
-		names.append((row["name"] as Label).text)
-	return names
-
-
-## Test seam: the prompt's text line ("Ready?").
-func ready_prompt_text() -> String:
-	return _prompt_text.text
-
-
-## Test seam: whether slot_id's row currently shows the ready tick.
-func player_row_ready(slot_id: int) -> bool:
-	for row: Dictionary in _ready_rows:
-		if int(row["slot_id"]) == slot_id:
-			return (row["mark"] as UiStatusBadge).variant == UiStatusBadge.Look.READY
-	return false
 
 
 ## Re-derives everything the ready gate shows from the host's state (the lifecycle

@@ -33,7 +33,7 @@ func _make_menu() -> OptionsMenu:
 
 
 func _row(menu: OptionsMenu, action: StringName) -> KeyRebindRow:
-	for row: KeyRebindRow in menu.rebind_rows():
+	for row: KeyRebindRow in menu._rows:
 		if row.action_name() == action:
 			return row
 	return null
@@ -83,7 +83,7 @@ func test_pad_focus_walks_every_row_to_reset_and_back_with_no_dead_end() -> void
 	(menu.get_node("%ControlsTabButton") as Button).button_pressed = true
 	await wait_frames(3)
 	var shown: Array[KeyRebindRow] = []
-	for row: KeyRebindRow in menu.rebind_rows():
+	for row: KeyRebindRow in menu._rows:
 		if row.is_available_on_active_device():
 			shown.append(row)
 	assert_gt(shown.size(), 0)

@@ -197,7 +197,7 @@ func _prims_audit() -> void:
 		var cls: String = node.get_class()
 		var script: Script = node.get_script() as Script
 		var global_name: String = script.get_global_name() if script != null else ""
-		if global_name in ["MainMenu", "MenuDiorama", "MenuBackdrop", "Lobby", "SplashScreen"]:
+		if global_name in ["MainMenu", "MenuBackdrop", "Lobby", "SplashScreen"]:
 			print("TREE_AUDIT menu_node=%s class=%s queued_for_deletion=%s" % [str(node.get_path()), global_name, node.is_queued_for_deletion()])
 	print("TREE_AUDIT root_disable_3d=%s max_fps=%d" % [get_tree().root.disable_3d, Engine.max_fps])
 	var rows: Array[Dictionary] = []

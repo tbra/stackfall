@@ -106,18 +106,18 @@ func test_action_has_tab_and_right_stick_defaults() -> void:
 
 
 func test_tab_shows_while_held_and_hides_on_release() -> void:
-	assert_false(_overlay.is_showing())
+	assert_false(_overlay._root.visible)
 	await _send(_key(true))
-	assert_true(_overlay.is_showing())
+	assert_true(_overlay._root.visible)
 	await _send(_key(false))
-	assert_false(_overlay.is_showing())
+	assert_false(_overlay._root.visible)
 
 
 func test_right_stick_click_shows_while_held_and_hides_on_release() -> void:
 	await _send(_pad(true))
-	assert_true(_overlay.is_showing())
+	assert_true(_overlay._root.visible)
 	await _send(_pad(false))
-	assert_false(_overlay.is_showing())
+	assert_false(_overlay._root.visible)
 
 
 func test_scoreboard_bot_row_shows_difficulty_human_row_does_not() -> void:
@@ -147,25 +147,25 @@ func test_table_shows_the_live_rows_with_alive_status() -> void:
 func test_hidden_when_not_live_paused_suppressed_or_focus_lost() -> void:
 	_match.current_state = MatchAutoload.State.END
 	await _send(_key(true))
-	assert_false(_overlay.is_showing(), "results screen owns the END state")
+	assert_false(_overlay._root.visible, "results screen owns the END state")
 	await _send(_key(false))
 
 	_match.current_state = MatchAutoload.State.PLAYING
 	_overlay.suppressed = true
 	await _send(_key(true))
-	assert_false(_overlay.is_showing(), "sandbox keeps Tab for sandbox_next_slot")
+	assert_false(_overlay._root.visible, "sandbox keeps Tab for sandbox_next_slot")
 	await _send(_key(false))
 	_overlay.suppressed = false
 
 	await _send(_key(true))
-	assert_true(_overlay.is_showing())
+	assert_true(_overlay._root.visible)
 	Events.pause_menu_opened.emit()
-	assert_false(_overlay.is_showing(), "pause hides it")
+	assert_false(_overlay._root.visible, "pause hides it")
 	await _send(_key(false))
 	Events.pause_menu_closed.emit()
 
 	await _send(_key(true))
-	assert_true(_overlay.is_showing())
+	assert_true(_overlay._root.visible)
 	_overlay.notification(MainLoop.NOTIFICATION_APPLICATION_FOCUS_OUT)
-	assert_false(_overlay.is_showing(), "focus loss hides it")
+	assert_false(_overlay._root.visible, "focus loss hides it")
 	await _send(_key(false))

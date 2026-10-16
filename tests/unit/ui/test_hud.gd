@@ -93,11 +93,20 @@ func test_set_capture_shows_the_ring_only_while_someone_is_capturing() -> void:
 	assert_false(hud._capture_ring.visible)
 
 
+## Texts of the toasts currently on screen, oldest first.
+func _toast_texts(hud: HUD) -> PackedStringArray:
+	var out: PackedStringArray = PackedStringArray()
+	for entry: Dictionary in hud._toasts._active:
+		out.append((entry["label"] as Label).text)
+	return out
+
+
 ## The on-screen toast whose text contains `needle` (case-insensitive), or null.
 func _toast(hud: HUD, needle: String) -> Label:
-	for text: String in hud._toasts.active_texts():
-		if text.findn(needle) >= 0:
-			return hud._toasts.label_for(text)
+	for entry: Dictionary in hud._toasts._active:
+		var label: Label = entry["label"] as Label
+		if label.text.findn(needle) >= 0:
+			return label
 	return null
 
 
@@ -107,11 +116,11 @@ func test_toasts_stack_in_arrival_order_and_extra_ones_queue() -> void:
 	hud.show_reject(&"a")
 	hud.show_reject(&"b")
 	hud.show_reject(&"c")
-	assert_eq(hud._toasts.active_texts(), PackedStringArray(["REJECTED: A", "REJECTED: B"]))
-	assert_eq(hud._toasts.queued_count(), 1)
+	assert_eq(_toast_texts(hud), PackedStringArray(["REJECTED: A", "REJECTED: B"]))
+	assert_eq(hud._toasts._queue.size(), 1)
 	hud.show_reject(&"a")
-	assert_eq(hud._toasts.active_texts().size(), 2, "the same text restarts the showing toast, no duplicate")
-	assert_eq(hud._toasts.queued_count(), 1)
+	assert_eq(_toast_texts(hud).size(), 2, "the same text restarts the showing toast, no duplicate")
+	assert_eq(hud._toasts._queue.size(), 1)
 
 
 func test_toasts_expire_in_order_and_promote_the_queue() -> void:
@@ -119,15 +128,15 @@ func test_toasts_expire_in_order_and_promote_the_queue() -> void:
 	hud._toasts.max_visible = 1
 	hud._toasts.push("FIRST", Color.RED, HudCallout.Glyph.CROSS, 0.05, 0.05)
 	hud._toasts.push("SECOND", Color.RED, HudCallout.Glyph.CROSS, 0.05, 0.05)
-	assert_eq(hud._toasts.active_texts(), PackedStringArray(["FIRST"]))
+	assert_eq(_toast_texts(hud), PackedStringArray(["FIRST"]))
 	await get_tree().create_timer(0.3).timeout
-	assert_eq(hud._toasts.active_texts().size(), 0, "both have expired by now")
-	assert_eq(hud._toasts.queued_count(), 0)
+	assert_eq(_toast_texts(hud).size(), 0, "both have expired by now")
+	assert_eq(hud._toasts._queue.size(), 0)
 	hud._toasts.push("THIRD", Color.RED, HudCallout.Glyph.CROSS, 0.2, 0.05)
 	hud._toasts.push("FOURTH", Color.RED, HudCallout.Glyph.CROSS, 0.2, 0.05)
-	assert_eq(hud._toasts.active_texts(), PackedStringArray(["THIRD"]), "the older toast shows first")
+	assert_eq(_toast_texts(hud), PackedStringArray(["THIRD"]), "the older toast shows first")
 	await get_tree().create_timer(0.4).timeout
-	assert_eq(hud._toasts.active_texts(), PackedStringArray(["FOURTH"]), "the queued toast starts after the first expires")
+	assert_eq(_toast_texts(hud), PackedStringArray(["FOURTH"]), "the queued toast starts after the first expires")
 
 
 func test_show_reject_sets_the_message() -> void:
@@ -143,7 +152,7 @@ func test_placement_relocated_event_shows_relocated_only_for_the_active_slot() -
 	Events.turn_changed.emit(0)
 	Events.placement_relocated.emit(1, Vector2(3.0, -2.0))
 	assert_eq(
-		hud._toasts.active_texts().size(), 0,
+		_toast_texts(hud).size(), 0,
 		"a relocation for a different slot shouldn't show on this hot-seat HUD."
 	)
 	Events.placement_relocated.emit(0, Vector2(3.0, -2.0))
@@ -294,7 +303,7 @@ func test_gift_claimed_for_the_local_slot_shows_the_toast_with_the_special_name(
 	(Match._gifts._pending_queues[0] as Array).append(&"jumping_bean")
 	Events.gift_claimed.emit(0, 0, &"jumping_bean")
 
-	assert_eq(hud._toasts.active_texts(), PackedStringArray(["SPECIAL QUEUED: JUMPING BEAN"]))
+	assert_eq(_toast_texts(hud), PackedStringArray(["SPECIAL QUEUED: JUMPING BEAN"]))
 	assert_almost_eq(_toast(hud, "SPECIAL QUEUED").modulate.a, 1.0, 0.0001)
 
 
@@ -322,11 +331,11 @@ func test_gift_claimed_toast_reaches_both_teammates_under_teams_2() -> void:
 	Events.gift_claimed.emit(0, 0, &"jumping_bean")
 
 	assert_eq(
-		hud_slot0._toasts.active_texts(), PackedStringArray(["SPECIAL QUEUED: JUMPING BEAN"]),
+		_toast_texts(hud_slot0), PackedStringArray(["SPECIAL QUEUED: JUMPING BEAN"]),
 		"team 0's claim must show on slot 0's own HUD"
 	)
 	assert_eq(
-		hud_slot2._toasts.active_texts(), PackedStringArray(["SPECIAL QUEUED: JUMPING BEAN"]),
+		_toast_texts(hud_slot2), PackedStringArray(["SPECIAL QUEUED: JUMPING BEAN"]),
 		"team 0's claim must also show on its teammate slot 2's HUD"
 	)
 
@@ -339,11 +348,11 @@ func test_gift_claimed_toast_skips_the_other_team_under_teams_2() -> void:
 	Events.gift_claimed.emit(0, 0, &"jumping_bean")
 
 	assert_eq(
-		hud_slot1._toasts.active_texts().size(), 0,
+		_toast_texts(hud_slot1).size(), 0,
 		"team 1's slot 1 HUD must not react to a team 0 claim"
 	)
 	assert_eq(
-		hud_slot3._toasts.active_texts().size(), 0,
+		_toast_texts(hud_slot3).size(), 0,
 		"team 1's slot 3 HUD must not react to a team 0 claim"
 	)
 

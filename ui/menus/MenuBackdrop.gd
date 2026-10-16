@@ -1,19 +1,13 @@
 class_name MenuBackdrop
 extends Control
 ## Main menu / lobby reskin:
-## the flat "paper-cut" half of the split background (docs/art_mockups/
-## 10-main-menu-layered-pastel.png, 11-lobby-layered-pastel.png) -- a banded
-## sky, a layered concentric sun, pill-shaped cloud strata and apricot/mint
-## ground bands, all drawn with _draw() so no image asset is needed (hard
-## constraint in the brief). Sits full-rect behind everything else; the live
-## 3D diorama (ui/MenuDiorama.gd) is reframed into the right third on top of
-## it as its own small framed island.
+## the flat "paper-cut" background: a banded sky, a layered concentric sun,
+## pill-shaped cloud strata and apricot/mint ground bands, all drawn with _draw()
+## so no image asset is needed. Sits full-rect behind everything else.
 ##
 ## Every color, count and layout fraction it draws from is a
 ## config/ui/MenuVisualTuning.gd export (CLAUDE.md "No magic numbers"); this
-## script holds no tunables of its own, only the drawing routine, matching
-## ui/MenuDiorama.gd's existing "build everything in _ready()/_draw(), no
-## companion .tscn children" convention.
+## script holds no tunables of its own, only the drawing routine.
 
 @export var tuning: MenuVisualTuning = preload("res://config/ui/menu_visual_tuning.tres")
 ## UI reskin P1: false keeps only the render-budget holding below and draws
@@ -132,10 +126,6 @@ static func _set_world_dormant(dormant: bool) -> void:
 		_dormant_saved.clear()
 
 
-static func budget_holders() -> int:
-	return _budget_holders
-
-
 ## Called by game/main/Main.gd whenever it decides the in-match cap (0 = uncapped). While a
 ## menu holds the budget the menu cap stays in force and the match cap takes effect on
 ## the last menu exit; otherwise it applies immediately.
@@ -145,10 +135,6 @@ static func set_match_cap(cap: int) -> void:
 		Engine.max_fps = _match_cap
 	else:
 		Engine.max_fps = _menu_effective_cap()
-
-
-static func clear_match_cap() -> void:
-	_match_cap = -1
 
 
 static func _menu_effective_cap() -> int:

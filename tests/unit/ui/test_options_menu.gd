@@ -196,7 +196,7 @@ func test_every_rebindable_action_has_a_keyboard_or_mouse_binding() -> void:
 ## built row set matches REBINDABLE_ACTIONS, not their relative order.
 func test_options_menu_builds_one_row_per_rebindable_action() -> void:
 	var menu: OptionsMenu = _make_menu()
-	var rows: Array[KeyRebindRow] = menu.rebind_rows()
+	var rows: Array[KeyRebindRow] = menu._rows
 	assert_eq(rows.size(), OptionsMenu.REBINDABLE_ACTIONS.size())
 	var built_actions: Array[StringName] = []
 	for row: KeyRebindRow in rows:
@@ -238,7 +238,7 @@ func test_pressing_the_controls_tab_shows_the_controls_page_and_hides_settings()
 
 func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	var menu: OptionsMenu = _make_menu()
-	var rows: Array[KeyRebindRow] = menu.rebind_rows()
+	var rows: Array[KeyRebindRow] = menu._rows
 	assert_gt(rows.size(), 0, "expected at least one rebind row")
 
 	var window_mode_option: Control = menu.get_node("%WindowModeOption") as Control

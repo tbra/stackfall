@@ -32,34 +32,6 @@ func push(text: String, face: Color, glyph: HudCallout.Glyph, hold_s: float, fad
 	_promote()
 
 
-## Texts of the toasts currently on screen, oldest first.
-func active_texts() -> PackedStringArray:
-	var out: PackedStringArray = PackedStringArray()
-	for entry: Dictionary in _active:
-		out.append((entry["label"] as Label).text)
-	return out
-
-
-func queued_count() -> int:
-	return _queue.size()
-
-
-## The Label of the on-screen toast showing `text`, or null.
-func label_for(text: String) -> Label:
-	for entry: Dictionary in _active:
-		if (entry["label"] as Label).text == text:
-			return entry["label"] as Label
-	return null
-
-
-func clear() -> void:
-	for entry: Dictionary in _active:
-		_kill(entry)
-		(entry["label"] as Label).queue_free()
-	_active.clear()
-	_queue.clear()
-
-
 func _promote() -> void:
 	while _active.size() < max_visible and not _queue.is_empty():
 		var next: Dictionary = _queue.pop_front() as Dictionary

@@ -4,9 +4,8 @@ extends Control
 ## of these per bound event of the active device family (autoload/Settings.gd's
 ## own active_input_device()); set_event() is the single seam every consumer uses.
 ##
-## Every glyph is code-drawn in the Stackfall Arcade design system (docs/ui_reskin/components.md
-## KeyPrompt), so it shares the block recipe (lit top, lip, ledge) and the tokens
-## of ArcadeVisualTuning and recolours with them: keys are cream caps with an ink legend, shoulders,
+## Every glyph is code-drawn in the Stackfall Arcade design system (KeyPrompt), so it
+## shares the block recipe (lit top, lip, ledge) and the tokens of ArcadeVisualTuning and recolours with them: keys are cream caps with an ink legend, shoulders,
 ## triggers sand chips, pad face buttons round caps (A mint, B flare, X player-2, Y rim;
 ## the PlayStation set draws cross/circle/square/triangle on the same caps), the stick is a sand
 ## round cap with an L/R legend (a rim arrow when it is a direction, L3/R3 for the click), and the
@@ -287,16 +286,6 @@ func label_text() -> String:
 	return _text
 
 
-## Test seam: true when this glyph paints a Stackfall Arcade cap (keys, face buttons, chips).
-func is_arcade_cap() -> bool:
-	return _arcade_cap
-
-
-## Test seam: the face colour of the arcade cap this glyph paints.
-func arcade_face_color() -> Color:
-	return _arcade_cap_face()
-
-
 func _configure_key(key_event: InputEventKey) -> void:
 	_kind = Kind.KEY
 	var code: Key = key_event.keycode if key_event.keycode != KEY_NONE else key_event.physical_keycode
@@ -376,11 +365,6 @@ func _pad_axis_label(axis: int) -> String:
 	if _pad_style == PadStyle.PLAYSTATION and PLAYSTATION_AXIS_LABELS.has(axis):
 		return PLAYSTATION_AXIS_LABELS[axis]
 	return JOYPAD_AXIS_LABELS.get(axis, "Axis%d" % axis)
-
-
-## Test seam: the pad family this glyph resolved for its current event.
-func resolved_pad_style() -> PadStyle:
-	return _pad_style
 
 
 static func _axis_direction(axis: int, value: float) -> StringName:
@@ -500,7 +484,7 @@ func _draw_text_at(text: String, color: Color, font_size: int, center: Vector2) 
 	draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size, color)
 
 
-## Mouse pictogram (docs/ui_reskin/components.md KeyPrompt): a cream mouse body (rounded top and
+## Mouse pictogram (KeyPrompt): a cream mouse body (rounded top and
 ## bottom, ink outline, disc-950 ledge like the caps), the button row split down the middle with a
 ## wheel pill in the split; the bound button fills rim gold, wheel directions light the pill and
 ## show an ink arrow below, the side buttons show a rim mark on the left edge and their number.

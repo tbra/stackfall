@@ -83,7 +83,7 @@ func _inside(scroll: ScrollContainer, control: Control) -> bool:
 
 func _available_rows(menu: OptionsMenu) -> Array[KeyRebindRow]:
 	var rows: Array[KeyRebindRow] = []
-	for row: KeyRebindRow in menu.rebind_rows():
+	for row: KeyRebindRow in menu._rows:
 		if row.is_available_on_active_device():
 			rows.append(row)
 	return rows
