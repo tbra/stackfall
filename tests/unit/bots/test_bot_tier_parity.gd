@@ -61,7 +61,7 @@ func test_easy_tower_intent_generates_targeted_stack_sites() -> void:
 	var view: BotWorldView = helper._view(helper._pillar, true)
 	var intent: BotIntent = helper._intent(BotIntent.Kind.ANCHOR)
 	var rng: RandomNumberGenerator = helper._rng()
-	var sites: Array[BotCandidate] = _site_list(view, intent, profile, rng, helper._tuning)
+	var sites: Array[BotCandidate] = BotSiteList.build(view, intent, profile, rng, helper._tuning)
 	var stack_sites: int = 0
 	for c: BotCandidate in sites:
 		if c.site_kind == BotCandidateGen.SITE_STACK:
@@ -81,14 +81,3 @@ func test_think_deadline_is_the_same_for_every_tier() -> void:
 		ticks.append(controller.think_deadline_ticks())
 	assert_eq(ticks[0], ticks[2], "Easy deadline == Hard")
 	assert_eq(ticks[1], ticks[2], "Normal deadline == Hard")
-
-
-## The sites `BotCandidateGen.begin` builds once its fill has run to the end.
-func _site_list(
-	view: BotWorldView, intent: BotIntent, profile: BotDifficultyProfile,
-	rng: RandomNumberGenerator, tuning: BotGenTuning = null
-) -> Array[BotCandidate]:
-	var job: BotCandidateGen.SiteJob = BotCandidateGen.begin(view, intent, profile, rng, tuning)
-	while not job.fill_step(job.attempts_left()):
-		pass
-	return job.out

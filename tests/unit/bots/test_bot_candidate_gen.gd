@@ -94,7 +94,7 @@ func _rng() -> RandomNumberGenerator:
 func _sites(view: BotWorldView, intent: BotIntent, count: int = CANDIDATE_COUNT) -> Array[BotCandidate]:
 	var profile: BotDifficultyProfile = BotDifficultyProfile.new()
 	profile.candidate_count = count
-	return _site_list(view, intent, profile, _rng(), _tuning)
+	return BotSiteList.build(view, intent, profile, _rng(), _tuning)
 
 
 func test_tip_sites_sit_at_the_snake_edge_nearest_the_target() -> void:
@@ -171,14 +171,3 @@ func test_no_site_outside_own_territory() -> void:
 	for c: BotCandidate in _sites(view, _intent(BotIntent.Kind.RACE)):
 		assert_true(c.origin.x < HOME_B.x - _territory_tuning.home_radius, "stays on own side of the enemy home")
 	_assert_all_placeable(view, _sites(view, _intent(BotIntent.Kind.RACE)))
-
-
-## The sites `BotCandidateGen.begin` builds once its fill has run to the end.
-func _site_list(
-	view: BotWorldView, intent: BotIntent, profile: BotDifficultyProfile,
-	rng: RandomNumberGenerator, tuning: BotGenTuning = null
-) -> Array[BotCandidate]:
-	var job: BotCandidateGen.SiteJob = BotCandidateGen.begin(view, intent, profile, rng, tuning)
-	while not job.fill_step(job.attempts_left()):
-		pass
-	return job.out
