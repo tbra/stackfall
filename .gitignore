@@ -90,3 +90,4 @@ build_info.cfg
 # Machine-specific agent notes and the Beads export stay local (public repo)
 /CLAUDE.local.md
 /.beads/issues.jsonl
+/.beads/archive/
