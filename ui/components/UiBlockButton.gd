@@ -1,6 +1,6 @@
 class_name UiBlockButton
 extends Button
-## The design system's BlockButton (docs/ui_reskin/components.md): a coloured face, a lit top, a
+## The design system's BlockButton: a coloured face, a lit top, a
 ## dark lip and a solid ledge, drawn by ui/theme/BlockStyleBox.gd from ArcadeVisualTuning. Screens
 ## pick a semantic [enum Look] and `small`; they never pass colours. A small button is a
 ## UiRowItem (BUTTON_SM): its face, lip and ledge fit inside ComponentMetrics.row_height_px so it
@@ -120,7 +120,7 @@ static func _build_look(variant_value: Look, small_block: bool, icon_only: bool,
 
 
 ## A pressed block's face is its lip colour (BlockStyleBox), and a disc face's lip is nearly the
-## panel colour, so a pressed SECONDARY / ICON block vanished into the plate (C1a gallery note).
+## panel colour, so a pressed SECONDARY / ICON block vanished into the plate.
 ## Neutral faces stay their own colour when pressed (the block still drops onto its ledge and the
 ## top / lip go shallow), so the pressed button is visibly there.
 static func _show_pressed_face(button: Button, face: Color, small_block: bool, arcade: ArcadeVisualTuning) -> void:

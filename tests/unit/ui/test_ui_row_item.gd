@@ -26,7 +26,10 @@ func _row_with_all_items() -> UiRow:
 func test_every_item_of_a_row_has_the_same_height() -> void:
 	var row: UiRow = _row_with_all_items()
 	await wait_frames(2)
-	var items: Array[Control] = row.items()
+	var items: Array[Control] = []
+	for child: Node in row.get_children():
+		if child is Control and child.is_in_group(UiRowItem.GROUP):
+			items.append(child as Control)
 	assert_eq(items.size(), 3)
 	for item: Control in items:
 		assert_eq(item.size.y, float(_metrics.row_height_px), "%s is one row height tall" % item.get_class())

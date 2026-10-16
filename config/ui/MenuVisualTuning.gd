@@ -5,9 +5,7 @@ extends Resource
 ## backdrop (ui/menus/MenuBackdrop.gd)
 ## and the pastel pill/well Theme styles (ui/theme/MenuStyleFactory.gd) -- so no
 ## menu-facing color or size is a magic number in script (CLAUDE.md "No magic
-## numbers"). Redone against docs/art_mockups/10-main-menu-layered-pastel.png
-## and 11-lobby-layered-pastel.png after the owner rejected the first pass
-## ("absolutely not, it looks awful and nothing like the mockup").
+## numbers").
 
 ## -- Menu render budget: while a menu/lobby backdrop is in
 ## the tree the full-screen opaque backdrop hides the match world, so the root

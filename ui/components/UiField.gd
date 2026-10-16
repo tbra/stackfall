@@ -1,6 +1,6 @@
 class_name UiField
 extends VBoxContainer
-## The design system's Field (docs/ui_reskin/components.md "Field"): a sunken disc-900 text input
+## The design system's Field: a sunken disc-900 text input
 ## with a 2px disc-400 edge (cream when focused), cream text, dust placeholder, and an optional
 ## caption above it in the label style. For the player name, direct IP and lobby code. A UiRowItem
 ## (METER-style fill: it expands to its column, one row height for the input).

@@ -95,7 +95,7 @@ func test_missed_release_stops_the_repeat() -> void:
 	var frozen: int = _meter.value
 	_hold(HOLD_SECONDS)
 	assert_eq(_meter.value, frozen, "no steps once the button is physically up")
-	assert_false(_meter.is_holding())
+	assert_false(_meter.is_processing())
 	_meter._gui_input(_stick(PUSH))
 	_meter.axis_reader = func(_d: int, _a: int) -> float: return 0.0
 	frozen = _meter.value
