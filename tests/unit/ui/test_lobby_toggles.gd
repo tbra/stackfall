@@ -133,12 +133,16 @@ func test_experiments_off_hides_advanced_and_focus_skips_it_keyboard_and_pad() -
 	assert_true(_stops(lobby).has(section.advanced_button))
 
 
+func _any_toggle_on(qol: QolExperiments) -> bool:
+	return qol.timer_pause_enabled or qol.backlog_enabled or qol.goal_radius_enabled or qol.gift_slot_enabled
+
+
 func test_experiments_off_keeps_the_chip_selection_and_starts_with_none_active() -> void:
 	var lobby: Lobby = _make_lobby()
 	await wait_frames(1)
 	(lobby.get_node("%QolBacklogCheck") as UiChipToggle).button_pressed = true
 	(lobby.get_node("%QolGoalRadiusCheck") as UiChipToggle).button_pressed = true
-	assert_true(lobby._config_from_controls().qol.any_enabled(), "on: the chips apply")
+	assert_true(_any_toggle_on(lobby._config_from_controls().qol), "on: the chips apply")
 	(lobby.get_node("%ExperimentsCheck") as UiToggle).button_pressed = false
 	var off_config: MatchConfig = lobby._config_from_controls()
 	assert_false(off_config.experiments_enabled)
@@ -146,10 +150,9 @@ func test_experiments_off_keeps_the_chip_selection_and_starts_with_none_active()
 	# The round trip a real start takes: dict -> from_dict -> sanitize (MatchLifecycle.start_match).
 	var started: MatchConfig = MatchConfig.from_dict(off_config.to_dict())
 	started.sanitize()
-	assert_true(started.qol.any_enabled(), "a published, sanitized config still carries the chips")
+	assert_true(_any_toggle_on(started.qol), "a published, sanitized config still carries the chips")
 	started.apply_experiments_switch()
-	assert_false(started.qol.any_enabled(), "off: no experiment active in the started match")
-	assert_eq(started.qol.active_ids().size(), 0)
+	assert_false(_any_toggle_on(started.qol), "off: no experiment active in the started match")
 	(lobby.get_node("%ExperimentsCheck") as UiToggle).button_pressed = true
 	var again: MatchConfig = MatchConfig.from_dict(lobby._config_from_controls().to_dict())
 	again.sanitize()

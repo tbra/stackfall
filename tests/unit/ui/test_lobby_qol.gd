@@ -86,7 +86,6 @@ func test_each_toggle_publishes_exactly_its_own_flag() -> void:
 		var flags: Array = _qol_flags(published.qol)
 		for j: int in range(flags.size()):
 			assert_eq(flags[j], i == j)
-		assert_eq(published.qol.active_ids().size(), 1)
 
 
 func test_wire_garbage_in_qol_is_ignored_safely() -> void:

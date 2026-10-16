@@ -54,8 +54,6 @@ func test_qol_round_trips_through_match_config_dict() -> void:
 	assert_false(back.qol.timer_pause_enabled)
 
 
-# --- Q0 interface stub: pause_max_s, any_enabled, active_ids, with_toggles --------
-
 # --- 1: timer pause -----------------------------------------------------------
 
 func test_timer_freezes_during_topple_when_on_and_runs_when_off() -> void:

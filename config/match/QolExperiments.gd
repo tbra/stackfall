@@ -59,19 +59,11 @@ extends Resource
 @export var gift_slot_min_window_s: float = 2.0
 
 ## -- Rule trial: a claimed gift joins the queue one block later --
-## Approved trial (playtest), ON by default and NOT counted by
-## any_enabled()/active_ids() (it is a rule variant, not an opt-in experiment): a claimed gift becomes
+## Approved trial (playtest), ON by default (a rule variant, not an opt-in experiment): a claimed gift becomes
 ## the block AFTER next and the ordinary next piece stays, so a late claim leaves
 ## more time to plan. Off restores the rule (the gift replaces the next piece).
 ## DECISION: unsupported next to the backlog or gift-slot experiments, which keep the old rule.
 @export var gift_queue_after_next: bool = true
-
-## Stable ids of the four opt-in toggles (HUD line, lobby chip, logs), reported by
-## active_ids() in this declaration order.
-const ID_TIMER_PAUSE: StringName = &"timer_pause"
-const ID_BACKLOG: StringName = &"backlog"
-const ID_GOAL_RADIUS: StringName = &"goal_radius"
-const ID_GIFT_SLOT: StringName = &"gift_slot"
 
 const PAUSE_MAX_DEFAULT_S: float = 10.0
 const PAUSE_MAX_MIN_S: float = 1.0
@@ -80,25 +72,6 @@ const BACKLOG_MAX_CEILING: int = 3
 const GIFT_SLOT_CAPACITY_CEILING: int = 3
 const GIFT_MIN_WINDOW_MAX_S: float = 10.0
 const GOAL_RADIUS_MULTIPLIER_MAX: float = 4.0
-
-
-## True when at least one of the four opt-in toggles is on.
-func any_enabled() -> bool:
-	return timer_pause_enabled or backlog_enabled or goal_radius_enabled or gift_slot_enabled
-
-
-## Ids (ID_* constants) of the enabled toggles in fixed order (timer_pause, backlog, goal_radius, gift_slot); empty when none is on.
-func active_ids() -> PackedStringArray:
-	var ids: PackedStringArray = PackedStringArray()
-	if timer_pause_enabled:
-		ids.append(String(ID_TIMER_PAUSE))
-	if backlog_enabled:
-		ids.append(String(ID_BACKLOG))
-	if goal_radius_enabled:
-		ids.append(String(ID_GOAL_RADIUS))
-	if gift_slot_enabled:
-		ids.append(String(ID_GIFT_SLOT))
-	return ids
 
 
 ## A copy of `base` (all numeric parameters kept) with the four enable flags set

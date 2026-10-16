@@ -322,21 +322,6 @@
    "autoload/match/weather/WeatherAmbience.gd:set_defs",
    "config/blocks/BlockShape.gd:cube_offsets",
    "config/blocks/tuning/GhostTuning.gd:home_spawn_back_position",
-   "config/match/MapDef.gd:home_flag_position",
-   "config/match/MapDef.gd:home_flag_ring_radius",
-   "config/match/MatchConfig.gd:apply_experiments_switch",
-   "config/match/MatchConfig.gd:effective_countdown_seconds",
-   "config/match/MatchConfig.gd:effective_sky_theme",
-   "config/match/MatchConfig.gd:effective_sky_variation_seed",
-   "config/match/MatchConfig.gd:field_radius",
-   "config/match/MatchConfig.gd:is_sky_cycle_running",
-   "config/match/MatchConfig.gd:locked_sky_id",
-   "config/match/MatchConfig.gd:resolve_sky_start_phase",
-   "config/match/MatchConfig.gd:resolve_sky_theme",
-   "config/match/MatchConfig.gd:resolve_sky_variation_seed",
-   "config/match/QolExperiments.gd:active_ids",
-   "config/match/QolExperiments.gd:any_enabled",
-   "config/match/QolExperiments.gd:effective_gift_min_window_s",
    "config/ui/HudFeedbackIconTable.gd:shared",
    "config/weather/SnowTuning.gd:melt_cap_after",
    "config/weather/SnowTuning.gd:melt_time_s",
@@ -1056,8 +1041,6 @@
    "config/graphics/GraphicsPreset.gd: core/QualityGovernor.gd",
    "config/graphics/GraphicsPreset.gd: docs/M7_ART_DIRECTION.md",
    "config/graphics/QualityGovernorConfig.gd: core/QualityGovernor.gd",
-   "config/match/DebugConfig.gd: ui/BotCostOverlay.gd",
-   "config/match/MatchConfig.gd: docs/ORIGINAL_INSTALL_EVIDENCE.md",
    "config/physics/TiltTuning.gd: tests/bench/bench_physical_balance.gd",
    "config/player/InputGlyphTable.gd: docs/ui_reskin/components.md",
    "config/sky/SkyThemeDef.gd: docs/art_mockups/",
@@ -1203,17 +1186,6 @@
    "autoload/match/MatchTerritory.gd: var legacy: bool = _match.config.hole_mode != MatchConfig.HoleMode.OFF",
    "config/audio/AudioConfig.gd: ## Legacy single-stream fallback (custom-folder overrides are disabled).",
    "config/audio/AudioConfig.gd: ## Path form of the legacy theme (loaded on use, not resident at boot); played when",
-   "config/match/MatchConfig.gd: # Lobby rework arrays ride only when set, so a legacy config's dict is unchanged.",
-   "config/match/MatchConfig.gd: ## Legacy and FFA (OFF or unresolved) return player_colors untouched: there team id",
-   "config/match/MatchConfig.gd: ## OPTIONAL and empty by default, which is exactly the legacy behaviour (teams",
-   "config/match/MatchConfig.gd: ## absolute multiplier; from_dict() divides it by this legacy baseline.",
-   "config/match/MatchConfig.gd: ## bad wire value degrades to the legacy interleave instead of crashing a match.",
-   "config/match/MatchConfig.gd: ## team had in the lobby when resolved, else team_id + 1 (the legacy label).",
-   "config/match/MatchConfig.gd: ## team_numbers (teams on and both arrays present). False means \"legacy",
-   "config/match/MatchConfig.gd: ## than PLAYER_COUNT_MAX gives an empty array, i.e. the legacy behaviour; this",
-   "config/match/MatchConfig.gd: ## within 1..team_pick_cap()); otherwise both are cleared and the legacy interleave",
-   "config/match/MatchConfig.gd: config.gravity_multiplier /= LEGACY_GRAVITY_BASELINE",
-   "config/match/MatchConfig.gd: const LEGACY_GRAVITY_BASELINE: float = 1.4",
    "config/player/CameraTuning.gd: ## from snap_distance/snap_pitch_deg (the legacy free-camera's own instant",
    "config/territory/TerritoryTuning.gd: ## under every MatchConfig.HoleMode -- TerritoryRaster._fill_legacy() (the",
    "core/ai/BotEvaluator.gd: ## Legacy fill: a gain is an unowned, uncontested, non-hole in-disk cell. HoleMode.OFF",
@@ -1255,5 +1227,46 @@
    "ui/menus/ResultsScreen.gd: ## the number the team had in the lobby; empty or short (legacy configs, FFA, an"
   ]
  },
- "allow": []
+ "allow": [
+  {
+   "id": "test-only-func",
+   "entry": "config/match/MapDef.gd:home_flag_position",
+   "reason": "called through typed map_def in Field and PlayerSlot, but dep_graph resolves the shared name home_flag_position ambiguously"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "config/match/MapDef.gd:home_flag_ring_radius",
+   "reason": "called inside MapDef.home_flag_position; reachable only via that ambiguous edge"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "config/match/MatchConfig.gd:apply_experiments_switch",
+   "reason": "MatchLifecycle.start_match calls it on the typed _match.config; dep_graph cannot resolve the chained receiver"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "config/match/MatchConfig.gd:effective_countdown_seconds",
+   "reason": "MatchLifecycle calls it on the typed _match.config; dep_graph cannot resolve the chained receiver"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "config/match/MatchConfig.gd:resolve_sky_start_phase",
+   "reason": "MatchLifecycle.start_match calls it on the typed _match.config; dep_graph cannot resolve the chained receiver"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "config/match/MatchConfig.gd:resolve_sky_theme",
+   "reason": "MatchLifecycle.start_match calls it on the typed _match.config; dep_graph cannot resolve the chained receiver"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "config/match/MatchConfig.gd:resolve_sky_variation_seed",
+   "reason": "MatchLifecycle.start_match calls it on the typed _match.config; dep_graph cannot resolve the chained receiver"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "config/match/QolExperiments.gd:effective_gift_min_window_s",
+   "reason": "MatchGifts calls it on the typed _match.config.qol; dep_graph cannot resolve the chained receiver"
+  }
+ ]
 }

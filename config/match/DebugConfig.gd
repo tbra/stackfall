@@ -40,7 +40,7 @@ extends Resource
 @export var overlay_margin: Vector2 = Vector2(12.0, 12.0)
 @export var overlay_font_size: int = 13
 
-## Bot think cost overlay (ui/BotCostOverlay.gd, F2): seconds between table refreshes
+## Bot think cost overlay (ui/debug/PerfBotCostOverlay.gd, F2): seconds between table refreshes
 ## (the report maths sorts the window, so it does not run every frame) and the table's column gap.
 @export_range(0.05, 5.0, 0.05) var bot_cost_refresh_s: float = 0.5
 @export var bot_cost_column_gap_px: int = 12
