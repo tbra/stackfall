@@ -43,8 +43,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	_sfx.set_music_enabled(false)
-	Settings.set_config_path_for_test(Settings.default_config_path())
+	Settings.set_config_path_for_test(Settings.REAL_CONFIG_PATH)
 	DirAccess.remove_absolute(_settings_path)
 
 
@@ -104,7 +103,7 @@ func test_rapid_context_switch_uses_latest_playlist_and_fades_current() -> void:
 	assert_false(_sfx._music_player.playing)
 	_start()
 	assert_eq(_sfx._music_player.stream.get_length(), 25.0, "latest context wins")
-	assert_false(_sfx.tense_stem_available())
+	assert_false(_sfx._tense_stem_available)
 	Events.goal_capture_progress.emit(0, 1.0)
 	assert_false(_sfx._tense_stem_is_active, "playlist mode ignores adaptive stems")
 

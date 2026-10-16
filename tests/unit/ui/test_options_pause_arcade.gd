@@ -18,7 +18,7 @@ var _cfg_counter: int = 0
 
 
 func after_each() -> void:
-	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+	Settings._input(InputEventKey.new())
 
 
 func _settle() -> void:
@@ -58,7 +58,7 @@ func _has_visible_focus(control: Control) -> bool:
 # --- Options: tabs, meters, toggles -------------------------------------------
 
 func test_pause_dialog_pad_traversal_visits_every_button_with_a_visible_focus() -> void:
-	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
+	Settings._input(InputEventJoypadButton.new())
 	var menu: PauseMenu = autofree(PAUSE_MENU_SCENE.instantiate()) as PauseMenu
 	add_child_autofree(menu)
 	menu._open()
@@ -74,7 +74,7 @@ func test_pause_dialog_pad_traversal_visits_every_button_with_a_visible_focus() 
 
 
 func test_options_settings_page_pad_traversal_has_visible_focus_everywhere() -> void:
-	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
+	Settings._input(InputEventJoypadButton.new())
 	var menu: OptionsMenu = _make_options()
 	await _settle()
 	var start: Control = menu.get_node("%WindowModeOption") as Control

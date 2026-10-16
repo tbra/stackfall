@@ -50,7 +50,7 @@ func after_each() -> void:
 	Input.action_release(&"show_scores")
 	Input.action_release(&"camera_snap_home")
 	Input.flush_buffered_events()
-	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+	Settings._input(InputEventKey.new())
 
 
 func _live_payload() -> Dictionary:

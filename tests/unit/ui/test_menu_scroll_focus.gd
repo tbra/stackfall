@@ -20,7 +20,7 @@ const SHORT_SETTINGS_VIEW_PX: float = 240.0
 
 
 func after_each() -> void:
-	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+	Settings._input(InputEventKey.new())
 
 
 # --- harness ----------------------------------------------------------------
@@ -35,7 +35,7 @@ func _settle() -> void:
 ## first d-pad press would otherwise flip the device and rewire the chain
 ## mid-walk).
 func _make_menu(pad: bool) -> OptionsMenu:
-	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD if pad else Settings.DEFAULT_ACTIVE_DEVICE)
+	Settings._input(InputEventJoypadButton.new() if pad else InputEventKey.new())
 	var menu: OptionsMenu = autofree(OPTIONS_MENU_SCENE.instantiate()) as OptionsMenu
 	add_child_autofree(menu)
 	await _settle()

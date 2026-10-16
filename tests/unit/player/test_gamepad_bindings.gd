@@ -38,7 +38,7 @@ const INTENTIONAL_SHARES: Array = [
 
 
 func after_each() -> void:
-	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+	Settings._input(InputEventKey.new())
 
 
 # --- Resolution: the exact controls the pad page shows ---------------------------
@@ -68,11 +68,11 @@ func test_pad_page_hides_fixed_camera_rows_and_snap_rows_are_hidden_everywhere()
 	for action: StringName in hidden_on_pad:
 		var row: KeyRebindRow = _make_row(action)
 		assert_true(row.is_available_on_active_device(), "%s stays on the keyboard page" % action)
-		Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
+		Settings._input(InputEventJoypadButton.new())
 		assert_false(row.is_available_on_active_device(), "%s hidden on the pad page" % action)
 		assert_false(row.visible)
-		Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
-	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
+		Settings._input(InputEventKey.new())
+	Settings._input(InputEventJoypadButton.new())
 	assert_false(_make_row(&"camera_orbit").is_available_on_active_device(), "Orbit camera is keyboard/mouse only")
 
 	for action: StringName in KeyRebindRow.SNAP_ACTIONS:
@@ -81,17 +81,17 @@ func test_pad_page_hides_fixed_camera_rows_and_snap_rows_are_hidden_everywhere()
 		row.camera_tuning = tuning
 		tuning.snap_enabled = false
 		assert_false(row.is_available_on_active_device(), "%s hidden on the pad page" % action)
-		Settings.set_active_input_device_for_test(Settings.DEVICE_KEYBOARD_MOUSE)
+		Settings._input(InputEventKey.new())
 		assert_false(row.is_available_on_active_device(), "%s hidden on the keyboard page" % action)
 		tuning.snap_enabled = true
 		assert_true(row.is_available_on_active_device(), "%s returns when snap is re-enabled" % action)
-		Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
+		Settings._input(InputEventJoypadButton.new())
 
 
 ## Every Options row either shows at least one pad glyph on the gamepad page or
 ## is hidden there -- the user-reported "blank row" can never come back.
 func test_every_rebindable_action_shows_a_pad_glyph_or_is_hidden_on_the_pad_page() -> void:
-	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
+	Settings._input(InputEventJoypadButton.new())
 	for action: StringName in OptionsMenu.REBINDABLE_ACTIONS:
 		var row: KeyRebindRow = _make_row(action)
 		var glyph_row: HBoxContainer = row.get_node("%GlyphRow") as HBoxContainer

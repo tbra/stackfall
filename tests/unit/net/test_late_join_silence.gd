@@ -49,7 +49,7 @@ func after_each() -> void:
 			DirAccess.remove_absolute(_sound_dir.path_join(filename))
 		_sound_dir = ""
 	if _settings_cfg_path != "":
-		Settings.set_config_path_for_test(Settings.default_config_path())
+		Settings.set_config_path_for_test(Settings.REAL_CONFIG_PATH)
 		if FileAccess.file_exists(_settings_cfg_path):
 			DirAccess.remove_absolute(_settings_cfg_path)
 		_settings_cfg_path = ""

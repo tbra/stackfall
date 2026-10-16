@@ -7,7 +7,7 @@ extends GutTest
 
 func after_each() -> void:
 	# Synthetic gamepad presses flip Settings' active device; restore it for later scripts.
-	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+	Settings._input(InputEventKey.new())
 
 
 func _mouse_press(button: MouseButton) -> InputEventMouseButton:

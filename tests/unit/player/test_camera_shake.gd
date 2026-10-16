@@ -2,7 +2,7 @@ extends GutTest
 ## M7 P4, spec 1.10 "effects + camera shake":
 ## game/player/CameraRig.gd's shake_offset()/Settings.camera_shake_enabled()
 ## integration. game/player/CameraRig.gd reads the real "Settings" autoload directly
-## (autoload/Sfx.gd's own master_volume_db()/custom_music_dir() precedent), so
+## (as autoload/Sfx.gd does for master_volume_db()), so
 ## isolation here redirects that singleton to a temp cfg
 ## (Settings.set_config_path_for_test), restored in after_each -- the same
 ## pattern tests/unit/audio/test_sfx.gd uses.
@@ -17,7 +17,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	Settings.set_config_path_for_test(Settings.default_config_path())
+	Settings.set_config_path_for_test(Settings.REAL_CONFIG_PATH)
 	_delete_if_exists(_settings_cfg_path)
 
 

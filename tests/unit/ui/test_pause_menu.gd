@@ -26,7 +26,7 @@ func after_each() -> void:
 	# row.gd's own glyph-count assertions) doesn't inherit gamepad mode from
 	# this file, the same reset tests/unit/ui/test_options_menu.gd's own
 	# after_each() already performs for its own gamepad tests.
-	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+	Settings._input(InputEventKey.new())
 
 
 func _key_press(keycode: Key) -> InputEventKey:

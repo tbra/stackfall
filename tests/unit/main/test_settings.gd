@@ -57,21 +57,17 @@ func test_defaults_with_no_saved_file() -> void:
 	assert_false(_settings.sfx_muted())
 	assert_eq(_settings.mouse_move_speed_scale(), 1.0)
 	assert_eq(_settings.stick_move_speed_scale(), 1.0)
-	assert_eq(_settings.custom_music_dir(), "")
-	assert_eq(_settings.key_override_events(_test_action).size(), 0)
+	assert_eq(_settings._key_overrides.get(_test_action, []).size(), 0)
 	assert_true(_settings.camera_shake_enabled(), "camera shake defaults on")
 	assert_eq(_settings.window_mode(), &"borderless_fullscreen", "borderless fullscreen is the default window mode")
 
 
 func test_audio_settings_round_trip_and_persist() -> void:
 	_settings.set_master_volume_percent(0.5)
-	_settings.set_custom_music_dir("C:/music")  # lint-public: allow fixture path string, not a machine path
 	assert_almost_eq(_settings.master_volume_percent(), 0.5, 0.0001)
-	assert_eq(_settings.custom_music_dir(), "C:/music")  # lint-public: allow fixture path string, not a machine path
 
 	var reloaded: Node = _fresh_settings_at_same_path()
 	assert_almost_eq(reloaded.master_volume_percent(), 0.5, 0.0001)
-	assert_eq(reloaded.custom_music_dir(), "C:/music")  # lint-public: allow fixture path string, not a machine path
 
 
 ## Bontago (options package): Master/Music/SFX each have their own percent +
@@ -89,16 +85,18 @@ func test_music_and_sfx_volume_and_mute_round_trip_and_persist() -> void:
 	assert_true(reloaded.sfx_muted())
 
 
-## Bontago (options package): a pre-existing settings.cfg with only the old
-## dB-based master_db key (no new percent key yet) must migrate sensibly
-## rather than default back to 100%.
-func test_master_volume_migrates_from_legacy_db_key() -> void:
+## A settings.cfg written by an older build (keys that no longer exist) still
+## loads: the unknown keys are ignored and the current ones are read.
+func test_old_settings_file_with_removed_keys_still_loads() -> void:
 	var cfg: ConfigFile = ConfigFile.new()
-	cfg.set_value("audio", "master_db", -6.0206)  # ~50% linear
+	cfg.set_value("audio", "master_db", -6.0206)
+	cfg.set_value("audio", "custom_music_dir", "old/music")
+	cfg.set_value("audio", "music_volume_percent", 0.25)
 	cfg.save(_cfg_path)
 
 	var reloaded: Node = _fresh_settings_at_same_path()
-	assert_almost_eq(reloaded.master_volume_percent(), 0.5, 0.01)
+	assert_almost_eq(reloaded.music_volume_percent(), 0.25, 0.0001)
+	assert_almost_eq(reloaded.master_volume_percent(), 1.0, 0.0001)
 
 
 func test_stored_old_stick_scale_migrates_to_the_same_effective_speed() -> void:
@@ -174,7 +172,7 @@ func test_key_override_persists_and_reapplies_on_fresh_settings() -> void:
 	var reapplied: Array[InputEvent] = InputMap.action_get_events(_test_action)
 	assert_eq(reapplied.size(), 1, "a fresh Settings instance must re-apply the persisted override")
 	assert_eq((reapplied[0] as InputEventKey).keycode, KEY_F11)
-	assert_eq(reloaded.key_override_events(_test_action).size(), 1)
+	assert_eq(reloaded._key_overrides.get(_test_action, []).size(), 1)
 
 
 ## F2 regression: a keyboard override must not erase the action's gamepad
@@ -210,7 +208,7 @@ func test_key_override_keeps_other_device_class_and_round_trips_both() -> void:
 	InputMap.action_add_event(_test_action, joy_default)
 
 	var reloaded: Node = _fresh_settings_at_same_path()
-	var overrides: Array[InputEvent] = reloaded.key_override_events(_test_action)
+	var overrides: Array = reloaded._key_overrides.get(_test_action, [])
 	assert_eq(overrides.size(), 2, "both a keyboard and a joypad override should persist through ConfigFile")
 
 	var reapplied: Array[InputEvent] = InputMap.action_get_events(_test_action)
@@ -232,11 +230,11 @@ func test_reset_key_overrides_clears_overrides_and_restores_project_defaults() -
 	var override_event: InputEventKey = InputEventKey.new()
 	override_event.keycode = KEY_F9
 	_settings.set_key_override(real_action, override_event)
-	assert_eq(_settings.key_override_events(real_action).size(), 1, "sanity: an override exists before reset")
+	assert_eq(_settings._key_overrides.get(real_action, []).size(), 1, "sanity: an override exists before reset")
 
 	_settings.reset_key_overrides()
 
-	assert_eq(_settings.key_override_events(real_action).size(), 0, "reset must clear the persisted override")
+	assert_eq(_settings._key_overrides.get(real_action, []).size(), 0, "reset must clear the persisted override")
 	assert_eq(InputMap.action_get_events(real_action).size(), original_count, "reset must restore the action's original project.godot bindings")
 
 

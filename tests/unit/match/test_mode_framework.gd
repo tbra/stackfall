@@ -39,7 +39,7 @@ func after_each() -> void:
 	Match.abort_match()
 	Match.set_process(true)
 	MatchTestReset.clear_world()
-	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+	Settings._input(InputEventKey.new())
 
 
 func _config(timer_minutes: int = 0) -> MatchConfig:

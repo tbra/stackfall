@@ -16,9 +16,7 @@ extends Node
 ## No class_name: this is the Sfx autoload singleton (same reason Events,
 ## Settings, Net and Match have none -- see autoload/Net.gd's header).
 ##
-## Music uses bundled context playlists; custom folder preferences are
-## temporarily ignored on request. SFX stay on the folder above.
-## Every play()/play_music()/impact-thud
+## Music uses the bundled context playlists. Every play()/play_music()/impact-thud
 ## volume_db also adds Settings.master_volume_db() on top of this file's own
 ## AudioConfig.sfx_volume_db/music_volume_db baseline, live-updated via
 ## Settings.audio_settings_changed (the options audio settings). Bontago
@@ -52,7 +50,7 @@ const MSEC_PER_S: float = 1000.0
 var _root_dir: String = ""
 var _available: bool = false
 var _streams_by_filename: Dictionary = {}
-## Legacy disk-music fallback cache; independent of bundled playlist streams.
+## Disk-music (single-theme / stem) mode cache; independent of the playlist streams.
 var _music_root_dir: String = ""
 var _music_available: bool = false
 var _music_streams_by_filename: Dictionary = {}
@@ -74,7 +72,6 @@ var _focus_hover_frame: int = -1
 var focus_hover_count: int = 0
 var _next_sfx_player_index: int = 0
 var _music_player: AudioStreamPlayer
-var _music_enabled: bool = true
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
 ## Adaptive music:
@@ -205,20 +202,15 @@ func _resolve_root_dir() -> String:
 	return OS.get_executable_path().get_base_dir().path_join(AUDIO_SUBDIR)
 
 
-## Legacy fallback stays on the original bundled root. Custom folders are
-## ignored even when a saved preference points at an existing directory.
+## Disk-music mode reads from the same bundled root as the SFX.
 func _refresh_music_root_dir() -> void:
-	# : ignore persisted custom-folder overrides for now, even
-	# on the legacy fallback path. Keep the preference for future restoration.
 	_music_root_dir = _root_dir
 	_music_available = DirAccess.dir_exists_absolute(_music_root_dir)
 	_music_streams_by_filename.clear()
 
 
-## Settings.audio_settings_changed fires for both a master-volume change and a
-## custom-music-dir change (autoload/Settings.gd), so this re-resolves the
-## music folder and re-applies
-## whatever is already playing -- no restart needed to hear a slider move.
+## Settings.audio_settings_changed re-applies the volume of whatever is already
+## playing -- no restart needed to hear a slider move.
 func _on_audio_settings_changed() -> void:
 	if config.contextual_music_enabled:
 		_apply_playlist_volume()
@@ -294,7 +286,7 @@ func _build_player_pool() -> void:
 func play(event: StringName) -> bool:
 	if event == AudioConfig.EVENT_MUSIC and config.contextual_music_enabled:
 		play_music()
-		return _music_enabled and config.playlist_track_count(_music_context) > 0
+		return config.playlist_track_count(_music_context) > 0
 	var stream: AudioStream = _pick_stream(event)
 	if stream == null:
 		return false
@@ -308,23 +300,7 @@ func play(event: StringName) -> bool:
 	return true
 
 
-func set_music_enabled(enabled: bool) -> void:
-	if enabled == _music_enabled:
-		return
-	_music_enabled = enabled
-	if not enabled:
-		_music_player.stop()
-		_tense_music_player.stop()
-		_music_state = MusicState.STOPPED
-		_music_envelope = 0.0
-		_refresh_claim_target(true)
-	elif not _music_player.playing:
-		play_music()
-
-
 func play_music() -> void:
-	if not _music_enabled:
-		return
 	if config.contextual_music_enabled:
 		if _music_state == MusicState.STOPPED:
 			_schedule_music(config.music_initial_delay_seconds)
@@ -334,7 +310,7 @@ func play_music() -> void:
 		_play_music_stream(stream)
 
 
-## Legacy single theme: the explicit stream (tests/custom builds) else the
+## Single theme: the explicit stream (tests/custom builds) else the
 ## configured path, loaded on use rather than resident from boot.
 func _bundled_theme() -> AudioStream:
 	if config.bundled_theme != null:
@@ -356,7 +332,7 @@ func _play_music_stream(stream: AudioStream) -> void:
 func _pick_stream(event: StringName) -> AudioStream:
 	var is_music: bool = event == AudioConfig.EVENT_MUSIC
 	if is_music:
-		# The legacy bundled theme comes first.
+		# The bundled theme comes first.
 		var bundled: AudioStream = _bundled_theme()
 		if bundled != null:
 			return bundled
@@ -391,7 +367,7 @@ func _load_stream(filename: String) -> AudioStream:
 
 
 ## Shared by _load_stream() (bundled SFX root) and _pick_stream()'s music path
-## (bundled or custom root, per _refresh_music_root_dir()). `cache` is a
+## (SFX or music root). `cache` is a
 ## Dictionary reference (GDScript Dictionaries are reference types), so a hit
 ## the caller adds here is visible to the caller's own dict too.
 func _load_stream_from_root(filename: String, root_dir: String, cache: Dictionary) -> AudioStream:
@@ -450,10 +426,9 @@ func set_root_dir_for_test(path: String) -> void:
 ## Requires BOTH config.music_stem_calm_file and config.music_stem_tense_file
 ## to resolve to real files there -- a "calm" stem with no matching "tense"
 ## partner has nothing to crossfade to, so it is treated the same as a
-## missing tense file (no error either way, just tense_stem_available()
+## missing tense file (no error either way, just _tense_stem_available
 ## staying false). Called whenever _music_root_dir can change (_ready(),
-## _on_audio_settings_changed(), set_root_dir_for_test()) since a custom
-## music folder swap can gain or lose either file.
+## _on_audio_settings_changed(), set_root_dir_for_test()).
 func _refresh_tense_stem() -> void:
 	var was_available: bool = _tense_stem_available
 	_tense_stem_available = false
@@ -497,14 +472,6 @@ func _sync_tense_player_with_calm() -> void:
 		_tense_music_player.play(_music_player.get_playback_position())
 	else:
 		_tense_music_player.stop()
-
-
-## True only when both stem files resolved (see _refresh_tense_stem()) --
-## false with no tense asset installed, no calm partner, or the bundled/
-## custom music folder itself missing. Read by tests and a manual tester
-## checking for the absence of any error/warning in that case.
-func tense_stem_available() -> bool:
-	return _tense_stem_available
 
 
 ## Target volume_db for the calm stem given the last _on_goal_capture_progress
@@ -611,7 +578,7 @@ func set_music_context(context: StringName) -> void:
 	if context not in [&"menu", &"lobby", &"gameplay"] or context == _music_context:
 		return
 	_music_context = context
-	if not config.contextual_music_enabled or not _music_enabled:
+	if not config.contextual_music_enabled:
 		return
 	# Prefetch the next context's track now so it is decoded-ready by the time
 	# the fade-out of the current one ends.
@@ -701,7 +668,7 @@ func _notification(what: int) -> void:
 
 
 func _advance_music(delta: float, playback_position: float = -1.0) -> void:
-	if not config.contextual_music_enabled or not _music_enabled:
+	if not config.contextual_music_enabled:
 		return
 	match _music_state:
 		MusicState.WAITING:
@@ -842,8 +809,8 @@ func _start_playlist_track() -> void:
 		_music_state = MusicState.STOPPED
 		return
 	_last_track_by_context[_music_context] = selected
-	# Duplicate before changing loop flags: imported shared resources and
-	# legacy consumers must not inherit one another's playback settings.
+	# Duplicate before changing loop flags: imported shared resources must
+	# not inherit this playback's settings.
 	var stream: AudioStream = source.duplicate() as AudioStream
 	if stream is AudioStreamMP3:
 		(stream as AudioStreamMP3).loop = false
@@ -867,7 +834,7 @@ func _apply_playlist_volume() -> void:
 
 
 func _on_music_finished() -> void:
-	if not config.contextual_music_enabled or not _music_enabled:
+	if not config.contextual_music_enabled:
 		return
 	_music_player.stream = null # finished track: release it during the silent gap
 	if _music_state == MusicState.SWITCHING:
@@ -934,7 +901,7 @@ func _classify_surface(position: Vector3) -> StringName:
 
 
 ## Picks the variation sample for `surface` x the speed's strength tier (random
-## variant, never the same twice in a row); falls back to the legacy thud set
+## variant, never the same twice in a row); falls back to the plain thud set
 ## when the variation files are missing.
 func _play_impact(speed: float, surface: StringName) -> void:
 	var stream: AudioStream = _pick_impact_stream(speed, surface)
@@ -1201,10 +1168,6 @@ func stop_special_loops() -> void:
 		_stop_special_loop(0)
 
 
-func special_loop_count() -> int:
-	return _special_loops.size()
-
-
 ## True when a block in the last impact query wears the glue coat
 ## (HoneyCoat, reached through LateScripts like net/MatchNet.gd does).
 func _impact_touches_glue() -> bool:
@@ -1352,7 +1315,7 @@ func _team_of_slot(slot_id: int) -> int:
 # receives (MatchTerritory emits it on host and clients alike; Classic keeps its
 # state in that signal, see ModeObjective.replicates_state()), so nothing new is
 # replicated and the host stays authoritative. A looped bed is layered above
-# whichever music runs (contextual playlist or legacy stem), its volume/pitch
+# whichever music runs (contextual playlist or disk stem), its volume/pitch
 # follow ClaimTensionState.level(), and the music is ducked while it is up.
 
 func _build_claim_layer() -> void:
@@ -1366,7 +1329,7 @@ func _build_claim_layer() -> void:
 ## when silent), including the master and music sliders.
 func claim_tension_target_volume_db() -> float:
 	var level: float = _claim_state.level() if _claim_state != null else 0.0
-	if level <= 0.0 or not _music_enabled or not config.claim_tension_enabled:
+	if level <= 0.0 or not config.claim_tension_enabled:
 		return MUSIC_STEM_MUTE_DB
 	var baseline: float = config.claim_tension_max_db + Settings.master_volume_db() + Settings.music_volume_db()
 	return clampf(baseline + linear_to_db(level), MUSIC_STEM_MUTE_DB, baseline)
@@ -1386,11 +1349,6 @@ func claim_duck_target_db() -> float:
 	if _claim_state == null or not config.claim_tension_enabled:
 		return 0.0
 	return config.claim_music_duck_db * _claim_state.level()
-
-
-## The duck currently applied to the music (tweened toward claim_duck_target_db()).
-func claim_duck_applied_db() -> float:
-	return _claim_duck_db
 
 
 func claim_tension_level() -> float:
@@ -1510,7 +1468,7 @@ func _refresh_claim_target(immediate: bool) -> void:
 	if not immediate and targets == _claim_last_targets:
 		return
 	_claim_last_targets = targets
-	if level > 0.0 and not _claim_player.playing and not _claim_stream_missing and _music_enabled:
+	if level > 0.0 and not _claim_player.playing and not _claim_stream_missing:
 		_start_claim_bed()
 	_kill_claim_tweens()
 	var rising: bool = level > _claim_last_level
@@ -1547,7 +1505,7 @@ func _set_claim_duck(duck_db: float) -> void:
 
 
 ## The playlist re-applies its own volume every frame (with _claim_duck_db in
-## it); the legacy single stream needs the duck pushed explicitly.
+## it); the single disk stream needs the duck pushed explicitly.
 func _apply_claim_duck() -> void:
 	if _music_player == null or not _music_player.playing:
 		return

@@ -24,7 +24,7 @@ extends GutTest
 const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/menus/OptionsMenu.tscn")
 const KEY_REBIND_ROW_SCENE: PackedScene = preload("res://ui/menus/KeyRebindRow.tscn")
 const SETTINGS_SCRIPT: GDScript = preload("res://autoload/Settings.gd")
-var DEFAULT_SETTINGS_CFG_PATH: String = Settings.default_config_path()
+var DEFAULT_SETTINGS_CFG_PATH: String = Settings.REAL_CONFIG_PATH
 
 var _test_action: StringName = &"options_menu_test_action"
 
@@ -44,7 +44,7 @@ func after_each() -> void:
 	if InputMap.has_action(_test_action):
 		InputMap.erase_action(_test_action)
 	Settings.set_config_path_for_test(DEFAULT_SETTINGS_CFG_PATH)
-	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+	Settings._input(InputEventKey.new())
 
 
 ## A fresh temp cfg path per call (not one shared filename) -- _make_menu()
@@ -137,7 +137,7 @@ func _left_click(pressed: bool) -> InputEventMouseButton:
 
 func test_move_speed_row_switches_to_stick_speed_on_gamepad_and_calls_stick_setter() -> void:
 	var menu: OptionsMenu = _make_menu()
-	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
+	Settings._input(InputEventJoypadButton.new())
 	assert_eq((menu.get_node("%MoveSpeedLabel") as Label).text, "Stick speed")
 
 	menu._on_move_speed_changed(0.7)

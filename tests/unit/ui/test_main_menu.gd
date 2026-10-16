@@ -26,7 +26,7 @@ func _fake_of(menu: MainMenu) -> FakeNet:
 ## gamepad mode from this one (tests/unit/ui/test_options_menu.gd's own
 ## after_each() already does this for its own gamepad tests).
 func after_each() -> void:
-	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+	Settings._input(InputEventKey.new())
 	Net.stop_discovery()
 
 

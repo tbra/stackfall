@@ -90,7 +90,7 @@ func test_private_address_is_a_failure() -> void:
 	var net: Variant = _host_with(backend)
 	net.host_game(AgentProbe.free_udp_port(), "H")
 	assert_true(await _wait_for(func() -> bool: return net.upnp_state() == UpnpRunner.State.FAILED))
-	assert_string_contains(net.upnp_failure_reason(), "non-public")
+	assert_string_contains(net._upnp.reason, "non-public")
 
 
 func test_slow_router_never_stalls_the_caller() -> void:

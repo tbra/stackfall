@@ -1,7 +1,7 @@
 extends GutTest
 ## Net's per-peer "ready" flag is the single source of truth; the Lobby's Ready
 ## toggle and the seat badges are views of it. Every route that changes the flag (toggle press,
-## reset_ready_flags, returning from a match, a rejoin) must leave the toggle, the local seat's
+## returning from a match, a rejoin) must leave the toggle, the local seat's
 ## badge and the Net flag equal -- for the host and for a client, on a FakeNet and on real ENet
 ## sessions. Third report of the same desync: the toggle kept its own
 ## pressed state and nothing ever wrote Net's flag back into it.
@@ -16,7 +16,7 @@ var _client_net: Variant = null
 
 
 func after_each() -> void:
-	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+	Settings._input(InputEventKey.new())
 	if _client_net != null:
 		_client_net.leave()
 	if _host_net != null:

@@ -6,7 +6,7 @@ extends GutTest
 const MAIN_MENU_SCENE: PackedScene = preload("res://ui/menus/MainMenu.tscn")
 const TUTORIAL_CONFIG: TutorialConfig = preload("res://config/match/tutorial_config.tres")
 func after_each() -> void:
-	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+	Settings._input(InputEventKey.new())
 
 
 ## DECISION: events go straight to Settings._input() (the same convention as

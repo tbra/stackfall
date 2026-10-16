@@ -49,7 +49,7 @@ func test_cycle_option_round_trips_through_lobby_data() -> void:
 ## inherit gamepad mode from this one (tests/unit/ui/test_options_menu.gd's own
 ## after_each() already does this for its own gamepad tests).
 func after_each() -> void:
-	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+	Settings._input(InputEventKey.new())
 
 
 func test_host_changing_a_setting_publishes_lobby_data() -> void:

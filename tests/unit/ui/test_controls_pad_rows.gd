@@ -11,12 +11,12 @@ const PAD_HIDDEN: Array[StringName] = [
 const WALK_LIMIT: int = 64
 
 var _cfg_path: String = OS.get_user_data_dir().path_join("test_controls_pad_rows_1014.cfg")
-var _default_cfg_path: String = Settings.default_config_path()
+var _default_cfg_path: String = Settings.REAL_CONFIG_PATH
 
 
 func after_each() -> void:
 	Settings.set_config_path_for_test(_default_cfg_path)
-	Settings.set_active_input_device_for_test(Settings.DEFAULT_ACTIVE_DEVICE)
+	Settings._input(InputEventKey.new())
 	InputMap.load_from_project_settings()
 	if FileAccess.file_exists(_cfg_path):
 		DirAccess.remove_absolute(_cfg_path)
@@ -44,7 +44,7 @@ func test_rebinding_rotate_snap_on_the_pad_persists() -> void:
 		DirAccess.remove_absolute(_cfg_path)
 	Settings.set_config_path_for_test(_cfg_path)
 	var menu: OptionsMenu = _make_menu()
-	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
+	Settings._input(InputEventJoypadButton.new())
 	var row: KeyRebindRow = _row(menu, &"rotate_snap")
 	row.rebind_button().pressed.emit()
 	var joy: InputEventJoypadButton = InputEventJoypadButton.new()
@@ -59,7 +59,7 @@ func test_rebinding_rotate_snap_on_the_pad_persists() -> void:
 	var reloaded: Node = autofree(SETTINGS_SCRIPT.new())
 	add_child_autofree(reloaded)
 	reloaded.set_config_path_for_test(_cfg_path)
-	var stored: Array[InputEvent] = reloaded.key_override_events(&"rotate_snap")
+	var stored: Array = reloaded._key_overrides.get(&"rotate_snap", [])
 	assert_eq(stored.size(), 1, "the override is saved and reloaded")
 	assert_eq((stored[0] as InputEventJoypadButton).button_index, JOY_BUTTON_Y)
 
@@ -79,7 +79,7 @@ func _pad_press(button: JoyButton) -> void:
 
 func test_pad_focus_walks_every_row_to_reset_and_back_with_no_dead_end() -> void:
 	var menu: OptionsMenu = _make_menu()
-	Settings.set_active_input_device_for_test(Settings.DEVICE_GAMEPAD)
+	Settings._input(InputEventJoypadButton.new())
 	(menu.get_node("%ControlsTabButton") as Button).button_pressed = true
 	await wait_frames(3)
 	var shown: Array[KeyRebindRow] = []
