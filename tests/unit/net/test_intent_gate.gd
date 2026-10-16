@@ -36,7 +36,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	Match.set_net_provider(null)
+	Match._net_provider = null
 	Match.abort_match()
 	for child: Node in _blocks_root.get_children():
 		child.free()
@@ -154,9 +154,9 @@ func test_not_host_refuses_everything() -> void:
 	for entry: Entry in Entry.values():
 		_start_playing()
 		_prepare(entry)
-		Match.set_net_provider(FakeNet.client(0))
+		Match._net_provider = FakeNet.client(0)
 		assert_eq(_call(entry, 0), _refusal_for(entry), "%s refuses off-host" % _name(entry))
-		Match.set_net_provider(null)
+		Match._net_provider = null
 		Match.abort_match()
 		for child: Node in _blocks_root.get_children():
 			child.free()

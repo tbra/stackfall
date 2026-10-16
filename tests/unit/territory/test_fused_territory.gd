@@ -46,7 +46,7 @@ func before_each() -> void:
 func after_each() -> void:
 	if Events.block_removed.is_connected(_record_removed):
 		Events.block_removed.disconnect(_record_removed)
-	Match.set_net_provider(null)
+	Match._net_provider = null
 
 
 func _record_removed(block: RigidBody3D, _reason: String) -> void:

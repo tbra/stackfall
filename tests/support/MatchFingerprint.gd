@@ -403,7 +403,7 @@ static func _capture_rules(out: Dictionary) -> void:
 		str(_p(Match._stats, &"_gifts_claimed")), str(_p(Match._stats, &"_specials_used")),
 		str(_p(Match._stats, &"_eliminated_at")),
 	]
-	out["rules.blocks_spawned"] = Match.blocks_spawned()
+	out["rules.blocks_spawned"] = Match._placement.blocks_spawned()
 	var registry: BlockRegistry = Match.registry()
 	# Match keeps its registered world after a match ends (a launch has none yet): count only blocks.
 	out["rules.registry_blocks"] = registry.all_blocks().size() if registry != null else 0
@@ -411,7 +411,7 @@ static func _capture_rules(out: Dictionary) -> void:
 	out["rules.blocks_parent_children"] = _child_kinds(blocks_parent)
 	out["rules.match_children"] = _child_kinds(Match)
 	out["rules.cat"] = Match.active_cat() != null
-	out["rules.sandbox_territory_mode"] = Match.sandbox_territory_mode()
+	out["rules.sandbox_territory_mode"] = Match._sandbox_territory_mode
 	out["rules.sandbox_territory_cache"] = _bp(Match, &"_territory_cache_enabled")
 	out["rules.sandbox_territory_profile"] = _bp(Match, &"_sandbox_territory_profile_enabled")
 	out["rules.feed_timer_enabled"] = Match.feed_timer_enabled()

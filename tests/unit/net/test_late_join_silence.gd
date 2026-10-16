@@ -39,7 +39,7 @@ func after_each() -> void:
 		if net != null and is_instance_valid(net):
 			net.set_providers(null, null)
 	_nets.clear()
-	Match.set_net_provider(null)
+	Match._net_provider = null
 	Match.set_replicator(null)
 	Match.abort_match()
 	Match.set_process(true)
@@ -71,7 +71,7 @@ func _build_world() -> void:
 
 
 func _make_net(session: FakeNet) -> MatchNetScript:
-	Match.set_net_provider(session)
+	Match._net_provider = session
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)

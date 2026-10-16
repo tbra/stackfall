@@ -57,7 +57,7 @@ func after_each() -> void:
 	Events.loading_gate_opened.disconnect(_on_opened)
 	Match._lifecycle.set_loading_gate_forced(false)
 	Match._lifecycle._loading_tuning = Match._lifecycle.LOADING_TUNING
-	Match.set_net_provider(null)
+	Match._net_provider = null
 	Net._mode = Net.Mode.OFFLINE
 	Net._peers = {}
 	Match.abort_match()
@@ -79,7 +79,7 @@ func _config(players: int, ai: int, hot_seat: bool = false) -> MatchConfig:
 
 
 func _start_gated(net: Variant, players: int, ai: int, hot_seat: bool = false) -> void:
-	Match.set_net_provider(net)
+	Match._net_provider = net
 	Match._lifecycle.set_loading_gate_forced(true)
 	Match.start_match(_config(players, ai, hot_seat))
 
@@ -168,7 +168,7 @@ func test_client_waits_for_the_hosts_open_message_and_mirrors_the_sets() -> void
 
 
 func _make_wire_net(session: FakeNet) -> MatchNetScript:
-	Match.set_net_provider(session)
+	Match._net_provider = session
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)

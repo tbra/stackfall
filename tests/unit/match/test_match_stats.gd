@@ -30,7 +30,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	Match.set_net_provider(null)
+	Match._net_provider = null
 	Match.set_replicator(null)
 	Match.abort_match()
 	Match.set_process(true)
@@ -120,7 +120,7 @@ func test_team_mode_winner_is_reported_as_a_team() -> void:
 
 	Match.start_match(_team_config(4, MatchConfig.TeamMode.TEAMS_2))
 	_run_countdown()
-	Match._finish_match(1)
+	Match._lifecycle._finish_match(1)
 	Events.match_results_ready.disconnect(collect)
 
 	var results: Dictionary = captured[0]
@@ -161,7 +161,7 @@ const REMOTE_SLOT: int = 1
 
 func _make_net(peer_slots: Dictionary) -> MatchNetScript:
 	var fake: FakeNet = FakeNet.host(peer_slots, [0])
-	Match.set_net_provider(fake)
+	Match._net_provider = fake
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)
@@ -182,7 +182,7 @@ func test_replay_request_is_ignored_before_match_end_or_from_an_unseated_peer() 
 	net.net_request_replay()
 	assert_eq(Match.state(), MatchAutoload.State.PLAYING, "a replay request mid-match must be ignored")
 
-	Match._finish_match(0)
+	Match._lifecycle._finish_match(0)
 	assert_eq(Match.state(), MatchAutoload.State.END)
 
 	# An unseated sender (no slot at all) must be rejected even after the
@@ -219,7 +219,7 @@ func _finish_and_capture(winner: int) -> Dictionary:
 	var captured: Array[Dictionary] = []
 	var collect: Callable = func(results: Dictionary) -> void: captured.append(results)
 	Events.match_results_ready.connect(collect)
-	Match._finish_match(winner)
+	Match._lifecycle._finish_match(winner)
 	Events.match_results_ready.disconnect(collect)
 	return captured[0]
 

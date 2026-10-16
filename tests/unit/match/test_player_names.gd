@@ -22,7 +22,7 @@ func after_each() -> void:
 	Settings.set_player_name("")
 	# The slot-name tests below start real matches on the Match autoload.
 	Net.leave()
-	Match.set_net_provider(null)
+	Match._net_provider = null
 	Match.abort_match()
 	Match.set_process(true)
 	MatchTestReset.clear_world()
@@ -244,7 +244,7 @@ func _slot_names() -> Array[String]:
 func test_host_slots_are_seeded_from_the_roster_and_bots_keep_their_label() -> void:
 	_register_world()
 	var fake: FakeNet = _named_fake({0: "Mira", 1: "Zed", 3: "ShouldNotShow"})
-	Match.set_net_provider(fake)
+	Match._net_provider = fake
 	Match.start_match(_tiny_config(4, 1))
 	assert_eq(Match.slot_count(), 4)
 	assert_true(Match.slot(3).is_bot, "fixture: the trailing slot is the bot")

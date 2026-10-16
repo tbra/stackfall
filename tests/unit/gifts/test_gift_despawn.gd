@@ -91,7 +91,7 @@ func test_dud_gift_despawns_via_fuse_timeout() -> void:
 
 
 func after_each() -> void:
-	Match.set_net_provider(null)
+	Match._net_provider = null
 	Match.abort_match()
 	if _blocks_root != null and is_instance_valid(_blocks_root):
 		for child: Node in _blocks_root.get_children():

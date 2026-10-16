@@ -42,7 +42,7 @@ func after_each() -> void:
 	if _net != null and is_instance_valid(_net):
 		_net.set_providers(null, null)
 	_net = null
-	Match.set_net_provider(null)
+	Match._net_provider = null
 	Match.set_replicator(null)
 	Match.abort_match()
 	Match.set_process(true)
@@ -323,7 +323,7 @@ func test_home_elimination_still_triggers_and_blocks_on_the_punched_hole_dissolv
 func _make_net(client_mode: bool) -> MatchNetScript:
 	var fake: FakeNet = FakeNet.client(1) if client_mode else FakeNet.host({2: 1}, [0])
 	fake.slots_by_peer = {} if client_mode else {2: 1}
-	Match.set_net_provider(fake)
+	Match._net_provider = fake
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)
@@ -351,7 +351,7 @@ func test_host_replicates_the_dissolve_start_and_the_despawn() -> void:
 
 
 func test_a_client_mirrors_a_replicated_dissolve_start_and_drops_bad_payloads() -> void:
-	Match.set_net_provider(FakeNet.host({}, [0, 1]))
+	Match._net_provider = FakeNet.host({}, [0, 1])
 	_start_match(MatchConfig.HoleMode.TEMPORARY, false)
 	var net: MatchNetScript = _make_net(true)
 	_registry.set_host_authority(false)

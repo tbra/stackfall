@@ -2,7 +2,7 @@ extends "res://tests/unit/match/match_world_test.gd"
 ## MatchPlacement.request_throw and special attach (spec 1.4, 3.4, M4 P2c).
 
 func after_each() -> void:
-	Match.set_net_provider(null)
+	Match._net_provider = null
 	Match.abort_match()
 	# abort_match() -> MatchPlacement._clear_blocks() only queue_free()s the
 	# spawned Block RigidBody3Ds (deferred to the next idle frame); GUT's
@@ -217,7 +217,7 @@ func test_a_client_call_is_refused_exactly_like_request_place() -> void:
 	_run_countdown()
 	var slot_id: int = 0
 	_queue_special(slot_id)
-	Match.set_net_provider(FakeNet.client(slot_id))
+	Match._net_provider = FakeNet.client(slot_id)
 
 	var throw_reason: StringName = Match.request_throw(
 		slot_id, _home_world_position(slot_id), 0, Quaternion.IDENTITY, Vector3(1.0, 0.0, 0.0)

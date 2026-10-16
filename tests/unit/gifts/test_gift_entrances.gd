@@ -38,7 +38,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	Match.set_net_provider(null)
+	Match._net_provider = null
 	Match._placement._activation.clear()
 	Match.abort_match()
 	for child: Node in _field.get_children():

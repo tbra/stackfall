@@ -51,7 +51,7 @@ func _teardown_world() -> void:
 		# the next script, where _can_send() finds no multiplayer (gate flake).
 		_net.free()
 	_net = null
-	Match.set_net_provider(null)
+	Match._net_provider = null
 	Match.set_replicator(null)
 	Match.abort_match()
 	for node: Node in [_field, _blocks_root, _registry]:
@@ -77,7 +77,7 @@ func _start_host_match(map: MapDef) -> void:
 	var peer_slots: Dictionary = {HOST_PEER: 0, REMOTE_PEER: REMOTE_SLOT}
 	_fake_net = FakeNet.host(peer_slots, [0])
 	_fake_net.slots_by_peer = peer_slots
-	Match.set_net_provider(_fake_net)
+	Match._net_provider = _fake_net
 	_net = MatchNetScript.new()
 	_net.set_process(false)
 	add_child(_net)

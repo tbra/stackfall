@@ -43,7 +43,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	Match.set_net_provider(null)
+	Match._net_provider = null
 	Match.abort_match()
 	for child: Node in _blocks.get_children():
 		child.free()

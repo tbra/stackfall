@@ -103,7 +103,8 @@ func _start_playing(config: MatchConfig) -> void:
 func _step_territory(times: int = 1) -> void:
 	var step: float = 1.0 / Match._territory_tuning.solve_hz
 	for _i: int in range(times):
-		Match._run_territory_step(step)
+		Match._territory._run_territory_step(step)
+		Match._gifts.claim_or_expire_gifts(step)
 
 
 ## A crate placed exactly on a slot's own home flag is on ground that slot
@@ -310,7 +311,7 @@ func test_only_the_lowest_alive_slot_rolls_per_window() -> void:
 ## mirrors the replicated events into visuals.
 func test_client_never_spawns_claims_or_expires() -> void:
 	_start_playing(_config())
-	Match.set_net_provider(FakeNet.client(1))
+	Match._net_provider = FakeNet.client(1)
 	Match._gifts._gift_config = Match._gifts._gift_config.duplicate() as GiftConfig
 	Match._gifts._gift_config.frequency_to_chance_max = 1.0
 	Match._gifts._gift_config.first_gift_delay_s = 0.0
@@ -323,7 +324,7 @@ func test_client_never_spawns_claims_or_expires() -> void:
 	Match._gifts.claim_or_expire_gifts(1000.0)
 	assert_true(Match._gifts._crates.has(gift_id), "a client must never claim or expire a crate itself")
 
-	Match.set_net_provider(null)
+	Match._net_provider = null
 
 
 func test_net_mirrors_gift_spawned_claimed_and_expired() -> void:
@@ -461,7 +462,7 @@ func test_debug_queue_special_refused_when_not_host() -> void:
 	var config: MatchConfig = _config_with_no_real_specials()
 	config.sandbox = true
 	_start_playing(config)
-	Match.set_net_provider(FakeNet.client(1))
+	Match._net_provider = FakeNet.client(1)
 	watch_signals(Events)
 
 	var accepted: bool = Match.debug_queue_special(0, &"anvil")
@@ -470,7 +471,7 @@ func test_debug_queue_special_refused_when_not_host() -> void:
 	assert_eq(Match.held_special(0), &"")
 	assert_signal_not_emitted(Events, "gift_claimed")
 
-	Match.set_net_provider(null)
+	Match._net_provider = null
 
 
 ## (chosen option "b")

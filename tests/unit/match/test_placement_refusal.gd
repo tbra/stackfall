@@ -6,7 +6,7 @@ extends "res://tests/unit/match/match_world_test.gd"
 const MatchNetScript := preload("res://net/MatchNet.gd")
 
 func after_each() -> void:
-	Match.set_net_provider(null)
+	Match._net_provider = null
 	Match.abort_match()
 	Match.set_process(true)
 	MatchTestReset.clear_world()
@@ -161,7 +161,7 @@ func test_client_preview_waives_territory_for_replicated_gift_then_refuses_again
 	Match.start_match(_config())
 	_run_countdown()
 	var fake: FakeNet = FakeNet.client(0)
-	Match.set_net_provider(fake)
+	Match._net_provider = fake
 	var net: MatchNetScript = MatchNetScript.new()
 	net.set_process(false)
 	add_child_autofree(net)

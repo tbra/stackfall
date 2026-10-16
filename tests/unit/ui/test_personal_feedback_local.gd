@@ -91,7 +91,7 @@ func after_each() -> void:
 	_net = null
 	Net._mode = Net.Mode.OFFLINE
 	Net._local_slot = 0
-	Match.set_net_provider(null)
+	Match._net_provider = null
 	Match.set_replicator(null)
 	Match.abort_match()
 	Match.set_process(true)
@@ -138,7 +138,7 @@ func _make_host_net() -> MatchNetScript:
 	var peer_slots: Dictionary = {HOST_PEER: HOST_SLOT, REMOTE_PEER: REMOTE_SLOT}
 	_fake_net = FakeNet.host(peer_slots, [HOST_SLOT])
 	_fake_net.slots_by_peer = peer_slots
-	Match.set_net_provider(_fake_net)
+	Match._net_provider = _fake_net
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)
@@ -152,10 +152,10 @@ func _make_host_net() -> MatchNetScript:
 
 ## A client instance whose own seat is `local_slot_id`.
 func _make_client_net(local_slot_id: int) -> MatchNetScript:
-	Match.set_net_provider(FakeNet.host({}, [HOST_SLOT, REMOTE_SLOT]))
+	Match._net_provider = FakeNet.host({}, [HOST_SLOT, REMOTE_SLOT])
 	_start_playing()
 	_fake_net = FakeNet.client(local_slot_id)
-	Match.set_net_provider(_fake_net)
+	Match._net_provider = _fake_net
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)
