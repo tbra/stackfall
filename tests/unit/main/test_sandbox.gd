@@ -141,14 +141,14 @@ func test_sandbox_next_slot_cycles_the_acting_slot_and_wraps() -> void:
 	_run_countdown()
 	var sandbox: Sandbox = _main._sandbox
 	assert_eq(sandbox.active_slot(), 0, "Match._begin_playing() seeds slot 0 first")
-	assert_eq(sandbox.controller()._active_slot, 0)
+	assert_eq((sandbox.get_node(^"PlayerController") as PlayerController)._active_slot, 0)
 
 	var event: InputEventKey = _key_press(KEY_TAB)
 	assert_true(event.is_action_pressed(&"sandbox_next_slot"), "Tab should map to sandbox_next_slot")
 
 	sandbox._unhandled_input(event)
 	assert_eq(sandbox.active_slot(), 1)
-	assert_eq(sandbox.controller()._active_slot, 1, "PlayerController.set_sandbox_slot() actually moved the acting slot")
+	assert_eq((sandbox.get_node(^"PlayerController") as PlayerController)._active_slot, 1, "PlayerController.set_sandbox_slot() actually moved the acting slot")
 
 	sandbox._unhandled_input(event)
 	sandbox._unhandled_input(event)

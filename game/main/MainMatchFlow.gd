@@ -222,7 +222,7 @@ func _release_countdown_hold(generation: int) -> void:
 		Match.set_countdown_held(false)
 
 
-func build_match_world(force_staging_for_test: bool = false) -> void:
+func build_match_world() -> void:
 	if main_node._world_built or main_node._world_building:
 		return
 	main_node._world_building = true
@@ -234,7 +234,7 @@ func build_match_world(force_staging_for_test: bool = false) -> void:
 	_reset_match_scope()
 	# DECISION: only a visible interactive overlay needs frame-separated stages.
 	# Headless hosts and test/probe runs retain the synchronous start contract.
-	var stage_build: bool = force_staging_for_test or (_loading_screen != null and _loading_screen.visible and DisplayServer.get_name() != "headless" and not AgentProbe.is_active())
+	var stage_build: bool = _loading_screen != null and _loading_screen.visible and DisplayServer.get_name() != "headless" and not AgentProbe.is_active()
 	main_node._clear_menu_and_lobby()
 	# fix round 2: every real (host/client/headless-bot) match
 	# reaches this one guarded builder -- start_sandbox_from_menu() above is
@@ -393,8 +393,8 @@ func spawn_bot_controllers(config: MatchConfig) -> void:
 ## launched). ROOT CAUSE: the CameraRig, the Field's RainPuddles layer and a
 ## number of autoloads/presentation nodes are persistent, so they outlived every
 ## match; a match start re-aimed only the camera's yaw/target, and puddles dry
-## over RainTuning.puddle_dry_time_s. This is the one presentation-reset entry
-## docs/MATCH_RESET_AUDIT.md section 4: Main resets the children it owns
+## over RainTuning.puddle_dry_time_s. This is the one presentation-reset entry:
+## Main resets the children it owns
 ## directly, then emits Events.match_scope_reset for every persistent holder it
 ## cannot name. Run when a match world is built, when one is torn down (also a
 ## cancelled staged build and a menu sandbox/tutorial) and on a sandbox reset;
