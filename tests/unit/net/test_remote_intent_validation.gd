@@ -217,7 +217,7 @@ func test_a_cursor_with_an_out_of_range_orientation_is_dropped_and_auto_drop_sti
 	Events.feed_timer_expired.emit(REMOTE_SLOT)
 
 	assert_eq(_block_count(), 1, "The timer path never sees the malformed pose and still drops.")
-	assert_eq(net.auto_drops(REMOTE_SLOT), 1)
+	assert_eq(net.intents_accepted(REMOTE_SLOT), 0, "the timer drop is not an accepted intent")
 
 
 # --- .6  Origin, free quaternion and height ----------------------------------

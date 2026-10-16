@@ -123,7 +123,7 @@ func test_afk_auto_drop_with_no_cursor_clears_the_home_beacon_on_every_disc_size
 		Events.feed_timer_expired.emit(REMOTE_SLOT)
 
 		assert_eq(_blocks_root.get_child_count(), 1, "%s: the host must auto-drop the remote slot's block" % map_name)
-		assert_eq(_net.auto_drops(REMOTE_SLOT), 1, "%s: counted as an auto-drop" % map_name)
+		assert_eq(_net.intents_accepted(REMOTE_SLOT), 0, "%s: an auto-drop, not an accepted intent" % map_name)
 		var lowest: float = _lowest_point_y(_blocks_root.get_child(0) as Node3D)
 		assert_lt(lowest, INF, "%s: fixture: the spawned block must carry its collision boxes" % map_name)
 		assert_gte(

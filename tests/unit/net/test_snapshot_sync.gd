@@ -2,8 +2,8 @@ extends GutTest
 ## net/SnapshotSync.gd's host -> client disk-state apply path (
 ## spec 2.6 "Disk state: tilt quaternion and position offset, sent every
 ## snapshot"). Before this fix, the client half of that sentence was never
-## true: client_tick() decoded a snapshot's disk pose into disk_position()/
-## disk_rotation() and stopped there -- nothing ever wrote it into a client's
+## true: client_tick() decoded a snapshot's disk pose into private fields
+## and stopped there -- nothing ever wrote it into a client's
 ## Field -- so the host's disc tilted under Anvil/Propeller/Earthquake while
 ## every client saw a level one.
 ##
@@ -182,15 +182,15 @@ func test_the_client_field_tilts_to_match_the_hosts_tilt_after_a_snapshot() -> v
 # into _client_sync's private bracket/convergence state through .get()/.call()
 # (it has no class_name, so it is typed Node and has no static members to
 # read directly) and net/Interpolator.gd's own render_time_ms through a
-# plain property write on the real Interpolator instance interpolator()
-# hands back (that one does have a class_name, so a cast makes it a normal
+# plain property write on the real Interpolator instance _interpolator
+# holds (that one does have a class_name, so a cast makes it a normal
 # typed write) -- the same white-box pattern test_field_tilt.gd already uses
 # for _mirrored, applied here so render time can be pinned exactly rather
 # than fought over with the adaptive clock-chase real client_tick() calls
 # drive it with.
 
 func _set_render_time_ms(ms: float) -> void:
-	var interp: Interpolator = _client_sync.call("interpolator") as Interpolator
+	var interp: Interpolator = _client_sync.get("_interpolator") as Interpolator
 	interp._render_time_ms = ms
 
 

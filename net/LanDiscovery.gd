@@ -109,10 +109,6 @@ func is_advertising() -> bool:
 	return _advertising
 
 
-func is_listening() -> bool:
-	return _listening
-
-
 func _process(delta: float) -> void:
 	if _advertising:
 		_broadcast_accum += delta

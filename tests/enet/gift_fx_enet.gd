@@ -726,7 +726,7 @@ func _client_final(host_blocks: int) -> void:
 	for block: Block in Match.registry().all_blocks():
 		if block.gift_id != &"":
 			gifts_left += 1
-	var duplicates: int = int(get_node(^"/root/MatchNet").call(&"duplicate_net_id_count"))
+	var duplicates: int = int(get_node(^"/root/MatchNet").get(&"_duplicate_net_ids"))
 	var ok: bool = converged and gifts_left == 0 and duplicates == 0 and Net.is_client()
 	_ack(&"final", "done", ok, "client_blocks=%d host_blocks=%d gifts_left=%d duplicate_ids=%d connected=%s" % [
 		Match.registry().all_blocks().size(), host_blocks, gifts_left, duplicates, Net.is_client()])
