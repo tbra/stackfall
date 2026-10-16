@@ -247,6 +247,42 @@ func test_physics_settle_flip_bumps_territory_revision() -> void:
 	assert_eq(registry.territory_revision(), placed_revision + 1, "A still settled block stays clean.")
 
 
+## A frozen block settled at the placed pose, with the registry's settled flag
+## already set.
+func _settled_frozen_block(field: Field, registry: BlockRegistry, shape: BlockShape) -> Block:
+	var block: Block = BlockFactory.build(shape, _tuning, 0)
+	field.add_child(block)
+	block.freeze = true
+	block.global_position = Vector3(3.0, 0.5, -1.0)
+	Events.block_placed.emit(block, shape.id)
+	var ticks: int = int(ceil(_tuning.sleep_settle_time * Engine.physics_ticks_per_second)) + 5
+	for _i: int in range(ticks):
+		await get_tree().physics_frame
+	assert_true(registry.all_settled(), "fixture: block settled")
+	return block
+
+
+## SPEC 2.x: a settled block that moved less than TerritoryTuning.dirty_move_epsilon
+## does not dirty the board; a larger move dirties it once, and the mark then
+## follows the block so it is not counted again.
+func test_physics_settled_move_beyond_epsilon_bumps_but_jitter_does_not() -> void:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var block: Block = await _settled_frozen_block(field, registry, shape)
+	var eps: float = _territory_tuning.dirty_move_epsilon
+	registry.set_move_epsilon(eps)
+	var before: int = registry.territory_revision()
+	block.global_position += Vector3(eps * 0.25, 0.0, 0.0)
+	await get_tree().physics_frame
+	assert_eq(registry.territory_revision(), before, "Sub-epsilon jitter does not bump.")
+	block.global_position += Vector3(eps * 4.0, 0.0, 0.0)
+	await get_tree().physics_frame
+	assert_eq(registry.territory_revision(), before + 1, "A move beyond epsilon bumps once.")
+	await get_tree().physics_frame
+	assert_eq(registry.territory_revision(), before + 1, "The mark follows the block: no repeat bump.")
+
+
 func test_paintball_owner_conversion_bumps_revision_host_and_client() -> void:
 	var field: Field = _make_field()
 	var registry: BlockRegistry = _make_registry(field)

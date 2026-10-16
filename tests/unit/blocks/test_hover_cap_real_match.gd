@@ -1,6 +1,6 @@
 extends GutTest
-## "there is still a maximum height the block
-## cannot be raised or placed above", seen in a real
+## Report: "there is still a maximum height the block cannot be raised or
+## placed above", seen in a real
 ## `--headless-host --bots=3 --players=4` match. These drive the *real* match
 ## path, not the bare sandbox fixture: the real Main scene, a real
 ## Net.host_game() listen server, Match started through Main's own
@@ -8,8 +8,8 @@ extends GutTest
 ## command line reaches), and the HotSeat PlayerController / GhostPreview /
 ## CameraRig / HUD that Main itself wires for the host's slot 0.
 ##
-## Trace result that motivated the fix (see the package report): on that path
-## nothing clamped the wheel below GhostTuning.hover_manual_max (60 m) and a
+## Why this exists: on that path nothing clamped the wheel below
+## GhostTuning.hover_manual_max (60 m) and a
 ## place at 55 m was accepted -- the caps the owner could actually hit were
 ## (1) the 60 m manual cap itself, 12 m short of the wire band, (2) the held
 ## PageUp/gamepad raise at a flat 1 m/s, which the 6 s feed timer auto-drops
@@ -18,8 +18,8 @@ extends GutTest
 ## the tallest *placed* tower, which stays put while the ghost is raised.
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
-## The and this package's brief: raising must reach at least
-## this far above the disk, and a placement there must be accepted.
+## Raising must reach at least this far above the disk, and a placement there
+## must be accepted.
 const REQUIRED_RAISE_M: float = 50.0
 ## How far under the band's ceiling a pose may stop and still count as
 ## "reached the band": one wheel notch plus float slack.

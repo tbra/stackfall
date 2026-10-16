@@ -4,8 +4,8 @@ extends GutTest
 ## `game/field/Field.gd`'s `_build_cells()` (now `_rebuild_cells()`) used to run
 ## only once, from `_ready()`, against Field's own `@export var map_def`
 ## (`round_medium.tres`); `game/main/Main.gd` never told it about the match's real
-## `config.map_def()` at any of its three `place_flags()`/`set_overlay_
-## source()` call sites. This drives the real Main scene directly, the same
+## `config.map_def()` at any of its `place_flags()`/`set_overlay_source()`
+## call sites. This drives the real Main scene directly, the same
 ## fixture shape as `tests/unit/bots/test_headless_bot_match.gd`'s own
 ## `before_each` ("the real Main scene, a tiny map override so
 ## round_medium.tres's own collision build doesn't pay its ~6300-cell cost
@@ -97,7 +97,7 @@ func _assert_field_matches_the_match_map() -> void:
 	assert_almost_eq(_field().grid().cell_size, _match_map.cell_size, 0.001)
 
 
-# --- Call site 1: _start_hot_seat_match() ------------------------------------
+# --- Call site: _start_hot_seat_match() --------------------------------------
 
 func test_hot_seat_rebuilds_field_for_the_match_map() -> void:
 	assert_eq(
@@ -110,10 +110,7 @@ func test_hot_seat_rebuilds_field_for_the_match_map() -> void:
 	_assert_field_matches_the_match_map()
 
 
-# --- Call site 2: _start_sandbox_match_with_args() ---------------------------
-
-
-# --- Call site 3: _build_match_world() (the real networked/lobby path,
+# --- Call site: _build_match_world() (the real networked/lobby path,
 # reached here through --headless-host --bots=, same seam test_headless_bot_
 # match.gd's own fixture uses) ------------------------------------------------
 

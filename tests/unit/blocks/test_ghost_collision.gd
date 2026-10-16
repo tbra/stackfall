@@ -202,11 +202,3 @@ func test_lowering_onto_a_block_stops_on_top_of_it() -> void:
 		"the placed block's transform must be untouched by the ghost pressing down on it."
 	)
 	assert_true(block.sleeping, "the placed block must never wake from the ghost's shape queries.")
-
-
-# --- docs/rotation-issue.png: 3-DOF rotate_drag must not
-# break the box sweep --------------------------------------------------------
-
-
-# --- Master switch (F4 tuning panel) ----------------------------------------
-
