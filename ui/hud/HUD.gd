@@ -953,10 +953,6 @@ func show_eliminated_banner(slot_id: int) -> void:
 	_eliminated_label.visible = true
 
 
-func eliminated_banner_text() -> String:
-	return _eliminated_label.text if _eliminated_label != null and _eliminated_label.visible else ""
-
-
 ## an instant refresh for the local slot the moment it claims
 ## a crate, rather than waiting up to one frame for _process()'s poll below.
 ## _refresh_special_indicator() re-reads Match itself (not the signal's own

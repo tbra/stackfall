@@ -118,7 +118,7 @@ func _run_client() -> void:
 		ring_max = maxf(ring_max, _hud._capture_progress)
 	_progress_before_out = maxf(_progress_before_out, ring_max)
 	await _wait(0.5)
-	var text: String = _hud.eliminated_banner_text()
+	var text: String = _hud._eliminated_label.text if _hud._eliminated_label.visible else ""
 	print("ELIMENET client ring_max=%.2f event_max=%.2f" % [ring_max, _max_progress])
 	print("ELIMENET client out=%s progress_before_out=%.2f held_null=%s next_null=%s banner='%s'" % [_out_seen, _progress_before_out, Match.held_shape(CLIENT_SLOT) == null, Match.next_shape(CLIENT_SLOT) == null, text])
 	var ok: bool = _out_seen and _progress_before_out > 0.3 and Match.held_shape(CLIENT_SLOT) == null and text.begins_with("Eliminated")

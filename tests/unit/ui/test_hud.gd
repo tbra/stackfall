@@ -38,12 +38,13 @@ func test_eliminated_banner_names_the_eliminator_or_falls_back() -> void:
 	fake_match.slots_by_id[1] = PlayerSlot.new(1, 1, "Rival", Color.BLUE)
 	hud.match_provider = fake_match
 	hud.set_local_slot(0)
-	assert_eq(hud.eliminated_banner_text(), "")
+	assert_false(hud._eliminated_label.visible)
 	hud.show_eliminated_banner(0)
-	assert_eq(hud.eliminated_banner_text(), "Eliminated")
+	assert_true(hud._eliminated_label.visible)
+	assert_eq(hud._eliminated_label.text, "Eliminated")
 	fake_match.eliminated_by_slot = 1
 	hud.show_eliminated_banner(0)
-	assert_true(hud.eliminated_banner_text().begins_with("Eliminated by "))
+	assert_true(hud._eliminated_label.text.begins_with("Eliminated by "))
 	assert_true(hud._eliminated_label.get_theme_font_size("font_size") > 0)
 
 
