@@ -139,22 +139,6 @@ func set_field(field: Field) -> void:
 	_tuning_panel.set_field(field)
 
 
-func controller() -> PlayerController:
-	return _controller
-
-
-func ghost() -> GhostPreview:
-	return _ghost
-
-
-func hud() -> HUD:
-	return _hud
-
-
-func panel() -> SandboxPanel:
-	return _panel
-
-
 ## The slot this instance is currently driving. ui/debug/SandboxPanel.gd reads
 ## this every refresh.
 func active_slot() -> int:

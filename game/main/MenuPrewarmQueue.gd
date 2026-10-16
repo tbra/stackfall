@@ -40,7 +40,7 @@ func _init() -> void:
 	exists_callable = _default_exists
 
 
-## Interactive path only: begins background loading (headless and flag runs use run_blocking()).
+## Interactive path only: begins background loading (headless and flag runs never start it).
 func start(_tree: SceneTree) -> void:
 	_started = true
 	_drained_emitted = false
@@ -113,23 +113,6 @@ func collect_in_flight() -> void:
 ## collect_in_flight().
 func halt() -> void:
 	_queue = PackedStringArray()
-
-
-## Loads every configured path synchronously, in order (paths whose file does not exist yet are
-## skipped, as in the background path).
-func load_all_blocking() -> void:
-	collect_in_flight()
-	_queue = PackedStringArray()
-	for path: String in _all_known_in_order():
-		if not _loaded.has(path) and exists_callable.call(path):
-			ensure(path)
-
-
-## Headless/test/CLI path: load everything now.
-static func run_blocking(_tree: SceneTree, cfg: MenuPrewarmConfig) -> void:
-	var queue: MenuPrewarmQueue = MenuPrewarmQueue.new()
-	queue.config = cfg
-	queue.load_all_blocking()
 
 
 func _all_known_in_order() -> PackedStringArray:

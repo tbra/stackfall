@@ -1,6 +1,6 @@
 extends GutTest
 ## MF0: MenuPrewarmQueue is strictly serial, ensure() collects an in-flight
-## path or dequeues a queued one, run_blocking loads everything, collect_in_flight() finishes
+## path or dequeues a queued one, collect_in_flight() finishes
 ## the request, and unknown paths push one error. A fake loader replaces ResourceLoader.
 
 const PATH_A: String = "res://fake/a.tscn"

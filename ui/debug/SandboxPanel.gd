@@ -105,7 +105,8 @@ func _process(delta: float) -> void:
 func _refresh() -> void:
 	if match_provider == null:
 		return
-	var slot_id: int = _sandbox.active_slot() if _sandbox != null else -1
+	var typed_sandbox: Sandbox = _sandbox as Sandbox
+	var slot_id: int = typed_sandbox.active_slot() if typed_sandbox != null else -1
 	_refresh_active_slot(slot_id)
 	_refresh_held_block(slot_id)
 	_refresh_timer(slot_id)
