@@ -122,7 +122,6 @@ func test_different_teams_overlapping_contest_the_cell() -> void:
 
 ## -- hole_delay --------------------------------------------------------------
 
-
 func test_a_contested_cell_becomes_a_hole_past_hole_delay() -> void:
 	var circles: Array[InfluenceCircle] = [_home(-3.0, 0.0, 0), _home(3.0, 0.0, 1)]
 	var cell: Vector2i = _cell_of(Vector2(0.5, 0.5))
@@ -179,15 +178,9 @@ func test_permanent_holes_never_close() -> void:
 	assert_true(_raster.is_hole(cell.x, cell.y))
 
 
-## -- Shader bytes ------------------------------------------------------------
-
-
-## -- Lifecycle ---------------------------------------------------------------
-
-
 ## -- v2 fill: the argmax field -----
 ##
-## Clarification: "Areas of different players never overlap.
+## Design note: "Areas of different players never overlap.
 ## Where they meet, the border is pushed by the heights of the stacks producing
 ## the contested area: the taller local stack gets more of the shared region,
 ## but not all of it, and it is the individual contesting stacks that count,
@@ -334,9 +327,8 @@ func test_v2_never_opens_a_hole_or_runs_a_contest_timer() -> void:
 
 ## -- Goal-flag no-build zones ------------------------------------------------
 ##
-## Clarification: "Goal flags have their own area of
-## influence in which no player may place a block." Orchestrator decision
-## the zone blocks placement only, never ownership.
+## Design note: "Goal flags have their own area of influence in which no player
+## may place a block." The zone blocks placement only, never ownership.
 
 const ZONE_RADIUS: float = 3.0
 
@@ -356,7 +348,7 @@ func test_set_goal_zones_marks_exactly_the_cells_within_the_radius() -> void:
 	assert_gt(marked, 0, "Setup: the zone covers some cells.")
 
 
-## -- Forced holes (M4 P5-HOLE) -------------------------------
+## -- Forced holes ------------------------------------------------------------
 ##
 ## force_hole_cell() opens a cell independent of contest overlap, seeding the
 ## same _hole/_contested_time/_idle_time bookkeeping a natural hole uses, so
@@ -376,8 +368,7 @@ func test_force_hole_cell_opens_immediately() -> void:
 	assert_has(Array(_raster.holes_opened()), _grid.cell_index(cell.x, cell.y))
 
 
-## -- A punched hole inside a single team's own circle (SHOULD-FIX, review
-## ) --------------------------------------------------------------
+## -- A punched hole inside a single team's own circle -------------------------
 ##
 ## Unlike the tests above, force_hole_cell() here lands on a cell a single
 ## uncontested team already owns (a natural hole never does: it only opens on
@@ -416,12 +407,12 @@ func test_a_punched_hole_inside_a_single_teams_circle_reads_as_unowned() -> void
 		"owner_bytes() draws it unowned too -- no team tint over a hole.")
 
 
-## -- tally_owned_cells ------------------------------------
+## -- tally_owned_cells -------------------------------------------------------
 ##
 ## The one-pass, by-index vote WinChecker.claim_at() reads over its cached claim
 ## cells. It must count exactly the cells the per-cell coordinate readers count
-## (group_at() >= 0 and team_at() >= 0), key them team * stride + group, ignore
-## off-grid indices, and never write into the raster.
+## (group_at() >= 0 and team_at() >= 0, so a punched hole is not counted), key
+## them team * stride + group, and ignore off-grid indices.
 
 const TALLY_STRIDE: int = 1000000
 
@@ -479,3 +470,45 @@ func test_tally_matches_the_coordinate_readers_after_a_solve() -> void:
 	assert_eq(_tally_total(tally), owned, "The tally counts every owned cell once.")
 
 
+func test_tally_does_not_count_a_punched_hole_inside_a_teams_own_circle() -> void:
+	var circles: Array[InfluenceCircle] = [_home(0.0, 0.0, 0)]
+	_step(circles, 0.1)
+	var before: Dictionary = _assert_tally_matches(_all_indices(), "before the punch")
+	var cell: Vector2i = _cell_of(Vector2(0.5, 0.5))
+	_raster.force_hole_cell(cell.x, cell.y, HOLE_OPEN_S, TEMPORARY)
+	var after: Dictionary = _assert_tally_matches(_all_indices(), "after the punch")
+	assert_eq(_tally_total(after), _tally_total(before) - 1,
+		"Exactly the punched cell leaves the tally: team_at() reads a hole as unowned.")
+
+
+func test_tally_ignores_indices_off_the_grid() -> void:
+	var circles: Array[InfluenceCircle] = [_home(0.0, 0.0, 0)]
+	_step(circles, 0.1)
+	var centre: Vector2i = _cell_of(Vector2.ZERO)
+	var valid: PackedInt32Array = PackedInt32Array([_grid.cell_index(centre.x, centre.y), _grid.cell_index(centre.x + 1, centre.y)])
+	var with_junk: PackedInt32Array = PackedInt32Array([-7, -1])
+	with_junk.append_array(valid)
+	with_junk.append_array(PackedInt32Array([_grid.cell_count(), _grid.cell_count() + 99, 2147483647]))
+	var clean: Dictionary[int, int] = _raster.tally_owned_cells(valid, TALLY_STRIDE)
+	var junk: Dictionary[int, int] = _raster.tally_owned_cells(with_junk, TALLY_STRIDE)
+	assert_eq(_tally_total(clean), 2, "Setup: both valid cells are owned.")
+	assert_eq(_tally_total(junk), 2, "Off-grid indices vote for nobody, like group_at()'s off-grid answer.")
+	assert_eq(junk.size(), clean.size())
+
+
+func test_tally_counts_interleaved_teams_and_repeated_indices_like_the_oracle() -> void:
+	# Alternating owners break the run-length counting every cell and bring a key
+	# back after another one; duplicates count once per occurrence.
+	var circles: Array[InfluenceCircle] = [_home(-8.0, 0.0, 0), _home(8.0, 0.0, 1)]
+	_step(circles, 0.1, TEMPORARY)
+	var left: Vector2i = _cell_of(Vector2(-8.0, 0.0))
+	var right: Vector2i = _cell_of(Vector2(8.0, 0.0))
+	var indices: PackedInt32Array = PackedInt32Array()
+	for step: int in range(6):
+		indices.append(_grid.cell_index(left.x + step, left.y))
+		indices.append(_grid.cell_index(right.x - step, right.y))
+	indices.append(_grid.cell_index(left.x, left.y))
+	indices.append(_grid.cell_index(left.x, left.y))
+	var tally: Dictionary = _assert_tally_matches(indices, "interleaved")
+	assert_eq(tally.size(), 2, "Setup: both teams vote.")
+	assert_eq(_tally_total(tally), indices.size(), "Setup: every listed cell is owned, duplicates included.")

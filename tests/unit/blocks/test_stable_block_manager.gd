@@ -10,6 +10,7 @@ extends GutTest
 ## Block._damp_rebound().
 
 var _tuning: PhysicsTuning = load("res://config/physics/physics_tuning.tres")
+var _glue_tuning: GlueDropTuning = load("res://config/gifts/glue_drop_tuning.tres")
 
 ## 's own DECISION (tests/unit/blocks/test_block_registry.gd): a
 ## shrunk-radius duplicate of round_medium.tres, not the shared resource
@@ -134,6 +135,32 @@ func test_tilting_field_releases_frozen_blocks_and_restarts_the_timer() -> void:
 	assert_true(block.is_freeze_static(), "disc still: re-freezes after the normal delay")
 
 
+## A disc-anchored glue group rides the Field as a kinematic body; a STATIC
+## freeze would leave it behind a tilting disc, so the scan skips it however
+## long it has been asleep.
+func test_a_disc_anchored_carrier_never_freeze_statics() -> void:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	var manager: StableBlockManager = _make_manager(registry)
+	var root: Node3D = autofree(Node3D.new())
+	add_child_autofree(root)
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var block: Block = BlockFactory.build(shape, _tuning, 0)
+	root.add_child(block)
+	block.global_position = field.to_global(Vector3(0.0, field.surface_y() + _tuning.cube_size * 0.5, 0.0))
+	Events.block_placed.emit(block, shape.id)
+	var carrier: FusedBody = GlueFusion.fuse(block, field, _glue_tuning)
+	assert_not_null(carrier, "fixture: the cube glued to the disc")
+	assert_true(carrier.is_disc_anchored(), "fixture: the group is anchored")
+	carrier.sleeping = true
+	assert_true(carrier.sleeping, "fixture: the carrier reads asleep")
+
+	manager._tick(_tuning.stable_freeze_delay_s + _tuning.stable_freeze_scan_interval_s)
+
+	assert_false(carrier.is_freeze_static(), "a disc-anchored carrier is never freeze-static")
+	assert_eq(carrier.freeze_mode, RigidBody3D.FREEZE_MODE_KINEMATIC, "it keeps riding the disc")
+
+
 func test_real_physics_island_wakes_still_freeze_and_a_tilt_carries_the_released_pile() -> void:
 	# Real frames: a 3-cube tower (one Jolt island) is woken every 0.75 s, so it
 	# never sleeps a whole delay in a row, yet still freezes; a tilt impulse
@@ -212,6 +239,25 @@ func test_fast_neighbour_holds_back_a_still_block() -> void:
 	runner.linear_velocity = Vector3.ZERO
 	manager._tick(_tuning.stable_freeze_scan_interval_s)
 	assert_true(still.is_freeze_static(), "frozen on the first scan after the neighbour slows")
+
+
+## PhysicsTuning.catchup_cap_enabled is pushed to the engine's
+## max_physics_steps_per_frame whenever it changes (SPEC 2.7 frame pacing).
+func test_catchup_cap_toggle_sets_engine_steps_live() -> void:
+	var parts: Array = _awake_still_setup()
+	var manager: StableBlockManager = parts[0]
+	var tuning: PhysicsTuning = _tuning.duplicate() as PhysicsTuning
+	manager.tuning = tuning
+	var original: int = Engine.max_physics_steps_per_frame
+	tuning.catchup_cap_enabled = false
+	manager.apply_catchup_cap()
+	var uncapped: int = Engine.max_physics_steps_per_frame
+	tuning.catchup_cap_enabled = true
+	manager.apply_catchup_cap()
+	var capped: int = Engine.max_physics_steps_per_frame
+	Engine.max_physics_steps_per_frame = original
+	assert_eq(uncapped, tuning.catchup_steps_default, "cap off: the engine default step count")
+	assert_eq(capped, tuning.catchup_steps_capped, "cap on: the capped step count")
 
 
 func _real_never_sleeping_pile(settle_enabled: bool) -> Array[Block]:

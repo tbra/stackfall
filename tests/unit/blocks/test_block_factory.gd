@@ -72,11 +72,7 @@ func test_physics_material_matches_tuning() -> void:
 	assert_almost_eq(block.physics_material_override.bounce, _tuning.block_bounce, 0.0001)
 
 
-# --- (in-game tuning panel, spec 1.9 "Gravity 0.5x-2x") -------
-
-
-# --- rebound damping: BlockFactory wires its own tuning ----
-
+# --- in-game tuning panel (spec 1.9 "Gravity 0.5x-2x") ----------------------
 
 ## A dedicated PhysicsTuning instance, not the shared preloaded resource (see
 ## test_playercontroller_mouse.gd's matching CameraTuning comment on why),
@@ -97,16 +93,7 @@ func _count_children_of_type(node: Node, type_name: String) -> int:
 	return count
 
 
-# --- player-coloured blocks -----
-
-
-# --- fix round (review MAJOR): the "contributing to territory --
-# --- influence" glow seam now lives on Block itself, not written directly ---
-# --- from inside BlockFactory.build() -----------------------------------------
-
-
-# --- pivot is the shape's --
-# --- geometric centre, not cell (0, 0, 0) ------------------------------------
+# --- pivot: the shape's bottom centre, not cell (0, 0, 0) --------------------
 
 func _combined_local_aabb(root: Node3D) -> AABB:
 	var result: AABB = AABB()

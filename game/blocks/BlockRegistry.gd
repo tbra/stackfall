@@ -71,12 +71,10 @@ var _move_epsilon: float = 0.005
 
 ## Set by Match.start_match() via configure(). Used only for the disk-local
 ## projection (Field.to_local/to_global are plain Node3D methods, not part of
-## Field's projection API, which is a plain Node3D conversion) and
-## for bodies_over_cells()'s cell lookup.
+## Field's projection API, which is a plain Node3D conversion).
 var _field: Node3D = null
 ## Test seam: false recomputes every block's geometry (the oracle path).
 var _geometry_cache_enabled: bool = true
-var _grid: CellGrid = null
 
 ## M3a. True on the host **and offline** (Net.is_host()'s contract), so M2's
 ## single-PC behaviour is the default and nothing had to change for it.
@@ -112,11 +110,10 @@ func hole_dissolver() -> HoleDissolver:
 
 
 ## Called once by Match.start_match() once the map is known. `field` supplies
-## the disk-local projection; `map_def` sizes the cell grid bodies_over_cells()
-## looks cells up against.
-func configure(field: Node3D, map_def: MapDef) -> void:
+## the disk-local projection; the map is not needed here (the second argument
+## keeps the call sites' shape).
+func configure(field: Node3D, _map_def: MapDef) -> void:
 	_field = field
-	_grid = CellGrid.new(map_def.field_radius, map_def.cell_size, map_def.shape_test())
 	_ensure_dissolver().set_field(field)
 
 
@@ -442,30 +439,6 @@ func tallest_settled_for_slot(slot_id: int) -> Dictionary:
 	return best
 
 
-## Every live body (settled or not) whose disk-local projection falls in one
-## of `cells` (CellGrid row-major indices). Field uses this to wake bodies
-## above a cell that just changed hole state (spec 2.5).
-func bodies_over_cells(cells: PackedInt32Array) -> Array[RigidBody3D]:
-	var result: Array[RigidBody3D] = []
-	if _grid == null:
-		return result
-	var wanted: Dictionary = {}
-	for cell: int in cells:
-		wanted[cell] = true
-
-	for id: Variant in _entries.keys():
-		var entry: _Entry = _entries[id]
-		if not is_instance_valid(entry.block):
-			continue
-		var local: Vector3 = _to_local(entry.block.global_position)
-		var coords: Vector2i = _grid.world_to_cell(Vector2(local.x, local.z))
-		if not _grid.in_bounds(coords.x, coords.y):
-			continue
-		if wanted.has(_grid.cell_index(coords.x, coords.y)):
-			result.append(entry.block)
-	return result
-
-
 func net_id_for_block(block: Block) -> int:
 	return block.net_id if block != null else -1
 
@@ -520,12 +493,6 @@ func is_tracked(block: Block) -> bool:
 	return block != null and _entries.has(block.get_instance_id())
 
 
-## Every live tracked Block, host or client alike. The stable-block manager is its
-## only consumer, so it can scan for asleep-past-threshold blocks
-## without this class needing to know anything about freezing. Filters out
-## any entry whose Block was freed without going through
-## Events.block_removed first, the same defensive is_instance_valid() check
-## bodies_over_cells() above already makes.
 ## The field's current global transform (identity with no field). Lets
 ## StableBlockManager notice a tilting/moving disc.
 func field_global_transform() -> Transform3D:
@@ -564,6 +531,8 @@ func physics_bodies() -> Array[Block]:
 	return result
 
 
+## Every live tracked Block, host or client alike. Filters out any entry whose
+## Block was freed without going through Events.block_removed first.
 func all_blocks() -> Array[Block]:
 	var result: Array[Block] = []
 	for id: Variant in _entries.keys():

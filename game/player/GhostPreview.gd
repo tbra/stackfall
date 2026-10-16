@@ -1809,7 +1809,6 @@ var _mask_basis: Basis = Basis.IDENTITY
 var _mask_origin: Vector2 = Vector2.ZERO
 var _mask_extent: Vector2 = Vector2.ZERO
 var _mask_cache: Dictionary = {}
-var mask_rebuild_count: int = 0
 static var _white_texture: ImageTexture = null
 
 
@@ -1842,7 +1841,6 @@ func _apply_decal_footprint_mask(origin: Vector2, extent: Vector2) -> void:
 		return
 	if _mask_cache.size() >= MASK_CACHE_MAX_ENTRIES:
 		_mask_cache.clear()
-	mask_rebuild_count += 1
 	var texture: ImageTexture = ImageTexture.create_from_image(_rasterize_footprint_mask(loops, origin, extent))
 	_mask_cache[key] = texture
 	_block_projection_decal.texture_albedo = texture

@@ -1,9 +1,7 @@
 extends GutTest
-## Glue fusion: a FusedBody carrier
-## against BlockRegistry (territory circles, settled flags, physics_bodies()),
-## StableBlockManager (one freeze per carrier, disc-anchored carriers never static),
-## the kill plane and HoleDissolver (one member dissolves, the rest stays, exactly one
-## block_removed per member). Bodies are fused through GlueFusion directly.
+## Glue fusion: a FusedBody carrier against BlockRegistry (territory circles),
+## the kill plane and HoleDissolver (one member dissolves, the rest stays, exactly
+## one block_removed per member). Bodies are fused through GlueFusion directly.
 
 const CUBE_SIDE_M: float = 1.2
 const REST_HEIGHT_M: float = 0.62

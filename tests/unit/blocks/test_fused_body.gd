@@ -272,9 +272,97 @@ func test_centre_of_mass_uses_member_mass_not_shape_volume() -> void:
 	assert_lt(after_com.distance_to(_world_com(members)), COM_TOLERANCE, "updated COM is mass-weighted")
 
 
-# --- Composition review fixes ---
+# --- Freeze hold follows its body through fusion ---
+
+const FREEZE_TEST_S: float = 0.25
+const FREEZE_WAIT_FRAMES: int = 40
 
 
-# --- Carry fixes ---
+func _freeze_effect() -> FreezeEffect:
+	var effect: FreezeEffect = FreezeEffect.new()
+	effect.freeze_duration_s = FREEZE_TEST_S
+	return effect
 
 
+## FusedBody.absorb_group() hands the absorbed carrier's hold to the survivor.
+func test_frozen_group_keeps_its_freeze_timer_when_merged_into_another() -> void:
+	var at: Vector3 = _field.to_global(Vector3(0.0, 6.0, 0.0))
+	var a: Block = _block("cube", 0, at)
+	var b: Block = _block("cube", 0, at + Vector3(CUBE_SIDE_M, 0.0, 0.0))
+	var c: Block = _block("cube", 0, at + Vector3(0.0, 0.0, 4.0))
+	var d: Block = _block("cube", 0, at + Vector3(CUBE_SIDE_M, 0.0, 4.0))
+	var first: FusedBody = _fuse(a, b)
+	var second: FusedBody = _fuse(c, d)
+	_freeze_effect().freeze_block(second)
+	assert_true(second.is_freeze_static())
+	var merged: FusedBody = _fuse(a, c)
+	assert_eq(merged, first)
+	assert_eq(merged.members.size(), 4)
+	assert_true(merged.is_freeze_static(), "the Freeze hold follows the merged members")
+	await _frames(FREEZE_WAIT_FRAMES)
+	assert_false(merged.is_freeze_static(), "and releases on time instead of staying STATIC forever")
+
+
+## FusedBody.adopt() moves a held plain block's timer onto the carrier.
+func test_adopting_a_frozen_block_moves_the_hold_to_the_carrier() -> void:
+	var at: Vector3 = _field.to_global(Vector3(0.0, 6.0, 0.0))
+	var frozen: Block = _block("cube", 0, at)
+	var charged: Block = _block("cube", 0, at + Vector3(CUBE_SIDE_M, 0.0, 0.0))
+	_freeze_effect().freeze_block(frozen)
+	var carrier: FusedBody = _fuse(charged, frozen)
+	assert_true(carrier.is_freeze_static())
+	assert_null(frozen.get_node_or_null(NodePath(FreezeEffect.TIMER_NAME)), "the timer moved off the follower")
+	assert_not_null(carrier.get_node_or_null(NodePath(FreezeEffect.TIMER_NAME)))
+	await _frames(FREEZE_WAIT_FRAMES)
+	assert_false(carrier.is_freeze_static(), "the group releases when the Freeze ends")
+
+
+## A collapse back to one Block hands the carrier's hold to the survivor.
+func test_collapse_keeps_the_freeze_hold_on_the_survivor() -> void:
+	var at: Vector3 = _field.to_global(Vector3(0.0, 6.0, 0.0))
+	var a: Block = _block("cube", 0, at)
+	var b: Block = _block("cube", 0, at + Vector3(CUBE_SIDE_M, 0.0, 0.0))
+	var carrier: FusedBody = _fuse(a, b)
+	_freeze_effect().freeze_block(carrier)
+	carrier.remove_member(a, &"hole")
+	assert_true(b.is_freeze_static())
+	await _frames(FREEZE_WAIT_FRAMES)
+	assert_false(b.is_freeze_static(), "the survivor is not STATIC forever")
+
+
+# --- Disc-anchored carrier: snapshot rest state and pose ---
+
+
+## net_sleeping() is what SnapshotSync reads to stop sending a resting anchored
+## group; a disc tilt must wake it so clients keep following the disc.
+func test_resting_anchored_group_reports_sleeping_and_a_tilt_wakes_it() -> void:
+	var setup: Dictionary = _anchored_stack(2)
+	var carrier: FusedBody = setup["carrier"]
+	var blocks: Array[Block] = setup["blocks"]
+	assert_false(carrier.net_sleeping(), "just anchored: not yet at rest")
+	await _frames(_tuning.anchor_rest_ticks + 3)
+	assert_true(carrier.net_sleeping(), "a resting anchored group stops costing snapshot bandwidth")
+	assert_true(blocks[1].net_sleeping(), "followers report the carrier's rest state")
+	assert_true(blocks[1].is_contributing_visual(), "host glow follows the carrier, not the follower's own signal")
+	_field.set_tilt_enabled(true)
+	_field.apply_tilt_impulse(Vector2(1.0, 0.0), TILT_KICK)
+	await _frames(3)
+	assert_false(carrier.net_sleeping(), "disc tilt wakes the anchored group so clients follow")
+	assert_false(blocks[1].is_contributing_visual())
+
+
+## SnapshotSync calls refresh_anchor_pose() before recording, because the
+## carrier's own tick runs after the snapshot's.
+func test_refresh_anchor_pose_poses_followers_from_the_disc_of_the_same_tick() -> void:
+	var setup: Dictionary = _anchored_stack(2)
+	var carrier: FusedBody = setup["carrier"]
+	var blocks: Array[Block] = setup["blocks"]
+	await _frames(2)
+	var local: Vector3 = _field.to_local(blocks[1].global_position)
+	_field.set_tilt_enabled(true)
+	_field.apply_tilt_impulse(Vector2(1.0, 0.0), TILT_KICK)
+	await _frames(5)
+	# Move the disc by hand: before the carrier's own (later) tick, refresh must catch up.
+	_field.global_transform = _field.global_transform.rotated_local(Vector3.RIGHT, 0.05)
+	carrier.refresh_anchor_pose()
+	assert_lt(_field.to_local(blocks[1].global_position).distance_to(local), ANCHOR_DRIFT_M, "no one-tick lag behind the disc")

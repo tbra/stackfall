@@ -147,9 +147,6 @@ func test_an_enemy_block_does_not_bridge_two_of_my_towers() -> void:
 	assert_eq(groups.group_count(), 1, "The enemy block has no home of its own.")
 
 
-## -- Output shape ------------------------------------------------------------
-
-
 ## -- max_circles safety valve ------------------------------------------------
 
 func test_max_circles_keeps_the_homes_and_the_largest_blocks() -> void:
@@ -167,8 +164,3 @@ func test_max_circles_keeps_the_homes_and_the_largest_blocks() -> void:
 	assert_eq(groups.group_count(), 1)
 	assert_eq(groups.circles_of(0), PackedInt32Array([0, 2, 4]),
 		"The home plus the two widest blocks survive the cap.")
-
-
-## -- The spatial hash has to actually help -----------------------------------
-
-

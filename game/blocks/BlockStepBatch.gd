@@ -32,8 +32,6 @@ extends RefCounted
 ## hold a reference to its target).
 static var _instance: BlockStepBatch = null
 static var _install_queued: bool = false
-## For tests and the callback-count bench: how many times the batched hook ran.
-static var hook_runs: int = 0
 ## Rounding slack for the slow-block early-out in Block._batch_tick(): a block
 ## whose previous speed^2 is below impact_speed_min^2 times this cannot have
 ## decelerated by impact_speed_min, so the length() calls are skipped. Not a
@@ -73,7 +71,6 @@ static func install() -> void:
 
 
 func _on_physics_frame() -> void:
-	hook_runs += 1
 	var frame: int = Engine.get_physics_frames()
 	# DECISION (game/blocks/BlockStepBatch.gd): the per-block body is Block._batch_tick()
 	# (a script-to-script call whose ~20 field reads are indexed `self` member
