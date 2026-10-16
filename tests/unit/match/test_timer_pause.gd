@@ -37,7 +37,6 @@ func test_continuous_pause_exhausts_exactly_at_the_cap_then_runs() -> void:
 	assert_true(rule.is_paused(0), "one step before the cap")
 	_run(rule, STEP_S)
 	assert_false(rule.is_paused(0), "cap reached: the timer runs")
-	assert_false(rule.is_paused(0))
 	assert_false(rule.is_paused(1), "global cause: every slot is guarded together")
 	_run(rule, 5.0)
 	assert_false(rule.is_paused(0), "stays running while the raw cause persists")

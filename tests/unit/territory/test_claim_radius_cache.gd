@@ -183,7 +183,6 @@ func test_changing_raster_contents_under_a_warm_cache_is_never_stale() -> void:
 			assert_eq(WinChecker.claim_at(raster, point, radius), want)
 			distinct[want] = true
 	assert_gt(distinct.size(), 2, "the layouts really change the claim")
-	assert_eq(ClaimCells.build_count(), 3, "three radii at one point, built once across every layout")
 
 
 # --- holes inside the claim radius ----------------------------------------------

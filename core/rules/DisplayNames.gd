@@ -4,8 +4,6 @@ extends RefCounted
 ## (concept M, D3). Pure statics, no scene tree. Unknown ids return a
 ## stable fallback, never "". Plain strings (Q2): a later tr() is a one-file change.
 
-## MatchConfig.SkyThemeMode order (DAY is shown as "Sunset").
-const SKY_THEME_LABELS: PackedStringArray = ["Sunset", "Night", "Random", "Cycle", "Dawn"]
 ## Shown when an index or id has no label.
 const UNKNOWN_LABEL: String = "Unknown"
 ## The placeholder gift id (SpecialIds.PENDING) reads as this.
@@ -14,10 +12,6 @@ const PENDING_SPECIAL_LABEL: String = "Special"
 
 static func mode(mode_id: int) -> String:
 	return _pick(MatchConfig.GAME_MODE_LABELS, mode_id)
-
-
-static func sky_theme(index: int) -> String:
-	return _pick(SKY_THEME_LABELS, index)
 
 
 static func weather(index: int) -> String:

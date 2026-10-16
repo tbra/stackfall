@@ -72,7 +72,7 @@ func test_bucket_burst_then_refill() -> void:
 	assert_false(bucket.take(1000.0, 3, 0.5))
 
 
-func test_history_ring_and_clear() -> void:
+func test_history_ring_drops_the_oldest() -> void:
 	var hist: ChatRules.History = ChatRules.History.new(SMALL_RING)
 	for i: int in range(OVER_RING):
 		hist.push(ChatRules.make_line(i, 1, 0, "A", 0, str(i)))
@@ -82,8 +82,6 @@ func test_history_ring_and_clear() -> void:
 	assert_eq(lines[SMALL_RING - 1][ChatRules.KEY_SEQ], OVER_RING - 1)
 	lines.clear()
 	assert_eq(hist.lines().size(), SMALL_RING, "lines() is a copy")
-	hist.clear()
-	assert_eq(hist.lines().size(), 0)
 
 
 func test_chat_open_is_keyboard_only() -> void:

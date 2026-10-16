@@ -117,10 +117,6 @@ func on_round_timer_end() -> int:
 	return best_team
 
 
-func team_score(team: int) -> float:
-	return _scores[team] if team >= 0 and team < _scores.size() else 0.0
-
-
 func scores() -> PackedFloat32Array:
 	return _scores.duplicate()
 

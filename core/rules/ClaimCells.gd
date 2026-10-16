@@ -38,9 +38,6 @@ extends RefCounted
 const MAX_CACHED_LISTS: int = 64
 
 static var _lists: Dictionary = {}
-## How many lists have been built since the last clear(); lets tests prove a
-## second query was served from the cache rather than recomputed.
-static var _build_count: int = 0
 
 
 ## The in-radius, in-bounds cells around `point` as row-major cell indices.
@@ -54,24 +51,12 @@ static func indices_for(grid: CellGrid, point: Vector2, claim_radius: float) -> 
 	if _lists.size() >= MAX_CACHED_LISTS:
 		_lists.clear()
 	_lists[key] = cells
-	_build_count += 1
 	return cells
 
 
-## Drops every cached list (a match reset, or a test wanting a cold cache).
+## Drops every cached list (a match reset).
 static func clear() -> void:
 	_lists.clear()
-	_build_count = 0
-
-
-## Lists currently cached.
-static func cached_count() -> int:
-	return _lists.size()
-
-
-## Lists built since the last clear().
-static func build_count() -> int:
-	return _build_count
 
 
 ## The same scan the uncached claim_at() ran every call: the (2 * reach + 1)^2

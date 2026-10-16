@@ -85,12 +85,12 @@ func test_a_block_balanced_for_an_instant_does_not_count() -> void:
 	block.linear_velocity = Vector3.DOWN * (_tuning.sleep_linear_threshold + 1.0)
 	_registry._physics_process(_tuning.sleep_settle_time * 0.9)
 	assert_eq(heard.size(), 0)
-	assert_eq(objective.team_score(0), 0.0, "an unsettled block leaves the record alone")
+	assert_eq(objective.scores()[0], 0.0, "an unsettled block leaves the record alone")
 	block.linear_velocity = Vector3.ZERO
 	block.angular_velocity = Vector3.ZERO
 	_registry._physics_process(_tuning.sleep_settle_time + 0.1)
 	assert_eq(heard.size(), 1)
-	assert_gt(objective.team_score(0), 0.0)
+	assert_gt(objective.scores()[0], 0.0)
 
 
 # --- Records ---------------------------------------------------------------------------
@@ -123,13 +123,13 @@ func test_team_sum_mode() -> void:
 	objective.record_height(0, 4.0)
 	objective.record_height(2, 3.0)
 	objective.record_height(1, 5.0)
-	assert_almost_eq(objective.team_score(0), 7.0, 0.0001)
-	assert_almost_eq(objective.team_score(1), 5.0, 0.0001)
+	assert_almost_eq(objective.scores()[0], 7.0, 0.0001)
+	assert_almost_eq(objective.scores()[1], 5.0, 0.0001)
 	assert_eq(objective.on_round_timer_end(), 0)
 	objective.record_height(2, 1.0)  # lower than that member's record: no change
-	assert_almost_eq(objective.team_score(0), 7.0, 0.0001)
+	assert_almost_eq(objective.scores()[0], 7.0, 0.0001)
 	objective.record_height(2, 3.5)
-	assert_almost_eq(objective.team_score(0), 7.5, 0.0001)
+	assert_almost_eq(objective.scores()[0], 7.5, 0.0001)
 
 
 # --- First to the target ---------------------------------------------
@@ -185,8 +185,8 @@ func test_a_sky_match_records_settled_heights_and_the_timer_decides() -> void:
 	_registry.block_settled.emit(0, 5.0)  # team 0
 	_registry.block_settled.emit(2, 4.0)  # team 0
 	_registry.block_settled.emit(1, 8.0)  # team 1
-	assert_almost_eq(objective.team_score(0), 9.0, 0.0001)
-	assert_almost_eq(objective.team_score(1), 8.0, 0.0001)
+	assert_almost_eq(objective.scores()[0], 9.0, 0.0001)
+	assert_almost_eq(objective.scores()[1], 8.0, 0.0001)
 	var results: Array[Dictionary] = []
 	Events.match_results_ready.connect(func(r: Dictionary) -> void: results.append(r))
 	Match._lifecycle._match_timer_left = 0.02
