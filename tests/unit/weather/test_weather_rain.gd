@@ -3,13 +3,19 @@ extends GutTest
 ## framework restore paths, host-only physics and the streak presentation.
 
 const DELTA: float = 0.25
-const BASE_BLOCK: float = 0.8
-const BASE_DISC: float = 0.9
 const RAIN_PATH: String = "res://config/weather/rain.tres"
+const FIELD_RADIUS_M: float = 20.0
 
-var _bodies: Array[RigidBody3D] = []
-var _disc: StaticBody3D = null
+var _blocks: Array[Block] = []
+var _field: Field = null
+var _root: Node3D = null
+var _registry: BlockRegistry = null
+var _physics: PhysicsTuning = null
+var _context: FakeMatchContext = null
+var _previous_context: MatchContext = null
 var _rain: RainTuning = null
+var _base_block: float = 0.0
+var _base_disc: float = 0.0
 ## Every MatchWeather a test built: the autoload WeatherPresenter listens to their Events, so one
 ## left running keeps its rain presenting (and storm-tinting every later Skybox) for the rest of
 ## the process.
@@ -17,74 +23,88 @@ var _weathers: Array[MatchWeather] = []
 
 
 func before_each() -> void:
-	_bodies.clear()
+	_blocks.clear()
 	_weathers.clear()
-	_disc = StaticBody3D.new()
-	_disc.physics_material_override = _mat(BASE_DISC)
+	_field = Field.new()
+	_field.map_def = (load("res://config/match/maps/round.tres") as MapDef).duplicate(true)
+	_field.map_def.field_radius = FIELD_RADIUS_M
+	add_child_autofree(_field)
+	_root = Node3D.new()
+	add_child_autofree(_root)
+	_physics = load("res://config/physics/physics_tuning.tres") as PhysicsTuning
+	_registry = BlockRegistry.new()
+	add_child_autofree(_registry)
+	_registry.configure(_field, _field.map_def)
+	_previous_context = MatchContext.installed()
+	_context = FakeMatchContext.new()
+	_context.field_value = _field
+	_context.registry_value = _registry
+	MatchContext.install(_context)
 	_rain = load(RAIN_PATH) as RainTuning
+	_base_disc = _field.physics_material_override.friction
+	# PhysicsMaterial stores a 32-bit float: compare against what it holds.
+	var probe: PhysicsMaterial = PhysicsMaterial.new()
+	probe.friction = _physics.block_friction
+	_base_block = probe.friction
 
 
 func after_each() -> void:
-	for body: RigidBody3D in _bodies:
-		body.free()
-	_disc.free()
 	for weather: MatchWeather in _weathers:
 		weather.reset()
 	_weathers.clear()
+	MatchContext.install(_previous_context)
 	Match.abort_match()
 
 
-func _mat(friction: float) -> PhysicsMaterial:
-	var m: PhysicsMaterial = PhysicsMaterial.new()
-	m.friction = friction
-	return m
+## A real Block registered the way a placement does (Events.block_placed), at `at` in world space.
+func _block(at: Vector3 = Vector3(0.0, 0.01, 0.0)) -> Block:
+	var block: Block = BlockFactory.build(load("res://config/blocks/cube.tres") as BlockShape, _physics)
+	_root.add_child(block)
+	block.global_position = at
+	_blocks.append(block)
+	Events.block_placed.emit(block, block.shape_id)
+	return block
 
 
-func _block(friction: float = BASE_BLOCK) -> RigidBody3D:
-	var b: RigidBody3D = RigidBody3D.new()
-	b.physics_material_override = _mat(friction)
-	_bodies.append(b)
-	return b
-
-
-func _effect() -> RainEffect:
+func _effect(tuning: RainTuning = null) -> RainEffect:
 	var e: RainEffect = RainEffect.new()
-	e.tuning = _rain
-	e.set_providers(
-		func() -> Array: return _bodies.filter(func(b: RigidBody3D) -> bool: return is_instance_valid(b)),
-		func() -> Variant: return _disc)
+	e.bind(_context, tuning if tuning != null else _rain)
 	return e
 
 
-func _f(b: RigidBody3D) -> float:
+func _f(b: Block) -> float:
 	return b.physics_material_override.friction
 
 
+func _disc_f() -> float:
+	return _field.physics_material_override.friction
+
+
 func test_intensity_maps_linearly_and_restores_exactly() -> void:
-	var a: RigidBody3D = _block()
+	var a: Block = _block()
 	var e: RainEffect = _effect()
 	e.apply(0.0)
-	assert_almost_eq(_f(a), BASE_BLOCK, 0.0001)
+	assert_almost_eq(_f(a), _base_block, 0.0001)
 	e.apply(0.5)
-	assert_almost_eq(_f(a), BASE_BLOCK * lerpf(1.0, _rain.wet_block_friction_factor, 0.5), 0.0001)
-	assert_almost_eq(_disc.physics_material_override.friction, BASE_DISC * lerpf(1.0, _rain.wet_disc_friction_factor, 0.5), 0.0001)
+	assert_almost_eq(_f(a), _base_block * lerpf(1.0, _rain.wet_block_friction_factor, 0.5), 0.0001)
+	assert_almost_eq(_disc_f(), _base_disc * lerpf(1.0, _rain.wet_disc_friction_factor, 0.5), 0.0001)
 	e.apply(1.0)
-	assert_almost_eq(_f(a), maxf(BASE_BLOCK * _rain.wet_block_friction_factor, _rain.min_friction), 0.0001)
+	assert_almost_eq(_f(a), maxf(_base_block * _rain.wet_block_friction_factor, _rain.min_friction), 0.0001)
 	e.restore()
-	assert_eq(_f(a), _mat(BASE_BLOCK).friction, "exact baseline")
-	assert_eq(_disc.physics_material_override.friction, _mat(BASE_DISC).friction)
+	assert_eq(_f(a), _base_block, "exact baseline")
+	assert_eq(_disc_f(), _base_disc)
 	e.restore()
-	assert_eq(_f(a), _mat(BASE_BLOCK).friction, "double restore is safe")
+	assert_eq(_f(a), _base_block, "double restore is safe")
 
 
 func test_block_spawned_mid_rain_gets_wet_and_restores() -> void:
 	var e: RainEffect = _effect()
 	e.apply(1.0)
-	var late: RigidBody3D = _block(0.6)
+	var late: Block = _block()
 	e.tick(_rain.rescan_interval_s + 0.01, 1.0)
-	assert_lt(_f(late), 0.6, "late block wet after a rescan")
+	assert_lt(_f(late), _base_block, "late block wet after a rescan")
 	e.restore()
-	assert_eq(_f(late), _mat(0.6).friction)
+	assert_eq(_f(late), _base_block)
 
 
 func _weather(host: bool, factory_calls: Array) -> MatchWeather:
@@ -99,7 +119,7 @@ func _weather(host: bool, factory_calls: Array) -> MatchWeather:
 
 
 func test_client_never_builds_physics_effect() -> void:
-	var a: RigidBody3D = _block()
+	var a: Block = _block()
 	var calls: Array = []
 	var w: MatchWeather = _weather(false, calls)
 	var state: Dictionary = {"v": 1, "epoch": 1, "seed": 1, "mode": MatchConfig.WeatherMode.RAIN, "sched": MatchWeather.Sched.EVENT,
@@ -109,21 +129,33 @@ func test_client_never_builds_physics_effect() -> void:
 	assert_eq(w.active_id(), &"rain")
 	assert_gt(w.active_intensity(), 0.0, "presentation intensity advances")
 	assert_eq(calls.size(), 0, "no effect built on a client")
-	assert_eq(_f(a), _mat(BASE_BLOCK).friction)
+	assert_eq(_f(a), _base_block)
 
 
-func test_presentation_density_follows_intensity_and_low_preset_thins() -> void:
+func _streaks(p: RainPresentation) -> MultiMeshInstance3D:
+	return p.get_node("Streaks") as MultiMeshInstance3D
+
+
+## Streaks drawn (visible_instance_count is -1 while everything is shown).
+func _shown(streaks: MultiMeshInstance3D) -> int:
+	var shown: int = streaks.multimesh.visible_instance_count
+	return shown if shown >= 0 else streaks.multimesh.instance_count
+
+
+func test_presentation_density_follows_intensity_and_governor_thins() -> void:
 	var p: RainPresentation = RainPresentation.new()
 	add_child_autofree(p)
-	p.configure(_rain, 1.0)
-	var full_count: int = p.streak_instance().multimesh.instance_count
+	var streaks: MultiMeshInstance3D = _streaks(p)
+	var full_count: int = _shown(streaks)
 	p.set_intensity(0.0)
 	assert_false(p.visible)
 	p.set_intensity(0.6)
 	assert_true(p.visible)
-	assert_almost_eq(p.shader_density(), 0.6, 0.0001)
-	p.configure(_rain, 0.5)
-	assert_lt(p.streak_instance().multimesh.instance_count, full_count)
+	assert_almost_eq(float((streaks.material_override as ShaderMaterial).get_shader_parameter(&"density")), 0.6, 0.0001)
+	var thin: GraphicsPreset = GraphicsPreset.new()
+	thin.weather_density_scale = 0.5
+	Settings.graphics_preset_changed.emit(thin)
+	assert_lt(_shown(streaks), full_count)
 
 
 const NIGHT_PATH: String = "res://config/sky/themes/night.tres"
@@ -178,37 +210,21 @@ const SLIDE_FRAMES: int = 150
 const TILT_DEG: float = 12.0
 ## Start off the floor centre so the outward direction is well defined.
 const START_OFFSET: float = 2.0
-var _last_delta: Vector3 = Vector3.ZERO
+const FIELD_MOVE_FRAMES: int = 2
 
 
-## Real Jolt run: a box on a floor (tilted when tilt_deg > 0) or pushed along a
-## flat one; returns the horizontal distance it travelled in SLIDE_FRAMES.
-func _slide_distance(rain_on: bool, tilt_deg: float, push: float, slide_accel: float, push_dir: Vector3 = Vector3.RIGHT, offset: Vector3 = Vector3(START_OFFSET, 0.0, 0.0)) -> float:
-	var floor_body: StaticBody3D = StaticBody3D.new()
-	var floor_shape: CollisionShape3D = CollisionShape3D.new()
-	var floor_box: BoxShape3D = BoxShape3D.new()
-	floor_box.size = Vector3(80.0, 1.0, 80.0)
-	floor_shape.shape = floor_box
-	floor_body.add_child(floor_shape)
-	floor_body.physics_material_override = _mat(BASE_DISC)
-	floor_body.rotation.z = deg_to_rad(tilt_deg)
-	add_child(floor_body)
-	var box: RigidBody3D = RigidBody3D.new()
-	var box_shape: CollisionShape3D = CollisionShape3D.new()
-	var cube: BoxShape3D = BoxShape3D.new()
-	cube.size = Vector3.ONE
-	box_shape.shape = cube
-	box.add_child(box_shape)
-	box.physics_material_override = _mat(BASE_BLOCK)
-	add_child(box)
-	# Rest the cube on the (rotated) top face, centred on the floor body.
-	box.global_transform = Transform3D(Basis(Vector3.BACK, deg_to_rad(tilt_deg)), floor_body.global_transform * (offset + Vector3.UP))
-	box.linear_velocity = push_dir * push
+## Real Jolt run: a cube on the field tilted by `tilt_deg`; returns the horizontal distance it
+## travelled in SLIDE_FRAMES, with friction-only rain (no slide force) when `rain_on`.
+func _slide_distance(rain_on: bool, tilt_deg: float) -> float:
+	_field.rotation.z = deg_to_rad(tilt_deg)
+	# The field is kinematic: let its move be processed before a body rests on it.
+	for _i: int in range(FIELD_MOVE_FRAMES):
+		await get_tree().physics_frame
+	var box: Block = _block(_field.to_global(Vector3(START_OFFSET, 0.01, 0.0)))
+	box.global_transform = Transform3D(_field.global_transform.basis, box.global_position)
 	var tuning: RainTuning = _rain.duplicate() as RainTuning
-	tuning.wet_slide_accel_mps2 = slide_accel
-	var effect: RainEffect = RainEffect.new()
-	effect.tuning = tuning
-	effect.set_providers(func() -> Array: return [box], func() -> Variant: return floor_body)
+	tuning.wet_slide_accel_mps2 = 0.0
+	var effect: RainEffect = _effect(tuning)
 	if rain_on:
 		effect.apply(1.0)
 	var start: Vector3 = box.global_position
@@ -216,18 +232,17 @@ func _slide_distance(rain_on: bool, tilt_deg: float, push: float, slide_accel: f
 		await get_tree().physics_frame
 		if rain_on:
 			effect.tick(1.0 / 60.0, 1.0)
-	_last_delta = box.global_position - start
-	var travelled: float = Vector2(_last_delta.x, _last_delta.z).length()
+	var delta: Vector3 = box.global_position - start
 	effect.restore()
-	# Free now: a later run in the same test must not collide with this box.
-	box.free()
-	floor_body.free()
-	return travelled
+	return Vector2(delta.x, delta.z).length()
 
 
 func test_rain_makes_a_block_slide_further_on_a_tilted_floor() -> void:
-	var dry: float = await _slide_distance(false, TILT_DEG, 0.0, 0.0)
-	var wet: float = await _slide_distance(true, TILT_DEG, 0.0, 0.0)
+	var dry: float = await _slide_distance(false, TILT_DEG)
+	for block: Block in _blocks:
+		block.free()
+	_blocks.clear()
+	var wet: float = await _slide_distance(true, TILT_DEG)
 	gut.p("SLIP tilted dry=%.3f wet(friction only)=%.3f" % [dry, wet])
 	assert_lt(dry, 0.2, "dry block holds on the slope")
 	assert_gt(wet, dry + 1.0, "wet block slides clearly further")

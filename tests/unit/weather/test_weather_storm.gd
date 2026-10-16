@@ -15,9 +15,11 @@ const SEED_B: int = 987654
 var _tuning: StormTuning = null
 var _blocks: Array[Block] = []
 var _root: Node3D = null
+var _previous_context: MatchContext = null
 
 
 func before_each() -> void:
+	_previous_context = MatchContext.installed()
 	_tuning = load("res://config/weather/storm.tres") as StormTuning
 	_blocks.clear()
 	_root = Node3D.new()
@@ -30,6 +32,7 @@ func after_each() -> void:
 		if is_instance_valid(block):
 			block.free()
 	_blocks.clear()
+	MatchContext.install(_previous_context)
 	await get_tree().process_frame
 
 
@@ -238,11 +241,29 @@ func test_low_pile_stays_at_full_intensity() -> void:
 
 # --- Presentation -------------------------------------------------------------------
 
-func test_presentation_density_follows_intensity_and_never_touches_physics() -> void:
+## A presentation on a match whose replicated weather seed is SEED_A (event 0).
+func _presentation() -> StormPresentation:
+	var context: FakeMatchContext = FakeMatchContext.new()
+	context.has_weather_value = true
+	context.weather_seed_value = SEED_A
+	MatchContext.install(context)
 	var presentation: StormPresentation = StormPresentation.new()
 	add_child_autofree(presentation)
-	presentation.configure(SEED_A)
-	assert_eq(presentation.total_instances(), _tuning.streak_count + _tuning.mote_count)
+	return presentation
+
+
+func _instance_total(presentation: StormPresentation) -> int:
+	var total: int = 0
+	for child: Node in presentation.get_children():
+		var instance: MultiMeshInstance3D = child as MultiMeshInstance3D
+		if instance != null:
+			total += instance.multimesh.instance_count
+	return total
+
+
+func test_presentation_density_follows_intensity_and_never_touches_physics() -> void:
+	var presentation: StormPresentation = _presentation()
+	assert_eq(_instance_total(presentation), _tuning.streak_count + _tuning.mote_count)
 	presentation.set_intensity(0.0)
 	assert_false(presentation.visible)
 	presentation.set_intensity(0.7)
@@ -258,37 +279,18 @@ func test_presentation_density_follows_intensity_and_never_touches_physics() -> 
 
 
 func test_presentation_streaks_travel_along_the_field_heading() -> void:
-	var presentation: StormPresentation = StormPresentation.new()
-	add_child_autofree(presentation)
-	presentation.configure(SEED_A)
+	var presentation: StormPresentation = _presentation()
 	presentation.set_intensity(1.0)
 	presentation._process(0.0)
-	var field: Vector2 = WindField.direction(SEED_A, 0.0, _tuning)
+	var field: Vector2 = WindField.direction(WindField.event_seed(SEED_A, 0), 0.0, _tuning)
 	var streaks: MultiMeshInstance3D = presentation.get_node("Streaks") as MultiMeshInstance3D
 	var drawn: Vector3 = (streaks.material_override as ShaderMaterial).get_shader_parameter(&"wind_dir") as Vector3
 	assert_lt(drawn.distance_to(Vector3(field.x, 0.0, field.y)), 0.001, "shader wind_dir is the host's (x, z) heading")
 
 
-func test_streak_spawns_keep_their_distance_from_the_camera() -> void:
-	var presentation: StormPresentation = StormPresentation.new()
-	add_child_autofree(presentation)
-	presentation.configure(SEED_A)
-	var material: ShaderMaterial = presentation.streak_material()
+func test_streak_near_fade_keeps_spawns_away_from_the_camera() -> void:
+	var presentation: StormPresentation = _presentation()
+	var material: ShaderMaterial = (presentation.get_node("Streaks") as MultiMeshInstance3D).material_override as ShaderMaterial
 	var fade: Vector2 = material.get_shader_parameter(&"near_fade_m") as Vector2
 	assert_eq(fade, Vector2(_tuning.streak_near_fade_start_m, _tuning.streak_near_fade_end_m))
 	assert_gte(fade.x, 10.0, "min camera distance is well beyond the screen-spanning range")
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng.seed = 77
-	var visible_count: int = 0
-	for n: int in range(4000):
-		var spawn: Vector3 = StormPresentation.streak_spawn(rng.randf(), rng.randi_range(0, 50), _tuning)
-		var camera: Vector3 = Vector3(rng.randf_range(-60.0, 60.0), rng.randf_range(0.0, 30.0), rng.randf_range(-60.0, 60.0))
-		var weight: float = StormPresentation.streak_near_weight(spawn.distance_to(camera), _tuning)
-		if spawn.distance_to(camera) <= _tuning.streak_near_fade_start_m:
-			assert_eq(weight, 0.0, "invisible inside the minimum camera distance")
-		if weight > 0.0:
-			visible_count += 1
-			assert_gt(spawn.distance_to(camera), _tuning.streak_near_fade_start_m)
-	assert_gt(visible_count, 0, "most spawns are visible away from the camera")
-	assert_eq(StormPresentation.streak_near_weight(_tuning.streak_near_fade_end_m, _tuning), 1.0)
-

@@ -28,8 +28,6 @@ var _gust_streams: Array[AudioStreamWAV] = []
 var _gust_players: Array[AudioStreamPlayer] = []
 var _gust_next: int = 0
 var _paused_duck: bool = false
-var gusts_played: int = 0
-var last_gust_stream: AudioStreamWAV = null
 
 
 func _ready() -> void:
@@ -62,18 +60,10 @@ func release_audio() -> void:
 			player.stop()
 			player.stream = null
 	_gust_streams.clear()
-	last_gust_stream = null
 
 
 func _process(delta: float) -> void:
 	advance(delta)
-
-
-## Test seam: replace the registry.
-func set_defs(defs: Array[WeatherTuning]) -> void:
-	_defs.clear()
-	for def: WeatherTuning in defs:
-		_defs[def.id] = def
 
 
 ## Moves every bed's gain toward its target and stops silent ones.
@@ -110,33 +100,6 @@ func _release_bed(weather_id: StringName) -> void:
 		player.stop()
 		player.stream = null
 		player.queue_free()
-
-
-func bed_ids() -> Array[StringName]:
-	var ids: Array[StringName] = []
-	for weather_id: StringName in _beds.keys():
-		ids.append(weather_id)
-	return ids
-
-
-func is_bed_playing(weather_id: StringName) -> bool:
-	return _beds.has(weather_id) and (_beds[weather_id]["player"] as AudioStreamPlayer).playing
-
-
-func bed_gain(weather_id: StringName) -> float:
-	return float(_beds[weather_id]["gain"]) if _beds.has(weather_id) else 0.0
-
-
-func bed_target(weather_id: StringName) -> float:
-	return float(_beds[weather_id]["target"]) if _beds.has(weather_id) else 0.0
-
-
-func bed_player(weather_id: StringName) -> AudioStreamPlayer:
-	return (_beds[weather_id]["player"] as AudioStreamPlayer) if _beds.has(weather_id) else null
-
-
-func gust_stream_count() -> int:
-	return _gust_streams.size()
 
 
 ## Linear amplitude 0..1 the bed should reach at `intensity`.
@@ -270,5 +233,3 @@ func _on_gust(gust: Dictionary) -> void:
 	player.stream = stream
 	player.volume_db = tuning.gust_volume_db + _mix_db()
 	player.play()
-	gusts_played += 1
-	last_gust_stream = stream

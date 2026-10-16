@@ -26,14 +26,18 @@ func _preset(id: StringName, density_scale: float) -> GraphicsPreset:
 	return preset
 
 
+func _flakes() -> GPUParticles3D:
+	return _snow.get_node("Flakes") as GPUParticles3D
+
+
 func test_flakes_follow_the_intensity_while_building_up() -> void:
 	_snow.set_intensity(0.0)
-	assert_false(_snow.particles().emitting)
+	assert_false(_flakes().emitting)
 	_snow.set_intensity(0.5)
-	assert_almost_eq(_snow.particles().amount_ratio, 0.5, SHARE_TOLERANCE)
-	assert_true(_snow.particles().emitting)
+	assert_almost_eq(_flakes().amount_ratio, 0.5, SHARE_TOLERANCE)
+	assert_true(_flakes().emitting)
 	_snow.set_intensity(1.0)
-	assert_almost_eq(_snow.particles().amount_ratio, 1.0, SHARE_TOLERANCE)
+	assert_almost_eq(_flakes().amount_ratio, 1.0, SHARE_TOLERANCE)
 
 
 func test_flakes_thin_out_and_stop_early_in_the_ramp_out() -> void:
@@ -42,22 +46,22 @@ func test_flakes_thin_out_and_stop_early_in_the_ramp_out() -> void:
 	assert_gt(stop, 0.0)
 	# Falling: the same intensity has fewer flakes than it did while building up.
 	_snow.set_intensity(0.75)
-	var falling: float = _snow.particles().amount_ratio
+	var falling: float = _flakes().amount_ratio
 	assert_lt(falling, 0.75, "ramp-out thins the flakes faster than the intensity")
 	_snow.set_intensity(stop + 0.01)
-	assert_lt(_snow.particles().amount_ratio, 0.05)
-	assert_true(_snow.particles().emitting)
+	assert_lt(_flakes().amount_ratio, 0.05)
+	assert_true(_flakes().emitting)
 	_snow.set_intensity(stop)
-	assert_eq(_snow.particles().amount_ratio, 0.0, "snowfall is over while the intensity is still above zero")
-	assert_false(_snow.particles().emitting)
+	assert_eq(_flakes().amount_ratio, 0.0, "snowfall is over while the intensity is still above zero")
+	assert_false(_flakes().emitting)
 	_snow.set_intensity(stop * 0.5)
-	assert_false(_snow.particles().emitting, "and stays over for the rest of the melt")
+	assert_false(_flakes().emitting, "and stays over for the rest of the melt")
 	assert_true(_snow.visible, "the presentation node itself lives on until the weather stops")
 
 
 func test_low_preset_and_governor_scale_apply_on_top() -> void:
 	_snow.set_intensity(1.0)
 	_snow._on_graphics_preset_changed(_preset(&"low", 0.5))
-	assert_almost_eq(_snow.particles().amount_ratio, 0.5, SHARE_TOLERANCE, "the governor scale multiplies the density")
+	assert_almost_eq(_flakes().amount_ratio, 0.5, SHARE_TOLERANCE, "the governor scale multiplies the density")
 	var expected: int = int(roundf(float(_tuning.flake_amount_low) * _snow._fall_ratio))
-	assert_eq(_snow.particles().amount, expected, "Low draws the Low flake count")
+	assert_eq(_flakes().amount, expected, "Low draws the Low flake count")

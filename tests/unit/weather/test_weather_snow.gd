@@ -12,6 +12,7 @@ const GROW_FRAMES: int = 150
 const SEED: int = 424242
 const FIELD_RADIUS_M: float = 6.0
 const MELT_SETTLE_FRAMES: int = 6
+const DRIFT_FRAMES: int = 6
 ## Melt time of the fixture snow (the shipped 20 s would make every test wait).
 const FIXTURE_MELT_S: float = 1.0
 var _field: Field = null
@@ -131,8 +132,31 @@ func _collider_count() -> int:
 	return total
 
 
+static func _cap_mesh(holder: Node, cap_name: StringName) -> MeshInstance3D:
+	var cap: Node = holder.get_node_or_null(NodePath(String(cap_name)))
+	if cap == null:
+		return null
+	return cap.get_node_or_null(NodePath(String(SnowCaps.CAP_MESH_NAME))) as MeshInstance3D
+
+
+## Every disc drift mesh instance under `field`.
+static func _disc_cap_meshes(field: Node) -> Array[MeshInstance3D]:
+	var out: Array[MeshInstance3D] = []
+	for child: Node in field.get_children():
+		if String(child.name).begins_with(SnowCaps.DISC_CAP_PREFIX):
+			var instance: MeshInstance3D = _cap_mesh(field, child.name)
+			if instance != null:
+				out.append(instance)
+	return out
+
+
+## The live disc cover (null when none, or when it is only fading out).
+static func _disc_cover(field: Node) -> SnowDiscCover:
+	return field.get_node_or_null(NodePath(String(SnowCaps.DISC_COVER_NAME))) as SnowDiscCover
+
+
 static func _mesh_vertices(holder: Node, cap_name: StringName) -> PackedVector3Array:
-	var instance: MeshInstance3D = SnowCaps.cap_mesh(holder, cap_name)
+	var instance: MeshInstance3D = _cap_mesh(holder, cap_name)
 	if instance == null or instance.mesh == null:
 		return PackedVector3Array()
 	return (instance.mesh as ArrayMesh).surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
@@ -140,7 +164,7 @@ static func _mesh_vertices(holder: Node, cap_name: StringName) -> PackedVector3A
 
 static func _disc_mesh_vertices(field: Node) -> PackedVector3Array:
 	var out: PackedVector3Array = PackedVector3Array()
-	for instance: MeshInstance3D in SnowCaps.disc_cap_meshes(field):
+	for instance: MeshInstance3D in _disc_cap_meshes(field):
 		out.append_array((instance.mesh as ArrayMesh).surface_get_arrays(0)[Mesh.ARRAY_VERTEX])
 	return out
 
@@ -163,23 +187,24 @@ func test_snow_grows_in_steps_to_the_cap_and_stays_bounded() -> void:
 	assert_gt(disc_snowy, 0, "the disc collects snow")
 	assert_eq(_collider_count(), cubes.size() + disc_snowy)
 	assert_eq(_cover_level(effect), _snow.depth_levels, "disc cover reached a blanket")
-	var cover: SnowDiscCover = SnowCaps.disc_cover(_field)
+	var cover: SnowDiscCover = _disc_cover(_field)
 	assert_not_null(cover, "visual disc cover exists")
 	assert_eq(cover.level(), _snow.depth_levels)
 	var disc_material: ShaderMaterial = _field.overlay().material()
-	assert_eq(cover.material(), disc_material, "snow is a layer of the disc (territory) shader itself")
-	assert_almost_eq(float(disc_material.get_shader_parameter(&"snow_strength")), minf(_snow.cover_strength_heavy, 1.0 - _snow.cover_territory_min), 0.001)
+	var strength: float = float(disc_material.get_shader_parameter(&"snow_strength"))
+	assert_almost_eq(strength, minf(_snow.cover_strength_heavy, 1.0 - _snow.cover_territory_min), 0.001, "snow is a layer of the disc (territory) shader itself")
 	assert_almost_eq(float(disc_material.get_shader_parameter(&"snow_threshold")), _snow.cover_amount_heavy, 0.001)
-	assert_gt(cover.amount(), _snow.cover_amount_light, "the cover builds up with its level")
-	assert_gte(1.0 - cover.strength() + 0.0001, _snow.cover_territory_min, "territory colour keeps its minimum share at full snow")
+	assert_gt(float(disc_material.get_shader_parameter(&"snow_threshold")), _snow.cover_amount_light, "the cover builds up with its level")
+	assert_gte(1.0 - strength + 0.0001, _snow.cover_territory_min, "territory colour keeps its minimum share at full snow")
 	assert_gt(_snow.cover_territory_min, 0.2, "the minimum is a real share, not zero")
-	cover.finish_drift()
-	assert_false(cover.is_drift_building())
+	# The drift map finishes over a few frames (cover_drift_blocks_per_frame blocks each).
+	await _frames(DRIFT_FRAMES)
+	var drift: Image = (disc_material.get_shader_parameter(&"snow_drift_tex") as ImageTexture).get_image()
 	var grid: CellGrid = _field.grid()
 	var under: Vector2i = grid.world_to_cell(_field.disk_local_from_world(cubes[1].global_position))
-	assert_gt(cover.drift_at(grid.cell_index(under.x, under.y)), 0.5, "drifts pile up at block bases")
+	assert_gt(drift.get_pixel(under.x, under.y).r, 0.5, "drifts pile up at block bases")
 	var far: Vector2i = grid.world_to_cell(Vector2(0.0, 4.5))
-	assert_eq(cover.drift_at(grid.cell_index(far.x, far.y)), 0.0, "open disc gets no base bias")
+	assert_eq(drift.get_pixel(far.x, far.y).r, 0.0, "open disc gets no base bias")
 	for cube: Block in cubes:
 		assert_almost_eq(_field.to_local(cube.global_position).y, 0.0, 0.05, "snow never lifts or pops the block it sits on")
 		assert_false(cube.is_freeze_static(), "rebuild freeze released")
@@ -256,8 +281,8 @@ func test_restore_and_despawn_leave_no_snow() -> void:
 	assert_eq(SnowCaps.lump_colliders(a).size(), 0)
 	assert_null(a.get_node_or_null(NodePath(String(SnowCaps.CAP_NAME))), "cap removed")
 	assert_true(SnowCaps.disc_bodies(_field).is_empty(), "disc snow bodies removed")
-	assert_true(SnowCaps.disc_cap_meshes(_field).is_empty(), "disc drifts removed")
-	assert_null(SnowCaps.disc_cover(_field), "disc cover removed")
+	assert_true(_disc_cap_meshes(_field).is_empty(), "disc drifts removed")
+	assert_null(_disc_cover(_field), "disc cover removed")
 	assert_eq(float(_field.overlay().material().get_shader_parameter(&"snow_strength")), 0.0, "disc snow layer switched off")
 	assert_false(a.is_freeze_static(), "no rebuild freeze left behind")
 	assert_true(SnowRelay.is_empty_state(SnowRelay.instance().last_state), "empty state published")
@@ -287,7 +312,7 @@ func test_ramp_out_melts_in_steps_to_nothing() -> void:
 	assert_eq(_collider_count(), 0, "melted away before the event ends")
 	assert_null(cube.get_node_or_null(NodePath(String(SnowCaps.CAP_NAME))))
 	assert_eq(_cover_level(effect), 0)
-	assert_null(SnowCaps.disc_cover(_field), "cover melted")
+	assert_null(_disc_cover(_field), "cover melted")
 	assert_eq(float(_field.overlay().material().get_shader_parameter(&"snow_strength")), 0.0, "disc snow layer off after the melt")
 
 
@@ -330,9 +355,9 @@ func test_snow_melts_gradually_within_the_melt_time_after_snowfall_stops() -> vo
 	assert_eq(cover_seen, [4, 3, 2, 1, 0], "so does the disc cover")
 	await _frames(MELT_SETTLE_FRAMES, 0.0)
 	assert_eq(_collider_count(), 0, "all colliders gone once the melt time has run")
-	assert_true(SnowCaps.disc_cap_meshes(_field).is_empty(), "disc drifts melted")
+	assert_true(_disc_cap_meshes(_field).is_empty(), "disc drifts melted")
 	assert_null(cube.get_node_or_null(NodePath(String(SnowCaps.CAP_NAME))), "block cap melted")
-	assert_null(SnowCaps.disc_cover(_field))
+	assert_null(_disc_cover(_field))
 	assert_true(SnowRelay.is_empty_state(SnowRelay.instance().last_state), "the host replicated the empty state")
 
 

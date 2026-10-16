@@ -40,7 +40,7 @@ func _exit_tree() -> void:
 	_push_storm(0.0)
 
 
-## docs/MATCH_RESET_AUDIT.md G2; Events.match_scope_reset runs this at
+## Events.match_scope_reset runs this at
 ## every world build and teardown: drops every active weather request and the
 ## fades in flight, and pushes "clear" to the skyboxes now. Without it a match that
 ## starts right after a storm / rain one (Replay, quick re-host, sandbox) opens
