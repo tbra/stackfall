@@ -150,6 +150,3 @@ class History extends RefCounted:
 		var out: Array[Dictionary] = []
 		out.append_array(_items)
 		return out
-
-	func clear() -> void:
-		_items.clear()

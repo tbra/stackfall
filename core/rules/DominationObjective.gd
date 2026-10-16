@@ -8,8 +8,8 @@ extends ModeObjective
 ## on_round_timer_end(): the team with the largest share wins.
 ##
 ## DECISION (tie rule): equal shares (within TIE_EPSILON) at the timer are a
-## SHARED WIN, the same rule as EliminationObjective. winners() / the results
-## "winners" field list every tied team; the single id returned to MatchLifecycle
+## SHARED WIN, the same rule as EliminationObjective. The results
+## "winners" field lists every tied team; the single id returned to MatchLifecycle
 ## is the lowest tied team id (the base-class tie convention). No sudden death:
 ## timed modes never run one.
 ##
@@ -68,13 +68,6 @@ func update(raster: TerritoryRaster, delta: float) -> void:
 		_state_dirty = true
 
 
-## Test / host hook: set the shares directly (same effect as update()).
-func set_shares(shares: PackedFloat32Array) -> void:
-	for team: int in range(mini(shares.size(), _scores.size())):
-		_scores[team] = shares[team]
-	_publish_pending = true
-
-
 ## Largest share wins; equal shares share the win (see the class DECISION).
 func on_round_timer_end() -> int:
 	_state_dirty = true  # the exact final state always goes out
@@ -93,11 +86,6 @@ func leading_teams() -> PackedInt32Array:
 		if _scores[team] >= best - TIE_EPSILON:
 			out.append(team)
 	return out
-
-
-## Winning team ids once the timer ended (empty before).
-func winners() -> PackedInt32Array:
-	return _winners.duplicate()
 
 
 ## "winners" lists the winning team id(s) (0-based, comma-separated); the

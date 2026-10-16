@@ -213,7 +213,7 @@ func test_client_mirrors_host_state_for_display_only() -> void:
 	Events.mode_state_changed.connect(func(s: Dictionary) -> void: shown.append(s))
 	node.net_match_event(MatchNetScript.EVENT_MODE_STATE, [wire])
 	var objective: ModeObjective = Match._territory._objective
-	assert_eq(objective.team_score(1), 0.0)
+	assert_eq(objective.scores()[1], 0.0)
 	assert_eq(objective.winner(), ModeObjective.NO_TEAM)
 	assert_false(Match.slot(1).home_flag_alive)
 	assert_ne(Match.state(), Match.State.END)

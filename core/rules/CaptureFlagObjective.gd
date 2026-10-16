@@ -89,10 +89,6 @@ func update(raster: TerritoryRaster, delta: float) -> void:
 		_state_dirty = true
 
 
-func beacons_held(team: int) -> int:
-	return _held_counts[team] if team >= 0 and team < _held_counts.size() else 0
-
-
 ## Highest score wins; ties resolve to the lowest tied team id here, and
 ## results_fields() reports every tied team as a shared win.
 func on_round_timer_end() -> int:
