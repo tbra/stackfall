@@ -6,8 +6,7 @@ extends GutTest
 ## because that write also flips a falling block's vertical velocity to
 ## rising. Real RigidBody3D/Block physics throughout -- a real floor, real
 ## gravity, real awaited physics frames, synchronous free() in after_each() --
-## mirroring tests/unit/gifts/test_special_physics.gd's own precedent for this kind
-## of end-to-end physics check, rather than stubbing Block or PhysicsTuning.
+## an end-to-end physics check rather than stubbing Block or PhysicsTuning.
 ##
 ## DECISION (tests/unit/blocks/test_block_rebound_physics.gd): every "peak" measured
 ## below is the vertical velocity at the one physics step the bounce/kick/
