@@ -65,6 +65,14 @@ CORE_PATH_PREFIXES = ("core/", "net/", "autoload/", "shaders/")
 # Sonnet: Haiku workers garbled or skipped reworded comments on every such package tried.
 FAST_PATH_KINDS = ("gate", "triage", "mechanical", "docs", "documentation", "prose")
 QUICK_TIER_KINDS = ("docs", "documentation", "prose")
+# Deleting or thinning tests is when a second reader matters most: a diet can leave a rule with
+# no test, and only a coverage review catches it. Path rules alone miss this, so owned tests/
+# files plus test-removal wording (or kind "diet") force a review.
+TEST_REMOVAL_KINDS = ("diet",)
+TEST_REMOVAL_WORDS = re.compile(
+    r"\b(diet|sweep)\b|\b(delet|remov|drop|prun|trim|cull)\w*\s+(\S+\s+){0,3}?tests?\b",
+    re.IGNORECASE,
+)
 SPECIALIZED_PATH_PREFIXES = ("net/", "autoload/", "core/territory", "tests/bench/", "tests/enet/")
 VERIFICATION_TIERS = {
     "quick": "Documentation, generated files or mechanical edits: inspect the diff or run one quick check; no game launch.",
@@ -193,7 +201,23 @@ def _fallback(files: List[str], kind: str, brief: str) -> Dict[str, Any]:
     }
 
 
+def forced_review(title: str, brief: str, files: List[str], kind: str) -> bool:
+    """Code-owned review policy that Jev can add to but never waive."""
+    if any(f.startswith(CORE_PATH_PREFIXES) for f in files) or kind in TEST_REMOVAL_KINDS:
+        return True
+    touches_tests = any(f.startswith("tests/") for f in files)
+    return touches_tests and bool(TEST_REMOVAL_WORDS.search(f"{title}\n{brief}"))
+
+
 def route(title: str, brief: str, files: List[str], kind: str, prior_attempts: int) -> Dict[str, Any]:
+    result = _route(title, brief, files, kind, prior_attempts)
+    if not result["needs_review"] and forced_review(title, brief, files, kind):
+        result["needs_review"] = True
+        result["reason"] += "; review forced: test removal"
+    return result
+
+
+def _route(title: str, brief: str, files: List[str], kind: str, prior_attempts: int) -> Dict[str, Any]:
     if kind in FAST_PATH_KINDS and prior_attempts == 0:
         result = _fallback(files, kind, brief)
         result["reason"] = "Deterministic fast path for known or mechanical work"
@@ -318,7 +342,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--title", required=True)
     ap.add_argument("--files", default="", help="comma-separated owned files")
-    ap.add_argument("--kind", default="feature", help="feature|bugfix|refactor|review|gate|triage|mechanical|prose|plan")
+    ap.add_argument("--kind", default="feature", help="feature|bugfix|refactor|diet|review|gate|triage|mechanical|prose|plan")
     ap.add_argument("--prior-attempts", type=int, default=0)
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--no-memories", action="store_true", help="skip the bd memories lookup (offline/tests)")

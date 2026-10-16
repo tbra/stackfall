@@ -67,7 +67,9 @@ STALE_SUFFIX = (".gd", ".gdshader", ".gdshaderinc", ".tscn", ".tres", ".cfg", ".
 # .claude/worktrees holds agent isolation checkouts, not this tree.
 STALE_SKIP_DIRS = ("addons/", "docs/archive/", ".godot/", ".git/", "tools/test_", ".claude/worktrees/")
 # Paths that legitimately do not exist in a checkout: per-developer addon, generated at build/run time.
-STALE_GENERATED = ("addons/godotsteam", "build_info.cfg", "tests/.gut_targeted")
+# Ignored paths that exist only in some checkouts (override.cfg in agent worktrees, docs/archive
+# in the main one): their presence varies by checkout, so the result must not.
+STALE_GENERATED = ("addons/godotsteam", "build_info.cfg", "tests/.gut_targeted", "override.cfg", "docs/archive")
 ENGINE_FUNC_PREFIX = ("_on_",)
 
 

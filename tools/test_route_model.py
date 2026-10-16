@@ -42,6 +42,19 @@ class RoutePolicyTests(unittest.TestCase):
         self.assertEqual(result["max_targeted_runs"], 2)
         self.assertIsNone(result["max_windowed_probes"])
 
+    def test_test_removal_forces_review_on_every_path(self):
+        reply = {"answers": {"model": {"choice": "sonnet", "confidence": 0.9}, "needs_review": {"noul": 0.01}}}
+        tests = ["tests/unit/blocks/test_a.gd"]
+        with patch.dict(os.environ, {"TYPESAFE_API_KEY": "test"}), patch.object(router, "_request", return_value=reply):
+            jev = router.route("Test diet: blocks", "Merge duplicates", tests, "refactor", 0)
+            fast = router.route("Trim", "Delete the redundant tests listed", tests, "mechanical", 0)
+            kind = router.route("Thin suite", "Merge", tests, "diet", 0)
+            plain = router.route("Fix flaky test", "Remove the sleep call", tests, "bugfix", 0)
+            not_tests = router.route("Sweep HUD labels", "Delete unused labels", ["ui/Hud.gd"], "refactor", 0)
+        self.assertTrue(jev["needs_review"] and fast["needs_review"] and kind["needs_review"])
+        self.assertFalse(plain["needs_review"])
+        self.assertFalse(not_tests["needs_review"])
+
     def test_unavailable_service_uses_bounded_fallback(self):
         with patch.dict(os.environ, {"TYPESAFE_API_KEY": ""}):
             result = router.route("Fix menu", "Selected item", ["ui/Menu.gd"], "bugfix", 0)

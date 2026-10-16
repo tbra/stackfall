@@ -49,8 +49,9 @@ delegate substantial game-code work, long investigations and test loops.
   you assign and verify an explicit checkout and base.
 - Dispatch `stackfall-reviewer` whenever `route_model.py` returns `review=yes`,
   concurrently with integration. Its code forces review for any owned file under
-  `core/`, `net/`, `autoload/` or `shaders/`, so Jev can add a review but never waive
-  one. A feature split over several packages also gets one composition review of the
+  `core/`, `net/`, `autoload/` or `shaders/` and for test deletions (kind `diet`, or
+  owned `tests/` files with delete/diet/sweep wording), so Jev can add a review but
+  never waive one; a test-removal review checks that every rule keeps a test. A feature split over several packages also gets one composition review of the
   combined branch before integration. Give the reviewer the candidate diff and logs.
 - If a check-in time passes with no handback or checkpoint, look at the worker's
   output and processes before deciding what to do. A worker that exhausts its budget

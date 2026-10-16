@@ -74,3 +74,5 @@
 # sync.remote: "git+ssh://git@github.com/tbra/stackfall.git"
 agent:
     profile: team-maintainer
+import:
+    auto: false
