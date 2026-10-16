@@ -257,11 +257,6 @@ func _face_direction(block: Block, direction: Vector3) -> void:
 	FlightFacing.face_direction(block, model_nose_axis, direction)
 
 
-## Pure: delegates to FlightFacing.nose_basis.
-static func nose_basis(nose: Vector3, direction: Vector3) -> Basis:
-	return FlightFacing.nose_basis(nose, direction)
-
-
 ## Shared by Rocket and Paintball: makes every block of `block`'s slot within
 ## `radius` of it a collision exception, so the projectile leaves its own tower without
 ## detonating on it or shoving it, while enemy blocks stay solid. Replaces the old time window
