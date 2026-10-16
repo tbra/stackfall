@@ -81,15 +81,12 @@ func bind(block: Block, def: SpecialDef, tuning: SpecialTuning) -> void:
 	_chain_depth = 0
 	_completed = false
 	_despawn_timer = -1.0
-	var effect_landed: LandedTuning = effect_of(_def).landed_tuning() if _def != null and _def.effect != null else null
+	var fx0: SpecialEffect = effect_of(_def) if _def != null else null
+	var effect_landed: LandedTuning = fx0.landed_tuning() if fx0 != null else null
 	_landed_probe = LandedProbe.new(effect_landed)
 	_landed_at_age = -1.0
 	_prev_linear_velocity = block.linear_velocity if block != null else Vector3.ZERO
 	add_to_group(GROUP)
-
-
-func is_armed() -> bool:
-	return _armed
 
 
 func is_triggered() -> bool:
@@ -139,8 +136,9 @@ func advance(delta: float) -> void:
 		# not a stale sample from before arm_delay elapsed.
 		_prev_linear_velocity = _block.linear_velocity
 	# an in-place activated gift has no falling carrier to wait for.
+	var fx1: SpecialEffect = effect_of(_def)
 	var needs_landing: bool = (
-		_def.effect != null and effect_of(_def).needs_landing() and not _def.activates_in_place
+		_def.effect != null and fx1.needs_landing() and not _def.activates_in_place
 	)
 	if needs_landing and _landed_at_age < 0.0:
 		_landed_probe.update(_block, delta)
@@ -150,8 +148,9 @@ func advance(delta: float) -> void:
 		_check_impact()
 	var effect_may_run: bool = not needs_landing or _landed_at_age >= 0.0
 	if not _has_triggered and _armed and effect_may_run and _def.effect != null:
-		effect_of(_def).physics_tick(_block, self, delta)
-		if not _has_triggered and effect_of(_def).wants_early_trigger(_block, self):
+		var fx: SpecialEffect = effect_of(_def)
+		fx.physics_tick(_block, self, delta)
+		if not _has_triggered and fx.wants_early_trigger(_block, self):
 			trigger(0)
 	if not _has_triggered and _age >= _fuse_deadline():
 		trigger(0)
@@ -165,11 +164,12 @@ func _fuse_deadline() -> float:
 	var base: float = _def.arm_delay + _def.fuse_timeout_s
 	if _def.effect == null:
 		return base
-	var lifetime: float = effect_of(_def).effect_lifetime_s()
+	var fx2: SpecialEffect = effect_of(_def)
+	var lifetime: float = fx2.effect_lifetime_s()
 	if lifetime <= 0.0:
 		return base
 	var margin: float = _tuning.fuse_backstop_margin_s if _tuning != null else 0.0
-	if effect_of(_def).needs_landing() and _landed_at_age < 0.0:
+	if fx2.needs_landing() and _landed_at_age < 0.0:
 		return base + lifetime + margin
 	var start: float = _landed_at_age if _landed_at_age >= 0.0 else _def.arm_delay
 	return start + lifetime + margin
@@ -240,7 +240,8 @@ func _check_impact() -> void:
 	if _has_triggered or decel < _def.arm_impulse:
 		return
 	if _def.effect != null:
-		if not effect_of(_def).triggers_on_impact() or not effect_of(_def).impact_triggers(_block, self):
+		var fx3: SpecialEffect = effect_of(_def)
+		if not fx3.triggers_on_impact() or not fx3.impact_triggers(_block, self):
 			return
 	trigger(0)
 
@@ -278,11 +279,13 @@ func trigger(incoming_chain_depth: int) -> void:
 	_chain_depth = incoming_chain_depth
 	var position: Vector3 = _block.global_position if _block != null else Vector3.ZERO
 	if _def != null and _def.effect != null:
-		effect_of(_def).detonate(_block, self, _chain_depth)
+		var fx4: SpecialEffect = effect_of(_def)
+		fx4.detonate(_block, self, _chain_depth)
 	var def_id: StringName = _def.id if _def != null else &""
 	triggered.emit(def_id, position, _chain_depth)
 	if despawn_when_done:
-		if _def != null and _def.effect != null and effect_of(_def).detaches():
+		var fx5: SpecialEffect = effect_of(_def) if _def != null else null
+		if fx5 != null and fx5.detaches():
 			# The effect owns a standalone world node: no linger, the carrier goes now.
 			_despawn_timer = 0.0
 			_complete()

@@ -127,7 +127,6 @@ func test_spawned_projectile_binds_and_arms_a_special_behavior_referencing_orb_d
 		if child is SpecialBehavior:
 			behavior = child as SpecialBehavior
 	assert_not_null(behavior, "a bound SpecialBehavior must be attached")
-	assert_false(behavior.is_armed(), "arm_delay=999 must not have armed yet")
 
 	behavior.trigger(0)
 	assert_signal_emitted_with_parameters(

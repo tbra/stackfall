@@ -135,14 +135,6 @@ func _build_particles() -> void:
 	_fx.setup(_effect.particles, Settings.current_graphics_preset())
 
 
-func has_body() -> bool:
-	return _body != null
-
-
-func body() -> AnimatableBody3D:
-	return _body
-
-
 ## Current cone height: 0 -> height_m over rise_s, then constant.
 func current_height() -> float:
 	if _effect == null:
