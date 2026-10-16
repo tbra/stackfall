@@ -46,26 +46,31 @@ func _fresh_at_same_path() -> Node:
 	return other
 
 
+## The control that edits `id` (a GraphicsPreset field or a combined-row id).
+func _control(id: StringName) -> Control:
+	return _tab()._by_field[id]["control"] as Control
+
+
 func _dd(id: StringName) -> UiDropdown:
-	return _tab().control_for(id) as UiDropdown
+	return _control(id) as UiDropdown
 
 
 func test_picking_a_preset_sets_every_control() -> void:
 	_menu._on_preset_selected(GraphicsSettingsTab.PRESET_IDS.find(&"low"))
 	var low: GraphicsPreset = load("res://config/graphics/presets/low.tres") as GraphicsPreset
 	assert_false(_settings.graphics_preset_is_custom())
-	assert_eq((_tab().control_for(&"glow_enabled") as UiToggle).is_on(), low.glow_enabled)
-	assert_eq((_tab().control_for(&"volumetric_fog_enabled") as UiToggle).is_on(), low.volumetric_fog_enabled)
-	assert_eq((_tab().control_for(&"block_outline_enabled") as UiToggle).is_on(), low.block_outline_enabled)
+	assert_eq((_control(&"glow_enabled") as UiToggle).is_on(), low.glow_enabled)
+	assert_eq((_control(&"volumetric_fog_enabled") as UiToggle).is_on(), low.volumetric_fog_enabled)
+	assert_eq((_control(&"block_outline_enabled") as UiToggle).is_on(), low.block_outline_enabled)
 	assert_eq(_dd(&"msaa_3d").selected, 0)
 	assert_eq(_dd(&"shadows").selected, 0, "Low shadows")
 	assert_eq(_dd(&"reflections").selected, 0, "Low preset = Off reflections")
 	assert_eq(_dd(&"environment_detail").selected, 0)
 	assert_eq(_dd(&"render_scale_3d_mode").selected, 1, "FSR 1.0")
-	var meter: UiSegmentMeter = _tab().control_for(&"render_scale_3d") as UiSegmentMeter
+	var meter: UiSegmentMeter = _control(&"render_scale_3d") as UiSegmentMeter
 	assert_eq(meter.display_text(), "75%")
 	_menu._on_preset_selected(GraphicsSettingsTab.PRESET_IDS.find(&"high"))
-	assert_true((_tab().control_for(&"glow_enabled") as UiToggle).is_on())
+	assert_true((_control(&"glow_enabled") as UiToggle).is_on())
 	assert_eq(_dd(&"msaa_3d").selected, 2)
 	assert_eq(_dd(&"shadows").selected, 2, "High shadows")
 	assert_eq(_dd(&"reflections").selected, 2)
@@ -129,7 +134,7 @@ func test_overrides_persist_across_restart_and_old_files_load_unchanged() -> voi
 
 
 func test_fixed_fps_meter_is_editable_only_in_fixed_mode() -> void:
-	var meter: UiSegmentMeter = _tab().control_for(&"fixed_fps") as UiSegmentMeter
+	var meter: UiSegmentMeter = _control(&"fixed_fps") as UiSegmentMeter
 	assert_false(meter.editable)
 	_dd(&"frame_cap_mode").pick(_dd(&"frame_cap_mode").selected + 1)
 	assert_eq(_settings.current_graphics_preset().frame_cap_mode, GraphicsPreset.FrameCap.FIXED)
@@ -141,10 +146,10 @@ func test_fixed_fps_meter_is_editable_only_in_fixed_mode() -> void:
 func test_vsync_defaults_on_persists_and_leaves_the_cap_rows_active() -> void:
 	for id: StringName in [&"low", &"medium", &"high"]:
 		assert_true((load("res://config/graphics/presets/%s.tres" % id) as GraphicsPreset).vsync_enabled)
-	var toggle: UiToggle = _tab().control_for(&"vsync_enabled") as UiToggle
+	var toggle: UiToggle = _control(&"vsync_enabled") as UiToggle
 	assert_not_null(toggle)
 	assert_true(toggle.is_on())
-	var meter: UiSegmentMeter = _tab().control_for(&"fixed_fps") as UiSegmentMeter
+	var meter: UiSegmentMeter = _control(&"fixed_fps") as UiSegmentMeter
 	_dd(&"frame_cap_mode").pick(GraphicsPreset.FrameCap.FIXED)
 	assert_true(meter.editable)
 	toggle.set_on(false)
@@ -208,7 +213,7 @@ func test_gamepad_accept_opens_a_dropdown_list_and_flips_a_toggle() -> void:
 	assert_eq(_settings.current_graphics_preset().msaa_3d, 1, "opening changes nothing")
 	msaa.pick(msaa.selected + 1)
 	assert_eq(_settings.current_graphics_preset().msaa_3d, 2, "picking the next row sets MSAA 4x")
-	var glow: UiToggle = _tab().control_for(&"glow_enabled") as UiToggle
+	var glow: UiToggle = _control(&"glow_enabled") as UiToggle
 	glow.grab_focus()
 	await _pad_accept()
 	assert_false(_settings.current_graphics_preset().glow_enabled, "A flipped Bloom off")

@@ -489,9 +489,6 @@ static func _capture_ui(main: Node, out: Dictionary) -> void:
 	if loading != null:
 		out["ui.loading_visible"] = loading.visible
 		out["ui.loading_pending"] = loading.is_pending()
-		out["ui.loading_opacity"] = _r(loading.overlay_opacity())
-		out["ui.loading_layer"] = loading.overlay_layer_visible()
-		out["ui.loading_timed_out"] = loading.timed_out()
 	var results: ResultsScreen = _p(main, &"_results_screen") as ResultsScreen
 	if results != null:
 		out["ui.results_visible"] = results.visible

@@ -6,8 +6,7 @@ extends CanvasLayer
 ## hot-seat turn indicator. (M4 P2b-ii) adds a small pending-
 ## special queue indicator beside the next-shape preview. M7 P5 adds the
 ## live minimap (ui/hud/Minimap.gd) restyles the whole HUD
-## toward docs/art_mockups/08-cel-shaded-home-beacons.png (per-player
-## diamond+bar rows top-left, a numeral in the timer ring top-center, a
+## (per-player diamond+bar rows top-left, a numeral in the timer ring top-center, a
 ## circular minimap bottom-right) and rebuilds the minimap as a 2D draw off
 ## the live TerritoryRaster instead of a 3D camera (see ui/hud/Minimap.gd's own
 ## class doc for why). ("Held/next previews
@@ -305,7 +304,7 @@ func _ready() -> void:
 	_style_status_plate(_special_indicator, _arcade.rim_color)
 	_setup_toast_stack()
 	_reject_icon.visible = false
-	# Row gap of the scoreboard (docs/ui_reskin: rows are tight, the plate carries the grouping).
+	# Row gap of the scoreboard (rows are tight, the plate carries the grouping).
 	_shares_box.add_theme_constant_override("separation", int(hud_visual_tuning.hud_row_gap_px))
 	_top_left_cluster_base_right = _top_left_cluster.offset_right
 	get_viewport().size_changed.connect(_apply_hud_layout)
@@ -560,7 +559,7 @@ func set_local_slot(slot_id: int) -> void:
 ## previews previously only ever updated from Events.feed_block_issued
 ## (_on_feed_block_issued() below), which fires once, the moment Match first
 ## feeds a slot -- almost always *before* this HUD instance's set_local_slot/
-## set_active_slot ever runs (game/sandbox/Sandbox.gd/net/MatchNet.gd wire the local
+## set_active_slot ever runs (the sandbox and MatchNet wire the local
 ## slot in only after Match.start_match() has already fed it), so the signal
 ## this HUD needed had already fired and gone by the time anyone was
 ## listening for it: `_held_shape`/`_next_shape` stayed at their `null`
@@ -811,7 +810,7 @@ func _on_territory_share_changed(shares: PackedFloat32Array) -> void:
 ##
 ## Lobby rework: `team_numbers` is MatchConfig.team_numbers of a
 ## match whose lobby teams were host-resolved (dense team id -> the number the
-## team had in the lobby); empty = the legacy "team id + 1" label.
+## team had in the lobby); empty = the "team id + 1" label.
 static func mode_score_text(state: Dictionary, team_numbers: PackedInt32Array = PackedInt32Array()) -> String:
 	var scores: Array = state.get("scores", []) as Array
 	if scores.is_empty():
@@ -1113,10 +1112,6 @@ func _build_scale_root() -> void:
 	for child: Node in get_children():
 		if child != _scale_root and child is Control:
 			child.reparent(_scale_root, false)
-
-
-func is_hud_hidden() -> bool:
-	return _hud_hidden
 
 
 func _show_hud() -> void:
@@ -1631,10 +1626,6 @@ var _held_gift_id: StringName = &""
 var _next_gift_id: StringName = &""
 
 
-func next_gift_icon() -> Texture2D:
-	return SpecialDef.preview_icon_for(_next_gift_id) if _next_gift_id != &"" else null
-
-
 ## The next piece is a gift iff more is queued than the held piece accounts
 ## for; the id is the queue head (falls back to a generic placeholder id).
 func _next_gift_id_for(count: int, head_id: StringName) -> StringName:
@@ -1682,10 +1673,6 @@ func prime_pregame_widgets() -> void:
 	shares.resize(int(running_config.team_count()))
 	set_territory_shares(shares)
 	_update_minimap()
-
-
-func glue_preview_active() -> bool:
-	return _glue_active
 
 
 func _set_glue_active(active: bool) -> void:

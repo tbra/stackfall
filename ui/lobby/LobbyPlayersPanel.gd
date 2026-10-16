@@ -362,11 +362,6 @@ func add_bot_button() -> UiBlockButton:
 	return _add_bot_button
 
 
-## The lobby chat panel at the foot of the column.
-func chat() -> LobbyChat:
-	return _chat
-
-
 # --- Seat table ------------------------------------------------------------------
 
 ## The human entries of a roster payload (bot rows inside it, if any, are dropped and
@@ -528,7 +523,7 @@ func _on_teams_toggle_toggled(pressed: bool) -> void:
 	_refresh_header()
 
 
-## "+ Add bot". DECISION (ui/lobby/LobbyPlayersPanel.gd, PL1b): the table is NOT edited
+## "+ Add bot". DECISION: the table is NOT edited
 ## here -- the Lobby grows ai_count and its publish reconciles the table, which appends
 ## the new bot exactly as LobbySeats.add_bot would (lowest free colour, the smaller of
 ## teams 1/2, the lobby's default difficulty). The cap is 8 seats (humans + bots).

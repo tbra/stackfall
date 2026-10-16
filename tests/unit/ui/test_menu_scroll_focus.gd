@@ -83,7 +83,7 @@ func _inside(scroll: ScrollContainer, control: Control) -> bool:
 
 func _available_rows(menu: OptionsMenu) -> Array[KeyRebindRow]:
 	var rows: Array[KeyRebindRow] = []
-	for row: KeyRebindRow in menu.rebind_rows():
+	for row: KeyRebindRow in menu._rows:
 		if row.is_available_on_active_device():
 			rows.append(row)
 	return rows
@@ -151,7 +151,7 @@ func test_moving_up_into_a_section_start_keeps_its_caption_visible() -> void:
 	await _settle()
 	var target: int = 0
 	for i: int in range(rows.size()):
-		if rows[i].action_name() == &"rotate_yaw_ccw":
+		if rows[i]._action == &"rotate_yaw_ccw":
 			target = i
 	for _step: int in range(start - target):
 		await _tap(false, false)

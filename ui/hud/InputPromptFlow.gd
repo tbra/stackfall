@@ -116,24 +116,6 @@ func _pin_single_row_width() -> void:
 	custom_minimum_size.x = total
 
 
-## Test seam: the glyphs currently shown, in order.
-func glyphs() -> Array[InputGlyph]:
-	var found: Array[InputGlyph] = []
-	for child: Node in get_children():
-		if child is InputGlyph and not child.is_queued_for_deletion():
-			found.append(child as InputGlyph)
-	return found
-
-
-## Test seam: the plain text currently shown (words joined by spaces; glyphs skipped).
-func plain_text() -> String:
-	var words: PackedStringArray = PackedStringArray()
-	for child: Node in get_children():
-		if child is Label and not child.is_queued_for_deletion():
-			words.append((child as Label).text.strip_edges())
-	return " ".join(words)
-
-
 ## The events of `action` for the active device (public so callers/tests can
 ## compare with what the control resolved).
 static func events_for_active_device(action: StringName) -> Array[InputEvent]:

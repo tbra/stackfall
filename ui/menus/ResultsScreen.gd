@@ -7,9 +7,9 @@ extends Control
 ## Shown once per match end, driven entirely by Events.match_results_ready
 ## (autoload/match/MatchStats.gd's own header documents the payload shape:
 ## winner_kind/winner_id/winner_name/match_duration/rows). Self-contained the
-## same way ui/menus/PauseMenu.gd/ui/OptionsMenu.gd are: it never reaches into
+## same way PauseMenu.gd and OptionsMenu.gd are: it never reaches into
 ## game/main/Main.gd's node tree, only Events and the two `Variant` provider seams
-## below (ui/hud/HUD.gd's own match_provider/ui/Lobby.gd's own net_provider
+## below (ui/hud/HUD.gd's own match_provider/ui/lobby/Lobby.gd's own net_provider
 ## precedent) -- so game/main/Main.gd's own edit is a one-line instantiate/hide,
 ## exactly the brief's "no other Main.gd changes".
 ##
@@ -271,7 +271,7 @@ static func row_name_text(row: Dictionary, difficulty_label: String = "") -> Str
 
 ## Lobby rework: the label number of dense team `team_id` --
 ## `team_numbers` (MatchConfig.team_numbers of a host-resolved lobby) maps it to
-## the number the team had in the lobby; empty or short (legacy configs, FFA, an
+## the number the team had in the lobby; empty or short (older configs, FFA, an
 ## unresolved TEAMS_N) falls back to team id + 1, the old numbering.
 static func team_number_in(team_numbers: PackedInt32Array, team_id: int) -> int:
 	if team_id >= 0 and team_id < team_numbers.size():

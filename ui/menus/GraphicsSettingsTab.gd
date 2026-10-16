@@ -36,7 +36,7 @@ const SECTION_QUALITY: String = "Quality"
 const SECTION_EFFECTS: String = "Effects"
 const SECTION_FRAME_RATE: String = "Frame rate"
 
-## Combined-row ids (control_for() keys; they are not GraphicsPreset fields).
+## Combined-row ids (_by_field keys; they are not GraphicsPreset fields).
 const COMBO_SHADOWS: StringName = &"shadows"
 const COMBO_REFLECTIONS: StringName = &"reflections"
 const COMBO_ENVIRONMENT: StringName = &"environment_detail"
@@ -113,12 +113,6 @@ func _provider() -> Variant:
 ## Every focusable control top to bottom, preset picker first.
 func focus_controls() -> Array[Control]:
 	return _controls
-
-
-## The control that edits `field` (a GraphicsPreset field or a combined-row id; test/inspection
-## seam), or null.
-func control_for(field: StringName) -> Control:
-	return (_by_field[field]["control"] as Control) if _by_field.has(field) else null
 
 
 ## Re-reads every control from the Settings provider without emitting edits.

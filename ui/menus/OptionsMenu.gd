@@ -889,12 +889,6 @@ func _on_reset_pressed() -> void:
 	_load_current_values()
 
 
-## Test/inspection seam: every KeyRebindRow this menu built, in SECTIONS
-## build order (section by section, in each section's own action order).
-func rebind_rows() -> Array[KeyRebindRow]:
-	return _rows
-
-
 ## One Label per SECTIONS entry, styled as a small muted section header
 ## (requirement: "section headers (Placement, Rotation, Camera, ... Menu/System)").
 func _build_section_header(name: String) -> Label:

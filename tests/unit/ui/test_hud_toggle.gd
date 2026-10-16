@@ -48,7 +48,6 @@ func test_f8_hides_and_shows_every_hud_control() -> void:
 	assert_true(_shown(hud))
 	hud._unhandled_input(_key(true))
 	assert_false(hud._scale_root.visible, "F8 hides every HUD control")
-	assert_true(hud.is_hud_hidden())
 	assert_true(bystander.visible, "other layers (pause menu, F1 overlay, ...) are untouched")
 	hud._unhandled_input(_key(true))
 	assert_true(_shown(hud), "the next F8 shows it again")

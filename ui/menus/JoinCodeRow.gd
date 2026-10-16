@@ -31,14 +31,6 @@ func copy_button() -> Button:
 	return _copy_button
 
 
-func code() -> String:
-	return _code
-
-
-func label_text() -> String:
-	return _label.text
-
-
 ## `net` is the lobby's net provider. The row hides itself unless this is a non-Steam, non-private host
 ## whose UPnP attempt has started.
 func refresh(net: Variant, is_host: bool) -> void:

@@ -16,7 +16,7 @@ func test_backdrop_caps_fps_and_disables_world_3d_then_restores() -> void:
 	backdrop.free()
 	assert_eq(Engine.max_fps, before_fps)
 	assert_eq(get_viewport().disable_3d, before_3d)
-	assert_eq(MenuBackdrop.budget_holders(), 0)
+	assert_eq(MenuBackdrop._budget_holders, 0)
 
 
 func test_overlapping_menu_and_lobby_keep_budget_until_last_exit() -> void:

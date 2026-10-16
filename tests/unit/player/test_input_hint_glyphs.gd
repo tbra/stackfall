@@ -29,8 +29,10 @@ func _press_key() -> void:
 
 func _texts(row: InputPromptFlow) -> PackedStringArray:
 	var found: PackedStringArray = PackedStringArray()
-	for glyph: InputGlyph in row.glyphs():
-		found.append(glyph.label_text())
+	for child: Node in row.get_children():
+		var glyph: InputGlyph = child as InputGlyph
+		if glyph != null and not glyph.is_queued_for_deletion():
+			found.append(glyph.label_text())
 	return found
 
 

@@ -178,7 +178,7 @@ func _apply_visual_style() -> void:
 
 ## pause_menu (Esc/gamepad Start, tools/bootstrap_project.gd) toggles this
 ## overlay open/closed; ui_cancel closes it while open, matching every other
-## menu's back gesture (ui/menus/OptionsMenu.gd/ui/Tutorial.gd's own doc comments).
+## menu's back gesture (OptionsMenu.gd's and Tutorial.gd's own doc comments).
 ## Suppressed entirely while Tutorial owns the scene (see `suppressed` above)
 ## or while Options is open as a child (Options's own _unhandled_input already
 ## consumes ui_cancel first via Godot's deepest-node-first delivery -- this

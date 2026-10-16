@@ -87,7 +87,7 @@ func _leave_menu() -> void:
 		_main.remove_child(menu)
 		menu.free()
 		_main._main_menu = null
-	assert_eq(MenuBackdrop.budget_holders(), 0, "fixture: no menu budget holder")
+	assert_eq(MenuBackdrop._budget_holders, 0, "fixture: no menu budget holder")
 
 
 func _stub_refresh(hz: float) -> void:
@@ -106,7 +106,7 @@ func test_frame_cap_defaults_to_display_refresh_on_every_preset() -> void:
 	_stub_refresh(0.0)
 	Settings.set_graphics_preset(&"medium")
 	assert_eq(Engine.max_fps, Settings.current_graphics_preset().fallback_fps, "fallback when the display reports <= 0")
-	MenuBackdrop.clear_match_cap()
+	MenuBackdrop._match_cap = -1
 	Engine.max_fps = before_fps
 
 
@@ -129,7 +129,7 @@ func test_vsync_override_calls_window_set_vsync_mode_and_keeps_the_cap() -> void
 	Settings.set_graphics_override(&"vsync_enabled", false)
 	assert_eq(modes.back(), DisplayServer.VSYNC_DISABLED)
 	assert_eq(Engine.max_fps, 144, "cap unchanged by vsync")
-	MenuBackdrop.clear_match_cap()
+	MenuBackdrop._match_cap = -1
 	Engine.max_fps = before_fps
 
 
@@ -154,7 +154,7 @@ func test_menu_match_preset_change_menu_sequence_ends_with_right_caps() -> void:
 	assert_eq(Engine.max_fps, menu_cap)
 	again.free()
 	assert_eq(Engine.max_fps, 60, "back in the match")
-	MenuBackdrop.clear_match_cap()
+	MenuBackdrop._match_cap = -1
 	Engine.max_fps = before_fps
 
 

@@ -38,9 +38,16 @@ func _slots(count: int, bot_from: int = -1) -> Array[PlayerSlot]:
 
 # --- show_for_match(): visibility + labels -----------------------------------
 
+func _row_names() -> PackedStringArray:
+	var names: PackedStringArray = PackedStringArray()
+	for row: Dictionary in _screen._ready_rows:
+		names.append((row["name"] as Label).text)
+	return names
+
+
 func test_show_for_match_lists_players() -> void:
 	_screen.show_for_match(_config(), _slots(2))
-	var names: PackedStringArray = _screen.player_row_names()
+	var names: PackedStringArray = _row_names()
 	assert_eq(names.size(), 2)
 	assert_true(names[0].findn("Player 1") >= 0)
 	assert_true(names[1].findn("Player 2") >= 0)
@@ -49,7 +56,7 @@ func test_show_for_match_lists_players() -> void:
 
 func test_show_for_match_marks_bots() -> void:
 	_screen.show_for_match(_config(), _slots(2, 1))
-	var names: PackedStringArray = _screen.player_row_names()
+	var names: PackedStringArray = _row_names()
 	assert_true(names[1].findn("Player 2 (bot)") >= 0, "expected the trailing bot slot marked: %s" % names[1])
 	assert_false(names[0].findn("(bot)") >= 0, "the human slot must not be marked a bot.")
 
@@ -106,7 +113,7 @@ func test_ready_timeout_hides_a_stalled_match() -> void:
 	_screen.readiness_timed_out.connect(func() -> void: timeout_count.append(1))
 	_screen.show_for_match(_config(), _slots(2))
 	await wait_seconds(0.3)
-	assert_true(_screen.timed_out())
+	assert_true(_screen._timed_out)
 	assert_false(_screen.visible)
 	assert_eq(timeout_count.size(), 1)
 
@@ -114,9 +121,9 @@ func test_ready_timeout_hides_a_stalled_match() -> void:
 func test_overlay_layer_is_above_the_hud_and_below_the_pause_menu() -> void:
 	var hud: HUD = autofree(load("res://ui/hud/HUD.tscn").instantiate()) as HUD
 	add_child_autofree(hud)
-	assert_eq(_screen.overlay_canvas_layer(), _screen.tuning.overlay_canvas_layer)
-	assert_gt(_screen.overlay_canvas_layer(), hud.layer, "a Control z_index can never beat a CanvasLayer: the overlay needs its own")
-	assert_lt(_screen.overlay_canvas_layer(), PauseMenu.OVERLAY_LAYER)
+	assert_eq(_screen._layer.layer, _screen.tuning.overlay_canvas_layer)
+	assert_gt(_screen._layer.layer, hud.layer, "a Control z_index can never beat a CanvasLayer: the overlay needs its own")
+	assert_lt(_screen._layer.layer, PauseMenu.OVERLAY_LAYER)
 
 
 # Game-time budget; wait_until returns as soon as the image loads. The runners use
@@ -133,7 +140,7 @@ const FLOW_TIMEOUT_S: float = 600.0
 
 
 func _progress_is(overlay: LoadingScreen, expected: float) -> Callable:
-	return func() -> bool: return absf(overlay.progress() - expected) < 0.001
+	return func() -> bool: return absf(overlay._progress - expected) < 0.001
 
 
 ## Flow tests against the real Main (same fixture shape as
@@ -187,7 +194,7 @@ func test_host_start_shows_overlay_before_the_match_starts() -> void:
 	assert_true(overlay.visible, "host waits for the first applied territory result")
 	Events.territory_updated.emit(Match.raster(), null)
 	await wait_until(_progress_is(overlay, 1.0), FLOW_TIMEOUT_S, "readiness completes")
-	assert_almost_eq(overlay.progress(), 1.0, 0.001)
+	assert_almost_eq(overlay._progress, 1.0, 0.001)
 	Events.match_state_changed.disconnect(on_state)
 	Net.leave()
 	Match.abort_match()
@@ -206,11 +213,11 @@ func test_early_client_territory_completes_readiness_after_build() -> void:
 	assert_true(main._first_territory_ready, "late join keyframe is latched before world build")
 	main._match_flow_port().call(&"_finish_loading_when_ready", main._loading_generation)
 	await wait_process_frames(2)
-	assert_lt(overlay.progress(), overlay.tuning.complete_progress)
+	assert_lt(overlay._progress, overlay.tuning.complete_progress)
 	main._world_built = true
 	await wait_until(_progress_is(overlay, overlay.tuning.complete_progress), FLOW_TIMEOUT_S, "readiness completes")
-	assert_almost_eq(overlay.progress(), overlay.tuning.complete_progress, 0.001)
-	assert_false(overlay.timed_out())
+	assert_almost_eq(overlay._progress, overlay.tuning.complete_progress, 0.001)
+	assert_false(overlay._timed_out)
 	overlay.cancel()
 	main._world_built = false
 	Net.leave()
@@ -226,7 +233,7 @@ func test_client_overlay_appears_on_loading_announcement() -> void:
 	Events.match_loading_announced.emit()
 	assert_true(overlay.visible)
 	assert_true(overlay.is_pending())
-	assert_lt(overlay.progress(), 0.1)
+	assert_lt(overlay._progress, 0.1)
 	Match.set_process(true)
 
 
@@ -243,10 +250,10 @@ func test_client_waits_for_replicated_territory_before_ready() -> void:
 	main._match_flow_port().call(&"_finish_loading_when_ready", main._loading_generation)
 	await wait_process_frames(overlay.tuning.stable_frames + 2)
 	assert_true(overlay.visible)
-	assert_lt(overlay.progress(), 1.0)
+	assert_lt(overlay._progress, 1.0)
 	Events.territory_replicated.emit(null)
 	await wait_until(_progress_is(overlay, 1.0), FLOW_TIMEOUT_S, "readiness completes")
-	assert_almost_eq(overlay.progress(), 1.0, 0.001)
+	assert_almost_eq(overlay._progress, 1.0, 0.001)
 	overlay.cancel()
 	await wait_process_frames(overlay.tuning.warmup_frames + 2)
 	main._world_built = false

@@ -7,7 +7,7 @@ extends PanelContainer
 ##
 ## DECISION (ui/hud/Minimap.gd): the original M7 P5 design used a
 ## live orthographic SubViewport + Camera3D looking straight down at the
-## shared World3D (docs/M7_ART_DIRECTION.md Q4, selected option (a)).
+## shared World3D.
 ## In practice that camera also framed the removed DiscMirror's planar-reflection
 ## quad -- a real 3D plane sitting on the disk -- and a top-down camera's own
 ## viewing angle relative to that mirror plane changes with match state (disk
@@ -315,12 +315,6 @@ func image_to_current_transform(center: Vector2) -> Transform2D:
 	var rot: Transform2D = Transform2D(Vector2(a, -d), Vector2(-b, e), Vector2.ZERO)
 	rot.origin = center - rot.basis_xform(center)
 	return rot
-
-
-## True once a non-null MapDef has been set (i.e. the minimap is actually
-## drawing something), false in the menu/no-match state.
-func is_active() -> bool:
-	return _map_def != null
 
 
 ## Half the meters-wide square the minimap currently frames (MapDef.
