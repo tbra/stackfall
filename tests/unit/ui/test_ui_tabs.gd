@@ -74,7 +74,7 @@ func test_shoulders_cycle_and_the_flag_turns_them_off() -> void:
 func test_hidden_and_disabled_tabs_are_skipped() -> void:
 	var tabs: UiTabs = _make()
 	await wait_frames(1)
-	tabs.set_tab_visible(&"graphics", false)
+	tabs.get_tab(&"graphics").visible = false
 	tabs._unhandled_input(_action(&"menu_tab_next"))
 	assert_eq(tabs.current, &"controls")
 	tabs.set_tab_disabled(&"game", true)

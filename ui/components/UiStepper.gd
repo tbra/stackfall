@@ -1,6 +1,6 @@
 class_name UiStepper
 extends HBoxContainer
-## The design system's Stepper (docs/ui_reskin/components.md "Stepper"): - and + blocks around a
+## The design system's Stepper: - and + blocks around a
 ## Bungee value printed plainly between them (no box, border or fill), for goal flags, bots and match minutes. A UiRowItem (STEPPER):
 ## stepper_width_units row heights wide, one row height tall, never expands. At a limit the matching
 ## block is disabled (dimmed). The stepper itself takes focus: ui_left / ui_right step it, holding
@@ -120,10 +120,6 @@ func nudge(direction: int) -> bool:
 	var before: int = value
 	value = clamp_step(value, direction, min_value, max_value, step)
 	return value != before
-
-
-func is_holding() -> bool:
-	return _hold.is_holding()
 
 
 func release() -> void:

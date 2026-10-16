@@ -9,7 +9,7 @@ extends Resource
 
 const TABLE_PATH: String = "res://config/ui/ui_art_table.tres"
 
-## Icon keys (the catalog ids of assets/ui/icons/lobby/catalog.json).
+## Icon keys (the file names under assets/ui/icons/lobby).
 const KEY_SECTION_GAME: StringName = &"section_game"
 const KEY_SECTION_ROUND: StringName = &"section_round"
 const KEY_SECTION_GIFTS: StringName = &"section_gifts"

@@ -106,7 +106,7 @@ func test_advanced_chip_opens_the_block_and_adds_its_controls_to_the_loop() -> v
 	assert_false(lobby._visible_chain(lobby._main_chain).has(gravity))
 	watch_signals(game)
 	game.advanced_button.button_pressed = true
-	assert_true(game.is_advanced_open())
+	assert_true(game.advanced.visible)
 	assert_signal_emitted_with_parameters(game, "advanced_changed", [true])
 	assert_true(gravity.is_visible_in_tree())
 	for unique_name: String in ["%GravityMeter", "%TiltModeOption", "%HoleModeOption", "%TurnBasedCheck", "%MidJoinCheck"]:
@@ -255,6 +255,6 @@ func test_client_reads_the_sections_but_cannot_edit_them() -> void:
 			assert_true((control as BaseButton).disabled, "%s is disabled for a client" % unique_name)
 	assert_false(game.advanced_button.disabled, "a client can still open the Advanced block to read it")
 	game.advanced_button.button_pressed = true
-	assert_true(game.is_advanced_open())
+	assert_true(game.advanced.visible)
 	assert_eq(_fake_of(lobby).set_lobby_data_calls.size(), 0, "opening a block publishes nothing")
 	_assert_loop_has_no_invisible_stops(lobby, "client")

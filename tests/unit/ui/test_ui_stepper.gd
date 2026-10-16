@@ -46,7 +46,7 @@ func test_ui_left_and_right_step_by_step() -> void:
 	stepper._gui_input(_action(&"ui_left"))
 	assert_eq(stepper.value, 5)
 	stepper._gui_input(_action(&"ui_left", false))
-	assert_false(stepper.is_holding())
+	assert_false(stepper.is_processing())
 
 
 func test_hold_repeats_after_the_delay_then_every_interval() -> void:
@@ -65,7 +65,7 @@ func test_hold_repeats_after_the_delay_then_every_interval() -> void:
 	assert_eq(stepper.value, 53)
 	Input.action_release(&"ui_right")
 	stepper.advance(tuning.repeat_interval_sec)
-	assert_false(stepper.is_holding(), "a missed release event cannot keep it stepping")
+	assert_false(stepper.is_processing(), "a missed release event cannot keep it stepping")
 
 
 func test_stick_friction_one_push_one_step_and_repeat_only_near_full() -> void:
@@ -87,7 +87,7 @@ func test_stick_friction_one_push_one_step_and_repeat_only_near_full() -> void:
 	assert_eq(stepper.value, 52, "full deflection repeats after the stick delay")
 	axis[0] = tuning.stick_release_threshold - 0.05
 	stepper.advance(0.01)
-	assert_false(stepper.is_holding(), "below the release threshold lets go")
+	assert_false(stepper.is_processing(), "below the release threshold lets go")
 
 
 func test_disabled_blocks_input() -> void:

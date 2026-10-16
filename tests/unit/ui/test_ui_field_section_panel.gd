@@ -81,4 +81,4 @@ func test_section_bar_toggles_on_ui_accept() -> void:
 	Input.parse_input_event(_action(&"ui_accept", false))
 	Input.flush_buffered_events()
 	await wait_frames(2)
-	assert_true(section.is_advanced_open(), "A toggles the section")
+	assert_true(section.advanced.visible, "A toggles the section")
