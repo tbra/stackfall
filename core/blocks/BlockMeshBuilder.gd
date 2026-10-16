@@ -62,8 +62,8 @@ static var _mesh_cache: Dictionary = {}
 ## invisible collision hull keeps the placement gap).
 ##
 ## Returns null if `shape.sloped_cells` is non-empty or `shape.mesh` is set:
-## no shipped shape does either today (removed the only
-## sloped shape, config/blocks/wedge.tres; no .tres sets `mesh`), and this
+## no shipped shape does either today (no .tres sets
+## sloped cells or `mesh`), and this
 ## builder has no wedge-face case and isn't meant to duplicate a custom mesh
 ## across every cell -- game/blocks/BlockFactory.gd falls back to its own
 ## pre-existing per-cell path for such a shape instead (DECISION, see its

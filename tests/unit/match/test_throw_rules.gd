@@ -25,7 +25,8 @@ func _home(x: float, z: float, team: int, slot: int = -1) -> InfluenceCircle:
 
 
 func _rasterize(circles: Array[InfluenceCircle], holes_enabled: bool = false) -> void:
-	_raster.update(circles, _solver.solve(circles), 0.1, holes_enabled, false)
+	_raster.fill_ownership(circles, _solver.solve(circles), holes_enabled)
+	_raster.adopt_fill(_raster, 0.1, holes_enabled, false)
 
 
 func _my_territory() -> void:

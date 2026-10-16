@@ -368,7 +368,8 @@ func test_check_home_flags_v2_eliminates_a_slot_once_an_enemy_circle_outscores_i
 	var circles: Array[InfluenceCircle] = Match._territory._collect_circles()
 	circles.append(enemy_circle)
 	var groups: TerritoryGroups = Match._solver.solve(circles)
-	Match._raster.update(circles, groups, 1.0 / Match._territory_tuning.solve_hz, false, false)
+	Match._raster.fill_ownership(circles, groups, false)
+	Match._raster.adopt_fill(Match._raster, 1.0 / Match._territory_tuning.solve_hz, false, false)
 
 	Match._territory._check_home_flags_v2()
 

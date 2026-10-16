@@ -74,28 +74,6 @@ static func radius_for_height(
 	return minf(raw, tuning.influence_max_fraction * field_radius)
 
 
-## Builds a block's circle: center of mass projected onto the disk plane,
-## radius from the block's highest point.
-static func for_block(
-	center_of_mass: Vector2,
-	top_height: float,
-	team_id: int,
-	slot_id: int,
-	body_id: int,
-	tuning: TerritoryTuning,
-	field_radius: float
-) -> InfluenceCircle:
-	return InfluenceCircle.new(
-		center_of_mass,
-		radius_for_height(top_height, tuning, field_radius),
-		team_id,
-		slot_id,
-		false,
-		body_id,
-		top_height
-	)
-
-
 ## Builds a home flag's circle (spec 1.5: "Home circle: radius home_radius = 6.
 ## It always exists while the flag is on the disk").
 static func for_home(
@@ -112,7 +90,3 @@ static func for_home(
 func overlaps(other: InfluenceCircle) -> bool:
 	var reach: float = radius + other.radius
 	return center.distance_squared_to(other.center) <= reach * reach
-
-
-func contains_point(point: Vector2) -> bool:
-	return center.distance_squared_to(point) <= radius * radius

@@ -52,10 +52,6 @@ func reset(id: int) -> void:
 	_still_s.erase(id)
 
 
-func tracked_count() -> int:
-	return _anchor.size()
-
-
 ## Drops every tracked id not in `live_ids` (id -> true).
 func prune(live_ids: Dictionary) -> void:
 	for id: Variant in _anchor.keys():

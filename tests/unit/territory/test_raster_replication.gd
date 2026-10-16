@@ -37,7 +37,8 @@ func _solved_host_raster() -> TerritoryRaster:
 	var step: float = 1.0 / _tuning.solve_hz
 	var elapsed: float = 0.0
 	while elapsed < _tuning.hole_delay + step:
-		raster.update(circles, groups, step, true)
+		raster.fill_ownership(circles, groups, true)
+		raster.adopt_fill(raster, step, true, false)
 		elapsed += step
 	return raster
 
@@ -137,7 +138,8 @@ func test_mirror_still_receives_updates_after_host_clean_ticks_skip() -> void:
 	groups.add_group(0, PackedInt32Array([0]))
 	groups.add_group(1, PackedInt32Array([1]))
 	groups.add_group(2, PackedInt32Array([2]))
-	host.update(circles, groups, 1.0 / _tuning.solve_hz, true)
+	host.fill_ownership(circles, groups, true)
+	host.adopt_fill(host, 1.0 / _tuning.solve_hz, true, false)
 	var changed: PackedInt32Array = PackedInt32Array()
 	var owners: PackedByteArray = host.owner_bytes()
 	var states: PackedByteArray = host.state_bytes()

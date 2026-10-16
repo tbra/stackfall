@@ -46,7 +46,8 @@ func _block(x: float, z: float, r: float, team: int) -> InfluenceCircle:
 
 
 func _rasterize(circles: Array[InfluenceCircle]) -> void:
-	_raster.update(circles, _solver.solve(circles), 0.1, true, false)
+	_raster.fill_ownership(circles, _solver.solve(circles), true)
+	_raster.adopt_fill(_raster, 0.1, true, false)
 
 
 func _objective(goals: Array[Vector2], teams: int = 2) -> CaptureFlagObjective:
