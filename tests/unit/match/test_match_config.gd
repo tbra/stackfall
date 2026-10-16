@@ -144,9 +144,7 @@ func test_random_sky_resolves_to_a_locked_id_never_the_running_cycle() -> void:
 	assert_eq(seen.size(), MatchConfig.SKY_THEME_IDS.size(), "every locked sky is reachable by a roll")
 
 
-func test_legacy_dict_gravity_is_rescaled_but_versioned_dict_is_not() -> void:
-	var legacy: MatchConfig = MatchConfig.from_dict({"gravity_multiplier": 1.4})
-	assert_almost_eq(legacy.gravity_multiplier, 1.0, 0.0001)
+func test_gravity_round_trips_through_the_dict_unscaled() -> void:
 	var current: MatchConfig = MatchConfig.from_dict(MatchConfig.new().to_dict())
 	assert_eq(current.gravity_multiplier, 1.0)
 

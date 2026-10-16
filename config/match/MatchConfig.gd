@@ -23,7 +23,7 @@ enum TiltMode { SPECIALS_ONLY, PHYSICAL_BALANCE }
 ## target": "restore overlap holes as the fidelity target... The no-overlap v2
 ## mode is optional, not the default") supersedes the earlier 
 ## this comment used to cite -- the installed original's own tutorial text
-## confirms overlap sinking (docs/ORIGINAL_INSTALL_EVIDENCE.md), which the v2
+## confirms overlap sinking, which the v2
 ## OFF default contradicted. Point-ray placement, continuous solving and goal
 ## no-build zones are retained requirements and now apply under every
 ## mode (autoload/Match.gd, core/rules/PlacementRules.gd), not just OFF.
@@ -126,13 +126,13 @@ const DISC_SIZE_STEP_DEFAULT: int = 2
 ## Lobby rework (section 3). Per-seat
 ## team picks live in the lobby seat table; at Start the host resolves them
 ## (core/rules/TeamAssigner.gd) and writes the result here. All three arrays are
-## OPTIONAL and empty by default, which is exactly the legacy behaviour (teams
+## OPTIONAL and empty by default, which is exactly the default behaviour (teams
 ## interleave by slot, one bot difficulty), so an old saved lobby, a dict from
 ## another build, `--bots=N` and the sandbox all keep working untouched.
 ## DECISION (config/match/MatchConfig.gd): `team_mode` stays the on/off switch and the
 ## pick cap (OFF, or 2/3/4 teams offered); the arrays are only honoured while it
 ## is not OFF, and sanitize() drops them when they are not self-consistent, so a
-## bad wire value degrades to the legacy interleave instead of crashing a match.
+## bad wire value degrades to the default interleave instead of crashing a match.
 ## Dense team id (0..team_numbers.size()-1) of each slot, host-resolved at Start;
 ## one entry per slot (size == player_count) or empty.
 @export var slot_team_ids: PackedInt32Array = PackedInt32Array()
@@ -292,7 +292,6 @@ const PLAYER_COUNT_MIN: int = 1
 const PLAYER_COUNT_MAX: int = 8
 const BLOCK_TIMER_MIN: float = 3.0
 const BLOCK_TIMER_MAX: float = 12.0
-## Old effective range 0.5-2.0 divided by the 1.4 baseline, rounded.
 ## [OWNER decision]: range 0.1x-2.0x.
 const GRAVITY_DEFAULT: float = 1.0
 const GRAVITY_MIN: float = 0.1
@@ -300,9 +299,6 @@ const GRAVITY_MAX: float = 2.0
 ## One step of the lobby gravity meter: every lit cell is exactly this much, from 0 to
 ## GRAVITY_MAX, so 1.0 is a cell and the meter has GRAVITY_MAX / GRAVITY_STEP cells.
 const GRAVITY_STEP: float = 0.1
-## Saved/networked dicts without a "gravity_scale_version" key hold the old
-## absolute multiplier; from_dict() divides it by this legacy baseline.
-const LEGACY_GRAVITY_BASELINE: float = 1.4
 const GOAL_FLAG_MIN: int = 1
 const GOAL_FLAG_MAX: int = 5
 const SPECIAL_FREQUENCY_MIN: int = 0
@@ -397,10 +393,6 @@ var _map_def_cache: MapDef = null
 var _map_def_cache_step: int = 0
 
 
-func field_radius() -> float:
-	return map_def().field_radius
-
-
 ## Number of teams `mode` selects (TeamMode.OFF excluded -- team_count()
 ## already special-cases it before ever calling this). TeamMode's own
 ## ordinals encode the count directly: TEAMS_2/3/4 sit at ordinals 1/2/3, one
@@ -455,7 +447,7 @@ func is_sequential_play() -> bool:
 
 
 ## True when the host has resolved the lobby team picks into slot_team_ids /
-## team_numbers (teams on and both arrays present). False means "legacy
+## team_numbers (teams on and both arrays present). False means "default
 ## interleave".
 func teams_resolved() -> bool:
 	return team_mode != TeamMode.OFF and not slot_team_ids.is_empty() and not team_numbers.is_empty()
@@ -471,7 +463,7 @@ func team_pick_cap() -> int:
 
 
 ## Lobby number (1-based) of the dense team `team_id`, for labels: the number the
-## team had in the lobby when resolved, else team_id + 1 (the legacy label).
+## team had in the lobby when resolved, else team_id + 1 (the default label).
 func team_number_for(team_id: int) -> int:
 	if teams_resolved() and team_id >= 0 and team_id < team_numbers.size():
 		return team_numbers[team_id]
@@ -487,7 +479,7 @@ func ai_difficulty_for_slot(slot_id: int) -> AiDifficulty:
 
 
 ## Colour of each TEAM, indexed by team id, for the territory overlay and minimap.
-## Legacy and FFA (OFF or unresolved) return player_colors untouched: there team id
+## Default and FFA (OFF or unresolved) return player_colors untouched: there team id
 ## t is slot t (slot_id % count == t for t < count), so player_colors[t] is already
 ## the right colour. With resolved teams a team shows the colour of its lowest
 ## slot; per-player colours (block tints, flags) stay independent of this.
@@ -585,7 +577,7 @@ func sanitize() -> void:
 ## entry (an oversized array is dropped: it falls back to ai_difficulty). The two
 ## team arrays are all-or-nothing: they survive only while teams are on and they
 ## agree (one id per slot, ids dense 0..n-1 each used, numbers strictly ascending
-## within 1..team_pick_cap()); otherwise both are cleared and the legacy interleave
+## within 1..team_pick_cap()); otherwise both are cleared and the default interleave
 ## applies. Runs last in sanitize(), after team_mode and player_count are clamped.
 func _sanitize_team_data() -> void:
 	if slot_ai_difficulties.size() > PLAYER_COUNT_MAX:
@@ -716,6 +708,7 @@ func to_dict() -> Dictionary:
 		"team_mode": team_mode,
 		"block_timer": block_timer,
 		"gravity_multiplier": gravity_multiplier,
+		# Stays on the wire (replicated encoding); from_dict() no longer reads it.
 		"gravity_scale_version": 2,
 		"goal_flag_count": goal_flag_count,
 		"gifts_enabled": gifts_enabled,
@@ -741,7 +734,7 @@ func to_dict() -> Dictionary:
 		"player_colors": player_colors.duplicate(),
 		"rng_seed": rng_seed,
 	}
-	# Lobby rework arrays ride only when set, so a legacy config's dict is unchanged.
+	# Lobby rework arrays ride only when set, so a default config's dict is unchanged.
 	if not slot_team_ids.is_empty():
 		data["slot_team_ids"] = slot_team_ids.duplicate()
 	if not team_numbers.is_empty():
@@ -766,10 +759,6 @@ static func from_dict(data: Dictionary) -> MatchConfig:
 	config.team_mode = int(data.get("team_mode", config.team_mode))
 	config.block_timer = float(data.get("block_timer", config.block_timer))
 	config.gravity_multiplier = float(data.get("gravity_multiplier", config.gravity_multiplier))
-	# DECISION: a dict without the version key is pre-rescale,
-	# so its multiplier was absolute; convert to the new baseline-relative scale.
-	if data.has("gravity_multiplier") and not data.has("gravity_scale_version"):
-		config.gravity_multiplier /= LEGACY_GRAVITY_BASELINE
 	config.goal_flag_count = int(data.get("goal_flag_count", config.goal_flag_count))
 	config.gifts_enabled = bool(data.get("gifts_enabled", config.gifts_enabled))
 	config.experiments_enabled = bool(data.get("experiments_enabled", config.experiments_enabled))
@@ -839,7 +828,7 @@ static func _names_from(value: Variant) -> PackedStringArray:
 ## A PackedInt32Array from whatever the wire delivered: a PackedInt32Array/
 ## PackedInt64Array (RPC) or an Array of numbers (JSON through the Steam lobby
 ## tee, where ints come back as floats). Missing, mistyped, non-numeric or longer
-## than PLAYER_COUNT_MAX gives an empty array, i.e. the legacy behaviour; this
+## than PLAYER_COUNT_MAX gives an empty array, i.e. the default behaviour; this
 ## never errors on foreign data.
 static func _int_array_from(value: Variant) -> PackedInt32Array:
 	var parsed: PackedInt32Array = PackedInt32Array()

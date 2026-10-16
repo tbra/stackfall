@@ -140,8 +140,12 @@ func _expected_claim_radius(mask: int) -> float:
 	return (load("res://config/territory/territory_tuning.tres") as TerritoryTuning).goal_zone_radius * GOAL_MULTIPLIER
 
 
-func _expected_ids(mask: int) -> PackedStringArray:
-	return _cell_qol(mask).active_ids()
+func _toggle_flags(qol: QolExperiments) -> String:
+	return "%d%d%d%d" % [int(qol.timer_pause_enabled), int(qol.backlog_enabled), int(qol.goal_radius_enabled), int(qol.gift_slot_enabled)]
+
+
+func _expected_ids(mask: int) -> String:
+	return _toggle_flags(_cell_qol(mask))
 
 
 # --- Host -------------------------------------------------------------------------
@@ -251,12 +255,12 @@ func _host_phase(cell: int, phase: String, mask: int) -> Array:
 
 func _host_config(mask: int) -> Array:
 	var qol: QolExperiments = Match.config.qol
-	var ids: PackedStringArray = qol.active_ids() if qol != null else PackedStringArray(["no_qol"])
+	var ids: String = _toggle_flags(qol) if qol != null else "no_qol"
 	var radius: float = Match.qol_claim_radius()
 	var ok: bool = ids == _expected_ids(mask) and is_equal_approx(radius, _expected_claim_radius(mask))
 	ok = ok and Match.gift_slot_enabled() == (mask & BIT_GIFT != 0)
 	ok = ok and Match.qol_backlog_count(HOST_SLOT) == 0 and Match.qol_backlog_count(CLIENT_SLOT) == 0
-	return [ok, "ids=%s claim_radius=%.2f" % [",".join(ids), radius]]
+	return [ok, "ids=%s claim_radius=%.2f" % [ids, radius]]
 
 
 func _host_backlog(mask: int) -> Array:
@@ -437,10 +441,10 @@ func _client_config(mask: int) -> Array:
 	var qol: QolExperiments = Match.config.qol
 	var want: QolExperiments = _cell_qol(mask)
 	var radius: float = Match.qol_claim_radius()
-	var ok: bool = qol.active_ids() == want.active_ids() and is_equal_approx(radius, _expected_claim_radius(mask))
+	var ok: bool = _toggle_flags(qol) == _toggle_flags(want) and is_equal_approx(radius, _expected_claim_radius(mask))
 	ok = ok and qol.backlog_max == want.backlog_max and is_equal_approx(qol.goal_radius_multiplier, want.goal_radius_multiplier)
 	ok = ok and is_equal_approx(qol.pause_event_s, want.pause_event_s) and Match.gift_slot_enabled() == (mask & BIT_GIFT != 0)
-	return [ok, "ids=%s claim_radius=%.2f" % [",".join(qol.active_ids()), radius]]
+	return [ok, "ids=%s claim_radius=%.2f" % [_toggle_flags(qol), radius]]
 
 
 func _client_backlog(mask: int) -> Array:
