@@ -50,7 +50,7 @@ class GodotLaunchTest(unittest.TestCase):
     def test_command_bodies_in_quotes_are_still_checked(self):
         for command in (
             "bash -c 'cd /work && godot --path .'",
-            'powershell -NoProfile -Command "cd M:/x; godot --path ."',
+            'powershell -NoProfile -Command "cd /work/x; godot --path ."',
             "echo 'ok' && godot --path .",
         ):
             self.assertEqual(g.problem(command), g.REASON_WINDOW, command)
