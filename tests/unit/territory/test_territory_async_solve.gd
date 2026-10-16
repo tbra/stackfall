@@ -1,7 +1,7 @@
 extends GutTest
 ## The WorkerThreadPool territory solve must be bit-identical to the
 ## synchronous one.
-##   A raster split: update() == fill_ownership(shadow) + adopt_fill()
+##   A raster split: in-place fill_ownership + adopt_fill == fill on a shadow, then adopt_fill (swap)
 ##   B TerritorySolveJob: inline run() == run() inside a WorkerThreadPool task
 ##   C end to end through MatchTerritory, sync vs async
 ##   D lifecycle: abort / restart / round-timer end with a job in flight
@@ -89,7 +89,8 @@ func _raster_split_run(holes_enabled: bool, permanent: bool) -> void:
 		_last_circles = circles
 		var groups: TerritoryGroups = solver.solve(circles)
 		var delta: float = [0.05, 0.1, 0.25][rng.randi_range(0, 2)]
-		x.update(circles, groups, delta, holes_enabled, permanent)
+		x.fill_ownership(circles, groups, holes_enabled)
+		x.adopt_fill(x, delta, holes_enabled, permanent)
 		shadow.fill_ownership(circles, groups, holes_enabled)
 		y.adopt_fill(shadow, delta, holes_enabled, permanent)
 		if x.owner_bytes() != y.owner_bytes() or x._active != y._active or x._contested_time != y._contested_time \
@@ -103,22 +104,22 @@ func _raster_split_run(holes_enabled: bool, permanent: bool) -> void:
 			var cy: int = rng.randi_range(2, grid.res - 3)
 			x.force_hole_cell(cx, cy, 1.0, permanent)
 			y.force_hole_cell(cx, cy, 1.0, permanent)
-	assert_eq(mismatches, 0, "The split fill matched update() on all %d steps." % RANDOM_STEPS)
+	assert_eq(mismatches, 0, "The shadow fill matched the in-place fill on all %d steps." % RANDOM_STEPS)
 	_assert_rasters_equal(x, y, "final")
 	for cy: int in range(grid.res):
 		for cx: int in range(grid.res):
 			assert_eq(x.group_at(cx, cy), y.group_at(cx, cy))
 
 
-func test_raster_split_matches_update_legacy_temporary() -> void:
+func test_raster_shadow_fill_matches_in_place_legacy_temporary() -> void:
 	_raster_split_run(true, false)
 
 
-func test_raster_split_matches_update_legacy_permanent() -> void:
+func test_raster_shadow_fill_matches_in_place_legacy_permanent() -> void:
 	_raster_split_run(true, true)
 
 
-func test_raster_split_matches_update_v2() -> void:
+func test_raster_shadow_fill_matches_in_place_v2() -> void:
 	_raster_split_run(false, false)
 
 

@@ -381,7 +381,7 @@ def selftest() -> int:
         if link_made:
             delete_entry(str(root / "legacy-link"))
             assert (outside / "keep.txt").exists(), "link delete hit target"
-        assert cmd_path(root, "Bontago-zz.9", "s").endswith("Bontago-zz.9/s")
+        assert cmd_path(root, "Bontago-zz.9", "s").endswith("Bontago-zz.9/s")  # lint-public: allow fixture
         try:
             cmd_path(root, "bad id", None)
             raise AssertionError("bad id accepted")

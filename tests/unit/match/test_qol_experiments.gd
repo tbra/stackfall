@@ -154,7 +154,8 @@ func _claim_fixture() -> Array:
 	var circles: Array[InfluenceCircle] = [
 		InfluenceCircle.new(Vector2(tuning.home_radius + 2.0, 0.0), tuning.home_radius, 0, 0, true, -1)
 	]
-	raster.update(circles, TerritorySolver.new(tuning).solve(circles), 0.1, true, false)
+	raster.fill_ownership(circles, TerritorySolver.new(tuning).solve(circles), true)
+	raster.adopt_fill(raster, 0.1, true, false)
 	return [raster, tuning]
 
 

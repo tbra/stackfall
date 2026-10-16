@@ -46,7 +46,8 @@ func _block(x: float, z: float, r: float, team: int) -> InfluenceCircle:
 
 
 func _rasterize(circles: Array[InfluenceCircle]) -> void:
-	_raster.update(circles, _solver.solve(circles), 0.1, true, false)
+	_raster.fill_ownership(circles, _solver.solve(circles), true)
+	_raster.adopt_fill(_raster, 0.1, true, false)
 
 
 func _objective(goals: Array[Vector2], teams: int = 2) -> CaptureFlagObjective:
@@ -65,13 +66,26 @@ func _run(objective: CaptureFlagObjective, circles: Array[InfluenceCircle], seco
 
 # --- Beacons ---------------------------------------------------------------------
 
+func test_extra_state_carries_held_counts_and_round_trips_to_a_client() -> void:
+	var host: CaptureFlagObjective = _objective([Vector2.ZERO])
+	_run(host, [_home(0.0, 0.0, 0)] as Array[InfluenceCircle], 0.1)
+	var extra: Dictionary = host.extra_state()
+	assert_eq(extra["beacons"], 1)
+	assert_eq(extra["held_0"], 1)
+	assert_eq(extra["held_1"], 0)
+	var client: CaptureFlagObjective = _objective([Vector2.ZERO])
+	client.apply_mode_state(host.mode_state())
+	assert_eq(client.extra_state()["held_0"], 1)
+	assert_eq(client.extra_state()["held_1"], 0)
+
+
 func test_one_beacon_scores_immediately_at_the_rate() -> void:
 	var objective: CaptureFlagObjective = _objective([Vector2.ZERO])
 	_run(objective, [_home(0.0, 0.0, 0)] as Array[InfluenceCircle], 0.1)
-	assert_almost_eq(objective.team_score(0), RATE * 0.1, 0.0001, "no hold delay")
+	assert_almost_eq(objective.scores()[0], RATE * 0.1, 0.0001, "no hold delay")
 	_run(objective, [_home(0.0, 0.0, 0)] as Array[InfluenceCircle], 4.9)
-	assert_almost_eq(objective.team_score(0), RATE * 5.0, 0.001)
-	assert_almost_eq(objective.team_score(1), 0.0, 0.0001)
+	assert_almost_eq(objective.scores()[0], RATE * 5.0, 0.001)
+	assert_almost_eq(objective.scores()[1], 0.0, 0.0001)
 
 
 # --- Loss and reclaim -------------------------------------------------------------
@@ -80,12 +94,11 @@ func test_loss_stops_scoring_and_reclaim_resumes_it_keeping_the_total() -> void:
 	var objective: CaptureFlagObjective = _objective([Vector2.ZERO])
 	_run(objective, [_home(0.0, 0.0, 0)] as Array[InfluenceCircle], 3.0)
 	_run(objective, [_home(15.0, 15.0, 0)] as Array[InfluenceCircle], 4.0)
-	assert_almost_eq(objective.team_score(0), RATE * 3.0, 0.001, "score is kept while the beacon is lost")
-	assert_eq(objective.beacons_held(0), 0)
+	assert_almost_eq(objective.scores()[0], RATE * 3.0, 0.001, "score is kept while the beacon is lost")
 	_run(objective, [_home(0.0, 0.0, 1)] as Array[InfluenceCircle], 2.0)
-	assert_almost_eq(objective.team_score(1), RATE * 2.0, 0.001, "a rival takes it over")
+	assert_almost_eq(objective.scores()[1], RATE * 2.0, 0.001, "a rival takes it over")
 	_run(objective, [_home(0.0, 0.0, 0)] as Array[InfluenceCircle], 1.0)
-	assert_almost_eq(objective.team_score(0), RATE * 4.0, 0.001, "reclaim resumes from the kept total")
+	assert_almost_eq(objective.scores()[0], RATE * 4.0, 0.001, "reclaim resumes from the kept total")
 
 
 # --- Path to a living home ----------------------------------------------------------
@@ -94,7 +107,7 @@ func test_a_beacon_in_a_block_circle_cut_off_from_home_does_not_score() -> void:
 	var goal: Vector2 = Vector2(15.0, 15.0)
 	var objective: CaptureFlagObjective = _objective([goal])
 	_run(objective, [_home(0.0, 0.0, 0), _block(15.0, 15.0, 3.0, 0)] as Array[InfluenceCircle], 5.0)
-	assert_almost_eq(objective.team_score(0), 0.0, 0.0001, "an island of blocks has no path home")
+	assert_almost_eq(objective.scores()[0], 0.0, 0.0001, "an island of blocks has no path home")
 
 
 # --- Frame-rate independence ----------------------------------------------------------
@@ -195,9 +208,8 @@ func test_client_mirrors_host_scores_for_display_only() -> void:
 	var shown: Array[Dictionary] = []
 	Events.mode_state_changed.connect(func(s: Dictionary) -> void: shown.append(s))
 	node.net_match_event(MatchNetScript.EVENT_MODE_STATE, [wire])
-	assert_almost_eq(objective.team_score(0), 7.5, 0.0001)
-	assert_almost_eq(objective.team_score(1), 2.0, 0.0001)
-	assert_eq((objective as CaptureFlagObjective).beacons_held(0), 2)
+	assert_almost_eq(objective.scores()[0], 7.5, 0.0001)
+	assert_almost_eq(objective.scores()[1], 2.0, 0.0001)
 	assert_eq(objective.winner(), ModeObjective.NO_TEAM, "a client never decides the outcome")
 	assert_eq(Match.state(), Match.State.PLAYING)
 	assert_eq(shown.size(), 1)

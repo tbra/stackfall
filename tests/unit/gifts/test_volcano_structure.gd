@@ -60,6 +60,13 @@ func _manual(structure: VolcanoStructure) -> VolcanoStructure:
 	return structure
 
 
+func _body_of(structure: VolcanoStructure) -> AnimatableBody3D:
+	for child: Node in structure.get_children():
+		if child is AnimatableBody3D:
+			return child as AnimatableBody3D
+	return null
+
+
 func _step(structure: VolcanoStructure, seconds: float) -> void:
 	for _i: int in range(int(ceil(seconds / TICK))):
 		structure.tick(TICK)
@@ -70,16 +77,17 @@ func test_rises_over_rise_s_to_height_with_a_cone_collider_on_the_beacon_layer()
 	var structure: VolcanoStructure = _manual(VolcanoStructure.spawn_host(_effect, _origin(), 0))
 	assert_not_null(structure)
 	assert_eq(structure.get_parent(), _field, "rides the disc as a Field child")
-	assert_true(structure.has_body())
-	assert_eq(structure.body().collision_layer, Field.BEACON_COLLISION_LAYER)
-	assert_eq(structure.body().collision_mask, 0)
+	var body: AnimatableBody3D = _body_of(structure)
+	assert_not_null(body, "the host structure owns a physics body")
+	assert_eq(body.collision_layer, Field.BEACON_COLLISION_LAYER)
+	assert_eq(body.collision_mask, 0)
 	assert_lt(structure.current_height(), 0.1)
 	_step(structure, _effect.rise_s * 0.5)
 	assert_almost_eq(structure.current_height(), _effect.height_m * 0.5, 0.1)
 	_step(structure, _effect.rise_s * 0.5 + TICK)
 	assert_almost_eq(structure.current_height(), _effect.height_m, 0.001)
 	assert_false(structure.is_rising())
-	var collision: CollisionShape3D = structure.body().get_child(0) as CollisionShape3D
+	var collision: CollisionShape3D = body.get_child(0) as CollisionShape3D
 	var hull: ConvexPolygonShape3D = collision.shape as ConvexPolygonShape3D
 	var top: float = 0.0
 	for point: Vector3 in hull.points:
@@ -190,7 +198,7 @@ func test_client_visual_has_no_body_and_spawns_nothing() -> void:
 	visual.configure(_effect, 0, false)
 	_field.add_child(visual)
 	_manual(visual)
-	assert_false(visual.has_body(), "clients get no physics body")
+	assert_null(_body_of(visual), "clients get no physics body")
 	_step(visual, _effect.rise_s + 5.0)
 	assert_eq(_blocks.get_child_count(), 0, "a visual-only structure never spawns blocks")
 	assert_almost_eq(visual.current_height(), _effect.height_m, 0.001)

@@ -1,6 +1,6 @@
 class_name UiToggle
 extends Button
-## The design system's Toggle (docs/ui_reskin/components.md "Toggle"): a knob block sliding in a
+## The design system's Toggle: a knob block sliding in a
 ## sunken disc-900 well, mint when on, with the ON / OFF word beside it (the word is required;
 ## one toggle look everywhere). A UiRowItem (TOGGLE): one row height, sized to
 ## its content, never expands. Keyboard / pad: ui_accept toggles, ui_left switches off and

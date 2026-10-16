@@ -387,7 +387,7 @@ func test_m7_config_resources_have_complete_hints() -> void:
 		BlockEffectsConfig.new(),
 		HUDVisualTuning.new(),
 		SkyThemeDef.new(),
-		# the disc-top surface sets (texture and procedural).
+		# the disc-top procedural surface.
 		DiscSurfaceDef.new(),
 		AmbientLifeConfig.new(),
 		QualityGovernorConfig.new(),

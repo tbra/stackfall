@@ -1,6 +1,5 @@
 class_name BlockVisualTuning
 extends Resource
-## M7 P2, docs/M7_ART_DIRECTION.md
 ## Q1/Q2: tunables for the block toon material + inverted-hull
 ## outline + cell-grid influence glow. The mesh itself stays one merged solid
 ## shape per block; everything here only changes how that one

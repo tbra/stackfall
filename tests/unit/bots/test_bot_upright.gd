@@ -38,10 +38,11 @@ func _view(held: BlockShape, mode: int) -> BotWorldView:
 	var circles: Array[InfluenceCircle] = [
 		InfluenceCircle.for_home(HOME_A, 0, 0, _territory_tuning),
 		InfluenceCircle.for_home(HOME_B, 1, 1, _territory_tuning),
-		InfluenceCircle.for_block(TOWER_POS, TOWER_TOP_M, 0, 0, 1, _territory_tuning, MAP_RADIUS),
+		InfluenceCircle.new(TOWER_POS, InfluenceCircle.radius_for_height(TOWER_TOP_M, _territory_tuning, MAP_RADIUS), 0, 0, false, 1, TOWER_TOP_M),
 	]
 	var solver: TerritorySolver = TerritorySolver.new(_territory_tuning)
-	raster.update(circles, solver.solve(circles), 0.1, false, false)
+	raster.fill_ownership(circles, solver.solve(circles), false)
+	raster.adopt_fill(raster, 0.1, false, false)
 	var xs: PackedFloat32Array = PackedFloat32Array()
 	var zs: PackedFloat32Array = PackedFloat32Array()
 	var radii: PackedFloat32Array = PackedFloat32Array()

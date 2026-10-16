@@ -35,10 +35,10 @@ func test_additive_top_variant_matches_current_territory_map_at_current_slope() 
 	var radius: float = 20.0
 	var circles: Array[InfluenceCircle] = [
 		InfluenceCircle.for_home(Vector2(-8.0, 0.0), 0, 0, tuning),
-		InfluenceCircle.for_block(Vector2(-4.0, 0.0), 5.0, 0, 0, 11, tuning, radius),
-		InfluenceCircle.for_block(Vector2(-4.0, 0.0), 10.0, 0, 0, 12, tuning, radius),
+		InfluenceCircle.new(Vector2(-4.0, 0.0), InfluenceCircle.radius_for_height(5.0, tuning, radius), 0, 0, false, 11, 5.0),
+		InfluenceCircle.new(Vector2(-4.0, 0.0), InfluenceCircle.radius_for_height(10.0, tuning, radius), 0, 0, false, 12, 10.0),
 		InfluenceCircle.for_home(Vector2(8.0, 0.0), 1, 1, tuning),
-		InfluenceCircle.for_block(Vector2(4.0, 0.0), 6.0, 1, 1, 21, tuning, radius),
+		InfluenceCircle.new(Vector2(4.0, 0.0), InfluenceCircle.radius_for_height(6.0, tuning, radius), 1, 1, false, 21, 6.0),
 	]
 	var result: Dictionary = SandboxConeExperiment.build(
 		circles, PackedFloat32Array([0.0, 5.0, 10.0, 0.0, 6.0]),
@@ -49,9 +49,11 @@ func test_additive_top_variant_matches_current_territory_map_at_current_slope() 
 	var projected: Array[InfluenceCircle] = result["circles"]
 	var grid: CellGrid = CellGrid.new(radius, 1.0)
 	var current: TerritoryRaster = TerritoryRaster.new(grid, tuning)
-	current.update(circles, TerritorySolver.new(tuning).solve(circles), 0.0, false, false)
+	current.fill_ownership(circles, TerritorySolver.new(tuning).solve(circles), false)
+	current.adopt_fill(current, 0.0, false, false)
 	var experiment: TerritoryRaster = TerritoryRaster.new(grid, tuning)
-	experiment.update(projected, TerritorySolver.new(tuning).solve(projected), 0.0, false, false)
+	experiment.fill_ownership(projected, TerritorySolver.new(tuning).solve(projected), false)
+	experiment.adopt_fill(experiment, 0.0, false, false)
 	assert_eq(experiment.owner_bytes(), current.owner_bytes())
 	assert_eq(experiment.state_bytes(), current.state_bytes())
 

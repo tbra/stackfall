@@ -6,7 +6,6 @@ extends Resource
 ## code never carries asset paths. Presentation only (every peer shows the same
 ## replicated events). Not an F4 tuning panel resource (no hints entry needed).
 
-const TABLE_PATH: String = "res://config/ui/hud_feedback_icon_table.tres"
 
 enum Feedback { HELD_HEIGHT, CAPTURE, REJECTED, RELOCATED }
 
@@ -17,19 +16,6 @@ enum Feedback { HELD_HEIGHT, CAPTURE, REJECTED, RELOCATED }
 
 ## Edge of the pictograms in the HUD, in px (asset README: 24-32 px at 1080p).
 @export var icon_px: int = 28
-
-static var _shared: HudFeedbackIconTable = null
-
-
-static func shared() -> HudFeedbackIconTable:
-	if _shared == null:
-		_shared = load(TABLE_PATH) as HudFeedbackIconTable
-	return _shared
-
-
-## drops the shared instance on exit so its textures are freed with the tree.
-static func release_shared() -> void:
-	_shared = null
 
 
 ## Pictogram for a Feedback value, or null when unknown.

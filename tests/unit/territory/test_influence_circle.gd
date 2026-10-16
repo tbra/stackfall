@@ -58,11 +58,7 @@ func test_height_credit_keeps_the_placing_slot_not_the_tower_owner() -> void:
 	## Spec 1.5, "Height credit": one block on an enemy tower gives *you* a
 	## circle at that height. The circle simply carries whatever slot/team it
 	## was built with; nothing about the tower below it enters here.
-	var mine: InfluenceCircle = InfluenceCircle.for_block(
-		Vector2.ZERO, 12.0, 0, 0, 5, _tuning, MAP_RADIUS
-	)
-	var theirs: InfluenceCircle = InfluenceCircle.for_block(
-		Vector2.ZERO, 11.0, 1, 1, 4, _tuning, MAP_RADIUS
-	)
+	var mine: InfluenceCircle = InfluenceCircle.new(Vector2.ZERO, InfluenceCircle.radius_for_height(12.0, _tuning, MAP_RADIUS), 0, 0, false, 5, 12.0)
+	var theirs: InfluenceCircle = InfluenceCircle.new(Vector2.ZERO, InfluenceCircle.radius_for_height(11.0, _tuning, MAP_RADIUS), 1, 1, false, 4, 11.0)
 	assert_eq(mine.team_id, 0)
 	assert_gt(mine.radius, theirs.radius, "The higher block projects farther.")

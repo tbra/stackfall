@@ -20,7 +20,7 @@ func test_brief_lapse_keeps_most_progress_and_claim_completes() -> void:
 	var objective: EliminationObjective = _objective()
 	objective.step_claims({1: 0}, 10.0)
 	objective.step_claims({}, 2.0)
-	assert_almost_eq(objective.claim_held(1), 9.5, 0.001, "2 s gap loses only 0.5 s")
+	assert_almost_eq(objective.capture_progress(), 9.5 / HOLD, 0.001, "2 s gap loses only 0.5 s")
 	assert_eq(objective.capturing_team(), 0)
 	assert_eq(objective.step_claims({1: 0}, 10.0).size(), 0)
 	assert_eq(objective.step_claims({1: 0}, 0.5), PackedInt32Array([1]))
@@ -30,13 +30,12 @@ func test_long_lapse_decays_to_zero_and_clears_claim() -> void:
 	var objective: EliminationObjective = _objective()
 	objective.step_claims({1: 0}, 5.0)
 	objective.step_claims({}, 19.0)
-	assert_gt(objective.claim_held(1), 0.0)
+	assert_gt(objective.capture_progress(), 0.0)
 	objective.step_claims({}, 2.0)
-	assert_eq(objective.claim_held(1), 0.0)
 	assert_eq(objective.capture_progress(), 0.0)
 	assert_eq(objective.capturing_team(), ModeObjective.NO_TEAM)
 	objective.step_claims({1: 0}, 5.0)
-	assert_almost_eq(objective.claim_held(1), 5.0, 0.001, "restarts from zero")
+	assert_almost_eq(objective.capture_progress(), 5.0 / HOLD, 0.001, "restarts from zero")
 
 
 func test_attacker_change_resets_even_while_decaying() -> void:
@@ -44,7 +43,7 @@ func test_attacker_change_resets_even_while_decaying() -> void:
 	objective.step_claims({1: 0}, 10.0)
 	objective.step_claims({}, 1.0)
 	objective.step_claims({1: 1}, 1.0)
-	assert_almost_eq(objective.claim_held(1), 1.0, 0.001)
+	assert_almost_eq(objective.capture_progress(), 1.0 / HOLD, 0.001)
 	assert_eq(objective.capturing_team(), 1)
 
 

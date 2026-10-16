@@ -73,7 +73,8 @@ func _team0_owns_centre_and_beacons() -> void:
 
 func _feed_raster(circles: Array[InfluenceCircle], delta: float) -> void:
 	var tuning: TerritoryTuning = Match._territory_tuning
-	Match.raster().update(circles, TerritorySolver.new(tuning).solve(circles), delta, true, false)
+	Match.raster().fill_ownership(circles, TerritorySolver.new(tuning).solve(circles), true)
+	Match.raster().adopt_fill(Match.raster(), delta, true, false)
 
 
 func _world(point: Vector2) -> Vector3:
@@ -82,6 +83,12 @@ func _world(point: Vector2) -> Vector3:
 
 func _place(slot_id: int, point: Vector2) -> StringName:
 	return Match.request_place(slot_id, _world(point), 0, Quaternion.IDENTITY, false)
+
+
+func _zoned(index: int) -> bool:
+	var raster: TerritoryRaster = Match.raster()
+	var coords: Vector2i = raster.grid().cell_coords(index)
+	return raster.is_goal_zone(coords.x, coords.y)
 
 
 ## Every in-disk cell is zoned exactly when its centre lies within `radius` of
@@ -95,7 +102,7 @@ func _assert_zone_cells_are_exactly_the_beacon_discs(beacons: PackedVector2Array
 		var nearest: float = INF
 		for beacon: Vector2 in beacons:
 			nearest = minf(nearest, grid.index_center(index).distance_to(beacon))
-		var zoned: bool = raster.is_goal_zone_index(index)
+		var zoned: bool = _zoned(index)
 		if zoned and nearest > radius + EDGE_TOLERANCE:
 			stray += 1
 		elif not zoned and nearest < radius - EDGE_TOLERANCE:
@@ -117,7 +124,7 @@ func test_default_ctf_has_one_centre_beacon_with_a_four_metre_no_build_disc() ->
 	var raster: TerritoryRaster = Match.raster()
 	var zone_cells: int = 0
 	for index: int in raster.grid().in_disk_cells():
-		if raster.is_goal_zone_index(index):
+		if _zoned(index):
 			zone_cells += 1
 	# pi * 4^2 = 50.3 one-metre cells.
 	assert_between(zone_cells, 45, 57, "one disc of ~50 cells (4 m radius), nothing larger")
@@ -186,7 +193,7 @@ func test_domination_has_no_beacons_and_no_zones() -> void:
 		_start(MatchConfig.GameMode.DOMINATION, count)
 		assert_eq(_beacons().size(), 0, "Domination plays without goal flags (goal count %d is ignored)" % count)
 		for index: int in Match.raster().grid().in_disk_cells():
-			assert_false(Match.raster().is_goal_zone_index(index), "no zone cell anywhere (goal count %d)" % count)
+			assert_false(_zoned(index), "no zone cell anywhere (goal count %d)" % count)
 		Match.abort_match()
 
 

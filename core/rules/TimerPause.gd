@@ -72,13 +72,6 @@ func is_paused(slot_id: int) -> bool:
 	return _raw_paused(slot_id) and _exhausted[slot_id] == 0
 
 
-## True while the slot's guard is latched: a raw cause is active but ignored.
-func is_exhausted(slot_id: int) -> bool:
-	if not enabled() or slot_id < 0 or slot_id >= _exhausted.size():
-		return false
-	return _exhausted[slot_id] != 0
-
-
 ## The un-guarded cause: a special event or a topple tail is still running.
 func _raw_paused(slot_id: int) -> bool:
 	return _global_left > 0.0 or _slot_left[slot_id] > 0.0

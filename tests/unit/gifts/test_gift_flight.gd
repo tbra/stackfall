@@ -147,7 +147,8 @@ func test_landed_gift_claims_when_territory_arrives_later() -> void:
 	assert_eq(int(Match.gift_state(gift_id)["phase"]), MatchGifts.LANDED)
 	assert_eq(Match.held_special(1), &"")
 	var circles: Array[InfluenceCircle] = [InfluenceCircle.new(point, 3.0, 1, 1, true, -1)]
-	Match.raster().update(circles, Match._solver.solve(circles), 0.1, true, false)
+	Match.raster().fill_ownership(circles, Match._solver.solve(circles), true)
+	Match.raster().adopt_fill(Match.raster(), 0.1, true, false)
 	Match._gifts.tick_host(0.1)
 	assert_false(Match._gifts._crates.has(gift_id))
 	assert_eq(Match.held_special(1), &"")

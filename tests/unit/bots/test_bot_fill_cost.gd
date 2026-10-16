@@ -35,11 +35,12 @@ func _view(held: BlockShape) -> BotWorldView:
 	]
 	var body: int = 1
 	for x: float in SNAKE_XS:
-		circles.append(InfluenceCircle.for_block(Vector2(x, 0.0), SNAKE_TOP_M, 0, 0, body, _territory_tuning, MAP_RADIUS))
+		circles.append(InfluenceCircle.new(Vector2(x, 0.0), InfluenceCircle.radius_for_height(SNAKE_TOP_M, _territory_tuning, MAP_RADIUS), 0, 0, false, body, SNAKE_TOP_M))
 		body += 1
-	circles.append(InfluenceCircle.for_block(TOWER_POS, TOWER_TOP_M, 0, 0, body, _territory_tuning, MAP_RADIUS))
+	circles.append(InfluenceCircle.new(TOWER_POS, InfluenceCircle.radius_for_height(TOWER_TOP_M, _territory_tuning, MAP_RADIUS), 0, 0, false, body, TOWER_TOP_M))
 	var solver: TerritorySolver = TerritorySolver.new(_territory_tuning)
-	raster.update(circles, solver.solve(circles), 0.1, false, false)
+	raster.fill_ownership(circles, solver.solve(circles), false)
+	raster.adopt_fill(raster, 0.1, false, false)
 	var xs: PackedFloat32Array = PackedFloat32Array()
 	var zs: PackedFloat32Array = PackedFloat32Array()
 	var radii: PackedFloat32Array = PackedFloat32Array()

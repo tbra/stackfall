@@ -50,7 +50,8 @@ func before_each() -> void:
 		InfluenceCircle.for_home(HOME_B, 1, ENEMY, _territory_tuning),
 	]
 	var solver: TerritorySolver = TerritorySolver.new(_territory_tuning)
-	_raster.update(circles, solver.solve(circles), 0.1, false, false)
+	_raster.fill_ownership(circles, solver.solve(circles), false)
+	_raster.adopt_fill(_raster, 0.1, false, false)
 	_next_id = BODY_ID_BASE
 	BotThink._strategy_memory.clear()
 

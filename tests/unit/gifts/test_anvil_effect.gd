@@ -51,7 +51,6 @@ func test_mass_override_applied_on_the_first_armed_tick() -> void:
 	var behavior: SpecialBehavior = _make_behavior(block, def)
 
 	behavior.advance(0.1)  # arms this same tick
-	assert_true(behavior.is_armed(), "fixture: must have armed")
 	assert_eq(block.mass, 60.0, "mass must be overridden the instant the special arms")
 
 

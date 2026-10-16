@@ -1,7 +1,6 @@
 extends GutTest
-## Spec 2.5: "On the host, the cell under the ghost's footprint must be owned
-## by the placing player's team and not contested or a hole." Every cell of the
-## footprint has to pass, not just the one under the centre.
+## Spec 2.5 placement legality: the point under the ghost must be owned by the
+## placing player's team, outside every goal zone and not contested or a hole.
 
 const MAP_RADIUS: float = 20.0
 const CELL: float = 1.0
@@ -28,17 +27,14 @@ func _home(x: float, z: float, team: int, slot: int = -1) -> InfluenceCircle:
 
 
 func _rasterize(circles: Array[InfluenceCircle], delta: float = 0.1) -> void:
-	_raster.update(circles, _solver.solve(circles), delta, true, false)
+	_raster.fill_ownership(circles, _solver.solve(circles), true)
+	_raster.adopt_fill(_raster, delta, true, false)
 
 
 func _footprint(origin: Vector2, cells: Array[Vector3i] = [], basis: Basis = Basis.IDENTITY
 ) -> PackedInt32Array:
 	var shape: Array[Vector3i] = cells if not cells.is_empty() else _one_cube
 	return PlacementRules.footprint_cells(shape, basis, origin, CUBE, _grid)
-
-
-func _validate(origin: Vector2, team: int = 0) -> PlacementRules.Result:
-	return PlacementRules.validate(_footprint(origin), _raster, team)
 
 
 ## Which literal coordinates are cell centres depends on how CellGrid lays its
@@ -64,30 +60,19 @@ func test_a_cube_straddling_a_cell_corner_covers_four_cells() -> void:
 	assert_eq(cells.size(), 4, "Sitting on a cell corner, it overlaps all four.")
 
 
-## -- validate ----------------------------------------------------------------
+## -- validate_point: the rim ------------------------------------------------
 
-func test_a_hole_is_rejected_and_outranks_contested() -> void:
-	var circles: Array[InfluenceCircle] = [_home(-3.0, 0.0, 0), _home(3.0, 0.0, 1)]
-	for i: int in range(10):
-		_rasterize(circles)
-	var cell: Vector2i = _grid.world_to_cell(Vector2(0.5, 0.5))
-	assert_true(_raster.is_hole(cell.x, cell.y), "Setup: the cell has holed through.")
-	assert_eq(_validate(Vector2(0.5, 0.5)), PlacementRules.Result.HOLE)
-
-
-func test_crossing_the_rim_is_off_disk() -> void:
+func test_a_point_past_the_rim_is_off_disk() -> void:
 	## A circle big enough to own every cell it can, so the only thing wrong
-	## with the spot is that part of it hangs over the edge.
+	## with the spot is that it lies past the edge.
 	_rasterize([
 		_home(0.0, 0.0, 0),
 		InfluenceCircle.new(Vector2.ZERO, MAP_RADIUS * 2.0, 0, 0, false, 1),
 	] as Array[InfluenceCircle])
-	assert_eq(_validate(Vector2(0.5, 0.5)), PlacementRules.Result.VALID, "Setup: mid-disk is fine.")
-
-	## On the corner where the cells around (14, 14) meet: the near one is
-	## 19.8 m out and on the disk, the far one is 20.5 m out and past the 20 m
-	## rim. Off the disk outranks the fact that nobody owns that cell either.
-	assert_eq(_validate(_cell_corner(14, 14)), PlacementRules.Result.OFF_DISK)
+	assert_eq(PlacementRules.validate_point(Vector2(0.5, 0.5), _raster, 0), PlacementRules.Result.VALID,
+		"Setup: mid-disk is fine.")
+	assert_eq(PlacementRules.validate_point(_cell_corner(14, 14) + Vector2(1.0, 1.0), _raster, 0),
+		PlacementRules.Result.OFF_DISK, "Past the 20 m rim, off the disk outranks ownership.")
 
 
 ## -- v2: one point, no footprint ------------------
@@ -102,7 +87,8 @@ const ZONE_RADIUS: float = 3.0
 
 ## Solves and rasterizes through the v2 (holes_enabled = false) path.
 func _rasterize_v2(circles: Array[InfluenceCircle]) -> void:
-	_raster.update(circles, _solver.solve(circles), 0.1, false, false)
+	_raster.fill_ownership(circles, _solver.solve(circles), false)
+	_raster.adopt_fill(_raster, 0.1, false, false)
 
 
 ## A team-0 home circle at the disk centre under v2 rules.

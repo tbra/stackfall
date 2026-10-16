@@ -86,10 +86,6 @@ func collapse() -> void:
 	_apply()
 
 
-func phase() -> ParachuteAnim.Phase:
-	return _anim.phase
-
-
 ## Anything is showing (deploying, open or collapsing).
 func is_active() -> bool:
 	return _anim.is_visible()

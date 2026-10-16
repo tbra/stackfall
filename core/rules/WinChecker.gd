@@ -116,12 +116,6 @@ func winner() -> int:
 	return _winner
 
 
-## Replaces the goal flag layout, e.g. when a match starts.
-func set_goal_positions(positions: PackedVector2Array) -> void:
-	_goal_positions = positions
-	_clear_capture()
-
-
 ## Clears the capture timer and the latched winner.
 func reset() -> void:
 	_clear_capture()

@@ -1,8 +1,7 @@
 class_name MenuStyleFactory
 ## Main menu / lobby reskin:
 ## builds the varied pastel pill buttons, sunken "well" panels and offset
-## shadow cards mockups 10/11 (docs/art_mockups/10-main-menu-layered-pastel.png,
-## 11-lobby-layered-pastel.png) show, entirely from StyleBoxFlat -- no image
+## shadow cards the pastel mockups show, entirely from StyleBoxFlat -- no image
 ## assets (hard constraint in the brief). Every color/size it draws from comes
 ## from config/ui/MenuVisualTuning.gd (CLAUDE.md "No magic numbers"); this file
 ## only assembles StyleBoxFlat objects, it owns no tunables of its own.

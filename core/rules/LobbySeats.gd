@@ -13,7 +13,7 @@ extends RefCounted
 ##
 ## No scene tree, no global RNG, no Net: the table is a plain Dictionary so it can
 ## ride in lobby data, and every rule is a static function over it. Operations that
-## edit a table (set_*, cycle_*, add_bot, remove_bot, seed_team_picks,
+## edit a table (set_*, cycle_*, remove_bot, seed_team_picks,
 ## apply_human_pref) change it IN PLACE and return whether it changed (false = the
 ## request was invalid or a no-op, nothing was touched); reconcile() and
 ## normalize() return a fresh table and never touch their input.
@@ -83,12 +83,6 @@ class Layout:
 	func is_valid() -> bool:
 		return error.is_empty()
 
-	## Slot of seat `key`, or -1 (also for KEY_NONE: a vacant slot is not a seat).
-	func slot_of(key: int) -> int:
-		if key == LobbySeats.KEY_NONE:
-			return -1
-		return slot_keys.find(key)
-
 
 # --- Keys, palette -------------------------------------------------------------
 
@@ -110,12 +104,6 @@ static func bot_ordinal(key: int) -> int:
 
 static func palette_size() -> int:
 	return MatchConfig.default_player_colors().size()
-
-
-## The colour of palette index `index` (clamped into the palette).
-static func palette_color(index: int) -> Color:
-	var palette: PackedColorArray = MatchConfig.default_player_colors()
-	return palette[clampi(index, 0, palette.size() - 1)]
 
 
 # --- Building and reading the table --------------------------------------------
@@ -324,19 +312,6 @@ static func set_difficulty(seats: Dictionary, key: int, difficulty: int) -> bool
 		return false
 	entry[FIELD_DIFFICULTY] = difficulty
 	return true
-
-
-## Appends a bot (lowest free colour, the smaller of teams 1/2, `default_difficulty`)
-## and returns its key, or KEY_NONE when all 8 seats are taken.
-static func add_bot(seats: Dictionary, default_difficulty: int = MatchConfig.AiDifficulty.NORMAL) -> int:
-	if seat_count(seats) >= MatchConfig.PLAYER_COUNT_MAX:
-		return KEY_NONE
-	_ensure_shape(seats)
-	var difficulty: int = _clamp_difficulty(default_difficulty)
-	var bots: Array = _array_of(seats[KEY_BOTS])
-	bots.append(_new_bot(difficulty))
-	_complete(seats, difficulty, 0)
-	return bot_key(bots.size() - 1)
 
 
 ## Removes bot `key` and compacts the list: later bots move down one ordinal and keep
@@ -713,14 +688,6 @@ static func _lowest_free_color(seats: Dictionary) -> int:
 		if color >= 0 and color < taken.size():
 			taken[color] = true
 	return maxi(taken.find(false), 0)
-
-
-## Makes sure both lists exist as arrays (a hand-built table may lack one).
-static func _ensure_shape(seats: Dictionary) -> void:
-	for list_key: String in [KEY_HUMANS, KEY_BOTS]:
-		if typeof(seats.get(list_key)) != TYPE_ARRAY:
-			var fresh: Array[Dictionary] = []
-			seats[list_key] = fresh
 
 
 static func _array_of(value: Variant) -> Array:

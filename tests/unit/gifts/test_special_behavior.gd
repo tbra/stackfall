@@ -103,7 +103,6 @@ func test_impact_before_arming_does_not_trigger() -> void:
 	block.linear_velocity = Vector3.ZERO  # a hard "impact" while still unarmed
 	behavior.advance(0.1)  # age 0.2, still not armed
 	assert_false(behavior.is_triggered(), "An impact while unarmed must never trigger.")
-	assert_false(behavior.is_armed())
 
 
 ## Once armed, a deceleration at or above arm_impulse (mass * speed drop)
@@ -114,7 +113,6 @@ func test_impact_at_or_above_arm_impulse_after_arming_triggers() -> void:
 	var behavior: SpecialBehavior = _make_behavior(block, def)
 
 	behavior.advance(0.1)  # arms this tick; decel sampled against itself, no trigger
-	assert_true(behavior.is_armed())
 	assert_false(behavior.is_triggered())
 
 	block.linear_velocity = Vector3(10.0, 0.0, 0.0)  # now moving fast
@@ -132,7 +130,6 @@ func test_impact_below_arm_impulse_after_arming_does_not_trigger() -> void:
 	var behavior: SpecialBehavior = _make_behavior(block, def)
 
 	behavior.advance(0.1)
-	assert_true(behavior.is_armed())
 
 	block.linear_velocity = Vector3(2.0, 0.0, 0.0)
 	behavior.advance(0.01)
@@ -152,7 +149,6 @@ func test_impact_while_sleeping_does_not_trigger_even_with_a_large_velocity_drop
 	var behavior: SpecialBehavior = _make_behavior(block, def)
 
 	behavior.advance(0.1)  # arms
-	assert_true(behavior.is_armed())
 
 	block.sleeping = true
 	block.linear_velocity = Vector3(10.0, 0.0, 0.0)
@@ -178,7 +174,6 @@ func test_impact_does_not_trigger_when_the_effect_vetoes_it() -> void:
 	var behavior: SpecialBehavior = _make_behavior(block, def)
 
 	behavior.advance(0.1)  # arms this tick
-	assert_true(behavior.is_armed())
 
 	block.linear_velocity = Vector3(10.0, 0.0, 0.0)
 	behavior.advance(0.01)

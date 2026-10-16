@@ -15,8 +15,7 @@ shader_type spatial;
 // (blocks and the ghost footprint quad depth-testing correctly against the
 // disk) no longer applies once the disk itself is not in the transparent
 // queue.
-// DECISION (shaders/territory/territory.gdshader, reproduced by
-// tools/screenshot_feel8b_disc_glare.gd): specular_disabled. The "main light
+// DECISION (shaders/territory/territory.gdshader): specular_disabled. The "main light
 // source glaringly visible in the disc reflection" was never in the mirror
 // texture -- it is the DirectionalLight3D's own GGX specular lobe on this
 // surface (the bisect run shows it unchanged with the planar mirror, SSR, the
@@ -333,26 +332,6 @@ uniform float panel_fade_px = 12.0;
 // the same strength in day and night themes.
 uniform float tint_fill_emission : hint_range(0.0, 1.0) = 0.12;
 
-// -- textured disc top (config/territory/DiscSurfaceDef.gd) -------------
-// World-space planar UVs on the disc top. Color is sRGB; normal/roughness/
-// metalness are linear data. disc_textured false = the flat look above.
-uniform bool disc_textured = false;
-uniform sampler2D disc_albedo_tex : source_color, filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;
-uniform sampler2D disc_normal_tex : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
-uniform sampler2D disc_roughness_tex : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_white;
-uniform sampler2D disc_metalness_tex : filter_linear_mipmap_anisotropic, repeat_enable, hint_default_black;
-uniform float disc_tile_size_m = 6.0;
-uniform float disc_rotation_deg = 0.0;
-uniform float disc_albedo_strength : hint_range(0.0, 1.0) = 0.5;
-uniform float disc_albedo_gain = 1.0;
-uniform float disc_albedo_contrast = 1.0;
-uniform float disc_normal_strength : hint_range(0.0, 4.0) = 1.0;
-uniform float disc_roughness_min : hint_range(0.0, 1.0) = 0.2;
-uniform float disc_roughness_max : hint_range(0.0, 1.0) = 0.5;
-uniform float disc_metalness_map_mix : hint_range(0.0, 1.0) = 0.0;
-uniform float disc_metalness_scale = 1.0;
-uniform float disc_detail_fade_px = 96.0;
-
 #include "res://shaders/include/disc_plating.gdshaderinc"
 
 varying vec3 v_local;
@@ -494,12 +473,11 @@ float aa_stripes(float phase) {
 	return mix(stripes, 0.5, smoothstep(0.25, 0.5, fwidth(phase)));
 }
 
-// -- Bontago-part 2: cheap hash-based value noise for the top-surface
+// -- Part 2: cheap hash-based value noise for the top-surface
 // brushed/plank grain (see top_grain_* uniforms' own header comment). No
 // texture sampling: a single sin()/fract() hash plus a smoothstep-
 // interpolated lerp between two integer cells, same "cheap hash noise"
-// family game/DiscBody.gd's own procedural texture used, just evaluated
-// directly in this shader instead of baked into a texture.
+// family a baked texture would use, evaluated directly in this shader.
 
 // Grain "height" at disk-local point `p` -- a coarse, low-frequency "plank"
 // band (top_grain_scale) plus a finer, higher-frequency "brushed" ripple
@@ -791,7 +769,7 @@ void fragment() {
 	// so this block only ever touches NORMAL/ROUGHNESS, run before the mirror
 	// fresnel and disk_sheen blocks below so both read the grained NORMAL.
 	//
-	// DECISION (shaders/territory/territory.gdshader, Bontago-part 2): builds its
+	// DECISION (shaders/territory/territory.gdshader, part 2): builds its
 	// own in-plane basis from MODEL_MATRIX/VIEW_MATRIX instead of the mesh's
 	// own TANGENT/BINORMAL -- this disc's CylinderMesh top cap's own
 	// generated UV/tangent direction is an implementation detail of Godot's
@@ -805,28 +783,7 @@ void fragment() {
 	// final normalize() absorbs any residual scale) without needing a
 	// dedicated inverse-transpose normal matrix, which Godot only exposes in
 	// vertex(), not fragment().
-	// textured top (planar world-space UVs).
 	vec3 tex_mod = vec3(1.0);
-	float tex_rough = -1.0;
-	float tex_metal = -1.0;
-	if (disc_textured) {
-		float rot = radians(disc_rotation_deg);
-		mat2 rot_m = mat2(vec2(cos(rot), -sin(rot)), vec2(sin(rot), cos(rot)));
-		vec2 tex_uv = rot_m * (v_local.xz / max(disc_tile_size_m, 0.01));
-		float px_per_tile = 1.0 / max(length(fwidth(tex_uv)), 0.00001);
-		float detail = smoothstep(disc_detail_fade_px * 0.5, disc_detail_fade_px, px_per_tile);
-		vec3 tex_col = texture(disc_albedo_tex, tex_uv).rgb;
-		tex_mod = mix(vec3(1.0), pow(tex_col, vec3(disc_albedo_contrast)) * disc_albedo_gain, disc_albedo_strength * detail);
-		albedo *= tex_mod;
-		tex_rough = mix(0.5, texture(disc_roughness_tex, tex_uv).r, detail);
-		tex_metal = mix(0.5, texture(disc_metalness_tex, tex_uv).r, detail);
-		vec3 n_ts = texture(disc_normal_tex, tex_uv).xyz * 2.0 - 1.0;
-		vec2 grad_uv = vec2(n_ts.x, -n_ts.y) * disc_normal_strength * detail;
-		// Back from texture space to disc-local xz (undo the rotation).
-		vec2 grad_local = vec2(dot(grad_uv, rot_m[0]), dot(grad_uv, rot_m[1]));
-		vec3 local_n = normalize(vec3(grad_local.x, max(n_ts.z, 0.2), grad_local.y));
-		NORMAL = normalize(mat3(VIEW_MATRIX) * mat3(MODEL_MATRIX) * local_n);
-	}
 	// procedural cel plating (see proc_plating()). The plate
 	// NORMAL itself stays flat (the planar mirror and SSR stay undistorted);
 	// only the banded sheen below reads the per-plate tilted normal.
@@ -948,20 +905,17 @@ void fragment() {
 	// unconditionally opaque, so every ownership indicator (tint/rim/
 	// shimmer/goal) reads at full strength through ALBEDO/EMISSION above with
 	// no opacity trick needed.
-	METALLIC = disc_textured ? mix(base_metallic, clamp(tex_metal * disc_metalness_scale, 0.0, 1.0), disc_metalness_map_mix) : base_metallic;
+	METALLIC = base_metallic;
 	SPECULAR = disk_specular;
 	AO = disk_ambient_scale;
 	AO_LIGHT_AFFECT = 0.0;
-	// Bontago-part 2: grain_h0 (the same coarse+fine grain height the
+	// Part 2: grain_h0 (the same coarse+fine grain height the
 	// NORMAL perturbation above used, in [-0.5, 0.5]) also nudges ROUGHNESS a
 	// little -- a purely additive, sign-symmetric variation so the grain
 	// reads as fine streaks in the reflection's sharpness, not a visible
 	// overall dulling of the whole disc (top_grain_roughness_strength = 0
 	// leaves this identical to the old plain base_roughness assignment).
 	ROUGHNESS = clamp(base_roughness + grain_h0 * top_grain_roughness_strength, 0.0, 1.0);
-	if (disc_textured) {
-		ROUGHNESS = clamp(mix(disc_roughness_min, disc_roughness_max, tex_rough), 0.0, 1.0);
-	}
 	if (disc_procedural) {
 		ROUGHNESS = clamp(proc_rough, 0.0, 1.0);
 	}

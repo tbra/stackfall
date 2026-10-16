@@ -4,11 +4,10 @@ extends RefCounted
 ## contested, and which have become holes (spec 1.5, 2.5).
 ##
 ## One cell of CellGrid is one pixel here and one BoxShape3D in the field's
-## collision, so the three never disagree about where a hole is. See
-## The rules run at cell
-## resolution while MapDef.territory_res is the size the overlay uploads.
+## collision, so the three never disagree about where a hole is. The rules run
+## at cell resolution while MapDef.territory_res is the size the overlay uploads.
 ##
-## **Two fills.** `update()`'s `holes_enabled` selects which ruleset decides a
+## **Two fills.** `fill_ownership()`'s `holes_enabled` selects which ruleset decides a
 ## cell's owning slot. Two bools rather than a mode enum
 ## keeps core/ free of any MatchConfig reference (CLAUDE.md): nothing here
 ## needs to know the lobby setting's name, only whether holes are on and
@@ -34,7 +33,7 @@ extends RefCounted
 ## contest each other, which is spec 1.5's "territories of teammates never
 ## create holes between them".
 ##
-## **Contested time** (legacy only). `contested_time[i]` accumulates delta
+## **Contested time** (holes mode only). `contested_time[i]` accumulates delta
 ## while cell i is contested and drains while it is not. At hole_delay the
 ## cell becomes a hole. Under HoleMode.TEMPORARY a hole closes once it has
 ## been uncontested for hole_close_delay; under PERMANENT it never closes.
@@ -183,30 +182,7 @@ func tuning() -> TerritoryTuning:
 	return _tuning
 
 
-## Rasterizes one solver result. Called at TerritoryTuning.solve_hz with
-## delta = 1 / solve_hz.
-##
-## `holes_enabled` picks the ruleset: false (the default game, MatchConfig.
-## HoleMode.OFF) runs the v2 argmax fill and leaves the whole contested/hole
-## state machine untouched, so holes_opened()/holes_closed() stay empty,
-## is_contested()/is_hole_index() stay false and `delta` is unused. True runs
-## spec 1.5's original stamp-and-contest fill and advances the timers by
-## `delta` seconds, with `permanent_holes` from MatchConfig.hole_mode.
-##
-## Both bools default to the legacy behaviour, so a caller written before v2
-## keeps exactly the fill and the timers it had.
-func update(
-	circles: Array[InfluenceCircle],
-	groups: TerritoryGroups,
-	delta: float,
-	holes_enabled: bool = true,
-	permanent_holes: bool = false
-) -> void:
-	fill_ownership(circles, groups, holes_enabled)
-	adopt_fill(self, delta, holes_enabled, permanent_holes)
-
-
-## P-ASYNC: the pure half of update(). Rewrites only
+## P-ASYNC: the pure half of a solve step. Rewrites only
 ## _group_ids/_team_ids/_team_counts/_best_value/_newly_contested, so it is safe
 ## on a private "shadow" raster inside a WorkerThreadPool task. It never touches
 ## timers, the active list, hole lists or the content revision.
@@ -218,12 +194,12 @@ func fill_ownership(
 	_team_counts.clear()
 	_newly_contested.resize(0)
 	if holes_enabled:
-		_fill_legacy(circles, groups)
+		_fill_stamp(circles, groups)
 	else:
 		_fill_v2(circles, groups)
 
 
-## Main-thread half of update(): marks the content changed, resets the per-step
+## Main-thread half of a solve step: marks the content changed, resets the per-step
 ## hole lists, takes `source`'s fill (an O(1) array swap when it is a different
 ## raster), registers newly contested cells for the timers and advances them.
 ## DECISION: swapping instead of copying keeps the apply
@@ -254,8 +230,8 @@ func adopt_fill(
 
 
 ## advances only the contest/hole timers on an unchanged
-## legacy-mode board (the stamp would reproduce the same ids), clearing the
-## per-step opened/closed lists exactly as update() does.
+## holes-mode board (the stamp would reproduce the same ids), clearing the
+## per-step opened/closed lists exactly as adopt_fill() does.
 func advance_time(delta: float, permanent_holes: bool) -> void:
 	_opened.resize(0)
 	_closed.resize(0)
@@ -310,7 +286,7 @@ func group_at_point(point: Vector2) -> int:
 ## natural hole only ever opens on a CONTESTED cell (_team_ids == -1
 ## already), but force_hole_cell() can open a cell a single team's own
 ## circle still covers -- punch_special_hole()'s whole point (spec 1.6). Its
-## own class doc says "do not touch update()/_fill_legacy()/_argmax()", so
+## own class doc says "do not touch fill_ownership()/_fill_stamp()/_argmax()", so
 ## _stamp()/_argmax() keep re-stamping that cell to the team every solve
 ## exactly as before (that write-side bookkeeping is what lets
 ## _advance_timers() keep telling a still-contested cell apart from an idle
@@ -399,26 +375,13 @@ func is_goal_zone(cx: int, cy: int) -> bool:
 	return _goal_zone[_grid.cell_index(cx, cy)] == 1
 
 
-func is_goal_zone_index(index: int) -> bool:
-	if index < 0 or index >= _goal_zone.size():
-		return false
-	return _goal_zone[index] == 1
-
-
-## Seconds this cell has been contested, clamped to hole_delay.
-func contested_time(cx: int, cy: int) -> float:
-	if not _grid.in_bounds(cx, cy):
-		return 0.0
-	return _contested_time[_grid.cell_index(cx, cy)]
-
-
-## Cells that became holes during the last update(), row-major indices.
+## Cells that became holes during the last solve step, row-major indices.
 ## Field consumes these and re-arms its batched shape toggles.
 func holes_opened() -> PackedInt32Array:
 	return _opened
 
 
-## Cells that stopped being holes during the last update(). Always empty
+## Cells that stopped being holes during the last solve step. Always empty
 ## under HoleMode.PERMANENT.
 func holes_closed() -> PackedInt32Array:
 	return _closed
@@ -719,9 +682,8 @@ func _stamp_goal_zone(center: Vector2, radius: float) -> void:
 
 ## -- Fill: the original stamp (spec 1.5, hole modes) ---------------------------
 
-## Every circle of every home-anchored group, stamped in group order. Exactly
-## what update() did before v2, so the hole ruleset is unchanged.
-func _fill_legacy(circles: Array[InfluenceCircle], groups: TerritoryGroups) -> void:
+## Every circle of every home-anchored group, stamped in group order.
+func _fill_stamp(circles: Array[InfluenceCircle], groups: TerritoryGroups) -> void:
 	for group: int in range(groups.group_count()):
 		var team: int = groups.team_of(group)
 		for circle_index: int in groups.circles_of(group):
@@ -734,7 +696,7 @@ func _fill_legacy(circles: Array[InfluenceCircle], groups: TerritoryGroups) -> v
 ##
 ## The row scan solves dx^2 <= r^2 - dz^2 for the span instead of testing every
 ## cell of the bounding box, so the inner loop is integer work plus one lookup.
-## Rounding at a circle's rim may differ from InfluenceCircle.contains_point()
+## Rounding at a circle's rim may differ from an exact circle-distance test
 ## by well under a millimetre; unlike the disk rim in CellGrid, this edge is not
 ## a boundary three systems have to agree on.
 func _stamp(circle: InfluenceCircle, group: int, team: int) -> void:
@@ -842,7 +804,7 @@ static func _reached(value: float, threshold: float) -> bool:
 ##
 ## Reuses exactly the bookkeeping a natural hole already has -- `_hole`,
 ## `_contested_time`, `_idle_time`, `_active`/`_is_active`, `_opened` -- so the
-## unmodified `_advance_timers()` (called from the next `update()`, same as
+## unmodified `_advance_timers()` (called from the next `adopt_fill()`, same as
 ## always) is what actually closes this hole later; nothing here starts a
 ## second timer mechanism.
 ##
@@ -850,7 +812,7 @@ static func _reached(value: float, threshold: float) -> bool:
 ## not CONTESTED, `_advance_timers()`'s `else` branch is the one that ever
 ## closes a hole -- it grows `_idle_time` by `delta` each call and closes once
 ## `_idle_time` reaches `hole_close_delay` (unless `permanent_holes`). A
-## punched cell was never stamped CONTESTED by `_fill_legacy()`, so it always
+## punched cell was never stamped CONTESTED by `_fill_stamp()`, so it always
 ## takes that branch on every future `_advance_timers()` pass (unless a real
 ## overlap happens to land on it later, in which case it behaves exactly like
 ## any other contested cell from then on -- also correct). To make that

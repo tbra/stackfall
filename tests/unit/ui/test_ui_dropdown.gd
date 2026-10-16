@@ -55,6 +55,11 @@ func test_ui_left_right_do_not_change_the_value() -> void:
 	assert_eq(_picked.size(), 0)
 
 
+## The row of a popup list (a VBox of rows is its only child).
+func _row_at(list: UiDropdown.DropdownList, index: int) -> UiDropdown.DropdownList.Row:
+	return list.get_child(0).get_child(index) as UiDropdown.DropdownList.Row
+
+
 func test_pad_a_opens_the_list_and_focus_lands_on_the_current_row() -> void:
 	var dropdown: UiDropdown = _make(5)
 	dropdown.select(2)
@@ -67,8 +72,8 @@ func test_pad_a_opens_the_list_and_focus_lands_on_the_current_row() -> void:
 	await wait_frames(2)
 	assert_true(dropdown.is_open(), "A (ui_accept) opens the list")
 	var list: UiDropdown.DropdownList = dropdown.get_node(NodePath(String(UiDropdown.LIST_NAME))) as UiDropdown.DropdownList
-	assert_eq(list.get_viewport().gui_get_focus_owner(), list.row_at(2), "current row has focus")
-	assert_true(list.row_at(2).is_current)
+	assert_eq(list.get_viewport().gui_get_focus_owner(), _row_at(list, 2), "current row has focus")
+	assert_true(_row_at(list, 2).is_current)
 
 
 func test_down_moves_a_picks_and_the_signal_carries_the_index() -> void:
@@ -83,7 +88,7 @@ func test_down_moves_a_picks_and_the_signal_carries_the_index() -> void:
 	Input.parse_input_event(_action(&"ui_down", false))
 	Input.flush_buffered_events()
 	await wait_frames(2)
-	assert_eq(list.get_viewport().gui_get_focus_owner(), list.row_at(1), "ui_down moves one row")
+	assert_eq(list.get_viewport().gui_get_focus_owner(), _row_at(list, 1), "ui_down moves one row")
 	Input.parse_input_event(_action(&"ui_accept"))
 	Input.parse_input_event(_action(&"ui_accept", false))
 	Input.flush_buffered_events()
@@ -117,9 +122,9 @@ func test_list_marks_the_current_row_and_disables_unavailable_items() -> void:
 	dropdown.select(1)
 	dropdown.open(false)
 	var list: UiDropdown.DropdownList = dropdown.get_node(NodePath(String(UiDropdown.LIST_NAME))) as UiDropdown.DropdownList
-	assert_true(list.row_at(1).is_current)
-	assert_false(list.row_at(0).is_current)
-	assert_true(list.row_at(2).disabled)
+	assert_true(_row_at(list, 1).is_current)
+	assert_false(_row_at(list, 0).is_current)
+	assert_true(_row_at(list, 2).disabled)
 	dropdown.pick(2)
 	assert_eq(dropdown.selected, 1, "a disabled row cannot be picked")
 	assert_true(dropdown.is_open())

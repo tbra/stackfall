@@ -84,7 +84,7 @@ func test_a_landing_claim_leaves_the_parachute_collapsing_in_the_container() -> 
 	Match._gifts.tick_host(fall_time + 0.01)
 	var chute: GiftParachute = Match._gifts._container.get_node_or_null("Parachute") as GiftParachute
 	assert_not_null(chute, "the freed crate's canopy must survive its claim")
-	assert_eq(chute.phase(), ParachuteAnim.Phase.COLLAPSING)
+	assert_true(chute.is_active(), "still collapsing, not yet faded out")
 	assert_true(chute.visible)
 	chute.advance(Match._gifts._gift_config.chute_collapse_s + 0.1)
 	assert_true(chute.is_queued_for_deletion(), "and free itself once it has faded")

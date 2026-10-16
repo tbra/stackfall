@@ -1,7 +1,7 @@
 shader_type spatial;
 render_mode cull_disabled;
 
-// The disc's glowing CHAMFER face (Bontago-rename/redesign of the
+// The disc's glowing CHAMFER face (renamed and redesigned from the
 // "rim" strip -- see config/territory/DiscBodyVisuals.gd's own chamfer_*
 // fields and game/DiscBody.gd's class doc for the full picture). This mesh
 // is now a sloped ring frustum whose TOP edge is exactly flush (same radius
