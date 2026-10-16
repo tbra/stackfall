@@ -6,25 +6,16 @@ extends RefCounted
 
 const CUBE_SHAPE_PATH: String = "res://config/blocks/cube.tres"
 
-## Shape list cached once per process: BlockShape.load_all_shapes() scans a directory and effects
-## pick per spawned block. Tests that add shapes call reset_cache_for_tests().
+## Shape list cached once per process: BlockShape.load_bag_shapes() scans a directory and effects
+## pick per spawned block.
 static var _cached_shapes: Array[BlockShape] = []
 static var _cache_loaded: bool = false
-## Number of directory scans this class triggered (test seam).
-static var scan_count: int = 0
-
-
-static func reset_cache_for_tests() -> void:
-	_cached_shapes = []
-	_cache_loaded = false
-	scan_count = 0
 
 
 static func _shapes() -> Array[BlockShape]:
 	if not _cache_loaded:
 		_cached_shapes = BlockShape.load_bag_shapes()
 		_cache_loaded = true
-		scan_count += 1
 	return _cached_shapes
 
 

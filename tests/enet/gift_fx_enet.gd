@@ -516,13 +516,20 @@ func _watch_hole_cubes() -> void:
 	_ack(&"black_hole", "captured_removed", removed, "cubes=%d present_first=%s still_alive=%d" % [ids.size(), present, left])
 
 
+func _has_physics_body(structure: Node) -> bool:
+	for child: Node in structure.get_children():
+		if child is AnimatableBody3D:
+			return true
+	return false
+
+
 func _watch_volcano() -> void:
 	var before: int = Match.registry().all_blocks().size()
 	var appeared: bool = await _until(func() -> bool: return not _find_nodes(&"VolcanoStructure", Match.field()).is_empty(), WATCH_TIMEOUT)
 	var found: Array[Node] = _find_nodes(&"VolcanoStructure", Match.field())
 	var structure: VolcanoStructure = found[0] as VolcanoStructure if not found.is_empty() else null
 	appeared = appeared and structure != null
-	var bodyless: bool = appeared and not structure.has_body()
+	var bodyless: bool = appeared and not _has_physics_body(structure)
 	_ack(&"volcano", "visual", appeared and bodyless, "structure=%s bodyless=%s event=%s" % [appeared, bodyless, _trig.get(&"volcano", 0)])
 	var max_height: float = 0.0
 	var max_blocks: int = before
