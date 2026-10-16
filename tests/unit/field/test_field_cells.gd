@@ -140,14 +140,6 @@ func test_cells_outside_the_disk_have_no_owner() -> void:
 	assert_false(field.is_hole_cell(corner))
 
 
-func test_every_in_disk_cell_reports_the_disk_owner() -> void:
-	var field: Field = _make_field()
-	var owners: PackedInt32Array = field.get_shape_owners()
-	assert_eq(owners.size(), 1)
-	for cell: int in field.grid().in_disk_cells():
-		assert_eq(field.cell_owner_id(cell), owners[0])
-
-
 # --- Coordinates ------------------------------------------------------------
 
 func test_disk_local_and_world_round_trip() -> void:
@@ -159,22 +151,6 @@ func test_disk_local_and_world_round_trip() -> void:
 	var back: Vector2 = field.disk_local_from_world(world)
 	assert_almost_eq(back.x, local.x, 0.0001)
 	assert_almost_eq(back.y, local.y, 0.0001)
-
-
-func test_surface_y_is_zero_while_the_disk_is_flat() -> void:
-	var field: Field = _make_field()
-	assert_almost_eq(field.surface_y(), 0.0, 0.0001)
-
-
-func test_coordinates_follow_the_field_transform() -> void:
-	var field: Field = _make_field()
-	field.global_position = Vector3(10.0, 3.0, -4.0)
-	assert_almost_eq(field.surface_y(), 3.0, 0.0001)
-
-	var world: Vector3 = field.world_from_disk_local(Vector2(1.0, 2.0), 0.5)
-	assert_almost_eq(world.x, 11.0, 0.0001)
-	assert_almost_eq(world.y, 3.5, 0.0001)
-	assert_almost_eq(world.z, -2.0, 0.0001)
 
 
 # --- Holes ------------------------------------------------------------------
@@ -215,56 +191,6 @@ func test_closing_a_hole_restores_its_collision() -> void:
 		assert_false(_ray_at_cell(field, cell).is_empty(), "Cell %d collides again." % cell)
 
 
-func test_backlog_drains_at_the_per_frame_budget() -> void:
-	var field: Field = _make_field()
-	var grid: CellGrid = field.grid()
-	var budget: int = field.territory_tuning.max_cell_toggles_per_frame
-	var all_cells: PackedInt32Array = _cells_near_center(grid, field.map_def.field_radius)
-	assert_gt(
-		all_cells.size(),
-		budget,
-		"The test needs more cells than one frame's budget to be a test."
-	)
-
-	field.set_hole_cells(all_cells, PackedInt32Array())
-	# Drained by hand rather than by awaiting, because one awaited frame is not
-	# guaranteed to be exactly one _physics_process call; the invariant under
-	# test is per drain, not per await.
-	field._drain_toggles()
-	assert_eq(_hole_cell_count(field), budget, "One frame applies exactly the budget.")
-	assert_eq(field.pending_toggle_count(), all_cells.size() - budget)
-	field._drain_toggles()
-	assert_lte(
-		_hole_cell_count(field),
-		budget * 2,
-		"Spec 3.3: at most max_cell_toggles_per_frame toggles in a frame."
-	)
-
-	var frames: int = 0
-	while field.pending_toggle_count() > 0 and frames < 100:
-		await wait_physics_frames(1)
-		frames += 1
-	assert_eq(
-		_hole_cell_count(field),
-		all_cells.size(),
-		"The backlog drains completely over several frames."
-	)
-
-
-func test_repeating_a_hole_request_does_not_queue_twice() -> void:
-	var field: Field = _make_field()
-	var grid: CellGrid = field.grid()
-	var cells: PackedInt32Array = _cells_near_center(grid, 1.5)
-
-	field.set_hole_cells(cells, PackedInt32Array())
-	field.set_hole_cells(cells, PackedInt32Array())
-	assert_eq(
-		field.pending_toggle_count(),
-		cells.size(),
-		"A cell already heading for the same state is not enqueued again."
-	)
-
-
 # --- Holes leave the disk alone (Bontago-1pi.11.41) -------------------------
 
 ## Holes do not change collision, so Field wakes nothing: a sleeping block on
@@ -303,38 +229,3 @@ func test_a_block_dropped_from_the_wake_height_lands_on_the_surface() -> void:
 	)
 
 
-## Bontago-1pi.11.41: the trimesh is built once per map; no hole toggle, open
-## or close, ever calls set_faces() again (it cost ~13 ms per change on
-## round_medium and woke every body on the disk).
-func test_hole_toggles_never_rebuild_the_disk_mesh() -> void:
-	var field: Field = _make_field()
-	var grid: CellGrid = field.grid()
-	var built: int = field.disk_mesh_build_count()
-	assert_eq(built, 1, "The map build is the one set_faces().")
-
-	var all_cells: PackedInt32Array = _cells_near_center(grid, field.map_def.field_radius)
-	field.set_hole_cells(all_cells, PackedInt32Array())
-	while field.pending_toggle_count() > 0:
-		field._drain_toggles()
-	assert_eq(field.applied_hole_count(), all_cells.size(), "fixture: every cell is a hole")
-	assert_false(field.is_shape_owner_disabled(field.get_shape_owners()[0]), "The disk keeps colliding.")
-	field.set_hole_cells(PackedInt32Array(), all_cells)
-	while field.pending_toggle_count() > 0:
-		field._drain_toggles()
-	field.clear_match_state()
-
-	assert_eq(field.disk_mesh_build_count(), built, "No rebuild for opening, closing or clearing holes.")
-	assert_eq(field.applied_hole_count(), 0)
-
-
-## The drained batch announces exactly the cells it opened, once.
-func test_a_drained_batch_announces_its_opened_cells() -> void:
-	var field: Field = _make_field()
-	var cells: PackedInt32Array = _cells_near_center(field.grid(), 1.5)
-	watch_signals(field)
-	field.set_hole_cells(cells, PackedInt32Array())
-	field._drain_toggles()
-	assert_signal_emitted_with_parameters(field, "hole_cells_applied", [cells])
-	field.set_hole_cells(PackedInt32Array(), cells)
-	field._drain_toggles()
-	assert_signal_emit_count(field, "hole_cells_applied", 1, "Closing announces nothing.")

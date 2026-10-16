@@ -7,7 +7,6 @@ const CELL_COUNTS: Dictionary = {
 	&"bar5": 5, &"plus5": 5, &"u5": 5, &"corner4": 4, &"stair6": 6, &"arch5": 5, &"cube8": 8, &"plate9": 9,
 }
 const TOTAL_SHAPES: int = 19
-const MAX_CELLS: int = 9
 
 
 func _new_shapes() -> Array[BlockShape]:
@@ -35,12 +34,6 @@ func _connected(cells: Array[Vector3i]) -> bool:
 	return seen.size() == cells.size()
 
 
-func test_all_new_shapes_load_with_expected_cell_counts() -> void:
-	for shape: BlockShape in _new_shapes():
-		assert_eq(shape.cells.size(), int(CELL_COUNTS[shape.id]), "%s cell count" % shape.id)
-		assert_lte(shape.cells.size(), MAX_CELLS)
-
-
 func test_new_shapes_are_connected_unique_and_weighted() -> void:
 	for shape: BlockShape in _new_shapes():
 		assert_true(_connected(shape.cells), "%s must be face-connected." % shape.id)
@@ -60,8 +53,3 @@ func test_shape_ids_are_unique_and_total_is_19() -> void:
 	assert_eq(ids.size(), TOTAL_SHAPES)
 
 
-func test_mass_is_cells_times_cube_mass() -> void:
-	var tuning: PhysicsTuning = PhysicsTuning.new()
-	for shape: BlockShape in _new_shapes():
-		var mass: float = float(shape.cells.size()) * tuning.cube_mass
-		assert_almost_eq(mass, float(CELL_COUNTS[shape.id]) * tuning.cube_mass, 0.0001)

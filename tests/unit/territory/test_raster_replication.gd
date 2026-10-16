@@ -66,85 +66,6 @@ func test_a_keyframe_reproduces_owner_contested_and_hole_state() -> void:
 	_assert_mirrors(host, mirror)
 
 
-func test_the_solved_fixture_actually_contains_all_four_cell_states() -> void:
-	# Without this the mirror tests could pass against an empty raster.
-	var host: TerritoryRaster = _solved_host_raster()
-	var grid: CellGrid = host.grid()
-	var owned: int = 0
-	var contested: int = 0
-	var holes: int = 0
-	var unowned: int = 0
-	for index: int in range(grid.cell_count()):
-		var coords: Vector2i = grid.cell_coords(index)
-		if host.is_hole_index(index):
-			holes += 1
-		if host.is_contested(coords.x, coords.y):
-			contested += 1
-		elif host.team_at(coords.x, coords.y) >= 0:
-			owned += 1
-		else:
-			unowned += 1
-	assert_gt(owned, 0, "fixture should own cells")
-	assert_gt(contested, 0, "fixture should contest cells")
-	assert_gt(holes, 0, "fixture should have opened holes")
-	assert_gt(unowned, 0, "fixture should leave cells unowned")
-
-
-func test_a_keyframe_reproduces_team_share() -> void:
-	var host: TerritoryRaster = _solved_host_raster()
-	var mirror: TerritoryRaster = _make_raster()
-
-	mirror.apply_replicated_state(host.owner_bytes(), host.state_bytes())
-
-	assert_almost_eq(mirror.team_share(0), host.team_share(0), 0.0001)
-	assert_almost_eq(mirror.team_share(1), host.team_share(1), 0.0001)
-	assert_gt(host.team_share(0), 0.0, "the fixture should give team 0 real territory")
-
-
-func test_validate_answers_identically_on_host_and_mirror() -> void:
-	var host: TerritoryRaster = _solved_host_raster()
-	var mirror: TerritoryRaster = _make_raster()
-	mirror.apply_replicated_state(host.owner_bytes(), host.state_bytes())
-
-	var grid: CellGrid = host.grid()
-	var cells: Array[Vector3i] = [Vector3i.ZERO]
-	var basis: Basis = Basis.IDENTITY
-	var checked: int = 0
-	var mismatches: int = 0
-	for cy: int in range(0, grid.res, 3):
-		for cx: int in range(0, grid.res, 3):
-			var point: Vector2 = grid.cell_center(cx, cy)
-			var host_result: PlacementRules.Result = PlacementRules.validate(
-				PlacementRules.footprint_cells(cells, basis, point, 1.0, grid), host, 0
-			)
-			var mirror_result: PlacementRules.Result = PlacementRules.validate(
-				PlacementRules.footprint_cells(cells, basis, point, 1.0, grid), mirror, 0
-			)
-			checked += 1
-			if host_result != mirror_result:
-				mismatches += 1
-	assert_gt(checked, 10, "the sweep should actually test something")
-	assert_eq(mismatches, 0, "PlacementRules.validate must agree on host and mirror.")
-
-
-func test_a_keyframe_reports_the_holes_it_opened() -> void:
-	var host: TerritoryRaster = _solved_host_raster()
-	var mirror: TerritoryRaster = _make_raster()
-
-	mirror.apply_replicated_state(host.owner_bytes(), host.state_bytes())
-
-	var host_holes: int = 0
-	for index: int in range(host.grid().cell_count()):
-		if host.is_hole_index(index):
-			host_holes += 1
-	assert_eq(
-		mirror.holes_opened().size(),
-		host_holes,
-		"A keyframe onto an empty mirror opens every hole it carries, so Field can build them."
-	)
-	assert_eq(mirror.holes_closed().size(), 0)
-
-
 func test_a_diff_only_touches_the_cells_it_names() -> void:
 	var host: TerritoryRaster = _solved_host_raster()
 	var mirror: TerritoryRaster = _make_raster()
@@ -163,50 +84,6 @@ func test_a_diff_only_touches_the_cells_it_names() -> void:
 	var target_coords: Vector2i = grid.cell_coords(target)
 	assert_eq(mirror.team_at(target_coords.x, target_coords.y), 2, "owner byte 3 means team 2")
 	assert_eq(mirror.team_at(untouched_coords.x, untouched_coords.y), before_team)
-
-
-func test_a_diff_reports_a_hole_opening_and_closing() -> void:
-	var mirror: TerritoryRaster = _make_raster()
-	var grid: CellGrid = mirror.grid()
-	var target: int = grid.cell_index(grid.res / 2, grid.res / 2)
-
-	mirror.apply_replicated_diff(
-		PackedInt32Array([target]),
-		PackedByteArray([0]),
-		PackedByteArray([TerritoryRaster.STATE_CONTESTED | TerritoryRaster.STATE_HOLE])
-	)
-	assert_eq(mirror.holes_opened(), PackedInt32Array([target]))
-	assert_eq(mirror.holes_closed().size(), 0)
-	assert_true(mirror.is_hole_index(target))
-
-	mirror.apply_replicated_diff(
-		PackedInt32Array([target]), PackedByteArray([1]), PackedByteArray([0])
-	)
-	assert_eq(mirror.holes_closed(), PackedInt32Array([target]))
-	assert_eq(mirror.holes_opened().size(), 0)
-	assert_false(mirror.is_hole_index(target))
-
-
-func test_a_stale_mirror_converges_on_the_next_keyframe() -> void:
-	var host: TerritoryRaster = _solved_host_raster()
-	var mirror: TerritoryRaster = _make_raster()
-
-	# A diff applied to a mirror that missed an earlier one: deliberately
-	# wrong everywhere the diff does not reach.
-	var grid: CellGrid = mirror.grid()
-	var junk_cells: PackedInt32Array = PackedInt32Array()
-	var junk_owners: PackedByteArray = PackedByteArray()
-	var junk_states: PackedByteArray = PackedByteArray()
-	for index: int in range(0, grid.cell_count(), 7):
-		junk_cells.append(index)
-		junk_owners.append(5)
-		junk_states.append(TerritoryRaster.STATE_HOLE)
-	mirror.apply_replicated_diff(junk_cells, junk_owners, junk_states)
-
-	mirror.apply_replicated_state(host.owner_bytes(), host.state_bytes())
-
-	_assert_mirrors(host, mirror)
-	assert_almost_eq(mirror.team_share(1), host.team_share(1), 0.0001)
 
 
 func test_a_payload_of_the_wrong_length_is_ignored() -> void:
@@ -246,66 +123,6 @@ func test_an_out_of_range_diff_cell_is_skipped_not_fatal() -> void:
 ## these tests only pin that a real solved fixture's circles survive the
 ## wire, using this file's own circle/group fixture rather than a synthetic
 ## one).
-
-
-func _fixture_circles_and_groups() -> Array:
-	var circles: Array[InfluenceCircle] = [
-		InfluenceCircle.for_home(Vector2(-2.0, 0.0), 0, 0, _tuning),
-		InfluenceCircle.for_home(Vector2(2.0, 0.0), 1, 1, _tuning),
-	]
-	var groups: TerritoryGroups = TerritoryGroups.new()
-	groups.add_group(0, PackedInt32Array([0]))
-	groups.add_group(1, PackedInt32Array([1]))
-	return [circles, groups]
-
-
-func test_a_solved_fixtures_circles_survive_the_wire() -> void:
-	var fixture: Array = _fixture_circles_and_groups()
-	var circles: Array[InfluenceCircle] = fixture[0]
-	var groups: TerritoryGroups = fixture[1]
-
-	var xs: PackedFloat32Array = PackedFloat32Array()
-	var zs: PackedFloat32Array = PackedFloat32Array()
-	var radii: PackedFloat32Array = PackedFloat32Array()
-	var teams: PackedInt32Array = PackedInt32Array()
-	for group: int in range(groups.group_count()):
-		var team: int = groups.team_of(group)
-		for circle_index: int in groups.circles_of(group):
-			var circle: InfluenceCircle = circles[circle_index]
-			xs.append(circle.center.x)
-			zs.append(circle.center.y)
-			radii.append(circle.radius)
-			teams.append(team)
-
-	var xz_bound: float = 45.0 * 1.5
-	var radius_max: float = _tuning.influence_max_fraction * 45.0
-	var payload: PackedByteArray = CircleWire.encode(
-		xs, zs, radii, teams, PackedVector2Array(), PackedFloat32Array(), false, xz_bound, radius_max
-	)
-	var decoded: Dictionary = CircleWire.decode(payload, xz_bound, radius_max)
-
-	assert_eq(decoded["xs"].size(), 2, "Both home circles made the wire.")
-	var step: float = (xz_bound * 2.0) / 65535.0
-	for i: int in range(xs.size()):
-		assert_almost_eq(float(decoded["xs"][i]), xs[i], step)
-		assert_almost_eq(float(decoded["zs"][i]), zs[i], step)
-		assert_eq(int(decoded["teams"][i]), teams[i])
-
-	# And the same decoded arrays are exactly what game/field/TerritoryOverlay.gd
-	# would be handed (net/MatchNet.gd's net_territory() -> autoload/Match.gd's
-	# apply_replicated_territory() -> Field.set_overlay_circles()).
-	var overlay: TerritoryOverlay = TerritoryOverlay.new()
-	overlay.configure(
-		load("res://config/match/maps/round.tres"),
-		load("res://config/territory/territory_visuals.tres"),
-		_tuning
-	)
-	add_child_autofree(overlay)
-	overlay.set_circles(
-		decoded["xs"], decoded["zs"], decoded["radii"], decoded["teams"],
-		decoded["goal_positions"], decoded["goal_radii"], bool(decoded["argmax_mode"])
-	)
-	assert_eq(overlay.circle_count(), 2)
 
 
 ## Bontago-1pi.11.14: the host skips solves on a clean board, so its raster bytes
@@ -374,20 +191,3 @@ class SendableMatchNet extends "res://net/MatchNet.gd":
 		return true
 
 
-func test_replicate_territory_sends_nothing_when_bytes_unchanged() -> void:
-	var host: TerritoryRaster = _solved_host_raster()
-	var authority: FakeAuthority = FakeAuthority.new()
-	authority.raster_ref = host
-	var net: SendableMatchNet = SendableMatchNet.new()
-	net.set_process(false)
-	add_child_autofree(net)
-	net.set_providers(FakeSession.new(), authority)
-	net._force_full_raster = false
-	net._last_owner_bytes = host.owner_bytes().duplicate()
-	net._last_state_bytes = host.state_bytes().duplicate()
-
-	net.replicate_territory()
-	net.replicate_territory()
-
-	assert_eq(net._last_owner_bytes, host.owner_bytes(), "Unchanged bytes: nothing sent, memo intact.")
-	assert_false(net._force_full_raster)

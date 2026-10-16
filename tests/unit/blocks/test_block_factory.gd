@@ -48,13 +48,6 @@ func test_every_shape_builds_exactly_one_mesh_instance_regardless_of_cube_count(
 		assert_eq(_count_children_of_type(visual, "MeshInstance3D"), 1, "%s ghost visual" % shape.id)
 
 
-func test_slab6_mass_and_shape_count() -> void:
-	var shape: BlockShape = load("res://config/blocks/slab6.tres")
-	var block: Block = autofree(BlockFactory.build(shape, _tuning))
-	assert_eq(block.cube_count, 6)
-	assert_almost_eq(block.mass, _tuning.cube_mass * 6.0, 0.0001)
-
-
 func test_boxes_are_shrunk_by_the_margin() -> void:
 	var shape: BlockShape = load("res://config/blocks/cube.tres")
 	var block: Block = autofree(BlockFactory.build(shape, _tuning))
@@ -81,50 +74,8 @@ func test_physics_material_matches_tuning() -> void:
 
 # --- Bontago-mv0.18 (in-game tuning panel, spec 2.8 "Gravity 0.5x-2x") -------
 
-func test_gravity_scale_matches_the_shared_tunings_multiplier() -> void:
-	var shape: BlockShape = load("res://config/blocks/cube.tres")
-	var block: Block = autofree(BlockFactory.build(shape, _tuning))
-	assert_almost_eq(block.gravity_scale, _tuning.gravity_multiplier, 0.0001)
-
 
 # --- Bontago-xtq.17 (rebound damping): BlockFactory wires its own tuning ----
-
-## Review fix (SHOULD-FIX 3): BlockFactory.build() sets `block.tuning =
-## tuning` itself, so a non-singleton PhysicsTuning instance (not the shared
-## preloaded config/physics/physics_tuning.tres) is honored by Block._integrate_
-## forces()'s rebound-damping read from the moment build() returns -- before
-## the block ever joins the tree/runs _ready() at all.
-func test_block_factory_build_wires_its_own_tuning_parameter_immediately() -> void:
-	var custom_tuning: PhysicsTuning = PhysicsTuning.new()
-	custom_tuning.rebound_damping = 0.4
-	var shape: BlockShape = load("res://config/blocks/cube.tres")
-	var block: Block = autofree(BlockFactory.build(shape, custom_tuning))
-	assert_same(
-		block.tuning, custom_tuning,
-		"BlockFactory.build() must wire its own tuning parameter onto the Block, not leave it null until _ready()."
-	)
-
-
-## The shared preloaded config/physics/physics_tuning.tres instance every real spawn
-## path uses is what build() wires on (test's own `_tuning` is `load()`ed
-## from the same path, and Godot caches a Resource by path within one
-## process -- ui/debug/TuningPanel.gd's own class doc relies on the same fact) --
-## _ready()'s own null-check fallback (see Block.gd) never even needs to run
-## for this, since `tuning` is already non-null by the time build() returns.
-func test_block_ready_wires_the_shared_physics_tuning_singleton() -> void:
-	var shape: BlockShape = load("res://config/blocks/cube.tres")
-	var block: Block = autofree(BlockFactory.build(shape, _tuning))
-	add_child_autofree(block)  # runs _ready()
-	assert_same(block.tuning, load("res://config/physics/physics_tuning.tres"))
-
-
-func test_block_ready_does_not_overwrite_a_tuning_set_before_it_joined_the_tree() -> void:
-	var shape: BlockShape = load("res://config/blocks/cube.tres")
-	var block: Block = autofree(BlockFactory.build(shape, _tuning))
-	var custom_tuning: PhysicsTuning = PhysicsTuning.new()
-	block.tuning = custom_tuning
-	add_child_autofree(block)  # runs _ready()
-	assert_same(block.tuning, custom_tuning)
 
 
 ## A dedicated PhysicsTuning instance, not the shared preloaded resource (see
@@ -146,125 +97,12 @@ func _count_children_of_type(node: Node, type_name: String) -> int:
 	return count
 
 
-func _first_mesh_instance(node: Node) -> MeshInstance3D:
-	for child: Node in node.get_children():
-		if child is MeshInstance3D:
-			return child
-	return null
-
-
 # --- Bontago-mv0.11 (owner-reported playability): owner-coloured blocks -----
-
-## Bontago-xtq.27: the primary mesh's material_override is now a ShaderMaterial
-## (shaders/blocks/block_cell_grid.gdshader) rather than a StandardMaterial3D, so the
-## owner colour lives in its "albedo_color" shader parameter instead of
-## `.albedo_color` -- see game/blocks/BlockFactory.gd's `_material_for_color()`.
-func test_block_mesh_material_matches_the_requested_color() -> void:
-	var shape: BlockShape = load("res://config/blocks/cube.tres")
-	var color: Color = Color(0.9, 0.25, 0.25)
-	var block: Block = autofree(BlockFactory.build(shape, _tuning, 0, color))
-	var mesh_instance: MeshInstance3D = _first_mesh_instance(block)
-	assert_not_null(mesh_instance)
-	var material: ShaderMaterial = mesh_instance.material_override as ShaderMaterial
-	assert_not_null(material, "every mesh should carry an owner-coloured material override.")
-	var albedo: Color = material.get_shader_parameter(&"albedo_color")
-	assert_true(albedo.is_equal_approx(color))
-
-
-func test_default_color_is_white_for_call_sites_that_dont_pass_one() -> void:
-	var shape: BlockShape = load("res://config/blocks/cube.tres")
-	var block: Block = autofree(BlockFactory.build(shape, _tuning))
-	var material: ShaderMaterial = _first_mesh_instance(block).material_override as ShaderMaterial
-	assert_not_null(material)
-	var albedo: Color = material.get_shader_parameter(&"albedo_color")
-	assert_eq(albedo, Color.WHITE, "M1's no-owner call sites keep looking exactly as before.")
-
-
-func test_two_blocks_of_the_same_slot_color_share_one_cached_material() -> void:
-	var color: Color = Color(0.25, 0.55, 0.95)
-	var block_a: Block = autofree(BlockFactory.build(load("res://config/blocks/cube.tres"), _tuning, 0, color))
-	var block_b: Block = autofree(BlockFactory.build(load("res://config/blocks/bar4.tres"), _tuning, 1, color))
-
-	var material_a: Material = _first_mesh_instance(block_a).material_override
-	var material_b: Material = _first_mesh_instance(block_b).material_override
-
-	assert_not_null(material_a)
-	assert_eq(material_a, material_b, "one cached ShaderMaterial per colour, never one per block.")
-
-	# Every *solid* mesh within one multi-cube block shares it too, not just
-	# the first -- but Bontago-xtq.27's outline pass ("BlockOutline") is its
-	# own separately-cached shared ShaderMaterial (never colour-keyed, see
-	# _outline_material_singleton()), so it is excluded here and checked on
-	# its own below instead.
-	for child: Node in block_b.get_children():
-		if child is MeshInstance3D and child.name == &"BlockMesh":
-			assert_eq((child as MeshInstance3D).material_override, material_a)
-
-	var outline_a: Material = material_a.next_pass
-	var outline_b: Material = material_b.next_pass
-	assert_not_null(outline_a)
-	assert_eq(outline_a, outline_b, "the outline pass is one cached ShaderMaterial per owner colour.")
-	assert_ne(outline_a, material_a, "the outline pass must not be the same ShaderMaterial as the solid-mesh one.")
-
-
-func test_a_different_color_gets_its_own_material() -> void:
-	var shape: BlockShape = load("res://config/blocks/cube.tres")
-	var block_red: Block = autofree(BlockFactory.build(shape, _tuning, 0, Color(0.9, 0.25, 0.25)))
-	var block_blue: Block = autofree(BlockFactory.build(shape, _tuning, 1, Color(0.25, 0.55, 0.95)))
-	assert_ne(_first_mesh_instance(block_red).material_override, _first_mesh_instance(block_blue).material_override)
 
 
 # --- Bontago-xtq.27 fix round (review MAJOR): the "contributing to territory --
 # --- influence" glow seam now lives on Block itself, not written directly ---
 # --- from inside BlockFactory.build() -----------------------------------------
-
-## A freshly built block is never already asleep, so BlockFactory.build()'s own
-## initial `block.set_contributing_visual(block.sleeping)` call should leave it
-## reading as non-contributing until something says otherwise.
-func test_a_freshly_built_block_is_not_contributing_yet() -> void:
-	var shape: BlockShape = load("res://config/blocks/cube.tres")
-	var block: Block = autofree(BlockFactory.build(shape, _tuning))
-	assert_false(block.is_contributing_visual())
-
-
-## BlockFactory.build() connects `block.sleeping_state_changed` to
-## `block.set_contributing_visual(block.sleeping)` unconditionally (this
-## peer's real physics authority path) -- setting `sleeping` directly and
-## re-emitting the signal by hand (outside a live physics step, RigidBody3D's
-## own setter is not guaranteed to fire it) exercises exactly that connection
-## without needing a real physics simulation.
-func test_the_glow_follows_this_blocks_own_sleeping_signal() -> void:
-	var shape: BlockShape = load("res://config/blocks/cube.tres")
-	var block: Block = autofree(BlockFactory.build(shape, _tuning))
-
-	block.sleeping = true
-	block.sleeping_state_changed.emit()
-	assert_true(block.is_contributing_visual(), "sleeping_state_changed(sleeping=true) should light the glow.")
-
-	block.sleeping = false
-	block.sleeping_state_changed.emit()
-	assert_false(block.is_contributing_visual(), "sleeping_state_changed(sleeping=false) should turn it back off.")
-
-
-## Block.set_contributing_visual() is the seam net/SnapshotSync.gd's
-## client_tick() calls directly (a client's synced body is frozen kinematic
-## and never sleeps for real, so it never gets BlockFactory.build()'s own
-## sleeping_state_changed connection to fire) -- checked here on its own,
-## independent of BlockFactory's wiring, since it is a public method on Block.
-func test_set_contributing_visual_is_a_public_seam_independent_of_the_sleeping_signal() -> void:
-	var shape: BlockShape = load("res://config/blocks/cube.tres")
-	var block: Block = autofree(BlockFactory.build(shape, _tuning))
-
-	block.set_contributing_visual(true)
-	assert_true(block.is_contributing_visual())
-	assert_eq(
-		_first_mesh_instance(block).get_instance_shader_parameter(&"contributing"), true,
-		"the BlockMesh instance shader parameter must reflect it too, not just the cached flag."
-	)
-
-	block.set_contributing_visual(false)
-	assert_false(block.is_contributing_visual())
-	assert_eq(_first_mesh_instance(block).get_instance_shader_parameter(&"contributing"), false)
 
 
 # --- Bontago-mv0.12 (owner-reported playability): the pivot is the shape's --

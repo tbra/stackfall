@@ -93,10 +93,6 @@ var _release_checked: bool = false
 ## (state sync callback) since it last entered the awake set -- the frames
 ## the old _integrate_forces() ran on. See _next_sync_frame().
 var _sync_from_frame: int = 0
-## Bontago-bth.1 test seam: false for a subclass that keeps its own per-node
-## physics hooks (tests/unit/blocks/test_block_step_batch.gd's reference copy of the
-## pre-batch Block); BlockStepBatch then leaves it alone.
-var step_batched: bool = true
 
 ## Fix round (Bontago-xtq.27 review MAJOR): the "contributing to territory
 ## influence" glow (BlockFactory.build()'s own DECISION: RigidBody3D.sleeping
@@ -187,13 +183,12 @@ static func _next_sync_frame() -> int:
 
 
 func _enter_tree() -> void:
-	if step_batched:
-		BlockStepBatch.ensure_installed()
-		if not _release_checked:
-			# Bontago-bth.1: the release tilt runs inside Jolt's own first state
-			# sync of this body, before the C++ RigidBody3D sync, exactly where the
-			# old _integrate_forces() ran it (once per block, not per tick).
-			PhysicsServer3D.body_set_force_integration_callback(get_rid(), _on_first_integration)
+	BlockStepBatch.ensure_installed()
+	if not _release_checked:
+		# Bontago-bth.1: the release tilt runs inside Jolt's own first state
+		# sync of this body, before the C++ RigidBody3D sync, exactly where the
+		# old _integrate_forces() ran it (once per block, not per tick).
+		PhysicsServer3D.body_set_force_integration_callback(get_rid(), _on_first_integration)
 	_apply_awake(not sleeping)
 
 
@@ -243,7 +238,7 @@ func wake() -> void:
 ## runs here (same values: the node's velocity was copied before the signal).
 ## Waking: the batch must treat the body as synced from this frame on.
 func _on_sleeping_state_changed() -> void:
-	if step_batched and sleeping:
+	if sleeping:
 		_early_out_sync(Engine.get_physics_frames())
 	_apply_awake(not sleeping and not is_freeze_static())
 	if not sleeping:
@@ -261,7 +256,7 @@ func _on_sleeping_state_changed() -> void:
 ## can_process() is the same gate Godot applied to the old _physics_process()
 ## (pause, PROCESS_MODE_DISABLED; a disabled body is also out of its space).
 func _batch_tick(frame: int, physics_active: bool, damp_on: bool, damp: float, noise_floor: float, impacts_on: bool, impact_min: float, impact_min_sq_lo: float) -> void:
-	if not step_batched or not can_process():
+	if not can_process():
 		return
 	if sleeping:
 		# Asleep without a sleep transition this tick: Jolt did not sync it. The

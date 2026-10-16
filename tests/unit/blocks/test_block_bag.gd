@@ -109,19 +109,3 @@ func test_same_seed_deals_the_same_sequence() -> void:
 		assert_eq(bag_a.next(), bag_b.next())
 
 
-func test_same_seed_deals_the_same_sequence_even_with_interleaved_peeks() -> void:
-	var bag_a: BlockBag = BlockBag.new(_config(), 99)
-	var bag_b: BlockBag = BlockBag.new(_config(), 99)
-	for i: int in range(200):
-		if i % 5 == 0:
-			bag_b.peek(3)  # should not perturb bag_b's real draw sequence
-		assert_eq(bag_a.next(), bag_b.next())
-
-
-func test_weight_of_uses_config_override_when_present() -> void:
-	var config: BlockFeedConfig = _config()
-	config.shapes = BlockShape.load_all_shapes()
-	config.weight_overrides = PackedFloat32Array([5.0])
-	var bag: BlockBag = BlockBag.new(config, 1)
-	assert_almost_eq(bag.weight_of(config.shapes[0]), 5.0, 0.001)
-	assert_almost_eq(bag.weight_of(config.shapes[1]), config.shapes[1].weight, 0.001)

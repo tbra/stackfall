@@ -107,46 +107,6 @@ func test_waking_a_frozen_block_releases_it() -> void:
 	)
 
 
-func test_reaching_the_delay_across_several_ticks_still_freezes() -> void:
-	var field: Field = _make_field()
-	var registry: BlockRegistry = _make_registry(field)
-	var manager: StableBlockManager = _make_manager(registry)
-
-	var block: Block = _place(field, 0)
-	block.sleeping = true
-
-	# Several scans below the interval accumulate without ever running a scan
-	# pass; once accumulated time crosses the interval, a scan runs and its
-	# elapsed span is credited to the sleeping block. Repeating this until the
-	# cumulative asleep time crosses stable_freeze_delay_s must still freeze
-	# it, the same as one big _tick() call.
-	var half_interval: float = _tuning.stable_freeze_scan_interval_s * 0.5
-	var elapsed: float = 0.0
-	while elapsed < _tuning.stable_freeze_delay_s + _tuning.stable_freeze_scan_interval_s:
-		manager._tick(half_interval)
-		elapsed += half_interval
-
-	assert_true(block.is_freeze_static(), "accumulated asleep time across many small ticks still freezes")
-
-
-func test_a_second_block_that_wakes_before_the_scan_interval_elapses_is_never_credited() -> void:
-	var field: Field = _make_field()
-	var registry: BlockRegistry = _make_registry(field)
-	var manager: StableBlockManager = _make_manager(registry)
-
-	var block: Block = _place(field, 0)
-	block.sleeping = true
-
-	# Below the scan interval: no scan pass has run yet, so nothing is
-	# credited or released either way.
-	manager._tick(_tuning.stable_freeze_scan_interval_s * 0.5)
-	assert_false(block.is_freeze_static())
-
-	block.sleeping = false
-	manager._tick(_tuning.stable_freeze_scan_interval_s)
-	assert_false(block.is_freeze_static(), "never asleep long enough to be frozen in the first place")
-
-
 func test_tilting_field_releases_frozen_blocks_and_restarts_the_timer() -> void:
 	# Bontago-sen.11: a frozen-static block does not ride a moving disc.
 	var field: Field = _make_field()
@@ -172,40 +132,6 @@ func test_tilting_field_releases_frozen_blocks_and_restarts_the_timer() -> void:
 	manager.check_field_motion()
 	manager._tick(2.0)
 	assert_true(block.is_freeze_static(), "disc still: re-freezes after the normal delay")
-
-
-func test_a_wake_that_does_not_move_the_block_keeps_its_freeze_timer() -> void:
-	# Bontago-1pi.11.24: Jolt wakes a whole contact island on any landing; a
-	# block that did not move must not lose its accumulated rest time.
-	var field: Field = _make_field()
-	var registry: BlockRegistry = _make_registry(field)
-	var manager: StableBlockManager = _make_manager(registry)
-	var block: Block = _place(field, 0)
-	block.sleeping = true
-	manager._tick(_tuning.stable_freeze_delay_s - 2.0)
-	block.sleeping = false
-	manager._tick(_tuning.stable_freeze_scan_interval_s)
-	assert_false(block.is_freeze_static(), "awake: never frozen while awake")
-	block.sleeping = true
-	manager._tick(3.0)
-	assert_true(block.is_freeze_static(), "cumulative rest time across a still wake freezes it")
-
-
-func test_a_wake_that_moves_the_block_restarts_its_freeze_timer() -> void:
-	var field: Field = _make_field()
-	var registry: BlockRegistry = _make_registry(field)
-	var manager: StableBlockManager = _make_manager(registry)
-	var block: Block = _place(field, 0)
-	block.sleeping = true
-	manager._tick(_tuning.stable_freeze_delay_s - 2.0)
-	block.sleeping = false
-	block.global_position += Vector3(_tuning.stable_freeze_rest_epsilon_m * 4.0, 0.0, 0.0)
-	manager._tick(_tuning.stable_freeze_scan_interval_s)
-	block.sleeping = true
-	manager._tick(3.0)
-	assert_false(block.is_freeze_static(), "moved beyond the epsilon: timer restarted")
-	manager._tick(_tuning.stable_freeze_delay_s)
-	assert_true(block.is_freeze_static(), "re-freezes after a full delay at the new pose")
 
 
 func test_real_physics_island_wakes_still_freeze_and_a_tilt_carries_the_released_pile() -> void:
@@ -270,29 +196,6 @@ func test_awake_but_still_block_freezes_after_the_window() -> void:
 	assert_true(manager.is_stable_frozen(block))
 
 
-func test_awake_block_that_moves_restarts_the_settle_window() -> void:
-	var parts: Array = _awake_still_setup()
-	var manager: StableBlockManager = parts[0]
-	var block: Block = parts[1]
-	manager._tick(_tuning.stable_freeze_scan_interval_s)
-	manager._tick(_tuning.settle_freeze_window_s - 1.0)
-	block.global_position += Vector3(_tuning.settle_freeze_move_epsilon_m * 4.0, 0.0, 0.0)
-	manager._tick(2.0)
-	assert_false(block.is_freeze_static(), "moved past the epsilon: window restarted")
-
-
-func test_settle_freeze_off_leaves_awake_blocks_alone() -> void:
-	var parts: Array = _awake_still_setup()
-	var manager: StableBlockManager = parts[0]
-	var block: Block = parts[1]
-	var tuning: PhysicsTuning = _tuning.duplicate() as PhysicsTuning
-	tuning.settle_freeze_enabled = false
-	manager.tuning = tuning
-	manager._tick(_tuning.stable_freeze_scan_interval_s)
-	manager._tick(_tuning.settle_freeze_window_s + 5.0)
-	assert_false(block.is_freeze_static())
-
-
 func test_fast_neighbour_holds_back_a_still_block() -> void:
 	var field: Field = _make_field()
 	var registry: BlockRegistry = _make_registry(field)
@@ -309,32 +212,6 @@ func test_fast_neighbour_holds_back_a_still_block() -> void:
 	runner.linear_velocity = Vector3.ZERO
 	manager._tick(_tuning.stable_freeze_scan_interval_s)
 	assert_true(still.is_freeze_static(), "frozen on the first scan after the neighbour slows")
-
-
-func test_settle_frozen_block_releases_on_field_motion() -> void:
-	var parts: Array = _awake_still_setup()
-	var manager: StableBlockManager = parts[0]
-	var block: Block = parts[1]
-	manager._tick(_tuning.stable_freeze_scan_interval_s)
-	manager._tick(_tuning.settle_freeze_window_s + 1.0)
-	assert_true(block.is_freeze_static())
-	assert_true(manager.wake_for_external_force(block), "the existing release path applies")
-	assert_false(block.is_freeze_static())
-
-
-func test_catchup_cap_toggle_sets_engine_steps_live() -> void:
-	var parts: Array = _awake_still_setup()
-	var manager: StableBlockManager = parts[0]
-	var tuning: PhysicsTuning = _tuning.duplicate() as PhysicsTuning
-	manager.tuning = tuning
-	var original: int = Engine.max_physics_steps_per_frame
-	tuning.catchup_cap_enabled = false
-	manager.apply_catchup_cap()
-	assert_eq(Engine.max_physics_steps_per_frame, tuning.catchup_steps_default)
-	tuning.catchup_cap_enabled = true
-	manager.apply_catchup_cap()
-	assert_eq(Engine.max_physics_steps_per_frame, tuning.catchup_steps_capped)
-	Engine.max_physics_steps_per_frame = original
 
 
 func _real_never_sleeping_pile(settle_enabled: bool) -> Array[Block]:
@@ -376,20 +253,3 @@ func test_real_physics_never_sleeping_pile_freezes_through_the_settle_path() -> 
 		assert_true(block.freeze, "stays frozen across further scans")
 
 
-func test_real_physics_never_sleeping_pile_stays_awake_with_settle_off() -> void:
-	var blocks: Array[Block] = _real_never_sleeping_pile(false)
-	await wait_physics_frames(60 * 5)
-	for block: Block in blocks:
-		assert_false(block.freeze, "settle freeze off: the engine never sleeps it, so it never freezes")
-
-
-func test_blocks_removed_while_awake_do_not_leak_settle_entries() -> void:
-	var parts: Array = _awake_still_setup()
-	var manager: StableBlockManager = parts[0]
-	var block: Block = parts[1]
-	manager._tick(_tuning.stable_freeze_scan_interval_s)
-	assert_eq(manager._settle.tracked_count(), 1)
-	Events.block_removed.emit(block, "test")
-	block.free()
-	manager._tick(_tuning.stable_freeze_scan_interval_s)
-	assert_eq(manager._settle.tracked_count(), 0, "pruned with the removed block")

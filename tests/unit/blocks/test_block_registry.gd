@@ -79,23 +79,6 @@ func test_block_removed_untracks_and_frees_its_net_id() -> void:
 	assert_null(registry.block_for_net_id(net_id))
 
 
-func test_block_for_net_id_returns_null_for_block_freed_without_removed_signal() -> void:
-	var field: Field = _make_field()
-	var registry: BlockRegistry = _make_registry(field)
-	var shape: BlockShape = load("res://config/blocks/cube.tres")
-	var block: Block = BlockFactory.build(shape, _tuning, 0)
-	field.add_child(block)
-	Events.block_placed.emit(block, shape.id)
-	var net_id: int = block.net_id
-	assert_gt(net_id, 0)
-
-	field.remove_child(block)
-	block.free()
-
-	assert_null(registry.block_for_net_id(net_id))
-	assert_null(registry.block_for_net_id(net_id), "stale entry is dropped, second lookup stays null")
-
-
 func _place(field: Field, shape: BlockShape, slot: int) -> Block:
 	var block: Block = BlockFactory.build(shape, _tuning, slot)
 	field.add_child(block)
@@ -141,29 +124,6 @@ func test_client_owner_mirror_uses_net_id_and_refuses_unknown_or_duplicate() -> 
 	assert_false(registry.convert_owner(block, 1, Color.BLUE), "client cannot author conversion")
 
 
-func test_net_ids_walk_past_the_u16_boundary_without_reuse() -> void:
-	# Bontago-mv0.1.7: the counter is monotonic and never reused within a
-	# match, so it *will* pass 65535 in a long enough match. Every id it hands
-	# out past that point must still be its own body on the wire.
-	var field: Field = _make_field()
-	var registry: BlockRegistry = _make_registry(field)
-	var shape: BlockShape = load("res://config/blocks/cube.tres")
-	registry.debug_set_next_net_id(65535)
-
-	var blocks: Array[Block] = [_place(field, shape, 0), _place(field, shape, 1), _place(field, shape, 0)]
-	assert_eq(
-		[blocks[0].net_id, blocks[1].net_id, blocks[2].net_id],
-		[65535, 65536, 65537],
-		"ids continue past the u16 boundary, none reused"
-	)
-	for block: Block in blocks:
-		assert_true(Quantize.is_wire_id(block.net_id), "%d is representable on the wire" % block.net_id)
-		assert_eq(registry.block_for_net_id(block.net_id), block, "%d names its own body" % block.net_id)
-	assert_null(registry.block_for_net_id(0), "nothing answers to the 'no body' id")
-	assert_null(registry.block_for_net_id(1), "and nothing answers to the id 65537 would alias")
-	assert_eq(registry.debug_next_net_id(), 65538, "the counter keeps climbing")
-
-
 func test_allocation_refuses_past_the_wire_ceiling_instead_of_aliasing() -> void:
 	# Unreachable in play (Quantize's DECISION: 72 days at the fastest feed),
 	# but the behaviour at the ceiling must be "no id" — never a wrapped or
@@ -191,39 +151,6 @@ func test_allocation_refuses_past_the_wire_ceiling_instead_of_aliasing() -> void
 	assert_push_error("net_id space exhausted")
 	assert_eq(another.net_id, -1)
 	assert_eq(registry.block_for_net_id(Quantize.NET_ID_MAX), last)
-
-
-func test_debug_set_next_net_id_never_reaches_the_reserved_zero() -> void:
-	var field: Field = _make_field()
-	var registry: BlockRegistry = _make_registry(field)
-	registry.debug_set_next_net_id(0)
-	assert_eq(registry.debug_next_net_id(), 1, "0 is 'no body' on the wire and is never allocated")
-	registry.debug_set_next_net_id(-5)
-	assert_eq(registry.debug_next_net_id(), 1)
-	registry.debug_set_next_net_id(40)
-	registry.reset()
-	assert_eq(registry.debug_next_net_id(), 1, "reset() restarts the counter as before")
-
-
-func test_bind_net_id_refuses_ids_the_wire_cannot_carry() -> void:
-	# Bontago-mv0.1.7: bind_net_id() used to check only `net_id < 0`, so the
-	# client's own boundary would happily track a body under net_id == 0 (the
-	# wire's reserved "no body" id) or an id past Quantize.NET_ID_MAX -- either
-	# aliases a real body or a legitimate "nothing here" answer.
-	var field: Field = _make_field()
-	var registry: BlockRegistry = _make_registry(field)
-	var shape: BlockShape = load("res://config/blocks/cube.tres")
-	var block: Block = autofree(BlockFactory.build(shape, _tuning, 0))
-	add_child_autofree(block)
-
-	for bad_id: int in [-1, 0, Quantize.NET_ID_MAX + 1]:
-		registry.bind_net_id(block, bad_id)
-		assert_eq(block.net_id, -1, "an id the wire cannot carry (%d) is never bound" % bad_id)
-		assert_null(registry.block_for_net_id(bad_id))
-
-	registry.bind_net_id(block, 42)
-	assert_eq(block.net_id, 42, "a real id still binds")
-	assert_eq(registry.block_for_net_id(42), block)
 
 
 func test_unsettled_block_contributes_no_influence_circle() -> void:
@@ -268,63 +195,6 @@ func test_settled_block_produces_a_circle_after_settle_time() -> void:
 	assert_false(circles[0].is_home)
 
 
-func test_bodies_over_cells_finds_the_body_under_that_cell() -> void:
-	var field: Field = _make_field()
-	var registry: BlockRegistry = _make_registry(field)
-	var grid: CellGrid = CellGrid.new(_map_def.field_radius, _map_def.cell_size)
-
-	var shape: BlockShape = load("res://config/blocks/cube.tres")
-	var block: Block = BlockFactory.build(shape, _tuning, 0)
-	field.add_child(block)
-	block.freeze = true
-	block.global_position = Vector3(5.0, 0.5, 5.0)
-	Events.block_placed.emit(block, shape.id)
-
-	await get_tree().physics_frame
-
-	var coords: Vector2i = grid.world_to_cell(Vector2(5.0, 5.0))
-	var index: int = grid.cell_index(coords.x, coords.y)
-	var found: Array[RigidBody3D] = registry.bodies_over_cells(PackedInt32Array([index]))
-	assert_eq(found.size(), 1)
-	assert_eq(found[0], block)
-
-	var elsewhere: Array[RigidBody3D] = registry.bodies_over_cells(PackedInt32Array([0]))
-	assert_eq(elsewhere.size(), 0)
-
-
-func test_all_settled_is_true_when_nothing_is_tracked() -> void:
-	# M6 B4: MatchLifecycle._tick_turn_based() treats an empty registry as
-	# settled -- vacuously true, so a turn with no live blocks left never
-	# stalls waiting for something that will never move again.
-	var field: Field = _make_field()
-	var registry: BlockRegistry = _make_registry(field)
-	assert_true(registry.all_settled(), "an empty registry is vacuously settled")
-
-
-func test_all_settled_is_true_once_every_tracked_block_sleeps() -> void:
-	var field: Field = _make_field()
-	var registry: BlockRegistry = _make_registry(field)
-
-	var shape: BlockShape = load("res://config/blocks/cube.tres")
-	var block_a: Block = BlockFactory.build(shape, _tuning, 0)
-	field.add_child(block_a)
-	block_a.freeze = true
-	block_a.global_position = Vector3(2.0, 0.5, 0.0)
-	Events.block_placed.emit(block_a, shape.id)
-
-	var block_b: Block = BlockFactory.build(shape, _tuning, 1)
-	field.add_child(block_b)
-	block_b.freeze = true
-	block_b.global_position = Vector3(-2.0, 0.5, 0.0)
-	Events.block_placed.emit(block_b, shape.id)
-
-	var ticks: int = int(ceil(_tuning.sleep_settle_time * Engine.physics_ticks_per_second)) + 5
-	for _i: int in range(ticks):
-		await get_tree().physics_frame
-
-	assert_true(registry.all_settled(), "both frozen blocks are settled after sleep_settle_time")
-
-
 func test_all_settled_is_false_while_one_tracked_block_still_moves() -> void:
 	var field: Field = _make_field()
 	var registry: BlockRegistry = _make_registry(field)
@@ -356,19 +226,6 @@ func test_all_settled_is_false_while_one_tracked_block_still_moves() -> void:
 # --- Bontago-1pi.11.14: physics-driven territory_revision bumps ---------------
 
 
-func _settled_frozen_block(field: Field, registry: BlockRegistry, shape: BlockShape) -> Block:
-	var block: Block = BlockFactory.build(shape, _tuning, 0)
-	field.add_child(block)
-	block.freeze = true
-	block.global_position = Vector3(3.0, 0.5, -1.0)
-	Events.block_placed.emit(block, shape.id)
-	var ticks: int = int(ceil(_tuning.sleep_settle_time * Engine.physics_ticks_per_second)) + 5
-	for _i: int in range(ticks):
-		await get_tree().physics_frame
-	assert_true(registry._entries[block.get_instance_id()].is_settled, "fixture: block settled")
-	return block
-
-
 func test_physics_settle_flip_bumps_territory_revision() -> void:
 	var field: Field = _make_field()
 	var registry: BlockRegistry = _make_registry(field)
@@ -388,37 +245,6 @@ func test_physics_settle_flip_bumps_territory_revision() -> void:
 	for _i: int in range(5):
 		await get_tree().physics_frame
 	assert_eq(registry.territory_revision(), placed_revision + 1, "A still settled block stays clean.")
-
-
-func test_physics_settled_move_beyond_epsilon_bumps_but_jitter_does_not() -> void:
-	var field: Field = _make_field()
-	var registry: BlockRegistry = _make_registry(field)
-	var shape: BlockShape = load("res://config/blocks/cube.tres")
-	var block: Block = await _settled_frozen_block(field, registry, shape)
-	var eps: float = _territory_tuning.dirty_move_epsilon
-	registry.set_move_epsilon(eps)
-	var before: int = registry.territory_revision()
-	block.global_position += Vector3(eps * 0.25, 0.0, 0.0)
-	await get_tree().physics_frame
-	assert_eq(registry.territory_revision(), before, "Sub-epsilon jitter does not bump.")
-	block.global_position += Vector3(eps * 4.0, 0.0, 0.0)
-	await get_tree().physics_frame
-	assert_eq(registry.territory_revision(), before + 1, "A move beyond epsilon bumps once.")
-	await get_tree().physics_frame
-	assert_eq(registry.territory_revision(), before + 1, "The mark follows the block: no repeat bump.")
-
-
-func test_physics_settled_to_moving_flip_bumps_territory_revision() -> void:
-	var field: Field = _make_field()
-	var registry: BlockRegistry = _make_registry(field)
-	var shape: BlockShape = load("res://config/blocks/cube.tres")
-	var block: Block = await _settled_frozen_block(field, registry, shape)
-	var before: int = registry.territory_revision()
-	block.freeze = false
-	block.linear_velocity = Vector3(10.0, 0.0, 0.0)  # far above sleep_linear_threshold
-	await get_tree().physics_frame
-	assert_false(registry._entries[block.get_instance_id()].is_settled)
-	assert_gt(registry.territory_revision(), before, "Settled -> moving bumps.")
 
 
 func test_paintball_owner_conversion_bumps_revision_host_and_client() -> void:

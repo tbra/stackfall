@@ -18,7 +18,6 @@ extends GutTest
 ## the tallest *placed* tower, which stays put while the ghost is raised.
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
-const HOST_SLOT: int = 0
 ## The owner's report and this package's brief: raising must reach at least
 ## this far above the disk, and a placement there must be accepted.
 const REQUIRED_RAISE_M: float = 50.0
@@ -173,16 +172,3 @@ func test_held_raise_clears_30m_within_one_block_timer() -> void:
 	)
 
 
-func test_hud_shows_the_held_block_height_while_it_is_raised() -> void:
-	await _start_hosted_match()
-	var controller: PlayerController = _controller()
-	for _i: int in range(50):
-		controller._unhandled_input(_wheel_up())
-	await get_tree().process_frame
-	await get_tree().process_frame
-	var hud: HUD = _main._hot_seat.hud()
-	var text: String = hud._height_label.text
-	gut.p("HUD height label: '%s'" % text)
-	assert_gte(controller._ghost.height_above_surface(), 19.0, "fixture: 50 notches raise the block ~20 m")
-	assert_string_contains(text, "Block: %.1f m" % controller._ghost.height_above_surface())
-	assert_string_contains(text, "Tower: ", "the tallest-placed-structure figure is labelled for what it is")

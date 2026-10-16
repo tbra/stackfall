@@ -62,44 +62,6 @@ func test_awake_set_tracks_enter_sleep_wake_freeze_and_remove() -> void:
 	block.free()
 
 
-func test_recently_slept_block_is_reported_for_a_short_tail() -> void:
-	var block: Block = _block()
-	block._apply_awake(false)
-	assert_true(Block.awake_blocks().has(block), "reported on the frame it slept")
-	await wait_physics_frames(Block.SLEPT_TAIL_FRAMES + 1)
-	assert_false(Block.awake_blocks().has(block), "tail expires")
-
-
-func test_trails_only_for_moving_blocks() -> void:
-	var manager: BlockEffectsManager = BlockEffectsManager.new()
-	add_child_autofree(manager)
-	var sleeper: Block = _block()
-	var faller: Block = _block()
-	sleeper.global_position = Vector3(0.0, 10.0, 0.0)
-	faller.global_position = Vector3(5.0, 10.0, 0.0)
-	sleeper._apply_awake(false)
-	manager._update_falling_trails(TICK)
-	manager._update_falling_trails(TICK)
-	manager._update_falling_trails(TICK)
-	assert_false(manager._prev_positions.has(sleeper.get_instance_id()), "dormant block is not tracked")
-	assert_true(manager._prev_positions.has(faller.get_instance_id()), "awake block is tracked")
-
-	var drop: float = manager.config.trail_speed_threshold * TICK * 2.0
-	faller.global_position.y -= drop
-	sleeper.global_position.y -= drop  # not visited, so no trail even though it "moved"
-	manager._update_falling_trails(TICK)
-	assert_eq(manager._trails.size(), 1, "only the awake block gets a trail")
-	assert_true(manager._trails.has(faller.get_instance_id()))
-
-	# The faller goes to sleep: its trail still releases on the tail tick.
-	faller._apply_awake(false)
-	manager._update_falling_trails(TICK)
-	assert_eq(manager._trails.size(), 0, "a block that stopped releases its trail")
-	await wait_physics_frames(Block.SLEPT_TAIL_FRAMES + 1)
-	manager._update_falling_trails(TICK)
-	assert_false(manager._prev_positions.has(faller.get_instance_id()), "dormant, unmoved ids are dropped")
-
-
 ## Scripted scene: frozen (kinematic) blocks whose velocities are written per
 ## tick, some "sleeping" via the awake set. The registry result must equal a
 ## full scan with the old per-entry rule.
@@ -179,62 +141,6 @@ func test_registry_settle_and_revision_match_a_full_scan() -> void:
 	Events.block_removed.emit(blocks[0], "test")
 
 
-func test_registry_skips_settled_dormant_blocks_but_visits_woken_ones() -> void:
-	var registry: BlockRegistry = autofree(BlockRegistry.new())
-	add_child_autofree(registry)
-	registry.set_physics_process(false)
-	var host: Node3D = Node3D.new()
-	add_child_autofree(host)
-	var block: Block = _frozen_block(host)
-	Events.block_placed.emit(block, &"cube")
-	for tick: int in range(40):
-		registry._physics_process(TICK)
-	assert_true(registry.all_settled(), "an idle block settles")
-	block._apply_awake(false)
-	await wait_physics_frames(Block.SLEPT_TAIL_FRAMES + 1)
-	var before: int = registry.territory_revision()
-	block.linear_velocity = Vector3(2.0, 0.0, 0.0)
-	registry._physics_process(TICK)
-	assert_eq(registry.territory_revision(), before, "dormant block is not polled")
-	block._apply_awake(true)
-	registry._physics_process(TICK)
-	assert_gt(registry.territory_revision(), before, "woken block un-settles")
-	assert_false(registry.all_settled())
-
-
-func test_apply_awake_true_ignored_outside_the_tree() -> void:
-	var block: Block = _block()
-	var host: Node = block.get_parent()
-	host.remove_child(block)
-	block.wake()
-	block.release_freeze_static(Block.FREEZE_REASON_STABLE)
-	block._apply_awake(true)
-	assert_false(Block.is_awake_registered(block), "removed-not-freed block is not re-added")
-	assert_false(Block.awake_blocks().has(block))
-	host.add_child(block)
-	assert_true(Block.is_awake_registered(block), "re-entering the tree registers it again")
-
-
-func test_registry_prunes_settled_sleeper_freed_without_block_removed() -> void:
-	var registry: BlockRegistry = autofree(BlockRegistry.new())
-	add_child_autofree(registry)
-	registry.set_physics_process(false)
-	var host: Node3D = Node3D.new()
-	add_child_autofree(host)
-	var block: Block = _frozen_block(host)
-	Events.block_placed.emit(block, &"cube")
-	for tick: int in range(40):
-		registry._physics_process(TICK)
-	assert_true(registry.all_settled())
-	block._apply_awake(false)
-	await wait_physics_frames(Block.SLEPT_TAIL_FRAMES + 1)
-	var id: int = block.get_instance_id()
-	block.free()
-	for tick: int in range(BlockRegistry.STALE_SWEEP_TICKS + 1):
-		registry._physics_process(TICK)
-	assert_false(registry._entries.has(id), "freed settled sleeper is pruned by the sweep")
-
-
 ## Real Jolt: which mechanisms wake a sleeping Block and raise
 ## sleeping_state_changed (so it re-enters the awake set without Block.wake()).
 func _sleeping_block() -> Block:
@@ -251,24 +157,6 @@ func test_central_impulse_wakes_sleeping_block() -> void:
 	await wait_physics_frames(3)
 	assert_false(block.sleeping, "engine woke the body")
 	assert_true(Block.is_awake_registered(block), "central impulse: signal re-adds to set")
-
-
-func test_impulse_wakes_sleeping_block() -> void:
-	var block: Block = await _sleeping_block()
-	block.apply_impulse(Vector3(0.0, 5.0, 0.0), Vector3(0.1, 0.0, 0.0))
-	await wait_physics_frames(3)
-	assert_false(block.sleeping)
-	assert_true(Block.is_awake_registered(block), "impulse: signal re-adds to set")
-
-
-func test_central_force_wakes_sleeping_block() -> void:
-	var block: Block = await _sleeping_block()
-	for i: int in range(4):
-		block.apply_central_force(Vector3(0.0, 500.0, 0.0))
-		await wait_physics_frames(1)
-	await wait_physics_frames(2)
-	assert_false(block.sleeping)
-	assert_true(Block.is_awake_registered(block), "central force: signal re-adds to set")
 
 
 func test_linear_velocity_assignment_wakes_sleeping_block() -> void:

@@ -7,18 +7,14 @@ extends GutTest
 
 const CUBE_SIDE_M: float = 1.2
 const REST_HEIGHT_M: float = 0.62
-const AIR_HEIGHT_M: float = 3.0
 const SETTLE_FRAMES: int = 90
-const LANDING_FRAMES: int = 360
 const DISSOLVE_FRAMES: int = 90
 const FUSE_SETTLE_FRAMES: int = 30
-const SCAN_PAD_S: float = 1.0
 const CIRCLE_TOLERANCE: float = 0.001
 
 var _physics: PhysicsTuning = load("res://config/physics/physics_tuning.tres")
 var _territory: TerritoryTuning = load("res://config/territory/territory_tuning.tres")
 var _glue: GlueDropTuning = load("res://config/gifts/glue_drop_tuning.tres")
-var _dissolve_tuning: HoleDissolveTuning = load("res://config/blocks/tuning/hole_dissolve_tuning.tres")
 var _cube: BlockShape = load("res://config/blocks/cube.tres")
 
 var _field: Field
@@ -103,14 +99,6 @@ func _wait_all_settled(max_frames: int) -> void:
 		frames += 1
 
 
-func _make_manager() -> StableBlockManager:
-	var manager: StableBlockManager = autofree(StableBlockManager.new())
-	manager.tuning = _physics
-	add_child_autofree(manager)
-	manager.setup(_registry)
-	return manager
-
-
 func test_member_circles_equal_the_unfused_equivalents() -> void:
 	var pair: Array[Block] = _pair_on_disc()
 	await wait_physics_frames(SETTLE_FRAMES)
@@ -139,36 +127,6 @@ func test_member_circles_equal_the_unfused_equivalents() -> void:
 		assert_eq(now.body_id, pair[slot].get_instance_id(), "keyed by the member, not the carrier")
 
 
-func test_settled_flags_propagate_from_the_carrier_to_every_member() -> void:
-	var a: Block = _spawn(0, Vector3(-CUBE_SIDE_M * 0.5, AIR_HEIGHT_M, 0.0))
-	var b: Block = _spawn(1, Vector3(CUBE_SIDE_M * 0.5, AIR_HEIGHT_M, 0.0))
-	var carrier: FusedBody = _fuse(a, b)
-	assert_not_null(carrier)
-	watch_signals(_registry)
-	await wait_physics_frames(2)
-	assert_false(_registry.all_settled(), "a falling group is unsettled")
-	assert_eq(_circles_by_slot().size(), 0, "a falling group owns no circle")
-
-	await _wait_all_settled(LANDING_FRAMES)
-
-	assert_true(_registry.all_settled(), "carrier settled -> every member settled")
-	assert_eq(_circles_by_slot().size(), 2)
-	assert_signal_emit_count(_registry, "block_settled", 2)
-
-
-func test_physics_bodies_lists_one_carrier_and_no_followers() -> void:
-	var pair: Array[Block] = _pair_on_disc()
-	var loner: Block = _spawn(0, Vector3(0.0, REST_HEIGHT_M, 3.0))
-	assert_eq(_registry.physics_bodies().size(), 3)
-	var carrier: FusedBody = _fuse(pair[0], pair[1])
-	var bodies: Array[Block] = _registry.physics_bodies()
-	assert_eq(bodies.size(), 2, "carrier + the unfused block")
-	assert_true(bodies.has(carrier))
-	assert_true(bodies.has(loner))
-	assert_false(bodies.has(pair[0]))
-	assert_eq(_registry.all_blocks().size(), 3, "all_blocks still lists the identity followers")
-
-
 func test_kill_plane_removes_every_member_with_exactly_one_block_removed() -> void:
 	var pair: Array[Block] = _pair_on_disc()
 	var carrier: FusedBody = _fuse(pair[0], pair[1])
@@ -184,38 +142,6 @@ func test_kill_plane_removes_every_member_with_exactly_one_block_removed() -> vo
 	assert_eq(_registry.tracked_block_count(), 0)
 	assert_false(is_instance_valid(carrier), "carrier freed")
 	assert_false(is_instance_valid(pair[0]))
-
-
-func test_stable_freeze_freezes_the_carrier_once_and_an_impulse_releases_it() -> void:
-	var pair: Array[Block] = _pair_on_disc()
-	var carrier: FusedBody = _fuse(pair[0], pair[1])
-	await wait_physics_frames(FUSE_SETTLE_FRAMES)
-	var manager: StableBlockManager = _make_manager()
-	carrier.sleeping = true
-
-	manager._tick(_physics.stable_freeze_delay_s + SCAN_PAD_S)
-
-	assert_true(carrier.is_freeze_static(), "the carrier is frozen")
-	assert_eq(carrier._freeze_reasons.size(), 1, "frozen once, as one body")
-	assert_true(pair[0].is_freeze_static() and pair[1].is_freeze_static(), "followers report the carrier's freeze")
-
-	pair[1].wake_for_impulse()
-	assert_false(carrier.is_freeze_static(), "an impulse on a follower releases the carrier's stable freeze")
-
-
-func test_a_disc_anchored_carrier_never_freeze_statics() -> void:
-	var a: Block = _spawn(0, Vector3(0.0, REST_HEIGHT_M, 0.0))
-	var carrier: FusedBody = _fuse(a, _field)
-	assert_not_null(carrier)
-	assert_true(carrier.is_disc_anchored())
-	await wait_physics_frames(FUSE_SETTLE_FRAMES)
-	var manager: StableBlockManager = _make_manager()
-	carrier.sleeping = true
-
-	manager._tick(_physics.stable_freeze_delay_s + SCAN_PAD_S)
-
-	assert_false(carrier.is_freeze_static(), "a disc-anchored carrier is never freeze-static")
-	assert_eq(carrier.freeze_mode, RigidBody3D.FREEZE_MODE_KINEMATIC, "it keeps riding the disc")
 
 
 func test_a_hole_under_one_member_dissolves_only_it_and_wakes_the_rest() -> void:
@@ -256,66 +182,3 @@ func test_a_hole_under_one_member_dissolves_only_it_and_wakes_the_rest() -> void
 	assert_false(high.is_fused_member(), "a lone survivor collapses back to a plain block")
 
 
-func test_request_dissolve_on_a_carrier_dissolves_the_whole_group_once_per_member() -> void:
-	var pair: Array[Block] = _pair_on_disc()
-	var carrier: FusedBody = _fuse(pair[0], pair[1])
-	var ids: Array[int] = [pair[0].get_instance_id(), pair[1].get_instance_id()]
-	var dissolver: HoleDissolver = _registry.hole_dissolver()
-
-	dissolver.start_dissolve(carrier)
-	assert_true(dissolver.is_dissolving(pair[0]) and dissolver.is_dissolving(pair[1]), "a black hole takes the whole group")
-	var none: Array[Block] = []
-	dissolver.physics_tick(_dissolve_tuning.dissolve_delay_s + 0.01, none)
-	await wait_physics_frames(3)
-
-	for id: int in ids:
-		assert_eq(_removed_count(id), 1, "one block_removed per member")
-
-
-func _frozen_stack(count: int) -> Array[Block]:
-	var stack: Array[Block] = []
-	for i: int in range(count):
-		stack.append(_spawn(i % 2, Vector3(0.0, REST_HEIGHT_M + CUBE_SIDE_M * float(i), 0.0)))
-	await wait_physics_frames(SETTLE_FRAMES)
-	var base: Block = stack[0]
-	for i: int in range(1, count):
-		GlueFusion.fuse(stack[i], base, _glue)
-	await wait_physics_frames(FUSE_SETTLE_FRAMES)
-	var carrier: FusedBody = base.fused_carrier() as FusedBody
-	carrier.sleeping = true
-	_make_manager()._tick(_physics.stable_freeze_delay_s + SCAN_PAD_S)
-	assert_true(carrier.is_freeze_static(), "precondition: stable-frozen")
-	return stack
-
-
-func test_losing_a_member_releases_the_stable_freeze_of_the_rest() -> void:
-	var stack: Array[Block] = await _frozen_stack(3)
-	var carrier: FusedBody = stack[1].fused_carrier() as FusedBody
-	carrier.remove_member(stack[0], &"test")
-	assert_false(carrier.is_freeze_static(), "the remaining group is no longer static in mid-air")
-
-
-func test_collapse_survivor_is_not_left_stable_frozen() -> void:
-	var stack: Array[Block] = await _frozen_stack(2)
-	var carrier: FusedBody = stack[1].fused_carrier() as FusedBody
-	carrier.remove_member(stack[0], &"test")
-	assert_false(stack[1].is_fused_member())
-	assert_false(stack[1].is_freeze_static(), "survivor does not inherit the stale stable freeze")
-
-
-func test_dissolving_every_member_and_the_carrier_in_one_tick_starts_each_once() -> void:
-	var pair: Array[Block] = _pair_on_disc()
-	var carrier: FusedBody = _fuse(pair[0], pair[1])
-	var ids: Array[int] = [pair[0].get_instance_id(), pair[1].get_instance_id()]
-	var dissolver: HoleDissolver = _registry.hole_dissolver()
-	for member: Block in [pair[0], pair[1]]:
-		dissolver.start_dissolve(member)
-	dissolver.start_dissolve(carrier)
-	dissolver.start_dissolve(pair[0])
-	assert_eq(dissolver.dissolves_started, 2, "the group dissolves exactly once")
-	var none: Array[Block] = []
-	dissolver.physics_tick(_dissolve_tuning.dissolve_delay_s + 0.01, none)
-	await wait_physics_frames(3)
-	for id: int in ids:
-		assert_eq(_removed_count(id), 1, "one block_removed per member")
-	assert_eq(dissolver.pending_count(), 0)

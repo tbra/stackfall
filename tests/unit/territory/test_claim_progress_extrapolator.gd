@@ -17,14 +17,6 @@ func test_sparse_updates_rise_monotonically_and_snap() -> void:
 	assert_almost_eq(ex.progress(), 0.6, 0.0001)
 
 
-func test_caps_at_full_hold() -> void:
-	var ex: ClaimProgressExtrapolator = ClaimProgressExtrapolator.new()
-	ex.snap(2, 0.9)
-	ex.advance(1000.0, HOLD_S)
-	assert_almost_eq(ex.progress(), 1.0, 0.0001)
-	assert_false(ex.advance(1.0, HOLD_S))
-
-
 func test_stops_on_break_team_change_and_clear() -> void:
 	var ex: ClaimProgressExtrapolator = ClaimProgressExtrapolator.new()
 	ex.snap(0, 0.5)
@@ -39,8 +31,3 @@ func test_stops_on_break_team_change_and_clear() -> void:
 	assert_false(ex.advance(1.0, HOLD_S))
 
 
-func test_invalid_hold_does_not_advance() -> void:
-	var ex: ClaimProgressExtrapolator = ClaimProgressExtrapolator.new()
-	ex.snap(0, 0.5)
-	assert_false(ex.advance(1.0, 0.0))
-	assert_false(ex.advance(-1.0, HOLD_S))

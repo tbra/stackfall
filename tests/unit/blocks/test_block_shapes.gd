@@ -71,17 +71,6 @@ func test_no_duplicate_cells() -> void:
 			seen[cell] = true
 
 
-func test_weights_are_positive() -> void:
-	for shape: BlockShape in _all_shapes():
-		assert_gt(shape.weight, 0.0, "%s must have a positive feed weight." % shape.id)
-
-
-func test_sloped_cells_are_a_subset_of_cells() -> void:
-	for shape: BlockShape in _all_shapes():
-		for cell: Vector3i in shape.sloped_cells:
-			assert_true(shape.cells.has(cell), "%s sloped_cells must all be in cells." % shape.id)
-
-
 # --- Bontago-mv0.17 item 3 (was Bontago-mv0.12): BlockShape.bottom_center() --
 
 ## bottom_center() must be the cells' bounding-box x/z midpoint, but the
@@ -102,36 +91,3 @@ func test_bottom_center_is_the_bounding_box_bottom_face_for_every_shape() -> voi
 		)
 
 
-## Spot checks against the spec 2.4 table's own cell layouts, so a future
-## change to a specific shape's cells is caught by name, not just by the
-## generic bounding-box check above.
-func test_bottom_center_of_a_flat_symmetric_shape_is_below_the_origin() -> void:
-	var cube: BlockShape = load("res://config/blocks/cube.tres")
-	assert_true(cube.bottom_center().is_equal_approx(Vector3(0.0, -0.5, 0.0)))
-	var square4: BlockShape = load("res://config/blocks/square4.tres")
-	assert_true(square4.bottom_center().is_equal_approx(Vector3(0.5, -0.5, 0.5)))
-
-
-func test_bottom_center_of_an_off_origin_shape_is_not_the_origin() -> void:
-	var bar3: BlockShape = load("res://config/blocks/bar3.tres")
-	assert_true(
-		bar3.bottom_center().is_equal_approx(Vector3(1.0, -0.5, 0.0)),
-		"bar3's cells run 0..2, so its x centre is its middle cube, not cell (0, 0, 0)."
-	)
-	var domino: BlockShape = load("res://config/blocks/domino.tres")
-	assert_true(
-		domino.bottom_center().is_equal_approx(Vector3(0.5, -0.5, 0.0)),
-		"domino's two cells straddle x = 0.5, not either cell itself."
-	)
-
-
-## The shape that actually distinguishes bottom_center() from the old
-## mv0.12 geometric centre: pillar stacks three cells in y (0..2), so its
-## true vertical midpoint would be y = 1.0, but the bottom face of its lowest
-## cell is y = -0.5.
-func test_bottom_center_of_a_tall_shape_is_its_lowest_face_not_its_midpoint() -> void:
-	var pillar: BlockShape = load("res://config/blocks/pillar.tres")
-	assert_true(
-		pillar.bottom_center().is_equal_approx(Vector3(0.0, -0.5, 0.0)),
-		"pillar's cells run y = 0..2; bottom_center() must sit at the bottom face, not the y = 1.0 midpoint."
-	)

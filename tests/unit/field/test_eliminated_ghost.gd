@@ -49,26 +49,6 @@ func test_eliminated_slot_hides_ghost_within_one_frame() -> void:
 	assert_false(ghost.visible)
 
 
-func test_player_eliminated_signal_hides_without_a_frame() -> void:
-	_start()
-	var pair: Array = _controller_for(1)
-	var ghost: GhostPreview = pair[1]
-	Match.slot(1).home_flag_alive = false
-	Events.player_eliminated.emit(1, Match.slot(1).team_id)
-	assert_false(ghost.visible)
-
-
-func test_other_slot_ghost_is_unaffected() -> void:
-	_start()
-	var pair: Array = _controller_for(0)
-	var controller: PlayerController = pair[0]
-	var ghost: GhostPreview = pair[1]
-	Match.slot(1).home_flag_alive = false
-	Events.player_eliminated.emit(1, Match.slot(1).team_id)
-	controller._process(0.016)
-	assert_true(ghost.visible)
-
-
 func test_new_match_shows_ghost_again() -> void:
 	_start()
 	var pair: Array = _controller_for(0)

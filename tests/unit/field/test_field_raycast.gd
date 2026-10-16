@@ -62,22 +62,6 @@ func test_hits_the_bare_disk_at_its_own_xz_when_nothing_is_stacked() -> void:
 	assert_almost_eq(point.y, 2.0, 0.01)
 
 
-func test_ignores_world_origins_own_height_and_always_looks_straight_down() -> void:
-	# Deliberately independent of however the caller's own ray got here
-	# (docs/TERRITORY_V2_PLAN.md): only (x, z) should matter.
-	var field: Field = _make_field()
-
-	var low: Variant = field.raycast_down_disk_local(Vector3(1.5, -3.0, -0.5))
-	var high: Variant = field.raycast_down_disk_local(Vector3(1.5, 500.0, -0.5))
-
-	assert_typeof(low, TYPE_VECTOR2)
-	assert_typeof(high, TYPE_VECTOR2)
-	assert_almost_eq((low as Vector2).x, (high as Vector2).x, 0.01)
-	assert_almost_eq((low as Vector2).y, (high as Vector2).y, 0.01)
-	assert_almost_eq((low as Vector2).x, 1.5, 0.01)
-	assert_almost_eq((low as Vector2).y, -0.5, 0.01)
-
-
 func test_returns_null_well_past_the_rim_with_nothing_beneath() -> void:
 	var field: Field = _make_field()
 

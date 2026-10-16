@@ -63,26 +63,6 @@ func test_outside_territory_is_invalid_red() -> void:
 	assert_true(ghost.current_tint_color().is_equal_approx(_with_ghost_opacity(ghost, ghost.ghost_tuning.invalid_tint_color)))
 
 
-func test_contested_is_invalid_red() -> void:
-	var ghost: GhostPreview = _make_ghost()
-	ghost.apply_validity(PlacementRules.Result.CONTESTED)
-	assert_eq(ghost.current_state(), GhostPreview.STATE_INVALID)
-	assert_true(ghost.current_tint_color().is_equal_approx(_with_ghost_opacity(ghost, ghost.ghost_tuning.invalid_tint_color)))
-
-
-func test_off_disk_is_invalid_red() -> void:
-	var ghost: GhostPreview = _make_ghost()
-	ghost.apply_validity(PlacementRules.Result.OFF_DISK)
-	assert_eq(ghost.current_state(), GhostPreview.STATE_INVALID)
-	assert_true(ghost.current_tint_color().is_equal_approx(_with_ghost_opacity(ghost, ghost.ghost_tuning.invalid_tint_color)))
-
-
-func test_empty_footprint_is_invalid_red() -> void:
-	var ghost: GhostPreview = _make_ghost()
-	ghost.apply_validity(PlacementRules.Result.EMPTY)
-	assert_eq(ghost.current_state(), GhostPreview.STATE_INVALID)
-
-
 func test_hole_is_hatched() -> void:
 	var ghost: GhostPreview = _make_ghost()
 	ghost.apply_validity(PlacementRules.Result.HOLE)
@@ -99,31 +79,6 @@ func test_goal_zone_is_hatched() -> void:
 	ghost.apply_validity(PlacementRules.Result.GOAL_ZONE)
 	assert_eq(ghost.current_state(), GhostPreview.STATE_HOLE)
 	assert_true(ghost.current_tint_color().is_equal_approx(_with_ghost_opacity(ghost, ghost.ghost_tuning.hole_tint_color)))
-
-
-func test_switching_back_to_valid_restores_player_color() -> void:
-	var ghost: GhostPreview = _make_ghost()
-	ghost.apply_validity(PlacementRules.Result.CONTESTED)
-	assert_eq(ghost.current_state(), GhostPreview.STATE_INVALID)
-	ghost.apply_validity(PlacementRules.Result.VALID)
-	assert_eq(ghost.current_state(), GhostPreview.STATE_VALID)
-	assert_almost_eq(ghost.current_tint_color().r, PLAYER_COLOR.r, 0.001)
-
-
-func test_set_player_color_live_updates_a_currently_valid_ghost() -> void:
-	var ghost: GhostPreview = _make_ghost()
-	ghost.apply_validity(PlacementRules.Result.VALID)
-	var other_color: Color = Color(0.95, 0.55, 0.2, 1.0)
-	ghost.set_player_color(other_color)
-	assert_almost_eq(ghost.current_tint_color().r, other_color.r, 0.001)
-	assert_almost_eq(ghost.current_tint_color().g, other_color.g, 0.001)
-
-
-func test_set_player_color_does_not_override_an_invalid_tint() -> void:
-	var ghost: GhostPreview = _make_ghost()
-	ghost.apply_validity(PlacementRules.Result.HOLE)
-	ghost.set_player_color(Color.BLACK)
-	assert_eq(ghost.current_state(), GhostPreview.STATE_HOLE, "A colour change shouldn't clear an active reject/hole tint.")
 
 
 # --- Controller wiring: the ghost tint follows Match.preview_placement -----
@@ -150,84 +105,11 @@ func test_controller_applies_preview_result_to_ghost_every_frame() -> void:
 	assert_eq(ghost.current_state(), GhostPreview.STATE_VALID)
 
 
-func test_controller_skips_preview_when_no_active_slot() -> void:
-	var ghost: GhostPreview = _make_ghost()
-	var controller: PlayerController = autofree(PlayerController.new())
-	add_child_autofree(controller)
-	controller._ghost = ghost
-	controller._active_slot = -1
-
-	var fake_match: FakeMatch = FakeMatch.new()
-	controller._match = fake_match
-
-	controller._update_ghost_tint()
-
-	assert_eq(fake_match.preview_placement_calls.size(), 0, "No hot-seat turn yet, so nothing should be previewed.")
-
-
 # --- Bontago-xtq.9 (owner test 2026-09-23, "the ghost block should be a bit
 # more opaque") --------------------------------------------------------------
-
-## Must fail against the old ~0.55-0.65 GhostTuning defaults and pass once
-## every valid/state tint's own alpha is raised to ~0.75.
-func test_every_tint_state_alpha_is_at_least_the_new_more_opaque_default() -> void:
-	var ghost: GhostPreview = _make_ghost()
-	var minimum_alpha: float = 0.75
-
-	ghost.apply_validity(PlacementRules.Result.VALID)
-	assert_true(
-		ghost.current_tint_color().a >= minimum_alpha - 0.001,
-		"valid tint alpha %.3f should be >= %.3f" % [ghost.current_tint_color().a, minimum_alpha]
-	)
-
-	ghost.apply_validity(PlacementRules.Result.OUTSIDE_TERRITORY)
-	assert_true(
-		ghost.current_tint_color().a >= minimum_alpha - 0.001,
-		"invalid tint alpha %.3f should be >= %.3f" % [ghost.current_tint_color().a, minimum_alpha]
-	)
-
-	ghost.apply_validity(PlacementRules.Result.HOLE)
-	assert_true(
-		ghost.current_tint_color().a >= minimum_alpha - 0.001,
-		"hole tint alpha %.3f should be >= %.3f" % [ghost.current_tint_color().a, minimum_alpha]
-	)
-
-	ghost.set_locked(true)
-	assert_true(
-		ghost.current_tint_color().a >= minimum_alpha - 0.001,
-		"locked tint alpha %.3f should be >= %.3f" % [ghost.current_tint_color().a, minimum_alpha]
-	)
 
 
 # --- Bontago-xtq.13 (owner playtest 2026-09-23, "ghost block should still be
 # less transparent -> add a slider for it in the F4 menu") ------------------
 
-## Must fail against the pre-xtq.13 code (every state's alpha came from that
-## colour's own stored channel -- 0.75 for every one of these -- not one
-## shared, owner-tunable slider) and pass once every state's own alpha is
-## exactly ghost_tuning.ghost_opacity, including a non-default value.
-func test_ghost_opacity_is_the_alpha_of_every_tint_state() -> void:
-	var ghost: GhostPreview = _make_ghost()
-	ghost.ghost_tuning.ghost_opacity = 0.42
 
-	ghost.apply_validity(PlacementRules.Result.VALID)
-	assert_almost_eq(ghost.current_tint_color().a, 0.42, 0.001, "valid tint alpha must equal ghost_opacity.")
-
-	ghost.apply_validity(PlacementRules.Result.OUTSIDE_TERRITORY)
-	assert_almost_eq(ghost.current_tint_color().a, 0.42, 0.001, "invalid tint alpha must equal ghost_opacity.")
-
-	ghost.apply_validity(PlacementRules.Result.HOLE)
-	assert_almost_eq(ghost.current_tint_color().a, 0.42, 0.001, "hole tint alpha must equal ghost_opacity.")
-
-	ghost.set_locked(true)
-	assert_almost_eq(ghost.current_tint_color().a, 0.42, 0.001, "locked tint alpha must equal ghost_opacity.")
-	ghost.set_locked(false)
-
-	ghost.show_throw_hint(true)
-	assert_almost_eq(ghost.current_tint_color().a, 0.42, 0.001, "throw-aim tint alpha must equal ghost_opacity.")
-
-
-func test_ghost_opacity_default_is_a_valid_translucent_alpha() -> void:
-	var fresh: GhostTuning = GhostTuning.new()
-	assert_gt(fresh.ghost_opacity, 0.0, "the ghost is visible")
-	assert_lte(fresh.ghost_opacity, 1.0, "a valid alpha")

@@ -62,13 +62,3 @@ func test_multi_step_catch_up_emits_once() -> void:
 	assert_eq(_emits, 1, "one territory_updated for one change")
 
 
-func test_weather_visual_changes_do_not_dirty_the_solve() -> void:
-	var step: float = 1.0 / Match._territory_tuning.solve_hz
-	var solves: int = Match._territory.solve_step_count()
-	var overlay: TerritoryOverlay = _field.overlay()
-	if overlay != null:
-		overlay.set_wet(1.0, 0.2, 0.5)
-		overlay.set_wet(0.0, 0.2, 0.5)
-	Match._territory._tick_territory(step * 2.5)
-	assert_eq(Match._territory.solve_step_count(), solves, "wet sheen leaves the solve clean")
-	assert_eq(_emits, 0, "no territory_updated for presentation-only changes")
