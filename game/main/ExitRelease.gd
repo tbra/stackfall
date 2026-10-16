@@ -19,7 +19,6 @@ static func release_all() -> void:
 	BlockFactory.release_caches()
 	GiftModelTable.release_shared()
 	GiftIconTable.release_shared()
-	HudFeedbackIconTable.release_shared()
 	UiArtTable.release_shared()
 	DiscSizeTuning.release_shared()
 	UiScaleTuning.release_shared()

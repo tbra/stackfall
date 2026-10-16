@@ -1,6 +1,6 @@
 class_name UiDropdown
 extends Button
-## The design system's Dropdown (docs/ui_reskin/components.md "Dropdown"): a raised disc-700 block
+## The design system's Dropdown: a raised disc-700 block
 ## with a disc-400 edge, the value in cream and a sand chevron. It replaces every OptionButton and
 ## always behaves like a normal dropdown (reversing the click-to-cycle of
 ## options that cycle use UiCycler): a click or ui_accept opens a disc-800 list of
@@ -10,7 +10,7 @@ extends Button
 ## the value: only picking a row does.
 ##
 ## It mirrors the slice of OptionButton's API the screens use (add_item, set_item_icon,
-## set_item_disabled, set_item_tooltip, select, `selected`, `item_count`, `item_selected`), so every
+## set_item_disabled, select, `selected`, `item_count`, `item_selected`), so every
 ## caller keeps the same stored int: [signal item_selected] carries the index, and setting
 ## [member selected] from code (a replicated config) does NOT emit, like OptionButton.
 
@@ -39,7 +39,6 @@ var _chevron: Control = null
 var _labels: Array[String] = []
 var _icons: Array[Texture2D] = []
 var _disabled_items: Array[bool] = []
-var _tooltips: Array[String] = []
 var _selected: int = -1
 ## The width last applied by _sync_width (any other custom_minimum_size.x is the caller's own).
 var _hug_width: float = 0.0
@@ -114,7 +113,6 @@ func clear() -> void:
 	_labels.clear()
 	_icons.clear()
 	_disabled_items.clear()
-	_tooltips.clear()
 	_selected = -1
 	_refresh()
 
@@ -123,14 +121,9 @@ func add_item(label: String, _id: int = -1) -> void:
 	_labels.append(label)
 	_icons.append(null)
 	_disabled_items.append(false)
-	_tooltips.append("")
 	if _selected < 0:
 		_selected = 0
 	_refresh()
-
-
-func get_item_count() -> int:
-	return _labels.size()
 
 
 func get_item_text(index: int) -> String:
@@ -139,10 +132,6 @@ func get_item_text(index: int) -> String:
 
 func get_item_icon(index: int) -> Texture2D:
 	return _icons[index] if index >= 0 and index < _icons.size() else null
-
-
-func get_item_tooltip(index: int) -> String:
-	return _tooltips[index] if index >= 0 and index < _tooltips.size() else ""
 
 
 func is_item_disabled(index: int) -> bool:
@@ -158,12 +147,6 @@ func set_item_icon(index: int, texture: Texture2D) -> void:
 func set_item_disabled(index: int, value: bool) -> void:
 	if index >= 0 and index < _disabled_items.size():
 		_disabled_items[index] = value
-
-
-func set_item_tooltip(index: int, text_value: String) -> void:
-	if index >= 0 and index < _tooltips.size():
-		_tooltips[index] = text_value
-		_refresh()
 
 
 ## Shows `index` without emitting. Out of range (other than -1) is ignored.
@@ -369,9 +352,6 @@ class DropdownList extends PanelContainer:
 	func has_focus_inside() -> bool:
 		var owner_focus: Control = get_viewport().gui_get_focus_owner() if is_inside_tree() else null
 		return owner_focus != null and is_ancestor_of(owner_focus)
-
-	func row_at(index: int) -> Row:
-		return _rows[index] if index >= 0 and index < _rows.size() else null
 
 	## A press outside the list and its dropdown closes it (the dropdown's own press toggles).
 	func _input(event: InputEvent) -> void:

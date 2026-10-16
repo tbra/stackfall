@@ -1,7 +1,6 @@
 class_name UiButtonHint
 extends RefCounted
-## The optional trailing input hint of a block button (docs/ui_reskin/components.md BlockButton:
-## "an optional trailing input hint"). One component path for every glyph
+## The optional trailing input hint of a block button ("an optional trailing input hint"). One component path for every glyph
 ## button: UiBlockButton.hint_action calls [method attach]; screens never place a glyph themselves.
 ##
 ## Layout (all values from ArcadeVisualTuning): the group [icon, label, gap(space_2), glyph] is

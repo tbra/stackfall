@@ -1,6 +1,6 @@
 class_name UiTabs
 extends BoxContainer
-## The design system Tabs (docs/ui_reskin/components.md "Tabs"): a bar of UiTab buttons with a
+## The design system Tabs: a bar of UiTab buttons with a
 ## `rim` notch on the active one. HORIZONTAL = top tabs (notch on top; Options GAME / GRAPHICS /
 ## CONTROLS, the owner's override of the side-tab form), VERTICAL = side tabs (notch on the left).
 ## One tab is always active. Mouse click selects; ui_left / ui_right (ui_up / ui_down when
@@ -83,15 +83,6 @@ func select(id: StringName, grab_focus_on_tab: bool = false) -> void:
 	for other: UiTab in _tabs:
 		other.set_pressed_no_signal(other == tab)
 	tab_changed.emit(id)
-
-
-func set_tab_visible(id: StringName, shown: bool) -> void:
-	var tab: UiTab = get_tab(id)
-	if tab == null:
-		return
-	tab.visible = shown
-	if not shown and id == _current:
-		_move(1)
 
 
 func set_tab_disabled(id: StringName, is_disabled: bool) -> void:

@@ -1,6 +1,6 @@
 class_name UiDialog
 extends Control
-## The design system's Dialog (docs/ui_reskin/components.md "Dialog"): a centred modal plate on a
+## The design system's Dialog: a centred modal plate on a
 ## full-screen disc-900 scrim, a centred heading, an optional body line and stacked full-width small
 ## BlockButtons. The consumer provides a title, a body and an ordered list of actions
 ## ([method add_action]); the first action is the forward one (primary look unless the consumer
@@ -69,11 +69,6 @@ func _init() -> void:
 	panel.content.add_child(_body_label)
 	_cancel_button = _make_block(CANCEL_ID, CANCEL_TEXT, UiBlockButton.Look.SECONDARY)
 	panel.content.add_child(_cancel_button)
-
-
-## The ordered action blocks (excluding Cancel).
-func actions() -> Array[UiBlockButton]:
-	return _actions
 
 
 ## The Cancel block (its label is changeable: Back, No, ...).

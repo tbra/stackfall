@@ -1,6 +1,6 @@
 class_name UiPanel
 extends PanelContainer
-## The design system's Panel (docs/ui_reskin/components.md "Panel"): the disc-800 slab every menu
+## The design system's Panel: the disc-800 slab every menu
 ## sits in (radius-panel, space-5 padding, a solid ledge) with an uppercase heading led by the flare
 ## voxel bullet and a content column the screen adds its rows to. No nesting: groups inside a
 ## panel are [UiSection]s or a rule header, never another panel. The header is a [UiTitleRow]

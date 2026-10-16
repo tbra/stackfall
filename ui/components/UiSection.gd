@@ -1,6 +1,6 @@
 class_name UiSection
 extends VBoxContainer
-## The design system's Section (docs/ui_reskin/components.md "Section"): a group header inside a
+## The design system's Section: a group header inside a
 ## panel (the section's caption with an optional icon on the left, a dust one-line summary of the
 ## current values on the right, never collapsible) over a main body that is always shown, and an
 ## optional Advanced block behind a disclosure bar (rim caret + "ADVANCED"). Only the Advanced
@@ -36,7 +36,7 @@ const ADVANCED_NAME: StringName = &"Advanced"
 		title = value
 		if _title_label != null:
 			_title_label.text = value
-## Indent of the Advanced block and padding of the bar; token defaults, a legacy layer may override.
+## Indent of the Advanced block and padding of the bar; token defaults a layout may override.
 var advanced_indent_px: int = 0
 var bar_padding_px: int = 0
 
@@ -136,10 +136,6 @@ func set_header_icon(texture: Texture2D) -> void:
 	if _icon_rect != null:
 		_icon_rect.texture = texture
 		_icon_rect.visible = texture != null
-
-
-func is_advanced_open() -> bool:
-	return _advanced_open
 
 
 ## Programmatic open/close of the Advanced block (a no-op without one); emits

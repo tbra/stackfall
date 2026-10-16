@@ -1,6 +1,6 @@
 class_name UiStatusBadge
 extends PanelContainer
-## The design system's StatusBadge (docs/ui_reskin/components.md): a small flat label with an
+## The design system's StatusBadge: a small flat label with an
 ## optional live mint dot, never focusable and never clickable. It is a UiRowItem (BADGE) and the
 ## single implementation of the lobby title badge, the Ready / Not ready tile (icon-only, the
 ## owner's S3 decision)
