@@ -1,11 +1,6 @@
 extends GutTest
 ## game/debug/AgentProbe.gd: probe detection and mouse-capture gating.
 
-func after_each() -> void:
-	AgentProbe.set_forced_for_test(-1)
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-
-
 func test_detects_flag_in_user_args() -> void:
 	assert_true(AgentProbe.detect(PackedStringArray(), PackedStringArray(["--agent-probe"])))
 
@@ -21,22 +16,14 @@ func test_parse_render_size() -> void:
 	assert_eq(AgentProbe.parse_render_size(PackedStringArray()), Vector2i.ZERO)
 
 
-func test_capture_is_noop_in_probe_mode() -> void:
-	AgentProbe.set_forced_for_test(1)
-	AgentProbe.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
-	assert_ne(Input.mouse_mode, Input.MOUSE_MODE_CAPTURED)
-	var pc: PlayerController = autofree(PlayerController.new())
-	pc.enable_mouse_capture()
-	assert_ne(Input.mouse_mode, Input.MOUSE_MODE_CAPTURED)
+func test_probe_mode_never_captures_or_confines_the_mouse() -> void:
+	assert_eq(AgentProbe.mouse_mode_for(Input.MOUSE_MODE_CAPTURED, true), Input.MOUSE_MODE_VISIBLE)
+	assert_eq(AgentProbe.mouse_mode_for(Input.MOUSE_MODE_CONFINED, true), Input.MOUSE_MODE_VISIBLE)
+	assert_eq(AgentProbe.mouse_mode_for(Input.MOUSE_MODE_VISIBLE, true), Input.MOUSE_MODE_VISIBLE)
 
 
 func test_capture_allowed_outside_probe_mode() -> void:
-	AgentProbe.set_forced_for_test(0)
-	AgentProbe.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
-	var captured: bool = Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	# Headless mouse mode may not stick; only assert when the platform honoured it.
-	assert_true(captured or DisplayServer.get_name() == "headless")
+	assert_eq(AgentProbe.mouse_mode_for(Input.MOUSE_MODE_CAPTURED, false), Input.MOUSE_MODE_CAPTURED)
 
 
 func test_free_udp_port_is_in_range_and_bindable() -> void:
@@ -61,7 +48,6 @@ class FakeMain:
 
 
 func test_camera_pose_hook_sets_the_rig() -> void:
-	AgentProbe.set_forced_for_test(1)
 	var main: FakeMain = autofree(FakeMain.new())
 	assert_true(AgentProbe.apply_camera_pose(main, PackedFloat32Array([90.0, -45.0, 12.0, 1.0, 2.0, 3.0])))
 	assert_almost_eq(main._camera_rig._yaw, deg_to_rad(90.0), 0.0001)
@@ -74,7 +60,6 @@ func test_camera_pose_hook_sets_the_rig() -> void:
 
 
 func test_press_action_hook_delivers_press_and_release() -> void:
-	AgentProbe.set_forced_for_test(1)
 	var vp: SubViewport = autofree(SubViewport.new())
 	add_child(vp)
 	assert_true(AgentProbe.press_action(vp, &"hud_toggle"))

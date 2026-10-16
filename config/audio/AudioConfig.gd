@@ -27,9 +27,9 @@ extends Resource
 @export var bounce_file: String = "boing.wav"
 @export var music_file: String = "music_calm.mp3"
 
-## Legacy single-stream fallback (custom-folder overrides are disabled).
+## Single-stream fallback theme (custom-folder overrides are disabled).
 @export var bundled_theme: AudioStream = null
-## Path form of the legacy theme (loaded on use, not resident at boot); played when
+## Path form of the single-stream theme (loaded on use, not resident at boot); played when
 ## contextual_music_enabled is false and bundled_theme is unset.
 @export_file("*.mp3") var bundled_theme_path: String = ""
 
@@ -130,7 +130,7 @@ func playlist_track_count(context: StringName) -> int:
 ## sound and tuning later without touching EVENT_BOUNCE.
 @export var gift_claimed_file: String = "boing.wav"
 ## Original three-note chime bundled with the game, heard when a new crate
-## descends (see assets/audio/sfx/README.md for provenance).
+## descends.
 @export var gift_spawn_file: String = "gift_spawn_jingle.wav"
 ## Minimum seconds between gift-spawn jingles (spam limit).
 @export var gift_spawn_min_interval_s: float = 2.0

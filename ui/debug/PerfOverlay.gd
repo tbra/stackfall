@@ -32,10 +32,6 @@ func _ready() -> void:
 		sampler.sampled.connect(_on_sampled)
 
 
-func mode() -> Mode:
-	return _mode
-
-
 ## HIDDEN -> BASIC -> DETAILED -> HIDDEN.
 static func next_mode(current: Mode) -> Mode:
 	return ((int(current) + 1) % Mode.size()) as Mode
