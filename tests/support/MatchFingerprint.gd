@@ -339,6 +339,7 @@ static func _capture_weather(out: Dictionary) -> void:
 		out["weather.ceiling_present"] = ceiling != null
 		if ceiling != null:
 			out["weather.ceiling_amount"] = _fp(ceiling, &"_amount")
+			out["weather.ceiling_storm"] = _fp(ceiling, &"_storm_amount")
 			out["weather.ceiling_targets"] = _size_of(_p(ceiling, &"_targets"))
 			out["weather.ceiling_pushed_storm"] = _fp(ceiling, &"_pushed_storm")
 			out["weather.ceiling_pushed_overcast"] = _fp(ceiling, &"_pushed_overcast")
