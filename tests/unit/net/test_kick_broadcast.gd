@@ -59,7 +59,7 @@ func _make_rig(node_name: String) -> Rig:
 	var snapshot: Node = _SNAPSHOT_SCRIPT.new()
 	snapshot.name = "SnapshotSync"
 	net.add_child(snapshot)
-	snapshot.call("set_net_provider", net)
+	snapshot.call("bind_net", net)
 	side.snapshot = snapshot
 	_sides.append(side)
 	return side

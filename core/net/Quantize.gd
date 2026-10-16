@@ -269,22 +269,6 @@ static func unpack_sleeping(data: PackedByteArray, offset: int) -> bool:
 	return (data[offset + ROTATION_BYTES - 1] >> 7) & 1 == 1
 
 
-## One quaternion component in [-SQRT_HALF, SQRT_HALF] as a 15-bit integer.
-static func quantize_component(value: float) -> int:
-	if not is_finite(value):
-		return COMPONENT_MAX / 2
-	var normalized: float = clampf((value + SQRT_HALF) / (SQRT_HALF * 2.0), 0.0, 1.0)
-	return int(roundf(normalized * float(COMPONENT_MAX)))
-
-
-## Inverse of quantize_component().
-static func dequantize_component(raw: int) -> float:
-	return (
-		float(clampi(raw, 0, COMPONENT_MAX)) / float(COMPONENT_MAX) * (SQRT_HALF * 2.0)
-		- SQRT_HALF
-	)
-
-
 ## True when `net_id` is one the record can carry: 1..NET_ID_MAX. The single
 ## statement of the wire's id range, which BlockRegistry's allocator and the
 ## packer below both defer to.

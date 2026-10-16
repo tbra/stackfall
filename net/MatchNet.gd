@@ -73,14 +73,14 @@ const EVENT_GIFT_FLIGHT: StringName = &"gift_flight_spawned"
 const EVENT_GIFT_LANDED: StringName = &"gift_landed"
 
 # DECISION: reliable channel order plus per-match tombstones prevents a late
-# spawn/flight from resurrecting a claimed gift. Legacy spawn can upgrade once.
+# spawn/flight from resurrecting a claimed gift. A spawn-only gift can upgrade once.
 # DECISION: the enum below shadows the global GiftWirePhase
 # class inside this file, so the pure numbering module is reached through this alias.
 const _WIRE_PHASE_OWNER: GDScript = preload("res://core/gifts/GiftWirePhase.gd")
 enum GiftWirePhase {
 	FALLING = _WIRE_PHASE_OWNER.FALLING,
 	LANDED = _WIRE_PHASE_OWNER.LANDED,
-	LEGACY = _WIRE_PHASE_OWNER.WIRE_LEGACY,
+	SPAWN_ONLY = _WIRE_PHASE_OWNER.WIRE_LEGACY,
 	REMOVED = _WIRE_PHASE_OWNER.WIRE_REMOVED,
 }
 var _gift_wire_phases: Dictionary = {}
@@ -114,9 +114,9 @@ const EVENT_BLOCK_DISSOLVE_STARTED: StringName = &"block_dissolve_started"
 const EVENT_SLOT_REPLAY: StringName = &"slot_replay"
 ## EVENT_SLOT_REPLAY arity: 8 args before the current payload adds the
 ## after-next gift id and its carrier shape id. Indices of the id-typed args for each.
-const SLOT_REPLAY_ARGS_LEGACY: int = 8
-const SLOT_REPLAY_ARGS: int = SLOT_REPLAY_ARGS_LEGACY + 2
-const SLOT_REPLAY_ID_ARGS_LEGACY: Array[int] = [1, 2, 6, 7]
+const SLOT_REPLAY_ARGS_BASE: int = 8
+const SLOT_REPLAY_ARGS: int = SLOT_REPLAY_ARGS_BASE + 2
+const SLOT_REPLAY_ID_ARGS_BASE: Array[int] = [1, 2, 6, 7]
 const SLOT_REPLAY_ID_ARGS: Array[int] = [1, 2, 6, 7, 8, 9]
 ## mid-match join replay only: [match_timer_left].
 const EVENT_MATCH_CLOCK: StringName = &"match_clock"
@@ -253,20 +253,11 @@ var _cursors_refused: Dictionary = {}
 var _spawned_net_ids: Dictionary = {}
 var _duplicate_net_ids: int = 0
 
-## Test-only: counts every replicate_spawn() call this host
-## refused to put on the wire because BlockRegistry's allocator left the block
-## with an id the wire cannot carry (net_id == -1 past Quantize.NET_ID_MAX).
-## NetFanout.can_send() is already false in a unit test with no live peer, so that gate
-## alone cannot prove a refused spawn was never even handed to the rpc(); this
-## counter is the seam that does. Game code never reads it.
-var _invalid_spawn_refusals: int = 0
-
 ## Test-only: to_state values _on_match_state_changed
-## actually decided to replicate as EVENT_STATE_CHANGED, in order. Needed for
-## the same reason as _invalid_spawn_refusals above: NetFanout.can_send() is already
-## false in a unit test with no live peer, so it alone cannot prove the
-## transient LOBBY/LOADING/COUNTDOWN states a start_match() call produces
-## internally were suppressed rather than merely handed to a no-op rpc().
+## actually decided to replicate as EVENT_STATE_CHANGED, in order. Needed
+## because NetFanout.can_send() is already false in a unit test with no live
+## peer, so it alone cannot prove the transient LOBBY/LOADING/COUNTDOWN states
+## a start_match() call produces internally were suppressed rather than merely handed to a no-op rpc().
 ## Game code never reads it.
 var replicated_state_changes: Array[int] = []
 
@@ -778,7 +769,6 @@ func replicate_spawn(block: BlockBody, net_id: int) -> void:
 	if not _session().is_host() or block == null:
 		return
 	if not Quantize.is_wire_id(net_id):
-		_invalid_spawn_refusals += 1
 		return
 	_note_spawn(net_id)
 	if not NetFanout.can_send(multiplayer, _session()):
@@ -981,30 +971,9 @@ func intents_refused(slot_id: int) -> int:
 	return int(_intents_refused.get(slot_id, 0))
 
 
-## Blocks the host dropped for `slot_id` because its feed timer ran out
-## (spec 1.4). Never an intent: no client sends one.
-func auto_drops(slot_id: int) -> int:
-	return int(_auto_drops.get(slot_id, 0))
-
-
 ## Cursor updates from `slot_id`'s peer the host dropped as malformed.
 func cursors_refused(slot_id: int) -> int:
 	return int(_cursors_refused.get(slot_id, 0))
-
-
-## net_ids this instance has seen spawned. A duplicate id is a hard failure.
-func replicated_block_count() -> int:
-	return _spawned_net_ids.size()
-
-
-## net_ids that arrived twice. Must be 0; the harness asserts it.
-func duplicate_net_id_count() -> int:
-	return _duplicate_net_ids
-
-
-## Test-only; see _invalid_spawn_refusals.
-func invalid_spawn_refusal_count() -> int:
-	return _invalid_spawn_refusals
 
 
 ## Drops every counter and cursor. Called when a match starts or ends.
@@ -1020,7 +989,6 @@ func reset_counters() -> void:
 	_cursors_refused.clear()
 	_spawned_net_ids.clear()
 	_duplicate_net_ids = 0
-	_invalid_spawn_refusals = 0
 	_cursors.clear()
 	_last_owner_bytes = PackedByteArray()
 	_last_state_bytes = PackedByteArray()
@@ -1972,10 +1940,6 @@ func _impact_client_budget(now_ms: int) -> int:
 	return maxi(config.impact_client_max_per_second - _impact_accept_ms.size(), 0)
 
 
-func pending_impact_count() -> int:
-	return _impact_queue.size()
-
-
 func _impact_playback_delay_ms() -> float:
 	if impact_delay_override_ms >= 0.0:
 		return impact_delay_override_ms
@@ -2027,12 +1991,6 @@ func _on_net_peer_joined(peer_id: int, slot_id: int, _player_name: String) -> vo
 	if bool(_session().is_offline()) or not is_match_live() or _replay_pending.has(peer_id):
 		return
 	_replay_world_to(peer_id)
-
-
-## Whether a late-join world replay is being applied here (client only). While
-## true, Events.world_replay_changed(true) has been emitted and not yet undone.
-func is_replaying_world() -> bool:
-	return _replaying_id > 0
 
 
 func _begin_world_replay(replay_id: int) -> void:
@@ -2136,11 +2094,6 @@ func _tick_replay_timeouts(delta: float) -> void:
 		var session: Variant = _session()
 		if session != null and session.has_method(&"kick_peer"):
 			session.kick_peer(peer_id, Net.LeaveReason.TIMEOUT)
-
-
-## Whether `peer_id` still owes the host an ack for its world replay.
-func replay_pending_for(peer_id: int) -> bool:
-	return _replay_pending.has(peer_id)
 
 
 ## Host only. Spec 2.6 "Late join / reconnect: Send the full world state in
@@ -2377,9 +2330,9 @@ func _slot_replay_args(slot_id: int) -> Array:
 func _apply_slot_replay(args: Array) -> void:
 	# 8 args before 10 adds the after-next gift and its carrier.
 	var has_after: bool = args.size() == SLOT_REPLAY_ARGS
-	if (args.size() != SLOT_REPLAY_ARGS_LEGACY and not has_after) or not args[0] is int or not args[3] is int or not args[5] is bool:
+	if (args.size() != SLOT_REPLAY_ARGS_BASE and not has_after) or not args[0] is int or not args[3] is int or not args[5] is bool:
 		return
-	for index: int in (SLOT_REPLAY_ID_ARGS_LEGACY if not has_after else SLOT_REPLAY_ID_ARGS):
+	for index: int in (SLOT_REPLAY_ID_ARGS_BASE if not has_after else SLOT_REPLAY_ID_ARGS):
 		if not (args[index] is StringName or args[index] is String):
 			return
 	if not (args[4] is float or args[4] is int):
@@ -2392,8 +2345,8 @@ func _apply_slot_replay(args: Array) -> void:
 	var locked: bool = args[5]
 	var held_special: StringName = StringName(args[6])
 	var next_special: StringName = StringName(args[7])
-	var after_special: StringName = StringName(args[SLOT_REPLAY_ARGS_LEGACY]) if has_after else &""
-	var after_carrier: StringName = StringName(args[SLOT_REPLAY_ARGS_LEGACY + 1]) if has_after else &""
+	var after_special: StringName = StringName(args[SLOT_REPLAY_ARGS_BASE]) if has_after else &""
+	var after_carrier: StringName = StringName(args[SLOT_REPLAY_ARGS_BASE + 1]) if has_after else &""
 	var authority: Variant = _authority()
 	var running: MatchConfig = authority.config
 	if running == null or slot_id < 0 or slot_id >= int(authority.slot_count()):

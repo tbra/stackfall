@@ -191,7 +191,7 @@ func apply_event(event: StringName, args: Array) -> void:
 				return
 			if not is_finite(origin.distance_to(landing)) or origin.y < landing.y:
 				return
-			if _net._gift_wire_phases.has(gift_id) and int(_net._gift_wire_phases[gift_id]) != MatchNet.GiftWirePhase.LEGACY:
+			if _net._gift_wire_phases.has(gift_id) and int(_net._gift_wire_phases[gift_id]) != MatchNet.GiftWirePhase.SPAWN_ONLY:
 				return
 			_authority().apply_replicated_gift_flight(gift_id, origin, landing)
 			_net._set_gift_wire_phase(gift_id, MatchNet.GiftWirePhase.FALLING)
@@ -214,10 +214,10 @@ func apply_event(event: StringName, args: Array) -> void:
 				return
 			var gift_id: int = int(args[0])
 			var position: Vector2 = args[1] as Vector2
-			if _net._gift_spawn_notified.has(gift_id) or not _net._gift_wire_ok(gift_id, position) or _net._gift_wire_phases.get(gift_id, -1) in [MatchNet.GiftWirePhase.LEGACY, MatchNet.GiftWirePhase.LANDED, MatchNet.GiftWirePhase.REMOVED]:
+			if _net._gift_spawn_notified.has(gift_id) or not _net._gift_wire_ok(gift_id, position) or _net._gift_wire_phases.get(gift_id, -1) in [MatchNet.GiftWirePhase.SPAWN_ONLY, MatchNet.GiftWirePhase.LANDED, MatchNet.GiftWirePhase.REMOVED]:
 				return
 			if not _net._gift_wire_phases.has(gift_id):
-				_net._set_gift_wire_phase(gift_id, MatchNet.GiftWirePhase.LEGACY)
+				_net._set_gift_wire_phase(gift_id, MatchNet.GiftWirePhase.SPAWN_ONLY)
 			_authority().apply_replicated_gift_spawned(gift_id, position)
 			_net._gift_spawn_notified[gift_id] = true
 			Events.gift_spawned.emit(gift_id, position)

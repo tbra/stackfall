@@ -98,11 +98,6 @@ func drain(now: float) -> Array:
 	return result
 
 
-## Payloads still waiting.
-func pending_count() -> int:
-	return _queue.size()
-
-
 ## Packets submitted since the last reset, for the debug overlay.
 func submitted_count() -> int:
 	return _submitted_count

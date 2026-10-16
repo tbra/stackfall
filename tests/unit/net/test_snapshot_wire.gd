@@ -215,8 +215,8 @@ func test_an_inbound_packet_reaches_the_interpolator() -> void:
 	}])
 	_sync.call("receive_packet", packet)
 
-	var interp: Interpolator = _sync.call("interpolator") as Interpolator
-	assert_eq(interp.buffered_count(block.net_id), 1, "the sample was buffered")
+	var interp: Interpolator = _sync.get("_interpolator") as Interpolator
+	assert_true(Array(interp.tracked_ids()).has(block.net_id), "the sample was buffered")
 	assert_eq(interp.dropped_unknown_count(), 0, "and nothing was dropped")
 
 
@@ -233,7 +233,7 @@ func test_a_sample_for_an_unspawned_body_is_dropped_and_counted() -> void:
 	}])
 	_sync.call("receive_packet", packet)
 
-	var interp: Interpolator = _sync.call("interpolator") as Interpolator
+	var interp: Interpolator = _sync.get("_interpolator") as Interpolator
 	assert_eq(interp.dropped_unknown_count(), 1, "the unknown body was counted")
-	assert_eq(interp.buffered_count(4242), 0, "and buffered nothing")
+	assert_false(Array(interp.tracked_ids()).has(4242), "and buffered nothing")
 

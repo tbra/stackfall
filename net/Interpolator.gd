@@ -21,8 +21,8 @@ extends RefCounted
 ## long ago the newest snapshot arrived, not the raw newest host time: the raw
 ## value is a 30 Hz staircase, so chasing it directly would park the render
 ## clock half an interval further behind than asked and sawtooth by 33 ms.
-## `advance()` accumulates that projection, `note_snapshot()` resets it, and
-## `render_lag_ms()` is therefore exactly `delay_ms()` on a clean stream.
+## `advance()` accumulates that projection and `note_snapshot()` resets it, so
+## the render clock sits exactly `delay_ms()` behind it on a clean stream.
 ##
 ## **Unknown net_ids are dropped, not buffered.** An unreliable snapshot can
 ## overtake the reliable spawn RPC that introduces a body, so a sample may name
@@ -301,12 +301,6 @@ func delay_ms() -> float:
 	return clampf(_delay_ms, _config.min_interp_delay_ms, _config.max_interp_delay_ms)
 
 
-## Smoothed absolute deviation of inter-arrival time from the nominal snapshot
-## interval, in milliseconds. This is the "measured jitter" the delay tracks.
-func jitter_ms() -> float:
-	return _jitter_ms
-
-
 ## Fraction of snapshots missing from the sequence, 0..1, over the recent
 ## window. Reported, never acted on: a lossy link must change the delay, not
 ## the simulation.
@@ -317,12 +311,6 @@ func loss_fraction() -> float:
 	if expected <= 0:
 		return 0.0
 	return clampf(1.0 - float(_arrivals.size()) / float(expected), 0.0, 1.0)
-
-
-## Samples currently held for `net_id`, for tests and the debug overlay.
-func buffered_count(net_id: int) -> int:
-	var track: Track = _buffers.get(net_id) as Track
-	return track.samples.size() if track != null else 0
 
 
 ## Snapshot samples that named a net_id the client has not seen spawn, since
@@ -336,15 +324,6 @@ func dropped_unknown_count() -> int:
 ## tests and the debug overlay; gameplay never reads it.
 func render_time_ms() -> float:
 	return _render_time_ms
-
-
-## How far behind the host the render clock actually sits right now, in
-## milliseconds, against the host clock projected forward from the newest
-## snapshot. On a clean stream this equals delay_ms().
-func render_lag_ms() -> float:
-	if not _has_stream:
-		return 0.0
-	return float(_newest_host_time_ms) + _ms_since_newest - _render_time_ms
 
 
 func _target_delay_ms() -> float:

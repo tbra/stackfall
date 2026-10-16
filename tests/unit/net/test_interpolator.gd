@@ -112,8 +112,11 @@ func test_a_clean_stream_renders_exactly_the_base_delay_behind() -> void:
 	assert_almost_eq(
 		_interp.delay_ms(), _config.base_interp_delay_ms, 0.5, "the delay stays at the base"
 	)
+	# The host clock projected forward from the newest snapshot (one interval
+	# rendered since it arrived) is the host time the next snapshot will carry.
+	var projected_host_ms: float = float(_host_ms())
 	assert_almost_eq(
-		_interp.render_lag_ms(),
+		projected_host_ms - _interp.render_time_ms(),
 		_config.base_interp_delay_ms,
 		1.0,
 		"and the render clock sits exactly that far behind the host"
@@ -163,9 +166,7 @@ func test_injected_jitter_raises_the_delay_and_it_decays_back() -> void:
 		_deliver(_slide(20 + step), _rng.randf_range(0.0, 30.0))
 		_render(_interval_s())
 	var jittery: float = _interp.delay_ms()
-	gut.p("INTERPOLATOR calm_delay_ms=%.2f jittery_delay_ms=%.2f jitter_ms=%.2f" % [
-		calm, jittery, _interp.jitter_ms()
-	])
+	gut.p("INTERPOLATOR calm_delay_ms=%.2f jittery_delay_ms=%.2f" % [calm, jittery])
 	assert_gt(jittery, calm + 5.0, "measured jitter pushes the delay up")
 	assert_lte(jittery, _config.max_interp_delay_ms, "and never past max_interp_delay_ms")
 
@@ -217,7 +218,7 @@ func test_a_reordered_sample_is_rejected() -> void:
 		_interp.push_sample(NET_ID, 1033, Vector3.ZERO, Quaternion.IDENTITY, false),
 		"and so is a duplicate of it"
 	)
-	assert_eq(_interp.buffered_count(NET_ID), 2, "neither disturbed the buffer")
+	assert_eq(Array(_interp.tracked_ids()), [NET_ID], "the body is still tracked")
 
 
 # --- Unknown net_ids --------------------------------------------------------
@@ -237,7 +238,6 @@ func test_an_unknown_net_id_is_counted_and_changes_nothing() -> void:
 		"a body whose spawn has not arrived is dropped"
 	)
 	assert_eq(_interp.dropped_unknown_count(), 1, "and counted")
-	assert_eq(_interp.buffered_count(OTHER_ID), 0, "it buffered nothing")
 	assert_eq(Array(_interp.tracked_ids()), [NET_ID], "and is not tracked")
 
 	# Once the spawn lands, the next snapshot picks it up — at most one

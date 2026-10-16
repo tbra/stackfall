@@ -1240,7 +1240,7 @@
    "net/MatchEventApplier.gd: if _net._gift_spawn_notified.has(gift_id) or not _net._gift_wire_ok(gift_id, position) or _net._gift_wire_phases.get(gift_id, -1) in [MatchNet.GiftWirePhase.LEGACY, MatchNet.GiftWirePhase.LANDED, MatchNet.GiftWirePhase.REMOVED]:",
    "net/MatchEventApplier.gd: if _net._gift_wire_phases.has(gift_id) and int(_net._gift_wire_phases[gift_id]) != MatchNet.GiftWirePhase.LEGACY:",
    "net/MatchNet.gd: # spawn/flight from resurrecting a claimed gift. Legacy spawn can upgrade once.",
-   "net/MatchNet.gd: LEGACY = _WIRE_PHASE_OWNER.WIRE_LEGACY,",
+   "net/MatchNet.gd: SPAWN_ONLY = _WIRE_PHASE_OWNER.WIRE_LEGACY,",
    "net/MatchNet.gd: const SLOT_REPLAY_ARGS: int = SLOT_REPLAY_ARGS_LEGACY + 2",
    "net/MatchNet.gd: const SLOT_REPLAY_ARGS_LEGACY: int = 8",
    "net/MatchNet.gd: const SLOT_REPLAY_ID_ARGS_LEGACY: Array[int] = [1, 2, 6, 7]",

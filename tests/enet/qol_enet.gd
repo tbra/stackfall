@@ -266,7 +266,7 @@ func _host_backlog(mask: int) -> Array:
 	await _wait(NEGATIVE_WINDOW_S)
 	var b0: int = Match.qol_backlog_count(HOST_SLOT)
 	var b1: int = Match.qol_backlog_count(CLIENT_SLOT)
-	var drops: int = int(_match_net.call(&"auto_drops", CLIENT_SLOT))
+	var drops: int = int((_match_net.get(&"_auto_drops") as Dictionary).get(CLIENT_SLOT, 0))
 	var ok: bool
 	if on:
 		# Queued, never forced: no expiry signal, no auto-drop for the remote seat.

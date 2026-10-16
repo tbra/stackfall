@@ -71,7 +71,7 @@ func before_each() -> void:
 	_match.weather_ref = _weather
 	_snow_net = SnowNet.new()
 	_snow_net.set_providers(_net, _match)
-	_snow_net.set_tuning(_snow)
+	_snow_net._tuning = _snow
 	add_child_autofree(_snow_net)
 
 
@@ -120,7 +120,7 @@ func test_client_draws_caps_but_never_colliders() -> void:
 	_start_client_snow()
 	var block: Block = _client_block(NET_ID, Vector3.ZERO)
 	assert_true(_snow_net.apply_state(_state([NET_ID], _a_disc_cell())))
-	assert_true(_snow_net.is_client_building(), "drawing is amortised over frames")
+	assert_null(SnowCaps.cap_mesh(block, SnowCaps.CAP_NAME), "drawing is amortised over frames")
 	_snow_net.step_client(BIG_BUDGET)
 	assert_not_null(SnowCaps.cap_mesh(block, SnowCaps.CAP_NAME), "cap drawn on the client's block")
 	assert_eq(SnowCaps.lump_colliders(block).size(), 0, "no collider on a client block")

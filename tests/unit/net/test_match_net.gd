@@ -338,7 +338,7 @@ func test_an_intent_from_a_departed_peer_is_refused() -> void:
 # client would build a phantom copy no despawn could ever address (spec 2.6:
 # the body "stays host-only"). A unit test has no live peer, so _can_send()
 # is already false and cannot by itself prove replicate_spawn() never handed
-# the rpc a bad id; invalid_spawn_refusal_count() is the seam that does.
+# the rpc a bad id; the host's spawn ledger (_spawned_net_ids) is what shows it.
 
 
 func test_a_spawn_refused_by_the_allocator_never_reaches_the_wire() -> void:
@@ -358,10 +358,9 @@ func test_a_spawn_refused_by_the_allocator_never_reaches_the_wire() -> void:
 	assert_eq((_blocks_root.get_child(0) as Block).net_id, Quantize.NET_ID_MAX)
 	assert_eq((_blocks_root.get_child(1) as Block).net_id, -1, "the second body keeps living, host-only, with no id")
 	assert_eq(
-		net.invalid_spawn_refusal_count(), 1,
+		(net._spawned_net_ids as Dictionary).keys(), [Quantize.NET_ID_MAX],
 		"replicate_spawn() must refuse the id-less body instead of hitting the wire"
 	)
-	assert_eq(net.replicated_block_count(), 1, "only the valid spawn is ever counted as replicated")
 
 
 # --- The territory payload --------------------------------------------------

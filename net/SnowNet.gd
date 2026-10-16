@@ -64,10 +64,6 @@ func set_providers(net_provider: Variant, match_provider: Variant) -> void:
 	_match_provider = match_provider
 
 
-func set_tuning(tuning: SnowTuning) -> void:
-	_tuning = tuning
-
-
 func _session() -> Variant:
 	return _net_provider if _net_provider != null else Net
 
@@ -187,10 +183,6 @@ func clear_client() -> void:
 func step_client(budget: int) -> void:
 	if _builder != null and not _builder.is_idle():
 		_builder.step(budget)
-
-
-func is_client_building() -> bool:
-	return _builder != null and not _builder.is_idle()
 
 
 ## Diffs the applied state against what is drawn and hands the changes to

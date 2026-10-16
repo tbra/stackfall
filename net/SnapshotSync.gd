@@ -86,10 +86,6 @@ const MAX_FRAGMENTS: int = 255
 var _registry: Node = null
 var _bounds: AABB = AABB()
 var _running: bool = false
-## test seam: the session whose is_peer_disconnecting() the send
-## path asks (a test drives a second Net instance on its own MultiplayerAPI).
-## null keeps the real Net autoload.
-var _net_provider: Variant = null
 ## Set by Net._ready via bind_net(); see _net().
 var _bound_net: Node = null
 const NET_NODE_NAME: NodePath = ^"Net"
@@ -134,8 +130,6 @@ var _disk: Node3D = null
 
 var _interpolator: Interpolator = null
 var _last_noted_sequence: int = -1
-var _disk_position: Vector3 = Vector3.ZERO
-var _disk_rotation: Quaternion = Quaternion.IDENTITY
 var _stats_accumulator: float = 0.0
 
 ## Disk pose interpolation: a 2-sample bracket (oldest,
@@ -440,20 +434,6 @@ func measured_loss() -> float:
 	return _interpolator.loss_fraction() if _interpolator != null else 0.0
 
 
-func interpolator() -> Interpolator:
-	return _interpolator
-
-
-## The disk pose the last snapshot carried, in world space. Until M4 the disk
-## is static, so this only proves the channel works; Field reads it from M4 on.
-func disk_position() -> Vector3:
-	return _disk_position
-
-
-func disk_rotation() -> Quaternion:
-	return _disk_rotation
-
-
 ## Puts one body into the state a client keeps every synced body in: kinematic
 ## freeze, so Jolt never integrates it and only the interpolator's writes move
 ## it (spec 2.6: "Clients set every synced RigidBody3D to freeze = true").
@@ -634,12 +614,6 @@ func set_simulation(lag_ms: float, jitter_ms: float, loss: float) -> void:
 		_sim.configure(lag_ms, jitter_ms, loss)
 
 
-## The inbound simulator, or null outside a match. The debug overlay reads its
-## counters; nothing else should touch it.
-func simulation() -> NetSim:
-	return _sim
-
-
 # --- Internals --------------------------------------------------------------
 
 func _apply_packet(packet: PackedByteArray) -> void:
@@ -656,9 +630,9 @@ func _apply_packet(packet: PackedByteArray) -> void:
 
 	if (int(fragment["flags"]) & FLAG_DISK_STATE) != 0:
 		var disk_transform: Transform3D = fragment["disk_transform"] as Transform3D
-		_disk_position = disk_transform.origin
-		_disk_rotation = disk_transform.basis.get_rotation_quaternion()
-		_push_disk_sample(host_time_ms, _disk_position, _disk_rotation)
+		_push_disk_sample(
+			host_time_ms, disk_transform.origin, disk_transform.basis.get_rotation_quaternion()
+		)
 
 	for entry: Variant in fragment["bodies"] as Array:
 		var body: Dictionary = entry as Dictionary
@@ -680,13 +654,8 @@ func _is_spawned(net_id: int) -> bool:
 	return _registry.call("block_for_net_id", net_id) != null
 
 
-## Test seam; see _net_provider. null restores the real Net.
-func set_net_provider(provider: Variant) -> void:
-	_net_provider = provider
-
-
 func _session() -> Variant:
-	return _net_provider if _net_provider != null else _net()
+	return _net()
 
 
 ## Autoload decoupling S3a: Net binds itself in its _ready (bind_net); an
@@ -707,10 +676,6 @@ func _net() -> Node:
 ## The one network send (a seam so tests can count sends without a peer).
 func _send_packet(packet: PackedByteArray) -> void:
 	NetFanout.broadcast(self, _session(), &"net_snapshot", [packet])
-
-
-func _remote_peer_count() -> int:
-	return _remote_peers().size()
 
 
 ## Sorted remote peer ids (empty without a multiplayer peer).

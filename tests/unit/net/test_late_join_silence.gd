@@ -211,8 +211,7 @@ func test_the_replay_rebuilds_the_world_without_a_single_sound() -> void:
 	watch_signals(Events)
 	_apply(client_net, capture[0])
 	assert_eq(StringName(capture[0][1]), &"net_match_start")
-	assert_true(client_net.is_replaying_world(), "the replay's opening message turns the silence on")
-	assert_true(_sfx._world_replay_silent, "Sfx heard it")
+	assert_true(_sfx._world_replay_silent, "the replay's opening message turns the silence on")
 	for index: int in range(1, capture.size()):
 		_apply(client_net, capture[index])
 		assert_false(_any_player_playing(), "message %d (%s) made a sound" % [index, capture[index][1]])
@@ -226,8 +225,7 @@ func test_the_replay_rebuilds_the_world_without_a_single_sound() -> void:
 	assert_eq(int(_sfx._last_gift_spawn_msec), -1, "the gift jingle never played")
 
 	# The silence is exactly the replay: on at the start, off at net_replay_end.
-	assert_false(client_net.is_replaying_world(), "net_replay_end lifted it")
-	assert_false(_sfx._world_replay_silent)
+	assert_false(_sfx._world_replay_silent, "net_replay_end lifted it")
 	assert_eq(get_signal_emit_count(Events, "world_replay_changed"), 2)
 	assert_eq(get_signal_parameters(Events, "world_replay_changed", 0), [true])
 	assert_eq(get_signal_parameters(Events, "world_replay_changed", 1), [false])
@@ -246,7 +244,6 @@ func test_leaving_the_session_mid_replay_lifts_the_silence() -> void:
 	assert_true(_sfx._world_replay_silent)
 	watch_signals(Events)
 	client_net._on_net_mode_changed(Net.Mode.OFFLINE)
-	assert_false(client_net.is_replaying_world())
 	assert_false(_sfx._world_replay_silent, "Sfx hears the end too")
 	assert_eq(get_signal_parameters(Events, "world_replay_changed", 0), [false])
 
@@ -257,11 +254,10 @@ func test_a_replay_that_outlives_the_ack_timeout_stops_muting() -> void:
 	_make_sfx()
 	_apply(client_net, capture[0])
 	client_net._tick_world_replay_expiry()
-	assert_true(client_net.is_replaying_world(), "still inside the timeout")
+	assert_true(_sfx._world_replay_silent, "still inside the timeout")
 	client_net._replaying_since_ms -= int(client_net.config.replay_ack_timeout * 1000.0) + 1
 	client_net._tick_world_replay_expiry()
-	assert_false(client_net.is_replaying_world(), "the host would have dropped this peer by now")
-	assert_false(_sfx._world_replay_silent)
+	assert_false(_sfx._world_replay_silent, "the host would have dropped this peer by now")
 
 
 # --- Impacts are not part of the replay -----------------------------------------

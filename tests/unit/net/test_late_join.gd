@@ -159,7 +159,7 @@ func test_the_joiners_world_matches_the_host_after_the_replay() -> void:
 
 	host_net.capture_replay = true
 	host_net._on_net_peer_joined(3, 3, "Latey")
-	assert_true(host_net.replay_pending_for(3), "the joiner owes an ack")
+	assert_true(host_net._replay_pending.has(3), "the joiner owes an ack")
 
 	# What the host holds at replay time, read in the same frame: the bodies
 	# keep simulating once a frame passes, the rest only moves with
@@ -264,12 +264,12 @@ func test_an_unacked_replay_times_out_and_drops_the_peer() -> void:
 	_start_playing(_config(2, MatchConfig.GameMode.CLASSIC))
 	net.capture_replay = true
 	net._on_net_peer_joined(2, 1, "Latey")
-	assert_true(net.replay_pending_for(2))
+	assert_true(net._replay_pending.has(2))
 	net._tick_replay_timeouts(net.config.replay_ack_timeout * 0.5)
-	assert_true(net.replay_pending_for(2), "still waiting inside the timeout")
+	assert_true(net._replay_pending.has(2), "still waiting inside the timeout")
 	assert_eq(session.kick_peer_calls.size(), 0)
 	net._tick_replay_timeouts(net.config.replay_ack_timeout)
-	assert_false(net.replay_pending_for(2), "the gate no longer holds a dead peer")
+	assert_false(net._replay_pending.has(2), "the gate no longer holds a dead peer")
 	assert_eq(net.replays_timed_out, 1)
 	assert_eq(session.kick_peer_calls.size(), 1)
 	assert_eq(int(session.kick_peer_calls[0]["peer_id"]), 2)
@@ -299,11 +299,11 @@ func test_intents_before_the_replay_ack_are_refused() -> void:
 	assert_true(net.cursor_for_slot(2).is_empty(), "its cursor is not stored for auto-drop")
 
 	net._handle_replay_ack(3, replay_id + 1)
-	assert_true(net.replay_pending_for(3), "a forged or stale ack is ignored")
+	assert_true(net._replay_pending.has(3), "a forged or stale ack is ignored")
 	net._handle_replay_ack(2, replay_id)
-	assert_true(net.replay_pending_for(3), "another peer cannot ack for it")
+	assert_true(net._replay_pending.has(3), "another peer cannot ack for it")
 	net._handle_replay_ack(3, replay_id)
-	assert_false(net.replay_pending_for(3), "the right ack lifts the gate")
+	assert_false(net._replay_pending.has(3), "the right ack lifts the gate")
 	assert_eq(net.replays_acknowledged, 1)
 
 	net._handle_place_intent(3, 2, _home(2), 0, Quaternion.IDENTITY, Match.feed_seq(2))

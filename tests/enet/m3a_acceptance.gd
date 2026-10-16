@@ -390,11 +390,11 @@ func _intents_refused(slot_id: int) -> int:
 ## auto-drop, not a bug, and it must count here or the invariant it is
 ## proving would be checked with a term missing.
 func _auto_drops(slot_id: int) -> int:
-	return int(_match_net.call(&"auto_drops", slot_id))
+	return int((_match_net.get(&"_auto_drops") as Dictionary).get(slot_id, 0))
 
 
 func _replicated_block_count() -> int:
-	return int(_match_net.call(&"replicated_block_count"))
+	return (_match_net.get(&"_spawned_net_ids") as Dictionary).size()
 
 
 func _feed_seq_for(slot_id: int) -> int:
