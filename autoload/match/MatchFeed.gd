@@ -670,24 +670,6 @@ func apply_replicated_next_gift(slot_id: int, shape_id: StringName) -> void:
 		_next_gift_shapes[slot_id] = shape
 
 
-## Test-only seam (tests/unit/net/test_match_net.gd, test_remote_intent_
-## validation.gd): unlocks `slot_id`'s post-placement interval immediately
-## and starts a fresh one for it, exactly what _tick_feed()'s own boundary-
-## crossing branch does once `config.block_timer` really elapses. Lets a
-## unit test place a slot's held shape more than once in the same frame --
-## 's fixed-interval cadence otherwise refuses every deliberate
-## release after the first with REASON_NO_BLOCK until that many real
-## _process() ticks run. Game code never calls this; it exists so tests don't
-## have to reach into _release_locked/_feed_time_left/_feed_expired directly.
-func debug_unlock_slot(slot_id: int) -> void:
-	if slot_id < 0 or slot_id >= _release_locked.size():
-		return
-	_release_locked[slot_id] = false
-	if _match.config != null:
-		_feed_time_left[slot_id] = _match.config.block_timer
-	_feed_expired[slot_id] = false
-
-
 # --- The client's read model (spec 2.6) -------------------------------------
 
 ## The host issued `slot_id` a block. Sets the held shape the ghost and the

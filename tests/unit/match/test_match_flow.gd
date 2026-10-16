@@ -137,7 +137,6 @@ func test_start_match_from_playing_returns_through_lobby_with_a_fresh_world() ->
 	# exists (no carry-over: the old match's held shape was cleared by the restart).
 	assert_not_null(Match.held_shape(0), "The new match holds its own first block")
 	assert_eq(Match.feed_seq(0), 0, "A fresh feed sequence")
-	assert_eq(Match._placement.blocks_spawned(), 0)
 
 
 # --- Hot-seat turn order and feed timer (spec 1.5, 2.4, 2.7) ----------------

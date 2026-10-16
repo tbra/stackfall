@@ -125,7 +125,9 @@ func _block_count() -> int:
 ## also run every OTHER slot's independent interval down by that much and
 ## risk an unrelated auto-drop in a test that isn't about auto-drop at all.
 func _unlock_slot(slot_id: int) -> void:
-	Match._feed.debug_unlock_slot(slot_id)
+	Match._feed._release_locked[slot_id] = false
+	Match._feed._feed_time_left[slot_id] = Match.config.block_timer
+	Match._feed._feed_expired[slot_id] = false
 
 
 # --- The host's local player never round-trips ------------------------------

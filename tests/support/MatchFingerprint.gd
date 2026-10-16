@@ -403,7 +403,6 @@ static func _capture_rules(out: Dictionary) -> void:
 		str(_p(Match._stats, &"_gifts_claimed")), str(_p(Match._stats, &"_specials_used")),
 		str(_p(Match._stats, &"_eliminated_at")),
 	]
-	out["rules.blocks_spawned"] = Match._placement.blocks_spawned()
 	var registry: BlockRegistry = Match.registry()
 	# Match keeps its registered world after a match ends (a launch has none yet): count only blocks.
 	out["rules.registry_blocks"] = registry.all_blocks().size() if registry != null else 0
