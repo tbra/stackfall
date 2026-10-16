@@ -140,7 +140,6 @@ var _state_texture: ImageTexture = null
 ## hole + contested bits as an RG8 mask (0/255), bound
 ## linear-filtered so the void shader reads a smooth hole field.
 var _hole_texture: ImageTexture = null
-var _hole_cell_image: Image = null
 ## fix2b: whether the last uploaded hole mask has any hole cell
 ## (the shader's void_present uniform).
 var _hole_any: bool = false
@@ -404,8 +403,7 @@ func push_cells(
 	_state_cell_image = state_image
 	_cell_texture = _store(_cell_texture, owner_image)
 	_state_texture = _store(_state_texture, state_image)
-	_hole_cell_image = _hole_mask_image(state_image.get_data(), side)
-	_hole_texture = _store(_hole_texture, _hole_cell_image)
+	_hole_texture = _store(_hole_texture, _hole_mask_image(state_image.get_data(), side))
 	_material.set_shader_parameter(&"territory_hole", _hole_texture)
 	# fix2b: lets the shader skip the void field (a texture
 	# fetch + fwidth per disc pixel) while no cell is a hole.
@@ -431,16 +429,6 @@ func _hole_mask_image(state_bytes: PackedByteArray, side: int) -> Image:
 		if (state_bytes[i] & STATE_CONTESTED) != 0:
 			mask[i * 2 + 1] = 255
 	return Image.create_from_data(side, side, false, Image.FORMAT_RG8, mask)
-
-
-## The smoothed hole mask texture (tests read it).
-func hole_mask_texture() -> ImageTexture:
-	return _hole_texture
-
-
-## CPU copy of the hole mask (ImageTexture.get_image() is empty headless).
-func hole_mask_image() -> Image:
-	return _hole_cell_image
 
 
 ## the analytic circle list a solve step just produced —
@@ -905,11 +893,6 @@ func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 ## preset fix2b); tests read it.
 func disc_fine_detail() -> bool:
 	return _disc_fine_detail
-
-
-## Whether the hole void swirl is animating (graphics preset); tests read it.
-func void_animated() -> bool:
-	return _void_animated
 
 
 ## pushes HoleVisualTuning's void look onto the disc shader.

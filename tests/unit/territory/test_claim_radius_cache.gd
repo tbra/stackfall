@@ -2,9 +2,9 @@ extends GutTest
 ## WinChecker.claim_at() reads the raster over a cached list of
 ## in-radius cells (ClaimCells) instead of rescanning the square around each beacon
 ## every solve. The cache must change cost, never results: every claim below is
-## compared with _reference_claim_at, a verbatim copy of the pre-cache implementation, on several grid sizes, radii, goal
-## layouts and raster contents, including the invalidation cases (radius change, new
-## grid geometry, new goal layout, new raster contents under a warm cache).
+## compared with _reference_claim_at, a per-cell copy of the original uncached
+## implementation, on several grid sizes, radii, goal layouts and raster contents
+## (including holes inside the radius and new raster contents under a warm cache).
 
 const NO_TEAM: int = WinChecker.NO_TEAM
 const NO_GROUP: int = TerritoryGroups.NO_GROUP
@@ -85,7 +85,7 @@ func _points(field_radius: float) -> Array[Vector2]:
 	]
 
 
-## The implementation before verbatim: the oracle.
+## The uncached per-cell implementation: the oracle.
 func _reference_claim_at(raster: TerritoryRaster, point: Vector2, claim_radius: float) -> Vector2i:
 	var grid: CellGrid = raster.grid()
 	var center: Vector2i = grid.world_to_cell(point)
@@ -156,11 +156,7 @@ func test_claim_at_matches_the_uncached_reference_across_fixtures_points_and_rad
 	assert_gt(claimed, 40, "enough fixtures produce a real claim (not all NO_TEAM)")
 
 
-# --- the cache really caches ----------------------------------------------------
-
-
 # --- invalidation ---------------------------------------------------------------
-
 
 func test_changing_raster_contents_under_a_warm_cache_is_never_stale() -> void:
 	# Only geometry is cached; ownership is read fresh on every call.
@@ -190,7 +186,42 @@ func test_changing_raster_contents_under_a_warm_cache_is_never_stale() -> void:
 	assert_eq(ClaimCells.build_count(), 3, "three radii at one point, built once across every layout")
 
 
-# --- the raster's one-pass tally (the claim_at read path) ------------------------
+# --- holes inside the claim radius ----------------------------------------------
+
+## Punches holes into a settled raster the two ways a real one gets them: forced
+## (force_hole_cell, inside a single team's own circle -- the stored team id stays set but
+## team_at() reads unowned) and natural (a contested cell whose timer ran out).
+func _punch_holes(raster: TerritoryRaster, circles: Array[InfluenceCircle]) -> void:
+	var grid: CellGrid = raster.grid()
+	for point: Vector2 in [Vector2(-8.0, 0.0), Vector2(-7.0, 1.0), Vector2(-3.0, 4.0), Vector2(7.0, 1.0), Vector2(0.5, 0.5)]:
+		var cell: Vector2i = grid.world_to_cell(point)
+		raster.force_hole_cell(cell.x, cell.y, 1.0, true)
+	var groups: TerritoryGroups = TerritorySolver.new(_tuning).solve(circles)
+	for _step: int in range(40):
+		raster.update(circles, groups, 0.1, true, true)
+
+
+func test_claims_stay_exact_with_holes_inside_the_radius() -> void:
+	var compared: int = 0
+	var changed: int = 0
+	for fixture: Array in _fixtures():
+		var circles: Array[InfluenceCircle] = fixture[3]
+		var raster: TerritoryRaster = _raster_for(fixture[1], fixture[2], circles)
+		var intact: Dictionary = {}
+		for point: Vector2 in _points(fixture[1]):
+			for radius: float in RADII:
+				intact[[point, radius]] = WinChecker.claim_at(raster, point, radius)
+		_punch_holes(raster, circles)
+		for point: Vector2 in _points(fixture[1]):
+			for radius: float in RADII:
+				var want: Vector2i = _reference_claim_at(raster, point, radius)
+				var label: String = "%s point=%s radius=%.1f" % [fixture[0], point, radius]
+				assert_eq(WinChecker.claim_at(raster, point, radius), want, "holes: " + label)
+				compared += 1
+				if want != intact[[point, radius]]:
+					changed += 1
+	assert_gt(compared, 250, "the hole matrix ran")
+	assert_gt(changed, 0, "the holes change at least one claim, so the hole branch is exercised")
 
 
 # --- WinChecker.update still agrees with the per-goal reference -----------------
