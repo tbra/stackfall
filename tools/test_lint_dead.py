@@ -85,6 +85,21 @@ class FuncTest(unittest.TestCase):
         found = keys({"game/Main.gd": main, "tests/unit/test_a.gd": test}, "test-only-func")
         self.assertEqual(found, ["game/Main.gd:orphan", "game/Main.gd:tested_only"])
 
+    def test_call_through_a_base_type_reaches_overrides_but_unrelated_homonyms_stay_ambiguous(self):
+        main = ('extends Node\nfunc _ready() -> void:\n\tport().run()\n\tother().go()\n'
+                'func port() -> BasePort:\n\treturn null\nfunc other() -> Node:\n\treturn null\n')
+        base = 'class_name BasePort\nextends Node\nfunc run() -> void:\n\tpass\nfunc go() -> void:\n\tpass\n'
+        mid = 'class_name MidFlow\nextends BasePort\nfunc run() -> void:\n\tpass\n'
+        leaf = 'class_name LeafFlow\nextends "res://game/MidFlow.gd"\nfunc run() -> void:\n\tpass\n'
+        stray = 'extends Node\nfunc go() -> void:\n\tpass\n'
+        files = {"game/Main.gd": main, "game/BasePort.gd": base, "game/MidFlow.gd": mid,
+                 "game/LeafFlow.gd": leaf, "game/Stray.gd": stray}
+        found = keys(files, "test-only-func")
+        self.assertNotIn("game/MidFlow.gd:run", found)
+        self.assertNotIn("game/LeafFlow.gd:run", found)
+        self.assertNotIn("game/BasePort.gd:run", found)
+        self.assertIn("game/BasePort.gd:go", found)
+
     def test_signal_string_and_scene_connection_handlers_are_live(self):
         main = ('extends Node\nsignal done\nfunc _ready() -> void:\n\tdone.connect(Callable(self, "on_done"))\n'
                 '\tcall_deferred("later")\nfunc on_done() -> void:\n\tpass\nfunc later() -> void:\n\tpass\n'

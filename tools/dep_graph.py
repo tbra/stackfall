@@ -117,7 +117,7 @@ BREF_RE = re.compile(r"(?<![\w$%&^@])(?:self\s*\.\s*)?([A-Za-z_]\w*)\b(?!\s*[\w(
 FUNC_RE = re.compile(r"^(\s*)(?:static\s+)?func\s+([A-Za-z_]\w*)\s*\(")
 CLASS_INNER_RE = re.compile(r"^(\s*)class\s+([A-Za-z_]\w*)")
 CLASS_NAME_RE = re.compile(r"^\s*class_name\s+([A-Za-z_]\w*)", re.M)
-EXTENDS_RE = re.compile(r"\bextends\s+([A-Za-z_]\w*(?:\.\w+)*|\"\")")
+EXTENDS_RE = re.compile(r"\bextends\s+([A-Za-z_]\w*(?:\.\w+)*|\" *\")")
 SIGNAL_RE = re.compile(r"^\s*signal\s+([A-Za-z_]\w*)", re.M)
 EMIT_RE = re.compile(r"([A-Za-z_]\w*)\s*\.\s*emit\s*\(")
 CONNECT_RE = re.compile(r"([A-Za-z_]\w*)\s*\.\s*connect\s*\(")
@@ -477,7 +477,7 @@ class Builder(object):
         em = EXTENDS_RE.search(stripped)
         if em:
             ext_val = em.group(1)
-            if ext_val == '""':
+            if ext_val.startswith('"'):  # path-string extends: strings are blanked in `stripped`
                 ln = stripped.count("\n", 0, em.start()) + 1
                 for s in strings:
                     if s["line"] == ln and s["value"].startswith("res://"):
