@@ -3,22 +3,13 @@ extends RefCounted
 ## Whether a block may be dropped where the player wants it, and where it goes
 ## instead when it may not (spec 1.5, 1.4, 2.5).
 ##
-## **Two checks; only one runs in live play.**
 ## validate_point()/closest_valid_point() are the placement contract for
-## **every** MatchConfig.HoleMode -- clarifications "one
-## raycast from the middle of the ghost block straight down; the hit point
-## must be inside your own area and outside every goal flag's area. No cell
-## footprint tests", which the audit's SPEC.md 2.5 "Placement legality" keeps
-## verbatim and extends to reject a contested/holed point too (see
-## validate_point()'s own comment). Package B does the raycast in
-## autoload/Match.gd; everything from the hit point on is here.
-## footprint_cells()/validate() are spec 2.5's original multi-cell check.
-## autoload/Match.gd no longer calls them under any hole_mode; they stay compiled
-## for the bots' footprint scoring; normal play must not reintroduce a footprint test.
-##
-## Spec 2.5: "On the host, the cell under the ghost's footprint must be owned
-## by the placing player's team and not contested or a hole." Every cell of
-## the footprint has to pass, not just the center one.
+## **every** MatchConfig.HoleMode: one raycast from the middle of the ghost
+## block straight down; the hit point must be inside your own area, outside
+## every goal flag's area and not contested or a hole (SPEC.md 2.5 "Placement
+## legality"). The raycast is done in autoload/match/MatchPlacement.gd;
+## everything from the hit point on is here. There is no cell-footprint test;
+## footprint_cells() only serves the bots' footprint scoring.
 ##
 ## Spec 1.4: "When the timer runs out, the held block drops from its current
 ## ghost position. If that spot isn't valid, it drops at the closest valid
@@ -45,10 +36,7 @@ enum Result {
 	OFF_DISK,
 	## The footprint has no cells at all, which means a malformed intent.
 	EMPTY,
-	## The point falls inside a goal flag's no-build zone. Produced only by
-	## validate_point(); appended rather than inserted so the ordinals the
-	## legacy cases already have do not move, and deliberately outside
-	## validate()'s "worst finding wins" severity order, which never sees it.
+	## The point falls inside a goal flag's no-build zone.
 	GOAL_ZONE,
 }
 
@@ -62,7 +50,7 @@ const REASON_HOLE: StringName = &"hole"
 const REASON_OFF_DISK: StringName = &"off_disk"
 const REASON_EMPTY: StringName = &"empty_footprint"
 const REASON_GOAL_ZONE: StringName = &"goal_zone"
-## Raised by Match, not by validate(): the slot is not the hot-seat player
+## Raised by Match, not by validate_point(): the slot is not the hot-seat player
 ## whose turn it is, or it is holding nothing.
 const REASON_NOT_YOUR_TURN: StringName = &"not_your_turn"
 const REASON_NO_BLOCK: StringName = &"no_block"
@@ -92,11 +80,10 @@ const _BOUNDARY_EPSILON: float = 1e-5
 ##
 ## Cells beyond the grid's bounding square cannot be named as row-major indices
 ## and are dropped, so a block held far off the map yields an empty footprint,
-## which validate() reports as EMPTY. The square circumscribes the disk and
-## touches it only at the four cardinal extremes, so everywhere else an
-## overhanging block is caught by OFF_DISK as intended; only in a sliver right
-## at those four points can up to half a cube hang over the rim unnoticed,
-## where it simply topples off.
+## which the bots' scoring treats as no footprint. The square circumscribes the
+## disk and touches it only at the four cardinal extremes; only in a sliver
+## right at those four points can up to half a cube hang over the rim, where it
+## simply topples off.
 static func footprint_cells(
 	cells: Array[Vector3i],
 	basis: Basis,
@@ -152,33 +139,6 @@ static func footprint_cells(
 	return unique
 
 
-## Spec 2.5's check, over every cell of the footprint.
-static func validate(
-	footprint: PackedInt32Array, raster: TerritoryRaster, team_id: int
-) -> Result:
-	if footprint.is_empty():
-		return Result.EMPTY
-
-	var grid: CellGrid = raster.grid()
-	# Result is declared in order of increasing severity, so the worst finding
-	# across the footprint is simply the largest. Keep that ordering if the enum
-	# ever gains a case.
-	var worst: int = Result.VALID
-	for index: int in footprint:
-		var coords: Vector2i = grid.cell_coords(index)
-		var cell: int = Result.VALID
-		if not grid.is_in_disk(coords.x, coords.y):
-			cell = Result.OFF_DISK
-		elif raster.is_hole_index(index):
-			cell = Result.HOLE
-		elif raster.is_contested(coords.x, coords.y):
-			cell = Result.CONTESTED
-		elif raster.team_at(coords.x, coords.y) != team_id:
-			cell = Result.OUTSIDE_TERRITORY
-		worst = maxi(worst, cell)
-	return worst as Result
-
-
 ## The reason StringName for a Result, for Events.placement_rejected.
 static func reason_for(result: Result) -> StringName:
 	match result:
@@ -213,17 +173,16 @@ static func is_no_origin(origin: Vector2) -> bool:
 ## Order matters: off the disk first, because a point past the rim has no cell
 ## to ask anything about; then the goal flags' no-build zones, so a player
 ## standing in their own territory around a flag is told the real reason they
-## cannot build there; then the legacy hole/contested state (SPEC.md 2.2
+## cannot build there; then the hole/contested state (SPEC.md 2.2
 ## "Overlap holes": "Opposing candidate influence creates a contested region
 ## that neither player may use for placement"), so a specific reason beats the
 ## generic OUTSIDE_TERRITORY a contested/holed cell's unowned (-1) team would
 ## otherwise report; then ownership.
 ##
-## is_hole()/is_contested() only ever answer true under the legacy stamp fill
-## (MatchConfig.HoleMode.TEMPORARY/PERMANENT, TerritoryRaster._fill_legacy());
-## the v2 argmax fill (HoleMode.OFF) never sets either, so this same check is
-## exactly the old OFF-only behaviour there -- one function now serves every
-## mode without branching on which fill produced the raster.
+## is_hole()/is_contested() only ever answer true under the stamp fill
+## (MatchConfig.HoleMode.TEMPORARY/PERMANENT); the argmax fill (HoleMode.OFF)
+## never sets either, so one function serves every mode without branching on
+## which fill produced the raster.
 static func validate_point(
 	point: Vector2, raster: TerritoryRaster, team_id: int
 ) -> Result:

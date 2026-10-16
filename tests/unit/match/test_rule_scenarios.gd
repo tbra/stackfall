@@ -140,18 +140,10 @@ func test_scenario_5_a_wide_piece_centred_on_a_legal_point_is_accepted_despite_a
 	var origin: Vector2 = Vector2(-9.2, 0.0)
 	assert_eq(_raster.team_at(_cell_of(origin).x, _cell_of(origin).y), 0, "Setup: the origin point is mine alone.")
 
-	# Old rule (kept for the bench/legacy row only): the whole footprint has
-	# to validate, so a corner past the border rejects the entire piece.
-	var bar4: Array[Vector3i] = [Vector3i(0, 0, 0), Vector3i(1, 0, 0), Vector3i(2, 0, 0), Vector3i(3, 0, 0)]
-	var footprint: PackedInt32Array = PlacementRules.footprint_cells(
-		bar4, Basis.IDENTITY, origin, 1.0, _grid
-	)
-	assert_eq(PlacementRules.validate(footprint, _raster, 0), PlacementRules.Result.CONTESTED,
-		"Setup: the old whole-footprint rule would have rejected this piece (two of its four "
-		+ "cubes land in the contested band between the two homes).")
-
-	# New rule, used in live play under every hole_mode: only the origin
-	# point the ray hit matters.
+	# Live rule under every hole_mode: only the origin point the ray hit matters,
+	# even though two of the piece's four cubes land in the contested band.
+	assert_eq(PlacementRules.validate_point(Vector2(-7.2, 0.0), _raster, 0), PlacementRules.Result.CONTESTED,
+		"Setup: a cube of the piece lies in the contested band between the two homes.")
 	assert_eq(PlacementRules.validate_point(origin, _raster, 0), PlacementRules.Result.VALID,
 		"A wide piece with a legal origin point is accepted; its shape never enters the check.")
 

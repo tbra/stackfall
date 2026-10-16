@@ -41,7 +41,7 @@ func test_ffa_last_player_standing_wins() -> void:
 	assert_eq(objective.resolve(_shares([0.3, 0.0, 0.3])), ModeObjective.NO_TEAM, "two still stand")
 	objective.slot_eliminated(0)
 	assert_eq(objective.resolve(_shares([0.0, 0.0, 0.5])), 2)
-	assert_eq(objective.winners(), PackedInt32Array([2]))
+	assert_eq(objective.results_fields()["winners"], "2")
 
 
 func test_a_team_is_out_only_when_all_its_players_are() -> void:
@@ -59,7 +59,7 @@ func test_simultaneous_loss_that_leaves_nobody_goes_to_the_larger_share() -> voi
 	objective.slot_eliminated(0)
 	objective.slot_eliminated(1)
 	assert_eq(objective.resolve(_shares([0.2, 0.35])), 1)
-	assert_eq(objective.winners(), PackedInt32Array([1]))
+	assert_eq(objective.results_fields()["winners"], "1")
 
 
 func test_timer_expiry_ranks_survivors_by_share() -> void:
@@ -67,7 +67,7 @@ func test_timer_expiry_ranks_survivors_by_share() -> void:
 	objective.slot_eliminated(2)
 	objective.resolve(_shares([0.2, 0.3, 0.6]))
 	assert_eq(objective.on_round_timer_end(), 1, "the eliminated team's big share does not count")
-	assert_eq(objective.winners(), PackedInt32Array([1]))
+	assert_eq(objective.results_fields()["winners"], "1")
 
 
 # --- Match integration -----------------------------------------------------------------

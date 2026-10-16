@@ -4,7 +4,7 @@ extends GutTest
 ##
 ## The contract these tests defend: a mirror fed the host's owner_bytes() and
 ## state_bytes() answers team_at(), is_contested(), is_hole_index() and
-## therefore PlacementRules.validate() **bit-for-bit** the way the host does.
+## therefore PlacementRules.validate_point() **bit-for-bit** the way the host does.
 ## Group indices deliberately do not survive (the win check is host-only), so
 ## nothing here compares group_at() between the two.
 
