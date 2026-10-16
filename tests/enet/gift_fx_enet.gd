@@ -245,6 +245,7 @@ func _host_phase(phase: StringName) -> void:
 	if not armed:
 		_failures.append("%s: clients not armed (%d)" % [phase, _ack_count(phase, "armed")])
 		return
+	_refill_timers()
 	match phase:
 		&"bomb":
 			await _fire_bomb()
@@ -267,6 +268,16 @@ func _host_phase(phase: StringName) -> void:
 	var done: bool = await _until(func() -> bool: return _ack_count(phase, "done") >= CLIENT_COUNT, PHASE_DONE_TIMEOUT)
 	if not done:
 		_failures.append("%s: timeout waiting for done (%d)" % [phase, _ack_count(phase, "done")])
+
+
+## Gives every seat a full block timer so a phase's watch window never races a leftover
+## expiry: an auto-drop of another seat's held piece would add a block the in-place
+## checks (earthquake: no extra block) count against the gift.
+func _refill_timers() -> void:
+	for slot_id: int in range(HOST_AND_CLIENTS):
+		Match._feed._release_locked[slot_id] = false
+		Match._feed._feed_time_left[slot_id] = Match.config.block_timer
+		Match._feed._feed_expired[slot_id] = false
 
 
 func _fire_bomb() -> void:
