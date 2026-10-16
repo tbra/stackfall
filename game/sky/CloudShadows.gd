@@ -90,14 +90,6 @@ func _exit_tree() -> void:
 	_release_sun()
 
 
-func is_enabled() -> bool:
-	return _enabled
-
-
-func decals() -> Array[Decal]:
-	return _decals
-
-
 func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 	_enabled = preset == null or preset.cloud_shadows_enabled
 	if _enabled:

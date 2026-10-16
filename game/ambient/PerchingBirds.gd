@@ -181,49 +181,6 @@ func reset() -> void:
 		_start_slots()
 
 
-func is_enabled() -> bool:
-	return _enabled
-
-
-## Birds currently in the scene (flying in, perched or fleeing).
-func active_bird_count() -> int:
-	var count: int = 0
-	for slot: _Slot in _slots:
-		if slot.bird != null:
-			count += 1
-	return count
-
-
-func slot_count() -> int:
-	return _slots.size()
-
-
-## The bird in slot `index`, or null while that slot waits to spawn.
-func bird_at(index: int) -> PerchingBird:
-	return _slots[index].bird if index >= 0 and index < _slots.size() else null
-
-
-## Test/debug: forces the next flock arrival on the next update (`_index` is
-## kept for the old per-slot API and ignored).
-func spawn_now(_index: int = 0) -> void:
-	_flock_timer = 0.0
-
-
-## Slot indices of the flock that slot `index` belongs to (empty when none).
-func flock_slot_indices(index: int) -> PackedInt32Array:
-	var result: PackedInt32Array = PackedInt32Array()
-	var flock: _Flock = _slots[index].flock
-	if flock == null:
-		return result
-	for member: _Slot in flock.members:
-		result.append(_slots.find(member))
-	return result
-
-
-func perched_on_tower(index: int) -> bool:
-	return _slots[index].on_tower
-
-
 func _start_slots() -> void:
 	_slots.clear()
 	_flocks.clear()
@@ -675,15 +632,6 @@ func _poll() -> void:
 				_poll_perched(slot, cursors, camera)
 			PerchingBird.State.GLIDE:
 				_poll_gliding(slot, cursors, camera)
-
-
-func _block_positions(exclude: Variant) -> PackedVector3Array:
-	var points: PackedVector3Array = PackedVector3Array()
-	var skip: Node3D = exclude as Node3D if is_instance_valid(exclude) else null
-	for block: Node3D in blocks:
-		if is_instance_valid(block) and block != skip:
-			points.append(block.global_position)
-	return points
 
 
 ## One pass over the blocks per poll: every position, and the unsettled ones

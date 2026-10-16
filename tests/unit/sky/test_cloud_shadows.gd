@@ -33,6 +33,14 @@ func test_strength_zero_at_night_and_horizon_full_at_noon() -> void:
 	assert_lt(CloudShadowMath.strength(0.3, 1.0, config), config.max_strength)
 
 
+func _decals(node: CloudShadows) -> Array[Decal]:
+	var result: Array[Decal] = []
+	for child: Node in node.get_children():
+		if child is Decal:
+			result.append(child as Decal)
+	return result
+
+
 func test_low_preset_disables_cloud_shadows() -> void:
 	var low: GraphicsPreset = load("res://config/graphics/presets/low.tres") as GraphicsPreset
 	var high: GraphicsPreset = load("res://config/graphics/presets/high.tres") as GraphicsPreset
@@ -43,23 +51,22 @@ func test_low_preset_disables_cloud_shadows() -> void:
 func test_node_shows_decals_by_day_and_hides_at_night_and_low() -> void:
 	var node: CloudShadows = CloudShadows.new()
 	add_child_autofree(node)
-	assert_eq(node.decals().size(), 2)
+	assert_eq(_decals(node).size(), 2)
 	var noon: Vector3 = Vector3(0.3, 0.9, 0.2).normalized()
 	node.step(0.016, noon, 1.0, 1.3)
 	var visible_count: int = 0
-	for decal: Decal in node.decals():
+	for decal: Decal in _decals(node):
 		if decal.visible:
 			visible_count += 1
 			assert_gt(decal.modulate.a, 0.0)
 			assert_lte(decal.modulate.a, node.config.max_strength + 0.0001)
 	assert_gt(visible_count, 0, "a layer is visible at noon")
 	node.step(0.016, Vector3(0.3, 0.9, 0.2).normalized(), 0.0, 1.3)
-	for decal: Decal in node.decals():
+	for decal: Decal in _decals(node):
 		assert_false(decal.visible, "night")
 	node.step(0.016, noon, 1.0, 1.3)
 	node._on_graphics_preset_changed(load("res://config/graphics/presets/low.tres") as GraphicsPreset)
-	assert_false(node.is_enabled())
-	for decal: Decal in node.decals():
+	for decal: Decal in _decals(node):
 		assert_false(decal.visible, "Low preset")
 	node._on_graphics_preset_changed(null)
 

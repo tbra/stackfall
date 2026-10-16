@@ -38,9 +38,6 @@ class Flight:
 	var closest_distance_m: float = 0.0
 	var is_v: bool = false
 
-	func position_at(time_s: float) -> Vector3:
-		return start + velocity * time_s
-
 
 ## Number of birds in a flock: 1 with `bird_single_chance`, else uniformly
 ## bird_flock_size_min..max.

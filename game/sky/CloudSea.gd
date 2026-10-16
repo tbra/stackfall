@@ -66,7 +66,6 @@ const BILLBOARD_PARAMETER: StringName = &"billboard"
 ## Hexagon impostor (UV = corner): circumradius over inradius 1 is 2 / sqrt(3), so the polygon
 ## contains the unit circle the shader sizes to the puff silhouette (1 / cos(PI / corners)).
 const BILLBOARD_CORNERS: int = 6
-const INDICES_PER_TRIANGLE: int = 3
 
 ## group the live CloudSea joins so game/sky/SunFlare.gd can ask it whether the
 ## puffs hide the sun without a node path.
@@ -150,10 +149,6 @@ var lighting: CloudLighting = null
 var upper_tuning: WeatherCeilingTuning = null
 var upper_low: bool = false
 var _upper: MultiMeshInstance3D = null
-## Lowest world Y any upper puff's nominal bottom (its base plane, or the sphere's bottom when round,
-## before the shader's lumps) reaches, written by the last configure(); tracked here like _highest_top because a
-## headless RenderingServer does not keep MultiMesh instance data.
-var _upper_lowest_bottom: float = INF
 
 ## A cycle changes the existing puff material's palette and direction in place.
 func set_cycle_appearance(day: SkyThemeDef, night_theme: SkyThemeDef, weight: float, direction: Vector3) -> void:
@@ -185,14 +180,9 @@ func set_cycle_appearance(day: SkyThemeDef, night_theme: SkyThemeDef, weight: fl
 		_material.set_shader_parameter(&"proc_sea_color_far", day.proc_sea_color_far.lerp(night_theme.proc_sea_color_far, weight))
 	_material.set_shader_parameter(&"light_direction", direction)
 	_material.set_shader_parameter(&"sun_direction", direction)
-## Highest puff top written by the last configure() (tracked here because a
-## headless RenderingServer does not keep MultiMesh instance data).
-var _highest_top: float = -INF
 ## set by configure() -- the shader's radius inflation (lumps +
 ## billow + hull margin, fraction of radius) and the disc exclusion volume.
 var _inflate: float = 0.0
-## Highest inflated puff top among puffs whose footprint enters the exclusion cylinder.
-var _highest_top_near_disc: float = -INF
 ## the largest disc radius (m) the clouds must clear -- the active
 ## (disc-size scaled) field radius; never below the largest shipped map.
 var disc_radius_m: float = MapDef.RADIUS_LARGE
@@ -286,10 +276,6 @@ func set_drift_offset(offset: Vector2) -> void:
 		_material.set_shader_parameter(DRIFT_OFFSET_PARAMETER, offset)
 
 
-func drift_offset() -> Vector2:
-	return _drift_offset
-
-
 func configure(theme: SkyThemeDef, density: float, sky_material: Material = null, subdivisions: int = PUFF_SUBDIVISIONS,
 		billboard_distance_m: float = 0.0) -> void:
 	_billboard_distance_m = maxf(billboard_distance_m, 0.0)
@@ -302,9 +288,6 @@ func configure(theme: SkyThemeDef, density: float, sky_material: Material = null
 	_upper_far = null
 	_material = null
 	_cycle_base.clear()
-	_highest_top = -INF
-	_highest_top_near_disc = -INF
-	_upper_lowest_bottom = INF
 	_clear_occlusion_bounds()
 	var layers: Array[_Layer] = _layers_for(theme, density)
 	var clumps: int = 0
@@ -435,18 +418,6 @@ func _apply_upper_parameters_to(node: MultiMeshInstance3D) -> void:
 	# sea keeps the material's flat_base), and the camera-clearance dither fade. The
 	# fade uniforms live on the shared material but only the floor_on layer applies them.
 	node.set_instance_shader_parameter(FLAT_BASE_OVERRIDE_PARAMETER, upper_tuning.upper_flat_base)
-
-
-func upper_instance() -> MultiMeshInstance3D:
-	return _upper
-
-
-func upper_puff_count() -> int:
-	return _count_of(_upper) + _count_of(_upper_far)
-
-
-func _count_of(node: MultiMeshInstance3D) -> int:
-	return node.multimesh.instance_count if node != null else 0
 
 
 ## Largest silhouette the puff shader can carve beyond a puff's radius, as a
@@ -647,14 +618,8 @@ func _write_puff(stage: _Stage, at: Vector3, radius: float, layer: _Layer,
 	# exclusion radius dissolves instead (drift_vis); this clamp holds for the rest position.
 	var inflated: float = radius * (1.0 + _inflate)
 	var footprint: float = Vector2(at.x, at.z).length() - inflated * stretch
-	if not layer.is_upper:
-		if footprint < _exclusion_radius_m:
-			at.y = minf(at.y, _disc_ceiling_m - inflated)
-			_highest_top_near_disc = maxf(_highest_top_near_disc, at.y + inflated)
-		_highest_top = maxf(_highest_top, at.y + radius)
-	if layer.is_upper:
-		# The mesh's lowest point is its base plane (flat_base of the height under the centre, 1 = round).
-		_upper_lowest_bottom = minf(_upper_lowest_bottom, at.y - height * layer.flat_base)
+	if not layer.is_upper and footprint < _exclusion_radius_m:
+		at.y = minf(at.y, _disc_ceiling_m - inflated)
 	var basis: Basis = Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(radius * stretch, height, radius * stretch))
 	_record_puff(at, radius * stretch, height, flat)
 	stage.transforms.append(Transform3D(basis, at))
@@ -716,15 +681,6 @@ func _clear_occlusion_bounds() -> void:
 	_occ_upper.clear()
 	_occ_clear_start_m = 0.0
 	_occ_clear_end_m = 0.0
-
-
-## Number of clumps / puffs with recorded sun-occlusion bounds (tests, diagnostics).
-func occlusion_clump_count() -> int:
-	return _occ_speed.size()
-
-
-func occlusion_puff_count() -> int:
-	return _occ_puffs.size() / OCC_PUFF_STRIDE
 
 
 ## how much the puffs hide the sun seen along the ray from `from` toward the
@@ -817,49 +773,6 @@ func _puff_cover(origin: Vector3, heading: Vector3, row: int, upper: bool, setti
 ## With flat = 1 the puff just rests on base_y.
 static func puff_centre_y(top: float, radius: float, base_y: float, flat: float, sink_m: float = 0.0) -> float:
 	return maxf(top - radius, base_y + radius * flat - sink_m)
-
-
-## Lowest nominal bottom of any upper puff written by the last configure() (INF without one).
-func upper_lowest_bottom() -> float:
-	return _upper_lowest_bottom
-
-
-## Highest world Y any puff reaches (before billow), for tests and checks.
-func highest_puff_top() -> float:
-	return _highest_top
-
-
-## Highest inflated top of any puff that could reach the disc's exclusion volume.
-func highest_top_near_disc() -> float:
-	return _highest_top_near_disc
-
-
-## Puffs of the sea layers (hulls plus impostors).
-func puff_count() -> int:
-	return _count_of(_instance) + _count_of(_far)
-
-
-## Impostor (billboard) puffs among puff_count() and upper_puff_count().
-func billboard_puff_count() -> int:
-	return _count_of(_far) + _count_of(_upper_far)
-
-
-## Triangles the cloud instances draw (mesh triangles x puffs, hulls plus impostors).
-func triangle_count() -> int:
-	var total: int = 0
-	for node: MultiMeshInstance3D in [_instance, _far, _upper, _upper_far]:
-		if node != null and node.multimesh.mesh != null:
-			var indices: PackedInt32Array = node.multimesh.mesh.surface_get_arrays(0)[Mesh.ARRAY_INDEX] as PackedInt32Array
-			total += node.multimesh.instance_count * indices.size() / INDICES_PER_TRIANGLE
-	return total
-
-
-func billboard_instance() -> MultiMeshInstance3D:
-	return _far
-
-
-func puff_instance() -> MultiMeshInstance3D:
-	return _instance
 
 
 func puff_material() -> ShaderMaterial:

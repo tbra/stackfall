@@ -33,14 +33,14 @@ func test_flight_crosses_the_sky_past_the_disc() -> void:
 		assert_gt(flight.duration_s, 20.0)
 		assert_eq(flight.offsets.size(), 5)
 		# Enters and leaves far away, and never comes near the play area.
-		var enter: Vector3 = flight.position_at(0.0)
-		var leave: Vector3 = flight.position_at(flight.duration_s)
+		var enter: Vector3 = flight.start
+		var leave: Vector3 = flight.start + flight.velocity * flight.duration_s
 		assert_gt(Vector2(enter.x, enter.z).length(), theme.bird_distance_max_m)
 		assert_gt(Vector2(leave.x, leave.z).length(), theme.bird_distance_max_m)
 		var nearest: float = INF
 		var steps: int = 40
 		for step: int in range(steps + 1):
-			var at: Vector3 = flight.position_at(flight.duration_s * float(step) / float(steps))
+			var at: Vector3 = flight.start + flight.velocity * (flight.duration_s * float(step) / float(steps))
 			nearest = minf(nearest, Vector2(at.x, at.z).length())
 		assert_gt(nearest, MapDef.RADIUS_LARGE * 2.0, "the path never passes near the disc")
 		assert_lt(nearest, theme.bird_distance_max_m + 20.0, "and passes through the sky it was asked for")

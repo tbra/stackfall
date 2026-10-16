@@ -229,7 +229,7 @@ func _assert_locked_night_dressing(skybox: Skybox, label: String) -> void:
 	var sun: Vector3 = (skybox.theme.sky_material as ShaderMaterial).get_shader_parameter(&"sun_direction") as Vector3
 	assert_true((puffs.get_shader_parameter(&"light_direction") as Vector3).is_equal_approx(sun), "%s: puffs are lit from the cycle sun, not the authored one" % label)
 	assert_false(skybox.get_birds().visible, "%s: no distant day birds at night" % label)
-	assert_false(skybox.get_perching_birds().is_enabled(), "%s: the night life config has no perching birds" % label)
+	assert_false(skybox.get_perching_birds().visible, "%s: the night life config has no perching birds" % label)
 	assert_true(skybox.get_fireflies().visible, "%s: fireflies swarm at night" % label)
 
 
