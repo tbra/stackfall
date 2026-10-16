@@ -60,13 +60,18 @@ func _weather_fog(skybox: Skybox, amount: float) -> void:
 	skybox.set_weather_fog(amount, WFOG_OPACITY, WFOG_BEGIN_M, WFOG_END_M, WFOG_TINT, WFOG_TINT_STRENGTH, WFOG_SKY_AFFECT)
 
 
+## The shared cloud lighting the Skybox publishes, read from the CloudSea layer that draws with it.
+func _lighting(skybox: Skybox) -> CloudLighting:
+	return (skybox.get_node("CloudSea") as CloudSea).lighting
+
+
 ## Everything a player can see (or that decides it) on a Skybox, plain values.
 func _snapshot(rig: Dictionary) -> Dictionary:
 	var skybox: Skybox = rig["skybox"] as Skybox
 	var environment: Environment = rig["environment"] as Environment
 	var light: DirectionalLight3D = rig["light"] as DirectionalLight3D
 	var sky_material: ShaderMaterial = environment.sky.sky_material as ShaderMaterial
-	var lighting: CloudLighting = skybox.cloud_lighting()
+	var lighting: CloudLighting = _lighting(skybox)
 	var fog_material: FogMaterial = (skybox.get_node_or_null("CloudDeck") as FogVolume).material as FogMaterial
 	return {
 		"theme": skybox.theme.resource_path,
@@ -75,10 +80,7 @@ func _snapshot(rig: Dictionary) -> Dictionary:
 		"locked_phase": skybox.locked_phase(),
 		"cycle_phase": skybox.current_cycle_phase(),
 		"process_mode": environment.sky.process_mode,
-		"storm_amount": skybox.storm_sky_amount(),
-		"overcast_amount": skybox.overcast_amount(),
 		"cloud_overcast": skybox.cloud_overcast_amount(),
-		"wfog_amount": skybox.weather_fog_amount(),
 		"sky_is_theme_material": sky_material == skybox.theme.sky_material,
 		"sky_exposure": sky_material.get_shader_parameter(&"exposure"),
 		"sky_sea_mix": sky_material.get_shader_parameter(&"procedural_sea_mix"),
@@ -150,9 +152,10 @@ func test_a_dirty_sky_resets_to_a_fresh_skybox_for_cycle_locked_and_static_night
 	var stormy: Dictionary = _snapshot(used)
 	assert_true(skybox.is_cycle_active(), "fixture: the cycle is running")
 	assert_almost_eq(skybox.locked_phase(), skybox.theme.cycle_locked_phase_night, 0.0001, "fixture: locked at night")
-	assert_gt(skybox.storm_sky_amount(), 0.0, "fixture: storm on")
-	assert_gt(skybox.overcast_amount(), 0.0, "fixture: overcast on")
-	assert_gt(skybox.weather_fog_amount(), 0.0, "fixture: weather fog on")
+	var environment: Environment = used["environment"] as Environment
+	assert_gt(_lighting(skybox).storm, 0.0, "fixture: storm on")
+	assert_gt(skybox.cloud_overcast_amount(), 0.0, "fixture: overcast on")
+	assert_eq(environment.fog_mode, Environment.FOG_MODE_DEPTH, "fixture: weather fog on")
 	assert_ne(stormy["fog_color"], expected["fog_color"], "fixture: the dirty sky differs from launch")
 	skybox.reset_to_launch()
 	_assert_same_snapshot(_snapshot(used), expected, "after reset")
@@ -202,22 +205,24 @@ func test_match_scope_reset_clears_the_whole_weather_and_sky_presentation() -> v
 	Events.weather_intensity_changed.emit(RAIN_ID, 1.0)
 	Events.weather_intensity_changed.emit(FOG_ID, 1.0)
 	var ceiling: CloudCeiling = _storm_to_full(presenter)
-	assert_gt(ceiling.storm_amount(), 0.0, "fixture: ceiling stormed up")
+	assert_gt(_lighting(skybox).storm, 0.0, "fixture: ceiling stormed up")
 	assert_gt(_live_presentations(presenter), 0, "fixture: presentations live")
 	for weather_id: StringName in [RAIN_ID, FOG_ID, STORM_ID]:
 		Events.weather_stopped.emit(weather_id)
 	assert_eq(ceiling.target_amount(), 0.0, "fixture: stopped weather has no target, only fades in flight")
-	assert_gt(ceiling.storm_amount(), 0.0, "fixture: the ceiling is still fading out")
+	assert_gt(_lighting(skybox).storm, 0.0, "fixture: the storm sky is still up while the ceiling fades out")
 	Events.match_scope_reset.emit()
 	assert_eq(_live_presentations(presenter), 0, "presentations")
-	assert_eq(ceiling.amount(), 0.0, "ceiling amount")
-	assert_eq(ceiling.storm_amount(), 0.0, "ceiling storm")
-	assert_eq(ceiling.overcast(), 0.0, "ceiling overcast")
 	assert_eq(ceiling.target_amount(), 0.0, "ceiling targets")
+	assert_eq(_lighting(skybox).storm, 0.0, "the storm sky is cleared at once, not faded")
+	assert_eq(_lighting(skybox).overcast, 0.0, "the ceiling's overcast is cleared at once")
+	# Nothing of the ceiling's fade survives the reset: one more step must not push the sky back up.
+	ceiling.step(0.1)
+	assert_eq(_lighting(skybox).storm, 0.0, "no residual storm fade after the reset")
+	assert_eq(_lighting(skybox).overcast, 0.0, "no residual overcast fade after the reset")
 	assert_eq(WeatherFogShader.strength, 0.0, "scenery fog")
 	assert_eq(WeatherFogShader.begin_m, WeatherFogShader.DEFAULT_BEGIN_M)
 	_assert_same_snapshot(_snapshot(rig), expected, "skybox after match_scope_reset")
-	assert_eq(skybox.storm_sky_amount(), 0.0)
 
 
 ## Weather presentation scenes the presenter currently holds (the ceiling is not one).

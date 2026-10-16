@@ -284,10 +284,10 @@ static func _capture_sky(main: Node, out: Dictionary) -> void:
 	out["sky.config_theme_name"] = skybox.config.theme_name
 	out["sky.cycle_active"] = skybox.is_cycle_active()
 	out["sky.locked_phase"] = _r(skybox.locked_phase())
-	out["sky.storm"] = _r(skybox.storm_sky_amount())
-	out["sky.overcast"] = _r(skybox.overcast_amount())
+	out["sky.storm"] = _fp(skybox, &"_storm_amount")
+	out["sky.overcast"] = _fp(skybox, &"_overcast_amount")
 	out["sky.cloud_overcast"] = _r(skybox.cloud_overcast_amount())
-	out["sky.weather_fog"] = _r(skybox.weather_fog_amount())
+	out["sky.weather_fog"] = _fp(skybox, &"_wfog_amount")
 	var environment: Environment = skybox.environment
 	if environment != null:
 		if environment.sky != null:
@@ -309,8 +309,9 @@ static func _capture_sky(main: Node, out: Dictionary) -> void:
 		# the sun's cloud dimming (CloudShadows, from the live puff occlusion) follows
 		# frame count and the drifting clouds, so it is transient by design; the fingerprint reads
 		# the undimmed energy.
-		out["sky.light_energy"] = _r(light.light_energy / maxf(skybox.sun_cloud_scale(), 0.001))
-	var lighting: CloudLighting = skybox.cloud_lighting()
+		out["sky.light_energy"] = _r(light.light_energy / maxf(_fp(skybox, &"_sun_cloud_scale"), 0.001))
+	var sea: CloudSea = skybox.get_node_or_null("CloudSea") as CloudSea
+	var lighting: CloudLighting = sea.lighting if sea != null else null
 	if lighting != null:
 		out["sky.cloud_night"] = _r(lighting.night_mix)
 		out["sky.cloud_overcast_lit"] = _r(lighting.overcast)
@@ -337,14 +338,19 @@ static func _capture_weather(out: Dictionary) -> void:
 		var ceiling: CloudCeiling = presenter.get_node("CloudCeiling") as CloudCeiling
 		out["weather.ceiling_present"] = ceiling != null
 		if ceiling != null:
-			out["weather.ceiling_amount"] = _r(ceiling.amount())
-			out["weather.ceiling_storm"] = _r(ceiling.storm_amount())
-			out["weather.ceiling_overcast"] = _r(ceiling.overcast())
+			out["weather.ceiling_amount"] = _fp(ceiling, &"_amount")
+			out["weather.ceiling_storm"] = _fp(ceiling, &"_storm_amount")
 			out["weather.ceiling_targets"] = _size_of(_p(ceiling, &"_targets"))
 			out["weather.ceiling_pushed_storm"] = _fp(ceiling, &"_pushed_storm")
 			out["weather.ceiling_pushed_overcast"] = _fp(ceiling, &"_pushed_overcast")
 	var breeze_presenter: BreezePresenter = MatchNet.get_node_or_null(BREEZE_PRESENTER_PATH) as BreezePresenter
-	out["weather.breeze_presenter_live"] = breeze_presenter.live_count() if breeze_presenter != null else -1
+	var live_gusts: int = -1
+	if breeze_presenter != null:
+		live_gusts = 0
+		for child: Node in breeze_presenter.get_children():
+			if child is GustPresentation and not child.is_queued_for_deletion():
+				live_gusts += 1
+	out["weather.breeze_presenter_live"] = live_gusts
 	out["weather.fog_shader"] = [
 		_r(WeatherFogShader.strength), _r(WeatherFogShader.begin_m), _r(WeatherFogShader.end_m),
 		_col(WeatherFogShader.color),

@@ -16,11 +16,6 @@ func _ready() -> void:
 	Events.match_state_changed.connect(_on_match_state_changed)
 
 
-func live_count() -> int:
-	_prune()
-	return _live.size()
-
-
 func _prune() -> void:
 	var keep: Array[GustPresentation] = []
 	for gust: GustPresentation in _live:

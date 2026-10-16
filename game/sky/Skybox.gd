@@ -1097,10 +1097,6 @@ func _restore_after_storm(storm_theme: SkyThemeDef) -> void:
 	_publish_cloud_lighting()
 
 
-func storm_sky_amount() -> float:
-	return _storm_amount
-
-
 func _apply_storm_blend() -> void:
 	var base: SkyThemeDef = theme
 	if base == null or _storm_target == null or environment == null or environment.sky == null:
@@ -1371,12 +1367,6 @@ func _apply_light_and_environment(applied_theme: SkyThemeDef, write_rotation: bo
 		light.rotation_degrees = applied_theme.light_rotation_deg
 
 
-## the shared cloud lighting (never null; layers connect to
-## its `changed` signal and read it).
-func cloud_lighting() -> CloudLighting:
-	return _cloud_lighting
-
-
 ## Gathers the inputs the cloud layers share from what this Skybox has already
 ## resolved (theme / cycle / storm palette on the puff material, the key light,
 ## overcast, storm) and publishes them once. The sea below the disc draws from
@@ -1580,10 +1570,6 @@ func set_overcast(amount: float, light_scale: float, ambient_scale: float, expos
 	_publish_cloud_lighting()
 
 
-func overcast_amount() -> float:
-	return _overcast_amount
-
-
 ## the overcast every weather (rain, snow, storm; CloudCeiling) asks
 ## of the cloud layers. Grades the shared CloudLighting only; the light, ambient
 ## and fog overcast above stay RainPresentation's.
@@ -1633,10 +1619,6 @@ func weather_fog_color() -> Color:
 	return environment.fog_light_color if environment != null else _wfog_tint
 
 
-func weather_fog_amount() -> float:
-	return _wfog_amount
-
-
 func _apply_overcast(applied_theme: SkyThemeDef) -> void:
 	if applied_theme == null or environment == null:
 		return
@@ -1670,10 +1652,6 @@ func set_sun_cloud_scale(scale: float) -> void:
 	_sun_cloud_scale = scale
 	if _overcast_theme != null:
 		_apply_overcast(_overcast_theme)
-
-
-func sun_cloud_scale() -> float:
-	return _sun_cloud_scale
 
 
 ## Unit direction toward the sun (ZERO until a cycle phase was applied) and daylight 0..1.

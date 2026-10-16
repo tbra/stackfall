@@ -97,19 +97,6 @@ func target_overcast() -> float:
 	return best
 
 
-func overcast() -> float:
-	return _overcast
-
-
-## Weather intensity fade (0..1): 0 in clear weather. Drives precipitation, not cloud presence.
-func amount() -> float:
-	return _amount
-
-
-func storm_amount() -> float:
-	return _storm_amount
-
-
 ## Advances the fades by `delta` (also the test seam).
 func step(delta: float) -> void:
 	var target: float = target_amount()
