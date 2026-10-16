@@ -57,9 +57,51 @@ REASON_SUITE = (
     "`tools/run_gut.ps1 <scripts>` named in your brief instead.")
 
 
+# A quoted argument holds data, so a separator inside it starts no command: the `\|` of a grep
+# alternation like 'a\|godot-ai' once read as a pipe into a windowed launch. The body of
+# `bash -c '...'` or `powershell -Command "..."` still runs, so it keeps its separators.
+_COMMAND_ARG = re.compile(r"(?:^|\s)-(?:c|Command)\s+$", re.IGNORECASE)
+_SINGLE_QUOTED_SEPARATORS = re.compile(r"[;&|`\n(]")
+# Inside double quotes `$(...)` and backticks still run, so only plain separators are blanked.
+_DOUBLE_QUOTED_SEPARATORS = re.compile(r"[;&|\n]")
+
+
+def _quoted_end(command, start):
+    """Index of the quote closing the one at `start`, or -1; `\\"` does not close a double quote."""
+    quote = command[start]
+    i = start + 1
+    while i < len(command):
+        if command[i] == "\\" and quote == '"':
+            i += 2
+            continue
+        if command[i] == quote:
+            return i
+        i += 1
+    return -1
+
+
+def _blank_quoted_separators(command):
+    out = []
+    i = 0
+    while i < len(command):
+        ch = command[i]
+        end = _quoted_end(command, i) if ch in "'\"" else -1
+        if end < 0:
+            out.append(ch)
+            i += 1
+            continue
+        span = command[i:end + 1]
+        if not _COMMAND_ARG.search(command[:i]):
+            pattern = _SINGLE_QUOTED_SEPARATORS if ch == "'" else _DOUBLE_QUOTED_SEPARATORS
+            span = pattern.sub(" ", span)
+        out.append(span)
+        i = end + 1
+    return "".join(out)
+
+
 def executable_text(command):
-    """`command` without heredoc and here-string bodies."""
-    return _HERESTRING.sub("@''@", _HEREDOC.sub(r"\1", command or ""))
+    """`command` without heredoc and here-string bodies or separators inside quoted arguments."""
+    return _blank_quoted_separators(_HERESTRING.sub("@''@", _HEREDOC.sub(r"\1", command or "")))
 
 
 def problem(command, agent_type=None):
