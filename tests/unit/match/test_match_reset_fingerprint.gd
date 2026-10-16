@@ -48,6 +48,7 @@ func before_each() -> void:
 	# the same process leaves names behind that the seeded draw would otherwise reuse.
 	Match._lifecycle._host_bot_names = PackedStringArray()
 	assert_true(Net.is_offline(), "fixture: the real Net must start offline")
+	_assert_weather_reset_subscribed()
 	Engine.time_scale = 1.0
 	_map = (load("res://config/match/maps/round.tres") as MapDef).duplicate(true)
 	_map.field_radius = TINY_FIELD_RADIUS
@@ -107,6 +108,22 @@ func _settle() -> void:
 
 func _host() -> void:
 	assert_eq(Net.host_game(AgentProbe.free_udp_port(), "Hostie"), OK)
+	_assert_weather_reset_subscribed()
+
+
+## Fixture guard: the persistent weather presenter and its cloud ceiling must still listen for
+## Events.match_scope_reset. A script that takes them out of the tree and back (their _exit_tree
+## drops the subscription and _ready does not run again) leaves the ceiling unable to snap clear,
+## and every fingerprint here would then report a storm leaking from match A into a fresh launch.
+## Skipped while MatchNet has not built its WeatherNet yet (it activates with the first host).
+func _assert_weather_reset_subscribed() -> void:
+	var presenter: WeatherPresenter = MatchNet.get_node_or_null(MatchFingerprint.WEATHER_PRESENTER_PATH) as WeatherPresenter
+	if presenter == null:
+		return
+	assert_true(Events.match_scope_reset.is_connected(presenter.clear_now),
+		"fixture: the live WeatherPresenter still listens for match_scope_reset (an earlier script re-parented it)")
+	assert_true(Events.match_scope_reset.is_connected(presenter.cloud_ceiling().snap_clear),
+		"fixture: the live CloudCeiling still listens for match_scope_reset (an earlier script re-parented it)")
 
 
 func _config(map: MapDef, weather_mode: int, sky_mode: int, ai_count: int) -> MatchConfig:
