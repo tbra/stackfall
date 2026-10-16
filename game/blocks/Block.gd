@@ -158,12 +158,6 @@ static func is_awake_registered(block: Block) -> bool:
 	return block != null and _awake.has(block.get_instance_id())
 
 
-static func clear_awake_set_for_tests() -> void:
-	_awake.clear()
-	_slept_blocks.clear()
-	_slept_frames.clear()
-
-
 ## the first physics frame whose state sync can include a body
 ## that became Jolt-active (spawned, woken or unfrozen by script) right now.
 ## Jolt syncs at tick F exactly the bodies it stepped at F-1 (pre_step over the
@@ -271,7 +265,7 @@ func _batch_tick(frame: int, physics_active: bool, damp_on: bool, damp: float, n
 		if _script_kick_pending and _kick_frame < frame:
 			_script_kick_pending = false
 		elif damp_on and velocity.y > noise_floor and _prev_step_linear_velocity_y < -noise_floor:
-			# _damp_rebound() inlined (the static stays the tested rule).
+			# Rebound damping: a fresh bounce (falling to rising past the noise floor) is scaled.
 			var damped_y: float = velocity.y * damp
 			if damped_y != velocity.y:
 				velocity.y = damped_y
@@ -373,7 +367,7 @@ func _ready() -> void:
 ## from a real bounce to the heuristic below unless the writer says so.
 ## `_script_kick_pending` is that signal: kick()/mark_script_kick() below set
 ## it, this function consumes (and clears) it before ever reaching
-## _damp_rebound(), so exactly the one step a special's own write lands on is
+## the rebound damping, so exactly the one step a special's own write lands on is
 ## passed through untouched, and every step after goes back to the normal
 ## heuristic.
 ##
@@ -403,7 +397,7 @@ func _ready() -> void:
 ## bounce step's `state.linear_velocity.y = ...` assignment actually runs.
 ##
 ## DECISION (game/blocks/Block.gd): "a real bounce", not any sign flip at all --
-## _damp_rebound() below gates on tuning.sleep_linear_threshold (the same
+## the rebound damping gates on tuning.sleep_linear_threshold (the same
 ## settled-block speed floor spec 1.5 already defines, reused rather than
 ## inventing a second magic number for "this is noise"). A stacked tower's
 ## resting contacts flicker by a fraction of a mm/s of solver noise every
@@ -504,22 +498,6 @@ func mark_script_kick() -> void:
 		return
 	_script_kick_pending = true
 	_kick_frame = Engine.get_physics_frames()
-
-
-## Pure rebound-damping rule, static and scene-tree/physics-server-free so
-## tests/unit/main/test_physics_tuning.gd can check it directly without a real
-## physics step: a step whose vertical velocity flips from clearly falling
-## (`prev_step_y < -noise_floor`) to clearly rising (`current_y >
-## noise_floor`) is a fresh bounce off whatever is below the block -- scale
-## that step's rising velocity by `rebound_damping`. Every other case (still
-## falling, still rising from an earlier bounce, at rest, or a flicker too
-## small to be a real bounce) passes `current_y` through unchanged. See
-## _integrate_forces()'s own DECISION above for why the noise floor is
-## required, not just a nice-to-have.
-static func _damp_rebound(prev_step_y: float, current_y: float, rebound_damping: float, noise_floor: float) -> float:
-	if prev_step_y < -noise_floor and current_y > noise_floor:
-		return current_y * rebound_damping
-	return current_y
 
 
 ## Re-applies every PhysicsTuning number a live body would otherwise only

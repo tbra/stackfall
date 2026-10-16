@@ -129,14 +129,15 @@ func test_the_disk_is_one_owner_and_stays_solid_under_holes() -> void:
 	assert_eq(_hole_cell_count(field), opened.size())
 
 
-func test_cells_outside_the_disk_have_no_owner() -> void:
+func test_cells_outside_the_disk_have_no_collision() -> void:
 	var field: Field = _make_field()
 	var grid: CellGrid = field.grid()
 	# The -x/-z corner of the bounding square is the farthest cell from the
 	# center, so it is always outside the disk.
 	var corner: int = grid.cell_index(0, 0)
 	assert_false(grid.is_in_disk(0, 0), "The corner cell is outside the disk.")
-	assert_eq(field.cell_owner_id(corner), -1)
+	await wait_physics_frames(1)
+	assert_true(_ray_at_cell(field, corner).is_empty(), "A cell outside the disk has no collision.")
 	assert_false(field.is_hole_cell(corner))
 
 

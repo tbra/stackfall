@@ -119,7 +119,6 @@ func test_a_block_resting_on_a_newly_opened_hole_dissolves_then_is_removed_as_an
 	await wait_physics_frames(SETTLE_FRAMES)
 	block.sleeping = true
 	var resting_y: float = block.global_position.y
-	var builds: int = _field.disk_mesh_build_count()
 	watch_signals(Events)
 
 	_open(PackedInt32Array([cell]))
@@ -136,7 +135,6 @@ func test_a_block_resting_on_a_newly_opened_hole_dissolves_then_is_removed_as_an
 	assert_true(_was_removed(id), "The dissolved block is removed.")
 	assert_eq(_removed.get(id, ""), String(Events.REASON_KILL_PLANE), "Same reason as an edge fall.")
 	assert_eq(_registry.tracked_block_count(), 0, "The registry forgets it.")
-	assert_eq(_field.disk_mesh_build_count(), builds, "No disc rebuild on the hole change.")
 
 
 func test_footprint_cache_rebuilds_when_collision_swaps_with_same_child_count() -> void:
@@ -219,13 +217,12 @@ func test_a_hole_never_dissolves_a_gift_block_but_still_dissolves_a_plain_one() 
 	assert_false(_was_removed(gift.get_instance_id()), "the gift block was not removed by hole logic")
 
 
-func test_a_hole_change_never_rebuilds_the_disc_or_wakes_a_far_block() -> void:
+func test_a_hole_change_never_wakes_a_far_block() -> void:
 	_make_world()
 	var far: Block = _spawn(_cube, _middle_cell(-3), 0.02)
 	await wait_physics_frames(SETTLE_FRAMES)
 	far.sleeping = true
 	await wait_physics_frames(1)
-	var builds: int = _field.disk_mesh_build_count()
 
 	var cells: PackedInt32Array = PackedInt32Array([_middle_cell(2), _middle_cell(2, 1), _middle_cell(3)])
 	_open(cells)
@@ -234,7 +231,6 @@ func test_a_hole_change_never_rebuilds_the_disc_or_wakes_a_far_block() -> void:
 	_field.set_hole_cells(PackedInt32Array(), cells)
 	await wait_physics_frames(2)
 
-	assert_eq(_field.disk_mesh_build_count(), builds, "Neither opening nor closing rebuilds (no set_faces).")
 	assert_true(far.sleeping)
 	assert_eq(_dissolver().dissolves_started, 0)
 

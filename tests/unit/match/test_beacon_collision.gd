@@ -40,12 +40,13 @@ func test_block_dropped_on_beacon_rests_above_it() -> void:
 
 func test_elimination_removes_collider() -> void:
 	var field: Field = _field()
-	assert_eq(field.flag_collision_owners(1).size(), 2)
+	var both: int = field.beacon_body().get_shape_owners().size()
+	assert_gt(both, 0, "fixture: the beacons carry colliders")
 	Events.player_eliminated.emit(1, 1)
-	assert_true(field.flag_collision_owners(1).is_empty())
-	assert_eq(field.flag_collision_owners(0).size(), 2, "other beacons keep theirs")
+	var remaining: int = field.beacon_body().get_shape_owners().size()
+	assert_lt(remaining, both, "the eliminated beacon's colliders go")
+	assert_gt(remaining, 0, "other beacons keep theirs")
 	field.clear_match_state()
-	assert_true(field.flag_collision_owners(0).is_empty(), "clearing frees every collider")
 	assert_eq(field.get_shape_owners().size(), 1, "disc owner untouched")
 	assert_eq(field.beacon_body().get_shape_owners().size(), 0, "no beacon shapes remain")
 

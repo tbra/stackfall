@@ -46,18 +46,6 @@ func _exit_tree() -> void:
 		Events.block_removed.disconnect(_on_block_removed)
 
 
-func active_count() -> int:
-	return _entries.size()
-
-
-## Current dissolve progress (0..1) of `block`, or 0.0 when it is not fading.
-func amount_for(block: Block) -> float:
-	if block == null:
-		return 0.0
-	var entry: _Entry = _entries.get(block.get_instance_id()) as _Entry
-	return 0.0 if entry == null else _progress(entry)
-
-
 func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 	_enabled = preset == null or preset.block_dissolve_effect_enabled
 	if not _enabled:

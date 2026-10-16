@@ -134,11 +134,6 @@ func territory_revision() -> int:
 	return _territory_revision
 
 
-## Forces the next territory comparison to see a change (tests, external edits).
-func mark_territory_dirty() -> void:
-	_territory_revision += 1
-
-
 ## Settled-block movement below this (metres; also the basis column delta)
 ## does not dirty the territory. Set by Match from TerritoryTuning.
 func set_move_epsilon(epsilon: float) -> void:
@@ -153,20 +148,6 @@ func set_host_authority(is_authority: bool) -> void:
 
 func is_host_authority() -> bool:
 	return _host_authority
-
-
-## Test-only seam (tests/unit/blocks/test_block_registry.gd, test_snapshot_wire.gd):
-## moves the allocator to `value` so a test can reach the wire's id boundaries
-## without placing tens of thousands of blocks. Game code never calls it;
-## reset() puts the counter back to 1 as usual. Values below 1 are clamped,
-## because 0 is the wire's reserved "no body" id (core/net/Quantize.gd).
-func debug_set_next_net_id(value: int) -> void:
-	_next_net_id = maxi(value, 1)
-
-
-## Test-only: the id the next host-side placement will receive.
-func debug_next_net_id() -> int:
-	return _next_net_id
 
 
 ## Binds a host-allocated net_id to a block a client just built from
@@ -437,10 +418,6 @@ func tallest_settled_for_slot(slot_id: int) -> Dictionary:
 			highest = entry.geom_top
 			best = {"height": entry.geom_top, "xz": entry.geom_com_xz}
 	return best
-
-
-func net_id_for_block(block: Block) -> int:
-	return block.net_id if block != null else -1
 
 
 func block_for_net_id(net_id: int) -> Block:

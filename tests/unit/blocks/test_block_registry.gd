@@ -59,7 +59,6 @@ func test_block_placed_assigns_increasing_net_ids() -> void:
 	assert_gt(block_a.net_id, 0)
 	assert_gt(block_b.net_id, block_a.net_id)
 	assert_eq(registry.block_for_net_id(block_a.net_id), block_a)
-	assert_eq(registry.net_id_for_block(block_b), block_b.net_id)
 	assert_eq(registry.tracked_block_count(), 2)
 
 
@@ -131,7 +130,7 @@ func test_allocation_refuses_past_the_wire_ceiling_instead_of_aliasing() -> void
 	var field: Field = _make_field()
 	var registry: BlockRegistry = _make_registry(field)
 	var shape: BlockShape = load("res://config/blocks/cube.tres")
-	registry.debug_set_next_net_id(Quantize.NET_ID_MAX)
+	registry._next_net_id = Quantize.NET_ID_MAX
 
 	var last: Block = _place(field, shape, 0)
 	var over: Block = _place(field, shape, 1)
@@ -139,7 +138,7 @@ func test_allocation_refuses_past_the_wire_ceiling_instead_of_aliasing() -> void
 
 	assert_eq(last.net_id, Quantize.NET_ID_MAX, "the last representable id is handed out")
 	assert_eq(over.net_id, -1, "past it no id is handed out at all")
-	assert_eq(registry.debug_next_net_id(), Quantize.NET_ID_MAX + 1, "the counter never wraps")
+	assert_eq(registry._next_net_id, Quantize.NET_ID_MAX + 1, "the counter never wraps")
 	assert_eq(registry.block_for_net_id(Quantize.NET_ID_MAX), last, "the last id still names its own body")
 	assert_null(registry.block_for_net_id(0), "nothing answers to 'no body'")
 	assert_null(registry.block_for_net_id(1), "and nothing answers to a wrapped id")

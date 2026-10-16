@@ -13,7 +13,7 @@ extends GutTest
 ## explosion itself lands on (read straight from `linear_velocity.y` after
 ## `await wait_physics_frames(1)`, so it reflects whatever Block.
 ## _batch_tick() actually committed for that step), not a position
-## traced over several later ticks. `_damp_rebound()` only ever touches that
+## traced over several later ticks. the rebound damping only ever touches that
 ## one step -- everything after is plain gravity acting on whatever velocity
 ## it left behind -- so this is the exact quantity the fix protects, and it
 ## sidesteps two sources of noise a position trace hit in an earlier revision
@@ -47,6 +47,10 @@ const PEAK_TOLERANCE_MPS: float = 0.3
 ## deliberately a fixed script write, not counted-out free-fall ticks; see
 ## their own DECISION.
 const FALLING_VELOCITY_MPS: float = -2.0
+## (d): velocities as multiples of the noise floor, and the tolerance for the committed value.
+const FLIP_CLEAR_FLOORS: float = 8.0
+const FLIP_FLICKER_FLOORS: float = 0.5
+const FLIP_TOLERANCE_MPS: float = 0.02
 ## The explosion in (c): a 5 m blast peaking at 40 m/s delta-v with a squared
 ## falloff, capped far above that so the cap never shapes the result.
 const BLAST_RADIUS_M: float = 5.0
@@ -117,7 +121,7 @@ func test_heavy_bouncy_rebound_peak_is_lower_than_undamped() -> void:
 
 ## Drops a fresh cube from DROP_HEIGHT_M above a real floor and returns the
 ## vertical velocity at the exact physics step it first bounces (the
-## falling-to-rising transition _damp_rebound() itself gates on) -- whatever
+## falling-to-rising transition the rebound damping gates on) -- whatever
 ## Block._batch_tick() actually committed for that step, damped or not.
 ## `offset_x` keeps this run's floor/block spatially separate from any other
 ## run already in the tree within the same test method.
@@ -244,4 +248,44 @@ func _drop_explode_and_measure_peak(tuning: PhysicsTuning, offset_x: float) -> f
 	var no_exclude: Array[RID] = []
 	ExplosionFx.blast(get_viewport().world_3d.direct_space_state, center, blast_tuning, no_exclude)
 	await wait_physics_frames(1)  # the impulse reaches linear_velocity, and the flag is consumed
+	return block.linear_velocity.y
+
+
+# --- (d) the noise floor: a resting stack's solver flicker is not a bounce ---
+
+## Regression for the bench_tower collapse: a sign flip that never clears
+## the noise floor (PhysicsTuning.sleep_linear_threshold) on both sides is solver
+## jitter, not a bounce, and must not be scaled however small rebound_damping is.
+## The control flip (clearly falling to clearly rising) with the same
+## rebound_damping = 0.0 is scaled to a standstill, so the fixture is sensitive.
+func test_flicker_within_the_noise_floor_is_not_damped_but_a_real_bounce_is() -> void:
+	var tuning: PhysicsTuning = (load("res://config/physics/presets/heavy_bouncy.tres") as PhysicsTuning).duplicate() as PhysicsTuning
+	tuning.rebound_damping = 0.0
+	tuning.gravity_multiplier = 0.0
+	tuning.block_linear_damp = 0.0
+	var floor_mps: float = tuning.sleep_linear_threshold
+
+	var bounce_y: float = await _flip_and_measure(tuning, -FLIP_CLEAR_FLOORS * floor_mps, FLIP_CLEAR_FLOORS * floor_mps, -45.0)
+	assert_almost_eq(bounce_y, 0.0, FLIP_TOLERANCE_MPS, "control: a clear falling-to-rising flip is scaled by rebound_damping = 0.")
+
+	var flicker_y: float = await _flip_and_measure(tuning, -FLIP_FLICKER_FLOORS * floor_mps, FLIP_FLICKER_FLOORS * floor_mps, -55.0)
+	assert_almost_eq(flicker_y, FLIP_FLICKER_FLOORS * floor_mps, FLIP_TOLERANCE_MPS, "a flip inside the noise floor on both sides passes through.")
+
+	var prev_only_y: float = await _flip_and_measure(tuning, -FLIP_CLEAR_FLOORS * floor_mps, FLIP_FLICKER_FLOORS * floor_mps, -65.0)
+	assert_almost_eq(prev_only_y, FLIP_FLICKER_FLOORS * floor_mps, FLIP_TOLERANCE_MPS, "rising only within the floor is not a bounce.")
+
+	var current_only_y: float = await _flip_and_measure(tuning, -FLIP_FLICKER_FLOORS * floor_mps, FLIP_CLEAR_FLOORS * floor_mps, -75.0)
+	assert_almost_eq(current_only_y, FLIP_CLEAR_FLOORS * floor_mps, FLIP_TOLERANCE_MPS, "falling only within the floor is not a bounce.")
+
+
+## A gravity-free, undamped cube given `prev_y`, then (one physics step later)
+## `next_y` by plain script writes; returns the vertical velocity committed for
+## the step after the second write.
+func _flip_and_measure(tuning: PhysicsTuning, prev_y: float, next_y: float, offset_x: float) -> float:
+	var block: Block = _build_block(tuning)
+	block.global_position = Vector3(offset_x, 20.0, 0.0)
+	block.linear_velocity = Vector3(0.0, prev_y, 0.0)
+	await wait_physics_frames(1)  # lets this land in _prev_step_linear_velocity_y
+	block.linear_velocity = Vector3(0.0, next_y, 0.0)
+	await wait_physics_frames(1)
 	return block.linear_velocity.y

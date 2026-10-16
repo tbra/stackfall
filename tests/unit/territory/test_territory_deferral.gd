@@ -63,7 +63,7 @@ func _add_awake_block() -> void:
 	entry.block = block
 	entry.is_settled = false
 	_registry._entries[block.get_instance_id()] = entry
-	_registry.mark_territory_dirty()
+	_registry._territory_revision += 1
 
 
 ## Feeds `total_s` of time in `tick_s` slices with one awake block and returns

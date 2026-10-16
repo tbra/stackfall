@@ -165,15 +165,6 @@ func control() -> int:
 	return _control
 
 
-func beam_visible() -> bool:
-	return _beam != null and _beam.visible
-
-
-## Colour the crystal/ring currently wear.
-func shown_color() -> Color:
-	return _color
-
-
 func _flicker_color() -> Color:
 	var hz: float = maxf(beacon_visuals.contested_flicker_hz, 0.001)
 	var first: bool = fposmod(_clock_s * hz, 1.0) < 0.5
@@ -310,18 +301,6 @@ func set_capture(team_id: int, progress: float, color: Color) -> void:
 		_drawn_progress = _capture_progress
 
 
-func capture_team() -> int:
-	return _capture_team
-
-
-func capture_progress() -> float:
-	return _capture_progress
-
-
-func ring_visible() -> bool:
-	return _ring != null and _ring.visible
-
-
 ## An annulus arc covering `progress` of a full turn, starting at +z and
 ## running clockwise seen from above, so it fills the way a clock hand does.
 func _build_arc(progress: float) -> ArrayMesh:
@@ -361,19 +340,6 @@ func set_claim_ring(radius: float) -> void:
 		return
 	_claim_ring_radius = wanted
 	_claim_ring.mesh = _build_claim_ring_mesh(wanted)
-
-
-func claim_ring_visible() -> bool:
-	return _claim_ring != null and _claim_ring.visible
-
-
-## The radius the ring currently marks (0.0 when none is drawn).
-func claim_ring_radius() -> float:
-	return _claim_ring_radius
-
-
-func claim_ring_node() -> MeshInstance3D:
-	return _claim_ring
 
 
 func _build_claim_ring_node() -> MeshInstance3D:

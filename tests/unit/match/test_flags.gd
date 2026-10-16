@@ -48,7 +48,7 @@ func test_two_home_flags_sit_opposite_each_other() -> void:
 
 func test_extra_goal_flags_are_symmetric_on_the_inner_ring() -> void:
 	var field: Field = _make_field()
-	var positions: PackedVector2Array = field.goal_flag_positions(3)
+	var positions: PackedVector2Array = field.map_def.goal_flag_positions(3)
 	var ring: float = FIELD_RADIUS * field.map_def.goal_flag_radius_fraction
 
 	assert_eq(positions.size(), 3)
@@ -89,9 +89,9 @@ func test_capture_ring_appears_and_tracks_progress() -> void:
 
 	field.set_capture_progress(1, 0.5)
 	for flag: GoalFlag in field.goal_flags():
-		assert_true(flag.ring_visible(), "Every goal flag shows the capture ring.")
-		assert_eq(flag.capture_team(), 1)
-		assert_almost_eq(flag.capture_progress(), 0.5, 0.0001)
+		assert_true(flag._ring.visible, "Every goal flag shows the capture ring.")
+		assert_eq(flag._capture_team, 1)
+		assert_almost_eq(flag._capture_progress, 0.5, 0.0001)
 
 
 func test_capture_ring_hides_when_the_capture_breaks() -> void:
@@ -101,8 +101,8 @@ func test_capture_ring_hides_when_the_capture_breaks() -> void:
 	field.set_capture_progress(1, 0.8)
 	field.set_capture_progress(-1, 0.0)
 	var flag: GoalFlag = field.goal_flags()[0]
-	assert_false(flag.ring_visible(), "team_id -1 with progress 0 clears the ring.")
-	assert_eq(flag.capture_team(), -1)
+	assert_false(flag._ring.visible, "team_id -1 with progress 0 clears the ring.")
+	assert_eq(flag._capture_team, -1)
 
 
 # --- Beacon visuals (M7 P8) ----------------------------------
