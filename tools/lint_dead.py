@@ -188,6 +188,48 @@ def check_dead_files(g, reached):
 
 # ---- functions ----------------------------------------------------------
 
+def descendants(files):
+    """file -> every file below it through `extends` (class_name or res:// path), transitively."""
+    by_class = {n["class_name"]: p for p, n in files.items() if n.get("class_name")}
+    kids = collections.defaultdict(set)
+    for p, n in files.items():
+        ext = n.get("extends") or ""
+        parent = ext[len("res://"):] if ext.startswith("res://") else by_class.get(ext.split(".")[0])
+        if parent and parent != p and parent in files:
+            kids[parent].add(p)
+    out = {}
+    for base in kids:
+        seen, stack = set(), [base]
+        while stack:
+            for k in kids.get(stack.pop(), ()):
+                if k not in seen:
+                    seen.add(k)
+                    stack.append(k)
+        out[base] = seen
+    return out
+
+
+def override_family_calls(g, funcs):
+    """(src, line, dst) of ambiguous call edges whose candidates are one base function plus its overrides.
+
+    The receiver's type is lost (`port().f()`), but every candidate is the base or a subclass override of it,
+    so the call is not really name-ambiguous: it reaches each of them."""
+    desc = descendants(g["files"])
+    groups = collections.defaultdict(set)
+    for e in g["call_edges"]:
+        if (e.get("amb") or e["kind"] == "ambiguous") and e["src"] in funcs.keys() | {e["src"]}:
+            groups[(e["src"], e.get("line"))].add(e["dst"])
+    out = set()
+    for (src, line), dsts in groups.items():
+        fs = [funcs[d] for d in dsts if d in funcs]
+        if len(fs) != len(dsts) or len(set(f["name"] for f in fs)) != 1:
+            continue
+        files = set(f["file"] for f in fs)
+        if any(files <= {b} | desc.get(b, set()) for b in files):
+            out.update((src, line, d) for d in dsts)
+    return out
+
+
 def check_funcs(g, reached):
     funcs = g["funcs"]
 
@@ -197,6 +239,7 @@ def check_funcs(g, reached):
 
     strict, loose = collections.defaultdict(set), collections.defaultdict(set)
     test_called = set()
+    family = override_family_calls(g, funcs)
     for e in g["call_edges"]:
         s, d = e["src"], e["dst"]
         sfile = s.split(":")[0]
@@ -205,7 +248,7 @@ def check_funcs(g, reached):
                 test_called.add(d)
             continue
         loose[s].add(d)
-        if not e.get("amb") and e["kind"] != "ambiguous":
+        if (not e.get("amb") and e["kind"] != "ambiguous") or (s, e.get("line"), d) in family:
             strict[s].add(d)
     roots = set()
     for fid, f in funcs.items():
