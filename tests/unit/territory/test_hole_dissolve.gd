@@ -1,10 +1,10 @@
 extends GutTest
-## option A: the disc stays
-## solid under holes; game/field/HoleDissolver.gd (owned by BlockRegistry) dissolves
-## a block that rests or lands on an applied hole cell and removes it through
-## the edge-fall path. The first half drives a bare Field + BlockRegistry on a
-## 6 m disk; the second half the real Match (home elimination, Jumping Bean,
-## HoleMode.OFF) and MatchNet (replication).
+## Hole dissolve: the disc stays solid under holes, and
+## game/field/HoleDissolver.gd (owned by BlockRegistry) dissolves a block that
+## rests or lands on an applied hole cell and removes it through the edge-fall
+## path. The first half drives a bare Field + BlockRegistry on a 6 m disk; the
+## second half the real Match (a punched hole under a home flag) and MatchNet
+## (replication).
 
 const MatchNetScript := preload("res://net/MatchNet.gd")
 
@@ -12,10 +12,15 @@ const MatchNetScript := preload("res://net/MatchNet.gd")
 const SETTLE_FRAMES: int = 60
 ## Generous ceiling for one dissolve (0.35 s = 21 frames) to complete.
 const DISSOLVE_FRAMES: int = 60
+## A bar resting on two cubes starts just above their tops.
+const BRIDGE_DROP_HEIGHT_M: float = 1.05
+## The bridging bar must rest clearly above the disc for the fixture to mean anything.
+const BRIDGE_MIN_REST_HEIGHT_M: float = 0.9
 
 var _tuning: PhysicsTuning = load("res://config/physics/physics_tuning.tres")
 var _dissolve_tuning: HoleDissolveTuning = load("res://config/blocks/tuning/hole_dissolve_tuning.tres")
 var _cube: BlockShape = load("res://config/blocks/cube.tres")
+var _bar3: BlockShape = load("res://config/blocks/bar3.tres")
 
 var _field: Field
 var _registry: BlockRegistry
@@ -134,6 +139,25 @@ func test_a_block_resting_on_a_newly_opened_hole_dissolves_then_is_removed_as_an
 	assert_eq(_field.disk_mesh_build_count(), builds, "No disc rebuild on the hole change.")
 
 
+func test_footprint_cache_rebuilds_when_collision_swaps_with_same_child_count() -> void:
+	_make_world()
+	var block: Block = _spawn(_cube, _middle_cell(), 0.02)
+	var first: Variant = _dissolver()._footprint(block)
+	assert_eq(_dissolver()._footprint(block), first, "Unchanged collision reuses the cache.")
+	var collision: CollisionShape3D = null
+	for child: Node in block.get_children():
+		if child is CollisionShape3D:
+			collision = child as CollisionShape3D
+			break
+	assert_not_null(collision)
+	var count: int = block.get_child_count()
+	var bigger: BoxShape3D = BoxShape3D.new()
+	bigger.size = Vector3.ONE * 3.0
+	collision.shape = bigger
+	assert_eq(block.get_child_count(), count, "Child count is unchanged.")
+	assert_ne(_dissolver()._footprint(block), first, "A swapped shape rebuilds the footprint.")
+
+
 func test_a_dissolve_overrides_a_freeze_hold_and_releases_the_tower_above() -> void:
 	_make_world()
 	var cell: int = _middle_cell()
@@ -157,8 +181,27 @@ func test_a_dissolve_overrides_a_freeze_hold_and_releases_the_tower_above() -> v
 	assert_false(top.is_frozen_visual())
 
 
-## [OWNER decision]: a hole opening under a gift special's carrier
-## block never starts a dissolve; a plain neighbour on the same hole still does.
+func test_a_block_bridging_a_hole_above_the_disc_is_unaffected() -> void:
+	_make_world()
+	var left: Block = _spawn(_cube, _middle_cell(-1), 0.02)
+	var right: Block = _spawn(_cube, _middle_cell(1), 0.02)
+	await wait_physics_frames(SETTLE_FRAMES)
+	var bar: Block = _spawn(_bar3, _middle_cell(), BRIDGE_DROP_HEIGHT_M)
+	await wait_physics_frames(SETTLE_FRAMES)
+	var bar_y: float = bar.global_position.y
+	assert_gt(bar_y, BRIDGE_MIN_REST_HEIGHT_M, "fixture: the bar rests on the two cubes, a cube above the disc")
+
+	_open(PackedInt32Array([_middle_cell()]))
+	await wait_physics_frames(DISSOLVE_FRAMES)
+
+	assert_eq(_dissolver().dissolves_started, 0, "Nothing touches the hole at disc level.")
+	assert_true(is_instance_valid(bar) and not bar.is_queued_for_deletion(), "The bar over the hole stays.")
+	assert_true(is_instance_valid(left) and is_instance_valid(right), "Its supports on solid cells stay.")
+	assert_almost_eq(bar.global_position.y, bar_y, 0.05)
+
+
+## A hole opening under a gift special's carrier block never starts a dissolve;
+## a plain neighbour on the same hole still does.
 func test_a_hole_never_dissolves_a_gift_block_but_still_dissolves_a_plain_one() -> void:
 	_make_world()
 	var gift: Block = _spawn(_cube, _middle_cell(-3), 0.02)
@@ -176,6 +219,26 @@ func test_a_hole_never_dissolves_a_gift_block_but_still_dissolves_a_plain_one() 
 	assert_false(_was_removed(gift.get_instance_id()), "the gift block was not removed by hole logic")
 
 
+func test_a_hole_change_never_rebuilds_the_disc_or_wakes_a_far_block() -> void:
+	_make_world()
+	var far: Block = _spawn(_cube, _middle_cell(-3), 0.02)
+	await wait_physics_frames(SETTLE_FRAMES)
+	far.sleeping = true
+	await wait_physics_frames(1)
+	var builds: int = _field.disk_mesh_build_count()
+
+	var cells: PackedInt32Array = PackedInt32Array([_middle_cell(2), _middle_cell(2, 1), _middle_cell(3)])
+	_open(cells)
+	await wait_physics_frames(2)
+	assert_true(far.sleeping, "A hole elsewhere wakes nothing.")
+	_field.set_hole_cells(PackedInt32Array(), cells)
+	await wait_physics_frames(2)
+
+	assert_eq(_field.disk_mesh_build_count(), builds, "Neither opening nor closing rebuilds (no set_faces).")
+	assert_true(far.sleeping)
+	assert_eq(_dissolver().dissolves_started, 0)
+
+
 func test_a_client_registry_never_dissolves() -> void:
 	_make_world()
 	_registry.set_host_authority(false)
@@ -188,6 +251,19 @@ func test_a_client_registry_never_dissolves() -> void:
 
 	assert_eq(_dissolver().dissolves_started, 0, "Only the host decides a block dissolves.")
 	assert_false(_was_removed(block.get_instance_id()))
+
+
+func test_a_block_leaving_the_disc_does_not_touch_the_hole_under_it() -> void:
+	_make_world()
+	var cell: int = _middle_cell()
+	var block: Block = _spawn(_cube, cell, 0.02)
+	await wait_physics_frames(SETTLE_FRAMES)
+	block.sleeping = true
+	_field._set_hole_applied(cell, true)
+
+	assert_true(_dissolver().touches_hole(block), "fixture: resting on the hole touches it")
+	block.linear_velocity = _field.global_transform.basis.y * (_dissolve_tuning.contact_leave_speed + 2.0)
+	assert_false(_dissolver().touches_hole(block), "Kicked off the disc (a Jumping Bean hop) is not contact.")
 
 
 # --- Real Match --------------------------------------------------------------

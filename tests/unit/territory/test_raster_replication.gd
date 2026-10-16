@@ -1,7 +1,6 @@
 extends GutTest
 ## TerritoryRaster.apply_replicated_state / apply_replicated_diff — the
-## client's mirror raster (it is a mirror,
-## not a solve).
+## client's mirror raster (it is a mirror, not a solve).
 ##
 ## The contract these tests defend: a mirror fed the host's owner_bytes() and
 ## state_bytes() answers team_at(), is_contested(), is_hole_index() and
@@ -114,20 +113,9 @@ func test_an_out_of_range_diff_cell_is_skipped_not_fatal() -> void:
 	assert_eq(mirror.team_at(coords.x, coords.y), 1, "the in-range cell still applies")
 
 
-# --- the circle list rides alongside the raster mirror ------
-##
-## The mirror above never reconstructs group indices (this file's own class
-## doc), so a client's *analytic* picture cannot come from the raster at all
-## — it has to be the same home-anchored circle list the host solved, shipped
-## by core/net/CircleWire.gd (net/MatchNet.gd owns the replication wiring;
-## these tests only pin that a real solved fixture's circles survive the
-## wire, using this file's own circle/group fixture rather than a synthetic
-## one).
-
-
-## the host skips solves on a clean board, so its raster bytes
-## do not change and MatchNet.replicate_territory() finds no changed cells. The
-## mirror must still pick up the next real change as a diff.
+## The host skips solves on a clean board, so its raster bytes do not change
+## and MatchNet.replicate_territory() finds no changed cells. The mirror must
+## still pick up the next real change as a diff.
 func test_mirror_still_receives_updates_after_host_clean_ticks_skip() -> void:
 	var host: TerritoryRaster = _solved_host_raster()
 	var mirror: TerritoryRaster = _make_raster()
@@ -164,30 +152,3 @@ func test_mirror_still_receives_updates_after_host_clean_ticks_skip() -> void:
 		picked_states.append(states[index])
 	mirror.apply_replicated_diff(changed, picked_owners, picked_states)
 	_assert_mirrors(host, mirror)
-
-
-## replicate_territory() returns before any rpc when the
-## bytes equal the last keyframe/diff sent (a real send would need a live peer).
-class FakeSession extends RefCounted:
-	func is_host() -> bool:
-		return true
-
-	func is_offline() -> bool:
-		return false
-
-
-class FakeAuthority extends RefCounted:
-	var raster_ref: TerritoryRaster = null
-
-	func raster() -> TerritoryRaster:
-		return raster_ref
-
-	func set_replicator(_net: Variant) -> void:
-		pass
-
-
-class SendableMatchNet extends "res://net/MatchNet.gd":
-	func _can_send() -> bool:
-		return true
-
-

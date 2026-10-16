@@ -1,6 +1,6 @@
 extends GutTest
-## packed-key render sort, circle-mode containment cull before
-## the budget, and bake-on-settle.
+## Territory render polish: the circle-mode containment cull before the shader
+## budget, and the overlay's bake-on-settle.
 
 const FIELD_RADIUS: float = 20.0
 
