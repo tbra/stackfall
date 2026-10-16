@@ -1,6 +1,5 @@
 shader_type spatial;
-// Graphics pass 2, on docs/art_mockups/
-// 08-cel-shaded-home-beacons.png: "Same for the beacons" -- the beacons need
+// "Same for the beacons" -- the beacons need
 // the same cel-shading detail as blocks: the crystal is a faceted bipyramid
 // with its own per-facet flat normals (HomeFlag._build_crystal_mesh()/
 // _add_facet()) -- this shader adds toon-banded diffuse with a never-near-

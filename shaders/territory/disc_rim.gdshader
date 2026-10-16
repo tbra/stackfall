@@ -3,11 +3,11 @@ render_mode cull_disabled;
 
 // The disc's glowing CHAMFER face (renamed and redesigned from the
 // "rim" strip -- see config/territory/DiscBodyVisuals.gd's own chamfer_*
-// fields and game/DiscBody.gd's class doc for the full picture). This mesh
+// fields and game/field/ArenaMesh.gd for the full picture). This mesh
 // is now a sloped ring frustum whose TOP edge is exactly flush (same radius
 // AND same y) with game/field/TerritoryOverlay.gd's own CylinderMesh top-face
 // outer edge -- the true playing-surface boundary -- and whose BOTTOM edge
-// meets game/DiscBody.gd's own vertical band flush, at the band's own outer
+// meets game/field/ArenaMesh.gd's own vertical band flush, at the band's own outer
 // radius. Sharing that top edge is intentional and safe: the two faces
 // diverge in radius immediately away from it (a sloped face vs. a constant-
 // radius vertical wall), so they only ever touch along a zero-width shared
@@ -25,18 +25,18 @@ render_mode cull_disabled;
 // Surface texture (owner: "it lacks the texture ... visible
 // where it interacts with the sun"): surface_noise is a procedurally
 // generated (FastNoiseLite-backed NoiseTexture2D, no third-party asset)
-// tangent-space normal map, built by game/DiscBody.gd and shared with the
+// tangent-space normal map, built by game/field/ArenaMesh.gd and shared with the
 // band's own StandardMaterial3D so both disc surfaces this package owns
 // carry the same fine-grained sun sheen. surface_anisotropy feeds the
 // built-in ANISOTROPY output using this mesh's own generated TANGENT data
-// (game/DiscBody.gd's own SurfaceTool.generate_tangents(), U running around
+// (game/field/ArenaMesh.gd's own SurfaceTool.generate_tangents(), U running around
 // the disc's circumference), giving a brushed-metal specular streak that
 // runs the same direction the band's own anisotropic highlight does.
 //
 // The visible line still reads as a thin edge-lit lip rather than a filled
 // bar because EMISSION fades from full strength at the top edge to zero at
 // the (possibly extended) bottom edge -- see fragment() below. game/
-// DiscBody.gd's own _build_band_mesh() paints COLOR.r = 0.0 on every
+// ArenaMesh.gd's own band mesh builder paints COLOR.r = 0.0 on every
 // top-edge vertex and 1.0 on every bottom-edge vertex (see its own
 // `with_gradient` parameter) so this shader knows, per vertex, which edge it
 // is without a second uniform.

@@ -46,13 +46,13 @@ extends Resource
 ## flips every physics frame, so the only lag left is how often the field is
 ## re-solved, and 50 ms is short enough that a toppling tower reads as
 ## instant. A full physics-tick rate would roughly triple the cost for a
-## difference no player can see. Re-measured on tests/bench/bench_territory.tscn
+## difference no player can see. Re-measured
 ## at this rate; see hash_cell_size below for the standing protocol when the
 ## budget is missed.
 ## DECISION (config/territory/TerritoryTuning.gd): this rate drives
 ## autoload/Match.gd's _tick_territory()/_run_territory_step() the same way
-## under every MatchConfig.HoleMode -- TerritoryRaster._fill_legacy() (the
-## default TEMPORARY/PERMANENT modes since the evidence audit) runs
+## under every MatchConfig.HoleMode -- TerritoryRaster._fill_stamp() (the
+## default TEMPORARY/PERMANENT modes) runs
 ## on the identical solve_accum loop as _fill_v2(), so a moving/collapsing
 ## tower's contest and hole state update at this rate too, not just its
 ## ownership.

@@ -39,23 +39,8 @@ func circles_of(group: int) -> PackedInt32Array:
 	return circle_indices[group]
 
 
-## Every group belonging to a team. A team can hold several disconnected
-## groups; only one of them has to contain the goal flags to win.
-func groups_of_team(team_id: int) -> PackedInt32Array:
-	var result: PackedInt32Array = PackedInt32Array()
-	for group: int in range(team_ids.size()):
-		if team_ids[group] == team_id:
-			result.append(group)
-	return result
-
-
 ## Adds a group. Only TerritorySolver calls this.
 func add_group(team_id: int, circles: PackedInt32Array) -> int:
 	team_ids.append(team_id)
 	circle_indices.append(circles)
 	return team_ids.size() - 1
-
-
-func clear() -> void:
-	team_ids = PackedInt32Array()
-	circle_indices = []

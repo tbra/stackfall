@@ -60,8 +60,6 @@ var _bucket_starts: PackedInt32Array = PackedInt32Array()
 var _bucket_items: PackedInt32Array = PackedInt32Array()
 var _bucket_cursor: PackedInt32Array = PackedInt32Array()
 
-var _pair_count: int = 0
-
 
 func _init(tuning: TerritoryTuning) -> void:
 	_tuning = tuning
@@ -78,7 +76,6 @@ func tuning() -> TerritoryTuning:
 ## Costs O(n + pairs) with the hash; the raster consumes the result directly.
 func solve(circles: Array[InfluenceCircle]) -> TerritoryGroups:
 	var count: int = circles.size()
-	_pair_count = 0
 	_group_of.resize(count)
 	_group_of.fill(TerritoryGroups.NO_GROUP)
 
@@ -98,38 +95,6 @@ func solve(circles: Array[InfluenceCircle]) -> TerritoryGroups:
 	_collect_pairs(circles)
 	_build_groups(circles, groups)
 	return groups
-
-
-## True when circle `index` ended up in a home-anchored group. Valid only
-## after the matching solve() call; used by tests and by the block shader's
-## "glows brighter when contributing influence" flag (spec 1.10).
-##
-## CONTRACT CHANGE (was `is_connected` in the M2 stub commit): TerritorySolver
-## extends RefCounted, so `is_connected` collides with the native
-## Object.is_connected(StringName, Callable) -> bool. Declaring it is a hard
-## parse error ("The function signature doesn't match the parent"), plus a
-## NATIVE_METHOD_OVERRIDE warning this project escalates to an error. The stub
-## only ever compiled because nothing referenced TerritorySolver yet; the
-## first package to touch the class breaks the whole build. The semantics are
-## unchanged, only the name. Callers can equally use
-## `group_of_circle(i) != TerritoryGroups.NO_GROUP`.
-func is_circle_connected(index: int) -> bool:
-	return group_of_circle(index) != TerritoryGroups.NO_GROUP
-
-
-## The group a circle landed in, or TerritoryGroups.NO_GROUP. Same validity
-## rule as is_circle_connected().
-func group_of_circle(index: int) -> int:
-	if index < 0 or index >= _group_of.size():
-		return TerritoryGroups.NO_GROUP
-	return _group_of[index]
-
-
-## Candidate overlapping pairs the spatial hash produced for the last solve().
-## Exposed so a unit test can assert the hash is not silently degenerating
-## into all-pairs as radii grow.
-func last_pair_count() -> int:
-	return _pair_count
 
 
 ## -- max_circles safety valve ------------------------------------------------
@@ -313,7 +278,6 @@ func _collect_pairs(circles: Array[InfluenceCircle]) -> void:
 					continue
 				if maxi(i_y0, _cell_y0[j]) != cell_y:
 					continue
-				_pair_count += 1
 				var second: InfluenceCircle = circles[j]
 				# Spec 1.5: circles merge only within a team. Across teams an
 				# overlap is a contest, which is the raster's business.

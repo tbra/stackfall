@@ -211,7 +211,7 @@ extends Resource
 ## replaces the single vertical guide line with the whole footprint, one
 ## rotated convex polygon per bottom cell of the held shape, projected
 ## straight down onto whatever is directly beneath it) -----------------------
-## DECISION (config/blocks/tuning/GhostTuning.gd, docs/rotation-issue.png):
+## DECISION (config/blocks/tuning/GhostTuning.gd):
 ## the separate drop-shadow quad (shadow_color/shadow_size/shadow_offset) is
 ## removed rather than kept unused -- the footprint is now the only ground
 ## marker (feel test: a rotated block's footprint must show its
@@ -247,8 +247,7 @@ extends Resource
 ## still faintly hinting at validity.
 @export var footprint_hue_strength: float = 0.18
 
-## -- Projection prism (docs/solid-blocks2-issue.png,
-## test "in the original the ghost block projects its whole shape
+## -- Projection prism (feel test: "in the original the ghost block projects its whole shape
 ## downwards to the disc, it's not just a footprint indicator where the
 ## raycast lands") -- the vertical walls connecting the held shape's own
 ## underside down to its footprint on the disc, matching the original's own
@@ -313,7 +312,7 @@ extends Resource
 @export var reject_flash_color: Color = Color(1.0, 1.0, 1.0, 0.9)
 @export var reject_flash_duration: float = 0.12
 ## Sideways (+world X) and upward (+world Y) distance the ghost kicks during
-## the reject arc. (docs/rotation-issue.png): the kick now
+## the reject arc. The kick now
 ## animates a world-space offset added on top of the ghost's own computed
 ## position every frame (GhostPreview._reject_offset), not the shape visual's
 ## local offset -- the old local-offset kick rode along with whatever
