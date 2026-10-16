@@ -3,6 +3,16 @@ name: stackfall-editor
 description: Works in the user's open Godot pilot editor through the godot-ai MCP - runs the project, takes editor and game screenshots, reads editor/game logs, inspects the scene tree and node properties, runs tests - to reproduce and diagnose user-reported UI, focus, gamepad and runtime issues. Read-only; never edits.
 tools: Read, Glob, Grep, Bash, mcp__godot-ai__editor_state, mcp__godot-ai__editor_screenshot, mcp__godot-ai__logs_read, mcp__godot-ai__project_run, mcp__godot-ai__game_manage, mcp__godot-ai__scene_get_hierarchy, mcp__godot-ai__node_get_properties, mcp__godot-ai__test_run, mcp__godot-ai__api_manage, mcp__godot-ai__session_manage, mcp__godot-ai__session_activate
 model: sonnet
+# Scoped to this agent so the main session never loads its tool schemas or starts its backend.
+# It attaches to the backend the pilot editor's Godot AI dock serves; write and input domains
+# are excluded server-side. The wrapper starts uvx without a console window.
+mcpServers:
+  - godot-ai:
+      type: stdio
+      command: pythonw
+      args: ["-c", "import shutil,subprocess,sys; raise SystemExit(subprocess.call([shutil.which('uvx')] + sys.argv[1:], stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr, creationflags=subprocess.CREATE_NO_WINDOW))", "--isolated", "--no-config", "--no-env-file", "--no-sources", "--no-build", "--index-strategy", "first-index", "--keyring-provider", "disabled", "--index", "https://pypi.org/simple", "--default-index", "https://pypi.org/simple", "--find-links", "https://pypi.org/simple/godot-ai/", "--link-mode", "copy", "--from", "godot-ai==4.3.0", "godot-ai", "attach", "--port", "8000", "--ws-port", "9500", "--exclude-domains", "animation,audio,autoload,batch,camera,client,csg,custom,filesystem,gridmap,input_map,material,navigation,node,particle,resource,scene,script,signal,theme,tilemap,tileset,ui", "--disable-telemetry"]
+      env:
+        GODOT_AI_DISABLE_TELEMETRY: "true"
 skills:
   - stackfall-worker
 hooks:
@@ -27,9 +37,10 @@ godot-ai-pilot` in the main checkout) has the setup and known gotchas.
 
 ## Preconditions (check first, stop with a checkpoint if one fails)
 - The connected editor is the pilot project `godot-ai-pilot` in the worktrees folder
-  (`editor_state`). If the tools are missing or the editor is not connected, return
-  `blocked` with: "user: reconnect in the Godot AI dock, then /mcp reconnect godot-ai".
-  A Claude Code restart drops the editor link; you cannot repair it yourself.
+  (`editor_state`). Your `godot-ai` server starts with you and attaches to the dock's
+  backend. If the tools are missing or the editor is not connected, return `blocked`
+  with: "user: open the pilot editor and reconnect in the Godot AI dock, then
+  re-dispatch". You cannot repair the link yourself.
 - The pilot is at the revision the brief names: `git -C <worktrees folder>/godot-ai-pilot
   rev-parse --short HEAD`. Do not update, merge or reset it; report a mismatch.
 
