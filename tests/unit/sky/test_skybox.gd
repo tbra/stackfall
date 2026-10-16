@@ -63,7 +63,7 @@ func test_cycle_key_light_and_flare_follow_the_sun() -> void:
 		assert_true(flare.config.sun_direction.is_equal_approx(sun), "flare must track the sky disc")
 		if sun.y < -0.01:
 			assert_true(light.light_energy < 0.5, "night key must stay dim")
-			assert_false(flare.is_theme_enabled())
+			assert_false(flare._theme_enabled)
 
 
 ## F4's "cycle" Theme entry persists as theme_name "cycle" and
@@ -83,7 +83,7 @@ func test_ready_starts_the_cycle_for_theme_name_cycle() -> void:
 	assert_eq(skybox.locked_phase(), -1.0)
 	assert_almost_eq(skybox.current_cycle_phase(), (Skybox.load_theme("sunset") as SkyThemeDef).cycle_start_phase, 0.0001)
 	assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_REALTIME)
-	assert_not_null(skybox.get_cloud_sea(), "the layers the cycle drives exist")
+	assert_not_null(skybox.get_node("CloudSea") as CloudSea, "the layers the cycle drives exist")
 
 	var static_skybox: Skybox = Skybox.new()
 	static_skybox.config = SkyboxConfig.new()
@@ -192,7 +192,7 @@ func test_fog_volume_is_created_but_hidden_on_low_preset() -> void:
 	skybox.config = SkyboxConfig.new()
 	add_child_autofree(skybox)
 
-	var fog_volume: FogVolume = skybox.get_fog_volume()
+	var fog_volume: FogVolume = skybox.get_node_or_null("CloudDeck") as FogVolume
 	assert_not_null(fog_volume, "a FogVolume child must always be created, only its visibility is gated")
 	assert_false(fog_volume.visible, "low preset must hide the cloud-deck FogVolume")
 
@@ -216,7 +216,7 @@ func _make_locked_night_skybox() -> Skybox:
 func _assert_locked_night_dressing(skybox: Skybox, label: String) -> void:
 	var night: SkyThemeDef = Skybox.load_theme(Skybox.CYCLE_NIGHT_THEME_ID)
 	var night_puffs: ShaderMaterial = night.cloud_puff_material as ShaderMaterial
-	var puffs: ShaderMaterial = skybox.get_cloud_sea().puff_material()
+	var puffs: ShaderMaterial = (skybox.get_node("CloudSea") as CloudSea).puff_material()
 	assert_not_null(puffs, "%s: the cloud sea has puffs" % label)
 	if puffs == null:
 		return
@@ -228,9 +228,9 @@ func _assert_locked_night_dressing(skybox: Skybox, label: String) -> void:
 		assert_true(colour.is_equal_approx(night_puffs.get_shader_parameter(parameter) as Color), "%s: puff %s is the night mix" % [label, parameter])
 	var sun: Vector3 = (skybox.theme.sky_material as ShaderMaterial).get_shader_parameter(&"sun_direction") as Vector3
 	assert_true((puffs.get_shader_parameter(&"light_direction") as Vector3).is_equal_approx(sun), "%s: puffs are lit from the cycle sun, not the authored one" % label)
-	assert_false(skybox.get_birds().visible, "%s: no distant day birds at night" % label)
-	assert_false(skybox.get_perching_birds().is_enabled(), "%s: the night life config has no perching birds" % label)
-	assert_true(skybox.get_fireflies().visible, "%s: fireflies swarm at night" % label)
+	assert_false((skybox.get_node("DistantBirds") as DistantBirds).visible, "%s: no distant day birds at night" % label)
+	assert_false((skybox.get_node("PerchingBirds") as PerchingBirds).is_enabled(), "%s: the night life config has no perching birds" % label)
+	assert_true((skybox.get_node("Fireflies") as Fireflies).visible, "%s: fireflies swarm at night" % label)
 
 
 func test_graphics_preset_change_keeps_a_locked_night_dressed_as_night() -> void:

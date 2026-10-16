@@ -186,25 +186,6 @@ static func top_is_free(
 	return true
 
 
-## First candidate (scanning from a random start) whose face centre is clear of
-## every hazard; returns its index or -1.
-static func pick_candidate(
-	rng: RandomNumberGenerator,
-	candidates: PackedVector3Array,
-	hazard_points: PackedVector3Array,
-	hazard_radii: PackedFloat32Array
-) -> int:
-	var count: int = candidates.size()
-	if count == 0:
-		return -1
-	var start: int = rng.randi() % count
-	for step: int in range(count):
-		var index: int = (start + step) % count
-		if is_clear(candidates[index], hazard_points, hazard_radii):
-			return index
-	return -1
-
-
 ## True when the tracked block transform differs from its landing anchor by more
 ## than `epsilon` in position or by more than a small angle in rotation.
 static func block_moved(anchor: Transform3D, current: Transform3D, epsilon: float) -> bool:

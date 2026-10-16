@@ -46,7 +46,7 @@ func test_upper_layer_is_the_sea_puff_field_and_always_present() -> void:
 	Settings.set_graphics_preset(&"high")
 	var skybox: Skybox = _wired_skybox()["skybox"] as Skybox
 	skybox.apply_theme(skybox.theme)
-	var sea: CloudSea = skybox.get_cloud_sea()
+	var sea: CloudSea = skybox.get_node("CloudSea") as CloudSea
 	var upper: MultiMeshInstance3D = sea.upper_instance()
 	assert_not_null(upper)
 	assert_true(upper.visible, "clear weather: the upper layer is already there")
@@ -126,9 +126,9 @@ func test_storm_end_restores_the_switched_theme_without_a_rebuild() -> void:
 	skybox.set_storm_sky(1.0, storm)
 	assert_true(skybox.set_theme_by_id("night"))
 	var chosen: SkyThemeDef = Skybox.load_theme("night")
-	var puffs: MultiMeshInstance3D = skybox.get_cloud_sea().puff_instance()
+	var puffs: MultiMeshInstance3D = (skybox.get_node("CloudSea") as CloudSea).puff_instance()
 	skybox.set_storm_sky(0.0, storm)
-	assert_same(skybox.get_cloud_sea().puff_instance(), puffs, "no puff rebuild on restore")
+	assert_same((skybox.get_node("CloudSea") as CloudSea).puff_instance(), puffs, "no puff rebuild on restore")
 	assert_true(environment.fog_light_color.is_equal_approx(chosen.fog_color))
 	assert_almost_eq(environment.fog_density, chosen.fog_density, 0.0001)
 	assert_almost_eq(environment.fog_sky_affect, chosen.fog_sky_affect, 0.0001)
@@ -137,7 +137,7 @@ func test_storm_end_restores_the_switched_theme_without_a_rebuild() -> void:
 	var fog_material: FogMaterial = skybox._fog_volume.material as FogMaterial
 	assert_almost_eq(fog_material.density, chosen.fog_density, 0.0001, "fog volume restored")
 	var expected: Color = (chosen.cloud_puff_material as ShaderMaterial).get_shader_parameter(&"shadow_color") as Color
-	assert_true((skybox.get_cloud_sea().puff_material().get_shader_parameter(&"shadow_color") as Color).is_equal_approx(expected))
+	assert_true(((skybox.get_node("CloudSea") as CloudSea).puff_material().get_shader_parameter(&"shadow_color") as Color).is_equal_approx(expected))
 
 
 func test_rain_snow_and_storm_all_drive_the_shared_overcast() -> void:

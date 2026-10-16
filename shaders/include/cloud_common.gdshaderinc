@@ -193,7 +193,7 @@ vec4 procedural_upper_clouds(sampler2D noise_tex, vec3 dir, vec2 to_sun, float t
 }
 
 // authored cloud-card layer. `atlas` is the 4x2 Blender card
-// atlas (tools/blender/make_cloud_cards.py): rg = camera-space normal xy,
+// atlas: rg = camera-space normal xy,
 // b = openness (AO), a = coverage. The view ray is projected onto a high plane
 // (horizon lift avoids a divide by zero), jittered per grid cell, and each
 // card is oriented so its up axis points at the zenith. Cards are cel-shaded

@@ -78,10 +78,6 @@ func _process(_delta: float) -> void:
 		_material.set_shader_parameter(&"disc_radius", radius)
 
 
-func mote_instance() -> MultiMeshInstance3D:
-	return _instance
-
-
 ## Weather fog changed (game/weather/WeatherFogShader.gd).
 func refresh_weather_fog() -> void:
 	WeatherFogShader.apply(_material)

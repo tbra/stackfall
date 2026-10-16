@@ -67,7 +67,7 @@ func _snapshot(rig: Dictionary) -> Dictionary:
 	var light: DirectionalLight3D = rig["light"] as DirectionalLight3D
 	var sky_material: ShaderMaterial = environment.sky.sky_material as ShaderMaterial
 	var lighting: CloudLighting = skybox.cloud_lighting()
-	var fog_material: FogMaterial = skybox.get_fog_volume().material as FogMaterial
+	var fog_material: FogMaterial = (skybox.get_node_or_null("CloudDeck") as FogVolume).material as FogMaterial
 	return {
 		"theme": skybox.theme.resource_path,
 		"theme_name": skybox.config.theme_name,

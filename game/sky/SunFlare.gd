@@ -1,7 +1,6 @@
 class_name SunFlare
 extends CanvasLayer
-## Graphics pass 2, feedback/graphics_
-## feedback.md: "lens flare from the sun": a screen-space lens flare -- a
+## A screen-space lens flare from the sun -- a
 ## tight starburst sparkle at the sun's own screen position, plus ghost
 ## discs sampled along the axis from the sun to the screen center -- drawn
 ## via a full-viewport ColorRect using shaders/sky/sun_flare.gdshader
@@ -125,8 +124,7 @@ func _exit_tree() -> void:
 
 ## Reuses the same volumetric_fog_enabled flag game/sky/Skybox.gd and this
 ## package's own game/blocks/BlockEffectsManager.gd already gate their own Low-
-## preset-disabled heavy bits on (docs/M7_ART_DIRECTION.md's performance
-## budget) -- a full-viewport shader pass is exactly that kind of "heavy
+## preset-disabled heavy bits on -- a full-viewport shader pass is exactly that kind of "heavy
 ## bit" on Low.
 func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 	_enabled = preset == null or preset.volumetric_fog_enabled
@@ -170,14 +168,6 @@ func is_fullscreen_ui_open() -> bool:
 
 func set_weather_scale(value: float) -> void:
 	_weather_scale = clampf(value, 0.0, 1.0)
-
-
-func weather_scale() -> float:
-	return _weather_scale
-
-
-func is_theme_enabled() -> bool:
-	return _theme_enabled
 
 
 func _process(delta: float) -> void:
@@ -344,22 +334,3 @@ func _query_cloud_block(direction: Vector3) -> float:
 	if _cloud_sea == null:
 		return 0.0
 	return _cloud_sea.sun_ray_cloud_occlusion(_camera.global_position, direction, config)
-
-
-## Test/inspection seam: forces the next visibility computation to re-query the clouds.
-func invalidate_cloud_query() -> void:
-	_cloud_queried = false
-
-
-## Test/inspection seam: the visibility _process() last smoothed toward, so a
-## test can drive _compute_visibility()/the lerp directly without a real
-## rendered frame.
-func current_visibility() -> float:
-	return _current_visibility
-
-
-## Test/inspection seam for _on_graphics_preset_changed()'s own Low-preset
-## gate, the same style as game/blocks/BlockEffectsManager.gd's own
-## active_effect_count().
-func is_flare_enabled() -> bool:
-	return _enabled

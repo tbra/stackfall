@@ -70,14 +70,6 @@ func _build_cloud() -> void:
 	add_child(cloud)
 
 
-func set_silhouette_style(style_index: int) -> void:
-	silhouette_style = clampi(style_index, 0, 2)
-	var previous: Node = get_node_or_null("CloudMass")
-	if previous != null:
-		previous.free()
-	_build_cloud()
-
-
 func _make_cloud_material() -> StandardMaterial3D:
 	var material: StandardMaterial3D = StandardMaterial3D.new()
 	material.albedo_color = Color.WHITE

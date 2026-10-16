@@ -28,7 +28,7 @@ func _upper_sea() -> CloudSea:
 	add_child_autofree(skybox)
 	skybox.apply_theme(skybox.theme)
 	_skybox = skybox
-	return skybox.get_cloud_sea()
+	return skybox.get_node("CloudSea") as CloudSea
 
 
 func test_round_bottom_rests_on_the_clump_level_a_flat_one_is_cut_there() -> void:

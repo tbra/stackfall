@@ -22,7 +22,7 @@ func _wired_skybox() -> Skybox:
 ## The puff material equals the shared state, and the upper layer draws with it.
 func _assert_layers_match(skybox: Skybox, label: String) -> void:
 	var l: CloudLighting = skybox.cloud_lighting()
-	var sea: CloudSea = skybox.get_cloud_sea()
+	var sea: CloudSea = skybox.get_node("CloudSea") as CloudSea
 	var puff: ShaderMaterial = sea.puff_material()
 	assert_true((puff.get_shader_parameter(&"light_direction") as Vector3).normalized().is_equal_approx(l.light_direction), "%s puff light" % label)
 	assert_true((puff.get_shader_parameter(&"lit_color") as Color).is_equal_approx(l.lit_color), "%s puff palette" % label)
@@ -80,7 +80,7 @@ func _sun_shares(skybox: Skybox, clear_glow: float, clear_ray: float) -> Diction
 		&"core": float(sky.get_shader_parameter(&"sun_core_intensity")) * scale,
 		&"rays": float(sky.get_shader_parameter(&"ray_intensity")) * scale / clear_ray,
 		&"rays_absolute": float(sky.get_shader_parameter(&"ray_intensity")) * scale,
-		&"flare": flare.weather_scale() if flare.is_theme_enabled() else 0.0,
+		&"flare": flare._weather_scale if flare._theme_enabled else 0.0,
 	}
 
 
