@@ -72,7 +72,6 @@
    "game/field/HoleDissolver.gd:reset",
    "game/field/HoleDissolver.gd:set_field",
    "game/field/TerritoryOverlay.gd:circle_count",
-   "game/field/TerritoryOverlay.gd:set_weather_fog",
    "game/flags/GoalFlag.gd:multiplier_chip_text",
    "game/flags/GoalFlag.gd:timer_text",
    "game/player/CameraRig.gd:get_pitch",
@@ -88,7 +87,6 @@
    "game/weather/CloudCeiling.gd:overcast",
    "game/weather/CloudCeiling.gd:storm_amount",
    "game/world/MatchContext.gd:goal_zone_visual_radius",
-   "game/world/MatchContext.gd:grant_glue_drops",
    "net/BreezeNet.gd:set_providers",
    "net/MatchNet.gd:set_providers",
    "net/SnowNet.gd:set_providers",
@@ -96,7 +94,6 @@
    "ui/components/UiChipToggle.gd:set_available",
    "ui/components/UiText.gd:set_face",
    "ui/components/UiTitleRow.gd:add_trailing",
-   "ui/hud/HUD.gd:eliminated_banner_text",
    "ui/theme/UiScale.gd:base_size",
    "ui/theme/UiScale.gd:factor",
    "ui/theme/UiScale.gd:logical_size",
@@ -271,11 +268,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "autoload/Match.gd:grant_glue_drops",
-   "reason": "live: autoload/match/MatchContextLive.gd:180 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
    "entry": "autoload/Match.gd:match_timer_left",
    "reason": "live: net/MatchNet.gd:2220 (untyped or dynamic call)"
   },
@@ -343,11 +335,6 @@
    "id": "test-only-func",
    "entry": "autoload/match/MatchContextLive.gd:goal_zone_visual_radius",
    "reason": "Field.gd:1118 MatchContext.current().goal_zone_visual_radius()"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:grant_glue_drops",
-   "reason": "GlueEffect.gd:13 MatchContext.current().grant_glue_drops()"
   },
   {
    "id": "test-only-func",
