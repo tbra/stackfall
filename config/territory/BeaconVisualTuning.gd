@@ -2,7 +2,7 @@ class_name BeaconVisualTuning
 extends Resource
 ## Sizes, colors and emission strengths for the procedural "beacon" that
 ## replaces the M2 pole-and-banner placeholder on both HomeFlag and GoalFlag
-## (M7 P8, docs/M7_ART_DIRECTION.md Q6: "procedural home
+## ("procedural home
 ## beacons (socket + luminous ring + faceted crystal) replace the pennants; a
 ## neutral variant for the goal flag").
 ##
@@ -31,7 +31,7 @@ extends Resource
 ## ring_outer_radius 0.55->1.375, ring_thickness 0.12->0.3, crystal_radius
 ## 0.22->0.55, crystal_height 0.75->1.875) so a HomeFlag's crystal reads as
 ## roughly two 1m block cells tall and its ring as wider than one, matching
-## docs/art_mockups/08-cel-shaded-home-beacons.png at the real follow-camera
+## the art mockup at the real follow-camera
 ## distance (config/player/camera_tuning.tres' follow_distance 9.0) rather than only
 ## at the far overview framing earlier screenshots used. goal_scale_factor is
 ## unchanged (1.35) -- it already keeps the goal variant proportionately
@@ -49,8 +49,7 @@ extends Resource
 @export var socket_height: float = 0.625
 ## Always this color, home or goal -- only the ring and crystal above it
 ## carry an an owner's (or the goal's neutral) color, matching the reference
-## mockup's dark, uniform beacon bases (docs/art_mockups/
-## 08-cel-shaded-home-beacons.png).
+## mockup's dark, uniform beacon bases.
 @export var socket_color: Color = Color(0.16, 0.16, 0.18)
 
 ## -- Ring (the luminous halo lying flat on the socket) -----------------------
@@ -78,8 +77,7 @@ extends Resource
 @export var crystal_facets: int = 6
 @export var crystal_emission: float = 1.1
 
-## -- Crystal cel shading (on docs/art_mockups/
-## 08-cel-shaded-home-beacons.png: "Same for the beacons" -- the faceted
+## -- Crystal cel shading ("Same for the beacons" -- the faceted
 ## crystal now draws with shaders/territory/beacon_crystal.gdshader, the same toon-band
 ## + shadow-tint + hard specular technique as shaders/blocks/block_cell_grid.gdshader,
 ## kept as its own tunable set here (rather than reusing BlockVisualTuning)

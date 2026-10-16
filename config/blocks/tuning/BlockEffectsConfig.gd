@@ -1,8 +1,7 @@
 class_name BlockEffectsConfig
 extends Resource
 ## Tunables for game/blocks/BlockEffectsManager.gd's particle effects (
-## M7 P4, spec 1.10 "effects + camera shake"; extended M7 art
-## direction pass 2 -- docs/art_mockups/08-cel-shaded-home-beacons.png). Three
+## spec 1.10 "effects + camera shake"). Three
 ## effect kinds, following the same "no magic numbers" pattern
 ## config/physics/CameraShakeConfig.gd already uses for game/player/CameraRig.gd:
 ## - landing dust / impact burst: Events.block_impacted_at, now TWO bursts

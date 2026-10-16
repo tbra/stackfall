@@ -34,7 +34,7 @@ extends Resource
 ## alone. At rest (_tilt_velocity == 0) Field._update_tilt()'s accel is zero
 ## when stiffness * tilt_eq == physical_balance_torque_gain *
 ## sum(mass * lever_arm_m), i.e. tilt_eq_rad == gain * torque_sum /
-## spring_stiffness(). tests/bench/bench_physical_balance.gd's 15-block tower
+## spring_stiffness(). A 15-block tower
 ## at a 4 m lever arm (mass 1 kg each, cube_mass) sums to torque_sum == 60
 ## kg*m; spring_stiffness() == (1 / return_time_constant_s)^2 == 0.0625 at the
 ## default 4 s constant.

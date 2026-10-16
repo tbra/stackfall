@@ -50,52 +50,48 @@ func test_weights_hold_over_2000_draws() -> void:
 		)
 
 
+## Cards in one bag: the quantised copies of every shape, plus the stabilizer
+## top-up that reaches min_stabilizers_per_bag.
+func _bag_size(bag: BlockBag, config: BlockFeedConfig) -> int:
+	var total: int = 0
+	var stabilizers: int = 0
+	for shape: BlockShape in bag.shapes():
+		var copies: int = int(_copies(bag, shape, config))
+		total += copies
+		if config.stabilizer_ids.has(shape.id):
+			stabilizers += copies
+	return total + maxi(config.min_stabilizers_per_bag - stabilizers, 0)
+
+
 func test_every_bag_carries_the_minimum_stabilizers() -> void:
 	var config: BlockFeedConfig = _config()
-	var stabilizer_ids: Array[StringName] = config.stabilizer_ids
 	var bag: BlockBag = BlockBag.new(config, 3)
-
-	# Walk bag boundaries via remaining(): it counts down each draw and jumps
-	# back up the moment a fresh bag is built, which is the boundary to check
-	# the stabilizer count against. The very first draw always looks like a
-	# "refill" (remaining() goes from 0, before any bag exists, up to a full
-	# bag), so that one is skipped rather than checked as a completed bag.
-	var stabilizers_in_bag: int = 0
+	var bag_size: int = _bag_size(bag, config)
 	var bags_checked: int = 0
-	var seen_first_bag: bool = false
-	for _i: int in range(400):
-		var before: int = bag.remaining()
-		var shape: BlockShape = bag.next()
-		if stabilizer_ids.has(shape.id):
-			stabilizers_in_bag += 1
-		if bag.remaining() > before:
-			if seen_first_bag:
-				# Refilled after this draw: the bag that just finished had at
-				# least min_stabilizers_per_bag (spec 1.4).
-				assert_gte(
-					stabilizers_in_bag, config.min_stabilizers_per_bag,
-					"A bag had only %d stabilizer(s)." % stabilizers_in_bag
-				)
-				bags_checked += 1
-			seen_first_bag = true
-			stabilizers_in_bag = 0
-	assert_gt(bags_checked, 3, "Should have crossed several bag boundaries in 400 draws.")
+	for _bag_index: int in range(8):
+		var stabilizers_in_bag: int = 0
+		for _i: int in range(bag_size):
+			if config.stabilizer_ids.has(bag.next().id):
+				stabilizers_in_bag += 1
+		# spec 1.4: a finished bag had at least min_stabilizers_per_bag.
+		assert_gte(
+			stabilizers_in_bag, config.min_stabilizers_per_bag,
+			"A bag had only %d stabilizer(s)." % stabilizers_in_bag
+		)
+		bags_checked += 1
+	assert_eq(bags_checked, 8, "Should have crossed several bag boundaries.")
 
 
 func test_peek_never_goes_short_across_a_bag_boundary_and_does_not_consume() -> void:
-	var bag: BlockBag = BlockBag.new(_config(), 11)
-	# Force the first bag into existence, then drain it down to its last
-	# shape. (remaining() reads 0 before any bag has ever been built, so the
-	# drain condition alone would never run without this first draw.)
-	bag.next()
-	while bag.remaining() > 1:
+	var config: BlockFeedConfig = _config()
+	var bag: BlockBag = BlockBag.new(config, 11)
+	# Drain the first bag down to its last shape.
+	for _i: int in range(_bag_size(bag, config) - 1):
 		bag.next()
 
-	var draw_count_before: int = bag.draw_count()
 	var preview: Array[BlockShape] = bag.peek(3)
 	assert_eq(preview.size(), 3, "peek(3) should return 3 shapes even across a bag boundary.")
-	assert_eq(bag.draw_count(), draw_count_before, "peek() must not consume draws.")
-	assert_eq(bag.remaining(), 1, "peek() must not touch the current bag's position.")
+	assert_eq(bag.peek(3), preview, "peek() must not consume draws.")
 
 	# The real draws that follow must match exactly what was previewed.
 	for expected: BlockShape in preview:

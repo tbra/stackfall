@@ -27,6 +27,14 @@ func _home(x: float, z: float, team: int, slot: int = -1) -> InfluenceCircle:
 	)
 
 
+## True when circle `index` landed in any home-anchored group.
+func _connected(groups: TerritoryGroups, index: int) -> bool:
+	for group: int in range(groups.group_count()):
+		if groups.circles_of(group).has(index):
+			return true
+	return false
+
+
 ## -- Anchoring ---------------------------------------------------------------
 
 func test_a_lone_home_circle_is_a_group_on_its_own() -> void:
@@ -36,8 +44,7 @@ func test_a_lone_home_circle_is_a_group_on_its_own() -> void:
 	assert_eq(groups.group_count(), 1, "A home circle is always a group seed.")
 	assert_eq(groups.team_of(0), 0)
 	assert_eq(groups.circles_of(0), PackedInt32Array([0]))
-	assert_true(solver.is_circle_connected(0))
-	assert_eq(solver.group_of_circle(0), 0)
+	assert_true(_connected(groups, 0))
 
 
 func test_a_block_circle_with_no_home_gives_no_territory() -> void:
@@ -45,8 +52,7 @@ func test_a_block_circle_with_no_home_gives_no_territory() -> void:
 	var circles: Array[InfluenceCircle] = [_block(0.0, 0.0, 5.0, 0)]
 	var groups: TerritoryGroups = solver.solve(circles)
 	assert_eq(groups.group_count(), 0)
-	assert_false(solver.is_circle_connected(0))
-	assert_eq(solver.group_of_circle(0), TerritoryGroups.NO_GROUP)
+	assert_false(_connected(groups, 0))
 
 
 func test_an_unanchored_chain_gives_no_territory() -> void:
@@ -84,15 +90,17 @@ func test_a_chain_connects_through_its_middle() -> void:
 func test_touching_exactly_at_the_summed_radii_connects() -> void:
 	var solver: TerritorySolver = _solver()
 	var circles: Array[InfluenceCircle] = [_home(0.0, 0.0, 0), _block(9.0, 0.0, 3.0, 0)]
-	assert_eq(solver.solve(circles).group_count(), 1)
-	assert_true(solver.is_circle_connected(1))
+	var groups: TerritoryGroups = solver.solve(circles)
+	assert_eq(groups.group_count(), 1)
+	assert_true(_connected(groups, 1))
 
 
 func test_a_circle_a_hair_too_far_does_not_connect() -> void:
 	var solver: TerritorySolver = _solver()
 	var circles: Array[InfluenceCircle] = [_home(0.0, 0.0, 0), _block(9.05, 0.0, 3.0, 0)]
-	assert_eq(solver.solve(circles).group_count(), 1)
-	assert_false(solver.is_circle_connected(1))
+	var groups: TerritoryGroups = solver.solve(circles)
+	assert_eq(groups.group_count(), 1)
+	assert_false(_connected(groups, 1))
 
 
 func test_connectivity_works_across_the_spatial_hash_diagonally() -> void:
@@ -121,8 +129,7 @@ func test_a_cut_off_tower_loses_its_influence() -> void:
 	var groups: TerritoryGroups = solver.solve(cut)
 	assert_eq(groups.group_count(), 1, "Only the home's own group survives.")
 	assert_eq(groups.circles_of(0), PackedInt32Array([0]))
-	assert_false(solver.is_circle_connected(1), "The cut-off tower contributes nothing.")
-	assert_eq(solver.group_of_circle(1), TerritoryGroups.NO_GROUP)
+	assert_false(_connected(groups, 1), "The cut-off tower contributes nothing.")
 
 
 ## -- Teams -------------------------------------------------------------------
@@ -143,7 +150,7 @@ func test_an_enemy_block_does_not_bridge_two_of_my_towers() -> void:
 		_home(-10.0, 0.0, 0), _block(0.0, 0.0, 6.0, 1), _block(10.0, 0.0, 3.0, 0)
 	]
 	var groups: TerritoryGroups = solver.solve(circles)
-	assert_false(solver.is_circle_connected(2), "Team 0's far block is still cut off.")
+	assert_false(_connected(groups, 2), "Team 0's far block is still cut off.")
 	assert_eq(groups.group_count(), 1, "The enemy block has no home of its own.")
 
 

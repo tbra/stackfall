@@ -24,7 +24,6 @@ var _shapes: Array[BlockShape] = []
 
 var _bag: Array[BlockShape] = []
 var _bag_pos: int = 0
-var _draw_count: int = 0
 
 ## A bag built ahead of time by peek() when it needs to look past the current
 ## bag's end, using a cloned RandomNumberGenerator so the real _rng (and thus
@@ -83,7 +82,6 @@ func next() -> BlockShape:
 		_bag_pos = 0
 	var shape: BlockShape = _bag[_bag_pos]
 	_bag_pos += 1
-	_draw_count += 1
 	return shape
 
 
@@ -114,17 +112,6 @@ func peek(count: int = 1) -> Array[BlockShape]:
 		result.append(source[index])
 		index += 1
 	return result
-
-
-## How many draws are left before the bag refills. Tests use it to line
-## themselves up on a bag boundary.
-func remaining() -> int:
-	return maxi(_bag.size() - _bag_pos, 0)
-
-
-## Total draws made so far, across all bags.
-func draw_count() -> int:
-	return _draw_count
 
 
 func _ensure_pending() -> void:

@@ -272,8 +272,12 @@ func test_v2_individual_stacks_count_never_a_team_sum() -> void:
 		_block(6.0, -3.0, 2.0, 1),
 	]
 	var groups: TerritoryGroups = _solver.solve(circles)
-	assert_eq(groups.groups_of_team(1).size(), 1, "Setup: the cluster is one connected group.")
-	assert_eq(groups.circles_of(groups.groups_of_team(1)[0]).size(), 5,
+	var team_one_groups: Array[int] = []
+	for group: int in range(groups.group_count()):
+		if groups.team_of(group) == 1:
+			team_one_groups.append(group)
+	assert_eq(team_one_groups.size(), 1, "Setup: the cluster is one connected group.")
+	assert_eq(groups.circles_of(team_one_groups[0]).size(), 5,
 		"Setup: all five team-1 circles are anchored.")
 
 	_step_v2(circles)

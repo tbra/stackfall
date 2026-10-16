@@ -57,8 +57,7 @@ extends Resource
 ## removes the earlier "hot mirror spot"/reflected-block complaint, so
 ## metallic can go back up without reintroducing it.
 ##
-## DECISION (config/territory/TerritoryVisuals.gd, reproduced by
-## tools/screenshot_feel8b_disc_glare.gd): back down to a glossy dielectric.
+## DECISION (config/territory/TerritoryVisuals.gd): back down to a glossy dielectric.
 ## The mirror-like look came from a planar mirror pass (removed the
 ## disc now relies on the sky and probe reflections), not from metallic: at 0.85 the lit
 ## albedo -- the territory tint and the mirror image both -- only tinted the
@@ -68,8 +67,7 @@ extends Resource
 ##
 ## DECISION (config/territory/TerritoryVisuals.gd, 
 ## "the disc is just a thin mirror currently ... the mockup has a much
-## thicker metallic disc"): raised again toward docs/art_mockups/08-cel-
-## shaded-home-beacons.png's dark polished graphite/black-lacquer top,
+## thicker metallic disc"): raised again toward the art mockup's dark polished graphite/black-lacquer top,
 ## alongside disk_base_color's own darkening and the new
 ## mirror_center_fraction/mirror_fresnel_power below, which now do the actual
 ## work of keeping the straight-down reflection subdued.
@@ -168,8 +166,7 @@ extends Resource
 ## function -- 1.0 removes the hue entirely (brightness-only shading), 0.0
 ## leaves it fully warm (Godot's ordinary default).
 @export var disk_diffuse_desaturate: float = 0.85
-## Color of the sun-facing sheen (docs/art_mockups/08-cel-shaded-home-
-## beacons.png: a warm gold sheen on the half of the disc toward the sun).
+## Color of the sun-facing sheen (art mockup: a warm gold sheen on the half of the disc toward the sun).
 @export var disk_sheen_color: Color = Color(1.0, 0.78, 0.4)
 ## Peak strength of the sun-facing sheen; 0 disables it.
 ##
@@ -253,7 +250,7 @@ extends Resource
 ## DECISION (config/territory/TerritoryVisuals.gd): raised so the
 ## raster-fallback outline actually crosses Main.tscn's HDR glow threshold
 ## (1.1) and reads as a luminous boundary line the way
-## docs/art_mockups/08-cel-shaded-home-beacons.png's territory edges do,
+## the art mockup's territory edges do,
 ## matching rim_strength below (the ordinary analytic path's own equivalent).
 @export var outline_strength: float = 1.6
 ## How much of the pulse is animated; the rest is a constant outline.
@@ -308,7 +305,7 @@ extends Resource
 ## that team). Larger reads blurrier.
 @export var rim_soft_width: float = 0.25
 ## Half-width, in meters, of the bright rim band drawn just inside a
-## territory's analytic edge (docs/ORIGINAL_BONTAGO_NOTES.md: "a bright
+## territory's analytic edge ("a bright
 ## border around the rim of the shaded area").
 @export var rim_width: float = 0.12
 ## Emission strength of the rim at the peak of its pulse.
@@ -316,7 +313,7 @@ extends Resource
 ## DECISION (config/territory/TerritoryVisuals.gd): raised past
 ## Main.tscn's HDR glow threshold (1.1) so the ordinary analytic path's
 ## territory boundary blooms slightly, matching
-## docs/art_mockups/08-cel-shaded-home-beacons.png's luminous contour lines
+## the art mockup's luminous contour lines
 ## (outline_strength above is the raster-fallback path's own equivalent).
 @export var rim_strength: float = 1.8
 ## How much of the rim's pulse is animated; the rest is a constant glow.

@@ -80,7 +80,7 @@ func test_stack_sites_centre_the_footprint_on_the_tower() -> void:
 			var basis: Basis = BlockOrientations.get_basis(c.orientation_index)
 			var lo: Vector2 = Vector2(INF, INF)
 			var hi: Vector2 = Vector2(-INF, -INF)
-			for offset: Vector3 in shape.cube_offsets(basis, _physics.cube_size):
+			for offset: Vector3 in _cube_offsets(shape, basis):
 				lo = lo.min(_xz(offset))
 				hi = hi.max(_xz(offset))
 			var centre: Vector2 = c.origin + (lo + hi) * 0.5
@@ -99,10 +99,19 @@ func test_spawn_pose_rests_every_orientation_on_the_support() -> void:
 			var pose: Vector3 = BotController.spawn_pose(shape, index, Vector2(2.0, 3.0), SUPPORT_Y, _physics)
 			assert_eq(Vector2(pose.x, pose.z), Vector2(2.0, 3.0))
 			var lowest: float = INF
-			for local: Vector3 in shape.cube_offsets(Basis.IDENTITY, _physics.cube_size):
+			for local: Vector3 in _cube_offsets(shape, Basis.IDENTITY):
 				for corner_sign: Vector3 in BlockShape.CORNER_SIGNS:
 					lowest = minf(lowest, pose.y + (basis * (local + corner_sign * half)).y)
 			assert_almost_eq(lowest, SUPPORT_Y, EPS, "%s o%d rests on the support" % [shape.id, index])
+
+
+## Each cube's centre relative to the bottom_center() pivot once rotated by `basis`.
+func _cube_offsets(shape: BlockShape, basis: Basis) -> PackedVector3Array:
+	var out: PackedVector3Array = PackedVector3Array()
+	var pivot: Vector3 = shape.bottom_center()
+	for cell: Vector3i in shape.cells:
+		out.append(basis * ((Vector3(cell) - pivot) * _physics.cube_size))
+	return out
 
 
 func _shape_by_id(id: String) -> BlockShape:
