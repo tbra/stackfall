@@ -74,14 +74,6 @@ func publish_floor(floor: Color, shadow_ratio: float, mid_ratio: float, sun_effe
 	return true
 
 
-## The weather grade shared by every layer (the puff shader mirrors it):
-## desaturate toward luminance, then darken.
-static func grade(color: Color, dim_amount: float, desaturate_amount: float) -> Color:
-	var luma: float = color.get_luminance()
-	var greyed: Color = color.lerp(Color(luma, luma, luma, color.a), clampf(desaturate_amount, 0.0, 1.0))
-	return Color(greyed.r * (1.0 - dim_amount), greyed.g * (1.0 - dim_amount), greyed.b * (1.0 - dim_amount), color.a)
-
-
 ## the brightest the combined weather darkening may get, with the
 ## night palette already dark: weather dim is relieved by `night_relief` * night
 ## so storm and night never stack into black, then capped at `max_dim`.
