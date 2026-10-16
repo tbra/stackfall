@@ -28,15 +28,6 @@ class _Wet:
 var _wet: Dictionary = {}  ## material instance id (int) -> _Wet
 var _last_intensity: float = 0.0
 var _scan_left: float = 0.0
-## Test seam: Callable returning Array of CollisionObject3D (blocks) and
-## Callable returning the disc body (or null). Null = read the live Match.
-var _blocks_provider: Callable = Callable()
-var _disc_provider: Callable = Callable()
-
-
-func set_providers(blocks_provider: Callable, disc_provider: Callable) -> void:
-	_blocks_provider = blocks_provider
-	_disc_provider = disc_provider
 
 
 func apply(intensity: float) -> void:
@@ -79,8 +70,7 @@ func _apply_slide(rain: RainTuning, intensity: float) -> void:
 	var level: float = clampf(intensity, 0.0, 1.0)
 	var min_sq: float = rain.wet_slide_min_speed_mps * rain.wet_slide_min_speed_mps
 	var max_sq: float = rain.wet_slide_max_speed_mps * rain.wet_slide_max_speed_mps
-	var awake: Array = _slide_candidates()
-	for item: Variant in awake:
+	for item: Variant in Block.awake_blocks():
 		var body: RigidBody3D = item as RigidBody3D
 		if body == null or not is_instance_valid(body) or body.freeze or body.sleeping or not body.is_inside_tree():
 			continue
@@ -90,12 +80,6 @@ func _apply_slide(rain: RainTuning, intensity: float) -> void:
 		if speed_sq < min_sq or speed_sq >= max_sq:
 			continue
 		body.apply_central_force(velocity / sqrt(speed_sq) * body.mass * rain.wet_slide_accel_mps2 * level)
-
-
-func _slide_candidates() -> Array:
-	if _blocks_provider.is_valid():
-		return _blocks_provider.call() as Array
-	return Block.awake_blocks()
 
 
 func restore() -> void:
@@ -112,9 +96,9 @@ func restore() -> void:
 func _scan() -> void:
 	for body: Variant in _blocks():
 		_adopt(body as CollisionObject3D, false)
-	var disc: Variant = _disc()
+	var disc: FieldBody = _disc()
 	if disc != null:
-		_adopt(disc as CollisionObject3D, true)
+		_adopt(disc, true)
 
 
 func _adopt(body: CollisionObject3D, is_disc: bool) -> void:
@@ -152,16 +136,12 @@ func _write_all(intensity: float, rain: RainTuning) -> void:
 
 
 func _blocks() -> Array:
-	if _blocks_provider.is_valid():
-		return _blocks_provider.call() as Array
 	if context == null or context.registry() == null:
 		return []
 	return (context.registry() as BlockRegistry).all_blocks()
 
 
-func _disc() -> Variant:
-	if _disc_provider.is_valid():
-		return _disc_provider.call()
+func _disc() -> FieldBody:
 	if context == null:
 		return null
-	return context.field() as Field
+	return context.field()

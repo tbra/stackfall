@@ -20,7 +20,6 @@ var _gust: Dictionary = {}
 var _tuning: BreezeTuning = null
 var _age: float = 0.0
 var _material: ShaderMaterial = null
-var _instances: Array[MultiMeshInstance3D] = []
 
 
 func configure(gust: Dictionary, tuning: BreezeTuning) -> void:
@@ -33,17 +32,6 @@ func configure(gust: Dictionary, tuning: BreezeTuning) -> void:
 static func travel_direction(gust: Dictionary) -> Vector3:
 	var heading: Vector2 = BreezeField.heading(float(gust["a"]))
 	return Vector3(heading.x, 0.0, heading.y)
-
-
-func material() -> ShaderMaterial:
-	return _material
-
-
-func streak_count() -> int:
-	var total: int = 0
-	for instance: MultiMeshInstance3D in _instances:
-		total += instance.multimesh.instance_count
-	return total
 
 
 ## A flat strip along x (-0.5..0.5) with UV.x = fraction along it, so the shader
@@ -124,7 +112,6 @@ func _ready() -> void:
 	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	instance.custom_aabb = AABB(Vector3.ONE * -extent, Vector3.ONE * extent * 2.0)
 	add_child(instance)
-	_instances.append(instance)
 
 
 ## Metres a wisp drifts over one life: the gust's drift speed over its stroke cycle,

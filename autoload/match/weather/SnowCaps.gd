@@ -19,8 +19,7 @@ const CAP_MESH_NAME: StringName = &"SnowCapMesh"
 const DISC_CAP_PREFIX: String = "SnowDiscCap"
 const DISC_BODY_PREFIX: String = "SnowDiscBody"
 const DISC_COVER_NAME: StringName = &"SnowDiscCover"
-## A cover set to level 0 keeps drawing while it fades out
-## under this name, so disc_cover() no longer reports it.
+## A cover set to level 0 keeps drawing while it fades out under this name.
 const DISC_COVER_FADING_NAME: StringName = &"SnowDiscCoverFading"
 const LUMP_META: StringName = &"snow_lump"
 const CAP_SHADER: Shader = preload("res://shaders/weather/snow_cap.gdshader")
@@ -259,36 +258,6 @@ static func disc_bodies(field: Node) -> Array[StaticBody3D]:
 	return out
 
 
-static func disc_collider_count(field: Node) -> int:
-	var total: int = 0
-	for body: StaticBody3D in disc_bodies(field):
-		total += lump_colliders(body).size()
-	return total
-
-
-## Every disc drift mesh instance under `field`.
-static func disc_cap_meshes(field: Node) -> Array[MeshInstance3D]:
-	var out: Array[MeshInstance3D] = []
-	if not is_instance_valid(field):
-		return out
-	for child: Node in field.get_children():
-		if String(child.name).begins_with(DISC_CAP_PREFIX):
-			var instance: MeshInstance3D = cap_mesh(field, child.name)
-			if instance != null:
-				out.append(instance)
-	return out
-
-
-## The snow mesh under `holder` (a block or the field), or null.
-static func cap_mesh(holder: Node, cap_name: StringName) -> MeshInstance3D:
-	if not is_instance_valid(holder):
-		return null
-	var cap: Node = holder.get_node_or_null(NodePath(String(cap_name)))
-	if cap == null:
-		return null
-	return cap.get_node_or_null(NodePath(String(CAP_MESH_NAME))) as MeshInstance3D
-
-
 ## Sets the visual disc cover to `level`. Visual only. Level 0 melts it away:
 ## the cover fades out (SnowTuning.cover_ease_s per level) and frees itself;
 ## a new level before then revives it.
@@ -319,17 +288,3 @@ static func set_disc_cover(field: Field, seed_value: int, level: int, tuning: Sn
 	if blocks_source.is_valid():
 		cover.set_blocks_source(blocks_source)
 	cover.set_level(level)
-
-
-## The live cover (null when none, or when it is only fading out).
-static func disc_cover(field: Node) -> SnowDiscCover:
-	if not is_instance_valid(field):
-		return null
-	return field.get_node_or_null(NodePath(String(DISC_COVER_NAME))) as SnowDiscCover
-
-
-## The cover that is melting away after its level hit 0 (null when none).
-static func fading_disc_cover(field: Node) -> SnowDiscCover:
-	if not is_instance_valid(field):
-		return null
-	return field.get_node_or_null(NodePath(String(DISC_COVER_FADING_NAME))) as SnowDiscCover

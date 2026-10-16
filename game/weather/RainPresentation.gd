@@ -18,7 +18,6 @@ const RENDER_LAYER_BIT: int = 1 << 17
 var _instance: MultiMeshInstance3D = null
 var _material: ShaderMaterial = null
 var _tuning: RainTuning = TUNING
-var _density_scale: float = 1.0
 ## Governor share (GraphicsPreset.weather_density_scale) of the visible streaks.
 var _governor_scale: float = 1.0
 ## puddle layer living under the Field; outlives this node.
@@ -31,25 +30,10 @@ func _ready() -> void:
 	Settings.graphics_preset_changed.connect(_on_graphics_preset_changed)
 
 
-## Test seam.
-func configure(tuning: RainTuning, density_scale: float) -> void:
-	_tuning = tuning
-	_density_scale = density_scale
-	_build()
-
-
 func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 	if _instance != null:
 		_governor_scale = preset.weather_density_scale
 		_apply_visible(float(_material.get_shader_parameter(&"box_height")))
-
-
-func streak_instance() -> MultiMeshInstance3D:
-	return _instance
-
-
-func shader_density() -> float:
-	return float(_material.get_shader_parameter(&"density")) if _material != null else 0.0
 
 
 func _preset_scale() -> float:
@@ -60,15 +44,11 @@ func _preset_scale() -> float:
 
 
 func _build() -> void:
-	if _instance != null:
-		remove_child(_instance)
-		_instance.free()
-		_instance = null
 	# DECISION (fix round 3): the volume can grow up to
 	# _max_height() to reach the cloud ceiling, so allocate streaks for that
 	# height and show only the share matching the current height (_apply_visible)
 	# to keep streaks per cubic metre equal to the unlifted volume.
-	var count: int = int(roundf(float(_tuning.streak_count) * _density_scale * _preset_scale() * _height_ratio()))
+	var count: int = int(roundf(float(_tuning.streak_count) * _preset_scale() * _height_ratio()))
 	if count <= 0:
 		set_process(false)
 		return

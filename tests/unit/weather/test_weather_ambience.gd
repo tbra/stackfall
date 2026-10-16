@@ -2,11 +2,39 @@ extends GutTest
 ## Weather ambience loops and gust whoosh.
 
 var _amb: WeatherAmbience = null
+var _defs: Dictionary = {}
 
 
 func before_each() -> void:
 	_amb = WeatherAmbience.new()
 	add_child_autofree(_amb)
+	_defs.clear()
+	for def: WeatherTuning in WeatherTuning.load_all():
+		_defs[def.id] = def
+
+
+## The bed's looping player (null once it faded out and was released).
+func _bed(weather_id: StringName) -> AudioStreamPlayer:
+	return _amb.get_node_or_null("Bed_" + String(weather_id)) as AudioStreamPlayer
+
+
+func _is_playing(weather_id: StringName) -> bool:
+	var player: AudioStreamPlayer = _bed(weather_id)
+	return player != null and player.playing
+
+
+## The linear bed gain, read back from what is audible: the player's volume less the bed's own
+## level and the Master + Weather mix.
+func _gain(weather_id: StringName) -> float:
+	var player: AudioStreamPlayer = _bed(weather_id)
+	if player == null:
+		return 0.0
+	var base_db: float = (_defs[weather_id] as WeatherTuning).ambience_volume_db
+	return db_to_linear(player.volume_db - base_db - Settings.master_volume_db() - Settings.weather_volume_db())
+
+
+func _gust_player(index: int) -> AudioStreamPlayer:
+	return _amb.get_node("Gust%d" % index) as AudioStreamPlayer
 
 
 func _gust(duration: float) -> Dictionary:
@@ -16,14 +44,13 @@ func _gust(duration: float) -> Dictionary:
 func test_intensity_maps_to_gain_and_volume() -> void:
 	Events.weather_started.emit(&"rain")
 	Events.weather_intensity_changed.emit(&"rain", 0.5)
-	assert_almost_eq(_amb.bed_target(&"rain"), 0.5, 0.0001)
 	_amb.advance(100.0)
-	assert_almost_eq(_amb.bed_gain(&"rain"), 0.5, 0.0001)
-	var half_db: float = _amb.bed_player(&"rain").volume_db
+	assert_almost_eq(_gain(&"rain"), 0.5, 0.0001)
+	var half_db: float = _bed(&"rain").volume_db
 	Events.weather_intensity_changed.emit(&"rain", 1.0)
 	_amb.advance(100.0)
-	assert_gt(_amb.bed_player(&"rain").volume_db, half_db)
-	assert_true(_amb.is_bed_playing(&"rain"))
+	assert_gt(_bed(&"rain").volume_db, half_db)
+	assert_true(_is_playing(&"rain"))
 
 
 func test_crossfade_completes() -> void:
@@ -34,13 +61,13 @@ func test_crossfade_completes() -> void:
 	Events.weather_intensity_changed.emit(&"storm", 1.0)
 	Events.weather_stopped.emit(&"rain")
 	_amb.advance(_amb.tuning.crossfade_s * 0.5)
-	assert_gt(_amb.bed_gain(&"rain"), 0.0)
-	assert_lt(_amb.bed_gain(&"rain"), 1.0)
-	assert_gt(_amb.bed_gain(&"storm"), 0.0)
+	assert_gt(_gain(&"rain"), 0.0)
+	assert_lt(_gain(&"rain"), 1.0)
+	assert_gt(_gain(&"storm"), 0.0)
 	_amb.advance(_amb.tuning.crossfade_s)
-	assert_false(_amb.is_bed_playing(&"rain"))
-	assert_almost_eq(_amb.bed_gain(&"storm"), 1.0, 0.0001)
-	assert_true(_amb.is_bed_playing(&"storm"))
+	assert_false(_is_playing(&"rain"))
+	assert_almost_eq(_gain(&"storm"), 1.0, 0.0001)
+	assert_true(_is_playing(&"storm"))
 
 
 func test_match_end_fades_everything_out() -> void:
@@ -49,29 +76,29 @@ func test_match_end_fades_everything_out() -> void:
 	_amb.advance(100.0)
 	Events.match_scope_reset.emit()
 	_amb.advance(100.0)
-	assert_false(_amb.is_bed_playing(&"snow"))
+	assert_false(_is_playing(&"snow"))
 
 
 func test_pause_ducks_volume() -> void:
 	Events.weather_started.emit(&"rain")
 	Events.weather_intensity_changed.emit(&"rain", 1.0)
 	_amb.advance(100.0)
-	var normal_db: float = _amb.bed_player(&"rain").volume_db
+	var normal_db: float = _bed(&"rain").volume_db
 	Events.pause_menu_opened.emit()
-	assert_almost_eq(_amb.bed_player(&"rain").volume_db, normal_db + _amb.tuning.pause_duck_db, 0.001)
+	assert_almost_eq(_bed(&"rain").volume_db, normal_db + _amb.tuning.pause_duck_db, 0.001)
 	Events.pause_menu_closed.emit()
-	assert_almost_eq(_amb.bed_player(&"rain").volume_db, normal_db, 0.001)
+	assert_almost_eq(_bed(&"rain").volume_db, normal_db, 0.001)
 
 
 func test_gust_event_plays_whoosh_matching_duration() -> void:
-	assert_eq(_amb.gust_stream_count(), 3)
 	Events.breeze_gust_started.emit(_gust(0.8))
-	assert_eq(_amb.gusts_played, 1)
-	var short_stream: AudioStreamWAV = _amb.last_gust_stream
+	assert_true(_gust_player(0).playing)
+	var short_stream: AudioStreamWAV = _gust_player(0).stream as AudioStreamWAV
 	Events.breeze_gust_started.emit(_gust(5.0))
-	assert_eq(_amb.gusts_played, 2)
-	assert_gt(_amb.last_gust_stream.get_length(), short_stream.get_length())
-	assert_eq(_amb.last_gust_stream.loop_mode, AudioStreamWAV.LOOP_DISABLED)
+	assert_true(_gust_player(1).playing)
+	var long_stream: AudioStreamWAV = _gust_player(1).stream as AudioStreamWAV
+	assert_gt(long_stream.get_length(), short_stream.get_length())
+	assert_eq(long_stream.loop_mode, AudioStreamWAV.LOOP_DISABLED)
 
 
 ## loops and gust whoosh follow Master + Weather only, not SFX.
@@ -81,14 +108,13 @@ func test_weather_volume_follows_weather_channel_only() -> void:
 	Events.weather_started.emit(&"rain")
 	Events.weather_intensity_changed.emit(&"rain", 1.0)
 	_amb.advance(100.0)
-	var base_db: float = _amb.bed_player(&"rain").volume_db
+	var base_db: float = _bed(&"rain").volume_db
 	Settings.set_sfx_volume_percent(0.1)
-	assert_almost_eq(_amb.bed_player(&"rain").volume_db, base_db, 0.001, "SFX slider must not move the bed")
+	assert_almost_eq(_bed(&"rain").volume_db, base_db, 0.001, "SFX slider must not move the bed")
 	Settings.set_sfx_volume_percent(saved_sfx)
 	Settings.set_weather_volume_percent(0.5)
-	assert_almost_eq(_amb.bed_player(&"rain").volume_db, base_db + linear_to_db(0.5) - linear_to_db(saved_weather), 0.001, "Weather slider moves the bed")
+	assert_almost_eq(_bed(&"rain").volume_db, base_db + linear_to_db(0.5) - linear_to_db(saved_weather), 0.001, "Weather slider moves the bed")
 	Events.breeze_gust_started.emit(_gust(0.8))
-	var gust_player: AudioStreamPlayer = _amb._gust_players[(_amb._gust_next + _amb._gust_players.size() - 1) % _amb._gust_players.size()]
-	assert_almost_eq(gust_player.volume_db, _amb.tuning.gust_volume_db + Settings.master_volume_db() + Settings.weather_volume_db(), 0.001)
+	assert_almost_eq(_gust_player(0).volume_db, _amb.tuning.gust_volume_db + Settings.master_volume_db() + Settings.weather_volume_db(), 0.001)
 	Settings.set_weather_volume_percent(saved_weather)
 

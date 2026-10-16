@@ -33,9 +33,6 @@ const NO_HEIGHT_LENGTH_GAIN: float = 0.0
 
 var tuning: StormTuning = TUNING
 var _seed: int = 0
-## True once configure() fixed the seed (tests, probes); otherwise it follows
-## the replicated match seed.
-var _seed_locked: bool = false
 var _elapsed: float = 0.0
 var _travel: float = 0.0
 var _materials: Array[ShaderMaterial] = []
@@ -60,20 +57,6 @@ func _on_graphics_preset_changed(_preset: GraphicsPreset) -> void:
 	_build()
 
 
-## Rebuilds for `seed_value`; tests and the screenshot probe call it directly.
-func configure(seed_value: int, wind_tuning: StormTuning = null) -> void:
-	_seed = seed_value
-	_seed_locked = true
-	if wind_tuning != null:
-		tuning = wind_tuning
-	_build()
-
-
-## CPU mirror of the shader's hash (used for the spawn-position test).
-static func _hash11(n: float) -> float:
-	return fposmod(sin(n * 127.1 + 311.7) * 43758.5453, 1.0)
-
-
 ## Cycle time of one swoosh stroke: draw-on, hold and draw-off seconds.
 static func stroke_cycle_s(wind_tuning: StormTuning) -> float:
 	return maxf(wind_tuning.streak_draw_on_s + wind_tuning.streak_hold_s + wind_tuning.streak_draw_off_s, MIN_CYCLE_S)
@@ -90,58 +73,14 @@ static func phase_fracs(wind_tuning: StormTuning) -> Vector2:
 	return Vector2(maxf(wind_tuning.streak_draw_on_s / cycle, MIN_PHASE_FRAC), maxf(wind_tuning.streak_draw_off_s / cycle, MIN_PHASE_FRAC))
 
 
-## Pure mirror of the shader's reveal window at cycle phase c (0..1): x is the tail edge,
-## y the head edge, in stroke arc fraction (feather `softness` beyond 0..1 so the ends
-## fully clear). The head sweeps 0 -> 1 + softness during draw-on; the tail then sweeps
-## -softness -> 1 during draw-off, so a stroke is drawn along the wind and wiped the same way.
-static func reveal_window(c: float, draw_frac: float, erase_frac: float, softness: float) -> Vector2:
-	var head: float = smoothstep(0.0, 1.0, clampf(c / maxf(draw_frac, MIN_PHASE_FRAC), 0.0, 1.0))
-	var tail: float = smoothstep(0.0, 1.0, clampf((c - (1.0 - erase_frac)) / maxf(erase_frac, MIN_PHASE_FRAC), 0.0, 1.0))
-	return Vector2(tail * (1.0 + softness) - softness, head * (1.0 + softness))
-
-
 ## Centre of the weather box the swoosh strokes are scattered through (before the
 ## per-frame shift that keeps the downwind drift centred on the disc).
 static func box_center(wind_tuning: StormTuning) -> Vector3:
 	return Vector3(0.0, (wind_tuning.area_min_height_m + wind_tuning.area_max_height_m) * 0.5, 0.0)
 
 
-## World position where stroke `seed_rank` starts its life number `cycle_index`
-## for a wind blowing along `heading` (mirrors the shader's respawn scatter, before
-## the wind drift is added).
-static func streak_spawn(seed_rank: float, cycle_index: int, wind_tuning: StormTuning, heading: Vector2 = Vector2.RIGHT) -> Vector3:
-	var key: float = seed_rank * 91.7 + float(cycle_index) * 13.3
-	var half: float = wind_tuning.area_half_extent_m
-	var half_y: float = (wind_tuning.area_max_height_m - wind_tuning.area_min_height_m) * 0.5
-	var along_dir: Vector3 = Vector3(heading.x, 0.0, heading.y)
-	var side_dir: Vector3 = Vector3(-heading.y, 0.0, heading.x)
-	return box_center(wind_tuning) \
-		+ along_dir * ((_hash11(key + 1.0) * 2.0 - 1.0) * half) \
-		+ side_dir * ((_hash11(key + 2.0) * 2.0 - 1.0) * half) \
-		+ Vector3.UP * ((_hash11(key + 3.0) * 2.0 - 1.0) * half_y)
-
-
-## Opacity multiplier (0..1) of a streak `distance_m` from the camera: zero
-## inside the near-fade start, rising to one at its end.
-static func streak_near_weight(distance_m: float, wind_tuning: StormTuning) -> float:
-	return smoothstep(wind_tuning.streak_near_fade_start_m, wind_tuning.streak_near_fade_end_m, distance_m)
-
-
-func streak_material() -> ShaderMaterial:
-	if _materials.size() <= KIND_STREAK or _instances.is_empty() or _instances[0].name != &"Streaks":
-		return null
-	return _materials[KIND_STREAK]
-
-
 func heading() -> Vector2:
 	return WindField.direction(_seed, _elapsed, tuning)
-
-
-func total_instances() -> int:
-	var total: int = 0
-	for instance: MultiMeshInstance3D in _instances:
-		total += instance.multimesh.instance_count
-	return total
 
 
 func set_intensity(value: float) -> void:
@@ -157,7 +96,7 @@ func _process(delta: float) -> void:
 		return
 	if _materials.is_empty():
 		return
-	if not _seed_locked and is_inside_tree():
+	if is_inside_tree():
 		var ctx: MatchContext = MatchContext.current()
 		if ctx.has_weather():
 			_seed = WindField.event_seed(ctx.weather_seed(), ctx.weather_event_index())

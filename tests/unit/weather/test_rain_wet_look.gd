@@ -26,7 +26,6 @@ func _param(key: StringName) -> float:
 func _presentation() -> RainPresentation:
 	var p: RainPresentation = RainPresentation.new()
 	add_child_autofree(p)
-	p.configure(_rain, 1.0)
 	return p
 
 

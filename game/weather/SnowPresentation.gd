@@ -55,10 +55,6 @@ func _exit_tree() -> void:
 		Settings.graphics_preset_changed.disconnect(_on_graphics_preset_changed)
 
 
-func particles() -> GPUParticles3D:
-	return _particles
-
-
 func amount_for(preset: GraphicsPreset) -> int:
 	if preset != null and preset.id == LOW_PRESET_ID:
 		return maxi(tuning.flake_amount_low, 1)

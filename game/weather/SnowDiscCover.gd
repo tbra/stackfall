@@ -37,7 +37,6 @@ var _level: int = 0
 var _shown: float = 0.0
 var _retiring: bool = false
 var _blocks_source: Callable = Callable()
-var _drift_image: Image = null
 var _drift_texture: ImageTexture = null
 var _drift_data: PackedByteArray = PackedByteArray()
 var _drift_queue: Array = []
@@ -106,15 +105,6 @@ func level() -> int:
 	return _level
 
 
-func material() -> ShaderMaterial:
-	return _material
-
-
-## The level the shader currently shows (eases toward level()).
-func shown_level() -> float:
-	return _shown
-
-
 ## True once the cover was told to melt away (level 0) and has faded out.
 func is_faded_out() -> bool:
 	return _level <= 0 and _shown <= 0.0
@@ -126,20 +116,11 @@ func set_retiring(value: bool) -> void:
 	_retiring = value
 
 
-func is_retiring() -> bool:
-	return _retiring
-
-
 ## 0..1 progress from the first level (frosting) to the top level (drifts).
 func _level_t(level: float) -> float:
 	if _tuning.depth_levels <= 1:
 		return 1.0
 	return (clampf(level, 1.0, float(_tuning.depth_levels)) - 1.0) / float(_tuning.depth_levels - 1)
-
-
-## Shader strength at the current level (0 = no snow drawn).
-func strength() -> float:
-	return _strength_at(float(_level))
 
 
 ## Strength at a (possibly fractional) level; below the first level the
@@ -157,12 +138,6 @@ func max_opacity() -> float:
 	if _tuning == null:
 		return 0.0
 	return 1.0 - _tuning.cover_territory_min
-
-
-## Even base depth of the cover at the current level (0..1); the shader adds
-## gentle variation and the drift biases on top.
-func amount() -> float:
-	return _amount_at(float(_level))
 
 
 func _amount_at(level: float) -> float:
@@ -185,8 +160,7 @@ func _process(delta: float) -> void:
 
 
 ## Moves the displayed level toward the target and refreshes the shader; a
-## retiring cover that has faded out removes itself. Called every frame (also a
-## test seam).
+## retiring cover that has faded out removes itself. Called every frame.
 func ease_step(delta: float) -> void:
 	if _tuning == null:
 		return
@@ -252,27 +226,10 @@ func _advance_drift(budget: int) -> void:
 		return
 	_drift_building = false
 	_drift_queue = []
-	_drift_image = Image.create_from_data(side, side, false, Image.FORMAT_R8, _drift_data)
+	var drift_image: Image = Image.create_from_data(side, side, false, Image.FORMAT_R8, _drift_data)
 	if _drift_texture == null:
-		_drift_texture = ImageTexture.create_from_image(_drift_image)
+		_drift_texture = ImageTexture.create_from_image(drift_image)
 	else:
-		_drift_texture.update(_drift_image)
+		_drift_texture.update(drift_image)
 	if _material != null:
 		_material.set_shader_parameter(&"snow_drift_tex", _drift_texture)
-
-
-## Test seam: finishes a pending drift rebuild at once.
-func finish_drift() -> void:
-	_advance_drift(_drift_queue.size() + 1)
-
-
-func is_drift_building() -> bool:
-	return _drift_building
-
-
-## Drift bias (0..1) at a cell, for tests.
-func drift_at(cell: int) -> float:
-	if _drift_image == null:
-		return 0.0
-	var coords: Vector2i = _grid.cell_coords(cell)
-	return _drift_image.get_pixel(coords.x, coords.y).r

@@ -55,8 +55,6 @@ class CapOwner:
 
 var tuning: SnowTuning = null
 var with_colliders: bool = false
-var patches_built: int = 0
-var commits: int = 0
 
 var _owners: Dictionary = {}
 var _queue: Array[String] = []
@@ -211,7 +209,6 @@ func _build_patch(patch: Patch, owner: CapOwner) -> void:
 	if patch.hull != old_hull:
 		owner.hull_changed = true
 	SnowGeometry.append_dome_triangles(points, tuning, patch.xform, patch.vertices, patch.normals)
-	patches_built += 1
 
 
 ## Fills patch.cross with the levels of touching same-height tops of other
@@ -345,7 +342,6 @@ func _commit(owner: CapOwner) -> void:
 				if hulls.is_empty():
 					SnowCaps.remove_node(owner.node, body.name)
 	owner.hull_changed = false
-	commits += 1
 	if owner.patches.is_empty():
 		_owners.erase(owner.key)
 		_refresh_dirty = true
@@ -405,7 +401,3 @@ static func _release(held: Variant) -> void:
 	block.release_freeze_static(FREEZE_REASON)
 	if not block.freeze:
 		block.sleeping = true
-
-
-func pending_thaws() -> int:
-	return _thaw.size()

@@ -98,6 +98,29 @@ func _client_block(net_id: int, pos: Vector3) -> Block:
 	return block
 
 
+static func _cap_mesh(holder: Node, cap_name: StringName) -> MeshInstance3D:
+	var cap: Node = holder.get_node_or_null(NodePath(String(cap_name)))
+	if cap == null:
+		return null
+	return cap.get_node_or_null(NodePath(String(SnowCaps.CAP_MESH_NAME))) as MeshInstance3D
+
+
+## Every disc drift mesh instance under `field`.
+static func _disc_cap_meshes(field: Node) -> Array[MeshInstance3D]:
+	var out: Array[MeshInstance3D] = []
+	for child: Node in field.get_children():
+		if String(child.name).begins_with(SnowCaps.DISC_CAP_PREFIX):
+			var instance: MeshInstance3D = _cap_mesh(field, child.name)
+			if instance != null:
+				out.append(instance)
+	return out
+
+
+## The live disc cover (null when none, or when it is only fading out).
+static func _disc_cover(field: Node) -> SnowDiscCover:
+	return field.get_node_or_null(NodePath(String(SnowCaps.DISC_COVER_NAME))) as SnowDiscCover
+
+
 func _state(net_ids: Array[int], disc_cell: int) -> Dictionary:
 	var b: PackedInt32Array = PackedInt32Array()
 	for net_id: int in net_ids:
@@ -120,14 +143,14 @@ func test_client_draws_caps_but_never_colliders() -> void:
 	_start_client_snow()
 	var block: Block = _client_block(NET_ID, Vector3.ZERO)
 	assert_true(_snow_net.apply_state(_state([NET_ID], _a_disc_cell())))
-	assert_null(SnowCaps.cap_mesh(block, SnowCaps.CAP_NAME), "drawing is amortised over frames")
+	assert_null(_cap_mesh(block, SnowCaps.CAP_NAME), "drawing is amortised over frames")
 	_snow_net.step_client(BIG_BUDGET)
-	assert_not_null(SnowCaps.cap_mesh(block, SnowCaps.CAP_NAME), "cap drawn on the client's block")
+	assert_not_null(_cap_mesh(block, SnowCaps.CAP_NAME), "cap drawn on the client's block")
 	assert_eq(SnowCaps.lump_colliders(block).size(), 0, "no collider on a client block")
-	assert_false(SnowCaps.disc_cap_meshes(_field).is_empty(), "disc snow drawn")
+	assert_false(_disc_cap_meshes(_field).is_empty(), "disc snow drawn")
 	assert_true(SnowCaps.disc_bodies(_field).is_empty(), "no disc collider body on a client")
-	assert_not_null(SnowCaps.disc_cover(_field), "disc cover drawn from the state")
-	assert_eq(SnowCaps.disc_cover(_field).level(), 2)
+	assert_not_null(_disc_cover(_field), "disc cover drawn from the state")
+	assert_eq(_disc_cover(_field).level(), 2)
 	assert_eq(_snow_net.states_applied, 1)
 
 
@@ -145,7 +168,7 @@ func test_client_refuses_bad_or_out_of_event_states() -> void:
 	forged["b"] = wire
 	assert_false(_snow_net.apply_state(forged), "level out of range")
 	_snow_net.step_client(BIG_BUDGET)
-	assert_null(SnowCaps.cap_mesh(block, SnowCaps.CAP_NAME), "nothing drawn")
+	assert_null(_cap_mesh(block, SnowCaps.CAP_NAME), "nothing drawn")
 	assert_eq(_snow_net.states_refused, 4)
 	_net.host = true
 	assert_false(_snow_net.apply_state(_state([NET_ID], -1)), "the host never applies a replicated state")
@@ -156,20 +179,20 @@ func test_empty_state_weather_stop_and_match_end_clear_the_client() -> void:
 	var block: Block = _client_block(NET_ID, Vector3.ZERO)
 	assert_true(_snow_net.apply_state(_state([NET_ID], _a_disc_cell())))
 	_snow_net.step_client(BIG_BUDGET)
-	assert_not_null(SnowCaps.cap_mesh(block, SnowCaps.CAP_NAME))
+	assert_not_null(_cap_mesh(block, SnowCaps.CAP_NAME))
 	assert_true(_snow_net.apply_state(_empty_state()), "empty accepted")
 	_snow_net.step_client(BIG_BUDGET)
-	assert_null(SnowCaps.cap_mesh(block, SnowCaps.CAP_NAME), "melted state clears the block")
-	assert_true(SnowCaps.disc_cap_meshes(_field).is_empty(), "and the disc")
-	assert_null(SnowCaps.disc_cover(_field), "and the cover")
+	assert_null(_cap_mesh(block, SnowCaps.CAP_NAME), "melted state clears the block")
+	assert_true(_disc_cap_meshes(_field).is_empty(), "and the disc")
+	assert_null(_disc_cover(_field), "and the cover")
 	assert_true(_snow_net.apply_state(_state([NET_ID], -1)))
 	_snow_net.step_client(BIG_BUDGET)
 	Events.weather_stopped.emit(&"snow")
-	assert_null(SnowCaps.cap_mesh(block, SnowCaps.CAP_NAME), "weather stop clears")
+	assert_null(_cap_mesh(block, SnowCaps.CAP_NAME), "weather stop clears")
 	assert_true(_snow_net.apply_state(_state([NET_ID], -1)))
 	_snow_net.step_client(BIG_BUDGET)
 	Events.match_state_changed.emit(MatchAutoload.State.PLAYING, MatchAutoload.State.END)
-	assert_null(SnowCaps.cap_mesh(block, SnowCaps.CAP_NAME), "match end clears")
+	assert_null(_cap_mesh(block, SnowCaps.CAP_NAME), "match end clears")
 
 
 func test_host_throttles_flushes_empty_states_and_serves_late_joiners() -> void:
