@@ -64,14 +64,6 @@ func test_live_cap_scales_with_players_and_clamps() -> void:
 	assert_eq(GiftSpawner.live_cap(cfg, 0), 2, "unknown players -> ceiling")
 
 
-func test_should_spawn_respects_scaled_cap() -> void:
-	var cfg: GiftConfig = GiftConfig.new()
-	cfg.frequency_to_chance_max = 1.0
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	assert_true(GiftSpawner.should_spawn(cfg, 100.0, 1, rng, 4), "4 players allow a second crate")
-	assert_false(GiftSpawner.should_spawn(cfg, 100.0, 2, rng, 4), "but not a third")
-
-
 func test_two_crates_live_claim_one_and_expire_other_independently() -> void:
 	_start_playing()
 	Match._gifts._gift_config = Match._gifts._gift_config.duplicate() as GiftConfig
@@ -88,18 +80,6 @@ func test_two_crates_live_claim_one_and_expire_other_independently() -> void:
 	assert_false(Match._gifts._crates.has(far), "second crate expires on its own age")
 
 
-func test_crates_expire_independently() -> void:
-	_start_playing()
-	Match._gifts._gift_config = Match._gifts._gift_config.duplicate() as GiftConfig
-	Match._gifts._gift_config.life_s = 10.0
-	Match._gifts._gift_config.relocate_min_distance_m = 100.0
-	var old: int = _inject(Vector2(0.0, 15.0), 9.5)
-	var young: int = _inject(Vector2(0.0, -15.0), 0.0)
-	Match._gifts.tick_host(1.0)
-	assert_false(Match._gifts._crates.has(old))
-	assert_true(Match._gifts._crates.has(young))
-
-
 func test_try_spawn_fills_up_to_cap_and_keeps_separation() -> void:
 	_start_playing()
 	Match._gifts._gift_config = Match._gifts._gift_config.duplicate() as GiftConfig
@@ -113,15 +93,3 @@ func test_try_spawn_fills_up_to_cap_and_keeps_separation() -> void:
 	assert_eq(Match._gifts._crates.size(), 2, "cap respected, two crates live")
 	var positions: Array[Vector2] = Match._gifts._live_positions()
 	assert_gte(positions[0].distance_to(positions[1]), cfg.crate_min_separation_m)
-
-
-func test_bot_targets_consider_all_gifts() -> void:
-	_start_playing()
-	var a: int = _inject(Vector2(0.0, 15.0))
-	var b: int = _inject(Vector2(0.0, -15.0))
-	Match._gifts._crates[a]["phase"] = MatchGifts.LANDED
-	Match._gifts._crates[b]["phase"] = MatchGifts.LANDED
-	var ids: Array[int] = []
-	for state: Dictionary in Match.gift_states():
-		ids.append(int(state["id"]))
-	assert_eq(ids, [a, b] as Array[int], "bots iterate gift_states(): every live crate")

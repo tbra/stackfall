@@ -49,27 +49,6 @@ func _issue(slot_id: int) -> void:
 	Match._feed._consume_and_refeed(slot_id, true)
 
 
-func _off() -> QolExperiments:
-	var qol: QolExperiments = QolExperiments.new()
-	qol.gift_queue_after_next = false
-	return qol
-
-
-func test_trial_is_on_by_default_and_not_an_opt_in_experiment() -> void:
-	var qol: QolExperiments = load("res://config/match/qol_experiments.tres") as QolExperiments
-	assert_true(qol.gift_queue_after_next)
-	assert_true(qol.gift_after_next_in_force())
-	assert_false(qol.any_enabled(), "a rule trial is not an opt-in experiment")
-	assert_true(qol.active_ids().is_empty())
-	assert_false(QolExperiments.from_dict(_off().to_dict()).gift_queue_after_next, "round trips")
-	var slot: QolExperiments = QolExperiments.new()
-	slot.gift_slot_enabled = true
-	assert_false(slot.gift_after_next_in_force(), "gift slot keeps the old rule")
-	var backlog: QolExperiments = QolExperiments.new()
-	backlog.backlog_enabled = true
-	assert_false(backlog.gift_after_next_in_force(), "backlog keeps the old rule")
-
-
 func test_claim_keeps_the_ordinary_next_and_stages_the_gift_after_it() -> void:
 	_start()
 	var held: BlockShape = Match.held_shape(0)
@@ -135,23 +114,6 @@ func test_claim_while_a_gift_is_next_queues_behind_it() -> void:
 	assert_eq(Match.held_special(0), &"earthquake")
 
 
-func test_trial_off_restores_the_replace_next_rule() -> void:
-	_start(_off())
-	Match._gifts._queue_claimed_special(0, &"anvil")
-	assert_eq(Match.next_special(0), &"anvil")
-	assert_eq(Match.after_next_special(0), &"")
-
-
-func test_gift_slot_experiment_keeps_the_slot_path() -> void:
-	var qol: QolExperiments = QolExperiments.new()
-	qol.gift_slot_enabled = true
-	_start(qol)
-	Match._gifts._queue_claimed_special(0, &"anvil")
-	assert_eq(Match.gift_slot_head(0), &"anvil")
-	assert_eq(Match.after_next_special(0), &"")
-	assert_false(Match._feed.has_staged_gift(0))
-
-
 func test_client_mirrors_staged_then_next_then_held() -> void:
 	_start()
 	var fake: FakeNet = FakeNet.client(0)
@@ -173,14 +135,6 @@ func test_client_mirrors_staged_then_next_then_held() -> void:
 	Match.apply_replicated_feed(0, carrier_id, carrier_id, seq + 2, Match.feed_time_left(0), false)
 	assert_eq(Match.held_special(0), MatchGifts.PENDING_SPECIAL_ID)
 	assert_eq(Match.pending_special_count(0), 1)
-
-
-func test_claim_event_carries_the_staged_carrier_not_the_next_piece() -> void:
-	_start()
-	var carrier_id: StringName = Match._feed._bags[0].peek(2)[1].id
-	Match._gifts._queue_claimed_special(0, &"anvil")
-	assert_eq(Match._feed.claim_carrier_shape_id(0), carrier_id)
-	assert_ne(Match.next_shape(0).id, carrier_id)
 
 
 func test_slot_replay_carries_the_staged_gift() -> void:

@@ -135,10 +135,6 @@ func _build_particles() -> void:
 	_fx.setup(_effect.particles, Settings.current_graphics_preset())
 
 
-func eruption_fx() -> VolcanoEruptionFx:
-	return _fx
-
-
 func has_body() -> bool:
 	return _body != null
 

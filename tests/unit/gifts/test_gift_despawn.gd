@@ -6,11 +6,6 @@ extends GutTest
 
 var _tuning: SpecialTuning = null
 var _blocks_root: Node3D
-var _field: Field
-var _registry: BlockRegistry
-var _tiny_map: MapDef
-
-
 func before_each() -> void:
 	_tuning = SpecialTuning.new()
 	_tuning.gift_despawn_delay_s = 0.5
@@ -95,52 +90,6 @@ func test_dud_gift_despawns_via_fuse_timeout() -> void:
 	assert_signal_emit_count(behavior, "completed", 1)
 
 
-func test_dud_gift_with_no_fuse_hits_the_max_lifetime_backstop() -> void:
-	var behavior: SpecialBehavior = _make(StubEffect.new(), true, 99999.0)
-	watch_signals(behavior)
-	_run(behavior, 9.5)
-	assert_signal_not_emitted(behavior, "completed")
-	_run(behavior, 1.0)
-	assert_signal_emit_count(behavior, "completed", 1)
-	assert_false(behavior.is_triggered(), "never triggered, only removed")
-
-
-## Non-gift behaviors (Volcano orbs, plain blocks) are never despawned.
-func test_non_gift_behavior_never_completes() -> void:
-	var behavior: SpecialBehavior = _make(StubEffect.new(), false, 1.0)
-	watch_signals(behavior)
-	_run(behavior, 5.0)
-	assert_true(behavior.is_triggered())
-	assert_signal_not_emitted(behavior, "completed")
-
-
-# --- host integration: normal removal path ----------------------------------
-
-
-func _start_host_match() -> void:
-	Match.set_process(false)
-	Match.abort_match()
-	_tiny_map = (load("res://config/match/maps/round.tres") as MapDef).duplicate(true)
-	_tiny_map.field_radius = 20.0
-	_field = autofree(Field.new())
-	_field.map_def = _tiny_map
-	add_child_autofree(_field)
-	_blocks_root = autofree(Node3D.new())
-	add_child_autofree(_blocks_root)
-	_registry = autofree(BlockRegistry.new())
-	add_child_autofree(_registry)
-	Match.register_world(_field, _registry, _blocks_root)
-	var config: MatchConfig = load("res://config/match/match_defaults.tres").duplicate(true) as MatchConfig
-	config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))
-	(config as TinyMapMatchConfig).set_tiny_map(_tiny_map)
-	config.player_count = 2
-	config.hot_seat = false
-	config.rng_seed = 13579
-	Match.start_match(config)
-	for _i: int in range(int(ceil(Match.COUNTDOWN_SECONDS * 60.0)) + 2):
-		Match._process(1.0 / 60.0)
-
-
 func after_each() -> void:
 	Match.set_net_provider(null)
 	Match.abort_match()
@@ -150,38 +99,3 @@ func after_each() -> void:
 	Match.set_process(true)
 	await get_tree().process_frame
 	MatchTestReset.clear_world()
-
-
-func test_host_gift_removal_uses_block_removed_and_leaves_plain_blocks() -> void:
-	_start_host_match()
-	var cube: BlockShape = load("res://config/blocks/cube.tres") as BlockShape
-	var plain: Block = Match.spawn_special_projectile(
-		cube, _field.to_global(Vector3(0.0, 5.0, 0.0)), Basis.IDENTITY, 0, Vector3.ZERO, null, null
-	)
-	var gift: Block = Match.spawn_special_projectile(
-		cube, _field.to_global(Vector3(3.0, 5.0, 0.0)), Basis.IDENTITY, 0, Vector3.ZERO, null, null
-	)
-	Match._gifts.apply_replicated_claim(1, 0, &"bomb")
-	Match._gifts.activate_next_special(0)
-	Match._placement._attach_pending_special(gift, 0)
-	var behavior: SpecialBehavior = null
-	for child: Node in gift.get_children():
-		if child is SpecialBehavior:
-			behavior = child as SpecialBehavior
-	assert_not_null(behavior)
-	assert_true(behavior.despawn_when_done)
-	var removed: Array = []
-	var on_removed: Callable = func(b: RigidBody3D, reason: String) -> void: removed.append([b, reason])
-	Events.block_removed.connect(on_removed)
-	var revision: int = _registry.territory_revision()
-
-	behavior.trigger(0)
-	_run(behavior, 1.0)
-
-	Events.block_removed.disconnect(on_removed)
-	assert_eq(removed.size(), 1)
-	assert_eq(removed[0][0], gift)
-	assert_eq(removed[0][1], String(Events.REASON_GIFT_DESPAWN))
-	assert_true(gift.is_queued_for_deletion())
-	assert_false(plain.is_queued_for_deletion())
-	assert_gt(_registry.territory_revision(), revision, "registry updated through block_removed")

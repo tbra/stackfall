@@ -210,11 +210,6 @@ func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 	_idle_glow_enabled = preset == null or preset.gift_idle_glow_enabled
 
 
-## Whether the persistent glow light is allowed (graphics preset); tests read it.
-func idle_glow_enabled() -> bool:
-	return _idle_glow_enabled
-
-
 ## Called by MatchGifts on the host (spawn/landing) and on a client when the
 ## replicated flight/landing event arrives. Drives only the parachute visuals:
 ## true inflates the canopy, false collapses it (it deflates, sinks and fades
@@ -230,15 +225,6 @@ func set_falling(falling: bool) -> void:
 		_parachute.deploy()
 	else:
 		_parachute.collapse()
-
-
-func is_falling() -> bool:
-	return _falling
-
-
-## The parachute node, for tests and probes (null before _ready()).
-func parachute() -> GiftParachute:
-	return _parachute
 
 
 func _flat_material(color: Color, emissive: bool = false) -> StandardMaterial3D:

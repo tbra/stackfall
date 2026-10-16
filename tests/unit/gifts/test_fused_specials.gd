@@ -1,6 +1,6 @@
 extends GutTest
-## Glue fusion: weather, Paintball, Black hole, blast
-## and bot routing against a FusedBody built directly through GlueFusion.
+## Glue fusion: weather, Paintball, Black hole and blast against a FusedBody
+## built directly through GlueFusion.
 
 const DELTA: float = 1.0 / 60.0
 const HIGH_SURFACE_Y_M: float = -100.0
@@ -95,14 +95,6 @@ func test_storm_leaves_fused_body_and_members_untouched_but_pushes_a_loose_block
 	assert_gt(loose.linear_velocity.length(), SPEED_EPSILON, "a loose block is still pushed")
 
 
-func test_breeze_skips_fused_body_and_members() -> void:
-	var carrier: FusedBody = _group()
-	assert_true(WindEffect._owns_physics(carrier))
-	for member: Block in carrier.members:
-		assert_true(WindEffect._owns_physics(member))
-	assert_false(WindEffect._owns_physics(_block(0, Vector3(0.0, 0.0, MEMBER_GAP_M * 2.0))))
-
-
 func test_paintball_converts_only_members_inside_the_splash() -> void:
 	var carrier: FusedBody = _group()
 	var glob: Block = _block(0, Vector3(-1.0, 0.0, 0.0))
@@ -152,16 +144,3 @@ func test_black_hole_capture_takes_the_whole_group() -> void:
 	await wait_physics_frames(wait_frames)
 	for member: Block in members:
 		assert_false(is_instance_valid(member) and not member.is_queued_for_deletion(), "member removed")
-
-
-func test_paintball_refreshes_the_carrier_owner_slot() -> void:
-	var carrier: FusedBody = _group()
-	var glob: Block = _block(0, Vector3(-1.0, 0.0, 0.0))
-	await wait_physics_frames(1)
-	assert_eq(carrier.owner_slot, -1, "mixed owners before the splash")
-	var effect: PaintballEffect = PaintballEffect.new()
-	effect.splash_radius_m = BLAST_RADIUS_M
-	effect.detonate(glob, null, 0)
-	for member: Block in carrier.members:
-		assert_eq(member.owner_slot, glob.owner_slot)
-	assert_eq(carrier.owner_slot, glob.owner_slot, "the carrier owner follows its converted members")

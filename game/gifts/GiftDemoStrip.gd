@@ -32,15 +32,6 @@ func set_gift(special_id: StringName) -> void:
 	_label.text = "Gift: %s" % (String(special_id).replace("_", " ") if special_id != &"" else "off")
 
 
-## Test seam: labels of the shown glyphs.
-func glyph_texts() -> PackedStringArray:
-	var texts: PackedStringArray = PackedStringArray()
-	for child: Node in _row.get_children():
-		if child is InputGlyph:
-			texts.append((child as InputGlyph).label_text())
-	return texts
-
-
 func _on_device_changed(_device: StringName) -> void:
 	_rebuild_glyphs()
 

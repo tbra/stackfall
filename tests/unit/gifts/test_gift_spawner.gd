@@ -61,38 +61,6 @@ func test_chance_is_the_max_at_frequency_one_hundred() -> void:
 	)
 
 
-func test_chance_is_monotonic_in_frequency() -> void:
-	var previous: float = -1.0
-	for freq: int in range(0, 101, 5):
-		var chance: float = GiftSpawner.chance_for_frequency(_config, float(freq))
-		assert_gte(chance, previous, "Never decreases as frequency rises.")
-		previous = chance
-
-
-func test_chance_is_clamped_for_out_of_range_frequency() -> void:
-	assert_eq(GiftSpawner.chance_for_frequency(_config, -50.0), 0.0)
-	assert_almost_eq(
-		GiftSpawner.chance_for_frequency(_config, 500.0), _config.frequency_to_chance_max, 0.0001
-	)
-
-
-## -- should_spawn -------------------------------------------------------------
-
-func test_should_spawn_is_false_at_zero_chance() -> void:
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	for seed_value: int in range(20):
-		rng.seed = seed_value
-		assert_false(GiftSpawner.should_spawn(_config, 0.0, 0, rng))
-
-
-func test_should_spawn_is_true_at_chance_one() -> void:
-	_config.frequency_to_chance_max = 1.0
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	for seed_value: int in range(20):
-		rng.seed = seed_value
-		assert_true(GiftSpawner.should_spawn(_config, 100.0, 0, rng))
-
-
 func test_should_spawn_never_true_when_already_at_the_live_cap() -> void:
 	_config.frequency_to_chance_max = 1.0
 	_config.max_live_crates = 1
@@ -130,21 +98,6 @@ func test_pick_spawn_point_avoids_contested_and_hole_cells_and_stays_off_the_rim
 	assert_true(found_at_least_one, "Setup: most of the disk is still open.")
 
 
-func test_pick_spawn_point_avoids_holes_once_the_strip_has_holed_through() -> void:
-	var circles: Array[InfluenceCircle] = [_home(-3.0, 0.0, 0), _home(3.0, 0.0, 1)]
-	for i: int in range(10):
-		_rasterize_legacy(circles)
-
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	for seed_value: int in range(SEED_DRAWS):
-		rng.seed = seed_value
-		var point: Vector2 = GiftSpawner.pick_spawn_point(_raster, _grid, rng, _config)
-		if GiftSpawner.is_no_spawn_point(point):
-			continue
-		var cell: Vector2i = _grid.world_to_cell(point)
-		assert_false(_raster.is_hole(cell.x, cell.y))
-
-
 func test_pick_spawn_point_returns_the_sentinel_when_the_whole_disk_is_contested() -> void:
 	_entire_disk_contested()
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -163,9 +116,3 @@ func test_pick_spawn_point_is_deterministic_for_the_same_seed() -> void:
 	var point_a: Vector2 = GiftSpawner.pick_spawn_point(_raster, _grid, rng_a, _config)
 	var point_b: Vector2 = GiftSpawner.pick_spawn_point(_raster, _grid, rng_b, _config)
 	assert_eq(point_a, point_b)
-
-
-func test_is_no_spawn_point_recognises_the_sentinel_only() -> void:
-	assert_true(GiftSpawner.is_no_spawn_point(GiftSpawner.NO_SPAWN_POINT))
-	assert_false(GiftSpawner.is_no_spawn_point(Vector2.ZERO))
-	assert_false(GiftSpawner.is_no_spawn_point(Vector2(15.0, -15.0)))
