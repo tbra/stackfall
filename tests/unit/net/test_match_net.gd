@@ -344,7 +344,7 @@ func test_an_intent_from_a_departed_peer_is_refused() -> void:
 func test_a_spawn_refused_by_the_allocator_never_reaches_the_wire() -> void:
 	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
 	_start_playing()
-	_registry.debug_set_next_net_id(Quantize.NET_ID_MAX)
+	_registry._next_net_id = Quantize.NET_ID_MAX
 	var where: Vector3 = _home_world_position(0)
 
 	var first: StringName = net.submit_place(0, where, 0, Quaternion.IDENTITY, false, Match.feed_seq(0))

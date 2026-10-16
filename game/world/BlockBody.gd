@@ -35,10 +35,6 @@ static var impacts_enabled: bool = true
 
 # --- Virtual stubs (D8): overridden by Block with identical signatures --------
 
-func apply_physics_tuning(_tuning: PhysicsTuning) -> void:
-	pass
-
-
 func set_contributing_visual(_contributing: bool) -> void:
 	pass
 
@@ -51,27 +47,10 @@ func is_frozen_visual() -> bool:
 	return false
 
 
-func request_freeze_static(_reason: StringName) -> void:
-	pass
-
-
-func release_freeze_static(_reason: StringName) -> void:
-	pass
-
-
-func is_freeze_static() -> bool:
-	return false
-
-
 ## Glue fusion: the FusedBody this block belongs to,
 ## or null. Block and FusedBody override; no behaviour yet.
 func fused_carrier() -> RigidBody3D:
 	return null
-
-
-## Glue fusion: true while this block is a member of a FusedBody.
-func is_fused_member() -> bool:
-	return false
 
 
 ## Glue fusion: the replicated sleep flag (RigidBody3D.sleeping) for the wire.

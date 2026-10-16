@@ -68,6 +68,17 @@ func _base_radius() -> float:
 	return Match._territory_tuning.goal_zone_radius
 
 
+func _ring_node(flag: GoalFlag) -> MeshInstance3D:
+	var found: Array[Node] = flag.find_children(RING_NODE_NAME, "MeshInstance3D", false, false)
+	return found[0] as MeshInstance3D if not found.is_empty() else null
+
+
+## The radius the ring marks, as its shader draws it.
+func _ring_radius(flag: GoalFlag) -> float:
+	var material: ShaderMaterial = _ring_node(flag).material_override as ShaderMaterial
+	return float(material.get_shader_parameter(&"zone_radius"))
+
+
 # --- toggle off: the zone still draws, at the no-build radius ----
 
 func test_toggle_off_draws_the_zone_at_goal_zone_radius_while_claim_radius_stays_zero() -> void:
@@ -76,12 +87,10 @@ func test_toggle_off_draws_the_zone_at_goal_zone_radius_while_claim_radius_stays
 	assert_eq(Match.qol_claim_radius(), 0.0, "the capture rule is unchanged")
 	assert_almost_eq(Match.goal_zone_visual_radius(), _base_radius(), 0.0001)
 	for flag: GoalFlag in flags:
-		assert_not_null(flag.claim_ring_node(), "the zone is built with the experiment off")
+		assert_not_null(_ring_node(flag), "the zone is built with the experiment off")
 		assert_eq(flag.find_children(RING_NODE_NAME, "MeshInstance3D", false, false).size(), 1)
-		assert_true(flag.claim_ring_visible())
-		assert_almost_eq(flag.claim_ring_radius(), _base_radius(), 0.0001)
-		var material: ShaderMaterial = flag.claim_ring_node().material_override as ShaderMaterial
-		assert_almost_eq(float(material.get_shader_parameter(&"zone_radius")), _base_radius(), 0.0001)
+		assert_true(_ring_node(flag).visible)
+		assert_almost_eq(_ring_radius(flag), _base_radius(), 0.0001)
 
 
 # --- toggle on: one ring per beacon at the capture radius ---------------------------
@@ -94,9 +103,9 @@ func test_toggle_on_draws_one_ring_per_goal_at_the_host_capture_radius() -> void
 	assert_eq(Match.qol_claim_radius(), Match._territory._claim_radius(), "the exact helper capture uses")
 	assert_eq(Match.qol_claim_radius(), Match.config.qol.effective_goal_radius(_base_radius()))
 	for flag: GoalFlag in flags:
-		assert_not_null(flag.claim_ring_node())
-		assert_true(flag.claim_ring_visible())
-		assert_almost_eq(flag.claim_ring_radius(), expected, 0.0001)
+		assert_not_null(_ring_node(flag))
+		assert_true(_ring_node(flag).visible)
+		assert_almost_eq(_ring_radius(flag), expected, 0.0001)
 		assert_eq(flag.find_children(RING_NODE_NAME, "MeshInstance3D", false, false).size(), 1, "exactly one ring node")
 
 
@@ -109,7 +118,7 @@ func test_ring_follows_the_replicated_config_qol_like_a_client() -> void:
 	assert_not_null(replicated)
 	Match.start_match(_config(replicated))
 	_field.place_flags(2, Match.config.player_colors, 1)
-	assert_almost_eq(_field.goal_flags()[0].claim_ring_radius(), _base_radius() * MULTIPLIER, 0.0001)
+	assert_almost_eq(_ring_radius(_field.goal_flags()[0]), _base_radius() * MULTIPLIER, 0.0001)
 
 
 # --- GoalFlag.set_claim_ring contract ------------------------------------------------

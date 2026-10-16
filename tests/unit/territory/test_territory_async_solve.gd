@@ -260,7 +260,7 @@ func _place_blocks(first: int, count: int) -> void:
 			block.global_position = _field.to_global(Vector3(spot.x, 0.5 + 0.9 * float(i % 3), spot.y))
 			Events.block_placed.emit(block, shape.id)
 			_registry._entries[block.get_instance_id()].is_settled = true
-	_registry.mark_territory_dirty()
+	_registry._territory_revision += 1
 
 
 func _on_updated(raster: TerritoryRaster, _groups: TerritoryGroups) -> void:

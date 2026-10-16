@@ -9,10 +9,6 @@ const SLEEP_WAIT_FRAMES: int = 60
 var _tuning: PhysicsTuning = load("res://config/physics/physics_tuning.tres")
 
 
-func before_each() -> void:
-	Block.clear_awake_set_for_tests()
-
-
 func _block() -> Block:
 	var block: Block = Block.new()
 	var collision: CollisionShape3D = CollisionShape3D.new()

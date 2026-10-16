@@ -77,10 +77,7 @@ signal hole_cells_applied(opened: PackedInt32Array)
 var _grid: CellGrid = null
 ## cell index -> the disk's shape_owner id, or -1 for a cell outside the disk.
 ##
-## DECISION (game/field/Field.gd): cell_owner_id() keeps its contract
-## ("-1 means no collision cell here"), but every in-disk cell now reports the
-## same id, the one owner of the disk trimesh, because per-cell owners no
-## longer exist. Nothing outside Field and its tests reads the id itself.
+## Every in-disk cell reports the same id, the one owner of the disk trimesh.
 var _cell_owner_ids: PackedInt32Array = PackedInt32Array()
 var _in_disk_cells: PackedInt32Array = PackedInt32Array()
 ## 1 where the cell is currently an applied hole (dissolve contact, not
@@ -105,8 +102,7 @@ var _kill_plane_area: Area3D = null
 var _grid_lines: PackedFloat32Array = PackedFloat32Array()
 var _applied_hole_total: int = 0
 ## --trace-disk bookkeeping. _rebuild_count counts disk trimesh builds
-## (set_faces calls) tests pin that a hole change never
-## bumps it.
+## (set_faces calls); a hole change never bumps it.
 var _trace_every: int = 0
 var _rebuild_count: int = 0
 var _max_rebuild_usec: int = 0
@@ -720,12 +716,6 @@ func cell_count() -> int:
 	return _in_disk_cells.size()
 
 
-func cell_owner_id(index: int) -> int:
-	if index < 0 or index >= _cell_owner_ids.size():
-		return -1
-	return _cell_owner_ids[index]
-
-
 func _cell_in_disk(cx: int, cy: int) -> bool:
 	var cell_grid: CellGrid = grid()
 	if not cell_grid.in_bounds(cx, cy):
@@ -808,12 +798,6 @@ func _build_disk_mesh(faces: PackedVector3Array) -> void:
 				elapsed_usec, _max_rebuild_usec,
 			]
 		)
-
-
-## How many times the disk trimesh has been built (set_faces calls) since
-## this Field was created. Read by tests and a script removed in (see git history).
-func disk_mesh_build_count() -> int:
-	return _rebuild_count
 
 
 ## Flips one cell's applied hole state and the applied-hole count.
@@ -1110,10 +1094,6 @@ func home_flag_position(slot_id: int, slot_count: int) -> Vector2:
 	return map_def.home_flag_position(slot_id, slot_count)
 
 
-func goal_flag_positions(count: int) -> PackedVector2Array:
-	return map_def.goal_flag_positions(count)
-
-
 ## Builds the match's flags. Called once by Main after Match.start_match(),
 ## because only the match knows how many players and goals there are.
 func place_flags(slot_count: int, slot_colors: PackedColorArray, goal_count: int) -> void:
@@ -1221,11 +1201,6 @@ func _on_player_eliminated_for_flags(slot_id: int, _team_id: int) -> void:
 	_remove_flag_collision(slot_id)
 
 
-## Shape_owner ids holding a slot's beacon collision (empty when none).
-func flag_collision_owners(slot_id: int) -> PackedInt32Array:
-	return _flag_owner_ids.get(slot_id, PackedInt32Array()) as PackedInt32Array
-
-
 func home_flags() -> Array[HomeFlag]:
 	return _home_flags
 
@@ -1241,9 +1216,9 @@ func set_capture_progress(team_id: int, progress: float) -> void:
 	var color: Color = _color_for_index(team_id)
 	_timer_capture_team = team_id
 	_timer_capture_progress = progress
-	for flag: GoalFlag in _goal_flags:
-		flag.set_capture(team_id, progress, color)
-		_feed_countdown(flag)
+	for goal_flag: GoalFlag in _goal_flags:
+		goal_flag.set_capture(team_id, progress, color)
+		_feed_countdown(goal_flag)
 
 
 ## Classic beacons count down the shared capture; CTF beacons

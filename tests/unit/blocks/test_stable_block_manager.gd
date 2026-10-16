@@ -6,8 +6,7 @@ extends GutTest
 ## seam (see that function's own doc comment) instead of waiting real seconds
 ## or real physics frames -- Net.is_host()/_physics_process() are never
 ## exercised here, only _tick()/_scan() themselves, the same "test the pure
-## seam directly" approach test_physics_tuning.gd already uses for
-## Block._damp_rebound().
+## seam directly" approach.
 
 var _tuning: PhysicsTuning = load("res://config/physics/physics_tuning.tres")
 var _glue_tuning: GlueDropTuning = load("res://config/gifts/glue_drop_tuning.tres")

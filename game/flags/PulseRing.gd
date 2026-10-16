@@ -34,10 +34,6 @@ func is_built() -> bool:
 	return _material != null
 
 
-func emission_energy() -> float:
-	return _material.emission_energy_multiplier if _material != null else 0.0
-
-
 ## Sine wave in -1..1 for the pulse phase; 0 when the period is not positive.
 static func wave_at(time_s: float, period_s: float) -> float:
 	if period_s <= 0.0:

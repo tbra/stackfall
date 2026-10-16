@@ -72,7 +72,7 @@ func _make_controller() -> PlayerController:
 func _collider_top_local(field: Field, slot_id: int) -> float:
 	var body: AnimatableBody3D = field.beacon_body()
 	var top: float = -INF
-	for owner_id: int in field.flag_collision_owners(slot_id):
+	for owner_id: int in field._flag_owner_ids.get(slot_id, PackedInt32Array()) as PackedInt32Array:
 		var shape: Shape3D = body.shape_owner_get_shape(owner_id, 0)
 		var xform: Transform3D = body.shape_owner_get_transform(owner_id)
 		top = maxf(top, xform.origin.y + shape.get_debug_mesh().get_aabb().end.y)

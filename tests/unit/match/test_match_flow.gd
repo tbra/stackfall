@@ -410,7 +410,7 @@ func _add_awake_block() -> BlockRegistry._Entry:
 	entry.block = block
 	entry.is_settled = false
 	_registry._entries[block.get_instance_id()] = entry
-	_registry.mark_territory_dirty()
+	_registry._territory_revision += 1
 	return entry
 
 

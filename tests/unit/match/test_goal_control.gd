@@ -70,12 +70,12 @@ func test_claimed_goal_takes_owner_color_beam_and_boost() -> void:
 	var flag: GoalFlag = _flag()
 	var team_color: Color = Color(0.2, 0.4, 0.9)
 	flag.set_control(1, team_color, PackedColorArray())
-	assert_true(flag.beam_visible())
-	assert_eq(flag.shown_color(), team_color)
+	assert_true(flag._beam != null and flag._beam.visible)
+	assert_eq(flag._color, team_color)
 	assert_gt(flag._emission_boost(), flag.beacon_visuals.claimed_emission_boost - 0.001)
 	flag.set_control(GoalControl.NEUTRAL, Color.WHITE, PackedColorArray())
-	assert_false(flag.beam_visible())
-	assert_eq(flag.shown_color(), flag.beacon_visuals.neutral_color)
+	assert_false(flag._beam != null and flag._beam.visible)
+	assert_eq(flag._color, flag.beacon_visuals.neutral_color)
 
 
 func test_field_pushes_raster_control_onto_goal_beacons() -> void:
@@ -91,4 +91,4 @@ func test_field_pushes_raster_control_onto_goal_beacons() -> void:
 	_step([_home(0.0, 0.0, 1)] as Array[InfluenceCircle])
 	field.refresh_goal_control(_raster)
 	assert_eq(flag.control(), 1)
-	assert_eq(flag.shown_color(), Color.BLUE)
+	assert_eq(flag._color, Color.BLUE)
