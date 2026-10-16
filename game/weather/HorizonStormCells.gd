@@ -19,7 +19,6 @@ var intensity: float = 0.0
 var opacity: float = 0.0
 var _cells: Array[Node3D] = []
 var _seed: int = 0
-var _seed_locked: bool = false
 
 
 ## Pure layout: [{bearing_deg, distance_m, style, seed, first_flash_s}] from `seed_value`.
@@ -62,23 +61,9 @@ static func layout(seed_value: int, cfg: HorizonStormConfig) -> Array[Dictionary
 
 func _ready() -> void:
 	var ctx: MatchContext = MatchContext.current()
-	if not _seed_locked and is_inside_tree() and ctx.has_weather():
+	if is_inside_tree() and ctx.has_weather():
 		_seed = ctx.weather_seed()
 	_build()
-
-
-## Tests and probes: fix the seed and rebuild.
-func configure(seed_value: int, cfg: HorizonStormConfig = null) -> void:
-	_seed = seed_value
-	_seed_locked = true
-	if cfg != null:
-		config = cfg
-	if is_inside_tree():
-		_build()
-
-
-func cells() -> Array[Node3D]:
-	return _cells
 
 
 func set_intensity(value: float) -> void:

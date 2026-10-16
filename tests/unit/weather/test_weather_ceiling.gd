@@ -21,7 +21,7 @@ func _fade(ceiling: CloudCeiling, seconds: float) -> void:
 
 
 func test_fades_in_with_rain_and_out_when_it_clears() -> void:
-	var ceiling: CloudCeiling = _presenter.cloud_ceiling()
+	var ceiling: CloudCeiling = _presenter.get_node("CloudCeiling") as CloudCeiling
 	assert_eq(ceiling.amount(), 0.0)
 	Events.weather_intensity_changed.emit(&"rain", 0.6)
 	_fade(ceiling, ceiling.tuning.fade_in_s + 1.0)
@@ -33,7 +33,7 @@ func test_fades_in_with_rain_and_out_when_it_clears() -> void:
 
 
 func test_storm_drives_the_storm_sky_blend() -> void:
-	var ceiling: CloudCeiling = _presenter.cloud_ceiling()
+	var ceiling: CloudCeiling = _presenter.get_node("CloudCeiling") as CloudCeiling
 	Events.weather_intensity_changed.emit(&"storm", 1.0)
 	_fade(ceiling, ceiling.tuning.fade_in_s + 1.0)
 	assert_almost_eq(ceiling.storm_amount(), ceiling.tuning.storm_sky_blend, 0.001)
@@ -54,7 +54,7 @@ func test_upper_layer_is_the_sea_puff_field_and_always_present() -> void:
 	assert_same(upper.material_override, sea.puff_instance().material_override, "same shader material")
 	assert_same(upper.multimesh.mesh.get_class(), sea.puff_instance().multimesh.mesh.get_class())
 	assert_eq(upper.layers, sea.puff_instance().layers)
-	var ceiling: CloudCeiling = _presenter.cloud_ceiling()
+	var ceiling: CloudCeiling = _presenter.get_node("CloudCeiling") as CloudCeiling
 	Events.weather_intensity_changed.emit(&"rain", 0.5)
 	_fade(ceiling, ceiling.tuning.fade_in_s + 1.0)
 	assert_true(upper.visible, "weather never changes presence")
@@ -148,7 +148,7 @@ func test_rain_snow_and_storm_all_drive_the_shared_overcast() -> void:
 	skybox.environment.sky.sky_material = ProceduralSkyMaterial.new()
 	skybox.theme = Skybox.load_theme("sunset")
 	add_child_autofree(skybox)
-	var ceiling: CloudCeiling = _presenter.cloud_ceiling()
+	var ceiling: CloudCeiling = _presenter.get_node("CloudCeiling") as CloudCeiling
 	var seen: Dictionary = {}
 	for weather_id: StringName in [&"rain", &"snow", &"storm"]:
 		Events.weather_intensity_changed.emit(weather_id, 1.0)

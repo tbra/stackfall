@@ -122,7 +122,7 @@ func _assert_weather_reset_subscribed() -> void:
 		return
 	assert_true(Events.match_scope_reset.is_connected(presenter.clear_now),
 		"fixture: the live WeatherPresenter still listens for match_scope_reset (an earlier script re-parented it)")
-	assert_true(Events.match_scope_reset.is_connected(presenter.cloud_ceiling().snap_clear),
+	assert_true(Events.match_scope_reset.is_connected((presenter.get_node("CloudCeiling") as CloudCeiling).snap_clear),
 		"fixture: the live CloudCeiling still listens for match_scope_reset (an earlier script re-parented it)")
 
 
@@ -204,7 +204,7 @@ func _dirty_camera(rig: CameraRig) -> void:
 
 func _ceiling(main: Node) -> CloudCeiling:
 	var presenter: WeatherPresenter = MatchNet.get_node_or_null(MatchFingerprint.WEATHER_PRESENTER_PATH) as WeatherPresenter
-	return presenter.cloud_ceiling() if presenter != null else null
+	return (presenter.get_node("CloudCeiling") as CloudCeiling) if presenter != null else null
 
 
 ## Plays match A (Night sky, storm then rain, a bot) and dirties everything in reach. Leaves
@@ -231,7 +231,7 @@ func _play_dirty_a(main: Node) -> void:
 	var puddles: RainPuddles = field.get_node_or_null(RainPuddles.NODE_NAME) as RainPuddles
 	assert_not_null(puddles, "fixture: rain put puddles on the Field")
 	puddles.advance(load("res://config/weather/rain.tres").puddle_fill_time_s)
-	assert_gt(puddles.wetness(), 0.0, "fixture: the arena is wet")
+	assert_gt(_wetness(puddles), 0.0, "fixture: the arena is wet")
 	# A hand-picked sky (F4 dropdown), a gust, a gift crate with a queued special and glue.
 	skybox.set_theme_by_id("sunset")
 	var wire: Dictionary = {"id": GUST_ID, "x": 0.0, "y": 1.0, "z": 0.0, "a": 0.5, "r": GUST_RADIUS_M, "d": GUST_DURATION_S, "s": 1.0}
@@ -363,3 +363,11 @@ func test_a_menu_sandbox_or_tutorial_after_a_dirty_match_matches_a_fresh_one() -
 			await after_each()
 			before_each()
 
+
+## The wetness the puddle shader is fed (0 when no layer or no patches exist).
+func _wetness(puddles: RainPuddles) -> float:
+	var patches: MultiMeshInstance3D = puddles.get_node_or_null("Patches") as MultiMeshInstance3D if puddles != null else null
+	if patches == null:
+		return 0.0
+	var value: Variant = (patches.material_override as ShaderMaterial).get_shader_parameter(&"wetness")
+	return float(value) if value != null else 0.0

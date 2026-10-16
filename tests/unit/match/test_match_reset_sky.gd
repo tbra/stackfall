@@ -183,7 +183,7 @@ func _presenter() -> WeatherPresenter:
 
 
 func _storm_to_full(presenter: WeatherPresenter) -> CloudCeiling:
-	var ceiling: CloudCeiling = presenter.cloud_ceiling()
+	var ceiling: CloudCeiling = presenter.get_node("CloudCeiling") as CloudCeiling
 	Events.weather_intensity_changed.emit(STORM_ID, 1.0)
 	for _i: int in range(int((ceiling.tuning.fade_in_s + 1.0) * 10.0)):
 		ceiling.step(0.1)
@@ -203,13 +203,13 @@ func test_match_scope_reset_clears_the_whole_weather_and_sky_presentation() -> v
 	Events.weather_intensity_changed.emit(FOG_ID, 1.0)
 	var ceiling: CloudCeiling = _storm_to_full(presenter)
 	assert_gt(ceiling.storm_amount(), 0.0, "fixture: ceiling stormed up")
-	assert_gt(presenter.active_count(), 0, "fixture: presentations live")
+	assert_gt(_live_presentations(presenter), 0, "fixture: presentations live")
 	for weather_id: StringName in [RAIN_ID, FOG_ID, STORM_ID]:
 		Events.weather_stopped.emit(weather_id)
 	assert_eq(ceiling.target_amount(), 0.0, "fixture: stopped weather has no target, only fades in flight")
 	assert_gt(ceiling.storm_amount(), 0.0, "fixture: the ceiling is still fading out")
 	Events.match_scope_reset.emit()
-	assert_eq(presenter.active_count(), 0, "presentations")
+	assert_eq(_live_presentations(presenter), 0, "presentations")
 	assert_eq(ceiling.amount(), 0.0, "ceiling amount")
 	assert_eq(ceiling.storm_amount(), 0.0, "ceiling storm")
 	assert_eq(ceiling.overcast(), 0.0, "ceiling overcast")
@@ -219,3 +219,11 @@ func test_match_scope_reset_clears_the_whole_weather_and_sky_presentation() -> v
 	_assert_same_snapshot(_snapshot(rig), expected, "skybox after match_scope_reset")
 	assert_eq(skybox.storm_sky_amount(), 0.0)
 
+
+## Weather presentation scenes the presenter currently holds (the ceiling is not one).
+func _live_presentations(presenter: WeatherPresenter) -> int:
+	var count: int = 0
+	for child: Node in presenter.get_children():
+		if child is WeatherPresentation and not child.is_queued_for_deletion():
+			count += 1
+	return count

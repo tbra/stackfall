@@ -137,7 +137,7 @@ func test_a_new_match_after_leaving_starts_from_the_launch_camera_and_a_dry_aren
 	var wet: RainPuddles = _puddles()
 	assert_not_null(wet, "fixture: rain put a puddle layer on the Field")
 	wet.advance(RAIN_TUNING.puddle_fill_time_s)
-	assert_almost_eq(wet.wetness(), 1.0, 0.001, "fixture: the arena is soaked")
+	assert_almost_eq(_wetness(wet), 1.0, 0.001, "fixture: the arena is soaked")
 	_assert_launch_view(rig, fresh, "first match")
 	var match_yaw: float = rig.get_yaw()
 	assert_ne(match_yaw, 0.0, "fixture: the match start aimed the camera from the home beacon")
@@ -163,10 +163,10 @@ func test_a_new_match_after_leaving_starts_from_the_launch_camera_and_a_dry_aren
 	assert_almost_eq(rig.get_yaw(), match_yaw, 0.0001, "second match: the same orientation the first match started with")
 	assert_false(rig.is_peeking())
 	var layer: RainPuddles = _puddles()
-	assert_true(layer == null or layer.wetness() == 0.0, "clear weather: no wetness at the start")
+	assert_true(_wetness(layer) == 0.0, "clear weather: no wetness at the start")
 	_run_seconds(SCHEDULE.constant_start_delay_s + 5.0)
 	layer = _puddles()
-	assert_true(layer == null or layer.wetness() == 0.0, "and none appears while it stays clear")
+	assert_true(_wetness(layer) == 0.0, "and none appears while it stays clear")
 
 
 # --- Events.match_scope_reset hub (R0) ---------------------------
@@ -211,3 +211,11 @@ func test_a_lobby_match_after_a_menu_sandbox_has_gamepad_home_focus_again() -> v
 	rig._unhandled_input(pad_back)
 	assert_eq(rig._focus_action, &"camera_snap_home", "pad Back focuses home in the lobby match")
 
+
+## The wetness the puddle shader is fed (0 when no layer or no patches exist).
+func _wetness(puddles: RainPuddles) -> float:
+	var patches: MultiMeshInstance3D = puddles.get_node_or_null("Patches") as MultiMeshInstance3D if puddles != null else null
+	if patches == null:
+		return 0.0
+	var value: Variant = (patches.material_override as ShaderMaterial).get_shader_parameter(&"wetness")
+	return float(value) if value != null else 0.0
