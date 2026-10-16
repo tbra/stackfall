@@ -89,11 +89,6 @@ func clear() -> void:
 	_sequence = 0
 
 
-func live_anchor_count() -> int:
-	_prune_anchors()
-	return _anchors.size()
-
-
 func _on_triggered(def_id: StringName, position: Vector3, chain_depth: int, anchor: Block) -> void:
 	Events.special_triggered.emit(IN_PLACE_NET_ID, def_id, position, chain_depth)
 	# The action is over when trigger() returns (SpecialBehavior DECISION): free now.

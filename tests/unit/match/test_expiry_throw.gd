@@ -152,7 +152,7 @@ func test_another_peers_cursor_cannot_set_this_slots_aim() -> void:
 	var net: MatchNetScript = _make_host_net()
 	_start_with(&"gift_bomb", GiftThrow.Mode.THROW, REMOTE_SLOT)
 	net._handle_cursor_update(REMOTE_PEER, 0, _home_world_position(0), 0, Quaternion.IDENTITY, AIM)
-	assert_eq(Match._placement.noted_aim(0), Vector3.ZERO, "slot/peer mismatch is dropped before the aim is read")
+	assert_false(Match._placement._aim_by_slot.has(0), "slot/peer mismatch is dropped before the aim is read")
 
 
 # --- clamp and bot range -----------------------------------------------------

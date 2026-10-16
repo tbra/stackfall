@@ -277,10 +277,12 @@ func _host_backlog(mask: int) -> Array:
 
 
 ## Resets both intervals to a full block timer so a pause phase never races a
-## leftover expiry (MatchFeed.debug_unlock_slot is the documented test seam).
+## leftover expiry.
 func _refill_timers() -> void:
 	for slot_id: int in range(SLOTS):
-		Match._feed.debug_unlock_slot(slot_id)
+		Match._feed._release_locked[slot_id] = false
+		Match._feed._feed_time_left[slot_id] = Match.config.block_timer
+		Match._feed._feed_expired[slot_id] = false
 
 
 func _host_pause_topple(mask: int) -> Array:

@@ -36,10 +36,7 @@ const _BURN_CLAMP_MARGIN: float = 0.5
 
 var _match: MatchAutoload = null
 
-## Blocks _spawn_block() has built since the match started. The acceptance
-## harness asserts blocks_spawned() == sum(intents_accepted) + auto_drops
-## across the session ("Proving placements are never
-## duplicated or lost").
+## Blocks _spawn_block() has built since the match started (reset by MatchLifecycle).
 var _blocks_spawned: int = 0
 
 ## M4 P2c: request_throw()'s own tunable (throw_max_speed) -- preloaded here
@@ -560,11 +557,6 @@ func forget_aim(slot_id: int) -> void:
 	_aim_by_slot.erase(slot_id)
 
 
-## The aim last noted for `slot_id`, or Vector3.ZERO.
-func noted_aim(slot_id: int) -> Vector3:
-	return _aim_by_slot.get(slot_id, Vector3.ZERO)
-
-
 ## the expiry half of request_place(). True when a held, throwable gift was
 ## released as a manual throw along the slot's last noted aim (same validation, arc and range:
 ## it IS request_throw()). False leaves the caller's ordinary forced drop to run.
@@ -1082,13 +1074,6 @@ func _warn_unresolved_special_once(special_id: StringName, why: String) -> void:
 		return
 	_warned_special_ids[special_id] = true
 	push_warning("MatchPlacement: spawning %s as an ordinary block (%s)" % [special_id, why])
-
-
-## Blocks this instance has spawned since the match started. The M3a
-## acceptance harness asserts this equals the sum of accepted intents plus
-## auto-drops.
-func blocks_spawned() -> int:
-	return _blocks_spawned
 
 
 ## Keeps a burn's disk-local spawn point (x/z only, in Field's local space)

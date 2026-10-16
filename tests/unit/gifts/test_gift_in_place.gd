@@ -88,7 +88,8 @@ func _release(slot_id: int, gift_id: StringName) -> StringName:
 
 
 func _anchor_count() -> int:
-	return Match._placement._activation.live_anchor_count()
+	Match._placement._activation._prune_anchors()
+	return Match._placement._activation._anchors.size()
 
 
 func _structure() -> VolcanoStructure:
