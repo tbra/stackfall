@@ -124,7 +124,7 @@ extends Resource
 ## two differently-paced ones.
 @export var focus_peek_transition_s: float = 0.35
 ## Camera distance and pitch while PEEK holds on the focus target. Separate
-## from snap_distance/snap_pitch_deg (the legacy free-camera's own instant
+## from snap_distance/snap_pitch_deg (the free camera's own instant
 ## snap) so the follow camera's PEEK framing can be tuned independently.
 @export var focus_peek_distance: float = 16.0
 @export var focus_peek_pitch_deg: float = -30.0

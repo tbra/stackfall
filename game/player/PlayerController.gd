@@ -17,8 +17,7 @@ extends Node
 ## net/MatchNet.gd -- inline to Match on the host, a reliable RPC on a client
 ## -- and always for Net.local_slot(), because one instance drives one player.
 ##
-## original-style block-locked controls, spec 1.5,
-## docs/ORIGINAL_BONTAGO_NOTES.md "Controls": the original's mouse "positions
+## original-style block-locked controls, spec 1.5: the original's mouse "positions
 ## the block" directly and the camera is attached to it, rather than the
 ## on-screen cursor raycasting onto the field. This script now keeps a single
 ## world-space cursor (_cursor) that both mouse motion and the gamepad stick
@@ -643,7 +642,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				var pitch_delta: float = -motion.relative.y * ghost_tuning.rotate_drag_sensitivity
 				_ghost.apply_free_rotation_delta(yaw_delta, pitch_delta, _camera_right_axis())
 		elif Input.is_action_pressed(&"rotation_mode"):
-			# Original tutorial (docs/ORIGINAL_BONTAGO_NOTES.md): "while holding
+			# Original tutorial: "while holding
 			# the rotation-mode key, the movement keys change the orientation
 			# of the block" -- mouse motion is this device's "movement keys".
 			_accumulate_rotation_drag(motion.relative, ghost_tuning.block_rotation_sensitivity)
@@ -1750,7 +1749,7 @@ func _camera_relative_dir(input_2d: Vector2) -> Vector3:
 	return right * input_2d.x + forward * input_2d.y
 
 
-## spec 1.4 rotate_drag's vertical axis, docs/rotation-issue.png:
+## spec 1.4 rotate_drag's vertical axis:
 ## the world-space "right" axis of whatever way the camera currently faces --
 ## the same forward/right construction _camera_relative_dir() above already
 ## uses for cursor movement, factored out so rotate_drag's pitch axis tracks

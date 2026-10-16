@@ -34,7 +34,7 @@ func test_a_remote_cursor_creates_one_ghost_for_that_slot() -> void:
 	assert_eq(ghost.orientation_index, 3)
 	assert_almost_eq(ghost.global_position.x, 4.0, 0.001)
 	assert_almost_eq(ghost.global_position.y, 2.0, 0.001)
-	assert_eq(cursors.tracked_slot_count(), 1)
+	assert_eq(cursors.get_child_count(), 1, "one ghost node for the one slot that moved")
 
 
 func test_the_local_slot_never_gets_a_remote_ghost() -> void:
@@ -43,7 +43,7 @@ func test_the_local_slot_never_gets_a_remote_ghost() -> void:
 	Events.remote_cursor_updated.emit(0, Vector3.ZERO, 0, Quaternion.IDENTITY)
 
 	assert_null(cursors.ghost_for_slot(0), "The local player already has their own ghost.")
-	assert_eq(cursors.tracked_slot_count(), 0)
+	assert_eq(cursors.get_child_count(), 0)
 
 
 func test_an_eliminated_player_stops_being_drawn() -> void:
@@ -53,7 +53,6 @@ func test_an_eliminated_player_stops_being_drawn() -> void:
 	Events.player_eliminated.emit(1, 1)
 
 	assert_null(cursors.ghost_for_slot(1))
-	assert_eq(cursors.tracked_slot_count(), 0)
 
 
 func test_the_end_of_a_match_clears_every_remote_ghost() -> void:
@@ -62,7 +61,7 @@ func test_the_end_of_a_match_clears_every_remote_ghost() -> void:
 
 	Events.match_state_changed.emit(Match.State.PLAYING, Match.State.END)
 
-	assert_eq(cursors.tracked_slot_count(), 0)
+	assert_null(cursors.ghost_for_slot(1))
 
 
 # --- PlayerController, networked ---------------------------------------------

@@ -45,11 +45,15 @@ func _make_ghost() -> GhostPreview:
 	return ghost
 
 
+func _body_tint(ghost: GhostPreview) -> Color:
+	return ghost._material.get_shader_parameter(&"albedo_color") as Color
+
+
 func test_valid_result_tints_player_color() -> void:
 	var ghost: GhostPreview = _make_ghost()
 	ghost.apply_validity(PlacementRules.Result.VALID)
 	assert_eq(ghost.current_state(), GhostPreview.STATE_VALID)
-	var tint: Color = ghost.current_tint_color()
+	var tint: Color = _body_tint(ghost)
 	assert_almost_eq(tint.r, PLAYER_COLOR.r, 0.001)
 	assert_almost_eq(tint.g, PLAYER_COLOR.g, 0.001)
 	assert_almost_eq(tint.b, PLAYER_COLOR.b, 0.001)
@@ -59,14 +63,14 @@ func test_outside_territory_is_invalid_red() -> void:
 	var ghost: GhostPreview = _make_ghost()
 	ghost.apply_validity(PlacementRules.Result.OUTSIDE_TERRITORY)
 	assert_eq(ghost.current_state(), GhostPreview.STATE_INVALID)
-	assert_true(ghost.current_tint_color().is_equal_approx(_with_ghost_opacity(ghost, ghost.ghost_tuning.invalid_tint_color)))
+	assert_true(_body_tint(ghost).is_equal_approx(_with_ghost_opacity(ghost, ghost.ghost_tuning.invalid_tint_color)))
 
 
 func test_hole_is_hatched() -> void:
 	var ghost: GhostPreview = _make_ghost()
 	ghost.apply_validity(PlacementRules.Result.HOLE)
 	assert_eq(ghost.current_state(), GhostPreview.STATE_HOLE)
-	assert_true(ghost.current_tint_color().is_equal_approx(_with_ghost_opacity(ghost, ghost.ghost_tuning.hole_tint_color)))
+	assert_true(_body_tint(ghost).is_equal_approx(_with_ghost_opacity(ghost, ghost.ghost_tuning.hole_tint_color)))
 
 
 ## Territory v2: a goal flag's no-build
@@ -77,7 +81,7 @@ func test_goal_zone_is_hatched() -> void:
 	var ghost: GhostPreview = _make_ghost()
 	ghost.apply_validity(PlacementRules.Result.GOAL_ZONE)
 	assert_eq(ghost.current_state(), GhostPreview.STATE_HOLE)
-	assert_true(ghost.current_tint_color().is_equal_approx(_with_ghost_opacity(ghost, ghost.ghost_tuning.hole_tint_color)))
+	assert_true(_body_tint(ghost).is_equal_approx(_with_ghost_opacity(ghost, ghost.ghost_tuning.hole_tint_color)))
 
 
 # --- Controller wiring: the ghost tint follows Match.preview_placement -----

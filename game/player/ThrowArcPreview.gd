@@ -51,10 +51,6 @@ var _material: StandardMaterial3D
 var _ring_instance: MeshInstance3D
 var _ring_material: StandardMaterial3D
 var _ring_built_for: Vector2 = Vector2.ZERO
-var _ring_normal: Vector3 = Vector3.UP
-## For tests/current_points(): the world-space centreline points the ribbon
-## last drew, cleared to empty by clear_arc().
-var _last_points: PackedVector3Array = PackedVector3Array()
 
 
 func _ready() -> void:
@@ -177,22 +173,13 @@ func update_arc(
 ## would NOT commit as a throw (negligible drag, or not aiming at all).
 func clear_arc() -> void:
 	visible = false
-	_last_points = PackedVector3Array()
 	if _ring_instance != null:
 		_ring_instance.visible = false
 	if _immediate_mesh != null:
 		_immediate_mesh.clear_surfaces()
 
 
-## For tests: the world-space sample points the ribbon currently follows
-## (the centreline, not the ribbon's own left/right edges); empty after
-## clear_arc()/before the first update_arc().
-func current_points() -> PackedVector3Array:
-	return _last_points
-
-
 func _rebuild_mesh(points: PackedVector3Array) -> void:
-	_last_points = points
 	_immediate_mesh.clear_surfaces()
 	if points.size() < 2:
 		return
@@ -249,7 +236,6 @@ func _update_end_ring(point: Vector3, normal: Vector3, ring_scale: float = 1.0) 
 	var basis: Basis = Basis(right, up, right.cross(up).normalized()).scaled(Vector3(ring_scale, 1.0, ring_scale))
 	_ring_instance.global_transform = Transform3D(basis, point + up * ghost_tuning.throw_arc_end_marker_lift)
 	_ring_instance.visible = true
-	_ring_normal = up
 
 
 ## The landing surface normal for `point`: the disc's own up axis while over it, else world up.
@@ -283,12 +269,3 @@ func _build_ring_mesh(outer: float, width: float) -> ArrayMesh:
 	var mesh: ArrayMesh = ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh
-
-
-## For tests: the landing ring node (null before _ready) and the normal it was last aligned to.
-func end_ring() -> MeshInstance3D:
-	return _ring_instance
-
-
-func end_ring_normal() -> Vector3:
-	return _ring_normal

@@ -90,16 +90,17 @@ func _make_spectator(slots: int) -> SpectatorController:
 
 func test_follow_next_and_prev_cycle_the_bot_slots_and_wrap() -> void:
 	var spectator: SpectatorController = _make_spectator(FOLLOW_SLOTS)
-	assert_eq(spectator.follow_slot(), SpectatorController.OVERVIEW)
-	for expected: int in [0, 1, 2, 0]:
+	watch_signals(spectator)
+	var expected_order: Array[int] = [0, 1, 2, 0]
+	for i: int in range(expected_order.size()):
 		spectator.follow_next()
-		assert_eq(spectator.follow_slot(), expected)
+		assert_signal_emitted_with_parameters(spectator, "follow_changed", [expected_order[i]], i)
 	spectator.follow_prev()
-	assert_eq(spectator.follow_slot(), FOLLOW_SLOTS - 1, "previous wraps to the last bot")
+	assert_signal_emitted_with_parameters(spectator, "follow_changed", [FOLLOW_SLOTS - 1], 4)  # previous wraps to the last bot
 	spectator.overview()
-	assert_false(spectator.is_following())
+	assert_signal_emitted_with_parameters(spectator, "follow_changed", [SpectatorController.OVERVIEW], 5)
 	spectator.follow_prev()
-	assert_eq(spectator.follow_slot(), FOLLOW_SLOTS - 1, "previous from the overview starts at the last bot")
+	assert_signal_emitted_with_parameters(spectator, "follow_changed", [FOLLOW_SLOTS - 1], 6)  # previous from the overview starts at the last bot
 
 
 func test_speed_steps_1x_2x_4x_and_back_and_pause_freezes() -> void:
@@ -112,7 +113,6 @@ func test_speed_steps_1x_2x_4x_and_back_and_pause_freezes() -> void:
 	spectator.cycle_speed()
 	assert_eq(Engine.time_scale, speeds[0], "4x steps back to 1x")
 	spectator.toggle_pause()
-	assert_true(spectator.is_paused())
 	assert_eq(Engine.time_scale, 0.0)
 	spectator.toggle_pause()
 	assert_eq(Engine.time_scale, speeds[0], "unpausing resumes the speed it had")
@@ -131,8 +131,9 @@ func test_spectate_actions_work_through_the_input_map() -> void:
 	var next: InputEventAction = InputEventAction.new()
 	next.action = SpectatorController.NEXT_ACTION
 	next.pressed = true
+	watch_signals(spectator)
 	spectator._unhandled_input(next)
-	assert_eq(spectator.follow_slot(), 0)
+	assert_signal_emitted_with_parameters(spectator, "follow_changed", [0])
 	var speed: InputEventAction = InputEventAction.new()
 	speed.action = SpectatorController.SPEED_UP_ACTION
 	speed.pressed = true

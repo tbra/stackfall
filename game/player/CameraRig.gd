@@ -4,8 +4,7 @@ extends Node3D
 ## Input Map actions bootstrap_project.gd defines. CLAUDE.md: no raw keycodes
 ## and no deep node paths — this rig only ever reaches its own Camera3D child.
 ##
-## original-style block-locked camera, spec 1.5,
-## docs/ORIGINAL_BONTAGO_NOTES.md "Controls": the original's camera is
+## original-style block-locked camera, spec 1.5: the original's camera is
 ## attached to the held block, so by default (CameraTuning.follow_block) this
 ## rig's pivot (_target) tracks whatever position PlayerController reports
 ## through set_follow_position() every frame, smoothed by
@@ -143,7 +142,7 @@ var _local_slot: int = -1
 
 
 ## camera_snap_home/camera_snap_goal's tap-vs-hold state, tracked
-## only while tuning.follow_block (the legacy free camera keeps its old
+## only while tuning.follow_block (the free camera keeps its old
 ## single-press _snap_to() below, unchanged). `_focus_action` is `&""` when
 ## neither is currently held, or the StringName of whichever Input Map action
 ## is being held (&"camera_snap_home" / &"camera_snap_goal") -- see
@@ -305,7 +304,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			_update_transform()
 		elif not tuning.follow_block and Input.is_action_pressed(&"camera_modifier"):
 			# DECISION (game/player/CameraRig.gd): manual pan only makes sense for the
-			# legacy free-orbit camera -- follow mode re-centers _target on the
+			# free-orbit camera (follow_block = false) -- follow mode re-centers _target on the
 			# ghost every frame (see _process()), so a pan offset here would be
 			# overwritten within a frame or two anyway.
 			_target += _pan_offset(Vector2(-motion.relative.x, motion.relative.y)) * tuning.mouse_pan_speed
@@ -426,7 +425,7 @@ func _process(delta: float) -> void:
 		# suppresses ghost movement while camera_modifier is held so the
 		# player can pan cleanly; this rig applies pan from the action
 		# strength unconditionally, so nudging the stick to move the ghost
-		# also pans the camera a little in this legacy (follow_block = false)
+		# also pans the camera a little in the free-orbit (follow_block = false)
 		# mode. That's a minor, documented side effect, not a hard bug.
 		var pan_x: float = Input.get_action_strength(&"camera_pan_right") - Input.get_action_strength(&"camera_pan_left")
 		var pan_z: float = Input.get_action_strength(&"camera_pan_back") - Input.get_action_strength(&"camera_pan_forward")
@@ -445,7 +444,7 @@ func _process(delta: float) -> void:
 ## ghost's world position (its rotated geometric centre, not
 ## its node origin, so a pitch/roll spins the block in place instead of
 ## dragging the camera's framing). Only used while tuning.follow_block is
-## true; the legacy free-orbit camera ignores it.
+## true; the free-orbit camera ignores it.
 func set_follow_position(pos: Vector3) -> void:
 	_follow_position = pos
 
@@ -515,7 +514,7 @@ func set_home_view(home_position: Vector3, look_at_position: Vector3 = Vector3.Z
 ## doesn't reset properly ... my camera and zoom level were the same as when i
 ## left the old match"). ROOT CAUSE: this rig is a static child of game/main/Main.tscn
 ## that outlives every match, and a match start only re-aimed yaw/target
-## (place_at_home_beacon()/set_home_view()), so the previous match's zoom
+## (begin_start_framing()/set_home_view()), so the previous match's zoom
 ## distance, pitch, peek/focus state, shake and queued snap/turn tweens carried
 ## over. game/main/Main.gd calls this when a match world is built and torn down; it
 ## puts every field back to what _ready() leaves on a fresh launch.
@@ -552,18 +551,6 @@ func reset_view() -> void:
 	_has_prev_disc_tilt = false
 	_camera.fov = effective_fov_deg()
 	_apply_default_view()
-
-
-## match-start entry point. Puts the camera at `slot_id`'s own
-## home beacon looking at the disc centre (set_home_view's framing). Returns
-## false, leaving the camera alone, when that slot has no beacon in the Field.
-func place_at_home_beacon(slot_id: int) -> bool:
-	_local_slot = slot_id
-	var home: Vector3 = _resolve_home_target()
-	if home == Vector3.ZERO:
-		return false
-	set_home_view(home, Vector3.ZERO)
-	return true
 
 
 ## feedback/051026/3.png: match-start
@@ -859,7 +846,7 @@ func _snap_to(point: Vector3) -> void:
 ## Handles a fresh camera_snap_home/camera_snap_goal press: resolves the real
 ## target once (so a goal cycle advances exactly once per press, not once per
 ## frame it's held -- see _resolve_goal_target()'s own doc comment), then
-## either fires the legacy camera's single instant _snap_to() (follow_block
+## either fires the free camera's single instant _snap_to() (follow_block
 ## false) or starts this press's tap/hold tracking for _update_focus_hold()
 ## to pick up next frame.
 func _on_focus_pressed(action: StringName) -> void:
