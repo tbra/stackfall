@@ -17,6 +17,17 @@ func test_round_bottom_rests_on_the_clump_level_a_flat_one_is_cut_there() -> voi
 	assert_almost_eq(CloudSea.puff_centre_y(150.0, 10.0, 100.0, 1.0), 140.0, 0.0001)
 
 
+func test_sink_lets_a_round_bottom_hang_below_the_clump_level() -> void:
+	# The upper layer's puffs hang up to sink_m below their clump's level, so no two share a plane
+	# (and rain starting at the layer base is not under every puff).
+	assert_almost_eq(CloudSea.puff_centre_y(0.0, 10.0, 100.0, 1.0, 4.0), 106.0, 0.0001)
+	assert_almost_eq(CloudSea.puff_centre_y(0.0, 10.0, 100.0, 0.15, 4.0), 97.5, 0.0001)
+	# No sink (the default) is the plain rest on the base level.
+	assert_almost_eq(CloudSea.puff_centre_y(0.0, 10.0, 100.0, 1.0, 0.0), 110.0, 0.0001)
+	# A tall puff stays where its top puts it, however much sink is allowed.
+	assert_almost_eq(CloudSea.puff_centre_y(150.0, 10.0, 100.0, 1.0, 4.0), 140.0, 0.0001)
+
+
 func _uniform_names() -> Array:
 	var shader: Shader = load("res://shaders/sky/cloud_puffs.gdshader") as Shader
 	var names: Array = []
