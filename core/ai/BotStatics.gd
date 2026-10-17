@@ -6,9 +6,9 @@ extends RefCounted
 ##
 ## DECISION: cube offsets are in the SPAWN frame, B*(cell - bottom_center()),
 ## exactly where BlockFactory puts the collision cubes around the pivot the host is given
-## (`candidate.origin` is that pivot). An earlier version placed them at B*cell, shifted by B*pivot
-## (up to 1.4 m), so probes looked at the wrong patch. `cell_support` entries
-## still line up with the cubes they were measured under (footprint_cells_of).
+## (`candidate.origin` is that pivot); placing them at B*cell instead shifts them by B*pivot
+## (up to 1.4 m) and the probes look at the wrong patch. `cell_support` entries
+## line up with the cubes they were measured under (footprint_cells_of).
 
 const SHIPPED_TUNING: BotGenTuning = preload("res://config/bots/bot_gen_tuning.tres")
 const SHIPPED_PHYSICS_TUNING: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
@@ -165,7 +165,7 @@ static func orientation_infos(shape: BlockShape, tuning: BotGenTuning = null) ->
 			continue
 		seen[info.signature] = true
 		distinct.append(info)
-	# P4: an orientation is offered only when its own centre of mass is inside the hull of its
+	# An orientation is offered only when its own centre of mass is inside the hull of its
 	# bottom contact squares by more than the numeric tolerance (rule 1 on flat ground). Filtering happens
 	# before the cap, so an ineligible orientation never takes a round-robin slot.
 	var cube: float = SHIPPED_PHYSICS_TUNING.cube_size

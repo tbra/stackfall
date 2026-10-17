@@ -25,13 +25,10 @@ var footprint_cells: PackedInt32Array = PackedInt32Array()
 ## or a lower stack. -1 ("not measured") is the default; BotThink fills it from its cube probes.
 var corner_support_hits: int = -1
 
-## M5 P3b-i, append-only: the oriented shape's own height, in
-## cube units, above its own pivot -- e.g. a pillar lying flat is 1, standing
-## on end is 3. Producer is game/bots/BotController.gd (a later
-## package's own window); every candidate here defaults to 0.0 until that
-## package wires it in. BotEvaluator adds this to `support_height`
-## (top_height) since a block's influence radius is driven by its own highest point above the
-## disk, not merely where its pivot rests.
+## Append-only: the oriented shape's own height, in cube units, above its own pivot
+## (a pillar lying flat is 1, standing on end is 3); 0.0 until the producer fills it.
+## BotEvaluator adds this to `support_height` (top_height) since a block's influence radius
+## is driven by its own highest point above the disk, not merely where its pivot rests.
 var shape_height: float = 0.0
 
 ## Bot V2 (append-only): which generator produced the site
@@ -44,7 +41,7 @@ var top_height: float = 0.0
 ## footprint order; empty until the footprint was probed.
 var cell_support: PackedFloat32Array = PackedFloat32Array()
 
-## append-only; stub for 1t5.53b: disk-local XZ of each probed bottom cube
+## append-only: disk-local XZ of each probed bottom cube
 ## (BotStatics.contact_probe_points); `cell_support` is parallel to it once probed. Empty = the
 ## grid-cell probing of older candidates.
 var probe_points: PackedVector2Array = PackedVector2Array()

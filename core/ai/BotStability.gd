@@ -1,13 +1,13 @@
 class_name BotStability
 extends RefCounted
-## STATICS_DESIGN 2.3 and 3: does a candidate placement stand? The bot's one stability judgement,
+## Does a candidate placement stand? The bot's one stability judgement,
 ## built from the owner's two centre-of-mass rules. A placement is stable iff `slack > 0`, where slack is the
 ## smallest (margin - required) over the piece's own cut (rule 1: its centre of mass against the contact patches
 ## under it) and every lower cut (rule 2: everything resting on a body as one object, down to the disc). BotStack
 ## holds the geometry (piece_cut, lower_cuts). Pure: reads a candidate, its orientation, the world view's stack
 ## snapshot and a Requirement; no scene tree.
 ##
-## Disturbance (STATICS_DESIGN 3.1, 2.6): the Storm's sustained push and the gift allowance raise
+## Disturbance: the Storm's sustained push and the gift allowance raise
 ## the requirement only while weather or gifts are on; a tilted disc shifts every centre of mass exactly.
 
 const SHIPPED_PHYSICS_TUNING: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
@@ -37,10 +37,10 @@ class Requirement:
 	var probe_contact_m: float = 0.0  # BotTuning.stability_contact_tolerance_m (the one probe tolerance)
 	var cube_m: float = 0.0  # cube pitch: adjacent squares abut across the seam
 	var face_half_m: float = 0.0  # (cube_size - cube_margin) * 0.5
-	var gift_m: float = 0.0  # disturbance package
-	var wind_accel_ratio: float = 0.0  # disturbance package: storm max_accel * intensity / g
-	var wind_tuning: StormTuning = null  # disturbance package: height_factor; null = calm
-	var gravity_shift: Vector2 = Vector2.ZERO  # disturbance package: g_local.xz / -g_local.y
+	var gift_m: float = 0.0  # gift allowance
+	var wind_accel_ratio: float = 0.0  # storm max_accel * intensity / g
+	var wind_tuning: StormTuning = null  # height_factor; null = calm
+	var gravity_shift: Vector2 = Vector2.ZERO  # g_local.xz / -g_local.y
 
 
 ## The verdict for one candidate.

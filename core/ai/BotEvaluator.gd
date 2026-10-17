@@ -18,7 +18,7 @@ extends RefCounted
 const SHIPPED_TUNING: BotEvalTuning = preload("res://config/bots/bot_eval_tuning.tres")
 ## Tests (and the tuning tools) may swap this; it is read-only in play.
 static var tuning: BotEvalTuning = SHIPPED_TUNING
-##.53b: the tower-statics tunables (aim share, tolerance, analysis slice); tests may swap it.
+## The tower-statics tunables (aim share, tolerance, analysis slice); tests may swap it.
 const SHIPPED_STACK_TUNING: BotStackTuning = preload("res://config/bots/bot_stack_tuning.tres")
 static var stack_tuning: BotStackTuning = SHIPPED_STACK_TUNING
 ## Sunflower spiral step, pi * (3 - sqrt(5)) radians.
@@ -202,7 +202,7 @@ static func rim_risk(c: BotCandidate, view: BotWorldView) -> float:
 
 ## Reach the Sky only (else 0): height_gain_weight times the metres this placement raises the
 ## column it rests on (top height minus the support height under the site, from the probe), plus
-## height_top_area_weight per cube of its top layer (capped). DECISION (review): the baseline is the surface
+## height_top_area_weight per cube of its top layer (capped). DECISION: the baseline is the surface
 ## the piece lands on, not the tallest own block, so a bar still stands up on a new base beside tall debris.
 ## Added to the REACH term (the intent's REACH weight scales it); the TIP axis (the statics model's topple penalty)
 ## still penalises standing up unsound.

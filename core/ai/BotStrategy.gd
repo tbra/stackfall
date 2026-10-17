@@ -161,11 +161,11 @@ static func _mode_plan(
 ## Reach the Sky: the mode context's target is the tallest
 ## settled block, which after a topple is a leaning pile. With an analysed snapshot of the own blocks the
 ## target becomes the tallest SOUND top near the remembered base, or a new base (on the disc or a sound, flat
-## block face; debris beside it no longer matters, see _base_usable) when the tower fell (no
+## block face; debris beside it does not matter, see _base_usable) when the tower fell (no
 ## sound top near the base, or the top left stands `collapse_drop_m` under the peak).
 ## Memory (per seat, kept by BotThink): sky_base (xz), sky_peak (m), sky_pending (a new base with no sound
 ## top yet), sky_target / sky_new_base (the last plan, reused while own blocks are still moving). Without
-## a snapshot, or with no own block in it, the plan keeps the mode context's target (the old behaviour).
+## a snapshot, or with no own block in it, the plan keeps the mode context's target.
 ## DECISION: the memory is static across matches (BotThink._strategy_memory); the own_count == 0 reset
 ## below clears the base for a fresh match.
 static func _plan_sound_tower(
@@ -247,8 +247,8 @@ static func _apply_sky_plan(plan: Dictionary, target: Vector2, new_base: bool, m
 		memory["sky_new_base"] = new_base
 
 
-## A base point the bot may build on: own valid territory, inside the rim margin, and (replacing
-## the older debris clearance) a held piece over the point rests on the disc or on a sound block face flat
+## A base point the bot may build on: own valid territory, inside the rim margin, and a held piece
+## over the point rests on the disc or on a sound block face flat
 ## against it, with the centre of mass inside every support down to the disc (BotStack.rest_margin). Debris
 ## beside the point does not matter. DECISION: the base itself needs the disc or a SOUND face (a fallen block
 ## lying flat on the disc qualifies); a flat face on a leaning pile may still carry sites (BotCandidateGen) but
@@ -270,7 +270,7 @@ static func _base_usable(view: BotWorldView, stack: BotStack, point: Vector2) ->
 
 ## The new base: a sunflower of `base_samples` points over the own home circle (then over the nearest own
 ## circles); the kept point (usable, see _base_usable) closest to the home wins, the earlier sample on a
-## tie. DECISION: the plan's "ties go to the lower hazard" is the sample order, which is deterministic;
+## tie. DECISION: ties go to the earlier sample, which is deterministic;
 ## the dissolve-hazard grade is not computed here. NO_ORIGIN when no circle holds a usable point.
 static func _find_new_base(view: BotWorldView, stack: BotStack, t: BotStrategyTuning) -> Vector2:
 	var origin: Vector2 = view.own_home if view.has_home else Vector2.ZERO
