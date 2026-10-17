@@ -1,7 +1,7 @@
 class_name BeanHopFxTuning
 extends Resource
-## Presentation tunables for the Jumping Bean hop effects (game/gifts/specials/fx/BeanHopFx.gd,
-## ): a spring ring and dust kick at every take-off and a dust puff at every
+## Presentation tunables for the Jumping Bean hop effects (game/gifts/specials/fx/BeanHopFx.gd):
+## a spring ring and dust kick at every take-off and a dust puff at every
 ## landing. Client-derived on every peer from the bean's own motion (no RPC). Loaded
 ## from config/gifts/specials/fx/bean_hop_fx_tuning.tres. Visual-only: not in the F4 panel.
 

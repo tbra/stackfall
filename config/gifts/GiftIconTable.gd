@@ -1,9 +1,8 @@
 class_name GiftIconTable
 extends Resource
-## Maps gift ids to their UI art:
-## the compact pictogram atlases (assets/ui/gift_pictograms)
-## for the lobby toggles/picker, and the rendered model previews
-## (assets/ui/gift_previews, assets/ui/gift_model_previews) for the HUD gift cards. Loaded as
+## Maps gift ids to their UI art: the compact pictogram atlas (assets/ui/gift_pictograms)
+## for the lobby toggles/picker, and the rendered model previews (assets/ui/gift_previews,
+## assets/ui/gift_model_previews) for the HUD gift cards. Loaded as
 ## config/gifts/gift_icon_table.tres. Presentation only, so every peer reads the same
 ## replicated ids. Not an F4 tuning panel resource (no hints entry needed).
 

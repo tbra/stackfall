@@ -5,10 +5,8 @@ extends Resource
 ## every tunable value belongs in a Resource under res://config/". Loaded
 ## once as config/gifts/special_tuning.tres.
 ##
-## DECISION (config/gifts/specials/SpecialTuning.gd): deviates from the old M4 plan
-## by not pre-declaring tunables nothing reads; specials add what they need
-## when they land. The explosion clamp is per
-## def, not here: ExplosionTuning.max_delta_v_mps.
+## DECISION: only tunables something reads are declared; specials add what they need.
+## The explosion clamp is per def, not here: ExplosionTuning.max_delta_v_mps.
 
 ## Chain reactions are capped at this depth (spec 1.6: "Cap them at
 ## max_chain_depth = 4 as a remake performance choice"). A special triggered
@@ -16,16 +14,14 @@ extends Resource
 ## the chain further (game/gifts/specials/SpecialBehavior.gd).
 @export var max_chain_depth: int = 4
 
-## Hard clamp on a thrown special's launch speed in m/s (P2d/P2c: the throw
-## drag/release gesture never launches faster than this, regardless of drag
-## distance).
+## Hard clamp on a thrown special's launch speed in m/s (the throw drag/release gesture
+## never launches faster than this, regardless of drag distance).
 @export var throw_max_speed: float = 25.0
 
-## Throw launch speed in m/s per meter of aim drag, before the
-## throw_max_speed clamp above (P2d).
+## Throw launch speed in m/s per meter of aim drag, before the throw_max_speed clamp above.
 @export var throw_speed_per_meter: float = 12.0
 
-## M4 P4-SPAWN: spec 2.7's continuous-collision threshold ("Rockets, lava
+## Spec 2.7's continuous-collision threshold ("Rockets, lava
 ## orbs, thrown specials, and any body moving faster than 15 m/s use
 ## continuous_cd"). Match.spawn_special_projectile() arms continuous_cd
 ## whenever its own launch speed clears this. request_throw() already arms
@@ -35,31 +31,31 @@ extends Resource
 ## conditioned on it.
 @export var ccd_speed_threshold_mps: float = 15.0
 
-## M4 P2d throw loft: the vertical component added to a throw's ground-plane
+## Throw loft: the vertical component added to a throw's ground-plane
 ## drag direction, as a fraction of the drag distance, before normalising.
 ## 1.0 lofts every throw at 45 degrees; lower is flatter, higher is steeper.
 ## Spec 1.6 leaves the arc OPEN; PlayerController._commit_throw_aim() reads it.
 @export var throw_loft_ratio: float = 1.0
 
-## seconds a gift body lingers after its effect triggered
+## Seconds a gift body lingers after its effect triggered
 ## (its action is done) before the host removes it.
 @export var gift_despawn_delay_s: float = 0.75
 
-## hard backstop. A gift body whose action never completed
+## Hard backstop. A gift body whose action never completed
 ## (e.g. never reached its fuse) is removed this many seconds after binding.
 @export var gift_max_lifetime_s: float = 60.0
 
-## a gift whose effect declares effect_effect_lifetime_s() > 0 gets a fuse
+## A gift whose effect declares effect_lifetime_s() > 0 gets a fuse
 ## backstop of (time its lifetime starts) + effect_lifetime_s() + this margin instead
 ## of the blanket arm_delay + fuse_timeout_s force-trigger.
 @export var fuse_backstop_margin_s: float = 5.0
 
-## the fixed gift throw (Bomb, Magnet, Jumping Bean). The host ignores the
+## The fixed gift throw (Bomb, Magnet, Jumping Bean). The host ignores the
 ## client's drag length/speed: every thrown gift leaves at this speed and loft; only the
 ## horizontal heading of the client's aim is used.
 @export var gift_throw_speed_mps: float = 22.0
 
-## field radius (m) the gift throw speed/range above is tuned for; a thrown
+## Field radius (m) the gift throw speed/range above is tuned for; a thrown
 ## gift's range scales by field_radius / this, clamped to the two limits below (GiftAim.range_scale).
 @export var gift_throw_reference_radius: float = 45.0
 @export var gift_throw_range_scale_min: float = 0.5
@@ -82,15 +78,15 @@ extends Resource
 ## what the player points at.
 @export var gift_aim_back_m: float = 0.0
 
-## the aimed spawn point is never lower than this many meters above the
+## The aimed spawn point is never lower than this many meters above the
 ## surface (stops a flat camera spawning the projectile inside the disc).
 @export var gift_aim_min_height_m: float = 1.0
 
-## vertical component added to the unit camera forward of a THROW gift
+## Vertical component added to the unit camera forward of a THROW gift
 ## (Bomb, Magnet, Jumping Bean) before renormalising; replaces gift_throw_loft_ratio for the
 ## camera-aimed throw (GiftAim.throw_velocity).
 @export var gift_throw_up_ratio: float = 0.35
 
-## carrier mass = cube_mass * activation_scale ^ this exponent
+## Carrier mass = cube_mass * activation_scale ^ this exponent
 ## (1.0 = mass grows linearly with scale; 3.0 = with volume).
 @export var activation_mass_exponent: float = 1.0
