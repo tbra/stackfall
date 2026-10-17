@@ -1,7 +1,7 @@
 shader_type spatial;
 render_mode unshaded, blend_mix, cull_disabled, depth_draw_never, skip_vertex_transform, shadows_disabled, fog_disabled;
 
-// cel-styled rain (game/weather/RainPresentation.gd builds one
+// Cel-styled rain (game/weather/RainPresentation.gd builds one
 // MultiMesh of quads). All motion is computed here from TIME, so there is no
 // per-frame script cost besides updating `center` from the camera. The volume
 // is a box around `center`; streaks wrap inside it, so rain always surrounds

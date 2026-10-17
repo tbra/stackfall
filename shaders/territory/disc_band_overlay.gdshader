@@ -1,13 +1,11 @@
 shader_type spatial;
-// (graphics roadmap "Textures/materials (disc/emissive)"):
-// additive overlay drawn as the `next_pass` of the disc body's band
-// StandardMaterial3D. It gives the plain graphite side wall its "banded body"
-// read from mockup 08 without replacing that material: a thin dim gold inlay
-// line just under the glowing chamfer, a second faint line near the bottom
-// edge, and a cool lavender fresnel sheen so the side reflects the sky as a
-// polished graphite wall rather than borrowing the sunset's orange. Additive
-// and unshaded, so it cannot brighten past its own (tunable) energy; the
-// bottom cap is masked out by its downward normal.
+// Additive overlay drawn as the `next_pass` of the disc body's band StandardMaterial3D.
+// It gives the plain graphite side wall its banded-body read without replacing that
+// material: a thin dim gold inlay line just under the glowing chamfer, a second faint
+// line near the bottom edge, and a cool lavender fresnel sheen so the side reflects the
+// sky as a polished graphite wall rather than borrowing the sunset's orange. Additive
+// and unshaded, so it cannot brighten past its own (tunable) energy; the bottom cap is
+// masked out by its downward normal.
 render_mode blend_add, unshaded, cull_disabled, depth_draw_never;
 
 uniform vec3 inlay_color : source_color = vec3(1.0, 0.7, 0.3);

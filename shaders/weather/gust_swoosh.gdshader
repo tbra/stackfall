@@ -1,10 +1,9 @@
 shader_type spatial;
 render_mode unshaded, blend_mix, cull_disabled, depth_draw_never, skip_vertex_transform, shadows_disabled, fog_disabled;
 
-// cartoon wind swooshes. swapped the two wind looks: this
-// curled SWOOSH look is now the ambient Storm wind's (game/weather/StormPresentation.gd
+// Cartoon wind swooshes: the curled SWOOSH look of the ambient Storm wind (game/weather/StormPresentation.gd
 // scatters the strokes through its weather box: `center`/`radius`/spread_* describe that
-// volume); a Breeze gust now draws the soft wisp look (wind_streak.gdshader).
+// volume); a Breeze gust draws the soft wisp look (wind_streak.gdshader).
 // Each instance is a tapered ribbon (mesh built in GDScript: VERTEX = centerline point
 // in stroke space, NORMAL.xy = ribbon normal, UV = (arc fraction t, side -1..1)).
 // A stroke draws on from its tail to its curled head, holds, then erases from the tail,
@@ -69,7 +68,7 @@ void vertex() {
 	vec3 side = normalize(cross(wind_dir, vec3(0.0, 1.0, 0.0)));
 	vec3 up = cross(side, wind_dir);
 	float along = (hash(key + 1.0) * 2.0 - 1.0) * radius * spread_along + c * cycle_s * speed;
-	// round 2: height_bias > 1 pushes strokes toward the top of the
+	// height_bias > 1 pushes strokes toward the top of the
 	// gust volume (matching the height-weighted force); higher strokes run longer.
 	float high = pow(hash(key + 3.0), 1.0 / max(height_bias, 0.1));
 	vec3 p = center + wind_dir * along
