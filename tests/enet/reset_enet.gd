@@ -33,6 +33,17 @@ const FILE_NAME: String = "fp_%s.var"
 ## (1e-4 to 7e-4) are expected on camera keys. Host comparison uses exact tolerance (1e-4).
 const CLIENT_CAMERA_TOLERANCE: Dictionary = {
 	"camera.": 0.001,
+	"sky.light_energy": SKY_LIGHT_TOLERANCE,
+}
+
+## DECISION: sky.light_energy is the Light3D's float32 energy divided by the live cloud-dim
+## scale (MatchFingerprint._capture_sky), and the sunset-lock energy sits on a 0.0001 rounding
+## boundary (about 1.01895): float noise alone flips the rounded value between 1.0189 and
+## 1.019, in a single fresh run too (countdown 1.019, playing 1.0189), so it is not
+## reset state. The tolerance is a few rounding steps, far below any real lighting change.
+const SKY_LIGHT_TOLERANCE: float = 0.0005
+const HOST_TOLERANCE: Dictionary = {
+	"sky.light_energy": SKY_LIGHT_TOLERANCE,
 }
 
 var _main: Node
@@ -241,7 +252,7 @@ func _finish() -> void:
 		reference = file.get_var() as Dictionary
 		file.close()
 	var found: PackedStringArray = PackedStringArray()
-	var tolerance: Dictionary = CLIENT_CAMERA_TOLERANCE if _role_name == "client" else {}
+	var tolerance: Dictionary = CLIENT_CAMERA_TOLERANCE if _role_name == "client" else HOST_TOLERANCE
 	for checkpoint: String in ["countdown", "playing"]:
 		if not reference.has(checkpoint) or not _captured.has(checkpoint):
 			found.append("%s missing_fingerprint reference=%s test=%s" % [checkpoint, reference.has(checkpoint), _captured.has(checkpoint)])
