@@ -8,8 +8,6 @@ extends RefCounted
 ## the disk plane... r = influence_base + h * tan(40 deg), where h is the
 ## height of the block's highest point above the disk surface, measured along
 ## the disk's normal", capped at influence_max_fraction * field_radius.
-## (The former linear per-block slope was removed by 
-## the 40-degree cone slope is the one model.)
 ##
 ## Spec "Still open" 3 records that it is unknown whether the original drew a
 ## circle per block or one circle per player; the spec's stated default, and
@@ -26,7 +24,7 @@ var center: Vector2 = Vector2.ZERO
 var radius: float = 0.0
 ## Circles only ever connect to circles of the same team (spec 1.5, "Teams").
 var team_id: int = -1
-## Which player placed the block. Kept for HUD attribution and the M5 bot's
+## Which player placed the block. Kept for HUD attribution and the bot's
 ## "which enemy tower contributes most influence" query; connectivity ignores
 ## it, because teammates' circles do connect.
 var slot_id: int = -1

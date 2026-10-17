@@ -36,10 +36,10 @@ var res: int = 1
 ## disk-local meters and cell coordinates goes through it.
 var half_extent: float = 0.5
 
-## The map-shape mechanism (spec 1.7, M6 A0): an optional extra membership
+## The map-shape mechanism (spec 1.7): an optional extra membership
 ## test consulted by is_in_disk() below, on top of the circle test every map
 ## already relied on. Empty (the default, and every two-argument caller's
-## constructor) means "circle only" -- byte-identical to before this package.
+## constructor) means "circle only".
 ## Set from MapDef.shape_test() (config/match/MapDef.gd) by every production
 ## CellGrid.new() call site; still a plain RefCounted with no map/config
 ## dependency of its own -- the caller hands over a bound Callable, this

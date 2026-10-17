@@ -137,7 +137,7 @@ func _clear_capture() -> void:
 ## two groups, and must not win.
 ##
 ## goal 0 is evaluated once and its team returned with its
-## group, so update() no longer repeats the (radius-sized) claim_at() for it.
+## group, so update() does not repeat the (radius-sized) claim_at() for it.
 func _claim_holding_every_goal(raster: TerritoryRaster) -> Vector2i:
 	var none: Vector2i = Vector2i(TerritoryGroups.NO_GROUP, NO_TEAM)
 	var count: int = _goal_positions.size()

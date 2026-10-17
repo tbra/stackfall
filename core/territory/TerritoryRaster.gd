@@ -55,7 +55,7 @@ const STATE_CONTESTED: int = 1
 const STATE_HOLE: int = 2
 const STATE_GOAL_ZONE: int = 4
 
-## Group id written into every owned cell of a *replicated* raster (M3a).
+## Group id written into every owned cell of a *replicated* raster.
 ##
 ## A client's raster is a mirror, not a solve: the host ships one owner byte and one state byte per
 ## cell, which is exactly the set PlacementRules.validate_point() reads, but real
@@ -468,7 +468,7 @@ func reset() -> void:
 	_team_counts.clear()
 
 
-## -- Replication (M3a, clients only) -----------------------------------------
+## -- Replication (clients only) -----------------------------------------
 
 ## Overwrites the whole raster from a host keyframe: `owners` is owner_bytes()
 ## (0 = unowned, otherwise team_id + 1) and `states` is state_bytes()
@@ -793,7 +793,7 @@ static func _reached(value: float, threshold: float) -> bool:
 	return value >= threshold or is_equal_approx(value, threshold)
 
 
-## -- Forced holes (M4 P5-HOLE) ------------------------------------------------
+## -- Forced holes ------------------------------------------------
 
 ## Forces (cx, cy) into a hole right now, independent of any contest overlap
 ## (spec 1.6: a special effect's own hole, not spec 1.5's two-territories
