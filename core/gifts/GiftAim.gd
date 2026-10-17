@@ -1,8 +1,7 @@
 class_name GiftAim
 extends RefCounted
-## Pure camera-aimed gift launch maths,
-## no scene tree. Host and client preview both call these functions so the previewed arc equals
-## the host's launch. The client's own speed is never an input; only a unit `forward`.
+## Pure camera-aimed gift launch maths, no scene tree. Host and client preview both call these functions so the
+## previewed arc equals the host's launch. The client's own speed is never an input; only a unit `forward`.
 
 
 ## The unit vector of `forward`, or Vector3.ZERO when it is non-finite or zero length.

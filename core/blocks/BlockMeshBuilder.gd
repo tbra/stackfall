@@ -3,9 +3,7 @@ extends RefCounted
 ## Pure geometry (spec 2.2 "core/ has no scene-tree dependence"): turns a
 ## BlockShape's integer cell offsets into a single ArrayMesh with every
 ## interior face removed, so a multi-cube shape reads as one solid piece
-## instead of a visible seam grid (feel report "our
-## blocks are made up of many smaller blocks, is that necessary? the original
-## just has solid shapes"). ArrayMesh is a rendering Resource, not a scene
+## instead of a visible seam grid. ArrayMesh is a rendering Resource, not a scene
 ## node, so building/caching it here has no scene-tree dependency; only the
 ## MeshInstance3D that displays it (game/blocks/BlockFactory.gd) lives in game/.
 
@@ -20,12 +18,8 @@ const _FACE_DIRECTIONS: Array[Vector3i] = [
 ## _append_face() below appends corners in the order
 ## (center - u - v, +u - v, +u + v, -u + v) but indexes its 2 triangles as
 ## (0, 2, 1) and (0, 3, 2) -- clockwise as seen from outside the cube, which
-## is Godot's actual front-face convention (verified empirically against
-## BoxMesh's own winding by tests/unit/blocks/test_block_mesh_builder.gd,
-## a prior version of this comment claimed counter-clockwise
-## was the convention and the triangle indices were wound accordingly, which
-## put every face backwards -- every placed/ghost block rendered inside-out,
-## only hidden on the ghost by its culling-off material) -- for all 6
+## is Godot's actual front-face convention (checked against BoxMesh's own
+## winding by tests/unit/blocks/test_block_mesh_builder.gd) -- for all 6
 ## directions.
 const _FACE_TANGENTS: Dictionary = {
 	Vector3i(1, 0, 0): [Vector3(0.0, 1.0, 0.0), Vector3(0.0, 0.0, 1.0)],
@@ -55,18 +49,14 @@ static var _mesh_cache: Dictionary = {}
 ## like the collision boxes built separately in game/blocks/BlockFactory.gd -- so
 ## neighbouring cells' visuals touch with no gap. DECISION:
 ## the visual is intentionally a hair larger than the collision hull (which
-## keeps its `cube_margin` shrink so blocks don't jam on landing) -- this
-## already was true per-cell before this change (the old per-cell visual
-## mesh matched the collision box exactly, so cube_margin showed as a visible
-## gap between placed blocks; now the whole shape reads as solid and only the
-## invisible collision hull keeps the placement gap).
+## keeps its `cube_margin` shrink so blocks don't jam on landing), so the whole
+## shape reads as solid and only the invisible hull keeps the placement gap.
 ##
 ## Returns null if `shape.sloped_cells` is non-empty or `shape.mesh` is set:
-## no shipped shape does either today (no .tres sets
-## sloped cells or `mesh`), and this
+## no shipped shape does either, and this
 ## builder has no wedge-face case and isn't meant to duplicate a custom mesh
 ## across every cell -- game/blocks/BlockFactory.gd falls back to its own
-## pre-existing per-cell path for such a shape instead (DECISION, see its
+## per-cell path for such a shape instead (DECISION, see its
 ## call site).
 static func build_mesh(shape: BlockShape, cube_size: float, cube_margin: float) -> ArrayMesh:
 	if not shape.sloped_cells.is_empty() or shape.mesh != null:

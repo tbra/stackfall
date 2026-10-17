@@ -4,9 +4,7 @@ extends RefCounted
 ## this placement window, and where. No scene tree, no autoloads (CLAUDE.md).
 ##
 ## SPEC.md 2.6 "Gift spawning [ORIGINAL target]": probability per placement
-## turn/window, not the earlier reconstructed seconds-based interval with
-## jitter. That mapping was retired in favour of the probability form, which is the only
-## form this file implements.
+## turn/window, not a seconds-based interval with jitter.
 
 ## Sentinel returned by pick_spawn_point() when every attempt failed, mirroring
 ## PlacementRules.NO_ORIGIN's convention (an unmistakable, non-finite point
@@ -40,9 +38,8 @@ static func live_cap(config: GiftConfig, player_count: int) -> int:
 
 ## One Bernoulli roll. Pure logic: it has no idea how many players there are
 ## or how often it gets called, so the "for the whole match (not per player)"
-## contract is the *caller's* job -- autoload/match/MatchGifts.gd (M4 P1b
-## review fix) calls this exactly once per placement window by
-## rolling only when the issuing slot is the lowest-indexed one still alive,
+## contract is the *caller's* job -- autoload/match/MatchGifts.gd calls this
+## exactly once per placement window by rolling only when the issuing slot is the lowest-indexed one still alive,
 ## not once per slot's own feed event. Always false once max_live_crates are
 ## already live, regardless of chance, so a caller never has to check
 ## live_crates itself.
