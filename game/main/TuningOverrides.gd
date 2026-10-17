@@ -1,8 +1,8 @@
 class_name TuningOverrides
 extends RefCounted
-## MF4: the boot-time half of ui/debug/TuningPanel.gd, split out so game/main/Main.gd can
+## The boot-time half of ui/debug/TuningPanel.gd, split out so game/main/Main.gd can
 ## apply the saved F4 overrides without compiling the whole panel (and its PlayerController
-## closure) before the menu appears. TuningPanel keeps forwarders for its old names.
+## closure) before the menu appears.
 
 const SAVE_PATH: String = "user://tuning_overrides.cfg"
 

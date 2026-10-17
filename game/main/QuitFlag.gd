@@ -6,7 +6,7 @@ extends RefCounted
 ## so GUT tests that free Main mid-process leave live caches alone.
 ## DECISION: kept apart from ExitRelease so early-loaded scripts (Boot, AgentProbe) do not
 ## pull ExitRelease's whole cache-class closure into the autoload layer.
-## NOTE (review): Main and Boot mark on any WM_CLOSE_REQUEST; a future close-confirm
+## NOTE: Main and Boot mark on any WM_CLOSE_REQUEST; a future close-confirm
 ## dialog must mark only after the quit is confirmed, never on a cancellable request.
 
 static var _quitting: bool = false
