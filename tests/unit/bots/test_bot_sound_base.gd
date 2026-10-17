@@ -299,10 +299,11 @@ func test_the_think_analyses_the_stack_first_and_picks_off_the_pile() -> void:
 	think.cell_probe = _flat_probe
 	assert_eq(think._phase, BotThink.Phase.STACK, "the analysis runs before the plan")
 	var guard: int = 0
-	while not think.is_done() and guard < STEP_GUARD:
+	var done: bool = false
+	while not done and guard < STEP_GUARD:
 		guard += 1
-		think.step(BIG_BUDGET_US, _flat_probe)
-	assert_true(think.is_done())
+		done = think.step(BIG_BUDGET_US, _flat_probe)
+	assert_true(done)
 	assert_true(think.intent().new_base, "the plan saw the analysed pile")
 	var decision: BotThink.Decision = think.decision()
 	assert_eq(decision.kind, BotThink.DecisionKind.PLACE)

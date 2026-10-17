@@ -284,17 +284,8 @@ func _call_probe(ray: Callable, xz: Vector2) -> Dictionary:
 	return hit
 
 
-func is_done() -> bool:
-	return _phase == Phase.DONE
-
-
 func decision() -> Decision:
 	return _decision
-
-
-## The chosen candidate (null for WAIT); lets the controller reuse its recorded fields.
-func best_candidate() -> BotCandidate:
-	return _best
 
 
 ## Every site generated (probed ones carry their probe results).

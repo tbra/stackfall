@@ -172,7 +172,7 @@ func test_a_real_probe_think_never_picks_a_toppling_site_when_a_safe_one_exists(
 	var think: BotThink = BotThink.new(view, _profile(), _rng())
 	think.cell_probe = ray
 	_run(think, ray, BIG_BUDGET_US)
-	assert_true(think.is_done())
+	assert_true(think.step(BIG_BUDGET_US, ray))
 	var safe_exists: bool = false
 	var negative: int = 0
 	for c: BotCandidate in think.candidates():
@@ -182,5 +182,5 @@ func test_a_real_probe_think_never_picks_a_toppling_site_when_a_safe_one_exists(
 			negative += 1
 	gut.p("sites=%d negative=%d top block=%s" % [think.candidates().size(), negative, blocks[3].name])
 	assert_true(safe_exists)
-	if think.best_candidate() != null:
-		assert_gt(think.best_candidate().stability_slack, 0.0, "the pick keeps the tower's centre of mass inside its supports")
+	if think.revalidate() != null:
+		assert_gt(think.revalidate().stability_slack, 0.0, "the pick keeps the tower's centre of mass inside its supports")
