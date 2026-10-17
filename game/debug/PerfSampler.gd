@@ -114,8 +114,8 @@ func record_effect_count(count: int) -> void:
 	_effects_peak = maxi(_effects_peak, count)
 
 
-## BlockEffectsManager has no group or registry (another package owns it), so it
-## is found once by its scene node name and cached; -1 hides the "not found" case.
+## BlockEffectsManager has no group or registry, so it is found once by its
+## scene node name and cached; -1 hides the "not found" case.
 func _effect_child_count() -> int:
 	if _effects_manager == null or not is_instance_valid(_effects_manager):
 		_effects_manager = null

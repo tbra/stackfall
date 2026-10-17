@@ -6,9 +6,9 @@ extends RefCounted
 ## surface 0, territory shader), so the sides are surfaces, not extra nodes. The band and its
 ## bottom cap are generated as one smooth-shaded SurfaceTool mesh (so the seam
 ## normals are unchanged) and then split into two surfaces so the side and the
-## bottom each carry their own material slot (the next package restyles them).
+## bottom each carry their own material slot.
 ##
-## Shape support: the round disc only (removed the other shapes).
+## Shape support: the round disc only.
 ##
 ## DECISION: the side materials use cull_mode CULL_DISABLED rather than hand-verified winding.
 
@@ -18,7 +18,7 @@ enum Kind { TOP, CHAMFER, BAND, BOTTOM, GLOW }
 
 const _CHAMFER_SHADER: Shader = preload("res://shaders/territory/disc_rim.gdshader")
 const _BAND_OVERLAY_SHADER: Shader = preload("res://shaders/territory/disc_band_overlay.gdshader")
-## SHADER_DOME's side/underside shader: the top's own plating (r4).
+## SHADER_DOME's side/underside shader: the top's own plating.
 const _SHELL_SHADER: Shader = preload("res://shaders/territory/arena_side_shell.gdshader")
 
 ## Minimum segments for a degenerate/test MapDef (a triangle is the fewest a
@@ -67,8 +67,8 @@ func materials() -> Dictionary:
 
 
 ## Appends the chamfer/band/bottom surfaces for `map_def` to `target`. `y_shift`
-## is added to every vertex y (the overlay node sits at -disk_height/2, so the
-## old world-space-at-origin coordinates become local with +disk_height/2).
+## is added to every vertex y (the overlay node sits at -disk_height/2, so
+## +disk_height/2 makes the coordinates local).
 ## Returns the number of surfaces appended.
 func append_side_surfaces(
 	target: ArrayMesh,
@@ -222,7 +222,7 @@ func _scaled_points(points: PackedVector2Array, scale: float) -> PackedVector2Ar
 ## tangent data (U around the circumference, V from 0 at the top ring to 1 at
 ## the bottom) so both this mesh's own material (StandardMaterial3D or
 ## disc_rim.gdshader) can sample a shared procedural normal-map texture and
-## drive anisotropic specular from real tangent data .
+## drive anisotropic specular from real tangent data.
 ##
 ## `with_gradient` paints COLOR.r = 0.0 on every top-edge
 ## vertex and 1.0 on every bottom-edge vertex, so shaders/territory/disc_rim.gdshader's
@@ -324,14 +324,11 @@ func _add_bottom_cap(
 		surface_tool.add_vertex(Vector3(b.x, y, b.y))
 
 
-## Procedurally generated (FastNoiseLite-backed, no
-## third-party asset) tangent-space normal map, shared by the band's own
-## StandardMaterial3D and the chamfer's ShaderMaterial so both disc surfaces
-## this package owns carry the same fine-grained "brushed metal" micro-
-## texture -- the owner's "it lacks the texture ... visible where it
-## interacts with the sun" report. Regenerated on every rebuild() (a rare,
-## map-change-driven call, not a per-frame one) rather than cached, keeping
-## this file's own state simple; NoiseTexture2D generation is cheap at
+## Procedurally generated (FastNoiseLite-backed, no third-party asset)
+## tangent-space normal map, shared by the band's own StandardMaterial3D and the
+## chamfer's ShaderMaterial so both disc surfaces carry the same "brushed
+## metal" micro-texture. Regenerated on every rebuild() (a rare, map-change-
+## driven call) rather than cached; NoiseTexture2D generation is cheap at
 ## _NOISE_TEX_SIZE and runs off the render thread.
 func _surface_noise_texture() -> NoiseTexture2D:
 	var noise: FastNoiseLite = FastNoiseLite.new()
@@ -361,8 +358,8 @@ func _band_material() -> StandardMaterial3D:
 	return material
 
 
-## additive banded-wall overlay (inlay line, lower line, cool
-## fresnel sheen) chained after the band's StandardMaterial3D.
+## Additive banded-wall overlay (inlay line, lower line, cool fresnel sheen)
+## chained after the band's StandardMaterial3D.
 func _band_overlay_material() -> ShaderMaterial:
 	var overlay: ShaderMaterial = ShaderMaterial.new()
 	overlay.shader = _BAND_OVERLAY_SHADER
@@ -377,11 +374,11 @@ func _band_overlay_material() -> ShaderMaterial:
 	return overlay
 
 
-## a ShaderMaterial (shaders/territory/disc_rim.gdshader) rather than
-## the band's own plain StandardMaterial3D -- the dashing-at-distance fix
-## needs a vertex shader that reads this mesh's own gradient vertex colors
-## (see _ring_arrays()'s `with_gradient`) to push its bottom edge down by
-## a camera-distance-proportional amount, which a fixed material cannot do.
+## A ShaderMaterial (shaders/territory/disc_rim.gdshader) rather than the
+## band's own plain StandardMaterial3D: dashing at distance needs a vertex
+## shader that reads this mesh's gradient vertex colors (see _ring_arrays()'s
+## `with_gradient`) to push its bottom edge down in proportion to camera
+## distance, which a fixed material cannot do.
 func _chamfer_material() -> ShaderMaterial:
 	var material: ShaderMaterial = ShaderMaterial.new()
 	material.shader = _CHAMFER_SHADER

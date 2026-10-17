@@ -1,11 +1,10 @@
 class_name GiftCrate
 extends Area3D
 ## A gift crate (spec 1.6): a descending pickup that shows which player it
-## belongs to once claimed. Presence-only for M4 P1 -- a block or a thrown
-## special can be seen to strike it, matching the chain-reaction flavor text,
-## even though nothing here currently *reacts* to that contact: body_entered
-## is wired to a documented, harmless no-op a later milestone can fill in
-## (P3/P4/P5's specials do not need to know about crates this milestone).
+## belongs to once claimed. Presence-only: a block or a thrown special can be
+## seen to strike it, matching the chain-reaction flavor text, though nothing
+## here *reacts* to that contact (body_entered is wired to a documented,
+## harmless no-op).
 ##
 ## Built from simple meshes, the same reason game/flags/HomeFlag.gd is. The dark
 ## wrapped body, bright crossed ribbons and hovering beacon keep the pickup
@@ -14,9 +13,8 @@ extends Area3D
 ## lives on this script.
 ##
 ## DECISION (game/gifts/GiftCrate.gd): CRATE_SIZE/UNCLAIMED_COLOR are fixed visual
-## constants, not gameplay tunables -- this package owns no config file
-## (docs/M4_P1b brief); move them into GiftConfig if a later package needs
-## them configurable (flagged under Unresolved in the P1b report).
+## constants, not gameplay tunables; move them into GiftConfig if they ever need
+## to be configurable.
 const CRATE_SIZE: Vector3 = Vector3(0.6, 0.6, 0.6)
 const UNCLAIMED_COLOR: Color = Color(0.11, 0.25, 0.38)
 const LID_COLOR: Color = Color(0.2, 0.38, 0.52)
@@ -41,25 +39,23 @@ var _visual_time: float = 0.0
 var _glow_light: OmniLight3D = null
 var _spawn_halo: MeshInstance3D = null
 var _spawn_halo_material: StandardMaterial3D = null
-## pulse ring shown while the crate lies on the disc (not falling).
+## Pulse ring shown while the crate lies on the disc (not falling).
 var _land_ring: PulseRing = null
 @export var ring_tuning: GiftRingTuning = preload("res://config/gifts/gift_ring_tuning.tres")
 ## GraphicsPreset.gift_idle_glow_enabled: false (Low) keeps only the spawn
 ## flash; the OmniLight3D is hidden once the flash ends.
 var _idle_glow_enabled: bool = true
 
-## "I grabbed a yellow cube but nothing seemed to
-## happen": a successful claim needs visible feedback whether a held block
-## touches the descending crate or territory owns its landing cell, but a
-## successful claim had no visible feedback at all: MatchGifts.
-## _free_crate_visual() queue_free()s this node the instant it is claimed, so
-## by the time Events.gift_claimed reaches any listener the crate is already
-## marked for deferred deletion. A Tween created on a node after queue_free()
-## has already been called is unreliable — Godot kills a node-bound Tween the
-## moment the node is actually freed, which can land mid-animation — so
-## _on_gift_claimed() below reads this node's still-valid position/state and
-## hands the actual "pop" animation off to a brand-new, independently-lived
-## node (spawn_claim_pop()) rather than trying to animate itself.
+## A claim (a held block touching the descending crate, or territory owning its
+## landing cell) needs visible feedback. MatchGifts._free_crate_visual()
+## queue_free()s this node the instant it is claimed, so by the time
+## Events.gift_claimed reaches any listener the crate is already marked for
+## deferred deletion. A Tween created on a node after queue_free() is unreliable:
+## Godot kills a node-bound Tween the moment the node is actually freed, which
+## can land mid-animation. So _on_gift_claimed() below reads this node's
+## still-valid position/state and hands the actual "pop" animation off to a
+## brand-new, independently-lived node (spawn_claim_pop()) rather than trying to
+## animate itself.
 @export var gift_config: GiftConfig = preload("res://config/gifts/gift_config.tres")
 
 ## True once this crate's own claim has been handled (its _on_gift_claimed()
@@ -72,7 +68,7 @@ var _hint_time: float = 0.0
 ## the visual parachute (see game/gifts/GiftParachute.gd) and the
 ## replicated falling state it follows. `_falling` is false for a crate nothing
 ## has told to fall -- a landed crate built by a client's replicated spawn --
-## so such a crate shows no canopy (it used to keep one forever).
+## so such a crate shows no canopy.
 var _parachute: GiftParachute = null
 var _falling: bool = false
 
@@ -108,11 +104,9 @@ func _build() -> void:
 	shape_node.shape = box_shape
 	add_child(shape_node)
 
-	# gift_crate_v1 (config/gifts/gift_model_table.tres) replaces the
-	# box + lid + ribbon placeholder. `Mesh` is the model root; the hint/slot
-	# tint rides on it as a translucent overlay (_material keeps the tint
-	# colour). Collision and CRATE_SIZE are unchanged. Falls back to the plain
-	# box when the table has no crate row.
+	# `Mesh` is the gift_crate_v1 model (config/gifts/gift_model_table.tres); the
+	# hint/slot tint rides on it as a translucent overlay (_material keeps the
+	# tint colour). Falls back to the plain box when the table has no crate row.
 	_material = StandardMaterial3D.new()
 	_material.albedo_color = UNCLAIMED_COLOR
 	_material.roughness = 1.0
@@ -134,7 +128,6 @@ func _build() -> void:
 	_mesh.name = &"Mesh"
 	add_child(_mesh)
 
-	# the small inner PickupRing was removed; the LandRing below is the one ground ring.
 
 	# The spawn halo expands once, then the small light continues to mark a
 	# landed gift against both pale and dark territory without covering blocks.
@@ -145,7 +138,7 @@ func _build() -> void:
 	_glow_light.light_energy = gift_config.spawn_glow_start_energy
 	_glow_light.omni_range = gift_config.glow_light_range_m
 	_glow_light.shadow_enabled = false
-	# the omni light has no shadow, so on the default cull mask it
+	# The omni light has no shadow, so on the default cull mask it
 	# lit every block face it was near, through the blocks a crate falls or lands
 	# among (bright pink faces / washed-out towers). It only marks the ground, so
 	# it is restricted to the territory disc layer; blocks and the crate itself
@@ -258,9 +251,8 @@ func _add_box(parent: Node3D, label: StringName, size: Vector3, offset: Vector3,
 	return mesh_instance
 
 
-## Documented no-op (see class doc): a later milestone may want a thrown
-## special or an ordinary block striking a crate to do something. Nothing in
-## M4 P1 needs it.
+## Documented no-op (see class doc): a thrown special or an ordinary block
+## striking a crate could do something here later.
 func _on_body_entered(_body: Node3D) -> void:
 	pass
 
@@ -275,9 +267,9 @@ func _on_body_entered(_body: Node3D) -> void:
 ## / Events.gift_claimed.emit() pair), so this handler still reads a fully
 ## valid node: queue_free() only defers the actual deletion, it doesn't
 ## invalidate the node the same frame it's called.
-## "b": `slot_id` is now the RESOLVED
-## RECIPIENT -- the one teammate whose home circle is nearest the crate
-## (autoload/match/MatchGifts.gd's _resolve_recipient_slot()), not a team id.
+## `slot_id` is the RESOLVED RECIPIENT: the one teammate whose home circle is
+## nearest the crate (autoload/match/MatchGifts.gd's _resolve_recipient_slot()),
+## not a team id.
 func _on_gift_claimed(claimed_gift_id: int, slot_id: int, _special_id: StringName) -> void:
 	if claimed_gift_id != gift_id or _claimed:
 		return
@@ -304,14 +296,11 @@ func _on_gift_claimed(claimed_gift_id: int, slot_id: int, _special_id: StringNam
 ## seam, and this is three lines, not worth a new coupling between the two
 ## owned files for.
 ##
-## "b": `slot_id` is now the actual resolved
-## recipient's own slot (MatchGifts._resolve_recipient_slot()), so
-## Match.slot(slot_id) is literally that player's own colour -- no team-proxy
-## trick needed anymore (an earlier revision of this comment explained why a
-## team id safely stood in for a teammate's colour; that no longer applies
-## now that the payload is a real slot).
+## `slot_id` is the resolved recipient's own slot
+## (MatchGifts._resolve_recipient_slot()), so Match.slot(slot_id) is that
+## player's own colour.
 func _claim_color(slot_id: int) -> Color:
-	# DECISION: D1 precedence via Match.slot_color (live slot, else the
+	# DECISION: precedence via Match.slot_color (live slot, else the
 	# running config's palette, else the default palette, else white). The old copy read
 	# match_defaults.tres even with a live config; identical unless a match overrides colours.
 	return MatchContext.current().slot_color(slot_id, Color.WHITE)
@@ -332,7 +321,7 @@ static func spawn_claim_pop(parent: Node3D, world_position: Vector3, color: Colo
 	# child 0 is the slot-coloured glow cube (the claimed
 	# gift); when the table has the reveal model, it opens around the cube
 	# (gift_crate_reveal_v1, `open_reveal_1s` sped up to fit the pop), otherwise
-	# the cube is the old full-size crate-sized pop.
+	# the cube is a full-size crate-sized pop.
 	var table: GiftModelTable = GiftModelTable.shared()
 	var reveal: Node3D = table.build_reveal_visual()
 	var mesh_instance: MeshInstance3D = MeshInstance3D.new()
@@ -412,7 +401,6 @@ func _local_watch_slot() -> int:
 	return -1
 
 
-## (A1 review fix, same bug class as _on_gift_claimed()):
 ## TerritoryRaster.team_at() returns a TEAM id (territory is per-team), so a
 ## local slot has to be resolved to its own team before the comparison --
 ## under TeamMode.OFF, MatchConfig.team_of_slot() is the identity, so this is

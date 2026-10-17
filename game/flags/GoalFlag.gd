@@ -1,17 +1,17 @@
 class_name GoalFlag
 extends HomeFlag
-## A goal flag (spec 1.5, 1.5): one in the center by default, 1-5 in setup,
+## A goal flag (spec 1.5): one in the center by default, 1-5 in setup,
 ## extras placed symmetrically at 0.4 * field_radius.
 ##
 ## Extends HomeFlag because a goal flag is the same beacon (socket, ring and
-## crystal, M7 P8) at a larger scale in a neutral color; what it adds is spec
+## crystal) at a larger scale in a neutral color; what it adds is spec
 ## 2.3's capture display, "a radial progress ring appears on each goal flag
 ## while someone is capturing it". That capture ring is a second, separate
 ## flat annulus arc lying on the disk (distinct from the beacon's own always-
 ## on Ring mesh above it), rebuilt only when the progress it shows actually
 ## moves.
 ##
-## the beacon also shows who has *claimed* the goal
+## The beacon also shows who has *claimed* the goal
 ## (set_control(), fed by Field from GoalControl.owners()): the ring and
 ## crystal take the controller's colour with boosted emission, a tall banded
 ## light beam rises from it, a flash and spark burst play when the claim
@@ -19,7 +19,7 @@ extends HomeFlag
 ## a striped beam. The shared-hold capture ring below is unchanged and reads
 ## on top of this.
 ##
-## / : set_claim_ring() draws one flat translucent cel-shaded zone
+## set_claim_ring() draws one flat translucent cel-shaded zone
 ## (shaders/territory/goal_claim_zone.gdshader: stepped fill, inward rings, dashed rim) on the ground.
 ## Field always passes Match.goal_zone_visual_radius(): the claim radius while the bigger-claim-radius
 ## experiment is on, else the goal no-build zone radius, so players always see the claimed area.
@@ -58,7 +58,7 @@ var _beam: MeshInstance3D = null
 var _beam_material: ShaderMaterial = null
 var _burst: CPUParticles3D = null
 
-##/189: camera-facing timer above the crystal, plus the CTF "xN" chip.
+## Camera-facing timer above the crystal, plus the CTF "xN" chip.
 var _timer_label: Label3D = null
 var _multiplier_label: Label3D = null
 ## True in Capture the Flag (count-up hold clock), false in Classic (capture countdown).
@@ -77,12 +77,10 @@ var _claim_zone_material: ShaderMaterial = null
 
 
 func _ready() -> void:
-	# DECISION (game/flags/GoalFlag.gd): the goal beacon's neutral
-	# color and scale now come from BeaconVisualTuning (neutral_color,
-	# goal_scale_factor) instead of TerritoryVisuals (goal_flag_color,
-	# goal_flag_scale), which this file was the only reader of for those two
-	# purposes -- TerritoryVisuals.goal_flag_color keeps its own, unrelated
-	# fallback uses in Field.gd/TerritoryOverlay.gd untouched.
+	# DECISION (game/flags/GoalFlag.gd): the goal beacon's neutral color and scale
+	# come from BeaconVisualTuning (neutral_color, goal_scale_factor), not
+	# TerritoryVisuals, whose goal_flag_color keeps its own unrelated fallback
+	# uses in Field.gd/TerritoryOverlay.gd.
 	_color = beacon_visuals.neutral_color
 	super()
 	_build_ring()
@@ -92,7 +90,7 @@ func _ready() -> void:
 	_refresh_control_visuals()
 
 
-## also rebuilds the claim beam and burst, which bake
+## Also rebuilds the claim beam and burst, which bake
 ## BeaconVisualTuning at construction like the base beacon does.
 func rebuild_beacon() -> void:
 	super()
@@ -313,7 +311,7 @@ func _build_arc(progress: float) -> ArrayMesh:
 	return build_annulus_mesh(outer, inner, sweep, used)
 
 
-## shows (radius > 0) or removes (radius <= 0 or non-finite) the
+## Shows (radius > 0) or removes (radius <= 0 or non-finite) the
 ## ground ring marking the goal claim area. Field passes Match.goal_zone_visual_radius()
 ## (the capture radius with the experiment on, else goal_zone_radius) once when the flags are placed. Builds one
 ## MeshInstance3D + one mesh + one material on first use, rebuilds the mesh only if
@@ -393,7 +391,7 @@ func _apply_claim_zone_color() -> void:
 		_claim_zone_material.set_shader_parameter(&"zone_color", _claim_zone_color())
 
 
-# --- Timer label (/ ) ---------------------------------
+# --- Timer label ---------------------------------
 
 func _build_timer_labels() -> void:
 	var tuning: BeaconVisualTuning = beacon_visuals
@@ -462,7 +460,7 @@ func _tick_timer(delta: float) -> void:
 	_refresh_timer_text()
 
 
-## the timer text wears the controlling player's colour while a
+## The timer text wears the controlling player's colour while a
 ## team holds the beacon (_control_color, which clients also receive through
 ## set_control()); with nobody in control it falls back to timer_text_color.
 ## Classic capture-in-progress (no controller yet) uses the claimant's colour from
