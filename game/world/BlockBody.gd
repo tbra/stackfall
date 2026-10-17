@@ -11,9 +11,9 @@ extends RigidBody3D
 ## Which BlockShape this block was built from (BlockFactory sets it).
 @export var shape_id: StringName = &""
 
-## M2 (spec 1.5 "height credit", 3.4): which PlayerSlot placed this block,
+## Spec 1.5 "height credit" and 3.4: which PlayerSlot placed this block,
 ## permanently -- territory influence and multiplayer attribution both key off
-## this. -1 means no slot, e.g. placements made before slots existed.
+## this. -1 means no slot.
 @export var owner_slot: int = -1
 
 ## the gift this body delivers (set by BlockFactory.
@@ -21,7 +21,7 @@ extends RigidBody3D
 ## &"" for an ordinary block. Presentation only; the effect is SpecialBehavior.
 var gift_id: StringName = &""
 
-## M3's network id, assigned by game/blocks/BlockRegistry.gd when the block is
+## Network id, assigned by game/blocks/BlockRegistry.gd when the block is
 ## registered. -1 until then.
 @export var net_id: int = -1
 
@@ -33,7 +33,7 @@ static var impact_speed_min: float = 1.0
 static var impacts_enabled: bool = true
 
 
-# --- Virtual stubs (D8): overridden by Block with identical signatures --------
+# --- Virtual stubs: overridden by Block with identical signatures --------
 
 func set_contributing_visual(_contributing: bool) -> void:
 	pass

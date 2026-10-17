@@ -7,9 +7,9 @@ extends RefCounted
 ## forwards each method 1:1 to the real autoloads and is installed by Match._ready(). Tests install
 ## a FakeMatchContext and restore the previous one.
 ##
-## DECISION (D3): has_authority() mirrors Match._is_host() (honours the injected net provider, Match._net_provider) while
+## DECISION: has_authority() mirrors Match._is_host() (honours the injected net provider, Match._net_provider) while
 ## net_*() mirror the real Net autoload (they ignore that provider), exactly as each call site
-## behaved before. Never merge the two.
+## behaved. Never merge the two.
 
 static var _installed: MatchContext = null
 static var _null_context: MatchContext = null
@@ -34,7 +34,7 @@ static func install(context: MatchContext) -> void:
 	_installed = context
 
 
-# --- session (D3) -------------------------------------------------------------
+# --- session -------------------------------------------------------------
 
 func has_authority() -> bool:
 	return true
@@ -94,7 +94,7 @@ func field() -> FieldBody:
 	return null
 
 
-## A BlockRegistry (kept as Node so this port stays out of the heavy world closure, D5/D8).
+## A BlockRegistry (kept as Node so this port stays out of the heavy world closure).
 func registry() -> Node:
 	return null
 

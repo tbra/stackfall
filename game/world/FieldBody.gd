@@ -12,7 +12,7 @@ func map_definition() -> MapDef:
 
 
 ## World Y of the disk's top surface. 0.0 while the disk is flat and centered;
-## from M4 the tilt makes this only an approximation and callers that care use
+## the tilt makes this only an approximation and callers that care use
 ## world_from_disk_local() instead.
 func surface_y() -> float:
 	return global_transform.origin.y
@@ -20,7 +20,7 @@ func surface_y() -> float:
 
 ## World point -> disk-local (x, z), the convention CellGrid documents. This
 ## and world_from_disk_local() are the only two functions that change when the
-## disk starts tilting in M4.
+## disk tilts.
 func disk_local_from_world(world: Vector3) -> Vector2:
 	var local: Vector3 = to_local(world)
 	return Vector2(local.x, local.z)
